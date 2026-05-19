@@ -1,0 +1,225 @@
+# Aitana Platform v6 -- Cloud Build configuration
+# Branch-based deployment: main -> dev, test -> test, prod -> production
+# Multi-container Cloud Run: frontend (main) + backend (sidecar)
+#
+# Substitutions are managed by Terraform (see infrastructure repo)
+
+substitutions:
+  _SERVICE_NAME: aitana-v6-frontend
+  _REGION: terraform_managed
+  _BUILD_FOLDER: .
+  _ARTIFACT_REGISTRY_REPO_URL_CLIENT: terraform_managed
+  _PROJECT_ID: terraform_managed
+  _FIREBASE_BUCKET: '${_PROJECT_ID}.firebasestorage.app'
+  _CONFIG_BUCKET: terraform_managed
+  # Firebase helper image is built by v5's trigger-dev-firebase and tagged per-env
+  # (dev/test/prod), not per-branch. v6 main -> dev; test/prod triggers override.
+  _FIREBASE_TAG: dev
+  # Admin seed allowlist — SA emails permitted to call
+  # /api/admin/seed-platform-skills. Terraform-managed per env.
+  _ADMIN_SEED_ALLOWED_SAS: terraform_managed
+  # Sprint 1.7 M4: separate-origin sandbox proxy URL for MCP App
+  # iframes. Baked into the Next.js bundle at build time
+  # (NEXT_PUBLIC_*). Defaults to the dev sandbox URL so this trigger
+  # ships sensibly even without a terraform substitution; test/prod
+  # override per env.
+  _MCP_SANDBOX_URL: 'https://mcp-sandbox-66pa3y5xnq-ew.a.run.app/sandbox.html'
+
+tags: ['${_PROJECT_ID}', '${_SERVICE_NAME}']
+
+options:
+  logging: GCS_ONLY
+logsBucket: gs://multivac-deploy-aitana-logging-bucket
+
+steps:
+  # --- Firebase rules ---
+  - name: '${_ARTIFACT_REGISTRY_REPO_URL_CLIENT}/sunholo-llmops/firebase:${_FIREBASE_TAG}'
+    waitFor: ['-']
+    id: 'deploy-firebase-rules'
+    entrypoint: bash
+    args:
+      - '-c'
+      - |
+        firebase &&
+        firebase -P ${_PROJECT_ID} --json deploy --only firestore:rules,firestore:indexes --force
+
+  # --- Get Firebase config from Secret Manager ---
+  - name: 'gcr.io/cloud-builders/gcloud'
+    id: 'get-firebase-config'
+    waitFor: ['-']
+    entrypoint: 'bash'
+    args:
+      - './get-firebase-config.sh'
+    env:
+      - '_PROJECT_ID=$_PROJECT_ID'
+
+  # --- Build frontend ---
+  - name: 'gcr.io/cloud-builders/docker'
+    id: build-frontend
+    waitFor: ['get-firebase-config']
+    entrypoint: 'bash'
+    args:
+      - '-c'
+      - |
+        ARGS=$$(cat /workspace/docker_args)
+        docker build $$ARGS \
+          --build-arg NEXT_PUBLIC_MCP_SANDBOX_URL=${_MCP_SANDBOX_URL} \
+          -t ${_ARTIFACT_REGISTRY_REPO_URL_CLIENT}/${_SERVICE_NAME}/ui:${BRANCH_NAME} \
+          -f frontend/Dockerfile \
+          frontend/
+
+  # --- Build backend ---
+  - name: 'gcr.io/cloud-builders/docker'
+    id: build-backend
+    waitFor: ['-']
+    dir: ${_BUILD_FOLDER}/backend
+    args:
+      - 'build'
+      - '--build-arg'
+      - 'FIREBASE_BUCKET=${_FIREBASE_BUCKET}'
+      - '--build-arg'
+      - 'GOOGLE_CLOUD_PROJECT=${_PROJECT_ID}'
+      - '--build-arg'
+      - 'GOOGLE_CLOUD_LOCATION=${_REGION}'
+      - '-t'
+      - '${_ARTIFACT_REGISTRY_REPO_URL_CLIENT}/${_SERVICE_NAME}/backend:${BRANCH_NAME}'
+      - '.'
+
+  # --- Push images ---
+  - name: 'gcr.io/cloud-builders/docker'
+    id: push-frontend
+    waitFor: ['build-frontend']
+    args: ['push', '${_ARTIFACT_REGISTRY_REPO_URL_CLIENT}/${_SERVICE_NAME}/ui:${BRANCH_NAME}']
+
+  - name: 'gcr.io/cloud-builders/docker'
+    id: push-backend
+    waitFor: ['build-backend']
+    args: ['push', '${_ARTIFACT_REGISTRY_REPO_URL_CLIENT}/${_SERVICE_NAME}/backend:${BRANCH_NAME}']
+
+  # --- Deploy to Cloud Run (multi-container) ---
+  - name: 'gcr.io/google.com/cloudsdktool/cloud-sdk'
+    entrypoint: gcloud
+    waitFor: ['push-frontend', 'push-backend']
+    args:
+      - 'run'
+      - 'deploy'
+      - '${_SERVICE_NAME}'
+      - '--region=${_REGION}'
+      - '--project=${_PROJECT_ID}'
+      - '--platform=managed'
+      - '--allow-unauthenticated'
+      - '--max-instances=3'
+      - '--session-affinity'
+      - '--add-volume'
+      - 'name=gcs_config,type=cloud-storage,bucket=${_CONFIG_BUCKET},readonly=true'
+      # Frontend (main container)
+      - '--container=main'
+      - '--image=${_ARTIFACT_REGISTRY_REPO_URL_CLIENT}/${_SERVICE_NAME}/ui:${BRANCH_NAME}'
+      - '--port=8080'
+      - '--memory=2Gi'
+      - '--cpu=1'
+      # Frontend -> sidecar over shared network namespace. Sidecar listens on
+      # 1956 (pinned in backend/Dockerfile). DO NOT use 8080 here — that is the
+      # frontend's own ingress port.
+      # Use 127.0.0.1 (not localhost) — v5 pattern. Node's DNS can resolve
+      # "localhost" to ::1 (IPv6) while uvicorn binds 0.0.0.0 (IPv4), producing
+      # silent fetch-failed errors. 127.0.0.1 skips DNS entirely.
+      - '--set-env-vars=BACKEND_URL=http://127.0.0.1:1956'
+      # Backend (sidecar container)
+      - '--container=sidecar'
+      - '--image=${_ARTIFACT_REGISTRY_REPO_URL_CLIENT}/${_SERVICE_NAME}/backend:${BRANCH_NAME}'
+      - '--add-volume-mount'
+      - 'volume=gcs_config,mount-path=/gcs_config'
+      - '--memory=4Gi'
+      - '--cpu=2'
+      # Without an explicit startup probe, Cloud Run marks the sidecar healthy
+      # instantly and frontend requests can hit the proxy before uvicorn has
+      # finished its (heavy, ADK-laden) import. TCP probe on 1956 forces
+      # Cloud Run to actually wait for the listener AND drives CPU to the
+      # sidecar during startup (request-based billing otherwise throttles it).
+      - '--startup-probe=tcpSocket.port=1956,periodSeconds=5,failureThreshold=24,timeoutSeconds=5'
+      # Secrets
+      - '--set-secrets=ANTHROPIC_API_KEY=ANTHROPIC_API_KEY:latest'
+      - '--set-secrets=TELEGRAM_BOT_TOKEN=TELEGRAM_BOT_TOKEN:latest'
+      - '--set-secrets=TWILIO_ACCOUNT_SID=TWILIO_ACCOUNT_SID:latest'
+      - '--set-secrets=TWILIO_AUTH_TOKEN=TWILIO_AUTH_TOKEN:latest'
+      - '--set-secrets=MAILGUN_API_KEY=MAILGUN_API_KEY:latest'
+      - '--set-secrets=MAILGUN_WEBHOOK_SECRET=MAILGUN_WEBHOOK_SECRET:latest'
+      # Env vars
+      - '--set-env-vars=TWILIO_WHATSAPP_NUMBER=whatsapp:+14155238886'
+      - '--set-env-vars=GOOGLE_CLOUD_PROJECT=${_PROJECT_ID}'
+      - '--set-env-vars=GOOGLE_CLOUD_LOCATION=${_REGION}'
+      - '--set-env-vars=GOOGLE_GENAI_USE_VERTEXAI=True'
+      # v6 ADK service backends (AGENT_ENGINE_ID set per-env via Terraform)
+      - '--set-secrets=AGENT_ENGINE_ID=AGENT_ENGINE_ID:latest'
+      - '--set-env-vars=ADK_ARTIFACT_BUCKET=${_PROJECT_ID}-artifacts'
+      - '--set-env-vars=LOGS_BUCKET_NAME=${_PROJECT_ID}-aitana-v6-logs'
+      # v6 observability
+      - '--set-env-vars=GOOGLE_CLOUD_AGENT_ENGINE_ENABLE_TELEMETRY=true'
+      - '--set-env-vars=OTEL_INSTRUMENTATION_GENAI_CAPTURE_MESSAGE_CONTENT=true'
+      # Admin seed allowlist (Cloud Build SA must be in this list).
+      - '--set-env-vars=ADMIN_SEED_ALLOWED_SAS=${_ADMIN_SEED_ALLOWED_SAS}'
+
+  # --- Post-deploy smoke: fail the build if any critical endpoint is not 200 ---
+  # Per CLAUDE.md: no feature lands with manual-only verification. This step
+  # protects against sidecar-silently-not-running bugs like FE-BRINGUP-1
+  # (see docs/ops/deployed-urls.md for background).
+  - name: 'gcr.io/google.com/cloudsdktool/cloud-sdk'
+    id: smoke-deployed
+    entrypoint: bash
+    args:
+      - '-c'
+      - |
+        set -e
+        URL=$(gcloud run services describe ${_SERVICE_NAME} \
+          --project=${_PROJECT_ID} --region=${_REGION} \
+          --format='value(status.url)')
+        echo "Smoking $${URL}"
+        fail=0
+        # Public endpoints — expect 200
+        for path in "/" "/api/health" "/api/proxy/health" "/api/proxy/api/skills/marketplace"; do
+          code=$(curl -sS -o /tmp/body -w '%{http_code}' --max-time 20 "$${URL}$${path}") || code=000
+          body=$(head -c 200 /tmp/body)
+          if [ "$${code}" = "200" ]; then
+            echo "OK   $${path} -> 200"
+          else
+            echo "FAIL $${path} -> $${code} body=$${body}"
+            fail=1
+          fi
+        done
+        # Auth-protected — expect 401 without token (not Next 404 — FE-BRINGUP-1 guard)
+        for path in "/api/proxy/api/skills" "/api/proxy/api/auth/whoami"; do
+          code=$(curl -sS -o /tmp/body -w '%{http_code}' --max-time 20 "$${URL}$${path}") || code=000
+          body=$(head -c 200 /tmp/body)
+          if [ "$${code}" = "401" ]; then
+            echo "OK   $${path} -> 401 (auth required)"
+          else
+            echo "FAIL $${path} -> $${code} (expected 401) body=$${body}"
+            fail=1
+          fi
+        done
+        exit $${fail}
+
+  # --- Non-fatal platform-skill seed (via sidecar proxy). Idempotent.
+  # Hits the frontend's /api/proxy/api/admin/seed-platform-skills which
+  # forwards Authorization untouched to the backend sidecar. Never fails
+  # the build — a seed hiccup is not worth blocking a good deploy.
+  # Docs: docs/ops/platform-skills.md
+  - name: 'gcr.io/google.com/cloudsdktool/cloud-sdk'
+    id: seed-platform-skills
+    waitFor: ['smoke-deployed']
+    entrypoint: bash
+    args:
+      - '-c'
+      - |
+        set +e
+        URL=$(gcloud run services describe ${_SERVICE_NAME} \
+          --project=${_PROJECT_ID} --region=${_REGION} \
+          --format='value(status.url)')
+        TOKEN=$(gcloud auth print-identity-token --audiences="$${URL}")
+        code=$(curl -sS -o /tmp/seed -w '%{http_code}' --max-time 60 \
+          -X POST -H "Authorization: Bearer $${TOKEN}" \
+          "$${URL}/api/proxy/api/admin/seed-platform-skills") || code=000
+        body=$(head -c 300 /tmp/seed)
+        echo "seed-platform-skills -> $${code} body=$${body}"
+        exit 0
