@@ -1,6 +1,7 @@
-# Aitana Platform v6 -- Cloud Build configuration
-# Branch-based deployment: main -> dev, test -> test, prod -> production
-# Multi-container Cloud Run: frontend (main) + backend (sidecar)
+# AIPLA -- Cloud Build configuration (forked from AI Protocol Platform v6)
+# Branch-based deployment: dev -> aipla-dev-2026, test -> aipla-test-2026, prod -> aipla-prod-2026
+# Multi-container Cloud Run: frontend (main container) + backend (sidecar)
+# (Note: "main container" below refers to the multi-container Cloud Run primary, not a branch.)
 #
 # Substitutions are managed by Terraform (see infrastructure repo)
 
@@ -13,7 +14,7 @@ substitutions:
   _FIREBASE_BUCKET: '${_PROJECT_ID}.firebasestorage.app'
   _CONFIG_BUCKET: terraform_managed
   # Firebase helper image is built by v5's trigger-dev-firebase and tagged per-env
-  # (dev/test/prod), not per-branch. v6 main -> dev; test/prod triggers override.
+  # (dev/test/prod), not per-branch. AIPLA dev branch -> dev env; test/prod triggers override.
   _FIREBASE_TAG: dev
   # Admin seed allowlist — SA emails permitted to call
   # /api/admin/seed-platform-skills. Terraform-managed per env.

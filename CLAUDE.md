@@ -1,6 +1,101 @@
-# CLAUDE.md — Aitana Platform v6
+# CLAUDE.md — AIPLA execution repo (forked from AI Protocol Platform v6)
 
-## Overview
+> ⚠️ **This repo is AIPLA, not Aitana.** The bulk of this file is inherited
+> from the upstream template (`sunholo-data/ai-protocol-platform`) and still
+> describes itself as "Aitana Platform v6". The **architecture, commands,
+> dev workflow, code style, ADK patterns, testing, and ports below are all
+> still correct** for AIPLA — they describe the template AIPLA runs on.
+>
+> **What is *not* correct below for AIPLA:** project IDs, Cloud Run service
+> names, GitHub org/repo, deployed-URL pointers, git push account, and any
+> Aitana-specific skills referenced. Use the **AIPLA Fork Context** section
+> directly below as the authoritative override.
+
+## AIPLA Fork Context
+
+This repo is **`sunholo-data/cphu-aipla-app`** — the execution fork for AIPLA
+(AI in Physics Learning and Assessment), a 4-month technical-infrastructure
+contract for the University of Copenhagen Center for Digital Education,
+inside a 3-year research programme.
+
+- **Forked from upstream template:** 2026-05-19 (initial commit `160c9fe`).
+- **Contract window:** 2026-05-15 → 2026-09-15 (~17 weeks).
+- **First hard gate:** **Jutland v0.1 demo on Wed 2026-05-27.** Minimum chat
+  URL + one physics-tutor skill + anonymous group-ID join.
+- **Mid-point review:** Fri 2026-06-26 (week 6), *before* the M+JB holiday
+  freeze week 27 (2026-06-29 → 07-05).
+- **Teacher pilot starts:** 2026-08-14.
+- **Final handover:** 2026-09-15.
+
+### Source of truth for AIPLA design
+
+**The major scoping location is a separate Quarto site at
+`/Users/mark/Documents/clients/cph-uni`** (public preview at
+<https://www.sunholo.com/aipla/>, internal-team-only URL).
+
+All AIPLA design lives there — read it, don't re-derive it here:
+
+| File | What it contains |
+|---|---|
+| `index.qmd` / `about.qmd` | Project context, ADDIE method, research questions |
+| `strands.qmd` | The three strands (A bots, B sims/games, C scoping), full skill catalogue with v0.1 / v1 / Year-2 scope markers |
+| `timeline.qmd` | 17-week plan, handover fan-out, ownership map |
+| `architecture.qmd` | **ADRs 001–015** for Strand A — read for any architectural question |
+| `evaluation.qmd` | Capability-floor framework — task taxonomy, model panel, KPIs |
+| `self-hosting.qmd` | UCPH on-prem migration table |
+
+The scoping site has private dirs (`briefs/`, `notes/`, `admin/`,
+`sources/aipla-proposal/`) that are gitignored and never published. Don't
+copy from them into this repo. People are referred to by **initials**
+(M, JB, AR, DS, ZL, P2, K) in the scoping site for light anonymisation —
+keep that convention in commits and PR descriptions here too.
+
+**This repo is execution.** Don't write new AIPLA design docs in this
+repo's `docs/`; that directory still holds the template's own design
+material. AIPLA-specific ADRs and progress live in the scoping site.
+
+### How AIPLA diverges from the template's defaults
+
+| | Template ("Aitana Platform v6") | **AIPLA** |
+|---|---|---|
+| GCP project IDs | `aitana-multivac-{dev,test,production}` | `aipla-{dev,test,prod}-2026` |
+| Cloud Run services | `aitana-v6-{backend,frontend}` | AIPLA-prefixed (TBD as deploy lands) |
+| GitHub repo | `Aitana-Labs/platform` | **`sunholo-data/cphu-aipla-app`** |
+| Region | EU (multi) | **`europe-north1` (Finland)** — see ADR-007 |
+| Git push account | `sunholo-voight-kampff` → Aitana-Labs org | `sunholo-voight-kampff` → `sunholo-data` org |
+| Default branch | `dev` (template's `main` deploys to dev env) | **`dev`** is the default and working branch. `test` and `prod` exist for promotion. `main` does not exist (renamed to `dev` on 2026-05-19). |
+| Skills | Aitana skill set | Physics-specific (v1: `problem-set-helper-config`, `concept-dialogue-config`, `manage-class`, student problem-set hints, student conceptual exploration) — see `strands.qmd` |
+| Auth | Firebase Auth (student + teacher) | **Anonymous group IDs for students** (ADR-001), UCPH SSO for teachers |
+| Document parsing | Generic | **AILANG Parse** (ADR-004) — 13 deterministic formats, 2 AI |
+| Model providers | Gemini / Claude / OpenAI | 4 tiers (ADR-003): cloud API · self-hosted GPU cluster (DeepSeek) · server-local (Qwen / Gemma) · on-device (Apple Intelligence / Gemini Nano) |
+
+### Skills referencing Aitana
+
+The `.claude/skills/` directory still contains Aitana-named skills
+(`aitana-frontend-verify`, `aitana-adk-testing`, `aitana-v6-deploy`).
+They may reference Aitana service URLs, project IDs, or CLI auth flows.
+**Check what they actually run before invoking** — most logic is reusable,
+but URLs and IDs need AIPLA equivalents. The generic skills
+(`adk-cheatsheet`, `adk-dev-guide`, `adk-eval-guide`, `adk-deploy-guide`,
+`adk-scaffold`, `design-doc-creator`, `sprint-planner` / `sprint-executor` /
+`sprint-evaluator`) work as-is.
+
+### Upstream tracking
+
+The template is M's own work and has its own roadmap. Pull from upstream
+periodically; AIPLA-specific divergence accumulates in this repo's config,
+skills, and deployment files. Pin a known-good upstream SHA in
+`.template-fork-target` once a release-worthy state is reached (per
+ADR-002 "update cadence" consequence).
+
+---
+
+> The rest of this file is **inherited from the template** and describes
+> the v6 architecture, commands, dev workflow, code style, ADK patterns,
+> testing, and project structure. All still applies to AIPLA — read the
+> overrides above when project IDs / service names / repo URLs differ.
+
+## Overview (template — applies to AIPLA)
 
 Aitana Platform v6 is a greenfield rebuild of the Aitana AI assistant platform. Skills replace assistants as the user-facing abstraction. Google ADK replaces Sunholo for agent orchestration.
 
