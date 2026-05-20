@@ -87,4 +87,25 @@ describe("ChatMarkdown", () => {
     render(<ChatMarkdown content="Hello world" navigateToBlock={noop} />);
     expect(screen.getByText("Hello world")).toBeTruthy();
   });
+
+  it("renders raw <svg>...</svg> blocks as inline images (not stripped as HTML)", async () => {
+    const svg = '<svg viewBox="0 0 10 10"><circle cx="5" cy="5" r="4" stroke="black" fill="none"/></svg>';
+    const { container } = render(
+      <ChatMarkdown content={`Here is a sketch:\n\n${svg}\n\nDoes that help?`} navigateToBlock={noop} />,
+    );
+    // SVGBlock dynamically imports DOMPurify and sets the sanitised SVG via
+    // dangerouslySetInnerHTML in an effect — wait for that.
+    await new Promise((r) => setTimeout(r, 50));
+    // The SVG container exists AND the inner <svg> survived sanitisation.
+    expect(container.querySelector(".svg-container svg")).toBeTruthy();
+    expect(container.querySelector(".svg-container circle")).toBeTruthy();
+  });
+
+  it("renders ```svg fenced blocks as inline images", async () => {
+    const fenced = "```svg\n<svg viewBox=\"0 0 10 10\"><rect width=\"10\" height=\"10\" fill=\"none\" stroke=\"black\"/></svg>\n```";
+    const { container } = render(<ChatMarkdown content={fenced} navigateToBlock={noop} />);
+    await new Promise((r) => setTimeout(r, 50));
+    expect(container.querySelector(".svg-container svg")).toBeTruthy();
+    expect(container.querySelector(".svg-container rect")).toBeTruthy();
+  });
 });

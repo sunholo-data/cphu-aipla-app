@@ -188,6 +188,67 @@ When they ask for help on a specific part:
    and vertical motion as coupled, gently surface the independence
    property without telling them the answer outright.
 
+## Use SVG sketches to illustrate when it helps
+
+The chat renderer turns ` ```svg ` fenced blocks into inline images
+(DOMPurify-sanitised, no external resources). Use SVG when a diagram
+makes the concept tangible — physics problems are *spatial*, and a
+30-line SVG sketch is often more pedagogically useful than the same
+amount of prose.
+
+**When to reach for SVG** (in this skill):
+
+- The student asks for a **free-body diagram** or a **force diagram**.
+- The student is stuck on **vector decomposition** (showing v₀ split
+  into v₀ₓ and v₀ᵧ as the two legs of a right triangle).
+- The student needs to **see the trajectory shape** (an unlabelled
+  parabola with the launch point and the symmetric peak indicated —
+  but NEVER with numerical answers labelled).
+- Sub-part **d) "Tegn en skitse over banen"** specifically asks for
+  a sketch — guide the student toward sketching themselves first, but
+  it's fine to provide a *reference* sketch as a final check.
+
+**How to emit SVG (the renderer rules)**:
+
+Wrap the SVG in a triple-backtick fence with the language `svg`. Keep
+viewBox modest (e.g. `0 0 300 200`), use stroke="currentColor" so it
+inherits the chat text colour, and label axes / vectors directly with
+`<text>` elements. NO external `<image>` or `<use href>` — the
+sanitiser will strip them. NO `<script>`. NO inline event handlers.
+
+Example shape (vector decomposition — adapt for the actual request):
+
+````
+```svg
+<svg viewBox="0 0 240 160" stroke="currentColor" fill="none" stroke-width="1.5">
+  <!-- ground line -->
+  <line x1="20" y1="140" x2="220" y2="140" stroke="currentColor"/>
+  <!-- v0 vector (resultant) -->
+  <line x1="40" y1="140" x2="160" y2="60" stroke="#1e40af" stroke-width="2"/>
+  <polygon points="160,60 152,68 158,52" fill="#1e40af"/>
+  <text x="100" y="95" fill="#1e40af" font-size="11">v₀</text>
+  <!-- horizontal component -->
+  <line x1="40" y1="140" x2="160" y2="140" stroke="#16a34a" stroke-dasharray="3,3"/>
+  <text x="90" y="155" fill="#16a34a" font-size="11">v₀ₓ = v₀·cos(θ)</text>
+  <!-- vertical component -->
+  <line x1="160" y1="140" x2="160" y2="60" stroke="#dc2626" stroke-dasharray="3,3"/>
+  <text x="165" y="100" fill="#dc2626" font-size="11">v₀ᵧ = v₀·sin(θ)</text>
+  <!-- angle marker -->
+  <path d="M 60 140 A 20 20 0 0 0 56 128" stroke="currentColor"/>
+  <text x="62" y="135" font-size="10">θ</text>
+</svg>
+```
+````
+
+**SVG anti-patterns**:
+
+- Don't put numerical answers IN the SVG (e.g. don't label "y_max =
+  4,74 m" — that defeats the Vis-toggle pedagogy in the workspace sim).
+- Don't go overboard. A sketch should be ~10-40 lines of SVG. If it's
+  more, you're probably doing the work *for* the student.
+- Don't sketch on a greeting. Same rule as decomposition: sketch on
+  request, not unprompted.
+
 ## Scaffold rubric (internal — every response should hit ≥ 3 of these)
 
 Your response is "well-scaffolded" if it contains at least 3 of:

@@ -33,16 +33,36 @@ interface ChatMarkdownProps {
 const SVG_SENTINEL_PREFIX = "AITANASVGBLOCK";
 const SVG_SENTINEL_SUFFIX = "END";
 const SVG_FENCE_RE = /```svg\r?\n([\s\S]*?)```/g;
+// Catch raw <svg>...</svg> blocks emitted without a fence. Agents OFTEN do
+// this when asked for a diagram — they reach for raw HTML rather than the
+// fenced-code convention. Without this catch the html() component below
+// strips them (XSS-safety) and the student sees nothing. Pattern is
+// non-greedy so multiple SVGs in one message each become their own block.
+// We require <svg> to be at line-start-after-whitespace so we don't match
+// inline mentions in prose ("the <svg> tag in HTML…").
+const SVG_RAW_RE = /(^|\n)\s*(<svg[\s\S]*?<\/svg>)\s*(?=\n|$)/gi;
 
 export function ChatMarkdown({ content, navigateToBlock }: ChatMarkdownProps) {
-  // Extract ```svg blocks before react-markdown processes them.
-  // Returns a cleaned content string plus a map of index → raw SVG string.
+  // Extract ```svg fenced blocks AND raw <svg>...</svg> blocks before
+  // react-markdown processes them. Returns a cleaned content string plus
+  // a map of index → raw SVG string. Both forms feed the same SVGBlock
+  // (DOMPurify sanitised) renderer downstream.
   const { processedContent, svgBlocks } = useMemo(() => {
     const blocks = new Map<number, string>();
     let idx = 0;
-    const processed = content.replace(SVG_FENCE_RE, (_match, svgCode: string) => {
+    // 1. ```svg fenced blocks
+    let processed = content.replace(SVG_FENCE_RE, (_match, svgCode: string) => {
       blocks.set(idx, svgCode.trim());
       return `${SVG_SENTINEL_PREFIX}${idx++}${SVG_SENTINEL_SUFFIX}`;
+    });
+    // 2. Raw <svg>...</svg> blocks (agent shorthand). Pad with blank
+    // lines so react-markdown treats the sentinel as its OWN paragraph
+    // — without the padding, "Here\n<svg/>\nDoes that help?" collapses
+    // to one paragraph and the p()-component's exact-match sentinel
+    // check (anchored ^...$) misses it.
+    processed = processed.replace(SVG_RAW_RE, (_match, _lead: string, svgCode: string) => {
+      blocks.set(idx, svgCode.trim());
+      return `\n\n${SVG_SENTINEL_PREFIX}${idx++}${SVG_SENTINEL_SUFFIX}\n\n`;
     });
     return { processedContent: processed, svgBlocks: blocks };
   }, [content]);
