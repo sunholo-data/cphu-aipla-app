@@ -12,8 +12,8 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import type { StreamError, SkillMessage, ToolCallState } from "@/hooks/useSkillAgent";
 import type { ActiveDocumentContext } from "@/components/chat/ContextBanner";
 import { ContextBanner } from "@/components/chat/ContextBanner";
-import { ChatMarkdown } from "./ChatMarkdown";
 import { MessageBubble } from "./MessageBubble";
+import { PinnedWelcome } from "./PinnedWelcome";
 import { StreamingBubble } from "./StreamingBubble";
 import { TypingIndicator } from "./TypingIndicator";
 import type React from "react";
@@ -164,6 +164,14 @@ export function ChatMessageList({
         <ContextBanner context={activeDocumentContext ?? null} />
       )}
 
+      {/* PEDCTX M4 — welcome panel sits OUTSIDE the scroll area so it
+          stays visible after the student sends their first message.
+          Was previously inside the empty-state gate (vanished on first
+          turn). Collapsible per-skill, persisted in sessionStorage. */}
+      {skillInitialMessage && skillId && (
+        <PinnedWelcome content={skillInitialMessage} skillId={skillId} />
+      )}
+
       <div
         ref={scrollRef}
         onScroll={handleScroll}
@@ -199,20 +207,14 @@ export function ChatMessageList({
             </>
           )}
 
-          {messages.length === 0 && !initialMessages?.length && !error && !isLoading && (
-            skillInitialMessage ? (
-              // Render the skill's authored welcome / starter-prompts panel.
-              // Goes through ChatMarkdown so bold / lists / etc. render as
-              // formatted markdown rather than literal asterisks. navigateToBlock
-              // is a no-op here — the welcome doesn't carry citations.
-              <div className="rounded-lg border border-border bg-muted/30 p-4 text-sm text-foreground">
-                <ChatMarkdown content={skillInitialMessage} navigateToBlock={() => {}} />
-              </div>
-            ) : (
-              <p className="text-sm text-muted-foreground">
-                Send a message to start the conversation.
-              </p>
-            )
+          {/* Empty-state fallback: only shown when the skill has no
+              authored welcome (PinnedWelcome above renders that case).
+              Keeps the inherited template's "first chat" prompt for
+              non-AIPLA skills. */}
+          {messages.length === 0 && !initialMessages?.length && !error && !isLoading && !skillInitialMessage && (
+            <p className="text-sm text-muted-foreground">
+              Send a message to start the conversation.
+            </p>
           )}
 
           {stableMessages.map((m) => (
