@@ -285,6 +285,69 @@ commands.
 - Both. The combination of generic 403 + missing email + non-obvious
   curl flag is the kind of bug that wastes hours.
 
+## 15. Skill-invoke endpoint path is not discoverable without reading source
+
+**Where:** During M4/M5 of AIPLA v0.1, I (Claude) spent real time
+guessing endpoint paths (`/api/skills/<name>/invoke`,
+`/v6/skill/.../stream`, etc.) before the user pointed out that the
+`aitana-adk-testing` project skill documents exactly which routes
+exist. The right path is **`POST /api/skill/{skill_id}/stream`**
+(production AG-UI streaming, requires auth). `/run` and `/run_sse`
+are the bare-ADK paths but they fail with `Agent not found:
+'aitana_platform'` because of the dev-UI quirk that skill calls
+out (the `agents_dir` doesn't contain a matching subdirectory).
+
+**What hurt:**
+
+1. **Endpoint not in any user-facing docs.** README, WORKSHOP.md, and
+   the CLAUDE.md backend section all skip the routing layer. The
+   skill knew, but discovering the skill required either knowing it
+   exists already or running through the full `.claude/skills/`
+   inventory.
+2. **OpenAPI exists but isn't surfaced.** Running
+   `curl /openapi.json | jq '.paths | keys'` against a local backend
+   would have given me 74 routes in one shot. There's no breadcrumb
+   in README or CLAUDE.md pointing at `/docs` or `/openapi.json` as
+   the discovery mechanism.
+3. **`/list-apps` shows backend subdirs, not the actual `app_name`.**
+   This is the dev-UI quirk that the `aitana-adk-testing` skill
+   warns about — `app_name` is `aitana_platform` (constant in
+   `backend/adk/agui.py`), not any of the names in `/list-apps`. A
+   first-time forker following typical ADK docs will hit this and
+   spend 20 minutes confused.
+4. **`aiplatform-cli` skill was referenced in CLAUDE.md but did not
+   fork into the AIPLA repo.** The `.claude/skills/` directory only
+   has `aitana-adk-testing` + `aitana-frontend-verify` + ADK-meta
+   skills + sprint-workflow skills. The CLAUDE.md mentions
+   `aiplatform-cli` and `aitana-v6-deploy` and `cloud-run-diagnostics`
+   — none of those are in this repo. Downstream forks lose those
+   skills silently.
+
+**Workaround on AIPLA:** Updated `cli/aiplatform/commands/smoke.py`
+to use the correct path (`POST /api/skill/{id}/stream`) and added
+support for the `local-mode-stub-token` literal as a bearer for
+LOCAL_MODE testing. Smoke command can now be pointed at LOCAL_MODE
+or the deployed URL with a real group token.
+
+**Upstream fix:**
+- **README** should have a "Where does the API live?" section that
+  names `/docs`, `/openapi.json`, `/api/skill/{id}/stream` (prod
+  flow), `/run` / `/run_sse` (bare ADK), and the `app_name=
+  aitana_platform` constant. One paragraph saves a working day.
+- **CLAUDE.md** should reference the `aitana-adk-testing` skill in
+  the "ADK Development" section so forkers see "load this skill to
+  learn the endpoints" right next to "use uv run".
+- **`aiplatform-cli` skill** should be in the public template if
+  CLAUDE.md is going to reference it. If it's customer-specific and
+  shouldn't fork, CLAUDE.md should say so explicitly instead of
+  linking.
+- **`/list-apps` should return `aitana_platform`** (or whatever the
+  product's `APP_NAME` constant resolves to) instead of leaking
+  filesystem layout. This would fix the dev UI as well.
+- **The skill-invoke API contract** (threadId + messages array
+  shape) should be documented in OpenAPI properly — currently the
+  request body is inferred from frontend source.
+
 ## Backlog (likely additions as v0.1 sprint continues)
 
 - M5 may surface IAM bindings the bootstrap script should add

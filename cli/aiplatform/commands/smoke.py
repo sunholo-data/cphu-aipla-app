@@ -39,6 +39,12 @@ import httpx
 
 from aiplatform.http import APIError, resolve_base_url
 
+# Skill ID for problem-set-hints on aipla-dev-2026. Discovered via
+# `curl /api/proxy/api/skills/marketplace | jq` after the M5 deploy.
+# A future iteration should resolve this by name at smoke time rather
+# than hardcoding — until then the smoke is brittle to skill re-seeds.
+SKILL_ID_PROBLEM_SET_HINTS = "e4f2c016-ff8f-40f4-82ad-5b9509886e78"
+
 # ---- canonical prompts -----------------------------------------------------
 
 PROMPTS = [
@@ -157,7 +163,11 @@ def _invoke_skill_http(
       the AG-UI streaming integration is a v1 nice-to-have.
     """
     headers: dict[str, str] = {"Content-Type": "application/json"}
-    if group_code:
+    if group_code == "local-mode-stub-token":
+        # LOCAL_MODE shortcut — the firebase-auth stub accepts this
+        # literal as a bearer. Backend treats it as the workshop user.
+        headers["Authorization"] = "Bearer local-mode-stub-token"
+    elif group_code:
         # Anonymous group join → group session token
         join = httpx.post(
             f"{base_url}/api/auth/group/join",
@@ -174,14 +184,23 @@ def _invoke_skill_http(
         headers["Authorization"] = f"Bearer {token}"
 
     start = time.monotonic()
-    # POST to the skill-invoke endpoint. Path is conservative; if the
-    # deployed backend uses a different endpoint (e.g., AG-UI streaming
-    # via /v6/chat), the M5 deploy verification will surface it and the
-    # smoke can be retargeted.
+    # Correct endpoint (discovered via OpenAPI introspection + the
+    # aitana-adk-testing project skill): POST /api/skill/{id}/stream
+    # is the production AG-UI streaming path. The earlier
+    # /api/skills/<name>/invoke guess returned 404 — that endpoint
+    # doesn't exist.
+    #
+    # The body shape mirrors what the frontend's useSkillAgent hook
+    # sends: threadId (session id) + messages array. Auth via Firebase
+    # ID token OR the LOCAL_MODE stub bearer "local-mode-stub-token"
+    # OR an anonymous-group token from /api/auth/group/join.
     resp = httpx.post(
-        f"{base_url}/api/skills/problem-set-hints/invoke",
+        f"{base_url}/api/skill/{SKILL_ID_PROBLEM_SET_HINTS}/stream",
         headers=headers,
-        json={"message": prompt_text},
+        json={
+            "threadId": f"smoke-{int(time.time())}",
+            "messages": [{"role": "user", "content": prompt_text}],
+        },
         timeout=timeout_s,
     )
     duration_s = time.monotonic() - start
