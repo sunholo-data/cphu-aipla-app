@@ -30,6 +30,7 @@ forked from `ai-protocol-platform` on 2026-05-19.
 | Order | Doc | What it locks | Est | Status |
 |-------|-----|---------------|-----|--------|
 | 0.1 | [aipla/v0.1.0-jutland/jutland-demo.md](v0.1.0-jutland/jutland-demo.md) | First deployed AIPLA URL on `aipla-dev-2026`, anonymous group-ID join, `problem-set-hints` skill | 1d | Shipped (commit 1636038) |
+| 0.2 | [aipla/v0.1.0-jutland/boldkast-mcp-app.md](v0.1.0-jutland/boldkast-mcp-app.md) | v0.1 over-deliver: hand-curated Boldkast projectile-motion sim in the `workspace` surface (library-bypass per ADR-013). Groundwork for 1.11 artefact-review pipeline | 1.5d | Planned (buffer week 2026-05-20 → 27) |
 
 **v0.1 explicit non-goals** (deferred to v1.0.0-pilot):
 - Teacher configuration UI
@@ -108,7 +109,7 @@ These docs only get written if v1 is on track at the mid-point review.
 ## Dependency graph (v0.1 → v1 critical path)
 
 ```
-v0.1.0-jutland (1d)
+v0.1.0-jutland (1d) ──► 0.2 boldkast-mcp-app (1.5d, buffer-week over-deliver)
     │
     └─► 1.1 cloud-bootstrap ──┬─► 1.2 chat-log-pipeline ──┐
                               ├─► 1.3 rag-pgvector ────────┤
