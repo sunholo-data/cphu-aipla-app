@@ -408,6 +408,45 @@ the user's hypothesis is a legitimate feature for a downstream fork
 to want). Whatever the answer, the current state — mounted, unread —
 is confusing.
 
+## 18. `frontend/Dockerfile` silently drops any `NEXT_PUBLIC_*` ARG not pre-declared
+
+**Where:** `frontend/Dockerfile` lines 11-31. Hard-coded list of
+`ARG NEXT_PUBLIC_FIREBASE_*` (6 vars) + `ARG NEXT_PUBLIC_ADMIN_EMAIL`
++ `ARG NEXT_PUBLIC_BACKEND_URL` + `ARG NEXT_PUBLIC_MCP_SANDBOX_URL`.
+
+**What hurt:** `get-firebase-config.sh` greps `^NEXT_PUBLIC_` lines
+from the `FIREBASE_ENV` secret and passes them ALL as `--build-arg`
+to `docker build`. But Dockerfile only honors ARGs it declares; any
+`--build-arg NEXT_PUBLIC_FOO=bar` for an undeclared ARG is silently
+dropped. Result: AIPLA seeded `NEXT_PUBLIC_AUTH_MODE=anonymous_group_id`
+into the secret, the build script passed it, but the Dockerfile
+ignored it → Next.js saw `undefined` at build time →
+`process.env.NEXT_PUBLIC_AUTH_MODE === "anonymous_group_id"` evaluated
+false → SignInButton rendered on the deployed home page despite
+being conditionally suppressed in source.
+
+Took the user noticing the Google Sign-In button to surface this —
+the docs/upstream-feedback flow only catches what we observe.
+
+**Workaround on AIPLA:** Added `ARG NEXT_PUBLIC_AUTH_MODE` +
+matching `ENV` in frontend/Dockerfile. v0.1 commit `3517bf2`.
+
+**Upstream fix:** Either:
+- Switch from explicit ARG list to a wildcard-friendly mechanism
+  (loop `--build-arg` lines from a single file at build time using
+  Docker's secret-mount + `set -a; source` pattern).
+- Document the requirement *"any new NEXT_PUBLIC_ var must be added
+  to frontend/Dockerfile's ARG/ENV pair"* prominently next to
+  `branding.ts`, since downstream forks adding env-driven UI
+  conditionals will hit this silently.
+- Better: have `branding.ts` (the single-file rebrand entry-point)
+  export the auth-mode shape directly so it doesn't need a build-arg
+  at all. Then the dockerfile-arg gap can't bite.
+
+The "silent drop" behavior is the worst part — no warning, no
+visible failure, just wrong-but-running. Next.js doesn't help either
+because `process.env.NEXT_PUBLIC_X` is allowed to be undefined.
+
 ## Backlog (likely additions as v0.1 sprint continues)
 
 - M5 may surface IAM bindings the bootstrap script should add
