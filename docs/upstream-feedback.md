@@ -447,6 +447,51 @@ The "silent drop" behavior is the worst part — no warning, no
 visible failure, just wrong-but-running. Next.js doesn't help either
 because `process.env.NEXT_PUBLIC_X` is allowed to be undefined.
 
+## 19. `auth/permissions.py` crashes on callers with empty `user_email` (anonymous-group users)
+
+**Where:** `backend/auth/permissions.py` line 103 — `fs.get_document(COLLECTION, user_email)` is called unconditionally. When `user_email == ""` (the anonymous-group case per ADR-001 in the AIPLA fork), Firestore returns `400 InvalidArgument: Document name "tool_permissions/" has invalid trailing "/"`.
+
+**What hurt:** The first end-to-end chat invocation by an anonymous-group user produced *"stream_run_failed → Agent run failed"* with no useful client-side diagnostic. Took digging through `gcloud logging read` to find the actual exception. Frontend retried (the AG-UI error was `retryable: true`), each retry hit the same 400, no progress.
+
+**Workaround on AIPLA:** Guard the user-level lookup with `if user_email:` so empty-email callers fall through to domain-level (also empty) then wildcard. AIPLA commit `8d99353`.
+
+**Upstream fix:** Guard `user_email` and `user_domain` lookups in the template's own `auth/permissions.py`. Empty strings are a legitimate value for any auth mode that doesn't carry identity (anonymous-group, signed-out, system callers). Bonus: refactor `can_use_tool` to accept an explicit `auth_mode` parameter so per-mode permission lookups (e.g., `group/<group_id>` for anonymous-group) become a first-class concept rather than relying on the wildcard fallback.
+
+## 20. `tool_permissions/*` wildcard is seeded in `local_fixture.py` but NOT in `platform_seed.py` — dev and prod diverge silently
+
+**Where:** `backend/db/local_fixture.py` writes a wildcard `*` doc in `tool_permissions` so LOCAL_MODE workshop-user chat works. The deployed-prod path through `/api/admin/seed-platform-skills → platform_seed.seed()` doesn't. Result: a deployed env has skills (great) but no permission rules (broken).
+
+**What hurt:** Even after fixing entry #19 above, an anonymous-group user would still hit "no rule → deny" at `can_use_tool`'s line-128 fallback because `tool_permissions` was empty on production Firestore. Local tests pass; production fails. Took manual Firestore REST API insert + a code-level fix to platform_seed.py to discharge.
+
+**Workaround on AIPLA:** `platform_seed.seed()` now calls `_ensure_tool_permissions_wildcard()` once per run, idempotent, emits `tool_permissions_wildcard_seeded: bool` in the SeedSummary. AIPLA commit (next push).
+
+**Upstream fix:** Same one-line idempotent seed in upstream `platform_seed.py`. The dev/prod divergence is the worst kind — works on LOCAL_MODE, breaks in production, with no test catching it because the test suite uses LOCAL_MODE. Either:
+- Have `platform_seed.seed()` mirror `local_fixture.seed_local_fixture()` for the permission-rule subset
+- Or restructure so both paths call a shared `_seed_permissions_baseline()` helper.
+
+## 21. Frontend `onSnapshot` listeners assume a Firebase Auth identity; anonymous-group users hit `permission-denied` in console
+
+**Where:** `frontend/src/hooks/useDocBrowser.ts` (2 listeners — folders + parsed_documents) and `frontend/src/hooks/useDocument.ts` (1 listener — single doc preview). Each is gated on `if (!db || !uid) return;` but `uid` is set for anonymous-group users (the synthetic `anon-<id>-<random>` JWT subject is treated as a uid).
+
+**What hurt:** Every chat session for anonymous-group users produces:
+
+```
+@firebase/firestore: Firestore (10.14.1): Uncaught Error in snapshot listener:
+FirebaseError: [code=permission-denied]: Missing or insufficient permissions.
+```
+
+…in the browser console, repeatedly, every time the listener retries. Functionally harmless (document browsing isn't in scope for anonymous-group sessions) but visibly broken to anyone with the console open. AIPLA user noticed within seconds of opening the chat.
+
+**Root cause:** The Firebase JS SDK auths Firestore listeners with whatever `firebase.auth().currentUser` returns. Anonymous-group users have no Firebase Auth user — only a custom JWT for the backend. Firestore rules deny → permission-denied → console spam.
+
+**Workaround on AIPLA:** Gate the three listeners with `if (isAnonymousGroupAuthMode()) return;`. AIPLA commit `b3ac781`. Document preview falls back to "Document preview unavailable in this session." for the hook callers.
+
+**Upstream fix:** Two options that are properly serverless:
+- Call `firebase.auth().signInAnonymously()` as part of the group-join flow. Gives the SDK a real Firebase identity → snapshot listeners work, no rule change needed. Adds one Firebase Auth user per session (free tier covers it).
+- Rewrite Firestore security rules to accept custom JWT tokens (more complex; requires aligning the HS256 signing key with Firebase Auth's verification).
+
+Option (a) is the natural upstream pattern. The template should bundle it into `AnonymousGroupAuthProvider` so downstream forks don't have to rediscover.
+
 ## Backlog (likely additions as v0.1 sprint continues)
 
 - M5 may surface IAM bindings the bootstrap script should add

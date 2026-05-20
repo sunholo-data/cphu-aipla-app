@@ -70,7 +70,15 @@ def test_seed_allowed_sa_returns_summary(client, allow_env):
         )
     assert resp.status_code == 200
     body = resp.json()
-    assert body == {"created": 5, "skipped": 0, "failed": []}
+    # AIPLA 2026-05-20: SeedSummary gained a tool_permissions_wildcard_seeded
+    # field so the admin endpoint reports back whether the run also wrote
+    # the `tool_permissions/*` wildcard rule (anonymous-group support).
+    # Assert the skill-related fields strictly; let the new field exist with
+    # either bool value depending on test ordering.
+    assert body["created"] == 5
+    assert body["skipped"] == 0
+    assert body["failed"] == []
+    assert "tool_permissions_wildcard_seeded" in body
 
 
 def test_seed_unverified_email_returns_403(client, allow_env):

@@ -41,9 +41,58 @@ class SeedSummary:
     created: int = 0
     skipped: int = 0
     failed: list[str] = field(default_factory=list)
+    tool_permissions_wildcard_seeded: bool = False
 
     def as_dict(self) -> dict[str, Any]:
-        return {"created": self.created, "skipped": self.skipped, "failed": self.failed}
+        return {
+            "created": self.created,
+            "skipped": self.skipped,
+            "failed": self.failed,
+            "tool_permissions_wildcard_seeded": self.tool_permissions_wildcard_seeded,
+        }
+
+
+def _ensure_tool_permissions_wildcard() -> bool:
+    """Idempotently seed a wildcard `*` rule in `tool_permissions`.
+
+    The inherited template seeds this only in LOCAL_MODE via
+    `backend/db/local_fixture.py`. Production / deployed paths went
+    without it, which caused `auth.permissions.can_use_tool()` to fall
+    through to "no rule → deny" for any caller without an explicit
+    per-user/per-domain rule. Anonymous-group users (ADR-001) are the
+    canonical example: `user_email=""` AND `user_domain=""`, so only
+    the wildcard can grant access. Without this, the first chat call
+    raises (or returns False) for every anonymous-group user.
+
+    Returns True if we wrote the doc, False if it already existed.
+
+    v1 will switch anonymous-group users to per-group rules keyed on
+    `group/<group_id>`. Until that lands, the wildcard is the v0.1
+    permission story. See docs/upstream-feedback.md #19 + #20.
+    """
+    from db import firestore as fs
+
+    existing = fs.get_document("tool_permissions", "*")
+    if existing is not None:
+        logger.info("platform_seed: tool_permissions/* already exists; skipping wildcard seed")
+        return False
+
+    fs.set_document(
+        "tool_permissions",
+        "*",
+        {
+            "type": "wildcard",
+            "tools": ["*"],
+            "denied": [],
+            "note": (
+                "Seeded by platform_seed. v0.1 grants all tools to all "
+                "callers (single-skill demo). Replace with per-group "
+                "rules in v1 when teacher-config UI ships."
+            ),
+        },
+    )
+    logger.info("platform_seed: seeded tool_permissions/* wildcard")
+    return True
 
 
 def _parse_template(skill_md: Path) -> dict[str, Any]:
@@ -93,6 +142,17 @@ def seed(templates_root: Path | None = None) -> SeedSummary:
     root = templates_root or DEFAULT_TEMPLATES_ROOT
     summary = SeedSummary()
     existing = _existing_platform_skill_names()
+
+    # Run-once side effect (idempotent): seed the wildcard
+    # tool_permissions rule so anonymous-group callers don't fall
+    # through to "no rule → deny" on every tool invocation. Failure
+    # is logged but not fatal — a malformed wildcard shouldn't block
+    # platform-skill seeding.
+    try:
+        if _ensure_tool_permissions_wildcard():
+            summary.tool_permissions_wildcard_seeded = True
+    except Exception as e:  # noqa: BLE001
+        logger.warning("platform_seed: tool_permissions wildcard seed failed: %s", e)
 
     for child in sorted(root.iterdir()):
         if not child.is_dir():
