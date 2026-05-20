@@ -18,13 +18,16 @@ export function SkillsBar({ skills, activeSkillId, isLoading, onCreateClick }: S
       className="flex h-12 items-center gap-2 border-b bg-background px-3"
       aria-label="Skills navigation"
     >
-      <Link href="/" className="flex shrink-0 items-center" aria-label="Home">
+      <Link href="/" className="flex shrink-0 items-center gap-2" aria-label="Home">
         {/* eslint-disable-next-line @next/next/no-img-element */}
         <img
-          src={BRANDING.logo.chatAvatar}
+          src={BRANDING.logo.headerMark}
           alt={BRANDING.appName}
           className="h-7 w-7"
         />
+        <span className="hidden text-xs font-semibold tracking-wide sm:inline">
+          {BRANDING.appName}
+        </span>
       </Link>
 
       <nav className="flex min-w-0 flex-1 items-center gap-0 overflow-x-auto" data-testid="skill-tabs">

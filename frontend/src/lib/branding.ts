@@ -39,7 +39,14 @@ export const BRANDING = {
     favicon: "/images/logo/sunholo-logo.svg",
     /** Welcome-screen mark. Official KU coat-of-arms SVG. */
     heroAnimated: "/images/logo/ku-logo.svg",
-    /** Square chat-message-bubble avatar. */
+    /** Chat top-bar header (28px). Official KU coat-of-arms — at this
+     * size the crest reads as a red disc with crown silhouette, which
+     * signals institutional identity to teachers without being mistaken
+     * for a generic app icon. */
+    headerMark: "/images/logo/ku-logo.svg",
+    /** Per-message chat avatar (20px inside an orange-gradient circle).
+     * Stays on the AIPLA "A" — the KU crest pixelates illegibly at
+     * 20px and the gradient circle would conflict with the KU red. */
     chatAvatar: "/images/logo/sunholo-logo.svg",
   },
 

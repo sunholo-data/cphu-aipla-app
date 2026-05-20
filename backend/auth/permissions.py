@@ -99,13 +99,19 @@ def can_use_tool(user_email: str, user_domain: str, tool_name: str) -> bool:
     if cached is not None:
         return cached
 
-    # 1. User-level
-    user_doc = fs.get_document(COLLECTION, user_email)
-    if user_doc is not None:
-        result = _doc_allows(user_doc, tool_name)
-        _cache_set(user_email, tool_name, result)
-        logger.debug("perm: user-level %s → %s for %s", user_email, result, tool_name)
-        return result
+    # 1. User-level. Skip when email is empty (anonymous-group users) —
+    # otherwise Firestore gets get_document(collection, "") which produces
+    # the path "tool_permissions/" with a trailing slash and returns
+    # InvalidArgument 400. Discovered 2026-05-20 on the first deployed
+    # chat invocation; group-level permission lookups (the proper path
+    # for anonymous users) are 1.6 work per ADR-001 teacher-auth.
+    if user_email:
+        user_doc = fs.get_document(COLLECTION, user_email)
+        if user_doc is not None:
+            result = _doc_allows(user_doc, tool_name)
+            _cache_set(user_email, tool_name, result)
+            logger.debug("perm: user-level %s → %s for %s", user_email, result, tool_name)
+            return result
 
     # 2. Domain-level
     if user_domain:
