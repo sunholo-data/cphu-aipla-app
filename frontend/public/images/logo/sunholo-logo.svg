@@ -1,11 +1,31 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 300 300">
-  <!-- Base circles - all the same size -->
-  <!-- Bottom layer -->
-  <circle cx="107" cy="150" r="80" fill="#f9a697" opacity="0.3" />
-  
-  <!-- Middle layer -->
-  <circle cx="130" cy="150" r="80" fill="#e73c17" opacity="0.3" />
-  
-  <!-- Top layer - fully opaque -->
-  <circle cx="153" cy="150" r="80" fill="#e73c17" />
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 300 300" aria-label="AIPLA wordmark">
+  <!-- Placeholder text-only AIPLA wordmark for v0.1. Replace with the
+       proper UCPH / Center for Digital Education logo when available;
+       drop the SVG at this same path and the entire app picks it up
+       automatically (branding.ts logo.* fields point here). -->
+  <title>AIPLA</title>
+  <desc>AI in Physics Learning and Assessment — University of Copenhagen Center for Digital Education</desc>
+
+  <!-- Soft Nordic-blue background circle. Matches the europe-north1 /
+       Finland / Nordic-alignment story in ADR-007 without committing
+       to any specific institutional brand colour. -->
+  <circle cx="150" cy="150" r="135" fill="#1d3a52" />
+
+  <!-- "AIPLA" wordmark, hand-tuned to balance optically inside the disc -->
+  <text x="150" y="155"
+        font-family="ui-sans-serif, system-ui, -apple-system, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif"
+        font-size="74"
+        font-weight="700"
+        fill="#ffffff"
+        text-anchor="middle"
+        letter-spacing="6">AIPLA</text>
+
+  <!-- Tagline, smaller, below the wordmark -->
+  <text x="150" y="200"
+        font-family="ui-sans-serif, system-ui, -apple-system, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif"
+        font-size="14"
+        font-weight="400"
+        fill="#a0b4c8"
+        text-anchor="middle"
+        letter-spacing="1.5">PHYSICS · LEARNING · ASSESSMENT</text>
 </svg>
