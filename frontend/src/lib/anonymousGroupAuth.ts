@@ -34,6 +34,11 @@ export interface PersistedGroupSession {
   uid: string;
   /** Unix seconds at which the token expires. */
   expires_at: number;
+  /** Group's permitted skill IDs. Frontend filters the SkillsBar to this
+   * set so anonymous-group users only see skills they can actually
+   * invoke (added 2026-05-20). Empty array is treated as "no filter"
+   * for back-compat with sessions stored before the field existed. */
+  skill_ids?: string[];
 }
 
 /**
@@ -58,6 +63,11 @@ export function readStoredGroupSession(): PersistedGroupSession | null {
     ) {
       window.sessionStorage.removeItem(ANON_GROUP_TOKEN_STORAGE_KEY);
       return null;
+    }
+    // Back-compat: skill_ids was added 2026-05-20. Sessions stored
+    // before then don't have it; normalise to empty array (= no filter).
+    if (!Array.isArray(parsed.skill_ids)) {
+      parsed.skill_ids = [];
     }
     // Stale → drop + treat as no session.
     if (parsed.expires_at <= Date.now() / 1000) {
