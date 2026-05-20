@@ -45,7 +45,21 @@ export default async function HomePage() {
           {BRANDING.appName}
         </h1>
         <p className="text-muted-foreground text-lg">{BRANDING.tagline}</p>
-        <SignInButton />
+
+        {process.env.NEXT_PUBLIC_AUTH_MODE === "anonymous_group_id" ? (
+          // AIPLA v0.1 — anonymous group join is the only student-facing
+          // auth path. Google Sign-In isn't configured on aipla-dev-2026
+          // (no teacher routes ship until v1.0.0-pilot per ADR-001
+          // teacher-auth/UCPH SSO). Send users straight to /group.
+          <Link
+            href="/group"
+            className="rounded-lg bg-primary px-6 py-3 text-primary-foreground font-medium hover:opacity-90 transition-opacity"
+          >
+            Tilslut din gruppe / Join your group →
+          </Link>
+        ) : (
+          <SignInButton />
+        )}
         <BackendHealthBadge />
         {SHOW_DEV_PROBES && <MySkillsButton />}
 
