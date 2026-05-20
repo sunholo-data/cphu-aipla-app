@@ -104,6 +104,28 @@
     color: #78350f;
     border-radius: 0 4px 4px 0;
   }
+  .graphs {
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: 10px;
+    margin-top: 10px;
+  }
+  @media (min-width: 720px) {
+    .graphs { grid-template-columns: 1fr 1fr; }
+  }
+  .graph-panel { padding: 8px; }
+  .graph-panel canvas { width: 100%; height: 160px; }
+  .graph-panel .caption {
+    font-size: 11px;
+    color: var(--muted);
+    margin: 4px 0 0;
+    line-height: 1.3;
+  }
+  .legend { display: flex; gap: 12px; font-size: 11px; margin-top: 4px; }
+  .legend .swatch {
+    display: inline-block; width: 10px; height: 2px; vertical-align: middle;
+    margin-right: 4px; border-radius: 1px;
+  }
 </style>
 </head>
 <body>
@@ -162,6 +184,31 @@
     </div>
   </aside>
 </main>
+
+<section class="graphs">
+  <div class="panel graph-panel">
+    <h2>Hastighedskomponenter (vₓ og vᵧ vs. t)</h2>
+    <canvas id="g-velocity" width="380" height="160" aria-label="Velocity components vs time"></canvas>
+    <div class="legend">
+      <span><span class="swatch" style="background:#1e40af"></span>vₓ(t) = v₀·cos(θ)</span>
+      <span><span class="swatch" style="background:#dc2626"></span>vᵧ(t) = v₀·sin(θ) − g·t</span>
+    </div>
+    <p class="caption">
+      Bemærk: <strong>vₓ er konstant</strong>. Det er kernen i opgaven — vandret og lodret bevægelse er uafhængige.
+    </p>
+  </div>
+  <div class="panel graph-panel">
+    <h2>Position (x og y vs. t)</h2>
+    <canvas id="g-position" width="380" height="160" aria-label="Position components vs time"></canvas>
+    <div class="legend">
+      <span><span class="swatch" style="background:#1e40af"></span>x(t) — lineær</span>
+      <span><span class="swatch" style="background:#dc2626"></span>y(t) — parabolsk</span>
+    </div>
+    <p class="caption">
+      x vokser jævnt mens y går op-og-ned. Eneste fælles variabel mellem de to: <strong>tiden</strong>.
+    </p>
+  </div>
+</section>
 <script>
   "use strict";
   // ─── Physics ──────────────────────────────────────────────────────────────
@@ -198,6 +245,10 @@
   // ─── DOM ──────────────────────────────────────────────────────────────────
   const canvas = document.getElementById("viz");
   const ctx = canvas.getContext("2d");
+  const gVelCanvas = document.getElementById("g-velocity");
+  const gVelCtx = gVelCanvas.getContext("2d");
+  const gPosCanvas = document.getElementById("g-position");
+  const gPosCtx = gPosCanvas.getContext("2d");
   const live = document.getElementById("live");
   const v0Out = document.getElementById("v0-out");
   const v0Label = document.getElementById("v0-label");
@@ -217,6 +268,115 @@
     canvas.width = Math.round(rect.width * dpr);
     canvas.height = Math.round((rect.width * 0.55) * dpr);
     ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+  }
+
+  function fitGraphCanvas(c, gctx) {
+    const dpr = window.devicePixelRatio || 1;
+    const rect = c.getBoundingClientRect();
+    c.width = Math.round(rect.width * dpr);
+    c.height = Math.round(rect.height * dpr);
+    gctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+  }
+
+  // Helper: draw a small line plot of `series` (array of {fn, color}) on
+  // gctx of CSS-pixel size {w,h}. Domain: t in [0, tof]. Range
+  // auto-scaled. Includes zero-axis. Current-t indicator drawn as a
+  // vertical line + dots on each series.
+  function drawLineGraph(gctx, w, h, tof, tNow, series, opts) {
+    opts = opts || {};
+    gctx.clearRect(0, 0, w, h);
+    const pad = 24;
+    if (!isFinite(tof) || tof <= 0) tof = 1;
+
+    // Sample each series + find combined min/max for shared y-axis.
+    const N = 80;
+    let yMin = Infinity, yMax = -Infinity;
+    const samples = series.map((s) => {
+      const vs = new Array(N + 1);
+      for (let i = 0; i <= N; i++) {
+        const tt = (i / N) * tof;
+        const v = s.fn(tt);
+        vs[i] = v;
+        if (v < yMin) yMin = v;
+        if (v > yMax) yMax = v;
+      }
+      return vs;
+    });
+    if (yMin === yMax) { yMin -= 1; yMax += 1; }
+    if (yMin > 0) yMin = 0; // always include zero for axis reference
+    if (yMax < 0) yMax = 0;
+    const yRange = yMax - yMin;
+
+    const toX = (t) => pad + ((w - pad - 4) * t) / tof;
+    const toY = (v) => pad + (h - pad - 8) * (1 - (v - yMin) / yRange);
+
+    // Zero-line (y=0)
+    if (yMin <= 0 && yMax >= 0) {
+      const y0 = toY(0);
+      gctx.strokeStyle = "#d6d3d1";
+      gctx.lineWidth = 1;
+      gctx.beginPath(); gctx.moveTo(pad, y0); gctx.lineTo(w - 4, y0); gctx.stroke();
+    }
+
+    // Axes labels (minimal — no specific value-numbers, just orientation)
+    gctx.fillStyle = "#78716c";
+    gctx.font = "10px sans-serif";
+    gctx.fillText("0", pad - 8, h - pad + 12);
+    gctx.fillText("t", w - 10, h - pad + 12);
+    gctx.fillText(opts.yLabel || "", 2, pad - 6);
+
+    // Each series
+    series.forEach((s, sIdx) => {
+      const vs = samples[sIdx];
+      gctx.strokeStyle = s.color;
+      gctx.lineWidth = 2;
+      gctx.beginPath();
+      for (let i = 0; i <= N; i++) {
+        const x = toX((i / N) * tof);
+        const y = toY(vs[i]);
+        if (i === 0) gctx.moveTo(x, y);
+        else gctx.lineTo(x, y);
+      }
+      gctx.stroke();
+    });
+
+    // Current-t marker (vertical line + dot per series)
+    if (tNow > 0 && tNow <= tof) {
+      const x = toX(tNow);
+      gctx.strokeStyle = "#1c1917";
+      gctx.setLineDash([3, 3]);
+      gctx.lineWidth = 1;
+      gctx.beginPath(); gctx.moveTo(x, pad); gctx.lineTo(x, h - pad); gctx.stroke();
+      gctx.setLineDash([]);
+      series.forEach((s) => {
+        const v = s.fn(tNow);
+        gctx.fillStyle = s.color;
+        gctx.beginPath(); gctx.arc(x, toY(v), 3.5, 0, Math.PI * 2); gctx.fill();
+      });
+    }
+  }
+
+  function drawVelocityGraph() {
+    fitGraphCanvas(gVelCanvas, gVelCtx);
+    const w = gVelCanvas.clientWidth;
+    const h = gVelCanvas.clientHeight;
+    const { tof } = results(v0, theta);
+    const th = (theta * Math.PI) / 180;
+    drawLineGraph(gVelCtx, w, h, tof, Math.min(t, tof), [
+      { color: "#1e40af", fn: () => v0 * Math.cos(th) },     // vx — constant
+      { color: "#dc2626", fn: (tt) => v0 * Math.sin(th) - G * tt }, // vy
+    ], { yLabel: "v (m/s)" });
+  }
+
+  function drawPositionGraph() {
+    fitGraphCanvas(gPosCanvas, gPosCtx);
+    const w = gPosCanvas.clientWidth;
+    const h = gPosCanvas.clientHeight;
+    const { tof } = results(v0, theta);
+    drawLineGraph(gPosCtx, w, h, tof, Math.min(t, tof), [
+      { color: "#1e40af", fn: (tt) => trajectoryAt(tt, v0, theta).x },
+      { color: "#dc2626", fn: (tt) => trajectoryAt(tt, v0, theta).y },
+    ], { yLabel: "pos (m)" });
   }
 
   function drawWorld() {
@@ -363,6 +523,8 @@
   function render() {
     fitCanvas();
     drawWorld();
+    drawVelocityGraph();
+    drawPositionGraph();
     updateLive();
     updateInputs();
   }

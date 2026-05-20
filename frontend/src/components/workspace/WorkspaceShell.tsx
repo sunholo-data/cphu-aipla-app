@@ -59,13 +59,12 @@ export function WorkspaceShell({ children, title = "Arbejdsområde" }: Workspace
     });
   };
 
-  // When collapsed: a thin vertical strip with a chevron to reopen.
-  // Sits in the same flex slot so the chat column's flex-1 reclaims
-  // the freed width — no layout jump.
+  // When collapsed (md+ only): a thin vertical strip with a chevron to
+  // reopen. The chat column's flex-1 reclaims the freed width — no jump.
   if (collapsed) {
     return (
       <aside
-        className="hidden lg:flex w-8 shrink-0 flex-col items-center border-l bg-muted/30"
+        className="hidden md:flex w-8 shrink-0 flex-col items-center border-l bg-muted/30"
         aria-label="Workspace (collapsed)"
       >
         <button
@@ -84,19 +83,27 @@ export function WorkspaceShell({ children, title = "Arbejdsområde" }: Workspace
     );
   }
 
+  // Layout breakpoints:
+  //   <md (640-ish px): stacked vertically. Workspace renders below the
+  //     chat column as a min-height region (caller decides the layout
+  //     wrapper; this aside just owns its own width=100%/height=auto).
+  //   md+: side-by-side, 50/50. shrink-0 keeps the workspace honest
+  //     under content pressure (sim/charts don't push chat narrower).
+  // bg-muted/40 visually separates the workspace from the chat (which
+  // is bg-background). Border on the LEFT for md+, on the TOP for <md.
   return (
     <aside
-      className="hidden lg:flex w-[40%] shrink-0 flex-col overflow-hidden border-l bg-background"
+      className="flex w-full shrink-0 flex-col overflow-hidden border-t bg-muted/40 md:w-1/2 md:border-t-0 md:border-l"
       aria-label="Workspace"
     >
-      <header className="flex shrink-0 items-center justify-between border-b px-3 py-2">
+      <header className="flex shrink-0 items-center justify-between border-b border-border/60 px-3 py-2 bg-muted/60">
         <h2 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
           {title}
         </h2>
         <button
           type="button"
           onClick={toggle}
-          className="rounded p-1 text-muted-foreground hover:bg-muted hover:text-foreground"
+          className="hidden md:block rounded p-1 text-muted-foreground hover:bg-muted hover:text-foreground"
           aria-label="Collapse workspace"
           title="Skjul arbejdsområde"
         >

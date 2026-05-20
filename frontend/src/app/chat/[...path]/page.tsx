@@ -517,7 +517,11 @@ function ChatShell({
         />
       )}
 
-      <div className="flex min-h-0 flex-1">
+      {/* PEDCTX — stack chat above workspace below md; side-by-side md+.
+          Original was always flex-row, which crammed both columns on
+          phones / iPad portrait. md:flex-row lets the AIPLA workspace
+          drop below the chat on smaller screens instead of hiding. */}
+      <div className="flex min-h-0 flex-1 flex-col md:flex-row">
         {showDocumentUI && showDocBrowser && (
           <aside className="flex w-64 shrink-0 flex-col overflow-hidden border-r bg-muted/30">
             <div className="border-b px-3 py-2">
