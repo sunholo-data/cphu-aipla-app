@@ -34,14 +34,20 @@ logsBucket: gs://${_PROJECT_ID}-cloudbuild-logs
 
 steps:
   # --- Firebase rules ---
-  - name: '${_ARTIFACT_REGISTRY_REPO_URL_CLIENT}/sunholo-llmops/firebase:${_FIREBASE_TAG}'
+  # AIPLA v0.1 swaps the inherited sunholo-llmops/firebase helper image
+  # (built by v5's separate trigger-dev-firebase Cloud Build trigger,
+  # which doesn't exist on aipla-dev-2026) for a public node base +
+  # on-the-fly firebase-tools install. ~30-60s slower per build but
+  # zero infrastructure dependency. Tracked in docs/upstream-feedback.md
+  # entry 13.
+  - name: 'node:20-alpine'
     waitFor: ['-']
     id: 'deploy-firebase-rules'
-    entrypoint: bash
+    entrypoint: 'sh'
     args:
       - '-c'
       - |
-        firebase &&
+        npm install -g firebase-tools@13 &&
         firebase -P ${_PROJECT_ID} --json deploy --only firestore:rules,firestore:indexes --force
 
   # --- Get Firebase config from Secret Manager ---

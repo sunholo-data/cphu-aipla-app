@@ -193,6 +193,64 @@ ensure_firebase_anonymous_auth() {
 
 # ----- Cloud Build repository link + trigger ---------------------------------
 
+ensure_firebase_web_app_and_secret() {
+  # The Cloud Build step `get-firebase-config` reads a FIREBASE_ENV
+  # secret containing NEXT_PUBLIC_FIREBASE_* lines, then bakes them
+  # into the Next.js bundle at build time. Without this secret, the
+  # frontend Docker build fails on undefined env vars.
+  #
+  # 1. Create a Firebase Web App (idempotent — skip if one already exists)
+  # 2. Pull its config via firebase apps:sdkconfig
+  # 3. Translate JSON → env-file format and store as FIREBASE_ENV secret
+  log "Ensuring Firebase Web App + FIREBASE_ENV secret..."
+
+  local app_id
+  app_id=$(firebase apps:list web --project="$PROJECT" --json 2>/dev/null \
+    | python3 -c "import json,sys; d=json.load(sys.stdin); apps=d.get('result',[]); print(apps[0]['appId'] if apps else '')" 2>/dev/null \
+    || echo "")
+
+  if [ -z "$app_id" ]; then
+    log "  creating Firebase Web App..."
+    app_id=$(firebase apps:create web "aipla-dev" --project="$PROJECT" --json 2>/dev/null \
+      | python3 -c "import json,sys; d=json.load(sys.stdin); print(d.get('result',{}).get('appId',''))")
+    if [ -z "$app_id" ]; then die "failed to create Firebase Web App"; fi
+    log "  ✓ Firebase Web App created: ${app_id}"
+  else
+    log "  Firebase Web App already exists: ${app_id}"
+  fi
+
+  # Pull config and translate to env-file. Pipe JSON via stdin so we
+  # dodge any control chars / quoting issues from heredoc interpolation.
+  local env_content
+  env_content=$(firebase apps:sdkconfig web "$app_id" --project="$PROJECT" --json 2>/dev/null \
+    | python3 -c "
+import json, sys
+d = json.load(sys.stdin)
+cfg = d['result']['sdkConfig']
+print(f'NEXT_PUBLIC_FIREBASE_API_KEY={cfg[\"apiKey\"]}')
+print(f'NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN={cfg[\"authDomain\"]}')
+print(f'NEXT_PUBLIC_FIREBASE_PROJECT_ID={cfg[\"projectId\"]}')
+print(f'NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET={cfg[\"storageBucket\"]}')
+print(f'NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID={cfg[\"messagingSenderId\"]}')
+print(f'NEXT_PUBLIC_FIREBASE_APP_ID={cfg[\"appId\"]}')
+print('NEXT_PUBLIC_AUTH_MODE=anonymous_group_id')
+")
+  if [ -z "$env_content" ]; then die "failed to translate Firebase Web App config"; fi
+
+  # Idempotent secret creation/update
+  if gcloud secrets describe FIREBASE_ENV --project="$PROJECT" &>/dev/null; then
+    log "  FIREBASE_ENV secret exists — adding new version"
+    printf '%s' "$env_content" | gcloud secrets versions add FIREBASE_ENV \
+      --data-file=- --project="$PROJECT" >/dev/null
+  else
+    log "  creating FIREBASE_ENV secret"
+    printf '%s' "$env_content" | gcloud secrets create FIREBASE_ENV \
+      --data-file=- --project="$PROJECT" \
+      --replication-policy=automatic >/dev/null
+  fi
+  log "  ✓ FIREBASE_ENV secret seeded with ${app_id}"
+}
+
 ensure_cb_repository() {
   log "Ensuring Cloud Build repository link..."
   if gcloud builds repositories describe "$CB_REPO_NAME" \
@@ -284,6 +342,9 @@ ensure_runtime_buckets() {
   #   - {PROJECT}-cloudbuild-logs   (cloudbuild.yaml logsBucket)
   #   - {PROJECT}-artifacts          (ADK_ARTIFACT_BUCKET env var)
   #   - {PROJECT}-aipla-v01-logs     (LOGS_BUCKET_NAME env var)
+  # All buckets are created with uniform bucket-level access (-b on) and
+  # then granted roles/storage.objectAdmin to the runtime SA so Cloud Build
+  # and Cloud Run can read/write objects without per-object ACL ceremony.
   log "Ensuring runtime buckets..."
   for suffix in cloudbuild-logs artifacts aipla-v01-logs; do
     local bucket="${PROJECT}-${suffix}"
@@ -293,7 +354,18 @@ ensure_runtime_buckets() {
       gsutil mb -p "$PROJECT" -l "$REGION" -b on "gs://${bucket}" >/dev/null
       log "  ✓ gs://${bucket} created"
     fi
+    # Idempotent bucket-level IAM grant. roles/storage.admin (not just
+    # objectAdmin) is required because Cloud Build's upfront pre-build
+    # validation checks storage.buckets.get on the logsBucket, which
+    # objectAdmin doesn't grant. Same role on all three buckets for
+    # consistency — they're all in-project runtime buckets.
+    gcloud storage buckets add-iam-policy-binding "gs://${bucket}" \
+      --member="serviceAccount:${SA_EMAIL}" \
+      --role="roles/storage.admin" \
+      --project="$PROJECT" \
+      --quiet >/dev/null
   done
+  log "  ✓ aipla-v6@ has roles/storage.admin on all 3 runtime buckets"
 }
 
 # ----- run all ---------------------------------------------------------------
@@ -307,6 +379,7 @@ main() {
   ensure_firebase_anonymous_auth
   ensure_config_bucket
   ensure_runtime_buckets
+  ensure_firebase_web_app_and_secret
   ensure_cb_repository
   ensure_cb_service_agent
   ensure_cb_trigger
