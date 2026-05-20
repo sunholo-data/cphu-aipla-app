@@ -67,6 +67,9 @@ tsconfig.tsbuildinfo
 .claude/scheduled_tasks.lock
 backend/aitana_platform/
 
+# Local dev scratch (deployed URLs, ad-hoc dev cache)
+.dev-logs/
+
 # Locked agent worktrees from parallel sub-agent execution. The harness
 # manages these; they're never committed and shouldn't block sanitize.
 .claude/worktrees/

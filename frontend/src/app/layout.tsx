@@ -19,9 +19,11 @@ export default function RootLayout({
 }) {
   return (
     <html lang="en">
-      <body className="font-sans bg-background text-foreground min-h-screen antialiased">
+      <body className="font-sans bg-background text-foreground h-screen flex flex-col antialiased">
         <LocalModeBanner />
-        <AppProviders>{children}</AppProviders>
+        <div className="flex-1 min-h-0 flex flex-col overflow-auto">
+          <AppProviders>{children}</AppProviders>
+        </div>
       </body>
     </html>
   );

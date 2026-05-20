@@ -127,7 +127,7 @@ export default function ChatPage({
   if (!user) return null;
   if (notFound || !skillId) {
     return (
-      <div className="flex h-screen flex-col items-center justify-center gap-2 p-6 text-sm text-muted-foreground">
+      <div className="flex h-full flex-col items-center justify-center gap-2 p-6 text-sm text-muted-foreground">
         <p>Skill not found.</p>
         <Link className="underline" href="/">Back to home</Link>
       </div>
@@ -459,7 +459,7 @@ function ChatShell({
   return (
     <SurfaceRegistryProvider>
     <SurfaceSessionLifecycle sessionId={sessionId} />
-    <main className="flex h-screen flex-col">
+    <main className="flex h-full min-h-0 flex-col">
       <SkillsBar
         skills={userSkills}
         activeSkillId={skillId}

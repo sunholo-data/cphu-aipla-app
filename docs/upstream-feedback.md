@@ -539,6 +539,28 @@ ChatMessageList's own outer wrapper IS `flex-1 overflow-hidden` correctly, and i
 
 Bigger pattern worth a refactor: the page has multiple `<div className="flex flex-1 ...">` flex containers and the discipline of "every flex column that wraps a scrollable area needs `min-h-0`" isn't enforced. A grep-able comment or a custom `FlexCol` utility component would prevent re-occurrence. Lower priority — for now the one-line fix.
 
+**Update 2026-05-20 — `min-h-0` was necessary but NOT sufficient.** When `LocalModeBanner` (or any banner-style sibling in `app/layout.tsx`) is rendered above `<AppProviders>{children}</AppProviders>`, the chat page's `<main className="flex h-screen flex-col">` claims a full viewport (100vh) but the banner steals visible space above it, pushing the input below the fold again. The body had `min-h-screen` and let main overflow.
+
+Real upstream fix: make `<body>` a flex column with `h-screen`, let the banner take its natural height, and wrap `{children}` in a `flex-1 min-h-0` shell — then change the chat page from `h-screen` to `h-full` so it fills its parent (not the viewport). Diff:
+
+```tsx
+// app/layout.tsx
+- <body className="... min-h-screen ...">
++ <body className="... h-screen flex flex-col ...">
+    <LocalModeBanner />
+-   <AppProviders>{children}</AppProviders>
++   <div className="flex-1 min-h-0 flex flex-col overflow-auto">
++     <AppProviders>{children}</AppProviders>
++   </div>
+  </body>
+
+// app/chat/[...path]/page.tsx
+- <main className="flex h-screen flex-col">
++ <main className="flex h-full min-h-0 flex-col">
+```
+
+Lesson for upstream: ANY full-viewport page (`h-screen`) sibling-coupled with a banner in `RootLayout` will hit this. The robust pattern is "body owns the viewport, children get `flex-1`" — not "every page individually claims `h-screen`".
+
 ## Backlog (likely additions as v0.1 sprint continues)
 
 - M5 may surface IAM bindings the bootstrap script should add
