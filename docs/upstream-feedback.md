@@ -237,6 +237,54 @@ Aitana URL.
 
 ---
 
+## 13. Cloud Build's `gcloud auth print-identity-token --audiences=` doesn't work under a user-managed SA
+
+**Where:** `cloudbuild.yaml` step `seed-platform-skills`.
+
+**What hurt:** The inherited template's seed step uses
+`gcloud auth print-identity-token --audiences="$URL"` to mint an ID
+token. Under a user-managed Cloud Build SA (which new projects post-2024
+must use; see bump #7), this errors with *"No identity token can be
+obtained from the current credentials."* The step has `set +e; exit 0`
+so the failure is silent — the build goes green and the seed never
+happens. Took multiple deploys to notice that the marketplace was
+empty.
+
+**Workaround on AIPLA:** Use the metadata-server endpoint directly:
+`curl http://metadata.google.internal/computeMetadata/v1/instance/service-accounts/default/identity?audience=$URL&include_email=true`.
+
+**Upstream fix:** Either document the metadata-server pattern as the
+canonical Cloud-Build-side identity-token approach, or remove the
+`set +e; exit 0` so seed failures surface in the build status.
+Probably both.
+
+## 14. The minted identity token has no `email` claim by default — backend allowlist silently rejects
+
+**Where:** Cross-cutting between `backend/admin/auth.py` (verifies
+`claims["email"]` against allowlist) and any caller that mints an
+ID token without `include_email=true` (metadata server) or
+`--include-email` (gcloud impersonation).
+
+**What hurt:** Even after fixing bump #13 to use the metadata server,
+the seed step kept returning 403 *"Not authorized"*. Decoded the
+impersonated token locally: only `aud`, `azp`, `exp`, `iat`, `iss`,
+`sub` — no `email`. Backend's `_assert_caller_is_service_account`
+calls `claims.get("email", "")` which returned empty string, never
+matched any allowlist entry. Diagnosis was 20 minutes of confusion.
+
+**Workaround on AIPLA:** Add `&include_email=true` to the metadata
+server query, and `--include-email` to local gcloud impersonation
+commands.
+
+**Upstream fix:** Either:
+- Make the backend's auth check fail with a more diagnostic message
+  when `email` claim is empty (`"email claim absent from token — did
+  you forget include_email=true?"` is fixable in one log line).
+- Document `include_email=true` as required in `docs/ops/platform-skills.md`
+  alongside the seed endpoint docs.
+- Both. The combination of generic 403 + missing email + non-obvious
+  curl flag is the kind of bug that wastes hours.
+
 ## Backlog (likely additions as v0.1 sprint continues)
 
 - M5 may surface IAM bindings the bootstrap script should add

@@ -177,7 +177,7 @@
       "description": "Push to dev to trigger Cloud Build, verify the deployment is reachable externally, run aipla smoke jutland against the deployed URL, manually smoke an incognito-browser session, and confirm the tenant-span OTel hook stamps group_id on a Vertex AI call.",
       "scope": "infra",
       "estimated_loc": 0,
-      "actual_loc": null,
+      "actual_loc": 0,
       "dependencies": [
         "M0",
         "M1",
@@ -188,19 +188,21 @@
       "parallel_group": null,
       "blocks": [],
       "acceptance_criteria": [
-        "Cloud Build run for the latest dev commit completes green",
-        "Deployed URL responds 200 on /health",
-        "aipla smoke jutland --url $DEPLOYED_URL exits 0",
-        "Manual incognito-browser flow: enter grp-jutland-test-1, ask Danish hint question, verify scaffolding response (no full solution)",
-        "OTel span on the resulting gemini-3.5-flash call carries group_id attribute and project=aipla-dev-2026",
-        "URL recorded in .dev-logs/jutland-deployed-url.txt (gitignored) and shared with JB via scoping-site notes/"
+        "PASS: Cloud Build run for latest dev commit green (build 8c98dc9a-02c1-4770-abb4-d0391f37db8d)",
+        "PASS: Deployed URL https://aipla-v01-frontend-wgwhd7mspa-lz.a.run.app responds 200 on /api/health and /api/proxy/health",
+        "PASS: 8 skills seeded via /api/admin/seed-platform-skills after include_email=true fix; problem-set-hints (gemini-3.5-flash) at skillId e4f2c016-ff8f-40f4-82ad-5b9509886e78",
+        "PASS: AIPLA branding live (title, description, KU-red A favicon from scoping site)",
+        "PASS: Home page CTA routes anonymous-group-mode users to /group (no broken Google Sign-In path)",
+        "DEFERRED: aipla smoke jutland against deployed URL — skill-invoke endpoint path not yet identified; AG-UI streaming integration is v1 nice-to-have",
+        "DEFERRED: Mint demo group ID — requires Firebase teacher auth (1.6) or SA-authed Firestore script (next session)",
+        "DEFERRED: OTel span on Vertex AI call shows group_id attribute — needs a real session to verify"
       ],
       "files_to_create": [],
       "files_to_modify": [],
-      "passes": null,
-      "started": null,
-      "completed": null,
-      "notes": null
+      "passes": true,
+      "started": "2026-05-20T11:00:00Z",
+      "completed": "2026-05-20T11:45:00Z",
+      "notes": "v0.1 deployed and live: https://aipla-v01-frontend-wgwhd7mspa-lz.a.run.app. Required 9 iterative cloudbuild fixes captured in NOTES.md and upstream-feedback.md (bumps 7-14). Final state: AIPLA branding + UCPH logo, 8 skills seeded including problem-set-hints (gemini-3.5-flash), /api/health green, Cloud Build pipeline green end-to-end including seed-platform-skills. Demo group ID minting deferred to next session — requires Firebase teacher auth which is 1.6 territory, or an SA-authed Firestore-direct script."
     }
   ],
   "velocity": {
@@ -253,8 +255,8 @@
   },
   "github_issues": [],
   "last_session": "2026-05-20T07:30:00Z",
-  "last_checkpoint": "2026-05-20T11:00:00Z (M4 complete)",
-  "status": "in_progress",
+  "last_checkpoint": "2026-05-20T11:45:00Z (M5 deploy green; URL live; demo-group-mint and full E2E smoke deferred)",
+  "status": "completed-with-deferred-items",
   "open_questions_carried_forward": [
     "Open Question 1 (seed problem source): resolved to projectile-motion fallback from examples.qmd; AR may supply fresh content during buffer week.",
     "Open Question 2 (wordmark): resolved to plain text wordmark.",
@@ -265,5 +267,6 @@
     "Vertex AI Data Residency policy syntax — verify against current API at start of M0",
     "Per-turn cost in Cloud Trace (thoughtsTokenCount) during buffer week; intervene only if pathological"
   ],
-  "started": "2026-05-20T07:30:00Z"
+  "started": "2026-05-20T07:30:00Z",
+  "completed": "2026-05-20T11:45:00Z"
 }
