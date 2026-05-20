@@ -20,10 +20,13 @@ docs/design/v6.2.0/anonymous-group-id-auth.md §"Security Considerations".
 This module ships seven gates on ``join_group``; each is exercised by
 a ``test_gate_N_<name>`` case in ``tests/unit/test_group_id_auth.py``.
 
-Storage: in-memory ``dict[group_id, GroupRecord]``. LOCAL_MODE
-restarts lose the state — matching the stub-token's lifetime. The
-production InMemoryFirestoreClient / Firestore wiring lands in M2
-alongside the routes.
+Storage: in-memory ``dict[group_id, GroupRecord]`` for fast-path,
+Firestore for persistence across Cloud Run instances and restarts.
+Write-through on create/delete; read-fallback on get_group when the
+in-memory cache misses. Without this AIPLA v0.1 would need to pin
+Cloud Run to a single instance — the whole point of serverless gone.
+AIPLA 2026-05-20 — closes the TODO at line 25 of the original module
+docstring ("Firestore wiring lands in M2").
 """
 
 from __future__ import annotations
@@ -32,7 +35,7 @@ import logging
 import os
 import secrets
 import time
-from dataclasses import dataclass, field
+from dataclasses import asdict, dataclass, field
 
 import jwt
 
@@ -236,6 +239,81 @@ def _check_group_active(record: GroupRecord) -> None:
         raise GroupExpired(f"group {record.group_id} expired")
 
 
+# ─── Firestore persistence (write-through; read-fallback in get_group) ──────
+#
+# AIPLA 2026-05-20: keeps Cloud Run serverless (no min-instances pin needed)
+# by promoting group state to Firestore. Pattern: every create/delete writes
+# through to Firestore *and* updates in-memory cache. get_group prefers the
+# in-memory hit; on miss, falls back to Firestore and re-hydrates the cache.
+#
+# Why a small helper rather than refactor AnonymousGroupAuth: the public API
+# surface (create_group/get_group/delete_group/join_group) stays identical;
+# every existing test in tests/unit/test_group_id_auth.py still pins to the
+# in-memory _state directly via reset_for_tests, and the InMemoryFirestoreClient
+# in LOCAL_MODE means the persistence layer is a no-op-ish round trip there.
+
+_GROUPS_COLLECTION = "anon_groups"
+
+
+def _record_to_doc(record: GroupRecord) -> dict:
+    """Serialize a GroupRecord for Firestore (tuples → lists)."""
+    data = asdict(record)
+    data["skill_ids"] = list(data["skill_ids"])
+    data["revoked"] = False
+    return data
+
+
+def _doc_to_record(doc: dict) -> GroupRecord:
+    """Deserialize Firestore doc → GroupRecord (lists → tuples).
+
+    Drops the persistence-only `revoked` flag; callers handle that
+    separately via the revoked set.
+    """
+    return GroupRecord(
+        group_id=doc["group_id"],
+        creator_uid=doc["creator_uid"],
+        title=doc["title"],
+        skill_ids=tuple(doc.get("skill_ids", [])),
+        created_at=doc["created_at"],
+        expires_at=doc["expires_at"],
+        max_concurrent_sessions=doc["max_concurrent_sessions"],
+    )
+
+
+def _persist_group(record: GroupRecord) -> None:
+    """Write a group to Firestore. Best-effort: log + skip on failure."""
+    try:
+        from db import firestore as fs
+
+        fs.set_document(_GROUPS_COLLECTION, record.group_id, _record_to_doc(record))
+    except Exception:  # noqa: BLE001
+        logger.exception("group_auth: failed to persist group=%s", record.group_id)
+
+
+def _load_group_from_firestore(group_id: str) -> GroupRecord | None:
+    """Read a group from Firestore. Returns None for missing or revoked."""
+    try:
+        from db import firestore as fs
+
+        doc = fs.get_document(_GROUPS_COLLECTION, group_id)
+        if not doc or doc.get("revoked"):
+            return None
+        return _doc_to_record(doc)
+    except Exception:  # noqa: BLE001
+        logger.exception("group_auth: failed to load group=%s from firestore", group_id)
+        return None
+
+
+def _mark_revoked_in_firestore(group_id: str) -> None:
+    """Flag a Firestore-persisted group as revoked. Best-effort."""
+    try:
+        from db import firestore as fs
+
+        fs.update_document(_GROUPS_COLLECTION, group_id, {"revoked": True})
+    except Exception:  # noqa: BLE001
+        logger.exception("group_auth: failed to mark revoked group=%s", group_id)
+
+
 # ─── Public API: lifecycle ──────────────────────────────────────────────────
 
 
@@ -279,6 +357,7 @@ def create_group(
         max_concurrent_sessions=max_concurrent_sessions,
     )
     _state.groups[code] = record
+    _persist_group(record)
     logger.info(
         "group_auth: created group=%s creator=%s ttl_days=%d skills=%d cap=%d",
         code,
@@ -291,10 +370,23 @@ def create_group(
 
 
 def get_group(group_id: str) -> GroupRecord | None:
-    """Lookup; returns None for missing or revoked."""
+    """Lookup; returns None for missing or revoked.
+
+    Fast path: in-memory cache. Cold path: Firestore (rehydrates the
+    cache on hit so subsequent calls on this instance are fast). This
+    is what makes serverless Cloud Run work — group state minted on
+    one instance is visible to a join request on another.
+    """
     if group_id in _state.revoked_group_ids:
         return None
-    return _state.groups.get(group_id)
+    cached = _state.groups.get(group_id)
+    if cached is not None:
+        return cached
+    # Cold-start / cross-instance: fall back to Firestore and rehydrate.
+    loaded = _load_group_from_firestore(group_id)
+    if loaded is not None:
+        _state.groups[group_id] = loaded
+    return loaded
 
 
 def delete_group(group_id: str, requesting_uid: str) -> None:
@@ -323,6 +415,7 @@ def delete_group(group_id: str, requesting_uid: str) -> None:
         raise PermissionError(f"only the group's creator ({record.creator_uid}) may revoke it")
     _state.groups.pop(group_id, None)
     _state.revoked_group_ids.add(group_id)
+    _mark_revoked_in_firestore(group_id)
     logger.info("group_auth: revoked group=%s by uid=%s", group_id, requesting_uid)
 
 
@@ -361,10 +454,12 @@ def join_group(group_id: str, *, client_ip: str) -> JoinResult:
     # get to learn whether the group exists.
     _state.rate_limiter.check(client_ip)
 
-    # Gates 2 + 4: lookup, revocation.
+    # Gates 2 + 4: lookup, revocation. Uses get_group() so a cold-start
+    # container (in-memory cache empty) can still validate codes minted
+    # by a previous instance — Firestore is the source of truth.
     if group_id in _state.revoked_group_ids:
         raise GroupRevoked(f"group {group_id} has been revoked")
-    record = _state.groups.get(group_id)
+    record = get_group(group_id)
     if record is None:
         raise GroupNotFound(f"group {group_id} not found")
 
