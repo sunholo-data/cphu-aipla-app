@@ -118,7 +118,13 @@ describe("/group page — happy join", () => {
       fireEvent.click(screen.getByRole("button", { name: /join/i }));
     });
     await waitFor(() => {
-      expect(routerReplaceMock).toHaveBeenCalledWith("/");
+      // AIPLA v0.1 — joined user routes directly to the demo skill chat,
+      // not "/" (which in anonymous-group mode shows a "Tilslut din gruppe"
+      // CTA back to /group → redirect loop). Match the env-overridable
+      // default in group/page.tsx.
+      expect(routerReplaceMock).toHaveBeenCalledWith(
+        expect.stringMatching(/^\/chat\/.*problem-set-hints$/),
+      );
     });
   });
 

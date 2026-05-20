@@ -40,17 +40,27 @@ export default function GroupJoinPage() {
   return <GroupJoinForm />;
 }
 
+// AIPLA v0.1 — after a successful group join, send the user directly
+// to the single skill the demo exposes. Previously this redirected to
+// "/", which under anonymous-group mode shows a "Tilslut din gruppe"
+// CTA back to /group → infinite bounce. Customise per fork via
+// NEXT_PUBLIC_POST_JOIN_REDIRECT (must be baked into the bundle via
+// frontend/Dockerfile ARG, same pattern as NEXT_PUBLIC_AUTH_MODE).
+const POST_JOIN_REDIRECT =
+  process.env.NEXT_PUBLIC_POST_JOIN_REDIRECT ||
+  "/chat/@aitana-platform/problem-set-hints";
+
 function GroupJoinForm() {
   const { status, error, join } = useAnonymousGroupAuth();
   const router = useRouter();
   const [code, setCode] = useState("");
 
-  // When the provider transitions to `joined`, redirect to home. The
-  // chat page's normal auth gating then sees a valid user via
-  // useAuth() (wired in AuthContext.tsx).
+  // When the provider transitions to `joined`, route directly to the
+  // demo chat — NOT to "/", which in anonymous-group mode shows a CTA
+  // pointing back here and creates a redirect loop.
   useEffect(() => {
     if (status === "joined") {
-      router.replace("/");
+      router.replace(POST_JOIN_REDIRECT);
     }
   }, [status, router]);
 
