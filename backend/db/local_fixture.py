@@ -68,6 +68,7 @@ def seed_local_fixture() -> None:
     # LOCAL_MODE can't actually invoke problem-set-hints because the skill
     # ID lookup returns 404 — the gap Mark caught at the end of v0.1 sprint
     # (2026-05-20). See memory entry feedback-use-project-skills-first.
+    psh_skill_id: str | None = None
     try:
         from admin import platform_seed
 
@@ -78,8 +79,42 @@ def seed_local_fixture() -> None:
                 summary.created,
                 summary.failed,
             )
+        # Look up problem-set-hints so we can seed a known group code
+        # pinned to it below.
+        from skills.skill_config import list_skills as _list_skills
+
+        for s in _list_skills(owner_id="aitana-platform", limit=200):
+            if s.name == "problem-set-hints":
+                psh_skill_id = s.skill_id
+                break
     except Exception:
         logger.exception("seed_local_fixture: platform_seed.seed() failed")
+
+    # ---- known LOCAL_MODE group code -------------------------------------
+    # Without this, every LOCAL_MODE user has to either curl the admin
+    # endpoint (which requires a real Google SA token) or know the magic
+    # group_id format. Seed a memorable code "LOCAL" pinned to
+    # problem-set-hints so anyone running LOCAL_MODE can paste it into
+    # the /group page and land in the demo chat immediately.
+    if psh_skill_id:
+        try:
+            from auth.group_id_auth import GroupRecord, _persist_group, _state
+
+            if "LOCAL" not in _state.groups:
+                rec = GroupRecord(
+                    group_id="LOCAL",
+                    title="LOCAL_MODE demo group",
+                    skill_ids=(psh_skill_id,),
+                    creator_uid=WORKSHOP_USER_UID,
+                    created_at=now,
+                    expires_at=now + 30 * 24 * 3600,  # 30 days
+                    max_concurrent_sessions=100,
+                )
+                _state.groups["LOCAL"] = rec
+                _persist_group(rec)
+                logger.info("seed_local_fixture: seeded group_id=LOCAL pinned to problem-set-hints")
+        except Exception:
+            logger.exception("seed_local_fixture: failed to seed LOCAL group code")
 
     # ---- demo document ---------------------------------------------------
     documents = list(client.collection("documents").stream())
