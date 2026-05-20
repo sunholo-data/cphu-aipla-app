@@ -56,19 +56,22 @@ def test_skill_v01_version(skill):
 @pytest.mark.parametrize(
     "principle_marker",
     [
-        "never give the final numerical answer",  # #1 no-solution rule
-        "decompose every problem",                 # #2 decomposition
-        "ask what the student has already tried",  # #3 ask before reveal
-        "match the student's language",            # #4 Danish-aware
-        "cite the seeded problem",                 # #5 citation
+        "never give the final numerical answer",      # no-solution rule
+        "decompose on request, not on greeting",      # greeting-aware (added 2026-05-20)
+        "decompose into\n   3–5 sub-steps",           # decomposition on real help request
+        "ask what the student has already tried",     # ask before reveal
+        "match the student's language",               # Danish-aware
+        "cite the seeded problem",                    # citation
+        "never call `send_a2ui_json_to_client`",      # no A2UI (added 2026-05-20)
     ],
 )
 def test_system_prompt_embeds_principle(skill, principle_marker):
-    """Every scaffolding principle from design doc Backend Changes is in the instructions."""
+    """Every scaffolding principle from design doc Backend Changes is in the instructions.
+    Updated 2026-05-20 to reflect the greeting-aware + A2UI-forbidden rules added
+    after the first deployed chat overshared on a 'hi' input + emitted A2UI surfaces."""
     instructions = skill.instructions.lower()
     assert principle_marker.lower() in instructions, (
-        f"Scaffolding principle marker '{principle_marker}' missing from system prompt — "
-        "design doc requires all 5 principles embedded verbatim."
+        f"Scaffolding principle marker '{principle_marker}' missing from system prompt."
     )
 
 

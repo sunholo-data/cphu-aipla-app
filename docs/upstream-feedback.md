@@ -492,6 +492,26 @@ FirebaseError: [code=permission-denied]: Missing or insufficient permissions.
 
 Option (a) is the natural upstream pattern. The template should bundle it into `AnonymousGroupAuthProvider` so downstream forks don't have to rediscover.
 
+## 22. A2UI toolset is appended to every skill regardless of `tools: []` — no opt-out
+
+**Where:** `backend/adk/agent.py` — `tools.append(make_a2ui_toolset(config=a2ui_cfg))` runs unconditionally for every skill the agent factory builds, immediately after the conditional `_resolve_search_tools(md.tools, ...)`. A skill that declares `tools: []` in SKILL.md still gets the A2UI tool wired up; there's no skill-level opt-out flag in `A2uiToolConfig`.
+
+**What hurt:** AIPLA's `problem-set-hints` declares `tools: []` because the v0.1 demo is intentionally chat-only. The first deployed test produced:
+
+- The model called `send_a2ui_json_to_client` to render a "projectile_motion_dashboard" surface on its own — never instructed to.
+- A second turn tried `createSurface` for the same id → `A2UI processMessages failed: Surface projectile_motion_dashboard already exists`.
+- Worse: the model decomposed the entire problem into a card grid on a "hi" greeting, defeating the scaffolding-not-solution design.
+
+The model has no way to *not* see the tool, so its prompt-to-tool-suggestion bias kicks in.
+
+**Workaround on AIPLA:** Belt-and-braces in the SKILL.md system prompt — explicit hard rule `"NEVER call send_a2ui_json_to_client or any A2UI / workspace / surface tool, even though the platform makes them available."` Plus a greeting-aware rule so the model holds back on first-turn decomposition. Tests updated. AIPLA commit (this push).
+
+**Upstream fix:** Either:
+- Make A2UI opt-in via `tool_configs.a2ui` being explicitly present (default = not added). Same pattern as `mcp` / search tools, which respect `md.tools`.
+- Or add a top-level `disable_a2ui: true` flag in `A2uiToolConfig` so chat-only skills can declare intent without prompt-engineering.
+
+The current default of "every skill gets every UI capability the platform owns" is sensible for the inherited workshop demos (3 of 5 are A2UI showcases) but is wrong for any downstream fork that wants minimalist chat skills. Captured here as a defaults-shape issue, not a bug per se.
+
 ## Backlog (likely additions as v0.1 sprint continues)
 
 - M5 may surface IAM bindings the bootstrap script should add
