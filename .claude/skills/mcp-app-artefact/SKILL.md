@@ -98,6 +98,15 @@ What actually shipped + what we learned:
   names: `open / play / pause / reset / param.change / show_value`.
   Boldkast also emits per-marker `show_value` so OTel sees which answers
   the student revealed.
+- **Field-name discipline on emit():** the host validates `e.data.source
+  === "<artefact-name>"` to namespace messages. So the `extra` object
+  passed to `emit()` MUST NOT include a key named `source` — it'll
+  override the namespace via Object.assign and the host will reject
+  the message as cross-namespace. Use `triggeredBy` for "where did
+  this event come from" (slider vs preset click), `marker` for which
+  answer-marker, `param` for which parameter changed, etc. Reserved
+  field names enforced by convention only — easy to typo, easy to
+  catch in a Playwright test.
 - Self-test on `?test=1` — flips `document.title` to "TEST PASS" or
   "TEST FAIL". CI can probe headlessly.
 - Danish-first copy; pedagogical-warning panel ("Værdierne er skjult
@@ -155,6 +164,37 @@ PEDAGOGICAL CONSTRAINTS:
    trajectory canvas).
 9. Danish-first UI copy with English-as-secondary in comments only.
    Decimal separator: comma (e.g. "4,74 m" not "4.74 m").
+
+TELEMETRY / AGENT-OBSERVABILITY:
+10. Emit postMessage events on every pedagogically meaningful user
+    action so the host (and the agent through it) can observe what
+    the student is doing inside the iframe. Pattern:
+        parent.postMessage(
+          { source: "<artefact-name>", type: "<artefact-name>.<verb>",
+            ...payload }, "*");
+    Mandatory event verbs (use these literal strings — the host has
+    handlers keyed on them):
+      - "open"          — fired once on artefact load.
+      - "show_value"    — fired on per-marker reveal. Payload:
+                          {marker: "<id>", revealed: true|false}.
+      - "param.change"  — fired on every parameter change. Payload:
+                          {param: "<id>", value: <number>,
+                           triggeredBy?: "slider" | "preset:<name>"}.
+                          Slider-drag is silent at the host level
+                          (too chatty); only preset clicks get
+                          pushed to the agent.
+      - "play" / "pause" / "reset" — control state. Host logs locally
+                          but does NOT push to the agent (not
+                          pedagogically interesting).
+    Field-name discipline: never include a top-level `source` key
+    in the payload — it collides with the namespace `source: "<artefact>"`
+    that the host filters on. Use `triggeredBy:` for context-of-event.
+11. Pedagogical-state snapshot: each `show_value` and preset-click
+    event should leave the artefact in a deterministic state that the
+    host can render as "what the student has interacted with so far".
+    The host accumulates: which markers are revealed, current
+    parameter values, last-clicked preset. Don't break invariants
+    (e.g. don't auto-reveal a marker on init — student must click).
 
 STRUCTURAL TEMPLATE:
 Start from `infrastructure/mcp-sandbox/artefacts/_template/v1/index.html`.

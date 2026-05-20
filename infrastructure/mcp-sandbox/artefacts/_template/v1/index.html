@@ -149,16 +149,34 @@
 <script>
   "use strict";
   // ─── Telemetry helper (DO NOT REMOVE) ───────────────────────────────────
-  // Emits typed events to the host frontend via postMessage. The host's
-  // BoldkastSimFrame/etc. validates origin then forwards to OTel. Pattern:
-  // {source: "<artefact-name>", type: "<artefact-name>.<event>", ...}
+  // Emits typed events to the host frontend via postMessage. The host
+  // validates `source === ARTEFACT_NAME` as the namespace filter, so DO
+  // NOT put a `source` key in `extra` — it would override the namespace
+  // (Object.assign extras-last) and the host would reject the event as
+  // cross-namespace. Use `triggeredBy` for context-of-event instead.
+  //
+  // Reserved field names enforced by convention (the host has handlers
+  // keyed on them — see frontend/src/components/workspace/<artefact>Frame.tsx):
+  //   - marker       : which answer-marker the event refers to
+  //   - param        : which parameter changed
+  //   - value        : new value for a param change (number)
+  //   - revealed     : reveal toggle state (boolean)
+  //   - triggeredBy  : "slider" | "preset:<name>" | etc.
+  //
+  // Host pushes "open" / "show_value" / preset-click "param.change" to
+  // the agent's session state via /api/sessions/{id}/iframe-context.
+  // Other events (play / pause / reset / slider-drag param.change) are
+  // logged locally but NOT pushed — they're not pedagogically useful.
   const ARTEFACT_NAME = "{{ARTEFACT_NAME}}";
   function emit(type, extra) {
     try {
-      window.parent.postMessage(
-        Object.assign({ source: ARTEFACT_NAME, type: ARTEFACT_NAME + "." + type }, extra || {}),
-        "*",
-      );
+      // Object.assign: namespace LAST so `extra` can't override it. The
+      // type goes through namespace too — host filters by source + type.
+      const msg = Object.assign({}, extra || {}, {
+        source: ARTEFACT_NAME,
+        type: ARTEFACT_NAME + "." + type,
+      });
+      window.parent.postMessage(msg, "*");
     } catch (e) { /* parent may not exist in standalone mode */ }
   }
 

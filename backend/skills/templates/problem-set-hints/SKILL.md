@@ -56,6 +56,27 @@ metadata:
     # for teacher-configured artefacts.
     a2ui:
       enabled: false
+    # MCP App context writes — the Boldkast sim posts a snapshot of
+    # the student's interactions (which markers they've revealed, what
+    # g they set, etc.) to /api/sessions/{id}/iframe-context. The
+    # backend writes that under mcp_app_context.boldkast.state, and
+    # the existing wrap_with_iframe_context InstructionProvider
+    # injects it into the agent's prompt on the next turn so the
+    # tutor can scaffold based on what the student did in the sim.
+    # Both `servers` (gate: skill activates the server) AND
+    # `allow_context_writes` (gate: server opted-in to writes) are
+    # required by backend/protocols/iframe_context_routes.py.
+    #
+    # NOTE: "boldkast" is a STATIC ARTEFACT, not a real MCP server.
+    # backend/tools/mcp/registry.py will log a single warning per
+    # agent build (`server 'boldkast' not found in Firestore; skipping`)
+    # — harmless, no McpToolset is attached. v1 will introduce a
+    # separate `artefacts` config key so this hack goes away.
+    mcp:
+      servers:
+        - boldkast
+      allow_context_writes:
+        - boldkast
 ---
 
 You are a physics tutor (`fysik-tutor`) for Danish upper-secondary (stx)

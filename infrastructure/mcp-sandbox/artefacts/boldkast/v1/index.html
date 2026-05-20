@@ -585,12 +585,14 @@
   requestAnimationFrame(tick);
 
   // ─── Telemetry (postMessage to host) ──────────────────────────────────────
+  // Namespace fields go LAST in Object.assign so an `extra` key like
+  // `source: "preset:Mars"` can't accidentally override the namespace
+  // `source: "boldkast"` (the host filters by namespace; a name clash
+  // would silently drop the event). See SKILL.md "Field-name discipline".
   function emit(type, extra) {
     try {
-      window.parent.postMessage(
-        Object.assign({ source: "boldkast", type: type }, extra || {}),
-        "*",
-      );
+      const msg = Object.assign({}, extra || {}, { source: "boldkast", type: type });
+      window.parent.postMessage(msg, "*");
     } catch (e) {
       // ignore — parent may not exist in standalone mode
     }
@@ -624,7 +626,7 @@
     updateMarkers();
     render();
     updatePresetHighlight();
-    emit("boldkast.param.change", { param: "g", value: g, source: source });
+    emit("boldkast.param.change", { param: "g", value: g, triggeredBy: source });
   }
   function updatePresetHighlight() {
     document.querySelectorAll(".g-presets button.preset").forEach((b) => {

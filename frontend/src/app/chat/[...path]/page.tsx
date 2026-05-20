@@ -672,6 +672,7 @@ function ChatShell({
             {showBoldkastSim && BOLDKAST_SANDBOX_ORIGIN ? (
               <BoldkastSimFrame
                 sandboxOrigin={BOLDKAST_SANDBOX_ORIGIN}
+                sessionId={sessionId ?? agentSessionId}
                 onClose={() => setShowBoldkastSim(false)}
               />
             ) : (

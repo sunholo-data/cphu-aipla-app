@@ -6,13 +6,13 @@ const ORIGIN = "https://aipla-v01-sandbox-test.run.app";
 
 describe("BoldkastSimFrame", () => {
   it("renders the iframe at /artefacts/boldkast/v1/", () => {
-    render(<BoldkastSimFrame sandboxOrigin={ORIGIN} onClose={() => {}} />);
+    render(<BoldkastSimFrame sandboxOrigin={ORIGIN} sessionId={null} onClose={() => {}} />);
     const iframe = screen.getByTitle(/Boldkast.*simulator/i) as HTMLIFrameElement;
     expect(iframe.src).toBe(`${ORIGIN}/artefacts/boldkast/v1/index.html`);
   });
 
   it("iframe carries ADR-013 sandbox + referrer attrs", () => {
-    render(<BoldkastSimFrame sandboxOrigin={ORIGIN} onClose={() => {}} />);
+    render(<BoldkastSimFrame sandboxOrigin={ORIGIN} sessionId={null} onClose={() => {}} />);
     const iframe = screen.getByTitle(/Boldkast.*simulator/i);
     // allow-scripts only — must NOT contain allow-same-origin/top-nav/popups
     expect(iframe.getAttribute("sandbox")).toBe("allow-scripts");
@@ -20,14 +20,14 @@ describe("BoldkastSimFrame", () => {
   });
 
   it("strips trailing slash on the sandbox origin", () => {
-    render(<BoldkastSimFrame sandboxOrigin={`${ORIGIN}/`} onClose={() => {}} />);
+    render(<BoldkastSimFrame sandboxOrigin={`${ORIGIN}/`} sessionId={null} onClose={() => {}} />);
     const iframe = screen.getByTitle(/Boldkast.*simulator/i) as HTMLIFrameElement;
     expect(iframe.src).toBe(`${ORIGIN}/artefacts/boldkast/v1/index.html`);
   });
 
   it("close button fires onClose", () => {
     const onClose = vi.fn();
-    render(<BoldkastSimFrame sandboxOrigin={ORIGIN} onClose={onClose} />);
+    render(<BoldkastSimFrame sandboxOrigin={ORIGIN} sessionId={null} onClose={onClose} />);
     fireEvent.click(screen.getByLabelText(/Luk simulator/i));
     expect(onClose).toHaveBeenCalledTimes(1);
   });
@@ -36,7 +36,7 @@ describe("BoldkastSimFrame", () => {
     // We can't directly observe the handler, but we can verify it doesn't
     // crash + doesn't bubble side effects when a wrong-origin message arrives.
     // The component shouldn't log to console in production paths.
-    render(<BoldkastSimFrame sandboxOrigin={ORIGIN} onClose={() => {}} />);
+    render(<BoldkastSimFrame sandboxOrigin={ORIGIN} sessionId={null} onClose={() => {}} />);
     const consoleSpy = vi.spyOn(console, "log").mockImplementation(() => {});
     // Same-origin message (jsdom default) should be ignored because it doesn't match ORIGIN.
     window.postMessage({ source: "boldkast", type: "boldkast.open" }, "*");
