@@ -230,8 +230,14 @@ steps:
         # The metadata server path works because the Cloud Build VM has
         # the user-managed SA attached, so the metadata server can mint
         # an ID token with an explicit audience.
+        # CRITICAL: include_email=true is required. Without it the
+        # minted token has NO email claim — only aud/azp/iat/iss/sub —
+        # and the backend's allowlist check (looks at claims["email"])
+        # produces a 403 "Not authorized" silently. Discovered 2026-05-20
+        # by decoding the impersonated token after the metadata-server
+        # fix returned 0 skills seeded.
         TOKEN=$(curl -sS -H "Metadata-Flavor: Google" \
-          "http://metadata.google.internal/computeMetadata/v1/instance/service-accounts/default/identity?audience=$${URL}")
+          "http://metadata.google.internal/computeMetadata/v1/instance/service-accounts/default/identity?audience=$${URL}&include_email=true")
         code=$(curl -sS -o /tmp/seed -w '%{http_code}' --max-time 60 \
           -X POST -H "Authorization: Bearer $${TOKEN}" \
           "$${URL}/api/proxy/api/admin/seed-platform-skills") || code=000
