@@ -1,14 +1,32 @@
-# Deployed URLs — Aitana Platform v6
+# Deployed URLs — AIPLA fork (inherited template doc, AIPLA section first)
 
-Canonical list of live v6 Cloud Run services, per environment.
+Canonical list of live Cloud Run services, per environment.
 
-Both services are deployed by `cloudbuild.yaml` (multi-container frontend) and
-`backend/cloudbuild.yaml` (standalone backend). They are **not** Terraform-
-provisioned — Terraform only manages IAM bindings against them. The URLs are
-assigned by Cloud Run on first deploy and stay stable unless the service is
-deleted and recreated.
+## AIPLA — dev (`aipla-dev-2026`, region `europe-north1`)
 
-## dev
+- **Frontend (public, multi-container):** https://aipla-v01-frontend-wgwhd7mspa-lz.a.run.app
+  - Main container: `ui:dev` — Next.js 15, listens on 8080 (Cloud Run ingress)
+  - Sidecar: `backend:dev` — FastAPI + ADK, listens on 1956
+  - Cloud Build trigger: `aipla-dev-deploy` (root `cloudbuild.yaml`, fires on `dev` push)
+- **MCP App sandbox (public, separate origin per ADR-013):** https://aipla-v01-sandbox-wgwhd7mspa-lz.a.run.app
+  - Image: `aipla-v01-sandbox:dev` from `infrastructure/mcp-sandbox/`
+  - Hosts `/sandbox.html` (iframe shell) + `/artefacts/<name>/v<version>/index.html` (curated artefacts — Boldkast, future physics sims)
+  - Cloud Build trigger: `aipla-mcp-sandbox-deploy` (filter `infrastructure/mcp-sandbox/**`, fires on `dev` push when sandbox files change)
+  - Public smoke: `curl https://aipla-v01-sandbox-wgwhd7mspa-lz.a.run.app/sandbox.html` → 200
+- Test/prod: not yet cut.
+
+---
+
+# Inherited: Aitana Platform v6 deployed URLs
+
+The section below is from the inherited template and refers to the upstream
+Aitana services, NOT AIPLA. Kept for reference until the template is bumped
+and the inherited section can be pruned. Both services are deployed by
+`cloudbuild.yaml` (multi-container frontend) and `backend/cloudbuild.yaml`
+(standalone backend). The URLs are assigned by Cloud Run on first deploy and
+stay stable unless the service is deleted and recreated.
+
+## dev (Aitana — upstream)
 
 - **Frontend (public, multi-container):** https://aitana-v6-frontend-66pa3y5xnq-ew.a.run.app
   - Main container: `ui:dev` — Next.js 15, listens on 8080 (Cloud Run ingress)

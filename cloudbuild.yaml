@@ -24,7 +24,11 @@ substitutions:
   # (NEXT_PUBLIC_*). Defaults to the dev sandbox URL so this trigger
   # ships sensibly even without a terraform substitution; test/prod
   # override per env.
-  _MCP_SANDBOX_URL: 'https://mcp-sandbox-66pa3y5xnq-ew.a.run.app/sandbox.html'
+  # AIPLA sandbox URL (sprint 2026-05-21). Cloud Run *.run.app URL,
+  # europe-north1. Pinned to /sandbox.html for the MCPAppToolCallRouter
+  # iframe shell; static artefacts are reached separately at
+  # ${origin}/artefacts/<name>/v<version>/index.html.
+  _MCP_SANDBOX_URL: 'https://aipla-v01-sandbox-wgwhd7mspa-lz.a.run.app/sandbox.html'
 
 tags: ['${_PROJECT_ID}', '${_SERVICE_NAME}']
 
