@@ -1,0 +1,250 @@
+"""Wordlists used by the human-readable group-code generator.
+
+Format produced by `_generate_code()`: ``<adjective>-<noun>-<NN>``
+(e.g. ``bright-fox-42``). Three pieces give 100 by 100 by 100 ~= 1M unique
+codes — plenty for AIPLA's v0.1-v1 scale where a single school cohort
+mints maybe 20 codes per term.
+
+Curation rules (when adding words):
+
+1. **One syllable preferred, two syllables max.** Teachers need to dictate
+   these aloud in Danish classrooms — long English words trip people up.
+2. **No homophones** (e.g. avoid both ``sea`` and ``see``). The whole
+   point is dictation: a student who hears "see" should not have to
+   guess which spelling.
+3. **No words that sound similar in Danish** (e.g. avoid ``car`` because
+   Danes say "kar" for tub; avoid ``fart`` even though it means "speed"
+   in Danish — for English speakers in the room).
+4. **No politically loaded, gendered, or culturally-loaded terms.** This
+   is a classroom assignment, not a Heroku app.
+5. **All lowercase, ASCII only.** No å/ø/æ — the code goes through HTTP
+   path encoding and a tired teacher should be able to type it on any
+   keyboard layout.
+6. **Concrete nouns + sensory adjectives.** "tiger" + "happy" is fine;
+   "thought" + "abstract" is harder to picture and harder to spell.
+
+The current wordlists below total 100 adjectives + 100 nouns. Expanding
+them is welcome — keep the rules above and the size a multiple of 10 so
+the entropy math stays trivial to redo.
+"""
+
+# 100 adjectives — sensory / vivid / classroom-friendly.
+ADJECTIVES: tuple[str, ...] = (
+    "bright",
+    "calm",
+    "brave",
+    "swift",
+    "lucky",
+    "happy",
+    "quiet",
+    "loud",
+    "bold",
+    "kind",
+    "neat",
+    "wise",
+    "shiny",
+    "fuzzy",
+    "tiny",
+    "huge",
+    "tall",
+    "short",
+    "wide",
+    "thin",
+    "warm",
+    "cool",
+    "fresh",
+    "smooth",
+    "rough",
+    "soft",
+    "hard",
+    "fast",
+    "slow",
+    "early",
+    "late",
+    "lazy",
+    "busy",
+    "merry",
+    "jolly",
+    "proud",
+    "shy",
+    "eager",
+    "gentle",
+    "lively",
+    "still",
+    "windy",
+    "sunny",
+    "cloudy",
+    "rainy",
+    "snowy",
+    "starry",
+    "misty",
+    "rosy",
+    "golden",
+    "silver",
+    "ruby",
+    "emerald",
+    "violet",
+    "amber",
+    "blue",
+    "green",
+    "red",
+    "pink",
+    "white",
+    "ivory",
+    "minty",
+    "spicy",
+    "salty",
+    "sweet",
+    "tangy",
+    "zesty",
+    "crisp",
+    "lush",
+    "dewy",
+    "icy",
+    "frosty",
+    "muddy",
+    "dusty",
+    "rocky",
+    "sandy",
+    "grassy",
+    "leafy",
+    "woody",
+    "thorny",
+    "fluffy",
+    "wooly",
+    "feathery",
+    "scaly",
+    "spotted",
+    "striped",
+    "curly",
+    "wavy",
+    "spiral",
+    "tilted",
+    "tipsy",
+    "perky",
+    "sleepy",
+    "cheery",
+    "snappy",
+    "tidy",
+    "trusty",
+    "nimble",
+    "spry",
+    "stout",
+)
+
+# 100 nouns — concrete, picturable. Mix of animals, objects, nature,
+# small everyday things. No abstract concepts.
+NOUNS: tuple[str, ...] = (
+    "fox",
+    "owl",
+    "bear",
+    "wolf",
+    "deer",
+    "hawk",
+    "lynx",
+    "moose",
+    "otter",
+    "seal",
+    "swan",
+    "duck",
+    "goose",
+    "robin",
+    "wren",
+    "finch",
+    "crow",
+    "raven",
+    "heron",
+    "stork",
+    "tiger",
+    "lion",
+    "panda",
+    "koala",
+    "lemur",
+    "zebra",
+    "horse",
+    "pony",
+    "sheep",
+    "lamb",
+    "rabbit",
+    "mouse",
+    "shrew",
+    "badger",
+    "ferret",
+    "weasel",
+    "marten",
+    "fawn",
+    "bison",
+    "elk",
+    "trout",
+    "salmon",
+    "minnow",
+    "guppy",
+    "shrimp",
+    "crab",
+    "snail",
+    "moth",
+    "wasp",
+    "beetle",
+    "river",
+    "pond",
+    "creek",
+    "brook",
+    "lake",
+    "marsh",
+    "shore",
+    "beach",
+    "cliff",
+    "ridge",
+    "hill",
+    "valley",
+    "meadow",
+    "forest",
+    "grove",
+    "hedge",
+    "garden",
+    "field",
+    "orchard",
+    "thicket",
+    "stone",
+    "pebble",
+    "boulder",
+    "crystal",
+    "shell",
+    "feather",
+    "petal",
+    "leaf",
+    "twig",
+    "seed",
+    "lantern",
+    "candle",
+    "kettle",
+    "pitcher",
+    "basket",
+    "saddle",
+    "anchor",
+    "compass",
+    "beacon",
+    "pencil",
+    "marble",
+    "ribbon",
+    "button",
+    "spoon",
+    "ladle",
+    "harp",
+    "drum",
+    "flute",
+    "violin",
+    "kazoo",
+)
+
+# Sanity-check at import time so a typo doesn't quietly degrade the
+# entropy of new codes (e.g. accidentally dropping an entry).
+assert len(ADJECTIVES) == 100, f"ADJECTIVES must have exactly 100 entries; got {len(ADJECTIVES)}"
+assert len(NOUNS) == 100, f"NOUNS must have exactly 100 entries; got {len(NOUNS)}"
+# Sanity-check: all lowercase ASCII, no whitespace, no hyphens (the
+# hyphen is the separator).
+for _list, _name in ((ADJECTIVES, "ADJECTIVES"), (NOUNS, "NOUNS")):
+    for _w in _list:
+        assert _w == _w.lower(), f"{_name}: {_w!r} must be lowercase"
+        assert _w.isascii(), f"{_name}: {_w!r} must be ASCII"
+        assert "-" not in _w and " " not in _w, f"{_name}: {_w!r} must not contain - or space"

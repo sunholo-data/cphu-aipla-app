@@ -9,8 +9,9 @@
 #   - Frontend on http://localhost:3456 (yellow LOCAL_MODE banner)
 #   - MCP App sandbox on http://localhost:3457 (separate origin per
 #     ADR-013; serves /sandbox.html + /artefacts/<name>/v<version>/)
-#   - A known group code `LOCAL` pre-seeded so /group join works
-#     without curl-ing the admin endpoint
+#   - A known group code `local-demo` pre-seeded so /group join works
+#     without curl-ing the admin endpoint (case-insensitive; whitespace
+#     tolerant — "Local-Demo" or "LOCAL-DEMO" both work)
 #
 # Model auth is NOT stubbed. Either:
 #   - Set GEMINI_API_KEY=... in backend/.env (Express Mode, no GCP needed)
@@ -176,7 +177,7 @@ printf '%s  AIPLA — LOCAL_MODE dev servers ready%s\n' "$C_BOLD" "$C_RESET"
 printf '%s━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━%s\n' "$C_BOLD" "$C_RESET"
 echo ""
 printf '  %s→ Open this:%s   %shttp://localhost:%d/group%s\n' "$C_BOLD" "$C_RESET" "$C_GREEN" "$FRONTEND_PORT" "$C_RESET"
-printf '  %s→ Group code:%s  %sLOCAL%s   (pre-seeded; pinned to problem-set-hints)\n' "$C_BOLD" "$C_RESET" "$C_GREEN" "$C_RESET"
+printf '  %s→ Group code:%s  %slocal-demo%s   (pre-seeded; pinned to problem-set-hints; case-insensitive)\n' "$C_BOLD" "$C_RESET" "$C_GREEN" "$C_RESET"
 echo ""
 echo "  Services:"
 printf '    Frontend  → http://localhost:%d   %s(yellow LOCAL_MODE banner)%s\n'   $FRONTEND_PORT "$C_DIM" "$C_RESET"

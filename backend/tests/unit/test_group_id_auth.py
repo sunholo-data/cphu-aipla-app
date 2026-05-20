@@ -106,18 +106,41 @@ def test_create_group_returns_id_and_expiry():
     assert tuple(rec.skill_ids) == ("physics-tutor",)
 
 
-def test_create_group_id_is_high_entropy_alphabet():
-    """No ambiguous chars (0/O/1/I), no lowercase, hyphen-separated."""
+def test_create_group_id_is_human_readable_words():
+    """Format is `adjective-noun-NN` (lowercase, hyphen-separated)
+    so teachers can shout codes across a classroom without dictating
+    ambiguous letters."""
+    from auth.group_id_wordlist import ADJECTIVES, NOUNS
+
     rec = create_group(
         title="x",
         skill_ids=["s"],
         creator_uid="u",
         ttl_days=7,
     )
-    body = rec.group_id.replace("-", "")
-    forbidden = set("0O1I")
-    assert not (set(body) & forbidden), f"group_id {rec.group_id} contains ambiguous chars"
-    assert body.isupper() and body.isalnum()
+    parts = rec.group_id.split("-")
+    assert len(parts) == 3, f"expected adj-noun-NN, got {rec.group_id!r}"
+    adj, noun, nn = parts
+    assert adj in ADJECTIVES, f"{adj!r} not in ADJECTIVES wordlist"
+    assert noun in NOUNS, f"{noun!r} not in NOUNS wordlist"
+    assert len(nn) == 2 and nn.isdigit(), f"expected 2-digit suffix, got {nn!r}"
+    # All-lowercase, ASCII so any keyboard layout can type it.
+    assert rec.group_id == rec.group_id.lower()
+    assert rec.group_id.isascii()
+
+
+def test_join_group_is_case_insensitive_and_whitespace_tolerant():
+    """Teachers shout codes; students type them. Case + leading/trailing
+    space should NOT block the join — backend normalises before lookup."""
+    rec = create_group(title="x", skill_ids=["s"], creator_uid="u", ttl_days=7)
+    code = rec.group_id  # lowercase canonical
+
+    # All of these are the "same" code from a UX perspective.
+    for variant in (code, code.upper(), code.title(), f"  {code}  ", f"\t{code.upper()}\n"):
+        result = join_group(variant, client_ip="10.0.0.1")
+        assert result.token, f"variant {variant!r} should resolve to the same record"
+        # Per-join uid is unique, but it carries the canonical (lowercase) group_id.
+        assert code.replace("-", "") in result.uid, f"uid should carry canonical group_id for {variant!r}"
 
 
 def test_get_group_returns_record_for_existing_id():

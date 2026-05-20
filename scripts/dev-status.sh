@@ -97,15 +97,15 @@ else
 fi
 
 # ─── LOCAL group join ───────────────────────────────────────────────────────
-section "LOCAL group code"
+section "local-demo group code"
 if probe_port "$BACKEND_PORT"; then
     JOIN=$(curl -s --max-time 3 -X POST "http://127.0.0.1:${BACKEND_PORT}/api/auth/group/join" \
-        -H "Content-Type: application/json" -d '{"group_id":"LOCAL"}' 2>/dev/null || echo "")
+        -H "Content-Type: application/json" -d '{"group_id":"local-demo"}' 2>/dev/null || echo "")
     if echo "$JOIN" | grep -q '"token":'; then
         SKILL_COUNT=$(echo "$JOIN" | python3 -c "import json,sys; d=json.load(sys.stdin); print(len(d.get('skill_ids',[])))" 2>/dev/null || echo "?")
-        ok "POST /api/auth/group/join {\"group_id\":\"LOCAL\"} → token (skill_ids: $SKILL_COUNT)"
+        ok "POST /api/auth/group/join {\"group_id\":\"local-demo\"} → token (skill_ids: $SKILL_COUNT)"
     else
-        fail "LOCAL group join failed — seed didn't run, or PLATFORM_OWNER_UID drift"
+        fail "local-demo group join failed — seed didn't run, or PLATFORM_OWNER_UID drift"
     fi
 else
     fail "skipped — backend not running"
@@ -114,7 +114,7 @@ fi
 # ─── Summary ────────────────────────────────────────────────────────────────
 echo ""
 if [ "$EXIT_CODE" = "0" ]; then
-    printf '%s✓ All checks passed — open %shttp://localhost:%s/group%s and use code %sLOCAL%s\n' \
+    printf '%s✓ All checks passed — open %shttp://localhost:%s/group%s and use code %slocal-demo%s\n' \
         "$C_GREEN" "$C_BOLD" "$FRONTEND_PORT" "$C_RESET$C_GREEN" "$C_BOLD" "$C_RESET"
 else
     printf '%s✗ One or more checks failed.%s Start with: ./scripts/dev-local.sh\n' "$C_RED" "$C_RESET"

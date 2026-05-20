@@ -96,17 +96,23 @@ def seed_local_fixture() -> None:
 
     # ---- known LOCAL_MODE group code -------------------------------------
     # Without this, every LOCAL_MODE user has to either curl the admin
-    # endpoint (which requires a real Google SA token) or know the magic
-    # group_id format. Seed a memorable code "LOCAL" pinned to
+    # endpoint (which requires a real Google SA token) or guess the
+    # adjective-noun-NN word format. Seed a memorable code pinned to
     # problem-set-hints so anyone running LOCAL_MODE can paste it into
     # the /group page and land in the demo chat immediately.
+    #
+    # Code matches the new human-readable convention: lowercase, easy
+    # to dictate, hyphen-separated. join_group normalizes input to
+    # lowercase + strips whitespace, so "Local-Demo" and "LOCAL-DEMO"
+    # also resolve here.
     if psh_skill_id:
         try:
             from auth.group_id_auth import GroupRecord, _persist_group, _state
 
-            if "LOCAL" not in _state.groups:
+            code = "local-demo"
+            if code not in _state.groups:
                 rec = GroupRecord(
-                    group_id="LOCAL",
+                    group_id=code,
                     title="LOCAL_MODE demo group",
                     skill_ids=(psh_skill_id,),
                     creator_uid=WORKSHOP_USER_UID,
@@ -114,11 +120,11 @@ def seed_local_fixture() -> None:
                     expires_at=now + 30 * 24 * 3600,  # 30 days
                     max_concurrent_sessions=100,
                 )
-                _state.groups["LOCAL"] = rec
+                _state.groups[code] = rec
                 _persist_group(rec)
-                logger.info("seed_local_fixture: seeded group_id=LOCAL pinned to problem-set-hints")
+                logger.info("seed_local_fixture: seeded group_id=%s pinned to problem-set-hints", code)
         except Exception:
-            logger.exception("seed_local_fixture: failed to seed LOCAL group code")
+            logger.exception("seed_local_fixture: failed to seed local-demo group code")
 
     # ---- demo document ---------------------------------------------------
     documents = list(client.collection("documents").stream())

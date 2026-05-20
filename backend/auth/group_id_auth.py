@@ -209,17 +209,29 @@ def _signing_secret() -> str:
 
 
 def _generate_code() -> str:
-    """Mint a short code with the unambiguous alphabet.
+    """Mint a human-readable code teachers can shout across a classroom.
 
-    Shape: `XXXX-XXXX` (4 + hyphen + 4). At 32 chars of alphabet,
-    that's ~3.4 x 10^11 codes. Combined with the 10/min/IP rate limit
-    it's not enumerable.
+    Shape: ``<adjective>-<noun>-<NN>`` (e.g. ``bright-fox-42``). At
+    100 adjectives by 100 nouns by 100 two-digit suffixes, that's 1M
+    unique codes — plenty for AIPLA's scale. Combined with the
+    10-attempts/min/IP rate limit at /join, it's not enumerable.
+
+    Why not the legacy ``XXXX-XXXX`` alphabet? Because the v0.1
+    Jutland-demo blocker was teachers having to read a string of
+    ambiguous-but-not-ambiguous-enough characters aloud — "is that
+    H or N? Q or Q?". Words remove that failure mode entirely.
+
+    All-lowercase, ASCII, hyphen-separated → keyboard-independent.
+    Wordlist + curation rules live in `group_id_wordlist.py`.
     """
-    parts = [
-        "".join(secrets.choice(_CODE_ALPHABET) for _ in range(_CODE_LEN_BEFORE_HYPHEN)),
-        "".join(secrets.choice(_CODE_ALPHABET) for _ in range(_CODE_LEN_AFTER_HYPHEN)),
-    ]
-    return "-".join(parts)
+    from auth.group_id_wordlist import ADJECTIVES, NOUNS
+
+    adj = secrets.choice(ADJECTIVES)
+    noun = secrets.choice(NOUNS)
+    # Two-digit numeric suffix (00-99) avoids the most common collision
+    # (two teachers minting the same adjective+noun in the same week).
+    nn = f"{secrets.randbelow(100):02d}"
+    return f"{adj}-{noun}-{nn}"
 
 
 def _today_iso() -> str:
@@ -454,6 +466,11 @@ def join_group(group_id: str, *, client_ip: str) -> JoinResult:
         raise ValueError("group_id must be a non-empty string")
     if not isinstance(client_ip, str) or not client_ip:
         raise ValueError("client_ip must be a non-empty string")
+
+    # Normalize: codes are case-insensitive + whitespace-tolerant so
+    # "Bright-Fox-42" / " bright-fox-42 " / "BRIGHT-FOX-42" all hit the
+    # same record. Mint outputs are always lowercase (see _generate_code).
+    group_id = group_id.strip().lower()
 
     # Gate 5 (rate limit) is FIRST so brute-force attempts don't even
     # get to learn whether the group exists.
