@@ -30,7 +30,13 @@ async function getMarketplaceSkills(): Promise<SkillSummary[]> {
 }
 
 export default async function HomePage() {
-  const skills = await getMarketplaceSkills();
+  // In anonymous-group-id mode, the home page is a single-CTA landing that
+  // routes students to /group. Showing the marketplace shelf with
+  // /chat/@aitana-platform/<slug> links is misleading — those routes
+  // require a group token the user doesn't have yet.
+  const isAnonymousGroupMode =
+    process.env.NEXT_PUBLIC_AUTH_MODE === "anonymous_group_id";
+  const skills = isAnonymousGroupMode ? [] : await getMarketplaceSkills();
 
   return (
     <main className="flex min-h-screen flex-col items-center justify-center p-8">
@@ -46,7 +52,7 @@ export default async function HomePage() {
         </h1>
         <p className="text-muted-foreground text-lg">{BRANDING.tagline}</p>
 
-        {process.env.NEXT_PUBLIC_AUTH_MODE === "anonymous_group_id" ? (
+        {isAnonymousGroupMode ? (
           // AIPLA v0.1 — anonymous group join is the only student-facing
           // auth path. Google Sign-In isn't configured on aipla-dev-2026
           // (no teacher routes ship until v1.0.0-pilot per ADR-001
