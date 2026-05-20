@@ -17,6 +17,7 @@ from aiplatform.commands.folder import folder
 from aiplatform.commands.groups import groups
 from aiplatform.commands.sessions import sessions
 from aiplatform.commands.skill import skill
+from aiplatform.commands.smoke import smoke
 
 
 @click.group()
@@ -42,6 +43,7 @@ main.add_command(groups)
 main.add_command(access)
 main.add_command(skill)
 main.add_command(sessions)
+main.add_command(smoke)
 
 
 if __name__ == "__main__":

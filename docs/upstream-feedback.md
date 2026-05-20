@@ -1,0 +1,251 @@
+# Upstream feedback for `sunholo-data/ai-protocol-platform`
+
+Friction points found while forking this template into AIPLA. Each entry
+notes what hurt, how we worked around it, and what the upstream fix
+would look like. Intended to be opened as issues / PRs against the
+public template repo at the end of the v0.1 sprint.
+
+> Maintained continuously through every milestone. New entries get
+> appended; resolved entries get a `~~strikethrough~~` and a note.
+
+## 1. `seed_skills.py` hardcodes a closed-set DISPLAY_NAMES / TAGS / INITIAL_MESSAGES dict
+
+**Where:** `backend/scripts/seed_skills.py` lines 43–65.
+
+**What hurt:** Adding a new skill template (`problem-set-hints`) meant
+the seeder silently dropped its display name, tags, and initial message
+because those dicts only list the five inherited skills. The skill
+still seeds, but with falsy defaults.
+
+**Workaround on AIPLA:** None yet — `problem-set-hints` will be seeded
+via the auto-iterating `backend/admin/platform_seed.py` admin endpoint
+instead (which doesn't need the dict). But anyone using the
+command-line seeder hits this.
+
+**Upstream fix:** Read these three fields directly from the SKILL.md
+frontmatter (e.g., `metadata.displayName`, `metadata.tags`,
+`metadata.initialMessage`). The hardcoded dict is a translation layer
+that doesn't pull its weight; deleting it makes new skill templates
+plug-and-play.
+
+## 2. `seed_skills.py` pins the GCP project to `aitana-multivac-dev`
+
+**Where:** `backend/scripts/seed_skills.py` line 36 — `pin_project_for_env("dev")`.
+
+**What hurt:** AIPLA needs to seed against `aipla-dev-2026`, not
+`aitana-multivac-dev`. The pin is Aitana-specific.
+
+**Workaround on AIPLA:** Use the admin endpoint flow only (auto-iterates
+templates, no project pin needed). The CLI seeder is effectively
+unusable in a downstream fork without monkey-patching.
+
+**Upstream fix:** Drop the pin or make it consumer-overridable via an
+env var like `PLATFORM_SEED_PROJECT`. Default behaviour should resolve
+project from ADC / standard `GOOGLE_CLOUD_PROJECT`, not a hard-coded
+Aitana value. Same comment applies to the `pin_project_for_env` helper
+in `scripts/_env.py` if its only purpose is to override `GOOGLE_CLOUD_PROJECT`.
+
+## 3. `PLATFORM_OWNER_EMAIL` defaults to `platform@aitanalabs.com`
+
+**Where:** `backend/admin/platform_seed.py` line 31.
+
+**What hurt:** A downstream fork that forgets to set
+`PLATFORM_OWNER_EMAIL` ships skills owned by Aitana's platform identity.
+The comment ("default stays Aitana so existing dev/test/prod behaviour
+is unchanged") acknowledges the asymmetry: upstream user wins by
+default, downstream fork must remember to override.
+
+**Upstream fix:** Default should be derived from the project (e.g.,
+`platform@${GOOGLE_CLOUD_PROJECT}`), or fail-loud at startup if unset
+in non-LOCAL_MODE. Defaulting to a downstream-invalid value is worse
+than failing fast.
+
+## 4. CLI is hardcoded for Aitana (`cli/aiplatform/...`)
+
+**Where:** `cli/aiplatform/__init__.py` line 4, `cli/aiplatform/http.py`
+lines 21–26 (`_DEFAULT_URLS`), and `cli/aiplatform/cli.py`.
+
+**What hurt:** The CLI package name (`aiplatform`), binary name
+(`aiplatform`), and per-env default URLs all bake in Aitana. The
+docstring explicitly says *"Brand and backend remain Aitana Labs /
+aitana-multivac-*"*. A downstream fork either lives with `aiplatform`
+as a misnomer or maintains their own CLI fork.
+
+**Workaround on AIPLA:** Live with `aiplatform` as the CLI name for
+v0.1. Real rebrand to `aipla` is deferred to v1.
+
+**Upstream fix:** The CLI was already renamed once (`aitana` → `aiplatform`
+on 2026-04-28). The current naming repeats the brand-anchoring mistake.
+Options:
+- Generic binary name (e.g., `apx` or `ag-platform-cli`) that
+  downstream forks rename via `pyproject.toml`'s `[project.scripts]`.
+- Move `_DEFAULT_URLS` to a config file that downstream forks override
+  without code changes (already supported via `AIPLATFORM_API_URL_*`
+  env vars, but the documented commitment to "Aitana Labs / aitana-multivac"
+  signals downstream isn't first-class).
+
+## 5. `cloudbuild.yaml` requires channel-specific secrets that aren't optional
+
+**Where:** `cloudbuild.yaml` lines 143–148, 150, 155 (pre-M2).
+
+**What hurt:** The template ships `--set-secrets` lines for
+`ANTHROPIC_API_KEY`, `TELEGRAM_BOT_TOKEN`, `TWILIO_ACCOUNT_SID`,
+`TWILIO_AUTH_TOKEN`, `MAILGUN_API_KEY`, `MAILGUN_WEBHOOK_SECRET`, and
+`AGENT_ENGINE_ID`. If the target project doesn't have these secrets
+in Secret Manager, the Cloud Run deploy step fails. A fresh fork
+deploying for the first time hits all six failures.
+
+**Workaround on AIPLA:** M2 stripped all six because AIPLA v0.1 doesn't
+use any of these channels. Re-introduce per-channel when v1 wires
+Telegram/Email/etc.
+
+**Upstream fix:** Make secret references conditional on substitution
+flags, or move channel-specific deploy steps into separate include
+files referenced via Cloud Build's `include` directive. The default
+deploy should boot with only the bare minimum (the backend itself,
+nothing else), and channels opt in.
+
+## 6. `cloudbuild.yaml` hardcodes `gs://multivac-deploy-aitana-logging-bucket`
+
+**Where:** `cloudbuild.yaml` line 33 (pre-M2).
+
+**What hurt:** A shared Aitana logs bucket. Downstream forks either
+get permission errors (no access to multivac bucket) or quietly write
+to it.
+
+**Workaround on AIPLA:** M2 templated it to `gs://${_PROJECT_ID}-cloudbuild-logs`
+and added bucket creation to the bootstrap script.
+
+**Upstream fix:** The template should default to a project-local
+bucket via substitution.
+
+## 7. New GCP projects (post-2024) lack the legacy Cloud Build SA — triggers must specify `--service-account`
+
+**Where:** Bootstrap-time gotcha; manifests as an opaque `INVALID_ARGUMENT`
+from `gcloud beta builds triggers create github`.
+
+**What hurt:** Spent ~20 minutes chasing an opaque error. The cause:
+new projects no longer auto-provision the legacy CB SA, so trigger
+creates without `--service-account` fail without a useful message.
+Same generic 400 from `curl` direct to the REST API.
+
+**Workaround on AIPLA:** `scripts/bootstrap-aipla-dev.sh` materialises
+the Cloud Build service agent via `gcloud beta services identity create`,
+grants it `iam.serviceAccountUser` on the runtime SA, and passes
+`--service-account` on every trigger create.
+
+**Upstream fix:** Either:
+- Document this in `docs/gotchas/` so the next forker doesn't chase
+  the opaque error.
+- Improve the Cloud Build trigger create error message upstream (this
+  is a GCP-side ask, not a template fix).
+- Provide a `scripts/bootstrap-gcp-project.sh` in the template itself
+  that handles this for every downstream fork.
+
+## 8. Cloud Build v2 repository registration requires GitHub `admin` on the linked repo
+
+**Where:** Discovered during M0 when `gcloud builds repositories create cphu-aipla-app`
+failed with *"the authorized user doesn't have the admin permission to repo"*.
+
+**What hurt:** The convention for the `sunholo-voight-kampff` bot account
+in v5 is `push`-only on customer repos. Cloud Build v2 needs `admin`
+because it sets up webhooks server-side. The error message helpfully
+named the user, but doesn't say what permission is missing.
+
+**Workaround on AIPLA:** Promoted `sunholo-voight-kampff` to `admin`
+on `cphu-aipla-app` specifically.
+
+**Upstream fix:** Document the `admin`-not-`push` requirement in the
+template's `docs/gotchas/` for anyone setting up the GitHub OAuth
+authoriser for a new connection. Mentioning the alternative (use a
+bot account that has admin everywhere, e.g., a dedicated CI bot
+separate from the deploy bot) would also help.
+
+## 9. Firebase "Resource Location ID" is set by the first Firestore create, not by `firebase add`
+
+**Where:** Observed during M0 — after `firebase projects:addfirebase`,
+the project's "Resource Location ID" shows as `[Not specified]`. It's
+silently populated by whatever Firestore region the next `gcloud
+firestore databases create` call targets.
+
+**What hurt:** Easy to deploy with the wrong implicit default if the
+operator doesn't know about this. EU residency could be violated by
+a stray `gcloud firestore databases create --location=us-central1` run
+on a project that thinks of itself as European.
+
+**Upstream fix:** Document in `docs/gotchas/`. Or in the template's
+bootstrap script (when one exists), assert the project's resource
+location matches the intended region before any Firestore operation.
+
+## 10. Pre-existing test files use `/^join$/i` anchored regex on the inherited "Join" button
+
+**Where:** `frontend/src/app/group/__tests__/page.test.tsx` line 183 (pre-M2).
+
+**What hurt:** Any downstream rebrand of the button text (here:
+bilingual "Tilslut / Join") breaks this single test with an opaque
+`getByRole(button)` error.
+
+**Workaround on AIPLA:** M2 updated the matcher to the new localised
+text.
+
+**Upstream fix:** Either use less-anchored matchers in the template
+tests (`/join/i` instead of `/^join$/i`), or wrap the test in a fixture
+that reads the button's label from a single source. The template's
+own `branding.ts` could carry CTA strings too.
+
+## 11. Inherited dev pages + protocol URIs still say "Aitana"
+
+**Where:**
+- `frontend/src/types/skill.ts:5` — doc comment
+- `frontend/src/app/dev/mcp-apps/page.tsx:12` — page title
+- `frontend/src/app/dev/rich-media/page.tsx:80,125,127` — fixture
+  filename + display text
+- `frontend/src/app/dev/mcp-apps/passive/page.tsx:43` — internal
+  `__aitanaTransport` field name
+- `frontend/src/app/skills/new/page.tsx:10` — `aitana skill create`
+  CLI command example
+- `frontend/src/components/chat/InlineCitation.tsx:9,62` — `aitana://`
+  custom URI scheme
+
+**What hurt:** None of these are user-facing in v0.1 — but they are
+embedded protocol identifiers (`aitana://`) and dev tooling that a
+downstream consumer can't easily rebrand without rewriting code.
+
+**Workaround on AIPLA:** Tracked in M2 sprint notes as deferred to v1.
+
+**Upstream fix:** The `aitana://` URI scheme is the load-bearing one.
+Either:
+- Move it to a configurable scheme name in `branding.ts`.
+- Use a generic scheme like `inline-citation://` that doesn't carry a
+  brand.
+
+## 12. `_MCP_SANDBOX_URL` default in `cloudbuild.yaml` points at an Aitana-specific Cloud Run URL
+
+**Where:** `cloudbuild.yaml` line 27 —
+`_MCP_SANDBOX_URL: 'https://mcp-sandbox-66pa3y5xnq-ew.a.run.app/sandbox.html'`.
+
+**What hurt:** Downstream forks deploy with a sandbox URL pointing at
+Aitana's infra. Not load-bearing for v0.1 (we don't ship MCP Apps) but
+the default is wrong-by-default.
+
+**Workaround on AIPLA:** Will reset to AIPLA's own sandbox URL in 1.x
+when MCP Apps are wired (per Resolved Decision in jutland-demo.md
+about ADR-002 scope discipline — A2UI/MCP Apps are v1 not v0.1).
+
+**Upstream fix:** Default should be `null` / `disabled`, not a specific
+Aitana URL.
+
+---
+
+## Backlog (likely additions as v0.1 sprint continues)
+
+- M5 may surface IAM bindings the bootstrap script should add
+  (`roles/artifactregistry.writer`, `roles/run.admin`,
+  `iam.serviceAccountUser` on self) — currently deferred to "add when
+  needed".
+- Whether the inherited `LOCAL_MODE` skill seeder picks up new
+  templates auto-magically (so far it seeds a workshop user but the
+  skill-seed path is unclear).
+
+When the v0.1 sprint closes, this file is the source for an
+issue / PR series against `sunholo-data/ai-protocol-platform`.
