@@ -561,6 +561,24 @@ Real upstream fix: make `<body>` a flex column with `h-screen`, let the banner t
 
 Lesson for upstream: ANY full-viewport page (`h-screen`) sibling-coupled with a banner in `RootLayout` will hit this. The robust pattern is "body owns the viewport, children get `flex-1`" — not "every page individually claims `h-screen`".
 
+## 24. Template should ship vendored protocol specs as a project-local skill
+
+**Where:** the template advertises a four-protocol stack (Agent Skills + AG-UI + A2UI + MCP/MCP Apps) in [CLAUDE.md](../CLAUDE.md) and across the design docs, but does not vendor any of the upstream specs locally. Every fork (and every agent session) has to re-fetch from `a2ui.org`, `docs.ag-ui.com`, `modelcontextprotocol.io`, `agentskills.io` on demand.
+
+**What hurt:** AIPLA built the [Boldkast MCP App design doc](design/aipla/v0.1.0-jutland/boldkast-mcp-app.md) and immediately hit this — the doc's claims about CSP shape, postMessage envelope, and tool→UI linkage were partly informed by training-data memory of older spec revisions. The agent had no easy way to verify against a local source of truth, and the spec sites' rendered HTML doesn't always include the actual schema (e.g. `a2ui.org` summarises and links out to GitHub for the v0.10 spec).
+
+Beyond verification: a confused "is this A2UI or MCP App or AG-UI?" question came up multiple times across the v0.1 sprint, and the only ground truth was external. The four protocols are deliberately layered and easily confused; a one-page disambiguation lives nowhere obvious upstream.
+
+**Workaround on AIPLA:** Built [.claude/skills/agent-protocols/](../.claude/skills/agent-protocols/) — a project-local Claude Code skill that:
+- Vendors each spec under `references/` (10 files, ~225 KB total): A2UI v0.10 protocol, AG-UI events/architecture/tools/python-events/protocol-comparison, MCP architecture, MCP Apps SEP-1865 stable + README, Agent Skills spec.
+- Files include source URL + fetch date in headers so staleness is auditable.
+- The `SKILL.md` itself owns the disambiguation logic (decision table, pitfalls, common-mistake call-outs) and points to each reference with a one-liner about *when* to consult it.
+- Includes a refresh script so quarterly re-fetch is one paste.
+
+**Upstream fix:** Ship `agent-protocols` as a project-skill that comes with the template. Initial fetch can run during `template init`; refresh is a `make` target. Forks then inherit a quotable, offline-safe source of truth and don't redo the work.
+
+Bigger pattern: the template's "Project Skills" section in CLAUDE.md is curated by humans; there's no convention that says "skills with vendored data must be in `references/`, refresh logic must be checked in". Worth formalising as the skill set grows. The existing [adk-cheatsheet](../.claude/skills/adk-cheatsheet/references/python.md) already follows the pattern — it just hadn't been generalised yet.
+
 ## Backlog (likely additions as v0.1 sprint continues)
 
 - M5 may surface IAM bindings the bootstrap script should add
