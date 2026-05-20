@@ -80,10 +80,14 @@ def seed_local_fixture() -> None:
                 summary.failed,
             )
         # Look up problem-set-hints so we can seed a known group code
-        # pinned to it below.
+        # pinned to it below. Use the runtime PLATFORM_OWNER_UID (env-
+        # overridable: aitana-platform upstream, aipla-platform for AIPLA)
+        # so the lookup keeps working across forks. Hardcoding broke the
+        # LOCAL group seed when AIPLA renamed the platform-owner.
+        from skills.platform import PLATFORM_OWNER_UID as _OWNER
         from skills.skill_config import list_skills as _list_skills
 
-        for s in _list_skills(owner_id="aitana-platform", limit=200):
+        for s in _list_skills(owner_id=_OWNER, limit=200):
             if s.name == "problem-set-hints":
                 psh_skill_id = s.skill_id
                 break
