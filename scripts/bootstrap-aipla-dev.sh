@@ -70,6 +70,7 @@ ensure_apis() {
     cloudbuild.googleapis.com
     artifactregistry.googleapis.com
     firestore.googleapis.com
+    firebaserules.googleapis.com              # M5: Cloud Build deploys firestore.rules
     secretmanager.googleapis.com
     cloudtrace.googleapis.com
     logging.googleapis.com
@@ -112,11 +113,16 @@ ensure_sa() {
   log "  applying role bindings (idempotent, with retry)..."
   local roles=(
     roles/run.invoker
+    roles/run.admin                           # deploy Cloud Run services (M5)
     roles/datastore.user
     roles/aiplatform.user
     roles/secretmanager.secretAccessor
     roles/cloudtrace.agent
     roles/logging.logWriter
+    roles/artifactregistry.writer             # push Docker images (M5)
+    roles/iam.serviceAccountUser              # act as itself when Cloud Build deploys Cloud Run with same SA
+    roles/firebaserules.admin                 # M5: deploy firestore.rules
+    roles/datastore.indexAdmin                # M5: deploy firestore.indexes.json
   )
   for role in "${roles[@]}"; do
     local attempt
@@ -335,6 +341,39 @@ ensure_config_bucket() {
     gsutil mb -p "$PROJECT" -l "$REGION" -b on "gs://${bucket}" >/dev/null
     log "  ✓ created in ${REGION}"
   fi
+  # Cloud Run's gcsfuse mount needs storage.objects.list at startup.
+  # objectAdmin/storage.admin both grant it; we use admin for parity
+  # with the other runtime buckets.
+  gcloud storage buckets add-iam-policy-binding "gs://${bucket}" \
+    --member="serviceAccount:${SA_EMAIL}" \
+    --role="roles/storage.admin" \
+    --project="$PROJECT" \
+    --quiet >/dev/null
+}
+
+ensure_group_auth_signing_secret() {
+  # The group_id_auth module fails loud at first create/join/verify if
+  # GROUP_AUTH_SIGNING_SECRET is unset, and the cloudbuild.yaml deploy
+  # step --set-secrets references this Secret Manager entry by name.
+  # Idempotent: skip if already exists.
+  log "Ensuring GROUP_AUTH_SIGNING_SECRET..."
+  if gcloud secrets describe GROUP_AUTH_SIGNING_SECRET --project="$PROJECT" &>/dev/null; then
+    log "  already exists"
+  else
+    local secret_value
+    secret_value=$(openssl rand -hex 32)
+    printf '%s' "$secret_value" | gcloud secrets create GROUP_AUTH_SIGNING_SECRET \
+      --data-file=- \
+      --replication-policy=automatic \
+      --project="$PROJECT" >/dev/null
+    log "  ✓ created (32-byte hex)"
+  fi
+  # Grant aipla-v6@ accessor on the secret (idempotent).
+  gcloud secrets add-iam-policy-binding GROUP_AUTH_SIGNING_SECRET \
+    --member="serviceAccount:${SA_EMAIL}" \
+    --role="roles/secretmanager.secretAccessor" \
+    --project="$PROJECT" \
+    --quiet >/dev/null
 }
 
 ensure_runtime_buckets() {
@@ -380,6 +419,7 @@ main() {
   ensure_config_bucket
   ensure_runtime_buckets
   ensure_firebase_web_app_and_secret
+  ensure_group_auth_signing_secret
   ensure_cb_repository
   ensure_cb_service_agent
   ensure_cb_trigger

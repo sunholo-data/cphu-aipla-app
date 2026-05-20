@@ -348,6 +348,66 @@ or the deployed URL with a real group token.
   shape) should be documented in OpenAPI properly — currently the
   request body is inferred from frontend source.
 
+## 16. Anonymous-group state lives in process memory; the template ships a TODO that never landed
+
+**Where:** `backend/auth/group_id_auth.py` line 25 of the module
+docstring — *"The production InMemoryFirestoreClient / Firestore
+wiring lands in M2 alongside the routes."* The routes shipped; the
+Firestore wiring didn't.
+
+**What hurt:** AIPLA v0.1 deploy needed a single shareable URL. Group
+codes are minted into `_state.groups`, an in-memory dict scoped to
+the Cloud Run container. Without Firestore-backing, the demo flow
+required either:
+- pinning `min-instances=1` (defeats serverless), OR
+- pinning `max-instances=1` (defeats horizontal scaling), OR
+- making JB run a separate `mint-group` step every time the
+  container scaled to zero.
+
+User pushback during the v0.1 sprint nailed it: *"err why
+min-instances=1 necessary? we want it serverless — what is not being
+persisted?"*
+
+**Workaround on AIPLA:** Closed the TODO ourselves —
+`_persist_group` / `_load_group_from_firestore` /
+`_mark_revoked_in_firestore` write through to the `anon_groups`
+collection. `get_group()` does in-memory cache hit + Firestore
+fallback + cache-rehydrate. `delete_group()` writes a `revoked` flag
+on the doc. 56/56 tests green; LOCAL_MODE's `InMemoryFirestoreClient`
+turns the persistence layer into a no-op round trip.
+
+**Upstream fix:** Land the same change in the public template. The
+docstring TODO is a known gap; closing it lets every downstream fork
+stay serverless instead of replicating the pinning workaround.
+
+## 17. `/gcs_config` volume mount is wired in Dockerfile + cloudbuild but no Python reads it
+
+**Where:** `backend/Dockerfile` (`ENV _CONFIG_FOLDER=/gcs_config`)
+plus `backend/cloudbuild.yaml` and `cloudbuild.yaml`
+(`--add-volume name=gcs_config,type=cloud-storage,...readonly=true`
+and `--add-volume-mount volume=gcs_config,mount-path=/gcs_config`).
+
+**What hurt:** User asked *"the skills should come via the gcs
+storage bucket that is linked to the cloud run volume — are you
+missing that?"* — a reasonable hypothesis given the mount exists.
+Grep confirms: **zero Python code reads `_CONFIG_FOLDER` or
+`/gcs_config`**. The bucket is created, mounted readonly, never
+touched. Bootstrap scripts create `gs://<project>-config` because
+the template requires it; nothing populates it; nothing reads it.
+
+For AIPLA specifically: skills come from `backend/skills/templates/`
+(baked into the image at build time) → seeded into Firestore via
+`/api/admin/seed-platform-skills` → read from Firestore at runtime
+by the marketplace API + skill invocation path. GCS mount is not in
+that pipeline.
+
+**Upstream fix:** Either delete the dead plumbing, or wire it up to
+something real (e.g., let the seed step push template SKILL.md files
+into the bucket so they're swappable at runtime without a redeploy —
+the user's hypothesis is a legitimate feature for a downstream fork
+to want). Whatever the answer, the current state — mounted, unread —
+is confusing.
+
 ## Backlog (likely additions as v0.1 sprint continues)
 
 - M5 may surface IAM bindings the bootstrap script should add

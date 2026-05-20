@@ -117,6 +117,12 @@ steps:
       - '--allow-unauthenticated'
       - '--max-instances=3'
       - '--session-affinity'
+      # AIPLA v0.1 — both containers run as the dedicated runtime SA
+      # (which has roles/aiplatform.user for Vertex calls, storage.admin
+      # on the config + runtime buckets, secret accessor for the
+      # GROUP_AUTH_SIGNING_SECRET, etc.). Without this Cloud Run falls
+      # back to compute-default, which we deliberately don't grant.
+      - '--service-account=${_ADMIN_SEED_ALLOWED_SAS}'
       - '--add-volume'
       - 'name=gcs_config,type=cloud-storage,bucket=${_CONFIG_BUCKET},readonly=true'
       # Frontend (main container)
@@ -152,9 +158,18 @@ steps:
       # channels ship in the Jutland demo). Channel skills land in
       # v1.0.0-pilot per SEQUENCE.md and will re-introduce secrets
       # only as each channel is wired.
+      # Group-auth signing secret (Firestore-backed group state needs
+      # a stable HMAC secret across containers — see
+      # backend/auth/group_id_auth.py and docs/upstream-feedback.md
+      # entry 16).
+      - '--set-secrets=GROUP_AUTH_SIGNING_SECRET=GROUP_AUTH_SIGNING_SECRET:latest'
       # Env vars
       - '--set-env-vars=GOOGLE_CLOUD_PROJECT=${_PROJECT_ID}'
-      - '--set-env-vars=GOOGLE_CLOUD_LOCATION=${_REGION}'
+      # AIPLA v0.1: gemini-3.5-flash is GA only on `global` endpoint
+      # (Resolved Decision 1 in jutland-demo.md). europe-north1 returns
+      # 404 for the model. Switch back to ${_REGION} when europe-north1
+      # rollout completes — Open Question 3.
+      - '--set-env-vars=GOOGLE_CLOUD_LOCATION=global'
       - '--set-env-vars=GOOGLE_GENAI_USE_VERTEXAI=True'
       # v6 ADK service backends — AIPLA v0.1 runs ADK on Cloud Run directly
       # (not Agent Engine), so AGENT_ENGINE_ID is omitted. v1.0.0-pilot may
