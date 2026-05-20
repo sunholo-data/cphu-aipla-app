@@ -12,6 +12,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import type { StreamError, SkillMessage, ToolCallState } from "@/hooks/useSkillAgent";
 import type { ActiveDocumentContext } from "@/components/chat/ContextBanner";
 import { ContextBanner } from "@/components/chat/ContextBanner";
+import { ChatMarkdown } from "./ChatMarkdown";
 import { MessageBubble } from "./MessageBubble";
 import { StreamingBubble } from "./StreamingBubble";
 import { TypingIndicator } from "./TypingIndicator";
@@ -20,6 +21,13 @@ import type React from "react";
 interface ChatMessageListProps {
   messages: SkillMessage[];
   initialMessages?: SkillMessage[];
+  /** Markdown text from the current skill's `initialMessage` field. When
+   * the chat is empty (no live messages, no resumed history), render
+   * this as the welcome / starter-prompts panel instead of the generic
+   * "Send a message to start the conversation." Added 2026-05-20 —
+   * the inherited template defined this field on SkillConfig but
+   * never wired it into the UI. */
+  skillInitialMessage?: string;
   historyError?: string | null;
   toolCalls: ToolCallState[];
   thinkingContent: string;
@@ -60,6 +68,7 @@ const SCROLL_THRESHOLD = 100;
 export function ChatMessageList({
   messages,
   initialMessages,
+  skillInitialMessage,
   historyError,
   toolCalls,
   thinkingContent,
@@ -191,9 +200,19 @@ export function ChatMessageList({
           )}
 
           {messages.length === 0 && !initialMessages?.length && !error && !isLoading && (
-            <p className="text-sm text-muted-foreground">
-              Send a message to start the conversation.
-            </p>
+            skillInitialMessage ? (
+              // Render the skill's authored welcome / starter-prompts panel.
+              // Goes through ChatMarkdown so bold / lists / etc. render as
+              // formatted markdown rather than literal asterisks. navigateToBlock
+              // is a no-op here — the welcome doesn't carry citations.
+              <div className="rounded-lg border border-border bg-muted/30 p-4 text-sm text-foreground">
+                <ChatMarkdown content={skillInitialMessage} navigateToBlock={() => {}} />
+              </div>
+            ) : (
+              <p className="text-sm text-muted-foreground">
+                Send a message to start the conversation.
+              </p>
+            )
           )}
 
           {stableMessages.map((m) => (

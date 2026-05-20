@@ -12,6 +12,11 @@ interface SkillMeta {
    * page passes this to MessageBubble so MCPAppToolCallRouter can decide
    * which tool calls have a UI surface. */
   mcpServerIds: readonly string[];
+  /** Markdown welcome rendered on the empty-chat state. Sourced from
+   * the skill's `initialMessage` field. Empty string when the skill
+   * declares none — caller decides whether to fall back to a generic
+   * "Send a message" prompt. Added 2026-05-20. */
+  initialMessage: string;
   loading: boolean;
 }
 
@@ -22,6 +27,8 @@ interface SkillResponse {
   ownerId?: string;
   owner_id?: string;
   slug?: string | null;
+  initialMessage?: string;
+  initial_message?: string;
   skillMetadata?: { toolConfigs?: { mcp?: { servers?: unknown } } };
   skill_metadata?: { toolConfigs?: { mcp?: { servers?: unknown } } };
 }
@@ -38,6 +45,7 @@ export function useSkillMeta(skillId: string): SkillMeta {
   const [ownerId, setOwnerId] = useState<string | null>(null);
   const [slug, setSlug] = useState<string | null>(null);
   const [mcpServerIds, setMcpServerIds] = useState<readonly string[]>([]);
+  const [initialMessage, setInitialMessage] = useState<string>("");
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -52,6 +60,7 @@ export function useSkillMeta(skillId: string): SkillMeta {
           setOwnerId(data.ownerId || data.owner_id || null);
           setSlug(data.slug ?? null);
           setMcpServerIds(extractMcpServerIds(data));
+          setInitialMessage(data.initialMessage || data.initial_message || "");
           setLoading(false);
         }
       })
@@ -64,5 +73,5 @@ export function useSkillMeta(skillId: string): SkillMeta {
     };
   }, [skillId]);
 
-  return { displayName, ownerId, slug, mcpServerIds, loading };
+  return { displayName, ownerId, slug, mcpServerIds, initialMessage, loading };
 }

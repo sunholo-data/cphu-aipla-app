@@ -3,7 +3,13 @@
 import { useMemo } from "react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
+import remarkMath from "remark-math";
 import rehypeHighlight from "rehype-highlight";
+import rehypeKatex from "rehype-katex";
+// KaTeX CSS — required for rehype-katex's output to render. Imported
+// inside ChatMarkdown so pages that don't render chat don't pay the
+// ~30KB stylesheet (Next bundles per-route).
+import "katex/dist/katex.min.css";
 import { InlineCitation } from "@/components/chat/InlineCitation";
 import { SVGBlock } from "@/components/chat/media/SVGBlock";
 import { InlineImage } from "@/components/chat/media/InlineImage";
@@ -167,8 +173,11 @@ export function ChatMarkdown({ content, navigateToBlock }: ChatMarkdownProps) {
 
   return (
     <ReactMarkdown
-      remarkPlugins={[remarkGfm]}
-      rehypePlugins={[[rehypeHighlight, { ignoreMissing: true }]]}
+      remarkPlugins={[remarkGfm, remarkMath]}
+      rehypePlugins={[
+        [rehypeHighlight, { ignoreMissing: true }],
+        rehypeKatex,
+      ]}
       components={components}
       urlTransform={(url) => {
         // Allow aitana://, https://, http://, mailto: — block everything else

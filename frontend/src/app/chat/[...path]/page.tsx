@@ -220,7 +220,7 @@ function ChatShell({
     clearError,
     stop,
   } = useSkillAgent();
-  const { displayName, mcpServerIds } = useSkillMeta(skillId);
+  const { displayName, mcpServerIds, initialMessage: skillInitialMessage } = useSkillMeta(skillId);
   const { skills: userSkills, isLoading: skillsLoading } = useUserSkills(user.uid);
   const searchParams = useSearchParams();
   const router = useRouter();
@@ -533,6 +533,7 @@ function ChatShell({
             // live `messages` — duplicating every bubble. `enteredViaResume`
             // distinguishes the two cases.
             initialMessages={enteredViaResume ? initialMessages : undefined}
+            skillInitialMessage={skillInitialMessage}
             historyError={historyError}
             toolCalls={toolCalls}
             thinkingContent={thinkingContent}
