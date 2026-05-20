@@ -1,4 +1,4 @@
-# Aitana MCP App sandbox proxy — Cloud Build configuration.
+# MCP App sandbox proxy — Cloud Build configuration.
 #
 # Single-container Cloud Run service. Mirrors the shape of
 # backend/cloudbuild.yaml (the simpler aitana-v6-backend pattern) without
@@ -6,26 +6,32 @@
 # sandbox iframe is loaded by the browser from this URL on a SEPARATE
 # origin from the host frontend (per MCP Apps spec, see sprint 1.24).
 #
-# Branch-based deployment: dev -> your-project-id (only env this
-# sprint; test/prod follow the same shape when they're cut). Substitutions
-# managed by Terraform — see multivac-aitana infrastructure repo.
+# Branch-based deployment: dev -> ${_PROJECT_ID}. Substitutions are
+# overridable per fork — Aitana uses terraform; AIPLA (and other forks)
+# set explicit values via the Cloud Build trigger config or `gcloud
+# builds submit --substitutions`. Hosts every MCP App artefact under
+# /artefacts/<name>/v1/ — see [.claude/skills/mcp-app-artefact](.claude/skills/mcp-app-artefact/SKILL.md).
 
 substitutions:
   _SERVICE_NAME: mcp-sandbox
-  _REGION: terraform_managed
-  _ARTIFACT_REGISTRY_REPO_URL_CLIENT: terraform_managed
-  _PROJECT_ID: terraform_managed
+  # _PROJECT_ID, _REGION, _ARTIFACT_REGISTRY_REPO_URL_CLIENT, _LOGS_BUCKET
+  # are mandatory overrides supplied by the trigger config (gcloud builds
+  # triggers create --substitutions). Defaults below are sentinel values
+  # that fail loudly if the trigger forgot to set them.
+  _REGION: trigger_must_set
+  _ARTIFACT_REGISTRY_REPO_URL_CLIENT: trigger_must_set
+  _PROJECT_ID: trigger_must_set
+  _LOGS_BUCKET: gs://trigger_must_set
   # Comma-separated origins permitted to embed this sandbox as an iframe.
   # Validated against document.referrer in sandbox.ts on every load.
-  # Defaults to the dev frontend URL so the build is self-contained for
-  # the dev deploy this sprint. test/prod cuts override via terraform.
-  _ALLOWED_HOST_ORIGINS: 'https://aitana-v6-frontend-66pa3y5xnq-ew.a.run.app'
+  # Trigger config sets per-env (dev/test/prod).
+  _ALLOWED_HOST_ORIGINS: 'trigger_must_set'
 
 tags: ['${_PROJECT_ID}', '${_SERVICE_NAME}']
 
 options:
   logging: GCS_ONLY
-logsBucket: gs://multivac-deploy-aitana-logging-bucket
+logsBucket: ${_LOGS_BUCKET}
 
 steps:
   # --- Build the sandbox image ---

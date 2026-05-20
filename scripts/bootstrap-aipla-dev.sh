@@ -330,6 +330,48 @@ ensure_cb_trigger() {
   log "  ✓ created"
 }
 
+# ----- mcp-sandbox trigger (separate Cloud Run, separate origin) ------------
+
+ensure_mcp_sandbox_trigger() {
+  local trigger_name="aipla-mcp-sandbox-deploy"
+  local sandbox_service="aipla-v01-sandbox"
+  log "Ensuring Cloud Build trigger '${trigger_name}' for infrastructure/mcp-sandbox..."
+  local repo_resource="projects/${PROJECT}/locations/${REGION}/connections/${CB_CONNECTION}/repositories/${CB_REPO_NAME}"
+
+  if gcloud builds triggers describe "$trigger_name" \
+       --region="$REGION" --project="$PROJECT" &>/dev/null; then
+    log "  already exists"
+    return 0
+  fi
+
+  # ALLOWED_HOST_ORIGINS pins the frontend that can embed this sandbox
+  # iframe. Per-env (dev/test/prod) — trigger config holds the dev URL.
+  local frontend_url="https://aipla-v01-frontend-wgwhd7mspa-lz.a.run.app"
+
+  local subs=(
+    "_PROJECT_ID=${PROJECT}"
+    "_SERVICE_NAME=${sandbox_service}"
+    "_REGION=${REGION}"
+    "_ARTIFACT_REGISTRY_REPO_URL_CLIENT=${REGION}-docker.pkg.dev/${PROJECT}/${AR_REPO}"
+    "_LOGS_BUCKET=gs://${PROJECT}-aipla-v01-logs"
+    "_ALLOWED_HOST_ORIGINS=${frontend_url}"
+  )
+  local subs_csv
+  subs_csv=$(IFS=,; echo "${subs[*]}")
+
+  gcloud builds triggers create github \
+    --name="$trigger_name" \
+    --repository="$repo_resource" \
+    --branch-pattern='^dev$' \
+    --included-files='infrastructure/mcp-sandbox/**' \
+    --build-config=infrastructure/mcp-sandbox/cloudbuild.yaml \
+    --region="$REGION" \
+    --project="$PROJECT" \
+    --service-account="projects/${PROJECT}/serviceAccounts/${SA_EMAIL}" \
+    --substitutions="$subs_csv" >/dev/null
+  log "  ✓ created"
+}
+
 # ----- config bucket (small, for runtime config / seeded artefacts) ---------
 
 ensure_config_bucket() {
@@ -423,6 +465,7 @@ main() {
   ensure_cb_repository
   ensure_cb_service_agent
   ensure_cb_trigger
+  ensure_mcp_sandbox_trigger
 
   log ""
   log "Bootstrap complete."

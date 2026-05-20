@@ -110,3 +110,32 @@ Append entries chronologically, newest at the bottom.
 - **What happened:** When debugging the trigger INVALID_ARGUMENT, switched from `gcloud beta builds triggers create` to a direct `curl POST /v1/.../triggers` to get a more detailed error. **The curl response was identical** — Cloud Build's API returns the same generic 400 either way.
 - **Lesson:** `gcloud` is the right tool here; the API doesn't give a more detailed error to direct REST callers. The script uses gcloud throughout.
 - **For test/prod TF:** Terraform's `google_cloudbuild_trigger` provider wraps the same API, so the same opaque 400 can surface. The fix (set `service_account` explicitly) is the same.
+
+## 2026-05-21 — MCP sandbox second-service deploy
+
+### Decision 9 — MCP App sandbox runs as a SEPARATE Cloud Run service (`aipla-v01-sandbox`)
+
+- **What:** Created Cloud Build trigger `aipla-mcp-sandbox-deploy` that watches push to `dev` AND change inside `infrastructure/mcp-sandbox/**`. On match, builds `infrastructure/mcp-sandbox/Dockerfile` → pushes to `europe-north1-docker.pkg.dev/aipla-dev-2026/cphu/aipla-v01-sandbox:dev` → deploys to Cloud Run as `aipla-v01-sandbox`.
+- **Why a separate service** (vs sidecar / same-service): ADR-013 mandates the sandbox iframe runs on a **different origin** from the host frontend so `allow-same-origin` on the inner iframe never leaks host cookies. Sidecars share the ingress origin → defeats the security model. Sandbox MUST be its own `*.run.app` URL.
+- **Substitutions captured by the trigger** (these become Terraform locals for test/prod):
+  - `_PROJECT_ID=aipla-dev-2026`
+  - `_REGION=europe-north1`
+  - `_ARTIFACT_REGISTRY_REPO_URL_CLIENT=europe-north1-docker.pkg.dev/aipla-dev-2026/cphu` (reuses the `cphu` AR repo created in M0)
+  - `_LOGS_BUCKET=gs://aipla-dev-2026-aipla-v01-logs` (reuses the M0 bucket)
+  - `_ALLOWED_HOST_ORIGINS=https://aipla-v01-frontend-wgwhd7mspa-lz.a.run.app` — pinned per-env; test/prod TF must override
+  - `_SERVICE_NAME=aipla-v01-sandbox`
+- **Filter (`--included-files`):** `infrastructure/mcp-sandbox/**` — without this, every `dev` push (frontend, backend, docs) would rebuild the sandbox. Saves ~80% of wasted builds. **For TF:** `google_cloudbuild_trigger.included_files` is the equivalent.
+- **Permissions reused (none new needed):** The trigger runs under the same `aipla-v6@aipla-dev-2026.iam.gserviceaccount.com` SA used by the root trigger. That SA already has the AR push + Cloud Run deploy bindings established in M0 + Side effect 7 (`iam.serviceAccountUser` on itself via the CB service agent).
+- **Captured in script:** ✅ `ensure_mcp_sandbox_trigger()` step in `bootstrap-aipla-dev.sh`; appended to the `main()` flow.
+- **For test/prod TF:**
+  - New `google_cloudbuild_trigger.mcp_sandbox` resource, scoped to `infrastructure/mcp-sandbox/**` with the same `service_account` reference as the root trigger.
+  - `_ALLOWED_HOST_ORIGINS` is per-env (dev/test/prod each have a distinct frontend `*.run.app` URL) — should live in `terraform/envs/{dev,test,prod}/terraform.tfvars`.
+  - First deploy creates the Cloud Run service `aipla-v01-sandbox-{test,prod}` automatically; subsequent deploys update in-place.
+  - No new IAM beyond what the root trigger already has.
+
+### Decision 10 — Static artefact pattern under `mcp-sandbox/artefacts/<name>/v<version>/`
+
+- **What:** Hand-curated MCP App artefacts (Boldkast sim, future physics sims, parameter-driven dashboards) live as static HTML+JS files in `infrastructure/mcp-sandbox/artefacts/<name>/v<version>/index.html`. The same Cloud Run service serves them at `https://aipla-v01-sandbox-<hash>.run.app/artefacts/<name>/v<version>/index.html`.
+- **Why one shared service, not per-artefact:** Cloud Run cold-start + min-instance overhead is per-service; a static artefact has zero server-side state and zero per-artefact code. Sharing one service across N artefacts is the right amortisation. Dynamic MCP servers (which DO have per-server logic, e.g. `mcp-ext-apps-map`) get their own Cloud Run per ADR-013, but those don't exist for AIPLA yet.
+- **Security model unchanged:** Each artefact loads in an iframe with `sandbox="allow-scripts"`, no `allow-same-origin`. The artefact lives on the sandbox origin (cross-origin to the frontend) so any same-origin attack surface is contained.
+- **For test/prod TF:** No new infra — same Cloud Run service, just more files in the image. Artefact dir is `COPY artefacts ./artefacts` in the Dockerfile. CI gates: image size + a per-artefact static check (size limit ≤200KB per ADR-013).

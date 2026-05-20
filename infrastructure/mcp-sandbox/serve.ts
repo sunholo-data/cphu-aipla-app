@@ -145,9 +145,37 @@ export function createSandboxApp(): express.Express {
     res.json({ status: "ok", allowedHostOrigins: ALLOWED_HOST_ORIGINS });
   });
 
+  // Static artefact subtree — hand-curated MCP App content per ADR-013's
+  // library-bypass path. Each artefact lives at
+  // `infrastructure/mcp-sandbox/artefacts/<name>/v<version>/index.html`
+  // and is loaded by the host frontend inside a sandboxed iframe (no
+  // allow-same-origin). The iframe gets a permissive CSP set per-request
+  // via the sandbox.html shell; static artefact responses here are just
+  // the raw file. Cache-Control is tight (5 min) so iteration during the
+  // Jutland buffer week is responsive without thrashing.
+  //
+  // Why express.static (not custom handlers): traversal-safe by default;
+  // ETag + Last-Modified out of the box; dotfiles deny by default. The
+  // `index: false` config makes browsing a directory return 404, so the
+  // tree isn't accidentally listable.
+  const ARTEFACTS_DIR = join(__dirname, "artefacts");
+  app.use(
+    "/artefacts",
+    express.static(ARTEFACTS_DIR, {
+      index: false,
+      dotfiles: "deny",
+      maxAge: "5m",
+      // Set sane defaults for what we actually serve (HTML/JS/CSS); the
+      // sandbox iframe attribute handles the script execution policy.
+      setHeaders: (res, _path) => {
+        res.setHeader("Cache-Control", "public, max-age=300");
+      },
+    }),
+  );
+
   // Anything else 404s — this server intentionally serves a tiny surface.
   app.use((_req, res) => {
-    res.status(404).send("Only sandbox.html / sandbox.js / healthz are served.");
+    res.status(404).send("Only sandbox.html / sandbox.js / healthz / artefacts/* are served.");
   });
 
   return app;

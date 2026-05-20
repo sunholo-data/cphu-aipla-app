@@ -26,6 +26,12 @@ RUN npm ci --no-audit --no-fund
 COPY src ./src
 COPY sandbox.html serve.ts ./
 
+# Hand-curated MCP App artefacts (Boldkast sim, future physics sims) —
+# served by serve.ts under /artefacts/<name>/v<version>/. Optional: dir
+# may be absent on a vanilla template install. The COPY uses a glob so
+# the build doesn't fail when there's nothing to copy.
+COPY artefacts ./artefacts
+
 # Build the browser bundle (esbuild → public/sandbox.js + sandbox.html copy).
 RUN npm run build
 
