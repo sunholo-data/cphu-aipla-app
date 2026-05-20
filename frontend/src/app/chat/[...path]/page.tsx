@@ -37,6 +37,17 @@ import { DocumentPanel } from "@/components/document/DocumentPanel";
 import { LatencyHUD } from "@/components/dev/LatencyHUD";
 import { WorkspaceShell } from "@/components/workspace/WorkspaceShell";
 import { ProblemStatementCard } from "@/components/workspace/ProblemStatementCard";
+import { ProgressChecklist } from "@/components/workspace/ProgressChecklist";
+
+// PEDCTX M5 — sub-parts of the Boldkast problem-set-hints v0.1 skill.
+// v1's problem-set-helper-config will source this from skill metadata;
+// for the Jutland demo we ship hardcoded Danish sub-part labels.
+const BOLDKAST_SUBPARTS = [
+  { id: "a", label: "a) Hvor lang tid er bolden i luften?" },
+  { id: "b", label: "b) Hvor langt rækker den (vandret distance)?" },
+  { id: "c", label: "c) Hvad er den maksimale højde?" },
+  { id: "d", label: "d) Tegn en skitse over banen." },
+];
 
 /**
  * MULTI-SURFACE-A2UI M3 — chat page surface mounts.
@@ -642,13 +653,16 @@ function ChatShell({
             DocumentPanel / WorkspaceSurfaceRegion behaviour above. */}
         {showAiplaWorkspace && (
           <WorkspaceShell>
-            {skillProblemStatement ? (
-              <ProblemStatementCard content={skillProblemStatement} />
-            ) : (
-              <p className="text-sm text-muted-foreground">
-                Arbejdsområde — opgaveinfo og simulator vises her.
-              </p>
-            )}
+            <div className="space-y-4">
+              <ProgressChecklist skillId={skillId} items={BOLDKAST_SUBPARTS} />
+              {skillProblemStatement ? (
+                <ProblemStatementCard content={skillProblemStatement} />
+              ) : (
+                <p className="text-sm text-muted-foreground">
+                  Arbejdsområde — opgaveinfo og simulator vises her.
+                </p>
+              )}
+            </div>
           </WorkspaceShell>
         )}
       </div>
