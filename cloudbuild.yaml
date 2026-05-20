@@ -224,7 +224,14 @@ steps:
         URL=$(gcloud run services describe ${_SERVICE_NAME} \
           --project=${_PROJECT_ID} --region=${_REGION} \
           --format='value(status.url)')
-        TOKEN=$(gcloud auth print-identity-token --audiences="$${URL}")
+        # Cloud Build under a user-managed SA (aipla-v6@) cannot use
+        # `gcloud auth print-identity-token --audiences=` — it returns
+        # "No identity token can be obtained from the current credentials".
+        # The metadata server path works because the Cloud Build VM has
+        # the user-managed SA attached, so the metadata server can mint
+        # an ID token with an explicit audience.
+        TOKEN=$(curl -sS -H "Metadata-Flavor: Google" \
+          "http://metadata.google.internal/computeMetadata/v1/instance/service-accounts/default/identity?audience=$${URL}")
         code=$(curl -sS -o /tmp/seed -w '%{http_code}' --max-time 60 \
           -X POST -H "Authorization: Bearer $${TOKEN}" \
           "$${URL}/api/proxy/api/admin/seed-platform-skills") || code=000
