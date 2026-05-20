@@ -154,16 +154,59 @@ by default — see scripts/dev.sh) and point a frontend test page at it.
 If the artefact is a new top-level capability (not just a v2 of an
 existing one), wire a launcher button in
 `frontend/src/components/workspace/` or the relevant chat surface.
-Boldkast's pattern:
+
+**Compose the URL from the sandbox origin** (drop the trailing
+`/sandbox.html` from `NEXT_PUBLIC_MCP_SANDBOX_URL`, then append the
+artefact path):
 
 ```tsx
-const url = `${process.env.NEXT_PUBLIC_MCP_SANDBOX_URL}/artefacts/wave-superposition/v1/index.html`;
-// ... button onClick opens this URL in a sandboxed iframe in the workspace
+// Strip the /sandbox.html suffix so we get just the sandbox origin.
+const SANDBOX_ORIGIN = (process.env.NEXT_PUBLIC_MCP_SANDBOX_URL ?? "")
+  .replace(/\/sandbox\.html$/, "");
+const url = `${SANDBOX_ORIGIN}/artefacts/wave-superposition/v1/index.html`;
+```
+
+**Iframe attribute contract — REQUIRED, both layers needed.** Per
+ADR-013, the server-side CSP (set by `serve.ts` on `/artefacts/*`)
+covers script execution + external-fetch denial. The host-side
+iframe `sandbox` attribute covers what the frame is allowed to do to
+the host (top navigation, popups, same-origin storage). Always set
+BOTH:
+
+```tsx
+<iframe
+  src={url}
+  // allow-scripts only — explicitly NOT allow-same-origin, NOT
+  // allow-top-navigation, NOT allow-popups. With these omitted the
+  // iframe runs in a unique-origin sandbox and can't reach host cookies.
+  sandbox="allow-scripts"
+  // Block any referrer leakage to the artefact.
+  referrerPolicy="no-referrer"
+  // Optional: title for screen readers.
+  title="Wave superposition simulation"
+  className="h-full w-full border-0"
+/>
 ```
 
 `NEXT_PUBLIC_MCP_SANDBOX_URL` is set at build time in
 `cloudbuild.yaml` (`--build-arg`) and reads from `frontend/.env.local`
 for LOCAL_MODE.
+
+**postMessage from artefact → host.** The artefact emits telemetry /
+events via `parent.postMessage(...)`. The host MUST validate the
+origin matches the sandbox origin to avoid accepting messages from
+arbitrary iframes:
+
+```tsx
+useEffect(() => {
+  const onMessage = (e: MessageEvent) => {
+    if (e.origin !== SANDBOX_ORIGIN) return;
+    // …handle e.data…
+  };
+  window.addEventListener("message", onMessage);
+  return () => window.removeEventListener("message", onMessage);
+}, []);
+```
 
 ### 6. Commit + push
 

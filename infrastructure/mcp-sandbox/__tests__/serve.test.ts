@@ -120,4 +120,64 @@ describe("createSandboxApp HTTP routes", () => {
     expect(res.body).toMatchObject({ status: "ok" });
     expect(Array.isArray(res.body.allowedHostOrigins)).toBe(true);
   });
+
+  it("/artefacts/* responses set the strict ADR-013 CSP", async () => {
+    // Write a temp artefact so express.static has something to serve.
+    const { mkdirSync, writeFileSync, rmSync } = await import("node:fs");
+    const { dirname, join: pjoin } = await import("node:path");
+    const { fileURLToPath } = await import("node:url");
+    const __dirname = dirname(fileURLToPath(import.meta.url));
+    const ARTEFACT_DIR = pjoin(__dirname, "..", "artefacts", "__test", "v1");
+    mkdirSync(ARTEFACT_DIR, { recursive: true });
+    const ARTEFACT_PATH = pjoin(ARTEFACT_DIR, "index.html");
+    writeFileSync(ARTEFACT_PATH, "<!doctype html><html><body>test</body></html>");
+
+    try {
+      const { createSandboxApp } = await import("../serve");
+      const app = createSandboxApp();
+      const { default: request } = await import("supertest");
+      const res = await request(app).get("/artefacts/__test/v1/index.html");
+      expect(res.status).toBe(200);
+      const csp = res.headers["content-security-policy"];
+      expect(csp).toBeDefined();
+      // Defence-in-depth pieces of the ADR-013 contract:
+      expect(csp).toContain("default-src 'none'");
+      expect(csp).toContain("connect-src 'none'"); // no external fetches from artefact
+      expect(csp).toContain("frame-src 'none'"); // no nested iframes
+      expect(csp).toContain("object-src 'none'");
+      expect(csp).toContain("base-uri 'none'");
+      // Safe defaults:
+      expect(res.headers["referrer-policy"]).toBe("no-referrer");
+      expect(res.headers["x-content-type-options"]).toBe("nosniff");
+    } finally {
+      rmSync(pjoin(__dirname, "..", "artefacts", "__test"), {
+        recursive: true,
+        force: true,
+      });
+    }
+  });
+
+  it("/artefacts/* refuses to serve dotfiles (.env, .gitkeep etc.)", async () => {
+    // Setup: write a .gitkeep next to a real artefact dir.
+    const { mkdirSync, writeFileSync, rmSync } = await import("node:fs");
+    const { dirname, join: pjoin } = await import("node:path");
+    const { fileURLToPath } = await import("node:url");
+    const __dirname = dirname(fileURLToPath(import.meta.url));
+    const ARTEFACTS_BASE = pjoin(__dirname, "..", "artefacts");
+    mkdirSync(ARTEFACTS_BASE, { recursive: true });
+    const DOTFILE = pjoin(ARTEFACTS_BASE, ".env");
+    writeFileSync(DOTFILE, "SECRET=should-not-be-served");
+
+    try {
+      const { createSandboxApp } = await import("../serve");
+      const app = createSandboxApp();
+      const { default: request } = await import("supertest");
+      // dotfiles: "deny" should 403 these.
+      const res = await request(app).get("/artefacts/.env");
+      expect(res.status).not.toBe(200);
+      expect(res.text).not.toContain("SECRET=should-not-be-served");
+    } finally {
+      rmSync(DOTFILE, { force: true });
+    }
+  });
 });

@@ -159,16 +159,45 @@ export function createSandboxApp(): express.Express {
   // `index: false` config makes browsing a directory return 404, so the
   // tree isn't accidentally listable.
   const ARTEFACTS_DIR = join(__dirname, "artefacts");
+  // Strict CSP for static artefacts: scripts and styles must be inline
+  // (the artefact is a single self-contained HTML file); NO external
+  // fetches; NO nested iframes; NO base-uri swaps; NO form submissions.
+  // ADR-013's "library-bypass" path lives here — artefacts are reviewed
+  // at commit time, but defence-in-depth still requires the browser-
+  // enforced CSP on top of the host's iframe sandbox="allow-scripts"
+  // attribute. The host iframe attribute alone is necessary but not
+  // sufficient per ADR-013.
+  const ARTEFACT_CSP = [
+    "default-src 'none'",
+    "script-src 'unsafe-inline'",
+    "style-src 'unsafe-inline'",
+    "img-src data: blob:",
+    "font-src data:",
+    "connect-src 'none'",
+    "frame-src 'none'",
+    "object-src 'none'",
+    "base-uri 'none'",
+    "form-action 'none'",
+  ].join("; ");
   app.use(
     "/artefacts",
     express.static(ARTEFACTS_DIR, {
       index: false,
       dotfiles: "deny",
       maxAge: "5m",
-      // Set sane defaults for what we actually serve (HTML/JS/CSS); the
-      // sandbox iframe attribute handles the script execution policy.
       setHeaders: (res, _path) => {
         res.setHeader("Cache-Control", "public, max-age=300");
+        res.setHeader("Content-Security-Policy", ARTEFACT_CSP);
+        // X-Frame-Options is superseded by frame-ancestors in CSP but
+        // we don't set frame-ancestors above (the host iframe needs to
+        // embed this — leaving frame-ancestors unset = allow all, then
+        // the iframe sandbox attr on the host side is the gate).
+        // Setting Referrer-Policy keeps the inner artefact from
+        // leaking the host URL to anything it might somehow fetch.
+        res.setHeader("Referrer-Policy", "no-referrer");
+        // No content-type sniffing — the iframe shouldn't be tricked
+        // into treating a malformed file as something else.
+        res.setHeader("X-Content-Type-Options", "nosniff");
       },
     }),
   );
