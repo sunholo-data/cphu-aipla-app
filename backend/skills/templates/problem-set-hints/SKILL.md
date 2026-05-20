@@ -19,6 +19,24 @@ initialMessage: |
   *(English is also fine — I will match the language you write in.)*
 
   Klar? Skriv dit første spørgsmål nedenfor 👇
+problemStatement: |
+  ### Opgave 1 — Boldkast
+
+  En bold kastes fra jordoverfladen med en starthastighed på **15 m/s** i en vinkel på **40°** over vandret. Luftmodstanden kan ignoreres.
+
+  **Givet:**
+  - Starthastighed: $v_0 = 15 \text{ m/s}$
+  - Kastevinkel: $\theta = 40°$
+  - Tyngdeacceleration: $g = 9{,}82 \text{ m/s}^2$
+
+  **Delopgaver:**
+
+  - **a)** Hvor lang tid er bolden i luften?
+  - **b)** Hvor langt rækker den (vandret distance fra kastested til nedslag)?
+  - **c)** Hvad er den maksimale højde over jorden?
+  - **d)** Tegn en skitse over banen og marker hvor henholdsvis den vandrette og lodrette komponent af bevægelsen virker.
+
+  *Tip: del bevægelsen op i vandret (uniform) og lodret (accelereret) komponent. Den eneste fælles variabel er tiden.*
 metadata:
   author: aipla
   version: "0.1.0"

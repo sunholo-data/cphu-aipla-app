@@ -36,6 +36,7 @@ import { A2UISurfaceMount } from "@/components/protocols/A2UISurfaceMount";
 import { DocumentPanel } from "@/components/document/DocumentPanel";
 import { LatencyHUD } from "@/components/dev/LatencyHUD";
 import { WorkspaceShell } from "@/components/workspace/WorkspaceShell";
+import { ProblemStatementCard } from "@/components/workspace/ProblemStatementCard";
 
 /**
  * MULTI-SURFACE-A2UI M3 — chat page surface mounts.
@@ -222,7 +223,13 @@ function ChatShell({
     clearError,
     stop,
   } = useSkillAgent();
-  const { displayName, mcpServerIds, initialMessage: skillInitialMessage, slug: skillSlug } = useSkillMeta(skillId);
+  const {
+    displayName,
+    mcpServerIds,
+    initialMessage: skillInitialMessage,
+    slug: skillSlug,
+    problemStatement: skillProblemStatement,
+  } = useSkillMeta(skillId);
   const { skills: userSkills, isLoading: skillsLoading } = useUserSkills(user.uid);
   // Anonymous-group users (students joining via teacher-minted codes —
   // ADR-001) don't browse/upload documents in v0.1. Hide the entire
@@ -635,9 +642,13 @@ function ChatShell({
             DocumentPanel / WorkspaceSurfaceRegion behaviour above. */}
         {showAiplaWorkspace && (
           <WorkspaceShell>
-            <p className="text-sm text-muted-foreground">
-              Arbejdsområde — opgaveinfo og simulator vises her.
-            </p>
+            {skillProblemStatement ? (
+              <ProblemStatementCard content={skillProblemStatement} />
+            ) : (
+              <p className="text-sm text-muted-foreground">
+                Arbejdsområde — opgaveinfo og simulator vises her.
+              </p>
+            )}
           </WorkspaceShell>
         )}
       </div>

@@ -42,6 +42,7 @@ class CreateSkillRequest(BaseModel):
     access_control: dict = Field(default_factory=lambda: {"type": "private"}, alias="accessControl")
     protocols: dict | None = None
     initial_message: str = Field(default="", alias="initialMessage")
+    problem_statement: str = Field(default="", alias="problemStatement")
     tags: list[str] = []
     references: dict[str, str] = {}
 
@@ -58,6 +59,7 @@ class UpdateSkillRequest(BaseModel):
     access_control: dict | None = Field(default=None, alias="accessControl")
     protocols: dict | None = None
     initial_message: str | None = Field(default=None, alias="initialMessage")
+    problem_statement: str | None = Field(default=None, alias="problemStatement")
     tags: list[str] | None = None
     references: dict[str, str] | None = None
 
@@ -80,6 +82,7 @@ class SkillResponse(BaseModel):
     owner_email: str = Field(alias="ownerEmail")
     protocols: dict
     initial_message: str = Field(alias="initialMessage")
+    problem_statement: str = Field(default="", alias="problemStatement")
     tags: list[str]
     featured: bool
     usage_count: int = Field(alias="usageCount")
@@ -129,6 +132,7 @@ def create_skill(req: CreateSkillRequest, user: User = Depends(get_current_user)
         displayName=req.display_name or req.name,
         avatar=req.avatar,
         initialMessage=req.initial_message,
+        problemStatement=req.problem_statement or "",
         tags=req.tags,
         **kwargs,
     )

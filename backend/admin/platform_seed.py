@@ -131,6 +131,7 @@ def _parse_template(skill_md: Path) -> dict[str, Any]:
         # entry #1.
         "displayName": (front.get("displayName") or "").strip(),
         "initialMessage": (front.get("initialMessage") or "").strip(),
+        "problemStatement": (front.get("problemStatement") or "").strip(),
     }
 
 
@@ -194,6 +195,8 @@ def seed(templates_root: Path | None = None) -> SeedSummary:
                 optional_kwargs["displayName"] = parsed["displayName"]
             if parsed["initialMessage"]:
                 optional_kwargs["initialMessage"] = parsed["initialMessage"]
+            if parsed["problemStatement"]:
+                optional_kwargs["problemStatement"] = parsed["problemStatement"]
             skill_config.create_skill(
                 name=parsed["name"],
                 description=parsed["description"],

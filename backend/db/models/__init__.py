@@ -93,6 +93,12 @@ class SkillConfig(BaseModel):
     access_control: AccessControl = Field(default_factory=AccessControl, alias="accessControl")
     protocols: Protocols = Field(default_factory=Protocols)
     initial_message: str = Field(default="", alias="initialMessage")
+    # AIPLA 2026-05-21 — the full problem text (worksheet) the student is
+    # working on, rendered as markdown in the WorkspaceShell. Empty for
+    # skills that don't pin to one specific problem; problem-set-hints
+    # uses it to surface Opgave 1 — Boldkast (v0.1 demo). v1's
+    # problem-set-helper-config will populate this per teacher-config.
+    problem_statement: str = Field(default="", alias="problemStatement")
     tags: list[str] = Field(default_factory=list)
     featured: bool = False
     usage_count: int = Field(default=0, alias="usageCount")

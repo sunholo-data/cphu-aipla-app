@@ -137,6 +137,71 @@ def test_seed_summary_is_a_dataclass():
     assert s.failed == ["x"]
 
 
+def test_parse_template_extracts_problem_statement(tmp_path):
+    """AIPLA 2026-05-21 — SKILL.md frontmatter `problemStatement` parses
+    into the optional field used by the v0.1 WorkspaceShell. Empty/absent
+    falls back to empty string (no crash, no spurious populate)."""
+    content = (
+        "---\n"
+        "name: with-problem\n"
+        "description: x\n"
+        "problemStatement: |\n"
+        "  ### Test problem\n"
+        "  - sub-part a\n"
+        "metadata:\n"
+        "  model: gemini-2.5-flash\n"
+        "---\n\n"
+        "Body.\n"
+    )
+    skill_dir = tmp_path / "with-problem"
+    skill_dir.mkdir()
+    (skill_dir / "SKILL.md").write_text(content)
+
+    parsed = _parse_template(skill_dir / "SKILL.md")
+    assert "### Test problem" in parsed["problemStatement"]
+    assert "sub-part a" in parsed["problemStatement"]
+
+
+def test_parse_template_empty_problem_statement_when_absent(tmp_path):
+    _fake_template_dir(tmp_path, "alpha")
+    parsed = _parse_template(tmp_path / "alpha" / "SKILL.md")
+    assert parsed["problemStatement"] == ""
+
+
+def test_seed_passes_problem_statement_to_create_skill(tmp_path):
+    """When SKILL.md declares problemStatement, seed() forwards it to
+    create_skill so SkillConfig persists it. Skills without the field
+    don't pass any kwarg (so SkillConfig's default of "" applies)."""
+    content_with = (
+        "---\n"
+        "name: with-problem\n"
+        "description: x\n"
+        "problemStatement: |\n"
+        "  ### Boldkast\n"
+        "metadata:\n"
+        "  model: gemini-2.5-flash\n"
+        "---\n\n"
+        "Body.\n"
+    )
+    (tmp_path / "with-problem").mkdir()
+    (tmp_path / "with-problem" / "SKILL.md").write_text(content_with)
+    _fake_template_dir(tmp_path, "without-problem")
+
+    with (
+        patch("admin.platform_seed.skill_config.list_skills") as mock_list,
+        patch("admin.platform_seed.skill_config.create_skill") as mock_create,
+        patch("admin.platform_seed.unique_slug", side_effect=lambda _o, base, **_: base),
+    ):
+        mock_list.return_value = []
+        mock_create.side_effect = lambda **kw: _make_config(name=kw["name"])
+        seed(templates_root=tmp_path)
+
+    by_name = {call.kwargs["name"]: call.kwargs for call in mock_create.call_args_list}
+    assert "### Boldkast" in by_name["with-problem"]["problemStatement"]
+    # Skills without the field don't pass any kwarg (SkillConfig default = "")
+    assert "problemStatement" not in by_name["without-problem"]
+
+
 def test_seed_sets_slug_at_creation(tmp_path):
     """Each newly seeded skill must have a slug — otherwise the friendly
     URL /chat/@aitana-platform/{slug} 404s and we have to backfill in every

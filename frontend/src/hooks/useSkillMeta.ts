@@ -17,6 +17,12 @@ interface SkillMeta {
    * declares none — caller decides whether to fall back to a generic
    * "Send a message" prompt. Added 2026-05-20. */
   initialMessage: string;
+  /** Markdown problem statement rendered in the AIPLA WorkspaceShell —
+   * full worksheet text + sub-parts a/b/c/d for skills that pin to one
+   * specific problem (v0.1: problem-set-hints + Boldkast). Empty string
+   * for skills that don't pin to a problem. Added 2026-05-21 for the
+   * Jutland-demo PEDCTX sprint M3. */
+  problemStatement: string;
   loading: boolean;
 }
 
@@ -29,6 +35,8 @@ interface SkillResponse {
   slug?: string | null;
   initialMessage?: string;
   initial_message?: string;
+  problemStatement?: string;
+  problem_statement?: string;
   skillMetadata?: { toolConfigs?: { mcp?: { servers?: unknown } } };
   skill_metadata?: { toolConfigs?: { mcp?: { servers?: unknown } } };
 }
@@ -46,6 +54,7 @@ export function useSkillMeta(skillId: string): SkillMeta {
   const [slug, setSlug] = useState<string | null>(null);
   const [mcpServerIds, setMcpServerIds] = useState<readonly string[]>([]);
   const [initialMessage, setInitialMessage] = useState<string>("");
+  const [problemStatement, setProblemStatement] = useState<string>("");
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -61,6 +70,7 @@ export function useSkillMeta(skillId: string): SkillMeta {
           setSlug(data.slug ?? null);
           setMcpServerIds(extractMcpServerIds(data));
           setInitialMessage(data.initialMessage || data.initial_message || "");
+          setProblemStatement(data.problemStatement || data.problem_statement || "");
           setLoading(false);
         }
       })
@@ -73,5 +83,5 @@ export function useSkillMeta(skillId: string): SkillMeta {
     };
   }, [skillId]);
 
-  return { displayName, ownerId, slug, mcpServerIds, initialMessage, loading };
+  return { displayName, ownerId, slug, mcpServerIds, initialMessage, problemStatement, loading };
 }
