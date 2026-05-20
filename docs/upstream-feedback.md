@@ -512,6 +512,33 @@ The model has no way to *not* see the tool, so its prompt-to-tool-suggestion bia
 
 The current default of "every skill gets every UI capability the platform owns" is sensible for the inherited workshop demos (3 of 5 are A2UI showcases) but is wrong for any downstream fork that wants minimalist chat skills. Captured here as a defaults-shape issue, not a bug per se.
 
+## 23. Chat-page flex column missing `min-h-0` — input footer scrolls below viewport on empty/short chat
+
+**Where:** `frontend/src/app/chat/[...path]/page.tsx` — the inner chat column at line 534 used `<div className="flex min-w-0 flex-1 flex-col">`.
+
+**What hurt:** First-time-user UX bug. On the initial empty chat (just the welcome panel), the chat column refused to shrink below content height, the input footer landed below the viewport, and users had to scroll down to find the text box. AIPLA user caught it on the first end-to-end test: *"the chat input is always a little bit below the page bottom so you need to scroll down a bit to see it - very bad UX initially as you cant see where you input to get started"*.
+
+This is the classic Tailwind/flex "items refuse to shrink below content size in a column" footgun. The chain:
+
+```
+<main flex h-screen flex-col>                ← viewport-bounded, fine
+  <div flex min-h-0 flex-1>                  ← row, fine (has min-h-0)
+    <div flex min-w-0 flex-1 flex-col>       ← BUG: chat column, no min-h-0
+      <ChatMessageList .../>                  ← flex-1 + overflow-hidden, won't help if parent grows
+      <footer ...> {input} </footer>          ← gets pushed below viewport
+    </div>
+  </div>
+</main>
+```
+
+ChatMessageList's own outer wrapper IS `flex-1 overflow-hidden` correctly, and its inner scrollable region is `flex-1 overflow-y-auto`. The bug is exclusively the missing `min-h-0` on the chat column — flex children won't shrink below their content's natural height without it.
+
+**Workaround on AIPLA:** Add `min-h-0` to the chat column className. One-character fix (commit `36ee3cd`).
+
+**Upstream fix:** Add `min-h-0` to the inherited chat-column class. Trivial. The flex chain elsewhere in the page IS consistent (the parent row has `min-h-0`); just one missing spot.
+
+Bigger pattern worth a refactor: the page has multiple `<div className="flex flex-1 ...">` flex containers and the discipline of "every flex column that wraps a scrollable area needs `min-h-0`" isn't enforced. A grep-able comment or a custom `FlexCol` utility component would prevent re-occurrence. Lower priority — for now the one-line fix.
+
 ## Backlog (likely additions as v0.1 sprint continues)
 
 - M5 may surface IAM bindings the bootstrap script should add
