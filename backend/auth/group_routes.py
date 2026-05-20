@@ -84,6 +84,10 @@ class JoinGroupResponse(BaseModel):
     token: str
     uid: str
     expires_at: float
+    # Group's permitted skills. Frontend uses this to scope the SkillsBar
+    # so anonymous-group users only see skills they can actually invoke,
+    # not the full platform marketplace. Added 2026-05-20.
+    skill_ids: list[str] = []
 
 
 class GroupMetadataResponse(BaseModel):
@@ -196,6 +200,7 @@ async def join_group_endpoint(
         token=result.token,
         uid=result.uid,
         expires_at=result.expires_at,
+        skill_ids=list(result.skill_ids),
     )
 
 

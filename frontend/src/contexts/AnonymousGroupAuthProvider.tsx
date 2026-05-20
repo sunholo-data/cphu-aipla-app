@@ -67,6 +67,11 @@ export interface AnonymousGroupAuthContextValue {
   user: GroupAuthUser | null;
   token: string | null;
   expiresAt: number | null;
+  /** Skills the group has permission to invoke. Empty array = no
+   * filter (back-compat with sessions stored before 2026-05-20).
+   * Consumers (e.g. useUserSkills) use this to scope UI surfaces
+   * that would otherwise show the full platform marketplace. */
+  skillIds: string[];
   error: GroupAuthError | null;
   join: (groupCode: string) => Promise<void>;
   markExpired: () => void;
@@ -196,6 +201,7 @@ export function AnonymousGroupAuthProvider({ children }: { children: ReactNode }
     user: session ? userFromSession(session) : null,
     token: session?.token ?? null,
     expiresAt: session?.expires_at ?? null,
+    skillIds: session?.skill_ids ?? [],
     error,
     join,
     markExpired,

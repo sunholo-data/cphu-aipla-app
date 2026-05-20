@@ -2,6 +2,10 @@
 
 import { useEffect, useRef, useState } from "react";
 import { fetchWithAuth } from "@/lib/apiClient";
+import {
+  isAnonymousGroupAuthMode,
+  readStoredGroupSession,
+} from "@/lib/anonymousGroupAuth";
 import type { Skill } from "@/types/skill";
 
 interface UseUserSkillsReturn {
@@ -59,7 +63,20 @@ export function useUserSkills(uid: string | null): UseUserSkillsReturn {
     Promise.all([own, platform])
       .then(([ownSkills, platformSkills]) => {
         const seen = new Set(ownSkills.map((s) => s.skillId));
-        const merged = [...ownSkills, ...platformSkills.filter((s) => !seen.has(s.skillId))];
+        let merged = [...ownSkills, ...platformSkills.filter((s) => !seen.has(s.skillId))];
+        // Anonymous-group users: scope the SkillsBar to skills the group
+        // is permitted to invoke. A code minted for `problem-set-hints`
+        // shouldn't surface workspace-demo / code-assistant / etc. in
+        // the chat top bar. Empty allowlist = no filter (back-compat
+        // with sessions stored before 2026-05-20). Added 2026-05-20.
+        if (isAnonymousGroupAuthMode()) {
+          const session = readStoredGroupSession();
+          const allowed = session?.skill_ids ?? [];
+          if (allowed.length > 0) {
+            const allowedSet = new Set(allowed);
+            merged = merged.filter((s) => allowedSet.has(s.skillId));
+          }
+        }
         setSkills(merged);
       })
       .catch((err: Error) => {

@@ -106,6 +106,11 @@ class JoinResult:
     token: str
     uid: str
     expires_at: float
+    skill_ids: tuple[str, ...] = ()
+    """Skills the group has permission to invoke (per GroupRecord.skill_ids).
+    Carried back to the client so the frontend can scope its UI to the
+    permitted set (e.g. SkillsBar filtering for anonymous-group sessions).
+    Added 2026-05-20 — the inherited template didn't expose this to clients."""
 
 
 # ─── State holder (module-level singleton) ──────────────────────────────────
@@ -491,7 +496,12 @@ def join_group(group_id: str, *, client_ip: str) -> JoinResult:
         uid,
         current + 1,
     )
-    return JoinResult(token=token, uid=uid, expires_at=exp)
+    return JoinResult(
+        token=token,
+        uid=uid,
+        expires_at=exp,
+        skill_ids=record.skill_ids,
+    )
 
 
 # ─── Public API: verify ─────────────────────────────────────────────────────
