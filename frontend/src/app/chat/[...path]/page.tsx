@@ -9,6 +9,7 @@ import { DocListView } from "@/components/doc-browser/DocListView";
 import { DocTabsBar } from "@/components/doc-browser/DocTabsBar";
 import { UploadDropZone } from "@/components/doc-browser/UploadDropZone";
 import type { ParsedDocument } from "@/hooks/useDocBrowser";
+import { isAnonymousGroupAuthMode } from "@/lib/anonymousGroupAuth";
 import { useAuth } from "@/contexts/AuthContext";
 import type { User } from "@/lib/firebase";
 import { useSkillAgent, type StreamError } from "@/hooks/useSkillAgent";
@@ -222,6 +223,14 @@ function ChatShell({
   } = useSkillAgent();
   const { displayName, mcpServerIds, initialMessage: skillInitialMessage } = useSkillMeta(skillId);
   const { skills: userSkills, isLoading: skillsLoading } = useUserSkills(user.uid);
+  // Anonymous-group users (students joining via teacher-minted codes —
+  // ADR-001) don't browse/upload documents in v0.1. Hide the entire
+  // doc-browsing surface: tab bar, sidebar doc list, upload zone,
+  // document preview panel, document-history panel. Other auth modes
+  // see the full inherited template UX. v1 may add a per-skill
+  // allowDocumentUpload flag — for v0.1 the auth-mode gate is
+  // sufficient since anon-group users only see one skill anyway.
+  const showDocumentUI = !isAnonymousGroupAuthMode();
   const searchParams = useSearchParams();
   const router = useRouter();
   const [draft, setDraft] = useState("");
@@ -458,19 +467,21 @@ function ChatShell({
         onCreateClick={() => router.push("/skills/new")}
       />
 
-      <DocTabsBar
-        tabs={openTabs}
-        activeTabId={activeTabId}
-        showBrowser={showDocBrowser}
-        onSelect={setActiveTabId}
-        onClose={handleTabClose}
-        onToggleInclude={handleTabToggleInclude}
-        onToggleBrowser={() => setShowDocBrowser((v) => !v)}
-        onUploadClick={() => setShowUpload((v) => !v)}
-      />
+      {showDocumentUI && (
+        <DocTabsBar
+          tabs={openTabs}
+          activeTabId={activeTabId}
+          showBrowser={showDocBrowser}
+          onSelect={setActiveTabId}
+          onClose={handleTabClose}
+          onToggleInclude={handleTabToggleInclude}
+          onToggleBrowser={() => setShowDocBrowser((v) => !v)}
+          onUploadClick={() => setShowUpload((v) => !v)}
+        />
+      )}
 
       <div className="flex min-h-0 flex-1">
-        {showDocBrowser && (
+        {showDocumentUI && showDocBrowser && (
           <aside className="flex w-64 shrink-0 flex-col overflow-hidden border-r bg-muted/30">
             <div className="border-b px-3 py-2">
               <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Sessions</p>
@@ -497,7 +508,7 @@ function ChatShell({
           </aside>
         )}
 
-        {activeTabId && (
+        {showDocumentUI && activeTabId && (
           <div className="flex w-1/2 shrink-0 flex-col overflow-hidden border-r">
             <div className="min-h-0 flex-1 overflow-auto">
               <DocumentPanel docId={activeTabId} />

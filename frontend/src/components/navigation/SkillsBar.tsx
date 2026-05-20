@@ -4,6 +4,7 @@ import Link from "next/link";
 import type { Skill } from "@/types/skill";
 import { SkillTab } from "./SkillTab";
 import { BRANDING } from "@/lib/branding";
+import { isAnonymousGroupAuthMode } from "@/lib/anonymousGroupAuth";
 
 interface SkillsBarProps {
   skills: Skill[];
@@ -13,6 +14,15 @@ interface SkillsBarProps {
 }
 
 export function SkillsBar({ skills, activeSkillId, isLoading, onCreateClick }: SkillsBarProps) {
+  // Anonymous-group users (ADR-001) — students working from a teacher-
+  // minted group code — don't author skills. Hide the "+ Create" button
+  // (no path to actually create) and the "No skills yet" empty-state
+  // copy (which both invites action they can't perform AND is wrong
+  // when the filter happens to land on zero, e.g. mid-load). UCPH SSO
+  // teachers (v1.6+1.7) will see the standard surface — the inherited
+  // template behaviour is preserved for non-anon modes.
+  const isAnonGroup = isAnonymousGroupAuthMode();
+
   return (
     <header
       className="flex h-12 items-center gap-2 border-b bg-background px-3"
@@ -34,7 +44,13 @@ export function SkillsBar({ skills, activeSkillId, isLoading, onCreateClick }: S
         {isLoading ? (
           <SkillTabsSkeleton />
         ) : skills.length === 0 ? (
-          <span className="text-xs text-muted-foreground">No skills yet — create your first one →</span>
+          // In anon-group mode, an empty list is silent (filter mismatch
+          // or transient load) — don't show the misleading "create your
+          // first one" prompt that the student can't act on. Non-anon
+          // modes keep the inherited copy as a CTA for new users.
+          isAnonGroup ? null : (
+            <span className="text-xs text-muted-foreground">No skills yet — create your first one →</span>
+          )
         ) : (
           skills.map((s) => (
             <SkillTab key={s.skillId} skill={s} active={s.skillId === activeSkillId} />
@@ -42,15 +58,17 @@ export function SkillsBar({ skills, activeSkillId, isLoading, onCreateClick }: S
         )}
       </nav>
 
-      <button
-        type="button"
-        onClick={onCreateClick}
-        title="Create a new skill"
-        aria-label="Create a new skill"
-        className="flex h-8 w-8 shrink-0 items-center justify-center rounded-md border text-lg leading-none text-muted-foreground hover:bg-muted hover:text-foreground"
-      >
-        +
-      </button>
+      {!isAnonGroup && (
+        <button
+          type="button"
+          onClick={onCreateClick}
+          title="Create a new skill"
+          aria-label="Create a new skill"
+          className="flex h-8 w-8 shrink-0 items-center justify-center rounded-md border text-lg leading-none text-muted-foreground hover:bg-muted hover:text-foreground"
+        >
+          +
+        </button>
+      )}
     </header>
   );
 }
