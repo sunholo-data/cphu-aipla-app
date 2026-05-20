@@ -63,6 +63,24 @@ def seed_local_fixture() -> None:
         for skill in _demo_skills(now):
             client.collection("skills").document(skill["skillId"]).set(skill)
 
+    # ---- AIPLA platform skills (problem-set-hints + inherited 5) ---------
+    # Idempotent: platform_seed.seed() dedupes by skill name. Without this,
+    # LOCAL_MODE can't actually invoke problem-set-hints because the skill
+    # ID lookup returns 404 — the gap Mark caught at the end of v0.1 sprint
+    # (2026-05-20). See memory entry feedback-use-project-skills-first.
+    try:
+        from admin import platform_seed
+
+        summary = platform_seed.seed()
+        if summary.created:
+            logger.info(
+                "seed_local_fixture: seeded %d platform skills (failed=%s)",
+                summary.created,
+                summary.failed,
+            )
+    except Exception:  # noqa: BLE001
+        logger.exception("seed_local_fixture: platform_seed.seed() failed")
+
     # ---- demo document ---------------------------------------------------
     documents = list(client.collection("documents").stream())
     if not documents:

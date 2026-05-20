@@ -115,7 +115,14 @@ steps:
       - '--project=${_PROJECT_ID}'
       - '--platform=managed'
       - '--allow-unauthenticated'
-      - '--max-instances=3'
+      # AIPLA v0.1 pins to a single always-warm instance so the
+      # in-memory anonymous-group state (_state.groups in
+      # backend/auth/group_id_auth.py) survives across requests.
+      # Group state is NOT Firestore-backed yet — that's v1 work.
+      # min=1 keeps the container alive; max=1 ensures every join
+      # request lands on the same container that minted the code.
+      - '--min-instances=1'
+      - '--max-instances=1'
       - '--session-affinity'
       - '--add-volume'
       - 'name=gcs_config,type=cloud-storage,bucket=${_CONFIG_BUCKET},readonly=true'
