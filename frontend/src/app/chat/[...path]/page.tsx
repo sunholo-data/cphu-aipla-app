@@ -38,6 +38,8 @@ import { LatencyHUD } from "@/components/dev/LatencyHUD";
 import { WorkspaceShell } from "@/components/workspace/WorkspaceShell";
 import { ProblemStatementCard } from "@/components/workspace/ProblemStatementCard";
 import { ProgressChecklist } from "@/components/workspace/ProgressChecklist";
+import { BoldkastSimButton } from "@/components/workspace/BoldkastSimButton";
+import { BoldkastSimFrame } from "@/components/workspace/BoldkastSimFrame";
 
 // PEDCTX M5 — sub-parts of the Boldkast problem-set-hints v0.1 skill.
 // v1's problem-set-helper-config will source this from skill metadata;
@@ -48,6 +50,13 @@ const BOLDKAST_SUBPARTS = [
   { id: "c", label: "c) Hvad er den maksimale højde?" },
   { id: "d", label: "d) Tegn en skitse over banen." },
 ];
+
+// Sandbox origin for the Boldkast sim iframe. NEXT_PUBLIC_MCP_SANDBOX_URL
+// points at /sandbox.html on the sandbox service; strip the suffix so we
+// have the bare origin, then BoldkastSimFrame appends the artefact path.
+// Empty string => sim launcher disabled (graceful — workspace still works).
+const BOLDKAST_SANDBOX_ORIGIN = (process.env.NEXT_PUBLIC_MCP_SANDBOX_URL ?? "")
+  .replace(/\/sandbox\.html$/, "");
 
 /**
  * MULTI-SURFACE-A2UI M3 — chat page surface mounts.
@@ -259,6 +268,9 @@ function ChatShell({
   const searchParams = useSearchParams();
   const router = useRouter();
   const [draft, setDraft] = useState("");
+  // PEDCTX/Boldkast — workspace toggle between default content
+  // (problem statement + checklist) and the Boldkast sim iframe.
+  const [showBoldkastSim, setShowBoldkastSim] = useState(false);
   const [showDocBrowser, setShowDocBrowser] = useState(true);
   const [showUpload, setShowUpload] = useState(false);
   const [openTabs, setOpenTabs] = useState<DocTabData[]>([]);
@@ -653,16 +665,27 @@ function ChatShell({
             DocumentPanel / WorkspaceSurfaceRegion behaviour above. */}
         {showAiplaWorkspace && (
           <WorkspaceShell>
-            <div className="space-y-4">
-              <ProgressChecklist skillId={skillId} items={BOLDKAST_SUBPARTS} />
-              {skillProblemStatement ? (
-                <ProblemStatementCard content={skillProblemStatement} />
-              ) : (
-                <p className="text-sm text-muted-foreground">
-                  Arbejdsområde — opgaveinfo og simulator vises her.
-                </p>
-              )}
-            </div>
+            {showBoldkastSim && BOLDKAST_SANDBOX_ORIGIN ? (
+              <BoldkastSimFrame
+                sandboxOrigin={BOLDKAST_SANDBOX_ORIGIN}
+                onClose={() => setShowBoldkastSim(false)}
+              />
+            ) : (
+              <div className="space-y-4">
+                <BoldkastSimButton
+                  onOpen={() => setShowBoldkastSim(true)}
+                  disabled={!BOLDKAST_SANDBOX_ORIGIN}
+                />
+                <ProgressChecklist skillId={skillId} items={BOLDKAST_SUBPARTS} />
+                {skillProblemStatement ? (
+                  <ProblemStatementCard content={skillProblemStatement} />
+                ) : (
+                  <p className="text-sm text-muted-foreground">
+                    Arbejdsområde — opgaveinfo og simulator vises her.
+                  </p>
+                )}
+              </div>
+            )}
           </WorkspaceShell>
         )}
       </div>

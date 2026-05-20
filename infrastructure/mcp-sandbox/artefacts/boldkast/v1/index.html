@@ -1,0 +1,461 @@
+<!doctype html>
+<html lang="da">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Boldkast — interaktiv visualisering</title>
+<style>
+  :root {
+    --bg: #fafaf9;
+    --fg: #1c1917;
+    --muted: #78716c;
+    --border: #e7e5e4;
+    --accent: #1e40af;
+    --accent-soft: #dbeafe;
+    --hidden: #d6d3d1;
+  }
+  * { box-sizing: border-box; }
+  html, body {
+    margin: 0; padding: 0;
+    font-family: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", sans-serif;
+    background: var(--bg); color: var(--fg);
+    font-size: 14px;
+    line-height: 1.4;
+  }
+  body { padding: 12px; }
+  header { margin-bottom: 8px; }
+  header h1 { font-size: 15px; margin: 0 0 2px; font-weight: 600; }
+  header .givens { color: var(--muted); font-size: 12px; }
+  main {
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: 10px;
+  }
+  @media (min-width: 720px) {
+    main { grid-template-columns: 2fr 1fr; }
+  }
+  .canvas-wrap {
+    background: white;
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    padding: 6px;
+    position: relative;
+  }
+  canvas { width: 100%; height: auto; display: block; touch-action: none; }
+  .panel {
+    background: white;
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    padding: 10px;
+  }
+  .panel h2 {
+    font-size: 11px;
+    text-transform: uppercase;
+    letter-spacing: .05em;
+    color: var(--muted);
+    margin: 0 0 8px;
+    font-weight: 600;
+  }
+  .controls .row { display: flex; align-items: center; gap: 6px; margin: 6px 0; }
+  .controls label { font-size: 12px; min-width: 30px; }
+  .controls input[type="range"] { flex: 1; }
+  .controls .value { font-variant-numeric: tabular-nums; min-width: 55px; text-align: right; font-size: 12px; }
+  .buttons { display: flex; gap: 6px; margin-top: 8px; }
+  button {
+    font: inherit; font-size: 12px;
+    padding: 6px 10px;
+    background: var(--accent-soft); color: var(--accent);
+    border: 1px solid transparent;
+    border-radius: 4px;
+    cursor: pointer;
+  }
+  button:hover { border-color: var(--accent); }
+  button.ghost { background: transparent; color: var(--muted); border: 1px solid var(--border); }
+  button.ghost:hover { color: var(--fg); border-color: var(--accent); }
+  .markers .row {
+    display: flex; align-items: baseline; gap: 6px; margin: 6px 0;
+    padding: 6px; border-radius: 4px; background: #f5f5f4;
+  }
+  .markers .label { flex: 1; font-size: 12px; }
+  .markers .value {
+    font-variant-numeric: tabular-nums;
+    font-weight: 600;
+    color: var(--hidden);
+    min-width: 60px; text-align: right;
+  }
+  .markers .value.revealed { color: var(--accent); }
+  .markers button.vis {
+    font-size: 11px; padding: 3px 8px;
+    background: transparent; color: var(--muted); border: 1px solid var(--border);
+  }
+  .markers button.vis.revealed { color: var(--accent); border-color: var(--accent); }
+  .live {
+    font-size: 11px;
+    color: var(--muted);
+    font-variant-numeric: tabular-nums;
+    margin-top: 6px;
+  }
+  .pedagogy {
+    margin-top: 8px;
+    padding: 8px;
+    background: #fef3c7;
+    border-left: 3px solid #f59e0b;
+    font-size: 11px;
+    color: #78350f;
+    border-radius: 0 4px 4px 0;
+  }
+</style>
+</head>
+<body>
+<header>
+  <h1>Boldkast — interaktiv visualisering</h1>
+  <div class="givens">
+    v₀ = <span id="v0-label">15</span> m/s &nbsp;·&nbsp;
+    θ = <span id="theta-label">40</span>° &nbsp;·&nbsp;
+    g = 9,82 m/s²
+  </div>
+</header>
+<main>
+  <section class="canvas-wrap">
+    <canvas id="viz" width="600" height="320" aria-label="Projektilbane"></canvas>
+    <div class="live" id="live">t = 0,00 s &nbsp;·&nbsp; x = 0,00 m, y = 0,00 m &nbsp;·&nbsp; vₓ = —, vᵧ = —</div>
+  </section>
+  <aside>
+    <div class="panel controls">
+      <h2>Kontrol</h2>
+      <div class="row">
+        <label for="v0">v₀</label>
+        <input id="v0" type="range" min="5" max="30" step="0.5" value="15">
+        <span class="value" id="v0-out">15,0 m/s</span>
+      </div>
+      <div class="row">
+        <label for="theta">θ</label>
+        <input id="theta" type="range" min="10" max="80" step="1" value="40">
+        <span class="value" id="theta-out">40°</span>
+      </div>
+      <div class="buttons">
+        <button id="play" type="button">▶ Afspil</button>
+        <button id="pause" type="button" class="ghost">⏸ Pause</button>
+        <button id="reset" type="button" class="ghost">↺ Nulstil</button>
+      </div>
+    </div>
+    <div class="panel markers" style="margin-top: 10px;">
+      <h2>Resultater</h2>
+      <div class="row">
+        <span class="label">Maks højde (y_max)</span>
+        <span class="value" data-value-for="ymax">—</span>
+        <button class="vis" type="button" data-marker="ymax">Vis</button>
+      </div>
+      <div class="row">
+        <span class="label">Rækkevidde</span>
+        <span class="value" data-value-for="range">—</span>
+        <button class="vis" type="button" data-marker="range">Vis</button>
+      </div>
+      <div class="row">
+        <span class="label">Flyvetid</span>
+        <span class="value" data-value-for="tof">—</span>
+        <button class="vis" type="button" data-marker="tof">Vis</button>
+      </div>
+      <p class="pedagogy">
+        Værdierne er skjult med vilje. Beregn dem først selv på papir — så afslør for at tjekke.
+      </p>
+    </div>
+  </aside>
+</main>
+<script>
+  "use strict";
+  // ─── Physics ──────────────────────────────────────────────────────────────
+  const G = 9.82;
+  function trajectoryAt(t, v0, thetaDeg) {
+    const th = (thetaDeg * Math.PI) / 180;
+    const vx = v0 * Math.cos(th);
+    const vy0 = v0 * Math.sin(th);
+    return {
+      x: vx * t,
+      y: Math.max(0, vy0 * t - 0.5 * G * t * t),
+      vx,
+      vy: vy0 - G * t,
+    };
+  }
+  function results(v0, thetaDeg) {
+    const th = (thetaDeg * Math.PI) / 180;
+    const vy0 = v0 * Math.sin(th);
+    const vx = v0 * Math.cos(th);
+    const tof = (2 * vy0) / G;          // total flight time
+    const ymax = (vy0 * vy0) / (2 * G); // peak height
+    const range = vx * tof;              // horizontal range
+    return { tof, ymax, range };
+  }
+
+  // ─── State ────────────────────────────────────────────────────────────────
+  let v0 = 15;
+  let theta = 40;
+  let t = 0;
+  let playing = false;
+  let lastFrameMs = 0;
+  const revealed = { ymax: false, range: false, tof: false };
+
+  // ─── DOM ──────────────────────────────────────────────────────────────────
+  const canvas = document.getElementById("viz");
+  const ctx = canvas.getContext("2d");
+  const live = document.getElementById("live");
+  const v0Out = document.getElementById("v0-out");
+  const v0Label = document.getElementById("v0-label");
+  const thetaOut = document.getElementById("theta-out");
+  const thetaLabel = document.getElementById("theta-label");
+
+  function fmt(n, digits = 2) {
+    return n.toFixed(digits).replace(".", ",");
+  }
+
+  // ─── Canvas rendering ─────────────────────────────────────────────────────
+  function fitCanvas() {
+    // Match the canvas backing buffer to its CSS size + devicePixelRatio for
+    // crisp lines on HiDPI without changing world coords.
+    const dpr = window.devicePixelRatio || 1;
+    const rect = canvas.getBoundingClientRect();
+    canvas.width = Math.round(rect.width * dpr);
+    canvas.height = Math.round((rect.width * 0.55) * dpr);
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+  }
+
+  function drawWorld() {
+    const w = canvas.clientWidth;
+    const h = canvas.clientHeight;
+    ctx.clearRect(0, 0, w, h);
+
+    // World extents: scale to fit the full trajectory given current params.
+    const { tof, range, ymax } = results(v0, theta);
+    const worldW = Math.max(range * 1.1, 25);
+    const worldH = Math.max(ymax * 1.4, 12);
+
+    const pad = 30;
+    const sx = (w - pad * 2) / worldW;
+    const sy = (h - pad * 2) / worldH;
+
+    const toScreen = (x, y) => [pad + x * sx, h - pad - y * sy];
+
+    // Ground line
+    ctx.strokeStyle = "#a8a29e";
+    ctx.lineWidth = 1;
+    ctx.beginPath();
+    ctx.moveTo(pad, h - pad);
+    ctx.lineTo(w - pad, h - pad);
+    ctx.stroke();
+
+    // Tick marks on x-axis (every 5 m)
+    ctx.fillStyle = "#a8a29e";
+    ctx.font = "10px sans-serif";
+    for (let x = 0; x <= worldW; x += 5) {
+      const [sxp, syp] = toScreen(x, 0);
+      ctx.beginPath();
+      ctx.moveTo(sxp, syp);
+      ctx.lineTo(sxp, syp + 4);
+      ctx.stroke();
+      if (x % 10 === 0) ctx.fillText(x + " m", sxp - 8, syp + 14);
+    }
+
+    // Trajectory (faint, full path)
+    ctx.strokeStyle = "#cbd5e1";
+    ctx.lineWidth = 1;
+    ctx.beginPath();
+    for (let tt = 0; tt <= tof; tt += tof / 60) {
+      const p = trajectoryAt(tt, v0, theta);
+      const [px, py] = toScreen(p.x, p.y);
+      if (tt === 0) ctx.moveTo(px, py);
+      else ctx.lineTo(px, py);
+    }
+    ctx.stroke();
+
+    // Trajectory traced so far (solid up to t)
+    ctx.strokeStyle = "#1e40af";
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    const tNow = Math.min(t, tof);
+    for (let tt = 0; tt <= tNow; tt += Math.max(tof / 120, 0.001)) {
+      const p = trajectoryAt(tt, v0, theta);
+      const [px, py] = toScreen(p.x, p.y);
+      if (tt === 0) ctx.moveTo(px, py);
+      else ctx.lineTo(px, py);
+    }
+    ctx.stroke();
+
+    // Ball at current t
+    const p = trajectoryAt(tNow, v0, theta);
+    const [bx, by] = toScreen(p.x, p.y);
+    ctx.fillStyle = "#1e40af";
+    ctx.beginPath();
+    ctx.arc(bx, by, 5, 0, Math.PI * 2);
+    ctx.fill();
+
+    // Velocity vector at ball position (small)
+    ctx.strokeStyle = "#0f172a";
+    ctx.lineWidth = 1.5;
+    ctx.beginPath();
+    ctx.moveTo(bx, by);
+    ctx.lineTo(bx + p.vx * 1.5, by - p.vy * 1.5);
+    ctx.stroke();
+
+    // y_max marker line (only if revealed)
+    if (revealed.ymax) {
+      const [, ymaxY] = toScreen(0, ymax);
+      ctx.strokeStyle = "#16a34a";
+      ctx.setLineDash([4, 4]);
+      ctx.beginPath();
+      ctx.moveTo(pad, ymaxY);
+      ctx.lineTo(w - pad, ymaxY);
+      ctx.stroke();
+      ctx.setLineDash([]);
+      ctx.fillStyle = "#16a34a";
+      ctx.fillText("y_max", w - pad - 36, ymaxY - 4);
+    }
+
+    // range marker (vertical drop line at x=range)
+    if (revealed.range) {
+      const [rangeX] = toScreen(range, 0);
+      ctx.strokeStyle = "#16a34a";
+      ctx.setLineDash([4, 4]);
+      ctx.beginPath();
+      ctx.moveTo(rangeX, pad);
+      ctx.lineTo(rangeX, h - pad);
+      ctx.stroke();
+      ctx.setLineDash([]);
+    }
+  }
+
+  function updateLive() {
+    const p = trajectoryAt(Math.min(t, results(v0, theta).tof), v0, theta);
+    live.textContent =
+      "t = " + fmt(t) + " s   ·   " +
+      "x = " + fmt(p.x) + " m, y = " + fmt(p.y) + " m   ·   " +
+      "vₓ = " + fmt(p.vx) + ", vᵧ = " + fmt(p.vy);
+  }
+
+  function updateInputs() {
+    v0Out.textContent = fmt(v0, 1) + " m/s";
+    v0Label.textContent = fmt(v0, 1);
+    thetaOut.textContent = theta + "°";
+    thetaLabel.textContent = theta;
+  }
+
+  function updateMarkers() {
+    const r = results(v0, theta);
+    const out = document.querySelectorAll(".markers [data-value-for]");
+    out.forEach((el) => {
+      const m = el.dataset.valueFor;
+      if (!revealed[m]) {
+        el.textContent = "—";
+        el.classList.remove("revealed");
+      } else {
+        if (m === "ymax") el.textContent = fmt(r.ymax) + " m";
+        if (m === "range") el.textContent = fmt(r.range) + " m";
+        if (m === "tof") el.textContent = fmt(r.tof) + " s";
+        el.classList.add("revealed");
+      }
+    });
+    document.querySelectorAll(".markers button.vis").forEach((b) => {
+      const m = b.dataset.marker;
+      b.classList.toggle("revealed", !!revealed[m]);
+      b.textContent = revealed[m] ? "Skjul" : "Vis";
+    });
+  }
+
+  function render() {
+    fitCanvas();
+    drawWorld();
+    updateLive();
+    updateInputs();
+  }
+
+  // ─── Animation loop ───────────────────────────────────────────────────────
+  function tick(ms) {
+    if (!lastFrameMs) lastFrameMs = ms;
+    const dt = (ms - lastFrameMs) / 1000;
+    lastFrameMs = ms;
+    if (playing) {
+      const { tof } = results(v0, theta);
+      t = Math.min(t + dt, tof);
+      if (t >= tof) playing = false;
+      render();
+    }
+    requestAnimationFrame(tick);
+  }
+  requestAnimationFrame(tick);
+
+  // ─── Telemetry (postMessage to host) ──────────────────────────────────────
+  function emit(type, extra) {
+    try {
+      window.parent.postMessage(
+        Object.assign({ source: "boldkast", type: type }, extra || {}),
+        "*",
+      );
+    } catch (e) {
+      // ignore — parent may not exist in standalone mode
+    }
+  }
+
+  // ─── Event wiring ─────────────────────────────────────────────────────────
+  document.getElementById("v0").addEventListener("input", (e) => {
+    v0 = parseFloat(e.target.value);
+    t = 0; playing = false; lastFrameMs = 0;
+    // Recomputing markers means the previously revealed value changed —
+    // hide so the student must recompute / re-reveal. Keeps the "no
+    // accidental answers" property even under slider drag.
+    revealed.ymax = false; revealed.range = false; revealed.tof = false;
+    updateMarkers();
+    render();
+    emit("boldkast.param.change", { param: "v0", value: v0 });
+  });
+  document.getElementById("theta").addEventListener("input", (e) => {
+    theta = parseFloat(e.target.value);
+    t = 0; playing = false; lastFrameMs = 0;
+    revealed.ymax = false; revealed.range = false; revealed.tof = false;
+    updateMarkers();
+    render();
+    emit("boldkast.param.change", { param: "theta", value: theta });
+  });
+  document.getElementById("play").addEventListener("click", () => {
+    if (!playing) {
+      const { tof } = results(v0, theta);
+      if (t >= tof) t = 0;
+      playing = true;
+      lastFrameMs = 0;
+      emit("boldkast.play");
+    }
+  });
+  document.getElementById("pause").addEventListener("click", () => {
+    playing = false;
+    emit("boldkast.pause");
+  });
+  document.getElementById("reset").addEventListener("click", () => {
+    t = 0; playing = false; lastFrameMs = 0;
+    render();
+    emit("boldkast.reset");
+  });
+  document.querySelectorAll(".markers button.vis").forEach((b) => {
+    b.addEventListener("click", () => {
+      const m = b.dataset.marker;
+      revealed[m] = !revealed[m];
+      updateMarkers();
+      render();
+      emit("boldkast.show_value", { marker: m, revealed: revealed[m] });
+    });
+  });
+
+  window.addEventListener("resize", render);
+  render();
+  updateMarkers();
+  emit("boldkast.open");
+
+  // ─── Self-test (URL: ?test=1) ─────────────────────────────────────────────
+  if (new URLSearchParams(window.location.search).get("test") === "1") {
+    const r = results(15, 40);
+    const expectedYmax = 4.74;
+    const ok = Math.abs(r.ymax - expectedYmax) < 0.05;
+    document.title = ok ? "TEST PASS — Boldkast" : "TEST FAIL — Boldkast";
+    if (!ok) console.error("Self-test failed: y_max=" + r.ymax + " expected ~" + expectedYmax);
+    else console.log("Self-test PASS: y_max=" + r.ymax + " (~" + expectedYmax + ")");
+  }
+</script>
+</body>
+</html>
