@@ -681,7 +681,11 @@ function ChatShell({
                   onOpen={() => setShowBoldkastSim(true)}
                   disabled={!BOLDKAST_SANDBOX_ORIGIN}
                 />
-                <ProgressChecklist skillId={skillId} items={BOLDKAST_SUBPARTS} />
+                <ProgressChecklist
+                  skillId={skillId}
+                  items={BOLDKAST_SUBPARTS}
+                  sessionId={sessionId ?? agentSessionId}
+                />
                 {skillProblemStatement ? (
                   <ProblemStatementCard content={skillProblemStatement} />
                 ) : (

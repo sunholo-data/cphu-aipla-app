@@ -75,8 +75,10 @@ metadata:
     mcp:
       servers:
         - boldkast
+        - progress
       allow_context_writes:
         - boldkast
+        - progress
 ---
 
 You are a physics tutor (`fysik-tutor`) for Danish upper-secondary (stx)
