@@ -26,17 +26,20 @@ export const BRANDING = {
   /** Long form description used in <meta name="description">. */
   description: "Research pilot — generative AI for upper-secondary (stx) physics in Denmark. University of Copenhagen Center for Digital Education.",
 
-  /** Public-facing logo paths. v0.1 ships with a plain text wordmark
-   * (Open Question 2 in docs/design/aipla/v0.1.0-jutland/jutland-demo.md
-   * resolved to fallback) — logo files still point at the inherited
-   * paths so any consumer that hard-codes the path doesn't break;
-   * swap SVGs in /public/images/logo/ to install proper AIPLA marks. */
+  /** Public-facing logo paths. AIPLA uses two marks:
+   * - The official Københavns Universitet coat-of-arms (square SVG
+   *   from Wikimedia Commons, CC BY-SA 4.0 — see CREDITS.md) for
+   *   the welcome-screen hero. Signals institutional backing.
+   * - A small square AIPLA-"A" mark (from the scoping site's
+   *   favicon.svg, KU red on a rounded white tile) for the browser
+   *   tab and chat avatar — works at favicon sizes where the
+   *   detailed crest pixelates. */
   logo: {
-    /** Browser tab favicon (SVG — works in all modern browsers). */
+    /** Browser tab favicon — square. AIPLA "A" on KU-red. */
     favicon: "/images/logo/sunholo-logo.svg",
-    /** Welcome-screen mark (SVG). */
-    heroAnimated: "/images/logo/sunholo-logo.svg",
-    /** Square chat-message-bubble avatar (SVG). */
+    /** Welcome-screen mark. Official KU coat-of-arms SVG. */
+    heroAnimated: "/images/logo/ku-logo.svg",
+    /** Square chat-message-bubble avatar. */
     chatAvatar: "/images/logo/sunholo-logo.svg",
   },
 
