@@ -531,7 +531,12 @@ function ChatShell({
           <WorkspaceSurfaceRegion sessionId={sessionId ?? agentSessionId} />
         )}
 
-        <div className="flex min-w-0 flex-1 flex-col">
+        {/* min-h-0 is load-bearing: without it the flex column can grow
+            past its parent's height, pushing the input footer below the
+            viewport. ChatMessageList's overflow-y-auto only works when
+            this parent allows shrink-below-content-size. Fix for the
+            "can't see the input" UX bug 2026-05-20. */}
+        <div className="flex min-w-0 min-h-0 flex-1 flex-col">
           <ChatMessageList
             messages={messages}
             // initialMessages are the persisted history fetched by
