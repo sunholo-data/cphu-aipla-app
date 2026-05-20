@@ -1,6 +1,7 @@
 "use client";
 
 import { firestoreTimestampToIso, getFirestoreDb } from "@/lib/firebase";
+import { isAnonymousGroupAuthMode } from "@/lib/anonymousGroupAuth";
 import { collection, onSnapshot, query, where } from "firebase/firestore";
 import { useCallback, useEffect, useRef, useState } from "react";
 
@@ -52,6 +53,11 @@ export function useDocBrowser(uid: string): DocBrowserState {
   useEffect(() => {
     const db = getFirestoreDb();
     if (!db || !uid) return;
+    // Anonymous-group users (ADR-001) have a custom JWT, not a Firebase
+    // Auth identity. Firestore rules deny their snapshot listeners with
+    // permission-denied, producing noisy console errors. Document
+    // browsing isn't part of v0.1 anyway — skip the listener.
+    if (isAnonymousGroupAuthMode()) return;
 
     const foldersCol = collection(db, "users", uid, "folders");
     const unsub = onSnapshot(foldersCol, (snap) => {
@@ -88,6 +94,11 @@ export function useDocBrowser(uid: string): DocBrowserState {
 
     const db = getFirestoreDb();
     if (!db || !uid) return;
+    // Anonymous-group users (ADR-001) have a custom JWT, not a Firebase
+    // Auth identity. Firestore rules deny their snapshot listeners with
+    // permission-denied, producing noisy console errors. Document
+    // browsing isn't part of v0.1 anyway — skip the listener.
+    if (isAnonymousGroupAuthMode()) return;
 
     const docsQ = query(
       collection(db, "parsed_documents"),

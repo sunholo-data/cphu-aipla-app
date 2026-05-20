@@ -1,6 +1,7 @@
 "use client";
 
 import { firestoreTimestampToIso, getFirestoreDb } from "@/lib/firebase";
+import { isAnonymousGroupAuthMode } from "@/lib/anonymousGroupAuth";
 import {
   doc as fsDoc,
   onSnapshot,
@@ -78,6 +79,14 @@ export function useDocument(docId: string | null): UseDocumentReturn {
     const db = getFirestoreDb();
     if (!db) {
       setError("Document preview unavailable.");
+      setIsLoading(false);
+      return;
+    }
+    // Anonymous-group users (ADR-001) have no Firebase Auth identity →
+    // Firestore rules deny this listener with permission-denied. Doc
+    // preview isn't part of v0.1 anyway, so skip the listener.
+    if (isAnonymousGroupAuthMode()) {
+      setError("Document preview unavailable in this session.");
       setIsLoading(false);
       return;
     }
