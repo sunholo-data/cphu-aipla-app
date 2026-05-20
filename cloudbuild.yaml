@@ -71,6 +71,7 @@ steps:
         ARGS=$$(cat /workspace/docker_args)
         docker build $$ARGS \
           --build-arg NEXT_PUBLIC_MCP_SANDBOX_URL=${_MCP_SANDBOX_URL} \
+          --build-arg NEXT_PUBLIC_POST_JOIN_REDIRECT=/chat/@aipla-platform/problem-set-hints \
           -t ${_ARTIFACT_REGISTRY_REPO_URL_CLIENT}/${_SERVICE_NAME}/ui:${BRANCH_NAME} \
           -f frontend/Dockerfile \
           frontend/
@@ -182,6 +183,11 @@ steps:
       - '--set-env-vars=OTEL_INSTRUMENTATION_GENAI_CAPTURE_MESSAGE_CONTENT=true'
       # Admin seed allowlist (Cloud Build SA must be in this list).
       - '--set-env-vars=ADMIN_SEED_ALLOWED_SAS=${_ADMIN_SEED_ALLOWED_SAS}'
+      # AIPLA-branded platform-owner namespace. URLs become
+      # /chat/@aipla-platform/<slug>. Override of the upstream-template
+      # default "aitana-platform" — see backend/skills/platform.py.
+      - '--set-env-vars=PLATFORM_OWNER_UID=aipla-platform'
+      - '--set-env-vars=PLATFORM_OWNER_EMAIL=platform@aipla.dev'
 
   # --- Post-deploy smoke: fail the build if any critical endpoint is not 200 ---
   # Per CLAUDE.md: no feature lands with manual-only verification. This step

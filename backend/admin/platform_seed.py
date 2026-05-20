@@ -33,6 +33,11 @@ logger = logging.getLogger(__name__)
 # PLATFORM_OWNER_EMAIL env var for downstream forks; default stays Aitana
 # so existing dev/test/prod behaviour is unchanged.
 PLATFORM_OWNER_EMAIL = os.environ.get("PLATFORM_OWNER_EMAIL", "platform@aitanalabs.com")
+
+# AIPLA fork: matches the PLATFORM_OWNER_UID env override that brands
+# the platform-owner namespace. Both env vars come from the deploy
+# config (cloudbuild.yaml --set-env-vars) and frontend/.env.local for
+# LOCAL_MODE. Test/prod inherit through the same mechanism.
 DEFAULT_TEMPLATES_ROOT = Path(__file__).resolve().parent.parent / "skills" / "templates"
 
 

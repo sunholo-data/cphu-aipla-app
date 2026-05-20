@@ -1,6 +1,6 @@
 """Platform-owned skill sentinel.
 
-Platform skills (default skills shipped by Aitana Labs and available to
+Platform skills (default skills shipped by the platform and available to
 every tenant) are stored in Firestore with `owner_id == PLATFORM_OWNER_UID`.
 The sentinel is a string — not None — because:
 
@@ -13,9 +13,15 @@ The sentinel is a string — not None — because:
 3. A non-UID string that cannot be a real Firebase uid (Firebase uids are
    28-char base64-ish) makes accidental match-by-collision impossible.
 
-The string value is pinned by `tests/unit/test_platform_sentinel.py` —
-renaming it requires coordinated updates across Firestore rules, Cloud
-Build seed steps, and frontend "Fork to customize" UI copy.
+Forks override via the `PLATFORM_OWNER_UID` env var (e.g. AIPLA sets
+`aipla-platform` so URLs read `/chat/@aipla-platform/<slug>` instead of
+the inherited `@aitana-platform`). The default preserves upstream
+template behaviour. Renaming requires coordinated updates across
+Firestore rules, Cloud Build seed steps, and frontend URL builders;
+the test `tests/unit/test_platform_sentinel.py` pins the default and
+documents the override contract.
 """
 
-PLATFORM_OWNER_UID: str = "aitana-platform"
+import os
+
+PLATFORM_OWNER_UID: str = os.environ.get("PLATFORM_OWNER_UID", "aitana-platform")
