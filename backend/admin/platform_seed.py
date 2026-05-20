@@ -123,6 +123,14 @@ def _parse_template(skill_md: Path) -> dict[str, Any]:
         "description": (front.get("description") or "").strip(),
         "instructions": parts[2].strip(),
         "metadata": front.get("metadata") or {},
+        # Optional top-level frontmatter fields. AIPLA addition 2026-05-20
+        # — displayName + initialMessage are first-class on SkillConfig
+        # but the upstream platform_seed.py only read name/description/
+        # instructions/metadata, so seeded skills shipped with empty
+        # displayName and no welcome message. See docs/upstream-feedback.md
+        # entry #1.
+        "displayName": (front.get("displayName") or "").strip(),
+        "initialMessage": (front.get("initialMessage") or "").strip(),
     }
 
 
@@ -179,6 +187,13 @@ def seed(templates_root: Path | None = None) -> SeedSummary:
             # template name slugifies to the same value as another
             # platform skill (defensive — current templates don't).
             slug = unique_slug(PLATFORM_OWNER_UID, slugify(parsed["name"]))
+            # Only pass optional top-level fields if the SKILL.md declared
+            # them — falsy strings collapse to empty values on SkillConfig.
+            optional_kwargs: dict[str, Any] = {}
+            if parsed["displayName"]:
+                optional_kwargs["displayName"] = parsed["displayName"]
+            if parsed["initialMessage"]:
+                optional_kwargs["initialMessage"] = parsed["initialMessage"]
             skill_config.create_skill(
                 name=parsed["name"],
                 description=parsed["description"],
@@ -188,6 +203,7 @@ def seed(templates_root: Path | None = None) -> SeedSummary:
                 accessControl={"type": "public"},
                 skillMetadata=parsed["metadata"],
                 slug=slug,
+                **optional_kwargs,
             )
             summary.created += 1
         except Exception as e:
