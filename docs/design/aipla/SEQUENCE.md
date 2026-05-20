@@ -29,7 +29,8 @@ forked from `ai-protocol-platform` on 2026-05-19.
 
 | Order | Doc | What it locks | Est | Status |
 |-------|-----|---------------|-----|--------|
-| 0.1 | [aipla/v0.1.0-jutland/jutland-demo.md](v0.1.0-jutland/jutland-demo.md) | First deployed AIPLA URL on `aipla-dev-2026`, anonymous group-ID join, `problem-set-hints` skill | 1d | Planned |
+| 0.1 | [aipla/v0.1.0-jutland/jutland-demo.md](v0.1.0-jutland/jutland-demo.md) | First deployed AIPLA URL on `aipla-dev-2026`, anonymous group-ID join, `problem-set-hints` skill | 1d | Shipped (commit 1636038) |
+| 0.2 | [aipla/v0.1.0-jutland/group-tooling.md](v0.1.0-jutland/group-tooling.md) | `aiplatform group new/list/revoke` CLI commands + backend list/revoke admin endpoints. Stretch — uses Jutland buffer week to remove the multi-step curl ritual for minting demo codes. | 0.5d | Planned |
 
 **v0.1 explicit non-goals** (deferred to v1.0.0-pilot):
 - Teacher configuration UI
