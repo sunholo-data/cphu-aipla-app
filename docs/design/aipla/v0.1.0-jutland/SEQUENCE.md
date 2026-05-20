@@ -26,10 +26,10 @@
 
 - AIPLA-branded chat UI on `aipla-dev-2026` Cloud Run, region `europe-north1`
 - Anonymous group-ID join (inherited upstream, AIPLA-configured with Danish copy)
-- One physics-tutor skill: `problem-set-hints`, defaulting to Claude Sonnet
+- One physics-tutor skill: `problem-set-hints`, defaulting to `gemini-3.5-flash` on Vertex AI `global` endpoint (verified 2026-05-20; europe-north1 pending Google rollout)
 - One seeded problem (Danish stx projectile motion, AR's example as fallback)
 - `aipla smoke jutland` end-to-end smoke command
-- OTel traces in Cloud Trace inside the AIPLA project (Axiom 8/9 trust boundary)
+- OTel traces in Cloud Trace inside the AIPLA project + zero third-party egress (Vertex AI + Cloud Trace both inside the Google Cloud trust boundary — Axiom 8/9)
 
 ## What does NOT ship in v0.1.0-jutland
 
@@ -58,7 +58,8 @@ M0 (cloud bootstrap, sequential)
 | Risk | Mitigation |
 |---|---|
 | GCP project provisioning hits org-policy block | Fall back to deploying on Multivac dev; document in `notes/`; spin up Terraform for `aipla-dev-2026` in 1.1 |
-| Anthropic API rate limit during demo | Router falls to Gemini 2.5 via Vertex EU (already in template router); LOCAL_MODE on JB's laptop as ultimate fallback |
+| Vertex AI `gemini-3.5-flash` thinking-budget makes TTFT unacceptable | Set `thinkingConfig.thinkingBudget: 0` and redeploy (10-min round-trip); or switch model to `claude-sonnet-4-6` via Anthropic API (router fallback per ADR-008); LOCAL_MODE on JB's laptop as ultimate fallback |
+| europe-north1 lights up for `gemini-3.5-flash` between now and pilot | Swap endpoint URL `global → europe-north1` in router config; no model-ID change. Probe weekly. |
 | AR can't deliver fresh problem set before demo | Use projectile-motion example from [examples.qmd](file:///Users/mark/Documents/clients/cph-uni/examples.qmd) |
 | Demo URL bandwidth-throttled on UCPH/Jutland school WiFi | Cloud Run min-instances=1 for the buffer week; pre-warm sessions; LOCAL_MODE fallback |
 | Sonnet response gives a full solution despite scaffolding prompt | Buffer week is exactly for catching this with AR; smoke test asserts no-solution markers |

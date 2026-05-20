@@ -101,7 +101,7 @@ Three loosely-coupled pieces ship in parallel: a **physics skill** (backend), an
 ### Backend Changes
 
 **New skill template:**
-- `backend/skills/templates/problem-set-hints/SKILL.md` — Agent Skills spec; model defaults to `claude-sonnet-4-6` (Sonnet 4.6); router-overridable.
+- `backend/skills/templates/problem-set-hints/SKILL.md` — Agent Skills spec; model defaults to `gemini-3.5-flash` on Vertex AI `global` endpoint (GA from 2026-05-19); router-overridable. Default thinking budget left at provider default — verified 2026-05-20 to produce Danish-language scaffolding of the right pedagogical shape; cost monitoring deferred until capability-floor eval data lands ([Resolved Decision 1](#resolved-decisions)).
 - `backend/skills/templates/problem-set-hints/resources/seed-problem.md` — one Danish stx physics problem (projectile motion from AR's existing trial if AR doesn't supply a fresh one this week — see Open Question 2).
 - `backend/skills/templates/problem-set-hints/resources/scaffold-rubric.md` — internal rubric the system prompt references; 5 markers the response should contain ("step-by-step prompt", "ask before reveal", "encourage own-calculation", etc.).
 
@@ -129,7 +129,7 @@ Three loosely-coupled pieces ship in parallel: a **physics skill** (backend), an
 Open URL → "Indtast din gruppekode" form (group-ID entry, no PII) →
    → Group ID validated server-side → Chat surface, AIPLA branding →
    → Student types "Hjælp med opgave 1" →
-   → AG-UI tokens stream → `claude-sonnet-4-6` system prompt + seeded problem →
+   → AG-UI tokens stream → `gemini-3.5-flash` (Vertex AI global) system prompt + seeded problem →
    → Tutor responds with first sub-step + asks what student has tried
 ```
 
@@ -173,12 +173,14 @@ Open URL → "Indtast din gruppekode" form (group-ID entry, no PII) →
                ├─► Tenant-span hook stamps group_id on OTel span
                │
                ▼
-        Anthropic API (claude-sonnet-4-6)
-               │
+        Vertex AI (gemini-3.5-flash, global endpoint)
+               │   ⚠ EU regional rollout pending; data-residency policy
+               │     pins global → EU on aipla-dev-2026 (ADR-007 commitment)
                ▼
         AG-UI events stream back to frontend
                │
         Cloud Trace + GenAI logging (inside aipla-dev-2026)
+        (telemetry + model call both stay inside Google Cloud edge)
 ```
 
 ## Implementation Plan
@@ -189,15 +191,16 @@ Six milestones (M0–M5). The sprint plan (companion `jutland-demo-sprint.md`, w
 - [ ] Create `aipla-dev-2026` GCP project, link billing
 - [ ] Enable APIs: Firebase, Vertex AI, Cloud Run, Cloud Build, Artifact Registry, Firestore, Secret Manager, Cloud Trace, Cloud Logging
 - [ ] Pin region `europe-north1` on Cloud Run + Artifact Registry; Firestore to Finland multi-region
-- [ ] Create `aipla-v6@` SA + role bindings (Cloud Run Invoker, Firestore User, Vertex User, Secret Accessor)
+- [ ] **Configure Vertex AI Data Residency policy** to pin `global`-endpoint requests to EU storage + processing (covers `gemini-3.5-flash` until europe-north1 is GA)
+- [ ] Create `aipla-v6@` SA + role bindings (Cloud Run Invoker, Firestore User, **Vertex AI User**, Secret Accessor)
 - [ ] Firebase project init; enable anonymous auth
 - [ ] Cloud Build connection to `sunholo-data/cphu-aipla-app` GitHub repo
-- [ ] Secrets seeded: `ANTHROPIC_API_KEY`, Firebase admin SA JSON
-- [ ] Substitute `_PROJECT_ID`, `_SERVICE_NAME`, `_REGION` in [cloudbuild.yaml](../../../../cloudbuild.yaml) for `main → aipla-dev-2026`
+- [ ] Secrets seeded: Firebase admin SA JSON. **No Anthropic API key needed** — model access is via Vertex AI ADC, no third-party API egress
+- [ ] Substitute `_PROJECT_ID`, `_SERVICE_NAME`, `_REGION` in [cloudbuild.yaml](../../../../cloudbuild.yaml) for `dev → aipla-dev-2026`
 - [ ] Smoke: trigger one Cloud Build, verify it deploys and `/health` responds
 
 ### M1 — `problem-set-hints` skill (parallel A) (~2–3h, ~150 LOC)
-- [ ] Create `backend/skills/templates/problem-set-hints/SKILL.md` (Agent Skills spec, model = `claude-sonnet-4-6`)
+- [ ] Create `backend/skills/templates/problem-set-hints/SKILL.md` (Agent Skills spec, model = `gemini-3.5-flash`, provider = Vertex AI global; no `thinkingConfig` override — leave at provider default)
 - [ ] Write `resources/seed-problem.md` (use AR's projectile-motion problem from [examples.qmd](file:///Users/mark/Documents/clients/cph-uni/examples.qmd) as fallback; see Open Question 2)
 - [ ] Write `resources/scaffold-rubric.md` (5 markers; referenced from SKILL.md instructions)
 - [ ] Write system prompt embodying the 5 principles in Backend Changes
@@ -236,7 +239,7 @@ Six milestones (M0–M5). The sprint plan (companion `jutland-demo-sprint.md`, w
 
 **Rollback plan:**
 - If `aipla-dev-2026` deploy fails on demo day: **JB runs `LOCAL_MODE=1` on his laptop, demos from the projector**. Same skill, same UX, no cloud. This is the explicit fallback (Axiom 5).
-- If the deployed URL has bad latency: switch the skill's `model:` field from Sonnet to Gemini via PR + redeploy (10-min round-trip if M is at keyboard).
+- If `gemini-3.5-flash` thinking budget makes TTFT unacceptable for the demo: switch the skill's `model:` field to `claude-sonnet-4-6` (Anthropic API direct, ANTHROPIC_API_KEY required) via PR + redeploy (10-min round-trip if M is at keyboard). Or set `thinkingConfig.thinkingBudget: 0` on the existing Gemini config to disable thinking — same redeploy time, no auth change.
 - If group-ID auth misbehaves: hard-coded test group `grp-jutland-test-1` exists for the demo regardless.
 
 **Environment variables (new in v0.1):**
@@ -265,8 +268,8 @@ Six milestones (M0–M5). The sprint plan (companion `jutland-demo-sprint.md`, w
 ## Security Considerations
 
 - **No PII collected.** Anonymous group ID is the only identifier ([ADR-001](file:///Users/mark/Documents/clients/cph-uni/architecture.qmd#adr-001-student-identity-no-auth-anonymous-group-ids)).
-- **EU residency.** All AIPLA-controlled resources in `europe-north1`. Backend refuses to boot if `AIPLA_REGION` is unset or non-EU.
-- **Egress audit.** One outbound: Anthropic API to `claude-sonnet-4-6`. Justification: ADR-003 names Anthropic as Tier 1; the prompts contain no PII so no DPA-breaching content crosses the boundary. Cloud Trace stays *inside* `aipla-dev-2026` per Axiom 9.
+- **EU residency.** All AIPLA-controlled resources in `europe-north1`. Backend refuses to boot if `AIPLA_REGION` is unset or non-EU. **Vertex AI `gemini-3.5-flash` caveat:** the model is GA on the `global` endpoint only as of 2026-05-19; europe-north1 regional availability is pending Google's typical 1–4-week rollout. Project-level **Data Residency policy** on `aipla-dev-2026` pins global-endpoint storage and processing to EU. This holds the GDPR posture from ADR-007 while we wait for europe-north1 to light up. Re-evaluate before the v1.0.0-pilot teacher rollout — at that point either europe-north1 is GA (preferred) or we explicitly re-confirm the data-residency policy with UCPH data-protection.
+- **Egress audit.** **Zero egress outside Google Cloud** for student-facing data. Model calls go to Vertex AI (in-project), traces and logs stay in Cloud Trace + Cloud Logging (in-project). Trust boundary is the GCP project edge per Axiom 9 — stronger story than the previous Anthropic-direct design because there is no third-party API at all in the request path.
 - **Input validation.** Student messages bounded at 4KB per request (template default). Group IDs validated against Firestore-minted set; client cannot inject arbitrary IDs.
 - **No teacher-side auth in v0.1.** All admin functions (creating classes, minting group IDs) happen through the CLI or M's local terminal — no public teacher routes. UCPH SSO ships in 1.6.
 - **Prompt-injection resistance.** System prompt placed *before* the seeded problem-set content; student input is the last context block. Eval coverage of injection comes in 1.5.
@@ -274,7 +277,8 @@ Six milestones (M0–M5). The sprint plan (companion `jutland-demo-sprint.md`, w
 ## Performance Considerations
 
 - **Expected load:** ~5 concurrent group sessions (Jutland visit + AR's iterations). No scale concern.
-- **First-token target:** <1.5s (no tools). `claude-sonnet-4-6` streaming via the template's AG-UI adapter typically hits 600–900ms in EU.
+- **First-token target:** <1.5s (no tools). `gemini-3.5-flash` has thinking enabled by default — TTFT will be governed by `thoughtsTokenCount` (≈1.2k thought tokens on a typical scaffolding turn from the 2026-05-20 verification probe). Streaming should still surface "thinking…" status via AG-UI events before the visible reply lands; verify in M4 smoke and adjust if perceived latency suffers.
+- **Cost note:** thinking-mode default produced 1182 thought tokens vs 75 visible tokens (94% of output spend) on the verification probe. **Cost monitoring deferred** to v1 — capability-floor eval data (post-pilot) will tell us whether to enable `thinkingConfig.thinkingBudget` caps or rely on cached-input ($0.15/1M) on the system prompt. v0.1 demo audience is small enough that per-turn cost is not load-bearing.
 - **Cold start:** Cloud Run min-instances=0 in v0.1 is fine — first request of the day pays cold-start penalty, but the buffer week catches this. v1.0.0-pilot will set min-instances=1.
 - **Bundle size:** No new frontend dependencies. Branding-string swap is a ~0KB delta.
 
@@ -292,14 +296,19 @@ Six milestones (M0–M5). The sprint plan (companion `jutland-demo-sprint.md`, w
 
 ## Resolved Decisions
 
-1. **Sonnet version pin** → `claude-sonnet-4-6` (Sonnet 4.6, latest stable in the Claude 4 family). Pinned in `SKILL.md` and router-overridable per ADR-008.
+1. **Default model: `gemini-3.5-flash` on Vertex AI `global` endpoint.** Switched from `claude-sonnet-4-6` on 2026-05-20, the day after Gemini 3.5 Flash GA at I/O 2026. Three reasons:
+   - **Zero third-party egress** — Vertex AI sits inside the Google Cloud trust boundary alongside Cloud Trace + Cloud Logging. Stronger Axiom 9 / ADR-006 posture than going direct to Anthropic.
+   - **EU residency via project policy** — europe-north1 regional availability hasn't arrived yet (probed 2026-05-20: only `global` returns 200). Vertex AI's project-level Data Residency policy on `aipla-dev-2026` pins `global` requests to EU storage + processing. Re-evaluate at v1.0.0-pilot.
+   - **Verified behaviour** — probe on 2026-05-20 with a Danish stx physics scaffolding prompt produced a textbook energy-conservation Socratic hint without giving the final answer. Fit-for-purpose for `problem-set-hints`.
+
+   Thinking budget left at provider default for v0.1 (94% of output spend is thoughts at default). Cost optimisation deferred until capability-floor eval data lands; v0.1 demo audience is small enough that per-turn cost is not load-bearing. Router-overridable per ADR-008 — Sonnet 4.6 remains a viable fallback in 1.4 model-router-aipla-config.
 2. **Branch strategy** → `dev` is the working branch (replaces inherited `main`); `test` and `prod` exist for promotion. `main` is deleted both locally and on `sunholo-data/cphu-aipla-app` GitHub. Cloud Build trigger points at `dev` for `aipla-dev-2026`. Matches v5 convention and the AIPLA Fork Context table in [CLAUDE.md](../../../../CLAUDE.md).
 
 ## Open Questions
 
 1. **Seeded problem set source.** Use AR's projectile-motion problem from [examples.qmd](file:///Users/mark/Documents/clients/cph-uni/examples.qmd) as the v0.1 seed? Or ask AR for a fresh one (turnaround risk vs. authenticity gain)? **Recommend: use the projectile-motion example for v0.1**, ask AR for fresh content during the buffer week.
 2. **AIPLA wordmark / logo.** Do we have a brand asset, or ship with a plain text wordmark for v0.1? **Recommend plain text wordmark** unless M has an SVG ready.
-3. **Anthropic API key — direct or via Bedrock/Vertex?** ADR-003 names Anthropic as "cloud-agnostic via Anthropic / Bedrock / Vertex". Direct Anthropic API is the fastest path; Bedrock/Vertex routing pushes data through AWS/GCP region-pinned endpoints with stronger EU-residency stories. **Recommend direct Anthropic for v0.1** (the demo is internal, no student PII reaches the API anyway); migrate to Vertex-hosted Claude or Bedrock EU in 1.4 model-router-aipla-config.
+3. **When does europe-north1 light up for `gemini-3.5-flash`?** Probe weekly; switch the model config from `global` to `europe-north1` the day it returns 200. The model ID itself stays the same; only the Vertex AI endpoint URL changes.
 
 ## Related Documents
 
