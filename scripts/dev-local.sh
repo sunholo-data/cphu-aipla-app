@@ -1,181 +1,188 @@
 #!/bin/bash
-# Launch backend + frontend in LOCAL_MODE for the workshop / template demo.
+# AIPLA — launch backend + frontend + MCP sandbox in LOCAL_MODE.
 #
-# Usage: ./scripts/dev-local.sh
+# Usage: ./scripts/dev-local.sh   (or `make dev-local`)
 #
-# Differs from scripts/dev.sh:
-#   - Forces LOCAL_MODE=1 (in-memory Firestore, auth stub, no GCP credentials needed
-#     for Firestore / Vertex Sessions / Cloud Trace)
-#   - Forces NEXT_PUBLIC_LOCAL_MODE=1 (frontend yellow banner + LocalAuthProvider)
-#   - Forces AITANA_LOCAL_SESSION=memory (in-memory ADK sessions — fast TTFT,
-#     no Vertex Agent Engine round-trips)
-#   - Auto-seeds the LOCAL_MODE in-memory Firestore on backend boot (demo
-#     skills incl. "Workspace Demo" for the MULTI-SURFACE-A2UI sprint demo).
+# What you get on a clean checkout:
+#   - Backend on http://localhost:1956 (LOCAL_MODE, in-memory Firestore,
+#     auto-seeded with the AIPLA platform skills incl. problem-set-hints)
+#   - Frontend on http://localhost:3456 (yellow LOCAL_MODE banner)
+#   - MCP App sandbox on http://localhost:3457 (separate origin per
+#     ADR-013; serves /sandbox.html + /artefacts/<name>/v<version>/)
+#   - A known group code `LOCAL` pre-seeded so /group join works
+#     without curl-ing the admin endpoint
 #
-# Model auth is still needed (LOCAL_MODE does NOT stub the LLM). The
-# simplest setup is GOOGLE_API_KEY (Gemini Express Mode) which avoids
-# Vertex entirely — set it in backend/.env:
+# Model auth is NOT stubbed. Either:
+#   - Set GEMINI_API_KEY=... in backend/.env (Express Mode, no GCP needed)
+#   - OR `gcloud auth application-default login` + leave backend/.env's
+#     GOOGLE_GENAI_USE_VERTEXAI=True (Vertex AI via ADC)
 #
-#     GOOGLE_API_KEY=your-gemini-key
-#     GOOGLE_GENAI_USE_VERTEXAI=false
+# Companion scripts:
+#   ./scripts/dev-status.sh   — probe all three services + LOCAL group
+#   ./scripts/dev-stop.sh     — kill everything on the dev ports
 #
-# Backend:  http://localhost:1956  (FastAPI + ADK, hot-reload)
-# Frontend: http://localhost:3456  (Next.js, hot-reload, yellow LOCAL_MODE banner)
-#
-# Both processes share this terminal — Ctrl-C kills both.
+# Ctrl-C stops everything.
 
 set -euo pipefail
 
 REPO_ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 
+BACKEND_PORT=1956
+FRONTEND_PORT=3456
+SANDBOX_PORT=3457
+HEALTH_TIMEOUT=60   # seconds to wait for each service to become healthy
+
+# ─── colours (TTY only) ─────────────────────────────────────────────────────
+if [ -t 1 ]; then
+    C_BOLD=$'\033[1m'; C_DIM=$'\033[2m'; C_GREEN=$'\033[32m'
+    C_YELLOW=$'\033[33m'; C_CYAN=$'\033[36m'; C_RED=$'\033[31m'; C_RESET=$'\033[0m'
+else
+    C_BOLD=""; C_DIM=""; C_GREEN=""; C_YELLOW=""; C_CYAN=""; C_RED=""; C_RESET=""
+fi
+
+log()  { printf '%s[dev-local]%s %s\n' "$C_CYAN" "$C_RESET" "$*"; }
+ok()   { printf '%s✓%s %s\n' "$C_GREEN" "$C_RESET" "$*"; }
+warn() { printf '%s⚠%s  %s\n' "$C_YELLOW" "$C_RESET" "$*"; }
+err()  { printf '%s✗%s %s\n' "$C_RED" "$C_RESET" "$*" >&2; }
+
 # ─── LOCAL_MODE pinning ─────────────────────────────────────────────────────
 export LOCAL_MODE=1
 export NEXT_PUBLIC_LOCAL_MODE=1
-# Force in-memory ADK sessions — Vertex Agent Engine round-trips add ~5s
-# TTFT from a laptop. See docs/design/v6.1.0/ttft-optimization.md.
 export AITANA_LOCAL_SESSION=memory
-
-# Sprint 2.11 — anonymous group-ID auth requires a signing secret.
-# In LOCAL_MODE we set a known dev-only value so the workshop demo
-# works out of the box without per-developer setup. The string is
-# intentionally a fixed dev marker — if it ever appears in prod logs
-# that's a deployment misconfiguration to investigate.
-#
-# Forks deploying anonymous-group-id-auth to Cloud Run MUST override
-# this with a real high-entropy secret. See
-# docs/integrations/anonymous-group-id-auth.md.
 if [ -z "${GROUP_AUTH_SIGNING_SECRET:-}" ]; then
     export GROUP_AUTH_SIGNING_SECRET="local-mode-anon-group-dev-secret-DO-NOT-USE-IN-PROD"
 fi
 
-# Clear cloud-mode env vars that would interfere with LOCAL_MODE:
-# - GCP_PROJECT / GOOGLE_CLOUD_PROJECT — LOCAL_MODE doesn't need them
-# - ADC vars — Firestore + Vertex Sessions are stubbed; no GCP auth required
-# - OTEL exporters — Cloud Trace is disabled; remote OTEL pushes would block
 unset GCP_PROJECT GOOGLE_CLOUD_PROJECT GOOGLE_APPLICATION_CREDENTIALS
 unset OTEL_EXPORTER_OTLP_ENDPOINT OTEL_EXPORTER_OTLP_PROTOCOL \
       OTEL_EXPORTER_OTLP_METRICS_TEMPORALITY_PREFERENCE \
       OTEL_LOGS_EXPORTER OTEL_METRICS_EXPORTER OTEL_TRACES_EXPORTER \
       OTEL_LOG_USER_PROMPTS OTEL_RESOURCE_ATTRIBUTES
 
-# Load backend/.env for model auth (GOOGLE_API_KEY etc.) — but the
-# LOCAL_MODE pins above can't be overridden by .env (we re-export below).
+# Load backend/.env for model auth + AIPLA-specific overrides
+# (PLATFORM_OWNER_UID, etc.). LOCAL_MODE pins re-applied below.
 ENV_FILE="$REPO_ROOT/backend/.env"
 if [ -f "$ENV_FILE" ]; then
     set -a
     # shellcheck disable=SC1090
     . "$ENV_FILE"
     set +a
-    # Re-pin LOCAL_MODE so .env can't silently turn it off.
     export LOCAL_MODE=1
     export AITANA_LOCAL_SESSION=memory
-    # Re-unset cloud-mode vars in case .env set them (cloud-mode dev
-    # commonly leaves these in .env). LOCAL_MODE must NOT touch a real
-    # GCP project, even for the LLM client's own telemetry.
     unset GCP_PROJECT GOOGLE_CLOUD_PROJECT
-    # AGENT_ENGINE_ID would route session writes to Vertex Agent Engine
-    # (AITANA_LOCAL_SESSION=memory overrides at the session-service
-    # level, but the engine ID still leaks into telemetry resource
-    # attributes — clear it for hygiene).
     unset AGENT_ENGINE_ID
-    # LLM provider selection.
-    #
-    # Express Mode (Gemini API direct, no GCP project) requires the key
-    # to actually be enabled for generativelanguage.googleapis.com. The
-    # generic name `GOOGLE_API_KEY` is often used in shells for OTHER
-    # Google APIs (Maps, Firebase, etc.) — auto-switching to Express
-    # Mode based on its presence FAILS at first LLM call with "API key
-    # not valid" if the key isn't a Gemini key. So we only force
-    # Express Mode when `GEMINI_API_KEY` is the explicit one set — that
-    # name comes from https://aistudio.google.com/apikey and is
-    # unambiguously a Gemini key.
-    #
-    # If a generic `GOOGLE_API_KEY` is set but no `GEMINI_API_KEY`, we
-    # keep Vertex AI mode but unset `GOOGLE_API_KEY` to avoid the
-    # backend's startup-guard 401-CREDENTIALS_MISSING warning (the
-    # genai client would otherwise attach the key to Vertex calls, and
-    # Vertex Sessions/Memory reject API-key auth). Vertex AI then uses
-    # ADC + the user's quota project — needs `gcloud auth
-    # application-default login` to be current.
     if [ -n "${GEMINI_API_KEY:-}" ]; then
         export GOOGLE_GENAI_USE_VERTEXAI=false
-        unset GOOGLE_API_KEY GOOGLE_GENAI_API_KEY  # avoid double-key confusion
-        echo "[dev-local] Using GEMINI_API_KEY (Express Mode) — no GCP project needed."
+        unset GOOGLE_API_KEY GOOGLE_GENAI_API_KEY
+        log "Using GEMINI_API_KEY (Express Mode) — no GCP project needed."
     elif [ -n "${GOOGLE_API_KEY:-}" ]; then
-        # Ambiguous — could be Maps, Firebase, Drive, or Gemini. Don't
-        # gamble. Strip it from this process so the genai client
-        # doesn't attach it to Vertex calls (Vertex Sessions/Memory
-        # reject API-key auth and surface a CREDENTIALS_MISSING 401).
         unset GOOGLE_API_KEY GOOGLE_GENAI_API_KEY GEMINI_API_KEY
         export GOOGLE_GENAI_USE_VERTEXAI=True
-        echo "[dev-local] GOOGLE_API_KEY present but not unambiguously a Gemini key."
-        echo "[dev-local]   Stripped from process; falling back to Vertex AI via ADC."
-        echo "[dev-local]   For Express Mode (no GCP touch): set GEMINI_API_KEY in backend/.env."
+        warn "GOOGLE_API_KEY was set but not unambiguously a Gemini key — falling back to Vertex AI via ADC."
+        warn "For Express Mode (no GCP touch): set GEMINI_API_KEY in backend/.env."
     else
         export GOOGLE_GENAI_USE_VERTEXAI=True
-        echo "[dev-local] Using Vertex AI via ADC."
-        echo "[dev-local]   For Express Mode (no GCP touch): set GEMINI_API_KEY in backend/.env."
+        log "Using Vertex AI via ADC. (Set GEMINI_API_KEY in backend/.env for no-GCP Express Mode.)"
     fi
 fi
 
-FRONTEND_PORT=3456
-SANDBOX_PORT=3457
-
-# Fixed log paths so Claude Code can tail/read them mid-session.
+# ─── pre-flight: free ports + install sandbox deps if missing ───────────────
 LOG_DIR="$REPO_ROOT/.dev-logs"
 mkdir -p "$LOG_DIR"
 BACKEND_LOG="$LOG_DIR/backend.log"
 FRONTEND_LOG="$LOG_DIR/frontend.log"
 SANDBOX_LOG="$LOG_DIR/sandbox.log"
 
-# Kill anything already on the dev ports so restart is clean.
-for PORT in 1956 $FRONTEND_PORT $SANDBOX_PORT; do
+log "Freeing dev ports if held…"
+for PORT in $BACKEND_PORT $FRONTEND_PORT $SANDBOX_PORT; do
     PIDS=$(lsof -ti ":$PORT" 2>/dev/null || true)
     if [ -n "$PIDS" ]; then
-        echo "Freeing port $PORT (pid $PIDS)…"
+        log "  killing pid(s) on :$PORT — $PIDS"
         kill $PIDS 2>/dev/null || true
-        sleep 0.5
     fi
 done
+# Wait a beat for the OS to actually release the sockets.
+sleep 1
 
-# Pre-build the MCP sandbox bundle (optional — only needed for MCP App demos).
 SANDBOX_DIR="$REPO_ROOT/infrastructure/mcp-sandbox"
+if [ ! -d "$SANDBOX_DIR/node_modules" ]; then
+    warn "MCP sandbox node_modules missing — running npm install (first time only)…"
+    (cd "$SANDBOX_DIR" && npm install --no-audit --no-fund --loglevel=error >>"$SANDBOX_LOG" 2>&1) \
+        || warn "  sandbox npm install failed; check $SANDBOX_LOG"
+fi
 if [ -d "$SANDBOX_DIR/node_modules" ]; then
-    (cd "$SANDBOX_DIR" && npm run build > /dev/null 2>&1) || true
+    (cd "$SANDBOX_DIR" && npm run build >>"$SANDBOX_LOG" 2>&1) || true
 fi
 
-echo "=== Aitana dev server — LOCAL_MODE ==="
-echo "  Backend     → http://localhost:1956   (LOCAL_MODE=1, in-memory Firestore)"
-echo "  Frontend    → http://localhost:${FRONTEND_PORT}   (yellow LOCAL_MODE banner)"
-echo "  MCP sandbox → http://localhost:${SANDBOX_PORT}   (optional, for MCP App demos)"
-echo "  Logs        → $LOG_DIR/"
-echo ""
-echo "Demo skill for sprint 2.9 (MULTI-SURFACE-A2UI):"
-echo "  → Sign in via the workshop stub identity"
-echo "  → Pick 'Workspace Demo' from the skills bar"
-echo "  → Type: 'show me the dashboard'"
-echo ""
-
+# ─── start services ─────────────────────────────────────────────────────────
 cleanup() {
     echo ""
-    echo "Stopping dev servers…"
-    kill "$BACKEND_PID" "$FRONTEND_PID" ${SANDBOX_PID:-} 2>/dev/null || true
-    wait "$BACKEND_PID" "$FRONTEND_PID" ${SANDBOX_PID:-} 2>/dev/null || true
+    log "Stopping dev servers…"
+    kill "${BACKEND_PID:-}" "${FRONTEND_PID:-}" "${SANDBOX_PID:-}" 2>/dev/null || true
+    wait "${BACKEND_PID:-}" "${FRONTEND_PID:-}" "${SANDBOX_PID:-}" 2>/dev/null || true
 }
 trap cleanup EXIT INT TERM
 
 (cd "$REPO_ROOT/backend" && uv run uvicorn fast_api_app:app \
-    --host 127.0.0.1 --port 1956 --reload 2>&1 | tee "$BACKEND_LOG") &
+    --host 127.0.0.1 --port $BACKEND_PORT --reload 2>&1 | tee "$BACKEND_LOG") &
 BACKEND_PID=$!
 
 (cd "$REPO_ROOT/frontend" && PORT=$FRONTEND_PORT npm run dev 2>&1 | tee "$FRONTEND_LOG") &
 FRONTEND_PID=$!
 
-if [ -d "$SANDBOX_DIR/node_modules" ]; then
+if [ -d "$SANDBOX_DIR/node_modules" ] && [ -f "$SANDBOX_DIR/public/sandbox.html" ]; then
     (cd "$SANDBOX_DIR" && SANDBOX_PORT=$SANDBOX_PORT \
         ALLOWED_HOST_ORIGINS="http://localhost:${FRONTEND_PORT}" \
         npm run dev 2>&1 | tee "$SANDBOX_LOG") &
     SANDBOX_PID=$!
+else
+    warn "MCP sandbox not started (no node_modules or no public/sandbox.html). Artefacts won't be reachable locally — they still work in the deployed sandbox."
 fi
+
+# ─── health probes ──────────────────────────────────────────────────────────
+wait_for_http() {
+    # Args: service name, URL, timeout-sec
+    local name="$1" url="$2" deadline=$(( $(date +%s) + ${3:-$HEALTH_TIMEOUT} ))
+    while [ "$(date +%s)" -lt "$deadline" ]; do
+        if curl -fsS -o /dev/null --max-time 2 "$url" 2>/dev/null; then
+            ok "$name ready ($url)"
+            return 0
+        fi
+        sleep 1
+    done
+    err "$name failed to come up within ${HEALTH_TIMEOUT}s — see $LOG_DIR/"
+    return 1
+}
+
+echo ""
+log "Waiting for services to become healthy…"
+wait_for_http "Backend "   "http://127.0.0.1:${BACKEND_PORT}/health" || true
+wait_for_http "Frontend"   "http://127.0.0.1:${FRONTEND_PORT}/api/proxy/health" || true
+if [ -n "${SANDBOX_PID:-}" ]; then
+    wait_for_http "Sandbox " "http://127.0.0.1:${SANDBOX_PORT}/sandbox.html" 30 || true
+fi
+
+# ─── ready banner ───────────────────────────────────────────────────────────
+echo ""
+printf '%s━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━%s\n' "$C_BOLD" "$C_RESET"
+printf '%s  AIPLA — LOCAL_MODE dev servers ready%s\n' "$C_BOLD" "$C_RESET"
+printf '%s━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━%s\n' "$C_BOLD" "$C_RESET"
+echo ""
+printf '  %s→ Open this:%s   %shttp://localhost:%d/group%s\n' "$C_BOLD" "$C_RESET" "$C_GREEN" "$FRONTEND_PORT" "$C_RESET"
+printf '  %s→ Group code:%s  %sLOCAL%s   (pre-seeded; pinned to problem-set-hints)\n' "$C_BOLD" "$C_RESET" "$C_GREEN" "$C_RESET"
+echo ""
+echo "  Services:"
+printf '    Frontend  → http://localhost:%d   %s(yellow LOCAL_MODE banner)%s\n'   $FRONTEND_PORT "$C_DIM" "$C_RESET"
+printf '    Backend   → http://localhost:%d   %s(in-memory Firestore)%s\n'        $BACKEND_PORT  "$C_DIM" "$C_RESET"
+if [ -n "${SANDBOX_PID:-}" ]; then
+    printf '    Sandbox   → http://localhost:%d   %s(MCP App iframe origin)%s\n'    $SANDBOX_PORT  "$C_DIM" "$C_RESET"
+fi
+echo ""
+echo "  Tools:"
+printf '    ./scripts/dev-status.sh  — probe all services + LOCAL group  %s(or: make dev-status)%s\n' "$C_DIM" "$C_RESET"
+printf '    Ctrl-C                   — stop all services\n'
+echo ""
+printf '  %sLogs: %s/%s\n' "$C_DIM" "$LOG_DIR" "$C_RESET"
+echo ""
 
 wait "$BACKEND_PID" "$FRONTEND_PID"

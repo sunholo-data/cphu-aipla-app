@@ -1,4 +1,4 @@
-.PHONY: dev dev-local proxy-check logs help cli-install cli-reinstall cli-uninstall cli-doctor cli-selftest-mock cli-selftest-live cli-selftest
+.PHONY: dev dev-local dev-status dev-stop proxy-check logs help cli-install cli-reinstall cli-uninstall cli-doctor cli-selftest-mock cli-selftest-live cli-selftest
 
 # Launch backend (port 1956) + frontend (port 3000) for local development.
 # Logs stream to stdout; Ctrl-C stops both.
@@ -6,14 +6,26 @@ dev:
 	@chmod +x scripts/dev.sh
 	@scripts/dev.sh
 
-# Launch backend + frontend in LOCAL_MODE (no GCP creds needed for Firestore
-# / Vertex Sessions / Cloud Trace; in-memory Firestore auto-seeds the demo
-# skills incl. "Workspace Demo" for the MULTI-SURFACE-A2UI demo).
-# Model auth still required — set GOOGLE_API_KEY in backend/.env.
-# See WORKSHOP.md for the full tier-1 quickstart.
+# AIPLA — launch backend + frontend + MCP sandbox in LOCAL_MODE.
+# Pre-seeds group code LOCAL and the problem-set-hints skill. Auto-installs
+# sandbox node_modules on first run. Ctrl-C stops everything.
+# Model auth: GEMINI_API_KEY in backend/.env (Express Mode, no GCP) OR
+# `gcloud auth application-default login` (Vertex AI).
 dev-local:
 	@chmod +x scripts/dev-local.sh
 	@scripts/dev-local.sh
+
+# Probe the local dev stack: backend health, frontend proxy, sandbox,
+# AND the LOCAL group join. Exits 0 if everything is healthy.
+dev-status:
+	@chmod +x scripts/dev-status.sh
+	@scripts/dev-status.sh
+
+# Stop anything listening on the dev ports (1956 / 3456 / 3457). Use when
+# dev-local.sh died ungracefully and you need a clean restart.
+dev-stop:
+	@chmod +x scripts/dev-stop.sh
+	@scripts/dev-stop.sh
 
 # Smoke-test the frontend→backend proxy bridge locally.
 # Starts both servers, probes /api/proxy/health, then exits.
@@ -84,7 +96,9 @@ cli-selftest:
 
 help:
 	@echo "make dev                — start backend (1956) + frontend (3456) — cloud mode (real GCP/Vertex)"
-	@echo "make dev-local          — start backend + frontend in LOCAL_MODE (no GCP creds, in-memory Firestore)"
+	@echo "make dev-local          — start backend + frontend + MCP sandbox in LOCAL_MODE (pre-seeded group code: LOCAL)"
+	@echo "make dev-status         — probe local dev stack — exit 0 if all healthy"
+	@echo "make dev-stop           — kill anything on the dev ports (1956 / 3456 / 3457)"
 	@echo "make logs               — stream backend logs (OTEL noise filtered out)"
 	@echo "make proxy-check        — smoke-test the proxy bridge (CI helper)"
 	@echo
