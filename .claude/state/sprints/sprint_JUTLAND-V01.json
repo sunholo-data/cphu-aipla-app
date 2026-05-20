@@ -1,0 +1,205 @@
+{
+  "sprint_id": "JUTLAND-V01",
+  "created": "2026-05-20T07:02:52Z",
+  "estimated_duration_days": 1,
+  "design_doc": "docs/design/aipla/v0.1.0-jutland/jutland-demo.md",
+  "sprint_plan": "docs/design/aipla/v0.1.0-jutland/jutland-demo-sprint.md",
+  "anchor_date": "2026-05-27",
+  "ready_target": "2026-05-20T17:30+02:00",
+  "features": [
+    {
+      "id": "M0",
+      "description": "Bootstrap aipla-dev-2026 GCP environment via an idempotent gcloud script: enable APIs, pin europe-north1, configure Vertex AI Data Residency policy, create aipla-v6@ SA with role bindings, init Firebase, wire Cloud Build trigger on the dev branch. No Anthropic key needed (Gemini via ADC).",
+      "scope": "infra",
+      "estimated_loc": 180,
+      "actual_loc": null,
+      "dependencies": [],
+      "parallel_group": null,
+      "blocks": ["M5"],
+      "acceptance_criteria": [
+        "scripts/bootstrap-aipla-dev.sh exits 0 on first run AND second run (idempotent)",
+        "gcloud asset search-all-resources --project=aipla-dev-2026 lists at least one Cloud Run service",
+        "One Cloud Build run completes green; deployed URL /health returns 200",
+        "Service account aipla-v6@aipla-dev-2026.iam.gserviceaccount.com exists with Cloud Run Invoker + Firestore User + Vertex AI User + Secret Accessor role bindings",
+        "Vertex AI Data Residency policy visible via gcloud asset search-all-resources",
+        "Zero ANTHROPIC_API_KEY references in deploy-path files (grep test)"
+      ],
+      "files_to_create": [
+        "scripts/bootstrap-aipla-dev.sh"
+      ],
+      "files_to_modify": [
+        "cloudbuild.yaml",
+        ".env.example"
+      ],
+      "passes": null,
+      "started": null,
+      "completed": null,
+      "notes": null
+    },
+    {
+      "id": "M1",
+      "description": "Create the problem-set-hints physics-tutor skill template: Agent Skills spec SKILL.md with gemini-3.5-flash on Vertex AI global, Danish stx system prompt embedding the 5 scaffolding principles, seeded projectile-motion problem, internal scaffold rubric, and a pytest unit verifying the skill loads and matches expected shape.",
+      "scope": "backend",
+      "estimated_loc": 150,
+      "actual_loc": null,
+      "dependencies": [],
+      "parallel_group": "midday-wave",
+      "blocks": ["M3", "M4"],
+      "acceptance_criteria": [
+        "cd backend && uv run pytest tests/unit/skills/test_problem_set_hints.py -v passes",
+        "Skill instantiates as a google.adk.agents.LlmAgent via load_skill_from_dir()",
+        "System prompt embeds all 5 scaffolding principles from the design doc Backend Changes section",
+        "Danish projectile-motion problem from examples.qmd is the seeded content in resources/seed-problem.md",
+        "Unit fixture asking 'what is the answer' returns a response without '= [number]' markers"
+      ],
+      "files_to_create": [
+        "backend/skills/templates/problem-set-hints/SKILL.md",
+        "backend/skills/templates/problem-set-hints/resources/seed-problem.md",
+        "backend/skills/templates/problem-set-hints/resources/scaffold-rubric.md",
+        "backend/tests/unit/skills/test_problem_set_hints.py"
+      ],
+      "files_to_modify": [],
+      "passes": null,
+      "started": null,
+      "completed": null,
+      "notes": null
+    },
+    {
+      "id": "M2",
+      "description": "Strip Aitana branding, install AIPLA branding, add Danish copy on the group-ID landing page, hide the marketplace shelf and route group-join directly into problem-set-hints, pin europe-north1 in cloudbuild.yaml substitutions, and add a Vitest assertion covering both Danish and English copy.",
+      "scope": "fullstack",
+      "estimated_loc": 150,
+      "actual_loc": null,
+      "dependencies": [],
+      "parallel_group": "midday-wave",
+      "blocks": [],
+      "acceptance_criteria": [
+        "cd frontend && npm run quality:check:fast passes (lint + typecheck)",
+        "cd frontend && npm run test:run -- group/__tests__/page.test.tsx passes",
+        "grep -ri 'aitana' frontend/src/ cloudbuild.yaml returns zero non-inherited-comment hits",
+        "Localhost frontend shows 'AIPLA' branding in title and welcome copy",
+        "Group-ID landing renders Danish and English copy together",
+        "cloudbuild.yaml _REGION substitution targets europe-north1"
+      ],
+      "files_to_create": [],
+      "files_to_modify": [
+        "frontend/src/lib/branding.ts",
+        "frontend/src/app/group/page.tsx",
+        "frontend/src/app/page.tsx",
+        "frontend/src/app/group/__tests__/page.test.tsx",
+        "cloudbuild.yaml"
+      ],
+      "passes": null,
+      "started": null,
+      "completed": null,
+      "notes": null
+    },
+    {
+      "id": "M3",
+      "description": "Wire LOCAL_MODE to expose problem-set-hints as the only seeded skill, mint a test group ID grp-jutland-test-1 via aipla group new, and commit a one-page demo walkthrough script JB can read off during the teacher visit.",
+      "scope": "fullstack",
+      "estimated_loc": 80,
+      "actual_loc": null,
+      "dependencies": ["M1"],
+      "parallel_group": "midday-wave",
+      "blocks": ["M4"],
+      "acceptance_criteria": [
+        "LOCAL_MODE=1 make dev followed by browsing to localhost shows problem-set-hints as the only available skill",
+        "aipla group new --class jutland-pilot returns a group ID matching pattern grp-jutland-test-* and validates server-side via the existing /group routes",
+        "frontend/public/demo-walkthrough.md exists and contains a step-by-step demo script"
+      ],
+      "files_to_create": [
+        "frontend/public/demo-walkthrough.md"
+      ],
+      "files_to_modify": [
+        "backend/scripts/seed_skills.py"
+      ],
+      "passes": null,
+      "started": null,
+      "completed": null,
+      "notes": "May require zero LOC if seed_skills.py auto-detects new skill template directories. Check at start of M3."
+    },
+    {
+      "id": "M4",
+      "description": "Build the aipla smoke jutland end-to-end command and a shell wrapper. The smoke asserts AG-UI first event under 3s (relaxed from 1.5s to accommodate thinking-token overhead), at least 3 of the 5 scaffold markers present in the response, and a negative-match against full-solution markers in Danish and English.",
+      "scope": "backend",
+      "estimated_loc": 100,
+      "actual_loc": null,
+      "dependencies": ["M1", "M3"],
+      "parallel_group": null,
+      "blocks": ["M5"],
+      "acceptance_criteria": [
+        "aipla smoke jutland --url http://localhost:3000 exits 0 against LOCAL_MODE",
+        "Smoke detects a hand-crafted full-solution response (e.g. 'svaret er 11.5 m') and exits 1",
+        "cli/tests/test_smoke_jutland.py passes (mocked backend response)",
+        "Smoke command logs TTFT and the matched scaffold markers for observability"
+      ],
+      "files_to_create": [
+        "cli/aipla/commands/smoke.py",
+        "scripts/smoke-jutland.sh",
+        "cli/tests/test_smoke_jutland.py"
+      ],
+      "files_to_modify": [],
+      "passes": null,
+      "started": null,
+      "completed": null,
+      "notes": null
+    },
+    {
+      "id": "M5",
+      "description": "Push to dev to trigger Cloud Build, verify the deployment is reachable externally, run aipla smoke jutland against the deployed URL, manually smoke an incognito-browser session, and confirm the tenant-span OTel hook stamps group_id on a Vertex AI call.",
+      "scope": "infra",
+      "estimated_loc": 0,
+      "actual_loc": null,
+      "dependencies": ["M0", "M1", "M2", "M3", "M4"],
+      "parallel_group": null,
+      "blocks": [],
+      "acceptance_criteria": [
+        "Cloud Build run for the latest dev commit completes green",
+        "Deployed URL responds 200 on /health",
+        "aipla smoke jutland --url $DEPLOYED_URL exits 0",
+        "Manual incognito-browser flow: enter grp-jutland-test-1, ask Danish hint question, verify scaffolding response (no full solution)",
+        "OTel span on the resulting gemini-3.5-flash call carries group_id attribute and project=aipla-dev-2026",
+        "URL recorded in .dev-logs/jutland-deployed-url.txt (gitignored) and shared with JB via scoping-site notes/"
+      ],
+      "files_to_create": [],
+      "files_to_modify": [],
+      "passes": null,
+      "started": null,
+      "completed": null,
+      "notes": null
+    }
+  ],
+  "velocity": {
+    "target_loc_per_day": 660,
+    "actual_loc_per_day": null,
+    "estimated_total_loc": 660,
+    "actual_total_loc": null,
+    "estimated_days": 1,
+    "actual_days": null,
+    "notes": "No prior velocity baseline — day 1 of the repo. Estimates come from design-doc LOC budgets, conservative given how much the inherited template absorbs. Recalibrate at the M0 → M1/M2/M3 handoff if actual throughput differs by >1.5×."
+  },
+  "execution_strategy": {
+    "mode": "hybrid",
+    "waves": [
+      {"wave": 1, "milestones": ["M0"], "execution": "sequential", "rationale": "Blocks M5 deploy; needs Vertex AI + Cloud Build infra in place"},
+      {"wave": 2, "milestones": ["M1", "M2", "M3"], "execution": "parallel", "rationale": "Disjoint file sets — backend/skills/, frontend/src/, scripts/. No merge conflicts expected. Use sprint-executor Phase 2B Task sub-agents."},
+      {"wave": 3, "milestones": ["M4"], "execution": "sequential", "rationale": "Depends on M1+M3 (uses the skill + group ID)"},
+      {"wave": 4, "milestones": ["M5"], "execution": "sequential", "rationale": "Depends on everything; deploy + verify"}
+    ]
+  },
+  "github_issues": [],
+  "last_session": null,
+  "last_checkpoint": null,
+  "status": "not_started",
+  "open_questions_carried_forward": [
+    "Open Question 1 (seed problem source): resolved to projectile-motion fallback from examples.qmd; AR may supply fresh content during buffer week.",
+    "Open Question 2 (wordmark): resolved to plain text wordmark.",
+    "Open Question 3 (europe-north1 GA): watch item, not a blocker. Probe weekly; swap endpoint URL global → europe-north1 the day it returns 200."
+  ],
+  "watch_items": [
+    "europe-north1 availability for gemini-3.5-flash (Vertex AI)",
+    "Vertex AI Data Residency policy syntax — verify against current API at start of M0",
+    "Per-turn cost in Cloud Trace (thoughtsTokenCount) during buffer week; intervene only if pathological"
+  ]
+}

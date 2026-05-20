@@ -303,6 +303,7 @@ Six milestones (M0–M5). The sprint plan (companion `jutland-demo-sprint.md`, w
 
    Thinking budget left at provider default for v0.1 (94% of output spend is thoughts at default). Cost optimisation deferred until capability-floor eval data lands; v0.1 demo audience is small enough that per-turn cost is not load-bearing. Router-overridable per ADR-008 — Sonnet 4.6 remains a viable fallback in 1.4 model-router-aipla-config.
 2. **Branch strategy** → `dev` is the working branch (replaces inherited `main`); `test` and `prod` exist for promotion. `main` is deleted both locally and on `sunholo-data/cphu-aipla-app` GitHub. Cloud Build trigger points at `dev` for `aipla-dev-2026`. Matches v5 convention and the AIPLA Fork Context table in [CLAUDE.md](../../../../CLAUDE.md).
+3. **IaC strategy: gcloud script on dev, Terraform on test/prod.** `aipla-dev-2026` (already exists, created 2026-05-18, owner `m@sunholo.com`) is the scratchpad — provisioned by an idempotent `scripts/bootstrap-aipla-dev.sh` that the M0 task fills in as it goes. The script becomes the spec for the Terraform module that lands in **1.1 `aipla-cloud-bootstrap.md`** post-Jutland; that module then stands up `aipla-test-2026` and `aipla-prod-2026` cleanly. Drift on dev is tolerated; every ~2 weeks the script is re-run and `gcloud asset export` confirms convergence. Reference: [SEQUENCE.md 1.1](../SEQUENCE.md).
 
 ## Open Questions
 
