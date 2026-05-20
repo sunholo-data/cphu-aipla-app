@@ -159,7 +159,7 @@ def seed(templates_root: Path | None = None) -> SeedSummary:
     try:
         if _ensure_tool_permissions_wildcard():
             summary.tool_permissions_wildcard_seeded = True
-    except Exception as e:  # noqa: BLE001
+    except Exception as e:
         logger.warning("platform_seed: tool_permissions wildcard seed failed: %s", e)
 
     for child in sorted(root.iterdir()):

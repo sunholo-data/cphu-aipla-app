@@ -291,7 +291,7 @@ def _persist_group(record: GroupRecord) -> None:
         from db import firestore as fs
 
         fs.set_document(_GROUPS_COLLECTION, record.group_id, _record_to_doc(record))
-    except Exception:  # noqa: BLE001
+    except Exception:
         logger.exception("group_auth: failed to persist group=%s", record.group_id)
 
 
@@ -304,7 +304,7 @@ def _load_group_from_firestore(group_id: str) -> GroupRecord | None:
         if not doc or doc.get("revoked"):
             return None
         return _doc_to_record(doc)
-    except Exception:  # noqa: BLE001
+    except Exception:
         logger.exception("group_auth: failed to load group=%s from firestore", group_id)
         return None
 
@@ -315,7 +315,7 @@ def _mark_revoked_in_firestore(group_id: str) -> None:
         from db import firestore as fs
 
         fs.update_document(_GROUPS_COLLECTION, group_id, {"revoked": True})
-    except Exception:  # noqa: BLE001
+    except Exception:
         logger.exception("group_auth: failed to mark revoked group=%s", group_id)
 
 

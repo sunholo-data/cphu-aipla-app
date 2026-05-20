@@ -174,6 +174,19 @@ class A2uiToolConfig(BaseModel):
             '(NOT None, NOT "chat") because the chat surface is turn-scoped.'
         ),
     )
+    enabled: bool = Field(
+        default=True,
+        description=(
+            "Whether the A2UI toolset attaches to this skill's agent. "
+            "Defaults true to preserve pre-AIPLA template behaviour where "
+            "every skill could emit A2UI specs. Set to false for "
+            "minimalist chat-only skills (the model then can't see — "
+            "and can't accidentally call — send_a2ui_json_to_client). "
+            "Closes upstream-feedback #22 (the v0.1 problem-set-hints "
+            "skill autonomously emitting dashboard surfaces on a "
+            "greeting because it had no way to NOT see the tool)."
+        ),
+    )
     allow_surface_context_writes: bool = Field(
         default=False,
         description=(

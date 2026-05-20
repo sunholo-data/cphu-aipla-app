@@ -315,8 +315,16 @@ def create_agent(
     # `validated_a2ui_json`. Defaults (no a2ui block) preserve pre-M1
     # inline-in-chat behaviour. Invalid combinations (e.g. patch+chat)
     # raise here at agent-build time, not at the first tool call.
+    #
+    # AIPLA 2026-05-21 — A2UI is now opt-out via `tool_configs.a2ui.enabled
+    # = false`. Skills wanting minimalist chat-only behaviour (e.g. AIPLA's
+    # problem-set-hints) declare it and the toolset is not attached at
+    # all — the model literally cannot see send_a2ui_json_to_client.
+    # Default remains True so inherited template skills work unchanged.
+    # See upstream-feedback #22.
     a2ui_cfg = A2uiToolConfig.from_tool_configs(md.tool_configs)
-    tools.append(make_a2ui_toolset(config=a2ui_cfg))
+    if a2ui_cfg.enabled:
+        tools.append(make_a2ui_toolset(config=a2ui_cfg))
     code_executor, code_tools = _resolve_code_executor(md.tools, effective_model)
     tools.extend(code_tools)
     planner = _planner_override if _planner_override is not None else _planner_for(skill_config)

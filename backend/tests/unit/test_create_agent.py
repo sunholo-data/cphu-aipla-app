@@ -189,6 +189,46 @@ def test_create_agent_includes_a2ui_toolset():
     assert len(a2ui_toolsets) == 1
 
 
+def test_create_agent_omits_a2ui_toolset_when_opted_out():
+    """AIPLA 2026-05-21 — skills declaring `tool_configs.a2ui.enabled: false`
+    have NO A2UI toolset attached, so the model can't see or call
+    send_a2ui_json_to_client. Closes upstream-feedback #22."""
+    skill = SkillConfig(
+        name="chat-only",
+        description="A minimalist chat-only skill.",
+        instructions="Just chat. No tools.",
+        skillId="22222222-2222-2222-2222-222222222222",
+        skillMetadata=SkillMetadata(
+            model="gemini-2.5-flash",
+            tools=[],
+            toolConfigs={"a2ui": {"enabled": False}},
+        ),
+    )
+    agent = create_agent(skill, _user())
+    a2ui_toolsets = [t for t in agent.tools if isinstance(t, SendA2uiToClientToolset)]
+    assert len(a2ui_toolsets) == 0
+
+
+def test_create_agent_includes_a2ui_toolset_when_explicitly_enabled():
+    """The default is enabled=True so this is the same as the default-case
+    test above, but the explicit declaration must also work — round-trip
+    through `from_tool_configs`."""
+    skill = SkillConfig(
+        name="opt-in",
+        description="Explicitly opting back in.",
+        instructions="…",
+        skillId="33333333-3333-3333-3333-333333333333",
+        skillMetadata=SkillMetadata(
+            model="gemini-2.5-flash",
+            tools=[],
+            toolConfigs={"a2ui": {"enabled": True}},
+        ),
+    )
+    agent = create_agent(skill, _user())
+    a2ui_toolsets = [t for t in agent.tools if isinstance(t, SendA2uiToClientToolset)]
+    assert len(a2ui_toolsets) == 1
+
+
 def test_create_agent_wires_tools_from_skill_metadata():
     # list_documents + get_document_content are in the registry (model-agnostic).
     # ai_search/google_search are model-aware and handled by agent.py directly, so not here.

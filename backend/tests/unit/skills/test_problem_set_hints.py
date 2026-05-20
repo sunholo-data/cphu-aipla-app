@@ -56,19 +56,24 @@ def test_skill_v01_version(skill):
 @pytest.mark.parametrize(
     "principle_marker",
     [
-        "never give the final numerical answer",      # no-solution rule
-        "decompose on request, not on greeting",      # greeting-aware (added 2026-05-20)
-        "decompose into\n   3–5 sub-steps",           # decomposition on real help request
-        "ask what the student has already tried",     # ask before reveal
-        "match the student's language",               # Danish-aware
-        "cite the seeded problem",                    # citation
-        "never call `send_a2ui_json_to_client`",      # no A2UI (added 2026-05-20)
+        "never give the final numerical answer",  # no-solution rule
+        "decompose on request, not on greeting",  # greeting-aware (added 2026-05-20)
+        "decompose into\n   3-5 sub-steps",  # decomposition on real help request
+        "ask what the student has already tried",  # ask before reveal
+        "match the student's language",  # Danish-aware
+        "cite the seeded problem",  # citation
     ],
 )
 def test_system_prompt_embeds_principle(skill, principle_marker):
     """Every scaffolding principle from design doc Backend Changes is in the instructions.
-    Updated 2026-05-20 to reflect the greeting-aware + A2UI-forbidden rules added
-    after the first deployed chat overshared on a 'hi' input + emitted A2UI surfaces."""
+
+    History:
+    - 2026-05-20: added greeting-aware + A2UI-forbidden rules after the first
+      deployed chat overshared on a 'hi' input + emitted A2UI surfaces.
+    - 2026-05-21: A2UI-forbidden prompt rule deleted; now opt-out at the
+      framework level via `toolConfigs.a2ui.enabled: false`. See
+      upstream-feedback #22 resolution + test_create_agent.py
+      test_create_agent_omits_a2ui_toolset_when_opted_out."""
     instructions = skill.instructions.lower()
     assert principle_marker.lower() in instructions, (
         f"Scaffolding principle marker '{principle_marker}' missing from system prompt."

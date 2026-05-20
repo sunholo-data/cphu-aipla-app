@@ -78,7 +78,7 @@ def seed_local_fixture() -> None:
                 summary.created,
                 summary.failed,
             )
-    except Exception:  # noqa: BLE001
+    except Exception:
         logger.exception("seed_local_fixture: platform_seed.seed() failed")
 
     # ---- demo document ---------------------------------------------------

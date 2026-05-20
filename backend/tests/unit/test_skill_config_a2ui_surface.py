@@ -148,6 +148,40 @@ def test_skill_config_loads_without_a2ui_section():
     assert derived.default_surface is None
 
 
+# === enabled flag (AIPLA 2026-05-21 — upstream-feedback #22 resolution) ===
+
+
+def test_a2ui_tool_config_defaults_enabled_true():
+    """Backwards-compat: A2UI is on by default so inherited workshop demos work unchanged."""
+    cfg = A2uiToolConfig()
+    assert cfg.enabled is True
+
+
+def test_a2ui_tool_config_accepts_enabled_false():
+    """Opt-out: minimalist chat-only skills can hide the toolset from the model."""
+    cfg = A2uiToolConfig(enabled=False)
+    assert cfg.enabled is False
+
+
+def test_a2ui_tool_config_from_tool_configs_enabled_false():
+    """The opt-out propagates through the `from_tool_configs` parsing path."""
+    cfg = A2uiToolConfig.from_tool_configs({"a2ui": {"enabled": False}})
+    assert cfg.enabled is False
+
+
+def test_a2ui_tool_config_from_tool_configs_enabled_default_true():
+    """Skills with an `a2ui` block but no `enabled` key inherit the True default."""
+    cfg = A2uiToolConfig.from_tool_configs({"a2ui": {"default_surface": "workspace"}})
+    assert cfg.enabled is True
+
+
+def test_a2ui_tool_config_enabled_false_compatible_with_other_fields():
+    """`enabled: false` doesn't conflict with surface/mode (those are simply ignored)."""
+    cfg = A2uiToolConfig(enabled=False, default_surface="workspace")
+    assert cfg.enabled is False
+    assert cfg.default_surface == "workspace"
+
+
 def test_skill_config_loads_with_a2ui_workspace_surface():
     """New M1 skills with `default_surface` round-trip through SkillConfig."""
     skill = SkillConfig(

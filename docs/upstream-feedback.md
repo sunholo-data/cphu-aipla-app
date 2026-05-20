@@ -512,6 +512,18 @@ The model has no way to *not* see the tool, so its prompt-to-tool-suggestion bia
 
 The current default of "every skill gets every UI capability the platform owns" is sensible for the inherited workshop demos (3 of 5 are A2UI showcases) but is wrong for any downstream fork that wants minimalist chat skills. Captured here as a defaults-shape issue, not a bug per se.
 
+**Resolved on AIPLA fork 2026-05-21 (commit TBD-after-push):** added `enabled: bool = True` to `A2uiToolConfig` ([backend/adk/a2ui.py](../backend/adk/a2ui.py)). Default `True` preserves inherited workshop-demo behaviour. Skills declare:
+
+```yaml
+toolConfigs:
+  a2ui:
+    enabled: false
+```
+
+…to opt out, in which case [backend/adk/agent.py](../backend/adk/agent.py) skips `tools.append(make_a2ui_toolset(...))` entirely. The model literally can't see `send_a2ui_json_to_client` and can't accidentally call it. The SKILL.md prompt-rule hack is deleted; the agent's tool list is shorter, saving ~200 tokens/turn. Tests added: [backend/tests/unit/test_skill_config_a2ui_surface.py](../backend/tests/unit/test_skill_config_a2ui_surface.py) (5 new cases on the `enabled` field) + [backend/tests/unit/test_create_agent.py](../backend/tests/unit/test_create_agent.py) (2 new cases on the factory gate).
+
+Ready to upstream as a PR — small surface area, additive field, no breaking changes.
+
 ## 23. Chat-page flex column missing `min-h-0` — input footer scrolls below viewport on empty/short chat
 
 **Where:** `frontend/src/app/chat/[...path]/page.tsx` — the inner chat column at line 534 used `<div className="flex min-w-0 flex-1 flex-col">`.

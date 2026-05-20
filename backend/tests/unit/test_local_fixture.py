@@ -43,9 +43,7 @@ def test_seed_populates_collections_in_local_mode(monkeypatch):
     # of platform templates.
     all_skills = [s.to_dict() for s in client.collection("skills").stream()]
     workshop_skills = [s for s in all_skills if s.get("ownerId") == "workshop-user"]
-    assert len(workshop_skills) == 5, (
-        f"Expected 5 workshop demos, got {len(workshop_skills)}"
-    )
+    assert len(workshop_skills) == 5, f"Expected 5 workshop demos, got {len(workshop_skills)}"
     assert len(all_skills) >= 5, "Expected at least the 5 workshop demos"
     assert len(list(client.collection("documents").stream())) == 1
 
