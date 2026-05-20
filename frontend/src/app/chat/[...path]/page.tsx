@@ -35,6 +35,7 @@ import {
 import { A2UISurfaceMount } from "@/components/protocols/A2UISurfaceMount";
 import { DocumentPanel } from "@/components/document/DocumentPanel";
 import { LatencyHUD } from "@/components/dev/LatencyHUD";
+import { WorkspaceShell } from "@/components/workspace/WorkspaceShell";
 
 /**
  * MULTI-SURFACE-A2UI M3 — chat page surface mounts.
@@ -221,7 +222,7 @@ function ChatShell({
     clearError,
     stop,
   } = useSkillAgent();
-  const { displayName, mcpServerIds, initialMessage: skillInitialMessage } = useSkillMeta(skillId);
+  const { displayName, mcpServerIds, initialMessage: skillInitialMessage, slug: skillSlug } = useSkillMeta(skillId);
   const { skills: userSkills, isLoading: skillsLoading } = useUserSkills(user.uid);
   // Anonymous-group users (students joining via teacher-minted codes —
   // ADR-001) don't browse/upload documents in v0.1. Hide the entire
@@ -231,6 +232,12 @@ function ChatShell({
   // allowDocumentUpload flag — for v0.1 the auth-mode gate is
   // sufficient since anon-group users only see one skill anyway.
   const showDocumentUI = !isAnonymousGroupAuthMode();
+  // PEDCTX M2 — the AIPLA workspace pane mounts only for the v0.1 demo
+  // skill (problem-set-hints) in anon-group mode. Non-anon users get
+  // the inherited template surface (DocTabs + DocumentPanel). Once v1
+  // ships more student-facing skills the gate widens; for now the
+  // workspace is purpose-built for the one demo flow.
+  const showAiplaWorkspace = isAnonymousGroupAuthMode() && skillSlug === "problem-set-hints";
   const searchParams = useSearchParams();
   const router = useRouter();
   const [draft, setDraft] = useState("");
@@ -618,6 +625,21 @@ function ChatShell({
             </form>
           </footer>
         </div>
+
+        {/* PEDCTX M2 — AIPLA workspace pane for anon-group +
+            problem-set-hints. Sits as a sibling of the chat column so
+            the two share the row (60/40 on lg+). M3 fills with the
+            problem statement; M5 stretch adds the progress checklist;
+            the Boldkast sim lands here later in the buffer week.
+            Other auth modes and other skills keep the inherited
+            DocumentPanel / WorkspaceSurfaceRegion behaviour above. */}
+        {showAiplaWorkspace && (
+          <WorkspaceShell>
+            <p className="text-sm text-muted-foreground">
+              Arbejdsområde — opgaveinfo og simulator vises her.
+            </p>
+          </WorkspaceShell>
+        )}
       </div>
       <LatencyHUD />
       {/* MULTI-SURFACE-A2UI M3: modal surface mount — fixed-position
