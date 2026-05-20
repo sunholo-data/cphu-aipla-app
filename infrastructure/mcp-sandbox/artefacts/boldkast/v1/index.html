@@ -132,9 +132,9 @@
 <header>
   <h1>Boldkast — interaktiv visualisering</h1>
   <div class="givens">
-    v₀ = <span id="v0-label">15</span> m/s &nbsp;·&nbsp;
-    θ = <span id="theta-label">40</span>° &nbsp;·&nbsp;
-    g = 9,82 m/s²
+    Aktuelle værdier: v₀ = <span id="v0-label">10</span> m/s &nbsp;·&nbsp;
+    θ = <span id="theta-label">30</span>° &nbsp;·&nbsp;
+    g = <span id="g-label">9,82</span> m/s²
   </div>
 </header>
 <main>
@@ -147,13 +147,21 @@
       <h2>Kontrol</h2>
       <div class="row">
         <label for="v0">v₀</label>
-        <input id="v0" type="range" min="5" max="30" step="0.5" value="15">
-        <span class="value" id="v0-out">15,0 m/s</span>
+        <input id="v0" type="range" min="5" max="30" step="0.5" value="10">
+        <span class="value" id="v0-out">10,0 m/s</span>
       </div>
       <div class="row">
         <label for="theta">θ</label>
-        <input id="theta" type="range" min="10" max="80" step="1" value="40">
-        <span class="value" id="theta-out">40°</span>
+        <input id="theta" type="range" min="10" max="80" step="1" value="30">
+        <span class="value" id="theta-out">30°</span>
+      </div>
+      <div class="row">
+        <label for="g">g</label>
+        <input id="g" type="range" min="1" max="25" step="0.01" value="9.82">
+        <span class="value" id="g-out">9,82 m/s²</span>
+      </div>
+      <div style="font-size: 10px; color: var(--muted); margin-top: -2px; text-align: right;">
+        🌍 Jord 9,82 &nbsp;·&nbsp; 🌙 Måne 1,62 &nbsp;·&nbsp; ♂️ Mars 3,71 &nbsp;·&nbsp; ♃ Jupiter 24,79
       </div>
       <div class="buttons">
         <button id="play" type="button">▶ Afspil</button>
@@ -212,31 +220,44 @@
 <script>
   "use strict";
   // ─── Physics ──────────────────────────────────────────────────────────────
-  const G = 9.82;
-  function trajectoryAt(t, v0, thetaDeg) {
+  // g defaults to Earth's value but is mutable so the student can explore
+  // Moon (1.62), Mars (3.71), Jupiter (24.79) etc. The problem's "givet"
+  // is g = 9,82 m/s² — the slider lets them step outside that to build
+  // intuition, then return to verify.
+  const EARTH_G = 9.82;
+  function trajectoryAt(t, v0, thetaDeg, g) {
     const th = (thetaDeg * Math.PI) / 180;
     const vx = v0 * Math.cos(th);
     const vy0 = v0 * Math.sin(th);
     return {
       x: vx * t,
-      y: Math.max(0, vy0 * t - 0.5 * G * t * t),
+      y: Math.max(0, vy0 * t - 0.5 * g * t * t),
       vx,
-      vy: vy0 - G * t,
+      vy: vy0 - g * t,
     };
   }
-  function results(v0, thetaDeg) {
+  function results(v0, thetaDeg, g) {
     const th = (thetaDeg * Math.PI) / 180;
     const vy0 = v0 * Math.sin(th);
     const vx = v0 * Math.cos(th);
-    const tof = (2 * vy0) / G;          // total flight time
-    const ymax = (vy0 * vy0) / (2 * G); // peak height
+    const tof = (2 * vy0) / g;          // total flight time
+    const ymax = (vy0 * vy0) / (2 * g); // peak height
     const range = vx * tof;              // horizontal range
     return { tof, ymax, range };
   }
 
   // ─── State ────────────────────────────────────────────────────────────────
-  let v0 = 15;
-  let theta = 40;
+  // Neutral starting values — NOT the problem's 15 m/s @ 40°. The student
+  // must read the problem statement and drag the sliders to match before
+  // they can meaningfully verify their paper calculation. Setting the
+  // initial state to the answer would defeat the "Vis" pedagogical gate.
+  let v0 = 10;
+  let theta = 30;
+  // g starts at Earth (matches the problem's "givet") but is adjustable
+  // so the student can explore non-Earth gravities — Moon (1.62), Mars
+  // (3.71), Jupiter (24.79), etc. Dragging g resets reveals just like
+  // v0/theta so the student commits per-(v0,theta,g) tuple.
+  let g = EARTH_G;
   let t = 0;
   let playing = false;
   let lastFrameMs = 0;
@@ -254,6 +275,8 @@
   const v0Label = document.getElementById("v0-label");
   const thetaOut = document.getElementById("theta-out");
   const thetaLabel = document.getElementById("theta-label");
+  const gOut = document.getElementById("g-out");
+  const gLabel = document.getElementById("g-label");
 
   function fmt(n, digits = 2) {
     return n.toFixed(digits).replace(".", ",");
@@ -360,11 +383,11 @@
     fitGraphCanvas(gVelCanvas, gVelCtx);
     const w = gVelCanvas.clientWidth;
     const h = gVelCanvas.clientHeight;
-    const { tof } = results(v0, theta);
+    const { tof } = results(v0, theta, g);
     const th = (theta * Math.PI) / 180;
     drawLineGraph(gVelCtx, w, h, tof, Math.min(t, tof), [
       { color: "#1e40af", fn: () => v0 * Math.cos(th) },     // vx — constant
-      { color: "#dc2626", fn: (tt) => v0 * Math.sin(th) - G * tt }, // vy
+      { color: "#dc2626", fn: (tt) => v0 * Math.sin(th) - g * tt }, // vy
     ], { yLabel: "v (m/s)" });
   }
 
@@ -372,10 +395,10 @@
     fitGraphCanvas(gPosCanvas, gPosCtx);
     const w = gPosCanvas.clientWidth;
     const h = gPosCanvas.clientHeight;
-    const { tof } = results(v0, theta);
+    const { tof } = results(v0, theta, g);
     drawLineGraph(gPosCtx, w, h, tof, Math.min(t, tof), [
-      { color: "#1e40af", fn: (tt) => trajectoryAt(tt, v0, theta).x },
-      { color: "#dc2626", fn: (tt) => trajectoryAt(tt, v0, theta).y },
+      { color: "#1e40af", fn: (tt) => trajectoryAt(tt, v0, theta, g).x },
+      { color: "#dc2626", fn: (tt) => trajectoryAt(tt, v0, theta, g).y },
     ], { yLabel: "pos (m)" });
   }
 
@@ -385,7 +408,7 @@
     ctx.clearRect(0, 0, w, h);
 
     // World extents: scale to fit the full trajectory given current params.
-    const { tof, range, ymax } = results(v0, theta);
+    const { tof, range, ymax } = results(v0, theta, g);
     const worldW = Math.max(range * 1.1, 25);
     const worldH = Math.max(ymax * 1.4, 12);
 
@@ -420,7 +443,7 @@
     ctx.lineWidth = 1;
     ctx.beginPath();
     for (let tt = 0; tt <= tof; tt += tof / 60) {
-      const p = trajectoryAt(tt, v0, theta);
+      const p = trajectoryAt(tt, v0, theta, g);
       const [px, py] = toScreen(p.x, p.y);
       if (tt === 0) ctx.moveTo(px, py);
       else ctx.lineTo(px, py);
@@ -433,7 +456,7 @@
     ctx.beginPath();
     const tNow = Math.min(t, tof);
     for (let tt = 0; tt <= tNow; tt += Math.max(tof / 120, 0.001)) {
-      const p = trajectoryAt(tt, v0, theta);
+      const p = trajectoryAt(tt, v0, theta, g);
       const [px, py] = toScreen(p.x, p.y);
       if (tt === 0) ctx.moveTo(px, py);
       else ctx.lineTo(px, py);
@@ -441,7 +464,7 @@
     ctx.stroke();
 
     // Ball at current t
-    const p = trajectoryAt(tNow, v0, theta);
+    const p = trajectoryAt(tNow, v0, theta, g);
     const [bx, by] = toScreen(p.x, p.y);
     ctx.fillStyle = "#1e40af";
     ctx.beginPath();
@@ -484,7 +507,7 @@
   }
 
   function updateLive() {
-    const p = trajectoryAt(Math.min(t, results(v0, theta).tof), v0, theta);
+    const p = trajectoryAt(Math.min(t, results(v0, theta, g).tof), v0, theta, g);
     live.textContent =
       "t = " + fmt(t) + " s   ·   " +
       "x = " + fmt(p.x) + " m, y = " + fmt(p.y) + " m   ·   " +
@@ -496,10 +519,12 @@
     v0Label.textContent = fmt(v0, 1);
     thetaOut.textContent = theta + "°";
     thetaLabel.textContent = theta;
+    gOut.textContent = fmt(g) + " m/s²";
+    gLabel.textContent = fmt(g);
   }
 
   function updateMarkers() {
-    const r = results(v0, theta);
+    const r = results(v0, theta, g);
     const out = document.querySelectorAll(".markers [data-value-for]");
     out.forEach((el) => {
       const m = el.dataset.valueFor;
@@ -535,7 +560,7 @@
     const dt = (ms - lastFrameMs) / 1000;
     lastFrameMs = ms;
     if (playing) {
-      const { tof } = results(v0, theta);
+      const { tof } = results(v0, theta, g);
       t = Math.min(t + dt, tof);
       if (t >= tof) playing = false;
       render();
@@ -576,9 +601,17 @@
     render();
     emit("boldkast.param.change", { param: "theta", value: theta });
   });
+  document.getElementById("g").addEventListener("input", (e) => {
+    g = parseFloat(e.target.value);
+    t = 0; playing = false; lastFrameMs = 0;
+    revealed.ymax = false; revealed.range = false; revealed.tof = false;
+    updateMarkers();
+    render();
+    emit("boldkast.param.change", { param: "g", value: g });
+  });
   document.getElementById("play").addEventListener("click", () => {
     if (!playing) {
-      const { tof } = results(v0, theta);
+      const { tof } = results(v0, theta, g);
       if (t >= tof) t = 0;
       playing = true;
       lastFrameMs = 0;
@@ -611,7 +644,7 @@
 
   // ─── Self-test (URL: ?test=1) ─────────────────────────────────────────────
   if (new URLSearchParams(window.location.search).get("test") === "1") {
-    const r = results(15, 40);
+    const r = results(15, 40, EARTH_G);
     const expectedYmax = 4.74;
     const ok = Math.abs(r.ymax - expectedYmax) < 0.05;
     document.title = ok ? "TEST PASS — Boldkast" : "TEST FAIL — Boldkast";

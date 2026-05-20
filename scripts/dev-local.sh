@@ -94,10 +94,17 @@ FRONTEND_LOG="$LOG_DIR/frontend.log"
 SANDBOX_LOG="$LOG_DIR/sandbox.log"
 
 log "Freeing dev ports if held…"
+# `-sTCP:LISTEN` + bare `:PORT` don't combine on macOS lsof 4.91, so we
+# scope by port via `-iTCP:PORT` and awk-filter the LISTEN row. Without
+# this filter, lsof returns ESTABLISHED client PIDs (open Firefox tabs)
+# too, and `kill` murders the browser.
+listening_pid() {
+    lsof -nP -iTCP:"$1" 2>/dev/null | awk '$NF == "(LISTEN)" { print $2 }'
+}
 for PORT in $BACKEND_PORT $FRONTEND_PORT $SANDBOX_PORT; do
-    PIDS=$(lsof -ti ":$PORT" 2>/dev/null || true)
+    PIDS=$(listening_pid "$PORT")
     if [ -n "$PIDS" ]; then
-        log "  killing pid(s) on :$PORT — $PIDS"
+        log "  killing server pid(s) on :$PORT — $PIDS"
         kill $PIDS 2>/dev/null || true
     fi
 done

@@ -77,7 +77,105 @@ Every static artefact MUST pass these checks at commit time:
 5. **AR (or domain expert) sign-off** before merge for any pedagogically
    loaded artefact. Capture as a PR comment.
 
-## Steps to add a new artefact
+## Patterns that work / patterns that don't (from Boldkast)
+
+What actually shipped + what we learned:
+
+**Works:**
+- Single self-contained HTML, vanilla JS, <30 KB for a sim with one
+  canvas + sliders + markers + two component graphs.
+- Three structural panels: trajectory canvas (main), controls (sliders +
+  play/pause/reset), markers (Vis-redacted answer rows).
+- **Pedagogical default trick:** sliders should NOT start pre-set to the
+  problem's exact values. Neutral starting values force the student to
+  read the problem, drag the sliders to match, and only then verify.
+  Pre-set defaults defeat the Vis gate. Boldkast 2026-05-20 caught this
+  late; the artefact now starts at v₀=10, θ=30 (problem asks 15, 40).
+- Slider drag resets reveals — student must re-commit per parameter set.
+- Component / position graphs that ride the main animation cursor.
+  Excellent for visualising decomposition-type misconceptions.
+- postMessage events `{source: name, type: name + ".event"}` with stable
+  names: `open / play / pause / reset / param.change / show_value`.
+  Boldkast also emits per-marker `show_value` so OTel sees which answers
+  the student revealed.
+- Self-test on `?test=1` — flips `document.title` to "TEST PASS" or
+  "TEST FAIL". CI can probe headlessly.
+- Danish-first copy; pedagogical-warning panel ("Værdierne er skjult
+  med vilje…") as a yellow strip near the markers.
+
+**Doesn't work:**
+- React / Vue / Svelte — bundle blows the 200 KB ceiling 5-10×.
+- CDN imports — `default-src 'none'` CSP blocks them anyway.
+- `eval()`, `new Function()`, `WebSocket`, `fetch()` to anywhere —
+  same CSP gate. Network artefact = don't ship.
+- Cross-origin iframes nested inside the artefact — `frame-src 'none'`.
+- Showing the answer-value without an explicit toggle. Defeats the
+  whole pedagogical gate.
+- Defaults that match the problem's exact parameters (see above).
+
+## Recipe — how to prompt an LLM to generate a new artefact
+
+When asking Claude (or any coding agent) to generate a new artefact,
+paste the prompt below. Substitute `<<PROBLEM>>` with the actual physics
+or maths problem the artefact illustrates.
+
+```
+TASK: Generate a single self-contained HTML/JS/CSS artefact for the AIPLA
+educational harness. The artefact will be served from a sandboxed iframe
+on a separate origin from the host, and embedded in the chat workspace.
+
+PROBLEM:
+<<PROBLEM — paste the Danish stx problem statement, including givens
+and sub-parts. Note the values the problem ASKS the student to use.>>
+
+HARD CONSTRAINTS (the harness enforces these; failures = won't deploy):
+1. Single file, <= 200 KB total (HTML + inline CSS + inline JS).
+2. NO external resources. No script-src http, no img-src http, no
+   network fetch calls, no eval, no nested iframes. The host's CSP
+   blocks all of these — it will be a black screen if you try.
+3. No frameworks (React/Vue/Svelte). Vanilla JS only. requestAnimationFrame
+   is fine for animation. <canvas> for any visualisation.
+4. Sandboxed iframe with `sandbox="allow-scripts"` only — NO
+   allow-same-origin, NO popups, NO top-nav. Plan accordingly.
+
+PEDAGOGICAL CONSTRAINTS:
+5. The student must NOT be able to read the answer just by opening the
+   artefact. Hide the answer-values (e.g. y_max, range) behind per-marker
+   "Vis" toggle buttons. Render as "—" until clicked.
+6. Slider defaults must NOT match the problem's exact parameter values.
+   Start with NEUTRAL values (e.g. 60-70% of the problem's value) so
+   the student has to read the problem and drag the sliders to match
+   before the artefact is meaningfully calibrated.
+7. When the student drags a slider, reset all revealed markers to "—"
+   so they must re-commit to a calculation per parameter set.
+8. If the artefact illustrates a documented misconception (e.g. for
+   projectile motion: independence of horizontal/vertical axes), include
+   secondary visualisations that make that misconception concretely
+   visible (e.g. v_x(t) and v_y(t) graphs side-by-side with the
+   trajectory canvas).
+9. Danish-first UI copy with English-as-secondary in comments only.
+   Decimal separator: comma (e.g. "4,74 m" not "4.74 m").
+
+STRUCTURAL TEMPLATE:
+Start from `infrastructure/mcp-sandbox/artefacts/_template/v1/index.html`.
+Replace the TODO blocks. Keep the `emit()` helper, the slider event
+handlers' reveal-reset behaviour, and the `?test=1` self-test stub.
+
+OUTPUT:
+Write the file at `infrastructure/mcp-sandbox/artefacts/<NAME>/v1/index.html`.
+Where <NAME> is a kebab-case identifier (e.g. `wave-superposition`).
+After writing, verify:
+  - `wc -c <path>` shows under 200000.
+  - `grep -E 'src="http|fetch\(|XMLHttpRequest|WebSocket|eval\('` matches nothing.
+  - Open `<path>?test=1` and check the tab title says "TEST PASS — ...".
+```
+
+The `_template/v1/index.html` ships all the structural patterns —
+slider state, animation loop, marker rendering, telemetry, self-test.
+You can run the scaffold script and edit, or paste the prompt above
+into a Claude session.
+
+## Steps to add a new artefact (using the scaffold)
 
 Worked example below targets a hypothetical `wave-superposition` sim;
 substitute your artefact name.
@@ -85,8 +183,15 @@ substitute your artefact name.
 ### 1. Scaffold the dir
 
 ```bash
-mkdir -p infrastructure/mcp-sandbox/artefacts/wave-superposition/v1
+./scripts/new-artefact.sh wave-superposition "Bølge-superposition"
 ```
+
+This:
+- Clones `_template/v1/` to `artefacts/wave-superposition/v1/`
+- Substitutes `{{ARTEFACT_NAME}}` and `{{ARTEFACT_TITLE}}`
+- Runs the safety gates (size cap, no external fetches) and bails if
+  the scaffold somehow fails them
+- Prints the URLs you can use to test it
 
 Versioned dir (`v1`, `v2`, …) so future revisions land alongside, not
 in place — the host frontend pins to a version-specific URL.

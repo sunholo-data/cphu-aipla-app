@@ -1,0 +1,293 @@
+<!doctype html>
+<html lang="da">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>{{ARTEFACT_TITLE}} — interaktiv visualisering</title>
+<!--
+  AIPLA MCP App artefact template (v1).
+
+  Copy this directory: `scripts/new-artefact.sh <name>`
+  Then edit:
+    - <title> tag + header h1 (Danish-first copy)
+    - The "givens" line (problem parameters)
+    - <canvas id="viz"> physics in <script> below
+    - The Vis-markers list + their compute fns
+    - (optional) extra component / position graphs
+    - The self-test at the bottom (?test=1)
+
+  Rules enforced by the harness (ADR-013):
+    1. Single self-contained file, =< 200 KB total
+    2. NO external resources: no script-src http, no img-src http, no
+       network fetch calls, no eval. The host's CSP blocks these even
+       if you try.
+    3. NO nested iframe. frame-src 'none'.
+    4. Pedagogical guardrail: marker values are redacted (—) until the
+       student clicks "Vis". Dragging a slider should reset reveals so
+       the student must commit a fresh calculation per parameter set.
+    5. Emit postMessage telemetry — see emit() below. The host (and
+       OTel) listens for these and surfaces them in Cloud Trace.
+
+  See .claude/skills/mcp-app-artefact/SKILL.md for the full recipe.
+-->
+<style>
+  :root {
+    --bg: #fafaf9;
+    --fg: #1c1917;
+    --muted: #78716c;
+    --border: #e7e5e4;
+    --accent: #1e40af;
+    --accent-soft: #dbeafe;
+    --hidden: #d6d3d1;
+  }
+  * { box-sizing: border-box; }
+  html, body {
+    margin: 0; padding: 0;
+    font-family: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+    background: var(--bg); color: var(--fg);
+    font-size: 14px; line-height: 1.4;
+  }
+  body { padding: 12px; }
+  header { margin-bottom: 8px; }
+  header h1 { font-size: 15px; margin: 0 0 2px; font-weight: 600; }
+  header .givens { color: var(--muted); font-size: 12px; }
+  main {
+    display: grid; grid-template-columns: 1fr; gap: 10px;
+  }
+  @media (min-width: 720px) {
+    main { grid-template-columns: 2fr 1fr; }
+  }
+  .canvas-wrap {
+    background: white; border: 1px solid var(--border);
+    border-radius: 6px; padding: 6px;
+  }
+  canvas { width: 100%; height: auto; display: block; touch-action: none; }
+  .panel {
+    background: white; border: 1px solid var(--border);
+    border-radius: 6px; padding: 10px;
+  }
+  .panel h2 {
+    font-size: 11px; text-transform: uppercase; letter-spacing: .05em;
+    color: var(--muted); margin: 0 0 8px; font-weight: 600;
+  }
+  .controls .row { display: flex; align-items: center; gap: 6px; margin: 6px 0; }
+  .controls label { font-size: 12px; min-width: 30px; }
+  .controls input[type="range"] { flex: 1; }
+  .controls .value { font-variant-numeric: tabular-nums; min-width: 55px; text-align: right; font-size: 12px; }
+  .buttons { display: flex; gap: 6px; margin-top: 8px; }
+  button {
+    font: inherit; font-size: 12px; padding: 6px 10px;
+    background: var(--accent-soft); color: var(--accent);
+    border: 1px solid transparent; border-radius: 4px; cursor: pointer;
+  }
+  button:hover { border-color: var(--accent); }
+  button.ghost { background: transparent; color: var(--muted); border: 1px solid var(--border); }
+  .markers .row {
+    display: flex; align-items: baseline; gap: 6px; margin: 6px 0;
+    padding: 6px; border-radius: 4px; background: #f5f5f4;
+  }
+  .markers .label { flex: 1; font-size: 12px; }
+  .markers .value {
+    font-variant-numeric: tabular-nums; font-weight: 600;
+    color: var(--hidden); min-width: 60px; text-align: right;
+  }
+  .markers .value.revealed { color: var(--accent); }
+  .markers button.vis {
+    font-size: 11px; padding: 3px 8px;
+    background: transparent; color: var(--muted); border: 1px solid var(--border);
+  }
+  .markers button.vis.revealed { color: var(--accent); border-color: var(--accent); }
+  .pedagogy {
+    margin-top: 8px; padding: 8px;
+    background: #fef3c7; border-left: 3px solid #f59e0b;
+    font-size: 11px; color: #78350f;
+    border-radius: 0 4px 4px 0;
+  }
+</style>
+</head>
+<body>
+<header>
+  <h1>{{ARTEFACT_TITLE}}</h1>
+  <div class="givens">
+    <!-- TODO: list the problem's given parameters -->
+    parameter₁ = X &nbsp;·&nbsp; parameter₂ = Y
+  </div>
+</header>
+<main>
+  <section class="canvas-wrap">
+    <canvas id="viz" width="600" height="320" aria-label="Visualisering"></canvas>
+  </section>
+  <aside>
+    <div class="panel controls">
+      <h2>Kontrol</h2>
+      <!-- TODO: sliders for adjustable parameters -->
+      <div class="row">
+        <label for="p1">p₁</label>
+        <input id="p1" type="range" min="0" max="100" value="50">
+        <span class="value" id="p1-out">50</span>
+      </div>
+      <div class="buttons">
+        <button id="play" type="button">▶ Afspil</button>
+        <button id="pause" type="button" class="ghost">⏸ Pause</button>
+        <button id="reset" type="button" class="ghost">↺ Nulstil</button>
+      </div>
+    </div>
+    <div class="panel markers" style="margin-top: 10px;">
+      <h2>Resultater</h2>
+      <!-- TODO: one row per answer-marker. data-marker is the postMessage key. -->
+      <div class="row">
+        <span class="label">Eksempel-resultat</span>
+        <span class="value" data-value-for="example">—</span>
+        <button class="vis" type="button" data-marker="example">Vis</button>
+      </div>
+      <p class="pedagogy">
+        Værdierne er skjult med vilje. Beregn dem først selv på papir — så afslør for at tjekke.
+      </p>
+    </div>
+  </aside>
+</main>
+<script>
+  "use strict";
+  // ─── Telemetry helper (DO NOT REMOVE) ───────────────────────────────────
+  // Emits typed events to the host frontend via postMessage. The host's
+  // BoldkastSimFrame/etc. validates origin then forwards to OTel. Pattern:
+  // {source: "<artefact-name>", type: "<artefact-name>.<event>", ...}
+  const ARTEFACT_NAME = "{{ARTEFACT_NAME}}";
+  function emit(type, extra) {
+    try {
+      window.parent.postMessage(
+        Object.assign({ source: ARTEFACT_NAME, type: ARTEFACT_NAME + "." + type }, extra || {}),
+        "*",
+      );
+    } catch (e) { /* parent may not exist in standalone mode */ }
+  }
+
+  // ─── State ──────────────────────────────────────────────────────────────
+  let p1 = 50;
+  let t = 0;
+  let playing = false;
+  let lastFrameMs = 0;
+  const revealed = { example: false };
+
+  // ─── Physics / computation ──────────────────────────────────────────────
+  // TODO: replace with the actual physics for the problem.
+  function compute(t, params) {
+    return { x: t, y: Math.sin(t) * params.p1 };
+  }
+  function results(params) {
+    // TODO: return the answer-markers as a {key: value} dict.
+    return { example: params.p1 * 0.42 };
+  }
+
+  // ─── DOM ────────────────────────────────────────────────────────────────
+  const canvas = document.getElementById("viz");
+  const ctx = canvas.getContext("2d");
+  const p1Out = document.getElementById("p1-out");
+
+  function fitCanvas() {
+    const dpr = window.devicePixelRatio || 1;
+    const rect = canvas.getBoundingClientRect();
+    canvas.width = Math.round(rect.width * dpr);
+    canvas.height = Math.round(rect.width * 0.55 * dpr);
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+  }
+
+  function drawWorld() {
+    // TODO: replace with the actual visualisation.
+    const w = canvas.clientWidth;
+    const h = canvas.clientHeight;
+    ctx.clearRect(0, 0, w, h);
+    ctx.strokeStyle = "#1e40af";
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    for (let i = 0; i <= 200; i++) {
+      const tt = i / 20;
+      const p = compute(tt, { p1 });
+      const px = (i / 200) * w;
+      const py = h / 2 - p.y;
+      if (i === 0) ctx.moveTo(px, py);
+      else ctx.lineTo(px, py);
+    }
+    ctx.stroke();
+  }
+
+  function updateMarkers() {
+    const r = results({ p1 });
+    document.querySelectorAll(".markers [data-value-for]").forEach((el) => {
+      const m = el.dataset.valueFor;
+      if (!revealed[m]) { el.textContent = "—"; el.classList.remove("revealed"); }
+      else { el.textContent = r[m].toFixed(2).replace(".", ","); el.classList.add("revealed"); }
+    });
+    document.querySelectorAll(".markers button.vis").forEach((b) => {
+      const m = b.dataset.marker;
+      b.classList.toggle("revealed", !!revealed[m]);
+      b.textContent = revealed[m] ? "Skjul" : "Vis";
+    });
+  }
+
+  function render() {
+    fitCanvas();
+    drawWorld();
+    p1Out.textContent = p1.toString();
+  }
+
+  // ─── Animation loop ─────────────────────────────────────────────────────
+  function tick(ms) {
+    if (!lastFrameMs) lastFrameMs = ms;
+    const dt = (ms - lastFrameMs) / 1000;
+    lastFrameMs = ms;
+    if (playing) {
+      t += dt;
+      render();
+    }
+    requestAnimationFrame(tick);
+  }
+  requestAnimationFrame(tick);
+
+  // ─── Event wiring ───────────────────────────────────────────────────────
+  document.getElementById("p1").addEventListener("input", (e) => {
+    p1 = parseFloat(e.target.value);
+    // RULE: dragging a slider resets revealed values so the student must
+    // recompute per parameter set. Don't remove without explicit consent.
+    Object.keys(revealed).forEach((k) => { revealed[k] = false; });
+    updateMarkers();
+    render();
+    emit("param.change", { param: "p1", value: p1 });
+  });
+  document.getElementById("play").addEventListener("click", () => {
+    playing = true; lastFrameMs = 0; emit("play");
+  });
+  document.getElementById("pause").addEventListener("click", () => {
+    playing = false; emit("pause");
+  });
+  document.getElementById("reset").addEventListener("click", () => {
+    t = 0; playing = false; lastFrameMs = 0; render(); emit("reset");
+  });
+  document.querySelectorAll(".markers button.vis").forEach((b) => {
+    b.addEventListener("click", () => {
+      const m = b.dataset.marker;
+      revealed[m] = !revealed[m];
+      updateMarkers(); render();
+      emit("show_value", { marker: m, revealed: revealed[m] });
+    });
+  });
+  window.addEventListener("resize", render);
+  render();
+  updateMarkers();
+  emit("open");
+
+  // ─── Self-test (URL: ?test=1) ───────────────────────────────────────────
+  // The CI smoke (scripts/smoke-artefacts.sh) loads this URL with ?test=1
+  // and checks for "TEST PASS" in the title. Implement a single concrete
+  // computation check per artefact — e.g. the seeded-problem's known answer.
+  if (new URLSearchParams(window.location.search).get("test") === "1") {
+    const r = results({ p1: 50 });
+    const expected = 21; // TODO: replace with the actual expected value
+    const ok = Math.abs(r.example - expected) < 0.01;
+    document.title = ok ? "TEST PASS — {{ARTEFACT_TITLE}}" : "TEST FAIL — {{ARTEFACT_TITLE}}";
+    if (!ok) console.error("Self-test failed: example=" + r.example + " expected " + expected);
+    else console.log("Self-test PASS: example=" + r.example);
+  }
+</script>
+</body>
+</html>

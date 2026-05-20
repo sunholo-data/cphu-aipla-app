@@ -17,11 +17,21 @@ else
     C_GREEN=""; C_DIM=""; C_RESET=""
 fi
 
+# Pick the listening PID for a port. A bare `lsof -ti :PORT` returns
+# every process touching the port — including Firefox tabs with
+# ESTABLISHED client connections, which we DO NOT want to kill. We need
+# the LISTEN row only. `-sTCP:LISTEN` doesn't combine reliably with the
+# `:PORT` shorthand on macOS lsof 4.91, so we use the verbose form and
+# awk-filter on the state column instead.
+listening_pid() {
+    lsof -nP -iTCP:"$1" 2>/dev/null | awk '$NF == "(LISTEN)" { print $2 }'
+}
+
 KILLED=0
 for PORT in $BACKEND_PORT $FRONTEND_PORT $SANDBOX_PORT; do
-    PIDS=$(lsof -ti ":$PORT" 2>/dev/null || true)
+    PIDS=$(listening_pid "$PORT")
     if [ -n "$PIDS" ]; then
-        printf 'Stopping :%d (pid %s)…\n' "$PORT" "$PIDS"
+        printf 'Stopping :%d server (pid %s)…\n' "$PORT" "$PIDS"
         kill $PIDS 2>/dev/null || true
         KILLED=1
     fi
