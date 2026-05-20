@@ -94,6 +94,30 @@ export default async function HomePage() {
           </div>
         )}
       </div>
+
+      {/* Attribution — CC BY-SA 4.0 for the KU coat-of-arms (CREDITS.md). */}
+      <footer className="mt-12 text-center text-[10px] text-muted-foreground/70 max-w-2xl">
+        Hosted by the Center for Digital Education, Københavns Universitet.
+        KU logo by{" "}
+        <a
+          className="underline hover:text-muted-foreground"
+          href="https://commons.wikimedia.org/wiki/File:Ku-ucph-logo-svg.svg"
+          rel="noopener noreferrer"
+          target="_blank"
+        >
+          Canconier on Wikimedia Commons
+        </a>
+        , licensed{" "}
+        <a
+          className="underline hover:text-muted-foreground"
+          href="https://creativecommons.org/licenses/by-sa/4.0/"
+          rel="noopener noreferrer"
+          target="_blank"
+        >
+          CC BY-SA 4.0
+        </a>
+        .
+      </footer>
     </main>
   );
 }
