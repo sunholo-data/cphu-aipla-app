@@ -18,16 +18,19 @@
 
 export const BRANDING = {
   /** Short product name used in page <title>, banners, marketing hero. */
-  appName: "Sunholo",
+  appName: "AIPLA",
 
   /** One-line product tagline shown under the logo on the welcome screen. */
-  tagline: "AI Protocol Platform",
+  tagline: "AI in Physics Learning and Assessment",
 
   /** Long form description used in <meta name="description">. */
-  description: "Open-source AI protocol platform — Skills + AG-UI + A2UI + MCP Apps + A2A on Google ADK",
+  description: "Research pilot — generative AI for upper-secondary (stx) physics in Denmark. University of Copenhagen Center for Digital Education.",
 
-  /** Public-facing logo paths. Swap the files in /public/images/logo/ to
-   * rebrand without touching this object. */
+  /** Public-facing logo paths. v0.1 ships with a plain text wordmark
+   * (Open Question 2 in docs/design/aipla/v0.1.0-jutland/jutland-demo.md
+   * resolved to fallback) — logo files still point at the inherited
+   * paths so any consumer that hard-codes the path doesn't break;
+   * swap SVGs in /public/images/logo/ to install proper AIPLA marks. */
   logo: {
     /** Browser tab favicon (SVG — works in all modern browsers). */
     favicon: "/images/logo/sunholo-logo.svg",
@@ -37,10 +40,10 @@ export const BRANDING = {
     chatAvatar: "/images/logo/sunholo-logo.svg",
   },
 
-  /** Contact / community links exposed in CONTRIBUTING + workshop docs. */
+  /** Contact / community links. AIPLA repo is private at sunholo-data/cphu-aipla-app. */
   contact: {
-    email: "multivac@sunholo.com",
-    githubRepo: "https://github.com/sunholo-data/ai-protocol-platform",
+    email: "mark@aitanalabs.com",
+    githubRepo: "https://github.com/sunholo-data/cphu-aipla-app",
   },
 } as const;
 

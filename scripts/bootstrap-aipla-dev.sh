@@ -279,6 +279,23 @@ ensure_config_bucket() {
   fi
 }
 
+ensure_runtime_buckets() {
+  # Buckets referenced by cloudbuild.yaml after the M2 inherited-name strip:
+  #   - {PROJECT}-cloudbuild-logs   (cloudbuild.yaml logsBucket)
+  #   - {PROJECT}-artifacts          (ADK_ARTIFACT_BUCKET env var)
+  #   - {PROJECT}-aipla-v01-logs     (LOGS_BUCKET_NAME env var)
+  log "Ensuring runtime buckets..."
+  for suffix in cloudbuild-logs artifacts aipla-v01-logs; do
+    local bucket="${PROJECT}-${suffix}"
+    if gsutil ls "gs://${bucket}" &>/dev/null; then
+      log "  gs://${bucket} already exists"
+    else
+      gsutil mb -p "$PROJECT" -l "$REGION" -b on "gs://${bucket}" >/dev/null
+      log "  ✓ gs://${bucket} created"
+    fi
+  done
+}
+
 # ----- run all ---------------------------------------------------------------
 
 main() {
@@ -289,6 +306,7 @@ main() {
   ensure_artifact_registry
   ensure_firebase_anonymous_auth
   ensure_config_bucket
+  ensure_runtime_buckets
   ensure_cb_repository
   ensure_cb_service_agent
   ensure_cb_trigger

@@ -67,18 +67,28 @@ function GroupJoinForm() {
 
   return (
     <main className="mx-auto flex max-w-md flex-col gap-6 p-8">
-      <header className="space-y-1">
-        <h1 className="text-2xl font-semibold">Join your group</h1>
+      <header className="space-y-2">
+        <h1 className="text-2xl font-semibold">
+          Tilslut din gruppe
+          <span className="block text-base font-normal text-muted-foreground">
+            Join your group
+          </span>
+        </h1>
         <p className="text-sm text-muted-foreground">
-          Your teacher gave you a short code (looks like{" "}
+          Din lærer har givet dig en kort kode (ligner{" "}
           <code className="rounded bg-muted px-1 py-0.5">PHYS-7K2N</code>).
-          Type it below to start.
+          Skriv den her for at starte.
+        </p>
+        <p className="text-xs text-muted-foreground opacity-70">
+          (Your teacher gave you a short code — type it below to start.)
         </p>
       </header>
 
       <form className="flex flex-col gap-3" onSubmit={handleSubmit} noValidate>
         <label className="flex flex-col gap-1">
-          <span className="text-sm font-medium">Group code</span>
+          <span className="text-sm font-medium">
+            Gruppekode <span className="text-xs text-muted-foreground">(Group code)</span>
+          </span>
           <input
             type="text"
             autoFocus
@@ -101,13 +111,18 @@ function GroupJoinForm() {
           disabled={!code.trim() || isJoining}
           className="rounded bg-primary px-4 py-2 text-primary-foreground disabled:opacity-50"
         >
-          {isJoining ? "Joining…" : "Join"}
+          {isJoining ? "Tilslutter… / Joining…" : "Tilslut / Join"}
         </button>
       </form>
 
       <footer className="text-xs text-muted-foreground">
-        Anonymous sessions don&apos;t survive closing this tab. If you lose
-        the code, ask your teacher for a fresh one.
+        Anonyme sessioner overlever ikke at lukke fanen. Hvis du mister koden,
+        så spørg din lærer om en ny.
+        <br />
+        <span className="opacity-70">
+          (Anonymous sessions don&apos;t survive closing this tab. If you lose
+          the code, ask your teacher for a fresh one.)
+        </span>
       </footer>
     </main>
   );

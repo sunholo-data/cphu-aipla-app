@@ -72,6 +72,29 @@ describe("/group page — mode gating", () => {
     expect(screen.getByLabelText(/group code/i)).toBeInTheDocument();
     expect(screen.getByRole("button", { name: /join/i })).toBeInTheDocument();
   });
+
+  // AIPLA v0.1 (Jutland demo) — Danish stx audience. Danish copy must
+  // render alongside the English fallback. See M2 in
+  // docs/design/aipla/v0.1.0-jutland/jutland-demo-sprint.md.
+  it("renders Danish copy alongside English on the group form", async () => {
+    isAnonymousGroupAuthModeMock.mockReturnValue(true);
+    const Page = await importPage();
+    render(wrap(<Page />));
+    // Danish header
+    expect(screen.getByText(/Tilslut din gruppe/)).toBeInTheDocument();
+    // Danish helper text — gives an "what does this code look like" hint
+    expect(
+      screen.getByText(/Din lærer har givet dig en kort kode/),
+    ).toBeInTheDocument();
+    // Danish on the button (joined with English by ` / `)
+    expect(
+      screen.getByRole("button", { name: /Tilslut.*Join/ }),
+    ).toBeInTheDocument();
+    // Danish footer
+    expect(
+      screen.getByText(/Anonyme sessioner overlever ikke at lukke fanen/),
+    ).toBeInTheDocument();
+  });
 });
 
 describe("/group page — happy join", () => {
@@ -156,7 +179,10 @@ describe("/group page — typed error rendering", () => {
   it("re-enables the Join button after an error (so user can retry)", async () => {
     await submitWith(401, { detail: "unknown" });
     // After error → status returns to 'idle', button no longer disabled
-    // for non-empty inputs.
-    expect(screen.getByRole("button", { name: /^join$/i })).not.toBeDisabled();
+    // for non-empty inputs. Match the AIPLA-localised idle button text
+    // ("Tilslut / Join") rather than the inherited anchored /^join$/i.
+    expect(
+      screen.getByRole("button", { name: /^Tilslut \/ Join$/ }),
+    ).not.toBeDisabled();
   });
 });

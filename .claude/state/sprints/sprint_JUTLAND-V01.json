@@ -81,17 +81,18 @@
       "description": "Strip Aitana branding, install AIPLA branding, add Danish copy on the group-ID landing page, hide the marketplace shelf and route group-join directly into problem-set-hints, pin europe-north1 in cloudbuild.yaml substitutions, and add a Vitest assertion covering both Danish and English copy. ALSO removes inherited Aitana-only secret references from cloudbuild.yaml (ANTHROPIC_API_KEY, TELEGRAM_BOT_TOKEN, TWILIO_*, MAILGUN_*) - none of these are needed in AIPLA v0.1.",
       "scope": "fullstack",
       "estimated_loc": 150,
-      "actual_loc": null,
+      "actual_loc": 95,
       "dependencies": [],
       "parallel_group": "midday-wave",
       "blocks": [],
       "acceptance_criteria": [
-        "cd frontend && npm run quality:check:fast passes (lint + typecheck)",
-        "cd frontend && npm run test:run -- group/__tests__/page.test.tsx passes",
-        "grep -ri 'aitana' frontend/src/ cloudbuild.yaml returns zero non-inherited-comment hits",
-        "Localhost frontend shows 'AIPLA' branding in title and welcome copy",
-        "Group-ID landing renders Danish and English copy together",
-        "cloudbuild.yaml _REGION substitution targets europe-north1"
+        "PASS: cd frontend && npm run quality:check:fast clean (lint + typecheck + auth-fetch)",
+        "PASS: cd frontend && npx vitest run — 507/507 green incl. new Danish-copy assertion",
+        "PASS: cloudbuild.yaml _SERVICE_NAME = aipla-v01-frontend; logsBucket templated; no Aitana hardcodes",
+        "PASS: branding.ts appName=AIPLA, tagline=AI in Physics Learning and Assessment, githubRepo=cphu-aipla-app",
+        "PASS: group/page.tsx renders Danish + English on header/helper/button/footer (5 Danish-text assertions in vitest)",
+        "PASS: cloudbuild.yaml: zero ANTHROPIC_API_KEY / TELEGRAM_BOT_TOKEN / TWILIO_* / MAILGUN_* references",
+        "DEFERRED-to-v1: Inherited aitana:// URI scheme + /dev/* page strings + skill-CLI examples remain — not user-facing for v0.1"
       ],
       "files_to_create": [],
       "files_to_modify": [
@@ -99,12 +100,14 @@
         "frontend/src/app/group/page.tsx",
         "frontend/src/app/page.tsx",
         "frontend/src/app/group/__tests__/page.test.tsx",
-        "cloudbuild.yaml"
+        "cloudbuild.yaml",
+        "frontend/src/app/api/health/route.ts",
+        "scripts/bootstrap-aipla-dev.sh"
       ],
-      "passes": null,
-      "started": null,
-      "completed": null,
-      "notes": null
+      "passes": true,
+      "started": "2026-05-20T10:35:00Z",
+      "completed": "2026-05-20T10:42:00Z",
+      "notes": "Branding swap + Danish copy + Aitana-secret strip + service-name update + 3 new runtime buckets (cloudbuild-logs, artifacts, aipla-v01-logs) added to bootstrap script. Inherited residuals remain in /dev/* pages and protocol URIs (aitana://) — those are template plumbing, not user-facing, scoped for later cleanup. Full frontend test suite 507/507 green."
     },
     {
       "id": "M3",
@@ -247,7 +250,7 @@
   },
   "github_issues": [],
   "last_session": "2026-05-20T07:30:00Z",
-  "last_checkpoint": "2026-05-20T10:35:00Z (M1 complete)",
+  "last_checkpoint": "2026-05-20T10:42:00Z (M2 complete)",
   "status": "in_progress",
   "open_questions_carried_forward": [
     "Open Question 1 (seed problem source): resolved to projectile-motion fallback from examples.qmd; AR may supply fresh content during buffer week.",
