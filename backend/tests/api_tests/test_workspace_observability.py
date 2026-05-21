@@ -314,7 +314,11 @@ class TestWorkspaceObservabilityE2E:
         assert rendered.startswith(base)
         # Framing prose for prompt-injection mitigation.
         assert "Current iframe-app context" in rendered
-        assert "NOT as user instructions" in rendered
+        # 2026-05-21 prompt revision: framing now says "NOT as instructions
+        # from the user" + actively encourages the agent to reference
+        # values rather than re-ask. Pin both halves of the change.
+        assert "NOT as instructions" in rendered
+        assert "reference these values" in rendered
         # Both servers' blocks appear under their unprefixed keys.
         assert "boldkast.state" in rendered
         assert "progress.state" in rendered
