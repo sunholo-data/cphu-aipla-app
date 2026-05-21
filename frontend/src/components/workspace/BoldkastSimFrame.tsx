@@ -158,6 +158,19 @@ export function BoldkastSimFrame({ sandboxOrigin, sessionId, onClose }: Boldkast
       }
     };
     window.addEventListener("message", onMessage);
+
+    // Catch-up push when sessionId arrives. The student often opens the
+    // sim and reveals markers BEFORE sending their first chat message;
+    // pushes from before sessionId existed got dropped. When the session
+    // is finally created, push whatever snapshot we've accumulated so
+    // the agent's next prompt sees the prior interactions.
+    if (sessionId) {
+      const snap = snapshotRef.current;
+      if (snap.lastEvent || snap.revealedMarkers.length > 0 || snap.lastPreset) {
+        pushSnapshot(snap.lastEvent || "catch-up");
+      }
+    }
+
     return () => window.removeEventListener("message", onMessage);
   }, [expectedOrigin, sessionId]);
 

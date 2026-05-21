@@ -101,6 +101,21 @@ export function ProgressChecklist({ skillId, items, sessionId }: ProgressCheckli
     });
   };
 
+  // Catch-up push when sessionId arrives. Students often interact with
+  // the workspace BEFORE sending their first chat message — at that
+  // point sessionId is null and the push short-circuits. The moment a
+  // session is created (first chat turn), push the accumulated done-set
+  // so the agent's next prompt sees the prior interactions.
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  useEffect(() => {
+    if (!sessionId) return;
+    const hasAny = Object.values(done).some(Boolean);
+    if (!hasAny) return;
+    pushSnapshot(done);
+    // Intentionally NOT re-running when `done` changes — toggle() handles
+    // those pushes directly. Only run on sessionId arrival.
+  }, [sessionId]);
+
   const completed = items.filter((i) => done[i.id]).length;
 
   return (

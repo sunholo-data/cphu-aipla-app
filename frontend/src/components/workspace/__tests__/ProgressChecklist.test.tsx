@@ -111,4 +111,34 @@ describe("ProgressChecklist", () => {
     );
     expect(lastBody.structuredContent.done).toEqual([]);
   });
+
+  it("catch-up push when sessionId arrives after pre-session interactions", () => {
+    // Simulate the order: student loads page (no session), ticks a sub-part
+    // (sessionStorage persists; push is no-op because sessionId is null),
+    // then sends their first chat message → sessionId arrives.
+    window.sessionStorage.setItem(KEY, JSON.stringify({ a: true }));
+
+    // First render: no session — no push, but UI reflects the stored state.
+    const { rerender } = render(
+      <ProgressChecklist skillId="skill-1" items={ITEMS} sessionId={null} />,
+    );
+    expect(fetchWithAuth).not.toHaveBeenCalled();
+    expect(screen.getByText("1/2")).toBeInTheDocument();
+
+    // Second render: session arrives. Catch-up effect fires.
+    rerender(
+      <ProgressChecklist skillId="skill-1" items={ITEMS} sessionId="sess-late" />,
+    );
+    expect(fetchWithAuth).toHaveBeenCalledTimes(1);
+    const [url, init] = vi.mocked(fetchWithAuth).mock.calls[0];
+    expect(url).toBe("/api/proxy/api/sessions/sess-late/iframe-context");
+    const body = JSON.parse((init?.body as string) ?? "{}");
+    expect(body.structuredContent.done).toEqual(["a"]);
+  });
+
+  it("catch-up does NOT push when nothing was ticked pre-session", () => {
+    render(<ProgressChecklist skillId="skill-1" items={ITEMS} sessionId="sess-late" />);
+    // No ticks happened. Catch-up effect runs but should bail (no done items).
+    expect(fetchWithAuth).not.toHaveBeenCalled();
+  });
 });
