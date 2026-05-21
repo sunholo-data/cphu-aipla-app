@@ -86,7 +86,7 @@ function GroupJoinForm() {
         </h1>
         <p className="text-sm text-muted-foreground">
           Din lærer har givet dig en kort kode (ligner{" "}
-          <code className="rounded bg-muted px-1 py-0.5">PHYS-7K2N</code>).
+          <code className="rounded bg-muted px-1 py-0.5">bright-fox-42</code>).
           Skriv den her for at starte.
         </p>
         <p className="text-xs text-muted-foreground opacity-70">
@@ -126,12 +126,12 @@ function GroupJoinForm() {
       </form>
 
       <footer className="text-xs text-muted-foreground">
-        Anonyme sessioner overlever ikke at lukke fanen. Hvis du mister koden,
-        så spørg din lærer om en ny.
+        Hvis du lukker fanen og kommer tilbage senere, skal du bare skrive
+        koden igen — den er gyldig i 30 dage. Glemt koden? Spørg din lærer.
         <br />
         <span className="opacity-70">
-          (Anonymous sessions don&apos;t survive closing this tab. If you lose
-          the code, ask your teacher for a fresh one.)
+          (If you close this tab and come back later, just paste the same code
+          again — it&apos;s valid for 30 days. Lost the code? Ask your teacher.)
         </span>
       </footer>
     </main>

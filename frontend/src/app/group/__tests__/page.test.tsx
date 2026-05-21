@@ -90,9 +90,11 @@ describe("/group page — mode gating", () => {
     expect(
       screen.getByRole("button", { name: /Tilslut.*Join/ }),
     ).toBeInTheDocument();
-    // Danish footer
+    // Danish footer — copy revised 2026-05-21 to clarify that the code
+    // stays valid 30 days (don't scare the student into thinking they
+    // burn a code by closing the tab).
     expect(
-      screen.getByText(/Anonyme sessioner overlever ikke at lukke fanen/),
+      screen.getByText(/skal du bare skrive[\s\S]*koden igen/),
     ).toBeInTheDocument();
   });
 });
