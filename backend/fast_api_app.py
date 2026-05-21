@@ -242,6 +242,7 @@ from protocols.mcp_proxy import router as mcp_proxy_router  # noqa: E402
 from protocols.mcp_server import get_mcp_asgi_app  # noqa: E402
 from protocols.mcp_server import mcp as mcp_server  # noqa: E402
 from protocols.models_route import router as models_router  # noqa: E402
+from protocols.session_bootstrap_routes import router as session_bootstrap_router  # noqa: E402
 from protocols.sessions_route import router as sessions_router  # noqa: E402
 from skills.routes import router as skills_router  # noqa: E402
 from skills.skill_processor import SkillNotFoundError, process_skill_request  # noqa: E402
@@ -262,6 +263,7 @@ app.include_router(models_router)
 app.include_router(sessions_router)
 app.include_router(mcp_proxy_router)
 app.include_router(iframe_context_router)
+app.include_router(session_bootstrap_router)
 app.include_router(a2ui_surface_action_router)
 
 # ----------------------------------------------------------------------------

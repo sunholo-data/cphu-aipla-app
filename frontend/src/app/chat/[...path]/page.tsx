@@ -18,6 +18,7 @@ import { useUserSkills } from "@/hooks/useUserSkills";
 import { useSessionMessages } from "@/hooks/useSessionMessages";
 import { useSessionDocuments } from "@/hooks/useSessionDocuments";
 import { useStableThreadId } from "@/hooks/useStableThreadId";
+import { HumanToolEventsProvider } from "@/hooks/useHumanToolEvents";
 import { fetchWithAuth } from "@/lib/apiClient";
 import { computeIncludedDocIds } from "@/lib/docContext";
 import { notifySessionsChanged, subscribeSessionsChangedDetailed } from "@/lib/sessionEvents";
@@ -182,7 +183,9 @@ function ChatPageInner({
 
   return (
     <AGUIProvider skillId={skillId} sessionId={stableThreadId}>
-      <ChatShell skillId={skillId} pathPrefix={pathPrefix} user={user} />
+      <HumanToolEventsProvider>
+        <ChatShell skillId={skillId} pathPrefix={pathPrefix} user={user} />
+      </HumanToolEventsProvider>
     </AGUIProvider>
   );
 }
@@ -289,6 +292,28 @@ function ChatShell({
     if (typeof window === "undefined") return;
     window.sessionStorage.setItem(`aipla.mobileTab:${skillId}`, mobileTab);
   }, [skillId, mobileTab]);
+  // Bootstrap the ChatSessionIndex doc as soon as we have a session id —
+  // closes the 2026-05-21 iframe-context 404 race where workspace POSTs
+  // fire before the first chat turn creates the index via
+  // make_session_tracker.before_agent_callback. Fire-and-forget: errors
+  // are non-fatal because the agent-side callback still runs as a
+  // backstop on first turn.
+  const bootstrappedSessionsRef = useRef<Set<string>>(new Set());
+  useEffect(() => {
+    if (!agentSessionId) return;
+    if (bootstrappedSessionsRef.current.has(agentSessionId)) return;
+    bootstrappedSessionsRef.current.add(agentSessionId);
+    void fetchWithAuth(`/api/proxy/api/sessions/${agentSessionId}/bootstrap`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ skillId }),
+    }).catch((err) => {
+      if (process.env.NODE_ENV !== "production") {
+        // eslint-disable-next-line no-console
+        console.warn("[session_bootstrap] failed:", err);
+      }
+    });
+  }, [agentSessionId, skillId]);
   const [showDocBrowser, setShowDocBrowser] = useState(true);
   const [showUpload, setShowUpload] = useState(false);
   const [openTabs, setOpenTabs] = useState<DocTabData[]>([]);

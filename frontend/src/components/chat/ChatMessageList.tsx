@@ -12,6 +12,9 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import type { StreamError, SkillMessage, ToolCallState } from "@/hooks/useSkillAgent";
 import type { ActiveDocumentContext } from "@/components/chat/ContextBanner";
 import { ContextBanner } from "@/components/chat/ContextBanner";
+import { useHumanToolEvents } from "@/hooks/useHumanToolEvents";
+
+import { HumanToolUseCard } from "./HumanToolUseCard";
 import { MessageBubble } from "./MessageBubble";
 import { PinnedWelcome } from "./PinnedWelcome";
 import { StreamingBubble } from "./StreamingBubble";
@@ -246,6 +249,8 @@ export function ChatMessageList({
             <TypingIndicator stageLabel={stageLabel} activeToolName={activeToolName} />
           )}
 
+          <HumanToolEventsTray />
+
           {errorBanner && <div className="text-left">{errorBanner}</div>}
         </div>
       </div>
@@ -259,6 +264,30 @@ export function ChatMessageList({
           ↓ New message
         </button>
       )}
+    </div>
+  );
+}
+
+// HumanToolEventsTray — renders human tool-use cards inline at the end
+// of the chat transcript. Cards reflect iframe-context pushes from the
+// workspace surfaces (BoldkastSimFrame, ProgressChecklist). The tray
+// reads from the HumanToolEventsContext so consumers don't have to
+// prop-drill state. If no provider is mounted (e.g. tests, isolated
+// embeds), `events` is the no-op fallback's empty array.
+function HumanToolEventsTray() {
+  const { events } = useHumanToolEvents();
+  if (events.length === 0) return null;
+  return (
+    <div className="flex flex-wrap gap-1.5" data-testid="human-tool-events-tray">
+      {events.map((e) => (
+        <HumanToolUseCard
+          key={e.id}
+          label={e.label}
+          status={e.status}
+          httpStatus={e.httpStatus}
+          detail={e.detail}
+        />
+      ))}
     </div>
   );
 }

@@ -8,6 +8,10 @@
 | Order | Doc | Priority | Estimate | Dependencies | Notes |
 |---|---|---|---|---|---|
 | 0.1 | [jutland-demo.md](jutland-demo.md) | P0 | 1d | None | M0 cloud bootstrap + M1–M5 (parallelisable M1/M2/M3) |
+| 0.2 | [pedagogical-context-sprint.md](pedagogical-context-sprint.md) | P1 | (buffer-week sprint) | 0.1 | iframe-context endpoint + InstructionProvider injection |
+| 0.3 | [boldkast-mcp-app.md](boldkast-mcp-app.md) | P2 (Stretch) | 1.5d | 0.1, 0.2 | Static-artefact sim under `mcp-sandbox` library-bypass path (ADR-013) |
+| 0.4 | [group-tooling.md](group-tooling.md) | P1 | 0.5d | 0.1 | `aiplatform group` CLI — ops unblocker, not demo gate |
+| 0.5 | [human-tool-use-cards.md](human-tool-use-cards.md) | P1 | 0.75d | 0.2, 0.3 | Visible chat cards mirroring student actions + `ChatSessionIndex` bootstrap fix (closes 2026-05-21 iframe-context 404 race) |
 
 ## Timeline estimate
 

@@ -73,3 +73,29 @@ def inspect(
     click.echo(_json.dumps(meta, indent=2, default=str))
     click.echo("\n=== Session state ===")
     click.echo(_json.dumps(state, indent=2, default=str))
+
+
+@sessions.command("iframe-context")
+@click.argument("session_id")
+@click.pass_context
+def iframe_context(ctx: click.Context, session_id: str) -> None:
+    """Dump the `mcp_app_context.*` namespace for SESSION_ID.
+
+    Convenience alias for `inspect --mcp-context`. Shows exactly what
+    the agent's next turn would see via the InstructionProvider — every
+    iframe-context push that landed for this session, grouped by
+    `server.tool`. Use this to debug "the agent says it can't see what
+    I clicked" without grepping backend logs (closes the 2026-05-21
+    debug workflow gap).
+    """
+    client = _client(ctx)
+    state = client.get(f"/api/sessions/{session_id}/state") or {}
+    filtered = {k: v for k, v in state.items() if k.startswith(_NAMESPACE_PREFIX)}
+    if not filtered:
+        click.echo(
+            f"No keys with prefix {_NAMESPACE_PREFIX!r} in session "
+            f"{session_id}. Either no iframe pushes have landed (workspace "
+            f"never interacted with), or the bootstrap race regressed."
+        )
+        return
+    click.echo(_json.dumps(filtered, indent=2, default=str))

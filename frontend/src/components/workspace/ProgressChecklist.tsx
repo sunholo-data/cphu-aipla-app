@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { fetchWithAuth } from "@/lib/apiClient";
+import { useHumanToolEvents } from "@/hooks/useHumanToolEvents";
 
 /**
  * One sub-part of a problem the student can mark as worked-through.
@@ -47,6 +48,7 @@ const KEY_PREFIX = "aipla.progress:";
 export function ProgressChecklist({ skillId, items, sessionId }: ProgressChecklistProps) {
   const storageKey = KEY_PREFIX + skillId;
   const [done, setDone] = useState<Record<string, boolean>>({});
+  const humanToolEvents = useHumanToolEvents();
 
   useEffect(() => {
     if (typeof window === "undefined") return;
@@ -62,8 +64,8 @@ export function ProgressChecklist({ skillId, items, sessionId }: ProgressCheckli
     }
   }, [storageKey]);
 
-  const pushSnapshot = (doneMap: Record<string, boolean>) => {
-    if (!sessionId) return;
+  const pushSnapshotRequest = (doneMap: Record<string, boolean>): Promise<Response> | null => {
+    if (!sessionId) return null;
     const doneIds = items.filter((i) => doneMap[i.id]).map((i) => i.id);
     const body = {
       serverId: "progress",
@@ -78,11 +80,20 @@ export function ProgressChecklist({ skillId, items, sessionId }: ProgressCheckli
         total: items.length,
       },
     };
-    void fetchWithAuth(`/api/proxy/api/sessions/${sessionId}/iframe-context`, {
+    return fetchWithAuth(`/api/proxy/api/sessions/${sessionId}/iframe-context`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(body),
-    }).catch((err) => {
+    });
+  };
+
+  // Fire the push silently — used by catch-up effect when sessionId
+  // arrives. No card is dispatched because this is automatic state
+  // sync, not a deliberate student action.
+  const pushSnapshotSilent = (doneMap: Record<string, boolean>) => {
+    const req = pushSnapshotRequest(doneMap);
+    if (!req) return;
+    void req.catch((err) => {
       if (process.env.NODE_ENV !== "production") {
         // eslint-disable-next-line no-console
         console.warn("[progress] iframe-context push failed:", err);
@@ -96,7 +107,19 @@ export function ProgressChecklist({ skillId, items, sessionId }: ProgressCheckli
       if (typeof window !== "undefined") {
         window.sessionStorage.setItem(storageKey, JSON.stringify(next));
       }
-      pushSnapshot(next);
+      const req = pushSnapshotRequest(next);
+      if (req) {
+        // The toggle is a deliberate student action — surface the
+        // push status in the chat via a human-tool-use card so the
+        // student sees their action was registered with the agent.
+        const item = items.find((i) => i.id === id);
+        const sublabel = item?.label ?? id;
+        const becomingDone = !!next[id];
+        const label = becomingDone
+          ? `Markerede '${sublabel}' som klar`
+          : `Fjernede '${sublabel}' fra klare`;
+        humanToolEvents.dispatch({ label, push: () => req });
+      }
       return next;
     });
   };
@@ -106,14 +129,14 @@ export function ProgressChecklist({ skillId, items, sessionId }: ProgressCheckli
   // point sessionId is null and the push short-circuits. The moment a
   // session is created (first chat turn), push the accumulated done-set
   // so the agent's next prompt sees the prior interactions.
-  // eslint-disable-next-line react-hooks/exhaustive-deps
   useEffect(() => {
     if (!sessionId) return;
     const hasAny = Object.values(done).some(Boolean);
     if (!hasAny) return;
-    pushSnapshot(done);
+    pushSnapshotSilent(done);
     // Intentionally NOT re-running when `done` changes — toggle() handles
     // those pushes directly. Only run on sessionId arrival.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [sessionId]);
 
   const completed = items.filter((i) => done[i.id]).length;

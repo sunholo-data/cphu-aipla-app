@@ -2,6 +2,26 @@
 
 import { useEffect, useRef } from "react";
 import { fetchWithAuth } from "@/lib/apiClient";
+import { useHumanToolEvents } from "@/hooks/useHumanToolEvents";
+
+/** Human-readable Danish label for a pushed Boldkast event, used by
+ *  HumanToolUseCard. Kept here (not the hook) so the mapping stays
+ *  with the surface that owns the event semantics. */
+function labelForBoldkastEvent(
+  type: string,
+  marker?: string,
+  preset?: string,
+): string | null {
+  if (type === "boldkast.show_value" && marker) return `Afslørede ${marker}`;
+  if (type === "boldkast.param.change" && preset) {
+    const planet =
+      { earth: "Jorden", moon: "Månen", mars: "Mars", jupiter: "Jupiter" }[preset.toLowerCase()] ??
+      preset;
+    return `Skiftede tyngdekraft til ${planet}`;
+  }
+  // boldkast.open and others: no card (not a pedagogical action).
+  return null;
+}
 
 interface BoldkastSimFrameProps {
   /** Sandbox origin (NO trailing /sandbox.html) — e.g.
@@ -70,6 +90,7 @@ interface BoldkastSnapshot {
 export function BoldkastSimFrame({ sandboxOrigin, sessionId, onClose }: BoldkastSimFrameProps) {
   const expectedOrigin = sandboxOrigin.replace(/\/$/, "");
   const iframeUrl = `${expectedOrigin}/artefacts/boldkast/v1/index.html`;
+  const humanToolEvents = useHumanToolEvents();
   // Accumulated snapshot — ref (not state) because we don't re-render
   // on update; we only POST to the backend.
   const snapshotRef = useRef<BoldkastSnapshot>({
@@ -82,25 +103,57 @@ export function BoldkastSimFrame({ sandboxOrigin, sessionId, onClose }: Boldkast
   });
 
   useEffect(() => {
-    const pushSnapshot = (latestType: string) => {
-      if (!sessionId) return; // no session = nothing for the agent to attach to
+    const pushSnapshotRequest = (latestType: string): Promise<Response> | null => {
+      if (!sessionId) return null; // no session = nothing for the agent to attach to
       const body = {
         serverId: "boldkast",
         toolName: "state",
         structuredContent: { ...snapshotRef.current, lastEvent: latestType },
       };
-      void fetchWithAuth(`/api/proxy/api/sessions/${sessionId}/iframe-context`, {
+      return fetchWithAuth(`/api/proxy/api/sessions/${sessionId}/iframe-context`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(body),
-      }).catch((err) => {
-        // Non-fatal: the sim still works locally; the agent just won't
-        // see this event. Surface in dev so we know the wiring's right.
+      });
+    };
+
+    // Silent push for the catch-up effect (sessionId arrived late).
+    // Does not dispatch a card — the original click already happened
+    // and (likely) had a card; we don't want to confuse the student
+    // with a card appearing for an action they performed minutes ago.
+    const pushSnapshotSilent = (latestType: string) => {
+      const req = pushSnapshotRequest(latestType);
+      if (!req) return;
+      void req.catch((err) => {
         if (process.env.NODE_ENV !== "production") {
           // eslint-disable-next-line no-console
           console.warn("[boldkast] iframe-context push failed:", err);
         }
       });
+    };
+
+    // Push and dispatch a human-tool-use card if the event has a label.
+    const pushSnapshotWithCard = (latestType: string, marker?: string, preset?: string) => {
+      const req = pushSnapshotRequest(latestType);
+      if (!req) {
+        // No session yet — push will be retried by the catch-up effect.
+        // No card either; the student will see the card the next time
+        // they click after the session has been created.
+        return;
+      }
+      const label = labelForBoldkastEvent(latestType, marker, preset);
+      if (label) {
+        humanToolEvents.dispatch({ label, push: () => req });
+      } else {
+        // No human-meaningful label (e.g. boldkast.open). Still fire
+        // the push so the agent gets the state.
+        void req.catch((err) => {
+          if (process.env.NODE_ENV !== "production") {
+            // eslint-disable-next-line no-console
+            console.warn("[boldkast] iframe-context push failed:", err);
+          }
+        });
+      }
     };
 
     const onMessage = (e: MessageEvent) => {
@@ -118,6 +171,8 @@ export function BoldkastSimFrame({ sandboxOrigin, sessionId, onClose }: Boldkast
       // skipped to avoid flooding session state (it fires per-pixel
       // during drag).
       let shouldPush = false;
+      let pushedMarker: string | undefined;
+      let pushedPreset: string | undefined;
 
       if (data.type === "boldkast.open") {
         shouldPush = true;
@@ -127,6 +182,7 @@ export function BoldkastSimFrame({ sandboxOrigin, sessionId, onClose }: Boldkast
         if (data.revealed && !wasRevealed) {
           snap.revealedMarkers = [...snap.revealedMarkers, m];
           shouldPush = true;
+          pushedMarker = m;
         } else if (!data.revealed && wasRevealed) {
           snap.revealedMarkers = snap.revealedMarkers.filter((x) => x !== m);
           // No push on un-reveal — agent doesn't need to know the
@@ -143,13 +199,14 @@ export function BoldkastSimFrame({ sandboxOrigin, sessionId, onClose }: Boldkast
         if (triggeredBy.startsWith("preset:") && data.param === "g") {
           snap.lastPreset = triggeredBy.slice("preset:".length);
           shouldPush = true;
+          pushedPreset = snap.lastPreset;
         }
       }
       // play / pause / reset events are intentionally not pushed —
       // control state isn't pedagogically interesting to the agent.
 
       if (shouldPush) {
-        pushSnapshot(data.type);
+        pushSnapshotWithCard(data.type, pushedMarker, pushedPreset);
       }
 
       if (process.env.NODE_ENV !== "production") {
@@ -167,11 +224,16 @@ export function BoldkastSimFrame({ sandboxOrigin, sessionId, onClose }: Boldkast
     if (sessionId) {
       const snap = snapshotRef.current;
       if (snap.lastEvent || snap.revealedMarkers.length > 0 || snap.lastPreset) {
-        pushSnapshot(snap.lastEvent || "catch-up");
+        pushSnapshotSilent(snap.lastEvent || "catch-up");
       }
     }
 
     return () => window.removeEventListener("message", onMessage);
+    // humanToolEvents is intentionally excluded: its `dispatch` is a
+    // useCallback(..., []) (stable for the page lifetime), and adding it
+    // would rebind the message listener every render → lost events on
+    // re-render. Same pattern as other surface listeners in this repo.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [expectedOrigin, sessionId]);
 
   return (

@@ -294,9 +294,14 @@ async def get_session_state(
             detail="Only the session owner can inspect session state",
         )
 
+    # ADK sessions are keyed by ("aitana_platform", user_id, session_id) —
+    # build_agui_adk_agent passes the canonical APP_NAME, NOT the skill_id.
+    # Mirror the fix already in iframe_context_routes.py / sessions_route
+    # /messages — without this, the CLI's `sessions inspect --mcp-context`
+    # always returned {} because the lookup missed every time.
     session_service = get_session_service()
     session = await session_service.get_session(
-        app_name=idx.skill_id,
+        app_name=APP_NAME,
         user_id=idx.owner_uid,
         session_id=session_id,
     )

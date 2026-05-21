@@ -7,6 +7,11 @@ vi.mock("@/lib/apiClient", () => ({
 }));
 import { fetchWithAuth } from "@/lib/apiClient";
 
+const dispatchMock = vi.fn();
+vi.mock("@/hooks/useHumanToolEvents", () => ({
+  useHumanToolEvents: () => ({ events: [], dispatch: dispatchMock, clear: vi.fn() }),
+}));
+
 const ITEMS = [
   { id: "a", label: "Sub-part A" },
   { id: "b", label: "Sub-part B" },
@@ -17,6 +22,7 @@ describe("ProgressChecklist", () => {
   beforeEach(() => {
     window.sessionStorage.removeItem(KEY);
     vi.mocked(fetchWithAuth).mockClear();
+    dispatchMock.mockClear();
   });
 
   it("renders all items unchecked by default", () => {
@@ -140,5 +146,40 @@ describe("ProgressChecklist", () => {
     render(<ProgressChecklist skillId="skill-1" items={ITEMS} sessionId="sess-late" />);
     // No ticks happened. Catch-up effect runs but should bail (no done items).
     expect(fetchWithAuth).not.toHaveBeenCalled();
+  });
+
+  it("dispatches a human-tool-use card with Danish label when toggling on", () => {
+    render(<ProgressChecklist skillId="skill-1" items={ITEMS} sessionId="sess-123" />);
+    fireEvent.click(screen.getByText("Sub-part A"));
+    expect(dispatchMock).toHaveBeenCalledTimes(1);
+    const arg = dispatchMock.mock.calls[0][0];
+    expect(arg.label).toBe("Markerede 'Sub-part A' som klar");
+    expect(typeof arg.push).toBe("function");
+  });
+
+  it("dispatches a 'Fjernede ...' card when toggling off", () => {
+    render(<ProgressChecklist skillId="skill-1" items={ITEMS} sessionId="sess-123" />);
+    fireEvent.click(screen.getByText("Sub-part A")); // on
+    fireEvent.click(screen.getByText("Sub-part A")); // off
+    expect(dispatchMock).toHaveBeenCalledTimes(2);
+    expect(dispatchMock.mock.calls[1][0].label).toBe("Fjernede 'Sub-part A' fra klare");
+  });
+
+  it("does NOT dispatch a card on the catch-up path (silent re-sync)", () => {
+    window.sessionStorage.setItem(KEY, JSON.stringify({ a: true }));
+    const { rerender } = render(
+      <ProgressChecklist skillId="skill-1" items={ITEMS} sessionId={null} />,
+    );
+    expect(dispatchMock).not.toHaveBeenCalled();
+    rerender(<ProgressChecklist skillId="skill-1" items={ITEMS} sessionId="sess-late" />);
+    // catch-up fired (fetchWithAuth called) but no card dispatched
+    expect(fetchWithAuth).toHaveBeenCalledTimes(1);
+    expect(dispatchMock).not.toHaveBeenCalled();
+  });
+
+  it("does NOT dispatch a card when sessionId is null (no push possible)", () => {
+    render(<ProgressChecklist skillId="skill-1" items={ITEMS} sessionId={null} />);
+    fireEvent.click(screen.getByText("Sub-part A"));
+    expect(dispatchMock).not.toHaveBeenCalled();
   });
 });
