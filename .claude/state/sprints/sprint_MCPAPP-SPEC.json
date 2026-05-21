@@ -65,7 +65,7 @@
       "description": "Boldkast artefact rewritten to emit MCP Apps JSON-RPC notifications (ui/update-model-context) instead of raw postMessage. Adds ~30 LOC of vanilla-JS JSON-RPC helpers (rpcRequest, rpcNotify) per spec line 428. Runs ui/initialize handshake on load. Adds ping responder.",
       "scope": "frontend",
       "estimated_loc": 80,
-      "actual_loc": null,
+      "actual_loc": 90,
       "dependencies": [],
       "acceptance_criteria": [
         "?test=1 self-test passes (document.title becomes 'TEST PASS')",
@@ -77,10 +77,10 @@
       "files_to_modify": [
         "infrastructure/mcp-sandbox/artefacts/boldkast/v1/index.html"
       ],
-      "passes": null,
-      "started": null,
-      "completed": null,
-      "notes": "Can run in parallel with M2 \u2014 different code paths"
+      "passes": true,
+      "started": "2026-05-21T13:26:40.052074+00:00",
+      "completed": "2026-05-21T13:26:40.052200+00:00",
+      "notes": "emit() rewritten to send JSON-RPC ui/update-model-context notifications with structuredContent.kind carrying the event vocabulary. Added ~85 LOC of vanilla JSON-RPC helpers (rpcRequest, rpcNotify, ping responder) per spec line 426 \u2014 no SDK needed. ui/initialize handshake on script load; events queued until handshake completes (or rejects, in standalone testing). Artefact size 28645 bytes \u2014 well under ADR-013 ceiling. Existing BoldkastSimFrame tests still pass (55/55 workspace) because the host still consumes the OLD shape until M4 refactors."
     },
     {
       "id": "M4-boldkast-host-refactor",
