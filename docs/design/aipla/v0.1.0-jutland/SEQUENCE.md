@@ -13,6 +13,7 @@
 | 0.4 | [group-tooling.md](group-tooling.md) | P1 | 0.5d | 0.1 | `aiplatform group` CLI — ops unblocker, not demo gate |
 | 0.5 | [human-tool-use-cards.md](human-tool-use-cards.md) | P1 | 0.75d | 0.2, 0.3 | Visible chat cards mirroring student actions + `ChatSessionIndex` bootstrap fix (closes 2026-05-21 iframe-context 404 race) |
 | 0.6 | [mcp-app-iframe-harness.md](mcp-app-iframe-harness.md) | P1 | 0.4d | 0.3, 0.5 | Standard way to surface MCP-App iframe activity in chat: shared `useSandboxedIframeMessages` hook (auth + filter + dev logs), Boldkast migrated, slider-end card for trust-the-context UX |
+| 0.7 | [mcp-app-iframe-spec-compliance.md](mcp-app-iframe-spec-compliance.md) | P2 | 1.5d | 0.3, 0.6 | Post-Jutland: migrate Boldkast to MCP Apps spec JSON-RPC + sandbox-proxy. Branch work, doesn't touch v0.1 demo path. Closes the protocol-debt the harness sprint surfaced |
 
 ## Timeline estimate
 

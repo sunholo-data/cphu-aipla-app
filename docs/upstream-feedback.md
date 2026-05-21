@@ -632,20 +632,64 @@ Agent factory reads `tool_configs.defaults`, defaults each flag to True (preserv
 
 **Upstream fix:** Adopt the bootstrap endpoint. Same race exists in the template for any MCP App that pushes `ui/update-model-context` before the first agent turn — the @mcp-ui/client `AppRenderer` happily fires `onUpdateModelContext` on iframe load, before the user has typed anything, and the POST 404s silently. The sibling `a2ui_surface_action_routes.py` POST has the identical shape and same latent risk.
 
-## 28. Sandboxed iframes have opaque origin — `e.origin === "null"` not documented anywhere; every MCP App author trips this trap
+## 28. Sandboxed iframes have opaque origin — but this is only a gotcha *if you bypass the spec's sandbox-proxy layer* (which we did)
 
-**Where:** ADR-013's sandbox profile (`sandbox="allow-scripts"`, no `allow-same-origin`) makes every iframe's effective origin opaque per HTML living standard. So `e.origin === "null"` on every `postMessage` event. The original [iframe_context design](../docs/design/v6.1.0/mcp-app-update-model-context.md) doesn't mention this; ADR-013's "Consequences" section doesn't follow the trail.
+> **Reframed 2026-05-21** after deeper research into the MCP Apps spec.
+> Originally written as a spec-level gotcha; closer reading of the spec
+> (lines 470–487 of the vendored snapshot in
+> `.claude/skills/agent-protocols/references/mcp-apps-spec-2026-01-26.md`)
+> shows the spec is self-consistent. The gotcha is what happens when you
+> bypass the spec's sandbox-proxy architecture, which we did — see #30
+> for the structural framing. This entry now narrowly covers the
+> documentation gap that let us bypass it without noticing.
 
-**What hurt:** AIPLA's first artefact (BoldkastSimFrame) used the natural-looking `if (e.origin !== expectedOrigin) return;` auth check that the template's iframe-context design doc suggests. Backend log on 2026-05-21 showed ZERO `server=boldkast` pushes across an entire test session — every legitimate event was rejected silently at the origin gate. Diagnosis took ~90 minutes once we started cross-referencing the actual log line ordering, because the failure mode is invisible: the iframe fires, the handler exits early, no error.
+**Where:** The template's MCP Apps integration goes through
+`@mcp-ui/client`'s `AppRenderer`, which internally orchestrates the
+spec's sandbox-proxy: it mounts the View inside an iframe at the
+mcp-sandbox origin (which DOES have `allow-same-origin` and therefore
+NOT an opaque origin), proxies JSON-RPC postMessages bidirectionally,
+and runs the `ui/initialize` handshake. That whole machinery is hidden
+inside the library; the template's design docs ([sprint 1.25 design
+doc](../docs/design/v6.1.0/mcp-app-update-model-context.md)) talk about
+host-side `iframe-context` POSTs but don't surface that the iframe ↔
+host bridge under AppRenderer is the spec's sandbox-proxy pattern.
 
-**Workaround on AIPLA:** Switched to window-identity auth (`e.source === iframeRef.current.contentWindow`). Combined with the `data.source === sourceMarker` type tag and a `data.type` shape check, this is strict enough — only events from the host's OWN iframe with the artefact's claimed type marker reach the application code.
+**What hurt:** When AIPLA needed a *non-agent-summoned* artefact
+(Boldkast — student summons it, not a tool call), we mounted an iframe
+directly with `sandbox="allow-scripts"` (no `allow-same-origin` per
+ADR-013) and used a naive `if (e.origin !== expectedOrigin) return`
+auth check. Backend log evidence: ZERO `server=boldkast` pushes across
+an entire test session — every event rejected silently. Diagnosis: ~90
+minutes. Root cause: we accidentally bypassed the spec's sandbox-proxy
+layer because the template's docs scoped the proxy to AppRenderer-only
+flows, and the path for static artefacts wasn't surfaced anywhere. The
+spec is fine; the docs left us in a place where rolling our own felt
+like the only option.
 
-Then we extracted [useSandboxedIframeMessages](../frontend/src/hooks/useSandboxedIframeMessages.ts) — a shared hook so every future artefact inherits the audited auth path. Design doc: [mcp-app-iframe-harness.md](../docs/design/aipla/v0.1.0-jutland/mcp-app-iframe-harness.md).
+**Workaround on AIPLA:** Switched to window-identity auth
+(`e.source === iframeRef.current.contentWindow`) plus an artefact-side
+type-marker filter. Extracted [useSandboxedIframeMessages](../frontend/src/hooks/useSandboxedIframeMessages.ts)
+so the gotcha is now caught in one audited location across any future
+artefact that follows this path. **Note:** this is a defensive
+workaround, not a spec-compliant solution. The on-spec path is
+described in #30 (which now carries the structural fix).
 
-**Upstream fix (three pieces):**
-1. **Ship `useSandboxedIframeMessages` as a template-level hook** under `frontend/src/hooks/`. It's not AIPLA-specific — any MCP App rendered via the template's @mcp-ui/client `AppRenderer` ALSO runs in this sandbox profile and would hit the same trap if a developer wrote a custom listener alongside AppRenderer (which is a normal thing to do for telemetry / debugging).
-2. **Add a sub-bullet to ADR-013's "Consequences" section** documenting "Authentication: window-identity, not origin" with a one-line rationale and code example.
-3. **Spec-level PR to MCP Apps**: the spec at modelcontextprotocol.io describes the postMessage bridge but doesn't call out that the sandbox profile it recommends has this consequence. A two-paragraph implementation note in the spec would save every future implementor 90 minutes of debugging.
+**Upstream fix (narrowed):**
+
+1. **Document the sandbox-proxy architecture in the template's MCP App
+   integration docs.** When `@mcp-ui/client` is used, it speaks the
+   spec's sandbox-proxy pattern internally. That should be called out
+   so downstream forks understand *why* AppRenderer works, and don't
+   reach for raw iframes for static-artefact use cases without
+   recognising they're stepping outside the spec.
+2. **Add a sub-bullet to ADR-013's "Consequences"** documenting "this
+   sandbox profile produces opaque origin; auth MUST be via window
+   identity if you don't go through @mcp-ui/client / sandbox-proxy."
+3. **Ship `useSandboxedIframeMessages` as a template-level hook** for
+   the cases where downstream forks legitimately need a raw iframe path
+   (debugging, dev pages, static artefacts before the template's
+   spec-compliant story lands per #30). Defensive default; not a
+   replacement for the proxy pattern.
 
 ## 29. `wrap_with_iframe_context`'s defensive framing made the model ignore the state it was given
 
@@ -664,26 +708,97 @@ Also amended SKILL.md rule #4 ("ask what the student has tried") to add an EXCEP
 
 **Upstream fix:** Adopt the positive-instruction wording in the template's `wrap_with_iframe_context` block. The defensive-only prompt is a subtle anti-pattern: prompt-injection-defence is necessary but insufficient. Models that ALSO need to actively reference state need to be told so explicitly.
 
-## 30. No paved path for static (non-agent-summoned) iframe artefacts
+## 30. No paved path for static (non-agent-summoned) iframe artefacts — and the path that exists in spec isn't surfaced anywhere
 
-**Where:** The template's MCP App path assumes the agent CALLS a tool that returns a resource with a `ui://` URI, and the [`MCPAppToolCallRouter`](../frontend/src/components/protocols/MCPAppToolCallRouter.tsx) mounts `<AppRenderer>` from `@mcp-ui/client` around that resource. Everything is keyed off a tool call.
+> **Reframed 2026-05-21** after deeper research into the MCP Apps spec.
+> Originally written as "spec doesn't cover this case." Closer reading
+> shows the spec's sandbox-proxy architecture (lines 470–487 of the
+> vendored snapshot) DOES cover static artefacts — the template just
+> doesn't expose that path to downstream forks. Plus a load-bearing
+> spec quote we missed: line 426, *"Note that you don't need an SDK to
+> talk MCP with the host"*, followed by ~20 lines of vanilla-JS
+> JSON-RPC implementation. The byte-budget objection in the original
+> entry was over-cautious.
 
-**What hurt:** AIPLA's Boldkast sim is a STATIC artefact — students click a button to summon it, not the agent. There's no MCP tool call, so no resource URI, so AppRenderer can't be used. We had to roll our own iframe wrapper ([BoldkastSimFrame](../frontend/src/components/workspace/BoldkastSimFrame.tsx)) that:
-- Mounts a raw `<iframe>` directly
-- Listens to raw postMessage (NOT MCP Apps JSON-RPC — that would push the artefact's vanilla JS over the 200 KB ADR-013 ceiling once you add the JSON-RPC SDK shim)
-- Normalises events to the `{serverId, toolName, structuredContent}` shape and POSTs to the same `iframe-context` endpoint that AppRenderer's `onUpdateModelContext` callback uses
+**Where:** The template's MCP App path keys off a tool call:
+[`MCPAppToolCallRouter`](../frontend/src/components/protocols/MCPAppToolCallRouter.tsx)
+mounts `@mcp-ui/client`'s `AppRenderer` around a tool result's `ui://`
+resource. AppRenderer orchestrates the spec's sandbox-proxy
+architecture internally — that's the part that makes MCP Apps work
+spec-compliantly. But the template offers no equivalent for
+*non-agent-summoned* artefacts (student-summoned sims, button-summoned
+visualisations, dev pages, anything with no MCP tool result to feed
+AppRenderer).
 
-This puts the iframe ↔ host wire OFF the MCP Apps spec (raw postMessage, not JSON-RPC) while keeping the host → backend wire ON-spec. It works but the deviation is undocumented and the next sim author will either copy BoldkastSimFrame faithfully or invent a third variant.
+**What hurt:** AIPLA's Boldkast sim is student-summoned (button click,
+not tool call). We needed an iframe-rendered artefact with no
+preceding tool call. Without a documented spec-compliant path, we
+mounted an iframe directly with `sandbox="allow-scripts"` and rolled
+our own postMessage shape `{source: "boldkast", type, ...}` — *off
+spec* — then hit the opaque-origin gotcha (#28) and burned a sprint
+working around it. None of that needed to happen if the template had
+surfaced the spec's sandbox-proxy as a path for static artefacts.
 
-**Workaround on AIPLA:** The `.claude/skills/mcp-app-artefact/SKILL.md` skill documents the static-artefact path. The new `useSandboxedIframeMessages` hook + `useHumanToolEvents.dispatch` pattern + per-artefact label function combine into a ~30-line wrapper per new sim. Design doc: [mcp-app-iframe-harness.md](../docs/design/aipla/v0.1.0-jutland/mcp-app-iframe-harness.md).
+**Workaround on AIPLA:** Two-part:
 
-**Upstream fix:** Two options:
-1. **Ship the static-artefact path** as a first-class second mode alongside `MCPAppToolCallRouter` — a `StaticArtefactFrame<TPayload>` component that takes `{src, sourceMarker, onMessage}` and reuses the same iframe-context POST shape. Then the spec-compliance gap is documented in code: "if you have an MCP tool result, use MCPAppToolCallRouter; if you have a static artefact, use StaticArtefactFrame; both end up at the same host → backend endpoint."
-2. **Or take the spec-compliance route** — add a tiny JSON-RPC shim to the artefact authoring template so even static artefacts speak MCP Apps JSON-RPC and can flow through AppRenderer. This is cleaner spec-wise but adds bytes the ADR-013 ceiling resists.
+1. The current path (shipped) — raw iframe + window-identity auth +
+   our own postMessage shape + the `useSandboxedIframeMessages` hook.
+   Works, tested, on M's hands for Jutland. **Off spec at the iframe ↔
+   host layer; on spec at the host → backend layer.** Documented in
+   [mcp-app-iframe-harness.md](../docs/design/aipla/v0.1.0-jutland/mcp-app-iframe-harness.md).
+2. The spec-compliant path (planned) — design doc at
+   [mcp-app-iframe-spec-compliance.md](../docs/design/aipla/v0.1.0-jutland/mcp-app-iframe-spec-compliance.md).
+   v1 work after Jutland; we trial it in a branch so v0.1 ships unmoved.
 
-AIPLA picked option (1) implicitly. Going forward we'd benefit from the template doing the same explicitly.
+**Upstream fix (structural — this is the biggest contribution from
+AIPLA back to the template):**
 
-Also worth a separate doc: **"are we using protocols?"** answer for downstream forks. Yes for AG-UI (chat streaming, as-is), ADK (orchestration, as-is), MCP Apps spec at the host → backend layer (the iframe-context endpoint shape matches `ui/update-model-context`'s `structuredContent` field). No at the iframe ↔ host layer for static artefacts (raw postMessage with our own type-marker convention, not JSON-RPC). The deviation is small and confined, but invisible to anyone who doesn't go looking.
+1. **Ship a "static-artefact mode" in `infrastructure/mcp-sandbox/`.**
+   Today the sandbox service is scoped to `/sandbox.html` (the
+   AppRenderer-driven path) plus `/artefacts/<name>/v<n>/` (raw HTML
+   serving — which AIPLA added). The spec-compliant story would be:
+   when a Host points an iframe at the sandbox with a `?artefact=...`
+   query param, the sandbox loads that artefact's HTML inside its own
+   same-origin context, runs the `ui/initialize` handshake on its
+   behalf (or proxies the artefact's own handshake), and bridges
+   JSON-RPC postMessage to the Host. The result: static artefacts get
+   the same spec-compliant path as AppRenderer-summoned ones.
+2. **Ship a `StaticArtefactFrame<TPayload>` component** alongside
+   `MCPAppToolCallRouter` so downstream forks have a clear choice:
+   "if you have a tool result, mount via MCPAppToolCallRouter; if you
+   have a static artefact, mount via StaticArtefactFrame; both speak
+   MCP Apps JSON-RPC, both go through the sandbox proxy, both land at
+   the same host → backend iframe-context endpoint."
+3. **Document that the artefact itself speaks JSON-RPC.** Per spec
+   line 426 (and AIPLA's planned v1 refactor), the artefact's JS
+   doesn't need an SDK — ~20 lines of vanilla JSON-RPC plumbing
+   suffices. Include this snippet in the template's artefact-authoring
+   guide so the byte-budget concern that drove AIPLA off-spec doesn't
+   trip the next fork.
+
+### "Are we using protocols?" — summary for downstream forks
+
+| Layer | Standard | Template path | AIPLA path |
+|---|---|---|---|
+| Chat streaming | AG-UI | As-is (template) | Same |
+| Agent orchestration | ADK | As-is (template) | Same |
+| Host → backend (iframe state) | `{structuredContent}` matches MCP Apps `ui/update-model-context` params | Sprint 1.25 endpoint (template) | Same endpoint, same shape |
+| Iframe ↔ host (agent-summoned UI) | MCP Apps JSON-RPC over postMessage via sandbox proxy | `@mcp-ui/client` AppRenderer (template) | Same |
+| Iframe ↔ host (**static artefact**) | MCP Apps JSON-RPC via sandbox proxy is the spec path; not surfaced as a paved path in the template | ❌ no path exposed | ❌ rolled our own raw postMessage + custom auth — v1 plan is to migrate to the spec path |
+
+The "rolled our own" cell is the only deviation. It's confined to one
+component (BoldkastSimFrame) plus one hook (`useSandboxedIframeMessages`)
+and one endpoint shape we already normalise on the backend side. AIPLA's
+v1 plan is to migrate this to the spec path; the template should ship
+the spec path as a paved option to prevent the next downstream fork
+hitting the same gap.
+
+**Lesson (memory): the docs gap was the structural failure.** AIPLA's
+own [feedback-search-protocols-first](../../.claude/projects/-Users-mark-dev-sunholo-cphu-aipla-app/memory/feedback_search_protocols_first.md)
+memory captures the lesson on our side: search published specs
+exhaustively before rolling our own, even when the apparent ergonomic
+shape doesn't fit. The template can short-circuit this for future
+forks by making the spec path the obvious path.
 
 ## Backlog (likely additions as v0.1 sprint continues)
 
