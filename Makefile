@@ -1,4 +1,4 @@
-.PHONY: dev dev-local dev-status dev-stop proxy-check logs help cli-install cli-reinstall cli-uninstall cli-doctor cli-selftest-mock cli-selftest-live cli-selftest
+.PHONY: dev dev-local dev-status dev-stop proxy-check logs cloud-logs cloud-errors cloud-build help cli-install cli-reinstall cli-uninstall cli-doctor cli-selftest-mock cli-selftest-live cli-selftest
 
 # Launch backend (port 1956) + frontend (port 3000) for local development.
 # Logs stream to stdout; Ctrl-C stops both.
@@ -35,6 +35,23 @@ proxy-check:
 
 logs:
 	@scripts/logs.sh
+
+# Tail Cloud Run logs from the deployed frontend (ui container).
+# For backend sidecar: `./scripts/cloud-logs.sh tail backend`.
+# For sandbox: `./scripts/cloud-logs.sh tail sandbox`.
+cloud-logs:
+	@chmod +x scripts/cloud-logs.sh
+	@scripts/cloud-logs.sh tail
+
+# Show the last 50 errors across all deployed AIPLA services.
+cloud-errors:
+	@chmod +x scripts/cloud-logs.sh
+	@scripts/cloud-logs.sh errors
+
+# Show recent Cloud Build runs + tail the most recent log.
+cloud-build:
+	@chmod +x scripts/cloud-logs.sh
+	@scripts/cloud-logs.sh build
 
 # --- CLI lifecycle ---
 
@@ -99,7 +116,14 @@ help:
 	@echo "make dev-local          — start backend + frontend + MCP sandbox in LOCAL_MODE (pre-seeded group code: LOCAL)"
 	@echo "make dev-status         — probe local dev stack — exit 0 if all healthy"
 	@echo "make dev-stop           — kill anything on the dev ports (1956 / 3456 / 3457)"
-	@echo "make logs               — stream backend logs (OTEL noise filtered out)"
+	@echo "make logs               — stream LOCAL backend logs (OTEL noise filtered out)"
+	@echo "make cloud-logs         — tail Cloud Run logs from deployed AIPLA frontend"
+	@echo "make cloud-errors       — last 50 errors across deployed services"
+	@echo "make cloud-build        — recent Cloud Build runs + last build log tail"
+	@echo "  scripts/cloud-logs.sh tail backend|sandbox|all — per-target tail"
+	@echo "  scripts/cloud-logs.sh session <id>             — filter by group/session id"
+	@echo "  scripts/cloud-logs.sh trace <id>               — open Cloud Trace UI"
+	@echo "  scripts/cloud-logs.sh save errors|all          — dump to .dev-logs/"
 	@echo "make proxy-check        — smoke-test the proxy bridge (CI helper)"
 	@echo
 	@echo "make cli-install        — install the aiplatform CLI as a global uv tool"
