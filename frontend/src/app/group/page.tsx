@@ -22,6 +22,13 @@ import { useEffect, useState } from "react";
 import { AppFooter } from "@/components/AppFooter";
 import { useAnonymousGroupAuth } from "@/contexts/AnonymousGroupAuthProvider";
 import { isAnonymousGroupAuthMode } from "@/lib/anonymousGroupAuth";
+import { isLocalMode } from "@/lib/localMode";
+
+// LOCAL_MODE convenience: the seeded group code from
+// backend/db/local_fixture.py. Showing it inline saves the
+// "what was the code again?" friction on every dev cycle.
+// Production builds drop this entire block (isLocalMode() === false).
+const LOCAL_MODE_CODE = "local-demo";
 
 export default function GroupJoinPage() {
   if (!isAnonymousGroupAuthMode()) {
@@ -114,6 +121,27 @@ function GroupJoinForm() {
             aria-describedby={error ? "group-error" : undefined}
           />
         </label>
+
+        {isLocalMode() && (
+          // LOCAL_MODE convenience: one-click fill the seeded dev code.
+          // Hidden in production builds (isLocalMode() is false).
+          <div className="flex items-center justify-between rounded border border-dashed border-amber-300 bg-amber-50 px-2 py-1.5 text-xs text-amber-900 dark:border-amber-700 dark:bg-amber-950 dark:text-amber-200">
+            <span>
+              LOCAL_MODE — seeded code:{" "}
+              <code className="rounded bg-amber-100 px-1 py-0.5 font-mono dark:bg-amber-900">
+                {LOCAL_MODE_CODE}
+              </code>
+            </span>
+            <button
+              type="button"
+              onClick={() => setCode(LOCAL_MODE_CODE)}
+              disabled={isJoining}
+              className="rounded border border-amber-400 px-2 py-0.5 font-medium hover:bg-amber-100 disabled:opacity-50 dark:border-amber-600 dark:hover:bg-amber-900"
+            >
+              Use it
+            </button>
+          </div>
+        )}
 
         {error && <ErrorBlock error={error} />}
 
