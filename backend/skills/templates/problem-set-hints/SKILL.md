@@ -56,6 +56,15 @@ metadata:
     # for teacher-configured artefacts.
     a2ui:
       enabled: false
+    # Opt out of the four template-default tools (load_artifacts,
+    # retrieve_artifact, load_memory, preload_memory). v0.1 is chat-
+    # only with no per-student attached docs and no memory bank, so
+    # these tools have nothing to fetch — the model was invoking them
+    # gratuitously ("Tool: load_artifacts" chips in the chat) which
+    # looks like a glitch to teachers. See upstream-feedback #25.
+    defaults:
+      artifacts: false
+      memory: false
     # MCP App context writes — the Boldkast sim posts a snapshot of
     # the student's interactions (which markers they've revealed, what
     # g they set, etc.) to /api/sessions/{id}/iframe-context. The

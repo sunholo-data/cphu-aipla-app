@@ -290,7 +290,8 @@ def create_agent(
     md = skill_config.skill_metadata
     effective_model = _model_override or md.model
     model = resolve_model(effective_model)
-    # Default tools every skill gets:
+    # Default tools every skill gets (unless opted out via
+    # `tool_configs.defaults.<flag>: false` in SKILL.md):
     #   load_artifacts_tool  - LLM-driven artifact retrieval (legacy path; the
     #                          before_model_callback in callbacks.py also
     #                          eager-injects docs on resumed sessions).
@@ -301,13 +302,22 @@ def create_agent(
     #                          turn (same memory bank). Pairs with
     #                          load_memory_tool: preload primes context,
     #                          load_memory follows up for deeper queries.
-    tools = [
-        load_artifacts_tool,
-        retrieve_artifact,
-        load_memory_tool,
-        preload_memory_tool,
-        *resolve_tools(md.tools, md.tool_configs),
-    ]
+    #
+    # AIPLA 2026-05-21 — these four were always-on regardless of `tools: []`,
+    # mirroring the A2UI anti-pattern fixed in upstream-feedback #22. For
+    # chat-only skills (problem-set-hints) the model invokes them gratuitously
+    # ("Tool: load_artifacts" chips in the chat) without value. Defaults
+    # block in tool_configs controls per-skill opt-out. Default behaviour
+    # unchanged for inherited workshop demos. See upstream-feedback #25.
+    defaults_cfg = (md.tool_configs or {}).get("defaults") or {}
+    tools: list = []
+    if defaults_cfg.get("artifacts", True):
+        tools.append(load_artifacts_tool)
+        tools.append(retrieve_artifact)
+    if defaults_cfg.get("memory", True):
+        tools.append(load_memory_tool)
+        tools.append(preload_memory_tool)
+    tools.extend(resolve_tools(md.tools, md.tool_configs))
     tools.extend(_resolve_search_tools(md.tools, md.tool_configs))
     tools.extend(resolve_mcp_tools(md.tool_configs))
     # MULTI-SURFACE-A2UI M1 — read the skill's `tool_configs.a2ui` block so

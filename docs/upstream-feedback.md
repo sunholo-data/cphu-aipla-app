@@ -591,6 +591,27 @@ Beyond verification: a confused "is this A2UI or MCP App or AG-UI?" question cam
 
 Bigger pattern: the template's "Project Skills" section in CLAUDE.md is curated by humans; there's no convention that says "skills with vendored data must be in `references/`, refresh logic must be checked in". Worth formalising as the skill set grows. The existing [adk-cheatsheet](../.claude/skills/adk-cheatsheet/references/python.md) already follows the pattern — it just hadn't been generalised yet.
 
+## 25. Four template-default tools attached to every skill regardless of `tools: []`
+
+**Where:** [backend/adk/agent.py](../backend/adk/agent.py) `create_agent()` hard-codes `load_artifacts_tool`, `retrieve_artifact`, `load_memory_tool`, `preload_memory_tool` into every agent before the dynamic tool list is appended. Same anti-pattern shape as #22 (A2UI toolset) — "always-on default that downstream forks can't opt out of."
+
+**What hurt:** AIPLA's `problem-set-hints` is chat-only: no per-student attached docs, no Vertex memory bank. With the four defaults wired regardless, Gemini occasionally decides to "look up something" and invokes `load_artifacts` ("Tool: load_artifacts" tool-call chip appears in the chat). It returns nothing relevant, the model recovers gracefully, but for a teacher demo it looks like a glitch — the tutor says "let me check..." then "nope, no artefacts here" and the student wonders what's happening.
+
+A real teacher screenshot from 2026-05-21 Jutland test: student asked "can you see what values I have chosen in boldkast?", agent replied with a load_artifacts chip + a non-answer. Confusing for the student, distracting for the demo.
+
+**Workaround on AIPLA:** Same shape as #22 resolution. Added a `tool_configs.defaults` block in SKILL.md:
+
+```yaml
+toolConfigs:
+  defaults:
+    artifacts: false   # skip load_artifacts_tool + retrieve_artifact
+    memory: false      # skip load_memory_tool + preload_memory_tool
+```
+
+Agent factory reads `tool_configs.defaults`, defaults each flag to True (preserves inherited behaviour), and conditionally attaches the corresponding tools. Tests in [backend/tests/unit/test_create_agent.py](../backend/tests/unit/test_create_agent.py) pin both paths (opt-out + default-on).
+
+**Upstream fix:** Adopt the same pattern in the template. Two flags is enough; finer-grained ("artifacts but not memory" vs the reverse) is plenty. Treat #22 (A2UI) + #25 (defaults) as the same defaults-shape PR — both say "downstream forks need an opt-out path for the always-on tools." Plausibly there's a third (callbacks/instrumentation auto-wired in `_resolve_search_tools` and `resolve_mcp_tools`) but those are config-driven already.
+
 ## Backlog (likely additions as v0.1 sprint continues)
 
 - M5 may surface IAM bindings the bootstrap script should add

@@ -209,6 +209,46 @@ def test_create_agent_omits_a2ui_toolset_when_opted_out():
     assert len(a2ui_toolsets) == 0
 
 
+def test_create_agent_omits_default_tools_when_opted_out():
+    """AIPLA 2026-05-21 — skills declaring `tool_configs.defaults.artifacts: false`
+    + `defaults.memory: false` get NEITHER the artifact-loading tools NOR
+    the memory tools. Model can't see them, can't accidentally call them.
+    Closes upstream-feedback #25."""
+    from google.adk.tools.load_artifacts_tool import load_artifacts_tool
+    from google.adk.tools.load_memory_tool import load_memory_tool
+    from google.adk.tools.preload_memory_tool import preload_memory_tool
+    from adk.artifact_tools import retrieve_artifact
+
+    skill = SkillConfig(
+        name="chat-only",
+        description="Minimalist chat-only skill.",
+        instructions="Just chat.",
+        skillId="44444444-4444-4444-4444-444444444444",
+        skillMetadata=SkillMetadata(
+            model="gemini-2.5-flash",
+            tools=[],
+            toolConfigs={"defaults": {"artifacts": False, "memory": False}},
+        ),
+    )
+    agent = create_agent(skill, _user())
+    # By identity (function object) — these are imported singletons.
+    assert load_artifacts_tool not in agent.tools
+    assert retrieve_artifact not in agent.tools
+    assert load_memory_tool not in agent.tools
+    assert preload_memory_tool not in agent.tools
+
+
+def test_create_agent_keeps_default_tools_by_default():
+    """Inherited workshop demos don't declare `defaults`; the four
+    template-default tools stay attached (backwards-compat)."""
+    from google.adk.tools.load_artifacts_tool import load_artifacts_tool
+    from google.adk.tools.load_memory_tool import load_memory_tool
+
+    agent = create_agent(_skill(), _user())
+    assert load_artifacts_tool in agent.tools
+    assert load_memory_tool in agent.tools
+
+
 def test_create_agent_includes_a2ui_toolset_when_explicitly_enabled():
     """The default is enabled=True so this is the same as the default-case
     test above, but the explicit declaration must also work — round-trip
