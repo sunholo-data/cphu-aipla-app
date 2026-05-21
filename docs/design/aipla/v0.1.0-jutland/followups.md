@@ -166,7 +166,38 @@ the change without manual Firestore patches. Combined with fix #1
 (metadata-server token email-claim 403), every deploy becomes
 fully self-healing.
 
-## 6. Group-code QR / share-sheet
+## 6. Teacher-friendly observability dashboard
+
+**Where it'd live:** v1's `class-status` skill (already on the
+SEQUENCE roadmap under Strand A teacher surfaces) is the natural
+home. Backed by the OTel → Cloud Trace pipeline that's *already
+emitting* for every group-join, every chat turn, every Boldkast
+sim event (`mcp_app_context.boldkast.*`), and every progress tick
+(`mcp_app_context.progress.*`).
+
+**What a teacher should see**:
+
+- Which group codes are active right now (created, expiry, session count).
+- Per-class activity: how many distinct sessions, time-of-day
+  distribution.
+- Surfacing of the data we already capture: revealed markers per
+  session, sub-parts ticked done, gravity-preset clicks.
+- Error rate per session — model failures, rate-limit hits, etc.
+- Last-N student questions per code (anonymous; group-level signal).
+
+**Why it's not blocking v0.1:** the team can use `make cloud-logs`
+and the `./scripts/cloud-logs.sh session <id>` helper for now. The
+data IS being captured; only the dashboard surface is missing. The
+dashboard is the "make this consumable for AR/JB without giving
+them a terminal" v1 work.
+
+**Effort estimate:** ~1 week post-pilot. Backend: a BigQuery sink
+for OTel spans (already configured but not yet drilled into);
+frontend: a new A2UI workspace surface mounted for teachers in the
+chat (Strand A teacher-side, lives next to `class-status` /
+`problem-set-helper-config`).
+
+## 7. Group-code QR / share-sheet
 
 **Why:** teachers shouting `bright-fox-42` works for tablets in the
 classroom but a QR is faster and removes typo risk entirely.
