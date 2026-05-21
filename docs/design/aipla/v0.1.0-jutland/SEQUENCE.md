@@ -12,6 +12,7 @@
 | 0.3 | [boldkast-mcp-app.md](boldkast-mcp-app.md) | P2 (Stretch) | 1.5d | 0.1, 0.2 | Static-artefact sim under `mcp-sandbox` library-bypass path (ADR-013) |
 | 0.4 | [group-tooling.md](group-tooling.md) | P1 | 0.5d | 0.1 | `aiplatform group` CLI — ops unblocker, not demo gate |
 | 0.5 | [human-tool-use-cards.md](human-tool-use-cards.md) | P1 | 0.75d | 0.2, 0.3 | Visible chat cards mirroring student actions + `ChatSessionIndex` bootstrap fix (closes 2026-05-21 iframe-context 404 race) |
+| 0.6 | [mcp-app-iframe-harness.md](mcp-app-iframe-harness.md) | P1 | 0.4d | 0.3, 0.5 | Standard way to surface MCP-App iframe activity in chat: shared `useSandboxedIframeMessages` hook (auth + filter + dev logs), Boldkast migrated, slider-end card for trust-the-context UX |
 
 ## Timeline estimate
 

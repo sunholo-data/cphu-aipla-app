@@ -1,8 +1,12 @@
 "use client";
 
-import { useEffect, useRef } from "react";
+import { useCallback, useEffect, useRef } from "react";
 import { fetchWithAuth } from "@/lib/apiClient";
 import { useHumanToolEvents } from "@/hooks/useHumanToolEvents";
+import {
+  type SandboxedIframeMessage,
+  useSandboxedIframeMessages,
+} from "@/hooks/useSandboxedIframeMessages";
 
 /** Human-readable Danish label for a pushed Boldkast event, used by
  *  HumanToolUseCard. Kept here (not the hook) so the mapping stays
@@ -23,6 +27,17 @@ function labelForBoldkastEvent(
   return null;
 }
 
+/** Label for the debounced slider-end push. One card per drag-end so
+ *  the student / dev can SEE what value reached the agent — closes
+ *  the "trust the context" gap (M 2026-05-21). Symbols stay terse
+ *  (v₀, θ, g) to match the sim's own UI. */
+function labelForSliderEnd(param: string, value: number): string {
+  if (param === "v0") return `Justerede v₀ til ${value} m/s`;
+  if (param === "theta") return `Justerede θ til ${value}°`;
+  if (param === "g") return `Justerede g til ${value} m/s²`;
+  return `Justerede ${param} til ${value}`;
+}
+
 interface BoldkastSimFrameProps {
   /** Sandbox origin (NO trailing /sandbox.html) — e.g.
    *  `https://aipla-v01-sandbox-...lz.a.run.app`. The component appends
@@ -39,9 +54,9 @@ interface BoldkastSimFrameProps {
   onClose: () => void;
 }
 
-interface BoldkastMessage {
-  source?: string;
-  type?: string;
+interface BoldkastMessage extends SandboxedIframeMessage {
+  // SandboxedIframeMessage requires `source` and `type` (both string).
+  // BoldkastMessage adds the artefact-specific fields.
   marker?: string;
   param?: string;
   value?: number;
@@ -111,26 +126,38 @@ export function BoldkastSimFrame({ sandboxOrigin, sessionId, onClose }: Boldkast
     lastPreset: null,
   });
 
-  useEffect(() => {
-    const pushSnapshotRequest = (latestType: string): Promise<Response> | null => {
-      if (!sessionId) return null; // no session = nothing for the agent to attach to
+  // Mirror sessionId in a ref so the long-lived message handler
+  // reads the current value at event time. Without this, the handler
+  // captured at hook-bind time would close over a stale sessionId
+  // (the hook intentionally doesn't rebind on prop changes — see
+  // useSandboxedIframeMessages.ts header).
+  const sessionIdRef = useRef(sessionId);
+  sessionIdRef.current = sessionId;
+
+  const pushSnapshotRequest = useCallback(
+    (latestType: string): Promise<Response> | null => {
+      const sid = sessionIdRef.current;
+      if (!sid) return null; // no session = nothing for the agent to attach to
       const body = {
         serverId: "boldkast",
         toolName: "state",
         structuredContent: { ...snapshotRef.current, lastEvent: latestType },
       };
-      return fetchWithAuth(`/api/proxy/api/sessions/${sessionId}/iframe-context`, {
+      return fetchWithAuth(`/api/proxy/api/sessions/${sid}/iframe-context`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(body),
       });
-    };
+    },
+    [],
+  );
 
-    // Silent push for the catch-up effect (sessionId arrived late).
-    // Does not dispatch a card — the original click already happened
-    // and (likely) had a card; we don't want to confuse the student
-    // with a card appearing for an action they performed minutes ago.
-    const pushSnapshotSilent = (latestType: string) => {
+  // Silent push for the catch-up effect (sessionId arrived late).
+  // Does not dispatch a card — the original click already happened
+  // and (likely) had a card; we don't want to confuse the student
+  // with a card appearing for an action they performed minutes ago.
+  const pushSnapshotSilent = useCallback(
+    (latestType: string) => {
       const req = pushSnapshotRequest(latestType);
       if (!req) return;
       void req.catch((err) => {
@@ -139,55 +166,17 @@ export function BoldkastSimFrame({ sandboxOrigin, sessionId, onClose }: Boldkast
           console.warn("[boldkast] iframe-context push failed:", err);
         }
       });
-    };
+    },
+    [pushSnapshotRequest],
+  );
 
-    // Push and dispatch a human-tool-use card if the event has a label.
-    const pushSnapshotWithCard = (latestType: string, marker?: string, preset?: string) => {
-      const req = pushSnapshotRequest(latestType);
-      if (!req) {
-        // No session yet — push will be retried by the catch-up effect.
-        // No card either; the student will see the card the next time
-        // they click after the session has been created.
-        return;
-      }
-      const label = labelForBoldkastEvent(latestType, marker, preset);
-      if (label) {
-        humanToolEvents.dispatch({ label, push: () => req });
-      } else {
-        // No human-meaningful label (e.g. boldkast.open). Still fire
-        // the push so the agent gets the state.
-        void req.catch((err) => {
-          if (process.env.NODE_ENV !== "production") {
-            // eslint-disable-next-line no-console
-            console.warn("[boldkast] iframe-context push failed:", err);
-          }
-        });
-      }
-    };
-
-    const onMessage = (e: MessageEvent) => {
-      // ADR-013 contract: authenticate the sender BEFORE reading e.data.
-      // We can't check `e.origin === sandboxOrigin` because the iframe
-      // runs with `sandbox="allow-scripts"` and no `allow-same-origin`
-      // — that makes its effective origin opaque ("null") so the origin
-      // check would reject every legitimate event. Instead we check
-      // `e.source === iframeRef.current.contentWindow`: only messages
-      // coming from THIS exact iframe's window are accepted. Combined
-      // with the data.source === "boldkast" type-marker filter below,
-      // that's a strict authentication. Caught live on 2026-05-21 when
-      // M's slider drags + Vis clicks weren't producing any pushes.
-      if (!iframeRef.current || e.source !== iframeRef.current.contentWindow) return;
-      const data = e.data as BoldkastMessage;
-      if (!data || data.source !== "boldkast" || typeof data.type !== "string") return;
-
+  const handleMessage = useCallback(
+    (data: BoldkastMessage) => {
+      // Auth + type-marker + data.type-string check are already done by
+      // useSandboxedIframeMessages. We get a validated payload here.
       const snap = snapshotRef.current;
       snap.lastEvent = data.type;
 
-      // Update the snapshot based on event type, then decide whether
-      // to push. We push on PEDAGOGICALLY MEANINGFUL events only:
-      // open / show_value / preset-click. Slider-drag param.change is
-      // skipped to avoid flooding session state (it fires per-pixel
-      // during drag).
       let shouldPush = false;
       let pushedMarker: string | undefined;
       let pushedPreset: string | undefined;
@@ -219,19 +208,25 @@ export function BoldkastSimFrame({ sandboxOrigin, sessionId, onClose }: Boldkast
           pushedPreset = snap.lastPreset;
         } else {
           // Slider drag — fires per-pixel. Debounce 500ms then push the
-          // final value silently so the agent sees the student's
-          // chosen v0 / theta / g without flooding state. No card —
-          // would create one chip per drag-end which is noisy. The
-          // student already sees the slider's value next to the
-          // handle; the card adds nothing.
-          // 2026-05-21: added after live testing showed M's slider
-          // drags weren't reaching the agent, breaking "are my values
-          // close to correct?" — the very prompt the demo is built on.
+          // final value AND dispatch a card so the student / dev can
+          // see what value reached the agent. One card per drag-end
+          // (the student has to pause for 500ms to trigger it) — closes
+          // the "trust the context" UX gap M flagged 2026-05-21.
           if (sliderDebounceRef.current !== null) {
             window.clearTimeout(sliderDebounceRef.current);
           }
+          const finalParam = data.param;
+          const finalValue = data.value;
           sliderDebounceRef.current = window.setTimeout(() => {
-            pushSnapshotSilent("boldkast.param.change");
+            const req = pushSnapshotRequest("boldkast.param.change");
+            if (req && typeof finalParam === "string") {
+              const label = labelForSliderEnd(finalParam, finalValue);
+              humanToolEvents.dispatch({ label, push: () => req });
+            } else if (req) {
+              // No param string somehow — push silently rather than
+              // mislabel a card.
+              void req.catch(() => {});
+            }
             sliderDebounceRef.current = null;
           }, 500);
         }
@@ -240,44 +235,55 @@ export function BoldkastSimFrame({ sandboxOrigin, sessionId, onClose }: Boldkast
       // control state isn't pedagogically interesting to the agent.
 
       if (shouldPush) {
-        pushSnapshotWithCard(data.type, pushedMarker, pushedPreset);
+        const req = pushSnapshotRequest(data.type);
+        if (req) {
+          const label = labelForBoldkastEvent(data.type, pushedMarker, pushedPreset);
+          if (label) {
+            humanToolEvents.dispatch({ label, push: () => req });
+          } else {
+            // No human-meaningful label (e.g. boldkast.open). Still
+            // fire the push so the agent gets the state.
+            void req.catch(() => {});
+          }
+        }
       }
+    },
+    [pushSnapshotRequest, humanToolEvents],
+  );
 
-      if (process.env.NODE_ENV !== "production") {
-        // eslint-disable-next-line no-console
-        console.log("[boldkast]", data, shouldPush ? "(pushed)" : "(local-only)");
-      }
-    };
-    window.addEventListener("message", onMessage);
+  // The hook handles auth (e.source identity), type-marker filter
+  // (data.source === "boldkast"), shape validation, listener cleanup,
+  // and dev-mode console logging. See useSandboxedIframeMessages.ts.
+  useSandboxedIframeMessages<BoldkastMessage>({
+    iframeRef,
+    sourceMarker: "boldkast",
+    onMessage: handleMessage,
+  });
 
-    // Catch-up push when sessionId arrives. The student often opens the
-    // sim and reveals markers BEFORE sending their first chat message;
-    // pushes from before sessionId existed got dropped. When the session
-    // is finally created, push whatever snapshot we've accumulated so
-    // the agent's next prompt sees the prior interactions.
-    if (sessionId) {
-      const snap = snapshotRef.current;
-      if (snap.lastEvent || snap.revealedMarkers.length > 0 || snap.lastPreset) {
-        pushSnapshotSilent(snap.lastEvent || "catch-up");
-      }
+  // Catch-up push when sessionId arrives. The student often opens the
+  // sim and reveals markers BEFORE sending their first chat message;
+  // pushes from before sessionId existed got dropped. When the session
+  // is finally created, push whatever snapshot we've accumulated so
+  // the agent's next prompt sees the prior interactions.
+  useEffect(() => {
+    if (!sessionId) return;
+    const snap = snapshotRef.current;
+    if (snap.lastEvent || snap.revealedMarkers.length > 0 || snap.lastPreset) {
+      pushSnapshotSilent(snap.lastEvent || "catch-up");
     }
+  }, [sessionId, pushSnapshotSilent]);
 
+  // Flush any pending slider debounce on unmount — keeps the
+  // last-known values reaching the agent if the student closes
+  // the sim mid-drag.
+  useEffect(() => {
     return () => {
-      window.removeEventListener("message", onMessage);
-      // Flush any pending slider debounce on unmount — keeps the
-      // last-known values reaching the agent if the student closes
-      // the sim mid-drag.
       if (sliderDebounceRef.current !== null) {
         window.clearTimeout(sliderDebounceRef.current);
         sliderDebounceRef.current = null;
       }
     };
-    // humanToolEvents is intentionally excluded: its `dispatch` is a
-    // useCallback(..., []) (stable for the page lifetime), and adding it
-    // would rebind the message listener every render → lost events on
-    // re-render. Same pattern as other surface listeners in this repo.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [expectedOrigin, sessionId]);
+  }, []);
 
   return (
     <div className="flex min-h-0 flex-col">

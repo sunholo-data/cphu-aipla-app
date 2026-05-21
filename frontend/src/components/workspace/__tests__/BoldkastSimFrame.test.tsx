@@ -112,7 +112,7 @@ describe("BoldkastSimFrame", () => {
       vi.useRealTimers();
     });
 
-    it("debounces slider drags and pushes the final value silently after 500ms", () => {
+    it("debounces slider drags and pushes the final value with a card after 500ms", () => {
       vi.useFakeTimers();
       render(<BoldkastSimFrame sandboxOrigin={ORIGIN} sessionId="sess-1" onClose={() => {}} />);
       // Three rapid drag events — only the LAST should produce a push.
@@ -120,6 +120,7 @@ describe("BoldkastSimFrame", () => {
       emit({ type: "boldkast.param.change", param: "v0", value: 12 });
       emit({ type: "boldkast.param.change", param: "v0", value: 15 });
       expect(fetchWithAuth).not.toHaveBeenCalled();
+      expect(dispatchMock).not.toHaveBeenCalled();
       vi.advanceTimersByTime(499);
       expect(fetchWithAuth).not.toHaveBeenCalled();
       vi.advanceTimersByTime(2);
@@ -129,8 +130,19 @@ describe("BoldkastSimFrame", () => {
         (vi.mocked(fetchWithAuth).mock.calls[0][1]?.body as string) ?? "{}",
       );
       expect(body.structuredContent.v0).toBe(15);
-      // No card — silent push only.
-      expect(dispatchMock).not.toHaveBeenCalled();
+      // One card with the final value — closes "trust the context" UX gap
+      expect(dispatchMock).toHaveBeenCalledTimes(1);
+      expect(dispatchMock.mock.calls[0][0].label).toBe("Justerede v₀ til 15 m/s");
+      vi.useRealTimers();
+    });
+
+    it("uses θ label for theta slider end", () => {
+      vi.useFakeTimers();
+      render(<BoldkastSimFrame sandboxOrigin={ORIGIN} sessionId="sess-1" onClose={() => {}} />);
+      emit({ type: "boldkast.param.change", param: "theta", value: 40 });
+      vi.advanceTimersByTime(501);
+      expect(dispatchMock).toHaveBeenCalledTimes(1);
+      expect(dispatchMock.mock.calls[0][0].label).toBe("Justerede θ til 40°");
       vi.useRealTimers();
     });
 
