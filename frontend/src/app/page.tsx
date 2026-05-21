@@ -1,3 +1,4 @@
+import { AppFooter } from "@/components/AppFooter";
 import { BackendHealthBadge } from "@/components/BackendHealthBadge";
 import { MySkillsButton } from "@/components/MySkillsButton";
 import { SignInButton } from "@/components/SignInButton";
@@ -95,29 +96,11 @@ export default async function HomePage() {
         )}
       </div>
 
-      {/* Attribution — CC BY-SA 4.0 for the KU coat-of-arms (CREDITS.md). */}
-      <footer className="mt-12 text-center text-[10px] text-muted-foreground/70 max-w-2xl">
-        Hosted by the Center for Digital Education, Københavns Universitet.
-        KU logo by{" "}
-        <a
-          className="underline hover:text-muted-foreground"
-          href="https://commons.wikimedia.org/wiki/File:Ku-ucph-logo-svg.svg"
-          rel="noopener noreferrer"
-          target="_blank"
-        >
-          Canconier on Wikimedia Commons
-        </a>
-        , licensed{" "}
-        <a
-          className="underline hover:text-muted-foreground"
-          href="https://creativecommons.org/licenses/by-sa/4.0/"
-          rel="noopener noreferrer"
-          target="_blank"
-        >
-          CC BY-SA 4.0
-        </a>
-        .
-      </footer>
+      {/* Slim app-wide footer with attribution + legal placeholder links.
+          Full third-party attribution (was inline here) moved to
+          /credits. v1's DPIA sign-off fills /privacy and /terms;
+          v0.1 ships placeholder pages so the links go somewhere. */}
+      <AppFooter />
     </main>
   );
 }

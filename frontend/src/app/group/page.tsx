@@ -19,6 +19,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 
+import { AppFooter } from "@/components/AppFooter";
 import { useAnonymousGroupAuth } from "@/contexts/AnonymousGroupAuthProvider";
 import { isAnonymousGroupAuthMode } from "@/lib/anonymousGroupAuth";
 
@@ -125,7 +126,7 @@ function GroupJoinForm() {
         </button>
       </form>
 
-      <footer className="text-xs text-muted-foreground">
+      <p className="text-xs text-muted-foreground">
         Hvis du lukker fanen og kommer tilbage senere, skal du bare skrive
         koden igen — den er gyldig i 30 dage. Glemt koden? Spørg din lærer.
         <br />
@@ -133,7 +134,9 @@ function GroupJoinForm() {
           (If you close this tab and come back later, just paste the same code
           again — it&apos;s valid for 30 days. Lost the code? Ask your teacher.)
         </span>
-      </footer>
+      </p>
+
+      <AppFooter />
     </main>
   );
 }
