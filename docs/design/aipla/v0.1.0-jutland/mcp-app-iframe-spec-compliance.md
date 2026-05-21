@@ -1,10 +1,10 @@
 # MCP-App iframe path — move static artefacts onto the spec
 
-**Status**: Planned (branch work — does NOT touch v0.1.0-jutland critical path)
+**Status**: Implemented (branch `feature/mcp-app-spec-compliance`, M-signoff 2026-05-21; merged to `dev` same day)
 **Priority**: P2 (post-Jutland; protocol hygiene, not demo-blocking)
 **Estimated**: ~1.5 days (0.5 sandbox-proxy static-artefact mode · 0.3 Boldkast on-spec rewrite · 0.3 BoldkastSimFrame host refactor · 0.2 tests · 0.2 docs + upstream entry)
 **Scope**: Frontend (host wrapper) + sandbox service (proxy mode) + artefact JS (wire envelope)
-**Dependencies**: [mcp-app-iframe-harness.md](mcp-app-iframe-harness.md) (the current off-spec path stays as fallback / dev-mode option); [boldkast-mcp-app.md](boldkast-mcp-app.md) (the artefact this migrates)
+**Dependencies**: [mcp-app-iframe-harness.md](mcp-app-iframe-harness.md) (the off-spec harness — superseded by this design); [boldkast-mcp-app.md](boldkast-mcp-app.md) (the artefact this migrates)
 **Created**: 2026-05-21
 **Last Updated**: 2026-05-21
 
@@ -31,7 +31,7 @@ This doc is the migration plan. **It is branch work — Jutland (Wed 2026-05-27)
 
 **Success Metrics:**
 - Boldkast iframe's outgoing wire shape matches MCP Apps `ui/update-model-context` JSON-RPC envelope per spec §Communication Protocol.
-- Host validates events via `e.origin === SANDBOX_ORIGIN` (no more window-identity workaround on the spec path; the existing window-identity hook stays as a defensive default for non-proxy contexts).
+- Host validates events via `e.origin === SANDBOX_ORIGIN` (window-identity workaround removed; AIPLA went single-path on 2026-05-21 — the off-spec hook was deleted post-validation per M's "one way of doing things" rule).
 - `ui/initialize` handshake completes successfully on artefact load (spec §Standard MCP Messages).
 - All existing AIPLA UX behaviour preserved end-to-end: cards still surface in chat, slider debouncing still works, agent still sees the snapshot via iframe-context, observability pipeline intact.
 - New unit + e2e tests covering the spec path.
@@ -169,7 +169,7 @@ This is the architecture `@mcp-ui/client`'s AppRenderer uses internally for agen
 **New files:**
 
 - `frontend/src/components/workspace/StaticArtefactFrame.tsx` — generic spec-compliant host wrapper. Props: `{ sandboxOrigin, artefactPath, onUpdateModelContext, onInitialized? }`. Mounts the sandbox-proxy iframe, handles `ui/initialize` response (returns `hostContext` per spec), filters incoming notifications by method, forwards `ui/update-model-context` payloads to the caller. ~120 lines.
-- `frontend/src/hooks/useMcpAppMessages.ts` — hook variant of `StaticArtefactFrame`'s event handling. Replaces `useSandboxedIframeMessages` for new spec-compliant artefacts. Old hook stays in tree as the fallback for off-proxy contexts (debugging, dev pages, downstream forks that can't use the proxy).
+- `frontend/src/hooks/useMcpAppMessages.ts` — hook variant of `StaticArtefactFrame`'s event handling. Replaces `useSandboxedIframeMessages` (the off-spec hook was deleted on 2026-05-21 when AIPLA went single-path).
 
 **Modified files:**
 
@@ -239,7 +239,7 @@ Two CLI commands worth scoping AFTER this design lands (filed as followups, not 
 - Confirm AR can drive the sim through a Jutland-style scenario without noticing the wire change.
 - Merge to `dev` once all the above hold. **Not before Jutland** (Wed 2026-05-27).
 
-**Rollback:** revert is one commit. The off-spec path stays in tree as fallback during the branch period (we don't delete `useSandboxedIframeMessages` or `BoldkastSimFrame`'s current code until the spec path is proven). After merge, the off-spec hook stays as a defensive default for non-proxy contexts (dev pages, debugging) but is no longer the recommended path for new artefacts.
+**Rollback:** the off-spec path was kept in tree during the branch period (we didn't delete `useSandboxedIframeMessages` or the original `BoldkastSimFrame` shape until the spec path was proven). On M-signoff 2026-05-21 we went single-path and deleted the off-spec hook — there is now exactly one way to mount an MCP-App artefact (via `StaticArtefactFrame`). Rollback at this point would mean reverting the entire sprint, not flipping a flag; that's the conscious cost of single-path discipline.
 
 **Skill update:** [`.claude/skills/mcp-app-artefact/SKILL.md`](../../../../.claude/skills/mcp-app-artefact/SKILL.md) gets a new section at the top: "For all new artefacts, use the spec-compliant path. The off-spec path is documented below for legacy artefacts (currently only Boldkast pre-migration) and for non-proxy contexts."
 
@@ -270,7 +270,7 @@ Two CLI commands worth scoping AFTER this design lands (filed as followups, not 
 
 ## Related Documents
 
-- [mcp-app-iframe-harness.md](mcp-app-iframe-harness.md) — the off-spec harness this design migrates away from (its hook stays as a defensive default)
+- [mcp-app-iframe-harness.md](mcp-app-iframe-harness.md) — the off-spec harness this design migrates away from (superseded; historical narrative only)
 - [boldkast-mcp-app.md](boldkast-mcp-app.md) — the artefact being migrated
 - [human-tool-use-cards.md](human-tool-use-cards.md) — UX layer above the wire; unchanged by this design
 - [MCP Apps spec vendored snapshot](../../../../.claude/skills/agent-protocols/references/mcp-apps-spec-2026-01-26.md) — the canonical reference; lines 411–487 (Communication Protocol + Sandbox proxy) and §Standard MCP Messages are the load-bearing sections

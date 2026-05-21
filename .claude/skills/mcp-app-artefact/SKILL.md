@@ -121,13 +121,14 @@ What actually shipped + what we learned:
 - Showing the answer-value without an explicit toggle. Defeats the
   whole pedagogical gate.
 - Defaults that match the problem's exact parameters (see above).
-- **Rolling your own `window.addEventListener("message", ...)` in the
-  host wrapper.** Origin-based auth doesn't work for sandboxed
-  iframes (their effective origin is opaque, `e.origin === "null"`).
-  Use the [`useSandboxedIframeMessages`](../../../frontend/src/hooks/useSandboxedIframeMessages.ts)
-  hook — auth via `e.source` window identity, type-marker filter,
-  cleanup, and dev-mode logging baked in. See "postMessage from
-  artefact → host" below.
+- **Rolling your own iframe + `window.addEventListener("message", ...)` in
+  the host wrapper.** Use [`<StaticArtefactFrame>`](../../../frontend/src/components/workspace/StaticArtefactFrame.tsx)
+  instead. It mounts the spec's sandbox-proxy at `/sandbox.html`, runs
+  the `ui/initialize` handshake, parses JSON-RPC envelopes, and
+  authenticates by origin (the proxy has a real origin per spec
+  §Sandbox proxy lines 470–487). Going off-proxy means re-implementing
+  the auth gate AND deviating from MCP Apps spec — both are anti-patterns.
+  See "postMessage from artefact → host" below.
 - **Pushing iframe-context to the agent without dispatching a chat
   card.** The agent gets the state but the student / dev has no
   visible signal it landed. Always pair the iframe-context POST with
@@ -350,51 +351,80 @@ BOTH:
 `cloudbuild.yaml` (`--build-arg`) and reads from `frontend/.env.local`
 for LOCAL_MODE.
 
-**postMessage from artefact → host — use the standard hook, not a raw listener.**
+**postMessage from artefact → host — TWO paths; default to the spec-compliant one.**
 
-The artefact emits telemetry / events via `parent.postMessage(...)`.
-The host authenticates the sender by **window identity**, not origin
-(see "The origin gotcha" below for why origin doesn't work under
-this sandbox profile). Use the shared
-[`useSandboxedIframeMessages`](../../../frontend/src/hooks/useSandboxedIframeMessages.ts)
-hook — it handles auth, type-filtering, dev-mode console logging,
-and unmount cleanup:
+### Spec-compliant path (RECOMMENDED for all new artefacts)
+
+The MCP Apps spec defines JSON-RPC 2.0 over postMessage as the iframe ↔
+host wire format, routed through a sandbox-proxy architecture (spec
+lines 411–487 of the vendored snapshot at
+[.claude/skills/agent-protocols/references/mcp-apps-spec-2026-01-26.md](../agent-protocols/references/mcp-apps-spec-2026-01-26.md)).
+
+AIPLA migrated Boldkast onto this path in sprint MCPAPP-SPEC (2026-05-21).
+
+**Host side — use `StaticArtefactFrame`**
+([frontend/src/components/workspace/StaticArtefactFrame.tsx](../../../frontend/src/components/workspace/StaticArtefactFrame.tsx)):
 
 ```tsx
-import {
-  type SandboxedIframeMessage,
-  useSandboxedIframeMessages,
-} from "@/hooks/useSandboxedIframeMessages";
+import { StaticArtefactFrame } from "@/components/workspace/StaticArtefactFrame";
 
-interface MyArtefactMessage extends SandboxedIframeMessage {
-  type: string;       // e.g. "myart.event-a"
-  // ...artefact-specific fields
-}
-
-const iframeRef = useRef<HTMLIFrameElement | null>(null);
-useSandboxedIframeMessages<MyArtefactMessage>({
-  iframeRef,
-  sourceMarker: "myart",        // matches what the iframe emits as `data.source`
-  onMessage: (data) => {
-    // data.source === "myart" and data.type is a string — guaranteed
-    // by the hook. Field-shape validation past that is up to you.
-  },
-});
-
-return <iframe ref={iframeRef} sandbox="allow-scripts" src={...} />;
+<StaticArtefactFrame
+  sandboxOrigin={SANDBOX_ORIGIN}
+  artefactPath="myart/v1"   // fetched from ${SANDBOX_ORIGIN}/artefacts/myart/v1/index.html
+  onUpdateModelContext={(structuredContent) => {
+    // structuredContent.kind carries the artefact's event vocab
+    handleEvent(structuredContent as MyArtefactPayload);
+  }}
+  hostContext={{ theme: "light", locale: "da-DK" }}
+/>
 ```
 
-**The origin gotcha (2026-05-21 incident).** ADR-013 mandates
-`sandbox="allow-scripts"` with no `allow-same-origin`. That makes the
-iframe's effective origin **opaque** — every `postMessage` arrives at
-the host with `e.origin === "null"`. A naive `if (e.origin !==
-expectedOrigin) return;` check rejects every legitimate event
-silently. The hook above uses `e.source ===
-iframeRef.current.contentWindow` instead (window identity per HTML
-living standard) which is the correct pattern for sandboxed iframes.
-**Always use the hook**; never write a raw `window.addEventListener("message", ...)`
-for MCP-App iframes. See:
-[mcp-app-iframe-harness.md](../../../docs/design/aipla/v0.1.0-jutland/mcp-app-iframe-harness.md).
+`StaticArtefactFrame` handles the full spec lifecycle (sandbox-proxy
+handshake, JSON-RPC envelope parsing, origin-based auth via
+`e.origin === sandboxOrigin`, ui/initialize handshake, ping responder,
+cleanup). The wrapper file owns only artefact-specific event routing
+(snapshot accumulation, push-with-card vs silent-push, slider debounce,
+Danish label functions) — mirror [BoldkastSimFrame.tsx](../../../frontend/src/components/workspace/BoldkastSimFrame.tsx)
+as a template.
+
+**Artefact side — speak JSON-RPC directly** (no SDK needed; spec line 426):
+
+```html
+<script>
+  // ~30 lines of vanilla JSON-RPC helpers; see Boldkast index.html
+  // for a working copy. Key functions:
+  //   rpcNotify(method, params)        — fire-and-forget
+  //   rpcRequest(method, params)        — Promise<result>
+  //   + ping responder per spec line 508
+
+  rpcRequest("ui/initialize", {
+    protocolVersion: "2026-01-26",
+    capabilities: {},
+    clientInfo: { name: "myart", version: "1.0.0" },
+  }).then(() => {
+    rpcNotify("ui/notifications/initialized", {});
+    // Now safe to emit application notifications:
+    // rpcNotify("ui/update-model-context", {
+    //   structuredContent: { kind: "myart.event", ...payload }
+    // });
+  });
+</script>
+```
+
+Events emitted before init completes should queue and flush on init
+success (race-safe per Boldkast's implementation).
+
+### Path policy: one way, no fallbacks
+
+AIPLA had a defensive fallback hook (`useSandboxedIframeMessages`)
+during the migration; it was deleted on 2026-05-21 once the spec path
+proved out. **There is exactly one path for iframe artefacts: go
+through `StaticArtefactFrame` + the sandbox proxy at `/sandbox.html`.**
+
+References:
+
+- [mcp-app-iframe-spec-compliance.md](../../../docs/design/aipla/v0.1.0-jutland/mcp-app-iframe-spec-compliance.md) — the current path
+- [mcp-app-iframe-harness.md](../../../docs/design/aipla/v0.1.0-jutland/mcp-app-iframe-harness.md) — historical (superseded)
 
 **Surface activity in chat — the "trust the context" card.** Whenever
 the host pushes iframe-context state to the agent (so it sees what

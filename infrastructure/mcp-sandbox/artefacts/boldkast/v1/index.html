@@ -584,19 +584,108 @@
   }
   requestAnimationFrame(tick);
 
-  // ─── Telemetry (postMessage to host) ──────────────────────────────────────
-  // Namespace fields go LAST in Object.assign so an `extra` key like
-  // `source: "preset:Mars"` can't accidentally override the namespace
-  // `source: "boldkast"` (the host filters by namespace; a name clash
-  // would silently drop the event). See SKILL.md "Field-name discipline".
-  function emit(type, extra) {
+  // ─── Telemetry (JSON-RPC via MCP Apps spec) ───────────────────────────────
+  // Spec: modelcontextprotocol/ext-apps SEP, §Communication Protocol.
+  // Iframe → host wire is JSON-RPC 2.0 over postMessage. Per spec line 426
+  // ("you don't need an SDK to talk MCP with the host") we inline the
+  // ~20-line helper instead of importing an SDK — keeps the artefact's
+  // total size well inside ADR-013's 200 KB ceiling.
+  //
+  // Handshake order on artefact load (spec §Standard MCP Messages):
+  //   1. View sends ui/initialize request to host.
+  //   2. Host responds with hostContext + protocolVersion.
+  //   3. View sends ui/notifications/initialized notification.
+  //   4. THEN we may emit other notifications (ui/update-model-context,
+  //      ping responses, etc.). Until init completes, ui/update-model-
+  //      context events are queued and flushed.
+  let __rpcNextId = 1;
+  let __initialized = false;
+  let __pendingEmits = [];
+  let __hostContext = null;
+
+  function __post(msg) {
     try {
-      const msg = Object.assign({}, extra || {}, { source: "boldkast", type: type });
+      // targetOrigin "*" is safe because the outer is the sandbox proxy
+      // which validates origin on its side per ADR-013 + spec §Sandbox
+      // proxy lines 470-487. The proxy then re-postMessages to the host
+      // with the host's specific origin.
       window.parent.postMessage(msg, "*");
     } catch (e) {
-      // ignore — parent may not exist in standalone mode
+      // parent may not exist in standalone (open the artefact direct)
     }
   }
+
+  function rpcNotify(method, params) {
+    __post({ jsonrpc: "2.0", method: method, params: params || {} });
+  }
+
+  function rpcRequest(method, params) {
+    return new Promise(function (resolve, reject) {
+      const id = __rpcNextId++;
+      const listener = function (e) {
+        const d = e.data;
+        if (!d || d.id !== id) return;
+        window.removeEventListener("message", listener);
+        if (d.result !== undefined) resolve(d.result);
+        else reject(new Error((d.error && d.error.message) || "rpc error"));
+      };
+      window.addEventListener("message", listener);
+      __post({ jsonrpc: "2.0", id: id, method: method, params: params || {} });
+    });
+  }
+
+  // Spec line 508: respond to ping requests with result: {}
+  window.addEventListener("message", function (e) {
+    const d = e.data;
+    if (!d || d.jsonrpc !== "2.0") return;
+    if (d.method === "ping" && d.id !== undefined && d.id !== null) {
+      __post({ jsonrpc: "2.0", id: d.id, result: {} });
+    }
+  });
+
+  // Public emit() for the rest of the artefact code. Same call-sites
+  // as before: emit("boldkast.show_value", {marker, revealed}). We
+  // map that to a ui/update-model-context notification whose
+  // structuredContent.kind carries the event vocabulary. Queued until
+  // ui/initialize handshake completes; flushed in order on init.
+  function emit(kind, extra) {
+    const msg = {
+      jsonrpc: "2.0",
+      method: "ui/update-model-context",
+      params: {
+        structuredContent: Object.assign({}, extra || {}, { kind: kind }),
+      },
+    };
+    if (!__initialized) {
+      __pendingEmits.push(msg);
+      return;
+    }
+    __post(msg);
+  }
+
+  // Run the spec's lifecycle handshake. If parent isn't a sandbox proxy
+  // (standalone testing case), this rejects and we proceed without a
+  // host — emit becomes a no-op via the __post try/catch.
+  rpcRequest("ui/initialize", {
+    protocolVersion: "2026-01-26",
+    capabilities: {},
+    clientInfo: { name: "boldkast", version: "1.0.0" },
+  }).then(function (result) {
+    __hostContext = (result && result.hostContext) || null;
+    rpcNotify("ui/notifications/initialized", {
+      clientInfo: { name: "boldkast", version: "1.0.0" },
+    });
+    __initialized = true;
+    // Flush any events queued during init.
+    while (__pendingEmits.length) {
+      __post(__pendingEmits.shift());
+    }
+  }).catch(function () {
+    // No host (standalone) — flip initialized so subsequent emits
+    // don't queue forever. Calls become no-ops via __post.
+    __initialized = true;
+    __pendingEmits.length = 0;
+  });
 
   // ─── Event wiring ─────────────────────────────────────────────────────────
   document.getElementById("v0").addEventListener("input", (e) => {
