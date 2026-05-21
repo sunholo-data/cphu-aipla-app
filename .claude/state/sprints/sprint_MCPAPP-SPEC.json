@@ -37,7 +37,7 @@
       "description": "StaticArtefactFrame host component + useMcpAppMessages hook. Generic spec-compliant host wrapper that mounts the sandbox-proxy iframe, completes ui/initialize handshake, parses JSON-RPC envelopes, routes ui/update-model-context to a caller callback. Origin-based auth works because the sandbox-proxy has a real origin.",
       "scope": "frontend",
       "estimated_loc": 350,
-      "actual_loc": null,
+      "actual_loc": 540,
       "dependencies": [
         "M1-sandbox-static"
       ],
@@ -55,10 +55,10 @@
         "frontend/src/hooks/__tests__/useMcpAppMessages.test.tsx"
       ],
       "files_to_modify": [],
-      "passes": null,
-      "started": null,
-      "completed": null,
-      "notes": null
+      "passes": true,
+      "started": "2026-05-21T13:23:35.527215+00:00",
+      "completed": "2026-05-21T13:23:35.527338+00:00",
+      "notes": "Two new files (StaticArtefactFrame.tsx ~250 LOC + useMcpAppMessages.ts ~90 LOC) + two test suites (19 tests across 290 LOC). Spec compliance: \u00a7Sandbox proxy handshake (sandbox-proxy-ready, sandbox-resource-ready), \u00a7Standard MCP Messages (ui/initialize -> hostContext, ui/notifications/initialized, ui/update-model-context, ping). Auth via origin (e.origin === sandboxOrigin) \u2014 the spec-canonical approach for the sandbox-proxy pattern."
     },
     {
       "id": "M3-boldkast-json-rpc",
