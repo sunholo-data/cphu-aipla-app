@@ -71,4 +71,26 @@ describe("WorkspaceShell", () => {
     expect(screen.queryByText("workspace body")).not.toBeInTheDocument();
     expect(screen.getByLabelText(/Expand workspace/i)).toBeInTheDocument();
   });
+
+  it("hideOnMobile=false (default): aside has `flex`, no `hidden` — visible at all breakpoints", () => {
+    const { container } = render(
+      <WorkspaceShell>
+        <p>x</p>
+      </WorkspaceShell>,
+    );
+    const aside = container.querySelector("aside")!;
+    expect(aside.className).toMatch(/\bflex\b/);
+    expect(aside.className).not.toMatch(/(^|\s)hidden(\s|$)/);
+  });
+
+  it("hideOnMobile=true: aside has `hidden md:flex` so mobile-tab pattern can gate it", () => {
+    const { container } = render(
+      <WorkspaceShell hideOnMobile>
+        <p>x</p>
+      </WorkspaceShell>,
+    );
+    const aside = container.querySelector("aside")!;
+    expect(aside.className).toMatch(/\bhidden\b/);
+    expect(aside.className).toMatch(/md:flex/);
+  });
 });

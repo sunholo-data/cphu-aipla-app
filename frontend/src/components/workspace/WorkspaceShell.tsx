@@ -12,6 +12,10 @@ interface WorkspaceShellProps {
   /** Optional title shown in the header bar. Defaults to Danish for the
    * Jutland demo; teacher-facing surfaces can override. */
   title?: string;
+  /** When true, the shell is hidden below the md breakpoint. md+ visibility
+   * is unaffected. Use this on small-screen tab patterns where a parent
+   * tab-bar gates which panel is visible. Default: always-visible. */
+  hideOnMobile?: boolean;
 }
 
 /**
@@ -38,7 +42,7 @@ interface WorkspaceShellProps {
  * of which clear the lg breakpoint. Mobile/portrait support lands in
  * v1 alongside multi-class teacher dashboards.
  */
-export function WorkspaceShell({ children, title = "Arbejdsområde" }: WorkspaceShellProps) {
+export function WorkspaceShell({ children, title = "Arbejdsområde", hideOnMobile = false }: WorkspaceShellProps) {
   const [collapsed, setCollapsed] = useState(false);
 
   // Restore collapse state on mount. Done in effect (not initial state)
@@ -93,7 +97,9 @@ export function WorkspaceShell({ children, title = "Arbejdsområde" }: Workspace
   // is bg-background). Border on the LEFT for md+, on the TOP for <md.
   return (
     <aside
-      className="flex w-full shrink-0 flex-col overflow-hidden border-t bg-muted/40 md:w-1/2 md:border-t-0 md:border-l"
+      className={`w-full shrink-0 flex-col overflow-hidden border-t bg-muted/40 md:flex md:w-1/2 md:border-t-0 md:border-l ${
+        hideOnMobile ? "hidden" : "flex"
+      }`}
       aria-label="Workspace"
     >
       <header className="flex shrink-0 items-center justify-between border-b border-border/60 px-3 py-2 bg-muted/60">

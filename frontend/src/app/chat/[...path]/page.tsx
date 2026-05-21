@@ -271,6 +271,24 @@ function ChatShell({
   // PEDCTX/Boldkast — workspace toggle between default content
   // (problem statement + checklist) and the Boldkast sim iframe.
   const [showBoldkastSim, setShowBoldkastSim] = useState(false);
+  // Mobile-only tab state. On md+ both chat and workspace render
+  // side-by-side and this state is ignored. Below md ("one shared
+  // phone per three students" — Jutland-brief target form-factor),
+  // a 50/50 split would cram the Boldkast sim to ~180px wide. Tab
+  // pattern instead: one panel visible at a time, swap with the
+  // header tab bar. Default "chat" because the welcome panel +
+  // input bar are the natural first focus. Persists per skill so
+  // a refresh keeps the student's place.
+  const [mobileTab, setMobileTab] = useState<"chat" | "workspace">("chat");
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const stored = window.sessionStorage.getItem(`aipla.mobileTab:${skillId}`);
+    if (stored === "workspace") setMobileTab("workspace");
+  }, [skillId]);
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    window.sessionStorage.setItem(`aipla.mobileTab:${skillId}`, mobileTab);
+  }, [skillId, mobileTab]);
   const [showDocBrowser, setShowDocBrowser] = useState(true);
   const [showUpload, setShowUpload] = useState(false);
   const [openTabs, setOpenTabs] = useState<DocTabData[]>([]);
@@ -350,6 +368,9 @@ function ChatShell({
     if (!text || isLoading || error) return;
     lastUserMessageRef.current = text;
     setDraft("");
+    // Snap to chat tab on mobile so the student sees the response
+    // stream in. No effect on md+ where both panels are visible.
+    setMobileTab("chat");
     await sendMessage(text, {
       documentIds: includedDocIds,
       resumedSession: enteredViaResume,
@@ -517,10 +538,49 @@ function ChatShell({
         />
       )}
 
+      {/* Mobile tab bar — visible <md only. Lets students on a shared
+          phone (Jutland brief: "one phone per three students") swap
+          between chat and the workspace (problem statement / Vis
+          markers / Boldkast sim) without cramming both into 350px.
+          Above md the tab bar is hidden and both panels render
+          side-by-side. */}
+      {showAiplaWorkspace && (
+        <div className="flex md:hidden border-b bg-muted/30" role="tablist" aria-label="Skift mellem chat og arbejdsområde">
+          <button
+            type="button"
+            role="tab"
+            aria-selected={mobileTab === "chat"}
+            onClick={() => setMobileTab("chat")}
+            className={`flex-1 px-4 py-2 text-sm font-medium ${
+              mobileTab === "chat"
+                ? "border-b-2 border-primary text-foreground"
+                : "text-muted-foreground hover:text-foreground"
+            }`}
+          >
+            💬 Chat
+          </button>
+          <button
+            type="button"
+            role="tab"
+            aria-selected={mobileTab === "workspace"}
+            onClick={() => setMobileTab("workspace")}
+            className={`flex-1 px-4 py-2 text-sm font-medium ${
+              mobileTab === "workspace"
+                ? "border-b-2 border-primary text-foreground"
+                : "text-muted-foreground hover:text-foreground"
+            }`}
+          >
+            📐 Arbejde
+          </button>
+        </div>
+      )}
+
       {/* PEDCTX — stack chat above workspace below md; side-by-side md+.
           Original was always flex-row, which crammed both columns on
           phones / iPad portrait. md:flex-row lets the AIPLA workspace
-          drop below the chat on smaller screens instead of hiding. */}
+          drop below the chat on smaller screens instead of hiding.
+          When showAiplaWorkspace, the mobile tab bar above gates which
+          column is visible <md; both are always visible md+. */}
       <div className="flex min-h-0 flex-1 flex-col md:flex-row">
         {showDocumentUI && showDocBrowser && (
           <aside className="flex w-64 shrink-0 flex-col overflow-hidden border-r bg-muted/30">
@@ -577,7 +637,15 @@ function ChatShell({
             viewport. ChatMessageList's overflow-y-auto only works when
             this parent allows shrink-below-content-size. Fix for the
             "can't see the input" UX bug 2026-05-20. */}
-        <div className="flex min-w-0 min-h-0 flex-1 flex-col">
+        <div
+          className={`min-w-0 min-h-0 flex-1 flex-col md:flex ${
+            // Mobile gate: only show chat column when the chat tab is
+            // active. md+ ignores this — both panels render. When the
+            // workspace isn't AIPLA-shaped (non-anon-group or different
+            // skill), the gate never fires so chat is always visible.
+            showAiplaWorkspace && mobileTab !== "chat" ? "hidden" : "flex"
+          }`}
+        >
           <ChatMessageList
             messages={messages}
             // initialMessages are the persisted history fetched by
@@ -668,7 +736,7 @@ function ChatShell({
             Other auth modes and other skills keep the inherited
             DocumentPanel / WorkspaceSurfaceRegion behaviour above. */}
         {showAiplaWorkspace && (
-          <WorkspaceShell>
+          <WorkspaceShell hideOnMobile={mobileTab !== "workspace"}>
             {showBoldkastSim && BOLDKAST_SANDBOX_ORIGIN ? (
               <BoldkastSimFrame
                 sandboxOrigin={BOLDKAST_SANDBOX_ORIGIN}
