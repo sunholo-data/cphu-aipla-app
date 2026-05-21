@@ -162,7 +162,7 @@ export function BoldkastSimFrame({ sandboxOrigin, sessionId, onClose }: Boldkast
   }, [expectedOrigin, sessionId]);
 
   return (
-    <div className="flex h-full min-h-0 flex-col">
+    <div className="flex min-h-0 flex-col">
       <header className="flex shrink-0 items-center justify-between border-b px-3 py-2">
         <h3 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
           Boldkast — simulator
@@ -176,6 +176,16 @@ export function BoldkastSimFrame({ sandboxOrigin, sessionId, onClose }: Boldkast
           ✕ Luk
         </button>
       </header>
+      {/* Width + height contract: w-full so the iframe always tracks
+          the workspace column's width (without this iOS Safari hits
+          the iframe's 300px default and the canvas inside renders at
+          0 height because its CSS width:100% calc collapses). Min-height
+          of 1100px is the artefact's natural content height (canvas +
+          controls + markers + 2 graphs); the WorkspaceShell's inner
+          overflow-y-auto handles the outer scroll on screens shorter
+          than that. The artefact's own iframe-internal scrollbar would
+          otherwise compete with the workspace scroll on mobile, which
+          confuses tap-targeting on iOS. */}
       <iframe
         src={iframeUrl}
         title="Boldkast projectile motion simulator"
@@ -185,7 +195,7 @@ export function BoldkastSimFrame({ sandboxOrigin, sessionId, onClose }: Boldkast
         sandbox="allow-scripts"
         referrerPolicy="no-referrer"
         loading="eager"
-        className="min-h-0 flex-1 border-0"
+        className="w-full min-h-[1100px] border-0"
       />
     </div>
   );
