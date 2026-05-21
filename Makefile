@@ -1,4 +1,4 @@
-.PHONY: dev dev-local dev-status dev-stop proxy-check logs cloud-logs cloud-errors cloud-build help cli-install cli-reinstall cli-uninstall cli-doctor cli-selftest-mock cli-selftest-live cli-selftest
+.PHONY: dev dev-local dev-recompile dev-status dev-stop proxy-check logs cloud-logs cloud-errors cloud-build help cli-install cli-reinstall cli-uninstall cli-doctor cli-selftest-mock cli-selftest-live cli-selftest
 
 # Launch backend (port 1956) + frontend (port 3000) for local development.
 # Logs stream to stdout; Ctrl-C stops both.
@@ -20,6 +20,16 @@ dev-local:
 dev-status:
 	@chmod +x scripts/dev-status.sh
 	@scripts/dev-status.sh
+
+# Soft restart of just the frontend (Next.js): kills listener, clears
+# .next, restarts. Backend + sandbox + open browser tabs stay alive.
+# Use when chat/page wedges with "Cannot find module './NNN.js'" or
+# "/_app" webpack-runtime errors — the recurring stale-.next failure
+# mode. dev-local auto-clears .next on cold start; this is the in-
+# session equivalent.
+dev-recompile:
+	@chmod +x scripts/dev-recompile.sh
+	@scripts/dev-recompile.sh
 
 # Stop anything listening on the dev ports (1956 / 3456 / 3457). Use when
 # dev-local.sh died ungracefully and you need a clean restart.
@@ -113,7 +123,8 @@ cli-selftest:
 
 help:
 	@echo "make dev                — start backend (1956) + frontend (3456) — cloud mode (real GCP/Vertex)"
-	@echo "make dev-local          — start backend + frontend + MCP sandbox in LOCAL_MODE (pre-seeded group code: LOCAL)"
+	@echo "make dev-local          — start backend + frontend + MCP sandbox in LOCAL_MODE (pre-seeded group code: local-demo). Auto-clears .next on launch."
+	@echo "make dev-recompile      — soft frontend restart (clears .next, leaves backend/sandbox/browser alive). For mid-session HMR wedges."
 	@echo "make dev-status         — probe local dev stack — exit 0 if all healthy"
 	@echo "make dev-stop           — kill anything on the dev ports (1956 / 3456 / 3457)"
 	@echo "make logs               — stream LOCAL backend logs (OTEL noise filtered out)"

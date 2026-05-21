@@ -122,6 +122,20 @@ if [ -d "$SANDBOX_DIR/node_modules" ]; then
     (cd "$SANDBOX_DIR" && npm run build >>"$SANDBOX_LOG" 2>&1) || true
 fi
 
+# Nuke Next.js's webpack cache on every cold start. Recurring failure mode
+# (observed 4+ times in v0.1 sprint): adding/renaming components leaves the
+# .next/server/* graph referring to chunks that no longer exist, then any
+# chat-page hit returns 500 with "Cannot find module './NNN.js'" or "Cannot
+# read properties of undefined (reading '/_app')". Always fixable with
+# `rm -rf .next` + restart. Cheaper to do unconditionally on every fresh
+# `make dev-local` (~5s extra cold compile) than to keep diagnosing the
+# same wedge. During iteration use `make dev-recompile` for a soft fix
+# that leaves backend / sandbox / browser tabs alive.
+if [ -d "$REPO_ROOT/frontend/.next" ]; then
+    log "Clearing frontend/.next (fresh-start hygiene; avoids HMR wedge)…"
+    rm -rf "$REPO_ROOT/frontend/.next"
+fi
+
 # ─── start services ─────────────────────────────────────────────────────────
 cleanup() {
     echo ""

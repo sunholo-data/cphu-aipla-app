@@ -107,8 +107,8 @@ function GroupJoinForm() {
             value={code}
             onChange={(e) => setCode(e.target.value)}
             disabled={isJoining}
-            placeholder="XXXX-XXXX"
-            className="rounded border px-3 py-2 font-mono uppercase tracking-wider"
+            placeholder="bright-fox-42"
+            className="rounded border px-3 py-2 font-mono lowercase"
             aria-invalid={error ? "true" : undefined}
             aria-describedby={error ? "group-error" : undefined}
           />
