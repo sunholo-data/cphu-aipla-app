@@ -87,7 +87,7 @@
       "description": "BoldkastSimFrame refactored to consume StaticArtefactFrame. Auth + listener + envelope parsing all move to the shared component. Roughly halves the file size; behaviour invariant from student's perspective.",
       "scope": "frontend",
       "estimated_loc": 100,
-      "actual_loc": null,
+      "actual_loc": -53,
       "dependencies": [
         "M2-static-artefact-frame",
         "M3-boldkast-json-rpc"
@@ -104,10 +104,10 @@
         "frontend/src/components/workspace/BoldkastSimFrame.tsx",
         "frontend/src/components/workspace/__tests__/BoldkastSimFrame.test.tsx"
       ],
-      "passes": null,
-      "started": null,
-      "completed": null,
-      "notes": null
+      "passes": true,
+      "started": "2026-05-21T13:31:16.850826+00:00",
+      "completed": "2026-05-21T13:31:16.850976+00:00",
+      "notes": "Net file size went DOWN: BoldkastSimFrame.tsx 330 -> 263 lines (-67), test file 207 -> 195 lines (-12). The auth gate, listener wiring, envelope parsing, and lifecycle all moved into StaticArtefactFrame. What stays here: Boldkast-specific event-routing (snapshot accumulation, push-with-card / silent-push, slider debounce, catch-up effect, Danish label functions). 14/14 BoldkastSimFrame tests pass on the new wire path (JSON-RPC ui/update-model-context). Full sweep: 608/608 frontend, build succeeded. quality:check green."
     },
     {
       "id": "M5-manual-ar-signoff",
