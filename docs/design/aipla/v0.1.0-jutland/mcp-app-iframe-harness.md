@@ -1,12 +1,30 @@
-# MCP App iframe-message harness — the standard way to surface sim activity in chat
+# MCP App iframe-message harness — historical (superseded 2026-05-21)
 
-**Status**: Planned
-**Priority**: P1 (unblocks AR's next sim + every future MCP App without re-litigating auth)
-**Estimated**: 0.4 day (0.2 hook + tests · 0.1 BoldkastSimFrame migration · 0.1 ADR-013 update + followups entry)
-**Scope**: Frontend (shared hook) + docs
-**Dependencies**: [boldkast-mcp-app.md](boldkast-mcp-app.md) implemented (`145515a`), [human-tool-use-cards.md](human-tool-use-cards.md) implemented (`3563af1`)
+> **SUPERSEDED — read [mcp-app-iframe-spec-compliance.md](mcp-app-iframe-spec-compliance.md) instead.**
+>
+> This design shipped (2026-05-21 morning) as a defensive off-spec
+> harness around `useSandboxedIframeMessages` with window-identity
+> auth. Same-day deeper protocol research surfaced that the MCP Apps
+> spec covers this case directly via the sandbox-proxy architecture
+> (lines 470–487 of the vendored spec snapshot). The spec-compliance
+> migration shipped that evening (sprint MCPAPP-SPEC) and AIPLA went
+> single-path — the `useSandboxedIframeMessages` hook + this entire
+> harness shape were deleted. The on-spec path uses
+> `StaticArtefactFrame` (host) + sandbox.html (proxy) + vanilla
+> JSON-RPC helpers (artefact-side).
+>
+> This document is retained for the **historical narrative**: how the
+> incident played out, what we learned (the lesson saved in
+> [feedback-search-protocols-first](../../../../.claude/projects/-Users-mark-dev-sunholo-cphu-aipla-app/memory/feedback_search_protocols_first.md)),
+> and what shape future code-archaeology will find when grepping for
+> `useSandboxedIframeMessages` in `git log`. It is NOT the current
+> guidance — do not implement against it.
+
+**Status**: Superseded by [mcp-app-iframe-spec-compliance.md](mcp-app-iframe-spec-compliance.md) (2026-05-21)
+**Original priority**: P1
+**Original scope**: Frontend (shared hook) + docs
 **Created**: 2026-05-21
-**Last Updated**: 2026-05-21
+**Last Updated**: 2026-05-21 (superseded same day)
 
 ## What "standard way" means here
 

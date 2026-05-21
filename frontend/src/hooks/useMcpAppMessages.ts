@@ -1,24 +1,16 @@
 // useMcpAppMessages — spec-compliant message listener for MCP-App
 // iframe artefacts going through the sandbox proxy.
 //
-// Parallel to useSandboxedIframeMessages but for the spec path:
+// Auth via `e.origin === sandboxOrigin` (the proxy has a real origin
+// per MCP Apps spec §Sandbox proxy lines 470–487). Wire format:
+// JSON-RPC 2.0 envelopes discriminated by the `method` field.
 //
-//   useSandboxedIframeMessages: defensive fallback for raw iframes.
-//     - Auth via e.source === iframeRef.current.contentWindow
-//       (window identity — works under opaque-origin sandbox)
-//     - Custom message shape (per-artefact "source" + "type" fields)
-//     - Used by BoldkastSimFrame pre-spec-compliance migration
-//
-//   useMcpAppMessages (this file): canonical path for MCP-App artefacts.
-//     - Auth via e.origin === sandboxOrigin (the proxy has a real
-//       origin per spec §Sandbox proxy lines 470–487)
-//     - JSON-RPC 2.0 envelope with `method` discriminator
-//     - Used by StaticArtefactFrame (M2) and downstream artefact host
-//       wrappers
-//
-// Either consumes events that go through the proxy. They differ on the
-// auth shape (origin vs window-identity) and the wire format
-// (JSON-RPC envelope vs custom).
+// Pair with `<StaticArtefactFrame>` for the full host-side spec
+// compliance story (handshake, lifecycle, ping, origin auth). This
+// hook is the listener primitive both the frame component and any
+// downstream artefact wrapper use — and is also useful standalone
+// for telemetry / dev pages / tests that want to observe iframe
+// notifications outside the frame.
 //
 // See: docs/design/aipla/v0.1.0-jutland/mcp-app-iframe-spec-compliance.md
 
@@ -85,9 +77,10 @@ export function useMcpAppMessages<TParams = Record<string, unknown>>(
 
     window.addEventListener("message", handler);
     return () => window.removeEventListener("message", handler);
-    // onNotification is intentionally omitted — see same comment in
-    // useSandboxedIframeMessages.ts. Callers should pass a stable
-    // handler (useCallback or refs).
+    // onNotification is intentionally omitted from deps: rebinding the
+    // window listener on every render would lose events fired during
+    // the swap. Callers should pass a stable handler (useCallback or
+    // a ref inside their component).
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [sandboxOrigin, method, label]);
 }

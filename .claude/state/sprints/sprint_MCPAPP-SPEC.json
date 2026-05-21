@@ -114,7 +114,7 @@
       "description": "Run full Jutland-style demo scenario on the branch. Compare student-facing behaviour against dev branch. Zero observable difference. AR sign-off.",
       "scope": "fullstack",
       "estimated_loc": 0,
-      "actual_loc": null,
+      "actual_loc": 0,
       "dependencies": [
         "M4-boldkast-host-refactor"
       ],
@@ -127,17 +127,17 @@
       ],
       "files_to_create": [],
       "files_to_modify": [],
-      "passes": null,
-      "started": null,
-      "completed": null,
-      "notes": "Gate before merge. If this fails, branch stays on shelf \u2014 does NOT merge to dev without sign-off."
+      "passes": true,
+      "started": "2026-05-21T13:44:17.126378+00:00",
+      "completed": "2026-05-21T13:44:17.126378+00:00",
+      "notes": "M sign-off 2026-05-21 \u2014 went very well; cards + agent behaviour identical to off-spec path on dev. Branch ready to merge."
     },
     {
       "id": "M6-docs-upstream",
       "description": "Update mcp-app-artefact skill to recommend the spec path. Flip design doc status to Implemented. Refresh upstream-feedback #30 with concrete implementation pointers for the upstream PR.",
       "scope": "docs",
       "estimated_loc": 90,
-      "actual_loc": null,
+      "actual_loc": 200,
       "dependencies": [
         "M5-manual-ar-signoff"
       ],
@@ -154,10 +154,10 @@
         "docs/upstream-feedback.md",
         "docs/design/aipla/v0.1.0-jutland/SEQUENCE.md"
       ],
-      "passes": null,
-      "started": null,
-      "completed": null,
-      "notes": null
+      "passes": true,
+      "started": "2026-05-21T13:44:17.126378+00:00",
+      "completed": "2026-05-21T13:53:34.600899+00:00",
+      "notes": "M decided single-path during M6: useSandboxedIframeMessages hook + test deleted (the off-spec fallback removed entirely). Docs updated to reflect: mcp-app-artefact skill leads with spec path only; harness design doc marked SUPERSEDED with historical banner; spec-compliance design doc Status flipped to Implemented; upstream-feedback #28 + #30 updated to reflect single-path resolution; SEQUENCE.md row 0.7 marked complete with check."
     }
   ],
   "velocity": {
@@ -172,5 +172,6 @@
   "github_issues": [],
   "last_session": "2026-05-21T13:13:02.084739+00:00",
   "last_checkpoint": null,
-  "status": "in_progress"
+  "status": "completed",
+  "completed": "2026-05-21T13:53:34.600899+00:00"
 }
