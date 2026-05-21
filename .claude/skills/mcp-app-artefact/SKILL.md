@@ -121,6 +121,18 @@ What actually shipped + what we learned:
 - Showing the answer-value without an explicit toggle. Defeats the
   whole pedagogical gate.
 - Defaults that match the problem's exact parameters (see above).
+- **Rolling your own `window.addEventListener("message", ...)` in the
+  host wrapper.** Origin-based auth doesn't work for sandboxed
+  iframes (their effective origin is opaque, `e.origin === "null"`).
+  Use the [`useSandboxedIframeMessages`](../../../frontend/src/hooks/useSandboxedIframeMessages.ts)
+  hook — auth via `e.source` window identity, type-marker filter,
+  cleanup, and dev-mode logging baked in. See "postMessage from
+  artefact → host" below.
+- **Pushing iframe-context to the agent without dispatching a chat
+  card.** The agent gets the state but the student / dev has no
+  visible signal it landed. Always pair the iframe-context POST with
+  a `useHumanToolEvents.dispatch` call (silent for non-pedagogical
+  events, with a Danish label for student actions).
 
 ## Recipe — how to prompt an LLM to generate a new artefact
 
@@ -180,9 +192,10 @@ TELEMETRY / AGENT-OBSERVABILITY:
       - "param.change"  — fired on every parameter change. Payload:
                           {param: "<id>", value: <number>,
                            triggeredBy?: "slider" | "preset:<name>"}.
-                          Slider-drag is silent at the host level
-                          (too chatty); only preset clicks get
-                          pushed to the agent.
+                          The host debounces slider-drag pushes 500ms
+                          so the agent sees the final value without
+                          flooding (per the trust-the-context UX);
+                          preset clicks push + card immediately.
       - "play" / "pause" / "reset" — control state. Host logs locally
                           but does NOT push to the agent (not
                           pedagogically interesting).
@@ -337,21 +350,83 @@ BOTH:
 `cloudbuild.yaml` (`--build-arg`) and reads from `frontend/.env.local`
 for LOCAL_MODE.
 
-**postMessage from artefact → host.** The artefact emits telemetry /
-events via `parent.postMessage(...)`. The host MUST validate the
-origin matches the sandbox origin to avoid accepting messages from
-arbitrary iframes:
+**postMessage from artefact → host — use the standard hook, not a raw listener.**
+
+The artefact emits telemetry / events via `parent.postMessage(...)`.
+The host authenticates the sender by **window identity**, not origin
+(see "The origin gotcha" below for why origin doesn't work under
+this sandbox profile). Use the shared
+[`useSandboxedIframeMessages`](../../../frontend/src/hooks/useSandboxedIframeMessages.ts)
+hook — it handles auth, type-filtering, dev-mode console logging,
+and unmount cleanup:
 
 ```tsx
-useEffect(() => {
-  const onMessage = (e: MessageEvent) => {
-    if (e.origin !== SANDBOX_ORIGIN) return;
-    // …handle e.data…
-  };
-  window.addEventListener("message", onMessage);
-  return () => window.removeEventListener("message", onMessage);
-}, []);
+import {
+  type SandboxedIframeMessage,
+  useSandboxedIframeMessages,
+} from "@/hooks/useSandboxedIframeMessages";
+
+interface MyArtefactMessage extends SandboxedIframeMessage {
+  type: string;       // e.g. "myart.event-a"
+  // ...artefact-specific fields
+}
+
+const iframeRef = useRef<HTMLIFrameElement | null>(null);
+useSandboxedIframeMessages<MyArtefactMessage>({
+  iframeRef,
+  sourceMarker: "myart",        // matches what the iframe emits as `data.source`
+  onMessage: (data) => {
+    // data.source === "myart" and data.type is a string — guaranteed
+    // by the hook. Field-shape validation past that is up to you.
+  },
+});
+
+return <iframe ref={iframeRef} sandbox="allow-scripts" src={...} />;
 ```
+
+**The origin gotcha (2026-05-21 incident).** ADR-013 mandates
+`sandbox="allow-scripts"` with no `allow-same-origin`. That makes the
+iframe's effective origin **opaque** — every `postMessage` arrives at
+the host with `e.origin === "null"`. A naive `if (e.origin !==
+expectedOrigin) return;` check rejects every legitimate event
+silently. The hook above uses `e.source ===
+iframeRef.current.contentWindow` instead (window identity per HTML
+living standard) which is the correct pattern for sandboxed iframes.
+**Always use the hook**; never write a raw `window.addEventListener("message", ...)`
+for MCP-App iframes. See:
+[mcp-app-iframe-harness.md](../../../docs/design/aipla/v0.1.0-jutland/mcp-app-iframe-harness.md).
+
+**Surface activity in chat — the "trust the context" card.** Whenever
+the host pushes iframe-context state to the agent (so it sees what
+the student did), also dispatch a card so the *student* and the *dev*
+see the same thing in the chat transcript. Mirror the pattern in
+[BoldkastSimFrame.tsx](../../../frontend/src/components/workspace/BoldkastSimFrame.tsx):
+
+```tsx
+import { useHumanToolEvents } from "@/hooks/useHumanToolEvents";
+
+const humanToolEvents = useHumanToolEvents();
+// inside the onMessage handler, when a push is warranted:
+const req = fetchWithAuth(`/api/proxy/api/sessions/${sid}/iframe-context`, {
+  method: "POST",
+  headers: { "Content-Type": "application/json" },
+  body: JSON.stringify({ serverId: "myart", toolName: "state", structuredContent }),
+});
+const label = labelFor(data); // Danish, artefact-specific, e.g. "Justerede v₀ til 15 m/s"
+if (label) humanToolEvents.dispatch({ label, push: () => req });
+else void req.catch(() => {});  // silent push for non-pedagogical events
+```
+
+The card transitions pending → confirmed (POST 204) → failed (4xx/5xx),
+so failed pushes are visible instead of silent. **For high-frequency
+events (slider drags), debounce ~500ms and emit one card per drag-end**
+— not one per pixel.
+
+**Per-artefact label function.** Each sim has its own vocabulary. The
+labels are the *only* thing each new artefact wrapper has to write
+beyond the iframe markup. Keep them in the wrapper file alongside the
+event-shape interface; do NOT push them into the hook (the hook stays
+artefact-agnostic).
 
 ### 6. Commit + push
 
