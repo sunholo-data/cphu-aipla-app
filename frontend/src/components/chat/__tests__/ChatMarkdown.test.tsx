@@ -108,4 +108,31 @@ describe("ChatMarkdown", () => {
     expect(container.querySelector(".svg-container svg")).toBeTruthy();
     expect(container.querySelector(".svg-container rect")).toBeTruthy();
   });
+
+  it("renders ```xml fenced SVG as image (not as code) — agents reach for xml since SVG is XML", async () => {
+    const fenced = '```xml\n<svg viewBox="0 0 10 10"><line x1="0" y1="0" x2="10" y2="10"/></svg>\n```';
+    const { container } = render(<ChatMarkdown content={fenced} navigateToBlock={noop} />);
+    await new Promise((r) => setTimeout(r, 50));
+    expect(container.querySelector(".svg-container svg")).toBeTruthy();
+    expect(container.querySelector(".svg-container line")).toBeTruthy();
+  });
+
+  it("renders ```html fenced SVG as image (agents that think of SVG as HTML)", async () => {
+    const fenced = '```html\n<svg viewBox="0 0 10 10"><polyline points="0,0 5,5 10,0"/></svg>\n```';
+    const { container } = render(<ChatMarkdown content={fenced} navigateToBlock={noop} />);
+    await new Promise((r) => setTimeout(r, 50));
+    expect(container.querySelector(".svg-container svg")).toBeTruthy();
+    expect(container.querySelector(".svg-container polyline")).toBeTruthy();
+  });
+
+  it("does NOT extract a fenced code block that just MENTIONS svg in non-SVG content", async () => {
+    // A code block whose body doesn't start with <svg should render as code,
+    // not get caught by the SVG regex.
+    const fenced = '```xml\n<foo><bar>hello</bar></foo>\n```';
+    const { container } = render(<ChatMarkdown content={fenced} navigateToBlock={noop} />);
+    await new Promise((r) => setTimeout(r, 50));
+    expect(container.querySelector(".svg-container svg")).toBeFalsy();
+    // Should be in a code block instead.
+    expect(container.querySelector("pre code")).toBeTruthy();
+  });
 });

@@ -115,7 +115,58 @@ codes. Plenty for v0.1.
   for the same class share a "feel" and are easier to remember by
   association.
 
-## 5. Group-code QR / share-sheet
+## 5. platform_seed should UPDATE on template-content change (not just skip)
+
+**Where:** `backend/admin/platform_seed.py` — `seed()` is idempotent
+by `name`. If a skill with the same name already exists, the seeder
+skips it entirely. So SKILL.md edits to `instructions`,
+`displayName`, `initialMessage`, `problemStatement`, or `metadata`
+NEVER propagate to deployed cloud Firestore through the normal
+deploy pipeline. The workaround so far: patch the cloud Firestore
+record directly via a one-shot Python script (twice today, for the
+SVG-prompt block).
+
+**Why this is the wrong default:** the dev loop is "edit SKILL.md
+→ push → see no change in cloud agent behaviour". Three teams hit
+this in the AIPLA buffer week alone (the rename, the SVG nudge, the
+re-rewrite of the SVG section). It's a foot-gun.
+
+**Action when picked up — proposed design:**
+
+1. Compute a `_template_hash` over the parsed template fields
+   (instructions + description + displayName + initialMessage +
+   problemStatement + metadata, JSON-stable-sorted, sha256, truncated).
+2. Store the hash on the skill record under `skill_metadata._template_hash`
+   when seeding/refreshing.
+3. `seed()` becomes:
+   - skill missing → CREATE (current behaviour)
+   - skill exists AND hash matches → SKIP (current behaviour)
+   - skill exists AND hash differs → UPDATE in place (new behaviour).
+     Preserve `skill_id`, `owner_id`, `slug`, `created_at`,
+     `access_control`. Refresh the content fields + bump `updated_at`
+     + bump the hash.
+4. `SeedSummary` gains `updated: int` alongside `created` and
+   `skipped`.
+5. Tests:
+   - update-on-hash-change preserves skill_id (regression guard:
+     existing anon-group codes pin to skill_id; recreating would
+     break them).
+   - hash unchanged → no Firestore write (idempotent).
+   - new field added to SKILL.md → propagates through hash → update.
+
+**Critical constraint:** the skill_id must NOT change on update.
+Otherwise every prompt iteration breaks every active group code
+(they store skill_ids tied to the now-deleted skill record). The
+in-place update preserves binding.
+
+**For Cloud Build:** the existing `seed-platform-skills` step already
+runs on every deploy. Adding the update path means every deploy
+that touches `backend/skills/templates/*/SKILL.md` will propagate
+the change without manual Firestore patches. Combined with fix #1
+(metadata-server token email-claim 403), every deploy becomes
+fully self-healing.
+
+## 6. Group-code QR / share-sheet
 
 **Why:** teachers shouting `bright-fox-42` works for tablets in the
 classroom but a QR is faster and removes typo risk entirely.

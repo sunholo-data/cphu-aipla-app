@@ -32,7 +32,16 @@ interface ChatMarkdownProps {
 // __text__ or **text** as bold, breaking the sentinel detection in the p renderer.
 const SVG_SENTINEL_PREFIX = "AITANASVGBLOCK";
 const SVG_SENTINEL_SUFFIX = "END";
-const SVG_FENCE_RE = /```svg\r?\n([\s\S]*?)```/g;
+// Match a fenced code block whose body IS an SVG. Catches all of:
+//   ```svg ... ```        (the documented convention)
+//   ```xml ... <svg/> ``` (agents reach for xml since SVG is XML)
+//   ```html ... <svg/> ``` (agents that think of SVG as an HTML feature)
+//   ``` ... <svg/> ```    (no language tag at all)
+// The fence's language tag is captured but ignored; what matters is
+// that the body begins with <svg and ends with </svg>. Non-SVG fences
+// fall through to normal code-block highlighting. Anything outside a
+// fence is caught by SVG_RAW_RE below.
+const SVG_FENCE_RE = /```[a-zA-Z]*\r?\n(<svg[\s\S]*?<\/svg>)\s*\r?\n?```/g;
 // Catch raw <svg>...</svg> blocks emitted without a fence. Agents OFTEN do
 // this when asked for a diagram — they reach for raw HTML rather than the
 // fenced-code convention. Without this catch the html() component below
