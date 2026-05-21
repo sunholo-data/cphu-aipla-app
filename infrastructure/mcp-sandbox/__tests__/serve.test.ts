@@ -157,6 +157,47 @@ describe("createSandboxApp HTTP routes", () => {
     }
   });
 
+  // M1 of sprint MCPAPP-SPEC: the static-artefact spec path reuses the
+  // existing /sandbox.html proxy (mounting it as the host's sandbox
+  // iframe) and fetches artefact HTML from /artefacts/<name>/v<n>/.
+  // The host (StaticArtefactFrame, landing in M2) then sends the
+  // artefact HTML to the sandbox via ui/notifications/sandbox-resource-ready.
+  // These two tests pin the contract that M2 will rely on.
+
+  it("M1: /sandbox.html serves the proxy bridge with an injected runtime config (static-artefact path entry point)", async () => {
+    const { createSandboxApp } = await import("../serve");
+    const app = createSandboxApp();
+    const { default: request } = await import("supertest");
+    const res = await request(app).get("/sandbox.html");
+    expect(res.status).toBe(200);
+    // The bridge script is included
+    expect(res.text).toContain('src="/sandbox.js"');
+    // The runtime config (allowedReferrerPattern) is injected so the
+    // bridge can validate parent-origin without baking the regex into
+    // the bundle.
+    expect(res.text).toContain("window.__AITANA_SANDBOX_CONFIG__");
+    expect(res.text).toContain("allowedReferrerPattern");
+    // The server-set CSP applies (overrides any meta-tag tampering).
+    const csp = res.headers["content-security-policy"];
+    expect(csp).toBeDefined();
+    expect(csp).toContain("script-src");
+  });
+
+  it("M1: /sandbox.html accepts a ?csp= query for tailoring per artefact's _meta.ui (static-artefact path)", async () => {
+    const { createSandboxApp } = await import("../serve");
+    const app = createSandboxApp();
+    const { default: request } = await import("supertest");
+    const csp = JSON.stringify({
+      connectDomains: ["https://api.example.com"],
+      resourceDomains: ["https://cdn.example.com"],
+    });
+    const res = await request(app).get(`/sandbox.html?csp=${encodeURIComponent(csp)}`);
+    expect(res.status).toBe(200);
+    const header = res.headers["content-security-policy"];
+    expect(header).toContain("https://api.example.com"); // landed in connect-src
+    expect(header).toContain("https://cdn.example.com"); // landed in script-src etc.
+  });
+
   it("/artefacts/* refuses to serve dotfiles (.env, .gitkeep etc.)", async () => {
     // Setup: write a .gitkeep next to a real artefact dir.
     const { mkdirSync, writeFileSync, rmSync } = await import("node:fs");

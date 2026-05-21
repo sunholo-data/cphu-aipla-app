@@ -11,7 +11,7 @@
       "description": "Add static-artefact sandbox-proxy mode to mcp-sandbox: new /sandbox-static.html page running the MCP Apps spec sandbox-proxy handshake for static (non-agent-summoned) artefacts.",
       "scope": "backend",
       "estimated_loc": 190,
-      "actual_loc": null,
+      "actual_loc": 45,
       "dependencies": [],
       "acceptance_criteria": [
         "GET /sandbox-static.html returns 200 with ADR-013 CSP headers",
@@ -27,10 +27,10 @@
         "infrastructure/mcp-sandbox/serve.ts",
         "infrastructure/mcp-sandbox/package.json"
       ],
-      "passes": null,
-      "started": null,
-      "completed": null,
-      "notes": null
+      "passes": true,
+      "started": "2026-05-21T13:13:02.084862+00:00",
+      "completed": "2026-05-21T13:18:31.564206+00:00",
+      "notes": "Scope reduced significantly: the existing /sandbox.html + sandbox.ts at infrastructure/mcp-sandbox/ is already a spec-compliant sandbox-proxy bridge (adapted from modelcontextprotocol/ext-apps reference). The /artefacts/<name>/v<n>/ route already serves raw artefact HTML. So M1 is just (a) verify the path works for the static-artefact use case, (b) add 2 acceptance tests pinning the contract M2 will rely on. No new sandbox-static.html or sandbox-static.ts needed \u2014 those files in the original plan were redundant with what shipped already."
     },
     {
       "id": "M2-static-artefact-frame",
@@ -38,7 +38,9 @@
       "scope": "frontend",
       "estimated_loc": 350,
       "actual_loc": null,
-      "dependencies": ["M1-sandbox-static"],
+      "dependencies": [
+        "M1-sandbox-static"
+      ],
       "acceptance_criteria": [
         "npm run test:run -- StaticArtefactFrame useMcpAppMessages green (all reject + happy-path cases covered)",
         "npm run quality:check green",
@@ -78,7 +80,7 @@
       "passes": null,
       "started": null,
       "completed": null,
-      "notes": "Can run in parallel with M2 — different code paths"
+      "notes": "Can run in parallel with M2 \u2014 different code paths"
     },
     {
       "id": "M4-boldkast-host-refactor",
@@ -86,11 +88,14 @@
       "scope": "frontend",
       "estimated_loc": 100,
       "actual_loc": null,
-      "dependencies": ["M2-static-artefact-frame", "M3-boldkast-json-rpc"],
+      "dependencies": [
+        "M2-static-artefact-frame",
+        "M3-boldkast-json-rpc"
+      ],
       "acceptance_criteria": [
         "npm run test:run -- BoldkastSimFrame green (all 14 existing tests pass with updated wire shape)",
         "npm run quality:check green",
-        "Manual: open chat, drag sliders, click Vis, click presets — all cards appear with correct Danish labels + status transitions",
+        "Manual: open chat, drag sliders, click Vis, click presets \u2014 all cards appear with correct Danish labels + status transitions",
         "Backend log shows server=boldkast writes with same structuredContent payload as the off-spec path",
         "aiplatform sessions iframe-context <session_id> dumps same mcp_app_context.boldkast.state shape"
       ],
@@ -110,7 +115,9 @@
       "scope": "fullstack",
       "estimated_loc": 0,
       "actual_loc": null,
-      "dependencies": ["M4-boldkast-host-refactor"],
+      "dependencies": [
+        "M4-boldkast-host-refactor"
+      ],
       "acceptance_criteria": [
         "Scenario completes without console errors in browser",
         "Backend log shows same server=boldkast write count as matching scenario on dev",
@@ -123,7 +130,7 @@
       "passes": null,
       "started": null,
       "completed": null,
-      "notes": "Gate before merge. If this fails, branch stays on shelf — does NOT merge to dev without sign-off."
+      "notes": "Gate before merge. If this fails, branch stays on shelf \u2014 does NOT merge to dev without sign-off."
     },
     {
       "id": "M6-docs-upstream",
@@ -131,7 +138,9 @@
       "scope": "docs",
       "estimated_loc": 90,
       "actual_loc": null,
-      "dependencies": ["M5-manual-ar-signoff"],
+      "dependencies": [
+        "M5-manual-ar-signoff"
+      ],
       "acceptance_criteria": [
         "mcp-app-artefact SKILL.md leads with 'Spec-compliant path (recommended)' section; off-spec path marked as 'Defensive fallback'",
         "Design doc Status flipped to Implemented with branch SHA",
@@ -159,9 +168,9 @@
     "estimated_days": 1.55,
     "actual_days": null
   },
-  "velocity_basis": "Last 7 days on this repo: 19773 inserts / 132 files changed across 76 commits. The sprint estimate is conservative against that pace — most of the work here is sandbox-proxy + host component + hook, all of which are smaller than the human-tool-use-cards sprint (~2173 LOC) shipped in a single day on 2026-05-21. Holding ~530 LOC/day target leaves comfortable margin.",
+  "velocity_basis": "Last 7 days on this repo: 19773 inserts / 132 files changed across 76 commits. The sprint estimate is conservative against that pace \u2014 most of the work here is sandbox-proxy + host component + hook, all of which are smaller than the human-tool-use-cards sprint (~2173 LOC) shipped in a single day on 2026-05-21. Holding ~530 LOC/day target leaves comfortable margin.",
   "github_issues": [],
-  "last_session": null,
+  "last_session": "2026-05-21T13:13:02.084739+00:00",
   "last_checkpoint": null,
-  "status": "not_started"
+  "status": "in_progress"
 }
