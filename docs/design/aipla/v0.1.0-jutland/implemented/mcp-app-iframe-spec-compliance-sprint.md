@@ -260,7 +260,7 @@ Move AIPLA's static-artefact iframe path from the rolled-our-own postMessage sha
 - [ ] Update `.claude/skills/mcp-app-artefact/SKILL.md`:
   - New section at the top: "Spec-compliant path (recommended)" — describes `<StaticArtefactFrame>` + `useMcpAppMessages` + the artefact's JSON-RPC envelope. Cross-links the design doc.
   - Mark the existing `useSandboxedIframeMessages` path as "Defensive fallback path" — kept for non-proxy contexts (debugging, dev pages, downstream forks that can't run the proxy).
-- [ ] Update [mcp-app-iframe-spec-compliance.md](mcp-app-iframe-spec-compliance.md) — flip `**Status**: Planned` to `**Status**: Implemented (branch feature/mcp-app-spec-compliance, merged 2026-MM-DD)`.
+- [ ] Update [mcp-app-iframe-spec-compliance.md](mcp-app-iframe-spec-compliance.md) — flip `**Status**: Implemented` to `**Status**: Implemented (branch feature/mcp-app-spec-compliance, merged 2026-MM-DD)`.
 - [ ] Update [docs/upstream-feedback.md](../../../upstream-feedback.md) #30:
   - Add a section "Status: validated locally" with the commit SHA.
   - Refine the upstream proposal: "AIPLA's branch shows the static-artefact proxy mode works as ~190 LOC in the sandbox service + ~120 LOC `StaticArtefactFrame` + ~30 LOC JSON-RPC helpers in the artefact JS. Total: ~340 LOC of new framework code, no spec deviations. Recommend the template adopts this shape."

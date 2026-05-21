@@ -277,3 +277,23 @@ Two CLI commands worth scoping AFTER this design lands (filed as followups, not 
 - [ADR-013](file:///Users/mark/Documents/clients/cph-uni/architecture.qmd#adr-013-artefact-safety-content-review-pipeline-for-generated-html) — sandbox + CSP decision; the spec path completes ADR-013's promise rather than working around it
 - Memory: [feedback-search-protocols-first](../../../../../.claude/projects/-Users-mark-dev-sunholo-cphu-aipla-app/memory/feedback_search_protocols_first.md) — the lesson that motivated this doc
 - Upstream feedback [#28](../../../upstream-feedback.md), [#30](../../../upstream-feedback.md) — reframed to align with this design's understanding
+
+---
+
+## Implementation Report
+
+**Completed**: 2026-05-21
+**Actual Effort**: [e.g., 5 days vs 3 estimated]
+**Branch/PR**: [link or commit range]
+
+### What Was Built
+- [Summary of actual implementation]
+- [Any deviations from plan]
+
+### Files Changed
+- [New files created]
+- [Modified files]
+
+### Lessons Learned
+- [What went well]
+- [What could be improved]
