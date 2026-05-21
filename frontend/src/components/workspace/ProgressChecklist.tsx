@@ -102,26 +102,31 @@ export function ProgressChecklist({ skillId, items, sessionId }: ProgressCheckli
   };
 
   const toggle = (id: string) => {
-    setDone((prev) => {
-      const next = { ...prev, [id]: !prev[id] };
-      if (typeof window !== "undefined") {
-        window.sessionStorage.setItem(storageKey, JSON.stringify(next));
-      }
-      const req = pushSnapshotRequest(next);
-      if (req) {
-        // The toggle is a deliberate student action — surface the
-        // push status in the chat via a human-tool-use card so the
-        // student sees their action was registered with the agent.
-        const item = items.find((i) => i.id === id);
-        const sublabel = item?.label ?? id;
-        const becomingDone = !!next[id];
-        const label = becomingDone
-          ? `Markerede '${sublabel}' som klar`
-          : `Fjernede '${sublabel}' fra klare`;
-        humanToolEvents.dispatch({ label, push: () => req });
-      }
-      return next;
-    });
+    // Compute `next` from current `done` outside the setter so the
+    // side-effects (sessionStorage write, network POST, card dispatch)
+    // run during the click handler, NOT during a render-triggered
+    // state-updater call. React strict-mode flags the latter because
+    // dispatching to a sibling component (HumanToolEventsProvider)
+    // mid-render of ProgressChecklist is illegal — caught live on
+    // 2026-05-21 during M3 manual verification.
+    const next = { ...done, [id]: !done[id] };
+    if (typeof window !== "undefined") {
+      window.sessionStorage.setItem(storageKey, JSON.stringify(next));
+    }
+    const req = pushSnapshotRequest(next);
+    if (req) {
+      // The toggle is a deliberate student action — surface the push
+      // status in the chat via a human-tool-use card so the student
+      // sees their action was registered with the agent.
+      const item = items.find((i) => i.id === id);
+      const sublabel = item?.label ?? id;
+      const becomingDone = !!next[id];
+      const label = becomingDone
+        ? `Markerede '${sublabel}' som klar`
+        : `Fjernede '${sublabel}' fra klare`;
+      humanToolEvents.dispatch({ label, push: () => req });
+    }
+    setDone(next);
   };
 
   // Catch-up push when sessionId arrives. Students often interact with

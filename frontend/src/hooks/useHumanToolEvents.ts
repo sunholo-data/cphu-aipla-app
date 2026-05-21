@@ -35,6 +35,12 @@ export interface HumanToolEvent {
   detail?: string;
   /** Local clock at dispatch — used for ordering against the message list. */
   t: number;
+  /** Number of chat messages that existed when this event was dispatched.
+   *  ChatMessageList uses this to interleave cards between messages:
+   *  events with afterMessageIndex===N render between messages N-1 and N
+   *  (so clicks made before the first message land at the top, clicks
+   *  made after the second message land between #2 and #3, etc). */
+  afterMessageIndex: number;
 }
 
 /** A function the dispatcher calls to perform the network side-effect.
@@ -56,9 +62,25 @@ const HumanToolEventsContext = createContext<HumanToolEventsApi | null>(null);
 
 /** Wrap the chat tree in this to enable cards. Surface components call
  *  `useHumanToolEvents()` to dispatch; ChatMessageList reads `.events`
- *  to render them inline. */
-export function HumanToolEventsProvider({ children }: { children: ReactNode }) {
+ *  to render them inline.
+ *
+ *  `currentMessageCount` is read at dispatch time so each event records
+ *  where it falls relative to the chat transcript. Pass `messages.length`
+ *  from useSkillAgent so cards land at the right point in the
+ *  conversation instead of always at the bottom. */
+export function HumanToolEventsProvider({
+  children,
+  currentMessageCount,
+}: {
+  children: ReactNode;
+  currentMessageCount?: number;
+}) {
   const [events, setEvents] = useState<HumanToolEvent[]>([]);
+  // Mirror current message count in a ref so the dispatch closure
+  // always sees the latest value without forcing dispatch consumers to
+  // re-create their callbacks on every message.
+  const messageCountRef = useRef(currentMessageCount ?? 0);
+  messageCountRef.current = currentMessageCount ?? 0;
   // Monotonic counter to make ids stable + sortable even when clocks
   // collide (two clicks in the same millisecond — happens on touch).
   const counterRef = useRef(0);
@@ -67,7 +89,8 @@ export function HumanToolEventsProvider({ children }: { children: ReactNode }) {
     counterRef.current += 1;
     const id = `htu-${Date.now()}-${counterRef.current}`;
     const t = Date.now();
-    setEvents((prev) => [...prev, { id, label, status: "pending", t }]);
+    const afterMessageIndex = messageCountRef.current;
+    setEvents((prev) => [...prev, { id, label, status: "pending", t, afterMessageIndex }]);
 
     const finish = (next: Partial<HumanToolEvent>) => {
       const elapsed = Date.now() - t;

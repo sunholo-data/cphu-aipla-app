@@ -15,13 +15,21 @@ vi.mock("@/hooks/useHumanToolEvents", () => ({
 const ORIGIN = "https://aipla-v01-sandbox-test.run.app";
 
 // jsdom's window.postMessage forces origin to the receiving page's. To
-// exercise the ADR-013 origin gate we dispatch a synthetic MessageEvent
-// with the origin we control.
-function emit(detail: Record<string, unknown>, origin: string = ORIGIN) {
+// exercise the auth gate we dispatch a synthetic MessageEvent with the
+// fields we control. Auth is now via e.source === iframe.contentWindow
+// (origin check doesn't work for sandboxed iframes without
+// allow-same-origin) so the emit helper sets source by default.
+function emit(
+  detail: Record<string, unknown>,
+  overrideSource?: Window | null,
+) {
+  const iframe = document.querySelector("iframe") as HTMLIFrameElement | null;
+  const src = overrideSource !== undefined ? overrideSource : iframe?.contentWindow ?? null;
   window.dispatchEvent(
     new MessageEvent("message", {
       data: { source: "boldkast", ...detail },
-      origin,
+      origin: ORIGIN,
+      source: src,
     }),
   );
 }
@@ -95,11 +103,35 @@ describe("BoldkastSimFrame", () => {
       expect(dispatchMock.mock.calls[0][0].label).toBe("Skiftede tyngdekraft til Månen");
     });
 
-    it("does not dispatch on slider-drag param.change (no triggeredBy)", () => {
+    it("does not dispatch a card on slider-drag (no triggeredBy)", () => {
+      vi.useFakeTimers();
       render(<BoldkastSimFrame sandboxOrigin={ORIGIN} sessionId="sess-1" onClose={() => {}} />);
       emit({ type: "boldkast.param.change", param: "v0", value: 20 });
+      // No card — slider drags are silent UI-wise.
       expect(dispatchMock).not.toHaveBeenCalled();
+      vi.useRealTimers();
+    });
+
+    it("debounces slider drags and pushes the final value silently after 500ms", () => {
+      vi.useFakeTimers();
+      render(<BoldkastSimFrame sandboxOrigin={ORIGIN} sessionId="sess-1" onClose={() => {}} />);
+      // Three rapid drag events — only the LAST should produce a push.
+      emit({ type: "boldkast.param.change", param: "v0", value: 10 });
+      emit({ type: "boldkast.param.change", param: "v0", value: 12 });
+      emit({ type: "boldkast.param.change", param: "v0", value: 15 });
       expect(fetchWithAuth).not.toHaveBeenCalled();
+      vi.advanceTimersByTime(499);
+      expect(fetchWithAuth).not.toHaveBeenCalled();
+      vi.advanceTimersByTime(2);
+      expect(fetchWithAuth).toHaveBeenCalledTimes(1);
+      // The pushed body should contain v0=15 (the final value)
+      const body = JSON.parse(
+        (vi.mocked(fetchWithAuth).mock.calls[0][1]?.body as string) ?? "{}",
+      );
+      expect(body.structuredContent.v0).toBe(15);
+      // No card — silent push only.
+      expect(dispatchMock).not.toHaveBeenCalled();
+      vi.useRealTimers();
     });
 
     it("pushes but does not dispatch on boldkast.open (not a pedagogical action)", () => {
@@ -117,7 +149,20 @@ describe("BoldkastSimFrame", () => {
     });
   });
 
-  it("postMessage handler ignores messages from non-sandbox origins (ADR-013 origin gate)", () => {
+  it("postMessage handler ignores messages whose source is not our iframe (ADR-013 auth)", () => {
+    render(<BoldkastSimFrame sandboxOrigin={ORIGIN} sessionId="sess-1" onClose={() => {}} />);
+    // Synthetic event with source=null (some other window). Even if
+    // the payload says source: "boldkast", we reject because the
+    // sender window is not the iframe we own.
+    emit(
+      { type: "boldkast.show_value", marker: "y_max", revealed: true },
+      null, // override source: explicitly NOT our iframe
+    );
+    expect(dispatchMock).not.toHaveBeenCalled();
+    expect(fetchWithAuth).not.toHaveBeenCalled();
+  });
+
+  it("legacy origin-only test — kept as smoke that the bare handler still runs", () => {
     // We can't directly observe the handler, but we can verify it doesn't
     // crash + doesn't bubble side effects when a wrong-origin message arrives.
     // The component shouldn't log to console in production paths.

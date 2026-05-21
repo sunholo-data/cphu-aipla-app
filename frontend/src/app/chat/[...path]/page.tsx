@@ -183,9 +183,7 @@ function ChatPageInner({
 
   return (
     <AGUIProvider skillId={skillId} sessionId={stableThreadId}>
-      <HumanToolEventsProvider>
-        <ChatShell skillId={skillId} pathPrefix={pathPrefix} user={user} />
-      </HumanToolEventsProvider>
+      <ChatShell skillId={skillId} pathPrefix={pathPrefix} user={user} />
     </AGUIProvider>
   );
 }
@@ -541,6 +539,7 @@ function ChatShell({
 
   return (
     <SurfaceRegistryProvider>
+    <HumanToolEventsProvider currentMessageCount={messages.length}>
     <SurfaceSessionLifecycle sessionId={sessionId} />
     <main className="flex h-full min-h-0 flex-col">
       <SkillsBar
@@ -797,6 +796,7 @@ function ChatShell({
           the user-gesture guard so the agent can't pop one unprompted. */}
       <ModalSurfaceRegion sessionId={sessionId ?? agentSessionId} />
     </main>
+    </HumanToolEventsProvider>
     </SurfaceRegistryProvider>
   );
 }

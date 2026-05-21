@@ -8,7 +8,7 @@
 
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { Fragment, useCallback, useEffect, useRef, useState } from "react";
 import type { StreamError, SkillMessage, ToolCallState } from "@/hooks/useSkillAgent";
 import type { ActiveDocumentContext } from "@/components/chat/ContextBanner";
 import { ContextBanner } from "@/components/chat/ContextBanner";
@@ -220,21 +220,34 @@ export function ChatMessageList({
             </p>
           )}
 
-          {stableMessages.map((m) => (
-            <MessageBubble
-              key={m.id}
-              message={m}
-              skillId={skillId}
-              userInitial={userInitial}
-              userDisplayName={userDisplayName}
-              toolCalls={toolCallsByParent[m.id] ?? []}
-              navigateToBlock={navigate}
-              onAction={onAction}
-              mcpServerIds={mcpServerIds}
-              onChatMessage={onChatMessage}
-              sessionId={sessionId}
-            />
+          {stableMessages.map((m, i) => (
+            <Fragment key={m.id}>
+              {/* Cards dispatched BEFORE this message landed (i.e.
+                  while message count was still i). Renders at the top
+                  of the list for clicks that happened before any
+                  message exists. */}
+              <HumanToolEventsAt index={i} />
+              <MessageBubble
+                message={m}
+                skillId={skillId}
+                userInitial={userInitial}
+                userDisplayName={userDisplayName}
+                toolCalls={toolCallsByParent[m.id] ?? []}
+                navigateToBlock={navigate}
+                onAction={onAction}
+                mcpServerIds={mcpServerIds}
+                onChatMessage={onChatMessage}
+                sessionId={sessionId}
+              />
+            </Fragment>
           ))}
+
+          {/* Cards dispatched AFTER the last message but before any
+              new turn. Includes anything ticked during the agent's
+              streaming response — those land here under the streaming
+              bubble so the temporal order reads left-to-right top-to-
+              bottom: prior messages → click cards → streaming reply. */}
+          <HumanToolEventsAt index={stableMessages.length} />
 
           {isStreaming && lastMessage && (
             <StreamingBubble
@@ -248,8 +261,6 @@ export function ChatMessageList({
           {isTyping && (
             <TypingIndicator stageLabel={stageLabel} activeToolName={activeToolName} />
           )}
-
-          <HumanToolEventsTray />
 
           {errorBanner && <div className="text-left">{errorBanner}</div>}
         </div>
@@ -268,18 +279,19 @@ export function ChatMessageList({
   );
 }
 
-// HumanToolEventsTray — renders human tool-use cards inline at the end
-// of the chat transcript. Cards reflect iframe-context pushes from the
-// workspace surfaces (BoldkastSimFrame, ProgressChecklist). The tray
-// reads from the HumanToolEventsContext so consumers don't have to
-// prop-drill state. If no provider is mounted (e.g. tests, isolated
-// embeds), `events` is the no-op fallback's empty array.
-function HumanToolEventsTray() {
+// HumanToolEventsAt — renders the subset of human-tool-use cards that
+// were dispatched while the chat had exactly `index` messages. Used
+// inline between MessageBubbles in ChatMessageList so cards appear at
+// the chronologically correct point in the transcript, not always at
+// the bottom. See `HumanToolEvent.afterMessageIndex` in
+// useHumanToolEvents.ts for the dispatch-time snapshot.
+function HumanToolEventsAt({ index }: { index: number }) {
   const { events } = useHumanToolEvents();
-  if (events.length === 0) return null;
+  const here = events.filter((e) => e.afterMessageIndex === index);
+  if (here.length === 0) return null;
   return (
-    <div className="flex flex-wrap gap-1.5" data-testid="human-tool-events-tray">
-      {events.map((e) => (
+    <div className="flex flex-wrap gap-1.5" data-testid={`human-tool-events-at-${index}`}>
+      {here.map((e) => (
         <HumanToolUseCard
           key={e.id}
           label={e.label}

@@ -91,6 +91,15 @@ export function BoldkastSimFrame({ sandboxOrigin, sessionId, onClose }: Boldkast
   const expectedOrigin = sandboxOrigin.replace(/\/$/, "");
   const iframeUrl = `${expectedOrigin}/artefacts/boldkast/v1/index.html`;
   const humanToolEvents = useHumanToolEvents();
+  // Debounce handle for slider-drag pushes. window.setTimeout returns a
+  // number; null when no debounce is pending.
+  const sliderDebounceRef = useRef<number | null>(null);
+  // Ref on the iframe element so the message handler can check
+  // `e.source === iframeRef.current.contentWindow` — origin-based
+  // checks don't work for sandboxed iframes without allow-same-origin
+  // (their effective origin is "null"). Per ADR-013 we deliberately
+  // keep allow-same-origin OFF, so we authenticate by window identity.
+  const iframeRef = useRef<HTMLIFrameElement | null>(null);
   // Accumulated snapshot — ref (not state) because we don't re-render
   // on update; we only POST to the backend.
   const snapshotRef = useRef<BoldkastSnapshot>({
@@ -157,8 +166,17 @@ export function BoldkastSimFrame({ sandboxOrigin, sessionId, onClose }: Boldkast
     };
 
     const onMessage = (e: MessageEvent) => {
-      // ADR-013 contract: validate origin BEFORE reading e.data.
-      if (e.origin !== expectedOrigin) return;
+      // ADR-013 contract: authenticate the sender BEFORE reading e.data.
+      // We can't check `e.origin === sandboxOrigin` because the iframe
+      // runs with `sandbox="allow-scripts"` and no `allow-same-origin`
+      // — that makes its effective origin opaque ("null") so the origin
+      // check would reject every legitimate event. Instead we check
+      // `e.source === iframeRef.current.contentWindow`: only messages
+      // coming from THIS exact iframe's window are accepted. Combined
+      // with the data.source === "boldkast" type-marker filter below,
+      // that's a strict authentication. Caught live on 2026-05-21 when
+      // M's slider drags + Vis clicks weren't producing any pushes.
+      if (!iframeRef.current || e.source !== iframeRef.current.contentWindow) return;
       const data = e.data as BoldkastMessage;
       if (!data || data.source !== "boldkast" || typeof data.type !== "string") return;
 
@@ -189,17 +207,33 @@ export function BoldkastSimFrame({ sandboxOrigin, sessionId, onClose }: Boldkast
           // student hid a value they previously saw.
         }
       } else if (data.type === "boldkast.param.change" && typeof data.value === "number") {
-        // Always update the snapshot's current value (cheap), but only
-        // push when the source is "preset:..." (a deliberate planet
-        // click) — slider drags are silent.
+        // Always update the snapshot's current value (cheap).
         if (data.param === "v0") snap.v0 = data.value;
         else if (data.param === "theta") snap.theta = data.value;
         else if (data.param === "g") snap.g = data.value;
         const triggeredBy = data.triggeredBy || "";
         if (triggeredBy.startsWith("preset:") && data.param === "g") {
+          // Deliberate planet preset click → push + card immediately.
           snap.lastPreset = triggeredBy.slice("preset:".length);
           shouldPush = true;
           pushedPreset = snap.lastPreset;
+        } else {
+          // Slider drag — fires per-pixel. Debounce 500ms then push the
+          // final value silently so the agent sees the student's
+          // chosen v0 / theta / g without flooding state. No card —
+          // would create one chip per drag-end which is noisy. The
+          // student already sees the slider's value next to the
+          // handle; the card adds nothing.
+          // 2026-05-21: added after live testing showed M's slider
+          // drags weren't reaching the agent, breaking "are my values
+          // close to correct?" — the very prompt the demo is built on.
+          if (sliderDebounceRef.current !== null) {
+            window.clearTimeout(sliderDebounceRef.current);
+          }
+          sliderDebounceRef.current = window.setTimeout(() => {
+            pushSnapshotSilent("boldkast.param.change");
+            sliderDebounceRef.current = null;
+          }, 500);
         }
       }
       // play / pause / reset events are intentionally not pushed —
@@ -228,7 +262,16 @@ export function BoldkastSimFrame({ sandboxOrigin, sessionId, onClose }: Boldkast
       }
     }
 
-    return () => window.removeEventListener("message", onMessage);
+    return () => {
+      window.removeEventListener("message", onMessage);
+      // Flush any pending slider debounce on unmount — keeps the
+      // last-known values reaching the agent if the student closes
+      // the sim mid-drag.
+      if (sliderDebounceRef.current !== null) {
+        window.clearTimeout(sliderDebounceRef.current);
+        sliderDebounceRef.current = null;
+      }
+    };
     // humanToolEvents is intentionally excluded: its `dispatch` is a
     // useCallback(..., []) (stable for the page lifetime), and adding it
     // would rebind the message listener every render → lost events on
@@ -262,11 +305,15 @@ export function BoldkastSimFrame({ sandboxOrigin, sessionId, onClose }: Boldkast
           otherwise compete with the workspace scroll on mobile, which
           confuses tap-targeting on iOS. */}
       <iframe
+        ref={iframeRef}
         src={iframeUrl}
         title="Boldkast projectile motion simulator"
         // allow-scripts only. NO allow-same-origin, NO allow-top-navigation,
         // NO allow-popups, NO allow-forms — minimum needed to let the
-        // canvas JS run.
+        // canvas JS run. Note: this means the iframe has an opaque
+        // origin — postMessage events arrive with e.origin === "null".
+        // We authenticate via e.source === iframeRef.current.contentWindow
+        // in onMessage above.
         sandbox="allow-scripts"
         referrerPolicy="no-referrer"
         loading="eager"
