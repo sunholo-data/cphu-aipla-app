@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { notFound, useParams } from "next/navigation";
+import { useParams } from "next/navigation";
 import { useEffect, useState } from "react";
 import {
   ArrowLeft,
@@ -105,7 +105,15 @@ export default function TeacherGroupReportPage() {
   }
 
   if (state.kind === "empty") {
-    notFound();
+    return (
+      <div className="flex min-h-[40vh] flex-col items-center justify-center gap-2 text-sm text-muted-foreground">
+        <p className="font-medium text-foreground">No sessions yet</p>
+        <p>
+          Group <code className="rounded bg-muted px-1.5 py-0.5 font-mono text-xs">{groupId}</code> has not completed a session.
+        </p>
+        <p>Students need to join and chat before a report appears here.</p>
+      </div>
+    );
   }
 
   const report = toDisplay(state)!;
