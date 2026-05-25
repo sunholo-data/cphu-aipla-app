@@ -77,6 +77,7 @@ Specifically deferred from this version:
 - Multi-school / institutional admin (UCPH-level admin roles above teachers)
 - **Teacher control over artefact parameters** (roadmap signal — see [../post-pilot/teacher-artefact-parameters.md](../post-pilot/teacher-artefact-parameters.md)). v1 ships free-text teaching goal only. Parameter-level configurability is a v1.1 candidate, decision after pilot feedback. Surfaced as a wireframe "Parameters" tab on the activity-config screen so JB/AR can react to the affordance.
 - **Teacher artefact authoring (code-level editing)** (roadmap signal — see [../post-pilot/teacher-artefact-authoring.md](../post-pilot/teacher-artefact-authoring.md)). v2 / Year-2 explicit scope — outside the contract window. Surfaced as wireframe "Code" + "History" tabs on the activity-config screen so the v1 design doesn't paint us into a corner.
+- **Pedagogical rubrics over chat logs** (roadmap signal — see [../post-pilot/session-analytics-rubric.md](../post-pilot/session-analytics-rubric.md)). The Phase 2 report screen shows surface metrics (duration, messages, sim runs). It does **not** yet apply a pedagogical framework — ICAP for engagement quality, FCI taxonomy for misconception tracking, NGSS 3D-LAP for competency rubrics. Gated on 1.2 BigQuery sink + JB/AR framework pick. Recommended initial build: ICAP + FCI two-lens stack.
 
 ## Risks
 
