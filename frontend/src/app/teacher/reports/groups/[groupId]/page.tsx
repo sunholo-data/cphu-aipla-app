@@ -1,5 +1,8 @@
+"use client";
+
 import Link from "next/link";
-import { notFound } from "next/navigation";
+import { notFound, useParams } from "next/navigation";
+import { useEffect, useState } from "react";
 import {
   ArrowLeft,
   CheckCircle2,
@@ -9,21 +12,108 @@ import {
 } from "lucide-react";
 
 import {
+  type MockSessionReport,
   getMockClass,
   getMockSessionReport,
 } from "../../../_mock-data";
+import {
+  NotFoundError,
+  type SessionSummaryPayload,
+  fetchGroupLatestReport,
+} from "@/lib/teacherApi";
 
-type PageProps = {
-  params: Promise<{ groupId: string }>;
-};
+type ReportState =
+  | { kind: "loading" }
+  | { kind: "live"; data: SessionSummaryPayload }
+  | { kind: "mock"; data: MockSessionReport }
+  | { kind: "empty" };
 
-export default async function TeacherGroupReportPage({ params }: PageProps) {
-  const { groupId } = await params;
-  const report = getMockSessionReport(groupId);
-  if (!report) {
+function toDisplay(state: ReportState): MockSessionReport | null {
+  if (state.kind === "live") {
+    const d = state.data;
+    return {
+      classId: "",
+      groupCode: d.groupCode ?? "",
+      activityName: d.activityId,
+      startedAtLabel: d.startedAt.slice(0, 16).replace("T", " "),
+      durationMinutes: Math.round(d.durationSeconds / 60),
+      messageCount: d.messageCount,
+      simRunCount: d.simRunCount,
+      highlights: [
+        `${d.messageCount} messages exchanged`,
+        `${d.simRunCount} workbench interactions`,
+      ],
+      checklistComplete: [],
+      checklistIncomplete: [],
+      conversation: d.conversation.map((t) => ({
+        timestamp: t.timestamp.slice(11, 16),
+        role: t.role,
+        content: t.content,
+      })),
+    };
+  }
+  if (state.kind === "mock") {
+    return state.data;
+  }
+  return null;
+}
+
+export default function TeacherGroupReportPage() {
+  const params = useParams();
+  const groupId =
+    typeof params?.groupId === "string" ? params.groupId : "";
+
+  const [state, setState] = useState<ReportState>({ kind: "loading" });
+
+  useEffect(() => {
+    let alive = true;
+    fetchGroupLatestReport(groupId)
+      .then((data) => {
+        if (alive) {
+          setState({ kind: "live", data });
+        }
+      })
+      .catch((err) => {
+        if (!alive) return;
+        const mock = getMockSessionReport(groupId);
+        if (err instanceof NotFoundError) {
+          if (mock) {
+            setState({ kind: "mock", data: mock });
+          } else {
+            setState({ kind: "empty" });
+          }
+          return;
+        }
+        console.warn("[teacher-ui] group report load failed:", err);
+        if (mock) {
+          setState({ kind: "mock", data: mock });
+        } else {
+          setState({ kind: "empty" });
+        }
+      });
+    return () => {
+      alive = false;
+    };
+  }, [groupId]);
+
+  if (state.kind === "loading") {
+    return (
+      <div className="flex min-h-[40vh] items-center justify-center text-sm text-muted-foreground">
+        Loading report…
+      </div>
+    );
+  }
+
+  if (state.kind === "empty") {
     notFound();
   }
-  const parentClass = getMockClass(report.classId);
+
+  const report = toDisplay(state)!;
+  const parentClass =
+    state.kind === "mock" && report.classId
+      ? getMockClass(report.classId)
+      : undefined;
+  const isLive = state.kind === "live";
 
   return (
     <div className="flex flex-col gap-6">
@@ -39,16 +129,32 @@ export default async function TeacherGroupReportPage({ params }: PageProps) {
             </Link>
             <span aria-hidden="true">/</span>
           </>
-        ) : null}
+        ) : (
+          <Link
+            href="/teacher/classes"
+            className="flex items-center gap-1 hover:text-foreground"
+          >
+            <ArrowLeft className="h-4 w-4" aria-hidden="true" />
+            Dashboard
+          </Link>
+        )}
+        <span aria-hidden="true">/</span>
         <code className="rounded bg-muted px-1.5 py-0.5 font-mono text-xs text-foreground">
-          {report.groupCode}
+          {groupId}
         </code>
         <span aria-hidden="true">/</span>
         <span className="text-foreground">Report</span>
       </nav>
 
       <header className="flex flex-col gap-1">
-        <h1 className="text-xl font-semibold sm:text-2xl">Session report</h1>
+        <div className="flex items-center gap-2">
+          <h1 className="text-xl font-semibold sm:text-2xl">Session report</h1>
+          {!isLive ? (
+            <span className="rounded border border-dashed border-amber-300 bg-amber-50 px-2 py-0.5 text-[10px] font-medium text-amber-900 dark:border-amber-700 dark:bg-amber-950 dark:text-amber-200">
+              mock data
+            </span>
+          ) : null}
+        </div>
         <p className="text-sm text-muted-foreground">
           Activity: <strong>{report.activityName}</strong> · Session:{" "}
           {report.startedAtLabel}
@@ -94,27 +200,32 @@ export default async function TeacherGroupReportPage({ params }: PageProps) {
           ))}
         </ul>
 
-        <h3 className="mt-2 text-sm font-semibold">Self-assessment</h3>
-        <ul className="flex flex-col gap-1 text-sm">
-          {report.checklistComplete.map((c) => (
-            <li key={c} className="flex items-start gap-2">
-              <CheckCircle2
-                className="mt-0.5 h-4 w-4 shrink-0 text-emerald-600"
-                aria-label="Completed"
-              />
-              <span>{c}</span>
-            </li>
-          ))}
-          {report.checklistIncomplete.map((c) => (
-            <li key={c} className="flex items-start gap-2 text-muted-foreground">
-              <Circle
-                className="mt-0.5 h-4 w-4 shrink-0"
-                aria-label="Not completed"
-              />
-              <span>{c}</span>
-            </li>
-          ))}
-        </ul>
+        {report.checklistComplete.length + report.checklistIncomplete.length >
+        0 ? (
+          <>
+            <h3 className="mt-2 text-sm font-semibold">Self-assessment</h3>
+            <ul className="flex flex-col gap-1 text-sm">
+              {report.checklistComplete.map((c) => (
+                <li key={c} className="flex items-start gap-2">
+                  <CheckCircle2
+                    className="mt-0.5 h-4 w-4 shrink-0 text-emerald-600"
+                    aria-label="Completed"
+                  />
+                  <span>{c}</span>
+                </li>
+              ))}
+              {report.checklistIncomplete.map((c) => (
+                <li key={c} className="flex items-start gap-2 text-muted-foreground">
+                  <Circle
+                    className="mt-0.5 h-4 w-4 shrink-0"
+                    aria-label="Not completed"
+                  />
+                  <span>{c}</span>
+                </li>
+              ))}
+            </ul>
+          </>
+        ) : null}
       </section>
 
       <section aria-labelledby="log-label" className="flex flex-col gap-2">
@@ -133,6 +244,11 @@ export default async function TeacherGroupReportPage({ params }: PageProps) {
           </button>
         </header>
         <ol className="flex flex-col gap-2 rounded border border-border bg-background p-3 text-sm">
+          {report.conversation.length === 0 ? (
+            <li className="text-muted-foreground">
+              No messages exchanged in this session yet.
+            </li>
+          ) : null}
           {report.conversation.map((turn, i) => (
             <li key={`${turn.timestamp}-${i}`} className="flex flex-col gap-0.5">
               <span className="text-[10px] uppercase tracking-wide text-muted-foreground">

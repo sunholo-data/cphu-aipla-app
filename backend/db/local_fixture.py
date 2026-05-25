@@ -170,8 +170,36 @@ def seed_local_fixture() -> None:
 
         _clear_perm_cache()
 
+    # ---- AIPLA seeded demo class (1.G-Ph2) -------------------------------
+    # Phase 2 teacher UI ships against a single mocked Class entity in
+    # LOCAL_MODE. The id matches the frontend's `MOCK_DEFAULT_CLASS_ID`
+    # in `frontend/src/app/teacher/_mock-data.ts` so the dashboard and
+    # detail screens render coherently across mock and real surfaces.
+    classes = list(client.collection("classes").stream())
+    if not classes:
+        client.collection("classes").document(_AIPLA_DEMO_CLASS_ID).set(
+            {
+                "classId": _AIPLA_DEMO_CLASS_ID,
+                "name": "7B Physics A",
+                "ownerUid": WORKSHOP_USER_UID,
+                "createdAt": now,
+            }
+        )
+        logger.info(
+            "seed_local_fixture: seeded demo class %s for teacher UI Phase 2",
+            _AIPLA_DEMO_CLASS_ID,
+        )
+
     counts = client.snapshot_size() if hasattr(client, "snapshot_size") else {}
     logger.info("LOCAL_MODE fixture seeded: %s", counts)
+
+
+# Demo class id used by 1.G-Ph2. Kept in sync with
+# ``backend/adk/teacher_focus.py:LOCAL_MODE_DEMO_CLASS_ID`` and the
+# frontend's ``MOCK_DEFAULT_CLASS_ID``. Anchored here because the seed
+# function above writes it; the Phase 3 swap to a real Class entity
+# starts by removing this constant.
+_AIPLA_DEMO_CLASS_ID = "7b-physics-a-2026"
 
 
 def _demo_skills(now: float) -> list[dict]:

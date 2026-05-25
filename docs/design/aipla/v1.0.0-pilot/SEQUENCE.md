@@ -75,6 +75,8 @@ Specifically deferred from this version:
 - Per-class budget surfacing UI (enforcer ships in 1.12 separately; the *display* lands later)
 - Strand B (student-as-creator) skills
 - Multi-school / institutional admin (UCPH-level admin roles above teachers)
+- **Teacher control over artefact parameters** (roadmap signal — see [../post-pilot/teacher-artefact-parameters.md](../post-pilot/teacher-artefact-parameters.md)). v1 ships free-text teaching goal only. Parameter-level configurability is a v1.1 candidate, decision after pilot feedback. Surfaced as a wireframe "Parameters" tab on the activity-config screen so JB/AR can react to the affordance.
+- **Teacher artefact authoring (code-level editing)** (roadmap signal — see [../post-pilot/teacher-artefact-authoring.md](../post-pilot/teacher-artefact-authoring.md)). v2 / Year-2 explicit scope — outside the contract window. Surfaced as wireframe "Code" + "History" tabs on the activity-config screen so the v1 design doesn't paint us into a corner.
 
 ## Risks
 

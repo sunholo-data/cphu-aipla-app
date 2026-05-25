@@ -97,14 +97,19 @@ respects the **mid-point review (2026-06-26)** + **holiday freeze
 |---|---|---|---|---|
 | **1.13** | `pilot-readiness-checklist.md` | Not a feature doc — a release checklist. DPIA scaffold, consent form sign-off (JB), capability-floor eval baseline locked, runbooks for "how to onboard a new teacher / class", smoke tests for the full v1 path, rollback procedures. | 005, 014 | 1d |
 
-## Phase 2 — Strand B + Strand C (post-pilot, weeks 13–17)
+## Phase 2 — Strand B + Strand C + roadmap signals (post-pilot, weeks 13–17)
 
 These docs only get written if v1 is on track at the mid-point review.
+Rows 2.3 and 2.4 are **roadmap signals**, not commitments — they capture
+the direction so v1 design choices don't paint us into a corner. Both
+have explicit decision criteria for "when would we actually build this."
 
-| # | Doc (planned) | Strand | Status |
+| # | Doc (planned) | Strand / target | Status |
 |---|---|---|---|
 | 2.1 | `strand-b-student-as-creator.md` | B | Stub; depends on v1 working in the pilot |
 | 2.2 | `strand-c-scoping-note-plan.md` | C | The scoping note itself ships in the scoping site, not here. This doc is just the per-RQ investigation plan (model panel, AILANG benchmark probes, lit review). |
+| 2.3 | [aipla/post-pilot/teacher-artefact-parameters.md](post-pilot/teacher-artefact-parameters.md) | v1.1 — post-pilot iteration | **Roadmap signal, not committed.** Bounded parameter editing for first-party artefacts (Boldkast, LED Planck) — sliders/toggles/enums driven by a schema, no code. Decision after 2026-08-14 pilot feedback |
+| 2.4 | [aipla/post-pilot/teacher-artefact-authoring.md](post-pilot/teacher-artefact-authoring.md) | v2 / Year-2 — explicitly out of contract | **Roadmap signal, not committed.** Code-level artefact editing by teachers, AI-assisted via the `.claude/skills/mcp-app-artefact` skill, draft → review queue → publish. 6-10 weeks of focused engineering; tied to Year-2 research programme, not this contract |
 
 ## Phase 3 — Handover (weeks 16–17)
 

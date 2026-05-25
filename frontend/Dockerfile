@@ -26,6 +26,10 @@ ARG NEXT_PUBLIC_AUTH_MODE
 # platform-owner namespace (@aipla-platform) rather than the inherited
 # @aitana-platform. Set via cloudbuild substitution.
 ARG NEXT_PUBLIC_POST_JOIN_REDIRECT
+# 1.G-Ph2 — opt-in mockup bypass for the /teacher/* surface (set to '1'
+# on the dev trigger only). Empty on test/prod so the layout renders
+# the "sign-in required" placeholder instead of the seeded fixtures.
+ARG NEXT_PUBLIC_TEACHER_MOCK
 ARG MAILGUN_WEBHOOK_SECRET
 
 ENV NEXT_PUBLIC_FIREBASE_API_KEY=$NEXT_PUBLIC_FIREBASE_API_KEY
@@ -39,6 +43,7 @@ ENV NEXT_PUBLIC_BACKEND_URL=$NEXT_PUBLIC_BACKEND_URL
 ENV NEXT_PUBLIC_MCP_SANDBOX_URL=$NEXT_PUBLIC_MCP_SANDBOX_URL
 ENV NEXT_PUBLIC_AUTH_MODE=$NEXT_PUBLIC_AUTH_MODE
 ENV NEXT_PUBLIC_POST_JOIN_REDIRECT=$NEXT_PUBLIC_POST_JOIN_REDIRECT
+ENV NEXT_PUBLIC_TEACHER_MOCK=$NEXT_PUBLIC_TEACHER_MOCK
 ENV MAILGUN_WEBHOOK_SECRET=$MAILGUN_WEBHOOK_SECRET
 
 COPY package*.json ./
