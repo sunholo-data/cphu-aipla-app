@@ -61,7 +61,7 @@
       "passes": null,
       "started": null,
       "completed": null,
-      "notes": "LOC est. matches design doc lines 306-312. Source-of-truth wireframes at /Users/mark/Documents/clients/cph-uni/strand-a-pedagogical-bot/prototypes/teacher-ui-brief.md — paste into PR description if unreachable."
+      "notes": "LOC est. matches design doc lines 306-312. Source-of-truth wireframes at aipla/strand-a-pedagogical-bot/prototypes/teacher-ui-brief.md (sibling repo: sunholo-data/aipla, cloned alongside this one). Public preview at https://www.sunholo.com/aipla/ for fallback."
     },
     {
       "id": "M3",

@@ -2,7 +2,7 @@
 
 **Sprint ID:** `TEACHER-UI-PH1`
 **Design doc:** [teacher-ui.md](teacher-ui.md) (sections "Phased delivery" + "Implementation Plan — Phase 1" + "Cloud-agent kick-off note (Phase 1)")
-**Wireframes (source of truth):** `teacher-ui-brief.md` in the scoping site at `/Users/mark/Documents/clients/cph-uni/strand-a-pedagogical-bot/prototypes/teacher-ui-brief.md` — **not in this repo; cloud agent needs filesystem access OR the wireframes pasted into the PR description**
+**Wireframes (source of truth):** `teacher-ui-brief.md` in the scoping site. On this machine: `/Users/voightkampff/dev/sunholo-data/aipla/strand-a-pedagogical-bot/prototypes/teacher-ui-brief.md` (sibling of this repo). On M's machine: `/Users/mark/Documents/clients/cph-uni/...`. Public preview: <https://www.sunholo.com/aipla/>. Cloud agent should clone the `aipla` repo alongside this one if it's not already present.
 **Branch:** `feature/teacher-ui-mockup` (off `c05d9be` on `origin/dev`)
 **PR target:** `dev`
 **Estimate:** ~0.85–1.05 day (4 milestones)
@@ -150,7 +150,7 @@ Last-14-day repo velocity: 90 commits / 23,862 insertions across 147 files inclu
 
 | Risk | Likelihood | Mitigation |
 |---|---|---|
-| Cloud agent can't reach scoping-site wireframes (`/Users/mark/Documents/clients/cph-uni/...`) | High (depends on agent's environment) | If unreachable: paste ASCII wireframes into the PR description as a fallback source of truth; flag in M1 of the agent's first commit |
+| Cloud agent can't reach the `aipla` scoping repo for wireframes | Low (clone is one command — both repos are sunholo-data sibling repos) | Agent clones `sunholo-data/aipla` adjacent to `cphu-aipla-app` before starting M2; falls back to <https://www.sunholo.com/aipla/> if clone is blocked |
 | Visual drift from JB's expectations | Medium | M4 mandates 10 screenshots in PR description; M+JB sign-off is a hard gate |
 | Toast component doesn't exist in the project | Low | Audit `frontend/src/components/` first; if missing, use a minimal inline `aria-live` div rather than introducing a dependency |
 | Emoji slip past review | Low | Lint config + explicit grep in M4 acceptance gate |
