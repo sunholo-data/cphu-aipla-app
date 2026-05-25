@@ -65,12 +65,13 @@ export function subscribeToAuthState(
 
 export async function getIdToken(): Promise<string | null> {
   // Anonymous group-ID mode (sprint 2.11): token lives in sessionStorage,
-  // written by AnonymousGroupAuthProvider. Checked BEFORE LOCAL_MODE
-  // because the group-auth env var explicitly overrides LOCAL_MODE
-  // when forks want to demo without standing up Firebase.
+  // written by AnonymousGroupAuthProvider. If a session exists, use it —
+  // this covers students who have joined a group (including in LOCAL_MODE).
+  // If no session exists, fall through: LOCAL_MODE can still supply the
+  // workshop stub for teacher routes that don't require a group session.
   if (isAnonymousGroupAuthMode()) {
     const session = readStoredGroupSession();
-    return session?.token ?? null;
+    if (session?.token) return session.token;
   }
   // LOCAL_MODE: every request sends the well-known stub token so the
   // backend's auth/local_mode_stub.py grants it. fetchWithAuth wires this
