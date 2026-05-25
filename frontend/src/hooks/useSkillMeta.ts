@@ -23,6 +23,10 @@ interface SkillMeta {
    * for skills that don't pin to a problem. Added 2026-05-21 for the
    * Jutland-demo PEDCTX sprint M3. */
   problemStatement: string;
+  /** 1.I-PhA — when true, the chat surface fires
+   * POST /api/sessions/{id}/greet on mount so the tutor speaks first
+   * instead of waiting for the student to type. Default false. */
+  proactiveGreet: boolean;
   loading: boolean;
 }
 
@@ -37,6 +41,8 @@ interface SkillResponse {
   initial_message?: string;
   problemStatement?: string;
   problem_statement?: string;
+  proactiveGreet?: boolean;
+  proactive_greet?: boolean;
   skillMetadata?: { toolConfigs?: { mcp?: { servers?: unknown } } };
   skill_metadata?: { toolConfigs?: { mcp?: { servers?: unknown } } };
 }
@@ -55,6 +61,7 @@ export function useSkillMeta(skillId: string): SkillMeta {
   const [mcpServerIds, setMcpServerIds] = useState<readonly string[]>([]);
   const [initialMessage, setInitialMessage] = useState<string>("");
   const [problemStatement, setProblemStatement] = useState<string>("");
+  const [proactiveGreet, setProactiveGreet] = useState<boolean>(false);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -71,6 +78,7 @@ export function useSkillMeta(skillId: string): SkillMeta {
           setMcpServerIds(extractMcpServerIds(data));
           setInitialMessage(data.initialMessage || data.initial_message || "");
           setProblemStatement(data.problemStatement || data.problem_statement || "");
+          setProactiveGreet(Boolean(data.proactiveGreet ?? data.proactive_greet ?? false));
           setLoading(false);
         }
       })
@@ -83,5 +91,14 @@ export function useSkillMeta(skillId: string): SkillMeta {
     };
   }, [skillId]);
 
-  return { displayName, ownerId, slug, mcpServerIds, initialMessage, problemStatement, loading };
+  return {
+    displayName,
+    ownerId,
+    slug,
+    mcpServerIds,
+    initialMessage,
+    problemStatement,
+    proactiveGreet,
+    loading,
+  };
 }

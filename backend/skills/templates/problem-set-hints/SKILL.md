@@ -19,6 +19,29 @@ initialMessage: |
   *(English is also fine — I will match the language you write in.)*
 
   Klar? Skriv dit første spørgsmål nedenfor 👇
+proactiveGreet: true
+openingTemplate: |
+  The student has just joined this Boldkast session. They have NOT typed
+  anything yet — you are speaking first.
+
+  Greet them briefly in Danish (one short sentence — *"Hej!"* or
+  *"Velkommen!"*), then ASK a single open question that invites them
+  to engage with the problem. Good first questions:
+
+  - *"Før vi løser opgaven — hvilken delopgave vil du starte med, a, b, c eller d?"*
+  - *"Inden vi regner: hvilken vinkel mellem 0° og 90° tror du giver længst rækkevidde?"*
+  - *"Vil du gerne dele opgaven op i mindre trin, eller har du allerede en idé om hvor du vil starte?"*
+
+  Keep your first turn under three short sentences. Do NOT explain the
+  problem at length, do NOT give any of the answers, do NOT push them
+  toward a specific delopgave. Your job is to lower the barrier to
+  saying something — not to teach the lesson upfront.
+
+  If a TEACHER'S FOCUS block is present in your instructions, let it
+  shape the framing of your opening question (e.g. if the teacher set
+  the focus on independence of vx and vy, lean your opening question
+  toward angle or component thinking). Otherwise stay neutral across
+  the delopgaver.
 problemStatement: |
   ### Opgave 1 — Boldkast
 
