@@ -19,7 +19,10 @@ for v1.
 | 1.D | [kinebot-migration.md](kinebot-migration.md) — *pedagogical source-of-truth + migration brief:* [`kinebot-migration-brief.md`](file:///Users/mark/Documents/clients/cph-uni/strand-a-pedagogical-bot/prototypes/kinebot-migration-brief.md) in scoping site | P1 | 2-3d | 1.C complete (LED Planck establishes second-artefact-through-pipeline pattern), ADR-013 pipeline | **Third physics skill — and canonical AIPLA migration runbook.** External AI artefact (1707 LOC) built by DK with direct Anthropic API calls + student-supplied API key UI; AIPLA must strip those and route through the backend. NCERT/CBSE Class 11 (English, kinematics). Beta cohort = DK's Indian students (~100s available). The **in-repo design doc adds the technical-execution layer** + commits to landing the migration as a documented runbook section in the `.claude/skills/mcp-app-artefact/` skill so future external-artefact onboarding follows the same checklist |
 | 1.E | [workbench-state-debounce.md](workbench-state-debounce.md) — *brief:* [`workbench-state-debounce.md`](file:///Users/mark/Documents/clients/cph-uni/strand-a-pedagogical-bot/prototypes/workbench-state-debounce.md) | P1 | 0.5d | None (overlaps with shipped MCPAPP-SPEC 500ms debounce; this is the delta to 800ms+coalesce architecture) | **Quick fix flagged in 2026-05-25 teacher review.** Move debounce-by-time-window (host) to debounce-at-source (artefact) + coalesce-by-field (host). Wire shape becomes minimal-delta. Centralises in `StaticArtefactFrame` so future artefacts inherit |
 | 1.F | [session-persistence.md](session-persistence.md) — *brief:* [`session-persistence.md`](file:///Users/mark/Documents/clients/cph-uni/strand-a-pedagogical-bot/prototypes/session-persistence.md) | P1 | 1.5-2d | None at the data-layer level; soft dep on 1.A for the teacher reset button surface | **Group code = session key.** Same code resumes the same session for 30 days. Chat history + workbench state restored on rejoin. Cross-device coherence. Adds `aipla:restore` artefact contract — required by all current + future artefacts |
-| 1.G | [teacher-ui.md](teacher-ui.md) — *brief:* [`teacher-ui-brief.md`](file:///Users/mark/Documents/clients/cph-uni/strand-a-pedagogical-bot/prototypes/teacher-ui-brief.md) | **P0** | 4-5d (demo-scope ~2.8d) | 1.A (Firebase teacher auth + Class entity); soft on 1.F (reset session), 1.B (lesson picker pattern) | **Demo target for Wed 3 June teacher check-in.** Five screens — dashboard, class detail, activity config (teaching-goal-as-input, NOT system-prompt-as-input), session report, analytics chat. New `ActivityConfig` concept = per-(teacher, class, activity) tuple carrying a teaching goal injected into the skill's `{teacher_focus}` placeholder. Demo scope is 2.8d minimum; analytics chat + opt-in share are stretch |
+| 1.G | [teacher-ui.md](teacher-ui.md) — *brief:* [`teacher-ui-brief.md`](file:///Users/mark/Documents/clients/cph-uni/strand-a-pedagogical-bot/prototypes/teacher-ui-brief.md) | **P0** | 5-6d total **split into 3 phases** | Phase 1: none; Phase 2: none on critical path; Phase 3: 1.A | **Demo target Wed 3 June.** **Phased per 2026-05-25 compression**: Phase 1 = static mockup (~0.5-1d, hardcoded data, no backend, LOCAL_MODE bypass — JB can iterate visually within 48h); Phase 2 = wire to real backend with LOCAL_MODE teacher stub (~2-2.5d, ships Wed 3 June); Phase 3 = swap to Firebase auth + 1.A `Class` entity + analytics chat + CLI parity (~2-2.5d, post-demo). Teacher UI doc has full phase split + acceptance gates per phase |
+| 1.G-Ph1 | (sub-row) Static mockup | **P0 ASAP** | ~0.5-1d | None | Cloud-agent-ready. Branches from `dev`. All five `/teacher/*` routes render with hardcoded data. No backend, no Firebase. Acceptance: M+JB visual sign-off |
+| 1.G-Ph2 | (sub-row) Wire to real backend, LOCAL_MODE teacher auth | P0 | ~2-2.5d | 1.G-Ph1 complete | Real `ActivityConfig` Firestore writes; real session-summary aggregator; one seeded demo class. **Wed 3 June demo runs against this state** |
+| 1.G-Ph3 | (sub-row) Firebase auth + 1.A swap + stretch | P1 | ~2-2.5d | 1.A complete, 1.G-Ph2 complete | Swap LOCAL_MODE teacher stub for Firebase; multi-class; analytics chat skill; opt-in share; CLI parity |
 | 1.H | [audio-capture-and-tts.md](audio-capture-and-tts.md) — *brief:* [`audio-capture.md`](file:///Users/mark/Documents/clients/cph-uni/strand-a-pedagogical-bot/prototypes/audio-capture.md) | P2 | 0.5d TTS + 2d audio | TTS none; audio capture gated on **JB sign-off (5 consent / privacy questions)** + 1.A for per-class opt-in | **Split implementation.** TTS (browser-native `speechSynthesis`) ships independently — zero privacy gate, ~0.5d. Audio capture (opt-in group recording for research) blocked on JB consent / institutional approval sign-off — five questions in the brief must be answered before any code merges. Audio embodies SECURE-BY-CONSTRUCTION by structurally refusing to ship without consent decisions |
 
 ## Timeline estimate
@@ -51,10 +54,18 @@ for v1.
 - **KineBot kinematics tutor** — English NCERT/CBSE Class 11, migration of DK's existing AI artefact onto AIPLA-compliant rails. Also establishes the runbook for any future external-artefact onboarding
 
 **UX hardening + teacher demo (1.E–1.H, from 2026-05-25 meeting):**
-- **Workbench state debounce** — slider events don't spam chat or context
-- **Session persistence** — same group code resumes the same session for 30 days, cross-device
-- **Teacher UI** — five screens: dashboard, class detail, activity config (with teaching-goal injection), session reports, analytics chat — demo target Wed 3 June
-- **TTS + audio capture (opt-in)** — TTS ships anytime (zero privacy gate); audio capture blocked on JB sign-off
+- **Teacher UI (1.G)** — phased per 2026-05-25 evening compression decision. **Phase 1 mockup starts NOW** (cloud agent branched from `dev`, ~0.5-1d hardcoded screens). Phase 2 wires to real backend with LOCAL_MODE teacher auth (~2-2.5d, ships Wed 3 June demo). Phase 3 swaps Firebase auth + 1.A + adds analytics chat + opt-in share + CLI (~2-2.5d, post-demo).
+- **Workbench state debounce (1.E)** — slider events don't spam chat or context. Quick win, anytime.
+- **Session persistence (1.F)** — same group code resumes the same session for 30 days, cross-device. **Deferred ~1 week** behind teacher UI demo.
+- **TTS + audio capture (1.H)** — TTS ships anytime (zero privacy gate); audio capture blocked on JB sign-off.
+
+**Deferred behind the teacher UI compression:**
+
+- 1.C LED Planck (~1 week delay)
+- 1.D KineBot (~2 weeks delay)
+- 1.F session persistence (~1 week delay)
+
+v1.0.0-pilot still ships by 2026-08-14 with comfortable margin (~12 weeks of work in a 14-week window).
 
 ## What does NOT ship in v1.0.0-pilot
 

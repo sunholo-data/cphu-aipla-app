@@ -1,8 +1,9 @@
 # Teacher UI — dashboard, class detail, activity config, session reports, analytics chat
 
-**Status**: Planned
+**Status**: Planned (phased — see "Phased delivery" below)
 **Priority**: P0 — **demo target for Wed 3 June check-in** per the 2026-05-25 meeting
-**Estimated**: ~4–5 days (minimum check-in scope is ~2.5d; full scope including analytics chat is ~5d)
+**Estimated**: ~5-6 days total split across three phases (mockup → wired → stretch). Per the 2026-05-25 evening compression decision M asked for "teacher UI or at least a mockup ASAP" — see "Phased delivery" below for how that reshapes execution
+**Cloud agent ready**: this doc + the SEQUENCE update commit lands on `dev`; a cloud agent can branch from `dev` and start Phase 1 immediately
 **Scope**: Fullstack — frontend (5 new screens, 4 routes under `/teacher/*`), backend (activity-config CRUD, session-report aggregator, analytics-chat skill template), CLI (extend `aiplatform` for ops parity)
 **Dependencies**: [teacher-permission-model.md](teacher-permission-model.md) (1.A — provides Firebase teacher auth + `Class` entity + Group → Class binding). **1.A is the structural prerequisite — this doc consumes the teacher-auth path 1.A introduces and adds the surfaces on top.** Soft dep on [session-persistence.md](session-persistence.md) (1.F) for "reset session" + accurate "last-active" timestamps; soft dep on [lesson-picker.md](lesson-picker.md) (1.B) for the activity-library browse pattern.
 **Pedagogical source-of-truth:** [`teacher-ui-brief.md`](file:///Users/mark/Documents/clients/cph-uni/strand-a-pedagogical-bot/prototypes/teacher-ui-brief.md) in the scoping site
@@ -36,6 +37,101 @@ The 2026-05-25 meeting committed to a Wed 3 June teacher demo. Teachers in that 
 - v1.0.0-pilot's teacher commitment per [strands.qmd](file:///Users/mark/Documents/clients/cph-uni/strands.qmd) ("5 skills + curated sim library + teacher config + ...") goes un-delivered without the config surface.
 - Per-group accountability and pedagogical iteration (teachers refining their teaching goal based on what students did) becomes impossible without reports.
 - "AIPLA = a platform teachers run, not an end-user app" framing requires teachers to feel ownership of their classes inside the platform.
+
+## Phased delivery (per 2026-05-25 evening compression decision)
+
+M asked for **"teacher UI or at least a mockup ASAP"** to give JB / AR something visual to iterate against in days rather than weeks. The 1.A→1.G dependency chain (~6-8d minimum) was at risk for the Wed 3 June check-in. Compression: split the work into three phases that each ship value without throwing away earlier work.
+
+### Phase 1 — Static mockup (start NOW, ~0.5-1d)
+
+**Goal:** All five teacher screens render in the actual Next.js app at `/teacher/*` with **hardcoded data**, **no backend**, **no Firebase**. LOCAL_MODE bypass for any auth check. Real React + Tailwind code path — not a Figma file — so Phase 2 wires the data without rewriting the UI.
+
+**What ships:**
+
+- `/teacher/classes` — dashboard with hardcoded class list + recent activity list
+- `/teacher/classes/[id]` — class detail with hardcoded groups + activities, "+ New group" button shows a fake code in a toast
+- `/teacher/activities/[id]` — activity config screen, teaching-goal textarea, "Save" shows a "Saved (mock)" toast
+- `/teacher/reports/groups/[groupId]` — single-group session report with hardcoded conversation log
+- `/teacher/analytics` — analytics chat surface with a single hardcoded "What did students struggle with?" answer
+
+**Auth in Phase 1:** route guard checks `isLocalMode()` OR `process.env.NEXT_PUBLIC_TEACHER_MOCK === "1"`. No Firebase. Cloud agent runs against LOCAL_MODE backend. JB / AR can be shown the mockup by hitting `/teacher` directly with no sign-in.
+
+**What's deliberately NOT in Phase 1:**
+
+- No `ActivityConfig` Firestore writes
+- No `Class` entity
+- No real session data lookup (reports use the hardcoded conversation log)
+- No CLI parity (deferred to Phase 3)
+- No analytics chat skill template (Phase 3)
+
+**Acceptance gates for Phase 1:**
+
+- [ ] `/teacher/classes` loads at LOCAL_MODE root within 1s
+- [ ] All five screens reachable + visually polished (mobile + desktop)
+- [ ] "+ New group" interaction works (fake code appears in toast)
+- [ ] Activity config "Save" round-trips visually (toast appears, value stays in textarea)
+- [ ] Reports screen shows realistic-looking session data
+- [ ] `npm run quality:check` green; no emoji per [feedback-no-emoticons](file:///Users/mark/.claude/projects/-Users-mark-dev-sunholo-cphu-aipla-app/memory/feedback_no_emoticons.md)
+- [ ] M + JB visual sign-off on the mockup before Phase 2 starts
+
+### Phase 2 — Wired to real backend, LOCAL_MODE teacher auth (~2-2.5d)
+
+**Goal:** Phase 1's screens get wired to real backend endpoints. Teacher auth still uses LOCAL_MODE stub (1.A's Firebase path lands in parallel and gets swapped in for Phase 3). `ActivityConfig` is real; session reports read from real ADK session state.
+
+**What ships:**
+
+- Real `ActivityConfig` Pydantic model + Firestore CRUD + REST CRUD
+- Activity config save writes to Firestore; next student session reads `{teacher_focus}` from the doc + injects into the skill prompt
+- Reports screen reads from real ADK session state via the existing `GET /api/sessions/{id}/state` + new session-summary aggregator
+- Class detail screen reads from a **mocked `Class` entity** stored in Firestore but not gated by Firebase ownership yet — every LOCAL_MODE teacher is treated as the owner of one seeded demo class
+- All Phase 1 acceptance gates still pass (Phase 1's screens are the same screens — just wired)
+
+**What's deliberately NOT in Phase 2:**
+
+- Firebase teacher auth (Phase 3 — comes with 1.A)
+- Multi-class scoping (one demo class only)
+- Class CRUD UI (creating new classes from the UI; Phase 3)
+- Group mint via API (Phase 2 uses a backend endpoint stub; the real `aiplatform group new` integration is Phase 3)
+
+**Acceptance gates for Phase 2:**
+
+- [ ] Activity config save round-trips through Firestore; next student session sees the injected teaching goal
+- [ ] Session report renders real data from a recent v0.1 Boldkast session
+- [ ] Tests: `test_activity_config_routes.py` + `test_session_summary.py` + the frontend vitest suite all green
+- [ ] **Wed 3 June teacher demo runs against this state**
+
+### Phase 3 — 1.A integration + stretch (~2-2.5d, post-3-June)
+
+**Goal:** Replace LOCAL_MODE teacher stub with Firebase Auth + the `Class` entity from 1.A. Land the analytics chat skill, opt-in share, CLI parity, multi-class filter, suggested questions.
+
+**Dependencies on 1.A:**
+
+- Phase 3 cannot start until 1.A's `Class` entity + Firebase teacher auth path are merged. Phase 2 unblocks 1.A development in parallel (Phase 2 doesn't need 1.A — that's the whole compression win).
+
+**What ships:**
+
+- Firebase teacher auth swap (delete LOCAL_MODE stub for `/teacher/*`)
+- Class CRUD (teacher can create new classes from the UI)
+- Group mint via real backend endpoint (calls `aiplatform group new` equivalent)
+- Multi-class filter in analytics + reports
+- Analytics chat skill template (`backend/skills/templates/analytics-chat/SKILL.md`)
+- Opt-in share flow (student side at session end + teacher report flag)
+- CLI parity (`aiplatform activity`, `aiplatform reports`, `aiplatform analytics`)
+
+**Acceptance gates for Phase 3:**
+
+- [ ] Real Firebase teacher auth gates `/teacher/*`
+- [ ] Multi-class teacher can switch between classes via dropdown
+- [ ] Analytics chat answers 3+ of the brief's suggested questions against seeded data
+- [ ] CLI commands all work end-to-end against deployed dev
+- [ ] Per-class teacher opt-in toggle for [1.H audio capture](audio-capture-and-tts.md) integration works
+
+### Why this phasing works
+
+1. **No throwaway work.** Phase 1's screens are the same screens in Phase 2 + Phase 3 — just with progressively more real wiring underneath. Each phase adds capability without replacing.
+2. **Unblocks 1.A from being the critical path.** Original ordering had 1.G *blocked* on 1.A. Now 1.A runs in parallel with Phase 2; the swap happens in Phase 3 when both are ready.
+3. **Demo dates land cleanly.** Wed 3 June = Phase 2 state. Wed 2026-05-27 (Jutland) = unchanged (this work is segregated). v1.0.0-pilot 2026-08-14 = Phase 3 + stretch complete with weeks of margin.
+4. **Cloud agent has clear scope per phase.** Phase 1 is small + self-contained + needs no backend coordination. Easy hand-off.
 
 ## Goals
 
@@ -288,7 +384,77 @@ Standard mix: pytest (backend), vitest (frontend), CLI tests, manual end-to-end.
 - Analytics chat test set
 - Opt-in share end-to-end
 
-## Implementation Plan (demo-scope minimum)
+## Implementation Plan — by phase
+
+### Phase 1: Static mockup (cloud-agent target — start here)
+
+| Step | What | Where | Est |
+|---|---|---|---|
+| 1.1 | Create `frontend/src/app/teacher/` route group + `layout.tsx` with LOCAL_MODE / `NEXT_PUBLIC_TEACHER_MOCK=1` bypass | `frontend/src/app/teacher/layout.tsx` | 0.1 d |
+| 1.2 | Build five page components with hardcoded data | `frontend/src/app/teacher/classes/page.tsx`, `classes/[id]/page.tsx`, `activities/[id]/page.tsx`, `reports/groups/[groupId]/page.tsx`, `analytics/page.tsx` | 0.3-0.5 d |
+| 1.3 | Hardcoded fixture data file (single source for the mock screens) | `frontend/src/app/teacher/_mock-data.ts` | 0.1 d |
+| 1.4 | Lucide-react icons, Tailwind styling, mobile + desktop responsive (per [feedback-no-emoticons](file:///Users/mark/.claude/projects/-Users-mark-dev-sunholo-cphu-aipla-app/memory/feedback_no_emoticons.md) — no emoji) | (across the above) | (inline) |
+| 1.5 | "+ New group" toast interaction + "Save configuration" toast interaction (purely cosmetic, no backend) | (inline) | 0.05 d |
+| 1.6 | Basic vitest smoke per screen (renders without crashing) | `frontend/src/app/teacher/**/__tests__/*.test.tsx` | 0.15 d |
+| 1.7 | Manual verification + M+JB visual sign-off | — | 0.1 d |
+| | **Phase 1 total** | | **~0.85-1.05 d** |
+
+### Phase 2: Wire to real backend (LOCAL_MODE teacher auth still)
+
+| Step | What | Where | Est |
+|---|---|---|---|
+| 2.1 | `ActivityConfig` Pydantic model + Firestore CRUD | `backend/db/models/activity_config.py`, `backend/db/activity_configs.py` | 0.2 d |
+| 2.2 | Activity-config API routes + tests | `backend/protocols/activity_config_routes.py`, `tests/api_tests/test_activity_config_routes.py` | 0.3 d |
+| 2.3 | Teaching-goal substitution at agent instantiation | `backend/adk/agent.py` + skill template `{teacher_focus}` placeholder | 0.2 d |
+| 2.4 | Session summary aggregator (ADK-session-state-backed) + unit tests | `backend/reports/session_summary.py`, `tests/unit/test_session_summary.py` | 0.3 d |
+| 2.5 | Reports API routes + tests | `backend/protocols/reports_routes.py`, `tests/api_tests/test_reports_routes.py` | 0.25 d |
+| 2.6 | Replace hardcoded data with API calls in all 5 screens | `frontend/src/lib/teacherApi.ts`, all 5 page components | 0.4 d |
+| 2.7 | Seeded demo class for LOCAL_MODE teacher | `backend/db/local_fixture.py` | 0.1 d |
+| 2.8 | Vitest updates (real API contract assertions) | all 5 test files | 0.2 d |
+| 2.9 | Manual end-to-end + Wed 3 June demo dry run | — | 0.2 d |
+| | **Phase 2 total** | | **~2.15 d** |
+
+### Phase 3: Firebase swap + stretch (post-demo)
+
+| Step | What | Est |
+|---|---|---|
+| 3.1 | Swap LOCAL_MODE teacher stub for Firebase auth (consumes 1.A) | 0.2 d |
+| 3.2 | Class CRUD frontend (creating new classes from UI) | 0.3 d |
+| 3.3 | Group mint via real backend endpoint integration | 0.2 d |
+| 3.4 | Analytics chat skill template + suggested questions | 0.4 d |
+| 3.5 | Analytics chat surface wiring to skill | 0.3 d |
+| 3.6 | Opt-in share flow (student side + teacher report flag) | 0.4 d |
+| 3.7 | Multi-class filter | 0.15 d |
+| 3.8 | Reports index page + class-scoped aggregation | 0.25 d |
+| 3.9 | Activity library browse page | 0.2 d |
+| 3.10 | CLI parity (`activity`, `reports`, `analytics`) | 0.4 d |
+| | **Phase 3 total** | **~2.8 d** |
+
+| **Grand total across all phases** | **~5.8 d** |
+
+## Cloud-agent kick-off note (Phase 1)
+
+A cloud agent picking up Phase 1 from a branch off `dev` should:
+
+1. Branch: `git checkout -b feature/teacher-ui-mockup origin/dev`
+2. Read this doc end-to-end, with particular attention to the **Phased delivery** section and the **Phase 1: Static mockup** acceptance gates above
+3. Read the source-of-truth brief: [`teacher-ui-brief.md`](file:///Users/mark/Documents/clients/cph-uni/strand-a-pedagogical-bot/prototypes/teacher-ui-brief.md) in the scoping site — has the ASCII wireframes for all five screens
+4. Read [feedback-no-emoticons](file:///Users/mark/.claude/projects/-Users-mark-dev-sunholo-cphu-aipla-app/memory/feedback_no_emoticons.md) — lucide-react icons, no emoji anywhere
+5. Implement Phase 1 step-by-step against the "Implementation Plan — Phase 1" table above
+6. Open a PR against `dev` when Phase 1 acceptance gates are met
+7. DO NOT start Phase 2 — that needs a separate PR after Phase 1 M+JB sign-off
+
+Existing patterns to mirror:
+- `frontend/src/app/group/page.tsx` for the LOCAL_MODE bypass pattern (`isLocalMode()` check at top)
+- `frontend/src/components/AppFooter.tsx` for the global footer (use on `/teacher` routes too)
+- `frontend/src/lib/branding.ts` for brand assets / strings
+- Existing test files under `frontend/src/app/**/__tests__/` for the vitest smoke pattern
+
+Existing routes NOT to touch:
+- `/`, `/group`, `/chat/*`, `/skills/*`, `/lessons` (if landed) — student-facing surfaces
+- Any backend route — Phase 1 is FE-only
+
+## Implementation Plan (legacy — superseded by phase split above)
 
 | Step | What | Where | Est |
 |---|---|---|---|

@@ -75,7 +75,7 @@ respects the **mid-point review (2026-06-26)** + **holiday freeze
 | **1.D** | [aipla/v1.0.0-pilot/kinebot-migration.md](v1.0.0-pilot/kinebot-migration.md) (technical execution + runbook commitment); [`kinebot-migration-brief.md`](file:///Users/mark/Documents/clients/cph-uni/strand-a-pedagogical-bot/prototypes/kinebot-migration-brief.md) in scoping site (audit + pedagogy) | **Third physics skill — canonical AIPLA migration runbook.** External AI artefact (1707 LOC) built by DK, has direct Anthropic API calls in browser that AIPLA must strip. NCERT/CBSE Class 11 kinematics, English. Beta cohort: ~100s of DK's Indian students. **The in-repo design doc commits to landing the migration as a permanent runbook section in `.claude/skills/mcp-app-artefact/` for future external-artefact onboarding** + adds `aiplatform artefact audit` CLI command for the dogfooding loop | 013, 014 | 2-3d |
 | **1.E** | [aipla/v1.0.0-pilot/workbench-state-debounce.md](v1.0.0-pilot/workbench-state-debounce.md) (execution); [`workbench-state-debounce.md`](file:///Users/mark/Documents/clients/cph-uni/strand-a-pedagogical-bot/prototypes/workbench-state-debounce.md) (brief) | **Quick fix from 2026-05-25 meeting** — slider drags spam the chat with cards. Move debounce-at-host (500ms shipped in MCPAPP-SPEC) to debounce-at-artefact (800ms) + coalesce-by-field-at-host (300ms). Wire shape becomes minimal-delta (`{changed, value, unit}`) not full snapshot. Centralises in `StaticArtefactFrame` so future artefacts inherit | — | 0.5d |
 | **1.F** | [aipla/v1.0.0-pilot/session-persistence.md](v1.0.0-pilot/session-persistence.md) (execution); [`session-persistence.md`](file:///Users/mark/Documents/clients/cph-uni/strand-a-pedagogical-bot/prototypes/session-persistence.md) (brief) | **Same group code resumes the same session for 30 days** — cross-device coherence, chat history + workbench state restored on rejoin. Adds `aipla:restore` artefact contract required by all current + future artefacts. Adds `aiplatform sessions resume / reset` CLI for ops parity | 001, 005 | 1.5-2d |
-| **1.G** | [aipla/v1.0.0-pilot/teacher-ui.md](v1.0.0-pilot/teacher-ui.md) (execution); [`teacher-ui-brief.md`](file:///Users/mark/Documents/clients/cph-uni/strand-a-pedagogical-bot/prototypes/teacher-ui-brief.md) (brief) | **P0 — demo target Wed 3 June** per the 2026-05-25 meeting. Five teacher screens: dashboard, class detail, **activity config (teaching-goal-as-input, not system-prompt-as-input)**, session reports, analytics chat. Teaching goal injected into the activity skill's `{teacher_focus}` placeholder at agent-instantiation time. Demo scope ~2.8d; analytics chat + opt-in share are stretch ~2d more | 001, 005, 014, 015 | 4-5d |
+| **1.G** | [aipla/v1.0.0-pilot/teacher-ui.md](v1.0.0-pilot/teacher-ui.md) (execution, **phased**); [`teacher-ui-brief.md`](file:///Users/mark/Documents/clients/cph-uni/strand-a-pedagogical-bot/prototypes/teacher-ui-brief.md) (brief) | **P0 — demo target Wed 3 June.** **Compressed via 3-phase split (2026-05-25 evening decision):** Phase 1 = static mockup ASAP (~0.5-1d, no backend), Phase 2 = wire to real backend with LOCAL_MODE teacher stub (~2-2.5d, Wed 3 June demo state), Phase 3 = Firebase + 1.A swap + stretch (~2-2.5d, post-demo). **Unblocks 1.A from being on the critical path** — 1.A now runs in parallel with Phase 2. See teacher-ui.md "Phased delivery" section for per-phase acceptance gates | 001, 005, 014, 015 | 5-6d (split) |
 | **1.H** | [aipla/v1.0.0-pilot/audio-capture-and-tts.md](v1.0.0-pilot/audio-capture-and-tts.md) (execution); [`audio-capture.md`](file:///Users/mark/Documents/clients/cph-uni/strand-a-pedagogical-bot/prototypes/audio-capture.md) (brief) | **Split implementation.** TTS (tutor responses read aloud via `window.speechSynthesis`) ships independently — zero privacy gate, ~0.5d. Audio capture (opt-in group recording for research) blocked on **JB sign-off** on 5 consent / privacy / retention questions. Per-class teacher opt-in toggle in 1.G | 001, 005 | 0.5d + 2d |
 | ~~1.6~~ | ~~`teacher-auth-ucph-sso.md`~~ | ~~Superseded — merged into 1.A. UCPH SSO is now a v2 upgrade path; v1 ships Google OAuth.~~ | — | — |
 | ~~1.7~~ | ~~`class-and-group-management.md`~~ | ~~Superseded — merged into 1.A. The class + group management is in the unified permission-model doc.~~ | — | — |
@@ -127,18 +127,21 @@ v0.1.0-jutland (1d) ──► 0.2 boldkast-mcp-app (1.5d, buffer-week over-deliv
                                                             │
                             ──── holiday freeze 2026-06-29 → 07-05 ────
                                                             │
-                              1.A teacher-permission-model ─┐  (combined 1.6 + 1.7)
+                              1.G-Phase1 teacher-ui mockup ─┐  P0 ASAP (no backend)
+                                  │ Phase 2 wired (LOCAL_MODE)│  Wed 3 Jun demo state
+                                  └─► Phase 3 (after 1.A)   │
+                                                            │
+                              1.A teacher-permission-model ─┤  (now parallel, not gating 1.G)
                               1.B lesson-picker ───────────┤
-                              1.C LED Planck skill ────────┤  (brief in scoping site)
-                              1.D KineBot migration ───────┤  (brief in scoping site)
+                              1.C LED Planck skill ────────┤  (deferred ~1 week)
+                              1.D KineBot migration ───────┤  (deferred ~2 weeks)
                               1.E debounce (quick fix) ────┤  (2026-05-25 meeting)
-                              1.F session persistence ─────┤  (2026-05-25 meeting)
-                              1.G teacher UI ──────────────┤  P0 — 3 Jun demo (depends on 1.A)
+                              1.F session persistence ─────┤  (deferred ~1 week)
                               1.H TTS + audio capture ─────┤  (TTS independent; audio JB-gated)
                               1.8 problem-set-helper-cfg ──┼─► (parallel-ish; all
                               1.9 concept-dialogue-cfg ────┘    depend on 1.1+1.2;
                                                                 1.C/1.D need 1.B;
-                                                                1.G needs 1.A)
+                                                                1.G-Phase3 needs 1.A)
                                                             │
                               1.10 multimodal-ingestion ───┐
                               1.11 artefact-review ────────┤
