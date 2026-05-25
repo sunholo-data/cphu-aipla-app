@@ -137,6 +137,11 @@ def _parse_template(skill_md: Path) -> dict[str, Any]:
         "displayName": (front.get("displayName") or "").strip(),
         "initialMessage": (front.get("initialMessage") or "").strip(),
         "problemStatement": (front.get("problemStatement") or "").strip(),
+        # 1.I-PhA — proactive tutor auto-greet opt-in + skill-author
+        # opening guidance. Both stored as top-level frontmatter so the
+        # template author doesn't have to nest them under `metadata:`.
+        "proactiveGreet": bool(front.get("proactiveGreet") or False),
+        "openingTemplate": (front.get("openingTemplate") or "").strip(),
     }
 
 
@@ -202,6 +207,10 @@ def seed(templates_root: Path | None = None) -> SeedSummary:
                 optional_kwargs["initialMessage"] = parsed["initialMessage"]
             if parsed["problemStatement"]:
                 optional_kwargs["problemStatement"] = parsed["problemStatement"]
+            if parsed["proactiveGreet"]:
+                optional_kwargs["proactiveGreet"] = parsed["proactiveGreet"]
+            if parsed["openingTemplate"]:
+                optional_kwargs["openingTemplate"] = parsed["openingTemplate"]
             skill_config.create_skill(
                 name=parsed["name"],
                 description=parsed["description"],

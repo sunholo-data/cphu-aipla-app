@@ -18,6 +18,7 @@ import { useUserSkills } from "@/hooks/useUserSkills";
 import { useSessionMessages } from "@/hooks/useSessionMessages";
 import { useSessionDocuments } from "@/hooks/useSessionDocuments";
 import { useStableThreadId } from "@/hooks/useStableThreadId";
+import { useProactiveGreet } from "@/lib/proactiveGreet";
 import { HumanToolEventsProvider } from "@/hooks/useHumanToolEvents";
 import { fetchWithAuth } from "@/lib/apiClient";
 import { computeIncludedDocIds } from "@/lib/docContext";
@@ -183,7 +184,12 @@ function ChatPageInner({
 
   return (
     <AGUIProvider skillId={skillId} sessionId={stableThreadId}>
-      <ChatShell skillId={skillId} pathPrefix={pathPrefix} user={user} />
+      <ChatShell
+        skillId={skillId}
+        pathPrefix={pathPrefix}
+        user={user}
+        stableThreadId={stableThreadId}
+      />
     </AGUIProvider>
   );
 }
@@ -226,10 +232,12 @@ function ChatShell({
   skillId,
   pathPrefix,
   user,
+  stableThreadId,
 }: {
   skillId: string;
   pathPrefix: string;
   user: User;
+  stableThreadId: string;
 }) {
   const {
     sessionId: agentSessionId,
@@ -250,7 +258,9 @@ function ChatShell({
     initialMessage: skillInitialMessage,
     slug: skillSlug,
     problemStatement: skillProblemStatement,
+    proactiveGreet: skillProactiveGreet,
   } = useSkillMeta(skillId);
+
   const { skills: userSkills, isLoading: skillsLoading } = useUserSkills(user.uid);
   // Anonymous-group users (students joining via teacher-minted codes —
   // ADR-001) don't browse/upload documents in v0.1. Hide the entire
@@ -321,6 +331,20 @@ function ChatShell({
   // Session routing: read ?session= from URL, allow programmatic navigation
   const sessionId = searchParams.get("session");
   const { initialMessages, historyError, sessionGone } = useSessionMessages(sessionId);
+
+  // Phase 1.I-PhA proactive greet: fire POST /api/sessions/{id}/greet on
+  // chat mount when the skill opts in AND we're starting a brand-new
+  // session (no URL ?session= → no historical messages to fetch). The
+  // returned text is spliced into `initialMessages` below as a synthetic
+  // first assistant message so the student sees the tutor speak first
+  // instead of staring at the static welcome banner. Idempotent on the
+  // backend; ref-guarded on the frontend.
+  const proactiveGreetEnabled = skillProactiveGreet && sessionId === null;
+  const { greetMessage: proactiveGreetMessage } = useProactiveGreet({
+    sessionId: stableThreadId,
+    skillId,
+    enabled: proactiveGreetEnabled,
+  });
   const { tabs: sessionDocTabs } = useSessionDocuments(sessionId);
   const { sessions, isLoading: sessionsLoading } = useSkillSessions(skillId);
 
@@ -681,7 +705,17 @@ function ChatShell({
             // history fetch returns the same messages that are ALREADY in
             // live `messages` — duplicating every bubble. `enteredViaResume`
             // distinguishes the two cases.
-            initialMessages={enteredViaResume ? initialMessages : undefined}
+            initialMessages={
+              // For a fresh chat (no resume) prepend the proactive-greet
+              // message if it arrived. For a resumed session, the
+              // historical greet is already in `initialMessages` from
+              // useSessionMessages — no need to splice again.
+              enteredViaResume
+                ? initialMessages
+                : proactiveGreetMessage
+                  ? [proactiveGreetMessage]
+                  : undefined
+            }
             skillInitialMessage={skillInitialMessage}
             historyError={historyError}
             toolCalls={toolCalls}

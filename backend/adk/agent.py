@@ -60,6 +60,7 @@ from adk.mcp_observability import (
     make_mcp_after_tool_callback,
     make_mcp_before_tool_callback,
 )
+from adk.proactive_greet import inject_opening_guidance
 from adk.teacher_focus import inject_teacher_focus
 from adk.tools import resolve_mcp_tools, resolve_tools
 from auth.access_context import AccessContext
@@ -457,15 +458,31 @@ def create_agent(
         # for every skill. Adding a third wrapper later is just a
         # third argument here — no nesting to re-order.
         instruction=compose_instruction_providers(
-            # Phase 2 (1.G-Ph2): substitute {teacher_focus} with the
-            # active ActivityConfig.teaching_goal for this skill, so
-            # the tutor's Socratic scaffolding is shaped by the
-            # teacher's free-text goal. No-op when the skill has no
-            # {teacher_focus} placeholder OR when no config has been
-            # saved. LOCAL_MODE scope only — Phase 3 will swap the
-            # constant (teacher, class) tuple for a real Class-entity
-            # lookup.
-            inject_teacher_focus(skill_config.instructions, skill_config.skill_id),
+            # Phase 1.I-PhA: when the skill opts into proactive greeting,
+            # append the skill-author's `## Opening` guidance to the
+            # instruction so the synthetic empty-message turn fired by
+            # POST /api/sessions/{id}/greet produces a meaningful first
+            # tutor turn. No-op when proactive_greet is False or the
+            # opening template is empty. The block frames itself as
+            # system context so the model treats it as opening guidance,
+            # not student input. See
+            # docs/design/aipla/v1.0.0-pilot/proactive-tutor.md.
+            #
+            # Phase 1.G-Ph2: substitute {teacher_focus} with the active
+            # ActivityConfig.teaching_goal for this skill so the tutor's
+            # Socratic scaffolding is shaped by the teacher's free-text
+            # goal. No-op when the skill has no {teacher_focus} placeholder
+            # OR when no config has been saved. LOCAL_MODE scope only —
+            # Phase 3 will swap the constant (teacher, class) tuple for a
+            # real Class-entity lookup.
+            inject_teacher_focus(
+                inject_opening_guidance(
+                    skill_config.instructions,
+                    proactive_greet=skill_config.proactive_greet,
+                    opening_template=skill_config.opening_template,
+                ),
+                skill_config.skill_id,
+            ),
             wrap_with_iframe_context,
             wrap_with_a2ui_surface_context,
         ),

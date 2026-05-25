@@ -99,6 +99,18 @@ class SkillConfig(BaseModel):
     # uses it to surface Opgave 1 — Boldkast (v0.1 demo). v1's
     # problem-set-helper-config will populate this per teacher-config.
     problem_statement: str = Field(default="", alias="problemStatement")
+    # AIPLA 1.I Phase A — proactive tutor auto-greet. When true and the
+    # session is brand-new (turn_count == 0), the backend fires one
+    # agent turn before yielding to the user so the student isn't left
+    # staring at a blank chat. Defaults off so existing skills aren't
+    # affected. See docs/design/aipla/v1.0.0-pilot/proactive-tutor.md
+    # for full rationale + Phase B (heartbeat) follow-up.
+    proactive_greet: bool = Field(default=False, alias="proactiveGreet")
+    # Skill-author guidance text the tutor uses as a seed on its first
+    # proactive-greet turn. Authored in SKILL.md under the ``## Opening``
+    # section; parsed into this field by the platform-seed step.
+    # Ignored when ``proactive_greet`` is False (or this is empty).
+    opening_template: str = Field(default="", alias="openingTemplate")
     tags: list[str] = Field(default_factory=list)
     featured: bool = False
     usage_count: int = Field(default=0, alias="usageCount")
