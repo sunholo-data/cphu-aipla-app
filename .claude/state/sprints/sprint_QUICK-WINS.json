@@ -1,0 +1,153 @@
+{
+  "sprint_id": "QUICK-WINS",
+  "created": "2026-05-25T16:42:00Z",
+  "estimated_duration_days": 1,
+  "design_doc": "docs/design/aipla/v1.0.0-pilot/audio-capture-and-tts.md",
+  "sprint_plan": "docs/design/aipla/v1.0.0-pilot/quick-wins-sprint.md",
+  "branch": "feature/quick-wins-debounce-tts",
+  "base_commit": "79e91e7",
+  "pr_target": "dev",
+  "features": [
+    {
+      "id": "M1",
+      "description": "Boldkast artefact emits minimal-delta + 800ms debounce instead of full-state snapshot at 500ms",
+      "scope": "frontend",
+      "estimated_loc": 50,
+      "actual_loc": null,
+      "dependencies": [],
+      "acceptance_criteria": [
+        "Continuous v0 drag → exactly one update-model-context postMessage 800ms after drag stops",
+        "Switching between fields (v0/θ/g) emits separately at the artefact",
+        "Existing mcp_app_context.boldkast.* keys still get written (no payload regression)"
+      ],
+      "files_to_create": [],
+      "files_to_modify": [
+        "infrastructure/mcp-sandbox/artefacts/boldkast/v1/index.html"
+      ],
+      "passes": null,
+      "started": null,
+      "completed": null,
+      "notes": "Per workbench-state-debounce.md §Wire shape change"
+    },
+    {
+      "id": "M2",
+      "description": "StaticArtefactFrame swaps 500ms host debounce for 300ms coalesce-by-field; rapid same-field deltas merge, different-field deltas don't",
+      "scope": "frontend",
+      "estimated_loc": 80,
+      "actual_loc": null,
+      "dependencies": ["M1"],
+      "acceptance_criteria": [
+        "Existing StaticArtefactFrame vitest tests green",
+        "New vitest: two rapid v0 deltas within 300ms → one POST",
+        "New vitest: two v0 deltas 500ms apart → two POSTs",
+        "New vitest: v0 then θ within 300ms → two POSTs (no cross-field merge)"
+      ],
+      "files_to_create": [],
+      "files_to_modify": [
+        "frontend/src/components/protocols/StaticArtefactFrame.tsx",
+        "frontend/src/components/protocols/__tests__/StaticArtefactFrame.test.tsx"
+      ],
+      "passes": null,
+      "started": null,
+      "completed": null,
+      "notes": "Per workbench-state-debounce.md §Host-side coalesce"
+    },
+    {
+      "id": "M3",
+      "description": "<ReadAloudButton> component wraps window.speechSynthesis with idle/playing states + 5+ vitest cases",
+      "scope": "frontend",
+      "estimated_loc": 220,
+      "actual_loc": null,
+      "dependencies": [],
+      "acceptance_criteria": [
+        "Renders only when speechSynthesis is available (server-render safe)",
+        "Click → speak with utterance + lang; button switches to VolumeX",
+        "Second click → cancel; button switches back to Volume2",
+        "Unmount cancels any in-flight utterance",
+        "5+ vitest cases green via mock speechSynthesis"
+      ],
+      "files_to_create": [
+        "frontend/src/components/chat/ReadAloudButton.tsx",
+        "frontend/src/components/chat/__tests__/ReadAloudButton.test.tsx"
+      ],
+      "files_to_modify": [],
+      "passes": null,
+      "started": null,
+      "completed": null,
+      "notes": "Per audio-capture-and-tts.md Part 1 §Component"
+    },
+    {
+      "id": "M4",
+      "description": "Mount ReadAloudButton next to timestamp on every assistant message in MessageBubble",
+      "scope": "frontend",
+      "estimated_loc": 30,
+      "actual_loc": null,
+      "dependencies": ["M3"],
+      "acceptance_criteria": [
+        "Tutor message renders Volume2 button right of timestamp",
+        "Click reads the message text aloud in Danish (skill default da)",
+        "No regression in MessageBubble vitest tests",
+        "No emoji introduced (lucide-react icons only)"
+      ],
+      "files_to_create": [],
+      "files_to_modify": [
+        "frontend/src/components/chat/MessageBubble.tsx"
+      ],
+      "passes": null,
+      "started": null,
+      "completed": null,
+      "notes": "Language source: skill.metadata.language (problem-set-hints = da). Confirm path during implementation."
+    },
+    {
+      "id": "M5",
+      "description": "Frontend quality:check green; manual end-to-end on LOCAL_MODE",
+      "scope": "frontend",
+      "estimated_loc": 0,
+      "actual_loc": null,
+      "dependencies": ["M2", "M4"],
+      "acceptance_criteria": [
+        "npm run quality:check green (lint + typecheck + tests + build)",
+        "Manual: Boldkast v0 drag continuously → ≤1 chat card per 800ms idle window",
+        "Manual: click TTS button on tutor message → audio plays in Danish",
+        "Manual: click again → audio cancels"
+      ],
+      "files_to_create": [],
+      "files_to_modify": [],
+      "passes": null,
+      "started": null,
+      "completed": null,
+      "notes": null
+    },
+    {
+      "id": "M6",
+      "description": "Commit + push feature branch + open PR against dev",
+      "scope": "frontend",
+      "estimated_loc": 0,
+      "actual_loc": null,
+      "dependencies": ["M5"],
+      "acceptance_criteria": [
+        "PR opened against dev from feature/quick-wins-debounce-tts",
+        "PR body links workbench-state-debounce.md + audio-capture-and-tts.md Part 1",
+        "PR description states audio capture (Part 2) is NOT included — separate JB-gated sprint"
+      ],
+      "files_to_create": [],
+      "files_to_modify": [],
+      "passes": null,
+      "started": null,
+      "completed": null,
+      "notes": null
+    }
+  ],
+  "velocity": {
+    "target_loc_per_day": 380,
+    "actual_loc_per_day": null,
+    "estimated_total_loc": 380,
+    "actual_total_loc": null,
+    "estimated_days": 1,
+    "actual_days": null
+  },
+  "github_issues": [],
+  "last_session": null,
+  "last_checkpoint": null,
+  "status": "in_progress"
+}
