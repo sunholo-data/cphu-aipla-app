@@ -704,6 +704,33 @@
     __post(msg);
   }
 
+  // ─── Per-field debounce for parameter changes (1.E sprint) ───────────────
+  // Slider drags fire `input` ~60×/s. Without per-field debounce the
+  // artefact emits ~60 boldkast.param.change events per second of drag,
+  // each becoming an MCP-App-context POST to the host backend (visible
+  // in the chat as a card). The 2026-05-25 teacher review flagged this
+  // as noisy. Fix: at the artefact source, queue the *latest* value
+  // per field and flush after 800ms of inactivity for that field. The
+  // host (StaticArtefactFrame) adds an additional 300ms coalesce-by-
+  // field for any deltas that still slip through faster. Net effect:
+  // continuous drag of the v0 slider → exactly one chat card 800ms
+  // after the drag stops.
+  //
+  // Per-field (not global) so dragging v0 doesn't suppress a theta
+  // change that fires mid-drag. Non-param emits (play/pause/launch/
+  // reveal) bypass the debounce entirely — those are user-intent
+  // signals, not continuous slider values.
+  const __paramTimers = {};
+  function emitParamChangeDebounced(param, payload) {
+    if (__paramTimers[param]) {
+      clearTimeout(__paramTimers[param]);
+    }
+    __paramTimers[param] = setTimeout(function () {
+      delete __paramTimers[param];
+      emit("boldkast.param.change", payload);
+    }, 800);
+  }
+
   // Run the spec's lifecycle handshake. If parent isn't a sandbox proxy
   // (standalone testing case), this rejects and we proceed without a
   // host — emit becomes a no-op via the __post try/catch.
@@ -738,7 +765,7 @@
     revealed.ymax = false; revealed.range = false; revealed.tof = false;
     updateMarkers();
     render();
-    emit("boldkast.param.change", { param: "v0", value: v0 });
+    emitParamChangeDebounced("v0", { param: "v0", value: v0, unit: "m/s" });
   });
   document.getElementById("theta").addEventListener("input", (e) => {
     theta = parseFloat(e.target.value);
@@ -746,7 +773,7 @@
     revealed.ymax = false; revealed.range = false; revealed.tof = false;
     updateMarkers();
     render();
-    emit("boldkast.param.change", { param: "theta", value: theta });
+    emitParamChangeDebounced("theta", { param: "theta", value: theta, unit: "deg" });
   });
   function setG(newG, source) {
     g = newG;
@@ -756,7 +783,7 @@
     updateMarkers();
     render();
     updatePresetHighlight();
-    emit("boldkast.param.change", { param: "g", value: g, triggeredBy: source });
+    emitParamChangeDebounced("g", { param: "g", value: g, unit: "m/s^2", triggeredBy: source });
   }
   function updatePresetHighlight() {
     document.querySelectorAll(".g-presets button.preset").forEach((b) => {

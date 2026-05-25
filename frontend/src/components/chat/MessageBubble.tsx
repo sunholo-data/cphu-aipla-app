@@ -18,6 +18,7 @@ import { MCPAppToolCallRouter } from "@/components/protocols/MCPAppToolCallRoute
 import { BrandAvatar } from "@/components/chat/BrandAvatar";
 import { ChatMarkdown } from "@/components/chat/ChatMarkdown";
 import { InlineCitation } from "@/components/chat/InlineCitation";
+import { ReadAloudButton } from "@/components/chat/ReadAloudButton";
 import { ToolCallChip } from "@/components/chat/ToolCallChip";
 import { useSurfaceRegistry } from "@/providers/SurfaceRegistry";
 import type { SkillMessage, ToolCallState } from "@/hooks/useSkillAgent";
@@ -44,6 +45,11 @@ interface MessageBubbleProps {
    * iframe `ui/update-model-context` pushes can POST to
    * /api/proxy/api/sessions/{id}/iframe-context (sprint 1.25). */
   sessionId?: string | null;
+  /** BCP-47 language for the tutor TTS button (sprint 1.H-TTS). The
+   * skill's configured language flows in from the chat page; defaults
+   * to `"da"` because the LOCAL_MODE demo skill (problem-set-hints)
+   * is Danish stx. Has no effect on non-assistant turns. */
+  ttsLang?: string;
 }
 
 /**
@@ -113,6 +119,7 @@ export const MessageBubble = React.memo(function MessageBubble({
   mcpServerIds,
   onChatMessage,
   sessionId,
+  ttsLang = "da",
 }: MessageBubbleProps) {
   const isBot = message.role === "assistant";
   const time = formatTime();
@@ -172,6 +179,13 @@ export const MessageBubble = React.memo(function MessageBubble({
           <div className="flex items-baseline gap-2">
             <span className="text-xs font-medium text-orange-600">{skillId}</span>
             <span className="text-xs text-muted-foreground">{time}</span>
+            {/* Sprint 1.H-TTS — only render when this bubble has text
+             *  for the engine to speak. Tool-call-only bubbles (no
+             *  message.content) skip the button so we don't leave an
+             *  empty-text icon dangling next to an A2UI render. */}
+            {message.content ? (
+              <ReadAloudButton text={message.content} lang={ttsLang} />
+            ) : null}
           </div>
           <div className="space-y-2 rounded-[2px_8px_8px_8px] border-l-[3px] border-orange-400 bg-[hsl(0,0%,98%)] px-3 py-2 text-sm">
             {message.content && (
