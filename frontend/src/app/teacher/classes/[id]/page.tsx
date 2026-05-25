@@ -96,13 +96,15 @@ export default function TeacherClassDetailPage() {
           </p>
         </div>
         <div className="flex flex-wrap gap-2">
-          <Link
-            href={`/teacher/classes/${cls.id}#report`}
-            className="flex items-center gap-1.5 rounded border border-border px-3 py-1.5 text-sm font-medium hover:bg-accent"
-          >
-            <FileText className="h-4 w-4" aria-hidden="true" />
-            View class report
-          </Link>
+          {groups[0] ? (
+            <Link
+              href={`/teacher/reports/groups/${groups[0].code}`}
+              className="flex items-center gap-1.5 rounded border border-border px-3 py-1.5 text-sm font-medium hover:bg-accent"
+            >
+              <FileText className="h-4 w-4" aria-hidden="true" />
+              Latest group report
+            </Link>
+          ) : null}
           <Link
             href="/teacher/analytics"
             className="flex items-center gap-1.5 rounded border border-border px-3 py-1.5 text-sm font-medium hover:bg-accent"

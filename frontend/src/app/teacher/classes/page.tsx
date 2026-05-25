@@ -65,12 +65,14 @@ export default function TeacherClassesPage() {
               >
                 Manage
               </Link>
-              <Link
-                href={`/teacher/classes/${cls.id}#report`}
-                className="rounded border border-border px-3 py-1.5 text-sm font-medium hover:bg-accent"
-              >
-                Report
-              </Link>
+              {cls.groups[0] ? (
+                <Link
+                  href={`/teacher/reports/groups/${cls.groups[0].code}`}
+                  className="rounded border border-border px-3 py-1.5 text-sm font-medium hover:bg-accent"
+                >
+                  Latest report
+                </Link>
+              ) : null}
             </div>
           </article>
         ))}
