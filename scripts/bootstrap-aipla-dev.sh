@@ -298,44 +298,57 @@ ensure_cb_service_agent() {
 ensure_cb_trigger() {
   log "Ensuring Cloud Build trigger '${TRIGGER_NAME}' on dev branch..."
   local repo_resource="projects/${PROJECT}/locations/${REGION}/connections/${CB_CONNECTION}/repositories/${CB_REPO_NAME}"
+  local sa_resource="projects/${PROJECT}/serviceAccounts/${SA_EMAIL}"
 
-  if gcloud builds triggers describe "$TRIGGER_NAME" \
-       --region="$REGION" --project="$PROJECT" &>/dev/null; then
-    log "  already exists"
-    return 0
-  fi
+  # Idempotent via `gcloud builds triggers import` — does an upsert
+  # keyed off trigger `name`, so a re-run with a modified substitution
+  # set updates the live trigger in place (the trigger id stays the
+  # same). The previous "describe → early-return if exists" pattern
+  # broke idempotency: substitution changes on a re-run were silently
+  # skipped. Discovered 2026-05-25 when adding `_TEACHER_MOCK=1` for
+  # the 1.G-Ph2 deploy — see NOTES.md Decision 11.
+  #
+  # `gcloud builds triggers update github` does NOT work on 2nd-gen
+  # `repositoryEventConfig` triggers (returns 400 INVALID_ARGUMENT
+  # against the connection-based repo resource); `import` is the
+  # supported path for both create and update.
+  local trigger_yaml
+  trigger_yaml=$(mktemp -t aipla-trigger.XXXXXX.yaml)
+  trap "rm -f '$trigger_yaml'" RETURN
 
-  local subs=(
-    "_PROJECT_ID=${PROJECT}"
-    "_SERVICE_NAME=${SERVICE_NAME}"
-    "_REGION=${REGION}"
-    "_ARTIFACT_REGISTRY_REPO_URL_CLIENT=${REGION}-docker.pkg.dev/${PROJECT}/${AR_REPO}"
-    "_FIREBASE_BUCKET=${PROJECT}.firebasestorage.app"
-    "_CONFIG_BUCKET=${PROJECT}-config"
-    "_ADMIN_SEED_ALLOWED_SAS=${SA_EMAIL}"
-    "_FIREBASE_TAG=dev"
-    # 1.G-Ph2 — teacher UI mockup bypass. Bakes
-    # NEXT_PUBLIC_TEACHER_MOCK=1 into the dev frontend image so the
-    # deployed /teacher/* routes render without Firebase teacher auth
-    # (which doesn't land until Phase 3). REMOVE this line when Phase 3
-    # ships the real auth path. test/prod Terraform must NOT carry this
-    # substitution — production should render the "sign-in required"
-    # placeholder instead.
-    "_TEACHER_MOCK=1"
-  )
-  local subs_csv
-  subs_csv=$(IFS=,; echo "${subs[*]}")
+  cat > "$trigger_yaml" <<EOF
+name: ${TRIGGER_NAME}
+filename: cloudbuild.yaml
+repositoryEventConfig:
+  push:
+    branch: ^dev\$
+  repository: ${repo_resource}
+  repositoryType: GITHUB
+serviceAccount: ${sa_resource}
+substitutions:
+  _PROJECT_ID: ${PROJECT}
+  _SERVICE_NAME: ${SERVICE_NAME}
+  _REGION: ${REGION}
+  _ARTIFACT_REGISTRY_REPO_URL_CLIENT: ${REGION}-docker.pkg.dev/${PROJECT}/${AR_REPO}
+  _FIREBASE_BUCKET: ${PROJECT}.firebasestorage.app
+  _CONFIG_BUCKET: ${PROJECT}-config
+  _ADMIN_SEED_ALLOWED_SAS: ${SA_EMAIL}
+  _FIREBASE_TAG: dev
+  # 1.G-Ph2 — teacher UI mockup bypass. Bakes
+  # NEXT_PUBLIC_TEACHER_MOCK=1 into the dev frontend image so the
+  # deployed /teacher/* routes render without Firebase teacher auth
+  # (which doesn't land until Phase 3). REMOVE this entry when Phase 3
+  # ships the real auth path. test/prod Terraform must NOT carry this
+  # substitution — production should render the "sign-in required"
+  # placeholder instead.
+  _TEACHER_MOCK: "1"
+EOF
 
-  gcloud beta builds triggers create github \
-    --name="$TRIGGER_NAME" \
-    --repository="$repo_resource" \
-    --branch-pattern='^dev$' \
-    --build-config=cloudbuild.yaml \
+  gcloud builds triggers import \
+    --source="$trigger_yaml" \
     --region="$REGION" \
-    --project="$PROJECT" \
-    --service-account="projects/${PROJECT}/serviceAccounts/${SA_EMAIL}" \
-    --substitutions="$subs_csv" >/dev/null
-  log "  ✓ created"
+    --project="$PROJECT" >/dev/null
+  log "  ✓ imported (idempotent upsert)"
 }
 
 # ----- mcp-sandbox trigger (separate Cloud Run, separate origin) ------------

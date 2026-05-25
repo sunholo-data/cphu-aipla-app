@@ -147,21 +147,34 @@ Append entries chronologically, newest at the bottom.
 - **What:** Added `_TEACHER_MOCK=1` to the `aipla-dev-deploy` trigger's substitutions. The dev Cloud Build pipeline now passes `--build-arg NEXT_PUBLIC_TEACHER_MOCK=1` to the frontend Dockerfile, so the deployed dev image's `/teacher/*` routes render the static mockup without Firebase teacher auth.
 - **Why:** Phase 1 (PR #1) shipped a static mockup at `/teacher/*` gated by `isLocalMode()` or `NEXT_PUBLIC_TEACHER_MOCK=1`. Phase 2 (PR #2) wires the activity-config + reports screens to real Firestore + ADK reads, but the auth gate stays `LOCAL_MODE` / `TEACHER_MOCK` until Phase 3 lands Firebase teacher auth (via 1.A `teacher-permission-model.md`). The deployed dev URL needs to render the mockup so M + JB can iterate; production must NOT have this flag set.
 - **Substitution captured by the trigger:** `_TEACHER_MOCK=1` (default empty in `cloudbuild.yaml`; dev trigger overrides).
-- **Captured in script:** ✅ added to the `subs` array in `ensure_cb_trigger()`. ⚠️ The script's existence-check returns early when the trigger already exists, so the live trigger needs a one-time substitution update — see "Live trigger update" below.
+- **Captured in script:** ✅ `ensure_cb_trigger()` was refactored 2026-05-25 to use `gcloud builds triggers import` (upsert) instead of the old "describe → early-return if exists" pattern. That earlier pattern broke idempotency — substitution edits on a re-run were silently skipped. The new shape applies edits in place.
 - **For test/prod TF:** explicitly DO NOT set `_TEACHER_MOCK` (leave it empty/unset). `cloudbuild.yaml`'s default empty value renders the "sign-in required" placeholder on test/prod. **Phase 3 should remove this substitution from dev too** — when Firebase teacher auth replaces the bypass, the override becomes obsolete.
 
-### Live trigger update
+### Side effect 9 — `gcloud builds triggers update github` doesn't speak 2nd-gen repo schema
 
-The script's `ensure_cb_trigger()` short-circuits on existing triggers, so adding `_TEACHER_MOCK=1` to the `subs` array doesn't propagate to the already-deployed dev trigger. Apply it once to the live trigger via either:
+- **What I tried first:** `gcloud builds triggers update github aipla-dev-deploy --update-substitutions=_TEACHER_MOCK=1 --repository=projects/aipla-dev-2026/.../repositories/cphu-aipla-app` — returns **`400 INVALID_ARGUMENT`** with no further detail. Tried with both the trigger short-name and the UUID; tried `--repository` and without; same generic 400 every time.
+- **Root cause (best guess):** `gcloud builds triggers update github` predates the 2nd-gen Cloud Build connection model and doesn't construct a PATCH payload that the API accepts for `repositoryEventConfig` triggers. The `--repository=<2nd-gen-connection-resource>` arg is documented but doesn't propagate cleanly. The same gap likely affects `bitbucket*` / `bitbucket-data-center` for 2nd-gen connections.
+- **What worked:** `gcloud builds triggers import --source=<yaml>` is the supported create-or-update path. Import is keyed off `name`, so re-importing a modified YAML upserts in place. **The trigger id is preserved** (verified: `9d211df6-9a90-428d-bde3-ac312a1a8e0f` before and after).
+- **For test/prod TF:** Terraform's `google_cloudbuild_trigger` provider wraps the *PATCH* endpoint directly and handles the 2nd-gen schema correctly; `terraform apply` updates substitutions in place. Only the gcloud CLI has the gap.
 
-- **Cloud Console UI:** Cloud Build → Triggers → `aipla-dev-deploy` → Edit → Advanced → Substitutions → add `_TEACHER_MOCK=1` → Save.
-- **gcloud (1st-gen path tried, returns 400 INVALID_ARGUMENT on the 2nd-gen `repositoryEventConfig` trigger):**
-  ```bash
-  gcloud builds triggers update github aipla-dev-deploy \
-    --project=aipla-dev-2026 --region=europe-north1 \
-    --repository=projects/aipla-dev-2026/locations/europe-north1/connections/sunholo-github/repositories/cphu-aipla-app \
-    --update-substitutions=_TEACHER_MOCK=1
-  ```
-  Doesn't work currently — gcloud's `update github` may not be aware of the 2nd-gen connection schema. Use the Console UI as the manual fallback until this is resolved.
+### Live trigger update — applied 2026-05-25
 
-After the substitution is applied, the next dev push will rebuild the frontend image with `NEXT_PUBLIC_TEACHER_MOCK=1` baked in and the `/teacher/*` routes will become reachable on the deployed dev URL.
+```bash
+# 1. Export the current trigger to YAML
+gcloud builds triggers describe aipla-dev-deploy \
+  --project=aipla-dev-2026 --region=europe-north1 \
+  --format=yaml > /tmp/trigger.yaml
+
+# 2. Edit the YAML: add `_TEACHER_MOCK: "1"` under `substitutions:`
+#    (strip the read-only `id`, `createTime`, `resourceName` lines —
+#    import rejects them when present).
+
+# 3. Re-import — upserts in place
+gcloud builds triggers import \
+  --source=/tmp/trigger.yaml \
+  --project=aipla-dev-2026 --region=europe-north1
+```
+
+**Verified:** `gcloud builds triggers describe aipla-dev-deploy --format='value(substitutions)'` now lists `_TEACHER_MOCK=1`. Trigger id preserved.
+
+After this, the next dev push (or a manual `gcloud builds triggers run aipla-dev-deploy --branch=dev`) will rebuild the frontend image with `NEXT_PUBLIC_TEACHER_MOCK=1` baked in. **Prerequisite:** PR #2 (`feature/teacher-ui-phase2`) must be merged to `dev` first so `cloudbuild.yaml` has the matching `--build-arg NEXT_PUBLIC_TEACHER_MOCK=${_TEACHER_MOCK}` line — without that, the substitution exists on the trigger but isn't consumed by the build.
