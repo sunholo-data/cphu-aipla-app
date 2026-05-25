@@ -70,6 +70,9 @@ respects the **mid-point review (2026-06-26)** + **holiday freeze
 | # | Doc (planned) | Why | ADRs | Est |
 |---|---|---|---|---|
 | **1.A** | [aipla/v1.0.0-pilot/teacher-permission-model.md](v1.0.0-pilot/teacher-permission-model.md) | **Combined doc for rows 1.6 + 1.7.** Teacher Firebase auth (Google OAuth in v1; UCPH SSO is a v2 upgrade path — same data model) + `Class` entity (tag namespace `class:<uid>:<id>`, soft-delete) + Group → Class binding (group JWTs carry the class's `group_tags`) + tag-based lesson access via the existing 5-type `AccessControl` model. The `manage-class` skill is the teacher UX on top. | 001 (teacher-auth half), 014, 015 | 3-5d |
+| **1.B** | [aipla/v1.0.0-pilot/lesson-picker.md](v1.0.0-pilot/lesson-picker.md) | Replace v0.1's hardcoded `POST_JOIN_REDIRECT` with a `/lessons` route that lists every skill the student can access. Pure FE; consumes the already-filtered `GET /api/skills`. Prerequisite for 1.C + 1.D being visible to students | — | 0.5d |
+| **1.C** | LED Planck virtual lab — *brief in scoping site:* [`led-planck-skill-brief.md`](file:///Users/mark/Documents/clients/cph-uni/strand-a-pedagogical-bot/prototypes/led-planck-skill-brief.md) | **Second physics skill.** Self-contained Danish stx artefact (~1855 LOC, zero external fetches). Procedural-virtual-lab class — different form factor from Boldkast's phenomenon-sim. Brief has full skill config YAML + Danish Socratic tutor prompt + postMessage event shapes (step-change, measurement, component-placed) + deploy checklist. Brief IS the design — no in-repo design doc needed | 013 | 1.5-2d |
+| **1.D** | KineBot kinematics tutor — *brief in scoping site:* [`kinebot-migration-brief.md`](file:///Users/mark/Documents/clients/cph-uni/strand-a-pedagogical-bot/prototypes/kinebot-migration-brief.md) | **Third physics skill — migration-pattern test.** External AI artefact (1707 LOC) built by DK, has direct Anthropic API calls in browser that AIPLA must strip and route through backend. NCERT/CBSE Class 11 kinematics, English, ~100s of Indian students for beta. The brief documents the full audit/strip/wire/extract/package/pair/test workflow as the **canonical AIPLA migration runbook** for future external-artefact onboarding | 013 | 2-3d |
 | ~~1.6~~ | ~~`teacher-auth-ucph-sso.md`~~ | ~~Superseded — merged into 1.A. UCPH SSO is now a v2 upgrade path; v1 ships Google OAuth.~~ | — | — |
 | ~~1.7~~ | ~~`class-and-group-management.md`~~ | ~~Superseded — merged into 1.A. The class + group management is in the unified permission-model doc.~~ | — | — |
 | **1.7-ops** | [aipla/v0.1.0-jutland/group-tooling.md](v0.1.0-jutland/group-tooling.md) | `aiplatform group new/list/revoke` CLI + backend list/revoke admin endpoints. Replaces the v0.1 multi-step curl ritual with a single command. Ships alongside 1.7 (teacher GUI) so ops keeps a CLI fallback once teachers have the dashboard. Moved here from Phase 0 per user direction 2026-05-20 ("later in the sequence"). | 0.5d |
@@ -121,9 +124,13 @@ v0.1.0-jutland (1d) ──► 0.2 boldkast-mcp-app (1.5d, buffer-week over-deliv
                             ──── holiday freeze 2026-06-29 → 07-05 ────
                                                             │
                               1.A teacher-permission-model ─┐  (combined 1.6 + 1.7)
-                              1.8 problem-set-helper-cfg ──┼─► (1.A + 1.8 + 1.9
-                              1.9 concept-dialogue-cfg ────┘    parallel-ish; all
-                                                                depend on 1.1+1.2)
+                              1.B lesson-picker ───────────┤
+                              1.C LED Planck skill ────────┤  (brief in scoping site)
+                              1.D KineBot migration ───────┤  (brief in scoping site)
+                              1.8 problem-set-helper-cfg ──┼─► (parallel-ish; all
+                              1.9 concept-dialogue-cfg ────┘    depend on 1.1+1.2;
+                                                                1.C/1.D need 1.B
+                                                                to be visible to students)
                                                             │
                               1.10 multimodal-ingestion ───┐
                               1.11 artefact-review ────────┤

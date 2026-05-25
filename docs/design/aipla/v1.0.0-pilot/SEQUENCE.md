@@ -14,6 +14,9 @@ for v1.
 | Order | Doc | Priority | Estimate | Dependencies | Notes |
 |---|---|---|---|---|---|
 | 1.A | [teacher-permission-model.md](teacher-permission-model.md) | P1 | 3-5d | v0.1 shipped; AccessControl 5-type model (already in tree) | Foundation for the whole teacher-facing surface. Combines the originally-planned 1.6 (`teacher-auth-ucph-sso`) + 1.7 (`class-and-group-management`) into one coherent permission story — they were always going to land together. Tag-based access via the existing `AccessControl.type: "tagged"` primitive; new `Class` entity owns a tag namespace; teacher Firebase auth path extends `AnonymousGroupAuthProvider` |
+| 1.B | [lesson-picker.md](lesson-picker.md) | P1 | 0.5d | None (FE-only; uses existing `GET /api/skills` filter) | Replace v0.1's hardcoded `POST_JOIN_REDIRECT` with a `/lessons` route that lists all skills the student can access. Validates the multi-lesson UX shape before classes ship; works trivially with classes when 1.A lands. **Prerequisite for 1.C + 1.D being visible to students.** Tiny scope; doc + impl in one sprint |
+| 1.C | LED Planck virtual lab — *brief in scoping site:* [`led-planck-skill-brief.md`](file:///Users/mark/Documents/clients/cph-uni/strand-a-pedagogical-bot/prototypes/led-planck-skill-brief.md) | P1 | 1.5-2d | 1.B (lesson picker so students can find it), ADR-013 pipeline | **Second physics skill.** Self-contained Danish stx artefact (1855 LOC, zero external fetches). Procedural-virtual-lab class — different form factor from Boldkast's phenomenon-sim. The brief in the scoping site has the full skill config YAML, Danish tutor system prompt, postMessage event shapes (step-change, measurement, component-placed), and deploy checklist. No in-repo design doc needed — the brief IS the design. Execution = copy HTML to `infrastructure/mcp-sandbox/artefacts/led-planck/v1/`, wire postMessage events per brief, register skill template under `backend/skills/templates/led-planck-tutor/SKILL.md` |
+| 1.D | KineBot kinematics tutor — *brief in scoping site:* [`kinebot-migration-brief.md`](file:///Users/mark/Documents/clients/cph-uni/strand-a-pedagogical-bot/prototypes/kinebot-migration-brief.md) | P1 | 2-3d | 1.C complete (LED Planck establishes the migration pattern), ADR-013 pipeline | **Third physics skill — and the migration-pattern test.** External AI artefact (1707 LOC) built by DK with direct Anthropic API calls in browser; AIPLA must strip them and route through backend. NCERT/CBSE Class 11 curriculum (English, kinematics). Beta cohort = DK's Indian students (~100s available). The brief documents the full audit/strip/wire/extract/package/pair/test workflow as a *runbook* — once this lands, future external-artefact onboarding follows the same checklist. Higher effort than 1.C because of the strip-the-direct-API work |
 
 ## Timeline estimate
 
@@ -28,12 +31,20 @@ for v1.
 
 ## What ships in v1.0.0-pilot
 
+**Permission + auth (1.A):**
 - **Teacher Firebase auth** (sign in to a `/teacher` route, not just join via group code)
 - **`Class` entity** in Firestore — teacher-owned, defines the tag namespace for that class
 - **Group → Class binding** — student group codes are minted under a Class and inherit its tags via JWT
 - **Tag-based skill access** — teachers pick which skills (lessons) a class can use; access enforced by the existing 5-type `AccessControl` model
 - **`manage-class` skill** (teacher-facing) — A2UI form to create classes, mint group codes, pick lessons
 - **Lesson UX label** — `Skill` stays the technical term; "Lesson" is the surface label when teachers / students see it
+
+**Lesson surface (1.B):**
+- **`/lessons` route** — replaces v0.1's hardcoded `POST_JOIN_REDIRECT`; lists all skills the student can access, cards link to `/chat/<skill>`
+
+**Physics skill library (1.C, 1.D):**
+- **LED Planck virtual lab** — Danish stx physics-A, procedural-lab artefact class, paired with a Danish Socratic tutor (full prompt in the brief)
+- **KineBot kinematics tutor** — English NCERT/CBSE Class 11, migration of DK's existing AI artefact onto AIPLA-compliant rails. Also establishes the runbook for any future external-artefact onboarding
 
 ## What does NOT ship in v1.0.0-pilot
 
