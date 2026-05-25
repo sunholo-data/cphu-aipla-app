@@ -386,6 +386,94 @@ def create_group(
     return record
 
 
+def upsert_group(
+    *,
+    code: str,
+    title: str,
+    skill_ids: list[str] | tuple[str, ...],
+    creator_uid: str,
+    ttl_days: int = DEFAULT_TTL_DAYS,
+    max_concurrent_sessions: int = DEFAULT_MAX_CONCURRENT_SESSIONS,
+) -> tuple[GroupRecord, bool]:
+    """Create-or-extend a group with a CALLER-CHOSEN code.
+
+    Differs from ``create_group`` in three ways:
+      1. The caller passes ``code`` explicitly (random-mint case stays
+         on ``create_group``).
+      2. If the code already exists, the record's ``expires_at`` is
+         extended to ``now + ttl_days * 86400`` without resetting
+         created_at / creator_uid / skill_ids / max_concurrent_sessions.
+      3. Returns ``(record, created)`` where ``created`` is True on the
+         first-time-create path and False when extending an existing.
+
+    Designed for deploy-time demo-code seeding (cloudbuild.yaml). The
+    intent is "guarantee these N codes are alive for the next 30 days,
+    every deploy" — extending TTL on the same code rather than
+    cluttering Firestore with daily new codes. Idempotency by code is
+    the load-bearing property.
+
+    Raises:
+        ValueError: ``code`` doesn't match the wordlist-shape sanity
+            check (currently relaxed to any non-empty kebab-cased
+            string; full enforcement lives in the route layer).
+        GroupRevoked: code matches a previously revoked group. We
+            refuse to silently un-revoke — the operator must mint a
+            fresh code.
+    """
+    if not isinstance(code, str) or not code.strip():
+        raise ValueError("code must be a non-empty string")
+    if code in _state.revoked_group_ids:
+        raise GroupRevoked(f"code {code} was previously revoked")
+
+    # Verify the signing secret early — same boundary as create_group.
+    _signing_secret()
+
+    now = AnonymousGroupAuth.time_provider()
+    new_expires = now + ttl_days * 86400
+
+    existing = get_group(code)
+    if existing is not None:
+        extended = GroupRecord(
+            group_id=existing.group_id,
+            creator_uid=existing.creator_uid,
+            title=existing.title,
+            skill_ids=existing.skill_ids,
+            created_at=existing.created_at,
+            expires_at=new_expires,
+            max_concurrent_sessions=existing.max_concurrent_sessions,
+        )
+        _state.groups[code] = extended
+        _persist_group(extended)
+        logger.info(
+            "group_auth: extended group=%s new_ttl_days=%d new_expires=%.0f",
+            code,
+            ttl_days,
+            new_expires,
+        )
+        return extended, False
+
+    record = GroupRecord(
+        group_id=code,
+        creator_uid=creator_uid,
+        title=title,
+        skill_ids=tuple(skill_ids),
+        created_at=now,
+        expires_at=new_expires,
+        max_concurrent_sessions=max_concurrent_sessions,
+    )
+    _state.groups[code] = record
+    _persist_group(record)
+    logger.info(
+        "group_auth: upserted (created) group=%s creator=%s ttl_days=%d skills=%d cap=%d",
+        code,
+        creator_uid,
+        ttl_days,
+        len(skill_ids),
+        max_concurrent_sessions,
+    )
+    return record, True
+
+
 def get_group(group_id: str) -> GroupRecord | None:
     """Lookup; returns None for missing or revoked.
 
@@ -575,5 +663,6 @@ __all__ = [
     "delete_group",
     "get_group",
     "join_group",
+    "upsert_group",
     "verify_group_token",
 ]

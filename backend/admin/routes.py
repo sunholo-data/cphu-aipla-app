@@ -15,7 +15,7 @@ from pydantic import BaseModel
 
 from admin import platform_seed
 from admin.auth import _assert_caller_is_service_account
-from auth.group_id_auth import create_group
+from auth.group_id_auth import create_group, upsert_group
 from skills.skill_config import list_skills
 
 logger = logging.getLogger(__name__)
@@ -35,19 +35,27 @@ def seed_platform_skills(request: Request) -> dict[str, Any]:
 
 
 class MintDemoGroupRequest(BaseModel):
-    """AIPLA v0.1 — admin path for minting an anonymous-group code without
-    a Firebase teacher session, used to wire up the Jutland demo before
-    UCPH SSO ships in 1.6.
+    """AIPLA admin path for minting an anonymous-group code without a
+    Firebase teacher session, used to wire up the Jutland v0.1 + ongoing
+    demos before UCPH SSO ships in 1.6.
 
-    The created group's code is stable across hits (same skill_name +
-    title returns the same group if one still exists), so callers can
-    rerun this safely.
+    Two modes:
+      * ``code`` omitted → mints a fresh random code each call. Used by
+        ad-hoc "give me a code now" ops requests.
+      * ``code`` provided → idempotent upsert. If the code exists, the
+        TTL is extended to ``now + ttl_days * 86400`` and other fields
+        are preserved. If missing, the code is created. Used by the
+        cloudbuild deploy step that guarantees a known set of demo
+        codes (``aipla-demo-1`` / ``aipla-demo-2`` / ...) is always
+        live for the next 30 days.
     """
 
     skill_name: str = "problem-set-hints"
     title: str = "jutland-demo-v01"
     ttl_days: int = 30
     max_concurrent_sessions: int = 100
+    # 2026-05-25 — explicit code = idempotent upsert path.
+    code: str | None = None
 
 
 @router.post(
@@ -84,6 +92,33 @@ def mint_demo_group(body: MintDemoGroupRequest, request: Request) -> dict[str, A
         )
     skill = matches[0]
 
+    if body.code:
+        # Idempotent path — caller asked for a specific code. Extends
+        # TTL on existing; creates fresh otherwise.
+        record, created = upsert_group(
+            code=body.code,
+            title=body.title,
+            skill_ids=[skill.skill_id],
+            creator_uid=f"admin:{caller_email}",
+            ttl_days=body.ttl_days,
+            max_concurrent_sessions=body.max_concurrent_sessions,
+        )
+        logger.info(
+            "admin.mint_demo_group: %s group=%s skill=%s ttl_days=%d by %s",
+            "created" if created else "extended",
+            record.group_id,
+            body.skill_name,
+            body.ttl_days,
+            caller_email,
+        )
+        return {
+            "code": record.group_id,
+            "expires_at": record.expires_at,
+            "skill_id": skill.skill_id,
+            "title": record.title,
+            "created": created,
+        }
+
     record = create_group(
         title=body.title,
         skill_ids=[skill.skill_id],
@@ -102,4 +137,5 @@ def mint_demo_group(body: MintDemoGroupRequest, request: Request) -> dict[str, A
         "expires_at": record.expires_at,
         "skill_id": skill.skill_id,
         "title": record.title,
+        "created": True,
     }

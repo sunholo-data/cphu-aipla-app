@@ -37,6 +37,7 @@ from auth.group_id_auth import (
     delete_group,
     get_group,
     join_group,
+    upsert_group,
     verify_group_token,
 )
 
@@ -398,3 +399,107 @@ def test_group_skill_ids_are_carried_for_permission_lookup():
     found = get_group(rec.group_id)
     assert found is not None
     assert set(found.skill_ids) == {"physics-tutor", "lab-helper"}
+
+
+# ─── upsert_group (deploy-time demo seeding) ────────────────────────────────
+
+
+def test_upsert_group_creates_when_missing():
+    rec, created = upsert_group(
+        code="aipla-demo-1",
+        title="dev demo",
+        skill_ids=["physics-tutor"],
+        creator_uid="admin:cb",
+        ttl_days=30,
+    )
+    assert created is True
+    assert rec.group_id == "aipla-demo-1"
+    assert get_group("aipla-demo-1") is not None
+
+
+def test_upsert_group_extends_ttl_on_existing():
+    """Second upsert with same code → existing record, new expires_at."""
+    with _freeze_time(1_000_000.0):
+        first, created_first = upsert_group(
+            code="aipla-demo-1",
+            title="dev demo",
+            skill_ids=["physics-tutor"],
+            creator_uid="admin:cb",
+            ttl_days=30,
+        )
+        assert created_first is True
+        original_expires = first.expires_at
+        original_created_at = first.created_at
+
+    # 10 days later — re-upsert with a fresh 30-day TTL.
+    with _freeze_time(1_000_000.0 + 10 * 86400):
+        second, created_second = upsert_group(
+            code="aipla-demo-1",
+            title="dev demo",
+            skill_ids=["physics-tutor"],
+            creator_uid="admin:cb",
+            ttl_days=30,
+        )
+        assert created_second is False
+        # New TTL starts from the new "now" → expires_at advanced by ~10 days
+        assert second.expires_at > original_expires
+        # created_at is preserved (don't reset the audit trail on re-extend)
+        assert second.created_at == original_created_at
+
+
+def test_upsert_group_preserves_creator_and_skills_on_extend():
+    """Extending should NOT let a later caller hijack creator_uid or
+    swap skill_ids. Only TTL is mutable."""
+    upsert_group(
+        code="aipla-demo-1",
+        title="dev demo",
+        skill_ids=["physics-tutor"],
+        creator_uid="admin:original",
+        ttl_days=30,
+    )
+    rec, created = upsert_group(
+        code="aipla-demo-1",
+        title="different title",
+        skill_ids=["different-skill"],
+        creator_uid="admin:hijacker",
+        ttl_days=30,
+    )
+    assert created is False
+    assert rec.creator_uid == "admin:original"
+    assert tuple(rec.skill_ids) == ("physics-tutor",)
+    assert rec.title == "dev demo"
+
+
+def test_upsert_group_refuses_revoked_code():
+    """Once revoked, never silently un-revoke. Operator must mint a
+    fresh code or explicitly un-revoke via a separate path."""
+    create_group(title="x", skill_ids=["s"], creator_uid="u1", ttl_days=7)
+    # Revoke a random code and try to upsert the same id (using a
+    # known code through delete + upsert path).
+    upsert_group(
+        code="aipla-demo-rev",
+        title="x",
+        skill_ids=["s"],
+        creator_uid="u1",
+        ttl_days=30,
+    )
+    delete_group("aipla-demo-rev", requesting_uid="u1")
+    with pytest.raises(GroupRevoked):
+        upsert_group(
+            code="aipla-demo-rev",
+            title="x",
+            skill_ids=["s"],
+            creator_uid="u1",
+            ttl_days=30,
+        )
+
+
+def test_upsert_group_rejects_empty_code():
+    with pytest.raises(ValueError):
+        upsert_group(
+            code="",
+            title="x",
+            skill_ids=["s"],
+            creator_uid="u",
+            ttl_days=30,
+        )
