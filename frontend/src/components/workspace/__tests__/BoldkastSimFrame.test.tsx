@@ -119,16 +119,17 @@ describe("BoldkastSimFrame", () => {
       vi.useRealTimers();
     });
 
-    it("debounces slider drags and pushes the final value with a card after 500ms", () => {
+    it("coalesces rapid same-field slider drags into one push (1.E sprint)", () => {
       vi.useFakeTimers();
       render(<BoldkastSimFrame sandboxOrigin={SANDBOX_ORIGIN} sessionId="sess-1" onClose={() => {}} />);
-      // Three rapid drag events — only the LAST should produce a push.
+      // Three rapid drag events on the same field within the 200ms
+      // coalesce window — only the LAST should produce a push.
       dispatchUpdateModelContext({ kind: "boldkast.param.change", param: "v0", value: 10 });
       dispatchUpdateModelContext({ kind: "boldkast.param.change", param: "v0", value: 12 });
       dispatchUpdateModelContext({ kind: "boldkast.param.change", param: "v0", value: 15 });
       expect(fetchWithAuth).not.toHaveBeenCalled();
       expect(dispatchMock).not.toHaveBeenCalled();
-      vi.advanceTimersByTime(499);
+      vi.advanceTimersByTime(199);
       expect(fetchWithAuth).not.toHaveBeenCalled();
       vi.advanceTimersByTime(2);
       expect(fetchWithAuth).toHaveBeenCalledTimes(1);
@@ -141,11 +142,25 @@ describe("BoldkastSimFrame", () => {
       vi.useRealTimers();
     });
 
+    it("does NOT cross-field merge — v0 then theta within window → two pushes (1.E sprint)", () => {
+      vi.useFakeTimers();
+      render(<BoldkastSimFrame sandboxOrigin={SANDBOX_ORIGIN} sessionId="sess-1" onClose={() => {}} />);
+      dispatchUpdateModelContext({ kind: "boldkast.param.change", param: "v0", value: 12 });
+      // 50ms later — within the 200ms window but DIFFERENT field. Should NOT collapse.
+      vi.advanceTimersByTime(50);
+      dispatchUpdateModelContext({ kind: "boldkast.param.change", param: "theta", value: 45 });
+      // Each has its own coalesce timer; both fire 200ms after their respective trigger.
+      vi.advanceTimersByTime(200);
+      expect(fetchWithAuth).toHaveBeenCalledTimes(2);
+      expect(dispatchMock).toHaveBeenCalledTimes(2);
+      vi.useRealTimers();
+    });
+
     it("uses θ label for theta slider end", () => {
       vi.useFakeTimers();
       render(<BoldkastSimFrame sandboxOrigin={SANDBOX_ORIGIN} sessionId="sess-1" onClose={() => {}} />);
       dispatchUpdateModelContext({ kind: "boldkast.param.change", param: "theta", value: 40 });
-      vi.advanceTimersByTime(501);
+      vi.advanceTimersByTime(201);
       expect(dispatchMock).toHaveBeenCalledTimes(1);
       expect(dispatchMock.mock.calls[0][0].label).toBe("Justerede θ til 40°");
       vi.useRealTimers();

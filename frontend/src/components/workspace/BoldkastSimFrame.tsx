@@ -100,8 +100,13 @@ interface BoldkastSnapshot {
  */
 export function BoldkastSimFrame({ sandboxOrigin, sessionId, onClose }: BoldkastSimFrameProps) {
   const humanToolEvents = useHumanToolEvents();
-  // Debounce handle for slider-drag pushes.
-  const sliderDebounceRef = useRef<number | null>(null);
+  // Sprint 1.E: per-(kind,param) coalesce timers replace the previous
+  // single 500ms slider-drag debounce. Keyed off `${kind}::${param}` so
+  // dragging v0 never suppresses a theta change mid-drag. The Boldkast
+  // artefact (boldkast/v1/index.html) already debounces emits per field
+  // at 800ms; this map adds a defensive 200ms coalesce for any rapid
+  // follow-up if an artefact forgets to debounce.
+  const paramCoalesceRef = useRef<Map<string, number>>(new Map());
   // Accumulated snapshot — ref (not state) because we don't re-render
   // on update; we only POST to the backend.
   const snapshotRef = useRef<BoldkastSnapshot>({
@@ -195,15 +200,24 @@ export function BoldkastSimFrame({ sandboxOrigin, sessionId, onClose }: Boldkast
           shouldPush = true;
           pushedPreset = snap.lastPreset;
         } else {
-          // Slider drag — fires per-pixel. Debounce 500ms then push the
-          // final value + card so the student / dev can see what value
-          // reached the agent.
-          if (sliderDebounceRef.current !== null) {
-            window.clearTimeout(sliderDebounceRef.current);
+          // Slider drag — fires per-pixel. As of sprint 1.E the
+          // artefact (boldkast/v1/index.html) already debounces per
+          // field at 800ms, so only one event per field arrives here
+          // after a drag-stop. We add a tight 200ms coalesce per
+          // (kind, param) as defence-in-depth: catches any rapid
+          // follow-up if an artefact ever forgets to debounce, but
+          // doesn't add meaningful latency on the artefact-debounced
+          // happy path. Per-field (not global) so dragging v0
+          // doesn't suppress a theta change mid-drag.
+          const coalesceKey = `${kind}::${data.param}`;
+          const prev = paramCoalesceRef.current.get(coalesceKey);
+          if (prev !== undefined) {
+            window.clearTimeout(prev);
           }
           const finalParam = data.param;
           const finalValue = data.value;
-          sliderDebounceRef.current = window.setTimeout(() => {
+          const timerId = window.setTimeout(() => {
+            paramCoalesceRef.current.delete(coalesceKey);
             const req = pushSnapshotRequest("boldkast.param.change");
             if (req && typeof finalParam === "string") {
               const label = labelForSliderEnd(finalParam, finalValue);
@@ -211,8 +225,8 @@ export function BoldkastSimFrame({ sandboxOrigin, sessionId, onClose }: Boldkast
             } else if (req) {
               void req.catch(() => {});
             }
-            sliderDebounceRef.current = null;
-          }, 500);
+          }, 200);
+          paramCoalesceRef.current.set(coalesceKey, timerId);
         }
       }
       // play / pause / reset are intentionally not pushed — control
@@ -248,13 +262,16 @@ export function BoldkastSimFrame({ sandboxOrigin, sessionId, onClose }: Boldkast
     }
   }, [sessionId, pushSnapshotSilent]);
 
-  // Flush any pending slider debounce on unmount.
+  // Flush any pending per-field coalesce timers on unmount. Without
+  // this an in-flight Boldkast slider drag would still POST after the
+  // student already navigated away.
   useEffect(() => {
+    const timers = paramCoalesceRef.current;
     return () => {
-      if (sliderDebounceRef.current !== null) {
-        window.clearTimeout(sliderDebounceRef.current);
-        sliderDebounceRef.current = null;
+      for (const id of timers.values()) {
+        window.clearTimeout(id);
       }
+      timers.clear();
     };
   }, []);
 
