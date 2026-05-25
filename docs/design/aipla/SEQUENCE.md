@@ -69,8 +69,9 @@ respects the **mid-point review (2026-06-26)** + **holiday freeze
 
 | # | Doc (planned) | Why | ADRs | Est |
 |---|---|---|---|---|
-| **1.6** | `teacher-auth-ucph-sso.md` | UCPH SSO for teacher admin. Decision: Firebase Auth federated with UCPH IDP, or a thin OIDC proxy. Out-of-scope-for-v0.1 because we have no teacher-facing routes yet. | 001 (teacher-auth half) | 1d |
-| **1.7** | `class-and-group-management.md` | `manage-class` skill (v1) — teacher creates a class, system mints anonymous group IDs, teacher hands them out. Backed by Firestore on `aipla-dev-2026`. | 001, 014, 015 | 2d |
+| **1.A** | [aipla/v1.0.0-pilot/teacher-permission-model.md](v1.0.0-pilot/teacher-permission-model.md) | **Combined doc for rows 1.6 + 1.7.** Teacher Firebase auth (Google OAuth in v1; UCPH SSO is a v2 upgrade path — same data model) + `Class` entity (tag namespace `class:<uid>:<id>`, soft-delete) + Group → Class binding (group JWTs carry the class's `group_tags`) + tag-based lesson access via the existing 5-type `AccessControl` model. The `manage-class` skill is the teacher UX on top. | 001 (teacher-auth half), 014, 015 | 3-5d |
+| ~~1.6~~ | ~~`teacher-auth-ucph-sso.md`~~ | ~~Superseded — merged into 1.A. UCPH SSO is now a v2 upgrade path; v1 ships Google OAuth.~~ | — | — |
+| ~~1.7~~ | ~~`class-and-group-management.md`~~ | ~~Superseded — merged into 1.A. The class + group management is in the unified permission-model doc.~~ | — | — |
 | **1.7-ops** | [aipla/v0.1.0-jutland/group-tooling.md](v0.1.0-jutland/group-tooling.md) | `aiplatform group new/list/revoke` CLI + backend list/revoke admin endpoints. Replaces the v0.1 multi-step curl ritual with a single command. Ships alongside 1.7 (teacher GUI) so ops keeps a CLI fallback once teachers have the dashboard. Moved here from Phase 0 per user direction 2026-05-20 ("later in the sequence"). | 0.5d |
 | **1.8** | `problem-set-helper-config-skill.md` | `problem-set-helper-config` (v1, teacher-facing) — teacher configures a tutor for a specific topic / problem set, pointing at one or more RAG-ingested documents. A2UI config form. | (skill catalogue — strands.qmd) | 2d |
 | **1.9** | `concept-dialogue-config-skill.md` | `concept-dialogue-config` (v1) — standalone Socratic conceptual-exploration tutor for a topic. A2UI config form. | (skill catalogue) | 1.5d |
@@ -119,10 +120,10 @@ v0.1.0-jutland (1d) ──► 0.2 boldkast-mcp-app (1.5d, buffer-week over-deliv
                                                             │
                             ──── holiday freeze 2026-06-29 → 07-05 ────
                                                             │
-                              1.6 teacher-auth-ucph-sso ───┐
-                              1.7 class-and-group-mgmt ────┤
-                              1.8 problem-set-helper-cfg ──┼─► (all four
-                              1.9 concept-dialogue-cfg ────┘    parallel; depend on 1.1+1.2)
+                              1.A teacher-permission-model ─┐  (combined 1.6 + 1.7)
+                              1.8 problem-set-helper-cfg ──┼─► (1.A + 1.8 + 1.9
+                              1.9 concept-dialogue-cfg ────┘    parallel-ish; all
+                                                                depend on 1.1+1.2)
                                                             │
                               1.10 multimodal-ingestion ───┐
                               1.11 artefact-review ────────┤
