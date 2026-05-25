@@ -1,0 +1,157 @@
+{
+  "sprint_id": "TUTOR-GREET-PH-A",
+  "created": "2026-05-25T16:00:00Z",
+  "estimated_duration_days": 1,
+  "design_doc": "docs/design/aipla/v1.0.0-pilot/proactive-tutor.md",
+  "sprint_plan": "docs/design/aipla/v1.0.0-pilot/proactive-tutor-ph1-sprint.md",
+  "branch": "feature/proactive-tutor-greet",
+  "base_commit": "2cb35f4",
+  "pr_target": "dev",
+  "features": [
+    {
+      "id": "M1",
+      "description": "SkillMetadata gains proactive_greet (bool, default false) + opening_template (str|None) fields with camelCase aliases. skill_materializer maps them in frontmatter_metadata.",
+      "scope": "backend",
+      "estimated_loc": 40,
+      "actual_loc": null,
+      "dependencies": [],
+      "acceptance_criteria": [
+        "Fields land in SkillConfig Pydantic model with proactiveGreet and openingTemplate aliases",
+        "skill_from_config() includes both in the assembled metadata",
+        "Existing skills without the new fields round-trip without breaking (defaults hold)"
+      ],
+      "files_to_create": [],
+      "files_to_modify": ["backend/db/models/__init__.py", "backend/skills/skill_materializer.py"],
+      "passes": null, "started": null, "completed": null, "notes": null
+    },
+    {
+      "id": "M2",
+      "description": "backend/adk/proactive_greet.py — inject_opening_guidance wrapper + unit tests.",
+      "scope": "backend",
+      "estimated_loc": 80,
+      "actual_loc": null,
+      "dependencies": ["M1"],
+      "acceptance_criteria": [
+        "No-op when proactive_greet=False or opening_template=None",
+        "Appends an OPENING GUIDANCE block when both are set",
+        "Unit tests in backend/tests/unit/test_proactive_greet.py — 4+ cases green"
+      ],
+      "files_to_create": ["backend/adk/proactive_greet.py", "backend/tests/unit/test_proactive_greet.py"],
+      "files_to_modify": [],
+      "passes": null, "started": null, "completed": null, "notes": "Pattern mirror: backend/adk/teacher_focus.py"
+    },
+    {
+      "id": "M3",
+      "description": "Wire inject_opening_guidance into agent.py compose_instruction_providers chain.",
+      "scope": "backend",
+      "estimated_loc": 8,
+      "actual_loc": null,
+      "dependencies": ["M2"],
+      "acceptance_criteria": [
+        "compose_instruction_providers receives inject_opening_guidance output",
+        "test_teacher_focus.py still passes (no regression in chain order)"
+      ],
+      "files_to_create": [],
+      "files_to_modify": ["backend/adk/agent.py"],
+      "passes": null, "started": null, "completed": null, "notes": null
+    },
+    {
+      "id": "M4",
+      "description": "POST /api/sessions/{id}/greet endpoint. Idempotent on turn_count>0. Returns the agent's first tutor turn text in 202 body. OTel span tagged tutor.proactive_kind=greet.",
+      "scope": "backend",
+      "estimated_loc": 220,
+      "actual_loc": null,
+      "dependencies": ["M3"],
+      "acceptance_criteria": [
+        "Test: greet fires on fresh session for proactive_greet=true skill",
+        "Test: greet is no-op on session with turn_count>0 (returns skipped reason)",
+        "Test: greet is no-op for proactive_greet=false skill",
+        "Test: 401 when no auth",
+        "Test: 404 when skill does not exist",
+        "Registered in fast_api_app.py"
+      ],
+      "files_to_create": ["backend/protocols/proactive_routes.py", "backend/tests/api_tests/test_proactive_routes.py"],
+      "files_to_modify": ["backend/fast_api_app.py"],
+      "passes": null, "started": null, "completed": null,
+      "notes": "Synthetic empty user message triggers the agent. Idempotency via get_session_index(session_id).turn_count."
+    },
+    {
+      "id": "M5",
+      "description": "Frontend fires /greet on chat-page mount when skill.proactiveGreet && session is new. Renders the returned tutor turn as the first chat message. Ref guard against React StrictMode double-fire.",
+      "scope": "frontend",
+      "estimated_loc": 140,
+      "actual_loc": null,
+      "dependencies": ["M4"],
+      "acceptance_criteria": [
+        "Manual: fresh /group join → tutor first turn appears within ~2s without student input",
+        "Manual: skill with proactiveGreet=false → today's behaviour",
+        "/greet called at most once per chat mount (ref-guarded)",
+        "API errors logged + fall back to today's behaviour"
+      ],
+      "files_to_create": ["frontend/src/lib/proactiveGreet.ts"],
+      "files_to_modify": ["frontend/src/hooks/useSkillAgent.ts", "frontend/src/hooks/useSkillMeta.ts"],
+      "passes": null, "started": null, "completed": null,
+      "notes": "useSkillMeta should expose proactiveGreet."
+    },
+    {
+      "id": "M6",
+      "description": "Author proactiveGreet=true + ## Opening section for problem-set-hints skill. Update platform_seed.py if needed.",
+      "scope": "backend",
+      "estimated_loc": 30,
+      "actual_loc": null,
+      "dependencies": ["M1"],
+      "acceptance_criteria": [
+        "problem-set-hints SKILL.md has proactiveGreet=true in frontmatter",
+        "## Opening section authored with skill-author guidance",
+        "After re-seed, SkillConfig populated with new fields",
+        "Manual: LOCAL_MODE join → first tutor turn reflects ## Opening guidance"
+      ],
+      "files_to_create": [],
+      "files_to_modify": ["backend/skills/templates/problem-set-hints/SKILL.md", "backend/admin/platform_seed.py"],
+      "passes": null, "started": null, "completed": null, "notes": null
+    },
+    {
+      "id": "M7",
+      "description": "Backend make lint + test-fast green; frontend quality:check green. No emoji.",
+      "scope": "fullstack",
+      "estimated_loc": 0,
+      "actual_loc": null,
+      "dependencies": ["M6"],
+      "acceptance_criteria": [
+        "cd backend && make lint clean",
+        "cd backend && make test-fast green (pre-existing whoami/tenant failures excluded)",
+        "cd frontend && npm run quality:check green",
+        "Emoji sweep across changed files returns 0 matches"
+      ],
+      "files_to_create": [], "files_to_modify": [],
+      "passes": null, "started": null, "completed": null, "notes": null
+    },
+    {
+      "id": "M8",
+      "description": "Commit + push feature branch + open PR against dev.",
+      "scope": "fullstack",
+      "estimated_loc": 0,
+      "actual_loc": null,
+      "dependencies": ["M7"],
+      "acceptance_criteria": [
+        "PR opened against dev from feature/proactive-tutor-greet",
+        "PR body links proactive-tutor.md Phase A section + manual test recipe",
+        "PR description states Phase B (heartbeat) is NOT included"
+      ],
+      "files_to_create": [], "files_to_modify": [],
+      "passes": null, "started": null, "completed": null, "notes": null
+    }
+  ],
+  "velocity": {
+    "target_loc_per_day": 520,
+    "actual_loc_per_day": null,
+    "estimated_total_loc": 520,
+    "actual_total_loc": null,
+    "estimated_days": 1,
+    "actual_days": null
+  },
+  "github_issues": [],
+  "last_session": null,
+  "last_checkpoint": null,
+  "status": "in_progress"
+}
