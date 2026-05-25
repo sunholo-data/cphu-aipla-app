@@ -277,3 +277,35 @@ steps:
         body=$(head -c 300 /tmp/seed)
         echo "seed-platform-skills -> $${code} body=$${body}"
         exit 0
+
+  # --- Non-fatal demo-codes upsert. Idempotent.
+  # Guarantees three known group codes are alive for the next 30 days
+  # so demo team members can always join /group without an admin minting
+  # a fresh code each week. Same auth pattern as seed-platform-skills;
+  # never fails the build (a hiccup here means the team mints manually).
+  # Each code's TTL is refreshed to 30 days from "now" on every deploy.
+  # Output line includes the codes so you can copy from the build log.
+  - name: 'gcr.io/google.com/cloudsdktool/cloud-sdk'
+    id: upsert-demo-codes
+    waitFor: ['seed-platform-skills']
+    entrypoint: bash
+    args:
+      - '-c'
+      - |
+        set +e
+        URL=$(gcloud run services describe ${_SERVICE_NAME} \
+          --project=${_PROJECT_ID} --region=${_REGION} \
+          --format='value(status.url)')
+        TOKEN=$(curl -sS -H "Metadata-Flavor: Google" \
+          "http://metadata.google.internal/computeMetadata/v1/instance/service-accounts/default/identity?audience=$${URL}&include_email=true")
+        echo "--- demo codes (paste into /group on the dev URL) ---"
+        for code in aipla-demo-1 aipla-demo-2 aipla-demo-3; do
+          body=$(curl -sS --max-time 30 \
+            -X POST -H "Authorization: Bearer $${TOKEN}" \
+            -H "Content-Type: application/json" \
+            -d "{\"code\": \"$${code}\", \"skill_name\": \"problem-set-hints\", \"title\": \"dev demo $${code}\", \"ttl_days\": 30}" \
+            "$${URL}/api/proxy/api/admin/mint-demo-group")
+          echo "  $${code} -> $${body}"
+        done
+        echo "--- end demo codes ---"
+        exit 0
