@@ -100,7 +100,9 @@ log "Freeing dev ports if held…"
 # this filter, lsof returns ESTABLISHED client PIDs (open Firefox tabs)
 # too, and `kill` murders the browser.
 listening_pid() {
-    lsof -nP -iTCP:"$1" 2>/dev/null | awk '$NF == "(LISTEN)" { print $2 }'
+    # lsof exits 1 when no process found; pipefail would propagate that up.
+    # The || true keeps the function from failing when the port is free.
+    lsof -nP -iTCP:"$1" 2>/dev/null | awk '$NF == "(LISTEN)" { print $2 }' || true
 }
 for PORT in $BACKEND_PORT $FRONTEND_PORT $SANDBOX_PORT; do
     PIDS=$(listening_pid "$PORT")
