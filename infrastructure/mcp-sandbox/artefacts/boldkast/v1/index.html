@@ -486,13 +486,54 @@
     ctx.arc(bx, by, 5, 0, Math.PI * 2);
     ctx.fill();
 
-    // Velocity vector at ball position (small)
-    ctx.strokeStyle = "#0f172a";
-    ctx.lineWidth = 1.5;
+    // Velocity component decomposition.
+    // Arrow length in screen pixels is proportional to speed.
+    // Scale chosen so v0=10 m/s maps to ~40 px — readable without
+    // dominating the trajectory at any slider value.
+    const VSCALE = Math.min(5, (w * 0.18) / (v0 || 1));
+    const vxEndX = bx + p.vx * VSCALE;
+    const vxEndY = by;                     // horizontal: y unchanged
+    const vyEndX = bx;
+    const vyEndY = by - p.vy * VSCALE;     // vertical: up = negative screen-y
+    const vtEndX = bx + p.vx * VSCALE;
+    const vtEndY = by - p.vy * VSCALE;     // resultant (diagonal)
+
+    // Dashed parallelogram construction lines
+    ctx.strokeStyle = "#cbd5e1";
+    ctx.setLineDash([3, 3]);
+    ctx.lineWidth = 1;
     ctx.beginPath();
-    ctx.moveTo(bx, by);
-    ctx.lineTo(bx + p.vx * 1.5, by - p.vy * 1.5);
+    ctx.moveTo(vxEndX, vxEndY); ctx.lineTo(vtEndX, vtEndY);
+    ctx.moveTo(vyEndX, vyEndY); ctx.lineTo(vtEndX, vtEndY);
     ctx.stroke();
+    ctx.setLineDash([]);
+
+    function drawArrow(ax1, ay1, ax2, ay2, color, label) {
+      const dx = ax2 - ax1, dy = ay2 - ay1;
+      const len = Math.sqrt(dx * dx + dy * dy);
+      if (len < 3) return;
+      ctx.strokeStyle = color; ctx.fillStyle = color; ctx.lineWidth = 2;
+      ctx.beginPath(); ctx.moveTo(ax1, ay1); ctx.lineTo(ax2, ay2); ctx.stroke();
+      const headLen = 7, angle = Math.atan2(dy, dx);
+      ctx.beginPath();
+      ctx.moveTo(ax2, ay2);
+      ctx.lineTo(ax2 - headLen * Math.cos(angle - Math.PI / 6), ay2 - headLen * Math.sin(angle - Math.PI / 6));
+      ctx.lineTo(ax2 - headLen * Math.cos(angle + Math.PI / 6), ay2 - headLen * Math.sin(angle + Math.PI / 6));
+      ctx.closePath(); ctx.fill();
+      if (label) {
+        ctx.font = "bold 10px sans-serif";
+        // Offset label perpendicular to arrow direction for readability
+        const nx = -dy / len, ny = dx / len;
+        ctx.fillText(label, ax2 + nx * 8 + (dx / len) * 4, ay2 + ny * 8 + (dy / len) * 4);
+      }
+    }
+
+    // vx (horizontal, constant throughout flight) — blue
+    drawArrow(bx, by, vxEndX, vxEndY, "#1e40af", "vₓ");
+    // vy (vertical, shrinks to 0 at peak then reverses) — red
+    drawArrow(bx, by, vyEndX, vyEndY, "#dc2626", "vᵧ");
+    // total v (resultant diagonal) — dark
+    drawArrow(bx, by, vtEndX, vtEndY, "#0f172a", "|v|");
 
     // y_max marker line (only if revealed)
     if (revealed.ymax) {
