@@ -91,22 +91,38 @@ def test_seed_empty_firestore_creates_all(tmp_path):
         assert kwargs["accessControl"] == {"type": "public"}
 
 
-def test_seed_idempotent_skips_existing(tmp_path):
-    """Second run: templates already present → skip, don't recreate."""
+def test_seed_idempotent_upserts_existing(tmp_path):
+    """Second run: templates already present → update (not skip) so template
+    edits propagate to deployed Firestore. Previously this was a "skip
+    if exists" no-op, which silently dropped new SKILL.md frontmatter
+    fields like 1.I-PhA's proactiveGreet / openingTemplate. See
+    docs/design/aipla/v1.0.0-pilot/proactive-tutor.md."""
     _fake_template_dir(tmp_path, "alpha")
     _fake_template_dir(tmp_path, "beta")
 
     with (
         patch("admin.platform_seed.skill_config.list_skills") as mock_list,
         patch("admin.platform_seed.skill_config.create_skill") as mock_create,
+        patch("admin.platform_seed.skill_config.update_skill") as mock_update,
     ):
         mock_list.return_value = [_make_config("alpha"), _make_config("beta")]
         summary = seed(templates_root=tmp_path)
 
     assert summary.created == 0
-    assert summary.skipped == 2
+    assert summary.updated == 2
+    assert summary.skipped == 0
     assert summary.failed == []
     mock_create.assert_not_called()
+    assert mock_update.call_count == 2
+    # update_skill receives (skill_id, updates) — verify template-sourced
+    # fields are passed (description + instructions always, plus the new
+    # proactiveGreet/openingTemplate flags regardless of value).
+    for call in mock_update.call_args_list:
+        _skill_id, updates = call.args
+        assert "description" in updates
+        assert "instructions" in updates
+        assert "proactiveGreet" in updates
+        assert "openingTemplate" in updates
 
 
 def test_seed_malformed_template_is_failed_not_raise(tmp_path):

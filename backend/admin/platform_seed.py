@@ -44,6 +44,7 @@ DEFAULT_TEMPLATES_ROOT = Path(__file__).resolve().parent.parent / "skills" / "te
 @dataclass
 class SeedSummary:
     created: int = 0
+    updated: int = 0
     skipped: int = 0
     failed: list[str] = field(default_factory=list)
     tool_permissions_wildcard_seeded: bool = False
@@ -51,6 +52,7 @@ class SeedSummary:
     def as_dict(self) -> dict[str, Any]:
         return {
             "created": self.created,
+            "updated": self.updated,
             "skipped": self.skipped,
             "failed": self.failed,
             "tool_permissions_wildcard_seeded": self.tool_permissions_wildcard_seeded,
@@ -150,6 +152,48 @@ def _existing_platform_skill_names() -> set[str]:
     return {c.name for c in configs}
 
 
+def _existing_platform_skills_by_name() -> dict[str, str]:
+    """Map skill name → skill_id for every platform-owned skill.
+
+    Used by the upsert path so the seeder can update an existing skill's
+    template-sourced fields without creating a duplicate. Platform skills
+    are uniquely keyed by ``name`` per the existing idempotency contract.
+    """
+    configs = skill_config.list_skills(owner_id=PLATFORM_OWNER_UID, limit=200)
+    return {c.name: c.skill_id for c in configs}
+
+
+def _template_updates(parsed: dict[str, Any]) -> dict[str, Any]:
+    """Build the partial-update payload for an existing platform skill.
+
+    Includes only the fields the SKILL.md template owns — instructions,
+    description, displayName, initialMessage, problemStatement,
+    proactiveGreet, openingTemplate. Leaves usage_count, createdAt,
+    accessControl, and friends alone (those are platform-managed, not
+    template-sourced).
+
+    Camel-cased keys because ``skill_config.update_skill`` writes them
+    directly into Firestore, and the Firestore documents use camelCase
+    aliases per ``SkillConfig.model_config``.
+    """
+    updates: dict[str, Any] = {
+        "description": parsed["description"],
+        "instructions": parsed["instructions"],
+    }
+    if parsed["displayName"]:
+        updates["displayName"] = parsed["displayName"]
+    if parsed["initialMessage"]:
+        updates["initialMessage"] = parsed["initialMessage"]
+    if parsed["problemStatement"]:
+        updates["problemStatement"] = parsed["problemStatement"]
+    # New flags / templates always apply, including when the source says
+    # "off" explicitly — otherwise toggling proactiveGreet off in the
+    # template wouldn't ever take effect on existing skills.
+    updates["proactiveGreet"] = parsed["proactiveGreet"]
+    updates["openingTemplate"] = parsed["openingTemplate"]
+    return updates
+
+
 def seed(templates_root: Path | None = None) -> SeedSummary:
     """Seed platform skills from disk templates. Idempotent by `name`.
 
@@ -160,7 +204,12 @@ def seed(templates_root: Path | None = None) -> SeedSummary:
     """
     root = templates_root or DEFAULT_TEMPLATES_ROOT
     summary = SeedSummary()
-    existing = _existing_platform_skill_names()
+    # Map name → skill_id so the upsert path can update existing rows
+    # without creating duplicates. Earlier idempotency was "skip if
+    # exists" which silently ignored template changes — broke when
+    # 1.I-PhA added proactiveGreet + openingTemplate to the template
+    # of an already-deployed problem-set-hints skill.
+    existing_by_name = _existing_platform_skills_by_name()
 
     # Run-once side effect (idempotent): seed the wildcard
     # tool_permissions rule so anonymous-group callers don't fall
@@ -187,8 +236,29 @@ def seed(templates_root: Path | None = None) -> SeedSummary:
             summary.failed.append(child.name)
             continue
 
-        if parsed["name"] in existing:
-            summary.skipped += 1
+        existing_skill_id = existing_by_name.get(parsed["name"])
+        if existing_skill_id is not None:
+            # Upsert path — sync template-sourced fields without
+            # touching usage_count / createdAt / accessControl. This is
+            # safe for platform skills because the SKILL.md template IS
+            # the canonical definition; teachers fork to their own
+            # owner_id rather than modify the platform copy.
+            try:
+                skill_config.update_skill(existing_skill_id, _template_updates(parsed))
+                summary.updated += 1
+                logger.info(
+                    "platform_seed: updated existing skill %s (id=%s) from template",
+                    parsed["name"],
+                    existing_skill_id,
+                )
+            except Exception as e:
+                logger.warning(
+                    "platform_seed: failed to update %s (id=%s): %s",
+                    parsed["name"],
+                    existing_skill_id,
+                    e,
+                )
+                summary.failed.append(child.name)
             continue
 
         try:
