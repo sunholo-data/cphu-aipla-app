@@ -414,6 +414,63 @@ Standard mix: pytest (backend), vitest (frontend), CLI tests, manual end-to-end.
 | 2.9 | Manual end-to-end + Wed 3 June demo dry run | — | 0.2 d |
 | | **Phase 2 total** | | **~2.15 d** |
 
+#### Phase 2 acceptance walkthrough (the demo path)
+
+The Phase 2 deploy lands at https://aipla-v01-frontend-wgwhd7mspa-lz.a.run.app/teacher with `NEXT_PUBLIC_TEACHER_MOCK=1` baked into the dev frontend image (via the `_TEACHER_MOCK=1` substitution on the `aipla-dev-deploy` Cloud Build trigger — recorded in [scripts/bootstrap-aipla-dev.NOTES.md](../../../../scripts/bootstrap-aipla-dev.NOTES.md) Decision 11). The bypass renders the editorial surface without Firebase teacher auth, which doesn't ship until Phase 3.
+
+This walkthrough is the **acceptance script for Phase 2** — both the internal demo (M + JB + AR before Wed 3 June) and the Wed 3 June teacher demo. Use it to verify the build, drive design-review feedback, and as the baseline for Phase 3 regression checks.
+
+**Setup** — open the URL in an incognito tab. No sessionStorage leftovers means the auth bypass triggers cleanly. Open the browser devtools Network panel for step 3a.
+
+##### Editorial surface (the five screens)
+
+1. **`/teacher/classes` — dashboard.** Two class cards ("7B Physics A" 4 groups active, "8A Physics A" 2 groups). Recent-activity rows for `bold-kazoo-87` / `ruby-petal-72` / `fluffy-goose-56`. *"Chat with all session data →"* goes to `/teacher/analytics`. "New class" disabled (Phase 3).
+
+2. **`/teacher/classes/7b-physics-a-2026` — class detail.** 4 groups with status badges (active / idle / completed). "+ New group" mints a fake `adjective-noun-NN` code + copies to clipboard + toast. "Copy code" per row works. Activities list: Boldkast (configured), LED Planck (configured), Pendul (not). "Configure" links to the activity-config screen.
+
+3. **`/teacher/activities/boldkast` — activity config (key screen).** Four tabs across the top: **Teaching goal** (active), **Parameters** [v1.1], **Code** [v2], **History** [v2]. Yellow `v1.1` / `v2` pills make the not-committed framing visually obvious.
+
+   - **3a. Teaching goal tab (live — real backend wired).** Textarea pre-filled from mock defaults on first load. Edit the goal → Save → Network panel shows `POST /api/proxy/api/activity-configs` returning **201**, toast confirms *"Saved — students see your teaching goal on their next turn."* Refresh → goal persists (Network shows `GET /api/proxy/api/activity-configs/mine/...`).
+   - **3b. Parameters tab.** Yellow "Roadmap preview — v1.1" banner. Disabled sliders (angle range), toggles (velocity vectors, trail, drag), trials-per-round input, labels language dropdown. *Feedback prompt for JB/AR:* **"Are these the right knobs? Per-class overrides?"*
+   - **3c. Code tab.** Yellow "Roadmap preview — v2" banner — framing is AI-assist via `.claude/skills/mcp-app-artefact`, draft → review → publish, per-teacher namespace. Read-only Boldkast HTML snippet, 12.4 KB / 200 KB cap badge, three green-dot validator badges (CSP-safe, size OK, no external fetches). *Feedback prompt:* **"What would 'edit with AI assist' mean to you? What's the review-queue model?"*
+   - **3d. History tab.** Yellow "Roadmap preview — v2" banner. Mock version log (v4 live, v3, v2, v1) with disabled rollback per row.
+
+4. **`/teacher/reports/groups/bold-kazoo-87` — session report (mock-fallback path).** Briefly shows "Loading report…" while the real-API fetch 404s (no real session for this group), then renders the mock fixture with a small **"mock data"** pill in the header. Summary metrics (22 min / 34 messages / 8 sim runs), Danish conversation log renders correctly.
+
+5. **`/teacher/reports/groups/local-demo` — session report (real-backend path).** Falls back to a 404 page if no chat has happened yet. **To prove the real wiring,** have someone join `/group` with the code `local-demo`, chat for a minute, then return — the report should render without the "mock data" pill. (Small UX gap: empty state on real-but-no-sessions could be smoothened; tracked as future polish.)
+
+6. **`/teacher/analytics`.** Scope pills (7B Physics A ▾ / All time ▾, disabled), hardcoded Q&A about vx/vy independence, disabled input + suggested questions. 100% placeholder — Phase 3 / Year-2 surface.
+
+##### End-to-end teacher-focus proof (the magic moment)
+
+This is the demo's load-bearing moment — it proves the Phase 2 wiring is real, not mock theatre.
+
+1. At `/teacher/activities/boldkast`, set the teaching goal to something **distinctive** (e.g. *"Make sure students discover that 30° and 60° launches land at the same place."*) → Save.
+2. In a fresh incognito tab, open `/group`, enter the code `local-demo`, start a Boldkast session.
+3. The first couple of agent turns should reflect the teacher's distinctive goal — questions about 30°/60° symmetry, not generic projectile prompts. This proves `{teacher_focus}` substitution at agent instantiation is wired end-to-end.
+
+##### Mobile + desktop check
+
+Resize to ~375px → all five screens usable. ~1280px+ → polished desktop layout. Tab bar wraps cleanly on narrow screens; toasts position correctly.
+
+#### Phase 2 — what's *not* in this build (avoid surprises)
+
+| Reviewer might expect | Phase 2 reality | Lands in |
+|---|---|---|
+| Sign in with Google / UCPH | Bypassed via `NEXT_PUBLIC_TEACHER_MOCK=1` | Phase 3 (post-3-June) |
+| Multiple classes | Only seeded `7b-physics-a-2026` works fully | Phase 3 |
+| Create a new class | Button disabled | Phase 3 |
+| Real analytics chat | Hardcoded canned answer | Phase 3 / Year-2 |
+| Parameters / Code / History tabs functional | Wireframes only — for design feedback | v1.1 / Year-2 (decision after pilot) |
+| Audio / TTS | Not wired | 1.H (TTS independent; audio JB-gated) |
+| Browse `/teacher/activities` library | Not built | Phase 3 |
+
+#### Demo talking points (what to lead with)
+
+1. **What's real today:** activity-config save round-trips to Firestore; the next student session reads `{teacher_focus}` from that doc and injects it into the agent prompt at instantiation. That's the Wed 3 June demo target landed a week early.
+2. **What's signalled but not built:** the three roadmap tabs on the activity-config screen. They drive the *"how much teacher control do we want?"* conversation — bounded parameters (v1.1) vs code-level authoring (v2 / Year-2). See [`post-pilot/teacher-artefact-parameters.md`](../post-pilot/teacher-artefact-parameters.md) and [`post-pilot/teacher-artefact-authoring.md`](../post-pilot/teacher-artefact-authoring.md) for the full pros/cons + decision criteria.
+3. **What still mocks:** dashboard cards, class detail, analytics chat — by design (Phase 3 scope). The *"mock data"* pill on reports makes the not-real status explicit so reviewers don't conflate the editorial-surface mock data with the activity-config + reports real-backend wiring.
+
 ### Phase 3: Firebase swap + stretch (post-demo)
 
 | Step | What | Est |
