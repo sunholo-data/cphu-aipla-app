@@ -314,6 +314,14 @@ ensure_cb_trigger() {
     "_CONFIG_BUCKET=${PROJECT}-config"
     "_ADMIN_SEED_ALLOWED_SAS=${SA_EMAIL}"
     "_FIREBASE_TAG=dev"
+    # 1.G-Ph2 — teacher UI mockup bypass. Bakes
+    # NEXT_PUBLIC_TEACHER_MOCK=1 into the dev frontend image so the
+    # deployed /teacher/* routes render without Firebase teacher auth
+    # (which doesn't land until Phase 3). REMOVE this line when Phase 3
+    # ships the real auth path. test/prod Terraform must NOT carry this
+    # substitution — production should render the "sign-in required"
+    # placeholder instead.
+    "_TEACHER_MOCK=1"
   )
   local subs_csv
   subs_csv=$(IFS=,; echo "${subs[*]}")

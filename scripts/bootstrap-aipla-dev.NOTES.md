@@ -139,3 +139,29 @@ Append entries chronologically, newest at the bottom.
 - **Why one shared service, not per-artefact:** Cloud Run cold-start + min-instance overhead is per-service; a static artefact has zero server-side state and zero per-artefact code. Sharing one service across N artefacts is the right amortisation. Dynamic MCP servers (which DO have per-server logic, e.g. `mcp-ext-apps-map`) get their own Cloud Run per ADR-013, but those don't exist for AIPLA yet.
 - **Security model unchanged:** Each artefact loads in an iframe with `sandbox="allow-scripts"`, no `allow-same-origin`. The artefact lives on the sandbox origin (cross-origin to the frontend) so any same-origin attack surface is contained.
 - **For test/prod TF:** No new infra — same Cloud Run service, just more files in the image. Artefact dir is `COPY artefacts ./artefacts` in the Dockerfile. CI gates: image size + a per-artefact static check (size limit ≤200KB per ADR-013).
+
+## 2026-05-25 — 1.G-Ph2 teacher UI mockup substitution
+
+### Decision 11 — `_TEACHER_MOCK=1` baked into dev frontend image (Phase 2 only)
+
+- **What:** Added `_TEACHER_MOCK=1` to the `aipla-dev-deploy` trigger's substitutions. The dev Cloud Build pipeline now passes `--build-arg NEXT_PUBLIC_TEACHER_MOCK=1` to the frontend Dockerfile, so the deployed dev image's `/teacher/*` routes render the static mockup without Firebase teacher auth.
+- **Why:** Phase 1 (PR #1) shipped a static mockup at `/teacher/*` gated by `isLocalMode()` or `NEXT_PUBLIC_TEACHER_MOCK=1`. Phase 2 (PR #2) wires the activity-config + reports screens to real Firestore + ADK reads, but the auth gate stays `LOCAL_MODE` / `TEACHER_MOCK` until Phase 3 lands Firebase teacher auth (via 1.A `teacher-permission-model.md`). The deployed dev URL needs to render the mockup so M + JB can iterate; production must NOT have this flag set.
+- **Substitution captured by the trigger:** `_TEACHER_MOCK=1` (default empty in `cloudbuild.yaml`; dev trigger overrides).
+- **Captured in script:** ✅ added to the `subs` array in `ensure_cb_trigger()`. ⚠️ The script's existence-check returns early when the trigger already exists, so the live trigger needs a one-time substitution update — see "Live trigger update" below.
+- **For test/prod TF:** explicitly DO NOT set `_TEACHER_MOCK` (leave it empty/unset). `cloudbuild.yaml`'s default empty value renders the "sign-in required" placeholder on test/prod. **Phase 3 should remove this substitution from dev too** — when Firebase teacher auth replaces the bypass, the override becomes obsolete.
+
+### Live trigger update
+
+The script's `ensure_cb_trigger()` short-circuits on existing triggers, so adding `_TEACHER_MOCK=1` to the `subs` array doesn't propagate to the already-deployed dev trigger. Apply it once to the live trigger via either:
+
+- **Cloud Console UI:** Cloud Build → Triggers → `aipla-dev-deploy` → Edit → Advanced → Substitutions → add `_TEACHER_MOCK=1` → Save.
+- **gcloud (1st-gen path tried, returns 400 INVALID_ARGUMENT on the 2nd-gen `repositoryEventConfig` trigger):**
+  ```bash
+  gcloud builds triggers update github aipla-dev-deploy \
+    --project=aipla-dev-2026 --region=europe-north1 \
+    --repository=projects/aipla-dev-2026/locations/europe-north1/connections/sunholo-github/repositories/cphu-aipla-app \
+    --update-substitutions=_TEACHER_MOCK=1
+  ```
+  Doesn't work currently — gcloud's `update github` may not be aware of the 2nd-gen connection schema. Use the Console UI as the manual fallback until this is resolved.
+
+After the substitution is applied, the next dev push will rebuild the frontend image with `NEXT_PUBLIC_TEACHER_MOCK=1` baked in and the `/teacher/*` routes will become reachable on the deployed dev URL.
