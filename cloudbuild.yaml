@@ -269,8 +269,17 @@ steps:
         # produces a 403 "Not authorized" silently. Discovered 2026-05-20
         # by decoding the impersonated token after the metadata-server
         # fix returned 0 skills seeded.
+        # Cloud Build's metadata-server `default` SA path returns the
+        # error string "please provide a user-specified service account"
+        # when the build runs under a user-managed SA (which AIPLA
+        # always does — aipla-v6@…). The fix is to ask the metadata
+        # server for the SA explicitly by its email. ${_ADMIN_SEED_ALLOWED_SAS}
+        # IS that SA's email by the trigger's substitution wiring.
+        # Discovered 2026-05-25 — previously every seed step silently
+        # 403'd through this gap; the new admin auth logging exposed
+        # the MalformedError so it could be fixed.
         TOKEN=$(curl -sS -H "Metadata-Flavor: Google" \
-          "http://metadata.google.internal/computeMetadata/v1/instance/service-accounts/default/identity?audience=$${URL}&include_email=true")
+          "http://metadata.google.internal/computeMetadata/v1/instance/service-accounts/${_ADMIN_SEED_ALLOWED_SAS}/identity?audience=$${URL}&include_email=true")
         code=$(curl -sS -o /tmp/seed -w '%{http_code}' --max-time 60 \
           -X POST -H "Authorization: Bearer $${TOKEN}" \
           "$${URL}/api/proxy/api/admin/seed-platform-skills") || code=000
@@ -296,8 +305,17 @@ steps:
         URL=$(gcloud run services describe ${_SERVICE_NAME} \
           --project=${_PROJECT_ID} --region=${_REGION} \
           --format='value(status.url)')
+        # Cloud Build's metadata-server `default` SA path returns the
+        # error string "please provide a user-specified service account"
+        # when the build runs under a user-managed SA (which AIPLA
+        # always does — aipla-v6@…). The fix is to ask the metadata
+        # server for the SA explicitly by its email. ${_ADMIN_SEED_ALLOWED_SAS}
+        # IS that SA's email by the trigger's substitution wiring.
+        # Discovered 2026-05-25 — previously every seed step silently
+        # 403'd through this gap; the new admin auth logging exposed
+        # the MalformedError so it could be fixed.
         TOKEN=$(curl -sS -H "Metadata-Flavor: Google" \
-          "http://metadata.google.internal/computeMetadata/v1/instance/service-accounts/default/identity?audience=$${URL}&include_email=true")
+          "http://metadata.google.internal/computeMetadata/v1/instance/service-accounts/${_ADMIN_SEED_ALLOWED_SAS}/identity?audience=$${URL}&include_email=true")
         echo "--- demo codes (paste into /group on the dev URL) ---"
         for code in aipla-demo-1 aipla-demo-2 aipla-demo-3; do
           body=$(curl -sS --max-time 30 \
