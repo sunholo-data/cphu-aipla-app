@@ -437,7 +437,7 @@ This walkthrough is the **acceptance script for Phase 2** — both the internal 
 
 4. **`/teacher/reports/groups/bold-kazoo-87` — session report (mock-fallback path).** Briefly shows "Loading report…" while the real-API fetch 404s (no real session for this group), then renders the mock fixture with a small **"mock data"** pill in the header. Summary metrics (22 min / 34 messages / 8 sim runs), Danish conversation log renders correctly.
 
-5. **`/teacher/reports/groups/local-demo` — session report (real-backend path).** Falls back to a 404 page if no chat has happened yet. **To prove the real wiring,** have someone join `/group` with the code `local-demo`, chat for a minute, then return — the report should render without the "mock data" pill. (Small UX gap: empty state on real-but-no-sessions could be smoothened; tracked as future polish.)
+5. **`/teacher/reports/groups/local-demo` — session report (real-backend path).** If no chat has happened yet against the seeded group, the screen renders a polite *"No sessions yet — students need to join and chat before a report appears here"* empty state (added 2026-05-25 in commit `d1b0712`). **To prove the real wiring,** have someone join `/group` with the code `local-demo`, chat for a minute, then return — the report should render without the "mock data" pill, with the conversation log + sim_run_count derived from real ADK session events.
 
 6. **`/teacher/analytics`.** Scope pills (7B Physics A ▾ / All time ▾, disabled), hardcoded Q&A about vx/vy independence, disabled input + suggested questions. 100% placeholder — Phase 3 / Year-2 surface.
 
