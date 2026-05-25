@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { notFound, useParams } from "next/navigation";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import {
   ArrowLeft,
   Eye,
@@ -14,6 +14,11 @@ import {
   getMockActivityConfig,
   getMockClass,
 } from "../../_mock-data";
+import {
+  NotFoundError,
+  fetchMyActivityConfig,
+  saveActivityConfig,
+} from "@/lib/teacherApi";
 
 const LANGUAGE_OPTIONS = [
   { value: "da", label: "Dansk" },
@@ -31,10 +36,11 @@ const WORKBENCH_BOLDKAST = "boldkast-simulator-v1";
 export default function TeacherActivityConfigPage() {
   const params = useParams();
   const id = typeof params?.id === "string" ? params.id : "";
-  const config = getMockActivityConfig(id);
-  if (!config) {
+  const maybeConfig = getMockActivityConfig(id);
+  if (!maybeConfig) {
     notFound();
   }
+  const config = maybeConfig as NonNullable<typeof maybeConfig>;
 
   const parentClass = useMemo(
     () => getMockClass(config.classId) ?? getMockClass(MOCK_DEFAULT_CLASS_ID),
@@ -50,11 +56,55 @@ export default function TeacherActivityConfigPage() {
     config.pairedWorkbench ?? WORKBENCH_NONE,
   );
   const [toast, setToast] = useState<string | null>(null);
+  const [isSaving, setIsSaving] = useState(false);
 
-  function handleSave(ev: React.FormEvent) {
+  // Load the teacher's saved config (if any) on mount. 404 = use the
+  // mock defaults already loaded into state — Phase 2 onboards first-
+  // time teachers with no prior config without an error toast.
+  useEffect(() => {
+    let alive = true;
+    fetchMyActivityConfig(config.classId, config.id)
+      .then((saved) => {
+        if (!alive) return;
+        setTeachingGoal(saved.teachingGoal || config.defaultTeachingGoal);
+        setLanguage(saved.language);
+        setDifficulty(saved.difficulty);
+        setPairedWorkbench(saved.pairedWorkbench ?? WORKBENCH_NONE);
+      })
+      .catch((err) => {
+        if (!alive || err instanceof NotFoundError) {
+          return;
+        }
+        // Network or unexpected error — surface it but keep the form
+        // populated with mock defaults so the teacher can still save.
+        console.warn("[teacher-ui] activity-config load failed:", err);
+      });
+    return () => {
+      alive = false;
+    };
+  }, [config.classId, config.id, config.defaultTeachingGoal]);
+
+  async function handleSave(ev: React.FormEvent) {
     ev.preventDefault();
-    setToast("Saved (mock) — Phase 1 does not write to the backend yet");
-    window.setTimeout(() => setToast(null), 4000);
+    setIsSaving(true);
+    try {
+      await saveActivityConfig({
+        activityId: config.id,
+        classId: config.classId,
+        teachingGoal,
+        language,
+        difficulty,
+        pairedWorkbench:
+          pairedWorkbench === WORKBENCH_NONE ? null : pairedWorkbench,
+      });
+      setToast("Saved — students see your teaching goal on their next turn");
+    } catch (err) {
+      console.error("[teacher-ui] activity-config save failed:", err);
+      setToast("Save failed — your changes were not stored");
+    } finally {
+      setIsSaving(false);
+      window.setTimeout(() => setToast(null), 4000);
+    }
   }
 
   return (
@@ -176,10 +226,11 @@ export default function TeacherActivityConfigPage() {
           </button>
           <button
             type="submit"
-            className="flex items-center gap-1.5 rounded bg-primary px-3 py-1.5 text-sm font-medium text-primary-foreground hover:opacity-90"
+            disabled={isSaving}
+            className="flex items-center gap-1.5 rounded bg-primary px-3 py-1.5 text-sm font-medium text-primary-foreground hover:opacity-90 disabled:opacity-60"
           >
             <Save className="h-4 w-4" aria-hidden="true" />
-            Save configuration
+            {isSaving ? "Saving…" : "Save configuration"}
           </button>
         </div>
       </form>

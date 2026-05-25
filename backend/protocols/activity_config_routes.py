@@ -1,0 +1,161 @@
+"""Activity-config REST endpoints.
+
+Each (teacher, class, activity) tuple has exactly one config doc;
+``ActivityConfig.doc_id()`` is the deterministic Firestore key. The
+teacher_uid in the URL must match the authenticated user — Phase 2's
+ownership model is "you own your own configs". Phase 3 swaps this for
+the Class-entity ownership check from 1.A.
+
+The save flow is "upsert" — POST and PATCH both call the same
+``upsert_activity_config`` helper. We expose both verbs so future
+consumers can pick the one that matches their semantics (POST = "I'm
+creating a config", PATCH = "I'm tweaking an existing one") without
+the backend having to maintain two write paths.
+"""
+
+from __future__ import annotations
+
+import logging
+
+from fastapi import APIRouter, Depends, HTTPException, Path
+from pydantic import BaseModel, ConfigDict, Field
+
+from auth import User, get_current_user
+from db.activity_configs import (
+    delete_activity_config,
+    get_activity_config,
+    upsert_activity_config,
+)
+from db.models.activity_config import ActivityConfig, Difficulty, Language
+
+log = logging.getLogger(__name__)
+
+router = APIRouter(prefix="/api/activity-configs", tags=["activity-config"])
+
+
+class ActivityConfigUpsert(BaseModel):
+    """Body shape for ``POST /api/activity-configs`` and
+    ``PATCH /api/activity-configs/{teacher_uid}/{class_id}/{activity_id}``.
+    """
+
+    activity_id: str = Field(alias="activityId", min_length=1, max_length=128)
+    class_id: str = Field(alias="classId", min_length=1, max_length=128)
+    teaching_goal: str = Field(alias="teachingGoal", max_length=2000)
+    language: Language = "da"
+    difficulty: Difficulty = "standard"
+    paired_workbench: str | None = Field(default=None, alias="pairedWorkbench")
+
+    model_config = ConfigDict(populate_by_name=True, extra="forbid")
+
+
+def _serialize(cfg: ActivityConfig) -> dict:
+    """Return the canonical wire shape (camelCase keys for the frontend)."""
+    return cfg.model_dump(by_alias=True, mode="json")
+
+
+def _assert_owns(user: User, teacher_uid: str) -> None:
+    if user.uid != teacher_uid:
+        raise HTTPException(status_code=403, detail="teacher_uid mismatch")
+
+
+@router.post("", status_code=201)
+async def post_activity_config(
+    body: ActivityConfigUpsert,
+    user: User = Depends(get_current_user),  # noqa: B008
+) -> dict:
+    """Create or overwrite the activity config for the current teacher.
+
+    Idempotent — re-POSTing with the same (class_id, activity_id)
+    updates the existing doc in place and returns 201 either way.
+    """
+    cfg = upsert_activity_config(
+        teacher_uid=user.uid,
+        class_id=body.class_id,
+        activity_id=body.activity_id,
+        teaching_goal=body.teaching_goal,
+        language=body.language,
+        difficulty=body.difficulty,
+        paired_workbench=body.paired_workbench,
+    )
+    log.info(
+        "activity_config upsert teacher=%s class=%s activity=%s",
+        user.uid,
+        body.class_id,
+        body.activity_id,
+    )
+    return _serialize(cfg)
+
+
+@router.get("/mine/{class_id}/{activity_id}")
+async def get_my_activity_config(
+    class_id: str = Path(...),
+    activity_id: str = Path(...),
+    user: User = Depends(get_current_user),  # noqa: B008
+) -> dict:
+    """Convenience alias — fetch the current teacher's config without
+    threading their uid through the URL. Used by the frontend so it
+    doesn't have to round-trip a `whoami` first.
+    """
+    cfg = get_activity_config(teacher_uid=user.uid, class_id=class_id, activity_id=activity_id)
+    if cfg is None:
+        raise HTTPException(status_code=404, detail="activity config not found")
+    return _serialize(cfg)
+
+
+@router.get("/{teacher_uid}/{class_id}/{activity_id}")
+async def get_activity_config_route(
+    teacher_uid: str = Path(...),
+    class_id: str = Path(...),
+    activity_id: str = Path(...),
+    user: User = Depends(get_current_user),  # noqa: B008
+) -> dict:
+    """Fetch the config for a (teacher, class, activity). 404 if missing."""
+    _assert_owns(user, teacher_uid)
+    cfg = get_activity_config(teacher_uid=teacher_uid, class_id=class_id, activity_id=activity_id)
+    if cfg is None:
+        raise HTTPException(status_code=404, detail="activity config not found")
+    return _serialize(cfg)
+
+
+@router.patch("/{teacher_uid}/{class_id}/{activity_id}")
+async def patch_activity_config(
+    body: ActivityConfigUpsert,
+    teacher_uid: str = Path(...),
+    class_id: str = Path(...),
+    activity_id: str = Path(...),
+    user: User = Depends(get_current_user),  # noqa: B008
+) -> dict:
+    """Update the config — same shape as POST but on a known resource id.
+
+    The body's class_id / activity_id must match the URL (sanity check —
+    catches client bugs early).
+    """
+    _assert_owns(user, teacher_uid)
+    if body.class_id != class_id or body.activity_id != activity_id:
+        raise HTTPException(
+            status_code=400,
+            detail="body class_id/activity_id does not match URL",
+        )
+    cfg = upsert_activity_config(
+        teacher_uid=teacher_uid,
+        class_id=class_id,
+        activity_id=activity_id,
+        teaching_goal=body.teaching_goal,
+        language=body.language,
+        difficulty=body.difficulty,
+        paired_workbench=body.paired_workbench,
+    )
+    return _serialize(cfg)
+
+
+@router.delete("/{teacher_uid}/{class_id}/{activity_id}", status_code=204)
+async def delete_activity_config_route(
+    teacher_uid: str = Path(...),
+    class_id: str = Path(...),
+    activity_id: str = Path(...),
+    user: User = Depends(get_current_user),  # noqa: B008
+) -> None:
+    """Hard-delete the config. Idempotent — 204 whether the doc existed or not."""
+    _assert_owns(user, teacher_uid)
+    delete_activity_config(teacher_uid=teacher_uid, class_id=class_id, activity_id=activity_id)
+    return None

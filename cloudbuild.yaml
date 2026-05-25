@@ -29,6 +29,13 @@ substitutions:
   # iframe shell; static artefacts are reached separately at
   # ${origin}/artefacts/<name>/v<version>/index.html.
   _MCP_SANDBOX_URL: 'https://aipla-v01-sandbox-wgwhd7mspa-lz.a.run.app/sandbox.html'
+  # 1.G-Ph2 (teacher UI Phase 2) — when set to '1', bakes the
+  # NEXT_PUBLIC_TEACHER_MOCK flag into the bundle so the deployed dev
+  # URL renders the /teacher/* mockup without requiring Firebase
+  # teacher auth (which doesn't land until Phase 3). Leave empty on
+  # test / prod triggers; only the dev trigger overrides this to '1'.
+  # Removable once Phase 3 swaps in the real Firebase teacher auth.
+  _TEACHER_MOCK: ''
 
 tags: ['${_PROJECT_ID}', '${_SERVICE_NAME}']
 
@@ -76,6 +83,7 @@ steps:
         docker build $$ARGS \
           --build-arg NEXT_PUBLIC_MCP_SANDBOX_URL=${_MCP_SANDBOX_URL} \
           --build-arg NEXT_PUBLIC_POST_JOIN_REDIRECT=/chat/@aipla-platform/problem-set-hints \
+          --build-arg NEXT_PUBLIC_TEACHER_MOCK=${_TEACHER_MOCK} \
           -t ${_ARTIFACT_REGISTRY_REPO_URL_CLIENT}/${_SERVICE_NAME}/ui:${BRANCH_NAME} \
           -f frontend/Dockerfile \
           frontend/

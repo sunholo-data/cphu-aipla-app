@@ -60,6 +60,7 @@ from adk.mcp_observability import (
     make_mcp_after_tool_callback,
     make_mcp_before_tool_callback,
 )
+from adk.teacher_focus import inject_teacher_focus
 from adk.tools import resolve_mcp_tools, resolve_tools
 from auth.access_context import AccessContext
 from auth.firebase_auth import User
@@ -456,7 +457,15 @@ def create_agent(
         # for every skill. Adding a third wrapper later is just a
         # third argument here — no nesting to re-order.
         instruction=compose_instruction_providers(
-            skill_config.instructions,
+            # Phase 2 (1.G-Ph2): substitute {teacher_focus} with the
+            # active ActivityConfig.teaching_goal for this skill, so
+            # the tutor's Socratic scaffolding is shaped by the
+            # teacher's free-text goal. No-op when the skill has no
+            # {teacher_focus} placeholder OR when no config has been
+            # saved. LOCAL_MODE scope only — Phase 3 will swap the
+            # constant (teacher, class) tuple for a real Class-entity
+            # lookup.
+            inject_teacher_focus(skill_config.instructions, skill_config.skill_id),
             wrap_with_iframe_context,
             wrap_with_a2ui_surface_context,
         ),

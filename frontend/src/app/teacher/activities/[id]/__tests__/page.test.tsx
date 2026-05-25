@@ -8,7 +8,24 @@ vi.mock("next/navigation", () => ({
   },
 }));
 
-// Importing after vi.mock so useParams resolves to the mocked id.
+vi.mock("@/lib/teacherApi", async () => {
+  const actual = await vi.importActual<typeof import("@/lib/teacherApi")>(
+    "@/lib/teacherApi",
+  );
+  return {
+    ...actual,
+    // First-time teacher: no saved config -> hit the mock defaults branch.
+    fetchMyActivityConfig: vi.fn(async () => {
+      throw new actual.NotFoundError();
+    }),
+    saveActivityConfig: vi.fn(async (body) => ({
+      ...body,
+      teacherUid: "workshop-user",
+      updatedAt: "2026-05-25T15:00:00Z",
+    })),
+  };
+});
+
 import TeacherActivityConfigPage from "@/app/teacher/activities/[id]/page";
 
 describe("/teacher/activities/[id] — activity configuration", () => {
@@ -26,7 +43,7 @@ describe("/teacher/activities/[id] — activity configuration", () => {
     expect(textarea.value).toBe("Custom goal copy");
   });
 
-  it("'Save configuration' click shows a mock-only toast and keeps the textarea value", async () => {
+  it("'Save configuration' click POSTs to /api/activity-configs and shows the saved toast", async () => {
     render(<TeacherActivityConfigPage />);
     const textarea = screen.getByLabelText(/teaching goal/i) as HTMLTextAreaElement;
     fireEvent.change(textarea, { target: { value: "Edited goal" } });
@@ -35,7 +52,7 @@ describe("/teacher/activities/[id] — activity configuration", () => {
 
     await waitFor(() => {
       expect(screen.getByRole("status").textContent ?? "").toMatch(
-        /saved \(mock\)/i,
+        /saved\b/i,
       );
     });
     expect(textarea.value).toBe("Edited goal");

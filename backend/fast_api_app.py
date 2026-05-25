@@ -237,11 +237,13 @@ from auth.routes import router as auth_router  # noqa: E402
 from buckets.routes import router as buckets_router  # noqa: E402
 from protocols.a2a import router as a2a_router  # noqa: E402
 from protocols.a2ui_surface_action_routes import router as a2ui_surface_action_router  # noqa: E402
+from protocols.activity_config_routes import router as activity_config_router  # noqa: E402
 from protocols.iframe_context_routes import router as iframe_context_router  # noqa: E402
 from protocols.mcp_proxy import router as mcp_proxy_router  # noqa: E402
 from protocols.mcp_server import get_mcp_asgi_app  # noqa: E402
 from protocols.mcp_server import mcp as mcp_server  # noqa: E402
 from protocols.models_route import router as models_router  # noqa: E402
+from protocols.reports_routes import router as reports_router  # noqa: E402
 from protocols.session_bootstrap_routes import router as session_bootstrap_router  # noqa: E402
 from protocols.sessions_route import router as sessions_router  # noqa: E402
 from skills.routes import router as skills_router  # noqa: E402
@@ -265,6 +267,8 @@ app.include_router(mcp_proxy_router)
 app.include_router(iframe_context_router)
 app.include_router(session_bootstrap_router)
 app.include_router(a2ui_surface_action_router)
+app.include_router(activity_config_router)
+app.include_router(reports_router)
 
 # ----------------------------------------------------------------------------
 # Channel framework (v6.1.0 sprint 1.6 M1)
