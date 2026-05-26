@@ -41,7 +41,10 @@ import { WorkspaceShell } from "@/components/workspace/WorkspaceShell";
 import { ProblemStatementCard } from "@/components/workspace/ProblemStatementCard";
 import { ProgressChecklist } from "@/components/workspace/ProgressChecklist";
 import { BoldkastSimButton } from "@/components/workspace/BoldkastSimButton";
-import { BoldkastSimFrame } from "@/components/workspace/BoldkastSimFrame";
+import {
+  BoldkastSimFrame,
+  type BoldkastSimFrameHandle,
+} from "@/components/workspace/BoldkastSimFrame";
 
 // PEDCTX M5 — sub-parts of the Boldkast problem-set-hints v0.1 skill.
 // v1's problem-set-helper-config will source this from skill metadata;
@@ -327,6 +330,11 @@ function ChatShell({
   const [openTabs, setOpenTabs] = useState<DocTabData[]>([]);
   const [activeTabId, setActiveTabId] = useState<string | null>(null);
   const lastUserMessageRef = useRef<string>("");
+  // 1.E Phase 2: ref into BoldkastSimFrame so handleSend can ask the
+  // artefact to flush any pending slider changes before the user
+  // message lands. Optional chaining on the ref means handleSend
+  // proceeds unaffected when the frame isn't mounted.
+  const boldkastFrameRef = useRef<BoldkastSimFrameHandle | null>(null);
 
   // Session routing: read ?session= from URL, allow programmatic navigation
   const sessionId = searchParams.get("session");
@@ -415,6 +423,13 @@ function ChatShell({
     if (!text || isLoading || error) return;
     lastUserMessageRef.current = text;
     setDraft("");
+    // 1.E Phase 2: ask any mounted workbench artefact to flush its
+    // pending slider changes BEFORE the user message goes out. The
+    // artefact responds synchronously inside its iframe (postMessage
+    // is queued in-process) so the resulting state-change ends up on
+    // the wire ahead of sendMessage in practice. Fire-and-forget: we
+    // don't await, and missing ref = no-op.
+    boldkastFrameRef.current?.sendChatFlush();
     // Snap to chat tab on mobile so the student sees the response
     // stream in. No effect on md+ where both panels are visible.
     setMobileTab("chat");
@@ -797,6 +812,7 @@ function ChatShell({
           <WorkspaceShell hideOnMobile={mobileTab !== "workspace"}>
             {showBoldkastSim && BOLDKAST_SANDBOX_ORIGIN ? (
               <BoldkastSimFrame
+                ref={boldkastFrameRef}
                 sandboxOrigin={BOLDKAST_SANDBOX_ORIGIN}
                 sessionId={sessionId ?? agentSessionId}
                 onClose={() => setShowBoldkastSim(false)}

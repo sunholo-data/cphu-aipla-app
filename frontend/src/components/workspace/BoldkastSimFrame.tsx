@@ -1,11 +1,33 @@
 "use client";
 
-import { useCallback, useEffect, useRef } from "react";
+import {
+  forwardRef,
+  useCallback,
+  useEffect,
+  useImperativeHandle,
+  useRef,
+} from "react";
 
 import { useHumanToolEvents } from "@/hooks/useHumanToolEvents";
 import { fetchWithAuth } from "@/lib/apiClient";
 
-import { StaticArtefactFrame } from "./StaticArtefactFrame";
+import {
+  StaticArtefactFrame,
+  type StaticArtefactFrameHandle,
+} from "./StaticArtefactFrame";
+
+/** Ref shape exposed by BoldkastSimFrame so callers (chat page) can
+ *  trigger a pendingChanges flush in the artefact before sending a
+ *  user message. See workbench-state-debounce.md Phase 2 for the
+ *  commit-on-submit pattern. */
+export interface BoldkastSimFrameHandle {
+  /** Fire a ui/notifications/chat-flush JSON-RPC notification at the
+   *  artefact so it emits any pending slider changes as a state-change
+   *  with triggeredBy: "chat-submit" before the user message lands.
+   *  Fire-and-forget — caller does not await. No-op if the artefact
+   *  hasn't initialised yet. */
+  sendChatFlush: () => void;
+}
 
 /** Human-readable Danish label for a pushed Boldkast event, used by
  *  HumanToolUseCard. Kept here (not the hook) so the mapping stays
@@ -13,28 +35,34 @@ import { StaticArtefactFrame } from "./StaticArtefactFrame";
 function labelForBoldkastEvent(
   kind: string,
   marker?: string,
-  preset?: string,
 ): string | null {
   if (kind === "boldkast.show_value" && marker) return `Afslørede ${marker}`;
-  if (kind === "boldkast.param.change" && preset) {
-    const planet =
-      { earth: "Jorden", moon: "Månen", mars: "Mars", jupiter: "Jupiter" }[preset.toLowerCase()] ??
-      preset;
-    return `Skiftede tyngdekraft til ${planet}`;
-  }
   // boldkast.open and others: no card (not a pedagogical action).
   return null;
 }
 
-/** Label for the debounced slider-end push. One card per drag-end so
- *  the student / dev can SEE what value reached the agent — closes
- *  the "trust the context" gap. Symbols stay terse (v₀, θ, g) to
- *  match the sim's own UI. */
-function labelForSliderEnd(param: string, value: number): string {
-  if (param === "v0") return `Justerede v₀ til ${value} m/s`;
-  if (param === "theta") return `Justerede θ til ${value}°`;
-  if (param === "g") return `Justerede g til ${value} m/s²`;
-  return `Justerede ${param} til ${value}`;
+/** 1.E Phase 2 — single human-readable label per commit (Afspil or
+ *  chat-submit). Lists the params the student touched in this commit
+ *  with their final values. Symbols stay terse (v₀, θ, g) to match
+ *  the sim's own UI. The triggeredBy verb (Afspil / Spørgsmål) leads
+ *  the line so the student knows why a card appeared. */
+function labelForStateChange(
+  changed: string[],
+  state: { v0?: number; theta?: number; g?: number },
+  triggeredBy: string | undefined,
+): string {
+  const parts: string[] = [];
+  if (changed.includes("v0") && typeof state.v0 === "number") {
+    parts.push(`v₀=${state.v0} m/s`);
+  }
+  if (changed.includes("theta") && typeof state.theta === "number") {
+    parts.push(`θ=${state.theta}°`);
+  }
+  if (changed.includes("g") && typeof state.g === "number") {
+    parts.push(`g=${state.g} m/s²`);
+  }
+  const verb = triggeredBy === "chat-submit" ? "Sendte spørgsmål med" : "Afspillede med";
+  return parts.length > 0 ? `${verb} ${parts.join(", ")}` : `${verb} aktuel konfiguration`;
 }
 
 interface BoldkastSimFrameProps {
@@ -60,6 +88,12 @@ interface BoldkastStructuredContent {
   value?: number;
   revealed?: boolean;
   triggeredBy?: string;
+  /** 1.E Phase 2: boldkast.state-change carries the consolidated
+   *  snapshot of params the student touched since the last commit.
+   *  `changed` lists the keys (subset of {v0, theta, g}); `state`
+   *  carries the full current values. */
+  changed?: string[];
+  state?: { v0?: number; theta?: number; g?: number };
 }
 
 /** Accumulated snapshot the host POSTs to /iframe-context. The agent's
@@ -98,15 +132,15 @@ interface BoldkastSnapshot {
  * Migration from raw postMessage was sprint MCPAPP-SPEC (2026-05-21).
  * See: docs/design/aipla/v0.1.0-jutland/mcp-app-iframe-spec-compliance.md
  */
-export function BoldkastSimFrame({ sandboxOrigin, sessionId, onClose }: BoldkastSimFrameProps) {
+export const BoldkastSimFrame = forwardRef<
+  BoldkastSimFrameHandle,
+  BoldkastSimFrameProps
+>(function BoldkastSimFrame(
+  { sandboxOrigin, sessionId, onClose },
+  ref,
+) {
   const humanToolEvents = useHumanToolEvents();
-  // Sprint 1.E: per-(kind,param) coalesce timers replace the previous
-  // single 500ms slider-drag debounce. Keyed off `${kind}::${param}` so
-  // dragging v0 never suppresses a theta change mid-drag. The Boldkast
-  // artefact (boldkast/v1/index.html) already debounces emits per field
-  // at 800ms; this map adds a defensive 200ms coalesce for any rapid
-  // follow-up if an artefact forgets to debounce.
-  const paramCoalesceRef = useRef<Map<string, number>>(new Map());
+  const staticFrameRef = useRef<StaticArtefactFrameHandle | null>(null);
   // Accumulated snapshot — ref (not state) because we don't re-render
   // on update; we only POST to the backend.
   const snapshotRef = useRef<BoldkastSnapshot>({
@@ -172,7 +206,7 @@ export function BoldkastSimFrame({ sandboxOrigin, sessionId, onClose }: Boldkast
 
       let shouldPush = false;
       let pushedMarker: string | undefined;
-      let pushedPreset: string | undefined;
+      let pushedLabel: string | undefined;
 
       if (kind === "boldkast.open") {
         shouldPush = true;
@@ -188,46 +222,19 @@ export function BoldkastSimFrame({ sandboxOrigin, sessionId, onClose }: Boldkast
           // No push on un-reveal — agent doesn't need to know the
           // student hid a value they previously saw.
         }
-      } else if (kind === "boldkast.param.change" && typeof data.value === "number") {
-        // Update snapshot's current value (cheap).
-        if (data.param === "v0") snap.v0 = data.value;
-        else if (data.param === "theta") snap.theta = data.value;
-        else if (data.param === "g") snap.g = data.value;
-        const triggeredBy = data.triggeredBy || "";
-        if (triggeredBy.startsWith("preset:") && data.param === "g") {
-          // Deliberate planet preset click → push + card immediately.
-          snap.lastPreset = triggeredBy.slice("preset:".length);
-          shouldPush = true;
-          pushedPreset = snap.lastPreset;
-        } else {
-          // Slider drag — fires per-pixel. As of sprint 1.E the
-          // artefact (boldkast/v1/index.html) already debounces per
-          // field at 800ms, so only one event per field arrives here
-          // after a drag-stop. We add a tight 200ms coalesce per
-          // (kind, param) as defence-in-depth: catches any rapid
-          // follow-up if an artefact ever forgets to debounce, but
-          // doesn't add meaningful latency on the artefact-debounced
-          // happy path. Per-field (not global) so dragging v0
-          // doesn't suppress a theta change mid-drag.
-          const coalesceKey = `${kind}::${data.param}`;
-          const prev = paramCoalesceRef.current.get(coalesceKey);
-          if (prev !== undefined) {
-            window.clearTimeout(prev);
-          }
-          const finalParam = data.param;
-          const finalValue = data.value;
-          const timerId = window.setTimeout(() => {
-            paramCoalesceRef.current.delete(coalesceKey);
-            const req = pushSnapshotRequest("boldkast.param.change");
-            if (req && typeof finalParam === "string") {
-              const label = labelForSliderEnd(finalParam, finalValue);
-              humanToolEvents.dispatch({ label, push: () => req });
-            } else if (req) {
-              void req.catch(() => {});
-            }
-          }, 200);
-          paramCoalesceRef.current.set(coalesceKey, timerId);
-        }
+      } else if (kind === "boldkast.state-change" && Array.isArray(data.changed)) {
+        // 1.E Phase 2: consolidated commit. The artefact buffered slider
+        // changes locally until the student pressed Afspil OR the host
+        // signalled a chat-flush. data.state carries the final values
+        // for v0/theta/g; data.changed lists the keys the student
+        // actually touched since the last commit. data.triggeredBy is
+        // "play" | "chat-submit".
+        const state = data.state ?? {};
+        if (typeof state.v0 === "number") snap.v0 = state.v0;
+        if (typeof state.theta === "number") snap.theta = state.theta;
+        if (typeof state.g === "number") snap.g = state.g;
+        shouldPush = true;
+        pushedLabel = labelForStateChange(data.changed, state, data.triggeredBy);
       }
       // play / pause / reset are intentionally not pushed — control
       // state isn't pedagogically interesting to the agent.
@@ -235,7 +242,11 @@ export function BoldkastSimFrame({ sandboxOrigin, sessionId, onClose }: Boldkast
       if (shouldPush) {
         const req = pushSnapshotRequest(kind);
         if (req) {
-          const label = labelForBoldkastEvent(kind, pushedMarker, pushedPreset);
+          // Phase 2 state-change supplies its own pre-computed label;
+          // legacy show_value events fall through to the event-vocab
+          // mapper.
+          const label =
+            pushedLabel ?? labelForBoldkastEvent(kind, pushedMarker);
           if (label) {
             humanToolEvents.dispatch({ label, push: () => req });
           } else {
@@ -262,18 +273,21 @@ export function BoldkastSimFrame({ sandboxOrigin, sessionId, onClose }: Boldkast
     }
   }, [sessionId, pushSnapshotSilent]);
 
-  // Flush any pending per-field coalesce timers on unmount. Without
-  // this an in-flight Boldkast slider drag would still POST after the
-  // student already navigated away.
-  useEffect(() => {
-    const timers = paramCoalesceRef.current;
-    return () => {
-      for (const id of timers.values()) {
-        window.clearTimeout(id);
-      }
-      timers.clear();
-    };
-  }, []);
+  // 1.E Phase 2 — expose sendChatFlush so the chat page can ask the
+  // artefact to flush pending slider changes before sending a user
+  // message. Fire-and-forget. No-op if the artefact hasn't init'd.
+  useImperativeHandle(
+    ref,
+    () => ({
+      sendChatFlush: () => {
+        staticFrameRef.current?.sendNotification(
+          "ui/notifications/chat-flush",
+          {},
+        );
+      },
+    }),
+    [],
+  );
 
   return (
     <div className="flex min-h-0 flex-col">
@@ -291,6 +305,7 @@ export function BoldkastSimFrame({ sandboxOrigin, sessionId, onClose }: Boldkast
         </button>
       </header>
       <StaticArtefactFrame
+        ref={staticFrameRef}
         sandboxOrigin={sandboxOrigin}
         artefactPath="boldkast/v1"
         onUpdateModelContext={handleStructuredContent}
@@ -299,4 +314,4 @@ export function BoldkastSimFrame({ sandboxOrigin, sessionId, onClose }: Boldkast
       />
     </div>
   );
-}
+});

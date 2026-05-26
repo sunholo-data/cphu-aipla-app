@@ -688,6 +688,15 @@
     if (!d || d.jsonrpc !== "2.0") return;
     if (d.method === "ping" && d.id !== undefined && d.id !== null) {
       __post({ jsonrpc: "2.0", id: d.id, result: {} });
+      return;
+    }
+    // 1.E Phase 2: host signals "the student is about to send a chat
+    // message" so we can flush any pending slider changes before the
+    // tutor reads the chat. Notification (no id) — no response
+    // required. flushPendingChanges is a no-op when pendingChanges is
+    // empty so repeated/spurious flushes are cheap.
+    if (d.method === "ui/notifications/chat-flush") {
+      flushPendingChanges("chat-submit");
     }
   });
 
@@ -717,25 +726,38 @@
   // each becoming an MCP-App-context POST to the host backend (visible
   // in the chat as a card). The 2026-05-25 teacher review flagged this
   // as noisy. Fix: at the artefact source, queue the *latest* value
-  // per field and flush after 800ms of inactivity for that field. The
-  // host (StaticArtefactFrame) adds an additional 300ms coalesce-by-
-  // field for any deltas that still slip through faster. Net effect:
-  // continuous drag of the v0 slider → exactly one chat card 800ms
-  // after the drag stops.
+  // 1.E Phase 2 (2026-05-26) — commit-on-submit gating:
+  //   Slider settles accumulate into the local pendingChanges map and
+  //   are NOT emitted to the host directly. The tutor only sees them
+  //   when the student commits (presses Afspil OR sends a chat
+  //   message). This closes the "every settled value becomes a chat
+  //   card" leak that survived Phase 1 debounce. See
+  //   docs/design/aipla/v1.0.0-pilot/workbench-state-debounce.md
+  //   Phase 2 section for the design.
   //
-  // Per-field (not global) so dragging v0 doesn't suppress a theta
-  // change that fires mid-drag. Non-param emits (play/pause/launch/
-  // reveal) bypass the debounce entirely — those are user-intent
-  // signals, not continuous slider values.
-  const __paramTimers = {};
-  function emitParamChangeDebounced(param, payload) {
-    if (__paramTimers[param]) {
-      clearTimeout(__paramTimers[param]);
+  // pendingChanges shape: { v0: 25, theta: 40, g: 9.82 } — only the
+  // keys the student touched since the last commit. Final value per
+  // key (slider drag overwrites). Discrete commitment events
+  // (play/pause/launch/reveal) still emit immediately — those are
+  // intent signals, not continuous probing.
+  const pendingChanges = {};
+
+  function flushPendingChanges(triggeredBy) {
+    const changedKeys = Object.keys(pendingChanges);
+    if (changedKeys.length === 0) {
+      return; // No-op when nothing's pending — don't waste a wire message.
     }
-    __paramTimers[param] = setTimeout(function () {
-      delete __paramTimers[param];
-      emit("boldkast.param.change", payload);
-    }, 800);
+    const state = { v0: v0, theta: theta, g: g };
+    emit("boldkast.state-change", {
+      changed: changedKeys,
+      state: state,
+      triggeredBy: triggeredBy,
+    });
+    // Clear after flush. Mutate in place so any closure capturing the
+    // object sees the empty state.
+    for (const key of changedKeys) {
+      delete pendingChanges[key];
+    }
   }
 
   // Run the spec's lifecycle handshake. If parent isn't a sandbox proxy
@@ -772,7 +794,7 @@
     revealed.ymax = false; revealed.range = false; revealed.tof = false;
     updateMarkers();
     render();
-    emitParamChangeDebounced("v0", { param: "v0", value: v0, unit: "m/s" });
+    pendingChanges.v0 = v0;
   });
   document.getElementById("theta").addEventListener("input", (e) => {
     theta = parseFloat(e.target.value);
@@ -780,7 +802,7 @@
     revealed.ymax = false; revealed.range = false; revealed.tof = false;
     updateMarkers();
     render();
-    emitParamChangeDebounced("theta", { param: "theta", value: theta, unit: "deg" });
+    pendingChanges.theta = theta;
   });
   function setG(newG, source) {
     g = newG;
@@ -790,7 +812,13 @@
     updateMarkers();
     render();
     updatePresetHighlight();
-    emitParamChangeDebounced("g", { param: "g", value: g, unit: "m/s^2", triggeredBy: source });
+    // 1.E Phase 2: g changes from BOTH continuous slider drag AND
+    // discrete preset clicks land here. Both are pre-commit — the
+    // student is exploring "what if Mars?" before they Afspil it.
+    // The preset source label survives in the next flush via the
+    // pending key set; we don't separately record provenance.
+    pendingChanges.g = g;
+    void source; // intentionally unused — preserved for future provenance logging
   }
   function updatePresetHighlight() {
     document.querySelectorAll(".g-presets button.preset").forEach((b) => {
@@ -809,6 +837,11 @@
   });
   document.getElementById("play").addEventListener("click", () => {
     if (!playing) {
+      // 1.E Phase 2: Afspil is the explicit commit signal. Flush any
+      // pending slider changes BEFORE the play event so the tutor
+      // sees the configuration the student stands behind, in order
+      // on the wire: state-change → play.
+      flushPendingChanges("play");
       const { tof } = results(v0, theta, g);
       if (t >= tof) t = 0;
       playing = true;
