@@ -273,10 +273,11 @@
         "scripts/smoke-v1-permission-model.sh"
       ],
       "files_to_modify": [],
-      "passes": null,
-      "started": null,
-      "completed": null,
-      "notes": "Direct-to-dev merge per feedback-aipla-git-workflow memory. test branch is the next gate (that one IS a PR)."
+      "passes": true,
+      "started": "2026-05-26T10:42:00Z",
+      "completed": "2026-05-26T10:50:00Z",
+      "actual_loc": 100,
+      "notes": "Smoke script written + chmod +x (drives create class → mint code → student join → /api/skills → revoke → verify lockout). Backend make lint clean + 1465/1465 fast tests; frontend quality:check:fast clean + 626/626 tests; CLI 64/64 tests. No emoji in any sprint-touched file (12 paths swept). Axiom 9 verified: backend/auth/access_context.py is genuinely untouched (git log feature/teacher-permission-model ^dev -- ... returns no commits). Direct-to-dev FF merge — no PR for dev per AIPLA workflow."
     }
   ],
   "velocity": {
@@ -302,7 +303,8 @@
   "github_issues": [],
   "last_session": null,
   "last_checkpoint": null,
-  "status": "in_progress",
+  "status": "completed",
+  "completed_at": "2026-05-26T10:50:00Z",
   "started": "2026-05-26T08:50:00Z",
   "executor_handoff_note": "PLANNED ONLY — do NOT auto-execute. User will review the plan and explicitly invoke sprint-executor when ready. When invoked, create branch feature/teacher-permission-model off current dev HEAD, run M1→M10 sequentially (or per waves if parallel mode), run milestone-specific quality gates after each, and at M10 rebase/FF-merge direct to dev with NO PR (per AIPLA workflow). Push to origin/dev; Cloud Build deploys automatically."
 }
