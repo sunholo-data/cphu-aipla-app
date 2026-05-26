@@ -146,6 +146,7 @@
   "github_issues": [],
   "last_session": null,
   "last_checkpoint": null,
-  "status": "in_progress",
-  "started_at": "2026-05-26T11:00:00Z"
+  "status": "completed",
+  "started_at": "2026-05-26T11:00:00Z",
+  "completed_at": "2026-05-26T11:30:00Z"
 }
