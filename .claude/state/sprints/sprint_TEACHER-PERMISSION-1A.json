@@ -27,10 +27,11 @@
         "backend/tests/unit/test_class_model.py"
       ],
       "files_to_modify": [],
-      "passes": null,
-      "started": null,
-      "completed": null,
-      "notes": "Class is reserved in Python — trailing underscore on module name per design doc. Field validator is the single security boundary for the namespace invariant; if touched, related unit tests must be reviewed."
+      "passes": true,
+      "started": "2026-05-26T08:55:00Z",
+      "completed": "2026-05-26T09:05:00Z",
+      "actual_loc": 290,
+      "notes": "Class is reserved in Python — trailing underscore on module name. Field validator is the single security boundary. 113 LOC model + 177 LOC tests = 290 total (vs 130 estimate; overage is denser tests, not scope drift). 14/14 tests green; lint clean."
     },
     {
       "id": "M2",
@@ -292,6 +293,7 @@
   "github_issues": [],
   "last_session": null,
   "last_checkpoint": null,
-  "status": "planned",
+  "status": "in_progress",
+  "started": "2026-05-26T08:50:00Z",
   "executor_handoff_note": "PLANNED ONLY — do NOT auto-execute. User will review the plan and explicitly invoke sprint-executor when ready. When invoked, create branch feature/teacher-permission-model off current dev HEAD, run M1→M10 sequentially (or per waves if parallel mode), run milestone-specific quality gates after each, and at M10 rebase/FF-merge direct to dev with NO PR (per AIPLA workflow). Push to origin/dev; Cloud Build deploys automatically."
 }
