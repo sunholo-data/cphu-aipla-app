@@ -269,17 +269,24 @@ steps:
         # produces a 403 "Not authorized" silently. Discovered 2026-05-20
         # by decoding the impersonated token after the metadata-server
         # fix returned 0 skills seeded.
-        # Cloud Build's metadata-server `default` SA path returns the
-        # error string "please provide a user-specified service account"
-        # when the build runs under a user-managed SA (which AIPLA
-        # always does — aipla-v6@…). The fix is to ask the metadata
-        # server for the SA explicitly by its email. ${_ADMIN_SEED_ALLOWED_SAS}
-        # IS that SA's email by the trigger's substitution wiring.
-        # Discovered 2026-05-25 — previously every seed step silently
-        # 403'd through this gap; the new admin auth logging exposed
-        # the MalformedError so it could be fixed.
-        TOKEN=$(curl -sS -H "Metadata-Flavor: Google" \
-          "http://metadata.google.internal/computeMetadata/v1/instance/service-accounts/${_ADMIN_SEED_ALLOWED_SAS}/identity?audience=$${URL}&include_email=true")
+        # Mint an ID token signed for the trigger's user-managed SA
+        # (aipla-v6@…). The build container's metadata-server path
+        # doesn't expose that SA — both `default/identity` and an
+        # explicit-email path return the error string "please provide
+        # a user-specified service account". Instead, ask gcloud to
+        # mint the token directly via iamcredentials.googleapis.com
+        # using the build's active credentials (which IS aipla-v6@
+        # because the trigger has serviceAccount set).
+        # Requires aipla-v6@ to have roles/iam.serviceAccountTokenCreator
+        # on itself — already bound at bootstrap (see
+        # scripts/bootstrap-aipla-dev.sh:ensure_cb_service_agent).
+        # Discovered 2026-05-25 after metadata-server paths kept
+        # 403'ing through builds e8532153 / 11b5c6a0 / faed2832 /
+        # 7bc7eb6c with MalformedError: "Wrong number of segments".
+        TOKEN=$(gcloud iam service-accounts generate-id-token \
+          "${_ADMIN_SEED_ALLOWED_SAS}" \
+          --audiences="$${URL}" \
+          --include-email 2>/dev/null)
         code=$(curl -sS -o /tmp/seed -w '%{http_code}' --max-time 60 \
           -X POST -H "Authorization: Bearer $${TOKEN}" \
           "$${URL}/api/proxy/api/admin/seed-platform-skills") || code=000
@@ -305,17 +312,24 @@ steps:
         URL=$(gcloud run services describe ${_SERVICE_NAME} \
           --project=${_PROJECT_ID} --region=${_REGION} \
           --format='value(status.url)')
-        # Cloud Build's metadata-server `default` SA path returns the
-        # error string "please provide a user-specified service account"
-        # when the build runs under a user-managed SA (which AIPLA
-        # always does — aipla-v6@…). The fix is to ask the metadata
-        # server for the SA explicitly by its email. ${_ADMIN_SEED_ALLOWED_SAS}
-        # IS that SA's email by the trigger's substitution wiring.
-        # Discovered 2026-05-25 — previously every seed step silently
-        # 403'd through this gap; the new admin auth logging exposed
-        # the MalformedError so it could be fixed.
-        TOKEN=$(curl -sS -H "Metadata-Flavor: Google" \
-          "http://metadata.google.internal/computeMetadata/v1/instance/service-accounts/${_ADMIN_SEED_ALLOWED_SAS}/identity?audience=$${URL}&include_email=true")
+        # Mint an ID token signed for the trigger's user-managed SA
+        # (aipla-v6@…). The build container's metadata-server path
+        # doesn't expose that SA — both `default/identity` and an
+        # explicit-email path return the error string "please provide
+        # a user-specified service account". Instead, ask gcloud to
+        # mint the token directly via iamcredentials.googleapis.com
+        # using the build's active credentials (which IS aipla-v6@
+        # because the trigger has serviceAccount set).
+        # Requires aipla-v6@ to have roles/iam.serviceAccountTokenCreator
+        # on itself — already bound at bootstrap (see
+        # scripts/bootstrap-aipla-dev.sh:ensure_cb_service_agent).
+        # Discovered 2026-05-25 after metadata-server paths kept
+        # 403'ing through builds e8532153 / 11b5c6a0 / faed2832 /
+        # 7bc7eb6c with MalformedError: "Wrong number of segments".
+        TOKEN=$(gcloud iam service-accounts generate-id-token \
+          "${_ADMIN_SEED_ALLOWED_SAS}" \
+          --audiences="$${URL}" \
+          --include-email 2>/dev/null)
         echo "--- demo codes (paste into /group on the dev URL) ---"
         for code in aipla-demo-1 aipla-demo-2 aipla-demo-3; do
           body=$(curl -sS --max-time 30 \
