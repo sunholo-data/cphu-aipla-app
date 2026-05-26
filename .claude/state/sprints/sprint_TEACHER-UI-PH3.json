@@ -1,0 +1,184 @@
+{
+  "sprint_id": "TEACHER-UI-PH3",
+  "created": "2026-05-26T11:30:00Z",
+  "estimated_duration_days": 2.5,
+  "design_doc": "docs/design/aipla/v1.0.0-pilot/teacher-ui.md",
+  "sprint_plan": "docs/design/aipla/v1.0.0-pilot/teacher-ui-ph3-sprint.md",
+  "branch": "feature/teacher-ui-ph3",
+  "base_commit": "c0d2870",
+  "pr_target": "dev (no PR — commit direct per AIPLA workflow)",
+  "features": [
+    {
+      "id": "M1",
+      "description": "useTeacherAuth hook — Firebase Auth state subscription + redirect to sign-in when missing. Reads from existing firebase.ts setup.",
+      "scope": "frontend",
+      "estimated_loc": 180,
+      "actual_loc": null,
+      "dependencies": [],
+      "acceptance_criteria": [
+        "Hook returns {user, loading, error}",
+        "Subscribes to Firebase auth state changes via onAuthStateChanged",
+        "Unauthed user with no in-flight auth → returns user=null, triggers redirect to /teacher/sign-in",
+        "Already-authed user → returns user immediately on mount"
+      ],
+      "files_to_create": ["frontend/src/hooks/useTeacherAuth.ts", "frontend/src/hooks/__tests__/useTeacherAuth.test.tsx"],
+      "files_to_modify": [],
+      "passes": null, "started": null, "completed": null, "notes": null
+    },
+    {
+      "id": "M2",
+      "description": "/teacher/sign-in page — Google OAuth button → signInWithRedirect → redirects to /teacher/classes on success.",
+      "scope": "frontend",
+      "estimated_loc": 160,
+      "actual_loc": null,
+      "dependencies": ["M1"],
+      "acceptance_criteria": [
+        "Page renders a Google sign-in button (lucide-react icon, no emoji)",
+        "Click triggers signInWithRedirect(auth, new GoogleAuthProvider())",
+        "On successful redirect-return, lands at /teacher/classes",
+        "Error handling for popup-blocked / network-failure with retry"
+      ],
+      "files_to_create": ["frontend/src/app/teacher/sign-in/page.tsx", "frontend/src/app/teacher/sign-in/__tests__/page.test.tsx"],
+      "files_to_modify": [],
+      "passes": null, "started": null, "completed": null, "notes": "Document Firebase console OAuth redirect URI prerequisite in the M2 commit message."
+    },
+    {
+      "id": "M3",
+      "description": "AuthContext extension — surface Firebase teacher token alongside (not instead of) anon-group state. fetchWithAuth picks the right one per route.",
+      "scope": "frontend",
+      "estimated_loc": 200,
+      "actual_loc": null,
+      "dependencies": ["M2"],
+      "acceptance_criteria": [
+        "AuthContext exposes both firebaseUser and groupAuth state",
+        "fetchWithAuth attaches Firebase token to /api/classes/* and /api/teacher/* paths",
+        "fetchWithAuth keeps attaching group JWT to /api/skills/*, /api/sessions/*, /api/chat-stream (existing student paths)",
+        "Existing /group + /chat/* flows unaffected (regression tests)"
+      ],
+      "files_to_create": [],
+      "files_to_modify": ["frontend/src/contexts/AuthContext.tsx", "frontend/src/contexts/__tests__/AuthContext.test.tsx", "frontend/src/lib/apiClient.ts"],
+      "passes": null, "started": null, "completed": null, "notes": null
+    },
+    {
+      "id": "M4",
+      "description": "Route guard wiring — /teacher/* layout uses useTeacherAuth; unauthed → redirect to /teacher/sign-in. LOCAL_MODE stub remains for dev.",
+      "scope": "frontend",
+      "estimated_loc": 100,
+      "actual_loc": null,
+      "dependencies": ["M3"],
+      "acceptance_criteria": [
+        "/teacher/classes unauthed → redirects to /teacher/sign-in",
+        "/teacher/classes/<id> unauthed → redirects to /teacher/sign-in (preserves return path)",
+        "LOCAL_MODE: workshop-user stub still works for /teacher/* (is_teacher=true per 1.A M3)",
+        "Production: unauthed user cannot view any /teacher/* page"
+      ],
+      "files_to_create": ["frontend/src/app/teacher/layout.tsx"],
+      "files_to_modify": [],
+      "passes": null, "started": null, "completed": null, "notes": "If a layout.tsx already exists for /teacher, modify rather than create."
+    },
+    {
+      "id": "M5",
+      "description": "Multi-class filter dropdown on /teacher/reports + /teacher/analytics. Lets the teacher narrow report data to one class.",
+      "scope": "frontend",
+      "estimated_loc": 250,
+      "actual_loc": null,
+      "dependencies": ["M4"],
+      "acceptance_criteria": [
+        "Reports page: dropdown lists all teacher's classes; selecting one filters sessions to that class's group codes",
+        "Analytics page: same dropdown; chat skill receives class context in its prompt",
+        "Sticky selection across navigation (localStorage)",
+        "Default: 'All classes' selected on first load"
+      ],
+      "files_to_create": [],
+      "files_to_modify": ["frontend/src/app/teacher/reports/page.tsx", "frontend/src/app/teacher/analytics/page.tsx"],
+      "passes": null, "started": null, "completed": null, "notes": null
+    },
+    {
+      "id": "M6",
+      "description": "analytics-chat skill template (teacher-only via role:teacher tag from 1.A M8).",
+      "scope": "backend",
+      "estimated_loc": 200,
+      "actual_loc": null,
+      "dependencies": [],
+      "acceptance_criteria": [
+        "backend/skills/templates/analytics-chat/SKILL.md exists with accessControl tagged [role:teacher]",
+        "After re-seed, GET /api/skills as teacher includes analytics-chat",
+        "GET /api/skills as anon-group student excludes analytics-chat",
+        "Skill prompt scaffolds the teacher Q&A flow (3+ suggested-question patterns)"
+      ],
+      "files_to_create": ["backend/skills/templates/analytics-chat/SKILL.md", "backend/tests/unit/test_analytics_chat_skill.py"],
+      "files_to_modify": ["backend/admin/platform_seed.py"],
+      "passes": null, "started": null, "completed": null, "notes": "M6 has no dependency on M1-M5; could parallelize."
+    },
+    {
+      "id": "M7",
+      "description": "Student-side opt-in share toggle on session end + teacher report flag display. Default off; dismissible.",
+      "scope": "fullstack",
+      "estimated_loc": 280,
+      "actual_loc": null,
+      "dependencies": ["M3"],
+      "acceptance_criteria": [
+        "Student session-end shows a small 'Send summary to teacher?' toggle (default off)",
+        "Flipping it POSTs to backend; ChatSessionIndex carries the optInShared flag",
+        "Teacher report card shows a 'student opted in' badge when the flag is true",
+        "Toggle dismissible; doesn't block session end"
+      ],
+      "files_to_create": [],
+      "files_to_modify": [
+        "frontend/src/app/chat/[...path]/page.tsx",
+        "frontend/src/app/teacher/reports/page.tsx",
+        "backend/protocols/sessions_route.py",
+        "backend/db/models/chat_session.py"
+      ],
+      "passes": null, "started": null, "completed": null, "notes": null
+    },
+    {
+      "id": "M8",
+      "description": "CLI smoke — aiplatform class new/list/get/lessons/groups/delete round-trips against deployed dev with real Firebase auth.",
+      "scope": "fullstack",
+      "estimated_loc": 80,
+      "actual_loc": null,
+      "dependencies": ["M4"],
+      "acceptance_criteria": [
+        "scripts/smoke-v1-teacher-cli.sh runs the full lifecycle (create → list → lessons → mint group → delete)",
+        "Exits 0 on success",
+        "Documents the aiplatform auth login step required for Firebase token acquisition"
+      ],
+      "files_to_create": ["scripts/smoke-v1-teacher-cli.sh"],
+      "files_to_modify": [],
+      "passes": null, "started": null, "completed": null, "notes": null
+    },
+    {
+      "id": "M9",
+      "description": "Quality gates + direct-to-dev merge. Backend make test-fast + frontend npm run quality:check both green, no emoji, FF-merge to dev.",
+      "scope": "fullstack",
+      "estimated_loc": 60,
+      "actual_loc": null,
+      "dependencies": ["M5", "M6", "M7", "M8"],
+      "acceptance_criteria": [
+        "cd backend && make test-fast green (no regression)",
+        "cd frontend && npm run quality:check green",
+        "No emoji introduced in any sprint-touched file",
+        "Branch rebased onto origin/dev and FF-merged",
+        "origin/dev pushed"
+      ],
+      "files_to_create": [],
+      "files_to_modify": [],
+      "passes": null, "started": null, "completed": null, "notes": null
+    }
+  ],
+  "velocity": {
+    "target_loc_per_day": 600,
+    "actual_loc_per_day": null,
+    "estimated_total_loc": 1510,
+    "actual_total_loc": null,
+    "estimated_days": 2.5,
+    "actual_days": null
+  },
+  "github_issues": [],
+  "last_session": null,
+  "last_checkpoint": null,
+  "status": "planned",
+  "queue_position": 2,
+  "queue_rationale": "Consumes 1.A backend (Class entity + is_teacher gate, both shipped). Runs AFTER the 3 June Phase 2 demo since Phase 2 already works on LOCAL_MODE. Bigger sprint (~2-2.5d). M6 (analytics-chat skill) is parallelizable with M1-M5."
+}

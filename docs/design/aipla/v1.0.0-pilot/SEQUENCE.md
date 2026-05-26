@@ -89,6 +89,33 @@ Specifically deferred from this version:
 | Tag-namespace collisions between teachers | Mandatory namespace prefix `class:<teacher_uid>:<class_id>` — enforced in the `Class` creation path; impossible to construct a colliding tag |
 | Group-code lifecycle confusion when classes are deleted | Soft-delete only; revoked classes flip a flag rather than dropping the Firestore doc. Group JWTs validate against the live flag at every request |
 
+## Sprint status (2026-05-26)
+
+**Shipped (merged to `dev`):**
+
+- ✓ 1.G-Ph1 — Teacher UI static mockup
+- ✓ 1.G-Ph2 — Teacher UI wired to real backend (LOCAL_MODE teacher stub)
+- ✓ 1.E — Workbench state debounce (Phase 1)
+- ✓ 1.H-TTS — Browser-native TTS button
+- ✓ 1.I-PhA — Proactive tutor auto-greet
+- ✓ 1.A — Teacher permission model (Firebase backend + Class entity + tag-based access + manage-class skill + CLI). Shipped as `997a85b`.
+- ✓ 1.E-Ph2 — Workbench commit-on-submit gating. Shipped as `c0d2870`.
+
+**Queued (plans + JSON state ready; not started):**
+
+| # | Sprint | Plan | LOC | Est | Queue rationale |
+|---|---|---|---|---|---|
+| 1 | LESSON-PICKER-1B | [lesson-picker-sprint.md](lesson-picker-sprint.md) | ~390 | 0.5d | FE-only, no deps, unblocks 1.C/1.D visibility |
+| 2 | TEACHER-UI-PH3 | [teacher-ui-ph3-sprint.md](teacher-ui-ph3-sprint.md) | ~1510 | 2-2.5d | Consumes 1.A backend; ships real Firebase OAuth. Runs **after** 3 June Phase 2 demo |
+| 3 | SESSION-PERSISTENCE-1F | [session-persistence-sprint.md](session-persistence-sprint.md) | ~1680 | 1.5-2d | Same group code resumes same session for 30d. Cross-device coherence |
+
+The queue is a recommended order, not a strict dependency chain. 1.F is independent of 1.G-Ph3 and could be reordered or parallelised.
+
+**Blocked on JB/AR sign-off:**
+
+- 1.H-audio (consent + privacy questions)
+- 1.I-PhB idle heartbeat (copy + timing)
+
 ## Next
 
 After v1.0.0-pilot lands, work proceeds against [../SEQUENCE.md](../SEQUENCE.md) Phase 2 (Strand-B + Strand-C scoping work) and Phase 3 (handover).

@@ -1,0 +1,191 @@
+{
+  "sprint_id": "SESSION-PERSISTENCE-1F",
+  "created": "2026-05-26T11:30:00Z",
+  "estimated_duration_days": 2,
+  "design_doc": "docs/design/aipla/v1.0.0-pilot/session-persistence.md",
+  "sprint_plan": "docs/design/aipla/v1.0.0-pilot/session-persistence-sprint.md",
+  "branch": "feature/session-persistence",
+  "base_commit": "c0d2870",
+  "pr_target": "dev (no PR — commit direct per AIPLA workflow)",
+  "features": [
+    {
+      "id": "M1",
+      "description": "db/group_sessions.py — Firestore mapping from group_id to most-recent session_id, with 30d TTL matching ADR-001 group-code TTL.",
+      "scope": "backend",
+      "estimated_loc": 240,
+      "actual_loc": null,
+      "dependencies": [],
+      "acceptance_criteria": [
+        "get_active_session_for_group(group_id) returns the most-recent non-archived session_id, or None",
+        "set_active_session_for_group(group_id, session_id) writes atomically (Firestore transaction)",
+        "archive_active_session_for_group(group_id) sets archivedAt and clears the active pointer",
+        "TTL: stored records older than 30d are filtered at read time (or via Firestore TTL field if available)",
+        "Simultaneous-join race: two concurrent writes both end up pointing at the same session_id"
+      ],
+      "files_to_create": ["backend/db/group_sessions.py", "backend/tests/unit/test_group_sessions.py"],
+      "files_to_modify": [],
+      "passes": null, "started": null, "completed": null, "notes": null
+    },
+    {
+      "id": "M2",
+      "description": "Extend /api/auth/group/join to look up existing session for the group and return it in the JoinResult.",
+      "scope": "backend",
+      "estimated_loc": 160,
+      "actual_loc": null,
+      "dependencies": ["M1"],
+      "acceptance_criteria": [
+        "JoinResult shape gains resumedSessionId field (null when no existing session)",
+        "First join for a group: resumedSessionId=null, JWT minted as today",
+        "Re-join within 30d: resumedSessionId set to the saved id; same JWT shape",
+        "Re-join after class revocation (1.A M5 path): still raises GroupRevoked (resume not bypassed by class gates)"
+      ],
+      "files_to_create": [],
+      "files_to_modify": ["backend/auth/group_routes.py", "backend/auth/group_id_auth.py", "backend/tests/api_tests/test_group_routes.py"],
+      "passes": null, "started": null, "completed": null, "notes": null
+    },
+    {
+      "id": "M3",
+      "description": "POST /api/sessions/{id}/restore — returns chat history (last 50 messages + summary of older turns) + workbench snapshot.",
+      "scope": "backend",
+      "estimated_loc": 280,
+      "actual_loc": null,
+      "dependencies": ["M2"],
+      "acceptance_criteria": [
+        "Returns {messages: [...last50], olderTurnsSummary: string|null, workbenchState: {...}}",
+        "Caps at 50 messages even for heavy-use codes (server-enforced)",
+        "Summary of older turns either pre-computed (from prior session-end summary) or computed on-demand via a one-shot LLM call",
+        "401 if caller's JWT isn't bound to that session_id's group",
+        "404 if the session is archived (reset path)"
+      ],
+      "files_to_create": ["backend/protocols/session_restore_routes.py", "backend/tests/api_tests/test_session_restore_routes.py"],
+      "files_to_modify": ["backend/fast_api_app.py"],
+      "passes": null, "started": null, "completed": null, "notes": null
+    },
+    {
+      "id": "M4",
+      "description": "Frontend resume detection on /chat/[...path] mount + ResumeWelcomeBanner. Banner dismissible (Danish + English copy).",
+      "scope": "frontend",
+      "estimated_loc": 220,
+      "actual_loc": null,
+      "dependencies": ["M3"],
+      "acceptance_criteria": [
+        "On chat mount: if join response contained resumedSessionId, fetch /api/sessions/{id}/restore",
+        "Restored messages render in the chat history before the user types anything",
+        "ResumeWelcomeBanner shows 'Welcome back — continuing from your last session' / Danish equivalent; dismissible",
+        "Fresh session (no resume): banner does not render; existing behavior unchanged"
+      ],
+      "files_to_create": ["frontend/src/components/chat/ResumeWelcomeBanner.tsx", "frontend/src/components/chat/__tests__/ResumeWelcomeBanner.test.tsx"],
+      "files_to_modify": ["frontend/src/app/chat/[...path]/page.tsx"],
+      "passes": null, "started": null, "completed": null, "notes": null
+    },
+    {
+      "id": "M5",
+      "description": "useStableThreadId adapter consumes the resumed session_id when present; otherwise mints fresh.",
+      "scope": "frontend",
+      "estimated_loc": 100,
+      "actual_loc": null,
+      "dependencies": ["M4"],
+      "acceptance_criteria": [
+        "Hook takes optional initialSessionId param",
+        "When initialSessionId set: returns it verbatim, no new id minted",
+        "When unset: mints a fresh id (existing behavior)",
+        "URL is updated to /chat/<skill>/<resumedSessionId> on resume so refresh works"
+      ],
+      "files_to_create": [],
+      "files_to_modify": ["frontend/src/hooks/useStableThreadId.ts", "frontend/src/hooks/__tests__/useStableThreadId.test.tsx"],
+      "passes": null, "started": null, "completed": null, "notes": null
+    },
+    {
+      "id": "M6",
+      "description": "Artefact contract: aipla:restore JSON-RPC notification + Boldkast implementation. Sliders restored to saved values; revealed markers restored.",
+      "scope": "frontend",
+      "estimated_loc": 280,
+      "actual_loc": null,
+      "dependencies": ["M5"],
+      "acceptance_criteria": [
+        "BoldkastSimFrame sends ui/notifications/aipla:restore with {v0, theta, g, revealedMarkers} after artefact initializes (if a workbench state was restored from M3)",
+        "Boldkast artefact handles the inbound notification: applies values, updates sliders, re-reveals markers",
+        "Restored state does NOT count as pendingChanges (no flush trigger)",
+        "Artefact-side handler is no-op for unknown payload shape (defensive)"
+      ],
+      "files_to_create": [],
+      "files_to_modify": [
+        "infrastructure/mcp-sandbox/artefacts/boldkast/v1/index.html",
+        "frontend/src/components/workspace/BoldkastSimFrame.tsx",
+        "frontend/src/components/workspace/__tests__/BoldkastSimFrame.test.tsx"
+      ],
+      "passes": null, "started": null, "completed": null, "notes": "StaticArtefactFrame.sendNotification ref method already exists (from 1.E-Ph2 M4); reuse."
+    },
+    {
+      "id": "M7",
+      "description": "Teacher [Reset session] button. Archives session + clears workbench state. Next join with the same code starts fresh.",
+      "scope": "fullstack",
+      "estimated_loc": 200,
+      "actual_loc": null,
+      "dependencies": ["M2"],
+      "acceptance_criteria": [
+        "Button visible on /teacher/classes/[id] near each group code",
+        "Click → confirmation dialog → POST /api/sessions/{id}/archive (or similar)",
+        "After archive: next /api/auth/group/join for that code returns resumedSessionId=null",
+        "Teacher-only: 403 for anonymous-group users hitting the archive endpoint"
+      ],
+      "files_to_create": [],
+      "files_to_modify": [
+        "frontend/src/app/teacher/classes/[id]/page.tsx",
+        "frontend/src/lib/teacherApi.ts",
+        "backend/protocols/sessions_route.py",
+        "backend/db/group_sessions.py"
+      ],
+      "passes": null, "started": null, "completed": null, "notes": null
+    },
+    {
+      "id": "M8",
+      "description": "Update mcp-app-artefact skill convention with the aipla:restore pattern so LED Planck + KineBot inherit.",
+      "scope": "frontend",
+      "estimated_loc": 80,
+      "actual_loc": null,
+      "dependencies": ["M6"],
+      "acceptance_criteria": [
+        "SKILL.md gains a 'Restore on resume' section describing the ui/notifications/aipla:restore notification + handler pattern",
+        "Code snippet shows the artefact-side handler + the host-side ref.sendRestore() call",
+        "Cross-references session-persistence.md and 1.E-Ph2 convention"
+      ],
+      "files_to_create": [],
+      "files_to_modify": [".claude/skills/mcp-app-artefact/SKILL.md"],
+      "passes": null, "started": null, "completed": null, "notes": null
+    },
+    {
+      "id": "M9",
+      "description": "Smoke + quality gates + direct-to-dev merge. New scripts/smoke-v1-session-persistence.sh exercises the full chain.",
+      "scope": "fullstack",
+      "estimated_loc": 120,
+      "actual_loc": null,
+      "dependencies": ["M7", "M8"],
+      "acceptance_criteria": [
+        "scripts/smoke-v1-session-persistence.sh exits 0 against LOCAL_MODE",
+        "cd backend && make lint + make test-fast green",
+        "cd frontend && npm run quality:check green",
+        "No emoji introduced",
+        "Branch rebased onto origin/dev and FF-merged",
+        "origin/dev pushed"
+      ],
+      "files_to_create": ["scripts/smoke-v1-session-persistence.sh"],
+      "files_to_modify": [],
+      "passes": null, "started": null, "completed": null, "notes": null
+    }
+  ],
+  "velocity": {
+    "target_loc_per_day": 850,
+    "actual_loc_per_day": null,
+    "estimated_total_loc": 1680,
+    "actual_total_loc": null,
+    "estimated_days": 2,
+    "actual_days": null
+  },
+  "github_issues": [],
+  "last_session": null,
+  "last_checkpoint": null,
+  "status": "planned",
+  "queue_position": 3,
+  "queue_rationale": "Independent of 1.G-Ph3 (can swap order; either can go first). Big UX win for the pilot — students can rejoin from any device for 30 days. M6 builds on the 1.E-Ph2 sendNotification ref pattern. Could parallelise with 1.G-Ph3 since they touch mostly disjoint files."
+}

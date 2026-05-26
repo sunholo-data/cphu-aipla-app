@@ -1,0 +1,110 @@
+{
+  "sprint_id": "LESSON-PICKER-1B",
+  "created": "2026-05-26T11:30:00Z",
+  "estimated_duration_days": 0.5,
+  "design_doc": "docs/design/aipla/v1.0.0-pilot/lesson-picker.md",
+  "sprint_plan": "docs/design/aipla/v1.0.0-pilot/lesson-picker-sprint.md",
+  "branch": "feature/lesson-picker",
+  "base_commit": "c0d2870",
+  "pr_target": "dev (no PR — commit direct per AIPLA workflow)",
+  "features": [
+    {
+      "id": "M1",
+      "description": "New /lessons route + page component fetching GET /api/skills via fetchWithAuth. Anon-group + class-bound + teacher all use same component.",
+      "scope": "frontend",
+      "estimated_loc": 140,
+      "actual_loc": null,
+      "dependencies": [],
+      "acceptance_criteria": [
+        "Page mounts at /lessons (app router)",
+        "Fetches GET /api/skills with the current auth token",
+        "Renders a card for each accessible skill with displayName + description",
+        "Each card links to /chat/<owner-slug>/<skill-slug> (or whatever the existing skill-path resolver produces)"
+      ],
+      "files_to_create": ["frontend/src/app/lessons/page.tsx"],
+      "files_to_modify": [],
+      "passes": null, "started": null, "completed": null, "notes": null
+    },
+    {
+      "id": "M2",
+      "description": "Lesson card component + responsive grid. Mobile stacks; desktop grids. Same visual pattern as /teacher/classes cards for consistency.",
+      "scope": "frontend",
+      "estimated_loc": 90,
+      "actual_loc": null,
+      "dependencies": ["M1"],
+      "acceptance_criteria": [
+        "Cards readable on mobile (single column) and desktop (2-3 columns)",
+        "Card shows displayName (falls back to name) + description excerpt",
+        "Card click → router push to /chat URL"
+      ],
+      "files_to_create": [],
+      "files_to_modify": ["frontend/src/app/lessons/page.tsx"],
+      "passes": null, "started": null, "completed": null, "notes": null
+    },
+    {
+      "id": "M3",
+      "description": "Empty + error states. Empty: 'Ingen lektioner tilgængelige endnu. Spørg din lærer. / No lessons available yet. Ask your teacher.' Error: dismissible banner with retry.",
+      "scope": "frontend",
+      "estimated_loc": 30,
+      "actual_loc": null,
+      "dependencies": ["M2"],
+      "acceptance_criteria": [
+        "Empty state copy renders when API returns []",
+        "Error state copy renders when fetch rejects",
+        "Retry button re-fires the fetch"
+      ],
+      "files_to_create": [],
+      "files_to_modify": ["frontend/src/app/lessons/page.tsx"],
+      "passes": null, "started": null, "completed": null, "notes": null
+    },
+    {
+      "id": "M4",
+      "description": "Update /group post-join redirect to /lessons. Drop the POST_JOIN_REDIRECT env-var read.",
+      "scope": "frontend",
+      "estimated_loc": 10,
+      "actual_loc": null,
+      "dependencies": ["M3"],
+      "acceptance_criteria": [
+        "/group page after successful join calls router.replace('/lessons')",
+        "POST_JOIN_REDIRECT env reference removed from the codebase",
+        "Existing /chat URLs still work directly (only the post-join redirect changed)"
+      ],
+      "files_to_create": [],
+      "files_to_modify": ["frontend/src/app/group/page.tsx"],
+      "passes": null, "started": null, "completed": null, "notes": null
+    },
+    {
+      "id": "M5",
+      "description": "Tests + quality gates + direct-to-dev merge. vitest cases covering render, empty, error, post-join redirect. Then npm run quality:check, no emoji, FF-merge to dev.",
+      "scope": "fullstack",
+      "estimated_loc": 120,
+      "actual_loc": null,
+      "dependencies": ["M4"],
+      "acceptance_criteria": [
+        "vitest covers happy path (renders cards), empty state, error state, retry",
+        "Test for /group post-join redirect target",
+        "npm run quality:check green (lint + typecheck + tests + build)",
+        "git diff backend/ shows zero modifications",
+        "No emoji introduced",
+        "FF-merge direct to dev — no PR"
+      ],
+      "files_to_create": ["frontend/src/app/lessons/__tests__/page.test.tsx"],
+      "files_to_modify": [],
+      "passes": null, "started": null, "completed": null, "notes": null
+    }
+  ],
+  "velocity": {
+    "target_loc_per_day": 800,
+    "actual_loc_per_day": null,
+    "estimated_total_loc": 390,
+    "actual_total_loc": null,
+    "estimated_days": 0.5,
+    "actual_days": null
+  },
+  "github_issues": [],
+  "last_session": null,
+  "last_checkpoint": null,
+  "status": "planned",
+  "queue_position": 1,
+  "queue_rationale": "FE-only, no deps, small enough for a single-session run; unblocks 1.C/1.D visibility for students."
+}
