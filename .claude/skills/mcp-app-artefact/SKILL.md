@@ -448,9 +448,121 @@ else void req.catch(() => {});  // silent push for non-pedagogical events
 ```
 
 The card transitions pending → confirmed (POST 204) → failed (4xx/5xx),
-so failed pushes are visible instead of silent. **For high-frequency
-events (slider drags), debounce ~500ms and emit one card per drag-end**
-— not one per pixel.
+so failed pushes are visible instead of silent.
+
+### Phase 2 — commit-on-submit (1.E-Ph2, 2026-05-26)
+
+**The Phase 1 rule "debounce slider drags ~500ms and emit one card per
+drag-end" is superseded.** AR's 2026-05-26 feedback after live student
+testing: *"only record when the student presses Afspil."*
+
+Pre-commit slider exploration ("what about v₀=30? what about v₀=10?")
+is *thinking out loud*. It doesn't belong in the chat record or the
+model context. The new rule:
+
+**Slider changes accumulate locally inside the artefact. The host only
+sees them when the student commits.** Two commit signals:
+
+1. **Commit-class button click** (e.g. Afspil/Play, Submit, Run) — the
+   student saying "yes, *this* configuration"
+2. **Chat-flush notification from host** (`ui/notifications/chat-flush`
+   JSON-RPC notification, no id) — the host signals before sending a
+   user message so the tutor sees current state when answering
+
+#### Wire shape
+
+One consolidated `*.state-change` event per commit:
+
+```json
+{
+  "kind": "boldkast.state-change",
+  "changed": ["v0", "theta"],
+  "state": { "v0": 25, "theta": 40, "g": 9.82 },
+  "triggeredBy": "play"
+}
+```
+
+`changed` is the set of keys the student touched since the last
+commit. `state` carries the full current snapshot (cheap, even for
+KineBot-sized artefacts). `triggeredBy` is `"play"` (or other
+commit-class button) or `"chat-submit"`.
+
+#### Artefact pattern
+
+```js
+// Module-scope: accumulates pre-commit changes.
+const pendingChanges = {};
+let v0 = 10, theta = 30, g = 9.82;
+
+function flushPendingChanges(triggeredBy) {
+  const changedKeys = Object.keys(pendingChanges);
+  if (changedKeys.length === 0) return; // No-op when nothing pending.
+  emit("boldkast.state-change", {
+    changed: changedKeys,
+    state: { v0, theta, g },
+    triggeredBy,
+  });
+  for (const k of changedKeys) delete pendingChanges[k];
+}
+
+// Slider settle: writes locally, NO host emit.
+document.getElementById("v0").addEventListener("input", (e) => {
+  v0 = parseFloat(e.target.value);
+  // ...recompute markers, render...
+  pendingChanges.v0 = v0;
+});
+
+// Commit button: flush, then fire the commit-class event.
+document.getElementById("play").addEventListener("click", () => {
+  flushPendingChanges("play");          // ← first, so state precedes
+  emit("boldkast.play");                //   the play event on the wire
+});
+
+// Inbound chat-flush handler — alongside the existing ping responder.
+window.addEventListener("message", (e) => {
+  const d = e.data;
+  if (!d || d.jsonrpc !== "2.0") return;
+  if (d.method === "ui/notifications/chat-flush") {
+    flushPendingChanges("chat-submit");
+  }
+});
+```
+
+#### Host pattern (chat page side)
+
+`BoldkastSimFrame` (and any other workbench frame) exposes a
+`sendChatFlush()` method via `useImperativeHandle`. The chat page
+holds a ref into the frame and calls `sendChatFlush()` at the top of
+`handleSend` — fire-and-forget, no await, optional-chained so missing
+frame is a no-op:
+
+```tsx
+const boldkastFrameRef = useRef<BoldkastSimFrameHandle | null>(null);
+async function handleSend() {
+  // ...
+  boldkastFrameRef.current?.sendChatFlush();
+  await sendMessage(text, { ... });
+}
+```
+
+#### Acceptance gates (cribbed from workbench-state-debounce.md Phase 2)
+
+- Drag a slider continuously, never press Play, never send chat →
+  **zero** host messages from the artefact
+- Drag + press Play → **exactly one** `state-change` with
+  `triggeredBy: "play"` precedes the commit-class event on the wire
+- Drag + type chat + Send → **exactly one** `state-change` with
+  `triggeredBy: "chat-submit"` precedes the user message
+
+**Discrete commitment events** (Pause, Reset, marker reveal) keep
+firing immediately — those are already commitments. Only continuous
+controls (sliders, picker dropdowns where mid-selection isn't a
+commit) go through `pendingChanges`. Discrete preset clicks that
+*change* a continuous param (e.g. planet → g) still write to
+`pendingChanges` because the player hasn't yet pressed Play to commit
+the new gravity.
+
+See [workbench-state-debounce.md](../../../docs/design/aipla/v1.0.0-pilot/workbench-state-debounce.md) §Phase 2 for the design rationale.
 
 **Per-artefact label function.** Each sim has its own vocabulary. The
 labels are the *only* thing each new artefact wrapper has to write
