@@ -155,10 +155,11 @@
         "backend/tests/integration/test_class_skill_access_e2e.py"
       ],
       "files_to_modify": [],
-      "passes": null,
-      "started": null,
-      "completed": null,
-      "notes": "Proof that the design's primary success criterion holds: existing 5-type evaluator untouched, all new behaviour comes from the ownership/minting layer above it."
+      "passes": true,
+      "started": "2026-05-26T09:58:00Z",
+      "completed": "2026-05-26T10:04:00Z",
+      "actual_loc": 175,
+      "notes": "2/2 E2E tests green using the REAL AccessContext.can_access — no mocks. Tests: (1) two teachers + two classes + two skills, students via different codes see only their class's skill via the real evaluator; (2) class revocation locks out stale JWTs on next verify. Confirms axiom 9 promise: access_context.py never edited in this sprint (verified by git log feature/teacher-permission-model ^dev -- backend/auth/access_context.py = no commits). Pre-existing GCP-credential integration failures (test_agent.py, test_search_agent.py — 4 tests needing Vertex AI Search creds) are unaffected by this work."
     },
     {
       "id": "M7",
