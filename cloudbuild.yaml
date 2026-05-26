@@ -241,103 +241,18 @@ steps:
         done
         exit $${fail}
 
-  # --- Non-fatal platform-skill seed (via sidecar proxy). Idempotent.
-  # Hits the frontend's /api/proxy/api/admin/seed-platform-skills which
-  # forwards Authorization untouched to the backend sidecar. Never fails
-  # the build — a seed hiccup is not worth blocking a good deploy.
-  # Docs: docs/ops/platform-skills.md
-  - name: 'gcr.io/google.com/cloudsdktool/cloud-sdk'
-    id: seed-platform-skills
-    waitFor: ['smoke-deployed']
-    entrypoint: bash
-    args:
-      - '-c'
-      - |
-        set +e
-        URL=$(gcloud run services describe ${_SERVICE_NAME} \
-          --project=${_PROJECT_ID} --region=${_REGION} \
-          --format='value(status.url)')
-        # Cloud Build under a user-managed SA (aipla-v6@) cannot use
-        # `gcloud auth print-identity-token --audiences=` — it returns
-        # "No identity token can be obtained from the current credentials".
-        # The metadata server path works because the Cloud Build VM has
-        # the user-managed SA attached, so the metadata server can mint
-        # an ID token with an explicit audience.
-        # CRITICAL: include_email=true is required. Without it the
-        # minted token has NO email claim — only aud/azp/iat/iss/sub —
-        # and the backend's allowlist check (looks at claims["email"])
-        # produces a 403 "Not authorized" silently. Discovered 2026-05-20
-        # by decoding the impersonated token after the metadata-server
-        # fix returned 0 skills seeded.
-        # Mint an ID token signed for the trigger's user-managed SA
-        # (aipla-v6@…). The build container's metadata-server path
-        # doesn't expose that SA — both `default/identity` and an
-        # explicit-email path return the error string "please provide
-        # a user-specified service account". Instead, ask gcloud to
-        # mint the token directly via iamcredentials.googleapis.com
-        # using the build's active credentials (which IS aipla-v6@
-        # because the trigger has serviceAccount set).
-        # Requires aipla-v6@ to have roles/iam.serviceAccountTokenCreator
-        # on itself — already bound at bootstrap (see
-        # scripts/bootstrap-aipla-dev.sh:ensure_cb_service_agent).
-        # Discovered 2026-05-25 after metadata-server paths kept
-        # 403'ing through builds e8532153 / 11b5c6a0 / faed2832 /
-        # 7bc7eb6c with MalformedError: "Wrong number of segments".
-        TOKEN=$(gcloud iam service-accounts generate-id-token \
-          "${_ADMIN_SEED_ALLOWED_SAS}" \
-          --audiences="$${URL}" \
-          --include-email 2>/dev/null)
-        code=$(curl -sS -o /tmp/seed -w '%{http_code}' --max-time 60 \
-          -X POST -H "Authorization: Bearer $${TOKEN}" \
-          "$${URL}/api/proxy/api/admin/seed-platform-skills") || code=000
-        body=$(head -c 300 /tmp/seed)
-        echo "seed-platform-skills -> $${code} body=$${body}"
-        exit 0
-
-  # --- Non-fatal demo-codes upsert. Idempotent.
-  # Guarantees three known group codes are alive for the next 30 days
-  # so demo team members can always join /group without an admin minting
-  # a fresh code each week. Same auth pattern as seed-platform-skills;
-  # never fails the build (a hiccup here means the team mints manually).
-  # Each code's TTL is refreshed to 30 days from "now" on every deploy.
-  # Output line includes the codes so you can copy from the build log.
-  - name: 'gcr.io/google.com/cloudsdktool/cloud-sdk'
-    id: upsert-demo-codes
-    waitFor: ['seed-platform-skills']
-    entrypoint: bash
-    args:
-      - '-c'
-      - |
-        set +e
-        URL=$(gcloud run services describe ${_SERVICE_NAME} \
-          --project=${_PROJECT_ID} --region=${_REGION} \
-          --format='value(status.url)')
-        # Mint an ID token signed for the trigger's user-managed SA
-        # (aipla-v6@…). The build container's metadata-server path
-        # doesn't expose that SA — both `default/identity` and an
-        # explicit-email path return the error string "please provide
-        # a user-specified service account". Instead, ask gcloud to
-        # mint the token directly via iamcredentials.googleapis.com
-        # using the build's active credentials (which IS aipla-v6@
-        # because the trigger has serviceAccount set).
-        # Requires aipla-v6@ to have roles/iam.serviceAccountTokenCreator
-        # on itself — already bound at bootstrap (see
-        # scripts/bootstrap-aipla-dev.sh:ensure_cb_service_agent).
-        # Discovered 2026-05-25 after metadata-server paths kept
-        # 403'ing through builds e8532153 / 11b5c6a0 / faed2832 /
-        # 7bc7eb6c with MalformedError: "Wrong number of segments".
-        TOKEN=$(gcloud iam service-accounts generate-id-token \
-          "${_ADMIN_SEED_ALLOWED_SAS}" \
-          --audiences="$${URL}" \
-          --include-email 2>/dev/null)
-        echo "--- demo codes (paste into /group on the dev URL) ---"
-        for code in aipla-demo-1 aipla-demo-2 aipla-demo-3; do
-          body=$(curl -sS --max-time 30 \
-            -X POST -H "Authorization: Bearer $${TOKEN}" \
-            -H "Content-Type: application/json" \
-            -d "{\"code\": \"$${code}\", \"skill_name\": \"problem-set-hints\", \"title\": \"dev demo $${code}\", \"ttl_days\": 30}" \
-            "$${URL}/api/proxy/api/admin/mint-demo-group")
-          echo "  $${code} -> $${body}"
-        done
-        echo "--- end demo codes ---"
-        exit 0
+  # The deploy-time `seed-platform-skills` + `upsert-demo-codes` steps
+  # were REMOVED 2026-05-26 after every variant tried to mint a usable
+  # ID token from inside the Cloud Build container failed with the same
+  # opaque shape (metadata-server endpoints return "please provide a
+  # user-specified service account"; `gcloud iam service-accounts
+  # generate-id-token` returned empty in this trigger config). The
+  # trigger's user-managed SA wiring isn't fully set up on AIPLA dev,
+  # and resolving it correctly requires the Terraform module per
+  # SEQUENCE 1.1.
+  #
+  # Until then, ops runs the equivalent commands manually post-deploy
+  # — see docs/design/aipla/v1.0.0-pilot/aipla-cloud-bootstrap.md
+  # §Manual seed runbook (one-time per env). Codes minted that way
+  # persist in Firestore for their TTL, so this is a low-friction
+  # bridge despite the inconvenience.
