@@ -219,6 +219,59 @@ Discrete events (no `changed` key, or events tagged with `immediate: true`) bypa
 - Server-side debounce.
 - Backpressure on misbehaving artefacts.
 
+## Phase 2 — commit-on-submit gating (AR 2026-05-26 feedback)
+
+**Added 2026-05-26 after AR live-student test feedback:** *"the system which records everything when one changes the sliders … I think it would be better if it only records when the student press Afspil."*
+
+The Phase 1 architecture above (800ms artefact-side debounce + host coalesce) still leaks **every settled value** the student probes. A student exploring "what happens at v₀=30? what about v₀=10? what about v₀=5?" produces three `state-change` messages — all sent to the tutor, all entering the model context. Pedagogically these are "thinking out loud", not commitments worth recording.
+
+### Goal
+
+**State changes accumulate locally inside the artefact and only flush to the host when the student commits.** Two commit signals:
+
+1. **Pressing "Afspil"** (the Play button — `#play` in [boldkast/v1/index.html](../../../../infrastructure/mcp-sandbox/artefacts/boldkast/v1/index.html)) — the student is saying "yes, *this* configuration, run it."
+2. **Sending a chat message** — the student is asking a question, so the agent needs current state to answer. The chat client signals "about to send" so the artefact can flush before the message lands.
+
+### Wire shape change
+
+**Before (Phase 1):**
+- Each settled slider value: one `state-change` message → host → `mcp_app_context.boldkast.state` history grows by one entry per settle.
+
+**After (Phase 2):**
+- Slider settle: artefact updates `pendingChanges` map locally (no host emit).
+- Afspil click: artefact emits one `state-change` with the current full state, then clears `pendingChanges`. The `triggeredBy: "play"` field on the wire makes the commitment explicit.
+- Chat-submit signal: artefact emits the same message, `triggeredBy: "chat-submit"`.
+
+### Implementation delta
+
+| # | What | Where | Est |
+|---|---|---|---|
+| 1 | Replace `emitParamChangeDebounced` body with a local `pendingChanges` map; remove the 800ms timer | `infrastructure/mcp-sandbox/artefacts/boldkast/v1/index.html:730-739` | 0.1 d |
+| 2 | Wire `#play` button: on click, emit `{kind: "boldkast.state-change", changed: keys-of-pending, triggeredBy: "play", state: snapshot}` then clear pendingChanges | `boldkast/v1/index.html` (`document.getElementById('play').addEventListener`) | 0.05 d |
+| 3 | Host → artefact "about to send chat" signal via `ui/notifications/tool-input` (or a new `ui/notifications/chat-flush` notification — pick whichever is spec-compliant) | `frontend/src/components/workspace/BoldkastSimFrame.tsx` + chat input wiring | 0.15 d |
+| 4 | Update mcp-app-artefact skill convention: artefacts must distinguish "pending" (local-only) from "committed" (host emit) state. Pattern: `pendingChanges` map + commit verbs (Play, Submit) flush | `.claude/skills/mcp-app-artefact/SKILL.md` | 0.05 d |
+| 5 | Tests: artefact only emits on Play / chat-submit; slider drag with no submit produces zero host messages | `boldkast/v1/__tests__/` (need to scaffold) + `BoldkastSimFrame.test.tsx` | 0.15 d |
+| 6 | Manual smoke: drag v₀ 10 times → no chat cards; press Afspil → one card with final value | — | 0.05 d |
+| | **Total** | | **~0.55 d** (parallel-able with 1.A follow-up) |
+
+### Acceptance gates
+
+- [ ] Dragging any slider produces **zero** host messages (verified via `aiplatform sessions iframe-context <id>` showing no entries during drag burst)
+- [ ] Pressing Afspil after multiple slider drags produces **exactly one** `state-change` with `triggeredBy: "play"` and the *final* values
+- [ ] Sending a chat message with pending changes produces one `state-change` with `triggeredBy: "chat-submit"` *before* the user message lands in the chat stream
+- [ ] An artefact that never receives an Afspil + never produces a chat message produces **zero** model-context entries — proves the leak is closed
+- [ ] LED Planck + KineBot pick up the same commit-on-submit pattern via the mcp-app-artefact skill
+
+### Open questions for JB / AR sign-off
+
+1. **Should pendingChanges flush on artefact unmount?** If the student navigates away mid-exploration, do we record the last state or discard? Lean: discard (consistent with "intent to commit" framing).
+2. **Should "Pause" or "Nulstil" also commit?** Lean: no — those are exploration verbs, not commitment verbs.
+3. **Chat-flush race condition.** The host needs to send the flush signal *before* the user message, then wait for the artefact's emit, then send the chat message. ~50ms total. Should we block the chat send on the flush ack, or fire-and-forget? Lean: fire-and-forget with a 100ms timeout — the chat message is the source of truth either way.
+
+### Why parallel-able with 1.A teacher-permission-model
+
+This sprint touches the MCP App artefact (`boldkast/v1/index.html`), the host frame component (`BoldkastSimFrame.tsx`), and the mcp-app-artefact skill — zero overlap with the teacher-permission-model surface (Class entity, `/api/classes/*`, teacher dashboard). Could run in parallel with 1.G-Ph3 too. Skill convention update is the only shared touch-point, and the changes are additive (a new "Phase 2" section in the skill).
+
 ## Related Documents
 
 - **Source of truth:** [`workbench-state-debounce.md`](file:///Users/mark/Documents/clients/cph-uni/strand-a-pedagogical-bot/prototypes/workbench-state-debounce.md)
