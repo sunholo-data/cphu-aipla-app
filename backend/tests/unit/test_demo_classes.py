@@ -69,20 +69,29 @@ def test_seed_is_idempotent():
     assert len(classes) == len(DEMO_CLASSES)
 
 
-def test_seed_links_lessons_when_skill_exists():
-    """The first demo class declares problem-set-hints as a lesson. When
-    that skill exists, the seeder links it (writes Class.lessons + the
-    skill's accessControl tag)."""
+def test_seed_links_lessons_via_class_only_not_skill_access():
+    """The first demo class declares problem-set-hints as a lesson. The
+    seeder writes Class.lessons but deliberately does NOT mutate the
+    skill's accessControl (unlike the regular teacher PATCH /lessons
+    path). Demo classes share a single teacher identity across all
+    visitors, so tagging the skill with the demo class's namespace
+    would hide it from the public catalogue and surprise teachers
+    visiting via the bypass."""
     _seed_skill("skill-pset", "problem-set-hints")
     seed_demo_classes()
     physik = next(c for c in classes_db.list_classes_for_owner(DEMO_TEACHER_UID) if c.name == "Physik 9A vår 2026")
+    # Class.lessons linked.
     assert "skill-pset" in physik.lessons
 
-    # Skill's accessControl now carries the class's tag namespace.
+    # Skill's accessControl is UNCHANGED — still the public default
+    # the test fixture set.
     from db.firestore import get_document
 
     sk = get_document("skills", "skill-pset")
-    assert physik.tag_namespace in (sk["accessControl"].get("tags") or [])
+    assert sk["accessControl"]["type"] == "public"
+    # The class's namespace must NOT have leaked onto the skill.
+    skill_tags = sk["accessControl"].get("tags") or []
+    assert physik.tag_namespace not in skill_tags
 
 
 def test_seed_handles_missing_lesson_skill_gracefully():

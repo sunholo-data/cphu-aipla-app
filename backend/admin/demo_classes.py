@@ -116,22 +116,17 @@ def seed_demo_classes() -> dict[str, Any]:
 
         skill_ids = _resolve_lesson_skill_ids(spec.get("lessons", []))
         if skill_ids:
+            # Link only — write Class.lessons but DO NOT mutate the
+            # skill's accessControl. The demo classes are visible to
+            # whoever has AIPLA_TEACHER_MOCK_AUTH; we don't want to
+            # gate the underlying skill to those teachers and hide it
+            # from the public catalogue. In production class-binding
+            # (teacher creates class through /teacher UI), the lessons-
+            # patch route DOES mutate the skill's accessControl —
+            # demo seed is the exception because the demo teacher
+            # identity is shared across visitors and we want skills
+            # visible to anon-group students too.
             add_lessons(cls.class_id, skill_ids)
-            # Also write the tag onto each skill so the AccessControl
-            # evaluator picks up the binding for students who join via
-            # this class's codes.
-            from db.firestore import get_document, set_document
-
-            for sid in skill_ids:
-                doc = get_document("skills", sid)
-                if doc is None:
-                    continue
-                ac = doc.get("accessControl") or {}
-                tags = list(ac.get("tags") or [])
-                if cls.tag_namespace not in tags:
-                    tags.append(cls.tag_namespace)
-                doc["accessControl"] = {"type": "tagged", "tags": tags}
-                set_document("skills", sid, doc)
 
         codes_to_mint = spec.get("mint_group_codes", 0)
         if codes_to_mint:
