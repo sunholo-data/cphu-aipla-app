@@ -51,6 +51,14 @@ class User(BaseModel):
     empty string otherwise. Carrying it on User (rather than as a
     side-channel) keeps the permission system and observability hooks
     type-safe.
+
+    `is_teacher` is the gate for the v1 `/api/classes/*` routes (sprint
+    1.A teacher-permission-model). In v1, Firebase-authenticated users
+    are teachers; LOCAL_MODE stub is also marked teacher so the same
+    routes work in dev. Anonymous-group users are not teachers (they
+    can only join via codes). v2 may add non-teacher Firebase users
+    (UCPH SSO students) — at which point this stops being a synonym
+    for `auth_mode == "firebase"` and a real claim/role check is added.
     """
 
     model_config = ConfigDict(frozen=True)
@@ -61,6 +69,7 @@ class User(BaseModel):
     group_tags: frozenset[str] = Field(default_factory=frozenset)
     auth_mode: str = "firebase"
     group_id: str = ""
+    is_teacher: bool = False
 
 
 def _extract_domain(email: str) -> str:
@@ -71,7 +80,12 @@ def _extract_domain(email: str) -> str:
 
 
 def _user_from_decoded_token(decoded: dict[str, Any]) -> User:
-    """Build a `User` from a verified Firebase decoded-token dict."""
+    """Build a `User` from a verified Firebase decoded-token dict.
+
+    Sets `is_teacher=True` because in v1, only teachers carry a Firebase
+    identity (students use anonymous-group; dev uses LOCAL_MODE stub).
+    See `User.is_teacher` docstring for the v2 caveat.
+    """
     email = decoded.get("email") or ""
     raw_tags = decoded.get("groupTags") or []
     group_tags = frozenset(str(t) for t in raw_tags)
@@ -80,6 +94,7 @@ def _user_from_decoded_token(decoded: dict[str, Any]) -> User:
         email=email,
         domain=_extract_domain(email),
         group_tags=group_tags,
+        is_teacher=True,
     )
 
 

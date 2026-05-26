@@ -74,13 +74,14 @@
         "backend/tests/unit/test_get_current_user_teacher.py"
       ],
       "files_to_modify": [
-        "backend/auth/__init__.py",
-        "backend/auth/firebase_auth.py"
+        "backend/auth/firebase_auth.py",
+        "backend/auth/local_mode_stub.py"
       ],
-      "passes": null,
-      "started": null,
-      "completed": null,
-      "notes": "Pre-existing firebase_auth.py from M1 template should already handle Firebase JWT verification — confirm before adding new code. Can run in parallel with M2."
+      "passes": true,
+      "started": "2026-05-26T09:20:00Z",
+      "completed": "2026-05-26T09:30:00Z",
+      "actual_loc": 170,
+      "notes": "Approach: instead of mutating auth_mode (would break ~10 existing tests asserting auth_mode='firebase'), added is_teacher boolean to User model. Firebase verifier sets is_teacher=True; LOCAL_MODE stub also marks teacher (consistent with 1.G-Ph2 de-facto behaviour); anon-group keeps default False. is_teacher is the gate for M4's /api/classes/* routes. No edits to auth/__init__.py dispatch needed — the existing logic already routes correctly. 8/8 M3 tests + 1419 existing unit/non-slow tests = 1427 green. Lint clean."
     },
     {
       "id": "M4",
