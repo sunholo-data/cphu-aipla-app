@@ -126,6 +126,38 @@ describe("/lessons — student lesson picker", () => {
     });
   });
 
+  it("renders the avatar image when set on the skill", async () => {
+    vi.mocked(fetchWithAuth).mockResolvedValue(
+      jsonResponse([
+        makeSkill({
+          displayName: "With Image",
+          avatar: "/lesson-images/problem-set-hints.svg",
+        }),
+      ]),
+    );
+    const { container } = render(<LessonsPage />);
+    await waitFor(() => {
+      expect(screen.getByRole("heading", { name: "With Image" })).toBeInTheDocument();
+    });
+    // The cover image is decorative (alt="" + aria-hidden) so it's out
+    // of the a11y tree — query by tag.
+    const img = container.querySelector("img");
+    expect(img).not.toBeNull();
+    expect(img).toHaveAttribute("src", "/lesson-images/problem-set-hints.svg");
+  });
+
+  it("renders the fallback cover when avatar is empty", async () => {
+    vi.mocked(fetchWithAuth).mockResolvedValue(
+      jsonResponse([makeSkill({ displayName: "No Image", avatar: "" })]),
+    );
+    const { container } = render(<LessonsPage />);
+    await waitFor(() => {
+      expect(screen.getByRole("heading", { name: "No Image" })).toBeInTheDocument();
+    });
+    // No <img> rendered; the fallback uses an inline lucide icon.
+    expect(container.querySelector("img")).toBeNull();
+  });
+
   it("renders the empty state when zero skills are accessible", async () => {
     vi.mocked(fetchWithAuth).mockResolvedValue(jsonResponse([]));
     render(<LessonsPage />);

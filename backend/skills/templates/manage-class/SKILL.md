@@ -1,6 +1,7 @@
 ---
 name: manage-class
 displayName: Manage classes
+avatar: /lesson-images/manage-class.svg
 description: >
   Teacher-facing skill for creating and managing classes — the
   chat-driven alternative to the React /teacher dashboard. Same backend

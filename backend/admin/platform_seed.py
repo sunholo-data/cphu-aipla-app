@@ -139,6 +139,12 @@ def _parse_template(skill_md: Path) -> dict[str, Any]:
         "displayName": (front.get("displayName") or "").strip(),
         "initialMessage": (front.get("initialMessage") or "").strip(),
         "problemStatement": (front.get("problemStatement") or "").strip(),
+        # 1.B follow-up (2026-05-26) — optional cover image for the
+        # lesson picker + chat-tab thumbnail. URL string (relative path
+        # served from frontend/public, or a full https:// URL). Empty
+        # string when omitted; the LessonCard renders an icon
+        # placeholder in that case.
+        "avatar": (front.get("avatar") or "").strip(),
         # 1.I-PhA — proactive tutor auto-greet opt-in + skill-author
         # opening guidance. Both stored as top-level frontmatter so the
         # template author doesn't have to nest them under `metadata:`.
@@ -198,6 +204,9 @@ def _template_updates(parsed: dict[str, Any]) -> dict[str, Any]:
     # template wouldn't ever take effect on existing skills.
     updates["proactiveGreet"] = parsed["proactiveGreet"]
     updates["openingTemplate"] = parsed["openingTemplate"]
+    # avatar is unconditional too — template-owned. Setting to "" in the
+    # template clears any previously-set URL.
+    updates["avatar"] = parsed["avatar"]
     return updates
 
 
@@ -288,6 +297,8 @@ def seed(templates_root: Path | None = None) -> SeedSummary:
                 optional_kwargs["proactiveGreet"] = parsed["proactiveGreet"]
             if parsed["openingTemplate"]:
                 optional_kwargs["openingTemplate"] = parsed["openingTemplate"]
+            if parsed["avatar"]:
+                optional_kwargs["avatar"] = parsed["avatar"]
             access_control = parsed["accessControl"] or {"type": "public"}
             skill_config.create_skill(
                 name=parsed["name"],
@@ -306,3 +317,51 @@ def seed(templates_root: Path | None = None) -> SeedSummary:
             summary.failed.append(parsed["name"])
 
     return summary
+
+
+def prune(templates_root: Path | None = None, *, dry_run: bool = True) -> dict[str, list[str]]:
+    """Delete platform-owned Firestore skills whose template no longer
+    exists on disk.
+
+    Idempotent. Dry-run by default — returns the set of skills that
+    would be deleted without actually deleting. Pass ``dry_run=False``
+    to commit the deletions.
+
+    Use when culling generic/inherited templates (e.g. 1.B follow-up
+    on 2026-05-26: removed workspace-demo/code-assistant/etc.). The
+    seeder doesn't auto-delete because the absence of a template
+    doesn't imply intent — a typo in the template dir name shouldn't
+    nuke production skills. Prune is the explicit cleanup verb.
+
+    Returns ``{"pruned": [<name>, ...], "kept": [<name>, ...]}``.
+    """
+    root = templates_root or DEFAULT_TEMPLATES_ROOT
+    on_disk = {child.name for child in root.iterdir() if child.is_dir() and (child / "SKILL.md").exists()}
+    # Parse each on-disk template to get the canonical skill `name`
+    # (template dir name and skill name may differ — though for AIPLA
+    # they currently match).
+    template_skill_names: set[str] = set()
+    for child in root.iterdir():
+        skill_md = child / "SKILL.md"
+        if child.is_dir() and skill_md.exists():
+            try:
+                template_skill_names.add(_parse_template(skill_md)["name"])
+            except Exception:
+                # Malformed template — assume it'll be fixed; don't
+                # let a parse error mass-delete skills.
+                logger.warning("platform_seed.prune: skipping malformed template %s", skill_md)
+                template_skill_names.add(child.name)
+    by_name = _existing_platform_skills_by_name()
+    pruned: list[str] = []
+    kept: list[str] = []
+    for name, skill_id in by_name.items():
+        if name in template_skill_names:
+            kept.append(name)
+            continue
+        if dry_run:
+            logger.info("platform_seed.prune (dry-run): would delete %s (id=%s)", name, skill_id)
+        else:
+            skill_config.delete_skill(skill_id)
+            logger.info("platform_seed.prune: deleted %s (id=%s)", name, skill_id)
+        pruned.append(name)
+    return {"pruned": pruned, "kept": kept, "templates_on_disk": sorted(on_disk)}

@@ -12,7 +12,7 @@ from unittest.mock import patch
 
 import pytest
 
-from admin.platform_seed import SeedSummary, _parse_template, seed
+from admin.platform_seed import SeedSummary, _parse_template, prune, seed
 from db.models import SkillConfig
 
 
@@ -239,3 +239,84 @@ def test_seed_sets_slug_at_creation(tmp_path):
     assert summary.created == 2
     slugs = {call.kwargs["slug"] for call in mock_create.call_args_list}
     assert slugs == {"general-assistant", "code-assistant"}
+
+
+# === prune() ===
+
+
+def test_prune_dry_run_lists_orphans_without_deleting(tmp_path):
+    """1.B follow-up (2026-05-26): the prune helper lists platform-owned
+    Firestore skills whose template was removed from disk, but doesn't
+    delete by default."""
+    _fake_template_dir(tmp_path, "keep-me")
+
+    with (
+        patch("admin.platform_seed.skill_config.list_skills") as mock_list,
+        patch("admin.platform_seed.skill_config.delete_skill") as mock_delete,
+    ):
+        mock_list.return_value = [
+            _make_config(name="keep-me"),
+            _make_config(name="orphan-1"),
+            _make_config(name="orphan-2"),
+        ]
+
+        result = prune(templates_root=tmp_path)  # dry_run=True default
+
+    assert set(result["pruned"]) == {"orphan-1", "orphan-2"}
+    assert set(result["kept"]) == {"keep-me"}
+    assert mock_delete.call_count == 0  # dry-run by default
+
+
+def test_prune_commits_deletions_when_dry_run_false(tmp_path):
+    _fake_template_dir(tmp_path, "keep-me")
+
+    with (
+        patch("admin.platform_seed.skill_config.list_skills") as mock_list,
+        patch("admin.platform_seed.skill_config.delete_skill") as mock_delete,
+    ):
+        mock_list.return_value = [
+            _make_config(name="keep-me"),
+            _make_config(name="orphan-1"),
+        ]
+
+        result = prune(templates_root=tmp_path, dry_run=False)
+
+    assert result["pruned"] == ["orphan-1"]
+    assert mock_delete.call_count == 1
+    mock_delete.assert_called_with("platform-orphan-1")
+
+
+def test_prune_keeps_everything_when_all_templates_present(tmp_path):
+    _fake_template_dir(tmp_path, "alpha")
+    _fake_template_dir(tmp_path, "beta")
+
+    with (
+        patch("admin.platform_seed.skill_config.list_skills") as mock_list,
+        patch("admin.platform_seed.skill_config.delete_skill") as mock_delete,
+    ):
+        mock_list.return_value = [
+            _make_config(name="alpha"),
+            _make_config(name="beta"),
+        ]
+        result = prune(templates_root=tmp_path, dry_run=False)
+
+    assert result["pruned"] == []
+    assert set(result["kept"]) == {"alpha", "beta"}
+    mock_delete.assert_not_called()
+
+
+def test_parse_template_extracts_avatar(tmp_path):
+    """avatar is an optional top-level frontmatter field (1.B follow-up)."""
+    skill_dir = tmp_path / "withpic"
+    skill_dir.mkdir()
+    (skill_dir / "SKILL.md").write_text(
+        "---\nname: withpic\ndescription: Demo.\navatar: /lesson-images/x.svg\nmetadata:\n  model: gemini-2.5-flash\n---\n\nBody.\n",
+    )
+    parsed = _parse_template(skill_dir / "SKILL.md")
+    assert parsed["avatar"] == "/lesson-images/x.svg"
+
+
+def test_parse_template_avatar_defaults_to_empty(tmp_path):
+    _fake_template_dir(tmp_path, "noavatar")
+    parsed = _parse_template(tmp_path / "noavatar" / "SKILL.md")
+    assert parsed["avatar"] == ""

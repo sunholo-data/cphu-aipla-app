@@ -131,21 +131,47 @@ function LessonCard({ skill }: { skill: Skill }) {
   return (
     <Link
       href={href}
-      className="group flex flex-col gap-2 rounded border border-border bg-background p-4 shadow-sm transition hover:border-primary"
+      className="group flex flex-col gap-3 overflow-hidden rounded border border-border bg-background shadow-sm transition hover:border-primary"
     >
-      <header className="flex items-start justify-between gap-2">
+      <LessonCover avatar={skill.avatar} title={title} />
+      <div className="flex flex-col gap-2 p-4 pt-0">
         <h3 className="text-base font-semibold">{title}</h3>
-        <BookOpen
-          className="h-5 w-5 text-muted-foreground group-hover:text-primary"
-          aria-hidden="true"
-        />
-      </header>
-      {skill.description ? (
-        <p className="line-clamp-3 text-sm text-muted-foreground">
-          {skill.description}
-        </p>
-      ) : null}
+        {skill.description ? (
+          <p className="line-clamp-3 text-sm text-muted-foreground">
+            {skill.description}
+          </p>
+        ) : null}
+      </div>
     </Link>
+  );
+}
+
+/** Card cover slot. Renders skill.avatar if set; otherwise a soft
+ *  gradient with a book icon so cards have visual rhythm even before
+ *  authors supply images. Aspect 16:9 keeps the grid tidy on both
+ *  mobile (stack) and desktop (2-col). */
+function LessonCover({ avatar, title }: { avatar: string; title: string }) {
+  if (avatar) {
+    return (
+      <div className="aspect-[16/9] w-full overflow-hidden bg-muted">
+        {/* eslint-disable-next-line @next/next/no-img-element */}
+        <img
+          src={avatar}
+          alt=""
+          aria-hidden="true"
+          className="h-full w-full object-cover"
+        />
+      </div>
+    );
+  }
+  return (
+    <div
+      aria-hidden="true"
+      className="flex aspect-[16/9] w-full items-center justify-center bg-gradient-to-br from-muted to-accent"
+    >
+      <BookOpen className="h-10 w-10 text-muted-foreground" />
+      <span className="sr-only">{title}</span>
+    </div>
   );
 }
 
