@@ -239,6 +239,28 @@
 </section>
 <script>
   "use strict";
+  // ─── Drawing helpers ──────────────────────────────────────────────────────
+  // Defined at module scope (not inside drawWorld) so they are not
+  // re-created on every animation frame in strict mode.
+  function drawArrow(actx, ax1, ay1, ax2, ay2, color, label) {
+    const dx = ax2 - ax1, dy = ay2 - ay1;
+    const len = Math.sqrt(dx * dx + dy * dy);
+    if (len < 3) return;
+    actx.strokeStyle = color; actx.fillStyle = color; actx.lineWidth = 2;
+    actx.beginPath(); actx.moveTo(ax1, ay1); actx.lineTo(ax2, ay2); actx.stroke();
+    const headLen = 7, angle = Math.atan2(dy, dx);
+    actx.beginPath();
+    actx.moveTo(ax2, ay2);
+    actx.lineTo(ax2 - headLen * Math.cos(angle - Math.PI / 6), ay2 - headLen * Math.sin(angle - Math.PI / 6));
+    actx.lineTo(ax2 - headLen * Math.cos(angle + Math.PI / 6), ay2 - headLen * Math.sin(angle + Math.PI / 6));
+    actx.closePath(); actx.fill();
+    if (label) {
+      actx.font = "bold 10px sans-serif";
+      const nx = -dy / len, ny = dx / len;
+      actx.fillText(label, ax2 + nx * 8 + (dx / len) * 4, ay2 + ny * 8 + (dy / len) * 4);
+    }
+  }
+
   // ─── Physics ──────────────────────────────────────────────────────────────
   // g defaults to Earth's value but is mutable so the student can explore
   // Moon (1.62), Mars (3.71), Jupiter (24.79) etc. The problem's "givet"
@@ -515,32 +537,12 @@
     ctx.stroke();
     ctx.setLineDash([]);
 
-    function drawArrow(ax1, ay1, ax2, ay2, color, label) {
-      const dx = ax2 - ax1, dy = ay2 - ay1;
-      const len = Math.sqrt(dx * dx + dy * dy);
-      if (len < 3) return;
-      ctx.strokeStyle = color; ctx.fillStyle = color; ctx.lineWidth = 2;
-      ctx.beginPath(); ctx.moveTo(ax1, ay1); ctx.lineTo(ax2, ay2); ctx.stroke();
-      const headLen = 7, angle = Math.atan2(dy, dx);
-      ctx.beginPath();
-      ctx.moveTo(ax2, ay2);
-      ctx.lineTo(ax2 - headLen * Math.cos(angle - Math.PI / 6), ay2 - headLen * Math.sin(angle - Math.PI / 6));
-      ctx.lineTo(ax2 - headLen * Math.cos(angle + Math.PI / 6), ay2 - headLen * Math.sin(angle + Math.PI / 6));
-      ctx.closePath(); ctx.fill();
-      if (label) {
-        ctx.font = "bold 10px sans-serif";
-        // Offset label perpendicular to arrow direction for readability
-        const nx = -dy / len, ny = dx / len;
-        ctx.fillText(label, ax2 + nx * 8 + (dx / len) * 4, ay2 + ny * 8 + (dy / len) * 4);
-      }
-    }
-
     // vx (horizontal, constant throughout flight) — blue
-    drawArrow(bx, by, vxEndX, vxEndY, "#1e40af", "vₓ");
+    drawArrow(ctx, bx, by, vxEndX, vxEndY, "#1e40af", "vₓ");
     // vy (vertical, shrinks to 0 at peak then reverses) — red
-    drawArrow(bx, by, vyEndX, vyEndY, "#dc2626", "vᵧ");
+    drawArrow(ctx, bx, by, vyEndX, vyEndY, "#dc2626", "vᵧ");
     // total v (resultant diagonal) — dark
-    drawArrow(bx, by, vtEndX, vtEndY, "#0f172a", "|v|");
+    drawArrow(ctx, bx, by, vtEndX, vtEndY, "#0f172a", "|v|");
 
     // y_max marker line (only if revealed)
     if (revealed.ymax) {
