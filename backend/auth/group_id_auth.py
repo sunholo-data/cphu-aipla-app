@@ -59,6 +59,12 @@ _CODE_LEN_BEFORE_HYPHEN = 4
 _CODE_LEN_AFTER_HYPHEN = 4
 _UID_SUFFIX_BYTES = 16  # 128 bits — collision-proof
 
+# 1.A follow-up (2026-05-26): when AIPLA_TEACHER_MOCK_AUTH=1 the bypass
+# remaps every anon-group user to this shared identity so demo classes
+# seeded under this uid are visible to every visitor. DEV ONLY — see
+# user_from_token() for the override site.
+DEMO_TEACHER_UID = "aipla-demo-teacher"
+
 
 # ─── Exceptions ─────────────────────────────────────────────────────────────
 
@@ -189,10 +195,18 @@ class AnonymousGroupAuth:
         group_tags = _resolve_class_tags(group_id)
 
         is_teacher = os.environ.get("AIPLA_TEACHER_MOCK_AUTH") == "1"
+        uid = claims["sub"]
         if is_teacher:
+            # Override the per-join anon uid with a shared demo-teacher
+            # identity so every bypass visitor sees the SAME demo classes
+            # on /teacher/* (the listing filters by owner_uid). Without
+            # the override, each anon-group join produces a different
+            # uid and the demo seed would only appear for one visitor.
+            uid = DEMO_TEACHER_UID
             logger.warning(
-                "auth: AIPLA_TEACHER_MOCK_AUTH=1 — anon-group user %s flagged is_teacher (DEV BYPASS)",
+                "auth: AIPLA_TEACHER_MOCK_AUTH=1 — anon-group user %s remapped to %s, flagged is_teacher (DEV BYPASS)",
                 claims["sub"],
+                DEMO_TEACHER_UID,
             )
             # Add the role:teacher synthetic tag too so AccessControl
             # gates that scope to teachers (e.g. manage-class skill)
@@ -201,7 +215,7 @@ class AnonymousGroupAuth:
             group_tags = group_tags | {"role:teacher"}
 
         return User(
-            uid=claims["sub"],
+            uid=uid,
             email="",
             domain="",
             group_tags=group_tags,
