@@ -36,6 +36,15 @@ substitutions:
   # test / prod triggers; only the dev trigger overrides this to '1'.
   # Removable once Phase 3 swaps in the real Firebase teacher auth.
   _TEACHER_MOCK: ''
+  # 1.A follow-up (2026-05-26): backend twin of the frontend's
+  # NEXT_PUBLIC_TEACHER_MOCK. When set to '1', the anon-group user_from_token
+  # path flags is_teacher=True so the real /api/classes/* endpoints work
+  # end-to-end on dev without Firebase OAuth (which lands in 1.G-Ph3).
+  # Leave empty on test / prod triggers — the bypass widens the teacher
+  # gate to ANY authenticated anon-group caller, which is acceptable only
+  # on a dev instance with demo Firestore data. Removable once Phase 3
+  # ships real Firebase teacher auth.
+  _TEACHER_MOCK_AUTH: ''
 
 tags: ['${_PROJECT_ID}', '${_SERVICE_NAME}']
 
@@ -199,6 +208,9 @@ steps:
       # default "aitana-platform" — see backend/skills/platform.py.
       - '--set-env-vars=PLATFORM_OWNER_UID=aipla-platform'
       - '--set-env-vars=PLATFORM_OWNER_EMAIL=platform@aipla.dev'
+      # 1.A follow-up demo bypass — dev trigger overrides to '1'.
+      # See _TEACHER_MOCK_AUTH substitution comment above.
+      - '--set-env-vars=AIPLA_TEACHER_MOCK_AUTH=${_TEACHER_MOCK_AUTH}'
 
   # --- Post-deploy smoke: fail the build if any critical endpoint is not 200 ---
   # Per CLAUDE.md: no feature lands with manual-only verification. This step

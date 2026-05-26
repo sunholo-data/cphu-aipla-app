@@ -138,6 +138,39 @@ class TestMissingBoundClass:
         with pytest.raises(GroupRevoked):
             AnonymousGroupAuth.user_from_token(token)
 
+    def test_teacher_mock_auth_env_flips_is_teacher_for_anon_user(self, monkeypatch) -> None:
+        """1.A follow-up demo bypass (2026-05-26): when
+        AIPLA_TEACHER_MOCK_AUTH=1 is set on the service, anon-group
+        users get is_teacher=True so the /teacher/* pages can reach
+        the real /api/classes/* backend without Firebase OAuth.
+
+        Also injects the synthetic role:teacher tag so AccessControl
+        gates that scope to teachers (manage-class) work in the
+        bypass path."""
+        monkeypatch.setenv("AIPLA_TEACHER_MOCK_AUTH", "1")
+        cls = _make_class()
+        codes = classes_db.mint_group_codes_under_class(cls.class_id, count=1)
+        token = _mint_token_for_code(codes[0])
+
+        user = AnonymousGroupAuth.user_from_token(token)
+        assert user.is_teacher is True
+        assert "role:teacher" in user.group_tags
+        # Class binding still applies on top of the bypass.
+        assert cls.tag_namespace in user.group_tags
+
+    def test_teacher_mock_auth_default_off_keeps_is_teacher_false(self, monkeypatch) -> None:
+        """Without AIPLA_TEACHER_MOCK_AUTH set, anon-group users are NOT
+        teachers — the default v1 behavior. Regression guard so the
+        bypass doesn't leak into test/prod by accident."""
+        monkeypatch.delenv("AIPLA_TEACHER_MOCK_AUTH", raising=False)
+        cls = _make_class()
+        codes = classes_db.mint_group_codes_under_class(cls.class_id, count=1)
+        token = _mint_token_for_code(codes[0])
+
+        user = AnonymousGroupAuth.user_from_token(token)
+        assert user.is_teacher is False
+        assert "role:teacher" not in user.group_tags
+
     def test_anon_groups_doc_missing_falls_through_to_empty(self) -> None:
         """If the anon_groups doc itself is missing (Firestore write
         failed in cloud mode, or pre-2.11 in-memory-only record), the
