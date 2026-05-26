@@ -1,0 +1,297 @@
+{
+  "sprint_id": "TEACHER-PERMISSION-1A",
+  "created": "2026-05-26T08:00:00Z",
+  "estimated_duration_days": 4,
+  "design_doc": "docs/design/aipla/v1.0.0-pilot/teacher-permission-model.md",
+  "sprint_plan": "docs/design/aipla/v1.0.0-pilot/teacher-permission-1a-sprint.md",
+  "branch": "feature/teacher-permission-model",
+  "base_commit": "48bfe03",
+  "pr_target": "dev (no PR — commit direct per AIPLA workflow)",
+  "features": [
+    {
+      "id": "M1",
+      "description": "Class Pydantic model with tag-namespace invariant validator. New file backend/db/models/class_.py + unit tests. Mandatory namespace shape: class:<owner_uid>:<class_id> enforced server-side at construction.",
+      "scope": "backend",
+      "estimated_loc": 130,
+      "actual_loc": null,
+      "dependencies": [],
+      "acceptance_criteria": [
+        "Class.create_for_teacher(owner_uid, name) constructs tag_namespace=f'class:{owner_uid}:{class_id}' server-side",
+        "tag_namespace @field_validator rejects manually-supplied tags that don't match expected shape",
+        "Class.revoke() sets revoked=True + revoked_at; idempotent (calling twice doesn't change revoked_at)",
+        "camelCase aliases on all wire fields (classId, ownerUid, tagNamespace, groupCodes, createdAt, updatedAt, revokedAt)",
+        "Unit tests cover: happy-path construct, manual-tag rejection, soft-delete semantics, alias round-trip, two teachers produce different namespaces"
+      ],
+      "files_to_create": [
+        "backend/db/models/class_.py",
+        "backend/tests/unit/test_class_model.py"
+      ],
+      "files_to_modify": [],
+      "passes": null,
+      "started": null,
+      "completed": null,
+      "notes": "Class is reserved in Python — trailing underscore on module name per design doc. Field validator is the single security boundary for the namespace invariant; if touched, related unit tests must be reviewed."
+    },
+    {
+      "id": "M2",
+      "description": "Firestore CRUD for classes. New backend/db/classes.py mirroring backend/db/chat_sessions.py pattern. Functions: create_class, get_class, list_classes_for_owner, update_class, add_lessons, remove_lessons, revoke_class, mint_group_codes_under_class, revoke_group_code.",
+      "scope": "backend",
+      "estimated_loc": 200,
+      "actual_loc": null,
+      "dependencies": ["M1"],
+      "acceptance_criteria": [
+        "All CRUD functions covered by unit tests via the existing in-memory store fixture (no GCP credentials)",
+        "Soft-delete: revoke_class() flips the flag without dropping the doc; get_class() still returns it",
+        "list_classes_for_owner() filters by owner uid (teacher A cannot see teacher B's classes through this path)",
+        "mint_group_codes_under_class() writes both the anon_groups/<code> doc with class_id AND appends to Class.groupCodes; atomic via Firestore batch"
+      ],
+      "files_to_create": [
+        "backend/db/classes.py",
+        "backend/tests/unit/test_classes_firestore.py"
+      ],
+      "files_to_modify": [],
+      "passes": null,
+      "started": null,
+      "completed": null,
+      "notes": "Pattern mirror: backend/db/chat_sessions.py. M3 can start in parallel with M2 (no dependency between them)."
+    },
+    {
+      "id": "M3",
+      "description": "Teacher Firebase auth path. Extend get_current_user dispatch in backend/auth/__init__.py to accept Firebase teacher JWT alongside anon-group + LOCAL_MODE. Mark as auth_mode='firebase_teacher' so downstream handlers can distinguish.",
+      "scope": "backend",
+      "estimated_loc": 120,
+      "actual_loc": null,
+      "dependencies": ["M1"],
+      "acceptance_criteria": [
+        "Firebase token with valid signature + email returns User(auth_mode='firebase_teacher', uid=<firebase uid>, email=<email>)",
+        "Existing anon-group tokens still dispatch correctly (regression test)",
+        "LOCAL_MODE shortcut still works (regression test)",
+        "Invalid Firebase token returns 401 with a clear error message (no auth_mode leakage in the error)"
+      ],
+      "files_to_create": [
+        "backend/tests/unit/test_get_current_user_teacher.py"
+      ],
+      "files_to_modify": [
+        "backend/auth/__init__.py",
+        "backend/auth/firebase_auth.py"
+      ],
+      "passes": null,
+      "started": null,
+      "completed": null,
+      "notes": "Pre-existing firebase_auth.py from M1 template should already handle Firebase JWT verification — confirm before adding new code. Can run in parallel with M2."
+    },
+    {
+      "id": "M4",
+      "description": "Eight new REST endpoints under /api/classes/*: CRUD + lessons (PATCH with add/remove) + groups (POST mint, DELETE revoke). Each endpoint enforces ownership; OTel span tag class_id + teacher_uid on every span.",
+      "scope": "backend",
+      "estimated_loc": 350,
+      "actual_loc": null,
+      "dependencies": ["M2", "M3"],
+      "acceptance_criteria": [
+        "Each endpoint: happy-path test + auth-gate (no token = 401) + ownership-gate (teacher A cannot read/write teacher B's class = 403/404)",
+        "PATCH /lessons writes Skill.accessControl.tags for every added skill (appends class.tag_namespace idempotently — no duplicates on double-call)",
+        "PATCH /lessons with remove undoes both the binding (skill side) and the membership (class side)",
+        "POST /groups returns the freshly-minted group codes in the response body",
+        "OTel span tag class_id + teacher_uid set on every /api/classes/* span (verified via test exporter)",
+        "Router registered in backend/fast_api_app.py"
+      ],
+      "files_to_create": [
+        "backend/protocols/classes_routes.py",
+        "backend/tests/api_tests/test_classes_route.py"
+      ],
+      "files_to_modify": [
+        "backend/fast_api_app.py",
+        "backend/db/models/class_.py"
+      ],
+      "passes": null,
+      "started": null,
+      "completed": null,
+      "notes": "Pydantic request/response shapes live in class_.py alongside the Class model. This is the gate before the fan-out wave (M5/M6/M7/M8/M9)."
+    },
+    {
+      "id": "M5",
+      "description": "Group→Class binding in backend/auth/group_id_auth.py. Replace hardcoded group_tags=frozenset() at line 175 with class-namespace lookup. Live revocation check: stale JWT minted before class soft-delete must be rejected on a fresh request.",
+      "scope": "backend",
+      "estimated_loc": 140,
+      "actual_loc": null,
+      "dependencies": ["M4"],
+      "acceptance_criteria": [
+        "Anon-student joins via code bound to class with tagNamespace='class:T1:C1' = minted JWT carries group_tags=['class:T1:C1']",
+        "Anon-student joins via pre-v1 group code (no class_id field) = JWT carries group_tags=[] (today's behaviour preserved — regression)",
+        "Anon-student joins via code whose bound class is revoked=true = 403 with clear error",
+        "Stale JWT minted BEFORE class was soft-deleted is also rejected on a fresh request (live revocation check at verify_group_token layer)",
+        "Existing anon-group tests still pass (regression)"
+      ],
+      "files_to_create": [
+        "backend/tests/api_tests/test_group_join_with_class.py"
+      ],
+      "files_to_modify": [
+        "backend/auth/group_id_auth.py"
+      ],
+      "passes": null,
+      "started": null,
+      "completed": null,
+      "notes": "The one-line edit at line 175 is misleading — the real work is the class lookup + revocation check. Test the revoked path explicitly; it's a common forget-to-check class of bug."
+    },
+    {
+      "id": "M6",
+      "description": "Backend E2E integration test exercising the full chain with the REAL AccessContext.can_access evaluator — no mocks. Slow/integration-marked so make test-fast skips it.",
+      "scope": "backend",
+      "estimated_loc": 150,
+      "actual_loc": null,
+      "dependencies": ["M5"],
+      "acceptance_criteria": [
+        "Test creates two teachers + two classes; adds skill A to class T1 only; student joining via T1's code sees A but not T2-only skills",
+        "Student attempts to invoke a T2-only skill directly by skill_id = 403",
+        "Test passes against the in-memory Firestore fixture",
+        "Test marked @pytest.mark.slow + @pytest.mark.integration",
+        "Commit message records: 'AccessContext.can_access() unchanged in this sprint' (axiom 9 promise) — verifiable via git diff"
+      ],
+      "files_to_create": [
+        "backend/tests/integration/test_class_skill_access_e2e.py"
+      ],
+      "files_to_modify": [],
+      "passes": null,
+      "started": null,
+      "completed": null,
+      "notes": "Proof that the design's primary success criterion holds: existing 5-type evaluator untouched, all new behaviour comes from the ownership/minting layer above it."
+    },
+    {
+      "id": "M7",
+      "description": "Frontend teacher dashboard. New /teacher route (index + per-class detail), useTeacherAuth route-guard hook, typed teacherApi helpers. Extend AuthContext to surface Firebase teacher token alongside (not instead of) anon-group state.",
+      "scope": "frontend",
+      "estimated_loc": 500,
+      "actual_loc": null,
+      "dependencies": ["M4"],
+      "acceptance_criteria": [
+        "Google OAuth sign-in at /teacher lands on dashboard within ~1.5s TTI on clean cache (manual on deployed dev)",
+        "Dashboard lists signed-in teacher's classes via GET /api/classes (real backend call, not LOCAL_MODE stub)",
+        "Create-class form (name + optional description) submits to POST /api/classes; new class appears in list",
+        "Per-class page: lessons multi-select queries /api/skills; Add/Remove hits PATCH /api/classes/{id}/lessons",
+        "Group-code minter: 'Mint N codes' button renders response codes in copyable list",
+        "Route guard: visiting /teacher without Firebase token redirects to sign-in surface (not the anon-group /group page)",
+        "Existing /group and /chat/* flows unaffected (regression)",
+        "Vitest green for new + modified tests"
+      ],
+      "files_to_create": [
+        "frontend/src/app/teacher/page.tsx",
+        "frontend/src/app/teacher/[classId]/page.tsx",
+        "frontend/src/hooks/useTeacherAuth.ts",
+        "frontend/src/lib/teacherApi.ts",
+        "frontend/src/app/teacher/__tests__/page.test.tsx"
+      ],
+      "files_to_modify": [
+        "frontend/src/contexts/AuthContext.tsx",
+        "frontend/src/contexts/__tests__/AuthContext.test.tsx"
+      ],
+      "passes": null,
+      "started": null,
+      "completed": null,
+      "notes": "1.G-Ph2 teacher UI pages currently render against LOCAL_MODE stub data — this milestone replaces stub with real /api/classes/* calls. The 1.G-Ph3 LOCAL_MODE-removal swap is a SEPARATE follow-up sprint (don't lift LOCAL_MODE gates in this sprint)."
+    },
+    {
+      "id": "M8",
+      "description": "manage-class skill — A2UI form authored as a chat-driven alternative to the React dashboard. Both surfaces consume the same /api/classes/* endpoints by design. Teacher-role tag on the skill keeps it off student skill lists.",
+      "scope": "backend",
+      "estimated_loc": 180,
+      "actual_loc": null,
+      "dependencies": ["M4"],
+      "acceptance_criteria": [
+        "After re-seed, manage-class skill exists in Firestore with accessControl.type='tagged' and a teacher-role tag",
+        "Anon-student calling GET /api/skills does NOT see manage-class",
+        "Teacher (Firebase teacher JWT) calling GET /api/skills DOES see manage-class",
+        "The skill's A2UI surface renders a create-class form when teacher invokes via chat (manual check)",
+        "The agent's tool surface routes form submissions to the /api/classes/* CRUD"
+      ],
+      "files_to_create": [
+        "backend/skills/templates/manage-class/SKILL.md",
+        "backend/skills/templates/manage-class/a2ui.json"
+      ],
+      "files_to_modify": [
+        "backend/admin/platform_seed.py"
+      ],
+      "passes": null,
+      "started": null,
+      "completed": null,
+      "notes": "Teacher-role tag is the access primitive — encode in the Firebase teacher JWT's group_tags at M3 (or via parallel path on User shape). JB/AR can pick React dashboard vs chat-form empirically; v1 ships both."
+    },
+    {
+      "id": "M9",
+      "description": "aiplatform class CLI family — 6 subcommands: new, list, get, lessons, groups, delete. respx-mocked transport tests. CLI authenticates via the existing aiplatform auth login flow (no new auth path).",
+      "scope": "fullstack",
+      "estimated_loc": 280,
+      "actual_loc": null,
+      "dependencies": ["M4"],
+      "acceptance_criteria": [
+        "Every subcommand wraps the right httpx call with the right body shape (verified by respx-mocked tests)",
+        "CLI authenticates as teacher's Firebase token via aiplatform auth login (no new auth path)",
+        "--help strings clear enough to be self-documenting",
+        "make cli-selftest includes a class-roundtrip exercise (create → list → mint code → delete)"
+      ],
+      "files_to_create": [
+        "cli/aiplatform/commands/class_.py",
+        "cli/tests/test_cli_class.py"
+      ],
+      "files_to_modify": [
+        "cli/aiplatform/__init__.py",
+        "Makefile"
+      ],
+      "passes": null,
+      "started": null,
+      "completed": null,
+      "notes": "Module name class_.py (trailing underscore) to match the Pydantic model file. Subcommand is `aiplatform class new/list/get/lessons/groups/delete` (top-level `class` is the family name)."
+    },
+    {
+      "id": "M10",
+      "description": "Smoke script + quality gates + direct-to-dev merge. New scripts/smoke-v1-permission-model.sh exercises the full chain against LOCAL_MODE. Per AIPLA workflow: NO PR for dev. Rebase the feature branch onto current dev and FF-merge, or cherry-pick milestones direct to dev.",
+      "scope": "fullstack",
+      "estimated_loc": 80,
+      "actual_loc": null,
+      "dependencies": ["M5", "M6", "M7", "M8", "M9"],
+      "acceptance_criteria": [
+        "cd backend && make lint clean (ruff check + ruff format --check, CI-parity)",
+        "cd backend && make test-fast green (excluding pre-existing whoami/tenant failures)",
+        "cd frontend && npm run quality:check green (lint + typecheck + tests + build)",
+        "make cli-selftest green",
+        "scripts/smoke-v1-permission-model.sh exits 0",
+        "No emoji introduced in any changed file",
+        "Sprint branch merged direct to dev — NO PR for dev (test/prod promotion still uses PRs)",
+        "git diff dev~10..dev -- backend/auth/access_context.py shows zero changes (axiom 9 promise)",
+        "Manual on deployed dev URL: full chain works end-to-end"
+      ],
+      "files_to_create": [
+        "scripts/smoke-v1-permission-model.sh"
+      ],
+      "files_to_modify": [],
+      "passes": null,
+      "started": null,
+      "completed": null,
+      "notes": "Direct-to-dev merge per feedback-aipla-git-workflow memory. test branch is the next gate (that one IS a PR)."
+    }
+  ],
+  "velocity": {
+    "target_loc_per_day": 530,
+    "actual_loc_per_day": null,
+    "estimated_total_loc": 2130,
+    "actual_total_loc": null,
+    "estimated_days": 4,
+    "actual_days": null
+  },
+  "parallelism": {
+    "waves": [
+      {"wave": 1, "milestones": ["M1"], "notes": "Foundation; everything else depends on the Class model"},
+      {"wave": 2, "milestones": ["M2", "M3"], "notes": "Parallel: Firestore CRUD + teacher Firebase auth path, both depend only on M1"},
+      {"wave": 3, "milestones": ["M4"], "notes": "Single milestone gating the fan-out wave"},
+      {"wave": 4, "milestones": ["M5", "M7", "M8", "M9"], "notes": "Fan-out: group binding, frontend dashboard, manage-class skill, CLI — all depend only on M4"},
+      {"wave": 5, "milestones": ["M6"], "notes": "E2E test depends on M5 (real group→class binding)"},
+      {"wave": 6, "milestones": ["M10"], "notes": "Quality gates + direct-to-dev merge"}
+    ],
+    "executor_recommendation": "sequential",
+    "executor_recommendation_reason": "Design-doc estimate is 3.7d which fits a single focused work-week. Parallel mode might shave ~0.5d but adds merge-conflict surface across AuthContext + skill seed + CLI that costs more than it saves at this scale."
+  },
+  "github_issues": [],
+  "last_session": null,
+  "last_checkpoint": null,
+  "status": "planned",
+  "executor_handoff_note": "PLANNED ONLY — do NOT auto-execute. User will review the plan and explicitly invoke sprint-executor when ready. When invoked, create branch feature/teacher-permission-model off current dev HEAD, run M1→M10 sequentially (or per waves if parallel mode), run milestone-specific quality gates after each, and at M10 rebase/FF-merge direct to dev with NO PR (per AIPLA workflow). Push to origin/dev; Cloud Build deploys automatically."
+}
