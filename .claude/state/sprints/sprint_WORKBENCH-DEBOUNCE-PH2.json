@@ -1,0 +1,151 @@
+{
+  "sprint_id": "WORKBENCH-DEBOUNCE-PH2",
+  "created": "2026-05-26T11:00:00Z",
+  "estimated_duration_days": 0.55,
+  "design_doc": "docs/design/aipla/v1.0.0-pilot/workbench-state-debounce.md",
+  "sprint_plan": "docs/design/aipla/v1.0.0-pilot/workbench-debounce-ph2-sprint.md",
+  "branch": "feature/workbench-commit-on-submit",
+  "base_commit": "788a555",
+  "pr_target": "dev (no PR — commit direct per AIPLA workflow)",
+  "features": [
+    {
+      "id": "M1",
+      "description": "Replace __paramTimers setTimeout debounce in boldkast/v1/index.html with a pendingChanges map. Slider settle writes locally; NO host emit.",
+      "scope": "frontend",
+      "estimated_loc": 40,
+      "actual_loc": null,
+      "dependencies": [],
+      "acceptance_criteria": [
+        "Drag v0 from 10 to 25 m/s produces zero host messages",
+        "pendingChanges map accumulates all changed params with their latest values",
+        "Existing emit() calls for boldkast.play/pause/reset/show_value still fire"
+      ],
+      "files_to_create": [],
+      "files_to_modify": ["infrastructure/mcp-sandbox/artefacts/boldkast/v1/index.html"],
+      "passes": null,
+      "started": null,
+      "completed": null,
+      "notes": null
+    },
+    {
+      "id": "M2",
+      "description": "#play button click flushes pendingChanges as boldkast.state-change with triggeredBy: 'play', then fires the existing boldkast.play emit.",
+      "scope": "frontend",
+      "estimated_loc": 30,
+      "actual_loc": null,
+      "dependencies": ["M1"],
+      "acceptance_criteria": [
+        "Drag v0 + theta then click Afspil produces exactly one boldkast.state-change with both params + final state",
+        "boldkast.state-change precedes boldkast.play on the wire",
+        "pendingChanges cleared after flush",
+        "Clicking Play with no pending changes does NOT emit a state-change (only the play event)"
+      ],
+      "files_to_create": [],
+      "files_to_modify": ["infrastructure/mcp-sandbox/artefacts/boldkast/v1/index.html"],
+      "passes": null,
+      "started": null,
+      "completed": null,
+      "notes": null
+    },
+    {
+      "id": "M3",
+      "description": "Artefact handles inbound ui/notifications/chat-flush JSON-RPC notification. Flushes pendingChanges as state-change with triggeredBy: 'chat-submit'.",
+      "scope": "frontend",
+      "estimated_loc": 30,
+      "actual_loc": null,
+      "dependencies": ["M2"],
+      "acceptance_criteria": [
+        "Inbound chat-flush notification triggers state-change emit when pendingChanges has entries",
+        "Inbound chat-flush with empty pendingChanges is a no-op (no emit)",
+        "pendingChanges cleared after flush"
+      ],
+      "files_to_create": [],
+      "files_to_modify": ["infrastructure/mcp-sandbox/artefacts/boldkast/v1/index.html"],
+      "passes": null,
+      "started": null,
+      "completed": null,
+      "notes": null
+    },
+    {
+      "id": "M4",
+      "description": "Host wires chat-submit -> artefact flush. BoldkastSimFrame exposes sendChatFlush via ref; chat/[...path]/page.tsx handleSend fires it before sendMessage.",
+      "scope": "frontend",
+      "estimated_loc": 80,
+      "actual_loc": null,
+      "dependencies": ["M3"],
+      "acceptance_criteria": [
+        "BoldkastSimFrame ref shape includes sendChatFlush() method",
+        "sendChatFlush dispatches ui/notifications/chat-flush via the underlying StaticArtefactFrame ref",
+        "chat/[...path]/page.tsx handleSend calls boldkastFrameRef.current?.sendChatFlush() before sendMessage",
+        "Missing/unmounted BoldkastSimFrame: handleSend proceeds without error (no-op flush)",
+        "Fire-and-forget: no awaiting the flush — chat send proceeds immediately"
+      ],
+      "files_to_create": [],
+      "files_to_modify": [
+        "frontend/src/components/workspace/BoldkastSimFrame.tsx",
+        "frontend/src/app/chat/[...path]/page.tsx"
+      ],
+      "passes": null,
+      "started": null,
+      "completed": null,
+      "notes": null
+    },
+    {
+      "id": "M5",
+      "description": "Update .claude/skills/mcp-app-artefact/SKILL.md with the commit-on-submit convention so LED Planck (1.C) + KineBot (1.D) authors implement it from the start.",
+      "scope": "frontend",
+      "estimated_loc": 50,
+      "actual_loc": null,
+      "dependencies": ["M4"],
+      "acceptance_criteria": [
+        "SKILL.md includes a Phase 2 commit-on-submit section",
+        "Documents both commit signals (Afspil-class click, chat-flush notification)",
+        "Pattern snippet: pendingChanges map + flushPending helper + wire shape (triggeredBy field)"
+      ],
+      "files_to_create": [],
+      "files_to_modify": [".claude/skills/mcp-app-artefact/SKILL.md"],
+      "passes": null,
+      "started": null,
+      "completed": null,
+      "notes": null
+    },
+    {
+      "id": "M6",
+      "description": "Tests + quality gates + direct-to-dev merge. Add BoldkastSimFrame test cases for sendChatFlush. Update any existing tests that assumed per-settle host messages. Run npm run quality:check + cd backend && make test-fast. FF-merge to dev, no PR.",
+      "scope": "fullstack",
+      "estimated_loc": 80,
+      "actual_loc": null,
+      "dependencies": ["M5"],
+      "acceptance_criteria": [
+        "BoldkastSimFrame.test.tsx asserts sendChatFlush ref method dispatches correct notification",
+        "Existing tests updated for the new zero-emit-on-settle semantics where applicable",
+        "cd frontend && npm run quality:check green",
+        "cd backend && make test-fast green (no regression)",
+        "No emoji introduced",
+        "Branch rebased onto origin/dev and FF-merged direct to dev",
+        "origin/dev pushed"
+      ],
+      "files_to_create": [],
+      "files_to_modify": [
+        "frontend/src/components/workspace/__tests__/BoldkastSimFrame.test.tsx"
+      ],
+      "passes": null,
+      "started": null,
+      "completed": null,
+      "notes": null
+    }
+  ],
+  "velocity": {
+    "target_loc_per_day": 560,
+    "actual_loc_per_day": null,
+    "estimated_total_loc": 310,
+    "actual_total_loc": null,
+    "estimated_days": 0.55,
+    "actual_days": null
+  },
+  "github_issues": [],
+  "last_session": null,
+  "last_checkpoint": null,
+  "status": "in_progress",
+  "started_at": "2026-05-26T11:00:00Z"
+}
