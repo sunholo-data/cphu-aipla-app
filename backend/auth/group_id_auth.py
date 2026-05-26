@@ -166,15 +166,26 @@ class AnonymousGroupAuth:
         ``email`` and ``domain`` are empty strings (no PII). The
         ``auth_mode`` field signals downstream code to use group-level
         permission lookups.
+
+        Class binding (1.A M5): when the group code is bound to a class
+        (``anon_groups/<code>.classId`` set), the JWT carries
+        ``group_tags={class.tag_namespace}`` so the existing tagged-
+        access evaluator picks up the binding. A revoked class —
+        whether soft-deleted (``revoked=True``) or hard-deleted (doc
+        gone) — rejects the token at this layer, even if the JWT itself
+        is otherwise valid. This is the live-revocation guarantee.
         """
         claims = verify_group_token(token)
+        group_id = claims["group_id"]
+        group_tags = _resolve_class_tags(group_id)
+
         return User(
             uid=claims["sub"],
             email="",
             domain="",
-            group_tags=frozenset(),
+            group_tags=group_tags,
             auth_mode=AUTH_MODE,
-            group_id=claims["group_id"],
+            group_id=group_id,
         )
 
 
@@ -189,6 +200,51 @@ _state = AnonymousGroupAuth()
 
 
 # ─── Internal helpers ───────────────────────────────────────────────────────
+
+
+def _resolve_class_tags(group_id: str) -> frozenset[str]:
+    """Look up the class binding for a group code and return its
+    tag_namespace as a single-element frozenset, or empty for unbound
+    codes.
+
+    Three cases:
+      1. anon_groups doc missing entirely (cloud-mode Firestore write
+         failed, or pre-2.11 in-memory-only code): empty tags — the
+         in-memory ``_state.groups`` record already proved the JWT is
+         legitimate at the verify_group_token layer.
+      2. anon_groups doc exists with no ``classId``: pre-v1 unbound
+         code, empty tags. Preserves the v0.1 demo flow.
+      3. anon_groups doc exists with ``classId`` pointing to a
+         soft-deleted OR missing class: raise ``GroupRevoked``. This
+         is the live-revocation guarantee — once a teacher revokes a
+         class, every JWT under it stops working on the next verify
+         regardless of when it was minted.
+
+    Case 3 only fires when there's an explicit class binding to check.
+    Cases 1 and 2 fall through cleanly to the pre-v1 zero-tags
+    behaviour, so this addition is non-breaking for any code that
+    doesn't opt into the class binding.
+    """
+    # Lazy import — db.classes lazy-imports auth.group_id_auth.create_group
+    # so we avoid the circular at top-of-module load.
+    from db.classes import get_class
+    from db.firestore import get_document
+
+    anon_doc = get_document("anon_groups", group_id)
+    if anon_doc is None:
+        return frozenset()
+
+    class_id = anon_doc.get("classId")
+    if not class_id:
+        return frozenset()
+
+    cls = get_class(class_id)
+    if cls is None:
+        raise GroupRevoked(f"group {group_id!r} bound to class {class_id!r} which no longer exists")
+    if cls.revoked:
+        raise GroupRevoked(f"group {group_id!r} bound to revoked class {class_id!r}")
+
+    return frozenset({cls.tag_namespace})
 
 
 def _signing_secret() -> str:

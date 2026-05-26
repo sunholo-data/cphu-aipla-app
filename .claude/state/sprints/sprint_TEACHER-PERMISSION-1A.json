@@ -131,10 +131,11 @@
       "files_to_modify": [
         "backend/auth/group_id_auth.py"
       ],
-      "passes": null,
-      "started": null,
-      "completed": null,
-      "notes": "The one-line edit at line 175 is misleading — the real work is the class lookup + revocation check. Test the revoked path explicitly; it's a common forget-to-check class of bug."
+      "passes": true,
+      "started": "2026-05-26T09:45:00Z",
+      "completed": "2026-05-26T09:58:00Z",
+      "actual_loc": 200,
+      "notes": "Added _resolve_class_tags helper called from user_from_token. Three cases: (1) anon_groups doc missing entirely → empty tags (don't lock out v0.1 codes during Firestore outage); (2) doc exists with no classId → empty tags (pre-v1 unbound); (3) doc exists with classId pointing to soft-deleted/missing class → GroupRevoked (live revocation, this is the security guarantee). Initial implementation was too strict in case 1 — regressed 3 existing tests by treating missing anon_groups doc as revocation; loosened to fall-through. 5/5 M5 tests + 56 group-related tests + 1459 total fast tests all green. Lint clean."
     },
     {
       "id": "M6",
