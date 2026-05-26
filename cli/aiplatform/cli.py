@@ -12,6 +12,7 @@ import click
 from aiplatform import __version__
 from aiplatform.commands.access import access
 from aiplatform.commands.bucket import bucket
+from aiplatform.commands.class_ import class_group
 from aiplatform.commands.docs import docs
 from aiplatform.commands.folder import folder
 from aiplatform.commands.groups import groups
@@ -44,6 +45,7 @@ main.add_command(access)
 main.add_command(skill)
 main.add_command(sessions)
 main.add_command(smoke)
+main.add_command(class_group)
 
 
 if __name__ == "__main__":

@@ -242,13 +242,14 @@
         "cli/tests/test_cli_class.py"
       ],
       "files_to_modify": [
-        "cli/aiplatform/__init__.py",
-        "Makefile"
+        "cli/aiplatform/cli.py",
+        "cli/aiplatform/http.py"
       ],
-      "passes": null,
-      "started": null,
-      "completed": null,
-      "notes": "Module name class_.py (trailing underscore) to match the Pydantic model file. Subcommand is `aiplatform class new/list/get/lessons/groups/delete` (top-level `class` is the family name)."
+      "passes": true,
+      "started": "2026-05-26T10:32:00Z",
+      "completed": "2026-05-26T10:42:00Z",
+      "actual_loc": 460,
+      "notes": "6 subcommands implemented (new, list, get, lessons, groups, delete). `groups` is a multi-action subcommand with --mint / --list / --revoke; lessons takes repeatable --add / --remove. http.AIPlatformClient gained a .patch() method (was missing; PATCH wasn't used elsewhere in the CLI yet). 14/14 M9 tests + 50 existing CLI tests = 64 green. Lint clean on my new files; CLI dir has pre-existing lint debt in unrelated tests (test_cli_smoke.py, test_cli_sessions.py) that I deliberately did NOT touch. make cli-selftest needs `aiplatform` installed on PATH which is M10 territory."
     },
     {
       "id": "M10",
