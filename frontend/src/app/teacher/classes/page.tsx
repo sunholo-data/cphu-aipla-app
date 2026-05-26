@@ -1,4 +1,7 @@
+"use client";
+
 import Link from "next/link";
+import { useCallback, useEffect, useState } from "react";
 import {
   ArrowRight,
   BookOpen,
@@ -8,12 +11,34 @@ import {
   Users,
 } from "lucide-react";
 
+import { MOCK_RECENT_SESSIONS } from "../_mock-data";
 import {
-  MOCK_CLASSES,
-  MOCK_RECENT_SESSIONS,
-} from "../_mock-data";
+  type ClassPayload,
+  createClass,
+  listClasses,
+} from "@/lib/teacherApi";
 
 export default function TeacherClassesPage() {
+  const [classes, setClasses] = useState<ClassPayload[] | null>(null);
+  const [loadError, setLoadError] = useState<string | null>(null);
+  const [showNewClassForm, setShowNewClassForm] = useState(false);
+
+  const refresh = useCallback(async () => {
+    setLoadError(null);
+    try {
+      const list = await listClasses();
+      setClasses(list);
+    } catch (err) {
+      setLoadError(
+        err instanceof Error ? err.message : "failed to load classes",
+      );
+    }
+  }, []);
+
+  useEffect(() => {
+    void refresh();
+  }, [refresh]);
+
   return (
     <div className="flex flex-col gap-8">
       <header className="flex flex-wrap items-center justify-between gap-3">
@@ -25,14 +50,32 @@ export default function TeacherClassesPage() {
         </div>
         <button
           type="button"
-          disabled
-          title="Class creation lands in Phase 3"
-          className="flex items-center gap-1.5 rounded border border-border px-3 py-1.5 text-sm font-medium text-muted-foreground opacity-60"
+          onClick={() => setShowNewClassForm((v) => !v)}
+          className="flex items-center gap-1.5 rounded border border-border px-3 py-1.5 text-sm font-medium hover:bg-accent"
         >
           <Plus className="h-4 w-4" aria-hidden="true" />
           New class
         </button>
       </header>
+
+      {showNewClassForm ? (
+        <NewClassForm
+          onCreated={() => {
+            setShowNewClassForm(false);
+            void refresh();
+          }}
+          onCancel={() => setShowNewClassForm(false)}
+        />
+      ) : null}
+
+      {loadError ? (
+        <p
+          role="alert"
+          className="rounded border border-destructive bg-destructive/10 px-3 py-2 text-sm text-destructive"
+        >
+          Couldn&rsquo;t load classes: {loadError}
+        </p>
+      ) : null}
 
       <section
         aria-labelledby="classes-grid-label"
@@ -41,41 +84,13 @@ export default function TeacherClassesPage() {
         <h2 id="classes-grid-label" className="sr-only">
           Class cards
         </h2>
-        {MOCK_CLASSES.map((cls) => (
-          <article
-            key={cls.id}
-            className="flex flex-col gap-3 rounded border border-border bg-background p-4 shadow-sm"
-          >
-            <header className="flex items-start justify-between gap-2">
-              <h3 className="text-lg font-semibold">{cls.name}</h3>
-              <Users className="h-5 w-5 text-muted-foreground" aria-hidden="true" />
-            </header>
-            <p className="text-sm text-muted-foreground">
-              {cls.groupsActive} groups active
-              {cls.groupsTotal !== cls.groupsActive
-                ? ` of ${cls.groupsTotal}`
-                : ""}
-              {" · "}
-              {cls.activities.filter((a) => a.configured).length} lessons configured
-            </p>
-            <div className="mt-1 flex flex-wrap gap-2">
-              <Link
-                href={`/teacher/classes/${cls.id}`}
-                className="rounded bg-primary px-3 py-1.5 text-sm font-medium text-primary-foreground hover:opacity-90"
-              >
-                Manage
-              </Link>
-              {cls.groups[0] ? (
-                <Link
-                  href={`/teacher/reports/groups/${cls.groups[0].code}`}
-                  className="rounded border border-border px-3 py-1.5 text-sm font-medium hover:bg-accent"
-                >
-                  Latest report
-                </Link>
-              ) : null}
-            </div>
-          </article>
-        ))}
+        {classes === null ? (
+          <p className="text-sm text-muted-foreground">Loading classes&hellip;</p>
+        ) : classes.length === 0 ? (
+          <EmptyState onCreateClick={() => setShowNewClassForm(true)} />
+        ) : (
+          classes.map((cls) => <ClassCard key={cls.classId} cls={cls} />)
+        )}
       </section>
 
       <section aria-labelledby="recent-activity-label" className="flex flex-col gap-3">
@@ -107,7 +122,9 @@ export default function TeacherClassesPage() {
                   <BookOpen className="h-3.5 w-3.5" aria-hidden="true" />
                   {row.activityName}
                 </span>
-                <span className="text-xs text-muted-foreground">{row.whenLabel}</span>
+                <span className="text-xs text-muted-foreground">
+                  {row.whenLabel}
+                </span>
               </div>
               <Link
                 href={`/teacher/reports/groups/${row.groupCode}`}
@@ -121,5 +138,139 @@ export default function TeacherClassesPage() {
         </ul>
       </section>
     </div>
+  );
+}
+
+function ClassCard({ cls }: { cls: ClassPayload }) {
+  return (
+    <article className="flex flex-col gap-3 rounded border border-border bg-background p-4 shadow-sm">
+      <header className="flex items-start justify-between gap-2">
+        <h3 className="text-lg font-semibold">{cls.name}</h3>
+        <Users className="h-5 w-5 text-muted-foreground" aria-hidden="true" />
+      </header>
+      <p className="text-sm text-muted-foreground">
+        {cls.groupCodes.length} group{cls.groupCodes.length === 1 ? "" : "s"} ·{" "}
+        {cls.lessons.length} lesson{cls.lessons.length === 1 ? "" : "s"}{" "}
+        configured
+      </p>
+      <div className="mt-1 flex flex-wrap gap-2">
+        <Link
+          href={`/teacher/classes/${cls.classId}`}
+          className="rounded bg-primary px-3 py-1.5 text-sm font-medium text-primary-foreground hover:opacity-90"
+        >
+          Manage
+        </Link>
+        {cls.groupCodes[0] ? (
+          <Link
+            href={`/teacher/reports/groups/${cls.groupCodes[0]}`}
+            className="rounded border border-border px-3 py-1.5 text-sm font-medium hover:bg-accent"
+          >
+            Latest report
+          </Link>
+        ) : null}
+      </div>
+    </article>
+  );
+}
+
+function EmptyState({ onCreateClick }: { onCreateClick: () => void }) {
+  return (
+    <div className="col-span-full flex flex-col items-start gap-2 rounded border border-dashed border-border p-6">
+      <p className="text-sm font-medium">No classes yet.</p>
+      <p className="text-sm text-muted-foreground">
+        Create your first class to start minting group codes for students.
+      </p>
+      <button
+        type="button"
+        onClick={onCreateClick}
+        className="mt-2 flex items-center gap-1.5 rounded bg-primary px-3 py-1.5 text-sm font-medium text-primary-foreground hover:opacity-90"
+      >
+        <Plus className="h-4 w-4" aria-hidden="true" />
+        Create class
+      </button>
+    </div>
+  );
+}
+
+function NewClassForm({
+  onCreated,
+  onCancel,
+}: {
+  onCreated: () => void;
+  onCancel: () => void;
+}) {
+  const [name, setName] = useState("");
+  const [description, setDescription] = useState("");
+  const [submitting, setSubmitting] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  async function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    setError(null);
+    setSubmitting(true);
+    try {
+      await createClass({
+        name: name.trim(),
+        description: description.trim() || null,
+      });
+      onCreated();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "failed to create class");
+    } finally {
+      setSubmitting(false);
+    }
+  }
+
+  return (
+    <form
+      onSubmit={handleSubmit}
+      className="flex flex-col gap-3 rounded border border-border bg-background p-4"
+      aria-label="Create class"
+    >
+      <label className="flex flex-col gap-1 text-sm">
+        <span className="font-medium">Class name</span>
+        <input
+          type="text"
+          value={name}
+          onChange={(e) => setName(e.target.value)}
+          required
+          minLength={1}
+          maxLength={200}
+          className="rounded border border-border bg-background px-2 py-1 text-sm"
+          placeholder="e.g. Physik 9A vår 2026"
+        />
+      </label>
+      <label className="flex flex-col gap-1 text-sm">
+        <span className="font-medium">Description (optional)</span>
+        <textarea
+          value={description}
+          onChange={(e) => setDescription(e.target.value)}
+          maxLength={2000}
+          rows={2}
+          className="rounded border border-border bg-background px-2 py-1 text-sm"
+        />
+      </label>
+      {error ? (
+        <p role="alert" className="text-sm text-destructive">
+          {error}
+        </p>
+      ) : null}
+      <div className="flex justify-end gap-2">
+        <button
+          type="button"
+          onClick={onCancel}
+          className="rounded border border-border px-3 py-1.5 text-sm font-medium hover:bg-accent"
+        >
+          Cancel
+        </button>
+        <button
+          type="submit"
+          disabled={submitting || name.trim().length === 0}
+          className="rounded bg-primary px-3 py-1.5 text-sm font-medium text-primary-foreground hover:opacity-90 disabled:opacity-50"
+        >
+          {submitting ? "Creating…" : "Create"}
+        </button>
+      </div>
+    </form>
   );
 }

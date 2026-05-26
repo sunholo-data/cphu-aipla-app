@@ -107,3 +107,136 @@ export async function fetchGroupLatestReport(
   );
   return readJson<SessionSummaryPayload>(resp, "load group report");
 }
+
+// ---------------------------------------------------------------------------
+// /api/classes/* — 1.A teacher-permission-model
+// ---------------------------------------------------------------------------
+
+export interface ClassPayload {
+  classId: string;
+  ownerUid: string;
+  name: string;
+  description: string | null;
+  tagNamespace: string;
+  lessons: string[];
+  groupCodes: string[];
+  revoked: boolean;
+  createdAt: string;
+  updatedAt: string;
+  revokedAt: string | null;
+}
+
+export interface ClassListPayload {
+  classes: ClassPayload[];
+}
+
+export interface CreateClassBody {
+  name: string;
+  description?: string | null;
+}
+
+export interface LessonsPatchBody {
+  add?: string[];
+  remove?: string[];
+}
+
+export interface MintGroupsResult {
+  classId: string;
+  codes: string[];
+}
+
+/** List classes owned by the current teacher. */
+export async function listClasses(): Promise<ClassPayload[]> {
+  const resp = await fetchWithAuth(`/api/proxy/api/classes`);
+  const body = await readJson<ClassListPayload>(resp, "list classes");
+  return body.classes;
+}
+
+/** Create a class owned by the current teacher. */
+export async function createClass(body: CreateClassBody): Promise<ClassPayload> {
+  const resp = await fetchWithAuth(`/api/proxy/api/classes`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(body),
+  });
+  return readJson<ClassPayload>(resp, "create class");
+}
+
+/** Read one class (owner-only — 404 for other teachers' classes). */
+export async function getClass(classId: string): Promise<ClassPayload> {
+  const resp = await fetchWithAuth(
+    `/api/proxy/api/classes/${encodeURIComponent(classId)}`,
+  );
+  return readJson<ClassPayload>(resp, "get class");
+}
+
+/** Update name and/or description. */
+export async function patchClass(
+  classId: string,
+  body: { name?: string; description?: string | null },
+): Promise<ClassPayload> {
+  const resp = await fetchWithAuth(
+    `/api/proxy/api/classes/${encodeURIComponent(classId)}`,
+    {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(body),
+    },
+  );
+  return readJson<ClassPayload>(resp, "update class");
+}
+
+/** Soft-delete (idempotent). */
+export async function deleteClass(
+  classId: string,
+): Promise<{ revoked: boolean; classId: string }> {
+  const resp = await fetchWithAuth(
+    `/api/proxy/api/classes/${encodeURIComponent(classId)}`,
+    { method: "DELETE" },
+  );
+  return readJson(resp, "delete class");
+}
+
+/** Add and/or remove skills from a class's lessons. */
+export async function patchLessons(
+  classId: string,
+  body: LessonsPatchBody,
+): Promise<ClassPayload> {
+  const resp = await fetchWithAuth(
+    `/api/proxy/api/classes/${encodeURIComponent(classId)}/lessons`,
+    {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(body),
+    },
+  );
+  return readJson<ClassPayload>(resp, "update lessons");
+}
+
+/** Mint N group codes under a class. */
+export async function mintGroupCodes(
+  classId: string,
+  count = 1,
+): Promise<MintGroupsResult> {
+  const resp = await fetchWithAuth(
+    `/api/proxy/api/classes/${encodeURIComponent(classId)}/groups`,
+    {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ count }),
+    },
+  );
+  return readJson<MintGroupsResult>(resp, "mint group codes");
+}
+
+/** Revoke a single group code. */
+export async function revokeGroupCode(
+  classId: string,
+  code: string,
+): Promise<{ revoked: boolean; code: string; classId: string }> {
+  const resp = await fetchWithAuth(
+    `/api/proxy/api/classes/${encodeURIComponent(classId)}/groups/${encodeURIComponent(code)}`,
+    { method: "DELETE" },
+  );
+  return readJson(resp, "revoke group code");
+}
