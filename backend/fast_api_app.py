@@ -238,6 +238,7 @@ from buckets.routes import router as buckets_router  # noqa: E402
 from protocols.a2a import router as a2a_router  # noqa: E402
 from protocols.a2ui_surface_action_routes import router as a2ui_surface_action_router  # noqa: E402
 from protocols.activity_config_routes import router as activity_config_router  # noqa: E402
+from protocols.classes_routes import router as classes_router  # noqa: E402
 from protocols.iframe_context_routes import router as iframe_context_router  # noqa: E402
 from protocols.mcp_proxy import router as mcp_proxy_router  # noqa: E402
 from protocols.mcp_server import get_mcp_asgi_app  # noqa: E402
@@ -269,6 +270,7 @@ app.include_router(iframe_context_router)
 app.include_router(session_bootstrap_router)
 app.include_router(a2ui_surface_action_router)
 app.include_router(activity_config_router)
+app.include_router(classes_router)
 app.include_router(reports_router)
 app.include_router(proactive_router)
 

@@ -103,13 +103,13 @@
         "backend/tests/api_tests/test_classes_route.py"
       ],
       "files_to_modify": [
-        "backend/fast_api_app.py",
-        "backend/db/models/class_.py"
+        "backend/fast_api_app.py"
       ],
-      "passes": null,
-      "started": null,
-      "completed": null,
-      "notes": "Pydantic request/response shapes live in class_.py alongside the Class model. This is the gate before the fan-out wave (M5/M6/M7/M8/M9)."
+      "passes": true,
+      "started": "2026-05-26T09:30:00Z",
+      "completed": "2026-05-26T09:45:00Z",
+      "actual_loc": 689,
+      "notes": "8 endpoints live: POST/GET/GET-one/PATCH/DELETE classes, PATCH /lessons, POST /groups, DELETE /groups/{code}. Ownership gate returns 404 (not 403) on cross-teacher access to avoid leaking existence. PATCH /lessons writes both Class.lessons AND Skill.accessControl.tags — idempotent both directions. 329 LOC routes + 360 LOC tests = 689 (vs 350 estimate; same denser-tests pattern). 26/26 new tests + 1427 existing fast = 1453 green. Note: Pydantic shapes ended up in classes_routes.py rather than class_.py — kept the model file clean and shape-with-route co-locates request/response close to handlers."
     },
     {
       "id": "M5",
