@@ -22,7 +22,8 @@
     font-size: 14px;
     line-height: 1.4;
   }
-  body { padding: 12px; }
+  body { padding: 8px; }
+  @media (min-width: 480px) { body { padding: 12px; } }
   header { margin-bottom: 8px; }
   header h1 { font-size: 15px; margin: 0 0 2px; font-weight: 600; }
   header .givens { color: var(--muted); font-size: 12px; }
@@ -119,14 +120,18 @@
   .graphs {
     display: grid;
     grid-template-columns: 1fr;
-    gap: 10px;
-    margin-top: 10px;
+    gap: 6px;
+    margin-top: 6px;
+  }
+  @media (min-width: 480px) {
+    .graphs { gap: 10px; margin-top: 10px; }
   }
   @media (min-width: 720px) {
     .graphs { grid-template-columns: 1fr 1fr; }
   }
   .graph-panel { padding: 8px; }
-  .graph-panel canvas { width: 100%; height: 160px; }
+  .graph-panel canvas { width: 100%; height: 120px; }
+  @media (min-width: 480px) { .graph-panel canvas { height: 160px; } }
   .graph-panel .caption {
     font-size: 11px;
     color: var(--muted);
@@ -304,7 +309,7 @@
     const dpr = window.devicePixelRatio || 1;
     const rect = canvas.getBoundingClientRect();
     canvas.width = Math.round(rect.width * dpr);
-    canvas.height = Math.round((rect.width * 0.55) * dpr);
+    canvas.height = Math.round((rect.width * 0.48) * dpr);
     ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
   }
 
@@ -425,7 +430,9 @@
     // World extents: scale to fit the full trajectory given current params.
     const { tof, range, ymax } = results(v0, theta, g);
     const worldW = Math.max(range * 1.1, 25);
-    const worldH = Math.max(ymax * 1.4, 12);
+    // 15% headroom above peak, minimum 1 m so low-angle shots don't
+    // produce a giant empty sky (the old 12 m minimum was way too large).
+    const worldH = Math.max(ymax * 1.15, 1);
 
     const pad = 30;
     const sx = (w - pad * 2) / worldW;
