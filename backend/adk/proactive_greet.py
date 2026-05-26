@@ -31,7 +31,15 @@ OPENING GUIDANCE (system context, not student input).
 
 The student has just joined this session. They have NOT yet sent
 a message. You are speaking first — your reply will be the first
-thing they see. Use the guidance below to shape that first turn:
+thing they see.
+
+If the most recent user message is the literal sentinel
+``[session_start]`` (or similar bracketed marker), treat it as a
+system signal that the student just opened the chat — do NOT echo
+it, reply to it literally, or ask what they meant. Just produce
+the opening turn described below.
+
+Use the guidance below to shape that first turn:
 
 {template}
 

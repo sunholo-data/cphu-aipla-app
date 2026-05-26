@@ -106,7 +106,10 @@ export function ReadAloudButton({
 
     const utt = new SpeechSynthesisUtterance(plainTextForSpeech(text));
     utt.lang = lang;
-    utt.rate = 1.0;
+    // 0.85 sounds more natural for Danish + non-native English listeners
+    // (default 1.0 is too fast for tutor turns). v2 may expose this in
+    // skill config — see audio-capture-and-tts.md v2 polish notes.
+    utt.rate = 0.85;
     utt.onend = () => {
       setIsSpeaking(false);
       utteranceRef.current = null;

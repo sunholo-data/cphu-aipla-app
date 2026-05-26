@@ -42,6 +42,13 @@ log = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/api/sessions", tags=["proactive-tutor"])
 
+# Non-natural-language sentinel used as the synthetic user message that
+# triggers the proactive greet turn. Must be non-empty (ag_ui_adk filters
+# falsy `content` — see endpoint comment for the call-site reference).
+# Kept short to minimise tokens; bracketed so the model recognises it as
+# a system marker rather than student input.
+PROACTIVE_GREET_TRIGGER = "[session_start]"
+
 
 class GreetRequest(BaseModel):
     """Body shape for ``POST /api/sessions/{id}/greet``."""
@@ -120,11 +127,19 @@ async def post_session_greet(
             )
         )
 
-    # 3. Drive the agent. The synthetic empty-content user message is
-    #    intentional: the agent's instruction already carries the
-    #    OPENING GUIDANCE block (see adk/proactive_greet.py), so the
-    #    first turn is shaped by that guidance rather than by any
-    #    student input.
+    # 3. Drive the agent. We send a short non-natural-language sentinel
+    #    rather than an empty string because ag_ui_adk's
+    #    `_convert_latest_message` filters out user messages whose
+    #    `content` is falsy (`""` included) — see
+    #    site-packages/ag_ui_adk/adk_agent.py:1098. With an empty
+    #    content the model is never invoked and we get back zero text.
+    #    The OPENING GUIDANCE block in the agent's instruction (see
+    #    adk/proactive_greet.py) tells the model the student has not
+    #    yet sent a message and that this sentinel is system-supplied,
+    #    so the first turn is shaped by that guidance rather than by
+    #    any student input. The sentinel persists in the session as a
+    #    user-role message; the frontend never renders it (only the
+    #    response `text` is shown as the first tutor bubble).
     access = request.state.access
     assistant_parts: list[str] = []
     try:
@@ -133,7 +148,7 @@ async def post_session_greet(
             user=user,
             access=access,
             session_id=session_id,
-            message="",
+            message=PROACTIVE_GREET_TRIGGER,
         ):
             event_type = event.get("type") if isinstance(event, dict) else None
             if event_type == "TEXT_MESSAGE_CONTENT":
