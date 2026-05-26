@@ -34,6 +34,58 @@ def seed_platform_skills(request: Request) -> dict[str, Any]:
     return summary.as_dict()
 
 
+class ResetSkillAccessRequest(BaseModel):
+    """Body for ``POST /api/admin/reset-skill-access``.
+
+    Identifies a platform-owned skill by ``name`` (platform skills are
+    uniquely keyed by name) and resets its accessControl to public.
+    One-off cleanup verb for unwinding orphan class-namespace tags
+    that the teacher PATCH /lessons path (or the early buggy demo
+    seed) wrote onto a skill the template ships as public.
+    """
+
+    name: str
+
+
+@router.post(
+    "/reset-skill-access",
+    responses={
+        404: {"description": "Skill not found"},
+        403: {"description": "Caller is not in ADMIN_SEED_ALLOWED_SAS"},
+    },
+)
+def reset_skill_access(body: ResetSkillAccessRequest, request: Request) -> dict[str, Any]:
+    """Reset a platform-owned skill's accessControl to ``{type: public}``."""
+    from db.firestore import get_document, set_document
+    from skills.platform import PLATFORM_OWNER_UID
+    from skills.skill_config import list_skills
+
+    caller_email = _assert_caller_is_service_account(request)
+    matches = [c for c in list_skills(owner_id=PLATFORM_OWNER_UID, limit=200) if c.name == body.name]
+    if not matches:
+        raise HTTPException(status_code=404, detail=f"Platform skill '{body.name}' not found")
+    skill = matches[0]
+    doc = get_document("skills", skill.skill_id)
+    if doc is None:
+        raise HTTPException(status_code=404, detail="Skill doc missing")
+    before = doc.get("accessControl", {})
+    doc["accessControl"] = {"type": "public"}
+    set_document("skills", skill.skill_id, doc)
+    logger.info(
+        "admin.reset_skill_access: %s (%s) accessControl %r -> public by %s",
+        body.name,
+        skill.skill_id,
+        before,
+        caller_email,
+    )
+    return {
+        "name": body.name,
+        "skillId": skill.skill_id,
+        "before": before,
+        "after": {"type": "public"},
+    }
+
+
 class PrunePlatformSkillsRequest(BaseModel):
     """Body for ``POST /api/admin/prune-platform-skills``.
 
