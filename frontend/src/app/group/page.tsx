@@ -18,11 +18,22 @@
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
+import { BookOpen, GraduationCap } from "lucide-react";
 
 import { AppFooter } from "@/components/AppFooter";
 import { useAnonymousGroupAuth } from "@/contexts/AnonymousGroupAuthProvider";
 import { isAnonymousGroupAuthMode } from "@/lib/anonymousGroupAuth";
 import { isLocalMode } from "@/lib/localMode";
+
+// 2026-05-26 — on dev the AIPLA_TEACHER_MOCK_AUTH bypass flags every
+// anon-group user as a teacher, so /teacher/classes is reachable
+// without Firebase OAuth. NEXT_PUBLIC_TEACHER_MOCK is set to '1' on
+// the same trigger that sets AIPLA_TEACHER_MOCK_AUTH (cloudbuild dev
+// subs); using it as a frontend proxy avoids adding another env var.
+// Empty / unset on test + prod, where the role picker would be
+// misleading (teacher route would 403).
+const TEACHER_DEMO_AVAILABLE =
+  process.env.NEXT_PUBLIC_TEACHER_MOCK === "1";
 
 // LOCAL_MODE convenience: the seeded group code from
 // backend/db/local_fixture.py. Showing it inline saves the
@@ -60,14 +71,22 @@ function GroupJoinForm() {
   const router = useRouter();
   const [code, setCode] = useState("");
 
-  // When the provider transitions to `joined`, route to the lesson
-  // picker — NOT to "/", which in anonymous-group mode shows a CTA
-  // pointing back here and creates a redirect loop.
+  // When the provider transitions to `joined`:
+  //   • Production / no demo bypass: redirect to /lessons (student
+  //     flow — the natural anon-group landing).
+  //   • Dev with TEACHER_DEMO_AVAILABLE: show the role picker so the
+  //     visitor explicitly chooses Student or Teacher (demo). The
+  //     bypass makes both surfaces work; the picker just makes the
+  //     CHOICE explicit instead of implicit.
   useEffect(() => {
-    if (status === "joined") {
+    if (status === "joined" && !TEACHER_DEMO_AVAILABLE) {
       router.replace("/lessons");
     }
   }, [status, router]);
+
+  if (status === "joined" && TEACHER_DEMO_AVAILABLE) {
+    return <DemoRolePicker onPick={(href) => router.push(href)} />;
+  }
 
   const isJoining = status === "joining";
 
@@ -194,5 +213,84 @@ function ErrorBlock({
     >
       {body}
     </p>
+  );
+}
+
+/**
+ * Post-join role picker shown ONLY on dev (`NEXT_PUBLIC_TEACHER_MOCK=1`).
+ * Two big cards: Student → `/lessons`, Teacher (demo) → `/teacher/classes`.
+ *
+ * The `AIPLA_TEACHER_MOCK_AUTH=1` backend bypass makes both surfaces
+ * work for any anon-group visitor; the picker just makes the choice
+ * explicit instead of implicit (visitors were ending up on the teacher
+ * surface confused about why they had teacher access).
+ *
+ * Removable once 1.G-Ph3 ships real Firebase teacher auth — at that
+ * point the role isn't a visitor choice, it's a property of how the
+ * user signed in.
+ */
+function DemoRolePicker({ onPick }: { onPick: (href: string) => void }) {
+  return (
+    <main className="mx-auto flex max-w-2xl flex-col gap-6 p-8">
+      <header className="space-y-2">
+        <h1 className="text-2xl font-semibold">
+          Demo mode — pick a view
+        </h1>
+        <p className="text-sm text-muted-foreground">
+          You can preview either side of AIPLA. Pick the role you want to
+          explore. You can return here at any time by visiting{" "}
+          <code className="rounded bg-muted px-1 py-0.5">/group</code>{" "}
+          again.
+        </p>
+        <p className="rounded border border-dashed border-border bg-muted/40 px-3 py-2 text-xs text-muted-foreground">
+          On the production deployment the teacher route requires a real
+          UCPH sign-in (Firebase OAuth — Phase 3). This demo bypass is
+          dev-only, marked by the&nbsp;
+          <code className="rounded bg-muted px-1 py-0.5">
+            NEXT_PUBLIC_TEACHER_MOCK
+          </code>
+          &nbsp;build flag.
+        </p>
+      </header>
+
+      <div className="grid gap-4 sm:grid-cols-2">
+        <button
+          type="button"
+          onClick={() => onPick("/lessons")}
+          className="flex flex-col items-start gap-3 rounded border border-border bg-background p-5 text-left shadow-sm transition hover:border-primary"
+        >
+          <BookOpen className="h-8 w-8 text-primary" aria-hidden="true" />
+          <div className="flex flex-col gap-1">
+            <span className="text-lg font-semibold">Student</span>
+            <span className="text-sm text-muted-foreground">
+              Browse and start lessons. The chat tutor speaks first; the
+              workbench sim is alongside for problem-set lessons.
+            </span>
+          </div>
+        </button>
+        <button
+          type="button"
+          onClick={() => onPick("/teacher/classes")}
+          className="flex flex-col items-start gap-3 rounded border border-border bg-background p-5 text-left shadow-sm transition hover:border-primary"
+        >
+          <GraduationCap
+            className="h-8 w-8 text-primary"
+            aria-hidden="true"
+          />
+          <div className="flex flex-col gap-1">
+            <span className="text-lg font-semibold">
+              Teacher{" "}
+              <span className="text-xs font-normal uppercase tracking-wide text-muted-foreground">
+                demo
+              </span>
+            </span>
+            <span className="text-sm text-muted-foreground">
+              Manage classes, assign lessons, mint group codes, see session
+              reports. Bypass is on so no UCPH sign-in is needed.
+            </span>
+          </div>
+        </button>
+      </div>
+    </main>
   );
 }

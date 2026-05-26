@@ -92,3 +92,53 @@ def test_seed_unverified_email_returns_403(client, allow_env):
             headers={"Authorization": "Bearer stub-id-token"},
         )
     assert resp.status_code == 403
+
+
+def test_prune_dry_run_default(client, allow_env):
+    """POST /api/admin/prune-platform-skills defaults to dry_run=True
+    so the first call lists what would be deleted without writing."""
+    with (
+        patch("admin.auth.id_token.verify_oauth2_token") as mock_verify,
+        patch("admin.routes.platform_seed.prune") as mock_prune,
+    ):
+        mock_verify.return_value = {
+            "email": "cloudbuild-sa@multivac-deploy-aitana.iam.gserviceaccount.com",
+            "email_verified": True,
+        }
+        mock_prune.return_value = {
+            "pruned": ["legacy-skill"],
+            "kept": ["problem-set-hints"],
+            "templates_on_disk": ["problem-set-hints"],
+        }
+        resp = client.post(
+            "/api/admin/prune-platform-skills",
+            json={},
+            headers={"Authorization": "Bearer stub-id-token"},
+        )
+    assert resp.status_code == 200
+    assert resp.json()["pruned"] == ["legacy-skill"]
+    mock_prune.assert_called_with(dry_run=True)
+
+
+def test_prune_commits_when_dry_run_false(client, allow_env):
+    with (
+        patch("admin.auth.id_token.verify_oauth2_token") as mock_verify,
+        patch("admin.routes.platform_seed.prune") as mock_prune,
+    ):
+        mock_verify.return_value = {
+            "email": "cloudbuild-sa@multivac-deploy-aitana.iam.gserviceaccount.com",
+            "email_verified": True,
+        }
+        mock_prune.return_value = {"pruned": ["legacy"], "kept": [], "templates_on_disk": []}
+        resp = client.post(
+            "/api/admin/prune-platform-skills",
+            json={"dry_run": False},
+            headers={"Authorization": "Bearer stub-id-token"},
+        )
+    assert resp.status_code == 200
+    mock_prune.assert_called_with(dry_run=False)
+
+
+def test_prune_missing_bearer_returns_403(client, allow_env):
+    resp = client.post("/api/admin/prune-platform-skills", json={})
+    assert resp.status_code == 403

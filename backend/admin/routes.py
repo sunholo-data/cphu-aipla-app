@@ -34,6 +34,45 @@ def seed_platform_skills(request: Request) -> dict[str, Any]:
     return summary.as_dict()
 
 
+class PrunePlatformSkillsRequest(BaseModel):
+    """Body for ``POST /api/admin/prune-platform-skills``.
+
+    Defaults to dry-run (``dry_run=True``) so the first call lists what
+    would be deleted without actually deleting. Pass ``dry_run=false``
+    to commit the deletion.
+    """
+
+    dry_run: bool = True
+
+
+@router.post(
+    "/prune-platform-skills",
+    responses={
+        403: {"description": "Caller is not in ADMIN_SEED_ALLOWED_SAS"},
+    },
+)
+def prune_platform_skills(body: PrunePlatformSkillsRequest, request: Request) -> dict[str, Any]:
+    """Delete platform-owned Firestore skills whose template no longer
+    exists on disk.
+
+    Dry-run by default — returns the would-delete list without writing.
+    Pass ``{"dry_run": false}`` to commit. Idempotent. Not auto-run by
+    the deploy seeder; this is the explicit cleanup verb. Use after
+    culling generic templates (the 2026-05-26 1.B follow-up removed
+    7 inherited templates whose Firestore docs needed pruning).
+    """
+    caller_email = _assert_caller_is_service_account(request)
+    result = platform_seed.prune(dry_run=body.dry_run)
+    logger.info(
+        "admin.prune_platform_skills: dry_run=%s pruned=%d kept=%d by %s",
+        body.dry_run,
+        len(result.get("pruned", [])),
+        len(result.get("kept", [])),
+        caller_email,
+    )
+    return result
+
+
 class MintDemoGroupRequest(BaseModel):
     """AIPLA admin path for minting an anonymous-group code without a
     Firebase teacher session, used to wire up the Jutland v0.1 + ongoing

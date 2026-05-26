@@ -29,6 +29,11 @@ import { fetchWithAuth } from "@/lib/apiClient";
 import { isAnonymousGroupAuthMode } from "@/lib/anonymousGroupAuth";
 import type { Skill } from "@/types/skill";
 
+// Mirror of /group's TEACHER_DEMO_AVAILABLE. When set we show a small
+// "Switch to teacher view" banner so visitors who picked Student can
+// jump to the teacher surface without re-joining via /group.
+const TEACHER_DEMO_AVAILABLE = process.env.NEXT_PUBLIC_TEACHER_MOCK === "1";
+
 // Outer component decides which inner to mount. Calling
 // useAnonymousGroupAuth from outside an AnonymousGroupAuthProvider
 // throws, and the provider is only mounted in anonymous-group-id
@@ -95,6 +100,7 @@ function UniversalLessonsPage({
 
   return (
     <main className="mx-auto flex max-w-5xl flex-col gap-6 p-4 sm:p-6">
+      {TEACHER_DEMO_AVAILABLE ? <DemoRoleBanner currentRole="student" /> : null}
       <header className="flex flex-col gap-1">
         <h1 className="text-xl font-semibold sm:text-2xl">Lektioner / Lessons</h1>
         <p className="text-sm text-muted-foreground">
@@ -188,6 +194,31 @@ function EmptyState() {
     </div>
   );
 }
+
+/** Dev-only "switch role" banner that appears on both /lessons (student
+ *  view) and /teacher/classes (teacher view). Lets visitors jump
+ *  between the two surfaces without re-joining via /group. Hidden in
+ *  production (TEACHER_DEMO_AVAILABLE is false). */
+function DemoRoleBanner({ currentRole }: { currentRole: "student" | "teacher" }) {
+  const otherRole = currentRole === "student" ? "teacher" : "student";
+  const otherHref = currentRole === "student" ? "/teacher/classes" : "/lessons";
+  return (
+    <div className="flex flex-wrap items-center justify-between gap-2 rounded border border-dashed border-border bg-muted/40 px-3 py-2 text-xs text-muted-foreground">
+      <span>
+        <span className="font-medium uppercase tracking-wide">Demo</span> · You
+        are in the <strong>{currentRole}</strong> view.
+      </span>
+      <Link
+        href={otherHref}
+        className="rounded border border-border bg-background px-2 py-1 text-xs font-medium hover:bg-accent"
+      >
+        Switch to {otherRole} view
+      </Link>
+    </div>
+  );
+}
+
+export { DemoRoleBanner };
 
 function ErrorBanner({
   message,

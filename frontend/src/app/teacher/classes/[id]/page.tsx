@@ -326,10 +326,10 @@ export default function TeacherClassDetailPage() {
                 key={lesson.skillId}
                 className="flex flex-wrap items-center justify-between gap-2 px-3 py-2"
               >
-                <div className="flex min-w-0 flex-1 items-center gap-2">
-                  <BookOpen
-                    className="h-4 w-4 text-muted-foreground"
-                    aria-hidden="true"
+                <div className="flex min-w-0 flex-1 items-center gap-3">
+                  <LessonAvatar
+                    avatar={lesson.avatar}
+                    title={lesson.displayName}
                   />
                   <div className="flex flex-col">
                     <span className="text-sm font-medium">{lesson.displayName}</span>
@@ -426,15 +426,21 @@ function LessonPicker({
                 type="button"
                 onClick={() => onPick(lesson.skillId)}
                 disabled={busyId !== null}
-                className="flex w-full items-center justify-between gap-2 rounded px-2 py-1.5 text-left text-sm hover:bg-accent disabled:opacity-50"
+                className="flex w-full items-center justify-between gap-3 rounded px-2 py-1.5 text-left text-sm hover:bg-accent disabled:opacity-50"
               >
-                <span className="flex flex-col">
-                  <span className="font-medium">{lesson.displayName}</span>
-                  {lesson.description ? (
-                    <span className="line-clamp-1 text-xs text-muted-foreground">
-                      {lesson.description}
-                    </span>
-                  ) : null}
+                <span className="flex min-w-0 flex-1 items-center gap-3">
+                  <LessonAvatar
+                    avatar={lesson.avatar}
+                    title={lesson.displayName}
+                  />
+                  <span className="flex min-w-0 flex-col">
+                    <span className="font-medium">{lesson.displayName}</span>
+                    {lesson.description ? (
+                      <span className="line-clamp-1 text-xs text-muted-foreground">
+                        {lesson.description}
+                      </span>
+                    ) : null}
+                  </span>
                 </span>
                 <span className="text-xs text-muted-foreground">
                   {busyId === lesson.skillId ? "Adding…" : "Add"}
@@ -446,4 +452,36 @@ function LessonPicker({
       )}
     </div>
   );
+}
+
+/** Thumbnail used in the linked-lessons list + the picker. Mirrors the
+ *  LessonCover fallback pattern from the student-side /lessons picker
+ *  so a lesson's identity reads the same on both surfaces. Square
+ *  64px-ish thumb works for both list-row and picker contexts. */
+function LessonAvatar({ avatar, title }: { avatar: string; title: string }) {
+  if (avatar) {
+    return (
+      <div className="h-10 w-14 shrink-0 overflow-hidden rounded bg-muted">
+        {/* eslint-disable-next-line @next/next/no-img-element */}
+        <img
+          src={avatar}
+          alt=""
+          aria-hidden="true"
+          className="h-full w-full object-cover"
+        />
+      </div>
+    );
+  }
+  return (
+    <div
+      aria-hidden="true"
+      className="flex h-10 w-14 shrink-0 items-center justify-center rounded bg-gradient-to-br from-muted to-accent"
+    >
+      <BookOpen className="h-5 w-5 text-muted-foreground" />
+    </div>
+  );
+  // title param kept in signature for API parity with the avatar
+  // branch (where the alt text might be derived from it later); not
+  // rendered here since the surrounding row already labels the lesson.
+  void title;
 }

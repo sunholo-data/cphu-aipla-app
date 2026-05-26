@@ -12,6 +12,9 @@ import {
 } from "lucide-react";
 
 import { MOCK_RECENT_SESSIONS } from "../_mock-data";
+import { DemoRoleBanner } from "@/app/lessons/page";
+
+const TEACHER_DEMO_AVAILABLE = process.env.NEXT_PUBLIC_TEACHER_MOCK === "1";
 import {
   type ClassPayload,
   createClass,
@@ -41,6 +44,7 @@ export default function TeacherClassesPage() {
 
   return (
     <div className="flex flex-col gap-8">
+      {TEACHER_DEMO_AVAILABLE ? <DemoRoleBanner currentRole="teacher" /> : null}
       <header className="flex flex-wrap items-center justify-between gap-3">
         <div>
           <h1 className="text-xl font-semibold sm:text-2xl">My classes</h1>
