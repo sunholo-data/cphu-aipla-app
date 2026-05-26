@@ -229,6 +229,51 @@ export async function mintGroupCodes(
   return readJson<MintGroupsResult>(resp, "mint group codes");
 }
 
+// ---------------------------------------------------------------------------
+// /api/skills — lesson catalogue used by the lessons picker on the class
+// detail page. Reuses the same auth + AccessControl evaluator as the
+// student-side /lessons picker.
+// ---------------------------------------------------------------------------
+
+export interface SkillSummary {
+  skillId: string;
+  name: string;
+  slug?: string | null;
+  displayName: string;
+  description: string;
+  avatar: string;
+  ownerId: string;
+}
+
+/** List skills the current teacher can access (their own + class-bound + public).
+ *  Returns the same shape as the student-side picker. */
+export async function listAccessibleSkills(): Promise<SkillSummary[]> {
+  const resp = await fetchWithAuth(`/api/proxy/api/skills`);
+  if (!resp.ok) {
+    throw new Error(`list skills: ${resp.status}`);
+  }
+  // Backend returns the full SkillConfig shape; we project to the fields
+  // the picker needs to keep the wire small in tests.
+  const full = (await resp.json()) as Array<{
+    skillId: string;
+    name: string;
+    slug?: string | null;
+    displayName?: string;
+    description?: string;
+    avatar?: string;
+    ownerId: string;
+  }>;
+  return full.map((s) => ({
+    skillId: s.skillId,
+    name: s.name,
+    slug: s.slug ?? null,
+    displayName: s.displayName || s.name,
+    description: s.description || "",
+    avatar: s.avatar || "",
+    ownerId: s.ownerId,
+  }));
+}
+
 /** Revoke a single group code. */
 export async function revokeGroupCode(
   classId: string,

@@ -2,25 +2,27 @@
 
 import Link from "next/link";
 import { notFound, useParams } from "next/navigation";
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import {
   ArrowLeft,
   ArrowRight,
-  CheckCircle2,
-  Circle,
+  BookOpen,
   Copy,
   ExternalLink,
   FileText,
   MessageCircle,
   Plus,
   Settings,
+  X,
 } from "lucide-react";
 
-import { getMockClass } from "../../_mock-data";
 import {
   type ClassPayload,
+  type SkillSummary,
   getClass,
+  listAccessibleSkills,
   mintGroupCodes,
+  patchLessons,
 } from "@/lib/teacherApi";
 
 export default function TeacherClassDetailPage() {
@@ -35,12 +37,12 @@ export default function TeacherClassDetailPage() {
   const [toast, setToast] = useState<string | null>(null);
   const [minting, setMinting] = useState(false);
 
-  // Activities still come from the mock until /api/skills + per-class
-  // lessons UX lands in v1.1 (teacher-artefact-parameters.md). We
-  // resolve the activities list off MOCK as a soft fallback when the
-  // class id matches a mocked class id (1.G-Ph2 demo); otherwise show
-  // an empty placeholder.
-  const mockClass = getMockClass(id);
+  // 1.A follow-up (2026-05-26) — Lessons section now backed by the
+  // real /api/skills catalogue + cls.lessons[]. Pick-from-list UI
+  // replaces the disabled "v1.1 placeholder" button.
+  const [catalogue, setCatalogue] = useState<SkillSummary[]>([]);
+  const [showPicker, setShowPicker] = useState(false);
+  const [busyLesson, setBusyLesson] = useState<string | null>(null);
 
   const refresh = useCallback(async () => {
     setLoadError(null);
@@ -63,6 +65,34 @@ export default function TeacherClassDetailPage() {
   useEffect(() => {
     if (id) void refresh();
   }, [id, refresh]);
+
+  // Load the lesson catalogue once on mount. Fire-and-forget — picker
+  // shows "Loading lessons…" if the fetch is in flight at click time.
+  useEffect(() => {
+    void listAccessibleSkills()
+      .then(setCatalogue)
+      .catch(() => {
+        // Picker just shows an empty state on failure — class itself
+        // still loads independently.
+        setCatalogue([]);
+      });
+  }, []);
+
+  // Derived views of the catalogue split by whether they're already on
+  // the class. Memoised so the picker doesn't recompute per render.
+  const linkedLessons = useMemo<SkillSummary[]>(() => {
+    if (!cls) return [];
+    const byId = new Map(catalogue.map((s) => [s.skillId, s]));
+    return cls.lessons
+      .map((sid) => byId.get(sid))
+      .filter((s): s is SkillSummary => s !== undefined);
+  }, [cls, catalogue]);
+
+  const availableLessons = useMemo<SkillSummary[]>(() => {
+    if (!cls) return catalogue;
+    const taken = new Set(cls.lessons);
+    return catalogue.filter((s) => !taken.has(s.skillId));
+  }, [cls, catalogue]);
 
   if (!id) {
     notFound();
@@ -114,6 +144,43 @@ export default function TeacherClassDetailPage() {
     void navigator.clipboard?.writeText(code).catch(() => {});
     setToast(`Copied ${code}`);
     window.setTimeout(() => setToast(null), 2500);
+  }
+
+  async function handleAddLesson(skillId: string) {
+    setBusyLesson(skillId);
+    try {
+      await patchLessons(cls!.classId, { add: [skillId] });
+      setShowPicker(false);
+      await refresh();
+      const title = catalogue.find((s) => s.skillId === skillId)?.displayName ?? skillId;
+      setToast(`Added "${title}"`);
+      window.setTimeout(() => setToast(null), 3000);
+    } catch (err) {
+      setToast(
+        err instanceof Error ? `Add failed: ${err.message}` : "Add failed",
+      );
+      window.setTimeout(() => setToast(null), 5000);
+    } finally {
+      setBusyLesson(null);
+    }
+  }
+
+  async function handleRemoveLesson(skillId: string) {
+    setBusyLesson(skillId);
+    try {
+      await patchLessons(cls!.classId, { remove: [skillId] });
+      await refresh();
+      const title = catalogue.find((s) => s.skillId === skillId)?.displayName ?? skillId;
+      setToast(`Removed "${title}"`);
+      window.setTimeout(() => setToast(null), 3000);
+    } catch (err) {
+      setToast(
+        err instanceof Error ? `Remove failed: ${err.message}` : "Remove failed",
+      );
+      window.setTimeout(() => setToast(null), 5000);
+    } finally {
+      setBusyLesson(null);
+    }
   }
 
   return (
@@ -216,63 +283,87 @@ export default function TeacherClassDetailPage() {
         )}
       </section>
 
-      {mockClass ? (
-        <section
-          aria-labelledby="activities-label"
-          className="flex flex-col gap-3"
-        >
-          <header className="flex items-center justify-between">
-            <h2 id="activities-label" className="text-lg font-semibold">
-              Activities available to this class
-            </h2>
-            <button
-              type="button"
-              disabled
-              title="Lessons-picker UI lands with v1.1 teacher-artefact-parameters"
-              className="flex items-center gap-1.5 rounded border border-border px-3 py-1.5 text-sm font-medium text-muted-foreground opacity-60"
-            >
-              <Plus className="h-4 w-4" aria-hidden="true" />
-              Add
-            </button>
-          </header>
+      <section aria-labelledby="lessons-label" className="flex flex-col gap-3">
+        <header className="flex items-center justify-between">
+          <h2 id="lessons-label" className="text-lg font-semibold">
+            Lessons assigned to this class
+          </h2>
+          <button
+            type="button"
+            onClick={() => setShowPicker((v) => !v)}
+            disabled={availableLessons.length === 0}
+            title={
+              availableLessons.length === 0
+                ? "No more lessons available to add"
+                : "Add a lesson from the catalogue"
+            }
+            className="flex items-center gap-1.5 rounded bg-primary px-3 py-1.5 text-sm font-medium text-primary-foreground hover:opacity-90 disabled:opacity-50"
+          >
+            <Plus className="h-4 w-4" aria-hidden="true" />
+            Add lesson
+          </button>
+        </header>
 
+        {showPicker ? (
+          <LessonPicker
+            options={availableLessons}
+            onPick={handleAddLesson}
+            onCancel={() => setShowPicker(false)}
+            busyId={busyLesson}
+          />
+        ) : null}
+
+        {linkedLessons.length === 0 ? (
+          <p className="rounded border border-dashed border-border px-3 py-4 text-sm text-muted-foreground">
+            No lessons assigned yet. Click &ldquo;Add lesson&rdquo; to pick from
+            the catalogue. Students who join via this class&rsquo;s group codes
+            will only see lessons listed here.
+          </p>
+        ) : (
           <ul className="divide-y divide-border rounded border border-border">
-            {mockClass.activities.map((a) => (
+            {linkedLessons.map((lesson) => (
               <li
-                key={a.id}
+                key={lesson.skillId}
                 className="flex flex-wrap items-center justify-between gap-2 px-3 py-2"
               >
                 <div className="flex min-w-0 flex-1 items-center gap-2">
-                  {a.configured ? (
-                    <CheckCircle2
-                      className="h-4 w-4 text-emerald-600"
-                      aria-label="Configured"
-                    />
-                  ) : (
-                    <Circle
-                      className="h-4 w-4 text-muted-foreground"
-                      aria-label="Not configured"
-                    />
-                  )}
+                  <BookOpen
+                    className="h-4 w-4 text-muted-foreground"
+                    aria-hidden="true"
+                  />
                   <div className="flex flex-col">
-                    <span className="text-sm font-medium">{a.name}</span>
-                    <span className="text-xs text-muted-foreground">
-                      {a.blurb}
-                    </span>
+                    <span className="text-sm font-medium">{lesson.displayName}</span>
+                    {lesson.description ? (
+                      <span className="line-clamp-1 text-xs text-muted-foreground">
+                        {lesson.description}
+                      </span>
+                    ) : null}
                   </div>
                 </div>
-                <Link
-                  href={`/teacher/activities/${a.id}`}
-                  className="flex items-center gap-1 rounded border border-border px-2 py-1 text-xs font-medium hover:bg-accent"
-                >
-                  <Settings className="h-3.5 w-3.5" aria-hidden="true" />
-                  {a.configured ? "Configure" : "Add"}
-                </Link>
+                <div className="flex items-center gap-1">
+                  <Link
+                    href={`/teacher/activities/${lesson.skillId}`}
+                    className="flex items-center gap-1 rounded border border-border px-2 py-1 text-xs font-medium hover:bg-accent"
+                  >
+                    <Settings className="h-3.5 w-3.5" aria-hidden="true" />
+                    Configure
+                  </Link>
+                  <button
+                    type="button"
+                    onClick={() => handleRemoveLesson(lesson.skillId)}
+                    disabled={busyLesson === lesson.skillId}
+                    aria-label={`Remove ${lesson.displayName}`}
+                    className="flex items-center gap-1 rounded border border-border px-2 py-1 text-xs font-medium text-muted-foreground hover:bg-destructive/10 hover:text-destructive disabled:opacity-50"
+                  >
+                    <X className="h-3.5 w-3.5" aria-hidden="true" />
+                    Remove
+                  </button>
+                </div>
               </li>
             ))}
           </ul>
-        </section>
-      ) : null}
+        )}
+      </section>
 
       <div
         role="status"
@@ -286,6 +377,73 @@ export default function TeacherClassDetailPage() {
           </div>
         ) : null}
       </div>
+    </div>
+  );
+}
+
+/** Inline picker rendered above the linked-lessons list when the
+ *  teacher clicks "Add lesson". Lists every catalogue entry not yet on
+ *  the class — click a row to add it. Cancel collapses without writing.
+ *  Kept inline (vs a modal) so the page state is simpler and screen
+ *  readers see the picker in the natural document flow. */
+function LessonPicker({
+  options,
+  onPick,
+  onCancel,
+  busyId,
+}: {
+  options: SkillSummary[];
+  onPick: (skillId: string) => void;
+  onCancel: () => void;
+  busyId: string | null;
+}) {
+  return (
+    <div
+      role="region"
+      aria-label="Pick a lesson to add"
+      className="flex flex-col gap-2 rounded border border-border bg-background p-3"
+    >
+      <header className="flex items-center justify-between">
+        <h3 className="text-sm font-semibold">Catalogue</h3>
+        <button
+          type="button"
+          onClick={onCancel}
+          className="text-xs text-muted-foreground hover:text-foreground"
+        >
+          Cancel
+        </button>
+      </header>
+      {options.length === 0 ? (
+        <p className="text-sm text-muted-foreground">
+          No more lessons available to add. Drop new lessons into{" "}
+          <code>backend/skills/templates/</code> and re-seed.
+        </p>
+      ) : (
+        <ul className="flex flex-col gap-1">
+          {options.map((lesson) => (
+            <li key={lesson.skillId}>
+              <button
+                type="button"
+                onClick={() => onPick(lesson.skillId)}
+                disabled={busyId !== null}
+                className="flex w-full items-center justify-between gap-2 rounded px-2 py-1.5 text-left text-sm hover:bg-accent disabled:opacity-50"
+              >
+                <span className="flex flex-col">
+                  <span className="font-medium">{lesson.displayName}</span>
+                  {lesson.description ? (
+                    <span className="line-clamp-1 text-xs text-muted-foreground">
+                      {lesson.description}
+                    </span>
+                  ) : null}
+                </span>
+                <span className="text-xs text-muted-foreground">
+                  {busyId === lesson.skillId ? "Adding…" : "Add"}
+                </span>
+              </button>
+            </li>
+          ))}
+        </ul>
+      )}
     </div>
   );
 }

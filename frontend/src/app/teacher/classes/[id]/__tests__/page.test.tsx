@@ -11,7 +11,20 @@ import {
 
 import { MOCK_CLASSES } from "@/app/teacher/_mock-data";
 import * as teacherApi from "@/lib/teacherApi";
-import type { ClassPayload } from "@/lib/teacherApi";
+import type { ClassPayload, SkillSummary } from "@/lib/teacherApi";
+
+function makeSkill(overrides: Partial<SkillSummary> = {}): SkillSummary {
+  return {
+    skillId: "skill-pset",
+    name: "problem-set-hints",
+    slug: "problem-set-hints",
+    displayName: "Problem-set hints (Boldkast)",
+    description: "Danish projectile-motion tutor.",
+    avatar: "",
+    ownerId: "aipla-platform",
+    ...overrides,
+  };
+}
 
 const targetClass = MOCK_CLASSES[0]!;
 const CLASS_ID = targetClass.id;
@@ -45,13 +58,21 @@ import TeacherClassDetailPage from "@/app/teacher/classes/[id]/page";
 
 type GetClassMock = MockedFunction<typeof teacherApi.getClass>;
 type MintMock = MockedFunction<typeof teacherApi.mintGroupCodes>;
+type ListSkillsMock = MockedFunction<typeof teacherApi.listAccessibleSkills>;
+type PatchLessonsMock = MockedFunction<typeof teacherApi.patchLessons>;
 
 let getSpy: GetClassMock;
 let mintSpy: MintMock;
+let listSkillsSpy: ListSkillsMock;
+let patchLessonsSpy: PatchLessonsMock;
 
 beforeEach(() => {
   getSpy = vi.spyOn(teacherApi, "getClass") as unknown as GetClassMock;
   mintSpy = vi.spyOn(teacherApi, "mintGroupCodes") as unknown as MintMock;
+  listSkillsSpy = vi.spyOn(teacherApi, "listAccessibleSkills") as unknown as ListSkillsMock;
+  patchLessonsSpy = vi.spyOn(teacherApi, "patchLessons") as unknown as PatchLessonsMock;
+  // Default: empty catalogue. Individual tests override.
+  listSkillsSpy.mockResolvedValue([]);
 });
 
 afterEach(() => {
@@ -105,6 +126,134 @@ describe("/teacher/classes/[id] — class detail", () => {
     render(<TeacherClassDetailPage />);
     await waitFor(() => {
       expect(screen.getByRole("alert")).toHaveTextContent(/permission denied/);
+    });
+  });
+
+  describe("lessons picker (1.A follow-up)", () => {
+    it("renders linked lessons with displayName + description", async () => {
+      getSpy.mockResolvedValue(
+        makeClassPayload({ lessons: ["skill-pset"] }),
+      );
+      listSkillsSpy.mockResolvedValue([makeSkill()]);
+
+      render(<TeacherClassDetailPage />);
+      await waitFor(() => {
+        expect(
+          screen.getByText("Problem-set hints (Boldkast)"),
+        ).toBeInTheDocument();
+      });
+      expect(
+        screen.getByText("Danish projectile-motion tutor."),
+      ).toBeInTheDocument();
+    });
+
+    it("'Add lesson' opens the picker showing only un-linked catalogue entries", async () => {
+      getSpy.mockResolvedValue(
+        makeClassPayload({ lessons: ["skill-pset"] }),
+      );
+      listSkillsSpy.mockResolvedValue([
+        makeSkill(),
+        makeSkill({ skillId: "skill-mc", displayName: "Manage classes" }),
+      ]);
+
+      render(<TeacherClassDetailPage />);
+      await waitFor(() => {
+        expect(
+          screen.getByRole("button", { name: /add lesson/i }),
+        ).toBeInTheDocument();
+      });
+
+      fireEvent.click(screen.getByRole("button", { name: /add lesson/i }));
+
+      // Picker shows only the un-linked entry.
+      await waitFor(() => {
+        expect(
+          screen.getByRole("region", { name: /pick a lesson/i }),
+        ).toBeInTheDocument();
+      });
+      // skill-mc is in the picker; skill-pset is NOT (already linked).
+      expect(screen.getByText("Manage classes")).toBeInTheDocument();
+      // Linked one still appears in the linked list, not in picker.
+      const psetMentions = screen.getAllByText("Problem-set hints (Boldkast)");
+      expect(psetMentions.length).toBe(1);
+    });
+
+    it("picking a lesson calls patchLessons + refreshes the class", async () => {
+      getSpy
+        .mockResolvedValueOnce(makeClassPayload({ lessons: [] }))
+        .mockResolvedValueOnce(makeClassPayload({ lessons: ["skill-pset"] }));
+      listSkillsSpy.mockResolvedValue([makeSkill()]);
+      patchLessonsSpy.mockResolvedValue(
+        makeClassPayload({ lessons: ["skill-pset"] }),
+      );
+
+      render(<TeacherClassDetailPage />);
+      await waitFor(() => {
+        expect(
+          screen.getByRole("button", { name: /add lesson/i }),
+        ).toBeInTheDocument();
+      });
+      fireEvent.click(screen.getByRole("button", { name: /add lesson/i }));
+
+      // Click the lesson row in the picker. The button's accessible
+      // name includes the lesson title (displayName + description +
+      // "Add" affordance), so match by displayName.
+      const pickerRow = await screen.findByRole("button", {
+        name: /Problem-set hints \(Boldkast\)/,
+      });
+      fireEvent.click(pickerRow);
+
+      await waitFor(() => {
+        expect(patchLessonsSpy).toHaveBeenCalledWith(CLASS_ID, {
+          add: ["skill-pset"],
+        });
+      });
+      // After refresh, lesson appears linked.
+      await waitFor(() => {
+        const linked = screen.getAllByText("Problem-set hints (Boldkast)");
+        expect(linked.length).toBeGreaterThan(0);
+      });
+    });
+
+    it("Remove on a linked lesson calls patchLessons({remove})", async () => {
+      getSpy
+        .mockResolvedValueOnce(makeClassPayload({ lessons: ["skill-pset"] }))
+        .mockResolvedValueOnce(makeClassPayload({ lessons: [] }));
+      listSkillsSpy.mockResolvedValue([makeSkill()]);
+      patchLessonsSpy.mockResolvedValue(makeClassPayload({ lessons: [] }));
+
+      render(<TeacherClassDetailPage />);
+      await waitFor(() => {
+        expect(
+          screen.getByText("Problem-set hints (Boldkast)"),
+        ).toBeInTheDocument();
+      });
+
+      fireEvent.click(
+        screen.getByRole("button", {
+          name: /remove problem-set hints/i,
+        }),
+      );
+
+      await waitFor(() => {
+        expect(patchLessonsSpy).toHaveBeenCalledWith(CLASS_ID, {
+          remove: ["skill-pset"],
+        });
+      });
+    });
+
+    it("Add lesson button is disabled when there are no available skills left", async () => {
+      getSpy.mockResolvedValue(
+        makeClassPayload({ lessons: ["skill-pset"] }),
+      );
+      listSkillsSpy.mockResolvedValue([makeSkill()]); // catalogue is the same one already linked
+
+      render(<TeacherClassDetailPage />);
+      await waitFor(() => {
+        expect(
+          screen.getByRole("button", { name: /add lesson/i }),
+        ).toBeDisabled();
+      });
     });
   });
 });
