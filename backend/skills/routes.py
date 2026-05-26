@@ -83,6 +83,13 @@ class SkillResponse(BaseModel):
     protocols: dict
     initial_message: str = Field(alias="initialMessage")
     problem_statement: str = Field(default="", alias="problemStatement")
+    # 1.I-PhA — exposed so the frontend can decide whether to fire the
+    # proactive-greet POST on chat mount (useSkillMeta reads this).
+    # Without this field the GET response strips them and the proactive
+    # path stays dormant even after platform_seed upserts the flag onto
+    # the Firestore doc.
+    proactive_greet: bool = Field(default=False, alias="proactiveGreet")
+    opening_template: str = Field(default="", alias="openingTemplate")
     tags: list[str]
     featured: bool
     usage_count: int = Field(alias="usageCount")
