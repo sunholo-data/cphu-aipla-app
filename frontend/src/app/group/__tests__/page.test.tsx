@@ -100,7 +100,7 @@ describe("/group page — mode gating", () => {
 });
 
 describe("/group page — happy join", () => {
-  it("calls join + redirects to / on success", async () => {
+  it("calls join + redirects to /lessons on success", async () => {
     fetchMock.mockResolvedValueOnce({
       ok: true,
       status: 200,
@@ -120,13 +120,10 @@ describe("/group page — happy join", () => {
       fireEvent.click(screen.getByRole("button", { name: /join/i }));
     });
     await waitFor(() => {
-      // AIPLA v0.1 — joined user routes directly to the demo skill chat,
-      // not "/" (which in anonymous-group mode shows a "Tilslut din gruppe"
-      // CTA back to /group → redirect loop). Match the env-overridable
-      // default in group/page.tsx.
-      expect(routerReplaceMock).toHaveBeenCalledWith(
-        expect.stringMatching(/^\/chat\/.*problem-set-hints$/),
-      );
+      // 1.B (2026-05-26) — joined user routes to /lessons (the lesson
+      // picker), not a hardcoded chat URL. The picker fetches accessible
+      // skills via the same evaluator that gates other endpoints.
+      expect(routerReplaceMock).toHaveBeenCalledWith("/lessons");
     });
   });
 

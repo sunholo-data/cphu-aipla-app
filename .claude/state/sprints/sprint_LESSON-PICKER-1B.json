@@ -104,7 +104,9 @@
   "github_issues": [],
   "last_session": null,
   "last_checkpoint": null,
-  "status": "planned",
+  "status": "completed",
+  "started_at": "2026-05-26T11:30:00Z",
+  "completed_at": "2026-05-26T11:50:00Z",
   "queue_position": 1,
   "queue_rationale": "FE-only, no deps, small enough for a single-session run; unblocks 1.C/1.D visibility for students."
 }

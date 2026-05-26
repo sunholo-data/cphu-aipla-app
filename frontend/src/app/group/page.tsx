@@ -48,27 +48,24 @@ export default function GroupJoinPage() {
   return <GroupJoinForm />;
 }
 
-// AIPLA v0.1 — after a successful group join, send the user directly
-// to the single skill the demo exposes. Previously this redirected to
-// "/", which under anonymous-group mode shows a "Tilslut din gruppe"
-// CTA back to /group → infinite bounce. Customise per fork via
-// NEXT_PUBLIC_POST_JOIN_REDIRECT (must be baked into the bundle via
-// frontend/Dockerfile ARG, same pattern as NEXT_PUBLIC_AUTH_MODE).
-const POST_JOIN_REDIRECT =
-  process.env.NEXT_PUBLIC_POST_JOIN_REDIRECT ||
-  "/chat/@aitana-platform/problem-set-hints";
+// 1.B (2026-05-26) — after a successful group join, send the user to
+// /lessons (the lesson picker) instead of a hardcoded chat URL. The
+// picker fetches GET /api/skills and renders one card per accessible
+// skill — same component for anon-group, class-bound, and teacher
+// auth modes. Replaces the v0.1 NEXT_PUBLIC_POST_JOIN_REDIRECT env
+// var, which hard-locked the system to one skill per deploy.
 
 function GroupJoinForm() {
   const { status, error, join } = useAnonymousGroupAuth();
   const router = useRouter();
   const [code, setCode] = useState("");
 
-  // When the provider transitions to `joined`, route directly to the
-  // demo chat — NOT to "/", which in anonymous-group mode shows a CTA
+  // When the provider transitions to `joined`, route to the lesson
+  // picker — NOT to "/", which in anonymous-group mode shows a CTA
   // pointing back here and creates a redirect loop.
   useEffect(() => {
     if (status === "joined") {
-      router.replace(POST_JOIN_REDIRECT);
+      router.replace("/lessons");
     }
   }, [status, router]);
 

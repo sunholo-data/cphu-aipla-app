@@ -22,10 +22,6 @@ ARG NEXT_PUBLIC_MCP_SANDBOX_URL
 # unset (template default; shows Google Sign-In via Firebase Auth).
 # Sourced from FIREBASE_ENV Secret Manager entry via get-firebase-config.sh.
 ARG NEXT_PUBLIC_AUTH_MODE
-# AIPLA: post-join redirect URL — points at the AIPLA-branded
-# platform-owner namespace (@aipla-platform) rather than the inherited
-# @aitana-platform. Set via cloudbuild substitution.
-ARG NEXT_PUBLIC_POST_JOIN_REDIRECT
 # 1.G-Ph2 — opt-in mockup bypass for the /teacher/* surface (set to '1'
 # on the dev trigger only). Empty on test/prod so the layout renders
 # the "sign-in required" placeholder instead of the seeded fixtures.
@@ -42,7 +38,6 @@ ENV NEXT_PUBLIC_ADMIN_EMAIL=$NEXT_PUBLIC_ADMIN_EMAIL
 ENV NEXT_PUBLIC_BACKEND_URL=$NEXT_PUBLIC_BACKEND_URL
 ENV NEXT_PUBLIC_MCP_SANDBOX_URL=$NEXT_PUBLIC_MCP_SANDBOX_URL
 ENV NEXT_PUBLIC_AUTH_MODE=$NEXT_PUBLIC_AUTH_MODE
-ENV NEXT_PUBLIC_POST_JOIN_REDIRECT=$NEXT_PUBLIC_POST_JOIN_REDIRECT
 ENV NEXT_PUBLIC_TEACHER_MOCK=$NEXT_PUBLIC_TEACHER_MOCK
 ENV MAILGUN_WEBHOOK_SECRET=$MAILGUN_WEBHOOK_SECRET
 
