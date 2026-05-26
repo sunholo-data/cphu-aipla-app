@@ -341,13 +341,12 @@ export default function TeacherClassDetailPage() {
                   </div>
                 </div>
                 <div className="flex items-center gap-1">
-                  <Link
-                    href={`/teacher/activities/${lesson.skillId}`}
-                    className="flex items-center gap-1 rounded border border-border px-2 py-1 text-xs font-medium hover:bg-accent"
-                  >
-                    <Settings className="h-3.5 w-3.5" aria-hidden="true" />
-                    Configure
-                  </Link>
+                  {/* "Configure" button intentionally absent. The
+                      /teacher/activities/<id> page exists for mock
+                      activity ids only and 404s for real skill_ids.
+                      Wiring it to /api/activity-configs for arbitrary
+                      lessons is v1.1 territory
+                      (teacher-artefact-parameters.md). */}
                   <button
                     type="button"
                     onClick={() => handleRemoveLesson(lesson.skillId)}

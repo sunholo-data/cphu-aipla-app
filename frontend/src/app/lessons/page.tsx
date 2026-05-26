@@ -27,12 +27,22 @@ import { skillHref } from "@/components/navigation/skillHref";
 import { useAnonymousGroupAuth } from "@/contexts/AnonymousGroupAuthProvider";
 import { fetchWithAuth } from "@/lib/apiClient";
 import { isAnonymousGroupAuthMode } from "@/lib/anonymousGroupAuth";
+import { type DemoRole, getDemoRole, setDemoRole } from "@/lib/demoRole";
 import type { Skill } from "@/types/skill";
 
 // Mirror of /group's TEACHER_DEMO_AVAILABLE. When set we show a small
 // "Switch to teacher view" banner so visitors who picked Student can
 // jump to the teacher surface without re-joining via /group.
 const TEACHER_DEMO_AVAILABLE = process.env.NEXT_PUBLIC_TEACHER_MOCK === "1";
+
+/** True when the skill is explicitly tagged for teachers only (e.g.
+ *  manage-class carries `role:teacher`). Used by the student-view
+ *  filter so demo visitors who chose "Student" don't see teacher-only
+ *  surfaces even though the backend bypass marked them is_teacher. */
+function skillIsTeacherOnly(skill: Skill): boolean {
+  const tags = skill.accessControl?.tags ?? [];
+  return tags.includes("role:teacher");
+}
 
 // Outer component decides which inner to mount. Calling
 // useAnonymousGroupAuth from outside an AnonymousGroupAuthProvider
@@ -81,7 +91,18 @@ function UniversalLessonsPage({
       if (!res.ok) {
         throw new Error(`HTTP ${res.status}`);
       }
-      const list = (await res.json()) as Skill[];
+      let list = (await res.json()) as Skill[];
+      // Demo-role scoping: when the visitor chose "Student" on the
+      // post-join picker, hide skills explicitly tagged role:teacher
+      // (e.g. manage-class). The backend bypass makes them visible
+      // because every anon visitor is flagged is_teacher; this filter
+      // gives the student view what a REAL student would see in
+      // production (where role:teacher is only on Firebase teacher
+      // JWTs). Defaults to "no filter" when no role is chosen, which
+      // matches production behavior (no bypass = no filter needed).
+      if (TEACHER_DEMO_AVAILABLE && getDemoRole() === "student") {
+        list = list.filter((s) => !skillIsTeacherOnly(s));
+      }
       // Sort alphabetically by displayName (falls back to name).
       list.sort((a, b) => {
         const an = (a.displayName || a.name).toLowerCase();
@@ -198,21 +219,32 @@ function EmptyState() {
 /** Dev-only "switch role" banner that appears on both /lessons (student
  *  view) and /teacher/classes (teacher view). Lets visitors jump
  *  between the two surfaces without re-joining via /group. Hidden in
- *  production (TEACHER_DEMO_AVAILABLE is false). */
+ *  production (TEACHER_DEMO_AVAILABLE is false).
+ *
+ *  Writes the new role to sessionStorage on switch so the destination
+ *  surface knows to scope its UI (e.g. /lessons hides role:teacher
+ *  skills when "student" is active). */
 function DemoRoleBanner({ currentRole }: { currentRole: "student" | "teacher" }) {
-  const otherRole = currentRole === "student" ? "teacher" : "student";
+  const otherRole: DemoRole = currentRole === "student" ? "teacher" : "student";
   const otherHref = currentRole === "student" ? "/teacher/classes" : "/lessons";
+  const otherLabel =
+    currentRole === "student"
+      ? "Switch to teacher dashboard"
+      : "Switch to student view";
+  const currentLabel =
+    currentRole === "student" ? "student view" : "teacher dashboard";
   return (
     <div className="flex flex-wrap items-center justify-between gap-2 rounded border border-dashed border-border bg-muted/40 px-3 py-2 text-xs text-muted-foreground">
       <span>
         <span className="font-medium uppercase tracking-wide">Demo</span> · You
-        are in the <strong>{currentRole}</strong> view.
+        are in the <strong>{currentLabel}</strong>.
       </span>
       <Link
         href={otherHref}
+        onClick={() => setDemoRole(otherRole)}
         className="rounded border border-border bg-background px-2 py-1 text-xs font-medium hover:bg-accent"
       >
-        Switch to {otherRole} view
+        {otherLabel}
       </Link>
     </div>
   );

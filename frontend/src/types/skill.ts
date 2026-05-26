@@ -19,9 +19,13 @@ export interface SkillMetadata {
 }
 
 export interface AccessControl {
-  type: "private" | "public" | "domain" | "specific";
+  // Five-type AccessControl model — mirrors backend/db/models/access.py.
+  // "tagged" was missing from this frontend type until 2026-05-26;
+  // skills tagged role:teacher / class:<uid>:<class_id> use this type.
+  type: "private" | "public" | "domain" | "specific" | "tagged";
   domain?: string | null;
   emails?: string[] | null;
+  tags?: string[] | null;
 }
 
 export interface ProtocolConfig {

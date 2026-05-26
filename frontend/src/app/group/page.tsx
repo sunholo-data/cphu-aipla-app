@@ -23,6 +23,7 @@ import { BookOpen, GraduationCap } from "lucide-react";
 import { AppFooter } from "@/components/AppFooter";
 import { useAnonymousGroupAuth } from "@/contexts/AnonymousGroupAuthProvider";
 import { isAnonymousGroupAuthMode } from "@/lib/anonymousGroupAuth";
+import { type DemoRole, setDemoRole } from "@/lib/demoRole";
 import { isLocalMode } from "@/lib/localMode";
 
 // 2026-05-26 — on dev the AIPLA_TEACHER_MOCK_AUTH bypass flags every
@@ -85,7 +86,14 @@ function GroupJoinForm() {
   }, [status, router]);
 
   if (status === "joined" && TEACHER_DEMO_AVAILABLE) {
-    return <DemoRolePicker onPick={(href) => router.push(href)} />;
+    return (
+      <DemoRolePicker
+        onPick={(role, href) => {
+          setDemoRole(role);
+          router.push(href);
+        }}
+      />
+    );
   }
 
   const isJoining = status === "joining";
@@ -229,7 +237,11 @@ function ErrorBlock({
  * point the role isn't a visitor choice, it's a property of how the
  * user signed in.
  */
-function DemoRolePicker({ onPick }: { onPick: (href: string) => void }) {
+function DemoRolePicker({
+  onPick,
+}: {
+  onPick: (role: DemoRole, href: string) => void;
+}) {
   return (
     <main className="mx-auto flex max-w-2xl flex-col gap-6 p-8">
       <header className="space-y-2">
@@ -256,7 +268,7 @@ function DemoRolePicker({ onPick }: { onPick: (href: string) => void }) {
       <div className="grid gap-4 sm:grid-cols-2">
         <button
           type="button"
-          onClick={() => onPick("/lessons")}
+          onClick={() => onPick("student", "/lessons")}
           className="flex flex-col items-start gap-3 rounded border border-border bg-background p-5 text-left shadow-sm transition hover:border-primary"
         >
           <BookOpen className="h-8 w-8 text-primary" aria-hidden="true" />
@@ -270,7 +282,7 @@ function DemoRolePicker({ onPick }: { onPick: (href: string) => void }) {
         </button>
         <button
           type="button"
-          onClick={() => onPick("/teacher/classes")}
+          onClick={() => onPick("teacher", "/teacher/classes")}
           className="flex flex-col items-start gap-3 rounded border border-border bg-background p-5 text-left shadow-sm transition hover:border-primary"
         >
           <GraduationCap
