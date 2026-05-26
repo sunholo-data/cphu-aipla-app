@@ -49,8 +49,8 @@ class TestFirebasePathMarksTeacher:
 
     def test_user_from_decoded_token_preserves_group_tags(self) -> None:
         """Firebase JWTs may carry groupTags as custom claims (for
-        existing B2B sharing); those must round-trip alongside the
-        teacher flag."""
+        existing B2B sharing); those round-trip alongside the synthetic
+        ``role:teacher`` tag that M8 injects."""
         decoded = {
             "uid": "u1",
             "email": "t@x.com",
@@ -58,7 +58,16 @@ class TestFirebasePathMarksTeacher:
         }
         u = _user_from_decoded_token(decoded)
         assert u.is_teacher is True
-        assert u.group_tags == frozenset({"dept:physics"})
+        assert u.group_tags == frozenset({"dept:physics", "role:teacher"})
+
+    def test_user_from_decoded_token_injects_role_teacher_tag(self) -> None:
+        """Even when the Firebase JWT carries no custom groupTags claim,
+        teacher users get the synthetic role:teacher tag — that's what
+        manage-class (and any other tagged-as-teacher-only skill) uses
+        to gate access through the existing 5-type evaluator."""
+        decoded = {"uid": "u1", "email": "t@x.com"}
+        u = _user_from_decoded_token(decoded)
+        assert "role:teacher" in u.group_tags
 
 
 class TestLocalModeStubIsTeacher:

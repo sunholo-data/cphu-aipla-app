@@ -83,7 +83,10 @@ async def test_valid_token_returns_user() -> None:
     assert user.uid == "uid-123"
     assert user.email == "mark@aitanalabs.com"
     assert user.domain == "aitanalabs.com"
-    assert user.group_tags == frozenset({"aitana-admin"})
+    # 1.A M8: Firebase users carry the synthetic role:teacher tag so
+    # teacher-only skills (manage-class) gate via the existing tagged
+    # AccessControl evaluator.
+    assert user.group_tags == frozenset({"aitana-admin", "role:teacher"})
 
 
 async def test_expired_token_returns_401() -> None:
@@ -164,18 +167,20 @@ async def test_domain_empty_when_no_at() -> None:
 
 
 def test_group_tags_missing() -> None:
+    # 1.A M8: every Firebase user is a v1 teacher and carries the
+    # synthetic role:teacher tag in addition to whatever the JWT claims.
     user = _user_from_decoded_token({"uid": "u", "email": "m@a.com"})
-    assert user.group_tags == frozenset()
+    assert user.group_tags == frozenset({"role:teacher"})
 
 
 def test_group_tags_empty_list() -> None:
     user = _user_from_decoded_token({"uid": "u", "email": "m@a.com", "groupTags": []})
-    assert user.group_tags == frozenset()
+    assert user.group_tags == frozenset({"role:teacher"})
 
 
 def test_group_tags_populated() -> None:
     user = _user_from_decoded_token({"uid": "u", "email": "m@a.com", "groupTags": ["aitana-admin", "beta"]})
-    assert user.group_tags == frozenset({"aitana-admin", "beta"})
+    assert user.group_tags == frozenset({"aitana-admin", "beta", "role:teacher"})
 
 
 def test_group_tags_is_frozen() -> None:

@@ -33,7 +33,7 @@ STUB_TOKEN = "local-mode-stub-token"
 WORKSHOP_USER_UID = "workshop-user"
 WORKSHOP_USER_EMAIL = "workshop@local"
 WORKSHOP_USER_DOMAIN = "local"
-WORKSHOP_USER_GROUP_TAGS = frozenset({"workshop-attendee"})
+WORKSHOP_USER_GROUP_TAGS = frozenset({"workshop-attendee", "role:teacher"})
 
 
 def build_workshop_user() -> User:

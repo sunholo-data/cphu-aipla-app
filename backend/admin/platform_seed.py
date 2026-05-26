@@ -144,6 +144,13 @@ def _parse_template(skill_md: Path) -> dict[str, Any]:
         # template author doesn't have to nest them under `metadata:`.
         "proactiveGreet": bool(front.get("proactiveGreet") or False),
         "openingTemplate": (front.get("openingTemplate") or "").strip(),
+        # 1.A M8 — optional accessControl override. Templates that omit
+        # it default to public (preserves the existing behaviour).
+        # Teacher-only skills like manage-class supply:
+        #   accessControl:
+        #     type: tagged
+        #     tags: [role:teacher]
+        "accessControl": front.get("accessControl") or None,
     }
 
 
@@ -281,13 +288,14 @@ def seed(templates_root: Path | None = None) -> SeedSummary:
                 optional_kwargs["proactiveGreet"] = parsed["proactiveGreet"]
             if parsed["openingTemplate"]:
                 optional_kwargs["openingTemplate"] = parsed["openingTemplate"]
+            access_control = parsed["accessControl"] or {"type": "public"}
             skill_config.create_skill(
                 name=parsed["name"],
                 description=parsed["description"],
                 instructions=parsed["instructions"],
                 owner_id=PLATFORM_OWNER_UID,
                 owner_email=PLATFORM_OWNER_EMAIL,
-                accessControl={"type": "public"},
+                accessControl=access_control,
                 skillMetadata=parsed["metadata"],
                 slug=slug,
                 **optional_kwargs,

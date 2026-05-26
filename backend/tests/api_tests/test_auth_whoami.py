@@ -35,11 +35,14 @@ def test_whoami_valid_token_echoes_identity(client: TestClient) -> None:
         }
         resp = client.get("/api/auth/whoami", headers={"Authorization": "Bearer good.jwt"})
     assert resp.status_code == 200
+    # 1.A M8: Firebase users carry the synthetic role:teacher tag so
+    # teacher-only skills (manage-class) gate via the existing tagged
+    # AccessControl evaluator. Sorted alphabetically by the route.
     assert resp.json() == {
         "uid": "mark-uid",
         "email": "mark@aitanalabs.com",
         "domain": "aitanalabs.com",
-        "groupTags": ["aitana-admin", "ops"],
+        "groupTags": ["aitana-admin", "ops", "role:teacher"],
     }
 
 
@@ -52,5 +55,5 @@ def test_whoami_missing_group_tags_returns_empty_list(client: TestClient) -> Non
         "uid": "other-uid",
         "email": "other@example.com",
         "domain": "example.com",
-        "groupTags": [],
+        "groupTags": ["role:teacher"],
     }

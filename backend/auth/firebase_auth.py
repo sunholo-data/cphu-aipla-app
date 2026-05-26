@@ -85,10 +85,17 @@ def _user_from_decoded_token(decoded: dict[str, Any]) -> User:
     Sets `is_teacher=True` because in v1, only teachers carry a Firebase
     identity (students use anonymous-group; dev uses LOCAL_MODE stub).
     See `User.is_teacher` docstring for the v2 caveat.
+
+    Injects the synthetic ``role:teacher`` tag into group_tags so the
+    existing tagged-access evaluator can scope teacher-only skills
+    (e.g. ``manage-class`` from 1.A M8) via the standard 5-type
+    AccessControl model. Skill catalogues filter via
+    ``AccessContext.can_access`` — no separate "if user.is_teacher"
+    branch needed at the access layer.
     """
     email = decoded.get("email") or ""
     raw_tags = decoded.get("groupTags") or []
-    group_tags = frozenset(str(t) for t in raw_tags)
+    group_tags = frozenset(str(t) for t in raw_tags) | {"role:teacher"}
     return User(
         uid=decoded["uid"],
         email=email,
