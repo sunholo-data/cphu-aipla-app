@@ -257,6 +257,22 @@ DELETE /api/audio/captures/{group_id}  (admin / DPO route, requires elevated aut
 - **Audio capture feature flag:** per-class teacher opt-in via 1.G teacher UI. Default = OFF. Even if the code ships, no recording happens until a teacher explicitly enables it for their class.
 - **Rollback:** TTS revert is one commit. Audio capture revert leaves the bucket + Firestore docs intact (deliberate — research data must survive code reverts).
 
+## v2 polish — TTS voice + language config (deferred 2026-05-26)
+
+The TTS button as shipped today calls `speechSynthesis.speak()` with three values fixed: `lang="da"` (per skill), `rate=1.0`, and no explicit `voice` (OS picks the default). User feedback from the first live test: *"audio is a bit choppy and seems to only use Danish accent."* Three concrete polish items deferred to v2 (or to the eventual Gemini Live integration, whichever lands first):
+
+| Improvement | Why it matters | Cost |
+|---|---|---|
+| **Smart per-message language detection** | Mixed Danish+English tutor turns get pronounced through one phoneme model — the wrong half sounds bad. Detect the dominant language of each message at click time, pick the matching voice. | ~15 min |
+| **Voice picker UI** | macOS / Chrome ship multiple Danish voices (Sara, Magnus, Marie). Sara — the default — is choppier than the others on long sentences. Surface a one-time picker (`Volume2 ▾`) so each student picks their preferred voice + saves to localStorage. | ~30 min |
+| **Per-skill voice + rate** | Some skills (LED Planck) may have a different default language than problem-set-hints. Per-skill config via `SkillConfig.tts_voice` / `SkillConfig.tts_rate` lets the skill author tune for the audience. | ~30 min + frontmatter wiring |
+
+**Won't fix until v2 because:**
+- The browser-native path has a quality ceiling. The right durable answer is the Gemini Live integration (backend/adk/live_agent.py — stub at present), which produces model-native audio at conversational quality. Polishing browser TTS is putting effort into the bridge that gets replaced.
+- The 2026-05-26 internal demo found the choppy-Danish-voice issue but didn't block on it — the audio output is a polish layer, not a load-bearing feature.
+
+**For the demo this week:** mention in the demo notes that TTS quality varies by OS voice and the picker lands in v2.
+
 ## Testing Strategy
 
 **TTS:**
