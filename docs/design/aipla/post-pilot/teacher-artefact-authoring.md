@@ -107,6 +107,33 @@ Don't build this if **either**:
 
 A, B, C are the safe-default order — together they ship the raw editing tier. D and E follow once the institutional gate is sound.
 
+## Considered and rejected: CopilotKit Open Generative UI
+
+**Date considered:** 2026-05-26. **Verdict:** paradigm mismatch — revisit only as a Tier-3a preview helper inside Phase D.
+
+CopilotKit's [Open Generative UI](https://docs.copilotkit.ai/built-in-agent/generative-ui/open-generative-ui) feature lets an LLM emit a `generateSandboxedUi` tool call with `{css, html, jsFunctions, jsExpressions}` strings; the CopilotKit runtime streams them into a sandboxed iframe and runs them. MIT-licensed, free, mature (31.7k★, v1.57). On its face it looks like a drop-in for "let teachers ask the AI for sims".
+
+Why it does not slot into AIPLA:
+
+| Concern | CopilotKit OGU | AIPLA today (ADR-013) |
+|---|---|---|
+| Origin isolation | Single iframe `sandbox="allow-scripts"` | Double-iframe separate-origin proxy (`localhost:3457`) — proxy origin blocks host cookies even with `allow-same-origin` |
+| External fetches | Explicitly allowed (CDN scripts encouraged) | Blocked — audit-time grep + CSP `default-src 'none'` |
+| Size cap | None — model can emit unbounded HTML/JS | 200 KB enforced at commit time |
+| Audit trail | None — UI invented per turn | Versioned artefacts under `artefacts/<name>/v<n>/`, `aiplatform artefact audit` CLI |
+| Wire protocol | Proprietary `Websandbox.connection.remote.*` | MCP Apps spec-compliant JSON-RPC `ui/update-model-context` |
+| Research-baseline guarantee | None — every student sees a different sim | Canonical artefact — cohorts comparable |
+| Backend | Node.js `CopilotRuntime` middleware | Python/FastAPI + ADK — integration is a sidecar or a port |
+
+The deeper reason it does not solve our problem: OGU is *agent-invents-throwaway-UI-per-turn*. AIPLA's authoring tier is *teacher-curates-versioned-sim-that-many-students-use-across-a-research-cohort*. LLM-per-turn generation makes the research-baseline problem in section "Why this is explicitly out of the 4-month contract" point 2 strictly **worse**, not better. It also regresses the four security gates above against what ADR-013 already requires.
+
+Where it could legitimately fit, **post-pilot only**:
+
+- **Internal scratch space** for AR / JB / M to prototype sims via chat before promoting one to a versioned artefact. Never student-facing.
+- **Phase D AI-assist preview** (Tier 3a): the LLM proposes an edit, OGU's progressive CSS→HTML→JS streaming gives the teacher a "see-what-it-does-before-publish" preview. The published artefact still goes through our existing audit + review queue; OGU is only the preview surface.
+
+Importing the runtime + the security baggage *before* Phase A-C (namespace, draft/publish, raw editor, validator pipeline, review queue) are built would be premature — those phases are the hard parts; OGU is a nice-to-have UX on top.
+
 ## Related
 
 - [teacher-artefact-parameters.md](teacher-artefact-parameters.md) — the v1.1 sibling for *bounded* configurability (no code)
