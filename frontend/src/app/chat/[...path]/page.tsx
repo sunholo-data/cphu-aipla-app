@@ -52,6 +52,7 @@ import {
 } from "@/components/workspace/LedPlanckLabFrame";
 import { LedPlanckLabButton } from "@/components/workspace/LedPlanckLabButton";
 import { LedPlanckWorkbench } from "@/components/workspace/LedPlanckWorkbench";
+import { useResizableWorkspaceRatio } from "@/hooks/useResizableWorkspaceRatio";
 
 // PEDCTX M5 — sub-parts of the Boldkast problem-set-hints v0.1 skill.
 // v1's problem-set-helper-config will source this from skill metadata;
@@ -301,6 +302,12 @@ function ChatShell({
   const [showLedPlanckLab, setShowLedPlanckLab] = useState(false);
   const [ledPlanckSnapshot, setLedPlanckSnapshot] =
     useState<LedPlanckSnapshot | null>(null);
+  // resize-workspace sprint — chat <-> workspace split ratio.
+  // Keyed by skillSlug so KineBot remembers a different width than
+  // LED Planck (per-skill defaults in the hook).
+  const { ratio: workspaceRatio, setRatio: setWorkspaceRatio } =
+    useResizableWorkspaceRatio(skillSlug ?? "");
+  const workspaceFullscreen = workspaceRatio === 1;
   // Mobile-only tab state. On md+ both chat and workspace render
   // side-by-side and this state is ignored. Below md ("one shared
   // phone per three students" — Jutland-brief target form-factor),
@@ -662,7 +669,7 @@ function ChatShell({
           drop below the chat on smaller screens instead of hiding.
           When showAiplaWorkspace, the mobile tab bar above gates which
           column is visible <md; both are always visible md+. */}
-      <div className="flex min-h-0 flex-1 flex-col md:flex-row">
+      <div data-workspace-row className="flex min-h-0 flex-1 flex-col md:flex-row">
         {showDocumentUI && showDocBrowser && (
           <aside className="flex w-64 shrink-0 flex-col overflow-hidden border-r bg-muted/30">
             <div className="border-b px-3 py-2">
@@ -719,12 +726,18 @@ function ChatShell({
             this parent allows shrink-below-content-size. Fix for the
             "can't see the input" UX bug 2026-05-20. */}
         <div
-          className={`min-w-0 min-h-0 flex-1 flex-col md:flex ${
+          className={`min-w-0 min-h-0 flex-1 flex-col ${
             // Mobile gate: only show chat column when the chat tab is
             // active. md+ ignores this — both panels render. When the
             // workspace isn't AIPLA-shaped (non-anon-group or different
             // skill), the gate never fires so chat is always visible.
             showAiplaWorkspace && mobileTab !== "chat" ? "hidden" : "flex"
+          } ${
+            // Resize fullscreen gate: when the workspace is at ratio
+            // 1.0 (chat hidden by user choice), drop the chat column
+            // on md+ so the workspace takes the whole row. Below md
+            // ignored (chat still visible via the mobile tab pattern).
+            workspaceFullscreen ? "md:hidden" : "md:flex"
           }`}
         >
           <ChatMessageList
@@ -827,7 +840,11 @@ function ChatShell({
             Other auth modes and other skills keep the inherited
             DocumentPanel / WorkspaceSurfaceRegion behaviour above. */}
         {showAiplaWorkspace && skillSlug === "led-planck-tutor" && (
-          <WorkspaceShell hideOnMobile={mobileTab !== "workspace"}>
+          <WorkspaceShell
+            hideOnMobile={mobileTab !== "workspace"}
+            ratio={workspaceRatio}
+            onRatioChange={setWorkspaceRatio}
+          >
             {showLedPlanckLab && BOLDKAST_SANDBOX_ORIGIN ? (
               <LedPlanckLabFrame
                 ref={ledPlanckFrameRef}
@@ -852,7 +869,11 @@ function ChatShell({
         )}
 
         {showAiplaWorkspace && skillSlug === "problem-set-hints" && (
-          <WorkspaceShell hideOnMobile={mobileTab !== "workspace"}>
+          <WorkspaceShell
+            hideOnMobile={mobileTab !== "workspace"}
+            ratio={workspaceRatio}
+            onRatioChange={setWorkspaceRatio}
+          >
             {showBoldkastSim && BOLDKAST_SANDBOX_ORIGIN ? (
               <BoldkastSimFrame
                 ref={boldkastFrameRef}
