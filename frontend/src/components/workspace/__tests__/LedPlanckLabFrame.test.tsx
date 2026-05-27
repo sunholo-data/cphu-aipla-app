@@ -82,6 +82,36 @@ describe("LedPlanckLabFrame", () => {
   });
 
   describe("human-tool-use card dispatch", () => {
+    it("invokes onSnapshotChange after every dispatched event", () => {
+      const onSnapshotChange = vi.fn();
+      render(
+        <LedPlanckLabFrame
+          sandboxOrigin={SANDBOX_ORIGIN}
+          sessionId="sess-1"
+          onClose={() => {}}
+          onSnapshotChange={onSnapshotChange}
+        />,
+      );
+      dispatchUpdateModelContext({
+        kind: "led-planck.step-change",
+        step: 2,
+        stepName: "part1",
+      });
+      expect(onSnapshotChange).toHaveBeenCalledTimes(1);
+      const snap = onSnapshotChange.mock.calls[0][0];
+      expect(snap.currentStep).toBe(2);
+      expect(snap.currentStepName).toBe("part1");
+
+      dispatchUpdateModelContext({
+        kind: "led-planck.measurement",
+        data: { led: "red", u0: 1.99, lambda: 625, h_computed: 6.6e-34 },
+      });
+      expect(onSnapshotChange).toHaveBeenCalledTimes(2);
+      const snap2 = onSnapshotChange.mock.calls[1][0];
+      expect(snap2.measurements).toHaveLength(1);
+      expect(snap2.measurements[0].led).toBe("red");
+    });
+
     it("step-change part1 dispatches 'Begyndte I-U-måling'", () => {
       render(
         <LedPlanckLabFrame

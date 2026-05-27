@@ -81,14 +81,14 @@ interface LedPlanckStructuredContent {
   triggeredBy?: string;
 }
 
-interface LedPlanckMeasurement {
+export interface LedPlanckMeasurement {
   led: string;
   u0: number;
   lambda: number;
   h_computed: number;
 }
 
-interface LedPlanckSnapshot {
+export interface LedPlanckSnapshot {
   lastEvent: string;
   currentStep: number | null;
   currentStepName: string | null;
@@ -102,15 +102,21 @@ interface LedPlanckLabFrameProps {
   sandboxOrigin: string;
   sessionId: string | null;
   onClose: () => void;
+  /** Fired after every snapshot mutation so a parent can mirror the
+   *  state into a sibling workbench surface. The same snapshot the
+   *  iframe-context POST sends to the agent. */
+  onSnapshotChange?: (snapshot: LedPlanckSnapshot) => void;
 }
 
 export const LedPlanckLabFrame = forwardRef<
   LedPlanckLabFrameHandle,
   LedPlanckLabFrameProps
 >(function LedPlanckLabFrame(
-  { sandboxOrigin, sessionId, onClose },
+  { sandboxOrigin, sessionId, onClose, onSnapshotChange },
   ref,
 ) {
+  const onSnapshotChangeRef = useRef(onSnapshotChange);
+  onSnapshotChangeRef.current = onSnapshotChange;
   const humanToolEvents = useHumanToolEvents();
   const staticFrameRef = useRef<StaticArtefactFrameHandle | null>(null);
   const snapshotRef = useRef<LedPlanckSnapshot>({
@@ -244,6 +250,11 @@ export const LedPlanckLabFrame = forwardRef<
             void req.catch(() => {});
           }
         }
+        // Push a fresh shallow copy so React detects the change and the
+        // parent workbench surface re-renders. measurements/
+        // componentsPlaced are already replaced as new arrays inside
+        // the branches above; primitive fields don't need cloning.
+        onSnapshotChangeRef.current?.({ ...snap });
       }
     },
     [pushSnapshotRequest, humanToolEvents],

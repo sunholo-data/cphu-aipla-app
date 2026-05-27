@@ -76,6 +76,124 @@ Every static artefact MUST pass these checks at commit time:
    host can log toggle events.
 5. **AR (or domain expert) sign-off** before merge for any pedagogically
    loaded artefact. Capture as a PR comment.
+6. **Responsive viewport gate.** Open the artefact in a 700px-wide
+   container (e.g. dev-tools device toolbar at 700×800) and confirm
+   there is **no horizontal scrollbar** and no content clipped off the
+   right edge. The workspace pane is `md:w-1/2` on the chat page,
+   ~700px on a typical laptop. Failing this gate means the artefact
+   looks broken inside the AIPLA chat. The Boldkast bench is a single
+   canvas + sliders + markers — it fits naturally. Big multi-panel
+   labs (LED Planck v1 shipped with a 1430px minimum grid) MUST
+   either (a) collapse their layout below ~720px via media query, or
+   (b) move their non-interactive panels OUT of the iframe into the
+   React workbench surface (see "Workspace integration" below).
+
+## Workspace integration (REQUIRED — codified after LED Planck 1.C)
+
+Every artefact mounted in the chat workspace must ship the **Button +
+Workbench + Frame triad**. LED Planck 1.C shipped only the Frame and
+auto-mounted it directly into the workspace pane — the 1430px-wide lab
+overflowed the ~700px `md:w-1/2` pane horizontally, the lesson
+scaffolding was trapped inside the iframe where the React host couldn't
+lay it out, and the demo was unusable. Don't ship that shape.
+
+### The triad
+
+1. **`<NameSimButton>`** (or `<NameLabButton>`) — launcher card mounted
+   in the workspace pane by default. Mirrors
+   [BoldkastSimButton.tsx](../../../frontend/src/components/workspace/BoldkastSimButton.tsx).
+   Single click → opens the Frame. Cheap React component, ~30 LOC.
+
+2. **`<NameWorkbench>`** — non-interactive lesson context surface,
+   mounted alongside the button. Owns the parts of the lesson that DO
+   NOT need to live inside the iframe:
+   - Problem framing / Danish description / goal of the activity
+   - Step progress (derived from artefact snapshot, NOT from React-
+     local state, so it survives a frame close/reopen)
+   - Hints, vocabulary, formula glossary
+   - "What you've measured so far" summary cards
+   The Workbench reads `snapshot` from a `React.useState` lifted to the
+   chat page or a parent. Snapshot updates are pushed by the Frame via
+   an `onSnapshotChange` prop. The Workbench renders this state into
+   cards — no postMessage handling, no iframe internals.
+
+3. **`<NameLabFrame>`** — the existing `forwardRef(StaticArtefactFrame)`
+   wrapper. Owns the iframe mount, the JSON-RPC plumbing, the snapshot
+   accumulation, the human-tool-event card dispatch, and the
+   `sendChatFlush()` imperative method. **Does NOT own lesson framing
+   or any text the React host could render itself.**
+
+The chat page mounts the triad like Boldkast does (see
+[`frontend/src/app/chat/[...path]/page.tsx`](../../../frontend/src/app/chat/[...path]/page.tsx)
+inside the `showAiplaWorkspace && skillSlug === "..."` block):
+
+```tsx
+{showAiplaWorkspace && skillSlug === "my-lab" && (
+  <WorkspaceShell hideOnMobile={mobileTab !== "workspace"}>
+    {showMyLab && SANDBOX_ORIGIN ? (
+      <MyLabFrame
+        ref={frameRef}
+        sandboxOrigin={SANDBOX_ORIGIN}
+        sessionId={sessionId ?? agentSessionId}
+        onClose={() => setShowMyLab(false)}
+        onSnapshotChange={setSnapshot}
+      />
+    ) : (
+      <div className="space-y-4">
+        <MyLabButton onOpen={() => setShowMyLab(true)} />
+        <MyLabWorkbench snapshot={snapshot} sessionId={sessionId ?? agentSessionId} />
+      </div>
+    )}
+  </WorkspaceShell>
+)}
+```
+
+### Iframe scope rule — "interactive only"
+
+**The iframe holds the interactive parts. Everything else moves to
+React.** Concrete test: imagine removing a panel from the iframe and
+re-rendering it in React. If nothing breaks, it shouldn't have been in
+the iframe.
+
+Common mistakes:
+- Lesson instructions, step lists, formula references — render in
+  React. They don't need the sandbox.
+- Long-form problem statements — render in React.
+- Progress checklists driven by sim state — derive in React from the
+  snapshot the host already accumulates. Don't render them in the
+  iframe and then mirror to the host (LED Planck 1.C did this — see
+  the redundant `<section class="panel"><h2>Experiment procedure</h2>
+  ...checklist...</section>` in the original AR HTML, removed
+  in the 1.C follow-up).
+- Big static help text panels — render in React.
+
+Keep in the iframe:
+- The canvas / WebGL / interactive bench
+- Sliders, knobs, terminals, drag-targets that depend on pointer events
+  inside the sim space
+- Chart / data visualisation tied to the live sim state
+- Anything that emits the postMessage telemetry
+
+### Telemetry channel is identical
+
+The Workbench sees the same snapshot the iframe-context POST sends to
+the agent. The artefact emits `ui/update-model-context` notifications;
+the Frame's `onUpdateModelContext` callback updates the snapshot ref,
+fires `onSnapshotChange(snapshot)`, AND POSTs to
+`/api/sessions/{id}/iframe-context`. Two consumers, one source of
+truth. The agent and the React workbench observe the same thing.
+
+This means the Workbench's step progress / measurement summary is
+**always consistent with what the tutor sees**. The student can't
+"unsync" them.
+
+### When the Frame is closed
+
+Snapshot state lives at the chat-page level (lifted above the Frame).
+Closing the Frame unmounts the iframe but **preserves the snapshot**
+in React state. Reopening the lab restores the in-progress state
+visually (the iframe boots fresh, but the workbench cards still
+reflect last-known state). This is the expected behaviour.
 
 ## The artefact is the sim, not the whole lesson
 

@@ -48,7 +48,10 @@ import {
 import {
   LedPlanckLabFrame,
   type LedPlanckLabFrameHandle,
+  type LedPlanckSnapshot,
 } from "@/components/workspace/LedPlanckLabFrame";
+import { LedPlanckLabButton } from "@/components/workspace/LedPlanckLabButton";
+import { LedPlanckWorkbench } from "@/components/workspace/LedPlanckWorkbench";
 
 // PEDCTX M5 — sub-parts of the Boldkast problem-set-hints v0.1 skill.
 // v1's problem-set-helper-config will source this from skill metadata;
@@ -291,6 +294,13 @@ function ChatShell({
   // PEDCTX/Boldkast — workspace toggle between default content
   // (problem statement + checklist) and the Boldkast sim iframe.
   const [showBoldkastSim, setShowBoldkastSim] = useState(false);
+  // 1.C follow-up — same toggle shape for LED Planck. Default surface
+  // is the launcher button + lesson workbench; click to mount the
+  // (now slimmed) lab frame. Snapshot lifted here so the workbench
+  // keeps showing last-known step/measurements after the frame closes.
+  const [showLedPlanckLab, setShowLedPlanckLab] = useState(false);
+  const [ledPlanckSnapshot, setLedPlanckSnapshot] =
+    useState<LedPlanckSnapshot | null>(null);
   // Mobile-only tab state. On md+ both chat and workspace render
   // side-by-side and this state is ignored. Below md ("one shared
   // phone per three students" — Jutland-brief target form-factor),
@@ -818,18 +828,25 @@ function ChatShell({
             DocumentPanel / WorkspaceSurfaceRegion behaviour above. */}
         {showAiplaWorkspace && skillSlug === "led-planck-tutor" && (
           <WorkspaceShell hideOnMobile={mobileTab !== "workspace"}>
-            {BOLDKAST_SANDBOX_ORIGIN ? (
+            {showLedPlanckLab && BOLDKAST_SANDBOX_ORIGIN ? (
               <LedPlanckLabFrame
                 ref={ledPlanckFrameRef}
                 sandboxOrigin={BOLDKAST_SANDBOX_ORIGIN}
                 sessionId={sessionId ?? agentSessionId}
-                onClose={() => {}}
+                onClose={() => setShowLedPlanckLab(false)}
+                onSnapshotChange={setLedPlanckSnapshot}
               />
             ) : (
-              <p className="text-sm text-muted-foreground">
-                Arbejdsområde — laboratorium ikke tilgængeligt
-                (NEXT_PUBLIC_MCP_SANDBOX_URL mangler).
-              </p>
+              <div className="space-y-4">
+                <LedPlanckLabButton
+                  onOpen={() => setShowLedPlanckLab(true)}
+                  disabled={!BOLDKAST_SANDBOX_ORIGIN}
+                />
+                <LedPlanckWorkbench
+                  snapshot={ledPlanckSnapshot}
+                  sessionId={sessionId ?? agentSessionId}
+                />
+              </div>
             )}
           </WorkspaceShell>
         )}
