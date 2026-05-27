@@ -1,0 +1,248 @@
+{
+  "sprint_id": "KINEBOT-1D",
+  "created": "2026-05-27T14:00:00Z",
+  "estimated_duration_days": 2,
+  "design_doc": "docs/design/aipla/v1.0.0-pilot/kinebot-migration.md",
+  "sprint_plan": "docs/design/aipla/v1.0.0-pilot/kinebot-1d-sprint.md",
+  "audit_doc": "docs/design/aipla/v1.0.0-pilot/kinebot-pre-sprint-audit.md",
+  "branch": "feature/kinebot-1d",
+  "base_commit": "362c864",
+  "pr_target": "dev (no PR — commit direct per AIPLA workflow)",
+  "scoping_locked": {
+    "notes_panel": "ship in 1.D React workbench (sessionStorage persistence)",
+    "quiz_bank": "placeholder (~3 Q per topic, generated this sprint; DK reviews post-sprint)",
+    "artefact_audit_cli": "deferred to follow-up sprint"
+  },
+  "features": [
+    {
+      "id": "M1",
+      "description": "Skill template + cover SVG. backend/skills/templates/kinebot-kinematics-tutor/SKILL.md with verbatim SYSTEM_PROMPT from source line 1083 + frontmatter (displayName 'Kinematics Tutor (NCERT)', avatar /lesson-images/kinebot-kinematics-tutor.svg, accessControl public, tool_configs.defaults artefacts/memory false, mcp.allow_context_writes: ['kinebot']). frontend/public/lesson-images/kinebot-kinematics-tutor.svg 480x270 cover with kinematics/projectile motif consistent with the existing pair.",
+      "scope": "fullstack",
+      "estimated_loc": 230,
+      "actual_loc": null,
+      "dependencies": [],
+      "acceptance_criteria": [
+        "SKILL.md parses via _parse_template",
+        "Prompt body has the KineBot Class-11 NCERT/CBSE markers + Socratic personality + four-step kinematics scope",
+        "Frontmatter avatar field set and round-trips",
+        "Cover SVG renders on /lessons cards (manual check post-deploy)",
+        "No emoji in either file (per feedback-no-emoticons)"
+      ],
+      "files_to_create": [
+        "backend/skills/templates/kinebot-kinematics-tutor/SKILL.md",
+        "frontend/public/lesson-images/kinebot-kinematics-tutor.svg"
+      ],
+      "files_to_modify": [],
+      "passes": null, "started": null, "completed": null, "notes": "System prompt at /Users/voightkampff/dev/sunholo-data/aipla/assets/examples/kinebot-v2.html line 1083 onwards (~50 lines, ~1.5KB). Strip the 🚀 emoji in the personality section without changing prompt semantics."
+    },
+    {
+      "id": "M2",
+      "description": "Strip + slim KineBot lab HTML to fit AIPLA. Copy source to infrastructure/mcp-sandbox/artefacts/kinebot/v1/index.html. DELETE: embedded chat panel + messages + input + send + textarea; 'Explain with AI' button on graph; quiz-mode/clear/voice header buttons; sidebar topic nav + XP bar; Formulas tab; Notes tab; API key UI; 3 direct Anthropic fetch sites (~1056, ~1120, ~1558); Google Fonts CDN imports. KEEP: simulation panel (canvas + sliders + stats), Graphs tab (canvas + Plot), Quiz tab markup (JS rewritten in M3). Replace external fonts with system stack. Add @media (max-width:1100px) responsive rule.",
+      "scope": "frontend",
+      "estimated_loc": -1200,
+      "actual_loc": null,
+      "dependencies": ["M1"],
+      "acceptance_criteria": [
+        "wc -c of migrated file < 200000",
+        "grep -nE 'fetch\\(\"https?:|XMLHttpRequest|new WebSocket' returns zero matches",
+        "grep -nE 'apiKey|sessionStorage\\.setItem.*[Kk]ey' returns zero matches",
+        "grep -nE '<script src=\"https?://|<link[^>]+href=\"https?://' returns zero matches",
+        "Opens at 700px viewport with no horizontal scrollbar",
+        "Sim panel canvas still works (sliders + Play + stats render and update)",
+        "Graph panel canvas still works (Plot button + selector + numeric inputs)",
+        "Quiz panel markup present (JS rewired in M3)",
+        "No emoji in the lab HTML"
+      ],
+      "files_to_create": ["infrastructure/mcp-sandbox/artefacts/kinebot/v1/index.html"],
+      "files_to_modify": [],
+      "passes": null, "started": null, "completed": null, "notes": null
+    },
+    {
+      "id": "M3",
+      "description": "Static quiz bank. Generate ~3 NCERT/CBSE Class 11 MCQs per topic for all 11 topics. Format: infrastructure/mcp-sandbox/artefacts/kinebot/v1/quizzes/<topic>.json each containing {topic, questions: [{id, prompt, options, correct, explanation}]}. Rewrite the lab's quiz JS to fetch('./quizzes/<topic>.json') instead of calling Anthropic. DK reviews + replaces post-sprint.",
+      "scope": "frontend",
+      "estimated_loc": 600,
+      "actual_loc": null,
+      "dependencies": ["M2"],
+      "acceptance_criteria": [
+        "11 JSON files exist, one per topic (intro, displacement, velocity, acceleration, equations, graphs, freefall, vectors, projectile, circular, relative)",
+        "Each file has at least 3 questions",
+        "Each question has id, prompt, 4 options, correct (index), explanation",
+        "Quiz panel in the lab fetches via fetch('./quizzes/<topic>.json') only (no external fetch)",
+        "Quiz answer correctly emits kinebot.quiz-attempt event (wired in M4)",
+        "Placeholder-quality content is pedagogically passable (not random; question text is plausibly NCERT-aligned)"
+      ],
+      "files_to_create": [
+        "infrastructure/mcp-sandbox/artefacts/kinebot/v1/quizzes/intro.json",
+        "infrastructure/mcp-sandbox/artefacts/kinebot/v1/quizzes/displacement.json",
+        "infrastructure/mcp-sandbox/artefacts/kinebot/v1/quizzes/velocity.json",
+        "infrastructure/mcp-sandbox/artefacts/kinebot/v1/quizzes/acceleration.json",
+        "infrastructure/mcp-sandbox/artefacts/kinebot/v1/quizzes/equations.json",
+        "infrastructure/mcp-sandbox/artefacts/kinebot/v1/quizzes/graphs.json",
+        "infrastructure/mcp-sandbox/artefacts/kinebot/v1/quizzes/freefall.json",
+        "infrastructure/mcp-sandbox/artefacts/kinebot/v1/quizzes/vectors.json",
+        "infrastructure/mcp-sandbox/artefacts/kinebot/v1/quizzes/projectile.json",
+        "infrastructure/mcp-sandbox/artefacts/kinebot/v1/quizzes/circular.json",
+        "infrastructure/mcp-sandbox/artefacts/kinebot/v1/quizzes/relative.json"
+      ],
+      "files_to_modify": ["infrastructure/mcp-sandbox/artefacts/kinebot/v1/index.html"],
+      "passes": null, "started": null, "completed": null, "notes": null
+    },
+    {
+      "id": "M4",
+      "description": "JSON-RPC envelope + ui/initialize handshake + telemetry events + set-topic inbound handler. Adopt the Boldkast/LED-Planck-shaped infrastructure: __post, rpcNotify, rpcRequest, __pendingEmits queue, ui/initialize with ui/notifications/initialized post-handshake, ping responder. Public emit(kind, payload) auto-prefixes 'kinebot.'. Wire three iframe-emitted events: kinebot.sim-run, kinebot.graph-change, kinebot.quiz-attempt. Inbound: kinebot.set-topic handler that updates internal currentTopic + re-renders the active sim.",
+      "scope": "frontend",
+      "estimated_loc": 100,
+      "actual_loc": null,
+      "dependencies": ["M3"],
+      "acceptance_criteria": [
+        "ui/initialize handshake resolves on load (via StaticArtefactFrame proxy)",
+        "Ping requests get {jsonrpc:'2.0', id, result:{}} response",
+        "Events emitted before init are queued + flushed in order after",
+        "kinebot.sim-run fires with {simType, params: {velocity, angle?, acceleration?, v2?}} on sim play",
+        "kinebot.graph-change fires with {graphType} on graph selector change (immediate)",
+        "kinebot.quiz-attempt fires with {topic, questionId, answeredCorrectly} on quiz answer",
+        "Inbound kinebot.set-topic {topic} updates currentTopic + re-renders sim; does NOT echo back as topic-change (no-mirror rule)"
+      ],
+      "files_to_create": [],
+      "files_to_modify": ["infrastructure/mcp-sandbox/artefacts/kinebot/v1/index.html"],
+      "passes": null, "started": null, "completed": null, "notes": "Phase-2 commit-on-submit on slider drags so the agent isn't spammed by drag-velocity changes."
+    },
+    {
+      "id": "M5",
+      "description": "KineBotFrame host wrapper. frontend/src/components/workspace/KineBotFrame.tsx mirrors LedPlanckLabFrame.tsx structurally. forwardRef exposes KineBotFrameHandle { sendChatFlush(), setTopic(topic) }. Internal snapshotRef: KineBotSnapshot (lastEvent, currentTopic, topicsVisited, lastSimRun, currentGraph, quizProgress[]). Event routing: sim-run silent push (high frequency); graph-change English card 'Viewing <type> graph'; quiz-attempt correct card 'Quiz: correct on <topic>'; quiz-attempt incorrect silent push. setTopic method: sendNotification('kinebot.set-topic', {topic}) + updates snapshot locally + POSTs iframe-context. onSnapshotChange callback to parent.",
+      "scope": "frontend",
+      "estimated_loc": 280,
+      "actual_loc": null,
+      "dependencies": ["M4"],
+      "acceptance_criteria": [
+        "KineBotFrame mounts and points at sandboxOrigin/sandbox.html",
+        "All three events route to correct snapshot fields",
+        "Cards fire only for graph-change + quiz-attempt-correct",
+        "sim-run silent (no card) — high frequency",
+        "quiz-attempt incorrect silent (no card) — pedagogical silence",
+        "setTopic method dispatches kinebot.set-topic notification + updates snapshot + POSTs iframe-context",
+        "topicsVisited dedupes (adding same topic twice produces one entry)",
+        "Cross-origin messages rejected (inherited from StaticArtefactFrame)"
+      ],
+      "files_to_create": ["frontend/src/components/workspace/KineBotFrame.tsx"],
+      "files_to_modify": [],
+      "passes": null, "started": null, "completed": null, "notes": null
+    },
+    {
+      "id": "M6",
+      "description": "KineBotLabButton + KineBotWorkbench. Button (~30 LOC) mirrors LedPlanckLabButton. Workbench holds: (a) topic picker — 11 topics grouped Fundamentals + 2D Motion, click pushes through to onTopicChange (which calls Frame.setTopic), (b) lesson framing card per current topic (~3 sentences each), (c) XP progress card from snapshot.topicsVisited.length, (d) formula reference card showing top 2-3 formulas for current topic (static map), (e) notes panel (textarea + tag input + save/clear, sessionStorage keyed by 'kinebot:notes:<sessionId>'), (f) quiz progress summary from snapshot.quizProgress.",
+      "scope": "frontend",
+      "estimated_loc": 350,
+      "actual_loc": null,
+      "dependencies": ["M5"],
+      "acceptance_criteria": [
+        "Topic picker renders 11 topics in two sections",
+        "Clicking a topic calls onTopicChange (parent wires this to Frame.setTopic)",
+        "Lesson framing card text updates when currentTopic changes",
+        "XP progress card shows topicsVisited count + 'level' derivation",
+        "Formula reference card shows topic-keyed formulas",
+        "Notes textarea + Save button persists to sessionStorage",
+        "Reload preserves notes",
+        "Quiz progress card hidden when no attempts yet",
+        "All English copy"
+      ],
+      "files_to_create": [
+        "frontend/src/components/workspace/KineBotLabButton.tsx",
+        "frontend/src/components/workspace/KineBotWorkbench.tsx"
+      ],
+      "files_to_modify": [],
+      "passes": null, "started": null, "completed": null, "notes": null
+    },
+    {
+      "id": "M7",
+      "description": "Vitest suites. KineBotFrame: ~12 cases mirroring LedPlanckLabFrame.test.tsx — mount + iframe src + sandbox attrs + close button + 3 event-kind routes (sim-run silent, graph-change with card, quiz-attempt correct/incorrect) + onSnapshotChange callback + setTopic ref method (asserts sendNotification + iframe-context POST + snapshot mutation) + null-session no-push + cross-origin rejection. KineBotWorkbench: ~8 cases — renders six cards in null-snapshot state; topic-picker click calls onTopicChange; notes textarea persists to sessionStorage; quiz-progress card hidden when empty.",
+      "scope": "frontend",
+      "estimated_loc": 350,
+      "actual_loc": null,
+      "dependencies": ["M6"],
+      "acceptance_criteria": [
+        "All ~20 cases green via npm run test:run",
+        "No regression in BoldkastSimFrame, LedPlanckLabFrame, LedPlanckWorkbench tests",
+        "setTopic test verifies the kinebot.set-topic notification shape + the iframe-context POST is fired"
+      ],
+      "files_to_create": [
+        "frontend/src/components/workspace/__tests__/KineBotFrame.test.tsx",
+        "frontend/src/components/workspace/__tests__/KineBotWorkbench.test.tsx"
+      ],
+      "files_to_modify": [],
+      "passes": null, "started": null, "completed": null, "notes": null
+    },
+    {
+      "id": "M8",
+      "description": "Mount KineBot in chat page workspace. Add kinebotFrameRef + showKinebotLab + kinebotSnapshot state. Widen showAiplaWorkspace to include 'kinebot-kinematics-tutor'. Add the new skillSlug branch with <KineBotLabButton> + <KineBotWorkbench> default view ↔ <KineBotFrame> on click. Wire onTopicChange in the workbench to kinebotFrameRef.current?.setTopic(topic). Extend handleSend chat-flush to invoke kinebotFrameRef.current?.sendChatFlush(). useResizableWorkspaceRatio already keyed on skillSlug; KineBot opens at 0.65 default.",
+      "scope": "frontend",
+      "estimated_loc": 40,
+      "actual_loc": null,
+      "dependencies": ["M7"],
+      "acceptance_criteria": [
+        "Visiting /chat/@aipla-platform/kinebot-kinematics-tutor mounts the workbench in the workspace pane at ratio 0.65",
+        "Click launcher → lab visible; click close → workbench restored with snapshot preserved",
+        "Click sidebar topic in workbench → iframe sim re-renders for that topic + snapshot.currentTopic updates",
+        "Boldkast + LED Planck chat paths unaffected",
+        "Chat-submit fires all three flushes (Boldkast + LED Planck + KineBot); only the mounted one acts"
+      ],
+      "files_to_create": [],
+      "files_to_modify": ["frontend/src/app/chat/[...path]/page.tsx"],
+      "passes": null, "started": null, "completed": null, "notes": null
+    },
+    {
+      "id": "M9",
+      "description": "Backend tests. test_kinebot_skill_template.py (10+ cases) at backend/tests/unit/skills/: SKILL.md parses, displayName + avatar set, accessControl defaults public, description signals NCERT/CBSE Class 11 English, three KineBot prompt markers present (kinematics scope, Socratic personality, simulator reference), tool_configs.defaults artefacts/memory false, mcp.allow_context_writes includes 'kinebot', a2ui.enabled false. test_workspace_observability.py +1 case for serverId 'kinebot' with KineBotSnapshot, asserting rendered InstructionProvider block carries currentTopic + topicsVisited + sample sim-run params.",
+      "scope": "backend",
+      "estimated_loc": 200,
+      "actual_loc": null,
+      "dependencies": ["M1"],
+      "acceptance_criteria": [
+        "test_kinebot_skill_template.py: 10+ cases pass, validate frontmatter + prompt markers + tool_configs",
+        "test_workspace_observability.py: +1 case for kinebot serverId, agent sees currentTopic + sim params in rendered prompt",
+        "Both pass under make test-fast",
+        "No regression in existing problem-set-hints/manage-class/led-planck-tutor tests"
+      ],
+      "files_to_create": ["backend/tests/unit/skills/test_kinebot_skill_template.py"],
+      "files_to_modify": ["backend/tests/api_tests/test_workspace_observability.py"],
+      "passes": null, "started": null, "completed": null, "notes": "M9 depends on M1 only — can run earlier if executor prefers."
+    },
+    {
+      "id": "M10",
+      "description": "Quality gates + direct-to-dev FF merge + post-deploy reseed. cd backend && make lint && make test-fast clean. cd frontend && npm run quality:check clean. ADR-013 grep returns 0 forbidden patterns; artefact size under 200KB; no emoji anywhere. Rebase + FF-merge feature/kinebot-1d to dev (NO PR). Push origin/dev. Wait for both Cloud Build triggers (aipla-dev-deploy + aipla-mcp-sandbox-deploy). Trigger reseed via POST /api/proxy/api/admin/seed-platform-skills with SA --include-email token. Verify GET /api/skills returns 4 entries.",
+      "scope": "fullstack",
+      "estimated_loc": 0,
+      "actual_loc": null,
+      "dependencies": ["M2", "M3", "M4", "M5", "M6", "M7", "M8", "M9"],
+      "acceptance_criteria": [
+        "Backend lint + test-fast green",
+        "Frontend quality:check green (lint + typecheck + tests + build)",
+        "ADR-013 grep returns 0 forbidden patterns; artefact under 200 KB",
+        "No emoji in any sprint-touched file",
+        "Branch rebased onto origin/dev and FF-merged",
+        "origin/dev pushed; both Cloud Build triggers SUCCESS",
+        "Reseed returns kinebot-kinematics-tutor in created/updated set",
+        "GET /api/skills returns 4 entries: problem-set-hints, led-planck-tutor, kinebot-kinematics-tutor, manage-class (each with avatar)",
+        "Student demo /lessons view shows three lessons (manage-class filtered as teacher-only)"
+      ],
+      "files_to_create": [],
+      "files_to_modify": [],
+      "passes": null, "started": null, "completed": null, "notes": "Seed token: gcloud auth print-identity-token --impersonate-service-account=aipla-v6@aipla-dev-2026.iam.gserviceaccount.com --audiences=$URL --include-email (per reference-admin-seed-token-mint memory)."
+    }
+  ],
+  "velocity": {
+    "target_loc_per_day": 1000,
+    "actual_loc_per_day": null,
+    "estimated_total_loc": 1960,
+    "actual_total_loc": null,
+    "estimated_days": 2,
+    "actual_days": null
+  },
+  "github_issues": [],
+  "last_session": null,
+  "last_checkpoint": null,
+  "status": "planned",
+  "queue_position": 1,
+  "queue_rationale": "Third v1 physics skill (commitment from strands.qmd). First test of the External-artefact migration runbook (just landed in mcp-app-artefact skill). Unblocks DK's Indian-cohort beta. Demo-ready before mid-week."
+}
