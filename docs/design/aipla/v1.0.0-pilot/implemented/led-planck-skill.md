@@ -336,3 +336,23 @@ wc -c infrastructure/mcp-sandbox/artefacts/led-planck/v1/index.html
 - [implemented/mcp-app-iframe-spec-compliance.md](implemented/mcp-app-iframe-spec-compliance.md) — the spec-compliant artefact path
 - [.claude/skills/mcp-app-artefact/SKILL.md](../../../../.claude/skills/mcp-app-artefact/SKILL.md) — the canonical AIPLA artefact-onboarding recipe; this doc is the first artefact through that recipe post-spec-compliance migration
 - ADR-013 (artefact safety / sandbox / CSP) — in the scoping site at `architecture.qmd#adr-013-artefact-safety-content-review-pipeline-for-generated-html`
+
+---
+
+## Implementation Report
+
+**Completed**: 2026-05-27
+**Actual Effort**: [e.g., 5 days vs 3 estimated]
+**Branch/PR**: [link or commit range]
+
+### What Was Built
+- [Summary of actual implementation]
+- [Any deviations from plan]
+
+### Files Changed
+- [New files created]
+- [Modified files]
+
+### Lessons Learned
+- [What went well]
+- [What could be improved]
