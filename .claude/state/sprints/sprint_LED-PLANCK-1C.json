@@ -59,7 +59,7 @@
       ],
       "files_to_create": [],
       "files_to_modify": ["infrastructure/mcp-sandbox/artefacts/led-planck/v1/index.html"],
-      "passes": null, "started": null, "completed": null, "notes": null
+      "passes": true, "started": "2026-05-27T07:30:00Z", "completed": "2026-05-27T07:55:00Z", "actual_loc": 9, "notes": "Lab uses a tabs UI (measure/graph/spectrum/results), no goStep(). Synthesized step transitions inside update() from state: 1->2 when circuit correct, 2->3 when fit set, 3->4 when spectrumDone+fit OR first result saved. Brief's flat event shape preserved: emit() posts {type:'aipla:workbench', event:<kind>, ...payload}. ADR-013 grep clean, 41756 bytes."
     },
     {
       "id": "M4",
