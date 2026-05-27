@@ -7,6 +7,7 @@ import { BRANDING } from "@/lib/branding";
 import { isLocalMode } from "@/lib/localMode";
 
 import { MOCK_TEACHER } from "./_mock-data";
+import { TeacherGroupGate } from "./TeacherGroupGate";
 
 function isTeacherMockBypass(): boolean {
   return isLocalMode() || process.env.NEXT_PUBLIC_TEACHER_MOCK === "1";
@@ -80,7 +81,7 @@ function TeacherShell({ children }: { children: ReactNode }) {
       </header>
 
       <main className="mx-auto w-full max-w-6xl flex-1 px-4 py-6 sm:px-6 sm:py-8">
-        {children}
+        <TeacherGroupGate>{children}</TeacherGroupGate>
       </main>
 
       <div className="mx-auto flex w-full max-w-6xl justify-center px-4 pb-6 sm:px-6">
