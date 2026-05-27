@@ -1,6 +1,6 @@
 # Resizable workspace pane
 
-**Status**: Planned
+**Status**: Implemented
 **Priority**: P1 (unblocks KineBot 1.D + future ports; LED Planck 1.C also benefits)
 **Estimated**: ~1 day (~250 LOC frontend, 0 backend)
 **Scope**: Frontend only — `WorkspaceShell` resize handle + snap zones + per-skill sessionStorage persistence
@@ -164,3 +164,23 @@ If approved, the sprint is small enough to be one-shot:
 - **M7** — Quality gates + commit to dev (no PR per AIPLA workflow). No reseed needed (frontend-only).
 
 Total: ~370 LOC + tests, single sprint commit, deploy lands within the existing `aipla-dev-deploy` Cloud Build.
+
+---
+
+## Implementation Report
+
+**Completed**: 2026-05-27
+**Actual Effort**: [e.g., 5 days vs 3 estimated]
+**Branch/PR**: [link or commit range]
+
+### What Was Built
+- [Summary of actual implementation]
+- [Any deviations from plan]
+
+### Files Changed
+- [New files created]
+- [Modified files]
+
+### Lessons Learned
+- [What went well]
+- [What could be improved]

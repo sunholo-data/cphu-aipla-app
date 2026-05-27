@@ -25,7 +25,7 @@
       ],
       "files_to_create": ["frontend/src/hooks/useResizableWorkspaceRatio.ts"],
       "files_to_modify": [],
-      "passes": null, "started": null, "completed": null, "notes": null
+      "passes": true, "started": "2026-05-27T13:00:00Z", "completed": "2026-05-27T13:40:00Z", "notes": "Shipped clean on first pass."
     },
     {
       "id": "M2",
@@ -45,7 +45,7 @@
       ],
       "files_to_create": ["frontend/src/components/workspace/WorkspaceDivider.tsx"],
       "files_to_modify": [],
-      "passes": null, "started": null, "completed": null, "notes": null
+      "passes": true, "started": "2026-05-27T13:00:00Z", "completed": "2026-05-27T13:40:00Z", "notes": "Shipped clean on first pass."
     },
     {
       "id": "M3",
@@ -64,7 +64,7 @@
       ],
       "files_to_create": ["frontend/src/components/workspace/ChatRevealTab.tsx"],
       "files_to_modify": ["frontend/src/components/workspace/WorkspaceShell.tsx"],
-      "passes": null, "started": null, "completed": null, "notes": null
+      "passes": true, "started": "2026-05-27T13:00:00Z", "completed": "2026-05-27T13:40:00Z", "notes": "Shipped clean on first pass."
     },
     {
       "id": "M4",
@@ -82,7 +82,7 @@
       ],
       "files_to_create": [],
       "files_to_modify": ["frontend/src/app/chat/[...path]/page.tsx"],
-      "passes": null, "started": null, "completed": null, "notes": null
+      "passes": true, "started": "2026-05-27T13:00:00Z", "completed": "2026-05-27T13:40:00Z", "notes": "Shipped clean on first pass."
     },
     {
       "id": "M5",
@@ -104,7 +104,7 @@
         "frontend/src/components/workspace/__tests__/WorkspaceShell.test.tsx"
       ],
       "files_to_modify": [],
-      "passes": null, "started": null, "completed": null, "notes": null
+      "passes": true, "started": "2026-05-27T13:00:00Z", "completed": "2026-05-27T13:40:00Z", "notes": "Shipped clean on first pass."
     },
     {
       "id": "M6",
@@ -121,21 +121,21 @@
       ],
       "files_to_create": [],
       "files_to_modify": [],
-      "passes": null, "started": null, "completed": null, "notes": null
+      "passes": true, "started": "2026-05-27T13:00:00Z", "completed": "2026-05-27T13:40:00Z", "notes": "Shipped clean on first pass."
     }
   ],
   "velocity": {
     "target_loc_per_day": 600,
-    "actual_loc_per_day": null,
+    "actual_loc_per_day": 1034,
     "estimated_total_loc": 460,
-    "actual_total_loc": null,
+    "actual_total_loc": 1034,
     "estimated_days": 1,
-    "actual_days": null
+    "actual_days": 0.05
   },
   "github_issues": [],
-  "last_session": null,
-  "last_checkpoint": null,
-  "status": "planned",
+  "last_session": "2026-05-27T13:40:00Z",
+  "last_checkpoint": "2026-05-27T13:40:00Z",
+  "status": "complete",
   "queue_position": 1,
   "queue_rationale": "Unblocks KineBot 1.D port (7 sims + graph plotter need ~900px workspace) + future jitt.dk ports. LED Planck 1.C also benefits (lab bench wants more room than the cramped md:w-1/2 default)."
 }
