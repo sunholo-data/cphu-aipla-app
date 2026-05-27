@@ -131,7 +131,15 @@ export function WorkspaceShell({
     <aside
       data-workspace-aside
       style={mdWidthStyle}
-      className={`relative w-full shrink-0 flex-col overflow-hidden border-t bg-muted/40 md:flex md:border-t-0 md:border-l ${mdWidthClass} ${
+      // flex-1 below md so the aside claims the row's remaining height
+      // when the chat sibling is hidden by the mobile tab pattern —
+      // without it, the aside sizes to content and the internal
+      // overflow-y-auto + flex-1 chain has no height context, so the
+      // workspace pane clips to the natural content height of its
+      // first few elements and the rest disappears off-screen.
+      // md:flex-none + style.flexBasis controls the desktop width
+      // (legacy md:w-1/2 OR the resize-hook ratio).
+      className={`relative w-full flex-1 flex-col overflow-hidden border-t bg-muted/40 md:flex md:flex-none md:border-t-0 md:border-l ${mdWidthClass} ${
         hideOnMobile ? "hidden" : "flex"
       }`}
       aria-label="Workspace"
