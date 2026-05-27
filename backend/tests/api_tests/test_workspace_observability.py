@@ -96,6 +96,28 @@ _PROGRESS_BODY = {
     },
 }
 
+# 1.D — KineBot kinematics tutor snapshot. Mirrors
+# ``frontend/src/components/workspace/KineBotFrame.tsx`` snapshotRef
+# shape so the agent's runtime instruction carries the workbench state
+# (current topic, what sim was run last, quiz progress).
+_KINEBOT_BODY = {
+    "serverId": "kinebot",
+    "toolName": "state",
+    "structuredContent": {
+        "lastEvent": "kinebot.sim-run",
+        "currentTopic": "projectile",
+        "topicsVisited": ["intro", "velocity", "projectile"],
+        "lastSimRun": {
+            "simType": "projectile",
+            "params": {"velocity": 20, "acceleration": 0, "angle": 45},
+        },
+        "currentGraph": "range",
+        "quizProgress": [
+            {"topic": "projectile", "attempts": 2, "correct": 1},
+        ],
+    },
+}
+
 # 1.C — LED Planck virtual lab snapshot. Mirrors
 # ``frontend/src/components/workspace/LedPlanckLabFrame.tsx`` snapshotRef
 # shape so the agent's runtime instruction carries the lab state.
@@ -172,6 +194,29 @@ def _make_led_planck_skill() -> SkillConfig:
                 "mcp": {
                     "servers": ["led-planck"],
                     "allow_context_writes": ["led-planck"],
+                }
+            },
+        },
+    )
+
+
+def _make_kinebot_skill() -> SkillConfig:
+    """Production kinebot-kinematics-tutor SkillConfig — single server
+    (kinebot) opted into context-writes. Used by the KineBot
+    observability test."""
+    return SkillConfig(
+        skillId="kinebot-kinematics-tutor",
+        name="kinebot-kinematics-tutor",
+        description="NCERT/CBSE Class 11 kinematics tutor paired with a workbench.",
+        ownerId="aipla-platform",
+        ownerEmail="aipla-platform@example.com",
+        accessControl=AccessControl(type="public"),
+        skillMetadata={
+            "tools": ["mcp"],
+            "toolConfigs": {
+                "mcp": {
+                    "servers": ["kinebot"],
+                    "allow_context_writes": ["kinebot"],
                 }
             },
         },
@@ -533,3 +578,48 @@ class TestWorkspaceObservabilityE2E:
         # the tutor doesn't ask "did you connect the voltmeter?" after
         # the student already did.
         assert "voltmeter" in rendered
+
+    @patch("protocols.iframe_context_routes.skill_config")
+    @patch("protocols.iframe_context_routes.get_session_index")
+    @patch("protocols.iframe_context_routes.get_session_service")
+    def test_kinebot_push_lands_with_topic_and_simrun_in_render(
+        self,
+        mock_get_svc,
+        mock_get_index,
+        mock_skill_module,
+        session_service,
+        client,
+    ):
+        """1.D — KineBotFrame pushes a snapshot with currentTopic
+        (one of 11 NCERT topics), lastSimRun {simType, params},
+        currentGraph, and per-topic quizProgress. The
+        InstructionProvider render must carry the topic + sim params
+        + quiz aggregate into the runtime instruction so the
+        kinematics tutor can ask follow-ups that reference the
+        student's actual settings instead of asking the student to
+        repeat them."""
+        mock_get_svc.return_value = session_service
+        mock_get_index.return_value = _make_index()
+        mock_skill_module.get_skill.return_value = _make_kinebot_skill()
+
+        _post(client, _KINEBOT_BODY)
+
+        state = _read_state(session_service)
+        key = "mcp_app_context.kinebot.state"
+        assert key in state, f"expected {key} in state; got {list(state)}"
+        assert state[key]["structuredContent"] == _KINEBOT_BODY["structuredContent"]
+
+        rendered = render_instruction_with_iframe_context("BASE", state)
+        # Current topic surfaces — the tutor's primary anchor for the
+        # workbench context.
+        assert "kinebot.state" in rendered
+        assert "projectile" in rendered
+        # topicsVisited shows breadth of what the student has explored.
+        assert "intro" in rendered
+        assert "velocity" in rendered
+        # lastSimRun params — the agent should see the actual velocity
+        # + angle the student picked instead of re-asking.
+        assert "20" in rendered  # velocity
+        assert "45" in rendered  # angle
+        # quizProgress aggregate.
+        assert "attempts" in rendered or "correct" in rendered
