@@ -45,6 +45,10 @@ import {
   BoldkastSimFrame,
   type BoldkastSimFrameHandle,
 } from "@/components/workspace/BoldkastSimFrame";
+import {
+  LedPlanckLabFrame,
+  type LedPlanckLabFrameHandle,
+} from "@/components/workspace/LedPlanckLabFrame";
 
 // PEDCTX M5 — sub-parts of the Boldkast problem-set-hints v0.1 skill.
 // v1's problem-set-helper-config will source this from skill metadata;
@@ -278,7 +282,9 @@ function ChatShell({
   // the inherited template surface (DocTabs + DocumentPanel). Once v1
   // ships more student-facing skills the gate widens; for now the
   // workspace is purpose-built for the one demo flow.
-  const showAiplaWorkspace = isAnonymousGroupAuthMode() && skillSlug === "problem-set-hints";
+  const showAiplaWorkspace =
+    isAnonymousGroupAuthMode() &&
+    (skillSlug === "problem-set-hints" || skillSlug === "led-planck-tutor");
   const searchParams = useSearchParams();
   const router = useRouter();
   const [draft, setDraft] = useState("");
@@ -335,6 +341,7 @@ function ChatShell({
   // message lands. Optional chaining on the ref means handleSend
   // proceeds unaffected when the frame isn't mounted.
   const boldkastFrameRef = useRef<BoldkastSimFrameHandle | null>(null);
+  const ledPlanckFrameRef = useRef<LedPlanckLabFrameHandle | null>(null);
 
   // Session routing: read ?session= from URL, allow programmatic navigation
   const sessionId = searchParams.get("session");
@@ -430,6 +437,7 @@ function ChatShell({
     // the wire ahead of sendMessage in practice. Fire-and-forget: we
     // don't await, and missing ref = no-op.
     boldkastFrameRef.current?.sendChatFlush();
+    ledPlanckFrameRef.current?.sendChatFlush();
     // Snap to chat tab on mobile so the student sees the response
     // stream in. No effect on md+ where both panels are visible.
     setMobileTab("chat");
@@ -808,7 +816,25 @@ function ChatShell({
             the Boldkast sim lands here later in the buffer week.
             Other auth modes and other skills keep the inherited
             DocumentPanel / WorkspaceSurfaceRegion behaviour above. */}
-        {showAiplaWorkspace && (
+        {showAiplaWorkspace && skillSlug === "led-planck-tutor" && (
+          <WorkspaceShell hideOnMobile={mobileTab !== "workspace"}>
+            {BOLDKAST_SANDBOX_ORIGIN ? (
+              <LedPlanckLabFrame
+                ref={ledPlanckFrameRef}
+                sandboxOrigin={BOLDKAST_SANDBOX_ORIGIN}
+                sessionId={sessionId ?? agentSessionId}
+                onClose={() => {}}
+              />
+            ) : (
+              <p className="text-sm text-muted-foreground">
+                Arbejdsområde — laboratorium ikke tilgængeligt
+                (NEXT_PUBLIC_MCP_SANDBOX_URL mangler).
+              </p>
+            )}
+          </WorkspaceShell>
+        )}
+
+        {showAiplaWorkspace && skillSlug === "problem-set-hints" && (
           <WorkspaceShell hideOnMobile={mobileTab !== "workspace"}>
             {showBoldkastSim && BOLDKAST_SANDBOX_ORIGIN ? (
               <BoldkastSimFrame
