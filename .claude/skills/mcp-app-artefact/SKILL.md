@@ -155,17 +155,26 @@ React.** Concrete test: imagine removing a panel from the iframe and
 re-rendering it in React. If nothing breaks, it shouldn't have been in
 the iframe.
 
-Common mistakes:
-- Lesson instructions, step lists, formula references — render in
-  React. They don't need the sandbox.
-- Long-form problem statements — render in React.
+Common mistakes — these belong in React, not the iframe:
+- Lesson instructions, step lists, formula references
+- Long-form problem statements
 - Progress checklists driven by sim state — derive in React from the
   snapshot the host already accumulates. Don't render them in the
   iframe and then mirror to the host (LED Planck 1.C did this — see
   the redundant `<section class="panel"><h2>Experiment procedure</h2>
   ...checklist...</section>` in the original AR HTML, removed
   in the 1.C follow-up).
-- Big static help text panels — render in React.
+- Big static help text panels
+- **Topic / mode pickers / sidebar nav** (KineBot pattern) — render
+  in React. Drive iframe state via host → artefact notifications
+  (see "Host → artefact notifications" below).
+- **Formula / reference panels** (KineBot's Formulas tab) — pure
+  static lookup keyed by current topic; no canvas, no sandbox needed.
+- **Notes / sketchpad surfaces** (KineBot's Notes tab) — textarea +
+  save/tag/export, persisted to `sessionStorage` or an AIPLA endpoint.
+  Standard form controls don't need the sandbox.
+- **XP / progress bars** (KineBot's gamification) — derived from
+  snapshot, display-only.
 
 Keep in the iframe:
 - The canvas / WebGL / interactive bench
@@ -173,6 +182,33 @@ Keep in the iframe:
   inside the sim space
 - Chart / data visualisation tied to the live sim state
 - Anything that emits the postMessage telemetry
+
+### DELETE category — surfaces that have no place anywhere on AIPLA
+
+External artefacts (KineBot, future jitt.dk apps, anything ported from
+outside) often ship with surfaces that AIPLA already provides at the
+platform level. These get **deleted entirely** — neither iframe nor
+React workbench:
+
+- **Embedded chat panels** — AIPLA's chat surface owns chat. Always
+  delete the artefact's own chat (input boxes, message threads,
+  quick-prompt buttons, "🤖 Ask AI" / "Explain this" affordances
+  that trigger model calls).
+- **Auth chrome / API-key inputs** — AIPLA handles auth. Delete
+  modals/inputs that ask for Anthropic/OpenAI/Gemini keys, any
+  `sessionStorage.setItem.*apiKey` writes, and the entire "settings"
+  surface around them.
+- **Header chrome / logo / branding** — AIPLA's `WorkspaceShell`
+  provides the header. Delete the artefact's own `<header>` (title,
+  logo, action buttons like Clear / Settings / Voice that aren't
+  pedagogically interesting).
+- **External AI calls** — any `fetch("https://api.anthropic.com", ...)`,
+  `fetch("https://api.openai.com", ...)`, etc. Delete the call site;
+  if the feature is still wanted, route through AIPLA backend via the
+  iframe-context channel (the tutor will see the state) instead.
+- **External font / CDN imports** — `<link href="https://fonts.googleapis.com">`,
+  CDN scripts. Replace with system font stack or self-host. ADR-013's
+  CSP blocks these in production anyway.
 
 ### Telemetry channel is identical
 
@@ -186,6 +222,67 @@ truth. The agent and the React workbench observe the same thing.
 This means the Workbench's step progress / measurement summary is
 **always consistent with what the tutor sees**. The student can't
 "unsync" them.
+
+### Host → artefact notifications (set-state pattern)
+
+The iframe → host direction is covered by `ui/update-model-context`
+(events flowing OUT). The opposite direction — React workbench pushes
+state INTO the iframe — is also part of the spec, and many artefact
+ports need it once lesson navigation lives in React rather than inside
+the iframe.
+
+Two existing host → iframe notifications in AIPLA today:
+- **`ping`** — JSON-RPC request from host; the artefact responds with
+  `{result: {}}` so the proxy knows the iframe is alive.
+- **`ui/notifications/chat-flush`** — fire-and-forget; the artefact
+  flushes any locally-batched changes (pendingChanges map in Phase 2
+  commit-on-submit) as a state-change event so the tutor sees the
+  current configuration before the user message lands.
+
+For workbench-driven state pushes (the topic picker / mode selector
+case), establish the convention **`<artefact>.set-<thing>`**:
+
+```ts
+// Frame side — caller is in React land
+staticFrameRef.current?.sendNotification(
+  "kinebot.set-topic",
+  { topic: "projectile-motion" },
+);
+```
+
+```js
+// Artefact side — alongside the existing ping + chat-flush handlers
+window.addEventListener("message", function (e) {
+  const d = e.data;
+  if (!d || d.jsonrpc !== "2.0") return;
+  // ...existing ping handler...
+  if (d.method === "kinebot.set-topic" && d.params) {
+    currentTopic = d.params.topic;
+    renderTopicCanvas();  // re-render the sim with the new topic
+    return;
+  }
+});
+```
+
+The host wraps `sendNotification` through `StaticArtefactFrame`'s
+`useImperativeHandle`-exposed method, which posts the JSON-RPC envelope
+to the sandbox proxy with the correct origin.
+
+**Naming convention.** Use `<artefact>.set-<noun>` for state pushes
+that change a variable inside the artefact (e.g.
+`kinebot.set-topic`, `boldkast.set-preset`). Use
+`<artefact>.cmd-<verb>` for imperative commands that trigger an
+action but don't carry persistent state (e.g.
+`boldkast.cmd-reset`). `ui/notifications/chat-flush` is the
+spec-defined chat-flush method (no artefact prefix because it's
+generic across all artefacts).
+
+**Do NOT mirror.** State that's been pushed into the iframe via a
+`set-` notification should NOT be echoed back to the host via a
+`ui/update-model-context` event for the same field. The host already
+knows the value (it just sent it). If the iframe transforms the
+state somehow (e.g. computes a derived value), that derived value
+CAN come back as a normal telemetry event.
 
 ### When the Frame is closed
 
@@ -373,6 +470,235 @@ The `_template/v1/index.html` ships all the structural patterns —
 slider state, animation loop, marker rendering, telemetry, self-test.
 You can run the scaffold script and edit, or paste the prompt above
 into a Claude session.
+
+## External-artefact migration runbook (porting existing apps)
+
+This section is for the **port-from-outside** workflow — taking an
+HTML/JS artefact built by someone else (DK's KineBot, a jitt.dk app,
+a teacher's prototype) and shipping it as an AIPLA-compliant activity.
+It's a different workflow from "create a new artefact from the
+scaffold" above: existing artefacts come with chat panels, API key UIs,
+direct LLM calls, custom navigation chrome — none of which AIPLA wants.
+
+The 7-step canonical runbook below is the migration checklist. Each
+step is concrete: a command, a grep, a file edit. Follow them in
+order — earlier steps unblock later ones.
+
+### Step 1 — Audit
+
+Read the source. Identify the violations and the surface inventory
+before touching anything. Capture both as a short audit doc so the
+sprint plan has a panel-by-panel mapping to point at.
+
+```bash
+SRC=path/to/external-artefact.html
+
+# Size — must be < 200 KB after migration; if the source is way over,
+# plan for a big strip pass.
+wc -c "$SRC"
+
+# Direct external API calls — every match is a strip target.
+grep -nE 'fetch\(["'\''`]https://|XMLHttpRequest|new WebSocket' "$SRC"
+
+# API-key UI and key persistence — every match is a delete target.
+grep -nE 'apiKey|sessionStorage\.setItem.*[Kk]ey|localStorage\.setItem.*[Kk]ey' "$SRC"
+
+# External resource imports — must move to inline / system-font.
+grep -nE '<script src="https://|<link[^>]+href="https://|@import url\(https' "$SRC"
+
+# eval / new Function — almost always a strip target (and would
+# fail CSP anyway in production).
+grep -nE 'eval\(|new Function\(' "$SRC"
+
+# Top-level structural panels — gives you the surface inventory
+# without reading 1700 lines of HTML.
+grep -nE '<(header|nav|section|main|aside|footer|div class="(panel|tab|sidebar|toolbar))' "$SRC" | head -40
+```
+
+For each panel found, classify against the [Iframe scope rule]
+(#iframe-scope-rule--interactive-only):
+- **Iframe (keep)** — canvas, sliders, interactive bench, chart tied
+  to live state
+- **React workbench (move)** — topic picker, formula reference, notes,
+  progress display
+- **Delete (drop entirely)** — embedded chat panel, API key UI, header
+  chrome, "Explain with AI" buttons, external font/CDN imports
+
+Write the inventory as a markdown table in the audit doc. The sprint
+plan refers to this table directly when scoping milestones.
+
+### Step 2 — Strip
+
+Delete the violations identified in Step 1. Order matters:
+
+1. **Delete embedded chat panel + chat-related buttons** (Quiz Mode,
+   Clear, Voice, "🤖 Explain") first. These usually anchor a lot of
+   downstream code that you'll then delete too.
+2. **Delete API-key UI + key persistence**. Removes the
+   `sessionStorage.setItem(...apiKey...)` writes.
+3. **Delete direct API call sites**. Each `fetch("https://api.anthropic.com")`
+   etc. gets removed. The chat callers will already be gone from step
+   1; the standalone callers (e.g. an "Explain" button on a graph,
+   an "AI quiz generation" call) get individual deletion.
+4. **Replace AI-generated dynamic content with static data**. If the
+   artefact uses an LLM to generate quizzes, hints, or examples on the
+   fly, replace with a static JSON bank served from the same origin
+   (`fetch('./quizzes/<topic>.json')` — CSP allows same-origin).
+   Vetted, deterministic, no per-request LLM call.
+5. **Replace external font/CDN imports** with system font stack.
+
+Re-run the Step 1 audit greps. All matches should be zero.
+
+### Step 3 — Wire (telemetry events)
+
+Add the JSON-RPC handshake + emit helpers (~30 LoC inline; copy from
+the Boldkast / LED Planck artefact). Then wire each pedagogically
+meaningful event hook through `emit()`:
+
+```js
+emit("<artefact-name>.<event>", { ...payload });
+// → translated to:
+// rpcNotify("ui/update-model-context", {
+//   structuredContent: { kind: "<artefact-name>.<event>", ...payload }
+// });
+```
+
+If lesson navigation moves to React (typical for any
+multi-topic / multi-mode external artefact), also add the
+host → artefact notification listener so the React workbench can push
+state IN. See [Host → artefact notifications]
+(#host--artefact-notifications-set-state-pattern).
+
+### Step 4 — Extract (system prompt → SKILL.md)
+
+If the artefact embeds a system prompt for its own chat (KineBot's
+SYSTEM_PROMPT constant around line 1030, etc.), extract it verbatim
+to `backend/skills/templates/<slug>/SKILL.md` and delete the original
+constant from the HTML. The skill template owns the prompt; the
+artefact just emits events the skill's tutor reads.
+
+Frontmatter shape — copy from one of the existing skill templates
+([`backend/skills/templates/led-planck-tutor/SKILL.md`](../../../backend/skills/templates/led-planck-tutor/SKILL.md)
+is the recent reference):
+
+```yaml
+---
+name: <slug>
+displayName: "<Display Name>"
+avatar: /lesson-images/<slug>.svg
+description: >
+  <one-paragraph description of the activity>
+initialMessage: |
+  <Danish or English greeting that introduces the activity and
+  suggests a few starter prompts>
+metadata:
+  author: aipla
+  version: "0.1.0"
+  model: gemini-2.5-flash
+  thinkingModel: null
+  tools: []
+  toolConfigs:
+    a2ui:
+      enabled: false
+    mcp:
+      allow_context_writes:
+        - <artefact-name>
+      servers: []
+    defaults:
+      artefacts: false
+      memory: false
+  subSkills: []
+---
+
+<verbatim system prompt body>
+```
+
+### Step 5 — Package (ADR-013 pipeline re-scan)
+
+Run the full ADR-013 gate against the migrated artefact:
+
+```bash
+ART=infrastructure/mcp-sandbox/artefacts/<name>/v1/index.html
+wc -c "$ART"                              # < 200000
+grep -nE 'fetch\("https?:|XMLHttpRequest|new WebSocket' "$ART"   # empty
+grep -nE '<script src="https?://|<link[^>]+href="https?://' "$ART"  # empty
+grep -nE 'eval\(|new Function\(' "$ART"  # empty
+```
+
+Open the artefact at 700px viewport width (devtools device toolbar).
+No horizontal scrollbar, no clipped content. This is the
+[responsive viewport gate]
+(#adr-013-security-gates-never-skip)
+(ADR-013 gate #6).
+
+### Step 6 — Pair (host wrapper + chat-page mount)
+
+Build the Button + Workbench + Frame triad per
+[The triad](#the-triad). Three files:
+
+- `<Name>LabButton.tsx` (or `<Name>SimButton.tsx`) — launcher card
+  (~30 LOC)
+- `<Name>Workbench.tsx` — React surface for the panels that moved out
+  of the iframe (topic picker, formulas, notes, progress)
+- `<Name>LabFrame.tsx` (or `<Name>Frame.tsx`) — `forwardRef` wrapper
+  around `StaticArtefactFrame`. Owns the snapshot accumulation +
+  `onSnapshotChange` callback + `sendChatFlush()` + any
+  `sendNotification("<name>.set-*", ...)` exposed via
+  `useImperativeHandle` for host → artefact pushes.
+
+Wire the chat page branch following the Boldkast / LED Planck
+template (see
+[`frontend/src/app/chat/[...path]/page.tsx`](../../../frontend/src/app/chat/[...path]/page.tsx),
+the `showAiplaWorkspace && skillSlug === "..."` blocks).
+
+### Step 7 — Test
+
+Three test layers:
+
+1. **Vitest** on the Frame — event routing per kind (snapshot field
+   updates, card-vs-silent dispatch), `sendChatFlush()` ref method,
+   any `sendNotification()` ref method for host → artefact state,
+   cross-origin rejection (inherited from `StaticArtefactFrame`).
+   ~12 cases is the LED Planck reference.
+2. **Pytest** on the skill template — `_parse_template` returns the
+   expected name / displayName / avatar / accessControl; system
+   prompt body contains the expected markers; `toolConfigs.defaults`
+   opts out of artefacts + memory; `mcp.allow_context_writes`
+   includes the artefact name.
+3. **Pytest** on workspace observability — extend
+   `test_workspace_observability.py` with a case that POSTs the new
+   snapshot shape under the artefact's serverId and asserts the
+   `InstructionProvider` block carries the key fields the agent
+   should see.
+
+Final smoke: deploy to dev, visit the chat URL, drag the resize
+divider through the snap zones, exercise each event type in the
+iframe, confirm the tutor references state in the next turn.
+
+### Anti-patterns to avoid during a migration
+
+- **Don't try to "fix" the external artefact in-place.** Strip
+  ruthlessly; the goal is AIPLA-compliant, not "preserve every
+  feature the original had."
+- **Don't keep the embedded chat as a "backup" channel.** One chat
+  per page (AIPLA's), always.
+- **Don't add new wire formats.** Reuse `ui/update-model-context`,
+  `ping`, and the `<artefact>.set-*` convention for state pushes.
+  No `aipla:workbench`-style custom envelopes.
+- **Don't preserve original-artefact branding / headers.** AIPLA
+  provides chrome via `WorkspaceShell`; the artefact is the
+  interactive surface only.
+- **Don't punt the responsive check.** Verify at 700px workspace
+  width before you commit. The ADR-013 viewport gate is non-optional.
+
+### Reference migrations
+
+- [`kinebot-migration.md`](../../../docs/design/aipla/v1.0.0-pilot/kinebot-migration.md) —
+  KineBot (1.D), the runbook's first stress-test
+- [`led-planck-skill.md`](../../../docs/design/aipla/v1.0.0-pilot/implemented/led-planck-skill.md) +
+  [`led-planck-integration-followup.md`](../../../docs/design/aipla/v1.0.0-pilot/led-planck-integration-followup.md) —
+  LED Planck (1.C); not an external port, but the case study that
+  drove the workspace-integration discipline this runbook codifies
 
 ## Steps to add a new artefact (using the scaffold)
 
