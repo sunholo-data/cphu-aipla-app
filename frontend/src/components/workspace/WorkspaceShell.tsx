@@ -2,6 +2,10 @@
 
 import { useEffect, useState, type ReactNode } from "react";
 
+import { RATIO_DEFAULT } from "@/hooks/useResizableWorkspaceRatio";
+import { ChatRevealTab } from "./ChatRevealTab";
+import { WorkspaceDivider } from "./WorkspaceDivider";
+
 const COLLAPSE_KEY = "aipla.workspace.collapsed";
 
 interface WorkspaceShellProps {
@@ -16,6 +20,13 @@ interface WorkspaceShellProps {
    * is unaffected. Use this on small-screen tab patterns where a parent
    * tab-bar gates which panel is visible. Default: always-visible. */
   hideOnMobile?: boolean;
+  /** Resize ratio (workspace fraction of the row) in [0.30, 1.00].
+   *  When omitted, the shell falls back to its legacy md:w-1/2 behaviour
+   *  and no divider is rendered (back-compat for callers that don't
+   *  pass the resize props). */
+  ratio?: number;
+  /** Commit a new ratio. Required if `ratio` is set. */
+  onRatioChange?: (next: number) => void;
 }
 
 /**
@@ -42,8 +53,17 @@ interface WorkspaceShellProps {
  * of which clear the lg breakpoint. Mobile/portrait support lands in
  * v1 alongside multi-class teacher dashboards.
  */
-export function WorkspaceShell({ children, title = "Arbejdsområde", hideOnMobile = false }: WorkspaceShellProps) {
+export function WorkspaceShell({
+  children,
+  title = "Arbejdsområde",
+  hideOnMobile = false,
+  ratio,
+  onRatioChange,
+}: WorkspaceShellProps) {
   const [collapsed, setCollapsed] = useState(false);
+  const resizable = typeof ratio === "number" && typeof onRatioChange === "function";
+  const effectiveRatio = resizable ? ratio : null;
+  const fullscreen = effectiveRatio === 1;
 
   // Restore collapse state on mount. Done in effect (not initial state)
   // so SSR doesn't read sessionStorage and React doesn't hydrate a mismatch.
@@ -91,17 +111,37 @@ export function WorkspaceShell({ children, title = "Arbejdsområde", hideOnMobil
   //   <md (640-ish px): stacked vertically. Workspace renders below the
   //     chat column as a min-height region (caller decides the layout
   //     wrapper; this aside just owns its own width=100%/height=auto).
-  //   md+: side-by-side, 50/50. shrink-0 keeps the workspace honest
-  //     under content pressure (sim/charts don't push chat narrower).
+  //   md+: side-by-side. When `ratio` prop is supplied, width is
+  //     flex-basis driven from React state (resize handle live); else
+  //     falls back to the legacy md:w-1/2 behaviour for backward-
+  //     compat with callers that don't yet pass the resize props.
+  //   shrink-0 keeps the workspace honest under content pressure
+  //     (sim/charts don't push chat narrower).
   // bg-muted/40 visually separates the workspace from the chat (which
   // is bg-background). Border on the LEFT for md+, on the TOP for <md.
+  //
+  // The aside is `position: relative` so the divider + reveal-tab can
+  // anchor to its left edge.
+  const mdWidthClass = resizable ? "" : "md:w-1/2";
+  const mdWidthStyle =
+    resizable && effectiveRatio !== null
+      ? { flexBasis: `${effectiveRatio * 100}%` }
+      : undefined;
   return (
     <aside
-      className={`w-full shrink-0 flex-col overflow-hidden border-t bg-muted/40 md:flex md:w-1/2 md:border-t-0 md:border-l ${
+      data-workspace-aside
+      style={mdWidthStyle}
+      className={`relative w-full shrink-0 flex-col overflow-hidden border-t bg-muted/40 md:flex md:border-t-0 md:border-l ${mdWidthClass} ${
         hideOnMobile ? "hidden" : "flex"
       }`}
       aria-label="Workspace"
     >
+      {resizable && !fullscreen ? (
+        <WorkspaceDivider ratio={ratio} onChange={onRatioChange} />
+      ) : null}
+      {resizable && fullscreen ? (
+        <ChatRevealTab onReveal={() => onRatioChange(RATIO_DEFAULT)} />
+      ) : null}
       <header className="flex shrink-0 items-center justify-between border-b border-border/60 px-3 py-2 bg-muted/60">
         <h2 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
           {title}
