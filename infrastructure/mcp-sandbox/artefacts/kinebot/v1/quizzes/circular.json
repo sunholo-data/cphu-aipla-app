@@ -1,0 +1,36 @@
+{
+  "topic": "circular",
+  "questions": [
+    {
+      "id": "circular-q1",
+      "prompt": "An object moves in a circle at constant speed. Which statement is correct?",
+      "options": [
+        "Its velocity is constant",
+        "Its acceleration is zero",
+        "Its velocity changes direction continuously but its speed is constant",
+        "Both velocity and speed are constant"
+      ],
+      "correct": 2,
+      "explanation": "Uniform circular motion: the speed (magnitude of velocity) is constant but the direction of velocity is continuously changing — so velocity is NOT constant. The change in velocity gives a non-zero centripetal acceleration directed toward the centre."
+    },
+    {
+      "id": "circular-q2",
+      "prompt": "The centripetal acceleration of a particle moving in a circle of radius r with speed v is:",
+      "options": [
+        "v / r",
+        "v² / r",
+        "v · r",
+        "v² · r"
+      ],
+      "correct": 1,
+      "explanation": "Centripetal acceleration aᶜ = v² / r, directed toward the centre of the circle. Equivalently, aᶜ = ω²r where ω is the angular velocity."
+    },
+    {
+      "id": "circular-q3",
+      "prompt": "A car moves in a circle of radius 50 m at 10 m/s. What is its centripetal acceleration?",
+      "options": ["0.2 m/s²", "2 m/s²", "5 m/s²", "100 m/s²"],
+      "correct": 1,
+      "explanation": "aᶜ = v² / r = 10² / 50 = 100 / 50 = 2 m/s²."
+    }
+  ]
+}

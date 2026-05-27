@@ -1,0 +1,31 @@
+{
+  "topic": "vectors",
+  "questions": [
+    {
+      "id": "vectors-q1",
+      "prompt": "Which of the following is a vector quantity?",
+      "options": [
+        "Mass",
+        "Temperature",
+        "Velocity",
+        "Time"
+      ],
+      "correct": 2,
+      "explanation": "Vectors have both magnitude and direction. Velocity has direction (e.g., 30 m/s east). Mass, temperature, and time are scalars — they have magnitude only."
+    },
+    {
+      "id": "vectors-q2",
+      "prompt": "Two vectors of magnitudes 3 and 4 are perpendicular. What is the magnitude of their sum?",
+      "options": ["1", "5", "7", "12"],
+      "correct": 1,
+      "explanation": "For perpendicular vectors the resultant magnitude is sqrt(3² + 4²) = sqrt(25) = 5. This is the classic 3-4-5 right triangle."
+    },
+    {
+      "id": "vectors-q3",
+      "prompt": "A vector of magnitude 10 makes an angle of 30° with the x-axis. What is its x-component?",
+      "options": ["10 × sin 30° = 5", "10 × cos 30° ≈ 8.66", "10 × tan 30° ≈ 5.77", "Cannot be determined"],
+      "correct": 1,
+      "explanation": "The x-component is the projection onto the x-axis: Aₓ = A cos θ = 10 × cos 30° ≈ 8.66. (Aᵧ = A sin θ = 5 would be the y-component.)"
+    }
+  ]
+}

@@ -1,0 +1,41 @@
+{
+  "topic": "intro",
+  "questions": [
+    {
+      "id": "intro-q1",
+      "prompt": "Which of the following best describes a point object in kinematics?",
+      "options": [
+        "An object whose size is negligible compared to the distance it travels",
+        "An object with zero mass",
+        "An object that is at rest",
+        "Any object smaller than 1 metre"
+      ],
+      "correct": 0,
+      "explanation": "A point object is one whose dimensions can be ignored relative to the distance covered. A car treated as a point during a 100 km road trip is a typical example."
+    },
+    {
+      "id": "intro-q2",
+      "prompt": "Rest and motion are:",
+      "options": [
+        "Absolute physical quantities",
+        "Always opposite states an object can be in",
+        "Relative — they depend on the chosen frame of reference",
+        "Only meaningful for objects with mass"
+      ],
+      "correct": 2,
+      "explanation": "Whether an object is at rest or in motion depends entirely on the frame of reference. A passenger sitting in a moving train is at rest relative to the train but in motion relative to the ground."
+    },
+    {
+      "id": "intro-q3",
+      "prompt": "Which of the following is NOT required to specify the position of a particle in 1D motion?",
+      "options": [
+        "An origin",
+        "A direction (positive sense of the axis)",
+        "A frame of reference",
+        "The mass of the particle"
+      ],
+      "correct": 3,
+      "explanation": "Position in kinematics is purely geometric — you need an origin, a positive direction, and a frame of reference. The particle's mass is irrelevant for describing position."
+    }
+  ]
+}

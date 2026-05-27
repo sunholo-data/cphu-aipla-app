@@ -1,0 +1,31 @@
+{
+  "topic": "equations",
+  "questions": [
+    {
+      "id": "equations-q1",
+      "prompt": "A particle starts from rest and accelerates uniformly at 3 m/s². Its velocity after 6 s is:",
+      "options": ["3 m/s", "9 m/s", "18 m/s", "36 m/s"],
+      "correct": 2,
+      "explanation": "Using v = u + at with u = 0, a = 3 m/s², t = 6 s: v = 0 + 3 × 6 = 18 m/s."
+    },
+    {
+      "id": "equations-q2",
+      "prompt": "A car starts from rest, accelerates at 2 m/s² for 10 s. How far does it travel?",
+      "options": ["20 m", "50 m", "100 m", "200 m"],
+      "correct": 2,
+      "explanation": "Using s = ut + ½at² with u = 0, a = 2 m/s², t = 10 s: s = 0 + ½ × 2 × 100 = 100 m."
+    },
+    {
+      "id": "equations-q3",
+      "prompt": "Which equation of motion does NOT involve time t?",
+      "options": [
+        "v = u + at",
+        "s = ut + ½at²",
+        "v² = u² + 2as",
+        "s = ½(u + v)t"
+      ],
+      "correct": 2,
+      "explanation": "v² = u² + 2as relates velocity, displacement, and acceleration without time. It is derived by eliminating t from the first two equations and is useful when t is unknown."
+    }
+  ]
+}

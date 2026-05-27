@@ -1,0 +1,31 @@
+{
+  "topic": "freefall",
+  "questions": [
+    {
+      "id": "freefall-q1",
+      "prompt": "A ball is dropped from a height of 20 m (take g = 10 m/s²). How long does it take to reach the ground?",
+      "options": ["1 s", "2 s", "4 s", "10 s"],
+      "correct": 1,
+      "explanation": "Using h = ½gt² with h = 20 m and g = 10 m/s²: 20 = ½ × 10 × t² → t² = 4 → t = 2 s. (Initial velocity u = 0 because the ball is dropped, not thrown.)"
+    },
+    {
+      "id": "freefall-q2",
+      "prompt": "Two balls of different masses are dropped from the same height in vacuum. Which hits the ground first?",
+      "options": [
+        "The heavier ball",
+        "The lighter ball",
+        "They hit at the same time",
+        "Cannot be determined without more information"
+      ],
+      "correct": 2,
+      "explanation": "In vacuum (no air resistance), all freely falling objects have the same acceleration g regardless of mass. Galileo's classic insight: they hit simultaneously. With air resistance, the answer changes."
+    },
+    {
+      "id": "freefall-q3",
+      "prompt": "An object is thrown upward with initial velocity 20 m/s. Taking g = 10 m/s², the maximum height reached is:",
+      "options": ["10 m", "20 m", "40 m", "200 m"],
+      "correct": 1,
+      "explanation": "At maximum height, the velocity is zero. Using v² = u² - 2gh with v = 0, u = 20 m/s, g = 10 m/s²: 0 = 400 - 20h → h = 20 m."
+    }
+  ]
+}

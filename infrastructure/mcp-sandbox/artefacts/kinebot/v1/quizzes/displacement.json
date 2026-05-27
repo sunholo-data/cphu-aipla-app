@@ -1,0 +1,36 @@
+{
+  "topic": "displacement",
+  "questions": [
+    {
+      "id": "displacement-q1",
+      "prompt": "A runner completes one full lap of a 400 m circular track. What are the distance and displacement?",
+      "options": [
+        "Distance 400 m, displacement 400 m",
+        "Distance 400 m, displacement 0 m",
+        "Distance 0 m, displacement 400 m",
+        "Both are zero"
+      ],
+      "correct": 1,
+      "explanation": "Distance is the total path length (400 m). Displacement is the straight-line vector from start to finish; after one full lap the runner returns to the start, so displacement = 0."
+    },
+    {
+      "id": "displacement-q2",
+      "prompt": "Which statement is true?",
+      "options": [
+        "Distance can be negative; displacement cannot",
+        "Displacement can be negative; distance cannot",
+        "Both distance and displacement can be negative",
+        "Neither can be negative"
+      ],
+      "correct": 1,
+      "explanation": "Distance is a scalar and is always non-negative (it is a path length). Displacement is a vector and can be negative depending on the chosen positive direction."
+    },
+    {
+      "id": "displacement-q3",
+      "prompt": "A car drives 6 km north, then 8 km east. What is the magnitude of its displacement?",
+      "options": ["10 km", "14 km", "2 km", "48 km"],
+      "correct": 0,
+      "explanation": "The two legs are perpendicular, so the displacement is the hypotenuse: sqrt(6^2 + 8^2) = sqrt(100) = 10 km. The 14 km option is the total distance travelled."
+    }
+  ]
+}

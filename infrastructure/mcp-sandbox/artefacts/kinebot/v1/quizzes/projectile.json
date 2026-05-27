@@ -1,0 +1,31 @@
+{
+  "topic": "projectile",
+  "questions": [
+    {
+      "id": "projectile-q1",
+      "prompt": "In ideal projectile motion (no air resistance), the horizontal acceleration is:",
+      "options": [
+        "g downward",
+        "g upward",
+        "Zero",
+        "Equal to the initial horizontal velocity"
+      ],
+      "correct": 2,
+      "explanation": "Gravity acts only vertically. The horizontal component of velocity is constant throughout the flight; the horizontal acceleration is zero. The vertical acceleration is g downward."
+    },
+    {
+      "id": "projectile-q2",
+      "prompt": "A projectile is launched with initial speed u = 20 m/s at 30° to the horizontal (g = 10 m/s²). What is its time of flight T?",
+      "options": ["1 s", "2 s", "4 s", "20 s"],
+      "correct": 1,
+      "explanation": "T = 2u sin θ / g = 2 × 20 × sin 30° / 10 = 2 × 20 × 0.5 / 10 = 20 / 10 = 2 s."
+    },
+    {
+      "id": "projectile-q3",
+      "prompt": "For a projectile launched from ground level with fixed initial speed, what launch angle gives the maximum horizontal range?",
+      "options": ["15°", "30°", "45°", "60°"],
+      "correct": 2,
+      "explanation": "Range R = u² sin(2θ) / g. sin(2θ) peaks when 2θ = 90°, i.e. θ = 45°. (Air resistance shifts this slightly, but in the ideal case 45° wins.)"
+    }
+  ]
+}
