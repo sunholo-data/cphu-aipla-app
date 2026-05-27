@@ -112,7 +112,7 @@
       ],
       "files_to_create": ["frontend/src/components/workspace/LedPlanckLabFrame.tsx"],
       "files_to_modify": [],
-      "passes": null, "started": null, "completed": null, "notes": "Mirror BoldkastSimFrame.tsx structurally — only the event vocabulary + snapshot + Danish labels differ."
+      "passes": true, "started": "2026-05-27T08:40:00Z", "completed": "2026-05-27T09:00:00Z", "actual_loc": 303, "notes": "Structural mirror of BoldkastSimFrame.tsx. Snapshot shape: {lastEvent, currentStep, currentStepName, measurements[], componentsPlaced[], lastPolarityError, voltage}. Event routing: step-change/measurement/component-placed(correct:true)/led-polarity-error -> push + Danish card; component-placed(correct:false) and state-change -> silent push (no card). Measurements dedupe by LED color (newest wins). Danish labels: Begyndte I-U-måling / Begyndte spektroskopi / Åbnede rapport, Målte U₀ for <farve> LED, Placerede <komponent>, Forsøgte LED med omvendt polaritet. lint + typecheck green."
     },
     {
       "id": "M7",
