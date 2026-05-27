@@ -26,17 +26,18 @@ AIPLA v1 commits to a "curated sim library" (strands.qmd). After Boldkast (0.2) 
 
 ## Goals
 
-**Primary goal:** Five jitt.dk apps available in the AIPLA workbench, each paired with a Socratic tutor system prompt, each passing the ADR-013 pipeline scan, each emitting `aipla:workbench` postMessage events that reach the agent's context via the existing `StaticArtefactFrame` path.
+**Primary goal:** Five jitt.dk apps available in the AIPLA workbench, each paired with a Socratic tutor system prompt, each passing the ADR-013 pipeline scan, each emitting spec-compliant JSON-RPC `ui/update-model-context` notifications that reach the agent's context via the existing `StaticArtefactFrame` path.
 
 **Success metrics (per artefact):**
 - Loads in `sandbox="allow-scripts"` iframe without console errors
 - ADR-013 scan passes: no `fetch(`, no `XMLHttpRequest`, no external `<script src>`, artefact size < 200 KB
-- Core interaction events (`aipla:workbench`) fire and reach `mcp_app_context.<artefact>.state`
+- `ui/initialize` handshake completes on load (visible as `StaticArtefactFrame` mounted + initialized in host)
+- Core interaction events fire as `ui/update-model-context` notifications and reach `mcp_app_context.<artefact>.state`
 - Tutor skill references current app state in the first response that follows a state-change event (qualitative check)
 - `aiplatform artefact audit <path>` exits 0
 
 **Non-goals:**
-- Rewriting the jitt.dk apps (they stay as-is; we only add the thin postMessage adapter)
+- Rewriting or regenerating the jitt.dk apps (they are hand-crafted by an expert practitioner — preserve every line of original functionality and add only the AIPLA wiring on top)
 - Building a tool to scrape/download jitt.dk automatically (manual copy is fine for 5 apps)
 - Accessibility or internationalisation (apps are Danish; v1 Danish target audience)
 - GPS Fart and sensor apps in v1 (sensor permissions inside sandboxed iframes need a dedicated investigation — tracked in [expanded-workbench-types.md](expanded-workbench-types.md) as Type 3)
@@ -61,35 +62,78 @@ This is the standard sequence; see the mcp-app-artefact skill for the full runbo
 
 Download the standalone HTML from jitt.dk. Check for external dependencies (CDN scripts, fetch calls, external CSS). Document what you find.
 
+**Do not regenerate or summarise the app.** These are hand-crafted by a practitioner with years of physics-teaching experience. The goal is to ADD the AIPLA wiring while preserving every line of the original. Lesson from LED Planck 1.C: the sprint executor regenerated a simplified 152-line English stub instead of porting the 1855-line Danish source. The result lost the pedagogical fidelity that made the original valuable. Do not repeat this.
+
 ### 2. ADR-013 scan
 
 ```bash
 aiplatform artefact audit path/to/app.html
 ```
 
-Fail conditions: any `fetch(`, `XMLHttpRequest`, external `<script src>`, or file > 200 KB. If the app uses a CDN resource, self-host it and inline it (consistent with how Boldkast handles its zero-dependency design).
+Run this on the **real source file** before making any edits. Fail conditions: any `fetch(`, `XMLHttpRequest`, external `<script src>`, or file > 200 KB. If the app uses a CDN resource, self-host it by inlining (consistent with the Boldkast zero-dependency design).
 
-### 3. postMessage adapter
+### 3. Add JSON-RPC wiring
 
-Add a thin event emitter at the end of the HTML's `<script>` block. The exact shape depends on what the app exposes — each app is different. Minimum set:
+The AIPLA spec-compliant path (MCP Apps spec via `StaticArtefactFrame`) requires JSON-RPC 2.0 over postMessage — not raw `window.parent.postMessage` with a custom envelope. **Do not use `{type: 'aipla:workbench', event: '...'}` — that format is obsolete.**
+
+Add the following block at the **top of the existing `<script>` section**, before any app code. This is a copy of the helpers from the Boldkast template (also at `infrastructure/mcp-sandbox/artefacts/_template/v1/index.html`):
 
 ```javascript
-// App initialised
-window.parent.postMessage({
-  type: 'aipla:workbench',
-  event: 'app-ready',
-  app: '<app-id>'          // e.g. 'pendul', 'kredsløb'
-}, '*');
+// ─── AIPLA MCP Apps wiring (add to every jitt.dk artefact) ──────────────────
+let __rpcNextId = 1, __initialized = false, __pendingEmits = [], __hostContext = null;
+function __post(m) { try { window.parent.postMessage(m, '*'); } catch(_) {} }
+function rpcNotify(method, params) { __post({jsonrpc:'2.0', method, params: params||{}}); }
+function rpcRequest(method, params) {
+  return new Promise((resolve, reject) => {
+    const id = __rpcNextId++;
+    const listener = e => {
+      const d = e.data;
+      if (!d || d.id !== id) return;
+      window.removeEventListener('message', listener);
+      d.result !== undefined ? resolve(d.result) : reject(new Error((d.error&&d.error.message)||'rpc error'));
+    };
+    window.addEventListener('message', listener);
+    __post({jsonrpc:'2.0', id, method, params: params||{}});
+  });
+}
+function emit(kind, payload) {
+  const msg = {jsonrpc:'2.0', method:'ui/update-model-context',
+    params:{structuredContent: Object.assign({}, payload||{}, {kind: '<APP-ID>.'+kind})}};
+  if (!__initialized) { __pendingEmits.push(msg); return; }
+  __post(msg);
+}
+// ping responder + chat-flush handler (add alongside any existing message listeners)
+window.addEventListener('message', e => {
+  const d = e.data;
+  if (!d || d.jsonrpc !== '2.0') return;
+  if (d.method === 'ping' && d.id != null) { __post({jsonrpc:'2.0', id:d.id, result:{}}); return; }
+  if (d.method === 'ui/notifications/chat-flush') { flushPendingChanges('chat-submit'); }
+});
+// ui/initialize handshake — the artefact initiates this, StaticArtefactFrame responds
+rpcRequest('ui/initialize', {protocolVersion:'2026-01-26', capabilities:{},
+  clientInfo:{name:'<APP-ID>', version:'1.0.0'}})
+  .then(result => {
+    __hostContext = (result && result.hostContext) || null;
+    rpcNotify('ui/notifications/initialized', {clientInfo:{name:'<APP-ID>', version:'1.0.0'}});
+    __initialized = true;
+    while (__pendingEmits.length) __post(__pendingEmits.shift());
+  })
+  .catch(() => { __initialized = true; __pendingEmits.length = 0; });
 
-// Primary interaction (app-specific — see per-app notes below)
-window.parent.postMessage({
-  type: 'aipla:workbench',
-  event: '<app-id>-interaction',
-  data: { /* app-specific state snapshot */ }
-}, '*');
+// commit-on-submit: accumulate continuous-control changes locally, flush on commit
+const pendingChanges = {};
+function flushPendingChanges(triggeredBy) {
+  const keys = Object.keys(pendingChanges);
+  if (!keys.length) return;
+  emit('state-change', {changed: keys, state: getCurrentState(), triggeredBy});
+  for (const k of keys) delete pendingChanges[k];
+}
+// ─────────────────────────────────────────────────────────────────────────────
 ```
 
-Plus the `ui/initialize` handshake required by the MCP Apps spec (already handled by `StaticArtefactFrame` if the artefact responds to `window.addEventListener('message', ...)` — see Boldkast for the pattern).
+Substitute `<APP-ID>` with the kebab-case artefact name (e.g. `pendul`, `kredsløb`).
+
+Then hook into the app's existing interaction points to call `emit()` and update `pendingChanges`. The exact hooks depend on each app; see per-app notes below. For **continuous controls** (sliders, value inputs the student adjusts before committing), write to `pendingChanges` on change and call `flushPendingChanges('commit')` when the student confirms the value.
 
 ### 4. Tutor system prompt
 
@@ -119,35 +163,32 @@ Create an entry in the backend skill template for the paired tutor skill. Wire t
 
 ### Pendul (pendulum)
 
-*Pending sandbox test. Expected shape:*
+*Pending sandbox test. Expected hook point and emit call:*
 
 ```javascript
-window.parent.postMessage({
-  type: 'aipla:workbench',
-  event: 'pendul-measurement',
-  data: {
-    length: metersValue,        // pendulum length in m
-    period: secondsValue,       // measured period T in s
-    g_computed: gValue          // derived g = 4π²L/T²
-  }
-}, '*');
+// Hook into whatever function the app calls when a measurement is recorded.
+// Replace window.parent.postMessage(...) with emit():
+emit('measurement', {
+  length: metersValue,        // pendulum length in m
+  period: secondsValue,       // measured period T in s
+  g_computed: gValue          // derived g = 4π²L/T²
+});
+// For the length slider (continuous): write to pendingChanges, flush on commit button
+pendingChanges.length = metersValue;
 ```
 
 ### Kredsløb (circuit simulator)
 
-*Pending sandbox test. Expected shape:*
+*Pending sandbox test. Expected hook point and emit call:*
 
 ```javascript
-window.parent.postMessage({
-  type: 'aipla:workbench',
-  event: 'kredsløb-state',
-  data: {
-    components: [...],          // what's in the circuit
-    voltage: voltsValue,
-    current: ampsValue,
-    isComplete: true            // circuit is closed and functional
-  }
-}, '*');
+// Hook into circuit-state change; fire on component placement or parameter commit.
+emit('circuit-state', {
+  components: [...],          // what's in the circuit
+  voltage: voltsValue,
+  current: ampsValue,
+  isComplete: true            // circuit is closed and functional
+});
 ```
 
 ### Videoanalyse

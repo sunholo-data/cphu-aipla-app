@@ -16,7 +16,7 @@ The workbench is currently a single type: a sandboxed HTML artefact (MCP App) in
 Formalising the type system now prevents ad-hoc iframe wrappers diverging from each other and ensures the tutor skill config knows which postMessage shape to expect. The type also drives the activity config UI.
 
 **Current state:**
-- Type 1 (App) is live — `StaticArtefactFrame` + ADR-013 pipeline + postMessage `aipla:workbench` convention.
+- Type 1 (App) is live — `StaticArtefactFrame` + ADR-013 pipeline + JSON-RPC 2.0 `ui/update-model-context` wire (the old `aipla:workbench` postMessage format was superseded in MCPAPP-SPEC sprint 2026-05-21).
 - Types 2–5 are described in the scoping site brief but have no execution doc in this repo.
 - The activity config screen (1.G Phase 2) has a workbench slot — currently hardcoded to Type 1.
 
@@ -39,9 +39,11 @@ Formalising the type system now prevents ad-hoc iframe wrappers diverging from e
 
 ### Type 1: App (live)
 
-An HTML/JS simulation or virtual lab in a sandboxed iframe. State flows via `aipla:workbench` postMessage events from within the iframe to the parent `StaticArtefactFrame`.
+An HTML/JS simulation or virtual lab in a sandboxed iframe. State flows via **JSON-RPC 2.0 `ui/update-model-context` notifications** to the parent `StaticArtefactFrame`.
 
 Examples: Boldkast, LED Planck, KineBot, jitt.dk Type-1 apps (Pendul, Kredsløb, Frekvensanalysator).
+
+**Wire format note:** The raw `{type: 'aipla:workbench', event: '...'}` postMessage format is obsolete. All artefacts use `rpcNotify("ui/update-model-context", {structuredContent: {kind: "<app>.event", ...payload}})` after completing the `ui/initialize` handshake. See [mcp-app-artefact skill](../../../../.claude/skills/mcp-app-artefact/SKILL.md) for the exact helper block to add.
 
 No new work — this type is complete. All future App artefacts follow the mcp-app-artefact skill runbook.
 
@@ -55,17 +57,18 @@ A collaborative whiteboard surface where students sketch free-body diagrams, gra
 
 **Implementation (recommended):** Self-host [Excalidraw](https://github.com/excalidraw/excalidraw) (MIT licence, iframe-embeddable). Bundle the static build at `infrastructure/mcp-sandbox/artefacts/drawing-board/v1/`. Fallback: tldraw (also MIT, similar API surface). Custom canvas is last resort.
 
-**postMessage shape:**
+**Wire shape:** The drawing board artefact is served through `StaticArtefactFrame` like any other App. It must include the RPC helpers and complete the `ui/initialize` handshake. On share or idle-timer, emit:
 
 ```javascript
 // Emitted: on explicit "share with tutor" button, or on a 30-second idle timer
-window.parent.postMessage({
-  type: 'aipla:workbench',
-  event: 'drawing-update',
-  svg: exportedSVGString,      // tutor uses multimodal model to describe it
-  dataUrl: exportedPNGBase64,  // for session report display
-  elementCount: 12             // rough complexity indicator
-}, '*');
+rpcNotify("ui/update-model-context", {
+  structuredContent: {
+    kind: "drawing-board.update",
+    svg: exportedSVGString,      // tutor uses multimodal model to describe it
+    dataUrl: exportedPNGBase64,  // for session report display
+    elementCount: 12             // rough complexity indicator
+  }
+});
 ```
 
 **Agent-side handling:** The tutor skill config sets `workbench_type: drawing-board`. The InstructionProvider injects the SVG description into the agent context (via a multimodal model call to convert SVG → text description). The agent then asks questions about what it sees.
@@ -87,19 +90,19 @@ Apps that use real device sensors — GPS, microphone, accelerometer, light sens
 2. If sensor APIs are blocked by the sandbox, wrap in a thin parent-frame mediator component that requests browser permissions, relays sensor data to the sandboxed iframe, and also forwards to `mcp_app_context`.
 3. Add postMessage state emitter once sensor data is available.
 
-**postMessage shape (example — GPS Fart):**
+**Wire shape (example — GPS Fart, once sensor access resolved):**
 
 ```javascript
-window.parent.postMessage({
-  type: 'aipla:workbench',
-  event: 'sensor-reading',
-  sensor: 'gps-velocity',
-  data: {
+// Same RPC helpers as all other artefacts; sensor data flows via rpcNotify
+rpcNotify("ui/update-model-context", {
+  structuredContent: {
+    kind: "gps-fart.sensor-reading",
+    sensor: "gps-velocity",
     speed_ms: 1.24,           // m/s
     heading: 273,             // degrees
     timestamp: Date.now()
   }
-}, '*');
+});
 ```
 
 **Prerequisite investigation (before any Type 3 implementation):** Build a one-page sandbox test — request DeviceMotionEvent + Geolocation from within `sandbox="allow-scripts"` without `allow-same-origin`. Measure: does the permission prompt fire? If not, the parent-frame mediator pattern is required. Document the result and update this doc before implementation proceeds.
@@ -118,23 +121,21 @@ Frame-by-frame motion analysis from a video the student records or uploads. The 
 
 **CoLA connection:** The CoLA architecture (ai-video-research-JB.pdf) uses video capture for collaboration assessment. For AIPLA v1, the use case is kinematics from video — students record a ball throw, analyse the trajectory, compare to the Boldkast simulator prediction.
 
-**postMessage shape:**
+**Wire shape:**
 
 ```javascript
-window.parent.postMessage({
-  type: 'aipla:workbench',
-  event: 'video-analysis-update',
-  data: {
+rpcNotify("ui/update-model-context", {
+  structuredContent: {
+    kind: "videoanalyse.analysis-update",
     fps: 30,
     scaleFactor: 0.05,           // metres per pixel
     trackedPoints: [             // one per frame
       { frame: 0, x: 120, y: 450 },
       { frame: 1, x: 135, y: 448 },
-      // ...
     ],
     derivedVelocities: [...]     // computed from position differences
   }
-}, '*');
+});
 ```
 
 **Privacy gate (required before implementation):** Video stays in-browser for v1. No auto-upload to any backend. If the research-consent flow (1.2 BigQuery sink + audio-capture consent) is extended to video, that extension must be a named, explicit decision — not an implicit consequence of building this type. Document the decision in the ADR-013 update before shipping.
@@ -164,22 +165,26 @@ notebook_fields:
     label: "Din konklusion"
 ```
 
-**postMessage shape:**
+**State sharing:** Unlike Types 1–4, the lab notebook is a native React component (`LabNotebookFrame`) living in the host frontend — it is **not** an iframe artefact. It does not need the RPC helpers or `ui/initialize` handshake. State flows directly through the host's session state when the student edits a field:
 
-```javascript
-window.parent.postMessage({
-  type: 'aipla:workbench',
-  event: 'notebook-update',
-  fields: {
-    observation: "LED lyste ved ca. 2V",
-    hypothesis: "Jeg tror tærsklen afhænger af farven",
-    results: "Rød: 1.97V, Orange: 2.05V, ...",
-    conclusion: ""    // not yet filled — tutor asks about this
+```typescript
+// LabNotebookFrame calls this on field change (debounced 800ms)
+postSessionIframeContext(sessionId, {
+  serverId: "lab-notebook",
+  toolName: "fields",
+  structuredContent: {
+    kind: "lab-notebook.update",
+    fields: {
+      observation: "LED lyste ved ca. 2V",
+      hypothesis: "Jeg tror tærsklen afhænger af farven",
+      results: "Rød: 1.97V, Orange: 2.05V, ...",
+      conclusion: ""    // not yet filled — tutor asks about this
+    }
   }
-}, '*');
+});
 ```
 
-**Estimated:** 1 day (simple React component + postMessage + activity config field parser).
+**Estimated:** 1 day (React component + session state push + activity config field parser).
 
 ---
 
