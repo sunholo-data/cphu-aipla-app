@@ -7,6 +7,10 @@ import { RATIO_MAX, RATIO_MIN } from "@/hooks/useResizableWorkspaceRatio";
 /** Snap points the divider locks to when dragged within ±SNAP_RANGE. */
 const SNAP_POINTS: ReadonlyArray<number> = [0.3, 0.5, 0.7, 1.0];
 const SNAP_RANGE = 0.025;
+// Tiny epsilon to absorb IEEE-754 subtraction noise — 0.525 - 0.5 in
+// binary lands at 0.025000000000000022 which would fail a strict
+// <= 0.025 comparison by 2e-17.
+const SNAP_EPSILON = 1e-9;
 
 /** Keyboard increment per ArrowLeft/Right press. */
 const KEYBOARD_STEP = 0.05;
@@ -64,13 +68,20 @@ export function WorkspaceDivider({
 
   const applyRatio = useCallback(
     (raw: number) => {
+      // Round to 4 decimals first — both pointer drag math and
+      // arrow-key arithmetic produce IEEE-754 junk like 0.6000000000000001,
+      // which would (a) fail strict-equality snap matches by 1e-17 and
+      // (b) confuse downstream sessionStorage round-trips. 4dp is way
+      // more precision than the UI needs (1px on a 10k-wide monitor =
+      // 0.0001).
+      const rounded = Math.round(raw * 10000) / 10000;
       // Snap if within range of any snap point. Track which one we
       // last snapped to so we don't re-fire the flash on every
       // micro-drag while sitting inside the snap zone.
-      let next = raw;
+      let next = rounded;
       let snappedTo: number | null = null;
       for (const sp of SNAP_POINTS) {
-        if (Math.abs(raw - sp) <= SNAP_RANGE) {
+        if (Math.abs(rounded - sp) <= SNAP_RANGE + SNAP_EPSILON) {
           next = sp;
           snappedTo = sp;
           break;
