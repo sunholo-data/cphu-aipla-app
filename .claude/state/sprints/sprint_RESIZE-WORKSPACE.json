@@ -1,0 +1,141 @@
+{
+  "sprint_id": "RESIZE-WORKSPACE",
+  "created": "2026-05-27T13:00:00Z",
+  "estimated_duration_days": 1,
+  "design_doc": "docs/design/aipla/v1.0.0-pilot/resizable-workspace.md",
+  "sprint_plan": "docs/design/aipla/v1.0.0-pilot/resize-workspace-sprint.md",
+  "branch": "feature/resize-workspace",
+  "base_commit": "TBD (dev HEAD at start)",
+  "pr_target": "dev (no PR — commit direct per AIPLA workflow)",
+  "features": [
+    {
+      "id": "M1",
+      "description": "useResizableWorkspaceRatio hook + DEFAULT_RATIOS constant + sessionStorage I/O helpers. Returns [ratio, setRatio] pair. setRatio writes to sessionStorage on commit. On mount: read sessionStorage for key 'aipla.workspaceRatio:<skillId>'; if absent, fall back to DEFAULT_RATIOS[skillId] ?? 0.50. SSR-safe (no sessionStorage read at render time).",
+      "scope": "frontend",
+      "estimated_loc": 60,
+      "actual_loc": null,
+      "dependencies": [],
+      "acceptance_criteria": [
+        "Hook returns [ratio, setRatio] with ratio: number in [0.30, 1.00]",
+        "DEFAULT_RATIOS maps problem-set-hints->0.50, led-planck-tutor->0.55, kinebot->0.65",
+        "Fallback default 0.50 when skillId not in map",
+        "sessionStorage key shape: aipla.workspaceRatio:<skillId>",
+        "Calling setRatio writes to sessionStorage immediately (or on next tick)",
+        "Module imports cleanly under SSR (no window references at top level)"
+      ],
+      "files_to_create": ["frontend/src/hooks/useResizableWorkspaceRatio.ts"],
+      "files_to_modify": [],
+      "passes": null, "started": null, "completed": null, "notes": null
+    },
+    {
+      "id": "M2",
+      "description": "WorkspaceDivider component: 4px-wide vertical bar with a 12px hit zone, cursor: col-resize. Pointer drag updates a ratio prop via onChange callback. Snap zones at 0.30, 0.50, 0.70, 1.00 with ±2.5% snap range. Keyboard: ArrowLeft/Right adjust by 0.05, Home/End jump to min/max, Enter toggles between current value and 0.50. ARIA: role=separator, aria-orientation=vertical, aria-valuenow/min/max. prefers-reduced-motion suppresses the snap-flash animation.",
+      "scope": "frontend",
+      "estimated_loc": 150,
+      "actual_loc": null,
+      "dependencies": ["M1"],
+      "acceptance_criteria": [
+        "Drag from any X position updates ratio via onChange",
+        "Ratio is clamped to [0.30, 1.00] (passed-in min/max props)",
+        "Snap engages when within ±2.5% of a snap point",
+        "Snap-flash CSS animation fires on snap commit",
+        "Keyboard a11y: ArrowLeft/Right +/- 0.05, Home/End -> min/max, Enter -> toggle 0.50",
+        "ARIA attributes match spec (separator role, valuenow/min/max)",
+        "prefers-reduced-motion suppresses the snap-flash"
+      ],
+      "files_to_create": ["frontend/src/components/workspace/WorkspaceDivider.tsx"],
+      "files_to_modify": [],
+      "passes": null, "started": null, "completed": null, "notes": null
+    },
+    {
+      "id": "M3",
+      "description": "WorkspaceShell accepts ratio + onRatioChange props. Renders WorkspaceDivider as first child of aside (absolutely positioned on left edge). Aside width is style={{ flexBasis: ratio * 100 + '%' }} on md+, w-full below md. Renders ChatRevealTab (left-edge tab) when ratio === 1.0 to set ratio back to 0.50. Preserves the existing collapsed-strip flow entirely.",
+      "scope": "frontend",
+      "estimated_loc": 70,
+      "actual_loc": null,
+      "dependencies": ["M2"],
+      "acceptance_criteria": [
+        "WorkspaceShell takes ratio + onRatioChange + skillId props",
+        "Aside flex-basis matches ratio on md+; w-full below md",
+        "Divider rendered inside aside, left-edge",
+        "ChatRevealTab visible only when ratio === 1.0",
+        "Collapse-strip flow unchanged (chevron, 8px strip, restore on expand)",
+        "Below md: divider hidden, ratio not consulted"
+      ],
+      "files_to_create": ["frontend/src/components/workspace/ChatRevealTab.tsx"],
+      "files_to_modify": ["frontend/src/components/workspace/WorkspaceShell.tsx"],
+      "passes": null, "started": null, "completed": null, "notes": null
+    },
+    {
+      "id": "M4",
+      "description": "Chat page wires useResizableWorkspaceRatio(skillId). Conditionally hides the chat panel when ratio === 1.0 (display: none on md+, leave alone below md). Passes ratio + setRatio + skillId to WorkspaceShell. Single hook invocation at the top of the component; same hook output threaded into both Boldkast and LED Planck workspace blocks.",
+      "scope": "frontend",
+      "estimated_loc": 30,
+      "actual_loc": null,
+      "dependencies": ["M3"],
+      "acceptance_criteria": [
+        "Chat page reads [ratio, setRatio] from useResizableWorkspaceRatio(skillId)",
+        "Chat panel hidden on md+ when ratio === 1.0",
+        "Below md: chat panel always visible (tab pattern unchanged)",
+        "Both Boldkast and LED Planck workspace blocks receive the ratio + handler",
+        "skillId passed to WorkspaceShell on both branches"
+      ],
+      "files_to_create": [],
+      "files_to_modify": ["frontend/src/app/chat/[...path]/page.tsx"],
+      "passes": null, "started": null, "completed": null, "notes": null
+    },
+    {
+      "id": "M5",
+      "description": "Vitest suites for the three new units. useResizableWorkspaceRatio: default lookup per skillId, sessionStorage round-trip, fallback default. WorkspaceDivider: drag math (ratio computation from pointer delta + parent rect), snap zones (snap at ±2.5%, no snap outside), keyboard (Arrow/Home/End/Enter). WorkspaceShell integration: divider mounted, ratio prop drives aside width, ChatRevealTab renders only when ratio===1.0.",
+      "scope": "frontend",
+      "estimated_loc": 150,
+      "actual_loc": null,
+      "dependencies": ["M4"],
+      "acceptance_criteria": [
+        "useResizableWorkspaceRatio: 4+ cases (defaults, fallback, sessionStorage read, sessionStorage write)",
+        "WorkspaceDivider: 6+ cases (drag, snap zones, no-snap outside zone, keyboard each binding, ARIA, prefers-reduced-motion)",
+        "WorkspaceShell: 3+ cases (divider mounted, ratio drives style, ChatRevealTab gate)",
+        "All cases green via npm run test:run",
+        "No regression in BoldkastSimFrame, LedPlanckLabFrame, LedPlanckWorkbench tests"
+      ],
+      "files_to_create": [
+        "frontend/src/hooks/__tests__/useResizableWorkspaceRatio.test.ts",
+        "frontend/src/components/workspace/__tests__/WorkspaceDivider.test.tsx",
+        "frontend/src/components/workspace/__tests__/WorkspaceShell.test.tsx"
+      ],
+      "files_to_modify": [],
+      "passes": null, "started": null, "completed": null, "notes": null
+    },
+    {
+      "id": "M6",
+      "description": "Quality gates + direct-to-dev FF merge. npm run quality:check green (lint + typecheck + tests + build). Rebase feature branch onto current origin/dev. FF-merge to dev (NO PR per AIPLA workflow). Push origin/dev. Deploy via aipla-dev-deploy Cloud Build trigger.",
+      "scope": "fullstack",
+      "estimated_loc": 0,
+      "actual_loc": null,
+      "dependencies": ["M5"],
+      "acceptance_criteria": [
+        "cd frontend && npm run quality:check passes (lint + typecheck + tests + build)",
+        "Branch rebased onto origin/dev and FF-merged to dev (no PR)",
+        "origin/dev pushed; Cloud Build aipla-dev-deploy completes SUCCESS",
+        "Manual smoke test post-deploy: visit /chat/@aipla-platform/led-planck-tutor on a laptop; drag divider; check snap-to-50/70; persist across reload; close+reopen lab"
+      ],
+      "files_to_create": [],
+      "files_to_modify": [],
+      "passes": null, "started": null, "completed": null, "notes": null
+    }
+  ],
+  "velocity": {
+    "target_loc_per_day": 600,
+    "actual_loc_per_day": null,
+    "estimated_total_loc": 460,
+    "actual_total_loc": null,
+    "estimated_days": 1,
+    "actual_days": null
+  },
+  "github_issues": [],
+  "last_session": null,
+  "last_checkpoint": null,
+  "status": "planned",
+  "queue_position": 1,
+  "queue_rationale": "Unblocks KineBot 1.D port (7 sims + graph plotter need ~900px workspace) + future jitt.dk ports. LED Planck 1.C also benefits (lab bench wants more room than the cramped md:w-1/2 default)."
+}
