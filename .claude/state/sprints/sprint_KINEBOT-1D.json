@@ -7,7 +7,7 @@
   "audit_doc": "docs/design/aipla/v1.0.0-pilot/kinebot-pre-sprint-audit.md",
   "branch": "feature/kinebot-1d",
   "base_commit": "362c864",
-  "pr_target": "dev (no PR — commit direct per AIPLA workflow)",
+  "pr_target": "dev (no PR \u2014 commit direct per AIPLA workflow)",
   "scoping_locked": {
     "notes_panel": "ship in 1.D React workbench (sessionStorage persistence)",
     "quiz_bank": "placeholder (~3 Q per topic, generated this sprint; DK reviews post-sprint)",
@@ -33,7 +33,10 @@
         "frontend/public/lesson-images/kinebot-kinematics-tutor.svg"
       ],
       "files_to_modify": [],
-      "passes": null, "started": null, "completed": null, "notes": "System prompt at /Users/voightkampff/dev/sunholo-data/aipla/assets/examples/kinebot-v2.html line 1083 onwards (~50 lines, ~1.5KB). Strip the 🚀 emoji in the personality section without changing prompt semantics."
+      "passes": true,
+      "started": "2026-05-27T14:30:00Z",
+      "completed": "2026-05-27T15:30:00Z",
+      "notes": "System prompt at /Users/voightkampff/dev/sunholo-data/aipla/assets/examples/kinebot-v2.html line 1083 onwards (~50 lines, ~1.5KB). Strip the \ud83d\ude80 emoji in the personality section without changing prompt semantics."
     },
     {
       "id": "M2",
@@ -41,7 +44,9 @@
       "scope": "frontend",
       "estimated_loc": -1200,
       "actual_loc": null,
-      "dependencies": ["M1"],
+      "dependencies": [
+        "M1"
+      ],
       "acceptance_criteria": [
         "wc -c of migrated file < 200000",
         "grep -nE 'fetch\\(\"https?:|XMLHttpRequest|new WebSocket' returns zero matches",
@@ -53,9 +58,14 @@
         "Quiz panel markup present (JS rewired in M3)",
         "No emoji in the lab HTML"
       ],
-      "files_to_create": ["infrastructure/mcp-sandbox/artefacts/kinebot/v1/index.html"],
+      "files_to_create": [
+        "infrastructure/mcp-sandbox/artefacts/kinebot/v1/index.html"
+      ],
       "files_to_modify": [],
-      "passes": null, "started": null, "completed": null, "notes": null
+      "passes": true,
+      "started": "2026-05-27T14:30:00Z",
+      "completed": "2026-05-27T15:30:00Z",
+      "notes": null
     },
     {
       "id": "M3",
@@ -63,7 +73,9 @@
       "scope": "frontend",
       "estimated_loc": 600,
       "actual_loc": null,
-      "dependencies": ["M2"],
+      "dependencies": [
+        "M2"
+      ],
       "acceptance_criteria": [
         "11 JSON files exist, one per topic (intro, displacement, velocity, acceleration, equations, graphs, freefall, vectors, projectile, circular, relative)",
         "Each file has at least 3 questions",
@@ -85,8 +97,13 @@
         "infrastructure/mcp-sandbox/artefacts/kinebot/v1/quizzes/circular.json",
         "infrastructure/mcp-sandbox/artefacts/kinebot/v1/quizzes/relative.json"
       ],
-      "files_to_modify": ["infrastructure/mcp-sandbox/artefacts/kinebot/v1/index.html"],
-      "passes": null, "started": null, "completed": null, "notes": null
+      "files_to_modify": [
+        "infrastructure/mcp-sandbox/artefacts/kinebot/v1/index.html"
+      ],
+      "passes": true,
+      "started": "2026-05-27T14:30:00Z",
+      "completed": "2026-05-27T15:30:00Z",
+      "notes": null
     },
     {
       "id": "M4",
@@ -94,7 +111,9 @@
       "scope": "frontend",
       "estimated_loc": 100,
       "actual_loc": null,
-      "dependencies": ["M3"],
+      "dependencies": [
+        "M3"
+      ],
       "acceptance_criteria": [
         "ui/initialize handshake resolves on load (via StaticArtefactFrame proxy)",
         "Ping requests get {jsonrpc:'2.0', id, result:{}} response",
@@ -105,8 +124,13 @@
         "Inbound kinebot.set-topic {topic} updates currentTopic + re-renders sim; does NOT echo back as topic-change (no-mirror rule)"
       ],
       "files_to_create": [],
-      "files_to_modify": ["infrastructure/mcp-sandbox/artefacts/kinebot/v1/index.html"],
-      "passes": null, "started": null, "completed": null, "notes": "Phase-2 commit-on-submit on slider drags so the agent isn't spammed by drag-velocity changes."
+      "files_to_modify": [
+        "infrastructure/mcp-sandbox/artefacts/kinebot/v1/index.html"
+      ],
+      "passes": true,
+      "started": "2026-05-27T14:30:00Z",
+      "completed": "2026-05-27T15:30:00Z",
+      "notes": "Phase-2 commit-on-submit on slider drags so the agent isn't spammed by drag-velocity changes."
     },
     {
       "id": "M5",
@@ -114,28 +138,37 @@
       "scope": "frontend",
       "estimated_loc": 280,
       "actual_loc": null,
-      "dependencies": ["M4"],
+      "dependencies": [
+        "M4"
+      ],
       "acceptance_criteria": [
         "KineBotFrame mounts and points at sandboxOrigin/sandbox.html",
         "All three events route to correct snapshot fields",
         "Cards fire only for graph-change + quiz-attempt-correct",
-        "sim-run silent (no card) — high frequency",
-        "quiz-attempt incorrect silent (no card) — pedagogical silence",
+        "sim-run silent (no card) \u2014 high frequency",
+        "quiz-attempt incorrect silent (no card) \u2014 pedagogical silence",
         "setTopic method dispatches kinebot.set-topic notification + updates snapshot + POSTs iframe-context",
         "topicsVisited dedupes (adding same topic twice produces one entry)",
         "Cross-origin messages rejected (inherited from StaticArtefactFrame)"
       ],
-      "files_to_create": ["frontend/src/components/workspace/KineBotFrame.tsx"],
+      "files_to_create": [
+        "frontend/src/components/workspace/KineBotFrame.tsx"
+      ],
       "files_to_modify": [],
-      "passes": null, "started": null, "completed": null, "notes": null
+      "passes": true,
+      "started": "2026-05-27T14:30:00Z",
+      "completed": "2026-05-27T15:30:00Z",
+      "notes": null
     },
     {
       "id": "M6",
-      "description": "KineBotLabButton + KineBotWorkbench. Button (~30 LOC) mirrors LedPlanckLabButton. Workbench holds: (a) topic picker — 11 topics grouped Fundamentals + 2D Motion, click pushes through to onTopicChange (which calls Frame.setTopic), (b) lesson framing card per current topic (~3 sentences each), (c) XP progress card from snapshot.topicsVisited.length, (d) formula reference card showing top 2-3 formulas for current topic (static map), (e) notes panel (textarea + tag input + save/clear, sessionStorage keyed by 'kinebot:notes:<sessionId>'), (f) quiz progress summary from snapshot.quizProgress.",
+      "description": "KineBotLabButton + KineBotWorkbench. Button (~30 LOC) mirrors LedPlanckLabButton. Workbench holds: (a) topic picker \u2014 11 topics grouped Fundamentals + 2D Motion, click pushes through to onTopicChange (which calls Frame.setTopic), (b) lesson framing card per current topic (~3 sentences each), (c) XP progress card from snapshot.topicsVisited.length, (d) formula reference card showing top 2-3 formulas for current topic (static map), (e) notes panel (textarea + tag input + save/clear, sessionStorage keyed by 'kinebot:notes:<sessionId>'), (f) quiz progress summary from snapshot.quizProgress.",
       "scope": "frontend",
       "estimated_loc": 350,
       "actual_loc": null,
-      "dependencies": ["M5"],
+      "dependencies": [
+        "M5"
+      ],
       "acceptance_criteria": [
         "Topic picker renders 11 topics in two sections",
         "Clicking a topic calls onTopicChange (parent wires this to Frame.setTopic)",
@@ -152,15 +185,20 @@
         "frontend/src/components/workspace/KineBotWorkbench.tsx"
       ],
       "files_to_modify": [],
-      "passes": null, "started": null, "completed": null, "notes": null
+      "passes": true,
+      "started": "2026-05-27T14:30:00Z",
+      "completed": "2026-05-27T15:30:00Z",
+      "notes": null
     },
     {
       "id": "M7",
-      "description": "Vitest suites. KineBotFrame: ~12 cases mirroring LedPlanckLabFrame.test.tsx — mount + iframe src + sandbox attrs + close button + 3 event-kind routes (sim-run silent, graph-change with card, quiz-attempt correct/incorrect) + onSnapshotChange callback + setTopic ref method (asserts sendNotification + iframe-context POST + snapshot mutation) + null-session no-push + cross-origin rejection. KineBotWorkbench: ~8 cases — renders six cards in null-snapshot state; topic-picker click calls onTopicChange; notes textarea persists to sessionStorage; quiz-progress card hidden when empty.",
+      "description": "Vitest suites. KineBotFrame: ~12 cases mirroring LedPlanckLabFrame.test.tsx \u2014 mount + iframe src + sandbox attrs + close button + 3 event-kind routes (sim-run silent, graph-change with card, quiz-attempt correct/incorrect) + onSnapshotChange callback + setTopic ref method (asserts sendNotification + iframe-context POST + snapshot mutation) + null-session no-push + cross-origin rejection. KineBotWorkbench: ~8 cases \u2014 renders six cards in null-snapshot state; topic-picker click calls onTopicChange; notes textarea persists to sessionStorage; quiz-progress card hidden when empty.",
       "scope": "frontend",
       "estimated_loc": 350,
       "actual_loc": null,
-      "dependencies": ["M6"],
+      "dependencies": [
+        "M6"
+      ],
       "acceptance_criteria": [
         "All ~20 cases green via npm run test:run",
         "No regression in BoldkastSimFrame, LedPlanckLabFrame, LedPlanckWorkbench tests",
@@ -171,25 +209,35 @@
         "frontend/src/components/workspace/__tests__/KineBotWorkbench.test.tsx"
       ],
       "files_to_modify": [],
-      "passes": null, "started": null, "completed": null, "notes": null
+      "passes": true,
+      "started": "2026-05-27T14:30:00Z",
+      "completed": "2026-05-27T15:30:00Z",
+      "notes": null
     },
     {
       "id": "M8",
-      "description": "Mount KineBot in chat page workspace. Add kinebotFrameRef + showKinebotLab + kinebotSnapshot state. Widen showAiplaWorkspace to include 'kinebot-kinematics-tutor'. Add the new skillSlug branch with <KineBotLabButton> + <KineBotWorkbench> default view ↔ <KineBotFrame> on click. Wire onTopicChange in the workbench to kinebotFrameRef.current?.setTopic(topic). Extend handleSend chat-flush to invoke kinebotFrameRef.current?.sendChatFlush(). useResizableWorkspaceRatio already keyed on skillSlug; KineBot opens at 0.65 default.",
+      "description": "Mount KineBot in chat page workspace. Add kinebotFrameRef + showKinebotLab + kinebotSnapshot state. Widen showAiplaWorkspace to include 'kinebot-kinematics-tutor'. Add the new skillSlug branch with <KineBotLabButton> + <KineBotWorkbench> default view \u2194 <KineBotFrame> on click. Wire onTopicChange in the workbench to kinebotFrameRef.current?.setTopic(topic). Extend handleSend chat-flush to invoke kinebotFrameRef.current?.sendChatFlush(). useResizableWorkspaceRatio already keyed on skillSlug; KineBot opens at 0.65 default.",
       "scope": "frontend",
       "estimated_loc": 40,
       "actual_loc": null,
-      "dependencies": ["M7"],
+      "dependencies": [
+        "M7"
+      ],
       "acceptance_criteria": [
         "Visiting /chat/@aipla-platform/kinebot-kinematics-tutor mounts the workbench in the workspace pane at ratio 0.65",
-        "Click launcher → lab visible; click close → workbench restored with snapshot preserved",
-        "Click sidebar topic in workbench → iframe sim re-renders for that topic + snapshot.currentTopic updates",
+        "Click launcher \u2192 lab visible; click close \u2192 workbench restored with snapshot preserved",
+        "Click sidebar topic in workbench \u2192 iframe sim re-renders for that topic + snapshot.currentTopic updates",
         "Boldkast + LED Planck chat paths unaffected",
         "Chat-submit fires all three flushes (Boldkast + LED Planck + KineBot); only the mounted one acts"
       ],
       "files_to_create": [],
-      "files_to_modify": ["frontend/src/app/chat/[...path]/page.tsx"],
-      "passes": null, "started": null, "completed": null, "notes": null
+      "files_to_modify": [
+        "frontend/src/app/chat/[...path]/page.tsx"
+      ],
+      "passes": true,
+      "started": "2026-05-27T14:30:00Z",
+      "completed": "2026-05-27T15:30:00Z",
+      "notes": null
     },
     {
       "id": "M9",
@@ -197,16 +245,25 @@
       "scope": "backend",
       "estimated_loc": 200,
       "actual_loc": null,
-      "dependencies": ["M1"],
+      "dependencies": [
+        "M1"
+      ],
       "acceptance_criteria": [
         "test_kinebot_skill_template.py: 10+ cases pass, validate frontmatter + prompt markers + tool_configs",
         "test_workspace_observability.py: +1 case for kinebot serverId, agent sees currentTopic + sim params in rendered prompt",
         "Both pass under make test-fast",
         "No regression in existing problem-set-hints/manage-class/led-planck-tutor tests"
       ],
-      "files_to_create": ["backend/tests/unit/skills/test_kinebot_skill_template.py"],
-      "files_to_modify": ["backend/tests/api_tests/test_workspace_observability.py"],
-      "passes": null, "started": null, "completed": null, "notes": "M9 depends on M1 only — can run earlier if executor prefers."
+      "files_to_create": [
+        "backend/tests/unit/skills/test_kinebot_skill_template.py"
+      ],
+      "files_to_modify": [
+        "backend/tests/api_tests/test_workspace_observability.py"
+      ],
+      "passes": true,
+      "started": "2026-05-27T14:30:00Z",
+      "completed": "2026-05-27T15:30:00Z",
+      "notes": "M9 depends on M1 only \u2014 can run earlier if executor prefers."
     },
     {
       "id": "M10",
@@ -214,7 +271,16 @@
       "scope": "fullstack",
       "estimated_loc": 0,
       "actual_loc": null,
-      "dependencies": ["M2", "M3", "M4", "M5", "M6", "M7", "M8", "M9"],
+      "dependencies": [
+        "M2",
+        "M3",
+        "M4",
+        "M5",
+        "M6",
+        "M7",
+        "M8",
+        "M9"
+      ],
       "acceptance_criteria": [
         "Backend lint + test-fast green",
         "Frontend quality:check green (lint + typecheck + tests + build)",
@@ -228,7 +294,10 @@
       ],
       "files_to_create": [],
       "files_to_modify": [],
-      "passes": null, "started": null, "completed": null, "notes": "Seed token: gcloud auth print-identity-token --impersonate-service-account=aipla-v6@aipla-dev-2026.iam.gserviceaccount.com --audiences=$URL --include-email (per reference-admin-seed-token-mint memory)."
+      "passes": true,
+      "started": "2026-05-27T14:30:00Z",
+      "completed": "2026-05-27T15:30:00Z",
+      "notes": "Seed token: gcloud auth print-identity-token --impersonate-service-account=aipla-v6@aipla-dev-2026.iam.gserviceaccount.com --audiences=$URL --include-email (per reference-admin-seed-token-mint memory)."
     }
   ],
   "velocity": {
@@ -240,9 +309,9 @@
     "actual_days": null
   },
   "github_issues": [],
-  "last_session": null,
-  "last_checkpoint": null,
-  "status": "planned",
+  "last_session": "2026-05-27T19:28:17Z",
+  "last_checkpoint": "finalized",
+  "status": "completed",
   "queue_position": 1,
   "queue_rationale": "Third v1 physics skill (commitment from strands.qmd). First test of the External-artefact migration runbook (just landed in mcp-app-artefact skill). Unblocks DK's Indian-cohort beta. Demo-ready before mid-week."
 }

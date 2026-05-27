@@ -1,13 +1,13 @@
 # KineBot kinematics tutor — third physics skill + canonical external-artefact migration runbook
 
-**Status**: Planned
+**Status**: Implemented
 **Priority**: P1 (v1 critical-path; third of three physics skills; canonical AIPLA onboarding runbook for external artefacts)
 **Estimated**: 2–3 days
 **Scope**: Fullstack — artefact (strip direct API calls + wire postMessage, ~1707 LOC source), backend (skill template + tool config), frontend (`KineBotFrame` host wrapper)
 **Dependencies**: v0.1 shipped; [mcp-app-iframe-spec-compliance.md](implemented/mcp-app-iframe-spec-compliance.md) merged; [lesson-picker.md](lesson-picker.md) shipped; [led-planck-skill.md](led-planck-skill.md) shipped (establishes the artefact-pipeline pattern as N=2 before this becomes the runbook); ADR-013 pipeline scan
 **Pedagogical source-of-truth + migration brief:** [`kinebot-migration-brief.md`](file:///Users/mark/Documents/clients/cph-uni/strand-a-pedagogical-bot/prototypes/kinebot-migration-brief.md) in the scoping site — full audit/strip/wire/extract/package/pair/test workflow, the original artefact's behaviour catalogue (7 sims + graph plotter + quiz + chat + formula ref), skill config sketch, postMessage event shapes, pre-beta deploy checklist. **The brief is the design for the lesson's pedagogy and the migration audit; this doc is the execution layer that turns the brief into shippable code + establishes the runbook for future external-artefact onboarding.**
 **Created**: 2026-05-24
-**Last Updated**: 2026-05-24
+**Last Updated**: 2026-05-27
 
 ## Problem Statement
 
@@ -408,3 +408,23 @@ aiplatform artefact audit infrastructure/mcp-sandbox/artefacts/kinebot/v1/index.
 - [.claude/skills/mcp-app-artefact/SKILL.md](../../../../.claude/skills/mcp-app-artefact/SKILL.md) — the AIPLA artefact-onboarding recipe; **this sprint adds the external-artefact migration runbook section**
 - [ADR-013](file:///Users/mark/Documents/clients/cph-uni/architecture.qmd#adr-013-artefact-safety-content-review-pipeline-for-generated-html) — artefact safety / sandbox / CSP
 - [ADR-014](file:///Users/mark/Documents/clients/cph-uni/architecture.qmd#adr-014-per-group-per-class-budget-enforcement) — budget enforcement, the rule the original KineBot violated
+
+---
+
+## Implementation Report
+
+**Completed**: 2026-05-27
+**Actual Effort**: [e.g., 5 days vs 3 estimated]
+**Branch/PR**: [link or commit range]
+
+### What Was Built
+- [Summary of actual implementation]
+- [Any deviations from plan]
+
+### Files Changed
+- [New files created]
+- [Modified files]
+
+### Lessons Learned
+- [What went well]
+- [What could be improved]
