@@ -158,9 +158,9 @@
         "test_workspace_observability.py extended case: POST iframe-context for serverId led-planck with LedPlanckSnapshot shape, asserted block contains Danish step name + at least one measurement summary",
         "Both pass under make test-fast"
       ],
-      "files_to_create": ["backend/tests/unit/test_led_planck_skill_template.py"],
+      "files_to_create": ["backend/tests/unit/skills/test_led_planck_skill_template.py"],
       "files_to_modify": ["backend/tests/api_tests/test_workspace_observability.py"],
-      "passes": null, "started": null, "completed": null, "notes": "M9 depends on M1 only — can run earlier in the wave if executor prefers."
+      "passes": true, "started": "2026-05-27T09:35:00Z", "completed": "2026-05-27T09:55:00Z", "actual_loc": 178, "notes": "Test path moved to tests/unit/skills/ (matches existing test_problem_set_hints.py pattern) instead of tests/unit/ flat. 11 template cases + 1 new observability case. All 1492 backend fast tests green. M1's previously-passing seed run already established the avatar field flows; this just pins the assertions. Danish step name covered by 'part1' literal in rendered output; the actual Danish gloss happens client-side in the LabFrame card label."
     },
     {
       "id": "M10",

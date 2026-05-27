@@ -96,6 +96,25 @@ _PROGRESS_BODY = {
     },
 }
 
+# 1.C — LED Planck virtual lab snapshot. Mirrors
+# ``frontend/src/components/workspace/LedPlanckLabFrame.tsx`` snapshotRef
+# shape so the agent's runtime instruction carries the lab state.
+_LED_PLANCK_BODY = {
+    "serverId": "led-planck",
+    "toolName": "state",
+    "structuredContent": {
+        "lastEvent": "led-planck.measurement",
+        "currentStep": 2,
+        "currentStepName": "part1",
+        "measurements": [
+            {"led": "red", "u0": 1.99, "lambda": 625.0, "h_computed": 6.6e-34},
+        ],
+        "componentsPlaced": ["led", "voltmeter"],
+        "lastPolarityError": None,
+        "voltage": 3.2,
+    },
+}
+
 
 def _make_index() -> ChatSessionIndex:
     now = datetime.now(UTC)
@@ -131,6 +150,28 @@ def _make_skill() -> SkillConfig:
                 "mcp": {
                     "servers": ["boldkast", "progress"],
                     "allow_context_writes": ["boldkast", "progress"],
+                }
+            },
+        },
+    )
+
+
+def _make_led_planck_skill() -> SkillConfig:
+    """Production led-planck-tutor SkillConfig — single server (led-planck)
+    opted into context-writes. Used by the LED Planck observability test."""
+    return SkillConfig(
+        skillId="led-planck-tutor",
+        name="led-planck-tutor",
+        description="Danish stx physics tutor for the LED Planck virtual lab.",
+        ownerId="aipla-platform",
+        ownerEmail="aipla-platform@example.com",
+        accessControl=AccessControl(type="public"),
+        skillMetadata={
+            "tools": ["mcp"],
+            "toolConfigs": {
+                "mcp": {
+                    "servers": ["led-planck"],
+                    "allow_context_writes": ["led-planck"],
                 }
             },
         },
@@ -447,3 +488,48 @@ class TestWorkspaceObservabilityE2E:
         # — present in the OLD push, absent in the new one.
         progress_section = rendered.split("progress.state", 1)[1]
         assert '"done": []' in progress_section or '"done":[]' in progress_section
+
+    @patch("protocols.iframe_context_routes.skill_config")
+    @patch("protocols.iframe_context_routes.get_session_index")
+    @patch("protocols.iframe_context_routes.get_session_service")
+    def test_led_planck_push_lands_with_step_and_measurement_in_render(
+        self,
+        mock_get_svc,
+        mock_get_index,
+        mock_skill_module,
+        session_service,
+        client,
+    ):
+        """1.C — LedPlanckLabFrame pushes a snapshot with currentStepName
+        (part1/part2/report) + per-LED measurement entries (u0, lambda,
+        h_computed). The InstructionProvider render must carry both into
+        the runtime instruction so the Danish socratic tutor can ask
+        targeted questions about the current step and reference the
+        student's measured values verbatim instead of re-asking for
+        them."""
+        mock_get_svc.return_value = session_service
+        mock_get_index.return_value = _make_index()
+        mock_skill_module.get_skill.return_value = _make_led_planck_skill()
+
+        _post(client, _LED_PLANCK_BODY)
+
+        state = _read_state(session_service)
+        key = "mcp_app_context.led-planck.state"
+        assert key in state, f"expected {key} in state; got {list(state)}"
+        assert state[key]["structuredContent"] == _LED_PLANCK_BODY["structuredContent"]
+
+        rendered = render_instruction_with_iframe_context("BASE", state)
+        # Step concept (Danish-context lab phase: part1 = I-U-måling) is
+        # the agent's primary anchor for "which lab step is the student
+        # on right now".
+        assert "led-planck.state" in rendered
+        assert "part1" in rendered
+        # At least one measurement summary survives — the agent sees the
+        # student's actual values, not a re-ask prompt.
+        assert "red" in rendered
+        assert "1.99" in rendered  # u0
+        assert "625" in rendered  # lambda
+        # Components placed list signals what the student has wired so
+        # the tutor doesn't ask "did you connect the voltmeter?" after
+        # the student already did.
+        assert "voltmeter" in rendered
