@@ -1,0 +1,204 @@
+{
+  "sprint_id": "LED-PLANCK-1C",
+  "created": "2026-05-27T07:00:00Z",
+  "estimated_duration_days": 2,
+  "design_doc": "docs/design/aipla/v1.0.0-pilot/led-planck-skill.md",
+  "sprint_plan": "docs/design/aipla/v1.0.0-pilot/led-planck-1c-sprint.md",
+  "branch": "feature/led-planck-skill",
+  "base_commit": "70f32f7",
+  "pr_target": "dev (no PR — commit direct per AIPLA workflow)",
+  "features": [
+    {
+      "id": "M1",
+      "description": "Skill template + cover image. backend/skills/templates/led-planck-tutor/SKILL.md with full Danish Socratic tutor prompt verbatim from the brief, avatar: /lesson-images/led-planck-tutor.svg, accessControl public, tool_configs.defaults artefacts/memory false, tool_configs.mcp.allow_context_writes: ['led-planck']. frontend/public/lesson-images/led-planck-tutor.svg cover (~16:9 viewBox matching the existing pair).",
+      "scope": "fullstack",
+      "estimated_loc": 220,
+      "actual_loc": null,
+      "dependencies": [],
+      "acceptance_criteria": [
+        "SKILL.md parses via _parse_template (no >10K char issue)",
+        "Prompt body contains the three Danish teaching phases markers: FOR MALING / UNDER-EFTER MALING / REFLEKSION",
+        "Frontmatter avatar field set and round-trips through _template_updates",
+        "Cover SVG renders correctly on /lessons cards (manual check post-deploy)"
+      ],
+      "files_to_create": [
+        "backend/skills/templates/led-planck-tutor/SKILL.md",
+        "frontend/public/lesson-images/led-planck-tutor.svg"
+      ],
+      "files_to_modify": [],
+      "passes": null, "started": null, "completed": null, "notes": "Brief at /Users/voightkampff/dev/sunholo-data/aipla/strand-a-pedagogical-bot/prototypes/led-planck-skill-brief.md lines 120-183 has the tutor prompt verbatim. Per feedback-no-emoticons, NO emoji in either file."
+    },
+    {
+      "id": "M2",
+      "description": "Copy AR's lab HTML to the artefact tree + ADR-013 sanity. No edits to HTML yet — just plant the file at infrastructure/mcp-sandbox/artefacts/led-planck/v1/index.html, then run the canonical grep + size check.",
+      "scope": "frontend",
+      "estimated_loc": 40320,
+      "actual_loc": null,
+      "dependencies": [],
+      "acceptance_criteria": [
+        "File present at infrastructure/mcp-sandbox/artefacts/led-planck/v1/index.html",
+        "grep -nE 'fetch\\(|XMLHttpRequest|new WebSocket|<script src' against the file returns zero matches",
+        "wc -c of the file is under 200000"
+      ],
+      "files_to_create": ["infrastructure/mcp-sandbox/artefacts/led-planck/v1/index.html"],
+      "files_to_modify": [],
+      "passes": null, "started": null, "completed": null, "notes": "Source: /Users/voightkampff/dev/sunholo-data/aipla/assets/examples/led-planck-virtual-lab.html (40 KB on disk). M's-machine equivalent: ~/Documents/clients/cph-uni/sources/leds_planck_virtual_lab.html"
+    },
+    {
+      "id": "M3",
+      "description": "Wire postMessage events on the lab HTML per brief tasks 2-4. Wrap goStep() to emit step-change. Hook measurement-recording path in step 2/3 to emit measurement (led, u0, lambda, h_computed). Wire equipment-placement clicks in step 1 to emit component-placed {correct: boolean}. Wire LED polarity-error to emit led-polarity-error. All emits use local emit(kind, payload) helper that defers until ui/initialize resolves.",
+      "scope": "frontend",
+      "estimated_loc": 120,
+      "actual_loc": null,
+      "dependencies": ["M2"],
+      "acceptance_criteria": [
+        "goStep(1) to goStep(2) produces step-change event with step:2, stepName:part1",
+        "Recording U0 for red LED produces measurement event with all four required fields",
+        "Voltmeter in parallel (correct) produces component-placed {correct:true}; voltmeter in series (incorrect) produces correct:false",
+        "All four event shapes match the brief verbatim"
+      ],
+      "files_to_create": [],
+      "files_to_modify": ["infrastructure/mcp-sandbox/artefacts/led-planck/v1/index.html"],
+      "passes": null, "started": null, "completed": null, "notes": null
+    },
+    {
+      "id": "M4",
+      "description": "JSON-RPC envelope + ui/initialize handshake. Wrap emit() to produce {jsonrpc:'2.0', method:'ui/update-model-context', params:{structuredContent:{kind, ...payload}}}. Add ui/initialize request on load, queue events until response. Mirror Boldkast post-MCPAPP-SPEC pattern. Register ping responder + message listener for inbound notifications.",
+      "scope": "frontend",
+      "estimated_loc": 60,
+      "actual_loc": null,
+      "dependencies": ["M3"],
+      "acceptance_criteria": [
+        "Inbound ping request gets jsonrpc 2.0 result:{} response",
+        "Initialize handshake completes via StaticArtefactFrame proxy on mount",
+        "Events emitted before initialize is resolved are queued, flushed in order after"
+      ],
+      "files_to_create": [],
+      "files_to_modify": ["infrastructure/mcp-sandbox/artefacts/led-planck/v1/index.html"],
+      "passes": null, "started": null, "completed": null, "notes": null
+    },
+    {
+      "id": "M5",
+      "description": "Phase-2 commit-on-submit on step-2 voltage slider. Slider writes to local pendingChanges map; nothing reaches the host until Record-threshold button OR inbound ui/notifications/chat-flush notification. On flush, emit one state-change event with triggeredBy: 'record' or 'chat-submit' and the final voltage. Commitment events from M3 (step-change, measurement, component-placed, polarity-error) keep firing immediately.",
+      "scope": "frontend",
+      "estimated_loc": 60,
+      "actual_loc": null,
+      "dependencies": ["M4"],
+      "acceptance_criteria": [
+        "Dragging the voltage slider produces zero host messages",
+        "Pressing Record-threshold flushes pending value as state-change {triggeredBy: record} BEFORE the measurement event if both fire on same click",
+        "Inbound ui/notifications/chat-flush flushes as triggeredBy: chat-submit",
+        "No-op when pendingChanges is empty (clicking Record without fresh slider value)"
+      ],
+      "files_to_create": [],
+      "files_to_modify": ["infrastructure/mcp-sandbox/artefacts/led-planck/v1/index.html"],
+      "passes": null, "started": null, "completed": null, "notes": "Pattern from workbench-state-debounce.md Phase 2. Boldkast had to retrofit; LED Planck ships correct on day one."
+    },
+    {
+      "id": "M6",
+      "description": "LedPlanckLabFrame host wrapper. forwardRef exposing LedPlanckLabFrameHandle with sendChatFlush(). Internal staticFrameRef dispatches the JSON-RPC notification. Snapshot accumulator producing LedPlanckSnapshot shape. useHumanToolEvents dispatch for commitment events with Danish labels.",
+      "scope": "frontend",
+      "estimated_loc": 290,
+      "actual_loc": null,
+      "dependencies": ["M5"],
+      "acceptance_criteria": [
+        "ref.sendChatFlush() dispatches {jsonrpc:2.0, method:ui/notifications/chat-flush, params:{}} via staticFrame ref",
+        "Snapshot accumulator produces LedPlanckSnapshot shape (lastEvent, currentStep, currentStepName, measurements, componentsPlaced, lastPolarityError)",
+        "step-change cards: Begyndte I-U-maling / Begyndte spektroskopi / Abnede rapport (Danish)",
+        "measurement card: Malte U0 for <farve> LED",
+        "component-placed correct:true dispatches Placerede <komponent>; correct:false silent",
+        "led-polarity-error dispatches Forsogte LED med omvendt polaritet",
+        "state-change events (Phase-2 commit-on-submit) silent push only, no card"
+      ],
+      "files_to_create": ["frontend/src/components/workspace/LedPlanckLabFrame.tsx"],
+      "files_to_modify": [],
+      "passes": null, "started": null, "completed": null, "notes": "Mirror BoldkastSimFrame.tsx structurally — only the event vocabulary + snapshot + Danish labels differ."
+    },
+    {
+      "id": "M7",
+      "description": "Vitest suite for LedPlanckLabFrame. 8+ cases mirroring BoldkastSimFrame.test.tsx: mount + sandboxOrigin/artefactPath, step-change routing, measurement append+dedupe, component-placed correct/incorrect, polarity-error, origin auth (inherited via StaticArtefactFrame), sendChatFlush ref method.",
+      "scope": "frontend",
+      "estimated_loc": 220,
+      "actual_loc": null,
+      "dependencies": ["M6"],
+      "acceptance_criteria": [
+        "All ~8-10 cases green",
+        "No regression in BoldkastSimFrame.test.tsx",
+        "sendChatFlush test verifies the JSON-RPC notification shape + origin"
+      ],
+      "files_to_create": ["frontend/src/components/workspace/__tests__/LedPlanckLabFrame.test.tsx"],
+      "files_to_modify": [],
+      "passes": null, "started": null, "completed": null, "notes": null
+    },
+    {
+      "id": "M8",
+      "description": "Mount LedPlanckLabFrame in chat page workspace + wire chat-submit flush. Add ledPlanckFrameRef = useRef<LedPlanckLabFrameHandle | null>(null). Gate parallel to Boldkast: when skillSlug === 'led-planck-tutor', mount <LedPlanckLabFrame ref={ledPlanckFrameRef} sessionId={...}>. Extend existing handleSend chat-flush to also fire ledPlanckFrameRef.current?.sendChatFlush().",
+      "scope": "frontend",
+      "estimated_loc": 30,
+      "actual_loc": null,
+      "dependencies": ["M7"],
+      "acceptance_criteria": [
+        "Visiting /chat/@aipla-platform/led-planck-tutor mounts the lab in the workspace",
+        "Boldkast chat path unaffected",
+        "Chat-submit fires both flushes (Boldkast + LED Planck); only the mounted one acts"
+      ],
+      "files_to_create": [],
+      "files_to_modify": ["frontend/src/app/chat/[...path]/page.tsx"],
+      "passes": null, "started": null, "completed": null, "notes": null
+    },
+    {
+      "id": "M9",
+      "description": "Backend tests: skill template parses cleanly + carries the three Danish teaching phases markers + frontmatter avatar + tool_configs opt-outs. Workspace-observability test extension verifies the InstructionProvider block for serverId:led-planck carries the Danish step name + measurement summary.",
+      "scope": "backend",
+      "estimated_loc": 160,
+      "actual_loc": null,
+      "dependencies": ["M1"],
+      "acceptance_criteria": [
+        "test_led_planck_skill_template.py: SKILL.md parses, Danish markers present, accessControl=public, avatar set, tool_configs.defaults artefacts+memory false, mcp.allow_context_writes includes led-planck",
+        "test_workspace_observability.py extended case: POST iframe-context for serverId led-planck with LedPlanckSnapshot shape, asserted block contains Danish step name + at least one measurement summary",
+        "Both pass under make test-fast"
+      ],
+      "files_to_create": ["backend/tests/unit/test_led_planck_skill_template.py"],
+      "files_to_modify": ["backend/tests/api_tests/test_workspace_observability.py"],
+      "passes": null, "started": null, "completed": null, "notes": "M9 depends on M1 only — can run earlier in the wave if executor prefers."
+    },
+    {
+      "id": "M10",
+      "description": "Quality gates + direct-to-dev FF merge + post-deploy reseed. Backend make lint + make test-fast green; frontend npm run quality:check green; ADR-013 scan 0 matches; artefact under 200KB; no emoji; rebase + FF-merge to dev (NO PR); push origin/dev; wait for Cloud Build deploy; trigger POST /api/admin/seed-platform-skills with SA --include-email token so new template + avatar field land in Firestore.",
+      "scope": "fullstack",
+      "estimated_loc": 0,
+      "actual_loc": null,
+      "dependencies": ["M2", "M3", "M4", "M5", "M6", "M7", "M8", "M9"],
+      "acceptance_criteria": [
+        "cd backend && make lint clean",
+        "cd backend && make test-fast green",
+        "cd frontend && npm run quality:check green (lint + typecheck + tests + build)",
+        "ADR-013 grep returns 0 forbidden patterns; artefact under 200 KB",
+        "No emoji in any sprint-touched file (per feedback-no-emoticons)",
+        "Branch rebased onto origin/dev and FF-merged to dev — NO PR",
+        "origin/dev pushed; Cloud Build deploy SUCCESS",
+        "POST /api/admin/seed-platform-skills returns the new led-planck-tutor in the created/updated set",
+        "GET /api/skills returns 3 entries: problem-set-hints, manage-class, led-planck-tutor (each with avatar)",
+        "Student /lessons view shows Boldkast + LED Planck (manage-class filtered as teacher-only)",
+        "Teacher class-detail Add-lesson picker offers LED og Plancks konstant"
+      ],
+      "files_to_create": [],
+      "files_to_modify": [],
+      "passes": null, "started": null, "completed": null, "notes": "Seed token mint: gcloud auth print-identity-token --impersonate-service-account=aipla-v6@aipla-dev-2026.iam.gserviceaccount.com --audiences=$URL --include-email (per reference-admin-seed-token-mint memory)."
+    }
+  ],
+  "velocity": {
+    "target_loc_per_day": 600,
+    "actual_loc_per_day": null,
+    "estimated_total_loc": 1200,
+    "actual_total_loc": null,
+    "estimated_days": 2,
+    "actual_days": null
+  },
+  "github_issues": [],
+  "last_session": null,
+  "last_checkpoint": null,
+  "status": "planned",
+  "queue_position": 1,
+  "queue_rationale": "Second AIPLA physics skill. Establishes N=2 artefact through the spec-compliant pipeline + proves StaticArtefactFrame handles procedural-virtual-lab form factor. KineBot (1.D) becomes N=3 using this as the migration pattern reference."
+}
