@@ -52,6 +52,13 @@ import {
 } from "@/components/workspace/LedPlanckLabFrame";
 import { LedPlanckLabButton } from "@/components/workspace/LedPlanckLabButton";
 import { LedPlanckWorkbench } from "@/components/workspace/LedPlanckWorkbench";
+import {
+  KineBotFrame,
+  type KineBotFrameHandle,
+  type KineBotSnapshot,
+} from "@/components/workspace/KineBotFrame";
+import { KineBotLabButton } from "@/components/workspace/KineBotLabButton";
+import { KineBotWorkbench } from "@/components/workspace/KineBotWorkbench";
 import { useResizableWorkspaceRatio } from "@/hooks/useResizableWorkspaceRatio";
 
 // PEDCTX M5 — sub-parts of the Boldkast problem-set-hints v0.1 skill.
@@ -288,7 +295,9 @@ function ChatShell({
   // workspace is purpose-built for the one demo flow.
   const showAiplaWorkspace =
     isAnonymousGroupAuthMode() &&
-    (skillSlug === "problem-set-hints" || skillSlug === "led-planck-tutor");
+    (skillSlug === "problem-set-hints" ||
+      skillSlug === "led-planck-tutor" ||
+      skillSlug === "kinebot-kinematics-tutor");
   const searchParams = useSearchParams();
   const router = useRouter();
   const [draft, setDraft] = useState("");
@@ -302,6 +311,13 @@ function ChatShell({
   const [showLedPlanckLab, setShowLedPlanckLab] = useState(false);
   const [ledPlanckSnapshot, setLedPlanckSnapshot] =
     useState<LedPlanckSnapshot | null>(null);
+  // 1.D — KineBot toggle + snapshot lifted at chat-page level so the
+  // sidebar topic picker in the workbench can drive the iframe sim via
+  // the Frame ref's setTopic, and the workbench stays in sync with
+  // what the agent sees.
+  const [showKinebotLab, setShowKinebotLab] = useState(false);
+  const [kinebotSnapshot, setKinebotSnapshot] =
+    useState<KineBotSnapshot | null>(null);
   // resize-workspace sprint — chat <-> workspace split ratio.
   // Keyed by skillSlug so KineBot remembers a different width than
   // LED Planck (per-skill defaults in the hook).
@@ -359,6 +375,7 @@ function ChatShell({
   // proceeds unaffected when the frame isn't mounted.
   const boldkastFrameRef = useRef<BoldkastSimFrameHandle | null>(null);
   const ledPlanckFrameRef = useRef<LedPlanckLabFrameHandle | null>(null);
+  const kinebotFrameRef = useRef<KineBotFrameHandle | null>(null);
 
   // Session routing: read ?session= from URL, allow programmatic navigation
   const sessionId = searchParams.get("session");
@@ -455,6 +472,7 @@ function ChatShell({
     // don't await, and missing ref = no-op.
     boldkastFrameRef.current?.sendChatFlush();
     ledPlanckFrameRef.current?.sendChatFlush();
+    kinebotFrameRef.current?.sendChatFlush();
     // Snap to chat tab on mobile so the student sees the response
     // stream in. No effect on md+ where both panels are visible.
     setMobileTab("chat");
@@ -839,6 +857,36 @@ function ChatShell({
             the Boldkast sim lands here later in the buffer week.
             Other auth modes and other skills keep the inherited
             DocumentPanel / WorkspaceSurfaceRegion behaviour above. */}
+        {showAiplaWorkspace && skillSlug === "kinebot-kinematics-tutor" && (
+          <WorkspaceShell
+            hideOnMobile={mobileTab !== "workspace"}
+            ratio={workspaceRatio}
+            onRatioChange={setWorkspaceRatio}
+          >
+            {showKinebotLab && BOLDKAST_SANDBOX_ORIGIN ? (
+              <KineBotFrame
+                ref={kinebotFrameRef}
+                sandboxOrigin={BOLDKAST_SANDBOX_ORIGIN}
+                sessionId={sessionId ?? agentSessionId}
+                onClose={() => setShowKinebotLab(false)}
+                onSnapshotChange={setKinebotSnapshot}
+              />
+            ) : (
+              <div className="space-y-4">
+                <KineBotLabButton
+                  onOpen={() => setShowKinebotLab(true)}
+                  disabled={!BOLDKAST_SANDBOX_ORIGIN}
+                />
+                <KineBotWorkbench
+                  snapshot={kinebotSnapshot}
+                  onTopicChange={(topic) => kinebotFrameRef.current?.setTopic(topic)}
+                  sessionId={sessionId ?? agentSessionId}
+                />
+              </div>
+            )}
+          </WorkspaceShell>
+        )}
+
         {showAiplaWorkspace && skillSlug === "led-planck-tutor" && (
           <WorkspaceShell
             hideOnMobile={mobileTab !== "workspace"}
