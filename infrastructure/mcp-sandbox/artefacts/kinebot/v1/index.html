@@ -368,7 +368,7 @@ canvas#graphCanvas{background:var(--bg);border:1px solid var(--border);border-ra
  <div class="panel" id="panel-graph">
  <div class="graph-wrap">
  <div class="graph-controls">
- <select class="gc-select" id="graphType" onchange="drawGraph()">
+ <select class="gc-select" id="graphType" onchange="emit('graph-change',{graphType:this.value});drawGraph()">
  <option value="xt">Position-Time (x-t)</option>
  <option value="vt">Velocity-Time (v-t)</option>
  <option value="at">Acceleration-Time (a-t)</option>
@@ -398,6 +398,66 @@ let currentTopic = 'intro', voiceRecording = false, recognition = null;
 const convHistory = [];
 
 // ══════════════════════════════════════════════════
+// JSON-RPC TELEMETRY (MCP Apps spec)
+// Mirrors Boldkast / LED Planck: inline ~30 LoC of JSON-RPC over
+// postMessage, ui/initialize handshake, ping responder, host -> iframe
+// notifications (kinebot.set-topic), public emit() that auto-prefixes
+// "kinebot." onto event names and queues until init resolves.
+// ══════════════════════════════════════════════════
+let __rpcNextId=1,__initialized=false,__pendingEmits=[],__hostContext=null;
+function __post(m){try{window.parent.postMessage(m,'*')}catch(_){}}
+function rpcNotify(method,params){__post({jsonrpc:'2.0',method:method,params:params||{}})}
+function rpcRequest(method,params){return new Promise(function(resolve,reject){const id=__rpcNextId++;const listener=function(e){const d=e.data;if(!d||d.id!==id)return;window.removeEventListener('message',listener);if(d.result!==undefined)resolve(d.result);else reject(new Error((d.error&&d.error.message)||'rpc error'))};window.addEventListener('message',listener);__post({jsonrpc:'2.0',id:id,method:method,params:params||{}})})}
+function emit(event,payload){const kind=event.indexOf('.')>=0?event:'kinebot.'+event;const msg={jsonrpc:'2.0',method:'ui/update-model-context',params:{structuredContent:Object.assign({},payload||{},{kind:kind})}};if(!__initialized){__pendingEmits.push(msg);return}__post(msg)}
+
+// Map topic key (sent by the React workbench via kinebot.set-topic)
+// to the iframe's simType + an English label, so a topic click in
+// React selects the right sim. Topics that don't have a paired sim
+// fall back to '1d' (uniform motion) — students can still take the
+// quiz + plot graphs for that topic.
+const __TOPIC_TO_SIM={
+  intro:'1d', displacement:'1d', velocity:'1d', graphs:'1d',
+  acceleration:'accel', equations:'accel',
+  freefall:'freefall', vectors:'vectors',
+  projectile:'projectile', circular:'circular', relative:'relative'
+};
+function __applyTopic(topic){
+  if(typeof topic!=='string') return;
+  currentTopic=topic;
+  selectedQuizTopic=topic;
+  const simType=__TOPIC_TO_SIM[topic];
+  if(simType){
+    const sel=document.getElementById('simType');
+    if(sel){sel.value=simType; if(typeof changeSim==='function') changeSim();}
+  }
+}
+
+// Phase-2 commit-on-submit: slider input writes to pendingChanges;
+// togglePlay (start) flushes as state-change with triggeredBy:'play'.
+// Chat-flush from host also flushes as triggeredBy:'chat-submit'.
+const pendingChanges={};
+function flushPendingChanges(triggeredBy){
+  const keys=Object.keys(pendingChanges);
+  if(!keys.length) return;
+  const params={velocity:gV(),acceleration:gA()};
+  // Optional sliders only included if they're currently visible.
+  if(document.getElementById('rowAngle')&&document.getElementById('rowAngle').style.display!=='none') params.angle=Math.round(gAng()*180/Math.PI);
+  if(document.getElementById('rowV2')&&document.getElementById('rowV2').style.display!=='none') params.v2=gV2();
+  emit('state-change',{changed:keys,state:params,triggeredBy:triggeredBy});
+  for(const k of keys) delete pendingChanges[k];
+}
+
+// Inbound message handler — set-topic + chat-flush. Coexists with the
+// ping responder.
+window.addEventListener('message',function(e){
+  const d=e.data;
+  if(!d||d.jsonrpc!=='2.0')return;
+  if(d.method==='ping'&&d.id!==undefined&&d.id!==null){__post({jsonrpc:'2.0',id:d.id,result:{}});return}
+  if(d.method==='kinebot.set-topic'&&d.params){__applyTopic(d.params.topic);return}
+  if(d.method==='ui/notifications/chat-flush'){flushPendingChanges('chat-submit');return}
+});
+
+// ══════════════════════════════════════════════════
 // SIMULATION ENGINE
 // ══════════════════════════════════════════════════
 const simCanvas = document.getElementById('simCanvas');
@@ -420,8 +480,19 @@ function gV2(){ return +document.getElementById('slV2').value; }
 function togglePlay(){
  sim.playing = !sim.playing;
  const b = document.getElementById('btnPlay');
- if(sim.playing){ b.textContent='⏸ Pause'; b.classList.add('on'); runSim(); }
- else{ b.textContent='▶ Play'; b.classList.remove('on'); cancelAnimationFrame(animId); }
+ if(sim.playing){
+   b.textContent='Pause'; b.classList.add('on');
+   // Commit-on-submit: flush any pending slider changes BEFORE the
+   // sim-run event so the agent sees the parameter snapshot first,
+   // then the sim-run that uses them.
+   flushPendingChanges('play');
+   const params={simType:sim.type,velocity:gV(),acceleration:gA()};
+   if(document.getElementById('rowAngle').style.display!=='none') params.angle=Math.round(gAng()*180/Math.PI);
+   if(document.getElementById('rowV2').style.display!=='none') params.v2=gV2();
+   emit('sim-run',{simType:sim.type,params:params});
+   runSim();
+ }
+ else{ b.textContent='Play'; b.classList.remove('on'); cancelAnimationFrame(animId); }
 }
 function resetSim(){
  sim.playing=false; sim.t=0; sim.x=60; sim.y=0; sim.trail=[];
@@ -434,6 +505,12 @@ function updateSim(){
  document.getElementById('lblA').textContent = gA();
  document.getElementById('lblAngle').textContent = document.getElementById('slAngle').value+'°';
  document.getElementById('lblV2').textContent = gV2();
+ // Slider input — accumulate pendingChanges locally; do NOT emit yet.
+ // Committed on togglePlay (Play) or inbound chat-flush.
+ pendingChanges.velocity=gV();
+ pendingChanges.acceleration=gA();
+ if(document.getElementById('rowAngle').style.display!=='none') pendingChanges.angle=Math.round(gAng()*180/Math.PI);
+ if(document.getElementById('rowV2').style.display!=='none') pendingChanges.v2=gV2();
  resetSim();
 }
 function changeSim(){
@@ -1387,8 +1464,10 @@ function answerQuiz(i){
  else if(j===i) o.classList.add('wrong');
  o.style.cursor='not-allowed';
  });
- if(i===q.ans){ quizScore++; addXP(15); showToast(' Correct! +15 XP'); }
- else{ addXP(3); showToast(' Incorrect. Read the explanation below.','var(--rose)'); }
+ const answeredCorrectly=(i===q.ans);
+ if(answeredCorrectly){ quizScore++; showToast('Correct'); }
+ else{ showToast('Incorrect','var(--rose)'); }
+ emit('quiz-attempt',{topic:currentTopic,questionId:q.id||('q'+quizIdx),answeredCorrectly:answeredCorrectly});
  document.getElementById('quizExp').style.display='block';
  document.getElementById('quizNext').style.display='block';
 }
@@ -1517,6 +1596,11 @@ window.onload=()=>{
  patchGraphSelect();
  drawGraph();
 };
+
+// Spec lifecycle handshake. Standalone testing (no sandbox proxy
+// parent) flips __initialized in the catch arm so subsequent emits
+// are no-ops via __post's try/catch — same shape as Boldkast + LED Planck.
+rpcRequest('ui/initialize',{protocolVersion:'2026-01-26',capabilities:{},clientInfo:{name:'kinebot',version:'1.0.0'}}).then(function(result){__hostContext=(result&&result.hostContext)||null;rpcNotify('ui/notifications/initialized',{clientInfo:{name:'kinebot',version:'1.0.0'}});__initialized=true;while(__pendingEmits.length)__post(__pendingEmits.shift())}).catch(function(){__initialized=true;__pendingEmits.length=0});
 </script>
 </body>
 </html>
