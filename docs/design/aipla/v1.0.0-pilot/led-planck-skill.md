@@ -1,13 +1,14 @@
 # LED Planck virtual lab — second physics skill (procedural-lab class)
 
-**Status**: Planned
-**Priority**: P1 (v1 critical-path; second of three physics skills, first new skill since v0.1)
-**Estimated**: 1.5–2 days
-**Scope**: Fullstack — backend (skill template + tools opt-out config), frontend (`LedPlanckLabFrame` host wrapper), artefact (postMessage wiring on AR's existing HTML)
-**Dependencies**: v0.1 shipped; [mcp-app-iframe-spec-compliance.md](implemented/mcp-app-iframe-spec-compliance.md) merged (sandbox-proxy + `StaticArtefactFrame` ready); [lesson-picker.md](lesson-picker.md) shipped (so students can find it); ADR-013 pipeline scan; [boldkast-mcp-app.md](../v0.1.0-jutland/boldkast-mcp-app.md) as reference implementation
-**Pedagogical source-of-truth:** [`led-planck-skill-brief.md`](file:///Users/mark/Documents/clients/cph-uni/strand-a-pedagogical-bot/prototypes/led-planck-skill-brief.md) in the scoping site — full Danish Socratic tutor prompt, skill config YAML, postMessage event shapes, deploy checklist, accuracy notes. **The brief is the design for the lesson's pedagogy and tutor behaviour; this doc is the execution layer that turns the brief into shippable code in `cphu-aipla-app`.**
+**Status**: Ready for sprint planning (2026-05-27 review)
+**Priority**: P1 (v1 critical-path; second of three physics skills, first new lesson since v0.1)
+**Estimated**: ~2 days
+**Scope**: Fullstack — backend (skill template + tools opt-out config + cover image), frontend (`LedPlanckLabFrame` host wrapper + lesson cover), artefact (postMessage wiring on AR's existing HTML, commit-on-submit per 1.E-Ph2)
+**Dependencies**: v0.1 shipped; [implemented/mcp-app-iframe-spec-compliance.md](implemented/mcp-app-iframe-spec-compliance.md) merged (sandbox-proxy + `StaticArtefactFrame` ready); [lesson-picker.md](lesson-picker.md) shipped (so students can find it); [workbench-state-debounce.md](workbench-state-debounce.md) §Phase 2 (commit-on-submit convention this skill adopts from day one); ADR-013 pipeline scan; [boldkast-mcp-app.md](../v0.1.0-jutland/boldkast-mcp-app.md) as reference implementation
+**Pedagogical source-of-truth:** [`led-planck-skill-brief.md`](file:///Users/voightkampff/dev/sunholo-data/aipla/strand-a-pedagogical-bot/prototypes/led-planck-skill-brief.md) in the scoping site (M's machine: `~/Documents/clients/cph-uni/strand-a-pedagogical-bot/prototypes/led-planck-skill-brief.md`) — full Danish Socratic tutor prompt, skill config YAML, postMessage event shapes, deploy checklist, accuracy notes. **The brief is the design for the lesson's pedagogy and tutor behaviour; this doc is the execution layer that turns the brief into shippable code in `cphu-aipla-app`.**
+**Lab source HTML:** `/Users/voightkampff/dev/sunholo-data/aipla/assets/examples/led-planck-virtual-lab.html` on this machine (40 KB, self-contained, zero external fetches). Forks see M's machine at `~/Documents/clients/cph-uni/sources/leds_planck_virtual_lab.html` — translate per [reference-scoping-site-path](file:///Users/voightkampff/.claude/projects/-Users-voightkampff-dev-sunholo-data-cphu-aipla-app/memory/reference_scoping_site_path.md) memory.
 **Created**: 2026-05-24
-**Last Updated**: 2026-05-24
+**Last Updated**: 2026-05-27
 
 ## Problem Statement
 
@@ -22,7 +23,7 @@ v0.1 ships one student-facing physics skill (`problem-set-hints` / Boldkast). Pe
 The brief answers the **pedagogical** "what" (Socratic prompt, three teaching phases, accuracy notes against H_TRUE = 6.62607015e-34). It doesn't answer the **technical** "where in this repo" — that's this doc.
 
 **Current State:**
-- AR's lab HTML lives at `~/Documents/clients/cph-uni/sources/leds_planck_virtual_lab.html` (~1855 lines, self-contained, zero external fetches)
+- AR's lab HTML lives at `~/Documents/clients/cph-uni/sources/leds_planck_virtual_lab.html` on M's machine; on this machine it is at `/Users/voightkampff/dev/sunholo-data/aipla/assets/examples/led-planck-virtual-lab.html` (40 KB on disk, self-contained, zero external fetches)
 - `cphu-aipla-app/infrastructure/mcp-sandbox/artefacts/` has three entries: `_template`, `boldkast`, `test-artefact`. Boldkast is the canonical reference for the spec-compliant path (sprint MCPAPP-SPEC shipped 2026-05-21).
 - `backend/skills/templates/` has `problem-set-hints/SKILL.md` (Danish, paired with Boldkast). LED Planck would be a sibling.
 - No `LedPlanckLabFrame` host wrapper exists; the Boldkast pattern (`BoldkastSimFrame` + `StaticArtefactFrame`) is the template.
@@ -137,6 +138,29 @@ ChatShell mounts:
 
 The architecture is **structurally identical to Boldkast** — only the artefact JS, the event vocabulary, the snapshot shape, and the Danish tutor prompt differ. Everything else is the spec-compliant path proven in MCPAPP-SPEC.
 
+### Commit-on-submit convention (post-1.E-Ph2, 2026-05-26)
+
+LED Planck adopts the [workbench-state-debounce.md](workbench-state-debounce.md) §Phase 2 pattern from the start — Boldkast retrofitted it, this skill ships correct on day one. Two distinct event classes:
+
+- **Commitment events** (fire immediately): `step-change`, `measurement` (the student explicitly recorded a U₀), `component-placed`, `led-polarity-error`. These are the student's deliberate acts; they belong in `mcp_app_context` immediately.
+- **Pre-commit exploration** (buffer locally, flush on commit signal): the voltage-sweep slider in step 2 fires continuous `input` events as the student drags. Per Phase 2, the slider value writes to a local `pendingChanges` map only; nothing reaches the host until the student presses "Recordtærskelspænding" (commit-class button) OR the host signals `ui/notifications/chat-flush` before a user message. The flush emits one `state-change` event with `triggeredBy: "record" | "chat-submit"` and the final voltage. Mirrors Boldkast's Afspil flush.
+
+The mcp-app-artefact skill convention covers the pattern + code snippets — the implementer copies the Boldkast helper, just substitutes the LED-Planck-specific commit buttons.
+
+### Lesson cover image
+
+Per the 1.B follow-up, every lesson gets a cover image rendered on `/lessons` cards + the teacher's class-detail catalogue. Create `frontend/public/lesson-images/led-planck-tutor.svg` (~16:9 ratio, 480×270 viewBox to match the existing pair) showing the breadboard / LED / spectrometer motif. Reference it in the SKILL.md frontmatter:
+
+```yaml
+---
+name: led-planck-tutor
+displayName: LED og Plancks konstant
+avatar: /lesson-images/led-planck-tutor.svg
+description: >
+  Dansk stx fysik-A virtuelt laboratorium…
+---
+```
+
 ### Snapshot shape
 
 What gets POSTed to `iframe-context` and ends up in `mcp_app_context.led-planck.state`:
@@ -169,11 +193,12 @@ The agent's prompt sees this block via `wrap_with_iframe_context` and can scaffo
 
 | File | Purpose | LOC est. |
 |---|---|---|
-| `infrastructure/mcp-sandbox/artefacts/led-planck/v1/index.html` | The lab HTML, postMessage-wired per the brief (steps 2–4 of the brief's integration tasks) | ~1855 → ~1900 (+~50 for postMessage helpers) |
-| `frontend/src/components/workspace/LedPlanckLabFrame.tsx` | Host wrapper — thin like Boldkast post-refactor. Maps lab events to the snapshot above + dispatches `useHumanToolEvents` cards | ~280 |
-| `frontend/src/components/workspace/__tests__/LedPlanckLabFrame.test.tsx` | 8–10 vitest cases mirroring `BoldkastSimFrame.test.tsx`: event routing, snapshot accumulation, origin auth, card dispatch on measurement | ~200 |
-| `backend/skills/templates/led-planck-tutor/SKILL.md` | Danish tutor system prompt (verbatim from the brief lines 122–183) + frontmatter (displayName, initialMessage, tool_configs.defaults opt-out) | ~80 lines (mostly prompt) |
-| `frontend/src/app/chat/[...path]/page.tsx` | Add gate: when `skillSlug === "led-planck-tutor"`, mount `<LedPlanckLabFrame>` in workspace (parallel to existing Boldkast gate) | +10 LOC delta |
+| `infrastructure/mcp-sandbox/artefacts/led-planck/v1/index.html` | The lab HTML, postMessage-wired per the brief (steps 2–4) + Phase-2 commit-on-submit pattern on the step-2 voltage slider | ~1900 + ~60 for postMessage + pendingChanges helpers |
+| `frontend/src/components/workspace/LedPlanckLabFrame.tsx` | Host wrapper — thin like Boldkast post-refactor. Maps lab events to the snapshot + dispatches `useHumanToolEvents` cards + exposes `sendChatFlush()` via `forwardRef` (Phase-2 contract) | ~290 |
+| `frontend/src/components/workspace/__tests__/LedPlanckLabFrame.test.tsx` | 8–10 vitest cases mirroring `BoldkastSimFrame.test.tsx`: event routing, snapshot accumulation, origin auth, card dispatch on measurement, `sendChatFlush` ref method | ~220 |
+| `backend/skills/templates/led-planck-tutor/SKILL.md` | Danish tutor system prompt (verbatim from the brief lines 122–183) + frontmatter (displayName, **avatar: /lesson-images/led-planck-tutor.svg**, initialMessage, tool_configs.defaults opt-out) | ~80 lines (mostly prompt) |
+| `frontend/public/lesson-images/led-planck-tutor.svg` | Lesson cover image (~480×270 viewBox, breadboard/LED motif, terse style matching the existing pair). Renders on `/lessons` cards + teacher class-detail | new |
+| `frontend/src/app/chat/[...path]/page.tsx` | Add gate: when `skillSlug === "led-planck-tutor"`, mount `<LedPlanckLabFrame ref={labFrameRef}>` in workspace; thread `labFrameRef.current?.sendChatFlush()` into the existing chat-submit flush call (parallel to existing Boldkast gate) | +20 LOC delta |
 
 ### Files NOT to create
 
@@ -261,18 +286,20 @@ wc -c infrastructure/mcp-sandbox/artefacts/led-planck/v1/index.html
 
 | Step | What | Where | Est |
 |---|---|---|---|
-| 1 | Copy lab HTML to artefact tree | `infrastructure/mcp-sandbox/artefacts/led-planck/v1/index.html` (copy from `~/Documents/clients/cph-uni/sources/leds_planck_virtual_lab.html`) | 0.05 d |
+| 1 | Copy lab HTML to artefact tree | `infrastructure/mcp-sandbox/artefacts/led-planck/v1/index.html` (copy from `/Users/voightkampff/dev/sunholo-data/aipla/assets/examples/led-planck-virtual-lab.html` — M's machine: `~/Documents/clients/cph-uni/sources/leds_planck_virtual_lab.html`) | 0.05 d |
 | 2 | Wire postMessage events per brief steps 2–4 | Same file — wrap `goStep()`, hook measurement recordings, wire equipment-placement events | 0.3 d |
 | 3 | Add JSON-RPC envelope per spec (mirror Boldkast M3) | Same file — `rpcNotify("ui/update-model-context", { structuredContent: { kind, ...payload } })`; `ui/initialize` handshake on load | 0.15 d |
-| 4 | ADR-013 pipeline scan + size check | (no edits) | 0.05 d |
-| 5 | `LedPlanckLabFrame` component | `frontend/src/components/workspace/LedPlanckLabFrame.tsx` | 0.4 d |
-| 6 | Vitest suite for the host wrapper | `frontend/src/components/workspace/__tests__/LedPlanckLabFrame.test.tsx` | 0.3 d |
-| 7 | Mount in chat page workspace | `frontend/src/app/chat/[...path]/page.tsx` (one gate parallel to Boldkast) | 0.1 d |
-| 8 | Skill template — Danish prompt + frontmatter | `backend/skills/templates/led-planck-tutor/SKILL.md` | 0.2 d |
-| 9 | Backend test for the template | `backend/tests/unit/test_led_planck_skill_template.py` | 0.15 d |
-| 10 | Workspace-observability test extension | `backend/tests/api_tests/test_workspace_observability.py` (+1 case) | 0.1 d |
-| 11 | Manual + AR sign-off (Danish prompt review) | (no edits) | 0.2 d |
-| | **Total** | | **~1.9 d** |
+| 4 | Phase-2 commit-on-submit pattern on the step-2 voltage slider | Same file — `pendingChanges` map + `flushPendingChanges("record" / "chat-submit")` mirroring Boldkast Afspil; chat-flush message listener | 0.15 d |
+| 5 | ADR-013 pipeline scan + size check | (no edits) | 0.05 d |
+| 6 | `LedPlanckLabFrame` component (incl. `sendChatFlush` ref) | `frontend/src/components/workspace/LedPlanckLabFrame.tsx` | 0.45 d |
+| 7 | Vitest suite for the host wrapper | `frontend/src/components/workspace/__tests__/LedPlanckLabFrame.test.tsx` | 0.3 d |
+| 8 | Mount in chat page workspace + wire chat-submit flush | `frontend/src/app/chat/[...path]/page.tsx` (one gate parallel to Boldkast) | 0.15 d |
+| 9 | Skill template — Danish prompt + frontmatter + avatar | `backend/skills/templates/led-planck-tutor/SKILL.md` | 0.2 d |
+| 10 | Cover image | `frontend/public/lesson-images/led-planck-tutor.svg` | 0.05 d |
+| 11 | Backend test for the template | `backend/tests/unit/test_led_planck_skill_template.py` | 0.15 d |
+| 12 | Workspace-observability test extension | `backend/tests/api_tests/test_workspace_observability.py` (+1 case) | 0.1 d |
+| 13 | Manual + AR sign-off (Danish prompt review) | (no edits) | 0.2 d |
+| | **Total** | | **~2.0 d** |
 
 ## Success Criteria
 
@@ -283,9 +310,11 @@ wc -c infrastructure/mcp-sandbox/artefacts/led-planck/v1/index.html
 - [ ] Pytest: `test_led_planck_skill_template.py` passes; `test_workspace_observability.py` extended case passes.
 - [ ] `npm run quality:check` green (lint + typecheck + tests + build).
 - [ ] `cd backend && make lint && make test-fast` green.
-- [ ] Lesson picker (post-1.B) shows "LED og Plancks konstant" alongside "Boldkast" for a LOCAL_MODE student.
+- [ ] Lesson picker (post-1.B) shows "LED og Plancks konstant" alongside "Boldkast" — both cards display their cover SVG.
 - [ ] Agent reply references the student's current step + at least one measured LED color by name within 1 turn of `step-change` or `measurement` events — verified manually with M, signed off by AR.
 - [ ] `aiplatform sessions iframe-context <session_id>` dumps `mcp_app_context.led-planck.state` with shape matching the `LedPlanckSnapshot` interface.
+- [ ] Phase-2 acceptance: dragging the step-2 voltage slider produces zero host messages until the student presses the record-threshold button OR sends a chat message — verified via the iframe-context dump.
+- [ ] No emoji introduced in any file changed (per `feedback-no-emoticons` memory).
 
 ## Out of Scope (deferred)
 
@@ -297,12 +326,13 @@ wc -c infrastructure/mcp-sandbox/artefacts/led-planck/v1/index.html
 
 ## Related Documents
 
-- **Source of truth (pedagogy + tutor prompt):** [`led-planck-skill-brief.md`](file:///Users/mark/Documents/clients/cph-uni/strand-a-pedagogical-bot/prototypes/led-planck-skill-brief.md) in scoping site
+- **Source of truth (pedagogy + tutor prompt):** [`led-planck-skill-brief.md`](file:///Users/voightkampff/dev/sunholo-data/aipla/strand-a-pedagogical-bot/prototypes/led-planck-skill-brief.md) on this machine (M's machine: `~/Documents/clients/cph-uni/strand-a-pedagogical-bot/prototypes/led-planck-skill-brief.md`) — see [reference-scoping-site-path](file:///Users/voightkampff/.claude/projects/-Users-voightkampff-dev-sunholo-data-cphu-aipla-app/memory/reference_scoping_site_path.md) memory
 - [SEQUENCE.md](SEQUENCE.md) row 1.C
-- [teacher-permission-model.md](teacher-permission-model.md) — 1.A; LED Planck becomes assignable to classes once this lands
-- [lesson-picker.md](lesson-picker.md) — 1.B; how students discover this lesson
+- [teacher-permission-model.md](teacher-permission-model.md) — 1.A; LED Planck becomes assignable to classes once this lands (already shipped 2026-05-26)
+- [lesson-picker.md](lesson-picker.md) — 1.B; how students discover this lesson (already shipped 2026-05-26)
+- [workbench-state-debounce.md](workbench-state-debounce.md) — 1.E + 1.E-Ph2; LED Planck adopts the commit-on-submit convention from day one (Boldkast had to retrofit; both shipped 2026-05-26)
 - [kinebot-migration.md](kinebot-migration.md) — 1.D; the next skill, which uses LED Planck as the migration pattern reference
 - [boldkast-mcp-app.md](../v0.1.0-jutland/boldkast-mcp-app.md) — the v0.1 reference implementation this mirrors
 - [implemented/mcp-app-iframe-spec-compliance.md](implemented/mcp-app-iframe-spec-compliance.md) — the spec-compliant artefact path
 - [.claude/skills/mcp-app-artefact/SKILL.md](../../../../.claude/skills/mcp-app-artefact/SKILL.md) — the canonical AIPLA artefact-onboarding recipe; this doc is the first artefact through that recipe post-spec-compliance migration
-- [ADR-013](file:///Users/mark/Documents/clients/cph-uni/architecture.qmd#adr-013-artefact-safety-content-review-pipeline-for-generated-html) — artefact safety / sandbox / CSP
+- ADR-013 (artefact safety / sandbox / CSP) — in the scoping site at `architecture.qmd#adr-013-artefact-safety-content-review-pipeline-for-generated-html`
