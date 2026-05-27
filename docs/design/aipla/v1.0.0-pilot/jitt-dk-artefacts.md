@@ -1,0 +1,182 @@
+# jitt.dk artefact library expansion (activity 4+)
+
+**Status**: Planned
+**Priority**: P2 (v1.1 target; enables curated sim library commitment in strands.qmd)
+**Estimated**: 1–2 days per artefact; 5 artefacts = 5–8 days total across v1.1
+**Scope**: Artefact only (HTML + postMessage wiring). No backend or frontend changes for each app — they slot into the existing `StaticArtefactFrame` + sandbox infrastructure.
+**Dependencies**: [lesson-picker.md](lesson-picker.md) shipped; [boldkast-mcp-app.md](../v0.1.0-jutland/boldkast-mcp-app.md) and [led-planck-skill.md](led-planck-skill.md) as reference implementations (N=2 spec-compliant artefacts before expanding); ADR-013 pipeline scan tooling in place
+**Pedagogical source-of-truth:** [`notes/2026-05-26-JB-feedback-jutland.md`](file:///Users/mark/Documents/clients/cph-uni/notes/2026-05-26-JB-feedback-jutland.md) — JB noted "We can use them freely if we want to." Teacher at the Jutland visit confirmed these are free to use. The [`workbench-types.md`](file:///Users/mark/Documents/clients/cph-uni/strand-a-pedagogical-bot/prototypes/workbench-types.md) brief in the scoping site documents the per-app integration checklist and priority order.
+**Created**: 2026-05-27
+**Last Updated**: 2026-05-27
+
+## Problem Statement
+
+AIPLA v1 commits to a "curated sim library" (strands.qmd). After Boldkast (0.2) + LED Planck (1.C) + KineBot (1.D), the library has three artefacts. jitt.dk is a free, teacher-built collection of 23 Danish physics apps — self-contained HTML artefacts spanning mechanics, waves, acoustics, optics, and measurement. If they're iframe-compatible, each can join the library in ~1 day: ADR-013 scan + postMessage wiring + tutor system prompt.
+
+**Current state:**
+- jitt.dk runs at `https://jitt.dk`. 23 apps confirmed by JB as free to use.
+- None have been tested for `sandbox="allow-scripts"` iframe compatibility yet.
+- No postMessage wiring exists (these were built as standalone apps, not AIPLA artefacts).
+- The AIPLA artefact infrastructure (`StaticArtefactFrame`, ADR-013 scan, sandbox proxy) is now proven across two artefacts (Boldkast, LED Planck).
+
+**Impact (if not built):**
+- v1 ships a "curated library" of 3 artefacts, all pre-existing. The library never grows to the stated density.
+- Jutland teacher's jitt.dk apps — which come with implicit pedagogical endorsement from a practitioner with "years of experience" — stay outside AIPLA.
+- Type 3 (experiment tools) and Type 4 (video analysis) workbench types never get their first real implementation.
+
+## Goals
+
+**Primary goal:** Five jitt.dk apps available in the AIPLA workbench, each paired with a Socratic tutor system prompt, each passing the ADR-013 pipeline scan, each emitting `aipla:workbench` postMessage events that reach the agent's context via the existing `StaticArtefactFrame` path.
+
+**Success metrics (per artefact):**
+- Loads in `sandbox="allow-scripts"` iframe without console errors
+- ADR-013 scan passes: no `fetch(`, no `XMLHttpRequest`, no external `<script src>`, artefact size < 200 KB
+- Core interaction events (`aipla:workbench`) fire and reach `mcp_app_context.<artefact>.state`
+- Tutor skill references current app state in the first response that follows a state-change event (qualitative check)
+- `aiplatform artefact audit <path>` exits 0
+
+**Non-goals:**
+- Rewriting the jitt.dk apps (they stay as-is; we only add the thin postMessage adapter)
+- Building a tool to scrape/download jitt.dk automatically (manual copy is fine for 5 apps)
+- Accessibility or internationalisation (apps are Danish; v1 Danish target audience)
+- GPS Fart and sensor apps in v1 (sensor permissions inside sandboxed iframes need a dedicated investigation — tracked in [expanded-workbench-types.md](expanded-workbench-types.md) as Type 3)
+
+## Priority order
+
+| # | App | Why first | Type | Notes |
+|---|---|---|---|---|
+| 1 | **Pendul** | Gravity / pendulum — planned as skill 4 in strands.qmd; no sensors; likely self-contained | App (Type 1) | First target |
+| 2 | **Kredsløb** | Circuit simulator — complements LED Planck; shares audience (stx) | App (Type 1) | |
+| 3 | **Videoanalyse** | Frame-by-frame motion analysis — unique capability; bridges virtual/physical; strong research value for Strand B video assessment stream | Video analysis (Type 4) | Privacy review required even for in-browser video (see [expanded-workbench-types.md](expanded-workbench-types.md)) |
+| 4 | **GPS Fart** | Real GPS velocity measurement — novel workbench type; sensor experiment | Experiment tool (Type 3) | Sensor permissions investigation needed |
+| 5 | **Frekvensanalysator** | Waves/sound curriculum; frequency analysis | App (Type 1) | |
+
+Further apps (Kartoffelkanon, Centripetal, Doppler-effekt, Lydinterferens, etc.) — queue after the first 5 are validated.
+
+## Integration recipe (per app)
+
+This is the standard sequence; see the mcp-app-artefact skill for the full runbook.
+
+### 1. Acquire source
+
+Download the standalone HTML from jitt.dk. Check for external dependencies (CDN scripts, fetch calls, external CSS). Document what you find.
+
+### 2. ADR-013 scan
+
+```bash
+aiplatform artefact audit path/to/app.html
+```
+
+Fail conditions: any `fetch(`, `XMLHttpRequest`, external `<script src>`, or file > 200 KB. If the app uses a CDN resource, self-host it and inline it (consistent with how Boldkast handles its zero-dependency design).
+
+### 3. postMessage adapter
+
+Add a thin event emitter at the end of the HTML's `<script>` block. The exact shape depends on what the app exposes — each app is different. Minimum set:
+
+```javascript
+// App initialised
+window.parent.postMessage({
+  type: 'aipla:workbench',
+  event: 'app-ready',
+  app: '<app-id>'          // e.g. 'pendul', 'kredsløb'
+}, '*');
+
+// Primary interaction (app-specific — see per-app notes below)
+window.parent.postMessage({
+  type: 'aipla:workbench',
+  event: '<app-id>-interaction',
+  data: { /* app-specific state snapshot */ }
+}, '*');
+```
+
+Plus the `ui/initialize` handshake required by the MCP Apps spec (already handled by `StaticArtefactFrame` if the artefact responds to `window.addEventListener('message', ...)` — see Boldkast for the pattern).
+
+### 4. Tutor system prompt
+
+Write a Socratic system prompt following the Boldkast / LED Planck pattern:
+- Pair with the specific app's UI labels and controls
+- Reference the app's key measurables (pendulum period, circuit voltage, etc.)
+- Embed the DRA map (see [dra-activity-framework.md](dra-activity-framework.md)) — mark which concept aspects are present vs appresent in the app
+
+### 5. Place in artefact library
+
+```
+infrastructure/mcp-sandbox/artefacts/<app-id>/v1/index.html
+```
+
+### 6. Add to activity library
+
+Create an entry in the backend skill template for the paired tutor skill. Wire the lesson picker to show the new activity.
+
+### 7. Test
+
+- Load in `StaticArtefactFrame` sandbox — no console errors
+- Primary interaction event fires and reaches `mcp_app_context` within one agent turn
+- Tutor references app state in next response
+- All existing tests still pass (`make test-fast` + `npm run test:run`)
+
+## Per-app event shapes (to be filled as each app is onboarded)
+
+### Pendul (pendulum)
+
+*Pending sandbox test. Expected shape:*
+
+```javascript
+window.parent.postMessage({
+  type: 'aipla:workbench',
+  event: 'pendul-measurement',
+  data: {
+    length: metersValue,        // pendulum length in m
+    period: secondsValue,       // measured period T in s
+    g_computed: gValue          // derived g = 4π²L/T²
+  }
+}, '*');
+```
+
+### Kredsløb (circuit simulator)
+
+*Pending sandbox test. Expected shape:*
+
+```javascript
+window.parent.postMessage({
+  type: 'aipla:workbench',
+  event: 'kredsløb-state',
+  data: {
+    components: [...],          // what's in the circuit
+    voltage: voltsValue,
+    current: ampsValue,
+    isComplete: true            // circuit is closed and functional
+  }
+}, '*');
+```
+
+### Videoanalyse
+
+*Pending sandbox test. See [expanded-workbench-types.md](expanded-workbench-types.md) Type 4 section for the state shape and privacy constraints.*
+
+## Relationship to workbench type system
+
+Pendul, Kredsløb, and Frekvensanalysator are **Type 1 Apps** — they slot directly into the existing `StaticArtefactFrame` infrastructure.
+
+Videoanalyse is **Type 4 Video analysis** — needs the privacy gate and additional consent flow documented in [expanded-workbench-types.md](expanded-workbench-types.md).
+
+GPS Fart is **Type 3 Experiment tool** — needs the sensor permissions investigation from [expanded-workbench-types.md](expanded-workbench-types.md) before implementation begins.
+
+Do not start Videoanalyse or GPS Fart before the workbench-types doc defines the privacy/permissions approach.
+
+## DRA maps
+
+Each jitt.dk artefact ships with a DRA map covering which concept aspects are present vs appresent in the app, following the format in [dra-activity-framework.md](dra-activity-framework.md). AR writes the physics content; JB reviews against the PER framework. Both must sign off before the tutor system prompt is finalised.
+
+## Checklist (per artefact before student deployment)
+
+- [ ] Downloaded source confirmed self-contained (no external deps)
+- [ ] ADR-013 scan passes (`aiplatform artefact audit` exits 0)
+- [ ] postMessage `app-ready` event fires on load
+- [ ] Primary interaction event fires with correct state shape
+- [ ] `StaticArtefactFrame` loads it without console errors
+- [ ] DRA map drafted (AR) + reviewed (JB)
+- [ ] Tutor system prompt references all present DRAs and prompts for all appresent DRAs
+- [ ] Tutor response references app state after first interaction event
+- [ ] Lesson picker entry added (activity visible to students)
+- [ ] All existing tests pass

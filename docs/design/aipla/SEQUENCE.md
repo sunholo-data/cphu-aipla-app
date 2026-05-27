@@ -83,6 +83,14 @@ respects the **mid-point review (2026-06-26)** + **holiday freeze
 | **1.8** | `problem-set-helper-config-skill.md` | `problem-set-helper-config` (v1, teacher-facing) — teacher configures a tutor for a specific topic / problem set, pointing at one or more RAG-ingested documents. A2UI config form. | (skill catalogue — strands.qmd) | 2d |
 | **1.9** | `concept-dialogue-config-skill.md` | `concept-dialogue-config` (v1) — standalone Socratic conceptual-exploration tutor for a topic. A2UI config form. | (skill catalogue) | 1.5d |
 
+### 1.I–1.K — Artefact library expansion + pedagogy framework (target: post-holiday, weeks 8–12)
+
+| # | Doc | Why | ADRs | Est |
+|---|---|---|---|---|
+| **1.I** | [aipla/v1.0.0-pilot/jitt-dk-artefacts.md](v1.0.0-pilot/jitt-dk-artefacts.md) | **Curated sim library expansion.** 23 free Danish physics apps by a Jutland teacher (jitt.dk). If iframe-compatible, each onboards in ~1 day. Priority order: Pendul (pendulum, activity 4) → Kredsløb (circuit, complements LED Planck) → Videoanalyse (video motion analysis, Type 4 workbench) → GPS Fart (real-device experiment, Type 3) → Frekvensanalysator (waves). ADR-013 scan + postMessage adapter + tutor system prompt per app. Each ships with a DRA map (AR + JB). Sensor apps (GPS Fart) blocked on Type 3 investigation from 1.K | 013 | 1–2d per app |
+| **1.J** | [aipla/v1.0.0-pilot/expanded-workbench-types.md](v1.0.0-pilot/expanded-workbench-types.md) | **Workbench type system formalisation.** JB (2026-05-26): *"the workbench might include other stuff than apps."* Formalises 5 types: App (live), Drawing board (Excalidraw, Type 2, v1.1), Experiment tool (phone sensors, Type 3, v1.2), Video analysis (Type 4, v1.2 + privacy gate), Lab notebook (structured fields, Type 5, v1.1). Each type has a named postMessage contract, React wrapper component, and skill-config YAML field. Prerequisite: sensor sandbox investigation (0.5d) before any Type 3 work starts | — | 1d spec + 2–3d per new type |
+| **1.K** | [aipla/v1.0.0-pilot/dra-activity-framework.md](v1.0.0-pilot/dra-activity-framework.md) | **DRA (Disciplinary-Relevant Aspects) design standard.** Applies Linder et al. 2024 representational-competence framework (JB co-author) to all AIPLA activities. Every activity ships with a DRA map (AR writes physics content; JB reviews PER alignment) marking concept aspects as present vs appresent in the workbench. Drives: Socratic tutor question patterns, session-analytics-rubric vocabulary (2.5), capability-floor eval test cases (1.5). v1.1 adds `dra_map` YAML field to skill config + InstructionProvider injection for session DRA-coverage tracking | (eval framework — evaluation.qmd) | 0.5d standard + 1d YAML/injection |
+
 ### 1.10–1.12 — Document handling + budget surfacing (target: pre-pilot, week 12)
 
 | # | Doc (planned) | Why | ADRs | Est |
@@ -110,7 +118,7 @@ have explicit decision criteria for "when would we actually build this."
 | 2.2 | `strand-c-scoping-note-plan.md` | C | The scoping note itself ships in the scoping site, not here. This doc is just the per-RQ investigation plan (model panel, AILANG benchmark probes, lit review). |
 | 2.3 | [aipla/post-pilot/teacher-artefact-parameters.md](post-pilot/teacher-artefact-parameters.md) | v1.1 — post-pilot iteration | **Roadmap signal, not committed.** Bounded parameter editing for first-party artefacts (Boldkast, LED Planck) — sliders/toggles/enums driven by a schema, no code. Decision after 2026-08-14 pilot feedback |
 | 2.4 | [aipla/post-pilot/teacher-artefact-authoring.md](post-pilot/teacher-artefact-authoring.md) | v2 / Year-2 — explicitly out of contract | **Roadmap signal, not committed.** Code-level artefact editing by teachers, AI-assisted via the `.claude/skills/mcp-app-artefact` skill, draft → review queue → publish. 6-10 weeks of focused engineering; tied to Year-2 research programme, not this contract |
-| 2.5 | [aipla/post-pilot/session-analytics-rubric.md](post-pilot/session-analytics-rubric.md) | v1.1 — post-pilot iteration; gated on 1.2 BigQuery sink | **Roadmap signal, framework choice owned by JB / AR.** PER-grounded rubrics for analysing the raw chat logs already captured by AIPLA: ICAP (engagement quality), FCI misconceptions taxonomy (concept tracking), NGSS 3D-LAP (multi-dim competency), PISA 2025 (institutional reporting). Recommends an ICAP + FCI two-lens starter stack; ~8 eng-days + ~3-4 pedagogical-decision days |
+| 2.5 | [aipla/post-pilot/session-analytics-rubric.md](post-pilot/session-analytics-rubric.md) | v1.1 — post-pilot iteration; gated on 1.2 BigQuery sink | **Roadmap signal, framework choice owned by JB / AR.** Two-lens starter stack: (1) **PISA 2015 CPS rubric** (from CoLA / JB's video assessment work — assesses collaboration quality across 4×3 matrix of exploring/representing/planning/monitoring × establishing-understanding/taking-action/team-organisation) + (2) **DRA representational-competence framework** (Linder et al. 2024, JB co-author — assesses physics concept understanding via present/appresent DRA coverage per session). The DRA maps from [1.K](v1.0.0-pilot/dra-activity-framework.md) are the machine-readable input that makes DRA-gap analytics possible ("tutor hasn't yet asked a question activating the appresent DRA for h-derivation"). ICAP, FCI, NGSS 3D-LAP remain candidate lenses but CPS + DRA is the confirmed starter. ~8 eng-days + ~3-4 JB/AR pedagogical-decision days. Gated on pilot data volume + JB sign-off |
 
 ## Phase 3 — Handover (weeks 16–17)
 
@@ -149,7 +157,10 @@ v0.1.0-jutland (1d) ──► 0.2 boldkast-mcp-app (1.5d, buffer-week over-deliv
                                                                 1.C/1.D need 1.B;
                                                                 1.G-Phase3 needs 1.A)
                                                             │
-                              1.10 multimodal-ingestion ───┐
+                              1.I jitt-dk-artefacts ───────┐
+                              1.J workbench-types ─────────┤  (1.I type-3 apps need 1.J first)
+                              1.K dra-framework ───────────┤
+                              1.10 multimodal-ingestion ───┤
                               1.11 artefact-review ────────┤
                               1.12 budget-dashboard ───────┘
                                                             │
