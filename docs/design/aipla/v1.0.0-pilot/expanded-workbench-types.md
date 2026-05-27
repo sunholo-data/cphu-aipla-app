@@ -25,9 +25,22 @@ Formalising the type system now prevents ad-hoc iframe wrappers diverging from e
 - The tutor skill config can't declare what type it expects, so the InstructionProvider injection can't adapt its context shape.
 - Drawing boards and lab notebooks — the cheapest new types — stay permanently deferred because there's no clear spec to build against.
 
+## Architectural principle: the workbench is the sim, not the whole lesson
+
+Each workbench type provides **one interactive student surface** — the simulation, the drawing board, the sensor tool, the video tracker, or the notebook. It does not provide instructions, procedure checklists, AI chat, quizzes, data tables, or formula references. Those are AIPLA's job:
+
+- **Instructions / procedure** → the Socratic tutor guides the student through these in chat
+- **AI hints / explanations** → the tutor provides Socratically (never as a list in the artefact)
+- **Data recording / results** → Type 5 lab notebook, or tutor-elicited in conversation
+- **Progress tracking** → platform-level session state
+
+This separation is why AIPLA is the platform, not just a container. An existing teaching tool (jitt.dk app, LED Planck lab) that bundles simulation + instructions + AI is being **refactored**, not just rehosted. The workbench artefact gets the sim core; AIPLA gets the rest.
+
+The reference implementation is **Boldkast**: one canvas, sliders, answer-reveal markers. Not a procedure panel, not a quiz, not a data table.
+
 ## Goals
 
-**Primary goal:** A formal 5-type taxonomy with: a named type identifier, a canonical postMessage event shape per type, a React wrapper component per type, and an activity config field that records the workbench type and sub-parameters. Tutor skill configs record the expected type so the InstructionProvider knows how to describe the workspace state in the agent prompt.
+**Primary goal:** A formal 5-type taxonomy with: a named type identifier, a canonical wire shape per type, a React wrapper component per type, and an activity config field that records the workbench type and sub-parameters. Tutor skill configs record the expected type so the InstructionProvider knows how to describe the workspace state in the agent prompt.
 
 **Non-goals (this doc):**
 - Implementing all 5 types in one sprint (incremental delivery per type)

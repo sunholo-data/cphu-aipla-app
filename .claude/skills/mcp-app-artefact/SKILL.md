@@ -77,6 +77,33 @@ Every static artefact MUST pass these checks at commit time:
 5. **AR (or domain expert) sign-off** before merge for any pedagogically
    loaded artefact. Capture as a PR comment.
 
+## The artefact is the sim, not the whole lesson
+
+**The most important architectural rule.** The workbench artefact is the
+simulation or interactive element only. AIPLA is the platform that wraps
+it — the chat tutor, the lab notebook, the lesson picker, the session
+report. Do not put any of the following inside the artefact:
+
+- Procedure instructions or step-by-step checklists → the tutor handles this
+- AI hints or explanations → the tutor provides Socratically
+- Data recording tables, results calculators, % error displays → lab notebook or tutor
+- Built-in quizzes or MCQs → platform or tutor
+- Formula reference cards → tutor provides on demand
+
+**Reference: Boldkast.** One canvas, sliders, answer-reveal markers. That's it.
+
+**Counter-example: LED Planck 1.C (first attempt).** The first artefact
+built for LED Planck included a procedure checklist panel, a data recording
+table, a Planck results calculator with % error, and a multi-step wizard.
+It had everything a standalone lab needs — but a standalone lab is not what
+AIPLA needs. The artefact was scrapped; the redo extracts only the circuit
+builder, ammeter/voltmeter displays, I-U graph, and spectrometer.
+
+When porting an existing tool (jitt.dk app, virtual lab), read the source,
+identify the sim core, strip everything else, and build the artefact from
+that core only. The rest becomes input to the tutor system prompt ("the
+student will see X — ask them what it implies").
+
 ## Patterns that work / patterns that don't (from Boldkast)
 
 What actually shipped + what we learned:

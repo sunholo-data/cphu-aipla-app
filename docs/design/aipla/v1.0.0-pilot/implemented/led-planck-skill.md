@@ -342,17 +342,34 @@ wc -c infrastructure/mcp-sandbox/artefacts/led-planck/v1/index.html
 ## Implementation Report
 
 **Completed**: 2026-05-27
-**Actual Effort**: [e.g., 5 days vs 3 estimated]
-**Branch/PR**: [link or commit range]
+**Status**: Wrong architecture — needs redo. The artefact built does not follow the Boldkast model.
 
 ### What Was Built
-- [Summary of actual implementation]
-- [Any deviations from plan]
 
-### Files Changed
-- [New files created]
-- [Modified files]
+`infrastructure/mcp-sandbox/artefacts/led-planck/v1/index.html` — a 152-line English-language self-contained lab app with: circuit builder, I-U measurement table, I-U graph, spectrometer, results table with % error, progress checklist, and Planck calculation. JSON-RPC 2.0 wiring is technically correct (rpcNotify/rpcRequest/ui/initialize handshake, commit-on-submit pattern). The host wrapper `LedPlanckLabFrame.tsx`, skill template, and tests were completed per plan.
+
+### What Went Wrong
+
+The artefact tried to be a **complete standalone lab app** rather than a **simulation core**. It replicated the full structure of a traditional virtual lab (checklist, data table, results calculator, formula display) inside the iframe, when those elements should live in AIPLA's platform surfaces:
+
+- Procedure checklist → Socratic tutor guides this in chat
+- Data recording table → Type 5 lab notebook or tutor-elicited
+- Planck calculation and % error display → tutor or platform results
+- Spectrometer + I-U graph together → maybe correct, but the checklist sidebar is not
+
+The Boldkast reference was not followed. Boldkast is: one canvas, sliders, answer-reveal markers. Nothing else.
+
+Additionally: the lab UI is in English, not Danish, and does not match the original `leds_planck_virtual_lab.html` UI that the tutor system prompt was written to reference.
+
+### Correct approach (for the redo)
+
+1. Port the **simulation core** from the original: the circuit builder (drag components, connect wires), the ammeter/voltmeter displays, the I-U graph canvas, the spectrometer visualisation. These are the interactive elements where the student's hands-on exploration happens.
+2. Strip: the procedure checklist, the measurement data table, the results calculator, the % error display, the auto-build button. AIPLA provides these.
+3. The artefact's postMessage events fire when the student does something in the simulation (places a component, takes a reading, collects a spectrum). The tutor reads these and asks questions. The student records results in the lab notebook (Type 5) or via chat.
+4. UI must be Danish (matching the tutor system prompt).
 
 ### Lessons Learned
-- [What went well]
-- [What could be improved]
+
+- **The workbench artefact is the simulation, not the whole lesson.** Existing teaching tools bundle sim + instructions + AI + data recording. Porting to AIPLA means extracting the sim core and handing the rest to the platform.
+- **Boldkast is the architectural reference**, not the original source HTML. The original source is the interaction model reference (what the sim shows), but the scope model comes from Boldkast.
+- **A design doc that says "port the lab HTML" without defining what to keep and what to strip will produce a full lab app.** Future artefact docs must explicitly list what stays (sim core) and what moves to AIPLA.

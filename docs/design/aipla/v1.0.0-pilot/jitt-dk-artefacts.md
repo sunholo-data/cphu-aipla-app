@@ -54,15 +54,40 @@ AIPLA v1 commits to a "curated sim library" (strands.qmd). After Boldkast (0.2) 
 
 Further apps (Kartoffelkanon, Centripetal, Doppler-effekt, Lydinterferens, etc.) — queue after the first 5 are validated.
 
+## What goes in the artefact vs what AIPLA provides
+
+AIPLA is the platform. The workbench artefact is the **simulation or interactive element only**. This distinction is the most important architectural decision in the whole migration and the most common source of failure.
+
+**Stays in the artefact (the "sim core"):**
+- The interactive simulation — drag-and-drop, sliders, canvas rendering, physical model
+- Visual feedback the student gets by manipulating parameters
+- Any measurement readout the student reads directly (ammeter display, spectrometer peak)
+
+**Moves to AIPLA (do not replicate in the artefact):**
+- Instructions, step-by-step procedure → the tutor chat guides the student through this
+- AI-generated hints or explanations → the tutor provides these Socratically
+- Quizzes, MCQs → the tutor or a platform-level quiz component handles this
+- Data tables, results calculators, % error display → platform-level features or lab notebook (Type 5)
+- Checklists and progress tracking → platform UI or tutor conversation
+- Formula references → tutor provides on demand
+
+**Reference: Boldkast is correct.** It has: one canvas, sliders, answer-reveal markers. It does not have a procedure panel, an AI chat panel, a quiz section, or a formula reference. That is the right scope.
+
+**Counter-example: LED Planck 1.C is wrong.** The artefact built for 1.C included a procedure checklist panel, a measurement data table, a results calculator with % error, a spectrometer tab, and a multi-step wizard — essentially a complete standalone lab app. This is the pattern to avoid. When the original `leds_planck_virtual_lab.html` is ported correctly, the artefact should contain only: the circuit builder, the ammeter/voltmeter displays, the I-U graph canvas, and the spectrometer visualisation. The data recording, Planck calculation, error analysis, and procedure guidance are AIPLA's job.
+
+For jitt.dk apps specifically: they are self-contained teaching tools. Each one bundles simulation + instructions + data recording. When porting to AIPLA, extract the simulation core and strip the rest. The jitt.dk teacher built these as standalone apps because they had no platform — AIPLA is the platform now.
+
 ## Integration recipe (per app)
 
 This is the standard sequence; see the mcp-app-artefact skill for the full runbook.
 
-### 1. Acquire source
+### 1. Acquire source and decide what to keep
 
-Download the standalone HTML from jitt.dk. Check for external dependencies (CDN scripts, fetch calls, external CSS). Document what you find.
+Download the standalone HTML from jitt.dk. Read it fully. Map its UI panels to the two columns above:
+- Simulation elements → keep in artefact
+- Instructional / analytical / AI elements → strip (AIPLA provides better versions)
 
-**Do not regenerate or summarise the app.** These are hand-crafted by a practitioner with years of physics-teaching experience. The goal is to ADD the AIPLA wiring while preserving every line of the original. Lesson from LED Planck 1.C: the sprint executor regenerated a simplified 152-line English stub instead of porting the 1855-line Danish source. The result lost the pedagogical fidelity that made the original valuable. Do not repeat this.
+Document the decision before editing. This is a judgment call that needs AR (physics) input — the physics educator knows which parts of the interaction are the simulation and which are scaffolding around it.
 
 ### 2. ADR-013 scan
 
@@ -137,10 +162,13 @@ Then hook into the app's existing interaction points to call `emit()` and update
 
 ### 4. Tutor system prompt
 
-Write a Socratic system prompt following the Boldkast / LED Planck pattern:
-- Pair with the specific app's UI labels and controls
-- Reference the app's key measurables (pendulum period, circuit voltage, etc.)
-- Embed the DRA map (see [dra-activity-framework.md](dra-activity-framework.md)) — mark which concept aspects are present vs appresent in the app
+The tutor replaces everything that was stripped from the original app. Write a Socratic system prompt that:
+- Guides the student through the procedure that the original app's instruction panel covered — but Socratically, not as a list
+- References the sim's specific UI labels and controls (so the tutor can say "look at the pendulum period readout" not "look at the result")
+- Surfaces the appresent DRAs that the simulation makes visible but doesn't explain (see [dra-activity-framework.md](dra-activity-framework.md))
+- Replaces any AI hint system the original app had — but without giving answers
+
+The DRA map drives which questions the tutor asks. It must be drafted before the system prompt is finalised.
 
 ### 5. Place in artefact library
 
