@@ -48,10 +48,10 @@ import {
 import {
   LedPlanckLabFrame,
   type LedPlanckLabFrameHandle,
-  type LedPlanckSnapshot,
 } from "@/components/workspace/LedPlanckLabFrame";
 import { LedPlanckLabButton } from "@/components/workspace/LedPlanckLabButton";
 import { LedPlanckWorkbench } from "@/components/workspace/LedPlanckWorkbench";
+import { useLedPlanckSnapshot } from "@/hooks/useLedPlanckSnapshot";
 import {
   KineBotFrame,
   type KineBotFrameHandle,
@@ -303,13 +303,12 @@ function ChatShell({
   // PEDCTX/Boldkast — workspace toggle between default content
   // (problem statement + checklist) and the Boldkast sim iframe.
   const [showBoldkastSim, setShowBoldkastSim] = useState(false);
-  // 1.C follow-up — same toggle shape for LED Planck. Default surface
-  // is the launcher button + lesson workbench; click to mount the
-  // (now slimmed) lab frame. Snapshot lifted here so the workbench
-  // keeps showing last-known step/measurements after the frame closes.
+  // 1.C follow-up / middle-path UX rework — same toggle shape for LED
+  // Planck. Default surface is the launcher button + lesson workbench;
+  // click to mount the bench-only lab frame. The snapshot now lives in
+  // a shared hook (called below, once sessionId is defined) that both
+  // the bench iframe and the React Results surface report into.
   const [showLedPlanckLab, setShowLedPlanckLab] = useState(false);
-  const [ledPlanckSnapshot, setLedPlanckSnapshot] =
-    useState<LedPlanckSnapshot | null>(null);
   // 1.D — KineBot. After the workbench-split rework the workbench is
   // the always-on surface (topics + quiz + graph + notes) and the sim
   // opens as a toggle. The snapshot lives in a shared hook (called
@@ -382,6 +381,10 @@ function ChatShell({
   // KineBot shared snapshot (sim iframe + React quiz/graph/topic feed it).
   const { snapshot: kinebotSnapshot, reportEvent: reportKinebotEvent } =
     useKineBotSnapshot(sessionId ?? agentSessionId);
+
+  // LED Planck shared snapshot (bench iframe + React Results feed it).
+  const { snapshot: ledPlanckSnapshot, reportEvent: reportLedPlanckEvent } =
+    useLedPlanckSnapshot(sessionId ?? agentSessionId);
 
   // Phase 1.I-PhA proactive greet: fire POST /api/sessions/{id}/greet on
   // chat mount when the skill opts in AND we're starting a brand-new
@@ -900,9 +903,8 @@ function ChatShell({
               <LedPlanckLabFrame
                 ref={ledPlanckFrameRef}
                 sandboxOrigin={BOLDKAST_SANDBOX_ORIGIN}
-                sessionId={sessionId ?? agentSessionId}
                 onClose={() => setShowLedPlanckLab(false)}
-                onSnapshotChange={setLedPlanckSnapshot}
+                reportEvent={reportLedPlanckEvent}
               />
             ) : (
               <div className="space-y-4">
@@ -912,6 +914,7 @@ function ChatShell({
                 />
                 <LedPlanckWorkbench
                   snapshot={ledPlanckSnapshot}
+                  reportEvent={reportLedPlanckEvent}
                   sessionId={sessionId ?? agentSessionId}
                 />
               </div>
