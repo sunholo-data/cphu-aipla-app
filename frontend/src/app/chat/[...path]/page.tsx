@@ -55,10 +55,9 @@ import { LedPlanckWorkbench } from "@/components/workspace/LedPlanckWorkbench";
 import {
   KineBotFrame,
   type KineBotFrameHandle,
-  type KineBotSnapshot,
 } from "@/components/workspace/KineBotFrame";
-import { KineBotLabButton } from "@/components/workspace/KineBotLabButton";
 import { KineBotWorkbench } from "@/components/workspace/KineBotWorkbench";
+import { useKineBotSnapshot } from "@/hooks/useKineBotSnapshot";
 import { useResizableWorkspaceRatio } from "@/hooks/useResizableWorkspaceRatio";
 
 // PEDCTX M5 — sub-parts of the Boldkast problem-set-hints v0.1 skill.
@@ -311,13 +310,12 @@ function ChatShell({
   const [showLedPlanckLab, setShowLedPlanckLab] = useState(false);
   const [ledPlanckSnapshot, setLedPlanckSnapshot] =
     useState<LedPlanckSnapshot | null>(null);
-  // 1.D — KineBot toggle + snapshot lifted at chat-page level so the
-  // sidebar topic picker in the workbench can drive the iframe sim via
-  // the Frame ref's setTopic, and the workbench stays in sync with
-  // what the agent sees.
+  // 1.D — KineBot. After the workbench-split rework the workbench is
+  // the always-on surface (topics + quiz + graph + notes) and the sim
+  // opens as a toggle. The snapshot lives in a shared hook (called
+  // below, once sessionId is defined) that both the sim iframe and the
+  // React workbench report into.
   const [showKinebotLab, setShowKinebotLab] = useState(false);
-  const [kinebotSnapshot, setKinebotSnapshot] =
-    useState<KineBotSnapshot | null>(null);
   // resize-workspace sprint — chat <-> workspace split ratio.
   // Keyed by skillSlug so KineBot remembers a different width than
   // LED Planck (per-skill defaults in the hook).
@@ -380,6 +378,10 @@ function ChatShell({
   // Session routing: read ?session= from URL, allow programmatic navigation
   const sessionId = searchParams.get("session");
   const { initialMessages, historyError, sessionGone } = useSessionMessages(sessionId);
+
+  // KineBot shared snapshot (sim iframe + React quiz/graph/topic feed it).
+  const { snapshot: kinebotSnapshot, reportEvent: reportKinebotEvent } =
+    useKineBotSnapshot(sessionId ?? agentSessionId);
 
   // Phase 1.I-PhA proactive greet: fire POST /api/sessions/{id}/greet on
   // chat mount when the skill opts in AND we're starting a brand-new
@@ -867,22 +869,23 @@ function ChatShell({
               <KineBotFrame
                 ref={kinebotFrameRef}
                 sandboxOrigin={BOLDKAST_SANDBOX_ORIGIN}
-                sessionId={sessionId ?? agentSessionId}
+                topic={kinebotSnapshot?.currentTopic ?? "intro"}
+                reportEvent={reportKinebotEvent}
                 onClose={() => setShowKinebotLab(false)}
-                onSnapshotChange={setKinebotSnapshot}
               />
             ) : (
-              <div className="space-y-4">
-                <KineBotLabButton
-                  onOpen={() => setShowKinebotLab(true)}
-                  disabled={!BOLDKAST_SANDBOX_ORIGIN}
-                />
-                <KineBotWorkbench
-                  snapshot={kinebotSnapshot}
-                  onTopicChange={(topic) => kinebotFrameRef.current?.setTopic(topic)}
-                  sessionId={sessionId ?? agentSessionId}
-                />
-              </div>
+              <KineBotWorkbench
+                snapshot={kinebotSnapshot}
+                sandboxOrigin={BOLDKAST_SANDBOX_ORIGIN}
+                onOpenSim={() => setShowKinebotLab(true)}
+                onTopicChange={(topic) => {
+                  reportKinebotEvent({ kind: "kinebot.set-topic", topic });
+                  kinebotFrameRef.current?.setTopic(topic);
+                }}
+                reportEvent={reportKinebotEvent}
+                simDisabled={!BOLDKAST_SANDBOX_ORIGIN}
+                sessionId={sessionId ?? agentSessionId}
+              />
             )}
           </WorkspaceShell>
         )}
