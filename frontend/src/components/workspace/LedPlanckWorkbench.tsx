@@ -1,5 +1,7 @@
 "use client";
 
+import { useCallback, useEffect, useState } from "react";
+
 import type {
   LedPlanckEvent,
   LedPlanckSnapshot,
@@ -7,6 +9,9 @@ import type {
 
 import { LedPlanckMeasureTable } from "./LedPlanckMeasureTable";
 import { LedPlanckResults } from "./LedPlanckResults";
+
+const NOTES_PREFIX = "ledplanck:notes:";
+const NOTES_TAG_PREFIX = "ledplanck:noteTag:";
 
 interface LedPlanckWorkbenchProps {
   /** Shared snapshot from useLedPlanckSnapshot — fed by both the bench
@@ -40,10 +45,36 @@ const COMPONENT_DA: Record<string, string> = {
 export function LedPlanckWorkbench({
   snapshot,
   reportEvent,
+  sessionId,
 }: LedPlanckWorkbenchProps) {
   const currentStepName = snapshot.currentStepName ?? "circuit";
   const currentStepIdx = STEPS.findIndex((s) => s.stepName === currentStepName);
   const componentsPlaced = snapshot.componentsPlaced;
+
+  const [noteBody, setNoteBody] = useState("");
+  const [noteTag, setNoteTag] = useState("");
+
+  useEffect(() => {
+    if (typeof window === "undefined" || !sessionId) return;
+    try {
+      setNoteBody(window.sessionStorage.getItem(NOTES_PREFIX + sessionId) ?? "");
+      setNoteTag(
+        window.sessionStorage.getItem(NOTES_TAG_PREFIX + sessionId) ?? "",
+      );
+    } catch {
+      /* ignore */
+    }
+  }, [sessionId]);
+
+  const saveNotes = useCallback(() => {
+    if (typeof window === "undefined" || !sessionId) return;
+    try {
+      window.sessionStorage.setItem(NOTES_PREFIX + sessionId, noteBody);
+      window.sessionStorage.setItem(NOTES_TAG_PREFIX + sessionId, noteTag);
+    } catch {
+      /* ignore */
+    }
+  }, [sessionId, noteBody, noteTag]);
 
   return (
     <div className="space-y-3">
@@ -116,6 +147,34 @@ export function LedPlanckWorkbench({
             {componentsPlaced.map((c) => COMPONENT_DA[c] ?? c).join(", ")}
           </p>
         )}
+      </section>
+
+      <section className="rounded-lg border border-border bg-card p-3">
+        <h3 className="mb-2 text-sm font-semibold">Noter</h3>
+        <input
+          type="text"
+          value={noteTag}
+          onChange={(e) => setNoteTag(e.target.value)}
+          placeholder="Mærke (fx U₀)"
+          className="mb-2 w-full rounded border border-border bg-background px-2 py-1 text-xs"
+        />
+        <textarea
+          value={noteBody}
+          onChange={(e) => setNoteBody(e.target.value)}
+          placeholder="Skriv dine noter her. Gemmes pr. session i denne fane."
+          rows={4}
+          className="w-full rounded border border-border bg-background p-2 text-xs"
+        />
+        <div className="mt-2 flex gap-2">
+          <button
+            type="button"
+            onClick={saveNotes}
+            disabled={!sessionId}
+            className="rounded border border-border bg-background px-2 py-1 text-[11px] hover:bg-muted disabled:opacity-50"
+          >
+            Gem
+          </button>
+        </div>
       </section>
     </div>
   );

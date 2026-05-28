@@ -27,7 +27,12 @@ export function BoldkastSimButton({ onOpen, disabled }: BoldkastSimButtonProps) 
       className="flex w-full items-center gap-3 rounded-lg border border-border bg-card p-3 text-left text-sm transition hover:border-primary hover:bg-muted/30 disabled:cursor-not-allowed disabled:opacity-50"
       aria-label="Åbn Boldkast simulator"
     >
-      <span className="text-xl" aria-hidden="true">📐</span>
+      <span
+        className="flex h-9 w-9 shrink-0 items-center justify-center rounded-md bg-primary/10 text-base font-semibold text-primary"
+        aria-hidden="true"
+      >
+        θ
+      </span>
       <span className="flex-1">
         <span className="block font-medium">Åbn Boldkast simulator</span>
         <span className="block text-xs text-muted-foreground">

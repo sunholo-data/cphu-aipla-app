@@ -301,7 +301,7 @@ export const BoldkastSimFrame = forwardRef<
           className="rounded px-2 py-1 text-xs text-muted-foreground hover:bg-muted hover:text-foreground"
           aria-label="Luk simulator"
         >
-          ✕ Luk
+          Luk
         </button>
       </header>
       <StaticArtefactFrame
