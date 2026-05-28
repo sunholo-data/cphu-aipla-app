@@ -28,6 +28,17 @@ metadata:
 > the underlying MCP / MCP Apps / A2UI spec disambiguation; this skill
 > is the **how to ship one** companion.
 
+> **A port is not a faithful reproduction.** The apps we onboard
+> (jitt.dk, DK's KineBot, teacher prototypes) were not built for AIPLA's
+> chat-workspace UX and often have weak usability as-is. Improving the
+> UX — layout, alignment, responsive behaviour, the iframe/workbench
+> split, removing dead chrome — is **in scope for the port, not a
+> later pass**. Do not preserve bad UX out of faithfulness. Per
+> [Axiom 11 (USABLE BY DESIGN)](../../../docs/product-axioms.md), if the
+> source needs UX work to be motivating for a student, that work is
+> part of shipping it — do it upfront (see "Step 0" below), not in a
+> follow-up cleanup sprint.
+
 ## Decision tree — static artefact vs dynamic MCP server
 
 **Static artefact** (this skill covers this path):
