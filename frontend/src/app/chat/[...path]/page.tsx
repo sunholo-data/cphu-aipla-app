@@ -38,13 +38,12 @@ import { A2UISurfaceMount } from "@/components/protocols/A2UISurfaceMount";
 import { DocumentPanel } from "@/components/document/DocumentPanel";
 import { LatencyHUD } from "@/components/dev/LatencyHUD";
 import { WorkspaceShell } from "@/components/workspace/WorkspaceShell";
-import { ProblemStatementCard } from "@/components/workspace/ProblemStatementCard";
-import { ProgressChecklist } from "@/components/workspace/ProgressChecklist";
-import { BoldkastSimButton } from "@/components/workspace/BoldkastSimButton";
+import { BoldkastWorkbench } from "@/components/workspace/BoldkastWorkbench";
 import {
   BoldkastSimFrame,
   type BoldkastSimFrameHandle,
 } from "@/components/workspace/BoldkastSimFrame";
+import { useBoldkastSnapshot } from "@/hooks/useBoldkastSnapshot";
 import {
   LedPlanckLabFrame,
   type LedPlanckLabFrameHandle,
@@ -385,6 +384,10 @@ function ChatShell({
   // LED Planck shared snapshot (bench iframe + React Results feed it).
   const { snapshot: ledPlanckSnapshot, reportEvent: reportLedPlanckEvent } =
     useLedPlanckSnapshot(sessionId ?? agentSessionId);
+
+  // Boldkast shared snapshot (bench iframe feeds it; workbench mirrors it).
+  const { snapshot: boldkastSnapshot, reportEvent: reportBoldkastEvent } =
+    useBoldkastSnapshot(sessionId ?? agentSessionId);
 
   // Phase 1.I-PhA proactive greet: fire POST /api/sessions/{id}/greet on
   // chat mount when the skill opts in AND we're starting a brand-new
@@ -932,28 +935,19 @@ function ChatShell({
               <BoldkastSimFrame
                 ref={boldkastFrameRef}
                 sandboxOrigin={BOLDKAST_SANDBOX_ORIGIN}
-                sessionId={sessionId ?? agentSessionId}
+                reportEvent={reportBoldkastEvent}
                 onClose={() => setShowBoldkastSim(false)}
               />
             ) : (
-              <div className="space-y-4">
-                <BoldkastSimButton
-                  onOpen={() => setShowBoldkastSim(true)}
-                  disabled={!BOLDKAST_SANDBOX_ORIGIN}
-                />
-                <ProgressChecklist
-                  skillId={skillId}
-                  items={BOLDKAST_SUBPARTS}
-                  sessionId={sessionId ?? agentSessionId}
-                />
-                {skillProblemStatement ? (
-                  <ProblemStatementCard content={skillProblemStatement} />
-                ) : (
-                  <p className="text-sm text-muted-foreground">
-                    Arbejdsområde — opgaveinfo og simulator vises her.
-                  </p>
-                )}
-              </div>
+              <BoldkastWorkbench
+                snapshot={boldkastSnapshot}
+                onOpenSim={() => setShowBoldkastSim(true)}
+                simDisabled={!BOLDKAST_SANDBOX_ORIGIN}
+                skillId={skillId}
+                subParts={BOLDKAST_SUBPARTS}
+                problemStatement={skillProblemStatement}
+                sessionId={sessionId ?? agentSessionId}
+              />
             )}
           </WorkspaceShell>
         )}
