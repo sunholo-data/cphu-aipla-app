@@ -1,12 +1,35 @@
 import { render, screen } from "@testing-library/react";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 
 import { LedPlanckWorkbench } from "../LedPlanckWorkbench";
-import type { LedPlanckSnapshot } from "../LedPlanckLabFrame";
+import type { LedPlanckSnapshot } from "@/hooks/useLedPlanckSnapshot";
 
-const EMPTY: LedPlanckSnapshot | null = null;
+function makeSnapshot(
+  overrides: Partial<LedPlanckSnapshot> = {},
+): LedPlanckSnapshot {
+  return {
+    lastEvent: "",
+    currentStep: null,
+    currentStepName: null,
+    readings: {},
+    fits: {},
+    spectra: {},
+    measurements: [],
+    componentsPlaced: [],
+    lastPolarityError: null,
+    calibrated: false,
+    voltage: null,
+    ...overrides,
+  };
+}
 
-const MID_LAB: LedPlanckSnapshot = {
+const EMPTY = makeSnapshot();
+
+// Only saved measurements set (no readings/fits/spectra) so the Danish
+// LED names render exactly once — in the saved-results table — keeping
+// getByText unambiguous. The MeasureTable + Results split surfaces have
+// their own focused tests.
+const MID_LAB = makeSnapshot({
   lastEvent: "led-planck.measurement",
   currentStep: 3,
   currentStepName: "part2",
@@ -15,62 +38,61 @@ const MID_LAB: LedPlanckSnapshot = {
     { led: "blue", u0: 2.64, lambda: 470, h_computed: 6.62e-34 },
   ],
   componentsPlaced: ["led", "voltmeter", "resistor"],
-  lastPolarityError: null,
   voltage: 3.2,
-};
+});
 
 describe("LedPlanckWorkbench", () => {
+  const noop = vi.fn();
+
   it("renders the lesson framing card with the h = U0eλ/c formula", () => {
-    render(<LedPlanckWorkbench snapshot={EMPTY} />);
+    render(<LedPlanckWorkbench snapshot={EMPTY} reportEvent={noop} />);
     expect(screen.getByText(/Om dette eksperiment/i)).toBeInTheDocument();
-    expect(screen.getByText(/h = U₀ · e · λ \/ c/)).toBeInTheDocument();
+    // Formula appears in both the lesson card and the Results header.
+    expect(screen.getAllByText(/h = U₀ · e · λ \/ c/).length).toBeGreaterThan(0);
   });
 
-  it("highlights step 1 (Kredsløb) when snapshot is null", () => {
-    render(<LedPlanckWorkbench snapshot={EMPTY} />);
-    const nuTags = screen.getAllByText(/nu/i);
-    expect(nuTags.length).toBeGreaterThan(0);
-    // Step 1 should be the active one — find its row.
+  it("highlights step 1 (Kredsløb) for a fresh snapshot", () => {
+    render(<LedPlanckWorkbench snapshot={EMPTY} reportEvent={noop} />);
     const kredsRow = screen.getByText(/1\. Kredsløb/i).closest("li");
     expect(kredsRow).toBeTruthy();
     expect(kredsRow!.textContent).toMatch(/nu/i);
   });
 
   it("advances the step indicator from snapshot.currentStepName", () => {
-    render(<LedPlanckWorkbench snapshot={MID_LAB} />);
+    render(<LedPlanckWorkbench snapshot={MID_LAB} reportEvent={noop} />);
     const spektRow = screen.getByText(/3\. Spektroskopi/i).closest("li");
     expect(spektRow).toBeTruthy();
     expect(spektRow!.textContent).toMatch(/nu/i);
   });
 
-  it("renders a measurements table with Danish LED names + h values", () => {
-    render(<LedPlanckWorkbench snapshot={MID_LAB} />);
-    // Headers
-    expect(screen.getByText(/U₀ \(V\)/)).toBeInTheDocument();
-    // Danish row labels
+  it("renders the saved-results table with Danish LED names + h values + average", () => {
+    render(<LedPlanckWorkbench snapshot={MID_LAB} reportEvent={noop} />);
     expect(screen.getByText("rød")).toBeInTheDocument();
     expect(screen.getByText("blå")).toBeInTheDocument();
-    // h column values rendered as ×10⁻³⁴
     expect(screen.getByText("6.600")).toBeInTheDocument(); // red: 6.6e-34
     expect(screen.getByText("6.620")).toBeInTheDocument(); // blue: 6.62e-34
+    expect(screen.getByText(/Gennemsnit/i)).toBeInTheDocument();
   });
 
-  it("shows empty state for measurements when snapshot is null", () => {
-    render(<LedPlanckWorkbench snapshot={EMPTY} />);
+  it("shows the measure-table empty state for a fresh snapshot", () => {
+    render(<LedPlanckWorkbench snapshot={EMPTY} reportEvent={noop} />);
+    expect(screen.getByText(/Ingen målinger endnu/i)).toBeInTheDocument();
+  });
+
+  it("shows the results empty state when nothing is saved", () => {
+    render(<LedPlanckWorkbench snapshot={EMPTY} reportEvent={noop} />);
     expect(
-      screen.getByText(/Ingen målinger endnu/i),
+      screen.getByText(/Gem et resultat for at se gennemsnit/i),
     ).toBeInTheDocument();
   });
 
   it("renders placed components in Danish, comma-separated", () => {
-    render(<LedPlanckWorkbench snapshot={MID_LAB} />);
-    expect(
-      screen.getByText(/LED, voltmeter, modstand/i),
-    ).toBeInTheDocument();
+    render(<LedPlanckWorkbench snapshot={MID_LAB} reportEvent={noop} />);
+    expect(screen.getByText(/LED, voltmeter, modstand/i)).toBeInTheDocument();
   });
 
-  it("shows empty state for components when snapshot is null", () => {
-    render(<LedPlanckWorkbench snapshot={EMPTY} />);
+  it("shows empty state for components on a fresh snapshot", () => {
+    render(<LedPlanckWorkbench snapshot={EMPTY} reportEvent={noop} />);
     expect(
       screen.getByText(/Ingen komponenter placeret endnu/i),
     ).toBeInTheDocument();

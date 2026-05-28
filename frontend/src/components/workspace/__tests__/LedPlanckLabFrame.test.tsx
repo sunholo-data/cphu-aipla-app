@@ -6,16 +6,6 @@ import {
   type LedPlanckLabFrameHandle,
 } from "../LedPlanckLabFrame";
 
-vi.mock("@/lib/apiClient", () => ({
-  fetchWithAuth: vi.fn(() => Promise.resolve(new Response(null, { status: 204 }))),
-}));
-import { fetchWithAuth } from "@/lib/apiClient";
-
-const dispatchMock = vi.fn();
-vi.mock("@/hooks/useHumanToolEvents", () => ({
-  useHumanToolEvents: () => ({ events: [], dispatch: dispatchMock, clear: vi.fn() }),
-}));
-
 const SANDBOX_ORIGIN = "https://aipla-v01-sandbox-test.run.app";
 
 function dispatchUpdateModelContext(structuredContent: Record<string, unknown>) {
@@ -31,13 +21,13 @@ function dispatchUpdateModelContext(structuredContent: Record<string, unknown>) 
   );
 }
 
-describe("LedPlanckLabFrame", () => {
+describe("LedPlanckLabFrame (bench-only)", () => {
   beforeEach(() => {
-    vi.mocked(fetchWithAuth).mockClear();
-    dispatchMock.mockClear();
     global.fetch = vi.fn(() =>
       Promise.resolve(
-        new Response("<!doctype html><html><body>lab</body></html>", { status: 200 }),
+        new Response("<!doctype html><html><body>lab</body></html>", {
+          status: 200,
+        }),
       ),
     ) as unknown as typeof fetch;
   });
@@ -46,7 +36,7 @@ describe("LedPlanckLabFrame", () => {
     render(
       <LedPlanckLabFrame
         sandboxOrigin={SANDBOX_ORIGIN}
-        sessionId={null}
+        reportEvent={() => {}}
         onClose={() => {}}
       />,
     );
@@ -58,7 +48,7 @@ describe("LedPlanckLabFrame", () => {
     render(
       <LedPlanckLabFrame
         sandboxOrigin={SANDBOX_ORIGIN}
-        sessionId={null}
+        reportEvent={() => {}}
         onClose={() => {}}
       />,
     );
@@ -73,7 +63,7 @@ describe("LedPlanckLabFrame", () => {
     render(
       <LedPlanckLabFrame
         sandboxOrigin={SANDBOX_ORIGIN}
-        sessionId={null}
+        reportEvent={() => {}}
         onClose={onClose}
       />,
     );
@@ -81,42 +71,13 @@ describe("LedPlanckLabFrame", () => {
     expect(onClose).toHaveBeenCalledTimes(1);
   });
 
-  describe("human-tool-use card dispatch", () => {
-    it("invokes onSnapshotChange after every dispatched event", () => {
-      const onSnapshotChange = vi.fn();
+  describe("event routing to reportEvent", () => {
+    it("routes step-change", () => {
+      const reportEvent = vi.fn();
       render(
         <LedPlanckLabFrame
           sandboxOrigin={SANDBOX_ORIGIN}
-          sessionId="sess-1"
-          onClose={() => {}}
-          onSnapshotChange={onSnapshotChange}
-        />,
-      );
-      dispatchUpdateModelContext({
-        kind: "led-planck.step-change",
-        step: 2,
-        stepName: "part1",
-      });
-      expect(onSnapshotChange).toHaveBeenCalledTimes(1);
-      const snap = onSnapshotChange.mock.calls[0][0];
-      expect(snap.currentStep).toBe(2);
-      expect(snap.currentStepName).toBe("part1");
-
-      dispatchUpdateModelContext({
-        kind: "led-planck.measurement",
-        data: { led: "red", u0: 1.99, lambda: 625, h_computed: 6.6e-34 },
-      });
-      expect(onSnapshotChange).toHaveBeenCalledTimes(2);
-      const snap2 = onSnapshotChange.mock.calls[1][0];
-      expect(snap2.measurements).toHaveLength(1);
-      expect(snap2.measurements[0].led).toBe("red");
-    });
-
-    it("step-change part1 dispatches 'Begyndte I-U-måling'", () => {
-      render(
-        <LedPlanckLabFrame
-          sandboxOrigin={SANDBOX_ORIGIN}
-          sessionId="sess-1"
+          reportEvent={reportEvent}
           onClose={() => {}}
         />,
       );
@@ -125,40 +86,19 @@ describe("LedPlanckLabFrame", () => {
         step: 2,
         stepName: "part1",
       });
-      expect(dispatchMock).toHaveBeenCalledTimes(1);
-      expect(dispatchMock.mock.calls[0][0].label).toBe("Begyndte I-U-måling");
-      expect(fetchWithAuth).toHaveBeenCalledTimes(1);
+      expect(reportEvent).toHaveBeenCalledWith({
+        kind: "led-planck.step-change",
+        step: 2,
+        stepName: "part1",
+      });
     });
 
-    it("measurement event dispatches 'Målte U₀ for rød LED' and dedupes by LED color", () => {
+    it("routes component-placed with correct flag", () => {
+      const reportEvent = vi.fn();
       render(
         <LedPlanckLabFrame
           sandboxOrigin={SANDBOX_ORIGIN}
-          sessionId="sess-1"
-          onClose={() => {}}
-        />,
-      );
-      dispatchUpdateModelContext({
-        kind: "led-planck.measurement",
-        data: { led: "red", u0: 1.99, lambda: 625, h_computed: 6.6e-34 },
-      });
-      // Second measurement on same LED — dedupes (newest wins), still
-      // fires a card (re-measurement is a meaningful action).
-      dispatchUpdateModelContext({
-        kind: "led-planck.measurement",
-        data: { led: "red", u0: 2.01, lambda: 625, h_computed: 6.7e-34 },
-      });
-      expect(dispatchMock).toHaveBeenCalledTimes(2);
-      expect(dispatchMock.mock.calls[0][0].label).toBe("Målte U₀ for rød LED");
-      expect(dispatchMock.mock.calls[1][0].label).toBe("Målte U₀ for rød LED");
-      expect(fetchWithAuth).toHaveBeenCalledTimes(2);
-    });
-
-    it("component-placed correct:true dispatches 'Placerede voltmeter'", () => {
-      render(
-        <LedPlanckLabFrame
-          sandboxOrigin={SANDBOX_ORIGIN}
-          sessionId="sess-1"
+          reportEvent={reportEvent}
           onClose={() => {}}
         />,
       );
@@ -167,49 +107,34 @@ describe("LedPlanckLabFrame", () => {
         component: "voltmeter",
         correct: true,
       });
-      expect(dispatchMock).toHaveBeenCalledTimes(1);
-      expect(dispatchMock.mock.calls[0][0].label).toBe("Placerede voltmeter");
-      expect(fetchWithAuth).toHaveBeenCalledTimes(1);
-    });
-
-    it("component-placed correct:false: silent push, no card", () => {
-      render(
-        <LedPlanckLabFrame
-          sandboxOrigin={SANDBOX_ORIGIN}
-          sessionId="sess-1"
-          onClose={() => {}}
-        />,
-      );
-      dispatchUpdateModelContext({
+      expect(reportEvent).toHaveBeenCalledWith({
         kind: "led-planck.component-placed",
         component: "voltmeter",
-        correct: false,
+        correct: true,
       });
-      expect(fetchWithAuth).toHaveBeenCalledTimes(1);
-      expect(dispatchMock).not.toHaveBeenCalled();
     });
 
-    it("led-polarity-error dispatches 'Forsøgte LED med omvendt polaritet'", () => {
+    it("routes led-polarity-error", () => {
+      const reportEvent = vi.fn();
       render(
         <LedPlanckLabFrame
           sandboxOrigin={SANDBOX_ORIGIN}
-          sessionId="sess-1"
+          reportEvent={reportEvent}
           onClose={() => {}}
         />,
       );
       dispatchUpdateModelContext({ kind: "led-planck.led-polarity-error" });
-      expect(dispatchMock).toHaveBeenCalledTimes(1);
-      expect(dispatchMock.mock.calls[0][0].label).toBe(
-        "Forsøgte LED med omvendt polaritet",
-      );
-      expect(fetchWithAuth).toHaveBeenCalledTimes(1);
+      expect(reportEvent).toHaveBeenCalledWith({
+        kind: "led-planck.led-polarity-error",
+      });
     });
 
-    it("Phase 2: state-change is silent-push only (no card)", () => {
+    it("routes state-change", () => {
+      const reportEvent = vi.fn();
       render(
         <LedPlanckLabFrame
           sandboxOrigin={SANDBOX_ORIGIN}
-          sessionId="sess-1"
+          reportEvent={reportEvent}
           onClose={() => {}}
         />,
       );
@@ -219,24 +144,135 @@ describe("LedPlanckLabFrame", () => {
         state: { voltage: 3.2 },
         triggeredBy: "record",
       });
-      expect(fetchWithAuth).toHaveBeenCalledTimes(1);
-      expect(dispatchMock).not.toHaveBeenCalled();
+      expect(reportEvent).toHaveBeenCalledWith({
+        kind: "led-planck.state-change",
+        changed: ["voltage"],
+        state: { voltage: 3.2 },
+        triggeredBy: "record",
+      });
     });
 
-    it("does not push (and no card) when sessionId is null", () => {
+    it("routes reading", () => {
+      const reportEvent = vi.fn();
       render(
         <LedPlanckLabFrame
           sandboxOrigin={SANDBOX_ORIGIN}
-          sessionId={null}
+          reportEvent={reportEvent}
+          onClose={() => {}}
+        />,
+      );
+      dispatchUpdateModelContext({
+        kind: "led-planck.reading",
+        led: "red",
+        I: 0.01,
+        U: 1.85,
+        Vs: 3.2,
+      });
+      expect(reportEvent).toHaveBeenCalledWith({
+        kind: "led-planck.reading",
+        led: "red",
+        I: 0.01,
+        U: 1.85,
+        Vs: 3.2,
+      });
+    });
+
+    it("routes auto-run", () => {
+      const reportEvent = vi.fn();
+      render(
+        <LedPlanckLabFrame
+          sandboxOrigin={SANDBOX_ORIGIN}
+          reportEvent={reportEvent}
+          onClose={() => {}}
+        />,
+      );
+      const points = [
+        { I: 0.001, U: 1.5, Vs: 2 },
+        { I: 0.01, U: 1.9, Vs: 3.3 },
+      ];
+      dispatchUpdateModelContext({
+        kind: "led-planck.auto-run",
+        led: "green",
+        points,
+      });
+      expect(reportEvent).toHaveBeenCalledWith({
+        kind: "led-planck.auto-run",
+        led: "green",
+        points,
+      });
+    });
+
+    it("routes fit", () => {
+      const reportEvent = vi.fn();
+      render(
+        <LedPlanckLabFrame
+          sandboxOrigin={SANDBOX_ORIGIN}
+          reportEvent={reportEvent}
+          onClose={() => {}}
+        />,
+      );
+      dispatchUpdateModelContext({
+        kind: "led-planck.fit",
+        led: "blue",
+        u0: 2.64,
+      });
+      expect(reportEvent).toHaveBeenCalledWith({
+        kind: "led-planck.fit",
+        led: "blue",
+        u0: 2.64,
+      });
+    });
+
+    it("routes spectrum", () => {
+      const reportEvent = vi.fn();
+      render(
+        <LedPlanckLabFrame
+          sandboxOrigin={SANDBOX_ORIGIN}
+          reportEvent={reportEvent}
+          onClose={() => {}}
+        />,
+      );
+      dispatchUpdateModelContext({
+        kind: "led-planck.spectrum",
+        led: "blue",
+        lambda: 470,
+      });
+      expect(reportEvent).toHaveBeenCalledWith({
+        kind: "led-planck.spectrum",
+        led: "blue",
+        lambda: 470,
+      });
+    });
+
+    it("routes calibrated", () => {
+      const reportEvent = vi.fn();
+      render(
+        <LedPlanckLabFrame
+          sandboxOrigin={SANDBOX_ORIGIN}
+          reportEvent={reportEvent}
+          onClose={() => {}}
+        />,
+      );
+      dispatchUpdateModelContext({ kind: "led-planck.calibrated" });
+      expect(reportEvent).toHaveBeenCalledWith({
+        kind: "led-planck.calibrated",
+      });
+    });
+
+    it("does NOT route measurement (that comes from the React Results surface)", () => {
+      const reportEvent = vi.fn();
+      render(
+        <LedPlanckLabFrame
+          sandboxOrigin={SANDBOX_ORIGIN}
+          reportEvent={reportEvent}
           onClose={() => {}}
         />,
       );
       dispatchUpdateModelContext({
         kind: "led-planck.measurement",
-        data: { led: "blue", u0: 2.64, lambda: 470, h_computed: 6.6e-34 },
+        data: { led: "red", u0: 1.99, lambda: 625, h_computed: 6.6e-34 },
       });
-      expect(fetchWithAuth).not.toHaveBeenCalled();
-      expect(dispatchMock).not.toHaveBeenCalled();
+      expect(reportEvent).not.toHaveBeenCalled();
     });
   });
 
@@ -247,7 +283,7 @@ describe("LedPlanckLabFrame", () => {
         <LedPlanckLabFrame
           ref={ref}
           sandboxOrigin={SANDBOX_ORIGIN}
-          sessionId="sess-1"
+          reportEvent={() => {}}
           onClose={() => {}}
         />,
       );
@@ -273,10 +309,11 @@ describe("LedPlanckLabFrame", () => {
   });
 
   it("rejects messages from origins other than sandboxOrigin (origin-based auth)", () => {
+    const reportEvent = vi.fn();
     render(
       <LedPlanckLabFrame
         sandboxOrigin={SANDBOX_ORIGIN}
-        sessionId="sess-1"
+        reportEvent={reportEvent}
         onClose={() => {}}
       />,
     );
@@ -287,15 +324,17 @@ describe("LedPlanckLabFrame", () => {
           method: "ui/update-model-context",
           params: {
             structuredContent: {
-              kind: "led-planck.measurement",
-              data: { led: "red", u0: 1.99, lambda: 625, h_computed: 6.6e-34 },
+              kind: "led-planck.reading",
+              led: "red",
+              I: 0.01,
+              U: 1.85,
+              Vs: 3.2,
             },
           },
         },
         origin: "https://evil.example.com",
       }),
     );
-    expect(dispatchMock).not.toHaveBeenCalled();
-    expect(fetchWithAuth).not.toHaveBeenCalled();
+    expect(reportEvent).not.toHaveBeenCalled();
   });
 });
