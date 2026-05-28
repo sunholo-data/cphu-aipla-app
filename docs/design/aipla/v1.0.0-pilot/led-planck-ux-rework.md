@@ -9,6 +9,18 @@
 [`implemented/kinebot-migration.md`](implemented/kinebot-migration.md) (the reference split)
 **Created**: 2026-05-28
 
+## Scope decision (2026-05-28)
+
+Started toward a full KineBot-style split, but on reading the code the
+analysis is woven into the bench's `update()` loop (`update → updateTable
+→ drawIU`; `drawSpec` both collects *and* renders; `fitLine` reads the
+local dataset) — a full split means rewriting the working sim's core
+loop (high risk before a demo). **Landed on the middle path:** move the
+pure-data surfaces (**Measurement table** + **Results / h-calc**) to
+React; keep the **bench + I-U Graph + Spectrum** in the iframe (they're
+tied to the live loop / fiber position). Then a `frontend-design`
+polish pass on everything. The split table below is annotated for this.
+
 ## Why
 
 LED Planck still ships the monolithic source lab: the bench **plus** the
