@@ -84,9 +84,9 @@ header::after{content:'';position:absolute;bottom:0;left:0;right:0;height:2px;
 /* ═══ CONTENT AREA ═══ */
 .content{flex:1;display:flex;flex-direction:column;overflow:hidden;}
 
-/* ═══ SIM PANEL ═══ */
-.sim-panel{height:210px;flex-shrink:0;display:flex;gap:0;border-bottom:1px solid var(--border);}
-.sim-canvas-wrap{flex:1;background:var(--bg);position:relative;overflow:hidden;min-width:0;}
+/* ═══ SIM PANEL — fills the whole iframe (sim-only artefact) ═══ */
+.sim-panel{flex:1;min-height:0;display:flex;gap:0;}
+.sim-canvas-wrap{flex:1;background:var(--bg);position:relative;overflow:hidden;min-width:0;min-height:240px;}
 canvas#simCanvas{width:100%;height:100%;display:block;}
 .sim-overlay{position:absolute;top:8px;left:10px;display:flex;gap:6px;flex-wrap:wrap;}
 .sim-tag{font-size:.62rem;font-family:var(--font-mono);padding:2px 7px;border-radius:4px;
@@ -290,17 +290,20 @@ canvas#graphCanvas{background:var(--bg);border:1px solid var(--border);border-ra
 .quiz-prog-fill{height:100%;background:linear-gradient(90deg,var(--violet),var(--blue));border-radius:2px;transition:width .3s;}
 
 /* ═══ RESPONSIVE ═══ */
-/* Sidebar moved to React workbench — its display:none rule is
- harmless when the .sidebar element no longer exists. */
-@media(max-width:900px){
- .sim-right{width:140px;}
- .sim-panel{height:240px;}
-}
-@media(max-width:700px){
- .sim-right{width:120px;font-size:.7rem;}
- .sim-panel{height:280px;}
- .gc-input{width:60px;}
- .graph-controls{flex-wrap:wrap;gap:6px;}
+/* Sim-only artefact: on narrow viewports stack the controls BELOW the
+ canvas instead of squeezing a fixed-width column beside it (that was
+ the cramped-overflow bug). The canvas keeps a min-height so it stays
+ usable; the controls flow full-width underneath. */
+@media(max-width:760px){
+ .sim-panel{flex-direction:column;}
+ .sim-right{width:100%;flex-shrink:0;border-left:none;border-top:1px solid var(--border);
+  flex-direction:row;flex-wrap:wrap;align-items:center;gap:8px 12px;}
+ .sim-canvas-wrap{min-height:280px;}
+ .sr-title{width:100%;}
+ .sr-select{flex:1 1 100%;}
+ .sr-row{flex:1 1 140px;}
+ .sr-btns{flex:1 1 100%;}
+ .sr-stats{flex:1 1 100%;}
 }
 </style>
 </head>
@@ -308,18 +311,18 @@ canvas#graphCanvas{background:var(--bg);border:1px solid var(--border);border-ra
 
 <div class="main">
 
-<!-- ══ CONTENT (header + sidebar moved to React workbench) ══ -->
+<!-- ══ CONTENT — SIM ONLY. Quiz + graph + topic nav + formulas + notes
+        all live in the React workbench (the host). This iframe is the
+        single live simulation surface, full-height + responsive. ══ -->
 <div class="content">
 
  <!-- TOAST -->
  <div class="toast" id="toast"></div>
 
- <!-- SIMULATION -->
+ <!-- SIMULATION (fills the whole iframe) -->
  <div class="sim-panel" id="simPanel">
- <div class="sim-panel-header"> Simulation — <span id="simPanelTitle">1D Uniform Motion</span> <button class="notes-btn" style="margin-left:auto;padding:2px 8px;font-size:.65rem" onclick="toggleSim()">▼ Expand</button></div>
  <div class="sim-canvas-wrap">
  <canvas id="simCanvas"></canvas>
- <button class="sim-collapse-btn" onclick="toggleSim()" title="Collapse/Expand">▲</button>
  <div class="sim-overlay">
  <span class="sim-tag" id="simLabel">1D Uniform</span>
  <span class="sim-tag" id="simFormula">x = vt</span>
@@ -341,8 +344,8 @@ canvas#graphCanvas{background:var(--bg);border:1px solid var(--border);border-ra
  <div class="sr-row" id="rowAngle" style="display:none"><label>Angle</label><input type="range" id="slAngle" min="5" max="85" value="45" oninput="updateSim()"><span class="val" id="lblAngle">45°</span></div>
  <div class="sr-row" id="rowV2" style="display:none"><label>V₂</label><input type="range" id="slV2" min="1" max="12" value="3" oninput="updateSim()"><span class="val" id="lblV2">3</span></div>
  <div class="sr-btns">
- <button class="sr-btn on" id="btnPlay" onclick="togglePlay()">▶ Play</button>
- <button class="sr-btn" onclick="resetSim()">↺</button>
+ <button class="sr-btn on" id="btnPlay" onclick="togglePlay()">Play</button>
+ <button class="sr-btn" onclick="resetSim()">Reset</button>
  </div>
  <div class="sr-stats">
  <div class="sstat"><div class="sstat-l">Position</div><div class="sstat-v" id="stX">0 m</div></div>
@@ -350,39 +353,6 @@ canvas#graphCanvas{background:var(--bg);border:1px solid var(--border);border-ra
  <div class="sstat"><div class="sstat-l">Time</div><div class="sstat-v" id="stT">0 s</div></div>
  <div class="sstat"><div class="sstat-l">Accel.</div><div class="sstat-v" id="stA">0 m/s²</div></div>
  </div>
- </div>
- </div>
-
- <!-- TABS (chat / formulas / notes moved to React workbench) -->
- <div class="tabs">
- <button class="tab active" onclick="switchTab('quiz')">Quiz</button>
- <button class="tab" onclick="switchTab('graph')">Graphs</button>
- </div>
-
- <!-- ── QUIZ PANEL ── -->
- <div class="panel active" id="panel-quiz">
- <div class="quiz-wrap" id="quizWrap"></div>
- </div>
-
- <!-- ── GRAPH PANEL ── -->
- <div class="panel" id="panel-graph">
- <div class="graph-wrap">
- <div class="graph-controls">
- <select class="gc-select" id="graphType" onchange="emit('graph-change',{graphType:this.value});drawGraph()">
- <option value="xt">Position-Time (x-t)</option>
- <option value="vt">Velocity-Time (v-t)</option>
- <option value="at">Acceleration-Time (a-t)</option>
- <option value="range">Projectile Range vs Angle</option>
- <option value="height">Max Height vs Angle</option>
- </select>
- <span class="gc-label">u =</span>
- <input class="gc-input" id="gU" type="number" value="20" min="1" max="50">
- <span class="gc-label">a =</span>
- <input class="gc-input" id="gA" type="number" value="5" min="0" max="20">
- <button class="gc-btn on" onclick="drawGraph()">Plot</button>
- </div>
- <canvas id="graphCanvas"></canvas>
- <div class="graph-legend" id="graphLegend"></div>
  </div>
  </div>
 
@@ -469,7 +439,7 @@ function resizeSim(){
  const w = simCanvas.parentElement.clientWidth, h = simCanvas.parentElement.clientHeight;
  simCanvas.width = w; simCanvas.height = h;
 }
-window.addEventListener('resize', ()=>{ resizeSim(); resizeGraph(); drawSim(); drawGraph(); });
+window.addEventListener('resize', ()=>{ resizeSim(); drawSim(); });
 resizeSim();
 
 function gV(){ return +document.getElementById('slV').value; }
@@ -727,12 +697,17 @@ function drawMiniGraph(x,y,w,h){
 drawSim();
 
 // ══════════════════════════════════════════════════
-// GRAPH PANEL
+// GRAPH PANEL — moved to the React workbench (KineBotGraph). The
+// canvas no longer exists in this iframe, so the plotter functions
+// below are inert: gCanvas is null and every entry point guards on
+// it. Kept (rather than surgically deleted) to avoid clipping shared
+// helpers; they are never called now that the graph tab is gone.
 // ══════════════════════════════════════════════════
 const gCanvas = document.getElementById('graphCanvas');
-const gctx = gCanvas.getContext('2d');
+const gctx = gCanvas ? gCanvas.getContext('2d') : null;
 
 function resizeGraph(){
+ if(!gCanvas) return;
  const wrap = gCanvas.parentElement;
  gCanvas.width = wrap.clientWidth - 24;
  gCanvas.height = Math.min(window.innerHeight*0.4, 320);
@@ -740,6 +715,7 @@ function resizeGraph(){
 resizeGraph();
 
 function drawGraph(){
+ if(!gCanvas) return;
  resizeGraph();
  const W=gCanvas.width, H=gCanvas.height;
  const type=document.getElementById('graphType').value;
@@ -1511,6 +1487,7 @@ function patchGraphSelect(){
 // Patch drawGraph to handle extra types
 const _origDrawGraph=drawGraph;
 function drawGraph(){
+ if(!gCanvas) return;
  const type=document.getElementById('graphType').value;
  if(type==='decel'||type==='freefall_xt'){
  resizeGraph();
@@ -1589,12 +1566,10 @@ function clearChat(){
 function handleKey(e){ if(e.key==='Enter'&&!e.shiftKey){e.preventDefault();sendMessage();} }
 function autoResize(el){ el.style.height='auto'; el.style.height=Math.min(el.scrollHeight,110)+'px'; }
 
-// INIT — boots the sim canvas + graph plotter. welcome / chat / notes
-// removed since those surfaces moved out of the iframe.
+// INIT — boots the sim canvas only. Graph + quiz + chat + notes all
+// moved to the React workbench; this iframe is the sim surface alone.
 window.onload=()=>{
  drawSim();
- patchGraphSelect();
- drawGraph();
 };
 
 // Spec lifecycle handshake. Standalone testing (no sandbox proxy
