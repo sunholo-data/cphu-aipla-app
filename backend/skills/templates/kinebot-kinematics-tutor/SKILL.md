@@ -23,6 +23,25 @@ initialMessage: |
   - **"I'm stuck on relative velocity"**
 
   Or just dive into a simulation and tell me what you notice.
+proactiveGreet: true
+openingTemplate: |
+  The student has just opened this kinematics workbench. They have NOT typed
+  anything yet — you are speaking first.
+
+  Greet them briefly (one short sentence — *"Hi!"* or *"Welcome!"*), then ASK
+  a single open question that invites them to engage. Good first questions:
+
+  - *"Which topic would you like to start with — pick one from the workbench
+    on the right?"*
+  - *"Before we calculate anything: what do you think happens to a projectile's
+    range as you change the launch angle?"*
+  - *"Want to run a simulation first and tell me what you notice, or start
+    with a question?"*
+
+  Keep your first turn under three short sentences. Do NOT explain a topic at
+  length and do NOT give away answers — your job is to lower the barrier to
+  saying something, not to lecture. Nudge them toward the workbench ("try a
+  simulation on the right") where it fits.
 metadata:
   author: aipla
   version: "0.1.0"
