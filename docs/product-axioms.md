@@ -28,6 +28,7 @@ Regardless of net score, a design doc is rejected if:
 - More than **2 axioms** score -1
 - **EARNED TRUST** scores -1 and the feature involves user-facing data or factual claims
 - **SECURE BY CONSTRUCTION** scores -1 and the feature introduces new data access patterns
+- **USABLE BY DESIGN** scores -1 and the feature ships a student-facing surface (student-facing UX is not a fast-follow — design it upfront or don't ship it)
 
 ---
 
@@ -248,6 +249,27 @@ This distinction is the basis for two concrete v6 decisions: (1) Langfuse Cloud 
 
 ---
 
+### 11. USABLE BY DESIGN
+
+**Principle:** Every user-facing surface must be usable and motivating on first contact. The experience — the student's journey, the empty / loading / error states, and the narrowest target viewport — is designed *before* the UI is built, not patched afterward.
+
+**Why:** Our end users (AIPLA's pilot) are students we have to motivate. A confusing or cramped first contact loses them in seconds, and a disengaged student is a failed lesson no matter how correct the backend is. Usability is not polish applied at the end — it *is* the feature. The recurring anti-pattern — ship the UI, discover the UX problems, run a cleanup pass (LED Planck 1.C: 5/10 integration; KineBot 1.D: cramped tabs + empty-state void) — burns a deploy cycle every time and is more expensive than designing the experience upfront. "It works" is not the bar; "a student wants to keep using it" is.
+
+**KPIs:**
+- First-contact clarity: a new student can tell what to do next without being told — there is always a visible next step and never a dead-end empty state
+- Fits the real target viewport: no horizontal scroll or clipped content at the narrowest supported width (the chat workspace pane is ~700px; mobile-portrait where in scope)
+- Every surface has designed loading, empty, and error states (never a blank void)
+- Zero UX-only rework sprints for a surface that passed its pre-build UX design pass
+
+**Scoring guide:**
+- **+1**: Feature is designed experience-first — student journey, empty/loading/error states, and target-viewport layout are specified before implementation; or it adds guidance, motivation, or removes a concrete friction point
+- **0**: Feature is infrastructure with no user-facing surface
+- **-1**: Feature ships a user-facing surface without a designed empty/loading/error state, without a defined next step for the user, or untested at the narrowest target viewport; or explicitly defers usability to a later "polish" pass
+
+**Tradeoff:** Deprioritizes time-to-first-pixel. Designing the experience before building is slower to "something on screen" but faster to "something a student will actually use," and avoids the cleanup-sprint tax. Deprioritizes feature completeness over coherence — a smaller, coherent, motivating surface beats a feature-complete cramped one.
+
+---
+
 ## Axiom Alignment Template
 
 Copy this table into every design doc, placed after **Goals** and before **Design**:
@@ -267,6 +289,7 @@ Copy this table into every design doc, placed after **Goals** and before **Desig
 | 8 | OBSERVABLE BY DEFAULT | | |
 | 9 | SECURE BY CONSTRUCTION | | |
 | 10 | THIN CLIENT, FAT PROTOCOL | | |
+| 11 | USABLE BY DESIGN | | |
 | | **Net Score** | **—** | Threshold: >= +4 |
 
 **Conflict Justifications:**
@@ -281,3 +304,4 @@ Copy this table into every design doc, placed after **Goals** and before **Desig
 |------|---------|--------|---------------|
 | 2026-04-10 | 1.0 | Initial axiom set | Established product strategy framework |
 | 2026-04-10 | 1.1 | Clarified internal/external privacy boundary in Axioms #8 (OBSERVABLE BY DEFAULT) and #9 (SECURE BY CONSTRUCTION) | Resolved ambiguity surfaced during cloud-infrastructure.md design: full prompt/response capture is the default inside GCP, but data crossing the project edge to third-party SaaS requires explicit justification. Same principle that ruled out Langfuse Cloud also permits aggressive internal observability. |
+| 2026-05-28 | 1.2 | Added Axiom #11 (USABLE BY DESIGN) + hard-fail for student-facing surfaces scoring -1 | AIPLA's users are students who must be motivated; bad first-contact UX loses them. Two artefact ports (LED Planck 1.C, KineBot 1.D) shipped UI-first and needed post-hoc UX cleanup sprints. Makes student usability a scored, upfront, hard-fail-able dimension on every design doc so the experience is designed before the UI is built. |

@@ -56,6 +56,40 @@ metadata:
 under 200 KB, use the static artefact path. Reach for a dynamic MCP
 server only when you actually need a server.
 
+## Step 0 — design the student experience BEFORE building (Axiom 11)
+
+**Do this before you scaffold a single component or strip a single
+line.** Our users are students we have to motivate; a confusing or
+cramped first contact loses them in seconds. Usability is the feature,
+not a fast-follow. Every artefact port in this repo so far (LED Planck,
+KineBot) shipped UI-first and then needed a UX cleanup sprint — that
+tax is avoidable. See [Axiom 11: USABLE BY DESIGN](../../../docs/product-axioms.md).
+
+Write these down (in the design doc or the sprint plan) before coding:
+
+1. **The student journey.** What does a student see on first contact?
+   What is the single obvious next step, at every state? If you can't
+   name "what do I do now" for the empty state, you're not ready to
+   build.
+2. **Every state, not just the happy path.** Design the **loading**,
+   **empty**, and **error** states explicitly. A default-active panel
+   that renders nothing is a black void (KineBot 1.D shipped one) — a
+   bug, not a TODO.
+3. **The narrowest target viewport.** The workspace pane is ~700px
+   (and resizable). Decide the layout there first, not on your 1440px
+   monitor. If the artefact is wider than one simulation's worth,
+   it's too much for the iframe — split it (see "Iframe scope rule").
+4. **What goes where (the split).** List every surface and mark it
+   iframe (the ONE sim) / React workbench / delete. Quiz, graph,
+   formula, notes, pickers → workbench. (This is the single most
+   common porting mistake.)
+5. **Motivation hooks.** Where's the encouragement, the progress, the
+   "you're getting it"? A correct-but-cold surface still loses a
+   disengaged student.
+
+Only once these are written do you scaffold (`new-workbench-skill.sh`)
+and build. The pre-ship usability gate below verifies you held to it.
+
 ## ADR-013 security gates (NEVER skip)
 
 Every static artefact MUST pass these checks at commit time:
@@ -87,6 +121,31 @@ Every static artefact MUST pass these checks at commit time:
    either (a) collapse their layout below ~720px via media query, or
    (b) move their non-interactive panels OUT of the iframe into the
    React workbench surface (see "Workspace integration" below).
+
+## Pre-ship usability gate (NEVER skip — Axiom 11)
+
+Run this in the browser before you merge. Every "no" is a blocker, not
+a follow-up — student-facing UX is hard-fail per Axiom 11.
+
+- [ ] **Next step is always obvious.** On first contact (cold, no
+      session), a student can tell what to do without instruction.
+      There is a visible call to action and never a dead-end.
+- [ ] **No empty void.** The default-visible surface renders real
+      content or a designed empty state — never a blank panel waiting
+      for an action that isn't signposted.
+- [ ] **Loading + error states exist.** Slow fetch shows a loader;
+      failed fetch shows a human message, not a blank or a console
+      error.
+- [ ] **Fits 700px wide.** No horizontal scroll, no clipped content,
+      controls reachable. Test in the device toolbar.
+- [ ] **Fits mobile-portrait** (if in scope): the workspace stacks /
+      scrolls; nothing is cut off the bottom or right.
+- [ ] **One simulation in the iframe.** No in-iframe tab switcher;
+      quiz / graph / pickers / notes are in the React workbench.
+- [ ] **A motivation hook is present.** Progress, encouragement, or a
+      visible sense of "getting somewhere" — not just correctness.
+- [ ] **Drive it as a student for 60 seconds.** Did anything confuse,
+      cram, or stall? If yes, it's not done.
 
 ## Workspace integration (REQUIRED — codified after LED Planck 1.C)
 
