@@ -148,10 +148,40 @@ inside the `showAiplaWorkspace && skillSlug === "..."` block):
 )}
 ```
 
-### Iframe scope rule — "interactive only"
+### Iframe scope rule — "ONE simulation, nothing else"
 
-**The iframe holds the interactive parts. Everything else moves to
-React.** Concrete test: imagine removing a panel from the iframe and
+**The iframe holds exactly ONE live simulation surface. Everything
+else — including other *interactive* surfaces — moves to React.**
+
+This is stronger than "interactive only", and the distinction cost a
+rework. KineBot 1.D first shipped with three interactive surfaces
+(sim **+** quiz **+** graph) crammed into the iframe behind a tab
+switcher, because all three are "interactive" so the old rule said
+keep them. The result was the same cramped multi-role failure as LED
+Planck, plus an empty-tab black void (the default quiz tab rendered
+nothing until an action that never surfaced). The fix was to make the
+iframe **sim-only** and lift quiz + graph into React.
+
+The sharper test: **if it's a different *mode* or *view* — a quiz, a
+graph, a formula sheet, a notes pad, a topic picker — it is NOT the
+simulation, even if it's interactive. It belongs in the React
+workbench.** A tab-switcher inside the iframe is the anti-pattern that
+tells you you've put more than one surface in there.
+
+- **Quiz / MCQ** → React. It's data (static JSON) + click handling.
+  No canvas. Never belongs in the iframe. (`KineBotQuiz.tsx` reads the
+  bank from `${sandboxOrigin}/artefacts/<name>/v1/quizzes/<topic>.json`
+  — CORS-open static content — and reports attempts through the shared
+  snapshot hook.)
+- **Graph / plot** → React `<canvas>`. Yes it's a canvas, but it's a
+  *separate view*, not the live sim. Port the plotting math to a TS
+  component (`KineBotGraph.tsx`, ~150 lines). It reports the active
+  graph type through the snapshot hook so the tutor knows what the
+  student is studying.
+- **The one live simulation** (the thing with the moving ball / the
+  bench / the dragging) → iframe, full-height, responsive. No tabs.
+
+Concrete test (unchanged): imagine removing a panel from the iframe and
 re-rendering it in React. If nothing breaks, it shouldn't have been in
 the iframe.
 
@@ -222,6 +252,42 @@ truth. The agent and the React workbench observe the same thing.
 This means the Workbench's step progress / measurement summary is
 **always consistent with what the tutor sees**. The student can't
 "unsync" them.
+
+### Shared snapshot hook — when MORE than the iframe reports events
+
+For a simple artefact (Boldkast, LED Planck) the Frame owns the
+snapshot: only the iframe produces events, so the Frame's
+`onUpdateModelContext` accumulates state + POSTs iframe-context +
+dispatches cards. Fine.
+
+But once you lift quiz/graph/etc. into React (per the rule above),
+those React surfaces ALSO produce pedagogical events — and they're
+not inside the iframe, so they can't go through the Frame's
+`onUpdateModelContext`. Two writers to one snapshot.
+
+**Pattern: lift the snapshot into a hook.** `use<Name>Snapshot(sessionId)`
+returns `{ snapshot, reportEvent }`. `reportEvent(evt)` is the single
+entry point that mutates the snapshot, POSTs to
+`/api/sessions/{id}/iframe-context`, and dispatches the chat card (with
+the push-with-card vs silent decision). Every surface calls it:
+
+- The **Frame** routes the iframe's events to `reportEvent` (its
+  `onUpdateModelContext` just forwards: sim events in → `reportEvent`).
+- The **React quiz** calls `reportEvent({kind:"<name>.quiz-attempt", …})`.
+- The **React graph** calls `reportEvent({kind:"<name>.graph-change", …})`.
+- The **topic picker** calls `reportEvent({kind:"<name>.set-topic", …})`
+  AND `frameRef.setTopic(t)` (the latter just forwards a host→iframe
+  notification so the sim re-renders; see "Host → artefact
+  notifications").
+
+The chat page calls the hook once and passes `snapshot` +
+`reportEvent` down to both the Frame and the Workbench.
+`use<Name>Snapshot` owns the catch-up-on-late-sessionId effect too.
+Reference: [`useKineBotSnapshot.ts`](../../../frontend/src/hooks/useKineBotSnapshot.ts).
+
+**When the sim re-renders from a host→iframe `set-*` notification, do
+NOT echo it back** as a telemetry event (no-mirror rule) — the hook
+already recorded it when the React surface called `reportEvent`.
 
 ### Host → artefact notifications (set-state pattern)
 
