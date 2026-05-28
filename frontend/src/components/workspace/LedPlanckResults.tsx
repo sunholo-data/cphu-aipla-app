@@ -76,7 +76,7 @@ export function LedPlanckResults({
             return (
               <div
                 key={r.led}
-                className="flex flex-wrap items-center gap-x-3 gap-y-1 rounded border border-border bg-background px-2 py-1.5 text-xs"
+                className="flex flex-wrap items-center gap-x-3 gap-y-1 rounded border border-primary/30 bg-primary/5 px-2 py-1.5 text-xs"
               >
                 <span className="font-medium capitalize">
                   {ledDanish(r.led)}
@@ -118,8 +118,8 @@ export function LedPlanckResults({
         </p>
       ) : (
         <>
-          <div className="overflow-hidden rounded border border-border">
-            <table className="w-full text-[11px]">
+          <div className="overflow-x-auto rounded border border-border">
+            <table className="w-full min-w-[20rem] text-[11px]">
               <thead className="bg-muted/40 text-muted-foreground">
                 <tr>
                   <th className="px-2 py-1 text-left font-medium">LED</th>
