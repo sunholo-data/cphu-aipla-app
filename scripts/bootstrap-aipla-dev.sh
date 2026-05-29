@@ -31,6 +31,9 @@ CB_REPO_NAME="cphu-aipla-app"
 GH_REMOTE="https://github.com/sunholo-data/cphu-aipla-app.git"
 TRIGGER_NAME="aipla-dev-deploy"
 SERVICE_NAME="aipla-v01-frontend"
+CHATLOG_DATASET="chat_logs"                # SEQUENCE 1.2 — group-ID-keyed chat logs (ADR-005)
+CHATLOG_SINK="aipla-chat-logs"             # Log Router sink → BigQuery
+CHATLOG_PARTITION_EXPIRY_DAYS=30           # dev retention; test/prod set higher per consent (DPIA 1.13)
 
 log() { echo "[$(date +%H:%M:%S)] $*"; }
 die() { echo "ERROR: $*" >&2; exit 1; }
@@ -71,6 +74,7 @@ ensure_apis() {
     artifactregistry.googleapis.com
     firestore.googleapis.com
     firebaserules.googleapis.com              # M5: Cloud Build deploys firestore.rules
+    bigquery.googleapis.com                   # 1.2: chat-log dataset + Log Router sink
     secretmanager.googleapis.com
     cloudtrace.googleapis.com
     logging.googleapis.com
@@ -123,6 +127,8 @@ ensure_sa() {
     roles/iam.serviceAccountUser              # act as itself when Cloud Build deploys Cloud Run with same SA
     roles/firebaserules.admin                 # M5: deploy firestore.rules
     roles/datastore.indexAdmin                # M5: deploy firestore.indexes.json
+    roles/bigquery.dataViewer                 # 1.2: read chat_logs for the teacher report route
+    roles/bigquery.jobUser                    # 1.2: run query jobs against chat_logs
   )
   for role in "${roles[@]}"; do
     local attempt
@@ -156,6 +162,61 @@ ensure_firestore() {
       --project="$PROJECT" >/dev/null
     log "  ✓ created in ${FIRESTORE_LOC}"
   fi
+}
+
+# ----- BigQuery chat-log dataset + Log Router sink (SEQUENCE 1.2) ------------
+
+ensure_chat_logs() {
+  # Durable, group-ID-keyed chat-log store the teacher report route + 2.5
+  # analytics rubric read from (chat-log-pipeline.md, ADR-005/001/008).
+  #
+  # Dev provisions this via gcloud/bq here. test/prod use the parallel
+  # Terraform module infrastructure/modules/chat-logs/ — keep the two in
+  # sync when either changes (same dataset id, sink name, filter,
+  # partitioned-tables, writer-identity grant).
+  log "Ensuring BigQuery chat-log dataset + sink..."
+
+  # 1. Dataset (idempotent). --default_partition_expiration is in SECONDS
+  #    and applies to every partitioned table the sink creates (retention).
+  if bq show --dataset "${PROJECT}:${CHATLOG_DATASET}" &>/dev/null; then
+    log "  dataset ${CHATLOG_DATASET} already exists"
+  else
+    bq --location="$REGION" mk \
+      --dataset \
+      --default_partition_expiration="$((CHATLOG_PARTITION_EXPIRY_DAYS * 24 * 60 * 60))" \
+      --description="Group-ID-keyed chat turns + workbench events (ADR-005). Fed by the ${CHATLOG_SINK} log sink. No PII beyond anonymous group id (ADR-001)." \
+      "${PROJECT}:${CHATLOG_DATASET}" >/dev/null
+    log "  ✓ dataset ${CHATLOG_DATASET} created in ${REGION} (partition TTL ${CHATLOG_PARTITION_EXPIRY_DAYS}d)"
+  fi
+
+  # 2. Log Router sink → BigQuery (idempotent). Partitioned tables; filter
+  #    on the backend's structured chat-turn / workbench-event log ids
+  #    (the 1.2 emitter must write under aipla_chat_turn / aipla_workbench_event).
+  local sink_dest="bigquery.googleapis.com/projects/${PROJECT}/datasets/${CHATLOG_DATASET}"
+  local sink_filter='logName=~"/logs/aipla_(chat_turn|workbench_event)$"'
+  if gcloud logging sinks describe "$CHATLOG_SINK" --project="$PROJECT" &>/dev/null; then
+    log "  sink ${CHATLOG_SINK} already exists"
+  else
+    gcloud logging sinks create "$CHATLOG_SINK" "$sink_dest" \
+      --log-filter="$sink_filter" \
+      --use-partitioned-tables \
+      --project="$PROJECT" >/dev/null
+    log "  ✓ sink ${CHATLOG_SINK} created"
+  fi
+
+  # 3. Grant the sink's writer identity dataEditor so entries actually land.
+  #    (Project-level for parity with the script's other bindings; the sink
+  #    only writes to the one dataset. The TF module scopes it dataset-level.)
+  local writer
+  writer=$(gcloud logging sinks describe "$CHATLOG_SINK" --project="$PROJECT" \
+    --format='value(writerIdentity)')
+  [ -n "$writer" ] || die "could not resolve writer identity for sink ${CHATLOG_SINK}"
+  gcloud projects add-iam-policy-binding "$PROJECT" \
+    --member="$writer" \
+    --role="roles/bigquery.dataEditor" \
+    --condition=None \
+    --quiet >/dev/null
+  log "  ✓ ${writer} granted bigquery.dataEditor"
 }
 
 # ----- Artifact Registry -----------------------------------------------------
@@ -477,6 +538,7 @@ main() {
   ensure_apis
   ensure_sa
   ensure_firestore
+  ensure_chat_logs
   ensure_artifact_registry
   ensure_firebase_anonymous_auth
   ensure_config_bucket

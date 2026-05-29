@@ -92,8 +92,9 @@ Bucketed by what's in `bootstrap-aipla-dev.sh` today:
 - `google_secret_manager_secret.group_auth_signing_secret`
 - `google_secret_manager_secret_iam_member` granting aipla-v6@ access
 
-### F. BigQuery (~2 resources)
-- `google_bigquery_dataset.chat_logs` per ADR-005 (the sink lands later in SEQUENCE 1.2, but the dataset existing in dev is a 1.1 concern)
+### F. BigQuery + chat-log sink → the dedicated [`chat-logs` module](../../../../infrastructure/modules/chat-logs/)
+- The `chat_logs` dataset (ADR-005) + the Log Router sink (SEQUENCE 1.2) + their IAM are **consolidated into one module** rather than split (dataset here, sink in 1.2). This bootstrap module **calls** `modules/chat-logs` per env: `module "chat_logs" { source = "../../modules/chat-logs" project_id = var.project_id env = var.env backend_service_account_email = local.aipla_v6_email ... }`.
+- **Live state verified 2026-05-29:** neither the dataset nor the sink exists in `aipla-dev-2026` (BQ + Logging APIs *are* enabled). So nothing to `terraform import` — first apply creates fresh. See [bootstrap-aipla-dev.NOTES.md Decision 12](../../../../scripts/bootstrap-aipla-dev.NOTES.md).
 
 ### G. Per-env wiring
 - `terraform.tfvars` files for `{dev,test,prod}` carrying project_id, billing_account, github_repo, region

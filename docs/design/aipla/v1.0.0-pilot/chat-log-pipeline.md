@@ -174,7 +174,7 @@ The reports route ([backend/protocols/reports_routes.py](../../../../backend/pro
 | `backend/reports/session_summary.py` | Add `summarize_session_bq`; keep the session-state reader as the fallback | +110 |
 | `backend/protocols/reports_routes.py` | Prefer BQ, fall back to session-state | +25 |
 | `backend/db/bigquery.py` (new or extend) | Thin BQ query client (parameterised, region-pinned per ADR-007) | ~80 |
-| `infrastructure/modules/.../logging_sink.tf` (with 1.1) | `google_logging_project_sink` + `chat_turns` / `workbench_events` table schemas + partition/expiration | ~90 |
+| **dev:** [`scripts/bootstrap-aipla-dev.sh`](../../../../scripts/bootstrap-aipla-dev.sh) `ensure_chat_logs()` (gcloud/bq) — **authored 2026-05-29**. **test/prod:** [`infrastructure/modules/chat-logs/`](../../../../infrastructure/modules/chat-logs/) terraform module. Both create: dataset + partitioned log sink + writer/reader IAM (no terraform is set up yet — dev is gcloud) | done (infra) |
 | `cli/aiplatform/commands/logs.py` (new) | `tail`, `query`, `schema` subcommands | +110 |
 | `backend/tests/api_tests/test_chat_log_pipeline.py` (new) | ≥6 cases (see Testing) | ~220 |
 | `cli/tests/test_cli_logs.py` (new) | CLI command tests | ~60 |
@@ -186,7 +186,8 @@ The reports route ([backend/protocols/reports_routes.py](../../../../backend/pro
 ## Migration
 
 - **No backfill.** Tables accumulate from deploy. Pre-1.2 sessions remain readable via the session-state fallback until their ADK sessions expire.
-- **Infra ordering:** the `chat_logs` dataset is created by 1.1; this sprint adds the sink + table schemas. If 1.1's Terraform hasn't landed, the sink + tables can be applied as a standalone `terraform apply -target` against the existing dataset (the dataset already exists in dev per [aipla-cloud-bootstrap.md §F](aipla-cloud-bootstrap.md)).
+- **Infra provisioning:** **dev = gcloud** via `ensure_chat_logs()` in [`bootstrap-aipla-dev.sh`](../../../../scripts/bootstrap-aipla-dev.sh) (no terraform is set up yet — dev is provisioned the same way as every other resource). **test/prod = terraform** via the [`chat-logs` module](../../../../infrastructure/modules/chat-logs/), consolidated rather than split across 1.1/1.2. Both keep the same dataset id, sink name, filter, partitioned-tables, and writer grant. **Verified 2026-05-29: neither the dataset nor the sink exists in `aipla-dev-2026` yet** (BQ + Logging APIs *are* enabled), so the first run creates fresh — nothing to import.
+- **Two-phase apply:** first apply with `create_views = false` (the sink's raw tables only exist after the first log write); once the emitter is deployed and data flows, re-apply with `create_views = true` for the flat `chat_turns` / `workbench_events` views.
 - **Rollback:** delete the log sink (writes stop; chat unaffected) and revert the reports route to session-state-only. Tables can be left in place (retention rules handle them) or dropped.
 - **Retention:** partition expiration on both tables, default driven by the consent form (see Open Questions). Set as a Terraform variable so test/prod can differ from dev.
 

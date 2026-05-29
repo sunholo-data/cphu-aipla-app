@@ -178,3 +178,27 @@ gcloud builds triggers import \
 **Verified:** `gcloud builds triggers describe aipla-dev-deploy --format='value(substitutions)'` now lists `_TEACHER_MOCK=1`. Trigger id preserved.
 
 After this, the next dev push (or a manual `gcloud builds triggers run aipla-dev-deploy --branch=dev`) will rebuild the frontend image with `NEXT_PUBLIC_TEACHER_MOCK=1` baked in. **Prerequisite:** PR #2 (`feature/teacher-ui-phase2`) must be merged to `dev` first so `cloudbuild.yaml` has the matching `--build-arg NEXT_PUBLIC_TEACHER_MOCK=${_TEACHER_MOCK}` line — without that, the substitution exists on the trigger but isn't consumed by the build.
+
+## 2026-05-29 — BigQuery chat-log pipeline preconditions (SEQUENCE 1.2 + 1.1 §F)
+
+### Decision 12 — chat-log dataset + Log Router sink: gcloud for dev (in the bootstrap script), Terraform for test/prod
+
+- **Why now:** teacher monitoring + analysis was promoted to committed v1 (2026-05-28). The BigQuery sink ([chat-log-pipeline.md](../docs/design/aipla/v1.0.0-pilot/chat-log-pipeline.md)) is the keystone everything analytical reads from, so its infra preconditions need to be reproducible for test/prod, not a one-off dev hack.
+- **Live dev state, verified 2026-05-29** (`m@sunholo.com` via `/Users/voightkampff/dev/google-cloud-sdk/bin`):
+  - `bq --project_id=aipla-dev-2026 ls` → **empty** (zero datasets). `bq show aipla-dev-2026:chat_logs` → **Not found**.
+  - `gcloud logging sinks list --project=aipla-dev-2026` → only the built-in `_Required` + `_Default` buckets. **No chat-log sink exists.**
+  - `bigquery.googleapis.com` + `logging.googleapis.com` → **already enabled** (the script's `ensure_apis()` covers them).
+  - **Conclusion:** the dataset + sink do NOT exist yet anywhere. Nothing to `terraform import` on dev — the module creates fresh.
+- **Dev path (gcloud):** added as `ensure_chat_logs()` in [`bootstrap-aipla-dev.sh`](bootstrap-aipla-dev.sh) (idempotent `bq mk` dataset + `gcloud logging sinks create --use-partitioned-tables` + writer-identity `dataEditor` grant). `bigquery.googleapis.com` added to `ensure_apis()`; `roles/bigquery.dataViewer` + `roles/bigquery.jobUser` added to the `aipla-v6@` bindings in `ensure_sa()`. **No terraform is set up yet — dev is gcloud, same as every other resource here.**
+- **Test/prod path (Terraform):** the parallel module [`infrastructure/modules/chat-logs/`](../infrastructure/modules/chat-logs/) (dataset `chat_logs` region-pinned `europe-north1`; `google_logging_project_sink` with `use_partitioned_tables` + `unique_writer_identity`; sink-writer `dataEditor` + backend `dataViewer` dataset IAM; backend project-level `jobUser`; opt-in flattened views). Keep it in sync with `ensure_chat_logs()` — same dataset id, sink name, filter, partitioned-tables, writer grant.
+- **Why one module (not split):** keeps dataset + sink + tables + IAM cohesive and independently appliable, rather than splitting the dataset into 1.1 and the sink into 1.2. The 1.1 bootstrap module, when written, calls this module per env.
+- **For test/prod TF:**
+  - `module "chat_logs" { source = "../../modules/chat-logs" project_id = "aipla-test-2026" env = "test" backend_service_account_email = "aipla-v6@aipla-test-2026.iam.gserviceaccount.com" partition_expiration_days = 180 }` (prod: 365, calibrate to the consent form / DPIA at SEQUENCE 1.13).
+  - **Prereqs the module assumes** (owned by 1.1): `bigquery.googleapis.com` + `logging.googleapis.com` enabled (dev: ✅ already; test/prod: add `google_project_service`), `aipla-v6@<project>` SA exists, TF principal has `bigquery.admin` + `logging.admin`.
+  - **Two-phase apply:** first apply with `create_views = false` (default — the sink's raw tables don't exist until the first log write); after the 1.2 backend emitter is deployed and data flows, re-apply with `create_views = true` for the flattened `chat_turns` / `workbench_events` views. Verify with `bq --project_id=<project> ls chat_logs`.
+- **Captured in script?** ✅ yes — `ensure_chat_logs()` (dev). The Terraform module is the test/prod equivalent. Earlier draft of this entry wrongly said "TF-only, not in the script" — corrected: dev uses gcloud like everything else here.
+
+### Side effect 10 — gcloud/bq are not on the default PATH; default config project is the template's, not AIPLA
+
+- **What:** the SDK lives at `/Users/voightkampff/dev/google-cloud-sdk/bin` (not on `$PATH` for non-interactive shells). Active account `m@sunholo.com`; **default configured project is `aitana-multivac-dev`** (the inherited template's), so any AIPLA command MUST pass `--project=aipla-{dev,test,prod}-2026` explicitly.
+- **For test/prod TF:** n/a (operator note). Recorded in agent memory `reference_gcloud_sdk_location.md`.
