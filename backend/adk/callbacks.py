@@ -481,6 +481,65 @@ def make_document_injector() -> Any:
 
 _STATE_INITIALIZED = "app:chat_session_initialized"
 _STATE_TURN_COUNT = "app:chat_session_turn_count"
+# Index of the next session event the chat-log emitter (1.2) has NOT yet
+# written to BigQuery. Diffing against len(session.events) makes emission
+# idempotent across the bursty agent loop — we only emit events past it.
+_STATE_CHATLOG_CURSOR = "app:chatlog_emit_cursor"
+
+
+def _emit_new_turns(session: Any, session_id: str, owner_uid: str, skill_id: str, state: Any) -> None:
+    """Emit chat-turn log entries for events not yet logged (SEQUENCE 1.2).
+
+    Idempotent via ``_STATE_CHATLOG_CURSOR``. Skips non-student (non-anon)
+    owners so no teacher identity is logged. Never raises — telemetry must
+    not break the turn.
+    """
+    try:
+        from observability.chat_log import emit_chat_turn, group_code_from_owner_uid
+
+        group_id = group_code_from_owner_uid(owner_uid)
+        if group_id is None:
+            return  # teacher / workshop session — not student research data
+
+        events = list(getattr(session, "events", None) or [])
+        cursor = int(state.get(_STATE_CHATLOG_CURSOR) or 0)
+        if cursor >= len(events):
+            return
+
+        for idx in range(cursor, len(events)):
+            event = events[idx]
+            content_obj = getattr(event, "content", None)
+            parts = getattr(content_obj, "parts", None) if content_obj else None
+            if not parts:
+                continue  # state-delta-only events (e.g. iframe-context) carry no text
+            text = " ".join(p.text for p in parts if getattr(p, "text", None)).strip()
+            if not text:
+                continue
+            role = "student" if getattr(event, "author", None) == "user" else "tutor"
+
+            token_in = token_out = None
+            try:
+                usage = getattr(event, "usage_metadata", None)
+                if usage is not None:
+                    token_in = getattr(usage, "prompt_token_count", None)
+                    token_out = getattr(usage, "candidates_token_count", None)
+            except Exception:  # best-effort enrichment only
+                pass
+
+            emit_chat_turn(
+                group_id=group_id,
+                session_id=session_id,
+                skill_id=skill_id,
+                turn_index=idx,
+                role=role,
+                content=text,
+                token_in=token_in,
+                token_out=token_out,
+            )
+
+        state[_STATE_CHATLOG_CURSOR] = len(events)
+    except Exception as exc:  # never let chat-logging break the agent turn
+        logger.warning("chat-log emit failed (suppressed): %s", exc)
 
 
 def make_session_tracker(owner_uid: str, skill_id: str) -> Any:
@@ -607,23 +666,38 @@ def _flush_session_index(session_id: str, turn_count: int, title: str | None) ->
         logger.warning("failed to update session index for %s: %s", session_id, exc)
 
 
-def make_after_agent_response() -> Any:
+def make_after_agent_response(owner_uid: str | None = None, skill_id: str | None = None) -> Any:
     """Return an ``after_agent_callback`` that maintains the ChatSessionIndex.
 
     After each turn:
+    - Emits new chat turns to the BigQuery chat-log pipeline (1.2) when
+      ``owner_uid`` + ``skill_id`` are provided (independent of the Firestore
+      index gate, so logging works even if the index write degraded).
     - Increments the in-memory turn counter stored in session state.
     - Flushes ``turnCount`` + ``lastMessageAt`` to Firestore every
       ``_TURN_FLUSH_INTERVAL`` turns.
     - Triggers title generation after exactly turn 2 (first full exchange).
+
+    ``owner_uid`` / ``skill_id`` default to None so existing callers/tests
+    that invoke ``make_after_agent_response()`` keep working (chat-logging is
+    simply skipped without them).
     """
 
     def _after_response(callback_context: Any) -> None:
         state = getattr(callback_context, "state", None)
-        if state is None or not state.get(_STATE_INITIALIZED):
+        if state is None:
             return
 
         session = getattr(callback_context, "session", None)
         session_id = getattr(session, "id", None) if session else None
+
+        # Chat-log emit (1.2) — runs before the index gate so telemetry
+        # doesn't depend on the Firestore index having initialised.
+        if owner_uid and skill_id and session_id and session is not None:
+            _emit_new_turns(session, session_id, owner_uid, skill_id, state)
+
+        if not state.get(_STATE_INITIALIZED):
+            return
         if not session_id:
             return
 

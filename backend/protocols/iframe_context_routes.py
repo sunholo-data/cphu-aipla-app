@@ -282,6 +282,27 @@ async def post_iframe_context(
     )
     await session_service.append_event(session, event)
 
+    # Chat-log pipeline (1.2): record this workbench interaction. Keyed by
+    # the anonymous group only (skipped for non-anon/teacher sessions); never
+    # raises. Replaces the old mcp_app_context.* key-count heuristic for
+    # sim_run_count with an exact per-event row.
+    from observability.chat_log import emit_workbench_event, group_code_from_owner_uid
+
+    group_id = group_code_from_owner_uid(idx.owner_uid)
+    if group_id is not None:
+        sc = body.structured_content or {}
+        field = (sc.get("changed") if isinstance(sc, dict) else None) or body.tool_name
+        value = sc.get("value") if (isinstance(sc, dict) and "value" in sc) else (sc or body.content)
+        emit_workbench_event(
+            group_id=group_id,
+            session_id=session_id,
+            skill_id=idx.skill_id,
+            server=body.server_id,
+            tool=body.tool_name,
+            field=field,
+            value=value,
+        )
+
     log.info(
         "iframe_context: write uid=%s session=%s skill=%s server=%s tool=%s bytes=%s",
         user.uid,

@@ -144,3 +144,101 @@ def test_emit_workbench_event_never_raises_on_client_error():
     gl.log_struct.side_effect = RuntimeError("down")
     with patch.object(chat_log, "_get_logger", return_value=gl):
         chat_log.emit_workbench_event(**WB_KW)
+
+
+# --- group_code_from_owner_uid (M2) ---
+
+
+def test_group_code_from_owner_uid():
+    f = chat_log.group_code_from_owner_uid
+    assert f("anon-bold-kazoo-87-ab12cd") == "bold-kazoo-87"
+    assert f("anon-grp1-deadbeef") == "grp1"
+    assert f("workshop-user") is None
+    assert f("some-firebase-uid") is None  # doesn't start with anon-
+    assert f("") is None
+    assert f(None) is None
+    assert f("anon-") is None  # malformed: no trailing hex segment
+
+
+# --- after-agent chat-turn emission (M2) ---
+
+
+class _FakePart:
+    def __init__(self, text):
+        self.text = text
+
+
+class _FakeContent:
+    def __init__(self, parts):
+        self.parts = parts
+
+
+class _FakeEvent:
+    def __init__(self, author, text):
+        self.author = author
+        self.content = _FakeContent([_FakePart(text)]) if text is not None else None
+        self.usage_metadata = None
+
+
+class _FakeSession:
+    def __init__(self, events, id="sess-1"):
+        self.events = events
+        self.id = id
+
+
+class _FakeCtx:
+    def __init__(self, session, state):
+        self.session = session
+        self.state = state
+
+
+def test_after_agent_emits_new_turns_once_and_advances_cursor():
+    from adk.callbacks import _STATE_CHATLOG_CURSOR, make_after_agent_response
+
+    events = [_FakeEvent("user", "hello"), _FakeEvent("model", "hi there")]
+    state = {}
+    ctx = _FakeCtx(_FakeSession(events), state)
+    mock_emit = MagicMock()
+    with patch.object(chat_log, "emit_chat_turn", mock_emit):
+        cb = make_after_agent_response("anon-bold-kazoo-87-ab12", "boldkast")
+        cb(ctx)
+        assert mock_emit.call_count == 2
+        assert [c.kwargs["role"] for c in mock_emit.call_args_list] == ["student", "tutor"]
+        assert state[_STATE_CHATLOG_CURSOR] == 2
+        # Re-run with no new events: no further emits (idempotent).
+        cb(ctx)
+        assert mock_emit.call_count == 2
+
+
+def test_after_agent_skips_non_anon_owner():
+    from adk.callbacks import make_after_agent_response
+
+    ctx = _FakeCtx(_FakeSession([_FakeEvent("user", "hello")]), {})
+    mock_emit = MagicMock()
+    with patch.object(chat_log, "emit_chat_turn", mock_emit):
+        make_after_agent_response("workshop-user", "boldkast")(ctx)
+    assert mock_emit.call_count == 0
+
+
+def test_after_agent_no_chatlog_without_owner_skill():
+    from adk.callbacks import make_after_agent_response
+
+    ctx = _FakeCtx(_FakeSession([_FakeEvent("user", "hello")]), {})
+    mock_emit = MagicMock()
+    with patch.object(chat_log, "emit_chat_turn", mock_emit):
+        make_after_agent_response()(ctx)  # back-compat: no args -> no chat-logging
+    assert mock_emit.call_count == 0
+
+
+def test_after_agent_skips_state_delta_only_events():
+    from adk.callbacks import _STATE_CHATLOG_CURSOR, make_after_agent_response
+
+    # Second event has no content (e.g. an iframe-context state-delta event).
+    events = [_FakeEvent("user", "real question"), _FakeEvent("user", None)]
+    state = {}
+    ctx = _FakeCtx(_FakeSession(events), state)
+    mock_emit = MagicMock()
+    with patch.object(chat_log, "emit_chat_turn", mock_emit):
+        make_after_agent_response("anon-grp-1-xx", "boldkast")(ctx)
+    assert mock_emit.call_count == 1  # only the text event emitted
+    assert state[_STATE_CHATLOG_CURSOR] == 2  # cursor still advances past both

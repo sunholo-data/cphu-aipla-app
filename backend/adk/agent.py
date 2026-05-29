@@ -394,7 +394,7 @@ def create_agent(
             label = f"Reading {len(loaded)} document{suffix}…"
         get_current_tracker().mark(STAGE_BEFORE_AGENT_DONE, user_label=label)
 
-    _after_agent_response = make_after_agent_response()
+    _after_agent_response = make_after_agent_response(user.uid, skill_config.skill_id)
 
     async def _composed_after_agent(callback_context: object) -> None:
         _after_agent_response(callback_context)

@@ -43,6 +43,22 @@ _client: Any = None
 _clients: dict[str, Any] = {}
 
 
+def group_code_from_owner_uid(owner_uid: str | None) -> str | None:
+    """Reverse the ``anon-{group_code}-{hex}`` owner_uid → ``group_code``.
+
+    Returns ``None`` for non-anonymous owners (Firebase/Google-auth teachers,
+    LOCAL_MODE ``workshop-user``) since those aren't a student group — callers
+    skip emitting for them so no teacher identity ever lands in the logs
+    (ADR-001). group_codes themselves contain hyphens (``bold-kazoo-87``), so
+    we strip only the trailing ``-<hex>`` segment.
+    """
+    if not owner_uid or not owner_uid.startswith("anon-"):
+        return None
+    body = owner_uid[len("anon-") :]
+    parts = body.rsplit("-", 1)
+    return parts[0] if len(parts) == 2 else None
+
+
 def _get_logger(log_id: str) -> Any:
     """Return a cached Cloud Logging ``Logger`` for ``log_id``, or ``None``.
 
@@ -145,4 +161,5 @@ __all__ = [
     "LOG_ID_WORKBENCH_EVENT",
     "emit_chat_turn",
     "emit_workbench_event",
+    "group_code_from_owner_uid",
 ]
