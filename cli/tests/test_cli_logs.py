@@ -75,7 +75,7 @@ def test_logs_schema_prints_reference_and_query() -> None:
 @respx.mock
 def test_logs_verify_pass() -> None:
     respx.post(f"{BASE}/api/auth/group/join").mock(
-        return_value=httpx.Response(200, json={"token": "grp-jwt", "uid": "anon-bold-1"})
+        return_value=httpx.Response(200, json={"token": "grp-jwt", "uid": "anon-bold-1", "skill_ids": ["sk-1"]})
     )
     respx.post(url__regex=rf"{BASE}/api/skill/.*/stream").mock(return_value=httpx.Response(200, text="data: {}\n\n"))
     respx.get(url__regex=rf"{BASE}/api/reports/sessions/verify-.*").mock(
@@ -90,7 +90,7 @@ def test_logs_verify_pass() -> None:
 @respx.mock
 def test_logs_verify_fail_on_timeout() -> None:
     respx.post(f"{BASE}/api/auth/group/join").mock(
-        return_value=httpx.Response(200, json={"token": "grp-jwt", "uid": "anon-bold-1"})
+        return_value=httpx.Response(200, json={"token": "grp-jwt", "uid": "anon-bold-1", "skill_ids": ["sk-1"]})
     )
     respx.post(url__regex=rf"{BASE}/api/skill/.*/stream").mock(return_value=httpx.Response(200, text="data: {}\n\n"))
     # --timeout 0 → skip polling entirely → immediate FAIL (no sleep).

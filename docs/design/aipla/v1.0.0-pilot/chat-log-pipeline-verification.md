@@ -169,6 +169,34 @@ report read works once fix (B) lands.
 - [ ] `make verify-chat-logs` wraps it; documented in the Automation table.
 - [ ] Backend `make lint` + `make test-fast` green.
 
+## Verification results (2026-05-29, deployed dev)
+
+**Pipeline PROVEN end-to-end.** A real turn on `aipla-demo-1` (session
+`verify-1780079421`) flowed: agent turn → `emit_chat_turn` → Cloud Logging →
+`aipla-chat-logs` sink → BigQuery `aipla_chat_turn` → `?source=bq` report
+returned the correct summary — keyed by the **real code `aipla-demo-1`**
+(group-code fix confirmed; pre-fix it would have been `aiplademo1`).
+`summarize_session_bq`, `find_latest_session_for_group` cleaning, and the
+`?source=bq` endpoint all verified against live data.
+
+**Two real findings (follow-ups), neither blocking the above:**
+
+1. **Cloud Logging → BigQuery sink lag is multi-minute** (observed ~2–4 min to
+   first queryability), so `verify`'s synchronous BQ poll needs a generous
+   timeout (default raised to 240s; may need 300s+). The data always lands —
+   it's latency, not loss. Consider a faster path (assert the Cloud Logging
+   entry, which is near-instant, then BQ as a slower confirmation).
+2. **Turn-capture reliability gap.** On a fresh session the *first* agent
+   invocation's content did not always emit, while later turns did (observed:
+   `diag2-…` emitted turn_index 4 + 6 but not turn 1's events). Likely a race
+   between the after-agent callback and session-event persistence, interacting
+   with the `_STATE_CHATLOG_CURSOR` (cursor advances past events whose text
+   wasn't yet appended), and/or the proactive-greet auto-turn. **This risks
+   incomplete analytics (some turns unlogged) and needs a dedicated fix** —
+   e.g. emit from a hook that runs after events are persisted, or make the
+   emitter reconcile the full conversation idempotently instead of a forward
+   cursor. Tracked as a follow-up to this doc.
+
 ## Related
 
 - [chat-log-pipeline.md](chat-log-pipeline.md) (1.2) — the pipeline this verifies

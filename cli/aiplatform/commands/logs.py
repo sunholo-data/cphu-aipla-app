@@ -125,14 +125,22 @@ def schema(project: str) -> None:
 
 @logs.command("verify")
 @click.argument("group_code")
-@click.option("--skill", default="problem-set-hints", show_default=True, help="Skill to drive the turn through.")
+@click.option(
+    "--skill", default="", help="Skill id to drive the turn through. Defaults to the group's first bound skill."
+)
 @click.option(
     "--message",
     default="Why does a projectile travel furthest at 45 degrees?",
     show_default=True,
     help="Message to send as the student turn.",
 )
-@click.option("--timeout", type=int, default=90, show_default=True, help="Seconds to wait for the BigQuery row.")
+@click.option(
+    "--timeout",
+    type=int,
+    default=240,
+    show_default=True,
+    help="Seconds to wait for the BigQuery row (Cloud Logging→BQ sink ingestion can lag a few minutes).",
+)
 @click.pass_context
 def verify(ctx: click.Context, group_code: str, skill: str, message: str, timeout: int) -> None:
     """End-to-end smoke: join GROUP_CODE, drive a turn, confirm it reached BigQuery.
@@ -149,7 +157,16 @@ def verify(ctx: click.Context, group_code: str, skill: str, message: str, timeou
     jr = httpx.post(f"{base}/api/auth/group/join", json={"group_id": group_code}, timeout=30.0)
     if jr.status_code != 200:
         raise click.ClickException(f"join failed ({jr.status_code}): {jr.text[:300]}")
-    token = jr.json()["token"]
+    jr_json = jr.json()
+    token = jr_json["token"]
+
+    # Default to the group's first bound skill (its skill id), since the
+    # stream endpoint resolves by skill id, not the public name.
+    if not skill:
+        bound = jr_json.get("skill_ids") or []
+        if not bound:
+            raise click.ClickException(f"group {group_code!r} has no bound skills; pass --skill <id>")
+        skill = bound[0]
 
     # 2. Drive a real turn (SSE; drain to completion so the after-agent emit fires).
     session_id = f"verify-{int(time.time())}"
