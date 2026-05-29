@@ -24,10 +24,11 @@
         "backend/tests/unit/test_chat_log_emit.py"
       ],
       "files_to_modify": [],
-      "passes": null,
-      "started": null,
-      "completed": null,
-      "notes": "google-cloud-logging>=3.12.0 already a dep; GOOGLE_CLOUD_LOGGING=1 in prod. Keep emit off the hot path (fire-and-forget)."
+      "passes": true,
+      "started": "2026-05-29T16:45:00Z",
+      "completed": "2026-05-29T16:55:00Z",
+      "actual_loc": 294,
+      "notes": "Used google.cloud.logging Client + named loggers (logName routing) rather than stdlib extra= (which uses one default logName) so the sink filter matches. payload keys match views.tf exactly. is_local_mode()/init-failure -> None -> silent no-op. 10 tests pass; make lint + format clean."
     },
     {
       "id": "M2-wire-emit-sites",
@@ -140,7 +141,7 @@
     "actual_days": null
   },
   "github_issues": [],
-  "last_session": null,
-  "last_checkpoint": null,
-  "status": "not_started"
+  "last_session": "2026-05-29",
+  "last_checkpoint": "M1-emitters complete",
+  "status": "in_progress"
 }
