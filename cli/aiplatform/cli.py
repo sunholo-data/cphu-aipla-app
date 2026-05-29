@@ -16,6 +16,7 @@ from aiplatform.commands.class_ import class_group
 from aiplatform.commands.docs import docs
 from aiplatform.commands.folder import folder
 from aiplatform.commands.groups import groups
+from aiplatform.commands.logs import logs
 from aiplatform.commands.sessions import sessions
 from aiplatform.commands.skill import skill
 from aiplatform.commands.smoke import smoke
@@ -41,6 +42,7 @@ main.add_command(bucket)
 main.add_command(docs)
 main.add_command(folder)
 main.add_command(groups)
+main.add_command(logs)
 main.add_command(access)
 main.add_command(skill)
 main.add_command(sessions)

@@ -107,12 +107,13 @@
         "cli/tests/test_cli_logs.py"
       ],
       "files_to_modify": [
-        "cli/aiplatform/__init__.py"
+        "cli/aiplatform/cli.py"
       ],
-      "passes": null,
-      "started": null,
-      "completed": null,
-      "notes": "Pattern: click.group() + AIPlatformClient from aiplatform.http (see commands/sessions.py)."
+      "passes": true,
+      "started": "2026-05-29T17:50:00Z",
+      "completed": "2026-05-29T18:05:00Z",
+      "actual_loc": 230,
+      "notes": "Registration is in cli/aiplatform/cli.py (not __init__.py). SCOPE ADJUSTMENT: implemented tail (via GET /api/reports/groups) + session (via GET /api/reports/sessions) + schema. Dropped the CLI-executed `query --skill --since` in favour of `schema` PRINTING the ready-to-run cohort BQ query + dataset reference — per ADR-005 researchers query BigQuery directly (saved query + Looker, not a custom UI/executor); a CLI query executor would need either an arbitrary-query backend endpoint (security surface) or a BQ dep in the CLI. tail/session reuse the existing report API (no new backend). 5 cli tests; full cli suite 69 pass; ruff clean."
     },
     {
       "id": "M5-gates-e2e",
@@ -145,6 +146,6 @@
   },
   "github_issues": [],
   "last_session": "2026-05-29",
-  "last_checkpoint": "M3-bq-read-path complete",
+  "last_checkpoint": "M4-cli-logs complete",
   "status": "in_progress"
 }
