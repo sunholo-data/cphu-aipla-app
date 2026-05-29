@@ -19,7 +19,7 @@ own versions, **not** related to the template's `v6.x.x` versions.
 | Version | Anchor date | Audience | Skill commitment |
 |---|---|---|---|
 | **v0.1.0-jutland** | 2026-05-27 (Wed) | JB + Aswin demo to ~2–3 Jutland stx teachers | Single physics-tutor skill, group-ID join, deployed dev URL |
-| **v1.0.0-pilot** | 2026-08-14 (Fri) | Danish teacher pilot — 10 teachers + K | 5 skills + curated sim library + teacher config + multimodal + BigQuery logs + per-class budgets enforced |
+| **v1.0.0-pilot** | 2026-08-14 (Fri) | Danish teacher pilot — 10 teachers + K | 5 skills + curated sim library + teacher config + multimodal + BigQuery logs + per-class budgets enforced + **teacher monitoring & analysis (session rubric)** |
 | **v2.0.0-handover** | 2026-09-15 (Mon) | Final handover — co-owners run AIPLA after contract | v1 + runbooks + eval automation + DPIA + scoping-note Strand C delivered |
 
 ## Phase 0 — Jutland demo (v0.1.0)
@@ -60,7 +60,7 @@ respects the **mid-point review (2026-06-26)** + **holiday freeze
 | # | Doc (planned) | Why | ADRs it implements | Est |
 |---|---|---|---|---|
 | **1.1** | `aipla-cloud-bootstrap.md` | Make the GCP provisioning of `aipla-{dev,test,prod}-2026` reproducible: terraform module, IAM cascade, Firebase Auth tenants, Vertex AI region pinning, Cloud Build triggers, secrets schema, BigQuery dataset for chat logs. Pulls the manual M0 work from v0.1 into a documented, repeatable form. | 006, 007 | 1.5d |
-| **1.2** | `chat-log-pipeline.md` | OTel → BigQuery sink for group-ID-keyed chat logs (full prompt + response, no PII per ADR-001). Consent-form-driven retention defaults. Researcher access pattern (a saved BQ query + a thin Looker board, not a custom UI). | 001, 005, 008 | 1.5d |
+| **1.2** | [v1.0.0-pilot/chat-log-pipeline.md](v1.0.0-pilot/chat-log-pipeline.md) | **P0 KEYSTONE for teacher monitoring + analysis (promoted 2026-05-28).** OTel → BigQuery sink for group-ID-keyed chat logs (full prompt + response, no PII per ADR-001). Consent-form-driven retention defaults. Researcher access pattern (a saved BQ query + a thin Looker board, not a custom UI). **Everything cohort-scale analytical depends on this: the 2.5 rubric reads these tables, the teacher report's durable source becomes them, and research aggregation runs off them. If it slips, teacher analytics cannot be live for the pilot — so this is now the critical-path item to protect, not a parallel surface.** | 001, 005, 008 | 1.5d |
 | **1.3** | `rag-pgvector-setup.md` | pgvector on Multivac Postgres for teacher-uploaded curriculum/problem-sets. Schema, chunking strategy, MCP server wrapping the retrieval, ACL by class/group. Excludes Strand C graph DB (deferred until C3 scoping recommends). | 010 | 2d |
 | **1.4** | `model-router-aipla-config.md` | Wire the four-tier router (cloud API · self-hosted server · server-local · on-device) to AIPLA-specific skill→model mappings. Capability-floor eval feeds the routing decisions. Initial mapping is conservative (`gemini-3.5-flash` via Vertex AI for everything in v0.1 → eval-derived per-skill mapping for v1; Sonnet 4.6 retained as cross-provider fallback per ADR-003). | 003, 008 | 1d |
 | **1.5** | `capability-floor-eval-runner.md` | Concrete eval set, task taxonomy (T1–T8), model panel, BigQuery results sink, scheduled CI run. The eval framework is in the scoping site — this doc is the runner. Built so AR can iterate the rubric without touching code. | (eval framework — strands.qmd) | 2d |
@@ -90,6 +90,7 @@ respects the **mid-point review (2026-06-26)** + **holiday freeze
 | **1.I** | [aipla/v1.0.0-pilot/jitt-dk-artefacts.md](v1.0.0-pilot/jitt-dk-artefacts.md) | **Curated sim library expansion.** 23 free Danish physics apps by a Jutland teacher (jitt.dk). If iframe-compatible, each onboards in ~1 day. Priority order: Pendul (pendulum, activity 4) → Kredsløb (circuit, complements LED Planck) → Videoanalyse (video motion analysis, Type 4 workbench) → GPS Fart (real-device experiment, Type 3) → Frekvensanalysator (waves). ADR-013 scan + postMessage adapter + tutor system prompt per app. Each ships with a DRA map (AR + JB). Sensor apps (GPS Fart) blocked on Type 3 investigation from 1.K | 013 | 1–2d per app |
 | **1.J** | [aipla/v1.0.0-pilot/expanded-workbench-types.md](v1.0.0-pilot/expanded-workbench-types.md) | **Workbench type system formalisation.** JB (2026-05-26): *"the workbench might include other stuff than apps."* Formalises 5 types: App (live), Drawing board (Excalidraw, Type 2, v1.1), Experiment tool (phone sensors, Type 3, v1.2), Video analysis (Type 4, v1.2 + privacy gate), Lab notebook (structured fields, Type 5, v1.1). Each type has a named postMessage contract, React wrapper component, and skill-config YAML field. Prerequisite: sensor sandbox investigation (0.5d) before any Type 3 work starts | — | 1d spec + 2–3d per new type |
 | **1.K** | [aipla/v1.0.0-pilot/dra-activity-framework.md](v1.0.0-pilot/dra-activity-framework.md) | **DRA (Disciplinary-Relevant Aspects) design standard.** Applies Linder et al. 2024 representational-competence framework (JB co-author) to all AIPLA activities. Every activity ships with a DRA map (AR writes physics content; JB reviews PER alignment) marking concept aspects as present vs appresent in the workbench. Drives: Socratic tutor question patterns, session-analytics-rubric vocabulary (2.5), capability-floor eval test cases (1.5). v1.1 adds `dra_map` YAML field to skill config + InstructionProvider injection for session DRA-coverage tracking | (eval framework — evaluation.qmd) | 0.5d standard + 1d YAML/injection |
+| **1.L** | [aipla/v1.0.0-pilot/mcp-app-reliability-gate.md](v1.0.0-pilot/mcp-app-reliability-gate.md) | **Automated multi-width fit gate for sim artefacts.** Turns the `mcp-app-artefact` skill's *manual* "fits 700px, no horizontal scroll" check into an automated Playwright gate (renders each artefact at 360/700/1024/1440px, fails on `scrollWidth>clientWidth`), folds in the ADR-013 size cap, and runs **both** locally (`make check-artefacts`) and as a deploy block in `aipla-mcp-sandbox-deploy`. Adds a fluid-by-default authoring contract to the skill + `_template` + scaffold and backfills the 3 existing sims. Prompted by the KineBot widescreen overflow (2026-05-29) that passed the manual 700px check. Makes Axiom 11's viewport gate enforced, not hoped-for. | 013 | 1.5d |
 
 ### 1.10–1.12 — Document handling + budget surfacing (target: pre-pilot, week 12)
 
@@ -112,13 +113,22 @@ Rows 2.3 and 2.4 are **roadmap signals**, not commitments — they capture
 the direction so v1 design choices don't paint us into a corner. Both
 have explicit decision criteria for "when would we actually build this."
 
+> **Row 2.5 was promoted to committed v1 on 2026-05-28** — teacher
+> monitoring + analysis was raised above its original scope. It is **no
+> longer Phase-2-conditional**; it stays listed in this table only
+> because its detailed framework analysis lives in the post-pilot doc.
+> Its only gates are **1.2** (the BigQuery sink) and the **JB/AR
+> framework pick** (rubric doc R1), which must be locked before the
+> 2026-06-29 holiday freeze. See the *Teacher monitoring + analysis
+> critical path* note under the dependency graph.
+
 | # | Doc (planned) | Strand / target | Status |
 |---|---|---|---|
 | 2.1 | `strand-b-student-as-creator.md` | B | Stub; depends on v1 working in the pilot |
 | 2.2 | `strand-c-scoping-note-plan.md` | C | The scoping note itself ships in the scoping site, not here. This doc is just the per-RQ investigation plan (model panel, AILANG benchmark probes, lit review). |
 | 2.3 | [aipla/post-pilot/teacher-artefact-parameters.md](post-pilot/teacher-artefact-parameters.md) | v1.1 — post-pilot iteration | **Roadmap signal, not committed.** Bounded parameter editing for first-party artefacts (Boldkast, LED Planck) — sliders/toggles/enums driven by a schema, no code. Decision after 2026-08-14 pilot feedback |
 | 2.4 | [aipla/post-pilot/teacher-artefact-authoring.md](post-pilot/teacher-artefact-authoring.md) | v2 / Year-2 — explicitly out of contract | **Roadmap signal, not committed.** Code-level artefact editing by teachers, AI-assisted via the `.claude/skills/mcp-app-artefact` skill, draft → review queue → publish. 6-10 weeks of focused engineering; tied to Year-2 research programme, not this contract |
-| 2.5 | [aipla/post-pilot/session-analytics-rubric.md](post-pilot/session-analytics-rubric.md) | v1.1 — post-pilot iteration; gated on 1.2 BigQuery sink | **Roadmap signal, framework choice owned by JB / AR.** Two-lens starter stack: (1) **PISA 2015 CPS rubric** (from CoLA / JB's video assessment work — assesses collaboration quality across 4×3 matrix of exploring/representing/planning/monitoring × establishing-understanding/taking-action/team-organisation) + (2) **DRA representational-competence framework** (Linder et al. 2024, JB co-author — assesses physics concept understanding via present/appresent DRA coverage per session). The DRA maps from [1.K](v1.0.0-pilot/dra-activity-framework.md) are the machine-readable input that makes DRA-gap analytics possible ("tutor hasn't yet asked a question activating the appresent DRA for h-derivation"). ICAP, FCI, NGSS 3D-LAP remain candidate lenses but CPS + DRA is the confirmed starter. ~8 eng-days + ~3-4 JB/AR pedagogical-decision days. Gated on pilot data volume + JB sign-off |
+| 2.5 | [aipla/post-pilot/session-analytics-rubric.md](post-pilot/session-analytics-rubric.md) | **Committed v1 — promoted 2026-05-28** (teacher monitoring + analysis raised above original scope; must be live *for* the pilot, not built on its aftermath). Gated on 1.2 + the JB/AR framework pick. | The analysis layer over the stored logs — turns "34 messages, 8 sim runs" into engagement + concept signal. **The framework pick is the open JB/AR decision (rubric doc R1) and must be locked before the 2026-06-29 holiday freeze.** Two candidate stacks are on the table, and the docs currently disagree — which is exactly what R1 resolves: **(a) ICAP + FCI** — cognitive-engagement modes (Chi & Wylie) + Newtonian-misconception tracking (FCI taxonomy); lightest eng lift; the *rubric doc's written recommendation*. **(b) CPS + DRA** — PISA CPS collaboration rubric (JB's CoLA video-assessment lineage) + DRA representational-competence (Linder et al. 2024, JB co-author), consuming the [1.K](v1.0.0-pilot/dra-activity-framework.md) DRA maps as machine-readable input. Until R1 lands, neither is "confirmed." ~8 eng-days + ~3-4 JB/AR ped-days. |
 
 ## Phase 3 — Handover (weeks 16–17)
 
@@ -173,6 +183,46 @@ v0.1.0-jutland (1d) ──► 0.2 boldkast-mcp-app (1.5d, buffer-week over-deliv
                                           └─────────────► 3.1 handover ◄────────┘
                                                             (final: 2026-09-15)
 ```
+
+## Teacher monitoring + analysis critical path (committed v1 — promoted 2026-05-28)
+
+Teacher monitoring + analysis was raised above its original scope: it must
+be **live for the pilot**, not built on the pilot's aftermath. That makes
+the following a committed v1 critical path, not a post-pilot signal:
+
+```
+1.1 cloud-bootstrap ──► creates chat_logs dataset + Log Router sink IAM
+        │
+        ▼
+1.2 chat-log-pipeline ──► OTel → BigQuery sink (KEYSTONE)
+        │                  durable, group-ID-keyed, no PII; teacher report's
+        │                  durable source; the table the rubric reads
+        ├───────────────► 2.5 session-analytics-rubric (the analysis layer)
+        │                     ▲   needs: JB/AR framework pick (R1) BEFORE the
+        │                     │          2026-06-29 holiday freeze
+        │                     └── 1.K dra-activity-framework (if the DRA lens
+        │                          is chosen — supplies machine-readable DRA maps)
+        │
+        └───────────────► teacher report (1.G) durable read + research aggregation
+
+1.A teacher-permission-model ✅ ──► 1.G-Ph3 analytics-chat skill (the lighter
+                                     "chat to the data" path; complements, does
+                                     not replace, the structured 2.5 rubric)
+```
+
+**The two human/long-pole dependencies** (not in engineering's control, so
+tee them up first):
+
+1. **JB/AR framework pick (R1)** — ICAP+FCI vs CPS+DRA. The docs currently
+   disagree; this decision resolves it. Needed before the holiday freeze so
+   the rubric can be built in the post-freeze window (2026-07-06 → 08-14).
+2. **Per-skill taxonomy + plain-language labels (R2, R7)** — JB/AR author the
+   misconception/DRA vocabulary per skill and the Danish/English label
+   translations. Stable once written; the cost is the initial pedagogical pass.
+
+If R1 cannot land before the freeze, the fallback that keeps *some* analysis
+live for the pilot is the **1.G-Ph3 analytics-chat skill** ("chat to the
+data" over the 1.2 tables), which needs no framework commitment.
 
 ## Estimating discipline
 

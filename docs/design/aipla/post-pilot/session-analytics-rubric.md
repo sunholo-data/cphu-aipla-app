@@ -1,7 +1,9 @@
 # Session analytics — pedagogical rubrics for AIPLA chat logs
 
-**Status:** Roadmap signal — **not committed to build**. Stub for JB / AR / M to evaluate which framework(s) to adopt before any implementation.
-**Target:** v1.1+ (post-pilot iteration); implementation gated on 1.2 chat-log-pipeline shipping the BigQuery sink first.
+**Status:** **Committed v1 — promoted 2026-05-28** (teacher monitoring + analysis raised above original scope; must be live *for* the pilot). The *framework pick* remains the open decision — see R1 below.
+**Target:** v1.0.0-pilot (live for the 2026-08-14 pilot). Gated on **1.2 [chat-log-pipeline](../v1.0.0-pilot/chat-log-pipeline.md)** shipping the BigQuery sink first, and on the JB/AR framework pick (R1) being locked **before the 2026-06-29 holiday freeze**.
+
+> **Framework reconciliation (2026-05-28):** the parent [SEQUENCE row 2.5](../SEQUENCE.md) previously named **CPS + DRA** as the "confirmed starter" while this doc's *Recommended initial build* (below) argues for **ICAP + FCI**. Neither is confirmed yet — that contradiction *is* the R1 decision. Two candidate stacks are on the table: **(a) ICAP + FCI** (this doc's eng-lightest recommendation) and **(b) CPS + DRA** (JB's CoLA video-assessment lineage + the [1.K](../v1.0.0-pilot/dra-activity-framework.md) DRA maps). The framework comparison below is the *input* to R1, not its resolution. JB/AR own the pick.
 **Audience:** Pedagogical leads (JB, AR) own the framework choice. Engineering owns the implementation once the framework is picked.
 **Scope question:** *"AIPLA already captures every chat turn + workbench event. What framework do we apply to those raw logs so the teacher dashboard shows something pedagogically meaningful — not just message counts?"*
 **Created:** 2026-05-25

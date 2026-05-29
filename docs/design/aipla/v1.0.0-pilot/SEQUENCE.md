@@ -27,6 +27,28 @@ for v1.
 | 1.H | [audio-capture-and-tts.md](audio-capture-and-tts.md) — *brief:* [`audio-capture.md`](file:///Users/mark/Documents/clients/cph-uni/strand-a-pedagogical-bot/prototypes/audio-capture.md) | P2 | 0.5d TTS + 2d audio | TTS none; audio capture gated on **JB sign-off (5 consent / privacy questions)** + 1.A for per-class opt-in | **Split implementation.** TTS (browser-native `speechSynthesis`) ships independently — zero privacy gate, ~0.5d. Audio capture (opt-in group recording for research) blocked on JB consent / institutional approval sign-off — five questions in the brief must be answered before any code merges. Audio embodies SECURE-BY-CONSTRUCTION by structurally refusing to ship without consent decisions |
 | 1.I | [proactive-tutor.md](proactive-tutor.md) | **P1** | Phase A ~0.5-1d; Phase B ~1.5-2d | Soft dep on [teacher-ui.md](teacher-ui.md) Phase 2 (`{teacher_focus}` injection) so the auto-greet reflects the teacher's intent | **UX gap from 2026-05-25 live student test — student joined the demo session, saw the static welcome banner, didn't know what to do, sat silent.** Two-phase fix: Phase A = auto-greet on join (tutor speaks first as a real agent turn); Phase B = idle-heartbeat check-ins (3-min default, workbench-aware, cooldown + cap; JB sign-off on copy + timing). Adds per-skill `proactive_greet` + `idle_heartbeat_seconds` fields. Without this, every pilot session needs a teacher physically present to verbally prompt the student |
 
+## Analytics critical path (committed v1 — promoted 2026-05-28)
+
+Teacher monitoring + analysis was raised above its original scope: it must
+be **live for the pilot**, not built on its aftermath. These rows are owned
+by the parent [../SEQUENCE.md](../SEQUENCE.md) (foundation + post-pilot
+phases) but are pulled into this detail layer because they are now committed
+v1 and need day-to-day sprint tracking alongside the teacher surface.
+
+| Order | Doc | Priority | Estimate | Dependencies | Notes |
+|---|---|---|---|---|---|
+| 1.1 | [aipla-cloud-bootstrap.md](aipla-cloud-bootstrap.md) | P1-infra | 1.5d | — | Creates the `chat_logs` BigQuery dataset + Log Router sink IAM that 1.2 needs. Doc exists; not built. Can be partially applied (`terraform apply -target`) to land just the dataset + sink ahead of the full module |
+| 1.2 | [chat-log-pipeline.md](chat-log-pipeline.md) | **P0 KEYSTONE** | 1.5d | 1.1 (dataset + sink IAM) | OTel → BigQuery sink. Durable group-ID-keyed turns + workbench events; BQ-backed `summarize_session`; exact `sim_run_count`. **Everything analytical depends on this.** Doc landed 2026-05-28 |
+| 1.K | [dra-activity-framework.md](dra-activity-framework.md) | P1 | 0.5d standard + 1d YAML/injection | — | Supplies machine-readable DRA maps. On the analytics path **only if** the DRA lens is chosen in R1. Doc exists; not built |
+| 2.5 | [session-analytics-rubric.md](../post-pilot/session-analytics-rubric.md) | **P0** | ~8 eng-d + 3-4 JB/AR ped-d | 1.2 + R1 framework pick (+ 1.K if DRA lens) | The analysis layer. Promoted from roadmap signal. **R1 (JB/AR framework pick: ICAP+FCI vs CPS+DRA) must lock before the 2026-06-29 freeze.** Build runs in the post-freeze window (2026-07-06 → 08-14) |
+
+**The long pole is human, not engineering.** R1 (framework pick) + R2/R7
+(per-skill taxonomy + Danish/English labels) need JB/AR time. Tee them up
+before the mid-point review (2026-06-26). If R1 can't land before the
+freeze, the [1.G-Ph3](teacher-ui-ph3-sprint.md) `analytics-chat` skill
+("chat to the data" over the 1.2 tables) is the fallback that keeps *some*
+analysis live for the pilot without a framework commitment.
+
 ## Timeline estimate
 
 | Phase | Date | Status |
@@ -61,6 +83,11 @@ for v1.
 - **Session persistence (1.F)** — same group code resumes the same session for 30 days, cross-device. **Deferred ~1 week** behind teacher UI demo.
 - **TTS + audio capture (1.H)** — TTS ships anytime (zero privacy gate); audio capture blocked on JB sign-off.
 
+**Teacher monitoring + analysis (1.1, 1.2, 2.5) — promoted to committed v1 on 2026-05-28:**
+- **Chat-log pipeline (1.2)** — durable, group-ID-keyed turns + workbench events in BigQuery; the teacher report's durable source; exact `sim_run_count`. The keystone everything analytical depends on.
+- **Session-analytics rubric (2.5)** — the pedagogical layer over those logs (engagement + concept signal, not just message counts). Gated on 1.2 + the JB/AR framework pick (R1). See *Analytics critical path* above.
+- **`analytics-chat` skill (1.G-Ph3)** — the lighter "chat to the data" path; the fallback if R1 slips.
+
 **Deferred behind the teacher UI compression:**
 
 - 1.C LED Planck (~1 week delay)
@@ -79,7 +106,7 @@ Specifically deferred from this version:
 - Multi-school / institutional admin (UCPH-level admin roles above teachers)
 - **Teacher control over artefact parameters** (roadmap signal — see [../post-pilot/teacher-artefact-parameters.md](../post-pilot/teacher-artefact-parameters.md)). v1 ships free-text teaching goal only. Parameter-level configurability is a v1.1 candidate, decision after pilot feedback. Surfaced as a wireframe "Parameters" tab on the activity-config screen so JB/AR can react to the affordance.
 - **Teacher artefact authoring (code-level editing)** (roadmap signal — see [../post-pilot/teacher-artefact-authoring.md](../post-pilot/teacher-artefact-authoring.md)). v2 / Year-2 explicit scope — outside the contract window. Surfaced as wireframe "Code" + "History" tabs on the activity-config screen so the v1 design doesn't paint us into a corner.
-- **Pedagogical rubrics over chat logs** (roadmap signal — see [../post-pilot/session-analytics-rubric.md](../post-pilot/session-analytics-rubric.md)). The Phase 2 report screen shows surface metrics (duration, messages, sim runs). It does **not** yet apply a pedagogical framework — ICAP for engagement quality, FCI taxonomy for misconception tracking, NGSS 3D-LAP for competency rubrics. Gated on 1.2 BigQuery sink + JB/AR framework pick. Recommended initial build: ICAP + FCI two-lens stack.
+- ~~**Pedagogical rubrics over chat logs**~~ — **PROMOTED to committed v1 on 2026-05-28** (no longer deferred). Teacher monitoring + analysis was raised above its original scope; the rubric layer (2.5) is now on the committed analytics critical path. See *Analytics critical path* above + [../post-pilot/session-analytics-rubric.md](../post-pilot/session-analytics-rubric.md). The framework pick (ICAP+FCI vs CPS+DRA) is the open JB/AR decision (R1), to lock before the 2026-06-29 freeze.
 
 ## Risks
 
@@ -111,10 +138,21 @@ Specifically deferred from this version:
 
 The queue is a recommended order, not a strict dependency chain. 1.F is independent of 1.G-Ph3 and could be reordered or parallelised.
 
+**Analytics critical path (committed v1 2026-05-28; not started):**
+
+| # | Item | Doc | State | Gate |
+|---|---|---|---|---|
+| 1.1 | cloud-bootstrap (BQ dataset + sink IAM) | [aipla-cloud-bootstrap.md](aipla-cloud-bootstrap.md) | doc ready, not built | — (can `-target` the dataset + sink early) |
+| 1.2 | chat-log-pipeline (BQ sink — **KEYSTONE**) | [chat-log-pipeline.md](chat-log-pipeline.md) | doc landed 2026-05-28, not built | 1.1 dataset + sink IAM |
+| 1.K | dra-activity-framework (DRA maps) | [dra-activity-framework.md](dra-activity-framework.md) | doc ready, not built | only if DRA lens chosen in R1 |
+| 2.5 | session-analytics-rubric (analysis layer) | [../post-pilot/session-analytics-rubric.md](../post-pilot/session-analytics-rubric.md) | doc ready (promoted), not built | 1.2 + R1 framework pick |
+
 **Blocked on JB/AR sign-off:**
 
 - 1.H-audio (consent + privacy questions)
 - 1.I-PhB idle heartbeat (copy + timing)
+- **R1 — analytics framework pick** (ICAP+FCI vs CPS+DRA) — gates all of 2.5; lock before the 2026-06-29 freeze
+- **R2 / R7 — per-skill taxonomy + Danish/English label translations** — needed before 2.5's concept-tracking lens ships
 
 ## Next
 
