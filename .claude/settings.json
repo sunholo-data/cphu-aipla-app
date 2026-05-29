@@ -19,7 +19,8 @@
       "Bash(bun --watch main.ts)",
       "WebFetch(domain:docs.copilotkit.ai)",
       "Bash(bash scripts/sanitize-for-template.sh /tmp/ai-protocol-platform)",
-      "Bash(gcloud secrets *)"
+      "Bash(gcloud secrets *)",
+      "Bash(git commit -q -m ' *)"
     ],
     "ask": [
       "Bash(git push*)",
