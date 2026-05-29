@@ -1,0 +1,146 @@
+{
+  "sprint_id": "CHAT-LOG-PIPELINE-1.2",
+  "created": "2026-05-29T16:35:06Z",
+  "estimated_duration_days": 1.3,
+  "design_doc": "docs/design/aipla/v1.0.0-pilot/chat-log-pipeline.md",
+  "sprint_plan": "docs/design/aipla/v1.0.0-pilot/chat-log-pipeline-sprint.md",
+  "features": [
+    {
+      "id": "M1-emitters",
+      "description": "Structured-log emitters emit_chat_turn() + emit_workbench_event() in a new observability/chat_log.py: Cloud Logging entries under log ids aipla_chat_turn / aipla_workbench_event, OTel-GenAI-aligned attribute names, never-raise (log+return on client error).",
+      "scope": "backend",
+      "estimated_loc": 210,
+      "actual_loc": null,
+      "dependencies": [],
+      "acceptance_criteria": [
+        "emit_chat_turn produces a jsonPayload with keys group_id, session_id, skill_id, turn_index, role, content, model, token_in, token_out, latency_ms, teacher_focus under log id aipla_chat_turn",
+        "emit_workbench_event produces a jsonPayload with keys group_id, session_id, skill_id, server, tool, field, value under log id aipla_workbench_event",
+        "Both helpers never raise when the Cloud Logging client errors (mock raises -> helper returns None, warning logged)",
+        "No-PII assertion: emitted payload contains no student name/email/uid key, only group_id",
+        "Unit tests cover payload shape, no-PII, and never-raise"
+      ],
+      "files_to_create": [
+        "backend/observability/chat_log.py",
+        "backend/tests/unit/test_chat_log_emit.py"
+      ],
+      "files_to_modify": [],
+      "passes": null,
+      "started": null,
+      "completed": null,
+      "notes": "google-cloud-logging>=3.12.0 already a dep; GOOGLE_CLOUD_LOGGING=1 in prod. Keep emit off the hot path (fire-and-forget)."
+    },
+    {
+      "id": "M2-wire-emit-sites",
+      "description": "Wire the emitters into the agent loop: chat turns from the after-agent callback (make_after_agent_response gains owner_uid + skill_id closures, or a sibling emit callback wired in adk/agent.py, mirroring make_session_tracker); workbench events from POST /api/sessions/{id}/iframe-context. Diff-by-turn cursor in session state so re-runs do not double-emit.",
+      "scope": "backend",
+      "estimated_loc": 140,
+      "actual_loc": null,
+      "dependencies": ["M1-emitters"],
+      "acceptance_criteria": [
+        "A user+assistant turn triggers exactly one emit_chat_turn per role per turn (no double-emit across the agent loop, verified via an emitted-turn cursor in session state)",
+        "An iframe-context write (POST /api/sessions/{id}/iframe-context) triggers one emit_workbench_event with the correct server/tool/field/value",
+        "owner_uid and skill_id are threaded into the chat-turn emit via closures (mirroring make_session_tracker), not read from session state",
+        "Emit failures never break the chat turn or the iframe-context request",
+        "Tests cover both emit sites and the no-double-emit cursor"
+      ],
+      "files_to_create": [],
+      "files_to_modify": [
+        "backend/adk/callbacks.py",
+        "backend/adk/agent.py",
+        "backend/protocols/iframe_context_routes.py",
+        "backend/tests/unit/test_chat_log_emit.py"
+      ],
+      "passes": null,
+      "started": null,
+      "completed": null,
+      "notes": "Workbench-state write site confirmed at iframe_context_routes.py (mcp_app_context.{server}.{tool}). after-agent hook is make_after_agent_response() — currently takes no args; mirror make_session_tracker(owner_uid, skill_id) closure wiring in adk/agent.py."
+    },
+    {
+      "id": "M3-bq-read-path",
+      "description": "BigQuery-backed reads behind the unchanged SessionSummary shape. Add google-cloud-bigquery dep; backend/db/bigquery.py thin parameterised region-pinned client; summarize_session_bq() (conversation from chat_turns, message_count, exact sim_run_count from workbench_events, duration); reports route reads BQ first and falls back to live summarize_session on both /sessions/{id} and /groups/{code}.",
+      "scope": "backend",
+      "estimated_loc": 310,
+      "actual_loc": null,
+      "dependencies": ["M1-emitters"],
+      "acceptance_criteria": [
+        "google-cloud-bigquery added to backend/pyproject.toml and uv.lock; make test-fast still resolves",
+        "summarize_session_bq returns a SessionSummary identical in shape to summarize_session (round-trip test with mocked BQ rows)",
+        "sim_run_count is an exact COUNT of workbench_events rows (not the mcp_app_context key heuristic)",
+        "reports route returns BQ data for ended sessions and falls back to session-state summarize_session when the BQ result is empty (in-flight / sink lag)",
+        "/api/reports/sessions/{id} and /api/reports/groups/{code} response shapes are unchanged; no 5xx on empty BQ",
+        "jsonPayload numeric fields are CAST to INT64 (matches the terraform views)"
+      ],
+      "files_to_create": [
+        "backend/db/bigquery.py",
+        "backend/tests/api_tests/test_chat_log_pipeline.py"
+      ],
+      "files_to_modify": [
+        "backend/pyproject.toml",
+        "backend/reports/session_summary.py",
+        "backend/protocols/reports_routes.py"
+      ],
+      "passes": null,
+      "started": null,
+      "completed": null,
+      "notes": "Dataset chat_logs in aipla-dev-2026 (europe-north1). reports_routes.py endpoints at lines ~37 (get_session_report) and ~49 (get_group_latest_report), both call summarize_session today."
+    },
+    {
+      "id": "M4-cli-logs",
+      "description": "aiplatform logs CLI group (tail <group_code>, query --skill --since, schema) over AIPlatformClient, modelled on cli/aiplatform/commands/sessions.py. Registered in the CLI command tree.",
+      "scope": "backend",
+      "estimated_loc": 170,
+      "actual_loc": null,
+      "dependencies": ["M3-bq-read-path"],
+      "acceptance_criteria": [
+        "aiplatform logs tail <group_code> prints recent chat turns for a group (--limit, --since flags)",
+        "aiplatform logs query --skill <id> --since <date> runs the cohort query and prints/CSV (--format json|csv)",
+        "aiplatform logs schema prints the chat_logs dataset location + table schemas (doubles as a smoke check)",
+        "logs group registered in the CLI command tree",
+        "CLI tests with a mocked client return expected rows/schema"
+      ],
+      "files_to_create": [
+        "cli/aiplatform/commands/logs.py",
+        "cli/tests/test_cli_logs.py"
+      ],
+      "files_to_modify": [
+        "cli/aiplatform/__init__.py"
+      ],
+      "passes": null,
+      "started": null,
+      "completed": null,
+      "notes": "Pattern: click.group() + AIPlatformClient from aiplatform.http (see commands/sessions.py)."
+    },
+    {
+      "id": "M5-gates-e2e",
+      "description": "Quality gates + manual end-to-end. cd backend && make lint && make test-fast green. Manual on deployed dev: run a session -> aiplatform logs tail <code> shows the turn within ~60s -> teacher report matches with exact sim-run count. Direct-to-dev commit.",
+      "scope": "backend",
+      "estimated_loc": 40,
+      "actual_loc": null,
+      "dependencies": ["M1-emitters", "M2-wire-emit-sites", "M3-bq-read-path", "M4-cli-logs"],
+      "acceptance_criteria": [
+        "cd backend && make lint passes (ruff check + format-check)",
+        "cd backend && make test-fast passes",
+        "Manual e2e: a real dev session produces an aipla_chat_turn BQ row within ~60s and the teacher report renders matching content + exact sim-run count",
+        "Changes committed direct-to-dev with a conventional-commit message"
+      ],
+      "files_to_create": [],
+      "files_to_modify": [],
+      "passes": null,
+      "started": null,
+      "completed": null,
+      "notes": "gcloud/bq at /Users/voightkampff/dev/google-cloud-sdk/bin (not on PATH; export first). Default gcloud project is aitana-multivac-dev — pass --project=aipla-dev-2026."
+    }
+  ],
+  "velocity": {
+    "target_loc_per_day": 650,
+    "actual_loc_per_day": null,
+    "estimated_total_loc": 870,
+    "actual_total_loc": null,
+    "estimated_days": 1.3,
+    "actual_days": null
+  },
+  "github_issues": [],
+  "last_session": null,
+  "last_checkpoint": null,
+  "status": "not_started"
+}
