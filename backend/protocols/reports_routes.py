@@ -21,7 +21,7 @@ from auth import User, get_current_user
 from reports.session_summary import (
     SessionSummary,
     find_latest_session_for_group,
-    summarize_session,
+    resolve_session_summary,
 )
 
 log = logging.getLogger(__name__)
@@ -39,7 +39,7 @@ async def get_session_report(
     _user: User = Depends(get_current_user),  # noqa: B008
 ) -> dict:
     """Return the session summary for ``session_id``. 404 if missing."""
-    summary = await summarize_session(session_id)
+    summary = await resolve_session_summary(session_id)
     if summary is None:
         raise HTTPException(status_code=404, detail="session not found")
     return _serialize(summary)
@@ -59,7 +59,7 @@ async def get_group_latest_report(
     idx = find_latest_session_for_group(group_code)
     if idx is None:
         raise HTTPException(status_code=404, detail="no sessions for this group yet")
-    summary = await summarize_session(idx.session_id)
+    summary = await resolve_session_summary(idx.session_id)
     if summary is None:
         # Race: index existed, ADK session gone. Same UX as "no sessions".
         raise HTTPException(status_code=404, detail="no sessions for this group yet")

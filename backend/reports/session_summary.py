@@ -140,6 +140,90 @@ async def summarize_session(session_id: str) -> SessionSummary | None:
     )
 
 
+async def summarize_session_bq(session_id: str) -> SessionSummary | None:
+    """BigQuery-backed ``summarize_session`` (post-1.2 durable source).
+
+    Reads the raw sink tables (``aipla_chat_turn`` / ``aipla_workbench_event``)
+    via ``jsonPayload`` — robust whether or not the flattened views exist.
+    Returns ``None`` when there are no BQ rows for the session (in-flight
+    session, sink ingestion lag) OR on any BQ error (missing table, no creds),
+    which is the signal for the caller to fall back to ``summarize_session``.
+
+    Preserves the exact ``SessionSummary`` shape so the reports route is
+    source-agnostic. ``sim_run_count`` is an exact COUNT of workbench events
+    (replacing the old ``mcp_app_context.*`` key heuristic).
+    """
+    from db.bigquery import CHAT_TURN_TABLE, WORKBENCH_EVENT_TABLE, run_query, table_ref
+
+    try:
+        turn_rows = run_query(
+            "SELECT timestamp AS ts, jsonPayload.group_id AS group_id, "
+            "jsonPayload.skill_id AS skill_id, jsonPayload.role AS role, "
+            "jsonPayload.content AS content, CAST(jsonPayload.turn_index AS INT64) AS turn_index "
+            f"FROM {table_ref(CHAT_TURN_TABLE)} "
+            "WHERE jsonPayload.session_id = @session_id "
+            "ORDER BY turn_index",
+            params={"session_id": session_id},
+        )
+    except Exception as exc:
+        log.warning("summarize_session_bq: chat-turn query failed (%s) — caller will fall back", exc)
+        return None
+
+    if not turn_rows:
+        return None
+
+    conversation: list[SessionTurn] = []
+    for row in turn_rows:
+        role: Literal["student", "tutor"] = "student" if row["role"] == "student" else "tutor"
+        conversation.append(
+            SessionTurn(
+                timestamp=row["ts"].isoformat(),
+                role=role,
+                content=row["content"] or "",
+            )
+        )
+
+    try:
+        wb_rows = run_query(
+            f"SELECT COUNT(*) AS n FROM {table_ref(WORKBENCH_EVENT_TABLE)} WHERE jsonPayload.session_id = @session_id",
+            params={"session_id": session_id},
+        )
+        sim_runs = int(wb_rows[0]["n"]) if wb_rows else 0
+    except Exception as exc:
+        log.warning("summarize_session_bq: workbench query failed (%s) — sim_runs=0", exc)
+        sim_runs = 0
+
+    timestamps = [row["ts"] for row in turn_rows if row["ts"] is not None]
+    started = min(timestamps)
+    ended = max(timestamps)
+    duration = max(0, int((ended - started).total_seconds()))
+
+    return SessionSummary(
+        sessionId=session_id,
+        groupCode=turn_rows[0]["group_id"],
+        activityId=turn_rows[0]["skill_id"],
+        startedAt=started,
+        endedAt=ended,
+        durationSeconds=duration,
+        messageCount=len(conversation),
+        simRunCount=sim_runs,
+        conversation=conversation,
+    )
+
+
+async def resolve_session_summary(session_id: str) -> SessionSummary | None:
+    """Return a session summary, BigQuery-first with a session-state fallback.
+
+    Durable BQ data (chat-log pipeline) is preferred for ended sessions;
+    when it's absent (in-flight session or sink lag) we fall back to reading
+    the live ADK session state. Either way the response shape is identical.
+    """
+    summary = await summarize_session_bq(session_id)
+    if summary is not None:
+        return summary
+    return await summarize_session(session_id)
+
+
 def find_latest_session_for_group(group_code: str) -> ChatSessionIndex | None:
     """Return the most-recently-active session for an anonymous group.
 
@@ -174,5 +258,7 @@ __all__ = [
     "SessionSummary",
     "SessionTurn",
     "find_latest_session_for_group",
+    "resolve_session_summary",
     "summarize_session",
+    "summarize_session_bq",
 ]

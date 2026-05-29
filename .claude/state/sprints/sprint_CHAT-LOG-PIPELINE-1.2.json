@@ -78,13 +78,15 @@
       ],
       "files_to_modify": [
         "backend/pyproject.toml",
+        "backend/uv.lock",
         "backend/reports/session_summary.py",
         "backend/protocols/reports_routes.py"
       ],
-      "passes": null,
-      "started": null,
-      "completed": null,
-      "notes": "Dataset chat_logs in aipla-dev-2026 (europe-north1). reports_routes.py endpoints at lines ~37 (get_session_report) and ~49 (get_group_latest_report), both call summarize_session today."
+      "passes": true,
+      "started": "2026-05-29T17:25:00Z",
+      "completed": "2026-05-29T17:45:00Z",
+      "actual_loc": 270,
+      "notes": "Reads the RAW sink tables (aipla_chat_turn / aipla_workbench_event) via jsonPayload + CAST, NOT the flattened views (dev's gcloud path creates no views; views are terraform-optional). summarize_session_bq returns None on no-rows OR any BQ error -> resolve_session_summary falls back to session-state summarize_session. Both reports endpoints now call resolve_session_summary. sim_run_count is an exact COUNT. db/bigquery.run_query is region-pinned + sync (called inside async; teacher reports are low-freq). 6 new tests + reports route regression green; full 1526 pass; lint clean."
     },
     {
       "id": "M4-cli-logs",
@@ -143,6 +145,6 @@
   },
   "github_issues": [],
   "last_session": "2026-05-29",
-  "last_checkpoint": "M2-wire-emit-sites complete",
+  "last_checkpoint": "M3-bq-read-path complete",
   "status": "in_progress"
 }

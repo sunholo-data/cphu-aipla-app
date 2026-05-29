@@ -49,6 +49,7 @@ dependencies = [
     "a2ui-agent-sdk>=0.2.1",
     "a2a-sdk<1.0.0",
     "python-telegram-bot>=22.7",
+    "google-cloud-bigquery>=3.25,<4",
 ]
 
 [dependency-groups]
