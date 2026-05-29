@@ -96,7 +96,7 @@ async def test_summarize_session_builds_a_full_report():
     idx = ChatSessionIndex(
         sessionId="sess-1",
         skillId="boldkast",
-        ownerUid="anon-bold-kazoo-87-abc",
+        ownerUid="anon-boldkazoo87-abc",
         accessControl=AccessControl(type="public"),
         firstMessageAt=now,
         lastMessageAt=later,
@@ -122,7 +122,9 @@ async def test_summarize_session_builds_a_full_report():
 
     assert isinstance(summary, SessionSummary)
     assert summary.session_id == "sess-1"
-    assert summary.group_code == "bold-kazoo-87"
+    # Realistic uid is hyphen-stripped (_synthesize_uid), so the session-state
+    # path derives the cleaned code. The BigQuery path stores the real code.
+    assert summary.group_code == "boldkazoo87"
     assert summary.activity_id == "boldkast"
     assert summary.message_count == 2  # the None-content event was skipped
     assert summary.duration_seconds == 22 * 60  # 22 minutes
@@ -156,20 +158,22 @@ def test_find_latest_session_for_group_returns_none_when_empty():
 def test_find_latest_session_for_group_picks_most_recent():
     early = datetime(2026, 5, 25, 12, 0, 0, tzinfo=UTC)
     late = datetime(2026, 5, 25, 14, 0, 0, tzinfo=UTC)
+    # Realistic uids are hyphen-stripped (_synthesize_uid), and the lookup
+    # cleans the queried code to match.
     _persist_index(
         session_id="early",
-        owner_uid="anon-bold-kazoo-87-aaa",
+        owner_uid="anon-boldkazoo87-aaa",
         last_at=early,
     )
     _persist_index(
         session_id="late",
-        owner_uid="anon-bold-kazoo-87-bbb",
+        owner_uid="anon-boldkazoo87-bbb",
         last_at=late,
     )
     # And one for a different group — should be ignored.
     _persist_index(
         session_id="other",
-        owner_uid="anon-other-group-99-ccc",
+        owner_uid="anon-othergroup99-ccc",
         last_at=late,
     )
 

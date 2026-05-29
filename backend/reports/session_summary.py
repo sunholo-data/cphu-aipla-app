@@ -227,12 +227,16 @@ async def resolve_session_summary(session_id: str) -> SessionSummary | None:
 def find_latest_session_for_group(group_code: str) -> ChatSessionIndex | None:
     """Return the most-recently-active session for an anonymous group.
 
-    ``ownerUid`` follows the ``anon-{group_code}-{random_hex}`` shape;
-    Firestore supports prefix matching with the ``[>=, <]`` range
-    pattern. We then sort in Python by ``lastMessageAt`` so the query
-    doesn't need a composite index.
+    ``ownerUid`` follows the ``anon-{cleaned}-{random_hex}`` shape, where
+    ``cleaned`` is the group code with hyphens stripped
+    (``_synthesize_uid`` does ``group_id.replace("-", "")``). We must clean
+    the incoming code the same way or the prefix never matches a hyphenated
+    code like ``aipla-demo-1`` (whose uid is ``anon-aiplademo1-…``).
+    Firestore supports prefix matching with the ``[>=, <]`` range pattern;
+    we sort in Python by ``lastMessageAt`` so the query needs no composite index.
     """
-    lo = f"anon-{group_code}-"
+    cleaned = group_code.replace("-", "")
+    lo = f"anon-{cleaned}-"
     hi = lo + "￿"  # high-codepoint sentinel
     rows = query_documents(
         "chat_sessions",

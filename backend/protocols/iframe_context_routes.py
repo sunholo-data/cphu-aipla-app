@@ -288,8 +288,10 @@ async def post_iframe_context(
     # sim_run_count with an exact per-event row.
     from observability.chat_log import emit_workbench_event, group_code_from_owner_uid
 
-    group_id = group_code_from_owner_uid(idx.owner_uid)
-    if group_id is not None:
+    # Prefer the real display code from the JWT (user.group_id) — the synthetic
+    # uid strips hyphens, so deriving from owner_uid would key by the wrong code.
+    group_id = user.group_id or group_code_from_owner_uid(idx.owner_uid)
+    if group_id:
         sc = body.structured_content or {}
         field = (sc.get("changed") if isinstance(sc, dict) else None) or body.tool_name
         value = sc.get("value") if (isinstance(sc, dict) and "value" in sc) else (sc or body.content)

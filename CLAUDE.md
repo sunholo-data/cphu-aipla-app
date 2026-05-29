@@ -316,6 +316,7 @@ Any local workflow that requires more than one manual step — setting env vars,
 |------|---------|
 | Start local dev servers | `make dev` |
 | Smoke-test proxy bridge | `make proxy-check` |
+| Verify chat-log pipeline e2e (join → turn → BigQuery) | `make verify-chat-logs GROUP=<code> ENV=<env>` |
 | Backend tests (fast) | `cd backend && make test-fast` |
 | Frontend quality check (inner dev loop, no tests) | `cd frontend && npm run quality:check:fast` |
 | **Frontend pre-push CI parity (tests + build)** | `cd frontend && npm run quality:check` |

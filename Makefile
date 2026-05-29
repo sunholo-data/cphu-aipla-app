@@ -1,4 +1,4 @@
-.PHONY: dev dev-local dev-recompile dev-status dev-stop proxy-check logs cloud-logs cloud-errors cloud-build help cli-install cli-reinstall cli-uninstall cli-doctor cli-selftest-mock cli-selftest-live cli-selftest
+.PHONY: dev dev-local dev-recompile dev-status dev-stop proxy-check logs cloud-logs cloud-errors cloud-build verify-chat-logs help cli-install cli-reinstall cli-uninstall cli-doctor cli-selftest-mock cli-selftest-live cli-selftest
 
 # Launch backend (port 1956) + frontend (port 3000) for local development.
 # Logs stream to stdout; Ctrl-C stops both.
@@ -62,6 +62,16 @@ cloud-errors:
 cloud-build:
 	@chmod +x scripts/cloud-logs.sh
 	@scripts/cloud-logs.sh build
+
+# End-to-end smoke for the chat-log pipeline (SEQUENCE 1.2): join a group,
+# drive a real turn, and confirm it reached BigQuery via the report's
+# BQ-only mode (?source=bq). Needs no credentials — the group JWT carries
+# the whole flow. Override GROUP / ENV:
+#   make verify-chat-logs GROUP=aipla-demo-1 ENV=dev
+ENV ?= dev
+GROUP ?= aipla-demo-1
+verify-chat-logs:
+	@uv run --directory cli aiplatform --env $(ENV) logs verify $(GROUP)
 
 # --- CLI lifecycle ---
 
@@ -136,6 +146,7 @@ help:
 	@echo "  scripts/cloud-logs.sh trace <id>               — open Cloud Trace UI"
 	@echo "  scripts/cloud-logs.sh save errors|all          — dump to .dev-logs/"
 	@echo "make proxy-check        — smoke-test the proxy bridge (CI helper)"
+	@echo "make verify-chat-logs   — e2e smoke: join a group, drive a turn, confirm it reached BigQuery (GROUP=… ENV=…)"
 	@echo
 	@echo "make cli-install        — install the aiplatform CLI as a global uv tool"
 	@echo "make cli-reinstall      — clean reinstall (uninstalls historical aitana names first)"

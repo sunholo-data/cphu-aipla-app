@@ -487,18 +487,26 @@ _STATE_TURN_COUNT = "app:chat_session_turn_count"
 _STATE_CHATLOG_CURSOR = "app:chatlog_emit_cursor"
 
 
-def _emit_new_turns(session: Any, session_id: str, owner_uid: str, skill_id: str, state: Any) -> None:
+def _emit_new_turns(
+    session: Any, session_id: str, owner_uid: str, skill_id: str, state: Any, group_id: str | None = None
+) -> None:
     """Emit chat-turn log entries for events not yet logged (SEQUENCE 1.2).
 
-    Idempotent via ``_STATE_CHATLOG_CURSOR``. Skips non-student (non-anon)
-    owners so no teacher identity is logged. Never raises — telemetry must
-    not break the turn.
+    ``group_id`` is the real display group code (``user.group_id`` from the
+    anonymous-group JWT, e.g. ``aipla-demo-1``). We prefer it because the
+    synthetic uid strips hyphens (``_synthesize_uid`` → ``anon-aiplademo1-…``),
+    so deriving from ``owner_uid`` would key BQ by the wrong, hyphen-stripped
+    code. Falls back to the derived code only when no real code is available.
+
+    Idempotent via ``_STATE_CHATLOG_CURSOR``. Skips non-student (no group code)
+    owners so no teacher identity is logged. Never raises — telemetry must not
+    break the turn.
     """
     try:
         from observability.chat_log import emit_chat_turn, group_code_from_owner_uid
 
-        group_id = group_code_from_owner_uid(owner_uid)
-        if group_id is None:
+        group_code = group_id or group_code_from_owner_uid(owner_uid)
+        if not group_code:
             return  # teacher / workshop session — not student research data
 
         events = list(getattr(session, "events", None) or [])
@@ -527,7 +535,7 @@ def _emit_new_turns(session: Any, session_id: str, owner_uid: str, skill_id: str
                 pass
 
             emit_chat_turn(
-                group_id=group_id,
+                group_id=group_code,
                 session_id=session_id,
                 skill_id=skill_id,
                 turn_index=idx,
@@ -666,7 +674,9 @@ def _flush_session_index(session_id: str, turn_count: int, title: str | None) ->
         logger.warning("failed to update session index for %s: %s", session_id, exc)
 
 
-def make_after_agent_response(owner_uid: str | None = None, skill_id: str | None = None) -> Any:
+def make_after_agent_response(
+    owner_uid: str | None = None, skill_id: str | None = None, group_id: str | None = None
+) -> Any:
     """Return an ``after_agent_callback`` that maintains the ChatSessionIndex.
 
     After each turn:
@@ -694,7 +704,7 @@ def make_after_agent_response(owner_uid: str | None = None, skill_id: str | None
         # Chat-log emit (1.2) — runs before the index gate so telemetry
         # doesn't depend on the Firestore index having initialised.
         if owner_uid and skill_id and session_id and session is not None:
-            _emit_new_turns(session, session_id, owner_uid, skill_id, state)
+            _emit_new_turns(session, session_id, owner_uid, skill_id, state, group_id)
 
         if not state.get(_STATE_INITIALIZED):
             return

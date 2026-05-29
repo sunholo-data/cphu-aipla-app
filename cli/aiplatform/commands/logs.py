@@ -18,10 +18,12 @@ Endpoints used:
 from __future__ import annotations
 
 import json as _json
+import time
 
 import click
+import httpx
 
-from aiplatform.http import AIPlatformClient, APIError
+from aiplatform.http import AIPlatformClient, APIError, resolve_base_url
 
 CHAT_LOGS_DATASET = "chat_logs"
 CHAT_TURN_TABLE = "aipla_chat_turn"
@@ -119,3 +121,73 @@ def schema(project: str) -> None:
     )
     click.echo("workbench_event jsonPayload keys: group_id, session_id, skill_id, server, tool, field, value")
     click.echo("\n" + _COHORT_QUERY.format(project=project, dataset=CHAT_LOGS_DATASET, turn_table=CHAT_TURN_TABLE))
+
+
+@logs.command("verify")
+@click.argument("group_code")
+@click.option("--skill", default="problem-set-hints", show_default=True, help="Skill to drive the turn through.")
+@click.option(
+    "--message",
+    default="Why does a projectile travel furthest at 45 degrees?",
+    show_default=True,
+    help="Message to send as the student turn.",
+)
+@click.option("--timeout", type=int, default=90, show_default=True, help="Seconds to wait for the BigQuery row.")
+@click.pass_context
+def verify(ctx: click.Context, group_code: str, skill: str, message: str, timeout: int) -> None:
+    """End-to-end smoke: join GROUP_CODE, drive a turn, confirm it reached BigQuery.
+
+    Proves the chat-log pipeline (emit -> Cloud Logging sink -> BigQuery) by
+    polling the report's BQ-only mode (``?source=bq``), which does NOT fall back
+    to live session state. Exit 0 = PASS, exit 1 = FAIL.
+    """
+    env = ctx.obj["env"]
+    base = resolve_base_url(env)
+
+    # 1. Join the group (anonymous; no auth needed).
+    click.echo(f"[1/3] joining group {group_code!r} on {env} ...")
+    jr = httpx.post(f"{base}/api/auth/group/join", json={"group_id": group_code}, timeout=30.0)
+    if jr.status_code != 200:
+        raise click.ClickException(f"join failed ({jr.status_code}): {jr.text[:300]}")
+    token = jr.json()["token"]
+
+    # 2. Drive a real turn (SSE; drain to completion so the after-agent emit fires).
+    session_id = f"verify-{int(time.time())}"
+    click.echo(f"[2/3] sending a turn to skill {skill!r} (session {session_id}) ...")
+    with httpx.stream(
+        "POST",
+        f"{base}/api/skill/{skill}/stream",
+        headers={"Authorization": f"Bearer {token}"},
+        json={"message": message, "sessionId": session_id},
+        timeout=60.0,
+    ) as resp:
+        if resp.status_code != 200:
+            body = resp.read().decode("utf-8", "replace")
+            raise click.ClickException(f"stream failed ({resp.status_code}): {body[:300]}")
+        for _ in resp.iter_lines():
+            pass  # drain until the turn completes server-side
+
+    # 3. Poll the BQ-only report until the row lands (accounts for sink ingestion lag).
+    client = AIPlatformClient(env=env, token=token)
+    click.echo(f"[3/3] polling BigQuery (?source=bq) up to {timeout}s ...")
+    deadline = time.time() + timeout
+    while time.time() < deadline:
+        try:
+            summary = client.get(f"/api/reports/sessions/{session_id}", params={"source": "bq"})
+        except APIError as exc:
+            if "returned 404" in str(exc):
+                time.sleep(5)
+                continue
+            raise
+        click.echo(
+            f"PASS — pipeline verified. group={summary.get('groupCode')} "
+            f"messages={summary.get('messageCount')} sim_runs={summary.get('simRunCount')}"
+        )
+        for turn in (summary.get("conversation") or [])[:4]:
+            click.echo(f"  [{turn.get('role')}] {turn.get('content', '')[:80]}")
+        return
+
+    raise click.ClickException(
+        f"FAIL — no BigQuery row for session {session_id} after {timeout}s. "
+        "Check the deploy + sink (gcloud logging sinks describe aipla-chat-logs --project=aipla-dev-2026)."
+    )

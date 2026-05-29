@@ -134,7 +134,7 @@
       "started": "2026-05-29T18:05:00Z",
       "completed": null,
       "actual_loc": 0,
-      "notes": "Gates GREEN: backend make lint clean + make test-fast 1526 passed; full cli suite 69 passed. Code committed direct-to-dev (M1 2db9ea6, M2 4b1ed9b, M3 05cde20, M4 b798f6c). REMAINING: the manual on-deployed-dev e2e is DEPLOY-GATED — the emitter must run on Cloud Run (triggered by the push to dev), then a real anon session must produce an aipla_chat_turn row + matching teacher report. NOT verified yet; do NOT move the design doc to implemented/ until it is. gcloud/bq at /Users/voightkampff/dev/google-cloud-sdk/bin; pass --project=aipla-dev-2026."
+      "notes": "Gates GREEN: backend make lint clean + make test-fast 1526 passed; full cli suite 69 passed. Code committed direct-to-dev (M1 2db9ea6, M2 4b1ed9b, M3 05cde20, M4 b798f6c). Deploy to dev completed (build 68edf990 SUCCESS). E2E BLOCKED ON A BUG verification surfaced: _synthesize_uid strips hyphens (group 'aipla-demo-1' -> uid 'anon-aiplademo1-<hex>'), so group_code_from_owner_uid emits the cleaned 'aiplademo1' and the pre-existing find_latest_session_for_group('aipla-demo-1') never matches. Fix designed in chat-log-pipeline-verification.md: emit user.group_id (real code, available at firebase_auth.py:71); clean the code in find_latest_session_for_group. Also specs `aiplatform logs verify` (one-command e2e) — the CLI currently covers the read side only (no join+send-turn). M5 e2e completes via that command after the fix. Do NOT move 1.2 to implemented/ until verify is green."
     }
   ],
   "velocity": {
@@ -147,6 +147,6 @@
   },
   "github_issues": [],
   "last_session": "2026-05-29",
-  "last_checkpoint": "M1-M4 code complete + gates green; manual e2e pending dev deploy",
+  "last_checkpoint": "M1-M4 + verification follow-up (group-code fix, ?source=bq, `aiplatform logs verify`, make verify-chat-logs) done + all tests green; live e2e via `make verify-chat-logs` after the deploy lands",
   "status": "code_complete_pending_e2e"
 }

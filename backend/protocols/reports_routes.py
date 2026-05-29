@@ -15,13 +15,14 @@ from __future__ import annotations
 
 import logging
 
-from fastapi import APIRouter, Depends, HTTPException, Path
+from fastapi import APIRouter, Depends, HTTPException, Path, Query
 
 from auth import User, get_current_user
 from reports.session_summary import (
     SessionSummary,
     find_latest_session_for_group,
     resolve_session_summary,
+    summarize_session_bq,
 )
 
 log = logging.getLogger(__name__)
@@ -36,10 +37,21 @@ def _serialize(summary: SessionSummary) -> dict:
 @router.get("/sessions/{session_id}")
 async def get_session_report(
     session_id: str = Path(...),
+    source: str = Query("auto", pattern="^(auto|bq)$"),
     _user: User = Depends(get_current_user),  # noqa: B008
 ) -> dict:
-    """Return the session summary for ``session_id``. 404 if missing."""
-    summary = await resolve_session_summary(session_id)
+    """Return the session summary for ``session_id``. 404 if missing.
+
+    ``source=auto`` (default) is BigQuery-first with a session-state fallback.
+    ``source=bq`` reads BigQuery ONLY (no fallback) — used by
+    ``aiplatform logs verify`` to prove the chat-log pipeline reached BigQuery
+    rather than being masked by the live-session fallback. 404 until the row
+    has been ingested by the sink.
+    """
+    if source == "bq":
+        summary = await summarize_session_bq(session_id)
+    else:
+        summary = await resolve_session_summary(session_id)
     if summary is None:
         raise HTTPException(status_code=404, detail="session not found")
     return _serialize(summary)

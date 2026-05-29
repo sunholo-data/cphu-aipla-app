@@ -242,3 +242,26 @@ def test_after_agent_skips_state_delta_only_events():
         make_after_agent_response("anon-grp-1-xx", "boldkast")(ctx)
     assert mock_emit.call_count == 1  # only the text event emitted
     assert state[_STATE_CHATLOG_CURSOR] == 2  # cursor still advances past both
+
+
+def test_after_agent_prefers_real_group_id():
+    from adk.callbacks import make_after_agent_response
+
+    # owner_uid is the hyphen-stripped synthetic uid; the real display code
+    # (user.group_id) is passed and MUST win so BQ keys by 'aipla-demo-1'.
+    ctx = _FakeCtx(_FakeSession([_FakeEvent("user", "hi")]), {})
+    mock_emit = MagicMock()
+    with patch.object(chat_log, "emit_chat_turn", mock_emit):
+        make_after_agent_response("anon-aiplademo1-abc", "boldkast", "aipla-demo-1")(ctx)
+    assert mock_emit.call_args.kwargs["group_id"] == "aipla-demo-1"
+
+
+def test_after_agent_falls_back_to_derived_group_when_no_real():
+    from adk.callbacks import make_after_agent_response
+
+    ctx = _FakeCtx(_FakeSession([_FakeEvent("user", "hi")]), {})
+    mock_emit = MagicMock()
+    with patch.object(chat_log, "emit_chat_turn", mock_emit):
+        make_after_agent_response("anon-aiplademo1-abc", "boldkast")(ctx)  # no real group_id
+    # Derived (cleaned) form — still emits, just hyphen-stripped.
+    assert mock_emit.call_args.kwargs["group_id"] == "aiplademo1"

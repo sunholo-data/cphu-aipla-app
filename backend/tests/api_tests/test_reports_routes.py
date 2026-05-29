@@ -79,7 +79,7 @@ def test_session_report_404_when_missing(client):
 def test_session_report_returns_summary(client):
     _seed_session(
         session_id="s1",
-        owner_uid="anon-bold-kazoo-87-aaa",
+        owner_uid="anon-boldkazoo87-aaa",
         last_at=datetime(2026, 5, 25, 14, 0, 0, tzinfo=UTC),
     )
     service = MagicMock()
@@ -91,7 +91,10 @@ def test_session_report_returns_summary(client):
     assert resp.status_code == 200, resp.text
     data = resp.json()
     assert data["sessionId"] == "s1"
-    assert data["groupCode"] == "bold-kazoo-87"
+    # Session-state fallback derives the code from the hyphen-stripped uid, so
+    # it returns the cleaned form. Only the BigQuery path (which stores the real
+    # user.group_id) round-trips the display code "bold-kazoo-87".
+    assert data["groupCode"] == "boldkazoo87"
     assert data["activityId"] == "boldkast"
 
 
@@ -103,12 +106,12 @@ def test_group_report_404_when_no_sessions(client):
 def test_group_report_returns_latest(client):
     _seed_session(
         session_id="early",
-        owner_uid="anon-bold-kazoo-87-aaa",
+        owner_uid="anon-boldkazoo87-aaa",
         last_at=datetime(2026, 5, 25, 12, 0, 0, tzinfo=UTC),
     )
     _seed_session(
         session_id="late",
-        owner_uid="anon-bold-kazoo-87-bbb",
+        owner_uid="anon-boldkazoo87-bbb",
         last_at=datetime(2026, 5, 25, 14, 0, 0, tzinfo=UTC),
     )
     service = MagicMock()

@@ -70,3 +70,30 @@ def test_logs_schema_prints_reference_and_query() -> None:
     assert "aipla_chat_turn" in result.output
     assert "aipla_workbench_event" in result.output
     assert "jsonPayload.skill_id = @skill_id" in result.output
+
+
+@respx.mock
+def test_logs_verify_pass() -> None:
+    respx.post(f"{BASE}/api/auth/group/join").mock(
+        return_value=httpx.Response(200, json={"token": "grp-jwt", "uid": "anon-bold-1"})
+    )
+    respx.post(url__regex=rf"{BASE}/api/skill/.*/stream").mock(return_value=httpx.Response(200, text="data: {}\n\n"))
+    respx.get(url__regex=rf"{BASE}/api/reports/sessions/verify-.*").mock(
+        return_value=httpx.Response(200, json=_SUMMARY)
+    )
+    result = CliRunner().invoke(main, ["--env", "local", "logs", "verify", "bold-kazoo-87"])
+    assert result.exit_code == 0, result.output
+    assert "PASS" in result.output
+    assert "messages=2" in result.output
+
+
+@respx.mock
+def test_logs_verify_fail_on_timeout() -> None:
+    respx.post(f"{BASE}/api/auth/group/join").mock(
+        return_value=httpx.Response(200, json={"token": "grp-jwt", "uid": "anon-bold-1"})
+    )
+    respx.post(url__regex=rf"{BASE}/api/skill/.*/stream").mock(return_value=httpx.Response(200, text="data: {}\n\n"))
+    # --timeout 0 → skip polling entirely → immediate FAIL (no sleep).
+    result = CliRunner().invoke(main, ["--env", "local", "logs", "verify", "bold-kazoo-87", "--timeout", "0"])
+    assert result.exit_code != 0
+    assert "FAIL" in result.output
