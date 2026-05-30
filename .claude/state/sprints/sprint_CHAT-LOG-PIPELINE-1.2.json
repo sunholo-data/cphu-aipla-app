@@ -130,11 +130,11 @@
       ],
       "files_to_create": [],
       "files_to_modify": [],
-      "passes": null,
+      "passes": true,
       "started": "2026-05-29T18:05:00Z",
-      "completed": null,
+      "completed": "2026-05-30T07:35:00Z",
       "actual_loc": 0,
-      "notes": "Gates GREEN: backend make lint clean + make test-fast 1526 passed; full cli suite 69 passed. Code committed direct-to-dev (M1 2db9ea6, M2 4b1ed9b, M3 05cde20, M4 b798f6c). Deploy to dev completed (build 68edf990 SUCCESS). E2E BLOCKED ON A BUG verification surfaced: _synthesize_uid strips hyphens (group 'aipla-demo-1' -> uid 'anon-aiplademo1-<hex>'), so group_code_from_owner_uid emits the cleaned 'aiplademo1' and the pre-existing find_latest_session_for_group('aipla-demo-1') never matches. Fix designed in chat-log-pipeline-verification.md: emit user.group_id (real code, available at firebase_auth.py:71); clean the code in find_latest_session_for_group. Also specs `aiplatform logs verify` (one-command e2e) — the CLI currently covers the read side only (no join+send-turn). M5 e2e completes via that command after the fix. Do NOT move 1.2 to implemented/ until verify is green."
+      "notes": "M5 e2e PASSED. Live `make verify-chat-logs GROUP=aipla-demo-1 ENV=dev` returned PASS with messages=2, real groupCode 'aipla-demo-1', and the full conversation. Two follow-ups landed (commits 0eefcc0 + 47345c1 + 5e3f562): (a) group-code fix — emit user.group_id; clean code in find_latest_session_for_group; ?source=bq report mode; aiplatform logs verify + make verify-chat-logs. (b) turn-capture reliability gap ROOT-CAUSED + FIXED — ADK EventsCompactionConfig was shifting indices and invalidating the forward cursor; replaced _STATE_CHATLOG_CURSOR with invocation_id filter. Smoking-gun: fresh session fix-1780126286 emitted both turn 1 (idx 0,2) and turn 2 (idx 4,6). Sink lag (~2-4 min) is a sink characteristic, not a bug; verify polls up to 240s and may need 300s. See chat-log-pipeline-verification.md."
     }
   ],
   "velocity": {
@@ -146,7 +146,7 @@
     "actual_days": null
   },
   "github_issues": [],
-  "last_session": "2026-05-29",
-  "last_checkpoint": "M1-M4 + verification follow-up (group-code fix, ?source=bq, `aiplatform logs verify`, make verify-chat-logs) done + all tests green; live e2e via `make verify-chat-logs` after the deploy lands",
-  "status": "code_complete_pending_e2e"
+  "last_session": "2026-05-30",
+  "last_checkpoint": "M5 e2e verified live; turn-capture reliability gap root-caused and fixed (cursor -> invocation_id, 5e3f562); pipeline shipped",
+  "status": "complete"
 }

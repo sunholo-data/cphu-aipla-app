@@ -1,13 +1,13 @@
 # chat-log-pipeline — group-ID-keyed chat logs to BigQuery
 
-**Status**: Planned — SEQUENCE row 1.2
+**Status**: Implemented — SEQUENCE row 1.2
 **Priority**: P0 (keystone for teacher monitoring + analysis; everything cohort-scale analytical depends on it. Promoted to committed v1 critical-path on 2026-05-28 — teacher monitoring + analysis must be live *for* the pilot, not built on its aftermath)
 **Estimated**: 1.5d (sink + emitter + BQ-backed report read); +0.5d if PII-scrub lands this sprint
 **Scope**: Backend (structured chat-turn + workbench-event emitter in the agent callback; BQ-backed `summarize_session`), infra (Log Router sink + partitioned BQ tables — Terraform, shared with 1.1), CLI (`aiplatform logs` group)
 **Dependencies**: 1.1 [aipla-cloud-bootstrap](aipla-cloud-bootstrap.md) (creates `google_bigquery_dataset.chat_logs` + the Log Router sink IAM); the existing OTel observability wiring (Axiom #8 — `OTEL_INSTRUMENTATION_GENAI_CAPTURE_MESSAGE_CONTENT=true` already the default); the `make_session_tracker` after-agent callback in [`backend/adk/callbacks.py`](../../../../backend/adk/callbacks.py)
 **ADRs implemented**: ADR-001 (group anonymity — no PII, group-ID keying), ADR-005 (chat log storage — researcher-accessible BigQuery dataset, consent-driven retention), ADR-008 (observability — OTel → Cloud Logging → BigQuery, all in-project)
 **Created**: 2026-05-28
-**Last Updated**: 2026-05-28
+**Last Updated**: 2026-05-30
 
 ## Problem statement
 
@@ -259,3 +259,28 @@ The reports route ([backend/protocols/reports_routes.py](../../../../backend/pro
 - [`backend/reports/session_summary.py`](../../../../backend/reports/session_summary.py) — the aggregator that gains a BQ-backed implementation
 - ADR-001 (group anonymity), ADR-005 (chat log storage), ADR-008 (observability) — in the scoping site
 - Product axioms #8 (OBSERVABLE BY DEFAULT) + #9 (SECURE BY CONSTRUCTION) — the internal/external privacy boundary this pipeline lives inside
+
+---
+
+## Implementation Report
+
+**Completed**: 2026-05-30
+**Actual Effort**: ~1.3d as planned for M1–M4 + ~0.5d for the verification follow-up (group-code fix, `?source=bq`, `aiplatform logs verify`, `make verify-chat-logs`) + ~0.2d for the turn-capture fix. Total ~2d incl. live verification.
+**Commit range**: `2db9ea6` (M1 emitters) → `4b1ed9b` (M2 wire emit sites) → `05cde20` (M3 BQ read path) → `b798f6c` (M4 CLI logs) → `0eefcc0` (group-code fix + `?source=bq` + `verify` command) → `47345c1` (verify defaults) → `5e3f562` (cursor → invocation_id) on `dev`.
+
+### What Was Built
+- M1–M3 shipped as designed (emitters, wire-up, BQ read path with `summarize_session_bq` + session-state fallback).
+- **M4 deviation** (documented at commit time): dropped the CLI-executed `logs query --skill --since` in favour of `logs schema` *printing* the canonical cohort BQ query for copy-paste. Per ADR-005 researchers query BigQuery directly (saved query + Looker, not a custom UI); a CLI query executor would have needed an arbitrary-query backend endpoint (security surface) or a BQ client in the CLI. Added `logs session` as a bonus. `make verify-chat-logs` came later as the one-command e2e smoke.
+- **Verification follow-up** (separate doc, also in `implemented/`): group-code fix + `?source=bq` mode + `aiplatform logs verify` were specced and shipped after live verification surfaced a real bug.
+- **Turn-capture reliability fix** (`5e3f562`): replaced `_STATE_CHATLOG_CURSOR` with an `invocation_id` filter. ADK's `EventsCompactionConfig` was silently invalidating the forward cursor.
+
+### Files Changed
+- New: `backend/observability/chat_log.py`, `backend/db/bigquery.py`, `backend/tests/unit/test_chat_log_emit.py`, `backend/tests/api_tests/test_chat_log_pipeline.py`, `cli/aiplatform/commands/logs.py`, `cli/tests/test_cli_logs.py`, `infrastructure/modules/chat-logs/` (terraform), `scripts/bootstrap-aipla-dev.sh` ensure_chat_logs.
+- Modified: `backend/adk/callbacks.py` (emit + invocation_id fix), `backend/adk/agent.py` (wire `user.group_id`), `backend/protocols/{iframe_context,reports}_routes.py`, `backend/reports/session_summary.py` (BQ-backed summary + `?source=bq` + hyphen-cleaning fix to `find_latest_session_for_group`), `backend/pyproject.toml`/`uv.lock` (add `google-cloud-bigquery`), `cli/aiplatform/{cli,http}.py` (register `logs` + AIPLA dev URL), root `Makefile` (`verify-chat-logs`), `CLAUDE.md` (Automation table).
+
+### Lessons Learned
+- **Easy verification is a correctness tool, not just a smoke.** Building `aiplatform logs verify` + `make verify-chat-logs` (one command, no creds) directly surfaced two real defects (the `_synthesize_uid` hyphen-strip mismatch and the cursor-vs-compaction bug). Neither was caught by the unit tests because the failures depended on production-only behaviour (real uid format, real event compaction). Pattern for future pipelines: ship the e2e command alongside the feature, run it before claiming done.
+- **Forward index cursors are fragile against event-store compaction.** ADK's `EventsCompactionConfig` summarises old events into a compacted event — any code that indexes into `session.events` by position (or stores a forward "where I left off" cursor) silently breaks once compaction runs. Use stable identifiers (here `invocation_id`) instead.
+- **The session-state fallback honestly returns the cleaned group code** (`boldkazoo87` not `bold-kazoo-87`), because the synthetic uid is lossy and no real code is stored on the index row. Only the BigQuery path (which stores `user.group_id` from the JWT claim) round-trips the display code. Documented in the route's docstring + the two `_group_code_from_owner_uid` tests that now assert the cleaned form.
+- **Sink lag is a real characteristic of Cloud Logging → BigQuery sinks** (~2–4 min observed). Verify polls up to 240s by default; bump to 300s+ when needed. For lower-latency smokes, assert the Cloud Logging entry (near-instant) and treat BQ as a slower confirmation — possible future refinement.
+- **`User.group_id` is the source of truth for the anonymous display code**, not the uid. Any pipeline that needs the real group code at the emit/read site should thread it from the JWT claim, never derive from `owner_uid`.

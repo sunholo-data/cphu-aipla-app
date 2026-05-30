@@ -1,12 +1,12 @@
 # chat-log-pipeline-verification — one-command e2e verify + group-code fix
 
-**Status**: Planned (follow-up to [chat-log-pipeline.md](chat-log-pipeline.md) / SEQUENCE 1.2)
+**Status**: Implemented (follow-up to [chat-log-pipeline.md](chat-log-pipeline.md) / SEQUENCE 1.2)
 **Priority**: P1 (1.2 is code-complete but not e2e-verified; this makes verification a single command AND fixes a correctness bug that verification surfaced)
 **Estimated**: ~0.5d
 **Scope**: CLI (`aiplatform logs verify`), backend (group-code consistency fix in the emit + report lookup), tests
 **Dependencies**: 1.2 M1–M4 (shipped, commits 2db9ea6 / 4b1ed9b / 05cde20 / b798f6c)
 **Created**: 2026-05-29
-**Last Updated**: 2026-05-29
+**Last Updated**: 2026-05-30
 
 ## Problem statement
 
@@ -179,23 +179,31 @@ returned the correct summary — keyed by the **real code `aipla-demo-1`**
 `summarize_session_bq`, `find_latest_session_for_group` cleaning, and the
 `?source=bq` endpoint all verified against live data.
 
-**Two real findings (follow-ups), neither blocking the above:**
+**Two findings from the live run:**
 
 1. **Cloud Logging → BigQuery sink lag is multi-minute** (observed ~2–4 min to
-   first queryability), so `verify`'s synchronous BQ poll needs a generous
-   timeout (default raised to 240s; may need 300s+). The data always lands —
-   it's latency, not loss. Consider a faster path (assert the Cloud Logging
-   entry, which is near-instant, then BQ as a slower confirmation).
-2. **Turn-capture reliability gap.** On a fresh session the *first* agent
-   invocation's content did not always emit, while later turns did (observed:
-   `diag2-…` emitted turn_index 4 + 6 but not turn 1's events). Likely a race
-   between the after-agent callback and session-event persistence, interacting
-   with the `_STATE_CHATLOG_CURSOR` (cursor advances past events whose text
-   wasn't yet appended), and/or the proactive-greet auto-turn. **This risks
-   incomplete analytics (some turns unlogged) and needs a dedicated fix** —
-   e.g. emit from a hook that runs after events are persisted, or make the
-   emitter reconcile the full conversation idempotently instead of a forward
-   cursor. Tracked as a follow-up to this doc.
+   first queryability) — *open characteristic, not a bug*. The data always
+   lands; it's latency. `verify`'s synchronous BQ poll uses a 240s default
+   (may need 300s+). Faster-confirmation option (assert the Cloud Logging
+   entry, which is near-instant, then treat BQ as a slower secondary check)
+   remains a possible refinement.
+2. **Turn-capture reliability gap — ROOT-CAUSED AND FIXED (`5e3f562`,
+   2026-05-30).** On a fresh session the *first* agent invocation's content
+   did not always emit. Root cause: ADK's `EventsCompactionConfig`
+   (`compaction_interval=5` for Claude/GPT-5, 10 for Gemini) summarises old
+   events into a compacted event, which shifts indices and silently
+   invalidates a forward index cursor (`_STATE_CHATLOG_CURSOR`). Fix:
+   replaced the cursor with an **`invocation_id` filter** — each agent run
+   tags its events with a unique invocation id; the after-agent callback
+   identifies that id (from `CallbackContext`, else `events[-1].invocation_id`)
+   and emits only matching events. ADK fires after-agent exactly once per
+   invocation, so each turn's events emit exactly once. Robust to compaction
+   and any future event-store reshuffling.
+   Verified live (fresh session `fix-1780126286`): turn 1 emitted index 0
+   (student) + 2 (tutor); turn 2 emitted index 4 + 6 — all four expected
+   emissions present, keyed by the real code `aipla-demo-1`. Pre-fix the
+   same shape lost turn 1 entirely. `make verify-chat-logs GROUP=aipla-demo-1
+   ENV=dev` is now a green one-command smoke.
 
 ## Related
 
@@ -203,3 +211,33 @@ returned the correct summary — keyed by the **real code `aipla-demo-1`**
 - [chat-log-pipeline-sprint.md](chat-log-pipeline-sprint.md) — M5's e2e becomes `make verify-chat-logs`
 - `aiplatform-cli` skill — add `logs verify` to its recipe set once shipped
 - ADR-001 (anonymous group identity) — the group code is the only key
+
+---
+
+## Implementation Report
+
+**Completed**: 2026-05-30
+**Actual Effort**: ~0.5d for the group-code fix + `?source=bq` + `verify` command + `make` target (~as estimated); + ~0.2d to root-cause and fix the turn-capture gap (cursor → invocation_id).
+**Commit range**: `0eefcc0` (group-code fix + verify) → `47345c1` (verify defaults: bound-skill, 240s timeout) → `5e3f562` (cursor → invocation_id) on `dev`.
+
+### What Was Built (and verified live)
+- **(A) Real-code emit** (`backend/adk/{callbacks,agent}.py`, `protocols/iframe_context_routes.py`): emit `user.group_id` from the JWT claim instead of deriving from the hyphen-stripped uid. BQ rows now keyed by the display code (`aipla-demo-1`).
+- **(B) Lookup cleaning** (`backend/reports/session_summary.py`): `find_latest_session_for_group` strips hyphens before building the `ownerUid` prefix, matching `_synthesize_uid`.
+- **(C) BQ-only report mode** (`backend/protocols/reports_routes.py`): `GET /api/reports/sessions/{id}?source=bq` returns 404 until the row is in BigQuery (no fallback) — used by `verify` to prove the data reached BQ rather than being masked by the session-state fallback.
+- **(D) `aiplatform logs verify <group>`** (`cli/aiplatform/commands/logs.py`): join → drive a turn (defaults to the group's bound skill) → poll `?source=bq` (default 240s for sink lag). Needs no credentials — the group JWT carries the whole flow.
+- **(E) `make verify-chat-logs GROUP=… ENV=…`** + Automation table entry in `CLAUDE.md`. Registered as the canonical e2e smoke for the chat-log pipeline.
+- **Turn-capture fix** (root cause: ADK event compaction invalidating the forward cursor): replaced `_STATE_CHATLOG_CURSOR` with `invocation_id`-based emit in `_emit_new_turns`. Tests in `backend/tests/unit/test_chat_log_emit.py`.
+
+### Live verification
+- `make verify-chat-logs GROUP=aipla-demo-1 ENV=dev` returned **PASS** (session `verify-1780126342`, messages=2, groupCode `aipla-demo-1`, real conversation).
+- Direct 2-turn smoke (session `fix-1780126286`) emitted both turn 1 (`turn_index` 0, 2) and turn 2 (4, 6) — all four expected emissions, keyed by `aipla-demo-1`.
+
+### Files Changed
+- New: `cli/aiplatform/commands/logs.py` (verify subcommand), Makefile target.
+- Modified: `backend/adk/callbacks.py` (emit + invocation_id), `backend/adk/agent.py` (thread `user.group_id`), `backend/protocols/{iframe_context,reports}_routes.py`, `backend/reports/session_summary.py`, `cli/aiplatform/{cli,http}.py`, root `Makefile`, `CLAUDE.md`.
+
+### Lessons Learned
+- The act of building a one-command live verify (no creds, copy-pasteable from `make help`) was a forcing function for finding real bugs that unit tests missed. Both the uid hyphen-strip and the compaction-cursor interaction depended on production-only behaviour.
+- ADK's `EventsCompactionConfig` is silent-but-load-bearing: any cursor/index into `session.events` must use stable identifiers (`invocation_id`, `event.id`), never positional offsets.
+- The session-state fallback's group code is the cleaned form (`boldkazoo87`); only the BigQuery path round-trips the display code. Documented as a deliberate behaviour, not a bug.
+- Cloud Logging → BigQuery sink lag is ~2–4 min for first ingestion. Acceptable for the e2e smoke (240s default, sometimes needs 300s); for sub-minute monitoring, the in-flight session-state path is the right source.
