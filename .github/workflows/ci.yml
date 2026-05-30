@@ -43,6 +43,9 @@ jobs:
         # rows with colliding names under different owners). Keep writes
         # centralized so the one-way "only the deploy seeds platform skills"
         # invariant is enforceable.
+        #
+        # Note: list_skills(owner_id=PLATFORM_OWNER_UID, ...) is a read filter
+        # (list/query), not a write — those are explicitly excluded below.
         run: |
           set -e
           hits=$(grep -RnE 'owner_id\s*=\s*PLATFORM_OWNER_UID|owner_id\s*=\s*"aitana-platform"' \
@@ -51,6 +54,7 @@ jobs:
             . \
             | grep -v 'admin/platform_seed.py' \
             | grep -v 'skills/platform.py' \
+            | grep -vE 'list_skills\(\s*owner_id=PLATFORM_OWNER_UID' \
             || true)
           if [ -n "$hits" ]; then
             echo "::error::Platform owner_id may only be set in backend/admin/platform_seed.py."
