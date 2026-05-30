@@ -174,10 +174,11 @@ class _FakeContent:
 
 
 class _FakeEvent:
-    def __init__(self, author, text):
+    def __init__(self, author, text, invocation_id="inv-1"):
         self.author = author
         self.content = _FakeContent([_FakePart(text)]) if text is not None else None
         self.usage_metadata = None
+        self.invocation_id = invocation_id
 
 
 class _FakeSession:
@@ -187,27 +188,52 @@ class _FakeSession:
 
 
 class _FakeCtx:
-    def __init__(self, session, state):
+    def __init__(self, session, state, invocation_id=None):
         self.session = session
         self.state = state
+        # CallbackContext.invocation_id may not exist on older ADK versions;
+        # leave unset to exercise the events[-1] fallback when None.
+        if invocation_id is not None:
+            self.invocation_id = invocation_id
 
 
-def test_after_agent_emits_new_turns_once_and_advances_cursor():
-    from adk.callbacks import _STATE_CHATLOG_CURSOR, make_after_agent_response
+def test_after_agent_emits_only_current_invocation_events():
+    """Filter by invocation_id — robust to event compaction (the original cursor bug)."""
+    from adk.callbacks import make_after_agent_response
 
-    events = [_FakeEvent("user", "hello"), _FakeEvent("model", "hi there")]
-    state = {}
-    ctx = _FakeCtx(_FakeSession(events), state)
+    # Mixed invocations in session.events: prior turns + this turn. Only THIS
+    # invocation's events must emit (compaction/prior turns aren't re-emitted).
+    events = [
+        _FakeEvent("user", "old user msg", invocation_id="inv-prior"),
+        _FakeEvent("model", "old reply", invocation_id="inv-prior"),
+        _FakeEvent("user", "hello", invocation_id="inv-current"),
+        _FakeEvent("model", "hi there", invocation_id="inv-current"),
+    ]
+    ctx = _FakeCtx(_FakeSession(events), {}, invocation_id="inv-current")
     mock_emit = MagicMock()
     with patch.object(chat_log, "emit_chat_turn", mock_emit):
-        cb = make_after_agent_response("anon-bold-kazoo-87-ab12", "boldkast")
-        cb(ctx)
-        assert mock_emit.call_count == 2
-        assert [c.kwargs["role"] for c in mock_emit.call_args_list] == ["student", "tutor"]
-        assert state[_STATE_CHATLOG_CURSOR] == 2
-        # Re-run with no new events: no further emits (idempotent).
-        cb(ctx)
-        assert mock_emit.call_count == 2
+        make_after_agent_response("anon-bold-kazoo-87-ab12", "boldkast")(ctx)
+    assert mock_emit.call_count == 2
+    assert [c.kwargs["role"] for c in mock_emit.call_args_list] == ["student", "tutor"]
+    # turn_index is the event index in session.events (NOT a per-turn counter).
+    assert [c.kwargs["turn_index"] for c in mock_emit.call_args_list] == [2, 3]
+
+
+def test_after_agent_falls_back_to_latest_event_invocation_id():
+    """When CallbackContext has no invocation_id, use the latest event's."""
+    from adk.callbacks import make_after_agent_response
+
+    events = [
+        _FakeEvent("user", "older", invocation_id="inv-prior"),
+        _FakeEvent("user", "hello", invocation_id="inv-cur"),
+        _FakeEvent("model", "hi", invocation_id="inv-cur"),
+    ]
+    ctx = _FakeCtx(_FakeSession(events), {})  # no invocation_id on ctx -> fallback
+    mock_emit = MagicMock()
+    with patch.object(chat_log, "emit_chat_turn", mock_emit):
+        make_after_agent_response("anon-bold-kazoo-87-ab12", "boldkast")(ctx)
+    assert mock_emit.call_count == 2
+    assert [c.kwargs["turn_index"] for c in mock_emit.call_args_list] == [1, 2]
 
 
 def test_after_agent_skips_non_anon_owner():
@@ -231,17 +257,15 @@ def test_after_agent_no_chatlog_without_owner_skill():
 
 
 def test_after_agent_skips_state_delta_only_events():
-    from adk.callbacks import _STATE_CHATLOG_CURSOR, make_after_agent_response
+    from adk.callbacks import make_after_agent_response
 
     # Second event has no content (e.g. an iframe-context state-delta event).
     events = [_FakeEvent("user", "real question"), _FakeEvent("user", None)]
-    state = {}
-    ctx = _FakeCtx(_FakeSession(events), state)
+    ctx = _FakeCtx(_FakeSession(events), {})
     mock_emit = MagicMock()
     with patch.object(chat_log, "emit_chat_turn", mock_emit):
         make_after_agent_response("anon-grp-1-xx", "boldkast")(ctx)
     assert mock_emit.call_count == 1  # only the text event emitted
-    assert state[_STATE_CHATLOG_CURSOR] == 2  # cursor still advances past both
 
 
 def test_after_agent_prefers_real_group_id():

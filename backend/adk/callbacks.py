@@ -481,26 +481,33 @@ def make_document_injector() -> Any:
 
 _STATE_INITIALIZED = "app:chat_session_initialized"
 _STATE_TURN_COUNT = "app:chat_session_turn_count"
-# Index of the next session event the chat-log emitter (1.2) has NOT yet
-# written to BigQuery. Diffing against len(session.events) makes emission
-# idempotent across the bursty agent loop — we only emit events past it.
-_STATE_CHATLOG_CURSOR = "app:chatlog_emit_cursor"
 
 
 def _emit_new_turns(
-    session: Any, session_id: str, owner_uid: str, skill_id: str, state: Any, group_id: str | None = None
+    session: Any,
+    session_id: str,
+    owner_uid: str,
+    skill_id: str,
+    callback_context: Any,
+    group_id: str | None = None,
 ) -> None:
-    """Emit chat-turn log entries for events not yet logged (SEQUENCE 1.2).
+    """Emit chat-turn log entries for THIS invocation's events (SEQUENCE 1.2).
 
-    ``group_id`` is the real display group code (``user.group_id`` from the
-    anonymous-group JWT, e.g. ``aipla-demo-1``). We prefer it because the
-    synthetic uid strips hyphens (``_synthesize_uid`` → ``anon-aiplademo1-…``),
-    so deriving from ``owner_uid`` would key BQ by the wrong, hyphen-stripped
-    code. Falls back to the derived code only when no real code is available.
+    Filters ``session.events`` by the current ``invocation_id`` so we capture
+    exactly the user message + agent response(s) appended during this agent
+    run. This is robust to ADK's ``EventsCompactionConfig`` (compaction every
+    5-10 events summarises old events into a compacted event, which shifts
+    indices and silently invalidates a forward index cursor — the cause of
+    the first-turn-capture gap observed on deployed dev 2026-05-29).
 
-    Idempotent via ``_STATE_CHATLOG_CURSOR``. Skips non-student (no group code)
-    owners so no teacher identity is logged. Never raises — telemetry must not
-    break the turn.
+    ADK fires ``after_agent_callback`` exactly once per invocation, so each
+    turn's events are emitted exactly once. The current invocation id is taken
+    from ``callback_context.invocation_id`` when available, else from the most
+    recently appended event (at after-agent time those are this run's events).
+
+    ``group_id`` is the real display group code (``user.group_id``); we prefer
+    it because the synthetic uid strips hyphens. Skips non-student (no group
+    code) owners. Never raises — telemetry must not break the turn.
     """
     try:
         from observability.chat_log import emit_chat_turn, group_code_from_owner_uid
@@ -510,12 +517,22 @@ def _emit_new_turns(
             return  # teacher / workshop session — not student research data
 
         events = list(getattr(session, "events", None) or [])
-        cursor = int(state.get(_STATE_CHATLOG_CURSOR) or 0)
-        if cursor >= len(events):
+        if not events:
             return
 
-        for idx in range(cursor, len(events)):
-            event = events[idx]
+        # Identify events belonging to THIS invocation. Resilient to compaction.
+        current_inv = getattr(callback_context, "invocation_id", None)
+        if not current_inv:
+            # ADK's CallbackContext may not expose it directly across versions;
+            # fall back to the latest appended event (this run's events were
+            # just appended before after-agent fires).
+            current_inv = getattr(events[-1], "invocation_id", None)
+        if not current_inv:
+            return
+
+        for idx, event in enumerate(events):
+            if getattr(event, "invocation_id", None) != current_inv:
+                continue
             content_obj = getattr(event, "content", None)
             parts = getattr(content_obj, "parts", None) if content_obj else None
             if not parts:
@@ -544,8 +561,6 @@ def _emit_new_turns(
                 token_in=token_in,
                 token_out=token_out,
             )
-
-        state[_STATE_CHATLOG_CURSOR] = len(events)
     except Exception as exc:  # never let chat-logging break the agent turn
         logger.warning("chat-log emit failed (suppressed): %s", exc)
 
@@ -704,7 +719,7 @@ def make_after_agent_response(
         # Chat-log emit (1.2) — runs before the index gate so telemetry
         # doesn't depend on the Firestore index having initialised.
         if owner_uid and skill_id and session_id and session is not None:
-            _emit_new_turns(session, session_id, owner_uid, skill_id, state, group_id)
+            _emit_new_turns(session, session_id, owner_uid, skill_id, callback_context, group_id)
 
         if not state.get(_STATE_INITIALIZED):
             return
