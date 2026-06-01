@@ -21,6 +21,8 @@ set -euo pipefail
 
 URL="${URL:-http://localhost:1956}"
 LOCAL_MODE_TOKEN="${LOCAL_MODE_TOKEN:-local-mode-stub-token}"
+# A public skill that exists in the LOCAL_MODE seed data.
+SKILL_SLUG="${SKILL_SLUG:-problem-set-hints}"
 
 log()  { printf '\033[36m▶ %s\033[0m\n' "$*"; }
 ok()   { printf '\033[32m✓ %s\033[0m\n' "$*"; }
@@ -33,6 +35,26 @@ require curl
 require python3
 
 log "URL=$URL"
+
+# --- Resolve skill ID from slug ---------------------------------------------
+# bootstrap requires a skillId; pick the first public skill we can see.
+
+log "GET /api/skills  (resolving skillId for bootstrap)"
+SKILL_ID=$(
+  curl -fsS "$URL/api/skills" \
+    -H "Authorization: Bearer $LOCAL_MODE_TOKEN" \
+  | python3 -c "
+import sys, json
+skills = json.load(sys.stdin)
+slug = '$SKILL_SLUG'
+for s in skills:
+    if s.get('slug') == slug or s.get('name') == slug:
+        print(s['skillId'])
+        break
+"
+) || fail "GET /api/skills returned non-2xx"
+[ -n "$SKILL_ID" ] || fail "Could not find skill with slug '$SKILL_SLUG' — is the backend seeded?"
+ok "resolved skillId=$SKILL_ID  (slug=$SKILL_SLUG)"
 
 # --- Step 1: teacher creates a class + mints a group code -------------------
 
@@ -83,7 +105,7 @@ BOOTSTRAP_RESP=$(
   curl -fsS -X POST "$URL/api/sessions/$SESSION_ID/bootstrap" \
     -H "Authorization: Bearer $STUDENT_TOKEN" \
     -H "Content-Type: application/json" \
-    -d "{}"
+    -d "{\"skillId\": \"$SKILL_ID\"}"
 ) || fail "bootstrap returned non-2xx"
 
 ok "bootstrapped session  id=$SESSION_ID"
