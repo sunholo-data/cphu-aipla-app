@@ -23,6 +23,7 @@ import {
   listAccessibleSkills,
   mintGroupCodes,
   patchLessons,
+  resetGroupSession,
 } from "@/lib/teacherApi";
 
 export default function TeacherClassDetailPage() {
@@ -36,6 +37,8 @@ export default function TeacherClassDetailPage() {
   >("loading");
   const [toast, setToast] = useState<string | null>(null);
   const [minting, setMinting] = useState(false);
+  const [confirmResetCode, setConfirmResetCode] = useState<string | null>(null);
+  const [resetting, setResetting] = useState(false);
 
   // 1.A follow-up (2026-05-26) — Lessons section now backed by the
   // real /api/skills catalogue + cls.lessons[]. Pick-from-list UI
@@ -144,6 +147,23 @@ export default function TeacherClassDetailPage() {
     void navigator.clipboard?.writeText(code).catch(() => {});
     setToast(`Copied ${code}`);
     window.setTimeout(() => setToast(null), 2500);
+  }
+
+  async function handleResetSession(code: string) {
+    setResetting(true);
+    try {
+      await resetGroupSession(cls!.classId, code);
+      setConfirmResetCode(null);
+      setToast(`Session reset for ${code} — next join starts fresh`);
+      window.setTimeout(() => setToast(null), 4000);
+    } catch (err) {
+      setToast(
+        err instanceof Error ? `Reset failed: ${err.message}` : "Reset failed",
+      );
+      window.setTimeout(() => setToast(null), 5000);
+    } finally {
+      setResetting(false);
+    }
   }
 
   async function handleAddLesson(skillId: string) {
@@ -269,6 +289,37 @@ export default function TeacherClassDetailPage() {
                     <Copy className="h-3.5 w-3.5" aria-hidden="true" />
                     Copy code
                   </button>
+                  {confirmResetCode === code ? (
+                    <>
+                      <span className="text-xs text-muted-foreground">Reset session?</span>
+                      <button
+                        type="button"
+                        onClick={() => void handleResetSession(code)}
+                        disabled={resetting}
+                        className="rounded border border-destructive px-2 py-1 text-xs font-medium text-destructive hover:bg-destructive/10 disabled:opacity-50"
+                      >
+                        {resetting ? "Resetting…" : "Confirm"}
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setConfirmResetCode(null)}
+                        disabled={resetting}
+                        className="rounded border border-border px-2 py-1 text-xs font-medium hover:bg-accent disabled:opacity-50"
+                      >
+                        Cancel
+                      </button>
+                    </>
+                  ) : (
+                    <button
+                      type="button"
+                      onClick={() => setConfirmResetCode(code)}
+                      title="Archive the current session — the next student join will start a new conversation"
+                      className="flex items-center gap-1 rounded border border-border px-2 py-1 text-xs font-medium text-muted-foreground hover:bg-accent"
+                    >
+                      <Settings className="h-3.5 w-3.5" aria-hidden="true" />
+                      Reset session
+                    </button>
+                  )}
                   <Link
                     href={`/teacher/reports/groups/${code}`}
                     className="flex items-center gap-1 rounded border border-border px-2 py-1 text-xs font-medium hover:bg-accent"

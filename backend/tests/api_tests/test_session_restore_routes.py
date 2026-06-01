@@ -11,10 +11,8 @@ Archived sessions return 404 (the teacher-reset path).
 from __future__ import annotations
 
 import os
-from typing import Any
 from unittest.mock import AsyncMock, MagicMock, patch
 
-import pytest
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
 
@@ -22,7 +20,6 @@ os.environ.setdefault("LOCAL_MODE", "1")
 
 from auth import User, get_current_user
 from auth.access_context import AccessContext
-
 
 # ---------------------------------------------------------------------------
 # Helpers
@@ -53,9 +50,10 @@ def _anon_ctx(uid: str = "anon-local-demo-abc") -> AccessContext:
 
 
 def _mock_session_index(session_id: str, archived: bool = False):
+    from datetime import UTC, datetime
+
     from db.models.access import AccessControl
     from db.models.chat_session import ChatSessionIndex
-    from datetime import UTC, datetime
 
     idx = MagicMock(spec=ChatSessionIndex)
     idx.session_id = session_id

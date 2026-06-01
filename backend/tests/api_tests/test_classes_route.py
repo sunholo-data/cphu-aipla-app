@@ -358,3 +358,57 @@ class TestRevokeGroup:
 
         resp = client.delete(f"/api/classes/{b['classId']}/groups/{codes[0]}")
         assert resp.status_code == 404
+
+
+# ---------------------------------------------------------------------------
+# POST /api/classes/{class_id}/groups/{code}/reset-session — archive session
+# ---------------------------------------------------------------------------
+
+
+class TestResetGroupSession:
+    def test_reset_archives_session(self, client):
+        """Happy path: reset-session returns 204 and archives the group's session."""
+        from db.group_sessions import get_active_session_for_group, set_active_session_for_group
+
+        cid = client.post("/api/classes", json={"name": "C"}).json()["classId"]
+        codes = client.post(f"/api/classes/{cid}/groups", json={"count": 1}).json()["codes"]
+        code = codes[0]
+
+        # Seed a session for the group so archive_session_for_group has something to do.
+        set_active_session_for_group(code, "session-abc-123")
+        assert get_active_session_for_group(code) == "session-abc-123"
+
+        resp = client.post(f"/api/classes/{cid}/groups/{code}/reset-session")
+        assert resp.status_code == 204
+
+        # Session is now archived — next join will start fresh.
+        assert get_active_session_for_group(code) is None
+
+    def test_reset_idempotent_no_session(self, client):
+        """Reset on a group with no active session is a no-op (204, not 500)."""
+        cid = client.post("/api/classes", json={"name": "C"}).json()["classId"]
+        codes = client.post(f"/api/classes/{cid}/groups", json={"count": 1}).json()["codes"]
+        code = codes[0]
+
+        resp = client.post(f"/api/classes/{cid}/groups/{code}/reset-session")
+        assert resp.status_code == 204
+
+    def test_reset_rejects_non_teacher(self, student_client, client):
+        cid = client.post("/api/classes", json={"name": "C"}).json()["classId"]
+        codes = client.post(f"/api/classes/{cid}/groups", json={"count": 1}).json()["codes"]
+
+        resp = student_client.post(f"/api/classes/{cid}/groups/{codes[0]}/reset-session")
+        assert resp.status_code == 403
+
+    def test_reset_other_teachers_class_404(self, client, other_teacher_client):
+        b = other_teacher_client.post("/api/classes", json={"name": "B"}).json()
+        codes = other_teacher_client.post(f"/api/classes/{b['classId']}/groups", json={"count": 1}).json()["codes"]
+
+        resp = client.post(f"/api/classes/{b['classId']}/groups/{codes[0]}/reset-session")
+        assert resp.status_code == 404
+
+    def test_reset_unknown_code_404(self, client):
+        cid = client.post("/api/classes", json={"name": "C"}).json()["classId"]
+
+        resp = client.post(f"/api/classes/{cid}/groups/XXXX-XXXX/reset-session")
+        assert resp.status_code == 404

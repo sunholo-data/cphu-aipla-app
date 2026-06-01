@@ -285,3 +285,18 @@ export async function revokeGroupCode(
   );
   return readJson(resp, "revoke group code");
 }
+
+/** Archive the active session for a group code so the next student join starts fresh. */
+export async function resetGroupSession(
+  classId: string,
+  code: string,
+): Promise<void> {
+  const resp = await fetchWithAuth(
+    `/api/proxy/api/classes/${encodeURIComponent(classId)}/groups/${encodeURIComponent(code)}/reset-session`,
+    { method: "POST" },
+  );
+  if (!resp.ok) {
+    const text = await resp.text().catch(() => "");
+    throw new Error(`reset session failed (${resp.status}): ${text}`);
+  }
+}

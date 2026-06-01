@@ -1234,6 +1234,32 @@ up a new Cloud Run per artefact is overkill.
   `frontend/.env.local` for LOCAL_MODE; threaded through the Dockerfile
   build-arg via `cloudbuild.yaml`'s `--build-arg NEXT_PUBLIC_MCP_SANDBOX_URL=${_MCP_SANDBOX_URL}`.
 
+## Session resume and artefact state (v1 policy — deferred)
+
+When a student rejoins using the same group code within 30 days (sprint
+1.F), the chat history is restored from the prior session. However,
+**artefact slider/variable state is NOT restored** in v1 — the artefact
+boots at its programmatic defaults each time.
+
+This was a deliberate scoping call: implementing a per-sim restore
+contract (an `aipla:restore` postMessage notification) would require
+touching each artefact's HTML every time the contract changes. With
+multiple sims already in the pipeline (Boldkast, LED Planck, …), that
+becomes per-sim whack-a-mole. Instead, restore is deferred until the
+protocol is stable enough to make a single generic handler worth writing
+in every artefact.
+
+**What this means for artefact authors:** you do NOT need to handle
+any restore notification in v1. The student will see the slider reset to
+defaults; the chat window will show where they left off. That's the
+expected v1 UX.
+
+**What a future sprint will add:** a generic `ui/notifications/aipla:restore`
+handler that artefacts opt into once the shape is frozen. The MCP App
+state for the prior session is already snapshotted in
+`POST /api/sessions/{id}/restore` → `workbenchState` — the plumbing is
+ready, the artefact side is deferred.
+
 ## See also
 
 - [`agent-protocols/SKILL.md`](../agent-protocols/SKILL.md) — protocol-level

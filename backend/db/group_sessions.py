@@ -120,7 +120,7 @@ def archive_session_for_group(group_id: str) -> None:
 
 
 __all__ = [
+    "archive_session_for_group",
     "get_active_session_for_group",
     "set_active_session_for_group",
-    "archive_session_for_group",
 ]

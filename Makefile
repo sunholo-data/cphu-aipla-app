@@ -1,4 +1,4 @@
-.PHONY: dev dev-local dev-recompile dev-status dev-stop proxy-check logs cloud-logs cloud-errors cloud-build verify-chat-logs help cli-install cli-reinstall cli-uninstall cli-doctor cli-selftest-mock cli-selftest-live cli-selftest
+.PHONY: dev dev-local dev-recompile dev-status dev-stop proxy-check logs cloud-logs cloud-errors cloud-build verify-chat-logs smoke-session-persistence help cli-install cli-reinstall cli-uninstall cli-doctor cli-selftest-mock cli-selftest-live cli-selftest
 
 # Launch backend (port 1956) + frontend (port 3000) for local development.
 # Logs stream to stdout; Ctrl-C stops both.
@@ -73,6 +73,13 @@ GROUP ?= aipla-demo-1
 verify-chat-logs:
 	@uv run --directory cli aiplatform --env $(ENV) logs verify $(GROUP)
 
+# 1.F session-persistence smoke: join → bootstrap → rejoin → restore → reset
+# Drives a LOCAL_MODE backend; override URL for deployed:
+#   make smoke-session-persistence URL=https://aipla-backend-...
+smoke-session-persistence:
+	@chmod +x scripts/smoke-v1-session-persistence.sh
+	@scripts/smoke-v1-session-persistence.sh
+
 # --- CLI lifecycle ---
 
 # Install the `aiplatform` CLI as a global uv tool. Idempotent: --force
@@ -146,7 +153,8 @@ help:
 	@echo "  scripts/cloud-logs.sh trace <id>               — open Cloud Trace UI"
 	@echo "  scripts/cloud-logs.sh save errors|all          — dump to .dev-logs/"
 	@echo "make proxy-check        — smoke-test the proxy bridge (CI helper)"
-	@echo "make verify-chat-logs   — e2e smoke: join a group, drive a turn, confirm it reached BigQuery (GROUP=… ENV=…)"
+	@echo "make verify-chat-logs            — e2e smoke: join a group, drive a turn, confirm it reached BigQuery (GROUP=… ENV=…)"
+	@echo "make smoke-session-persistence   — 1.F smoke: join→bootstrap→rejoin→restore→reset (requires make dev)"
 	@echo
 	@echo "make cli-install        — install the aiplatform CLI as a global uv tool"
 	@echo "make cli-reinstall      — clean reinstall (uninstalls historical aitana names first)"

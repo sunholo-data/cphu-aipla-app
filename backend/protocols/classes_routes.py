@@ -37,6 +37,7 @@ from db.classes import (
     update_class,
 )
 from db.firestore import get_document, set_document
+from db.group_sessions import archive_session_for_group
 from db.models.class_ import Class
 
 log = logging.getLogger(__name__)
@@ -324,6 +325,32 @@ async def delete_group(
     _tag_span(class_id, user.uid)
     log.info("classes_route: revoked code=%s class=%s teacher=%s", code, class_id, user.uid)
     return {"revoked": True, "code": code, "classId": class_id}
+
+
+@router.post("/{class_id}/groups/{code}/reset-session", status_code=204)
+async def reset_group_session(
+    class_id: str = Path(...),
+    code: str = Path(...),
+    user: User = Depends(get_current_user),  # noqa: B008
+) -> None:
+    """Archive the active session for a group code so the next join starts fresh.
+
+    Idempotent — calling when no session exists is a no-op. Does NOT
+    rotate or revoke the group code itself; students can still rejoin
+    with the same code and will receive a blank session.
+    """
+    _assert_teacher(user)
+    cls = _load_owned(class_id, user)
+    if code not in cls.group_codes:
+        raise HTTPException(status_code=404, detail="group code not found")
+    archive_session_for_group(code)
+    _tag_span(class_id, user.uid)
+    log.info(
+        "classes_route: reset session for code=%s class=%s teacher=%s",
+        code,
+        class_id,
+        user.uid,
+    )
 
 
 __all__ = ["router"]
