@@ -565,8 +565,22 @@ Existing routes NOT to touch:
 - Cross-teacher class transfer.
 - Per-student analytics (anonymity model is per-group only).
 - LMS integration.
-- Real-time live view of a group session.
+- Real-time live view of a group session (Firestore `onSnapshot` subscriptions — v2 upgrade path; requires security-rules changes to let a teacher read `chat_sessions` by `groupCode in class.groupCodes`).
 - Audio / video in the report screen (covered by [audio-capture-and-tts.md](audio-capture-and-tts.md), 1.H).
+
+## Implemented: dashboard polling (2026-06-01)
+
+The `/teacher/classes` recent-activity panel auto-refreshes every 30 seconds
+via `setInterval` on the `refresh` callback. This is a v1 stop-gap; the
+interval is cleared on unmount. Sessions appear within ~30s of the student
+completing their first exchange (the turn-1 Firestore flush ships in the same
+commit as polling — `a7c0da6`).
+
+The upgrade path to true real-time is Firestore `onSnapshot` on
+`chat_sessions where groupCode in [...]`. This requires a Firestore security
+rule that allows a teacher to read sessions by group code (teacher owns the
+class, class owns the group code, group code is on the session). Design that
+rule when the pilot signals that 30s latency is a usability problem.
 
 ## Related Documents
 

@@ -66,6 +66,8 @@ export default function TeacherClassesPage() {
 
   useEffect(() => {
     void refresh();
+    const id = setInterval(() => void refresh(), 30_000);
+    return () => clearInterval(id);
   }, [refresh]);
 
   return (
