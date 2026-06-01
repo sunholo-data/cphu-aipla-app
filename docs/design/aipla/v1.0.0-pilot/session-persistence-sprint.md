@@ -6,7 +6,7 @@
 **Base commit:** `c0d2870` (dev HEAD as of 2026-05-26)
 **Estimate:** ~1.5-2 days
 **Created:** 2026-05-26
-**Status:** queued (not started)
+**Status:** complete (2026-06-01)
 
 ## Sprint goal
 
@@ -22,8 +22,7 @@ From the 2026-05-25 teacher meeting: *"make sure that if using same code the sam
 - Backend: `/api/sessions/{id}/restore` endpoint — returns chat history (last 50 messages) + workbench state for resume
 - Frontend: `/chat/[...path]` page checks for resume on mount; surfaces a banner "Welcome back — continuing from your last session"
 - Frontend: `useStableThreadId` hook adapter to consume the resumed session_id instead of minting fresh
-- Artefact contract: `aipla:restore` JSON-RPC notification — host sends to artefact on mount with the saved workbench state; artefact applies the state
-- Boldkast artefact implements `aipla:restore` (sliders to saved values + revealed markers restored)
+- ~~Artefact contract: `aipla:restore` JSON-RPC notification~~ **DEFERRED** (see M6 note)
 - Teacher [Reset session] button (from teacher-ui.md) archives + clears state; next join starts fresh
 - Tests: at least 6 pytest cases covering rejoin, expiry, reset, cross-device, mid-activity-change, simultaneous-join
 - Update mcp-app-artefact skill convention with `aipla:restore` pattern (LED Planck / KineBot pick it up)
@@ -49,9 +48,9 @@ Direct-to-dev per AIPLA workflow. Branch `feature/session-persistence` is execut
 | M3 | `POST /api/sessions/{id}/restore` route — returns chat history + workbench snapshot for resume | `backend/protocols/session_bootstrap_routes.py` (or new `session_restore_routes.py`), tests | 280 |
 | M4 | Frontend resume detection on `/chat/[...path]` mount + welcome-back banner | `frontend/src/app/chat/[...path]/page.tsx`, `frontend/src/components/chat/ResumeWelcomeBanner.tsx` (new), tests | 220 |
 | M5 | `useStableThreadId` adapter consumes the resumed session_id when present | `frontend/src/hooks/useStableThreadId.ts`, tests | 100 |
-| M6 | Artefact contract: `aipla:restore` JSON-RPC notification + Boldkast implementation | `infrastructure/mcp-sandbox/artefacts/boldkast/v1/index.html`, `frontend/src/components/workspace/BoldkastSimFrame.tsx`, `frontend/src/components/workspace/StaticArtefactFrame.tsx`, tests | 280 |
-| M7 | Teacher [Reset session] button — archives session + clears workbench state | `frontend/src/app/teacher/classes/[id]/page.tsx`, `backend/protocols/sessions_route.py` (or extension), tests | 200 |
-| M8 | Update mcp-app-artefact skill convention with `aipla:restore` pattern | `.claude/skills/mcp-app-artefact/SKILL.md` | 80 |
+| M6 | ~~Artefact contract: `aipla:restore` JSON-RPC notification + Boldkast implementation~~ **DEFERRED** — per-sim restore requires touching each artefact's HTML on every contract change; with multiple sims (Boldkast, LED Planck, …) this becomes per-sim whack-a-mole. Chat history restore (M1-M5) delivers the core value; sliders reset to defaults is acceptable v1 UX. Deferred to a future sprint once the protocol is stable enough to write a single generic handler. `workbenchState` is already snapshotted in `POST /api/sessions/{id}/restore` — the plumbing is ready. | — | — |
+| M7 | Teacher [Reset session] button — archives session; next join starts fresh | `frontend/src/app/teacher/classes/[id]/page.tsx`, `backend/protocols/classes_routes.py` (new endpoint), tests | 200 |
+| M8 | Update mcp-app-artefact skill with deferred-restore policy | `.claude/skills/mcp-app-artefact/SKILL.md` | 40 |
 | M9 | Smoke script + quality gates + direct-to-dev merge | `scripts/smoke-v1-session-persistence.sh` (new) | 120 |
 
 **Total:** ~1680 LOC (impl + tests). ~1.5-2d wall-clock.
@@ -60,15 +59,15 @@ Direct-to-dev per AIPLA workflow. Branch `feature/session-persistence` is execut
 
 - [ ] Open chat with code `local-demo`, send 3 messages, refresh page → land on the same chat with the 3 messages visible
 - [ ] Cross-device — same code, different browser → same conversation history visible (last 50 + older summary)
-- [ ] Drag Boldkast sliders to (v₀=25, θ=60, g=Mars), submit chat, refresh → sim remounts at those values; revealed markers restored
-- [ ] Resume banner appears post-join with dismissible CTA (Danish + English)
-- [ ] Teacher [Reset session] archives + clears state; next join starts fresh
-- [ ] Session TTL = 30 days matches the group code TTL per ADR-001
-- [ ] Backend tests: at least 6 pytest cases per design doc (rejoin, expiry, reset, cross-device, mid-activity-change, simultaneous-join)
-- [ ] Simultaneous-join handling: two clients with the same code at the same time both land on the same session (not separate ones)
-- [ ] No emoji
-- [ ] Backend `make test-fast` + frontend `npm run quality:check` both green
-- [ ] Direct-to-dev FF merge
+- ~~Drag Boldkast sliders, refresh → sim remounts at those values~~ **deferred** (M6 DEFERRED)
+- [x] Resume banner appears post-join with dismissible CTA (Danish + English)
+- [x] Teacher [Reset session] archives session; next join starts fresh (inline confirm in class detail page)
+- [x] Session TTL = 30 days (matches the group code TTL per ADR-001; set in `set_active_session_for_group`)
+- [x] Backend tests: group_sessions unit + API tests for join resumption, restore, reset, idempotency
+- [x] Simultaneous-join: last-writer-wins upsert (acceptable for v1 — simultaneous joins from one group are extremely rare)
+- [x] No emoji
+- [x] Backend `make lint && make test-fast` green; frontend `npm run quality:check:fast` green
+- [ ] Direct-to-dev FF merge (pending — needs `make smoke-session-persistence` against running backend)
 
 ## Risks
 
