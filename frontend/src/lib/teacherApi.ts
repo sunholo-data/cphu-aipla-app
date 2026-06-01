@@ -291,33 +291,39 @@ export interface SessionRow {
   sessionId: string;
   ownerUid: string;
   skillId: string;
+  groupCode: string | null;
   lastMessageAt: string;
   turnCount: number;
   title: string | null;
 }
 
-/** List recent sessions for a skill (teacher auth required). */
-export async function listSkillSessions(skillId: string): Promise<SessionRow[]> {
+/** List recent student sessions across all group codes in a class. */
+export async function listClassRecentSessions(
+  classId: string,
+  pageSize = 20,
+): Promise<SessionRow[]> {
   const resp = await fetchWithAuth(
-    `/api/proxy/api/skills/${encodeURIComponent(skillId)}/sessions`,
+    `/api/proxy/api/classes/${encodeURIComponent(classId)}/recent-sessions?page_size=${pageSize}`,
   );
   if (!resp.ok) return [];
   const body = (await resp.json()) as {
     sessions: Array<{
-      session_id: string;
-      owner_uid: string;
-      skill_id: string;
-      last_message_at: string;
-      turn_count: number;
+      sessionId: string;
+      ownerUid: string;
+      skillId: string;
+      groupCode: string | null;
+      lastMessageAt: string;
+      turnCount: number;
       title: string | null;
     }>;
   };
   return body.sessions.map((s) => ({
-    sessionId: s.session_id,
-    ownerUid: s.owner_uid,
-    skillId: s.skill_id,
-    lastMessageAt: s.last_message_at,
-    turnCount: s.turn_count,
+    sessionId: s.sessionId,
+    ownerUid: s.ownerUid,
+    skillId: s.skillId,
+    groupCode: s.groupCode,
+    lastMessageAt: s.lastMessageAt,
+    turnCount: s.turnCount,
     title: s.title,
   }));
 }

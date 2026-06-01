@@ -42,6 +42,7 @@ def create_session_index(
     access_control: AccessControl,
     document_ids: list[str] | None = None,
     first_message_at: datetime | None = None,
+    group_code: str | None = None,
 ) -> ChatSessionIndex:
     """Persist a new ChatSessionIndex row. Idempotent: overwrites if exists."""
     now = first_message_at or _utcnow()
@@ -53,6 +54,7 @@ def create_session_index(
         accessControl=access_control,
         firstMessageAt=now,
         lastMessageAt=now,
+        groupCode=group_code,
     )
     set_document(_COLLECTION, session_id, _to_firestore(idx))
     return idx
@@ -245,6 +247,42 @@ def list_sessions_for_skill(
 
     next_cursor = last_id if len(results) == page_size else None
     return results, next_cursor
+
+
+def list_sessions_for_group_codes(
+    group_codes: list[str],
+    page_size: int = 50,
+) -> list[ChatSessionIndex]:
+    """List non-archived sessions for any of the given group codes, newest first.
+
+    Used by the teacher dashboard to show recent student activity across all
+    groups in a class. Returns at most ``page_size`` rows merged and re-sorted
+    from per-code queries.
+    """
+    if not group_codes:
+        return []
+    client = get_client()
+    col = client.collection(_COLLECTION)
+    results: list[ChatSessionIndex] = []
+    for code in group_codes:
+        query = (
+            col.where(filter=_fs.FieldFilter("groupCode", "==", code))
+            .where(filter=_fs.FieldFilter("archivedAt", "==", None))
+            .order_by("lastMessageAt", direction=_fs.Query.DESCENDING)
+            .limit(page_size)
+        )
+        for snap in query.stream():
+            if snap.id is None or not snap.exists:
+                continue
+            data = snap.to_dict()
+            if data is None:
+                continue
+            try:
+                results.append(_from_firestore(data, snap.id))
+            except Exception as exc:
+                logger.warning("malformed chat_sessions/%s: %s", snap.id, exc)
+    results.sort(key=lambda s: s.last_message_at, reverse=True)
+    return results[:page_size]
 
 
 # ---------------------------------------------------------------------------

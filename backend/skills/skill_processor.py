@@ -106,7 +106,7 @@ async def process_skill_request(
     # closes the race window. The callback is now idempotent: it observes
     # the existing row and short-circuits.
     thread_id = session_id or f"thread-{uuid.uuid4().hex[:12]}"
-    _ensure_session_index(thread_id, skill_id, user.uid, document_ids)
+    _ensure_session_index(thread_id, skill_id, user.uid, document_ids, user.group_id or None)
 
     agent_or_router = create_agent_with_thinking(skill, user)
     if isinstance(agent_or_router, _HeuristicRouter):
@@ -226,6 +226,7 @@ def _ensure_session_index(
     skill_id: str,
     owner_uid: str,
     document_ids: list[str] | None,
+    group_code: str | None = None,
 ) -> None:
     """Synchronously create the chat_sessions/{thread_id} row if absent,
     and ArrayUnion this turn's document_ids onto it whether or not the
@@ -271,6 +272,7 @@ def _ensure_session_index(
                 owner_uid=owner_uid,
                 access_control=access_control,
                 document_ids=docs,
+                group_code=group_code,
             )
             logger.info("chat_sessions/%s index created synchronously (owner=%s)", thread_id, owner_uid)
         except Exception as exc:

@@ -20,7 +20,7 @@ from __future__ import annotations
 
 import logging
 
-from fastapi import APIRouter, Depends, HTTPException, Path
+from fastapi import APIRouter, Depends, HTTPException, Path, Query
 from opentelemetry import trace
 from pydantic import BaseModel, ConfigDict, Field
 
@@ -351,6 +351,54 @@ async def reset_group_session(
         class_id,
         user.uid,
     )
+
+
+class RecentSessionRow(BaseModel):
+    model_config = ConfigDict(populate_by_name=True)
+    session_id: str = Field(alias="sessionId")
+    owner_uid: str = Field(alias="ownerUid")
+    skill_id: str = Field(alias="skillId")
+    group_code: str | None = Field(default=None, alias="groupCode")
+    last_message_at: str = Field(alias="lastMessageAt")
+    turn_count: int = Field(alias="turnCount")
+    title: str | None = None
+
+
+class RecentSessionsResponse(BaseModel):
+    sessions: list[RecentSessionRow]
+
+
+@router.get("/{class_id}/recent-sessions", response_model=RecentSessionsResponse)
+async def list_class_recent_sessions(
+    class_id: str = Path(...),
+    page_size: int = Query(default=20, ge=1, le=50),
+    user: User = Depends(get_current_user),  # noqa: B008
+) -> RecentSessionsResponse:
+    """List recent student sessions across all group codes in a class.
+
+    Returns the newest sessions (by lastMessageAt) for any group code
+    that belongs to this class. Only the owning teacher can call this.
+    """
+    _assert_teacher(user)
+    cls = _load_owned(class_id, user)
+    _tag_span(class_id, user.uid)
+
+    from db.chat_sessions import list_sessions_for_group_codes
+
+    sessions = list_sessions_for_group_codes(list(cls.group_codes), page_size=page_size)
+    rows = [
+        RecentSessionRow(
+            sessionId=s.session_id,
+            ownerUid=s.owner_uid,
+            skillId=s.skill_id,
+            groupCode=s.group_code,
+            lastMessageAt=s.last_message_at.isoformat(),
+            turnCount=s.turn_count,
+            title=s.title,
+        )
+        for s in sessions
+    ]
+    return RecentSessionsResponse(sessions=rows)
 
 
 __all__ = ["router"]

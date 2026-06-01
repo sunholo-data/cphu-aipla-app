@@ -18,21 +18,10 @@ import {
   type ClassPayload,
   type SessionRow,
   createClass,
+  listClassRecentSessions,
   listClasses,
-  listSkillSessions,
 } from "@/lib/teacherApi";
 
-/** Extract the group code from an anonymous-group owner_uid.
- *  uid shape: `anon-{group_id_no_hyphens}-{hex_suffix}`
- *  We match against known group codes by stripping hyphens from both. */
-function resolveGroupCode(ownerUid: string, knownCodes: string[]): string | null {
-  if (!ownerUid.startsWith("anon-")) return null;
-  // Strip leading "anon-" and trailing "-{suffix}" (last hex segment)
-  const inner = ownerUid.slice("anon-".length);
-  const lastDash = inner.lastIndexOf("-");
-  const cleaned = lastDash >= 0 ? inner.slice(0, lastDash) : inner;
-  return knownCodes.find((c) => c.replace(/-/g, "") === cleaned) ?? null;
-}
 
 function relativeTime(iso: string): string {
   const diff = Date.now() - new Date(iso).getTime();
@@ -56,20 +45,18 @@ export default function TeacherClassesPage() {
     try {
       const list = await listClasses();
       setClasses(list);
-      // Fetch sessions for all unique skills across all classes.
-      const skillIds = [...new Set(list.flatMap((c) => c.lessons))];
-      if (skillIds.length > 0) {
-        const batches = await Promise.all(skillIds.map(listSkillSessions));
-        const merged = batches
-          .flat()
-          .sort(
-            (a, b) =>
-              new Date(b.lastMessageAt).getTime() -
-              new Date(a.lastMessageAt).getTime(),
-          )
-          .slice(0, 10);
-        setRecentSessions(merged);
-      }
+      // Fetch recent student sessions across all classes (per-class endpoint
+      // queries by groupCode, so only student sessions appear here).
+      const batches = await Promise.all(list.map((c) => listClassRecentSessions(c.classId)));
+      const merged = batches
+        .flat()
+        .sort(
+          (a, b) =>
+            new Date(b.lastMessageAt).getTime() -
+            new Date(a.lastMessageAt).getTime(),
+        )
+        .slice(0, 10);
+      setRecentSessions(merged);
     } catch (err) {
       setLoadError(
         err instanceof Error ? err.message : "failed to load classes",
@@ -80,8 +67,6 @@ export default function TeacherClassesPage() {
   useEffect(() => {
     void refresh();
   }, [refresh]);
-
-  const allGroupCodes = (classes ?? []).flatMap((c) => c.groupCodes);
 
   return (
     <div className="flex flex-col gap-8">
@@ -159,41 +144,38 @@ export default function TeacherClassesPage() {
           </p>
         ) : (
           <ul className="divide-y divide-border rounded border border-border">
-            {recentSessions.map((row) => {
-              const groupCode = resolveGroupCode(row.ownerUid, allGroupCodes);
-              return (
-                <li
-                  key={row.sessionId}
-                  className="flex flex-wrap items-center justify-between gap-2 px-3 py-2 text-sm"
-                >
-                  <div className="flex min-w-0 flex-1 flex-wrap items-center gap-x-3 gap-y-1">
-                    {groupCode ? (
-                      <code className="rounded bg-muted px-1.5 py-0.5 font-mono text-xs">
-                        {groupCode}
-                      </code>
-                    ) : null}
-                    {row.title ? (
-                      <span className="flex items-center gap-1 text-muted-foreground">
-                        <BookOpen className="h-3.5 w-3.5" aria-hidden="true" />
-                        {row.title}
-                      </span>
-                    ) : null}
-                    <span className="text-xs text-muted-foreground">
-                      {row.turnCount} turn{row.turnCount === 1 ? "" : "s"} · {relativeTime(row.lastMessageAt)}
-                    </span>
-                  </div>
-                  {groupCode ? (
-                    <Link
-                      href={`/teacher/reports/groups/${groupCode}`}
-                      className="flex items-center gap-1 rounded border border-border px-2 py-1 text-xs font-medium hover:bg-accent"
-                    >
-                      <FileText className="h-3.5 w-3.5" aria-hidden="true" />
-                      View
-                    </Link>
+            {recentSessions.map((row) => (
+              <li
+                key={row.sessionId}
+                className="flex flex-wrap items-center justify-between gap-2 px-3 py-2 text-sm"
+              >
+                <div className="flex min-w-0 flex-1 flex-wrap items-center gap-x-3 gap-y-1">
+                  {row.groupCode ? (
+                    <code className="rounded bg-muted px-1.5 py-0.5 font-mono text-xs">
+                      {row.groupCode}
+                    </code>
                   ) : null}
-                </li>
-              );
-            })}
+                  {row.title ? (
+                    <span className="flex items-center gap-1 text-muted-foreground">
+                      <BookOpen className="h-3.5 w-3.5" aria-hidden="true" />
+                      {row.title}
+                    </span>
+                  ) : null}
+                  <span className="text-xs text-muted-foreground">
+                    {row.turnCount} turn{row.turnCount === 1 ? "" : "s"} · {relativeTime(row.lastMessageAt)}
+                  </span>
+                </div>
+                {row.groupCode ? (
+                  <Link
+                    href={`/teacher/reports/groups/${row.groupCode}`}
+                    className="flex items-center gap-1 rounded border border-border px-2 py-1 text-xs font-medium hover:bg-accent"
+                  >
+                    <FileText className="h-3.5 w-3.5" aria-hidden="true" />
+                    View
+                  </Link>
+                ) : null}
+              </li>
+            ))}
           </ul>
         )}
       </section>

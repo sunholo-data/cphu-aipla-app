@@ -734,7 +734,7 @@ def make_after_agent_response(
         # is set to True only on a successful generation, so retries stop
         # once the session has a title.
         needs_title_gen = turn_count == 2 or (turn_count >= 4 and not state.get("titleSet"))
-        flush_counters = (turn_count % _TURN_FLUSH_INTERVAL == 0) or needs_title_gen
+        flush_counters = turn_count == 1 or (turn_count % _TURN_FLUSH_INTERVAL == 0) or needs_title_gen
         if not flush_counters:
             return
 
