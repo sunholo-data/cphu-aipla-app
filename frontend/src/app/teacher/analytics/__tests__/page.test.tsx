@@ -1,5 +1,5 @@
 import { render, screen } from "@testing-library/react";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 
 import TeacherAnalyticsPage from "@/app/teacher/analytics/page";
 import {
@@ -7,6 +7,23 @@ import {
   MOCK_ANALYTICS_QUESTION,
   MOCK_ANALYTICS_SUGGESTIONS,
 } from "@/app/teacher/_mock-data";
+
+vi.mock("next/navigation", () => ({
+  useRouter: () => ({ replace: vi.fn() }),
+}));
+
+vi.mock("@/lib/teacherApi", () => ({
+  listClasses: vi.fn().mockResolvedValue([]),
+}));
+
+vi.mock("@/lib/firebase", () => ({
+  subscribeToAuthState: vi.fn(() => () => undefined),
+}));
+
+vi.mock("@/lib/localMode", () => ({
+  isLocalMode: vi.fn().mockReturnValue(true),
+  LOCAL_MODE_WORKSHOP_USER: { uid: "local-teacher", displayName: "Local Teacher" },
+}));
 
 describe("/teacher/analytics — analytics chat surface", () => {
   it("renders the hardcoded question and answer", () => {
