@@ -1,4 +1,4 @@
-.PHONY: dev dev-local dev-recompile dev-status dev-stop proxy-check logs cloud-logs cloud-errors cloud-build verify-chat-logs smoke-session-persistence help cli-install cli-reinstall cli-uninstall cli-doctor cli-selftest-mock cli-selftest-live cli-selftest
+.PHONY: dev dev-local dev-recompile dev-status dev-stop proxy-check logs cloud-logs cloud-errors cloud-build verify-chat-logs smoke-session-persistence smoke-teacher-cli help cli-install cli-reinstall cli-uninstall cli-doctor cli-selftest-mock cli-selftest-live cli-selftest
 
 # Launch backend (port 1956) + frontend (port 3000) for local development.
 # Logs stream to stdout; Ctrl-C stops both.
@@ -80,6 +80,13 @@ smoke-session-persistence:
 	@chmod +x scripts/smoke-v1-session-persistence.sh
 	@scripts/smoke-v1-session-persistence.sh
 
+# 1.G-Ph3 teacher CLI smoke: class new/list/get/lessons/groups/delete round-trip
+# Requires make dev with LOCAL_MODE=1, or a deployed backend:
+#   make smoke-teacher-cli URL=https://aipla-backend-... AIPLATFORM_ID_TOKEN=<token>
+smoke-teacher-cli:
+	@chmod +x scripts/smoke-v1-teacher-cli.sh
+	@scripts/smoke-v1-teacher-cli.sh
+
 # --- CLI lifecycle ---
 
 # Install the `aiplatform` CLI as a global uv tool. Idempotent: --force
@@ -155,6 +162,7 @@ help:
 	@echo "make proxy-check        — smoke-test the proxy bridge (CI helper)"
 	@echo "make verify-chat-logs            — e2e smoke: join a group, drive a turn, confirm it reached BigQuery (GROUP=… ENV=…)"
 	@echo "make smoke-session-persistence   — 1.F smoke: join→bootstrap→rejoin→restore→reset (requires make dev)"
+	@echo "make smoke-teacher-cli           — 1.G-Ph3 smoke: class new/list/get/lessons/groups/delete (requires make dev)"
 	@echo
 	@echo "make cli-install        — install the aiplatform CLI as a global uv tool"
 	@echo "make cli-reinstall      — clean reinstall (uninstalls historical aitana names first)"
