@@ -26,9 +26,12 @@ import { useEffect, useRef, useState } from "react";
  * - URL clears ``?session=`` (user clicked "+ New conversation"): mint a
  *   fresh UUID; AGUIProvider rebuilds intentionally.
  */
-export function useStableThreadId(urlSessionId: string | null): string {
+export function useStableThreadId(
+  urlSessionId: string | null,
+  opts?: { initialSessionId?: string },
+): string {
   const [threadId, setThreadId] = useState<string>(
-    () => urlSessionId ?? crypto.randomUUID(),
+    () => urlSessionId ?? opts?.initialSessionId ?? crypto.randomUUID(),
   );
   const prevUrlSessionIdRef = useRef<string | null>(urlSessionId);
 

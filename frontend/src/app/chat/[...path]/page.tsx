@@ -2,14 +2,18 @@
 
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
-import { use, useCallback, useEffect, useRef, useState } from "react";
+import { use, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { ChatMessageList } from "@/components/chat/ChatMessageList";
+import { ResumeWelcomeBanner } from "@/components/chat/ResumeWelcomeBanner";
 import type { DocTabData } from "@/components/doc-browser/DocTab";
 import { DocListView } from "@/components/doc-browser/DocListView";
 import { DocTabsBar } from "@/components/doc-browser/DocTabsBar";
 import { UploadDropZone } from "@/components/doc-browser/UploadDropZone";
 import type { ParsedDocument } from "@/hooks/useDocBrowser";
-import { isAnonymousGroupAuthMode } from "@/lib/anonymousGroupAuth";
+import {
+  isAnonymousGroupAuthMode,
+  readStoredGroupSession,
+} from "@/lib/anonymousGroupAuth";
 import { useAuth } from "@/contexts/AuthContext";
 import type { User } from "@/lib/firebase";
 import { useSkillAgent, type StreamError } from "@/hooks/useSkillAgent";
@@ -189,14 +193,38 @@ function ChatPageInner({
   pathPrefix: string;
   user: User;
 }) {
+  const router = useRouter();
   const searchParams = useSearchParams();
   const urlSessionId = searchParams.get("session");
+
+  // 1.F: for anonymous-group users, read the resumedSessionId from the
+  // stored join response. Memoised with an empty dep array so it's read
+  // exactly once at mount — by the time any effect fires the URL may have
+  // already been updated, so we freeze the "was there a resume on load?" state.
+  const resumedSessionId = useMemo<string | null>(() => {
+    if (!isAnonymousGroupAuthMode()) return null;
+    if (urlSessionId !== null) return null; // already navigated to a specific session
+    return readStoredGroupSession()?.resumedSessionId ?? null;
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Write ?session=resumedSessionId immediately on mount so useSessionMessages
+  // starts loading the prior history without waiting for the first message.
+  useEffect(() => {
+    if (resumedSessionId && !urlSessionId) {
+      const params = new URLSearchParams(searchParams.toString());
+      params.set("session", resumedSessionId);
+      router.replace(`${pathPrefix}?${params.toString()}`);
+    }
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps -- intentionally runs once on mount
+
   // chat-history-deep-fixes-2 Bug A': pre-allocate a stable threadId so the
   // URL-writeback effect after the first turn doesn't change AGUIProvider's
   // sessionId prop. Without this, useMemo([sessionId, …]) rebuilds the
   // HttpAgent the moment ?session= is written, agent.messages is destroyed,
   // and the user sees turn 1 vanish until the GET refills initialMessages.
-  const stableThreadId = useStableThreadId(urlSessionId);
+  const stableThreadId = useStableThreadId(urlSessionId, {
+    initialSessionId: resumedSessionId ?? undefined,
+  });
 
   return (
     <AGUIProvider skillId={skillId} sessionId={stableThreadId}>
@@ -205,6 +233,7 @@ function ChatPageInner({
         pathPrefix={pathPrefix}
         user={user}
         stableThreadId={stableThreadId}
+        resumedSessionId={resumedSessionId}
       />
     </AGUIProvider>
   );
@@ -249,11 +278,13 @@ function ChatShell({
   pathPrefix,
   user,
   stableThreadId,
+  resumedSessionId,
 }: {
   skillId: string;
   pathPrefix: string;
   user: User;
   stableThreadId: string;
+  resumedSessionId: string | null;
 }) {
   const {
     sessionId: agentSessionId,
@@ -360,6 +391,43 @@ function ChatShell({
       }
     });
   }, [agentSessionId, skillId]);
+
+  // 1.F: fetch workbench state from the prior session so artefacts can
+  // be restored via aipla:restore (M6). Also controls the banner.
+  const [restoredWorkbenchState, setRestoredWorkbenchState] = useState<
+    Record<string, unknown>
+  >({});
+  const [showResumeBanner, setShowResumeBanner] = useState(false);
+  const restoreFetchedRef = useRef(false);
+  useEffect(() => {
+    if (!resumedSessionId) return;
+    if (restoreFetchedRef.current) return;
+    restoreFetchedRef.current = true;
+    fetchWithAuth(`/api/proxy/api/sessions/${resumedSessionId}/restore`, {
+      method: "POST",
+    })
+      .then((r) => r.json())
+      .then(
+        (data: {
+          workbenchState: Record<string, unknown>;
+          messages: unknown[];
+        }) => {
+          if (
+            data.workbenchState &&
+            Object.keys(data.workbenchState).length > 0
+          ) {
+            setRestoredWorkbenchState(data.workbenchState);
+          }
+          if (data.messages && data.messages.length > 0) {
+            setShowResumeBanner(true);
+          }
+        },
+      )
+      .catch(() => {
+        // Non-fatal — student gets a fresh-looking chat; restore is best-effort
+      });
+  }, [resumedSessionId]);
+
   const [showDocBrowser, setShowDocBrowser] = useState(true);
   const [showUpload, setShowUpload] = useState(false);
   const [openTabs, setOpenTabs] = useState<DocTabData[]>([]);
@@ -766,6 +834,11 @@ function ChatShell({
             workspaceFullscreen ? "md:hidden" : "md:flex"
           }`}
         >
+          {showResumeBanner && (
+            <div className="px-4 pt-3">
+              <ResumeWelcomeBanner onDismiss={() => setShowResumeBanner(false)} />
+            </div>
+          )}
           <ChatMessageList
             messages={messages}
             // initialMessages are the persisted history fetched by

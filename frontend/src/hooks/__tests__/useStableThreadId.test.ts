@@ -73,3 +73,37 @@ describe("useStableThreadId — chat-history-deep-fixes-2 Bug A' fix", () => {
     expect(result.current).toMatch(/^mock-uuid-\d+$/);
   });
 });
+
+describe("useStableThreadId — session persistence (1.F M5)", () => {
+  it("uses initialSessionId instead of minting a UUID when URL has no session", () => {
+    const { result } = renderHook(() =>
+      useStableThreadId(null, { initialSessionId: "resumed-sess-abc" }),
+    );
+    expect(result.current).toBe("resumed-sess-abc");
+  });
+
+  it("stays stable when URL writeback fires with the same id as initialSessionId", () => {
+    const { result, rerender } = renderHook(
+      ({ urlSessionId }: { urlSessionId: string | null }) =>
+        useStableThreadId(urlSessionId, { initialSessionId: "resumed-sess-abc" }),
+      { initialProps: { urlSessionId: null as string | null } },
+    );
+    expect(result.current).toBe("resumed-sess-abc");
+
+    // URL writeback sets ?session=resumed-sess-abc — threadId must NOT change.
+    rerender({ urlSessionId: "resumed-sess-abc" });
+    expect(result.current).toBe("resumed-sess-abc");
+  });
+
+  it("prefers urlSessionId over initialSessionId when URL already has a session", () => {
+    const { result } = renderHook(() =>
+      useStableThreadId("url-session-xyz", { initialSessionId: "resumed-sess-abc" }),
+    );
+    expect(result.current).toBe("url-session-xyz");
+  });
+
+  it("mints a fresh UUID when initialSessionId is absent and URL has no session", () => {
+    const { result } = renderHook(() => useStableThreadId(null));
+    expect(result.current).toMatch(/^mock-uuid-\d+$/);
+  });
+});

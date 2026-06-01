@@ -39,6 +39,11 @@ export interface PersistedGroupSession {
    * invoke (added 2026-05-20). Empty array is treated as "no filter"
    * for back-compat with sessions stored before the field existed. */
   skill_ids?: string[];
+  /** ADK session id from the student's most recent active session for
+   * this group code (1.F). Null on the first join; set on re-joins
+   * within 30 days. The chat page uses this to resume the prior
+   * conversation instead of starting a blank session. */
+  resumedSessionId?: string | null;
 }
 
 /**
