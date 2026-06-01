@@ -49,7 +49,7 @@ export default function TeacherSignInPage() {
         setError("Incorrect email or password.");
       } else if (msg.includes("too-many-requests")) {
         setError("Too many attempts. Try again later.");
-      } else if (msg.includes("operation-not-allowed") || msg.includes("OPERATION_NOT_ALLOWED")) {
+      } else if (msg.includes("operation-not-allowed") || msg.includes("OPERATION_NOT_ALLOWED") || msg.includes("PASSWORD_LOGIN_DISABLED")) {
         setError("Email/password sign-in is not enabled. Ask your administrator to enable it in the Firebase Console.");
       } else {
         setError(msg);
