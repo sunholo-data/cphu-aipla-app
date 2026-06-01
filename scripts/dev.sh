@@ -7,8 +7,9 @@
 # Frontend: http://localhost:3456  (Next.js, hot-reload)
 #
 # Both processes share this terminal — Ctrl-C kills both.
-# Firestore + Vertex AI hit the real your-project-id project via ADC.
+# Firestore + Vertex AI hit the real aipla-dev-2026 project via ADC.
 # Run `gcloud auth application-default login` once if credentials are stale.
+# For LOCAL_MODE (no real Firestore/auth): use `make dev-local` instead.
 
 set -euo pipefail
 
@@ -17,9 +18,9 @@ REPO_ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 # Force-set both vars — GCP_PROJECT shadows GOOGLE_CLOUD_PROJECT in
 # db/firestore.py, and the shell may already have GCP_PROJECT pointing at
 # a different project (e.g. multivac-internal-dev). Always use dev here.
-export GCP_PROJECT=your-project-id
-export GOOGLE_CLOUD_PROJECT=your-project-id
-export GOOGLE_CLOUD_LOCATION="${GOOGLE_CLOUD_LOCATION:-europe-west1}"
+export GCP_PROJECT=aipla-dev-2026
+export GOOGLE_CLOUD_PROJECT=aipla-dev-2026
+export GOOGLE_CLOUD_LOCATION="${GOOGLE_CLOUD_LOCATION:-europe-north1}"
 export GOOGLE_GENAI_USE_VERTEXAI="True"
 
 # Unset API-key vars so the Vertex SDK uses ADC, not Express Mode. With
@@ -54,8 +55,8 @@ if [ -f "$ENV_FILE" ]; then
     # Re-pin the GCP project triple so .env can never silently downgrade
     # the local dev project (e.g. an old `GCP_PROJECT=multivac-internal-dev`
     # left in someone's .env after porting v5 tooling).
-    export GCP_PROJECT=your-project-id
-    export GOOGLE_CLOUD_PROJECT=your-project-id
+    export GCP_PROJECT=aipla-dev-2026
+    export GOOGLE_CLOUD_PROJECT=aipla-dev-2026
 fi
 
 # Pin frontend to 3456 — 3000 is often occupied by other local servers.
@@ -90,7 +91,7 @@ else
     echo "[dev] mcp-sandbox node_modules missing — run: cd infrastructure/mcp-sandbox && npm install"
 fi
 
-echo "=== Aitana dev server ==="
+echo "=== AIPLA dev server ==="
 echo "  Backend     → http://localhost:1956"
 echo "  Frontend    → http://localhost:${FRONTEND_PORT}"
 echo "  MCP sandbox → http://localhost:${SANDBOX_PORT}"
