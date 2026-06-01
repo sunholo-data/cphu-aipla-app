@@ -23,7 +23,7 @@ import { useSessionMessages } from "@/hooks/useSessionMessages";
 import { useSessionDocuments } from "@/hooks/useSessionDocuments";
 import { useStableThreadId } from "@/hooks/useStableThreadId";
 import { useProactiveGreet } from "@/lib/proactiveGreet";
-import { HumanToolEventsProvider } from "@/hooks/useHumanToolEvents";
+import { HumanToolEventsProvider, useSyncMessageCount } from "@/hooks/useHumanToolEvents";
 import { fetchWithAuth, postShareConsent } from "@/lib/apiClient";
 import { computeIncludedDocIds } from "@/lib/docContext";
 import { notifySessionsChanged, subscribeSessionsChangedDetailed } from "@/lib/sessionEvents";
@@ -228,13 +228,24 @@ function ChatPageInner({
 
   return (
     <AGUIProvider skillId={skillId} sessionId={stableThreadId}>
-      <ChatShell
-        skillId={skillId}
-        pathPrefix={pathPrefix}
-        user={user}
-        stableThreadId={stableThreadId}
-        resumedSessionId={resumedSessionId}
-      />
+      {/* HumanToolEventsProvider MUST wrap ChatShell from outside, not
+       *  live inside its return — ChatShell's top-level snapshot hooks
+       *  (useBoldkastSnapshot / useLedPlanckSnapshot / useKineBotSnapshot)
+       *  call useHumanToolEvents during render. If the provider sits
+       *  inside ChatShell's JSX, those hook calls fall outside the
+       *  provider's subtree and silently get the no-op fallback — POSTs
+       *  still go out, but no "Sendte spørgsmål med …" cards render in
+       *  chat. messages.length is synced via useSyncMessageCount inside
+       *  ChatShell. (Was lost between 86e24ee → 3563af1; restored 2026-06-01.) */}
+      <HumanToolEventsProvider>
+        <ChatShell
+          skillId={skillId}
+          pathPrefix={pathPrefix}
+          user={user}
+          stableThreadId={stableThreadId}
+          resumedSessionId={resumedSessionId}
+        />
+      </HumanToolEventsProvider>
     </AGUIProvider>
   );
 }
@@ -699,9 +710,14 @@ function ChatShell({
     return () => document.removeEventListener("keydown", onKey);
   }, [isLoading, stop]);
 
+  // Sync the message count into the surrounding HumanToolEventsProvider
+  // (mounted in ChatPageInner) so card dispatches land at the right spot
+  // between transcript messages. See provider's comment for why it's
+  // upstream of this component.
+  useSyncMessageCount(messages.length);
+
   return (
     <SurfaceRegistryProvider>
-    <HumanToolEventsProvider currentMessageCount={messages.length}>
     <SurfaceSessionLifecycle sessionId={sessionId} />
     <main className="flex h-full min-h-0 flex-col">
       <SkillsBar
@@ -1050,7 +1066,6 @@ function ChatShell({
           the user-gesture guard so the agent can't pop one unprompted. */}
       <ModalSurfaceRegion sessionId={sessionId ?? agentSessionId} />
     </main>
-    </HumanToolEventsProvider>
     </SurfaceRegistryProvider>
   );
 }

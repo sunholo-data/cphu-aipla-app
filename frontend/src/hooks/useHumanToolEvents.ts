@@ -22,7 +22,7 @@
 
 "use client";
 
-import { createContext, useCallback, useContext, useRef, useState } from "react";
+import { createContext, useCallback, useContext, useEffect, useRef, useState } from "react";
 import { ReactNode, createElement } from "react";
 
 import type { HumanToolUseStatus } from "@/components/chat/HumanToolUseCard";
@@ -54,11 +54,59 @@ export interface HumanToolEventsApi {
   /** Test/dev helper — drop everything (the chat-page provider doesn't
    *  call this; the events naturally roll off when the page unmounts). */
   clear: () => void;
+  /** Sync the current chat-message count into the provider's ref so the
+   *  next dispatch's `afterMessageIndex` lands at the right spot. Used by
+   *  `useSyncMessageCount` so the provider can be mounted ABOVE the
+   *  component that owns `useSkillAgent` — keeping all snapshot hooks
+   *  (Boldkast / LED Planck / KineBot) inside the provider's subtree
+   *  instead of silently falling through to the no-op fallback. */
+  setCurrentMessageCount: (n: number) => void;
 }
 
 const MIN_PENDING_MS = 200;
 
 const HumanToolEventsContext = createContext<HumanToolEventsApi | null>(null);
+
+// Tripped the first time the no-op fallback's dispatch runs in dev. Why
+// a module-level latch: real card storms (slider settles, repeated
+// reveals) would otherwise spam the console. One loud warning per page
+// load is enough to catch a misplaced provider; the rest is silent.
+//
+// Background — 2026-06-01: HumanToolEventsProvider was moved inside the
+// component that owns useSkillAgent so it could read messages.length as
+// a prop. That move shoved all snapshot hooks (Boldkast / LED Planck /
+// KineBot / ProgressChecklist) outside the provider's subtree, where
+// useHumanToolEvents() silently returned this no-op fallback — POSTs
+// still went out, but no cards rendered. The bug survived ~10 days
+// undetected because each snapshot's unit tests mock useHumanToolEvents.
+// This warning converts that whole class of silent miswirings into a
+// console.warn on first interaction.
+let _warnedNoProvider = false;
+
+function _warnNoProviderOnce(): void {
+  // Stay quiet in production: no perf cost, no user-visible noise.
+  // The "production" guard intentionally lets the warning fire under
+  // NODE_ENV=test too — so the regression test below can assert it
+  // without per-suite env stubs.
+  if (typeof process !== "undefined" && process.env.NODE_ENV === "production") {
+    return;
+  }
+  if (_warnedNoProvider) return;
+  _warnedNoProvider = true;
+  // eslint-disable-next-line no-console
+  console.warn(
+    "[useHumanToolEvents] dispatch() called outside HumanToolEventsProvider — " +
+      "no card will render. Mount <HumanToolEventsProvider> as an ANCESTOR of " +
+      "the component whose hooks dispatch (Boldkast / LED Planck / KineBot / " +
+      "ProgressChecklist / any future sim). See useHumanToolEvents.ts header " +
+      "comment for the 2026-06-01 regression that motivated this check.",
+  );
+}
+
+// Test-only: reset the latch so the warning re-arms between cases.
+export function _resetNoProviderWarnedForTests(): void {
+  _warnedNoProvider = false;
+}
 
 /** Wrap the chat tree in this to enable cards. Surface components call
  *  `useHumanToolEvents()` to dispatch; ChatMessageList reads `.events`
@@ -118,8 +166,24 @@ export function HumanToolEventsProvider({
 
   const clear = useCallback(() => setEvents([]), []);
 
-  const api: HumanToolEventsApi = { events, dispatch, clear };
+  const setCurrentMessageCount = useCallback((n: number) => {
+    messageCountRef.current = n;
+  }, []);
+
+  const api: HumanToolEventsApi = { events, dispatch, clear, setCurrentMessageCount };
   return createElement(HumanToolEventsContext.Provider, { value: api }, children);
+}
+
+/** Push the current chat-message count into the surrounding provider on
+ *  every change. Lets the provider sit ABOVE the component that owns
+ *  `useSkillAgent` so all snapshot hooks called inside that component are
+ *  still inside the provider's subtree and can dispatch real cards (not
+ *  the no-op fallback). No-op when no provider is mounted. */
+export function useSyncMessageCount(currentMessageCount: number): void {
+  const ctx = useContext(HumanToolEventsContext);
+  useEffect(() => {
+    ctx?.setCurrentMessageCount(currentMessageCount);
+  }, [ctx, currentMessageCount]);
 }
 
 /** Hook used by workspace surfaces to dispatch cards, and by the chat
@@ -130,12 +194,16 @@ export function useHumanToolEvents(): HumanToolEventsApi {
   if (ctx) return ctx;
   // No-op fallback — used by surfaces rendered outside the chat page
   // (e.g. isolated component tests). dispatch still consumes the push
-  // so the network side-effect runs.
+  // so the network side-effect runs. In dev/test, it also fires a
+  // one-time console.warn so a misplaced provider on a chat page
+  // doesn't fail silently (see _warnNoProviderOnce header for why).
   return {
     events: [],
     dispatch: ({ push }) => {
+      _warnNoProviderOnce();
       void push().catch(() => {});
     },
     clear: () => {},
+    setCurrentMessageCount: () => {},
   };
 }

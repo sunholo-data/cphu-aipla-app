@@ -2,7 +2,12 @@ import { act, renderHook } from "@testing-library/react";
 import { ReactNode } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-import { HumanToolEventsProvider, useHumanToolEvents } from "../useHumanToolEvents";
+import {
+  HumanToolEventsProvider,
+  _resetNoProviderWarnedForTests,
+  useHumanToolEvents,
+  useSyncMessageCount,
+} from "../useHumanToolEvents";
 
 const wrapper = ({ children }: { children: ReactNode }) => (
   <HumanToolEventsProvider>{children}</HumanToolEventsProvider>
@@ -125,15 +130,104 @@ describe("useHumanToolEvents", () => {
     expect(result.current.events).toEqual([]);
   });
 
+  describe("useSyncMessageCount", () => {
+    // Regression for 2026-06-01: when the provider was moved inside the
+    // component that owns useSkillAgent so it could read messages.length
+    // as a prop, all snapshot hooks called at that component's top level
+    // (useBoldkastSnapshot, useLedPlanckSnapshot, useKineBotSnapshot)
+    // fell outside the provider subtree and got the no-op fallback —
+    // POSTs still went out, but no cards rendered. useSyncMessageCount
+    // exists so the provider can sit ABOVE that component (keeping all
+    // snapshot hooks inside its subtree) while still tracking the
+    // current message count.
+    it("updates afterMessageIndex on the NEXT dispatch", async () => {
+      const { result } = renderHook(
+        () => {
+          useSyncMessageCount(7);
+          return useHumanToolEvents();
+        },
+        { wrapper },
+      );
+      act(() => {
+        result.current.dispatch({
+          label: "Tick a",
+          push: () => Promise.resolve(okResponse()),
+        });
+      });
+      expect(result.current.events[0].afterMessageIndex).toBe(7);
+    });
+
+    it("is a no-op when no provider is mounted", () => {
+      // Just shouldn't throw; nothing observable to assert beyond that.
+      const { result } = renderHook(() => {
+        useSyncMessageCount(3);
+        return useHumanToolEvents();
+      });
+      expect(result.current.events).toEqual([]);
+    });
+  });
+
   describe("no provider", () => {
+    beforeEach(() => {
+      _resetNoProviderWarnedForTests();
+    });
+
     it("returns a no-op dispatch that still runs the push side-effect", async () => {
       const push = vi.fn(() => Promise.resolve(okResponse()));
+      const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
       const { result } = renderHook(() => useHumanToolEvents());
       act(() => {
         result.current.dispatch({ label: "a", push });
       });
       expect(result.current.events).toEqual([]);
       expect(push).toHaveBeenCalledTimes(1);
+      warn.mockRestore();
+    });
+
+    // Catches the 2026-06-01 class of bug for ALL sims that route through
+    // useHumanToolEvents (Boldkast, LED Planck, KineBot, ProgressChecklist,
+    // and any future sim). The bug pattern: provider is mounted but sits
+    // inside the component whose hooks dispatch — so the React context
+    // boundary skips them and useHumanToolEvents() silently returns this
+    // no-op fallback. Without this warning the regression is invisible:
+    // POSTs succeed (smoke passes), agent sees state, but cards never
+    // render in chat.
+    it("dispatch() warns ONCE in dev when no provider is mounted", () => {
+      const push = vi.fn(() => Promise.resolve(okResponse()));
+      const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+      const { result } = renderHook(() => useHumanToolEvents());
+      act(() => {
+        result.current.dispatch({ label: "a", push });
+        result.current.dispatch({ label: "b", push });
+        result.current.dispatch({ label: "c", push });
+      });
+      expect(warn).toHaveBeenCalledTimes(1);
+      expect(warn.mock.calls[0][0]).toMatch(/HumanToolEventsProvider/);
+      warn.mockRestore();
+    });
+
+    it("dispatch() inside a mounted provider does NOT warn", () => {
+      const push = vi.fn(() => Promise.resolve(okResponse()));
+      const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+      const { result } = renderHook(() => useHumanToolEvents(), { wrapper });
+      act(() => {
+        result.current.dispatch({ label: "a", push });
+      });
+      expect(warn).not.toHaveBeenCalled();
+      warn.mockRestore();
+    });
+
+    it("dispatch() is silent in production builds", () => {
+      const push = vi.fn(() => Promise.resolve(okResponse()));
+      const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+      vi.stubEnv("NODE_ENV", "production");
+      const { result } = renderHook(() => useHumanToolEvents());
+      act(() => {
+        result.current.dispatch({ label: "a", push });
+      });
+      expect(warn).not.toHaveBeenCalled();
+      vi.unstubAllEnvs();
+      warn.mockRestore();
     });
   });
 });
