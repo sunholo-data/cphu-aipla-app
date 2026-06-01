@@ -10,16 +10,20 @@ Archived sessions return 404 (the teacher-reset path).
 
 from __future__ import annotations
 
-import os
 from unittest.mock import AsyncMock, MagicMock, patch
 
+import pytest
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
 
-os.environ.setdefault("LOCAL_MODE", "1")
-
 from auth import User, get_current_user
 from auth.access_context import AccessContext
+
+
+@pytest.fixture(autouse=True)
+def _local_mode(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv("LOCAL_MODE", "1")
+
 
 # ---------------------------------------------------------------------------
 # Helpers

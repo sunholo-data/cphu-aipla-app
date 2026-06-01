@@ -6,16 +6,14 @@ simultaneous-write idempotency (last-writer-wins), and session_id round-trip.
 
 from __future__ import annotations
 
-import os
 from datetime import UTC, datetime, timedelta
 
 import pytest
 
-os.environ.setdefault("LOCAL_MODE", "1")
-
 
 @pytest.fixture(autouse=True)
-def reset_firestore():
+def reset_firestore(monkeypatch: pytest.MonkeyPatch):
+    monkeypatch.setenv("LOCAL_MODE", "1")
     from db import firestore
 
     firestore._reset_client_for_testing()
