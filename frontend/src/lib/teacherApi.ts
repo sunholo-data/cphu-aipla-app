@@ -287,6 +287,41 @@ export async function revokeGroupCode(
   return readJson(resp, "revoke group code");
 }
 
+export interface SessionRow {
+  sessionId: string;
+  ownerUid: string;
+  skillId: string;
+  lastMessageAt: string;
+  turnCount: number;
+  title: string | null;
+}
+
+/** List recent sessions for a skill (teacher auth required). */
+export async function listSkillSessions(skillId: string): Promise<SessionRow[]> {
+  const resp = await fetchWithAuth(
+    `/api/proxy/api/skills/${encodeURIComponent(skillId)}/sessions`,
+  );
+  if (!resp.ok) return [];
+  const body = (await resp.json()) as {
+    sessions: Array<{
+      session_id: string;
+      owner_uid: string;
+      skill_id: string;
+      last_message_at: string;
+      turn_count: number;
+      title: string | null;
+    }>;
+  };
+  return body.sessions.map((s) => ({
+    sessionId: s.session_id,
+    ownerUid: s.owner_uid,
+    skillId: s.skill_id,
+    lastMessageAt: s.last_message_at,
+    turnCount: s.turn_count,
+    title: s.title,
+  }));
+}
+
 /** Archive the active session for a group code so the next student join starts fresh. */
 export async function resetGroupSession(
   classId: string,
