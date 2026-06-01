@@ -12,7 +12,7 @@
  * sidecar on port 1956.
  */
 
-import { fetchWithAuth } from "@/lib/apiClient";
+import { fetchWithTeacherAuth as fetchWithAuth } from "@/lib/apiClient";
 
 export type Language = "da" | "en";
 export type Difficulty = "standard" | "guided";

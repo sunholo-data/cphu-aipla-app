@@ -13,13 +13,31 @@
  * — they don't need to branch on "am I signed in yet?" before every request.
  */
 
-import { getIdToken } from "@/lib/firebase";
+import { getIdToken, getTeacherIdToken } from "@/lib/firebase";
 
 export async function fetchWithAuth(
   input: RequestInfo | URL,
   init: RequestInit = {},
 ): Promise<Response> {
   const token = await getIdToken();
+  const headers = new Headers(init.headers);
+  if (token) {
+    headers.set("Authorization", `Bearer ${token}`);
+  }
+  return fetch(input, { ...init, headers, cache: "no-store" });
+}
+
+/**
+ * Like `fetchWithAuth` but always uses the Firebase teacher token.
+ * Use this for all `/api/classes/*` and other teacher-only API calls so
+ * the request carries a real Firebase ID token rather than the student's
+ * anonymous-group token (which would fail the backend's `is_teacher` gate).
+ */
+export async function fetchWithTeacherAuth(
+  input: RequestInfo | URL,
+  init: RequestInit = {},
+): Promise<Response> {
+  const token = await getTeacherIdToken();
   const headers = new Headers(init.headers);
   if (token) {
     headers.set("Authorization", `Bearer ${token}`);

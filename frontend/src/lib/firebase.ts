@@ -103,6 +103,20 @@ export async function signInWithGoogleRedirect(): Promise<void> {
   await signInWithRedirect(auth, provider);
 }
 
+/**
+ * Get the ID token for a teacher (Firebase OAuth user).
+ *
+ * Unlike the shared `getIdToken()`, this function never falls through to
+ * the anonymous-group sessionStorage token — teacher API calls must carry
+ * a Firebase token regardless of the student auth mode the app is running in.
+ */
+export async function getTeacherIdToken(): Promise<string | null> {
+  if (isLocalMode()) return LOCAL_MODE_STUB_TOKEN;
+  const auth = getFirebaseAuth();
+  if (!auth?.currentUser) return null;
+  return auth.currentUser.getIdToken();
+}
+
 export async function signOut(): Promise<void> {
   const auth = getFirebaseAuth();
   if (!auth) return;
