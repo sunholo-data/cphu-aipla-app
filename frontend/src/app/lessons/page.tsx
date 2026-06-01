@@ -80,15 +80,19 @@ function AnonGroupLessonsPage() {
     groupAuth.status === "joined" || groupAuth.status === "expired";
   return (
     <>
-      {groupAuth.groupCode ? (
+      {ready ? (
         <div className="border-b border-border bg-muted/40 px-4 py-2 text-sm">
           <div className="mx-auto flex max-w-5xl items-center justify-between gap-2">
-            <span className="text-muted-foreground">
-              Gruppe / Group:{" "}
-              <code className="font-mono font-medium text-foreground">
-                {groupAuth.groupCode}
-              </code>
-            </span>
+            {groupAuth.groupCode ? (
+              <span className="text-muted-foreground">
+                Gruppe / Group:{" "}
+                <code className="font-mono font-medium text-foreground">
+                  {groupAuth.groupCode}
+                </code>
+              </span>
+            ) : (
+              <span className="text-muted-foreground">Tilmeldt / Joined</span>
+            )}
             <button
               type="button"
               onClick={handleLeave}
