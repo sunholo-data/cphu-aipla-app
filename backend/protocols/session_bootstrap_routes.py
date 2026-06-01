@@ -40,6 +40,7 @@ from adk.agui import APP_NAME
 from adk.session import get_session_service
 from auth import User, get_current_user
 from db.chat_sessions import create_session_index, get_session_index
+from db.group_sessions import set_active_session_for_group
 from skills import skill_config
 
 log = logging.getLogger(__name__)
@@ -109,6 +110,13 @@ async def post_session_bootstrap(
         access_control=skill.access_control,
         document_ids=[],
     )
+
+    # Register this session as the active one for the group (1.F). The
+    # join endpoint reads it back on the next join and returns it as
+    # resumedSessionId. Only written for anonymous-group users — Firebase
+    # users have their own session persistence via ChatSessionIndex queries.
+    if user.auth_mode == "anonymous_group_id" and user.group_id:
+        set_active_session_for_group(user.group_id, session_id)
 
     # ALSO pre-create the ADK session under the canonical APP_NAME triple.
     # Without this, iframe-context POSTs that arrive before the agent's

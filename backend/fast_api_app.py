@@ -247,6 +247,7 @@ from protocols.models_route import router as models_router  # noqa: E402
 from protocols.proactive_routes import router as proactive_router  # noqa: E402
 from protocols.reports_routes import router as reports_router  # noqa: E402
 from protocols.session_bootstrap_routes import router as session_bootstrap_router  # noqa: E402
+from protocols.session_restore_routes import router as session_restore_router  # noqa: E402
 from protocols.sessions_route import router as sessions_router  # noqa: E402
 from skills.routes import router as skills_router  # noqa: E402
 from skills.skill_processor import SkillNotFoundError, process_skill_request  # noqa: E402
@@ -268,6 +269,7 @@ app.include_router(sessions_router)
 app.include_router(mcp_proxy_router)
 app.include_router(iframe_context_router)
 app.include_router(session_bootstrap_router)
+app.include_router(session_restore_router)
 app.include_router(a2ui_surface_action_router)
 app.include_router(activity_config_router)
 app.include_router(classes_router)
