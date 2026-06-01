@@ -4,6 +4,7 @@ import {
   getAuth,
   GoogleAuthProvider,
   onAuthStateChanged,
+  signInWithEmailAndPassword,
   signInWithPopup,
   signInWithRedirect,
   signOut as fbSignOut,
@@ -101,6 +102,12 @@ export async function signInWithGoogleRedirect(): Promise<void> {
   if (!auth) throw new Error("firebase not configured");
   const provider = new GoogleAuthProvider();
   await signInWithRedirect(auth, provider);
+}
+
+export async function signInWithEmail(email: string, password: string): Promise<void> {
+  const auth = getFirebaseAuth();
+  if (!auth) throw new Error("firebase not configured");
+  await signInWithEmailAndPassword(auth, email, password);
 }
 
 /**
