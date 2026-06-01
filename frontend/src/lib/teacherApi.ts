@@ -52,6 +52,7 @@ export interface SessionSummaryPayload {
   durationSeconds: number;
   messageCount: number;
   simRunCount: number;
+  sharedWithTeacher: boolean;
   conversation: SessionTurnPayload[];
 }
 

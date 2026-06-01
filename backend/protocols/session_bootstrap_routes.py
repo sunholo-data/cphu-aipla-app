@@ -39,7 +39,7 @@ from pydantic import BaseModel, Field
 from adk.agui import APP_NAME
 from adk.session import get_session_service
 from auth import User, get_current_user
-from db.chat_sessions import create_session_index, get_session_index
+from db.chat_sessions import create_session_index, get_session_index, update_session_fields
 from db.group_sessions import set_active_session_for_group
 from skills import skill_config
 
@@ -147,6 +147,41 @@ async def post_session_bootstrap(
         user.uid,
         session_id,
         body.skill_id,
+    )
+    return None
+
+
+class ShareConsentRequest(BaseModel):
+    """Body for ``POST /api/sessions/{id}/share-consent``."""
+
+    shared: bool
+
+    model_config = {"extra": "forbid"}
+
+
+@router.post("/{session_id}/share-consent", status_code=204)
+async def post_share_consent(
+    session_id: str,
+    body: ShareConsentRequest,
+    user: User = Depends(get_current_user),  # noqa: B008
+) -> None:
+    """Record whether the student opts in to sharing this session with their teacher.
+
+    Only the session owner (the anonymous-group student who bootstrapped it)
+    can change the flag. 403 if the caller doesn't own the session. 404 if the
+    session hasn't been bootstrapped yet.
+    """
+    idx = get_session_index(session_id)
+    if idx is None:
+        raise HTTPException(status_code=404, detail="session not found")
+    if idx.owner_uid != user.uid:
+        raise HTTPException(status_code=403, detail="not your session")
+    update_session_fields(session_id, {"sharedWithTeacher": body.shared})
+    log.info(
+        "share_consent: session=%s uid=%s shared=%s",
+        session_id,
+        user.uid,
+        body.shared,
     )
     return None
 

@@ -13,13 +13,7 @@ from auth.access_context import build_access_context
 from auth.firebase_auth import User
 from db.models.access import AccessControl
 
-TEMPLATE_PATH = (
-    Path(__file__).resolve().parent.parent.parent
-    / "skills"
-    / "templates"
-    / "analytics-chat"
-    / "SKILL.md"
-)
+TEMPLATE_PATH = Path(__file__).resolve().parent.parent.parent / "skills" / "templates" / "analytics-chat" / "SKILL.md"
 
 
 def test_analytics_chat_template_parses() -> None:

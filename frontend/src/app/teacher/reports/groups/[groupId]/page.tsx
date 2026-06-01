@@ -122,6 +122,7 @@ export default function TeacherGroupReportPage() {
       ? getMockClass(report.classId)
       : undefined;
   const isLive = state.kind === "live";
+  const sharedWithTeacher = state.kind === "live" ? state.data.sharedWithTeacher : false;
 
   return (
     <div className="flex flex-col gap-6">
@@ -275,15 +276,31 @@ export default function TeacherGroupReportPage() {
         <h2 id="share-label" className="text-base font-semibold">
           Share with the student group?
         </h2>
-        <p className="text-xs text-muted-foreground">
-          Students opt in at session end to receive a summary. Sharing is wired in Phase 3.
-        </p>
+        {isLive ? (
+          sharedWithTeacher ? (
+            <p className="text-xs text-emerald-700 dark:text-emerald-400">
+              The group has opted in to share this session.
+            </p>
+          ) : (
+            <p className="text-xs text-muted-foreground">
+              The group has not opted in to share yet.
+            </p>
+          )
+        ) : (
+          <p className="text-xs text-muted-foreground">
+            Students opt in via the chat toggle to share their session.
+          </p>
+        )}
         <div>
           <button
             type="button"
-            disabled
-            title="Share is wired in Phase 3"
-            className="flex items-center gap-1.5 rounded border border-border px-3 py-1.5 text-sm font-medium text-muted-foreground opacity-60"
+            disabled={!sharedWithTeacher}
+            title={sharedWithTeacher ? "Send a summary to the group" : "The group has not opted in to sharing"}
+            className={`flex items-center gap-1.5 rounded border border-border px-3 py-1.5 text-sm font-medium ${
+              sharedWithTeacher
+                ? "text-foreground hover:bg-accent"
+                : "text-muted-foreground opacity-60"
+            }`}
           >
             <Send className="h-4 w-4" aria-hidden="true" />
             Send summary

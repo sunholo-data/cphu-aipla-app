@@ -24,7 +24,7 @@ import { useSessionDocuments } from "@/hooks/useSessionDocuments";
 import { useStableThreadId } from "@/hooks/useStableThreadId";
 import { useProactiveGreet } from "@/lib/proactiveGreet";
 import { HumanToolEventsProvider } from "@/hooks/useHumanToolEvents";
-import { fetchWithAuth } from "@/lib/apiClient";
+import { fetchWithAuth, postShareConsent } from "@/lib/apiClient";
 import { computeIncludedDocIds } from "@/lib/docContext";
 import { notifySessionsChanged, subscribeSessionsChangedDetailed } from "@/lib/sessionEvents";
 import { useSkillSessions } from "@/hooks/useSkillSessions";
@@ -330,6 +330,10 @@ function ChatShell({
   const searchParams = useSearchParams();
   const router = useRouter();
   const [draft, setDraft] = useState("");
+  // 1.G-Ph3 M7 — student opt-in to share this session with their teacher.
+  // Only shown in anon-group mode. Default off; persists in component state
+  // (re-joining resets it, matching the per-session consent model).
+  const [sharedWithTeacher, setSharedWithTeacher] = useState(false);
   // PEDCTX/Boldkast — workspace toggle between default content
   // (problem statement + checklist) and the Boldkast sim iframe.
   const [showBoldkastSim, setShowBoldkastSim] = useState(false);
@@ -928,6 +932,21 @@ function ChatShell({
                 </button>
               )}
             </form>
+            {isAnonymousGroupAuthMode() && (sessionId ?? agentSessionId) ? (
+              <label className="mt-2 flex cursor-pointer items-center gap-2 text-xs text-muted-foreground select-none">
+                <input
+                  type="checkbox"
+                  checked={sharedWithTeacher}
+                  onChange={(e) => {
+                    const next = e.target.checked;
+                    setSharedWithTeacher(next);
+                    void postShareConsent(sessionId ?? agentSessionId!, next);
+                  }}
+                  className="h-3.5 w-3.5 accent-primary"
+                />
+                Share session with teacher
+              </label>
+            ) : null}
           </footer>
         </div>
 

@@ -41,6 +41,7 @@ class ChatSessionIndex(BaseModel):
     first_message_at: datetime = Field(alias="firstMessageAt")
     last_message_at: datetime = Field(alias="lastMessageAt")
     archived_at: datetime | None = Field(default=None, alias="archivedAt")
+    shared_with_teacher: bool = Field(default=False, alias="sharedWithTeacher")
 
     model_config = ConfigDict(populate_by_name=True)
 
