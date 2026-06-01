@@ -32,8 +32,9 @@ export function TeacherClientShell({ children }: { children: ReactNode }) {
   }
 
   // After loading: if there's no user and we're not in LOCAL_MODE, the
-  // redirect is already in flight from useTeacherAuth. Render nothing.
-  if (!user && !isLocalMode()) return null;
+  // redirect to /teacher/sign-in is in flight from useTeacherAuth.
+  // Render children bare (no header) so the sign-in page itself is visible.
+  if (!user && !isLocalMode()) return <>{children}</>;
 
   const displayName =
     (user as { displayName?: string | null } | null)?.displayName ?? "Teacher";
