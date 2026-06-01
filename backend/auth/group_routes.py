@@ -45,6 +45,7 @@ from auth.group_id_auth import (
     join_group,
 )
 from auth.group_rate_limit import RateLimitExceeded
+from db.group_sessions import get_active_session_for_group
 
 if TYPE_CHECKING:
     from auth.firebase_auth import User
@@ -88,6 +89,9 @@ class JoinGroupResponse(BaseModel):
     # so anonymous-group users only see skills they can actually invoke,
     # not the full platform marketplace. Added 2026-05-20.
     skill_ids: list[str] = []
+    # Session to resume (1.F). Null on the first join for a group; set on
+    # re-joins while the session is active (< 30d and not teacher-reset).
+    resumedSessionId: str | None = None
 
 
 class GroupMetadataResponse(BaseModel):
@@ -201,6 +205,7 @@ async def join_group_endpoint(
         uid=result.uid,
         expires_at=result.expires_at,
         skill_ids=list(result.skill_ids),
+        resumedSessionId=get_active_session_for_group(body.group_id),
     )
 
 

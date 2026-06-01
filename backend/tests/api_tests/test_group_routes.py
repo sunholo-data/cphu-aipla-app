@@ -386,3 +386,59 @@ class TestEndToEndPermission:
         # Non-permitted skill → 403
         r = client.get("/test-skill/forbidden-skill", headers=hdr)
         assert r.status_code == 403
+
+
+# ─── Session resumption on join (1.F M2) ────────────────────────────────────
+
+
+class TestJoinSessionResumption:
+    """Verify that /api/auth/group/join returns resumedSessionId.
+
+    Group_sessions Firestore logic is already unit-tested in test_group_sessions.py.
+    Here we test the HTTP-layer wire-up: does the join endpoint correctly
+    look up the saved session and return it in the response?
+    """
+
+    def _create_group_and_client(self):
+        from auth.group_id_auth import create_group
+
+        rec = create_group(title="Test class", skill_ids=["physics-tutor"], creator_uid="t1", ttl_days=7)
+        client = _make_anonymous_client()
+        return rec.group_id, client
+
+    def test_first_join_returns_null_resumed_session(self, monkeypatch):
+        """No prior session → resumedSessionId is absent or null."""
+        monkeypatch.setattr(
+            "auth.group_routes.get_active_session_for_group",
+            lambda _gid: None,
+        )
+        group_id, client = self._create_group_and_client()
+        resp = client.post("/api/auth/group/join", json={"group_id": group_id})
+        assert resp.status_code == 200
+        body = resp.json()
+        assert body.get("resumedSessionId") is None
+
+    def test_rejoin_returns_saved_session_id(self, monkeypatch):
+        """Prior session registered → resumedSessionId is returned."""
+        monkeypatch.setattr(
+            "auth.group_routes.get_active_session_for_group",
+            lambda _gid: "sess-abc-123",
+        )
+        group_id, client = self._create_group_and_client()
+        resp = client.post("/api/auth/group/join", json={"group_id": group_id})
+        assert resp.status_code == 200
+        body = resp.json()
+        assert body["resumedSessionId"] == "sess-abc-123"
+
+    def test_revoked_group_does_not_leak_session(self, monkeypatch):
+        """A revoked group returns 401, not a 200 with the saved session."""
+        from auth.group_id_auth import delete_group
+
+        monkeypatch.setattr(
+            "auth.group_routes.get_active_session_for_group",
+            lambda _gid: "sess-abc-123",
+        )
+        group_id, client = self._create_group_and_client()
+        delete_group(group_id, requesting_uid="t1")
+        resp = client.post("/api/auth/group/join", json={"group_id": group_id})
+        assert resp.status_code == 401
