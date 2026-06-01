@@ -216,12 +216,19 @@ class TestPatchLessons:
             },
         )
 
-    def test_add_lessons_writes_class_and_skill(self, client):
+    def test_add_lessons_writes_class_only_for_public_skills(self, client):
+        """Public skills stay public when assigned to a class.
+
+        Assignment is tracked in Class.lessons only — the skill's
+        accessControl is NOT mutated. Teachers always see public skills
+        regardless of which class they're in. Students receive the
+        assigned skill_ids via their group token (live-resolved from
+        Class.lessons at join time).
+        """
         self._seed_skill("skill-a")
         self._seed_skill("skill-b")
         created = client.post("/api/classes", json={"name": "C"}).json()
         cid = created["classId"]
-        namespace = created["tagNamespace"]
 
         resp = client.patch(
             f"/api/classes/{cid}/lessons",
@@ -230,48 +237,42 @@ class TestPatchLessons:
         assert resp.status_code == 200
         assert set(resp.json()["lessons"]) == {"skill-a", "skill-b"}
 
-        # The skill's accessControl now carries the class namespace.
+        # Public skill's accessControl is untouched — stays public.
         from db.firestore import get_document
 
         sa = get_document("skills", "skill-a")
-        assert sa["accessControl"]["type"] == "tagged"
-        assert namespace in sa["accessControl"]["tags"]
+        assert sa["accessControl"]["type"] == "public"
 
     def test_add_lessons_idempotent(self, client):
         self._seed_skill("skill-a")
         created = client.post("/api/classes", json={"name": "C"}).json()
         cid = created["classId"]
-        namespace = created["tagNamespace"]
 
         client.patch(f"/api/classes/{cid}/lessons", json={"add": ["skill-a"]})
         client.patch(f"/api/classes/{cid}/lessons", json={"add": ["skill-a"]})
 
-        from db.firestore import get_document
-
-        sa = get_document("skills", "skill-a")
-        # Tag appears exactly once even after double-add.
-        assert sa["accessControl"]["tags"].count(namespace) == 1
-        # lessons appears exactly once on the class side.
+        # lessons appears exactly once on the class side even after double-add.
         c = client.get(f"/api/classes/{cid}").json()
         assert c["lessons"] == ["skill-a"]
 
-    def test_remove_lessons_undoes_both_sides(self, client):
+    def test_remove_lessons_updates_class_only_for_public_skills(self, client):
+        """Removing a public lesson from a class updates Class.lessons only.
+        The skill's accessControl is never touched (it was never tagged)."""
         self._seed_skill("skill-a")
         created = client.post("/api/classes", json={"name": "C"}).json()
         cid = created["classId"]
-        namespace = created["tagNamespace"]
         client.patch(f"/api/classes/{cid}/lessons", json={"add": ["skill-a"]})
         client.patch(f"/api/classes/{cid}/lessons", json={"remove": ["skill-a"]})
 
-        # Class side
+        # Class side: lesson removed.
         c = client.get(f"/api/classes/{cid}").json()
         assert c["lessons"] == []
 
-        # Skill side
+        # Skill side: still public (was never mutated to tagged).
         from db.firestore import get_document
 
         sa = get_document("skills", "skill-a")
-        assert namespace not in (sa["accessControl"].get("tags") or [])
+        assert sa["accessControl"]["type"] == "public"
 
     def test_add_lesson_missing_skill_returns_404(self, client):
         created = client.post("/api/classes", json={"name": "C"}).json()

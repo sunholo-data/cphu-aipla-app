@@ -39,6 +39,7 @@ from db.classes import (
 from db.firestore import get_document, set_document
 from db.group_sessions import archive_session_for_group
 from db.models.class_ import Class
+from skills import skill_config
 
 log = logging.getLogger(__name__)
 _tracer = trace.get_tracer(__name__)
@@ -135,51 +136,64 @@ def _tag_span(class_id: str, teacher_uid: str) -> None:
 def _add_namespace_to_skill_tags(skill_id: str, tag_namespace: str) -> None:
     """Append the class's tag namespace to a Skill's ``accessControl.tags``.
 
-    Idempotent — calling twice produces no duplicates. Switches the
-    skill's access_control to ``type="tagged"`` if it was something
-    else (e.g. ``public``) — that's how we restrict a previously-public
-    skill to a specific class. The reverse (a skill that's truly meant
-    to stay public) shouldn't be added to a class's lessons in the
-    first place.
+    Idempotent — calling twice produces no duplicates. Only mutates
+    skills that are already ``type="tagged"`` or ``type="private"``.
+    Public skills are intentionally left alone: they are discoverable by
+    all teachers and students via the public evaluator regardless of
+    class assignment. Mutating them to ``tagged`` would hide them from
+    every teacher who doesn't carry the class tag — the bug that caused
+    Boldkast to vanish from the catalogue after the first assignment.
+
+    For class-lesson assignment, ``Class.lessons`` is the authoritative
+    record; students receive ``skill_ids`` live-resolved from that list
+    at join time. Tag mutation is only needed for teacher-private skills
+    that are restricted to specific classes.
     """
+    cfg = skill_config.get_skill(skill_id)
+    if cfg is None:
+        raise HTTPException(status_code=404, detail=f"skill {skill_id} not found")
+
+    if cfg.access_control.type == "public":
+        # Public skills stay public. Class assignment is tracked in
+        # Class.lessons only; no access-control mutation needed.
+        return
+
     doc = get_document("skills", skill_id)
     if doc is None:
         raise HTTPException(status_code=404, detail=f"skill {skill_id} not found")
 
-    ac = doc.get("accessControl") or {"type": "public"}
+    ac = doc.get("accessControl") or {"type": "tagged", "tags": []}
     existing_tags = list(ac.get("tags") or [])
     if tag_namespace not in existing_tags:
         existing_tags.append(tag_namespace)
-    new_ac = {
-        "type": "tagged",
-        "tags": existing_tags,
-    }
-    # Preserve any domain / emails fields (Pydantic AccessControl serialises them
-    # with exclude_none=True so missing keys stay missing).
-    doc["accessControl"] = new_ac
+    doc["accessControl"] = {"type": "tagged", "tags": existing_tags}
     set_document("skills", skill_id, doc)
 
 
 def _remove_namespace_from_skill_tags(skill_id: str, tag_namespace: str) -> None:
     """Drop the class's tag namespace from a Skill's ``accessControl.tags``.
 
-    If the resulting tags list is empty, leaves ``type="tagged"`` with
-    an empty tags list — the skill becomes effectively inaccessible
-    until re-tagged. Operators wanting to revert a skill to ``public``
-    do so explicitly via the skills route.
+    No-op for public skills (they were never tagged in the first place).
+    For tagged skills, removes the namespace; if the resulting tags list
+    is empty, the skill stays ``type="tagged"`` with an empty list
+    (effectively private until re-tagged or reset via the admin endpoint).
     """
+    cfg = skill_config.get_skill(skill_id)
+    if cfg is None:
+        return  # skill already gone — nothing to do
+
+    if cfg.access_control.type == "public":
+        return  # public skills were never tagged; nothing to undo
+
     doc = get_document("skills", skill_id)
     if doc is None:
-        return  # skill already gone — nothing to do
+        return
 
     ac = doc.get("accessControl") or {}
     existing_tags = list(ac.get("tags") or [])
     if tag_namespace in existing_tags:
         existing_tags.remove(tag_namespace)
-        doc["accessControl"] = {
-            "type": "tagged",
-            "tags": existing_tags,
-        }
+        doc["accessControl"] = {"type": "tagged", "tags": existing_tags}
         set_document("skills", skill_id, doc)
 
 
