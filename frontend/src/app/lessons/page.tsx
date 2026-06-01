@@ -69,11 +69,39 @@ function AnonGroupLessonsPage() {
     }
   }, [groupAuth.status, router]);
 
+  function handleLeave() {
+    groupAuth.clearStoredToken();
+    router.replace("/group");
+  }
+
   // Fire the fetch once joined (or after expiry — server returns the
   // right thing either way; renders the error banner on 401).
   const ready =
     groupAuth.status === "joined" || groupAuth.status === "expired";
-  return <UniversalLessonsPage groupAuthStatus={ready ? "ready" : "waiting"} />;
+  return (
+    <>
+      {groupAuth.groupCode ? (
+        <div className="border-b border-border bg-muted/40 px-4 py-2 text-sm">
+          <div className="mx-auto flex max-w-5xl items-center justify-between gap-2">
+            <span className="text-muted-foreground">
+              Gruppe / Group:{" "}
+              <code className="font-mono font-medium text-foreground">
+                {groupAuth.groupCode}
+              </code>
+            </span>
+            <button
+              type="button"
+              onClick={handleLeave}
+              className="rounded border border-border px-2.5 py-1 text-xs font-medium hover:bg-accent"
+            >
+              Skift kode / Change code
+            </button>
+          </div>
+        </div>
+      ) : null}
+      <UniversalLessonsPage groupAuthStatus={ready ? "ready" : "waiting"} />
+    </>
+  );
 }
 
 function UniversalLessonsPage({

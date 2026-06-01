@@ -67,6 +67,9 @@ export interface AnonymousGroupAuthContextValue {
   user: GroupAuthUser | null;
   token: string | null;
   expiresAt: number | null;
+  /** The group code the student joined with (e.g. "ABCD-1234").
+   * Null for sessions stored before 2026-06-01 or before joining. */
+  groupCode: string | null;
   /** Skills the group has permission to invoke. Empty array = no
    * filter (back-compat with sessions stored before 2026-05-20).
    * Consumers (e.g. useUserSkills) use this to scope UI surfaces
@@ -167,8 +170,9 @@ export function AnonymousGroupAuthProvider({ children }: { children: ReactNode }
         throw new Error(e.message);
       }
       const data = (await resp.json()) as PersistedGroupSession;
-      writeStoredGroupSession(data);
-      setSession(data);
+      const sessionWithCode: PersistedGroupSession = { ...data, group_code: code };
+      writeStoredGroupSession(sessionWithCode);
+      setSession(sessionWithCode);
       setStatus("joined");
     } catch (err) {
       if (status === "joining") {
@@ -201,6 +205,7 @@ export function AnonymousGroupAuthProvider({ children }: { children: ReactNode }
     user: session ? userFromSession(session) : null,
     token: session?.token ?? null,
     expiresAt: session?.expires_at ?? null,
+    groupCode: session?.group_code ?? null,
     skillIds: session?.skill_ids ?? [],
     error,
     join,

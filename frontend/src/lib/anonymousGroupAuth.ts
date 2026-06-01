@@ -34,6 +34,11 @@ export interface PersistedGroupSession {
   uid: string;
   /** Unix seconds at which the token expires. */
   expires_at: number;
+  /** The group code the student joined with (e.g. "ABCD-1234").
+   * Stored so the UI can show "Logged in as GROUP-CODE" without
+   * decoding the JWT. Added 2026-06-01; absent in sessions stored
+   * before then (treat as null). */
+  group_code?: string | null;
   /** Group's permitted skill IDs. Frontend filters the SkillsBar to this
    * set so anonymous-group users only see skills they can actually
    * invoke (added 2026-05-20). Empty array is treated as "no filter"
