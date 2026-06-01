@@ -99,15 +99,23 @@ function AnonGroupLessonsPage() {
           </div>
         </div>
       ) : null}
-      <UniversalLessonsPage groupAuthStatus={ready ? "ready" : "waiting"} />
+      <UniversalLessonsPage
+        groupAuthStatus={ready ? "ready" : "waiting"}
+        allowedSkillIds={groupAuth.skillIds.length > 0 ? groupAuth.skillIds : null}
+      />
     </>
   );
 }
 
 function UniversalLessonsPage({
   groupAuthStatus,
+  allowedSkillIds = null,
 }: {
   groupAuthStatus: "ready" | "waiting";
+  /** When non-null, only skills whose skillId is in this list are shown.
+   *  Null means no filter (Firebase teacher, LOCAL_MODE, or groups with
+   *  no lesson assignment yet). */
+  allowedSkillIds?: string[] | null;
 }) {
   const [skills, setSkills] = useState<Skill[] | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -131,6 +139,14 @@ function UniversalLessonsPage({
       if (TEACHER_DEMO_AVAILABLE && getDemoRole() === "student") {
         list = list.filter((s) => !skillIsTeacherOnly(s));
       }
+      // Class-lesson filter: when the group token carries a non-empty
+      // skill_ids list, restrict to exactly those lessons. Public skills
+      // that aren't assigned to this class are hidden even though the
+      // backend access check passes them (public = visible to all).
+      if (allowedSkillIds !== null) {
+        const allowed = new Set(allowedSkillIds);
+        list = list.filter((s) => allowed.has(s.skillId));
+      }
       // Sort alphabetically by displayName (falls back to name).
       list.sort((a, b) => {
         const an = (a.displayName || a.name).toLowerCase();
@@ -141,7 +157,8 @@ function UniversalLessonsPage({
     } catch (err) {
       setError(err instanceof Error ? err.message : "failed to load");
     }
-  }, []);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [allowedSkillIds?.join(",") ?? ""]);
 
   useEffect(() => {
     if (groupAuthStatus === "ready") void refresh();
