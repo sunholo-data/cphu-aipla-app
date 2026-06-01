@@ -102,6 +102,7 @@ function AnonGroupLessonsPage() {
       <UniversalLessonsPage
         groupAuthStatus={ready ? "ready" : "waiting"}
         allowedSkillIds={groupAuth.skillIds.length > 0 ? groupAuth.skillIds : null}
+        className={groupAuth.className}
       />
     </>
   );
@@ -110,12 +111,17 @@ function AnonGroupLessonsPage() {
 function UniversalLessonsPage({
   groupAuthStatus,
   allowedSkillIds = null,
+  className = null,
 }: {
   groupAuthStatus: "ready" | "waiting";
   /** When non-null, only skills whose skillId is in this list are shown.
    *  Null means no filter (Firebase teacher, LOCAL_MODE, or groups with
    *  no lesson assignment yet). */
   allowedSkillIds?: string[] | null;
+  /** Human-readable class name (e.g. "Hold 9A"). When set, rendered as
+   *  a context banner above the lesson grid so students can confirm
+   *  which class they're logged into. */
+  className?: string | null;
 }) {
   const [skills, setSkills] = useState<Skill[] | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -173,6 +179,12 @@ function UniversalLessonsPage({
           Vælg en lektion at arbejde med. / Pick a lesson to work on.
         </p>
       </header>
+      {className ? (
+        <div className="rounded border border-border bg-muted/40 px-3 py-2 text-sm">
+          <span className="text-muted-foreground">Klasse / Class: </span>
+          <span className="font-medium">{className}</span>
+        </div>
+      ) : null}
 
       {error ? <ErrorBanner message={error} onRetry={refresh} /> : null}
 

@@ -135,6 +135,7 @@ Specifically deferred from this version:
 | 1 | LESSON-PICKER-1B | [lesson-picker-sprint.md](lesson-picker-sprint.md) | ~390 | 0.5d | FE-only, no deps, unblocks 1.C/1.D visibility |
 | 2 | TEACHER-UI-PH3 | [teacher-ui-ph3-sprint.md](teacher-ui-ph3-sprint.md) | ~1510 | 2-2.5d | Consumes 1.A backend; ships real Firebase OAuth. Runs **after** 3 June Phase 2 demo |
 | 3 | SESSION-PERSISTENCE-1F | [session-persistence-sprint.md](session-persistence-sprint.md) | ~1680 | 1.5-2d | Same group code resumes same session for 30d. Cross-device coherence |
+| 4 | STUDENT-LESSON-VIEW | [student-lesson-view.md](student-lesson-view.md) | ~200 | 0.75d | Live skill_ids resolve at join + class name on /lessons. Fixes stale lesson list after teacher re-assigns |
 
 The queue is a recommended order, not a strict dependency chain. 1.F is independent of 1.G-Ph3 and could be reordered or parallelised.
 

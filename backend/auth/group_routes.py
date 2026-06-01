@@ -85,13 +85,16 @@ class JoinGroupResponse(BaseModel):
     token: str
     uid: str
     expires_at: float
-    # Group's permitted skills. Frontend uses this to scope the SkillsBar
-    # so anonymous-group users only see skills they can actually invoke,
-    # not the full platform marketplace. Added 2026-05-20.
+    # Group's permitted skills. Live-resolved from Class.lessons for
+    # class-bound codes; falls back to stored GroupRecord.skill_ids for
+    # unbound codes. Frontend uses this to scope the lesson list.
     skill_ids: list[str] = []
     # Session to resume (1.F). Null on the first join for a group; set on
     # re-joins while the session is active (< 30d and not teacher-reset).
     resumedSessionId: str | None = None
+    # Class context for class-bound codes. Null for unbound groups.
+    class_name: str | None = None
+    class_id: str | None = None
 
 
 class GroupMetadataResponse(BaseModel):
@@ -206,6 +209,8 @@ async def join_group_endpoint(
         expires_at=result.expires_at,
         skill_ids=list(result.skill_ids),
         resumedSessionId=get_active_session_for_group(body.group_id),
+        class_name=result.class_name,
+        class_id=result.class_id,
     )
 
 

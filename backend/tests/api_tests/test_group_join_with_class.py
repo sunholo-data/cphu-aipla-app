@@ -191,3 +191,51 @@ class TestMissingBoundClass:
         token = _mint_token_for_code(record.group_id)
         user = AnonymousGroupAuth.user_from_token(token)
         assert user.group_tags == frozenset()
+
+
+class TestLiveSkillResolveAtJoin:
+    """join_group() resolves skill_ids live from Class.lessons.
+
+    Bug: mint_group_codes_under_class() snapshots lessons at mint time.
+    If a teacher adds/removes lessons after minting, the stored
+    GroupRecord.skill_ids is stale. join_group() must look up the class
+    and return current lessons instead.
+    """
+
+    def test_join_live_resolves_updated_class_lessons(self) -> None:
+        cls = Class.create_for_teacher(owner_uid="teacher-B", name="Hold 9A")
+        classes_db.create_class(cls)
+        classes_db.add_lessons(cls.class_id, ["skill-alpha"])
+        codes = classes_db.mint_group_codes_under_class(cls.class_id, count=1)
+        code = codes[0]
+
+        # Teacher adds a second lesson after minting.
+        classes_db.add_lessons(cls.class_id, ["skill-beta"])
+
+        from auth.group_id_auth import join_group
+
+        result = join_group(code, client_ip="10.0.0.1")
+        assert set(result.skill_ids) == {"skill-alpha", "skill-beta"}
+
+    def test_join_returns_class_name_and_id(self) -> None:
+        cls = Class.create_for_teacher(owner_uid="teacher-C", name="IB Physics 1B")
+        classes_db.create_class(cls)
+        classes_db.add_lessons(cls.class_id, ["skill-x"])
+        codes = classes_db.mint_group_codes_under_class(cls.class_id, count=1)
+        code = codes[0]
+
+        from auth.group_id_auth import join_group
+
+        result = join_group(code, client_ip="10.0.0.2")
+        assert result.class_name == "IB Physics 1B"
+        assert result.class_id == cls.class_id
+
+    def test_join_unbound_group_returns_stored_skill_ids_and_no_class(self) -> None:
+        record = create_group(title="unbound", skill_ids=["stored-skill"], creator_uid="u")
+
+        from auth.group_id_auth import join_group
+
+        result = join_group(record.group_id, client_ip="10.0.0.3")
+        assert result.skill_ids == ("stored-skill",)
+        assert result.class_name is None
+        assert result.class_id is None

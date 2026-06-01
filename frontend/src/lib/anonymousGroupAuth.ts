@@ -49,6 +49,11 @@ export interface PersistedGroupSession {
    * within 30 days. The chat page uses this to resume the prior
    * conversation instead of starting a blank session. */
   resumedSessionId?: string | null;
+  /** Human-readable class name (e.g. "Hold 9A"). Null for unbound codes
+   * or sessions stored before this field was added (2026-06-01). */
+  class_name?: string | null;
+  /** Firestore class_id for the bound class. Null for unbound codes. */
+  class_id?: string | null;
 }
 
 /**

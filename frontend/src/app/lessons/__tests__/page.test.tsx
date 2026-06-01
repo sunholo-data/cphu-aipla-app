@@ -15,6 +15,8 @@ vi.mock("@/contexts/AnonymousGroupAuthProvider", () => ({
     expiresAt: Date.now() + 3600_000,
     groupCode: null,
     skillIds: [],
+    className: null,
+    classId: null,
     error: null,
     join: vi.fn(),
     markExpired: vi.fn(),
@@ -207,6 +209,8 @@ describe("/lessons — student lesson picker", () => {
       expiresAt: null,
       groupCode: null,
       skillIds: [],
+      className: null,
+      classId: null,
       error: null,
       join: vi.fn(),
       markExpired: vi.fn(),
@@ -217,5 +221,63 @@ describe("/lessons — student lesson picker", () => {
     await waitFor(() => {
       expect(routerReplace).toHaveBeenCalledWith("/group");
     });
+  });
+});
+
+describe("class banner on /lessons", () => {
+  it("renders class name banner when anon-group className is set", async () => {
+    const anonAuth = await import("@/lib/anonymousGroupAuth");
+    vi.mocked(anonAuth.isAnonymousGroupAuthMode).mockReturnValue(true);
+
+    const groupAuthProvider = await import("@/contexts/AnonymousGroupAuthProvider");
+    (groupAuthProvider as { useAnonymousGroupAuth: () => unknown }).useAnonymousGroupAuth = () => ({
+      status: "joined",
+      user: { uid: "anon-u", email: "", displayName: null, photoURL: null },
+      token: "fake-token",
+      expiresAt: Date.now() + 3600_000,
+      groupCode: "HOLD-9A",
+      skillIds: [],
+      className: "Hold 9A",
+      classId: "cls-abc123",
+      error: null,
+      join: vi.fn(),
+      markExpired: vi.fn(),
+      clearStoredToken: vi.fn(),
+    });
+
+    vi.mocked(fetchWithAuth).mockResolvedValue(jsonResponse([]));
+    render(<LessonsPage />);
+    await waitFor(() => {
+      expect(screen.getByText(/hold 9a/i)).toBeInTheDocument();
+    });
+    expect(screen.getByText(/klasse \/ class/i)).toBeInTheDocument();
+  });
+
+  it("omits class banner when className is null", async () => {
+    const anonAuth = await import("@/lib/anonymousGroupAuth");
+    vi.mocked(anonAuth.isAnonymousGroupAuthMode).mockReturnValue(true);
+
+    const groupAuthProvider = await import("@/contexts/AnonymousGroupAuthProvider");
+    (groupAuthProvider as { useAnonymousGroupAuth: () => unknown }).useAnonymousGroupAuth = () => ({
+      status: "joined",
+      user: { uid: "anon-u", email: "", displayName: null, photoURL: null },
+      token: "fake-token",
+      expiresAt: Date.now() + 3600_000,
+      groupCode: null,
+      skillIds: [],
+      className: null,
+      classId: null,
+      error: null,
+      join: vi.fn(),
+      markExpired: vi.fn(),
+      clearStoredToken: vi.fn(),
+    });
+
+    vi.mocked(fetchWithAuth).mockResolvedValue(jsonResponse([]));
+    render(<LessonsPage />);
+    await waitFor(() => {
+      expect(screen.getByText(/ingen lektioner/i)).toBeInTheDocument();
+    });
+    expect(screen.queryByText(/klasse \/ class/i)).toBeNull();
   });
 });

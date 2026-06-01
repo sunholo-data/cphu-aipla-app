@@ -113,10 +113,13 @@ class JoinResult:
     uid: str
     expires_at: float
     skill_ids: tuple[str, ...] = ()
-    """Skills the group has permission to invoke (per GroupRecord.skill_ids).
-    Carried back to the client so the frontend can scope its UI to the
-    permitted set (e.g. SkillsBar filtering for anonymous-group sessions).
-    Added 2026-05-20 — the inherited template didn't expose this to clients."""
+    """Skills the group has permission to invoke. Live-resolved from
+    Class.lessons when the code is class-bound; falls back to the stored
+    GroupRecord.skill_ids for unbound (pre-v1) codes."""
+    class_name: str | None = None
+    """Human-readable class name (e.g. "Hold 9A"). Null for unbound codes."""
+    class_id: str | None = None
+    """Firestore class_id for the bound class. Null for unbound codes."""
 
 
 # ─── State holder (module-level singleton) ──────────────────────────────────
@@ -693,11 +696,34 @@ def join_group(group_id: str, *, client_ip: str) -> JoinResult:
         uid,
         current + 1,
     )
+
+    # Live-resolve class context. If the code is bound to a class, use the
+    # class's current lesson list instead of the snapshot in GroupRecord so
+    # teachers can add/remove lessons without re-minting codes.
+    live_skill_ids = record.skill_ids
+    resolved_class_name: str | None = None
+    resolved_class_id: str | None = None
+
+    from db.classes import get_class
+    from db.firestore import get_document
+
+    anon_doc = get_document("anon_groups", group_id)
+    if anon_doc:
+        bound_class_id = anon_doc.get("classId")
+        if bound_class_id:
+            cls = get_class(bound_class_id)
+            if cls and not cls.revoked:
+                live_skill_ids = tuple(cls.lessons)
+                resolved_class_name = cls.name
+                resolved_class_id = cls.class_id
+
     return JoinResult(
         token=token,
         uid=uid,
         expires_at=exp,
-        skill_ids=record.skill_ids,
+        skill_ids=live_skill_ids,
+        class_name=resolved_class_name,
+        class_id=resolved_class_id,
     )
 
 

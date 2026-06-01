@@ -75,6 +75,10 @@ export interface AnonymousGroupAuthContextValue {
    * Consumers (e.g. useUserSkills) use this to scope UI surfaces
    * that would otherwise show the full platform marketplace. */
   skillIds: string[];
+  /** Human-readable class name (e.g. "Hold 9A"). Null for unbound codes. */
+  className: string | null;
+  /** Firestore class_id for the bound class. Null for unbound codes. */
+  classId: string | null;
   error: GroupAuthError | null;
   join: (groupCode: string) => Promise<void>;
   markExpired: () => void;
@@ -207,6 +211,8 @@ export function AnonymousGroupAuthProvider({ children }: { children: ReactNode }
     expiresAt: session?.expires_at ?? null,
     groupCode: session?.group_code ?? null,
     skillIds: session?.skill_ids ?? [],
+    className: session?.class_name ?? null,
+    classId: session?.class_id ?? null,
     error,
     join,
     markExpired,
