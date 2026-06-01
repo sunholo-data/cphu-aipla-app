@@ -146,9 +146,7 @@ function GroupJoinForm() {
           />
         </label>
 
-        {isLocalMode() && (
-          // LOCAL_MODE convenience: one-click fill the seeded dev code.
-          // Hidden in production builds (isLocalMode() is false).
+        {isLocalMode() ? (
           <div className="flex items-center justify-between rounded border border-dashed border-amber-300 bg-amber-50 px-2 py-1.5 text-xs text-amber-900 dark:border-amber-700 dark:bg-amber-950 dark:text-amber-200">
             <span>
               LOCAL_MODE — seeded code:{" "}
@@ -165,6 +163,14 @@ function GroupJoinForm() {
               Use it
             </button>
           </div>
+        ) : (
+          <p className="rounded border border-dashed border-border bg-muted/30 px-2 py-1.5 text-xs text-muted-foreground">
+            GCP mode — use a code minted by your teacher at{" "}
+            <a href="/teacher/classes" className="underline hover:text-foreground">
+              /teacher/classes
+            </a>
+            .
+          </p>
         )}
 
         {error && <ErrorBlock error={error} />}
