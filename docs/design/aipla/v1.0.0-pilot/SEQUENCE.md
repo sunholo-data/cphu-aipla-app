@@ -40,14 +40,17 @@ v1 and need day-to-day sprint tracking alongside the teacher surface.
 | 1.1 | [aipla-cloud-bootstrap.md](aipla-cloud-bootstrap.md) | P1-infra | 1.5d | — | Creates the `chat_logs` BigQuery dataset + Log Router sink IAM that 1.2 needs. Doc exists; not built. Can be partially applied (`terraform apply -target`) to land just the dataset + sink ahead of the full module |
 | 1.2 | [chat-log-pipeline.md](chat-log-pipeline.md) | **P0 KEYSTONE** | 1.5d | 1.1 (dataset + sink IAM) | OTel → BigQuery sink. Durable group-ID-keyed turns + workbench events; BQ-backed `summarize_session`; exact `sim_run_count`. **Everything analytical depends on this.** Doc landed 2026-05-28 |
 | 1.K | [dra-activity-framework.md](dra-activity-framework.md) | P1 | 0.5d standard + 1d YAML/injection | — | Supplies machine-readable DRA maps. On the analytics path **only if** the DRA lens is chosen in R1. Doc exists; not built |
+| 1.L | [analytics-chat-tools.md](analytics-chat-tools.md) | P1 | 4-5d | 1.2 (BQ tables live), 1.A (teacher auth + `Class` entity), teacher-ui-ph3 M6 (skill template shipped) | **Wires the analytics-chat skill.** Six narrow `FunctionTool`s over the 1.2 BQ tables + per-tool `assert_caller_owns` for multi-tenant isolation; replaces the disabled `/teacher/analytics` mock with an AG-UI chat. Explicitly rejects ADK's built-in raw-SQL `BigQuery` toolset for axiom-9 reasons. Independent of R1 — ships the "chat to the data" path so analytics is live for the pilot even if 2.5 slips. Doc landed 2026-06-02; not built |
 | 2.5 | [session-analytics-rubric.md](../post-pilot/session-analytics-rubric.md) | **P0** | ~8 eng-d + 3-4 JB/AR ped-d | 1.2 + R1 framework pick (+ 1.K if DRA lens) | The analysis layer. Promoted from roadmap signal. **R1 (JB/AR framework pick: ICAP+FCI vs CPS+DRA) must lock before the 2026-06-29 freeze.** Build runs in the post-freeze window (2026-07-06 → 08-14) |
 
 **The long pole is human, not engineering.** R1 (framework pick) + R2/R7
 (per-skill taxonomy + Danish/English labels) need JB/AR time. Tee them up
 before the mid-point review (2026-06-26). If R1 can't land before the
-freeze, the [1.G-Ph3](teacher-ui-ph3-sprint.md) `analytics-chat` skill
-("chat to the data" over the 1.2 tables) is the fallback that keeps *some*
-analysis live for the pilot without a framework commitment.
+freeze, [1.L analytics-chat-tools](analytics-chat-tools.md) ("chat to the
+data" over the 1.2 tables) is the fallback that keeps *some* analysis live
+for the pilot without a framework commitment. The 1.G-Ph3 M6 work shipped
+the inert skill template; 1.L wires its query tools + per-teacher
+authorization + frontend chat.
 
 ## Timeline estimate
 
