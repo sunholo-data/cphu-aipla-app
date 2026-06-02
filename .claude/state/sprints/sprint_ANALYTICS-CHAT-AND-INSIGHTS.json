@@ -1,0 +1,304 @@
+{
+  "sprint_id": "ANALYTICS-CHAT-AND-INSIGHTS",
+  "created": "2026-06-02T17:28:14Z",
+  "estimated_duration_days": 5,
+  "design_doc": "docs/design/aipla/v1.0.0-pilot/analytics-chat-tools.md",
+  "design_doc_secondary": "docs/design/aipla/v1.0.0-pilot/teacher-insights-dashboard.md",
+  "sprint_plan": "docs/design/aipla/v1.0.0-pilot/analytics-chat-and-insights-sprint.md",
+  "branch": "feature/analytics-chat-and-insights",
+  "base_commit": "374e9f0",
+  "pr_target": "dev (no PR — commit direct per AIPLA workflow)",
+  "features": [
+    {
+      "id": "M1",
+      "description": "Recharts dependency + code-split verification. Add recharts to frontend/package.json, set up a dynamic-import wrapper so it doesn't ship in the student bundle, measure bundle delta and confirm <2 KB impact on student routes.",
+      "scope": "frontend",
+      "estimated_loc": 60,
+      "actual_loc": null,
+      "dependencies": [],
+      "acceptance_criteria": [
+        "recharts present in frontend/package.json + lockfile",
+        "frontend/src/components/teacher/insights/_chartsBundle.ts wraps the recharts imports the dashboard will need",
+        "Direct `from \"recharts\"` only occurs in _chartsBundle.ts (manual check; lint rule TBD)",
+        "next build output shows <2 KB delta on /group + /lessons + /chat routes (student bundle)"
+      ],
+      "files_to_create": [
+        "frontend/src/components/teacher/insights/_chartsBundle.ts"
+      ],
+      "files_to_modify": [
+        "frontend/package.json",
+        "frontend/package-lock.json"
+      ],
+      "passes": null, "started": null, "completed": null, "notes": "Run `npx next build` and grep the route bundle column to verify."
+    },
+    {
+      "id": "M2",
+      "description": "HARD GATE — Shared authorization layer + first analytics query. backend/analytics/auth.py (resolve_caller_class_ids + assert_caller_owns + owned-group_codes resolver). backend/analytics/queries.py with count_messages SQL only. Enumeration-prevention test asserts byte-identical error for class-missing vs class-not-owned.",
+      "scope": "backend",
+      "estimated_loc": 320,
+      "actual_loc": null,
+      "dependencies": [],
+      "acceptance_criteria": [
+        "assert_caller_owns raises PermissionError('class not accessible') with byte-identical message for missing-class and not-owned-class",
+        "resolve_caller_class_ids(user) returns set of class_ids the user owns (via list_classes_for_owner)",
+        "Helper resolve_caller_group_codes(user) returns union of group_codes across owned classes",
+        "count_messages SQL uses parameterised @class_id / @since / @until / @allowed_group_codes; no f-string interpolation",
+        "test_auth.py::test_enumeration_resistance passes",
+        "Backend make lint + make test-fast green"
+      ],
+      "files_to_create": [
+        "backend/analytics/__init__.py",
+        "backend/analytics/auth.py",
+        "backend/analytics/queries.py",
+        "backend/tests/unit/analytics/__init__.py",
+        "backend/tests/unit/analytics/test_auth.py",
+        "backend/tests/unit/analytics/test_queries_count_messages.py"
+      ],
+      "files_to_modify": [],
+      "passes": null, "started": null, "completed": null, "notes": "This is the hard gate — if enumeration test fails, stop and redesign. Per the sprint plan no later milestone may proceed with this gate red."
+    },
+    {
+      "id": "M3",
+      "description": "Remaining 1.L queries + FunctionTool wrappers. time_on_task, sim_runs_per_skill, most_active_groups, group_summary SQL in queries.py. Five FunctionTool wrappers in tools.py. Register all six in TOOL_REGISTRY.",
+      "scope": "backend",
+      "estimated_loc": 380,
+      "actual_loc": null,
+      "dependencies": ["M2"],
+      "acceptance_criteria": [
+        "Four new SQL queries in queries.py, all parameter-bound + group_code-filtered",
+        "tools.py exposes count_messages, time_on_task, sim_runs_per_skill, most_active_groups, group_summary as FunctionTool-compatible async functions",
+        "Each tool calls assert_caller_owns before any run_query call (asserted by unit tests via mocked auth)",
+        "TOOL_REGISTRY in backend/adk/tools.py gains the five new entries",
+        "tests/unit/analytics/test_tools_*.py covers each tool: structured output shape + auth-before-query order"
+      ],
+      "files_to_create": [
+        "backend/analytics/tools.py",
+        "backend/tests/unit/analytics/test_tools_count_messages.py",
+        "backend/tests/unit/analytics/test_tools_time_on_task.py",
+        "backend/tests/unit/analytics/test_tools_sim_runs_per_skill.py",
+        "backend/tests/unit/analytics/test_tools_most_active_groups.py",
+        "backend/tests/unit/analytics/test_tools_group_summary.py"
+      ],
+      "files_to_modify": [
+        "backend/analytics/queries.py",
+        "backend/adk/tools.py"
+      ],
+      "passes": null, "started": null, "completed": null, "notes": null
+    },
+    {
+      "id": "M4",
+      "description": "summarise_chat_excerpts tool. Bounded BQ sample (<=200 turns) with group-code redaction to G1/G2/... then a single gemini-2.5-flash call with paraphrase-strict prompt. Verbatim-substring defense: reject any returned theme with a >=40-char substring matching a sampled turn.",
+      "scope": "backend",
+      "estimated_loc": 280,
+      "actual_loc": null,
+      "dependencies": ["M2"],
+      "acceptance_criteria": [
+        "summarise_chat_excerpts(class_id, topic_keyword, since, until, sample_size=50) is a FunctionTool",
+        "Group codes redacted to G1/G2/... BEFORE the LLM receives them (asserted)",
+        "Returned themes do not contain any substring >=40 chars matching any sampled student turn (asserted on mocked LLM output)",
+        "Hard cap of 200 turns; cap is enforced server-side regardless of agent ask",
+        "Tool registered in TOOL_REGISTRY",
+        "Backend make test-fast green"
+      ],
+      "files_to_create": [
+        "backend/analytics/summarise.py",
+        "backend/tests/unit/analytics/test_summarise.py"
+      ],
+      "files_to_modify": [
+        "backend/analytics/tools.py",
+        "backend/adk/tools.py"
+      ],
+      "passes": null, "started": null, "completed": null, "notes": "Mock the Gemini call in unit tests. Integration test against real Gemini is optional and marked @integration."
+    },
+    {
+      "id": "M5",
+      "description": "Skill wiring + /api/analytics/* routes + aiplatform analytics CLI. Amend analytics-chat SKILL.md to declare the six tools + add citation rules. Add GET /api/analytics/tools and POST /api/analytics/probe/{tool_name} routes. Add three CLI subcommands (tools, probe, ask). Re-seed verification.",
+      "scope": "backend+cli",
+      "estimated_loc": 410,
+      "actual_loc": null,
+      "dependencies": ["M3", "M4"],
+      "acceptance_criteria": [
+        "SKILL.md frontmatter tools: lists six tools",
+        "SKILL.md body amended with citation rules (paraphrase + cite numbers + don't guess) — minimal-edit per code-preservation rule",
+        "GET /api/analytics/tools returns six tool metadata records (teacher-gated)",
+        "POST /api/analytics/probe/{tool} runs the tool for an owned class (auth + assert_caller_owns)",
+        "Cross-tenant attempt returns same shape as 'class not found'",
+        "aiplatform analytics tools lists six tools",
+        "aiplatform analytics probe <class-id> count_messages prints rows for owned class",
+        "aiplatform analytics ask <class-id> '<q>' streams a real chat answer from the deployed dev",
+        "Backend make lint + make test-fast green"
+      ],
+      "files_to_create": [
+        "backend/protocols/analytics_routes.py",
+        "backend/tests/api_tests/test_analytics_routes.py",
+        "cli/aiplatform/commands/analytics.py",
+        "cli/tests/test_cli_analytics.py"
+      ],
+      "files_to_modify": [
+        "backend/skills/templates/analytics-chat/SKILL.md",
+        "backend/fast_api_app.py",
+        "cli/aiplatform/cli.py"
+      ],
+      "passes": null, "started": null, "completed": null, "notes": "Verify the re-seed picks up the SKILL.md tools change via GET /api/skills/analytics-chat after a backend restart."
+    },
+    {
+      "id": "M6",
+      "description": "1.L frontend chat island. Replace the mocked /teacher/analytics input with a useSkillAgent('analytics-chat') chat. Prefill class + time scope into the system message. Tool-call pills + 'Show data' SQL disclosure. Suggested-question buttons become enabled (click prefills input; no auto-submit).",
+      "scope": "frontend",
+      "estimated_loc": 420,
+      "actual_loc": null,
+      "dependencies": ["M5"],
+      "acceptance_criteria": [
+        "_AnalyticsChat.tsx renders the AG-UI stream against analytics-chat skill",
+        "Mocked MOCK_ANALYTICS_* imports removed from page.tsx",
+        "Class + time-scope dropdowns prefill the conversation context",
+        "Tool-call pills render during streaming",
+        "'Show data' disclosure under each agent turn shows SQL + params from the tool call event",
+        "Suggested-question buttons enabled; click prefills input (no auto-submit)",
+        "Empty state when no class selected",
+        "Tests cover the chat island + suggested-prefill",
+        "Frontend quality:check green; existing teacher tests still pass"
+      ],
+      "files_to_create": [
+        "frontend/src/app/teacher/analytics/_AnalyticsChat.tsx",
+        "frontend/src/app/teacher/analytics/__tests__/_AnalyticsChat.test.tsx"
+      ],
+      "files_to_modify": [
+        "frontend/src/app/teacher/analytics/page.tsx",
+        "frontend/src/app/teacher/analytics/__tests__/page.test.tsx"
+      ],
+      "passes": null, "started": null, "completed": null, "notes": "Confirm useSkillAgent surfaces tool-call events cleanly during day-1 of M6; if not, the 'Show data' disclosure falls back to a plain <details> block (per risk register)."
+    },
+    {
+      "id": "M7",
+      "description": "backend/insights aggregates + cache + REST routes. Compose 1.L queries into six KPI shapes. 60s LRU cache keyed on (teacher_uid, surface, since, until). Five /api/insights/* endpoints with _debug.queries field echoing the SQL the frontend renders.",
+      "scope": "backend",
+      "estimated_loc": 480,
+      "actual_loc": null,
+      "dependencies": ["M3"],
+      "acceptance_criteria": [
+        "backend/insights/aggregates.py exposes six KPI functions composing M3 queries",
+        "backend/insights/cache.py has 60s TTL + (teacher_uid, surface, since, until) key + invalidation hook",
+        "Five routes: /api/insights/summary, /api/insights/classes/{id}/kpis, /classes/{id}/groups, /classes/{id}/activities, /compare",
+        "Every route returns _debug.queries: [{name, sql, params}]",
+        "Cross-tenant attempt returns same-shape refusal as 'class not found'",
+        "tests/unit/insights/test_*.py covers aggregates + cache",
+        "tests/api_tests/test_insights_routes.py covers auth + shape + refusal",
+        "Backend make test-fast + make lint green"
+      ],
+      "files_to_create": [
+        "backend/insights/__init__.py",
+        "backend/insights/aggregates.py",
+        "backend/insights/cache.py",
+        "backend/protocols/insights_routes.py",
+        "backend/tests/unit/insights/__init__.py",
+        "backend/tests/unit/insights/test_aggregates.py",
+        "backend/tests/unit/insights/test_cache.py",
+        "backend/tests/api_tests/test_insights_routes.py"
+      ],
+      "files_to_modify": [
+        "backend/fast_api_app.py"
+      ],
+      "passes": null, "started": null, "completed": null, "notes": null
+    },
+    {
+      "id": "M8",
+      "description": "aiplatform insights CLI subcommands + /teacher/insights cross-class page. Three CLI subcommands (class, compare, groups) with table or json output. CrossClassTable component with sortable columns and deep-links into class detail.",
+      "scope": "fullstack",
+      "estimated_loc": 360,
+      "actual_loc": null,
+      "dependencies": ["M7"],
+      "acceptance_criteria": [
+        "aiplatform insights class <id> prints KPI grid (table) and json",
+        "aiplatform insights compare prints sortable cross-class table",
+        "aiplatform insights groups <id> prints per-group bar data",
+        "/teacher/insights page renders CrossClassTable with mocked data; sort by header click works; row click deep-links to /teacher/classes/<id>",
+        "Empty state when no classes",
+        "Frontend quality:check green"
+      ],
+      "files_to_create": [
+        "cli/aiplatform/commands/insights.py",
+        "cli/tests/test_cli_insights.py",
+        "frontend/src/app/teacher/insights/page.tsx",
+        "frontend/src/app/teacher/insights/__tests__/page.test.tsx",
+        "frontend/src/components/teacher/insights/CrossClassTable.tsx",
+        "frontend/src/components/teacher/insights/__tests__/CrossClassTable.test.tsx"
+      ],
+      "files_to_modify": [
+        "cli/aiplatform/cli.py"
+      ],
+      "passes": null, "started": null, "completed": null, "notes": null
+    },
+    {
+      "id": "M9",
+      "description": "KPI strip on /teacher/classes + ClassInsightsPanel on /teacher/classes/[id]. KpiCard / EngagementBar / TrendSparkline primitives. useInsights hook. Per-card error boundaries so one slow query doesn't block the grid. Definition tooltips + 'Show data' disclosure on every card.",
+      "scope": "frontend",
+      "estimated_loc": 540,
+      "actual_loc": null,
+      "dependencies": ["M7", "M8"],
+      "acceptance_criteria": [
+        "KpiCard renders value + unit + delta + definition tooltip + 'Show data' disclosure",
+        "EngagementBar renders horizontal bars sorted by value with click-to-deep-link",
+        "TrendSparkline renders 7-day line; empty state for zero points",
+        "useInsights hook fetches per-class data with loading/error per card",
+        "/teacher/classes cards show the KPI strip (one batched /api/insights/summary call)",
+        "/teacher/classes/[id] renders ClassInsightsPanel above Recent activity",
+        "Per-card error boundary verified (one card failing leaves others rendered)",
+        "Existing class-page tests still pass (regression)",
+        "Frontend quality:check green"
+      ],
+      "files_to_create": [
+        "frontend/src/components/teacher/insights/KpiCard.tsx",
+        "frontend/src/components/teacher/insights/EngagementBar.tsx",
+        "frontend/src/components/teacher/insights/TrendSparkline.tsx",
+        "frontend/src/components/teacher/insights/ClassInsightsPanel.tsx",
+        "frontend/src/components/teacher/insights/__tests__/KpiCard.test.tsx",
+        "frontend/src/components/teacher/insights/__tests__/EngagementBar.test.tsx",
+        "frontend/src/components/teacher/insights/__tests__/TrendSparkline.test.tsx",
+        "frontend/src/hooks/useInsights.ts",
+        "frontend/src/hooks/__tests__/useInsights.test.tsx"
+      ],
+      "files_to_modify": [
+        "frontend/src/app/teacher/classes/page.tsx",
+        "frontend/src/app/teacher/classes/[id]/page.tsx"
+      ],
+      "passes": null, "started": null, "completed": null, "notes": null
+    },
+    {
+      "id": "M10",
+      "description": "Eval + smoke + a11y + observability pass. ADK evalset (six tool cases + one cross-tenant refusal). smoke-analytics-chat.sh + smoke-insights.sh against deployed dev. aria-label + table fallback under disclosure for every chart. Cloud Logging analytics_tool / insights_query / dashboard_load structured entries.",
+      "scope": "fullstack",
+      "estimated_loc": 280,
+      "actual_loc": null,
+      "dependencies": ["M6", "M9"],
+      "acceptance_criteria": [
+        "analytics_chat.evalset.json contains six tool cases + one cross-tenant refusal case",
+        "make eval passes all seven evalset cases",
+        "scripts/smoke-analytics-chat.sh runs end-to-end against dev with test-teacher account",
+        "scripts/smoke-insights.sh hits five insights routes and asserts cross-tenant refusal",
+        "Every chart has aria-label summary + <table> fallback under 'Show data' disclosure",
+        "Cloud Logging shows analytics_tool, insights_query, dashboard_load entries (verified via gcloud logging read)",
+        "Both design docs (1.L + 1.M) moved to implemented/ with Implementation Report stubs"
+      ],
+      "files_to_create": [
+        "backend/tests/eval/evalsets/analytics_chat.evalset.json",
+        "scripts/smoke-analytics-chat.sh",
+        "scripts/smoke-insights.sh"
+      ],
+      "files_to_modify": [
+        "backend/observability/structured.py",
+        "frontend/src/components/teacher/insights/KpiCard.tsx",
+        "frontend/src/components/teacher/insights/EngagementBar.tsx",
+        "frontend/src/components/teacher/insights/TrendSparkline.tsx",
+        "frontend/src/components/teacher/insights/CrossClassTable.tsx"
+      ],
+      "passes": null, "started": null, "completed": null, "notes": "Use the design-doc-creator move_to_implemented script for the doc moves."
+    }
+  ],
+  "velocity": {
+    "target_loc_per_day": 700,
+    "actual_loc_per_day": null,
+    "estimated_total_loc": 3530
+  },
+  "history": []
+}
