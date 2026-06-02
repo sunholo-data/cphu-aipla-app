@@ -9,6 +9,7 @@ import {
 
 import type { KineBotEvent } from "@/hooks/useKineBotSnapshot";
 
+import { SimFrameHeader } from "./SimFrameHeader";
 import {
   StaticArtefactFrame,
   type StaticArtefactFrameHandle,
@@ -60,6 +61,7 @@ interface KineBotFrameProps {
 export const KineBotFrame = forwardRef<KineBotFrameHandle, KineBotFrameProps>(
   function KineBotFrame({ sandboxOrigin, topic, reportEvent, onClose }, ref) {
     const staticFrameRef = useRef<StaticArtefactFrameHandle | null>(null);
+    const wrapperRef = useRef<HTMLDivElement | null>(null);
     const reportEventRef = useRef(reportEvent);
     reportEventRef.current = reportEvent;
     const topicRef = useRef(topic);
@@ -121,20 +123,15 @@ export const KineBotFrame = forwardRef<KineBotFrameHandle, KineBotFrameProps>(
     );
 
     return (
-      <div className="flex min-h-0 flex-col">
-        <header className="flex shrink-0 items-center justify-between border-b px-3 py-2">
-          <h3 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-            KineBot — simulation
-          </h3>
-          <button
-            type="button"
-            onClick={onClose}
-            className="rounded px-2 py-1 text-xs text-muted-foreground hover:bg-muted hover:text-foreground"
-            aria-label="Close simulation"
-          >
-            Close
-          </button>
-        </header>
+      <div ref={wrapperRef} className="flex min-h-0 flex-col bg-background">
+        <SimFrameHeader
+          title="KineBot — simulation"
+          closeLabel="Close"
+          closeAriaLabel="Close simulation"
+          fullscreenAriaLabel="Toggle fullscreen"
+          onClose={onClose}
+          fullscreenTarget={wrapperRef.current}
+        />
         <StaticArtefactFrame
           ref={staticFrameRef}
           sandboxOrigin={sandboxOrigin}

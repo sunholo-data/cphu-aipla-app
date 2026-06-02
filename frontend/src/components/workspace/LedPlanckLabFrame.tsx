@@ -7,6 +7,7 @@ import type {
   LedPlanckReading,
 } from "@/hooks/useLedPlanckSnapshot";
 
+import { SimFrameHeader } from "./SimFrameHeader";
 import {
   StaticArtefactFrame,
   type StaticArtefactFrameHandle,
@@ -58,6 +59,7 @@ export const LedPlanckLabFrame = forwardRef<
   LedPlanckLabFrameProps
 >(function LedPlanckLabFrame({ sandboxOrigin, onClose, reportEvent }, ref) {
   const staticFrameRef = useRef<StaticArtefactFrameHandle | null>(null);
+  const wrapperRef = useRef<HTMLDivElement | null>(null);
   const reportEventRef = useRef(reportEvent);
   reportEventRef.current = reportEvent;
 
@@ -158,20 +160,15 @@ export const LedPlanckLabFrame = forwardRef<
   );
 
   return (
-    <div className="flex min-h-0 flex-col">
-      <header className="flex shrink-0 items-center justify-between border-b px-3 py-2">
-        <h3 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-          LED og Plancks konstant — virtuelt laboratorium
-        </h3>
-        <button
-          type="button"
-          onClick={onClose}
-          className="rounded px-2 py-1 text-xs text-muted-foreground hover:bg-muted hover:text-foreground"
-          aria-label="Luk laboratorium"
-        >
-          Luk
-        </button>
-      </header>
+    <div ref={wrapperRef} className="flex min-h-0 flex-col bg-background">
+      <SimFrameHeader
+        title="LED og Plancks konstant — virtuelt laboratorium"
+        closeLabel="Luk"
+        closeAriaLabel="Luk laboratorium"
+        fullscreenAriaLabel="Skift fuldskærm"
+        onClose={onClose}
+        fullscreenTarget={wrapperRef.current}
+      />
       <StaticArtefactFrame
         ref={staticFrameRef}
         sandboxOrigin={sandboxOrigin}
