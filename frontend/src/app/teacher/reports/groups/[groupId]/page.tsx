@@ -125,7 +125,6 @@ export default function TeacherGroupReportPage() {
       ? getMockClass(report.classId)
       : undefined;
   const isLive = state.kind === "live";
-  const sharedWithTeacher = state.kind === "live" ? state.data.sharedWithTeacher : false;
 
   return (
     <div className="flex flex-col gap-6">
@@ -277,30 +276,6 @@ export default function TeacherGroupReportPage() {
       {isLive && state.kind === "live" && state.data.workbenchEvents && state.data.workbenchEvents.length > 0 ? (
         <WorkbenchActivitySection events={state.data.workbenchEvents} />
       ) : null}
-
-      <section
-        aria-labelledby="share-label"
-        className="flex flex-col gap-1 rounded border border-dashed border-border bg-muted/30 p-4"
-      >
-        <h2 id="share-label" className="text-base font-semibold">
-          Sharing status
-        </h2>
-        {isLive ? (
-          sharedWithTeacher ? (
-            <p className="text-xs text-emerald-700 dark:text-emerald-400">
-              The student opted in to share this session with you.
-            </p>
-          ) : (
-            <p className="text-xs text-muted-foreground">
-              The student has not ticked &ldquo;Share session with teacher&rdquo; in the chat footer. You can still view this session via the report URL, but the student hasn&rsquo;t explicitly consented to share.
-            </p>
-          )
-        ) : (
-          <p className="text-xs text-muted-foreground">
-            Students opt in via the chat toggle to share their session with you.
-          </p>
-        )}
-      </section>
     </div>
   );
 }

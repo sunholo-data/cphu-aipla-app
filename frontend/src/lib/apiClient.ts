@@ -28,23 +28,6 @@ export async function fetchWithAuth(
 }
 
 /**
- * Record the student's opt-in/out to share their session with the teacher.
- * Called from the chat page toggle; silently no-ops when the session hasn't
- * been bootstrapped yet (404) so callers don't need to branch.
- */
-export async function postShareConsent(sessionId: string, shared: boolean): Promise<void> {
-  try {
-    await fetchWithAuth(`/api/proxy/api/sessions/${encodeURIComponent(sessionId)}/share-consent`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ shared }),
-    });
-  } catch {
-    // Non-fatal — consent toggle is best-effort; student can retry.
-  }
-}
-
-/**
  * Like `fetchWithAuth` but always uses the Firebase teacher token.
  * Use this for all `/api/classes/*` and other teacher-only API calls so
  * the request carries a real Firebase ID token rather than the student's

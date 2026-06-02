@@ -66,7 +66,6 @@ class SessionSummary(BaseModel):
     duration_seconds: int = Field(alias="durationSeconds")
     message_count: int = Field(alias="messageCount")
     sim_run_count: int = Field(alias="simRunCount")
-    shared_with_teacher: bool = Field(default=False, alias="sharedWithTeacher")
     conversation: list[SessionTurn]
     workbench_events: list[WorkbenchEvent] = Field(default_factory=list, alias="workbenchEvents")
 
@@ -154,7 +153,6 @@ async def summarize_session(session_id: str) -> SessionSummary | None:
         durationSeconds=duration,
         messageCount=len(conversation),
         simRunCount=sim_runs,
-        sharedWithTeacher=idx.shared_with_teacher,
         conversation=conversation,
     )
 
