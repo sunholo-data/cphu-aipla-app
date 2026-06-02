@@ -6,12 +6,12 @@
 <title>KineBot — Kinematics Workbench</title>
 <style>
 :root {
- --bg:#07090f; --s1:#0d1117; --s2:#111827; --s3:#1a2236;
- --border:#1e2d4a; --border2:#263554;
- --blue:#3b82f6; --cyan:#06b6d4; --violet:#8b5cf6;
- --green:#10b981; --amber:#f59e0b; --rose:#f43f5e;
- --text:#e2e8f0; --dim:#94a3b8; --muted:#475569;
- --glow:rgba(59,130,246,.12);
+ --bg:#ffffff; --s1:#f8fafc; --s2:#f1f5f9; --s3:#e2e8f0;
+ --border:#e2e8f0; --border2:#cbd5e1;
+ --blue:#2563eb; --cyan:#0891b2; --violet:#7c3aed;
+ --green:#16a34a; --amber:#d97706; --rose:#e11d48;
+ --text:#0f172a; --dim:#475569; --muted:#64748b;
+ --glow:rgba(37,99,235,.08);
  --font-body:'Inter',sans-serif;
  --font-head:'Syne',sans-serif;
  --font-mono:'JetBrains Mono',monospace;
@@ -90,7 +90,7 @@ header::after{content:'';position:absolute;bottom:0;left:0;right:0;height:2px;
 canvas#simCanvas{width:100%;height:100%;display:block;}
 .sim-overlay{position:absolute;top:8px;left:10px;display:flex;gap:6px;flex-wrap:wrap;}
 .sim-tag{font-size:.62rem;font-family:var(--font-mono);padding:2px 7px;border-radius:4px;
- background:rgba(7,9,15,.7);border:1px solid var(--border2);color:var(--cyan);}
+ background:rgba(248,250,252,.95);border:1px solid var(--border2);color:var(--cyan);}
 .sim-right{width:175px;flex-shrink:0;background:var(--s1);border-left:1px solid var(--border);
  display:flex;flex-direction:column;padding:10px;gap:7px;overflow-y:auto;}
 .sr-title{font-size:.68rem;font-weight:700;color:var(--cyan);letter-spacing:.06em;text-transform:uppercase;}
@@ -239,7 +239,7 @@ canvas#graphCanvas{background:var(--bg);border:1px solid var(--border);border-ra
 /* ═══ SIM COLLAPSE ═══ */
 .sim-collapse-btn{position:absolute;bottom:6px;right:6px;z-index:5;
  width:22px;height:22px;border-radius:5px;border:1px solid var(--border2);
- background:rgba(7,9,15,.8);color:var(--muted);font-size:.7rem;cursor:pointer;
+ background:rgba(248,250,252,.95);color:var(--muted);font-size:.7rem;cursor:pointer;
  display:flex;align-items:center;justify-content:center;transition:all .15s;}
 .sim-collapse-btn:hover{color:var(--cyan);border-color:var(--cyan);}
 .sim-panel.collapsed{height:36px!important;overflow:hidden;}
@@ -543,7 +543,7 @@ function drawSim(){
  const W=simCanvas.width, H=simCanvas.height;
  sctx.clearRect(0,0,W,H);
  // Grid
- sctx.strokeStyle='rgba(30,45,74,0.6)'; sctx.lineWidth=1;
+ sctx.strokeStyle='rgba(100,116,139,0.15)'; sctx.lineWidth=1;
  for(let x=0;x<W;x+=40){sctx.beginPath();sctx.moveTo(x,0);sctx.lineTo(x,H);sctx.stroke();}
  for(let y=0;y<H;y+=40){sctx.beginPath();sctx.moveTo(0,y);sctx.lineTo(W,y);sctx.stroke();}
 
@@ -571,7 +571,7 @@ function drawSim(){
  sctx.beginPath(); sctx.moveTo(bx,H*0.08); sctx.lineTo(bx,by); sctx.stroke(); sctx.setLineDash([]);
  drawArrowS(bx+22,by,bx+22,by+28,'#f59e0b','g');
  drawBall(bx,by,13,'#fb923c','#9a3412');
- sctx.fillStyle='#1e2d4a'; sctx.fillRect(0,H*0.82,W,4);
+ sctx.fillStyle='#e2e8f0'; sctx.fillRect(0,H*0.82,W,4);
  }
  else if(type==='projectile'){
  const ang=gAng(), v=gV();
@@ -587,7 +587,7 @@ function drawSim(){
  sctx.beginPath(); sctx.strokeStyle='rgba(6,182,212,.4)'; sctx.lineWidth=2;
  sim.trail.forEach((p,i)=>i===0?sctx.moveTo(p.x,p.y):sctx.lineTo(p.x,p.y)); sctx.stroke();
  }
- sctx.fillStyle='#1e2d4a'; sctx.fillRect(0,H*0.82,W,4);
+ sctx.fillStyle='#e2e8f0'; sctx.fillRect(0,H*0.82,W,4);
  const bx=Math.max(20,Math.min(W-20,sim.x||40)), by=Math.max(20,sim.y||H*0.78);
  const vy=Math.max(0,v*Math.sin(ang)-9.8*sim.t);
  const vx=v*Math.cos(ang);
@@ -604,7 +604,7 @@ function drawSim(){
  const cx=W/2, cy=H/2, r=Math.min(W,H)*0.28;
  sctx.beginPath(); sctx.arc(cx,cy,r,0,Math.PI*2);
  sctx.strokeStyle='rgba(59,130,246,.18)'; sctx.lineWidth=1.5; sctx.setLineDash([5,6]); sctx.stroke(); sctx.setLineDash([]);
- drawBall(cx,cy,4,'#1e2d4a','#263554');
+ drawBall(cx,cy,4,'#e2e8f0','#263554');
  const bx=sim.x||cx+r, by=sim.y||cy;
  sctx.beginPath(); sctx.strokeStyle='rgba(16,185,129,.4)'; sctx.lineWidth=1.5;
  sctx.moveTo(cx,cy); sctx.lineTo(bx,by); sctx.stroke();
@@ -646,7 +646,7 @@ function drawSim(){
 }
 
 function drawGround(y){
- sctx.strokeStyle='#1e2d4a'; sctx.lineWidth=2;
+ sctx.strokeStyle='#e2e8f0'; sctx.lineWidth=2;
  sctx.beginPath(); sctx.moveTo(0,y); sctx.lineTo(simCanvas.width,y); sctx.stroke();
 }
 function drawBall(x,y,r,c1,c2){
@@ -670,7 +670,7 @@ function drawArrowS(x1,y1,x2,y2,color,label){
  if(label){ sctx.fillStyle=color; sctx.font='700 9px JetBrains Mono'; sctx.fillText(label,x2+4,y2-3); }
 }
 function drawRuler(x1,y,x2){
- sctx.fillStyle='#1e2d4a'; sctx.fillRect(x1,y,x2-x1,2);
+ sctx.fillStyle='#e2e8f0'; sctx.fillRect(x1,y,x2-x1,2);
  for(let i=0;i<=8;i++){
  const x=x1+i*(x2-x1)/8;
  sctx.fillStyle='#475569'; sctx.font='9px JetBrains Mono';
@@ -678,7 +678,7 @@ function drawRuler(x1,y,x2){
  }
 }
 function drawMiniGraph(x,y,w,h){
- sctx.fillStyle='rgba(7,9,15,.7)'; sctx.strokeStyle='#1e2d4a'; sctx.lineWidth=1;
+ sctx.fillStyle='rgba(248,250,252,.95)'; sctx.strokeStyle='#e2e8f0'; sctx.lineWidth=1;
  sctx.beginPath(); sctx.rect(x,y,w,h); sctx.fill(); sctx.stroke();
  sctx.strokeStyle='#3b82f6'; sctx.lineWidth=1.5;
  sctx.beginPath(); sctx.moveTo(x+4,y+h-4);
@@ -727,10 +727,10 @@ function drawGraph(){
  const PW=W-PAD.l-PAD.r, PH=H-PAD.t-PAD.b;
 
  // Background
- gctx.fillStyle=getComputedStyle(document.documentElement).getPropertyValue('--bg').trim()||'#07090f';
+ gctx.fillStyle=getComputedStyle(document.documentElement).getPropertyValue('--bg').trim()||'#ffffff';
  gctx.fillRect(0,0,W,H);
  // Grid
- gctx.strokeStyle='rgba(30,45,74,0.7)'; gctx.lineWidth=1;
+ gctx.strokeStyle='rgba(100,116,139,0.15)'; gctx.lineWidth=1;
  for(let i=0;i<=5;i++){
  const y=PAD.t+PH*i/5;
  gctx.beginPath(); gctx.moveTo(PAD.l,y); gctx.lineTo(PAD.l+PW,y); gctx.stroke();
@@ -1497,8 +1497,8 @@ function drawGraph(){
  const PAD={t:20,r:20,b:40,l:55};
  const PW=W-PAD.l-PAD.r,PH=H-PAD.t-PAD.b;
  gctx.clearRect(0,0,W,H);
- gctx.fillStyle='#07090f'; gctx.fillRect(0,0,W,H);
- gctx.strokeStyle='rgba(30,45,74,0.7)'; gctx.lineWidth=1;
+ gctx.fillStyle='#ffffff'; gctx.fillRect(0,0,W,H);
+ gctx.strokeStyle='rgba(100,116,139,0.15)'; gctx.lineWidth=1;
  for(let i=0;i<=5;i++){
  gctx.beginPath(); gctx.moveTo(PAD.l,PAD.t+PH*i/5); gctx.lineTo(PAD.l+PW,PAD.t+PH*i/5); gctx.stroke();
  gctx.beginPath(); gctx.moveTo(PAD.l+PW*i/5,PAD.t); gctx.lineTo(PAD.l+PW*i/5,PAD.t+PH); gctx.stroke();
