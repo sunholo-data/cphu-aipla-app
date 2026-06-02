@@ -6,7 +6,8 @@
 **Base commit:** `c0d2870` (dev HEAD as of 2026-05-26)
 **Estimate:** ~2-2.5 days
 **Created:** 2026-05-26
-**Status:** queued (not started; runs **after the 3 June Phase 2 demo**)
+**Status:** Mostly Implemented (M1-M4, M6, M7, M8, M9 shipped; M5 multi-class filter dropdown skipped — replaced by per-class detail view). Sprint runs as "close-out remaining verification" rather than fresh build.
+**Last Updated:** 2026-06-02
 
 ## Sprint goal
 

@@ -88,13 +88,13 @@ analysis live for the pilot without a framework commitment.
 - **Session-analytics rubric (2.5)** — the pedagogical layer over those logs (engagement + concept signal, not just message counts). Gated on 1.2 + the JB/AR framework pick (R1). See *Analytics critical path* above.
 - **`analytics-chat` skill (1.G-Ph3)** — the lighter "chat to the data" path; the fallback if R1 slips.
 
-**Deferred behind the teacher UI compression:**
+**Deferred behind the teacher UI compression (since recovered):**
 
-- 1.C LED Planck (~1 week delay)
-- 1.D KineBot (~2 weeks delay)
-- 1.F session persistence (~1 week delay)
+- 1.C LED Planck — shipped on schedule after teacher UI Phase 2 cleared
+- 1.D KineBot — shipped
+- 1.F session persistence — shipped 2026-06-01
 
-v1.0.0-pilot still ships by 2026-08-14 with comfortable margin (~12 weeks of work in a 14-week window).
+v1.0.0-pilot ships by 2026-08-14 with comfortable margin. As of 2026-06-02, the analytics critical path is fully live (chat turns + workbench events flowing to BigQuery and surfaced in the teacher UI); the remaining gates are R1 (framework pick) + R2/R7 (taxonomy/labels), which are human-time, not engineering-time.
 
 ## What does NOT ship in v1.0.0-pilot
 
@@ -116,7 +116,7 @@ Specifically deferred from this version:
 | Tag-namespace collisions between teachers | Mandatory namespace prefix `class:<teacher_uid>:<class_id>` — enforced in the `Class` creation path; impossible to construct a colliding tag |
 | Group-code lifecycle confusion when classes are deleted | Soft-delete only; revoked classes flip a flag rather than dropping the Firestore doc. Group JWTs validate against the live flag at every request |
 
-## Sprint status (2026-05-26)
+## Sprint status (2026-06-02)
 
 **Shipped (merged to `dev`):**
 
@@ -125,26 +125,34 @@ Specifically deferred from this version:
 - ✓ 1.E — Workbench state debounce (Phase 1)
 - ✓ 1.H-TTS — Browser-native TTS button
 - ✓ 1.I-PhA — Proactive tutor auto-greet
-- ✓ 1.A — Teacher permission model (Firebase backend + Class entity + tag-based access + manage-class skill + CLI). Shipped as `997a85b`.
-- ✓ 1.E-Ph2 — Workbench commit-on-submit gating. Shipped as `c0d2870`.
+- ✓ 1.A — Teacher permission model (Firebase backend + Class entity + tag-based access + manage-class skill + CLI). Shipped as `997a85b`. Docs moved to [implemented/teacher-permission-model.md](implemented/teacher-permission-model.md) + [implemented/teacher-permission-1a-sprint.md](implemented/teacher-permission-1a-sprint.md).
+- ✓ 1.E-Ph2 — Workbench commit-on-submit gating. Shipped as `c0d2870`. Docs in [implemented/workbench-state-debounce.md](implemented/workbench-state-debounce.md).
+- ✓ 1.B — Lesson picker `/lessons` route. Docs in [implemented/lesson-picker.md](implemented/lesson-picker.md).
+- ✓ 1.F — Session persistence (group code = session key for 30 days). Shipped 2026-06-01. Docs in [implemented/session-persistence.md](implemented/session-persistence.md).
+- ✓ STUDENT-LESSON-VIEW — Live skill_ids resolve at join + class banner on `/lessons`. Docs in [implemented/student-lesson-view.md](implemented/student-lesson-view.md).
+- ✓ 1.1 — Cloud bootstrap (BQ dataset + Log Router sink IAM, Terraform-managed).
+- ✓ 1.2 — Chat-log pipeline (BQ sink for chat turns + workbench events; BQ-backed `summarize_session`). Docs in [implemented/chat-log-pipeline.md](implemented/chat-log-pipeline.md) + [implemented/chat-log-pipeline-sprint.md](implemented/chat-log-pipeline-sprint.md) + [implemented/chat-log-pipeline-verification.md](implemented/chat-log-pipeline-verification.md).
+- ✓ 1.C — LED Planck virtual lab + Danish Socratic tutor. Docs in [implemented/led-planck-skill.md](implemented/led-planck-skill.md).
+- ✓ 1.D — KineBot kinematics tutor (NCERT/CBSE Class 11, AIPLA-rails migration). Docs in [implemented/kinebot-migration.md](implemented/kinebot-migration.md).
+
+**Recently shipped (post 2026-05-26, no dedicated sprint doc):**
+
+- Teacher dashboard now shows real session activity at three zoom levels (main dashboard, class detail per-group stats + activity feed, session report with workbench-activity list). Backend `list_sessions_for_group_codes` switched to ownerUid prefix matching so pre-`groupCode`-backfill sessions are also visible. Shipped 2026-06-02 as `29908dc` + `868e3db`.
+- `AIPLA_TEACHER_MOCK_AUTH` bypass + demo-class seeder + frontend demoRole helpers removed now that Firebase teacher auth works end-to-end. Shipped 2026-06-02 as `ae2723e`.
+- `backend/adk/callbacks.py` (807 LOC) split into `callbacks/{permission,document,session,large_output}.py` submodules with `__init__.py` re-exports. No import changes anywhere else. Shipped 2026-06-02 as `c68a67f`.
 
 **Queued (plans + JSON state ready; not started):**
 
 | # | Sprint | Plan | LOC | Est | Queue rationale |
 |---|---|---|---|---|---|
-| 1 | LESSON-PICKER-1B | [lesson-picker-sprint.md](lesson-picker-sprint.md) | ~390 | 0.5d | FE-only, no deps, unblocks 1.C/1.D visibility |
-| 2 | TEACHER-UI-PH3 | [teacher-ui-ph3-sprint.md](teacher-ui-ph3-sprint.md) | ~1510 | 2-2.5d | Consumes 1.A backend; ships real Firebase OAuth. Runs **after** 3 June Phase 2 demo |
-| 3 | SESSION-PERSISTENCE-1F | [session-persistence-sprint.md](session-persistence-sprint.md) | ~1680 | 1.5-2d | Same group code resumes same session for 30d. Cross-device coherence |
-| 4 | STUDENT-LESSON-VIEW | [student-lesson-view.md](student-lesson-view.md) | ~200 | 0.75d | Live skill_ids resolve at join + class name on /lessons. Fixes stale lesson list after teacher re-assigns |
+| 1 | TEACHER-UI-PH3 (partial) | [teacher-ui-ph3-sprint.md](teacher-ui-ph3-sprint.md) | ~1510 | <0.5d remaining | M1-M4, M6-M9 shipped (Firebase teacher auth, route guards, `analytics-chat` skill template, opt-in share toggle, CLI smoke). M5 (multi-class filter dropdown) skipped — replaced by per-class detail view. Close out the sprint doc once analytics-chat is verified end-to-end. |
 
-The queue is a recommended order, not a strict dependency chain. 1.F is independent of 1.G-Ph3 and could be reordered or parallelised.
-
-**Analytics critical path (committed v1 2026-05-28; not started):**
+**Analytics critical path (committed v1 2026-05-28):**
 
 | # | Item | Doc | State | Gate |
 |---|---|---|---|---|
-| 1.1 | cloud-bootstrap (BQ dataset + sink IAM) | [aipla-cloud-bootstrap.md](aipla-cloud-bootstrap.md) | doc ready, not built | — (can `-target` the dataset + sink early) |
-| 1.2 | chat-log-pipeline (BQ sink — **KEYSTONE**) | [chat-log-pipeline.md](chat-log-pipeline.md) | doc landed 2026-05-28, not built | 1.1 dataset + sink IAM |
+| 1.1 | cloud-bootstrap (BQ dataset + sink IAM) | infra repo | **shipped** (Terraform applied; sink IAM wired) | — |
+| 1.2 | chat-log-pipeline (BQ sink — **KEYSTONE**) | [implemented/chat-log-pipeline.md](implemented/chat-log-pipeline.md) | **shipped** 2026-05-28 → 2026-06-01; teacher UI display of workbench events added 2026-06-02 (`868e3db`) | — |
 | 1.K | dra-activity-framework (DRA maps) | [dra-activity-framework.md](dra-activity-framework.md) | doc ready, not built | only if DRA lens chosen in R1 |
 | 2.5 | session-analytics-rubric (analysis layer) | [../post-pilot/session-analytics-rubric.md](../post-pilot/session-analytics-rubric.md) | doc ready (promoted), not built | 1.2 + R1 framework pick |
 

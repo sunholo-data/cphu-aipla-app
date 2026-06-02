@@ -1,12 +1,12 @@
 # Lesson picker — `/lessons` route that lists what a student can access
 
-**Status**: Planned
+**Status**: Implemented
 **Priority**: P1 (prerequisite for showing skills 1.C / 1.D / future)
 **Estimated**: ~0.5 day (FE only — no backend changes)
 **Scope**: Frontend
 **Dependencies**: v0.1 shipped; `GET /api/skills` already filters via `AccessContext.can_access()` (no API work)
 **Created**: 2026-05-24
-**Last Updated**: 2026-05-24
+**Last Updated**: 2026-06-02
 
 ## Problem Statement
 
@@ -247,3 +247,23 @@ The existing endpoint returns `SkillSummary[]` per [backend/skills/routes.py](..
 - [`kinebot-migration-brief.md`](file:///Users/mark/Documents/clients/cph-uni/strand-a-pedagogical-bot/prototypes/kinebot-migration-brief.md) — 1.D source-of-truth brief in scoping site
 - [backend/skills/routes.py](../../../../backend/skills/routes.py) — the API this consumes (untouched by this design)
 - [backend/auth/access_context.py](../../../../backend/auth/access_context.py) — the access filter that runs server-side
+
+---
+
+## Implementation Report
+
+**Completed**: 2026-06-02
+**Actual Effort**: [e.g., 5 days vs 3 estimated]
+**Branch/PR**: [link or commit range]
+
+### What Was Built
+- [Summary of actual implementation]
+- [Any deviations from plan]
+
+### Files Changed
+- [New files created]
+- [Modified files]
+
+### Lessons Learned
+- [What went well]
+- [What could be improved]

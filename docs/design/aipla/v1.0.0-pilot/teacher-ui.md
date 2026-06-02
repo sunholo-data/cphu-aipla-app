@@ -1,6 +1,7 @@
 # Teacher UI — dashboard, class detail, activity config, session reports, analytics chat
 
-**Status**: Planned (phased — see "Phased delivery" below)
+**Status**: Phases 1+2 Implemented; Phase 3 mostly Implemented (Firebase teacher auth, opt-in share toggle, analytics-chat skill template, CLI parity all shipped — see [teacher-ui-ph3-sprint.md](teacher-ui-ph3-sprint.md) for milestone-level status). Teacher dashboard activity surfaces upgraded on 2026-06-02 (`29908dc` + `868e3db`).
+**Last Updated**: 2026-06-02
 **Priority**: P0 — **demo target for Wed 3 June check-in** per the 2026-05-25 meeting
 **Estimated**: ~5-6 days total split across three phases (mockup → wired → stretch). Per the 2026-05-25 evening compression decision M asked for "teacher UI or at least a mockup ASAP" — see "Phased delivery" below for how that reshapes execution
 **Cloud agent ready**: this doc + the SEQUENCE update commit lands on `dev`; a cloud agent can branch from `dev` and start Phase 1 immediately

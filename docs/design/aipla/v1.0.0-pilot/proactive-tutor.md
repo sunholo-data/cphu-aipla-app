@@ -1,6 +1,7 @@
 # Proactive tutor — auto-greet on join + idle-heartbeat check-ins
 
-**Status**: Planned (phased — see "Phased delivery" below)
+**Status**: Phase A Implemented (auto-greet on join, shipped per SEQUENCE.md); Phase B Planned (idle heartbeat — blocked on JB sign-off for copy + timing)
+**Last Updated**: 2026-06-02
 **Priority**: P1 — observed UX gap from a 2026-05-25 live student test ("they got confused what to do")
 **Estimated**: Phase A (auto-greet) ~0.5-1d; Phase B (heartbeat) ~1.5-2d
 **Scope**: Fullstack — backend agent-loop wiring + frontend timer + skill-template surface

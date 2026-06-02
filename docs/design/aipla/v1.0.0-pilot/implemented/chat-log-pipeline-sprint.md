@@ -81,9 +81,21 @@ does NOT gate this — the data plane is framework-agnostic.
 
 - **1.2 infra** — dataset + sink + IAM (✅ live in dev).
 - **`summarize_session`** ([session_summary.py](../../../../backend/reports/session_summary.py)) — the shape `summarize_session_bq` must preserve; stays as the fallback reader.
-- **`make_session_tracker`** ([callbacks.py](../../../../backend/adk/callbacks.py)) — the closure-wiring pattern M2 mirrors.
+- **`make_session_tracker`** ([callbacks/session.py](../../../../backend/adk/callbacks/session.py)) — the closure-wiring pattern M2 mirrors. (File moved 2026-06-02 from monolithic `callbacks.py` into a `callbacks/` package; commit `c68a67f`.)
 - **iframe-context route** ([iframe_context_routes.py](../../../../backend/protocols/iframe_context_routes.py)) — the workbench-event emit site.
 
 ## Out of scope (do NOT start)
 
-- 2.5 analytics rubric · flattened views · frontend changes · per-student data · content PII-scrub.
+- 2.5 analytics rubric · flattened views · ~~frontend changes~~ · per-student data · content PII-scrub.
+
+## Follow-up: teacher UI display of workbench events (2026-06-02)
+
+The sprint shipped the emit pipeline and made `sim_run_count` an exact count, but the teacher-facing report UI only displayed the count — not the underlying events. This was a UI gap, not a capture gap, but it confused enough people (including the assistant that helped close it out) that this note exists.
+
+**Closed by commit `868e3db`:**
+
+- `SessionSummary` now carries a `workbench_events: list[WorkbenchEvent]` field ([session_summary.py](../../../../backend/reports/session_summary.py)).
+- `summarize_session_bq` SELECTs the event rows (`timestamp`, `server`, `tool`, `field`, `value`) instead of `COUNT(*)`; `sim_run_count` is derived from `len(events)`.
+- The teacher report page (`/teacher/reports/groups/[groupId]`) renders a **Workbench activity** section beneath the conversation log, one row per event (e.g. `[10:15] boldkast · theta · 45`).
+
+**Why it mattered:** the original sprint scope said "out of scope: frontend changes," which was correct at the time (1.2 was a backend-only landing). The follow-up belongs here for traceability: the surface that consumes 1.2's data finally surfaces its full payload.

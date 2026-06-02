@@ -1,13 +1,13 @@
 # Workbench state debounce — slider events shouldn't spam the chat or model context
 
-**Status**: Planned
+**Status**: Implemented
 **Priority**: P1 (urgent — flagged in 2026-05-25 teacher review; "before next teacher demo")
 **Estimated**: ~0.5 day
 **Scope**: Frontend (BoldkastSimFrame + StaticArtefactFrame + future LED Planck / KineBot wrappers) + artefact-side debounce in the Boldkast HTML
 **Dependencies**: v0.1 shipped; sprint MCPAPP-SPEC merged (partial overlap — see "Delta vs current state" below)
 **Pedagogical source-of-truth:** [`workbench-state-debounce.md`](file:///Users/mark/Documents/clients/cph-uni/strand-a-pedagogical-bot/prototypes/workbench-state-debounce.md) in the scoping site
 **Created**: 2026-05-25
-**Last Updated**: 2026-05-25
+**Last Updated**: 2026-06-02
 
 ## Problem Statement
 
@@ -279,3 +279,23 @@ This sprint touches the MCP App artefact (`boldkast/v1/index.html`), the host fr
 - [boldkast-mcp-app.md](../v0.1.0-jutland/boldkast-mcp-app.md), [implemented/mcp-app-iframe-spec-compliance.md](implemented/mcp-app-iframe-spec-compliance.md) — current state this builds on
 - [led-planck-skill.md](led-planck-skill.md), [kinebot-migration.md](kinebot-migration.md) — pick up the convention from the start
 - [.claude/skills/mcp-app-artefact/SKILL.md](../../../../.claude/skills/mcp-app-artefact/SKILL.md) — debounce convention lands here
+
+---
+
+## Implementation Report
+
+**Completed**: 2026-06-02
+**Actual Effort**: [e.g., 5 days vs 3 estimated]
+**Branch/PR**: [link or commit range]
+
+### What Was Built
+- [Summary of actual implementation]
+- [Any deviations from plan]
+
+### Files Changed
+- [New files created]
+- [Modified files]
+
+### Lessons Learned
+- [What went well]
+- [What could be improved]

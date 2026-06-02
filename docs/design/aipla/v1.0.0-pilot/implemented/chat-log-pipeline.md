@@ -4,7 +4,7 @@
 **Priority**: P0 (keystone for teacher monitoring + analysis; everything cohort-scale analytical depends on it. Promoted to committed v1 critical-path on 2026-05-28 — teacher monitoring + analysis must be live *for* the pilot, not built on its aftermath)
 **Estimated**: 1.5d (sink + emitter + BQ-backed report read); +0.5d if PII-scrub lands this sprint
 **Scope**: Backend (structured chat-turn + workbench-event emitter in the agent callback; BQ-backed `summarize_session`), infra (Log Router sink + partitioned BQ tables — Terraform, shared with 1.1), CLI (`aiplatform logs` group)
-**Dependencies**: 1.1 [aipla-cloud-bootstrap](aipla-cloud-bootstrap.md) (creates `google_bigquery_dataset.chat_logs` + the Log Router sink IAM); the existing OTel observability wiring (Axiom #8 — `OTEL_INSTRUMENTATION_GENAI_CAPTURE_MESSAGE_CONTENT=true` already the default); the `make_session_tracker` after-agent callback in [`backend/adk/callbacks.py`](../../../../backend/adk/callbacks.py)
+**Dependencies**: 1.1 [aipla-cloud-bootstrap](aipla-cloud-bootstrap.md) (creates `google_bigquery_dataset.chat_logs` + the Log Router sink IAM); the existing OTel observability wiring (Axiom #8 — `OTEL_INSTRUMENTATION_GENAI_CAPTURE_MESSAGE_CONTENT=true` already the default); the `make_session_tracker` after-agent callback in [`backend/adk/callbacks/session.py`](../../../../backend/adk/callbacks/session.py)
 **ADRs implemented**: ADR-001 (group anonymity — no PII, group-ID keying), ADR-005 (chat log storage — researcher-accessible BigQuery dataset, consent-driven retention), ADR-008 (observability — OTel → Cloud Logging → BigQuery, all in-project)
 **Created**: 2026-05-28
 **Last Updated**: 2026-05-30
@@ -123,7 +123,7 @@ BigQuery dataset `chat_logs`
 
 ### Where the emitter lives
 
-`make_session_tracker` in [`backend/adk/callbacks.py`](../../../../backend/adk/callbacks.py) already fires after every agent turn and writes the `ChatSessionIndex` row — the established per-turn hook. The chat-turn emit goes here; the workbench-event emit goes in the existing artefact-state-write path that today writes `mcp_app_context.*`. A small new module `backend/observability/chat_log.py` holds the structured-log emit helpers (one for turns, one for workbench events), keeping the callback thin.
+`make_session_tracker` in [`backend/adk/callbacks/session.py`](../../../../backend/adk/callbacks/session.py) already fires after every agent turn and writes the `ChatSessionIndex` row — the established per-turn hook. The chat-turn emit goes here; the workbench-event emit goes in the existing artefact-state-write path that today writes `mcp_app_context.*`. A small new module `backend/observability/chat_log.py` holds the structured-log emit helpers (one for turns, one for workbench events), keeping the callback thin.
 
 The emit is fire-and-forget against the Cloud Logging client: a logging failure logs a warning and returns — it never raises into the chat path (Axiom #1, #5).
 
@@ -170,7 +170,7 @@ The reports route ([backend/protocols/reports_routes.py](../../../../backend/pro
 | File | Change | LOC est |
 |---|---|---|
 | `backend/observability/chat_log.py` (new) | `emit_chat_turn(...)`, `emit_workbench_event(...)` structured-log helpers; OTel GenAI attribute mapping; never-raise contract | ~120 |
-| `backend/adk/callbacks.py` | Call `emit_chat_turn` in `make_session_tracker`; `emit_workbench_event` in the artefact-state-write path | +40 |
+| `backend/adk/callbacks/session.py` | Call `emit_chat_turn` in `make_session_tracker`; `emit_workbench_event` in the artefact-state-write path | +40 |
 | `backend/reports/session_summary.py` | Add `summarize_session_bq`; keep the session-state reader as the fallback | +110 |
 | `backend/protocols/reports_routes.py` | Prefer BQ, fall back to session-state | +25 |
 | `backend/db/bigquery.py` (new or extend) | Thin BQ query client (parameterised, region-pinned per ADR-007) | ~80 |
@@ -215,7 +215,7 @@ The reports route ([backend/protocols/reports_routes.py](../../../../backend/pro
 | Step | What | Where | Est |
 |---|---|---|---|
 | 1 | Structured-log emitters (turn + workbench event), never-raise | `backend/observability/chat_log.py` | 0.3 d |
-| 2 | Wire emitters into the after-agent callback + artefact-state path | `backend/adk/callbacks.py` | 0.15 d |
+| 2 | Wire emitters into the after-agent callback + artefact-state path | `backend/adk/callbacks/session.py` | 0.15 d |
 | 3 | Log Router sink + BQ table schemas (Terraform, with 1.1) | `infrastructure/modules/...` | 0.3 d |
 | 4 | BQ query client + `summarize_session_bq` + route fallback | `backend/db/bigquery.py`, `session_summary.py`, `reports_routes.py` | 0.35 d |
 | 5 | CLI `logs tail/query/schema` + tests | `cli/aiplatform/commands/logs.py` | 0.2 d |
@@ -276,7 +276,7 @@ The reports route ([backend/protocols/reports_routes.py](../../../../backend/pro
 
 ### Files Changed
 - New: `backend/observability/chat_log.py`, `backend/db/bigquery.py`, `backend/tests/unit/test_chat_log_emit.py`, `backend/tests/api_tests/test_chat_log_pipeline.py`, `cli/aiplatform/commands/logs.py`, `cli/tests/test_cli_logs.py`, `infrastructure/modules/chat-logs/` (terraform), `scripts/bootstrap-aipla-dev.sh` ensure_chat_logs.
-- Modified: `backend/adk/callbacks.py` (emit + invocation_id fix), `backend/adk/agent.py` (wire `user.group_id`), `backend/protocols/{iframe_context,reports}_routes.py`, `backend/reports/session_summary.py` (BQ-backed summary + `?source=bq` + hyphen-cleaning fix to `find_latest_session_for_group`), `backend/pyproject.toml`/`uv.lock` (add `google-cloud-bigquery`), `cli/aiplatform/{cli,http}.py` (register `logs` + AIPLA dev URL), root `Makefile` (`verify-chat-logs`), `CLAUDE.md` (Automation table).
+- Modified: `backend/adk/callbacks/session.py` (emit + invocation_id fix), `backend/adk/agent.py` (wire `user.group_id`), `backend/protocols/{iframe_context,reports}_routes.py`, `backend/reports/session_summary.py` (BQ-backed summary + `?source=bq` + hyphen-cleaning fix to `find_latest_session_for_group`), `backend/pyproject.toml`/`uv.lock` (add `google-cloud-bigquery`), `cli/aiplatform/{cli,http}.py` (register `logs` + AIPLA dev URL), root `Makefile` (`verify-chat-logs`), `CLAUDE.md` (Automation table).
 
 ### Lessons Learned
 - **Easy verification is a correctness tool, not just a smoke.** Building `aiplatform logs verify` + `make verify-chat-logs` (one command, no creds) directly surfaced two real defects (the `_synthesize_uid` hyphen-strip mismatch and the cursor-vs-compaction bug). Neither was caught by the unit tests because the failures depended on production-only behaviour (real uid format, real event compaction). Pattern for future pipelines: ship the e2e command alongside the feature, run it before claiming done.

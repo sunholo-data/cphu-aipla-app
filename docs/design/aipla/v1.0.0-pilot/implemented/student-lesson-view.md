@@ -1,12 +1,12 @@
 # Student lesson view — live skill resolve + class-context UI
 
-**Status**: Planned
+**Status**: Implemented
 **Priority**: P1 (lesson list correctness + class-oriented UX)
 **Estimated**: ~0.75 day (backend ~0.25d, frontend ~0.5d)
 **Scope**: Fullstack
 **Dependencies**: 1.A teacher permission model (shipped), 1.B lesson picker (shipped)
 **Created**: 2026-06-01
-**Last Updated**: 2026-06-01
+**Last Updated**: 2026-06-02
 
 ## Problem Statement
 
@@ -323,3 +323,23 @@ None — scope is bounded and implementation is derivable from the existing
   namespace, `mint_group_codes_under_class`
 - [teacher-ui.md](teacher-ui.md) — teacher dashboard, lesson assignment flow
 - [session-persistence.md](session-persistence.md) — `resumedSessionId` in join response (1.F)
+
+---
+
+## Implementation Report
+
+**Completed**: 2026-06-02
+**Actual Effort**: [e.g., 5 days vs 3 estimated]
+**Branch/PR**: [link or commit range]
+
+### What Was Built
+- [Summary of actual implementation]
+- [Any deviations from plan]
+
+### Files Changed
+- [New files created]
+- [Modified files]
+
+### Lessons Learned
+- [What went well]
+- [What could be improved]

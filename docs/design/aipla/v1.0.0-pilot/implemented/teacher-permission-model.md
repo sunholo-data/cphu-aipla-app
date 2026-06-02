@@ -1,12 +1,12 @@
 # Teacher permission model — Firebase auth, Class entity, tag-based skill access
 
-**Status**: Planned
+**Status**: Implemented
 **Priority**: P1 (foundational for v1 — every teacher-facing surface depends on it)
 **Estimated**: ~3-5 days implementation (combined; ~0.5d for this doc itself)
 **Scope**: Backend (Class model + Firestore CRUD + teacher-auth wiring) + Frontend (teacher dashboard + class-management UI) + Auth (extend `AnonymousGroupAuthProvider` with a Firebase teacher path)
 **Dependencies**: v0.1 shipped; existing `AccessControl` 5-type model ([backend/db/models/access.py](../../../../backend/db/models/access.py)); existing anon-group auth ([backend/auth/group_id_auth.py](../../../../backend/auth/group_id_auth.py))
 **Created**: 2026-05-24
-**Last Updated**: 2026-05-24
+**Last Updated**: 2026-06-02
 
 ## Problem Statement
 
@@ -376,3 +376,23 @@ Steps 1, 2, 3, 4, 7 are new endpoints. Step 5 is a teacher physical act. Step 6 
 - [v0.1.0-jutland/group-tooling.md](../v0.1.0-jutland/group-tooling.md) — `aiplatform groups` CLI v0.1; the `aiplatform class` family extends this pattern
 - [docs/upstream-feedback.md](../../../upstream-feedback.md) — entries about teacher auth + permission gaps in the inherited template that this design resolves
 - Memory: [feedback-search-protocols-first](../../../../../.claude/projects/-Users-mark-dev-sunholo-cphu-aipla-app/memory/feedback_search_protocols_first.md) — the principle that says "search for existing primitives before designing new ones." This doc explicitly leans on the already-shipped 5-type `AccessControl` model rather than inventing a new access mechanism
+
+---
+
+## Implementation Report
+
+**Completed**: 2026-06-02
+**Actual Effort**: [e.g., 5 days vs 3 estimated]
+**Branch/PR**: [link or commit range]
+
+### What Was Built
+- [Summary of actual implementation]
+- [Any deviations from plan]
+
+### Files Changed
+- [New files created]
+- [Modified files]
+
+### Lessons Learned
+- [What went well]
+- [What could be improved]
