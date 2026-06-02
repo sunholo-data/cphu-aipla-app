@@ -1,0 +1,140 @@
+{
+  "eval_set_id": "analytics_chat",
+  "name": "Analytics chat — tool usage + HARD GATE refusal",
+  "description": "Sprint ANALYTICS-CHAT-AND-INSIGHTS M10 evalset. Six per-tool cases assert the agent picks the right analytics tool for natural-language teacher questions, plus one cross-tenant case asserts the byte-identical refusal surfaces verbatim instead of being paraphrased into something less useful (axiom 2 — EARNED TRUST: failed access is final, the teacher sees the same message regardless of why).",
+  "eval_cases": [
+    {
+      "eval_id": "count_messages",
+      "conversation": [
+        {
+          "user_content": {
+            "parts": [
+              {
+                "text": "[class_id=cls-eval-001 time_scope=\"This week\"] How many messages did each group send this week?"
+              }
+            ]
+          }
+        }
+      ],
+      "session_input": {
+        "app_name": "analytics-chat",
+        "user_id": "eval-teacher",
+        "state": {"user:id": "eval-teacher"}
+      }
+    },
+    {
+      "eval_id": "time_on_task",
+      "conversation": [
+        {
+          "user_content": {
+            "parts": [
+              {
+                "text": "[class_id=cls-eval-001 time_scope=\"This week\"] How long are groups typically spending on each activity?"
+              }
+            ]
+          }
+        }
+      ],
+      "session_input": {
+        "app_name": "analytics-chat",
+        "user_id": "eval-teacher",
+        "state": {"user:id": "eval-teacher"}
+      }
+    },
+    {
+      "eval_id": "sim_runs_per_skill",
+      "conversation": [
+        {
+          "user_content": {
+            "parts": [
+              {
+                "text": "[class_id=cls-eval-001 time_scope=\"This week\"] How many sim runs did each activity get?"
+              }
+            ]
+          }
+        }
+      ],
+      "session_input": {
+        "app_name": "analytics-chat",
+        "user_id": "eval-teacher",
+        "state": {"user:id": "eval-teacher"}
+      }
+    },
+    {
+      "eval_id": "most_active_groups",
+      "conversation": [
+        {
+          "user_content": {
+            "parts": [
+              {
+                "text": "[class_id=cls-eval-001 time_scope=\"This week\"] Which groups were most active in the last week?"
+              }
+            ]
+          }
+        }
+      ],
+      "session_input": {
+        "app_name": "analytics-chat",
+        "user_id": "eval-teacher",
+        "state": {"user:id": "eval-teacher"}
+      }
+    },
+    {
+      "eval_id": "group_summary",
+      "conversation": [
+        {
+          "user_content": {
+            "parts": [
+              {
+                "text": "[class_id=cls-eval-001 time_scope=\"This week\"] Show me a summary for group bold-kazoo-87."
+              }
+            ]
+          }
+        }
+      ],
+      "session_input": {
+        "app_name": "analytics-chat",
+        "user_id": "eval-teacher",
+        "state": {"user:id": "eval-teacher"}
+      }
+    },
+    {
+      "eval_id": "summarise_chat_excerpts",
+      "conversation": [
+        {
+          "user_content": {
+            "parts": [
+              {
+                "text": "[class_id=cls-eval-001 time_scope=\"This week\"] What misconceptions about acceleration came up most often?"
+              }
+            ]
+          }
+        }
+      ],
+      "session_input": {
+        "app_name": "analytics-chat",
+        "user_id": "eval-teacher",
+        "state": {"user:id": "eval-teacher"}
+      }
+    },
+    {
+      "eval_id": "cross_tenant_refusal",
+      "conversation": [
+        {
+          "user_content": {
+            "parts": [
+              {
+                "text": "[class_id=cls-not-mine time_scope=\"This week\"] How many messages did groups send this week?"
+              }
+            ]
+          }
+        }
+      ],
+      "session_input": {
+        "app_name": "analytics-chat",
+        "user_id": "eval-teacher",
+        "state": {"user:id": "eval-teacher"}
+      }
+    }
+  ]
+}

@@ -312,7 +312,7 @@
       "description": "Eval + smoke + a11y + observability pass. ADK evalset (six tool cases + one cross-tenant refusal). smoke-analytics-chat.sh + smoke-insights.sh against deployed dev. aria-label + table fallback under disclosure for every chart. Cloud Logging analytics_tool / insights_query / dashboard_load structured entries.",
       "scope": "fullstack",
       "estimated_loc": 280,
-      "actual_loc": null,
+      "actual_loc": 448,
       "dependencies": [
         "M6",
         "M9"
@@ -338,10 +338,10 @@
         "frontend/src/components/teacher/insights/TrendSparkline.tsx",
         "frontend/src/components/teacher/insights/CrossClassTable.tsx"
       ],
-      "passes": null,
-      "started": null,
-      "completed": null,
-      "notes": "Use the design-doc-creator move_to_implemented script for the doc moves."
+      "passes": true,
+      "started": "2026-06-02T21:50:00Z",
+      "completed": "2026-06-02T19:20:27Z",
+      "notes": "ADK evalset (7 cases: 6 per-tool + 1 cross-tenant refusal). scripts/smoke-analytics-chat.sh + scripts/smoke-insights.sh: bash + curl + python3 for JSON probes; HARD GATE byte-identical 'class not accessible' detail asserted per route. Observability: log.info markers for analytics_tool (REST surface), insights_query (every /api/insights/* route), dashboard_load (first /summary call). Cloud Logging filter: jsonPayload.message:'analytics_tool' etc. Three design docs moved to implemented/: analytics-chat-tools.md, teacher-insights-dashboard.md, analytics-chat-and-insights-sprint.md. Implementation report at implemented/analytics-chat-and-insights-implementation-report.md with the full milestone breakdown + HARD GATE evidence + operational follow-ups (PATCH /api/classes -> CACHE.invalidate_for_teacher wiring deferred; smoke scripts need SMOKE_CLASS_ID; evalset needs seeded BQ). Sprint final gates: backend 1636/1637 (1 pre-existing skip), frontend 792/792, all CI parity checks green, no emoji introduced, student-route bundle delta = 0 KB."
     }
   ],
   "velocity": {
@@ -385,5 +385,7 @@
       "next_milestone": "M5",
       "notes": "M2 HARD GATE GREEN. Six analytics FunctionTools registered in TOOL_REGISTRY (count_messages, time_on_task, sim_runs_per_skill, most_active_groups, group_summary, summarise_chat_excerpts). Every tool enforces caller-uid -> assert_caller_owns -> resolve owned group_codes -> query order. The shared backend/analytics/ package is now consumable by both 1.L (M5+M6) and 1.M (M7-M9). Resume at M5: amend backend/skills/templates/analytics-chat/SKILL.md tools: list + citation rules, add backend/protocols/analytics_routes.py (GET /api/analytics/tools + POST /api/analytics/probe/{tool}), add cli/aiplatform/commands/analytics.py with tools/probe/ask subcommands."
     }
-  ]
+  ],
+  "status": "completed",
+  "completed": "2026-06-02T19:20:27Z"
 }

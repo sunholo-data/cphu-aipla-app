@@ -104,10 +104,22 @@ async def summary(
         since=since_dt,
         until=until_dt,
     )
-    return CACHE.get_or_compute(
+    result = CACHE.get_or_compute(
         key,
         lambda: aggregates.teacher_summary(teacher_uid=user.uid, since=since_dt, until=until_dt),
     )
+    # M10 observability — `dashboard_load` fires on the canonical
+    # first request /teacher/classes makes; `insights_query` covers
+    # every /api/insights/* route. Filter Cloud Logging via
+    # `jsonPayload.message:"dashboard_load"` etc.
+    log.info(
+        "dashboard_load surface=summary teacher_uid=%s class_count=%d since=%s",
+        user.uid,
+        len(result.get("classes", [])),
+        since,
+    )
+    log.info("insights_query route=summary teacher_uid=%s since=%s", user.uid, since)
+    return result
 
 
 @router.get("/compare")
@@ -125,10 +137,12 @@ async def compare(
         since=since_dt,
         until=until_dt,
     )
-    return CACHE.get_or_compute(
+    result = CACHE.get_or_compute(
         key,
         lambda: aggregates.teacher_compare(teacher_uid=user.uid, since=since_dt, until=until_dt),
     )
+    log.info("insights_query route=compare teacher_uid=%s since=%s", user.uid, since)
+    return result
 
 
 def _per_class(
@@ -167,7 +181,15 @@ def _per_class(
                 detail=str(exc) or PERMISSION_ERROR_MESSAGE,
             ) from exc
 
-    return CACHE.get_or_compute(key, _compute)
+    result = CACHE.get_or_compute(key, _compute)
+    log.info(
+        "insights_query route=%s class_id=%s teacher_uid=%s since=%s",
+        surface,
+        class_id,
+        user.uid,
+        since,
+    )
+    return result
 
 
 @router.get("/classes/{class_id}/kpis")

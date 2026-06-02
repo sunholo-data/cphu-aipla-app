@@ -163,6 +163,12 @@ async def probe_tool(
     except PermissionError as exc:
         # Byte-identical refusal: missing-class, not-owned-class,
         # not-owned-group-code all collapse to the same message.
+        log.info(
+            "analytics_tool tool=%s class_id=%s teacher_uid=%s outcome=refused",
+            tool_name,
+            body.class_id,
+            user.uid,
+        )
         raise HTTPException(status_code=404, detail=str(exc) or PERMISSION_ERROR_MESSAGE) from exc
     except TypeError as exc:
         # Bad kwargs from the caller — the tool signature rejected
@@ -170,4 +176,12 @@ async def probe_tool(
         # show a useful hint.
         raise HTTPException(status_code=400, detail=f"invalid arguments: {exc}") from exc
 
+    # Cloud Logging marker — M10 observability gate. Filter via
+    # `jsonPayload.message:"analytics_tool"` on the dev project.
+    log.info(
+        "analytics_tool tool=%s class_id=%s teacher_uid=%s outcome=ok",
+        tool_name,
+        body.class_id,
+        user.uid,
+    )
     return {"tool": tool_name, "class_id": body.class_id, "result": result}
