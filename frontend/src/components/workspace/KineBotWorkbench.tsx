@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback } from "react";
 
 import type { KineBotEvent, KineBotSnapshot } from "@/hooks/useKineBotSnapshot";
 import { KineBotLabButton } from "./KineBotLabButton";
@@ -20,7 +20,6 @@ interface KineBotWorkbenchProps {
   reportEvent: (evt: KineBotEvent) => void;
   /** Sandbox unavailable -> disable the sim launcher. */
   simDisabled?: boolean;
-  sessionId?: string | null;
 }
 
 interface TopicMeta {
@@ -53,9 +52,6 @@ function findTopic(key: string | null): TopicMeta {
   return ALL_TOPICS.find((t) => t.key === key) ?? TOPICS_FUNDAMENTALS[0];
 }
 
-const NOTES_PREFIX = "kinebot:notes:";
-const NOTES_TAG_PREFIX = "kinebot:noteTag:";
-
 export function KineBotWorkbench({
   snapshot,
   sandboxOrigin,
@@ -63,35 +59,11 @@ export function KineBotWorkbench({
   onTopicChange,
   reportEvent,
   simDisabled,
-  sessionId,
 }: KineBotWorkbenchProps) {
   const currentTopicKey = snapshot?.currentTopic ?? "intro";
   const currentTopic = findTopic(currentTopicKey);
   const visitedSet = new Set(snapshot?.topicsVisited ?? []);
   const quizProgress = snapshot?.quizProgress ?? [];
-
-  const [noteBody, setNoteBody] = useState("");
-  const [noteTag, setNoteTag] = useState("");
-
-  useEffect(() => {
-    if (typeof window === "undefined" || !sessionId) return;
-    try {
-      setNoteBody(window.sessionStorage.getItem(NOTES_PREFIX + sessionId) ?? "");
-      setNoteTag(window.sessionStorage.getItem(NOTES_TAG_PREFIX + sessionId) ?? "");
-    } catch {
-      /* ignore */
-    }
-  }, [sessionId]);
-
-  const saveNotes = useCallback(() => {
-    if (typeof window === "undefined" || !sessionId) return;
-    try {
-      window.sessionStorage.setItem(NOTES_PREFIX + sessionId, noteBody);
-      window.sessionStorage.setItem(NOTES_TAG_PREFIX + sessionId, noteTag);
-    } catch {
-      /* ignore */
-    }
-  }, [sessionId, noteBody, noteTag]);
 
   const handleGraphChange = useCallback(
     (graphType: string) => reportEvent({ kind: "kinebot.graph-change", graphType }),
@@ -186,28 +158,6 @@ export function KineBotWorkbench({
         ) : null}
       </section>
 
-      <section className="rounded-lg border border-border bg-card p-3">
-        <h3 className="mb-2 text-sm font-semibold">Notes</h3>
-        <input
-          type="text"
-          value={noteTag}
-          onChange={(e) => setNoteTag(e.target.value)}
-          placeholder="Tag (e.g. SUVAT)"
-          className="mb-2 w-full rounded border border-border bg-background px-2 py-1 text-xs"
-        />
-        <textarea
-          value={noteBody}
-          onChange={(e) => setNoteBody(e.target.value)}
-          placeholder="Write your notes here. Saved per chat session in this tab."
-          rows={4}
-          className="w-full rounded border border-border bg-background p-2 text-xs"
-        />
-        <div className="mt-2 flex gap-2">
-          <button type="button" onClick={saveNotes} disabled={!sessionId} className="rounded border border-border bg-background px-2 py-1 text-[11px] hover:bg-muted disabled:opacity-50">
-            Save
-          </button>
-        </div>
-      </section>
     </div>
   );
 }

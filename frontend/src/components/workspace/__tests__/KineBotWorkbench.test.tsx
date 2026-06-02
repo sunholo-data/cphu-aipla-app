@@ -103,24 +103,6 @@ describe("KineBotWorkbench (split workbench)", () => {
     expect(screen.getByText(/Quiz: 2\/3 correct/i)).toBeInTheDocument();
   });
 
-  it("notes persist to sessionStorage on Save", () => {
-    render(
-      <KineBotWorkbench
-        snapshot={null}
-        sandboxOrigin={SANDBOX}
-        onOpenSim={noop}
-        onTopicChange={noop}
-        reportEvent={noop}
-        sessionId="sess-9"
-      />,
-    );
-    fireEvent.change(screen.getByPlaceholderText(/Write your notes here/i), {
-      target: { value: "kinematics notes" },
-    });
-    fireEvent.click(screen.getByText(/^Save$/));
-    expect(window.sessionStorage.getItem("kinebot:notes:sess-9")).toBe("kinematics notes");
-  });
-
   it("graph type change reports a graph-change event", () => {
     const reportEvent = vi.fn();
     render(

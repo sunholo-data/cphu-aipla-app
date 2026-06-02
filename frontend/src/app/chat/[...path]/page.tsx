@@ -998,7 +998,6 @@ function ChatShell({
                 }}
                 reportEvent={reportKinebotEvent}
                 simDisabled={!BOLDKAST_SANDBOX_ORIGIN}
-                sessionId={sessionId ?? agentSessionId}
               />
             )}
           </WorkspaceShell>

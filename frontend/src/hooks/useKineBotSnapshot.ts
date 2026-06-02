@@ -63,12 +63,32 @@ const GRAPH_LABELS: Record<string, string> = {
   height: "max-height-vs-angle",
 };
 
+const SIM_TYPE_LABELS: Record<string, string> = {
+  "1d": "1D motion",
+  accel: "acceleration",
+  projectile: "projectile",
+  circular: "circular motion",
+  vectors: "vector",
+  freefall: "free fall",
+  relative: "relative velocity",
+};
+
 export function labelForTopic(topic: string): string {
   return TOPIC_LABELS_EN[topic] ?? topic;
 }
 
 function labelForGraph(graphType: string): string {
   return GRAPH_LABELS[graphType] ?? graphType;
+}
+
+function labelForSimRun(simType: string, params: Record<string, number>): string {
+  const parts: string[] = [];
+  if (params.velocity !== undefined) parts.push(`v=${params.velocity} m/s`);
+  if (params.acceleration !== undefined) parts.push(`a=${params.acceleration} m/s²`);
+  if (params.angle !== undefined) parts.push(`θ=${params.angle}°`);
+  if (params.v2 !== undefined) parts.push(`v₂=${params.v2} m/s`);
+  const typeLabel = SIM_TYPE_LABELS[simType] ?? simType;
+  return `Ran ${typeLabel} sim${parts.length ? ": " + parts.join(", ") : ""}`;
 }
 
 const INITIAL: KineBotSnapshot = {
@@ -139,8 +159,7 @@ export function useKineBotSnapshot(
       switch (evt.kind) {
         case "kinebot.sim-run": {
           next.lastSimRun = { simType: evt.simType, params: evt.params };
-          // Silent — sim-run fires as students iterate; the agent sees
-          // it in the snapshot but no chat card.
+          pushedLabel = labelForSimRun(evt.simType, evt.params);
           break;
         }
         case "kinebot.graph-change": {
@@ -172,11 +191,9 @@ export function useKineBotSnapshot(
               },
             ];
           }
-          // Correct answers get a card; incorrect stay silent
-          // (pedagogical silence — the explanation does the work).
           pushedLabel = evt.answeredCorrectly
             ? `Quiz: correct on ${labelForTopic(evt.topic)}`
-            : null;
+            : `Quiz: wrong answer on ${labelForTopic(evt.topic)}`;
           break;
         }
         case "kinebot.set-topic": {
