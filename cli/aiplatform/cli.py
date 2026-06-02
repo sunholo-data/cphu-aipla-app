@@ -18,6 +18,7 @@ from aiplatform.commands.folder import folder
 from aiplatform.commands.groups import groups
 from aiplatform.commands.logs import logs
 from aiplatform.commands.sessions import sessions
+from aiplatform.commands.sim import sim
 from aiplatform.commands.skill import skill
 from aiplatform.commands.smoke import smoke
 
@@ -46,6 +47,7 @@ main.add_command(logs)
 main.add_command(access)
 main.add_command(skill)
 main.add_command(sessions)
+main.add_command(sim)
 main.add_command(smoke)
 main.add_command(class_group)
 

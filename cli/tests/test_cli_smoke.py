@@ -10,9 +10,8 @@ from __future__ import annotations
 
 from click.testing import CliRunner
 
-from aiplatform.commands.smoke import _evaluate
 from aiplatform.cli import main as cli_main
-
+from aiplatform.commands.smoke import _evaluate
 
 # ---- _evaluate (pure function) ---------------------------------------------
 

@@ -436,6 +436,53 @@ This means the Workbench's step progress / measurement summary is
 **always consistent with what the tutor sees**. The student can't
 "unsync" them.
 
+### Shared building blocks (use these — don't reinvent)
+
+The Boldkast / LED-Planck / KineBot frames share three pieces of plumbing that every new sim should re-use rather than copy-paste. They were extracted on 2026-06-02 specifically so the jitt-dk artefact onboarding (1.I — Pendul, Kredsløb, Videoanalyse, GPS Fart, Frekvensanalysator) can be mechanical.
+
+1. **`<SimFrameHeader>`** — shared header rendered at the top of every sim Frame. Bordered close button (X icon) + fullscreen toggle (Maximize2/Minimize2). Takes locale-specific aria/label strings.
+
+   ```tsx
+   import { SimFrameHeader } from "./SimFrameHeader";
+
+   <div ref={wrapperRef} className="flex min-h-0 flex-col bg-background">
+     <SimFrameHeader
+       title="My Sim — simulator"
+       closeLabel="Close"
+       closeAriaLabel="Close simulation"
+       fullscreenAriaLabel="Toggle fullscreen"
+       onClose={onClose}
+       fullscreenTarget={wrapperRef.current}
+     />
+     <StaticArtefactFrame ... />
+   </div>
+   ```
+
+   Don't roll your own `<header>` element. Don't omit the wrapperRef — that's what the fullscreen API targets.
+
+2. **`useSimSnapshotPush<TSnapshot>(sessionId, serverId)`** — the canonical helper for POSTing snapshot changes to `/api/sessions/{id}/iframe-context`. Returns a stable `pushSnapshot(snap, latestKind)` callback.
+
+   ```ts
+   import { useSimSnapshotPush } from "@/hooks/useSimSnapshotPush";
+
+   const pushSnapshotRequest = useSimSnapshotPush<MySnapshot>(
+     sessionId,
+     "my-server-id", // must match the MCP server id in tool_configs.mcp.servers
+   );
+   ```
+
+   This replaces ~20 lines of duplicated `fetchWithAuth` + `sessionIdRef` boilerplate that every snapshot hook used to carry. The serverId argument MUST match what the skill template lists under `tool_configs.mcp.servers` and `allow_context_writes` — mismatched ids get 403'd by the backend.
+
+3. **`frontend/src/_sim-template/`** — scaffold directory with two `.template` files (`useExampleSimSnapshot.ts.template`, `ExampleSimFrame.tsx.template`) plus a `README.md` that lists the placeholders. Copy-and-rename for a fresh sim; or use `aiplatform sim scaffold <name>` to do steps 1-3 in one command.
+
+The three canonical exemplars to read when adapting:
+
+| Sim | Hook | Frame |
+|---|---|---|
+| Boldkast | [useBoldkastSnapshot.ts](../../../frontend/src/hooks/useBoldkastSnapshot.ts) | [BoldkastSimFrame.tsx](../../../frontend/src/components/workspace/BoldkastSimFrame.tsx) |
+| LED-Planck | [useLedPlanckSnapshot.ts](../../../frontend/src/hooks/useLedPlanckSnapshot.ts) | [LedPlanckLabFrame.tsx](../../../frontend/src/components/workspace/LedPlanckLabFrame.tsx) |
+| KineBot | [useKineBotSnapshot.ts](../../../frontend/src/hooks/useKineBotSnapshot.ts) | [KineBotFrame.tsx](../../../frontend/src/components/workspace/KineBotFrame.tsx) |
+
 ### Shared snapshot hook — when MORE than the iframe reports events
 
 For a simple artefact (Boldkast, LED Planck) the Frame owns the
@@ -890,10 +937,17 @@ Build the Button + Workbench + Frame triad per
 - `<Name>Workbench.tsx` — React surface for the panels that moved out
   of the iframe (topic picker, formulas, notes, progress)
 - `<Name>LabFrame.tsx` (or `<Name>Frame.tsx`) — `forwardRef` wrapper
-  around `StaticArtefactFrame`. Owns the snapshot accumulation +
-  `onSnapshotChange` callback + `sendChatFlush()` + any
+  around `StaticArtefactFrame`. Uses the shared `<SimFrameHeader>` (see
+  [Shared building blocks](#shared-building-blocks-use-these--dont-reinvent))
+  + the `useSimSnapshotPush` helper. Owns the typed event vocabulary,
+  the snapshot reducer, `sendChatFlush()`, and any
   `sendNotification("<name>.set-*", ...)` exposed via
   `useImperativeHandle` for host → artefact pushes.
+
+The fastest path to a working Frame + hook is to scaffold from
+[`frontend/src/_sim-template/`](../../../frontend/src/_sim-template/):
+either copy + find-replace placeholders manually, or run
+`aiplatform sim scaffold <name>` which does the substitution.
 
 Wire the chat page branch following the Boldkast / LED Planck
 template (see

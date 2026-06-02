@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 
 import { useHumanToolEvents } from "@/hooks/useHumanToolEvents";
-import { fetchWithAuth } from "@/lib/apiClient";
+import { useSimSnapshotPush } from "@/hooks/useSimSnapshotPush";
 
 export type BoldkastMarker = "range" | "tof" | "ymax";
 
@@ -92,25 +92,9 @@ export function useBoldkastSnapshot(
   const [snapshot, setSnapshot] = useState<BoldkastSnapshot>(INITIAL);
   const snapshotRef = useRef<BoldkastSnapshot>(snapshot);
   snapshotRef.current = snapshot;
-  const sessionIdRef = useRef(sessionId);
-  sessionIdRef.current = sessionId;
-
-  const pushSnapshotRequest = useCallback(
-    (snap: BoldkastSnapshot, latestKind: string): Promise<Response> | null => {
-      const sid = sessionIdRef.current;
-      if (!sid) return null;
-      const body = {
-        serverId: "boldkast",
-        toolName: "state",
-        structuredContent: { ...snap, lastEvent: latestKind },
-      };
-      return fetchWithAuth(`/api/proxy/api/sessions/${sid}/iframe-context`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(body),
-      });
-    },
-    [],
+  const pushSnapshotRequest = useSimSnapshotPush<BoldkastSnapshot>(
+    sessionId,
+    "boldkast",
   );
 
   const reportEvent = useCallback(

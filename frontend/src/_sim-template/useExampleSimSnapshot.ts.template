@@ -1,0 +1,133 @@
+"use client";
+
+/**
+ * useExampleSimSnapshot — template for sim snapshot hooks.
+ *
+ * Copy this file to `src/hooks/use{{NAME}}Snapshot.ts` and replace the
+ * placeholders. Pattern lifted from useBoldkastSnapshot / useLedPlanckSnapshot
+ * / useKineBotSnapshot — those are the canonical exemplars.
+ *
+ * Placeholders (do a global find-and-replace in your editor or use the
+ * `aiplatform sim scaffold` CLI):
+ *   __NAME__       — PascalCase sim name (e.g. "Pendul")
+ *   __name__       — kebab-case sim name (e.g. "pendul")
+ *   __SERVER_ID__  — must match the MCP server id in the skill's
+ *                    tool_configs.mcp.servers (e.g. "pendul")
+ *
+ * What a snapshot hook owns:
+ *   - The TypeScript types for sim events + snapshot state
+ *   - The reducer that turns events into snapshot diffs
+ *   - The push helper (via useSimSnapshotPush) that POSTs the snapshot to
+ *     /api/sessions/{id}/iframe-context so the agent sees current state
+ *   - The card dispatch (via useHumanToolEvents) that surfaces
+ *     pedagogically-interesting actions in the chat log
+ *   - Catch-up push when sessionId arrives after the first interaction
+ *
+ * What a snapshot hook does NOT own:
+ *   - The iframe wrapper component (that's __NAME__Frame.tsx)
+ *   - The MCP App artefact code itself (that's in
+ *     infrastructure/mcp-sandbox/artefacts/__name__/v1/)
+ *   - Routing / mounting (that's in chat/[...path]/page.tsx)
+ */
+
+import { useCallback, useEffect, useRef, useState } from "react";
+
+import { useHumanToolEvents } from "@/hooks/useHumanToolEvents";
+import { useSimSnapshotPush } from "@/hooks/useSimSnapshotPush";
+
+// ---------------------------------------------------------------------------
+// Event vocabulary
+// ---------------------------------------------------------------------------
+
+/** Discriminated-union of every event the sim can fire at the host.
+ *  Mirror the kinds the artefact emits via ui/update-model-context. */
+export type __NAME__Event =
+  | { kind: "__name__.open" }
+  | { kind: "__name__.state-change"; field: string; value: number };
+
+// ---------------------------------------------------------------------------
+// Snapshot shape
+// ---------------------------------------------------------------------------
+
+/** Cumulative state the agent gets to see. Keep it serialisable + small —
+ *  this is JSON-stringified into the backend's per-tool state cap. */
+export interface __NAME__Snapshot {
+  /** The last event kind that arrived. Useful for the agent's prompt and
+   *  for the catch-up effect to know whether the snapshot is "dirty". */
+  lastEvent: string;
+  // Add your sim-specific fields here.
+}
+
+const INITIAL: __NAME__Snapshot = {
+  lastEvent: "",
+};
+
+// ---------------------------------------------------------------------------
+// Hook
+// ---------------------------------------------------------------------------
+
+export interface UseSimSnapshot {
+  snapshot: __NAME__Snapshot;
+  reportEvent: (evt: __NAME__Event) => void;
+}
+
+export function use__NAME__Snapshot(
+  sessionId: string | null,
+): UseSimSnapshot {
+  const humanToolEvents = useHumanToolEvents();
+  const [snapshot, setSnapshot] = useState<__NAME__Snapshot>(INITIAL);
+  const snapshotRef = useRef<__NAME__Snapshot>(snapshot);
+  snapshotRef.current = snapshot;
+
+  const pushSnapshotRequest = useSimSnapshotPush<__NAME__Snapshot>(
+    sessionId,
+    "__SERVER_ID__",
+  );
+
+  const reportEvent = useCallback(
+    (evt: __NAME__Event) => {
+      const prev = snapshotRef.current;
+      const next: __NAME__Snapshot = { ...prev, lastEvent: evt.kind };
+      let pushedLabel: string | null = null;
+
+      switch (evt.kind) {
+        case "__name__.open": {
+          // Silent push — the agent sees the open, no card needed.
+          break;
+        }
+        case "__name__.state-change": {
+          // Mutate `next` here with the new state. Set `pushedLabel`
+          // if this event is pedagogically card-worthy.
+          pushedLabel = `Changed ${evt.field} to ${evt.value}`;
+          break;
+        }
+      }
+
+      setSnapshot(next);
+      snapshotRef.current = next;
+
+      const req = pushSnapshotRequest(next, evt.kind);
+      if (req) {
+        if (pushedLabel) {
+          humanToolEvents.dispatch({ label: pushedLabel, push: () => req });
+        } else {
+          void req.catch(() => {});
+        }
+      }
+    },
+    [pushSnapshotRequest, humanToolEvents],
+  );
+
+  // Catch-up push when sessionId arrives after the student has already
+  // interacted. Without this, early interactions are lost to the agent.
+  useEffect(() => {
+    if (!sessionId) return;
+    const snap = snapshotRef.current;
+    if (snap.lastEvent) {
+      const req = pushSnapshotRequest(snap, snap.lastEvent);
+      if (req) void req.catch(() => {});
+    }
+  }, [sessionId, pushSnapshotRequest]);
+
+  return { snapshot, reportEvent };
+}

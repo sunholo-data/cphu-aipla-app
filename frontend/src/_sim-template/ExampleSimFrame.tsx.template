@@ -1,0 +1,128 @@
+"use client";
+
+/**
+ * __NAME__Frame — template for sim wrapper components.
+ *
+ * Copy this file to `src/components/workspace/__NAME__Frame.tsx` and replace
+ * the placeholders. Pattern lifted from BoldkastSimFrame / LedPlanckLabFrame /
+ * KineBotFrame — those are the canonical exemplars.
+ *
+ * Placeholders:
+ *   __NAME__       — PascalCase sim name (e.g. "Pendul")
+ *   __name__       — kebab-case sim name (e.g. "pendul")
+ *   __TITLE__      — display title (e.g. "Pendul — simulator")
+ *   __CLOSE_LABEL__   — short close button label (e.g. "Luk" / "Close")
+ *   __CLOSE_ARIA__    — close button aria-label (locale-specific)
+ *   __FULLSCREEN_ARIA__ — fullscreen toggle aria-label (locale-specific)
+ *
+ * What this component owns:
+ *   - The outer wrapper div (for the fullscreen API)
+ *   - The shared SimFrameHeader (close + fullscreen)
+ *   - Wiring StaticArtefactFrame to use__NAME__Snapshot.reportEvent
+ *   - Exposing sendChatFlush() to the chat page so pending changes flush
+ *     before the user message lands (workbench-state-debounce.md Phase 2)
+ *
+ * What this component does NOT own:
+ *   - Snapshot state (that's in use__NAME__Snapshot.ts)
+ *   - Workbench surfaces like quizzes, graphs, or notebooks (those are
+ *     sibling components that share state via the snapshot hook)
+ */
+
+import { forwardRef, useCallback, useImperativeHandle, useRef } from "react";
+
+import { SimFrameHeader } from "./SimFrameHeader";
+import {
+  StaticArtefactFrame,
+  type StaticArtefactFrameHandle,
+} from "./StaticArtefactFrame";
+
+import type { __NAME__Event } from "@/hooks/use__NAME__Snapshot";
+
+export interface __NAME__FrameHandle {
+  /** Fire ui/notifications/chat-flush at the artefact so any pending
+   *  slider/state changes emit as a state-change event BEFORE the user's
+   *  chat message hits the agent. See workbench-state-debounce.md Phase 2. */
+  sendChatFlush: () => void;
+}
+
+interface __NAME__FrameProps {
+  sandboxOrigin: string;
+  reportEvent: (evt: __NAME__Event) => void;
+  onClose: () => void;
+}
+
+/** Spec-side payload shape — structuredContent.kind discriminates the
+ *  artefact's event vocabulary; rest of the fields are kind-specific. */
+interface __NAME__StructuredContent {
+  kind: string;
+  field?: string;
+  value?: number;
+}
+
+export const __NAME__Frame = forwardRef<__NAME__FrameHandle, __NAME__FrameProps>(
+  function __NAME__Frame({ sandboxOrigin, reportEvent, onClose }, ref) {
+    const staticFrameRef = useRef<StaticArtefactFrameHandle | null>(null);
+    const wrapperRef = useRef<HTMLDivElement | null>(null);
+    const reportEventRef = useRef(reportEvent);
+    reportEventRef.current = reportEvent;
+
+    const handleStructuredContent = useCallback(
+      (structuredContent: Record<string, unknown>) => {
+        const data = structuredContent as unknown as __NAME__StructuredContent;
+        const kind = data.kind;
+        const report = reportEventRef.current;
+
+        if (kind === "__name__.open") {
+          report({ kind: "__name__.open" });
+        } else if (
+          kind === "__name__.state-change" &&
+          typeof data.field === "string" &&
+          typeof data.value === "number"
+        ) {
+          report({
+            kind: "__name__.state-change",
+            field: data.field,
+            value: data.value,
+          });
+        }
+        // Add any further event kinds here. Unknown kinds are silently
+        // dropped so the host stays forward-compatible with artefact updates.
+      },
+      [],
+    );
+
+    useImperativeHandle(
+      ref,
+      () => ({
+        sendChatFlush: () => {
+          staticFrameRef.current?.sendNotification(
+            "ui/notifications/chat-flush",
+            {},
+          );
+        },
+      }),
+      [],
+    );
+
+    return (
+      <div ref={wrapperRef} className="flex min-h-0 flex-col bg-background">
+        <SimFrameHeader
+          title="__TITLE__"
+          closeLabel="__CLOSE_LABEL__"
+          closeAriaLabel="__CLOSE_ARIA__"
+          fullscreenAriaLabel="__FULLSCREEN_ARIA__"
+          onClose={onClose}
+          fullscreenTarget={wrapperRef.current}
+        />
+        <StaticArtefactFrame
+          ref={staticFrameRef}
+          sandboxOrigin={sandboxOrigin}
+          artefactPath="__name__/v1"
+          onUpdateModelContext={handleStructuredContent}
+          title="__NAME__"
+          className="w-full min-h-[700px] border-0"
+        />
+      </div>
+    );
+  },
+);

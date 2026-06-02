@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 
 import { useHumanToolEvents } from "@/hooks/useHumanToolEvents";
-import { fetchWithAuth } from "@/lib/apiClient";
+import { useSimSnapshotPush } from "@/hooks/useSimSnapshotPush";
 
 export interface KineBotSimRun {
   simType: string;
@@ -129,25 +129,9 @@ export function useKineBotSnapshot(
   const [snapshot, setSnapshot] = useState<KineBotSnapshot>(INITIAL);
   const snapshotRef = useRef<KineBotSnapshot>(snapshot);
   snapshotRef.current = snapshot;
-  const sessionIdRef = useRef(sessionId);
-  sessionIdRef.current = sessionId;
-
-  const pushSnapshotRequest = useCallback(
-    (snap: KineBotSnapshot, latestKind: string): Promise<Response> | null => {
-      const sid = sessionIdRef.current;
-      if (!sid) return null;
-      const body = {
-        serverId: "kinebot",
-        toolName: "state",
-        structuredContent: { ...snap, lastEvent: latestKind },
-      };
-      return fetchWithAuth(`/api/proxy/api/sessions/${sid}/iframe-context`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(body),
-      });
-    },
-    [],
+  const pushSnapshotRequest = useSimSnapshotPush<KineBotSnapshot>(
+    sessionId,
+    "kinebot",
   );
 
   const reportEvent = useCallback(
