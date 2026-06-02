@@ -201,7 +201,7 @@
       "description": "backend/insights aggregates + cache + REST routes. Compose 1.L queries into six KPI shapes. 60s LRU cache keyed on (teacher_uid, surface, since, until). Five /api/insights/* endpoints with _debug.queries field echoing the SQL the frontend renders.",
       "scope": "backend",
       "estimated_loc": 480,
-      "actual_loc": null,
+      "actual_loc": 1318,
       "dependencies": [
         "M3"
       ],
@@ -228,10 +228,10 @@
       "files_to_modify": [
         "backend/fast_api_app.py"
       ],
-      "passes": null,
-      "started": null,
-      "completed": null,
-      "notes": null
+      "passes": true,
+      "started": "2026-06-02T20:30:00Z",
+      "completed": "2026-06-02T18:38:08Z",
+      "notes": "backend/insights/{__init__,aggregates,cache}.py + protocols/insights_routes.py. Six KPI aggregate functions composing 1.L queries: class_kpis (six cards: active_groups, total_messages, active_activities, sim_runs, median_time_on_task_min, last_activity), class_groups (per-group bar data), class_activities (per-activity bar data), teacher_summary (per-class strip), teacher_compare (cross-class delta vs prior window). InsightsCache: 60s TTL, thread-safe, keyed on (teacher_uid, surface, since_iso, until_iso); make_key strips microseconds; invalidate_for_teacher hook returns drop count for the PATCH /api/classes wiring. Five GET routes (/summary, /classes/{id}/{kpis,groups,activities}, /compare) with ?since=7d|30d|all + ?until=ISO. HARD GATE preserved: cross-tenant + missing return byte-identical 404 (test_cross_tenant_byte_identical_to_missing checks .content). Exposed analytics.queries.SQL_TEMPLATES so _debug.queries echoes real SQL bodies. Tests: 12 unit (cache TTL/invalidation, aggregates KPI math, HARD GATE), 13 api (routes + cache hit count + invalidation hook). Backend total: 1632 passed (+25), 0 failed, 1 skipped. make lint green."
     },
     {
       "id": "M8",

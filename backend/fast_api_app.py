@@ -241,6 +241,7 @@ from protocols.activity_config_routes import router as activity_config_router  #
 from protocols.analytics_routes import router as analytics_router  # noqa: E402
 from protocols.classes_routes import router as classes_router  # noqa: E402
 from protocols.iframe_context_routes import router as iframe_context_router  # noqa: E402
+from protocols.insights_routes import router as insights_router  # noqa: E402
 from protocols.mcp_proxy import router as mcp_proxy_router  # noqa: E402
 from protocols.mcp_server import get_mcp_asgi_app  # noqa: E402
 from protocols.mcp_server import mcp as mcp_server  # noqa: E402
@@ -275,6 +276,7 @@ app.include_router(a2ui_surface_action_router)
 app.include_router(activity_config_router)
 app.include_router(classes_router)
 app.include_router(analytics_router)
+app.include_router(insights_router)
 app.include_router(reports_router)
 app.include_router(proactive_router)
 

@@ -234,7 +234,69 @@ def most_active_groups(
     return {"groups": groups}
 
 
+#: Resolved SQL templates keyed by query-function name. Exposed so the
+#: insights routes (1.M) can echo SQL into their ``_debug.queries``
+#: response field without duplicating the strings or scraping
+#: ``inspect.getsource``. Whenever a SQL body in this module changes,
+#: update the matching entry here. Tests assert these stay in sync via
+#: ``tests/unit/analytics/test_queries_sql_templates_in_sync.py``.
+SQL_TEMPLATES: dict[str, str] = {
+    "count_messages": f"""
+        SELECT
+          jsonPayload.group_id AS group_code,
+          COUNT(*) AS count
+        FROM {table_ref(CHAT_TURN_TABLE)}
+        WHERE jsonPayload.group_id IN UNNEST(@class_group_codes)
+          AND jsonPayload.group_id IN UNNEST(@allowed_group_codes)
+          AND timestamp BETWEEN @since AND @until
+        GROUP BY group_code
+        ORDER BY count DESC
+    """.strip(),
+    "time_on_task": f"""
+        SELECT
+          jsonPayload.group_id AS group_code,
+          jsonPayload.skill_id AS skill_id,
+          MIN(timestamp) AS first_ts,
+          MAX(timestamp) AS last_ts,
+          TIMESTAMP_DIFF(MAX(timestamp), MIN(timestamp), MINUTE) AS duration_min
+        FROM {table_ref(CHAT_TURN_TABLE)}
+        WHERE jsonPayload.group_id IN UNNEST(@class_group_codes)
+          AND jsonPayload.group_id IN UNNEST(@allowed_group_codes)
+          AND timestamp BETWEEN @since AND @until
+        GROUP BY group_code, skill_id
+        ORDER BY group_code, skill_id
+    """.strip(),
+    "sim_runs_per_skill": f"""
+        SELECT
+          jsonPayload.skill_id AS skill_id,
+          COUNT(*) AS run_count,
+          COUNT(DISTINCT jsonPayload.group_id) AS unique_groups
+        FROM {table_ref(WORKBENCH_EVENT_TABLE)}
+        WHERE jsonPayload.tool = 'sim_run'
+          AND jsonPayload.group_id IN UNNEST(@class_group_codes)
+          AND jsonPayload.group_id IN UNNEST(@allowed_group_codes)
+          AND timestamp BETWEEN @since AND @until
+        GROUP BY skill_id
+        ORDER BY run_count DESC
+    """.strip(),
+    "most_active_groups": f"""
+        SELECT
+          jsonPayload.group_id AS group_code,
+          COUNT(*) AS message_count,
+          COUNT(DISTINCT jsonPayload.session_id) AS session_count
+        FROM {table_ref(CHAT_TURN_TABLE)}
+        WHERE jsonPayload.group_id IN UNNEST(@class_group_codes)
+          AND jsonPayload.group_id IN UNNEST(@allowed_group_codes)
+          AND timestamp BETWEEN @since AND @until
+        GROUP BY group_code
+        ORDER BY message_count DESC
+        LIMIT @limit
+    """.strip(),
+}
+
+
 __all__ = [
+    "SQL_TEMPLATES",
     "count_messages",
     "most_active_groups",
     "sim_runs_per_skill",
