@@ -101,6 +101,102 @@ Write these down (in the design doc or the sprint plan) before coding:
 Only once these are written do you scaffold (`new-workbench-skill.sh`)
 and build. The pre-ship usability gate below verifies you held to it.
 
+## Visual design standard (NEVER use dark themes)
+
+Artefacts live inside the AIPLA chat workspace, which uses a **light
+theme** (white background, slate foreground, orange primary). A dark or
+gradient header inside the iframe looks broken in that context — a
+separate app that landed in the wrong container. Every artefact MUST
+match the host.
+
+### Canonical CSS variables
+
+Copy this block verbatim into every new artefact's `<style>`:
+
+```css
+:root {
+  --bg:           #ffffff;
+  --fg:           #0f172a;   /* slate-900 */
+  --muted:        #64748b;   /* slate-500 */
+  --border:       #e2e8f0;   /* slate-200 */
+  --accent:       #2563eb;   /* blue-600 — physics convention */
+  --accent-soft:  #eff6ff;
+  --ok:           #16a34a;
+  --warn:         #d97706;
+  --bad:          #dc2626;
+}
+```
+
+### Header rule
+
+**No dark or gradient headers.** The artefact header (if it has one at
+all — many don't need one; the `WorkspaceShell` provides the outer
+chrome) must use:
+
+```css
+header {
+  padding: 10px 16px;
+  background: #fff;
+  border-bottom: 1px solid var(--border);
+  color: var(--fg);
+}
+```
+
+Never: `background: linear-gradient(135deg, #0f172a, #2563eb)`,
+`background: #0f172a`, or any dark fill.
+
+### Instrument displays
+
+Instrument readouts (ammeter, voltmeter, LCD-style values) must use a
+**light** style. The green-on-black LCD look (`background:#111827;
+color:#86efac`) is illegible against the white workspace and violates
+the design system.
+
+```css
+.display {
+  background: #f8fafc;
+  color: var(--fg);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 6px 8px;
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 0.9rem;
+  text-align: right;
+}
+```
+
+### Minimum font sizes
+
+- Body text: **14px** minimum.
+- Labels, axis tick text, small metadata: **11px** minimum.
+- Never below 11px (`0.68rem` at 16px base = 10.9px — too small).
+  `.lablabel`, `.chip`, `.tiny` classes must be `font-size: 11px`
+  or larger.
+
+### Layout — no fixed min-width wider than 600px
+
+The workspace pane is `md:w-1/2` (~700px on a typical laptop). Any
+artefact with a CSS `min-width` wider than ~600px forces a horizontal
+scrollbar in the iframe. Use responsive media queries instead:
+
+```css
+/* Single-column default; expand at ≥ 720px */
+main {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 12px;
+  padding: 12px;
+}
+@media (min-width: 720px) {
+  main { grid-template-columns: 2fr 1fr; }
+}
+```
+
+Do not set `min-width` on the bench or grid container. Elements that
+are inherently wide (circuit benches with positioned absolute children)
+may set `overflow: auto` on their container so the bench scrolls within
+its panel, but the page itself must not overflow.
+
 ## ADR-013 security gates (NEVER skip)
 
 Every static artefact MUST pass these checks at commit time:
