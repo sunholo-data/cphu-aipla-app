@@ -168,7 +168,7 @@
       "description": "1.L frontend chat island. Replace the mocked /teacher/analytics input with a useSkillAgent('analytics-chat') chat. Prefill class + time scope into the system message. Tool-call pills + 'Show data' SQL disclosure. Suggested-question buttons become enabled (click prefills input; no auto-submit).",
       "scope": "frontend",
       "estimated_loc": 420,
-      "actual_loc": null,
+      "actual_loc": 657,
       "dependencies": [
         "M5"
       ],
@@ -191,10 +191,10 @@
         "frontend/src/app/teacher/analytics/page.tsx",
         "frontend/src/app/teacher/analytics/__tests__/page.test.tsx"
       ],
-      "passes": null,
-      "started": null,
-      "completed": null,
-      "notes": "Confirm useSkillAgent surfaces tool-call events cleanly during day-1 of M6; if not, the 'Show data' disclosure falls back to a plain <details> block (per risk register)."
+      "passes": true,
+      "started": "2026-06-02T20:45:00Z",
+      "completed": "2026-06-02T18:51:34Z",
+      "notes": "_AnalyticsChat.tsx extracted as an island wrapped in AGUIProvider(skillId='analytics-chat'). AG-UI session resets on classId change via React key. Scope is prefixed into the user message as [class_id=X time_scope=\"Y\"] PREFIX \u2014 matches M5's aiplatform analytics ask CLI shape. User bubbles strip the prefix at render time. Tool-call pills render per-status (running=amber, success=emerald, error=red) with data-status attr. 'Show data' disclosure renders argsJson per tool call (raw SQL stays at /api/analytics/probe; the island is client-side). Suggested questions now enabled \u2014 click prefills input, no auto-submit (deliberate, axiom 11). MOCK_ANALYTICS_* imports removed from page.tsx; mock data left in _mock-data.ts (still consumed elsewhere). Empty state shows when no class selected. Tests: 10 island + 3 page = 13 new tests. Frontend total: 766 passed, 0 failed. npm run quality:check (CI parity) green; build succeeds."
     },
     {
       "id": "M7",
