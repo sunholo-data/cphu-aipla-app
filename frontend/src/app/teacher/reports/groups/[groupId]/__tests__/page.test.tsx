@@ -5,6 +5,7 @@ const groupId = "bold-kazoo-87";
 
 vi.mock("next/navigation", () => ({
   useParams: () => ({ groupId }),
+  useSearchParams: () => new URLSearchParams(),
   notFound: () => {
     throw new Error("notFound() was called");
   },

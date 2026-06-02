@@ -159,16 +159,16 @@ describe("/teacher/classes/[id] — class detail", () => {
       render(<TeacherClassDetailPage />);
       await waitFor(() => {
         expect(
-          screen.getByRole("button", { name: /add lesson/i }),
+          screen.getByRole("button", { name: /add activity/i }),
         ).toBeInTheDocument();
       });
 
-      fireEvent.click(screen.getByRole("button", { name: /add lesson/i }));
+      fireEvent.click(screen.getByRole("button", { name: /add activity/i }));
 
       // Picker shows only the un-linked entry.
       await waitFor(() => {
         expect(
-          screen.getByRole("region", { name: /pick a lesson/i }),
+          screen.getByRole("region", { name: /pick an activity/i }),
         ).toBeInTheDocument();
       });
       // skill-mc is in the picker; skill-pset is NOT (already linked).
@@ -190,10 +190,10 @@ describe("/teacher/classes/[id] — class detail", () => {
       render(<TeacherClassDetailPage />);
       await waitFor(() => {
         expect(
-          screen.getByRole("button", { name: /add lesson/i }),
+          screen.getByRole("button", { name: /add activity/i }),
         ).toBeInTheDocument();
       });
-      fireEvent.click(screen.getByRole("button", { name: /add lesson/i }));
+      fireEvent.click(screen.getByRole("button", { name: /add activity/i }));
 
       // Click the lesson row in the picker. The button's accessible
       // name includes the lesson title (displayName + description +
@@ -251,7 +251,7 @@ describe("/teacher/classes/[id] — class detail", () => {
       render(<TeacherClassDetailPage />);
       await waitFor(() => {
         expect(
-          screen.getByRole("button", { name: /add lesson/i }),
+          screen.getByRole("button", { name: /add activity/i }),
         ).toBeDisabled();
       });
     });

@@ -8,6 +8,7 @@ import {
   ArrowRight,
   BookOpen,
   Copy,
+  Download,
   ExternalLink,
   FileText,
   MessageCircle,
@@ -17,10 +18,14 @@ import {
   X,
 } from "lucide-react";
 
+import { downloadCsv, downloadJson } from "@/lib/download";
+
 import {
   type ClassPayload,
   type SessionRow,
+  type SessionSummaryPayload,
   type SkillSummary,
+  fetchGroupLatestReport,
   getClass,
   listAccessibleSkills,
   listClassRecentSessions,
@@ -28,6 +33,141 @@ import {
   patchLessons,
   resetGroupSession,
 } from "@/lib/teacherApi";
+
+/** Cap on per-export parallel report fetches. Matches the
+ *  recent-sessions route's page_size cap (le=100), sized for a Danish
+ *  class of ~60 students with headroom for repeat sessions. */
+const EXPORT_SESSION_LIMIT = 100;
+
+/** One row in the per-session bundle: either the full report, or an
+ *  error sentinel for sessions that couldn't be fetched. */
+type SessionBundle =
+  | { row: SessionRow; report: SessionSummaryPayload; error: null }
+  | { row: SessionRow; report: null; error: string };
+
+function slugify(s: string): string {
+  return s
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "")
+    .slice(0, 40);
+}
+
+/** Fetch the full per-session reports for every row in `sessions`,
+ *  in parallel. Sessions without a groupCode are skipped — the report
+ *  endpoint is keyed by group code and synthetic/test rows without one
+ *  have nothing useful to export. Per-session failures are captured as
+ *  error entries rather than aborting the export. */
+async function fetchSessionBundles(
+  classId: string,
+): Promise<{ sessions: SessionRow[]; bundles: SessionBundle[] }> {
+  const sessions = await listClassRecentSessions(classId, EXPORT_SESSION_LIMIT);
+  const bundles = await Promise.all(
+    sessions.map(async (row): Promise<SessionBundle> => {
+      if (!row.groupCode) {
+        return { row, report: null, error: "no group code on this session" };
+      }
+      try {
+        const report = await fetchGroupLatestReport(row.groupCode, row.sessionId);
+        return { row, report, error: null };
+      } catch (err) {
+        return {
+          row,
+          report: null,
+          error: err instanceof Error ? err.message : "fetch failed",
+        };
+      }
+    }),
+  );
+  return { sessions, bundles };
+}
+
+/** CSV in long format: one row per chat turn across every session in the
+ *  class. Session metadata is repeated on every row so teachers can pivot
+ *  in Excel without joining tables. Failed sessions appear as a single
+ *  row with the error in the `content` column. */
+function bundlesToCsvRows(
+  bundles: SessionBundle[],
+  skillNameById: Map<string, string>,
+): ReadonlyArray<ReadonlyArray<unknown>> {
+  const header = [
+    "groupCode",
+    "sessionId",
+    "activityId",
+    "activityName",
+    "sessionTitle",
+    "startedAt",
+    "turnIndex",
+    "turnTimestamp",
+    "role",
+    "content",
+  ];
+  const rows: unknown[][] = [header];
+  for (const b of bundles) {
+    const activityName = skillNameById.get(b.row.skillId) ?? "";
+    if (b.error || !b.report) {
+      rows.push([
+        b.row.groupCode ?? "",
+        b.row.sessionId,
+        b.row.skillId,
+        activityName,
+        b.row.title ?? "",
+        "",
+        "",
+        "",
+        "error",
+        b.error ?? "no report",
+      ]);
+      continue;
+    }
+    const startedAt = b.report.startedAt;
+    b.report.conversation.forEach((t, i) => {
+      rows.push([
+        b.report!.groupCode ?? "",
+        b.report!.sessionId,
+        b.report!.activityId,
+        activityName,
+        b.row.title ?? "",
+        startedAt,
+        i,
+        t.timestamp,
+        t.role,
+        t.content,
+      ]);
+    });
+  }
+  return rows;
+}
+
+/** Export the class's full session data as CSV or JSON. Fetches every
+ *  session's transcript in parallel; tolerates per-session failures. */
+async function handleExportSessions(
+  cls: ClassPayload | null,
+  skillNameById: Map<string, string>,
+  format: "csv" | "json",
+): Promise<void> {
+  if (!cls) return;
+  const today = new Date().toISOString().slice(0, 10);
+  const stem = `class-${slugify(cls.name)}-${today}`;
+  const { sessions, bundles } = await fetchSessionBundles(cls.classId);
+  if (sessions.length === 0) return;
+  if (format === "csv") {
+    downloadCsv(`${stem}.csv`, bundlesToCsvRows(bundles, skillNameById));
+    return;
+  }
+  downloadJson(`${stem}.json`, {
+    classId: cls.classId,
+    className: cls.name,
+    exportedAt: new Date().toISOString(),
+    sessionCount: sessions.length,
+    sessions: bundles.map((b) => ({
+      ...b.row,
+      activityName: skillNameById.get(b.row.skillId) ?? null,
+      report: b.report,
+      error: b.error,
+    })),
+  });
+}
 
 function relativeTime(iso: string): string {
   const diff = Date.now() - new Date(iso).getTime();
@@ -55,6 +195,7 @@ export default function TeacherClassDetailPage() {
   const [resetting, setResetting] = useState(false);
 
   const [recentSessions, setRecentSessions] = useState<SessionRow[]>([]);
+  const [exporting, setExporting] = useState<"csv" | "json" | null>(null);
 
   // 1.A follow-up (2026-05-26) — Lessons section now backed by the
   // real /api/skills catalogue + cls.lessons[]. Pick-from-list UI
@@ -164,6 +305,21 @@ export default function TeacherClassDetailPage() {
     );
   }
 
+  async function runExport(format: "csv" | "json") {
+    if (exporting !== null) return;
+    setExporting(format);
+    try {
+      await handleExportSessions(cls, skillNameById, format);
+    } catch (err) {
+      setToast(
+        err instanceof Error ? `Export failed: ${err.message}` : "Export failed",
+      );
+      window.setTimeout(() => setToast(null), 5000);
+    } finally {
+      setExporting(null);
+    }
+  }
+
   async function handleNewGroup() {
     setMinting(true);
     try {
@@ -265,7 +421,7 @@ export default function TeacherClassDetailPage() {
           <p className="text-sm text-muted-foreground">
             {cls.groupCodes.length} group
             {cls.groupCodes.length === 1 ? "" : "s"} · {cls.lessons.length}{" "}
-            lesson{cls.lessons.length === 1 ? "" : "s"} assigned
+            {cls.lessons.length === 1 ? "activity" : "activities"} assigned
           </p>
         </div>
         <div className="flex flex-wrap gap-2">
@@ -391,7 +547,7 @@ export default function TeacherClassDetailPage() {
       <section aria-labelledby="lessons-label" className="flex flex-col gap-3">
         <header className="flex items-center justify-between">
           <h2 id="lessons-label" className="text-lg font-semibold">
-            Lessons assigned to this class
+            Activities assigned to this class
           </h2>
           <button
             type="button"
@@ -399,13 +555,13 @@ export default function TeacherClassDetailPage() {
             disabled={availableLessons.length === 0}
             title={
               availableLessons.length === 0
-                ? "No more lessons available to add"
-                : "Add a lesson from the catalogue"
+                ? "No more activities available to add"
+                : "Add an activity from the catalogue"
             }
             className="flex items-center gap-1.5 rounded bg-primary px-3 py-1.5 text-sm font-medium text-primary-foreground hover:opacity-90 disabled:opacity-50"
           >
             <Plus className="h-4 w-4" aria-hidden="true" />
-            Add lesson
+            Add activity
           </button>
         </header>
 
@@ -420,9 +576,9 @@ export default function TeacherClassDetailPage() {
 
         {linkedLessons.length === 0 ? (
           <p className="rounded border border-dashed border-border px-3 py-4 text-sm text-muted-foreground">
-            No lessons assigned yet. Click &ldquo;Add lesson&rdquo; to pick from
-            the catalogue. Students who join via this class&rsquo;s group codes
-            will only see lessons listed here.
+            No activities assigned yet. Click &ldquo;Add activity&rdquo; to pick
+            from the catalogue. Students who join via this class&rsquo;s group
+            codes will only see activities listed here.
           </p>
         ) : (
           <ul className="divide-y divide-border rounded border border-border">
@@ -470,7 +626,31 @@ export default function TeacherClassDetailPage() {
       </section>
 
       <section aria-labelledby="activity-label" className="flex flex-col gap-3">
-        <h2 id="activity-label" className="text-lg font-semibold">Recent activity</h2>
+        <header className="flex flex-wrap items-center justify-between gap-2">
+          <h2 id="activity-label" className="text-lg font-semibold">Recent activity</h2>
+          <div className="flex items-center gap-1.5">
+            <button
+              type="button"
+              onClick={() => runExport("csv")}
+              disabled={recentSessions.length === 0 || exporting !== null}
+              title="Export all sessions in this class with full transcripts as CSV"
+              className="flex items-center gap-1.5 rounded border border-border px-2 py-1 text-xs font-medium hover:bg-accent disabled:cursor-not-allowed disabled:opacity-50"
+            >
+              <Download className="h-3.5 w-3.5" aria-hidden="true" />
+              {exporting === "csv" ? "Exporting…" : "CSV"}
+            </button>
+            <button
+              type="button"
+              onClick={() => runExport("json")}
+              disabled={recentSessions.length === 0 || exporting !== null}
+              title="Export all sessions in this class with full transcripts as JSON"
+              className="flex items-center gap-1.5 rounded border border-border px-2 py-1 text-xs font-medium hover:bg-accent disabled:cursor-not-allowed disabled:opacity-50"
+            >
+              <Download className="h-3.5 w-3.5" aria-hidden="true" />
+              {exporting === "json" ? "Exporting…" : "JSON"}
+            </button>
+          </div>
+        </header>
         {recentSessions.length === 0 ? (
           <p className="rounded border border-dashed border-border px-3 py-4 text-sm text-muted-foreground">
             No student sessions yet. Sessions appear here once students join a group and start chatting.
@@ -558,7 +738,7 @@ function LessonPicker({
   return (
     <div
       role="region"
-      aria-label="Pick a lesson to add"
+      aria-label="Pick an activity to add"
       className="flex flex-col gap-2 rounded border border-border bg-background p-3"
     >
       <header className="flex items-center justify-between">
@@ -573,7 +753,7 @@ function LessonPicker({
       </header>
       {options.length === 0 ? (
         <p className="text-sm text-muted-foreground">
-          No more lessons available to add. Drop new lessons into{" "}
+          No more activities available to add. Drop new activities into{" "}
           <code>backend/skills/templates/</code> and re-seed.
         </p>
       ) : (

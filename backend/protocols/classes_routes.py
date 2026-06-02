@@ -385,7 +385,7 @@ class RecentSessionsResponse(BaseModel):
 @router.get("/{class_id}/recent-sessions", response_model=RecentSessionsResponse)
 async def list_class_recent_sessions(
     class_id: str = Path(...),
-    page_size: int = Query(default=20, ge=1, le=50),
+    page_size: int = Query(default=20, ge=1, le=100),
     user: User = Depends(get_current_user),  # noqa: B008
 ) -> RecentSessionsResponse:
     """List recent student sessions across all group codes in a class.

@@ -177,9 +177,9 @@ function UniversalLessonsPage({
   return (
     <main className="mx-auto flex max-w-5xl flex-col gap-6 p-4 sm:p-6">
       <header className="flex flex-col gap-1">
-        <h1 className="text-xl font-semibold sm:text-2xl">Lektioner / Lessons</h1>
+        <h1 className="text-xl font-semibold sm:text-2xl">Aktiviteter / Activities</h1>
         <p className="text-sm text-muted-foreground">
-          Vælg en lektion at arbejde med. / Pick a lesson to work on.
+          Vælg en aktivitet at arbejde med. / Pick an activity to work on.
         </p>
       </header>
       {className ? (
@@ -201,7 +201,7 @@ function UniversalLessonsPage({
           className="grid gap-4 sm:grid-cols-2"
         >
           <h2 id="lessons-grid-label" className="sr-only">
-            Available lessons
+            Available activities
           </h2>
           {skills.map((skill) => (
             <LessonCard key={skill.skillId} skill={skill} />
@@ -266,11 +266,11 @@ function EmptyState() {
   return (
     <div className="flex flex-col items-start gap-2 rounded border border-dashed border-border p-6">
       <p className="text-sm font-medium">
-        Ingen lektioner tilgængelige endnu.
+        Ingen aktiviteter tilgængelige endnu.
       </p>
       <p className="text-sm text-muted-foreground">
         Spørg din lærer. /{" "}
-        <span className="italic">No lessons available yet. Ask your teacher.</span>
+        <span className="italic">No activities available yet. Ask your teacher.</span>
       </p>
     </div>
   );
@@ -288,7 +288,7 @@ function ErrorBanner({
       role="alert"
       className="flex flex-wrap items-center justify-between gap-2 rounded border border-destructive bg-destructive/10 px-3 py-2 text-sm text-destructive"
     >
-      <span>Kunne ikke indlæse lektioner: {message}</span>
+      <span>Kunne ikke indlæse aktiviteter: {message}</span>
       <button
         type="button"
         onClick={onRetry}

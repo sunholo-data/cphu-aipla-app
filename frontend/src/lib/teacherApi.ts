@@ -223,7 +223,7 @@ export async function patchLessons(
       body: JSON.stringify(body),
     },
   );
-  return readJson<ClassPayload>(resp, "update lessons");
+  return readJson<ClassPayload>(resp, "update activities");
 }
 
 /** Mint N group codes under a class. */

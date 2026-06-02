@@ -93,7 +93,7 @@ export default function TeacherClassesPage() {
         <div>
           <h1 className="text-xl font-semibold sm:text-2xl">My classes</h1>
           <p className="text-sm text-muted-foreground">
-            Classes you own. Pick one to manage groups and configure lessons.
+            Classes you own. Pick one to manage groups and configure activities.
           </p>
         </div>
         <button
@@ -222,7 +222,7 @@ function ClassCard({ cls }: { cls: ClassPayload }) {
       </header>
       <p className="text-sm text-muted-foreground">
         {cls.groupCodes.length} group{cls.groupCodes.length === 1 ? "" : "s"} ·{" "}
-        {cls.lessons.length} lesson{cls.lessons.length === 1 ? "" : "s"}{" "}
+        {cls.lessons.length} {cls.lessons.length === 1 ? "activity" : "activities"}{" "}
         configured
       </p>
       <div className="mt-1 flex flex-wrap gap-2">

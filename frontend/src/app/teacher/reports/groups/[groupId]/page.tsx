@@ -22,6 +22,7 @@ import {
   type WorkbenchEventPayload,
   fetchGroupLatestReport,
 } from "@/lib/teacherApi";
+import { downloadCsv, downloadJson } from "@/lib/download";
 
 type ReportState =
   | { kind: "loading" }
@@ -246,15 +247,24 @@ export default function TeacherGroupReportPage() {
           <h2 id="log-label" className="text-base font-semibold">
             Conversation log
           </h2>
-          <button
-            type="button"
-            disabled
-            title="CSV export lands in Phase 3"
-            className="flex items-center gap-1.5 rounded border border-border px-2 py-1 text-xs font-medium text-muted-foreground opacity-60"
-          >
-            <Download className="h-3.5 w-3.5" aria-hidden="true" />
-            Download CSV
-          </button>
+          <div className="flex items-center gap-1.5">
+            <button
+              type="button"
+              onClick={() => handleDownloadCsv(state, groupId)}
+              className="flex items-center gap-1.5 rounded border border-border px-2 py-1 text-xs font-medium hover:bg-accent"
+            >
+              <Download className="h-3.5 w-3.5" aria-hidden="true" />
+              CSV
+            </button>
+            <button
+              type="button"
+              onClick={() => handleDownloadJson(state, groupId)}
+              className="flex items-center gap-1.5 rounded border border-border px-2 py-1 text-xs font-medium hover:bg-accent"
+            >
+              <Download className="h-3.5 w-3.5" aria-hidden="true" />
+              JSON
+            </button>
+          </div>
         </header>
         <ol className="flex flex-col gap-2 rounded border border-border bg-background p-3 text-sm">
           {report.conversation.length === 0 ? (
@@ -278,6 +288,49 @@ export default function TeacherGroupReportPage() {
       ) : null}
     </div>
   );
+}
+
+/** Stem used for downloaded report filenames. */
+function reportFilenameStem(state: ReportState, groupId: string): string {
+  const today = new Date().toISOString().slice(0, 10);
+  if (state.kind === "live") {
+    const shortSession = state.data.sessionId.slice(0, 8);
+    return `report-${state.data.groupCode ?? groupId}-${shortSession}-${today}`;
+  }
+  return `report-${groupId}-${today}`;
+}
+
+/** CSV: flat conversation log (timestamp, role, content). The teacher
+ *  audience asked for spreadsheet-friendly transcripts; workbench
+ *  interactions live in the JSON export instead. */
+function handleDownloadCsv(state: ReportState, groupId: string): void {
+  const conversation =
+    state.kind === "live"
+      ? state.data.conversation
+      : state.kind === "mock"
+        ? state.data.conversation.map((t) => ({
+            timestamp: t.timestamp,
+            role: t.role,
+            content: t.content,
+          }))
+        : [];
+  const rows: ReadonlyArray<ReadonlyArray<unknown>> = [
+    ["timestamp", "role", "content"],
+    ...conversation.map((t) => [t.timestamp, t.role, t.content]),
+  ];
+  downloadCsv(`${reportFilenameStem(state, groupId)}.csv`, rows);
+}
+
+/** JSON: the full SessionSummary payload (or mock equivalent) including
+ *  metadata, conversation, and workbench events. */
+function handleDownloadJson(state: ReportState, groupId: string): void {
+  const data =
+    state.kind === "live"
+      ? state.data
+      : state.kind === "mock"
+        ? state.data
+        : {};
+  downloadJson(`${reportFilenameStem(state, groupId)}.json`, data);
 }
 
 function WorkbenchActivitySection({ events }: { events: WorkbenchEventPayload[] }) {
