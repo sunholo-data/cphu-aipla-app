@@ -241,7 +241,7 @@ Project-local skills auto-load when their trigger keywords match. Live in `.clau
 
 - **`adk-cheatsheet` / `adk-dev-guide` / `adk-eval-guide` / `adk-deploy-guide` / `adk-scaffold`** — ADK API + lifecycle references.
 - **`agent-protocols`** — Vendored snapshots of the four-protocol stack the platform speaks: Agent Skills (`SKILL.md` format), AG-UI (streaming transport), A2UI (declarative UI), MCP + MCP Apps (interactive iframes). Load when writing a design doc that touches any of these or when answering *"is this A2UI, MCP App, or AG-UI?"* (they get confused often). References are local files so they survive spec-site outages and are quotable in design docs. Should ship in the upstream template — see [docs/upstream-feedback.md](docs/upstream-feedback.md).
-- **`mcp-app-artefact`** (AIPLA-specific) — How to ship a new MCP App artefact (Boldkast sim, future physics sims): the static-artefact path under `infrastructure/mcp-sandbox/artefacts/<name>/v<version>/`, the ADR-013 security gates (200 KB cap, no external fetches, sandboxed iframe + CSP), the decision tree for static-artefact vs dynamic MCP server, and the Cloud Build / Cloud Run wiring (`aipla-mcp-sandbox-deploy` trigger, `aipla-v01-sandbox` service). Load whenever the user says "add a sim", "new artefact", "deploy a sandbox iframe", or references Boldkast / mcp-sandbox.
+- **`mcp-app-artefact`** (AIPLA-specific) — How to ship a new MCP App artefact (Boldkast sim, future physics sims): the static-artefact path under `infrastructure/mcp-sandbox/artefacts/<name>/v<version>/`, the ADR-013 security gates (200 KB cap, no external fetches, sandboxed iframe + CSP), the decision tree for static-artefact vs dynamic MCP server, the AIPLA-side frontend wiring (shared `SimFrameHeader`, `useSimSnapshotPush`, `frontend/src/_sim-template/` scaffold + `aiplatform sim scaffold <name>` CLI), and the Cloud Build / Cloud Run wiring (`aipla-mcp-sandbox-deploy` trigger, `aipla-v01-sandbox` service). Load whenever the user says "add a sim", "new artefact", "deploy a sandbox iframe", "scaffold a sim", or references Boldkast / LED-Planck / KineBot / jitt-dk / mcp-sandbox.
 - **`design-doc-creator`** — scaffolds new design docs in the right v6.X.Y layout, scores against product axioms, registers in SEQUENCE.md.
 - **`sprint-planner` / `sprint-executor` / `sprint-evaluator`** — the planning → execution → quality-check loop for non-trivial work.
 - **`skill-builder`** (global) — for creating/optimizing skills like the ones above.
@@ -323,6 +323,7 @@ Any local workflow that requires more than one manual step — setting env vars,
 | **Backend pre-push CI parity (lint + format + tests)** | `cd backend && make lint && make test-fast` |
 | Install the `aiplatform` CLI globally | `make cli-install` |
 | Verify the `aiplatform` CLI works end-to-end | `make cli-selftest` |
+| Scaffold a new sim's frontend wiring | `aiplatform sim scaffold <name>` (uses `frontend/src/_sim-template/`; see `mcp-app-artefact` skill) |
 
 When adding a new workflow, add it to `scripts/` and the root `Makefile` in the same PR.
 
