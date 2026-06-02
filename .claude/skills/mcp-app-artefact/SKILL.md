@@ -214,6 +214,15 @@ are inherently wide (circuit benches with positioned absolute children)
 may set `overflow: auto` on their container so the bench scrolls within
 its panel, but the page itself must not overflow.
 
+## Resources and scripts in this skill
+
+Run the basic gates without reading the whole skill:
+
+- **`scripts/audit_artefact.sh <artefact_dir>`** — automated pass over the ADR-013 security gates (no external fetches, no CDN URLs, ≤200 KB, no dark-theme rules) + structural sanity checks. Run before committing a new artefact.
+- **`scripts/scaffold_sim.sh <name> [flags]`** — wrapper around `aiplatform sim scaffold` that generates the frontend hook + frame from `_sim-template/`. Prints an install hint if the CLI isn't on PATH.
+- **`resources/pre-ship-checklist.md`** — full tickable checklist for a new sim PR. Paste into the PR description. Covers ADR-013 + visual design + usability gate + frontend wiring + skill template + tests + deployment.
+- **`resources/event-vocabulary-examples.md`** — the actual `structuredContent.kind` shapes used by Boldkast / LED Planck / KineBot, with notes on the silent-vs-card pattern and the no-mirror rule. Open this when designing a new artefact's event vocabulary.
+
 ## ADR-013 security gates (NEVER skip)
 
 Every static artefact MUST pass these checks at commit time:
