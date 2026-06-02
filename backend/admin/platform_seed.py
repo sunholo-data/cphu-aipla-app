@@ -48,10 +48,6 @@ class SeedSummary:
     skipped: int = 0
     failed: list[str] = field(default_factory=list)
     tool_permissions_wildcard_seeded: bool = False
-    # 1.A follow-up (2026-05-26) — demo classes for the dev
-    # TEACHER_MOCK_AUTH bypass. Only set when the env flag triggers
-    # demo seeding; empty dict on prod / non-bypass paths.
-    demo_classes: dict[str, Any] = field(default_factory=dict)
 
     def as_dict(self) -> dict[str, Any]:
         return {
@@ -60,7 +56,6 @@ class SeedSummary:
             "skipped": self.skipped,
             "failed": self.failed,
             "tool_permissions_wildcard_seeded": self.tool_permissions_wildcard_seeded,
-            "demo_classes": self.demo_classes,
         }
 
 
@@ -320,20 +315,6 @@ def seed(templates_root: Path | None = None) -> SeedSummary:
         except Exception as e:
             logger.warning("platform_seed: failed to create %s: %s", parsed["name"], e)
             summary.failed.append(parsed["name"])
-
-    # 1.A follow-up (2026-05-26): when AIPLA_TEACHER_MOCK_AUTH=1 is set
-    # on the service, also seed demo classes so the bypass /teacher/*
-    # surface has content. Idempotent — running the platform-seed
-    # endpoint repeatedly produces zero duplicates. Skipped silently
-    # on prod (env unset). Failures don't block platform-skill seed.
-    if os.environ.get("AIPLA_TEACHER_MOCK_AUTH") == "1":
-        try:
-            from admin.demo_classes import seed_demo_classes
-
-            summary.demo_classes = seed_demo_classes()
-            logger.info("platform_seed: demo classes seeded: %s", summary.demo_classes)
-        except Exception as e:
-            logger.warning("platform_seed: demo classes seed failed: %s", e)
 
     return summary
 

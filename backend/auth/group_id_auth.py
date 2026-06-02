@@ -59,12 +59,6 @@ _CODE_LEN_BEFORE_HYPHEN = 4
 _CODE_LEN_AFTER_HYPHEN = 4
 _UID_SUFFIX_BYTES = 16  # 128 bits — collision-proof
 
-# 1.A follow-up (2026-05-26): when AIPLA_TEACHER_MOCK_AUTH=1 the bypass
-# remaps every anon-group user to this shared identity so demo classes
-# seeded under this uid are visible to every visitor. DEV ONLY — see
-# user_from_token() for the override site.
-DEMO_TEACHER_UID = "aipla-demo-teacher"
-
 
 # ─── Exceptions ─────────────────────────────────────────────────────────────
 
@@ -184,47 +178,18 @@ class AnonymousGroupAuth:
         gone) — rejects the token at this layer, even if the JWT itself
         is otherwise valid. This is the live-revocation guarantee.
 
-        Demo bypass (1.A follow-up, 2026-05-26): when the
-        ``AIPLA_TEACHER_MOCK_AUTH=1`` env var is set on the service,
-        anon-group users are flagged ``is_teacher=True`` so the
-        ``/teacher/*`` pages reach a working backend without Firebase
-        OAuth (which lands in 1.G-Ph3). Mirrors the frontend's
-        ``NEXT_PUBLIC_TEACHER_MOCK=1``. **DEV ONLY** — test + prod must
-        NEVER set this var; the dev Firestore is the only place where
-        a teacher demo-bypass is acceptable.
         """
         claims = verify_group_token(token)
         group_id = claims["group_id"]
         group_tags = _resolve_class_tags(group_id)
-
-        is_teacher = os.environ.get("AIPLA_TEACHER_MOCK_AUTH") == "1"
-        uid = claims["sub"]
-        if is_teacher:
-            # Override the per-join anon uid with a shared demo-teacher
-            # identity so every bypass visitor sees the SAME demo classes
-            # on /teacher/* (the listing filters by owner_uid). Without
-            # the override, each anon-group join produces a different
-            # uid and the demo seed would only appear for one visitor.
-            uid = DEMO_TEACHER_UID
-            logger.warning(
-                "auth: AIPLA_TEACHER_MOCK_AUTH=1 — anon-group user %s remapped to %s, flagged is_teacher (DEV BYPASS)",
-                claims["sub"],
-                DEMO_TEACHER_UID,
-            )
-            # Add the role:teacher synthetic tag too so AccessControl
-            # gates that scope to teachers (e.g. manage-class skill)
-            # resolve in the bypass path. Same shape the Firebase
-            # teacher path produces (M3 + M8).
-            group_tags = group_tags | {"role:teacher"}
-
         return User(
-            uid=uid,
+            uid=claims["sub"],
             email="",
             domain="",
             group_tags=group_tags,
             auth_mode=AUTH_MODE,
             group_id=group_id,
-            is_teacher=is_teacher,
+            is_teacher=False,
         )
 
 
