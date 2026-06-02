@@ -61,6 +61,11 @@ export default function LessonsPage() {
 function AnonGroupLessonsPage() {
   const router = useRouter();
   const groupAuth = useAnonymousGroupAuth();
+  // Live-resolved skill list from the server (refreshed on every /lessons visit
+  // so teacher add/remove takes effect without a re-join). null = still loading;
+  // undefined = loaded but unbound (no class filter).
+  const [liveSkillIds, setLiveSkillIds] = useState<string[] | null | undefined>(null);
+  const [liveClassName, setLiveClassName] = useState<string | null>(groupAuth.className);
 
   // Anon-group gate: if not yet joined, bounce back to /group.
   useEffect(() => {
@@ -68,6 +73,23 @@ function AnonGroupLessonsPage() {
       router.replace("/group");
     }
   }, [groupAuth.status, router]);
+
+  // Refresh skill list from the server on each page visit.
+  useEffect(() => {
+    if (groupAuth.status !== "joined" && groupAuth.status !== "expired") return;
+    fetchWithAuth("/api/proxy/api/auth/group/my-skill-ids")
+      .then(async (res) => {
+        if (!res.ok) return;
+        const data = (await res.json()) as { skill_ids: string[]; class_name: string | null };
+        setLiveSkillIds(data.skill_ids.length > 0 ? data.skill_ids : undefined);
+        if (data.class_name) setLiveClassName(data.class_name);
+      })
+      .catch(() => {
+        // Network error / expired token: fall back to stored value
+        setLiveSkillIds(groupAuth.skillIds.length > 0 ? groupAuth.skillIds : undefined);
+      });
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [groupAuth.status]);
 
   function handleLeave() {
     groupAuth.clearStoredToken();
@@ -78,6 +100,10 @@ function AnonGroupLessonsPage() {
   // right thing either way; renders the error banner on 401).
   const ready =
     groupAuth.status === "joined" || groupAuth.status === "expired";
+  // Use liveSkillIds once the server responds; fall back to stored while loading.
+  const effectiveSkillIds = liveSkillIds !== null
+    ? (liveSkillIds ?? null)
+    : (groupAuth.skillIds.length > 0 ? groupAuth.skillIds : null);
   return (
     <>
       {ready ? (
@@ -105,8 +131,8 @@ function AnonGroupLessonsPage() {
       ) : null}
       <UniversalLessonsPage
         groupAuthStatus={ready ? "ready" : "waiting"}
-        allowedSkillIds={groupAuth.skillIds.length > 0 ? groupAuth.skillIds : null}
-        className={groupAuth.className}
+        allowedSkillIds={effectiveSkillIds}
+        className={liveClassName}
       />
     </>
   );

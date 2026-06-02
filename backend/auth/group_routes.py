@@ -214,6 +214,43 @@ async def join_group_endpoint(
     )
 
 
+class CurrentSkillsResponse(BaseModel):
+    skill_ids: list[str]
+    class_name: str | None = None
+    class_id: str | None = None
+
+
+@router.get("/my-skill-ids", response_model=CurrentSkillsResponse)
+async def get_my_skill_ids(
+    user: User = Depends(_resolve_firebase_user_dep()),  # noqa: B008
+) -> CurrentSkillsResponse:
+    """Return the current lesson list for the authenticated group member.
+
+    Live-resolves from ``Class.lessons`` so that teacher updates (add/remove
+    lesson) are visible to students immediately on the next ``/lessons`` page
+    load, without requiring a re-join. 404 if the caller is not a group-auth
+    user (no group_id on their token).
+    """
+    if not user.group_id:
+        raise HTTPException(status_code=404, detail="not a group-auth user")
+    from db.classes import get_class
+    from db.firestore import get_document
+
+    anon_doc = get_document("anon_groups", user.group_id)
+    if anon_doc:
+        bound_class_id = anon_doc.get("classId")
+        if bound_class_id:
+            cls = get_class(bound_class_id)
+            if cls and not cls.revoked:
+                return CurrentSkillsResponse(
+                    skill_ids=list(cls.lessons),
+                    class_name=cls.name,
+                    class_id=cls.class_id,
+                )
+    # Unbound group — return empty (no lesson filter applied)
+    return CurrentSkillsResponse(skill_ids=[], class_name=None, class_id=None)
+
+
 @router.delete("/{group_id}", status_code=204)
 async def delete_group_endpoint(
     group_id: str,

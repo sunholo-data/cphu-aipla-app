@@ -119,6 +119,15 @@
       "collectionGroup": "chat_sessions",
       "queryScope": "COLLECTION",
       "fields": [
+        {"fieldPath": "groupCode", "order": "ASCENDING"},
+        {"fieldPath": "archivedAt", "order": "ASCENDING"},
+        {"fieldPath": "lastMessageAt", "order": "DESCENDING"}
+      ]
+    },
+    {
+      "collectionGroup": "chat_sessions",
+      "queryScope": "COLLECTION",
+      "fields": [
         {"fieldPath": "archivedAt", "order": "ASCENDING"},
         {"fieldPath": "ownerUid", "order": "ASCENDING"},
         {"fieldPath": "skillId", "order": "ASCENDING"},

@@ -358,7 +358,7 @@ def create_agent(
         tool_configs=md.tool_configs,
         access_context=access_context,
     )
-    _session_tracker = make_session_tracker(user.uid, skill_config.skill_id)
+    _session_tracker = make_session_tracker(user.uid, skill_config.skill_id, user.group_id)
     _document_loader = make_document_loader()
     _document_injector = make_document_injector()
 

@@ -565,7 +565,7 @@ def _emit_new_turns(
         logger.warning("chat-log emit failed (suppressed): %s", exc)
 
 
-def make_session_tracker(owner_uid: str, skill_id: str) -> Any:
+def make_session_tracker(owner_uid: str, skill_id: str, group_id: str | None = None) -> Any:
     """Return a ``before_agent_callback`` that creates the ChatSessionIndex once.
 
     ADK has no dedicated "session created" hook; ``before_agent_callback``
@@ -573,13 +573,14 @@ def make_session_tracker(owner_uid: str, skill_id: str) -> Any:
     ``app:chat_session_initialized`` state flag to run creation only once
     per session.
 
-    ``owner_uid`` and ``skill_id`` are captured in closures from the
+    ``owner_uid``, ``skill_id``, and ``group_id`` are captured in closures from the
     authenticated request + the skill being invoked so we don't re-read
     them on every turn. The skill_id closure is what makes
     ``list_sessions_for_skill`` work — earlier the tracker pulled
     skill_id from session state, but nothing set it there, so every row
     landed in Firestore as ``skillId: "unknown"`` and the per-skill
-    sidebar always came back empty.
+    sidebar always came back empty. ``group_id`` populates ``groupCode``
+    so ``list_sessions_for_group_codes`` (teacher dashboard) finds student sessions.
     """
 
     def _tracker(callback_context: Any) -> None:
@@ -630,6 +631,7 @@ def make_session_tracker(owner_uid: str, skill_id: str) -> Any:
                 owner_uid=owner_uid,
                 access_control=access_control,
                 document_ids=document_ids,
+                group_code=group_id,
             )
             state[_STATE_INITIALIZED] = True
             state[_STATE_TURN_COUNT] = 0
