@@ -24,6 +24,7 @@ from collections.abc import Callable
 
 from google.adk.tools import FunctionTool, ToolContext
 
+from analytics import summarise as _analytics_summarise
 from analytics import tools as _analytics_tools
 from db.firestore import query_documents
 from tools.documents.context import build_document_context
@@ -143,6 +144,7 @@ TOOL_REGISTRY: dict[str, Callable[[dict], FunctionTool]] = {
     "sim_runs_per_skill": lambda _config: FunctionTool(_analytics_tools.sim_runs_per_skill),
     "most_active_groups": lambda _config: FunctionTool(_analytics_tools.most_active_groups),
     "group_summary": lambda _config: FunctionTool(_analytics_tools.group_summary),
+    "summarise_chat_excerpts": lambda _config: FunctionTool(_analytics_summarise.summarise_chat_excerpts),
 }
 
 # Tools handled entirely outside this registry (no ValueError for these)
