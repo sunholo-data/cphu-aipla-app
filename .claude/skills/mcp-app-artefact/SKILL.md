@@ -39,6 +39,23 @@ metadata:
 > part of shipping it — do it upfront (see "Step 0" below), not in a
 > follow-up cleanup sprint.
 
+## Live artefact inventory
+
+Three artefacts are currently live (deployed to the `aipla-v01-sandbox`
+Cloud Run service, reachable through `StaticArtefactFrame`):
+
+| Artefact | Path | Paired skill template | Status |
+|---|---|---|---|
+| **Boldkast** | `infrastructure/mcp-sandbox/artefacts/boldkast/v1/` | `problem-set-hints` | Live — correct sim-core architecture, reference implementation |
+| **KineBot** | `infrastructure/mcp-sandbox/artefacts/kinebot/v1/` | `kinebot-kinematics-tutor` | Live — has quiz/graph/sidebar in iframe (needs iframe-scope cleanup) |
+| **LED Planck** | `infrastructure/mcp-sandbox/artefacts/led-planck/v1/` | `led-planck-tutor` | Live — wrong architecture (checklist + data table in iframe); full redo planned |
+
+Next artefacts in the pipeline (see
+[`jitt-dk-artefacts.md`](../../../docs/design/aipla/v1.0.0-pilot/jitt-dk-artefacts.md)):
+Pendul → Kredsløb → Videoanalyse → GPS Fart → Frekvensanalysator.
+
+Update this table whenever an artefact is added, removed, or its status changes.
+
 ## Decision tree — static artefact vs dynamic MCP server
 
 **Static artefact** (this skill covers this path):
