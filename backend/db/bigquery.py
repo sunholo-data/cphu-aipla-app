@@ -45,17 +45,39 @@ def table_ref(table: str) -> str:
     return f"`{resolve_gcp_project()}.{CHAT_LOGS_DATASET}.{table}`"
 
 
-def run_query(sql: str, params: dict[str, str] | None = None) -> list[Any]:
+def run_query(sql: str, params: dict[str, Any] | None = None) -> list[Any]:
     """Run a parameterised query and return the rows.
 
-    ``params`` values are bound as STRING scalars (the only param type the
-    chat-log read path needs). Region-pinned. Raises on BQ errors — callers
-    decide whether to fall back.
+    Parameter values bind to BigQuery types by Python type:
+
+    - ``str``           → ``ScalarQueryParameter(STRING)``
+    - ``datetime``      → ``ScalarQueryParameter(TIMESTAMP)``
+    - ``int``           → ``ScalarQueryParameter(INT64)``
+    - ``list[str]``     → ``ArrayQueryParameter(STRING)``
+
+    Anything else falls back to STRING via ``str()`` — preserves backward
+    compat for callers passing pre-stringified values.
+
+    Region-pinned (ADR-007). Raises on BQ errors — callers decide whether
+    to fall back.
     """
+    from datetime import datetime
+
     from google.cloud import bigquery
 
     client = _get_client()
-    qparams = [bigquery.ScalarQueryParameter(name, "STRING", value) for name, value in (params or {}).items()]
+    qparams: list[Any] = []
+    for name, value in (params or {}).items():
+        if isinstance(value, datetime):
+            qparams.append(bigquery.ScalarQueryParameter(name, "TIMESTAMP", value))
+        elif isinstance(value, bool):
+            qparams.append(bigquery.ScalarQueryParameter(name, "BOOL", value))
+        elif isinstance(value, int):
+            qparams.append(bigquery.ScalarQueryParameter(name, "INT64", value))
+        elif isinstance(value, list):
+            qparams.append(bigquery.ArrayQueryParameter(name, "STRING", [str(v) for v in value]))
+        else:
+            qparams.append(bigquery.ScalarQueryParameter(name, "STRING", str(value)))
     job_config = bigquery.QueryJobConfig(query_parameters=qparams)
     return list(client.query(sql, job_config=job_config, location=_LOCATION).result())
 
