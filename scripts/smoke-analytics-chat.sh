@@ -85,18 +85,37 @@ check "unowned class returns 404" "404" "$STATUS"
 DETAIL="$(python3 -c 'import json; print(json.load(open("/tmp/unowned_probe.json"))["detail"])')"
 check "HARD GATE byte-identical detail" "class not accessible" "$DETAIL"
 
-# (4) re-seed verification: skill exposes six tools
-echo "[4] GET /api/skills/analytics-chat (re-seed check)"
-SKILL_JSON="$(curl -fsS -H "$AUTH" "$URL/api/skills/analytics-chat")"
-TOOLS_COUNT="$(echo "$SKILL_JSON" | python3 -c '
+# (4) re-seed verification: analytics-chat is registered + carries six
+# tools in its skillMetadata. `/api/skills/{id}` is keyed by UUID
+# (not name slug), so two-step: list -> find id by name -> get by id.
+# After scripts/seed-platform-skills.sh has been run for the env,
+# analytics-chat should appear here.
+echo "[4a] GET /api/skills (re-seed check: analytics-chat registered)"
+SKILLS_JSON="$(curl -fsS -H "$AUTH" "$URL/api/skills")"
+SKILL_ID="$(echo "$SKILLS_JSON" | python3 -c '
 import json, sys
 d = json.load(sys.stdin)
-# Tools may live in metadata.tools or top-level tools depending on
-# the serializer version. Accept either path.
-tools = d.get("metadata", {}).get("tools") or d.get("tools") or []
+skills = d if isinstance(d, list) else (d.get("skills") or d.get("items") or [])
+matches = [s for s in skills if (s.get("name") or s.get("display_name") or s.get("displayName")) == "analytics-chat"]
+if not matches:
+    sys.exit(1)
+s = matches[0]
+print(s.get("skill_id") or s.get("skillId") or s.get("id", ""))
+')" || { check "analytics-chat in /api/skills" "registered" "not found (run scripts/seed-platform-skills.sh $ENV)"; SKILL_ID=""; }
+
+if [ -n "$SKILL_ID" ]; then
+  check "analytics-chat in /api/skills" "registered" "registered"
+  echo "[4b] GET /api/skills/$SKILL_ID (tools count)"
+  SKILL_DOC="$(curl -fsS -H "$AUTH" "$URL/api/skills/$SKILL_ID")"
+  TOOLS_COUNT="$(echo "$SKILL_DOC" | python3 -c '
+import json, sys
+d = json.load(sys.stdin)
+# Backend serializes the SKILL.md `tools:` field under skillMetadata.tools.
+tools = (d.get("skillMetadata") or {}).get("tools") or (d.get("metadata") or {}).get("tools") or []
 print(len(tools))
 ')"
-check "skill frontmatter tools=6" "6" "$TOOLS_COUNT"
+  check "skill frontmatter tools=6" "6" "$TOOLS_COUNT"
+fi
 
 echo
 echo "== summary: $PASS passed, $FAIL failed =="
