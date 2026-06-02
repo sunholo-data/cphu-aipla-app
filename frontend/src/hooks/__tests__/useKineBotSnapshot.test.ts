@@ -36,7 +36,7 @@ describe("useKineBotSnapshot", () => {
     expect(dispatchMock).not.toHaveBeenCalled(); // silent
   });
 
-  it("sim-run updates lastSimRun, silent push (no card)", () => {
+  it("sim-run updates lastSimRun + dispatches a card", () => {
     const { result } = renderHook(() => useKineBotSnapshot("sess-1"));
     act(() =>
       result.current.reportEvent({
@@ -50,7 +50,10 @@ describe("useKineBotSnapshot", () => {
       params: { velocity: 20, angle: 45 },
     });
     expect(fetchWithAuth).toHaveBeenCalledTimes(1);
-    expect(dispatchMock).not.toHaveBeenCalled();
+    expect(dispatchMock).toHaveBeenCalledTimes(1);
+    expect(dispatchMock.mock.calls[0][0].label).toBe(
+      "Ran projectile sim: v=20 m/s, θ=45°",
+    );
   });
 
   it("graph-change updates currentGraph + dispatches a card", () => {
@@ -78,7 +81,7 @@ describe("useKineBotSnapshot", () => {
     expect(dispatchMock.mock.calls[0][0].label).toBe("Quiz: correct on Free Fall");
   });
 
-  it("quiz-attempt incorrect: aggregates, silent (no card)", () => {
+  it("quiz-attempt incorrect: aggregates + dispatches a wrong-answer card", () => {
     const { result } = renderHook(() => useKineBotSnapshot("sess-1"));
     act(() =>
       result.current.reportEvent({
@@ -92,7 +95,10 @@ describe("useKineBotSnapshot", () => {
       { topic: "freefall", attempts: 1, correct: 0 },
     ]);
     expect(fetchWithAuth).toHaveBeenCalledTimes(1);
-    expect(dispatchMock).not.toHaveBeenCalled();
+    expect(dispatchMock).toHaveBeenCalledTimes(1);
+    expect(dispatchMock.mock.calls[0][0].label).toBe(
+      "Quiz: wrong answer on Free Fall",
+    );
   });
 
   it("does not push when sessionId is null", () => {
