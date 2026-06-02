@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useParams } from "next/navigation";
+import { useParams, useSearchParams } from "next/navigation";
 import { useEffect, useState } from "react";
 import {
   ArrowLeft,
@@ -61,14 +61,16 @@ function toDisplay(state: ReportState): MockSessionReport | null {
 
 export default function TeacherGroupReportPage() {
   const params = useParams();
+  const searchParams = useSearchParams();
   const groupId =
     typeof params?.groupId === "string" ? params.groupId : "";
+  const sessionId = searchParams?.get("session_id") ?? null;
 
   const [state, setState] = useState<ReportState>({ kind: "loading" });
 
   useEffect(() => {
     let alive = true;
-    fetchGroupLatestReport(groupId)
+    fetchGroupLatestReport(groupId, sessionId)
       .then((data) => {
         if (alive) {
           setState({ kind: "live", data });
@@ -95,7 +97,7 @@ export default function TeacherGroupReportPage() {
     return () => {
       alive = false;
     };
-  }, [groupId]);
+  }, [groupId, sessionId]);
 
   if (state.kind === "loading") {
     return (
@@ -158,7 +160,9 @@ export default function TeacherGroupReportPage() {
 
       <header className="flex flex-col gap-1">
         <div className="flex items-center gap-2">
-          <h1 className="text-xl font-semibold sm:text-2xl">Latest session</h1>
+          <h1 className="text-xl font-semibold sm:text-2xl">
+            {sessionId ? "Session" : "Latest session"}
+          </h1>
           {!isLive ? (
             <span className="rounded border border-dashed border-amber-300 bg-amber-50 px-2 py-0.5 text-[10px] font-medium text-amber-900 dark:border-amber-700 dark:bg-amber-950 dark:text-amber-200">
               mock data

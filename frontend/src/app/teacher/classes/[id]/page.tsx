@@ -477,36 +477,48 @@ export default function TeacherClassDetailPage() {
           </p>
         ) : (
           <ul className="divide-y divide-border rounded border border-border">
-            {recentSessions.slice(0, 10).map((row) => (
-              <li
-                key={row.sessionId}
-                className="flex flex-wrap items-center justify-between gap-2 px-3 py-2 text-sm"
-              >
-                <div className="flex min-w-0 flex-1 flex-wrap items-center gap-x-3 gap-y-1">
-                  {row.groupCode ? (
-                    <code className="rounded bg-muted px-1.5 py-0.5 font-mono text-xs">
-                      {row.groupCode}
-                    </code>
-                  ) : null}
-                  <span className="flex items-center gap-1 text-muted-foreground">
-                    <MessageSquare className="h-3.5 w-3.5 shrink-0" aria-hidden="true" />
-                    {row.title ?? skillNameById.get(row.skillId) ?? row.skillId}
-                  </span>
-                  <span className="text-xs text-muted-foreground">
-                    {row.turnCount} turn{row.turnCount === 1 ? "" : "s"} · {relativeTime(row.lastMessageAt)}
-                  </span>
-                </div>
-                {row.groupCode ? (
+            {recentSessions.slice(0, 10).map((row) =>
+              row.groupCode ? (
+                <li key={row.sessionId}>
                   <Link
-                    href={`/teacher/reports/groups/${row.groupCode}`}
-                    className="flex items-center gap-1 rounded border border-border px-2 py-1 text-xs font-medium hover:bg-accent"
+                    href={`/teacher/reports/groups/${row.groupCode}?session_id=${encodeURIComponent(row.sessionId)}`}
+                    className="flex flex-wrap items-center justify-between gap-2 px-3 py-2 text-sm hover:bg-accent"
                   >
-                    <FileText className="h-3.5 w-3.5" aria-hidden="true" />
-                    View session
+                    <div className="flex min-w-0 flex-1 flex-wrap items-center gap-x-3 gap-y-1">
+                      <code className="rounded bg-muted px-1.5 py-0.5 font-mono text-xs font-medium">
+                        {row.groupCode}
+                      </code>
+                      <span className="flex items-center gap-1 text-foreground">
+                        <MessageSquare className="h-3.5 w-3.5 shrink-0 text-muted-foreground" aria-hidden="true" />
+                        {row.title ?? skillNameById.get(row.skillId) ?? row.skillId}
+                      </span>
+                      <span className="text-xs text-muted-foreground">
+                        {row.turnCount} turn{row.turnCount === 1 ? "" : "s"} · {relativeTime(row.lastMessageAt)}
+                      </span>
+                    </div>
+                    <span className="flex shrink-0 items-center gap-1 text-xs font-medium text-muted-foreground">
+                      <FileText className="h-3.5 w-3.5" aria-hidden="true" />
+                      View
+                    </span>
                   </Link>
-                ) : null}
-              </li>
-            ))}
+                </li>
+              ) : (
+                <li
+                  key={row.sessionId}
+                  className="flex flex-wrap items-center justify-between gap-2 px-3 py-2 text-sm"
+                >
+                  <div className="flex min-w-0 flex-1 flex-wrap items-center gap-x-3 gap-y-1">
+                    <span className="flex items-center gap-1 text-muted-foreground">
+                      <MessageSquare className="h-3.5 w-3.5 shrink-0" aria-hidden="true" />
+                      {row.title ?? skillNameById.get(row.skillId) ?? row.skillId}
+                    </span>
+                    <span className="text-xs text-muted-foreground">
+                      {row.turnCount} turn{row.turnCount === 1 ? "" : "s"} · {relativeTime(row.lastMessageAt)}
+                    </span>
+                  </div>
+                </li>
+              ),
+            )}
           </ul>
         )}
       </section>

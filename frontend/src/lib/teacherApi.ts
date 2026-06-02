@@ -108,12 +108,16 @@ export async function saveActivityConfig(
   return readJson<ActivityConfigPayload>(resp, "save activity config");
 }
 
-/** Fetch the latest session summary for an anonymous group code. */
+/** Fetch a session summary for an anonymous group code.
+ *  Pass ``sessionId`` to fetch a specific past session; omit it to fetch
+ *  the most-recent session for the group. */
 export async function fetchGroupLatestReport(
   groupCode: string,
+  sessionId?: string | null,
 ): Promise<SessionSummaryPayload> {
+  const qs = sessionId ? `?session_id=${encodeURIComponent(sessionId)}` : "";
   const resp = await fetchWithAuth(
-    `/api/proxy/api/reports/groups/${encodeURIComponent(groupCode)}`,
+    `/api/proxy/api/reports/groups/${encodeURIComponent(groupCode)}${qs}`,
   );
   return readJson<SessionSummaryPayload>(resp, "load group report");
 }

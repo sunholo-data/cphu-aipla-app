@@ -60,14 +60,28 @@ async def get_session_report(
 @router.get("/groups/{group_code}")
 async def get_group_latest_report(
     group_code: str = Path(...),
+    session_id: str | None = Query(None),
     _user: User = Depends(get_current_user),  # noqa: B008
 ) -> dict:
-    """Return the most-recently active session summary for an anonymous group.
+    """Return a session summary for an anonymous group.
 
-    404 when the group has no sessions yet (frontend renders an empty
-    state). Phase 3 will accept a ``?session_id=`` query param to pick a
-    specific past session rather than only the latest.
+    Default: the most-recently active session. Pass ``?session_id=<id>``
+    to pick a specific past session (used by the teacher dashboard's
+    activity-feed rows to deep-link to the row's own session rather than
+    always landing on the latest).
+
+    404 when the group has no sessions yet (frontend renders an empty state).
     """
+    if session_id:
+        summary = await resolve_session_summary(session_id)
+        if summary is None:
+            raise HTTPException(status_code=404, detail="session not found")
+        # Confirm the session actually belongs to this group code — prevents
+        # cross-group enumeration by guessing session ids.
+        if summary.group_code and summary.group_code != group_code:
+            raise HTTPException(status_code=404, detail="session not found for this group")
+        return _serialize(summary)
+
     idx = find_latest_session_for_group(group_code)
     if idx is None:
         raise HTTPException(status_code=404, detail="no sessions for this group yet")
