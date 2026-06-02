@@ -181,6 +181,54 @@ def test_teacher_summary_returns_entry_per_owned_class(monkeypatch):
 
 
 # ---------------------------------------------------------------------------
+# class_trend — dense per-day series
+# ---------------------------------------------------------------------------
+
+
+def test_class_trend_fills_zero_days(monkeypatch):
+    class_id = _create_class(TEACHER_UID)
+    since = datetime(2026, 6, 1, tzinfo=UTC)
+    until = datetime(2026, 6, 7, tzinfo=UTC)
+
+    monkeypatch.setattr(
+        "analytics.queries.messages_per_day",
+        lambda **_: {
+            "per_day": [
+                {"day": "2026-06-02", "count": 5},
+                {"day": "2026-06-05", "count": 2},
+            ]
+        },
+    )
+
+    out = aggregates.class_trend(teacher_uid=TEACHER_UID, class_id=class_id, since=since, until=until)
+    days = [r["day"] for r in out["per_day"]]
+    assert days == [
+        "2026-06-01",
+        "2026-06-02",
+        "2026-06-03",
+        "2026-06-04",
+        "2026-06-05",
+        "2026-06-06",
+        "2026-06-07",
+    ]
+    counts = {r["day"]: r["count"] for r in out["per_day"]}
+    assert counts["2026-06-02"] == 5
+    assert counts["2026-06-05"] == 2
+    assert counts["2026-06-01"] == 0
+
+
+def test_class_trend_cross_tenant(monkeypatch):
+    bobs_class = _create_class(OTHER_TEACHER_UID, name="bob")
+    with pytest.raises(PermissionError, match="class not accessible"):
+        aggregates.class_trend(
+            teacher_uid=TEACHER_UID,
+            class_id=bobs_class,
+            since=_ts(),
+            until=_ts(day=8),
+        )
+
+
+# ---------------------------------------------------------------------------
 # teacher_compare — delta vs prior window
 # ---------------------------------------------------------------------------
 

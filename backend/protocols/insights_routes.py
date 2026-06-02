@@ -222,3 +222,21 @@ async def class_activities(
         since=since,
         until=until,
     )
+
+
+@router.get("/classes/{class_id}/trend")
+async def class_trend(
+    class_id: str = Path(..., min_length=1),
+    since: str = Query("7d"),
+    until: str | None = Query(None),
+    user: User = Depends(get_current_user),  # noqa: B008
+) -> dict[str, Any]:
+    """Dense per-day messages-per-day series for the panel sparkline."""
+    return _per_class(
+        surface="class_trend",
+        fn=aggregates.class_trend,
+        user=user,
+        class_id=class_id,
+        since=since,
+        until=until,
+    )

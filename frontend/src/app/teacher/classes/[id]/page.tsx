@@ -33,6 +33,7 @@ import {
   patchLessons,
   resetGroupSession,
 } from "@/lib/teacherApi";
+import { ClassInsightsPanel } from "@/components/teacher/insights/ClassInsightsPanel";
 
 /** Cap on per-export parallel report fetches. Matches the
  *  recent-sessions route's page_size cap (le=100), sized for a Danish
@@ -615,6 +616,8 @@ export default function TeacherClassDetailPage() {
           </ul>
         )}
       </section>
+
+      <ClassInsightsPanel classId={cls.classId} />
 
       <section aria-labelledby="activity-label" className="flex flex-col gap-3">
         <header className="flex flex-wrap items-center justify-between gap-2">

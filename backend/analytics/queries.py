@@ -292,12 +292,61 @@ SQL_TEMPLATES: dict[str, str] = {
         ORDER BY message_count DESC
         LIMIT @limit
     """.strip(),
+    "messages_per_day": f"""
+        SELECT
+          DATE(timestamp) AS day,
+          COUNT(*) AS count
+        FROM {table_ref(CHAT_TURN_TABLE)}
+        WHERE jsonPayload.group_id IN UNNEST(@class_group_codes)
+          AND jsonPayload.group_id IN UNNEST(@allowed_group_codes)
+          AND timestamp BETWEEN @since AND @until
+        GROUP BY day
+        ORDER BY day
+    """.strip(),
 }
+
+
+def messages_per_day(
+    *,
+    since: datetime,
+    until: datetime,
+    allowed_group_codes: list[str],
+    class_group_codes: list[str],
+) -> dict[str, Any]:
+    """Per-day message counts for a class. Fills the 7d-trend chart on
+    the insights panel.
+
+    Returns ``{"per_day": [{"day": "YYYY-MM-DD", "count": int}, ...]}``.
+    ``per_day`` is API-ordered (ascending date); the frontend renders
+    missing days as zero-bars.
+    """
+    if not class_group_codes or not allowed_group_codes:
+        return {"per_day": []}
+
+    rows = run_query(
+        SQL_TEMPLATES["messages_per_day"],
+        params={
+            "since": since,
+            "until": until,
+            "class_group_codes": list(class_group_codes),
+            "allowed_group_codes": list(allowed_group_codes),
+        },
+    )
+
+    per_day = [
+        {
+            "day": r["day"].isoformat() if hasattr(r["day"], "isoformat") else str(r["day"]),
+            "count": int(r["count"]),
+        }
+        for r in rows
+    ]
+    return {"per_day": per_day}
 
 
 __all__ = [
     "SQL_TEMPLATES",
     "count_messages",
+    "messages_per_day",
     "most_active_groups",
     "sim_runs_per_skill",
     "time_on_task",

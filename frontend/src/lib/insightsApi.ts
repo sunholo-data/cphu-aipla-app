@@ -241,6 +241,37 @@ export async function fetchInsightsClassGroups(
   };
 }
 
+export interface InsightsTrendPoint {
+  day: string;
+  count: number;
+}
+
+export interface InsightsClassTrendPayload {
+  classId: string;
+  perDay: InsightsTrendPoint[];
+  _debug: { queries: InsightsQueryDebugEntry[] };
+}
+
+export async function fetchInsightsClassTrend(
+  classId: string,
+  since: InsightsSince = "7d",
+  until?: string,
+): Promise<InsightsClassTrendPayload> {
+  const resp = await fetchWithAuth(
+    `/api/proxy/api/insights/classes/${encodeURIComponent(classId)}/trend${_query(since, until)}`,
+  );
+  const json = await _ok<{
+    class_id: string;
+    per_day: Array<{ day: string; count: number }>;
+    _debug: { queries: InsightsQueryDebugEntry[] };
+  }>(resp, "fetch insights class trend");
+  return {
+    classId: json.class_id,
+    perDay: json.per_day,
+    _debug: json._debug,
+  };
+}
+
 export async function fetchInsightsClassActivities(
   classId: string,
   since: InsightsSince = "7d",

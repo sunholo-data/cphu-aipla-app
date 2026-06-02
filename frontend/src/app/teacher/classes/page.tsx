@@ -20,6 +20,8 @@ import {
   listClassRecentSessions,
   listClasses,
 } from "@/lib/teacherApi";
+import { fetchInsightsSummary, type InsightsClassSummary } from "@/lib/insightsApi";
+import { KpiStrip } from "@/components/teacher/insights/KpiStrip";
 
 
 function relativeTime(iso: string): string {
@@ -39,6 +41,7 @@ export default function TeacherClassesPage() {
   const [catalogue, setCatalogue] = useState<SkillSummary[]>([]);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [showNewClassForm, setShowNewClassForm] = useState(false);
+  const [insightsSummary, setInsightsSummary] = useState<Map<string, InsightsClassSummary>>(new Map());
 
   // Skill displayName lookup so we can fall back to the lesson name when a
   // session hasn't generated a title yet (titles are auto-generated after
@@ -86,6 +89,23 @@ export default function TeacherClassesPage() {
       .then(setCatalogue)
       .catch(() => setCatalogue([]));
   }, []);
+
+  // One round-trip for the per-card KPI strips (M9). Failure is
+  // silent: the cards still render without the strip.
+  useEffect(() => {
+    let cancelled = false;
+    void fetchInsightsSummary()
+      .then((p) => {
+        if (cancelled) return;
+        setInsightsSummary(new Map(p.classes.map((c) => [c.classId, c])));
+      })
+      .catch(() => {
+        if (!cancelled) setInsightsSummary(new Map());
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [classes]);
 
   return (
     <div className="flex flex-col gap-8">
@@ -137,7 +157,13 @@ export default function TeacherClassesPage() {
         ) : classes.length === 0 ? (
           <EmptyState onCreateClick={() => setShowNewClassForm(true)} />
         ) : (
-          classes.map((cls) => <ClassCard key={cls.classId} cls={cls} />)
+          classes.map((cls) => (
+            <ClassCard
+              key={cls.classId}
+              cls={cls}
+              insightsSummary={insightsSummary.get(cls.classId)}
+            />
+          ))
         )}
       </section>
 
@@ -213,7 +239,13 @@ export default function TeacherClassesPage() {
   );
 }
 
-function ClassCard({ cls }: { cls: ClassPayload }) {
+function ClassCard({
+  cls,
+  insightsSummary,
+}: {
+  cls: ClassPayload;
+  insightsSummary: InsightsClassSummary | undefined;
+}) {
   return (
     <article className="flex flex-col gap-3 rounded border border-border bg-background p-4 shadow-sm">
       <header className="flex items-start justify-between gap-2">
@@ -225,6 +257,7 @@ function ClassCard({ cls }: { cls: ClassPayload }) {
         {cls.lessons.length} {cls.lessons.length === 1 ? "activity" : "activities"}{" "}
         configured
       </p>
+      <KpiStrip summary={insightsSummary} />
       <div className="mt-1 flex flex-wrap gap-2">
         <Link
           href={`/teacher/classes/${cls.classId}`}

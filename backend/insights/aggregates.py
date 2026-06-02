@@ -369,10 +369,49 @@ def teacher_compare(
     }
 
 
+# ---------------------------------------------------------------------------
+# Per-class trend (the 7-day sparkline at the top of the panel)
+# ---------------------------------------------------------------------------
+
+
+def class_trend(
+    *,
+    teacher_uid: str,
+    class_id: str,
+    since: datetime,
+    until: datetime,
+) -> dict[str, Any]:
+    """Per-day message counts for one class. Returns a dense series —
+    every day in ``[since, until]`` is present, even if zero — so the
+    frontend can render without date arithmetic."""
+    assert_caller_owns(teacher_uid, class_id)
+    allowed = list(resolve_caller_group_codes(teacher_uid))
+    class_codes = _class_group_codes(class_id)
+    base = _common_params(since=since, until=until, allowed=allowed, class_codes=class_codes)
+
+    raw = queries.messages_per_day(**base)
+    counts_by_day = {row["day"]: row["count"] for row in raw["per_day"]}
+
+    dense: list[dict[str, Any]] = []
+    cursor = since.date()
+    end = until.date()
+    while cursor <= end:
+        iso = cursor.isoformat()
+        dense.append({"day": iso, "count": counts_by_day.get(iso, 0)})
+        cursor = cursor + timedelta(days=1)
+
+    return {
+        "class_id": class_id,
+        "per_day": dense,
+        "_debug": {"queries": [_query_meta("messages_per_day", base)]},
+    }
+
+
 __all__ = [
     "class_activities",
     "class_groups",
     "class_kpis",
+    "class_trend",
     "default_window",
     "teacher_compare",
     "teacher_summary",

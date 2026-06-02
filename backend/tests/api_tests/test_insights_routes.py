@@ -73,6 +73,10 @@ def _mock_queries(monkeypatch):
         "analytics.queries.most_active_groups",
         lambda **kw: {"groups": [{"group_code": "g1", "message_count": 5, "session_count": 2}]},
     )
+    monkeypatch.setattr(
+        "analytics.queries.messages_per_day",
+        lambda **_: {"per_day": [{"day": "2026-06-02", "count": 3}]},
+    )
 
 
 def _make_app(*, uid: str = TEACHER_UID, is_teacher: bool = True) -> FastAPI:
@@ -222,6 +226,29 @@ class TestClassGroupsAndActivities:
         bobs_class = _make_class(OTHER_TEACHER_UID, name="bob")
         cross = teacher_client.get(f"/api/insights/classes/{bobs_class}/groups")
         missing = teacher_client.get(f"/api/insights/classes/{MISSING_CLASS_ID}/groups")
+        assert cross.content == missing.content
+
+
+# ---------------------------------------------------------------------------
+# /classes/{id}/trend
+# ---------------------------------------------------------------------------
+
+
+class TestClassTrend:
+    def test_owned_class_returns_dense_per_day_series(self, teacher_client):
+        class_id = _make_class(TEACHER_UID)
+        resp = teacher_client.get(f"/api/insights/classes/{class_id}/trend")
+        assert resp.status_code == 200, resp.text
+        body = resp.json()
+        # The dense series spans the full window. 7d window -> 8 entries
+        # (since-day inclusive through until-day inclusive).
+        assert len(body["per_day"]) >= 7
+        assert all("day" in r and "count" in r for r in body["per_day"])
+
+    def test_cross_tenant_byte_identical(self, teacher_client):
+        bobs_class = _make_class(OTHER_TEACHER_UID, name="bob")
+        cross = teacher_client.get(f"/api/insights/classes/{bobs_class}/trend")
+        missing = teacher_client.get(f"/api/insights/classes/{MISSING_CLASS_ID}/trend")
         assert cross.content == missing.content
 
 

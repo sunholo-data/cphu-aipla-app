@@ -271,7 +271,7 @@
       "description": "KPI strip on /teacher/classes + ClassInsightsPanel on /teacher/classes/[id]. KpiCard / EngagementBar / TrendSparkline primitives. useInsights hook. Per-card error boundaries so one slow query doesn't block the grid. Definition tooltips + 'Show data' disclosure on every card.",
       "scope": "frontend",
       "estimated_loc": 540,
-      "actual_loc": null,
+      "actual_loc": 865,
       "dependencies": [
         "M7",
         "M8"
@@ -302,10 +302,10 @@
         "frontend/src/app/teacher/classes/page.tsx",
         "frontend/src/app/teacher/classes/[id]/page.tsx"
       ],
-      "passes": null,
-      "started": null,
-      "completed": null,
-      "notes": null
+      "passes": true,
+      "started": "2026-06-02T21:15:00Z",
+      "completed": "2026-06-02T19:14:12Z",
+      "notes": "865 LOC frontend + ~120 LOC backend trend addition. Five new primitives: KpiCard (value/definition tooltip/Show data SQL disclosure), EngagementBar (recharts horizontal via _chartsBundle, with table fallback for screen readers), TrendSparkline (line chart with table fallback), KpiStrip (one-line strip for class cards), ClassInsightsPanel (composite: 6 KPI cards + trend + groups bar + activities bar). Each panel section fetches independently via useInsightsFetch so one slow query doesn't block the rest (per-card error boundary requirement). KPI strip wired into /teacher/classes ClassCard via one /api/insights/summary round-trip. ClassInsightsPanel wired into /teacher/classes/[id] above Recent activity. Backend: added analytics.queries.messages_per_day + aggregates.class_trend + GET /api/insights/classes/{id}/trend so the trend chart has dense per-day data (zero-fills missing days server-side). 15 new frontend tests (KpiCard/Strip/EngagementBar/TrendSparkline/Panel inc per-card error boundary). 4 new backend tests (trend aggregate + route + cross-tenant byte-identity). Frontend: 792 passed (+15). Backend: 1636 passed (+4). make lint + npm run quality:check green. Bundle gate preserved: student routes (/group /lessons /chat) unchanged; recharts lands only on teacher routes."
     },
     {
       "id": "M10",
