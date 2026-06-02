@@ -28,6 +28,10 @@ def _turn(ts, role, content, group="bold-kazoo-87", skill="boldkast", idx=0):
     }
 
 
+def _wb(ts, server="boldkast", tool="state", field="theta", value="45"):
+    return {"ts": ts, "server": server, "tool": tool, "field": field, "value": value}
+
+
 async def test_summarize_session_bq_roundtrip():
     t0 = datetime(2026, 5, 29, 10, 0, 0, tzinfo=UTC)
     t1 = datetime(2026, 5, 29, 10, 1, 0, tzinfo=UTC)
@@ -35,8 +39,8 @@ async def test_summarize_session_bq_roundtrip():
         _turn(t0, "student", "why does it go further at 45?", idx=0),
         _turn(t1, "tutor", "think about the vertical and horizontal parts", idx=1),
     ]
-    count = [{"n": 3}]
-    with patch.object(bigquery, "run_query", side_effect=[turns, count]):
+    wb_events = [_wb(t0, field="theta", value="45"), _wb(t0, field="v0", value="10"), _wb(t1, field="g", value="9.8")]
+    with patch.object(bigquery, "run_query", side_effect=[turns, wb_events]):
         summary = await session_summary.summarize_session_bq("sess-1")
 
     assert summary is not None
@@ -44,7 +48,10 @@ async def test_summarize_session_bq_roundtrip():
     assert summary.group_code == "bold-kazoo-87"
     assert summary.activity_id == "boldkast"
     assert summary.message_count == 2
-    assert summary.sim_run_count == 3  # exact COUNT, not the key heuristic
+    assert summary.sim_run_count == 3  # exact COUNT, derived from len(workbench_events)
+    assert len(summary.workbench_events) == 3
+    assert summary.workbench_events[0].server == "boldkast"
+    assert summary.workbench_events[0].field == "theta"
     assert [t.role for t in summary.conversation] == ["student", "tutor"]
     assert summary.duration_seconds == 60
 

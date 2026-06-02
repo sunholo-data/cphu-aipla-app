@@ -8,7 +8,7 @@ import {
   CheckCircle2,
   Circle,
   Download,
-  Send,
+  Sliders,
 } from "lucide-react";
 
 import {
@@ -19,6 +19,7 @@ import {
 import {
   NotFoundError,
   type SessionSummaryPayload,
+  type WorkbenchEventPayload,
   fetchGroupLatestReport,
 } from "@/lib/teacherApi";
 
@@ -269,44 +270,67 @@ export default function TeacherGroupReportPage() {
         </ol>
       </section>
 
+      {isLive && state.kind === "live" && state.data.workbenchEvents && state.data.workbenchEvents.length > 0 ? (
+        <WorkbenchActivitySection events={state.data.workbenchEvents} />
+      ) : null}
+
       <section
         aria-labelledby="share-label"
-        className="flex flex-col gap-2 rounded border border-dashed border-border bg-muted/30 p-4"
+        className="flex flex-col gap-1 rounded border border-dashed border-border bg-muted/30 p-4"
       >
         <h2 id="share-label" className="text-base font-semibold">
-          Share with the student group?
+          Sharing status
         </h2>
         {isLive ? (
           sharedWithTeacher ? (
             <p className="text-xs text-emerald-700 dark:text-emerald-400">
-              The group has opted in to share this session.
+              The student opted in to share this session with you.
             </p>
           ) : (
             <p className="text-xs text-muted-foreground">
-              The group has not opted in to share yet.
+              The student has not ticked &ldquo;Share session with teacher&rdquo; in the chat footer. You can still view this session via the report URL, but the student hasn&rsquo;t explicitly consented to share.
             </p>
           )
         ) : (
           <p className="text-xs text-muted-foreground">
-            Students opt in via the chat toggle to share their session.
+            Students opt in via the chat toggle to share their session with you.
           </p>
         )}
-        <div>
-          <button
-            type="button"
-            disabled={!sharedWithTeacher}
-            title={sharedWithTeacher ? "Send a summary to the group" : "The group has not opted in to sharing"}
-            className={`flex items-center gap-1.5 rounded border border-border px-3 py-1.5 text-sm font-medium ${
-              sharedWithTeacher
-                ? "text-foreground hover:bg-accent"
-                : "text-muted-foreground opacity-60"
-            }`}
-          >
-            <Send className="h-4 w-4" aria-hidden="true" />
-            Send summary
-          </button>
-        </div>
       </section>
     </div>
+  );
+}
+
+function WorkbenchActivitySection({ events }: { events: WorkbenchEventPayload[] }) {
+  return (
+    <section aria-labelledby="workbench-label" className="flex flex-col gap-2">
+      <h2 id="workbench-label" className="flex items-center gap-2 text-base font-semibold">
+        <Sliders className="h-4 w-4" aria-hidden="true" />
+        Workbench activity
+        <span className="rounded bg-muted px-1.5 py-0.5 text-[10px] font-medium uppercase text-muted-foreground">
+          {events.length}
+        </span>
+      </h2>
+      <ol className="flex flex-col gap-1 rounded border border-border bg-background p-3 text-sm">
+        {events.map((evt, i) => (
+          <li
+            key={`${evt.timestamp}-${i}`}
+            className="flex flex-wrap items-baseline gap-x-2 gap-y-0.5"
+          >
+            <span className="text-[10px] uppercase tracking-wide text-muted-foreground">
+              [{evt.timestamp.slice(11, 16)}]
+            </span>
+            <span className="font-medium">{evt.server}</span>
+            <span className="text-muted-foreground">·</span>
+            <span className="text-muted-foreground">{evt.field || evt.tool}</span>
+            {evt.value ? (
+              <code className="rounded bg-muted px-1.5 py-0.5 font-mono text-xs">
+                {evt.value.length > 80 ? `${evt.value.slice(0, 80)}…` : evt.value}
+              </code>
+            ) : null}
+          </li>
+        ))}
+      </ol>
+    </section>
   );
 }

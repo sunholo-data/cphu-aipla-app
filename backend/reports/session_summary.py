@@ -39,6 +39,22 @@ class SessionTurn(BaseModel):
     model_config = ConfigDict(populate_by_name=True)
 
 
+class WorkbenchEvent(BaseModel):
+    """One iframe → host interaction (slider moved, value revealed, etc.).
+
+    Sourced from the ``aipla_workbench_event`` BQ table populated by
+    ``emit_workbench_event`` in the iframe-context endpoint.
+    """
+
+    timestamp: str  # ISO 8601
+    server: str  # e.g. "boldkast", "kinebot", "led-planck"
+    tool: str  # e.g. "state", "show_value"
+    field: str  # what changed (or tool name if no specific field)
+    value: str  # stringified value; complex payloads land as JSON
+
+    model_config = ConfigDict(populate_by_name=True)
+
+
 class SessionSummary(BaseModel):
     """Aggregated report for one session. Matches the frontend's report shape."""
 
@@ -52,6 +68,7 @@ class SessionSummary(BaseModel):
     sim_run_count: int = Field(alias="simRunCount")
     shared_with_teacher: bool = Field(default=False, alias="sharedWithTeacher")
     conversation: list[SessionTurn]
+    workbench_events: list[WorkbenchEvent] = Field(default_factory=list, alias="workbenchEvents")
 
     model_config = ConfigDict(populate_by_name=True)
 
@@ -185,15 +202,29 @@ async def summarize_session_bq(session_id: str) -> SessionSummary | None:
             )
         )
 
+    workbench_events: list[WorkbenchEvent] = []
     try:
         wb_rows = run_query(
-            f"SELECT COUNT(*) AS n FROM {table_ref(WORKBENCH_EVENT_TABLE)} WHERE jsonPayload.session_id = @session_id",
+            "SELECT timestamp AS ts, jsonPayload.server AS server, jsonPayload.tool AS tool, "
+            "jsonPayload.field AS field, jsonPayload.value AS value "
+            f"FROM {table_ref(WORKBENCH_EVENT_TABLE)} "
+            "WHERE jsonPayload.session_id = @session_id "
+            "ORDER BY timestamp",
             params={"session_id": session_id},
         )
-        sim_runs = int(wb_rows[0]["n"]) if wb_rows else 0
+        for row in wb_rows:
+            workbench_events.append(
+                WorkbenchEvent(
+                    timestamp=row["ts"].isoformat(),
+                    server=row["server"] or "",
+                    tool=row["tool"] or "",
+                    field=row["field"] or "",
+                    value=row["value"] or "",
+                )
+            )
     except Exception as exc:
-        log.warning("summarize_session_bq: workbench query failed (%s) — sim_runs=0", exc)
-        sim_runs = 0
+        log.warning("summarize_session_bq: workbench query failed (%s) — events=[]", exc)
+    sim_runs = len(workbench_events)
 
     timestamps = [row["ts"] for row in turn_rows if row["ts"] is not None]
     started = min(timestamps)
@@ -210,6 +241,7 @@ async def summarize_session_bq(session_id: str) -> SessionSummary | None:
         messageCount=len(conversation),
         simRunCount=sim_runs,
         conversation=conversation,
+        workbenchEvents=workbench_events,
     )
 
 
@@ -263,6 +295,7 @@ def find_latest_session_for_group(group_code: str) -> ChatSessionIndex | None:
 __all__ = [
     "SessionSummary",
     "SessionTurn",
+    "WorkbenchEvent",
     "find_latest_session_for_group",
     "resolve_session_summary",
     "summarize_session",

@@ -43,6 +43,14 @@ export interface SessionTurnPayload {
   content: string;
 }
 
+export interface WorkbenchEventPayload {
+  timestamp: string;
+  server: string;
+  tool: string;
+  field: string;
+  value: string;
+}
+
 export interface SessionSummaryPayload {
   sessionId: string;
   groupCode: string | null;
@@ -54,6 +62,7 @@ export interface SessionSummaryPayload {
   simRunCount: number;
   sharedWithTeacher: boolean;
   conversation: SessionTurnPayload[];
+  workbenchEvents?: WorkbenchEventPayload[];
 }
 
 export class NotFoundError extends Error {
