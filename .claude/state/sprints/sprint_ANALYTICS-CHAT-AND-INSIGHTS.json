@@ -7,7 +7,7 @@
   "sprint_plan": "docs/design/aipla/v1.0.0-pilot/analytics-chat-and-insights-sprint.md",
   "branch": "feature/analytics-chat-and-insights",
   "base_commit": "374e9f0",
-  "pr_target": "dev (no PR — commit direct per AIPLA workflow)",
+  "pr_target": "dev (no PR \u2014 commit direct per AIPLA workflow)",
   "features": [
     {
       "id": "M1",
@@ -29,11 +29,14 @@
         "frontend/package.json",
         "frontend/package-lock.json"
       ],
-      "passes": true, "started": "2026-06-02T17:45:00Z", "completed": "2026-06-02T17:55:00Z", "notes": "Shipped in 655ba51. recharts ^3.8.1 installed; _chartsBundle.ts wraps the imports. No source consumes it yet, so recharts is in node_modules but not in any bundle. Baseline student route sizes recorded for M9 comparison: /group 3.85 kB / 109 kB First Load; /lessons 4.92 kB / 216 kB First Load; /chat/[...path] 84.5 kB / 729 kB First Load."
+      "passes": true,
+      "started": "2026-06-02T17:45:00Z",
+      "completed": "2026-06-02T17:55:00Z",
+      "notes": "Shipped in 655ba51. recharts ^3.8.1 installed; _chartsBundle.ts wraps the imports. No source consumes it yet, so recharts is in node_modules but not in any bundle. Baseline student route sizes recorded for M9 comparison: /group 3.85 kB / 109 kB First Load; /lessons 4.92 kB / 216 kB First Load; /chat/[...path] 84.5 kB / 729 kB First Load."
     },
     {
       "id": "M2",
-      "description": "HARD GATE — Shared authorization layer + first analytics query. backend/analytics/auth.py (resolve_caller_class_ids + assert_caller_owns + owned-group_codes resolver). backend/analytics/queries.py with count_messages SQL only. Enumeration-prevention test asserts byte-identical error for class-missing vs class-not-owned.",
+      "description": "HARD GATE \u2014 Shared authorization layer + first analytics query. backend/analytics/auth.py (resolve_caller_class_ids + assert_caller_owns + owned-group_codes resolver). backend/analytics/queries.py with count_messages SQL only. Enumeration-prevention test asserts byte-identical error for class-missing vs class-not-owned.",
       "scope": "backend",
       "estimated_loc": 320,
       "actual_loc": null,
@@ -55,7 +58,10 @@
         "backend/tests/unit/analytics/test_queries_count_messages.py"
       ],
       "files_to_modify": [],
-      "passes": true, "started": "2026-06-02T18:00:00Z", "completed": "2026-06-02T18:20:00Z", "notes": "Shipped in 80ea000. HARD GATE GREEN. test_enumeration_resistance asserts byte-identical PermissionError('class not accessible') for both missing-class and not-owned-class branches via both == and .encode('utf-8') equality. Auth helpers refactored to accept user_uid: str (cleaner with tool_context.state['user:id']) — initial design used the User object. Extended backend/db/bigquery.py run_query() to dispatch param types (str/datetime/int/list) — backward compatible. 15/15 analytics tests + 1572 backend total green."
+      "passes": true,
+      "started": "2026-06-02T18:00:00Z",
+      "completed": "2026-06-02T18:20:00Z",
+      "notes": "Shipped in 80ea000. HARD GATE GREEN. test_enumeration_resistance asserts byte-identical PermissionError('class not accessible') for both missing-class and not-owned-class branches via both == and .encode('utf-8') equality. Auth helpers refactored to accept user_uid: str (cleaner with tool_context.state['user:id']) \u2014 initial design used the User object. Extended backend/db/bigquery.py run_query() to dispatch param types (str/datetime/int/list) \u2014 backward compatible. 15/15 analytics tests + 1572 backend total green."
     },
     {
       "id": "M3",
@@ -63,7 +69,9 @@
       "scope": "backend",
       "estimated_loc": 380,
       "actual_loc": null,
-      "dependencies": ["M2"],
+      "dependencies": [
+        "M2"
+      ],
       "acceptance_criteria": [
         "Four new SQL queries in queries.py, all parameter-bound + group_code-filtered",
         "tools.py exposes count_messages, time_on_task, sim_runs_per_skill, most_active_groups, group_summary as FunctionTool-compatible async functions",
@@ -83,7 +91,10 @@
         "backend/analytics/queries.py",
         "backend/adk/tools.py"
       ],
-      "passes": true, "started": "2026-06-02T18:25:00Z", "completed": "2026-06-02T18:45:00Z", "notes": "Shipped in 69d3bf9. Five new tools in backend/analytics/tools.py: count_messages (wrapper around M2 query), time_on_task, sim_runs_per_skill, most_active_groups, group_summary (Firestore-backed wrapper around list_sessions_for_group_codes). All five registered in TOOL_REGISTRY. Test file test_tools_wrappers.py parametrically asserts each wrapper never calls run_query() if caller doesn't own the class — preserves the HARD GATE at the tool surface. 31/31 analytics + 1588 backend total green."
+      "passes": true,
+      "started": "2026-06-02T18:25:00Z",
+      "completed": "2026-06-02T18:45:00Z",
+      "notes": "Shipped in 69d3bf9. Five new tools in backend/analytics/tools.py: count_messages (wrapper around M2 query), time_on_task, sim_runs_per_skill, most_active_groups, group_summary (Firestore-backed wrapper around list_sessions_for_group_codes). All five registered in TOOL_REGISTRY. Test file test_tools_wrappers.py parametrically asserts each wrapper never calls run_query() if caller doesn't own the class \u2014 preserves the HARD GATE at the tool surface. 31/31 analytics + 1588 backend total green."
     },
     {
       "id": "M4",
@@ -91,7 +102,9 @@
       "scope": "backend",
       "estimated_loc": 280,
       "actual_loc": null,
-      "dependencies": ["M2"],
+      "dependencies": [
+        "M2"
+      ],
       "acceptance_criteria": [
         "summarise_chat_excerpts(class_id, topic_keyword, since, until, sample_size=50) is a FunctionTool",
         "Group codes redacted to G1/G2/... BEFORE the LLM receives them (asserted)",
@@ -108,18 +121,24 @@
         "backend/analytics/tools.py",
         "backend/adk/tools.py"
       ],
-      "passes": true, "started": "2026-06-02T18:50:00Z", "completed": "2026-06-02T19:10:00Z", "notes": "Shipped in 8aa0ffa. backend/analytics/summarise.py with the four deliberate constraints: MAX_SAMPLE_TURNS=200 hard cap; group-code redaction (real codes -> G1/G2/...) before LLM sees them; paraphrase-strict gemini-2.5-flash prompt; post-LLM verbatim-substring filter (VERBATIM_THRESHOLD=40). Tool registered in TOOL_REGISTRY. 6th and final tool for analytics-chat. Tests cover: refusal-without-BQ-or-LLM, sample-size clamp, real-codes-not-in-prompt assertion, drop-on-verbatim-overlap, short-overlap-kept ('acceleration' is fine), malformed LLM response returns empty themes. Mock the Gemini call in unit tests. Integration test against real Gemini is optional and marked @integration. 41/41 analytics + 1598 backend total green."
+      "passes": true,
+      "started": "2026-06-02T18:50:00Z",
+      "completed": "2026-06-02T19:10:00Z",
+      "notes": "Shipped in 8aa0ffa. backend/analytics/summarise.py with the four deliberate constraints: MAX_SAMPLE_TURNS=200 hard cap; group-code redaction (real codes -> G1/G2/...) before LLM sees them; paraphrase-strict gemini-2.5-flash prompt; post-LLM verbatim-substring filter (VERBATIM_THRESHOLD=40). Tool registered in TOOL_REGISTRY. 6th and final tool for analytics-chat. Tests cover: refusal-without-BQ-or-LLM, sample-size clamp, real-codes-not-in-prompt assertion, drop-on-verbatim-overlap, short-overlap-kept ('acceleration' is fine), malformed LLM response returns empty themes. Mock the Gemini call in unit tests. Integration test against real Gemini is optional and marked @integration. 41/41 analytics + 1598 backend total green."
     },
     {
       "id": "M5",
       "description": "Skill wiring + /api/analytics/* routes + aiplatform analytics CLI. Amend analytics-chat SKILL.md to declare the six tools + add citation rules. Add GET /api/analytics/tools and POST /api/analytics/probe/{tool_name} routes. Add three CLI subcommands (tools, probe, ask). Re-seed verification.",
       "scope": "backend+cli",
       "estimated_loc": 410,
-      "actual_loc": null,
-      "dependencies": ["M3", "M4"],
+      "actual_loc": 806,
+      "dependencies": [
+        "M3",
+        "M4"
+      ],
       "acceptance_criteria": [
         "SKILL.md frontmatter tools: lists six tools",
-        "SKILL.md body amended with citation rules (paraphrase + cite numbers + don't guess) — minimal-edit per code-preservation rule",
+        "SKILL.md body amended with citation rules (paraphrase + cite numbers + don't guess) \u2014 minimal-edit per code-preservation rule",
         "GET /api/analytics/tools returns six tool metadata records (teacher-gated)",
         "POST /api/analytics/probe/{tool} runs the tool for an owned class (auth + assert_caller_owns)",
         "Cross-tenant attempt returns same shape as 'class not found'",
@@ -139,7 +158,10 @@
         "backend/fast_api_app.py",
         "cli/aiplatform/cli.py"
       ],
-      "passes": null, "started": null, "completed": null, "notes": "Verify the re-seed picks up the SKILL.md tools change via GET /api/skills/analytics-chat after a backend restart."
+      "passes": true,
+      "started": "2026-06-02T20:00:00Z",
+      "completed": "2026-06-02T18:28:21Z",
+      "notes": "SKILL.md frontmatter tools: lists the six analytics tools; body adds citation rules (paraphrase, cite numbers, don't guess scope, failed access is final) \u2014 minimal edit, replaced only the Data-sources placeholder. backend/protocols/analytics_routes.py adds GET /api/analytics/tools (teacher-gated, returns six descriptors w/ JSON-safe param specs) and POST /api/analytics/probe/{tool} (executes via a SimpleNamespace tool_context stub so analytics tools are untouched). HARD GATE preserved at REST: cross-tenant + missing-class return byte-identical 404 'class not accessible' (assertion: test_cross_tenant_class_returns_identical_payload_as_missing checks .content equality). CLI: aiplatform analytics tools / probe / ask. ask streams the analytics-chat skill via /api/skill/.../stream and prints text deltas + tool-call summary. 9/9 backend route tests + 9/9 CLI tests green. Backend: 1607 passed, 0 failed, 1 skipped (pre-existing). make lint green. CLI tests green; new files formatted. Pre-existing CLI format drift in unrelated files left as-is."
     },
     {
       "id": "M6",
@@ -147,7 +169,9 @@
       "scope": "frontend",
       "estimated_loc": 420,
       "actual_loc": null,
-      "dependencies": ["M5"],
+      "dependencies": [
+        "M5"
+      ],
       "acceptance_criteria": [
         "_AnalyticsChat.tsx renders the AG-UI stream against analytics-chat skill",
         "Mocked MOCK_ANALYTICS_* imports removed from page.tsx",
@@ -167,7 +191,10 @@
         "frontend/src/app/teacher/analytics/page.tsx",
         "frontend/src/app/teacher/analytics/__tests__/page.test.tsx"
       ],
-      "passes": null, "started": null, "completed": null, "notes": "Confirm useSkillAgent surfaces tool-call events cleanly during day-1 of M6; if not, the 'Show data' disclosure falls back to a plain <details> block (per risk register)."
+      "passes": null,
+      "started": null,
+      "completed": null,
+      "notes": "Confirm useSkillAgent surfaces tool-call events cleanly during day-1 of M6; if not, the 'Show data' disclosure falls back to a plain <details> block (per risk register)."
     },
     {
       "id": "M7",
@@ -175,7 +202,9 @@
       "scope": "backend",
       "estimated_loc": 480,
       "actual_loc": null,
-      "dependencies": ["M3"],
+      "dependencies": [
+        "M3"
+      ],
       "acceptance_criteria": [
         "backend/insights/aggregates.py exposes six KPI functions composing M3 queries",
         "backend/insights/cache.py has 60s TTL + (teacher_uid, surface, since, until) key + invalidation hook",
@@ -199,7 +228,10 @@
       "files_to_modify": [
         "backend/fast_api_app.py"
       ],
-      "passes": null, "started": null, "completed": null, "notes": null
+      "passes": null,
+      "started": null,
+      "completed": null,
+      "notes": null
     },
     {
       "id": "M8",
@@ -207,7 +239,9 @@
       "scope": "fullstack",
       "estimated_loc": 360,
       "actual_loc": null,
-      "dependencies": ["M7"],
+      "dependencies": [
+        "M7"
+      ],
       "acceptance_criteria": [
         "aiplatform insights class <id> prints KPI grid (table) and json",
         "aiplatform insights compare prints sortable cross-class table",
@@ -227,7 +261,10 @@
       "files_to_modify": [
         "cli/aiplatform/cli.py"
       ],
-      "passes": null, "started": null, "completed": null, "notes": null
+      "passes": null,
+      "started": null,
+      "completed": null,
+      "notes": null
     },
     {
       "id": "M9",
@@ -235,7 +272,10 @@
       "scope": "frontend",
       "estimated_loc": 540,
       "actual_loc": null,
-      "dependencies": ["M7", "M8"],
+      "dependencies": [
+        "M7",
+        "M8"
+      ],
       "acceptance_criteria": [
         "KpiCard renders value + unit + delta + definition tooltip + 'Show data' disclosure",
         "EngagementBar renders horizontal bars sorted by value with click-to-deep-link",
@@ -262,7 +302,10 @@
         "frontend/src/app/teacher/classes/page.tsx",
         "frontend/src/app/teacher/classes/[id]/page.tsx"
       ],
-      "passes": null, "started": null, "completed": null, "notes": null
+      "passes": null,
+      "started": null,
+      "completed": null,
+      "notes": null
     },
     {
       "id": "M10",
@@ -270,7 +313,10 @@
       "scope": "fullstack",
       "estimated_loc": 280,
       "actual_loc": null,
-      "dependencies": ["M6", "M9"],
+      "dependencies": [
+        "M6",
+        "M9"
+      ],
       "acceptance_criteria": [
         "analytics_chat.evalset.json contains six tool cases + one cross-tenant refusal case",
         "make eval passes all seven evalset cases",
@@ -292,7 +338,10 @@
         "frontend/src/components/teacher/insights/TrendSparkline.tsx",
         "frontend/src/components/teacher/insights/CrossClassTable.tsx"
       ],
-      "passes": null, "started": null, "completed": null, "notes": "Use the design-doc-creator move_to_implemented script for the doc moves."
+      "passes": null,
+      "started": null,
+      "completed": null,
+      "notes": "Use the design-doc-creator move_to_implemented script for the doc moves."
     }
   ],
   "velocity": {
@@ -303,13 +352,33 @@
   "history": [
     {
       "date": "2026-06-02",
-      "milestones_completed": ["M1", "M2", "M3", "M4"],
+      "milestones_completed": [
+        "M1",
+        "M2",
+        "M3",
+        "M4"
+      ],
       "commits": [
-        {"sha": "3ca60ab", "subject": "docs(sprint): ANALYTICS-CHAT-AND-INSIGHTS plan"},
-        {"sha": "655ba51", "subject": "M1: recharts + _chartsBundle.ts code-split wrapper"},
-        {"sha": "80ea000", "subject": "M2: shared auth layer + count_messages query (HARD GATE)"},
-        {"sha": "69d3bf9", "subject": "M3: 5 FunctionTool wrappers + 3 more BQ queries"},
-        {"sha": "8aa0ffa", "subject": "M4: summarise_chat_excerpts (bounded sample + LLM paraphrase)"}
+        {
+          "sha": "3ca60ab",
+          "subject": "docs(sprint): ANALYTICS-CHAT-AND-INSIGHTS plan"
+        },
+        {
+          "sha": "655ba51",
+          "subject": "M1: recharts + _chartsBundle.ts code-split wrapper"
+        },
+        {
+          "sha": "80ea000",
+          "subject": "M2: shared auth layer + count_messages query (HARD GATE)"
+        },
+        {
+          "sha": "69d3bf9",
+          "subject": "M3: 5 FunctionTool wrappers + 3 more BQ queries"
+        },
+        {
+          "sha": "8aa0ffa",
+          "subject": "M4: summarise_chat_excerpts (bounded sample + LLM paraphrase)"
+        }
       ],
       "loc_total": 1140,
       "tests_status": "41/41 analytics + 1598 backend total green; lint + format clean",

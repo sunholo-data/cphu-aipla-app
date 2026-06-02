@@ -11,6 +11,7 @@ import click
 
 from aiplatform import __version__
 from aiplatform.commands.access import access
+from aiplatform.commands.analytics import analytics
 from aiplatform.commands.bucket import bucket
 from aiplatform.commands.class_ import class_group
 from aiplatform.commands.docs import docs
@@ -50,6 +51,7 @@ main.add_command(sessions)
 main.add_command(sim)
 main.add_command(smoke)
 main.add_command(class_group)
+main.add_command(analytics)
 
 
 if __name__ == "__main__":
