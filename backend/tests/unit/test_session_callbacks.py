@@ -61,13 +61,13 @@ def _make_ctx(
 
 
 class TestMakeSessionTracker:
-    @patch("adk.callbacks.create_session_index", create=True)
+    @patch("adk.callbacks.session.create_session_index", create=True)
     @patch("db.chat_sessions.create_session_index")
     def test_creates_index_on_first_turn(self, mock_create, _mock2):
         tracker = make_session_tracker("uid-owner", "skill-x")
         ctx = _make_ctx(initialized=False)
 
-        with patch("adk.callbacks._derive_access_control", return_value=AccessControl(type="private")):
+        with patch("adk.callbacks.session._derive_access_control", return_value=AccessControl(type="private")):
             tracker(ctx)
 
         mock_create.assert_called_once()
@@ -78,7 +78,7 @@ class TestMakeSessionTracker:
         assert ctx.state[_STATE_INITIALIZED] is True
         assert ctx.state[_STATE_TURN_COUNT] == 0
 
-    @patch("adk.callbacks.create_session_index", create=True)
+    @patch("adk.callbacks.session.create_session_index", create=True)
     @patch("db.chat_sessions.create_session_index")
     def test_passes_full_document_ids_list(self, mock_create, _mock2):
         """First-turn index creation must include every doc the user attached
@@ -87,7 +87,7 @@ class TestMakeSessionTracker:
         tracker = make_session_tracker("uid-owner", "skill-x")
         ctx = _make_ctx(initialized=False, document_ids=["docA", "docB", "docC"])
 
-        with patch("adk.callbacks._derive_access_control", return_value=AccessControl(type="private")):
+        with patch("adk.callbacks.session._derive_access_control", return_value=AccessControl(type="private")):
             tracker(ctx)
 
         mock_create.assert_called_once()
@@ -102,7 +102,7 @@ class TestMakeSessionTracker:
 
         mock_create.assert_not_called()
 
-    @patch("adk.callbacks.get_session_index", create=True)
+    @patch("adk.callbacks.session.get_session_index", create=True)
     @patch("db.chat_sessions.create_session_index")
     def test_create_session_index_is_idempotent(self, mock_create, mock_get):
         """B1 idempotency (chat-history-fixes): when ``process_skill_request``
@@ -145,7 +145,7 @@ class TestMakeSessionTracker:
         tracker = make_session_tracker("uid-owner", "skill-x")
         ctx = _make_ctx(initialized=False)
 
-        with patch("adk.callbacks._derive_access_control", return_value=AccessControl(type="private")):
+        with patch("adk.callbacks.session._derive_access_control", return_value=AccessControl(type="private")):
             tracker(ctx)  # must not raise
 
         assert _STATE_INITIALIZED not in ctx.state  # flag not set on failure
@@ -196,7 +196,7 @@ class TestMakeAfterAgentResponse:
 
         mock_update.assert_called_once()
 
-    @patch("adk.callbacks._try_generate_title", return_value="Revenue drivers Q1")
+    @patch("adk.callbacks.session._try_generate_title", return_value="Revenue drivers Q1")
     @patch("db.chat_sessions.update_session_fields")
     def test_generates_title_after_turn_2(self, mock_update, mock_title):
         cb = make_after_agent_response()
@@ -208,7 +208,7 @@ class TestMakeAfterAgentResponse:
         update_kwargs = mock_update.call_args[0][1]
         assert update_kwargs["title"] == "Revenue drivers Q1"
 
-    @patch("adk.callbacks._try_generate_title", return_value="some title")
+    @patch("adk.callbacks.session._try_generate_title", return_value="some title")
     @patch("db.chat_sessions.update_session_fields")
     def test_no_title_on_turn_1(self, mock_update, mock_title):
         cb = make_after_agent_response()
@@ -218,7 +218,7 @@ class TestMakeAfterAgentResponse:
 
         mock_title.assert_not_called()
 
-    @patch("adk.callbacks._try_generate_title", return_value="some title")
+    @patch("adk.callbacks.session._try_generate_title", return_value="some title")
     @patch("db.chat_sessions.update_session_fields")
     def test_no_title_on_turn_3(self, mock_update, mock_title):
         cb = make_after_agent_response()
@@ -243,7 +243,7 @@ class TestMakeAfterAgentResponse:
             cb(ctx)
             mock_update.assert_not_called()
 
-    @patch("adk.callbacks.add_session_documents", create=True)
+    @patch("adk.callbacks.session.add_session_documents", create=True)
     @patch("db.chat_sessions.update_session_fields")
     def test_after_agent_callback_syncs_document_ids_to_firestore_index(self, _mock_update, mock_add):
         """B2 (chat-history-fixes): docs added to ADK session state after turn 1
@@ -271,7 +271,7 @@ class TestMakeAfterAgentResponse:
 
         mock_add.assert_called_once_with("sess-1", ["docA", "docB", "docC"])
 
-    @patch("adk.callbacks._try_generate_title")
+    @patch("adk.callbacks.session._try_generate_title")
     @patch("db.chat_sessions.update_session_fields")
     def test_title_regenerates_when_turn_two_returns_empty(self, mock_update, mock_title):
         """B3 (chat-history-fixes): if turn-2 title generation returns ``None``

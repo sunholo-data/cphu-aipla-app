@@ -82,7 +82,7 @@ def test_before_agent_sets_skill_id_on_current_span():
     ctx.state = {}
     from unittest.mock import patch
 
-    with patch("adk.callbacks.trace.get_current_span", return_value=mock_span):
+    with patch("adk.callbacks.permission.trace.get_current_span", return_value=mock_span):
         cb(callback_context=ctx)  # ADK calls by keyword; parameter name is enforced.
     mock_span.set_attribute.assert_any_call("skill_id", "my-skill-id")
 
@@ -94,7 +94,7 @@ def test_before_agent_sets_routing_choice_when_present_in_state():
     ctx.state = {"routing_choice": "thinking"}
     from unittest.mock import patch
 
-    with patch("adk.callbacks.trace.get_current_span", return_value=mock_span):
+    with patch("adk.callbacks.permission.trace.get_current_span", return_value=mock_span):
         cb(callback_context=ctx)  # ADK calls by keyword; parameter name is enforced.
     mock_span.set_attribute.assert_any_call("routing_choice", "thinking")
 
@@ -106,7 +106,7 @@ def test_before_agent_skips_routing_choice_when_absent():
     ctx.state = {}
     from unittest.mock import patch
 
-    with patch("adk.callbacks.trace.get_current_span", return_value=mock_span):
+    with patch("adk.callbacks.permission.trace.get_current_span", return_value=mock_span):
         cb(callback_context=ctx)  # ADK calls by keyword; parameter name is enforced.
     # Only skill_id should be set; no routing_choice.
     call_args = [c.args for c in mock_span.set_attribute.call_args_list]

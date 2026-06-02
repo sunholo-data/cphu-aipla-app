@@ -1,12 +1,9 @@
 import { AppFooter } from "@/components/AppFooter";
 import { BackendHealthBadge } from "@/components/BackendHealthBadge";
-import { MySkillsButton } from "@/components/MySkillsButton";
 import { SignInButton } from "@/components/SignInButton";
 import { skillHref } from "@/components/navigation/skillHref";
 import { BRANDING } from "@/lib/branding";
 import Link from "next/link";
-
-const SHOW_DEV_PROBES = process.env.NEXT_PUBLIC_SHOW_DEV_PROBES === "true";
 
 interface SkillSummary {
   skillId: string;
@@ -68,7 +65,6 @@ export default async function HomePage() {
           <SignInButton />
         )}
         <BackendHealthBadge />
-        {SHOW_DEV_PROBES && <MySkillsButton />}
 
         {skills.length > 0 && (
           <div className="w-full mt-4">
