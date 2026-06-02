@@ -18,7 +18,6 @@ from analytics.auth import (
     resolve_caller_class_ids,
     resolve_caller_group_codes,
 )
-from auth import User
 from db import classes as classes_db
 from db import firestore as fs_module
 from db.models.class_ import Class
@@ -37,10 +36,6 @@ def _local_firestore(monkeypatch):
     AnonymousGroupAuth.reset_for_tests()
 
 
-def _user(uid: str, is_teacher: bool = True) -> User:
-    return User(uid=uid, email=f"{uid}@example.com", is_teacher=is_teacher)
-
-
 def _seed_class(owner_uid: str, *, name: str = "Test Class", group_codes: list[str] | None = None) -> Class:
     cls = Class.create_for_teacher(owner_uid=owner_uid, name=name)
     if group_codes:
@@ -56,7 +51,7 @@ class TestEnumerationResistance:
 
     def test_enumeration_resistance(self) -> None:
         """Missing class and not-owned class raise byte-identical error."""
-        teacher_a = _user("teacher-A")
+        teacher_a = "teacher-A"
         # cls_b is owned by teacher-B (the owner_uid passed to _seed_class);
         # teacher-A trying to access it should look identical to a missing class.
         cls_b = _seed_class("teacher-B")
@@ -84,7 +79,7 @@ class TestEnumerationResistance:
         """Sanity check: the test correctly detects the difference
         between forbidden and allowed. Without this, the byte-identity
         assertion above could be vacuously true if every call raised."""
-        teacher = _user("teacher-1")
+        teacher = "teacher-1"
         cls = _seed_class("teacher-1")
         # No raise = pass.
         assert_caller_owns(teacher, cls.class_id)
@@ -92,7 +87,7 @@ class TestEnumerationResistance:
     def test_owner_check_does_not_leak_via_class_existence_lookup(self) -> None:
         """Defensive: even if both classes exist, the non-owner gets
         the same message as if the class were missing."""
-        teacher_a = _user("teacher-A")
+        teacher_a = "teacher-A"
         cls_a = _seed_class("teacher-A", name="Class A")
         cls_b = _seed_class("teacher-B", name="Class B")
         # teacher-A owns cls_a; passes.
@@ -105,11 +100,11 @@ class TestEnumerationResistance:
 
 class TestResolveCallerClassIds:
     def test_returns_empty_set_for_teacher_with_no_classes(self) -> None:
-        teacher = _user("teacher-empty")
+        teacher = "teacher-empty"
         assert resolve_caller_class_ids(teacher) == set()
 
     def test_returns_owned_class_ids(self) -> None:
-        teacher = _user("teacher-multi")
+        teacher = "teacher-multi"
         c1 = _seed_class("teacher-multi", name="Class 1")
         c2 = _seed_class("teacher-multi", name="Class 2")
         _seed_class("teacher-other", name="Other teacher's class")
@@ -118,16 +113,16 @@ class TestResolveCallerClassIds:
 
 class TestResolveCallerGroupCodes:
     def test_empty_when_no_classes(self) -> None:
-        teacher = _user("teacher-empty")
+        teacher = "teacher-empty"
         assert resolve_caller_group_codes(teacher) == set()
 
     def test_empty_when_classes_have_no_group_codes(self) -> None:
-        teacher = _user("teacher-newish")
+        teacher = "teacher-newish"
         _seed_class("teacher-newish")
         assert resolve_caller_group_codes(teacher) == set()
 
     def test_union_across_classes(self) -> None:
-        teacher = _user("teacher-multi")
+        teacher = "teacher-multi"
         _seed_class("teacher-multi", name="Class 1", group_codes=["a-b-1", "a-b-2"])
         _seed_class("teacher-multi", name="Class 2", group_codes=["c-d-3"])
         _seed_class("teacher-other", name="Other", group_codes=["x-y-99"])  # excluded

@@ -24,7 +24,7 @@ from __future__ import annotations
 from datetime import datetime
 from typing import Any
 
-from db.bigquery import CHAT_TURN_TABLE, run_query, table_ref
+from db.bigquery import CHAT_TURN_TABLE, WORKBENCH_EVENT_TABLE, run_query, table_ref
 
 
 def count_messages(
@@ -74,4 +74,169 @@ def count_messages(
     return {"total": total, "per_group": per_group}
 
 
-__all__ = ["count_messages"]
+def time_on_task(
+    *,
+    since: datetime,
+    until: datetime,
+    allowed_group_codes: list[str],
+    class_group_codes: list[str],
+) -> dict[str, Any]:
+    """Per-group, per-skill time-on-task window from first to last chat
+    turn in the period.
+
+    Returns ``{"per_group": [{"group_code", "skill_id", "first_ts",
+    "last_ts", "duration_min"}, ...]}``. ``duration_min`` is an integer
+    minute count (``TIMESTAMP_DIFF`` with MINUTE granularity); short
+    sessions show as 0 — that's correct.
+    """
+    if not class_group_codes or not allowed_group_codes:
+        return {"per_group": []}
+
+    sql = f"""
+        SELECT
+          jsonPayload.group_id AS group_code,
+          jsonPayload.skill_id AS skill_id,
+          MIN(timestamp) AS first_ts,
+          MAX(timestamp) AS last_ts,
+          TIMESTAMP_DIFF(MAX(timestamp), MIN(timestamp), MINUTE) AS duration_min
+        FROM {table_ref(CHAT_TURN_TABLE)}
+        WHERE jsonPayload.group_id IN UNNEST(@class_group_codes)
+          AND jsonPayload.group_id IN UNNEST(@allowed_group_codes)
+          AND timestamp BETWEEN @since AND @until
+        GROUP BY group_code, skill_id
+        ORDER BY group_code, skill_id
+    """.strip()
+
+    rows = run_query(
+        sql,
+        params={
+            "since": since,
+            "until": until,
+            "class_group_codes": list(class_group_codes),
+            "allowed_group_codes": list(allowed_group_codes),
+        },
+    )
+
+    per_group = [
+        {
+            "group_code": r["group_code"],
+            "skill_id": r["skill_id"],
+            "first_ts": r["first_ts"].isoformat() if hasattr(r["first_ts"], "isoformat") else r["first_ts"],
+            "last_ts": r["last_ts"].isoformat() if hasattr(r["last_ts"], "isoformat") else r["last_ts"],
+            "duration_min": int(r["duration_min"]),
+        }
+        for r in rows
+    ]
+    return {"per_group": per_group}
+
+
+def sim_runs_per_skill(
+    *,
+    since: datetime,
+    until: datetime,
+    allowed_group_codes: list[str],
+    class_group_codes: list[str],
+) -> dict[str, Any]:
+    """Sim-run counts grouped by skill_id, with distinct-group counts.
+
+    Filters the workbench_event table for ``tool = 'sim_run'`` — other
+    workbench event types (slider settle, state-change) are excluded
+    so ``sim_runs`` matches the SKILL.md-aligned interpretation.
+    """
+    if not class_group_codes or not allowed_group_codes:
+        return {"per_skill": [], "total": 0}
+
+    sql = f"""
+        SELECT
+          jsonPayload.skill_id AS skill_id,
+          COUNT(*) AS run_count,
+          COUNT(DISTINCT jsonPayload.group_id) AS unique_groups
+        FROM {table_ref(WORKBENCH_EVENT_TABLE)}
+        WHERE jsonPayload.tool = 'sim_run'
+          AND jsonPayload.group_id IN UNNEST(@class_group_codes)
+          AND jsonPayload.group_id IN UNNEST(@allowed_group_codes)
+          AND timestamp BETWEEN @since AND @until
+        GROUP BY skill_id
+        ORDER BY run_count DESC
+    """.strip()
+
+    rows = run_query(
+        sql,
+        params={
+            "since": since,
+            "until": until,
+            "class_group_codes": list(class_group_codes),
+            "allowed_group_codes": list(allowed_group_codes),
+        },
+    )
+
+    per_skill = [
+        {
+            "skill_id": r["skill_id"],
+            "run_count": int(r["run_count"]),
+            "unique_groups": int(r["unique_groups"]),
+        }
+        for r in rows
+    ]
+    total = sum(s["run_count"] for s in per_skill)
+    return {"per_skill": per_skill, "total": total}
+
+
+def most_active_groups(
+    *,
+    since: datetime,
+    until: datetime,
+    allowed_group_codes: list[str],
+    class_group_codes: list[str],
+    limit: int = 10,
+) -> dict[str, Any]:
+    """Top groups by message_count, with session_count alongside.
+
+    ``limit`` is bound to a sane range (1..100) at the API layer; this
+    function trusts the caller.
+    """
+    if not class_group_codes or not allowed_group_codes:
+        return {"groups": []}
+
+    sql = f"""
+        SELECT
+          jsonPayload.group_id AS group_code,
+          COUNT(*) AS message_count,
+          COUNT(DISTINCT jsonPayload.session_id) AS session_count
+        FROM {table_ref(CHAT_TURN_TABLE)}
+        WHERE jsonPayload.group_id IN UNNEST(@class_group_codes)
+          AND jsonPayload.group_id IN UNNEST(@allowed_group_codes)
+          AND timestamp BETWEEN @since AND @until
+        GROUP BY group_code
+        ORDER BY message_count DESC
+        LIMIT @limit
+    """.strip()
+
+    rows = run_query(
+        sql,
+        params={
+            "since": since,
+            "until": until,
+            "class_group_codes": list(class_group_codes),
+            "allowed_group_codes": list(allowed_group_codes),
+            "limit": int(limit),
+        },
+    )
+
+    groups = [
+        {
+            "group_code": r["group_code"],
+            "message_count": int(r["message_count"]),
+            "session_count": int(r["session_count"]),
+        }
+        for r in rows
+    ]
+    return {"groups": groups}
+
+
+__all__ = [
+    "count_messages",
+    "most_active_groups",
+    "sim_runs_per_skill",
+    "time_on_task",
+]

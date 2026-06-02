@@ -25,7 +25,6 @@ Compliance Check.
 
 from __future__ import annotations
 
-from auth import User
 from db.classes import get_class, list_classes_for_owner
 
 #: Byte-identical message used for every authorization failure. Tests
@@ -35,20 +34,22 @@ from db.classes import get_class, list_classes_for_owner
 PERMISSION_ERROR_MESSAGE = "class not accessible"
 
 
-def resolve_caller_class_ids(user: User) -> set[str]:
+def resolve_caller_class_ids(user_uid: str) -> set[str]:
     """Return the set of class ids the caller owns.
 
     Revoked classes are excluded (the caller should not query data
     against a class they have retired). LOCAL_MODE / workshop users
     flagged ``is_teacher=True`` go through the same path; their
-    class set is whatever ``list_classes_for_owner(user.uid)``
-    returns.
+    class set is whatever ``list_classes_for_owner(user_uid)`` returns.
+
+    Routes pass ``user.uid``; tools pull from
+    ``tool_context.state["user:id"]``.
     """
-    classes = list_classes_for_owner(user.uid)
+    classes = list_classes_for_owner(user_uid)
     return {c.class_id for c in classes}
 
 
-def resolve_caller_group_codes(user: User) -> set[str]:
+def resolve_caller_group_codes(user_uid: str) -> set[str]:
     """Return the union of ``group_codes`` across the caller's owned
     classes.
 
@@ -57,14 +58,14 @@ def resolve_caller_group_codes(user: User) -> set[str]:
     minted group codes — queries should short-circuit and return zero
     rows rather than hit BQ with an empty IN-list.
     """
-    classes = list_classes_for_owner(user.uid)
+    classes = list_classes_for_owner(user_uid)
     codes: set[str] = set()
     for c in classes:
         codes.update(c.group_codes)
     return codes
 
 
-def assert_caller_owns(user: User, class_id: str) -> None:
+def assert_caller_owns(user_uid: str, class_id: str) -> None:
     """Raise :class:`PermissionError` unless the caller owns
     ``class_id``.
 
@@ -79,7 +80,7 @@ def assert_caller_owns(user: User, class_id: str) -> None:
     level (which would leak via Cloud Logging).
     """
     cls = get_class(class_id)
-    if cls is None or cls.owner_uid != user.uid:
+    if cls is None or cls.owner_uid != user_uid:
         raise PermissionError(PERMISSION_ERROR_MESSAGE)
 
 

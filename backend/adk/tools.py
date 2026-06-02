@@ -24,6 +24,7 @@ from collections.abc import Callable
 
 from google.adk.tools import FunctionTool, ToolContext
 
+from analytics import tools as _analytics_tools
 from db.firestore import query_documents
 from tools.documents.context import build_document_context
 from tools.url_processing import url_processing
@@ -135,6 +136,13 @@ TOOL_REGISTRY: dict[str, Callable[[dict], FunctionTool]] = {
     "list_documents": lambda _config: FunctionTool(list_documents),
     "get_document_content": lambda _config: FunctionTool(get_document_content),
     "url_processing": lambda _config: FunctionTool(url_processing),
+    # Analytics tools — see backend/analytics/tools.py + the
+    # docs/design/aipla/v1.0.0-pilot/analytics-chat-tools.md spec.
+    "count_messages": lambda _config: FunctionTool(_analytics_tools.count_messages),
+    "time_on_task": lambda _config: FunctionTool(_analytics_tools.time_on_task),
+    "sim_runs_per_skill": lambda _config: FunctionTool(_analytics_tools.sim_runs_per_skill),
+    "most_active_groups": lambda _config: FunctionTool(_analytics_tools.most_active_groups),
+    "group_summary": lambda _config: FunctionTool(_analytics_tools.group_summary),
 }
 
 # Tools handled entirely outside this registry (no ValueError for these)
