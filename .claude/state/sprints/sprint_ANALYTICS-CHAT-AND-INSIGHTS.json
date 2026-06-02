@@ -29,7 +29,7 @@
         "frontend/package.json",
         "frontend/package-lock.json"
       ],
-      "passes": null, "started": null, "completed": null, "notes": "Run `npx next build` and grep the route bundle column to verify."
+      "passes": true, "started": "2026-06-02T17:45:00Z", "completed": "2026-06-02T17:55:00Z", "notes": "Shipped in 655ba51. recharts ^3.8.1 installed; _chartsBundle.ts wraps the imports. No source consumes it yet, so recharts is in node_modules but not in any bundle. Baseline student route sizes recorded for M9 comparison: /group 3.85 kB / 109 kB First Load; /lessons 4.92 kB / 216 kB First Load; /chat/[...path] 84.5 kB / 729 kB First Load."
     },
     {
       "id": "M2",
@@ -55,7 +55,7 @@
         "backend/tests/unit/analytics/test_queries_count_messages.py"
       ],
       "files_to_modify": [],
-      "passes": null, "started": null, "completed": null, "notes": "This is the hard gate — if enumeration test fails, stop and redesign. Per the sprint plan no later milestone may proceed with this gate red."
+      "passes": true, "started": "2026-06-02T18:00:00Z", "completed": "2026-06-02T18:20:00Z", "notes": "Shipped in 80ea000. HARD GATE GREEN. test_enumeration_resistance asserts byte-identical PermissionError('class not accessible') for both missing-class and not-owned-class branches via both == and .encode('utf-8') equality. Auth helpers refactored to accept user_uid: str (cleaner with tool_context.state['user:id']) — initial design used the User object. Extended backend/db/bigquery.py run_query() to dispatch param types (str/datetime/int/list) — backward compatible. 15/15 analytics tests + 1572 backend total green."
     },
     {
       "id": "M3",
@@ -83,7 +83,7 @@
         "backend/analytics/queries.py",
         "backend/adk/tools.py"
       ],
-      "passes": null, "started": null, "completed": null, "notes": null
+      "passes": true, "started": "2026-06-02T18:25:00Z", "completed": "2026-06-02T18:45:00Z", "notes": "Shipped in 69d3bf9. Five new tools in backend/analytics/tools.py: count_messages (wrapper around M2 query), time_on_task, sim_runs_per_skill, most_active_groups, group_summary (Firestore-backed wrapper around list_sessions_for_group_codes). All five registered in TOOL_REGISTRY. Test file test_tools_wrappers.py parametrically asserts each wrapper never calls run_query() if caller doesn't own the class — preserves the HARD GATE at the tool surface. 31/31 analytics + 1588 backend total green."
     },
     {
       "id": "M4",
@@ -108,7 +108,7 @@
         "backend/analytics/tools.py",
         "backend/adk/tools.py"
       ],
-      "passes": null, "started": null, "completed": null, "notes": "Mock the Gemini call in unit tests. Integration test against real Gemini is optional and marked @integration."
+      "passes": true, "started": "2026-06-02T18:50:00Z", "completed": "2026-06-02T19:10:00Z", "notes": "Shipped in 8aa0ffa. backend/analytics/summarise.py with the four deliberate constraints: MAX_SAMPLE_TURNS=200 hard cap; group-code redaction (real codes -> G1/G2/...) before LLM sees them; paraphrase-strict gemini-2.5-flash prompt; post-LLM verbatim-substring filter (VERBATIM_THRESHOLD=40). Tool registered in TOOL_REGISTRY. 6th and final tool for analytics-chat. Tests cover: refusal-without-BQ-or-LLM, sample-size clamp, real-codes-not-in-prompt assertion, drop-on-verbatim-overlap, short-overlap-kept ('acceleration' is fine), malformed LLM response returns empty themes. Mock the Gemini call in unit tests. Integration test against real Gemini is optional and marked @integration. 41/41 analytics + 1598 backend total green."
     },
     {
       "id": "M5",
@@ -297,8 +297,24 @@
   ],
   "velocity": {
     "target_loc_per_day": 700,
-    "actual_loc_per_day": null,
+    "actual_loc_per_day": 1140,
     "estimated_total_loc": 3530
   },
-  "history": []
+  "history": [
+    {
+      "date": "2026-06-02",
+      "milestones_completed": ["M1", "M2", "M3", "M4"],
+      "commits": [
+        {"sha": "3ca60ab", "subject": "docs(sprint): ANALYTICS-CHAT-AND-INSIGHTS plan"},
+        {"sha": "655ba51", "subject": "M1: recharts + _chartsBundle.ts code-split wrapper"},
+        {"sha": "80ea000", "subject": "M2: shared auth layer + count_messages query (HARD GATE)"},
+        {"sha": "69d3bf9", "subject": "M3: 5 FunctionTool wrappers + 3 more BQ queries"},
+        {"sha": "8aa0ffa", "subject": "M4: summarise_chat_excerpts (bounded sample + LLM paraphrase)"}
+      ],
+      "loc_total": 1140,
+      "tests_status": "41/41 analytics + 1598 backend total green; lint + format clean",
+      "next_milestone": "M5",
+      "notes": "M2 HARD GATE GREEN. Six analytics FunctionTools registered in TOOL_REGISTRY (count_messages, time_on_task, sim_runs_per_skill, most_active_groups, group_summary, summarise_chat_excerpts). Every tool enforces caller-uid -> assert_caller_owns -> resolve owned group_codes -> query order. The shared backend/analytics/ package is now consumable by both 1.L (M5+M6) and 1.M (M7-M9). Resume at M5: amend backend/skills/templates/analytics-chat/SKILL.md tools: list + citation rules, add backend/protocols/analytics_routes.py (GET /api/analytics/tools + POST /api/analytics/probe/{tool}), add cli/aiplatform/commands/analytics.py with tools/probe/ask subcommands."
+    }
+  ]
 }
