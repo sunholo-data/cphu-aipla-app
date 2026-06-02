@@ -66,6 +66,24 @@ class TestCallerUidGate:
             await tools.count_messages("any-class", tool_context=ctx)
         assert str(exc.value) == PERMISSION_ERROR_MESSAGE
 
+    async def test_uid_from_invocation_context_when_state_missing(self) -> None:
+        """The production chat-flow path: ADK's runner wires the user_id
+        into ``tool_context._invocation_context.user_id``. Nothing in the
+        codebase writes ``state['user:id']`` during a chat turn, so the
+        tool must fall back to ``_invocation_context`` or every chat-
+        driven analytics call refuses with 'class not accessible' even
+        when the user owns the class. Caught in dev 2026-06-02."""
+        cls = _seed_class("teacher-A")
+        invocation_ctx = MagicMock()
+        invocation_ctx.user_id = "teacher-A"  # string, not MagicMock
+        ctx = MagicMock()
+        ctx.state = {}
+        ctx._invocation_context = invocation_ctx
+        # Should NOT raise — uid resolved from invocation_context.
+        with patch("analytics.tools.queries.count_messages", return_value={"total": 0, "per_group": []}):
+            result = await tools.count_messages(cls.class_id, tool_context=ctx)
+        assert result == {"total": 0, "per_group": []}
+
 
 class TestCrossTenantRefusal:
     """Identical refusal for missing and not-owned classes — the same

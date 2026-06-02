@@ -28,13 +28,15 @@
 
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Lightbulb, Send, Sparkles } from "lucide-react";
 
 import { AGUIProvider } from "@/providers/AGUIProvider";
 import { useSkillAgent, type ToolCallState } from "@/hooks/useSkillAgent";
+import { fetchWithTeacherAuth } from "@/lib/apiClient";
 
-const SKILL_ID = "analytics-chat";
+const SKILL_NAME = "analytics-chat";
+const PLATFORM_OWNER_ID = "aipla-platform";
 
 export const SUGGESTED_QUESTIONS = [
   "How many messages did groups send this week?",
@@ -54,13 +56,64 @@ interface AnalyticsChatProps {
  * scoped to the analytics-chat skill. Re-mounts when `classId` changes
  * via the React `key` — that resets the AG-UI session so a previous
  * class's conversation doesn't leak into the next one.
+ *
+ * The backend's `/api/skill/{skill_id}/stream` endpoint resolves
+ * `{skill_id}` as the Firestore UUID, not the slug. We resolve the
+ * `analytics-chat` slug to its UUID via `/api/skills/by-slug/...`
+ * before mounting AGUIProvider — otherwise the stream POST hits 404
+ * "Skill not found". Caught in dev 2026-06-02 (RUN_ERROR on submit).
  */
 export function AnalyticsChat(props: AnalyticsChatProps) {
+  const [skillId, setSkillId] = useState<string | null>(null);
+  const [resolveError, setResolveError] = useState<string | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    setResolveError(null);
+    fetchWithTeacherAuth(
+      `/api/proxy/api/skills/by-slug/${encodeURIComponent(PLATFORM_OWNER_ID)}/${encodeURIComponent(SKILL_NAME)}`,
+    )
+      .then(async (res) => {
+        if (cancelled) return;
+        if (!res.ok) {
+          throw new Error(
+            res.status === 404
+              ? "Analytics-chat skill is not registered on this environment yet — run scripts/seed-platform-skills.sh."
+              : `failed to resolve skill (${res.status})`,
+          );
+        }
+        const body = (await res.json()) as { skillId?: string; skill_id?: string };
+        const id = body.skillId ?? body.skill_id;
+        if (!id) throw new Error("skill resolution returned no id");
+        setSkillId(id);
+      })
+      .catch((e) => {
+        if (!cancelled) setResolveError(e instanceof Error ? e.message : String(e));
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
   if (!props.classId) {
     return <EmptyState />;
   }
+  if (resolveError) {
+    return (
+      <div role="alert" className="rounded border border-destructive bg-destructive/10 p-3 text-sm text-destructive">
+        {resolveError}
+      </div>
+    );
+  }
+  if (!skillId) {
+    return (
+      <p className="text-sm text-muted-foreground" data-testid="analytics-chat-loading">
+        Loading chat…
+      </p>
+    );
+  }
   return (
-    <AGUIProvider key={props.classId} skillId={SKILL_ID}>
+    <AGUIProvider key={`${skillId}:${props.classId}`} skillId={skillId}>
       <AnalyticsChatInner {...props} />
     </AGUIProvider>
   );
