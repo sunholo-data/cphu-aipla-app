@@ -289,6 +289,13 @@ def list_sessions_for_group_codes(
                 continue  # skip archived sessions
             if idx.session_id in seen:
                 continue
+            # Backfill groupCode for sessions written before make_session_tracker
+            # learned to pass group_id (2026-06-02). We matched them via the
+            # ownerUid prefix; the loop variable `code` IS the group code we
+            # matched on, so we can fill the display field reliably. Frontend
+            # uses this to render the badge + deep-link to the session.
+            if not idx.group_code:
+                idx.group_code = code
             seen.add(idx.session_id)
             results.append(idx)
     results.sort(key=lambda s: s.last_message_at, reverse=True)

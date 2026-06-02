@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import {
   ArrowRight,
   BookOpen,
@@ -14,7 +14,9 @@ import {
 import {
   type ClassPayload,
   type SessionRow,
+  type SkillSummary,
   createClass,
+  listAccessibleSkills,
   listClassRecentSessions,
   listClasses,
 } from "@/lib/teacherApi";
@@ -34,8 +36,19 @@ function relativeTime(iso: string): string {
 export default function TeacherClassesPage() {
   const [classes, setClasses] = useState<ClassPayload[] | null>(null);
   const [recentSessions, setRecentSessions] = useState<SessionRow[]>([]);
+  const [catalogue, setCatalogue] = useState<SkillSummary[]>([]);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [showNewClassForm, setShowNewClassForm] = useState(false);
+
+  // Skill displayName lookup so we can fall back to the lesson name when a
+  // session hasn't generated a title yet (titles are auto-generated after
+  // turn 2; row #1 of a fresh session would otherwise read "1 turn · just
+  // now" with no identifier).
+  const skillNameById = useMemo<Map<string, string>>(() => {
+    const m = new Map<string, string>();
+    for (const s of catalogue) m.set(s.skillId, s.displayName || s.name);
+    return m;
+  }, [catalogue]);
 
   const refresh = useCallback(async () => {
     setLoadError(null);
@@ -66,6 +79,13 @@ export default function TeacherClassesPage() {
     const id = setInterval(() => void refresh(), 30_000);
     return () => clearInterval(id);
   }, [refresh]);
+
+  // Fetch the lesson catalogue once for the title-fallback lookup.
+  useEffect(() => {
+    void listAccessibleSkills()
+      .then(setCatalogue)
+      .catch(() => setCatalogue([]));
+  }, []);
 
   return (
     <div className="flex flex-col gap-8">
@@ -142,8 +162,10 @@ export default function TeacherClassesPage() {
           </p>
         ) : (
           <ul className="divide-y divide-border rounded border border-border">
-            {recentSessions.map((row) =>
-              row.groupCode ? (
+            {recentSessions.map((row) => {
+              const label =
+                row.title ?? skillNameById.get(row.skillId) ?? row.skillId;
+              return row.groupCode ? (
                 <li key={row.sessionId}>
                   <Link
                     href={`/teacher/reports/groups/${row.groupCode}?session_id=${encodeURIComponent(row.sessionId)}`}
@@ -153,12 +175,10 @@ export default function TeacherClassesPage() {
                       <code className="rounded bg-muted px-1.5 py-0.5 font-mono text-xs font-medium">
                         {row.groupCode}
                       </code>
-                      {row.title ? (
-                        <span className="flex items-center gap-1 text-foreground">
-                          <BookOpen className="h-3.5 w-3.5 shrink-0 text-muted-foreground" aria-hidden="true" />
-                          {row.title}
-                        </span>
-                      ) : null}
+                      <span className="flex items-center gap-1 text-foreground">
+                        <BookOpen className="h-3.5 w-3.5 shrink-0 text-muted-foreground" aria-hidden="true" />
+                        {label}
+                      </span>
                       <span className="text-xs text-muted-foreground">
                         {row.turnCount} turn{row.turnCount === 1 ? "" : "s"} · {relativeTime(row.lastMessageAt)}
                       </span>
@@ -175,19 +195,17 @@ export default function TeacherClassesPage() {
                   className="flex flex-wrap items-center justify-between gap-2 px-3 py-2 text-sm"
                 >
                   <div className="flex min-w-0 flex-1 flex-wrap items-center gap-x-3 gap-y-1">
-                    {row.title ? (
-                      <span className="flex items-center gap-1 text-muted-foreground">
-                        <BookOpen className="h-3.5 w-3.5" aria-hidden="true" />
-                        {row.title}
-                      </span>
-                    ) : null}
+                    <span className="flex items-center gap-1 text-muted-foreground">
+                      <BookOpen className="h-3.5 w-3.5" aria-hidden="true" />
+                      {label}
+                    </span>
                     <span className="text-xs text-muted-foreground">
                       {row.turnCount} turn{row.turnCount === 1 ? "" : "s"} · {relativeTime(row.lastMessageAt)}
                     </span>
                   </div>
                 </li>
-              ),
-            )}
+              );
+            })}
           </ul>
         )}
       </section>
