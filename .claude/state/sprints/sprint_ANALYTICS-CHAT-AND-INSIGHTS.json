@@ -238,7 +238,7 @@
       "description": "aiplatform insights CLI subcommands + /teacher/insights cross-class page. Three CLI subcommands (class, compare, groups) with table or json output. CrossClassTable component with sortable columns and deep-links into class detail.",
       "scope": "fullstack",
       "estimated_loc": 360,
-      "actual_loc": null,
+      "actual_loc": 1144,
       "dependencies": [
         "M7"
       ],
@@ -261,10 +261,10 @@
       "files_to_modify": [
         "cli/aiplatform/cli.py"
       ],
-      "passes": null,
-      "started": null,
-      "completed": null,
-      "notes": null
+      "passes": true,
+      "started": "2026-06-02T21:00:00Z",
+      "completed": "2026-06-02T18:58:29Z",
+      "notes": "CLI: aiplatform insights {class,groups,compare}. All three honor --since 7d|30d|all + --until ISO and --format table|json. compare honors --sort messages|messages_delta|sim_runs|name (client-side sort; JSON output stays API-order). 8/8 CLI tests green. Frontend: /teacher/insights page + CrossClassTable component. CrossClassTable sorts client-side, default messages-desc, click header to sort, click again to flip direction. Class names are Next links into /teacher/classes/[id]. Delta column colour-coded (emerald positive / rose negative). Last-activity formatted relative. Empty state and error state both rendered. frontend/src/lib/insightsApi.ts adds typed wrappers around all five M7 routes with snake_case -> camelCase mapping at the boundary so the rest of the frontend never sees backend casing. Tests: 7 CrossClassTable + 4 page = 11 new. Frontend total: 777 passed (+11), 0 failed. npm run quality:check (CI parity) green; build succeeds; new /teacher/insights route added."
     },
     {
       "id": "M9",

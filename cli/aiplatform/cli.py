@@ -17,6 +17,7 @@ from aiplatform.commands.class_ import class_group
 from aiplatform.commands.docs import docs
 from aiplatform.commands.folder import folder
 from aiplatform.commands.groups import groups
+from aiplatform.commands.insights import insights
 from aiplatform.commands.logs import logs
 from aiplatform.commands.sessions import sessions
 from aiplatform.commands.sim import sim
@@ -52,6 +53,7 @@ main.add_command(sim)
 main.add_command(smoke)
 main.add_command(class_group)
 main.add_command(analytics)
+main.add_command(insights)
 
 
 if __name__ == "__main__":
