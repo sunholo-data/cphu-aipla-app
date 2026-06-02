@@ -152,12 +152,12 @@ export default function TeacherGroupReportPage() {
           {groupId}
         </code>
         <span aria-hidden="true">/</span>
-        <span className="text-foreground">Report</span>
+        <span className="text-foreground">Session history</span>
       </nav>
 
       <header className="flex flex-col gap-1">
         <div className="flex items-center gap-2">
-          <h1 className="text-xl font-semibold sm:text-2xl">Session report</h1>
+          <h1 className="text-xl font-semibold sm:text-2xl">Latest session</h1>
           {!isLive ? (
             <span className="rounded border border-dashed border-amber-300 bg-amber-50 px-2 py-0.5 text-[10px] font-medium text-amber-900 dark:border-amber-700 dark:bg-amber-950 dark:text-amber-200">
               mock data

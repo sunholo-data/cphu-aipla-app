@@ -11,6 +11,7 @@ import {
   ExternalLink,
   FileText,
   MessageCircle,
+  MessageSquare,
   Plus,
   Settings,
   X,
@@ -18,13 +19,26 @@ import {
 
 import {
   type ClassPayload,
+  type SessionRow,
   type SkillSummary,
   getClass,
   listAccessibleSkills,
+  listClassRecentSessions,
   mintGroupCodes,
   patchLessons,
   resetGroupSession,
 } from "@/lib/teacherApi";
+
+function relativeTime(iso: string): string {
+  const diff = Date.now() - new Date(iso).getTime();
+  const mins = Math.floor(diff / 60_000);
+  if (mins < 1) return "just now";
+  if (mins < 60) return `${mins} min ago`;
+  const hrs = Math.floor(mins / 60);
+  if (hrs < 24) return `${hrs} hr ago`;
+  const days = Math.floor(hrs / 24);
+  return days === 1 ? "yesterday" : `${days} days ago`;
+}
 
 export default function TeacherClassDetailPage() {
   const params = useParams();
@@ -39,6 +53,8 @@ export default function TeacherClassDetailPage() {
   const [minting, setMinting] = useState(false);
   const [confirmResetCode, setConfirmResetCode] = useState<string | null>(null);
   const [resetting, setResetting] = useState(false);
+
+  const [recentSessions, setRecentSessions] = useState<SessionRow[]>([]);
 
   // 1.A follow-up (2026-05-26) — Lessons section now backed by the
   // real /api/skills catalogue + cls.lessons[]. Pick-from-list UI
@@ -69,6 +85,14 @@ export default function TeacherClassDetailPage() {
     if (id) void refresh();
   }, [id, refresh]);
 
+  // Refresh recent sessions alongside the class. Runs whenever id changes.
+  useEffect(() => {
+    if (!id) return;
+    void listClassRecentSessions(id, 20)
+      .then(setRecentSessions)
+      .catch(() => setRecentSessions([]));
+  }, [id]);
+
   // Load the lesson catalogue once on mount. Fire-and-forget — picker
   // shows "Loading lessons…" if the fetch is in flight at click time.
   useEffect(() => {
@@ -96,6 +120,24 @@ export default function TeacherClassDetailPage() {
     const taken = new Set(cls.lessons);
     return catalogue.filter((s) => !taken.has(s.skillId));
   }, [cls, catalogue]);
+
+  // Most recent session per group code — for the per-row "last active" hint.
+  const latestByGroup = useMemo<Map<string, SessionRow>>(() => {
+    const map = new Map<string, SessionRow>();
+    for (const s of recentSessions) {
+      if (s.groupCode && !map.has(s.groupCode)) {
+        map.set(s.groupCode, s);
+      }
+    }
+    return map;
+  }, [recentSessions]);
+
+  // Skill name lookup for the activity list.
+  const skillNameById = useMemo<Map<string, string>>(() => {
+    const m = new Map<string, string>();
+    for (const s of catalogue) m.set(s.skillId, s.displayName || s.name);
+    return m;
+  }, [catalogue]);
 
   if (!id) {
     notFound();
@@ -270,66 +312,78 @@ export default function TeacherClassDetailPage() {
           </p>
         ) : (
           <ul className="divide-y divide-border rounded border border-border">
-            {cls.groupCodes.map((code) => (
-              <li
-                key={code}
-                className="flex flex-wrap items-center justify-between gap-2 px-3 py-2"
-              >
-                <div className="flex min-w-0 flex-1 flex-wrap items-center gap-x-3 gap-y-1">
-                  <code className="rounded bg-muted px-1.5 py-0.5 font-mono text-sm">
-                    {code}
-                  </code>
-                </div>
-                <div className="flex items-center gap-1">
-                  <button
-                    type="button"
-                    onClick={() => handleCopyCode(code)}
-                    className="flex items-center gap-1 rounded border border-border px-2 py-1 text-xs font-medium hover:bg-accent"
-                  >
-                    <Copy className="h-3.5 w-3.5" aria-hidden="true" />
-                    Copy code
-                  </button>
-                  {confirmResetCode === code ? (
-                    <>
-                      <span className="text-xs text-muted-foreground">Reset session?</span>
-                      <button
-                        type="button"
-                        onClick={() => void handleResetSession(code)}
-                        disabled={resetting}
-                        className="rounded border border-destructive px-2 py-1 text-xs font-medium text-destructive hover:bg-destructive/10 disabled:opacity-50"
-                      >
-                        {resetting ? "Resetting…" : "Confirm"}
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => setConfirmResetCode(null)}
-                        disabled={resetting}
-                        className="rounded border border-border px-2 py-1 text-xs font-medium hover:bg-accent disabled:opacity-50"
-                      >
-                        Cancel
-                      </button>
-                    </>
-                  ) : (
+            {cls.groupCodes.map((code) => {
+              const latest = latestByGroup.get(code);
+              return (
+                <li
+                  key={code}
+                  className="flex flex-wrap items-center justify-between gap-2 px-3 py-2"
+                >
+                  <div className="flex min-w-0 flex-1 flex-col gap-0.5">
+                    <code className="rounded bg-muted px-1.5 py-0.5 font-mono text-sm w-fit">
+                      {code}
+                    </code>
+                    {latest ? (
+                      <span className="text-xs text-muted-foreground">
+                        Last active {relativeTime(latest.lastMessageAt)} · {latest.turnCount} turn{latest.turnCount === 1 ? "" : "s"}
+                        {latest.title ? ` · ${latest.title}` : ""}
+                      </span>
+                    ) : (
+                      <span className="text-xs text-muted-foreground">No activity yet</span>
+                    )}
+                  </div>
+                  <div className="flex items-center gap-1">
                     <button
                       type="button"
-                      onClick={() => setConfirmResetCode(code)}
-                      title="Archive the current session — the next student join will start a new conversation"
-                      className="flex items-center gap-1 rounded border border-border px-2 py-1 text-xs font-medium text-muted-foreground hover:bg-accent"
+                      onClick={() => handleCopyCode(code)}
+                      className="flex items-center gap-1 rounded border border-border px-2 py-1 text-xs font-medium hover:bg-accent"
                     >
-                      <Settings className="h-3.5 w-3.5" aria-hidden="true" />
-                      Reset session
+                      <Copy className="h-3.5 w-3.5" aria-hidden="true" />
+                      Copy code
                     </button>
-                  )}
-                  <Link
-                    href={`/teacher/reports/groups/${code}`}
-                    className="flex items-center gap-1 rounded border border-border px-2 py-1 text-xs font-medium hover:bg-accent"
-                    aria-label={`Open report for ${code}`}
-                  >
-                    <ExternalLink className="h-3.5 w-3.5" aria-hidden="true" />
-                  </Link>
-                </div>
-              </li>
-            ))}
+                    {confirmResetCode === code ? (
+                      <>
+                        <span className="text-xs text-muted-foreground">Reset session?</span>
+                        <button
+                          type="button"
+                          onClick={() => void handleResetSession(code)}
+                          disabled={resetting}
+                          className="rounded border border-destructive px-2 py-1 text-xs font-medium text-destructive hover:bg-destructive/10 disabled:opacity-50"
+                        >
+                          {resetting ? "Resetting…" : "Confirm"}
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setConfirmResetCode(null)}
+                          disabled={resetting}
+                          className="rounded border border-border px-2 py-1 text-xs font-medium hover:bg-accent disabled:opacity-50"
+                        >
+                          Cancel
+                        </button>
+                      </>
+                    ) : (
+                      <button
+                        type="button"
+                        onClick={() => setConfirmResetCode(code)}
+                        title="Archive the current session — the next student join will start a new conversation"
+                        className="flex items-center gap-1 rounded border border-border px-2 py-1 text-xs font-medium text-muted-foreground hover:bg-accent"
+                      >
+                        <Settings className="h-3.5 w-3.5" aria-hidden="true" />
+                        Reset session
+                      </button>
+                    )}
+                    <Link
+                      href={`/teacher/reports/groups/${code}`}
+                      className="flex items-center gap-1 rounded border border-border px-2 py-1 text-xs font-medium hover:bg-accent"
+                      aria-label={`View session report for ${code}`}
+                    >
+                      <ExternalLink className="h-3.5 w-3.5" aria-hidden="true" />
+                      Report
+                    </Link>
+                  </div>
+                </li>
+              );
+            })}
           </ul>
         )}
       </section>
@@ -409,6 +463,48 @@ export default function TeacherClassDetailPage() {
                     Remove
                   </button>
                 </div>
+              </li>
+            ))}
+          </ul>
+        )}
+      </section>
+
+      <section aria-labelledby="activity-label" className="flex flex-col gap-3">
+        <h2 id="activity-label" className="text-lg font-semibold">Recent activity</h2>
+        {recentSessions.length === 0 ? (
+          <p className="rounded border border-dashed border-border px-3 py-4 text-sm text-muted-foreground">
+            No student sessions yet. Sessions appear here once students join a group and start chatting.
+          </p>
+        ) : (
+          <ul className="divide-y divide-border rounded border border-border">
+            {recentSessions.slice(0, 10).map((row) => (
+              <li
+                key={row.sessionId}
+                className="flex flex-wrap items-center justify-between gap-2 px-3 py-2 text-sm"
+              >
+                <div className="flex min-w-0 flex-1 flex-wrap items-center gap-x-3 gap-y-1">
+                  {row.groupCode ? (
+                    <code className="rounded bg-muted px-1.5 py-0.5 font-mono text-xs">
+                      {row.groupCode}
+                    </code>
+                  ) : null}
+                  <span className="flex items-center gap-1 text-muted-foreground">
+                    <MessageSquare className="h-3.5 w-3.5 shrink-0" aria-hidden="true" />
+                    {row.title ?? skillNameById.get(row.skillId) ?? row.skillId}
+                  </span>
+                  <span className="text-xs text-muted-foreground">
+                    {row.turnCount} turn{row.turnCount === 1 ? "" : "s"} · {relativeTime(row.lastMessageAt)}
+                  </span>
+                </div>
+                {row.groupCode ? (
+                  <Link
+                    href={`/teacher/reports/groups/${row.groupCode}`}
+                    className="flex items-center gap-1 rounded border border-border px-2 py-1 text-xs font-medium hover:bg-accent"
+                  >
+                    <FileText className="h-3.5 w-3.5" aria-hidden="true" />
+                    View session
+                  </Link>
+                ) : null}
               </li>
             ))}
           </ul>

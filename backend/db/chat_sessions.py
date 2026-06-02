@@ -16,7 +16,7 @@ from typing import Literal
 from google.cloud import firestore as _fs
 
 from auth.access_context import AccessContext, can_access
-from db.firestore import get_client, get_document, set_document, update_document
+from db.firestore import get_client, get_document, query_documents, set_document, update_document
 from db.models.access import AccessControl
 from db.models.chat_session import ChatSessionIndex
 
@@ -258,29 +258,39 @@ def list_sessions_for_group_codes(
     Used by the teacher dashboard to show recent student activity across all
     groups in a class. Returns at most ``page_size`` rows merged and re-sorted
     from per-code queries.
+
+    Uses ownerUid prefix matching (``anon-{cleaned_code}-*``) rather than the
+    ``groupCode`` field so sessions created before the groupCode backfill
+    (2026-06-02) are also visible. This is the same strategy as
+    ``find_latest_session_for_group``; archivedAt is filtered in Python because
+    Firestore doesn't allow combining a range filter with an equality filter on
+    a different field without a composite index for each combination.
     """
     if not group_codes:
         return []
-    client = get_client()
-    col = client.collection(_COLLECTION)
+    seen: set[str] = set()
     results: list[ChatSessionIndex] = []
     for code in group_codes:
-        query = (
-            col.where(filter=_fs.FieldFilter("groupCode", "==", code))
-            .where(filter=_fs.FieldFilter("archivedAt", "==", None))
-            .order_by("lastMessageAt", direction=_fs.Query.DESCENDING)
-            .limit(page_size)
+        cleaned = code.replace("-", "")
+        lo = f"anon-{cleaned}-"
+        hi = lo + "￿"
+        rows = query_documents(
+            _COLLECTION,
+            filters=[("ownerUid", ">=", lo), ("ownerUid", "<", hi)],
+            limit=page_size,
         )
-        for snap in query.stream():
-            if snap.id is None or not snap.exists:
-                continue
-            data = snap.to_dict()
-            if data is None:
-                continue
+        for row in rows:
             try:
-                results.append(_from_firestore(data, snap.id))
+                idx = _from_firestore(row, row.get("__id") or row.get("sessionId", ""))
             except Exception as exc:
-                logger.warning("malformed chat_sessions/%s: %s", snap.id, exc)
+                logger.warning("malformed chat_sessions row for %s: %s", code, exc)
+                continue
+            if idx.archived_at is not None:
+                continue  # skip archived sessions
+            if idx.session_id in seen:
+                continue
+            seen.add(idx.session_id)
+            results.append(idx)
     results.sort(key=lambda s: s.last_message_at, reverse=True)
     return results[:page_size]
 

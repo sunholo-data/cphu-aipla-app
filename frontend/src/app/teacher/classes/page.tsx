@@ -169,7 +169,7 @@ export default function TeacherClassesPage() {
                     className="flex items-center gap-1 rounded border border-border px-2 py-1 text-xs font-medium hover:bg-accent"
                   >
                     <FileText className="h-3.5 w-3.5" aria-hidden="true" />
-                    View
+                    View session
                   </Link>
                 ) : null}
               </li>
