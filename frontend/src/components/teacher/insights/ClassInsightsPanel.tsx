@@ -119,6 +119,7 @@ export function ClassInsightsPanel({ classId, since = "7d" }: ClassInsightsPanel
             title="Per-group activity"
             primaryLabel="Messages"
             rows={groups.data.groups.map((g) => ({ label: g.groupCode, value: g.messageCount }))}
+            hrefFor={(r) => `/teacher/reports/groups/${r.label}`}
           />
         ) : null}
       </Section>

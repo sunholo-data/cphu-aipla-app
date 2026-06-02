@@ -10,6 +10,8 @@
 
 "use client";
 
+import Link from "next/link";
+
 import { Bar, BarChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from "./_chartsBundle";
 
 export interface EngagementBarRow {
@@ -28,9 +30,18 @@ interface EngagementBarProps {
   primaryLabel: string;
   /** Label for the secondary bar (e.g. "Sim runs"). Omit for single-bar charts. */
   secondaryLabel?: string;
+  /**
+   * Optional deep-link target builder. Wraps each row's label cell in
+   * the table fallback with a `<Link href>` so keyboard + screen-reader
+   * users can navigate; the chart itself is decorative (recharts SVG
+   * is hard to make keyboard-clickable without per-segment refs).
+   * Return null for rows that should NOT link (e.g. per-activity bars
+   * have no v1 destination — see the design doc).
+   */
+  hrefFor?: (row: EngagementBarRow) => string | null;
 }
 
-export function EngagementBar({ rows, title, primaryLabel, secondaryLabel }: EngagementBarProps) {
+export function EngagementBar({ rows, title, primaryLabel, secondaryLabel, hrefFor }: EngagementBarProps) {
   if (rows.length === 0) {
     return (
       <div
@@ -81,15 +92,26 @@ export function EngagementBar({ rows, title, primaryLabel, secondaryLabel }: Eng
             </tr>
           </thead>
           <tbody>
-            {rows.map((r) => (
-              <tr key={r.label}>
-                <td className="py-0.5">{r.label}</td>
-                <td className="py-0.5 text-right tabular-nums">{r.value}</td>
-                {secondaryLabel ? (
-                  <td className="py-0.5 text-right tabular-nums">{r.secondaryValue ?? 0}</td>
-                ) : null}
-              </tr>
-            ))}
+            {rows.map((r) => {
+              const href = hrefFor?.(r) ?? null;
+              return (
+                <tr key={r.label}>
+                  <td className="py-0.5">
+                    {href ? (
+                      <Link href={href} className="text-foreground hover:underline">
+                        {r.label}
+                      </Link>
+                    ) : (
+                      r.label
+                    )}
+                  </td>
+                  <td className="py-0.5 text-right tabular-nums">{r.value}</td>
+                  {secondaryLabel ? (
+                    <td className="py-0.5 text-right tabular-nums">{r.secondaryValue ?? 0}</td>
+                  ) : null}
+                </tr>
+              );
+            })}
           </tbody>
         </table>
       </details>

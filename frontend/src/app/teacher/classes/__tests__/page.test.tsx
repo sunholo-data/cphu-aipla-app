@@ -12,6 +12,7 @@ import {
 
 import TeacherClassesPage from "@/app/teacher/classes/page";
 import * as teacherApi from "@/lib/teacherApi";
+import * as insightsApi from "@/lib/insightsApi";
 import type { ClassPayload } from "@/lib/teacherApi";
 
 function makeClass(overrides: Partial<ClassPayload> = {}): ClassPayload {
@@ -40,6 +41,19 @@ let createSpy: CreateClassMock;
 beforeEach(() => {
   listSpy = vi.spyOn(teacherApi, "listClasses") as unknown as ListClassesMock;
   createSpy = vi.spyOn(teacherApi, "createClass") as unknown as CreateClassMock;
+  // Insights API: default to empty results so existing tests don't
+  // accidentally exercise the compare section. Per-test overrides set
+  // realistic payloads where needed.
+  vi.spyOn(insightsApi, "fetchInsightsSummary").mockResolvedValue({
+    since: "2026-05-26T00:00:00+00:00",
+    until: "2026-06-02T00:00:00+00:00",
+    classes: [],
+  });
+  vi.spyOn(insightsApi, "fetchInsightsCompare").mockResolvedValue({
+    since: "2026-05-26T00:00:00+00:00",
+    until: "2026-06-02T00:00:00+00:00",
+    rows: [],
+  });
 });
 
 afterEach(() => {
@@ -127,5 +141,35 @@ describe("/teacher/classes — dashboard", () => {
     await waitFor(() => {
       expect(screen.getByRole("heading", { name: "Brand new" })).toBeInTheDocument();
     });
+  });
+
+  it("shows the cross-class compare section when 2+ classes exist", async () => {
+    listSpy.mockResolvedValue([
+      makeClass({ classId: "a", name: "Class A" }),
+      makeClass({ classId: "b", name: "Class B" }),
+    ]);
+    vi.spyOn(insightsApi, "fetchInsightsCompare").mockResolvedValue({
+      since: "2026-05-26T00:00:00+00:00",
+      until: "2026-06-02T00:00:00+00:00",
+      rows: [
+        { classId: "a", name: "Class A", activeGroups: 2, messages: 50, messagesPrior: 40, messagesDelta: 10, simRuns: 3, lastActivity: null },
+        { classId: "b", name: "Class B", activeGroups: 1, messages: 20, messagesPrior: 30, messagesDelta: -10, simRuns: 0, lastActivity: null },
+      ],
+    });
+
+    render(<TeacherClassesPage />);
+    await waitFor(() => {
+      expect(screen.getByTestId("cross-class-compare-section")).toBeInTheDocument();
+    });
+    expect(screen.getByText(/compare across classes \(2\)/i)).toBeInTheDocument();
+  });
+
+  it("hides the cross-class compare section when only 1 class exists", async () => {
+    listSpy.mockResolvedValue([makeClass({ classId: "a", name: "Only class" })]);
+    render(<TeacherClassesPage />);
+    await waitFor(() => {
+      expect(screen.getByRole("heading", { name: "Only class" })).toBeInTheDocument();
+    });
+    expect(screen.queryByTestId("cross-class-compare-section")).not.toBeInTheDocument();
   });
 });

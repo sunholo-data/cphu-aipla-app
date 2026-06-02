@@ -47,6 +47,15 @@ if is_local_mode():
 if not is_local_mode():
     setup_telemetry()
 
+# Default Python logging is WARNING+ only, which silently drops every
+# `log.info()` observability marker (M10 — analytics_tool, insights_query,
+# dashboard_load). uvicorn's access logs go through its own logger, not
+# ours, so they show up regardless. Set INFO at the root so per-module
+# `log.info()` reaches Cloud Logging via stdout. Module-level
+# `setLevel(CRITICAL)` calls in observability.telemetry still silence
+# the OTEL exporter noise.
+logging.basicConfig(level=logging.INFO, format="%(levelname)s:%(name)s:%(message)s")
+
 _log = logging.getLogger(__name__)
 
 # Startup guard: log resolved GCP project so misconfiguration (e.g. shell-level

@@ -1,6 +1,10 @@
 import { render, screen } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 
+vi.mock("next/link", () => ({
+  default: ({ children, href }: { children: React.ReactNode; href: string }) => <a href={href}>{children}</a>,
+}));
+
 // recharts pulls in browser-only dependencies; stub the chart bundle
 // for unit tests so we exercise our wrapper logic + a11y / table
 // fallback without the renderer.
@@ -52,5 +56,34 @@ describe("EngagementBar", () => {
     );
     expect(screen.getByText("Sim runs")).toBeInTheDocument();
     expect(screen.getByText("5")).toBeInTheDocument();
+  });
+
+  it("wraps row labels in <Link> when hrefFor returns a target", () => {
+    render(
+      <EngagementBar
+        title="Per-group activity"
+        primaryLabel="Messages"
+        rows={[
+          { label: "bold-kazoo-87", value: 60 },
+          { label: "neon-eel-12", value: 21 },
+        ]}
+        hrefFor={(r) => `/teacher/reports/groups/${r.label}`}
+      />,
+    );
+    const link = screen.getByRole("link", { name: "bold-kazoo-87" });
+    expect(link).toHaveAttribute("href", "/teacher/reports/groups/bold-kazoo-87");
+  });
+
+  it("renders plain text when hrefFor returns null", () => {
+    render(
+      <EngagementBar
+        title="Per-activity"
+        primaryLabel="Active groups"
+        rows={[{ label: "skill-a", value: 2 }]}
+        hrefFor={() => null}
+      />,
+    );
+    expect(screen.queryByRole("link", { name: "skill-a" })).not.toBeInTheDocument();
+    expect(screen.getByText("skill-a")).toBeInTheDocument();
   });
 });

@@ -20,7 +20,13 @@ import {
   listClassRecentSessions,
   listClasses,
 } from "@/lib/teacherApi";
-import { fetchInsightsSummary, type InsightsClassSummary } from "@/lib/insightsApi";
+import {
+  fetchInsightsCompare,
+  fetchInsightsSummary,
+  type InsightsClassSummary,
+  type InsightsComparePayload,
+} from "@/lib/insightsApi";
+import { CrossClassTable } from "@/components/teacher/insights/CrossClassTable";
 import { KpiStrip } from "@/components/teacher/insights/KpiStrip";
 
 
@@ -42,6 +48,7 @@ export default function TeacherClassesPage() {
   const [loadError, setLoadError] = useState<string | null>(null);
   const [showNewClassForm, setShowNewClassForm] = useState(false);
   const [insightsSummary, setInsightsSummary] = useState<Map<string, InsightsClassSummary>>(new Map());
+  const [insightsCompare, setInsightsCompare] = useState<InsightsComparePayload | null>(null);
 
   // Skill displayName lookup so we can fall back to the lesson name when a
   // session hasn't generated a title yet (titles are auto-generated after
@@ -107,6 +114,27 @@ export default function TeacherClassesPage() {
     };
   }, [classes]);
 
+  // Cross-class compare payload — only fetched when the teacher owns
+  // 2+ classes. The single-class case has no useful comparison and
+  // would just push the existing surfaces down.
+  useEffect(() => {
+    if (!classes || classes.length < 2) {
+      setInsightsCompare(null);
+      return;
+    }
+    let cancelled = false;
+    void fetchInsightsCompare()
+      .then((p) => {
+        if (!cancelled) setInsightsCompare(p);
+      })
+      .catch(() => {
+        if (!cancelled) setInsightsCompare(null);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [classes]);
+
   return (
     <div className="flex flex-col gap-8">
       <header className="flex flex-wrap items-center justify-between gap-3">
@@ -166,6 +194,28 @@ export default function TeacherClassesPage() {
           ))
         )}
       </section>
+
+      {insightsCompare && insightsCompare.rows.length >= 2 ? (
+        <section
+          aria-labelledby="compare-label"
+          className="flex flex-col gap-3"
+          data-testid="cross-class-compare-section"
+        >
+          <details>
+            <summary className="cursor-pointer text-sm font-medium text-foreground">
+              <span id="compare-label">
+                Compare across classes ({insightsCompare.rows.length})
+              </span>
+              <span className="ml-2 text-xs font-normal text-muted-foreground">
+                — sortable table; last 7 days
+              </span>
+            </summary>
+            <div className="mt-3">
+              <CrossClassTable rows={insightsCompare.rows} />
+            </div>
+          </details>
+        </section>
+      ) : null}
 
       <section aria-labelledby="recent-activity-label" className="flex flex-col gap-3">
         <header className="flex items-center justify-between">
