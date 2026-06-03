@@ -117,6 +117,32 @@ def test_skillconfig_defaults_match_parser_defaults() -> None:
 
 
 @pytest.mark.parametrize(
+    "skill_name",
+    [
+        "problem-set-hints",
+        "led-planck-tutor",
+        "kinebot-kinematics-tutor",
+    ],
+)
+def test_real_skill_templates_carry_reactive_fields(skill_name: str) -> None:
+    """M6 follow-up: every tutor skill that has the reactive flag set in
+    its SKILL.md must round-trip through the parser with all four fields
+    populated. Guards against a typo in the frontmatter silently
+    disabling the feature in production."""
+    template_path = Path(__file__).resolve().parents[3] / "skills" / "templates" / skill_name / "SKILL.md"
+    assert template_path.exists(), f"Expected template at {template_path}"
+    parsed = _parse_template(template_path)
+
+    assert parsed["proactiveEventReactive"] is True, f"{skill_name} SKILL.md should opt in to sim-reactive turns"
+    assert parsed["proactiveHeartbeatSeconds"] == 10
+    assert parsed["proactiveMaxPerSession"] == 2
+    assert parsed["reactiveTemplate"], (
+        f"{skill_name} SKILL.md has proactiveEventReactive=true but reactiveTemplate is empty — "
+        "the helper will no-op silently and the tutor will produce ungrounded reactive turns"
+    )
+
+
+@pytest.mark.parametrize(
     "heartbeat_value,max_value",
     [
         (10, 2),  # design-doc defaults

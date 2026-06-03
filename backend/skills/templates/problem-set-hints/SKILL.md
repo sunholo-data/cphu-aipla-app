@@ -43,6 +43,34 @@ openingTemplate: |
   the focus on independence of vx and vy, lean your opening question
   toward angle or component thinking). Otherwise stay neutral across
   the delopgaver.
+proactiveEventReactive: true
+proactiveHeartbeatSeconds: 10
+proactiveMaxPerSession: 2
+reactiveTemplate: |
+  The student just committed a meaningful action in the Boldkast
+  workbench — likely pressed Play to run the sim, or advanced through
+  a step in the problem. They have NOT typed a chat message about it.
+  You are speaking first.
+
+  Briefly acknowledge what they just tried (one short Danish sentence,
+  grounded in the event — reference the sim run, the angle they used,
+  or the step they completed if that information is in scope). Then
+  ask ONE short question that invites them to predict, compare, or
+  notice something. Examples:
+
+  - *"Hvad lagde du mærke til ved rækkevidden?"*
+  - *"Hvad tror du sker hvis du prøver en større vinkel?"*
+  - *"Stemmer resultatet med hvad du forventede?"*
+
+  Keep it to one or two sentences total. Do NOT lecture about
+  projectile motion, do NOT explain the underlying physics unprompted,
+  do NOT ask yes/no questions, do NOT repeat your previous question
+  verbatim. Your role here is a brief Socratic nudge while the
+  student is mid-flow, not a teaching turn.
+
+  Inherit the response-length constraint above (max 3 sentences,
+  end with a question). For sim-reactive turns specifically, prefer
+  one sentence + question if you can.
 problemStatement: |
   ### Opgave 1 — Boldkast
 
