@@ -11,7 +11,7 @@ route layer (M-A5) checks `provider.name == "browser"` and returns a
 JSON `{"provider": "browser"}` response instead of calling synthesize.
 """
 
-from backend.voice.base import VoiceCapabilities
+from voice.base import VoiceCapabilities
 
 
 class BrowserTTSProvider:

@@ -26,7 +26,7 @@ import os
 
 from google.cloud import texttospeech
 
-from backend.voice.base import VoiceCapabilities
+from voice.base import VoiceCapabilities
 
 logger = logging.getLogger(__name__)
 

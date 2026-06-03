@@ -12,7 +12,7 @@ Requires:
 
 import pytest
 
-from backend.voice.providers.gcp_tts import GCPTTSProvider
+from voice.providers.gcp_tts import GCPTTSProvider
 
 
 @pytest.mark.integration

@@ -15,7 +15,7 @@ from unittest.mock import MagicMock
 import pytest
 from google.api_core.exceptions import NotFound
 
-from backend.voice.cache import CacheKey, TTSCache
+from voice.cache import CacheKey, TTSCache
 
 # --- CacheKey hashing ---
 

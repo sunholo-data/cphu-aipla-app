@@ -13,7 +13,7 @@ import re
 import time
 import uuid
 
-from pydantic import BaseModel, Field, field_validator
+from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 from db.models.access import AccessControl, AccessType
 from db.models.buckets import BucketConfig, BucketFolderConfig
@@ -60,6 +60,21 @@ class Protocols(BaseModel):
     agui: ProtocolConfig = ProtocolConfig(enabled=True)
     a2ui: ProtocolConfig = ProtocolConfig()
     mcpApps: ProtocolConfig = ProtocolConfig()
+
+
+# 1.1.11 voice provider abstraction — per-skill voice overrides.
+# All four fields are optional; missing fields fall through to env
+# (VOICE_TTS_PROVIDER / VOICE_STT_PROVIDER) then to the registry's
+# "browser" / "disabled" defaults. Designed flat-shape so a skill author
+# can pin "Danish WaveNet voice A at 0.85 rate" without touching env.
+# See backend/voice/registry.py for the resolution chain.
+class SkillVoiceConfig(BaseModel):
+    tts_provider: str | None = Field(default=None, alias="ttsProvider")
+    tts_voice: str | None = Field(default=None, alias="ttsVoice")
+    stt_provider: str | None = Field(default=None, alias="sttProvider")
+    rate: float = Field(default=0.85, ge=0.25, le=4.0)
+
+    model_config = ConfigDict(populate_by_name=True, extra="forbid")
 
 
 # === Combined Skill Document ===
@@ -140,6 +155,11 @@ class SkillConfig(BaseModel):
     # platform-seed step. Ignored when ``proactive_event_reactive`` is
     # False (or this is empty).
     reactive_template: str = Field(default="", alias="reactiveTemplate")
+    # 1.1.11 — optional per-skill voice provider/voice/rate. None for the
+    # whole block means "use env defaults"; individual fields can be left
+    # None to mix-and-match (e.g. pick voice but inherit provider from env).
+    # See backend/voice/registry.py for the resolution chain.
+    voice: SkillVoiceConfig | None = Field(default=None)
     tags: list[str] = Field(default_factory=list)
     featured: bool = False
     usage_count: int = Field(default=0, alias="usageCount")

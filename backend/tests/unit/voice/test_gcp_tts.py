@@ -9,7 +9,7 @@ from unittest.mock import MagicMock
 
 import pytest
 
-from backend.voice.providers.gcp_tts import GCPTTSProvider
+from voice.providers.gcp_tts import GCPTTSProvider
 
 
 def _make_provider_with_mock_client(audio_content: bytes = b"\xff\xfb fake mp3") -> tuple[GCPTTSProvider, MagicMock]:

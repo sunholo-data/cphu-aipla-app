@@ -1,6 +1,6 @@
 """No-op voice providers — for tests and explicit-disable config."""
 
-from backend.voice.base import VoiceCapabilities
+from voice.base import VoiceCapabilities
 
 
 class NullTTSProvider:

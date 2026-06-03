@@ -9,8 +9,8 @@ Public surface:
 See `voice-provider-abstraction.md` (SEQUENCE 1.1.11) for the rationale.
 """
 
-from backend.voice.base import STTProvider, TTSProvider, VoiceCapabilities
-from backend.voice.registry import get_stt, get_tts
+from voice.base import STTProvider, TTSProvider, VoiceCapabilities
+from voice.registry import get_stt, get_tts
 
 __all__ = [
     "STTProvider",

@@ -17,8 +17,8 @@ import logging
 import os
 from typing import TYPE_CHECKING
 
-from backend.voice.base import STTProvider, TTSProvider
-from backend.voice.providers.null import NullSTTProvider, NullTTSProvider
+from voice.base import STTProvider, TTSProvider
+from voice.providers.null import NullSTTProvider, NullTTSProvider
 
 if TYPE_CHECKING:
     from backend.db.models import SkillConfig
@@ -97,13 +97,13 @@ def _build_tts(name: str) -> TTSProvider:
     if name == "browser":
         # Imported lazily to keep tests free of GCP client construction
         # when they only need NullTTSProvider.
-        from backend.voice.providers.browser import BrowserTTSProvider
+        from voice.providers.browser import BrowserTTSProvider
 
         return BrowserTTSProvider()
     if name == "null":
         return NullTTSProvider()
     if name.startswith("gcp_"):
-        from backend.voice.providers.gcp_tts import GCPTTSProvider
+        from voice.providers.gcp_tts import GCPTTSProvider
 
         return GCPTTSProvider(tier=name.removeprefix("gcp_"))
     raise ValueError(f"Unknown TTS provider {name!r}. Known: browser, null, gcp_<tier>.")
@@ -116,7 +116,7 @@ def _build_stt(name: str) -> STTProvider:
     if name == "null":
         return NullSTTProvider()
     if name.startswith("gcp_"):
-        from backend.voice.providers.gcp_stt import GCPSTTProvider
+        from voice.providers.gcp_stt import GCPSTTProvider
 
         return GCPSTTProvider(model=name.removeprefix("gcp_"))
     raise ValueError(f"Unknown STT provider {name!r}. Known: disabled, null, gcp_<model>.")

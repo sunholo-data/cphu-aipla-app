@@ -2,9 +2,9 @@
 
 import pytest
 
-from backend.voice import get_stt, get_tts
-from backend.voice.base import STTProvider, TTSProvider
-from backend.voice.providers.null import NullSTTProvider, NullTTSProvider
+from voice import get_stt, get_tts
+from voice.base import STTProvider, TTSProvider
+from voice.providers.null import NullSTTProvider, NullTTSProvider
 
 
 class _FakeSkillVoice:
