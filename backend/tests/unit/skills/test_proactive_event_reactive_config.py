@@ -124,6 +124,39 @@ def test_skillconfig_defaults_match_parser_defaults() -> None:
         "kinebot-kinematics-tutor",
     ],
 )
+def test_real_skill_templates_instructions_under_10k_limit(skill_name: str) -> None:
+    """SkillConfig._validate_instructions caps the body at 10,000 chars
+    (Pydantic field_validator). Pushing a template body past this cap
+    silently fails the platform_seed update_skill step at re-read
+    validation — the WRITE succeeds and the Firestore doc carries the
+    new content, but every later list_marketplace / get_skill call
+    400s out with a Pydantic ValidationError. This regression cost ~30
+    min on 2026-06-03 when QUICK-WINS-V11's ~400-char verbosity block
+    + PROACTIVE-SIM-REACTIVE's M6 push to problem-set-hints crossed
+    the cap (the body went 10,134 chars; seed reported the skill as
+    failed but the write had partially applied).
+
+    This test catches a body-over-limit at template-edit time, BEFORE
+    the seed runs. Cheaper than waiting for the Cloud Run logs."""
+    template_path = Path(__file__).resolve().parents[3] / "skills" / "templates" / skill_name / "SKILL.md"
+    assert template_path.exists()
+    parsed = _parse_template(template_path)
+    instructions_len = len(parsed["instructions"])
+    assert instructions_len <= 10_000, (
+        f"{skill_name} SKILL.md instructions body is {instructions_len} chars — "
+        "exceeds the 10,000 char limit enforced by SkillConfig._validate_instructions. "
+        "Trim the body or raise the limit (last raised never; default since v0.1)."
+    )
+
+
+@pytest.mark.parametrize(
+    "skill_name",
+    [
+        "problem-set-hints",
+        "led-planck-tutor",
+        "kinebot-kinematics-tutor",
+    ],
+)
 def test_real_skill_templates_carry_reactive_fields(skill_name: str) -> None:
     """M6 follow-up: every tutor skill that has the reactive flag set in
     its SKILL.md must round-trip through the parser with all four fields
