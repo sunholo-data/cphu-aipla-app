@@ -35,6 +35,7 @@ from typing import Any
 from fastapi import APIRouter, Depends, HTTPException, Request
 from pydantic import BaseModel, ConfigDict, Field
 
+from adk.proactive_telemetry import tag_proactive_span_from_content
 from auth import User, get_current_user
 from db.chat_sessions import get_session_index, increment_proactive_turn_count
 from skills.skill_config import get_skill
@@ -171,6 +172,13 @@ async def post_session_greet(
     #    response `text` is shown as the first tutor bubble).
     access = request.state.access
     assistant_parts: list[str] = []
+    # Sprint PROACTIVE-SIM-REACTIVE M7: tag the OTel span explicitly
+    # before driving the agent. Belt-and-braces — the agent's
+    # before-agent callback also tags via callback_context.user_content,
+    # but driving the agent server-side from this endpoint means the
+    # request span we want to tag is *this* request, not the inner
+    # invocation. Both call sites converge on the same tag.
+    tag_proactive_span_from_content(PROACTIVE_GREET_TRIGGER)
     try:
         async for event in process_skill_request(
             skill_id=body.skill_id,

@@ -62,6 +62,7 @@ from adk.mcp_observability import (
 )
 from adk.proactive_greet import inject_opening_guidance
 from adk.proactive_reactive import inject_reactive_guidance
+from adk.proactive_telemetry import tag_proactive_span_from_callback_context
 from adk.teacher_focus import inject_teacher_focus
 from adk.tools import resolve_mcp_tools, resolve_tools
 from auth.access_context import AccessContext
@@ -372,6 +373,15 @@ def create_agent(
         from observability.timing import STAGE_RUNNER_SETUP_DONE, get_current_tracker
 
         get_current_tracker().mark(STAGE_RUNNER_SETUP_DONE)
+
+        # Sprint PROACTIVE-SIM-REACTIVE M7: tag the OTel span with
+        # tutor.proactive_kind when this invocation was triggered by a
+        # proactive sentinel ([session_start] for Phase A or
+        # [event_reactive:<kind>] for Phase B). Reads
+        # callback_context.user_content (ADK's typed view of the latest
+        # user message). No-op on regular student turns. Telemetry-only
+        # — never raises.
+        tag_proactive_span_from_callback_context(callback_context)
 
         _before_agent(callback_context)
         _session_tracker(callback_context)
