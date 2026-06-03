@@ -121,6 +121,18 @@ async def get_config(
         if v is not None:
             skill_voice = getattr(v, "tts_voice", None)
 
+    # M-A5 diagnostic — temporary, helps us see in Cloud Run logs whether
+    # the registry is selecting gcp_wavenet or falling back to browser.
+    # Remove once the read-aloud Cloud TTS path is confirmed working end
+    # to end in dev.
+    logger.info(
+        "voice/config skill_id=%r skill_found=%s tts.provider=%s stt.provider=%s",
+        skill_id,
+        skill is not None,
+        tts.name,
+        stt.name,
+    )
+
     return {
         "tts": {
             "provider": tts.name,
@@ -149,6 +161,16 @@ async def synthesize(
     """
     skill = get_skill(body.skill_id) if body.skill_id else None
     provider = get_tts(skill)
+    # M-A5 diagnostic — see voice/config note above.
+    logger.info(
+        "voice/synthesize skill_id=%r skill_found=%s provider=%s lang=%s voice=%s chars=%d",
+        body.skill_id,
+        skill is not None,
+        provider.name,
+        body.lang,
+        body.voice,
+        len(body.text),
+    )
 
     with _tracer.start_as_current_span("voice.synthesize") as span:
         span.set_attribute("voice.provider", provider.name)

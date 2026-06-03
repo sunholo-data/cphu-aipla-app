@@ -184,6 +184,9 @@ export function ReadAloudButton({
   }
 
   async function speakViaGCP(): Promise<void> {
+    // M-A7 diagnostic — temporary.
+    // eslint-disable-next-line no-console
+    console.log("[ReadAloudButton] speakViaGCP() POST /api/proxy/api/voice/tts/synthesize", { lang, voice });
     try {
       const res = await fetchWithAuth("/api/proxy/api/voice/tts/synthesize", {
         method: "POST",
@@ -194,6 +197,13 @@ export function ReadAloudButton({
           voice,
           skillId,
         }),
+      });
+      // eslint-disable-next-line no-console
+      console.log("[ReadAloudButton] synthesize response", {
+        status: res.status,
+        contentType: res.headers.get("content-type"),
+        provider: res.headers.get("x-voice-provider"),
+        cacheHit: res.headers.get("x-voice-cache-hit"),
       });
       if (!res.ok) throw new Error(`synthesize ${res.status}`);
       const contentType = res.headers.get("content-type") ?? "";
@@ -237,6 +247,11 @@ export function ReadAloudButton({
   }
 
   function handleClick() {
+    // M-A7 diagnostic — temporary; helps us tell from DevTools whether
+    // the click is reaching this handler at all and which branch fires.
+    // Remove once Cloud TTS path is verified end-to-end in dev.
+    // eslint-disable-next-line no-console
+    console.log("[ReadAloudButton] click", { provider, voice, lang, useGCP, isSpeaking });
     if (isSpeaking) {
       stopAll();
       return;
