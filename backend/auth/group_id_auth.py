@@ -50,7 +50,7 @@ logger = logging.getLogger(__name__)
 GROUP_AUTH_SIGNING_SECRET_ENV = "GROUP_AUTH_SIGNING_SECRET"
 AUTH_MODE = "anonymous_group_id"
 JWT_ALGORITHM = "HS256"
-DEFAULT_TTL_DAYS = 30
+DEFAULT_GROUP_CODE_TTL_DAYS = 300
 DEFAULT_MAX_CONCURRENT_SESSIONS = 100
 DEFAULT_TOKEN_LIFETIME_SECONDS = 8 * 3600  # 8 hours
 # Alphabet excludes ambiguous chars (0/O/1/I) per design.
@@ -399,7 +399,7 @@ def create_group(
     title: str,
     skill_ids: list[str] | tuple[str, ...],
     creator_uid: str,
-    ttl_days: int = DEFAULT_TTL_DAYS,
+    ttl_days: int = DEFAULT_GROUP_CODE_TTL_DAYS,
     max_concurrent_sessions: int = DEFAULT_MAX_CONCURRENT_SESSIONS,
 ) -> GroupRecord:
     """Mint a new group code. Called by the teacher-facing endpoint (M2).
@@ -411,8 +411,8 @@ def create_group(
             ``can_use_tool`` for anonymous-group users.
         creator_uid: The teacher's Firebase uid. Required for the
             revoke gate ("only the creator can delete").
-        ttl_days: Days until the group expires. Default 30; AIPLA
-            typically sets shorter (per-class).
+        ttl_days: Days until the group expires. Default 300 (~ Danish
+            school year); AIPLA may pass shorter values per-class.
         max_concurrent_sessions: Per-group cap (default 100/day).
     """
     # Verify the signing secret early — fail loud BEFORE we mint state.
@@ -452,7 +452,7 @@ def upsert_group(
     title: str,
     skill_ids: list[str] | tuple[str, ...],
     creator_uid: str,
-    ttl_days: int = DEFAULT_TTL_DAYS,
+    ttl_days: int = DEFAULT_GROUP_CODE_TTL_DAYS,
     max_concurrent_sessions: int = DEFAULT_MAX_CONCURRENT_SESSIONS,
 ) -> tuple[GroupRecord, bool]:
     """Create-or-extend a group with a CALLER-CHOSEN code.
@@ -467,10 +467,10 @@ def upsert_group(
          first-time-create path and False when extending an existing.
 
     Designed for deploy-time demo-code seeding (cloudbuild.yaml). The
-    intent is "guarantee these N codes are alive for the next 30 days,
-    every deploy" — extending TTL on the same code rather than
-    cluttering Firestore with daily new codes. Idempotency by code is
-    the load-bearing property.
+    intent is "guarantee these N codes are alive for the next school
+    year (~300 days), every deploy" — extending TTL on the same code
+    rather than cluttering Firestore with daily new codes. Idempotency
+    by code is the load-bearing property.
 
     Raises:
         ValueError: ``code`` doesn't match the wordlist-shape sanity
