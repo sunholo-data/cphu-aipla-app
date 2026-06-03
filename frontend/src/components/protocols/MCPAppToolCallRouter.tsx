@@ -26,6 +26,10 @@ import { useEffect, useMemo, useState } from "react";
 import type { ToolCallState } from "@/hooks/useSkillAgent";
 import { fetchWithAuth } from "@/lib/apiClient";
 import { useMcpClient } from "@/lib/mcpClient";
+import {
+  fetchProactiveEventCheck,
+  mapArtefactKindToMeaningful,
+} from "@/lib/proactiveEventCheck";
 import { notificationToChatMessage } from "@/components/protocols/mcpAppNotificationAdapter";
 import { ArtefactRefused } from "./ArtefactRefused";
 import { ArtefactWarningStripe } from "./ArtefactWarningStripe";
@@ -142,6 +146,11 @@ interface RouterProps {
    * pushes are silently dropped (graceful no-op for /dev/* surfaces and
    * pre-first-turn renders). See sprint 1.25. */
   sessionId?: string | null;
+  /** Optional: current skill id. Required for the sprint
+   * PROACTIVE-SIM-REACTIVE gate-check call so the backend knows which
+   * skill's proactive flags + thresholds to apply. When unset, the
+   * gate-check is silently skipped (same posture as sessionId). */
+  skillId?: string | null;
   /** Dev-only override: pre-connected Client to use instead of the
    * per-server cache. Useful for /dev/* pages that bypass Firebase auth. */
   devClient?: Client;
@@ -152,6 +161,7 @@ export function MCPAppToolCallRouter({
   mcpServerIds,
   onChatMessage,
   sessionId,
+  skillId,
   devClient,
 }: RouterProps) {
   return (
@@ -167,6 +177,7 @@ export function MCPAppToolCallRouter({
             unprefixedName={parsed.unprefixedName}
             onChatMessage={onChatMessage}
             sessionId={sessionId}
+            skillId={skillId}
             devClient={devClient}
           />
         );
@@ -235,6 +246,7 @@ interface RoutedProps {
   unprefixedName: string;
   onChatMessage?: (text: string) => void;
   sessionId?: string | null;
+  skillId?: string | null;
   devClient?: Client;
 }
 
@@ -244,6 +256,7 @@ function RoutedToolCall({
   unprefixedName,
   onChatMessage,
   sessionId,
+  skillId,
   devClient,
 }: RoutedProps) {
   const hookedClient = useMcpClient(devClient ? null : serverId);
@@ -441,6 +454,46 @@ function RoutedToolCall({
               }),
             },
           );
+          // Sprint PROACTIVE-SIM-REACTIVE M8 (Phase B Path B): after the
+          // iframe-context POST settles, inspect the artefact-side
+          // `structuredContent.kind` field (e.g. `boldkast.play`) and
+          // if it maps to a meaningful event kind, ask the backend
+          // gate-decision endpoint whether to fire a proactive tutor
+          // turn. On shouldFire, post the trigger sentinel via
+          // onChatMessage — the FE's useSkillAgent.sendMessage handles
+          // the AG-UI run; the sentinel is filtered out of the rendered
+          // message list by isProactiveSentinel in toSkillMessage.
+          //
+          // Best-effort + non-blocking. Skip silently when the chat
+          // page didn't supply skillId / onChatMessage (e.g. /dev/*
+          // surfaces or pre-first-turn renders). A gate-check failure
+          // never blocks the iframe-context write the artefact already
+          // succeeded on.
+          if (skillId && onChatMessage) {
+            const rawKind =
+              typeof p.structuredContent?.kind === "string"
+                ? (p.structuredContent.kind as string)
+                : null;
+            const meaningful = mapArtefactKindToMeaningful(rawKind);
+            if (meaningful) {
+              fetchProactiveEventCheck({
+                sessionId,
+                skillId,
+                eventKind: meaningful,
+              })
+                .then((result) => {
+                  if (result.shouldFire && result.trigger) {
+                    onChatMessage(result.trigger);
+                  }
+                })
+                .catch((err) => {
+                  console.warn(
+                    "MCPAppToolCallRouter: proactive-event-check failed",
+                    err,
+                  );
+                });
+            }
+          }
         } catch (err) {
           console.warn(
             "MCPAppToolCallRouter: update-model-context POST failed",

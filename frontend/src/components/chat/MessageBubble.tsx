@@ -228,6 +228,7 @@ export const MessageBubble = React.memo(function MessageBubble({
                 mcpServerIds={mcpServerIds ?? []}
                 onChatMessage={onChatMessage}
                 sessionId={sessionId}
+                skillId={skillId}
               />
             )}
             {nonA2uiCalls.length > 0 && (

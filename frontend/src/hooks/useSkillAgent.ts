@@ -8,6 +8,7 @@
 
 import type { Message } from "@ag-ui/client";
 import { useCallback, useEffect, useRef, useState } from "react";
+import { isProactiveSentinel } from "@/lib/proactiveSentinels";
 import { useAGUIAgent } from "@/providers/AGUIProvider";
 import { useOptionalSurfaceRegistry } from "@/providers/SurfaceRegistry";
 import {
@@ -83,6 +84,17 @@ function toSkillMessage(m: Message): SkillMessage | null {
   if (!role || !["user", "assistant"].includes(role)) return null;
   const content = (m as { content?: unknown }).content;
   if (typeof content === "string") {
+    // Sprint PROACTIVE-SIM-REACTIVE M8: drop synthetic proactive-trigger
+    // sentinels from the rendered list. Without this, Path B's
+    // sim-reactive trigger ([event_reactive:<kind>]) would render as a
+    // student chat bubble because the FE addMessage() that kicks off
+    // the AG-UI run puts the sentinel directly into agent.messages.
+    // Phase A is server-driven so its [session_start] sentinel never
+    // entered the FE message list — but covering both kinds here is
+    // belt-and-braces for the eventual Phase A refactor onto Path B.
+    if (role === "user" && isProactiveSentinel(content)) {
+      return null;
+    }
     return { id: m.id, role: role as SkillMessage["role"], content };
   }
   // Tool-only assistant turns (Gemini sometimes emits send_a2ui_json_to_client
