@@ -135,8 +135,12 @@ export const MessageBubble = React.memo(function MessageBubble({
   const voiceConfig = useVoiceConfig(skillId);
   // 1.1.11 auto-read: when ON, every assistant message auto-speaks.
   // We only trigger for assistant role; user/system bubbles never
-  // self-speak.
+  // self-speak. Gated on `!voiceConfig.loading` so the first message
+  // (typically the proactive-greet) doesn't fire before the voice
+  // config has resolved — otherwise that first read used the
+  // "browser" default and only later messages got Cloud TTS.
   const { enabled: autoReadEnabled } = useAutoReadAloud();
+  const autoSpeak = autoReadEnabled && !voiceConfig.loading;
   const isBot = message.role === "assistant";
   const time = formatTime();
 
@@ -206,7 +210,7 @@ export const MessageBubble = React.memo(function MessageBubble({
                 provider={voiceConfig.tts.provider}
                 voice={voiceConfig.tts.voice}
                 skillId={skillId}
-                autoSpeakOnMount={autoReadEnabled}
+                autoSpeakOnMount={autoSpeak}
               />
             ) : null}
           </div>
