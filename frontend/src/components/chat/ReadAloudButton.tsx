@@ -256,6 +256,15 @@ export function ReadAloudButton({
       stopAll();
       return;
     }
+    // Barge-in: cancel any other ReadAloudButton currently speaking
+    // before we start, so two bubbles can't overlap. Each instance's
+    // voice.cancel listener does the actual stop work; we just fire the
+    // event. The dispatch is synchronous so by the time we fall through
+    // to speakViaGCP / speechSynthesis.speak, the other instance's
+    // audio is already paused and its blob URL revoked.
+    if (typeof window !== "undefined") {
+      window.dispatchEvent(new CustomEvent("aipla:voice.cancel"));
+    }
     if (useGCP) {
       void speakViaGCP();
       return;

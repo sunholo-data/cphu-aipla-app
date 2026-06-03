@@ -178,6 +178,20 @@ describe("ReadAloudButton", () => {
     expect(speakMock).toHaveBeenCalled();
   });
 
+  it("click dispatches voice.cancel so a prior bubble's playback stops", () => {
+    const cancelEvents: Event[] = [];
+    const listener = (e: Event) => cancelEvents.push(e);
+    window.addEventListener("aipla:voice.cancel", listener);
+    try {
+      render(<ReadAloudButton text="Hej" lang="da" />);
+      fireEvent.click(screen.getByRole("button", { name: /read aloud/i }));
+      expect(cancelEvents).toHaveLength(1);
+      expect(cancelEvents[0].type).toBe("aipla:voice.cancel");
+    } finally {
+      window.removeEventListener("aipla:voice.cancel", listener);
+    }
+  });
+
   it("Cloud TTS fetch failure: degrades to browser Web Speech", async () => {
     const fetchMock = vi.fn().mockRejectedValue(new Error("network down"));
     vi.stubGlobal("fetch", fetchMock);
