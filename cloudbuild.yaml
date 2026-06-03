@@ -191,6 +191,14 @@ steps:
       # default "aitana-platform" — see backend/skills/platform.py.
       - '--set-env-vars=PLATFORM_OWNER_UID=aipla-platform'
       - '--set-env-vars=PLATFORM_OWNER_EMAIL=platform@aipla.dev'
+      # Sprint VOICE-PROVIDER (1.1.11) — Cloud TTS WaveNet for Danish
+      # read-aloud, content-hash cache to gs://${_PROJECT_ID}-tts-cache.
+      # The registry falls back to "browser" (window.speechSynthesis)
+      # when VOICE_TTS_PROVIDER is unset, so this is the env-flip that
+      # actually turns the WaveNet path on per env. STT stays "disabled"
+      # until M-B5 ships the per-class teacher toggle.
+      - '--set-env-vars=VOICE_TTS_PROVIDER=gcp_wavenet'
+      - '--set-env-vars=VOICE_TTS_CACHE_BUCKET=${_PROJECT_ID}-tts-cache'
 
   # --- Post-deploy smoke: fail the build if any critical endpoint is not 200 ---
   # Per CLAUDE.md: no feature lands with manual-only verification. This step
