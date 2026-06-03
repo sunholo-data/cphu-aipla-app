@@ -15,7 +15,7 @@ from pydantic import BaseModel
 
 from admin import platform_seed
 from admin.auth import _assert_caller_is_service_account
-from auth.group_id_auth import create_group, upsert_group
+from auth.group_id_auth import DEFAULT_GROUP_CODE_TTL_DAYS, create_group, upsert_group
 from skills.skill_config import list_skills
 
 logger = logging.getLogger(__name__)
@@ -138,12 +138,12 @@ class MintDemoGroupRequest(BaseModel):
         are preserved. If missing, the code is created. Used by the
         cloudbuild deploy step that guarantees a known set of demo
         codes (``aipla-demo-1`` / ``aipla-demo-2`` / ...) is always
-        live for the next 30 days.
+        live for the next school year (~300 days).
     """
 
     skill_name: str = "problem-set-hints"
     title: str = "jutland-demo-v01"
-    ttl_days: int = 30
+    ttl_days: int = DEFAULT_GROUP_CODE_TTL_DAYS
     max_concurrent_sessions: int = 100
     # 2026-05-25 — explicit code = idempotent upsert path.
     code: str | None = None

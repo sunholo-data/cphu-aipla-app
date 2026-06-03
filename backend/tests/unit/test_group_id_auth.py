@@ -275,12 +275,14 @@ def test_user_from_group_token_has_no_pii_fields():
 # ─── Defaults ───────────────────────────────────────────────────────────────
 
 
-def test_default_ttl_is_thirty_days():
-    """Design spec: 30 days default TTL on group codes."""
+def test_default_ttl_is_school_year():
+    """Design spec (quick-wins v1.1): 300 days default TTL on group codes
+    (~ Danish school year). Raised from 30 days in sprint QUICK-WINS-V11
+    so a class can resume from August through May without re-minting."""
     rec = create_group(title="x", skill_ids=["s"], creator_uid="u")
     seconds_until_expiry = rec.expires_at - time.time()
-    # Within 1 hour of 30 days.
-    assert 29 * 86400 < seconds_until_expiry < 31 * 86400
+    # Within 1 day of 300 days.
+    assert 299 * 86400 < seconds_until_expiry < 301 * 86400
 
 
 def test_default_max_concurrent_sessions_is_one_hundred():

@@ -34,6 +34,7 @@ from fastapi import APIRouter, Depends, HTTPException, Request
 from pydantic import BaseModel, Field
 
 from auth.group_id_auth import (
+    DEFAULT_GROUP_CODE_TTL_DAYS,
     GroupExpired,
     GroupNotFound,
     GroupRecord,
@@ -63,7 +64,7 @@ class CreateGroupRequest(BaseModel):
 
     title: str = Field(min_length=1, max_length=200)
     skill_ids: list[str] = Field(min_length=1, max_length=50)
-    ttl_days: int = Field(default=30, ge=1, le=365)
+    ttl_days: int = Field(default=DEFAULT_GROUP_CODE_TTL_DAYS, ge=1, le=365)
     max_concurrent_sessions: int = Field(default=100, ge=1, le=10_000)
 
     model_config = {"extra": "forbid"}
