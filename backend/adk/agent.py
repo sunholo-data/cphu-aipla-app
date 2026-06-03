@@ -61,6 +61,7 @@ from adk.mcp_observability import (
     make_mcp_before_tool_callback,
 )
 from adk.proactive_greet import inject_opening_guidance
+from adk.proactive_reactive import inject_reactive_guidance
 from adk.teacher_focus import inject_teacher_focus
 from adk.tools import resolve_mcp_tools, resolve_tools
 from auth.access_context import AccessContext
@@ -475,11 +476,25 @@ def create_agent(
             # OR when no config has been saved. LOCAL_MODE scope only —
             # Phase 3 will swap the constant (teacher, class) tuple for a
             # real Class-entity lookup.
+            # Phase 1.1.2 Phase B: when the skill opts into proactive
+            # sim-reactive turns, append the skill-author's `## Reactive
+            # turn` guidance after the opening block. Composition order
+            # matters: opening guidance lands first so the model sees
+            # opening expectations before reactive expectations when both
+            # flags are on. No-op when proactive_event_reactive is False
+            # or the reactive_template is empty. The block frames itself
+            # as system context so the model treats it as reactive
+            # guidance, not student input. See
+            # docs/design/aipla/v1.1.0-feedback/proactive-sim-reactive-tutor.md.
             inject_teacher_focus(
-                inject_opening_guidance(
-                    skill_config.instructions,
-                    proactive_greet=skill_config.proactive_greet,
-                    opening_template=skill_config.opening_template,
+                inject_reactive_guidance(
+                    inject_opening_guidance(
+                        skill_config.instructions,
+                        proactive_greet=skill_config.proactive_greet,
+                        opening_template=skill_config.opening_template,
+                    ),
+                    proactive_event_reactive=skill_config.proactive_event_reactive,
+                    reactive_template=skill_config.reactive_template,
                 ),
                 skill_config.skill_id,
             ),
