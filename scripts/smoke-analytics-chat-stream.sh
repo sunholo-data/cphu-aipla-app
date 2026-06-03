@@ -180,6 +180,34 @@ else
   PASS=$((PASS + 1))
 fi
 
+# --- 3b. Resilience scenario: same teacher token, after a group/join ---
+# Reproduces the 2026-06-03T11:39:35Z anomaly: a user opens a second
+# tab, joins a group as a student, returns to /teacher/analytics, and
+# sends Q2. The Firebase teacher session is still valid → the second
+# stream POST should still succeed via getTeacherIdToken(). We don't
+# go through the AGUIProvider here (no React); we just confirm the
+# REST path is teacher-token-safe regardless of group-session state.
+echo
+echo "[3b] resilience: teacher token survives a concurrent group/join"
+# Mint a group token (sets sessionStorage in a real browser; here we
+# just exercise the join path).
+GROUP_CODE="$(curl -fsS -H "Authorization: Bearer $TEACHER_TOKEN" \
+  "$PROXY/api/classes/$CLASS_ID" \
+  | python3 -c "import json,sys; d=json.load(sys.stdin); codes=d.get('groupCodes') or []; print(codes[0] if codes else '')")"
+if [ -n "$GROUP_CODE" ]; then
+  curl -fsS -X POST -H "Content-Type: application/json" \
+    -d "{\"group_id\":\"$GROUP_CODE\"}" \
+    "$PROXY/api/auth/group/join" > /dev/null
+  # Now send the SAME stream POST with the ORIGINAL teacher token.
+  AFTER_STATUS="$(curl -sS -o /tmp/smoke_resil.txt -w '%{http_code}' --max-time 30 \
+    -X POST -H "Authorization: Bearer $TEACHER_TOKEN" \
+    -H "Content-Type: application/json" \
+    -H "Accept: text/event-stream" \
+    -d "$STREAM_BODY" \
+    "$PROXY/api/skill/$SKILL_ID/stream")"
+  check "teacher token still 200 after concurrent group/join" "200" "$AFTER_STATUS"
+fi
+
 # --- 4. (Differential) POST with group token should 404 ---
 # Why: AGUIProvider was passing the auth-context's getIdToken() result.
 # On a frontend built with NEXT_PUBLIC_AUTH_MODE=anonymous_group_id, that

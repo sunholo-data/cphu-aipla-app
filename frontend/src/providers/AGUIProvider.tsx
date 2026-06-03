@@ -89,6 +89,16 @@ export function AGUIProvider({
       setTokenResolved(true);
       return () => undefined;
     }
+    // Re-engage the gate while we re-fetch on a user-change. This
+    // blocks children from mounting against a stale agent during the
+    // React update window where `user` has just changed but the new
+    // token hasn't landed. Without this, a user that switches identity
+    // (e.g. opens a group session in another tab while
+    // /teacher/analytics is mounted) can submit a message in the gap
+    // and have it sent with the old token. Caught 2026-06-03 in dev
+    // logs: one anomalous 404 at 11:39:35 right after a
+    // /api/auth/group/join.
+    setTokenResolved(false);
     const fetchToken = useTeacherAuth ? getTeacherIdToken : getIdToken;
     void fetchToken()
       .then((t) => {
