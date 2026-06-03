@@ -102,8 +102,14 @@ def _make_skill(
     name: str = "boldkast",
     proactive_event_reactive: bool = True,
     heartbeat_seconds: int = 10,
-    max_per_session: int = 2,
+    max_per_session: int | None = None,
 ) -> SkillConfig:
+    """Build a SkillConfig fixture for proactive-event-check tests.
+
+    ``max_per_session`` defaults to None matching the post-2026-06-03
+    "no cap, cooldown is the throttle" posture. Tests that want to
+    exercise the cap-reached branch must pass an explicit positive int.
+    """
     return SkillConfig(
         name=name,
         description="A test skill.",
@@ -259,24 +265,65 @@ def test_cooldown_active_returns_skipped(client):
     assert "cooldown" in data["reason"]
 
 
-def test_cap_reached_returns_skipped(client):
-    """Once proactive_turn_count >= proactive_max_per_session, no
-    further proactive turns fire regardless of how much time has
-    passed."""
+def test_cap_reached_returns_skipped_when_explicit_cap_set(client):
+    """When a skill OPTS IN to a hard cap via an explicit positive int,
+    proactive_turn_count >= cap blocks further proactive turns. This is
+    the opt-in path for skills whose pedagogy requires a per-session
+    ceiling — most skills leave the cap at None (the default) and rely
+    on the 90s cooldown alone."""
     skill = _make_skill(max_per_session=2)
     long_ago = datetime.now(UTC) - timedelta(seconds=300)
     long_ago_proactive = datetime.now(UTC) - timedelta(seconds=600)  # past cooldown
     _seed_session(
         last_message_at=long_ago,
         last_proactive_turn_at=long_ago_proactive,
-        proactive_turn_count=2,  # already at cap
+        proactive_turn_count=2,  # already at the explicit cap
     )
     with patch("protocols.proactive_routes.get_skill", return_value=skill):
         resp = _post(client)
     assert resp.status_code == 200
     data = resp.json()
     assert data["shouldFire"] is False
-    assert "cap reached" in data["reason"]
+
+
+def test_no_cap_when_max_per_session_is_none(client):
+    """Default posture (2026-06-03+): proactiveMaxPerSession=None means
+    the 90s cooldown is the only throttle. A session with many prior
+    proactive turns can still fire another, provided cooldown has
+    elapsed. Retracted from the original 'max 2' draft constraint once
+    JB confirmed no numeric cap was agreed."""
+    skill = _make_skill(max_per_session=None)
+    long_ago = datetime.now(UTC) - timedelta(seconds=300)
+    long_ago_proactive = datetime.now(UTC) - timedelta(seconds=600)  # past cooldown
+    _seed_session(
+        last_message_at=long_ago,
+        last_proactive_turn_at=long_ago_proactive,
+        proactive_turn_count=20,  # would have been at cap before retraction
+    )
+    with patch("protocols.proactive_routes.get_skill", return_value=skill):
+        resp = _post(client)
+    assert resp.status_code == 200
+    data = resp.json()
+    assert data["shouldFire"] is True, f"expected shouldFire=True with no cap; got reason={data.get('reason')!r}"
+    assert data["trigger"] == "[event_reactive:sim_run]"
+
+
+def test_zero_or_negative_cap_treated_as_no_cap(client):
+    """Defensive: a SKILL.md author writing proactiveMaxPerSession: 0
+    likely meant 'no cap' not 'fire zero turns'. The gate treats <=0 the
+    same as None to avoid that footgun. Negative values likewise."""
+    skill = _make_skill(max_per_session=0)
+    long_ago = datetime.now(UTC) - timedelta(seconds=300)
+    long_ago_proactive = datetime.now(UTC) - timedelta(seconds=600)
+    _seed_session(
+        last_message_at=long_ago,
+        last_proactive_turn_at=long_ago_proactive,
+        proactive_turn_count=5,
+    )
+    with patch("protocols.proactive_routes.get_skill", return_value=skill):
+        resp = _post(client)
+    assert resp.status_code == 200
+    assert resp.json()["shouldFire"] is True
 
 
 def test_anonymous_group_user_happy_path(client_anon):

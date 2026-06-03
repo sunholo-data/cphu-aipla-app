@@ -47,7 +47,6 @@ openingTemplate: |
   arbejdsbordet til højre ("prøv at samle kredsløbet i laboratoriet").
 proactiveEventReactive: true
 proactiveHeartbeatSeconds: 10
-proactiveMaxPerSession: 2
 reactiveTemplate: |
   Eleven har lige udført en meningsfuld handling i det virtuelle
   laboratorium — typisk klikket sig videre til næste trin, optaget en

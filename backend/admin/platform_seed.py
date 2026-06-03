@@ -155,7 +155,13 @@ def _parse_template(skill_md: Path) -> dict[str, Any]:
         # docs/design/aipla/v1.1.0-feedback/proactive-sim-reactive-tutor.md.
         "proactiveEventReactive": bool(front.get("proactiveEventReactive") or False),
         "proactiveHeartbeatSeconds": int(front.get("proactiveHeartbeatSeconds") or 10),
-        "proactiveMaxPerSession": int(front.get("proactiveMaxPerSession") or 2),
+        # None when omitted = no per-session cap; the 90s cooldown is the
+        # only throttle. Skill can opt into a hard cap by setting an
+        # explicit positive int. Retracted from default=2 on 2026-06-03
+        # once JB confirmed no numeric cap had been agreed.
+        "proactiveMaxPerSession": (
+            int(front["proactiveMaxPerSession"]) if front.get("proactiveMaxPerSession") is not None else None
+        ),
         "reactiveTemplate": (front.get("reactiveTemplate") or "").strip(),
         # 1.A M8 — optional accessControl override. Templates that omit
         # it default to public (preserves the existing behaviour).
@@ -316,8 +322,12 @@ def seed(templates_root: Path | None = None) -> SeedSummary:
                 # Only ship the tuning knobs alongside the flag — defaults
                 # match SkillConfig field defaults so explicit-default
                 # template writes survive a SkillConfig refactor cleanly.
+                # proactiveMaxPerSession is None unless the template
+                # explicitly opts in to a hard cap; sending None here keeps
+                # Firestore aligned with "no cap, cooldown is the throttle".
                 optional_kwargs["proactiveHeartbeatSeconds"] = parsed["proactiveHeartbeatSeconds"]
-                optional_kwargs["proactiveMaxPerSession"] = parsed["proactiveMaxPerSession"]
+                if parsed["proactiveMaxPerSession"] is not None:
+                    optional_kwargs["proactiveMaxPerSession"] = parsed["proactiveMaxPerSession"]
             if parsed["reactiveTemplate"]:
                 optional_kwargs["reactiveTemplate"] = parsed["reactiveTemplate"]
             if parsed["avatar"]:

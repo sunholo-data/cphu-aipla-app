@@ -45,14 +45,16 @@ def _write_skill(tmp_path: Path, name: str, extra: str = "") -> Path:
 
 def test_defaults_when_frontmatter_omits_proactive_event_reactive(tmp_path: Path) -> None:
     """A SKILL.md with no proactive sim-reactive fields parses to the
-    SkillConfig defaults (flag off; tuning knobs at design-doc defaults
-    of 10s heartbeat and 2 turns/session; empty reactive template)."""
+    SkillConfig defaults (flag off; 10s heartbeat; no per-session cap —
+    JB did not agree to a numeric cap, 2026-06-03; empty reactive
+    template). The 90s session-wide cooldown is the only proactive
+    throttle by default."""
     skill_md = _write_skill(tmp_path, "default-skill")
     parsed = _parse_template(skill_md)
 
     assert parsed["proactiveEventReactive"] is False
     assert parsed["proactiveHeartbeatSeconds"] == 10
-    assert parsed["proactiveMaxPerSession"] == 2
+    assert parsed["proactiveMaxPerSession"] is None
     assert parsed["reactiveTemplate"] == ""
 
 
@@ -112,7 +114,7 @@ def test_skillconfig_defaults_match_parser_defaults() -> None:
     )
     assert cfg.proactive_event_reactive is False
     assert cfg.proactive_heartbeat_seconds == 10
-    assert cfg.proactive_max_per_session == 2
+    assert cfg.proactive_max_per_session is None
     assert cfg.reactive_template == ""
 
 
@@ -168,7 +170,11 @@ def test_real_skill_templates_carry_reactive_fields(skill_name: str) -> None:
 
     assert parsed["proactiveEventReactive"] is True, f"{skill_name} SKILL.md should opt in to sim-reactive turns"
     assert parsed["proactiveHeartbeatSeconds"] == 10
-    assert parsed["proactiveMaxPerSession"] == 2
+    # No per-session cap is the post-2026-06-03 default — the 90s
+    # cooldown is the only throttle. A skill can still opt in to a
+    # hard cap by setting an explicit positive int, but none of the
+    # three v1 tutor skills do today.
+    assert parsed["proactiveMaxPerSession"] is None
     assert parsed["reactiveTemplate"], (
         f"{skill_name} SKILL.md has proactiveEventReactive=true but reactiveTemplate is empty — "
         "the helper will no-op silently and the tutor will produce ungrounded reactive turns"

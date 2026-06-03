@@ -364,8 +364,15 @@ async def post_proactive_event_check(
                 reason="cooldown active",
             )
 
-    # Gate 7: per-session cap on proactive turns (greet + reactive).
-    if existing.proactive_turn_count >= skill.proactive_max_per_session:
+    # Gate 7: optional per-session cap on proactive turns (greet + reactive).
+    # None means no cap — the 90s session-wide cooldown above is then the
+    # only throttle. A skill can opt into a hard cap by setting an explicit
+    # positive int in its SKILL.md frontmatter; non-positive values are
+    # treated the same as None (defensive against `proactiveMaxPerSession: 0`
+    # confusing semantics). Retracted from the original "max 2" design
+    # constraint 2026-06-03 once JB confirmed no numeric cap was agreed.
+    cap = skill.proactive_max_per_session
+    if cap is not None and cap > 0 and existing.proactive_turn_count >= cap:
         return _check_response(
             should_fire=False,
             session_id=session_id,

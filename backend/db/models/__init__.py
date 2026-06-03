@@ -123,10 +123,17 @@ class SkillConfig(BaseModel):
     # workbench event may trigger a proactive tutor turn. Stops the tutor
     # interrupting a student who's actively typing.
     proactive_heartbeat_seconds: int = Field(default=10, alias="proactiveHeartbeatSeconds")
-    # Hard cap on proactive tutor turns per session, counting both
-    # auto-greet (Phase A) and sim-reactive (Phase B). Default 2 means
-    # at most "1 reactive after the greet" for opted-in skills.
-    proactive_max_per_session: int = Field(default=2, alias="proactiveMaxPerSession")
+    # Optional hard cap on proactive tutor turns per session, counting
+    # both auto-greet (Phase A) and sim-reactive (Phase B). Default None
+    # means no per-session cap — the 90s session-wide cooldown
+    # (PROACTIVE_COOLDOWN_SECONDS in protocols/proactive_routes.py) is
+    # then the only throttle. JB had not agreed to a numeric cap; the
+    # original "max 2" wording was a draft design constraint, retracted
+    # 2026-06-03 in favour of "respond to every serious student
+    # interaction, cooldown prevents spam". A skill can still set an
+    # explicit positive int to opt into a hard cap if its pedagogy
+    # requires it.
+    proactive_max_per_session: int | None = Field(default=None, alias="proactiveMaxPerSession")
     # Skill-author guidance text the tutor uses as a seed on each
     # sim-reactive proactive turn. Authored in SKILL.md under the
     # ``## Reactive turn`` section; parsed into this field by the

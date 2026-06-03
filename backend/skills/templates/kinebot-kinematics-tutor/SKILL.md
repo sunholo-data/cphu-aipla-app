@@ -44,7 +44,6 @@ openingTemplate: |
   simulation on the right") where it fits.
 proactiveEventReactive: true
 proactiveHeartbeatSeconds: 10
-proactiveMaxPerSession: 2
 reactiveTemplate: |
   The student just committed a meaningful action in the kinematics
   workbench — likely ran a simulation, advanced to the next step, or

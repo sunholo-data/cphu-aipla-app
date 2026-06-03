@@ -45,7 +45,6 @@ openingTemplate: |
   the delopgaver.
 proactiveEventReactive: true
 proactiveHeartbeatSeconds: 10
-proactiveMaxPerSession: 2
 reactiveTemplate: |
   The student just committed a meaningful action in the Boldkast
   workbench — likely pressed Play to run the sim, or advanced through

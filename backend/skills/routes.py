@@ -98,7 +98,7 @@ class SkillResponse(BaseModel):
     # agent build), so it is intentionally NOT exposed here.
     proactive_event_reactive: bool = Field(default=False, alias="proactiveEventReactive")
     proactive_heartbeat_seconds: int = Field(default=10, alias="proactiveHeartbeatSeconds")
-    proactive_max_per_session: int = Field(default=2, alias="proactiveMaxPerSession")
+    proactive_max_per_session: int | None = Field(default=None, alias="proactiveMaxPerSession")
     tags: list[str]
     featured: bool
     usage_count: int = Field(alias="usageCount")
