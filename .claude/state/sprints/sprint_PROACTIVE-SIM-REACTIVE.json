@@ -13,7 +13,7 @@
       "description": "Confirm CopilotKit / ag_ui_adk frontend has a programmatic-trigger API for AG-UI runs (not user-typed). BLOCKING gate — if no such API exists, fall back to Path A (REST + FE injection) and pause sprint to revise plan.",
       "scope": "frontend",
       "estimated_loc": 0,
-      "actual_loc": null,
+      "actual_loc": 0,
       "dependencies": [],
       "acceptance_criteria": [
         "FE recon completed; one of: (a) 'API exists, here's the call site' or (b) 'API does not exist, falling back to Path A'",
@@ -21,10 +21,10 @@
       ],
       "files_to_create": [],
       "files_to_modify": [],
-      "passes": null,
-      "started": null,
-      "completed": null,
-      "notes": "Recon steps in sprint plan M1. Check useProactiveGreet hook, frontend/src/app/chat/[...path]/page.tsx, and CopilotKit module exports for appendMessage/sendMessage/runAgent. Worst-case fallback is documented."
+      "passes": true,
+      "started": "2026-06-03T15:36:00Z",
+      "completed": "2026-06-03T15:40:00Z",
+      "notes": "PASS. Path B feasible. High-level API: useSkillAgent().sendMessage(text, opts?) at frontend/src/hooks/useSkillAgent.ts:388-444 — builds Message, addMessage(), runAgent(runInput). Low-level: useAGUIAgent() returns HttpAgent with same methods. Phase A's greet is in frontend/src/lib/proactiveGreet.ts (NOT a hook in hooks/ as I expected). M8 refinement: MCPAppToolCallRouter needs access to sendMessage so the proactive turn updates the chat's messages array — thread via prop or context from the chat page (page.tsx). Will resolve in M8."
     },
     {
       "id": "M2-SKILLCONFIG-FIELDS",
@@ -292,9 +292,9 @@
     "actual_days": null
   },
   "github_issues": [],
-  "last_session": null,
-  "last_checkpoint": null,
-  "status": "not_started",
+  "last_session": "2026-06-03T16:15:00Z",
+  "last_checkpoint": "All 10 milestones shipped same-day 2026-06-03. M1 recon PASS (useSkillAgent.sendMessage). M2 d60a3b4. M3 d7fc3b1. M4 152f4c2. M5 7e94079. M6 144b1de. M7 58d108e. M8 eb16ec9. M9 9f4ad4f. M10 (this commit): sprint doc moved to implemented/, Phase A refactor follow-up doc filed at proactive-greet-refactor-to-path-b.md, SEQUENCE.md sprint-status updated. Backend 1695 tests (+50). Frontend 827 tests (+29).",
+  "status": "shipped",
   "architectural_decisions": {
     "path_b_vs_path_a": "Path B chosen for protocol fit — proactive turn rides established AG-UI rail. Path A (REST + FE injection) is documented as fallback if M1 recon shows the FE has no programmatic AG-UI trigger API.",
     "meaningful_event_allowlist": "Hardcoded server-side frozenset({sim_run, step_advance, measurement_commit}) per design-doc recommendation. Promote to per-skill config only if a skill needs different rules.",

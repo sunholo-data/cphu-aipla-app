@@ -97,10 +97,19 @@ Comfortably fits in the post-3-June → pilot-start window (2026-06-04 → 2026-
 
 - ✓ **QUICK-WINS-V11** — 1.1.1 verbosity + 1.1.6 rename-and-archival bundled sprint. Track A: 3 commits (constraint block in 3 SKILL.md files; pytest regression guard; slow-marked LLM smoke). Track B: 3 commits (constant rename, archive-on-expiry + 410 Gone, value-revert to 30d after mid-sprint privacy rethink). Plus M7 archival integration tests (3 cases). Shipped 2026-06-03 at `9d03c61`. Sprint doc moved to [implemented/quick-wins-v1.1-sprint.md](implemented/quick-wins-v1.1-sprint.md). Backend test count went 1637 → 1645 (+8 net).
   - **Mid-sprint rescope**: original 1.1.6 plan to lift platform default 30d→300d was reshaped on privacy grounds. Default stays 30d; the per-code teacher-choice path becomes [1.1.10 teacher-choice-ttl.md](teacher-choice-ttl.md). Both 1.1.6 design doc and v1.1 SEQUENCE updated to reflect this.
+- ✓ **PROACTIVE-SIM-REACTIVE** — 1.1.2 sim-event-reactive tutor (Phase B, Path B confirmed). 10 milestones M1–M10 shipped same-day 2026-06-03. Backend test count went 1645 → 1695 (+50 net: 7 from M2 SkillConfig fields, 7 from M3 inject_reactive_guidance, 2 from M4 session counters, 16 from M5 endpoint, 3 from M6 SKILL.md templates, 15 from M7 OTel). Frontend test count went 798 → 827 (+29 net: 12 from sentinel detector, 17 from event-check client). Architecture: backend `/proactive-event-check` is a pure gate decision; frontend kicks off the AG-UI run via `useSkillAgent.sendMessage` with a `[event_reactive:<kind>]` sentinel so the proactive turn rides the established AG-UI protocol. Sentinel suppression in `toSkillMessage` keeps the trigger from rendering as a student bubble.
+  - **M1 recon finding**: `useSkillAgent.sendMessage` was confirmed as the FE programmatic trigger API; Path B proceeded as planned.
+  - **M7 recon finding**: the `tutor.proactive_kind` OTel attribute mentioned in Phase A's docstring was aspirational and never implemented. M7 created the seam fresh (`backend/adk/proactive_telemetry.py`) covering both Phase A's `[session_start]` and Phase B's `[event_reactive:*]` uniformly.
+  - **Sprint doc** to be moved to [implemented/proactive-sim-reactive-tutor-sprint.md](implemented/proactive-sim-reactive-tutor-sprint.md).
 
 **Pending (M4 manual sanity for the verbosity prompt):**
 
 - LOCAL_MODE chat against `led-planck-tutor`: confirm first 5 tutor turns each ≤3 sentences and end with `?`. Counter-test: `"forklar i detaljer"` → next turn allowed to be longer. Same against `kinebot-kinematics-tutor` in English. Non-blocking — M2 + M3 self-tests are the regression bar.
+
+**Filed follow-ups (smaller post-sprint items):**
+
+- [proactive-greet-refactor-to-path-b.md](proactive-greet-refactor-to-path-b.md) — refactor Phase A `/greet` onto the Path B rail Phase B now establishes. ~0.5d. Land after Phase B has been exercised through a few pilot sessions.
+- **ProgressChecklist proactive-trigger hook** — checklist toggle → `step_advance` event. Deferred from PROACTIVE-SIM-REACTIVE M8 because it requires threading `onChatMessage` through a mount path that doesn't currently have it. Lower priority than the MCPAppToolCallRouter sim-run path which already covers Boldkast (the primary case). ~0.25d when it lands.
 
 ## Cross-version updates
 
