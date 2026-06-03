@@ -466,7 +466,7 @@ def test_agent_module_never_invoked_from_gate_endpoint(client):
     with (
         patch("protocols.proactive_routes.get_skill", return_value=skill),
         patch("protocols.proactive_routes.process_skill_request") as mock_agent,
-        patch("protocols.proactive_routes.increment_proactive_turn_count") as mock_incr,
+        patch("protocols.proactive_routes.increment_proactive_turn_count_no_stamp") as mock_incr,
     ):
         resp = _post(client)
     assert resp.status_code == 200

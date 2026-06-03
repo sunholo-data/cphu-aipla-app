@@ -94,14 +94,15 @@ def soft_delete_session(session_id: str) -> None:
 
 
 def increment_proactive_turn_count(session_id: str) -> None:
-    """Record one proactive tutor turn (greet or sim-reactive) firing.
+    """Record one SIM-REACTIVE proactive tutor turn firing.
 
-    Bumps ``proactiveTurnCount`` by 1 atomically and stamps
-    ``lastProactiveTurnAt`` to now. Sprint PROACTIVE-SIM-REACTIVE
-    introduced this helper so both the existing ``/greet`` endpoint and
-    the new ``/proactive-event-check`` gate stamp the same fields the
-    cap + cooldown gates read. Idempotency is the caller's
-    responsibility — call once per proactive turn that actually fires.
+    Bumps ``proactiveTurnCount`` by 1 atomically AND stamps
+    ``lastProactiveTurnAt`` to now. Used by the sim-reactive path
+    (post-AG-UI run for ``[event_reactive:*]`` sentinels) where the
+    timestamp drives the 90s session-wide cooldown between proactive
+    turns. Greet uses ``increment_proactive_turn_count_no_stamp`` so
+    that the first sim-reactive after the greet isn't blocked by
+    cooldown — see M8-fix #3 (2026-06-03).
     """
     update_document(
         _COLLECTION,
@@ -110,6 +111,26 @@ def increment_proactive_turn_count(session_id: str) -> None:
             "proactiveTurnCount": _fs.Increment(1),
             "lastProactiveTurnAt": _utcnow().isoformat(),
         },
+    )
+
+
+def increment_proactive_turn_count_no_stamp(session_id: str) -> None:
+    """Record one greet-style proactive turn firing WITHOUT touching
+    ``lastProactiveTurnAt``.
+
+    Used by ``/greet`` (Phase A auto-greet) so the greet counts toward
+    ``proactiveTurnCount`` (analytics signal) but does NOT establish a
+    cooldown window. Reasoning: the brief asked for "tutor responds to
+    every serious student interaction"; blocking the very first
+    sim-reactive turn just because the greet streamed within the last
+    90s defeats that intent. The greet is structurally different from
+    a reactive turn — it's a welcome, not a response to a student
+    action — so it should not occupy the cooldown slot.
+    """
+    update_document(
+        _COLLECTION,
+        session_id,
+        {"proactiveTurnCount": _fs.Increment(1)},
     )
 
 

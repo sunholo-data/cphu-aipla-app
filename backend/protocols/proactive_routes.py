@@ -37,7 +37,10 @@ from pydantic import BaseModel, ConfigDict, Field
 
 from adk.proactive_telemetry import tag_proactive_span_from_content
 from auth import User, get_current_user
-from db.chat_sessions import get_session_index, increment_proactive_turn_count
+from db.chat_sessions import (
+    get_session_index,
+    increment_proactive_turn_count_no_stamp,
+)
 from skills.skill_config import get_skill
 from skills.skill_processor import SkillNotFoundError, process_skill_request
 
@@ -206,15 +209,17 @@ async def post_session_greet(
         len(text),
     )
 
-    # Sprint PROACTIVE-SIM-REACTIVE M4: greet counts toward the per-session
-    # proactive cap. The /proactive-event-check gate (M5) reads
-    # proactiveTurnCount + lastProactiveTurnAt to enforce both the cap
-    # (default 2 total) and the 90s cooldown. Stamp only when a turn
-    # actually streamed text — empty-text turns (e.g. silent model
-    # response) intentionally don't burn cap slots.
+    # Sprint PROACTIVE-SIM-REACTIVE: greet counts toward proactiveTurnCount
+    # (analytics signal) but does NOT stamp lastProactiveTurnAt — M8-fix
+    # #3 (2026-06-03) — so the very first sim-reactive turn after the
+    # greet doesn't trip the 90s session-wide cooldown gate. Greet is
+    # structurally different from a reactive turn (welcome, not response
+    # to student action) and shouldn't occupy the cooldown slot. The
+    # cooldown timestamp is stamped only by genuine sim-reactive turns
+    # (via the after_agent callback on [event_reactive:*] runs).
     if text:
         try:
-            increment_proactive_turn_count(session_id)
+            increment_proactive_turn_count_no_stamp(session_id)
         except Exception as exc:
             # Best-effort stamp. A failure here would silently mis-count
             # the cap; logging surfaces it without failing the greet

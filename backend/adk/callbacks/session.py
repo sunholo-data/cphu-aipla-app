@@ -268,21 +268,31 @@ def make_after_agent_response(
         if not session_id:
             return
 
-        # Sprint PROACTIVE-SIM-REACTIVE M8-fix #2: update
-        # lastStudentMessageAt when this invocation contained a real
-        # (non-sentinel) student message. The /proactive-event-check gate
-        # reads this field so an auto-greet (which carries the
-        # [session_start] sentinel as a user-role event) doesn't count
-        # as student activity — fixes the case where pressing Afspil
-        # right after the greet was incorrectly blocked. Best-effort:
-        # any failure logs but doesn't break the turn.
+        # Sprint PROACTIVE-SIM-REACTIVE M8-fix #2 / #3: classify the
+        # current invocation's user-role event and update the right
+        # ChatSessionIndex fields.
+        #
+        # - Real (non-sentinel) student message → bump lastStudentMessageAt.
+        #   The /proactive-event-check gate reads this for the heartbeat
+        #   threshold; auto-greet's [session_start] sentinel does NOT
+        #   count as student activity (M8-fix #2).
+        # - Sim-reactive sentinel [event_reactive:<kind>] → bump
+        #   proactiveTurnCount AND stamp lastProactiveTurnAt (the 90s
+        #   session-wide cooldown timestamp). The /greet endpoint stamps
+        #   the count only (no timestamp) so the FIRST sim-reactive turn
+        #   doesn't trip the cooldown — see /greet for matching comment
+        #   (M8-fix #3).
+        # - Auto-greet sentinel [session_start] → no-op here; the
+        #   /greet endpoint already bumped the count.
+        #
+        # Best-effort: any failure logs but doesn't break the turn.
         if session is not None:
             try:
                 current_inv = getattr(callback_context, "invocation_id", None)
                 events = list(getattr(session, "events", None) or [])
                 if not current_inv and events:
                     current_inv = getattr(events[-1], "invocation_id", None)
-                saw_real_student_msg = False
+                user_text = ""
                 for event in events:
                     if current_inv and getattr(event, "invocation_id", None) != current_inv:
                         continue
@@ -292,21 +302,24 @@ def make_after_agent_response(
                     parts = getattr(content, "parts", None) if content else None
                     if not parts:
                         continue
-                    text = " ".join(p.text for p in parts if getattr(p, "text", None)).strip()
-                    if not text or _is_proactive_sentinel(text):
-                        continue
-                    saw_real_student_msg = True
+                    user_text = " ".join(p.text for p in parts if getattr(p, "text", None)).strip()
                     break
-                if saw_real_student_msg:
-                    from db.chat_sessions import update_session_fields
 
-                    update_session_fields(
-                        session_id,
-                        {"lastStudentMessageAt": datetime.now(UTC).isoformat()},
-                    )
+                if user_text:
+                    if _EVENT_REACTIVE_PATTERN.match(user_text):
+                        from db.chat_sessions import increment_proactive_turn_count
+
+                        increment_proactive_turn_count(session_id)
+                    elif user_text != _PROACTIVE_GREET_SENTINEL:
+                        from db.chat_sessions import update_session_fields
+
+                        update_session_fields(
+                            session_id,
+                            {"lastStudentMessageAt": datetime.now(UTC).isoformat()},
+                        )
             except Exception as exc:
                 logger.warning(
-                    "failed to update lastStudentMessageAt for %s: %s",
+                    "failed to update session timestamps for %s: %s",
                     session_id,
                     exc,
                 )

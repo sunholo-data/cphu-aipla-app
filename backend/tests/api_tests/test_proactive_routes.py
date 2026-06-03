@@ -200,7 +200,7 @@ def test_greet_increments_proactive_turn_count_on_success(client):
             "protocols.proactive_routes.process_skill_request",
             side_effect=_fake_process_skill_request,
         ),
-        patch("protocols.proactive_routes.increment_proactive_turn_count") as mock_incr,
+        patch("protocols.proactive_routes.increment_proactive_turn_count_no_stamp") as mock_incr,
     ):
         resp = client.post(
             f"/api/sessions/{NEW_SESSION_ID}/greet",
@@ -219,7 +219,7 @@ def test_greet_does_not_increment_when_skipped(client):
     skill = _make_skill(name="legacy", proactive_greet=False)
     with (
         patch("protocols.proactive_routes.get_skill", return_value=skill),
-        patch("protocols.proactive_routes.increment_proactive_turn_count") as mock_incr,
+        patch("protocols.proactive_routes.increment_proactive_turn_count_no_stamp") as mock_incr,
     ):
         resp = client.post(
             f"/api/sessions/{NEW_SESSION_ID}/greet",
