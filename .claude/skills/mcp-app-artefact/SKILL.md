@@ -282,6 +282,22 @@ a follow-up — student-facing UX is hard-fail per Axiom 11.
 
 ## Workspace integration (REQUIRED — codified after LED Planck 1.C)
 
+> **Two artefact surfaces exist in AIPLA** — different mount paths,
+> different iframe-context pipelines. If you're hooking a generic
+> behaviour (e.g. proactive-tutor reactions, audio capture, analytics),
+> remember to wire BOTH:
+>
+> | Surface | When used | Mount chain |
+> |---|---|---|
+> | **Workspace** (this section) | Right-hand ARBEJDSOMRÅDE pane — Boldkast, LED Planck, KineBot, future sims | `WorkspaceShell` → `<XSimFrame>` → `StaticArtefactFrame` → `useSimSnapshotPush` |
+> | **In-chat MCP App tool calls** | Assistant message embeds an MCP App as a tool-call result (post-pilot territory) | `MessageBubble` → `MCPAppToolCallRouter` → `AppRenderer` (`@mcp-ui/client`) → `onFallbackRequest` |
+>
+> The workspace surface is what every existing sim uses. If you're
+> debugging a hook that should fire but doesn't, the first question is:
+> *"is the iframe-context POST landing AND your new endpoint NOT
+> landing?"* If yes, you wired the wrong surface. (Cost ~45 min on
+> 2026-06-03 when proactive-sim-reactive shipped at the wrong surface.)
+
 Every artefact mounted in the chat workspace must ship the **Button +
 Workbench + Frame triad**. LED Planck 1.C shipped only the Frame and
 auto-mounted it directly into the workspace pane — the 1430px-wide lab
@@ -481,6 +497,19 @@ The Boldkast / LED-Planck / KineBot frames share three pieces of plumbing that e
    ```
 
    This replaces ~20 lines of duplicated `fetchWithAuth` + `sessionIdRef` boilerplate that every snapshot hook used to carry. The serverId argument MUST match what the skill template lists under `tool_configs.mcp.servers` and `allow_context_writes` — mismatched ids get 403'd by the backend.
+
+   **Proactive sim-reactive — happens automatically (sprint PROACTIVE-SIM-REACTIVE, 2026-06-03).** When mounted inside a `<ProactiveSimProvider>` (the chat page already wraps the workspace tree), `useSimSnapshotPush` also fires `POST /api/sessions/{id}/proactive-event-check` after each iframe-context POST. If the backend gate says fire, the trigger sentinel is handed to `useSkillAgent.sendMessage` and a proactive tutor turn streams via the established AG-UI stream — identical wire shape to a user-driven turn.
+
+   The convention-based mapper at [proactiveEventCheck.ts](../../../frontend/src/lib/proactiveEventCheck.ts) recognises:
+
+   - `*.play` / `*.run` / `*.simulate` → `sim_run`
+   - `*.step` / `*.next` / `*.advance` → `step_advance`
+   - `*.measure` / `*.record` / `*.commit` / `*.show_value` → `measurement_commit`
+   - Anything else → no proactive turn (state-change syncs, resets, pause, slider drags — by design)
+
+   **Your responsibility as a new-sim author:** follow the naming convention in the kinds your artefact emits. `<server>.play` for the canonical run event, `<server>.step` for procedure advance, `<server>.measure` for measurement commits. If you do this, the gate-check fires automatically — no per-sim configuration, no map update, no FE plumbing changes.
+
+   **If your sim's per-frame `handleStructuredContent` filters events**, make sure meaningful kinds (play/step/measure) are routed through to `reportEvent`. Pause / reset / undo events should still be dropped — they're not progress. (This bit on Boldkast 2026-06-03: a pre-existing filter dropped `boldkast.play` as "not pedagogically interesting" — that comment predated the proactive-reactive feature; the play event IS interesting now and was rerouted in fix `101943a`.)
 
 3. **`frontend/src/_sim-template/`** — scaffold directory with two `.template` files (`useExampleSimSnapshot.ts.template`, `ExampleSimFrame.tsx.template`) plus a `README.md` that lists the placeholders. Copy-and-rename for a fresh sim; or use `aiplatform sim scaffold <name>` to do steps 1-3 in one command.
 
