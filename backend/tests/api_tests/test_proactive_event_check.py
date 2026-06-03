@@ -1,0 +1,346 @@
+"""API tests for /api/sessions/{id}/proactive-event-check — Phase B gate
+(sprint PROACTIVE-SIM-REACTIVE M5).
+
+The endpoint is a pure gate decision — it MUST NOT invoke the agent.
+The frontend takes its `trigger` sentinel and POSTs to the existing
+AG-UI chat endpoint to actually fire the proactive turn, so the
+proactive turn rides the established protocol stack like any
+user-driven turn (architecture Path B per the design doc).
+
+Cases:
+  1. happy path → 200, shouldFire=true, correct trigger sentinel
+  2. skill missing → 404
+  3. skill opted out (proactive_event_reactive=false) → 200, skipped reason
+  4. event kind not in allowlist (slider_drag, reset, made-up) → 200, skipped
+  5. session not found → 404 (frontend shouldn't call before any activity)
+  6. student recently active (within heartbeat threshold) → 200, skipped
+  7. cooldown active (recent proactive turn) → 200, skipped
+  8. cap reached (proactive_turn_count >= max) → 200, skipped
+  9. anonymous-group user (no email, synthetic uid) — happy path still works
+ 10. event_payload accepted and ignored (forward-compat slot)
+ 11. unknown body fields rejected (422)
+ 12. agent module is never invoked from this endpoint (belt-and-braces)
+"""
+
+from __future__ import annotations
+
+from datetime import UTC, datetime, timedelta
+from unittest.mock import patch
+
+import pytest
+from fastapi import FastAPI, Request
+from fastapi.testclient import TestClient
+
+from auth import User, build_access_context, get_current_user
+from db import firestore as fs_module
+from db.firestore import set_document
+from db.models import SkillConfig
+from db.models.access import AccessControl
+from db.models.chat_session import ChatSessionIndex
+from protocols.proactive_routes import router
+
+TEACHER_UID = "teacher-1"
+ANON_GROUP_UID = "anon-local-demo-xyz"
+SESSION_ID = "sess-active"
+
+
+@pytest.fixture(autouse=True)
+def _local_mode(monkeypatch):
+    monkeypatch.setenv("LOCAL_MODE", "1")
+    fs_module._reset_client_for_testing()
+    yield
+    fs_module._reset_client_for_testing()
+
+
+@pytest.fixture()
+def app():
+    app = FastAPI()
+    app.include_router(router)
+
+    async def _override(request: Request) -> User:
+        u = User(uid=TEACHER_UID, email="teacher@example.test")
+        request.state.access = build_access_context(u)
+        return u
+
+    app.dependency_overrides[get_current_user] = _override
+    return app
+
+
+@pytest.fixture()
+def app_anon():
+    """Anonymous-group user variant — email="", no Firebase identity,
+    synthetic uid. Memory feedback_anonymous_users_are_corner_case:
+    every identity-touching surface must work for this user shape too,
+    not only for Firebase teachers."""
+    app = FastAPI()
+    app.include_router(router)
+
+    async def _override(request: Request) -> User:
+        u = User(uid=ANON_GROUP_UID, email="", auth_mode="anonymous_group_id", group_id="local-demo")
+        request.state.access = build_access_context(u)
+        return u
+
+    app.dependency_overrides[get_current_user] = _override
+    return app
+
+
+@pytest.fixture()
+def client(app):
+    return TestClient(app)
+
+
+@pytest.fixture()
+def client_anon(app_anon):
+    return TestClient(app_anon)
+
+
+# --- helpers ---
+
+
+def _make_skill(
+    *,
+    name: str = "boldkast",
+    proactive_event_reactive: bool = True,
+    heartbeat_seconds: int = 10,
+    max_per_session: int = 2,
+) -> SkillConfig:
+    return SkillConfig(
+        name=name,
+        description="A test skill.",
+        instructions="You are a helpful tutor.",
+        skillId=f"skill-{name}",
+        slug=name,
+        displayName=name,
+        ownerEmail="mark@aitana.ai",
+        ownerId="platform",
+        proactiveEventReactive=proactive_event_reactive,
+        proactiveHeartbeatSeconds=heartbeat_seconds,
+        proactiveMaxPerSession=max_per_session,
+        reactiveTemplate="Acknowledge what the student just did. Ask one short question.",
+    )
+
+
+def _seed_session(
+    *,
+    session_id: str = SESSION_ID,
+    turn_count: int = 2,
+    last_message_at: datetime | None = None,
+    last_proactive_turn_at: datetime | None = None,
+    proactive_turn_count: int = 0,
+    owner_uid: str = TEACHER_UID,
+) -> None:
+    """Drop a ChatSessionIndex row directly into the in-memory store with
+    full control over the time-based gate inputs."""
+    base_ts = datetime(2026, 6, 1, 12, 0, 0, tzinfo=UTC)
+    idx = ChatSessionIndex(
+        sessionId=session_id,
+        skillId="skill-boldkast",
+        ownerUid=owner_uid,
+        accessControl=AccessControl(type="public"),
+        firstMessageAt=base_ts,
+        lastMessageAt=last_message_at if last_message_at is not None else base_ts,
+        turnCount=turn_count,
+        proactiveTurnCount=proactive_turn_count,
+        lastProactiveTurnAt=last_proactive_turn_at,
+    )
+    set_document("chat_sessions", session_id, idx.model_dump(by_alias=True, mode="json"))
+
+
+def _post(client: TestClient, *, session_id: str = SESSION_ID, **body) -> object:
+    """Default request body with sensible test values; tests override
+    fields via kwargs."""
+    default = {"skillId": "skill-boldkast", "eventKind": "sim_run"}
+    default.update(body)
+    return client.post(f"/api/sessions/{session_id}/proactive-event-check", json=default)
+
+
+# --- tests ---
+
+
+def test_happy_path_returns_should_fire_with_trigger_sentinel(client):
+    """All six gates pass → shouldFire=true + the [event_reactive:<kind>]
+    sentinel the frontend posts to /api/chat/{skill_id} to actually fire
+    the proactive AG-UI run."""
+    skill = _make_skill()
+    long_ago = datetime.now(UTC) - timedelta(seconds=300)
+    _seed_session(last_message_at=long_ago, proactive_turn_count=0)
+    with patch("protocols.proactive_routes.get_skill", return_value=skill):
+        resp = _post(client)
+    assert resp.status_code == 200, resp.text
+    data = resp.json()
+    assert data["shouldFire"] is True
+    assert data["trigger"] == "[event_reactive:sim_run]"
+    assert data["sessionId"] == SESSION_ID
+    # No reason field on a positive decision.
+    assert "reason" not in data
+
+
+def test_skill_missing_returns_404(client):
+    with patch("protocols.proactive_routes.get_skill", return_value=None):
+        resp = _post(client, skillId="no-such-skill")
+    assert resp.status_code == 404
+
+
+def test_skill_opted_out_returns_skipped(client):
+    """A skill with proactiveEventReactive=false should never fire a
+    reactive turn even when the event kind is meaningful."""
+    skill = _make_skill(proactive_event_reactive=False)
+    _seed_session()
+    with patch("protocols.proactive_routes.get_skill", return_value=skill):
+        resp = _post(client)
+    assert resp.status_code == 200
+    data = resp.json()
+    assert data["shouldFire"] is False
+    assert "opted out" in data["reason"]
+    assert "trigger" not in data
+
+
+@pytest.mark.parametrize(
+    "event_kind",
+    ["slider_drag", "reset", "debounced_state_sync", "made_up_kind", "click"],
+)
+def test_event_kind_not_in_allowlist_returns_skipped(client, event_kind):
+    """Excluded by design: slider drag (exploration), reset (undo),
+    debounced state sync (noise), arbitrary made-up kinds. None of
+    these should ever trigger a proactive turn."""
+    skill = _make_skill()
+    _seed_session()
+    with patch("protocols.proactive_routes.get_skill", return_value=skill):
+        resp = _post(client, eventKind=event_kind)
+    assert resp.status_code == 200
+    data = resp.json()
+    assert data["shouldFire"] is False
+    assert "not meaningful" in data["reason"]
+
+
+def test_session_not_found_returns_404(client):
+    """Frontend shouldn't call this before any activity has created the
+    session index. If it does (e.g. race condition), 404 is the right
+    answer — we'd be guessing about last_message_at otherwise."""
+    skill = _make_skill()
+    # No _seed_session — session doesn't exist.
+    with patch("protocols.proactive_routes.get_skill", return_value=skill):
+        resp = _post(client)
+    assert resp.status_code == 404
+
+
+def test_student_recently_active_returns_skipped(client):
+    """If the student sent a chat turn within proactive_heartbeat_seconds,
+    the gate blocks the reactive turn — they're conversing, don't
+    interrupt."""
+    skill = _make_skill(heartbeat_seconds=10)
+    recent = datetime.now(UTC) - timedelta(seconds=3)
+    _seed_session(last_message_at=recent)
+    with patch("protocols.proactive_routes.get_skill", return_value=skill):
+        resp = _post(client)
+    assert resp.status_code == 200
+    data = resp.json()
+    assert data["shouldFire"] is False
+    assert "recently active" in data["reason"]
+
+
+def test_cooldown_active_returns_skipped(client):
+    """A proactive turn within the last 90 seconds blocks further
+    proactive turns (session-wide cooldown — greet + sim-reactive share
+    the same clock)."""
+    skill = _make_skill()
+    long_ago = datetime.now(UTC) - timedelta(seconds=300)
+    recent_proactive = datetime.now(UTC) - timedelta(seconds=30)  # < 90s cooldown
+    _seed_session(
+        last_message_at=long_ago,
+        last_proactive_turn_at=recent_proactive,
+        proactive_turn_count=1,
+    )
+    with patch("protocols.proactive_routes.get_skill", return_value=skill):
+        resp = _post(client)
+    assert resp.status_code == 200
+    data = resp.json()
+    assert data["shouldFire"] is False
+    assert "cooldown" in data["reason"]
+
+
+def test_cap_reached_returns_skipped(client):
+    """Once proactive_turn_count >= proactive_max_per_session, no
+    further proactive turns fire regardless of how much time has
+    passed."""
+    skill = _make_skill(max_per_session=2)
+    long_ago = datetime.now(UTC) - timedelta(seconds=300)
+    long_ago_proactive = datetime.now(UTC) - timedelta(seconds=600)  # past cooldown
+    _seed_session(
+        last_message_at=long_ago,
+        last_proactive_turn_at=long_ago_proactive,
+        proactive_turn_count=2,  # already at cap
+    )
+    with patch("protocols.proactive_routes.get_skill", return_value=skill):
+        resp = _post(client)
+    assert resp.status_code == 200
+    data = resp.json()
+    assert data["shouldFire"] is False
+    assert "cap reached" in data["reason"]
+
+
+def test_anonymous_group_user_happy_path(client_anon):
+    """Memory feedback_anonymous_users_are_corner_case: anon-group users
+    have email="" and a synthetic uid. The endpoint must work for them
+    too — they're the dominant pilot user shape (students). Owner-uid
+    on the session matches the caller's synthetic uid."""
+    skill = _make_skill()
+    long_ago = datetime.now(UTC) - timedelta(seconds=300)
+    _seed_session(last_message_at=long_ago, owner_uid=ANON_GROUP_UID)
+    with patch("protocols.proactive_routes.get_skill", return_value=skill):
+        resp = _post(client_anon)
+    assert resp.status_code == 200
+    data = resp.json()
+    assert data["shouldFire"] is True
+    assert data["trigger"] == "[event_reactive:sim_run]"
+
+
+def test_event_payload_accepted_and_ignored(client):
+    """eventPayload is a forward-compat slot — v1.1 accepts the field
+    but doesn't act on it. A future version can use it for richer
+    triggering signals without a wire-shape change."""
+    skill = _make_skill()
+    long_ago = datetime.now(UTC) - timedelta(seconds=300)
+    _seed_session(last_message_at=long_ago)
+    with patch("protocols.proactive_routes.get_skill", return_value=skill):
+        resp = _post(
+            client,
+            eventPayload={"angle": 45, "velocity": 15, "arbitrary": {"nested": "data"}},
+        )
+    assert resp.status_code == 200
+    assert resp.json()["shouldFire"] is True
+
+
+def test_unknown_body_fields_rejected(client):
+    """Pydantic extra=forbid on the request schema rejects unknown
+    fields — guards against typos and future fields slipping through
+    without a deliberate schema bump."""
+    resp = client.post(
+        f"/api/sessions/{SESSION_ID}/proactive-event-check",
+        json={"skillId": "x", "eventKind": "sim_run", "evilExtra": True},
+    )
+    assert resp.status_code == 422
+
+
+def test_agent_module_never_invoked_from_gate_endpoint(client):
+    """Belt-and-braces — this endpoint MUST be a pure gate decision.
+    Any agent invocation here would break the Path B architecture (the
+    frontend is supposed to fire the AG-UI run, not the backend). If
+    this test fails, someone has refactored the endpoint to bypass the
+    frontend trigger step."""
+    skill = _make_skill()
+    long_ago = datetime.now(UTC) - timedelta(seconds=300)
+    _seed_session(last_message_at=long_ago)
+    with (
+        patch("protocols.proactive_routes.get_skill", return_value=skill),
+        patch("protocols.proactive_routes.process_skill_request") as mock_agent,
+        patch("protocols.proactive_routes.increment_proactive_turn_count") as mock_incr,
+    ):
+        resp = _post(client)
+    assert resp.status_code == 200
+    assert resp.json()["shouldFire"] is True
+    # The endpoint must not invoke the agent — the frontend does that.
+    mock_agent.assert_not_called()
+    # And must not stamp the counter — that happens after the AG-UI run
+    # streams the actual proactive turn (M7 will wire that increment).
+    mock_incr.assert_not_called()

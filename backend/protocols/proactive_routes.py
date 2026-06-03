@@ -28,6 +28,8 @@ endpoint in this file once JB signs off on default timing + copy.
 from __future__ import annotations
 
 import logging
+import re
+from datetime import UTC, datetime
 from typing import Any
 
 from fastapi import APIRouter, Depends, HTTPException, Request
@@ -48,6 +50,33 @@ router = APIRouter(prefix="/api/sessions", tags=["proactive-tutor"])
 # Kept short to minimise tokens; bracketed so the model recognises it as
 # a system marker rather than student input.
 PROACTIVE_GREET_TRIGGER = "[session_start]"
+
+# Sprint PROACTIVE-SIM-REACTIVE M5: server-side allowlist of meaningful
+# workbench event kinds that may trigger a proactive sim-reactive turn.
+# Excluded by design: slider_drag (exploration, not commitment), reset
+# (undo, not progress), debounced_state_sync (noise from the
+# workbench-state-debounce Phase 2 pipeline). Hardcoded for v1.1 per the
+# design doc's recommendation — promote to per-skill config only if a
+# skill needs different rules. See
+# docs/design/aipla/v1.1.0-feedback/proactive-sim-reactive-tutor.md.
+MEANINGFUL_EVENT_KINDS: frozenset[str] = frozenset(
+    {
+        "sim_run",
+        "step_advance",
+        "measurement_commit",
+    }
+)
+
+# Session-wide cooldown between any two proactive tutor turns (greet
+# included). Hardcoded per the design doc + 3 June teacher brief.
+PROACTIVE_COOLDOWN_SECONDS: float = 90.0
+
+# Sentinel format: ``[event_reactive:<kind>]`` where <kind> is one of
+# MEANINGFUL_EVENT_KINDS. The frontend posts this as the user-role
+# content of the synthetic AG-UI run; the model is instructed to treat
+# it as a system marker, not student input. See proactive_reactive.py
+# for the matching agent-prompt block.
+_EVENT_KIND_PATTERN = re.compile(r"^[a-z][a-z0-9_]*$")
 
 
 class GreetRequest(BaseModel):
@@ -194,4 +223,170 @@ async def post_session_greet(
             text=text,
             sessionId=session_id,
         )
+    )
+
+
+# ---------------------------------------------------------------------------
+# Sprint PROACTIVE-SIM-REACTIVE M5 — proactive event-check (Phase B gate)
+# ---------------------------------------------------------------------------
+
+
+class ProactiveEventCheckRequest(BaseModel):
+    """Body shape for ``POST /api/sessions/{id}/proactive-event-check``.
+
+    ``eventKind`` is the workbench-event kind that just committed (e.g.
+    ``sim_run``, ``step_advance``). ``eventPayload`` is the artefact's
+    optional event payload — accepted and ignored by the v1.1 endpoint;
+    forward-compat slot so future versions can use it without a schema
+    change.
+    """
+
+    skill_id: str = Field(alias="skillId", min_length=1, max_length=128)
+    event_kind: str = Field(alias="eventKind", min_length=1, max_length=64)
+    event_payload: dict[str, Any] | None = Field(default=None, alias="eventPayload")
+
+    model_config = ConfigDict(populate_by_name=True, extra="forbid")
+
+
+class ProactiveEventCheckResponse(BaseModel):
+    """Response shape — either a skipped reason or a trigger sentinel.
+
+    When ``shouldFire`` is True, ``trigger`` carries the sentinel string
+    the frontend should post to ``/api/chat/{skill_id}`` as the user
+    message content of a new AG-UI run. The agent's instruction (built
+    via ``adk.proactive_reactive.inject_reactive_guidance``) is what
+    actually shapes the proactive turn — this endpoint only decides
+    *whether* one should happen, never invokes the agent itself.
+    """
+
+    should_fire: bool = Field(alias="shouldFire")
+    reason: str | None = None
+    trigger: str | None = None
+    session_id: str | None = Field(default=None, alias="sessionId")
+
+    model_config = ConfigDict(populate_by_name=True)
+
+
+def _check_response(
+    *,
+    should_fire: bool,
+    session_id: str,
+    reason: str | None = None,
+    trigger: str | None = None,
+) -> dict[str, Any]:
+    """Build the JSON response body for the gate endpoint."""
+    resp = ProactiveEventCheckResponse(
+        shouldFire=should_fire,
+        reason=reason,
+        trigger=trigger,
+        sessionId=session_id,
+    )
+    return resp.model_dump(by_alias=True, exclude_none=True)
+
+
+@router.post("/{session_id}/proactive-event-check")
+async def post_proactive_event_check(
+    session_id: str,
+    body: ProactiveEventCheckRequest,
+    request: Request,
+    user: User = Depends(get_current_user),  # noqa: B008
+) -> dict[str, Any]:
+    """Gate-decision endpoint for sim-reactive proactive turns (Phase B).
+
+    Returns ``{shouldFire: true, trigger: "[event_reactive:<kind>]"}``
+    when all six gates pass; otherwise ``{shouldFire: false, reason:
+    "..."}`` with the gate name. Never invokes the agent — the frontend
+    POSTs the trigger sentinel to ``/api/chat/{skill_id}`` to actually
+    fire the AG-UI run, so the proactive turn rides the established
+    streaming protocol like any user-driven turn. Architecture per
+    docs/design/aipla/v1.1.0-feedback/proactive-sim-reactive-tutor.md.
+    """
+    # Gate 1: skill exists.
+    skill = get_skill(body.skill_id)
+    if skill is None:
+        raise HTTPException(status_code=404, detail="skill not found")
+
+    # Gate 2: skill opted in to sim-reactive turns.
+    if not skill.proactive_event_reactive:
+        return _check_response(
+            should_fire=False,
+            session_id=session_id,
+            reason="skill opted out",
+        )
+
+    # Gate 3: event kind in the server-side meaningful-event allowlist.
+    if body.event_kind not in MEANINGFUL_EVENT_KINDS:
+        return _check_response(
+            should_fire=False,
+            session_id=session_id,
+            reason="event kind not meaningful",
+        )
+
+    # Gate 4: session exists. If not, the frontend is calling this for a
+    # session that hasn't been touched yet — bail rather than guessing.
+    existing = get_session_index(session_id)
+    if existing is None:
+        raise HTTPException(status_code=404, detail="session not found")
+
+    now = datetime.now(UTC)
+
+    # Gate 5: student silence threshold. We use last_message_at as the
+    # conversation-activity proxy — it gets stamped on every turn
+    # (student or tutor). Side effect: we won't fire a reactive turn
+    # right after a tutor response either, which is arguably correct
+    # (gives the student a beat to absorb). If pilot teachers find this
+    # too conservative, add a separate last_student_message_at field.
+    seconds_since_activity = (now - existing.last_message_at).total_seconds()
+    if seconds_since_activity < skill.proactive_heartbeat_seconds:
+        return _check_response(
+            should_fire=False,
+            session_id=session_id,
+            reason="student recently active",
+        )
+
+    # Gate 6: session-wide cooldown between any two proactive turns.
+    # None last_proactive_turn_at means no proactive turn yet — gate
+    # vacuously passes.
+    if existing.last_proactive_turn_at is not None:
+        seconds_since_proactive = (now - existing.last_proactive_turn_at).total_seconds()
+        if seconds_since_proactive < PROACTIVE_COOLDOWN_SECONDS:
+            return _check_response(
+                should_fire=False,
+                session_id=session_id,
+                reason="cooldown active",
+            )
+
+    # Gate 7: per-session cap on proactive turns (greet + reactive).
+    if existing.proactive_turn_count >= skill.proactive_max_per_session:
+        return _check_response(
+            should_fire=False,
+            session_id=session_id,
+            reason="cap reached",
+        )
+
+    # All gates passed — emit the trigger sentinel. The frontend wraps
+    # this in a synthetic AG-UI RunAgentInput with role=user content; the
+    # agent's REACTIVE GUIDANCE block (proactive_reactive.py) instructs
+    # the model to treat it as a system marker, not echo it. We
+    # intentionally validate event_kind shape here too — a bad shape
+    # would still pass gate 3 if it happened to match an allowlist entry,
+    # but we belt-and-brace against URL-injection-style content slipping
+    # through into the sentinel string.
+    if not _EVENT_KIND_PATTERN.match(body.event_kind):
+        # Should be unreachable because allowlist entries match the
+        # pattern. Defensive: refuse to mint a malformed sentinel.
+        raise HTTPException(status_code=422, detail="event_kind has invalid shape")
+
+    trigger = f"[event_reactive:{body.event_kind}]"
+    log.info(
+        "proactive_event_check shouldFire uid=%s session=%s skill=%s kind=%s",
+        user.uid,
+        session_id,
+        body.skill_id,
+        body.event_kind,
+    )
+    return _check_response(
+        should_fire=True,
+        session_id=session_id,
+        trigger=trigger,
     )
