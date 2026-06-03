@@ -1,0 +1,509 @@
+{
+  "sprint_id": "VOICE-PROVIDER",
+  "created": "2026-06-03T15:03:05Z",
+  "estimated_duration_days": 3.75,
+  "design_doc": "docs/design/aipla/v1.1.0-feedback/voice-provider-abstraction.md",
+  "sprint_plan": "docs/design/aipla/v1.1.0-feedback/voice-provider-abstraction-sprint.md",
+  "features": [
+    {
+      "id": "M0",
+      "description": "Pre-conditions: enable texttospeech + speech APIs, provision gs://aipla-dev-2026-tts-cache, grant IAM roles, schedule AR voice-pick session. Record all GCP side effects per feedback_record_side_effects.",
+      "scope": "ops",
+      "estimated_loc": 0,
+      "actual_loc": null,
+      "dependencies": [],
+      "acceptance_criteria": [
+        "texttospeech.googleapis.com enabled in aipla-dev-2026",
+        "speech.googleapis.com enabled in aipla-dev-2026",
+        "gs://aipla-dev-2026-tts-cache bucket created in europe-north1 with 90d lifecycle",
+        "Backend SA aipla-v6-backend granted roles/cloudtts.user, roles/speech.client, roles/storage.objectAdmin scoped to the cache bucket",
+        "Side effects recorded in docs/ops/gcp-side-effects.md (or runbook if greenfield)",
+        "AR voice-pick session scheduled or default da-DK-Wavenet-A noted"
+      ],
+      "files_to_create": ["docs/ops/voice-providers-runbook.md (placeholder; expanded in M-B7)"],
+      "files_to_modify": ["docs/ops/gcp-side-effects.md (if exists)"],
+      "passes": null,
+      "started": null,
+      "completed": null,
+      "notes": null
+    },
+    {
+      "id": "M-A1",
+      "description": "Recon: confirm google-cloud-texttospeech API surface (package presence, TextToSpeechClient async shape, voice-tier name format, audio encoding default, BCP-47 handling)",
+      "scope": "backend",
+      "estimated_loc": 0,
+      "actual_loc": null,
+      "dependencies": ["M0"],
+      "acceptance_criteria": [
+        "Recon notes recorded in sprint plan ## Recon findings section",
+        "Decision made: proceed with provider impl OR escalate if API surface materially different"
+      ],
+      "files_to_create": [],
+      "files_to_modify": ["docs/design/aipla/v1.1.0-feedback/voice-provider-abstraction-sprint.md (Recon findings section)"],
+      "passes": null,
+      "started": null,
+      "completed": null,
+      "notes": null
+    },
+    {
+      "id": "M-A2",
+      "description": "TTSProvider/STTProvider Protocols + registry + null provider + unit tests for selection chain",
+      "scope": "backend",
+      "estimated_loc": 220,
+      "actual_loc": null,
+      "dependencies": ["M-A1"],
+      "acceptance_criteria": [
+        "backend/voice/base.py defines TTSProvider, STTProvider Protocols + VoiceCapabilities TypedDict",
+        "backend/voice/registry.py implements get_tts() and get_stt() with SkillConfig > env > default resolution",
+        "backend/voice/providers/null.py provides NullTTSProvider, NullSTTProvider",
+        "test_registry_falls_back_to_browser passes",
+        "test_env_overrides_default passes",
+        "test_skill_config_overrides_env passes",
+        "test_unknown_provider_raises passes",
+        "make lint + make test-fast green"
+      ],
+      "files_to_create": [
+        "backend/voice/__init__.py",
+        "backend/voice/base.py",
+        "backend/voice/registry.py",
+        "backend/voice/providers/__init__.py",
+        "backend/voice/providers/null.py",
+        "backend/tests/unit/voice/__init__.py",
+        "backend/tests/unit/voice/test_registry.py"
+      ],
+      "files_to_modify": [],
+      "passes": null,
+      "started": null,
+      "completed": null,
+      "notes": null
+    },
+    {
+      "id": "M-A3",
+      "description": "Content-hash TTS cache to gs://aipla-dev-2026-tts-cache with deterministic keying and mime metadata + unit tests",
+      "scope": "backend",
+      "estimated_loc": 140,
+      "actual_loc": null,
+      "dependencies": ["M-A2", "M0"],
+      "acceptance_criteria": [
+        "backend/voice/cache.py implements key derivation + lookup + write",
+        "Key = sha256(provider + voice + lang + rate + text)",
+        "Object path = {hash[:2]}/{hash}.{ext}",
+        "Mime stored in object metadata for hit returns",
+        "test_cache_key_is_deterministic passes",
+        "test_cache_key_differs_per_voice passes",
+        "test_cache_miss_returns_none passes",
+        "test_cache_hit_returns_bytes_and_mime passes",
+        "test_cache_write_uploads_with_metadata passes",
+        "make lint + make test-fast green"
+      ],
+      "files_to_create": [
+        "backend/voice/cache.py",
+        "backend/tests/unit/voice/test_cache.py"
+      ],
+      "files_to_modify": [],
+      "passes": null,
+      "started": null,
+      "completed": null,
+      "notes": null
+    },
+    {
+      "id": "M-A4",
+      "description": "GCP TTS provider + browser provider (signal-only) + Danish spike script + integration test + AR voice-pick session",
+      "scope": "backend",
+      "estimated_loc": 270,
+      "actual_loc": null,
+      "dependencies": ["M-A3"],
+      "acceptance_criteria": [
+        "google-cloud-texttospeech added to backend deps (if M-A1 confirmed missing)",
+        "backend/voice/providers/browser.py describes tts=true stt=false",
+        "backend/voice/providers/gcp_tts.py wraps TextToSpeechClient with voice-tier config",
+        "scripts/spike_tts.py synthesizes Danish sample on 7 voice variants to /tmp/tts_spike/",
+        "test_gcp_tts_danish_wavenet_roundtrip (integration) passes",
+        "test_gcp_tts_extras_passed_through (unit, mocked) passes",
+        "test_gcp_tts_describe_reports_tts_only passes",
+        "AR voice-pick noted in runbook OR default da-DK-Wavenet-A confirmed",
+        "make lint + make test-fast green"
+      ],
+      "files_to_create": [
+        "backend/voice/providers/browser.py",
+        "backend/voice/providers/gcp_tts.py",
+        "scripts/spike_tts.py",
+        "backend/tests/integration/voice/__init__.py",
+        "backend/tests/integration/voice/test_gcp_tts.py"
+      ],
+      "files_to_modify": [
+        "backend/pyproject.toml"
+      ],
+      "passes": null,
+      "started": null,
+      "completed": null,
+      "notes": null
+    },
+    {
+      "id": "M-A5",
+      "description": "Voice routes (TTS half + config) + OTel cost spans + tests",
+      "scope": "backend",
+      "estimated_loc": 280,
+      "actual_loc": null,
+      "dependencies": ["M-A4"],
+      "acceptance_criteria": [
+        "backend/protocols/voice_routes.py implements GET /api/voice/config, POST /api/voice/tts/synthesize, and stubs POST /api/voice/stt/transcribe with 501",
+        "backend/voice/cost.py provides tier->price table for cost estimate",
+        "OTel span voice.synthesize emits voice.provider, voice.chars, voice.cache_hit, voice.lang, voice.cost_estimate_usd",
+        "X-Voice-Provider, X-Voice-Cache-Hit, X-Voice-Cost-Usd response headers set",
+        "test_config_returns_browser_by_default passes",
+        "test_synthesize_browser_path_returns_json passes",
+        "test_synthesize_gcp_path_returns_audio_blob passes",
+        "test_synthesize_cache_hit_skips_provider_call passes",
+        "test_synthesize_requires_jwt passes (401)",
+        "test_synthesize_rate_limited passes (429)",
+        "make lint + make test-fast green"
+      ],
+      "files_to_create": [
+        "backend/protocols/voice_routes.py",
+        "backend/voice/cost.py",
+        "backend/tests/api_tests/test_voice_routes.py"
+      ],
+      "files_to_modify": [
+        "backend/fast_api_app.py (mount voice routes)"
+      ],
+      "passes": null,
+      "started": null,
+      "completed": null,
+      "notes": null
+    },
+    {
+      "id": "M-A6",
+      "description": "SkillVoiceConfig Pydantic + SkillConfig integration + frontmatter parsing + tests",
+      "scope": "backend",
+      "estimated_loc": 90,
+      "actual_loc": null,
+      "dependencies": ["M-A5"],
+      "acceptance_criteria": [
+        "SkillVoiceConfig Pydantic class defined with tts_provider, tts_voice, stt_provider, rate fields",
+        "SkillConfig has optional voice: SkillVoiceConfig field",
+        "skill_processor.py parses voice frontmatter block",
+        "platform_seed.py handles voice field in seed-pipeline output",
+        "test_skill_voice_config_parses_from_frontmatter passes",
+        "test_skill_voice_config_defaults_when_absent passes",
+        "test_registry_picks_skill_voice passes",
+        "make lint + make test-fast green"
+      ],
+      "files_to_create": [
+        "backend/db/skill_voice_config.py"
+      ],
+      "files_to_modify": [
+        "backend/db/models/__init__.py (or wherever SkillConfig lives)",
+        "backend/skills/skill_processor.py",
+        "backend/admin/platform_seed.py"
+      ],
+      "passes": null,
+      "started": null,
+      "completed": null,
+      "notes": null
+    },
+    {
+      "id": "M-A7",
+      "description": "useVoiceConfig hook + ReadAloudButton Cloud TTS path + MessageBubble wiring + vitest",
+      "scope": "frontend",
+      "estimated_loc": 180,
+      "actual_loc": null,
+      "dependencies": ["M-A5"],
+      "acceptance_criteria": [
+        "frontend/src/hooks/useVoiceConfig.ts fetches GET /api/voice/config per skill_id with client cache",
+        "ReadAloudButton accepts provider + voice props",
+        "provider=browser path unchanged; existing tests still pass",
+        "provider=gcp_* path fetches /api/voice/tts/synthesize, plays via new Audio(blob URL)",
+        "Click-again cancels Audio and revokes URL",
+        "Network failure on synthesize falls back to browser path silently",
+        "MessageBubble pulls voiceConfig and passes provider+voice to ReadAloudButton",
+        "vitest tests cover both paths + cache + cancel + error",
+        "npm run quality:check (FULL variant, not :fast) green"
+      ],
+      "files_to_create": [
+        "frontend/src/hooks/useVoiceConfig.ts"
+      ],
+      "files_to_modify": [
+        "frontend/src/components/chat/ReadAloudButton.tsx",
+        "frontend/src/components/chat/MessageBubble.tsx",
+        "frontend/src/components/chat/__tests__/ReadAloudButton.test.tsx"
+      ],
+      "passes": null,
+      "started": null,
+      "completed": null,
+      "notes": null
+    },
+    {
+      "id": "M-A7b",
+      "description": "Auto-read toggle: useAutoReadAloud hook + AutoReadToggle in AppFooter + barge-in semantics + proactive-turn pickup + vitest",
+      "scope": "frontend",
+      "estimated_loc": 245,
+      "actual_loc": null,
+      "dependencies": ["M-A7"],
+      "acceptance_criteria": [
+        "useAutoReadAloud persists toggle to localStorage under aipla.voice.auto_read",
+        "Hook listens for AG-UI RUN_FINISHED events and fires imperative speak on last assistant message when toggle ON",
+        "Barge-in: student typing emits voice.cancel event; in-flight TTS cancels",
+        "Barge-in: dictate button start cancels in-flight TTS (when Phase B lands)",
+        "Concurrent turns queue, don't overlap",
+        "Manual user click on ReadAloudButton during auto-read cancels that turn's auto-read",
+        "Page navigation cleanup cancels TTS",
+        "Proactive-tutor turns (tutor.proactive_kind=event_reactive) auto-read with no special-casing",
+        "Toggle persists across page reload",
+        "voice.auto_read attr on OTel span when auto-read fired",
+        "AutoReadToggle component mounted in AppFooter next to accessibility note",
+        "vitest covers persistence, fire-on-RUN_FINISHED, barge-in, queueing, proactive-turn",
+        "npm run quality:check green"
+      ],
+      "files_to_create": [
+        "frontend/src/hooks/useAutoReadAloud.ts",
+        "frontend/src/hooks/__tests__/useAutoReadAloud.test.ts",
+        "frontend/src/components/chat/AutoReadToggle.tsx"
+      ],
+      "files_to_modify": [
+        "frontend/src/components/AppFooter.tsx",
+        "frontend/src/components/chat/MessageBubble.tsx (forwardRef speak handle)",
+        "frontend/src/components/chat/ChatInput.tsx (emit voice.cancel on type-start)"
+      ],
+      "passes": null,
+      "started": null,
+      "completed": null,
+      "notes": null
+    },
+    {
+      "id": "M-A8",
+      "description": "Phase A acceptance: manual E2E verify in LOCAL_MODE + Cloud Trace span check + push to dev",
+      "scope": "fullstack",
+      "estimated_loc": 0,
+      "actual_loc": null,
+      "dependencies": ["M-A7b"],
+      "acceptance_criteria": [
+        "Manual: read-aloud plays Cloud TTS Danish in concept-dialogue-config",
+        "Manual: click again stops mid-utterance",
+        "Manual: reload + click same message = cache hit (Cloud Trace voice.cache_hit=true)",
+        "Manual: English voice plays correctly in kinebot-kinematics-tutor",
+        "Manual: auto-read toggle on -> assistant response auto-speaks on stream-complete",
+        "Manual: barge-in (typing) cancels TTS immediately",
+        "Manual: proactive turn auto-speaks when auto-read on",
+        "Manual: toggle survives page reload",
+        "BigQuery voice_synthesize span surfaces with all attrs",
+        "make lint + make test-fast + npm run quality:check all green",
+        "git push origin dev succeeds"
+      ],
+      "files_to_create": [],
+      "files_to_modify": [],
+      "passes": null,
+      "started": null,
+      "completed": null,
+      "notes": null
+    },
+    {
+      "id": "M-B1",
+      "description": "Recon: confirm google-cloud-speech API surface (SpeechClient async, latest_long da-DK acceptance, WEBM_OPUS encoding direct from MediaRecorder, audio bytes vs GCS URI for <=30s)",
+      "scope": "backend",
+      "estimated_loc": 0,
+      "actual_loc": null,
+      "dependencies": ["M-A8"],
+      "acceptance_criteria": [
+        "Recon notes recorded in sprint plan ## Recon findings section (M-B1 subsection)",
+        "Audio format path confirmed: MediaRecorder webm/opus -> bytes -> recognize() with WEBM_OPUS, no transcoding"
+      ],
+      "files_to_create": [],
+      "files_to_modify": ["docs/design/aipla/v1.1.0-feedback/voice-provider-abstraction-sprint.md"],
+      "passes": null,
+      "started": null,
+      "completed": null,
+      "notes": null
+    },
+    {
+      "id": "M-B2",
+      "description": "GCP STT provider + Danish round-trip integration test + audio-never-persisted unit guard",
+      "scope": "backend",
+      "estimated_loc": 160,
+      "actual_loc": null,
+      "dependencies": ["M-B1"],
+      "acceptance_criteria": [
+        "google-cloud-speech added to backend deps (if missing)",
+        "backend/voice/providers/gcp_stt.py wraps SpeechClient with latest_long da-DK + WEBM_OPUS",
+        "test_gcp_stt_danish_roundtrip (integration) feeds M-A4 WaveNet output back -> transcript contains 'Planck'",
+        "test_gcp_stt_audio_never_persisted asserts no blob.upload calls in gcp_stt.py",
+        "test_gcp_stt_describe_reports_stt_only passes",
+        "make lint + make test-fast green"
+      ],
+      "files_to_create": [
+        "backend/voice/providers/gcp_stt.py",
+        "backend/tests/integration/voice/test_gcp_stt.py"
+      ],
+      "files_to_modify": [
+        "backend/pyproject.toml"
+      ],
+      "passes": null,
+      "started": null,
+      "completed": null,
+      "notes": null
+    },
+    {
+      "id": "M-B3",
+      "description": "STT spike script + voice_routes STT route wire-in (replace 501 stub) + tests + OTel transcribe span",
+      "scope": "backend",
+      "estimated_loc": 170,
+      "actual_loc": null,
+      "dependencies": ["M-B2"],
+      "acceptance_criteria": [
+        "scripts/spike_stt.py round-trips M-A4 WaveNet output back into STT, asserts transcript match",
+        "POST /api/voice/stt/transcribe implemented with multipart parser",
+        "OTel span voice.transcribe emits voice.provider, voice.duration_ms, voice.cost_estimate_usd, voice.lang",
+        "test_transcribe_happy_path passes (200 + transcript)",
+        "test_transcribe_requires_jwt passes (401)",
+        "test_transcribe_rejects_oversize passes (413, >5MB)",
+        "test_transcribe_rejects_long_audio passes (400, >30s)",
+        "test_transcribe_503_when_provider_down passes",
+        "test_transcribe_does_not_persist_audio passes",
+        "make lint + make test-fast green"
+      ],
+      "files_to_create": [
+        "scripts/spike_stt.py"
+      ],
+      "files_to_modify": [
+        "backend/protocols/voice_routes.py",
+        "backend/tests/api_tests/test_voice_routes.py"
+      ],
+      "passes": null,
+      "started": null,
+      "completed": null,
+      "notes": null
+    },
+    {
+      "id": "M-B4",
+      "description": "DictateButton component (MediaRecorder + STT POST + designed idle/recording/transcribing/error states) + ChatInput integration + vitest. RISKIEST FE WORK — full hour allocated, do not compress.",
+      "scope": "frontend",
+      "estimated_loc": 250,
+      "actual_loc": null,
+      "dependencies": ["M-B3", "M-A7"],
+      "acceptance_criteria": [
+        "DictateButton.tsx implements 4 designed states (idle/recording/transcribing/error)",
+        "Lucide Mic/MicOff icons; recording shows pulsing red dot + timer badge",
+        "Permission-denied shows Danish toast and disables button",
+        "30s timeout auto-stops recording",
+        "Network failure resets state cleanly; input keeps focus",
+        "Not rendered when voiceConfig.stt.provider === 'disabled' OR NEXT_PUBLIC_VOICE_STT === 'off'",
+        "Auto-read barge-in: starting dictate cancels in-flight TTS (wires into M-A7b's voice.cancel event)",
+        "ChatInput mounts DictateButton inline",
+        "vitest covers all state transitions and error paths",
+        "npm run quality:check green"
+      ],
+      "files_to_create": [
+        "frontend/src/components/chat/DictateButton.tsx",
+        "frontend/src/components/chat/__tests__/DictateButton.test.tsx"
+      ],
+      "files_to_modify": [
+        "frontend/src/components/chat/ChatInput.tsx"
+      ],
+      "passes": null,
+      "started": null,
+      "completed": null,
+      "notes": null
+    },
+    {
+      "id": "M-B5",
+      "description": "Per-class teacher toggle (1.G integration) — backend class_settings fields + voice config consults them + frontend teacher settings UI",
+      "scope": "fullstack",
+      "estimated_loc": 200,
+      "actual_loc": null,
+      "dependencies": ["M-B4"],
+      "acceptance_criteria": [
+        "backend class_settings model has voice_stt_enabled: bool = False + voice_tts_provider: str | None = None",
+        "GET /api/voice/config consults class settings for the requesting student's class, overrides registry defaults",
+        "Teacher class-detail page has Voice section with STT toggle + TTS provider picker (Browser/Standard/WaveNet/Chirp3HD)",
+        "Picker options sourced from /api/voice/config capabilities list",
+        "Backend test: class with voice_stt_enabled=false -> student's config returns stt.provider='disabled'",
+        "Frontend test: teacher settings toggle persists and displays correctly",
+        "Manual: log in as test-teacher@example.dk, toggle STT on for aipla-demo-1, verify student view shows mic; toggle off, mic disappears",
+        "make lint + make test-fast + npm run quality:check green"
+      ],
+      "files_to_create": [],
+      "files_to_modify": [
+        "frontend/src/app/teacher/[classId]/page.tsx",
+        "backend/db/class_settings.py (or wherever class settings live)",
+        "backend/protocols/voice_routes.py",
+        "frontend/src/components/chat/ChatInput.tsx"
+      ],
+      "passes": null,
+      "started": null,
+      "completed": null,
+      "notes": null
+    },
+    {
+      "id": "M-B6",
+      "description": "aiplatform voice CLI: list-providers, spike, transcribe subcommands + tests",
+      "scope": "fullstack",
+      "estimated_loc": 140,
+      "actual_loc": null,
+      "dependencies": ["M-B3"],
+      "acceptance_criteria": [
+        "aiplatform voice list-providers fetches GET /api/voice/config and prints providers + capabilities",
+        "aiplatform voice spike <text> --lang da [--provider X] [--voice Y] [--out PATH] writes audio file",
+        "aiplatform voice transcribe <file.webm> --lang da [--provider X] prints transcript",
+        "test_list_providers_calls_config_endpoint passes",
+        "test_spike_writes_audio_file passes",
+        "test_transcribe_reads_file_and_posts passes",
+        "uv run pytest cli/tests/test_cli_voice.py green"
+      ],
+      "files_to_create": [
+        "cli/aiplatform/commands/voice.py",
+        "cli/tests/test_cli_voice.py"
+      ],
+      "files_to_modify": [
+        "cli/aiplatform/__init__.py (register subcommand if needed)"
+      ],
+      "passes": null,
+      "started": null,
+      "completed": null,
+      "notes": null
+    },
+    {
+      "id": "M-B7",
+      "description": "Ops runbook + cost-dashboard backref + final manual acceptance + AR/JB voice-quality review + push to dev",
+      "scope": "ops",
+      "estimated_loc": 150,
+      "actual_loc": null,
+      "dependencies": ["M-B5", "M-B6"],
+      "acceptance_criteria": [
+        "docs/ops/voice-providers-runbook.md documents provider config matrix, swap procedure, cost queries, troubleshooting",
+        "docs/ops/gcp-side-effects.md records all M0 grants for Terraform export to test/prod",
+        "cost-dashboard.md backrefs voice.synthesize and voice.transcribe spans",
+        "Manual E2E: speak Danish into mic -> transcript fills input -> tutor responds -> WaveNet plays response",
+        "Per-class teacher toggle manual verify",
+        "Cloud Trace shows both voice spans with all attrs",
+        "BigQuery per-provider cost query returns rows",
+        "AR/JB sign-off on voice quality recorded in runbook",
+        "make lint + make test-fast + npm run quality:check all green",
+        "git push origin dev succeeds",
+        "Sprint doc moved to implemented/ via design-doc-creator move script"
+      ],
+      "files_to_create": [
+        "docs/ops/voice-providers-runbook.md"
+      ],
+      "files_to_modify": [
+        "docs/ops/gcp-side-effects.md (if exists; else created in M0)",
+        "docs/design/aipla/v1.1.0-feedback/cost-dashboard.md"
+      ],
+      "passes": null,
+      "started": null,
+      "completed": null,
+      "notes": null
+    }
+  ],
+  "velocity": {
+    "target_loc_per_day": 540,
+    "actual_loc_per_day": null,
+    "estimated_total_loc": 1895,
+    "actual_total_loc": null,
+    "estimated_days": 3.75,
+    "actual_days": null
+  },
+  "github_issues": [],
+  "last_session": null,
+  "last_checkpoint": null,
+  "status": "not_started"
+}
