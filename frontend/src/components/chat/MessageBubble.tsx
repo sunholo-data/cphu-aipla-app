@@ -19,6 +19,7 @@ import { BrandAvatar } from "@/components/chat/BrandAvatar";
 import { ChatMarkdown } from "@/components/chat/ChatMarkdown";
 import { InlineCitation } from "@/components/chat/InlineCitation";
 import { ReadAloudButton } from "@/components/chat/ReadAloudButton";
+import { useAutoReadAloud } from "@/hooks/useAutoReadAloud";
 import { useVoiceConfig } from "@/hooks/useVoiceConfig";
 import { ToolCallChip } from "@/components/chat/ToolCallChip";
 import { useSurfaceRegistry } from "@/providers/SurfaceRegistry";
@@ -127,6 +128,10 @@ export const MessageBubble = React.memo(function MessageBubble({
   // the browser-native default). Cached per-skill across the page
   // session in useVoiceConfig.
   const voiceConfig = useVoiceConfig(skillId);
+  // 1.1.11 auto-read: when ON, every assistant message auto-speaks.
+  // We only trigger for assistant role; user/system bubbles never
+  // self-speak.
+  const { enabled: autoReadEnabled } = useAutoReadAloud();
   const isBot = message.role === "assistant";
   const time = formatTime();
 
@@ -196,6 +201,7 @@ export const MessageBubble = React.memo(function MessageBubble({
                 provider={voiceConfig.tts.provider}
                 voice={voiceConfig.tts.voice}
                 skillId={skillId}
+                autoSpeakOnMount={autoReadEnabled}
               />
             ) : null}
           </div>

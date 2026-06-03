@@ -48,6 +48,10 @@ interface ReadAloudButtonProps {
   skillId?: string;
   /** Optional className to control sizing / colour from the parent. */
   className?: string;
+  /** 1.1.11 auto-read: when true, the button auto-fires once on mount.
+   * Used by MessageBubble when the student has the auto-read toggle on,
+   * so the assistant turn is spoken automatically. */
+  autoSpeakOnMount?: boolean;
 }
 
 function isSpeechSynthesisAvailable(): boolean {
@@ -83,6 +87,7 @@ export function ReadAloudButton({
   voice = null,
   skillId,
   className,
+  autoSpeakOnMount = false,
 }: ReadAloudButtonProps) {
   const useGCP = provider !== "browser";
   // We only need Web Speech availability for the browser-native path.
@@ -116,6 +121,45 @@ export function ReadAloudButton({
       }
     };
   }, []);
+
+  // 1.1.11 — listen for the global voice.cancel event so barge-in
+  // (typing, dictating, auto-read toggle off) stops in-flight audio.
+  // See useAutoReadAloud for the dispatch sites.
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    function onCancel() {
+      try {
+        window.speechSynthesis?.cancel();
+      } catch {
+        // Ignore.
+      }
+      if (audioRef.current) {
+        audioRef.current.pause();
+        audioRef.current = null;
+      }
+      if (audioUrlRef.current) {
+        URL.revokeObjectURL(audioUrlRef.current);
+        audioUrlRef.current = null;
+      }
+      utteranceRef.current = null;
+      setIsSpeaking(false);
+    }
+    window.addEventListener("aipla:voice.cancel", onCancel);
+    return () => window.removeEventListener("aipla:voice.cancel", onCancel);
+  }, []);
+
+  // 1.1.11 auto-read: when the parent flips this prop on (typically
+  // because a new assistant message arrived AND the auto-read toggle is
+  // on), fire the click once. Placed BEFORE the early return below so
+  // the hook ordering stays stable (react-hooks/rules-of-hooks).
+  useEffect(() => {
+    if (!autoSpeakOnMount || !available || isSpeaking) return;
+    handleClick();
+    // We want this to fire once per (text, autoSpeakOnMount=true)
+    // transition. handleClick is intentionally not in deps — it'd
+    // recreate every render and cause spam.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [autoSpeakOnMount, text]);
 
   if (!available) {
     return null;

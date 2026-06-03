@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { use, useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { AutoReadToggle } from "@/components/chat/AutoReadToggle";
 import { ChatMessageList } from "@/components/chat/ChatMessageList";
 import { ResumeWelcomeBanner } from "@/components/chat/ResumeWelcomeBanner";
 import type { DocTabData } from "@/components/doc-browser/DocTab";
@@ -876,6 +877,12 @@ function ChatShell({
               <ResumeWelcomeBanner onDismiss={() => setShowResumeBanner(false)} />
             </div>
           )}
+          {/* 1.1.11 auto-read toggle — student preference for auto-speaking
+              every tutor message. Lives at the top of the chat so the
+              student can flip it any time without digging in settings. */}
+          <div className="flex justify-end px-4 pt-2">
+            <AutoReadToggle />
+          </div>
           <ChatMessageList
             messages={messages}
             // initialMessages are the persisted history fetched by
