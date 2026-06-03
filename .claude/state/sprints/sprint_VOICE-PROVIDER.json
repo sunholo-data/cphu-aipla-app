@@ -123,33 +123,35 @@
       "description": "GCP TTS provider + browser provider (signal-only) + Danish spike script + integration test + AR voice-pick session",
       "scope": "backend",
       "estimated_loc": 270,
-      "actual_loc": null,
+      "actual_loc": 540,
       "dependencies": ["M-A3"],
       "acceptance_criteria": [
-        "google-cloud-texttospeech added to backend deps (if M-A1 confirmed missing)",
-        "backend/voice/providers/browser.py describes tts=true stt=false",
-        "backend/voice/providers/gcp_tts.py wraps TextToSpeechClient with voice-tier config",
-        "scripts/spike_tts.py synthesizes Danish sample on 7 voice variants to /tmp/tts_spike/",
-        "test_gcp_tts_danish_wavenet_roundtrip (integration) passes",
-        "test_gcp_tts_extras_passed_through (unit, mocked) passes",
-        "test_gcp_tts_describe_reports_tts_only passes",
-        "AR voice-pick noted in runbook OR default da-DK-Wavenet-A confirmed",
-        "make lint + make test-fast green"
+        "google-cloud-texttospeech 2.36.0 added to backend deps",
+        "backend/voice/providers/browser.py shipped in M-A2 (pulled forward)",
+        "backend/voice/providers/gcp_tts.py wraps TextToSpeechClient with voice-tier config (sync client + asyncio.to_thread; async gRPC has ADC quota_project_id propagation bug)",
+        "scripts/spike_tts.py synthesizes Danish sample on 8 voice variants to /tmp/tts_spike/ — all 8 succeeded against aipla-dev-2026",
+        "test_gcp_tts_danish_wavenet_roundtrip (integration) PASSED against real GCP",
+        "test_gcp_tts_english_standard_roundtrip (integration) PASSED",
+        "14 unit tests cover synthesize, lang normalization, default voices, rate, extras, errors, edge cases",
+        "AR voice-pick noted in runbook OR default da-DK-Wavenet-A confirmed (8 samples in /tmp/tts_spike/ for AR session)",
+        "make lint + make test-fast green (1737 passing)"
       ],
       "files_to_create": [
-        "backend/voice/providers/browser.py",
         "backend/voice/providers/gcp_tts.py",
         "scripts/spike_tts.py",
         "backend/tests/integration/voice/__init__.py",
-        "backend/tests/integration/voice/test_gcp_tts.py"
+        "backend/tests/integration/voice/conftest.py (restore real ADC for integration tests; overrides session-wide stub)",
+        "backend/tests/integration/voice/test_gcp_tts_integration.py",
+        "backend/tests/unit/voice/test_gcp_tts.py"
       ],
       "files_to_modify": [
-        "backend/pyproject.toml"
+        "backend/pyproject.toml (google-cloud-texttospeech)",
+        "backend/uv.lock"
       ],
-      "passes": null,
-      "started": null,
-      "completed": null,
-      "notes": null
+      "passes": true,
+      "started": "2026-06-03T18:18:00Z",
+      "completed": "2026-06-03T18:55:00Z",
+      "notes": "Two discoveries during implementation: (1) async TextToSpeechAsyncClient has known auth quirk where ADC quota_project_id isn't propagated to gRPC channel, causing 403 'unregistered callers' even with valid creds — switched to sync client + asyncio.to_thread per backend/voice/cache.py pattern; (2) tests/conftest.py installs session-wide google.auth.default() stub for unit-test isolation, which broke integration tests too — added tests/integration/voice/conftest.py to restore real ADC for voice integration tests only. 8 Danish samples generated in /tmp/tts_spike/ at 20-37KB each: standard-{A,D}, wavenet-{A,C,D,E}, neural2-F, chirp3hd-Aoede. Ready for AR listen-and-pick session; default da-DK-Wavenet-A until AR overrides."
     },
     {
       "id": "M-A5",
@@ -515,7 +517,7 @@
     "actual_days": null
   },
   "github_issues": [],
-  "last_session": "2026-06-03T18:18:00Z",
-  "last_checkpoint": "M-A3",
+  "last_session": "2026-06-03T18:55:00Z",
+  "last_checkpoint": "M-A4",
   "status": "in_progress"
 }
