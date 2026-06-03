@@ -71,6 +71,7 @@ From the brief's "Not in this brief" section — captured here so they don't get
 | Oral exam prep skill | New skill brief — DRA map per topic + voice mode | New skill brief in scoping site |
 | Student note-taking skill | New skill brief | New skill brief in scoping site |
 | Portfolio download | Depends on [1.1.6](group-code-school-year-ttl.md) school-year TTL shipping first | Small follow-up sprint after 1.1.6 |
+| Proactive cooldown event-banking | Tutor references the SEQUENCE of student actions during cooldown ("you tried 30°, 45°, 60° in the last 30s"), not just the latest. v1.1 ships with state-aware-but-not-history-aware reactive turns. Validate need from pilot session reviews first | [cooldown-event-banking.md](cooldown-event-banking.md) — roadmap signal, not committed |
 
 ## Total estimate
 
