@@ -66,6 +66,19 @@ def _normalize_agent_engine_id(value: str) -> str:
     return value.rstrip("/").rsplit("/", 1)[-1] if "/" in value else value
 
 
+def _session_location() -> str:
+    """Resolve the GCP region for VertexAiSessionService / VertexAiMemoryBankService.
+
+    Defaults to ``GOOGLE_CLOUD_LOCATION`` to preserve the upstream-template
+    behaviour (where the same region serves both Gemini and Agent Engine).
+    AIPLA overrides ``GOOGLE_CLOUD_LOCATION=global`` so gemini-3.5-flash
+    routes via the global Vertex endpoint; Agent Engine isn't hosted on
+    ``global``, so a dedicated ``VERTEX_SESSION_LOCATION`` env var pins
+    sessions + memory to a real region (europe-west1 on AIPLA dev).
+    """
+    return os.environ.get("VERTEX_SESSION_LOCATION") or os.environ["GOOGLE_CLOUD_LOCATION"]
+
+
 def _force_in_memory_session() -> bool:
     """Local-dev escape hatch — force InMemory* services even when
     AGENT_ENGINE_ID is set.
@@ -112,7 +125,7 @@ def get_session_service() -> InMemorySessionService | VertexAiSessionService:
         if agent_engine_id and not _force_in_memory_session():
             _session_service_singleton = VertexAiSessionService(
                 project=require_gcp_project(),
-                location=os.environ["GOOGLE_CLOUD_LOCATION"],
+                location=_session_location(),
                 agent_engine_id=_normalize_agent_engine_id(agent_engine_id),
             )
         else:
@@ -126,7 +139,7 @@ def get_memory_service() -> InMemoryMemoryService | VertexAiMemoryBankService:
     if agent_engine_id and not _force_in_memory_session():
         return VertexAiMemoryBankService(
             project=require_gcp_project(),
-            location=os.environ["GOOGLE_CLOUD_LOCATION"],
+            location=_session_location(),
             agent_engine_id=_normalize_agent_engine_id(agent_engine_id),
         )
     return InMemoryMemoryService()
@@ -162,10 +175,20 @@ def get_artifact_service() -> InMemoryArtifactService | GcsArtifactService:
 
 
 def get_session_service_uri() -> str | None:
-    """Get session service URI for get_fast_api_app(). None = in-memory."""
+    """Get session service URI for get_fast_api_app(). None = in-memory.
+
+    Returns the FULL resource path (``agentengine://projects/.../locations/<loc>/reasoningEngines/<id>``)
+    so ADK's service registry pulls the location off the URI itself rather
+    than falling back to ``GOOGLE_CLOUD_LOCATION``. AIPLA sets
+    ``GOOGLE_CLOUD_LOCATION=global`` for gemini-3.5-flash routing; Agent
+    Engine doesn't live on ``global``, so a bare numeric URI would 404.
+    """
     agent_engine_id = os.environ.get("AGENT_ENGINE_ID")
     if agent_engine_id and not _force_in_memory_session():
-        return f"agentengine://{_normalize_agent_engine_id(agent_engine_id)}"
+        numeric = _normalize_agent_engine_id(agent_engine_id)
+        project = require_gcp_project()
+        location = _session_location()
+        return f"agentengine://projects/{project}/locations/{location}/reasoningEngines/{numeric}"
     return None
 
 
@@ -178,8 +201,16 @@ def get_artifact_service_uri() -> str | None:
 
 
 def get_memory_service_uri() -> str | None:
-    """Get memory service URI for get_fast_api_app(). None = in-memory."""
+    """Get memory service URI for get_fast_api_app(). None = in-memory.
+
+    Returns the FULL resource path so ADK's service registry parses
+    location off the URI rather than ``GOOGLE_CLOUD_LOCATION``. See
+    ``get_session_service_uri`` for the rationale.
+    """
     agent_engine_id = os.environ.get("AGENT_ENGINE_ID")
     if agent_engine_id and not _force_in_memory_session():
-        return f"agentengine://{_normalize_agent_engine_id(agent_engine_id)}"
+        numeric = _normalize_agent_engine_id(agent_engine_id)
+        project = require_gcp_project()
+        location = _session_location()
+        return f"agentengine://projects/{project}/locations/{location}/reasoningEngines/{numeric}"
     return None

@@ -475,6 +475,72 @@ ensure_config_bucket() {
     --quiet >/dev/null
 }
 
+ensure_agent_engine() {
+  # Vertex AI Agent Engine — anchor for VertexAiSessionService +
+  # VertexAiMemoryBankService so ADK chat history survives Cloud Run
+  # instance recycling, scale-out, and redeploys. AIPLA v0.1 runs ADK
+  # on Cloud Run (not on Agent Engine itself); the Agent Engine
+  # resource is used purely as a session/memory namespace.
+  #
+  # gcloud doesn't ship a reasoning-engines / agent-engines subcommand
+  # (neither GA nor alpha as of 2026-06-03), so this delegates to the
+  # vertexai Python SDK via backend/scripts/bootstrap_agent_engine.py.
+  # The script is idempotent: re-runs find the existing engine by
+  # display name "aipla-v01" and reuse its numeric ID.
+  #
+  # Pinned to europe-west1 — Agent Engine isn't hosted in europe-north1.
+  # Backend reads VERTEX_SESSION_LOCATION=europe-west1 from cloudbuild
+  # env to override the `global` value of GOOGLE_CLOUD_LOCATION.
+  local AE_LOCATION="europe-west1"
+  local AE_DISPLAY_NAME="aipla-v01"
+  local AE_STAGING_BUCKET="gs://${PROJECT}-artifacts"
+
+  log "Ensuring Vertex AI Agent Engine ${AE_DISPLAY_NAME} in ${AE_LOCATION}..."
+
+  # Bootstrap (or find existing). The script prints the numeric ID on stdout.
+  local numeric_id
+  numeric_id=$(
+    GOOGLE_CLOUD_PROJECT="$PROJECT" \
+    GOOGLE_CLOUD_LOCATION="$AE_LOCATION" \
+    AGENT_ENGINE_STAGING_BUCKET="$AE_STAGING_BUCKET" \
+    uv --project backend run python backend/scripts/bootstrap_agent_engine.py \
+      --display-name "$AE_DISPLAY_NAME" 2>&1 \
+    | tail -1
+  )
+  if [[ -z "$numeric_id" || ! "$numeric_id" =~ ^[0-9]+$ ]]; then
+    die "ensure_agent_engine: bootstrap returned non-numeric id '${numeric_id}'"
+  fi
+  log "  ✓ Agent Engine id=${numeric_id}"
+
+  # Store in Secret Manager. Idempotent: create on first run, add a new
+  # version if the stored value differs from what we just minted.
+  if gcloud secrets describe AGENT_ENGINE_ID --project="$PROJECT" &>/dev/null; then
+    local stored
+    stored=$(gcloud secrets versions access latest --secret=AGENT_ENGINE_ID --project="$PROJECT" 2>/dev/null || echo '')
+    if [ "$stored" != "$numeric_id" ]; then
+      log "  secret exists but value differs — adding new version"
+      printf '%s' "$numeric_id" | gcloud secrets versions add AGENT_ENGINE_ID \
+        --data-file=- --project="$PROJECT" >/dev/null
+    else
+      log "  secret already current"
+    fi
+  else
+    log "  creating Secret Manager entry AGENT_ENGINE_ID"
+    printf '%s' "$numeric_id" | gcloud secrets create AGENT_ENGINE_ID \
+      --data-file=- \
+      --replication-policy=automatic \
+      --project="$PROJECT" >/dev/null
+  fi
+
+  # Grant the runtime SA secretAccessor (idempotent).
+  gcloud secrets add-iam-policy-binding AGENT_ENGINE_ID \
+    --member="serviceAccount:${SA_EMAIL}" \
+    --role="roles/secretmanager.secretAccessor" \
+    --project="$PROJECT" \
+    --quiet >/dev/null
+  log "  ✓ aipla-v6@ granted secretAccessor on AGENT_ENGINE_ID"
+}
+
 ensure_group_auth_signing_secret() {
   # The group_id_auth module fails loud at first create/join/verify if
   # GROUP_AUTH_SIGNING_SECRET is unset, and the cloudbuild.yaml deploy
@@ -545,6 +611,7 @@ main() {
   ensure_runtime_buckets
   ensure_firebase_web_app_and_secret
   ensure_group_auth_signing_secret
+  ensure_agent_engine
   ensure_cb_repository
   ensure_cb_service_agent
   ensure_cb_trigger

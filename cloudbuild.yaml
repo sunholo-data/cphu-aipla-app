@@ -167,6 +167,14 @@ steps:
       # backend/auth/group_id_auth.py and docs/upstream-feedback.md
       # entry 16).
       - '--set-secrets=GROUP_AUTH_SIGNING_SECRET=GROUP_AUTH_SIGNING_SECRET:latest'
+      # Vertex AI Agent Engine — backs ADK session + memory services so chat
+      # history survives Cloud Run instance recycling, multi-instance fan-out,
+      # and redeploys. Without this, the SessionService falls back to
+      # InMemorySessionService and 1.F (group-code session resume) cannot
+      # work in any meaningful way. Provisioned by ensure_agent_engine()
+      # in scripts/bootstrap-aipla-dev.sh (Decision 13). Lives in
+      # europe-west1 — Agent Engine isn't hosted in europe-north1.
+      - '--set-secrets=AGENT_ENGINE_ID=AGENT_ENGINE_ID:latest'
       # Env vars
       - '--set-env-vars=GOOGLE_CLOUD_PROJECT=${_PROJECT_ID}'
       # AIPLA v0.1: gemini-3.5-flash is GA only on `global` endpoint
@@ -175,10 +183,12 @@ steps:
       # rollout completes — Open Question 3.
       - '--set-env-vars=GOOGLE_CLOUD_LOCATION=global'
       - '--set-env-vars=GOOGLE_GENAI_USE_VERTEXAI=True'
-      # v6 ADK service backends — AIPLA v0.1 runs ADK on Cloud Run directly
-      # (not Agent Engine), so AGENT_ENGINE_ID is omitted. v1.0.0-pilot may
-      # reintroduce it if Agent Engine becomes preferable for the teacher
-      # pilot rollout — see SEQUENCE.md 1.4 model-router-aipla-config.
+      # Agent Engine pinned to europe-west1 (closest EU region that hosts
+      # reasoningEngines — europe-north1 does NOT). Read by adk.session
+      # via VERTEX_SESSION_LOCATION to override the `global` value of
+      # GOOGLE_CLOUD_LOCATION above for VertexAiSessionService +
+      # VertexAiMemoryBankService only. Model routing keeps using `global`.
+      - '--set-env-vars=VERTEX_SESSION_LOCATION=europe-west1'
       - '--set-env-vars=ADK_ARTIFACT_BUCKET=${_PROJECT_ID}-artifacts'
       - '--set-env-vars=LOGS_BUCKET_NAME=${_PROJECT_ID}-aipla-v01-logs'
       # v6 observability

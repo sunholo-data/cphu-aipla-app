@@ -202,3 +202,100 @@ After this, the next dev push (or a manual `gcloud builds triggers run aipla-dev
 
 - **What:** the SDK lives at `/Users/voightkampff/dev/google-cloud-sdk/bin` (not on `$PATH` for non-interactive shells). Active account `m@sunholo.com`; **default configured project is `aitana-multivac-dev`** (the inherited template's), so any AIPLA command MUST pass `--project=aipla-{dev,test,prod}-2026` explicitly.
 - **For test/prod TF:** n/a (operator note). Recorded in agent memory `reference_gcloud_sdk_location.md`.
+
+## 2026-06-03 — Vertex AI Agent Engine for ADK session/memory persistence
+
+### Decision 13 — Vertex AI Agent Engine anchors ADK session + memory services
+
+- **Why now:** sprint 1.F (session-persistence) shipped the group→session_id Firestore mapping + the `POST /api/sessions/{id}/restore` endpoint, but the underlying ADK SessionService was falling back to `InMemorySessionService` because `AGENT_ENGINE_ID` was deliberately omitted (cloudbuild.yaml line 178-181, original AIPLA decision: "v0.1 runs ADK on Cloud Run directly, not Agent Engine"). Verified end-to-end against deployed dev on 2026-06-03: `messages: []` on rejoin even when `turn_count` showed 2 turns happened — because Cloud Run is `minScale=1, maxScale=3` with `sessionAffinity=true`, and ANY scale-up or redeploy evaporates the in-memory session. The 1.F Firestore mapping pointed at a session_id whose contents no longer existed anywhere. Every push to `dev` was wiping every student's chat history.
+- **Decision:** provision an Agent Engine resource in each env as a pure session/memory namespace anchor. ADK still runs on Cloud Run (the original AIPLA decision); Agent Engine is just the persistence backend for `VertexAiSessionService` + `VertexAiMemoryBankService`. Pay-per-use; no model deploys to it.
+- **Region:** `europe-west1` (Belgium). Agent Engine isn't hosted in `europe-north1`. europe-west1 is the closest EU region that hosts `reasoningEngines` and stays GDPR-compliant. Pinned via a dedicated `VERTEX_SESSION_LOCATION` env var so `GOOGLE_CLOUD_LOCATION=global` (needed for gemini-3.5-flash GA routing) stays untouched for model calls.
+- **Live dev state, verified 2026-06-03:**
+  - Agent Engine resource: `projects/784116621297/locations/europe-west1/reasoningEngines/5594904500356775936`
+  - Display name: `aipla-v01` (used for idempotent re-find on subsequent bootstrap runs)
+  - Secret Manager: `AGENT_ENGINE_ID` v1 = `5594904500356775936`
+  - SA grant: `aipla-v6@aipla-dev-2026.iam.gserviceaccount.com` → `roles/secretmanager.secretAccessor` on `AGENT_ENGINE_ID`
+  - `roles/aiplatform.user` on the runtime SA is already bound by `ensure_sa()` — sufficient for VertexAiSessionService/VertexAiMemoryBankService access.
+
+### Dev path (gcloud + Python SDK):
+
+`ensure_agent_engine()` in [`bootstrap-aipla-dev.sh`](bootstrap-aipla-dev.sh).
+
+**Why Python SDK (not pure gcloud):** `gcloud ai reasoning-engines` / `gcloud alpha ai reasoning-engines` does NOT exist in any released SDK channel (verified 2026-06-03 against gcloud 557.0.0). The vertexai Python SDK is the only first-party tool that wraps the reasoningEngines REST surface. Delegating to `backend/scripts/bootstrap_agent_engine.py` keeps the operation reproducible, idempotent (by display name), and in-repo.
+
+The function:
+1. Calls `bootstrap_agent_engine.py --display-name aipla-v01` via `uv run`. The script lists existing engines by display name (idempotent) and returns the numeric resource ID on stdout.
+2. Upserts Secret Manager `AGENT_ENGINE_ID` (creates on first run, adds a new version only if the stored value drifts).
+3. Grants the runtime SA `roles/secretmanager.secretAccessor` on the secret.
+
+### Test/prod path (Terraform):
+
+Module **does not exist yet** — write [`infrastructure/modules/agent-engine/`](../infrastructure/modules/agent-engine/) when promoting v0.1 to test. Recipe:
+
+```hcl
+# 1. Provision the Agent Engine itself.
+# The terraform-provider-google-beta has google_vertex_ai_reasoning_engine
+# (added 2025 — verify provider version when wiring).
+resource "google_vertex_ai_reasoning_engine" "aipla" {
+  provider     = google-beta
+  project      = var.project_id
+  location     = "europe-west1"    # NOT region — Agent Engine is europe-west1-only in the EU.
+  display_name = "aipla-${var.env}"  # e.g. aipla-test, aipla-prod
+  description  = "AIPLA session + memory anchor (backend runs on Cloud Run)."
+
+  # spec.package_spec.requirements pins runtime deps for any code that
+  # WERE deployed to Agent Engine — irrelevant here (we use it only as
+  # a namespace). Leave default if the provider allows; otherwise pin
+  # to match `backend/scripts/bootstrap_agent_engine.py` defaults:
+  # cloudpickle + pydantic.
+}
+
+# 2. Extract the numeric ID — VertexAiSessionService expects only the
+# trailing numeric, not the full resource name (see _normalize_agent_engine_id
+# in backend/adk/session.py).
+locals {
+  agent_engine_numeric_id = element(split("/", google_vertex_ai_reasoning_engine.aipla.name), length(split("/", google_vertex_ai_reasoning_engine.aipla.name)) - 1)
+}
+
+# 3. Mirror into Secret Manager so cloudbuild's --set-secrets line works.
+resource "google_secret_manager_secret" "agent_engine_id" {
+  project   = var.project_id
+  secret_id = "AGENT_ENGINE_ID"
+  replication { auto {} }
+}
+
+resource "google_secret_manager_secret_version" "agent_engine_id_v1" {
+  secret      = google_secret_manager_secret.agent_engine_id.id
+  secret_data = local.agent_engine_numeric_id
+}
+
+resource "google_secret_manager_secret_iam_member" "runtime_sa_accessor" {
+  project   = var.project_id
+  secret_id = google_secret_manager_secret.agent_engine_id.secret_id
+  role      = "roles/secretmanager.secretAccessor"
+  member    = "serviceAccount:${var.runtime_sa_email}"
+}
+```
+
+**Provider note:** if `google_vertex_ai_reasoning_engine` isn't yet GA on the provider version pinned by `infrastructure/`, fall back to a `null_resource` + `local-exec` that calls `backend/scripts/bootstrap_agent_engine.py` from Terraform — the script is already idempotent on display name, so re-applies are safe. Worst case is the resource lives in state as a `null_resource`; the secret + IAM stay first-class.
+
+**Prereqs the module assumes** (owned by 1.1 / `ensure_apis` already on dev): `aiplatform.googleapis.com` enabled (✓), `roles/aiplatform.user` on the runtime SA (✓ — bound in `ensure_sa()`), `gs://${PROJECT}-artifacts` staging bucket exists (✓ — created in `ensure_runtime_buckets()`).
+
+**Two-phase apply:** Agent Engine creation takes 2–4 min and the LRO returns before the resource is fully ready for session writes. First apply provisions; let it settle ~5 min before deploying the Cloud Run service that consumes the secret. The dev gcloud path doesn't need this because `cloudbuild.yaml` reads the secret at deploy time, by which point the LRO is done.
+
+### Backend wiring
+
+[`backend/adk/session.py`](../backend/adk/session.py) (updated 2026-06-03):
+- New helper `_session_location()` returns `VERTEX_SESSION_LOCATION` if set, else `GOOGLE_CLOUD_LOCATION`. This isolates the Agent Engine region from the model region (AIPLA needs `global` for gemini-3.5-flash GA).
+- `get_session_service()` + `get_memory_service()` use `_session_location()` for the `location=` arg to `VertexAiSessionService` / `VertexAiMemoryBankService`.
+- `get_session_service_uri()` + `get_memory_service_uri()` now return the FULL resource path (`agentengine://projects/.../locations/europe-west1/reasoningEngines/NNN`) instead of the bare numeric form, so ADK's service registry parses location off the URI itself rather than falling back to `GOOGLE_CLOUD_LOCATION=global`.
+
+### cloudbuild.yaml (root) wiring
+
+Two lines added to the Cloud Run sidecar deploy step:
+- `--set-secrets=AGENT_ENGINE_ID=AGENT_ENGINE_ID:latest`
+- `--set-env-vars=VERTEX_SESSION_LOCATION=europe-west1`
+
+The original `AGENT_ENGINE_ID omitted` comment was replaced with a pointer to this decision.
+
+### Captured in script? ✅ yes — `ensure_agent_engine()`. The Terraform recipe above is the test/prod equivalent.
