@@ -260,6 +260,7 @@ from protocols.reports_routes import router as reports_router  # noqa: E402
 from protocols.session_bootstrap_routes import router as session_bootstrap_router  # noqa: E402
 from protocols.session_restore_routes import router as session_restore_router  # noqa: E402
 from protocols.sessions_route import router as sessions_router  # noqa: E402
+from protocols.voice_routes import router as voice_router  # noqa: E402
 from skills.routes import router as skills_router  # noqa: E402
 from skills.skill_processor import SkillNotFoundError, process_skill_request  # noqa: E402
 from tools.documents.routes import router as doc_folders_router  # noqa: E402
@@ -288,6 +289,7 @@ app.include_router(analytics_router)
 app.include_router(insights_router)
 app.include_router(reports_router)
 app.include_router(proactive_router)
+app.include_router(voice_router)
 
 # ----------------------------------------------------------------------------
 # Channel framework (v6.1.0 sprint 1.6 M1)
