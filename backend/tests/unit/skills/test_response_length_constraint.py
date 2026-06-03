@@ -60,6 +60,5 @@ def test_non_tutor_skill_does_not_carry_response_length_constraint(skill_name: s
     structured responses are appropriate."""
     body = _load_instructions(skill_name)
     assert "Maximum 3 sentences" not in body, (
-        f"{skill_name} unexpectedly carries 'Maximum 3 sentences' — "
-        "the constraint is tutor-only by design"
+        f"{skill_name} unexpectedly carries 'Maximum 3 sentences' — the constraint is tutor-only by design"
     )
