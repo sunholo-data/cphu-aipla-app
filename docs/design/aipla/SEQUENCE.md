@@ -96,15 +96,38 @@ respects the **mid-point review (2026-06-26)** + **holiday freeze
 
 | # | Doc (planned) | Why | ADRs | Est |
 |---|---|---|---|---|
-| **1.10** | `multimodal-ingestion-via-ailang-parse.md` | Wire AILANG Parse end-to-end for teacher and student uploads. 13 deterministic formats local; 2 AI formats (PDF, image) routed through the model router. | 004, 011 | 1.5d |
+| ~~**1.10**~~ | ~~`multimodal-ingestion-via-ailang-parse.md`~~ | **Superseded for the student slice** by [v1.1.0-feedback/student-multimodal-upload.md](v1.1.0-feedback/student-multimodal-upload.md). Teacher document ingestion (curriculum PDFs, problem sets via AILANG Parse's 13 deterministic formats) remains as a smaller follow-up reusing the v1.1 backend plumbing | 004, 011 | (folded into 1.1.7) |
 | **1.11** | `artefact-review-pipeline.md` | The MCP server gating generated HTML/SVG before any iframe render. v1 ships with the **hand-curated sim library**, so this lands as infrastructure groundwork for Year-2 artefact generation; tested against a small fixture library. | 013 | 2d |
-| **1.12** | `budget-dashboard.md` | `class-status` skill (Year-2 from skills catalogue, but the v1 minimum is just surfacing the existing per-class enforcer's data in a small A2UI panel). | 014, 015 | 1d |
+| ~~**1.12**~~ | ~~`budget-dashboard.md`~~ | **Superseded** by [v1.1.0-feedback/cost-dashboard.md](v1.1.0-feedback/cost-dashboard.md), which expands scope to cross-class researcher view + per-activity / per-group breakdown + projected monthly spend, driven by DK's Indian cohort scaling. The per-class enforcer (separate, already in tree) is unchanged | 014, 015 | (folded into 1.1.9) |
 
 ### 1.13 — Pilot readiness (target: 2026-08-08, one week before pilot)
 
 | # | Doc (planned) | Why | ADRs | Est |
 |---|---|---|---|---|
 | **1.13** | `pilot-readiness-checklist.md` | Not a feature doc — a release checklist. DPIA scaffold, consent form sign-off (JB), capability-floor eval baseline locked, runbooks for "how to onboard a new teacher / class", smoke tests for the full v1 path, rollback procedures. | 005, 014 | 1d |
+
+## Phase 1.1 — Post-3-June teacher check-in feedback (v1.1.0-feedback)
+
+Nine items distilled from the 3 June 2026 teacher check-in (full brief at
+[`june-03-feedback-sprint-brief.md`](file:///Users/mark/Documents/clients/cph-uni/strand-a-pedagogical-bot/prototypes/june-03-feedback-sprint-brief.md)
+in the scoping site). Per-item design docs and detailed ordering live in
+[v1.1.0-feedback/SEQUENCE.md](v1.1.0-feedback/SEQUENCE.md). Summary:
+
+| # | Doc | Est | Status / Gate |
+|---|-----|-----|---------------|
+| 1.1.1 | [tutor-verbosity-fix.md](v1.1.0-feedback/tutor-verbosity-fix.md) | ~2h | P0 immediate; AR sign-off on prompt |
+| 1.1.2 | [proactive-sim-reactive-tutor.md](v1.1.0-feedback/proactive-sim-reactive-tutor.md) | ~1d | Re-scopes [proactive-tutor.md](v1.0.0-pilot/proactive-tutor.md) Phase B from idle-heartbeat → sim-event-reactive |
+| 1.1.3 | [student-consent-prompt.md](v1.1.0-feedback/student-consent-prompt.md) | ~1d | Blocked on JB consent-wording sign-off |
+| 1.1.4 | [session-report-summary-primary.md](v1.1.0-feedback/session-report-summary-primary.md) | ~1d | Independent; foundational for eventual audio inclusion |
+| 1.1.5 | [researcher-role.md](v1.1.0-feedback/researcher-role.md) | ~1d | New `role:researcher` Firebase claim above teacher tier |
+| 1.1.6 | [group-code-school-year-ttl.md](v1.1.0-feedback/group-code-school-year-ttl.md) | ~2h | Extend 30d → 300d; quick win unblocking portfolio-download |
+| 1.1.7 | [student-multimodal-upload.md](v1.1.0-feedback/student-multimodal-upload.md) | ~2d | **Supersedes 1.10 student slice.** ADR-008 ready; JB image-retention confirm |
+| 1.1.8 | [exit-ticket.md](v1.1.0-feedback/exit-ticket.md) | ~1d | Blocked on JB/AR question set |
+| 1.1.9 | [cost-dashboard.md](v1.1.0-feedback/cost-dashboard.md) | ~1d | **Supersedes 1.12.** Per-class + cross-class researcher cost views |
+
+**Total v1.1 estimate:** ~8.5d engineering. Fits in the post-3-June → pilot-start window (2026-06-04 → 2026-08-14, ~10 weeks minus the 2026-06-29 → 07-05 freeze). Several items can ship *before* the pilot starts; the rest absorb into pilot-iteration weeks.
+
+**Human-gated items to tee up first:** JB consent wording (1.1.3), JB/AR exit-ticket question set (1.1.8), AR verbosity-prompt sign-off (1.1.1), JB image-retention posture (1.1.7).
 
 ## Phase 2 — Strand B + Strand C + roadmap signals (post-pilot, weeks 13–17)
 
