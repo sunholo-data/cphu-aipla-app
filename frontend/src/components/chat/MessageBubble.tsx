@@ -28,6 +28,10 @@ import type { SkillMessage, ToolCallState } from "@/hooks/useSkillAgent";
 interface MessageBubbleProps {
   message: SkillMessage;
   skillId: string;
+  /** Optional human-readable label shown as the bubble byline. Falls
+   * back to `skillId` itself when omitted. See ChatMessageList docstring
+   * for the rationale (1.1.11). */
+  skillDisplayName?: string;
   userInitial: string;
   userDisplayName: string;
   toolCalls: ToolCallState[];
@@ -113,6 +117,7 @@ function formatTime(): string {
 export const MessageBubble = React.memo(function MessageBubble({
   message,
   skillId,
+  skillDisplayName,
   userInitial,
   userDisplayName,
   toolCalls,
@@ -188,7 +193,7 @@ export const MessageBubble = React.memo(function MessageBubble({
         <BrandAvatar />
         <div className="flex max-w-[80%] flex-col gap-1">
           <div className="flex items-baseline gap-2">
-            <span className="text-xs font-medium text-orange-600">{skillId}</span>
+            <span className="text-xs font-medium text-orange-600">{skillDisplayName ?? skillId}</span>
             <span className="text-xs text-muted-foreground">{time}</span>
             {/* Sprint 1.H-TTS — only render when this bubble has text
              *  for the engine to speak. Tool-call-only bubbles (no

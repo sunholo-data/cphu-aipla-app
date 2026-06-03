@@ -23,6 +23,14 @@ export GOOGLE_CLOUD_PROJECT=aipla-dev-2026
 export GOOGLE_CLOUD_LOCATION="${GOOGLE_CLOUD_LOCATION:-europe-north1}"
 export GOOGLE_GENAI_USE_VERTEXAI="True"
 
+# Sprint VOICE-PROVIDER (1.1.11) — flip the registry off the "browser"
+# default so the read-aloud button hits Cloud TTS WaveNet locally too.
+# Mirrors cloudbuild.yaml --set-env-vars=VOICE_TTS_PROVIDER=gcp_wavenet.
+# Override with `VOICE_TTS_PROVIDER=browser` in the shell to compare the
+# old path side-by-side without editing the script.
+export VOICE_TTS_PROVIDER="${VOICE_TTS_PROVIDER:-gcp_wavenet}"
+export VOICE_TTS_CACHE_BUCKET="${VOICE_TTS_CACHE_BUCKET:-aipla-dev-2026-tts-cache}"
+
 # Unset API-key vars so the Vertex SDK uses ADC, not Express Mode. With
 # GOOGLE_GENAI_USE_VERTEXAI=true AND GOOGLE_API_KEY set, the genai client
 # still attaches the API key to some Vertex calls — and Vertex Sessions /

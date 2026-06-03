@@ -920,7 +920,8 @@ function ChatShell({
             isThinking={isThinking}
             isLoading={isLoading}
             error={error}
-            skillId={displayName}
+            skillId={skillId}
+            skillDisplayName={displayName}
             userInitial={userInitial}
             userDisplayName={userDisplayName}
             stageLabel={stageLabel}

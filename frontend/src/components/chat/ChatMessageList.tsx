@@ -38,6 +38,12 @@ interface ChatMessageListProps {
   isLoading: boolean;
   error: StreamError | null;
   skillId: string;
+  /** Optional human-readable skill label used as the bubble byline
+   * (e.g. "Problem-set hints (Boldkast)"). When omitted, MessageBubble
+   * falls back to `skillId` itself. 1.1.11 — added so the chat page
+   * can pass the real skill ID for voice-config lookups while keeping
+   * the friendly display name in the UI. */
+  skillDisplayName?: string;
   userInitial: string;
   userDisplayName: string;
   activeDocumentContext?: ActiveDocumentContext | null;
@@ -79,6 +85,7 @@ export function ChatMessageList({
   isLoading,
   error,
   skillId,
+  skillDisplayName,
   userInitial,
   userDisplayName,
   activeDocumentContext,
@@ -230,6 +237,7 @@ export function ChatMessageList({
               <MessageBubble
                 message={m}
                 skillId={skillId}
+                skillDisplayName={skillDisplayName}
                 userInitial={userInitial}
                 userDisplayName={userDisplayName}
                 toolCalls={toolCallsByParent[m.id] ?? []}
