@@ -3,12 +3,20 @@ import { describe, expect, it, vi } from "vitest";
 import { AuthProvider } from "@/contexts/AuthContext";
 import { AGUIProvider, useAGUIAgent } from "@/providers/AGUIProvider";
 
+// Build a minimal Firebase User stub. AGUIProvider only checks for
+// truthiness on `useAuth().user` to decide whether to call getIdToken,
+// so a `{uid}`-only object is enough.
+const TEST_USER = { uid: "test-uid", email: "t@example.test" } as unknown as import("firebase/auth").User;
+
 vi.mock("@/lib/firebase", () => ({
-  subscribeToAuthState: (cb: (u: null) => void) => {
-    queueMicrotask(() => cb(null));
+  subscribeToAuthState: (cb: (u: unknown) => void) => {
+    // Fire with a signed-in user so AGUIProvider's gate lifts on a
+    // path that does call getIdToken — that's what production hits.
+    queueMicrotask(() => cb(TEST_USER));
     return () => {};
   },
   getIdToken: async () => "test-token",
+  getTeacherIdToken: async () => "test-token",
   signInWithGoogle: async () => {},
   signInWithGoogleRedirect: async () => {},
   signOut: async () => {},

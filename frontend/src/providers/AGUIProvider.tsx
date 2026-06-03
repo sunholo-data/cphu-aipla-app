@@ -46,20 +46,34 @@ export function AGUIProvider({
   sessionId?: string;
   children: ReactNode;
 }) {
-  const { getIdToken } = useAuth();
+  const { user, loading: authLoading, getIdToken } = useAuth();
   const [token, setToken] = useState<string | null>(null);
-  // `tokenResolved` flips true after the first `getIdToken()` call
-  // settles, regardless of whether it returned a real token or null.
-  // Without this gate, the HttpAgent is built with no Authorization
-  // header on the initial render and any consumer that submits before
-  // the effect ticks gets a backend 401. (Caught on /teacher/analytics
-  // 2026-06-02 — the chat island has lower time-to-interactive than
-  // the existing /chat/[...path] surface, so users could click Send
-  // inside the race window.)
   const [tokenResolved, setTokenResolved] = useState<boolean>(false);
 
+  // Token effect re-runs when `user` changes — critical because
+  // `getIdToken()` returns null when `auth.currentUser` hasn't been
+  // hydrated yet, and `getIdToken` is a stable reference so a
+  // `[getIdToken]` dep alone fires exactly once at mount. If that
+  // single fire lands before Firebase's onAuthStateChanged populates
+  // `currentUser`, token stays null forever — and any consumer that
+  // submits sees backend 401 'Missing Authorization header'. Caught
+  // 2026-06-03 on /teacher/analytics: stream POSTs 401'd with 11ms
+  // latency (pre-auth-check fast-fail). Gating on `user` makes the
+  // effect re-run as soon as auth hydrates.
   useEffect(() => {
     let cancelled = false;
+    if (authLoading) {
+      // Wait for auth to finish hydrating before deciding anything.
+      setTokenResolved(false);
+      return () => undefined;
+    }
+    if (!user) {
+      // Signed-out path: let downstream consumers render their sign-in
+      // branches. Mark resolved so the gate below lifts.
+      setToken(null);
+      setTokenResolved(true);
+      return () => undefined;
+    }
     void getIdToken()
       .then((t) => {
         if (!cancelled) setToken(t);
@@ -70,7 +84,7 @@ export function AGUIProvider({
     return () => {
       cancelled = true;
     };
-  }, [getIdToken]);
+  }, [authLoading, user, getIdToken]);
 
   const agent = useMemo(() => {
     const headers: Record<string, string> = {};
@@ -82,10 +96,10 @@ export function AGUIProvider({
     });
   }, [skillId, token, sessionId]);
 
-  // Block consumer render until the auth token attempt has settled.
-  // Signed-out callers fall through with token=null and consumers
-  // surface their own "sign in" branches — they were already handling
-  // the no-auth case before this gate.
+  // Block child render until auth has settled AND the token has been
+  // attempted. Existing chat surfaces already render their own loading
+  // UI for longer than this gate; new surfaces like /teacher/analytics
+  // see a brief flash of nothing, then the chat appears.
   if (!tokenResolved) {
     return null;
   }
