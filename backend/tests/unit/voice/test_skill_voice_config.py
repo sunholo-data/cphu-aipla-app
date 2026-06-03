@@ -37,7 +37,7 @@ def test_skill_voice_config_all_fields_optional():
     assert cfg.tts_provider is None
     assert cfg.tts_voice is None
     assert cfg.stt_provider is None
-    assert cfg.rate == 0.85
+    assert cfg.rate == 1.0
 
 
 def test_skill_voice_config_rate_out_of_range_rejected():

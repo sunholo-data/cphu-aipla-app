@@ -189,7 +189,11 @@ async def synthesize(
             )
 
         # Cache check.
-        rate = 0.85  # matches GCPTTSProvider's default
+        # 1.0 is the natural Cloud TTS WaveNet pace; the previous 0.85
+        # default carried over from browser Web Speech where Sara talks
+        # too fast. Per-skill override via SkillConfig.voice.rate still
+        # applies below.
+        rate = 1.0
         if skill is not None:
             v = getattr(skill, "voice", None)
             if v is not None:

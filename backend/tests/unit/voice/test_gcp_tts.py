@@ -101,9 +101,10 @@ async def test_synthesize_defaults_rate_when_extras_none():
     provider, client = _make_provider_with_mock_client()
     await provider.synthesize(text="Hej", lang="da", voice=None, extras=None)
     audio_config = client.synthesize_speech.call_args.kwargs["audio_config"]
-    # 0.85 is the M+AR-confirmed default for Danish tutor turns
-    # (see ReadAloudButton.tsx comment).
-    assert audio_config.speaking_rate == pytest.approx(0.85)
+    # 1.0 is natural pace for Cloud TTS WaveNet. Earlier 0.85 default
+    # was a browser Web Speech carryover (Sara talks too fast at 1.0);
+    # WaveNet has natural prosody so 0.85 sounds sluggish.
+    assert audio_config.speaking_rate == pytest.approx(1.0)
 
 
 @pytest.mark.asyncio

@@ -72,7 +72,11 @@ class SkillVoiceConfig(BaseModel):
     tts_provider: str | None = Field(default=None, alias="ttsProvider")
     tts_voice: str | None = Field(default=None, alias="ttsVoice")
     stt_provider: str | None = Field(default=None, alias="sttProvider")
-    rate: float = Field(default=0.85, ge=0.25, le=4.0)
+    # 1.0 = Cloud TTS WaveNet's natural pace. Browser Web Speech's
+    # Sara voice runs faster and historically wanted 0.85, but that's
+    # the browser-path's quirk, not a Cloud TTS one. Skills that want
+    # a slower pace for ESL learners can set this per-skill.
+    rate: float = Field(default=1.0, ge=0.25, le=4.0)
 
     model_config = ConfigDict(populate_by_name=True, extra="forbid")
 

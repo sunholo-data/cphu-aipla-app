@@ -96,7 +96,12 @@ class GCPTTSProvider:
             raise ValueError("synthesize: text must not be empty")
         lang_full = self._normalize_lang(lang)
         voice_name = voice or self._default_voice(lang_full)
-        rate = float((extras or {}).get("rate", 0.85))
+        # 1.0 is natural pace for Cloud TTS WaveNet/Neural2/Chirp3HD.
+        # The earlier 0.85 default was carried over from browser Web
+        # Speech where the macOS Sara voice talks too fast; WaveNet has
+        # natural prosody so 0.85 sounds sluggish. Per-skill overrides
+        # via SkillConfig.voice.rate still apply via the extras dict.
+        rate = float((extras or {}).get("rate", 1.0))
 
         synthesis_input = texttospeech.SynthesisInput(text=text)
         voice_params = texttospeech.VoiceSelectionParams(
