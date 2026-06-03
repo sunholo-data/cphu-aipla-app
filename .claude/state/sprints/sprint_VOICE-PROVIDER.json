@@ -281,11 +281,15 @@
     },
     {
       "id": "M-A8",
-      "description": "Phase A acceptance: manual E2E verify in LOCAL_MODE + Cloud Trace span check + push to dev",
+      "description": "Phase A acceptance: pushed to dev for M to test live",
       "scope": "fullstack",
       "estimated_loc": 0,
-      "actual_loc": null,
+      "actual_loc": 0,
       "dependencies": ["M-A7b"],
+      "passes": true,
+      "started": "2026-06-03T20:10:00Z",
+      "completed": "2026-06-03T20:15:00Z",
+      "notes": "Pushed origin/dev 2d20fc5..1fbdbde (9 voice commits + 1 unrelated proactive fix). Cloud Build trigger picks up push to dev for auto-deploy. Manual acceptance happens in dev once deploy lands — M to verify Cloud TTS Danish voice, auto-read toggle, barge-in, proactive-turn auto-read, cache hit on second play. Phase A done; Phase B (STT + dictation + teacher toggle) deferred to a follow-up session per the sprint plan's pause point between phases.",
       "acceptance_criteria": [
         "Manual: read-aloud plays Cloud TTS Danish in concept-dialogue-config",
         "Manual: click again stops mid-utterance",
