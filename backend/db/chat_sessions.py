@@ -93,6 +93,26 @@ def soft_delete_session(session_id: str) -> None:
     update_document(_COLLECTION, session_id, {"archivedAt": _utcnow().isoformat()})
 
 
+def increment_proactive_turn_count(session_id: str) -> None:
+    """Record one proactive tutor turn (greet or sim-reactive) firing.
+
+    Bumps ``proactiveTurnCount`` by 1 atomically and stamps
+    ``lastProactiveTurnAt`` to now. Sprint PROACTIVE-SIM-REACTIVE
+    introduced this helper so both the existing ``/greet`` endpoint and
+    the new ``/proactive-event-check`` gate stamp the same fields the
+    cap + cooldown gates read. Idempotency is the caller's
+    responsibility — call once per proactive turn that actually fires.
+    """
+    update_document(
+        _COLLECTION,
+        session_id,
+        {
+            "proactiveTurnCount": _fs.Increment(1),
+            "lastProactiveTurnAt": _utcnow().isoformat(),
+        },
+    )
+
+
 # ---------------------------------------------------------------------------
 # Read helpers
 # ---------------------------------------------------------------------------
@@ -311,7 +331,7 @@ def _to_firestore(idx: ChatSessionIndex) -> dict:
     """Convert to a flat dict suitable for Firestore set()."""
     d = idx.model_dump(by_alias=True, exclude_none=False)
     # Convert datetimes to ISO strings for consistent storage
-    for key in ("firstMessageAt", "lastMessageAt", "archivedAt"):
+    for key in ("firstMessageAt", "lastMessageAt", "archivedAt", "lastProactiveTurnAt"):
         val = d.get(key)
         if isinstance(val, datetime):
             d[key] = val.isoformat()

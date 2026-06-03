@@ -51,6 +51,18 @@ class ChatSessionIndex(BaseModel):
     archived_at: datetime | None = Field(default=None, alias="archivedAt")
     shared_with_teacher: bool = Field(default=False, alias="sharedWithTeacher")
     group_code: str | None = Field(default=None, alias="groupCode")
+    proactive_turn_count: int = Field(default=0, alias="proactiveTurnCount")
+    """Count of proactive tutor turns fired this session, across both
+    Phase A (auto-greet) and Phase B (sim-reactive). Compared against
+    ``SkillConfig.proactive_max_per_session`` by the
+    ``/proactive-event-check`` gate to enforce the per-session cap.
+    Sprint PROACTIVE-SIM-REACTIVE introduced this field."""
+    last_proactive_turn_at: datetime | None = Field(default=None, alias="lastProactiveTurnAt")
+    """Wall-clock timestamp of the most recent proactive turn (greet or
+    sim-reactive). Compared against the 90-second session-wide cooldown
+    by the ``/proactive-event-check`` gate. None for sessions that have
+    not yet had a proactive turn (the default state). Sprint
+    PROACTIVE-SIM-REACTIVE introduced this field."""
 
     model_config = ConfigDict(populate_by_name=True)
 
