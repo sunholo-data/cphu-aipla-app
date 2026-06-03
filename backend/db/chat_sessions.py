@@ -331,7 +331,13 @@ def _to_firestore(idx: ChatSessionIndex) -> dict:
     """Convert to a flat dict suitable for Firestore set()."""
     d = idx.model_dump(by_alias=True, exclude_none=False)
     # Convert datetimes to ISO strings for consistent storage
-    for key in ("firstMessageAt", "lastMessageAt", "archivedAt", "lastProactiveTurnAt"):
+    for key in (
+        "firstMessageAt",
+        "lastMessageAt",
+        "archivedAt",
+        "lastProactiveTurnAt",
+        "lastStudentMessageAt",
+    ):
         val = d.get(key)
         if isinstance(val, datetime):
             d[key] = val.isoformat()

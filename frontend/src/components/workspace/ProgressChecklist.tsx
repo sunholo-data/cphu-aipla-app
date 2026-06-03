@@ -1,8 +1,8 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { fetchWithAuth } from "@/lib/apiClient";
 import { useHumanToolEvents } from "@/hooks/useHumanToolEvents";
+import { useSimSnapshotPush } from "@/hooks/useSimSnapshotPush";
 
 /**
  * One sub-part of a problem the student can mark as worked-through.
@@ -45,9 +45,23 @@ const KEY_PREFIX = "aipla.progress:";
  * without having to infer from conversation. The reveal is still
  * student-initiated.
  */
+interface ProgressSnapshot {
+  done: string[];
+  items: { id: string; label: string }[];
+  total: number;
+}
+
 export function ProgressChecklist({ skillId, items, sessionId }: ProgressChecklistProps) {
   const storageKey = KEY_PREFIX + skillId;
   const [done, setDone] = useState<Record<string, boolean>>({});
+  // Sprint PROACTIVE-SIM-REACTIVE M8-fix #2: route through the shared
+  // useSimSnapshotPush so checklist toggles ALSO fire the
+  // proactive-event-check gate. Picks up the chat page's
+  // ProactiveSimProvider wiring automatically.
+  const pushChecklistSnapshot = useSimSnapshotPush<ProgressSnapshot>(
+    sessionId ?? null,
+    "progress",
+  );
   const humanToolEvents = useHumanToolEvents();
 
   useEffect(() => {
@@ -64,34 +78,31 @@ export function ProgressChecklist({ skillId, items, sessionId }: ProgressCheckli
     }
   }, [storageKey]);
 
-  const pushSnapshotRequest = (doneMap: Record<string, boolean>): Promise<Response> | null => {
-    if (!sessionId) return null;
-    const doneIds = items.filter((i) => doneMap[i.id]).map((i) => i.id);
-    const body = {
-      serverId: "progress",
-      toolName: "state",
-      // Include both ids AND labels so the agent's prompt is self-describing
-      // (no correlation to system-prompt text required). v1 sources items
-      // from SkillConfig.problemDefinition.subparts; for v0.1 we lift the
-      // hardcoded BOLDKAST_SUBPARTS into the push payload.
-      structuredContent: {
-        done: doneIds,
-        items: items.map((i) => ({ id: i.id, label: i.label })),
-        total: items.length,
-      },
-    };
-    return fetchWithAuth(`/api/proxy/api/sessions/${sessionId}/iframe-context`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(body),
-    });
+  const buildSnapshot = (doneMap: Record<string, boolean>): ProgressSnapshot => ({
+    done: items.filter((i) => doneMap[i.id]).map((i) => i.id),
+    // Include both ids AND labels so the agent's prompt is self-describing
+    // (no correlation to system-prompt text required). v1 sources items
+    // from SkillConfig.problemDefinition.subparts; for v0.1 we lift the
+    // hardcoded BOLDKAST_SUBPARTS into the push payload.
+    items: items.map((i) => ({ id: i.id, label: i.label })),
+    total: items.length,
+  });
+
+  const pushSnapshotRequest = (
+    doneMap: Record<string, boolean>,
+    kind: string,
+  ): Promise<Response> | null => {
+    return pushChecklistSnapshot(buildSnapshot(doneMap), kind);
   };
 
   // Fire the push silently — used by catch-up effect when sessionId
   // arrives. No card is dispatched because this is automatic state
-  // sync, not a deliberate student action.
+  // sync, not a deliberate student action. Kind = "progress.sync" so
+  // the suffix doesn't match step/next/advance — the mapper correctly
+  // skips this push for the proactive gate-check (no tutor turn on
+  // sessionStorage rehydration).
   const pushSnapshotSilent = (doneMap: Record<string, boolean>) => {
-    const req = pushSnapshotRequest(doneMap);
+    const req = pushSnapshotRequest(doneMap, "progress.sync");
     if (!req) return;
     void req.catch((err) => {
       if (process.env.NODE_ENV !== "production") {
@@ -110,17 +121,23 @@ export function ProgressChecklist({ skillId, items, sessionId }: ProgressCheckli
     // mid-render of ProgressChecklist is illegal — caught live on
     // 2026-05-21 during M3 manual verification.
     const next = { ...done, [id]: !done[id] };
+    const becomingDone = !!next[id];
     if (typeof window !== "undefined") {
       window.sessionStorage.setItem(storageKey, JSON.stringify(next));
     }
-    const req = pushSnapshotRequest(next);
+    // Kind: marking done → "progress.advance" (suffix matches *.advance
+    // pattern → maps to step_advance → fires proactive gate-check, so
+    // the tutor can react to the student claiming completion). Marking
+    // undone → "progress.undo" (doesn't map to anything meaningful;
+    // gate-check silently skipped because un-marking isn't progress).
+    const kind = becomingDone ? "progress.advance" : "progress.undo";
+    const req = pushSnapshotRequest(next, kind);
     if (req) {
       // The toggle is a deliberate student action — surface the push
       // status in the chat via a human-tool-use card so the student
       // sees their action was registered with the agent.
       const item = items.find((i) => i.id === id);
       const sublabel = item?.label ?? id;
-      const becomingDone = !!next[id];
       const label = becomingDone
         ? `Markerede '${sublabel}' som klar`
         : `Fjernede '${sublabel}' fra klare`;

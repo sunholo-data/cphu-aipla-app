@@ -10,6 +10,7 @@
 from __future__ import annotations
 
 import logging
+import re
 from datetime import UTC, datetime
 from typing import Any
 
@@ -23,6 +24,24 @@ _STATE_TURN_COUNT = "app:chat_session_turn_count"
 
 # Flush counter updates every N turns to reduce Firestore write amplification.
 _TURN_FLUSH_INTERVAL = 5
+
+
+_PROACTIVE_GREET_SENTINEL = "[session_start]"
+_EVENT_REACTIVE_PATTERN = re.compile(r"^\[event_reactive:[a-z][a-z0-9_]*\]$")
+
+
+def _is_proactive_sentinel(text: str) -> bool:
+    """Mirror of frontend/src/lib/proactiveSentinels.ts. Sprint
+    PROACTIVE-SIM-REACTIVE: synthetic system-marker user events that
+    trigger proactive turns must NOT count as real student activity for
+    the heartbeat-threshold gate. Keep these literals in sync with
+    backend/protocols/proactive_routes.py (PROACTIVE_GREET_TRIGGER +
+    event_reactive sentinel format).
+    """
+    stripped = text.strip()
+    if stripped == _PROACTIVE_GREET_SENTINEL:
+        return True
+    return bool(_EVENT_REACTIVE_PATTERN.match(stripped))
 
 
 def _emit_new_turns(
@@ -248,6 +267,49 @@ def make_after_agent_response(
             return
         if not session_id:
             return
+
+        # Sprint PROACTIVE-SIM-REACTIVE M8-fix #2: update
+        # lastStudentMessageAt when this invocation contained a real
+        # (non-sentinel) student message. The /proactive-event-check gate
+        # reads this field so an auto-greet (which carries the
+        # [session_start] sentinel as a user-role event) doesn't count
+        # as student activity — fixes the case where pressing Afspil
+        # right after the greet was incorrectly blocked. Best-effort:
+        # any failure logs but doesn't break the turn.
+        if session is not None:
+            try:
+                current_inv = getattr(callback_context, "invocation_id", None)
+                events = list(getattr(session, "events", None) or [])
+                if not current_inv and events:
+                    current_inv = getattr(events[-1], "invocation_id", None)
+                saw_real_student_msg = False
+                for event in events:
+                    if current_inv and getattr(event, "invocation_id", None) != current_inv:
+                        continue
+                    if getattr(event, "author", None) != "user":
+                        continue
+                    content = getattr(event, "content", None)
+                    parts = getattr(content, "parts", None) if content else None
+                    if not parts:
+                        continue
+                    text = " ".join(p.text for p in parts if getattr(p, "text", None)).strip()
+                    if not text or _is_proactive_sentinel(text):
+                        continue
+                    saw_real_student_msg = True
+                    break
+                if saw_real_student_msg:
+                    from db.chat_sessions import update_session_fields
+
+                    update_session_fields(
+                        session_id,
+                        {"lastStudentMessageAt": datetime.now(UTC).isoformat()},
+                    )
+            except Exception as exc:
+                logger.warning(
+                    "failed to update lastStudentMessageAt for %s: %s",
+                    session_id,
+                    exc,
+                )
 
         turn_count: int = int(state.get(_STATE_TURN_COUNT) or 0) + 1
         state[_STATE_TURN_COUNT] = turn_count

@@ -33,7 +33,10 @@ import { useSlugResolution } from "@/hooks/useSlugResolution";
 import { SkillSessionPanel } from "@/components/chat/SkillSessionPanel";
 import DocumentHistoryPanel from "@/components/chat/DocumentHistoryPanel";
 import { SkillsBar } from "@/components/navigation/SkillsBar";
-import { ProactiveSimProvider } from "@/contexts/ProactiveSimContext";
+import {
+  ProactiveSimProvider,
+  useSetProactiveSimWiring,
+} from "@/contexts/ProactiveSimContext";
 import { AGUIProvider } from "@/providers/AGUIProvider";
 import {
   SurfaceRegistryProvider,
@@ -183,7 +186,11 @@ export default function ChatPage({
   // path is validated by useSlugResolution; safe to construct the friendly prefix.
   const pathPrefix = `/chat/${path[0]}/${path[1]}`;
 
-  return <ChatPageInner skillId={skillId} pathPrefix={pathPrefix} user={user} />;
+  return (
+    <ProactiveSimProvider>
+      <ChatPageInner skillId={skillId} pathPrefix={pathPrefix} user={user} />
+    </ProactiveSimProvider>
+  );
 }
 
 function ChatPageInner({
@@ -714,12 +721,13 @@ function ChatShell({
   // upstream of this component.
   useSyncMessageCount(messages.length);
 
-  // Sprint PROACTIVE-SIM-REACTIVE M8-fix (2026-06-03): wrap the whole
-  // chat surface in the ProactiveSimProvider so every workspace artefact
-  // (Boldkast / LED Planck / KineBot / future sims) automatically gets
-  // the proactive-event-check gate-check + AG-UI trigger via the
-  // central useSimSnapshotPush hook. New sims only need to call
-  // useSimSnapshotPush(sessionId, "<sim-name>") — no per-sim props.
+  // Sprint PROACTIVE-SIM-REACTIVE M8-fix #2 (2026-06-03): populate the
+  // ProactiveSimProvider's ref via useEffect AFTER useSkillAgent has
+  // produced sendMessage. The provider itself is mounted in ChatPage
+  // (the outer component) so the snapshot hooks in THIS component can
+  // read context. The ref pattern lets us write the latest wiring on
+  // each render without re-rendering the provider.
+  const setProactiveSimWiring = useSetProactiveSimWiring();
   const onProactiveTrigger = useCallback(
     (trigger: string) => {
       void sendMessage(trigger, {
@@ -729,12 +737,12 @@ function ChatShell({
     },
     [sendMessage, includedDocIds, enteredViaResume],
   );
+  useEffect(() => {
+    setProactiveSimWiring({ skillId, onProactiveTrigger });
+    return () => setProactiveSimWiring(null);
+  }, [setProactiveSimWiring, skillId, onProactiveTrigger]);
 
   return (
-    <ProactiveSimProvider
-      skillId={skillId}
-      onProactiveTrigger={onProactiveTrigger}
-    >
     <SurfaceRegistryProvider>
     <SurfaceSessionLifecycle sessionId={sessionId} />
     <main className="flex h-full min-h-0 flex-col">
@@ -1075,6 +1083,5 @@ function ChatShell({
       <ModalSurfaceRegion sessionId={sessionId ?? agentSessionId} />
     </main>
     </SurfaceRegistryProvider>
-    </ProactiveSimProvider>
   );
 }

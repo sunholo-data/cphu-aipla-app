@@ -131,12 +131,20 @@ def _seed_session(
     session_id: str = SESSION_ID,
     turn_count: int = 2,
     last_message_at: datetime | None = None,
+    last_student_message_at: datetime | None = None,
     last_proactive_turn_at: datetime | None = None,
     proactive_turn_count: int = 0,
     owner_uid: str = TEACHER_UID,
 ) -> None:
     """Drop a ChatSessionIndex row directly into the in-memory store with
-    full control over the time-based gate inputs."""
+    full control over the time-based gate inputs.
+
+    ``last_student_message_at`` defaults to None which matches a fresh
+    session where the student has not typed anything yet (e.g. they
+    joined, the auto-greet streamed in, and they pressed Afspil before
+    typing). The gate treats None as vacuously passing — a real
+    student message has not yet established a "recently active" window.
+    """
     base_ts = datetime(2026, 6, 1, 12, 0, 0, tzinfo=UTC)
     idx = ChatSessionIndex(
         sessionId=session_id,
@@ -145,6 +153,7 @@ def _seed_session(
         accessControl=AccessControl(type="public"),
         firstMessageAt=base_ts,
         lastMessageAt=last_message_at if last_message_at is not None else base_ts,
+        lastStudentMessageAt=last_student_message_at,
         turnCount=turn_count,
         proactiveTurnCount=proactive_turn_count,
         lastProactiveTurnAt=last_proactive_turn_at,
@@ -231,18 +240,94 @@ def test_session_not_found_returns_404(client):
 
 
 def test_student_recently_active_returns_skipped(client):
-    """If the student sent a chat turn within proactive_heartbeat_seconds,
+    """If the student SENT A CHAT MESSAGE within proactive_heartbeat_seconds,
     the gate blocks the reactive turn — they're conversing, don't
-    interrupt."""
+    interrupt. M8-fix #2 (2026-06-03): gate now reads
+    last_student_message_at specifically (NOT last_message_at) so tutor
+    turns alone don't constitute "recent activity"."""
     skill = _make_skill(heartbeat_seconds=10)
     recent = datetime.now(UTC) - timedelta(seconds=3)
-    _seed_session(last_message_at=recent)
+    _seed_session(last_student_message_at=recent)
     with patch("protocols.proactive_routes.get_skill", return_value=skill):
         resp = _post(client)
     assert resp.status_code == 200
     data = resp.json()
     assert data["shouldFire"] is False
     assert "recently active" in data["reason"]
+
+
+def test_greet_just_streamed_does_not_block_first_reactive_turn(client):
+    """REGRESSION: the actual bug reported on dev 2026-06-03.
+
+    Scenario:
+      1. Student opens a new session.
+      2. Phase A auto-greet fires — last_message_at gets stamped (tutor
+         turn). last_student_message_at stays None (student didn't type).
+      3. Student presses Afspil ~2s after the greet finishes streaming.
+      4. Frontend posts /iframe-context THEN /proactive-event-check.
+
+    Pre-fix behaviour: the gate read last_message_at (which was just
+    stamped by the greet ~2s ago), saw "student recently active", and
+    blocked the reactive turn. User reported "AI doesn't proactively
+    respond to Boldkast values being set" — because no reactive turn
+    ever fired even once.
+
+    Fix: gate now reads last_student_message_at. None means "student
+    has not yet typed", which vacuously passes the heartbeat threshold.
+    Pressing Afspil right after the greet now DOES trigger a reactive
+    turn — exactly what the brief asked for ("after every serious
+    student interaction the tutor can respond").
+    """
+    skill = _make_skill(heartbeat_seconds=10)
+    just_now = datetime.now(UTC) - timedelta(seconds=2)  # greet ~2s ago
+    _seed_session(
+        last_message_at=just_now,
+        last_student_message_at=None,  # student hasn't typed
+        proactive_turn_count=1,  # the greet counts
+        last_proactive_turn_at=just_now,  # but it was JUST now
+    )
+    # Cooldown is 90s — the greet 2s ago will block via cooldown, which
+    # is the correct gate for THIS scenario. To isolate the heartbeat
+    # gate, push the proactive turn outside the cooldown window so only
+    # the heartbeat gate could plausibly fire. (Real user case: same;
+    # the bug was the heartbeat gate firing PRE-cooldown.)
+    long_past_cooldown = datetime.now(UTC) - timedelta(seconds=120)
+    _seed_session(
+        last_message_at=just_now,
+        last_student_message_at=None,
+        proactive_turn_count=1,
+        last_proactive_turn_at=long_past_cooldown,
+    )
+    with patch("protocols.proactive_routes.get_skill", return_value=skill):
+        resp = _post(client)
+    assert resp.status_code == 200, resp.text
+    data = resp.json()
+    assert data["shouldFire"] is True, (
+        f"expected shouldFire=true (greet doesn't block); got reason={data.get('reason')!r}"
+    )
+    assert data["trigger"] == "[event_reactive:sim_run]"
+
+
+def test_no_heartbeat_block_when_student_never_typed(client):
+    """Belt-and-braces companion to test_greet_just_streamed_…: a
+    pristine session where neither the greet nor the student has set
+    last_student_message_at must vacuously pass the heartbeat gate.
+    Pressing Afspil immediately on session start (no prior chat at all)
+    should fire."""
+    skill = _make_skill(heartbeat_seconds=10)
+    long_ago = datetime.now(UTC) - timedelta(seconds=300)
+    _seed_session(
+        last_message_at=long_ago,
+        last_student_message_at=None,
+        proactive_turn_count=0,
+        last_proactive_turn_at=None,
+    )
+    with patch("protocols.proactive_routes.get_skill", return_value=skill):
+        resp = _post(client)
+    assert resp.status_code == 200
+    data = resp.json()
+    assert data["shouldFire"] is True, data.get("reason")
+    assert data["trigger"] == "[event_reactive:sim_run]"
 
 
 def test_cooldown_active_returns_skipped(client):

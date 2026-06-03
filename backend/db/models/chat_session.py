@@ -63,6 +63,18 @@ class ChatSessionIndex(BaseModel):
     by the ``/proactive-event-check`` gate. None for sessions that have
     not yet had a proactive turn (the default state). Sprint
     PROACTIVE-SIM-REACTIVE introduced this field."""
+    last_student_message_at: datetime | None = Field(default=None, alias="lastStudentMessageAt")
+    """Wall-clock timestamp of the most recent STUDENT-authored chat
+    message (i.e. event whose role is user / author is the human, NOT
+    the agent). Distinct from ``last_message_at`` which is updated on
+    every turn including tutor responses (greet, reactive, normal
+    answers). The ``/proactive-event-check`` gate uses THIS field for
+    the heartbeat threshold so an auto-greet streaming right before the
+    student presses Afspil does NOT count as "student recently active"
+    and block the proactive reactive turn. None when the student has
+    not yet typed anything in this session — gate treats that as
+    vacuously passing. Sprint PROACTIVE-SIM-REACTIVE M8-fix #2 added
+    this field."""
 
     model_config = ConfigDict(populate_by_name=True)
 

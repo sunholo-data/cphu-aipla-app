@@ -338,19 +338,22 @@ async def post_proactive_event_check(
 
     now = datetime.now(UTC)
 
-    # Gate 5: student silence threshold. We use last_message_at as the
-    # conversation-activity proxy — it gets stamped on every turn
-    # (student or tutor). Side effect: we won't fire a reactive turn
-    # right after a tutor response either, which is arguably correct
-    # (gives the student a beat to absorb). If pilot teachers find this
-    # too conservative, add a separate last_student_message_at field.
-    seconds_since_activity = (now - existing.last_message_at).total_seconds()
-    if seconds_since_activity < skill.proactive_heartbeat_seconds:
-        return _check_response(
-            should_fire=False,
-            session_id=session_id,
-            reason="student recently active",
-        )
+    # Gate 5: student silence threshold. Uses last_student_message_at
+    # specifically (NOT last_message_at) so tutor turns — auto-greet,
+    # streamed responses, prior proactive turns — don't count as
+    # "student is talking, don't interrupt". Vacuously passes when None
+    # (student hasn't typed yet this session) so a student pressing
+    # Afspil right after the auto-greet streams in DOES get a reactive
+    # turn. M8-fix #2 (2026-06-03) — previously read last_message_at
+    # and the greet's stamp blocked every same-window Afspil press.
+    if existing.last_student_message_at is not None:
+        seconds_since_student = (now - existing.last_student_message_at).total_seconds()
+        if seconds_since_student < skill.proactive_heartbeat_seconds:
+            return _check_response(
+                should_fire=False,
+                session_id=session_id,
+                reason="student recently active",
+            )
 
     # Gate 6: session-wide cooldown between any two proactive turns.
     # None last_proactive_turn_at means no proactive turn yet — gate

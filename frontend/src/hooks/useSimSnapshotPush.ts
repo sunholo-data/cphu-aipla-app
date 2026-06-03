@@ -2,7 +2,7 @@
 
 import { useCallback, useRef } from "react";
 
-import { useOptionalProactiveSimOpts } from "@/contexts/ProactiveSimContext";
+import { useOptionalProactiveSimOptsRef } from "@/contexts/ProactiveSimContext";
 import { fetchWithAuth } from "@/lib/apiClient";
 import {
   fetchProactiveEventCheck,
@@ -71,13 +71,19 @@ export function useSimSnapshotPush<TSnapshot extends object>(
 ): (snap: TSnapshot, latestKind: string) => Promise<Response> | null {
   const sessionIdRef = useRef(sessionId);
   sessionIdRef.current = sessionId;
-  // Read the context once; the explicit prop wins if supplied. Sims
-  // mounted outside the provider (e.g. /dev/* pages) get null and skip
-  // the gate-check entirely — same posture as proactiveOpts undefined.
-  const contextOpts = useOptionalProactiveSimOpts();
-  const effectiveOpts = proactiveOpts ?? contextOpts;
-  const proactiveRef = useRef(effectiveOpts);
-  proactiveRef.current = effectiveOpts;
+  // Capture the explicit-opts override in a ref so it stays current
+  // across renders without dirtying the returned callback identity.
+  const explicitOptsRef = useRef(proactiveOpts);
+  explicitOptsRef.current = proactiveOpts;
+  // Read the CONTEXT REF — not the deref'd value — so the snapshot
+  // hook can be called in the same component scope as the provider
+  // mount (chat page case). The provider exposes a stable ref object
+  // whose `.current` gets populated by a useEffect AFTER first
+  // render. At pushSnapshot callback time (long after first render)
+  // we deref to get the latest wiring. Returns null when no
+  // provider above — sims on /dev/* pages or in tests then skip the
+  // gate-check, identical to proactiveOpts=undefined.
+  const contextOptsRef = useOptionalProactiveSimOptsRef();
 
   return useCallback(
     (snap, latestKind) => {
@@ -101,8 +107,12 @@ export function useSimSnapshotPush<TSnapshot extends object>(
       // Fire-and-forget — the caller awaits the iframe-context request
       // only; the gate-check happens in parallel. We chain off `req` so
       // the gate sees the post-push state (iframe-context arrives first;
-      // gate then reads last_message_at + cooldown state on the backend).
-      const opts = proactiveRef.current;
+      // gate then reads last_student_message_at + cooldown state on the
+      // backend). Read opts LAZILY here: explicit-prop override wins;
+      // otherwise read context ref's current at call time so the chat
+      // page's useEffect-populated wiring is visible.
+      const opts =
+        explicitOptsRef.current ?? contextOptsRef?.current ?? null;
       if (opts && opts.skillId) {
         const meaningful = mapArtefactKindToMeaningful(latestKind);
         if (meaningful) {
