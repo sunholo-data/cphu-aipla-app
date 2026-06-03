@@ -50,7 +50,7 @@ logger = logging.getLogger(__name__)
 GROUP_AUTH_SIGNING_SECRET_ENV = "GROUP_AUTH_SIGNING_SECRET"
 AUTH_MODE = "anonymous_group_id"
 JWT_ALGORITHM = "HS256"
-DEFAULT_GROUP_CODE_TTL_DAYS = 300
+DEFAULT_GROUP_CODE_TTL_DAYS = 30
 DEFAULT_MAX_CONCURRENT_SESSIONS = 100
 DEFAULT_TOKEN_LIFETIME_SECONDS = 8 * 3600  # 8 hours
 # Alphabet excludes ambiguous chars (0/O/1/I) per design.
@@ -411,8 +411,10 @@ def create_group(
             ``can_use_tool`` for anonymous-group users.
         creator_uid: The teacher's Firebase uid. Required for the
             revoke gate ("only the creator can delete").
-        ttl_days: Days until the group expires. Default 300 (~ Danish
-            school year); AIPLA may pass shorter values per-class.
+        ttl_days: Days until the group expires. Default 30. AIPLA teachers
+            may pass longer values (up to a full school year ~300 days) when
+            the teacher-choice TTL flag ships — see
+            docs/design/aipla/v1.1.0-feedback/teacher-choice-ttl.md.
         max_concurrent_sessions: Per-group cap (default 100/day).
     """
     # Verify the signing secret early — fail loud BEFORE we mint state.
@@ -467,10 +469,10 @@ def upsert_group(
          first-time-create path and False when extending an existing.
 
     Designed for deploy-time demo-code seeding (cloudbuild.yaml). The
-    intent is "guarantee these N codes are alive for the next school
-    year (~300 days), every deploy" — extending TTL on the same code
-    rather than cluttering Firestore with daily new codes. Idempotency
-    by code is the load-bearing property.
+    intent is "guarantee these N codes are alive for the next N days,
+    every deploy" — extending TTL on the same code rather than cluttering
+    Firestore with daily new codes. Idempotency by code is the
+    load-bearing property.
 
     Raises:
         ValueError: ``code`` doesn't match the wordlist-shape sanity
