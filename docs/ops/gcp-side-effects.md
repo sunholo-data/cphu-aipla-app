@@ -38,7 +38,7 @@ gcloud storage buckets update gs://aipla-dev-2026-tts-cache \
 
 Bucket exists, region `europe-north1` (ADR-005), 90-day lifecycle applied. Terraform module owns the equivalent shape via `google_storage_bucket.tts_cache`.
 
-### IAM bindings — APPLIED 2026-06-03
+### IAM bindings — APPLIED 2026-06-03 (M directly)
 
 Sprint plan originally referenced `roles/cloudtts.user` for TTS and `roles/speech.client` for STT. **Sprint-plan drift discovered:** `roles/cloudtts.user` does not exist (`gcloud iam roles describe roles/cloudtts.user` → 404). Cloud TTS has no caller-IAM role; API enablement + a valid identity is the gate. Only STT and the bucket scope need bindings.
 
@@ -57,7 +57,12 @@ gcloud storage buckets add-iam-policy-binding gs://aipla-dev-2026-tts-cache \
   --role=roles/storage.objectAdmin
 ```
 
-**Status:** PENDING — both commands blocked by harness permission prompt 2026-06-03. To be applied by M directly. Once applied, flip this entry to APPLIED and record the binding's etag for audit.
+**Status:** APPLIED 2026-06-03 by M directly (harness blocked the `add-iam-policy-binding` calls from the agent). Verified via `gcloud projects get-iam-policy` and `gcloud storage buckets get-iam-policy`:
+
+```
+roles/speech.client       -> serviceAccount:aipla-v6@aipla-dev-2026.iam.gserviceaccount.com
+roles/storage.objectAdmin -> serviceAccount:aipla-v6@aipla-dev-2026.iam.gserviceaccount.com   (bucket-scoped: gs://aipla-dev-2026-tts-cache)
+```
 
 ### Verification (run after IAM lands)
 

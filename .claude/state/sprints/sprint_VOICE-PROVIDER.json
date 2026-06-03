@@ -9,23 +9,32 @@
       "id": "M0",
       "description": "Pre-conditions: enable texttospeech + speech APIs, provision gs://aipla-dev-2026-tts-cache, grant IAM roles, schedule AR voice-pick session. Record all GCP side effects per feedback_record_side_effects.",
       "scope": "ops",
-      "estimated_loc": 0,
-      "actual_loc": null,
+      "estimated_loc": 376,
+      "actual_loc": 376,
       "dependencies": [],
       "acceptance_criteria": [
         "texttospeech.googleapis.com enabled in aipla-dev-2026",
         "speech.googleapis.com enabled in aipla-dev-2026",
         "gs://aipla-dev-2026-tts-cache bucket created in europe-north1 with 90d lifecycle",
-        "Backend SA aipla-v6-backend granted roles/cloudtts.user, roles/speech.client, roles/storage.objectAdmin scoped to the cache bucket",
-        "Side effects recorded in docs/ops/gcp-side-effects.md (or runbook if greenfield)",
-        "AR voice-pick session scheduled or default da-DK-Wavenet-A noted"
+        "Backend SA aipla-v6@ granted roles/speech.client (project) + roles/storage.objectAdmin (bucket-scoped). Cloud TTS has no caller-IAM role.",
+        "Side effects recorded in docs/ops/gcp-side-effects.md",
+        "infrastructure/modules/voice/ committed for test/prod terraform apply",
+        "AR voice-pick session scheduled or default da-DK-Wavenet-A noted",
+        "M0e: teacher class-detail page exists at frontend/src/app/teacher/classes/[id]/page.tsx (correction to sprint plan path)"
       ],
-      "files_to_create": ["docs/ops/voice-providers-runbook.md (placeholder; expanded in M-B7)"],
-      "files_to_modify": ["docs/ops/gcp-side-effects.md (if exists)"],
-      "passes": null,
-      "started": null,
-      "completed": null,
-      "notes": null
+      "files_to_create": [
+        "infrastructure/modules/voice/main.tf",
+        "infrastructure/modules/voice/variables.tf",
+        "infrastructure/modules/voice/outputs.tf",
+        "infrastructure/modules/voice/README.md",
+        "infrastructure/gcs-lifecycle-90d.json",
+        "docs/ops/gcp-side-effects.md"
+      ],
+      "files_to_modify": [],
+      "passes": true,
+      "started": "2026-06-03T17:15:00Z",
+      "completed": "2026-06-03T17:35:00Z",
+      "notes": "Sprint-plan drift findings: (1) backend SA is aipla-v6@ not aipla-v6-backend@; (2) roles/cloudtts.user does NOT exist — TTS gates on project API enablement + valid identity, no caller-IAM role; (3) class-detail page is at /teacher/classes/[id]/page.tsx not /teacher/[classId]/page.tsx. All three corrections recorded in side-effects log + module README + JSON. AR voice-pick deferred to default da-DK-Wavenet-A; M will reschedule if a different voice is preferred. Commit: ee30a6b (Terraform module + ops log) + follow-up IAM-verified commit."
     },
     {
       "id": "M-A1",
@@ -503,7 +512,7 @@
     "actual_days": null
   },
   "github_issues": [],
-  "last_session": null,
-  "last_checkpoint": null,
-  "status": "not_started"
+  "last_session": "2026-06-03T17:35:00Z",
+  "last_checkpoint": "M0",
+  "status": "in_progress"
 }
