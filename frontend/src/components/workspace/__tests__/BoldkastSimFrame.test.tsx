@@ -129,7 +129,11 @@ describe("BoldkastSimFrame (bench-only)", () => {
       });
     });
 
-    it("does NOT route play / pause / reset (not pedagogically interesting)", () => {
+    it("routes boldkast.play (sprint PROACTIVE-SIM-REACTIVE: play is the canonical sim_run signal)", () => {
+      // Pre-2026-06-03 this event was filtered out as "not pedagogically
+      // interesting". Then sim-reactive proactive turns landed: play IS
+      // the canonical "student ran the sim" signal that triggers a
+      // proactive tutor turn via useSimSnapshotPush's gate-check.
       const reportEvent = vi.fn();
       render(
         <BoldkastSimFrame
@@ -139,6 +143,18 @@ describe("BoldkastSimFrame (bench-only)", () => {
         />,
       );
       dispatchUpdateModelContext({ kind: "boldkast.play" });
+      expect(reportEvent).toHaveBeenCalledWith({ kind: "boldkast.play" });
+    });
+
+    it("does NOT route pause / reset (undo + pause aren't progress)", () => {
+      const reportEvent = vi.fn();
+      render(
+        <BoldkastSimFrame
+          sandboxOrigin={SANDBOX_ORIGIN}
+          reportEvent={reportEvent}
+          onClose={() => {}}
+        />,
+      );
       dispatchUpdateModelContext({ kind: "boldkast.pause" });
       dispatchUpdateModelContext({ kind: "boldkast.reset" });
       expect(reportEvent).not.toHaveBeenCalled();

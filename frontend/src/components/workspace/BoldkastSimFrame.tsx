@@ -38,9 +38,11 @@ interface BoldkastStructuredContent {
 interface BoldkastSimFrameProps {
   /** Sandbox origin (NO trailing /sandbox.html). */
   sandboxOrigin: string;
-  /** Bench events (open, state-change, show_value) route here into the
-   *  shared snapshot hook. play/pause/reset are not pedagogically
-   *  interesting and are dropped. */
+  /** Bench events (open, play, state-change, show_value) route here into
+   *  the shared snapshot hook. pause/reset are dropped (undo / pause
+   *  aren't progress). play was previously dropped too but is now
+   *  routed — it's the canonical sim_run signal that triggers proactive
+   *  sim-reactive turns via useSimSnapshotPush. */
   reportEvent: (evt: BoldkastEvent) => void;
   /** Called on user-close so the workspace returns to the workbench. */
   onClose: () => void;
@@ -72,6 +74,16 @@ export const BoldkastSimFrame = forwardRef<
 
       if (kind === "boldkast.open") {
         report({ kind: "boldkast.open" });
+      } else if (kind === "boldkast.play") {
+        // Sprint PROACTIVE-SIM-REACTIVE M8-fix: route the play event so
+        // useSimSnapshotPush's central proactive-event-check sees
+        // "boldkast.play" → maps to sim_run → fires a reactive tutor
+        // turn. The pre-2026-06-03 comment "play / pause / reset: not
+        // routed (not pedagogically interesting)" was true before
+        // proactive-sim-reactive existed. Now play IS pedagogically
+        // interesting — it's the canonical "student ran the sim"
+        // signal.
+        report({ kind: "boldkast.play" });
       } else if (kind === "boldkast.state-change" && Array.isArray(data.changed)) {
         report({
           kind: "boldkast.state-change",
@@ -90,7 +102,7 @@ export const BoldkastSimFrame = forwardRef<
           revealed: data.revealed,
         });
       }
-      // play / pause / reset: not routed (not pedagogically interesting).
+      // pause / reset: still not routed (undo / pause aren't progress).
     },
     [],
   );

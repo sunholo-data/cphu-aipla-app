@@ -32,6 +32,7 @@ import { useSlugResolution } from "@/hooks/useSlugResolution";
 import { SkillSessionPanel } from "@/components/chat/SkillSessionPanel";
 import DocumentHistoryPanel from "@/components/chat/DocumentHistoryPanel";
 import { SkillsBar } from "@/components/navigation/SkillsBar";
+import { ProactiveSimProvider } from "@/contexts/ProactiveSimContext";
 import { AGUIProvider } from "@/providers/AGUIProvider";
 import {
   SurfaceRegistryProvider,
@@ -712,7 +713,27 @@ function ChatShell({
   // upstream of this component.
   useSyncMessageCount(messages.length);
 
+  // Sprint PROACTIVE-SIM-REACTIVE M8-fix (2026-06-03): wrap the whole
+  // chat surface in the ProactiveSimProvider so every workspace artefact
+  // (Boldkast / LED Planck / KineBot / future sims) automatically gets
+  // the proactive-event-check gate-check + AG-UI trigger via the
+  // central useSimSnapshotPush hook. New sims only need to call
+  // useSimSnapshotPush(sessionId, "<sim-name>") — no per-sim props.
+  const onProactiveTrigger = useCallback(
+    (trigger: string) => {
+      void sendMessage(trigger, {
+        documentIds: includedDocIds,
+        resumedSession: enteredViaResume,
+      });
+    },
+    [sendMessage, includedDocIds, enteredViaResume],
+  );
+
   return (
+    <ProactiveSimProvider
+      skillId={skillId}
+      onProactiveTrigger={onProactiveTrigger}
+    >
     <SurfaceRegistryProvider>
     <SurfaceSessionLifecycle sessionId={sessionId} />
     <main className="flex h-full min-h-0 flex-col">
@@ -1047,5 +1068,6 @@ function ChatShell({
       <ModalSurfaceRegion sessionId={sessionId ?? agentSessionId} />
     </main>
     </SurfaceRegistryProvider>
+    </ProactiveSimProvider>
   );
 }

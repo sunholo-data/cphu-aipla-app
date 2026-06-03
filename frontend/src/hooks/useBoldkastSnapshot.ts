@@ -17,6 +17,7 @@ export interface BoldkastSnapshot {
 
 export type BoldkastEvent =
   | { kind: "boldkast.open" }
+  | { kind: "boldkast.play" }
   | {
       kind: "boldkast.state-change";
       changed: string[];
@@ -92,6 +93,11 @@ export function useBoldkastSnapshot(
   const [snapshot, setSnapshot] = useState<BoldkastSnapshot>(INITIAL);
   const snapshotRef = useRef<BoldkastSnapshot>(snapshot);
   snapshotRef.current = snapshot;
+  // No proactive-opts threading required — useSimSnapshotPush reads the
+  // ProactiveSimContext from the chat page provider. New sims follow
+  // the same pattern: just call useSimSnapshotPush(sid, "<name>") and
+  // the gate-check fires automatically when mounted inside the
+  // <ProactiveSimProvider>.
   const pushSnapshotRequest = useSimSnapshotPush<BoldkastSnapshot>(
     sessionId,
     "boldkast",
@@ -107,6 +113,18 @@ export function useBoldkastSnapshot(
       switch (evt.kind) {
         case "boldkast.open": {
           shouldPush = true; // silent — agent sees the open, no card
+          break;
+        }
+        case "boldkast.play": {
+          // Sprint PROACTIVE-SIM-REACTIVE M8-fix: pressing Afspil is the
+          // canonical "sim ran" event. It emits a state-change too (so
+          // the agent sees the committed params); we ALSO push play
+          // explicitly so useSimSnapshotPush's proactive-event-check can
+          // map "boldkast.play" → "sim_run" and trigger a reactive
+          // tutor turn. Silent — no chat chip, because the matching
+          // state-change event already produces an "Afspillede med …"
+          // card via labelForStateChange.
+          shouldPush = true;
           break;
         }
         case "boldkast.state-change": {
