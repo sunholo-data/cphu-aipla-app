@@ -58,8 +58,8 @@
       "id": "M-A2",
       "description": "TTSProvider/STTProvider Protocols + registry + null provider + unit tests for selection chain",
       "scope": "backend",
-      "estimated_loc": 220,
-      "actual_loc": null,
+      "estimated_loc": 260,
+      "actual_loc": 280,
       "dependencies": ["M-A1"],
       "acceptance_criteria": [
         "backend/voice/base.py defines TTSProvider, STTProvider Protocols + VoiceCapabilities TypedDict",
@@ -77,21 +77,22 @@
         "backend/voice/registry.py",
         "backend/voice/providers/__init__.py",
         "backend/voice/providers/null.py",
+        "backend/voice/providers/browser.py (pulled forward from M-A4)",
         "backend/tests/unit/voice/__init__.py",
         "backend/tests/unit/voice/test_registry.py"
       ],
       "files_to_modify": [],
-      "passes": null,
-      "started": null,
-      "completed": null,
-      "notes": null
+      "passes": true,
+      "started": "2026-06-03T17:46:00Z",
+      "completed": "2026-06-03T18:00:00Z",
+      "notes": "Commit 5e3c8fc. 10 tests added (1700 -> 1710 passing). Pulled forward browser.py from M-A4 because the registry's default-path test needs it importable; M-A4 now skips that file. Lazy GCP imports inside _build_tts/_build_stt keep unit tests free of google-cloud-* construction."
     },
     {
       "id": "M-A3",
       "description": "Content-hash TTS cache to gs://aipla-dev-2026-tts-cache with deterministic keying and mime metadata + unit tests",
       "scope": "backend",
       "estimated_loc": 140,
-      "actual_loc": null,
+      "actual_loc": 320,
       "dependencies": ["M-A2", "M0"],
       "acceptance_criteria": [
         "backend/voice/cache.py implements key derivation + lookup + write",
@@ -103,6 +104,8 @@
         "test_cache_miss_returns_none passes",
         "test_cache_hit_returns_bytes_and_mime passes",
         "test_cache_write_uploads_with_metadata passes",
+        "Cache write is best-effort: GCS failures swallowed (logged, not raised)",
+        "TTSCache.from_env() returns None when VOICE_TTS_CACHE_BUCKET unset (graceful degradation)",
         "make lint + make test-fast green"
       ],
       "files_to_create": [
@@ -110,10 +113,10 @@
         "backend/tests/unit/voice/test_cache.py"
       ],
       "files_to_modify": [],
-      "passes": null,
-      "started": null,
-      "completed": null,
-      "notes": null
+      "passes": true,
+      "started": "2026-06-03T18:02:00Z",
+      "completed": "2026-06-03T18:18:00Z",
+      "notes": "13 cache tests added (1710 -> 1723 passing). Async wrap (asyncio.to_thread) for the sync GCS client matches the pattern in backend/tools/documents/ailang_parse.py. Cache is best-effort: write failures log + continue rather than break the user-facing path. from_env() returns None when VOICE_TTS_CACHE_BUCKET unset so dev without a bucket falls back to miss-every-time."
     },
     {
       "id": "M-A4",
@@ -512,7 +515,7 @@
     "actual_days": null
   },
   "github_issues": [],
-  "last_session": "2026-06-03T17:35:00Z",
-  "last_checkpoint": "M0",
+  "last_session": "2026-06-03T18:18:00Z",
+  "last_checkpoint": "M-A3",
   "status": "in_progress"
 }
