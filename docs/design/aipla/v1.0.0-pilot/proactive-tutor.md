@@ -1,9 +1,9 @@
 # Proactive tutor — auto-greet on join + idle-heartbeat check-ins
 
-**Status**: Phase A Implemented (auto-greet on join, shipped per SEQUENCE.md); Phase B Planned (idle heartbeat — blocked on JB sign-off for copy + timing)
-**Last Updated**: 2026-06-02
-**Priority**: P1 — observed UX gap from a 2026-05-25 live student test ("they got confused what to do")
-**Estimated**: Phase A (auto-greet) ~0.5-1d; Phase B (heartbeat) ~1.5-2d
+**Status**: Phase A Implemented (auto-greet on join, shipped per SEQUENCE.md). **Phase B (idle heartbeat) RETIRED 2026-06-03** — superseded by [v1.1.2 proactive-sim-reactive-tutor](../v1.1.0-feedback/proactive-sim-reactive-tutor.md). The 3 June teacher check-in established that sim-event-reactive (react to *meaningful workbench events*) is the higher-value trigger; idle-heartbeat overlaps with Phase A's "blank session" coverage and risks anti-Socratic interrupts. Phase B design retained below for historical reference; do not implement.
+**Last Updated**: 2026-06-03
+**Priority**: P1 (Phase A); Phase B retired
+**Estimated**: Phase A (auto-greet) ~0.5-1d (shipped); ~~Phase B (heartbeat) ~1.5-2d~~
 **Scope**: Fullstack — backend agent-loop wiring + frontend timer + skill-template surface
 **Dependencies**: Soft dep on [teacher-ui.md](teacher-ui.md) Phase 2 (`{teacher_focus}` injection) — auto-greet should reference the teacher's teaching goal where present
 **Created**: 2026-05-25

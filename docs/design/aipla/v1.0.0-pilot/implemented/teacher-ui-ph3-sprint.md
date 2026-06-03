@@ -1,13 +1,13 @@
 # Sprint: TEACHER-UI-PH3 — Firebase OAuth swap + multi-class + analytics chat
 
 **Sprint ID:** `TEACHER-UI-PH3`
-**Design doc:** [teacher-ui.md](teacher-ui.md) — Phase 3 section
+**Design doc:** [../teacher-ui.md](../teacher-ui.md) — Phase 3 section
 **Branch:** `feature/teacher-ui-ph3`
 **Base commit:** `c0d2870` (dev HEAD as of 2026-05-26)
 **Estimate:** ~2-2.5 days
 **Created:** 2026-05-26
-**Status:** Mostly Implemented (M1-M4, M6, M7, M8, M9 shipped; M5 multi-class filter dropdown skipped — replaced by per-class detail view). Sprint runs as "close-out remaining verification" rather than fresh build.
-**Last Updated:** 2026-06-02
+**Status:** **Shipped 2026-06-03.** M1-M4 (Firebase OAuth + route guard + AuthContext + layout wiring) shipped; M5 deliberately skipped (per-class detail view replaced the multi-class dropdown affordance); M6-M9 (analytics-chat skill template, opt-in share toggle, CLI smoke, quality gates) shipped via the ANALYTICS-CHAT-AND-INSIGHTS sprint on 2026-06-02 (see [analytics-chat-and-insights-implementation-report.md](analytics-chat-and-insights-implementation-report.md)). Doc moved to `implemented/` 2026-06-03.
+**Last Updated:** 2026-06-03
 
 ## Sprint goal
 

@@ -25,7 +25,7 @@ for v1.
 | 1.G-Ph2 | (sub-row) Wire to real backend, LOCAL_MODE teacher auth | P0 | ~2-2.5d | 1.G-Ph1 complete | Real `ActivityConfig` Firestore writes; real session-summary aggregator; one seeded demo class. **Wed 3 June demo runs against this state** |
 | 1.G-Ph3 | (sub-row) Firebase auth + 1.A swap + stretch | P1 | ~2-2.5d | 1.A complete, 1.G-Ph2 complete | Swap LOCAL_MODE teacher stub for Firebase; multi-class; analytics chat skill; opt-in share; CLI parity |
 | 1.H | [audio-capture-and-tts.md](audio-capture-and-tts.md) — *brief:* [`audio-capture.md`](file:///Users/mark/Documents/clients/cph-uni/strand-a-pedagogical-bot/prototypes/audio-capture.md) | P2 | 0.5d TTS + 2d audio | TTS none; audio capture gated on **JB sign-off (5 consent / privacy questions)** + 1.A for per-class opt-in | **Split implementation.** TTS (browser-native `speechSynthesis`) ships independently — zero privacy gate, ~0.5d. Audio capture (opt-in group recording for research) blocked on JB consent / institutional approval sign-off — five questions in the brief must be answered before any code merges. Audio embodies SECURE-BY-CONSTRUCTION by structurally refusing to ship without consent decisions |
-| 1.I | [proactive-tutor.md](proactive-tutor.md) | **P1** | Phase A ~0.5-1d; Phase B ~1.5-2d | Soft dep on [teacher-ui.md](teacher-ui.md) Phase 2 (`{teacher_focus}` injection) so the auto-greet reflects the teacher's intent | **UX gap from 2026-05-25 live student test — student joined the demo session, saw the static welcome banner, didn't know what to do, sat silent.** Two-phase fix: Phase A = auto-greet on join (tutor speaks first as a real agent turn); Phase B = idle-heartbeat check-ins (3-min default, workbench-aware, cooldown + cap; JB sign-off on copy + timing). Adds per-skill `proactive_greet` + `idle_heartbeat_seconds` fields. Without this, every pilot session needs a teacher physically present to verbally prompt the student |
+| 1.I | [proactive-tutor.md](proactive-tutor.md) | **P1** | Phase A ~0.5-1d (shipped); ~~Phase B ~1.5-2d~~ | Soft dep on [teacher-ui.md](teacher-ui.md) Phase 2 (`{teacher_focus}` injection) so the auto-greet reflects the teacher's intent | **UX gap from 2026-05-25 live student test.** Phase A = auto-greet on join (shipped). **Phase B (idle-heartbeat) RETIRED 2026-06-03** — superseded by [v1.1.2 proactive-sim-reactive-tutor](../v1.1.0-feedback/proactive-sim-reactive-tutor.md) (Path A: sim-event-reactive trigger replaces idle-heartbeat as the higher-value affordance per 3 June teacher feedback). Adds per-skill `proactive_greet` field |
 
 ## Analytics critical path (committed v1 — promoted 2026-05-28)
 
@@ -138,6 +138,7 @@ Specifically deferred from this version:
 - ✓ 1.2 — Chat-log pipeline (BQ sink for chat turns + workbench events; BQ-backed `summarize_session`). Docs in [implemented/chat-log-pipeline.md](implemented/chat-log-pipeline.md) + [implemented/chat-log-pipeline-sprint.md](implemented/chat-log-pipeline-sprint.md) + [implemented/chat-log-pipeline-verification.md](implemented/chat-log-pipeline-verification.md).
 - ✓ 1.C — LED Planck virtual lab + Danish Socratic tutor. Docs in [implemented/led-planck-skill.md](implemented/led-planck-skill.md).
 - ✓ 1.D — KineBot kinematics tutor (NCERT/CBSE Class 11, AIPLA-rails migration). Docs in [implemented/kinebot-migration.md](implemented/kinebot-migration.md).
+- ✓ TEACHER-UI-PH3 — Firebase OAuth swap + multi-class + analytics-chat skill template + opt-in share + CLI parity. M1-M4 + M6-M9 shipped (M5 deliberately skipped — per-class detail view replaced the dropdown). M6's analytics-chat wiring completed via the ANALYTICS-CHAT-AND-INSIGHTS sprint 2026-06-02. Docs moved to [implemented/teacher-ui-ph3-sprint.md](implemented/teacher-ui-ph3-sprint.md) 2026-06-03.
 
 **Recently shipped (post 2026-05-26, no dedicated sprint doc):**
 
@@ -147,9 +148,7 @@ Specifically deferred from this version:
 
 **Queued (plans + JSON state ready; not started):**
 
-| # | Sprint | Plan | LOC | Est | Queue rationale |
-|---|---|---|---|---|---|
-| 1 | TEACHER-UI-PH3 (partial) | [teacher-ui-ph3-sprint.md](teacher-ui-ph3-sprint.md) | ~1510 | <0.5d remaining | M1-M4, M6-M9 shipped (Firebase teacher auth, route guards, `analytics-chat` skill template, opt-in share toggle, CLI smoke). M5 (multi-class filter dropdown) skipped — replaced by per-class detail view. Close out the sprint doc once analytics-chat is verified end-to-end. |
+_(None as of 2026-06-03 — TEACHER-UI-PH3 close-out shipped; v1.1 work is sequenced separately under [../v1.1.0-feedback/SEQUENCE.md](../v1.1.0-feedback/SEQUENCE.md).)_
 
 **Analytics critical path (committed v1 2026-05-28):**
 
@@ -163,9 +162,11 @@ Specifically deferred from this version:
 **Blocked on JB/AR sign-off:**
 
 - 1.H-audio (consent + privacy questions)
-- 1.I-PhB idle heartbeat (copy + timing)
+- ~~1.I-PhB idle heartbeat (copy + timing)~~ — **retired 2026-06-03**; superseded by [v1.1.2 proactive-sim-reactive-tutor](../v1.1.0-feedback/proactive-sim-reactive-tutor.md)
 - **R1 — analytics framework pick** (ICAP+FCI vs CPS+DRA) — gates all of 2.5; lock before the 2026-06-29 freeze
 - **R2 / R7 — per-skill taxonomy + Danish/English label translations** — needed before 2.5's concept-tracking lens ships
+
+See [../v1.1.0-feedback/SEQUENCE.md](../v1.1.0-feedback/SEQUENCE.md) for the v1.1 feedback batch (9 items from the 3 June teacher check-in) and its own JB/AR gating list.
 
 ## Next
 
