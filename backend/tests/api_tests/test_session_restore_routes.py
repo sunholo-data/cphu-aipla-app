@@ -176,6 +176,101 @@ class TestSessionRestore:
 
         assert resp.status_code == 404
 
+    def test_restore_returns_410_for_explicitly_archived_session(self):
+        """QUICK-WINS-V11 M7: ``archived=True`` returns 410 Gone with the
+        ``archived_at`` timestamp in the body so the frontend can show a
+        clear archived-session message (distinct from 404 "start clean")."""
+        from datetime import UTC, datetime
+
+        user = _anon_user()
+        ctx = _anon_ctx()
+        app = _make_app_with_user(user, ctx)
+        client = TestClient(app)
+
+        archived_at = datetime(2026, 6, 1, 12, 0, 0, tzinfo=UTC)
+        idx = _mock_session_index("sess-gone")
+        idx.archived = True
+        idx.archived_at = archived_at
+
+        with patch("protocols.session_restore_routes.get_session_index", return_value=idx):
+            resp = client.post("/api/sessions/sess-gone/restore")
+
+        assert resp.status_code == 410
+        body = resp.json()
+        # FastAPI nests dict-detail under the top-level ``detail`` key.
+        detail = body["detail"]
+        assert detail["detail"] == "session archived"
+        assert detail["archived_at"] == archived_at.isoformat()
+
+    def test_restore_archives_session_when_group_code_expired(self):
+        """QUICK-WINS-V11 M7: restore on an expired group code archives the
+        session as a side effect and returns 410. The next caller hits the
+        idempotent already-archived path."""
+        from datetime import UTC, datetime
+
+        from auth.group_id_auth import GroupExpired
+
+        user = _anon_user()
+        ctx = _anon_ctx()
+        app = _make_app_with_user(user, ctx)
+        client = TestClient(app)
+
+        idx = _mock_session_index("sess-tt-expired", group_code="ABC-123")
+        # Not pre-archived; the expired group should drive the archive.
+        idx.archived = False
+        idx.archived_at = None
+        archive_ts = datetime(2026, 7, 1, 12, 0, 0, tzinfo=UTC)
+
+        group_record = MagicMock()
+
+        with (
+            patch("protocols.session_restore_routes.get_session_index", return_value=idx),
+            patch("protocols.session_restore_routes.get_group", return_value=group_record),
+            patch(
+                "protocols.session_restore_routes._check_group_active",
+                side_effect=GroupExpired("group ABC-123 expired"),
+            ),
+            patch(
+                "protocols.session_restore_routes._archive_expired_session",
+                return_value=archive_ts,
+            ) as mock_archive,
+        ):
+            resp = client.post("/api/sessions/sess-tt-expired/restore")
+
+        assert resp.status_code == 410
+        detail = resp.json()["detail"]
+        assert detail["detail"] == "session archived"
+        assert detail["archived_at"] == archive_ts.isoformat()
+        # Side effect fired exactly once — confirms the archive write happened.
+        mock_archive.assert_called_once_with("sess-tt-expired", idx)
+
+    def test_restore_is_idempotent_for_already_archived_session(self):
+        """QUICK-WINS-V11 M7: re-restoring an ``archived=True`` session does
+        NOT call ``_archive_expired_session`` again — the early-return
+        explicit-archive branch handles it without touching Firestore. This
+        guards against double-write under concurrent restores."""
+        from datetime import UTC, datetime
+
+        user = _anon_user()
+        ctx = _anon_ctx()
+        app = _make_app_with_user(user, ctx)
+        client = TestClient(app)
+
+        archived_at = datetime(2026, 6, 1, 12, 0, 0, tzinfo=UTC)
+        idx = _mock_session_index("sess-already-gone")
+        idx.archived = True
+        idx.archived_at = archived_at
+
+        with (
+            patch("protocols.session_restore_routes.get_session_index", return_value=idx),
+            patch("protocols.session_restore_routes._archive_expired_session") as mock_archive,
+        ):
+            resp = client.post("/api/sessions/sess-already-gone/restore")
+
+        assert resp.status_code == 410
+        # The early-return path should bypass the archive helper entirely.
+        mock_archive.assert_not_called()
+
     def test_restore_returns_empty_when_no_adk_session(self):
         """ADK session not yet created (e.g. bootstrap ran but no messages sent)."""
         user = _anon_user()
