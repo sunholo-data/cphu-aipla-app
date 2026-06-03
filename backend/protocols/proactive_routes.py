@@ -71,9 +71,15 @@ MEANINGFUL_EVENT_KINDS: frozenset[str] = frozenset(
     }
 )
 
-# Session-wide cooldown between any two proactive tutor turns (greet
-# included). Hardcoded per the design doc + 3 June teacher brief.
-PROACTIVE_COOLDOWN_SECONDS: float = 90.0
+# Session-wide cooldown between two SIM-REACTIVE proactive turns
+# (greet does not stamp this timestamp per M8-fix #3, so the first
+# sim-reactive after the greet isn't blocked). Shortened from 90s to
+# 30s on 2026-06-03 — 90s felt too restrictive for a student running
+# multiple sim variations in quick succession ("press Afspil three
+# times with different angles in a minute" was the observed pattern).
+# Debounce is now light-touch; cap is the brief-aligned "respond to
+# every serious student interaction".
+PROACTIVE_COOLDOWN_SECONDS: float = 30.0
 
 # Sentinel format: ``[event_reactive:<kind>]`` where <kind> is one of
 # MEANINGFUL_EVENT_KINDS. The frontend posts this as the user-role

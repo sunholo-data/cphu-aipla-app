@@ -286,12 +286,12 @@ def test_greet_just_streamed_does_not_block_first_reactive_turn(client):
         proactive_turn_count=1,  # the greet counts
         last_proactive_turn_at=just_now,  # but it was JUST now
     )
-    # Cooldown is 90s — the greet 2s ago will block via cooldown, which
+    # Cooldown is 30s — the greet 2s ago will block via cooldown, which
     # is the correct gate for THIS scenario. To isolate the heartbeat
     # gate, push the proactive turn outside the cooldown window so only
     # the heartbeat gate could plausibly fire. (Real user case: same;
     # the bug was the heartbeat gate firing PRE-cooldown.)
-    long_past_cooldown = datetime.now(UTC) - timedelta(seconds=120)
+    long_past_cooldown = datetime.now(UTC) - timedelta(seconds=60)
     _seed_session(
         last_message_at=just_now,
         last_student_message_at=None,
@@ -331,12 +331,14 @@ def test_no_heartbeat_block_when_student_never_typed(client):
 
 
 def test_cooldown_active_returns_skipped(client):
-    """A proactive turn within the last 90 seconds blocks further
-    proactive turns (session-wide cooldown — greet + sim-reactive share
-    the same clock)."""
+    """A sim-reactive proactive turn within the last 30 seconds blocks
+    further proactive turns (session-wide cooldown — greet does NOT
+    stamp this timestamp per M8-fix #3, so first sim-reactive after
+    the greet always passes; the cooldown only governs inter-reactive
+    intervals)."""
     skill = _make_skill()
     long_ago = datetime.now(UTC) - timedelta(seconds=300)
-    recent_proactive = datetime.now(UTC) - timedelta(seconds=30)  # < 90s cooldown
+    recent_proactive = datetime.now(UTC) - timedelta(seconds=10)  # < 30s cooldown
     _seed_session(
         last_message_at=long_ago,
         last_proactive_turn_at=recent_proactive,
