@@ -41,7 +41,7 @@
       "description": "Recon: confirm google-cloud-texttospeech API surface (package presence, TextToSpeechClient async shape, voice-tier name format, audio encoding default, BCP-47 handling)",
       "scope": "backend",
       "estimated_loc": 0,
-      "actual_loc": null,
+      "actual_loc": 0,
       "dependencies": ["M0"],
       "acceptance_criteria": [
         "Recon notes recorded in sprint plan ## Recon findings section",
@@ -49,10 +49,10 @@
       ],
       "files_to_create": [],
       "files_to_modify": ["docs/design/aipla/v1.1.0-feedback/voice-provider-abstraction-sprint.md (Recon findings section)"],
-      "passes": null,
-      "started": null,
-      "completed": null,
-      "notes": null
+      "passes": true,
+      "started": "2026-06-03T17:40:00Z",
+      "completed": "2026-06-03T17:45:00Z",
+      "notes": "API surface confirmed via google-dev-knowledge MCP. Decision: proceed. Key findings recorded in sprint plan: async client is TextToSpeechAsyncClient; voice-tier encoded in VoiceSelectionParams.name field (e.g. da-DK-Wavenet-A vs da-DK-Chirp3-HD-Aoede); MP3 encoding default; ADC for auth; backend will normalize lang='da' -> 'da-DK' inside the GCP provider so the Protocol stays narrow. google-cloud-texttospeech add deferred to M-A4."
     },
     {
       "id": "M-A2",

@@ -559,13 +559,17 @@ JSON state file (`.claude/state/sprints/sprint_VOICE-PROVIDER.json`) tracks whic
 
 (populated by M-A1 and M-B1 before committing to the rest of the plan)
 
-### M-A1 recon (TTS)
+### M-A1 recon (TTS) — completed 2026-06-03
 
-- Package presence in `pyproject.toml`: …
-- `TextToSpeechClient` async vs sync: …
-- Voice name format for tier-distinction: …
-- Audio encoding default: …
-- `lang="da"` → resolved BCP-47: …
+- **Package presence in `pyproject.toml`:** `google-cloud-texttospeech` NOT a dep yet (need `uv add` in M-A4). `google-cloud-storage>=2.18.0` already present, so cache module can use it without an add.
+- **Import path:** `from google.cloud import texttospeech` (matches all official samples).
+- **Client classes:** `texttospeech.TextToSpeechClient` (sync) + `TextToSpeechAsyncClient` (async). Backend is async (FastAPI), use the async client.
+- **Voice name format for tier-distinction:** Use `VoiceSelectionParams(language_code="da-DK", name="da-DK-Wavenet-A")`. Confirmed via official sample using `name="en-US-Chirp3-HD-Charon"` — same shape works for Chirp3HD, Standard, WaveNet, Neural2. Tier is encoded in the voice `name`, not a separate field.
+- **Audio encoding:** `AudioConfig(audio_encoding=texttospeech.AudioEncoding.MP3)` — MP3 is officially supported, ready for `<audio>` element playback in browser. (OGG_OPUS and LINEAR16 also available but MP3 is the simplest cross-browser default.)
+- **Response shape:** `response.audio_content` is raw bytes; can write directly to GCS or stream to client.
+- **`lang="da"` → resolved BCP-47:** docs use the full `da-DK` form. Protocol stays narrow (`lang="da"`), GCP provider normalizes internally: `"da"` → `"da-DK"`, `"en"` → `"en-US"` (defaults). Skill-config can override with explicit `da-DK` if needed.
+- **Auth:** ADC (Application Default Credentials). Locally: `gcloud auth application-default login` as M's user with project access. In Cloud Run: backend SA creds picked up automatically. No code-side credentials needed.
+- **Decision:** proceed with M-A2 (Protocols + registry + null). `uv add google-cloud-texttospeech` deferred to M-A4 when the GCP provider lands.
 
 ### M-B1 recon (STT)
 
