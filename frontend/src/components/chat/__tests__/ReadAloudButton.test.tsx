@@ -106,4 +106,90 @@ describe("ReadAloudButton", () => {
     fireEvent.click(screen.getByRole("button"));
     expect(lastUtt?.text).toBe("Bold then code and italic");
   });
+
+  // --- 1.1.11 Cloud TTS path (provider != "browser") ---
+
+  it("Cloud TTS path: POSTs to /api/voice/tts/synthesize and plays audio blob", async () => {
+    const audioBytes = new Uint8Array([0xff, 0xfb, 1, 2, 3]);
+    const fetchMock = vi.fn().mockResolvedValue(
+      new Response(audioBytes, {
+        headers: { "content-type": "audio/mpeg" },
+      }),
+    );
+    vi.stubGlobal("fetch", fetchMock);
+    // Audio() needs to be mockable in jsdom.
+    const playMock = vi.fn().mockResolvedValue(undefined);
+    const audioCtor = vi.fn().mockImplementation(() => ({
+      play: playMock,
+      pause: vi.fn(),
+      onended: null,
+      onerror: null,
+    }));
+    vi.stubGlobal("Audio", audioCtor);
+    // URL.createObjectURL doesn't exist in jsdom.
+    const createUrlMock = vi.fn().mockReturnValue("blob:fake");
+    Object.defineProperty(URL, "createObjectURL", { configurable: true, value: createUrlMock });
+    Object.defineProperty(URL, "revokeObjectURL", { configurable: true, value: vi.fn() });
+
+    render(
+      <ReadAloudButton
+        text="Hej!"
+        lang="da"
+        provider="gcp_wavenet"
+        voice="da-DK-Wavenet-A"
+        skillId="led-planck-tutor"
+      />,
+    );
+    fireEvent.click(screen.getByRole("button", { name: /read aloud/i }));
+
+    // Let the async fetch + play promise chain settle.
+    await act(async () => {
+      await new Promise((r) => setTimeout(r, 0));
+    });
+
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    const [url, init] = fetchMock.mock.calls[0];
+    expect(url).toBe("/api/proxy/api/voice/tts/synthesize");
+    const body = JSON.parse((init as RequestInit).body as string);
+    expect(body.text).toBe("Hej!");
+    expect(body.lang).toBe("da");
+    expect(body.voice).toBe("da-DK-Wavenet-A");
+    expect(body.skillId).toBe("led-planck-tutor");
+    expect(audioCtor).toHaveBeenCalledWith("blob:fake");
+    expect(playMock).toHaveBeenCalled();
+  });
+
+  it("Cloud TTS JSON browser-signal: falls through to Web Speech", async () => {
+    const fetchMock = vi.fn().mockResolvedValue(
+      new Response('{"provider":"browser"}', {
+        headers: { "content-type": "application/json" },
+      }),
+    );
+    vi.stubGlobal("fetch", fetchMock);
+
+    render(<ReadAloudButton text="Hej" lang="da" provider="gcp_wavenet" />);
+    fireEvent.click(screen.getByRole("button", { name: /read aloud/i }));
+
+    await act(async () => {
+      await new Promise((r) => setTimeout(r, 0));
+    });
+
+    // Fell back to browser Web Speech.
+    expect(speakMock).toHaveBeenCalled();
+  });
+
+  it("Cloud TTS fetch failure: degrades to browser Web Speech", async () => {
+    const fetchMock = vi.fn().mockRejectedValue(new Error("network down"));
+    vi.stubGlobal("fetch", fetchMock);
+
+    render(<ReadAloudButton text="Hej" lang="da" provider="gcp_wavenet" />);
+    fireEvent.click(screen.getByRole("button", { name: /read aloud/i }));
+
+    await act(async () => {
+      await new Promise((r) => setTimeout(r, 0));
+    });
+
+    // Graceful degradation kicks in.
+    expect(speakMock).toHaveBeenCalled();
+  });
 });

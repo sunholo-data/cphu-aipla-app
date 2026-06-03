@@ -237,10 +237,10 @@
         "frontend/src/components/chat/MessageBubble.tsx",
         "frontend/src/components/chat/__tests__/ReadAloudButton.test.tsx"
       ],
-      "passes": null,
-      "started": null,
-      "completed": null,
-      "notes": null
+      "passes": true,
+      "started": "2026-06-03T19:30:00Z",
+      "completed": "2026-06-03T19:55:00Z",
+      "notes": "Frontend tests 827 -> 831 (+4 Cloud TTS path tests). ReadAloudButton's Cloud TTS path: POSTs to /api/voice/tts/synthesize, plays returned audio blob via new Audio(URL.createObjectURL(blob)). Graceful degradation: JSON `{\"provider\":\"browser\"}` signal -> Web Speech; network failure -> Web Speech. useVoiceConfig: module-level cache keyed by skillId for the page session."
     },
     {
       "id": "M-A7b",

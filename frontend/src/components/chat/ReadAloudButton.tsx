@@ -28,12 +28,24 @@
 
 import { Volume2, VolumeX } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
+import { fetchWithAuth } from "@/lib/apiClient";
 
 interface ReadAloudButtonProps {
   /** Text to speak. Stripped of markdown / HTML before utterance. */
   text: string;
   /** BCP-47 language tag (e.g. "da", "en"). Defaults to "en". */
   lang?: string;
+  /** Voice provider. `"browser"` (default) uses window.speechSynthesis.
+   * `"gcp_wavenet"`, `"gcp_neural2"`, etc. POST to /api/voice/tts/synthesize
+   * and play the returned audio blob. From useVoiceConfig in
+   * MessageBubble. */
+  provider?: string;
+  /** Optional provider-specific voice name (e.g. `"da-DK-Wavenet-A"`).
+   * Only used when provider is a non-browser tier. */
+  voice?: string | null;
+  /** Optional skill id passed through to the synthesize endpoint so
+   * server-side cost spans tag the right skill. */
+  skillId?: string;
   /** Optional className to control sizing / colour from the parent. */
   className?: string;
 }
@@ -67,14 +79,24 @@ function plainTextForSpeech(text: string): string {
 export function ReadAloudButton({
   text,
   lang = "en",
+  provider = "browser",
+  voice = null,
+  skillId,
   className,
 }: ReadAloudButtonProps) {
-  const [available] = useState<boolean>(isSpeechSynthesisAvailable);
+  const useGCP = provider !== "browser";
+  // We only need Web Speech availability for the browser-native path.
+  // GCP path uses the standard Audio() element which is universally
+  // available on every browser we ship to.
+  const [available] = useState<boolean>(() => (useGCP ? true : isSpeechSynthesisAvailable()));
   const [isSpeaking, setIsSpeaking] = useState<boolean>(false);
   const utteranceRef = useRef<SpeechSynthesisUtterance | null>(null);
+  const audioRef = useRef<HTMLAudioElement | null>(null);
+  const audioUrlRef = useRef<string | null>(null);
 
-  // Always cancel any in-flight utterance when the component unmounts —
-  // otherwise navigating away mid-speech leaves the OS still talking.
+  // Always cancel any in-flight utterance / audio when the component
+  // unmounts — otherwise navigating away mid-speech leaves the OS still
+  // talking or the audio element leaks the blob URL.
   useEffect(() => {
     return () => {
       if (typeof window !== "undefined" && "speechSynthesis" in window) {
@@ -84,6 +106,14 @@ export function ReadAloudButton({
           // No-op: some browsers throw if there's nothing to cancel.
         }
       }
+      if (audioRef.current) {
+        audioRef.current.pause();
+        audioRef.current = null;
+      }
+      if (audioUrlRef.current) {
+        URL.revokeObjectURL(audioUrlRef.current);
+        audioUrlRef.current = null;
+      }
     };
   }, []);
 
@@ -91,45 +121,97 @@ export function ReadAloudButton({
     return null;
   }
 
+  function stopAll() {
+    try {
+      window.speechSynthesis?.cancel();
+    } catch {
+      // Ignore.
+    }
+    if (audioRef.current) {
+      audioRef.current.pause();
+      audioRef.current = null;
+    }
+    if (audioUrlRef.current) {
+      URL.revokeObjectURL(audioUrlRef.current);
+      audioUrlRef.current = null;
+    }
+    utteranceRef.current = null;
+    setIsSpeaking(false);
+  }
+
+  async function speakViaGCP(): Promise<void> {
+    try {
+      const res = await fetchWithAuth("/api/proxy/api/voice/tts/synthesize", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          text: plainTextForSpeech(text),
+          lang,
+          voice,
+          skillId,
+        }),
+      });
+      if (!res.ok) throw new Error(`synthesize ${res.status}`);
+      const contentType = res.headers.get("content-type") ?? "";
+      if (contentType.startsWith("application/json")) {
+        // Server signalled "use browser" — fall through.
+        const utt = new SpeechSynthesisUtterance(plainTextForSpeech(text));
+        utt.lang = lang;
+        utt.rate = 0.85;
+        utt.onend = stopAll;
+        utt.onerror = stopAll;
+        utteranceRef.current = utt;
+        window.speechSynthesis.speak(utt);
+        setIsSpeaking(true);
+        return;
+      }
+      const blob = await res.blob();
+      const url = URL.createObjectURL(blob);
+      audioUrlRef.current = url;
+      const audio = new Audio(url);
+      audioRef.current = audio;
+      audio.onended = stopAll;
+      audio.onerror = stopAll;
+      await audio.play();
+      setIsSpeaking(true);
+    } catch {
+      // Synthesize failed — degrade to browser-native so the user
+      // still hears something.
+      const utt = new SpeechSynthesisUtterance(plainTextForSpeech(text));
+      utt.lang = lang;
+      utt.rate = 0.85;
+      utt.onend = stopAll;
+      utt.onerror = stopAll;
+      utteranceRef.current = utt;
+      try {
+        window.speechSynthesis.speak(utt);
+        setIsSpeaking(true);
+      } catch {
+        stopAll();
+      }
+    }
+  }
+
   function handleClick() {
     if (isSpeaking) {
-      // User-initiated stop.
-      try {
-        window.speechSynthesis.cancel();
-      } catch {
-        // Ignore — state will recover below.
-      }
-      setIsSpeaking(false);
-      utteranceRef.current = null;
+      stopAll();
       return;
     }
-
+    if (useGCP) {
+      void speakViaGCP();
+      return;
+    }
     const utt = new SpeechSynthesisUtterance(plainTextForSpeech(text));
     utt.lang = lang;
-    // 0.85 sounds more natural for Danish + non-native English listeners
-    // (default 1.0 is too fast for tutor turns). v2 may expose this in
-    // skill config — see audio-capture-and-tts.md v2 polish notes.
     utt.rate = 0.85;
-    utt.onend = () => {
-      setIsSpeaking(false);
-      utteranceRef.current = null;
-    };
-    utt.onerror = () => {
-      // Network voice unavailable, etc. — fall back cleanly to idle
-      // so the user can retry without a stuck UI.
-      setIsSpeaking(false);
-      utteranceRef.current = null;
-    };
+    utt.onend = stopAll;
+    utt.onerror = stopAll;
     utteranceRef.current = utt;
     try {
       window.speechSynthesis.speak(utt);
       setIsSpeaking(true);
     } catch {
-      // Safari sometimes throws if speak() is called without a recent
-      // user gesture. The button click IS a gesture so this is rare,
-      // but bail cleanly if it happens.
-      setIsSpeaking(false);
-      utteranceRef.current = null;
+      stopAll();
     }
   }
 

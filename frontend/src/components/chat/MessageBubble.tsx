@@ -19,6 +19,7 @@ import { BrandAvatar } from "@/components/chat/BrandAvatar";
 import { ChatMarkdown } from "@/components/chat/ChatMarkdown";
 import { InlineCitation } from "@/components/chat/InlineCitation";
 import { ReadAloudButton } from "@/components/chat/ReadAloudButton";
+import { useVoiceConfig } from "@/hooks/useVoiceConfig";
 import { ToolCallChip } from "@/components/chat/ToolCallChip";
 import { useSurfaceRegistry } from "@/providers/SurfaceRegistry";
 import type { SkillMessage, ToolCallState } from "@/hooks/useSkillAgent";
@@ -121,6 +122,11 @@ export const MessageBubble = React.memo(function MessageBubble({
   sessionId,
   ttsLang = "da",
 }: MessageBubbleProps) {
+  // 1.1.11 — pick up the voice provider config for this skill so the
+  // read-aloud button can route through Cloud TTS when configured (vs
+  // the browser-native default). Cached per-skill across the page
+  // session in useVoiceConfig.
+  const voiceConfig = useVoiceConfig(skillId);
   const isBot = message.role === "assistant";
   const time = formatTime();
 
@@ -184,7 +190,13 @@ export const MessageBubble = React.memo(function MessageBubble({
              *  message.content) skip the button so we don't leave an
              *  empty-text icon dangling next to an A2UI render. */}
             {message.content ? (
-              <ReadAloudButton text={message.content} lang={ttsLang} />
+              <ReadAloudButton
+                text={message.content}
+                lang={ttsLang}
+                provider={voiceConfig.tts.provider}
+                voice={voiceConfig.tts.voice}
+                skillId={skillId}
+              />
             ) : null}
           </div>
           <div className="space-y-2 rounded-[2px_8px_8px_8px] border-l-[3px] border-orange-400 bg-[hsl(0,0%,98%)] px-3 py-2 text-sm">
