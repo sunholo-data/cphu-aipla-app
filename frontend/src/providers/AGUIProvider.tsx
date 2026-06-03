@@ -17,6 +17,7 @@ import {
   useState,
 } from "react";
 import { useAuth } from "@/contexts/AuthContext";
+import { getTeacherIdToken } from "@/lib/firebase";
 
 /**
  * AG-UI-native provider. Exposes one `HttpAgent` per `skillId`, targeting the
@@ -37,6 +38,7 @@ const AGUIAgentContext = createContext<HttpAgent | null>(null);
 export function AGUIProvider({
   skillId,
   sessionId,
+  useTeacherAuth = false,
   children,
 }: {
   skillId: string;
@@ -44,6 +46,19 @@ export function AGUIProvider({
    * absent, the agent generates a fresh UUID — that becomes the new
    * session id, which the page should then write to the URL. */
   sessionId?: string;
+  /**
+   * When true, mint the Authorization token via `getTeacherIdToken()`
+   * (Firebase) instead of `useAuth().getIdToken()` (auth-context).
+   * Required for teacher-only chat surfaces (`/teacher/analytics`)
+   * because the dev frontend ships with
+   * `NEXT_PUBLIC_AUTH_MODE=anonymous_group_id` — in that mode the
+   * auth-context's `getIdToken` returns the *group* token instead of
+   * the teacher's Firebase token. The group token is_teacher=False
+   * and lacks the `role:teacher` group_tag, so any tagged-teacher
+   * skill (analytics-chat) reads as 404 "Skill not found" via the
+   * deliberate access-leak collapse. Caught 2026-06-03.
+   */
+  useTeacherAuth?: boolean;
   children: ReactNode;
 }) {
   const { user, loading: authLoading, getIdToken } = useAuth();
@@ -74,7 +89,8 @@ export function AGUIProvider({
       setTokenResolved(true);
       return () => undefined;
     }
-    void getIdToken()
+    const fetchToken = useTeacherAuth ? getTeacherIdToken : getIdToken;
+    void fetchToken()
       .then((t) => {
         if (!cancelled) setToken(t);
       })
@@ -84,7 +100,7 @@ export function AGUIProvider({
     return () => {
       cancelled = true;
     };
-  }, [authLoading, user, getIdToken]);
+  }, [authLoading, user, getIdToken, useTeacherAuth]);
 
   const agent = useMemo(() => {
     const headers: Record<string, string> = {};

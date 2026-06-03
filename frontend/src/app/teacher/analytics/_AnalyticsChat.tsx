@@ -113,7 +113,7 @@ export function AnalyticsChat(props: AnalyticsChatProps) {
     );
   }
   return (
-    <AGUIProvider key={`${skillId}:${props.classId}`} skillId={skillId}>
+    <AGUIProvider key={`${skillId}:${props.classId}`} skillId={skillId} useTeacherAuth>
       <AnalyticsChatInner {...props} />
     </AGUIProvider>
   );
