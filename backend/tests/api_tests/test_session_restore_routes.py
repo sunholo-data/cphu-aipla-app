@@ -53,7 +53,7 @@ def _anon_ctx(uid: str = "anon-local-demo-abc") -> AccessContext:
     return AccessContext(uid=uid, email="", domain="")
 
 
-def _mock_session_index(session_id: str, archived: bool = False):
+def _mock_session_index(session_id: str, archived: bool = False, group_code: str | None = None):
     from datetime import UTC, datetime
 
     from db.models.access import AccessControl
@@ -63,8 +63,14 @@ def _mock_session_index(session_id: str, archived: bool = False):
     idx.session_id = session_id
     idx.owner_uid = "anon-local-demo-abc"
     idx.skill_id = "problem-set-hints"
+    # Legacy ``archived_at``-only path (teacher reset) still goes through
+    # this fixture's ``archived`` boolean; new tests opt into the
+    # explicit-archive flag by setting both ``archived`` and the new
+    # ``archived`` attribute via the QUICK-WINS-V11 flag.
     idx.archived_at = datetime.now(UTC) if archived else None
+    idx.archived = False
     idx.access_control = AccessControl(type="public")
+    idx.group_code = group_code
     return idx
 
 

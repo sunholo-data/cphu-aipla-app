@@ -40,6 +40,14 @@ class ChatSessionIndex(BaseModel):
     turn_count: int = Field(default=0, alias="turnCount")
     first_message_at: datetime = Field(alias="firstMessageAt")
     last_message_at: datetime = Field(alias="lastMessageAt")
+    archived: bool = Field(default=False)
+    """Soft-archive flag. Set to True when the session is closed for
+    further interaction (e.g. group code expired, teacher reset).
+    Companion to ``archived_at``: ``archived=True`` implies
+    ``archived_at`` is set; both should be flipped together. Sprint
+    QUICK-WINS-V11 introduced this field so the school-year TTL
+    transition (~300 days) can soft-archive sessions without losing
+    their BigQuery rows or chat history."""
     archived_at: datetime | None = Field(default=None, alias="archivedAt")
     shared_with_teacher: bool = Field(default=False, alias="sharedWithTeacher")
     group_code: str | None = Field(default=None, alias="groupCode")
