@@ -231,9 +231,9 @@
     "actual_days": null
   },
   "github_issues": [],
-  "last_session": "2026-06-03T15:30:00Z",
-  "last_checkpoint": "All milestones merged into feature/quick-wins-v11. Track A: 3 commits (M1+M2+M3) via sprint/quick-wins-v11-verbosity. Track B: 3 commits (M5 rename, M6 archival, M5-value-revert after mid-sprint rescope) via sprint/quick-wins-v11-ttl. M7 archival integration tests added directly on feature branch. Backend make lint + make test-fast green (1645 passed). Ready to push + PR.",
-  "status": "shipped_local",
+  "last_session": "2026-06-03T16:00:00Z",
+  "last_checkpoint": "Shipped to origin/dev at commit 9d03c61. Feature branch + sprint sub-branches + worktrees all cleaned up. Sprint doc moved to v1.1.0-feedback/implemented/. PR #6 closed unused per new direct-to-dev workflow (memory: feedback-no-prs-commit-to-dev). M4 manual browser sanity still pending — non-blocking.",
+  "status": "shipped",
   "tracks": {
     "track_a_verbosity": ["M1-VERBOSITY-PROMPT-BLOCK", "M2-VERBOSITY-PROMPT-PRESENCE-TEST", "M3-VERBOSITY-E2E-SMOKE", "M4-VERBOSITY-MANUAL-SANITY"],
     "track_b_ttl": ["M5-TTL-CONSTANT-RENAME", "M6-ARCHIVE-ON-EXPIRY", "M7-TTL-INTEGRATION-TESTS", "M8-CLI-SANITY"],

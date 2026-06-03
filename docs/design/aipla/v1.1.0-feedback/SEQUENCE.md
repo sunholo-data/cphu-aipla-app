@@ -91,6 +91,17 @@ Comfortably fits in the post-3-June → pilot-start window (2026-06-04 → 2026-
 - **2026-08-14** — Pilot starts; ideally 1.1.1–1.1.6 + 1.1.9 live
 - **2026-08-14 → 09-15** — Pilot iteration window for remaining items + portfolio-download follow-up
 
+## Sprint status (2026-06-03)
+
+**Shipped (merged to `dev`):**
+
+- ✓ **QUICK-WINS-V11** — 1.1.1 verbosity + 1.1.6 rename-and-archival bundled sprint. Track A: 3 commits (constraint block in 3 SKILL.md files; pytest regression guard; slow-marked LLM smoke). Track B: 3 commits (constant rename, archive-on-expiry + 410 Gone, value-revert to 30d after mid-sprint privacy rethink). Plus M7 archival integration tests (3 cases). Shipped 2026-06-03 at `9d03c61`. Sprint doc moved to [implemented/quick-wins-v1.1-sprint.md](implemented/quick-wins-v1.1-sprint.md). Backend test count went 1637 → 1645 (+8 net).
+  - **Mid-sprint rescope**: original 1.1.6 plan to lift platform default 30d→300d was reshaped on privacy grounds. Default stays 30d; the per-code teacher-choice path becomes [1.1.10 teacher-choice-ttl.md](teacher-choice-ttl.md). Both 1.1.6 design doc and v1.1 SEQUENCE updated to reflect this.
+
+**Pending (M4 manual sanity for the verbosity prompt):**
+
+- LOCAL_MODE chat against `led-planck-tutor`: confirm first 5 tutor turns each ≤3 sentences and end with `?`. Counter-test: `"forklar i detaljer"` → next turn allowed to be longer. Same against `kinebot-kinematics-tutor` in English. Non-blocking — M2 + M3 self-tests are the regression bar.
+
 ## Cross-version updates
 
 When these ship, mark them in this file's `Sprint status` section (mirroring the v1.0 pattern) and move docs into a sibling `implemented/` directory.
