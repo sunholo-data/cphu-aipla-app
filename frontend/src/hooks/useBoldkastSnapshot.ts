@@ -3,7 +3,10 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 
 import { useHumanToolEvents } from "@/hooks/useHumanToolEvents";
-import { useSimSnapshotPush } from "@/hooks/useSimSnapshotPush";
+import {
+  useSimSnapshotPush,
+  type UseSimSnapshotPushProactiveOpts,
+} from "@/hooks/useSimSnapshotPush";
 
 export type BoldkastMarker = "range" | "tof" | "ymax";
 
@@ -88,19 +91,24 @@ export interface UseBoldkastSnapshot {
  */
 export function useBoldkastSnapshot(
   sessionId: string | null,
+  /** Proactive-tutor wiring. The chat page passes explicit opts because
+   * this hook is called in the SAME component scope as the
+   * <ProactiveSimProvider> mount — React hooks see only ancestor
+   * providers, not sibling-in-the-same-component ones. New sims that
+   * call this hook inside a NESTED child component (below the provider
+   * in the JSX tree) can omit this param and inherit from context via
+   * useSimSnapshotPush's `useOptionalProactiveSimOpts()` fallback. */
+  proactiveOpts?: UseSimSnapshotPushProactiveOpts,
 ): UseBoldkastSnapshot {
   const humanToolEvents = useHumanToolEvents();
   const [snapshot, setSnapshot] = useState<BoldkastSnapshot>(INITIAL);
   const snapshotRef = useRef<BoldkastSnapshot>(snapshot);
   snapshotRef.current = snapshot;
-  // No proactive-opts threading required — useSimSnapshotPush reads the
-  // ProactiveSimContext from the chat page provider. New sims follow
-  // the same pattern: just call useSimSnapshotPush(sid, "<name>") and
-  // the gate-check fires automatically when mounted inside the
-  // <ProactiveSimProvider>.
   const pushSnapshotRequest = useSimSnapshotPush<BoldkastSnapshot>(
     sessionId,
     "boldkast",
+    "state",
+    proactiveOpts,
   );
 
   const reportEvent = useCallback(
