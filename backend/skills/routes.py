@@ -90,6 +90,15 @@ class SkillResponse(BaseModel):
     # the Firestore doc.
     proactive_greet: bool = Field(default=False, alias="proactiveGreet")
     opening_template: str = Field(default="", alias="openingTemplate")
+    # 1.1.2 Phase B sim-reactive — same surfacing rationale as Phase A:
+    # frontend reads proactive_event_reactive to decide whether to wire
+    # the /proactive-event-check gate-check call after each meaningful
+    # workbench commit. opening_template's sibling reactive_template
+    # stays server-side only (used by inject_reactive_guidance during
+    # agent build), so it is intentionally NOT exposed here.
+    proactive_event_reactive: bool = Field(default=False, alias="proactiveEventReactive")
+    proactive_heartbeat_seconds: int = Field(default=10, alias="proactiveHeartbeatSeconds")
+    proactive_max_per_session: int = Field(default=2, alias="proactiveMaxPerSession")
     tags: list[str]
     featured: bool
     usage_count: int = Field(alias="usageCount")

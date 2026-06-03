@@ -104,13 +104,35 @@ class SkillConfig(BaseModel):
     # agent turn before yielding to the user so the student isn't left
     # staring at a blank chat. Defaults off so existing skills aren't
     # affected. See docs/design/aipla/v1.0.0-pilot/proactive-tutor.md
-    # for full rationale + Phase B (heartbeat) follow-up.
+    # for full rationale.
     proactive_greet: bool = Field(default=False, alias="proactiveGreet")
     # Skill-author guidance text the tutor uses as a seed on its first
     # proactive-greet turn. Authored in SKILL.md under the ``## Opening``
     # section; parsed into this field by the platform-seed step.
     # Ignored when ``proactive_greet`` is False (or this is empty).
     opening_template: str = Field(default="", alias="openingTemplate")
+    # AIPLA 1.1.2 — proactive sim-reactive tutor (Phase B, Path A confirmed
+    # 2026-06-03). When true, the frontend calls the gate-decision endpoint
+    # POST /api/sessions/{id}/proactive-event-check after each meaningful
+    # workbench-event commit; if the gates pass, the frontend kicks off an
+    # AG-UI run with a synthetic [event_reactive:<kind>] sentinel so the
+    # tutor proactively comments on what just happened. See
+    # docs/design/aipla/v1.1.0-feedback/proactive-sim-reactive-tutor.md.
+    proactive_event_reactive: bool = Field(default=False, alias="proactiveEventReactive")
+    # Minimum seconds of student silence (no chat turn) before a meaningful
+    # workbench event may trigger a proactive tutor turn. Stops the tutor
+    # interrupting a student who's actively typing.
+    proactive_heartbeat_seconds: int = Field(default=10, alias="proactiveHeartbeatSeconds")
+    # Hard cap on proactive tutor turns per session, counting both
+    # auto-greet (Phase A) and sim-reactive (Phase B). Default 2 means
+    # at most "1 reactive after the greet" for opted-in skills.
+    proactive_max_per_session: int = Field(default=2, alias="proactiveMaxPerSession")
+    # Skill-author guidance text the tutor uses as a seed on each
+    # sim-reactive proactive turn. Authored in SKILL.md under the
+    # ``## Reactive turn`` section; parsed into this field by the
+    # platform-seed step. Ignored when ``proactive_event_reactive`` is
+    # False (or this is empty).
+    reactive_template: str = Field(default="", alias="reactiveTemplate")
     tags: list[str] = Field(default_factory=list)
     featured: bool = False
     usage_count: int = Field(default=0, alias="usageCount")

@@ -123,6 +123,14 @@ def test_seed_idempotent_upserts_existing(tmp_path):
         assert "instructions" in updates
         assert "proactiveGreet" in updates
         assert "openingTemplate" in updates
+        # 1.1.2 Phase B — the sim-reactive flag + tuning knobs +
+        # reactive_template ride the same unconditional-apply path so a
+        # template toggle from true to false takes effect on existing
+        # skills. See docs/design/aipla/v1.1.0-feedback/proactive-sim-reactive-tutor.md.
+        assert "proactiveEventReactive" in updates
+        assert "proactiveHeartbeatSeconds" in updates
+        assert "proactiveMaxPerSession" in updates
+        assert "reactiveTemplate" in updates
 
 
 def test_seed_malformed_template_is_failed_not_raise(tmp_path):

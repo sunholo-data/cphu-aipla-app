@@ -150,6 +150,13 @@ def _parse_template(skill_md: Path) -> dict[str, Any]:
         # template author doesn't have to nest them under `metadata:`.
         "proactiveGreet": bool(front.get("proactiveGreet") or False),
         "openingTemplate": (front.get("openingTemplate") or "").strip(),
+        # 1.1.2 — proactive sim-reactive tutor (Phase B). Per-skill opt-in
+        # flag + tuning knobs + skill-author reactive guidance. See
+        # docs/design/aipla/v1.1.0-feedback/proactive-sim-reactive-tutor.md.
+        "proactiveEventReactive": bool(front.get("proactiveEventReactive") or False),
+        "proactiveHeartbeatSeconds": int(front.get("proactiveHeartbeatSeconds") or 10),
+        "proactiveMaxPerSession": int(front.get("proactiveMaxPerSession") or 2),
+        "reactiveTemplate": (front.get("reactiveTemplate") or "").strip(),
         # 1.A M8 — optional accessControl override. Templates that omit
         # it default to public (preserves the existing behaviour).
         # Teacher-only skills like manage-class supply:
@@ -204,6 +211,13 @@ def _template_updates(parsed: dict[str, Any]) -> dict[str, Any]:
     # template wouldn't ever take effect on existing skills.
     updates["proactiveGreet"] = parsed["proactiveGreet"]
     updates["openingTemplate"] = parsed["openingTemplate"]
+    # 1.1.2 Phase B sim-reactive — same unconditional-apply rationale as
+    # proactiveGreet above; toggling proactiveEventReactive off in the
+    # template must take effect on existing skills.
+    updates["proactiveEventReactive"] = parsed["proactiveEventReactive"]
+    updates["proactiveHeartbeatSeconds"] = parsed["proactiveHeartbeatSeconds"]
+    updates["proactiveMaxPerSession"] = parsed["proactiveMaxPerSession"]
+    updates["reactiveTemplate"] = parsed["reactiveTemplate"]
     # avatar is unconditional too — template-owned. Setting to "" in the
     # template clears any previously-set URL.
     updates["avatar"] = parsed["avatar"]
@@ -297,6 +311,15 @@ def seed(templates_root: Path | None = None) -> SeedSummary:
                 optional_kwargs["proactiveGreet"] = parsed["proactiveGreet"]
             if parsed["openingTemplate"]:
                 optional_kwargs["openingTemplate"] = parsed["openingTemplate"]
+            if parsed["proactiveEventReactive"]:
+                optional_kwargs["proactiveEventReactive"] = parsed["proactiveEventReactive"]
+                # Only ship the tuning knobs alongside the flag — defaults
+                # match SkillConfig field defaults so explicit-default
+                # template writes survive a SkillConfig refactor cleanly.
+                optional_kwargs["proactiveHeartbeatSeconds"] = parsed["proactiveHeartbeatSeconds"]
+                optional_kwargs["proactiveMaxPerSession"] = parsed["proactiveMaxPerSession"]
+            if parsed["reactiveTemplate"]:
+                optional_kwargs["reactiveTemplate"] = parsed["reactiveTemplate"]
             if parsed["avatar"]:
                 optional_kwargs["avatar"] = parsed["avatar"]
             access_control = parsed["accessControl"] or {"type": "public"}
