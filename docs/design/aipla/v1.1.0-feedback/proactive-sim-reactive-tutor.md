@@ -10,15 +10,9 @@
 
 ## Relationship to existing proactive-tutor doc
 
-[proactive-tutor.md](../v1.0.0-pilot/proactive-tutor.md) defined a Phase B as **idle heartbeat** (no activity for ~3 min → check in). That Phase B is **not** what teachers asked for on 3 June. They asked for the *opposite trigger shape*: the tutor reacting **to** activity (a meaningful workbench event happening) when the student hasn't yet messaged.
+**Decided 2026-06-03 — Path A confirmed.** [proactive-tutor.md](../v1.0.0-pilot/proactive-tutor.md)'s original Phase B (idle-heartbeat — no activity for ~3 min → check in) is **retired** and replaced by this doc. The 3 June teacher check-in established sim-event-reactive as the higher-value trigger: idle-heartbeat overlapped with `proactive_greet` already covering the "blank session" failure mode and carried anti-Socratic interrupt risk. This doc is now the canonical Phase B.
 
-This doc proposes one of two paths — both end with the original idle-heartbeat plan deferred / re-scoped:
-
-**Path A (recommended): rename + re-scope.** Treat the 3 June ask as **Phase B**, and demote the original idle-heartbeat plan to a `Phase C` slot or quietly retire it. Idle heartbeats overlap with `proactive_greet` already addressing the "blank session" failure mode, and the 3 June ask is the higher-value trigger.
-
-**Path B: parallel phase.** Keep idle-heartbeat as Phase B; add this as Phase C. More design surface in the configs; arguably worse default behaviour (two proactive triggers per session is a lot).
-
-This doc assumes **Path A**. If the team prefers Path B, the only material change is the SkillConfig field naming (`proactive_event_seconds` instead of overloading the existing `idle_heartbeat_seconds`).
+The original idle-heartbeat design remains in [proactive-tutor.md](../v1.0.0-pilot/proactive-tutor.md) as historical reference (marked retired in its status header); do not implement it.
 
 ## Problem
 
@@ -181,10 +175,9 @@ class SkillConfig(BaseModel):
 
 ## Open questions
 
-1. **Path A vs Path B** above — does the team prefer to retire the idle-heartbeat Phase B or keep both? **Recommendation: retire idle-heartbeat (Path A).** Auto-greet + sim-reactive covers the "student confused" and "student engaged but silent" failure modes; idle-heartbeat overlaps with the former and risks bothering the latter.
-2. **Cooldown granularity** — 90s session-wide vs 90s-per-event-kind? Brief says session-wide; honour that.
-3. **`meaningful_for_proactive` allowlist** location — hardcoded in backend vs per-skill SKILL.md vs Pydantic enum? Hardcoded is simplest for v1.1; promote to per-skill config only if a skill needs a different rule.
-4. **Greet + reactive on same session-start moment** — if Phase A auto-greet fires at t=0 and the student immediately runs a sim, do we suppress the proactive-reactive turn? **Recommendation: yes** — count auto-greet as a proactive turn for cap purposes (so the cap effectively becomes "1 reactive after the greet"). Otherwise the first 10s of every session is two tutor turns back-to-back.
+1. **Cooldown granularity** — 90s session-wide vs 90s-per-event-kind? Brief says session-wide; honour that.
+2. **`meaningful_for_proactive` allowlist** location — hardcoded in backend vs per-skill SKILL.md vs Pydantic enum? Hardcoded is simplest for v1.1; promote to per-skill config only if a skill needs a different rule.
+3. **Greet + reactive on same session-start moment** — if Phase A auto-greet fires at t=0 and the student immediately runs a sim, do we suppress the proactive-reactive turn? **Recommendation: yes** — count auto-greet as a proactive turn for cap purposes (so the cap effectively becomes "1 reactive after the greet"). Otherwise the first 10s of every session is two tutor turns back-to-back.
 
 ## Files (estimate)
 

@@ -1,0 +1,243 @@
+{
+  "sprint_id": "QUICK-WINS-V11",
+  "created": "2026-06-03T11:51:53Z",
+  "estimated_duration_days": 0.5,
+  "design_doc": "docs/design/aipla/v1.1.0-feedback/tutor-verbosity-fix.md",
+  "additional_design_docs": [
+    "docs/design/aipla/v1.1.0-feedback/group-code-school-year-ttl.md"
+  ],
+  "sprint_plan": "docs/design/aipla/v1.1.0-feedback/quick-wins-v1.1-sprint.md",
+  "branch": "feature/quick-wins-v11",
+  "features": [
+    {
+      "id": "M1-VERBOSITY-PROMPT-BLOCK",
+      "description": "Add the '## Response length' constraint block (max 3 sentences, ends with question) to three SKILL.md files: problem-set-hints, led-planck-tutor, kinebot-kinematics-tutor",
+      "scope": "backend",
+      "estimated_loc": 30,
+      "actual_loc": null,
+      "dependencies": [],
+      "acceptance_criteria": [
+        "All three SKILL.md files contain a '## Response length' section with the constraint sentences",
+        "Block placed after the activity-specific tutor-instructions, before any '## Opening' / '## Idle nudge' / '## Reactive turn' sections",
+        "No emoji introduced (per feedback_no_emoticons)",
+        "No other content in the three SKILL.md files modified"
+      ],
+      "files_to_create": [],
+      "files_to_modify": [
+        "backend/skills/templates/problem-set-hints/SKILL.md",
+        "backend/skills/templates/led-planck-tutor/SKILL.md",
+        "backend/skills/templates/kinebot-kinematics-tutor/SKILL.md"
+      ],
+      "passes": null,
+      "started": null,
+      "completed": null,
+      "notes": "AR sign-off on final wording comes at PR review, not before merge. Drafting can start immediately."
+    },
+    {
+      "id": "M2-VERBOSITY-PROMPT-PRESENCE-TEST",
+      "description": "Parametrised pytest asserting the constraint substrings appear in each of the three resolved skill prompts; negative case on a skill without the block",
+      "scope": "backend",
+      "estimated_loc": 60,
+      "actual_loc": null,
+      "dependencies": ["M1-VERBOSITY-PROMPT-BLOCK"],
+      "acceptance_criteria": [
+        "Three pytest cases (one per skill: problem-set-hints, led-planck-tutor, kinebot-kinematics-tutor) all green",
+        "Negative case: manage-class or analytics-chat does NOT carry the substring",
+        "Test runs in <1s (no LLM calls)",
+        "Runs as part of `make test-fast`"
+      ],
+      "files_to_create": [
+        "backend/tests/skills/test_skill_prompts.py (or extend existing skill-processor test)"
+      ],
+      "files_to_modify": [],
+      "passes": null,
+      "started": null,
+      "completed": null,
+      "notes": "Use the existing skill loader (likely SkillProcessor.load(skill_id) — confirm in backend/skills/skill_processor.py before writing)"
+    },
+    {
+      "id": "M3-VERBOSITY-E2E-SMOKE",
+      "description": "Marked-slow eval test: feed a simple input to one skill via the agent loop, assert response sentence count <= 3 and ends with '?'",
+      "scope": "backend",
+      "estimated_loc": 50,
+      "actual_loc": null,
+      "dependencies": ["M1-VERBOSITY-PROMPT-BLOCK"],
+      "acceptance_criteria": [
+        "Test runs against the configured Gemini model in test env (uses the same fixtures as the analytics-chat eval sprint)",
+        "Passes 3-out-of-3 runs (LLM variance bounded by tight assertion seed)",
+        "Marked @pytest.mark.slow — skipped on `make test-fast`, runs on `make test`",
+        "Docstring explains why it's marked slow"
+      ],
+      "files_to_create": [
+        "backend/tests/eval/test_verbosity_smoke.py"
+      ],
+      "files_to_modify": [],
+      "passes": null,
+      "started": null,
+      "completed": null,
+      "notes": "If 3-of-3 consistency fails, file follow-up issue 'Verbosity escalation — add few-shot examples' rather than expanding sprint scope."
+    },
+    {
+      "id": "M5-TTL-CONSTANT-RENAME",
+      "description": "Rename DEFAULT_TTL_DAYS=30 to DEFAULT_GROUP_CODE_TTL_DAYS=300 in backend/auth/group_id_auth.py; update both call sites and the 30-day-intent docstring",
+      "scope": "backend",
+      "estimated_loc": 10,
+      "actual_loc": null,
+      "dependencies": [],
+      "acceptance_criteria": [
+        "`grep -rn DEFAULT_TTL_DAYS backend/` returns zero hits",
+        "New constant value is 300",
+        "Both call sites at lines 402 and 455 reference the new name",
+        "Docstring at line 470 updated from '30 days' to 'school year (~300 days)'",
+        "Newly minted codes have expires_at = now + 300 * 86400 (verified by unit test)"
+      ],
+      "files_to_create": [],
+      "files_to_modify": [
+        "backend/auth/group_id_auth.py"
+      ],
+      "passes": null,
+      "started": null,
+      "completed": null,
+      "notes": "Existing JWTs unaffected — TTL is set at mint-time; constant does not retroactively extend."
+    },
+    {
+      "id": "M6-ARCHIVE-ON-EXPIRY",
+      "description": "Wire archive-on-expiry: on GroupExpired during restore, flip ChatSessionIndex.archived=True + archived_at=now; restore route returns 410 Gone (not 404) with the archived_at timestamp",
+      "scope": "backend",
+      "estimated_loc": 60,
+      "actual_loc": null,
+      "dependencies": ["M5-TTL-CONSTANT-RENAME"],
+      "acceptance_criteria": [
+        "Helper _archive_expired_session(group_id) keeps archive side-effect out of pure auth code path",
+        "session_restore_routes.py returns 410 with body {detail: 'session archived', archived_at: ISO8601}",
+        "ChatSessionIndex.archived field exists (verify; add if missing)",
+        "Idempotent: re-restoring an already-archived session does NOT re-flip and still returns 410",
+        "Existing tests in backend/tests/integration/test_session_* still pass"
+      ],
+      "files_to_create": [],
+      "files_to_modify": [
+        "backend/auth/group_id_auth.py",
+        "backend/protocols/session_restore_routes.py",
+        "backend/db/models/chat_session.py (only if archived field missing)"
+      ],
+      "passes": null,
+      "started": null,
+      "completed": null,
+      "notes": "Pre-check: confirm whether ChatSessionIndex.archived (bool) exists alongside archived_at. The Read showed archived_at but not necessarily the bool — verify before writing M6."
+    },
+    {
+      "id": "M7-TTL-INTEGRATION-TESTS",
+      "description": "5-case integration test for TTL + archival flow",
+      "scope": "backend",
+      "estimated_loc": 150,
+      "actual_loc": null,
+      "dependencies": ["M5-TTL-CONSTANT-RENAME", "M6-ARCHIVE-ON-EXPIRY"],
+      "acceptance_criteria": [
+        "Case 1: fresh mint → expires_at ≈ now + 300d",
+        "Case 2: clock-forward past 30d → code still valid (regression guard for old default)",
+        "Case 3: clock-forward past 300d → GroupExpired raised",
+        "Case 4: expired code → restore returns 410 + ChatSessionIndex.archived=True",
+        "Case 5: re-restore on archived session → 410 (idempotent), no double-archive Firestore write",
+        "All 5 cases run via `make test-fast` using in-memory fixture (backend/db/firestore_inmemory.py)",
+        "Backwards-compat: pre-existing JWT with expires_at = mint + 30*86400 still validates until its own expires_at"
+      ],
+      "files_to_create": [
+        "backend/tests/integration/test_group_code_ttl.py"
+      ],
+      "files_to_modify": [],
+      "passes": null,
+      "started": null,
+      "completed": null,
+      "notes": "Mark slow only if real Firestore is needed; prefer in-memory fixture for `make test-fast` inclusion."
+    },
+    {
+      "id": "M8-CLI-SANITY",
+      "description": "CLI smoke: confirm `aiplatform sessions resume <expired-code>` returns a clear archived/expired error",
+      "scope": "backend",
+      "estimated_loc": 20,
+      "actual_loc": null,
+      "dependencies": ["M6-ARCHIVE-ON-EXPIRY"],
+      "acceptance_criteria": [
+        "Fresh code resume succeeds (regression unchanged)",
+        "Clock-forwarded expired code returns a clear error mentioning 'archived' or 'expired'",
+        "If error message is uninformative, file a follow-up issue rather than extending sprint scope"
+      ],
+      "files_to_create": [],
+      "files_to_modify": [],
+      "passes": null,
+      "started": null,
+      "completed": null,
+      "notes": "Manual or scripted; no new test file required unless a clear gap exists."
+    },
+    {
+      "id": "M4-VERBOSITY-MANUAL-SANITY",
+      "description": "Manual LOCAL_MODE smoke: led-planck-tutor first 5 turns ≤3 sentences ending in '?'; counter-test that 'forklar i detaljer' allows longer; kinebot in English same",
+      "scope": "fullstack",
+      "estimated_loc": 0,
+      "actual_loc": null,
+      "dependencies": ["M1-VERBOSITY-PROMPT-BLOCK"],
+      "acceptance_criteria": [
+        "LOCAL_MODE chat with led-planck-tutor: 5 consecutive tutor turns each ≤3 sentences ending in '?'",
+        "Counter-test: explicit 'forklar i detaljer' / 'explain in detail' prompt → next turn allowed to be longer",
+        "kinebot-kinematics-tutor in English: same property holds"
+      ],
+      "files_to_create": [],
+      "files_to_modify": [],
+      "passes": null,
+      "started": null,
+      "completed": null,
+      "notes": "Manual; results captured in PR description. Per memory feedback_self_testable_loops, M2+M3 cover the regression bar; this is a final human-eye check before PR."
+    },
+    {
+      "id": "M9-QUALITY-GATES-AND-PR",
+      "description": "Pre-push CI parity, single bundled PR against dev with both design docs linked",
+      "scope": "fullstack",
+      "estimated_loc": 0,
+      "actual_loc": null,
+      "dependencies": [
+        "M1-VERBOSITY-PROMPT-BLOCK",
+        "M2-VERBOSITY-PROMPT-PRESENCE-TEST",
+        "M3-VERBOSITY-E2E-SMOKE",
+        "M4-VERBOSITY-MANUAL-SANITY",
+        "M5-TTL-CONSTANT-RENAME",
+        "M6-ARCHIVE-ON-EXPIRY",
+        "M7-TTL-INTEGRATION-TESTS",
+        "M8-CLI-SANITY"
+      ],
+      "acceptance_criteria": [
+        "`cd backend && make lint` green (ruff check + format-check)",
+        "`cd backend && make test-fast` green (per feedback_pre_push_ci_parity)",
+        "`cd frontend && npm run quality:check` green (no-op sanity; no FE changes expected)",
+        "Combined diff ≤ ~300 LOC implementation+tests",
+        "PR body links tutor-verbosity-fix.md + group-code-school-year-ttl.md",
+        "PR body notes AR sign-off pending on verbosity copy + backwards-compat policy on 30d codes",
+        "No emoji in commit message, PR title, or PR body",
+        "FF-merge to dev after green CI + AR thumbs-up"
+      ],
+      "files_to_create": [],
+      "files_to_modify": [],
+      "passes": null,
+      "started": null,
+      "completed": null,
+      "notes": "Post-merge: move quick-wins-v1.1-sprint.md to v1.1.0-feedback/implemented/; update v1.1 SEQUENCE.md sprint-status."
+    }
+  ],
+  "velocity": {
+    "target_loc_per_day": 600,
+    "actual_loc_per_day": null,
+    "estimated_total_loc": 380,
+    "actual_total_loc": null,
+    "estimated_days": 0.5,
+    "actual_days": null
+  },
+  "github_issues": [],
+  "last_session": null,
+  "last_checkpoint": null,
+  "status": "not_started",
+  "tracks": {
+    "track_a_verbosity": ["M1-VERBOSITY-PROMPT-BLOCK", "M2-VERBOSITY-PROMPT-PRESENCE-TEST", "M3-VERBOSITY-E2E-SMOKE", "M4-VERBOSITY-MANUAL-SANITY"],
+    "track_b_ttl": ["M5-TTL-CONSTANT-RENAME", "M6-ARCHIVE-ON-EXPIRY", "M7-TTL-INTEGRATION-TESTS", "M8-CLI-SANITY"],
+    "shared_finish": ["M9-QUALITY-GATES-AND-PR"]
+  },
+  "parallelisation_notes": "Tracks A and B are file-disjoint and can run in parallel. M4 is a manual sanity check; M3 is the LLM-dependent slow eval. M9 is the convergence point — both tracks land in one PR."
+}
