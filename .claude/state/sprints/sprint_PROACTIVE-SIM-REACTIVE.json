@@ -1,0 +1,306 @@
+{
+  "sprint_id": "PROACTIVE-SIM-REACTIVE",
+  "created": "2026-06-03T17:00:00Z",
+  "estimated_duration_days": 1.0,
+  "design_doc": "docs/design/aipla/v1.1.0-feedback/proactive-sim-reactive-tutor.md",
+  "sprint_plan": "docs/design/aipla/v1.1.0-feedback/proactive-sim-reactive-tutor-sprint.md",
+  "branch": "dev",
+  "branch_policy": "Work directly on dev per feedback_no_prs_commit_to_dev memory. Commit per-milestone locally; push origin dev only after M10 quality gates pass. No feature branch, no PR.",
+  "architecture": "Path B — FE-initiated AG-UI run via synthetic sentinel. Backend owns the gate decision (/proactive-event-check); frontend kicks off the actual agent run via existing /api/chat/{skill_id} AG-UI endpoint. Mirrors Phase A's PROACTIVE_GREET_TRIGGER pattern but for mid-session.",
+  "features": [
+    {
+      "id": "M1-FE-TRIGGER-API-RECON",
+      "description": "Confirm CopilotKit / ag_ui_adk frontend has a programmatic-trigger API for AG-UI runs (not user-typed). BLOCKING gate — if no such API exists, fall back to Path A (REST + FE injection) and pause sprint to revise plan.",
+      "scope": "frontend",
+      "estimated_loc": 0,
+      "actual_loc": null,
+      "dependencies": [],
+      "acceptance_criteria": [
+        "FE recon completed; one of: (a) 'API exists, here's the call site' or (b) 'API does not exist, falling back to Path A'",
+        "If (b): sprint paused and plan revised before continuing"
+      ],
+      "files_to_create": [],
+      "files_to_modify": [],
+      "passes": null,
+      "started": null,
+      "completed": null,
+      "notes": "Recon steps in sprint plan M1. Check useProactiveGreet hook, frontend/src/app/chat/[...path]/page.tsx, and CopilotKit module exports for appendMessage/sendMessage/runAgent. Worst-case fallback is documented."
+    },
+    {
+      "id": "M2-SKILLCONFIG-FIELDS",
+      "description": "Add three new SkillConfig fields (proactive_event_reactive bool, proactive_heartbeat_seconds int, proactive_max_per_session int) + frontmatter parsing + platform_seed wiring",
+      "scope": "backend",
+      "estimated_loc": 80,
+      "actual_loc": null,
+      "dependencies": ["M1-FE-TRIGGER-API-RECON"],
+      "acceptance_criteria": [
+        "SkillConfig accepts the three new fields with documented defaults (false / 10 / 2)",
+        "Parsing a SKILL.md frontmatter with proactiveEventReactive: true resolves to SkillConfig.proactive_event_reactive == True",
+        "platform_seed.py handles all three fields in the same shape as existing proactiveGreet / openingTemplate",
+        "New parametrised pytest in backend/tests/unit/skills/ covers all three fields + defaults",
+        "make lint + make test-fast green",
+        "Commit: feat(skills): SkillConfig fields for proactive event-reactive turns (M2 sprint PROACTIVE-SIM-REACTIVE)"
+      ],
+      "files_to_create": [
+        "backend/tests/unit/skills/test_proactive_event_reactive_config.py"
+      ],
+      "files_to_modify": [
+        "backend/db/models/__init__.py",
+        "backend/skills/skill_processor.py",
+        "backend/admin/platform_seed.py",
+        "backend/skills/routes.py"
+      ],
+      "passes": null,
+      "started": null,
+      "completed": null,
+      "notes": "Per QUICK-WINS-V11 M2 finding, _parse_template in skill_processor.py is the production seed-pipeline entry point. SkillConfig lives in backend/db/models/__init__.py (not skill.py)."
+    },
+    {
+      "id": "M3-INJECT-REACTIVE-GUIDANCE-HELPER",
+      "description": "Create backend/adk/proactive_reactive.py with inject_reactive_guidance() helper mirroring Phase A's inject_opening_guidance() shape; wire into agent factory so both injectors compose into the system prompt",
+      "scope": "backend",
+      "estimated_loc": 120,
+      "actual_loc": null,
+      "dependencies": ["M2-SKILLCONFIG-FIELDS"],
+      "acceptance_criteria": [
+        "inject_reactive_guidance(instruction, *, proactive_event_reactive, reactive_template) -> str exists with documented contract",
+        "No-op when flag false or template empty/whitespace",
+        "Appends ## REACTIVE GUIDANCE block when flag true + template present",
+        "agent.py extended to call both Phase A and Phase B injectors during agent build",
+        "4+ pytest cases mirroring test_proactive_greet.py (flag-false-noop, empty-template-noop, happy-path, prefix-preserved)",
+        "make lint + make test-fast green",
+        "Commit: feat(adk): inject_reactive_guidance helper for proactive event-reactive turns (M3 sprint PROACTIVE-SIM-REACTIVE)"
+      ],
+      "files_to_create": [
+        "backend/adk/proactive_reactive.py",
+        "backend/tests/unit/test_proactive_reactive.py"
+      ],
+      "files_to_modify": [
+        "backend/adk/agent.py"
+      ],
+      "passes": null,
+      "started": null,
+      "completed": null,
+      "notes": "Position the reactive injection AFTER opening guidance so the model sees opening expectations first if both flags on."
+    },
+    {
+      "id": "M4-SESSION-STATE-PROACTIVE-COUNTERS",
+      "description": "Add last_proactive_turn_ts (float|None) + proactive_turn_count (int) to ChatSessionIndex; increment from /greet endpoint after non-skipped greet (so auto-greet counts toward cap per design-doc rule)",
+      "scope": "backend",
+      "estimated_loc": 50,
+      "actual_loc": null,
+      "dependencies": ["M2-SKILLCONFIG-FIELDS"],
+      "acceptance_criteria": [
+        "ChatSessionIndex (in backend/db/models/chat_session.py) has both fields with appropriate defaults",
+        "Recon first: check whether Phase A already persists either field — if so, reuse",
+        "Existing /greet endpoint increments counter + sets timestamp after a non-skipped greet",
+        "One pytest case extending test_proactive_routes.py covers the increment after a successful greet",
+        "No regression in existing proactive-routes tests",
+        "Commit: feat(sessions): track proactive turn count + last timestamp on session (M4 sprint PROACTIVE-SIM-REACTIVE)"
+      ],
+      "files_to_create": [],
+      "files_to_modify": [
+        "backend/db/models/chat_session.py",
+        "backend/protocols/proactive_routes.py",
+        "backend/tests/api_tests/test_proactive_routes.py"
+      ],
+      "passes": null,
+      "started": null,
+      "completed": null,
+      "notes": "Recon step required first. Track B's chat_session.py work last sprint added archived field; same file."
+    },
+    {
+      "id": "M5-PROACTIVE-EVENT-CHECK-ENDPOINT",
+      "description": "Implement POST /api/sessions/{id}/proactive-event-check gate-decision endpoint. Returns {shouldFire, reason?, trigger?, sessionId?}. NO agent invocation — pure decision based on state + config + inbound event.",
+      "scope": "backend",
+      "estimated_loc": 200,
+      "actual_loc": null,
+      "dependencies": ["M2-SKILLCONFIG-FIELDS", "M3-INJECT-REACTIVE-GUIDANCE-HELPER", "M4-SESSION-STATE-PROACTIVE-COUNTERS"],
+      "acceptance_criteria": [
+        "Endpoint mounted at POST /api/sessions/{id}/proactive-event-check",
+        "Request body ProactiveEventCheckRequest { skillId, eventKind, eventPayload? }",
+        "Response ProactiveEventCheckResponse { shouldFire, reason?, trigger?, sessionId? }",
+        "Server-side MEANINGFUL_EVENT_KINDS allowlist: frozenset({'sim_run', 'step_advance', 'measurement_commit'})",
+        "Gates in order: skill exists / flag on / event kind in allowlist / idle threshold / cooldown / cap",
+        "Happy path returns shouldFire=true + trigger='[event_reactive:{eventKind}]' sentinel",
+        "10+ pytest cases covering each gate + happy path + auth + session-not-found + payload-accepted-and-ignored",
+        "Pytest patches the agent module and asserts it is NEVER called from this endpoint (pure gate)",
+        "make lint + make test-fast green",
+        "Commit: feat(protocols): proactive-event-check gate endpoint (M5 sprint PROACTIVE-SIM-REACTIVE)"
+      ],
+      "files_to_create": [
+        "backend/tests/api_tests/test_proactive_event_check.py"
+      ],
+      "files_to_modify": [
+        "backend/protocols/proactive_routes.py"
+      ],
+      "passes": null,
+      "started": null,
+      "completed": null,
+      "notes": "Endpoint sits in proactive_routes.py as a sibling to /greet to keep all proactive surfaces in one file."
+    },
+    {
+      "id": "M6-SKILL-REACTIVE-TURN-CONTENT",
+      "description": "Add ## REACTIVE TURN content sections + frontmatter flags to 3 SKILL.md files: problem-set-hints (English Boldkast tutor), led-planck-tutor (Danish), kinebot-kinematics-tutor (English NCERT)",
+      "scope": "backend",
+      "estimated_loc": 60,
+      "actual_loc": null,
+      "dependencies": ["M2-SKILLCONFIG-FIELDS"],
+      "acceptance_criteria": [
+        "All three SKILL.md files carry: proactiveEventReactive: true, proactiveHeartbeatSeconds: 10, proactiveMaxPerSession: 2",
+        "All three have a ## REACTIVE TURN section placed naturally per file's existing structure",
+        "Content is per-skill tone-appropriate (Danish stx for LED Planck; English NCERT for KineBot; English Boldkast for problem-set-hints)",
+        "No emoji",
+        "No other text in the three files modified",
+        "End-to-end SKILL.md to SkillConfig assertion confirms parsing the actual templates works (extend M2's test)",
+        "Commit: feat(skills): per-skill REACTIVE TURN sections + frontmatter flags (M6 sprint PROACTIVE-SIM-REACTIVE)"
+      ],
+      "files_to_create": [],
+      "files_to_modify": [
+        "backend/skills/templates/problem-set-hints/SKILL.md",
+        "backend/skills/templates/led-planck-tutor/SKILL.md",
+        "backend/skills/templates/kinebot-kinematics-tutor/SKILL.md"
+      ],
+      "passes": null,
+      "started": null,
+      "completed": null,
+      "notes": "Inherits the v1.1.1 verbosity constraint (3-sentence + question rule). REACTIVE TURN content should explicitly forbid lectures."
+    },
+    {
+      "id": "M7-OTEL-PROACTIVE-ATTRIBUTES",
+      "description": "Extend the existing tutor.proactive_kind OTel attribute setter (currently sets greet for Phase A) to also recognise [event_reactive:*] sentinels and set tutor.proactive_kind=event_reactive, tutor.triggering_event_kind=<kind>, tutor.idle_seconds=<int>",
+      "scope": "backend",
+      "estimated_loc": 50,
+      "actual_loc": null,
+      "dependencies": ["M5-PROACTIVE-EVENT-CHECK-ENDPOINT"],
+      "acceptance_criteria": [
+        "Locate where tutor.proactive_kind=greet is set today (probably backend/observability/telemetry.py)",
+        "OTel span on /api/chat/{skill_id} POST with first user message [event_reactive:sim_run] carries the three new attributes",
+        "Pytest covers attribute presence; extends existing greet-attribute test",
+        "No regression in Phase A's greet OTel attributes",
+        "Commit: feat(observability): OTel attributes for proactive event-reactive turns (M7 sprint PROACTIVE-SIM-REACTIVE)"
+      ],
+      "files_to_create": [],
+      "files_to_modify": [
+        "backend/observability/telemetry.py"
+      ],
+      "passes": null,
+      "started": null,
+      "completed": null,
+      "notes": "Path verify before edit — telemetry.py is the likely location but may be a different module."
+    },
+    {
+      "id": "M8-FRONTEND-WIRE-MCPAPP-TO-PROACTIVE-CHECK",
+      "description": "Hook the FE: after a successful /iframe-context POST with meaningful kind, fire /proactive-event-check; on shouldFire=true, programmatically trigger an AG-UI run via the API discovered in M1, with RunAgentInput.messages = [{role:user, content: result.trigger}]. Also extend FE sentinel suppression to filter [event_reactive:*] messages.",
+      "scope": "frontend",
+      "estimated_loc": 250,
+      "actual_loc": null,
+      "dependencies": ["M1-FE-TRIGGER-API-RECON", "M5-PROACTIVE-EVENT-CHECK-ENDPOINT"],
+      "acceptance_criteria": [
+        "MCPAppToolCallRouter.tsx (line 432 area) calls /proactive-event-check after each successful iframe-context POST",
+        "ProgressChecklist.tsx (line 83) gets the same hook (checklist commits emit step_advance)",
+        "On shouldFire=true response, FE programmatically triggers AG-UI run with the trigger sentinel using the API from M1",
+        "FE message renderer (likely MessageBubble.tsx or ChatMessageList.tsx) extends PROACTIVE_GREET_TRIGGER suppression to also match /^\\[event_reactive:[a-z_]+\\]$/",
+        "Sentinel does NOT render as a chat bubble",
+        "Tutor's proactive turn DOES render in the chat scroll like any normal turn",
+        "Manual LOCAL_MODE smoke: Boldkast Play → backend logs show iframe-context + proactive-event-check + (if eligible) /api/chat POST with [event_reactive:sim_run] user message",
+        "Cooldown enforced: second Play within 90s → no second proactive turn",
+        "Cap enforced: after 2 proactive turns (greet + 1 or 2 reactive) → no further triggers",
+        "No regression in chat UX for non-reactive sessions",
+        "Commit: feat(frontend): wire MCPAppToolCallRouter to proactive-event-check + AG-UI trigger (M8 sprint PROACTIVE-SIM-REACTIVE)"
+      ],
+      "files_to_create": [
+        "frontend/src/hooks/useProactiveEventCheck.ts"
+      ],
+      "files_to_modify": [
+        "frontend/src/components/protocols/MCPAppToolCallRouter.tsx",
+        "frontend/src/components/workspace/ProgressChecklist.tsx",
+        "frontend/src/components/chat/MessageBubble.tsx OR ChatMessageList.tsx (verify)"
+      ],
+      "passes": null,
+      "started": null,
+      "completed": null,
+      "notes": "Refactor the existing PROACTIVE_GREET_TRIGGER suppression into a shared helper if needed — don't duplicate the regex."
+    },
+    {
+      "id": "M9-FRONTEND-TESTS",
+      "description": "Vitest for useProactiveEventCheck hook + extend sentinel-suppression tests for [event_reactive:*]",
+      "scope": "frontend",
+      "estimated_loc": 120,
+      "actual_loc": null,
+      "dependencies": ["M8-FRONTEND-WIRE-MCPAPP-TO-PROACTIVE-CHECK"],
+      "acceptance_criteria": [
+        "5+ vitest cases for useProactiveEventCheck: mock fetch; assert POST shape; shouldFire=false leads to no follow-up; shouldFire=true leads to AG-UI trigger called with correct sentinel",
+        "Sentinel-suppression test extended: [event_reactive:sim_run], [event_reactive:step_advance], [event_reactive:measurement_commit] all suppressed",
+        "npm run quality:check (FULL, not fast — per feedback_pre_push_ci_parity) green",
+        "Commit: test(frontend): proactive-event-check hook + sentinel suppression (M9 sprint PROACTIVE-SIM-REACTIVE)"
+      ],
+      "files_to_create": [
+        "frontend/src/hooks/__tests__/useProactiveEventCheck.test.ts"
+      ],
+      "files_to_modify": [
+        "frontend/src/components/chat/__tests__/<existing-suppression-test>.ts"
+      ],
+      "passes": null,
+      "started": null,
+      "completed": null,
+      "notes": "Critical: full quality:check not the fast variant. The fast variant misses build errors."
+    },
+    {
+      "id": "M10-PUSH-AND-FILE-PHASE-A-REFACTOR-FOLLOWUP",
+      "description": "Final quality gates → push origin dev (no PR per memory) → file Phase A refactor follow-up doc → update v1.1 SEQUENCE sprint-status",
+      "scope": "fullstack",
+      "estimated_loc": 60,
+      "actual_loc": null,
+      "dependencies": [
+        "M2-SKILLCONFIG-FIELDS",
+        "M3-INJECT-REACTIVE-GUIDANCE-HELPER",
+        "M4-SESSION-STATE-PROACTIVE-COUNTERS",
+        "M5-PROACTIVE-EVENT-CHECK-ENDPOINT",
+        "M6-SKILL-REACTIVE-TURN-CONTENT",
+        "M7-OTEL-PROACTIVE-ATTRIBUTES",
+        "M8-FRONTEND-WIRE-MCPAPP-TO-PROACTIVE-CHECK",
+        "M9-FRONTEND-TESTS"
+      ],
+      "acceptance_criteria": [
+        "cd backend && make lint && make test-fast green",
+        "cd frontend && npm run quality:check (full) green",
+        "git push origin dev succeeds",
+        "Follow-up doc proactive-greet-refactor-to-path-b.md committed (same push)",
+        "v1.1 SEQUENCE.md sprint-status section updated with PROACTIVE-SIM-REACTIVE shipped row + Phase A refactor follow-up listed in pending",
+        "No PR opened",
+        "Commit: docs(v1.1): file Phase A refactor follow-up + mark PROACTIVE-SIM-REACTIVE shipped (M10 sprint PROACTIVE-SIM-REACTIVE)"
+      ],
+      "files_to_create": [
+        "docs/design/aipla/v1.1.0-feedback/proactive-greet-refactor-to-path-b.md"
+      ],
+      "files_to_modify": [
+        "docs/design/aipla/v1.1.0-feedback/SEQUENCE.md"
+      ],
+      "passes": null,
+      "started": null,
+      "completed": null,
+      "notes": "Follow-up doc ~30 lines covering why (protocol consistency), what changes (greet becomes gate-decision; FE uses same AG-UI trigger pattern), why not now (don't double surface area in same sprint), acceptance. Becomes a ~0.5d follow-up sprint later."
+    }
+  ],
+  "velocity": {
+    "target_loc_per_day": 900,
+    "actual_loc_per_day": null,
+    "estimated_total_loc": 900,
+    "actual_total_loc": null,
+    "estimated_days": 1.0,
+    "actual_days": null
+  },
+  "github_issues": [],
+  "last_session": null,
+  "last_checkpoint": null,
+  "status": "not_started",
+  "architectural_decisions": {
+    "path_b_vs_path_a": "Path B chosen for protocol fit — proactive turn rides established AG-UI rail. Path A (REST + FE injection) is documented as fallback if M1 recon shows the FE has no programmatic AG-UI trigger API.",
+    "meaningful_event_allowlist": "Hardcoded server-side frozenset({sim_run, step_advance, measurement_commit}) per design-doc recommendation. Promote to per-skill config only if a skill needs different rules.",
+    "auto_greet_counts_toward_cap": "Yes per design-doc recommendation. M4 has the /greet endpoint increment the same counter so the effective cap of 2 means 1 reactive after the greet for a proactive_max_per_session=2 session.",
+    "cooldown_granularity": "Session-wide per design-doc + brief. 90s between any two proactive turns.",
+    "phase_a_refactor": "Filed as M10 follow-up doc, not in this sprint. Land Phase B first, exercise it for a few pilot sessions, then refactor Phase A onto the same Path B rails for protocol consistency."
+  },
+  "parallelisation_notes": "Single-track sequential. Last sprint's parallel sub-agent shape was right for two file-disjoint quick wins; this fullstack sprint where each milestone informs the next is better sequential."
+}
