@@ -1,26 +1,33 @@
-# Group code TTL — extend from 30 days to a Danish school year
+# Group code TTL — rename constant + graceful soft-archive on expiry (default stays 30d)
 
-**Status:** Planned (P1; quick win)
+**Status:** **Rescoped 2026-06-03 mid-sprint** — default platform TTL stays at **30 days** (was: extend to 300d); rename + archival ship; teacher-choice flag for longer TTLs moves to follow-up doc [teacher-choice-ttl.md](teacher-choice-ttl.md).
 **Last Updated:** 2026-06-03
-**Priority:** P1 — quick win that unblocks the eventual portfolio-download feature. Teachers and students at 3 June check-in want codes to persist for the full school year, not the 30-day default
-**Estimated:** ~2h
-**Scope:** Backend config delta + small Firestore-doc archival flag; no UI change
+**Priority:** P1 — graceful expiry posture + naming clarity. The original "extend default to school year" goal was rethought on privacy grounds (longer default = larger PII / research-consent surface on every code, even ones that didn't need it). Teachers who *want* long-lived codes will get an explicit choice via the follow-up flag.
+**Estimated:** ~2h (this doc's scope after rescope)
+**Scope:** Backend constant rename + small archive-on-expiry helper; no UI change in this sprint
 **Dependencies:** [session-persistence.md](../v1.0.0-pilot/implemented/session-persistence.md) (1.F shipped)
-**Source brief:** [`june-03-feedback-sprint-brief.md` §6](file:///Users/mark/Documents/clients/cph-uni/strand-a-pedagogical-bot/prototypes/june-03-feedback-sprint-brief.md)
+**Source brief:** [`june-03-feedback-sprint-brief.md` §6](file:///Users/mark/Documents/clients/cph-uni/strand-a-pedagogical-bot/prototypes/june-03-feedback-sprint-brief.md) (the underlying ask is preserved; the *implementation path* changed from "raise platform default" to "let teacher opt in per code")
 
-## Change
+## What changed mid-sprint
 
-Extend the default group-code + session TTL from **30 days** to **300 days** (~10 months, approximately a Danish school year). Soft-archive on expiry rather than delete: chat-log and workbench-event rows stay in BigQuery; the Firestore session doc gets `archived: true`. Teacher can still manually expire/revoke a code from the class detail screen.
+The brief and original design proposed lifting the platform-wide default from 30 days to 300 days. While Track B of QUICK-WINS-V11 was in flight, the team flagged a concern: **a 300-day default applies to every code, including short-lived demo / one-off codes that don't need the longer lifespan**. Longer-lived data means more data subject to research-consent retention policies, more state to revoke if something goes wrong, larger surface area in general. The pedagogical / portfolio benefit only accrues to codes that *should* live a school year — not to every code.
+
+The reshape:
+
+- **Platform default stays at 30 days** (`DEFAULT_GROUP_CODE_TTL_DAYS = 30`).
+- **The rename ships** (`DEFAULT_TTL_DAYS` → `DEFAULT_GROUP_CODE_TTL_DAYS`) because the new name reads better regardless of value.
+- **Soft archival on expiry ships** — graceful 410 Gone on archived-session restore; Firestore doc flipped `archived: true`; BigQuery rows retained. Independent of TTL duration.
+- **Teacher-choice flag deferred** to [teacher-choice-ttl.md](teacher-choice-ttl.md) — backend `mint_group(ttl_days=...)` already accepts the parameter; what's missing is the teacher-UI surface and the route-level pass-through.
+
+This doc is the canonical record for the **rename + archival** half of the work; the teacher-choice doc is the canonical record for the **per-code TTL choice** half.
 
 ## Where the constant lives
 
-The 30-day value lives in (verify the exact location during the change):
+The TTL value lives in one place:
 
-- [backend/auth/group_id_auth.py](../../../../backend/auth/group_id_auth.py) — JWT `exp` claim
-- [backend/db/models/session.py](../../../../backend/db/models/session.py) — session TTL constant
-- [session-persistence.md](../v1.0.0-pilot/implemented/session-persistence.md) — design-doc references in narrative + acceptance tests
-
-Search for `30` in the session-persistence implementation files; replace the few literal occurrences with a named constant `DEFAULT_GROUP_CODE_TTL_DAYS = 300` exported from a single location. Don't grep for `30 days` only — the constant may be in seconds or ms.
+- [backend/auth/group_id_auth.py:53](../../../../backend/auth/group_id_auth.py#L53) — `DEFAULT_GROUP_CODE_TTL_DAYS = 30` (renamed from `DEFAULT_TTL_DAYS` in this sprint)
+- Used at lines 402 + 457 as the default for `mint_group(ttl_days=...)` and the deploy-time-seeding entry point
+- Docstring at line 414 points teachers at the forthcoming teacher-choice flag for longer TTLs
 
 ## Archival semantics
 
