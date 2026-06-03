@@ -32,7 +32,7 @@ vi.mock("@ag-ui/client", async () => {
 
 describe("AGUIProvider", () => {
   it("renders children and builds an HttpAgent targeting the skill stream endpoint", async () => {
-    const { getByText } = render(
+    const { findByText } = render(
       <AuthProvider>
         <AGUIProvider skillId="my-skill">
           <div>chat-content</div>
@@ -40,7 +40,10 @@ describe("AGUIProvider", () => {
       </AuthProvider>,
     );
 
-    expect(getByText("chat-content")).toBeTruthy();
+    // Provider blocks children until the auth token resolves (added
+    // 2026-06-03 to fix the no-auth-header race on first send). Use
+    // findByText so the assertion awaits the post-resolution render.
+    expect(await findByText("chat-content")).toBeTruthy();
 
     await waitFor(() => {
       const withAuth = httpAgentCtor.mock.calls.find(

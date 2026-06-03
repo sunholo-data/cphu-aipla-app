@@ -48,12 +48,25 @@ export function AGUIProvider({
 }) {
   const { getIdToken } = useAuth();
   const [token, setToken] = useState<string | null>(null);
+  // `tokenResolved` flips true after the first `getIdToken()` call
+  // settles, regardless of whether it returned a real token or null.
+  // Without this gate, the HttpAgent is built with no Authorization
+  // header on the initial render and any consumer that submits before
+  // the effect ticks gets a backend 401. (Caught on /teacher/analytics
+  // 2026-06-02 — the chat island has lower time-to-interactive than
+  // the existing /chat/[...path] surface, so users could click Send
+  // inside the race window.)
+  const [tokenResolved, setTokenResolved] = useState<boolean>(false);
 
   useEffect(() => {
     let cancelled = false;
-    void getIdToken().then((t) => {
-      if (!cancelled) setToken(t);
-    });
+    void getIdToken()
+      .then((t) => {
+        if (!cancelled) setToken(t);
+      })
+      .finally(() => {
+        if (!cancelled) setTokenResolved(true);
+      });
     return () => {
       cancelled = true;
     };
@@ -68,6 +81,14 @@ export function AGUIProvider({
       threadId: sessionId,
     });
   }, [skillId, token, sessionId]);
+
+  // Block consumer render until the auth token attempt has settled.
+  // Signed-out callers fall through with token=null and consumers
+  // surface their own "sign in" branches — they were already handling
+  // the no-auth case before this gate.
+  if (!tokenResolved) {
+    return null;
+  }
 
   return (
     <AGUIAgentContext.Provider value={agent}>
