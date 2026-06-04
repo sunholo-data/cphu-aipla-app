@@ -36,21 +36,80 @@ export function isMeaningfulEventKind(value: string): value is MeaningfulEventKi
   return (MEANINGFUL_EVENT_KINDS as readonly string[]).includes(value);
 }
 
-/** Map an artefact-side `kind` (e.g. `"boldkast.play"`) onto a generic
- *  meaningful event kind, or null if the artefact event isn't a
- *  proactive-trigger candidate. The mapping is intentionally permissive
- *  (suffix-based) so new artefacts following the same naming
- *  conventions (`*.play`, `*.step`, `*.measure`) light up automatically.
- *  Artefacts can also emit the generic kind directly if they prefer.
+/** Token keywords for each meaningful category. The mapper splits an
+ *  artefact's kind suffix on `-` and `_` and checks if ANY token in the
+ *  split matches one of these keywords. Token-based so multi-word
+ *  artefact kinds (e.g. `kinebot.sim-run`, `led-planck.auto-run`,
+ *  `led-planck.step-change`) light up without per-artefact entries.
  *
- *  Boldkast 2026-06-03: emits `boldkast.play`, `boldkast.show_value`,
- *  `boldkast.state-change`, `boldkast.pause`, `boldkast.reset`,
- *  `boldkast.open`. Only `boldkast.play` and `boldkast.show_value`
- *  map to meaningful kinds; the rest correctly return null (state
- *  noise, pause/reset, artefact-lifecycle).
+ *  Add new keywords here when a new sim introduces a vocabulary that
+ *  matches a category but doesn't already match. Keep the lists tight
+ *  to avoid over-matching — e.g. NOT including `change` here because
+ *  `state-change` is exploration noise, not progress.
  *
- *  LED Planck / KineBot do not currently emit kinds; this mapper is
- *  ready when their artefacts add `emit()` calls.
+ *  Mirrors the backend allowlist `MEANINGFUL_EVENT_KINDS` in
+ *  `backend/protocols/proactive_routes.py` (sim_run / step_advance /
+ *  measurement_commit). The backend doesn't tokenize because the FE
+ *  already mapped to a generic kind by the time the gate-check fires
+ *  — backend just validates membership.
+ */
+const SIM_RUN_TOKENS = ["play", "run", "simulate", "afspil"];
+const STEP_ADVANCE_TOKENS = [
+  "step",
+  "next",
+  "advance",
+  "placed", // led-planck.component-placed → step progress
+  "calibrated", // led-planck.calibrated → setup step
+];
+const MEASUREMENT_COMMIT_TOKENS = [
+  "measure",
+  "record",
+  "commit",
+  "show_value", // boldkast.show_value (no hyphen)
+  "reading", // led-planck.reading
+  "fit", // led-planck.fit (curve fit on measured data)
+  "spectrum", // led-planck.spectrum (recorded spectrum)
+];
+
+function tokensFromSuffix(suffix: string): string[] {
+  // Split on hyphen AND underscore so multi-word artefact kinds match
+  // single-word category keywords. Lowercase already applied by caller.
+  return suffix.split(/[-_]/).filter(Boolean);
+}
+
+function suffixMatchesAny(suffix: string, keywords: readonly string[]): boolean {
+  // Whole-suffix match first (covers `show_value` style underscore
+  // keywords). Then per-token match.
+  if (keywords.includes(suffix)) return true;
+  const tokens = tokensFromSuffix(suffix);
+  return tokens.some((t) => keywords.includes(t));
+}
+
+/** Map an artefact-side `kind` (e.g. `"boldkast.play"` or
+ *  `"kinebot.sim-run"`) onto a generic meaningful event kind, or null
+ *  if the artefact event isn't a proactive-trigger candidate. The
+ *  mapping tokenizes the suffix (split on `-` and `_`) and checks
+ *  category-keyword membership so multi-word artefact kinds light up
+ *  without per-artefact code. Artefacts can also emit the generic
+ *  kind directly if they prefer.
+ *
+ *  **Known artefact kinds (2026-06-04):**
+ *
+ *  - Boldkast: `play` → sim_run; `show_value` → measurement_commit;
+ *    `state-change` / `pause` / `reset` / `open` → null (noise /
+ *    lifecycle / undo).
+ *  - KineBot: `sim-run` → sim_run; `state-change` → null.
+ *  - LED Planck: `auto-run` → sim_run; `step-change` → step_advance;
+ *    `component-placed` → step_advance; `calibrated` → step_advance;
+ *    `reading` / `fit` / `spectrum` → measurement_commit;
+ *    `state-change` / `led-polarity-error` → null.
+ *
+ *  Adding a new sim: name your meaningful kinds following the
+ *  convention vocabulary (`*.play`, `*.run`, `*.step`, `*.next`,
+ *  `*.measure`, `*.reading`, `*.fit`, etc.) and the mapper picks
+ *  them up automatically. If your sim introduces new vocabulary that
+ *  fits a category but doesn't match any keyword yet, extend the
+ *  appropriate `*_TOKENS` list above.
  */
 export function mapArtefactKindToMeaningful(
   kind: string | null | undefined,
@@ -58,15 +117,10 @@ export function mapArtefactKindToMeaningful(
   if (!kind) return null;
   if (isMeaningfulEventKind(kind)) return kind;
   const suffix = kind.split(".").slice(-1)[0]?.toLowerCase() ?? "";
-  if (suffix === "play" || suffix === "run" || suffix === "simulate") return "sim_run";
-  if (suffix === "step" || suffix === "next" || suffix === "advance") return "step_advance";
-  if (
-    suffix === "measure" ||
-    suffix === "record" ||
-    suffix === "commit" ||
-    suffix === "show_value"
-  )
-    return "measurement_commit";
+  if (!suffix) return null;
+  if (suffixMatchesAny(suffix, SIM_RUN_TOKENS)) return "sim_run";
+  if (suffixMatchesAny(suffix, STEP_ADVANCE_TOKENS)) return "step_advance";
+  if (suffixMatchesAny(suffix, MEASUREMENT_COMMIT_TOKENS)) return "measurement_commit";
   return null;
 }
 

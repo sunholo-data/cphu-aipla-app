@@ -500,16 +500,34 @@ The Boldkast / LED-Planck / KineBot frames share three pieces of plumbing that e
 
    **Proactive sim-reactive — happens automatically (sprint PROACTIVE-SIM-REACTIVE, 2026-06-03).** When mounted inside a `<ProactiveSimProvider>` (the chat page already wraps the workspace tree), `useSimSnapshotPush` also fires `POST /api/sessions/{id}/proactive-event-check` after each iframe-context POST. If the backend gate says fire, the trigger sentinel is handed to `useSkillAgent.sendMessage` and a proactive tutor turn streams via the established AG-UI stream — identical wire shape to a user-driven turn.
 
-   The convention-based mapper at [proactiveEventCheck.ts](../../../frontend/src/lib/proactiveEventCheck.ts) recognises:
+   The convention-based mapper at [proactiveEventCheck.ts](../../../frontend/src/lib/proactiveEventCheck.ts) **tokenizes the suffix** (split on `-` and `_`) and matches ANY token to the keyword lists below. So `kinebot.sim-run`, `led-planck.auto-run`, `led-planck.step-change` all map correctly without per-artefact entries.
 
-   - `*.play` / `*.run` / `*.simulate` → `sim_run`
-   - `*.step` / `*.next` / `*.advance` → `step_advance`
-   - `*.measure` / `*.record` / `*.commit` / `*.show_value` → `measurement_commit`
-   - Anything else → no proactive turn (state-change syncs, resets, pause, slider drags — by design)
+   **Current keyword vocabulary** (extend `SIM_RUN_TOKENS` / `STEP_ADVANCE_TOKENS` / `MEASUREMENT_COMMIT_TOKENS` in proactiveEventCheck.ts if your sim needs a new word):
 
-   **Your responsibility as a new-sim author:** follow the naming convention in the kinds your artefact emits. `<server>.play` for the canonical run event, `<server>.step` for procedure advance, `<server>.measure` for measurement commits. If you do this, the gate-check fires automatically — no per-sim configuration, no map update, no FE plumbing changes.
+   - **sim_run** (canonical "student ran the sim"): `play`, `run`, `simulate`, `afspil`
+   - **step_advance** (procedure progress): `step`, `next`, `advance`, `placed`, `calibrated`
+   - **measurement_commit** (recorded a value): `measure`, `record`, `commit`, `show_value`, `reading`, `fit`, `spectrum`
+   - **None** (correctly skipped): state-change syncs, resets, pause, undo, errors, slider drags, ANYTHING with no matching token
 
-   **If your sim's per-frame `handleStructuredContent` filters events**, make sure meaningful kinds (play/step/measure) are routed through to `reportEvent`. Pause / reset / undo events should still be dropped — they're not progress. (This bit on Boldkast 2026-06-03: a pre-existing filter dropped `boldkast.play` as "not pedagogically interesting" — that comment predated the proactive-reactive feature; the play event IS interesting now and was rerouted in fix `101943a`.)
+   **Known artefact kinds as of 2026-06-04:**
+
+   | Artefact | Kind | → category |
+   |---|---|---|
+   | Boldkast | `boldkast.play` | sim_run |
+   | Boldkast | `boldkast.show_value` | measurement_commit |
+   | Boldkast | `boldkast.state-change` / `.pause` / `.reset` / `.open` | null |
+   | KineBot | `kinebot.sim-run` | sim_run |
+   | KineBot | `kinebot.state-change` | null |
+   | LED Planck | `led-planck.auto-run` | sim_run |
+   | LED Planck | `led-planck.step-change` | step_advance |
+   | LED Planck | `led-planck.component-placed` | step_advance |
+   | LED Planck | `led-planck.calibrated` | step_advance |
+   | LED Planck | `led-planck.reading` / `.fit` / `.spectrum` | measurement_commit |
+   | LED Planck | `led-planck.state-change` / `.led-polarity-error` | null |
+
+   **Your responsibility as a new-sim author:** follow the keyword conventions when naming kinds. `*.run`, `*.step`, `*.measure`, `*.reading` all light up automatically. If your sim needs vocabulary that fits a category but doesn't match any existing keyword, add it to the appropriate `*_TOKENS` list in proactiveEventCheck.ts — that's the one place new-sim vocab lives. Vitest cases at [proactiveEventCheck.test.ts](../../../frontend/src/lib/__tests__/proactiveEventCheck.test.ts) cover all three artefacts' kinds.
+
+   **If your sim's per-frame `handleStructuredContent` filters events**, make sure meaningful kinds are routed through to `reportEvent`. Pause / reset / undo / error events should still be dropped — they're not progress. (Boldkast bit on 2026-06-03: a pre-existing filter dropped `boldkast.play` as "not pedagogically interesting" — that comment predated proactive-reactive; the play event IS interesting now and was rerouted.)
 
 3. **`frontend/src/_sim-template/`** — scaffold directory with two `.template` files (`useExampleSimSnapshot.ts.template`, `ExampleSimFrame.tsx.template`) plus a `README.md` that lists the placeholders. Copy-and-rename for a fresh sim; or use `aiplatform sim scaffold <name>` to do steps 1-3 in one command.
 

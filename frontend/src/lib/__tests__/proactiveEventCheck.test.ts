@@ -118,6 +118,66 @@ describe("mapArtefactKindToMeaningful — convention patterns", () => {
   });
 });
 
+describe("mapArtefactKindToMeaningful — multi-word hyphenated suffixes", () => {
+  // Pre-2026-06-04 the mapper compared the WHOLE dot-suffix to single
+  // keywords, so multi-word hyphenated kinds (`kinebot.sim-run`,
+  // `led-planck.auto-run`, `led-planck.step-change`) all returned null
+  // and proactive turns silently never fired for KineBot or LED Planck.
+  // Fix: tokenize suffix on `-`/`_`; ANY token matching keyword wins.
+  // These tests guard against regressing to the strict-equality form.
+  it("KineBot sim-run → sim_run (was the user-reported gap)", () => {
+    expect(mapArtefactKindToMeaningful("kinebot.sim-run")).toBe("sim_run");
+  });
+
+  it("LED Planck auto-run → sim_run", () => {
+    expect(mapArtefactKindToMeaningful("led-planck.auto-run")).toBe("sim_run");
+  });
+
+  it("LED Planck step-change → step_advance", () => {
+    expect(mapArtefactKindToMeaningful("led-planck.step-change")).toBe(
+      "step_advance",
+    );
+  });
+
+  it("LED Planck component-placed → step_advance", () => {
+    expect(mapArtefactKindToMeaningful("led-planck.component-placed")).toBe(
+      "step_advance",
+    );
+  });
+
+  it("LED Planck calibrated → step_advance", () => {
+    expect(mapArtefactKindToMeaningful("led-planck.calibrated")).toBe(
+      "step_advance",
+    );
+  });
+
+  it("LED Planck reading / fit / spectrum → measurement_commit", () => {
+    expect(mapArtefactKindToMeaningful("led-planck.reading")).toBe(
+      "measurement_commit",
+    );
+    expect(mapArtefactKindToMeaningful("led-planck.fit")).toBe(
+      "measurement_commit",
+    );
+    expect(mapArtefactKindToMeaningful("led-planck.spectrum")).toBe(
+      "measurement_commit",
+    );
+  });
+
+  it("LED Planck state-change → null (noise, not progress)", () => {
+    expect(mapArtefactKindToMeaningful("led-planck.state-change")).toBe(null);
+  });
+
+  it("LED Planck led-polarity-error → null (error, not progress)", () => {
+    expect(mapArtefactKindToMeaningful("led-planck.led-polarity-error")).toBe(
+      null,
+    );
+  });
+
+  it("KineBot state-change → null (noise)", () => {
+    expect(mapArtefactKindToMeaningful("kinebot.state-change")).toBe(null);
+  });
+});
+
 describe("fetchProactiveEventCheck", () => {
   beforeEach(() => {
     mockFetchWithAuth.mockReset();
