@@ -67,6 +67,32 @@ function isSpeechSynthesisAvailable(): boolean {
   );
 }
 
+/** Module-level "have we already auto-read this text" tracker.
+ *
+ *  Each entry is the final text of an assistant turn that the auto-read
+ *  has already attempted (or completed). Lives outside any React tree,
+ *  so it survives MessageBubble unmount/remount cycles. The previous
+ *  per-instance useRef guard didn't survive remounts (which happen when
+ *  a new assistant message arrives and the list re-renders), so the
+ *  "previous turn replays during Thinking" bug kept reappearing.
+ *
+ *  Bounded to MAX_MARKERS entries with simple FIFO eviction so a long
+ *  conversation doesn't grow the Set unboundedly. 200 is comfortably
+ *  more than any single chat session's distinct messages.
+ */
+const SPOKEN_MARKERS = new Set<string>();
+const MAX_MARKERS = 200;
+
+function tryMarkSpoken(text: string): boolean {
+  if (SPOKEN_MARKERS.has(text)) return false;
+  SPOKEN_MARKERS.add(text);
+  if (SPOKEN_MARKERS.size > MAX_MARKERS) {
+    const first = SPOKEN_MARKERS.values().next().value;
+    if (first !== undefined) SPOKEN_MARKERS.delete(first);
+  }
+  return true;
+}
+
 /** Apply pronunciation rules for the given language.
  *
  *  Rules live in `frontend/src/lib/voice-pronunciation/` per 1.1.14 —
@@ -232,28 +258,24 @@ export function ReadAloudButton({
   // only the NEXT message uses the new lang. The LangToggle dispatches
   // a voice.cancel event to stop any in-flight playback when switched.
   //
-  // 2026-06-04 hardening (`hasAutoReadRef`):
-  // Each ReadAloudButton instance auto-reads at most ONCE per mount.
-  // Re-renders triggered by setting changes (LangToggle, AutoReadToggle,
-  // useVoiceConfig refetch on tab focus) used to re-fire the effect on
-  // OLDER message bubbles whose text had already been read — the
-  // student would hear the previous assistant turn replayed after
-  // changing a setting, then get cut off when the new assistant turn
-  // arrived. The ref tracks "did we already attempt auto-read for this
-  // mount" and short-circuits all subsequent attempts.
+  // 2026-06-05 hardening (`SPOKEN_MARKERS` module-level Set):
+  // Each unique text auto-reads at most ONCE per page session — even
+  // across MessageBubble unmount/remount cycles. Previous attempt
+  // used a per-instance useRef which got reset every time React
+  // remounted the bubble (which happens when a new assistant message
+  // arrives and the list re-renders, key changes between temp + final
+  // message ids, etc.). The module-level Set persists across remounts.
   //
   // Debounce: streaming messages incrementally update `text` (token by
   // token). Without a delay, the FIRST token kicks off auto-read with
   // a partial sentence; the rest of the stream never gets spoken. The
   // 600ms debounce waits for streaming to settle before reading the
   // final text exactly once.
-  const hasAutoReadRef = useRef(false);
   useEffect(() => {
     if (!autoSpeakOnMount || !available || isSpeaking) return;
-    if (hasAutoReadRef.current) return;
+    if (SPOKEN_MARKERS.has(text)) return; // skip the timer entirely if already spoken
     const timer = setTimeout(() => {
-      if (hasAutoReadRef.current) return; // double-check inside the timer
-      hasAutoReadRef.current = true;
+      if (!tryMarkSpoken(text)) return; // someone else won the race
       handleClick();
     }, 600);
     return () => clearTimeout(timer);
