@@ -1,0 +1,213 @@
+{
+  "sprint_id": "SIM-ERGONOMICS",
+  "created": "2026-06-04T00:00:00Z",
+  "estimated_duration_days": 0.75,
+  "design_doc": "docs/design/aipla/v1.1.0-feedback/sim-onboarding-ergonomics.md",
+  "sprint_plan": "docs/design/aipla/v1.1.0-feedback/sim-onboarding-ergonomics-sprint.md",
+  "branch": "dev",
+  "branch_policy": "Work directly on dev per feedback_no_prs_commit_to_dev memory. Commit per-milestone locally; push origin dev only after M8 quality gates pass. No feature branch, no PR.",
+  "architecture": "Frontend-only refactor. Invert per-artefact-frame filter from allowlist (explicit-route-each-kind) to denylist (drop-noisy-kinds, forward-everything-else) via new useArtefactReportEvent hook. Existing central useSimSnapshotPush + proactiveEventCheck.ts mapper unchanged.",
+  "scope": "frontend",
+  "status": "in_progress",
+  "features": [
+    {
+      "id": "M1-USE-ARTEFACT-REPORT-EVENT-HELPER",
+      "description": "Create useArtefactReportEvent hook with drop set + optional narrow map + default-through forwarding. Unit tests cover drop, narrow valid, narrow null, default-through, invalid kind.",
+      "scope": "frontend",
+      "estimated_loc": 200,
+      "actual_loc": null,
+      "dependencies": [],
+      "acceptance_criteria": [
+        "frontend/src/hooks/useArtefactReportEvent.ts exists with generic <TEvent extends {kind:string}> shape",
+        "frontend/src/hooks/__tests__/useArtefactReportEvent.test.ts covers all 5 paths",
+        "npm run lint && npm run typecheck pass",
+        "npm run test:run -- useArtefactReportEvent green",
+        "Commit: feat(workspace): useArtefactReportEvent denylist helper (M1 sprint SIM-ERGONOMICS)"
+      ],
+      "files_to_create": [
+        "frontend/src/hooks/useArtefactReportEvent.ts",
+        "frontend/src/hooks/__tests__/useArtefactReportEvent.test.ts"
+      ],
+      "files_to_modify": [],
+      "passes": null,
+      "started": null,
+      "completed": null,
+      "notes": null
+    },
+    {
+      "id": "M2-REFACTOR-BOLDKAST",
+      "description": "Refactor BoldkastSimFrame.tsx to use useArtefactReportEvent. drop: {boldkast.pause, boldkast.reset}; narrow: state-change, show_value. open/play flow default-through.",
+      "scope": "frontend",
+      "estimated_loc": 45,
+      "actual_loc": null,
+      "dependencies": ["M1-USE-ARTEFACT-REPORT-EVENT-HELPER"],
+      "acceptance_criteria": [
+        "BoldkastSimFrame.tsx uses useArtefactReportEvent; no explicit if/else chain remains",
+        "Existing BoldkastSimFrame.test.tsx still green",
+        "npm run lint && npm run typecheck pass",
+        "Commit: refactor(boldkast): use useArtefactReportEvent denylist (M2 sprint SIM-ERGONOMICS)"
+      ],
+      "files_to_create": [],
+      "files_to_modify": [
+        "frontend/src/components/workspace/BoldkastSimFrame.tsx"
+      ],
+      "passes": null,
+      "started": null,
+      "completed": null,
+      "notes": null
+    },
+    {
+      "id": "M3-REFACTOR-LED-PLANCK",
+      "description": "Refactor LedPlanckLabFrame.tsx. drop: pause, reset, led-polarity-error. narrow: state-change + payload-carrying kinds.",
+      "scope": "frontend",
+      "estimated_loc": 75,
+      "actual_loc": null,
+      "dependencies": ["M1-USE-ARTEFACT-REPORT-EVENT-HELPER"],
+      "acceptance_criteria": [
+        "LedPlanckLabFrame.tsx uses useArtefactReportEvent",
+        "Existing LedPlanckLabFrame.test.tsx still green",
+        "npm run lint && npm run typecheck pass",
+        "Commit: refactor(led-planck): use useArtefactReportEvent denylist (M3 sprint SIM-ERGONOMICS)"
+      ],
+      "files_to_create": [],
+      "files_to_modify": [
+        "frontend/src/components/workspace/LedPlanckLabFrame.tsx"
+      ],
+      "passes": null,
+      "started": null,
+      "completed": null,
+      "notes": null
+    },
+    {
+      "id": "M4-REFACTOR-KINEBOT",
+      "description": "Refactor KineBotFrame.tsx. drop: pause, reset. narrow: state-change.",
+      "scope": "frontend",
+      "estimated_loc": 25,
+      "actual_loc": null,
+      "dependencies": ["M1-USE-ARTEFACT-REPORT-EVENT-HELPER"],
+      "acceptance_criteria": [
+        "KineBotFrame.tsx uses useArtefactReportEvent",
+        "Existing KineBotFrame.test.tsx still green",
+        "npm run lint && npm run typecheck pass",
+        "Commit: refactor(kinebot): use useArtefactReportEvent denylist (M4 sprint SIM-ERGONOMICS)"
+      ],
+      "files_to_create": [],
+      "files_to_modify": [
+        "frontend/src/components/workspace/KineBotFrame.tsx"
+      ],
+      "passes": null,
+      "started": null,
+      "completed": null,
+      "notes": null
+    },
+    {
+      "id": "M5-INTEGRATION-TESTS",
+      "description": "Per-artefact integration tests for all 3 sims. Each simulates the full event vocabulary and asserts routing + mapper output (sim_run / step_advance / measurement_commit / null).",
+      "scope": "frontend",
+      "estimated_loc": 240,
+      "actual_loc": null,
+      "dependencies": ["M2-REFACTOR-BOLDKAST", "M3-REFACTOR-LED-PLANCK", "M4-REFACTOR-KINEBOT"],
+      "acceptance_criteria": [
+        "Three integration test files exist: BoldkastSimFrame.integration.test.tsx, LedPlanckLabFrame.integration.test.tsx, KineBotFrame.integration.test.tsx",
+        "Each enumerates every emitted kind from the sim's artefact",
+        "All three green via npm run test:run",
+        "Commit: test(workspace): per-artefact proactive-reactive integration tests (M5 sprint SIM-ERGONOMICS)"
+      ],
+      "files_to_create": [
+        "frontend/src/components/workspace/__tests__/BoldkastSimFrame.integration.test.tsx",
+        "frontend/src/components/workspace/__tests__/LedPlanckLabFrame.integration.test.tsx",
+        "frontend/src/components/workspace/__tests__/KineBotFrame.integration.test.tsx"
+      ],
+      "files_to_modify": [],
+      "passes": null,
+      "started": null,
+      "completed": null,
+      "notes": null
+    },
+    {
+      "id": "M6-SCAFFOLD-HARDENING",
+      "description": "Update _sim-template/ExampleSimFrame.tsx.template to use the helper with default drop set + empty narrow. Add naming-conventions + author-checklist sections to README.md.",
+      "scope": "frontend",
+      "estimated_loc": 70,
+      "actual_loc": null,
+      "dependencies": ["M1-USE-ARTEFACT-REPORT-EVENT-HELPER"],
+      "acceptance_criteria": [
+        "ExampleSimFrame.tsx.template uses useArtefactReportEvent",
+        "README.md has 'After scaffolding' + 'Naming conventions for proactive-reactive' sections",
+        "Scaffold smoke: aiplatform sim scaffold test-sim produces files that typecheck (then delete the scaffolded files)",
+        "Commit: docs(sim-template): proactive boilerplate + author checklist (M6 sprint SIM-ERGONOMICS)"
+      ],
+      "files_to_create": [],
+      "files_to_modify": [
+        "frontend/src/_sim-template/ExampleSimFrame.tsx.template",
+        "frontend/src/_sim-template/README.md"
+      ],
+      "passes": null,
+      "started": null,
+      "completed": null,
+      "notes": null
+    },
+    {
+      "id": "M7-SKILL-CROSSLINKS",
+      "description": "Update mcp-app-artefact SKILL.md to reference the helper, scaffold, and token vocab so the new-sim author guide is one document.",
+      "scope": "frontend",
+      "estimated_loc": 15,
+      "actual_loc": null,
+      "dependencies": ["M1-USE-ARTEFACT-REPORT-EVENT-HELPER", "M6-SCAFFOLD-HARDENING"],
+      "acceptance_criteria": [
+        ".claude/skills/mcp-app-artefact/SKILL.md references the helper, scaffold, and token vocab",
+        "Commit: docs(skill): mcp-app-artefact cross-links useArtefactReportEvent (M7 sprint SIM-ERGONOMICS)"
+      ],
+      "files_to_create": [],
+      "files_to_modify": [
+        ".claude/skills/mcp-app-artefact/SKILL.md"
+      ],
+      "passes": null,
+      "started": null,
+      "completed": null,
+      "notes": null
+    },
+    {
+      "id": "M8-QUALITY-GATES-PUSH",
+      "description": "Final quality gates + push origin/dev + move design doc + sprint markdown to implemented/ + flip JSON status to shipped.",
+      "scope": "frontend",
+      "estimated_loc": 0,
+      "actual_loc": null,
+      "dependencies": ["M2-REFACTOR-BOLDKAST", "M3-REFACTOR-LED-PLANCK", "M4-REFACTOR-KINEBOT", "M5-INTEGRATION-TESTS", "M6-SCAFFOLD-HARDENING", "M7-SKILL-CROSSLINKS"],
+      "acceptance_criteria": [
+        "npm run quality:check green (FULL, not :fast)",
+        "git diff origin/dev -- backend/ empty",
+        "git push origin dev succeeded",
+        "Design doc + sprint markdown moved to implemented/",
+        "SEQUENCE.md row updated to implemented/ paths",
+        "JSON state file status: shipped",
+        "Final commit: chore(sprint): finalize SIM-ERGONOMICS"
+      ],
+      "files_to_create": [],
+      "files_to_modify": [
+        "docs/design/aipla/v1.1.0-feedback/SEQUENCE.md",
+        ".claude/state/sprints/sprint_SIM-ERGONOMICS.json"
+      ],
+      "passes": null,
+      "started": null,
+      "completed": null,
+      "notes": null
+    }
+  ],
+  "velocity_estimate": {
+    "actual_velocity_loc_per_hour": 80,
+    "estimated_total_loc": 670,
+    "estimated_hours": 6,
+    "estimated_wall_clock_hours": 8,
+    "basis": "Estimated from PROACTIVE-SIM-REACTIVE sprint actual velocity. Frontend-only refactor + tests; no backend; no protocol changes."
+  },
+  "constraints": [
+    "No PRs — commit directly to dev",
+    "No emoji anywhere",
+    "Pre-push CI parity: npm run quality:check (full, not fast)",
+    "Self-runnable tests — pytest/vitest not just human verification",
+    "Backend uses uv run exclusively (no backend changes this sprint though)",
+    "Conventional commits + Co-Authored-By trailer",
+    "People referred to by initials (M, JB, AR) in commits"
+  ]
+}
