@@ -25,6 +25,7 @@ Brief priority is preserved; cross-cutting / blocking-dep ordering is noted in t
 | 1.1.8 | [exit-ticket.md](exit-ticket.md) | P1 | ~1d | **JB/AR providing the question set** | End-of-session modal with confidence emoji rating + free-text. Stored in Firestore session doc + BigQuery (`exit_ticket_rating`, `exit_ticket_text`, `exit_ticket_skipped`). Teacher session report shows the rating; researcher view aggregates |
 | 1.1.9 | [cost-dashboard.md](cost-dashboard.md) | P1 | ~1d | [chat-log-pipeline.md](../v1.0.0-pilot/implemented/chat-log-pipeline.md) (1.2 shipped — token counts already in BQ via OTel) | **Supersedes the originally-planned 1.12** `budget-dashboard.md`. Teacher class-detail "Budget" panel: this-month spend, per-activity / per-group breakdown, projected monthly. Researcher cross-class spend. Priority lifted by DK's Indian cohort scaling to ~100s of students |
 | 1.1.11 | [voice-provider-abstraction.md](voice-provider-abstraction.md) — sprint: [voice-provider-abstraction-sprint.md](voice-provider-abstraction-sprint.md) | P1 | ~3.5-4d (Phase A ~1.75d + Phase B ~1.5-2d) | [audio-capture-and-tts.md](../v1.0.0-pilot/audio-capture-and-tts.md) (Part 1 shipped); 1.1.9 cost-dashboard for span surfacing; 1.G teacher UI for per-class toggle; 1.1.2 proactive-sim-reactive (auto-read toggle picks up proactive turns automatically) | **New 2026-06-03** — voice quality flagged today (choppy macOS Danish "Sara") + dictation requested as "lesson ease" accessibility upgrade. Server-side `TTSProvider`/`STTProvider` Protocols in `backend/voice/`, Cloud TTS (Standard spike → WaveNet upgrade) for Danish read-aloud + Cloud STT `latest_long` for Danish dictation, browser-native stays as default provider. Per-class teacher opt-in for the mic button. **Auto-read toggle**: student-side preference to auto-speak every assistant message (incl. proactive turns from 1.1.2) vs current click-to-read default. Designed swap-shaped (cloud → server-local → self-hosted Whisper on UCPH GPU per ADR-003 four-tier model). Defers Gemini Live / LiveRunner to a future conversational-tutor doc. **Phase A (TTS) ships independently** — fixes today's Sara issue without waiting for Phase B |
+| 1.1.12 | [voice-personas.md](voice-personas.md) | P2 | ~3d | [voice-provider-abstraction.md](voice-provider-abstraction.md) (1.1.11 shipped 2026-06-04); 1.G teacher class-detail page for picker placement; optional 1.1.9 cost-dashboard for per-persona spend split; optional 1.1.5 researcher-role for `?debug=voice` without query param | **New 2026-06-04** — UX polish over 1.1.11. Teacher review found the technical voice picker ("gcp_chirp3hd / da-DK-Chirp3-HD-Aoede") opaque to non-engineers. New `Persona` model bundles avatar + name + title + language + voice; teachers pick a persona card instead of tier+voice dropdowns. Chat bubble shows persona avatar + name; new friendly status pill replaces the technical debug pill (technical mode behind `?debug=voice`). 4-6 default personas (Aoede/Charon/Kore/Puck/Frida/Daniel) ship as YAML in `backend/personas/`. Existing 1.1.11 raw voice config stays as "Custom voice (advanced)" expander. Net +7 axiom score; +1 USABLE BY DESIGN explicit win |
 
 ## What's gated on human input
 
@@ -57,6 +58,7 @@ Larger / more cross-cutting:
   1.1.7  multimodal upload         (2d)   ◄── ADR-008 ready; JB image-retention confirm
   1.1.9  cost dashboard            (1d)   ◄── 1.2 BQ tables shipped; uses existing OTel
   1.1.11 voice provider abstraction (3.5-4d) ◄── 1.0 TTS shipped; 1.1.2 proactive (auto-read picks up); 1.1.9 spans; 1.G toggle
+  1.1.12 voice personas             (3d)   ◄── 1.1.11 shipped; 1.G picker placement; optional 1.1.9 + 1.1.5
 ```
 
 ## Items the brief explicitly excluded (future)
@@ -80,7 +82,8 @@ From the brief's "Not in this brief" section — captured here so they don't get
 | Quick wins (1.1.1, 1.1.6) | ~0.5d |
 | Standard (1.1.2, 1.1.3, 1.1.4, 1.1.5, 1.1.8, 1.1.9, 1.1.10) | ~6.5-7d |
 | Larger (1.1.7, 1.1.11) | ~5.5-6d |
-| **Total** | **~12.5-13.5d** |
+| Polish (1.1.12) | ~3d |
+| **Total** | **~15.5-16.5d** |
 
 Comfortably fits in the post-3-June → pilot-start window (2026-06-04 → 2026-08-14, ~10 weeks minus the 2026-06-29 → 07-05 holiday freeze). Several items can be live in time to be exercised *by* the pilot, not absorbed *after* the pilot.
 
