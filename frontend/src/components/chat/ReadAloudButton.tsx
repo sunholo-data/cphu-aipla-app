@@ -202,9 +202,32 @@ export function ReadAloudButton({
   // should NOT re-speak the current message in the new language —
   // only the NEXT message uses the new lang. The LangToggle dispatches
   // a voice.cancel event to stop any in-flight playback when switched.
+  //
+  // 2026-06-04 hardening (`hasAutoReadRef`):
+  // Each ReadAloudButton instance auto-reads at most ONCE per mount.
+  // Re-renders triggered by setting changes (LangToggle, AutoReadToggle,
+  // useVoiceConfig refetch on tab focus) used to re-fire the effect on
+  // OLDER message bubbles whose text had already been read — the
+  // student would hear the previous assistant turn replayed after
+  // changing a setting, then get cut off when the new assistant turn
+  // arrived. The ref tracks "did we already attempt auto-read for this
+  // mount" and short-circuits all subsequent attempts.
+  //
+  // Debounce: streaming messages incrementally update `text` (token by
+  // token). Without a delay, the FIRST token kicks off auto-read with
+  // a partial sentence; the rest of the stream never gets spoken. The
+  // 600ms debounce waits for streaming to settle before reading the
+  // final text exactly once.
+  const hasAutoReadRef = useRef(false);
   useEffect(() => {
     if (!autoSpeakOnMount || !available || isSpeaking) return;
-    handleClick();
+    if (hasAutoReadRef.current) return;
+    const timer = setTimeout(() => {
+      if (hasAutoReadRef.current) return; // double-check inside the timer
+      hasAutoReadRef.current = true;
+      handleClick();
+    }, 600);
+    return () => clearTimeout(timer);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [autoSpeakOnMount, text]);
 
