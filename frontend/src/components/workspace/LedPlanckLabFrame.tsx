@@ -1,7 +1,8 @@
 "use client";
 
-import { forwardRef, useCallback, useImperativeHandle, useRef } from "react";
+import { forwardRef, useImperativeHandle, useRef } from "react";
 
+import { useArtefactReportEvent } from "@/hooks/useArtefactReportEvent";
 import type {
   LedPlanckEvent,
   LedPlanckReading,
@@ -17,31 +18,15 @@ export interface LedPlanckLabFrameHandle {
   sendChatFlush: () => void;
 }
 
-interface LedPlanckStructuredContent {
-  kind: string;
-  step?: number;
-  stepName?: string;
-  component?: string;
-  correct?: boolean;
-  changed?: string[];
-  state?: { voltage?: number };
-  triggeredBy?: string;
-  led?: string;
-  I?: number;
-  U?: number;
-  Vs?: number;
-  points?: LedPlanckReading[];
-  u0?: number;
-  lambda?: number;
-}
-
 interface LedPlanckLabFrameProps {
   sandboxOrigin: string;
   onClose: () => void;
-  /** Bench events (step-change, component-placed, polarity-error,
-   *  state-change, reading, auto-run, fit, spectrum, calibrated) route
-   *  here into the shared snapshot hook. The measurement event comes
-   *  from the React Results surface, not the iframe. */
+  /** Reports bench events (step-change, component-placed, polarity-error,
+   *  state-change, reading, auto-run, fit, spectrum, calibrated) into the
+   *  shared snapshot hook. Routing is denylist-shaped via
+   *  useArtefactReportEvent. Today's LED Planck artefact emits no
+   *  pause / reset noise kinds; the drop set is empty for now. New
+   *  artefact kinds flow through the default-through path as `{kind}`. */
   reportEvent: (evt: LedPlanckEvent) => void;
 }
 
@@ -60,91 +45,80 @@ export const LedPlanckLabFrame = forwardRef<
 >(function LedPlanckLabFrame({ sandboxOrigin, onClose, reportEvent }, ref) {
   const staticFrameRef = useRef<StaticArtefactFrameHandle | null>(null);
   const wrapperRef = useRef<HTMLDivElement | null>(null);
-  const reportEventRef = useRef(reportEvent);
-  reportEventRef.current = reportEvent;
 
-  const handleStructuredContent = useCallback(
-    (structuredContent: Record<string, unknown>) => {
-      const data = structuredContent as unknown as LedPlanckStructuredContent;
-      const kind = data.kind;
-      const report = reportEventRef.current;
-
-      switch (kind) {
-        case "led-planck.step-change":
-          if (typeof data.step === "number" && typeof data.stepName === "string") {
-            report({
+  const handleStructuredContent = useArtefactReportEvent<LedPlanckEvent>({
+    report: reportEvent,
+    // Today's artefact (index.html in led-planck/v1) emits no
+    // pause / reset noise kinds — every emitted kind is a progress
+    // signal or a typed lab-data event. led-polarity-error IS routed
+    // (snapshot hook tracks it for the error pill display) — only
+    // the proactive-event-check mapper treats it as null.
+    drop: new Set([
+      // measurement is dispatched from the React Results surface
+      // (workbench), not the iframe. If the iframe ever emits it,
+      // it's a duplicate / desync — drop it on the iframe side.
+      "led-planck.measurement",
+    ]),
+    narrow: {
+      "led-planck.step-change": (d) =>
+        typeof d.step === "number" && typeof d.stepName === "string"
+          ? {
               kind: "led-planck.step-change",
-              step: data.step,
-              stepName: data.stepName,
-            });
-          }
-          break;
-        case "led-planck.component-placed":
-          if (typeof data.component === "string") {
-            report({
+              step: d.step,
+              stepName: d.stepName,
+            }
+          : null,
+      "led-planck.component-placed": (d) =>
+        typeof d.component === "string"
+          ? {
               kind: "led-planck.component-placed",
-              component: data.component,
-              correct: data.correct === true,
-            });
-          }
-          break;
-        case "led-planck.led-polarity-error":
-          report({ kind: "led-planck.led-polarity-error" });
-          break;
-        case "led-planck.state-change":
-          report({
-            kind: "led-planck.state-change",
-            changed: data.changed,
-            state: data.state,
-            triggeredBy: data.triggeredBy,
-          });
-          break;
-        case "led-planck.reading":
-          if (
-            typeof data.led === "string" &&
-            typeof data.I === "number" &&
-            typeof data.U === "number" &&
-            typeof data.Vs === "number"
-          ) {
-            report({
+              component: d.component,
+              correct: d.correct === true,
+            }
+          : null,
+      "led-planck.state-change": (d) => ({
+        kind: "led-planck.state-change",
+        changed: d.changed as string[] | undefined,
+        state: d.state as { voltage?: number } | undefined,
+        triggeredBy: d.triggeredBy as string | undefined,
+      }),
+      "led-planck.reading": (d) =>
+        typeof d.led === "string" &&
+        typeof d.I === "number" &&
+        typeof d.U === "number" &&
+        typeof d.Vs === "number"
+          ? {
               kind: "led-planck.reading",
-              led: data.led,
-              I: data.I,
-              U: data.U,
-              Vs: data.Vs,
-            });
-          }
-          break;
-        case "led-planck.auto-run":
-          if (typeof data.led === "string" && Array.isArray(data.points)) {
-            report({
+              led: d.led,
+              I: d.I,
+              U: d.U,
+              Vs: d.Vs,
+            }
+          : null,
+      "led-planck.auto-run": (d) =>
+        typeof d.led === "string" && Array.isArray(d.points)
+          ? {
               kind: "led-planck.auto-run",
-              led: data.led,
-              points: data.points,
-            });
-          }
-          break;
-        case "led-planck.fit":
-          if (typeof data.led === "string" && typeof data.u0 === "number") {
-            report({ kind: "led-planck.fit", led: data.led, u0: data.u0 });
-          }
-          break;
-        case "led-planck.spectrum":
-          if (typeof data.led === "string" && typeof data.lambda === "number") {
-            report({
+              led: d.led,
+              points: d.points as LedPlanckReading[],
+            }
+          : null,
+      "led-planck.fit": (d) =>
+        typeof d.led === "string" && typeof d.u0 === "number"
+          ? { kind: "led-planck.fit", led: d.led, u0: d.u0 }
+          : null,
+      "led-planck.spectrum": (d) =>
+        typeof d.led === "string" && typeof d.lambda === "number"
+          ? {
               kind: "led-planck.spectrum",
-              led: data.led,
-              lambda: data.lambda,
-            });
-          }
-          break;
-        case "led-planck.calibrated":
-          report({ kind: "led-planck.calibrated" });
-          break;
-      }
+              led: d.led,
+              lambda: d.lambda,
+            }
+          : null,
     },
-    [],
-  );
+    // led-planck.led-polarity-error and led-planck.calibrated flow
+    // through as {kind} via the default-through path (no payload).
+  });
 
   useImperativeHandle(
     ref,
