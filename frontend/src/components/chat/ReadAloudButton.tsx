@@ -66,46 +66,153 @@ function isSpeechSynthesisAvailable(): boolean {
   );
 }
 
+/** Physics-unit and math-symbol substitutions per language.
+ *
+ *  Cloud TTS reads "9,82 m/s²" as "nine comma eight two m slash s
+ *  squared" by default — every symbol gets spelled out. For a physics
+ *  tutor that's both broken (loses meaning) and demo-killing
+ *  (sounds robotic). We pre-translate the common units + math
+ *  decorations into spelled-out words BEFORE handing the text to TTS.
+ *
+ *  Order matters: longer patterns first so "m/s²" matches before
+ *  "m/s" and "²" individually.
+ */
+type UnitRule = [RegExp, string];
+
+const COMMON_NUMBER_RULES: UnitRule[] = [
+  // Treat decimal comma in numbers as a decimal point so TTS doesn't
+  // say "comma" between digits. Works for both DA and EN listeners
+  // (engine reads "9.82" as nine point eight two in both).
+  [/(\d),(\d)/g, "$1.$2"],
+];
+
+const UNIT_RULES_EN: UnitRule[] = [
+  // Speed + acceleration (longer matches first)
+  [/(\d[\d.]*)\s*m\/s²/g, "$1 meters per second squared"],
+  [/(\d[\d.]*)\s*m\/s\^2/g, "$1 meters per second squared"],
+  [/(\d[\d.]*)\s*km\/h/g, "$1 kilometers per hour"],
+  [/(\d[\d.]*)\s*m\/s/g, "$1 meters per second"],
+  // Force + energy + power
+  [/(\d[\d.]*)\s*kN/g, "$1 kilonewtons"],
+  [/(\d[\d.]*)\s*N(?![a-z])/g, "$1 newtons"],
+  [/(\d[\d.]*)\s*kJ/g, "$1 kilojoules"],
+  [/(\d[\d.]*)\s*J(?![a-z])/g, "$1 joules"],
+  [/(\d[\d.]*)\s*kW/g, "$1 kilowatts"],
+  [/(\d[\d.]*)\s*W(?![a-z])/g, "$1 watts"],
+  // Mass + distance + time
+  [/(\d[\d.]*)\s*kg(?![a-z])/g, "$1 kilograms"],
+  [/(\d[\d.]*)\s*g(?![a-z])/g, "$1 grams"],
+  [/(\d[\d.]*)\s*km(?![a-z])/g, "$1 kilometers"],
+  [/(\d[\d.]*)\s*cm(?![a-z])/g, "$1 centimeters"],
+  [/(\d[\d.]*)\s*mm(?![a-z])/g, "$1 millimeters"],
+  [/(\d[\d.]*)\s*m(?![a-z\/])/g, "$1 meters"],
+  [/(\d[\d.]*)\s*min(?![a-z])/g, "$1 minutes"],
+  [/(\d[\d.]*)\s*s(?![a-z])/g, "$1 seconds"],
+  // Temperature
+  [/(\d[\d.]*)\s*°C/g, "$1 degrees Celsius"],
+  [/(\d[\d.]*)\s*°/g, "$1 degrees"],
+  // Standalone math decorators
+  [/²/g, " squared"],
+  [/³/g, " cubed"],
+  [/±/g, " plus or minus "],
+  [/≈/g, " approximately "],
+  [/≠/g, " not equal to "],
+  [/≤/g, " less than or equal to "],
+  [/≥/g, " greater than or equal to "],
+  [/×/g, " times "],
+  [/÷/g, " divided by "],
+];
+
+const UNIT_RULES_DA: UnitRule[] = [
+  [/(\d[\d.]*)\s*m\/s²/g, "$1 meter per sekund i anden"],
+  [/(\d[\d.]*)\s*m\/s\^2/g, "$1 meter per sekund i anden"],
+  [/(\d[\d.]*)\s*km\/h/g, "$1 kilometer i timen"],
+  [/(\d[\d.]*)\s*m\/s/g, "$1 meter per sekund"],
+  [/(\d[\d.]*)\s*kN/g, "$1 kilonewton"],
+  [/(\d[\d.]*)\s*N(?![a-zæøå])/g, "$1 newton"],
+  [/(\d[\d.]*)\s*kJ/g, "$1 kilojoule"],
+  [/(\d[\d.]*)\s*J(?![a-zæøå])/g, "$1 joule"],
+  [/(\d[\d.]*)\s*kW/g, "$1 kilowatt"],
+  [/(\d[\d.]*)\s*W(?![a-zæøå])/g, "$1 watt"],
+  [/(\d[\d.]*)\s*kg(?![a-zæøå])/g, "$1 kilogram"],
+  [/(\d[\d.]*)\s*g(?![a-zæøå])/g, "$1 gram"],
+  [/(\d[\d.]*)\s*km(?![a-zæøå])/g, "$1 kilometer"],
+  [/(\d[\d.]*)\s*cm(?![a-zæøå])/g, "$1 centimeter"],
+  [/(\d[\d.]*)\s*mm(?![a-zæøå])/g, "$1 millimeter"],
+  [/(\d[\d.]*)\s*m(?![a-zæøå\/])/g, "$1 meter"],
+  [/(\d[\d.]*)\s*min(?![a-zæøå])/g, "$1 minutter"],
+  [/(\d[\d.]*)\s*s(?![a-zæøå])/g, "$1 sekunder"],
+  [/(\d[\d.]*)\s*°C/g, "$1 grader celsius"],
+  [/(\d[\d.]*)\s*°/g, "$1 grader"],
+  [/²/g, " i anden"],
+  [/³/g, " i tredje"],
+  [/±/g, " plus minus "],
+  [/≈/g, " cirka "],
+  [/≠/g, " forskellig fra "],
+  [/≤/g, " mindre end eller lig "],
+  [/≥/g, " større end eller lig "],
+  [/×/g, " gange "],
+  [/÷/g, " divideret med "],
+];
+
+function applyUnitRules(text: string, lang: string): string {
+  // Decimal-comma normalisation runs regardless of lang.
+  let out = text;
+  for (const [re, sub] of COMMON_NUMBER_RULES) {
+    out = out.replace(re, sub);
+  }
+  const rules = lang.startsWith("da") ? UNIT_RULES_DA : UNIT_RULES_EN;
+  for (const [re, sub] of rules) {
+    out = out.replace(re, sub);
+  }
+  return out;
+}
+
 /** Strip markdown / LaTeX / emoji so the TTS engine doesn't read raw
  *  syntax aloud ("**bold**" → "star star bold star star", $$ x = 5 $$
  *  → "dollar dollar x equals five dollar dollar", "👇" → "down finger").
  *
+ *  Also substitutes common physics units + math symbols (m/s², 9,82,
+ *  ²/³, ±, etc.) into spelled-out language-appropriate text so Cloud
+ *  TTS produces natural-sounding physics narration instead of letter-
+ *  by-letter spelling.
+ *
  *  Aggressive enough to fix the demo bugs the teacher saw; conservative
- *  enough to keep math VALUES readable (we strip the delimiters, but
- *  the equation text inside survives so "v = 15 m/s" still gets spoken).
+ *  enough to keep math VALUES readable.
  */
-function plainTextForSpeech(text: string): string {
-  return (
-    text
-      // 1. Block LaTeX: $$...$$ and \[ ... \]
-      .replace(/\$\$[\s\S]*?\$\$/g, " ")
-      .replace(/\\\[[\s\S]*?\\\]/g, " ")
-      // 2. Inline LaTeX: $...$ (greedy enough but not multi-line — collapse)
-      .replace(/\$([^$\n]+)\$/g, " $1 ")
-      // 3. Code fences (```lang\n...\n```)
-      .replace(/```[\s\S]*?```/g, " ")
-      // 4. Inline markdown decoration
-      .replace(/\*\*([^*]+)\*\*/g, "$1") // **bold**
-      .replace(/__([^_]+)__/g, "$1") // __bold__
-      .replace(/\*([^*]+)\*/g, "$1") // *italic*
-      .replace(/_([^_]+)_/g, "$1") // _italic_
-      .replace(/`([^`]+)`/g, "$1") // `code`
-      .replace(/\[([^\]]+)\]\([^)]+\)/g, "$1") // [link](url)
-      // 5. Headings + list bullets at start of line
-      .replace(/^#+\s+/gm, "")
-      .replace(/^\s*[-*+]\s+/gm, "")
-      .replace(/^\s*\d+\.\s+/gm, "")
-      // 6. Block-quote markers + horizontal rules
-      .replace(/^>\s?/gm, "")
-      .replace(/^-{3,}|_{3,}|\*{3,}$/gm, "")
-      // 7. Emoji + dingbats + arrows. Cloud TTS reads "👇" as "down
-      //    pointing backhand index". Stripping the common pictographic
-      //    BMP-supplementary planes catches almost all of them.
-      .replace(/[\u{1F300}-\u{1FAFF}\u{2600}-\u{27BF}\u{2190}-\u{21FF}\u{2300}-\u{23FF}]/gu, " ")
-      // 8. Collapse whitespace
-      .replace(/\s+/g, " ")
-      .trim()
-  );
+function plainTextForSpeech(text: string, lang: string = "en"): string {
+  const stripped = text
+    // 1. Block LaTeX: $$...$$ and \[ ... \]
+    .replace(/\$\$[\s\S]*?\$\$/g, " ")
+    .replace(/\\\[[\s\S]*?\\\]/g, " ")
+    // 2. Inline LaTeX: $...$ (greedy enough but not multi-line — collapse)
+    .replace(/\$([^$\n]+)\$/g, " $1 ")
+    // 3. Code fences (```lang\n...\n```)
+    .replace(/```[\s\S]*?```/g, " ")
+    // 4. Inline markdown decoration
+    .replace(/\*\*([^*]+)\*\*/g, "$1") // **bold**
+    .replace(/__([^_]+)__/g, "$1") // __bold__
+    .replace(/\*([^*]+)\*/g, "$1") // *italic*
+    .replace(/_([^_]+)_/g, "$1") // _italic_
+    .replace(/`([^`]+)`/g, "$1") // `code`
+    .replace(/\[([^\]]+)\]\([^)]+\)/g, "$1") // [link](url)
+    // 5. Headings + list bullets at start of line
+    .replace(/^#+\s+/gm, "")
+    .replace(/^\s*[-*+]\s+/gm, "")
+    .replace(/^\s*\d+\.\s+/gm, "")
+    // 6. Block-quote markers + horizontal rules
+    .replace(/^>\s?/gm, "")
+    .replace(/^-{3,}|_{3,}|\*{3,}$/gm, "")
+    // 7. Emoji + dingbats + arrows. Cloud TTS reads "👇" as "down
+    //    pointing backhand index". Stripping the common pictographic
+    //    BMP-supplementary planes catches almost all of them.
+    .replace(/[\u{1F300}-\u{1FAFF}\u{2600}-\u{27BF}\u{2190}-\u{21FF}\u{2300}-\u{23FF}]/gu, " ");
+
+  // 8. Unit + math symbol substitutions (language-aware).
+  const spoken = applyUnitRules(stripped, lang);
+
+  // 9. Collapse whitespace.
+  return spoken.replace(/\s+/g, " ").trim();
 }
 
 /** Detect the text's language from content so we don't read Danish
@@ -254,7 +361,7 @@ export function ReadAloudButton({
   }
 
   async function speakViaGCP(): Promise<void> {
-    const cleanText = plainTextForSpeech(text);
+    const cleanText = plainTextForSpeech(text, lang);
     // Auto-detect language from the actual text — if the tutor responded
     // in Danish but the caller passed lang="en" (because the class is
     // English-default), reading Danish prose with English phonemes
@@ -346,7 +453,7 @@ export function ReadAloudButton({
       void speakViaGCP();
       return;
     }
-    const cleanText = plainTextForSpeech(text);
+    const cleanText = plainTextForSpeech(text, lang);
     const detectedLang = detectLangForSpeech(cleanText, lang);
     const utt = new SpeechSynthesisUtterance(cleanText);
     utt.lang = detectedLang;

@@ -110,7 +110,9 @@ describe("ReadAloudButton", () => {
   it("strips LaTeX delimiters but keeps the equation text", () => {
     render(<ReadAloudButton text="The answer is $v = 15$ m/s here" lang="en" />);
     fireEvent.click(screen.getByRole("button"));
-    expect(lastUtt?.text).toBe("The answer is v = 15 m/s here");
+    // "m/s" becomes "meters per second" via the unit substitution pass
+    // that runs after LaTeX stripping.
+    expect(lastUtt?.text).toBe("The answer is v = 15 meters per second here");
   });
 
   it("strips block LaTeX entirely (too hard to speak coherently)", () => {
@@ -152,6 +154,44 @@ describe("ReadAloudButton", () => {
     render(<ReadAloudButton text="What is the next exercise?" lang="en" />);
     fireEvent.click(screen.getByRole("button"));
     expect(lastUtt?.lang).toBe("en");
+  });
+
+  it("substitutes physics units (English): m/s² becomes 'meters per second squared'", () => {
+    render(<ReadAloudButton text="The answer is 9.82 m/s² gravity" lang="en" />);
+    fireEvent.click(screen.getByRole("button"));
+    expect(lastUtt?.text).toContain("9.82 meters per second squared");
+    expect(lastUtt?.text).not.toContain("m/s²");
+  });
+
+  it("substitutes physics units (Danish): m/s² becomes 'meter per sekund i anden'", () => {
+    render(<ReadAloudButton text="Tyngdekraften er 9,82 m/s² på Jorden" lang="da" />);
+    fireEvent.click(screen.getByRole("button"));
+    expect(lastUtt?.text).toContain("9.82 meter per sekund i anden");
+    expect(lastUtt?.text).not.toContain("m/s²");
+  });
+
+  it("normalizes decimal commas to periods so TTS doesn't say 'comma'", () => {
+    render(<ReadAloudButton text="Værdien er 3,14159 cirka" lang="da" />);
+    fireEvent.click(screen.getByRole("button"));
+    expect(lastUtt?.text).toContain("3.14159");
+    expect(lastUtt?.text).not.toMatch(/3,14/);
+  });
+
+  it("substitutes ² and ³ as 'squared' and 'cubed' (English)", () => {
+    render(<ReadAloudButton text="Volume is x³ where x² is the side" lang="en" />);
+    fireEvent.click(screen.getByRole("button"));
+    expect(lastUtt?.text).toContain("cubed");
+    expect(lastUtt?.text).toContain("squared");
+    expect(lastUtt?.text).not.toMatch(/[²³]/);
+  });
+
+  it("substitutes math operators (±, ≈, ×) into spoken English", () => {
+    render(<ReadAloudButton text="x = 5 ± 0.1, y ≈ 3 × π" lang="en" />);
+    fireEvent.click(screen.getByRole("button"));
+    expect(lastUtt?.text).toContain("plus or minus");
+    expect(lastUtt?.text).toContain("approximately");
+    expect(lastUtt?.text).toContain("times");
+    expect(lastUtt?.text).not.toMatch(/[±≈×]/);
   });
 
   // --- 1.1.11 Cloud TTS path (provider != "browser") ---
