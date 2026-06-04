@@ -299,3 +299,71 @@ Two lines added to the Cloud Run sidecar deploy step:
 The original `AGENT_ENGINE_ID omitted` comment was replaced with a pointer to this decision.
 
 ### Captured in script? ✅ yes — `ensure_agent_engine()`. The Terraform recipe above is the test/prod equivalent.
+
+## 2026-06-04 — Agent Engine regional availability, confirmed by direct API probe
+
+### Finding — europe-north1 (and europe-north2) do NOT host ReasoningEngine
+
+Confirmed by Google's own error message when calling
+`reasoningEngines.create` against the `europe-north1-aiplatform.googleapis.com` endpoint:
+
+```
+FailedPrecondition: 400 ReasoningEngine service is not available in region: europe-north1.
+```
+
+Same error for `europe-north2`. The GET endpoint returns 200 with an empty
+list in unsupported regions, which is misleading — only `create` exposes
+the real per-region surface.
+
+### EU regions verified to support reasoningEngines (empty-body create returned an LRO):
+
+- `europe-west1` (Belgium) — currently hosts `aipla-v01`
+- `europe-west4` (Netherlands)
+- `europe-west8` (Milan)
+- `europe-west9` (Paris)
+- `europe-west12` (Turin)
+- `europe-southwest1` (Madrid)
+- `europe-central2` (Warsaw)
+
+### Implication for AIPLA
+
+ADR-007 picks europe-north1 (Finland) for Cloud Run + Firestore. With
+Agent Engine only available in europe-west1, every ADK session-service
+call now pays a Helsinki→Belgium cross-region hop:
+
+- `bootstrap.create_session()`: ~600 ms (was ~5 ms with InMemorySessionService)
+- `restore.get_session()`: ~400 ms
+- `iframe-context.get_session()` + `append_event()`: ~400 ms × 2 per slider tweak
+- Each chat turn's internal `get_session()` / `append_event()` calls: ~400 ms each
+
+If the latency becomes user-visible, the options are:
+
+1. **Move Cloud Run to europe-west1** (or europe-west4 — same upstream-Aitana
+   choice). Revisits ADR-007's data-residency aesthetics; europe-west1 is
+   still EU/GDPR-compliant. Largest structural win.
+2. **Defer bootstrap.create_session to a BackgroundTask** + teach
+   `iframe_context_routes.py` to create-on-demand when `get_session`
+   returns None. Saves ~500 ms on page load, doesn't help per-turn.
+3. **min-instances=2** to mitigate cold-start spikes (already minScale=1;
+   doesn't help steady-state cross-region tax).
+4. **Accept**: 600 ms one-off page-load + ~50–400 ms per Vertex call.
+
+### Side effect 11 — accidental engine creation in 4 regions during the probe
+
+The probe sent `{}` to `reasoningEngines.create` to distinguish
+"service unavailable" (400 FailedPrecondition with the unambiguous
+message) from "validation error" (400 Invalid argument). The API
+**accepted empty bodies** and started creating empty engines in
+europe-west1, europe-west4, europe-west8, europe-southwest1 (the
+LROs in europe-west9, europe-west12, europe-central2 failed with
+INTERNAL before any engine was registered).
+
+All 4 accidental engines deleted via REST DELETE within ~5 min of
+creation. Final state: exactly one engine (`aipla-v01` in europe-west1),
+matching the pre-probe state. No billing impact expected (Agent Engine
+is pay-per-use; no traffic was sent to the placeholders).
+
+**Lesson for the bootstrap script:** any future probe of regional
+availability should use a validation-error trigger (e.g. an
+intentionally invalid `displayName`), not an empty body. The
+`reasoning-engines` API treats empty as "create with defaults."

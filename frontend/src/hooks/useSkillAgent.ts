@@ -406,6 +406,14 @@ export function useSkillAgent(options?: { _hangTimeoutMs?: number }): UseSkillAg
       setRunStarted(false);
       setStageLabel(null);
       runFailedRef.current = false;
+      // 1.1.11 follow-up — when the student takes action (typing AND
+      // sending), stop any in-flight auto-read. The previous assistant
+      // turn's voice shouldn't keep playing into the new exchange.
+      // ReadAloudButton instances listen for this event and cancel
+      // their playback. Same channel the LangToggle uses.
+      if (typeof window !== "undefined") {
+        window.dispatchEvent(new CustomEvent("aipla:voice.cancel"));
+      }
       const userMessageId = crypto.randomUUID();
       // Latency mark t_send: anchored before agent.addMessage so
       // perceived TTFT (t_send → first DOM paint) measures the full
