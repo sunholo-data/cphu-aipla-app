@@ -94,7 +94,18 @@ class GCPTTSProvider:
     ) -> tuple[bytes, str]:
         if not text:
             raise ValueError("synthesize: text must not be empty")
-        lang_full = self._normalize_lang(lang)
+        # When the caller passes an explicit voice, the voice's BCP-47
+        # prefix (e.g. "da-DK" from "da-DK-Chirp3-HD-Charon") IS the
+        # authoritative language code. Cloud TTS 400s on a lang/voice
+        # mismatch ("Requested language code 'en-US' doesn't match the
+        # voice 'da-DK-...'"), so prefer voice-derived lang over the
+        # caller's lang when they differ. The caller-lang still wins
+        # when no voice is supplied (we'll pick a default voice for it).
+        if voice:
+            derived = self._derive_lang_from_voice(voice)
+            lang_full = derived or self._normalize_lang(lang)
+        else:
+            lang_full = self._normalize_lang(lang)
         voice_name = voice or self._default_voice(lang_full)
         # 1.0 is natural pace for Cloud TTS WaveNet/Neural2/Chirp3HD.
         # The earlier 0.85 default was carried over from browser Web
@@ -149,6 +160,26 @@ class GCPTTSProvider:
     def _normalize_lang(self, lang: str) -> str:
         """Map short BCP-47 to the full form Cloud TTS expects."""
         return _LANG_DEFAULTS.get(lang, lang)
+
+    def _derive_lang_from_voice(self, voice_name: str) -> str | None:
+        """Extract the BCP-47 lang code from a Cloud TTS voice name.
+
+        Cloud TTS voice names follow `<lang>-<REGION>-...` convention:
+            da-DK-Chirp3-HD-Charon -> da-DK
+            en-US-Wavenet-A        -> en-US
+            da-DK-Standard-A       -> da-DK
+
+        Returns the two-part prefix on success, or None if the voice
+        name doesn't follow the convention (caller falls back to
+        normalising the supplied `lang` arg).
+        """
+        parts = voice_name.split("-")
+        if len(parts) < 2:
+            return None
+        # First part is always a 2-letter lang, second is 2-letter region.
+        if len(parts[0]) != 2 or len(parts[1]) != 2:
+            return None
+        return f"{parts[0]}-{parts[1]}"
 
     def _default_voice(self, lang_full: str) -> str:
         """Pick a sensible default voice for (tier, lang_full)."""

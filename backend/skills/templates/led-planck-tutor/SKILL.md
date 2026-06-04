@@ -5,6 +5,7 @@ avatar: /lesson-images/led-planck-tutor.svg
 voice:
   ttsProvider: gcp_chirp3hd
   ttsVoice: da-DK-Chirp3-HD-Aoede
+  language: da
   rate: 1.0
 description: >
   Dansk stx fysik-A virtuelt laboratorium — bestem Plancks konstant ved at måle

@@ -5,6 +5,7 @@ avatar: /lesson-images/kinebot-kinematics-tutor.svg
 voice:
   ttsProvider: gcp_chirp3hd
   ttsVoice: en-US-Chirp3-HD-Charon
+  language: en
   rate: 1.0
 description: >
   English-language Socratic kinematics tutor for NCERT/CBSE Class 11

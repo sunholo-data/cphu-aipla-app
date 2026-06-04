@@ -176,6 +176,13 @@ async def get_config(
         sv = getattr(skill, "voice", None)
         if sv is not None:
             resolved_voice = getattr(sv, "tts_voice", None)
+    # Skill-declared language wins when class hasn't set one. This is
+    # what locks the LangToggle on the frontend for skills like KineBot
+    # (en-only) and Boldkast (da-only).
+    if resolved_lang is None and skill is not None:
+        sv = getattr(skill, "voice", None)
+        if sv is not None:
+            resolved_lang = getattr(sv, "language", None)
 
     # Build a synthetic skill-like object to pass to get_tts so the
     # registry resolves the class's chosen provider when one is set,

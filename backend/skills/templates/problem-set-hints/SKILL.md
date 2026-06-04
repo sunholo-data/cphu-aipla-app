@@ -5,6 +5,7 @@ avatar: /lesson-images/problem-set-hints.svg
 voice:
   ttsProvider: gcp_chirp3hd
   ttsVoice: da-DK-Chirp3-HD-Aoede
+  language: da
   rate: 1.0
 description: >
   Danish stx physics tutor for ONE specific problem — projectile motion

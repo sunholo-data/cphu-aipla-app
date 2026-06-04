@@ -72,6 +72,14 @@ class SkillVoiceConfig(BaseModel):
     tts_provider: str | None = Field(default=None, alias="ttsProvider")
     tts_voice: str | None = Field(default=None, alias="ttsVoice")
     stt_provider: str | None = Field(default=None, alias="sttProvider")
+    # 1.1.11 follow-up — skill-declared response language. When set, the
+    # frontend LangToggle locks to this value (student can't override
+    # the skill's commitment to teaching in a specific language). Most
+    # physics skills set this because the tutor's system prompt is
+    # language-specific (NCERT in English, Danish stx in Danish). Leave
+    # unset for skills that respond in whatever language the student
+    # types in.
+    language: str | None = Field(default=None, max_length=16)
     # 1.0 = Cloud TTS WaveNet's natural pace. Browser Web Speech's
     # Sara voice runs faster and historically wanted 0.85, but that's
     # the browser-path's quirk, not a Cloud TTS one. Skills that want

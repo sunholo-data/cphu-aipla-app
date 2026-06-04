@@ -142,12 +142,16 @@ export const MessageBubble = React.memo(function MessageBubble({
   // "browser" default and only later messages got Cloud TTS.
   const { enabled: autoReadEnabled } = useAutoReadAloud();
   const autoSpeak = autoReadEnabled && !voiceConfig.loading;
-  // 1.1.11 — student's per-browser language preference overrides both
-  // the class default (voiceConfig.tts.language) and the skill's
-  // `ttsLang` prop. Accessibility: a student who needs English audio
-  // can pick it regardless of what the teacher set for the class.
+  // 1.1.11 follow-up — resolution order changed 2026-06-04:
+  //   skill/class committed lang > student preference > ttsLang prop
+  // When the skill (or class) has declared a language (e.g. KineBot
+  // says English, Boldkast says Danish), that wins over student
+  // preference because the tutor's *text* is in that language and
+  // synthesising it with the other language's phonemes sounds wrong.
+  // The LangToggle reflects this by rendering locked when the
+  // committed lang is set, so the student doesn't get confused.
   const { lang: studentLang } = useVoiceLang();
-  const effectiveLang = studentLang ?? voiceConfig.tts.language ?? ttsLang;
+  const effectiveLang = voiceConfig.tts.language ?? studentLang ?? ttsLang;
   const isBot = message.role === "assistant";
   const time = formatTime();
 

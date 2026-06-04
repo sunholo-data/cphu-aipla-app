@@ -132,9 +132,29 @@ async def test_synthesize_default_voice_raises_when_lang_unknown():
 
 @pytest.mark.asyncio
 async def test_synthesize_unknown_lang_works_with_explicit_voice():
-    """Caller can pass any voice name even if lang isn't in our defaults map."""
+    """Caller can pass any voice name; lang is derived from the voice name."""
     provider, client = _make_provider_with_mock_client()
     await provider.synthesize(text="Test", lang="zu", voice="zu-ZA-Custom-A", extras=None)
     voice_arg = client.synthesize_speech.call_args.kwargs["voice"]
     assert voice_arg.name == "zu-ZA-Custom-A"
-    assert voice_arg.language_code == "zu"  # unknown lang passes through
+    # Voice name's prefix ("zu-ZA") wins over the caller's short tag ("zu").
+    assert voice_arg.language_code == "zu-ZA"
+
+
+@pytest.mark.asyncio
+async def test_synthesize_voice_derived_lang_overrides_caller_lang():
+    """When voice is da-DK-..., Cloud TTS demands lang=da-DK. The
+    provider must reconcile a mismatched caller-lang (e.g. 'en') to
+    the voice's prefix. Cloud TTS 400s otherwise."""
+    provider, client = _make_provider_with_mock_client()
+    # Mismatched: lang says English, voice is a Danish voice.
+    await provider.synthesize(
+        text="Welcome, future physicist!",
+        lang="en",
+        voice="da-DK-Chirp3-HD-Charon",
+        extras=None,
+    )
+    voice_arg = client.synthesize_speech.call_args.kwargs["voice"]
+    assert voice_arg.name == "da-DK-Chirp3-HD-Charon"
+    # Lang derived from the voice prefix, not from the caller's "en".
+    assert voice_arg.language_code == "da-DK"
