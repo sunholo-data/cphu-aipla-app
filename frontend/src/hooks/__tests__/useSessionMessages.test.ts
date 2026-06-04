@@ -143,6 +143,40 @@ describe("useSessionMessages", () => {
     expect(result.current.sessionGone).toBe(false);
   });
 
+  it("CHAT-HISTORY-FLICKER: does NOT refetch when the hook re-renders without sessionId changing", async () => {
+    // Pairs with the AGUIProvider fix: even if the provider re-renders
+    // for unrelated reasons (parent state, token swap that's now
+    // non-disruptive), useSessionMessages must NOT refire its GET when
+    // sessionId is stable. Pre-fix this case was masked because the
+    // PROVIDER itself unmounted the subtree on every token refresh; the
+    // hook never got a chance to be the second line of defence. With
+    // the provider fix in place, this hook is now load-bearing on its
+    // own — pin the contract.
+    mockOk([
+      { role: "user", content: "stable session message", timestamp: 1 },
+    ]);
+
+    const { result, rerender } = renderHook(
+      ({ sid }: { sid: string }) => useSessionMessages(sid),
+      { initialProps: { sid: "stable-session" } },
+    );
+
+    await waitFor(() => expect(result.current.initialMessages).toHaveLength(1));
+    expect(mockFetch).toHaveBeenCalledTimes(1);
+
+    // Re-render with the SAME sessionId — simulates the parent provider
+    // re-rendering for unrelated reasons (e.g. token state updating).
+    rerender({ sid: "stable-session" });
+    rerender({ sid: "stable-session" });
+    rerender({ sid: "stable-session" });
+
+    // After three extra renders with stable sid, the fetch count must
+    // still be 1. If the lastSessionId.current guard ever regresses,
+    // this would fire 4 times and the test fails loudly.
+    expect(mockFetch).toHaveBeenCalledTimes(1);
+    expect(result.current.initialMessages).toHaveLength(1);
+  });
+
   it("D4 (chat-history-deep-fixes H4): refetches when sessionId changes from one id to another", async () => {
     // Bug C from chat-history-deep-fixes.md: clicking a thread in
     // DocumentHistoryPanel calls handleSelectSession → navigateToSession,

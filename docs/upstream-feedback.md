@@ -855,6 +855,31 @@ fallback for non-proxy contexts (debugging, dev pages).
 The above is ready to file as a GitHub issue / PR series against
 `sunholo-data/ai-protocol-platform` without further authoring.
 
+## 31. `AGUIProvider` unmounts its entire subtree on every Firebase ID-token refresh
+
+**Where:** [frontend/src/providers/AGUIProvider.tsx:78-130](../frontend/src/providers/AGUIProvider.tsx#L78-L130). The provider's `useEffect([authLoading, user, getIdToken, useTeacherAuth])` calls `setTokenResolved(false)` at the top of every run, awaits a new token, then `setTokenResolved(true)`. The render path's `if (!tokenResolved) return /* loading */;` gate means children are **unmounted** for the duration of the token fetch. The effect re-runs on every `user` reference change — which includes the silent hourly Firebase ID-token refresh **and** every `onAuthStateChanged` fire (tab focus, anonymous-group identity hydration, etc.).
+
+**What hurt:** Mid-conversation, students see chat bubbles **disappear then reappear** ~400 ms later. The unmount cascade kills:
+
+- `useSessionMessages`'s local state — its `initialMessages` resets to `[]`, the "Earlier in this conversation" history block renders empty, and the GET `/api/sessions/{id}/messages` refires unnecessarily.
+- `useSkillAgent`'s `messages` state — the HttpAgent rebuilds (correctly, for the new bearer header), the F1 guard sees `agentChanged=true` and allows a legitimate reset, and the live area goes blank.
+
+When the new GET returns, history bubbles reappear; when the user types again, the live area refills. Nothing is lost, but the flicker is jarring and looks like a crash.
+
+**Why upstream doesn't see it:** Upstream Aitana co-locates Cloud Run + Vertex Agent Engine in `europe-west1`, so the `session_service.get_session()` call inside `/messages` returns in ~5–50 ms — below human perception. The unmount/remount happens but you can't see it. AIPLA hosts Cloud Run in `europe-north1` (Helsinki) and Agent Engine in `europe-west1` (Belgium) — same call is ~400 ms — and the gap becomes a visible flicker.
+
+The anti-pattern is wrong even when it's invisible:
+
+- A blank subtree mid-conversation is the wrong default behaviour, not just a slow one.
+- Any fork that pins Cloud Run elsewhere than `europe-west1` inherits the visible bug with no warning. AIPLA's data-residency decision (ADR-007) was the canary.
+- Any fork that swaps the SessionService backend for one with non-trivial latency (Spanner, an external DB, MCP-app-served sessions, an `/messages` endpoint that does any aggregation) hits the same.
+
+**Workaround on AIPLA:** Track whether we've ever resolved a token (`hadTokenOnceRef`). Gate the `tokenResolved=false` blanking on initial load only — don't blank the subtree on subsequent refreshes. The new token is fetched in the background, and the HttpAgent's existing `useMemo([skillId, token, sessionId])` swap handles the bearer-header update atomically when the new token lands. No request goes out unauthenticated, and the subtree never unmounts. Design doc: [docs/design/aipla/v1.1.0-feedback/chat-history-flicker-on-token-refresh.md](design/aipla/v1.1.0-feedback/chat-history-flicker-on-token-refresh.md).
+
+**Upstream fix:** Apply the same `hadTokenOnceRef` change. Ships with a vitest that simulates a `user`-reference change with a stable token and asserts (a) children stay mounted, (b) no extra GET `/messages` fires, (c) HttpAgent is rebuilt with the new bearer header. The 2026-06-03 comment block in the AGUIProvider effect (lines 92-99) describes a real race — *"a user that switches identity can submit a message in the gap and have it sent with the old token"* — and the unmount IS one way to prevent that. But the actual fix for the race is atomic agent swap on `token` change (already in place via the `useMemo` rebuild), not subtree unmount. The two concerns got conflated.
+
+This kind of "blank-then-refetch on auth refresh" pattern is also worth a generic note in `docs/upstream-feedback.md`-equivalent template-builder docs: **provider children should never unmount across credential refreshes**. The credential is data the provider holds, not a precondition for its consumers existing.
+
 ## Backlog (likely additions as v0.1 sprint continues)
 
 - M5 may surface IAM bindings the bootstrap script should add

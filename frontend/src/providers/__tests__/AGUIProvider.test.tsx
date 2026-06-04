@@ -1,4 +1,5 @@
-import { render, renderHook, waitFor } from "@testing-library/react";
+import { useEffect } from "react";
+import { act, render, renderHook, waitFor } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 import { AuthProvider } from "@/contexts/AuthContext";
 import { AGUIProvider, useAGUIAgent } from "@/providers/AGUIProvider";
@@ -8,15 +9,30 @@ import { AGUIProvider, useAGUIAgent } from "@/providers/AGUIProvider";
 // so a `{uid}`-only object is enough.
 const TEST_USER = { uid: "test-uid", email: "t@example.test" } as unknown as import("firebase/auth").User;
 
+// Hoisted holders so tests can mutate the mock's behaviour mid-render —
+// vi.mock is hoisted above imports, so it must read from these via
+// vi.hoisted to share state.
+const authMock = vi.hoisted(() => ({
+  // Callback captured from subscribeToAuthState; tests fire it to
+  // simulate Firebase's onAuthStateChanged emitting a new User reference.
+  authStateCallback: null as ((u: unknown) => void) | null,
+  // The token getIdToken() resolves to. Mutable across the test so a
+  // refresh path can swap it.
+  currentToken: "test-token",
+}));
+
 vi.mock("@/lib/firebase", () => ({
   subscribeToAuthState: (cb: (u: unknown) => void) => {
+    authMock.authStateCallback = cb;
     // Fire with a signed-in user so AGUIProvider's gate lifts on a
     // path that does call getIdToken — that's what production hits.
     queueMicrotask(() => cb(TEST_USER));
-    return () => {};
+    return () => {
+      authMock.authStateCallback = null;
+    };
   },
-  getIdToken: async () => "test-token",
-  getTeacherIdToken: async () => "test-token",
+  getIdToken: async () => authMock.currentToken,
+  getTeacherIdToken: async () => authMock.currentToken,
   signInWithGoogle: async () => {},
   signInWithGoogleRedirect: async () => {},
   signOut: async () => {},
@@ -135,5 +151,143 @@ describe("AGUIProvider", () => {
     // Confirm the new instance got the new threadId
     const newestCfg = httpAgentCtor.mock.calls.at(-1)?.[0];
     expect(newestCfg?.threadId).toBe("server-assigned-id-123");
+  });
+
+  // CHAT-HISTORY-FLICKER (sprint 2026-06-04): on Firebase ID-token refresh
+  // the provider previously called setTokenResolved(false), which the
+  // render gate (`if (!tokenResolved) return null;`) translated into an
+  // unmount of the entire subtree. That destroyed useSessionMessages's
+  // state and forced an extra GET /api/sessions/{id}/messages — visibly
+  // ~400ms on AIPLA's cross-region Vertex Agent Engine setup. The fix
+  // tracks hadTokenOnceRef so the gate only blanks on the very first
+  // load; subsequent refreshes keep children mounted and the HttpAgent
+  // is rebuilt atomically via useMemo([skillId, token, sessionId]).
+  describe("token refresh keeps children mounted (CHAT-HISTORY-FLICKER)", () => {
+    function ChildWithMountCounter({ mountSpy }: { mountSpy: () => void }) {
+      // The cleanup of a useEffect that mounted once is sufficient
+      // proof of unmount — but tests just need to count mounts. Tracks
+      // every fresh mount of this component instance.
+      useEffect(() => {
+        mountSpy();
+      }, [mountSpy]);
+      return <div>chat-content</div>;
+    }
+
+    it("does NOT unmount children when `user` ref changes but a token has already resolved", async () => {
+      authMock.currentToken = "token-v1";
+      httpAgentCtor.mockClear();
+      const mountSpy = vi.fn();
+
+      const { findByText } = render(
+        <AuthProvider>
+          <AGUIProvider skillId="my-skill">
+            <ChildWithMountCounter mountSpy={mountSpy} />
+          </AGUIProvider>
+        </AuthProvider>,
+      );
+
+      // Wait through the initial load gate; child mounts exactly once.
+      expect(await findByText("chat-content")).toBeTruthy();
+      await waitFor(() => {
+        expect(mountSpy).toHaveBeenCalledTimes(1);
+      });
+
+      // Wait for the FIRST HttpAgent construction with the v1 token —
+      // that's the marker that `token` state has flipped and
+      // `hadTokenOnceRef.current` is now true.
+      await waitFor(() => {
+        const v1 = httpAgentCtor.mock.calls.find(
+          ([cfg]) => cfg?.headers?.Authorization === "Bearer token-v1",
+        );
+        expect(v1).toBeDefined();
+      });
+
+      // Simulate Firebase emitting a new user reference (token-refresh path).
+      // The token will be re-fetched in the background.
+      authMock.currentToken = "token-v2";
+      const refreshedUser = { ...TEST_USER };
+      await act(async () => {
+        authMock.authStateCallback?.(refreshedUser);
+      });
+
+      // Wait for the new HttpAgent to be built with the v2 token —
+      // that proves the refresh round-trip completed.
+      await waitFor(() => {
+        const lastCfg = httpAgentCtor.mock.calls.at(-1)?.[0];
+        expect(lastCfg?.headers?.Authorization).toBe("Bearer token-v2");
+      });
+
+      // CRITICAL: child must NOT have remounted during the refresh.
+      // If the AGUIProvider's render gate had blanked the subtree, the
+      // child would have unmounted and a fresh mount would bring this
+      // count to 2.
+      expect(mountSpy).toHaveBeenCalledTimes(1);
+    });
+
+    it("rebuilds the HttpAgent with the new token across a refresh", async () => {
+      authMock.currentToken = "token-A";
+      httpAgentCtor.mockClear();
+
+      render(
+        <AuthProvider>
+          <AGUIProvider skillId="rebuild-skill">
+            <div>chat-content</div>
+          </AGUIProvider>
+        </AuthProvider>,
+      );
+
+      await waitFor(() => {
+        const tokenA = httpAgentCtor.mock.calls.find(
+          ([cfg]) => cfg?.headers?.Authorization === "Bearer token-A",
+        );
+        expect(tokenA).toBeDefined();
+      });
+
+      authMock.currentToken = "token-B";
+      await act(async () => {
+        authMock.authStateCallback?.({ ...TEST_USER });
+      });
+
+      await waitFor(() => {
+        const tokenB = httpAgentCtor.mock.calls.find(
+          ([cfg]) => cfg?.headers?.Authorization === "Bearer token-B",
+        );
+        expect(tokenB).toBeDefined();
+      });
+
+      // No agent was ever built without an Authorization header AFTER
+      // we had a token — pre-token bootstrap may build one with no
+      // header, but post-token-A, every subsequent build must carry a
+      // bearer.
+      const firstAuthedIdx = httpAgentCtor.mock.calls.findIndex(
+        ([cfg]) => cfg?.headers?.Authorization?.startsWith("Bearer ") ?? false,
+      );
+      expect(firstAuthedIdx).toBeGreaterThanOrEqual(0);
+      const subsequentCalls = httpAgentCtor.mock.calls.slice(firstAuthedIdx);
+      for (const [cfg] of subsequentCalls) {
+        expect(cfg?.headers?.Authorization).toMatch(/^Bearer /);
+      }
+    });
+
+    it("still gates children on the FIRST load (children don't render until the first token resolves)", async () => {
+      authMock.currentToken = "first-load-token";
+      const mountSpy = vi.fn();
+
+      render(
+        <AuthProvider>
+          <AGUIProvider skillId="first-load-skill">
+            <ChildWithMountCounter mountSpy={mountSpy} />
+          </AGUIProvider>
+        </AuthProvider>,
+      );
+
+      // Before the token resolves, the gate should still suppress
+      // children — so the mountSpy is delayed. Once the token lands,
+      // the child mounts exactly once.
+      await waitFor(() => {
+        expect(mountSpy).toHaveBeenCalledTimes(1);
+      });
+      expect(mountSpy).not.toHaveBeenCalledTimes(2);
+    });
   });
 });

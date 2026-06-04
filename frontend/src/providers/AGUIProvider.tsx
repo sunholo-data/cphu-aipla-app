@@ -14,6 +14,7 @@ import {
   useContext,
   useEffect,
   useMemo,
+  useRef,
   useState,
 } from "react";
 import { useAuth } from "@/contexts/AuthContext";
@@ -65,6 +66,20 @@ export function AGUIProvider({
   const [token, setToken] = useState<string | null>(null);
   const [tokenResolved, setTokenResolved] = useState<boolean>(false);
 
+  // Tracks whether we've EVER resolved a non-null token in this provider's
+  // lifetime. Used to suppress the children-unmount cycle on token REFRESH
+  // (silent ~hourly Firebase ID-token rotation + every onAuthStateChanged
+  // fire). Before this ref existed, every `user`-reference change blanked
+  // `tokenResolved` and the render gate below returned null — unmounting
+  // the entire subtree, which destroyed `useSessionMessages`'s state and
+  // forced a refetch of GET /api/sessions/{id}/messages. On AIPLA that
+  // GET is ~400ms cross-region (Cloud Run europe-north1 → Vertex Agent
+  // Engine europe-west1), so students saw a visible "disappear then
+  // reappear" flicker of the "Earlier in this conversation" history every
+  // refresh. See docs/design/aipla/v1.1.0-feedback/chat-history-flicker-on-token-refresh.md.
+  const hadTokenOnceRef = useRef(false);
+  if (token) hadTokenOnceRef.current = true;
+
   // Token effect re-runs when `user` changes — critical because
   // `getIdToken()` returns null when `auth.currentUser` hasn't been
   // hydrated yet, and `getIdToken` is a stable reference so a
@@ -79,26 +94,34 @@ export function AGUIProvider({
     let cancelled = false;
     if (authLoading) {
       // Wait for auth to finish hydrating before deciding anything.
-      setTokenResolved(false);
+      // First-load-only gate: don't blank the subtree mid-conversation
+      // if we already have a working agent.
+      if (!hadTokenOnceRef.current) setTokenResolved(false);
       return () => undefined;
     }
     if (!user) {
       // Signed-out path: let downstream consumers render their sign-in
-      // branches. Mark resolved so the gate below lifts.
+      // branches. Mark resolved so the gate below lifts. Reset the
+      // had-token-once flag so the NEXT sign-in correctly gates on the
+      // first-load path (subtree blanks while we mint the first token
+      // for the new identity, preventing the 2026-06-03 cross-tab
+      // identity-switch race from sending a message with the old token).
       setToken(null);
       setTokenResolved(true);
+      hadTokenOnceRef.current = false;
       return () => undefined;
     }
-    // Re-engage the gate while we re-fetch on a user-change. This
-    // blocks children from mounting against a stale agent during the
-    // React update window where `user` has just changed but the new
-    // token hasn't landed. Without this, a user that switches identity
-    // (e.g. opens a group session in another tab while
-    // /teacher/analytics is mounted) can submit a message in the gap
-    // and have it sent with the old token. Caught 2026-06-03 in dev
-    // logs: one anomalous 404 at 11:39:35 right after a
-    // /api/auth/group/join.
-    setTokenResolved(false);
+    // First-load gate only. On subsequent token refreshes the OLD agent's
+    // in-flight requests still carry the OLD token (Firebase grants
+    // ~60s of grace on rotated tokens); NEW requests issued AFTER the
+    // useMemo([skillId, token, sessionId]) swap below carry the NEW
+    // token. So no request goes out unauthenticated, and we don't need
+    // to unmount children to enforce that — the atomic agent swap is
+    // sufficient. The original 2026-06-03 race ("cross-tab identity
+    // switch sends a message with the old token") is handled by the
+    // sign-out branch above resetting hadTokenOnceRef — the next
+    // sign-in gates on the first-load path again.
+    if (!hadTokenOnceRef.current) setTokenResolved(false);
     const fetchToken = useTeacherAuth ? getTeacherIdToken : getIdToken;
     void fetchToken()
       .then((t) => {
@@ -122,11 +145,11 @@ export function AGUIProvider({
     });
   }, [skillId, token, sessionId]);
 
-  // Block child render until auth has settled AND the token has been
-  // attempted. Existing chat surfaces already render their own loading
-  // UI for longer than this gate; new surfaces like /teacher/analytics
-  // see a brief flash of nothing, then the chat appears.
-  if (!tokenResolved) {
+  // First-load-only gate: only blank the subtree before we've ever
+  // resolved a token for this provider's lifetime. Subsequent token
+  // refreshes keep children mounted; the atomic HttpAgent swap above
+  // is sufficient to enforce auth correctness.
+  if (!tokenResolved && !hadTokenOnceRef.current) {
     return null;
   }
 
