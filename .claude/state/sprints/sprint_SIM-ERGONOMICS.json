@@ -8,7 +8,18 @@
   "branch_policy": "Work directly on dev per feedback_no_prs_commit_to_dev memory. Commit per-milestone locally; push origin dev only after M8 quality gates pass. No feature branch, no PR.",
   "architecture": "Frontend-only refactor. Invert per-artefact-frame filter from allowlist (explicit-route-each-kind) to denylist (drop-noisy-kinds, forward-everything-else) via new useArtefactReportEvent hook. Existing central useSimSnapshotPush + proactiveEventCheck.ts mapper unchanged.",
   "scope": "frontend",
-  "status": "in_progress",
+  "status": "shipped",
+  "shipped": "2026-06-04T11:15:00Z",
+  "shipped_summary": {
+    "commits_on_dev": 9,
+    "tests_added": 31,
+    "files_created": 7,
+    "files_modified": 6,
+    "deviations": [
+      "LED Planck drop set includes led-planck.measurement (not in original plan) — caught by existing test that expected it dropped because it comes from the React Results surface, not the iframe. Same pattern applied to KineBot for graph-change + quiz-attempt.",
+      "LED Planck did NOT need a pause/reset drop (artefact doesn't emit those kinds) — empty drop set apart from the measurement entry."
+    ]
+  },
   "features": [
     {
       "id": "M1-USE-ARTEFACT-REPORT-EVENT-HELPER",
