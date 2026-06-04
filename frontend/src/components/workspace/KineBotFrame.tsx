@@ -7,6 +7,7 @@ import {
   useRef,
 } from "react";
 
+import { useArtefactReportEvent } from "@/hooks/useArtefactReportEvent";
 import type { KineBotEvent } from "@/hooks/useKineBotSnapshot";
 
 import { SimFrameHeader } from "./SimFrameHeader";
@@ -24,24 +25,16 @@ export interface KineBotFrameHandle {
   setTopic: (topic: string) => void;
 }
 
-interface KineBotStructuredContent {
-  kind: string;
-  simType?: string;
-  params?: Record<string, number>;
-  changed?: string[];
-  state?: Record<string, number>;
-  triggeredBy?: string;
-}
-
 interface KineBotFrameProps {
   sandboxOrigin: string;
   /** Current topic — synced into the iframe once its handshake
    *  completes so the sim opens on the topic the student picked in the
    *  workbench (even if they picked it before opening the sim). */
   topic: string;
-  /** Sim events (sim-run, state-change) route here, into the shared
-   *  snapshot hook. Quiz + graph events come from the React workbench,
-   *  not the iframe. */
+  /** Reports iframe-side bench events (sim-run, state-change) into the
+   *  shared snapshot hook. Routing is denylist-shaped via
+   *  useArtefactReportEvent: graph-change + quiz-attempt drop on the
+   *  iframe side (those come from the React workbench surface). */
   reportEvent: (evt: KineBotEvent) => void;
   onClose: () => void;
 }
@@ -62,36 +55,32 @@ export const KineBotFrame = forwardRef<KineBotFrameHandle, KineBotFrameProps>(
   function KineBotFrame({ sandboxOrigin, topic, reportEvent, onClose }, ref) {
     const staticFrameRef = useRef<StaticArtefactFrameHandle | null>(null);
     const wrapperRef = useRef<HTMLDivElement | null>(null);
-    const reportEventRef = useRef(reportEvent);
-    reportEventRef.current = reportEvent;
     const topicRef = useRef(topic);
     topicRef.current = topic;
 
-    const handleStructuredContent = useCallback(
-      (structuredContent: Record<string, unknown>) => {
-        const data = structuredContent as unknown as KineBotStructuredContent;
-        const kind = data.kind;
-        if (kind === "kinebot.sim-run") {
-          if (typeof data.simType === "string" && data.params) {
-            reportEventRef.current({
-              kind: "kinebot.sim-run",
-              simType: data.simType,
-              params: data.params,
-            });
-          }
-        } else if (kind === "kinebot.state-change") {
-          reportEventRef.current({
-            kind: "kinebot.state-change",
-            changed: data.changed,
-            state: data.state,
-            triggeredBy: data.triggeredBy,
-          });
-        }
-        // graph-change + quiz-attempt no longer come from the iframe —
-        // those surfaces are React now.
+    const handleStructuredContent = useArtefactReportEvent<KineBotEvent>({
+      report: reportEvent,
+      // Drop: graph-change + quiz-attempt are produced by the React
+      // workbench surface, not the iframe. If the iframe ever emits
+      // them they're a desync — silently drop on the iframe side.
+      drop: new Set(["kinebot.graph-change", "kinebot.quiz-attempt"]),
+      narrow: {
+        "kinebot.sim-run": (d) =>
+          typeof d.simType === "string" && d.params
+            ? {
+                kind: "kinebot.sim-run",
+                simType: d.simType,
+                params: d.params as Record<string, number>,
+              }
+            : null,
+        "kinebot.state-change": (d) => ({
+          kind: "kinebot.state-change",
+          changed: d.changed as string[] | undefined,
+          state: d.state as Record<string, number> | undefined,
+          triggeredBy: d.triggeredBy as string | undefined,
+        }),
       },
-      [],
-    );
+    });
 
     const handleInitialized = useCallback(() => {
       // Sync the sim to the workbench's current topic once the iframe
