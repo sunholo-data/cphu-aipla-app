@@ -26,9 +26,25 @@
  *   - Snapshot state (that's in use__NAME__Snapshot.ts)
  *   - Workbench surfaces like quizzes, graphs, or notebooks (those are
  *     sibling components that share state via the snapshot hook)
+ *
+ * Proactive-reactive wiring (sprint SIM-ERGONOMICS):
+ *   - Uses useArtefactReportEvent (denylist filter). Add noisy kinds to
+ *     `drop` (pause / reset / errors / debounced state syncs). Add typed-
+ *     payload shape narrowers to `narrow`. Everything else flows through
+ *     as `{kind}` — new event kinds the artefact emits later
+ *     automatically reach the snapshot hook.
+ *   - For the central proactive-event-check to recognise a kind as
+ *     meaningful, name it with a keyword token: `*.run`, `*.play`,
+ *     `*.simulate` (sim_run); `*.step`, `*.next`, `*.advance`,
+ *     `*.placed`, `*.calibrated` (step_advance); `*.measure`,
+ *     `*.record`, `*.commit`, `*.show_value`, `*.reading`, `*.fit`,
+ *     `*.spectrum` (measurement_commit). See
+ *     `frontend/src/lib/proactiveEventCheck.ts` for the current vocab.
  */
 
-import { forwardRef, useCallback, useImperativeHandle, useRef } from "react";
+import { forwardRef, useImperativeHandle, useRef } from "react";
+
+import { useArtefactReportEvent } from "@/hooks/useArtefactReportEvent";
 
 import { SimFrameHeader } from "./SimFrameHeader";
 import {
@@ -51,45 +67,40 @@ interface __NAME__FrameProps {
   onClose: () => void;
 }
 
-/** Spec-side payload shape — structuredContent.kind discriminates the
- *  artefact's event vocabulary; rest of the fields are kind-specific. */
-interface __NAME__StructuredContent {
-  kind: string;
-  field?: string;
-  value?: number;
-}
-
 export const __NAME__Frame = forwardRef<__NAME__FrameHandle, __NAME__FrameProps>(
   function __NAME__Frame({ sandboxOrigin, reportEvent, onClose }, ref) {
     const staticFrameRef = useRef<StaticArtefactFrameHandle | null>(null);
     const wrapperRef = useRef<HTMLDivElement | null>(null);
-    const reportEventRef = useRef(reportEvent);
-    reportEventRef.current = reportEvent;
 
-    const handleStructuredContent = useCallback(
-      (structuredContent: Record<string, unknown>) => {
-        const data = structuredContent as unknown as __NAME__StructuredContent;
-        const kind = data.kind;
-        const report = reportEventRef.current;
-
-        if (kind === "__name__.open") {
-          report({ kind: "__name__.open" });
-        } else if (
-          kind === "__name__.state-change" &&
-          typeof data.field === "string" &&
-          typeof data.value === "number"
-        ) {
-          report({
-            kind: "__name__.state-change",
-            field: data.field,
-            value: data.value,
-          });
-        }
-        // Add any further event kinds here. Unknown kinds are silently
-        // dropped so the host stays forward-compatible with artefact updates.
+    const handleStructuredContent = useArtefactReportEvent<__NAME__Event>({
+      report: reportEvent,
+      // Add noisy kinds your artefact emits to this set. Common entries:
+      // `<name>.pause`, `<name>.reset`, `<name>.<x>-error`, and any
+      // debounced state-sync kinds the host doesn't want pushed every
+      // frame. Anything not in this set AND not in `narrow` flows through
+      // as `{kind}` so proactive-reactive picks it up automatically.
+      drop: new Set<string>([
+        // "__name__.pause",
+        // "__name__.reset",
+      ]),
+      // Add per-kind shape narrowers ONLY for events that carry typed
+      // payload fields the snapshot hook needs (e.g. state-change with
+      // `changed[]` + `state`, or a measurement with typed numeric
+      // fields). Return null from the narrower to drop on shape-validation
+      // failure. Kinds NOT in this map AND NOT in `drop` get forwarded
+      // as `{kind}` with no extra payload.
+      narrow: {
+        // "__name__.state-change": (d) =>
+        //   Array.isArray(d.changed)
+        //     ? {
+        //         kind: "__name__.state-change",
+        //         changed: d.changed as string[],
+        //         state: (d.state as Record<string, number>) ?? {},
+        //         triggeredBy: d.triggeredBy as string | undefined,
+        //       }
+        //     : null,
       },
-      [],
-    );
+    });
 
     useImperativeHandle(
       ref,
