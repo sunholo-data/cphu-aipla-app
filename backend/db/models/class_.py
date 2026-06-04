@@ -37,6 +37,34 @@ def _short_id() -> str:
     return uuid.uuid4().hex[:12]
 
 
+class ClassVoiceSettings(BaseModel):
+    """Per-class voice override (1.1.11 sprint VOICE-PROVIDER).
+
+    Set by the teacher in the class-detail page. Resolved in the
+    voice-config chain BEFORE skill defaults but AFTER student
+    localStorage preference (so an individual student can still pick
+    English even if the teacher set Danish for the whole class).
+
+    All three fields optional — leaving a field unset means "fall
+    through to the next level" (skill default, then env, then "browser").
+    """
+
+    language: str | None = Field(default=None, max_length=16)
+    """BCP-47 short tag (`"da"`, `"en"`). When set, ReadAloudButton uses
+    this language instead of the skill's ttsLang."""
+
+    voice: str | None = Field(default=None, max_length=64)
+    """Cloud TTS voice name (e.g. `"da-DK-Wavenet-A"`). When set,
+    /api/voice/config returns this in the `tts.voice` field."""
+
+    provider: str | None = Field(default=None, max_length=32)
+    """Registry provider key (`"gcp_wavenet"`, `"gcp_chirp3hd"`, etc.).
+    Encodes the tier the teacher picked; the voice field above must
+    match this tier (the picker enforces this client-side)."""
+
+    model_config = ConfigDict(populate_by_name=True, extra="forbid")
+
+
 class Class(BaseModel):
     """Firestore document at ``classes/<class_id>``.
 
@@ -50,6 +78,9 @@ class Class(BaseModel):
     tag_namespace: str = Field(alias="tagNamespace")
     lessons: list[str] = Field(default_factory=list)
     group_codes: list[str] = Field(alias="groupCodes", default_factory=list)
+    voice: ClassVoiceSettings | None = Field(default=None)
+    """1.1.11 — teacher's per-class voice override. None means the class
+    inherits skill defaults / env. See ClassVoiceSettings."""
     revoked: bool = False
     created_at: datetime = Field(alias="createdAt")
     updated_at: datetime = Field(alias="updatedAt")
@@ -110,4 +141,4 @@ class Class(BaseModel):
         return self.owner_uid
 
 
-__all__ = ["Class"]
+__all__ = ["Class", "ClassVoiceSettings"]

@@ -30,6 +30,7 @@ import {
   resetGroupSession,
 } from "@/lib/teacherApi";
 import { ClassInsightsPanel } from "@/components/teacher/insights/ClassInsightsPanel";
+import { ClassVoiceSettingsPanel } from "@/components/teacher/ClassVoiceSettingsPanel";
 
 import { handleExportSessions } from "./_exportHelpers";
 
@@ -479,6 +480,12 @@ export default function TeacherClassDetailPage() {
           </ul>
         )}
       </section>
+
+      <ClassVoiceSettingsPanel
+        classId={cls.classId}
+        initial={cls.voice ?? null}
+        onSaved={refresh}
+      />
 
       <ClassInsightsPanel classId={cls.classId} />
 

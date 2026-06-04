@@ -21,6 +21,7 @@ import { InlineCitation } from "@/components/chat/InlineCitation";
 import { ReadAloudButton } from "@/components/chat/ReadAloudButton";
 import { useAutoReadAloud } from "@/hooks/useAutoReadAloud";
 import { useVoiceConfig } from "@/hooks/useVoiceConfig";
+import { useVoiceLang } from "@/hooks/useVoiceLang";
 import { ToolCallChip } from "@/components/chat/ToolCallChip";
 import { useSurfaceRegistry } from "@/providers/SurfaceRegistry";
 import type { SkillMessage, ToolCallState } from "@/hooks/useSkillAgent";
@@ -141,6 +142,12 @@ export const MessageBubble = React.memo(function MessageBubble({
   // "browser" default and only later messages got Cloud TTS.
   const { enabled: autoReadEnabled } = useAutoReadAloud();
   const autoSpeak = autoReadEnabled && !voiceConfig.loading;
+  // 1.1.11 — student's per-browser language preference overrides both
+  // the class default (voiceConfig.tts.language) and the skill's
+  // `ttsLang` prop. Accessibility: a student who needs English audio
+  // can pick it regardless of what the teacher set for the class.
+  const { lang: studentLang } = useVoiceLang();
+  const effectiveLang = studentLang ?? voiceConfig.tts.language ?? ttsLang;
   const isBot = message.role === "assistant";
   const time = formatTime();
 
@@ -206,7 +213,7 @@ export const MessageBubble = React.memo(function MessageBubble({
             {message.content ? (
               <ReadAloudButton
                 text={message.content}
-                lang={ttsLang}
+                lang={effectiveLang}
                 provider={voiceConfig.tts.provider}
                 voice={voiceConfig.tts.voice}
                 skillId={skillId}

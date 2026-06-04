@@ -5,7 +5,9 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { use, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { AutoReadToggle } from "@/components/chat/AutoReadToggle";
 import { ChatMessageList } from "@/components/chat/ChatMessageList";
+import { LangToggle } from "@/components/chat/LangToggle";
 import { ResumeWelcomeBanner } from "@/components/chat/ResumeWelcomeBanner";
+import { useVoiceConfig } from "@/hooks/useVoiceConfig";
 import type { DocTabData } from "@/components/doc-browser/DocTab";
 import { DocListView } from "@/components/doc-browser/DocListView";
 import { DocTabsBar } from "@/components/doc-browser/DocTabsBar";
@@ -150,6 +152,21 @@ function ModalSurfaceRegion({ sessionId }: { sessionId: string | null }) {
 function SurfaceSessionLifecycle({ sessionId }: { sessionId: string | null }) {
   useClearSurfacesOnSessionChange(sessionId);
   return null;
+}
+
+/**
+ * 1.1.11 voice controls — language picker + auto-read toggle pill row
+ * at the top of the chat. Split into a child component so the
+ * useVoiceConfig hook doesn't run on every parent render.
+ */
+function ChatVoiceControls({ skillId }: { skillId: string }) {
+  const voiceConfig = useVoiceConfig(skillId);
+  return (
+    <div className="flex items-center justify-end gap-2 px-4 pt-2">
+      <LangToggle defaultLang={voiceConfig.tts.language} />
+      <AutoReadToggle />
+    </div>
+  );
 }
 
 export default function ChatPage({
@@ -885,12 +902,10 @@ function ChatShell({
               <ResumeWelcomeBanner onDismiss={() => setShowResumeBanner(false)} />
             </div>
           )}
-          {/* 1.1.11 auto-read toggle — student preference for auto-speaking
-              every tutor message. Lives at the top of the chat so the
-              student can flip it any time without digging in settings. */}
-          <div className="flex justify-end px-4 pt-2">
-            <AutoReadToggle />
-          </div>
+          {/* 1.1.11 voice controls — language picker + auto-read toggle.
+              Lives at the top of the chat so the student can flip either
+              any time without digging in settings. */}
+          <ChatVoiceControls skillId={skillId} />
           <ChatMessageList
             messages={messages}
             // initialMessages are the persisted history fetched by

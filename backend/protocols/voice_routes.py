@@ -33,10 +33,14 @@ from opentelemetry import trace
 from pydantic import BaseModel, ConfigDict, Field
 
 from auth import User, get_current_user
+from db.classes import get_class, update_class_voice_settings
+from db.firestore import get_document
+from db.models.class_ import ClassVoiceSettings
 from skills.skill_config import get_skill
 from voice import get_stt, get_tts
 from voice.cache import CacheKey, TTSCache
 from voice.cost import tts_cost_usd
+from voice.voices import SUPPORTED_LANGS, get_voices_for_lang
 
 logger = logging.getLogger(__name__)
 _tracer = trace.get_tracer(__name__)
@@ -66,6 +70,50 @@ def _get_cache() -> TTSCache | None:
 
 
 # --- request / response models ---
+
+
+class ClassVoiceSettingsBody(BaseModel):
+    """Body for PUT /api/voice/class/{class_id}/settings — teacher write.
+
+    All three fields optional; passing nulls clears the override and
+    sends the class back to skill defaults.
+    """
+
+    language: str | None = Field(default=None, max_length=16)
+    voice: str | None = Field(default=None, max_length=64)
+    provider: str | None = Field(default=None, max_length=32)
+
+    model_config = ConfigDict(populate_by_name=True, extra="forbid")
+
+
+def _class_voice_for_user(user: User) -> ClassVoiceSettings | None:
+    """Look up the requesting user's class-level voice override.
+
+    Anonymous-group users carry `user.group_id`; the anon_groups doc has
+    a `classId` field that points at the owning class. Teachers in chat
+    mode have no group_id (their auth path is Firebase) — returns None
+    so they get skill defaults.
+
+    Returns None on any lookup failure rather than raising; voice
+    config must degrade gracefully (resolve to skill / env defaults).
+    """
+    group_id = getattr(user, "group_id", None)
+    if not group_id:
+        return None
+    try:
+        anon_doc = get_document("anon_groups", group_id)
+        if not anon_doc:
+            return None
+        class_id = anon_doc.get("classId")
+        if not class_id:
+            return None
+        cls = get_class(class_id)
+        if cls is None:
+            return None
+        return cls.voice
+    except Exception as exc:
+        logger.warning("class voice lookup failed for group=%s: %s", group_id, exc)
+        return None
 
 
 class SynthesizeRequest(BaseModel):
@@ -111,32 +159,57 @@ async def get_config(
       }
     """
     skill = get_skill(skill_id) if skill_id else None
-    tts = get_tts(skill)
+    class_voice = _class_voice_for_user(user)
+
+    # Resolution chain (class wins over skill for both provider and voice):
+    #   1. Class teacher set explicit provider/voice -> use those
+    #   2. Skill author set SkillConfig.voice.tts_provider -> use it
+    #   3. Env VOICE_TTS_PROVIDER default kicks in via the registry
+    resolved_provider_override: str | None = None
+    resolved_voice: str | None = None
+    resolved_lang: str | None = None
+    if class_voice is not None:
+        resolved_provider_override = class_voice.provider
+        resolved_voice = class_voice.voice
+        resolved_lang = class_voice.language
+    if resolved_voice is None and skill is not None:
+        sv = getattr(skill, "voice", None)
+        if sv is not None:
+            resolved_voice = getattr(sv, "tts_voice", None)
+
+    # Build a synthetic skill-like object to pass to get_tts so the
+    # registry resolves the class's chosen provider when one is set,
+    # without us having to re-implement the resolution chain.
+    if resolved_provider_override is not None:
+        # Wrap the skill with the class's provider override.
+        from types import SimpleNamespace
+
+        skill_voice_override = SimpleNamespace(
+            tts_provider=resolved_provider_override,
+            stt_provider=None,
+        )
+        effective_skill = SimpleNamespace(voice=skill_voice_override)
+    else:
+        effective_skill = skill
+
+    tts = get_tts(effective_skill)
     stt = get_stt(skill)
 
-    # Skill-config-supplied voice if any; else None (provider picks default).
-    skill_voice = None
-    if skill is not None:
-        v = getattr(skill, "voice", None)
-        if v is not None:
-            skill_voice = getattr(v, "tts_voice", None)
-
-    # M-A5 diagnostic — temporary, helps us see in Cloud Run logs whether
-    # the registry is selecting gcp_wavenet or falling back to browser.
-    # Remove once the read-aloud Cloud TTS path is confirmed working end
-    # to end in dev.
     logger.info(
-        "voice/config skill_id=%r skill_found=%s tts.provider=%s stt.provider=%s",
+        "voice/config skill_id=%r skill_found=%s class_voice=%s tts.provider=%s tts.voice=%s tts.lang=%s",
         skill_id,
         skill is not None,
+        class_voice is not None,
         tts.name,
-        stt.name,
+        resolved_voice,
+        resolved_lang,
     )
 
     return {
         "tts": {
             "provider": tts.name,
-            "voice": skill_voice,
+            "voice": resolved_voice,
+            "language": resolved_lang,
             "capabilities": tts.describe(),
         },
         "stt": {
@@ -144,6 +217,66 @@ async def get_config(
             "capabilities": stt.describe(),
         },
     }
+
+
+@router.get("/voices")
+async def list_voices(
+    lang: str | None = None,
+    user: User = Depends(get_current_user),  # noqa: B008
+) -> dict[str, Any]:
+    """Curated list of Cloud TTS voices for the teacher's picker.
+
+    `lang` (BCP-47 short tag) filters to just that language. Omit to
+    get every language's voices in one response (frontend can group).
+
+    Returns:
+      {
+        "languages": ["da", "en"],
+        "voices": { "da": [VoiceEntry, ...], "en": [...] }
+      }
+    """
+    if lang:
+        return {
+            "languages": [lang],
+            "voices": {lang: get_voices_for_lang(lang)},
+        }
+    return {
+        "languages": SUPPORTED_LANGS,
+        "voices": {lang_key: get_voices_for_lang(lang_key) for lang_key in SUPPORTED_LANGS},
+    }
+
+
+@router.put("/class/{class_id}/settings")
+async def update_class_voice(
+    class_id: str,
+    body: ClassVoiceSettingsBody,
+    user: User = Depends(get_current_user),  # noqa: B008
+) -> dict[str, Any]:
+    """Teacher writes the per-class voice override.
+
+    Auth: the caller must own the class. Anonymous-group users (students)
+    get 403 — they have no class ownership.
+    """
+    cls = get_class(class_id)
+    if cls is None:
+        raise HTTPException(status_code=404, detail="class not found")
+    if cls.owner_uid != user.uid:
+        raise HTTPException(status_code=403, detail="not class owner")
+
+    update_class_voice_settings(
+        class_id,
+        language=body.language,
+        voice=body.voice,
+        provider=body.provider,
+    )
+    logger.info(
+        "voice/class-settings updated class=%s lang=%s voice=%s provider=%s",
+        class_id,
+        body.language,
+        body.voice,
+        body.provider,
+    )
+    return {"ok": True}
 
 
 @router.post("/tts/synthesize")

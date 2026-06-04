@@ -105,6 +105,40 @@ def update_class(class_id: str, *, name: str | None = None, description: str | N
     update_document(_COLLECTION, class_id, fields)
 
 
+def update_class_voice_settings(
+    class_id: str,
+    *,
+    language: str | None,
+    voice: str | None,
+    provider: str | None,
+) -> None:
+    """Set or clear the per-class voice override (1.1.11).
+
+    Pass all three Nones to clear (`voice: null`). Pass at least one
+    non-None value to set; the Firestore doc carries the embedded map
+    so per-field None becomes "fall through" at resolution time.
+    """
+    if language is None and voice is None and provider is None:
+        update_document(
+            _COLLECTION,
+            class_id,
+            {"voice": None, "updatedAt": _utcnow().isoformat()},
+        )
+        return
+    update_document(
+        _COLLECTION,
+        class_id,
+        {
+            "voice": {
+                "language": language,
+                "voice": voice,
+                "provider": provider,
+            },
+            "updatedAt": _utcnow().isoformat(),
+        },
+    )
+
+
 def add_lessons(class_id: str, skill_ids: list[str]) -> None:
     """Idempotent: appends skill_ids to Class.lessons, no duplicates."""
     cls = get_class(class_id)

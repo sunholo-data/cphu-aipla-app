@@ -31,6 +31,10 @@ export interface VoiceConfig {
   tts: {
     provider: string;
     voice: string | null;
+    /** Class- or skill-resolved language hint from the backend (BCP-47
+     * short form, e.g. "da"). Null when no override is set; in that
+     * case the consumer should fall back to the skill's own ttsLang. */
+    language: string | null;
     capabilities: VoiceCapabilities;
   };
   stt: {
@@ -44,6 +48,7 @@ const DEFAULT_CONFIG: VoiceConfig = {
   tts: {
     provider: "browser",
     voice: null,
+    language: null,
     capabilities: { tts: true, stt: false, streaming: false, languages: [] },
   },
   stt: {

@@ -125,6 +125,12 @@ export async function fetchGroupLatestReport(
 // /api/classes/* — 1.A teacher-permission-model
 // ---------------------------------------------------------------------------
 
+export interface ClassVoiceSettingsPayload {
+  language: string | null;
+  voice: string | null;
+  provider: string | null;
+}
+
 export interface ClassPayload {
   classId: string;
   ownerUid: string;
@@ -133,6 +139,7 @@ export interface ClassPayload {
   tagNamespace: string;
   lessons: string[];
   groupCodes: string[];
+  voice?: ClassVoiceSettingsPayload | null;
   revoked: boolean;
   createdAt: string;
   updatedAt: string;
@@ -208,6 +215,45 @@ export async function deleteClass(
     { method: "DELETE" },
   );
   return readJson(resp, "delete class");
+}
+
+/** 1.1.11 — write the per-class voice override. Pass all three null
+ * to clear and fall back to skill defaults. */
+export async function setClassVoiceSettings(
+  classId: string,
+  body: ClassVoiceSettingsPayload,
+): Promise<{ ok: boolean }> {
+  const resp = await fetchWithAuth(
+    `/api/proxy/api/voice/class/${encodeURIComponent(classId)}/settings`,
+    {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(body),
+    },
+  );
+  return readJson(resp, "update class voice settings");
+}
+
+export interface VoiceListEntry {
+  name: string;
+  provider: string;
+  tier: string;
+  gender: string;
+  label: string;
+}
+
+export interface VoiceListResponse {
+  languages: string[];
+  voices: Record<string, VoiceListEntry[]>;
+}
+
+/** 1.1.11 — curated voice catalogue for the teacher dropdown. */
+export async function fetchVoiceList(
+  lang?: string,
+): Promise<VoiceListResponse> {
+  const q = lang ? `?lang=${encodeURIComponent(lang)}` : "";
+  const resp = await fetchWithAuth(`/api/proxy/api/voice/voices${q}`);
+  return readJson<VoiceListResponse>(resp, "fetch voices");
 }
 
 /** Add and/or remove skills from a class's lessons. */
