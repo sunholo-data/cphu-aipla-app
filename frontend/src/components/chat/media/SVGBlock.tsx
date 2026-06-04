@@ -27,6 +27,19 @@ function CodeFallback({ code }: CodeFallbackProps) {
   );
 }
 
+/**
+ * 160 px aria-busy box used both (a) inside SVGBlock between mount and
+ * DOMPurify resolution, and (b) by ChatMarkdown's pre-processor while a
+ * `<svg…` is still streaming (closing tag not yet emitted). Sharing the
+ * component keeps the dimensions identical so the layout reconciles in
+ * place when the streaming partial flips to the rendered SVG — no
+ * vertical jump on the closing `</svg>` token. See
+ * docs/design/aipla/v1.1.0-feedback/chat-svg-streaming-placeholder.md.
+ */
+export function SvgStreamingPlaceholder() {
+  return <div className="svg-container my-4 min-h-[160px]" aria-busy="true" />;
+}
+
 function SVGBlockInner({ svgString }: SVGBlockProps) {
   // Empty string initial state: server renders nothing (no hydration mismatch).
   // useEffect + dynamic import: DOMPurify only runs in the browser where DOM is available.
@@ -54,8 +67,10 @@ function SVGBlockInner({ svgString }: SVGBlockProps) {
   // chat while the surrounding message is still streaming. 160px is
   // big enough to cover typical sketches (FBDs, decomposition triangles)
   // but small enough not to leave a huge blank if the SVG never resolves.
+  // Shared with ChatMarkdown's streaming-tail placeholder so the partial
+  // → complete transition reconciles in place — no closing-tag jump.
   if (!cleanSvg) {
-    return <div className="svg-container my-4 min-h-[160px]" aria-busy="true" />;
+    return <SvgStreamingPlaceholder />;
   }
 
   return (

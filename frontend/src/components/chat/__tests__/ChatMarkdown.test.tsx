@@ -135,4 +135,104 @@ describe("ChatMarkdown", () => {
     // Should be in a code block instead.
     expect(container.querySelector("pre code")).toBeTruthy();
   });
+
+  // CHAT-SVG-STREAMING-PLACEHOLDER (sprint 2026-06-04): reserve the
+  // placeholder div as soon as <svg opens, not when </svg> closes. The
+  // closing-tag moment used to slam a 160px box into the layout in one
+  // frame; now it's reserved at the START of the SVG stream and the
+  // closing-tag transition reconciles in place.
+  describe("streaming SVG placeholder (CHAT-SVG-STREAMING-PLACEHOLDER)", () => {
+    it("renders a placeholder (aria-busy) for an open <svg with no </svg> yet", async () => {
+      // Simulates the streaming window: agent emitted the opening tag
+      // and some children but the closing tag hasn't arrived.
+      const partial =
+        'Here is the free-body diagram:\n\n<svg viewBox="0 0 100 100">\n  <rect x="10" y="10" width="80" height="80"';
+      const { container } = render(
+        <ChatMarkdown content={partial} navigateToBlock={noop} />,
+      );
+      await new Promise((r) => setTimeout(r, 50));
+      // The placeholder div is rendered. It has the same aria-busy +
+      // svg-container class as SVGBlock's pre-sanitise state, so the
+      // closing-tag transition is in-place.
+      const placeholder = container.querySelector(
+        '.svg-container[aria-busy="true"]',
+      );
+      expect(placeholder).toBeTruthy();
+      // The placeholder does NOT contain a real SVG yet.
+      expect(container.querySelector(".svg-container svg")).toBeFalsy();
+    });
+
+    it("renders a placeholder for an open <svg even without any children yet", async () => {
+      // Earliest streaming state: just <svg ... and that's it.
+      const justOpened = "Here:\n\n<svg viewBox=\"0 0 100 100\"";
+      const { container } = render(
+        <ChatMarkdown content={justOpened} navigateToBlock={noop} />,
+      );
+      await new Promise((r) => setTimeout(r, 50));
+      expect(
+        container.querySelector('.svg-container[aria-busy="true"]'),
+      ).toBeTruthy();
+    });
+
+    it("does NOT trigger the streaming placeholder for in-prose mentions of <svg>", async () => {
+      // Critical: the tail regex is anchored to end-of-string. In-prose
+      // mentions are followed by more text, so they shouldn't match.
+      const inProse =
+        "You can use the <svg> tag in HTML to draw vector graphics. It's part of the SVG specification.";
+      const { container } = render(
+        <ChatMarkdown content={inProse} navigateToBlock={noop} />,
+      );
+      await new Promise((r) => setTimeout(r, 50));
+      expect(
+        container.querySelector('.svg-container[aria-busy="true"]'),
+      ).toBeFalsy();
+    });
+
+    it("when the closing tag arrives the full SVG renders (no leftover placeholder)", async () => {
+      // Re-rendering with the complete content swaps the placeholder
+      // out for the real SVGBlock. The DOM container class is the
+      // same — React reconciles in place.
+      const partial =
+        'Diagram:\n\n<svg viewBox="0 0 10 10">\n  <circle cx="5" cy="5"';
+      const complete =
+        'Diagram:\n\n<svg viewBox="0 0 10 10">\n  <circle cx="5" cy="5" r="4"/>\n</svg>';
+      const { container, rerender } = render(
+        <ChatMarkdown content={partial} navigateToBlock={noop} />,
+      );
+      await new Promise((r) => setTimeout(r, 20));
+      expect(
+        container.querySelector('.svg-container[aria-busy="true"]'),
+      ).toBeTruthy();
+
+      rerender(<ChatMarkdown content={complete} navigateToBlock={noop} />);
+      // After DOMPurify resolves, the placeholder is gone and the real
+      // SVG is rendered.
+      await new Promise((r) => setTimeout(r, 50));
+      expect(container.querySelector(".svg-container svg")).toBeTruthy();
+      expect(container.querySelector(".svg-container circle")).toBeTruthy();
+      // No lingering placeholder div.
+      expect(
+        container.querySelector('.svg-container[aria-busy="true"]'),
+      ).toBeFalsy();
+    });
+
+    it("with one complete SVG + one streaming SVG in the same content, the streaming one gets the placeholder", async () => {
+      // The first SVG closes properly; the second is still streaming
+      // at the tail. Pre-processor extracts the first as a sentinel
+      // (real SVGBlock) and the trailing partial as a streaming
+      // sentinel (placeholder).
+      const mixed =
+        '<svg viewBox="0 0 10 10"><line x1="0" y1="0" x2="10" y2="10"/></svg>\n\nAnd here\'s the next one:\n\n<svg viewBox="0 0 20 20">\n  <polygon';
+      const { container } = render(
+        <ChatMarkdown content={mixed} navigateToBlock={noop} />,
+      );
+      await new Promise((r) => setTimeout(r, 50));
+      // Real SVG for the first (closed) block.
+      expect(container.querySelector(".svg-container svg line")).toBeTruthy();
+      // Placeholder for the second (still streaming) block.
+      expect(
+        container.querySelector('.svg-container[aria-busy="true"]'),
+      ).toBeTruthy();
+    });
+  });
 });

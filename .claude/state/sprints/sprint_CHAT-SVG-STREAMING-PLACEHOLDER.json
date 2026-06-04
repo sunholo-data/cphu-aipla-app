@@ -1,0 +1,96 @@
+{
+  "sprint_id": "CHAT-SVG-STREAMING-PLACEHOLDER",
+  "created": "2026-06-04T13:10:16Z",
+  "estimated_duration_days": 1,
+  "design_doc": "docs/design/aipla/v1.1.0-feedback/implemented/chat-svg-streaming-placeholder.md",
+  "sprint_plan": "docs/design/aipla/v1.1.0-feedback/implemented/chat-svg-streaming-placeholder-sprint.md",
+  "features": [
+    {
+      "id": "M1",
+      "description": "Pre-processor + placeholder: SVG_STREAMING_TAIL_RE detects open <svg at content tail, p() handler renders SvgStreamingPlaceholder (shared with SVGBlock's pre-sanitise state)",
+      "scope": "frontend",
+      "estimated_loc": 25,
+      "actual_loc": 25,
+      "dependencies": [],
+      "acceptance_criteria": [
+        "SVGBlock.tsx exports SvgStreamingPlaceholder as a sibling component returning a 160px aria-busy div",
+        "SVGBlock's pre-sanitise branch reuses the same component (single source of truth for dimensions)",
+        "ChatMarkdown.tsx has SVG_STREAMING_TAIL_RE regex anchored to end-of-string",
+        "Pre-processor runs the streaming regex AFTER both complete-block regexes",
+        "p() handler renders SvgStreamingPlaceholder for the streaming sentinel"
+      ],
+      "files_to_create": [],
+      "files_to_modify": [
+        "frontend/src/components/chat/ChatMarkdown.tsx",
+        "frontend/src/components/chat/media/SVGBlock.tsx"
+      ],
+      "passes": true,
+      "started": "2026-06-04T13:11:00Z",
+      "completed": "2026-06-04T13:13:00Z",
+      "notes": "SVGBlock now exports SvgStreamingPlaceholder and reuses it for the pre-sanitise branch. ChatMarkdown has SVG_STREAMING_TAIL_RE (tail-anchored, runs after both complete-block regexes) + SVG_STREAMING_SENTINEL + p() handler branch. All 5 acceptance criteria met."
+    },
+    {
+      "id": "M2",
+      "description": "Vitest: streaming partial renders placeholder; complete renders SVGBlock; in-prose mention is not matched; multi-SVG message",
+      "scope": "frontend",
+      "estimated_loc": 50,
+      "actual_loc": 100,
+      "dependencies": [
+        "M1"
+      ],
+      "acceptance_criteria": [
+        "Partial input renders a placeholder (aria-busy div)",
+        "Complete input renders the full SVGBlock",
+        "In-prose mention does NOT trigger placeholder",
+        "Two SVGs (first complete, second streaming) handled correctly",
+        "All existing ChatMarkdown tests pass"
+      ],
+      "files_to_create": [],
+      "files_to_modify": [
+        "frontend/src/components/chat/__tests__/ChatMarkdown.test.tsx"
+      ],
+      "passes": true,
+      "started": "2026-06-04T13:13:00Z",
+      "completed": "2026-06-04T13:14:00Z",
+      "notes": "5 new vitest cases (~100 LOC): open-with-partial-children, open-without-children, in-prose-mention-skipped, partial-to-complete-transition, mixed-complete-and-streaming. All 20 ChatMarkdown tests pass (15 original + 5 new)."
+    },
+    {
+      "id": "M3",
+      "description": "CI parity + docs move + commit + push",
+      "scope": "frontend",
+      "estimated_loc": 0,
+      "actual_loc": 0,
+      "dependencies": [
+        "M1",
+        "M2"
+      ],
+      "acceptance_criteria": [
+        "`npm run quality:check` (full) green from frontend/",
+        "Design doc + sprint plan moved into implemented/ subfolder",
+        "SEQUENCE row 1.1.15 status updated to shipped 2026-06-04",
+        "Conventional commit: fix(chat): reserve SVG placeholder while streaming so closing tag doesn't jump layout",
+        "Push to dev triggers a Cloud Build that succeeds"
+      ],
+      "files_to_create": [],
+      "files_to_modify": [
+        "docs/design/aipla/v1.1.0-feedback/SEQUENCE.md"
+      ],
+      "passes": true,
+      "started": "2026-06-04T13:14:00Z",
+      "completed": "2026-06-04T13:15:00Z",
+      "notes": "quality:check green: 113 test files, 911 tests pass (was 906, +5 new). Build succeeds. Docs moved to implemented/. SEQUENCE row 1.1.15 updated to shipped. Commit + push pending."
+    }
+  ],
+  "velocity": {
+    "target_loc_per_day": 75,
+    "actual_loc_per_day": 125,
+    "estimated_total_loc": 75,
+    "actual_total_loc": 125,
+    "estimated_days": 1,
+    "actual_days": 0.06
+  },
+  "github_issues": [],
+  "last_session": "2026-06-04T13:15:00Z",
+  "last_checkpoint": "finalized",
+  "status": "completed"
+}

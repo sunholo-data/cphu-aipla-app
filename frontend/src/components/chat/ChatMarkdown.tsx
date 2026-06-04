@@ -11,7 +11,10 @@ import rehypeKatex from "rehype-katex";
 // ~30KB stylesheet (Next bundles per-route).
 import "katex/dist/katex.min.css";
 import { InlineCitation } from "@/components/chat/InlineCitation";
-import { SVGBlock } from "@/components/chat/media/SVGBlock";
+import {
+  SVGBlock,
+  SvgStreamingPlaceholder,
+} from "@/components/chat/media/SVGBlock";
 import { InlineImage } from "@/components/chat/media/InlineImage";
 import { PDFCard } from "@/components/chat/media/PDFCard";
 import type { Components } from "react-markdown";
@@ -50,6 +53,18 @@ const SVG_FENCE_RE = /```[a-zA-Z]*\r?\n(<svg[\s\S]*?<\/svg>)\s*\r?\n?```/g;
 // We require <svg> to be at line-start-after-whitespace so we don't match
 // inline mentions in prose ("the <svg> tag in HTML…").
 const SVG_RAW_RE = /(^|\n)\s*(<svg[\s\S]*?<\/svg>)\s*(?=\n|$)/gi;
+// Tail-anchored: open <svg ...> that hasn't received its </svg> yet —
+// the streaming case. Runs LAST in the pre-processor so any complete
+// blocks have already been substituted with sentinels; anything still
+// containing `<svg` at this point is necessarily an unterminated
+// partial at the tail of content. The end-of-string anchor ($) saves
+// us from matching in-prose mentions like "the <svg> tag in HTML…"
+// because those are followed by more text rather than terminating the
+// content. Triggers a placeholder so the chat layout reserves space
+// at the START of SVG streaming, not at the closing-tag moment. See
+// docs/design/aipla/v1.1.0-feedback/chat-svg-streaming-placeholder.md.
+const SVG_STREAMING_TAIL_RE = /(^|\n)\s*(<svg\b[\s\S]*)$/i;
+const SVG_STREAMING_SENTINEL = "AITANASVGSTREAMING";
 
 export function ChatMarkdown({ content, navigateToBlock }: ChatMarkdownProps) {
   // Extract ```svg fenced blocks AND raw <svg>...</svg> blocks before
@@ -72,6 +87,14 @@ export function ChatMarkdown({ content, navigateToBlock }: ChatMarkdownProps) {
     processed = processed.replace(SVG_RAW_RE, (_match, _lead: string, svgCode: string) => {
       blocks.set(idx, svgCode.trim());
       return `\n\n${SVG_SENTINEL_PREFIX}${idx++}${SVG_SENTINEL_SUFFIX}\n\n`;
+    });
+    // 3. Streaming tail: an open <svg at the very end of content with no
+    // closing tag yet. Replace with a streaming sentinel so the p()
+    // handler can render a placeholder of the same dimensions SVGBlock
+    // will use post-DOMPurify — the layout reserves space at the start
+    // of the SVG stream, not at the closing-tag moment.
+    processed = processed.replace(SVG_STREAMING_TAIL_RE, () => {
+      return `\n\n${SVG_STREAMING_SENTINEL}\n\n`;
     });
     return { processedContent: processed, svgBlocks: blocks };
   }, [content]);
@@ -116,6 +139,9 @@ export function ChatMarkdown({ content, navigateToBlock }: ChatMarkdownProps) {
       // Detect SVG block sentinels injected by pre-processing above
       const first = Array.isArray(children) ? children[0] : children;
       if (typeof first === "string") {
+        if (first === SVG_STREAMING_SENTINEL) {
+          return <SvgStreamingPlaceholder />;
+        }
         const match = first.match(new RegExp(`^${SVG_SENTINEL_PREFIX}(\\d+)${SVG_SENTINEL_SUFFIX}$`));
         if (match) {
           const svgString = svgBlocks.get(parseInt(match[1]));
