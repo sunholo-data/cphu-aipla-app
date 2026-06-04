@@ -29,6 +29,7 @@
 import { Volume2, VolumeX } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { fetchWithAuth } from "@/lib/apiClient";
+import { rulesForLang } from "@/lib/voice-pronunciation";
 
 interface ReadAloudButtonProps {
   /** Text to speak. Stripped of markdown / HTML before utterance. */
@@ -66,104 +67,18 @@ function isSpeechSynthesisAvailable(): boolean {
   );
 }
 
-/** Physics-unit and math-symbol substitutions per language.
+/** Apply pronunciation rules for the given language.
  *
- *  Cloud TTS reads "9,82 m/s²" as "nine comma eight two m slash s
- *  squared" by default — every symbol gets spelled out. For a physics
- *  tutor that's both broken (loses meaning) and demo-killing
- *  (sounds robotic). We pre-translate the common units + math
- *  decorations into spelled-out words BEFORE handing the text to TTS.
- *
- *  Order matters: longer patterns first so "m/s²" matches before
- *  "m/s" and "²" individually.
+ *  Rules live in `frontend/src/lib/voice-pronunciation/` per 1.1.14 —
+ *  one file per language plus a shared common-rules file. Editing the
+ *  list happens there, not here. The DA/EN parity guard runs at
+ *  module-init in `voice-pronunciation/index.ts`, so the build fails
+ *  before runtime if a rule pair drifts.
  */
-type UnitRule = [RegExp, string];
-
-const COMMON_NUMBER_RULES: UnitRule[] = [
-  // Treat decimal comma in numbers as a decimal point so TTS doesn't
-  // say "comma" between digits. Works for both DA and EN listeners
-  // (engine reads "9.82" as nine point eight two in both).
-  [/(\d),(\d)/g, "$1.$2"],
-];
-
-const UNIT_RULES_EN: UnitRule[] = [
-  // Speed + acceleration (longer matches first)
-  [/(\d[\d.]*)\s*m\/s²/g, "$1 meters per second squared"],
-  [/(\d[\d.]*)\s*m\/s\^2/g, "$1 meters per second squared"],
-  [/(\d[\d.]*)\s*km\/h/g, "$1 kilometers per hour"],
-  [/(\d[\d.]*)\s*m\/s/g, "$1 meters per second"],
-  // Force + energy + power
-  [/(\d[\d.]*)\s*kN/g, "$1 kilonewtons"],
-  [/(\d[\d.]*)\s*N(?![a-z])/g, "$1 newtons"],
-  [/(\d[\d.]*)\s*kJ/g, "$1 kilojoules"],
-  [/(\d[\d.]*)\s*J(?![a-z])/g, "$1 joules"],
-  [/(\d[\d.]*)\s*kW/g, "$1 kilowatts"],
-  [/(\d[\d.]*)\s*W(?![a-z])/g, "$1 watts"],
-  // Mass + distance + time
-  [/(\d[\d.]*)\s*kg(?![a-z])/g, "$1 kilograms"],
-  [/(\d[\d.]*)\s*g(?![a-z])/g, "$1 grams"],
-  [/(\d[\d.]*)\s*km(?![a-z])/g, "$1 kilometers"],
-  [/(\d[\d.]*)\s*cm(?![a-z])/g, "$1 centimeters"],
-  [/(\d[\d.]*)\s*mm(?![a-z])/g, "$1 millimeters"],
-  [/(\d[\d.]*)\s*m(?![a-z\/])/g, "$1 meters"],
-  [/(\d[\d.]*)\s*min(?![a-z])/g, "$1 minutes"],
-  [/(\d[\d.]*)\s*s(?![a-z])/g, "$1 seconds"],
-  // Temperature
-  [/(\d[\d.]*)\s*°C/g, "$1 degrees Celsius"],
-  [/(\d[\d.]*)\s*°/g, "$1 degrees"],
-  // Standalone math decorators
-  [/²/g, " squared"],
-  [/³/g, " cubed"],
-  [/±/g, " plus or minus "],
-  [/≈/g, " approximately "],
-  [/≠/g, " not equal to "],
-  [/≤/g, " less than or equal to "],
-  [/≥/g, " greater than or equal to "],
-  [/×/g, " times "],
-  [/÷/g, " divided by "],
-];
-
-const UNIT_RULES_DA: UnitRule[] = [
-  [/(\d[\d.]*)\s*m\/s²/g, "$1 meter per sekund i anden"],
-  [/(\d[\d.]*)\s*m\/s\^2/g, "$1 meter per sekund i anden"],
-  [/(\d[\d.]*)\s*km\/h/g, "$1 kilometer i timen"],
-  [/(\d[\d.]*)\s*m\/s/g, "$1 meter per sekund"],
-  [/(\d[\d.]*)\s*kN/g, "$1 kilonewton"],
-  [/(\d[\d.]*)\s*N(?![a-zæøå])/g, "$1 newton"],
-  [/(\d[\d.]*)\s*kJ/g, "$1 kilojoule"],
-  [/(\d[\d.]*)\s*J(?![a-zæøå])/g, "$1 joule"],
-  [/(\d[\d.]*)\s*kW/g, "$1 kilowatt"],
-  [/(\d[\d.]*)\s*W(?![a-zæøå])/g, "$1 watt"],
-  [/(\d[\d.]*)\s*kg(?![a-zæøå])/g, "$1 kilogram"],
-  [/(\d[\d.]*)\s*g(?![a-zæøå])/g, "$1 gram"],
-  [/(\d[\d.]*)\s*km(?![a-zæøå])/g, "$1 kilometer"],
-  [/(\d[\d.]*)\s*cm(?![a-zæøå])/g, "$1 centimeter"],
-  [/(\d[\d.]*)\s*mm(?![a-zæøå])/g, "$1 millimeter"],
-  [/(\d[\d.]*)\s*m(?![a-zæøå\/])/g, "$1 meter"],
-  [/(\d[\d.]*)\s*min(?![a-zæøå])/g, "$1 minutter"],
-  [/(\d[\d.]*)\s*s(?![a-zæøå])/g, "$1 sekunder"],
-  [/(\d[\d.]*)\s*°C/g, "$1 grader celsius"],
-  [/(\d[\d.]*)\s*°/g, "$1 grader"],
-  [/²/g, " i anden"],
-  [/³/g, " i tredje"],
-  [/±/g, " plus minus "],
-  [/≈/g, " cirka "],
-  [/≠/g, " forskellig fra "],
-  [/≤/g, " mindre end eller lig "],
-  [/≥/g, " større end eller lig "],
-  [/×/g, " gange "],
-  [/÷/g, " divideret med "],
-];
-
 function applyUnitRules(text: string, lang: string): string {
-  // Decimal-comma normalisation runs regardless of lang.
   let out = text;
-  for (const [re, sub] of COMMON_NUMBER_RULES) {
-    out = out.replace(re, sub);
-  }
-  const rules = lang.startsWith("da") ? UNIT_RULES_DA : UNIT_RULES_EN;
-  for (const [re, sub] of rules) {
-    out = out.replace(re, sub);
+  for (const rule of rulesForLang(lang)) {
+    out = out.replace(new RegExp(rule.pattern, "g"), rule.replacement);
   }
   return out;
 }
