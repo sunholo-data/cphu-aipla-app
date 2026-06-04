@@ -70,6 +70,11 @@ export function useVoiceLang(): VoiceLangHook {
       } else {
         window.localStorage.setItem(STORAGE_KEY, next);
       }
+      // 1.1.11 — switching lang cancels any in-flight read-aloud so we
+      // don't keep speaking the previous language. We deliberately do
+      // NOT re-trigger auto-read here — the toggle only affects future
+      // messages, not the currently-playing one.
+      window.dispatchEvent(new CustomEvent("aipla:voice.cancel"));
     } catch {
       // localStorage disabled (private mode) — session-only state.
     }

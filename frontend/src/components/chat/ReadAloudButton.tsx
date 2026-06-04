@@ -152,12 +152,15 @@ export function ReadAloudButton({
   // because a new assistant message arrived AND the auto-read toggle is
   // on), fire the click once. Placed BEFORE the early return below so
   // the hook ordering stays stable (react-hooks/rules-of-hooks).
+  //
+  // Important: we deliberately do NOT include `lang` or `voice` in the
+  // dep array. Changing the read-aloud language mid-conversation
+  // should NOT re-speak the current message in the new language —
+  // only the NEXT message uses the new lang. The LangToggle dispatches
+  // a voice.cancel event to stop any in-flight playback when switched.
   useEffect(() => {
     if (!autoSpeakOnMount || !available || isSpeaking) return;
     handleClick();
-    // We want this to fire once per (text, autoSpeakOnMount=true)
-    // transition. handleClick is intentionally not in deps — it'd
-    // recreate every render and cause spam.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [autoSpeakOnMount, text]);
 
