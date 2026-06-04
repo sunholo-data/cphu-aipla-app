@@ -66,18 +66,62 @@ function isSpeechSynthesisAvailable(): boolean {
   );
 }
 
-/** Strip the most common markdown punctuation so the TTS engine
- *  doesn't try to read asterisks / underscores / backticks aloud.
- *  Keep it conservative — over-eager stripping would mangle math
- *  expressions in stx physics text. */
+/** Strip markdown / LaTeX / emoji so the TTS engine doesn't read raw
+ *  syntax aloud ("**bold**" → "star star bold star star", $$ x = 5 $$
+ *  → "dollar dollar x equals five dollar dollar", "👇" → "down finger").
+ *
+ *  Aggressive enough to fix the demo bugs the teacher saw; conservative
+ *  enough to keep math VALUES readable (we strip the delimiters, but
+ *  the equation text inside survives so "v = 15 m/s" still gets spoken).
+ */
 function plainTextForSpeech(text: string): string {
-  return text
-    .replace(/\*\*([^*]+)\*\*/g, "$1") // **bold**
-    .replace(/\*([^*]+)\*/g, "$1") // *italic*
-    .replace(/_([^_]+)_/g, "$1") // _italic_
-    .replace(/`([^`]+)`/g, "$1") // `code`
-    .replace(/\[([^\]]+)\]\([^)]+\)/g, "$1") // [link](url)
-    .trim();
+  return (
+    text
+      // 1. Block LaTeX: $$...$$ and \[ ... \]
+      .replace(/\$\$[\s\S]*?\$\$/g, " ")
+      .replace(/\\\[[\s\S]*?\\\]/g, " ")
+      // 2. Inline LaTeX: $...$ (greedy enough but not multi-line — collapse)
+      .replace(/\$([^$\n]+)\$/g, " $1 ")
+      // 3. Code fences (```lang\n...\n```)
+      .replace(/```[\s\S]*?```/g, " ")
+      // 4. Inline markdown decoration
+      .replace(/\*\*([^*]+)\*\*/g, "$1") // **bold**
+      .replace(/__([^_]+)__/g, "$1") // __bold__
+      .replace(/\*([^*]+)\*/g, "$1") // *italic*
+      .replace(/_([^_]+)_/g, "$1") // _italic_
+      .replace(/`([^`]+)`/g, "$1") // `code`
+      .replace(/\[([^\]]+)\]\([^)]+\)/g, "$1") // [link](url)
+      // 5. Headings + list bullets at start of line
+      .replace(/^#+\s+/gm, "")
+      .replace(/^\s*[-*+]\s+/gm, "")
+      .replace(/^\s*\d+\.\s+/gm, "")
+      // 6. Block-quote markers + horizontal rules
+      .replace(/^>\s?/gm, "")
+      .replace(/^-{3,}|_{3,}|\*{3,}$/gm, "")
+      // 7. Emoji + dingbats + arrows. Cloud TTS reads "👇" as "down
+      //    pointing backhand index". Stripping the common pictographic
+      //    BMP-supplementary planes catches almost all of them.
+      .replace(/[\u{1F300}-\u{1FAFF}\u{2600}-\u{27BF}\u{2190}-\u{21FF}\u{2300}-\u{23FF}]/gu, " ")
+      // 8. Collapse whitespace
+      .replace(/\s+/g, " ")
+      .trim()
+  );
+}
+
+/** Detect the text's language from content so we don't read Danish
+ *  prose with English phonemes (or vice versa).
+ *
+ *  Strategy:
+ *  - If the text contains Danish-only chars (æøåÆØÅ), it's Danish.
+ *  - Otherwise we trust the caller's `lang` prop (skill default or
+ *    class override). This is conservative — we'd rather over-trust
+ *    the skill than guess wrong on a short prompt.
+ *
+ *  Returns the BCP-47 short tag ("da" / "en") to use for synthesis.
+ */
+function detectLangForSpeech(text: string, fallback: string): string {
+  if (/[æøåÆØÅ]/.test(text)) return "da";
+  return fallback;
 }
 
 export function ReadAloudButton({
@@ -187,16 +231,23 @@ export function ReadAloudButton({
   }
 
   async function speakViaGCP(): Promise<void> {
+    const cleanText = plainTextForSpeech(text);
+    // Auto-detect language from the actual text — if the tutor responded
+    // in Danish but the caller passed lang="en" (because the class is
+    // English-default), reading Danish prose with English phonemes
+    // sounds hilarious + broken. Detection overrides the caller's lang
+    // when the text is clearly Danish.
+    const detectedLang = detectLangForSpeech(cleanText, lang);
     // M-A7 diagnostic — temporary.
     // eslint-disable-next-line no-console
-    console.log("[ReadAloudButton] speakViaGCP() POST /api/proxy/api/voice/tts/synthesize", { lang, voice });
+    console.log("[ReadAloudButton] speakViaGCP() POST", { passedLang: lang, detectedLang, voice });
     try {
       const res = await fetchWithAuth("/api/proxy/api/voice/tts/synthesize", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          text: plainTextForSpeech(text),
-          lang,
+          text: cleanText,
+          lang: detectedLang,
           voice,
           skillId,
         }),
@@ -212,8 +263,8 @@ export function ReadAloudButton({
       const contentType = res.headers.get("content-type") ?? "";
       if (contentType.startsWith("application/json")) {
         // Server signalled "use browser" — fall through.
-        const utt = new SpeechSynthesisUtterance(plainTextForSpeech(text));
-        utt.lang = lang;
+        const utt = new SpeechSynthesisUtterance(cleanText);
+        utt.lang = detectedLang;
         utt.rate = 0.85;
         utt.onend = stopAll;
         utt.onerror = stopAll;
@@ -234,8 +285,8 @@ export function ReadAloudButton({
     } catch {
       // Synthesize failed — degrade to browser-native so the user
       // still hears something.
-      const utt = new SpeechSynthesisUtterance(plainTextForSpeech(text));
-      utt.lang = lang;
+      const utt = new SpeechSynthesisUtterance(cleanText);
+      utt.lang = detectedLang;
       utt.rate = 0.85;
       utt.onend = stopAll;
       utt.onerror = stopAll;
@@ -272,8 +323,10 @@ export function ReadAloudButton({
       void speakViaGCP();
       return;
     }
-    const utt = new SpeechSynthesisUtterance(plainTextForSpeech(text));
-    utt.lang = lang;
+    const cleanText = plainTextForSpeech(text);
+    const detectedLang = detectLangForSpeech(cleanText, lang);
+    const utt = new SpeechSynthesisUtterance(cleanText);
+    utt.lang = detectedLang;
     utt.rate = 0.85;
     utt.onend = stopAll;
     utt.onerror = stopAll;

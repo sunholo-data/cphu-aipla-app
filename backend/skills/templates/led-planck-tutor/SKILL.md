@@ -2,6 +2,10 @@
 name: led-planck-tutor
 displayName: LED og Plancks konstant
 avatar: /lesson-images/led-planck-tutor.svg
+voice:
+  ttsProvider: gcp_chirp3hd
+  ttsVoice: da-DK-Chirp3-HD-Aoede
+  rate: 1.0
 description: >
   Dansk stx fysik-A virtuelt laboratorium — bestem Plancks konstant ved at måle
   tærskelspændingen for seks LEDs med forskellig farve. Sokratisk tutor guider

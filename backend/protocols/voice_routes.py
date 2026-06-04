@@ -293,12 +293,27 @@ async def synthesize(
       - 503 on provider failure.
     """
     skill = get_skill(body.skill_id) if body.skill_id else None
-    provider = get_tts(skill)
-    # M-A5 diagnostic — see voice/config note above.
+    # 1.1.11 follow-up — same class-override consultation as /voice/config
+    # so the synthesize PROVIDER picks the class's tier (gcp_chirp3hd vs
+    # gcp_wavenet), not just the env default. Without this, the frontend
+    # is told "voice=da-DK-Chirp3-HD-Aoede" but the actual synth runs on
+    # gcp_wavenet's provider, which Cloud TTS bills + may downgrade the
+    # voice silently to the closest matching tier.
+    class_voice = _class_voice_for_user(user)
+    if class_voice is not None and class_voice.provider:
+        from types import SimpleNamespace
+
+        effective_skill = SimpleNamespace(
+            voice=SimpleNamespace(tts_provider=class_voice.provider, stt_provider=None),
+        )
+        provider = get_tts(effective_skill)
+    else:
+        provider = get_tts(skill)
     logger.info(
-        "voice/synthesize skill_id=%r skill_found=%s provider=%s lang=%s voice=%s chars=%d",
+        "voice/synthesize skill_id=%r skill_found=%s class_voice=%s provider=%s lang=%s voice=%s chars=%d",
         body.skill_id,
         skill is not None,
+        class_voice is not None,
         provider.name,
         body.lang,
         body.voice,

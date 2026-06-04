@@ -2,6 +2,10 @@
 name: kinebot-kinematics-tutor
 displayName: Kinematics Tutor (NCERT)
 avatar: /lesson-images/kinebot-kinematics-tutor.svg
+voice:
+  ttsProvider: gcp_chirp3hd
+  ttsVoice: en-US-Chirp3-HD-Charon
+  rate: 1.0
 description: >
   English-language Socratic kinematics tutor for NCERT/CBSE Class 11
   Physics. Paired with an interactive workbench (seven simulations,

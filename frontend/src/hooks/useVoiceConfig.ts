@@ -17,7 +17,7 @@
  * See voice-provider-abstraction.md (SEQUENCE 1.1.11).
  */
 
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { fetchWithAuth } from "@/lib/apiClient";
 
 export interface VoiceCapabilities {
@@ -59,8 +59,8 @@ const DEFAULT_CONFIG: VoiceConfig = {
 };
 
 // Module-level cache. Keyed by skillId (or "_default_" for no-skill
-// configs). Lives for the page session — no LRU because skills/page
-// counts are small.
+// configs). Lives for the page session, refreshed on tab focus so
+// teacher updates land within a tab-switch (not just a hard reload).
 const _cache = new Map<string, Omit<VoiceConfig, "loading">>();
 
 export function useVoiceConfig(skillId: string | null): VoiceConfig {
@@ -72,35 +72,51 @@ export function useVoiceConfig(skillId: string | null): VoiceConfig {
   );
   const [loading, setLoading] = useState<boolean>(!cached);
 
-  useEffect(() => {
-    if (cached) {
-      setConfig(cached);
-      setLoading(false);
-      return;
-    }
-    let cancelled = false;
+  // Shared fetch routine — used for the initial mount AND for the
+  // on-focus refetch so teacher class-voice updates land quickly.
+  const fetchConfig = useCallback(async (signal: { cancelled: boolean }) => {
     const url = skillId
       ? `/api/proxy/api/voice/config?skill_id=${encodeURIComponent(skillId)}`
       : `/api/proxy/api/voice/config`;
-    fetchWithAuth(url)
-      .then(async (res) => {
-        if (!res.ok) throw new Error(`HTTP ${res.status}`);
-        const data = (await res.json()) as Omit<VoiceConfig, "loading">;
-        if (!cancelled) {
-          _cache.set(cacheKey, data);
-          setConfig(data);
-          setLoading(false);
-        }
-      })
-      .catch(() => {
-        // Stay on the safe default. Don't cache the failure — a transient
-        // 503 should retry on the next mount.
-        if (!cancelled) setLoading(false);
-      });
+    try {
+      const res = await fetchWithAuth(url);
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      const data = (await res.json()) as Omit<VoiceConfig, "loading">;
+      if (!signal.cancelled) {
+        _cache.set(cacheKey, data);
+        setConfig(data);
+        setLoading(false);
+      }
+    } catch {
+      if (!signal.cancelled) setLoading(false);
+    }
+  }, [skillId, cacheKey]);
+
+  useEffect(() => {
+    const signal = { cancelled: false };
+    if (cached) {
+      setConfig(cached);
+      setLoading(false);
+    } else {
+      void fetchConfig(signal);
+    }
     return () => {
-      cancelled = true;
+      signal.cancelled = true;
     };
-  }, [skillId, cacheKey, cached]);
+  }, [skillId, cacheKey, cached, fetchConfig]);
+
+  // Refetch when the tab regains focus — gives teacher class-voice
+  // updates a propagation path short of a full page reload. Background
+  // re-fetch so the existing config stays visible until new data lands.
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    function onFocus() {
+      const signal = { cancelled: false };
+      void fetchConfig(signal);
+    }
+    window.addEventListener("focus", onFocus);
+    return () => window.removeEventListener("focus", onFocus);
+  }, [fetchConfig]);
 
   return { ...config, loading };
 }

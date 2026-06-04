@@ -107,6 +107,53 @@ describe("ReadAloudButton", () => {
     expect(lastUtt?.text).toBe("Bold then code and italic");
   });
 
+  it("strips LaTeX delimiters but keeps the equation text", () => {
+    render(<ReadAloudButton text="The answer is $v = 15$ m/s here" lang="en" />);
+    fireEvent.click(screen.getByRole("button"));
+    expect(lastUtt?.text).toBe("The answer is v = 15 m/s here");
+  });
+
+  it("strips block LaTeX entirely (too hard to speak coherently)", () => {
+    render(<ReadAloudButton text="Computed: $$\\frac{1}{2}mv^2$$ as energy" lang="en" />);
+    fireEvent.click(screen.getByRole("button"));
+    expect(lastUtt?.text).toBe("Computed: as energy");
+  });
+
+  it("strips emoji so 👇 doesn't read as 'down pointing backhand'", () => {
+    render(<ReadAloudButton text="Skriv nedenfor 👇 og fortsæt" lang="da" />);
+    fireEvent.click(screen.getByRole("button"));
+    expect(lastUtt?.text).not.toContain("👇");
+    expect(lastUtt?.text).toContain("Skriv nedenfor");
+    expect(lastUtt?.text).toContain("fortsæt");
+  });
+
+  it("strips heading and list markers at line starts", () => {
+    render(
+      <ReadAloudButton
+        text={"# Heading\n- first\n- second\n1. step one\n2. step two"}
+        lang="en"
+      />,
+    );
+    fireEvent.click(screen.getByRole("button"));
+    expect(lastUtt?.text).not.toMatch(/^#|\b\d+\.\s/);
+    expect(lastUtt?.text).toContain("Heading");
+    expect(lastUtt?.text).toContain("first");
+    expect(lastUtt?.text).toContain("step one");
+  });
+
+  it("auto-detects Danish text and overrides the lang prop", () => {
+    // Caller passed lang="en" but text contains Danish-only chars.
+    render(<ReadAloudButton text="Hvad er den næste øvelse?" lang="en" />);
+    fireEvent.click(screen.getByRole("button"));
+    expect(lastUtt?.lang).toBe("da");
+  });
+
+  it("respects lang prop when text has no Danish-only chars", () => {
+    render(<ReadAloudButton text="What is the next exercise?" lang="en" />);
+    fireEvent.click(screen.getByRole("button"));
+    expect(lastUtt?.lang).toBe("en");
+  });
+
   // --- 1.1.11 Cloud TTS path (provider != "browser") ---
 
   it("Cloud TTS path: POSTs to /api/voice/tts/synthesize and plays audio blob", async () => {

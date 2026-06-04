@@ -2,6 +2,10 @@
 name: problem-set-hints
 displayName: Problem-set hints (Boldkast)
 avatar: /lesson-images/problem-set-hints.svg
+voice:
+  ttsProvider: gcp_chirp3hd
+  ttsVoice: da-DK-Chirp3-HD-Aoede
+  rate: 1.0
 description: >
   Danish stx physics tutor for ONE specific problem — projectile motion
   ("Boldkast", v0=15 m/s @ 40°). Scaffolds students through the sub-steps

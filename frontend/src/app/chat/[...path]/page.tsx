@@ -7,6 +7,7 @@ import { AutoReadToggle } from "@/components/chat/AutoReadToggle";
 import { ChatMessageList } from "@/components/chat/ChatMessageList";
 import { LangToggle } from "@/components/chat/LangToggle";
 import { ResumeWelcomeBanner } from "@/components/chat/ResumeWelcomeBanner";
+import { VoiceStatusPill } from "@/components/chat/VoiceStatusPill";
 import { useVoiceConfig } from "@/hooks/useVoiceConfig";
 import type { DocTabData } from "@/components/doc-browser/DocTab";
 import { DocListView } from "@/components/doc-browser/DocListView";
@@ -162,7 +163,8 @@ function SurfaceSessionLifecycle({ sessionId }: { sessionId: string | null }) {
 function ChatVoiceControls({ skillId }: { skillId: string }) {
   const voiceConfig = useVoiceConfig(skillId);
   return (
-    <div className="flex items-center justify-end gap-2 px-4 pt-2">
+    <div className="flex flex-wrap items-center justify-end gap-2 px-4 pt-2">
+      <VoiceStatusPill voiceConfig={voiceConfig} />
       <LangToggle defaultLang={voiceConfig.tts.language} />
       <AutoReadToggle />
     </div>
