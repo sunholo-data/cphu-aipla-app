@@ -164,6 +164,13 @@ export function ReadAloudButton({
   const utteranceRef = useRef<SpeechSynthesisUtterance | null>(null);
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const audioUrlRef = useRef<string | null>(null);
+  // 2026-06-05 bug fix: in-flight synthesize fetches need to be abortable
+  // so a voice.cancel mid-fetch actually stops the audio that would
+  // play when the fetch resolves. Without this, setting changes during
+  // streaming auto-reads produced a "previous turn replays" effect —
+  // the cancel landed before audioRef was populated, so stopAll() had
+  // nothing to stop; the fetch resolved later and Audio.play() ran.
+  const fetchAbortRef = useRef<AbortController | null>(null);
 
   // Always cancel any in-flight utterance / audio when the component
   // unmounts — otherwise navigating away mid-speech leaves the OS still
@@ -271,6 +278,13 @@ export function ReadAloudButton({
       URL.revokeObjectURL(audioUrlRef.current);
       audioUrlRef.current = null;
     }
+    if (fetchAbortRef.current) {
+      // Abort any in-flight synthesize fetch so a "cancelled" turn
+      // doesn't start playing after the cancel lands. The catch block
+      // in speakViaGCP swallows the AbortError silently.
+      fetchAbortRef.current.abort();
+      fetchAbortRef.current = null;
+    }
     utteranceRef.current = null;
     setIsSpeaking(false);
   }
@@ -286,6 +300,8 @@ export function ReadAloudButton({
     // M-A7 diagnostic — temporary.
     // eslint-disable-next-line no-console
     console.log("[ReadAloudButton] speakViaGCP() POST", { passedLang: lang, detectedLang, voice });
+    const controller = new AbortController();
+    fetchAbortRef.current = controller;
     try {
       const res = await fetchWithAuth("/api/proxy/api/voice/tts/synthesize", {
         method: "POST",
@@ -296,6 +312,7 @@ export function ReadAloudButton({
           voice,
           skillId,
         }),
+        signal: controller.signal,
       });
       // eslint-disable-next-line no-console
       console.log("[ReadAloudButton] synthesize response", {
@@ -305,6 +322,10 @@ export function ReadAloudButton({
         cacheHit: res.headers.get("x-voice-cache-hit"),
       });
       if (!res.ok) throw new Error(`synthesize ${res.status}`);
+      // If stopAll fired during the fetch, controller.signal.aborted is
+      // true. Skip starting playback so the cancelled turn doesn't
+      // suddenly begin reading after the cancel landed.
+      if (controller.signal.aborted) return;
       const contentType = res.headers.get("content-type") ?? "";
       if (contentType.startsWith("application/json")) {
         // Server signalled "use browser" — fall through.
@@ -319,6 +340,8 @@ export function ReadAloudButton({
         return;
       }
       const blob = await res.blob();
+      // Re-check after the blob() await too — same race window.
+      if (controller.signal.aborted) return;
       const url = URL.createObjectURL(blob);
       audioUrlRef.current = url;
       const audio = new Audio(url);
@@ -327,7 +350,10 @@ export function ReadAloudButton({
       audio.onerror = stopAll;
       await audio.play();
       setIsSpeaking(true);
-    } catch {
+    } catch (err) {
+      // AbortError from controller.abort() is the success path here —
+      // the user cancelled mid-fetch, nothing more to do.
+      if (err instanceof Error && err.name === "AbortError") return;
       // Synthesize failed — degrade to browser-native so the user
       // still hears something.
       const utt = new SpeechSynthesisUtterance(cleanText);
@@ -341,6 +367,12 @@ export function ReadAloudButton({
         setIsSpeaking(true);
       } catch {
         stopAll();
+      }
+    } finally {
+      // Clear the abort handle whichever path we took so stopAll
+      // doesn't try to abort a controller from a previous call.
+      if (fetchAbortRef.current === controller) {
+        fetchAbortRef.current = null;
       }
     }
   }
