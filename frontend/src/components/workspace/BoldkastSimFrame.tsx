@@ -1,7 +1,10 @@
 "use client";
 
-import { forwardRef, useCallback, useImperativeHandle, useRef } from "react";
+import { forwardRef, useImperativeHandle, useRef } from "react";
 
+import {
+  useArtefactReportEvent,
+} from "@/hooks/useArtefactReportEvent";
 import type {
   BoldkastEvent,
   BoldkastMarker,
@@ -24,25 +27,14 @@ export interface BoldkastSimFrameHandle {
   sendChatFlush: () => void;
 }
 
-/** Spec-side payload shape: structuredContent.kind carries the
- *  artefact's event vocabulary, the rest are event-specific fields. */
-interface BoldkastStructuredContent {
-  kind: string;
-  marker?: string;
-  revealed?: boolean;
-  triggeredBy?: string;
-  changed?: string[];
-  state?: { v0?: number; theta?: number; g?: number };
-}
-
 interface BoldkastSimFrameProps {
   /** Sandbox origin (NO trailing /sandbox.html). */
   sandboxOrigin: string;
-  /** Bench events (open, play, state-change, show_value) route here into
-   *  the shared snapshot hook. pause/reset are dropped (undo / pause
-   *  aren't progress). play was previously dropped too but is now
-   *  routed — it's the canonical sim_run signal that triggers proactive
-   *  sim-reactive turns via useSimSnapshotPush. */
+  /** Reports bench events into the shared snapshot hook. Routing is
+   *  denylist-shaped via useArtefactReportEvent: pause / reset drop,
+   *  state-change / show_value get typed payload narrowers,
+   *  open / play (and any future kinds) flow through as `{kind}` so
+   *  proactive-reactive wiring picks them up automatically. */
   reportEvent: (evt: BoldkastEvent) => void;
   /** Called on user-close so the workspace returns to the workbench. */
   onClose: () => void;
@@ -63,49 +55,33 @@ export const BoldkastSimFrame = forwardRef<
 >(function BoldkastSimFrame({ sandboxOrigin, reportEvent, onClose }, ref) {
   const staticFrameRef = useRef<StaticArtefactFrameHandle | null>(null);
   const wrapperRef = useRef<HTMLDivElement | null>(null);
-  const reportEventRef = useRef(reportEvent);
-  reportEventRef.current = reportEvent;
 
-  const handleStructuredContent = useCallback(
-    (structuredContent: Record<string, unknown>) => {
-      const data = structuredContent as unknown as BoldkastStructuredContent;
-      const kind = data.kind;
-      const report = reportEventRef.current;
-
-      if (kind === "boldkast.open") {
-        report({ kind: "boldkast.open" });
-      } else if (kind === "boldkast.play") {
-        // Sprint PROACTIVE-SIM-REACTIVE M8-fix: route the play event so
-        // useSimSnapshotPush's central proactive-event-check sees
-        // "boldkast.play" → maps to sim_run → fires a reactive tutor
-        // turn. The pre-2026-06-03 comment "play / pause / reset: not
-        // routed (not pedagogically interesting)" was true before
-        // proactive-sim-reactive existed. Now play IS pedagogically
-        // interesting — it's the canonical "student ran the sim"
-        // signal.
-        report({ kind: "boldkast.play" });
-      } else if (kind === "boldkast.state-change" && Array.isArray(data.changed)) {
-        report({
-          kind: "boldkast.state-change",
-          changed: data.changed,
-          state: data.state ?? {},
-          triggeredBy: data.triggeredBy,
-        });
-      } else if (
-        kind === "boldkast.show_value" &&
-        typeof data.marker === "string" &&
-        typeof data.revealed === "boolean"
-      ) {
-        report({
-          kind: "boldkast.show_value",
-          marker: data.marker as BoldkastMarker,
-          revealed: data.revealed,
-        });
-      }
-      // pause / reset: still not routed (undo / pause aren't progress).
+  const handleStructuredContent = useArtefactReportEvent<BoldkastEvent>({
+    report: reportEvent,
+    // Drop noise: pause + reset aren't progress (undo / pause aren't
+    // proactive-trigger-worthy). Everything else flows through.
+    drop: new Set(["boldkast.pause", "boldkast.reset"]),
+    narrow: {
+      "boldkast.state-change": (d) =>
+        Array.isArray(d.changed)
+          ? {
+              kind: "boldkast.state-change",
+              changed: d.changed as string[],
+              state:
+                (d.state as { v0?: number; theta?: number; g?: number }) ?? {},
+              triggeredBy: d.triggeredBy as string | undefined,
+            }
+          : null,
+      "boldkast.show_value": (d) =>
+        typeof d.marker === "string" && typeof d.revealed === "boolean"
+          ? {
+              kind: "boldkast.show_value",
+              marker: d.marker as BoldkastMarker,
+              revealed: d.revealed,
+            }
+          : null,
     },
-    [],
-  );
+  });
 
   useImperativeHandle(
     ref,
