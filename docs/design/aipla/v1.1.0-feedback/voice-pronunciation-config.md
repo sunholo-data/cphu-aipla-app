@@ -49,7 +49,7 @@ The right shape was always YAML — `cc8507f` was the right scope for the bug-fi
 - **Runtime hot-reload** of the rules — the list is baked at build time. Adding units is rare (weekly to monthly cadence); a deploy isn't a friction point worth solving
 - **Per-skill or per-class pronunciation overrides** — same rules for everyone. If a class wants their tutor to pronounce "newton" differently, that's persona-level customization (1.1.12 territory); not here
 - **SSML support** (`<phoneme>`, `<sub alias>`) — plain spelled-out text works on every Cloud TTS voice. SSML is per-voice + adds complexity for a marginal quality win
-- **Multiple languages beyond DA / EN** — the schema + loader support N languages (just drop in a new `units.<lang>.yaml`), but v1.1.13 ships only the two we have today
+- **Multiple languages beyond DA / EN** — the schema + loader support N languages (just drop in a new `units.<lang>.yaml`), but v1.1.14 ships only the two we have today
 - **Pronunciation analytics** (which substitutions fire most, which produce bad audio) — would be useful for cost-dashboard adjacent work but out of scope here
 
 ## Standards check
@@ -396,7 +396,7 @@ Suggested milestone breakdown (concrete sprint plan via sprint-planner skill at 
 ## Related Documents
 
 - **Parent infrastructure:** [voice-provider-abstraction.md](voice-provider-abstraction.md) (1.1.11) — shipped 2026-06-04. The Cloud TTS path that consumes the rules
-- **Sibling polish:** [voice-personas.md](voice-personas.md) (1.1.12) — both 1.1.12 and 1.1.13 are P2 polish over 1.1.11; can ship in parallel; no cross-dependencies
+- **Sibling polish:** [voice-personas.md](voice-personas.md) (1.1.12) — both 1.1.12 and 1.1.14 are P2 polish over 1.1.11; can ship in parallel; no cross-dependencies
 - [feedback_search_protocols_first](file:///Users/mark/.claude/projects/-Users-mark-dev-sunholo-cphu-aipla-app/memory/feedback_search_protocols_first.md) — cited in Standards check (no protocol exists at this layer)
 - [feedback_no_emoticons](file:///Users/mark/.claude/projects/-Users-mark-dev-sunholo-cphu-aipla-app/memory/feedback_no_emoticons.md) — YAML stays plain text; no emoji in rule replacements (we already substitute emoji *out* of message text)
 - [feedback_no_prs_commit_to_dev](file:///Users/mark/.claude/projects/-Users-mark-dev-sunholo-cphu-aipla-app/memory/feedback_no_prs_commit_to_dev.md) — execution commits directly to dev; the runbook adopts the same workflow

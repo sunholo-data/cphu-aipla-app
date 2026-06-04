@@ -60,6 +60,7 @@ Larger / more cross-cutting:
   1.1.9  cost dashboard            (1d)   ◄── 1.2 BQ tables shipped; uses existing OTel
   1.1.11 voice provider abstraction (3.5-4d) ◄── 1.0 TTS shipped; 1.1.2 proactive (auto-read picks up); 1.1.9 spans; 1.G toggle
   1.1.12 voice personas             (3d)   ◄── 1.1.11 shipped; 1.G picker placement; optional 1.1.9 + 1.1.5
+  1.1.14 voice pronunciation config (1d)   ◄── 1.1.11 shipped; cc8507f inline list to extract; ships in parallel with 1.1.12
 ```
 
 ## Items the brief explicitly excluded (future)
@@ -83,8 +84,8 @@ From the brief's "Not in this brief" section — captured here so they don't get
 | Quick wins (1.1.1, 1.1.6) | ~0.5d |
 | Standard (1.1.2, 1.1.3, 1.1.4, 1.1.5, 1.1.8, 1.1.9, 1.1.10) | ~6.5-7d |
 | Larger (1.1.7, 1.1.11) | ~5.5-6d |
-| Polish (1.1.12) | ~3d |
-| **Total** | **~15.5-16.5d** |
+| Polish (1.1.12, 1.1.14) | ~4d |
+| **Total** | **~16.5-17.5d** |
 
 Comfortably fits in the post-3-June → pilot-start window (2026-06-04 → 2026-08-14, ~10 weeks minus the 2026-06-29 → 07-05 holiday freeze). Several items can be live in time to be exercised *by* the pilot, not absorbed *after* the pilot.
 
