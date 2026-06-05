@@ -24,13 +24,13 @@ export default defineConfig({
     globals: true,
     passWithNoTests: true,
     css: true,
-    reporters: process.env.CI ? ['basic'] : ['verbose'],
+    // 'basic' reporter was removed in vitest 4 — use default-without-summary.
+    reporters: process.env.CI ? [['default', { summary: false }]] : ['verbose'],
     pool: 'forks',
-    poolOptions: {
-      forks: {
-        singleFork: process.env.CI === 'true'
-      }
-    },
+    // poolOptions removed in vitest 4. Old `singleFork: true` becomes
+    // `maxWorkers: 1` (one fork) while keeping default module isolation so
+    // test files don't leak state into each other.
+    ...(process.env.CI === 'true' ? { maxWorkers: 1 } : {}),
     testTimeout: process.env.CI ? 30000 : 10000,
     coverage: {
       provider: 'v8',

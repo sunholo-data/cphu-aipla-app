@@ -11,12 +11,13 @@ interface FakeUtterance {
   onerror: (() => void) | null;
 }
 
-let speakMock: ReturnType<typeof vi.fn<any[], unknown>>;
+// vitest 4: vi.fn generics changed to a single function-signature type arg.
+let speakMock: ReturnType<typeof vi.fn<(u: FakeUtterance) => unknown>>;
 let cancelMock: ReturnType<typeof vi.fn>;
 let lastUtt: FakeUtterance | null;
 
 beforeEach(() => {
-  speakMock = vi.fn<any[], unknown>((u: FakeUtterance) => {
+  speakMock = vi.fn<(u: FakeUtterance) => unknown>((u: FakeUtterance) => {
     lastUtt = u;
   });
   cancelMock = vi.fn();
@@ -206,12 +207,15 @@ describe("ReadAloudButton", () => {
     vi.stubGlobal("fetch", fetchMock);
     // Audio() needs to be mockable in jsdom.
     const playMock = vi.fn().mockResolvedValue(undefined);
-    const audioCtor = vi.fn().mockImplementation(() => ({
-      play: playMock,
-      pause: vi.fn(),
-      onended: null,
-      onerror: null,
-    }));
+    // vitest 4: function expression so `new Audio(...)` works.
+    const audioCtor = vi.fn().mockImplementation(function () {
+      return {
+        play: playMock,
+        pause: vi.fn(),
+        onended: null,
+        onerror: null,
+      };
+    });
     vi.stubGlobal("Audio", audioCtor);
     // URL.createObjectURL doesn't exist in jsdom.
     const createUrlMock = vi.fn().mockReturnValue("blob:fake");

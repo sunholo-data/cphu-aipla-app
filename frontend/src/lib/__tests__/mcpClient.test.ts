@@ -22,15 +22,18 @@ const transportCtor = vi.fn();
 const clientConnect = vi.fn(async () => undefined);
 const clientCtor = vi.fn();
 
+// vitest 4: arrow fns in mockImplementation lose [[Construct]] and break
+// when the prod code does `new StreamableHTTPClientTransport(...)`. Use
+// function expressions so the mocks are constructable.
 vi.mock("@modelcontextprotocol/sdk/client/streamableHttp.js", () => ({
-  StreamableHTTPClientTransport: vi.fn().mockImplementation((url, opts) => {
+  StreamableHTTPClientTransport: vi.fn().mockImplementation(function (url: URL | string, opts: unknown) {
     transportCtor(url, opts);
     return { __isTransport: true, url, opts };
   }),
 }));
 
 vi.mock("@modelcontextprotocol/sdk/client/index.js", () => ({
-  Client: vi.fn().mockImplementation((info, opts) => {
+  Client: vi.fn().mockImplementation(function (info: unknown, opts: unknown) {
     clientCtor(info, opts);
     return {
       __isClient: true,
