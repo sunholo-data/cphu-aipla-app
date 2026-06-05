@@ -880,6 +880,64 @@ The anti-pattern is wrong even when it's invisible:
 
 This kind of "blank-then-refetch on auth refresh" pattern is also worth a generic note in `docs/upstream-feedback.md`-equivalent template-builder docs: **provider children should never unmount across credential refreshes**. The credential is data the provider holds, not a precondition for its consumers existing.
 
+## 32. `ag_ui_adk` double-emits `RUN_FINISHED` after `RUN_ERROR` on tool exceptions — and the template's SSE wrapper doesn't filter
+
+**Where:** Surfaced 2026-06-06 by a sibling fork (`gde-ap-agent-blqtqfexwa-ew.a.run.app`) whose `lookup_vendor` tool raised mid-run. Browser console:
+
+```
+stream_run_failed { kind: "run_error", message: "The agent encountered an error. Try again.", retryable: true }
+Agent execution failed: Error: Cannot send event type 'RUN_FINISHED': The run has already errored with 'RUN_ERROR'. No further events can be sent.
+```
+
+The wire sequence the server emitted:
+
+1. `RUN_STARTED` (normal)
+2. Tool exception inside the agent loop
+3. `RUN_ERROR` (correct — emitted by the error path)
+4. `RUN_FINISHED` (**incorrect** — emitted by the normal completion path, which doesn't know an error already fired)
+
+Per the AG-UI spec, `RUN_ERROR` is terminal — the `@ag-ui/client` state machine rejects any subsequent event. The error message is verbatim from `@ag-ui/client`'s validator. The bug is in `ag_ui_adk` (or wherever the template's adapter layer translates ADK events to AG-UI): the error path and the normal-completion path aren't mutually exclusive.
+
+**What hurt:** The whole tail of the SSE stream is rejected by the client. The user-visible error ("The agent encountered an error. Try again.") is technically correct but the *real* failure — the tool exception — is buried in the (now-rejected) RUN_ERROR event payload. The retryable flag becomes a guessing game because the actual cause never reaches the user-visible error toast in some FE implementations.
+
+**Why we hadn't seen this on AIPLA yet:** No AIPLA v0.1 / v1.0 skill has a tool that can raise mid-run. Boldkast / LED Planck / KineBot have no tools; problem-set-helper / concept-dialogue are prompt-only with retrieval. The first risk surface is [1.1.7 student-multimodal-upload](design/aipla/v1.1.0-feedback/student-multimodal-upload.md), then any analytics / search tools added post-pilot. Pre-emptive defense was cheaper than waiting for the first multimodal failure.
+
+**Workaround on AIPLA:** Defensive filter in the SSE wrapper at [backend/fast_api_app.py:606-647](../backend/fast_api_app.py#L606-L647). Track `saw_run_error` across both the prelude (`first_event`) and the main `async for` loop. Once true, drop everything that follows — `RUN_FINISHED`, any trailing `TEXT_MESSAGE_*`, the probe-mode `LATENCY_REPORT` event, all of it. The client gets exactly one terminal event (`RUN_ERROR`) and the rest of the stream closes cleanly. ~15 LOC. Regression test in [backend/tests/api_tests/test_stream_skill.py::test_stream_skill_drops_events_after_run_error](../backend/tests/api_tests/test_stream_skill.py) pins the contract: mock `ADKAgent.run` to yield `RUN_STARTED → RUN_ERROR → RUN_FINISHED`, assert the response contains `RUN_ERROR` as the terminal event and `RUN_FINISHED` is absent.
+
+**Upstream fix (two layers):**
+
+1. **The right fix is in `ag_ui_adk`** — the error path and the normal-completion path need to share a "run is terminal" flag. Once `RUN_ERROR` has been emitted, the `finally`/cleanup branch that yields `RUN_FINISHED` must short-circuit. The shape:
+
+   ```python
+   # roughly, inside ADKAgent.run() / wherever the AG-UI translation happens
+   run_terminated = False
+   try:
+       async for adk_event in self._agent.run_async(...):
+           ag_ui_event = translate(adk_event)
+           if ag_ui_event.type == EventType.RUN_ERROR:
+               run_terminated = True
+           yield ag_ui_event
+   except Exception as exc:
+       run_terminated = True
+       yield RunErrorEvent(...)
+   finally:
+       if not run_terminated:
+           yield RunFinishedEvent(...)
+   ```
+
+2. **The defensive filter belongs in the template's SSE wrapper too**, as belt-and-braces for any future emitter regression (or third-party adapter, e.g. a fork that swaps `ag_ui_adk` for a `ag_ui_langchain` adapter that has the same class of bug). Cost is ~15 LOC + 1 regression test, ergonomic for every downstream fork. The wrapper is the right place to enforce *"`RUN_ERROR` is terminal"* as a stream-level invariant, not just inside the adapter.
+
+The combination is the right shape: the adapter should never emit the bad sequence, but the wrapper should never propagate it if it does. Spec compliance becomes a property of two independent layers.
+
+**Status: validated locally on AIPLA 2026-06-06 — ready to upstream**
+
+| Piece | File | LOC | What it does |
+|---|---|---|---|
+| SSE filter | [backend/fast_api_app.py](../backend/fast_api_app.py) | ~15 | Tracks `saw_run_error` across prelude + main loop; drops all subsequent events |
+| Test | [backend/tests/api_tests/test_stream_skill.py](../backend/tests/api_tests/test_stream_skill.py) | ~40 (~1 test case) | Mocks `ADKAgent.run` with the double-emit sequence; asserts RUN_ERROR is terminal in the SSE output |
+
+The contribution this represents for the template: ship the defensive SSE wrapper change as a one-line `saw_run_error` track + early-continue. The adapter-level fix can land in a follow-up PR against `ag_ui_adk` directly (separate repo); the SSE wrapper change is template-local and unblocks every fork immediately.
+
 ## Backlog (likely additions as v0.1 sprint continues)
 
 - M5 may surface IAM bindings the bootstrap script should add

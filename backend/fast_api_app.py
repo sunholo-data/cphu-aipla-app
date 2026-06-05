@@ -605,6 +605,7 @@ async def stream_skill(
 
     async def _sse():
         first_byte_marked = False
+        saw_run_error = False
         try:
             # Only emit session_meta when resuming an existing Firestore session.
             # HttpAgent always sends threadId (even for fresh chats) — we must not
@@ -621,12 +622,26 @@ async def stream_skill(
                     tracker.mark(STAGE_FIRST_SSE_BYTE)
                     first_byte_marked = True
                 yield f"data: {json.dumps(first_event)}\n\n"
+                if first_event.get("type") == "RUN_ERROR":
+                    saw_run_error = True
             async for event in event_iter:
+                # AG-UI spec: RUN_ERROR is terminal. The client state machine
+                # rejects any subsequent event ("Cannot send event type X: the
+                # run has already errored with RUN_ERROR"). ag_ui_adk has an
+                # emission-ordering bug where a tool exception triggers
+                # RUN_ERROR via the error path AND RUN_FINISHED via the normal
+                # completion path. Drop anything that follows RUN_ERROR so the
+                # client doesn't reject the whole tail of the stream. See
+                # docs/upstream-feedback.md §32.
+                if saw_run_error:
+                    continue
                 if not first_byte_marked:
                     tracker.mark(STAGE_FIRST_SSE_BYTE)
                     first_byte_marked = True
                 yield f"data: {json.dumps(event)}\n\n"
-            if probe_mode:
+                if event.get("type") == "RUN_ERROR":
+                    saw_run_error = True
+            if probe_mode and not saw_run_error:
                 report = tracker.build_latency_report_event()
                 if report is not None:
                     yield f"data: {json.dumps(report.model_dump(by_alias=True, exclude_none=True))}\n\n"

@@ -495,6 +495,42 @@ def test_stream_skill_translates_budget_exceeded_to_typed_run_error(client):
     assert err.get("retry_after_seconds") == 3600
 
 
+def test_stream_skill_drops_events_after_run_error(client):
+    """Defensive filter for the ag_ui_adk emission-ordering bug
+    (docs/upstream-feedback.md §32): when a tool exception fires the
+    error path emits RUN_ERROR, then the normal completion path emits
+    RUN_FINISHED. The AG-UI client rejects the second event ("Cannot
+    send event type 'RUN_FINISHED': The run has already errored with
+    'RUN_ERROR'"). The SSE wrapper must drop everything after RUN_ERROR.
+    """
+    from ag_ui.core import RunErrorEvent
+
+    async def _double_emit_stream(input_data):
+        thread_id = input_data.thread_id
+        run_id = input_data.run_id
+        yield RunStartedEvent(type=EventType.RUN_STARTED, thread_id=thread_id, run_id=run_id)
+        yield RunErrorEvent(type=EventType.RUN_ERROR, message="Tool blew up.", code="TOOL_FAILED")
+        yield RunFinishedEvent(type=EventType.RUN_FINISHED, thread_id=thread_id, run_id=run_id)
+
+    skill = _make_skill(skill_id="test-skill-id", access_type="public")
+    with (
+        patch("skills.skill_processor.get_skill", return_value=skill),
+        patch("ag_ui_adk.ADKAgent.run", side_effect=_double_emit_stream),
+    ):
+        resp = client.post(
+            "/api/skill/test-skill-id/stream",
+            json={"message": "hello"},
+        )
+    assert resp.status_code == 200
+    frames = [line for line in resp.text.splitlines() if line.startswith("data:")]
+    events = [json.loads(line[len("data:") :].strip()) for line in frames]
+    types = [e.get("type") for e in events]
+    assert "RUN_ERROR" in types, f"expected RUN_ERROR in {types}"
+    assert "RUN_FINISHED" not in types, f"RUN_FINISHED must be filtered after RUN_ERROR, got {types}"
+    error_idx = types.index("RUN_ERROR")
+    assert error_idx == len(types) - 1, f"RUN_ERROR must be the terminal event, got tail {types[error_idx:]}"
+
+
 def test_refresh_finds_session_index_after_first_stream_event(client):
     """B1 (chat-history-fixes): the Firestore session-index row must be
     written *synchronously* by ``process_skill_request`` before the first
