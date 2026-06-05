@@ -59,7 +59,7 @@ material. AIPLA-specific ADRs and progress live in the scoping site.
 | | Template ("Aitana Platform v6") | **AIPLA** |
 |---|---|---|
 | GCP project IDs | `aitana-multivac-{dev,test,production}` | `aipla-{dev,test,prod}-2026` |
-| Cloud Run services | `aitana-v6-{backend,frontend}` | AIPLA-prefixed (TBD as deploy lands) |
+| Cloud Run services | `aitana-v6-{backend,frontend}` | `aipla-v01-{backend,frontend}` (deployed dev — first frontend at `aipla-v01-frontend-wgwhd7mspa-lz.a.run.app`); `aipla-v01-sandbox` for the MCP-app sandbox (Boldkast / LED Planck / KineBot iframes) |
 | GitHub repo | `Aitana-Labs/platform` | **`sunholo-data/cphu-aipla-app`** |
 | Region | EU (multi) | **`europe-north1` (Finland)** — see ADR-007 |
 | Git push account | `sunholo-voight-kampff` → Aitana-Labs org | `sunholo-voight-kampff` → `sunholo-data` org |
