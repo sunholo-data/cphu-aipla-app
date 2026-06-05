@@ -99,7 +99,9 @@ jobs:
       - name: Set up Node
         uses: actions/setup-node@v4
         with:
-          node-version: "20"
+          # vitest 4 + vite 6 + next 15 need Node >= 20.19; jump to 22 LTS so
+          # we stop tracking 20.x drift on the runner.
+          node-version: "22"
           cache: npm
           cache-dependency-path: frontend/package-lock.json
 
@@ -111,3 +113,35 @@ jobs:
 
       - name: Test
         run: CI=true npm run test:run
+
+  security-audit:
+    # Per docs/design/aipla/v1.1.0-feedback/security-monitoring-pipeline.md
+    # Layer 1: fails PRs on new HIGH/CRITICAL CVEs in production deps across
+    # frontend npm, sandbox npm, and backend Python. Runs in parallel with the
+    # frontend/backend jobs; bar is "this could be a real issue in production",
+    # not "any CVE in the dep tree" — dev-only deps are caught by the weekly
+    # cron (.github/workflows/security-weekly.yml), not the merge-block.
+    name: Security audit (deps)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+
+      - name: Set up Python (for uv)
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Set up uv
+        uses: astral-sh/setup-uv@v3
+        with:
+          version: "latest"
+          enable-cache: true
+          cache-dependency-glob: backend/uv.lock
+
+      - name: Run security check (frontend + sandbox + backend)
+        run: scripts/security-check.sh

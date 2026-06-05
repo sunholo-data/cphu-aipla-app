@@ -145,6 +145,14 @@ cli-selftest:
 	@echo
 	@echo "✓ aiplatform CLI self-test complete."
 
+# Run the same dep-security audit the CI gate runs (.github/workflows/ci.yml
+# security-audit job → scripts/security-check.sh). Use this before pushing
+# anything that touches package.json / package-lock.json / pyproject.toml /
+# uv.lock to confirm the gate will pass. See:
+#   docs/design/aipla/v1.1.0-feedback/security-monitoring-pipeline.md
+security-check:
+	@scripts/security-check.sh
+
 help:
 	@echo "make dev                — start backend (1956) + frontend (3456) — cloud mode (real GCP/Vertex)"
 	@echo "make dev-local          — start backend + frontend + MCP sandbox in LOCAL_MODE (pre-seeded group code: local-demo). Auto-clears .next on launch."
@@ -170,3 +178,5 @@ help:
 	@echo "make cli-selftest       — run mock + live smokes (live skips cleanly if no backend)"
 	@echo "make cli-selftest-mock  — offline end-to-end (real binary, mock SSE backend)"
 	@echo "make cli-selftest-live  — diagnostic against running \`make dev\` backend"
+	@echo
+	@echo "make security-check     — run the CI dep-security gate locally (frontend + sandbox + backend audits)"

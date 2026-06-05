@@ -235,6 +235,7 @@ Project-local skills auto-load when their trigger keywords match. Live in `.clau
 - **`aitana-frontend-verify`** — Drive a real Chrome via the chrome-devtools MCP to verify frontend behaviour static checks can't see (SSE streams, hydration, auth state, DOM after click).
 - **`aitana-v6-deploy`** — dev → test → prod promotion manual, including the three-repo topology, IAM cascade, and pre-promotion audit procedure.
 - **`aitana-template-publish`** — refresh the public template at `sunholo-data/ai-protocol-platform`. Load when the user mentions publishing/refreshing the template, GitHub secret-scanner alerts on the template, or any operation that copies content out of this repo. Documents the sanitize pipeline, security gates (Firebase Web API keys are NOT safe in public), and the one-command refresh flow.
+- **`aipla-security-checkup`** (AIPLA-specific) — Triage runbook for the dep-security pile (frontend npm + sandbox npm + backend Python). Load whenever the CI gate's `security-audit` job fails, when the Monday weekly rolling issue surfaces a CVE, or when the user says "run the security audit", "triage dependabot", or "is this gate going to pass". Encodes the reachability rubric (direct prod / transitive / dev-only / deprecated) from the 2026-06-05 sweep + the per-ecosystem command tree + the `npm overrides` conflict pattern. Policy of record: `docs/design/aipla/v1.1.0-feedback/security-monitoring-pipeline.md`.
 - **`cloud-run-diagnostics`** — diagnose Cloud Run service issues (cold starts, IAM, connectivity, deploy failures).
 
 **Cross-project skills** (used everywhere, not Aitana-specific):
@@ -324,6 +325,7 @@ Any local workflow that requires more than one manual step — setting env vars,
 | Install the `aiplatform` CLI globally | `make cli-install` |
 | Verify the `aiplatform` CLI works end-to-end | `make cli-selftest` |
 | Scaffold a new sim's frontend wiring | `aiplatform sim scaffold <name>` (uses `frontend/src/_sim-template/`; see `mcp-app-artefact` skill) |
+| **Run the CI dep-security gate locally** (before pushing dep changes) | `make security-check` (invokes the same `scripts/security-check.sh` the CI gate runs — see `aipla-security-checkup` skill for triage rubric) |
 
 When adding a new workflow, add it to `scripts/` and the root `Makefile` in the same PR.
 

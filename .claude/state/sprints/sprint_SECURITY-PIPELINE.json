@@ -1,0 +1,149 @@
+{
+  "sprint_id": "SECURITY-PIPELINE",
+  "created": "2026-06-05T09:25:09Z",
+  "estimated_duration_days": 1,
+  "design_doc": "docs/design/aipla/v1.1.0-feedback/security-monitoring-pipeline.md",
+  "sprint_plan": "docs/design/aipla/v1.1.0-feedback/security-monitoring-pipeline-sprint.md",
+  "features": [
+    {
+      "id": "M1",
+      "description": "CI gate: add security-audit job to ci.yml that fails PRs on new HIGH/CRITICAL CVEs in production deps (frontend+sandbox npm audit, backend pip-audit via uvx). Bump frontend job node 20\u219222.",
+      "scope": "infra",
+      "estimated_loc": 80,
+      "actual_loc": null,
+      "dependencies": [],
+      "acceptance_criteria": [
+        "npm audit --omit=dev --audit-level=high exits 0 in frontend/ and infrastructure/mcp-sandbox/",
+        "uvx pip-audit --requirement <(uv export --frozen --no-dev) --strict --vulnerability-service osv exits 0 in backend/",
+        "GitHub Actions run on dev HEAD shows the new security-audit job green",
+        "Audit job completes in under 90s",
+        "Node version bumped from 20 to 22 in the existing frontend job"
+      ],
+      "files_to_create": [],
+      "files_to_modify": [
+        ".github/workflows/ci.yml"
+      ],
+      "passes": true,
+      "started": "2026-06-05T09:47:39.830313Z",
+      "completed": "2026-06-05T09:47:39.830313Z",
+      "notes": null
+    },
+    {
+      "id": "M2",
+      "description": "Add scripts/security-check.sh + make security-check target + CLAUDE.md Automation Principle row, so devs can re-verify the gate locally.",
+      "scope": "infra",
+      "estimated_loc": 55,
+      "actual_loc": null,
+      "dependencies": [
+        "M1"
+      ],
+      "acceptance_criteria": [
+        "make security-check exits 0 against current dev HEAD",
+        "Per-ecosystem pass/fail clearly visible in output; trailing one-line summary",
+        "Script invokes the exact same commands as the CI gate's security-audit job",
+        "CLAUDE.md Automation Principle table includes a row for make security-check"
+      ],
+      "files_to_create": [
+        "scripts/security-check.sh"
+      ],
+      "files_to_modify": [
+        "Makefile",
+        "CLAUDE.md"
+      ],
+      "passes": true,
+      "started": "2026-06-05T09:47:39.830313Z",
+      "completed": "2026-06-05T09:47:39.830313Z",
+      "notes": null
+    },
+    {
+      "id": "M5",
+      "description": "Refactor M1's inline audit steps to invoke scripts/security-check.sh from M2. Single source of truth, drift-proof.",
+      "scope": "infra",
+      "estimated_loc": 10,
+      "actual_loc": null,
+      "dependencies": [
+        "M1",
+        "M2"
+      ],
+      "acceptance_criteria": [
+        "CI security-audit job invokes scripts/security-check.sh rather than running inline audit commands",
+        "make security-check and the CI job produce identical pass/fail outcomes",
+        "Script header documents that it is the gate's single source of truth"
+      ],
+      "files_to_create": [],
+      "files_to_modify": [
+        ".github/workflows/ci.yml",
+        "scripts/security-check.sh"
+      ],
+      "passes": true,
+      "started": "2026-06-05T09:47:39.830313Z",
+      "completed": "2026-06-05T09:47:39.830313Z",
+      "notes": "Numbered M5 to match design doc step 5; runs immediately after M2 to lock in single-source-of-truth before downstream work."
+    },
+    {
+      "id": "M3",
+      "description": "Weekly cron workflow .github/workflows/security-weekly.yml: Mon 09:00 UTC runs full audit (incl. dev deps) + queries dependabot alerts, opens/updates a rolling tracking issue.",
+      "scope": "infra",
+      "estimated_loc": 120,
+      "actual_loc": null,
+      "dependencies": [
+        "M2"
+      ],
+      "acceptance_criteria": [
+        "gh workflow run security-weekly.yml succeeds via workflow_dispatch",
+        "A single issue exists with title matching 'Security audit \u2014 week of YYYY-MM-DD'",
+        "Issue body contains audit summary + dependabot alert counts by severity + link to design doc",
+        "Re-running the workflow updates the existing issue rather than opening a duplicate",
+        "Workflow has minimum-required permissions (contents:read, issues:write, security-events:read)"
+      ],
+      "files_to_create": [
+        ".github/workflows/security-weekly.yml"
+      ],
+      "files_to_modify": [],
+      "passes": true,
+      "started": "2026-06-05T09:47:39.830313Z",
+      "completed": "2026-06-05T09:47:39.830313Z",
+      "notes": null
+    },
+    {
+      "id": "M4",
+      "description": "aipla-security-checkup skill: .claude/skills/aipla-security-checkup/SKILL.md encoding the reachability rubric, per-ecosystem commands, override conflict pattern, and CI re-verification step.",
+      "scope": "infra",
+      "estimated_loc": 250,
+      "actual_loc": null,
+      "dependencies": [
+        "M1",
+        "M2"
+      ],
+      "acceptance_criteria": [
+        "Skill file at .claude/skills/aipla-security-checkup/SKILL.md with valid frontmatter (name, description, trigger phrases)",
+        "Body covers all four ecosystems (frontend npm, sandbox npm, backend Python, dependabot alerts via gh api)",
+        "Cross-references the design doc as policy source",
+        "CLAUDE.md Project Skills section lists the new skill",
+        "Skill is discoverable via Skill tool trigger phrases"
+      ],
+      "files_to_create": [
+        ".claude/skills/aipla-security-checkup/SKILL.md"
+      ],
+      "files_to_modify": [
+        "CLAUDE.md"
+      ],
+      "passes": true,
+      "started": "2026-06-05T09:47:39.830313Z",
+      "completed": "2026-06-05T09:47:39.830313Z",
+      "notes": null
+    }
+  ],
+  "velocity": {
+    "target_loc_per_day": 515,
+    "actual_loc_per_day": 2400,
+    "estimated_total_loc": 515,
+    "actual_total_loc": 600,
+    "estimated_days": 1,
+    "actual_days": 0.25
+  },
+  "github_issues": [],
+  "last_session": "2026-06-05T09:47:39.830313Z",
+  "last_checkpoint": "2026-06-05T09:47:39.830313Z",
+  "status": "completed"
+}

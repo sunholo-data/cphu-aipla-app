@@ -1,0 +1,168 @@
+# Weekly security audit — Layer 2 of the security monitoring pipeline.
+# See docs/design/aipla/v1.1.0-feedback/security-monitoring-pipeline.md.
+#
+# Runs every Monday 09:00 UTC (10:00 CET) and on manual workflow_dispatch.
+# Updates a single rolling tracking issue with the latest audit + dependabot
+# state so weekly review is a single-inbox touchpoint, not a security-tab dig.
+#
+# The CI gate (.github/workflows/ci.yml security-audit job) catches NEW
+# vulns at PR/push time. This workflow catches CVEs that get disclosed
+# against versions ALREADY in the lockfile after the fact.
+
+name: Security audit (weekly)
+
+on:
+  schedule:
+    # Monday 09:00 UTC = 10:00 CET; runs before M's typical workday.
+    - cron: '0 9 * * 1'
+  workflow_dispatch: {}
+
+permissions:
+  contents: read
+  issues: write
+  security-events: read
+
+jobs:
+  audit:
+    name: Audit + update rolling issue
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+
+      - name: Set up Python (for uv)
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Set up uv
+        uses: astral-sh/setup-uv@v3
+        with:
+          version: "latest"
+          enable-cache: true
+          cache-dependency-glob: backend/uv.lock
+
+      - name: Run audit (collect output, do not fail the workflow)
+        id: audit
+        run: |
+          # Capture the script output without failing the workflow — we want
+          # the issue updated even when there are findings (that IS the signal).
+          set +e
+          OUTPUT=$(scripts/security-check.sh 2>&1)
+          EXIT=$?
+          set -e
+          # Emit as workflow output for the next step. Use heredoc to handle
+          # multiline content + special chars safely.
+          {
+            echo "exit_code=$EXIT"
+            echo "summary<<EOF"
+            echo "$OUTPUT"
+            echo "EOF"
+          } >> "$GITHUB_OUTPUT"
+
+      - name: Query dependabot alerts
+        id: dependabot
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          # Group open alerts by severity. If the repo has no security-events
+          # permission for this token, the gh call will fail — make that
+          # visible in the issue body rather than crashing the workflow.
+          set +e
+          ALERTS_JSON=$(gh api "repos/$GITHUB_REPOSITORY/dependabot/alerts" \
+            --paginate \
+            -q '[.[] | select(.state == "open") | {severity: .security_advisory.severity, package: .dependency.package.name, ecosystem: .dependency.package.ecosystem, ghsa: .security_advisory.ghsa_id, summary: .security_advisory.summary}]' 2>&1)
+          STATUS=$?
+          set -e
+          if [ "$STATUS" -ne 0 ]; then
+            SUMMARY="dependabot query failed: $ALERTS_JSON"
+            COUNT=0
+          else
+            # Count by severity using jq.
+            CRIT=$(echo "$ALERTS_JSON" | jq '[.[] | select(.severity == "critical")] | length')
+            HIGH=$(echo "$ALERTS_JSON" | jq '[.[] | select(.severity == "high")] | length')
+            MED=$(echo "$ALERTS_JSON" | jq '[.[] | select(.severity == "medium")] | length')
+            LOW=$(echo "$ALERTS_JSON" | jq '[.[] | select(.severity == "low")] | length')
+            COUNT=$(echo "$ALERTS_JSON" | jq 'length')
+            SUMMARY="$COUNT open ($CRIT critical, $HIGH high, $MED medium, $LOW low)"
+          fi
+          {
+            echo "summary=$SUMMARY"
+            echo "count=$COUNT"
+            echo "json<<EOF"
+            echo "$ALERTS_JSON"
+            echo "EOF"
+          } >> "$GITHUB_OUTPUT"
+
+      - name: Find / update / open rolling tracking issue
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          DATE_TAG: $(date -u +%Y-%m-%d)
+        run: |
+          # Use a single issue with a title-prefix that gets updated each week,
+          # rather than opening a new one — prevents notification fatigue.
+          TITLE_PREFIX="Security audit — week of"
+          THIS_WEEK="$TITLE_PREFIX $(date -u +%Y-%m-%d)"
+
+          # Build the issue body. Wrap the captured outputs as fenced code
+          # blocks so they render readably.
+          AUDIT_EXIT="${{ steps.audit.outputs.exit_code }}"
+          if [ "$AUDIT_EXIT" = "0" ]; then
+            AUDIT_STATUS="✅ pass — production-dep gate clean"
+          else
+            AUDIT_STATUS="❌ fail — production-dep gate found high/critical CVEs (exit $AUDIT_EXIT)"
+          fi
+
+          BODY=$(cat <<MARKDOWN
+          ## Status — $(date -u +'%Y-%m-%d %H:%M UTC')
+
+          **Production-dep gate:** $AUDIT_STATUS
+          **Open dependabot alerts:** ${{ steps.dependabot.outputs.summary }}
+
+          ---
+
+          ### Local audit (\`scripts/security-check.sh\`)
+
+          \`\`\`
+          ${{ steps.audit.outputs.summary }}
+          \`\`\`
+
+          ### Dependabot open alerts
+
+          \`\`\`json
+          ${{ steps.dependabot.outputs.json }}
+          \`\`\`
+
+          ---
+
+          ### Triage
+
+          - **Policy:** [security-monitoring-pipeline.md](https://github.com/${{ github.repository }}/blob/dev/docs/design/aipla/v1.1.0-feedback/security-monitoring-pipeline.md)
+          - **Runbook:** invoke the \`/aipla-security-checkup\` skill to walk the alert pile, classify by reachability, and recommend patches
+          - **Local verify:** \`make security-check\` (mirrors the CI gate)
+
+          This issue is updated automatically by [.github/workflows/security-weekly.yml](https://github.com/${{ github.repository }}/blob/dev/.github/workflows/security-weekly.yml). Closing it stops the rolling-update behaviour — only do that if the workflow itself is retired.
+          MARKDOWN
+          )
+
+          # Look for an existing open rolling-issue (current week or older).
+          EXISTING=$(gh issue list \
+            --state open \
+            --search "in:title \"$TITLE_PREFIX\"" \
+            --json number,title \
+            --jq '.[0].number // empty')
+
+          if [ -n "$EXISTING" ]; then
+            echo "Updating existing rolling issue #$EXISTING (renaming to current week)"
+            gh issue edit "$EXISTING" --title "$THIS_WEEK" --body "$BODY"
+          else
+            echo "Opening new rolling issue: $THIS_WEEK"
+            # No --label flag: requires the label to pre-exist on the repo,
+            # which is a state we don't want to assume. Labels can be added
+            # manually after the first run if useful.
+            gh issue create --title "$THIS_WEEK" --body "$BODY"
+          fi
