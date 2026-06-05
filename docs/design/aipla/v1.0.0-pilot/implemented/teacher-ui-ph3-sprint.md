@@ -1,7 +1,7 @@
 # Sprint: TEACHER-UI-PH3 — Firebase OAuth swap + multi-class + analytics chat
 
 **Sprint ID:** `TEACHER-UI-PH3`
-**Design doc:** [../teacher-ui.md](../teacher-ui.md) — Phase 3 section
+**Design doc:** [teacher-ui.md](teacher-ui.md) — Phase 3 section
 **Branch:** `feature/teacher-ui-ph3`
 **Base commit:** `c0d2870` (dev HEAD as of 2026-05-26)
 **Estimate:** ~2-2.5 days

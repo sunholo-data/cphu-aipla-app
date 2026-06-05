@@ -137,7 +137,7 @@ Importing the runtime + the security baggage *before* Phase A-C (namespace, draf
 ## Related
 
 - [teacher-artefact-parameters.md](teacher-artefact-parameters.md) — the v1.1 sibling for *bounded* configurability (no code)
-- [v1.0.0-pilot/teacher-ui.md](../v1.0.0-pilot/teacher-ui.md) — current teacher-config surface
+- [v1.0.0-pilot/implemented/teacher-ui.md](../v1.0.0-pilot/implemented/teacher-ui.md) — current teacher-config surface
 - [.claude/skills/mcp-app-artefact/SKILL.md](../../../../.claude/skills/mcp-app-artefact/SKILL.md) — the authoring runbook this would surface as a teacher tool
 - Top-level [SEQUENCE.md](../SEQUENCE.md) row 1.11 — `artefact-review-pipeline.md` (the *infrastructure* prerequisite for Tier 3c new-artefact authoring)
 - ADR-013 (artefact security gates), ADR-005 (chat log storage), ADR-014 (per-class budget) in the scoping site

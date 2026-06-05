@@ -599,6 +599,6 @@ JSON state file (`.claude/state/sprints/sprint_VOICE-PROVIDER.json`) tracks whic
 - [voice-provider-abstraction.md](voice-provider-abstraction.md) — design doc this sprint implements
 - [audio-capture-and-tts.md](../v1.0.0-pilot/audio-capture-and-tts.md) — parent doc (v1.0 TTS Part 1 shipped browser-native; this supersedes the v2 polish notes)
 - [cost-dashboard.md](cost-dashboard.md) — 1.1.9, voice spans feed this
-- [teacher-ui.md](../v1.0.0-pilot/teacher-ui.md) — 1.G, per-class voice toggle lives here
+- [teacher-ui.md](../v1.0.0-pilot/implemented/teacher-ui.md) — 1.G, per-class voice toggle lives here
 - [proactive-sim-reactive-tutor-sprint.md](implemented/proactive-sim-reactive-tutor-sprint.md) — sprint format reference
 - [quick-wins-v1.1-sprint.md](implemented/quick-wins-v1.1-sprint.md) — two-track sprint reference (we are single-track but two-phase)

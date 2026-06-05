@@ -110,7 +110,7 @@ Skip this if **either**:
 
 ## Related
 
-- [v1.0.0-pilot/teacher-ui.md](../v1.0.0-pilot/teacher-ui.md) — Phase 2's `ActivityConfig` is the parent surface
+- [v1.0.0-pilot/implemented/teacher-ui.md](../v1.0.0-pilot/implemented/teacher-ui.md) — Phase 2's `ActivityConfig` is the parent surface
 - [teacher-artefact-authoring.md](teacher-artefact-authoring.md) — the v2 / Year-2 follow-up
 - [mcp-app-artefact skill](../../../../.claude/skills/mcp-app-artefact/SKILL.md) — the authoring runbook for first-party artefacts
 - ADR-013 (artefact security gates) in the scoping site

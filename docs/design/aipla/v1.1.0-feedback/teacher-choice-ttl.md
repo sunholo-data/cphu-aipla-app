@@ -105,7 +105,7 @@ Out of scope for this doc — same posture as in [group-code-school-year-ttl.md]
 1. **Preset values** — 30/90/180/300 are reasonable but unvalidated. JB might prefer different chunks (term-aligned with the Danish school calendar). Easy to tune; pick a starting set, iterate after pilot feedback.
 2. **Class-level default** — should each `Class` carry its own default TTL that pre-fills the form? Adds one more field on `Class`; defers until a teacher asks. v1.1: per-code only.
 3. **Notification when a code is approaching expiry** — out of scope; no notification infrastructure in v1. Filed as a follow-up if teachers request.
-4. **Should the note copy be in Danish + English** — yes for pilot (Danish teachers). UI i18n already handles both per [teacher-ui.md](../v1.0.0-pilot/teacher-ui.md).
+4. **Should the note copy be in Danish + English** — yes for pilot (Danish teachers). UI i18n already handles both per [teacher-ui.md](../v1.0.0-pilot/implemented/teacher-ui.md).
 
 ## Files (estimate)
 

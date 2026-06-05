@@ -229,5 +229,5 @@ Per `feedback_pre_push_ci_parity`: `make test-fast` is the CI-parity check. **Do
 - [tutor-verbosity-fix.md](tutor-verbosity-fix.md) — design doc for 1.1.1
 - [group-code-school-year-ttl.md](group-code-school-year-ttl.md) — design doc for 1.1.6
 - [SEQUENCE.md](SEQUENCE.md) — v1.1.0-feedback ordering; this sprint covers rows 1.1.1 and 1.1.6
-- [docs/design/aipla/v1.0.0-pilot/quick-wins-sprint.md](../v1.0.0-pilot/quick-wins-sprint.md) — canonical small-bundled-sprint shape (1.E debounce + 1.H-TTS) this sprint mirrors
+- [docs/design/aipla/v1.0.0-pilot/implemented/quick-wins-sprint.md](../v1.0.0-pilot/implemented/quick-wins-sprint.md) — canonical small-bundled-sprint shape (1.E debounce + 1.H-TTS) this sprint mirrors
 - [docs/design/aipla/v1.0.0-pilot/implemented/session-persistence.md](../v1.0.0-pilot/implemented/session-persistence.md) — 1.F, the shipped foundation this TTL extension builds on

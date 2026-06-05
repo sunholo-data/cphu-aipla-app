@@ -8,7 +8,7 @@
 **Dependencies:**
 - v1.1.11 [voice-provider-abstraction.md](voice-provider-abstraction.md) shipped — Persona is the UX layer over its `SkillVoiceConfig` + `ClassVoiceSettings` primitives
 - ADR-003 (four-tier model selection) — personas inherit the tier swap pattern transparently
-- 1.G [teacher-ui.md](../v1.0.0-pilot/teacher-ui.md) — persona picker lives in the class-detail page next to the existing Voice section
+- 1.G [teacher-ui.md](../v1.0.0-pilot/implemented/teacher-ui.md) — persona picker lives in the class-detail page next to the existing Voice section
 **Source brief:** 2026-06-04 chat with M, after the v1.1.11 voice provider shipped to dev. M: *"we have technical debug info now but I'm thinking we add personas and avatars that will link to voices down the road, so we can visually check as well in production"*
 
 ## Problem
@@ -457,7 +457,7 @@ Suggested milestone breakdown (concrete sprint plan via sprint-planner skill at 
 - [feedback_search_protocols_first](file:///Users/mark/.claude/projects/-Users-mark-dev-sunholo-cphu-aipla-app/memory/feedback_search_protocols_first.md) — cited in Standards check (no persona protocol exists)
 - [feedback_no_emoticons](file:///Users/mark/.claude/projects/-Users-mark-dev-sunholo-cphu-aipla-app/memory/feedback_no_emoticons.md) — persona display copy uses words, lucide icons for UI affordances
 - [feedback_no_prs_commit_to_dev](file:///Users/mark/.claude/projects/-Users-mark-dev-sunholo-cphu-aipla-app/memory/feedback_no_prs_commit_to_dev.md) — execution commits directly to dev
-- [teacher-ui.md](../v1.0.0-pilot/teacher-ui.md) (1.G) — persona picker lives next to existing Voice section on class-detail page
+- [teacher-ui.md](../v1.0.0-pilot/implemented/teacher-ui.md) (1.G) — persona picker lives next to existing Voice section on class-detail page
 - [researcher-role.md](researcher-role.md) (1.1.5) — `role:researcher` accounts get `?debug=voice` for free without the query param (future)
 - [cost-dashboard.md](cost-dashboard.md) (1.1.9) — `voice.persona_id` span attr feeds this dashboard
 - [local-dev-cli.md](../../v6.1.0/local-dev-cli.md) — CLI command surface

@@ -8,7 +8,7 @@
 **Dependencies:**
 - v1.0 [audio-capture-and-tts.md](../v1.0.0-pilot/audio-capture-and-tts.md) Part 1 shipped (browser-native TTS button exists) — this doc supersedes its "v2 polish" section
 - [cost-dashboard.md](cost-dashboard.md) (1.1.9) — voice spans feed this dashboard
-- [teacher-ui.md](../v1.0.0-pilot/teacher-ui.md) (1.G) — per-class voice toggle lives here
+- [teacher-ui.md](../v1.0.0-pilot/implemented/teacher-ui.md) (1.G) — per-class voice toggle lives here
 - ADR-003 (four-tier model selection) — voice mirrors the pattern
 - ADR-005 (data residency) — providers in `europe-north1` / EU
 **Source brief:** Conversation 2026-06-03 (this doc encodes the architectural decisions and cost model worked out during the voice-quality discussion)
@@ -197,7 +197,7 @@ New `frontend/src/components/chat/DictateButton.tsx`:
 - Lucide `Mic` icon next to chat input, replaces with `MicOff` while recording
 - `getUserMedia({ audio: true })` → `MediaRecorder` (webm/opus) → stop on second click or 30s timeout → `POST /api/voice/stt/transcribe` → fill input with the transcript
 - Visible only if `voiceCapabilities.stt === true` from `/api/voice/config`
-- Gated behind per-class teacher toggle (extends [teacher-ui.md](../v1.0.0-pilot/teacher-ui.md) 1.G), default OFF
+- Gated behind per-class teacher toggle (extends [teacher-ui.md](../v1.0.0-pilot/implemented/teacher-ui.md) 1.G), default OFF
 
 Empty / loading / error states for DictateButton (Axiom 11):
 - **Empty / idle:** Mic icon, hover tooltip "Tal i stedet for at skrive" (DA) / "Speak instead of typing" (EN)
@@ -400,7 +400,7 @@ The TTS half (M1–M5) ships independently and can land before M6 starts — it'
 
 - **Parent:** [../v1.0.0-pilot/audio-capture-and-tts.md](../v1.0.0-pilot/audio-capture-and-tts.md) — Part 1 shipped; this doc supersedes the v2 polish notes
 - [cost-dashboard.md](cost-dashboard.md) (1.1.9) — voice spans feed this dashboard
-- [teacher-ui.md](../v1.0.0-pilot/teacher-ui.md) (1.G) — per-class voice toggle lives here
+- [teacher-ui.md](../v1.0.0-pilot/implemented/teacher-ui.md) (1.G) — per-class voice toggle lives here
 - [proactive-sim-reactive-tutor.md](proactive-sim-reactive-tutor.md) (1.1.2) — reactive turns inherit read-aloud automatically
 - ADR-003 (four-tier model selection) in [architecture.qmd](file:///Users/mark/Documents/clients/cph-uni/strand-a-pedagogical-bot/architecture.qmd) — voice mirrors this pattern
 - ADR-005 (data residency) — providers in `europe-north1` / EU

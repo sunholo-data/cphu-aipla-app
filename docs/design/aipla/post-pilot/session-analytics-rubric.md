@@ -1,7 +1,7 @@
 # Session analytics — pedagogical rubrics for AIPLA chat logs
 
 **Status:** **Committed v1 — promoted 2026-05-28** (teacher monitoring + analysis raised above original scope; must be live *for* the pilot). The *framework pick* remains the open decision — see R1 below.
-**Target:** v1.0.0-pilot (live for the 2026-08-14 pilot). Gated on **1.2 [chat-log-pipeline](../v1.0.0-pilot/chat-log-pipeline.md)** shipping the BigQuery sink first, and on the JB/AR framework pick (R1) being locked **before the 2026-06-29 holiday freeze**.
+**Target:** v1.0.0-pilot (live for the 2026-08-14 pilot). Gated on **1.2 [chat-log-pipeline](../v1.0.0-pilot/implemented/chat-log-pipeline.md)** shipping the BigQuery sink first, and on the JB/AR framework pick (R1) being locked **before the 2026-06-29 holiday freeze**.
 
 > **Framework reconciliation (2026-05-28):** the parent [SEQUENCE row 2.5](../SEQUENCE.md) previously named **CPS + DRA** as the "confirmed starter" while this doc's *Recommended initial build* (below) argues for **ICAP + FCI**. Neither is confirmed yet — that contradiction *is* the R1 decision. Two candidate stacks are on the table: **(a) ICAP + FCI** (this doc's eng-lightest recommendation) and **(b) CPS + DRA** (JB's CoLA video-assessment lineage + the [1.K](../v1.0.0-pilot/dra-activity-framework.md) DRA maps). The framework comparison below is the *input* to R1, not its resolution. JB/AR own the pick.
 **Audience:** Pedagogical leads (JB, AR) own the framework choice. Engineering owns the implementation once the framework is picked.
@@ -234,13 +234,13 @@ Skip / defer if **any** of:
 ## Out of scope (for this doc; tracked elsewhere)
 
 - The chat-log BigQuery sink itself — [SEQUENCE row 1.2](../SEQUENCE.md) `chat-log-pipeline.md`
-- The analytics-chat teacher-facing skill ("chat to the data") — Phase 3 of [teacher-ui.md](../v1.0.0-pilot/teacher-ui.md) step 3.4
+- The analytics-chat teacher-facing skill ("chat to the data") — Phase 3 of [teacher-ui.md](../v1.0.0-pilot/implemented/teacher-ui.md) step 3.4
 - Per-class budget surfacing UI — Phase 1.12
 - Cross-cohort longitudinal studies design — Strand C scoping note (in the scoping site)
 
 ## Related
 
-- [v1.0.0-pilot/teacher-ui.md](../v1.0.0-pilot/teacher-ui.md) — the report-screen surface this rubric would extend
+- [v1.0.0-pilot/implemented/teacher-ui.md](../v1.0.0-pilot/implemented/teacher-ui.md) — the report-screen surface this rubric would extend
 - [post-pilot/teacher-artefact-parameters.md](teacher-artefact-parameters.md) — parallel post-pilot roadmap signal
 - [post-pilot/teacher-artefact-authoring.md](teacher-artefact-authoring.md) — parallel post-pilot roadmap signal
 - Top-level [SEQUENCE.md](../SEQUENCE.md) row 1.2 — `chat-log-pipeline.md` (the data layer this builds on)
