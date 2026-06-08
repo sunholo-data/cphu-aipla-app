@@ -25,7 +25,7 @@ for v1.
 | 1.G-Ph2 | (sub-row) Wire to real backend, LOCAL_MODE teacher auth | P0 | ~2-2.5d | 1.G-Ph1 complete | Real `ActivityConfig` Firestore writes; real session-summary aggregator; one seeded demo class. **Wed 3 June demo runs against this state** |
 | 1.G-Ph3 | (sub-row) Firebase auth + 1.A swap + stretch | P1 | ~2-2.5d | 1.A complete, 1.G-Ph2 complete | Swap LOCAL_MODE teacher stub for Firebase; multi-class; analytics chat skill; opt-in share; CLI parity |
 | 1.H | [audio-capture-and-tts.md](audio-capture-and-tts.md) — *brief:* [`audio-capture.md`](file:///Users/mark/Documents/clients/cph-uni/strand-a-pedagogical-bot/prototypes/audio-capture.md) | P2 | 0.5d TTS + 2d audio | TTS none; audio capture gated on **JB sign-off (5 consent / privacy questions)** + 1.A for per-class opt-in | **Split implementation.** TTS (browser-native `speechSynthesis`) ships independently — zero privacy gate, ~0.5d. Audio capture (opt-in group recording for research) blocked on JB consent / institutional approval sign-off — five questions in the brief must be answered before any code merges. Audio embodies SECURE-BY-CONSTRUCTION by structurally refusing to ship without consent decisions |
-| 1.I | [proactive-tutor.md](proactive-tutor.md) | **P1** | Phase A ~0.5-1d (shipped); ~~Phase B ~1.5-2d~~ | Soft dep on [teacher-ui.md](implemented/teacher-ui.md) Phase 2 (`{teacher_focus}` injection) so the auto-greet reflects the teacher's intent | **UX gap from 2026-05-25 live student test.** Phase A = auto-greet on join (shipped). **Phase B (idle-heartbeat) RETIRED 2026-06-03** — superseded by [v1.1.2 proactive-sim-reactive-tutor](../v1.1.0-feedback/proactive-sim-reactive-tutor.md) (Path A: sim-event-reactive trigger replaces idle-heartbeat as the higher-value affordance per 3 June teacher feedback). Adds per-skill `proactive_greet` field |
+| 1.I | [proactive-tutor.md](proactive-tutor.md) | **P1** | Phase A ~0.5-1d (shipped); ~~Phase B ~1.5-2d~~ | Soft dep on [teacher-ui.md](implemented/teacher-ui.md) Phase 2 (`{teacher_focus}` injection) so the auto-greet reflects the teacher's intent | **UX gap from 2026-05-25 live student test.** Phase A = auto-greet on join (shipped). **Phase B (idle-heartbeat) RETIRED 2026-06-03** — superseded by [v1.1.2 proactive-sim-reactive-tutor](../v1.1.0-feedback/implemented/proactive-sim-reactive-tutor.md) (Path A: sim-event-reactive trigger replaces idle-heartbeat as the higher-value affordance per 3 June teacher feedback). Adds per-skill `proactive_greet` field |
 
 ## Analytics critical path (committed v1 — promoted 2026-05-28)
 
@@ -162,7 +162,7 @@ _(None as of 2026-06-03 — TEACHER-UI-PH3 close-out shipped; v1.1 work is seque
 **Blocked on JB/AR sign-off:**
 
 - 1.H-audio (consent + privacy questions)
-- ~~1.I-PhB idle heartbeat (copy + timing)~~ — **retired 2026-06-03**; superseded by [v1.1.2 proactive-sim-reactive-tutor](../v1.1.0-feedback/proactive-sim-reactive-tutor.md)
+- ~~1.I-PhB idle heartbeat (copy + timing)~~ — **retired 2026-06-03**; superseded by [v1.1.2 proactive-sim-reactive-tutor](../v1.1.0-feedback/implemented/proactive-sim-reactive-tutor.md)
 - **R1 — analytics framework pick** (ICAP+FCI vs CPS+DRA) — gates all of 2.5; lock before the 2026-06-29 freeze
 - **R2 / R7 — per-skill taxonomy + Danish/English label translations** — needed before 2.5's concept-tracking lens ships
 

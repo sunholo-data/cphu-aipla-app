@@ -5,7 +5,7 @@
 **Priority:** P2 — protocol consistency / maintenance win. Not blocking the pilot
 **Estimated:** ~0.5d (~4h)
 **Scope:** Backend `/greet` endpoint becomes a gate-decision; frontend `useProactiveGreet` becomes a thin trigger that uses the same Path B rails as 1.1.2's sim-reactive
-**Dependencies:** [proactive-sim-reactive-tutor.md](proactive-sim-reactive-tutor.md) (1.1.2 shipped); the existing Path B infrastructure (`fetchProactiveEventCheck` pattern, `useSkillAgent.sendMessage`, sentinel suppression in `toSkillMessage`)
+**Dependencies:** [proactive-sim-reactive-tutor.md](implemented/proactive-sim-reactive-tutor.md) (1.1.2 shipped); the existing Path B infrastructure (`fetchProactiveEventCheck` pattern, `useSkillAgent.sendMessage`, sentinel suppression in `toSkillMessage`)
 **Source:** Filed as M10 of sprint PROACTIVE-SIM-REACTIVE per the design doc's "open question 4" resolution — Phase A should converge on the same proactive-turn rail Phase B now establishes
 
 ## Why this exists
@@ -90,7 +90,7 @@ Already covers `[session_start]` via M7's `tag_proactive_span_from_callback_cont
 
 ## Related
 
-- [proactive-sim-reactive-tutor.md](proactive-sim-reactive-tutor.md) — Phase B (Path B) design doc; this refactor follows its pattern
+- [proactive-sim-reactive-tutor.md](implemented/proactive-sim-reactive-tutor.md) — Phase B (Path B) design doc; this refactor follows its pattern
 - [proactive-sim-reactive-tutor-sprint.md](proactive-sim-reactive-tutor-sprint.md) — the sprint that established Path B
 - [proactive-tutor.md](../v1.0.0-pilot/proactive-tutor.md) — Phase A original design doc (Phase B section retired)
 - ADR-005 (chat log storage) — both kinds of proactive turn write to BigQuery identically once they ride the AG-UI rail

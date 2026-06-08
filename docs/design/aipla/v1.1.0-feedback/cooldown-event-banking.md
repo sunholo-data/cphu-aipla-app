@@ -63,7 +63,7 @@ Captured at the moment the design choice was made (2026-06-03) rather than after
 
 ## Related
 
-- [proactive-sim-reactive-tutor.md](proactive-sim-reactive-tutor.md) — the design doc whose architecture this would extend
+- [proactive-sim-reactive-tutor.md](implemented/proactive-sim-reactive-tutor.md) — the design doc whose architecture this would extend
 - [implemented/proactive-sim-reactive-tutor-sprint.md](implemented/proactive-sim-reactive-tutor-sprint.md) — the shipped sprint
 - ADR-005 (chat log storage) — the BQ tables that would surface "agent missed iteration" signal during pilot review
 - [post-pilot/session-analytics-rubric.md](../post-pilot/session-analytics-rubric.md) — the 2.5 rubric layer that could quantify whether the agent's reactive turns are richer-vs-shallow over time

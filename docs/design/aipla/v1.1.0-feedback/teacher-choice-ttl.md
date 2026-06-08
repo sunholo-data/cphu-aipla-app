@@ -1,16 +1,16 @@
 # Teacher-choice group-code TTL — let teachers pick per-code lifespan
 
-**Status:** Planned (P1; follow-up to [group-code-school-year-ttl.md](group-code-school-year-ttl.md))
+**Status:** Planned (P1; follow-up to [group-code-school-year-ttl.md](implemented/group-code-school-year-ttl.md))
 **Last Updated:** 2026-06-03
-**Priority:** P1 — pulled out of [1.1.6 group-code-school-year-ttl](group-code-school-year-ttl.md) mid-sprint on 2026-06-03 once it became clear that lifting the *platform default* to 300d was the wrong shape: longer-lived data should be a deliberate per-code teacher decision, not a one-size-fits-all default
+**Priority:** P1 — pulled out of [1.1.6 group-code-school-year-ttl](implemented/group-code-school-year-ttl.md) mid-sprint on 2026-06-03 once it became clear that lifting the *platform default* to 300d was the wrong shape: longer-lived data should be a deliberate per-code teacher decision, not a one-size-fits-all default
 **Estimated:** ~0.5-1d combined (mostly frontend; the backend parameter already exists)
 **Scope:** Backend route param pass-through + validation; frontend form field on group-code creation + class-detail display; CLI flag for parity
-**Dependencies:** [group-code-school-year-ttl.md](group-code-school-year-ttl.md) (rename + archival shipped); [teacher-permission-model.md](../v1.0.0-pilot/implemented/teacher-permission-model.md) (1.A shipped — the group-code creation flow lives in the teacher UI surface)
+**Dependencies:** [group-code-school-year-ttl.md](implemented/group-code-school-year-ttl.md) (rename + archival shipped); [teacher-permission-model.md](../v1.0.0-pilot/implemented/teacher-permission-model.md) (1.A shipped — the group-code creation flow lives in the teacher UI surface)
 **Source brief:** [`june-03-feedback-sprint-brief.md` §6](file:///Users/mark/Documents/clients/cph-uni/strand-a-pedagogical-bot/prototypes/june-03-feedback-sprint-brief.md) (the teacher / student ask for school-year-lived codes is preserved; the *delivery mechanism* moves from platform default to per-code teacher choice)
 
 ## Problem
 
-The brief asked for group codes to persist for the full Danish school year so students can rejoin and build a portfolio over time. The first cut of [1.1.6](group-code-school-year-ttl.md) implemented this as a platform default of 300 days for every code. Mid-sprint the team flagged a privacy concern: **applying 300d to every code is overshoot.**
+The brief asked for group codes to persist for the full Danish school year so students can rejoin and build a portfolio over time. The first cut of [1.1.6](implemented/group-code-school-year-ttl.md) implemented this as a platform default of 300 days for every code. Mid-sprint the team flagged a privacy concern: **applying 300d to every code is overshoot.**
 
 - Short-lived demo / one-off codes don't need school-year persistence — they accrue research-consent retention overhead for nothing
 - Teachers don't all want the same shape: a Physics A class might want school-year persistence; a one-off Open Day demo wants 1 week
@@ -75,7 +75,7 @@ If pilot teachers consistently pick "Custom" + a value not in the presets, the d
 
 ## What about already-minted codes?
 
-Out of scope for this doc — same posture as in [group-code-school-year-ttl.md](group-code-school-year-ttl.md): existing codes keep their original TTL (set at mint time; the constant change does not retroactively extend). If a teacher wants to extend an existing code, that's the **extension flow** affordance (small follow-up doc); for v1.1 the answer is "mint a new code with the longer TTL."
+Out of scope for this doc — same posture as in [group-code-school-year-ttl.md](implemented/group-code-school-year-ttl.md): existing codes keep their original TTL (set at mint time; the constant change does not retroactively extend). If a teacher wants to extend an existing code, that's the **extension flow** affordance (small follow-up doc); for v1.1 the answer is "mint a new code with the longer TTL."
 
 ## Acceptance
 
@@ -130,7 +130,7 @@ Out of scope for this doc — same posture as in [group-code-school-year-ttl.md]
 
 ## Related
 
-- [group-code-school-year-ttl.md](group-code-school-year-ttl.md) — sibling doc; ships the rename + archival half. This doc ships the per-code-choice half
+- [group-code-school-year-ttl.md](implemented/group-code-school-year-ttl.md) — sibling doc; ships the rename + archival half. This doc ships the per-code-choice half
 - [teacher-permission-model.md](../v1.0.0-pilot/implemented/teacher-permission-model.md) (1.A) — the teacher-UI surface where this lives
 - [session-persistence.md](../v1.0.0-pilot/implemented/session-persistence.md) (1.F) — TTL-aware session restore
 - ADR-001 (anonymous group auth) — informs the privacy posture rationale for why per-code choice > platform default

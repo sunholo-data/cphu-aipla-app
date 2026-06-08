@@ -1,12 +1,12 @@
 # Voice personas — friendly identities that bundle voice + avatar + language
 
-**Status:** Planned (P2)
-**Last Updated:** 2026-06-04
+**Status:** Partially shipped (P2) — as of 2026-06-08, the friendly `VoiceStatusPill` mode has landed; the `Persona` model, `backend/personas/` YAMLs, and the persona-card picker are **still open** (~2d remaining). See [SEQUENCE Build status](SEQUENCE.md#build-status--verified-2026-06-08).
+**Last Updated:** 2026-06-08
 **Priority:** **P2** — UX polish over the v1.1.11 voice provider abstraction. Teacher review on 2026-06-04 surfaced that the technical voice picker ("gcp_chirp3hd / da-DK-Chirp3-HD-Aoede") is opaque to non-engineers. Production users need names and faces, not registry strings
 **Estimated:** ~1.5d (backend persona model + routes + 4-6 default personas + CLI) + ~1d (frontend picker + bubble avatar + status pill) + ~0.5d (assets, docs, polish) = **~3d**
 **Scope:** Fullstack — `backend/db/models/persona.py` (new) + `backend/personas/` YAMLs (new) + `backend/protocols/voice_routes.py` (extend) + `frontend/src/components/teacher/PersonaPickerPanel.tsx` (new) + `MessageBubble.tsx` (extend with avatar) + `VoiceStatusPill.tsx` (friendly mode) + 4-6 avatar PNGs
 **Dependencies:**
-- v1.1.11 [voice-provider-abstraction.md](voice-provider-abstraction.md) shipped — Persona is the UX layer over its `SkillVoiceConfig` + `ClassVoiceSettings` primitives
+- v1.1.11 [voice-provider-abstraction.md](implemented/voice-provider-abstraction.md) shipped — Persona is the UX layer over its `SkillVoiceConfig` + `ClassVoiceSettings` primitives
 - ADR-003 (four-tier model selection) — personas inherit the tier swap pattern transparently
 - 1.G [teacher-ui.md](../v1.0.0-pilot/implemented/teacher-ui.md) — persona picker lives in the class-detail page next to the existing Voice section
 **Source brief:** 2026-06-04 chat with M, after the v1.1.11 voice provider shipped to dev. M: *"we have technical debug info now but I'm thinking we add personas and avatars that will link to voices down the road, so we can visually check as well in production"*
@@ -451,7 +451,7 @@ Suggested milestone breakdown (concrete sprint plan via sprint-planner skill at 
 
 ## Related Documents
 
-- **Parent:** [voice-provider-abstraction.md](voice-provider-abstraction.md) (1.1.11) — Persona is the UX layer over its `SkillVoiceConfig` + `ClassVoiceSettings` primitives. Shipped 2026-06-04.
+- **Parent:** [voice-provider-abstraction.md](implemented/voice-provider-abstraction.md) (1.1.11) — Persona is the UX layer over its `SkillVoiceConfig` + `ClassVoiceSettings` primitives. Shipped 2026-06-04.
 - ADR-003 (four-tier model selection) — personas inherit the tier swap pattern transparently
 - ADR-005 (data residency) — persona avatars served from the frontend's public dir; no new data egress
 - [feedback_search_protocols_first](file:///Users/mark/.claude/projects/-Users-mark-dev-sunholo-cphu-aipla-app/memory/feedback_search_protocols_first.md) — cited in Standards check (no persona protocol exists)

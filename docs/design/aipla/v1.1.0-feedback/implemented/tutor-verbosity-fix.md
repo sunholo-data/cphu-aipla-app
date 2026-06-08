@@ -65,4 +65,4 @@ If after a week of pilot sessions the model is still producing >3-sentence turns
 ## Related
 
 - [proactive-sim-reactive-tutor.md](proactive-sim-reactive-tutor.md) — also flagged at 3 June; the sim-reactive tutor's short-observation-plus-question shape inherits this constraint
-- [proactive-tutor.md](../v1.0.0-pilot/proactive-tutor.md) — Phase A auto-greet's `## Opening` block already says "keep your first turn to ~2-3 sentences"; this constraint generalises that rule
+- [proactive-tutor.md](../../v1.0.0-pilot/proactive-tutor.md) — Phase A auto-greet's `## Opening` block already says "keep your first turn to ~2-3 sentences"; this constraint generalises that rule

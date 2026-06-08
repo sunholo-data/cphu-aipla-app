@@ -107,7 +107,7 @@ This table is allowed to record `declined` sessions because it stores only the *
 - [ ] Clicking `Yes, I consent` → chat opens; subsequent turns appear in BigQuery `chat_turns`
 - [ ] Clicking `No thanks` → chat opens; subsequent turns do NOT appear in `chat_turns` and workbench commits do NOT appear in `workbench_events`
 - [ ] In both cases, the `session_consent` BQ table receives one row recording the decision
-- [ ] Session resume (within 30d / 300d TTL per [1.1.6](group-code-school-year-ttl.md)) does NOT re-prompt — decision is sticky per session
+- [ ] Session resume (within 30d / 300d TTL per [1.1.6](implemented/group-code-school-year-ttl.md)) does NOT re-prompt — decision is sticky per session
 - [ ] Teacher report displays `No research consent` badge on declined sessions
 - [ ] `make lint` + `make test-fast` + `npm run quality:check` green
 - [ ] One pytest: declined session's chat turn does not appear in `chat_turns`; granted session's does

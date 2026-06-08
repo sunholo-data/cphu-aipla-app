@@ -1,6 +1,6 @@
 # Proactive tutor — auto-greet on join + idle-heartbeat check-ins
 
-**Status**: Phase A Implemented (auto-greet on join, shipped per SEQUENCE.md). **Phase B (idle heartbeat) RETIRED 2026-06-03** — superseded by [v1.1.2 proactive-sim-reactive-tutor](../v1.1.0-feedback/proactive-sim-reactive-tutor.md). The 3 June teacher check-in established that sim-event-reactive (react to *meaningful workbench events*) is the higher-value trigger; idle-heartbeat overlaps with Phase A's "blank session" coverage and risks anti-Socratic interrupts. Phase B design retained below for historical reference; do not implement.
+**Status**: Phase A Implemented (auto-greet on join, shipped per SEQUENCE.md). **Phase B (idle heartbeat) RETIRED 2026-06-03** — superseded by [v1.1.2 proactive-sim-reactive-tutor](../v1.1.0-feedback/implemented/proactive-sim-reactive-tutor.md). The 3 June teacher check-in established that sim-event-reactive (react to *meaningful workbench events*) is the higher-value trigger; idle-heartbeat overlaps with Phase A's "blank session" coverage and risks anti-Socratic interrupts. Phase B design retained below for historical reference; do not implement.
 **Last Updated**: 2026-06-03
 **Priority**: P1 (Phase A); Phase B retired
 **Estimated**: Phase A (auto-greet) ~0.5-1d (shipped); ~~Phase B (heartbeat) ~1.5-2d~~

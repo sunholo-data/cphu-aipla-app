@@ -2,7 +2,7 @@
 
 **Sprint ID:** `VOICE-PROVIDER`
 **Design doc:** [voice-provider-abstraction.md](voice-provider-abstraction.md)
-**Parent doc:** [audio-capture-and-tts.md](../v1.0.0-pilot/audio-capture-and-tts.md) (v1.0 Part 1 shipped browser-native; this supersedes the v2 polish notes)
+**Parent doc:** [audio-capture-and-tts.md](../../v1.0.0-pilot/audio-capture-and-tts.md) (v1.0 Part 1 shipped browser-native; this supersedes the v2 polish notes)
 **Branch:** work on `dev` directly per [feedback-no-prs-commit-to-dev](file:///Users/mark/.claude/projects/-Users-mark-dev-sunholo-cphu-aipla-app/memory/feedback_no_prs_commit_to_dev.md). Commit per milestone locally; `git push origin dev` at end of each phase after that phase's quality gates pass.
 **Estimate:** ~3.5-4d wall clock split into two phases:
 - **Phase A (TTS + read-aloud upgrade + auto-read toggle):** ~1.75d — ships independently to dev, fixes today's choppy-Sara feedback immediately, picks up proactive turns (1.1.2) for free
@@ -597,8 +597,8 @@ JSON state file (`.claude/state/sprints/sprint_VOICE-PROVIDER.json`) tracks whic
 ## Related
 
 - [voice-provider-abstraction.md](voice-provider-abstraction.md) — design doc this sprint implements
-- [audio-capture-and-tts.md](../v1.0.0-pilot/audio-capture-and-tts.md) — parent doc (v1.0 TTS Part 1 shipped browser-native; this supersedes the v2 polish notes)
-- [cost-dashboard.md](cost-dashboard.md) — 1.1.9, voice spans feed this
-- [teacher-ui.md](../v1.0.0-pilot/implemented/teacher-ui.md) — 1.G, per-class voice toggle lives here
-- [proactive-sim-reactive-tutor-sprint.md](implemented/proactive-sim-reactive-tutor-sprint.md) — sprint format reference
-- [quick-wins-v1.1-sprint.md](implemented/quick-wins-v1.1-sprint.md) — two-track sprint reference (we are single-track but two-phase)
+- [audio-capture-and-tts.md](../../v1.0.0-pilot/audio-capture-and-tts.md) — parent doc (v1.0 TTS Part 1 shipped browser-native; this supersedes the v2 polish notes)
+- [cost-dashboard.md](../cost-dashboard.md) — 1.1.9, voice spans feed this
+- [teacher-ui.md](../../v1.0.0-pilot/implemented/teacher-ui.md) — 1.G, per-class voice toggle lives here
+- [proactive-sim-reactive-tutor-sprint.md](proactive-sim-reactive-tutor-sprint.md) — sprint format reference
+- [quick-wins-v1.1-sprint.md](quick-wins-v1.1-sprint.md) — two-track sprint reference (we are single-track but two-phase)

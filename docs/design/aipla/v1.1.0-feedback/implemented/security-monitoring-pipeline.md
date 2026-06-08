@@ -6,7 +6,7 @@
 **Estimated:** ~0.5d for the CI gate + cron, ~0.5d for the triage skill
 **Scope:** Continuous-integration gate that fails PRs on new high/critical CVEs across all three dep surfaces (frontend npm, sandbox npm, backend Python), plus a weekly cron that opens / updates an issue with the alert summary, plus an `aipla-security-checkup` skill that documents the human triage runbook. Wires into the existing [`ci.yml`](../../../../.github/workflows/ci.yml) rather than running as a separate workflow so the gate is part of the standard merge-block, not a side-channel.
 **Dependencies:** None — purely additive on existing CI. Existing dependabot alerts on the repo continue to be the source of truth; this design adds an enforced gate + a process around them.
-**Cross-link:** [aipla-security-checkup skill](../../../../.claude/skills/aipla-security-checkup/SKILL.md) (to be created per this doc); follows up on `084920b` + `1257c08` triage commits.
+**Cross-link:** [aipla-security-checkup skill](../../../../../.claude/skills/aipla-security-checkup/SKILL.md) (to be created per this doc); follows up on `084920b` + `1257c08` triage commits.
 
 ## Why this matters now
 
@@ -222,7 +222,7 @@ Snyk, Socket, Mend, etc. all have dependency-monitoring SaaS offerings. They're 
 ## References
 
 - 2026-06-05 triage commits: `084920b` (first 15 alerts patched), `1257c08` (final 5 incl. vitest 4 migration)
-- [Product Axioms](../../../product-axioms.md) — Axiom 9 SECURE BY CONSTRUCTION drives the gate-not-monitor design
-- [CLAUDE.md AIPLA Fork Context](../../../../CLAUDE.md) — branch promotion policy + "any local workflow that takes more than one manual step must have a script or make target"
+- [Product Axioms](../../../../product-axioms.md) — Axiom 9 SECURE BY CONSTRUCTION drives the gate-not-monitor design
+- [CLAUDE.md AIPLA Fork Context](../../../../../CLAUDE.md) — branch promotion policy + "any local workflow that takes more than one manual step must have a script or make target"
 - [.github/workflows/ci.yml](../../../../.github/workflows/ci.yml) — existing CI surface that this extends
-- [aipla-security-checkup skill](../../../../.claude/skills/aipla-security-checkup/SKILL.md) — human triage runbook implementing this design's Layer 3
+- [aipla-security-checkup skill](../../../../../.claude/skills/aipla-security-checkup/SKILL.md) — human triage runbook implementing this design's Layer 3

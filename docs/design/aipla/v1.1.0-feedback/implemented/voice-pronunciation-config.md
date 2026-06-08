@@ -7,7 +7,7 @@
 **Scope:** Frontend (extract inline arrays to YAML + loader + schema + tests) + CLI (`aiplatform voice-pronunciation list/validate/add`) + ops runbook
 **Dependencies:**
 - v1.1.11 [voice-provider-abstraction.md](voice-provider-abstraction.md) shipped — the TTS infrastructure that consumes the pronunciation rules
-- v1.1.12 [voice-personas.md](voice-personas.md) (planned) — sibling polish doc; both ship in parallel; pronunciation config is persona-agnostic
+- v1.1.12 [voice-personas.md](../voice-personas.md) (planned) — sibling polish doc; both ship in parallel; pronunciation config is persona-agnostic
 - Cloud Build's existing Next.js build pipeline — YAML import happens at build time, no runtime infrastructure change
 **Source brief:** 2026-06-04 chat with M after the unit-substitution feature (`cc8507f`) shipped: *"this may be a list we need to maintain? perhaps we have a webpage or config for it?"* Agreed YAML at build time is the right next step; Firestore-backed admin is overkill until teachers need per-class custom pronunciations.
 
@@ -323,7 +323,7 @@ None. This is a pure refactor of where the rules live — no HTTP endpoints touc
 
 Estimate: **~0.3 day** for five subcommands (Click + ruamel.yaml for comment-preserving writes + a small validator wrapper + tests).
 
-**Backlink:** [local-dev-cli.md](../../v6.1.0/local-dev-cli.md).
+**Backlink:** [local-dev-cli.md](../../../v6.1.0/local-dev-cli.md).
 
 ## Testing Strategy
 
@@ -396,9 +396,9 @@ Suggested milestone breakdown (concrete sprint plan via sprint-planner skill at 
 ## Related Documents
 
 - **Parent infrastructure:** [voice-provider-abstraction.md](voice-provider-abstraction.md) (1.1.11) — shipped 2026-06-04. The Cloud TTS path that consumes the rules
-- **Sibling polish:** [voice-personas.md](voice-personas.md) (1.1.12) — both 1.1.12 and 1.1.14 are P2 polish over 1.1.11; can ship in parallel; no cross-dependencies
+- **Sibling polish:** [voice-personas.md](../voice-personas.md) (1.1.12) — both 1.1.12 and 1.1.14 are P2 polish over 1.1.11; can ship in parallel; no cross-dependencies
 - [feedback_search_protocols_first](file:///Users/mark/.claude/projects/-Users-mark-dev-sunholo-cphu-aipla-app/memory/feedback_search_protocols_first.md) — cited in Standards check (no protocol exists at this layer)
 - [feedback_no_emoticons](file:///Users/mark/.claude/projects/-Users-mark-dev-sunholo-cphu-aipla-app/memory/feedback_no_emoticons.md) — YAML stays plain text; no emoji in rule replacements (we already substitute emoji *out* of message text)
 - [feedback_no_prs_commit_to_dev](file:///Users/mark/.claude/projects/-Users-mark-dev-sunholo-cphu-aipla-app/memory/feedback_no_prs_commit_to_dev.md) — execution commits directly to dev; the runbook adopts the same workflow
-- [local-dev-cli.md](../../v6.1.0/local-dev-cli.md) — CLI command surface
+- [local-dev-cli.md](../../../v6.1.0/local-dev-cli.md) — CLI command surface
 - Origin commit: `cc8507f` (2026-06-04) — `feat(voice): spell out physics units + math symbols before TTS` — the inline list this doc extracts

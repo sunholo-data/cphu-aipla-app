@@ -1,8 +1,8 @@
 # Implementation Report — ANALYTICS-CHAT-AND-INSIGHTS
 
 Sprint window: 2026-06-02 (one-day actual; 10 milestones in sequence).
-Closes design docs [analytics-chat-tools.md](./analytics-chat-tools.md) (1.L) and
-[teacher-insights-dashboard.md](./teacher-insights-dashboard.md) (1.M).
+Closes design docs [analytics-chat-tools.md](analytics-chat-tools.md) (1.L) and
+[teacher-insights-dashboard.md](teacher-insights-dashboard.md) (1.M).
 
 ## What shipped
 

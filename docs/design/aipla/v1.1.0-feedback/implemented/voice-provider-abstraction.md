@@ -6,9 +6,9 @@
 **Estimated:** ~1.5d (provider abstraction + GCP TTS + read-aloud swap) + ~1d (STT + dictation button) + ~0.5d (cost meter + CLI + ops runbook) = **~3d**
 **Scope:** Fullstack — `backend/voice/` package (new) + `backend/protocols/voice_routes.py` (new) + `frontend/src/components/chat/ReadAloudButton.tsx` (extend) + `DictateButton.tsx` (new) + per-class teacher toggle (extend 1.G) + `cli/aiplatform/commands/voice.py` (new) + ops runbook
 **Dependencies:**
-- v1.0 [audio-capture-and-tts.md](../v1.0.0-pilot/audio-capture-and-tts.md) Part 1 shipped (browser-native TTS button exists) — this doc supersedes its "v2 polish" section
-- [cost-dashboard.md](cost-dashboard.md) (1.1.9) — voice spans feed this dashboard
-- [teacher-ui.md](../v1.0.0-pilot/implemented/teacher-ui.md) (1.G) — per-class voice toggle lives here
+- v1.0 [audio-capture-and-tts.md](../../v1.0.0-pilot/audio-capture-and-tts.md) Part 1 shipped (browser-native TTS button exists) — this doc supersedes its "v2 polish" section
+- [cost-dashboard.md](../cost-dashboard.md) (1.1.9) — voice spans feed this dashboard
+- [teacher-ui.md](../../v1.0.0-pilot/implemented/teacher-ui.md) (1.G) — per-class voice toggle lives here
 - ADR-003 (four-tier model selection) — voice mirrors the pattern
 - ADR-005 (data residency) — providers in `europe-north1` / EU
 **Source brief:** Conversation 2026-06-03 (this doc encodes the architectural decisions and cost model worked out during the voice-quality discussion)
@@ -36,7 +36,7 @@ The shipped browser-native path was the right v1 call (free, no backend, no netw
 5. `ReadAloudButton.tsx` extended with a `provider` prop: when `gcp`, it fetches an audio blob; when `browser`, it uses Web Speech as today
 6. **Auto-read toggle (new):** student-side preference — when ON, every assistant message (including proactive-tutor turns from 1.1.2) is automatically spoken on stream-complete; when OFF, current click-to-read behaviour is preserved. Stored in `localStorage` per student-session, surfaced as a toggle in the `AppFooter` next to the existing accessibility note. Pairs with [proactive-sim-reactive-tutor.md](proactive-sim-reactive-tutor.md) — students who want a hands-off auditory loop get it for free with proactive turns
 7. New `DictateButton.tsx` — lucide-react `Mic` / `MicOff` icon next to the input box on problem-set-helper and concept-dialogue input rows, gated behind `NEXT_PUBLIC_VOICE_STT=on` and per-class teacher toggle
-8. OTel span attributes `voice.provider`, `voice.chars`, `voice.duration_ms`, `voice.cache_hit`, `voice.auto_read` → feed the [cost-dashboard](cost-dashboard.md). `auto_read=true` rows are useful: a class with auto-read on costs more per session.
+8. OTel span attributes `voice.provider`, `voice.chars`, `voice.duration_ms`, `voice.cache_hit`, `voice.auto_read` → feed the [cost-dashboard](../cost-dashboard.md). `auto_read=true` rows are useful: a class with auto-read on costs more per session.
 9. `aiplatform voice list-providers` + `aiplatform voice spike <text> --lang da [--provider gcp_wavenet]` CLI commands
 10. `docs/ops/voice-providers-runbook.md` — provider config, env var matrix, swap procedure for UCPH self-hosting
 
@@ -55,7 +55,7 @@ The shipped browser-native path was the right v1 call (free, no backend, no netw
 - Gemini Live / ADK LiveRunner — [backend/adk/live_agent.py](../../../../backend/adk/live_agent.py) stays a stub until a conversational-tutor design doc exists (v1.2+). The `voice/` package is **not** an interface for bidi streaming; that's a different shape.
 - Voice cloning, SSML editor, prosody tuning UI — provider-specific extras pass through an opaque `extras: dict` parameter on the Protocol so providers like ElevenLabs / Studio voices can expose SSML / style controls later without changing the interface
 - Speech-to-speech direct (no STT→LLM→TTS roundtrip) — that's the LiveRunner story
-- Transcribing the audio-capture research stream — that's [audio-capture-and-tts.md](../v1.0.0-pilot/audio-capture-and-tts.md) Part 2, still JB-gated; this doc is real-time student dictation only
+- Transcribing the audio-capture research stream — that's [audio-capture-and-tts.md](../../v1.0.0-pilot/audio-capture-and-tts.md) Part 2, still JB-gated; this doc is real-time student dictation only
 - OpenAI Whisper / Azure Speech / self-hosted Whisper provider implementations — covered by the abstraction but not built in this sprint. The Protocol existing is the deliverable; the additional providers add files in `providers/` later without touching the interface
 
 ## Standards check
@@ -197,7 +197,7 @@ New `frontend/src/components/chat/DictateButton.tsx`:
 - Lucide `Mic` icon next to chat input, replaces with `MicOff` while recording
 - `getUserMedia({ audio: true })` → `MediaRecorder` (webm/opus) → stop on second click or 30s timeout → `POST /api/voice/stt/transcribe` → fill input with the transcript
 - Visible only if `voiceCapabilities.stt === true` from `/api/voice/config`
-- Gated behind per-class teacher toggle (extends [teacher-ui.md](../v1.0.0-pilot/implemented/teacher-ui.md) 1.G), default OFF
+- Gated behind per-class teacher toggle (extends [teacher-ui.md](../../v1.0.0-pilot/implemented/teacher-ui.md) 1.G), default OFF
 
 Empty / loading / error states for DictateButton (Axiom 11):
 - **Empty / idle:** Mic icon, hover tooltip "Tal i stedet for at skrive" (DA) / "Speak instead of typing" (EN)
@@ -206,7 +206,7 @@ Empty / loading / error states for DictateButton (Axiom 11):
 
 ### CLI surface
 
-[local-dev-cli](../../v6.1.0/local-dev-cli.md) gains `aiplatform voice`:
+[local-dev-cli](../../../v6.1.0/local-dev-cli.md) gains `aiplatform voice`:
 
 | Command | Purpose |
 |---|---|
@@ -259,7 +259,7 @@ Empty / loading / error states for DictateButton (Axiom 11):
 | 5 | GRACEFUL DEGRADATION | +1 | Backend provider down → frontend falls back to browser Web Speech (already shipped, always available). STT failure → toast, input keeps focus, typing path always works. Cache GCS unavailable → bypass cache, still synthesize. No single point of failure has user-visible effect beyond "voice button slower than usual" |
 | 6 | PROTOCOL OVER CUSTOM | 0 | Browser Web Speech is W3C standard (kept as a provider). BCP-47 lang tags throughout. But the cross-provider voice Protocol is custom — explicitly because no standard exists at this level (LiteLLM Whisper isn't a usable TTS abstraction). Documented search in the Standards check above; -1 not warranted because the *internal* Protocol is the thinnest possible and no protocol was bypassed |
 | 7 | API FIRST | +1 | `POST /api/voice/tts/synthesize`, `POST /api/voice/stt/transcribe`, `GET /api/voice/config` — clean routes. Telegram / CLI / future channels reuse them by calling the same routes; no channel-specific voice logic |
-| 8 | OBSERVABLE BY DEFAULT | +1 | Every synthesize/transcribe emits an OTel span with `voice.provider`, `voice.chars` / `voice.duration_ms`, `voice.cache_hit`, `voice.cost_estimate_usd`. Feeds [cost-dashboard.md](cost-dashboard.md) directly. BigQuery query "how much did WaveNet cost last week" is a one-liner |
+| 8 | OBSERVABLE BY DEFAULT | +1 | Every synthesize/transcribe emits an OTel span with `voice.provider`, `voice.chars` / `voice.duration_ms`, `voice.cache_hit`, `voice.cost_estimate_usd`. Feeds [cost-dashboard.md](../cost-dashboard.md) directly. BigQuery query "how much did WaveNet cost last week" is a one-liner |
 | 9 | SECURE BY CONSTRUCTION | +1 | STT audio NEVER persisted (consumed in-process, discarded after transcribe returns). TTS cache key is `sha256(text+config)` — no PII in object names; bucket is private; default lifecycle 90d. Provider configs in `europe-north1` (ADR-005). Per-class teacher toggle is the consent surface (Axiom doesn't ship without 1.G integration). Audio never leaves the GCP project edge for the supported providers |
 | 10 | THIN CLIENT, FAT PROTOCOL | +1 | Frontend doesn't know which provider answered. `provider` field in `/api/voice/config` is opaque; the blob renders the same regardless. Provider switching is purely backend config. No client-side codec / model / vendor SDK |
 | 11 | USABLE BY DESIGN | +1 | DictateButton has designed idle / recording / error states *before* implementation (Design section above). Recording timer prevents the "is it actually recording" silent failure. Permission-denied has a specific, actionable Danish error message. Read-aloud cache means a second-listen is instant, not a UX cliff. **Auto-read toggle has designed barge-in semantics** (typing cancels TTS, dictation cancels TTS, concurrent turns queue) before implementation — avoiding the "AI talks over me" footgun that kills this kind of feature when shipped naively |
@@ -391,20 +391,20 @@ The TTS half (M1–M5) ships independently and can land before M6 starts — it'
 - Gemini Live / ADK LiveRunner — defer until conversational-tutor design doc exists
 - Voice cloning, SSML editor UI, prosody knobs — provider `extras` is the extension point
 - Real-time speech-to-speech (STT→LLM→TTS direct roundtrip) — LiveRunner story
-- Audio-capture research stream transcription — Part 2 of [audio-capture-and-tts.md](../v1.0.0-pilot/audio-capture-and-tts.md), JB-gated
+- Audio-capture research stream transcription — Part 2 of [audio-capture-and-tts.md](../../v1.0.0-pilot/audio-capture-and-tts.md), JB-gated
 - OpenAI Whisper / Azure / self-hosted Whisper providers — Protocol is built; concrete providers ship in follow-up docs as the swap becomes useful (e.g., UCPH GPU cluster onboarding)
 - Voice-controlled UI (beyond filling the input box) — not a goal of "lesson ease"
 - Multi-speaker diarization for the audio-capture stream — out of scope here; revisit when Part 2 of v1.0 doc is unblocked
 
 ## Related documents
 
-- **Parent:** [../v1.0.0-pilot/audio-capture-and-tts.md](../v1.0.0-pilot/audio-capture-and-tts.md) — Part 1 shipped; this doc supersedes the v2 polish notes
-- [cost-dashboard.md](cost-dashboard.md) (1.1.9) — voice spans feed this dashboard
-- [teacher-ui.md](../v1.0.0-pilot/implemented/teacher-ui.md) (1.G) — per-class voice toggle lives here
+- **Parent:** [../v1.0.0-pilot/audio-capture-and-tts.md](../../v1.0.0-pilot/audio-capture-and-tts.md) — Part 1 shipped; this doc supersedes the v2 polish notes
+- [cost-dashboard.md](../cost-dashboard.md) (1.1.9) — voice spans feed this dashboard
+- [teacher-ui.md](../../v1.0.0-pilot/implemented/teacher-ui.md) (1.G) — per-class voice toggle lives here
 - [proactive-sim-reactive-tutor.md](proactive-sim-reactive-tutor.md) (1.1.2) — reactive turns inherit read-aloud automatically
 - ADR-003 (four-tier model selection) in [architecture.qmd](file:///Users/mark/Documents/clients/cph-uni/strand-a-pedagogical-bot/architecture.qmd) — voice mirrors this pattern
 - ADR-005 (data residency) — providers in `europe-north1` / EU
 - [self-hosting.qmd](file:///Users/mark/Documents/clients/cph-uni/self-hosting.qmd) — UCPH GPU cluster Whisper path is the long-term destination
 - [feedback_search_protocols_first](file:///Users/mark/.claude/projects/-Users-mark-dev-sunholo-cphu-aipla-app/memory/feedback_search_protocols_first.md) — cited in Standards check
 - [feedback_no_emoticons](file:///Users/mark/.claude/projects/-Users-mark-dev-sunholo-cphu-aipla-app/memory/feedback_no_emoticons.md) — lucide-react `Mic`/`MicOff`/`Volume2`/`VolumeX` icons throughout
-- [local-dev-cli](../../v6.1.0/local-dev-cli.md) — CLI command surface
+- [local-dev-cli](../../../v6.1.0/local-dev-cli.md) — CLI command surface

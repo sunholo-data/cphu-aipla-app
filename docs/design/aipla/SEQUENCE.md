@@ -107,24 +107,26 @@ respects the **mid-point review (2026-06-26)** + **holiday freeze
 
 ## Phase 1.1 — Post-3-June teacher check-in feedback (v1.1.0-feedback)
 
-Nine items distilled from the 3 June 2026 teacher check-in (full brief at
+The batch began as nine items distilled from the 3 June 2026 teacher check-in (full brief at
 [`june-03-feedback-sprint-brief.md`](file:///Users/mark/Documents/clients/cph-uni/strand-a-pedagogical-bot/prototypes/june-03-feedback-sprint-brief.md)
-in the scoping site). Per-item design docs and detailed ordering live in
-[v1.1.0-feedback/SEQUENCE.md](v1.1.0-feedback/SEQUENCE.md). Summary:
+in the scoping site) and has since grown to **1.1.1–1.1.18** (voice + chat-polish + security items added). Per-item design docs, full ordering, and the **authoritative verified status** live in
+[v1.1.0-feedback/SEQUENCE.md → Build status (verified 2026-06-08)](v1.1.0-feedback/SEQUENCE.md#build-status--verified-2026-06-08).
+
+> **Status as of 2026-06-08: 9 SHIPPED · 1 PARTIAL · 7 OPEN.** The table below mirrors only the original nine; rows 1.1.10–1.1.18 and per-row evidence are in the child Build status section.
 
 | # | Doc | Est | Status / Gate |
 |---|-----|-----|---------------|
-| 1.1.1 | [tutor-verbosity-fix.md](v1.1.0-feedback/tutor-verbosity-fix.md) | ~2h | P0 immediate; AR sign-off on prompt |
-| 1.1.2 | [proactive-sim-reactive-tutor.md](v1.1.0-feedback/proactive-sim-reactive-tutor.md) | ~1d | Re-scopes [proactive-tutor.md](v1.0.0-pilot/proactive-tutor.md) Phase B from idle-heartbeat → sim-event-reactive |
-| 1.1.3 | [student-consent-prompt.md](v1.1.0-feedback/student-consent-prompt.md) | ~1d | Blocked on JB consent-wording sign-off |
-| 1.1.4 | [session-report-summary-primary.md](v1.1.0-feedback/session-report-summary-primary.md) | ~1d | Independent; foundational for eventual audio inclusion |
-| 1.1.5 | [researcher-role.md](v1.1.0-feedback/researcher-role.md) | ~1d | New `role:researcher` Firebase claim above teacher tier |
-| 1.1.6 | [group-code-school-year-ttl.md](v1.1.0-feedback/group-code-school-year-ttl.md) | ~2h | Extend 30d → 300d; quick win unblocking portfolio-download |
-| 1.1.7 | [student-multimodal-upload.md](v1.1.0-feedback/student-multimodal-upload.md) | ~2d | **Supersedes 1.10 student slice.** ADR-008 ready; JB image-retention confirm |
-| 1.1.8 | [exit-ticket.md](v1.1.0-feedback/exit-ticket.md) | ~1d | Blocked on JB/AR question set |
-| 1.1.9 | [cost-dashboard.md](v1.1.0-feedback/cost-dashboard.md) | ~1d | **Supersedes 1.12.** Per-class + cross-class researcher cost views |
+| 1.1.1 | [tutor-verbosity-fix.md](v1.1.0-feedback/implemented/tutor-verbosity-fix.md) | ~2h | **SHIPPED** (QUICK-WINS-V11) |
+| 1.1.2 | [proactive-sim-reactive-tutor.md](v1.1.0-feedback/implemented/proactive-sim-reactive-tutor.md) | ~1d | **SHIPPED** — re-scoped [proactive-tutor.md](v1.0.0-pilot/proactive-tutor.md) Phase B idle-heartbeat → sim-event-reactive |
+| 1.1.3 | [student-consent-prompt.md](v1.1.0-feedback/student-consent-prompt.md) | ~1d | **OPEN** — blocked on JB consent-wording sign-off |
+| 1.1.4 | [session-report-summary-primary.md](v1.1.0-feedback/session-report-summary-primary.md) | ~1d | **OPEN** — independent; foundational for eventual audio inclusion |
+| 1.1.5 | [researcher-role.md](v1.1.0-feedback/researcher-role.md) | ~1d | **OPEN** — new `role:researcher` Firebase claim above teacher tier |
+| 1.1.6 | [group-code-school-year-ttl.md](v1.1.0-feedback/implemented/group-code-school-year-ttl.md) | ~2h | **SHIPPED** — rescoped mid-sprint to rename + 410-on-expiry (default stays 30d); per-code TTL choice split to 1.1.10 |
+| 1.1.7 | [student-multimodal-upload.md](v1.1.0-feedback/student-multimodal-upload.md) | ~2d | **OPEN** — supersedes 1.10 student slice; ADR-008 ready; JB image-retention confirm |
+| 1.1.8 | [exit-ticket.md](v1.1.0-feedback/exit-ticket.md) | ~1d | **OPEN** — blocked on JB/AR question set |
+| 1.1.9 | [cost-dashboard.md](v1.1.0-feedback/cost-dashboard.md) | ~1d | **OPEN** — supersedes 1.12; per-class + cross-class researcher cost views |
 
-**Total v1.1 estimate:** ~8.5d engineering. Fits in the post-3-June → pilot-start window (2026-06-04 → 2026-08-14, ~10 weeks minus the 2026-06-29 → 07-05 freeze). Several items can ship *before* the pilot starts; the rest absorb into pilot-iteration weeks.
+**Total v1.1 estimate:** ~16.5–17.5d engineering across the full 1.1.1–1.1.18 set (the original nine were ~8.5d). Fits in the post-3-June → pilot-start window (2026-06-04 → 2026-08-14, ~10 weeks minus the 2026-06-29 → 07-05 freeze). Roughly half is shipped; several remaining items can land *before* the pilot, the rest absorb into pilot-iteration weeks.
 
 **Human-gated items to tee up first:** JB consent wording (1.1.3), JB/AR exit-ticket question set (1.1.8), AR verbosity-prompt sign-off (1.1.1), JB image-retention posture (1.1.7).
 

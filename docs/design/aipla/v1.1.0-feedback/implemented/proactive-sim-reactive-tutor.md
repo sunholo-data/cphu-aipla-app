@@ -5,14 +5,14 @@
 **Priority:** P1 — teacher request from 3 June check-in. The Phase A auto-greet shipped, but tutors still wait for chat messages between sim runs even when a student is actively experimenting in the workbench
 **Estimated:** ~1d
 **Scope:** Fullstack — backend session-event loop + new endpoint + skill-config fields + frontend workbench-event wiring
-**Dependencies:** [proactive-tutor.md](../v1.0.0-pilot/proactive-tutor.md) Phase A (shipped); workbench-event stream from MCPAPP-SPEC + [workbench-state-debounce.md](../v1.0.0-pilot/implemented/workbench-state-debounce.md) (shipped)
+**Dependencies:** [proactive-tutor.md](../../v1.0.0-pilot/proactive-tutor.md) Phase A (shipped); workbench-event stream from MCPAPP-SPEC + [workbench-state-debounce.md](../../v1.0.0-pilot/implemented/workbench-state-debounce.md) (shipped)
 **Source brief:** [`june-03-feedback-sprint-brief.md` §2](file:///Users/mark/Documents/clients/cph-uni/strand-a-pedagogical-bot/prototypes/june-03-feedback-sprint-brief.md)
 
 ## Relationship to existing proactive-tutor doc
 
-**Decided 2026-06-03 — Path A confirmed.** [proactive-tutor.md](../v1.0.0-pilot/proactive-tutor.md)'s original Phase B (idle-heartbeat — no activity for ~3 min → check in) is **retired** and replaced by this doc. The 3 June teacher check-in established sim-event-reactive as the higher-value trigger: idle-heartbeat overlapped with `proactive_greet` already covering the "blank session" failure mode and carried anti-Socratic interrupt risk. This doc is now the canonical Phase B.
+**Decided 2026-06-03 — Path A confirmed.** [proactive-tutor.md](../../v1.0.0-pilot/proactive-tutor.md)'s original Phase B (idle-heartbeat — no activity for ~3 min → check in) is **retired** and replaced by this doc. The 3 June teacher check-in established sim-event-reactive as the higher-value trigger: idle-heartbeat overlapped with `proactive_greet` already covering the "blank session" failure mode and carried anti-Socratic interrupt risk. This doc is now the canonical Phase B.
 
-The original idle-heartbeat design remains in [proactive-tutor.md](../v1.0.0-pilot/proactive-tutor.md) as historical reference (marked retired in its status header); do not implement it.
+The original idle-heartbeat design remains in [proactive-tutor.md](../../v1.0.0-pilot/proactive-tutor.md) as historical reference (marked retired in its status header); do not implement it.
 
 ## Problem
 
@@ -30,7 +30,7 @@ The brief's example: student runs Boldkast with angle=45°; tutor doesn't react.
 - Pedagogical signal: pilot teachers report the tutor's sim-reactive turns are *grounded in what the student just did* (not generic)
 
 **Non-goals:**
-- Reacting to every slider tick (the brief is explicit: meaningful events only, not every drag — [workbench-state-debounce.md](../v1.0.0-pilot/implemented/workbench-state-debounce.md) Phase 2 commit-on-submit gating already restricts what reaches the backend)
+- Reacting to every slider tick (the brief is explicit: meaningful events only, not every drag — [workbench-state-debounce.md](../../v1.0.0-pilot/implemented/workbench-state-debounce.md) Phase 2 commit-on-submit gating already restricts what reaches the backend)
 - Cross-session "I noticed last time you tried 30°" memory — out of scope, year-2 memory work
 - Replacing the chat input — the proactive turn appears in the chat stream as a normal agent turn
 
@@ -157,7 +157,7 @@ class SkillConfig(BaseModel):
 |---|---|---|
 | Tutor takes over the conversation (teacher concern explicit in brief) | Medium | Hard cap (2 / session) + 90s cooldown + per-skill opt-out |
 | Triggering event misclassified (e.g. reset counted as meaningful) | Medium | Server-side allowlist of `kind` values; review with AR after first pilot session |
-| Proactive turn fires during student composing | Low | Server check `last_student_message` only — composing-state lives in FE; if needed, add `student_typing` heartbeat from FE per [proactive-tutor.md](../v1.0.0-pilot/proactive-tutor.md) Phase B sketch |
+| Proactive turn fires during student composing | Low | Server check `last_student_message` only — composing-state lives in FE; if needed, add `student_typing` heartbeat from FE per [proactive-tutor.md](../../v1.0.0-pilot/proactive-tutor.md) Phase B sketch |
 | Tutor turn arrives mid-sim-render and looks like commentary the artefact emitted | Low | Standard chat message styling; arrival ordering is fine because AG-UI is a single stream |
 | Token cost climbs | Low | Cap of 2/session × short turn ≈ 300 tokens extra per session |
 
@@ -194,7 +194,7 @@ class SkillConfig(BaseModel):
 
 ## Related
 
-- [proactive-tutor.md](../v1.0.0-pilot/proactive-tutor.md) — Phase A (shipped); this doc effectively re-scopes the original Phase B
-- [workbench-state-debounce.md](../v1.0.0-pilot/implemented/workbench-state-debounce.md) — Phase 2 commit-on-submit gating is the prerequisite that makes "meaningful event" tractable to detect
-- [chat-log-pipeline.md](../v1.0.0-pilot/implemented/chat-log-pipeline.md) — the OTel pipeline writes both workbench events and chat turns, so analytics can see proactive vs reactive turns side-by-side
+- [proactive-tutor.md](../../v1.0.0-pilot/proactive-tutor.md) — Phase A (shipped); this doc effectively re-scopes the original Phase B
+- [workbench-state-debounce.md](../../v1.0.0-pilot/implemented/workbench-state-debounce.md) — Phase 2 commit-on-submit gating is the prerequisite that makes "meaningful event" tractable to detect
+- [chat-log-pipeline.md](../../v1.0.0-pilot/implemented/chat-log-pipeline.md) — the OTel pipeline writes both workbench events and chat turns, so analytics can see proactive vs reactive turns side-by-side
 - [tutor-verbosity-fix.md](tutor-verbosity-fix.md) — the ≤3 sentences + question rule the reactive turn inherits
