@@ -16,25 +16,40 @@ import { fetchWithTeacherAuth as fetchWithAuth } from "@/lib/apiClient";
 
 export type Language = "da" | "en";
 export type Difficulty = "standard" | "guided";
+/** Workbench type system (1.J). ``none`` = chat-only concept activity. */
+export type WorkbenchType =
+  | "app"
+  | "drawing"
+  | "sensor"
+  | "video"
+  | "notebook"
+  | "none";
 
 export interface ActivityConfigPayload {
   activityId: string;
   classId: string;
   teacherUid: string;
+  title?: string;
   teachingGoal: string;
   language: Language;
   difficulty: Difficulty;
   pairedWorkbench: string | null;
+  workbenchType?: WorkbenchType;
   updatedAt: string;
 }
 
 export interface ActivityConfigUpsert {
+  /** Omit to let the backend mint a teacher-namespaced id (CLI/branching).
+   *  The teacher builder passes a fixed base-skill id so the activity is
+   *  immediately student-runnable (TAA-1 M0). */
   activityId: string;
   classId: string;
+  title?: string;
   teachingGoal: string;
   language: Language;
   difficulty: Difficulty;
   pairedWorkbench: string | null;
+  workbenchType?: WorkbenchType;
 }
 
 export interface SessionTurnPayload {

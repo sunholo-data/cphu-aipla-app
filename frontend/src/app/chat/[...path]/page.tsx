@@ -361,6 +361,12 @@ function ChatShell({
   // the inherited template surface (DocTabs + DocumentPanel). Once v1
   // ships more student-facing skills the gate widens; for now the
   // workspace is purpose-built for the one demo flow.
+  // TAA-1 (M0.5): no-workbench teacher activities run the `concept-dialogue`
+  // base skill, which is intentionally NOT in this allowlist — it falls
+  // through to a full-width chat-only render with no (empty) workspace
+  // column. Do NOT add concept-dialogue here. When teacher-authored
+  // workbench types (drawing/notebook/app, M4) land, replace this slug
+  // allowlist with a check on the activity's workbench_type.
   const showAiplaWorkspace =
     isAnonymousGroupAuthMode() &&
     (skillSlug === "problem-set-hints" ||
