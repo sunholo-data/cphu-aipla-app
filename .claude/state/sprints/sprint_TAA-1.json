@@ -37,7 +37,8 @@
       "passes": null,
       "started": "2026-06-08T12:00:00Z",
       "completed": null,
-      "notes": "Day 1 DONE (M0.0-M0.3, backend+CLI): API reconciled + Q1=(A); ActivityConfig extended (title/workbench_type/source_activity_id + paired->app backfill); upsert+route accept new fields + mint teacher: id; GET list endpoint; aiplatform activity new/list CLI. Backend 1778 pass (+17), CLI 93 pass (+5), ruff clean. PAUSED at pause-point 1. REMAINING (Day 2): M0.4 teacher builder UI + M0.5 student chat-only render + manual <5min acceptance."
+      "actual_loc": 1180,
+      "notes": "CODE-COMPLETE (automated gates green); manual <5min acceptance PENDING. Day 1 (M0.0-M0.3 backend+CLI): API reconciled + Q1=(A); ActivityConfig +title/workbench_type/source_activity_id + paired->app backfill; upsert+route accept new fields + mint teacher: id; GET list; aiplatform activity new/list CLI. Day 2: concept-dialogue base skill (chat-only Socratic, {teacher_focus}, 1.1.1 verbosity, public, <10k) + avatar; /teacher/activities/new builder (creates concept-dialogue activity, designed empty/loading/error/saving/success states); M0.5 chat-only by construction (concept-dialogue not in showAiplaWorkspace allowlist) + documented for M4. Decision @ pause-1 (user): freeze-safe concept-base path, not the activity!=skill decouple. Tests: backend 1778+6, CLI 93, FE +6 vitest (all green). NOTE: local node_modules stale vitest 1.6.1 vs lockfile ^4.1.0 -> pre-existing false tsc error in untouched ReadAloudButton.test.tsx; needs npm ci locally; CI green. PAUSED at pause-point 2."
     },
     {
       "id": "M1",
