@@ -2,8 +2,8 @@
 
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
-import { Suspense, useEffect, useState } from "react";
-import { ArrowLeft, MessageCircle, Save, Sparkles } from "lucide-react";
+import { Suspense, useEffect, useRef, useState } from "react";
+import { ArrowLeft, MessageCircle, Plus, Save, Sparkles, X } from "lucide-react";
 
 import {
   type ClassPayload,
@@ -80,6 +80,14 @@ function NewActivityForm() {
   // First-run default: the concept (no-workbench) path is pre-selected so
   // the happy path to a working activity is the default, not a blank form.
   const [workbenchType] = useState<WorkbenchType>("none");
+  // Optional teacher-authored checklist. `key` is a stable client id for
+  // React; the persisted item id is positional, assigned on save.
+  const [checklist, setChecklist] = useState<{ key: number; label: string }[]>([]);
+  const nextKeyRef = useRef(1);
+  const addChecklistItem = () => setChecklist((cur) => [...cur, { key: nextKeyRef.current++, label: "" }]);
+  const removeChecklistItem = (key: number) => setChecklist((cur) => cur.filter((i) => i.key !== key));
+  const setChecklistLabel = (key: number, label: string) =>
+    setChecklist((cur) => cur.map((i) => (i.key === key ? { ...i, label } : i)));
 
   const [isSaving, setIsSaving] = useState(false);
   const [saveError, setSaveError] = useState<string | null>(null);
@@ -130,6 +138,11 @@ function NewActivityForm() {
         difficulty,
         pairedWorkbench: null,
         workbenchType,
+        // Positional ids assigned on save; empty rows dropped.
+        checklist: checklist
+          .map((i) => i.label.trim())
+          .filter(Boolean)
+          .map((label, idx) => ({ id: `step-${idx + 1}`, label })),
       });
       // Bind the concept-dialogue lesson to the class so students in it
       // actually see the activity. Idempotent — adding it again is a no-op.
@@ -256,6 +269,54 @@ function NewActivityForm() {
               className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm"
             />
           </Field>
+
+          <div className="flex flex-col gap-2">
+            <div className="flex items-center justify-between">
+              <span className="text-sm font-medium text-slate-700">Checklist (optional)</span>
+              <button
+                type="button"
+                onClick={addChecklistItem}
+                className="flex items-center gap-1 rounded border border-slate-300 px-2 py-1 text-xs font-medium text-slate-600 hover:bg-slate-50"
+              >
+                <Plus className="h-3.5 w-3.5" /> Add step
+              </button>
+            </div>
+            <p className="text-xs text-slate-500">
+              Sub-steps students tick off as they work. Shown in the workspace; the tutor can see what&apos;s
+              done.
+            </p>
+            {checklist.length === 0 ? (
+              <p className="rounded border border-dashed border-slate-200 px-3 py-2 text-xs text-slate-400">
+                No checklist — the activity is a free Socratic dialogue. Add steps to give students a visible
+                structure.
+              </p>
+            ) : (
+              <ul className="flex flex-col gap-2">
+                {checklist.map((item, idx) => (
+                  <li key={item.key} className="flex items-center gap-2">
+                    <span className="w-5 text-right text-xs text-slate-400">{idx + 1}.</span>
+                    <input
+                      type="text"
+                      aria-label={`Checklist step ${idx + 1}`}
+                      value={item.label}
+                      onChange={(e) => setChecklistLabel(item.key, e.target.value)}
+                      placeholder="e.g. Identify the system"
+                      maxLength={200}
+                      className="flex-1 rounded-md border border-slate-300 px-3 py-1.5 text-sm"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => removeChecklistItem(item.key)}
+                      aria-label={`Remove step ${idx + 1}`}
+                      className="rounded p-1 text-slate-400 hover:bg-red-50 hover:text-red-600"
+                    >
+                      <X className="h-4 w-4" />
+                    </button>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </div>
 
           <div className="flex gap-4">
             <Field label="Language" htmlFor="activity-language">

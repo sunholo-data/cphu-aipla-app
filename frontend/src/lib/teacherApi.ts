@@ -38,6 +38,11 @@ export interface ActivityConfigPayload {
   updatedAt: string;
 }
 
+export interface ChecklistItem {
+  id: string;
+  label: string;
+}
+
 export interface ActivityConfigUpsert {
   /** Omit to let the backend mint a teacher-namespaced id (CLI/branching).
    *  The teacher builder passes a fixed base-skill id so the activity is
@@ -50,6 +55,7 @@ export interface ActivityConfigUpsert {
   difficulty: Difficulty;
   pairedWorkbench: string | null;
   workbenchType?: WorkbenchType;
+  checklist?: ChecklistItem[];
 }
 
 export interface SessionTurnPayload {

@@ -87,6 +87,37 @@ describe("/teacher/activities/new — concept activity builder", () => {
     expect(await screen.findByText(/is live for/i)).toBeInTheDocument();
   });
 
+  it("sends teacher-authored checklist items with positional ids", async () => {
+    listClassesMock.mockResolvedValue(ONE_CLASS);
+    render(<NewActivityPage />);
+    fireEvent.change(await screen.findByLabelText(/activity name/i), { target: { value: "Energi" } });
+    fireEvent.change(screen.getByLabelText(/lesson prompt/i), { target: { value: "Explore." } });
+    // Add two checklist steps.
+    fireEvent.click(screen.getByRole("button", { name: /add step/i }));
+    fireEvent.click(screen.getByRole("button", { name: /add step/i }));
+    fireEvent.change(screen.getByLabelText(/checklist step 1/i), { target: { value: "Identify the system" } });
+    fireEvent.change(screen.getByLabelText(/checklist step 2/i), { target: { value: "List transforms" } });
+    fireEvent.click(screen.getByRole("button", { name: /create activity/i }));
+
+    await waitFor(() => expect(saveActivityConfigMock).toHaveBeenCalledTimes(1));
+    expect(saveActivityConfigMock.mock.calls[0][0].checklist).toEqual([
+      { id: "step-1", label: "Identify the system" },
+      { id: "step-2", label: "List transforms" },
+    ]);
+  });
+
+  it("drops empty checklist rows on save", async () => {
+    listClassesMock.mockResolvedValue(ONE_CLASS);
+    render(<NewActivityPage />);
+    fireEvent.change(await screen.findByLabelText(/activity name/i), { target: { value: "E" } });
+    fireEvent.change(screen.getByLabelText(/lesson prompt/i), { target: { value: "g" } });
+    fireEvent.click(screen.getByRole("button", { name: /add step/i }));
+    // leave it blank
+    fireEvent.click(screen.getByRole("button", { name: /create activity/i }));
+    await waitFor(() => expect(saveActivityConfigMock).toHaveBeenCalledTimes(1));
+    expect(saveActivityConfigMock.mock.calls[0][0].checklist).toEqual([]);
+  });
+
   it("blocks submit until a title and a lesson prompt are entered", async () => {
     listClassesMock.mockResolvedValue(ONE_CLASS);
     render(<NewActivityPage />);
