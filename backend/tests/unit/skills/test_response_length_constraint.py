@@ -22,6 +22,7 @@ TUTOR_SKILLS = (
     "problem-set-hints",
     "led-planck-tutor",
     "kinebot-kinematics-tutor",
+    "concept-dialogue",
 )
 
 NON_TUTOR_SKILLS = (
