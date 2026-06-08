@@ -271,3 +271,53 @@ def test_post_persists_checklist(client):
 def test_post_rejects_checklist_item_missing_label(client):
     resp = client.post("/api/activity-configs", json=_create_body(checklist=[{"id": "x"}]))
     assert resp.status_code == 422
+
+
+# --- M1.2: student-facing resolved checklist via group->class binding ---
+
+
+def _group_client(group_tags: set[str]):
+    """A TestClient authed as a student whose group JWT carries group_tags."""
+    app = FastAPI()
+    app.include_router(router)
+
+    async def _override(request: Request) -> User:
+        u = User(uid="student-anon", group_id="grp-1", group_tags=frozenset(group_tags))
+        request.state.access = build_access_context(u)
+        return u
+
+    app.dependency_overrides[get_current_user] = _override
+    return TestClient(app)
+
+
+def test_active_resolves_checklist_for_bound_student(client):
+    # Teacher t-99 saves a checklist for class cls-9 / activity act-1.
+    upsert_body = {
+        "activityId": "act-1",
+        "classId": "cls-9",
+        "teachingGoal": "g",
+        "checklist": [{"id": "s1", "label": "Step one"}],
+    }
+    # Save it directly as that teacher via the repo path the route uses.
+    from db.activity_configs import upsert_activity_config
+
+    upsert_activity_config(
+        teacher_uid="t-99",
+        class_id="cls-9",
+        activity_id="act-1",
+        teaching_goal="g",
+        checklist=[{"id": "s1", "label": "Step one"}],  # type: ignore[list-item]
+    )
+    _ = upsert_body
+
+    student = _group_client({"class:t-99:cls-9"})
+    resp = student.get("/api/activity-configs/active/act-1")
+    assert resp.status_code == 200, resp.text
+    assert [c["label"] for c in resp.json()["checklist"]] == ["Step one"]
+
+
+def test_active_returns_empty_when_no_config(client):
+    student = _group_client({"class:t-1:cls-x"})
+    resp = student.get("/api/activity-configs/active/missing-activity")
+    assert resp.status_code == 200
+    assert resp.json()["checklist"] == []

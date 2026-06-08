@@ -21,6 +21,7 @@ import secrets
 from fastapi import APIRouter, Depends, HTTPException, Path, Query
 from pydantic import BaseModel, ConfigDict, Field
 
+from adk.teacher_focus import resolve_active_config
 from auth import User, get_current_user
 from db.activity_configs import (
     delete_activity_config,
@@ -121,6 +122,30 @@ async def list_my_activity_configs(
     """
     cfgs = list_activity_configs(teacher_uid=user.uid, class_id=class_id)
     return [_serialize(c) for c in cfgs]
+
+
+@router.get("/active/{activity_id}")
+async def get_active_activity_config(
+    activity_id: str = Path(...),
+    user: User = Depends(get_current_user),  # noqa: B008
+) -> dict:
+    """Student-facing: resolve THIS student's active config for an activity.
+
+    Resolves the (teacher, class) tuple from the student's verified
+    group→class binding (same path as teacher_focus injection, M1.2 +
+    Phase 3) and returns the teacher-authored surface the student needs —
+    currently the progress checklist + title. Empty checklist when no
+    config is set, so the workspace simply renders nothing extra.
+    """
+    cfg = resolve_active_config(activity_id, group_tags=user.group_tags)
+    if cfg is None:
+        return {"activityId": activity_id, "title": "", "checklist": [], "workbenchType": "none"}
+    return {
+        "activityId": activity_id,
+        "title": cfg.title,
+        "checklist": [item.model_dump() for item in cfg.checklist],
+        "workbenchType": cfg.workbench_type,
+    }
 
 
 @router.get("/mine/{class_id}/{activity_id}")
