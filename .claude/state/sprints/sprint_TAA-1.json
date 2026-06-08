@@ -1,0 +1,85 @@
+{
+  "sprint_id": "TAA-1",
+  "created": "2026-06-08T10:18:47Z",
+  "estimated_duration_days": 2.5,
+  "design_doc": "docs/design/aipla/v1.1.0-feedback/teacher-activity-authoring.md",
+  "sprint_plan": "docs/design/aipla/v1.1.0-feedback/teacher-activity-authoring-sprint.md",
+  "features": [
+    {
+      "id": "M0",
+      "description": "No-workbench concept activity, end-to-end: teacher creates a from-scratch chat-only Socratic activity (workbench_type=none), mints a group code, student joins and chats. Extends ActivityConfig + the existing /api/activity-configs upsert (with activity-id minting) + teacher builder UI + aiplatform activity CLI.",
+      "scope": "fullstack",
+      "estimated_loc": 750,
+      "actual_loc": null,
+      "dependencies": [],
+      "acceptance_criteria": [
+        "ActivityConfig has workbench_type (Literal app/drawing/sensor/video/notebook/none, default none) + source_activity_id; legacy rows read back unchanged; paired_workbench-set backfills to app",
+        "POST /api/activity-configs accepts workbench_type and mints an activity_id under a teacher: slug namespace when none supplied; owner-only (cross-teacher 403); extra=forbid body extended so no 422",
+        "aiplatform activity new --type none and activity list work end-to-end (new cli/aiplatform/commands/activity.py)",
+        "Teacher builder (frontend/src/app/teacher/activities/new + extended [id]/page.tsx) has name/language/difficulty/lesson-prompt, workbench-type select defaulting to none, first-run concept-dialogue default, and designed empty/loading/error states",
+        "Student renders chat-only Socratic session when workbench_type=none (no workbench pane); lesson prompt drives the tutor",
+        "MANUAL (LOCAL_MODE): teacher creates a no-workbench activity in <5 min, mints a code, anon student joins and has a Socratic chat",
+        "cd backend && make lint && make test-fast green; cd frontend && npm run quality:check green"
+      ],
+      "files_to_create": [
+        "cli/aiplatform/commands/activity.py",
+        "frontend/src/app/teacher/activities/new/page.tsx"
+      ],
+      "files_to_modify": [
+        "backend/db/models/activity_config.py",
+        "backend/protocols/activity_config_routes.py",
+        "backend/db/activity_configs.py",
+        "frontend/src/app/teacher/activities/[id]/page.tsx",
+        "frontend/src/app/chat/[...path]/page.tsx",
+        "frontend/src/hooks/useSkillMeta.ts",
+        "docs/design/aipla/v1.1.0-feedback/teacher-activity-authoring.md"
+      ],
+      "passes": null,
+      "started": null,
+      "completed": null,
+      "notes": "M0.0 reconciles the design doc API section to the real /api/activity-configs surface and answers Q1 as (A) promote ActivityConfig."
+    },
+    {
+      "id": "M1",
+      "description": "Teacher-authored progress checklist: add checklist:list[ChecklistItem] to ActivityConfig; generalise the shipped ProgressChecklist to source items from the activity config (via useSkillMeta) instead of the hardcoded BOLDKAST_SUBPARTS; builder checklist editor (add/remove rows). Boldkast regression stays green.",
+      "scope": "fullstack",
+      "estimated_loc": 290,
+      "actual_loc": null,
+      "dependencies": ["M0"],
+      "acceptance_criteria": [
+        "ActivityConfig has checklist: list[ChecklistItem]; upsert body + helper accept it (extra=forbid extended)",
+        "ProgressChecklist sources items from activity config via useSkillMeta; the hardcoded BOLDKAST_SUBPARTS at chat/[...path]/page.tsx:1089 is replaced",
+        "Boldkast config seeded with the same a/b/c/d so BoldkastWorkbench.test.tsx / ProgressChecklist regression stays green",
+        "Builder checklist editor adds/removes rows and persists to the activity config",
+        "MANUAL: teacher authors checklist items, student sees them on a no-workbench or sim activity",
+        "cd backend && make lint && make test-fast green; cd frontend && npm run quality:check green; ff-merge to dev"
+      ],
+      "files_to_create": [],
+      "files_to_modify": [
+        "backend/db/models/activity_config.py",
+        "backend/protocols/activity_config_routes.py",
+        "frontend/src/components/workspace/ProgressChecklist.tsx",
+        "frontend/src/components/workspace/BoldkastWorkbench.tsx",
+        "frontend/src/app/chat/[...path]/page.tsx",
+        "frontend/src/hooks/useSkillMeta.ts",
+        "frontend/src/app/teacher/activities/[id]/page.tsx"
+      ],
+      "passes": null,
+      "started": null,
+      "completed": null,
+      "notes": "ProgressChecklist docstring already anticipates this: 'v1 will source this from skillMetadata.subParts'."
+    }
+  ],
+  "velocity": {
+    "target_loc_per_day": 415,
+    "actual_loc_per_day": null,
+    "estimated_total_loc": 1040,
+    "actual_total_loc": null,
+    "estimated_days": 2.5,
+    "actual_days": null
+  },
+  "github_issues": [],
+  "last_session": null,
+  "last_checkpoint": null,
+  "status": "not_started"
+}
