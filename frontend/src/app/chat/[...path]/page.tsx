@@ -50,6 +50,7 @@ import { A2UISurfaceMount } from "@/components/protocols/A2UISurfaceMount";
 import { DocumentPanel } from "@/components/document/DocumentPanel";
 import { LatencyHUD } from "@/components/dev/LatencyHUD";
 import { WorkspaceShell } from "@/components/workspace/WorkspaceShell";
+import { ProgressChecklist, type ChecklistItem } from "@/components/workspace/ProgressChecklist";
 import { BoldkastWorkbench } from "@/components/workspace/BoldkastWorkbench";
 import {
   BoldkastSimFrame,
@@ -87,6 +88,20 @@ const BOLDKAST_SUBPARTS = [
 // Empty string => sim launcher disabled (graceful — workspace still works).
 const BOLDKAST_SANDBOX_ORIGIN = (process.env.NEXT_PUBLIC_MCP_SANDBOX_URL ?? "")
   .replace(/\/sandbox\.html$/, "");
+
+// Registry of skills that render a bespoke sim workbench (TAA-1 workspace
+// generalization). The workspace gate is config-driven — show it when the
+// skill is a registered sim OR the activity carries a teacher-authored
+// checklist — instead of an inline slug allowlist. Adding a sim = an entry
+// here + its render case in the composer; non-sim elements (checklist, and
+// later A2UI/quiz) compose generically from config, no page edit.
+// Follow-up: migrate these bespoke wrappers onto a generic artefact-iframe
+// mount so a new sim needs no render case at all.
+const SIM_WORKSPACE_SLUGS = new Set([
+  "problem-set-hints",
+  "led-planck-tutor",
+  "kinebot-kinematics-tutor",
+]);
 
 /**
  * MULTI-SURFACE-A2UI M3 — chat page surface mounts.
@@ -361,17 +376,37 @@ function ChatShell({
   // the inherited template surface (DocTabs + DocumentPanel). Once v1
   // ships more student-facing skills the gate widens; for now the
   // workspace is purpose-built for the one demo flow.
-  // TAA-1 (M0.5): no-workbench teacher activities run the `concept-dialogue`
-  // base skill, which is intentionally NOT in this allowlist — it falls
-  // through to a full-width chat-only render with no (empty) workspace
-  // column. Do NOT add concept-dialogue here. When teacher-authored
-  // workbench types (drawing/notebook/app, M4) land, replace this slug
-  // allowlist with a check on the activity's workbench_type.
-  const showAiplaWorkspace =
-    isAnonymousGroupAuthMode() &&
-    (skillSlug === "problem-set-hints" ||
-      skillSlug === "led-planck-tutor" ||
-      skillSlug === "kinebot-kinematics-tutor");
+  // TAA-1 M1: teacher-authored checklist for THIS activity, resolved via the
+  // student's group→class binding (M1.2 endpoint). Composed into the workspace
+  // generically — for sims it sits alongside the sim handles its own;
+  // for no-sim concept activities it IS the workspace.
+  const [activeChecklist, setActiveChecklist] = useState<ChecklistItem[]>([]);
+  // Config-driven workspace gate: a registered sim OR an authored checklist.
+  // No inline slug allowlist (see SIM_WORKSPACE_SLUGS).
+  const hasSimWorkspace = SIM_WORKSPACE_SLUGS.has(skillSlug ?? "");
+  const showWorkspace =
+    isAnonymousGroupAuthMode() && (hasSimWorkspace || activeChecklist.length > 0);
+
+  // Fetch this activity's teacher-authored checklist (M1.2 resolves it from the
+  // student's class). Optional — failure/absence leaves the chat-only render.
+  useEffect(() => {
+    if (!skillId || !isAnonymousGroupAuthMode()) {
+      setActiveChecklist([]);
+      return;
+    }
+    let alive = true;
+    fetchWithAuth(`/api/proxy/api/activity-configs/active/${encodeURIComponent(skillId)}`)
+      .then((r) => (r.ok ? r.json() : null))
+      .then((data) => {
+        if (alive && data && Array.isArray(data.checklist)) setActiveChecklist(data.checklist as ChecklistItem[]);
+      })
+      .catch(() => {
+        /* checklist is optional — stay chat-only on failure */
+      });
+    return () => {
+      alive = false;
+    };
+  }, [skillId]);
   const searchParams = useSearchParams();
   const router = useRouter();
   const [draft, setDraft] = useState("");
@@ -797,7 +832,7 @@ function ChatShell({
           markers / Boldkast sim) without cramming both into 350px.
           Above md the tab bar is hidden and both panels render
           side-by-side. */}
-      {showAiplaWorkspace && (
+      {showWorkspace && (
         <div className="flex md:hidden border-b bg-muted/30" role="tablist" aria-label="Skift mellem chat og arbejdsområde">
           <button
             type="button"
@@ -832,7 +867,7 @@ function ChatShell({
           Original was always flex-row, which crammed both columns on
           phones / iPad portrait. md:flex-row lets the AIPLA workspace
           drop below the chat on smaller screens instead of hiding.
-          When showAiplaWorkspace, the mobile tab bar above gates which
+          When showWorkspace, the mobile tab bar above gates which
           column is visible <md; both are always visible md+. */}
       <div data-workspace-row className="flex min-h-0 flex-1 flex-col md:flex-row">
         {showDocumentUI && showDocBrowser && (
@@ -896,7 +931,7 @@ function ChatShell({
             // active. md+ ignores this — both panels render. When the
             // workspace isn't AIPLA-shaped (non-anon-group or different
             // skill), the gate never fires so chat is always visible.
-            showAiplaWorkspace && mobileTab !== "chat" ? "hidden" : "flex"
+            showWorkspace && mobileTab !== "chat" ? "hidden" : "flex"
           } ${
             // Resize fullscreen gate: when the workspace is at ratio
             // 1.0 (chat hidden by user choice), drop the chat column
@@ -1014,88 +1049,88 @@ function ChatShell({
             the Boldkast sim lands here later in the buffer week.
             Other auth modes and other skills keep the inherited
             DocumentPanel / WorkspaceSurfaceRegion behaviour above. */}
-        {showAiplaWorkspace && skillSlug === "kinebot-kinematics-tutor" && (
+        {/* TAA-1 workspace composer (generalized): ONE WorkspaceShell driven
+            by config — a registered sim block (dispatched by slug) OR, for a
+            no-sim concept activity, the teacher-authored checklist. The gate
+            (showWorkspace) is config-driven; no per-element shell duplication.
+            Adding a non-sim element (quiz, A2UI) composes here from config. */}
+        {showWorkspace && (
           <WorkspaceShell
             hideOnMobile={mobileTab !== "workspace"}
             ratio={workspaceRatio}
             onRatioChange={setWorkspaceRatio}
           >
-            {showKinebotLab && BOLDKAST_SANDBOX_ORIGIN ? (
-              <KineBotFrame
-                ref={kinebotFrameRef}
-                sandboxOrigin={BOLDKAST_SANDBOX_ORIGIN}
-                topic={kinebotSnapshot?.currentTopic ?? "intro"}
-                reportEvent={reportKinebotEvent}
-                onClose={() => setShowKinebotLab(false)}
-              />
-            ) : (
-              <KineBotWorkbench
-                snapshot={kinebotSnapshot}
-                sandboxOrigin={BOLDKAST_SANDBOX_ORIGIN}
-                onOpenSim={() => setShowKinebotLab(true)}
-                onTopicChange={(topic) => {
-                  reportKinebotEvent({ kind: "kinebot.set-topic", topic });
-                  kinebotFrameRef.current?.setTopic(topic);
-                }}
-                reportEvent={reportKinebotEvent}
-                simDisabled={!BOLDKAST_SANDBOX_ORIGIN}
-              />
-            )}
-          </WorkspaceShell>
-        )}
-
-        {showAiplaWorkspace && skillSlug === "led-planck-tutor" && (
-          <WorkspaceShell
-            hideOnMobile={mobileTab !== "workspace"}
-            ratio={workspaceRatio}
-            onRatioChange={setWorkspaceRatio}
-          >
-            {showLedPlanckLab && BOLDKAST_SANDBOX_ORIGIN ? (
-              <LedPlanckLabFrame
-                ref={ledPlanckFrameRef}
-                sandboxOrigin={BOLDKAST_SANDBOX_ORIGIN}
-                onClose={() => setShowLedPlanckLab(false)}
-                reportEvent={reportLedPlanckEvent}
-              />
-            ) : (
-              <div className="space-y-4">
-                <LedPlanckLabButton
-                  onOpen={() => setShowLedPlanckLab(true)}
-                  disabled={!BOLDKAST_SANDBOX_ORIGIN}
+            {skillSlug === "kinebot-kinematics-tutor" ? (
+              showKinebotLab && BOLDKAST_SANDBOX_ORIGIN ? (
+                <KineBotFrame
+                  ref={kinebotFrameRef}
+                  sandboxOrigin={BOLDKAST_SANDBOX_ORIGIN}
+                  topic={kinebotSnapshot?.currentTopic ?? "intro"}
+                  reportEvent={reportKinebotEvent}
+                  onClose={() => setShowKinebotLab(false)}
                 />
-                <LedPlanckWorkbench
-                  snapshot={ledPlanckSnapshot}
+              ) : (
+                <KineBotWorkbench
+                  snapshot={kinebotSnapshot}
+                  sandboxOrigin={BOLDKAST_SANDBOX_ORIGIN}
+                  onOpenSim={() => setShowKinebotLab(true)}
+                  onTopicChange={(topic) => {
+                    reportKinebotEvent({ kind: "kinebot.set-topic", topic });
+                    kinebotFrameRef.current?.setTopic(topic);
+                  }}
+                  reportEvent={reportKinebotEvent}
+                  simDisabled={!BOLDKAST_SANDBOX_ORIGIN}
+                />
+              )
+            ) : skillSlug === "led-planck-tutor" ? (
+              showLedPlanckLab && BOLDKAST_SANDBOX_ORIGIN ? (
+                <LedPlanckLabFrame
+                  ref={ledPlanckFrameRef}
+                  sandboxOrigin={BOLDKAST_SANDBOX_ORIGIN}
+                  onClose={() => setShowLedPlanckLab(false)}
                   reportEvent={reportLedPlanckEvent}
+                />
+              ) : (
+                <div className="space-y-4">
+                  <LedPlanckLabButton
+                    onOpen={() => setShowLedPlanckLab(true)}
+                    disabled={!BOLDKAST_SANDBOX_ORIGIN}
+                  />
+                  <LedPlanckWorkbench
+                    snapshot={ledPlanckSnapshot}
+                    reportEvent={reportLedPlanckEvent}
+                    sessionId={sessionId ?? agentSessionId}
+                  />
+                </div>
+              )
+            ) : skillSlug === "problem-set-hints" ? (
+              showBoldkastSim && BOLDKAST_SANDBOX_ORIGIN ? (
+                <BoldkastSimFrame
+                  ref={boldkastFrameRef}
+                  sandboxOrigin={BOLDKAST_SANDBOX_ORIGIN}
+                  reportEvent={reportBoldkastEvent}
+                  onClose={() => setShowBoldkastSim(false)}
+                />
+              ) : (
+                <BoldkastWorkbench
+                  snapshot={boldkastSnapshot}
+                  onOpenSim={() => setShowBoldkastSim(true)}
+                  simDisabled={!BOLDKAST_SANDBOX_ORIGIN}
+                  skillId={skillId}
+                  subParts={BOLDKAST_SUBPARTS}
+                  problemStatement={skillProblemStatement}
+                  sessionId={sessionId ?? agentSessionId}
+                />
+              )
+            ) : (
+              <div className="space-y-3 p-4">
+                <h2 className="text-sm font-semibold text-foreground">Fremgang</h2>
+                <ProgressChecklist
+                  skillId={skillId}
+                  items={activeChecklist}
                   sessionId={sessionId ?? agentSessionId}
                 />
               </div>
-            )}
-          </WorkspaceShell>
-        )}
-
-        {showAiplaWorkspace && skillSlug === "problem-set-hints" && (
-          <WorkspaceShell
-            hideOnMobile={mobileTab !== "workspace"}
-            ratio={workspaceRatio}
-            onRatioChange={setWorkspaceRatio}
-          >
-            {showBoldkastSim && BOLDKAST_SANDBOX_ORIGIN ? (
-              <BoldkastSimFrame
-                ref={boldkastFrameRef}
-                sandboxOrigin={BOLDKAST_SANDBOX_ORIGIN}
-                reportEvent={reportBoldkastEvent}
-                onClose={() => setShowBoldkastSim(false)}
-              />
-            ) : (
-              <BoldkastWorkbench
-                snapshot={boldkastSnapshot}
-                onOpenSim={() => setShowBoldkastSim(true)}
-                simDisabled={!BOLDKAST_SANDBOX_ORIGIN}
-                skillId={skillId}
-                subParts={BOLDKAST_SUBPARTS}
-                problemStatement={skillProblemStatement}
-                sessionId={sessionId ?? agentSessionId}
-              />
             )}
           </WorkspaceShell>
         )}
