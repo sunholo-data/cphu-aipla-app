@@ -10,6 +10,7 @@ import {
   type Difficulty,
   type Language,
   type WorkbenchType,
+  listAccessibleSkills,
   listClasses,
   patchLessons,
   saveActivityConfig,
@@ -20,7 +21,12 @@ import {
 // become the activity's identity + injected {teacher_focus}. Minting a
 // distinct id per activity is M3 (decouple); M0 binds to the base skill
 // so the activity is immediately student-runnable.
-const CONCEPT_SKILL_ID = "concept-dialogue";
+//
+// NOTE: platform skills are keyed by a per-environment UUID skill_id, NOT
+// by name — so we resolve the real skill_id from the catalogue at runtime
+// and use it for BOTH the activity-config activityId AND the lesson
+// binding. Passing the name 404s the lessons PATCH (get_skill(name)->None).
+const CONCEPT_SKILL_NAME = "concept-dialogue";
 
 const LANGUAGE_OPTIONS: { value: Language; label: string }[] = [
   { value: "da", label: "Dansk" },
@@ -45,8 +51,9 @@ const GOAL_PLACEHOLDER =
 type ClassesState =
   | { status: "loading" }
   | { status: "error" }
+  | { status: "no-skill" } // concept-dialogue base skill not seeded in this env
   | { status: "empty" }
-  | { status: "ready"; classes: ClassPayload[] };
+  | { status: "ready"; classes: ClassPayload[]; conceptSkillId: string };
 
 // Wrapped in Suspense because the form reads useSearchParams() — Next.js
 // requires a Suspense boundary for that during static prerender.
@@ -80,14 +87,20 @@ function NewActivityForm() {
 
   useEffect(() => {
     let alive = true;
-    listClasses()
-      .then((classes) => {
+    Promise.all([listClasses(), listAccessibleSkills()])
+      .then(([classes, skills]) => {
         if (!alive) return;
+        // Resolve the base skill's real (per-env) UUID — never the name.
+        const concept = skills.find((s) => s.name === CONCEPT_SKILL_NAME);
+        if (!concept) {
+          setClassesState({ status: "no-skill" });
+          return;
+        }
         if (classes.length === 0) {
           setClassesState({ status: "empty" });
           return;
         }
-        setClassesState({ status: "ready", classes });
+        setClassesState({ status: "ready", classes, conceptSkillId: concept.skillId });
         const preferred = classes.find((c) => c.classId === preferredClassId);
         setClassId(preferred?.classId ?? classes[0].classId);
       })
@@ -103,12 +116,13 @@ function NewActivityForm() {
 
   async function handleSave(ev: React.FormEvent) {
     ev.preventDefault();
-    if (!canSubmit) return;
+    if (!canSubmit || classesState.status !== "ready") return;
+    const conceptSkillId = classesState.conceptSkillId;
     setIsSaving(true);
     setSaveError(null);
     try {
       await saveActivityConfig({
-        activityId: CONCEPT_SKILL_ID,
+        activityId: conceptSkillId,
         classId,
         title: title.trim(),
         teachingGoal: teachingGoal.trim(),
@@ -120,12 +134,10 @@ function NewActivityForm() {
       // Bind the concept-dialogue lesson to the class so students in it
       // actually see the activity. Idempotent — adding it again is a no-op.
       // Without this, a class with a lesson allowlist filters it out
-      // (see frontend/src/app/lessons/page.tsx).
-      await patchLessons(classId, { add: [CONCEPT_SKILL_ID] });
-      const cls =
-        classesState.status === "ready"
-          ? classesState.classes.find((c) => c.classId === classId)
-          : undefined;
+      // (see frontend/src/app/lessons/page.tsx). Must use the real skill_id
+      // (UUID), not the name, or the lessons PATCH 404s.
+      await patchLessons(classId, { add: [conceptSkillId] });
+      const cls = classesState.classes.find((c) => c.classId === classId);
       setSavedClassName(cls?.name ?? classId);
     } catch (err) {
       console.error("[teacher-ui] create activity failed:", err);
@@ -171,6 +183,11 @@ function NewActivityForm() {
       ) : classesState.status === "error" ? (
         <PanelMessage tone="error">
           Could not load your classes. Refresh the page to try again.
+        </PanelMessage>
+      ) : classesState.status === "no-skill" ? (
+        <PanelMessage tone="error">
+          The concept-dialogue tutor isn&apos;t available in this environment yet. It needs to be seeded by
+          an admin (<code>scripts/seed-platform-skills.sh</code>) before concept activities can be created.
         </PanelMessage>
       ) : classesState.status === "empty" ? (
         <PanelMessage>

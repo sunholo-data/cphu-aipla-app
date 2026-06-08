@@ -8,6 +8,7 @@ vi.mock("next/navigation", () => ({
 }));
 
 const listClassesMock = vi.fn();
+const listSkillsMock = vi.fn();
 const saveActivityConfigMock = vi.fn();
 const patchLessonsMock = vi.fn();
 vi.mock("@/lib/teacherApi", async () => {
@@ -15,6 +16,7 @@ vi.mock("@/lib/teacherApi", async () => {
   return {
     ...actual,
     listClasses: () => listClassesMock(),
+    listAccessibleSkills: () => listSkillsMock(),
     saveActivityConfig: (body: unknown) => saveActivityConfigMock(body),
     patchLessons: (classId: string, body: unknown) => patchLessonsMock(classId, body),
   };
@@ -23,13 +25,19 @@ vi.mock("@/lib/teacherApi", async () => {
 import NewActivityPage from "@/app/teacher/activities/new/page";
 
 const ONE_CLASS = [{ classId: "c-1", name: "Physics A — 7B" }];
+// Platform skills are keyed by a UUID, NOT the name — the builder must
+// resolve this id and use it (not "concept-dialogue") on both calls.
+const CONCEPT_UUID = "0078a171-concept-uuid";
+const SKILLS = [{ skillId: CONCEPT_UUID, name: "concept-dialogue", displayName: "Begrebsdialog" }];
 
 describe("/teacher/activities/new — concept activity builder", () => {
   beforeEach(() => {
     pushMock.mockReset();
     listClassesMock.mockReset();
+    listSkillsMock.mockReset();
     saveActivityConfigMock.mockReset();
     patchLessonsMock.mockReset();
+    listSkillsMock.mockResolvedValue(SKILLS);
     saveActivityConfigMock.mockResolvedValue({});
     patchLessonsMock.mockResolvedValue({});
   });
@@ -61,9 +69,10 @@ describe("/teacher/activities/new — concept activity builder", () => {
     fireEvent.click(screen.getByRole("button", { name: /create activity/i }));
 
     await waitFor(() => expect(saveActivityConfigMock).toHaveBeenCalledTimes(1));
+    // Uses the resolved skill UUID, NOT the name "concept-dialogue".
     expect(saveActivityConfigMock).toHaveBeenCalledWith(
       expect.objectContaining({
-        activityId: "concept-dialogue",
+        activityId: CONCEPT_UUID,
         classId: "c-1",
         title: "Energibevarelse",
         teachingGoal: "Explore energy conservation Socratically.",
@@ -71,8 +80,9 @@ describe("/teacher/activities/new — concept activity builder", () => {
         pairedWorkbench: null,
       }),
     );
-    // Also binds the concept-dialogue lesson to the class so students see it.
-    await waitFor(() => expect(patchLessonsMock).toHaveBeenCalledWith("c-1", { add: ["concept-dialogue"] }));
+    // Binds the lesson to the class by its real skill_id so students see it
+    // (passing the name 404s the backend lessons PATCH).
+    await waitFor(() => expect(patchLessonsMock).toHaveBeenCalledWith("c-1", { add: [CONCEPT_UUID] }));
     // Success state replaces the form.
     expect(await screen.findByText(/is live for/i)).toBeInTheDocument();
   });
@@ -94,5 +104,12 @@ describe("/teacher/activities/new — concept activity builder", () => {
     listClassesMock.mockRejectedValue(new Error("boom"));
     render(<NewActivityPage />);
     expect(await screen.findByText(/could not load your classes/i)).toBeInTheDocument();
+  });
+
+  it("shows a not-seeded state when the concept-dialogue skill is missing", async () => {
+    listClassesMock.mockResolvedValue(ONE_CLASS);
+    listSkillsMock.mockResolvedValue([]); // catalogue has no concept-dialogue
+    render(<NewActivityPage />);
+    expect(await screen.findByText(/concept-dialogue tutor isn't available/i)).toBeInTheDocument();
   });
 });
