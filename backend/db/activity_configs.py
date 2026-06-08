@@ -11,8 +11,8 @@ import logging
 from datetime import UTC, datetime
 from typing import Any
 
-from db.firestore import delete_document, get_document, set_document
-from db.models.activity_config import ActivityConfig, Difficulty, Language
+from db.firestore import delete_document, get_document, query_documents, set_document
+from db.models.activity_config import ActivityConfig, Difficulty, Language, WorkbenchType
 
 logger = logging.getLogger(__name__)
 
@@ -39,9 +39,11 @@ def upsert_activity_config(
     class_id: str,
     activity_id: str,
     teaching_goal: str,
+    title: str = "",
     language: Language = "da",
     difficulty: Difficulty = "standard",
     paired_workbench: str | None = None,
+    workbench_type: WorkbenchType = "none",
 ) -> ActivityConfig:
     """Create or overwrite the activity config for this (teacher, class, activity).
 
@@ -53,14 +55,29 @@ def upsert_activity_config(
         activityId=activity_id,
         classId=class_id,
         teacherUid=teacher_uid,
+        title=title,
         teachingGoal=teaching_goal,
         language=language,
         difficulty=difficulty,
         pairedWorkbench=paired_workbench,
+        workbenchType=workbench_type,
         updatedAt=_utcnow(),
     )
     set_document(_COLLECTION, ActivityConfig.doc_id(teacher_uid, class_id, activity_id), _to_firestore(cfg))
     return cfg
+
+
+def list_activity_configs(*, teacher_uid: str, class_id: str | None = None) -> list[ActivityConfig]:
+    """List a teacher's activity configs, optionally scoped to one class.
+
+    Teacher-scoped by construction (``teacherUid ==``) so it can never
+    leak another teacher's activities. Backs ``aiplatform activity list``
+    and the teacher builder's activity index (TAA-1 M0.3).
+    """
+    filters: list[tuple[str, str, Any]] = [("teacherUid", "==", teacher_uid)]
+    if class_id:
+        filters.append(("classId", "==", class_id))
+    return [_from_firestore(data) for data in query_documents(_COLLECTION, filters=filters)]
 
 
 def get_activity_config(*, teacher_uid: str, class_id: str, activity_id: str) -> ActivityConfig | None:
@@ -82,5 +99,6 @@ def delete_activity_config(*, teacher_uid: str, class_id: str, activity_id: str)
 __all__ = [
     "delete_activity_config",
     "get_activity_config",
+    "list_activity_configs",
     "upsert_activity_config",
 ]

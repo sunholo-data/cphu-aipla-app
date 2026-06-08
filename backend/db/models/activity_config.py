@@ -19,10 +19,14 @@ from __future__ import annotations
 from datetime import datetime
 from typing import Literal
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 Language = Literal["da", "en"]
 Difficulty = Literal["standard", "guided"]
+# Workbench type system (1.J expanded-workbench-types). ``none`` is a
+# first-class, no-simulator activity (chat-only Socratic dialogue, the
+# v1.1 teacher-authoring headline). ``app`` is a paired MCP-App sim.
+WorkbenchType = Literal["app", "drawing", "sensor", "video", "notebook", "none"]
 
 
 class ActivityConfig(BaseModel):
@@ -36,13 +40,27 @@ class ActivityConfig(BaseModel):
     activity_id: str = Field(alias="activityId")
     class_id: str = Field(alias="classId")
     teacher_uid: str = Field(alias="teacherUid")
+    title: str = Field(default="", alias="title", max_length=200)
     teaching_goal: str = Field(default="", alias="teachingGoal", max_length=2000)
     language: Language = "da"
     difficulty: Difficulty = "standard"
     paired_workbench: str | None = Field(default=None, alias="pairedWorkbench")
+    workbench_type: WorkbenchType = Field(default="none", alias="workbenchType")
+    source_activity_id: str | None = Field(default=None, alias="sourceActivityId")
     updated_at: datetime = Field(alias="updatedAt")
 
     model_config = ConfigDict(populate_by_name=True)
+
+    @model_validator(mode="after")
+    def _backfill_workbench_type(self) -> ActivityConfig:
+        """Legacy rows (written before TAA-1) have ``paired_workbench`` set
+        but no ``workbench_type``. Resolve those to ``app`` so a Boldkast /
+        LED-Planck / KineBot config keeps rendering its sim. An explicitly
+        chosen type is never overridden.
+        """
+        if self.workbench_type == "none" and self.paired_workbench:
+            self.workbench_type = "app"
+        return self
 
     @staticmethod
     def doc_id(teacher_uid: str, class_id: str, activity_id: str) -> str:
@@ -55,4 +73,4 @@ class ActivityConfig(BaseModel):
         return self.teacher_uid
 
 
-__all__ = ["ActivityConfig", "Difficulty", "Language"]
+__all__ = ["ActivityConfig", "Difficulty", "Language", "WorkbenchType"]

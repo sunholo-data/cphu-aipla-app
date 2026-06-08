@@ -208,13 +208,13 @@ Each is a thin Click subcommand over the CRUD API (~0.1–0.25d each). Backlink:
 
 ## API changes
 
-Extend `backend/protocols/activity_config_routes.py` from config-overlay to CRUD:
+> **Reconciled with shipped reality (TAA-1 sprint, M0.0).** The surface already exists as `backend/protocols/activity_config_routes.py` → **`/api/activity-configs`** (composite-key `{teacher_uid}:{class_id}:{activity_id}` upsert; `POST`=201, `PATCH`, `DELETE`, `GET`; body `ActivityConfigUpsert` with `extra="forbid"`; owner-only via `_assert_owns`). **We extend that route, not a new `/api/activities`.** Concretely: `POST /api/activity-configs` becomes the "create" path — `activityId` becomes **optional in the body**, and when absent the backend **mints** one under a `teacher:` slug namespace; `title` is added so created activities have a display name. The `*/duplicate` branch verb (M3) and a list endpoint stay as below. **Q1 (definition shape) is hereby answered (A): promote `ActivityConfig`.** The original `/api/activities` sketch is retained below for the M3+ verbs that don't yet exist.
 
-| Endpoint | Change | Auth |
+| Endpoint (sketch — see reconciliation note above) | Change | Auth |
 |---|---|---|
-| `POST /api/activities` | **New** — create teacher-owned activity (mints `activity_id`) | teacher JWT |
-| `PUT /api/activities/{id}` | **New** — update definition (existing config upsert generalized) | teacher JWT (owner) |
-| `POST /api/activities/{id}/duplicate` | **New** — branch (sets `source_activity_id`) | teacher JWT (owner) |
+| `POST /api/activity-configs` (no `activityId` → mint) | **M0** — create teacher-owned activity; extend body with `workbenchType`/`title` | teacher JWT |
+| `PATCH /api/activity-configs/{teacher_uid}/{class_id}/{activity_id}` | **exists** — update definition (generalized upsert) | teacher JWT (owner) |
+| `POST /api/activities/{id}/duplicate` | **M3** — branch (sets `source_activity_id`) | teacher JWT (owner) |
 | `DELETE /api/activities/{id}` | **New** — soft-delete | teacher JWT (owner) |
 | `POST /api/activities/{id}/quiz/grade` | **New** — server-side grade a submission; returns per-item correctness + explanations | student (group) session |
 | `GET /api/activities/{id}` | extend payload with `workbenchType`, `checklist`, `quiz` (**without** `correct` flags), `materials` | student or teacher |
@@ -258,7 +258,7 @@ Ordered so **M0 is independently valuable and lands before the 2026-06-29 freeze
 
 ## Open questions
 
-- **Q1 — definition shape:** promote `ActivityConfig` (A) vs new `Activity` entity (B). Recommend (A) for v1.1; decide at M0.
+- **Q1 — definition shape:** ~~promote `ActivityConfig` (A) vs new `Activity` entity (B)~~ **ANSWERED (A) in TAA-1 M0.0** — `ActivityConfig` is promoted; a teacher-minted `activity_id` (under a `teacher:` slug namespace) makes the config row the activity definition. Revisit (B) only if cross-class reuse / marketplace lands (v2).
 - **Q2 — class binding:** does an authored activity belong to one class or can a teacher reuse it across their classes? (Per-class is simplest; cross-class reuse is a v2 marketplace seed.)
 - **Q3 — quiz schema naming:** align `QuizItem`/`QuizOption` field names with any emerging A2UI form convention before locking, to avoid a rename later (Axiom 6 follow-through).
 - **Q4 — grading visibility:** are quiz scores part of the teacher session report / engagement tab, or student-private formative only? (Pedagogical — JB/AR.)

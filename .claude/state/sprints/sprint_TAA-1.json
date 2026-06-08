@@ -35,9 +35,9 @@
         "docs/design/aipla/v1.1.0-feedback/teacher-activity-authoring.md"
       ],
       "passes": null,
-      "started": null,
+      "started": "2026-06-08T12:00:00Z",
       "completed": null,
-      "notes": "M0.0 reconciles the design doc API section to the real /api/activity-configs surface and answers Q1 as (A) promote ActivityConfig."
+      "notes": "Day 1 DONE (M0.0-M0.3, backend+CLI): API reconciled + Q1=(A); ActivityConfig extended (title/workbench_type/source_activity_id + paired->app backfill); upsert+route accept new fields + mint teacher: id; GET list endpoint; aiplatform activity new/list CLI. Backend 1778 pass (+17), CLI 93 pass (+5), ruff clean. PAUSED at pause-point 1. REMAINING (Day 2): M0.4 teacher builder UI + M0.5 student chat-only render + manual <5min acceptance."
     },
     {
       "id": "M1",

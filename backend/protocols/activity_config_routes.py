@@ -16,34 +16,50 @@ the backend having to maintain two write paths.
 from __future__ import annotations
 
 import logging
+import secrets
 
-from fastapi import APIRouter, Depends, HTTPException, Path
+from fastapi import APIRouter, Depends, HTTPException, Path, Query
 from pydantic import BaseModel, ConfigDict, Field
 
 from auth import User, get_current_user
 from db.activity_configs import (
     delete_activity_config,
     get_activity_config,
+    list_activity_configs,
     upsert_activity_config,
 )
-from db.models.activity_config import ActivityConfig, Difficulty, Language
+from db.models.activity_config import ActivityConfig, Difficulty, Language, WorkbenchType
 
 log = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/api/activity-configs", tags=["activity-config"])
 
+# Teacher-authored activities get a minted id under this namespace so they
+# never collide with platform-seeded skill ids (``boldkast``, ``led-planck``…).
+_MINT_PREFIX = "teacher:"
+
+
+def _mint_activity_id() -> str:
+    """Mint a fresh teacher-namespaced activity id (TAA-1 M0.2)."""
+    return f"{_MINT_PREFIX}{secrets.token_hex(6)}"
+
 
 class ActivityConfigUpsert(BaseModel):
     """Body shape for ``POST /api/activity-configs`` and
     ``PATCH /api/activity-configs/{teacher_uid}/{class_id}/{activity_id}``.
+
+    ``activity_id`` is optional on POST — when omitted the backend mints a
+    teacher-namespaced id (a from-scratch teacher-authored activity).
     """
 
-    activity_id: str = Field(alias="activityId", min_length=1, max_length=128)
+    activity_id: str | None = Field(default=None, alias="activityId", max_length=128)
     class_id: str = Field(alias="classId", min_length=1, max_length=128)
+    title: str = Field(default="", alias="title", max_length=200)
     teaching_goal: str = Field(alias="teachingGoal", max_length=2000)
     language: Language = "da"
     difficulty: Difficulty = "standard"
     paired_workbench: str | None = Field(default=None, alias="pairedWorkbench")
+    workbench_type: WorkbenchType = Field(default="none", alias="workbenchType")
 
     model_config = ConfigDict(populate_by_name=True, extra="forbid")
 
@@ -66,24 +82,43 @@ async def post_activity_config(
     """Create or overwrite the activity config for the current teacher.
 
     Idempotent — re-POSTing with the same (class_id, activity_id)
-    updates the existing doc in place and returns 201 either way.
+    updates the existing doc in place and returns 201 either way. When
+    ``activityId`` is omitted, a teacher-namespaced id is minted (a
+    from-scratch teacher-authored activity).
     """
+    activity_id = body.activity_id or _mint_activity_id()
     cfg = upsert_activity_config(
         teacher_uid=user.uid,
         class_id=body.class_id,
-        activity_id=body.activity_id,
+        activity_id=activity_id,
+        title=body.title,
         teaching_goal=body.teaching_goal,
         language=body.language,
         difficulty=body.difficulty,
         paired_workbench=body.paired_workbench,
+        workbench_type=body.workbench_type,
     )
     log.info(
         "activity_config upsert teacher=%s class=%s activity=%s",
         user.uid,
         body.class_id,
-        body.activity_id,
+        activity_id,
     )
     return _serialize(cfg)
+
+
+@router.get("")
+async def list_my_activity_configs(
+    class_id: str | None = Query(default=None, alias="classId"),
+    user: User = Depends(get_current_user),  # noqa: B008
+) -> list[dict]:
+    """List the current teacher's activities, optionally scoped to one class.
+
+    Teacher-scoped by construction — never returns another teacher's
+    activities. Backs ``aiplatform activity list`` and the builder index.
+    """
+    cfgs = list_activity_configs(teacher_uid=user.uid, class_id=class_id)
+    return [_serialize(c) for c in cfgs]
 
 
 @router.get("/mine/{class_id}/{activity_id}")
@@ -128,10 +163,11 @@ async def patch_activity_config(
     """Update the config — same shape as POST but on a known resource id.
 
     The body's class_id / activity_id must match the URL (sanity check —
-    catches client bugs early).
+    catches client bugs early). ``activityId`` may be omitted from the
+    body on PATCH — the URL is authoritative for the resource id.
     """
     _assert_owns(user, teacher_uid)
-    if body.class_id != class_id or body.activity_id != activity_id:
+    if body.class_id != class_id or (body.activity_id is not None and body.activity_id != activity_id):
         raise HTTPException(
             status_code=400,
             detail="body class_id/activity_id does not match URL",
@@ -140,10 +176,12 @@ async def patch_activity_config(
         teacher_uid=teacher_uid,
         class_id=class_id,
         activity_id=activity_id,
+        title=body.title,
         teaching_goal=body.teaching_goal,
         language=body.language,
         difficulty=body.difficulty,
         paired_workbench=body.paired_workbench,
+        workbench_type=body.workbench_type,
     )
     return _serialize(cfg)
 

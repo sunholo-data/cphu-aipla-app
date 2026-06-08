@@ -156,3 +156,93 @@ def test_delete_blocks_cross_teacher(client):
     client.post("/api/activity-configs", json=_sample_body())
     resp = client.delete(f"/api/activity-configs/{OTHER_TEACHER_UID}/7b-physics-a-2026/boldkast")
     assert resp.status_code == 403
+
+
+# --- TAA-1 M0.2: teacher-authored activity creation (mint + new fields) ---
+
+
+def _create_body(**overrides) -> dict:
+    """A teacher-authored no-workbench activity body (no activityId -> mint)."""
+    body = {
+        "classId": "7b-physics-a-2026",
+        "title": "Energibevarelse 7B",
+        "teachingGoal": "Guide students to discover energy conservation.",
+        "language": "da",
+        "difficulty": "standard",
+        "workbenchType": "none",
+    }
+    body.update(overrides)
+    return body
+
+
+def test_post_without_activity_id_mints_teacher_namespaced_id(client):
+    resp = client.post("/api/activity-configs", json=_create_body())
+    assert resp.status_code == 201, resp.text
+    data = resp.json()
+    assert data["activityId"].startswith("teacher:")
+    assert data["teacherUid"] == TEACHER_UID
+    assert data["title"] == "Energibevarelse 7B"
+    assert data["workbenchType"] == "none"
+
+    # The minted activity is fetchable at its new id.
+    got = client.get(f"/api/activity-configs/{TEACHER_UID}/7b-physics-a-2026/{data['activityId']}")
+    assert got.status_code == 200
+    assert got.json()["title"] == "Energibevarelse 7B"
+
+
+def test_post_mint_is_unique_per_call(client):
+    a = client.post("/api/activity-configs", json=_create_body()).json()["activityId"]
+    b = client.post("/api/activity-configs", json=_create_body()).json()["activityId"]
+    assert a != b
+
+
+def test_post_accepts_workbench_type(client):
+    resp = client.post("/api/activity-configs", json=_create_body(workbenchType="notebook"))
+    assert resp.status_code == 201
+    assert resp.json()["workbenchType"] == "notebook"
+
+
+def test_post_rejects_invalid_workbench_type(client):
+    resp = client.post("/api/activity-configs", json=_create_body(workbenchType="banana"))
+    assert resp.status_code == 422
+
+
+def test_post_with_explicit_activity_id_still_works(client):
+    """Back-compat: existing callers that pass activityId are unchanged."""
+    resp = client.post("/api/activity-configs", json=_create_body(activityId="my-fixed-id"))
+    assert resp.status_code == 201
+    assert resp.json()["activityId"] == "my-fixed-id"
+
+
+def test_minted_activity_is_owned_by_creating_teacher_only(client):
+    minted = client.post("/api/activity-configs", json=_create_body()).json()["activityId"]
+    resp = client.get(f"/api/activity-configs/{OTHER_TEACHER_UID}/7b-physics-a-2026/{minted}")
+    assert resp.status_code == 403
+
+
+# --- TAA-1 M0.3: list endpoint (backs `aiplatform activity list`) ---
+
+
+def test_list_returns_my_activities(client):
+    client.post("/api/activity-configs", json=_create_body(title="A"))
+    client.post("/api/activity-configs", json=_create_body(title="B"))
+    resp = client.get("/api/activity-configs")
+    assert resp.status_code == 200, resp.text
+    items = resp.json()
+    assert isinstance(items, list)
+    assert sorted(i["title"] for i in items) == ["A", "B"]
+    assert all(i["teacherUid"] == TEACHER_UID for i in items)
+
+
+def test_list_filters_by_class(client):
+    client.post("/api/activity-configs", json=_create_body(classId="class-a", title="A"))
+    client.post("/api/activity-configs", json=_create_body(classId="class-b", title="B"))
+    resp = client.get("/api/activity-configs", params={"classId": "class-a"})
+    assert resp.status_code == 200
+    assert [i["title"] for i in resp.json()] == ["A"]
+
+
+def test_list_is_empty_for_teacher_with_no_activities(client):
+    resp = client.get("/api/activity-configs")
+    assert resp.status_code == 200
+    assert resp.json() == []
