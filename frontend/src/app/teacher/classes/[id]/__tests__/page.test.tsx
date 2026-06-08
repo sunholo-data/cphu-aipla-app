@@ -159,11 +159,11 @@ describe("/teacher/classes/[id] — class detail", () => {
       render(<TeacherClassDetailPage />);
       await waitFor(() => {
         expect(
-          screen.getByRole("button", { name: /add activity/i }),
+          screen.getByRole("button", { name: /add from catalogue/i }),
         ).toBeInTheDocument();
       });
 
-      fireEvent.click(screen.getByRole("button", { name: /add activity/i }));
+      fireEvent.click(screen.getByRole("button", { name: /add from catalogue/i }));
 
       // Picker shows only the un-linked entry.
       await waitFor(() => {
@@ -190,10 +190,10 @@ describe("/teacher/classes/[id] — class detail", () => {
       render(<TeacherClassDetailPage />);
       await waitFor(() => {
         expect(
-          screen.getByRole("button", { name: /add activity/i }),
+          screen.getByRole("button", { name: /add from catalogue/i }),
         ).toBeInTheDocument();
       });
-      fireEvent.click(screen.getByRole("button", { name: /add activity/i }));
+      fireEvent.click(screen.getByRole("button", { name: /add from catalogue/i }));
 
       // Click the lesson row in the picker. The button's accessible
       // name includes the lesson title (displayName + description +
@@ -251,7 +251,7 @@ describe("/teacher/classes/[id] — class detail", () => {
       render(<TeacherClassDetailPage />);
       await waitFor(() => {
         expect(
-          screen.getByRole("button", { name: /add activity/i }),
+          screen.getByRole("button", { name: /add from catalogue/i }),
         ).toBeDisabled();
       });
     });

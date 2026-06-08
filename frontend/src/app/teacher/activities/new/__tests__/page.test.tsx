@@ -4,16 +4,19 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 const pushMock = vi.fn();
 vi.mock("next/navigation", () => ({
   useRouter: () => ({ push: pushMock }),
+  useSearchParams: () => ({ get: () => null }),
 }));
 
 const listClassesMock = vi.fn();
 const saveActivityConfigMock = vi.fn();
+const patchLessonsMock = vi.fn();
 vi.mock("@/lib/teacherApi", async () => {
   const actual = await vi.importActual<typeof import("@/lib/teacherApi")>("@/lib/teacherApi");
   return {
     ...actual,
     listClasses: () => listClassesMock(),
     saveActivityConfig: (body: unknown) => saveActivityConfigMock(body),
+    patchLessons: (classId: string, body: unknown) => patchLessonsMock(classId, body),
   };
 });
 
@@ -26,7 +29,9 @@ describe("/teacher/activities/new — concept activity builder", () => {
     pushMock.mockReset();
     listClassesMock.mockReset();
     saveActivityConfigMock.mockReset();
+    patchLessonsMock.mockReset();
     saveActivityConfigMock.mockResolvedValue({});
+    patchLessonsMock.mockResolvedValue({});
   });
 
   it("renders the builder form once classes load", async () => {
@@ -66,6 +71,8 @@ describe("/teacher/activities/new — concept activity builder", () => {
         pairedWorkbench: null,
       }),
     );
+    // Also binds the concept-dialogue lesson to the class so students see it.
+    await waitFor(() => expect(patchLessonsMock).toHaveBeenCalledWith("c-1", { add: ["concept-dialogue"] }));
     // Success state replaces the form.
     expect(await screen.findByText(/is live for/i)).toBeInTheDocument();
   });

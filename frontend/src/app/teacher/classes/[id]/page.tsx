@@ -405,20 +405,30 @@ export default function TeacherClassDetailPage() {
           <h2 id="lessons-label" className="text-lg font-semibold">
             Activities assigned to this class
           </h2>
-          <button
-            type="button"
-            onClick={() => setShowPicker((v) => !v)}
-            disabled={availableLessons.length === 0}
-            title={
-              availableLessons.length === 0
-                ? "No more activities available to add"
-                : "Add an activity from the catalogue"
-            }
-            className="flex items-center gap-1.5 rounded bg-primary px-3 py-1.5 text-sm font-medium text-primary-foreground hover:opacity-90 disabled:opacity-50"
-          >
-            <Plus className="h-4 w-4" aria-hidden="true" />
-            Add activity
-          </button>
+          <div className="flex items-center gap-2">
+            <Link
+              href={`/teacher/activities/new?classId=${encodeURIComponent(cls.classId)}`}
+              title="Create a new chat-only concept activity from scratch"
+              className="flex items-center gap-1.5 rounded border border-border px-3 py-1.5 text-sm font-medium text-foreground hover:bg-muted"
+            >
+              <Plus className="h-4 w-4" aria-hidden="true" />
+              New activity
+            </Link>
+            <button
+              type="button"
+              onClick={() => setShowPicker((v) => !v)}
+              disabled={availableLessons.length === 0}
+              title={
+                availableLessons.length === 0
+                  ? "No more activities available to add"
+                  : "Add an existing activity from the catalogue"
+              }
+              className="flex items-center gap-1.5 rounded bg-primary px-3 py-1.5 text-sm font-medium text-primary-foreground hover:opacity-90 disabled:opacity-50"
+            >
+              <Plus className="h-4 w-4" aria-hidden="true" />
+              Add from catalogue
+            </button>
+          </div>
         </header>
 
         {showPicker ? (
@@ -432,9 +442,10 @@ export default function TeacherClassDetailPage() {
 
         {linkedLessons.length === 0 ? (
           <p className="rounded border border-dashed border-border px-3 py-4 text-sm text-muted-foreground">
-            No activities assigned yet. Click &ldquo;Add activity&rdquo; to pick
-            from the catalogue. Students who join via this class&rsquo;s group
-            codes will only see activities listed here.
+            No activities assigned yet. Click &ldquo;New activity&rdquo; to create
+            a chat-only concept activity from scratch, or &ldquo;Add from
+            catalogue&rdquo; to pick an existing one. Students who join via this
+            class&rsquo;s group codes will only see activities listed here.
           </p>
         ) : (
           <ul className="divide-y divide-border rounded border border-border">

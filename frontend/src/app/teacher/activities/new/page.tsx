@@ -1,8 +1,8 @@
 "use client";
 
 import Link from "next/link";
-import { useRouter } from "next/navigation";
-import { useEffect, useState } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
+import { Suspense, useEffect, useState } from "react";
 import { ArrowLeft, MessageCircle, Save, Sparkles } from "lucide-react";
 
 import {
@@ -11,6 +11,7 @@ import {
   type Language,
   type WorkbenchType,
   listClasses,
+  patchLessons,
   saveActivityConfig,
 } from "@/lib/teacherApi";
 
@@ -47,8 +48,21 @@ type ClassesState =
   | { status: "empty" }
   | { status: "ready"; classes: ClassPayload[] };
 
+// Wrapped in Suspense because the form reads useSearchParams() — Next.js
+// requires a Suspense boundary for that during static prerender.
 export default function NewActivityPage() {
+  return (
+    <Suspense fallback={<div className="px-1 py-6 text-sm text-slate-500">Loading…</div>}>
+      <NewActivityForm />
+    </Suspense>
+  );
+}
+
+function NewActivityForm() {
   const router = useRouter();
+  // Pre-select the class the teacher came from (the "New activity" button on
+  // the class-detail page passes ?classId=…).
+  const preferredClassId = useSearchParams().get("classId");
 
   const [classesState, setClassesState] = useState<ClassesState>({ status: "loading" });
   const [classId, setClassId] = useState("");
@@ -74,7 +88,8 @@ export default function NewActivityPage() {
           return;
         }
         setClassesState({ status: "ready", classes });
-        setClassId(classes[0].classId);
+        const preferred = classes.find((c) => c.classId === preferredClassId);
+        setClassId(preferred?.classId ?? classes[0].classId);
       })
       .catch(() => {
         if (alive) setClassesState({ status: "error" });
@@ -82,7 +97,7 @@ export default function NewActivityPage() {
     return () => {
       alive = false;
     };
-  }, []);
+  }, [preferredClassId]);
 
   const canSubmit = title.trim().length > 0 && teachingGoal.trim().length > 0 && classId.length > 0 && !isSaving;
 
@@ -102,6 +117,11 @@ export default function NewActivityPage() {
         pairedWorkbench: null,
         workbenchType,
       });
+      // Bind the concept-dialogue lesson to the class so students in it
+      // actually see the activity. Idempotent — adding it again is a no-op.
+      // Without this, a class with a lesson allowlist filters it out
+      // (see frontend/src/app/lessons/page.tsx).
+      await patchLessons(classId, { add: [CONCEPT_SKILL_ID] });
       const cls =
         classesState.status === "ready"
           ? classesState.classes.find((c) => c.classId === classId)
