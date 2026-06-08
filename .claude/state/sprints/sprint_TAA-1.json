@@ -34,11 +34,11 @@
         "frontend/src/hooks/useSkillMeta.ts",
         "docs/design/aipla/v1.1.0-feedback/teacher-activity-authoring.md"
       ],
-      "passes": null,
+      "passes": true,
       "started": "2026-06-08T12:00:00Z",
-      "completed": null,
+      "completed": "2026-06-08T18:30:00Z",
       "actual_loc": 1180,
-      "notes": "CODE-COMPLETE (automated gates green); manual <5min acceptance PENDING. Day 1 (M0.0-M0.3 backend+CLI): API reconciled + Q1=(A); ActivityConfig +title/workbench_type/source_activity_id + paired->app backfill; upsert+route accept new fields + mint teacher: id; GET list; aiplatform activity new/list CLI. Day 2: concept-dialogue base skill (chat-only Socratic, {teacher_focus}, 1.1.1 verbosity, public, <10k) + avatar; /teacher/activities/new builder (creates concept-dialogue activity, designed empty/loading/error/saving/success states); M0.5 chat-only by construction (concept-dialogue not in showAiplaWorkspace allowlist) + documented for M4. Decision @ pause-1 (user): freeze-safe concept-base path, not the activity!=skill decouple. Tests: backend 1778+6, CLI 93, FE +6 vitest (all green). NOTE: local node_modules stale vitest 1.6.1 vs lockfile ^4.1.0 -> pre-existing false tsc error in untouched ReadAloudButton.test.tsx; needs npm ci locally; CI green. PAUSED at pause-point 2."
+      "notes": "DONE + VERIFIED ONLINE (teacher create->bind->student-open->chat). Two online bugs found+fixed post-deploy: (1) no UI entry point -> added 'New activity' button on class-detail page; (2) builder used skill NAME not the per-env UUID skill_id -> lessons PATCH 404'd -> now resolves the real skillId via listAccessibleSkills for both the config write AND the binding. Plus shipped PHASE-3 (separate commit 296ee83): resolve_active_config now derives (teacher,class) from the student's verified group_tags class:<owner>:<id> tag instead of the workshop/demo stub, so authored goals reach REAL students. CODE-COMPLETE (automated gates green); manual <5min acceptance PASSED. Day 1 (M0.0-M0.3 backend+CLI): API reconciled + Q1=(A); ActivityConfig +title/workbench_type/source_activity_id + paired->app backfill; upsert+route accept new fields + mint teacher: id; GET list; aiplatform activity new/list CLI. Day 2: concept-dialogue base skill (chat-only Socratic, {teacher_focus}, 1.1.1 verbosity, public, <10k) + avatar; /teacher/activities/new builder (creates concept-dialogue activity, designed empty/loading/error/saving/success states); M0.5 chat-only by construction (concept-dialogue not in showAiplaWorkspace allowlist) + documented for M4. Decision @ pause-1 (user): freeze-safe concept-base path, not the activity!=skill decouple. Tests: backend 1778+6, CLI 93, FE +6 vitest (all green). NOTE: local node_modules stale vitest 1.6.1 vs lockfile ^4.1.0 -> pre-existing false tsc error in untouched ReadAloudButton.test.tsx; needs npm ci locally; CI green. PAUSED at pause-point 2."
     },
     {
       "id": "M1",

@@ -12,7 +12,7 @@ from datetime import UTC, datetime
 from typing import Any
 
 from db.firestore import delete_document, get_document, query_documents, set_document
-from db.models.activity_config import ActivityConfig, Difficulty, Language, WorkbenchType
+from db.models.activity_config import ActivityConfig, ChecklistItem, Difficulty, Language, WorkbenchType
 
 logger = logging.getLogger(__name__)
 
@@ -44,6 +44,7 @@ def upsert_activity_config(
     difficulty: Difficulty = "standard",
     paired_workbench: str | None = None,
     workbench_type: WorkbenchType = "none",
+    checklist: list[ChecklistItem] | None = None,
 ) -> ActivityConfig:
     """Create or overwrite the activity config for this (teacher, class, activity).
 
@@ -61,6 +62,7 @@ def upsert_activity_config(
         difficulty=difficulty,
         pairedWorkbench=paired_workbench,
         workbenchType=workbench_type,
+        checklist=checklist or [],
         updatedAt=_utcnow(),
     )
     set_document(_COLLECTION, ActivityConfig.doc_id(teacher_uid, class_id, activity_id), _to_firestore(cfg))

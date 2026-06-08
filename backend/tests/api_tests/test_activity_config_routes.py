@@ -246,3 +246,28 @@ def test_list_is_empty_for_teacher_with_no_activities(client):
     resp = client.get("/api/activity-configs")
     assert resp.status_code == 200
     assert resp.json() == []
+
+
+# --- M1: teacher-authored checklist round-trips through the route ---
+
+
+def test_post_persists_checklist(client):
+    body = _create_body(
+        checklist=[
+            {"id": "step-1", "label": "Identify the system"},
+            {"id": "step-2", "label": "List the energy transformations"},
+        ],
+    )
+    resp = client.post("/api/activity-configs", json=body)
+    assert resp.status_code == 201, resp.text
+    activity_id = resp.json()["activityId"]
+    got = client.get(f"/api/activity-configs/{TEACHER_UID}/7b-physics-a-2026/{activity_id}")
+    assert [c["label"] for c in got.json()["checklist"]] == [
+        "Identify the system",
+        "List the energy transformations",
+    ]
+
+
+def test_post_rejects_checklist_item_missing_label(client):
+    resp = client.post("/api/activity-configs", json=_create_body(checklist=[{"id": "x"}]))
+    assert resp.status_code == 422

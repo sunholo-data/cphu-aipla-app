@@ -28,7 +28,7 @@ from db.activity_configs import (
     list_activity_configs,
     upsert_activity_config,
 )
-from db.models.activity_config import ActivityConfig, Difficulty, Language, WorkbenchType
+from db.models.activity_config import ActivityConfig, ChecklistItem, Difficulty, Language, WorkbenchType
 
 log = logging.getLogger(__name__)
 
@@ -60,6 +60,7 @@ class ActivityConfigUpsert(BaseModel):
     difficulty: Difficulty = "standard"
     paired_workbench: str | None = Field(default=None, alias="pairedWorkbench")
     workbench_type: WorkbenchType = Field(default="none", alias="workbenchType")
+    checklist: list[ChecklistItem] = Field(default_factory=list)
 
     model_config = ConfigDict(populate_by_name=True, extra="forbid")
 
@@ -97,6 +98,7 @@ async def post_activity_config(
         difficulty=body.difficulty,
         paired_workbench=body.paired_workbench,
         workbench_type=body.workbench_type,
+        checklist=body.checklist,
     )
     log.info(
         "activity_config upsert teacher=%s class=%s activity=%s",
@@ -182,6 +184,7 @@ async def patch_activity_config(
         difficulty=body.difficulty,
         paired_workbench=body.paired_workbench,
         workbench_type=body.workbench_type,
+        checklist=body.checklist,
     )
     return _serialize(cfg)
 

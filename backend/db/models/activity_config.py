@@ -23,6 +23,23 @@ from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 Language = Literal["da", "en"]
 Difficulty = Literal["standard", "guided"]
+
+
+class ChecklistItem(BaseModel):
+    """One teacher-authored, student-tickable sub-step of an activity (M1).
+
+    Generalises the Boldkast a/b/c/d sub-parts: ``id`` is the stable slug
+    used as the storage key (must survive reloads); ``label`` is the
+    display text. Mirrors the frontend ``ChecklistItem`` in
+    ``ProgressChecklist.tsx``.
+    """
+
+    id: str = Field(min_length=1, max_length=64)
+    label: str = Field(min_length=1, max_length=200)
+
+    model_config = ConfigDict(populate_by_name=True)
+
+
 # Workbench type system (1.J expanded-workbench-types). ``none`` is a
 # first-class, no-simulator activity (chat-only Socratic dialogue, the
 # v1.1 teacher-authoring headline). ``app`` is a paired MCP-App sim.
@@ -47,6 +64,7 @@ class ActivityConfig(BaseModel):
     paired_workbench: str | None = Field(default=None, alias="pairedWorkbench")
     workbench_type: WorkbenchType = Field(default="none", alias="workbenchType")
     source_activity_id: str | None = Field(default=None, alias="sourceActivityId")
+    checklist: list[ChecklistItem] = Field(default_factory=list)
     updated_at: datetime = Field(alias="updatedAt")
 
     model_config = ConfigDict(populate_by_name=True)
@@ -73,4 +91,4 @@ class ActivityConfig(BaseModel):
         return self.teacher_uid
 
 
-__all__ = ["ActivityConfig", "Difficulty", "Language", "WorkbenchType"]
+__all__ = ["ActivityConfig", "ChecklistItem", "Difficulty", "Language", "WorkbenchType"]

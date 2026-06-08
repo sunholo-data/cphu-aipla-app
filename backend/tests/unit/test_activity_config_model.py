@@ -89,3 +89,25 @@ def test_no_paired_workbench_stays_none():
 def test_invalid_workbench_type_rejected():
     with pytest.raises(ValidationError):
         _cfg(workbenchType="banana")
+
+
+# --- M1: teacher-authored progress checklist ---
+
+
+def test_checklist_defaults_empty():
+    assert _cfg().checklist == []
+
+
+def test_checklist_round_trips():
+    cfg = _cfg(checklist=[{"id": "a", "label": "Identify the system"}, {"id": "b", "label": "List transforms"}])
+    dumped = cfg.model_dump(by_alias=True, mode="json")
+    assert dumped["checklist"] == [
+        {"id": "a", "label": "Identify the system"},
+        {"id": "b", "label": "List transforms"},
+    ]
+    assert ActivityConfig.model_validate(dumped) == cfg
+
+
+def test_checklist_item_requires_id_and_label():
+    with pytest.raises(ValidationError):
+        _cfg(checklist=[{"id": "a"}])  # missing label
