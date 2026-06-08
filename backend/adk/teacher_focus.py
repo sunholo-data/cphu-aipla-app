@@ -18,6 +18,8 @@ that derives the class_id from the student's group → Class entity
 from __future__ import annotations
 
 import logging
+import re
+from collections.abc import Iterable
 
 from db.activity_configs import get_activity_config
 from db.models.activity_config import ActivityConfig
@@ -31,14 +33,40 @@ _PLACEHOLDER = "{teacher_focus}"
 # lazily inside resolve_active_config to avoid a circular import.
 LOCAL_MODE_DEMO_CLASS_ID = "7b-physics-a-2026"
 
+# A bound student's group JWT carries group_tags = {class.tag_namespace},
+# where tag_namespace is the validated invariant ``class:<owner_uid>:<class_id>``
+# (db/models/class_.py). Owner uids (Firebase) and class ids carry no colons,
+# so a single split on the first two colons recovers both. The JWT is
+# HS256-signed (auth/group_id_auth.py) so this is a trusted claim — a student
+# cannot forge a different class binding (Axiom 9: secure by construction).
+_CLASS_TAG_RE = re.compile(r"^class:([^:]+):(.+)$")
 
-def resolve_active_config(activity_id: str) -> ActivityConfig | None:
+
+def resolve_active_config(
+    activity_id: str,
+    *,
+    group_tags: Iterable[str] | None = None,
+) -> ActivityConfig | None:
     """Return the ActivityConfig that should shape this activity's tutor.
 
-    Phase 2 LOCAL_MODE: always (workshop-user, seeded-demo-class,
-    activity_id). Phase 3 will derive the (teacher, class) tuple from
-    the student's group-to-class binding.
+    Phase 3: when the student's ``group_tags`` carry a ``class:<owner>:<id>``
+    binding, resolve the config from that REAL (teacher, class) tuple so a
+    teacher's authored goal reaches their own students.
+
+    Falls back to the Phase-2 LOCAL_MODE stub (workshop-user, seeded
+    demo-class) for unbound groups (pre-1.A) and LOCAL_MODE workshop sessions
+    that carry no class tag.
     """
+    for tag in group_tags or ():
+        m = _CLASS_TAG_RE.match(tag)
+        if m:
+            teacher_uid, class_id = m.group(1), m.group(2)
+            return get_activity_config(
+                teacher_uid=teacher_uid,
+                class_id=class_id,
+                activity_id=activity_id,
+            )
+
     from db.local_fixture import WORKSHOP_USER_UID
 
     return get_activity_config(
@@ -48,8 +76,16 @@ def resolve_active_config(activity_id: str) -> ActivityConfig | None:
     )
 
 
-def inject_teacher_focus(instructions: str, activity_id: str) -> str:
+def inject_teacher_focus(
+    instructions: str,
+    activity_id: str,
+    *,
+    group_tags: Iterable[str] | None = None,
+) -> str:
     """Replace the ``{teacher_focus}`` placeholder with the teacher's goal.
+
+    ``group_tags`` is the authenticated student's verified group→class tags;
+    when present they select the real (teacher, class) config (Phase 3).
 
     No-op when:
       - the placeholder is absent (most skills won't have it)
@@ -59,7 +95,7 @@ def inject_teacher_focus(instructions: str, activity_id: str) -> str:
     if _PLACEHOLDER not in instructions:
         return instructions
 
-    cfg = resolve_active_config(activity_id)
+    cfg = resolve_active_config(activity_id, group_tags=group_tags)
     goal = cfg.teaching_goal if cfg else ""
 
     if cfg is None:

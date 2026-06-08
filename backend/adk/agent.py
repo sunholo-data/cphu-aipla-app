@@ -507,6 +507,9 @@ def create_agent(
                     reactive_template=skill_config.reactive_template,
                 ),
                 skill_config.skill_id,
+                # Phase 3: resolve the teacher's goal from THIS student's
+                # verified group→class binding, not the LOCAL_MODE stub.
+                group_tags=user.group_tags,
             ),
             wrap_with_iframe_context,
             wrap_with_a2ui_surface_context,

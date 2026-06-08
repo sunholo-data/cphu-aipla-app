@@ -56,3 +56,62 @@ def test_config_for_other_activity_does_not_leak():
     # Asking for boldkast — should be empty, not the led-planck goal.
     out = inject_teacher_focus(base, "boldkast")
     assert out == ""
+
+
+# --- Phase 3: real (teacher, class) resolution from the student's group tag ---
+
+
+def test_group_tag_resolves_to_class_owners_config():
+    """A bound student carries group_tags={class:<owner>:<class_id>}; the goal
+    must resolve from the REAL (owner, class) tuple, not the workshop stub."""
+    upsert_activity_config(
+        teacher_uid="teacher-9",
+        class_id="cls-7b",
+        activity_id="0078a171-concept",
+        teaching_goal="Discover energy conservation Socratically.",
+    )
+    base = "{teacher_focus}"
+    out = inject_teacher_focus(base, "0078a171-concept", group_tags=frozenset({"class:teacher-9:cls-7b"}))
+    assert "Discover energy conservation" in out
+
+
+def test_group_tag_takes_precedence_over_workshop_stub():
+    # Workshop stub has a different goal for the same activity id.
+    upsert_activity_config(
+        teacher_uid=WORKSHOP_USER_UID,
+        class_id=LOCAL_MODE_DEMO_CLASS_ID,
+        activity_id="act-x",
+        teaching_goal="WORKSHOP STUB GOAL",
+    )
+    upsert_activity_config(
+        teacher_uid="teacher-real",
+        class_id="cls-real",
+        activity_id="act-x",
+        teaching_goal="REAL CLASS GOAL",
+    )
+    out = inject_teacher_focus("{teacher_focus}", "act-x", group_tags=frozenset({"class:teacher-real:cls-real"}))
+    assert out == "REAL CLASS GOAL"
+
+
+def test_unbound_group_falls_back_to_stub():
+    """No class tag (pre-1.A unbound group) → fall back to the workshop stub."""
+    upsert_activity_config(
+        teacher_uid=WORKSHOP_USER_UID,
+        class_id=LOCAL_MODE_DEMO_CLASS_ID,
+        activity_id="act-y",
+        teaching_goal="STUB GOAL",
+    )
+    out = inject_teacher_focus("{teacher_focus}", "act-y", group_tags=frozenset())
+    assert out == "STUB GOAL"
+
+
+def test_group_tag_isolation_across_classes():
+    upsert_activity_config(
+        teacher_uid="t-a",
+        class_id="cls-a",
+        activity_id="act-z",
+        teaching_goal="CLASS A GOAL",
+    )
+    # Student bound to class B asks for the same activity → no config for B → empty.
+    out = inject_teacher_focus("{teacher_focus}", "act-z", group_tags=frozenset({"class:t-b:cls-b"}))
+    assert out == ""
