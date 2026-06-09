@@ -69,7 +69,7 @@ The student UI is the counter-example and the **quality bar**: a focused lesson 
 
 ### 1. Information architecture — give the teacher app a map
 
-Add a **persistent primary nav** (left rail on desktop, bottom/hamburger on mobile) — the single biggest fix. Four top-level destinations, each a clear job:
+Add a **persistent primary nav** — the single biggest fix. **Shape (decided, by breakpoint): a left rail at `≥ md` (laptop) that becomes a bottom bar at `< md` (tablet/phone).** One nav component, two responsive forms, so it fits both the planning-at-a-desk and glancing-in-class realities. Four top-level destinations, each a clear job:
 
 ```
 ┌────────────┬─────────────────────────────────────────────┐
@@ -180,7 +180,7 @@ One mental model ("Insights"), three lenses — not three top-level routes.
 
 ## Open questions
 
-- **Q1 — nav shape:** left rail vs top-tabs vs both-by-breakpoint. Recommend left rail (desktop) + bottom bar (mobile) — but confirm against the teacher's primary device (laptop in office, tablet in class?). *This is the main IA fork — worth a quick decision before P2.*
+- **Q1 — nav shape: → ANSWERED (M, 2026-06-09): BY BREAKPOINT.** **Left rail on desktop (≥ md), bottom bar on tablet/phone (< md)** — one adaptive nav, matching the dual reality of planning on a laptop and glancing in class on a tablet. See the IA section, which is now the spec.
 - **Q2 — Settings destination scope:** do teacher-level **defaults** (default language/persona/voice) ship now (so per-activity inherits) or later? Recommend the *container* now, populate defaults as each config doc lands.
 - **Q3 — should this gate the 9-June config rows? → ANSWERED (M, 2026-06-09): YES — "in place first before we add more complexity to it."** P1 (primitives) + the class-detail (P3) and builder (P4) refactors land **before** the config-heavy rows (personas 1.1.20, voice 1.1.23, TTL 1.1.10, budget 1.1.9, quiz/materials 1.1.19 M2–M8) so each new config slots into the pattern, not the old mess. This makes 1.1.26 a **hard prerequisite**, not a soft one — see the gating note in [SEQUENCE.md](SEQUENCE.md).
 - **Q4 — A2UI vs React for teacher config:** how much of the builder/settings is declarative A2UI vs bespoke React? Align with [teacher-activity-authoring](teacher-activity-authoring.md); resolve before P4.
