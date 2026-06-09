@@ -14,6 +14,7 @@ import TeacherAnalyticsPage from "@/app/teacher/analytics/page";
 
 vi.mock("next/navigation", () => ({
   useRouter: () => ({ replace: vi.fn() }),
+  usePathname: () => "/teacher/analytics",
 }));
 
 const listClasses = vi.fn().mockResolvedValue([]);
@@ -53,10 +54,12 @@ vi.mock("@/app/teacher/analytics/_AnalyticsChat", () => ({
 }));
 
 describe("/teacher/analytics — page shell", () => {
-  it("renders the breadcrumb + Analytics chat title", () => {
+  it("renders the breadcrumb + Insights title (Ask-the-data view)", () => {
     listClasses.mockResolvedValueOnce([]);
     render(<TeacherAnalyticsPage />);
-    expect(screen.getByText("Analytics chat", { selector: "h1" })).toBeInTheDocument();
+    expect(screen.getByText("Insights", { selector: "h1" })).toBeInTheDocument();
+    // "Ask the data" appears as the subtitle + the active sub-nav tab.
+    expect(screen.getAllByText("Ask the data").length).toBeGreaterThanOrEqual(1);
     expect(screen.getByText("Dashboard")).toBeInTheDocument();
   });
 

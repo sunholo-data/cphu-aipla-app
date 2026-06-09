@@ -2,9 +2,11 @@
 
 import Link from "next/link";
 import { useEffect, useState } from "react";
-import { ArrowLeft, ChevronDown, MessageCircle } from "lucide-react";
+import { ArrowLeft, ChevronDown } from "lucide-react";
 
 import { AnalyticsChat } from "./_AnalyticsChat";
+import { InsightsTabs } from "@/components/teacher/insights/InsightsTabs";
+import { TeacherPage } from "@/components/teacher/ui/TeacherPage";
 import { type ClassPayload, listClasses } from "@/lib/teacherApi";
 
 const TIME_SCOPES = ["All time", "This week", "Today"];
@@ -29,34 +31,34 @@ export default function TeacherAnalyticsPage() {
   const selectedClass = classes.find((c) => c.classId === selectedClassId);
 
   return (
-    <div className="flex flex-col gap-6">
-      <nav className="flex items-center gap-1 text-sm text-muted-foreground">
-        <Link href="/teacher/classes" className="flex items-center gap-1 hover:text-foreground">
+    <TeacherPage
+      breadcrumb={
+        <Link
+          href="/teacher/classes"
+          className="flex w-fit items-center gap-1 hover:text-foreground"
+        >
           <ArrowLeft className="h-4 w-4" aria-hidden="true" />
           Dashboard
         </Link>
-        <span aria-hidden="true">/</span>
-        <span className="text-foreground">Analytics chat</span>
-      </nav>
-
-      <header className="flex flex-wrap items-center justify-between gap-3">
-        <div className="flex items-center gap-2">
-          <MessageCircle className="h-5 w-5 text-primary" aria-hidden="true" />
-          <h1 className="text-xl font-semibold sm:text-2xl">Analytics chat</h1>
-        </div>
+      }
+      title="Insights"
+      subtitle="Ask the data"
+      actions={
         <div className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
           <span>Data scope:</span>
           <ClassSelect classes={classes} value={selectedClassId} onChange={setSelectedClassId} />
           <TimeSelect value={timeScope} onChange={setTimeScope} options={TIME_SCOPES} />
         </div>
-      </header>
+      }
+    >
+      <InsightsTabs />
 
       <AnalyticsChat
         classId={selectedClassId}
         className={selectedClass?.name ?? ""}
         timeScope={timeScope}
       />
-    </div>
+    </TeacherPage>
   );
 }
 

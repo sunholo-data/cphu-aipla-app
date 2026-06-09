@@ -15,9 +15,11 @@
 
 import Link from "next/link";
 import { useEffect, useState } from "react";
-import { ArrowLeft, BarChart3 } from "lucide-react";
+import { ArrowLeft } from "lucide-react";
 
 import { CrossClassTable } from "@/components/teacher/insights/CrossClassTable";
+import { InsightsTabs } from "@/components/teacher/insights/InsightsTabs";
+import { TeacherPage } from "@/components/teacher/ui/TeacherPage";
 import {
   fetchInsightsCompare,
   type InsightsComparePayload,
@@ -58,23 +60,21 @@ export default function TeacherInsightsPage() {
   }, [since]);
 
   return (
-    <div className="flex flex-col gap-6">
-      <nav className="flex items-center gap-1 text-sm text-muted-foreground">
-        <Link href="/teacher/classes" className="flex items-center gap-1 hover:text-foreground">
+    <TeacherPage
+      breadcrumb={
+        <Link
+          href="/teacher/classes"
+          className="flex w-fit items-center gap-1 hover:text-foreground"
+        >
           <ArrowLeft className="h-4 w-4" aria-hidden="true" />
           Dashboard
         </Link>
-        <span aria-hidden="true">/</span>
-        <span className="text-foreground">Insights</span>
-      </nav>
-
-      <header className="flex flex-wrap items-center justify-between gap-3">
-        <div className="flex items-center gap-2">
-          <BarChart3 className="h-5 w-5 text-primary" aria-hidden="true" />
-          <h1 className="text-xl font-semibold sm:text-2xl">Cross-class insights</h1>
-        </div>
-        <SinceSelect value={since} onChange={setSince} />
-      </header>
+      }
+      title="Insights"
+      subtitle="Cross-class comparison"
+      actions={<SinceSelect value={since} onChange={setSince} />}
+    >
+      <InsightsTabs />
 
       <p className="text-xs text-muted-foreground" data-testid="window-label">
         Window: <strong>{SINCE_LABEL[since]}</strong>
@@ -93,7 +93,7 @@ export default function TeacherInsightsPage() {
       ) : null}
 
       {payload ? <CrossClassTable rows={payload.rows} /> : null}
-    </div>
+    </TeacherPage>
   );
 }
 

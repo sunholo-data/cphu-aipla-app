@@ -14,6 +14,7 @@ import type { InsightsComparePayload } from "@/lib/insightsApi";
 
 vi.mock("next/navigation", () => ({
   useRouter: () => ({ replace: vi.fn() }),
+  usePathname: () => "/teacher/insights",
 }));
 
 vi.mock("next/link", () => ({
@@ -58,7 +59,7 @@ describe("/teacher/insights — page shell", () => {
   it("renders header and loading then the table", async () => {
     fetchCompare.mockResolvedValueOnce(PAYLOAD);
     render(<TeacherInsightsPage />);
-    expect(screen.getByText("Cross-class insights", { selector: "h1" })).toBeInTheDocument();
+    expect(screen.getByText("Insights", { selector: "h1" })).toBeInTheDocument();
     expect(screen.getByTestId("loading")).toBeInTheDocument();
     const table = await screen.findByTestId("table-stub");
     expect(table).toHaveTextContent("rows=1");
