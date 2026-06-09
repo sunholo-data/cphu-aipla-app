@@ -1,12 +1,12 @@
 # Student image / document upload — multimodal chat input
 
 **Status:** Planned (P1, largest in this batch); **supersedes the originally-planned 1.10** `multimodal-ingestion-via-ailang-parse.md`
-**Last Updated:** 2026-06-03
-**Priority:** P1 — **most-requested student-facing feature** in the 3 June check-in
-**Estimated:** ~2d
-**Scope:** Fullstack — frontend upload button + thumbnail; backend multimodal message handling + Gemini Vertex call with image; skill prompts for handling image input
-**Dependencies:** ADR-008 (Gemini multimodal via AILANG Parse — ready); **JB confirm on image-retention posture** (brief states images sent to Gemini but not retained in BQ; needs explicit JB sign-off)
-**Source brief:** [`june-03-feedback-sprint-brief.md` §7](file:///Users/mark/Documents/clients/cph-uni/strand-a-pedagogical-bot/prototypes/june-03-feedback-sprint-brief.md)
+**Last Updated:** 2026-06-09 (added the 9 June no-person guardrail + units loop)
+**Priority:** P1 — **most-requested student-facing feature** in the 3 June check-in; reinforced + refined 9 June
+**Estimated:** ~2d (base) + **~1d (no-person guardrail) + ~2h (units-loop prompt)** from the 9 June additions
+**Scope:** Fullstack — frontend upload button + thumbnail; backend multimodal message handling + Gemini Vertex call with image; **a person/face guardrail hook in the upload path**; skill prompts for handling image input + the units loop
+**Dependencies:** ADR-008 (Gemini multimodal via AILANG Parse — ready); **JB confirm on image-retention posture** (brief states images sent to Gemini but not retained in BQ; needs explicit JB sign-off); **M (GDPR) confirm on the guardrail detection approach** (Gemini vision pre-check vs on-device — different data postures)
+**Source brief:** [`june-03-feedback-sprint-brief.md` §7](file:///Users/mark/Documents/clients/cph-uni/strand-a-pedagogical-bot/prototypes/june-03-feedback-sprint-brief.md) + [`june-09-feedback-sprint-brief.md` §1](file:///Users/mark/Documents/clients/cph-uni/strand-a-pedagogical-bot/prototypes/june-09-feedback-sprint-brief.md) (guardrail + units loop)
 
 ## Relationship to existing planned doc
 
@@ -95,6 +95,36 @@ For text drafts / notes:
 
 The skill author for each artefact-coupled skill (Boldkast, LED Planck, KineBot) writes the activity-specific patterns. M wires the platform plumbing; AR writes the per-skill content.
 
+### Guardrail — uploads are for no-person-in-frame material (9 June)
+
+The 9 June session sharpened the privacy posture: the concern is **only when a person is in the frame**. Physics diagrams, graphs, and notes are low-risk — keeping uploads to no-person-in-frame material keeps the feature's consent profile low (and is what makes the [end-of-class notes summary](end-of-class-notes-summary.md) viable on a shared phone).
+
+Two parts:
+
+1. **Pre-upload notice** on the upload control (per skill language): *"Fotografér dit arbejde — diagrammer, grafer, noter. Hav ikke personer med på billedet."* / "Photograph your work — diagrams, graphs, notes. Don't include people in the picture."
+2. **Guardrail check** in the upload path: run a **lightweight person/face detection** on each image before the send. If a person is detected, **block the send** and prompt a retake: *"Det ser ud til, at der er en person på billedet — fotografér kun dit arbejde."* / "Looks like there's a person in this photo — please reframe to just your work."
+
+**Detection approach — M (GDPR) decides** (the two options have different data postures):
+
+| Approach | Where bytes go | Posture | Latency |
+|---|---|---|---|
+| **On-device** (browser face-detection, e.g. `FaceDetector`/a small WASM model) | Never leaves the device for the *check* | Strongest — no pre-check egress; bytes only leave if the check passes and the student sends | Local, ~instant; browser-support variance |
+| **Gemini vision pre-check** | Image → Vertex (EU) for a yes/no person check, then the real call | Simpler, consistent; but the image reaches the model even when it will be blocked | One extra round-trip |
+
+**Recommendation: on-device check first**, falling back to a Gemini vision pre-check where the browser lacks face-detection — but **M signs off** before build, because "block before any egress" vs "block after a model sees it" is a real GDPR distinction. The guardrail runs **before** the multimodal turn; a blocked image is never sent and never reaches BigQuery metadata.
+
+### Units loop — demand the missing rigor (9 June)
+
+When a student uploads a graph/figure, the tutor **asks for the missing rigor rather than accepting it** — the canonical case is *"What are the units?"* → student re-uploads corrected. This is a prompt-level behaviour added to the `## Image input` block:
+
+```markdown
+  • If a graph/figure is missing axis labels, units, or scale, ask for THAT
+    first ("Hvad er enhederne på y-aksen?") before any other feedback —
+    one question, then stop. Re-uploading with the correction is the goal.
+```
+
+The same units-loop behaviour applies on **typed** entry in the [offline-lab workbench](offline-lab-workbench.md) (`MeasurementField.unit`) — one shared rigor-demand, two entry surfaces.
+
 ### Consent + privacy posture
 
 Per the brief: "Images are sent to Gemini (Google Vertex AI, EU region) as part of the model call. No images stored permanently beyond the session; they are not retained in BigQuery."
@@ -136,6 +166,9 @@ Some skills (assessment, quick-hint flow) may explicitly want text-only; the fla
 - [ ] Attachment metadata (`{has_attachment, count, mime_types}`) appears in `chat_turns` for consented sessions only
 - [ ] Declined-consent session: attachment metadata absent from `chat_turns`
 - [ ] HEIC from iPhone displays correctly as thumbnail (browser handles or we fall back gracefully)
+- [ ] Pre-upload notice ("don't include people in the picture") visible on the upload control
+- [ ] **Guardrail: uploading a photo containing a person is blocked with a retake prompt** — and (on-device path) the blocked image's bytes never leave the device / never reach BigQuery metadata
+- [ ] **Units loop: uploading a hand-drawn graph with no axis units triggers a tutor question about units before any other feedback**
 - [ ] Vertex AI call uses the EU region per ADR-007
 - [ ] `npm run quality:check` + `make lint` + `make test-fast` green
 - [ ] Vitest covers: file-pick → thumbnail render → send-with-image FormData shape
@@ -171,6 +204,8 @@ Some skills (assessment, quick-hint flow) may explicitly want text-only; the fla
 | `frontend/src/components/chat/ChatInput.tsx` | Compose attachments into FormData; submit multipart | +60 |
 | `frontend/src/components/chat/__tests__/AttachmentButton.test.tsx` | New | ~100 |
 | `frontend/src/lib/imageResize.ts` | Client-side resize utility (canvas → 2048px longest edge) | ~50 |
+| `frontend/src/lib/personGuardrail.ts` (new) | On-device person/face pre-check (9 June); blocks send + retake prompt | ~60 |
+| `backend/adk/multimodal.py` (guardrail fallback) | Optional Gemini-vision person pre-check when on-device unavailable (M-gated) | +30 |
 | `backend/protocols/session_routes.py` | Extend `POST /api/sessions/{id}/turn` to multipart | +100 |
 | `backend/adk/multimodal.py` (new) | Build Vertex `Content` with `Part.from_image` / `Part.from_data` for PDFs | ~80 |
 | `backend/db/models/skill.py` | Add `multimodal_input: bool` field | +5 |
@@ -199,5 +234,7 @@ Some skills (assessment, quick-hint flow) may explicitly want text-only; the fla
 - ADR-007 (Vertex AI EU region) — data residency boundary
 - [student-consent-prompt.md](student-consent-prompt.md) — gates attachment-metadata writes
 - [cost-dashboard.md](cost-dashboard.md) — multimodal turns are pricier; the dashboard should surface this
+- [end-of-class-notes-summary.md](end-of-class-notes-summary.md) — builds directly on this upload path + guardrail (no-laptop notes close-out)
+- [offline-lab-workbench.md](offline-lab-workbench.md) — shares the units-loop behaviour on typed entry
 - Parent [SEQUENCE.md](../SEQUENCE.md) row 1.10 — supersedes for student slice; mark as superseded
-- Teacher document ingestion (curriculum, problem sets) — separate small follow-up reusing this doc's backend plumbing
+- Teacher document ingestion (curriculum, problem sets) — now [curriculum-library.md](curriculum-library.md), reusing this doc's AILANG Parse plumbing (different retention posture: curriculum is retained + indexed)

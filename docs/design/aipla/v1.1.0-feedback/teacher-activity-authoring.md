@@ -1,12 +1,14 @@
 # Teacher activity authoring — non-sim activities first class
 
 **Status:** Planned (P1, aggressive v1.1 target — phased; thin slice pre-freeze)
-**Last Updated:** 2026-06-08
+**Last Updated:** 2026-06-09 (added curriculum-library tie-in + the 9 June equipment co-design milestone)
 **Priority:** **P1** — recorded as *"the primary design priority in the 3 June teacher check-in"* in the scoping site (`strands.qmd`, three separate mentions). Teachers want to create activities from scratch — including activities with **no simulator at all** — without a developer in the loop.
 **Estimated:** ~6–8d full builder; **~1.5d for the M0 pre-freeze thin slice** (see Milestone phasing)
 **Scope:** Fullstack — `backend/db/models/activity_config.py` (extend) + `backend/db/activity_configs.py` + `backend/protocols/activity_config_routes.py` (extend to CRUD) + new A2UI student surfaces (quiz / notebook / drawing / none) + `frontend/src/app/teacher/activities/` (builder) + generalize `frontend/src/components/workspace/ProgressChecklist.tsx` + `aiplatform activity` CLI
 **Dependencies:** [teacher-ui.md](../v1.0.0-pilot/implemented/teacher-ui.md) (Phase 2 `ActivityConfig` is the parent surface — shipped); [teacher-permission-model.md](../v1.0.0-pilot/implemented/teacher-permission-model.md) (1.A teacher auth — shipped); [expanded-workbench-types.md](../v1.0.0-pilot/expanded-workbench-types.md) (1.J — workbench type system); [lesson-picker.md](../v1.0.0-pilot/implemented/lesson-picker.md) (shipped); ADR-015 (unified multi-surface UI) + ADR-013 (artefact safety) in the scoping site
-**Source brief:** [`june-03-feedback-sprint-brief.md`](file:///Users/mark/Documents/clients/cph-uni/strand-a-pedagogical-bot/prototypes/june-03-feedback-sprint-brief.md) + scoping-site [`strands.qmd`](file:///Users/mark/Documents/clients/cph-uni/strands.qmd) "Teacher activity creation and branching"
+**Source brief:** [`june-03-feedback-sprint-brief.md`](file:///Users/mark/Documents/clients/cph-uni/strand-a-pedagogical-bot/prototypes/june-03-feedback-sprint-brief.md) + [`june-09-feedback-sprint-brief.md` §A](file:///Users/mark/Documents/clients/cph-uni/strand-a-pedagogical-bot/prototypes/june-09-feedback-sprint-brief.md) (curriculum library + equipment co-design) + scoping-site [`strands.qmd`](file:///Users/mark/Documents/clients/cph-uni/strands.qmd) "Teacher activity creation and branching"
+
+> **9 June split (read with the realism note).** The 9 June brief folds two more requirements into "design doc A": (1) a **referenceable A/B/C curriculum library** teachers cite when authoring, and (2) **AI co-designing the missing workbench element** around a teacher's existing lab equipment. The **library** is a standalone subsystem (storage, taxonomy, ingestion, ACL, retrieval) and has been split into its own doc — [curriculum-library.md](curriculum-library.md) — which this builder *consumes* (its `materials` picker browses that library). The **co-design** stays here as **M6**, because it is an authoring *interaction*, not a corpus.
 
 > **Realism note (read first).** This is the largest open v1.1 item and it competes directly with the open P1 items (1.1.3/1.1.4/1.1.5/1.1.7/1.1.9/1.1.10) and the **2026-06-29 → 07-05 freeze**. The full builder will not land in one sprint before the pilot. This doc therefore commits to a **phased build with a self-contained M0 thin slice** (teacher authors a no-workbench *concept-dialogue* activity end-to-end) that delivers standalone value before the freeze, and treats the quiz/checklist/branching milestones as independently shippable through the pilot-iteration window. If the team is consumed by the other P1 items, M0 ships and the rest slides — without leaving a half-built surface.
 
@@ -193,6 +195,16 @@ Two quiz mechanisms exist in AIPLA; this doc ships the first and is explicit abo
 
 Keeping these distinct avoids conflating "teacher made a quiz" with "the AI is quizzing the student" — they have different provenance (Axiom 2), different cost (Axiom 4), and different observability shapes.
 
+### Curriculum-driven authoring (9 June — breadth-over-depth)
+
+Per the 9 June steer (*coverage of the possibility space beats depth on any one bet* — `notes/2026-06-09-curriculum-content-uses.md`), the [curriculum-library](curriculum-library.md) is not just a citation source for the **Materials** picker — it is the **source that makes each new activity cheap to author and measure**, which is what lets the team run many thin probes. Three capabilities live here (the library supplies the corpus + retrieval; the *logic* is authoring-side):
+
+- **#4 Auto-drafted rubric / DRA (the biggest breadth-multiplier).** From the activity's topic + level, retrieve the matching *faglige mål* + *kernestof* and **draft the `checklist`** (and the `dra_map` for [1.K](../v1.0.0-pilot/dra-activity-framework.md)). The teacher edits and accepts — it is a *draft*, not an auto-grade (Axiom 2). This is what makes every activity inherit a measuring stick without hand-authoring; the [notes-summary](end-of-class-notes-summary.md), exit-ticket, and analytics all measure against it.
+- **#5 Level calibration (A/B/C).** The activity's `level` (A/B/C) injects the level-specific læreplan scope into the tutor prompt so depth scales to the student (no A-deep tangents with a C student, no trivially-shallow A activity). A field + an InstructionProvider injection, not a new surface.
+- **#6 Coverage / gap map.** Map the teacher's existing activities against the *kernestof* → a "covered vs gaps" view that **points at the next probe**. Cheap (one pass over the corpus vs the activity list), doubles as a research instrument, and is the single most strategy-aligned thing to build early. A teacher-view panel + a `aiplatform activity coverage` CLI.
+
+These are **gated on [curriculum-library](curriculum-library.md) landing** (which now runs on **managed ADK RAG — no pgvector build to wait on**; just needs the B/C corpus parsed), so they sequence after the core builder (M0–M3) but can come **much earlier than originally feared**. Per the breadth steer they are **high-value-as-soon-as-unblocked**, not bottom-of-backlog. See M7/M8.
+
 ### CLI surface
 
 Per the CLI-affordance rule, ship the commands with the feature (CLI is `aiplatform`, the AIPLA tool):
@@ -240,8 +252,13 @@ Ordered so **M0 is independently valuable and lands before the 2026-06-29 freeze
 | M3 | **Branching + materials.** `duplicate` endpoint + `--from`; attach existing parsed docs as `materials`. | ~1d | none | post-freeze |
 | M4 | **Drawing / notebook workbench types** (1.J Type 2 / 5). | ~2–3d | which type first (JB/AR) | pilot-iteration |
 | M5 | **Observability + engagement wiring.** Quiz/checklist events → BQ; co-design with engagement-signals. | ~1d | aligns 1.1.17 | pilot-iteration |
+| **M6** | **Equipment co-design (9 June §A).** Teacher describes the lab kit they *have* and what's *missing* ("we have a ramp + photogate but no force sensor"); the AI proposes a **workbench element** to fill the gap — a [notebook](offline-lab-workbench.md)/quiz/checklist activity that works with the available kit, or flags where a sim ([offline-lab](offline-lab-workbench.md) / jitt.dk artefact) substitutes for the missing instrument. A *suggestion* surface in the builder, not autonomous authoring — the teacher edits and accepts. Uses curriculum **#8** equipment-matching. | ~2d | JB/AR on the suggestion scope + the equipment vocabulary | pilot-iteration |
+| **M7** ⭐ | **Auto-drafted rubric / level calibration (9 June breadth — curriculum #4 + #5).** From topic + A/B/C level, retrieve *faglige mål* + *kernestof* → **draft the `checklist`/`dra_map`** (teacher edits, not auto-graded) + inject level scope into the tutor prompt. The biggest breadth-multiplier: every activity inherits a measuring stick without hand-authoring. | ~2d | [curriculum-library](curriculum-library.md) landed (**ADK RAG — no pgvector wait**; B/C parsed); JB/AR rubric framing | pilot-iteration (high-value-as-unblocked) |
+| **M8** ⭐ | **Coverage / gap map (9 June breadth — curriculum #6).** Map the teacher's activities against the *kernestof* → "covered vs gaps" teacher view + `aiplatform activity coverage`. **Points at the next probe** — the most strategy-aligned early build; doubles as a research instrument. | ~1–1.5d | [curriculum-library](curriculum-library.md) landed | pilot-iteration (high-value-as-unblocked) |
 
-**If the team is consumed by other P1 items:** M0 ships standalone (teachers get from-scratch non-sim activities — the brief's headline ask), and M1–M5 absorb into the 2026-08-14 → 09-15 pilot-iteration weeks.
+**Curriculum-library wiring (cross-cutting, via [curriculum-library.md](curriculum-library.md)):** the **Materials** picker browses the A/B/C corpus that doc stands up; M7/M8 consume its retrieval for rubric-drafting + the coverage map. All three sequence *with* curriculum-library (gated on 1.3 pgvector + B/C parsing), not blocking M0–M3. The `materials` field already carries the `MaterialRef`s; the library resolves them.
+
+**If the team is consumed by other P1 items:** M0 ships standalone (teachers get from-scratch non-sim activities — the brief's headline ask), and M1–M8 absorb into the 2026-08-14 → 09-15 pilot-iteration weeks. **Breadth-over-depth note:** M7 (auto-rubrics) and M8 (coverage map) are the *strategy-aligned* pieces — pull them forward to "build as soon as curriculum-library unblocks," ahead of the heavier per-type workbench work (M4), because they make every *other* probe cheaper and measurable.
 
 ## Testing strategy
 
@@ -287,5 +304,8 @@ Ordered so **M0 is independently valuable and lands before the 2026-06-29 freeze
 - [teacher-artefact-authoring.md](../post-pilot/teacher-artefact-authoring.md) — tier-3 code authoring (Year-2; the "author a new sim" path explicitly excluded here)
 - [teacher-ui.md](../v1.0.0-pilot/implemented/teacher-ui.md) — Phase 2 `ActivityConfig` parent surface
 - [student-engagement-signals.md](student-engagement-signals.md) — quiz/checklist events feed the engagement tab; co-design the BQ shape
+- [curriculum-library.md](curriculum-library.md) — the A/B/C corpus the **Materials** picker cites (9 June §A library half)
+- [offline-lab-workbench.md](offline-lab-workbench.md) — a `notebook` activity type M6 co-design proposes; consumes 1.J Type 5
+- [tutor-personas.md](tutor-personas.md) — the `interaction_style` field rides this builder's activity-config surface
 - [mcp-app-artefact skill](../../../../.claude/skills/mcp-app-artefact/SKILL.md) — the sim-authoring runbook (the MCP-App side of the A2UI/MCP split)
 - ADR-015 (unified multi-surface UI) + ADR-013 (artefact safety) — scoping-site `architecture.qmd`
