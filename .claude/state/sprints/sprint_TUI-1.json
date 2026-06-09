@@ -66,19 +66,20 @@
       "files_to_modify": [
         "frontend/src/app/teacher/_TeacherClientShell.tsx"
       ],
-      "passes": null,
-      "started": null,
-      "completed": null,
-      "notes": "Keep the auth-gate + loading branches untouched; only restructure the authed return. Reports stays a sub-destination (no top-level nav item)."
+      "passes": true,
+      "actual_loc": 360,
+      "started": "2026-06-09T16:28:00Z",
+      "completed": "2026-06-09T16:33:00Z",
+      "notes": "TeacherNav renders both rail (hidden md:flex) + fixed bottom bar (md:hidden) from one DESTINATIONS source; usePathname active highlight; Insights matches /insights+/analytics+/reports. Shell restructured to [rail | content] row, auth-gate/loading branches untouched. Minimal activities + settings index pages built on the primitives. 14 new tests (TeacherNav 5, shell smoke 1, 2 index pages). Full suite 951 green; build OK (new routes /teacher/activities + /teacher/settings)."
     }
   ],
   "velocity": {
     "target_loc_per_day": 500,
     "actual_loc_per_day": null,
     "estimated_total_loc": 1040,
-    "actual_total_loc": null,
+    "actual_total_loc": 950,
     "estimated_days": 2.5,
-    "actual_days": null
+    "actual_days": 1
   },
   "github_issues": [],
   "last_session": null,

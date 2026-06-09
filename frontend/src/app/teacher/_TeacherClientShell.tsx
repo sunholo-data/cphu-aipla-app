@@ -5,6 +5,7 @@ import type { ReactNode } from "react";
 import { GraduationCap, LogOut } from "lucide-react";
 
 import { AppFooter } from "@/components/AppFooter";
+import { TeacherNav } from "@/components/teacher/ui/TeacherNav";
 import { BRANDING } from "@/lib/branding";
 import { isLocalMode } from "@/lib/localMode";
 import { signOut } from "@/lib/firebase";
@@ -86,12 +87,15 @@ export function TeacherClientShell({ children }: { children: ReactNode }) {
         </div>
       </header>
 
-      <main className="mx-auto w-full max-w-6xl flex-1 px-4 py-6 sm:px-6 sm:py-8">
-        {children}
-      </main>
-
-      <div className="mx-auto flex w-full max-w-6xl justify-center px-4 pb-6 sm:px-6">
-        <AppFooter />
+      <div className="mx-auto flex w-full max-w-6xl flex-1 px-4 sm:px-6">
+        <TeacherNav />
+        {/* pb-24 on mobile clears the fixed bottom nav bar; reset at md. */}
+        <div className="flex min-w-0 flex-1 flex-col md:pl-6">
+          <main className="flex-1 py-6 pb-24 sm:py-8 md:pb-8">{children}</main>
+          <div className="flex justify-center pb-24 md:pb-6">
+            <AppFooter />
+          </div>
+        </div>
       </div>
     </div>
   );
