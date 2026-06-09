@@ -32,6 +32,8 @@ import {
 } from "@/lib/teacherApi";
 import { ClassInsightsPanel } from "@/components/teacher/insights/ClassInsightsPanel";
 import { ClassVoiceSettingsPanel } from "@/components/teacher/ClassVoiceSettingsPanel";
+import { SettingsSection } from "@/components/teacher/ui/SettingsSection";
+import { TeacherPage } from "@/components/teacher/ui/TeacherPage";
 
 import { handleExportSessions } from "./_exportHelpers";
 
@@ -271,45 +273,38 @@ export default function TeacherClassDetailPage() {
   }
 
   return (
-    <div className="flex flex-col gap-6">
-      <nav className="flex items-center gap-1 text-sm text-muted-foreground">
+    <TeacherPage
+      breadcrumb={
         <Link
           href="/teacher/classes"
-          className="flex items-center gap-1 hover:text-foreground"
+          className="flex w-fit items-center gap-1 hover:text-foreground"
         >
           <ArrowLeft className="h-4 w-4" aria-hidden="true" />
           Dashboard
         </Link>
-        <span aria-hidden="true">/</span>
-        <span className="text-foreground">{cls.name}</span>
-      </nav>
-
-      <header className="flex flex-wrap items-end justify-between gap-3">
-        <div>
-          <h1 className="text-xl font-semibold sm:text-2xl">{cls.name}</h1>
-          <p className="text-sm text-muted-foreground">
-            {cls.groupCodes.length} group
-            {cls.groupCodes.length === 1 ? "" : "s"} · {cls.lessons.length}{" "}
-            {cls.lessons.length === 1 ? "activity" : "activities"} assigned
-          </p>
-        </div>
-        <div className="flex flex-wrap gap-2">
-          <Link
-            href="/teacher/analytics"
-            className="flex items-center gap-1.5 rounded border border-border px-3 py-1.5 text-sm font-medium hover:bg-accent"
-          >
-            <MessageCircle className="h-4 w-4" aria-hidden="true" />
-            Chat with class data
-            <ArrowRight className="h-3.5 w-3.5" aria-hidden="true" />
-          </Link>
-        </div>
-      </header>
-
-      <section aria-labelledby="groups-label" className="flex flex-col gap-3">
-        <header className="flex items-center justify-between">
-          <h2 id="groups-label" className="text-lg font-semibold">
-            Groups
-          </h2>
+      }
+      title={cls.name}
+      subtitle={
+        <>
+          {cls.groupCodes.length} group
+          {cls.groupCodes.length === 1 ? "" : "s"} · {cls.lessons.length}{" "}
+          {cls.lessons.length === 1 ? "activity" : "activities"} assigned
+        </>
+      }
+      actions={
+        <Link
+          href="/teacher/analytics"
+          className="flex items-center gap-1.5 rounded border border-border px-3 py-1.5 text-sm font-medium hover:bg-accent"
+        >
+          <MessageCircle className="h-4 w-4" aria-hidden="true" />
+          Chat with class data
+          <ArrowRight className="h-3.5 w-3.5" aria-hidden="true" />
+        </Link>
+      }
+    >
+      <SettingsSection
+        title="Groups"
+        action={
           <button
             type="button"
             onClick={handleNewGroup}
@@ -319,8 +314,8 @@ export default function TeacherClassDetailPage() {
             <Plus className="h-4 w-4" aria-hidden="true" />
             {minting ? "Minting…" : "New group"}
           </button>
-        </header>
-
+        }
+      >
         {cls.groupCodes.length === 0 ? (
           <p className="rounded border border-dashed border-border px-3 py-4 text-sm text-muted-foreground">
             No group codes yet. Mint one with &ldquo;New group&rdquo; — students
@@ -402,13 +397,11 @@ export default function TeacherClassDetailPage() {
             })}
           </ul>
         )}
-      </section>
+      </SettingsSection>
 
-      <section aria-labelledby="lessons-label" className="flex flex-col gap-3">
-        <header className="flex items-center justify-between">
-          <h2 id="lessons-label" className="text-lg font-semibold">
-            Activities assigned to this class
-          </h2>
+      <SettingsSection
+        title="Activities assigned to this class"
+        action={
           <div className="flex items-center gap-2">
             <Link
               href={`/teacher/activities/new?classId=${encodeURIComponent(cls.classId)}`}
@@ -433,8 +426,8 @@ export default function TeacherClassDetailPage() {
               Add from catalogue
             </button>
           </div>
-        </header>
-
+        }
+      >
         {showPicker ? (
           <LessonPicker
             options={availableLessons}
@@ -494,13 +487,18 @@ export default function TeacherClassDetailPage() {
             ))}
           </ul>
         )}
-      </section>
+      </SettingsSection>
 
-      <ClassVoiceSettingsPanel
-        classId={cls.classId}
-        initial={cls.voice ?? null}
-        onSaved={refresh}
-      />
+      <SettingsSection
+        title="Class settings"
+        description="Voice and read-aloud language for this class."
+      >
+        <ClassVoiceSettingsPanel
+          classId={cls.classId}
+          initial={cls.voice ?? null}
+          onSaved={refresh}
+        />
+      </SettingsSection>
 
       {showInsights ? (
         <ClassInsightsPanel classId={cls.classId} />
@@ -516,9 +514,9 @@ export default function TeacherClassDetailPage() {
         </button>
       )}
 
-      <section aria-labelledby="activity-label" className="flex flex-col gap-3">
-        <header className="flex flex-wrap items-center justify-between gap-2">
-          <h2 id="activity-label" className="text-lg font-semibold">Recent activity</h2>
+      <SettingsSection
+        title="Recent activity"
+        action={
           <div className="flex items-center gap-1.5">
             <button
               type="button"
@@ -541,7 +539,8 @@ export default function TeacherClassDetailPage() {
               {exporting === "json" ? "Exporting…" : "JSON"}
             </button>
           </div>
-        </header>
+        }
+      >
         {recentSessions.length === 0 ? (
           <p className="rounded border border-dashed border-border px-3 py-4 text-sm text-muted-foreground">
             No student sessions yet. Sessions appear here once students join a group and start chatting.
@@ -592,7 +591,7 @@ export default function TeacherClassDetailPage() {
             )}
           </ul>
         )}
-      </section>
+      </SettingsSection>
 
       <div
         role="status"
@@ -606,7 +605,7 @@ export default function TeacherClassDetailPage() {
           </div>
         ) : null}
       </div>
-    </div>
+    </TeacherPage>
   );
 }
 

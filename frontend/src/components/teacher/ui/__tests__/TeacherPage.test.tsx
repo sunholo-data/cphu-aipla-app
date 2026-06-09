@@ -14,6 +14,15 @@ describe("TeacherPage", () => {
     expect(screen.getByText("content")).toBeInTheDocument();
   });
 
+  it("renders a subtitle under the title when provided", () => {
+    render(
+      <TeacherPage title="T" subtitle="2 groups · 1 activity">
+        <p>c</p>
+      </TeacherPage>,
+    );
+    expect(screen.getByText("2 groups · 1 activity")).toBeInTheDocument();
+  });
+
   it("renders breadcrumb and actions when provided", () => {
     render(
       <TeacherPage title="T" breadcrumb={<span>Home / T</span>} actions={<button>New</button>}>

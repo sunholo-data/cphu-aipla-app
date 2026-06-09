@@ -92,6 +92,20 @@ describe("/teacher/classes/[id] — class detail", () => {
     expect(screen.getByText("soft-otter-44")).toBeInTheDocument();
   });
 
+  it("groups voice + language under a 'Class settings' section (P3 consolidation)", async () => {
+    getSpy.mockResolvedValue(makeClassPayload());
+    render(<TeacherClassDetailPage />);
+    await waitFor(() => {
+      expect(screen.getByRole("heading", { name: targetClass.name })).toBeInTheDocument();
+    });
+    // The new consolidated section header...
+    expect(screen.getByRole("heading", { name: "Class settings" })).toBeInTheDocument();
+    // ...still contains the voice/read-aloud panel (nothing dropped in the refactor).
+    expect(
+      screen.getByRole("heading", { name: /Voice \(read-aloud\)/ }),
+    ).toBeInTheDocument();
+  });
+
   it("'New group' click calls mintGroupCodes and refreshes the list", async () => {
     getSpy
       .mockResolvedValueOnce(makeClassPayload({ groupCodes: [] }))
