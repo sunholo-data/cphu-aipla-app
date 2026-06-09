@@ -51,6 +51,7 @@ import { DocumentPanel } from "@/components/document/DocumentPanel";
 import { LatencyHUD } from "@/components/dev/LatencyHUD";
 import { WorkspaceShell } from "@/components/workspace/WorkspaceShell";
 import { ProgressChecklist, type ChecklistItem } from "@/components/workspace/ProgressChecklist";
+import { workspaceContentKind } from "./workspaceContent";
 import { BoldkastWorkbench } from "@/components/workspace/BoldkastWorkbench";
 import {
   BoldkastSimFrame,
@@ -89,19 +90,6 @@ const BOLDKAST_SUBPARTS = [
 const BOLDKAST_SANDBOX_ORIGIN = (process.env.NEXT_PUBLIC_MCP_SANDBOX_URL ?? "")
   .replace(/\/sandbox\.html$/, "");
 
-// Registry of skills that render a bespoke sim workbench (TAA-1 workspace
-// generalization). The workspace gate is config-driven — show it when the
-// skill is a registered sim OR the activity carries a teacher-authored
-// checklist — instead of an inline slug allowlist. Adding a sim = an entry
-// here + its render case in the composer; non-sim elements (checklist, and
-// later A2UI/quiz) compose generically from config, no page edit.
-// Follow-up: migrate these bespoke wrappers onto a generic artefact-iframe
-// mount so a new sim needs no render case at all.
-const SIM_WORKSPACE_SLUGS = new Set([
-  "problem-set-hints",
-  "led-planck-tutor",
-  "kinebot-kinematics-tutor",
-]);
 
 /**
  * MULTI-SURFACE-A2UI M3 — chat page surface mounts.
@@ -381,11 +369,10 @@ function ChatShell({
   // generically — for sims it sits alongside the sim handles its own;
   // for no-sim concept activities it IS the workspace.
   const [activeChecklist, setActiveChecklist] = useState<ChecklistItem[]>([]);
-  // Config-driven workspace gate: a registered sim OR an authored checklist.
-  // No inline slug allowlist (see SIM_WORKSPACE_SLUGS).
-  const hasSimWorkspace = SIM_WORKSPACE_SLUGS.has(skillSlug ?? "");
-  const showWorkspace =
-    isAnonymousGroupAuthMode() && (hasSimWorkspace || activeChecklist.length > 0);
+  // Config-driven workspace gate: a registered sim OR an authored checklist
+  // (workspaceContent.ts — pure + unit-tested; no inline slug allowlist).
+  const workspaceKind = workspaceContentKind(skillSlug, activeChecklist.length > 0);
+  const showWorkspace = isAnonymousGroupAuthMode() && workspaceKind !== "none";
 
   // Fetch this activity's teacher-authored checklist (M1.2 resolves it from the
   // student's class). Optional — failure/absence leaves the chat-only render.
