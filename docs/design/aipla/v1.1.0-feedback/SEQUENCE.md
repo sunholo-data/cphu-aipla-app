@@ -84,9 +84,9 @@ Verified by code inspection on 2026-06-08 (not by doc placement, which lags). Le
 | 1.1.23 | bidirectional-voice-brief | **OPEN — URGENT** | brief-only (2026-06-09). **Target 2026-06-23.** Blocking: A/B architecture + GDPR delta + owner (M/JB) — resolve immediately |
 | 1.1.24 | offline-lab-workbench | **OPEN** | design-only (2026-06-09). Gated on JB/AR ground-truth model + 2 real experiments; depends on 1.J Type 5 |
 | 1.1.25 | curriculum-library | **OPEN** | design-only (2026-06-09). **ADK RAG (managed) — un-gated from pgvector**; JB/M copyright clearance for shared corpus; B/C corpus parsed |
-| 1.1.26 | teacher-ui-consolidation | **OPEN** | design-only (2026-06-09, M). Frontend-only; P1 primitives ~1.5d should precede the config-heavy rows |
+| 1.1.26 | teacher-ui-consolidation | **SHIPPED (P1–P5)** | 2026-06-09 — full foundation: P1 primitives (`components/teacher/ui/`), P2 by-breakpoint nav (`TeacherNav`), P3 class-detail onto primitives + "Class settings", P4 real Activities library, P5 Insights unification (`InsightsTabs`). Commits `6bb33af`→`d4692ee`; 958 FE tests. **Builder Essential/Advanced section-model intentionally deferred** to when its config features (1.1.20/1.1.23) are built into it |
 
-**Tally (incl. 9 June batch): 9 SHIPPED · 1 PARTIAL · 16 OPEN.** (7 OPEN rows added 2026-06-09 — all design/brief-only.)
+**Tally (incl. 9 June batch): 10 SHIPPED · 1 PARTIAL · 15 OPEN.** (7 rows added 2026-06-09; 1.1.26 shipped same window.)
 
 ### Still to do (priority order)
 

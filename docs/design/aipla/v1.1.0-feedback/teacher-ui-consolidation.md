@@ -1,6 +1,6 @@
 # Teacher UI consolidation — a simple, intuitive teacher surface + a config pattern that scales
 
-**Status:** Planned (P1)
+**Status:** **Shipped (P1–P5)** 2026-06-09 — foundation complete (primitives, by-breakpoint nav, class-detail, Activities library, Insights unification). Builder Essential/Advanced section-model deferred to when its config features (1.1.20 personas / 1.1.23 voice) land in it. Commits `6bb33af`→`d4692ee`.
 **Last Updated:** 2026-06-09
 **Priority:** **P1** — the teacher surface has accreted features page-by-page and is now a *"mess of configs"*; it must be as simple and polished as the (good) student UI. **This is also a breadth-over-depth multiplier:** Year 1 runs many probes, each adding teacher-facing config — without a governing pattern, every probe makes the teacher UI worse. A clean config *system* lowers the cost of every future teacher-side feature, the same way [curriculum-library](curriculum-library.md) lowers the cost of every activity.
 **Estimated:** ~5–7d phased (design system ~1.5d · IA/nav ~1d · analytics consolidation ~1.5d · class-detail refactor ~1.5d · activity-builder section model ~1.5d). Each phase is independently shippable.
