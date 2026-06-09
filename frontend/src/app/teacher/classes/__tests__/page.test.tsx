@@ -158,6 +158,8 @@ describe("/teacher/classes — dashboard", () => {
     });
 
     render(<TeacherClassesPage />);
+    // Insights are deferred (BigQuery) — opt in to load the cross-class compare.
+    await userEvent.click(await screen.findByRole("button", { name: /show insights/i }));
     await waitFor(() => {
       expect(screen.getByTestId("cross-class-compare-section")).toBeInTheDocument();
     });

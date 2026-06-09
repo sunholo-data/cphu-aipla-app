@@ -6,6 +6,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import {
   ArrowLeft,
   ArrowRight,
+  BarChart3,
   BookOpen,
   Copy,
   Download,
@@ -58,6 +59,9 @@ export default function TeacherClassDetailPage() {
   const [minting, setMinting] = useState(false);
   const [confirmResetCode, setConfirmResetCode] = useState<string | null>(null);
   const [resetting, setResetting] = useState(false);
+  // Insights (4 BigQuery queries) are deferred — load on demand so opening a
+  // class is fast (Firestore-only). See ClassInsightsPanel.
+  const [showInsights, setShowInsights] = useState(false);
 
   const [recentSessions, setRecentSessions] = useState<SessionRow[]>([]);
   const [exporting, setExporting] = useState<"csv" | "json" | null>(null);
@@ -498,7 +502,19 @@ export default function TeacherClassDetailPage() {
         onSaved={refresh}
       />
 
-      <ClassInsightsPanel classId={cls.classId} />
+      {showInsights ? (
+        <ClassInsightsPanel classId={cls.classId} />
+      ) : (
+        <button
+          type="button"
+          onClick={() => setShowInsights(true)}
+          className="flex items-center gap-2 self-start rounded border border-dashed border-border px-4 py-3 text-sm font-medium text-muted-foreground hover:bg-muted/50"
+        >
+          <BarChart3 className="h-4 w-4" aria-hidden="true" />
+          Show class insights
+          <span className="text-xs font-normal text-muted-foreground/70">— loads analytics (a few seconds)</span>
+        </button>
+      )}
 
       <section aria-labelledby="activity-label" className="flex flex-col gap-3">
         <header className="flex flex-wrap items-center justify-between gap-2">

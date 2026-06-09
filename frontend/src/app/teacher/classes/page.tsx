@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import {
   ArrowRight,
+  BarChart3,
   BookOpen,
   FileText,
   MessageCircle,
@@ -49,6 +50,9 @@ export default function TeacherClassesPage() {
   const [showNewClassForm, setShowNewClassForm] = useState(false);
   const [insightsSummary, setInsightsSummary] = useState<Map<string, InsightsClassSummary>>(new Map());
   const [insightsCompare, setInsightsCompare] = useState<InsightsComparePayload | null>(null);
+  // BigQuery-backed insights (per-card KPIs + cross-class compare) are
+  // deferred — loaded on demand so the class list opens fast (Firestore-only).
+  const [showInsights, setShowInsights] = useState(false);
 
   // Skill displayName lookup so we can fall back to the lesson name when a
   // session hasn't generated a title yet (titles are auto-generated after
@@ -98,8 +102,10 @@ export default function TeacherClassesPage() {
   }, []);
 
   // One round-trip for the per-card KPI strips (M9). Failure is
-  // silent: the cards still render without the strip.
+  // silent: the cards still render without the strip. Deferred behind
+  // showInsights so it doesn't fire BigQuery on every class-list open.
   useEffect(() => {
+    if (!showInsights) return;
     let cancelled = false;
     void fetchInsightsSummary()
       .then((p) => {
@@ -112,13 +118,13 @@ export default function TeacherClassesPage() {
     return () => {
       cancelled = true;
     };
-  }, [classes]);
+  }, [classes, showInsights]);
 
   // Cross-class compare payload — only fetched when the teacher owns
-  // 2+ classes. The single-class case has no useful comparison and
-  // would just push the existing surfaces down.
+  // 2+ classes AND has opted into insights. The single-class case has no
+  // useful comparison and would just push the existing surfaces down.
   useEffect(() => {
-    if (!classes || classes.length < 2) {
+    if (!showInsights || !classes || classes.length < 2) {
       setInsightsCompare(null);
       return;
     }
@@ -133,7 +139,7 @@ export default function TeacherClassesPage() {
     return () => {
       cancelled = true;
     };
-  }, [classes]);
+  }, [classes, showInsights]);
 
   return (
     <div className="flex flex-col gap-8">
@@ -194,6 +200,20 @@ export default function TeacherClassesPage() {
           ))
         )}
       </section>
+
+      {!showInsights ? (
+        <button
+          type="button"
+          onClick={() => setShowInsights(true)}
+          className="flex items-center gap-2 self-start rounded border border-dashed border-border px-4 py-3 text-sm font-medium text-muted-foreground hover:bg-muted/50"
+        >
+          <BarChart3 className="h-4 w-4" aria-hidden="true" />
+          Show insights
+          <span className="text-xs font-normal text-muted-foreground/70">
+            — per-class KPIs + cross-class comparison (loads analytics)
+          </span>
+        </button>
+      ) : null}
 
       {insightsCompare && insightsCompare.rows.length >= 2 ? (
         <section
