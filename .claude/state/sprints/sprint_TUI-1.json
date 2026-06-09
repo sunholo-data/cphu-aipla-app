@@ -1,0 +1,87 @@
+{
+  "sprint_id": "TUI-1",
+  "created": "2026-06-09T14:14:50Z",
+  "estimated_duration_days": 2.5,
+  "design_doc": "docs/design/aipla/v1.1.0-feedback/teacher-ui-consolidation.md",
+  "sprint_plan": "docs/design/aipla/v1.1.0-feedback/teacher-ui-consolidation-sprint.md",
+  "features": [
+    {
+      "id": "M1",
+      "description": "Teacher design-system primitives (TeacherCard, EmptyState, SettingRow, SettingsSection, AdvancedDisclosure, TeacherPage) under src/components/teacher/ui/, consolidating existing hand-rolled patterns; reuse Tailwind HSL tokens; native <details> for disclosure.",
+      "scope": "frontend",
+      "estimated_loc": 640,
+      "actual_loc": null,
+      "dependencies": [],
+      "acceptance_criteria": [
+        "Six primitives + index barrel exist under frontend/src/components/teacher/ui/",
+        "All primitives use token classes (bg-background/text-muted-foreground/border-border), no hard-coded colors",
+        "AdvancedDisclosure and collapsible SettingsSection toggle open/closed (tested)",
+        "SettingRow associates label to control via htmlFor/id (tested)",
+        "vitest green for all primitives; npm run quality:check:fast clean"
+      ],
+      "files_to_create": [
+        "frontend/src/components/teacher/ui/TeacherCard.tsx",
+        "frontend/src/components/teacher/ui/EmptyState.tsx",
+        "frontend/src/components/teacher/ui/SettingRow.tsx",
+        "frontend/src/components/teacher/ui/SettingsSection.tsx",
+        "frontend/src/components/teacher/ui/AdvancedDisclosure.tsx",
+        "frontend/src/components/teacher/ui/TeacherPage.tsx",
+        "frontend/src/components/teacher/ui/index.ts",
+        "frontend/src/components/teacher/ui/__tests__/TeacherCard.test.tsx",
+        "frontend/src/components/teacher/ui/__tests__/EmptyState.test.tsx",
+        "frontend/src/components/teacher/ui/__tests__/SettingRow.test.tsx",
+        "frontend/src/components/teacher/ui/__tests__/SettingsSection.test.tsx",
+        "frontend/src/components/teacher/ui/__tests__/AdvancedDisclosure.test.tsx",
+        "frontend/src/components/teacher/ui/__tests__/TeacherPage.test.tsx"
+      ],
+      "files_to_modify": [],
+      "passes": true,
+      "actual_loc": 590,
+      "started": "2026-06-09T16:15:00Z",
+      "completed": "2026-06-09T16:24:00Z",
+      "notes": "6 primitives + barrel; 18 vitest cases green; quality:check:fast clean. Used cn() from @/lib/utils. AdvancedDisclosure = native <details> (no Radix collapsible). SettingsSection keeps action outside the toggle button (no nested interactives)."
+    },
+    {
+      "id": "M2",
+      "description": "By-breakpoint primary nav shell: TeacherNav (left rail at md+, bottom bar at <md) with usePathname active highlight; integrate into _TeacherClientShell; minimal activities + settings index pages built on the primitives so the nav does not 404.",
+      "scope": "frontend",
+      "estimated_loc": 400,
+      "actual_loc": null,
+      "dependencies": ["M1"],
+      "acceptance_criteria": [
+        "TeacherNav renders 4 destinations (Classes/Activities/Insights/Settings) with active highlight via usePathname",
+        "Left rail present at >=md (md:flex), bottom bar present at <md (md:hidden) — asserted by class presence",
+        "/teacher/activities and /teacher/settings render (no 404), both via the new primitives",
+        "_TeacherClientShell still gates auth, renders header (account/sign-out/LOCAL_MODE) and AppFooter",
+        "vitest green; npm run quality:check passes (lint + typecheck + tests + build)"
+      ],
+      "files_to_create": [
+        "frontend/src/components/teacher/ui/TeacherNav.tsx",
+        "frontend/src/components/teacher/ui/__tests__/TeacherNav.test.tsx",
+        "frontend/src/app/teacher/activities/page.tsx",
+        "frontend/src/app/teacher/activities/__tests__/page.test.tsx",
+        "frontend/src/app/teacher/settings/page.tsx",
+        "frontend/src/app/teacher/settings/__tests__/page.test.tsx"
+      ],
+      "files_to_modify": [
+        "frontend/src/app/teacher/_TeacherClientShell.tsx"
+      ],
+      "passes": null,
+      "started": null,
+      "completed": null,
+      "notes": "Keep the auth-gate + loading branches untouched; only restructure the authed return. Reports stays a sub-destination (no top-level nav item)."
+    }
+  ],
+  "velocity": {
+    "target_loc_per_day": 500,
+    "actual_loc_per_day": null,
+    "estimated_total_loc": 1040,
+    "actual_total_loc": null,
+    "estimated_days": 2.5,
+    "actual_days": null
+  },
+  "github_issues": [],
+  "last_session": null,
+  "last_checkpoint": null,
+  "status": "not_started"
+}
