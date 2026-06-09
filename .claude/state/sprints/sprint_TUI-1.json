@@ -82,7 +82,7 @@
     "actual_days": 1
   },
   "github_issues": [],
-  "last_session": null,
-  "last_checkpoint": null,
-  "status": "not_started"
+  "last_session": "2026-06-09",
+  "last_checkpoint": "M1 + M2 complete; lint+typecheck+951 tests+build green; committed 6bb33af + c56a5d9. P3-P5 of 1.1.26 remain (separate sprints), so the design doc stays in place (not moved to implemented/).",
+  "status": "completed"
 }
