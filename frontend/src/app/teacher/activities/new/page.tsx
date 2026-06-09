@@ -166,14 +166,14 @@ function NewActivityForm() {
         <button
           type="button"
           onClick={() => router.push("/teacher/classes")}
-          className="mb-3 inline-flex items-center gap-1 text-sm text-slate-500 hover:text-slate-800"
+          className="mb-3 inline-flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground"
         >
           <ArrowLeft className="h-4 w-4" /> Back to classes
         </button>
-        <h1 className="flex items-center gap-2 text-2xl font-semibold text-slate-900">
-          <Sparkles className="h-6 w-6 text-indigo-500" /> New activity
+        <h1 className="flex items-center gap-2 text-xl font-semibold sm:text-2xl">
+          <Sparkles className="h-6 w-6 text-primary" /> New activity
         </h1>
-        <p className="mt-1 text-sm text-slate-500">
+        <p className="mt-1 text-sm text-muted-foreground">
           Create a chat-only Socratic concept activity. Students join with a group code and explore the
           topic in dialogue — no simulator required.
         </p>

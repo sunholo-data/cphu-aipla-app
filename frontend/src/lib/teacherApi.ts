@@ -128,6 +128,16 @@ export async function saveActivityConfig(
   return readJson<ActivityConfigPayload>(resp, "save activity config");
 }
 
+/** List the current teacher's activities (optionally scoped to one class).
+ *  Backs the Activities library index — teacher-scoped by construction. */
+export async function listMyActivities(
+  classId?: string,
+): Promise<ActivityConfigPayload[]> {
+  const qs = classId ? `?classId=${encodeURIComponent(classId)}` : "";
+  const resp = await fetchWithAuth(`/api/proxy/api/activity-configs${qs}`);
+  return readJson<ActivityConfigPayload[]>(resp, "list activities");
+}
+
 /** Fetch a session summary for an anonymous group code.
  *  Pass ``sessionId`` to fetch a specific past session; omit it to fetch
  *  the most-recent session for the group. */
