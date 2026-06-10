@@ -25,6 +25,9 @@ export type WorkbenchType =
   | "notebook"
   | "none";
 
+/** Tutor interaction style (1.1.20). ``socratic`` is the untouched default. */
+export type InteractionStyle = "socratic" | "concise" | "rigorous" | "warm";
+
 export interface ActivityConfigPayload {
   activityId: string;
   classId: string;
@@ -33,6 +36,7 @@ export interface ActivityConfigPayload {
   teachingGoal: string;
   language: Language;
   difficulty: Difficulty;
+  interactionStyle?: InteractionStyle;
   pairedWorkbench: string | null;
   workbenchType?: WorkbenchType;
   updatedAt: string;
@@ -53,6 +57,7 @@ export interface ActivityConfigUpsert {
   teachingGoal: string;
   language: Language;
   difficulty: Difficulty;
+  interactionStyle?: InteractionStyle;
   pairedWorkbench: string | null;
   workbenchType?: WorkbenchType;
   checklist?: ChecklistItem[];

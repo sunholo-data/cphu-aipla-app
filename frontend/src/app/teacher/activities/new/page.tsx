@@ -8,6 +8,7 @@ import { ArrowLeft, MessageCircle, Plus, Save, Sparkles, X } from "lucide-react"
 import {
   type ClassPayload,
   type Difficulty,
+  type InteractionStyle,
   type Language,
   type WorkbenchType,
   listAccessibleSkills,
@@ -48,6 +49,21 @@ const WORKBENCH_OPTIONS: { value: WorkbenchType; label: string; enabled: boolean
 const GOAL_PLACEHOLDER =
   "e.g. Guide students to discover why the horizontal and vertical components of projectile motion are independent — without giving the answer.";
 
+// Tutor interaction style (1.1.20). Socratic is the untouched default; the
+// others change the tutor's voice for this activity (AR confirms wording).
+const INTERACTION_STYLE_OPTIONS: { value: InteractionStyle; label: string }[] = [
+  { value: "socratic", label: "Socratic (default)" },
+  { value: "concise", label: "Concise" },
+  { value: "rigorous", label: "Rigorous" },
+  { value: "warm", label: "Warm" },
+];
+const INTERACTION_STYLE_HELP: Record<InteractionStyle, string> = {
+  socratic: "Guides with questions, leaves room to notice. Ends each turn with a question.",
+  concise: "Terse and directive — “just try this”. No follow-up questions.",
+  rigorous: "Exam-level expectations; does not soften or over-scaffold.",
+  warm: "Encouraging, more scaffolding — for lower-confidence students.",
+};
+
 type ClassesState =
   | { status: "loading" }
   | { status: "error" }
@@ -77,6 +93,7 @@ function NewActivityForm() {
   const [teachingGoal, setTeachingGoal] = useState("");
   const [language, setLanguage] = useState<Language>("da");
   const [difficulty, setDifficulty] = useState<Difficulty>("standard");
+  const [interactionStyle, setInteractionStyle] = useState<InteractionStyle>("socratic");
   // First-run default: the concept (no-workbench) path is pre-selected so
   // the happy path to a working activity is the default, not a blank form.
   const [workbenchType] = useState<WorkbenchType>("none");
@@ -136,6 +153,7 @@ function NewActivityForm() {
         teachingGoal: teachingGoal.trim(),
         language,
         difficulty,
+        interactionStyle,
         pairedWorkbench: null,
         workbenchType,
         // Positional ids assigned on save; empty rows dropped.
@@ -347,6 +365,24 @@ function NewActivityForm() {
                 ))}
               </select>
             </Field>
+          </div>
+
+          <div className="flex flex-col gap-1">
+            <Field label="Teaching style" htmlFor="activity-style">
+              <select
+                id="activity-style"
+                value={interactionStyle}
+                onChange={(e) => setInteractionStyle(e.target.value as InteractionStyle)}
+                className="rounded-md border border-slate-300 px-3 py-2 text-sm"
+              >
+                {INTERACTION_STYLE_OPTIONS.map((o) => (
+                  <option key={o.value} value={o.value}>
+                    {o.label}
+                  </option>
+                ))}
+              </select>
+            </Field>
+            <p className="text-xs text-slate-500">{INTERACTION_STYLE_HELP[interactionStyle]}</p>
           </div>
 
           {saveError ? (

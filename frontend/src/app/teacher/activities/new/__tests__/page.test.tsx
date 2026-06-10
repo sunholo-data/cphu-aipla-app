@@ -87,6 +87,21 @@ describe("/teacher/activities/new — concept activity builder", () => {
     expect(await screen.findByText(/is live for/i)).toBeInTheDocument();
   });
 
+  it("defaults the teaching style to socratic and sends the chosen style (1.1.20)", async () => {
+    listClassesMock.mockResolvedValue(ONE_CLASS);
+    render(<NewActivityPage />);
+    fireEvent.change(await screen.findByLabelText(/activity name/i), { target: { value: "E" } });
+    fireEvent.change(screen.getByLabelText(/lesson prompt/i), { target: { value: "g" } });
+
+    const stylePicker = screen.getByLabelText(/teaching style/i) as HTMLSelectElement;
+    expect(stylePicker.value).toBe("socratic");
+    fireEvent.change(stylePicker, { target: { value: "concise" } });
+
+    fireEvent.click(screen.getByRole("button", { name: /create activity/i }));
+    await waitFor(() => expect(saveActivityConfigMock).toHaveBeenCalledTimes(1));
+    expect(saveActivityConfigMock.mock.calls[0][0].interactionStyle).toBe("concise");
+  });
+
   it("sends teacher-authored checklist items with positional ids", async () => {
     listClassesMock.mockResolvedValue(ONE_CLASS);
     render(<NewActivityPage />);
