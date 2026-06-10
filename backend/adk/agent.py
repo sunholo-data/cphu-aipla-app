@@ -54,6 +54,7 @@ from adk.callbacks import (
 )
 from adk.iframe_context import wrap_with_iframe_context
 from adk.instruction_provider_chain import compose_instruction_providers
+from adk.interaction_style import inject_interaction_style_preamble
 from adk.mcp_observability import (
     compose_after_tool_callbacks,
     compose_before_tool_callbacks,
@@ -499,7 +500,18 @@ def create_agent(
             inject_teacher_focus(
                 inject_reactive_guidance(
                     inject_opening_guidance(
-                        skill_config.instructions,
+                        # Phase 1.1.20: append the activity's interaction-style
+                        # override preamble (concise/rigorous/warm) to the base
+                        # instructions. `socratic` (default) is a passthrough,
+                        # so existing tutors are unchanged. Innermost so the
+                        # override sits right after the SKILL.md body it
+                        # countermands. A persona (1.1.12) resolves down to this
+                        # interaction_style.
+                        inject_interaction_style_preamble(
+                            skill_config.instructions,
+                            skill_config.skill_id,
+                            group_tags=user.group_tags,
+                        ),
                         proactive_greet=skill_config.proactive_greet,
                         opening_template=skill_config.opening_template,
                     ),

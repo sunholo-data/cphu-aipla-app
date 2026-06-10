@@ -1,0 +1,92 @@
+"""Tutor interaction-style preamble injection (1.1.20).
+
+Selects a teaching-voice preamble for an activity from its
+``ActivityConfig.interaction_style`` and appends it to the tutor's system
+prompt at agent-instantiation time.
+
+``socratic`` (the default) is a **passthrough** — nothing is injected, so the
+current SKILL.md behaviour stands and existing tutors are byte-for-byte
+unchanged. The other styles append an override preamble that countermands the
+Socratic "end every turn with a question" rule for that one activity.
+
+The Socratic extraction / de-dup (making ``socratic.md`` the single source of
+truth and removing the inline block from the tutor SKILL.md files) is a
+deliberate follow-up — see ``docs/.../tutor-personas-sprint.md``.
+
+A persona (1.1.12) is a higher-level bundle that *ties* an interaction style to
+a voice + avatar + name; it resolves down to the ``interaction_style`` this
+module consumes, so this stays the primitive.
+"""
+
+from __future__ import annotations
+
+import logging
+from collections.abc import Iterable
+from functools import lru_cache
+from pathlib import Path
+
+from adk.teacher_focus import resolve_active_config
+
+log = logging.getLogger(__name__)
+
+# backend/adk/interaction_style.py -> backend/skills/preambles/interaction_style/
+_PREAMBLE_DIR = Path(__file__).resolve().parents[1] / "skills" / "preambles" / "interaction_style"
+
+# socratic is the untouched default — no preamble is injected for it this sprint.
+_PASSTHROUGH = "socratic"
+
+
+@lru_cache(maxsize=8)
+def _load_preamble(style: str) -> str:
+    """Read and cache a style preamble. Empty string if the file is missing."""
+    path = _PREAMBLE_DIR / f"{style}.md"
+    try:
+        return path.read_text(encoding="utf-8").strip()
+    except OSError:
+        log.warning("interaction_style preamble missing: %s", path)
+        return ""
+
+
+def inject_interaction_style_preamble(
+    instructions: str,
+    activity_id: str,
+    *,
+    group_tags: Iterable[str] | None = None,
+) -> str:
+    """Append the chosen interaction-style override preamble to a tutor prompt.
+
+    No-op (returns ``instructions`` unchanged) when:
+      - no ``ActivityConfig`` resolves (unconfigured activity), or
+      - the resolved style is ``socratic`` (the untouched default), or
+      - the style is unknown / its preamble file is missing.
+
+    For ``concise`` / ``rigorous`` / ``warm`` the preamble is appended after the
+    base instructions (later instruction wins, so it overrides the SKILL.md
+    Socratic rule).
+    """
+    cfg = resolve_active_config(activity_id, group_tags=group_tags)
+    style = cfg.interaction_style if cfg else _PASSTHROUGH
+
+    if style == _PASSTHROUGH:
+        return instructions
+
+    preamble = _load_preamble(style)
+    if not preamble:
+        # Unknown style or missing file -> fall back to the socratic default.
+        log.info(
+            "inject_interaction_style_preamble: no preamble for style=%s activity=%s — passthrough",
+            style,
+            activity_id,
+        )
+        return instructions
+
+    log.info(
+        "inject_interaction_style_preamble: activity=%s style=%s (+%d chars)",
+        activity_id,
+        style,
+        len(preamble),
+    )
+    return f"{instructions}\n\n{preamble}"
+
+
+__all__ = ["inject_interaction_style_preamble"]

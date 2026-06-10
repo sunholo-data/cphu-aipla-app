@@ -24,6 +24,12 @@ from pydantic import BaseModel, ConfigDict, Field, model_validator
 Language = Literal["da", "en"]
 Difficulty = Literal["standard", "guided"]
 
+# Tutor interaction style (1.1.20). ``socratic`` is the default and the
+# untouched current behaviour (no preamble injected — the SKILL.md rule
+# stands). The other styles inject an override preamble that changes the
+# tutor's voice for this activity. See ``adk/interaction_style.py``.
+InteractionStyle = Literal["socratic", "concise", "rigorous", "warm"]
+
 
 class ChecklistItem(BaseModel):
     """One teacher-authored, student-tickable sub-step of an activity (M1).
@@ -61,6 +67,7 @@ class ActivityConfig(BaseModel):
     teaching_goal: str = Field(default="", alias="teachingGoal", max_length=2000)
     language: Language = "da"
     difficulty: Difficulty = "standard"
+    interaction_style: InteractionStyle = Field(default="socratic", alias="interactionStyle")
     paired_workbench: str | None = Field(default=None, alias="pairedWorkbench")
     workbench_type: WorkbenchType = Field(default="none", alias="workbenchType")
     source_activity_id: str | None = Field(default=None, alias="sourceActivityId")
@@ -91,4 +98,11 @@ class ActivityConfig(BaseModel):
         return self.teacher_uid
 
 
-__all__ = ["ActivityConfig", "ChecklistItem", "Difficulty", "Language", "WorkbenchType"]
+__all__ = [
+    "ActivityConfig",
+    "ChecklistItem",
+    "Difficulty",
+    "InteractionStyle",
+    "Language",
+    "WorkbenchType",
+]

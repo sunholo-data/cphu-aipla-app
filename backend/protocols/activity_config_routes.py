@@ -29,7 +29,14 @@ from db.activity_configs import (
     list_activity_configs,
     upsert_activity_config,
 )
-from db.models.activity_config import ActivityConfig, ChecklistItem, Difficulty, Language, WorkbenchType
+from db.models.activity_config import (
+    ActivityConfig,
+    ChecklistItem,
+    Difficulty,
+    InteractionStyle,
+    Language,
+    WorkbenchType,
+)
 
 log = logging.getLogger(__name__)
 
@@ -59,6 +66,7 @@ class ActivityConfigUpsert(BaseModel):
     teaching_goal: str = Field(alias="teachingGoal", max_length=2000)
     language: Language = "da"
     difficulty: Difficulty = "standard"
+    interaction_style: InteractionStyle = Field(default="socratic", alias="interactionStyle")
     paired_workbench: str | None = Field(default=None, alias="pairedWorkbench")
     workbench_type: WorkbenchType = Field(default="none", alias="workbenchType")
     checklist: list[ChecklistItem] = Field(default_factory=list)
@@ -97,6 +105,7 @@ async def post_activity_config(
         teaching_goal=body.teaching_goal,
         language=body.language,
         difficulty=body.difficulty,
+        interaction_style=body.interaction_style,
         paired_workbench=body.paired_workbench,
         workbench_type=body.workbench_type,
         checklist=body.checklist,
@@ -207,6 +216,7 @@ async def patch_activity_config(
         teaching_goal=body.teaching_goal,
         language=body.language,
         difficulty=body.difficulty,
+        interaction_style=body.interaction_style,
         paired_workbench=body.paired_workbench,
         workbench_type=body.workbench_type,
         checklist=body.checklist,
