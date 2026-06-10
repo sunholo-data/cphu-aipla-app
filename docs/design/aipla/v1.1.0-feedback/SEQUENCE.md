@@ -70,7 +70,7 @@ Verified by code inspection on 2026-06-08 (not by doc placement, which lags). Le
 | 1.1.9 | cost-dashboard | **OPEN** | no BudgetPanel; BQ token data already present via OTel |
 | 1.1.10 | teacher-choice-ttl | **OPEN** | backend `mint_group(ttl_days)` pre-existed; route-validation + teacher-UI form field + CLI `--ttl-days` not built |
 | 1.1.11 | voice-provider-abstraction | **SHIPPED** | `backend/voice/` (base, providers/, registry, cache, cost) |
-| 1.1.12 | voice-personas | **PARTIAL** | `VoiceStatusPill` shipped; Persona model + persona-card picker + `backend/personas/` YAML not built |
+| 1.1.12 | voice-personas | **PARTIAL (advanced)** | `VoiceStatusPill` shipped. **2026-06-10: persona layer landed** — `Persona` model + 5 Danish-educator YAML defs (`backend/personas/`) + loader + `GET /api/personas` + persona-card picker in the builder that **ties `interaction_style`** + records the persona (commits `567d986` + `f591a68`). **Still deferred:** voice tie-in to class settings, MessageBubble avatar/name display, real avatar images (prompts ready), custom (Firestore) personas, CLI |
 | 1.1.13 | sim-onboarding-ergonomics | **SHIPPED** | `useArtefactReportEvent` denylist (2026-06-04) |
 | 1.1.14 | chat-history-flicker-on-token-refresh | **SHIPPED** | AGUIProvider gate fix (2026-06-04) |
 | 1.1.15 | chat-svg-streaming-placeholder | **SHIPPED** | `SVG_STREAMING_TAIL_RE` (2026-06-04) |
