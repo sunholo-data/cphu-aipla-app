@@ -10,7 +10,9 @@ import {
   type Difficulty,
   type InteractionStyle,
   type Language,
+  type PersonaPayload,
   type WorkbenchType,
+  fetchPersonaList,
   listAccessibleSkills,
   listClasses,
   patchLessons,
@@ -94,6 +96,14 @@ function NewActivityForm() {
   const [language, setLanguage] = useState<Language>("da");
   const [difficulty, setDifficulty] = useState<Difficulty>("standard");
   const [interactionStyle, setInteractionStyle] = useState<InteractionStyle>("socratic");
+  // Persona (1.1.12): the named character. Picking one sets the tied
+  // interaction_style; the style dropdown below stays an override.
+  const [personas, setPersonas] = useState<PersonaPayload[]>([]);
+  const [persona, setPersona] = useState<string | null>(null);
+  const pickPersona = (p: PersonaPayload | null) => {
+    setPersona(p?.id ?? null);
+    if (p) setInteractionStyle(p.interactionStyle);
+  };
   // First-run default: the concept (no-workbench) path is pre-selected so
   // the happy path to a working activity is the default, not a blank form.
   const [workbenchType] = useState<WorkbenchType>("none");
@@ -137,6 +147,19 @@ function NewActivityForm() {
     };
   }, [preferredClassId]);
 
+  // Persona catalogue — fire-and-forget; the picker just doesn't render on failure.
+  useEffect(() => {
+    let alive = true;
+    fetchPersonaList()
+      .then((ps) => {
+        if (alive) setPersonas(ps);
+      })
+      .catch(() => {});
+    return () => {
+      alive = false;
+    };
+  }, []);
+
   const canSubmit = title.trim().length > 0 && teachingGoal.trim().length > 0 && classId.length > 0 && !isSaving;
 
   async function handleSave(ev: React.FormEvent) {
@@ -154,6 +177,7 @@ function NewActivityForm() {
         language,
         difficulty,
         interactionStyle,
+        persona,
         pairedWorkbench: null,
         workbenchType,
         // Positional ids assigned on save; empty rows dropped.
@@ -367,6 +391,34 @@ function NewActivityForm() {
             </Field>
           </div>
 
+          {personas.length > 0 ? (
+            <div className="flex flex-col gap-2">
+              <span className="text-sm font-medium text-slate-700">Persona</span>
+              <div className="flex flex-wrap gap-2">
+                <PersonaCard
+                  selected={persona === null}
+                  onClick={() => pickPersona(null)}
+                  name="Custom"
+                  title="Set the style yourself"
+                />
+                {personas.map((p) => (
+                  <PersonaCard
+                    key={p.id}
+                    selected={persona === p.id}
+                    onClick={() => pickPersona(p)}
+                    name={p.name}
+                    title={p.title}
+                    avatar={p.avatar}
+                  />
+                ))}
+              </div>
+              <p className="text-xs text-slate-500">
+                A persona sets the teaching style (and, later, the voice + avatar). You can still
+                adjust the style below.
+              </p>
+            </div>
+          ) : null}
+
           <div className="flex flex-col gap-1">
             <Field label="Teaching style" htmlFor="activity-style">
               <select
@@ -404,6 +456,52 @@ function NewActivityForm() {
         </form>
       )}
     </div>
+  );
+}
+
+function PersonaAvatar({ name, avatar }: { name: string; avatar?: string }) {
+  if (avatar) {
+    // eslint-disable-next-line @next/next/no-img-element
+    return <img src={avatar} alt="" aria-hidden="true" className="h-8 w-8 shrink-0 rounded-full object-cover" />;
+  }
+  return (
+    <span
+      aria-hidden="true"
+      className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-indigo-100 text-xs font-bold text-indigo-700"
+    >
+      {name[0]?.toUpperCase() ?? "?"}
+    </span>
+  );
+}
+
+function PersonaCard({
+  selected,
+  onClick,
+  name,
+  title,
+  avatar,
+}: {
+  selected: boolean;
+  onClick: () => void;
+  name: string;
+  title?: string | null;
+  avatar?: string;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      aria-pressed={selected}
+      className={`flex w-40 items-center gap-2 rounded-md border px-2 py-2 text-left ${
+        selected ? "border-indigo-500 bg-indigo-50" : "border-slate-300 hover:bg-slate-50"
+      }`}
+    >
+      <PersonaAvatar name={name} avatar={avatar} />
+      <span className="flex min-w-0 flex-col">
+        <span className="truncate text-sm font-medium text-slate-900">{name}</span>
+        {title ? <span className="truncate text-xs text-slate-500">{title}</span> : null}
+      </span>
+    </button>
   );
 }
 

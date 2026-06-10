@@ -11,6 +11,7 @@ const listClassesMock = vi.fn();
 const listSkillsMock = vi.fn();
 const saveActivityConfigMock = vi.fn();
 const patchLessonsMock = vi.fn();
+const fetchPersonaListMock = vi.fn();
 vi.mock("@/lib/teacherApi", async () => {
   const actual = await vi.importActual<typeof import("@/lib/teacherApi")>("@/lib/teacherApi");
   return {
@@ -19,6 +20,7 @@ vi.mock("@/lib/teacherApi", async () => {
     listAccessibleSkills: () => listSkillsMock(),
     saveActivityConfig: (body: unknown) => saveActivityConfigMock(body),
     patchLessons: (classId: string, body: unknown) => patchLessonsMock(classId, body),
+    fetchPersonaList: () => fetchPersonaListMock(),
   };
 });
 
@@ -40,6 +42,8 @@ describe("/teacher/activities/new — concept activity builder", () => {
     listSkillsMock.mockResolvedValue(SKILLS);
     saveActivityConfigMock.mockResolvedValue({});
     patchLessonsMock.mockResolvedValue({});
+    fetchPersonaListMock.mockReset();
+    fetchPersonaListMock.mockResolvedValue([]); // no picker by default
   });
 
   it("renders the builder form once classes load", async () => {
@@ -100,6 +104,35 @@ describe("/teacher/activities/new — concept activity builder", () => {
     fireEvent.click(screen.getByRole("button", { name: /create activity/i }));
     await waitFor(() => expect(saveActivityConfigMock).toHaveBeenCalledTimes(1));
     expect(saveActivityConfigMock.mock.calls[0][0].interactionStyle).toBe("concise");
+  });
+
+  it("picking a persona sets its teaching style and records the persona id (1.1.12)", async () => {
+    listClassesMock.mockResolvedValue(ONE_CLASS);
+    fetchPersonaListMock.mockResolvedValue([
+      {
+        id: "astrid",
+        name: "Astrid",
+        title: "Senior underviser",
+        avatar: "",
+        language: "da",
+        interactionStyle: "rigorous",
+        bio: null,
+      },
+    ]);
+    render(<NewActivityPage />);
+    fireEvent.change(await screen.findByLabelText(/activity name/i), { target: { value: "E" } });
+    fireEvent.change(screen.getByLabelText(/lesson prompt/i), { target: { value: "g" } });
+
+    // the persona card appears once the catalogue loads
+    fireEvent.click(await screen.findByRole("button", { name: /Astrid/ }));
+    // picking it set the tied teaching style
+    expect((screen.getByLabelText(/teaching style/i) as HTMLSelectElement).value).toBe("rigorous");
+
+    fireEvent.click(screen.getByRole("button", { name: /create activity/i }));
+    await waitFor(() => expect(saveActivityConfigMock).toHaveBeenCalledTimes(1));
+    const body = saveActivityConfigMock.mock.calls[0][0];
+    expect(body.persona).toBe("astrid");
+    expect(body.interactionStyle).toBe("rigorous");
   });
 
   it("sends teacher-authored checklist items with positional ids", async () => {

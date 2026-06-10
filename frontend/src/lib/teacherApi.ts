@@ -37,9 +37,21 @@ export interface ActivityConfigPayload {
   language: Language;
   difficulty: Difficulty;
   interactionStyle?: InteractionStyle;
+  persona?: string | null;
   pairedWorkbench: string | null;
   workbenchType?: WorkbenchType;
   updatedAt: string;
+}
+
+/** A persona — a named character that ties configs together (1.1.12). */
+export interface PersonaPayload {
+  id: string;
+  name: string;
+  title: string | null;
+  avatar: string;
+  language: string;
+  interactionStyle: InteractionStyle;
+  bio: string | null;
 }
 
 export interface ChecklistItem {
@@ -58,6 +70,7 @@ export interface ActivityConfigUpsert {
   language: Language;
   difficulty: Difficulty;
   interactionStyle?: InteractionStyle;
+  persona?: string | null;
   pairedWorkbench: string | null;
   workbenchType?: WorkbenchType;
   checklist?: ChecklistItem[];
@@ -141,6 +154,13 @@ export async function listMyActivities(
   const qs = classId ? `?classId=${encodeURIComponent(classId)}` : "";
   const resp = await fetchWithAuth(`/api/proxy/api/activity-configs${qs}`);
   return readJson<ActivityConfigPayload[]>(resp, "list activities");
+}
+
+/** List the available personas (the YAML catalogue, 1.1.12). */
+export async function fetchPersonaList(): Promise<PersonaPayload[]> {
+  const resp = await fetchWithAuth(`/api/proxy/api/personas`);
+  const body = await readJson<{ personas: PersonaPayload[] }>(resp, "fetch personas");
+  return body.personas;
 }
 
 /** Fetch a session summary for an anonymous group code.
