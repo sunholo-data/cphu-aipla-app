@@ -68,6 +68,10 @@ class ActivityConfig(BaseModel):
     language: Language = "da"
     difficulty: Difficulty = "standard"
     interaction_style: InteractionStyle = Field(default="socratic", alias="interactionStyle")
+    # Persona (1.1.12): the named character picked for this activity. Records
+    # provenance + drives the student-facing avatar/name display; the tied
+    # configs (interaction_style above) are set from it at author time.
+    persona: str | None = Field(default=None, max_length=64)
     paired_workbench: str | None = Field(default=None, alias="pairedWorkbench")
     workbench_type: WorkbenchType = Field(default="none", alias="workbenchType")
     source_activity_id: str | None = Field(default=None, alias="sourceActivityId")

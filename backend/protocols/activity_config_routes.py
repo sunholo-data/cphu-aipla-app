@@ -67,6 +67,7 @@ class ActivityConfigUpsert(BaseModel):
     language: Language = "da"
     difficulty: Difficulty = "standard"
     interaction_style: InteractionStyle = Field(default="socratic", alias="interactionStyle")
+    persona: str | None = Field(default=None, max_length=64)
     paired_workbench: str | None = Field(default=None, alias="pairedWorkbench")
     workbench_type: WorkbenchType = Field(default="none", alias="workbenchType")
     checklist: list[ChecklistItem] = Field(default_factory=list)
@@ -106,6 +107,7 @@ async def post_activity_config(
         language=body.language,
         difficulty=body.difficulty,
         interaction_style=body.interaction_style,
+        persona=body.persona,
         paired_workbench=body.paired_workbench,
         workbench_type=body.workbench_type,
         checklist=body.checklist,
@@ -217,6 +219,7 @@ async def patch_activity_config(
         language=body.language,
         difficulty=body.difficulty,
         interaction_style=body.interaction_style,
+        persona=body.persona,
         paired_workbench=body.paired_workbench,
         workbench_type=body.workbench_type,
         checklist=body.checklist,
