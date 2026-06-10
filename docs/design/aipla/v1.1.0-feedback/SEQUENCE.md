@@ -78,7 +78,7 @@ Verified by code inspection on 2026-06-08 (not by doc placement, which lags). Le
 | 1.1.17 | student-engagement-signals | **OPEN** | design-only (2026-06-06); no BQ `paste_ratio`/`revision_count` columns. Gated on JB/AR metric review |
 | 1.1.18 | voice-pronunciation-config | **SHIPPED** | `frontend/src/lib/voice-pronunciation/` — see Numbering note below |
 | 1.1.19 | teacher-activity-authoring | **OPEN** | design-only (2026-06-08). Umbrella for non-sim teacher activity creation; aggressive v1.1, phased (M0 ~1.5d pre-freeze). M2 quiz / M4 workbench-type gated on JB/AR. **M6 equipment co-design + curriculum `materials` picker added 2026-06-09** |
-| 1.1.20 | tutor-personas | **OPEN** | design-only (2026-06-09). `interaction_style` presets; gated on AR per-preset prompt sign-off |
+| 1.1.20 | tutor-personas | **SHIPPED (core)** | 2026-06-10 — `interaction_style` field (socratic default / concise / rigorous / warm) end-to-end: override-preamble injection in the agent chain (socratic = passthrough, zero regression) + builder picker. Commits `d1015c1` + `5eb6d0a`; 8 BE + 1 FE tests. **Follow-ups:** AR's final concise/rigorous/warm wording, OTel `tutor.interaction_style`, socratic SKILL.md extraction. A persona (1.1.12) will resolve down to this field |
 | 1.1.21 | multimodal guardrail + units loop | **OPEN** | design-only (2026-06-09); folded into 1.1.7 doc. Blocked behind 1.1.7 landing + M GDPR call on detection approach |
 | 1.1.22 | end-of-class-notes-summary | **OPEN** | design-only (2026-06-09). Composes 1.1.7 + 1.1.8; sequenced after both |
 | 1.1.23 | bidirectional-voice-brief | **OPEN — URGENT** | brief-only (2026-06-09). **Target 2026-06-23.** Blocking: A/B architecture + GDPR delta + owner (M/JB) — resolve immediately |
@@ -86,7 +86,7 @@ Verified by code inspection on 2026-06-08 (not by doc placement, which lags). Le
 | 1.1.25 | curriculum-library | **OPEN** | design-only (2026-06-09). **ADK RAG (managed) — un-gated from pgvector**; JB/M copyright clearance for shared corpus; B/C corpus parsed |
 | 1.1.26 | teacher-ui-consolidation | **SHIPPED (P1–P5)** | 2026-06-09 — full foundation: P1 primitives (`components/teacher/ui/`), P2 by-breakpoint nav (`TeacherNav`), P3 class-detail onto primitives + "Class settings", P4 real Activities library, P5 Insights unification (`InsightsTabs`). Commits `6bb33af`→`d4692ee`; 958 FE tests. **Builder Essential/Advanced section-model intentionally deferred** to when its config features (1.1.20/1.1.23) are built into it |
 
-**Tally (incl. 9 June batch): 10 SHIPPED · 1 PARTIAL · 15 OPEN.** (7 rows added 2026-06-09; 1.1.26 shipped same window.)
+**Tally (incl. 9 June batch): 11 SHIPPED · 1 PARTIAL · 14 OPEN.** (1.1.26 + 1.1.20 shipped 2026-06-09/10.)
 
 ### Still to do (priority order)
 
