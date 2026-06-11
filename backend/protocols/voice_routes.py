@@ -32,10 +32,12 @@ from fastapi import APIRouter, Depends, HTTPException, Response
 from opentelemetry import trace
 from pydantic import BaseModel, ConfigDict, Field
 
+from adk.teacher_focus import resolve_active_config
 from auth import User, get_current_user
 from db.classes import get_class, update_class_voice_settings
 from db.firestore import get_document
 from db.models.class_ import ClassVoiceSettings
+from personas.loader import load_persona
 from skills.skill_config import get_skill
 from voice import get_stt, get_tts
 from voice.cache import CacheKey, TTSCache
@@ -161,17 +163,35 @@ async def get_config(
     skill = get_skill(skill_id) if skill_id else None
     class_voice = _class_voice_for_user(user)
 
-    # Resolution chain (class wins over skill for both provider and voice):
-    #   1. Class teacher set explicit provider/voice -> use those
-    #   2. Skill author set SkillConfig.voice.tts_provider -> use it
-    #   3. Env VOICE_TTS_PROVIDER default kicks in via the registry
+    # 1.1.12: a persona picked on the active activity supplies the voice,
+    # overriding the class/skill defaults for that activity (most specific wins).
+    persona_voice = None
+    if skill_id:
+        cfg = resolve_active_config(skill_id, group_tags=user.group_tags)
+        if cfg is not None and cfg.persona:
+            p = load_persona(cfg.persona)
+            if p is not None:
+                persona_voice = p.voice
+
+    # Resolution chain (most specific wins; each tier only fills what's unset):
+    #   1. Persona voice (the activity's character) -> 1.1.12
+    #   2. Class teacher explicit provider/voice
+    #   3. Skill author SkillConfig.voice
+    #   4. Env VOICE_TTS_PROVIDER default via the registry
     resolved_provider_override: str | None = None
     resolved_voice: str | None = None
     resolved_lang: str | None = None
+    if persona_voice is not None:
+        resolved_provider_override = persona_voice.tts_provider
+        resolved_voice = persona_voice.tts_voice
+        resolved_lang = persona_voice.language
     if class_voice is not None:
-        resolved_provider_override = class_voice.provider
-        resolved_voice = class_voice.voice
-        resolved_lang = class_voice.language
+        if resolved_provider_override is None:
+            resolved_provider_override = class_voice.provider
+        if resolved_voice is None:
+            resolved_voice = class_voice.voice
+        if resolved_lang is None:
+            resolved_lang = class_voice.language
     if resolved_voice is None and skill is not None:
         sv = getattr(skill, "voice", None)
         if sv is not None:

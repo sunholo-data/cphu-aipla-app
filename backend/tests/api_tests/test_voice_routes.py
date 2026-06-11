@@ -124,6 +124,36 @@ def test_config_with_skill_id_passes_skill_to_registry(client, monkeypatch):
     assert seen["skill"] is fake_skill
 
 
+def test_config_persona_voice_overrides_class_and_skill(client, monkeypatch):
+    """1.1.12: a persona on the active activity supplies the tutor voice."""
+    from types import SimpleNamespace
+
+    seen = {}
+
+    def fake_get_tts(skill=None):
+        seen["skill"] = skill
+        return _fake_tts("gcp_wavenet")
+
+    monkeypatch.setattr("protocols.voice_routes.get_tts", fake_get_tts)
+    monkeypatch.setattr("protocols.voice_routes.get_stt", lambda skill=None: _fake_stt("disabled"))
+    monkeypatch.setattr("protocols.voice_routes.get_skill", lambda sid: None)
+    monkeypatch.setattr("protocols.voice_routes._class_voice_for_user", lambda user: None)
+    # The active activity has the "frida" persona (real catalogue entry).
+    monkeypatch.setattr(
+        "protocols.voice_routes.resolve_active_config",
+        lambda sid, group_tags=None: SimpleNamespace(persona="frida"),
+    )
+
+    resp = client.get("/api/voice/config?skill_id=concept-x")
+    assert resp.status_code == 200
+    data = resp.json()
+    # Frida's voice (da-DK-Wavenet-D / gcp_wavenet) wins over the absent class/skill.
+    assert data["tts"]["voice"] == "da-DK-Wavenet-D"
+    assert data["tts"]["language"] == "da"
+    # The persona's provider override reached the registry via the wrapped skill.
+    assert seen["skill"].voice.tts_provider == "gcp_wavenet"
+
+
 # --- POST /api/voice/tts/synthesize ---
 
 
