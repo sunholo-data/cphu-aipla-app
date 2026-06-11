@@ -71,7 +71,11 @@ export interface UseSkillAgentReturn {
   stageLabel: string | null;
   sendMessage: (
     text: string,
-    opts?: { documentIds?: string[]; resumedSession?: boolean },
+    opts?: {
+      documentIds?: string[];
+      resumedSession?: boolean;
+      attachments?: Array<{ mimeType: string; data: string; name?: string }>;
+    },
   ) => Promise<void>;
   isLoading: boolean;
   error: StreamError | null;
@@ -400,7 +404,11 @@ export function useSkillAgent(options?: { _hangTimeoutMs?: number }): UseSkillAg
   const sendMessage = useCallback(
     async (
       text: string,
-      opts?: { documentIds?: string[]; resumedSession?: boolean },
+      opts?: {
+        documentIds?: string[];
+        resumedSession?: boolean;
+        attachments?: Array<{ mimeType: string; data: string; name?: string }>;
+      },
     ) => {
       clearError();
       setRunStarted(false);
@@ -433,6 +441,15 @@ export function useSkillAgent(options?: { _hangTimeoutMs?: number }): UseSkillAg
         }
         if (opts?.resumedSession) {
           forwardedProps.resumed_session = true;
+        }
+        // 1.1.7 multimodal upload — images ride back as base64 on
+        // forwardedProps.attachments. The backend's _extract_attachments
+        // stashes them transiently; make_image_injector injects each as an
+        // inline-data Part before the model call and never persists the
+        // bytes (non-retention). Omit the slot when empty so the wire stays
+        // clean. Documents go via document_ids/docparse, not here.
+        if (opts?.attachments && opts.attachments.length > 0) {
+          forwardedProps.attachments = opts.attachments;
         }
         // Sprint 2.10: attach per-turn A2UI surface snapshot when any
         // surface is active. Omit the slot entirely when empty so the

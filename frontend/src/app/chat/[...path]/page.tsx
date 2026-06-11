@@ -9,6 +9,8 @@ import type { PersonaSummary } from "@/components/chat/MessageBubble";
 import { PersonaHeader } from "@/components/chat/PersonaHeader";
 import { LangToggle } from "@/components/chat/LangToggle";
 import { ResumeWelcomeBanner } from "@/components/chat/ResumeWelcomeBanner";
+import { ImageStagingRow, ImageUploadButtons } from "@/components/chat/ImageComposer";
+import { useImageAttachments, MAX_IMAGES } from "@/hooks/useImageAttachments";
 import { VoiceStatusPill } from "@/components/chat/VoiceStatusPill";
 import { useVoiceConfig } from "@/hooks/useVoiceConfig";
 import type { DocTabData } from "@/components/doc-browser/DocTab";
@@ -350,6 +352,7 @@ function ChatShell({
     slug: skillSlug,
     problemStatement: skillProblemStatement,
     proactiveGreet: skillProactiveGreet,
+    multimodalInput: skillMultimodalInput,
   } = useSkillMeta(skillId);
 
   const { skills: userSkills, isLoading: skillsLoading } = useUserSkills(user.uid);
@@ -405,6 +408,10 @@ function ChatShell({
   const searchParams = useSearchParams();
   const router = useRouter();
   const [draft, setDraft] = useState("");
+  // 1.1.7 multimodal upload — staged images for the next turn (gated by the
+  // skill's multimodalInput flag at render time). Owns guardrail + resize +
+  // object-URL cleanup; handleSend reads `.attachments` and calls `.clear()`.
+  const images = useImageAttachments();
   // PEDCTX/Boldkast — workspace toggle between default content
   // (problem statement + checklist) and the Boldkast sim iframe.
   const [showBoldkastSim, setShowBoldkastSim] = useState(false);
@@ -612,9 +619,15 @@ function ChatShell({
 
   async function handleSend() {
     const text = draft.trim();
-    if (!text || isLoading || error) return;
+    const attachments = images.attachments;
+    // Allow an image-only turn (no text) when something is staged.
+    if ((!text && attachments.length === 0) || isLoading || error) return;
     lastUserMessageRef.current = text;
     setDraft("");
+    // Non-retention: the staged bytes ride this one turn only. Clear the
+    // composer immediately — the backend injects them transiently and never
+    // persists, so there's nothing to show back in history.
+    images.clear();
     // 1.E Phase 2: ask any mounted workbench artefact to flush its
     // pending slider changes BEFORE the user message goes out. The
     // artefact responds synchronously inside its iframe (postMessage
@@ -627,9 +640,10 @@ function ChatShell({
     // Snap to chat tab on mobile so the student sees the response
     // stream in. No effect on md+ where both panels are visible.
     setMobileTab("chat");
-    await sendMessage(text, {
+    await sendMessage(text || "Please take a look at this image.", {
       documentIds: includedDocIds,
       resumedSession: enteredViaResume,
+      attachments: attachments.length > 0 ? attachments : undefined,
     });
   }
 
@@ -1007,6 +1021,13 @@ function ChatShell({
           />
 
           <footer className="border-t p-3">
+            {skillMultimodalInput && (
+              <ImageStagingRow
+                staged={images.staged}
+                notice={images.notice}
+                onRemove={images.remove}
+              />
+            )}
             <form
               className="flex gap-2"
               onSubmit={(e) => {
@@ -1014,6 +1035,13 @@ function ChatShell({
                 void handleSend();
               }}
             >
+              {skillMultimodalInput && (
+                <ImageUploadButtons
+                  onFiles={(files) => void images.addFiles(files)}
+                  disabled={inputDisabled}
+                  full={images.count >= MAX_IMAGES}
+                />
+              )}
               <input
                 value={draft}
                 onChange={(e) => setDraft(e.target.value)}
@@ -1033,7 +1061,7 @@ function ChatShell({
                 <button
                   type="submit"
                   className="rounded-md bg-primary px-3 py-2 text-sm text-primary-foreground"
-                  disabled={!draft.trim() || inputDisabled}
+                  disabled={(!draft.trim() && images.count === 0) || inputDisabled}
                 >
                   Send
                 </button>

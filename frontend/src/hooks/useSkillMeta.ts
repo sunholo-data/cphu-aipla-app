@@ -27,6 +27,10 @@ interface SkillMeta {
    * POST /api/sessions/{id}/greet on mount so the tutor speaks first
    * instead of waiting for the student to type. Default false. */
   proactiveGreet: boolean;
+  /** 1.1.7 — when true, the composer shows the image-upload affordance
+   * (paperclip + camera). Gates the multimodal UI per skill so only skills
+   * meant to read photos expose it. Default false. */
+  multimodalInput: boolean;
   loading: boolean;
 }
 
@@ -43,6 +47,8 @@ interface SkillResponse {
   problem_statement?: string;
   proactiveGreet?: boolean;
   proactive_greet?: boolean;
+  multimodalInput?: boolean;
+  multimodal_input?: boolean;
   skillMetadata?: { toolConfigs?: { mcp?: { servers?: unknown } } };
   skill_metadata?: { toolConfigs?: { mcp?: { servers?: unknown } } };
 }
@@ -62,6 +68,7 @@ export function useSkillMeta(skillId: string): SkillMeta {
   const [initialMessage, setInitialMessage] = useState<string>("");
   const [problemStatement, setProblemStatement] = useState<string>("");
   const [proactiveGreet, setProactiveGreet] = useState<boolean>(false);
+  const [multimodalInput, setMultimodalInput] = useState<boolean>(false);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -79,6 +86,7 @@ export function useSkillMeta(skillId: string): SkillMeta {
           setInitialMessage(data.initialMessage || data.initial_message || "");
           setProblemStatement(data.problemStatement || data.problem_statement || "");
           setProactiveGreet(Boolean(data.proactiveGreet ?? data.proactive_greet ?? false));
+          setMultimodalInput(Boolean(data.multimodalInput ?? data.multimodal_input ?? false));
           setLoading(false);
         }
       })
@@ -99,6 +107,7 @@ export function useSkillMeta(skillId: string): SkillMeta {
     initialMessage,
     problemStatement,
     proactiveGreet,
+    multimodalInput,
     loading,
   };
 }

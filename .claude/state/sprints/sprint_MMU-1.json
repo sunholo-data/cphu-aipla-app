@@ -58,10 +58,11 @@
         "frontend/src/hooks/useSkillAgent.ts",
         "frontend/src/app/chat/[...path]/page.tsx"
       ],
-      "passes": null,
-      "started": null,
-      "completed": null,
-      "notes": "READY TO BUILD — exact seams found. WIRE: useSkillAgent.sendMessage opts (src/hooks/useSkillAgent.ts:400-403) -> add attachments?: {mimeType,data(base64),name}[]; thread to forwardedProps.attachments at line ~444 (next to document_ids at 431-433). COMPOSER: inline in src/app/chat/[...path]/page.tsx — handleSend() at 613 calls sendMessage(text,{documentIds,resumedSession}) at 630 (add attachments + clear after); the form is at ~1012, input placeholder 'Message…' at 1020 (add paperclip + camera + thumbnails here). GATE: read multimodal_input from the skill meta (useSkillMeta) to show/hide the paperclip. NEW LIBS: lib/imageResize.ts (canvas->2048px->base64), lib/personGuardrail.ts (FaceDetector, graceful degrade). UNITS-LOOP: add ## Image input block to the 3 tutor SKILL.md (problem-set-hints, led-planck-tutor, kinebot-kinematics-tutor)."
+      "passes": true,
+      "started": "2026-06-11",
+      "completed": "2026-06-11",
+      "actual_loc": 690,
+      "notes": "SHIPPED. lib/imageResize.ts (pure computeTargetSize/stripDataUrlPrefix + canvas resize→2048px JPEG q0.85, heic passthrough) + lib/personGuardrail.ts (pure evaluatePersonScreen + screenImageForPerson via Shape Detection FaceDetector, graceful degrade = allow+notice, never over-block). Staging owned by hooks/useImageAttachments.ts (cap 4, guardrail block, objectURL cleanup); presentational components/chat/ImageComposer.tsx (ImageStagingRow + ImageUploadButtons paperclip/camera). Wired: useSkillAgent.sendMessage opts.attachments→forwardedProps.attachments; useSkillMeta.multimodalInput gate; page.tsx handleSend sends base64 + clears (image-only turn allowed). 22 FE tests. ARCH CHANGE from plan: the '## Image input' units-loop guidance is NOT inlined per-SKILL.md — problem-set-hints body was already ~118 chars under the 10k SkillConfig cap, so an inline block overflowed it (test_real_skill_templates_instructions_under_10k_limit went red). Instead it's a SHARED backend preamble (backend/skills/preambles/image_input.md) injected at agent build by adk/multimodal.py inject_image_input_preamble(instructions, multimodal_input), gated on the flag, mirroring inject_interaction_style_preamble (1.1.20). DRY + cap-safe + auto-applies to any future multimodal skill. Frontmatter multimodalInput:true added to all 3 tutors. Backend gate: lint clean, test-fast 1823 + injector test. FE gate: quality:check exit 0."
     }
   ],
   "velocity": {
@@ -73,7 +74,7 @@
     "actual_days": null
   },
   "github_issues": [],
-  "last_session": null,
-  "last_checkpoint": null,
-  "status": "in_progress"
+  "last_session": "2026-06-11",
+  "last_checkpoint": "M2 shipped — both gates green",
+  "status": "complete"
 }

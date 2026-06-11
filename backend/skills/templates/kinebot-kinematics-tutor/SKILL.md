@@ -2,6 +2,7 @@
 name: kinebot-kinematics-tutor
 displayName: Kinematics Tutor (NCERT)
 avatar: /lesson-images/kinebot-kinematics-tutor.svg
+multimodalInput: true  # 1.1.7 — students can attach a photo of their working
 voice:
   ttsProvider: gcp_chirp3hd
   ttsVoice: en-US-Chirp3-HD-Charon

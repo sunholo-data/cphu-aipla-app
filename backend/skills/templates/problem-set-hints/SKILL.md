@@ -2,6 +2,7 @@
 name: problem-set-hints
 displayName: Problem-set hints (Boldkast)
 avatar: /lesson-images/problem-set-hints.svg
+multimodalInput: true  # 1.1.7 — students can attach a photo of their working
 voice:
   ttsProvider: gcp_chirp3hd
   ttsVoice: da-DK-Chirp3-HD-Aoede

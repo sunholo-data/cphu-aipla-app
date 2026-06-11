@@ -2,6 +2,7 @@
 name: led-planck-tutor
 displayName: LED og Plancks konstant
 avatar: /lesson-images/led-planck-tutor.svg
+multimodalInput: true  # 1.1.7 — students can attach a photo of their lab work
 voice:
   ttsProvider: gcp_chirp3hd
   ttsVoice: da-DK-Chirp3-HD-Aoede

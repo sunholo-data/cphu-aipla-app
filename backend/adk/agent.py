@@ -62,6 +62,7 @@ from adk.mcp_observability import (
     make_mcp_after_tool_callback,
     make_mcp_before_tool_callback,
 )
+from adk.multimodal import inject_image_input_preamble
 from adk.proactive_greet import inject_opening_guidance
 from adk.proactive_reactive import inject_reactive_guidance
 from adk.proactive_telemetry import tag_proactive_span_from_callback_context
@@ -513,7 +514,18 @@ def create_agent(
                         # countermands. A persona (1.1.12) resolves down to this
                         # interaction_style.
                         inject_interaction_style_preamble(
-                            skill_config.instructions,
+                            # Phase 1.1.7: when the skill opts into image
+                            # upload, append the shared image-input guidance
+                            # (units-loop / no-solve / privacy) right after
+                            # the SKILL.md body. Innermost so it sits closest
+                            # to the body it extends; passthrough when
+                            # multimodal_input is False. Centralised rather
+                            # than inlined per-SKILL.md because the body is
+                            # capped at 10k chars (problem-set-hints is at it).
+                            inject_image_input_preamble(
+                                skill_config.instructions,
+                                skill_config.multimodal_input,
+                            ),
                             skill_config.skill_id,
                             group_tags=user.group_tags,
                         ),
