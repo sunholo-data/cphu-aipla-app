@@ -566,6 +566,44 @@ ensure_group_auth_signing_secret() {
     --quiet >/dev/null
 }
 
+ensure_docparse_api_key_secret() {
+  # DOCPARSE_API_KEY backs the AILANG Parse document path for multimodal
+  # upload (1.1.7): student/teacher .docx/.pdf uploads are parsed to text
+  # via the docparse API before the model call. Images bypass this (they go
+  # straight to Gemini vision); only documents need the key.
+  #
+  # UNLIKE AGENT_ENGINE_ID / GROUP_AUTH_SIGNING_SECRET, this value is NOT
+  # derivable or mintable by the script — it's an external API key issued by
+  # the docparse service. So: create an empty placeholder if the secret is
+  # absent (keeps `cloudbuild.yaml --set-secrets=DOCPARSE_API_KEY=...:latest`
+  # from failing the Cloud Run deploy on a missing secret), then WARN the
+  # operator to populate the real key. The doc-parse path is gated behind a
+  # skill's multimodalInput flag, so a placeholder degrades gracefully:
+  # docparse calls 401 only once a multimodal skill is actually enabled.
+  log "Ensuring DOCPARSE_API_KEY (external key — operator must populate)..."
+  if gcloud secrets describe DOCPARSE_API_KEY --project="$PROJECT" &>/dev/null; then
+    log "  already exists (value managed out-of-band — not overwritten)"
+  else
+    log "  creating Secret Manager entry DOCPARSE_API_KEY with a placeholder"
+    printf '%s' 'REPLACE_ME_WITH_DOCPARSE_API_KEY' | gcloud secrets create DOCPARSE_API_KEY \
+      --data-file=- \
+      --replication-policy=automatic \
+      --project="$PROJECT" >/dev/null
+    log "  ⚠ DOCPARSE_API_KEY holds a PLACEHOLDER. Populate the real key with:"
+    log "      printf '%s' '<the-docparse-api-key>' | gcloud secrets versions add DOCPARSE_API_KEY --data-file=- --project=${PROJECT}"
+  fi
+  # Explicit per-secret accessor grant. Redundant with the project-level
+  # roles/secretmanager.secretAccessor bound in ensure_sa(), but kept explicit
+  # for the same auditability reason AGENT_ENGINE_ID / GROUP_AUTH have it:
+  # reading the bootstrap shows exactly which SA touches which secret.
+  gcloud secrets add-iam-policy-binding DOCPARSE_API_KEY \
+    --member="serviceAccount:${SA_EMAIL}" \
+    --role="roles/secretmanager.secretAccessor" \
+    --project="$PROJECT" \
+    --quiet >/dev/null
+  log "  ✓ aipla-v6@ granted secretAccessor on DOCPARSE_API_KEY"
+}
+
 ensure_runtime_buckets() {
   # Buckets referenced by cloudbuild.yaml after the M2 inherited-name strip:
   #   - {PROJECT}-cloudbuild-logs   (cloudbuild.yaml logsBucket)
@@ -611,6 +649,7 @@ main() {
   ensure_runtime_buckets
   ensure_firebase_web_app_and_secret
   ensure_group_auth_signing_secret
+  ensure_docparse_api_key_secret
   ensure_agent_engine
   ensure_cb_repository
   ensure_cb_service_agent

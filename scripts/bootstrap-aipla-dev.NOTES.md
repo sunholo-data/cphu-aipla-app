@@ -367,3 +367,89 @@ is pay-per-use; no traffic was sent to the placeholders).
 availability should use a validation-error trigger (e.g. an
 intentionally invalid `displayName`), not an empty body. The
 `reasoning-engines` API treats empty as "create with defaults."
+
+## 2026-06-11 — DOCPARSE_API_KEY secret for multimodal document upload (1.1.7)
+
+### Decision 14 — document uploads parse through the docparse (AILANG Parse) API; images do not
+
+Multimodal upload (sprint MMU-1) splits inbound files two ways:
+- **Images** (jpeg/png/webp/heic) → injected straight into the Gemini turn
+  as an inline-data `Part` by `make_image_injector` (a `before_model_callback`).
+  No external service, no key, no retention — bytes live only inside the
+  transient `llm_request.contents`. See `backend/adk/callbacks/image.py`.
+- **Documents** (.docx/.pdf/etc.) → parsed to text via the **docparse API**
+  (AILANG Parse, `ailang-parse` SDK) *before* the model call. The SDK reads
+  `DOCPARSE_API_KEY` from the environment.
+
+So `DOCPARSE_API_KEY` is only needed for the document path. It's wired into
+the Cloud Run runtime via `cloudbuild.yaml`:
+`--set-secrets=DOCPARSE_API_KEY=DOCPARSE_API_KEY:latest`. Locally it lives in
+`backend/.env`.
+
+### Live dev state, verified 2026-06-11 (account `m@sunholo.com`):
+
+- Secret Manager: `DOCPARSE_API_KEY` exists on `aipla-dev-2026`
+  (`projects/784116621297/secrets/DOCPARSE_API_KEY`, created 10:38 UTC,
+  populated out-of-band by M with the real key).
+- **No per-secret IAM grant was required**: the runtime SA
+  `aipla-v6@aipla-dev-2026.iam.gserviceaccount.com` already holds
+  `roles/secretmanager.secretAccessor` at the **project level** (bound in
+  `ensure_sa()`, roles list line ~123), which covers every secret in the
+  project — `DOCPARSE_API_KEY` included. Confirmed by
+  `gcloud projects get-iam-policy aipla-dev-2026 --flatten=bindings[].members
+  --filter="role=...secretAccessor AND members:aipla-v6@..."` → match.
+
+### Difference from AGENT_ENGINE_ID / GROUP_AUTH_SIGNING_SECRET
+
+Those two are **mintable by the script** (AGENT_ENGINE_ID derived from the
+Agent Engine provision; GROUP_AUTH via `openssl rand`). `DOCPARSE_API_KEY` is
+an **external API key** the docparse service issues — the script cannot
+generate it. The deploy step references the secret unconditionally via
+`--set-secrets`, so a missing secret would FAIL the Cloud Run deploy on a
+fresh env. `ensure_docparse_api_key_secret()` therefore creates an empty
+**placeholder** (`REPLACE_ME_WITH_DOCPARSE_API_KEY`) when absent so deploys
+stay green, then warns the operator to populate the real value. Graceful
+degradation: the doc-parse path is gated behind a skill's `multimodalInput`
+flag, so a placeholder only 401s once a multimodal skill is actually enabled.
+
+### Test/prod path (Terraform):
+
+`DOCPARSE_API_KEY` is operator-supplied, so Terraform manages the **secret
+container and the IAM**, never the secret *value* (don't put an API key in
+state). Add to the same secrets module as `AGENT_ENGINE_ID`:
+
+```hcl
+# 1. Secret container only — value is added out-of-band (gcloud / console),
+#    NOT via Terraform, so the docparse API key never lands in tfstate.
+resource "google_secret_manager_secret" "docparse_api_key" {
+  project   = var.project_id
+  secret_id = "DOCPARSE_API_KEY"
+  replication { auto {} }
+}
+
+# 2. Per-secret accessor for the runtime SA. Strictly redundant with the
+#    project-level roles/secretmanager.secretAccessor the runtime SA already
+#    holds (see the SA module), but kept explicit for auditability — it
+#    documents in code which SA reads which secret. Drop it if the module
+#    standardises on the project-level grant instead.
+resource "google_secret_manager_secret_iam_member" "docparse_runtime_sa_accessor" {
+  project   = var.project_id
+  secret_id = google_secret_manager_secret.docparse_api_key.secret_id
+  role      = "roles/secretmanager.secretAccessor"
+  member    = "serviceAccount:${var.runtime_sa_email}"
+}
+
+# 3. After apply, populate the value once per env (NOT in Terraform):
+#    printf '%s' '<docparse-api-key>' | gcloud secrets versions add \
+#      DOCPARSE_API_KEY --data-file=- --project=<project_id>
+#
+#    cloudbuild.yaml already consumes it:
+#      --set-secrets=DOCPARSE_API_KEY=DOCPARSE_API_KEY:latest
+```
+
+**Operator runbook for a new env:** (1) `terraform apply` creates the empty
+secret + IAM; (2) add the real key with the `gcloud secrets versions add`
+line above; (3) deploy. If you skip step 2, the deploy still succeeds but
+docparse calls 401 the moment a `multimodalInput` skill is used.
+
+### Captured in script? ✅ yes — `ensure_docparse_api_key_secret()` (placeholder + explicit accessor grant). The Terraform recipe above is the test/prod equivalent.
