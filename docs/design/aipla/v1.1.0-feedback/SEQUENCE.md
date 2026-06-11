@@ -65,7 +65,7 @@ Verified by code inspection on 2026-06-08 (not by doc placement, which lags). Le
 | 1.1.4 | session-report summary-primary | **OPEN** | report page exists (`teacher/reports/groups/[groupId]`); layout-flip + summary-prompt rewrite not done |
 | 1.1.5 | researcher-role | **OPEN** | no Firebase claim, no `--all-classes` flag, no Research-view toggle |
 | 1.1.6 | group-code-ttl rename + archival | **SHIPPED** | `DEFAULT_GROUP_CODE_TTL_DAYS` + 410-on-expiry (QUICK-WINS-V11) |
-| 1.1.7 | student-multimodal-upload | **OPEN** | most-requested student feature; gated on JB image-retention posture |
+| 1.1.7 | student-multimodal-upload | **SHIPPED** | 2026-06-11. Native AG-UI multimodal (images ride `UserMessage.content` as `ImageInputContent` → ADK Parts, retained in session history; docs → docparse). Composer paperclip+camera, on-device person guardrail (1.1.21), client resize, units-loop preamble. M1→M3 incl. the native-rewire that deleted the first custom-injector pass. Sprint `MMU-1`. Commits incl. `6fbbe92`→`1fdb3a0` |
 | 1.1.8 | exit-ticket | **OPEN** | gated on JB/AR question set |
 | 1.1.9 | cost-dashboard | **OPEN** | no BudgetPanel; BQ token data already present via OTel |
 | 1.1.10 | teacher-choice-ttl | **OPEN** | backend `mint_group(ttl_days)` pre-existed; route-validation + teacher-UI form field + CLI `--ttl-days` not built |
@@ -79,22 +79,35 @@ Verified by code inspection on 2026-06-08 (not by doc placement, which lags). Le
 | 1.1.18 | voice-pronunciation-config | **SHIPPED** | `frontend/src/lib/voice-pronunciation/` — see Numbering note below |
 | 1.1.19 | teacher-activity-authoring | **OPEN** | design-only (2026-06-08). Umbrella for non-sim teacher activity creation; aggressive v1.1, phased (M0 ~1.5d pre-freeze). M2 quiz / M4 workbench-type gated on JB/AR. **M6 equipment co-design + curriculum `materials` picker added 2026-06-09** |
 | 1.1.20 | tutor-personas | **SHIPPED (core)** | 2026-06-10 — `interaction_style` field (socratic default / concise / rigorous / warm) end-to-end: override-preamble injection in the agent chain (socratic = passthrough, zero regression) + builder picker. Commits `d1015c1` + `5eb6d0a`; 8 BE + 1 FE tests. **Follow-ups:** AR's final concise/rigorous/warm wording, OTel `tutor.interaction_style`, socratic SKILL.md extraction. A persona (1.1.12) will resolve down to this field |
-| 1.1.21 | multimodal guardrail + units loop | **OPEN** | design-only (2026-06-09); folded into 1.1.7 doc. Blocked behind 1.1.7 landing + M GDPR call on detection approach |
+| 1.1.21 | multimodal guardrail + units loop | **SHIPPED** | 2026-06-11 with 1.1.7. On-device `FaceDetector` no-person guardrail (graceful-degrade, never over-blocks) + units-loop guidance as a shared `image_input` preamble. M's posture = on-device private default |
 | 1.1.22 | end-of-class-notes-summary | **OPEN** | design-only (2026-06-09). Composes 1.1.7 + 1.1.8; sequenced after both |
-| 1.1.23 | bidirectional-voice-brief | **OPEN — URGENT (de-risked)** | brief-only. **Target 2026-06-23.** **DECISION 2026-06-11: `gemini_live` DEFERRED** (needs a non-Google/local-Whisper port first); **`stt_tts_roundtrip` is the v1 mode + voice-in is a requirement.** Now a ~0.5–1.5d build over the shipped 1.1.11 parts; only gate is M's transcript-only GDPR delta (not the heavy continuous-audio review). Buildable now |
+| 1.1.23 | bidirectional-voice-brief | **SHIPPED** (ahead of the 06-23 date) | 2026-06-11. Sprint `VOICE-IN-REC`: M1 `GCPSTTProvider` + `/api/voice/stt/transcribe`; M3 composer mic (talk-to-type **XOR** record-lesson); M4 config-simplification (raw picker → "Advanced", two capability toggles). `gemini_live` stays deferred. Voice-in **on by default** per class; recording is a deliberate consent-gated toggle. Commits `cbdb8c5`→`4b21dfb` + `10221a4` |
 | 1.1.24 | offline-lab-workbench | **OPEN** | design-only (2026-06-09). Gated on JB/AR ground-truth model + 2 real experiments; depends on 1.J Type 5 |
-| 1.1.25 | curriculum-library | **OPEN** | design-only (2026-06-09). **ADK RAG (managed) — un-gated from pgvector**; JB/M copyright clearance for shared corpus; B/C corpus parsed |
+| 1.1.25 | curriculum-library | **PARTIAL (M1)** | 2026-06-11 M1: `CurriculumDoc` model + Firestore CRUD + `GET /api/curriculum` ACL browse (teacher shared+own; students 403). Sprint `CURRICULUM`, commit `3c3153a`. **Remaining M2–M5** (provision Vertex `RagManagedDb` corpus + docparse→ingest; `VertexAiRagRetrieval` tutor grounding scoped to cited materials; builder Materials picker; CLI). **ADK RAG API verified 2026-06-11** — see `sprint_CURRICULUM.json` for the resume point + verified API |
 | 1.1.26 | teacher-ui-consolidation | **SHIPPED (P1–P5)** | 2026-06-09 — full foundation: P1 primitives (`components/teacher/ui/`), P2 by-breakpoint nav (`TeacherNav`), P3 class-detail onto primitives + "Class settings", P4 real Activities library, P5 Insights unification (`InsightsTabs`). Commits `6bb33af`→`d4692ee`; 958 FE tests. **Builder Essential/Advanced section-model intentionally deferred** to when its config features (1.1.20/1.1.23) are built into it |
 
-**Tally (incl. 9 June batch): 12 SHIPPED · 0 PARTIAL · 14 OPEN.** (1.1.26 + 1.1.20 shipped 2026-06-09/10; 1.1.12 persona bundle 2026-06-10/11.)
+**Tally (incl. 9 June batch + 2026-06-11 session): 15 SHIPPED · 1 PARTIAL (1.1.25) · 11 OPEN.** (1.1.26+1.1.20 2026-06-09/10; 1.1.12 2026-06-10/11; 1.1.7+1.1.21+1.1.23 shipped 2026-06-11; 1.1.25 M1 2026-06-11.)
+
+### Beyond the numbered roadmap — also shipped 2026-06-11
+
+These landed this session but aren't numbered rows (they extend shipped work):
+
+| Item | Status | Evidence |
+|---|---|---|
+| Classroom recording ("Record this class") | **SHIPPED** | `audio-capture-and-tts.md`. `/api/voice/recording` → `gs://{proj}-research-audio` (EU) + Firestore meta + delete-by-group erasure; consent = paper forms, teacher-enabled per class. Sprint `VOICE-IN-REC` M2. Bucket created on dev + NOTES Decision 15 |
+| Lesson transcription | **SHIPPED** | Sprint `REC-TRANSCRIPT` (M1–M4): segments transcribed near-live (sync STT) keyed by groupId; student workbench panel (hidden+toggle) + teacher-report section. Commits `ced624f`→`45be532` |
+| Default-persona identity | **SHIPPED** | unassigned skills resolve to a default Danish-educator persona (Sofie) for the chat avatar+name (runtime, no seed). Commit `3e3bee3` |
+| Seed-reminder CI | **SHIPPED** | `ci.yml` warns on push when a SKILL.md template changed + `make seed` target + CLAUDE.md note. Commit `1de1ed9` |
 
 ### Still to do (priority order)
 
 > **POST-MEETING RE-PRIORITISATION (2026-06-11, M).** The biggest teacher/student ask is **multimodal upload — pictures + docs, for BOTH students and teachers**. It moves to the **top**. Voice-**in** is a **requirement**, and `gemini_live` is **deferred** (needs a non-Google/local-Whisper port first), which de-risks it to a small build over the shipped 1.1.11. New top order:
 >
-> 1. **1.1.7 student multimodal upload** (+ **1.1.21** no-person guardrail + units-loop) — *the biggest ask*. Build now with **on-device** person-detection as the private default (M's preferred posture; swappable), so it doesn't block on the exact GDPR call.
-> 2. **1.1.25 teacher curriculum/materials upload** (ADK-RAG, un-gated; teacher's *own* uploads need no copyright clearance — that's only the shared corpus) + the thin teacher image-attach reusing 1.1.7's plumbing.
-> 3. **1.1.23 voice-in via `stt_tts_roundtrip`** — requirement; ~0.5–1.5d over shipped parts; only M's transcript-only GDPR delta remains.
+> 1. ~~**1.1.7 student multimodal upload** (+ **1.1.21**)~~ — ✅ **SHIPPED 2026-06-11.**
+> 2. **1.1.25 teacher curriculum/materials upload** — 🔄 **IN PROGRESS** (M1 shipped; M2–M5 remaining, resume from `sprint_CURRICULUM.json`). The current front-of-queue.
+> 3. ~~**1.1.23 voice-in via `stt_tts_roundtrip`**~~ — ✅ **SHIPPED 2026-06-11** (+ classroom recording + lesson transcription, ahead of the 06-23 date).
+>
+> **Next, after 1.1.25 finishes:** the unblocked teacher-dashboard wins (1.1.9 cost-dashboard, 1.1.4 session-report — the lesson transcript now feeds it) + the human-gated items teed up (1.1.3 consent, 1.1.8 exit-ticket).
 
 **⚠ Urgent / time-boxed (resolve this week):**
 
