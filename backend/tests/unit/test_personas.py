@@ -8,7 +8,7 @@ from db.models.activity_config import ActivityConfig
 from db.models.persona import Persona
 from personas.loader import load_persona, load_personas
 
-EXPECTED_IDS = {"astrid", "frida", "jonas", "mikkel", "sofie"}
+EXPECTED_IDS = {"astrid", "frida", "henrik", "jonas", "mikkel", "sofie"}
 VALID_STYLES = {"socratic", "concise", "rigorous", "warm"}
 
 
@@ -23,6 +23,11 @@ def test_each_persona_ties_a_valid_style_and_has_a_name():
         assert p.interaction_style in VALID_STYLES
         assert p.name
         assert p.language == "da"
+
+
+def test_each_persona_has_a_wired_avatar_path():
+    for p in load_personas():
+        assert p.avatar == f"/personas/{p.id}.png"
 
 
 def test_frida_ties_warm_style_and_a_voice():
