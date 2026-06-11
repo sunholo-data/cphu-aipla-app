@@ -46,6 +46,31 @@ describe("MessageBubble — bot variant", () => {
     expect(screen.getByText("test-skill")).toBeInTheDocument();
   });
 
+  it("shows the persona name + avatar instead of the skill byline when set (1.1.12)", () => {
+    render(
+      <MessageBubble
+        message={botMsg()}
+        {...baseProps}
+        persona={{ id: "astrid", name: "Astrid", title: "Senior underviser", avatar: "/personas/astrid.png" }}
+      />,
+    );
+    expect(screen.getByText("Astrid")).toBeInTheDocument();
+    expect(screen.queryByText("test-skill")).not.toBeInTheDocument();
+    expect(screen.getByRole("img", { name: "Astrid" })).toBeInTheDocument();
+  });
+
+  it("falls back to an initials avatar when the persona has no image", () => {
+    render(
+      <MessageBubble
+        message={botMsg()}
+        {...baseProps}
+        persona={{ id: "x", name: "Zoe", title: null, avatar: "" }}
+      />,
+    );
+    expect(screen.getByText("Zoe")).toBeInTheDocument();
+    expect(screen.getByText("Z")).toBeInTheDocument(); // initials fallback
+  });
+
   it("applies orange left border", () => {
     const { container } = render(<MessageBubble message={botMsg()} {...baseProps} />);
     expect(container.querySelector(".border-orange-400")).toBeInTheDocument();

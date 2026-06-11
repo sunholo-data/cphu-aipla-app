@@ -26,6 +26,15 @@ import { ToolCallChip } from "@/components/chat/ToolCallChip";
 import { useSurfaceRegistry } from "@/providers/SurfaceRegistry";
 import type { SkillMessage, ToolCallState } from "@/hooks/useSkillAgent";
 
+/** A persona resolved for the running activity (1.1.12). When present the bot
+ *  bubble shows the persona's avatar + name instead of the skill byline. */
+export interface PersonaSummary {
+  id: string;
+  name: string;
+  title: string | null;
+  avatar: string;
+}
+
 interface MessageBubbleProps {
   message: SkillMessage;
   skillId: string;
@@ -33,6 +42,8 @@ interface MessageBubbleProps {
    * back to `skillId` itself when omitted. See ChatMessageList docstring
    * for the rationale (1.1.11). */
   skillDisplayName?: string;
+  /** Persona (1.1.12) for this activity — avatar + name override the byline. */
+  persona?: PersonaSummary | null;
   userInitial: string;
   userDisplayName: string;
   toolCalls: ToolCallState[];
@@ -115,10 +126,32 @@ function formatTime(): string {
   }).format(new Date());
 }
 
+function PersonaBubbleAvatar({ persona }: { persona: PersonaSummary }) {
+  if (persona.avatar) {
+    // eslint-disable-next-line @next/next/no-img-element
+    return (
+      <img
+        src={persona.avatar}
+        alt={persona.name}
+        className="h-8 w-8 shrink-0 rounded-full object-cover"
+      />
+    );
+  }
+  return (
+    <span
+      aria-hidden="true"
+      className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-orange-100 text-xs font-bold text-orange-700"
+    >
+      {persona.name[0]?.toUpperCase() ?? "?"}
+    </span>
+  );
+}
+
 export const MessageBubble = React.memo(function MessageBubble({
   message,
   skillId,
   skillDisplayName,
+  persona,
   userInitial,
   userDisplayName,
   toolCalls,
@@ -205,10 +238,12 @@ export const MessageBubble = React.memo(function MessageBubble({
 
     return (
       <div className="flex items-start gap-3">
-        <BrandAvatar />
+        {persona ? <PersonaBubbleAvatar persona={persona} /> : <BrandAvatar />}
         <div className="flex max-w-[80%] flex-col gap-1">
           <div className="flex items-baseline gap-2">
-            <span className="text-xs font-medium text-orange-600">{skillDisplayName ?? skillId}</span>
+            <span className="text-xs font-medium text-orange-600">
+              {persona ? persona.name : (skillDisplayName ?? skillId)}
+            </span>
             <span className="text-xs text-muted-foreground">{time}</span>
             {/* Sprint 1.H-TTS — only render when this bubble has text
              *  for the engine to speak. Tool-call-only bubbles (no

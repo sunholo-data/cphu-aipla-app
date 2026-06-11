@@ -5,6 +5,7 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { use, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { AutoReadToggle } from "@/components/chat/AutoReadToggle";
 import { ChatMessageList } from "@/components/chat/ChatMessageList";
+import type { PersonaSummary } from "@/components/chat/MessageBubble";
 import { LangToggle } from "@/components/chat/LangToggle";
 import { ResumeWelcomeBanner } from "@/components/chat/ResumeWelcomeBanner";
 import { VoiceStatusPill } from "@/components/chat/VoiceStatusPill";
@@ -369,6 +370,9 @@ function ChatShell({
   // generically — for sims it sits alongside the sim handles its own;
   // for no-sim concept activities it IS the workspace.
   const [activeChecklist, setActiveChecklist] = useState<ChecklistItem[]>([]);
+  // Persona (1.1.12) resolved for this activity — the bot bubbles show its
+  // avatar + name. Optional; null leaves the default brand byline.
+  const [activePersona, setActivePersona] = useState<PersonaSummary | null>(null);
   // Config-driven workspace gate: a registered sim OR an authored checklist
   // (workspaceContent.ts — pure + unit-tested; no inline slug allowlist).
   const workspaceKind = workspaceContentKind(skillSlug, activeChecklist.length > 0);
@@ -379,16 +383,19 @@ function ChatShell({
   useEffect(() => {
     if (!skillId || !isAnonymousGroupAuthMode()) {
       setActiveChecklist([]);
+      setActivePersona(null);
       return;
     }
     let alive = true;
     fetchWithAuth(`/api/proxy/api/activity-configs/active/${encodeURIComponent(skillId)}`)
       .then((r) => (r.ok ? r.json() : null))
       .then((data) => {
-        if (alive && data && Array.isArray(data.checklist)) setActiveChecklist(data.checklist as ChecklistItem[]);
+        if (!alive || !data) return;
+        if (Array.isArray(data.checklist)) setActiveChecklist(data.checklist as ChecklistItem[]);
+        setActivePersona((data.persona as PersonaSummary | null) ?? null);
       })
       .catch(() => {
-        /* checklist is optional — stay chat-only on failure */
+        /* checklist + persona are optional — stay chat-only on failure */
       });
     return () => {
       alive = false;
@@ -967,6 +974,7 @@ function ChatShell({
             error={error}
             skillId={skillId}
             skillDisplayName={displayName}
+            persona={activePersona}
             userInitial={userInitial}
             userDisplayName={userDisplayName}
             stageLabel={stageLabel}

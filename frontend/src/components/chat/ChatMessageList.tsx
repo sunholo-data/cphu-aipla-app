@@ -15,7 +15,7 @@ import { ContextBanner } from "@/components/chat/ContextBanner";
 import { useHumanToolEvents } from "@/hooks/useHumanToolEvents";
 
 import { HumanToolUseCard } from "./HumanToolUseCard";
-import { MessageBubble } from "./MessageBubble";
+import { MessageBubble, type PersonaSummary } from "./MessageBubble";
 import { PinnedWelcome } from "./PinnedWelcome";
 import { StreamingBubble } from "./StreamingBubble";
 import { TypingIndicator } from "./TypingIndicator";
@@ -44,6 +44,8 @@ interface ChatMessageListProps {
    * can pass the real skill ID for voice-config lookups while keeping
    * the friendly display name in the UI. */
   skillDisplayName?: string;
+  /** Persona (1.1.12) for the running activity — passed to each bot bubble. */
+  persona?: PersonaSummary | null;
   userInitial: string;
   userDisplayName: string;
   activeDocumentContext?: ActiveDocumentContext | null;
@@ -86,6 +88,7 @@ export function ChatMessageList({
   error,
   skillId,
   skillDisplayName,
+  persona,
   userInitial,
   userDisplayName,
   activeDocumentContext,
@@ -199,6 +202,7 @@ export function ChatMessageList({
                   key={m.id}
                   message={m}
                   skillId={skillId}
+                  persona={persona}
                   userInitial={userInitial}
                   userDisplayName={userDisplayName}
                   toolCalls={[]}
@@ -238,6 +242,7 @@ export function ChatMessageList({
                 message={m}
                 skillId={skillId}
                 skillDisplayName={skillDisplayName}
+                persona={persona}
                 userInitial={userInitial}
                 userDisplayName={userDisplayName}
                 toolCalls={toolCallsByParent[m.id] ?? []}
