@@ -7,7 +7,13 @@
 **Dependencies**: v0.1 shipped. TTS depends on nothing else. **Audio capture depends on JB sign-off + on [teacher-permission-model.md](teacher-permission-model.md) (1.A) for the consent-flag association** (audio recordings tagged with group_id, but consent-flow shape is teacher-controlled at the class level).
 **Pedagogical / privacy source-of-truth:** [`audio-capture.md`](file:///Users/mark/Documents/clients/cph-uni/strand-a-pedagogical-bot/prototypes/audio-capture.md) in the scoping site
 **Created**: 2026-05-25
-**Last Updated**: 2026-05-25
+**Last Updated**: 2026-06-11
+
+> **2026-06-11 (M, post-meeting) — this is the "record this class" requirement.** The wanted UX is a prominent **"Record this class"** button → the group talks → the lesson is captured as a research record (no-laptop, shared-device classrooms). It is a **session/class-level capture, NOT individual talk-to-type** (dictation, 1.1.11, already shipped) and **NOT the conversational loop** (`gemini_live`, deferred).
+>
+> **DECISION — talk-to-type and lesson-recording are MUTUALLY EXCLUSIVE modes.** Rather than share one mic stream, the chat input offers a mode toggle: *Talk-to-type* (individual dictation) **XOR** *Record lesson* (group capture). Entering record mode disables the dictation mic and shows the persistent `■ Stop recording` banner; they never contend for `getUserMedia`. Simplest + clearest, and it sidesteps the "does recording block the chat?" problem.
+>
+> **The gate is unchanged and HARD:** this still does not ship until JB signs off on all five consent/privacy questions below — recording minors' voices is the highest-risk surface in v1.1. The *design* is ready; the *gate* is the blocker.
 
 ## Problem Statement
 
