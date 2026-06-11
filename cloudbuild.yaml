@@ -175,6 +175,12 @@ steps:
       # in scripts/bootstrap-aipla-dev.sh (Decision 13). Lives in
       # europe-west1 — Agent Engine isn't hosted in europe-north1.
       - '--set-secrets=AGENT_ENGINE_ID=AGENT_ENGINE_ID:latest'
+      # AILANG Parse / docparse — deterministic parsing of teacher/student
+      # documents (docx/pptx/xlsx/pdf/…) in the chat multimodal-upload path
+      # (1.1.7) + the curriculum library (1.1.25). Unset -> backend logs
+      # "AILANG Parse extraction disabled" and document parsing is off.
+      # The runtime SA needs roles/secretmanager.secretAccessor on this secret.
+      - '--set-secrets=DOCPARSE_API_KEY=DOCPARSE_API_KEY:latest'
       # Env vars
       - '--set-env-vars=GOOGLE_CLOUD_PROJECT=${_PROJECT_ID}'
       # AIPLA v0.1: gemini-3.5-flash is GA only on `global` endpoint

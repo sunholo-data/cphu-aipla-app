@@ -21,6 +21,7 @@ from adk.callbacks.document import (
     make_document_injector,
     make_document_loader,
 )
+from adk.callbacks.image import make_image_injector, stash_attachments
 from adk.callbacks.large_output import _handle_large_output
 from adk.callbacks.permission import make_before_agent, make_permission_enforcer
 from adk.callbacks.session import (
@@ -48,8 +49,10 @@ __all__ = [
     "make_before_agent",
     "make_document_injector",
     "make_document_loader",
+    "make_image_injector",
     "make_permission_enforcer",
     "make_session_tracker",
+    "stash_attachments",
 ]
 
 

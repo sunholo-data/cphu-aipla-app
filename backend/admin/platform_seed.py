@@ -150,6 +150,8 @@ def _parse_template(skill_md: Path) -> dict[str, Any]:
         # template author doesn't have to nest them under `metadata:`.
         "proactiveGreet": bool(front.get("proactiveGreet") or False),
         "openingTemplate": (front.get("openingTemplate") or "").strip(),
+        # 1.1.7 — show the photo/doc upload button for this skill.
+        "multimodalInput": bool(front.get("multimodalInput") or False),
         # 1.1.2 — proactive sim-reactive tutor (Phase B). Per-skill opt-in
         # flag + tuning knobs + skill-author reactive guidance. See
         # docs/design/aipla/v1.1.0-feedback/proactive-sim-reactive-tutor.md.
@@ -217,6 +219,7 @@ def _template_updates(parsed: dict[str, Any]) -> dict[str, Any]:
     # template wouldn't ever take effect on existing skills.
     updates["proactiveGreet"] = parsed["proactiveGreet"]
     updates["openingTemplate"] = parsed["openingTemplate"]
+    updates["multimodalInput"] = parsed["multimodalInput"]
     # 1.1.2 Phase B sim-reactive — same unconditional-apply rationale as
     # proactiveGreet above; toggling proactiveEventReactive off in the
     # template must take effect on existing skills.

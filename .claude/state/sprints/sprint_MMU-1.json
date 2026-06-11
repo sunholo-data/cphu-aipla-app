@@ -1,0 +1,78 @@
+{
+  "sprint_id": "MMU-1",
+  "created": "2026-06-11T10:31:42Z",
+  "estimated_duration_days": 2.5,
+  "design_doc": "docs/design/aipla/v1.1.0-feedback/student-multimodal-upload.md",
+  "sprint_plan": "docs/design/aipla/v1.1.0-feedback/student-multimodal-upload-sprint.md",
+  "features": [
+    {
+      "id": "M1",
+      "description": "Backend image injection, AG-UI-native + non-retaining. Images ride forwardedProps.attachments as base64; a make_image_injector before_model_callback (mirroring make_document_injector) injects a user Content with Part(inline_data=Blob(bytes,mime)) before the model call, then clears it (no GCS/Firestore/artifact). multimodal_input flag on SkillConfig; attachment metadata-only logged.",
+      "scope": "backend",
+      "estimated_loc": 420,
+      "actual_loc": null,
+      "dependencies": [],
+      "acceptance_criteria": [
+        "forwardedProps.attachments ([{mimeType,data(base64),name}]) extracted (mirror _extract_document_ids) + stashed in session state",
+        "make_image_injector before_model_callback builds a user Content with an image Part per attachment, before the model call, then clears state (non-retention)",
+        "callback wired into the agent factory; multimodal_input bool flag on SkillConfig parsed from frontmatter",
+        "no image bytes persisted to GCS/Firestore/artifacts (pytest asserts); attachment metadata-only (count/mime/size) logged",
+        "make lint clean; make test-fast green"
+      ],
+      "files_to_create": [
+        "backend/adk/callbacks/image.py",
+        "backend/tests/unit/test_image_injector.py"
+      ],
+      "files_to_modify": [
+        "backend/fast_api_app.py",
+        "backend/skills/skill_processor.py",
+        "backend/adk/agent.py",
+        "backend/db/models/__init__.py",
+        "backend/admin/platform_seed.py"
+      ],
+      "passes": null,
+      "started": null,
+      "completed": null,
+      "notes": "Wire slot exists: _StreamSkillRequest.attachments (fast_api_app:392) + process_skill_request(attachments) param (currently unused). UserMessage built at skill_processor:180. Mirror make_document_injector (adk/callbacks/document.py:173)."
+    },
+    {
+      "id": "M2",
+      "description": "Frontend upload UI: paperclip + camera capture + thumbnail (max 4); on-device no-person guardrail (FaceDetector, graceful degrade); client-side resize to 2048px -> base64 into sendMessage opts -> forwardedProps.attachments; gate on multimodal_input; units-loop + ## Image input SKILL.md blocks.",
+      "scope": "frontend",
+      "estimated_loc": 380,
+      "actual_loc": null,
+      "dependencies": ["M1"],
+      "acceptance_criteria": [
+        "paperclip + camera button in the chat composer, gated on the skill's multimodal_input; accepts jpeg/png/heic/pdf",
+        "selected file -> thumbnail with remove; max 4/turn; client-side resize to 2048px longest edge",
+        "on-device no-person guardrail blocks a detected person with a retake prompt (mocked detector in tests); graceful degrade when FaceDetector unavailable (notice, no over-block)",
+        "send composes attachments (base64) into sendMessage -> forwardedProps; units-loop + ## Image input block added to the 3 tutor SKILL.md",
+        "npm run quality:check green"
+      ],
+      "files_to_create": [
+        "frontend/src/lib/personGuardrail.ts",
+        "frontend/src/lib/imageResize.ts"
+      ],
+      "files_to_modify": [
+        "frontend/src/hooks/useSkillAgent.ts",
+        "frontend/src/app/chat/[...path]/page.tsx"
+      ],
+      "passes": null,
+      "started": null,
+      "completed": null,
+      "notes": "Composer location TBD (under src/app/chat/[...path]/ or src/components/chat/). sendMessage(text, opts) -> forwardedProps already carries document_ids; add attachments the same way."
+    }
+  ],
+  "velocity": {
+    "target_loc_per_day": 350,
+    "actual_loc_per_day": null,
+    "estimated_total_loc": 800,
+    "actual_total_loc": null,
+    "estimated_days": 2.5,
+    "actual_days": null
+  },
+  "github_issues": [],
+  "last_session": null,
+  "last_checkpoint": null,
+  "status": "in_progress"
+}

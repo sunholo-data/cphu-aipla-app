@@ -49,6 +49,7 @@ from adk.callbacks import (
     make_before_agent,
     make_document_injector,
     make_document_loader,
+    make_image_injector,
     make_permission_enforcer,
     make_session_tracker,
 )
@@ -364,6 +365,7 @@ def create_agent(
     _session_tracker = make_session_tracker(user.uid, skill_config.skill_id, user.group_id)
     _document_loader = make_document_loader()
     _document_injector = make_document_injector()
+    _image_injector = make_image_injector()
 
     async def _composed_before_agent(callback_context: object) -> None:
         # TTFT mark: ADK has finished its runner setup and is now invoking
@@ -436,6 +438,9 @@ def create_agent(
         # The injector predates the budget gate; if dropping a
         # participant here, see test_composed_before_model.py.
         await _document_injector(callback_context, llm_request)
+        # 1.1.7: inject this turn's image attachments (Gemini vision) before
+        # the budget gate so the bigger multimodal prompt is costed correctly.
+        await _image_injector(callback_context, llm_request)
         await _budget_before(callback_context, llm_request)
 
     async def _composed_after_model(callback_context: object, llm_response: object) -> None:

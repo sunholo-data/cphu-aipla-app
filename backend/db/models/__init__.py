@@ -172,6 +172,10 @@ class SkillConfig(BaseModel):
     # None to mix-and-match (e.g. pick voice but inherit provider from env).
     # See backend/voice/registry.py for the resolution chain.
     voice: SkillVoiceConfig | None = Field(default=None)
+    # 1.1.7 — when true, the chat composer shows the photo/doc upload button
+    # for this skill. Off by default (text-only skills stay clean). Backend
+    # image injection works regardless; this only gates the UI.
+    multimodal_input: bool = Field(default=False, alias="multimodalInput")
     tags: list[str] = Field(default_factory=list)
     featured: bool = False
     usage_count: int = Field(default=0, alias="usageCount")

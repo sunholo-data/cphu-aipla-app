@@ -70,8 +70,12 @@ async def process_skill_request(
         access: Per-request access context for the skill-visibility check.
         session_id: Existing thread ID to resume, or None to start fresh.
         message: The user's message for this turn.
-        attachments: Optional attachment metadata (not used in v6.0;
-            reserved for v6.1).
+        attachments: Optional per-turn image attachments (1.1.7), each
+            ``{mimeType, data(base64), name}``. Bytes are stashed in a
+            process-local transient cache (never persisted) under a token put
+            in state; ``make_image_injector`` pops + injects them as Gemini
+            vision Parts before the model call. Documents (docx/pdf/…) do NOT
+            come here — they route through the docparse upload pipeline.
         document_ids: Optional Firestore document IDs the user wants in
             context for this turn. The before_agent_callback loads each
             document's blocks as a separate session artifact so the AI
@@ -157,6 +161,16 @@ async def process_skill_request(
         # ``_extract_document_ids`` reads forwardedProps first and ignores the
         # round-tripped state value (see fast_api_app.py:298).
         initial_state["document_ids"] = list(document_ids)
+    if attachments:
+        # 1.1.7: image attachments ride the turn as base64. Stash the BYTES in a
+        # process-local transient cache (never persisted) and put only a token in
+        # state; make_image_injector pops + injects them as Gemini vision Parts.
+        from adk.callbacks import stash_attachments
+
+        _img_token = f"imgtok-{uuid.uuid4().hex}"
+        stash_attachments(_img_token, attachments)
+        initial_state["image_attach_token"] = _img_token
+        logger.info("multimodal turn: %d attachment(s) (metadata-only; bytes not persisted)", len(attachments))
     if resumed_session:
         # Read by make_document_injector — eager-inject loaded docs into
         # the first LLM request of every turn for resumed sessions.

@@ -455,6 +455,26 @@ def _extract_document_ids(body: "_StreamSkillRequest") -> list[str] | None:
     return None
 
 
+def _extract_attachments(body: "_StreamSkillRequest") -> list[dict] | None:
+    """Pull this turn's image attachments from the wire body (1.1.7).
+
+    Like document_ids, the AG-UI HttpAgent path carries them in
+    ``forwardedProps.attachments``; ``body.attachments`` is the simple/CLI
+    format. Each item: ``{mimeType, data(base64), name}``. None when absent.
+    Defensive: only a list of dicts carrying ``data`` is accepted.
+    """
+    candidates = (
+        (body.forwardedProps or {}).get("attachments"),
+        body.attachments,
+    )
+    for value in candidates:
+        if isinstance(value, list) and value:
+            cleaned = [a for a in value if isinstance(a, dict) and a.get("data")]
+            if cleaned:
+                return cleaned
+    return None
+
+
 def _extract_a2ui_surface_state(body: "_StreamSkillRequest") -> dict | None:
     """Pull the per-turn A2UI surface snapshot from
     ``forwardedProps.a2ui_surface_state`` (the AG-UI HttpAgent path).
@@ -579,7 +599,7 @@ async def stream_skill(
         access=access,
         session_id=session_id,
         message=body.effective_message if not is_read_only else "",
-        attachments=body.attachments if not is_read_only else None,
+        attachments=_extract_attachments(body) if not is_read_only else None,
         document_ids=extracted_doc_ids,
         resumed_session=extracted_resumed,
         a2ui_surface_state=extracted_surface_state,
