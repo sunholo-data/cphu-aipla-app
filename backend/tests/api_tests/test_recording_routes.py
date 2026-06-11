@@ -208,3 +208,17 @@ def test_transcript_other_group_student_forbidden(monkeypatch):
     client, _ = _client("other-group", monkeypatch, store=None, cls=_fake_class(owner="someone-else"))
     resp = client.get(f"/api/voice/recording/group/{GROUP_ID}/transcript")
     assert resp.status_code == 403
+
+
+def test_me_transcript_resolves_own_group(monkeypatch):
+    client, _ = _client(GROUP_ID, monkeypatch, store=None, cls=_fake_class())
+    monkeypatch.setattr(rr, "query_documents", lambda c, filters=None: list(_SEGMENTS))
+    resp = client.get("/api/voice/recording/me/transcript")
+    assert resp.status_code == 200
+    assert resp.json()["text"] == "first part second part"
+
+
+def test_me_transcript_no_group_403(monkeypatch):
+    client, _ = _client(None, monkeypatch, store=None, cls=_fake_class())
+    resp = client.get("/api/voice/recording/me/transcript")
+    assert resp.status_code == 403

@@ -158,23 +158,9 @@ def _class_for_group(group_id: str) -> Class | None:
     return get_class(class_id) if class_id else None
 
 
-@router.get("/group/{group_id}/transcript")
-async def get_group_transcript(
-    group_id: str,
-    user: User = Depends(get_current_user),  # noqa: B008
-) -> dict[str, Any]:
-    """Return a group's lesson transcript — ordered segments + joined text.
-
-    Authorized for (a) a student OF this group (their own group's transcript)
-    or (b) the teacher who owns the class the group belongs to.
-    """
-    caller_group = getattr(user, "group_id", None)
-    if caller_group != group_id:
-        # not the group's own student -> must be the owning teacher
-        cls = _class_for_group(group_id)
-        if cls is None or cls.owner_uid != user.uid:
-            raise HTTPException(status_code=403, detail="Not authorized for this group's transcript.")
-
+def _transcript_for_group(group_id: str) -> dict[str, Any]:
+    """Build a group's transcript — ordered segments + joined text. No auth here
+    (callers gate first)."""
     docs = query_documents(_COLLECTION, filters=[("groupId", "==", group_id)])
     segments = [
         {"seq": int(d.get("seq", 0)), "text": d.get("transcript", ""), "createdAt": d.get("createdAt", "")}
@@ -187,6 +173,35 @@ async def get_group_transcript(
         "segments": segments,
         "text": " ".join(s["text"].strip() for s in segments),
     }
+
+
+@router.get("/me/transcript")
+async def get_my_transcript(
+    user: User = Depends(get_current_user),  # noqa: B008
+) -> dict[str, Any]:
+    """The caller's OWN group's lesson transcript (student workbench, M3). No
+    group id needed on the wire — resolved from the caller's session."""
+    group_id = getattr(user, "group_id", None)
+    if not group_id:
+        raise HTTPException(status_code=403, detail="No group context.")
+    return _transcript_for_group(group_id)
+
+
+@router.get("/group/{group_id}/transcript")
+async def get_group_transcript(
+    group_id: str,
+    user: User = Depends(get_current_user),  # noqa: B008
+) -> dict[str, Any]:
+    """A group's lesson transcript. Authorized for (a) a student OF this group
+    or (b) the teacher who owns the class the group belongs to (teacher report,
+    M4)."""
+    caller_group = getattr(user, "group_id", None)
+    if caller_group != group_id:
+        # not the group's own student -> must be the owning teacher
+        cls = _class_for_group(group_id)
+        if cls is None or cls.owner_uid != user.uid:
+            raise HTTPException(status_code=403, detail="Not authorized for this group's transcript.")
+    return _transcript_for_group(group_id)
 
 
 async def delete_recordings_for_group(group_id: str) -> int:

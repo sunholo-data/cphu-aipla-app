@@ -12,6 +12,7 @@ import { ResumeWelcomeBanner } from "@/components/chat/ResumeWelcomeBanner";
 import { ImageStagingRow, ImageUploadButtons } from "@/components/chat/ImageComposer";
 import { useImageAttachments, MAX_IMAGES } from "@/hooks/useImageAttachments";
 import { VoiceComposerControls } from "@/components/chat/VoiceComposerControls";
+import { LessonTranscriptPanel } from "@/components/chat/LessonTranscriptPanel";
 import { VoiceStatusPill } from "@/components/chat/VoiceStatusPill";
 import { useVoiceConfig } from "@/hooks/useVoiceConfig";
 import type { DocTabData } from "@/components/doc-browser/DocTab";
@@ -1032,6 +1033,11 @@ function ChatShell({
                 notice={images.notice}
                 onRemove={images.remove}
               />
+            )}
+            {composerVoice.capabilities.recording && (
+              <div className="mb-2">
+                <LessonTranscriptPanel />
+              </div>
             )}
             {voiceNotice && (
               <p className="mb-2 text-xs text-muted-foreground">{voiceNotice}</p>

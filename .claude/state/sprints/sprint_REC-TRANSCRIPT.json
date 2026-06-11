@@ -40,17 +40,18 @@
       "description": "Student workbench transcript panel: hidden by default with a 'Show transcript' toggle; polls GET .../group/{groupId}/transcript (~every 30-60s) for the student's own group; renders the growing transcript. Tied to the historic groupId.",
       "scope": "frontend",
       "estimated_loc": 220,
-      "passes": null,
-      "started": null,
-      "completed": null,
-      "notes": "",
+      "passes": true,
+      "started": "2026-06-11",
+      "completed": "2026-06-11",
+      "notes": "SHIPPED. Backend: GET /me/transcript resolves the caller's own group server-side (no group id on the wire) \u2014 sidesteps the anon-group-context coupling; refactored _transcript_for_group shared with /group/{id}. lib/transcriptApi.ts (fetchMyTranscript + fetchGroupTranscript). LessonTranscriptPanel: collapsed by default, 'Lesson transcript' toggle, polls /me/transcript every 30s while open, growing-text + empty state. Mounted in the chat footer gated on capabilities.recording. 3 FE tests + 2 BE (/me) tests. Backend lint clean; FE typecheck clean.",
       "files_to_create": [
         "frontend/src/components/chat/LessonTranscriptPanel.tsx",
         "frontend/src/lib/transcriptApi.ts"
       ],
       "files_to_modify": [
         "frontend/src/app/chat/[...path]/page.tsx"
-      ]
+      ],
+      "actual_loc": 210
     },
     {
       "id": "M4",
@@ -67,6 +68,6 @@
     }
   ],
   "last_session": "2026-06-11",
-  "last_checkpoint": "M2 shipped (segmented recorder uploads per-segment); starting M3 (student transcript panel)",
+  "last_checkpoint": "M3 shipped (student transcript panel); starting M4 (teacher report)",
   "status": "in_progress"
 }
