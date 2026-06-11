@@ -32,6 +32,7 @@ import {
 } from "@/lib/teacherApi";
 import { ClassInsightsPanel } from "@/components/teacher/insights/ClassInsightsPanel";
 import { ClassVoiceSettingsPanel } from "@/components/teacher/ClassVoiceSettingsPanel";
+import { ClassPersonaPanel } from "@/components/teacher/ClassPersonaPanel";
 import { SettingsSection } from "@/components/teacher/ui/SettingsSection";
 import { TeacherPage } from "@/components/teacher/ui/TeacherPage";
 
@@ -491,15 +492,22 @@ export default function TeacherClassDetailPage() {
 
       <SettingsSection
         title="Class settings"
-        description="Voice and read-aloud language for this class."
+        description="The tutor persona, voice, and what students can do — for this class."
       >
-        <ClassVoiceSettingsPanel
-          classId={cls.classId}
-          initial={cls.voice ?? null}
-          initialVoiceInput={cls.voiceInputEnabled ?? false}
-          initialRecording={cls.recordingEnabled ?? false}
-          onSaved={refresh}
-        />
+        <div className="flex flex-col gap-6">
+          <ClassPersonaPanel
+            classId={cls.classId}
+            initialPersona={cls.persona ?? null}
+            onSaved={refresh}
+          />
+          <ClassVoiceSettingsPanel
+            classId={cls.classId}
+            initial={cls.voice ?? null}
+            initialVoiceInput={cls.voiceInputEnabled ?? false}
+            initialRecording={cls.recordingEnabled ?? false}
+            onSaved={refresh}
+          />
+        </div>
       </SettingsSection>
 
       {showInsights ? (

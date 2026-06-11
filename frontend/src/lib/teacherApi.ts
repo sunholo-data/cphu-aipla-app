@@ -196,6 +196,7 @@ export interface ClassPayload {
   lessons: string[];
   groupCodes: string[];
   voice?: ClassVoiceSettingsPayload | null;
+  persona?: string | null;
   voiceInputEnabled?: boolean;
   recordingEnabled?: boolean;
   revoked: boolean;
@@ -307,6 +308,23 @@ export async function setClassCapabilities(
     },
   );
   return readJson(resp, "update class capabilities");
+}
+
+/** Set (or clear with null) the per-class default persona — the one identity
+ * choice that sets avatar + name + voice + teaching style for the class. */
+export async function setClassPersona(
+  classId: string,
+  personaId: string | null,
+): Promise<{ ok: boolean }> {
+  const resp = await fetchWithAuth(
+    `/api/proxy/api/voice/class/${encodeURIComponent(classId)}/persona`,
+    {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ personaId }),
+    },
+  );
+  return readJson(resp, "update class persona");
 }
 
 export interface VoiceListEntry {

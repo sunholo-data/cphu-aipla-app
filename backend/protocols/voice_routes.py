@@ -36,7 +36,12 @@ from pydantic import BaseModel, ConfigDict, Field
 
 from adk.teacher_focus import resolve_active_config
 from auth import User, get_current_user
-from db.classes import get_class, update_class_capabilities, update_class_voice_settings
+from db.classes import (
+    get_class,
+    update_class_capabilities,
+    update_class_persona,
+    update_class_voice_settings,
+)
 from db.firestore import get_document
 from db.models.class_ import Class, ClassVoiceSettings
 from personas.loader import load_persona
@@ -164,15 +169,19 @@ async def get_config(
     cls = _class_for_user(user)
     class_voice = cls.voice if cls is not None else None
 
-    # 1.1.12: a persona picked on the active activity supplies the voice,
-    # overriding the class/skill defaults for that activity (most specific wins).
+    # 1.1.12: a persona supplies the voice. Chain: activity persona > class
+    # persona (most specific wins). NOT the GLOBAL default persona — its voice
+    # is the priciest tier; the default only gives avatar+name (active-config).
     persona_voice = None
     if skill_id:
         cfg = resolve_active_config(skill_id, group_tags=user.group_tags)
-        if cfg is not None and cfg.persona:
-            p = load_persona(cfg.persona)
-            if p is not None:
-                persona_voice = p.voice
+        activity_persona = cfg.persona if cfg is not None else None
+        class_persona = cls.persona if cls is not None else None
+        explicit_persona = (
+            load_persona(activity_persona or class_persona) if (activity_persona or class_persona) else None
+        )
+        if explicit_persona is not None:
+            persona_voice = explicit_persona.voice
 
     # Resolution chain (most specific wins; each tier only fills what's unset):
     #   1. Persona voice (the activity's character) -> 1.1.12
@@ -357,6 +366,33 @@ async def update_class_capabilities_route(
         body.voice_input_enabled,
         body.recording_enabled,
     )
+    return {"ok": True}
+
+
+class ClassPersonaBody(BaseModel):
+    """Body for PUT /api/voice/class/{class_id}/persona. The per-class default
+    persona id (null clears it → falls back to the global default)."""
+
+    persona_id: str | None = Field(default=None, alias="personaId", max_length=64)
+
+    model_config = ConfigDict(populate_by_name=True, extra="forbid")
+
+
+@router.put("/class/{class_id}/persona")
+async def update_class_persona_route(
+    class_id: str,
+    body: ClassPersonaBody,
+    user: User = Depends(get_current_user),  # noqa: B008
+) -> dict[str, Any]:
+    """Teacher sets the per-class default persona (avatar + name + voice + style).
+    Auth: caller must own the class."""
+    cls = get_class(class_id)
+    if cls is None:
+        raise HTTPException(status_code=404, detail="class not found")
+    if cls.owner_uid != user.uid:
+        raise HTTPException(status_code=403, detail="not class owner")
+    update_class_persona(class_id, body.persona_id)
+    logger.info("voice/class-persona updated class=%s persona=%s", class_id, body.persona_id)
     return {"ok": True}
 
 

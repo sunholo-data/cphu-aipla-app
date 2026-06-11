@@ -67,6 +67,20 @@ def inject_interaction_style_preamble(
     cfg = resolve_active_config(activity_id, group_tags=group_tags)
     style = cfg.interaction_style if cfg else _PASSTHROUGH
 
+    # Per-class persona drives the teaching style too: when the activity has no
+    # explicit persona, inherit THIS class's default persona's style (so picking
+    # one persona at the class level sets avatar + voice + style together). An
+    # activity persona already wrote its style into cfg.interaction_style at save.
+    if cfg is not None and not cfg.persona:
+        from db.classes import get_class
+        from personas.loader import load_persona
+
+        cls = get_class(cfg.class_id)
+        if cls is not None and cls.persona:
+            p = load_persona(cls.persona)
+            if p is not None:
+                style = p.interaction_style
+
     if style == _PASSTHROUGH:
         return instructions
 

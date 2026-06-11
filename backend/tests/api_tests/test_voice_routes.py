@@ -388,3 +388,27 @@ def test_capabilities_missing_class_404(client, monkeypatch):
     monkeypatch.setattr("protocols.voice_routes.get_class", lambda cid: None)
     resp = client.put("/api/voice/class/c1/capabilities", json={"voiceInputEnabled": True})
     assert resp.status_code == 404
+
+
+# --- PUT /api/voice/class/{id}/persona (per-class default persona) ---
+
+
+def test_class_persona_owner_sets(client, monkeypatch):
+    cls = MagicMock()
+    cls.owner_uid = STUDENT_UID
+    monkeypatch.setattr("protocols.voice_routes.get_class", lambda cid: cls)
+    seen = {}
+    monkeypatch.setattr(
+        "protocols.voice_routes.update_class_persona", lambda cid, pid: seen.update({"cid": cid, "pid": pid})
+    )
+    resp = client.put("/api/voice/class/c1/persona", json={"personaId": "astrid"})
+    assert resp.status_code == 200
+    assert seen == {"cid": "c1", "pid": "astrid"}
+
+
+def test_class_persona_non_owner_403(client, monkeypatch):
+    cls = MagicMock()
+    cls.owner_uid = "someone-else"
+    monkeypatch.setattr("protocols.voice_routes.get_class", lambda cid: cls)
+    resp = client.put("/api/voice/class/c1/persona", json={"personaId": "astrid"})
+    assert resp.status_code == 403

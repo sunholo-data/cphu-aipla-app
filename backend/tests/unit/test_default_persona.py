@@ -7,6 +7,7 @@ import personas.loader as loader
 from personas.loader import (
     DEFAULT_PERSONA_ID,
     load_default_persona,
+    resolve_persona_chain,
     resolve_persona_or_default,
 )
 
@@ -38,3 +39,18 @@ def test_default_disabled_returns_none(monkeypatch):
     monkeypatch.setattr(loader, "DEFAULT_PERSONA_ID", "")
     assert load_default_persona() is None
     assert resolve_persona_or_default(None) is None
+
+
+def test_resolve_chain_first_loadable_wins():
+    ids = [p.id for p in loader.load_personas() if p.id != DEFAULT_PERSONA_ID]
+    a, b = ids[0], ids[1]
+    # activity persona (a) beats class persona (b)
+    assert resolve_persona_chain(a, b).id == a
+    # falls through a None / unknown to the next
+    assert resolve_persona_chain(None, b).id == b
+    assert resolve_persona_chain("nope", b).id == b
+
+
+def test_resolve_chain_empty_falls_to_default():
+    assert resolve_persona_chain(None, None).id == DEFAULT_PERSONA_ID
+    assert resolve_persona_chain().id == DEFAULT_PERSONA_ID

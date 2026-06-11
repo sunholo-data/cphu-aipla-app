@@ -123,15 +123,17 @@ describe("/teacher/activities/new — concept activity builder", () => {
     fireEvent.change(await screen.findByLabelText(/activity name/i), { target: { value: "E" } });
     fireEvent.change(screen.getByLabelText(/lesson prompt/i), { target: { value: "g" } });
 
-    // the persona card appears once the catalogue loads
+    // the manual style control is visible while on the "Custom" default…
+    expect(screen.getByLabelText(/teaching style/i)).toBeInTheDocument();
+    // …picking a named persona OWNS the style, so the manual control disappears
     fireEvent.click(await screen.findByRole("button", { name: /Astrid/ }));
-    // picking it set the tied teaching style
-    expect((screen.getByLabelText(/teaching style/i) as HTMLSelectElement).value).toBe("rigorous");
+    expect(screen.queryByLabelText(/teaching style/i)).not.toBeInTheDocument();
 
     fireEvent.click(screen.getByRole("button", { name: /create activity/i }));
     await waitFor(() => expect(saveActivityConfigMock).toHaveBeenCalledTimes(1));
     const body = saveActivityConfigMock.mock.calls[0][0];
     expect(body.persona).toBe("astrid");
+    // the persona's tied style was still recorded internally
     expect(body.interactionStyle).toBe("rigorous");
   });
 

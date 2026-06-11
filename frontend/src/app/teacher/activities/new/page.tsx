@@ -413,29 +413,34 @@ function NewActivityForm() {
                 ))}
               </div>
               <p className="text-xs text-slate-500">
-                A persona sets the teaching style (and, later, the voice + avatar). You can still
-                adjust the style below.
+                A persona sets the avatar, name, voice &amp; teaching style together. Leave it on the
+                class default, or pick &ldquo;Custom&rdquo; to set the style yourself.
               </p>
             </div>
           ) : null}
 
-          <div className="flex flex-col gap-1">
-            <Field label="Teaching style" htmlFor="activity-style">
-              <select
-                id="activity-style"
-                value={interactionStyle}
-                onChange={(e) => setInteractionStyle(e.target.value as InteractionStyle)}
-                className="rounded-md border border-slate-300 px-3 py-2 text-sm"
-              >
-                {INTERACTION_STYLE_OPTIONS.map((o) => (
-                  <option key={o.value} value={o.value}>
-                    {o.label}
-                  </option>
-                ))}
-              </select>
-            </Field>
-            <p className="text-xs text-slate-500">{INTERACTION_STYLE_HELP[interactionStyle]}</p>
-          </div>
+          {/* The persona OWNS the teaching style. Only the "Custom" persona
+              (persona === null) exposes the manual style control; picking any
+              named persona sets the style for you (pickPersona above). */}
+          {persona === null ? (
+            <div className="flex flex-col gap-1">
+              <Field label="Teaching style" htmlFor="activity-style">
+                <select
+                  id="activity-style"
+                  value={interactionStyle}
+                  onChange={(e) => setInteractionStyle(e.target.value as InteractionStyle)}
+                  className="rounded-md border border-slate-300 px-3 py-2 text-sm"
+                >
+                  {INTERACTION_STYLE_OPTIONS.map((o) => (
+                    <option key={o.value} value={o.value}>
+                      {o.label}
+                    </option>
+                  ))}
+                </select>
+              </Field>
+              <p className="text-xs text-slate-500">{INTERACTION_STYLE_HELP[interactionStyle]}</p>
+            </div>
+          ) : null}
 
           {saveError ? (
             <p role="alert" className="text-sm text-red-600">

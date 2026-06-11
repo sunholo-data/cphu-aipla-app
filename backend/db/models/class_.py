@@ -81,6 +81,10 @@ class Class(BaseModel):
     voice: ClassVoiceSettings | None = Field(default=None)
     """1.1.11 — teacher's per-class voice override. None means the class
     inherits skill defaults / env. See ClassVoiceSettings."""
+    persona: str | None = Field(default=None, max_length=64)
+    """Per-class default persona (avatar + name + voice + teaching style). The
+    one identity choice — resolution is: activity persona > THIS class persona >
+    global default. None means the class falls back to the global default."""
     voice_input_enabled: bool = Field(default=True, alias="voiceInputEnabled")
     """VOICE-IN-REC — student voice input (talk-to-type / push-to-talk); gates
     the composer mic. Default-ON (2026-06-11, M) — benign: transcript-only, raw

@@ -29,6 +29,7 @@ from db.activity_configs import (
     list_activity_configs,
     upsert_activity_config,
 )
+from db.classes import get_class_for_group
 from db.models.activity_config import (
     ActivityConfig,
     ChecklistItem,
@@ -37,7 +38,7 @@ from db.models.activity_config import (
     Language,
     WorkbenchType,
 )
-from personas.loader import resolve_persona_or_default
+from personas.loader import resolve_persona_chain
 
 log = logging.getLogger(__name__)
 
@@ -151,10 +152,12 @@ async def get_active_activity_config(
     """
     cfg = resolve_active_config(activity_id, group_tags=user.group_tags)
     # Resolve the persona (1.1.12) for the student-facing chat avatar/name.
-    # Default-identity fallback: when the activity has no explicit persona (or no
-    # config at all), use the global default so the chat shows a real educator
-    # avatar + name instead of the generic brand mark. An explicit persona wins.
-    p = resolve_persona_or_default(cfg.persona if cfg is not None else None)
+    # Chain: activity persona > THIS class's default persona > global default —
+    # so the chat always shows a real educator avatar + name, and a teacher can
+    # set the identity once at the class level. An explicit activity persona wins.
+    cls = get_class_for_group(getattr(user, "group_id", None))
+    class_persona = cls.persona if cls is not None else None
+    p = resolve_persona_chain(cfg.persona if cfg is not None else None, class_persona)
     persona_block = {"id": p.id, "name": p.name, "title": p.title, "avatar": p.avatar} if p is not None else None
     if cfg is None:
         return {

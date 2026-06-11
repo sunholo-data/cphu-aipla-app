@@ -139,6 +139,24 @@ def update_class_voice_settings(
     )
 
 
+def get_class_for_group(group_id: str | None) -> Class | None:
+    """Resolve the class a group belongs to (anon_groups -> classId). None on any
+    miss — callers degrade gracefully."""
+    if not group_id:
+        return None
+    try:
+        anon = get_document("anon_groups", group_id)
+        class_id = anon.get("classId") if anon else None
+        return get_class(class_id) if class_id else None
+    except Exception:
+        return None
+
+
+def update_class_persona(class_id: str, persona_id: str | None) -> None:
+    """Set (or clear, with None) the per-class default persona."""
+    update_document(_COLLECTION, class_id, {"persona": persona_id, "updatedAt": _utcnow().isoformat()})
+
+
 def update_class_capabilities(
     class_id: str,
     *,

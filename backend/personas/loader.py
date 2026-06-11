@@ -50,10 +50,21 @@ def load_default_persona() -> Persona | None:
 
 def resolve_persona_or_default(persona_id: str | None) -> Persona | None:
     """The explicitly-assigned persona if set + loadable, else the global default."""
-    if persona_id:
-        p = load_persona(persona_id)
-        if p is not None:
-            return p
+    return resolve_persona_chain(persona_id)
+
+
+def resolve_persona_chain(*persona_ids: str | None) -> Persona | None:
+    """The first loadable persona id in the chain, else the global default.
+
+    The resolution order for a student's chat: activity persona > class persona
+    > global default. Callers pass the ids in that priority; a None / unknown id
+    is skipped. So picking ONE persona (at the activity or class level) sets the
+    avatar + name + voice + teaching style together."""
+    for pid in persona_ids:
+        if pid:
+            p = load_persona(pid)
+            if p is not None:
+                return p
     return load_default_persona()
 
 
@@ -62,5 +73,6 @@ __all__ = [
     "load_default_persona",
     "load_persona",
     "load_personas",
+    "resolve_persona_chain",
     "resolve_persona_or_default",
 ]
