@@ -145,3 +145,37 @@ jobs:
 
       - name: Run security check (frontend + sandbox + backend)
         run: scripts/security-check.sh
+
+  seed-reminder:
+    # SKILL.md frontmatter (avatar, multimodalInput, persona, tools,
+    # accessControl, instructions) does NOT propagate to Firestore for
+    # already-registered skills on deploy — the seed token-mint can't run
+    # inside Cloud Build (403; see cloudbuild.yaml ~L259). Ops runs
+    # scripts/seed-platform-skills.sh manually. This job is the ACTIVE nudge:
+    # it warns, at the moment a template changes on a push to dev, so the seed
+    # doesn't get forgotten (it has been, repeatedly — passive docs weren't
+    # enough). Warning-only: never fails the build.
+    name: Seed reminder (SKILL.md → Firestore)
+    if: github.event_name == 'push'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Warn when SKILL.md templates changed
+        run: |
+          set -e
+          base="${{ github.event.before }}"
+          # First push to a branch / force-push can yield an all-zero base;
+          # fall back to the parent of HEAD so the diff still resolves.
+          if [ -z "$base" ] || [ "$base" = "0000000000000000000000000000000000000000" ]; then
+            base="${{ github.sha }}^"
+          fi
+          changed=$(git diff --name-only "$base" "${{ github.sha }}" -- 'backend/skills/templates/**/SKILL.md' || true)
+          if [ -n "$changed" ]; then
+            echo "::warning title=Run seed-platform-skills::SKILL.md template(s) changed in this push. After the deploy finishes, run  make seed ENV=dev  (= scripts/seed-platform-skills.sh dev). A code deploy does NOT propagate SKILL.md→Firestore for already-registered skills."
+            echo "Changed templates:"
+            echo "$changed"
+          else
+            echo "No SKILL.md template changes in this push — no seed needed."
+          fi

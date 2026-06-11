@@ -1,4 +1,14 @@
-.PHONY: dev dev-local dev-recompile dev-status dev-stop proxy-check logs cloud-logs cloud-errors cloud-build verify-chat-logs smoke-session-persistence smoke-teacher-cli help cli-install cli-reinstall cli-uninstall cli-doctor cli-selftest-mock cli-selftest-live cli-selftest
+.PHONY: dev dev-local dev-recompile dev-status dev-stop proxy-check logs cloud-logs cloud-errors cloud-build verify-chat-logs smoke-session-persistence smoke-teacher-cli help cli-install cli-reinstall cli-uninstall cli-doctor cli-selftest-mock cli-selftest-live cli-selftest seed
+
+# Seed SKILL.md templates -> Firestore after a deploy that changed any template
+# (avatar, multimodalInput, persona, tools, accessControl, instructions). A code
+# deploy does NOT propagate SKILL.md -> Firestore for already-registered skills,
+# and the seed token-mint can't run inside Cloud Build (403) — so this is run
+# manually post-deploy. The CI `seed-reminder` job nudges when a template changes.
+#   make seed              # dev (default)
+#   make seed ENV=test
+seed:
+	@scripts/seed-platform-skills.sh $(ENV)
 
 # Launch backend (port 1956) + frontend (port 3000) for local development.
 # Logs stream to stdout; Ctrl-C stops both.

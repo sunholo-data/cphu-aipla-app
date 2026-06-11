@@ -191,6 +191,7 @@ Same GCP projects as v5, but v6 runs as **new parallel Cloud Run services** so v
 - **SA for Cloud Run**: `aitana-v6@{project_id}.iam.gserviceaccount.com`
 - **CI gate**: `.github/workflows/ci.yml` — lint + test-fast on PR and push to `dev`.
 - **Post-deploy smoke**: both `cloudbuild.yaml` pipelines end with a smoke step that curls critical endpoints and fails the build on any non-200. Run the same checks from a laptop with `./scripts/smoke-deployed.sh [dev|test|prod] [all|frontend|backend]`. Live service URLs are recorded in [docs/ops/deployed-urls.md](docs/ops/deployed-urls.md).
+- **⚠ Manual seed after any SKILL.md template change** (avatar, `multimodalInput`, persona, tools, accessControl, instructions): a code deploy does **NOT** propagate `backend/skills/templates/**/SKILL.md` → Firestore for already-registered skills (the seed token-mint can't run inside Cloud Build — 403, see `cloudbuild.yaml` ~L259). Run **`make seed ENV=dev`** (= `scripts/seed-platform-skills.sh dev`) after the deploy completes. The CI `seed-reminder` job emits a warning when a template changed on push, so this doesn't get forgotten (it has been, repeatedly). Symptom of a missed seed: "shipped feature works in tests but the deployed app shows the old skill data."
 
 ## Key Differences from v5
 
@@ -316,6 +317,7 @@ Any local workflow that requires more than one manual step — setting env vars,
 | Task | Command |
 |------|---------|
 | Start local dev servers | `make dev` |
+| **Seed SKILL.md templates → Firestore (after ANY template change + deploy)** | `make seed ENV=dev` |
 | Smoke-test proxy bridge | `make proxy-check` |
 | Verify chat-log pipeline e2e (join → turn → BigQuery) | `make verify-chat-logs GROUP=<code> ENV=<env>` |
 | Backend tests (fast) | `cd backend && make test-fast` |
