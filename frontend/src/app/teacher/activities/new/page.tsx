@@ -147,14 +147,18 @@ function NewActivityForm() {
     };
   }, [preferredClassId]);
 
-  // Persona catalogue — fire-and-forget; the picker just doesn't render on failure.
+  // Persona catalogue. No silent failure — surface a load error so a
+  // misconfigured /api/personas is visible instead of an empty-looking form.
+  const [personaError, setPersonaError] = useState<string | null>(null);
   useEffect(() => {
     let alive = true;
     fetchPersonaList()
       .then((ps) => {
         if (alive) setPersonas(ps);
       })
-      .catch(() => {});
+      .catch((e) => {
+        if (alive) setPersonaError(e instanceof Error ? e.message : "failed to load personas");
+      });
     return () => {
       alive = false;
     };
@@ -391,6 +395,11 @@ function NewActivityForm() {
             </Field>
           </div>
 
+          {personaError ? (
+            <p className="rounded border border-red-300 bg-red-50 px-3 py-2 text-sm text-red-700">
+              Couldn&rsquo;t load personas: {personaError}
+            </p>
+          ) : null}
           {personas.length > 0 ? (
             <div className="flex flex-col gap-2">
               <span className="text-sm font-medium text-slate-700">Persona</span>
