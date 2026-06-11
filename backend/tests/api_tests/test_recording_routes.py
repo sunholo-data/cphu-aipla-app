@@ -1,0 +1,148 @@
+"""API tests for lesson recording (VOICE-IN-REC M2). Mocks GCS + Firestore +
+the group->class binding; no real GCP calls."""
+
+from __future__ import annotations
+
+from types import SimpleNamespace
+
+import pytest
+from fastapi import FastAPI, Request
+from fastapi.testclient import TestClient
+
+from auth import User, build_access_context, get_current_user
+from protocols import recording_routes as rr
+from voice.recording_store import _ext_for, uri_to_path
+
+STUDENT_UID = "group-stu-1"
+GROUP_ID = "grp-1"
+CLASS_ID = "cls-1"
+TEACHER_UID = "teacher-1"
+
+
+class _FakeStore:
+    def __init__(self):
+        self.writes: list = []
+        self.deletes: list = []
+
+    def object_path(self, class_id, group_id, rec_id, mime):
+        return f"{class_id}/{group_id}/{rec_id}.webm"
+
+    async def write(self, path, audio, mime):
+        self.writes.append((path, len(audio), mime))
+        return f"gs://bucket/{path}"
+
+    async def delete_object(self, path):
+        self.deletes.append(path)
+        return True
+
+
+def _fake_class(recording_enabled=True, owner=TEACHER_UID):
+    return SimpleNamespace(class_id=CLASS_ID, recording_enabled=recording_enabled, owner_uid=owner)
+
+
+@pytest.fixture()
+def store():
+    return _FakeStore()
+
+
+def _client(group_id: str | None, monkeypatch, store=None, cls=None, writes=None):
+    app = FastAPI()
+    app.include_router(rr.router)
+
+    async def _override(request: Request) -> User:
+        if group_id:
+            u = User(uid=STUDENT_UID, email="", group_id=group_id)
+        else:
+            u = User(uid=TEACHER_UID, email="")
+        request.state.access = build_access_context(u)
+        return u
+
+    app.dependency_overrides[get_current_user] = _override
+    monkeypatch.setattr(rr, "_get_store", lambda: store)
+    monkeypatch.setattr(rr, "get_document", lambda c, i: {"classId": CLASS_ID})
+    monkeypatch.setattr(rr, "get_class", lambda cid: cls)
+    captured = writes if writes is not None else []
+    monkeypatch.setattr(rr, "set_document", lambda c, i, d: captured.append((i, d)))
+    return TestClient(app), captured
+
+
+def test_upload_stores_audio_and_metadata(store, monkeypatch):
+    writes: list = []
+    client, captured = _client(GROUP_ID, monkeypatch, store=store, cls=_fake_class(True), writes=writes)
+    resp = client.post(
+        "/api/voice/recording",
+        files={"audio": ("lesson.webm", b"\x1aE\xdf\xa3-fake", "audio/webm")},
+        data={"durationMs": "60000"},
+    )
+    assert resp.status_code == 200
+    body = resp.json()
+    assert body["gcsUri"].startswith("gs://bucket/")
+    assert len(store.writes) == 1  # audio written to GCS
+    assert len(captured) == 1  # metadata doc written
+    _id, meta = captured[0]
+    assert meta["classId"] == CLASS_ID and meta["groupId"] == GROUP_ID and meta["durationMs"] == 60000
+
+
+def test_upload_blocked_when_recording_disabled(store, monkeypatch):
+    client, _ = _client(GROUP_ID, monkeypatch, store=store, cls=_fake_class(recording_enabled=False))
+    resp = client.post("/api/voice/recording", files={"audio": ("l.webm", b"x", "audio/webm")})
+    assert resp.status_code == 403
+    assert store.writes == []  # nothing stored
+
+
+def test_upload_no_class_context_403(store, monkeypatch):
+    client, _ = _client(None, monkeypatch, store=store, cls=None)
+    resp = client.post("/api/voice/recording", files={"audio": ("l.webm", b"x", "audio/webm")})
+    assert resp.status_code == 403
+
+
+def test_upload_unconfigured_store_503(monkeypatch):
+    client, _ = _client(GROUP_ID, monkeypatch, store=None, cls=_fake_class(True))
+    resp = client.post("/api/voice/recording", files={"audio": ("l.webm", b"x", "audio/webm")})
+    assert resp.status_code == 503
+
+
+def test_upload_empty_audio_400(store, monkeypatch):
+    client, _ = _client(GROUP_ID, monkeypatch, store=store, cls=_fake_class(True))
+    resp = client.post("/api/voice/recording", files={"audio": ("l.webm", b"", "audio/webm")})
+    assert resp.status_code == 400
+
+
+def test_delete_by_group_owning_teacher(store, monkeypatch):
+    client, _ = _client(None, monkeypatch, store=store, cls=_fake_class(owner=TEACHER_UID))
+    monkeypatch.setattr(
+        rr,
+        "query_documents",
+        lambda c, filters=None: [{"recordingId": "r1", "gcsUri": "gs://bucket/cls-1/grp-1/r1.webm"}],
+    )
+    monkeypatch.setattr(rr, "delete_document", lambda c, i: None)
+    resp = client.delete(f"/api/voice/recording/group/{GROUP_ID}")
+    assert resp.status_code == 200
+    assert resp.json()["deleted"] == 1
+    assert store.deletes == ["cls-1/grp-1/r1.webm"]  # GCS object erased too
+
+
+def test_delete_by_group_non_owner_403(store, monkeypatch):
+    client, _ = _client(None, monkeypatch, store=store, cls=_fake_class(owner="someone-else"))
+    resp = client.delete(f"/api/voice/recording/group/{GROUP_ID}")
+    assert resp.status_code == 403
+
+
+def test_delete_by_group_student_forbidden(store, monkeypatch):
+    client, _ = _client(GROUP_ID, monkeypatch, store=store, cls=_fake_class())
+    resp = client.delete(f"/api/voice/recording/group/{GROUP_ID}")
+    assert resp.status_code == 403
+
+
+# --- store helpers ---
+
+
+def test_uri_to_path_roundtrip():
+    assert uri_to_path("gs://b/cls/grp/r.webm") == "cls/grp/r.webm"
+    assert uri_to_path("not-a-uri") is None
+
+
+def test_ext_for_mime():
+    assert _ext_for("audio/webm;codecs=opus") == "webm"
+    assert _ext_for("audio/wav") == "wav"
+    assert _ext_for("application/octet-stream") == "webm"  # safe default

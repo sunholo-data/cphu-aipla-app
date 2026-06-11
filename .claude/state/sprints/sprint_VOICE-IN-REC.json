@@ -44,10 +44,11 @@
       ],
       "files_to_create": ["backend/protocols/recording_routes.py", "backend/tests/api_tests/test_recording_routes.py"],
       "files_to_modify": ["backend/db/models/class_.py", "backend/fast_api_app.py", "scripts/bootstrap-aipla-dev.sh", "scripts/bootstrap-aipla-dev.NOTES.md"],
-      "passes": null,
-      "started": null,
-      "completed": null,
-      "notes": ""
+      "passes": true,
+      "started": "2026-06-11",
+      "completed": "2026-06-11",
+      "actual_loc": 360,
+      "notes": "SHIPPED. ResearchAudioStore (voice/recording_store.py) mirrors the TTS cache (env bucket, asyncio.to_thread GCS, injectable client). recording_routes.py: POST /api/voice/recording (gated on Class.recording_enabled; fails closed disabled->403 / no-bucket->503) + DELETE /group/{id} (owning teacher only) + delete_recordings_for_group erasure. Class model gained voice_input_enabled + recording_enabled + recordingConsentAttestedAt; update_class_capabilities() setter (attestation stamp). 10 tests (mocked GCS+Firestore). SIDE EFFECT: created gs://aipla-dev-2026-research-audio (EUROPE-NORTH1, uniform access) + aipla-v6@ objectAdmin — recorded in bootstrap ensure_research_audio_bucket() + NOTES Decision 15 (Terraform recipe; NO lifecycle auto-expiry, erasure via delete-by-group). cloudbuild RESEARCH_AUDIO_BUCKET env. Backend lint clean + test-fast 1849."
     },
     {
       "id": "M3",

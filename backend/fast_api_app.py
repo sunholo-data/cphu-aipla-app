@@ -257,6 +257,7 @@ from protocols.mcp_server import mcp as mcp_server  # noqa: E402
 from protocols.models_route import router as models_router  # noqa: E402
 from protocols.personas_routes import router as personas_router  # noqa: E402
 from protocols.proactive_routes import router as proactive_router  # noqa: E402
+from protocols.recording_routes import router as recording_router  # noqa: E402
 from protocols.reports_routes import router as reports_router  # noqa: E402
 from protocols.session_bootstrap_routes import router as session_bootstrap_router  # noqa: E402
 from protocols.session_restore_routes import router as session_restore_router  # noqa: E402
@@ -292,6 +293,7 @@ app.include_router(insights_router)
 app.include_router(reports_router)
 app.include_router(proactive_router)
 app.include_router(voice_router)
+app.include_router(recording_router)
 
 # ----------------------------------------------------------------------------
 # Channel framework (v6.1.0 sprint 1.6 M1)

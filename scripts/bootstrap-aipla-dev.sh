@@ -604,6 +604,32 @@ ensure_docparse_api_key_secret() {
   log "  ✓ aipla-v6@ granted secretAccessor on DOCPARSE_API_KEY"
 }
 
+ensure_research_audio_bucket() {
+  # VOICE-IN-REC — lesson recordings ("Record this class") are RETAINED here as
+  # a research record, UNLIKE the transcript-only STT path. EU-only, uniform
+  # bucket-level access; the runtime SA gets roles/storage.objectAdmin (write
+  # recordings + the delete-by-group_id GDPR-erasure path). Consent = signed
+  # paper forms (teacher-enabled per class), so no in-app consent infra here.
+  #
+  # NO lifecycle auto-expiry is set: research data persists for the study;
+  # erasure is the explicit delete-by-group_id route. A retention/auto-delete
+  # policy is a JB/policy decision to add later as a bucket lifecycle rule.
+  local bucket="${PROJECT}-research-audio"
+  log "Ensuring research-audio bucket gs://${bucket}..."
+  if gsutil ls "gs://${bucket}" &>/dev/null; then
+    log "  already exists"
+  else
+    gsutil mb -p "$PROJECT" -l "$REGION" -b on "gs://${bucket}" >/dev/null
+    log "  ✓ created (EU ${REGION}, uniform bucket-level access)"
+  fi
+  gcloud storage buckets add-iam-policy-binding "gs://${bucket}" \
+    --member="serviceAccount:${SA_EMAIL}" \
+    --role="roles/storage.objectAdmin" \
+    --project="$PROJECT" \
+    --quiet >/dev/null
+  log "  ✓ aipla-v6@ has roles/storage.objectAdmin on gs://${bucket}"
+}
+
 ensure_runtime_buckets() {
   # Buckets referenced by cloudbuild.yaml after the M2 inherited-name strip:
   #   - {PROJECT}-cloudbuild-logs   (cloudbuild.yaml logsBucket)
@@ -647,6 +673,7 @@ main() {
   ensure_firebase_anonymous_auth
   ensure_config_bucket
   ensure_runtime_buckets
+  ensure_research_audio_bucket
   ensure_firebase_web_app_and_secret
   ensure_group_auth_signing_secret
   ensure_docparse_api_key_secret

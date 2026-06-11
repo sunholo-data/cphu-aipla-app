@@ -139,6 +139,25 @@ def update_class_voice_settings(
     )
 
 
+def update_class_capabilities(
+    class_id: str,
+    *,
+    voice_input_enabled: bool | None = None,
+    recording_enabled: bool | None = None,
+) -> None:
+    """Set the per-class voice-in / lesson-recording capability toggles
+    (VOICE-IN-REC). Only the passed (non-None) flags are written. Enabling
+    recording stamps ``recordingConsentAttestedAt`` (the teacher's attestation
+    that signed paper consent forms are held); disabling clears it."""
+    patch: dict = {"updatedAt": _utcnow().isoformat()}
+    if voice_input_enabled is not None:
+        patch["voiceInputEnabled"] = voice_input_enabled
+    if recording_enabled is not None:
+        patch["recordingEnabled"] = recording_enabled
+        patch["recordingConsentAttestedAt"] = _utcnow().isoformat() if recording_enabled else None
+    update_document(_COLLECTION, class_id, patch)
+
+
 def add_lessons(class_id: str, skill_ids: list[str]) -> None:
     """Idempotent: appends skill_ids to Class.lessons, no duplicates."""
     cls = get_class(class_id)

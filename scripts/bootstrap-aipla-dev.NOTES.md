@@ -453,3 +453,54 @@ line above; (3) deploy. If you skip step 2, the deploy still succeeds but
 docparse calls 401 the moment a `multimodalInput` skill is used.
 
 ### Captured in script? ✅ yes — `ensure_docparse_api_key_secret()` (placeholder + explicit accessor grant). The Terraform recipe above is the test/prod equivalent.
+
+## 2026-06-11 — Research-audio bucket for lesson recording (VOICE-IN-REC M2)
+
+### Decision 15 — `gs://{project}-research-audio` holds retained lesson recordings
+
+The "Record this class" feature (audio-capture-and-tts.md) captures group
+discussion as a **research record**. UNLIKE the STT / talk-to-type path
+(transcript-only, never persisted), this audio is **deliberately retained**.
+Consent is **signed paper forms** (GDPR cleared 2026-06-11), recording is
+**teacher-enabled per class** (`Class.recording_enabled` = the attestation).
+
+- **Bucket:** `gs://{project}-research-audio`, region `europe-north1` (EU
+  residency, ADR-007), uniform bucket-level access.
+- **IAM:** runtime SA `aipla-v6@` gets `roles/storage.objectAdmin` (write
+  recordings + delete objects for the GDPR erasure path). Access to *listen*
+  to raw audio is bucket-IAM-gated — add researchers explicitly (1.1.5 role).
+- **Object layout:** `{class_id}/{group_id}/{recording_id}.{ext}` — the
+  `{class}/{group}/` prefix groups a class's audio + makes erasure a sweep.
+- **Firestore:** one `recordings/{id}` metadata doc per upload
+  (classId, groupId, gcsUri, mime, sizeBytes, durationMs, createdAt).
+- **Erasure:** `DELETE /api/voice/recording/group/{group_id}` (owning teacher)
+  → `delete_recordings_for_group()` removes GCS objects + metadata docs.
+- **Retention:** **NO lifecycle auto-expiry** — research data persists for the
+  study; erasure is the explicit delete-by-group path. An auto-delete policy is
+  a JB/policy decision to add later as a bucket lifecycle rule.
+- **cloudbuild.yaml:** `--set-env-vars=RESEARCH_AUDIO_BUCKET=${_PROJECT_ID}-research-audio`.
+  Unset → the recording route fails closed (503).
+
+### Test/prod path (Terraform):
+
+```hcl
+resource "google_storage_bucket" "research_audio" {
+  project                     = var.project_id
+  name                        = "${var.project_id}-research-audio"
+  location                    = "EUROPE-NORTH1"   # EU residency (ADR-007)
+  uniform_bucket_level_access = true
+  # NO lifecycle_rule by default — research data persists; erasure is the
+  # delete-by-group_id route. Add a lifecycle rule here once JB sets a
+  # retention policy (e.g. age > N days -> Delete).
+}
+
+resource "google_storage_bucket_iam_member" "research_audio_runtime_sa" {
+  bucket = google_storage_bucket.research_audio.name
+  role   = "roles/storage.objectAdmin"
+  member = "serviceAccount:${var.runtime_sa_email}"
+}
+# Researchers who may LISTEN get roles/storage.objectViewer added explicitly
+# (1.1.5 researcher role) — deny-by-default; raw audio is sensitive.
+```
+
+### Captured in script? ✅ yes — `ensure_research_audio_bucket()`. The Terraform recipe above is the test/prod equivalent.
