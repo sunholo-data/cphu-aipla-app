@@ -27,7 +27,7 @@ def test_each_persona_ties_a_valid_style_and_has_a_name():
 
 def test_each_persona_has_a_wired_avatar_path():
     for p in load_personas():
-        assert p.avatar == f"/personas/{p.id}.png"
+        assert p.avatar == f"/personas/{p.id}.webp"
 
 
 def test_frida_ties_warm_style_and_a_voice():

@@ -128,8 +128,8 @@ function formatTime(): string {
 
 function PersonaBubbleAvatar({ persona }: { persona: PersonaSummary }) {
   if (persona.avatar) {
-    // eslint-disable-next-line @next/next/no-img-element
     return (
+      // eslint-disable-next-line @next/next/no-img-element
       <img
         src={persona.avatar}
         alt={persona.name}

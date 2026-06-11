@@ -6,6 +6,7 @@ import { use, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { AutoReadToggle } from "@/components/chat/AutoReadToggle";
 import { ChatMessageList } from "@/components/chat/ChatMessageList";
 import type { PersonaSummary } from "@/components/chat/MessageBubble";
+import { PersonaHeader } from "@/components/chat/PersonaHeader";
 import { LangToggle } from "@/components/chat/LangToggle";
 import { ResumeWelcomeBanner } from "@/components/chat/ResumeWelcomeBanner";
 import { VoiceStatusPill } from "@/components/chat/VoiceStatusPill";
@@ -939,6 +940,10 @@ function ChatShell({
               <ResumeWelcomeBanner onDismiss={() => setShowResumeBanner(false)} />
             </div>
           )}
+          {/* 1.1.12 — the persona the student is working with, shown once
+              and prominently at the top of the chat (the per-bubble avatar
+              reinforces it on each turn). No-op when no persona is set. */}
+          <PersonaHeader persona={activePersona} />
           {/* 1.1.11 voice controls — language picker + auto-read toggle.
               Lives at the top of the chat so the student can flip either
               any time without digging in settings. */}
