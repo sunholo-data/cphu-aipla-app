@@ -4,6 +4,7 @@ the group->class binding; no real GCP calls."""
 from __future__ import annotations
 
 from types import SimpleNamespace
+from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 from fastapi import FastAPI, Request
@@ -63,6 +64,11 @@ def _client(group_id: str | None, monkeypatch, store=None, cls=None, writes=None
     monkeypatch.setattr(rr, "get_class", lambda cid: cls)
     captured = writes if writes is not None else []
     monkeypatch.setattr(rr, "set_document", lambda c, i, d: captured.append((i, d)))
+    # REC-TRANSCRIPT M1 — upload transcribes each segment; mock STT.
+    stt = MagicMock()
+    stt.name = "gcp_latest_long"
+    stt.transcribe = AsyncMock(return_value="hej fra gruppen")
+    monkeypatch.setattr(rr, "get_stt", lambda skill=None: stt)
     return TestClient(app), captured
 
 
@@ -81,6 +87,27 @@ def test_upload_stores_audio_and_metadata(store, monkeypatch):
     assert len(captured) == 1  # metadata doc written
     _id, meta = captured[0]
     assert meta["classId"] == CLASS_ID and meta["groupId"] == GROUP_ID and meta["durationMs"] == 60000
+    # REC-TRANSCRIPT M1 — the segment is transcribed + stored alongside the audio
+    assert meta["transcript"] == "hej fra gruppen"
+
+
+def test_upload_keeps_audio_when_transcription_fails(store, monkeypatch):
+    writes: list = []
+    client, captured = _client(GROUP_ID, monkeypatch, store=store, cls=_fake_class(True), writes=writes)
+    # STT blows up -> transcript empty, but audio + doc still stored (research record)
+    failing = MagicMock()
+    failing.name = "gcp_latest_long"
+    failing.transcribe = AsyncMock(side_effect=RuntimeError("stt down"))
+    monkeypatch.setattr(rr, "get_stt", lambda skill=None: failing)
+    resp = client.post(
+        "/api/voice/recording",
+        files={"audio": ("l.webm", b"x", "audio/webm")},
+        data={"seq": "2"},
+    )
+    assert resp.status_code == 200
+    assert len(store.writes) == 1
+    _id, meta = captured[0]
+    assert meta["transcript"] == "" and meta["seq"] == 2
 
 
 def test_upload_blocked_when_recording_disabled(store, monkeypatch):
@@ -146,3 +173,38 @@ def test_ext_for_mime():
     assert _ext_for("audio/webm;codecs=opus") == "webm"
     assert _ext_for("audio/wav") == "wav"
     assert _ext_for("application/octet-stream") == "webm"  # safe default
+
+
+# --- GET /group/{id}/transcript (REC-TRANSCRIPT M1) ---
+
+_SEGMENTS = [
+    {"seq": 1, "transcript": "second part", "createdAt": "2026-06-11T10:01:00Z"},
+    {"seq": 0, "transcript": "first part", "createdAt": "2026-06-11T10:00:00Z"},
+    {"seq": 2, "transcript": "", "createdAt": "2026-06-11T10:02:00Z"},  # untranscribed -> dropped
+]
+
+
+def test_transcript_own_group_student(monkeypatch):
+    client, _ = _client(GROUP_ID, monkeypatch, store=None, cls=_fake_class())
+    monkeypatch.setattr(rr, "query_documents", lambda c, filters=None: list(_SEGMENTS))
+    resp = client.get(f"/api/voice/recording/group/{GROUP_ID}/transcript")
+    assert resp.status_code == 200
+    body = resp.json()
+    # ordered by seq, empties dropped, joined
+    assert [s["seq"] for s in body["segments"]] == [0, 1]
+    assert body["text"] == "first part second part"
+
+
+def test_transcript_owning_teacher(monkeypatch):
+    client, _ = _client(None, monkeypatch, store=None, cls=_fake_class(owner=TEACHER_UID))
+    monkeypatch.setattr(rr, "query_documents", lambda c, filters=None: list(_SEGMENTS))
+    resp = client.get(f"/api/voice/recording/group/{GROUP_ID}/transcript")
+    assert resp.status_code == 200
+    assert resp.json()["text"] == "first part second part"
+
+
+def test_transcript_other_group_student_forbidden(monkeypatch):
+    # a student whose own group differs from the requested group, and not a teacher
+    client, _ = _client("other-group", monkeypatch, store=None, cls=_fake_class(owner="someone-else"))
+    resp = client.get(f"/api/voice/recording/group/{GROUP_ID}/transcript")
+    assert resp.status_code == 403

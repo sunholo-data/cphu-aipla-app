@@ -1,0 +1,71 @@
+{
+  "sprint_id": "REC-TRANSCRIPT",
+  "created": "2026-06-11",
+  "estimated_duration_days": 2.5,
+  "guiding_principle": "Post-session-ish transcription of lesson recordings, near-live (~1-min segments, sync STT reusing GCPSTTProvider \u2014 no new infra). Transcript keyed by groupId. Shown in the teacher session report + the student workbench (hidden by default, show toggle). Recording stays consent-gated (teacher toggle); the transcript inherits that gate. Audio is still retained alongside the transcript.",
+  "depends_on": "VOICE-IN-REC (M1 STT + M2 recording + M3 mic) shipped",
+  "features": [
+    {
+      "id": "M1",
+      "description": "Backend: transcribe each uploaded recording segment synchronously (GCPSTTProvider, <1-min segments) + store transcript+seq on the recordings doc. GET /api/voice/recording/group/{groupId}/transcript returns ordered segments + joined text, authorized for the owning teacher OR a student of that group. Transcription best-effort (audio always kept even if STT fails).",
+      "scope": "backend",
+      "estimated_loc": 220,
+      "passes": true,
+      "started": "2026-06-11",
+      "completed": "2026-06-11",
+      "notes": "SHIPPED. Upload route transcribes each segment best-effort via get_stt (audio always kept on STT fail) + stores transcript/seq/lang on the recordings doc. GET /group/{id}/transcript returns ordered segments + joined text; auth = own-group student OR owning teacher. 14 tests (incl transcript ordering, empty-drop, auth). Backend lint clean.",
+      "files_to_modify": [
+        "backend/protocols/recording_routes.py",
+        "backend/tests/api_tests/test_recording_routes.py"
+      ],
+      "actual_loc": 200
+    },
+    {
+      "id": "M2",
+      "description": "Frontend recorder: segmented lesson recording \u2014 restart the MediaRecorder every ~50s (under the sync-STT 1-min cap), uploading each complete segment with seq+lang. On Stop, flush the final partial. audioCapture gains a segmented mode; VoiceComposerControls record-lesson uses it.",
+      "scope": "frontend",
+      "estimated_loc": 200,
+      "passes": null,
+      "started": null,
+      "completed": null,
+      "notes": "",
+      "files_to_modify": [
+        "frontend/src/lib/audioCapture.ts",
+        "frontend/src/components/chat/VoiceComposerControls.tsx"
+      ]
+    },
+    {
+      "id": "M3",
+      "description": "Student workbench transcript panel: hidden by default with a 'Show transcript' toggle; polls GET .../group/{groupId}/transcript (~every 30-60s) for the student's own group; renders the growing transcript. Tied to the historic groupId.",
+      "scope": "frontend",
+      "estimated_loc": 220,
+      "passes": null,
+      "started": null,
+      "completed": null,
+      "notes": "",
+      "files_to_create": [
+        "frontend/src/components/chat/LessonTranscriptPanel.tsx",
+        "frontend/src/lib/transcriptApi.ts"
+      ],
+      "files_to_modify": [
+        "frontend/src/app/chat/[...path]/page.tsx"
+      ]
+    },
+    {
+      "id": "M4",
+      "description": "Teacher view: the group's transcript on the session/group report (per-group). Reuses the transcript endpoint; teacher-auth path.",
+      "scope": "frontend",
+      "estimated_loc": 160,
+      "passes": null,
+      "started": null,
+      "completed": null,
+      "notes": "",
+      "files_to_modify": [
+        "frontend/src/app/teacher/reports/groups/[groupId]/page.tsx"
+      ]
+    }
+  ],
+  "last_session": "2026-06-11",
+  "last_checkpoint": "M1 shipped (segment transcription + transcript endpoint); starting M2 (segmented recorder)",
+  "status": "in_progress"
+}

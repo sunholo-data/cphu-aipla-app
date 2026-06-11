@@ -17,6 +17,7 @@ from __future__ import annotations
 import logging
 import uuid
 from datetime import UTC, datetime
+from typing import Any
 
 from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile
 from opentelemetry import trace
@@ -25,6 +26,7 @@ from auth import User, get_current_user
 from db.classes import get_class
 from db.firestore import delete_document, get_document, query_documents, set_document
 from db.models.class_ import Class
+from voice import get_stt
 from voice.recording_store import ResearchAudioStore, uri_to_path
 
 logger = logging.getLogger(__name__)
@@ -68,14 +70,32 @@ def _class_for_user(user: User) -> Class | None:
         return None
 
 
+async def _transcribe_segment(raw: bytes, mime: str, lang: str) -> str:
+    """Best-effort transcript of a recording segment (REC-TRANSCRIPT M1). Reuses
+    the STT provider (sync recognize, <1-min segments). Never raises — the audio
+    is the research record and is kept regardless; an empty transcript just means
+    'not transcribed' (STT disabled / failed)."""
+    try:
+        provider = get_stt(None)
+        if provider.name in ("disabled", "null"):
+            return ""
+        return await provider.transcribe(raw, mime, lang, None)
+    except Exception as exc:
+        logger.warning("recording segment transcription failed (audio kept): %s", exc)
+        return ""
+
+
 @router.post("")
 async def upload_recording(
     audio: UploadFile = File(...),  # noqa: B008
     duration_ms: int = Form(0, alias="durationMs"),
+    seq: int = Form(0),
+    lang: str = Form("da"),
     user: User = Depends(get_current_user),  # noqa: B008
 ) -> dict[str, str]:
-    """Store a lesson recording for the caller's group/class. Gated on the
-    class's ``recording_enabled`` (the teacher's paper-consent attestation)."""
+    """Store a lesson-recording segment for the caller's group/class + transcribe
+    it. Gated on the class's ``recording_enabled`` (the teacher's paper-consent
+    attestation). ``seq`` orders segments within a group's recording."""
     cls = _class_for_user(user)
     if cls is None:
         raise HTTPException(status_code=403, detail="No class context for recording.")
@@ -101,7 +121,10 @@ async def upload_recording(
         span.set_attribute("recording.class_id", cls.class_id)
         span.set_attribute("recording.bytes", len(raw))
         span.set_attribute("recording.duration_ms", duration_ms)
+        span.set_attribute("recording.seq", seq)
         gcs_uri = await store.write(path, raw, mime)
+        transcript = await _transcribe_segment(raw, mime, lang)
+        span.set_attribute("recording.transcript_chars", len(transcript))
 
     meta = {
         "recordingId": rec_id,
@@ -111,11 +134,59 @@ async def upload_recording(
         "mime": mime,
         "sizeBytes": len(raw),
         "durationMs": duration_ms,
+        "seq": seq,
+        "lang": lang,
+        "transcript": transcript,
         "createdAt": datetime.now(UTC).isoformat(),
     }
     set_document(_COLLECTION, rec_id, meta)
-    logger.info("lesson recording stored: class=%s group=%s bytes=%d", cls.class_id, group_id, len(raw))
+    logger.info(
+        "lesson recording stored: class=%s group=%s seq=%d bytes=%d transcript_chars=%d",
+        cls.class_id,
+        group_id,
+        seq,
+        len(raw),
+        len(transcript),
+    )
     return {"recordingId": rec_id, "gcsUri": gcs_uri}
+
+
+def _class_for_group(group_id: str) -> Class | None:
+    """Resolve the class a given group belongs to (anon_groups -> classId)."""
+    anon_doc = get_document("anon_groups", group_id)
+    class_id = anon_doc.get("classId") if anon_doc else None
+    return get_class(class_id) if class_id else None
+
+
+@router.get("/group/{group_id}/transcript")
+async def get_group_transcript(
+    group_id: str,
+    user: User = Depends(get_current_user),  # noqa: B008
+) -> dict[str, Any]:
+    """Return a group's lesson transcript — ordered segments + joined text.
+
+    Authorized for (a) a student OF this group (their own group's transcript)
+    or (b) the teacher who owns the class the group belongs to.
+    """
+    caller_group = getattr(user, "group_id", None)
+    if caller_group != group_id:
+        # not the group's own student -> must be the owning teacher
+        cls = _class_for_group(group_id)
+        if cls is None or cls.owner_uid != user.uid:
+            raise HTTPException(status_code=403, detail="Not authorized for this group's transcript.")
+
+    docs = query_documents(_COLLECTION, filters=[("groupId", "==", group_id)])
+    segments = [
+        {"seq": int(d.get("seq", 0)), "text": d.get("transcript", ""), "createdAt": d.get("createdAt", "")}
+        for d in docs
+        if (d.get("transcript") or "").strip()
+    ]
+    segments.sort(key=lambda s: (s["seq"], s["createdAt"]))
+    return {
+        "groupId": group_id,
+        "segments": segments,
+        "text": " ".join(s["text"].strip() for s in segments),
+    }
 
 
 async def delete_recordings_for_group(group_id: str) -> int:
