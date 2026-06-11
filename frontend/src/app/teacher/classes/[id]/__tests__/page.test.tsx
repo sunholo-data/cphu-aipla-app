@@ -100,9 +100,10 @@ describe("/teacher/classes/[id] — class detail", () => {
     });
     // The new consolidated section header...
     expect(screen.getByRole("heading", { name: "Class settings" })).toBeInTheDocument();
-    // ...still contains the voice/read-aloud panel (nothing dropped in the refactor).
+    // ...still contains the voice panel (VOICE-IN-REC M4 renamed it "Voice &
+    // recording" + demoted the raw picker to an Advanced disclosure).
     expect(
-      screen.getByRole("heading", { name: /Voice \(read-aloud\)/ }),
+      screen.getByRole("heading", { name: /Voice & recording/ }),
     ).toBeInTheDocument();
   });
 

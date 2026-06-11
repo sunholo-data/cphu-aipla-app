@@ -357,3 +357,34 @@ def test_transcribe_provider_runtime_error_returns_503(client, monkeypatch):
         data={"lang": "da"},
     )
     assert resp.status_code == 503
+
+
+# --- PUT /api/voice/class/{id}/capabilities (VOICE-IN-REC M4) ---
+
+
+def test_capabilities_owner_updates(client, monkeypatch):
+    cls = MagicMock()
+    cls.owner_uid = STUDENT_UID  # the override user owns this class
+    monkeypatch.setattr("protocols.voice_routes.get_class", lambda cid: cls)
+    seen = {}
+    monkeypatch.setattr(
+        "protocols.voice_routes.update_class_capabilities",
+        lambda cid, **kw: seen.update({"cid": cid, **kw}),
+    )
+    resp = client.put("/api/voice/class/c1/capabilities", json={"recordingEnabled": True})
+    assert resp.status_code == 200
+    assert seen["cid"] == "c1" and seen["recording_enabled"] is True
+
+
+def test_capabilities_non_owner_403(client, monkeypatch):
+    cls = MagicMock()
+    cls.owner_uid = "someone-else"
+    monkeypatch.setattr("protocols.voice_routes.get_class", lambda cid: cls)
+    resp = client.put("/api/voice/class/c1/capabilities", json={"voiceInputEnabled": True})
+    assert resp.status_code == 403
+
+
+def test_capabilities_missing_class_404(client, monkeypatch):
+    monkeypatch.setattr("protocols.voice_routes.get_class", lambda cid: None)
+    resp = client.put("/api/voice/class/c1/capabilities", json={"voiceInputEnabled": True})
+    assert resp.status_code == 404

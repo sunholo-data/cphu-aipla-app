@@ -85,15 +85,16 @@
       ],
       "files_to_create": [],
       "files_to_modify": ["frontend/src/app/teacher/classes/[id]/page.tsx", "frontend/src/components/teacher/*"],
-      "passes": null,
-      "started": null,
-      "completed": null,
-      "notes": ""
+      "passes": true,
+      "started": "2026-06-11",
+      "completed": "2026-06-11",
+      "actual_loc": 230,
+      "notes": "SHIPPED. The point of the sprint: net teacher options went DOWN. ClassVoiceSettingsPanel renamed 'Voice & recording' — two plain on/off SettingRow toggles up top (Student voice input; Record this class with the 'only if you hold signed consent forms' attestation copy), save-on-change (no extra button). The raw tier/voice picker is now behind AdvancedDisclosure 'Custom voice (advanced)' (default collapsed) — personas are the primary voice path. Backend: PUT /api/voice/class/{id}/capabilities (owner-gated) -> update_class_capabilities. teacherApi setClassCapabilities + ClassPayload voiceInputEnabled/recordingEnabled (serialized by_alias already). 4 FE panel tests + 3 BE route tests. Backend voice 19 + lint clean; FE quality:check green."
     }
   ],
   "velocity": {"target_loc_per_day": 350, "estimated_total_loc": 1160, "estimated_days": 3.5},
   "github_issues": [],
   "last_session": "2026-06-11",
-  "last_checkpoint": "created; starting M1 (backend STT)",
-  "status": "in_progress"
+  "last_checkpoint": "all 4 milestones shipped (M1 STT, M2 recording, M3 composer mic, M4 simplified config); unpushed — one deploy at end",
+  "status": "complete"
 }

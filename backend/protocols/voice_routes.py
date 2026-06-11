@@ -36,7 +36,7 @@ from pydantic import BaseModel, ConfigDict, Field
 
 from adk.teacher_focus import resolve_active_config
 from auth import User, get_current_user
-from db.classes import get_class, update_class_voice_settings
+from db.classes import get_class, update_class_capabilities, update_class_voice_settings
 from db.firestore import get_document
 from db.models.class_ import Class, ClassVoiceSettings
 from personas.loader import load_persona
@@ -317,6 +317,45 @@ async def update_class_voice(
         body.language,
         body.voice,
         body.provider,
+    )
+    return {"ok": True}
+
+
+class ClassCapabilitiesBody(BaseModel):
+    """Body for PUT /api/voice/class/{class_id}/capabilities (VOICE-IN-REC M4).
+    The two plain per-class on/off toggles. Only passed (non-null) flags are
+    written. Enabling recording is the teacher's attestation that signed paper
+    consent forms are held."""
+
+    voice_input_enabled: bool | None = Field(default=None, alias="voiceInputEnabled")
+    recording_enabled: bool | None = Field(default=None, alias="recordingEnabled")
+
+    model_config = ConfigDict(populate_by_name=True, extra="forbid")
+
+
+@router.put("/class/{class_id}/capabilities")
+async def update_class_capabilities_route(
+    class_id: str,
+    body: ClassCapabilitiesBody,
+    user: User = Depends(get_current_user),  # noqa: B008
+) -> dict[str, Any]:
+    """Teacher toggles the per-class voice-in / lesson-recording capabilities.
+    Auth: caller must own the class (students 403)."""
+    cls = get_class(class_id)
+    if cls is None:
+        raise HTTPException(status_code=404, detail="class not found")
+    if cls.owner_uid != user.uid:
+        raise HTTPException(status_code=403, detail="not class owner")
+    update_class_capabilities(
+        class_id,
+        voice_input_enabled=body.voice_input_enabled,
+        recording_enabled=body.recording_enabled,
+    )
+    logger.info(
+        "voice/class-capabilities updated class=%s voiceInput=%s recording=%s",
+        class_id,
+        body.voice_input_enabled,
+        body.recording_enabled,
     )
     return {"ok": True}
 

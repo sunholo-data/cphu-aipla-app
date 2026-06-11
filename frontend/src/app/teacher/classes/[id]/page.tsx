@@ -496,6 +496,8 @@ export default function TeacherClassDetailPage() {
         <ClassVoiceSettingsPanel
           classId={cls.classId}
           initial={cls.voice ?? null}
+          initialVoiceInput={cls.voiceInputEnabled ?? false}
+          initialRecording={cls.recordingEnabled ?? false}
           onSaved={refresh}
         />
       </SettingsSection>

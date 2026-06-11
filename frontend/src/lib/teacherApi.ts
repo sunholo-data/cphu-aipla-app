@@ -196,6 +196,8 @@ export interface ClassPayload {
   lessons: string[];
   groupCodes: string[];
   voice?: ClassVoiceSettingsPayload | null;
+  voiceInputEnabled?: boolean;
+  recordingEnabled?: boolean;
   revoked: boolean;
   createdAt: string;
   updatedAt: string;
@@ -288,6 +290,23 @@ export async function setClassVoiceSettings(
     },
   );
   return readJson(resp, "update class voice settings");
+}
+
+/** VOICE-IN-REC M4 — toggle the per-class voice-in / lesson-recording
+ * capabilities. Only the passed flags are written. */
+export async function setClassCapabilities(
+  classId: string,
+  body: { voiceInputEnabled?: boolean; recordingEnabled?: boolean },
+): Promise<{ ok: boolean }> {
+  const resp = await fetchWithAuth(
+    `/api/proxy/api/voice/class/${encodeURIComponent(classId)}/capabilities`,
+    {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(body),
+    },
+  );
+  return readJson(resp, "update class capabilities");
 }
 
 export interface VoiceListEntry {

@@ -23,12 +23,17 @@ import {
   type VoiceListEntry,
   type VoiceListResponse,
   fetchVoiceList,
+  setClassCapabilities,
   setClassVoiceSettings,
 } from "@/lib/teacherApi";
+import { AdvancedDisclosure, SettingRow } from "@/components/teacher/ui";
 
 interface Props {
   classId: string;
   initial: ClassVoiceSettingsPayload | null | undefined;
+  /** VOICE-IN-REC M4 — current per-class capability toggles. */
+  initialVoiceInput?: boolean;
+  initialRecording?: boolean;
   onSaved: () => void;
 }
 
@@ -37,7 +42,13 @@ const LANG_LABEL: Record<string, string> = {
   en: "English (en-US)",
 };
 
-export function ClassVoiceSettingsPanel({ classId, initial, onSaved }: Props) {
+export function ClassVoiceSettingsPanel({
+  classId,
+  initial,
+  initialVoiceInput = false,
+  initialRecording = false,
+  onSaved,
+}: Props) {
   const [language, setLanguage] = useState<string>(initial?.language ?? "");
   const [voice, setVoice] = useState<string>(initial?.voice ?? "");
   const [voicesByLang, setVoicesByLang] = useState<VoiceListResponse | null>(
@@ -46,6 +57,36 @@ export function ClassVoiceSettingsPanel({ classId, initial, onSaved }: Props) {
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [toast, setToast] = useState<string | null>(null);
+
+  // VOICE-IN-REC M4 — the two plain capability toggles. Optimistic + save on
+  // change (no extra Save button — the point is fewer steps, not more).
+  const [voiceInput, setVoiceInput] = useState<boolean>(initialVoiceInput);
+  const [recording, setRecording] = useState<boolean>(initialRecording);
+  const [capBusy, setCapBusy] = useState(false);
+
+  async function toggleCapability(which: "voiceInput" | "recording", next: boolean) {
+    setCapBusy(true);
+    setError(null);
+    // optimistic
+    if (which === "voiceInput") setVoiceInput(next);
+    else setRecording(next);
+    try {
+      await setClassCapabilities(
+        classId,
+        which === "voiceInput" ? { voiceInputEnabled: next } : { recordingEnabled: next },
+      );
+      setToast(next ? "Enabled" : "Disabled");
+      setTimeout(() => setToast(null), 2000);
+      onSaved();
+    } catch (err) {
+      // revert on failure
+      if (which === "voiceInput") setVoiceInput(!next);
+      else setRecording(!next);
+      setError(err instanceof Error ? err.message : "failed to save");
+    } finally {
+      setCapBusy(false);
+    }
+  }
 
   useEffect(() => {
     let cancelled = false;
@@ -129,15 +170,50 @@ export function ClassVoiceSettingsPanel({ classId, initial, onSaved }: Props) {
     >
       <header className="flex flex-wrap items-center justify-between gap-2">
         <h2 id="voice-settings-label" className="text-lg font-semibold">
-          Voice (read-aloud)
+          Voice &amp; recording
         </h2>
         <span className="text-xs text-muted-foreground">
-          Students can override their language; only the teacher picks
-          the voice.
+          The tutor speaks in its persona&rsquo;s voice. These toggle what
+          students can do; advanced voice tuning is below.
         </span>
       </header>
 
-      <div className="grid grid-cols-1 gap-3 rounded border border-border p-3 md:grid-cols-2">
+      {/* M4 — the essential surface: two plain on/off capabilities. */}
+      <div className="divide-y divide-border rounded border border-border px-3">
+        <SettingRow
+          label="Student voice input"
+          htmlFor="cap-voice-input"
+          help="Let students talk-to-type (press the mic, speak, it fills the box)."
+        >
+          <input
+            id="cap-voice-input"
+            type="checkbox"
+            checked={voiceInput}
+            disabled={capBusy}
+            onChange={(e) => void toggleCapability("voiceInput", e.target.checked)}
+            className="h-5 w-5 accent-primary"
+          />
+        </SettingRow>
+        <SettingRow
+          label="Record this class"
+          htmlFor="cap-recording"
+          help="Capture the group's audio as a research record. Only enable if you hold signed consent forms for this class."
+        >
+          <input
+            id="cap-recording"
+            type="checkbox"
+            checked={recording}
+            disabled={capBusy}
+            onChange={(e) => void toggleCapability("recording", e.target.checked)}
+            className="h-5 w-5 accent-primary"
+          />
+        </SettingRow>
+      </div>
+
+      {/* M4 — the raw tier/voice picker is now ADVANCED (default collapsed).
+          Personas are the primary way to choose a voice; this is the override. */}
+      <AdvancedDisclosure label="Custom voice (advanced)">
+      <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
         <label className="flex flex-col gap-1 text-sm">
           <span className="font-medium">Language</span>
           <select
@@ -210,6 +286,7 @@ export function ClassVoiceSettingsPanel({ classId, initial, onSaved }: Props) {
           {error ? <span className="text-xs text-red-600">{error}</span> : null}
         </div>
       </div>
+      </AdvancedDisclosure>
     </section>
   );
 }
