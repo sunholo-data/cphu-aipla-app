@@ -30,10 +30,11 @@
         "backend/db/models/__init__.py",
         "backend/admin/platform_seed.py"
       ],
-      "passes": null,
-      "started": null,
-      "completed": null,
-      "notes": "Wire slot exists: _StreamSkillRequest.attachments (fast_api_app:392) + process_skill_request(attachments) param (currently unused). UserMessage built at skill_processor:180. Mirror make_document_injector (adk/callbacks/document.py:173)."
+      "passes": true,
+      "actual_loc": 430,
+      "started": "2026-06-11",
+      "completed": "2026-06-11",
+      "notes": "SHIPPED 6fbbe92. make_image_injector (adk/callbacks/image.py) + _extract_attachments + stash + multimodal_input flag + parser. 7 tests incl non-retention; make test-fast 1819. DOCPARSE_API_KEY wired into cloudbuild --set-secrets (docs route to docparse, images to Gemini)."
     },
     {
       "id": "M2",
@@ -60,7 +61,7 @@
       "passes": null,
       "started": null,
       "completed": null,
-      "notes": "Composer location TBD (under src/app/chat/[...path]/ or src/components/chat/). sendMessage(text, opts) -> forwardedProps already carries document_ids; add attachments the same way."
+      "notes": "READY TO BUILD — exact seams found. WIRE: useSkillAgent.sendMessage opts (src/hooks/useSkillAgent.ts:400-403) -> add attachments?: {mimeType,data(base64),name}[]; thread to forwardedProps.attachments at line ~444 (next to document_ids at 431-433). COMPOSER: inline in src/app/chat/[...path]/page.tsx — handleSend() at 613 calls sendMessage(text,{documentIds,resumedSession}) at 630 (add attachments + clear after); the form is at ~1012, input placeholder 'Message…' at 1020 (add paperclip + camera + thumbnails here). GATE: read multimodal_input from the skill meta (useSkillMeta) to show/hide the paperclip. NEW LIBS: lib/imageResize.ts (canvas->2048px->base64), lib/personGuardrail.ts (FaceDetector, graceful degrade). UNITS-LOOP: add ## Image input block to the 3 tutor SKILL.md (problem-set-hints, led-planck-tutor, kinebot-kinematics-tutor)."
     }
   ],
   "velocity": {
