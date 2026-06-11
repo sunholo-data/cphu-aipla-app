@@ -41,6 +41,10 @@ export interface VoiceConfig {
     provider: string;
     capabilities: VoiceCapabilities;
   };
+  /** VOICE-IN-REC — per-class capability flags the composer gates the mic on.
+   * `voiceInput` (talk-to-type) also needs `stt.provider !== "disabled"`;
+   * `recording` ("record this class") is independent. */
+  capabilities: { voiceInput: boolean; recording: boolean };
   loading: boolean;
 }
 
@@ -55,6 +59,7 @@ const DEFAULT_CONFIG: VoiceConfig = {
     provider: "disabled",
     capabilities: { tts: false, stt: false, streaming: false, languages: [] },
   },
+  capabilities: { voiceInput: false, recording: false },
   loading: false,
 };
 
@@ -81,7 +86,13 @@ export function useVoiceConfig(skillId: string | null): VoiceConfig {
     try {
       const res = await fetchWithAuth(url);
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
-      const data = (await res.json()) as Omit<VoiceConfig, "loading">;
+      const raw = (await res.json()) as Partial<Omit<VoiceConfig, "loading">>;
+      // Normalize: an older deployed backend may not yet send `capabilities`.
+      const data: Omit<VoiceConfig, "loading"> = {
+        tts: raw.tts ?? DEFAULT_CONFIG.tts,
+        stt: raw.stt ?? DEFAULT_CONFIG.stt,
+        capabilities: raw.capabilities ?? DEFAULT_CONFIG.capabilities,
+      };
       if (!signal.cancelled) {
         _cache.set(cacheKey, data);
         setConfig(data);

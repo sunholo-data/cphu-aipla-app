@@ -65,10 +65,11 @@
       ],
       "files_to_create": ["frontend/src/lib/audioCapture.ts", "frontend/src/components/chat/VoiceComposerControls.tsx", "frontend/src/lib/__tests__/audioCapture.test.ts"],
       "files_to_modify": ["frontend/src/app/chat/[...path]/page.tsx", "frontend/src/hooks/useVoiceConfig.ts"],
-      "passes": null,
-      "started": null,
-      "completed": null,
-      "notes": ""
+      "passes": true,
+      "started": "2026-06-11",
+      "completed": "2026-06-11",
+      "actual_loc": 420,
+      "notes": "SHIPPED. lib/audioCapture.ts (AudioRecorder over getUserMedia+MediaRecorder, injectable deps for tests, no always-on mic; pickAudioMimeType webm/opus pref). components/chat/VoiceComposerControls.tsx: one recorder, talk-to-type XOR record-lesson; dictation->/api/voice/stt/transcribe->fills draft; record-lesson shows a persistent red 'Recording this class' banner + Stop->/api/voice/recording; renders null when no caps or unsupported. Gated on composerVoice.capabilities (voiceInput needs stt.provider!=disabled). Backend: /api/voice/config now returns capabilities{voiceInput,recording} from the student's class (_class_for_user refactor); cloudbuild VOICE_STT_PROVIDER=gcp_latest_long. useVoiceConfig exposes capabilities (defensive default for older backend). 12 FE tests (8 audioCapture + 4 component). Backend voice tests 16 + lint clean; FE quality:check:fast clean."
     },
     {
       "id": "M4",

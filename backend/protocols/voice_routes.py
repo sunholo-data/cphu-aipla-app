@@ -38,7 +38,7 @@ from adk.teacher_focus import resolve_active_config
 from auth import User, get_current_user
 from db.classes import get_class, update_class_voice_settings
 from db.firestore import get_document
-from db.models.class_ import ClassVoiceSettings
+from db.models.class_ import Class, ClassVoiceSettings
 from personas.loader import load_persona
 from skills.skill_config import get_skill
 from voice import get_stt, get_tts
@@ -90,16 +90,11 @@ class ClassVoiceSettingsBody(BaseModel):
     model_config = ConfigDict(populate_by_name=True, extra="forbid")
 
 
-def _class_voice_for_user(user: User) -> ClassVoiceSettings | None:
-    """Look up the requesting user's class-level voice override.
-
-    Anonymous-group users carry `user.group_id`; the anon_groups doc has
-    a `classId` field that points at the owning class. Teachers in chat
-    mode have no group_id (their auth path is Firebase) — returns None
-    so they get skill defaults.
-
-    Returns None on any lookup failure rather than raising; voice
-    config must degrade gracefully (resolve to skill / env defaults).
+def _class_for_user(user: User) -> Class | None:
+    """Resolve the requesting user's class via the anon_groups -> classId
+    binding. Anonymous-group users carry `user.group_id`; teachers in chat
+    mode have no group_id (Firebase auth) -> None. Returns None on any lookup
+    failure rather than raising; voice config must degrade gracefully.
     """
     group_id = getattr(user, "group_id", None)
     if not group_id:
@@ -111,13 +106,16 @@ def _class_voice_for_user(user: User) -> ClassVoiceSettings | None:
         class_id = anon_doc.get("classId")
         if not class_id:
             return None
-        cls = get_class(class_id)
-        if cls is None:
-            return None
-        return cls.voice
+        return get_class(class_id)
     except Exception as exc:
-        logger.warning("class voice lookup failed for group=%s: %s", group_id, exc)
+        logger.warning("class lookup failed for group=%s: %s", group_id, exc)
         return None
+
+
+def _class_voice_for_user(user: User) -> ClassVoiceSettings | None:
+    """The requesting user's class-level voice override (1.1.11), or None."""
+    cls = _class_for_user(user)
+    return cls.voice if cls is not None else None
 
 
 class SynthesizeRequest(BaseModel):
@@ -163,7 +161,8 @@ async def get_config(
       }
     """
     skill = get_skill(skill_id) if skill_id else None
-    class_voice = _class_voice_for_user(user)
+    cls = _class_for_user(user)
+    class_voice = cls.voice if cls is not None else None
 
     # 1.1.12: a persona picked on the active activity supplies the voice,
     # overriding the class/skill defaults for that activity (most specific wins).
@@ -251,6 +250,13 @@ async def get_config(
         "stt": {
             "provider": stt.name,
             "capabilities": stt.describe(),
+        },
+        # VOICE-IN-REC — per-class capability flags the composer gates the mic
+        # on. voiceInput also requires a real STT provider (stt.provider !=
+        # disabled); recording is independent (its own upload route).
+        "capabilities": {
+            "voiceInput": bool(cls is not None and cls.voice_input_enabled),
+            "recording": bool(cls is not None and cls.recording_enabled),
         },
     }
 

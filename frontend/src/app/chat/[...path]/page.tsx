@@ -11,6 +11,7 @@ import { LangToggle } from "@/components/chat/LangToggle";
 import { ResumeWelcomeBanner } from "@/components/chat/ResumeWelcomeBanner";
 import { ImageStagingRow, ImageUploadButtons } from "@/components/chat/ImageComposer";
 import { useImageAttachments, MAX_IMAGES } from "@/hooks/useImageAttachments";
+import { VoiceComposerControls } from "@/components/chat/VoiceComposerControls";
 import { VoiceStatusPill } from "@/components/chat/VoiceStatusPill";
 import { useVoiceConfig } from "@/hooks/useVoiceConfig";
 import type { DocTabData } from "@/components/doc-browser/DocTab";
@@ -412,6 +413,10 @@ function ChatShell({
   // skill's multimodalInput flag at render time). Owns guardrail + resize +
   // object-URL cleanup; handleSend reads `.attachments` and calls `.clear()`.
   const images = useImageAttachments();
+  // VOICE-IN-REC M3 — composer mic (talk-to-type XOR record-lesson). Gated on
+  // the class capability flags from voice config; dictation fills the draft.
+  const composerVoice = useVoiceConfig(skillId);
+  const [voiceNotice, setVoiceNotice] = useState<string | null>(null);
   // PEDCTX/Boldkast — workspace toggle between default content
   // (problem statement + checklist) and the Boldkast sim iframe.
   const [showBoldkastSim, setShowBoldkastSim] = useState(false);
@@ -1028,8 +1033,11 @@ function ChatShell({
                 onRemove={images.remove}
               />
             )}
+            {voiceNotice && (
+              <p className="mb-2 text-xs text-muted-foreground">{voiceNotice}</p>
+            )}
             <form
-              className="flex gap-2"
+              className="flex items-center gap-2"
               onSubmit={(e) => {
                 e.preventDefault();
                 void handleSend();
@@ -1042,6 +1050,15 @@ function ChatShell({
                   full={images.count >= MAX_IMAGES}
                 />
               )}
+              <VoiceComposerControls
+                skillId={skillId}
+                lang={composerVoice.tts.language ?? "da"}
+                voiceInputEnabled={composerVoice.capabilities.voiceInput && composerVoice.stt.provider !== "disabled"}
+                recordingEnabled={composerVoice.capabilities.recording}
+                disabled={inputDisabled}
+                onTranscript={(t) => setDraft((d) => (d.trim() ? `${d} ${t}` : t))}
+                onNotice={setVoiceNotice}
+              />
               <input
                 value={draft}
                 onChange={(e) => setDraft(e.target.value)}
