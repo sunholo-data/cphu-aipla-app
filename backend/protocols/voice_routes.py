@@ -203,6 +203,13 @@ async def get_config(
         sv = getattr(skill, "voice", None)
         if sv is not None:
             resolved_lang = getattr(sv, "language", None)
+    # NOTE (1.1.12 default identity): we deliberately do NOT gap-fill the voice
+    # from the global default persona here. The default persona supplies only
+    # the chat AVATAR + NAME (active-config); its voice (Sofie = gcp_chirp3hd,
+    # the priciest tier) is left out so unconfigured skills keep the cheaper env
+    # wavenet default — a Danish wavenet voice is coherent enough with the
+    # default Danish-educator avatar without a 7.5x TTS cost bump. An explicitly
+    # assigned persona still supplies its own voice via the persona tier above.
 
     # Build a synthetic skill-like object to pass to get_tts so the
     # registry resolves the class's chosen provider when one is set,

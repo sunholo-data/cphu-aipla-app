@@ -37,7 +37,7 @@ from db.models.activity_config import (
     Language,
     WorkbenchType,
 )
-from personas.loader import load_persona
+from personas.loader import resolve_persona_or_default
 
 log = logging.getLogger(__name__)
 
@@ -150,20 +150,20 @@ async def get_active_activity_config(
     config is set, so the workspace simply renders nothing extra.
     """
     cfg = resolve_active_config(activity_id, group_tags=user.group_tags)
+    # Resolve the persona (1.1.12) for the student-facing chat avatar/name.
+    # Default-identity fallback: when the activity has no explicit persona (or no
+    # config at all), use the global default so the chat shows a real educator
+    # avatar + name instead of the generic brand mark. An explicit persona wins.
+    p = resolve_persona_or_default(cfg.persona if cfg is not None else None)
+    persona_block = {"id": p.id, "name": p.name, "title": p.title, "avatar": p.avatar} if p is not None else None
     if cfg is None:
         return {
             "activityId": activity_id,
             "title": "",
             "checklist": [],
             "workbenchType": "none",
-            "persona": None,
+            "persona": persona_block,
         }
-    # Resolve the persona (1.1.12) for the student-facing chat avatar/name.
-    persona_block = None
-    if cfg.persona:
-        p = load_persona(cfg.persona)
-        if p is not None:
-            persona_block = {"id": p.id, "name": p.name, "title": p.title, "avatar": p.avatar}
     return {
         "activityId": activity_id,
         "title": cfg.title,

@@ -7,6 +7,7 @@ static at runtime.
 
 from __future__ import annotations
 
+import os
 from functools import lru_cache
 from pathlib import Path
 
@@ -15,6 +16,13 @@ import yaml
 from db.models.persona import Persona
 
 _PERSONA_DIR = Path(__file__).resolve().parent
+
+# 1.1.12 default identity: when an activity/skill has no explicit persona, the
+# chat falls back to THIS persona's avatar + name + voice, so every conversation
+# shows a real educator identity instead of the generic brand mark. Sofie is the
+# "allround fysiklærer" — the most neutral of the six. Override per env with
+# DEFAULT_PERSONA_ID (e.g. set "" to opt out and keep the brand-mark fallback).
+DEFAULT_PERSONA_ID = os.environ.get("DEFAULT_PERSONA_ID", "sofie")
 
 
 @lru_cache(maxsize=1)
@@ -32,4 +40,27 @@ def load_persona(persona_id: str) -> Persona | None:
     return next((p for p in load_personas() if p.id == persona_id), None)
 
 
-__all__ = ["load_persona", "load_personas"]
+def load_default_persona() -> Persona | None:
+    """The global fallback persona (``DEFAULT_PERSONA_ID``), or None if the id is
+    unset/empty/missing — in which case callers keep the brand-mark fallback."""
+    if not DEFAULT_PERSONA_ID:
+        return None
+    return load_persona(DEFAULT_PERSONA_ID)
+
+
+def resolve_persona_or_default(persona_id: str | None) -> Persona | None:
+    """The explicitly-assigned persona if set + loadable, else the global default."""
+    if persona_id:
+        p = load_persona(persona_id)
+        if p is not None:
+            return p
+    return load_default_persona()
+
+
+__all__ = [
+    "DEFAULT_PERSONA_ID",
+    "load_default_persona",
+    "load_persona",
+    "load_personas",
+    "resolve_persona_or_default",
+]
