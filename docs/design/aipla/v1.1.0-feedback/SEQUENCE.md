@@ -97,6 +97,7 @@ These landed this session but aren't numbered rows (they extend shipped work):
 | Classroom recording ("Record this class") | **SHIPPED** | `audio-capture-and-tts.md`. `/api/voice/recording` → `gs://{proj}-research-audio` (EU) + Firestore meta + delete-by-group erasure; consent = paper forms, teacher-enabled per class. Sprint `VOICE-IN-REC` M2. Bucket created on dev + NOTES Decision 15 |
 | Lesson transcription | **SHIPPED** | Sprint `REC-TRANSCRIPT` (M1–M4): segments transcribed near-live (sync STT) keyed by groupId; student workbench panel (hidden+toggle) + teacher-report section. Commits `ced624f`→`45be532` |
 | Default-persona identity | **SHIPPED** | unassigned skills resolve to a default Danish-educator persona (Sofie) for the chat avatar+name (runtime, no seed). Commit `3e3bee3` |
+| Per-class persona + style-tie | **SHIPPED** | `Class.persona` + `PUT /api/voice/class/{id}/persona`; `resolve_persona_chain` (activity > class > global default) drives avatar+name+voice+style. `ClassPersonaPanel` in Class settings (surfaces /api/personas errors, not silent); activity builder hides the separate teaching-style control unless "Custom" (persona owns style). Commits `aaf2425`+`f25c839` |
 | Seed-reminder CI | **SHIPPED** | `ci.yml` warns on push when a SKILL.md template changed + `make seed` target + CLAUDE.md note. Commit `1de1ed9` |
 
 ### Still to do (priority order)
