@@ -326,7 +326,20 @@ export const MessageBubble = React.memo(function MessageBubble({
           <span className="text-xs font-medium text-teal-700">{userDisplayName}</span>
         </div>
         <div className="rounded-[2px_8px_8px_8px] border-l-[3px] border-teal-500 bg-[hsl(200,20%,97%)] px-3 py-2 text-sm">
-          <p className="whitespace-pre-wrap">{message.content}</p>
+          {message.images && message.images.length > 0 && (
+            <div className="mb-2 flex flex-wrap gap-2">
+              {message.images.map((img, i) => (
+                // eslint-disable-next-line @next/next/no-img-element
+                <img
+                  key={i}
+                  src={`data:${img.mimeType};base64,${img.data}`}
+                  alt="attachment"
+                  className="h-24 w-24 rounded-md border object-cover"
+                />
+              ))}
+            </div>
+          )}
+          {message.content && <p className="whitespace-pre-wrap">{message.content}</p>}
         </div>
       </div>
       <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-teal-400 to-teal-600 text-xs font-semibold text-white">

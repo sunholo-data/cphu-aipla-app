@@ -34,7 +34,7 @@
       "actual_loc": 430,
       "started": "2026-06-11",
       "completed": "2026-06-11",
-      "notes": "SHIPPED 6fbbe92. make_image_injector (adk/callbacks/image.py) + _extract_attachments + stash + multimodal_input flag + parser. 7 tests incl non-retention; make test-fast 1819. DOCPARSE_API_KEY wired into cloudbuild --set-secrets (docs route to docparse, images to Gemini)."
+      "notes": "SHIPPED 6fbbe92, then SUPERSEDED + DELETED by M3. make_image_injector + _extract_attachments + _PENDING stash + image_attach_token were a reinvention of native AG-UI multimodal message content; removed in M3. KEPT from M1: multimodal_input flag + parser. DOCPARSE_API_KEY cloudbuild wiring also kept (doc path)."
     },
     {
       "id": "M2",
@@ -62,7 +62,27 @@
       "started": "2026-06-11",
       "completed": "2026-06-11",
       "actual_loc": 690,
-      "notes": "SHIPPED. lib/imageResize.ts (pure computeTargetSize/stripDataUrlPrefix + canvas resize→2048px JPEG q0.85, heic passthrough) + lib/personGuardrail.ts (pure evaluatePersonScreen + screenImageForPerson via Shape Detection FaceDetector, graceful degrade = allow+notice, never over-block). Staging owned by hooks/useImageAttachments.ts (cap 4, guardrail block, objectURL cleanup); presentational components/chat/ImageComposer.tsx (ImageStagingRow + ImageUploadButtons paperclip/camera). Wired: useSkillAgent.sendMessage opts.attachments→forwardedProps.attachments; useSkillMeta.multimodalInput gate; page.tsx handleSend sends base64 + clears (image-only turn allowed). 22 FE tests. ARCH CHANGE from plan: the '## Image input' units-loop guidance is NOT inlined per-SKILL.md — problem-set-hints body was already ~118 chars under the 10k SkillConfig cap, so an inline block overflowed it (test_real_skill_templates_instructions_under_10k_limit went red). Instead it's a SHARED backend preamble (backend/skills/preambles/image_input.md) injected at agent build by adk/multimodal.py inject_image_input_preamble(instructions, multimodal_input), gated on the flag, mirroring inject_interaction_style_preamble (1.1.20). DRY + cap-safe + auto-applies to any future multimodal skill. Frontmatter multimodalInput:true added to all 3 tutors. Backend gate: lint clean, test-fast 1823 + injector test. FE gate: quality:check exit 0."
+      "notes": "SHIPPED. lib/imageResize.ts (pure computeTargetSize/stripDataUrlPrefix + canvas resize→2048px JPEG q0.85, heic passthrough) + lib/personGuardrail.ts (pure evaluatePersonScreen + screenImageForPerson via Shape Detection FaceDetector, graceful degrade = allow+notice, never over-block). Staging owned by hooks/useImageAttachments.ts (cap 4, guardrail block, objectURL cleanup); presentational components/chat/ImageComposer.tsx (ImageStagingRow + ImageUploadButtons paperclip/camera). Wired: useSkillAgent.sendMessage opts.attachments→forwardedProps.attachments; useSkillMeta.multimodalInput gate; page.tsx handleSend sends base64 + clears (image-only turn allowed). 22 FE tests. ARCH CHANGE from plan: the '## Image input' units-loop guidance is NOT inlined per-SKILL.md — problem-set-hints body was already ~118 chars under the 10k SkillConfig cap, so an inline block overflowed it (test_real_skill_templates_instructions_under_10k_limit went red). Instead it's a SHARED backend preamble (backend/skills/preambles/image_input.md) injected at agent build by adk/multimodal.py inject_image_input_preamble(instructions, multimodal_input), gated on the flag, mirroring inject_interaction_style_preamble (1.1.20). DRY + cap-safe + auto-applies to any future multimodal skill. Frontmatter multimodalInput:true added to all 3 tutors. Backend gate: lint clean, test-fast 1823 + injector test. FE gate: quality:check exit 0. NOTE: the forwardedProps.attachments wiring was REPLACED in M3 (M2's capture/resize/guardrail/composer all kept)."
+    },
+    {
+      "id": "M3",
+      "description": "PIVOT to native AG-UI multimodal: M asked 'is this already supported?' — it is. AG-UI UserMessage.content is string|InputContent[] (ImageInputContent); ag_ui_adk converters turn image parts into ADK Parts in session events; ADK replays them every turn natively. Delete M1's custom path; send images as native message content; native session-lifetime retention (reverses M1 non-retention).",
+      "scope": "fullstack",
+      "estimated_loc": 250,
+      "actual_loc": 280,
+      "dependencies": ["M1", "M2"],
+      "acceptance_criteria": [
+        "frontend sends images as native ImageInputContent parts in UserMessage.content (buildUserMessageContent); forwardedProps.attachments removed",
+        "toSkillMessage handles array content; MessageBubble renders image thumbnails in history",
+        "backend process_skill_request accepts str|list content, passes through to UserMessage(content=…); _StreamSkillRequest.effective_content preserves multimodal; thinking router uses _message_text",
+        "M1 custom path deleted: image.py, _PENDING/stash, _extract_attachments, attachments param, image_attach_token, before_model injector",
+        "retention native + session-lifetime (no custom store, no most-recent-N cap); both gates green",
+        "design-process gate added (design-doc-creator 5b-ter) + memory updated so this is caught pre-build next time"
+      ],
+      "passes": true,
+      "started": "2026-06-11",
+      "completed": "2026-06-11",
+      "notes": "SHIPPED. Confirmed end-to-end: ag_ui/core UserMessage.content union + ImageInputContent (Python AND TS @ag-ui/core v0.0.52), ag_ui_adk utils/converters.py _media_content_to_part → Part(inline_data=Blob), convert_ag_ui_messages_to_adk → ADK events (retained+replayed). Runtime-verified camelCase mimeType validates (to_camel + populate_by_name). FE: buildUserMessageContent (exported, tested), toSkillMessage array→{content,images}, MessageBubble thumbnails, dropped fallback caption. BE: _message_text helper, effective_content property, message:str|list, deleted custom path. Tests: test_multimodal_message.py (7) + buildUserMessageContent.test.ts (4); removed test_image_injector.py. Gates: BE lint clean + test-fast 1823; FE quality:check exit 0 (991 tests, build OK). Process: design-doc-creator 5b-ter Framework-Native Capability Check + memory feedback-search-protocols-first updated."
     }
   ],
   "velocity": {
@@ -75,6 +95,6 @@
   },
   "github_issues": [],
   "last_session": "2026-06-11",
-  "last_checkpoint": "M2 shipped — both gates green",
+  "last_checkpoint": "M3 native-AG-UI rewire shipped — custom path deleted, retention native, both gates green",
   "status": "complete"
 }

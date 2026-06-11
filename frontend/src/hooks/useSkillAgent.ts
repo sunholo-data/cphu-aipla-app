@@ -23,6 +23,28 @@ export interface SkillMessage {
   id: string;
   role: "user" | "assistant";
   content: string;
+  /** 1.1.7 — inline image parts on a multimodal user turn. Sourced from the
+   * native AG-UI `ImageInputContent` parts in the message content; rendered as
+   * thumbnails in the user bubble. `data` is raw base64 (no data-URL prefix). */
+  images?: { mimeType: string; data: string }[];
+}
+
+/** Shape the AG-UI user-message content: plain string, or a multimodal
+ * `InputContent[]` (text part + native `ImageInputContent` image parts) when
+ * the turn carries images. Mirrors ag_ui core's `UserMessage.content` union —
+ * ag_ui_adk converts each image part to an ADK `Part(inline_data=…)`, so the
+ * image lands in session history and is replayed every turn natively (1.1.7). */
+export function buildUserMessageContent(
+  text: string,
+  attachments?: Array<{ mimeType: string; data: string; name?: string }>,
+): string | Array<Record<string, unknown>> {
+  if (!attachments || attachments.length === 0) return text;
+  const parts: Array<Record<string, unknown>> = [];
+  if (text) parts.push({ type: "text", text });
+  for (const a of attachments) {
+    parts.push({ type: "image", source: { type: "data", value: a.data, mimeType: a.mimeType } });
+  }
+  return parts;
 }
 
 export interface StreamError {
@@ -100,6 +122,34 @@ function toSkillMessage(m: Message): SkillMessage | null {
       return null;
     }
     return { id: m.id, role: role as SkillMessage["role"], content };
+  }
+  // 1.1.7 multimodal user turn — content is a native AG-UI InputContent[]
+  // array (text parts + ImageInputContent parts). Flatten text for the
+  // bubble body and surface image parts as thumbnails.
+  if (Array.isArray(content)) {
+    const texts: string[] = [];
+    const images: { mimeType: string; data: string }[] = [];
+    for (const part of content) {
+      if (!part || typeof part !== "object") continue;
+      const p = part as { type?: string; text?: unknown; source?: Record<string, unknown> };
+      if (p.type === "text" && typeof p.text === "string") {
+        texts.push(p.text);
+      } else if (p.type === "image" && p.source && p.source.type === "data") {
+        const value = p.source.value;
+        if (typeof value === "string") {
+          const mime = (p.source.mimeType ?? p.source.mime_type) as string | undefined;
+          images.push({ mimeType: mime || "image/jpeg", data: value });
+        }
+      }
+    }
+    const joined = texts.join("\n");
+    if (role === "user" && isProactiveSentinel(joined)) return null;
+    return {
+      id: m.id,
+      role: role as SkillMessage["role"],
+      content: joined,
+      images: images.length > 0 ? images : undefined,
+    };
   }
   // Tool-only assistant turns (Gemini sometimes emits send_a2ui_json_to_client
   // with no text in chat). AG-UI sets content to undefined; without a
@@ -431,7 +481,12 @@ export function useSkillAgent(options?: { _hangTimeoutMs?: number }): UseSkillAg
       agent.addMessage({
         id: userMessageId,
         role: "user",
-        content: text,
+        // 1.1.7: when images are staged, content is a native AG-UI
+        // multimodal InputContent[] (text + ImageInputContent parts) rather
+        // than a string. ag_ui_adk converts the image parts to ADK Parts that
+        // persist in session history — retained + replayed every turn, no
+        // side-channel, no custom injector.
+        content: buildUserMessageContent(text, opts?.attachments),
       } as Message);
       setIsLoading(true);
       try {
@@ -442,15 +497,9 @@ export function useSkillAgent(options?: { _hangTimeoutMs?: number }): UseSkillAg
         if (opts?.resumedSession) {
           forwardedProps.resumed_session = true;
         }
-        // 1.1.7 multimodal upload — images ride back as base64 on
-        // forwardedProps.attachments. The backend's _extract_attachments
-        // stashes them transiently; make_image_injector injects each as an
-        // inline-data Part before the model call and never persists the
-        // bytes (non-retention). Omit the slot when empty so the wire stays
-        // clean. Documents go via document_ids/docparse, not here.
-        if (opts?.attachments && opts.attachments.length > 0) {
-          forwardedProps.attachments = opts.attachments;
-        }
+        // 1.1.7 images do NOT ride forwardedProps — they're native AG-UI
+        // ImageInputContent parts in the message content (see addMessage
+        // above), so ADK persists + replays them. Nothing to add here.
         // Sprint 2.10: attach per-turn A2UI surface snapshot when any
         // surface is active. Omit the slot entirely when empty so the
         // wire stays clean and the backend extractor's `if isinstance

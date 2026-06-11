@@ -640,7 +640,7 @@ function ChatShell({
     // Snap to chat tab on mobile so the student sees the response
     // stream in. No effect on md+ where both panels are visible.
     setMobileTab("chat");
-    await sendMessage(text || "Please take a look at this image.", {
+    await sendMessage(text, {
       documentIds: includedDocIds,
       resumedSession: enteredViaResume,
       attachments: attachments.length > 0 ? attachments : undefined,

@@ -1,9 +1,10 @@
 """Image-input preamble injection (1.1.7 multimodal upload).
 
 When a skill opts into ``SkillConfig.multimodal_input``, the student composer
-exposes an image-upload affordance (paperclip + camera). Uploaded images are
-injected into the turn transiently by ``adk.callbacks.image.make_image_injector``
-and never persisted.
+exposes an image-upload affordance (paperclip + camera). Uploaded images ride
+the turn as native AG-UI ``ImageInputContent`` parts; ``ag_ui_adk`` converts
+them to ADK image ``Part``s that persist in session history and are replayed
+every turn (no custom injector — the protocol + ADK handle retention).
 
 This module appends the canonical "how to handle an attached photo" guidance
 (``skills/preambles/image_input.md``) to the tutor's system prompt at

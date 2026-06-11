@@ -7,6 +7,20 @@ Students send a **photo or document** to the tutor in chat (the most-requested f
 **Duration:** ~2–3 days · **Scope:** Fullstack · **Design doc:** [student-multimodal-upload.md](student-multimodal-upload.md)
 **Gates:** cleared 2026-06-11 (JB image-retention = the no-person guardrail posture; on-device detection is the private default).
 
+## ⚠️ CORRECTION (2026-06-11, M3) — superseded the custom image path with the native AG-UI one
+
+Everything below describing the **`forwardedProps.attachments` side-channel + `make_image_injector` `before_model_callback` + "image bytes never persisted"** was a **reinvention** and has been **removed**. It was caught by M asking *"ADK and artifacts should take care of this?"* + *"make sure we are not doing something already supported."* They were right:
+
+- **AG-UI is natively multimodal.** `UserMessage.content` is `string | InputContent[]`, where `InputContent` includes `ImageInputContent` with a base64 `InputContentDataSource` (`ag_ui/core/types.py`; same in TS `@ag-ui/core` v0.0.52). Images are first-class **message content**, not a side-channel.
+- **`ag_ui_adk` already converts them.** `utils/converters.py` `convert_message_content_to_parts` → `Part(inline_data=Blob(...))`; `convert_ag_ui_messages_to_adk` makes them ADK **events**.
+- **ADK already retains them.** The image part lands in a session event and is **replayed from session history every turn** (survives rejoin; dies with the session). No artifact store, no custom cache.
+
+**What M3 actually ships:** frontend sends the photo as a native `ImageInputContent` part in the user message (`buildUserMessageContent`); the backend passes the multimodal content straight through (`_StreamSkillRequest.effective_content` → `process_skill_request(message=…)` → `UserMessage(content=…)`). **Retention is native and session-lifetime** (reverses M1's "never persisted" — now stored session-scoped in the EU session backend, on-device face-screened, consent-form covered). **No "most recent N" cap** — ADK replays all session images natively.
+
+**Deleted:** `adk/callbacks/image.py` (`make_image_injector`, `_PENDING` stash, `stash_attachments`), `_extract_attachments`, the `forwardedProps.attachments` wiring, the `attachments` param on `process_skill_request`, `image_attach_token`. **Kept (still correct):** the `multimodal_input` flag, the shared `image_input` preamble, and all of M2's capture / 2048px resize / on-device face-guardrail (still needed to produce a screened, downscaled base64).
+
+**Kept for the record only** — the "Architecture reconciliation" + M1/M2 sections below describe the removed custom path. New work follows the native path above. The process gate that should have caught this pre-build is now `design-doc-creator` step **5b-ter (Framework-Native Capability Check)**.
+
 ## Routing decision (M, 2026-06-11) — images→AI, docs→docparse
 
 Two distinct paths by MIME type; **don't send docs to Gemini as raw bytes**:

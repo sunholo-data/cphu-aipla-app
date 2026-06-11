@@ -152,6 +152,47 @@ Before defining any schema, format, protocol, or data model, check whether an es
 
 **If the design invents a custom format where a standard exists, it must score -1 on Axiom #6 and provide a written justification for why the standard is insufficient.**
 
+**5b-ter. Framework-Native Capability Check (MANDATORY — "is this already supported?")**
+
+5b checks whether a *format* already exists. This step checks whether a
+*capability* already exists. Before specifying ANY custom plumbing — a
+side-channel for passing data, a custom store, a bespoke retention/persistence
+mechanism, a hand-rolled injection/transform hook — **prove the framework stack
+doesn't already do it natively.** The most expensive mistakes on this project
+have been re-implementing something the protocol/framework already ships.
+
+For each piece of custom plumbing the design proposes, answer in the doc:
+
+- **AG-UI** — can the message/event protocol already carry this? Check
+  `UserMessage.content` (it's `string | InputContent[]` — text **and**
+  image/audio/video/document parts are native), `forwardedProps`, state
+  snapshots, and the event types. Read the installed package types
+  (`backend/.venv/.../ag_ui/core/types.py`, `frontend/node_modules/@ag-ui/core`),
+  not memory.
+- **ag_ui_adk** — does the adapter already convert/persist this? Check
+  `ag_ui_adk/utils/converters.py` (`convert_message_content_to_parts`,
+  `convert_ag_ui_messages_to_adk`) before writing a `before_model_callback` or
+  a side-channel extractor.
+- **ADK** — do sessions/events/artifacts/memory already persist + replay this?
+  Anything placed in a session event is replayed every turn for the session
+  lifetime (and survives rejoin) for free; artifacts (GCS-backed) handle
+  binary blobs. Don't build a custom cache/store for either.
+- **MCP / A2UI / A2A** — same question for tools, declarative UI, discovery.
+
+> **Cautionary example (1.1.7 image upload).** A first pass shipped a
+> `forwardedProps.attachments` side-channel + a `before_model_callback` that
+> stashed image bytes in a module dict and injected them per-turn (and then a
+> follow-up was about to add artifact storage for retention). All of it was
+> unnecessary: AG-UI `ImageInputContent` + `ag_ui_adk`'s media converter +
+> ADK session events already transport, convert, **and** retain images
+> natively. The native path was *less* code and got session-lifetime
+> retention for free. The custom version was caught only after it was built.
+
+If after this check custom plumbing is still genuinely required (the native
+capability is absent or insufficient), say so explicitly in the doc with the
+evidence (the type/converter you checked and why it doesn't cover the case).
+Silence is not allowed — the doc must show the check happened.
+
 **5b-bis. Consider CLI Affordances (MANDATORY for any feature with developer-facing surface)**
 
 The v6 platform ships a local-dev CLI (`aitana`, see [local-dev-cli.md](../../../docs/design/v6.1.0/local-dev-cli.md)) that hosts every developer touchpoint. **Whenever you write a design doc, ask: does this feature need a CLI command to be ergonomic?** If yes, scope that command in the same doc so it ships with the feature, not as a follow-up.

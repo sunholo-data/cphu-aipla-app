@@ -389,7 +389,6 @@ class _StreamSkillRequest(BaseModel):
     # Simple format
     message: str = ""
     sessionId: str | None = None
-    attachments: list[dict] | None = None
     documentIds: list[str] | None = None
 
     # AG-UI HttpAgent format (extra fields silently ignored by Pydantic default)
@@ -411,7 +410,35 @@ class _StreamSkillRequest(BaseModel):
             return self.message
         for msg in reversed(self.messages):
             if msg.get("role") == "user" and msg.get("content"):
-                return str(msg["content"])
+                content = msg["content"]
+                # A multimodal turn (1.1.7) has list content; str() of the
+                # whole list is meaningless. Keep this property text-only for
+                # callers that genuinely want a string (logging) — pull text
+                # parts out; use effective_content for the wire value.
+                if isinstance(content, list):
+                    texts = [
+                        str(p.get("text"))
+                        for p in content
+                        if isinstance(p, dict) and p.get("type") == "text" and p.get("text")
+                    ]
+                    return "\n".join(texts)
+                return str(content)
+        return ""
+
+    @property
+    def effective_content(self) -> str | list:
+        """The latest user turn's content, preserved as-is: a plain string, or
+        a native AG-UI ``InputContent[]`` list when the turn carries images
+        (1.1.7). Handed straight to ``UserMessage(content=…)`` so ag_ui_adk
+        converts image parts to ADK Parts and ADK retains them in session
+        history. Prefers the simple ``message`` field for the CLI/test shape."""
+        if self.message:
+            return self.message
+        for msg in reversed(self.messages):
+            if msg.get("role") == "user":
+                content = msg.get("content")
+                if content:  # non-empty str or non-empty list
+                    return content
         return ""
 
 
@@ -450,26 +477,6 @@ def _extract_document_ids(body: "_StreamSkillRequest") -> list[str] | None:
     for value in candidates:
         if isinstance(value, list) and value:
             cleaned = [str(d) for d in value if d]
-            if cleaned:
-                return cleaned
-    return None
-
-
-def _extract_attachments(body: "_StreamSkillRequest") -> list[dict] | None:
-    """Pull this turn's image attachments from the wire body (1.1.7).
-
-    Like document_ids, the AG-UI HttpAgent path carries them in
-    ``forwardedProps.attachments``; ``body.attachments`` is the simple/CLI
-    format. Each item: ``{mimeType, data(base64), name}``. None when absent.
-    Defensive: only a list of dicts carrying ``data`` is accepted.
-    """
-    candidates = (
-        (body.forwardedProps or {}).get("attachments"),
-        body.attachments,
-    )
-    for value in candidates:
-        if isinstance(value, list) and value:
-            cleaned = [a for a in value if isinstance(a, dict) and a.get("data")]
             if cleaned:
                 return cleaned
     return None
@@ -598,8 +605,7 @@ async def stream_skill(
         user=user,
         access=access,
         session_id=session_id,
-        message=body.effective_message if not is_read_only else "",
-        attachments=_extract_attachments(body) if not is_read_only else None,
+        message=body.effective_content if not is_read_only else "",
         document_ids=extracted_doc_ids,
         resumed_session=extracted_resumed,
         a2ui_surface_state=extracted_surface_state,

@@ -51,13 +51,26 @@ class SkillNotFoundError(Exception):
         self.skill_id = skill_id
 
 
+def _message_text(message: str | list[dict[str, Any]]) -> str:
+    """Flatten a turn's message content to plain text for the thinking router
+    and logs. A multimodal turn (1.1.7) is an AG-UI ``InputContent[]`` list;
+    we keep only the text parts. Image parts carry no text and are ignored
+    here — they reach the model as native ADK image Parts via ag_ui_adk."""
+    if isinstance(message, str):
+        return message
+    texts: list[str] = []
+    for item in message:
+        if isinstance(item, dict) and item.get("type") == "text" and item.get("text"):
+            texts.append(str(item["text"]))
+    return "\n".join(texts)
+
+
 async def process_skill_request(
     skill_id: str,
     user: User,
     access: AccessContext,
     session_id: str | None,
-    message: str,
-    attachments: list[dict[str, Any]] | None = None,
+    message: str | list[dict[str, Any]],
     document_ids: list[str] | None = None,
     resumed_session: bool = False,
     a2ui_surface_state: dict[str, Any] | None = None,
@@ -69,13 +82,14 @@ async def process_skill_request(
         user: Authenticated caller (used for permission closures).
         access: Per-request access context for the skill-visibility check.
         session_id: Existing thread ID to resume, or None to start fresh.
-        message: The user's message for this turn.
-        attachments: Optional per-turn image attachments (1.1.7), each
-            ``{mimeType, data(base64), name}``. Bytes are stashed in a
-            process-local transient cache (never persisted) under a token put
-            in state; ``make_image_injector`` pops + injects them as Gemini
-            vision Parts before the model call. Documents (docx/pdf/…) do NOT
-            come here — they route through the docparse upload pipeline.
+        message: The user's message for this turn — a plain string, OR a native
+            AG-UI multimodal ``InputContent[]`` list (text parts + image parts)
+            when the turn carries photos (1.1.7). The list is handed straight to
+            ``UserMessage(content=…)``; ag_ui_adk converts each image part to an
+            ADK ``Part(inline_data=…)`` that persists in session history and is
+            replayed every turn — no side-channel, no custom injector, retention
+            for free. Documents (docx/pdf/…) do NOT come here — they route
+            through the docparse upload pipeline as ``document_ids``.
         document_ids: Optional Firestore document IDs the user wants in
             context for this turn. The before_agent_callback loads each
             document's blocks as a separate session artifact so the AI
@@ -112,9 +126,10 @@ async def process_skill_request(
     thread_id = session_id or f"thread-{uuid.uuid4().hex[:12]}"
     _ensure_session_index(thread_id, skill_id, user.uid, document_ids, user.group_id or None)
 
+    message_text = _message_text(message)
     agent_or_router = create_agent_with_thinking(skill, user)
     if isinstance(agent_or_router, _HeuristicRouter):
-        agent = agent_or_router.pick_agent(message)
+        agent = agent_or_router.pick_agent(message_text)
         routing_choice = "thinking" if agent is agent_or_router.thinking else "fast"
         logger.info("skill=%s routing=%s", skill_id, routing_choice)
     else:
@@ -161,16 +176,6 @@ async def process_skill_request(
         # ``_extract_document_ids`` reads forwardedProps first and ignores the
         # round-tripped state value (see fast_api_app.py:298).
         initial_state["document_ids"] = list(document_ids)
-    if attachments:
-        # 1.1.7: image attachments ride the turn as base64. Stash the BYTES in a
-        # process-local transient cache (never persisted) and put only a token in
-        # state; make_image_injector pops + injects them as Gemini vision Parts.
-        from adk.callbacks import stash_attachments
-
-        _img_token = f"imgtok-{uuid.uuid4().hex}"
-        stash_attachments(_img_token, attachments)
-        initial_state["image_attach_token"] = _img_token
-        logger.info("multimodal turn: %d attachment(s) (metadata-only; bytes not persisted)", len(attachments))
     if resumed_session:
         # Read by make_document_injector — eager-inject loaded docs into
         # the first LLM request of every turn for resumed sessions.
