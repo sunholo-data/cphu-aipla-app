@@ -81,13 +81,15 @@ class Class(BaseModel):
     voice: ClassVoiceSettings | None = Field(default=None)
     """1.1.11 — teacher's per-class voice override. None means the class
     inherits skill defaults / env. See ClassVoiceSettings."""
-    voice_input_enabled: bool = Field(default=False, alias="voiceInputEnabled")
-    """VOICE-IN-REC — teacher opt-in for student voice input (talk-to-type /
-    push-to-talk). Off by default; gates the composer mic."""
+    voice_input_enabled: bool = Field(default=True, alias="voiceInputEnabled")
+    """VOICE-IN-REC — student voice input (talk-to-type / push-to-talk); gates
+    the composer mic. Default-ON (2026-06-11, M) — benign: transcript-only, raw
+    audio never persisted. Teachers can still toggle a class off."""
     recording_enabled: bool = Field(default=False, alias="recordingEnabled")
-    """VOICE-IN-REC — teacher opt-in for lesson audio recording (research
-    record). Off by default. Enabling is the teacher's attestation that signed
-    paper consent forms are held for the class (GDPR cleared 2026-06-11)."""
+    """VOICE-IN-REC — lesson audio recording (RETAINED research record). Default
+    OFF — it stays a deliberate per-class toggle (2026-06-11, M): enabling is the
+    teacher's attestation that signed paper consent forms are held for the class
+    (GDPR). Recording must never turn on without that explicit gesture."""
     recording_consent_attested_at: datetime | None = Field(alias="recordingConsentAttestedAt", default=None)
     """When the teacher last enabled recording (= attested the forms). Audit trail."""
     revoked: bool = False
