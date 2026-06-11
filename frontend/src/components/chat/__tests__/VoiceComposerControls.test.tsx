@@ -19,6 +19,25 @@ vi.mock("@/lib/audioCapture", () => ({
       return false;
     }
   },
+  // Segmented recorder for lesson recording: stop() flushes one segment via the
+  // onSegment callback (which triggers the per-segment upload).
+  SegmentedRecorder: class {
+    onSegment: (r: unknown, seq: number) => void;
+    constructor(onSegment: (r: unknown, seq: number) => void) {
+      this.onSegment = onSegment;
+    }
+    start = vi.fn().mockResolvedValue(undefined);
+    stop = vi.fn(async () => {
+      this.onSegment(
+        { blob: new Blob(["a"], { type: "audio/webm" }), mimeType: "audio/webm", durationMs: 1000 },
+        0,
+      );
+    });
+    cancel = vi.fn();
+    get recording() {
+      return true;
+    }
+  },
 }));
 
 const fetchMock = vi.fn();

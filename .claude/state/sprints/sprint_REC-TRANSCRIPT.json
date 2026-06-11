@@ -25,14 +25,15 @@
       "description": "Frontend recorder: segmented lesson recording \u2014 restart the MediaRecorder every ~50s (under the sync-STT 1-min cap), uploading each complete segment with seq+lang. On Stop, flush the final partial. audioCapture gains a segmented mode; VoiceComposerControls record-lesson uses it.",
       "scope": "frontend",
       "estimated_loc": 200,
-      "passes": null,
-      "started": null,
-      "completed": null,
-      "notes": "",
+      "passes": true,
+      "started": "2026-06-11",
+      "completed": "2026-06-11",
+      "notes": "SHIPPED. SegmentedRecorder in audioCapture.ts: records ~50s segments via recursive setTimeout (no overlap), restarts a fresh AudioRecorder each cycle, onSegment(result,seq) per complete webm, stop() flushes the final partial. VoiceComposerControls record-lesson now uses it: each segment uploads to /api/voice/recording with seq+lang (fire-and-forget). 4 new lib tests (fake timers) + updated component test (mocked SegmentedRecorder). quality:check:fast clean.",
       "files_to_modify": [
         "frontend/src/lib/audioCapture.ts",
         "frontend/src/components/chat/VoiceComposerControls.tsx"
-      ]
+      ],
+      "actual_loc": 190
     },
     {
       "id": "M3",
@@ -66,6 +67,6 @@
     }
   ],
   "last_session": "2026-06-11",
-  "last_checkpoint": "M1 shipped (segment transcription + transcript endpoint); starting M2 (segmented recorder)",
+  "last_checkpoint": "M2 shipped (segmented recorder uploads per-segment); starting M3 (student transcript panel)",
   "status": "in_progress"
 }

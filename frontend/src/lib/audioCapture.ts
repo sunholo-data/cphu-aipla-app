@@ -46,7 +46,7 @@ export function isAudioCaptureSupported(): boolean {
   );
 }
 
-interface RecorderDeps {
+export interface RecorderDeps {
   getUserMedia?: (c: MediaStreamConstraints) => Promise<MediaStream>;
   MediaRecorderCtor?: typeof MediaRecorder;
   now?: () => number;
@@ -125,5 +125,84 @@ export class AudioRecorder {
     this._stream = null;
     this._recorder = null;
     this._chunks = [];
+  }
+}
+
+/** Default lesson segment length. Must stay under Cloud Speech sync recognize's
+ * ~1-min cap so the backend can transcribe each segment without long-running. */
+export const SEGMENT_MS = 50_000;
+
+/**
+ * Records a long session as a sequence of complete, independently-decodable
+ * segments (REC-TRANSCRIPT M2): every ~SEGMENT_MS it stops the current recorder
+ * (yielding a finished webm), fires `onSegment(result, seq)`, and starts a fresh
+ * one. Recursive setTimeout (not setInterval) so segments never overlap. `stop()`
+ * flushes the final partial segment.
+ */
+export class SegmentedRecorder {
+  private _rec: AudioRecorder | null = null;
+  private _timeout: ReturnType<typeof setTimeout> | null = null;
+  private _seq = 0;
+  private _stopped = false;
+  private readonly _onSegment: (r: RecordingResult, seq: number) => void;
+  private readonly _segmentMs: number;
+  private readonly _deps: RecorderDeps;
+
+  constructor(
+    onSegment: (r: RecordingResult, seq: number) => void,
+    segmentMs: number = SEGMENT_MS,
+    deps: RecorderDeps = {},
+  ) {
+    this._onSegment = onSegment;
+    this._segmentMs = segmentMs;
+    this._deps = deps;
+  }
+
+  get recording(): boolean {
+    return !this._stopped && this._rec !== null;
+  }
+
+  async start(): Promise<void> {
+    this._stopped = false;
+    this._seq = 0;
+    await this._cycle();
+  }
+
+  private async _cycle(): Promise<void> {
+    if (this._stopped) return;
+    this._rec = new AudioRecorder(this._deps);
+    await this._rec.start();
+    this._timeout = setTimeout(() => void this._onTick(), this._segmentMs);
+  }
+
+  private async _onTick(): Promise<void> {
+    if (this._stopped || !this._rec) return;
+    const r = await this._rec.stop();
+    this._rec = null;
+    if (r.blob.size > 0) this._onSegment(r, this._seq++);
+    await this._cycle();
+  }
+
+  async stop(): Promise<void> {
+    this._stopped = true;
+    if (this._timeout) {
+      clearTimeout(this._timeout);
+      this._timeout = null;
+    }
+    if (this._rec) {
+      const r = await this._rec.stop();
+      this._rec = null;
+      if (r.blob.size > 0) this._onSegment(r, this._seq++);
+    }
+  }
+
+  cancel(): void {
+    this._stopped = true;
+    if (this._timeout) {
+      clearTimeout(this._timeout);
+      this._timeout = null;
+    }
+    this._rec?.cancel();
+    this._rec = null;
   }
 }

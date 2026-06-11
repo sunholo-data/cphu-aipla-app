@@ -5,7 +5,12 @@ import { Loader2, Mic, Radio, Square } from "lucide-react";
 
 import { cn } from "@/lib/utils";
 import { fetchWithAuth } from "@/lib/apiClient";
-import { AudioRecorder, isAudioCaptureSupported } from "@/lib/audioCapture";
+import {
+  AudioRecorder,
+  SegmentedRecorder,
+  isAudioCaptureSupported,
+  type RecordingResult,
+} from "@/lib/audioCapture";
 
 type Mode = "idle" | "dictating" | "recording";
 
@@ -40,29 +45,53 @@ export function VoiceComposerControls({
   onTranscript,
   onNotice,
 }: Props) {
-  const recorderRef = useRef<AudioRecorder | null>(null);
+  const dictRef = useRef<AudioRecorder | null>(null);
+  const segRef = useRef<SegmentedRecorder | null>(null);
   const [mode, setMode] = useState<Mode>("idle");
   const [busy, setBusy] = useState(false);
 
-  const getRecorder = () => (recorderRef.current ??= new AudioRecorder());
+  // Upload one lesson segment (REC-TRANSCRIPT M2). Fire-and-forget so it never
+  // stalls the rolling recording; the backend transcribes it best-effort.
+  const uploadSegment = useCallback(
+    async (r: RecordingResult, seq: number) => {
+      try {
+        const fd = new FormData();
+        fd.append("audio", r.blob, `lesson-${seq}.${r.mimeType.includes("mp4") ? "m4a" : "webm"}`);
+        fd.append("durationMs", String(r.durationMs));
+        fd.append("seq", String(seq));
+        fd.append("lang", lang);
+        const res = await fetchWithAuth("/api/proxy/api/voice/recording", { method: "POST", body: fd });
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      } catch {
+        onNotice?.("A recording segment failed to upload — recording continues.");
+      }
+    },
+    [lang, onNotice],
+  );
 
   const begin = useCallback(
     async (next: "dictating" | "recording") => {
       onNotice?.(null);
       try {
-        await getRecorder().start();
+        if (next === "recording") {
+          segRef.current = new SegmentedRecorder((r, seq) => void uploadSegment(r, seq));
+          await segRef.current.start();
+        } else {
+          dictRef.current ??= new AudioRecorder();
+          await dictRef.current.start();
+        }
         setMode(next);
       } catch {
         onNotice?.("Microphone unavailable — you can type instead.");
       }
     },
-    [onNotice],
+    [onNotice, uploadSegment],
   );
 
   const finishDictation = useCallback(async () => {
     setBusy(true);
     try {
-      const { blob, mimeType, durationMs } = await getRecorder().stop();
+      const { blob, mimeType, durationMs } = await (dictRef.current ??= new AudioRecorder()).stop();
       setMode("idle");
       const fd = new FormData();
       fd.append("audio", blob, `dictation.${mimeType.includes("mp4") ? "m4a" : "webm"}`);
@@ -84,16 +113,13 @@ export function VoiceComposerControls({
   const finishRecording = useCallback(async () => {
     setBusy(true);
     try {
-      const { blob, mimeType, durationMs } = await getRecorder().stop();
+      // Flushes the final partial segment (which uploads via onSegment).
+      await segRef.current?.stop();
+      segRef.current = null;
       setMode("idle");
-      const fd = new FormData();
-      fd.append("audio", blob, `lesson.${mimeType.includes("mp4") ? "m4a" : "webm"}`);
-      fd.append("durationMs", String(durationMs));
-      const res = await fetchWithAuth("/api/proxy/api/voice/recording", { method: "POST", body: fd });
-      if (!res.ok) throw new Error(`HTTP ${res.status}`);
       onNotice?.("Lesson recording saved.");
     } catch {
-      onNotice?.("Couldn't save the recording — please try again.");
+      onNotice?.("Couldn't finish the recording cleanly — some segments may be saved.");
     } finally {
       setBusy(false);
     }

@@ -1,6 +1,6 @@
-import { describe, expect, it, vi } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 
-import { AudioRecorder, pickAudioMimeType } from "../audioCapture";
+import { AudioRecorder, SegmentedRecorder, pickAudioMimeType } from "../audioCapture";
 
 describe("pickAudioMimeType", () => {
   it("returns the first supported preferred mime", () => {
@@ -91,5 +91,50 @@ describe("AudioRecorder", () => {
     await rec.start();
     await rec.start();
     expect(getUserMedia).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe("SegmentedRecorder", () => {
+  afterEach(() => vi.useRealTimers());
+
+  function deps() {
+    const stopTrack = vi.fn();
+    const stream = { getTracks: () => [{ stop: stopTrack }] } as unknown as MediaStream;
+    return {
+      getUserMedia: vi.fn().mockResolvedValue(stream),
+      MediaRecorderCtor: FakeMediaRecorder as unknown as typeof MediaRecorder,
+      now: () => 0,
+      pickMime: () => "audio/webm",
+    };
+  }
+
+  it("emits a segment per rotation and flushes the final on stop", async () => {
+    vi.useFakeTimers();
+    const seqs: number[] = [];
+    const seg = new SegmentedRecorder((_r, i) => seqs.push(i), 1000, deps());
+    await seg.start();
+    await vi.advanceTimersByTimeAsync(1000); // rotation -> seg 0
+    await vi.advanceTimersByTimeAsync(1000); // rotation -> seg 1
+    await seg.stop(); // flush final -> seg 2
+    expect(seqs).toEqual([0, 1, 2]);
+  });
+
+  it("stop() after no rotation still flushes one segment", async () => {
+    vi.useFakeTimers();
+    const seqs: number[] = [];
+    const seg = new SegmentedRecorder((_r, i) => seqs.push(i), 60_000, deps());
+    await seg.start();
+    await seg.stop();
+    expect(seqs).toEqual([0]);
+  });
+
+  it("cancel() stops without emitting a flush segment", async () => {
+    vi.useFakeTimers();
+    const seqs: number[] = [];
+    const seg = new SegmentedRecorder((_r, i) => seqs.push(i), 60_000, deps());
+    await seg.start();
+    seg.cancel();
+    expect(seqs).toEqual([]);
+    expect(seg.recording).toBe(false);
   });
 });
