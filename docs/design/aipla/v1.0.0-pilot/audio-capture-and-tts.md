@@ -13,7 +13,12 @@
 >
 > **DECISION — talk-to-type and lesson-recording are MUTUALLY EXCLUSIVE modes.** Rather than share one mic stream, the chat input offers a mode toggle: *Talk-to-type* (individual dictation) **XOR** *Record lesson* (group capture). Entering record mode disables the dictation mic and shows the persistent `■ Stop recording` banner; they never contend for `getUserMedia`. Simplest + clearest, and it sidesteps the "does recording block the chat?" problem.
 >
-> **The gate is unchanged and HARD:** this still does not ship until JB signs off on all five consent/privacy questions below — recording minors' voices is the highest-risk surface in v1.1. The *design* is ready; the *gate* is the blocker.
+> **GATE CLEARED 2026-06-11 (M):** JB has signed off — **consent is collected on physical paper forms** (institutional + parental/student signatures, offline), not via an in-app flow. This both **unblocks the feature** and **simplifies it**:
+> - **No in-app per-student opt-in prompt** (the doc's original §43 design). Instead recording is **teacher-enabled per class** (the teacher confirms the signed forms are in hand — a one-time attestation on the per-class toggle 1.G already has). The consent *record* is the paper form, held by the school.
+> - Keep the in-app **transparency** bits regardless: a persistent `● Recording` indicator + always-visible `■ Stop` for whoever holds the shared device, and a class-level "this lesson is being recorded for research" notice.
+> - The **data-handling** half is unchanged and still engineering's job per this doc: EU-only `gs://aipla-research-audio/`, IAM-gated access (who may listen), retention default, and the deletion-by-group_id path.
+>
+> Net: **buildable now** (~2d). The hard consent question is answered; what remains is the recorder UX (mutually exclusive with talk-to-type) + the storage/access/deletion plumbing.
 
 ## Problem Statement
 
