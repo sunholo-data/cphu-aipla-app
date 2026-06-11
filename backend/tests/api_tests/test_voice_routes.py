@@ -300,9 +300,60 @@ def test_synthesize_with_cache_miss_writes_after_synth(client, monkeypatch):
     fake_cache.write.assert_awaited_once()
 
 
-# --- POST /api/voice/stt/transcribe ---
+# --- POST /api/voice/stt/transcribe (VOICE-IN-REC M1) ---
 
 
-def test_transcribe_returns_501_until_m_b3(client):
-    resp = client.post("/api/voice/stt/transcribe")
-    assert resp.status_code == 501
+def _enabled_stt(monkeypatch, transcript: str = "hej med dig"):
+    """Wire get_stt to an enabled fake provider whose transcribe returns text."""
+    p = _fake_stt("gcp_latest_long")
+    p.transcribe = AsyncMock(return_value=transcript)
+    monkeypatch.setattr("protocols.voice_routes.get_stt", lambda skill=None: p)
+    monkeypatch.setattr("protocols.voice_routes.get_skill", lambda sid: None)
+    return p
+
+
+def test_transcribe_returns_text(client, monkeypatch):
+    p = _enabled_stt(monkeypatch, "hej verden")
+    resp = client.post(
+        "/api/voice/stt/transcribe",
+        files={"audio": ("clip.webm", b"\x1aE\xdf\xa3-fake-webm", "audio/webm")},
+        data={"lang": "da", "durationMs": "1500"},
+    )
+    assert resp.status_code == 200
+    assert resp.json() == {"text": "hej verden"}
+    # the raw bytes reached the provider; nothing here persists them
+    assert p.transcribe.await_count == 1
+
+
+def test_transcribe_disabled_provider_returns_503(client, monkeypatch):
+    monkeypatch.setattr("protocols.voice_routes.get_stt", lambda skill=None: _fake_stt("disabled"))
+    monkeypatch.setattr("protocols.voice_routes.get_skill", lambda sid: None)
+    resp = client.post(
+        "/api/voice/stt/transcribe",
+        files={"audio": ("clip.webm", b"x", "audio/webm")},
+        data={"lang": "da"},
+    )
+    assert resp.status_code == 503
+
+
+def test_transcribe_empty_audio_returns_400(client, monkeypatch):
+    _enabled_stt(monkeypatch)
+    resp = client.post(
+        "/api/voice/stt/transcribe",
+        files={"audio": ("clip.webm", b"", "audio/webm")},
+        data={"lang": "da"},
+    )
+    assert resp.status_code == 400
+
+
+def test_transcribe_provider_runtime_error_returns_503(client, monkeypatch):
+    p = _fake_stt("gcp_latest_long")
+    p.transcribe = AsyncMock(side_effect=RuntimeError("grpc down"))
+    monkeypatch.setattr("protocols.voice_routes.get_stt", lambda skill=None: p)
+    monkeypatch.setattr("protocols.voice_routes.get_skill", lambda sid: None)
+    resp = client.post(
+        "/api/voice/stt/transcribe",
+        files={"audio": ("clip.webm", b"xx", "audio/webm")},
+        data={"lang": "da"},
+    )
+    assert resp.status_code == 503

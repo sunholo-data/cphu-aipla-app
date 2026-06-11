@@ -1,0 +1,97 @@
+{
+  "sprint_id": "VOICE-IN-REC",
+  "created": "2026-06-11",
+  "estimated_duration_days": 3.5,
+  "design_docs": [
+    "docs/design/aipla/v1.1.0-feedback/bidirectional-voice-brief.md",
+    "docs/design/aipla/v1.0.0-pilot/audio-capture-and-tts.md"
+  ],
+  "guiding_principle": "SIMPLIFY config, don't multiply options — personas are the funnel. The tutor speaks in the PERSONA's voice (already wired, 1.1.12). Voice-in (talk-to-type) and lesson-recording are simple per-class on/off capabilities, NOT a mode/provider matrix. gemini_live is DEFERRED (only one input mode: stt_tts_roundtrip), so there is NO teacher-facing mode dropdown. The raw class Language/Voice picker is DEMOTED to an Advanced expander. GDPR cleared (paper consent forms, teacher-attested per class).",
+  "features": [
+    {
+      "id": "M1",
+      "description": "Backend STT: implement GCPSTTProvider (mirror gcp_tts.py) + wire POST /api/voice/stt/transcribe (currently 501). Audio blob in -> Danish/English transcript out, transcript-only (raw audio consumed in-process, never persisted). Registry _build_stt already references GCPSTTProvider; stt_provider field already on SkillVoiceConfig. Cost span voice.transcribe.",
+      "scope": "backend",
+      "estimated_loc": 280,
+      "dependencies": [],
+      "acceptance_criteria": [
+        "GCPSTTProvider in backend/voice/providers/gcp_stt.py implements STTProvider.transcribe(audio,mime,lang,extras)->str via Cloud Speech latest_long; da-DK/en-US",
+        "registry _build_stt wires gcp_latest_long -> GCPSTTProvider; env VOICE_STT_PROVIDER + SkillVoiceConfig.stt_provider select it",
+        "POST /api/voice/stt/transcribe accepts an audio blob (+ lang), returns {text}; 501 stub replaced; raw audio not persisted",
+        "voice.transcribe OTel span (provider, lang, audio_seconds, cost_estimate_usd); cost.py STT cost already present",
+        "make lint clean; make test-fast green (mock the Speech client)"
+      ],
+      "files_to_create": ["backend/voice/providers/gcp_stt.py", "backend/tests/unit/voice/test_gcp_stt.py"],
+      "files_to_modify": ["backend/voice/registry.py", "backend/protocols/voice_routes.py"],
+      "passes": true,
+      "started": "2026-06-11",
+      "completed": "2026-06-11",
+      "actual_loc": 240,
+      "notes": "SHIPPED. GCPSTTProvider (voice/providers/gcp_stt.py) mirrors gcp_tts: model-in-name (gcp_latest_long), lazy SpeechClient (injectable for tests), _normalize_lang + _encoding_for (webm/opus default), 10MB cap, errors->RuntimeError. Registry already pointed at it (no change needed). Transcribe endpoint replaced the 501 stub: multipart audio + lang + durationMs; resolves provider via get_stt; disabled->503; transcript-only (no persistence); voice.transcribe OTel span. 8 provider unit tests + 4 endpoint tests (replaced the old 501 test). Backend lint clean + test-fast 1839. google-cloud-speech 2.38 already in uv.lock."
+    },
+    {
+      "id": "M2",
+      "description": "Backend lesson recording: POST /api/voice/recording upload -> gs://{project}-research-audio/ (EU) + Firestore metadata (group_id, class_id, started_at, duration, retention); delete-by-group_id path; per-class enable + paper-form attestation flag. The research-record store (distinct from STT — raw audio IS retained here, consent = paper forms).",
+      "scope": "backend",
+      "estimated_loc": 320,
+      "dependencies": [],
+      "acceptance_criteria": [
+        "POST /api/voice/recording accepts an audio blob for the caller's group/class; writes gs://{project}-research-audio/{class}/{group}/{ts}.webm + a Firestore metadata doc",
+        "gated on per-class recording_enabled (teacher attestation that paper consent forms are held); 403 when not enabled",
+        "delete-by-group_id removes audio objects + metadata (GDPR erasure path); retention default recorded",
+        "bucket + IAM side-effects recorded in bootstrap-aipla-dev.NOTES.md with the Terraform snippet (mirror the artifacts-bucket pattern)",
+        "make lint clean; make test-fast green (mock GCS)"
+      ],
+      "files_to_create": ["backend/protocols/recording_routes.py", "backend/tests/api_tests/test_recording_routes.py"],
+      "files_to_modify": ["backend/db/models/class_.py", "backend/fast_api_app.py", "scripts/bootstrap-aipla-dev.sh", "scripts/bootstrap-aipla-dev.NOTES.md"],
+      "passes": null,
+      "started": null,
+      "completed": null,
+      "notes": ""
+    },
+    {
+      "id": "M3",
+      "description": "Frontend composer mic, talk-to-type XOR record-lesson. One mic control: talk-to-type (hold/tap -> getUserMedia -> STT -> fills the input, edit-then-send default) XOR record-lesson ('Record this class' -> persistent recording banner + Stop -> upload on stop). Explicit recording indicator + resting state + fallback-to-typing. Mutually exclusive (never contend for getUserMedia). Gated on per-class capability flags.",
+      "scope": "frontend",
+      "estimated_loc": 380,
+      "dependencies": ["M1", "M2"],
+      "acceptance_criteria": [
+        "mic control in the composer gated on the class's voice-in capability; press-to-talk -> /api/voice/stt/transcribe -> transcript fills the input (edit-then-send)",
+        "record-lesson mode ('Record this class') gated on recording_enabled: persistent recording indicator + Stop banner; uploads to /api/voice/recording on stop; disables talk-to-type while recording (XOR)",
+        "explicit recording/streaming indicator + visible mic-off resting state (Axiom 11); graceful fallback to typing when mic/permission unavailable",
+        "lib for getUserMedia + MediaRecorder with tests (mocked); no always-on mic",
+        "npm run quality:check green"
+      ],
+      "files_to_create": ["frontend/src/lib/audioCapture.ts", "frontend/src/components/chat/VoiceComposerControls.tsx", "frontend/src/lib/__tests__/audioCapture.test.ts"],
+      "files_to_modify": ["frontend/src/app/chat/[...path]/page.tsx", "frontend/src/hooks/useVoiceConfig.ts"],
+      "passes": null,
+      "started": null,
+      "completed": null,
+      "notes": ""
+    },
+    {
+      "id": "M4",
+      "description": "SIMPLIFY config (the point of the sprint). Demote the raw per-class Language/Voice picker into an 'Advanced' expander; surface the two simple per-class capability toggles ('Enable student voice input' + 'Enable lesson recording' with the paper-form attestation). Personas stay the primary voice/identity choice. Net teacher-facing options go DOWN, not up.",
+      "scope": "frontend",
+      "estimated_loc": 180,
+      "dependencies": ["M2"],
+      "acceptance_criteria": [
+        "raw Language/Voice picker on the class-settings page collapsed behind an 'Advanced voice' expander (default closed); persona is presented as the primary path",
+        "two plain on/off toggles: Enable student voice input; Enable lesson recording (with attestation copy 'I hold signed consent forms for this class')",
+        "toggles persist to ClassVoiceSettings/class capability flags via the existing PUT route (extended); no new dropdowns",
+        "npm run quality:check green"
+      ],
+      "files_to_create": [],
+      "files_to_modify": ["frontend/src/app/teacher/classes/[id]/page.tsx", "frontend/src/components/teacher/*"],
+      "passes": null,
+      "started": null,
+      "completed": null,
+      "notes": ""
+    }
+  ],
+  "velocity": {"target_loc_per_day": 350, "estimated_total_loc": 1160, "estimated_days": 3.5},
+  "github_issues": [],
+  "last_session": "2026-06-11",
+  "last_checkpoint": "created; starting M1 (backend STT)",
+  "status": "in_progress"
+}

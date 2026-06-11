@@ -5,8 +5,8 @@ Three routes:
   GET  /api/voice/config              — return {tts, stt} provider info
                                         for this skill_id (or defaults).
   POST /api/voice/tts/synthesize      — text -> audio (with cache).
-  POST /api/voice/stt/transcribe      — audio -> text. STUBBED 501 until
-                                        M-B3 (Phase B).
+  POST /api/voice/stt/transcribe      — audio -> text (voice-in / talk-to-type;
+                                        transcript-only, raw audio not persisted).
 
 Auth: every route uses the same group-id-or-firebase auth via
 ``get_current_user``. STT explicitly never persists the uploaded audio
@@ -18,7 +18,9 @@ OTel spans:
                            voice.lang, voice.cache_hit,
                            voice.cost_estimate_usd, voice.auto_read
                            (set by the caller via header).
-  voice.transcribe       — set in M-B3 when STT lands.
+  voice.transcribe       — attrs: voice.provider, voice.lang,
+                           voice.audio_bytes, voice.transcript_chars,
+                           voice.cost_estimate_usd (when durationMs sent).
 
 See design doc voice-provider-abstraction.md §API Changes.
 """
@@ -28,7 +30,7 @@ from __future__ import annotations
 import logging
 from typing import Any
 
-from fastapi import APIRouter, Depends, HTTPException, Response
+from fastapi import APIRouter, Depends, File, Form, HTTPException, Response, UploadFile
 from opentelemetry import trace
 from pydantic import BaseModel, ConfigDict, Field
 
@@ -41,7 +43,7 @@ from personas.loader import load_persona
 from skills.skill_config import get_skill
 from voice import get_stt, get_tts
 from voice.cache import CacheKey, TTSCache
-from voice.cost import tts_cost_usd
+from voice.cost import stt_cost_usd, tts_cost_usd
 from voice.voices import SUPPORTED_LANGS, get_voices_for_lang
 
 logger = logging.getLogger(__name__)
@@ -430,13 +432,49 @@ async def synthesize(
 
 @router.post("/stt/transcribe")
 async def transcribe(
+    audio: UploadFile = File(...),  # noqa: B008
+    lang: str = Form("da"),
+    skill_id: str | None = Form(None, alias="skillId"),
+    duration_ms: int = Form(0, alias="durationMs"),
     user: User = Depends(get_current_user),  # noqa: B008
-) -> Response:
-    """STT — wired in M-B3 (Phase B)."""
-    raise HTTPException(
-        status_code=501,
-        detail="STT not implemented in Phase A; lands in M-B3",
-    )
+) -> dict[str, str]:
+    """Transcribe an uploaded audio blob to text (voice-in / talk-to-type).
+
+    **Transcript-only, non-retaining:** the audio is read into memory, passed
+    to the STT provider for one ``recognize()`` call, and discarded — never
+    written to GCS/Firestore. (Lesson RECORDING, which *does* retain raw audio
+    for research, is the separate ``POST /api/voice/recording`` route.)
+
+    The provider is resolved by the same registry chain as TTS
+    (``SkillConfig.voice.stt_provider`` > env ``VOICE_STT_PROVIDER`` >
+    ``disabled``). A ``disabled``/``null`` provider returns 503 so the client
+    falls back to typing.
+    """
+    skill = get_skill(skill_id) if skill_id else None
+    provider = get_stt(skill)
+    if provider.name in ("disabled", "null"):
+        raise HTTPException(status_code=503, detail="Speech-to-text is not enabled here.")
+
+    raw = await audio.read()
+    if not raw:
+        raise HTTPException(status_code=400, detail="empty audio")
+    mime = audio.content_type or "audio/webm"
+
+    with _tracer.start_as_current_span("voice.transcribe") as span:
+        span.set_attribute("voice.provider", provider.name)
+        span.set_attribute("voice.lang", lang)
+        span.set_attribute("voice.audio_bytes", len(raw))
+        try:
+            text = await provider.transcribe(raw, mime, lang, None)
+        except ValueError as exc:
+            raise HTTPException(status_code=400, detail=str(exc)) from exc
+        except RuntimeError as exc:
+            raise HTTPException(status_code=503, detail=str(exc)) from exc
+        span.set_attribute("voice.transcript_chars", len(text))
+        if duration_ms > 0:
+            span.set_attribute("voice.cost_estimate_usd", stt_cost_usd(provider.name, duration_ms))
+
+    return {"text": text}
 
 
 def _audio_response(audio: bytes, mime: str, provider_name: str, *, cache_hit: bool, cost: float) -> Response:
