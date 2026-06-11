@@ -58,16 +58,17 @@
       "description": "Teacher view: the group's transcript on the session/group report (per-group). Reuses the transcript endpoint; teacher-auth path.",
       "scope": "frontend",
       "estimated_loc": 160,
-      "passes": null,
-      "started": null,
-      "completed": null,
-      "notes": "",
+      "passes": true,
+      "started": "2026-06-11",
+      "completed": "2026-06-11",
+      "notes": "SHIPPED. GroupTranscriptSection (fetchGroupTranscript via the owning-teacher auth path) on the teacher group report; renders nothing when the group has no transcript (invisible for non-recorded sessions). Mounted after the conversation log. 3 FE tests. Backend test-fast 1858 + lint clean; FE quality:check 1016 + build.",
       "files_to_modify": [
         "frontend/src/app/teacher/reports/groups/[groupId]/page.tsx"
-      ]
+      ],
+      "actual_loc": 120
     }
   ],
   "last_session": "2026-06-11",
-  "last_checkpoint": "M3 shipped (student transcript panel); starting M4 (teacher report)",
-  "status": "in_progress"
+  "last_checkpoint": "all 4 milestones shipped (M1 transcribe+endpoint, M2 segmented recorder, M3 student panel, M4 teacher report)",
+  "status": "complete"
 }

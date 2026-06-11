@@ -23,6 +23,7 @@ import {
   fetchGroupLatestReport,
 } from "@/lib/teacherApi";
 import { downloadCsv, downloadJson } from "@/lib/download";
+import { GroupTranscriptSection } from "@/components/teacher/GroupTranscriptSection";
 
 type ReportState =
   | { kind: "loading" }
@@ -286,6 +287,10 @@ export default function TeacherGroupReportPage() {
       {isLive && state.kind === "live" && state.data.workbenchEvents && state.data.workbenchEvents.length > 0 ? (
         <WorkbenchActivitySection events={state.data.workbenchEvents} />
       ) : null}
+
+      {/* REC-TRANSCRIPT M4 — the group's lesson-recording transcript (renders
+          only when a recorded session produced one). */}
+      <GroupTranscriptSection groupId={groupId} />
     </div>
   );
 }
