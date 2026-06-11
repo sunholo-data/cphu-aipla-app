@@ -249,6 +249,7 @@ from protocols.a2ui_surface_action_routes import router as a2ui_surface_action_r
 from protocols.activity_config_routes import router as activity_config_router  # noqa: E402
 from protocols.analytics_routes import router as analytics_router  # noqa: E402
 from protocols.classes_routes import router as classes_router  # noqa: E402
+from protocols.curriculum_routes import router as curriculum_router  # noqa: E402
 from protocols.iframe_context_routes import router as iframe_context_router  # noqa: E402
 from protocols.insights_routes import router as insights_router  # noqa: E402
 from protocols.mcp_proxy import router as mcp_proxy_router  # noqa: E402
@@ -294,6 +295,7 @@ app.include_router(reports_router)
 app.include_router(proactive_router)
 app.include_router(voice_router)
 app.include_router(recording_router)
+app.include_router(curriculum_router)
 
 # ----------------------------------------------------------------------------
 # Channel framework (v6.1.0 sprint 1.6 M1)

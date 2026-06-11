@@ -1,0 +1,74 @@
+{
+  "sprint_id": "CURRICULUM",
+  "created": "2026-06-11",
+  "estimated_duration_days": 3.5,
+  "design_doc": "docs/design/aipla/v1.1.0-feedback/curriculum-library.md",
+  "guiding_principle": "1.1.25 the breadth multiplier. SLICE FIRST = teacher's OWN uploads (copyright_status=teacher_owned, no clearance gate); shared corpus is a later slice. Retrieval = ADK RAG (managed), NOT pgvector. ACL deny-by-default: teachers browse shared+own; the student tutor retrieves ONLY the running activity's cited materials, never the open corpus.",
+  "verified_api_2026_06_11": "google.adk.tools.retrieval.VertexAiRagRetrieval (+ BaseRetrievalTool) is the agent tool. vertexai.rag provides RagCorpus + RagManagedDb (managed vector store, no pgvector) + RagFile + RagResource + RagRetrievalConfig + Filter. ailang_parse (docparse) available for the parse step. So provision a RagManagedDb-backed RagCorpus, ingest docparse text as RagFiles tagged {level,topic,owner_scope,doc_id}, retrieve via VertexAiRagRetrieval scoped by RagResource+Filter.",
+  "features": [
+    {
+      "id": "M1",
+      "description": "Backend metadata + ACL + browse (NO Vertex infra). CurriculumDoc model (StxLevel A/B/C, source, owner_scope, origin, copyright_status, doc_artifact_id) + Firestore CRUD + GET /api/curriculum?level=&topic=&scope= ACL-filtered (teacher sees shared \u222a own). Foundation for the RAG layer.",
+      "scope": "backend",
+      "estimated_loc": 280,
+      "passes": true,
+      "started": "2026-06-11",
+      "completed": "2026-06-11",
+      "notes": "SHIPPED. CurriculumDoc model (StxLevel A/B/C, source, owner_scope, origin, copyright_status, doc_artifact_id). db/curriculum.py CRUD: create/get/delete + list_curriculum_for_teacher (ACL: shared + own; scope shared|mine; level/topic filter). GET /api/curriculum browse \u2014 TEACHER-ONLY (students 403, deny-by-default for the open corpus); Literal types -> 422 on bad input. 6 tests. Backend lint clean + test-fast 1864. NO Vertex infra yet (that's M2).",
+      "files_to_create": [
+        "backend/db/models/curriculum.py",
+        "backend/db/curriculum.py",
+        "backend/protocols/curriculum_routes.py",
+        "backend/tests/api_tests/test_curriculum_routes.py"
+      ],
+      "files_to_modify": [
+        "backend/fast_api_app.py"
+      ],
+      "actual_loc": 260
+    },
+    {
+      "id": "M2",
+      "description": "Backend RAG ingestion (Vertex infra). Provision a RagManagedDb RagCorpus (bootstrap + NOTES side-effect record). POST /api/curriculum/ingest: docparse (ailang_parse) -> text -> import into the corpus as a RagFile tagged {level,topic,owner_scope,doc_id} + write CurriculumDoc metadata. Teacher uploads = teacher_owned (un-gated); shared ingestion refuses copyright_status=pending.",
+      "scope": "backend",
+      "estimated_loc": 340,
+      "passes": null,
+      "started": null,
+      "completed": null,
+      "notes": "",
+      "blocked_by": "Vertex RagCorpus provisioning (mirror bootstrap_agent_engine.py pattern)"
+    },
+    {
+      "id": "M3",
+      "description": "Backend retrieval + tutor grounding. VertexAiRagRetrieval tool scoped (RagResource+Filter) to an activity's cited materials only; attach to the tutor agent when the activity has materials. curriculum-retrieve query path. Student deny-by-default (only cited docs). Retrieval returns origin for citation.",
+      "scope": "backend",
+      "estimated_loc": 300,
+      "passes": null,
+      "started": null,
+      "completed": null,
+      "notes": ""
+    },
+    {
+      "id": "M4",
+      "description": "Frontend authoring picker: Materials section in the 1.1.19 builder \u2014 browse the library (filter A/B/C + topic) + cite (-> activity MaterialRef) + upload (reuses 1.1.7/docparse plumbing). Empty/loading/error states.",
+      "scope": "frontend",
+      "estimated_loc": 320,
+      "passes": null,
+      "started": null,
+      "completed": null,
+      "notes": ""
+    },
+    {
+      "id": "M5",
+      "description": "CLI: aiplatform curriculum ingest/list/query (ops + eval parity).",
+      "scope": "cli",
+      "estimated_loc": 180,
+      "passes": null,
+      "started": null,
+      "completed": null,
+      "notes": ""
+    }
+  ],
+  "last_session": "2026-06-11",
+  "last_checkpoint": "M1 shipped (metadata/ACL/browse). PAUSED before M2 (provision Vertex RagCorpus + docparse->RAG ingestion) \u2014 needs Vertex infra + a fresh look.",
+  "status": "in_progress"
+}
