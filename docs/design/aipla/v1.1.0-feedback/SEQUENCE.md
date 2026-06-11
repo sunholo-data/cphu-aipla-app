@@ -81,7 +81,7 @@ Verified by code inspection on 2026-06-08 (not by doc placement, which lags). Le
 | 1.1.20 | tutor-personas | **SHIPPED (core)** | 2026-06-10 — `interaction_style` field (socratic default / concise / rigorous / warm) end-to-end: override-preamble injection in the agent chain (socratic = passthrough, zero regression) + builder picker. Commits `d1015c1` + `5eb6d0a`; 8 BE + 1 FE tests. **Follow-ups:** AR's final concise/rigorous/warm wording, OTel `tutor.interaction_style`, socratic SKILL.md extraction. A persona (1.1.12) will resolve down to this field |
 | 1.1.21 | multimodal guardrail + units loop | **OPEN** | design-only (2026-06-09); folded into 1.1.7 doc. Blocked behind 1.1.7 landing + M GDPR call on detection approach |
 | 1.1.22 | end-of-class-notes-summary | **OPEN** | design-only (2026-06-09). Composes 1.1.7 + 1.1.8; sequenced after both |
-| 1.1.23 | bidirectional-voice-brief | **OPEN — URGENT** | brief-only (2026-06-09). **Target 2026-06-23.** Blocking: A/B architecture + GDPR delta + owner (M/JB) — resolve immediately |
+| 1.1.23 | bidirectional-voice-brief | **OPEN — URGENT (de-risked)** | brief-only. **Target 2026-06-23.** **DECISION 2026-06-11: `gemini_live` DEFERRED** (needs a non-Google/local-Whisper port first); **`stt_tts_roundtrip` is the v1 mode + voice-in is a requirement.** Now a ~0.5–1.5d build over the shipped 1.1.11 parts; only gate is M's transcript-only GDPR delta (not the heavy continuous-audio review). Buildable now |
 | 1.1.24 | offline-lab-workbench | **OPEN** | design-only (2026-06-09). Gated on JB/AR ground-truth model + 2 real experiments; depends on 1.J Type 5 |
 | 1.1.25 | curriculum-library | **OPEN** | design-only (2026-06-09). **ADK RAG (managed) — un-gated from pgvector**; JB/M copyright clearance for shared corpus; B/C corpus parsed |
 | 1.1.26 | teacher-ui-consolidation | **SHIPPED (P1–P5)** | 2026-06-09 — full foundation: P1 primitives (`components/teacher/ui/`), P2 by-breakpoint nav (`TeacherNav`), P3 class-detail onto primitives + "Class settings", P4 real Activities library, P5 Insights unification (`InsightsTabs`). Commits `6bb33af`→`d4692ee`; 958 FE tests. **Builder Essential/Advanced section-model intentionally deferred** to when its config features (1.1.20/1.1.23) are built into it |
@@ -90,9 +90,15 @@ Verified by code inspection on 2026-06-08 (not by doc placement, which lags). Le
 
 ### Still to do (priority order)
 
+> **POST-MEETING RE-PRIORITISATION (2026-06-11, M).** The biggest teacher/student ask is **multimodal upload — pictures + docs, for BOTH students and teachers**. It moves to the **top**. Voice-**in** is a **requirement**, and `gemini_live` is **deferred** (needs a non-Google/local-Whisper port first), which de-risks it to a small build over the shipped 1.1.11. New top order:
+>
+> 1. **1.1.7 student multimodal upload** (+ **1.1.21** no-person guardrail + units-loop) — *the biggest ask*. Build now with **on-device** person-detection as the private default (M's preferred posture; swappable), so it doesn't block on the exact GDPR call.
+> 2. **1.1.25 teacher curriculum/materials upload** (ADK-RAG, un-gated; teacher's *own* uploads need no copyright clearance — that's only the shared corpus) + the thin teacher image-attach reusing 1.1.7's plumbing.
+> 3. **1.1.23 voice-in via `stt_tts_roundtrip`** — requirement; ~0.5–1.5d over shipped parts; only M's transcript-only GDPR delta remains.
+
 **⚠ Urgent / time-boxed (resolve this week):**
 
-0. **1.1.23 bidirectional voice — TARGET 2026-06-23.** It is a **swap-shaped `voice_mode` config axis** (`gemini_live` + `stt_tts_roundtrip` as coexisting mode options, ADR-003 pattern), not a pick-one build. Decision-blocked, not engineering-blocked: M gives the **per-mode GDPR posture**, JB picks the **first-enabled mode**. The axis + `stt_tts_roundtrip` guarantee something live; `gemini_live` slots in by config when LiveRunner + the audio review land. 14 days out.
+0. **1.1.23 bidirectional voice — TARGET 2026-06-23.** **`stt_tts_roundtrip` is the v1 mode (`gemini_live` DEFERRED — needs a non-Google/local-Whisper port).** Voice-in is a requirement. Now a small build over the shipped 1.1.11 voice stack; the only gate is M's transcript-only GDPR delta. Engineering can start now.
 
 **Human-gated** (tee up first — engineering can't unblock):
 

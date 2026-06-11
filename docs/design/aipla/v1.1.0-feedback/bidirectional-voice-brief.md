@@ -1,6 +1,6 @@
 # Bidirectional voice — sound in **and** out as a swap-shaped `voice_mode` config (target 2026-06-23)
 
-**Status:** Brief (pre-design) — **needs the per-mode GDPR posture confirmed with M; first-enabled mode confirmed with JB**
+**Status:** Brief — **DECISION 2026-06-11 (M, post-meeting): `gemini_live` is DEFERRED** until there's a clear non-Google / open-source (local Whisper, ADR-003 `server_local`) port path — the cloud-locked duplex is the harder, lock-in-prone bet. **`stt_tts_roundtrip` is the v1 mode and voice-in is a requirement.** That removes the heavy continuous-audio GDPR review from the critical path; the round-trip's posture is the small transcript-only dictation delta. The remaining gate is M's confirmation of that delta — not a build decision.
 **Last Updated:** 2026-06-09
 **Priority:** **P1 — the one urgent new date.** Sound-in-and-out was stressed by teachers on 9 June. It was explicitly "not in this brief" on 3 June; it now carries a **hard near-term target of 2026-06-23**, ahead of the week-27 holiday freeze (2026-06-29 → 07-05).
 **Estimated:** the **`voice_mode` abstraction** itself is small (~0.5d — it extends the 1.1.11 registry with a mode axis). Then **per mode**: `stt_tts_roundtrip` ~0.5–1.5d (composes shipped 1.1.11 parts), `gemini_live` ~3–5d (LiveRunner integration off the existing stub). Enable whichever mode(s) fit the date + the GDPR sign-off.
