@@ -28,6 +28,7 @@ See design doc voice-provider-abstraction.md §API Changes.
 from __future__ import annotations
 
 import logging
+from dataclasses import dataclass
 from typing import Any
 
 from fastapi import APIRouter, Depends, File, Form, HTTPException, Response, UploadFile
@@ -38,13 +39,13 @@ from adk.teacher_focus import resolve_active_config
 from auth import User, get_current_user
 from db.classes import (
     get_class,
+    get_class_for_group,
     update_class_capabilities,
     update_class_persona,
     update_class_voice_settings,
 )
-from db.firestore import get_document
-from db.models.class_ import Class, ClassVoiceSettings
-from personas.loader import load_persona
+from db.models.class_ import Class
+from personas.loader import resolve_persona_chain
 from skills.skill_config import get_skill
 from voice import get_stt, get_tts
 from voice.cache import CacheKey, TTSCache
@@ -96,31 +97,91 @@ class ClassVoiceSettingsBody(BaseModel):
 
 
 def _class_for_user(user: User) -> Class | None:
-    """Resolve the requesting user's class via the anon_groups -> classId
-    binding. Anonymous-group users carry `user.group_id`; teachers in chat
-    mode have no group_id (Firebase auth) -> None. Returns None on any lookup
-    failure rather than raising; voice config must degrade gracefully.
+    """Resolve the requesting user's class via the group -> classId binding.
+
+    Anonymous-group users carry ``user.group_id``; teachers in chat mode have
+    no group_id (Firebase auth) -> None. Delegates to the single canonical
+    ``get_class_for_group`` lookup (which also backs the persona/avatar
+    resolution in activity_config_routes) so voice and avatar can never resolve
+    a different class.
     """
-    group_id = getattr(user, "group_id", None)
-    if not group_id:
-        return None
-    try:
-        anon_doc = get_document("anon_groups", group_id)
-        if not anon_doc:
-            return None
-        class_id = anon_doc.get("classId")
-        if not class_id:
-            return None
-        return get_class(class_id)
-    except Exception as exc:
-        logger.warning("class lookup failed for group=%s: %s", group_id, exc)
-        return None
+    return get_class_for_group(getattr(user, "group_id", None))
 
 
-def _class_voice_for_user(user: User) -> ClassVoiceSettings | None:
-    """The requesting user's class-level voice override (1.1.11), or None."""
+@dataclass
+class ResolvedVoice:
+    """The voice a chat turn should speak in, resolved ONCE from the full chain.
+
+    Used by BOTH ``GET /config`` (tells the frontend what to request) and
+    ``POST /synthesize`` (actually picks the provider). Having one resolver
+    means the two endpoints can never drift — the bug where the avatar/name
+    changed with the persona but the spoken voice did not.
+
+    ``provider`` is a registry name override (e.g. ``"gcp_wavenet"``) or None to
+    fall back to the skill/env default via ``get_tts``.
+    """
+
+    provider: str | None = None
+    voice: str | None = None
+    lang: str | None = None
+
+
+def resolve_voice(user: User, skill_id: str | None, skill: object | None) -> ResolvedVoice:
+    """Resolve the effective voice for this (user, skill) — the single source
+    of truth for the voice chain.
+
+    Precedence (most specific wins; each tier only fills what's still unset):
+      1. Explicit per-class voice override (the "Custom voice (advanced)" panel)
+      2. **Persona** — a persona is a complete bundle (avatar + name + voice +
+         style). Resolved via the SAME chain as the chat avatar
+         (``activity persona > class persona > global default``), so picking any
+         persona — including the global default — sets the spoken voice too.
+      3. Skill author's ``SkillConfig.voice`` (voice name + language only)
+
+    The env/registry default is applied later by ``get_tts`` when ``provider``
+    is still None.
+    """
     cls = _class_for_user(user)
-    return cls.voice if cls is not None else None
+    class_voice = cls.voice if cls is not None else None
+
+    activity_persona = None
+    class_persona = cls.persona if cls is not None else None
+    if skill_id:
+        cfg = resolve_active_config(skill_id, group_tags=user.group_tags)
+        activity_persona = cfg.persona if cfg is not None else None
+    # Same chain (incl. global default) as the avatar — persona is a full bundle.
+    persona = resolve_persona_chain(activity_persona, class_persona)
+    persona_voice = persona.voice if persona is not None else None
+
+    rv = ResolvedVoice()
+    # 1. Explicit class override (advanced) wins.
+    if class_voice is not None:
+        rv.provider = class_voice.provider
+        rv.voice = class_voice.voice
+        rv.lang = class_voice.language
+    # 2. Persona voice fills gaps.
+    if persona_voice is not None:
+        rv.provider = rv.provider or persona_voice.tts_provider
+        rv.voice = rv.voice or persona_voice.tts_voice
+        rv.lang = rv.lang or persona_voice.language
+    # 3. Skill voice fills the voice name + language (not provider — the skill's
+    #    provider is handled by get_tts when no override is set).
+    if skill is not None:
+        sv = getattr(skill, "voice", None)
+        if sv is not None:
+            rv.voice = rv.voice or getattr(sv, "tts_voice", None)
+            rv.lang = rv.lang or getattr(sv, "language", None)
+    return rv
+
+
+def _tts_for(provider_override: str | None, skill: object | None):
+    """Build the TTS provider, honouring a resolved provider override."""
+    if provider_override is not None:
+        from types import SimpleNamespace
+
+        effective = SimpleNamespace(voice=SimpleNamespace(tts_provider=provider_override, stt_provider=None))
+        return get_tts(effective)
+    return get_tts(skill)
 
 
 class SynthesizeRequest(BaseModel):
@@ -167,83 +228,21 @@ async def get_config(
     """
     skill = get_skill(skill_id) if skill_id else None
     cls = _class_for_user(user)
-    class_voice = cls.voice if cls is not None else None
 
-    # 1.1.12: a persona supplies the voice. Chain: activity persona > class
-    # persona (most specific wins). NOT the GLOBAL default persona — its voice
-    # is the priciest tier; the default only gives avatar+name (active-config).
-    persona_voice = None
-    if skill_id:
-        cfg = resolve_active_config(skill_id, group_tags=user.group_tags)
-        activity_persona = cfg.persona if cfg is not None else None
-        class_persona = cls.persona if cls is not None else None
-        explicit_persona = (
-            load_persona(activity_persona or class_persona) if (activity_persona or class_persona) else None
-        )
-        if explicit_persona is not None:
-            persona_voice = explicit_persona.voice
+    # ONE resolver — shared with /synthesize so the spoken voice can never drift
+    # from what we advertise here. A persona is a full bundle (incl. the global
+    # default), so picking any persona sets the voice too.
+    rv = resolve_voice(user, skill_id, skill)
+    resolved_voice = rv.voice
+    resolved_lang = rv.lang
 
-    # Resolution chain (most specific wins; each tier only fills what's unset):
-    #   1. Persona voice (the activity's character) -> 1.1.12
-    #   2. Class teacher explicit provider/voice
-    #   3. Skill author SkillConfig.voice
-    #   4. Env VOICE_TTS_PROVIDER default via the registry
-    resolved_provider_override: str | None = None
-    resolved_voice: str | None = None
-    resolved_lang: str | None = None
-    if persona_voice is not None:
-        resolved_provider_override = persona_voice.tts_provider
-        resolved_voice = persona_voice.tts_voice
-        resolved_lang = persona_voice.language
-    if class_voice is not None:
-        if resolved_provider_override is None:
-            resolved_provider_override = class_voice.provider
-        if resolved_voice is None:
-            resolved_voice = class_voice.voice
-        if resolved_lang is None:
-            resolved_lang = class_voice.language
-    if resolved_voice is None and skill is not None:
-        sv = getattr(skill, "voice", None)
-        if sv is not None:
-            resolved_voice = getattr(sv, "tts_voice", None)
-    # Skill-declared language wins when class hasn't set one. This is
-    # what locks the LangToggle on the frontend for skills like KineBot
-    # (en-only) and Boldkast (da-only).
-    if resolved_lang is None and skill is not None:
-        sv = getattr(skill, "voice", None)
-        if sv is not None:
-            resolved_lang = getattr(sv, "language", None)
-    # NOTE (1.1.12 default identity): we deliberately do NOT gap-fill the voice
-    # from the global default persona here. The default persona supplies only
-    # the chat AVATAR + NAME (active-config); its voice (Sofie = gcp_chirp3hd,
-    # the priciest tier) is left out so unconfigured skills keep the cheaper env
-    # wavenet default — a Danish wavenet voice is coherent enough with the
-    # default Danish-educator avatar without a 7.5x TTS cost bump. An explicitly
-    # assigned persona still supplies its own voice via the persona tier above.
-
-    # Build a synthetic skill-like object to pass to get_tts so the
-    # registry resolves the class's chosen provider when one is set,
-    # without us having to re-implement the resolution chain.
-    if resolved_provider_override is not None:
-        # Wrap the skill with the class's provider override.
-        from types import SimpleNamespace
-
-        skill_voice_override = SimpleNamespace(
-            tts_provider=resolved_provider_override,
-            stt_provider=None,
-        )
-        effective_skill = SimpleNamespace(voice=skill_voice_override)
-    else:
-        effective_skill = skill
-
-    tts = get_tts(effective_skill)
+    tts = _tts_for(rv.provider, skill)
     stt = get_stt(skill)
 
     logger.info(
-        "voice/config skill_id=%r skill_found=%s class_voice=%s tts.provider=%s tts.voice=%s tts.lang=%s",
+        "voice/config skill_id=%r skill_found=%s tts.provider=%s tts.voice=%s tts.lang=%s",
         skill_id,
         skill is not None,
-        class_voice is not None,
         tts.name,
         resolved_voice,
         resolved_lang,
@@ -410,30 +409,24 @@ async def synthesize(
       - 503 on provider failure.
     """
     skill = get_skill(body.skill_id) if body.skill_id else None
-    # 1.1.11 follow-up — same class-override consultation as /voice/config
-    # so the synthesize PROVIDER picks the class's tier (gcp_chirp3hd vs
-    # gcp_wavenet), not just the env default. Without this, the frontend
-    # is told "voice=da-DK-Chirp3-HD-Aoede" but the actual synth runs on
-    # gcp_wavenet's provider, which Cloud TTS bills + may downgrade the
-    # voice silently to the closest matching tier.
-    class_voice = _class_voice_for_user(user)
-    if class_voice is not None and class_voice.provider:
-        from types import SimpleNamespace
-
-        effective_skill = SimpleNamespace(
-            voice=SimpleNamespace(tts_provider=class_voice.provider, stt_provider=None),
-        )
-        provider = get_tts(effective_skill)
-    else:
-        provider = get_tts(skill)
+    # Resolve the voice through the SAME chain as /config (persona = full
+    # bundle, incl. the global default). This is the fix for "the avatar/name
+    # changed with the persona but the spoken voice did not": synthesize used
+    # to ignore the persona entirely and fall back to the env default provider,
+    # so the persona's voice never sounded. Now both endpoints agree.
+    rv = resolve_voice(user, body.skill_id, skill)
+    provider = _tts_for(rv.provider, skill)
+    # The frontend sends the voice it got from /config; trust it, but fall back
+    # to the resolver's voice if absent so a direct API caller still gets the
+    # persona voice.
+    effective_voice = body.voice or rv.voice
     logger.info(
-        "voice/synthesize skill_id=%r skill_found=%s class_voice=%s provider=%s lang=%s voice=%s chars=%d",
+        "voice/synthesize skill_id=%r skill_found=%s provider=%s lang=%s voice=%s chars=%d",
         body.skill_id,
         skill is not None,
-        class_voice is not None,
         provider.name,
         body.lang,
-        body.voice,
+        effective_voice,
         len(body.text),
     )
 
@@ -464,7 +457,7 @@ async def synthesize(
             if v is not None:
                 rate = float(getattr(v, "rate", rate))
 
-        voice_for_key = body.voice or "_default_"
+        voice_for_key = effective_voice or "_default_"
         key = CacheKey(
             provider=provider.name,
             voice=voice_for_key,
@@ -489,7 +482,7 @@ async def synthesize(
             audio, mime = await provider.synthesize(
                 text=body.text,
                 lang=body.lang,
-                voice=body.voice,
+                voice=effective_voice,
                 extras={"rate": rate},
             )
         except RuntimeError as exc:

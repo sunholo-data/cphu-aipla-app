@@ -176,6 +176,23 @@ export async function fetchPersonaList(): Promise<PersonaPayload[]> {
   return body.personas;
 }
 
+export interface PersonaCatalogue {
+  personas: PersonaPayload[];
+  /** The global default persona id (the one a class inherits when none is
+   *  explicitly set). Used to badge it instead of a synthetic "Default" card. */
+  defaultId: string | null;
+}
+
+/** Fetch the persona catalogue + the global default id (1.1.12). */
+export async function fetchPersonaCatalogue(): Promise<PersonaCatalogue> {
+  const resp = await fetchWithAuth(`/api/proxy/api/personas`);
+  const body = await readJson<{ personas: PersonaPayload[]; defaultId?: string | null }>(
+    resp,
+    "fetch personas",
+  );
+  return { personas: body.personas, defaultId: body.defaultId ?? null };
+}
+
 /** Fetch a session summary for an anonymous group code.
  *  Pass ``sessionId`` to fetch a specific past session; omit it to fetch
  *  the most-recent session for the group. */

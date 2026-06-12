@@ -5,7 +5,7 @@ avatar: /personas/henrik.webp
 language: da
 interactionStyle: rigorous
 voice:
-  ttsProvider: gcp_standard
-  ttsVoice: da-DK-Standard-D
+  ttsProvider: gcp_chirp3hd
+  ttsVoice: da-DK-Chirp3-HD-Charon
   language: da
 bio: Experienced senior teacher — kind but authoritative, holds the bar.

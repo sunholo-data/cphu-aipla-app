@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import type { PersonaSummary } from "@/components/chat/MessageBubble";
 import { ChatMarkdown } from "./ChatMarkdown";
 
 interface PinnedWelcomeProps {
@@ -10,6 +11,10 @@ interface PinnedWelcomeProps {
   /** Skill id used to scope the collapse-state key so toggling on
    * one skill doesn't affect another. */
   skillId: string;
+  /** 1.1.12 — the active persona. When set, its avatar appears as a hero
+   * at the top of the welcome body (replaces the old horizontal persona
+   * header strip; the per-bubble avatar still reinforces it each turn). */
+  persona?: PersonaSummary | null;
 }
 
 const KEY_PREFIX = "aipla.welcome.collapsed:";
@@ -28,7 +33,7 @@ const KEY_PREFIX = "aipla.welcome.collapsed:";
  * Collapse state is per-skill (so a teacher demo skill and a student
  * skill don't share preference) and persists in sessionStorage.
  */
-export function PinnedWelcome({ content, skillId }: PinnedWelcomeProps) {
+export function PinnedWelcome({ content, skillId, persona }: PinnedWelcomeProps) {
   const [collapsed, setCollapsed] = useState(false);
 
   // Restore collapse state on mount; effect (not initial state) so SSR
@@ -81,6 +86,29 @@ export function PinnedWelcome({ content, skillId }: PinnedWelcomeProps) {
           id="pinned-welcome-body"
           className="px-4 pb-4 text-sm text-foreground"
         >
+          {persona ? (
+            <div className="mb-3 flex flex-col items-center gap-1 text-center">
+              {persona.avatar ? (
+                // eslint-disable-next-line @next/next/no-img-element
+                <img
+                  src={persona.avatar}
+                  alt={persona.name}
+                  className="h-20 w-20 rounded-full object-cover shadow-sm"
+                />
+              ) : (
+                <span
+                  aria-hidden="true"
+                  className="flex h-20 w-20 items-center justify-center rounded-full bg-orange-100 text-2xl font-bold text-orange-700"
+                >
+                  {persona.name[0]?.toUpperCase() ?? "?"}
+                </span>
+              )}
+              <span className="text-base font-semibold text-foreground">{persona.name}</span>
+              {persona.title ? (
+                <span className="text-xs text-muted-foreground">{persona.title}</span>
+              ) : null}
+            </div>
+          ) : null}
           <ChatMarkdown content={content} navigateToBlock={() => {}} />
         </div>
       )}

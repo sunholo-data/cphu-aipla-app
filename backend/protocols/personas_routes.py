@@ -14,7 +14,7 @@ from fastapi import APIRouter, Depends, HTTPException, Path
 
 from auth import User, get_current_user
 from db.models.persona import Persona
-from personas.loader import load_persona, load_personas
+from personas.loader import DEFAULT_PERSONA_ID, load_persona, load_personas
 
 log = logging.getLogger(__name__)
 
@@ -29,8 +29,16 @@ def _serialize(p: Persona) -> dict:
 async def list_personas_route(
     user: User = Depends(get_current_user),  # noqa: B008
 ) -> dict:
-    """List the available personas (YAML catalogue)."""
-    return {"personas": [_serialize(p) for p in load_personas()]}
+    """List the available personas (YAML catalogue).
+
+    ``defaultId`` is the global fallback persona id (``DEFAULT_PERSONA_ID``) so
+    the picker can badge it as the default instead of synthesising a separate
+    "Default" entry — a class with no explicit persona inherits this one.
+    """
+    return {
+        "personas": [_serialize(p) for p in load_personas()],
+        "defaultId": DEFAULT_PERSONA_ID or None,
+    }
 
 
 @router.get("/{persona_id}")

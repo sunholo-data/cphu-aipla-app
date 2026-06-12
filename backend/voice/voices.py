@@ -121,6 +121,34 @@ CURATED_VOICES: dict[str, list[VoiceEntry]] = {
             "gender": "M",
             "label": "Puck (Chirp3 HD)",
         },
+        {
+            "name": "da-DK-Chirp3-HD-Fenrir",
+            "provider": "gcp_chirp3hd",
+            "tier": "Chirp3 HD",
+            "gender": "M",
+            "label": "Fenrir (Chirp3 HD)",
+        },
+        {
+            "name": "da-DK-Chirp3-HD-Leda",
+            "provider": "gcp_chirp3hd",
+            "tier": "Chirp3 HD",
+            "gender": "F",
+            "label": "Leda (Chirp3 HD)",
+        },
+        {
+            "name": "da-DK-Chirp3-HD-Orus",
+            "provider": "gcp_chirp3hd",
+            "tier": "Chirp3 HD",
+            "gender": "M",
+            "label": "Orus (Chirp3 HD)",
+        },
+        {
+            "name": "da-DK-Chirp3-HD-Zephyr",
+            "provider": "gcp_chirp3hd",
+            "tier": "Chirp3 HD",
+            "gender": "F",
+            "label": "Zephyr (Chirp3 HD)",
+        },
     ],
     "en": [
         {

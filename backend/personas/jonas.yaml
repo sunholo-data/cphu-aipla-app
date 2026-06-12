@@ -5,7 +5,7 @@ avatar: /personas/jonas.webp
 language: da
 interactionStyle: socratic
 voice:
-  ttsProvider: gcp_standard
-  ttsVoice: da-DK-Standard-D
+  ttsProvider: gcp_chirp3hd
+  ttsVoice: da-DK-Chirp3-HD-Puck
   language: da
 bio: Curious questioner — guides by asking, leaves room to notice.

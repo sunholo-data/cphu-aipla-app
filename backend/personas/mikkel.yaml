@@ -5,7 +5,7 @@ avatar: /personas/mikkel.webp
 language: da
 interactionStyle: concise
 voice:
-  ttsProvider: gcp_standard
-  ttsVoice: da-DK-Standard-D
+  ttsProvider: gcp_chirp3hd
+  ttsVoice: da-DK-Chirp3-HD-Fenrir
   language: da
 bio: Practical and direct — "try this", then stop.

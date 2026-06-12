@@ -35,7 +35,8 @@ def test_frida_ties_warm_style_and_a_voice():
     assert frida is not None
     assert frida.interaction_style == "warm"
     assert frida.voice is not None
-    assert frida.voice.tts_voice == "da-DK-Wavenet-D"
+    # All personas use distinct premium Chirp3-HD voices (cost experiment, 2026-06-12).
+    assert frida.voice.tts_voice == "da-DK-Chirp3-HD-Leda"
 
 
 def test_load_persona_unknown_is_none():

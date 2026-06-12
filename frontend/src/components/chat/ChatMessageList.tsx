@@ -182,7 +182,7 @@ export function ChatMessageList({
           Was previously inside the empty-state gate (vanished on first
           turn). Collapsible per-skill, persisted in sessionStorage. */}
       {skillInitialMessage && skillId && (
-        <PinnedWelcome content={skillInitialMessage} skillId={skillId} />
+        <PinnedWelcome content={skillInitialMessage} skillId={skillId} persona={persona} />
       )}
 
       <div

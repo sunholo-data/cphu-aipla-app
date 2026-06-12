@@ -107,6 +107,8 @@ def test_config_returns_browser_and_disabled_by_default(client, monkeypatch):
 
 
 def test_config_with_skill_id_passes_skill_to_registry(client, monkeypatch):
+    """With NO persona in play (default disabled), the bare skill reaches the
+    registry — the fallback path when no persona/class supplies a provider."""
     seen = {}
 
     def fake_get_tts(skill=None):
@@ -115,6 +117,9 @@ def test_config_with_skill_id_passes_skill_to_registry(client, monkeypatch):
 
     monkeypatch.setattr("protocols.voice_routes.get_tts", fake_get_tts)
     monkeypatch.setattr("protocols.voice_routes.get_stt", lambda skill=None: _fake_stt("disabled"))
+    # No persona at all (simulates DEFAULT_PERSONA_ID unset) so the resolver
+    # leaves the provider unset and the skill itself reaches get_tts.
+    monkeypatch.setattr("protocols.voice_routes.resolve_persona_chain", lambda *ids: None)
     fake_skill = MagicMock()
     fake_skill.voice = None  # no voice override
     monkeypatch.setattr("protocols.voice_routes.get_skill", lambda sid: fake_skill if sid == "led-planck" else None)
@@ -137,7 +142,7 @@ def test_config_persona_voice_overrides_class_and_skill(client, monkeypatch):
     monkeypatch.setattr("protocols.voice_routes.get_tts", fake_get_tts)
     monkeypatch.setattr("protocols.voice_routes.get_stt", lambda skill=None: _fake_stt("disabled"))
     monkeypatch.setattr("protocols.voice_routes.get_skill", lambda sid: None)
-    monkeypatch.setattr("protocols.voice_routes._class_voice_for_user", lambda user: None)
+    # No class binding for this user (real lookup returns None in tests).
     # The active activity has the "frida" persona (real catalogue entry).
     monkeypatch.setattr(
         "protocols.voice_routes.resolve_active_config",
@@ -147,11 +152,11 @@ def test_config_persona_voice_overrides_class_and_skill(client, monkeypatch):
     resp = client.get("/api/voice/config?skill_id=concept-x")
     assert resp.status_code == 200
     data = resp.json()
-    # Frida's voice (da-DK-Wavenet-D / gcp_wavenet) wins over the absent class/skill.
-    assert data["tts"]["voice"] == "da-DK-Wavenet-D"
+    # Frida's voice (da-DK-Chirp3-HD-Leda / gcp_chirp3hd) wins over the absent class/skill.
+    assert data["tts"]["voice"] == "da-DK-Chirp3-HD-Leda"
     assert data["tts"]["language"] == "da"
     # The persona's provider override reached the registry via the wrapped skill.
-    assert seen["skill"].voice.tts_provider == "gcp_wavenet"
+    assert seen["skill"].voice.tts_provider == "gcp_chirp3hd"
 
 
 # --- POST /api/voice/tts/synthesize ---

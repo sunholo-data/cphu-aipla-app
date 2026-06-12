@@ -5,7 +5,7 @@ avatar: /personas/frida.webp
 language: da
 interactionStyle: warm
 voice:
-  ttsProvider: gcp_wavenet
-  ttsVoice: da-DK-Wavenet-D
+  ttsProvider: gcp_chirp3hd
+  ttsVoice: da-DK-Chirp3-HD-Leda
   language: da
 bio: Warm mentor — encourages and scaffolds for lower-confidence students.

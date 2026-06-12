@@ -18,6 +18,10 @@ import {
   patchLessons,
   saveActivityConfig,
 } from "@/lib/teacherApi";
+import {
+  INTERACTION_STYLE_HELP,
+  INTERACTION_STYLE_OPTIONS,
+} from "@/lib/personaDisplay";
 
 // TAA-1 M0: a from-scratch activity runs the `concept-dialogue` base
 // skill (chat-only Socratic tutor). The teacher's title + lesson prompt
@@ -53,18 +57,6 @@ const GOAL_PLACEHOLDER =
 
 // Tutor interaction style (1.1.20). Socratic is the untouched default; the
 // others change the tutor's voice for this activity (AR confirms wording).
-const INTERACTION_STYLE_OPTIONS: { value: InteractionStyle; label: string }[] = [
-  { value: "socratic", label: "Socratic (default)" },
-  { value: "concise", label: "Concise" },
-  { value: "rigorous", label: "Rigorous" },
-  { value: "warm", label: "Warm" },
-];
-const INTERACTION_STYLE_HELP: Record<InteractionStyle, string> = {
-  socratic: "Guides with questions, leaves room to notice. Ends each turn with a question.",
-  concise: "Terse and directive — “just try this”. No follow-up questions.",
-  rigorous: "Exam-level expectations; does not soften or over-scaffold.",
-  warm: "Encouraging, more scaffolding — for lower-confidence students.",
-};
 
 type ClassesState =
   | { status: "loading" }

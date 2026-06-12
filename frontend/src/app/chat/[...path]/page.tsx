@@ -6,14 +6,11 @@ import { use, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { AutoReadToggle } from "@/components/chat/AutoReadToggle";
 import { ChatMessageList } from "@/components/chat/ChatMessageList";
 import type { PersonaSummary } from "@/components/chat/MessageBubble";
-import { PersonaHeader } from "@/components/chat/PersonaHeader";
-import { LangToggle } from "@/components/chat/LangToggle";
 import { ResumeWelcomeBanner } from "@/components/chat/ResumeWelcomeBanner";
 import { ImageStagingRow, ImageUploadButtons } from "@/components/chat/ImageComposer";
 import { useImageAttachments, MAX_IMAGES } from "@/hooks/useImageAttachments";
 import { VoiceComposerControls } from "@/components/chat/VoiceComposerControls";
 import { LessonTranscriptPanel } from "@/components/chat/LessonTranscriptPanel";
-import { VoiceStatusPill } from "@/components/chat/VoiceStatusPill";
 import { useVoiceConfig } from "@/hooks/useVoiceConfig";
 import type { DocTabData } from "@/components/doc-browser/DocTab";
 import { DocListView } from "@/components/doc-browser/DocListView";
@@ -165,16 +162,15 @@ function SurfaceSessionLifecycle({ sessionId }: { sessionId: string | null }) {
 }
 
 /**
- * 1.1.11 voice controls — language picker + auto-read toggle pill row
- * at the top of the chat. Split into a child component so the
- * useVoiceConfig hook doesn't run on every parent render.
+ * Voice controls — just the auto-read toggle now. The verbose voice-status
+ * pill (provider/voice/lang readout) and the language pill were debug-leaning
+ * surfaces; dropped 2026-06-12 to declutter the chat header. Read-aloud
+ * auto-detects Danish vs English from the message text, so the manual lang
+ * pill isn't needed for the spoken voice.
  */
-function ChatVoiceControls({ skillId }: { skillId: string }) {
-  const voiceConfig = useVoiceConfig(skillId);
+function ChatVoiceControls() {
   return (
     <div className="flex flex-wrap items-center justify-end gap-2 px-4 pt-2">
-      <VoiceStatusPill voiceConfig={voiceConfig} />
-      <LangToggle defaultLang={voiceConfig.tts.language} />
       <AutoReadToggle />
     </div>
   );
@@ -960,14 +956,13 @@ function ChatShell({
               <ResumeWelcomeBanner onDismiss={() => setShowResumeBanner(false)} />
             </div>
           )}
-          {/* 1.1.12 — the persona the student is working with, shown once
-              and prominently at the top of the chat (the per-bubble avatar
-              reinforces it on each turn). No-op when no persona is set. */}
-          <PersonaHeader persona={activePersona} />
-          {/* 1.1.11 voice controls — language picker + auto-read toggle.
-              Lives at the top of the chat so the student can flip either
-              any time without digging in settings. */}
-          <ChatVoiceControls skillId={skillId} />
+          {/* 1.1.12 — the persona now appears as a hero avatar inside the
+              welcome/intro block (PinnedWelcome) rather than a horizontal
+              header strip, so it reads bigger without adding a vertical bar.
+              The per-bubble avatar still reinforces it on each turn. */}
+          {/* Voice controls — just the auto-read toggle (verbose voice pill +
+              lang pill dropped 2026-06-12 to declutter the chat header). */}
+          <ChatVoiceControls />
           <ChatMessageList
             messages={messages}
             // initialMessages are the persisted history fetched by
