@@ -71,10 +71,21 @@
       "description": "Frontend authoring picker: Materials section in the 1.1.19 builder \u2014 browse the library (filter A/B/C + topic) + cite (-> activity MaterialRef) + upload (reuses 1.1.7/docparse plumbing). Empty/loading/error states.",
       "scope": "frontend",
       "estimated_loc": 320,
-      "passes": null,
-      "started": null,
-      "completed": null,
-      "notes": ""
+      "passes": true,
+      "started": "2026-06-12",
+      "completed": "2026-06-12",
+      "notes": "SHIPPED. Backend: ActivityConfigUpsert body accepts materials (extra=forbid required explicit field); POST+PATCH pass through. Frontend: curriculumApi.ts (browseCurriculum + ingestCurriculum, CurriculumApiError with status); teacherApi MaterialRef+StxLevel types + materials on payload/upsert; MaterialsSection.tsx (browse A/B/C + topic filter, cite/un-cite toggles MaterialRef, upload-then-cite, cited-chips + loading + 403-teacher-only-error + empty states per Axiom 11); wired into [id]/page.tsx builder (state loaded from saved config, included in save). 8 vitest cases. Backend 1885 + frontend 1027 green; lint+typecheck clean. NOTE: builder page is mock-driven (LOCAL_MODE/Phase 2) but Materials section hits the real M1/M2 endpoints.",
+      "actual_loc": 530,
+      "files_created": [
+        "frontend/src/lib/curriculumApi.ts",
+        "frontend/src/components/teacher/MaterialsSection.tsx",
+        "frontend/src/components/teacher/__tests__/MaterialsSection.test.tsx"
+      ],
+      "files_modified": [
+        "backend/protocols/activity_config_routes.py",
+        "frontend/src/lib/teacherApi.ts",
+        "frontend/src/app/teacher/activities/[id]/page.tsx"
+      ]
     },
     {
       "id": "M5",
@@ -87,7 +98,7 @@
       "notes": ""
     }
   ],
-  "last_session": "2026-06-12 (M3)",
-  "last_checkpoint": "M3 shipped (MaterialRef + materials on ActivityConfig; build_curriculum_retrieval_tool + grounding preamble; wired into create_agent; 10 tests). PAUSED before M4 (frontend authoring picker: Materials section in 1.1.19 builder — browse/cite/upload).",
+  "last_session": "2026-06-12 (M4)",
+  "last_checkpoint": "M4 shipped (curriculumApi client + MaterialsSection browse/cite/upload picker wired into the activity builder; backend materials passthrough; 8 vitest). PAUSED before M5 (CLI: aiplatform curriculum ingest/list/query — last milestone).",
   "status": "in_progress"
 }
