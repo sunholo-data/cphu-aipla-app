@@ -48,6 +48,34 @@ describe("PinnedWelcome", () => {
     expect(screen.queryByTestId("markdown-stub")).not.toBeInTheDocument();
   });
 
+  it("renders the persona column (avatar + name + role) alongside the content", () => {
+    render(
+      <PinnedWelcome
+        content="welcome body"
+        skillId="skill-1"
+        persona={{ id: "p1", name: "Mikkel", title: "Lab-demonstrator", avatar: "https://x/a.png" }}
+      />,
+    );
+    const avatar = screen.getByAltText("Mikkel");
+    expect(avatar).toBeInTheDocument();
+    expect(screen.getByText("Mikkel")).toBeInTheDocument();
+    expect(screen.getByText("Lab-demonstrator")).toBeInTheDocument();
+    // Content still renders beside the persona column.
+    expect(screen.getByTestId("markdown-stub")).toHaveTextContent("welcome body");
+  });
+
+  it("falls back to an initial when the persona has no avatar", () => {
+    render(
+      <PinnedWelcome
+        content="welcome body"
+        skillId="skill-1"
+        persona={{ id: "p1", name: "Mikkel", title: null, avatar: "" }}
+      />,
+    );
+    expect(screen.queryByAltText("Mikkel")).not.toBeInTheDocument();
+    expect(screen.getByText("M")).toBeInTheDocument();
+  });
+
   it("scopes state by skillId so toggling one skill doesn't affect another", () => {
     const { unmount } = render(<PinnedWelcome content="a" skillId="skill-1" />);
     fireEvent.click(screen.getByRole("button"));

@@ -19,25 +19,6 @@ vi.mock("@/lib/audioCapture", () => ({
       return false;
     }
   },
-  // Segmented recorder for lesson recording: stop() flushes one segment via the
-  // onSegment callback (which triggers the per-segment upload).
-  SegmentedRecorder: class {
-    onSegment: (r: unknown, seq: number) => void;
-    constructor(onSegment: (r: unknown, seq: number) => void) {
-      this.onSegment = onSegment;
-    }
-    start = vi.fn().mockResolvedValue(undefined);
-    stop = vi.fn(async () => {
-      this.onSegment(
-        { blob: new Blob(["a"], { type: "audio/webm" }), mimeType: "audio/webm", durationMs: 1000 },
-        0,
-      );
-    });
-    cancel = vi.fn();
-    get recording() {
-      return true;
-    }
-  },
 }));
 
 const fetchMock = vi.fn();
@@ -57,25 +38,22 @@ const base = {
 };
 
 describe("VoiceComposerControls", () => {
-  it("renders nothing when neither capability is enabled", () => {
-    const { container } = render(
-      <VoiceComposerControls {...base} voiceInputEnabled={false} recordingEnabled={false} />,
-    );
+  it("renders nothing when voice input is disabled", () => {
+    const { container } = render(<VoiceComposerControls {...base} voiceInputEnabled={false} />);
     expect(container.firstChild).toBeNull();
   });
 
-  it("shows the mic when voice input is enabled", () => {
-    render(<VoiceComposerControls {...base} voiceInputEnabled recordingEnabled={false} />);
+  it("shows the mic when voice input is enabled (and never a record button)", () => {
+    render(<VoiceComposerControls {...base} voiceInputEnabled />);
     expect(screen.getByLabelText("Talk to type")).toBeInTheDocument();
+    // "Record this class" now lives in LessonRecordingPanel, not here.
     expect(screen.queryByLabelText("Record this class")).not.toBeInTheDocument();
   });
 
   it("dictation: start -> stop -> transcribe -> onTranscript", async () => {
     fetchMock.mockResolvedValue({ ok: true, json: async () => ({ text: "hej verden" }) });
     const onTranscript = vi.fn();
-    render(
-      <VoiceComposerControls {...base} onTranscript={onTranscript} voiceInputEnabled recordingEnabled={false} />,
-    );
+    render(<VoiceComposerControls {...base} onTranscript={onTranscript} voiceInputEnabled />);
 
     fireEvent.click(screen.getByLabelText("Talk to type"));
     await waitFor(() => expect(startMock).toHaveBeenCalled());
@@ -86,17 +64,5 @@ describe("VoiceComposerControls", () => {
     const [url, opts] = fetchMock.mock.calls[0];
     expect(url).toContain("/api/voice/stt/transcribe");
     expect((opts as { method: string }).method).toBe("POST");
-  });
-
-  it("record-lesson: start shows the banner, stop posts to /recording", async () => {
-    fetchMock.mockResolvedValue({ ok: true, json: async () => ({}) });
-    render(<VoiceComposerControls {...base} voiceInputEnabled={false} recordingEnabled />);
-
-    fireEvent.click(screen.getByLabelText("Record this class"));
-    expect(await screen.findByText(/Recording this class/i)).toBeInTheDocument();
-
-    fireEvent.click(screen.getByText("Stop"));
-    await waitFor(() => expect(fetchMock).toHaveBeenCalled());
-    expect(fetchMock.mock.calls[0][0]).toContain("/api/voice/recording");
   });
 });

@@ -10,7 +10,7 @@ import { ResumeWelcomeBanner } from "@/components/chat/ResumeWelcomeBanner";
 import { ImageStagingRow, ImageUploadButtons } from "@/components/chat/ImageComposer";
 import { useImageAttachments, MAX_IMAGES } from "@/hooks/useImageAttachments";
 import { VoiceComposerControls } from "@/components/chat/VoiceComposerControls";
-import { LessonTranscriptPanel } from "@/components/chat/LessonTranscriptPanel";
+import { LessonRecordingPanel } from "@/components/chat/LessonRecordingPanel";
 import { useVoiceConfig } from "@/hooks/useVoiceConfig";
 import type { DocTabData } from "@/components/doc-browser/DocTab";
 import { DocListView } from "@/components/doc-browser/DocListView";
@@ -414,6 +414,9 @@ function ChatShell({
   // the class capability flags from voice config; dictation fills the draft.
   const composerVoice = useVoiceConfig(skillId);
   const [voiceNotice, setVoiceNotice] = useState<string | null>(null);
+  // A lesson recording holds the mic — block dictation so only one
+  // getUserMedia stream is ever live at a time.
+  const [lessonRecording, setLessonRecording] = useState(false);
   // PEDCTX/Boldkast — workspace toggle between default content
   // (problem statement + checklist) and the Boldkast sim iframe.
   const [showBoldkastSim, setShowBoldkastSim] = useState(false);
@@ -1031,7 +1034,12 @@ function ChatShell({
             )}
             {composerVoice.capabilities.recording && (
               <div className="mb-2">
-                <LessonTranscriptPanel />
+                <LessonRecordingPanel
+                  lang={composerVoice.tts.language ?? "da"}
+                  disabled={inputDisabled}
+                  onRecordingChange={setLessonRecording}
+                  onNotice={setVoiceNotice}
+                />
               </div>
             )}
             {voiceNotice && (
@@ -1055,8 +1063,7 @@ function ChatShell({
                 skillId={skillId}
                 lang={composerVoice.tts.language ?? "da"}
                 voiceInputEnabled={composerVoice.capabilities.voiceInput && composerVoice.stt.provider !== "disabled"}
-                recordingEnabled={composerVoice.capabilities.recording}
-                disabled={inputDisabled}
+                disabled={inputDisabled || lessonRecording}
                 onTranscript={(t) => setDraft((d) => (d.trim() ? `${d} ${t}` : t))}
                 onNotice={setVoiceNotice}
               />

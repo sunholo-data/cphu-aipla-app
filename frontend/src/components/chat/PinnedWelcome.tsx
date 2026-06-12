@@ -11,9 +11,11 @@ interface PinnedWelcomeProps {
   /** Skill id used to scope the collapse-state key so toggling on
    * one skill doesn't affect another. */
   skillId: string;
-  /** 1.1.12 — the active persona. When set, its avatar appears as a hero
-   * at the top of the welcome body (replaces the old horizontal persona
-   * header strip; the per-bubble avatar still reinforces it each turn). */
+  /** 1.1.12 — the active persona. When set, it appears as a left-hand
+   * column (large avatar + name + role) beside the welcome body, so the
+   * avatar can be sizeable without pushing the orientation text down the
+   * page. Stacks above the text on narrow viewports. The per-bubble avatar
+   * still reinforces the persona each turn. */
   persona?: PersonaSummary | null;
 }
 
@@ -84,32 +86,34 @@ export function PinnedWelcome({ content, skillId, persona }: PinnedWelcomeProps)
       {!collapsed && (
         <div
           id="pinned-welcome-body"
-          className="px-4 pb-4 text-sm text-foreground"
+          className="flex flex-col gap-4 px-4 pb-4 text-sm text-foreground sm:flex-row sm:items-start sm:gap-5"
         >
           {persona ? (
-            <div className="mb-3 flex flex-col items-center gap-1 text-center">
+            <div className="flex shrink-0 flex-col items-center gap-1.5 text-center sm:w-36 sm:border-r sm:border-border/60 sm:pr-5">
               {persona.avatar ? (
                 // eslint-disable-next-line @next/next/no-img-element
                 <img
                   src={persona.avatar}
                   alt={persona.name}
-                  className="h-20 w-20 rounded-full object-cover shadow-sm"
+                  className="h-28 w-28 rounded-full object-cover shadow-sm"
                 />
               ) : (
                 <span
                   aria-hidden="true"
-                  className="flex h-20 w-20 items-center justify-center rounded-full bg-orange-100 text-2xl font-bold text-orange-700"
+                  className="flex h-28 w-28 items-center justify-center rounded-full bg-orange-100 text-4xl font-bold text-orange-700"
                 >
                   {persona.name[0]?.toUpperCase() ?? "?"}
                 </span>
               )}
               <span className="text-base font-semibold text-foreground">{persona.name}</span>
               {persona.title ? (
-                <span className="text-xs text-muted-foreground">{persona.title}</span>
+                <span className="text-xs leading-tight text-muted-foreground">{persona.title}</span>
               ) : null}
             </div>
           ) : null}
-          <ChatMarkdown content={content} navigateToBlock={() => {}} />
+          <div className="min-w-0 flex-1">
+            <ChatMarkdown content={content} navigateToBlock={() => {}} />
+          </div>
         </div>
       )}
     </div>
