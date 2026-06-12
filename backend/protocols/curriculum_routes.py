@@ -2,8 +2,9 @@
 
   GET /api/curriculum?level=B&topic=mechanics&scope=shared|mine — browse (M1)
   POST /api/curriculum/ingest — ingest a file into the library + RAG corpus (M2)
+  POST /api/curriculum/query — test retrieval over the teacher's corpus (M5, ops/eval)
 
-Deny-by-default: both endpoints are TEACHER-ONLY. Anonymous-group students never
+Deny-by-default: all endpoints are TEACHER-ONLY. Anonymous-group students never
 see the open corpus — they only receive an activity's cited materials via the
 tutor (M3 retrieval tool).
 
@@ -26,11 +27,12 @@ from pathlib import PurePosixPath
 from typing import Annotated, Any, Literal
 
 from fastapi import APIRouter, Depends, Form, HTTPException, UploadFile
+from pydantic import BaseModel, Field
 
 from auth import User, get_current_user
 from db.curriculum import create_curriculum_doc, list_curriculum_for_teacher
 from db.models.curriculum import SHARED_SCOPE, CopyrightStatus, CurriculumDoc, StxLevel
-from db.rag_corpus import upload_text_as_rag_file
+from db.rag_corpus import query_rag_files, upload_text_as_rag_file
 from tools.documents.ailang_parse import DETERMINISTIC_EXTENSIONS, _parse_file_sync
 
 logger = logging.getLogger(__name__)
@@ -175,3 +177,56 @@ async def ingest_curriculum(
         bool(rag_file_name),
     )
     return {"doc": doc.model_dump(by_alias=True, mode="json")}
+
+
+# ---------------------------------------------------------------------------
+# M5 — query (ops / eval parity)
+# ---------------------------------------------------------------------------
+
+
+def _rag_file_id(resource_name: str) -> str:
+    """Short RAG file id from a full resource name (mirrors adk.curriculum_retrieval)."""
+    return resource_name.rstrip("/").rsplit("/", 1)[-1] if "/" in resource_name else resource_name
+
+
+class CurriculumQuery(BaseModel):
+    query: str = Field(min_length=1, max_length=2000)
+    level: StxLevel | None = None
+    topic: str | None = Field(default=None, max_length=120)
+    scope: Literal["shared", "mine"] | None = None
+    top_k: int = Field(default=5, ge=1, le=20, alias="topK")
+
+
+@router.post("/query")
+async def query_curriculum(
+    body: CurriculumQuery,
+    user: User = Depends(get_current_user),  # noqa: B008
+) -> dict[str, Any]:
+    """Test retrieval over the teacher's accessible corpus (ops/eval parity).
+
+    Teacher-only. Scoped to the docs the teacher can browse (shared + own,
+    filtered by level/topic/scope) — never the open corpus from a student.
+    Returns the matching chunks plus the in-scope docs for provenance. Degrades
+    gracefully to an empty result + a note when no corpus / no ingested docs.
+    """
+    if getattr(user, "group_id", None):
+        raise HTTPException(status_code=403, detail="Curriculum query is teacher-only.")
+
+    docs = list_curriculum_for_teacher(user.uid, level=body.level, topic=body.topic, scope=body.scope)
+    ingested = [d for d in docs if d.doc_artifact_id]
+    file_ids = [_rag_file_id(d.doc_artifact_id) for d in ingested]
+
+    chunks = await query_rag_files(file_ids, body.query, top_k=body.top_k)
+
+    note = None
+    if not file_ids:
+        note = "No ingested curriculum docs in scope — nothing to retrieve from."
+    elif not chunks:
+        note = "No matching content found (or RAG corpus not configured)."
+
+    return {
+        "query": body.query,
+        "chunks": chunks,
+        "scopedDocs": [{"docId": d.doc_id, "origin": d.origin, "level": d.level, "topic": d.topic} for d in ingested],
+        "note": note,
+    }

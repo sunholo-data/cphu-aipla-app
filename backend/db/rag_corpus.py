@@ -94,3 +94,42 @@ async def upload_text_as_rag_file(
     except Exception as exc:
         log.warning("RAG upload error for %s (returning None): %s", doc_id, exc)
         return None
+
+
+async def query_rag_files(file_ids: list[str], query: str, *, top_k: int = 5) -> list[str]:
+    """Run a one-shot retrieval over the given RAG file IDs (1.1.25 M5).
+
+    Used by the ``curriculum query`` CLI / ops endpoint to test retrieval
+    outside a full tutor session. Scoped to the explicit ``file_ids`` allow-list
+    (same deny-by-default shape as the M3 tutor tool).
+
+    Returns:
+        A list of matching chunk texts (best-first), or ``[]`` when the corpus
+        is not configured / no files / nothing matched (graceful — Axiom 5).
+    """
+    corpus_name = get_corpus_name()
+    if not corpus_name or not file_ids:
+        return []
+
+    def _query_sync() -> list[str]:
+        import vertexai
+        from vertexai import rag
+
+        project = os.environ.get("GOOGLE_CLOUD_PROJECT")
+        location = os.environ.get("GOOGLE_CLOUD_LOCATION", "europe-north1")
+        if project:
+            vertexai.init(project=project, location=location)
+
+        response = rag.retrieval_query(
+            text=query,
+            rag_resources=[rag.RagResource(rag_corpus=corpus_name, rag_file_ids=file_ids)],
+            rag_retrieval_config=rag.RagRetrievalConfig(top_k=top_k),
+        )
+        contexts = getattr(getattr(response, "contexts", None), "contexts", None) or []
+        return [c.text for c in contexts if getattr(c, "text", None)]
+
+    try:
+        return await asyncio.to_thread(_query_sync)
+    except Exception as exc:
+        log.warning("RAG query error (returning []): %s", exc)
+        return []

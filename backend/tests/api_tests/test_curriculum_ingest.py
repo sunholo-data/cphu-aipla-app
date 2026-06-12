@@ -211,3 +211,73 @@ def test_ingest_docx_via_ailang_parse():
     # RAG upload receives the parsed text.
     rag_call_kwargs = mock_rag.call_args
     assert parsed_text in rag_call_kwargs.args or rag_call_kwargs.args[0] == parsed_text
+
+
+# ---------------------------------------------------------------------------
+# M5 — query (ops/eval parity)
+# ---------------------------------------------------------------------------
+
+
+def _curr_doc(doc_id: str, artifact: str, *, level: str = "B", origin: str = "uvm.dk"):
+    from datetime import UTC, datetime
+
+    from db.models.curriculum import CurriculumDoc
+
+    now = datetime.now(UTC)
+    return CurriculumDoc(
+        docId=doc_id,
+        title=f"Doc {doc_id}",
+        level=level,
+        topic="mechanics",
+        source="shared",
+        ownerScope="shared",
+        origin=origin,
+        docArtifactId=artifact,
+        copyrightStatus="cleared",
+        createdAt=now,
+        updatedAt=now,
+    )
+
+
+def test_query_student_forbidden():
+    resp = _client(group_id="grp-1").post("/api/curriculum/query", json={"query": "energy"})
+    assert resp.status_code == 403
+
+
+def test_query_returns_chunks_and_scoped_docs():
+    docs = [_curr_doc("d1", "projects/p/.../ragFiles/10"), _curr_doc("d2", "projects/p/.../ragFiles/20")]
+    with (
+        patch.object(routes, "list_curriculum_for_teacher", return_value=docs),
+        patch.object(
+            routes,
+            "query_rag_files",
+            new_callable=AsyncMock,
+            return_value=["Energy is conserved.", "Work-energy theorem."],
+        ) as mock_q,
+    ):
+        resp = _client().post("/api/curriculum/query", json={"query": "energy", "level": "B"})
+
+    assert resp.status_code == 200
+    data = resp.json()
+    assert data["chunks"] == ["Energy is conserved.", "Work-energy theorem."]
+    assert {d["docId"] for d in data["scopedDocs"]} == {"d1", "d2"}
+    assert data["note"] is None
+    # Short file IDs are extracted from the full resource names.
+    assert mock_q.call_args.args[0] == ["10", "20"]
+
+
+def test_query_note_when_no_ingested_docs():
+    # Docs exist but none are RAG-ingested yet (empty doc_artifact_id).
+    docs = [_curr_doc("d1", "")]
+    with (
+        patch.object(routes, "list_curriculum_for_teacher", return_value=docs),
+        patch.object(routes, "query_rag_files", new_callable=AsyncMock, return_value=[]) as mock_q,
+    ):
+        resp = _client().post("/api/curriculum/query", json={"query": "energy"})
+
+    assert resp.status_code == 200
+    data = resp.json()
+    assert data["chunks"] == []
+    assert "nothing to retrieve" in data["note"].lower()
+    # No file ids -> query helper called with an empty allow-list.
+    assert mock_q.call_args.args[0] == []

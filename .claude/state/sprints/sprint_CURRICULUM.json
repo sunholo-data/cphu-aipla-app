@@ -92,13 +92,25 @@
       "description": "CLI: aiplatform curriculum ingest/list/query (ops + eval parity).",
       "scope": "cli",
       "estimated_loc": 180,
-      "passes": null,
-      "started": null,
-      "completed": null,
-      "notes": ""
+      "passes": true,
+      "started": "2026-06-12",
+      "completed": "2026-06-12",
+      "notes": "SHIPPED. Backend: added POST /api/curriculum/query (teacher-only retrieval test; scopes to the teacher's accessible docs -> rag_file_ids -> query_rag_files; returns chunks + scopedDocs provenance + graceful note; 3 tests). db/rag_corpus.query_rag_files() one-shot retrieval helper (graceful [] when no corpus/files). CLI: aiplatform/http.py request() gained multipart files/data support (60s timeout for uploads). commands/curriculum.py: ingest (multipart upload, teacher_owned default, --shared --copyright gate), list (ACL browse w/ level/topic/scope filters), query (POST retrieval + provenance, --top-k). Registered in cli.py. 6 CLI tests (respx). Backend 1888 + CLI 99 tests green; lint clean (my files; pre-existing CLI format drift in sessions/sim/smoke is unrelated).",
+      "actual_loc": 230,
+      "files_created": [
+        "cli/aiplatform/commands/curriculum.py",
+        "cli/tests/test_cli_curriculum.py"
+      ],
+      "files_modified": [
+        "backend/protocols/curriculum_routes.py",
+        "backend/db/rag_corpus.py",
+        "backend/tests/api_tests/test_curriculum_ingest.py",
+        "cli/aiplatform/http.py",
+        "cli/aiplatform/cli.py"
+      ]
     }
   ],
-  "last_session": "2026-06-12 (M4)",
-  "last_checkpoint": "M4 shipped (curriculumApi client + MaterialsSection browse/cite/upload picker wired into the activity builder; backend materials passthrough; 8 vitest). PAUSED before M5 (CLI: aiplatform curriculum ingest/list/query — last milestone).",
-  "status": "in_progress"
+  "last_session": "2026-06-12 (M5 — sprint complete)",
+  "last_checkpoint": "ALL MILESTONES SHIPPED (M1 metadata/ACL/browse, M2 RAG ingestion, M3 retrieval+tutor grounding, M4 builder Materials picker, M5 CLI). Backend 1888 + frontend 1031 + CLI 99 tests green. REMAINING REAL-WORLD STEP: run backend/scripts/bootstrap_rag_corpus.py against aipla-dev-2026 + set CURRICULUM_RAG_CORPUS_NAME secret/env (see docs/ops/gcp-side-effects.md) to light up actual RAG ingestion/retrieval — everything degrades gracefully until then.",
+  "status": "complete"
 }

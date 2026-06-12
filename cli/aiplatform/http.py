@@ -114,11 +114,24 @@ class AIPlatformClient:
         *,
         params: dict[str, Any] | None = None,
         json: Any = None,
+        data: dict[str, Any] | None = None,
+        files: Any = None,
     ) -> Any:
         url = f"{self.base_url}{path}"
         headers = self._auth_headers()
+        # `files` (multipart) and `json` are mutually exclusive in httpx; the
+        # curriculum-ingest upload uses files + form `data`.
         try:
-            resp = httpx.request(method, url, headers=headers, params=params, json=json, timeout=30.0)
+            resp = httpx.request(
+                method,
+                url,
+                headers=headers,
+                params=params,
+                json=json,
+                data=data,
+                files=files,
+                timeout=60.0 if files else 30.0,
+            )
         except httpx.HTTPError as exc:
             raise APIError(f"HTTP transport error calling {method} {url}: {exc}") from exc
 
