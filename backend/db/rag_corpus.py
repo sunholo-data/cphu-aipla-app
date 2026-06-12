@@ -56,7 +56,7 @@ async def upload_text_as_rag_file(
         from vertexai import rag
 
         project = os.environ.get("GOOGLE_CLOUD_PROJECT")
-        location = os.environ.get("GOOGLE_CLOUD_LOCATION", "europe-north1")
+        location = os.environ.get("GOOGLE_CLOUD_LOCATION", "europe-west1")
         if project:
             vertexai.init(project=project, location=location)
 
@@ -116,7 +116,7 @@ async def query_rag_files(file_ids: list[str], query: str, *, top_k: int = 5) ->
         from vertexai import rag
 
         project = os.environ.get("GOOGLE_CLOUD_PROJECT")
-        location = os.environ.get("GOOGLE_CLOUD_LOCATION", "europe-north1")
+        location = os.environ.get("GOOGLE_CLOUD_LOCATION", "europe-west1")
         if project:
             vertexai.init(project=project, location=location)
 

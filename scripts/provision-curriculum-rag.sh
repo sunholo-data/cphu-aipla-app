@@ -36,11 +36,19 @@ case "$ENV" in
 esac
 
 PROJECT="aipla-${ENV}-2026"
-REGION="${GOOGLE_CLOUD_LOCATION:-europe-north1}"   # ADR-007 Finland
+# Vertex AI (Agent Engine + RAG) runs in europe-west1 for AIPLA — same region as
+# bootstrap_agent_engine.py. The europe-north1 pin (ADR-007) is for Firestore /
+# GCS / chat-logs / voice, NOT Vertex AI compute. Override with GOOGLE_CLOUD_LOCATION.
+REGION="${GOOGLE_CLOUD_LOCATION:-europe-west1}"
 SA_EMAIL="aipla-v6@${PROJECT}.iam.gserviceaccount.com"
 SECRET_NAME="CURRICULUM_RAG_CORPUS_NAME"
 CORPUS_DISPLAY_NAME="${CURRICULUM_RAG_DISPLAY_NAME:-aipla-curriculum-v1}"
-BACKEND_SERVICE="${CURRICULUM_RAG_BACKEND_SERVICE:-aipla-v01-backend}"
+# The FastAPI backend runs INSIDE the aipla-v01-frontend Cloud Run service (the
+# Next proxy forwards /api/proxy to it) — there is no separate backend service.
+# Cloud Run is deployed in europe-north1, a DIFFERENT region from the Vertex RAG
+# corpus (europe-west1) — so the env wiring uses its own region.
+BACKEND_SERVICE="${CURRICULUM_RAG_BACKEND_SERVICE:-aipla-v01-frontend}"
+CLOUD_RUN_REGION="${CURRICULUM_RAG_CLOUD_RUN_REGION:-europe-north1}"
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 
 log() { echo "[$(date +%H:%M:%S)] $*"; }
@@ -77,10 +85,13 @@ fi
 # 3. Create or find the RagManagedDb corpus. bootstrap_rag_corpus.py prints the
 #    full resource name to stdout (logs go to stderr), and is idempotent.
 log "Resolving RAG corpus (display name: ${CORPUS_DISPLAY_NAME})"
+# The vertexai SDK prints DEBUG lines to stdout during create — extract ONLY the
+# corpus resource name so the secret value is clean (no multi-line pollution).
 RESOURCE_NAME="$(
   GOOGLE_CLOUD_PROJECT="$PROJECT" GOOGLE_CLOUD_LOCATION="$REGION" \
     uv run --project "${REPO_ROOT}/backend" python "${REPO_ROOT}/backend/scripts/bootstrap_rag_corpus.py" \
-    --display-name "$CORPUS_DISPLAY_NAME"
+    --display-name "$CORPUS_DISPLAY_NAME" 2>/dev/null \
+    | grep -oE 'projects/[^[:space:]]+/ragCorpora/[0-9]+' | tail -1
 )"
 [ -n "$RESOURCE_NAME" ] || die "bootstrap_rag_corpus.py returned no resource name"
 log "Corpus resource: ${RESOURCE_NAME}"
@@ -115,16 +126,17 @@ else
 fi
 
 # 6. Wire the secret into the backend Cloud Run service env (best-effort).
-if gcloud run services describe "$BACKEND_SERVICE" --project="$PROJECT" --region="$REGION" >/dev/null 2>&1; then
-  log "Wiring ${SECRET_NAME} into Cloud Run service ${BACKEND_SERVICE}"
+# Cloud Run lives in CLOUD_RUN_REGION (europe-north1), NOT the Vertex region.
+if gcloud run services describe "$BACKEND_SERVICE" --project="$PROJECT" --region="$CLOUD_RUN_REGION" >/dev/null 2>&1; then
+  log "Wiring ${SECRET_NAME} into Cloud Run service ${BACKEND_SERVICE} (${CLOUD_RUN_REGION})"
   gcloud run services update "$BACKEND_SERVICE" \
-    --project="$PROJECT" --region="$REGION" \
+    --project="$PROJECT" --region="$CLOUD_RUN_REGION" \
     --update-secrets "${SECRET_NAME}=${SECRET_NAME}:latest" >/dev/null
   log "Cloud Run env wired — backend will read the corpus on next request"
 else
-  log "Cloud Run service ${BACKEND_SERVICE} not found in ${REGION} — skipping env wiring."
+  log "Cloud Run service ${BACKEND_SERVICE} not found in ${CLOUD_RUN_REGION} — skipping env wiring."
   log "  When the service exists, run:"
-  log "    gcloud run services update ${BACKEND_SERVICE} --project=${PROJECT} --region=${REGION} \\"
+  log "    gcloud run services update ${BACKEND_SERVICE} --project=${PROJECT} --region=${CLOUD_RUN_REGION} \\"
   log "      --update-secrets ${SECRET_NAME}=${SECRET_NAME}:latest"
 fi
 
