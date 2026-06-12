@@ -1,4 +1,4 @@
-.PHONY: dev dev-local dev-recompile dev-status dev-stop proxy-check logs cloud-logs cloud-errors cloud-build verify-chat-logs smoke-session-persistence smoke-teacher-cli help cli-install cli-reinstall cli-uninstall cli-doctor cli-selftest-mock cli-selftest-live cli-selftest seed provision-curriculum-rag seed-curriculum-a-level
+.PHONY: dev dev-local dev-recompile dev-status dev-stop proxy-check logs cloud-logs cloud-errors cloud-build verify-chat-logs smoke-session-persistence smoke-teacher-cli help cli-install cli-reinstall cli-uninstall cli-doctor cli-selftest-mock cli-selftest-live cli-selftest seed provision-curriculum-rag seed-curriculum
 
 # Seed SKILL.md templates -> Firestore after a deploy that changed any template
 # (avatar, multimodalInput, persona, tools, accessControl, instructions). A code
@@ -18,13 +18,15 @@ seed:
 provision-curriculum-rag:
 	@scripts/provision-curriculum-rag.sh $(ENV)
 
-# Seed the SHARED corpus with the cleared A-level Danish stx physics material
-# (1.1.25). Reads the prepared markdown from the scoping site (NOT in this repo).
-# Prereqs: corpus provisioned (provision-curriculum-rag) + aiplatform CLI authed
-# as a teacher. Run ONCE per env (each ingest mints a fresh doc id).
-#   make seed-curriculum-a-level ENV=dev
-seed-curriculum-a-level:
-	@scripts/seed-curriculum-a-level.sh $(ENV)
+# Seed the SHARED corpus with the cleared Danish stx physics material (1.1.25,
+# A/B/C læreplan + vejledning). Reads the docparse-parsed markdown from the
+# scoping site (NOT in this repo). Prereqs: corpus provisioned
+# (provision-curriculum-rag) + aiplatform CLI authed as a teacher. Run ONCE per
+# env (each ingest mints a fresh doc id).
+#   make seed-curriculum ENV=dev                 # all levels
+#   make seed-curriculum ENV=dev LEVELS="A"      # one level
+seed-curriculum:
+	@CURRICULUM_LEVELS="$(LEVELS)" scripts/seed-curriculum.sh $(ENV)
 
 # Launch backend (port 1956) + frontend (port 3000) for local development.
 # Logs stream to stdout; Ctrl-C stops both.
