@@ -34,12 +34,23 @@ ENV="${1:-dev}"
 LEVELS="${2:-${CURRICULUM_LEVELS:-A B C}}"
 SRC_DIR="${CURRICULUM_SRC_DIR:-$HOME/Documents/clients/cph-uni/sources/curriculum}"
 ORIGIN_BASE="uvm.dk"
+REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 
 log() { echo "[$(date +%H:%M:%S)] $*"; }
 die() {
   echo "ERROR: $*" >&2
   exit 1
 }
+
+# Auto-mint a test-teacher Firebase token if one isn't supplied (the ingest
+# endpoint is teacher-only). Needs the public Firebase Web key in
+# frontend/.env.local or $FIREBASE_API_KEY — see mint-test-teacher-token.sh.
+if [ -z "${AIPLATFORM_ID_TOKEN:-}" ]; then
+  log "Minting test-teacher token…"
+  AIPLATFORM_ID_TOKEN="$("${REPO_ROOT}/scripts/mint-test-teacher-token.sh")" \
+    || die "token mint failed — set AIPLATFORM_ID_TOKEN, or the Firebase Web key (frontend/.env.local / FIREBASE_API_KEY)"
+  export AIPLATFORM_ID_TOKEN
+fi
 
 # Per-level file map: laereplan + vejledning markdown filenames in SRC_DIR.
 # C's læreplan is the 2017 edition (latest); the vejledningers are 2024.
