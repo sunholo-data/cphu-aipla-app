@@ -31,11 +31,20 @@
       "description": "Backend RAG ingestion (Vertex infra). Provision a RagManagedDb RagCorpus (bootstrap + NOTES side-effect record). POST /api/curriculum/ingest: docparse (ailang_parse) -> text -> import into the corpus as a RagFile tagged {level,topic,owner_scope,doc_id} + write CurriculumDoc metadata. Teacher uploads = teacher_owned (un-gated); shared ingestion refuses copyright_status=pending.",
       "scope": "backend",
       "estimated_loc": 340,
-      "passes": null,
-      "started": null,
-      "completed": null,
-      "notes": "",
-      "blocked_by": "Vertex RagCorpus provisioning (mirror bootstrap_agent_engine.py pattern)"
+      "passes": true,
+      "started": "2026-06-12",
+      "completed": "2026-06-12",
+      "notes": "SHIPPED. bootstrap_rag_corpus.py (idempotent RagManagedDb corpus provisioner, mirrors bootstrap_agent_engine.py). db/rag_corpus.py: get_corpus_name() from CURRICULUM_RAG_CORPUS_NAME env + upload_text_as_rag_file() (temp .txt -> rag.upload_file -> RagFile.name; graceful None when corpus not configured, Axiom 5). POST /api/curriculum/ingest: teacher-only; shared+non-cleared->422; unsupported format (PDF)->422 with convert-first message; AILANG Parse for docx/pptx/…; direct read for .txt/.md; RAG upload + Firestore CurriculumDoc. 7 tests green. Lint clean. test-fast 1875 passed. Side effects recorded in docs/ops/gcp-side-effects.md (CURRICULUM M2 entry: aiplatform.googleapis.com API, roles/aiplatform.ragCorpusEditor, CURRICULUM_RAG_CORPUS_NAME secret). Bootstrap not yet run against aipla-dev-2026 (needs GCP credentials + manual run). Graceful degradation: endpoint works without corpus configured.",
+      "actual_loc": 340,
+      "files_created": [
+        "backend/db/rag_corpus.py",
+        "backend/scripts/bootstrap_rag_corpus.py",
+        "backend/tests/api_tests/test_curriculum_ingest.py"
+      ],
+      "files_modified": [
+        "backend/protocols/curriculum_routes.py",
+        "docs/ops/gcp-side-effects.md"
+      ]
     },
     {
       "id": "M3",
@@ -68,7 +77,7 @@
       "notes": ""
     }
   ],
-  "last_session": "2026-06-11",
-  "last_checkpoint": "M1 shipped (metadata/ACL/browse). PAUSED before M2 (provision Vertex RagCorpus + docparse->RAG ingestion) \u2014 needs Vertex infra + a fresh look.",
+  "last_session": "2026-06-12",
+  "last_checkpoint": "M2 shipped (bootstrap_rag_corpus.py + db/rag_corpus.py + POST /api/curriculum/ingest + 7 tests). PAUSED before M3 (VertexAiRagRetrieval tool scoped to activity cited materials + tutor grounding hook).",
   "status": "in_progress"
 }
