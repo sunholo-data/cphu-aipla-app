@@ -51,10 +51,20 @@
       "description": "Backend retrieval + tutor grounding. VertexAiRagRetrieval tool scoped (RagResource+Filter) to an activity's cited materials only; attach to the tutor agent when the activity has materials. curriculum-retrieve query path. Student deny-by-default (only cited docs). Retrieval returns origin for citation.",
       "scope": "backend",
       "estimated_loc": 300,
-      "passes": null,
-      "started": null,
-      "completed": null,
-      "notes": ""
+      "passes": true,
+      "started": "2026-06-12",
+      "completed": "2026-06-12",
+      "notes": "SHIPPED. MaterialRef (docId + origin) + materials: list[MaterialRef] on ActivityConfig + upsert. adk/curriculum_retrieval.py: build_curriculum_retrieval_tool() resolves cited doc_artifact_ids from Firestore, extracts short RAG file IDs, returns VertexAiRagRetrieval scoped to allow-list (deny-by-default). Returns None gracefully when corpus unconfigured or all docs pending ingest (Axiom 5). build_curriculum_grounding_preamble() appended to skill instructions when materials non-empty. Both wired into create_agent: resolve_active_config() at agent-build-time, tool + preamble attached when activity.materials present. 10 tests green. Lint clean. test-fast 1885 passed.",
+      "actual_loc": 290,
+      "files_created": [
+        "backend/adk/curriculum_retrieval.py",
+        "backend/tests/unit/test_curriculum_retrieval.py"
+      ],
+      "files_modified": [
+        "backend/db/models/activity_config.py",
+        "backend/db/activity_configs.py",
+        "backend/adk/agent.py"
+      ]
     },
     {
       "id": "M4",
@@ -77,7 +87,7 @@
       "notes": ""
     }
   ],
-  "last_session": "2026-06-12",
-  "last_checkpoint": "M2 shipped (bootstrap_rag_corpus.py + db/rag_corpus.py + POST /api/curriculum/ingest + 7 tests). PAUSED before M3 (VertexAiRagRetrieval tool scoped to activity cited materials + tutor grounding hook).",
+  "last_session": "2026-06-12 (M3)",
+  "last_checkpoint": "M3 shipped (MaterialRef + materials on ActivityConfig; build_curriculum_retrieval_tool + grounding preamble; wired into create_agent; 10 tests). PAUSED before M4 (frontend authoring picker: Materials section in 1.1.19 builder — browse/cite/upload).",
   "status": "in_progress"
 }
