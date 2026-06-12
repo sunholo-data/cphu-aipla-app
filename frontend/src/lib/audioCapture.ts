@@ -38,6 +38,21 @@ export function pickAudioMimeType(
   return "";
 }
 
+/**
+ * Capture constraints for the mic stream. We request **48 kHz** because the
+ * Opus codec stamps the capture sample rate into its WebM header, and Google
+ * Cloud STT's `WEBM_OPUS` decoder only accepts 8/12/16/24/48 kHz. macOS mics
+ * default to 44.1 kHz, which STT rejects with a 400 ("Opus sample rate (44100)
+ * not in supported rates") — leaving the audio stored but never transcribed.
+ *
+ * `sampleRate` is given as a plain value (an "ideal", not `{ exact }`), so a
+ * browser that can't honour it resamples rather than throwing. `AudioRecorder`
+ * additionally falls back to an unconstrained stream if the request rejects.
+ */
+export const STT_AUDIO_CONSTRAINTS: MediaStreamConstraints = {
+  audio: { sampleRate: 48000 },
+};
+
 export function isAudioCaptureSupported(): boolean {
   return (
     typeof navigator !== "undefined" &&
@@ -82,7 +97,14 @@ export class AudioRecorder {
   async start(): Promise<void> {
     if (this._recorder) return;
     if (!this._Ctor) throw new Error("MediaRecorder unavailable");
-    const stream = await this._getUserMedia({ audio: true });
+    // Prefer the 48 kHz constraint (see STT_AUDIO_CONSTRAINTS); fall back to an
+    // unconstrained stream if a browser rejects it (e.g. OverconstrainedError).
+    let stream: MediaStream;
+    try {
+      stream = await this._getUserMedia(STT_AUDIO_CONSTRAINTS);
+    } catch {
+      stream = await this._getUserMedia({ audio: true });
+    }
     this._stream = stream;
     this._mimeType = this._pickMime();
     const rec = this._mimeType

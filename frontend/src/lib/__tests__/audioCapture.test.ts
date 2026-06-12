@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 
-import { AudioRecorder, SegmentedRecorder, pickAudioMimeType } from "../audioCapture";
+import { AudioRecorder, SegmentedRecorder, STT_AUDIO_CONSTRAINTS, pickAudioMimeType } from "../audioCapture";
 
 describe("pickAudioMimeType", () => {
   it("returns the first supported preferred mime", () => {
@@ -63,7 +63,8 @@ describe("AudioRecorder", () => {
     const { rec, getUserMedia, stopTrack } = makeRecorder();
     await rec.start();
     expect(rec.recording).toBe(true);
-    expect(getUserMedia).toHaveBeenCalledWith({ audio: true });
+    // Requests 48 kHz so the Opus/WebM header lands on a rate Google STT accepts.
+    expect(getUserMedia).toHaveBeenCalledWith(STT_AUDIO_CONSTRAINTS);
 
     const result = await rec.stop();
     expect(result.mimeType).toBe("audio/webm");
@@ -91,6 +92,26 @@ describe("AudioRecorder", () => {
     await rec.start();
     await rec.start();
     expect(getUserMedia).toHaveBeenCalledTimes(1);
+  });
+
+  it("falls back to an unconstrained stream when the 48 kHz constraint is rejected", async () => {
+    const stopTrack = vi.fn();
+    const stream = { getTracks: () => [{ stop: stopTrack }] } as unknown as MediaStream;
+    const getUserMedia = vi
+      .fn()
+      .mockRejectedValueOnce(new Error("OverconstrainedError"))
+      .mockResolvedValueOnce(stream);
+    const rec = new AudioRecorder({
+      getUserMedia,
+      MediaRecorderCtor: FakeMediaRecorder as unknown as typeof MediaRecorder,
+      now: () => 1000,
+      pickMime: () => "audio/webm",
+    });
+
+    await rec.start();
+    expect(rec.recording).toBe(true);
+    expect(getUserMedia).toHaveBeenNthCalledWith(1, STT_AUDIO_CONSTRAINTS);
+    expect(getUserMedia).toHaveBeenNthCalledWith(2, { audio: true });
   });
 });
 
