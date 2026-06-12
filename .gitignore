@@ -73,3 +73,8 @@ backend/aitana_platform/
 # Locked agent worktrees from parallel sub-agent execution. The harness
 # manages these; they're never committed and shouldn't block sanitize.
 .claude/worktrees/
+
+# Terraform local state + provider plugins (never commit — provider binaries are >100MB)
+**/.terraform/
+*.tfstate
+*.tfstate.*
