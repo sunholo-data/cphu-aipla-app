@@ -14,6 +14,7 @@ import asyncio
 import json
 import logging
 import os
+import re
 import tempfile
 
 log = logging.getLogger(__name__)
@@ -24,6 +25,23 @@ _CORPUS_ENV = "CURRICULUM_RAG_CORPUS_NAME"
 def get_corpus_name() -> str | None:
     """Return the RAG corpus resource name from env, or None if not configured."""
     return os.environ.get(_CORPUS_ENV, "").strip() or None
+
+
+def _corpus_location(corpus_name: str) -> str:
+    """Vertex region for RAG ops, derived from the corpus resource name.
+
+    The vertexai RAG SDK builds the upload/query endpoint from the *init*
+    location, NOT the corpus's own region — so we MUST init with the corpus's
+    region (europe-west1 for AIPLA), not the backend's ``GOOGLE_CLOUD_LOCATION``
+    (which is ``global`` for Gemini/Vertex GenAI and would route RAG ops to the
+    wrong endpoint). Parse ``projects/.../locations/<region>/ragCorpora/...``.
+    """
+    m = re.search(r"/locations/([^/]+)/", corpus_name)
+    if m:
+        return m.group(1)
+    # Fallback: explicit env override, else AIPLA's Vertex region (NOT "global").
+    loc = os.environ.get("GOOGLE_CLOUD_LOCATION", "").strip()
+    return loc if loc and loc != "global" else "europe-west1"
 
 
 async def upload_text_as_rag_file(
@@ -56,9 +74,9 @@ async def upload_text_as_rag_file(
         from vertexai import rag
 
         project = os.environ.get("GOOGLE_CLOUD_PROJECT")
-        location = os.environ.get("GOOGLE_CLOUD_LOCATION", "europe-west1")
-        if project:
-            vertexai.init(project=project, location=location)
+        # Init with the CORPUS's region (the SDK routes RAG ops by init
+        # location, not the resource name) — not GOOGLE_CLOUD_LOCATION=global.
+        vertexai.init(project=project, location=_corpus_location(corpus_name))
 
         # Write text to a temp .txt file — rag.upload_file takes a local path.
         tmp = tempfile.NamedTemporaryFile(
@@ -116,9 +134,8 @@ async def query_rag_files(file_ids: list[str], query: str, *, top_k: int = 5) ->
         from vertexai import rag
 
         project = os.environ.get("GOOGLE_CLOUD_PROJECT")
-        location = os.environ.get("GOOGLE_CLOUD_LOCATION", "europe-west1")
-        if project:
-            vertexai.init(project=project, location=location)
+        # Init with the CORPUS's region (see _corpus_location) — not "global".
+        vertexai.init(project=project, location=_corpus_location(corpus_name))
 
         response = rag.retrieval_query(
             text=query,

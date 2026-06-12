@@ -181,6 +181,14 @@ steps:
       # "AILANG Parse extraction disabled" and document parsing is off.
       # The runtime SA needs roles/secretmanager.secretAccessor on this secret.
       - '--set-secrets=DOCPARSE_API_KEY=DOCPARSE_API_KEY:latest'
+      # Curriculum library RAG corpus resource name (1.1.25 M2). Provisioned by
+      # scripts/provision-curriculum-rag.sh, which creates the secret + grants
+      # the runtime SA secretAccessor. MUST exist before an env's first deploy
+      # (dev done 2026-06-12; create per-env before cutting test/prod). Unset ->
+      # backend stores curriculum metadata-only (no RAG). The corpus lives in
+      # europe-west1; db/rag_corpus.py derives the region from this resource
+      # name, NOT GOOGLE_CLOUD_LOCATION=global below.
+      - '--set-secrets=CURRICULUM_RAG_CORPUS_NAME=CURRICULUM_RAG_CORPUS_NAME:latest'
       # Env vars
       - '--set-env-vars=GOOGLE_CLOUD_PROJECT=${_PROJECT_ID}'
       # AIPLA v0.1: gemini-3.5-flash is GA only on `global` endpoint
