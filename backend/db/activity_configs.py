@@ -18,6 +18,7 @@ from db.models.activity_config import (
     Difficulty,
     InteractionStyle,
     Language,
+    MaterialRef,
     WorkbenchType,
 )
 
@@ -54,6 +55,7 @@ def upsert_activity_config(
     paired_workbench: str | None = None,
     workbench_type: WorkbenchType = "none",
     checklist: list[ChecklistItem] | None = None,
+    materials: list[MaterialRef] | None = None,
 ) -> ActivityConfig:
     """Create or overwrite the activity config for this (teacher, class, activity).
 
@@ -74,6 +76,7 @@ def upsert_activity_config(
         pairedWorkbench=paired_workbench,
         workbenchType=workbench_type,
         checklist=checklist or [],
+        materials=materials or [],
         updatedAt=_utcnow(),
     )
     set_document(_COLLECTION, ActivityConfig.doc_id(teacher_uid, class_id, activity_id), _to_firestore(cfg))

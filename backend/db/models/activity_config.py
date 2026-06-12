@@ -31,6 +31,20 @@ Difficulty = Literal["standard", "guided"]
 InteractionStyle = Literal["socratic", "concise", "rigorous", "warm"]
 
 
+class MaterialRef(BaseModel):
+    """A curriculum document cited for this activity (1.1.25 M3).
+
+    ``doc_id`` resolves to a ``CurriculumDoc`` in the curriculum library.
+    ``origin`` is cached from ``CurriculumDoc.origin`` at citation time so the
+    grounding preamble can name sources without an extra Firestore read.
+    """
+
+    doc_id: str = Field(alias="docId", min_length=1, max_length=200)
+    origin: str = Field(default="", alias="origin", max_length=200)
+
+    model_config = ConfigDict(populate_by_name=True)
+
+
 class ChecklistItem(BaseModel):
     """One teacher-authored, student-tickable sub-step of an activity (M1).
 
@@ -76,6 +90,9 @@ class ActivityConfig(BaseModel):
     workbench_type: WorkbenchType = Field(default="none", alias="workbenchType")
     source_activity_id: str | None = Field(default=None, alias="sourceActivityId")
     checklist: list[ChecklistItem] = Field(default_factory=list)
+    # Curriculum documents cited for this activity (1.1.25 M3). The tutor
+    # retrieval tool is scoped to ONLY these docs (student deny-by-default).
+    materials: list[MaterialRef] = Field(default_factory=list)
     updated_at: datetime = Field(alias="updatedAt")
 
     model_config = ConfigDict(populate_by_name=True)
@@ -108,5 +125,6 @@ __all__ = [
     "Difficulty",
     "InteractionStyle",
     "Language",
+    "MaterialRef",
     "WorkbenchType",
 ]

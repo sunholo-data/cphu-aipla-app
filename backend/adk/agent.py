@@ -52,6 +52,10 @@ from adk.callbacks import (
     make_permission_enforcer,
     make_session_tracker,
 )
+from adk.curriculum_retrieval import (
+    build_curriculum_grounding_preamble,
+    build_curriculum_retrieval_tool,
+)
 from adk.iframe_context import wrap_with_iframe_context
 from adk.instruction_provider_chain import compose_instruction_providers
 from adk.interaction_style import inject_interaction_style_preamble
@@ -65,7 +69,7 @@ from adk.multimodal import inject_image_input_preamble
 from adk.proactive_greet import inject_opening_guidance
 from adk.proactive_reactive import inject_reactive_guidance
 from adk.proactive_telemetry import tag_proactive_span_from_callback_context
-from adk.teacher_focus import inject_teacher_focus
+from adk.teacher_focus import inject_teacher_focus, resolve_active_config
 from adk.tools import resolve_mcp_tools, resolve_tools
 from auth.access_context import AccessContext
 from auth.firebase_auth import User
@@ -326,6 +330,16 @@ def create_agent(
     tools.extend(resolve_tools(md.tools, md.tool_configs))
     tools.extend(_resolve_search_tools(md.tools, md.tool_configs))
     tools.extend(resolve_mcp_tools(md.tool_configs))
+    # 1.1.25 M3 — curriculum retrieval: attach a VertexAiRagRetrieval tool
+    # scoped to the activity's cited materials (deny-by-default ACL — the
+    # student never sees the open corpus, only their activity's allow-list).
+    # resolve_active_config is the same Firestore path used by inject_teacher_focus
+    # below; the double read is acceptable at agent-build-time (once per session).
+    _active_cfg = resolve_active_config(skill_config.skill_id, group_tags=user.group_tags)
+    _materials = _active_cfg.materials if _active_cfg else []
+    _curriculum_tool = build_curriculum_retrieval_tool(_materials)
+    if _curriculum_tool is not None:
+        tools.append(_curriculum_tool)
     # MULTI-SURFACE-A2UI M1 — read the skill's `tool_configs.a2ui` block so
     # the toolset emits `surface_id`/`update_mode` siblings alongside
     # `validated_a2ui_json`. Defaults (no a2ui block) preserve pre-M1
@@ -522,7 +536,12 @@ def create_agent(
                             # than inlined per-SKILL.md because the body is
                             # capped at 10k chars (problem-set-hints is at it).
                             inject_image_input_preamble(
-                                skill_config.instructions,
+                                # 1.1.25 M3: when the activity has cited materials,
+                                # append a grounding preamble (cite origin, prefer
+                                # curriculum content, "no source" on miss). Pure
+                                # function; uses MaterialRef.origin cached at
+                                # citation time — no extra Firestore read.
+                                skill_config.instructions + build_curriculum_grounding_preamble(_materials),
                                 skill_config.multimodal_input,
                             ),
                             skill_config.skill_id,
