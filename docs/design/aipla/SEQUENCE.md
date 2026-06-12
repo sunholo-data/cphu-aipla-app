@@ -80,7 +80,7 @@ respects the **mid-point review (2026-06-26)** + **holiday freeze
 | ~~1.7~~ | ~~`class-and-group-management.md`~~ | ~~Superseded — merged into 1.A. The class + group management is in the unified permission-model doc.~~ | — | — |
 | **1.7-ops** | [aipla/v0.1.0-jutland/group-tooling.md](v0.1.0-jutland/group-tooling.md) | `aiplatform group new/list/revoke` CLI + backend list/revoke admin endpoints. Replaces the v0.1 multi-step curl ritual with a single command. Ships alongside 1.7 (teacher GUI) so ops keeps a CLI fallback once teachers have the dashboard. Moved here from Phase 0 per user direction 2026-05-20 ("later in the sequence"). | 0.5d |
 | **1.8** | `problem-set-helper-config-skill.md` | `problem-set-helper-config` (v1, teacher-facing) — teacher configures a tutor for a specific topic / problem set, pointing at one or more RAG-ingested documents. A2UI config form. | (skill catalogue — strands.qmd) | 2d |
-| **1.9** | `concept-dialogue-config-skill.md` | `concept-dialogue-config` (v1) — standalone Socratic conceptual-exploration tutor for a topic. A2UI config form. | (skill catalogue) | 1.5d |
+| ~~**1.9**~~ | ~~`concept-dialogue-config-skill.md`~~ | **Superseded by [v1.1.0-feedback/lesson-author-surface.md](v1.1.0-feedback/lesson-author-surface.md)** (row 1.1.27, 2026-06-05; pending re-scope review — see that row). The chat-only Socratic skill template ships as one of the activity types the unified lesson-author surface configures — the original 1.9 "A2UI config form" framing is widened into the lesson-author screen's bounded-knob renderer. The original ~1.5d estimate folds into the ~4d 1.1.27 sprint. | — | — |
 
 ### 1.I–1.K — Artefact library expansion + pedagogy framework (target: post-holiday, weeks 8–12)
 
