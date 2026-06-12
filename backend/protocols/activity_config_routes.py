@@ -36,6 +36,7 @@ from db.models.activity_config import (
     Difficulty,
     InteractionStyle,
     Language,
+    MaterialRef,
     WorkbenchType,
 )
 from personas.loader import resolve_persona_chain
@@ -73,6 +74,9 @@ class ActivityConfigUpsert(BaseModel):
     paired_workbench: str | None = Field(default=None, alias="pairedWorkbench")
     workbench_type: WorkbenchType = Field(default="none", alias="workbenchType")
     checklist: list[ChecklistItem] = Field(default_factory=list)
+    # Curriculum documents cited for this activity (1.1.25 M4). The tutor
+    # retrieval tool is scoped to ONLY these docs (student deny-by-default).
+    materials: list[MaterialRef] = Field(default_factory=list)
 
     model_config = ConfigDict(populate_by_name=True, extra="forbid")
 
@@ -113,6 +117,7 @@ async def post_activity_config(
         paired_workbench=body.paired_workbench,
         workbench_type=body.workbench_type,
         checklist=body.checklist,
+        materials=body.materials,
     )
     log.info(
         "activity_config upsert teacher=%s class=%s activity=%s",
@@ -240,6 +245,7 @@ async def patch_activity_config(
         paired_workbench=body.paired_workbench,
         workbench_type=body.workbench_type,
         checklist=body.checklist,
+        materials=body.materials,
     )
     return _serialize(cfg)
 

@@ -40,6 +40,7 @@ export interface ActivityConfigPayload {
   persona?: string | null;
   pairedWorkbench: string | null;
   workbenchType?: WorkbenchType;
+  materials?: MaterialRef[];
   updatedAt: string;
 }
 
@@ -59,6 +60,17 @@ export interface ChecklistItem {
   label: string;
 }
 
+/** Danish stx physics level — the primary curriculum browse axis (1.1.25). */
+export type StxLevel = "A" | "B" | "C";
+
+/** A curriculum document cited for an activity (1.1.25 M3/M4).
+ *  ``origin`` is cached from the library doc at citation time so the tutor
+ *  grounding preamble can name the source without an extra read. */
+export interface MaterialRef {
+  docId: string;
+  origin: string;
+}
+
 export interface ActivityConfigUpsert {
   /** Omit to let the backend mint a teacher-namespaced id (CLI/branching).
    *  The teacher builder passes a fixed base-skill id so the activity is
@@ -74,6 +86,7 @@ export interface ActivityConfigUpsert {
   pairedWorkbench: string | null;
   workbenchType?: WorkbenchType;
   checklist?: ChecklistItem[];
+  materials?: MaterialRef[];
 }
 
 export interface SessionTurnPayload {

@@ -22,10 +22,12 @@ import {
   getMockClass,
 } from "../../_mock-data";
 import {
+  type MaterialRef,
   NotFoundError,
   fetchMyActivityConfig,
   saveActivityConfig,
 } from "@/lib/teacherApi";
+import { MaterialsSection } from "@/components/teacher/MaterialsSection";
 
 type TabId = "goal" | "parameters" | "code" | "history";
 
@@ -78,6 +80,7 @@ export default function TeacherActivityConfigPage() {
   const [pairedWorkbench, setPairedWorkbench] = useState<string>(
     config.pairedWorkbench ?? WORKBENCH_NONE,
   );
+  const [materials, setMaterials] = useState<MaterialRef[]>([]);
   const [toast, setToast] = useState<string | null>(null);
   const [isSaving, setIsSaving] = useState(false);
   const [activeTab, setActiveTab] = useState<TabId>("goal");
@@ -94,6 +97,7 @@ export default function TeacherActivityConfigPage() {
         setLanguage(saved.language);
         setDifficulty(saved.difficulty);
         setPairedWorkbench(saved.pairedWorkbench ?? WORKBENCH_NONE);
+        setMaterials(saved.materials ?? []);
       })
       .catch((err) => {
         if (!alive || err instanceof NotFoundError) {
@@ -120,6 +124,7 @@ export default function TeacherActivityConfigPage() {
         difficulty,
         pairedWorkbench:
           pairedWorkbench === WORKBENCH_NONE ? null : pairedWorkbench,
+        materials,
       });
       setToast("Saved — students see your teaching goal on their next turn");
     } catch (err) {
@@ -244,6 +249,8 @@ export default function TeacherActivityConfigPage() {
                 </label>
               </div>
             </fieldset>
+
+            <MaterialsSection materials={materials} onChange={setMaterials} />
 
             <div className="flex flex-wrap gap-4">
               <label className="flex flex-col gap-1 text-sm font-medium">
