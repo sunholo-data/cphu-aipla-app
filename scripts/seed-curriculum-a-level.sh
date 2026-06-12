@@ -11,11 +11,18 @@
 #   1. læreplan   — Fysik A stx, August 2024 (faglige mål + kernestof) -> rubrics/coverage
 #   2. vejledning — Vejledning til Fysik A stx, July 2024 (exam format + guidance)
 #
-# These are the TEAM-TRANSLATED text-based versions (English) — the artifacts the
-# 9-June note marks "A-level ready first". The Danish originals are PDFs (not
-# directly ingestable; the endpoint rejects PDF). To also ground Danish
-# terminology (design doc use #10), convert the Danish PDFs to text and re-run
-# with CURRICULUM_SRC_DIR pointed at them.
+# DANISH originals (default) — grounds the tutor in the exact stx terminology
+# students see (design-doc use #10). The Danish source PDFs were parsed to
+# markdown with the `docparse` CLI (deterministic pdftotext, no AI):
+#   docparse 240613-fysik-a-stx-august-2024.pdf --output-dir <dst>   # læreplan
+#   docparse 240807-vejledning-til-fysik-a-stx.pdf --output-dir <dst> # vejledning
+# then placed in CURRICULUM_SRC_DIR as fysik_a_stx_{laereplan,vejledning}_2024_da.md.
+# (The endpoint rejects PDF directly, so parse-to-md first.)
+#
+# To seed the TEAM-TRANSLATED English versions instead, override the filenames:
+#   LAEREPLAN_FILE=translated_physics_a_stx_august_2024_text_based.md \
+#   VEJLEDNING_FILE=translated_guide_to_physics_a_stx_july_2024.md \
+#   scripts/seed-curriculum-a-level.sh dev
 #
 # Prerequisites:
 #   1. The RAG corpus is provisioned for the env + CURRICULUM_RAG_CORPUS_NAME is
@@ -39,8 +46,10 @@ ENV="${1:-dev}"
 SRC_DIR="${CURRICULUM_SRC_DIR:-$HOME/Documents/clients/cph-uni/sources/curriculum}"
 ORIGIN_BASE="uvm.dk"
 
-LAEREPLAN="${SRC_DIR}/translated_physics_a_stx_august_2024_text_based.md"
-VEJLEDNING="${SRC_DIR}/translated_guide_to_physics_a_stx_july_2024.md"
+# Default to the Danish parsed markdown; override the filenames for the
+# English translations (see header).
+LAEREPLAN="${SRC_DIR}/${LAEREPLAN_FILE:-fysik_a_stx_laereplan_2024_da.md}"
+VEJLEDNING="${SRC_DIR}/${VEJLEDNING_FILE:-fysik_a_stx_vejledning_2024_da.md}"
 
 log() { echo "[$(date +%H:%M:%S)] $*"; }
 die() {
