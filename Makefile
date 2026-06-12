@@ -1,4 +1,4 @@
-.PHONY: dev dev-local dev-recompile dev-status dev-stop proxy-check logs cloud-logs cloud-errors cloud-build verify-chat-logs smoke-session-persistence smoke-teacher-cli help cli-install cli-reinstall cli-uninstall cli-doctor cli-selftest-mock cli-selftest-live cli-selftest seed
+.PHONY: dev dev-local dev-recompile dev-status dev-stop proxy-check logs cloud-logs cloud-errors cloud-build verify-chat-logs smoke-session-persistence smoke-teacher-cli help cli-install cli-reinstall cli-uninstall cli-doctor cli-selftest-mock cli-selftest-live cli-selftest seed provision-curriculum-rag
 
 # Seed SKILL.md templates -> Firestore after a deploy that changed any template
 # (avatar, multimodalInput, persona, tools, accessControl, instructions). A code
@@ -9,6 +9,14 @@
 #   make seed ENV=test
 seed:
 	@scripts/seed-platform-skills.sh $(ENV)
+
+# Provision the curriculum RAG corpus for an env (1.1.25 M2/M5): enables the
+# Vertex AI API, grants IAM, creates/finds the RagManagedDb corpus, stores the
+# resource name in Secret Manager, and wires it into the backend Cloud Run env.
+# Idempotent. dev is script-provisioned; test/prod use the terraform module.
+#   make provision-curriculum-rag ENV=dev
+provision-curriculum-rag:
+	@scripts/provision-curriculum-rag.sh $(ENV)
 
 # Launch backend (port 1956) + frontend (port 3000) for local development.
 # Logs stream to stdout; Ctrl-C stops both.

@@ -100,58 +100,51 @@ Then `terraform init && terraform apply`. The module's per-env apply table in [i
 
 ## 2026-06-12 — CURRICULUM M2 RAG corpus (aipla-dev-2026)
 
-**Sprint:** [CURRICULUM (1.1.25)](../design/aipla/v1.1.0-feedback/curriculum-library.md) M2 — Vertex AI RAG corpus for the curriculum library.
-**Script:** `backend/scripts/bootstrap_rag_corpus.py` — idempotent; safe to re-run.
+**Sprint:** [CURRICULUM (1.1.25)](../design/aipla/v1.1.0-feedback/curriculum-library.md) M2/M5 — Vertex AI RAG corpus for the curriculum library.
+**Terraform module:** [`infrastructure/modules/curriculum-rag/`](../../infrastructure/modules/curriculum-rag/) — owns the durable resources (API, secret container, IAM) + a script bridge for the corpus. Per-env apply table in its README.
+**Script (canonical create path):** [`scripts/provision-curriculum-rag.sh`](../../scripts/provision-curriculum-rag.sh) — idempotent, one command per env. Wraps `backend/scripts/bootstrap_rag_corpus.py`.
 
 ### What to run (when you have GCP credentials)
 
-```bash
-export GOOGLE_CLOUD_PROJECT=aipla-dev-2026
-export GOOGLE_CLOUD_LOCATION=europe-north1
-uv run python backend/scripts/bootstrap_rag_corpus.py \
-  | xargs -I{} sh -c 'echo "{}" | gcloud secrets versions add CURRICULUM_RAG_CORPUS_NAME --data-file=- --project=aipla-dev-2026 || gcloud secrets create CURRICULUM_RAG_CORPUS_NAME --data-file=<(echo "{}") --project=aipla-dev-2026'
-```
-
-Then add `CURRICULUM_RAG_CORPUS_NAME` to the Cloud Run service env:
+One command — enables the API, grants IAM, creates/finds the corpus, writes the secret, wires Cloud Run:
 
 ```bash
-gcloud run services update aipla-v01-backend \
-  --region=europe-north1 \
-  --project=aipla-dev-2026 \
-  --update-env-vars CURRICULUM_RAG_CORPUS_NAME=$(gcloud secrets versions access latest --secret=CURRICULUM_RAG_CORPUS_NAME --project=aipla-dev-2026)
+make provision-curriculum-rag ENV=dev      # or: scripts/provision-curriculum-rag.sh dev
 ```
 
-### APIs required
+This replaces the previous multi-step manual `gcloud` ritual (API enable → bootstrap → secret → Cloud Run env), all of which the script now does idempotently.
 
-```bash
-gcloud services enable aiplatform.googleapis.com --project=aipla-dev-2026
-# Already enabled for Agent Engine (sessions). Vertex AI RAG uses the same API.
-```
+### Resources created (codified in the Terraform module)
 
-### IAM required
-
-```bash
-# Backend SA needs Vertex AI RAG Editor to create corpus + upload files.
-gcloud projects add-iam-policy-binding aipla-dev-2026 \
-  --member="serviceAccount:aipla-v6@aipla-dev-2026.iam.gserviceaccount.com" \
-  --role="roles/aiplatform.ragCorpusEditor"
-# roles/aiplatform.user is the broader alternative if ragCorpusEditor is unavailable.
-```
+| Step | Resource |
+|---|---|
+| API | `aiplatform.googleapis.com` enabled |
+| IAM | backend SA `aipla-v6@` → `roles/aiplatform.user` (create corpus + upload + query) |
+| Corpus | RagManagedDb corpus, display name `aipla-curriculum-v1` (bootstrap script; provider has no native resource) |
+| Secret | `CURRICULUM_RAG_CORPUS_NAME` (container + version holding the resource name) |
+| IAM | backend SA → `roles/secretmanager.secretAccessor` on that secret |
+| Cloud Run | `aipla-v01-backend` env wired to the secret (`--update-secrets`) when the service exists |
 
 ### Notes
 
 - **Backend:** RagManagedDb (managed vector store — no pgvector, ADR-010). Vertex AI handles chunking + embeddings.
 - **Region:** `europe-north1` (ADR-007). Vertex AI RAG is available in this region as of 2026-06.
-- **Graceful degradation:** if `CURRICULUM_RAG_CORPUS_NAME` is not set, `POST /api/curriculum/ingest` still creates the Firestore metadata record with `docArtifactId=""` (Axiom 5). RAG retrieval (M3) will skip unavailable docs.
-- **Corpus display name:** `aipla-curriculum-v1` — change `DEFAULT_DISPLAY_NAME` in the script if a second corpus is needed.
+- **Graceful degradation:** if `CURRICULUM_RAG_CORPUS_NAME` is not set, `POST /api/curriculum/ingest` still creates the Firestore metadata record with `docArtifactId=""` (Axiom 5). RAG retrieval (M3) skips unavailable docs; the tutor falls back to ungrounded answers. No errors — so this is safe to defer.
+- **Corpus display name:** `aipla-curriculum-v1` — override via `CURRICULUM_RAG_DISPLAY_NAME` (script) / `corpus_display_name` (module) if a second corpus is needed.
+- **IAM role:** `roles/aiplatform.user` covers corpus create + RagFile upload + `retrieval_query`. (`roles/aiplatform.ragCorpusEditor` exists in some catalogues but `aiplatform.user` is the reliable superset.)
 
 ### Test/prod promotion
 
-```bash
-# Run the same bootstrap script per env:
-GOOGLE_CLOUD_PROJECT=aipla-test-2026 uv run python backend/scripts/bootstrap_rag_corpus.py
-GOOGLE_CLOUD_PROJECT=aipla-prod-2026 uv run python backend/scripts/bootstrap_rag_corpus.py
-# Store output in the matching per-env secret + Cloud Run env.
+`terraform apply` the module per env (durable infra + corpus bridge):
+
+```hcl
+# envs/{test,prod}/main.tf
+module "curriculum_rag" {
+  source                        = "../../modules/curriculum-rag"
+  project_id                    = "aipla-${env}-2026"
+  env                           = "${env}"
+  backend_service_account_email = "aipla-v6@aipla-${env}-2026.iam.gserviceaccount.com"
+}
 ```
 
-TODO: codify as a Terraform resource (`google_vertex_ai_rag_corpus`) once the provider supports RagManagedDb; until then, the bootstrap script is the canonical create path.
+…or run `scripts/provision-curriculum-rag.sh {test,prod}` directly (same end state — the script IS the corpus bridge the module's `null_resource` invokes). The module's per-env apply table tracks which envs are bootstrapped.
