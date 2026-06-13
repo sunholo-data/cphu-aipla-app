@@ -83,3 +83,17 @@ def test_build_workshop_user_deterministic():
 def test_workshop_user_has_workshop_attendee_tag():
     user = build_workshop_user()
     assert "workshop-attendee" in user.group_tags
+
+
+def test_workshop_user_not_researcher_by_default(monkeypatch: pytest.MonkeyPatch):
+    monkeypatch.delenv("LOCAL_MODE_RESEARCHER", raising=False)
+    user = build_workshop_user()
+    assert user.is_researcher is False
+
+
+def test_workshop_user_researcher_when_env_set(monkeypatch: pytest.MonkeyPatch):
+    monkeypatch.setenv("LOCAL_MODE_RESEARCHER", "1")
+    user = build_workshop_user()
+    assert user.is_researcher is True
+    # still a teacher — researcher layers on top.
+    assert user.is_teacher is True

@@ -93,6 +93,21 @@ def list_classes_for_owner(owner_uid: str, *, include_revoked: bool = False) -> 
     return classes
 
 
+def list_all_classes(*, include_revoked: bool = False) -> list[Class]:
+    """List every class across all owners. Excludes revoked by default.
+
+    The cross-owner scan that backs the researcher "Research view"
+    (sprint 1.1.5). Callers MUST gate this on the researcher claim
+    before invoking — this function performs no authorization; it is the
+    bypass target, not the bypass check.
+    """
+    docs = query_documents(_COLLECTION)
+    classes = [_from_firestore({k: v for k, v in d.items() if k != "__id"}, d["__id"]) for d in docs]
+    if not include_revoked:
+        classes = [c for c in classes if not c.revoked]
+    return classes
+
+
 def update_class(class_id: str, *, name: str | None = None, description: str | None = None) -> None:
     """Partial update — name + description only. Tag namespace is
     immutable, lessons go through add_lessons/remove_lessons, group
@@ -316,6 +331,7 @@ __all__ = [
     "add_lessons",
     "create_class",
     "get_class",
+    "list_all_classes",
     "list_classes_for_owner",
     "mint_group_codes_under_class",
     "remove_lessons",

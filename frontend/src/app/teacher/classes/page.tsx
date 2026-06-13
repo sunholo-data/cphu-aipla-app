@@ -29,6 +29,7 @@ import {
 } from "@/lib/insightsApi";
 import { CrossClassTable } from "@/components/teacher/insights/CrossClassTable";
 import { KpiStrip } from "@/components/teacher/insights/KpiStrip";
+import { useIsResearcher } from "@/hooks/useIsResearcher";
 
 
 function relativeTime(iso: string): string {
@@ -53,6 +54,11 @@ export default function TeacherClassesPage() {
   // BigQuery-backed insights (per-card KPIs + cross-class compare) are
   // deferred — loaded on demand so the class list opens fast (Firestore-only).
   const [showInsights, setShowInsights] = useState(false);
+  // Research view (sprint 1.1.5): researchers can switch to a cross-class
+  // list of every teacher's classes. Toggle is hidden for non-researchers;
+  // the backend independently rejects scope=all without the claim.
+  const isResearcher = useIsResearcher();
+  const [researchView, setResearchView] = useState(false);
 
   // Skill displayName lookup so we can fall back to the lesson name when a
   // session hasn't generated a title yet (titles are auto-generated after
@@ -67,8 +73,15 @@ export default function TeacherClassesPage() {
   const refresh = useCallback(async () => {
     setLoadError(null);
     try {
-      const list = await listClasses();
+      const list = await listClasses(researchView ? "all" : "own");
       setClasses(list);
+      // Recent-sessions fan-out is per-class; in Research view that can be
+      // every teacher's class, so skip it there (the per-class drill-down
+      // remains the way to inspect another teacher's sessions).
+      if (researchView) {
+        setRecentSessions([]);
+        return;
+      }
       // Fetch recent student sessions across all classes (per-class endpoint
       // queries by groupCode, so only student sessions appear here).
       const batches = await Promise.all(list.map((c) => listClassRecentSessions(c.classId)));
@@ -86,7 +99,7 @@ export default function TeacherClassesPage() {
         err instanceof Error ? err.message : "failed to load classes",
       );
     }
-  }, []);
+  }, [researchView]);
 
   useEffect(() => {
     void refresh();
@@ -145,19 +158,51 @@ export default function TeacherClassesPage() {
     <div className="flex flex-col gap-8">
       <header className="flex flex-wrap items-center justify-between gap-3">
         <div>
-          <h1 className="text-xl font-semibold sm:text-2xl">My classes</h1>
+          <h1 className="text-xl font-semibold sm:text-2xl">
+            {researchView ? "Research view" : "My classes"}
+          </h1>
           <p className="text-sm text-muted-foreground">
-            Classes you own. Pick one to manage groups and configure activities.
+            {researchView
+              ? "All classes across every teacher. Pick one to drill into its sessions."
+              : "Classes you own. Pick one to manage groups and configure activities."}
           </p>
         </div>
-        <button
-          type="button"
-          onClick={() => setShowNewClassForm((v) => !v)}
-          className="flex items-center gap-1.5 rounded border border-border px-3 py-1.5 text-sm font-medium hover:bg-accent"
-        >
-          <Plus className="h-4 w-4" aria-hidden="true" />
-          New class
-        </button>
+        <div className="flex items-center gap-2">
+          {isResearcher ? (
+            <div
+              role="group"
+              aria-label="Class scope"
+              className="flex items-center rounded border border-border text-sm font-medium"
+            >
+              <button
+                type="button"
+                aria-pressed={!researchView}
+                onClick={() => setResearchView(false)}
+                className={`rounded-l px-3 py-1.5 ${!researchView ? "bg-accent" : "hover:bg-accent"}`}
+              >
+                My classes
+              </button>
+              <button
+                type="button"
+                aria-pressed={researchView}
+                onClick={() => setResearchView(true)}
+                className={`rounded-r px-3 py-1.5 ${researchView ? "bg-accent" : "hover:bg-accent"}`}
+              >
+                Research view
+              </button>
+            </div>
+          ) : null}
+          {researchView ? null : (
+            <button
+              type="button"
+              onClick={() => setShowNewClassForm((v) => !v)}
+              className="flex items-center gap-1.5 rounded border border-border px-3 py-1.5 text-sm font-medium hover:bg-accent"
+            >
+              <Plus className="h-4 w-4" aria-hidden="true" />
+              New class
+            </button>
+          )}
+        </div>
       </header>
 
       {showNewClassForm ? (
@@ -196,6 +241,7 @@ export default function TeacherClassesPage() {
               key={cls.classId}
               cls={cls}
               insightsSummary={insightsSummary.get(cls.classId)}
+              showOwner={researchView}
             />
           ))
         )}
@@ -312,9 +358,11 @@ export default function TeacherClassesPage() {
 function ClassCard({
   cls,
   insightsSummary,
+  showOwner = false,
 }: {
   cls: ClassPayload;
   insightsSummary: InsightsClassSummary | undefined;
+  showOwner?: boolean;
 }) {
   return (
     <article className="flex flex-col gap-3 rounded border border-border bg-background p-4 shadow-sm">
@@ -322,6 +370,11 @@ function ClassCard({
         <h3 className="text-lg font-semibold">{cls.name}</h3>
         <Users className="h-5 w-5 text-muted-foreground" aria-hidden="true" />
       </header>
+      {showOwner ? (
+        <p className="text-xs text-muted-foreground" data-testid="class-owner">
+          Owner: {cls.ownerUid}
+        </p>
+      ) : null}
       <p className="text-sm text-muted-foreground">
         {cls.groupCodes.length} group{cls.groupCodes.length === 1 ? "" : "s"} ·{" "}
         {cls.lessons.length} {cls.lessons.length === 1 ? "activity" : "activities"}{" "}

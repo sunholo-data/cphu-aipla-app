@@ -254,9 +254,16 @@ export interface MintGroupsResult {
   codes: string[];
 }
 
-/** List classes owned by the current teacher. */
-export async function listClasses(): Promise<ClassPayload[]> {
-  const resp = await fetchWithAuth(`/api/proxy/api/classes`);
+/** List classes.
+ *
+ * - `scope="own"` (default): the caller's own classes.
+ * - `scope="all"`: every class across all teachers — researcher-only
+ *   (sprint 1.1.5). The backend returns 403 for non-researchers, so only
+ *   call with `"all"` when {@link useIsResearcher} is true.
+ */
+export async function listClasses(scope: "own" | "all" = "own"): Promise<ClassPayload[]> {
+  const query = scope === "all" ? "?scope=all" : "";
+  const resp = await fetchWithAuth(`/api/proxy/api/classes${query}`);
   const body = await readJson<ClassListPayload>(resp, "list classes");
   return body.classes;
 }

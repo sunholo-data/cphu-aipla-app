@@ -24,11 +24,13 @@ from fastapi import APIRouter, Depends, HTTPException, Path, Query
 from opentelemetry import trace
 from pydantic import BaseModel, ConfigDict, Field
 
+from analytics.auth import assert_can_read_class
 from auth import User, get_current_user
 from db.classes import (
     add_lessons,
     create_class,
     get_class,
+    list_all_classes,
     list_classes_for_owner,
     mint_group_codes_under_class,
     remove_lessons,
@@ -104,6 +106,22 @@ def _load_owned(class_id: str, user: User) -> Class:
     leak existence to non-owners). 410 if soft-deleted."""
     cls = get_class(class_id)
     if cls is None or cls.owner_uid != user.uid:
+        raise HTTPException(status_code=404, detail="class not found")
+    return cls
+
+
+def _load_readable(class_id: str, user: User) -> Class:
+    """Load a class the caller may READ — owner OR researcher (sprint
+    1.1.5). Same enumeration-resistant 404 for non-owner non-researcher
+    as ``_load_owned``. Researcher reads tag the OTel span via
+    ``assert_can_read_class``. Use on READ routes only; write/mint/delete
+    keep ``_load_owned``."""
+    try:
+        assert_can_read_class(user, class_id)
+    except PermissionError as exc:
+        raise HTTPException(status_code=404, detail="class not found") from exc
+    cls = get_class(class_id)
+    if cls is None:  # pragma: no cover — assert_can_read_class already guards
         raise HTTPException(status_code=404, detail="class not found")
     return cls
 
@@ -222,12 +240,27 @@ async def post_class(
 
 @router.get("")
 async def list_classes(
+    scope: str = Query(default="own"),
     user: User = Depends(get_current_user),  # noqa: B008
 ) -> dict:
-    """List classes owned by the current teacher."""
+    """List classes.
+
+    - ``scope=own`` (default): classes owned by the caller — unchanged.
+    - ``scope=all``: every class across all teachers — researcher-only
+      (sprint 1.1.5 Research view). Non-researchers get 403 even via a
+      URL-hack, never a silent fallback to own-scope.
+    """
     _assert_teacher(user)
+    if scope == "all":
+        if not user.is_researcher:
+            raise HTTPException(status_code=403, detail="researcher access required")
+        span = trace.get_current_span()
+        if span.is_recording():
+            span.set_attribute("auth.researcher_bypass", True)
+        classes = list_all_classes()
+        return {"classes": [_serialize(c) for c in classes], "scope": "all"}
     classes = list_classes_for_owner(user.uid)
-    return {"classes": [_serialize(c) for c in classes]}
+    return {"classes": [_serialize(c) for c in classes], "scope": "own"}
 
 
 @router.get("/{class_id}")
@@ -235,9 +268,9 @@ async def get_one(
     class_id: str = Path(...),
     user: User = Depends(get_current_user),  # noqa: B008
 ) -> dict:
-    """Get one class — owner-only."""
+    """Get one class — owner, or any class for a researcher (sprint 1.1.5)."""
     _assert_teacher(user)
-    cls = _load_owned(class_id, user)
+    cls = _load_readable(class_id, user)
     _tag_span(class_id, user.uid)
     return _serialize(cls)
 
@@ -391,10 +424,11 @@ async def list_class_recent_sessions(
     """List recent student sessions across all group codes in a class.
 
     Returns the newest sessions (by lastMessageAt) for any group code
-    that belongs to this class. Only the owning teacher can call this.
+    that belongs to this class. Owner — or a researcher reading any
+    class (sprint 1.1.5).
     """
     _assert_teacher(user)
-    cls = _load_owned(class_id, user)
+    cls = _load_readable(class_id, user)
     _tag_span(class_id, user.uid)
 
     from db.chat_sessions import list_sessions_for_group_codes

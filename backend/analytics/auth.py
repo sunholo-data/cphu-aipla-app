@@ -25,7 +25,14 @@ Compliance Check.
 
 from __future__ import annotations
 
+from typing import TYPE_CHECKING
+
+from opentelemetry import trace
+
 from db.classes import get_class, list_classes_for_owner
+
+if TYPE_CHECKING:
+    from auth.firebase_auth import User
 
 #: Byte-identical message used for every authorization failure. Tests
 #: assert this; do not vary it by branch. The HTTP layer that wraps the
@@ -84,9 +91,52 @@ def assert_caller_owns(user_uid: str, class_id: str) -> None:
         raise PermissionError(PERMISSION_ERROR_MESSAGE)
 
 
+def _tag_researcher_bypass(class_id: str) -> None:
+    """Record on the current OTel span that a researcher read a class they
+    do not own (sprint 1.1.5 audit requirement). Safe no-op when no span
+    is recording."""
+    span = trace.get_current_span()
+    if not span.is_recording():
+        return
+    span.set_attribute("auth.researcher_bypass", True)
+    span.set_attribute("class_id", class_id)
+
+
+def assert_can_read_class(user: User, class_id: str) -> None:
+    """Raise :class:`PermissionError` unless ``user`` may READ ``class_id``.
+
+    Two admit paths (sprint 1.1.5 researcher-role):
+
+    - The caller owns the class (normal teacher path).
+    - The caller carries the ``role:researcher`` claim
+      (``user.is_researcher``) — cross-class read bypass. On this path the
+      current OTel span is tagged ``auth.researcher_bypass=true`` so we can
+      answer "who looked at what".
+
+    Enumeration-resistant: a non-owner non-researcher gets the same
+    byte-identical :data:`PERMISSION_ERROR_MESSAGE` whether the class is
+    missing or simply owned by someone else (mirrors
+    :func:`assert_caller_owns`). Researchers likewise get the generic
+    error for a class that does not exist — the bypass is read-all-real,
+    not read-into-nothing.
+
+    This is the helper every researcher-bypass-eligible READ endpoint
+    should call. Write/mint/delete stay owner-only via
+    :func:`assert_caller_owns`.
+    """
+    cls = get_class(class_id)
+    if cls is not None and cls.owner_uid == user.uid:
+        return  # owner — normal path, no bypass tag
+    if getattr(user, "is_researcher", False) and cls is not None:
+        _tag_researcher_bypass(class_id)
+        return
+    raise PermissionError(PERMISSION_ERROR_MESSAGE)
+
+
 __all__ = [
     "PERMISSION_ERROR_MESSAGE",
     "assert_caller_owns",
+    "assert_can_read_class",
     "resolve_caller_class_ids",
     "resolve_caller_group_codes",
 ]

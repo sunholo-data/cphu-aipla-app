@@ -1,7 +1,21 @@
 # Researcher role — new permission tier above teacher
 
 **Status:** Planned (P1)
-**Last Updated:** 2026-06-03
+**Last Updated:** 2026-06-13
+
+> ## Implementation reconciliation (2026-06-13) — grounded against current code
+>
+> The design below is accurate in intent; these are the corrected file
+> locations / mechanisms after reading the shipped code (the original guesses
+> in §Files predate later sprints):
+>
+> - **Claim surfacing** lives in [`backend/auth/firebase_auth.py`](../../../../backend/auth/firebase_auth.py): add `is_researcher: bool` to the frozen `User` model and read `decoded.get("role") == "researcher"` in `_user_from_decoded_token`. (There is no separate `firebase_token.py`.) LOCAL_MODE stub (`backend/auth/local_mode_stub.py`) gains an env-gated researcher flag for dev.
+> - **`assert_can_read_class`** belongs alongside the existing `assert_caller_owns` in [`backend/analytics/auth.py`](../../../../backend/analytics/auth.py) — NOT `backend/auth/permissions.py` (that file is tool-class permissions, unrelated). It admits researchers and tags the OTel span `auth.researcher_bypass=true`.
+> - **`grant-researcher` / `revoke-researcher`** are **admin endpoints** on the existing SA-allowlisted [`backend/admin/routes.py`](../../../../backend/admin/routes.py) (gated by `_assert_caller_is_service_account` + `ADMIN_SEED_ALLOWED_SAS`), calling `firebase_admin.auth.set_custom_user_claims` with a **merge** of existing claims. The CLI `aiplatform users grant-researcher` wraps these over the existing SA-token path — the CLI does not call firebase-admin directly.
+> - **Class read routes** are in [`backend/protocols/classes_routes.py`](../../../../backend/protocols/classes_routes.py); `list_classes` gains a `scope=all` param (researcher-only), read paths swap `_load_owned` → a researcher-admitting `_load_readable`. Write/mint/delete stay owner-only. Needs a new `list_all_classes()` in `backend/db/classes.py`.
+> - **Frontend** teacher surface uses `useTeacherAuth` (not the app `AuthContext`); add a `useIsResearcher()` reading `getIdTokenResult().claims.role` and a Research-view toggle that threads `?scope=all` into the class-list fetch.
+>
+> Sprint plan: [implemented/researcher-role-sprint.md](implemented/researcher-role-sprint.md).
 **Priority:** P1 — JB, AR, M need cross-class, cross-teacher access to all sessions and raw BigQuery. Currently any teacher view filters on class ownership; researcher view bypasses that filter
 **Estimated:** ~1d
 **Scope:** Firebase Auth (custom claim); backend endpoint guards; CLI flag; teacher UI "Research view" toggle

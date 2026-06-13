@@ -32,12 +32,12 @@ def _local_firestore(monkeypatch):
     AnonymousGroupAuth.reset_for_tests()
 
 
-def _make_app(*, uid: str = TEACHER_UID, is_teacher: bool = True) -> FastAPI:
+def _make_app(*, uid: str = TEACHER_UID, is_teacher: bool = True, is_researcher: bool = False) -> FastAPI:
     app = FastAPI()
     app.include_router(router)
 
     async def _override(request: Request) -> User:
-        u = User(uid=uid, email=f"{uid}@example.test", is_teacher=is_teacher)
+        u = User(uid=uid, email=f"{uid}@example.test", is_teacher=is_teacher, is_researcher=is_researcher)
         request.state.access = build_access_context(u)
         return u
 
@@ -58,6 +58,11 @@ def student_client():
 @pytest.fixture()
 def other_teacher_client():
     return TestClient(_make_app(uid=OTHER_TEACHER_UID))
+
+
+@pytest.fixture()
+def researcher_client():
+    return TestClient(_make_app(uid="researcher-rae", is_researcher=True))
 
 
 # ---------------------------------------------------------------------------
@@ -412,4 +417,53 @@ class TestResetGroupSession:
         cid = client.post("/api/classes", json={"name": "C"}).json()["classId"]
 
         resp = client.post(f"/api/classes/{cid}/groups/XXXX-XXXX/reset-session")
+        assert resp.status_code == 404
+
+
+# ---------------------------------------------------------------------------
+# Researcher role — cross-class read bypass (sprint 1.1.5)
+# ---------------------------------------------------------------------------
+
+
+class TestResearcherBypass:
+    def test_scope_all_lists_every_teachers_classes_for_researcher(
+        self, client, other_teacher_client, researcher_client
+    ):
+        client.post("/api/classes", json={"name": "Alice 1"})
+        other_teacher_client.post("/api/classes", json={"name": "Bob 1"})
+
+        resp = researcher_client.get("/api/classes", params={"scope": "all"})
+        assert resp.status_code == 200, resp.text
+        body = resp.json()
+        names = {c["name"] for c in body["classes"]}
+        assert {"Alice 1", "Bob 1"} <= names
+        assert body["scope"] == "all"
+
+    def test_scope_all_rejected_for_non_researcher(self, client):
+        """URL-hacking scope=all without the claim is a hard 403, not a fallback."""
+        resp = client.get("/api/classes", params={"scope": "all"})
+        assert resp.status_code == 403
+
+    def test_default_scope_still_own_only_for_researcher(self, client, researcher_client):
+        client.post("/api/classes", json={"name": "Alice only"})
+        resp = researcher_client.get("/api/classes")
+        assert resp.status_code == 200
+        # researcher owns no classes; default scope returns just their own (none).
+        assert resp.json()["classes"] == []
+
+    def test_researcher_can_get_other_teachers_class(self, other_teacher_client, researcher_client):
+        cid = other_teacher_client.post("/api/classes", json={"name": "Bob's"}).json()["classId"]
+        resp = researcher_client.get(f"/api/classes/{cid}")
+        assert resp.status_code == 200
+        assert resp.json()["name"] == "Bob's"
+
+    def test_non_researcher_still_404_on_other_teachers_class(self, client, other_teacher_client):
+        cid = other_teacher_client.post("/api/classes", json={"name": "Bob's"}).json()["classId"]
+        resp = client.get(f"/api/classes/{cid}")
+        assert resp.status_code == 404
+
+    def test_researcher_cannot_delete_other_teachers_class(self, other_teacher_client, researcher_client):
+        """Bypass is READ-only; write/delete stay owner-only."""
+        cid = other_teacher_client.post("/api/classes", json={"name": "Bob's"}).json()["classId"]
+        resp = researcher_client.delete(f"/api/classes/{cid}")
         assert resp.status_code == 404

@@ -20,6 +20,7 @@ See ``docs/design/v6.1.0/local-mode-and-workshop-readiness.md`` §313
 from __future__ import annotations
 
 import logging
+import os
 
 from fastapi import HTTPException, Request
 
@@ -44,13 +45,19 @@ def build_workshop_user() -> User:
     teacher routes added in 1.A teacher-permission-model without
     branching on env. The workshop user has been the de-facto teacher
     in dev since 1.G-Ph2.
+
+    Set `LOCAL_MODE_RESEARCHER=1` to also mark the workshop user as a
+    researcher (sprint 1.1.5) — lets a dev exercise the cross-class
+    Research view without a real Firebase custom claim.
     """
+    is_researcher = os.environ.get("LOCAL_MODE_RESEARCHER") == "1"
     return User(
         uid=WORKSHOP_USER_UID,
         email=WORKSHOP_USER_EMAIL,
         domain=WORKSHOP_USER_DOMAIN,
         group_tags=WORKSHOP_USER_GROUP_TAGS,
         is_teacher=True,
+        is_researcher=is_researcher,
     )
 
 

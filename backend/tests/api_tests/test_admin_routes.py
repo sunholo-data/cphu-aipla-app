@@ -142,3 +142,71 @@ def test_prune_commits_when_dry_run_false(client, allow_env):
 def test_prune_missing_bearer_returns_403(client, allow_env):
     resp = client.post("/api/admin/prune-platform-skills", json={})
     assert resp.status_code == 403
+
+
+# ---------------------------------------------------------------------------
+# grant/revoke-researcher (sprint 1.1.5)
+# ---------------------------------------------------------------------------
+
+_ALLOWED_SA = "cloudbuild-sa@multivac-deploy-aitana.iam.gserviceaccount.com"
+
+
+def test_grant_researcher_requires_allowlisted_sa(client, allow_env):
+    resp = client.post("/api/admin/grant-researcher", json={"uid": "u1"})
+    assert resp.status_code == 403
+
+
+def test_grant_researcher_merges_claim_preserving_others(client, allow_env):
+    fake_user = type("U", (), {"custom_claims": {"groupTags": ["beta"]}})()
+    with (
+        patch("admin.auth.id_token.verify_oauth2_token") as mock_verify,
+        patch("admin.routes.fb_auth.get_user", return_value=fake_user) as mock_get,
+        patch("admin.routes.fb_auth.set_custom_user_claims") as mock_set,
+    ):
+        mock_verify.return_value = {"email": _ALLOWED_SA, "email_verified": True}
+        resp = client.post(
+            "/api/admin/grant-researcher",
+            json={"uid": "u1"},
+            headers={"Authorization": "Bearer stub-id-token"},
+        )
+    assert resp.status_code == 200, resp.text
+    mock_get.assert_called_once_with("u1")
+    # groupTags preserved; role:researcher merged in.
+    mock_set.assert_called_once_with("u1", {"groupTags": ["beta"], "role": "researcher"})
+    assert resp.json()["role"] == "researcher"
+
+
+def test_revoke_researcher_strips_only_role(client, allow_env):
+    fake_user = type("U", (), {"custom_claims": {"groupTags": ["beta"], "role": "researcher"}})()
+    with (
+        patch("admin.auth.id_token.verify_oauth2_token") as mock_verify,
+        patch("admin.routes.fb_auth.get_user", return_value=fake_user),
+        patch("admin.routes.fb_auth.set_custom_user_claims") as mock_set,
+    ):
+        mock_verify.return_value = {"email": _ALLOWED_SA, "email_verified": True}
+        resp = client.post(
+            "/api/admin/revoke-researcher",
+            json={"uid": "u1"},
+            headers={"Authorization": "Bearer stub-id-token"},
+        )
+    assert resp.status_code == 200, resp.text
+    # role removed, groupTags preserved.
+    mock_set.assert_called_once_with("u1", {"groupTags": ["beta"]})
+    assert resp.json()["role"] is None
+
+
+def test_revoke_researcher_is_noop_for_non_researcher(client, allow_env):
+    fake_user = type("U", (), {"custom_claims": {"groupTags": ["beta"]}})()
+    with (
+        patch("admin.auth.id_token.verify_oauth2_token") as mock_verify,
+        patch("admin.routes.fb_auth.get_user", return_value=fake_user),
+        patch("admin.routes.fb_auth.set_custom_user_claims") as mock_set,
+    ):
+        mock_verify.return_value = {"email": _ALLOWED_SA, "email_verified": True}
+        resp = client.post(
+            "/api/admin/revoke-researcher",
+            json={"uid": "u1"},
+            headers={"Authorization": "Bearer stub-id-token"},
+        )
+    assert resp.status_code == 200
+    mock_set.assert_called_once_with("u1", {"groupTags": ["beta"]})

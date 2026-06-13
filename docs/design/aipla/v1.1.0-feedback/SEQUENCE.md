@@ -64,7 +64,7 @@ Verified by code inspection on 2026-06-08 (not by doc placement, which lags). Le
 | 1.1.2 | proactive-sim-reactive-tutor | **SHIPPED** | `/proactive-event-check` gate + FE sentinel, M1–M10 (2026-06-03) |
 | 1.1.3 | student-consent-prompt | **OPEN** | no `consent_given` in code. Gated on JB wording |
 | 1.1.4 | session-report summary-primary | **OPEN** | report page exists (`teacher/reports/groups/[groupId]`); layout-flip + summary-prompt rewrite not done |
-| 1.1.5 | researcher-role | **OPEN** | no Firebase claim, no `--all-classes` flag, no Research-view toggle |
+| 1.1.5 | researcher-role | **SHIPPED** | 2026-06-13 — `User.is_researcher` from the `role:researcher` Firebase claim; `assert_can_read_class` (researcher bypass + OTel `auth.researcher_bypass`); `GET /api/classes?scope=all` (researcher-only, 403 otherwise) + read-route bypass (`_load_readable`, write/delete stay owner-only); admin `grant-researcher`/`revoke-researcher` endpoints (claim-merge) + `aiplatform users` CLI; FE `useIsResearcher` + Research-view toggle on the class list. Sprint [implemented/researcher-role-sprint.md](implemented/researcher-role-sprint.md). `logs --all-classes` descoped (ADR-005: researchers query BQ directly via `logs schema`). Backend 1909 + FE 1039 + CLI 101 tests green |
 | 1.1.6 | group-code-ttl rename + archival | **SHIPPED** | `DEFAULT_GROUP_CODE_TTL_DAYS` + 410-on-expiry (QUICK-WINS-V11) |
 | 1.1.7 | student-multimodal-upload | **SHIPPED** | 2026-06-11. Native AG-UI multimodal (images ride `UserMessage.content` as `ImageInputContent` → ADK Parts, retained in session history; docs → docparse). Composer paperclip+camera, on-device person guardrail (1.1.21), client resize, units-loop preamble. M1→M3 incl. the native-rewire that deleted the first custom-injector pass. Sprint `MMU-1`. Commits incl. `6fbbe92`→`1fdb3a0` |
 | 1.1.8 | exit-ticket | **OPEN** | gated on JB/AR question set |
@@ -88,7 +88,7 @@ Verified by code inspection on 2026-06-08 (not by doc placement, which lags). Le
 | 1.1.26 | teacher-ui-consolidation | **SHIPPED (P1–P5)** | 2026-06-09 — full foundation: P1 primitives (`components/teacher/ui/`), P2 by-breakpoint nav (`TeacherNav`), P3 class-detail onto primitives + "Class settings", P4 real Activities library, P5 Insights unification (`InsightsTabs`). Commits `6bb33af`→`d4692ee`; 958 FE tests. **Builder Essential/Advanced section-model intentionally deferred** to when its config features (1.1.20/1.1.23) are built into it |
 | 1.1.27 | lesson-author-surface | **OPEN** | design-only, **re-scoped 2026-06-12** to two net-new pieces: resolved-prompt preview (source-attributed, read-only) + trial session (`is_trial`, analytics-excluded). Dropped knobs/curriculum/chat-skill → 1.1.20/1.1.25/1.1.19. ~2d. Gated on JB sign-off on what the preview reveals |
 
-**Tally (incl. 9 June batch + 2026-06-11/12 sessions): 16 SHIPPED · 12 OPEN.** (1.1.26+1.1.20 2026-06-09/10; 1.1.12 2026-06-10/11; 1.1.7+1.1.21+1.1.23 shipped 2026-06-11; 1.1.25 M1 2026-06-11, M2–M5 + full sprint complete 2026-06-12. 1.1.27 added/re-scoped 2026-06-12.)
+**Tally (incl. 9 June batch + 2026-06-11/12/13 sessions): 17 SHIPPED · 11 OPEN.** (1.1.26+1.1.20 2026-06-09/10; 1.1.12 2026-06-10/11; 1.1.7+1.1.21+1.1.23 shipped 2026-06-11; 1.1.25 M1 2026-06-11, M2–M5 + full sprint complete 2026-06-12. 1.1.27 added/re-scoped 2026-06-12. 1.1.5 researcher-role shipped 2026-06-13.)
 
 ### Beyond the numbered roadmap — also shipped 2026-06-11
 
@@ -133,9 +133,9 @@ These landed this session but aren't numbered rows (they extend shipped work):
 
 - **1.1.26 teacher-UI-consolidation P1 (design-system primitives)** — frontend-only, ~1.5d. **DECIDED FIRST (M, 2026-06-09): a hard prerequisite, not soft** — "in place first before we add more complexity to it." P1 + the class-detail (P3) + builder (P4) refactors land **before** the config-heavy rows (personas 1.1.20, voice 1.1.23, TTL 1.1.10, budget 1.1.9, quiz/materials 1.1.19 M2–M8) so each new config slots into the pattern, not the old mess (no refactor-twice).
 - **1.1.19 teacher-activity-authoring M0** — no-workbench concept activity, end-to-end (~1.5d, lands pre-freeze; the 3-June headline ask). **M0+M1 already shipped (commits 3f65f97 → baeaae5).**
+- ~~1.1.5 researcher-role~~ — ✅ **SHIPPED 2026-06-13** (unblocks 1.1.9 researcher/cohort views).
 - 1.1.4 session-report summary-primary (~1d)
 - 1.1.9 cost-dashboard (~1d)
-- 1.1.5 researcher-role (~1d)
 - 1.1.10 teacher-choice-ttl (~0.5–1d)
 - 1.1.12 voice-personas — finish Persona model + cards (~2d remaining)
 - **1.1.22 end-of-class-notes-summary** (~1d) — *but sequence after 1.1.7 lands* (composes its upload path)

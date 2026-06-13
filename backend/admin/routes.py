@@ -11,6 +11,7 @@ import logging
 from typing import Any
 
 from fastapi import APIRouter, HTTPException, Request
+from firebase_admin import auth as fb_auth
 from pydantic import BaseModel
 
 from admin import platform_seed
@@ -84,6 +85,81 @@ def reset_skill_access(body: ResetSkillAccessRequest, request: Request) -> dict[
         "before": before,
         "after": {"type": "public"},
     }
+
+
+class ResearcherClaimRequest(BaseModel):
+    """Body for grant/revoke-researcher (sprint 1.1.5).
+
+    ``uid`` is the Firebase Auth UID of the target user. The claim takes
+    effect on that user's NEXT ID-token refresh (Firebase caches the
+    current token until it expires, ~1h).
+    """
+
+    uid: str
+
+
+def _set_researcher_claim(uid: str, *, granted: bool) -> dict:
+    """Merge (grant) or strip (revoke) the ``role:researcher`` custom
+    claim WITHOUT clobbering other claims (e.g. ``groupTags``).
+
+    set_custom_user_claims OVERWRITES the entire claim set, so we read
+    the existing claims first and merge. Returns the resulting claim dict.
+    """
+    existing = fb_auth.get_user(uid).custom_claims or {}
+    new_claims = dict(existing)
+    if granted:
+        new_claims["role"] = "researcher"
+    elif new_claims.get("role") == "researcher":
+        # Only strip the key we own; leave any future non-researcher role.
+        del new_claims["role"]
+    fb_auth.set_custom_user_claims(uid, new_claims or None)
+    return new_claims
+
+
+@router.post(
+    "/grant-researcher",
+    responses={
+        403: {"description": "Caller is not in ADMIN_SEED_ALLOWED_SAS"},
+        404: {"description": "No Firebase user with that uid"},
+    },
+)
+def grant_researcher(body: ResearcherClaimRequest, request: Request) -> dict[str, Any]:
+    """Grant the ``role:researcher`` custom claim to a Firebase user.
+
+    Admin-only (SA allowlist). The claim layers on top of teacher
+    identity and grants cross-class READ access (see
+    ``analytics.auth.assert_can_read_class``). Idempotent — granting an
+    existing researcher re-asserts the claim and preserves other claims.
+    """
+    caller_email = _assert_caller_is_service_account(request)
+    try:
+        claims = _set_researcher_claim(body.uid, granted=True)
+    except fb_auth.UserNotFoundError as exc:
+        raise HTTPException(status_code=404, detail=f"No Firebase user with uid {body.uid}") from exc
+    logger.info("admin.grant_researcher: uid=%s by %s", body.uid, caller_email)
+    return {"uid": body.uid, "role": "researcher", "claims": claims}
+
+
+@router.post(
+    "/revoke-researcher",
+    responses={
+        403: {"description": "Caller is not in ADMIN_SEED_ALLOWED_SAS"},
+        404: {"description": "No Firebase user with that uid"},
+    },
+)
+def revoke_researcher(body: ResearcherClaimRequest, request: Request) -> dict[str, Any]:
+    """Remove the ``role:researcher`` custom claim from a Firebase user.
+
+    Admin-only. Idempotent — revoking a non-researcher is a no-op that
+    preserves other claims. Takes effect on the user's next token refresh.
+    """
+    caller_email = _assert_caller_is_service_account(request)
+    try:
+        claims = _set_researcher_claim(body.uid, granted=False)
+    except fb_auth.UserNotFoundError as exc:
+        raise HTTPException(status_code=404, detail=f"No Firebase user with uid {body.uid}") from exc
+    logger.info("admin.revoke_researcher: uid=%s by %s", body.uid, caller_email)
+    return {"uid": body.uid, "role": None, "claims": claims}
 
 
 class PrunePlatformSkillsRequest(BaseModel):

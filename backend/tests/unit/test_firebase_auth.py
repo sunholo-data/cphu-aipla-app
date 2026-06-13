@@ -188,3 +188,33 @@ def test_group_tags_is_frozen() -> None:
     user = _user_from_decoded_token({"uid": "u", "email": "m@a.com", "groupTags": ["x"]})
     with pytest.raises(ValidationError):
         user.group_tags = frozenset({"mutated"})  # type: ignore[misc]
+
+
+# ---------------------------------------------------------------------------
+# researcher role custom claim (sprint 1.1.5)
+# ---------------------------------------------------------------------------
+
+
+def test_is_researcher_false_when_no_role_claim() -> None:
+    user = _user_from_decoded_token({"uid": "u", "email": "m@a.com"})
+    assert user.is_researcher is False
+    # researcher layers on top of teacher — teacher stays true regardless.
+    assert user.is_teacher is True
+
+
+def test_is_researcher_true_when_role_researcher() -> None:
+    user = _user_from_decoded_token({"uid": "u", "email": "m@a.com", "role": "researcher"})
+    assert user.is_researcher is True
+    assert user.is_teacher is True
+
+
+def test_is_researcher_false_for_other_role_values() -> None:
+    user = _user_from_decoded_token({"uid": "u", "email": "m@a.com", "role": "teacher"})
+    assert user.is_researcher is False
+
+
+async def test_is_researcher_surfaced_end_to_end() -> None:
+    with patch("auth.firebase_auth.fb_auth.verify_id_token") as mock_verify:
+        mock_verify.return_value = _decoded(role="researcher")
+        user = await get_current_user(_make_request({"Authorization": "Bearer good.jwt"}))
+    assert user.is_researcher is True

@@ -25,6 +25,7 @@ from aiplatform.commands.sessions import sessions
 from aiplatform.commands.sim import sim
 from aiplatform.commands.skill import skill
 from aiplatform.commands.smoke import smoke
+from aiplatform.commands.users import users
 
 
 @click.group()
@@ -58,6 +59,7 @@ main.add_command(analytics)
 main.add_command(insights)
 main.add_command(activity)
 main.add_command(curriculum)
+main.add_command(users)
 
 
 if __name__ == "__main__":

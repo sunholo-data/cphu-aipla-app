@@ -59,6 +59,14 @@ class User(BaseModel):
     can only join via codes). v2 may add non-teacher Firebase users
     (UCPH SSO students) — at which point this stops being a synonym
     for `auth_mode == "firebase"` and a real claim/role check is added.
+
+    `is_researcher` is the third permission tier (sprint 1.1.5
+    researcher-role). It comes from the Firebase custom claim
+    `{"role": "researcher"}`, set per-identity by a platform admin via
+    `POST /api/admin/grant-researcher`. It LAYERS ON TOP of teacher
+    identity (a researcher is also `is_teacher=True`) and grants
+    cross-class read access via `assert_can_read_class`. The claim is in
+    a signed JWT so the client cannot forge it; absent claim → False.
     """
 
     model_config = ConfigDict(frozen=True)
@@ -70,6 +78,7 @@ class User(BaseModel):
     auth_mode: str = "firebase"
     group_id: str = ""
     is_teacher: bool = False
+    is_researcher: bool = False
 
 
 def _extract_domain(email: str) -> str:
@@ -96,12 +105,14 @@ def _user_from_decoded_token(decoded: dict[str, Any]) -> User:
     email = decoded.get("email") or ""
     raw_tags = decoded.get("groupTags") or []
     group_tags = frozenset(str(t) for t in raw_tags) | {"role:teacher"}
+    is_researcher = decoded.get("role") == "researcher"
     return User(
         uid=decoded["uid"],
         email=email,
         domain=_extract_domain(email),
         group_tags=group_tags,
         is_teacher=True,
+        is_researcher=is_researcher,
     )
 
 

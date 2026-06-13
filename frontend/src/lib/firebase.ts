@@ -2,6 +2,7 @@ import { type FirebaseApp, getApps, initializeApp } from "firebase/app";
 import {
   type Auth,
   getAuth,
+  getIdTokenResult,
   GoogleAuthProvider,
   onAuthStateChanged,
   signInWithEmailAndPassword,
@@ -128,6 +129,25 @@ export async function signOut(): Promise<void> {
   const auth = getFirebaseAuth();
   if (!auth) return;
   await fbSignOut(auth);
+}
+
+/**
+ * Whether the signed-in teacher carries the `role:researcher` custom
+ * claim (sprint 1.1.5). Researchers get the cross-class Research view.
+ *
+ * LOCAL_MODE has no real Firebase user, so it mirrors the backend's
+ * `LOCAL_MODE_RESEARCHER` switch via `NEXT_PUBLIC_LOCAL_MODE_RESEARCHER`
+ * for dev. Returns false when not configured or signed out.
+ */
+export async function getIsResearcher(): Promise<boolean> {
+  if (isLocalMode()) {
+    const raw = (process.env.NEXT_PUBLIC_LOCAL_MODE_RESEARCHER ?? "").trim().toLowerCase();
+    return raw === "1" || raw === "true" || raw === "yes" || raw === "on";
+  }
+  const auth = getFirebaseAuth();
+  if (!auth?.currentUser) return false;
+  const result = await getIdTokenResult(auth.currentUser);
+  return result.claims.role === "researcher";
 }
 
 export function getFirestoreDb(): Firestore | null {

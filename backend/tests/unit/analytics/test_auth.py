@@ -15,9 +15,11 @@ import pytest
 from analytics.auth import (
     PERMISSION_ERROR_MESSAGE,
     assert_caller_owns,
+    assert_can_read_class,
     resolve_caller_class_ids,
     resolve_caller_group_codes,
 )
+from auth.firebase_auth import User
 from db import classes as classes_db
 from db import firestore as fs_module
 from db.models.class_ import Class
@@ -129,3 +131,40 @@ class TestResolveCallerGroupCodes:
         codes = resolve_caller_group_codes(teacher)
         assert codes == {"a-b-1", "a-b-2", "c-d-3"}
         assert "x-y-99" not in codes
+
+
+def _user(uid: str, *, is_researcher: bool = False) -> User:
+    return User(uid=uid, email=f"{uid}@example.test", is_teacher=True, is_researcher=is_researcher)
+
+
+class TestAssertCanReadClass:
+    """Researcher-bypass read auth (sprint 1.1.5)."""
+
+    def test_owner_can_read_own_class(self) -> None:
+        cls = _seed_class("teacher-A")
+        assert_can_read_class(_user("teacher-A"), cls.class_id)  # no raise
+
+    def test_non_owner_non_researcher_denied(self) -> None:
+        cls = _seed_class("teacher-A")
+        with pytest.raises(PermissionError) as exc:
+            assert_can_read_class(_user("teacher-B"), cls.class_id)
+        assert str(exc.value) == PERMISSION_ERROR_MESSAGE
+
+    def test_researcher_reads_class_they_do_not_own(self) -> None:
+        cls = _seed_class("teacher-A")
+        assert_can_read_class(_user("researcher-R", is_researcher=True), cls.class_id)  # no raise
+
+    def test_missing_class_and_unowned_class_are_byte_identical(self) -> None:
+        """Enumeration resistance carries over to the read helper."""
+        cls = _seed_class("teacher-A")
+        with pytest.raises(PermissionError) as missing:
+            assert_can_read_class(_user("teacher-B"), "class-does-not-exist")
+        with pytest.raises(PermissionError) as unowned:
+            assert_can_read_class(_user("teacher-B"), cls.class_id)
+        assert str(missing.value) == str(unowned.value) == PERMISSION_ERROR_MESSAGE
+
+    def test_researcher_on_missing_class_still_denied(self) -> None:
+        """The bypass is read-all-real, not read-into-nothing."""
+        with pytest.raises(PermissionError) as exc:
+            assert_can_read_class(_user("researcher-R", is_researcher=True), "nope")
+        assert str(exc.value) == PERMISSION_ERROR_MESSAGE
