@@ -57,7 +57,6 @@ DEFAULT_TOKEN_LIFETIME_SECONDS = 8 * 3600  # 8 hours
 _CODE_ALPHABET = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789"
 _CODE_LEN_BEFORE_HYPHEN = 4
 _CODE_LEN_AFTER_HYPHEN = 4
-_UID_SUFFIX_BYTES = 16  # 128 bits — collision-proof
 
 
 # ─── Exceptions ─────────────────────────────────────────────────────────────
@@ -300,12 +299,20 @@ def _today_iso() -> str:
 
 
 def _synthesize_uid(group_id: str) -> str:
-    """Per-join synthetic uid. Shape: `anon-<group_id>-<random_hex>`."""
-    suffix = secrets.token_hex(_UID_SUFFIX_BYTES)
-    # Include group_id (hyphens stripped) so the uid is intuitively
-    # tied to its group; the random suffix guarantees uniqueness.
+    """Group-stable synthetic uid. Shape: `anon-<group_id>` (hyphens stripped).
+
+    Deterministic per group (2026-06-13): every join to the same code resolves
+    to the SAME uid, so all members share one ADK session — a single shared
+    group conversation that resumes on re-join. Previously this appended a random
+    per-join suffix, which made each join a distinct ADK user: sessions
+    fragmented across uids and the group→session pointer got clobbered, so
+    history never resumed. ADK sessions are keyed by (app, user_id, session_id),
+    so a shared conversation REQUIRES a shared uid. Consistent with ADR-001 —
+    the group, not the individual student, is the unit of (anonymous) identity;
+    chat logs are already group-ID-keyed with no per-student PII.
+    """
     cleaned = group_id.replace("-", "")
-    return f"anon-{cleaned}-{suffix}"
+    return f"anon-{cleaned}"
 
 
 def _check_group_active(record: GroupRecord) -> None:

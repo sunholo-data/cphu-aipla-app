@@ -1,7 +1,7 @@
 """Unit tests for db.group_sessions — group→session-id Firestore mapping.
 
 Covers: set, get, expiry filter, archive filter, archive + new session,
-simultaneous-write idempotency (last-writer-wins), and session_id round-trip.
+first-wins (no clobber), idempotency, and session_id round-trip.
 """
 
 from __future__ import annotations
@@ -52,10 +52,38 @@ def test_set_then_get_returns_session_id():
     assert get_active_session_for_group("group-abc") == "sess-001"
 
 
-def test_set_overwrites_existing_active_session():
+def test_set_does_not_clobber_active_session():
+    """First-wins (2026-06-13): the group runs ONE shared conversation, so a
+    second fresh session must NOT overwrite the established active one — that
+    clobber orphaned the conversation with all the history. The first session
+    stays the group's session until archived/expired."""
     from db.group_sessions import get_active_session_for_group, set_active_session_for_group
 
     set_active_session_for_group("group-abc", "sess-001")
+    set_active_session_for_group("group-abc", "sess-002")  # ignored — active exists
+    assert get_active_session_for_group("group-abc") == "sess-001"
+
+
+def test_set_same_session_is_idempotent():
+    from db.group_sessions import get_active_session_for_group, set_active_session_for_group
+
+    set_active_session_for_group("group-abc", "sess-001")
+    set_active_session_for_group("group-abc", "sess-001")  # same id — fine
+    assert get_active_session_for_group("group-abc") == "sess-001"
+
+
+def test_set_after_archive_establishes_new_session():
+    """A teacher [Reset session] archives the mapping; the next session then
+    becomes the new shared one (first-wins resets after archive)."""
+    from db.group_sessions import (
+        archive_session_for_group,
+        get_active_session_for_group,
+        set_active_session_for_group,
+    )
+
+    set_active_session_for_group("group-abc", "sess-001")
+    archive_session_for_group("group-abc")
+    assert get_active_session_for_group("group-abc") is None
     set_active_session_for_group("group-abc", "sess-002")
     assert get_active_session_for_group("group-abc") == "sess-002"
 

@@ -80,18 +80,25 @@ def set_active_session_for_group(
     *,
     ttl_days: int = 30,
 ) -> None:
-    """Upsert the active session mapping for *group_id*.
+    """Register the group's shared session — FIRST-WINS, not last-writer-wins.
 
-    Called from ``POST /api/sessions/{id}/bootstrap`` when a fresh session
-    has just been created.  Overwrites any existing (possibly archived or
-    expired) record so the mapping is always current after a bootstrap.
+    Called from ``POST /api/sessions/{id}/bootstrap``. The group runs ONE shared
+    conversation (2026-06-13): the first session established for the group is THE
+    session, and every later join resumes it rather than starting a new one.
 
-    Args:
-        group_id: The anonymous group code (Firestore document id).
-        session_id: The ADK session id to associate.
-        ttl_days: Lifetime of this record; defaults to 30 to match ADR-001
-                  group-code TTL.
+    So this does NOT overwrite an existing ACTIVE mapping (non-archived,
+    non-expired) — that was the clobber bug: a stray fresh session (e.g. from a
+    pre-resume race) would overwrite the pointer and orphan the conversation with
+    all the history. We only (re)write when there's no active mapping yet, i.e.
+    first session, or after a teacher [Reset session] (archived) / TTL expiry.
+
+    Idempotent: re-registering the SAME session id refreshes the record.
     """
+    existing = get_active_session_for_group(group_id)
+    if existing is not None and existing != session_id:
+        # An active shared session already exists — don't clobber it.
+        return
+
     now = _utcnow()
     expires_at = now + timedelta(days=ttl_days)
     set_document(

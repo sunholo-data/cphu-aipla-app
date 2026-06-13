@@ -246,17 +246,25 @@ def test_verify_returns_payload_for_valid_token():
 
 
 def test_synthetic_uid_does_not_leak_pii():
-    """The uid is `anon-<group_hash>-<random>`. No email-like, no
-    obvious format. Just structural inspection here — the actual
-    no-PII contract on the User object is tested in the User shape
-    test below."""
+    """The uid is `anon-<group_hash>`, deterministic per group (no random
+    suffix). No email-like, no PII. The no-PII contract on the User object is
+    tested below."""
     rec = create_group(title="x", skill_ids=["s"], creator_uid="u", ttl_days=7)
     result = join_group(rec.group_id, client_ip="1.1.1.1")
     assert result.uid.startswith("anon-")
     assert "@" not in result.uid
-    # 32 chars of random suffix.
-    suffix = result.uid.rsplit("-", 1)[-1]
-    assert len(suffix) >= 16
+
+
+def test_synthetic_uid_is_group_stable():
+    """2026-06-13: every join to the same code yields the SAME uid, so all
+    members share one ADK session (a single resumable group conversation).
+    ADK sessions are keyed by (app, user_id, session_id) — a shared conversation
+    requires a shared uid."""
+    rec = create_group(title="x", skill_ids=["s"], creator_uid="u", ttl_days=7)
+    a = join_group(rec.group_id, client_ip="1.1.1.1")
+    b = join_group(rec.group_id, client_ip="2.2.2.2")
+    assert a.uid == b.uid
+    assert a.uid == f"anon-{rec.group_id.replace('-', '')}"
 
 
 def test_user_from_group_token_has_no_pii_fields():
