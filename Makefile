@@ -121,7 +121,7 @@ smoke-teacher-cli:
 # overwrites any prior install (e.g. the legacy `aitana` / `aitana-cli`
 # binary). After this completes, `aiplatform --help` works from anywhere.
 cli-install:
-	@uv tool install --force ./cli
+	@uv tool install --force --no-cache ./cli  # --no-cache: --force alone reuses a stale build, so new commands are missing
 	@echo "Installed: $$(which aiplatform 2>/dev/null || echo '(not on PATH — check ~/.local/bin)')"
 
 # Remove any prior install of this CLI under any historical name.
