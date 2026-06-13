@@ -6,6 +6,7 @@ import { Loader2, Mic, Square } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { fetchWithAuth } from "@/lib/apiClient";
 import { AudioRecorder, isAudioCaptureSupported } from "@/lib/audioCapture";
+import { RecordingLevelMeter } from "./RecordingLevelMeter";
 
 type Mode = "idle" | "dictating";
 
@@ -58,10 +59,10 @@ export function VoiceComposerControls({
   const finishDictation = useCallback(async () => {
     setBusy(true);
     try {
-      const { blob, mimeType, durationMs } = await (dictRef.current ??= new AudioRecorder()).stop();
+      const { blob, durationMs } = await (dictRef.current ??= new AudioRecorder()).stop();
       setMode("idle");
       const fd = new FormData();
-      fd.append("audio", blob, `dictation.${mimeType.includes("mp4") ? "m4a" : "webm"}`);
+      fd.append("audio", blob, "dictation.wav");
       fd.append("lang", lang);
       fd.append("skillId", skillId);
       fd.append("durationMs", String(durationMs));
@@ -85,16 +86,19 @@ export function VoiceComposerControls({
 
   if (mode === "dictating") {
     return (
-      <button
-        type="button"
-        onClick={() => void finishDictation()}
-        disabled={busy}
-        aria-label="Stop dictation"
-        title="Stop dictation"
-        className={cn(iconBtn, "border-red-400 text-red-600")}
-      >
-        {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <Square className="h-4 w-4 animate-pulse" />}
-      </button>
+      <div className="inline-flex items-center gap-1.5 text-red-600">
+        {!busy && <RecordingLevelMeter getLevel={() => dictRef.current?.getLevel() ?? 0} />}
+        <button
+          type="button"
+          onClick={() => void finishDictation()}
+          disabled={busy}
+          aria-label="Stop dictation"
+          title="Stop dictation"
+          className={cn(iconBtn, "border-red-400 text-red-600")}
+        >
+          {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <Square className="h-4 w-4" />}
+        </button>
+      </div>
     );
   }
 

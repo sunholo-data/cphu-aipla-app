@@ -17,7 +17,9 @@ is a *separate* route (`/api/voice/recording`), not this provider.
 from __future__ import annotations
 
 import asyncio
+import io
 import logging
+import wave
 
 from google.cloud import speech
 
@@ -65,6 +67,23 @@ def _encoding_for(mime: str):
     return enc.ENCODING_UNSPECIFIED
 
 
+def _wav_pcm(audio: bytes) -> tuple[bytes, int, int] | None:
+    """If ``audio`` is a RIFF/WAV (the capture path now sends 16 kHz LINEAR16
+    WAV — see frontend audioCapture.ts), return (headerless PCM frames, sample
+    rate, channels). The browser captures at a known supported rate, so we hand
+    Cloud Speech raw LINEAR16 + the real rate rather than letting it sniff a
+    container (which is how the old WEBM_OPUS path tripped on 44.1 kHz). Returns
+    None when the bytes aren't WAV, so non-WAV inputs fall back to MIME sniffing."""
+    if audio[:4] != b"RIFF" or audio[8:12] != b"WAVE":
+        return None
+    try:
+        with wave.open(io.BytesIO(audio), "rb") as wf:
+            return wf.readframes(wf.getnframes()), wf.getframerate(), wf.getnchannels()
+    except (wave.Error, EOFError) as exc:
+        logger.warning("WAV parse failed, falling back to container sniff: %s", exc)
+        return None
+
+
 class GCPSTTProvider:
     """Cloud Speech-to-Text provider. One instance per recognition model.
 
@@ -93,13 +112,28 @@ class GCPSTTProvider:
         if len(audio) > _MAX_AUDIO_BYTES:
             raise ValueError(f"audio too large: {len(audio)} bytes > {_MAX_AUDIO_BYTES}")
         lang_full = _normalize_lang(lang)
-        config = speech.RecognitionConfig(
-            encoding=_encoding_for(mime),
-            language_code=lang_full,
-            model=self.model,
-            enable_automatic_punctuation=True,
-        )
-        rec_audio = speech.RecognitionAudio(content=audio)
+        enc = speech.RecognitionConfig.AudioEncoding
+
+        wav = _wav_pcm(audio)
+        if wav is not None:
+            pcm, rate, channels = wav
+            config = speech.RecognitionConfig(
+                encoding=enc.LINEAR16,
+                sample_rate_hertz=rate,
+                audio_channel_count=max(1, channels),
+                language_code=lang_full,
+                model=self.model,
+                enable_automatic_punctuation=True,
+            )
+            rec_audio = speech.RecognitionAudio(content=pcm)
+        else:
+            config = speech.RecognitionConfig(
+                encoding=_encoding_for(mime),
+                language_code=lang_full,
+                model=self.model,
+                enable_automatic_punctuation=True,
+            )
+            rec_audio = speech.RecognitionAudio(content=audio)
 
         def _call() -> str:
             resp = self._get_client().recognize(config=config, audio=rec_audio)

@@ -1,161 +1,179 @@
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-import { AudioRecorder, SegmentedRecorder, STT_AUDIO_CONSTRAINTS, pickAudioMimeType } from "../audioCapture";
+import {
+  AudioRecorder,
+  SegmentedRecorder,
+  encodeWav,
+  isAudioCaptureSupported,
+  CAPTURE_RATE,
+} from "../audioCapture";
 
-describe("pickAudioMimeType", () => {
-  it("returns the first supported preferred mime", () => {
-    const supported = (m: string) => m === "audio/webm";
-    expect(pickAudioMimeType(supported)).toBe("audio/webm");
+// ── encodeWav: the core correctness — STT only works if the WAV header is right.
+describe("encodeWav", () => {
+  function pcm(samples: number[]): ArrayBuffer {
+    return new Int16Array(samples).buffer;
+  }
+
+  it("writes a valid RIFF/WAVE header with the given mono 16-bit rate", async () => {
+    const blob = encodeWav([pcm([0, 1, -1, 32767, -32768])], 16000);
+    expect(blob.type).toBe("audio/wav");
+    const view = new DataView(await blob.arrayBuffer());
+    const str = (off: number, n: number) =>
+      String.fromCharCode(...new Uint8Array(view.buffer, off, n));
+    expect(str(0, 4)).toBe("RIFF");
+    expect(str(8, 4)).toBe("WAVE");
+    expect(str(12, 4)).toBe("fmt ");
+    expect(view.getUint16(20, true)).toBe(1); // PCM
+    expect(view.getUint16(22, true)).toBe(1); // mono
+    expect(view.getUint32(24, true)).toBe(16000); // sample rate
+    expect(view.getUint16(34, true)).toBe(16); // bits/sample
+    expect(str(36, 4)).toBe("data");
+    expect(view.getUint32(40, true)).toBe(10); // 5 samples * 2 bytes
   });
 
-  it("prefers webm/opus when supported", () => {
-    expect(pickAudioMimeType(() => true)).toBe("audio/webm;codecs=opus");
-  });
-
-  it("returns empty string when nothing is supported", () => {
-    expect(pickAudioMimeType(() => false)).toBe("");
-  });
-
-  it("treats a throwing isTypeSupported as unsupported", () => {
-    expect(
-      pickAudioMimeType(() => {
-        throw new Error("boom");
-      }),
-    ).toBe("");
+  it("concatenates multiple chunks in order", async () => {
+    const blob = encodeWav([pcm([1, 2]), pcm([3, 4])], 16000);
+    const buf = await blob.arrayBuffer();
+    expect(buf.byteLength).toBe(44 + 8);
+    const data = new Int16Array(buf, 44, 4);
+    expect(Array.from(data)).toEqual([1, 2, 3, 4]);
   });
 });
 
-// Minimal fake MediaRecorder driving the start/stop lifecycle.
-class FakeMediaRecorder {
-  ondataavailable: ((e: { data: Blob }) => void) | null = null;
-  onstop: (() => void) | null = null;
-  mimeType: string;
-  started = false;
-  constructor(_stream: unknown, opts?: { mimeType?: string }) {
-    this.mimeType = opts?.mimeType ?? "audio/webm";
+// ── Fake audio environment so the worklet-based recorders are unit-testable
+//    under jsdom (which has no real AudioContext/AudioWorklet).
+let lastNode: FakeWorkletNode | null = null;
+
+class FakePort {
+  onmessage: ((e: { data: unknown }) => void) | null = null;
+  postMessage = vi.fn();
+}
+class FakeWorkletNode {
+  port = new FakePort();
+  connect = vi.fn();
+  disconnect = vi.fn();
+  constructor() {
+    lastNode = this;
   }
-  start() {
-    this.started = true;
-  }
-  stop() {
-    // emit one chunk then fire onstop (sync, like a flushed recorder)
-    this.ondataavailable?.({ data: new Blob(["audio-bytes"], { type: this.mimeType }) });
-    this.onstop?.();
+  /** test helper: simulate the worklet emitting a 16-bit PCM chunk */
+  emit(samples = 160) {
+    this.port.onmessage?.({ data: { type: "pcm-chunk", pcmData: new Int16Array(samples).buffer } });
   }
 }
+class FakeAnalyser {
+  fftSize = 256;
+  frequencyBinCount = 128;
+  getByteTimeDomainData = (b: Uint8Array) => b.fill(128);
+  connect = vi.fn();
+  disconnect = vi.fn();
+}
+class FakeAudioContext {
+  state = "running";
+  audioWorklet = { addModule: vi.fn().mockResolvedValue(undefined) };
+  resume = vi.fn().mockResolvedValue(undefined);
+  close = vi.fn().mockResolvedValue(undefined);
+  createMediaStreamSource = () => ({ connect: vi.fn() });
+  createAnalyser = () => new FakeAnalyser();
+}
 
-function makeRecorder() {
+function deps() {
   const stopTrack = vi.fn();
   const stream = { getTracks: () => [{ stop: stopTrack }] } as unknown as MediaStream;
   const getUserMedia = vi.fn().mockResolvedValue(stream);
-  let t = 1000;
-  const rec = new AudioRecorder({
+  return {
+    stopTrack,
     getUserMedia,
-    MediaRecorderCtor: FakeMediaRecorder as unknown as typeof MediaRecorder,
-    now: () => (t += 500), // each call advances 500ms
-    pickMime: () => "audio/webm",
-  });
-  return { rec, getUserMedia, stopTrack };
+    opts: {
+      getUserMedia,
+      createAudioContext: () => new FakeAudioContext() as unknown as AudioContext,
+      now: (() => {
+        let t = 1000;
+        return () => (t += 500);
+      })(),
+    },
+  };
 }
 
+beforeEach(() => {
+  lastNode = null;
+  (globalThis as unknown as { AudioWorkletNode: unknown }).AudioWorkletNode = FakeWorkletNode;
+});
+afterEach(() => vi.clearAllMocks());
+
+describe("isAudioCaptureSupported", () => {
+  it("is false without getUserMedia", () => {
+    const md = navigator.mediaDevices;
+    Object.defineProperty(navigator, "mediaDevices", { value: undefined, configurable: true });
+    expect(isAudioCaptureSupported()).toBe(false);
+    Object.defineProperty(navigator, "mediaDevices", { value: md, configurable: true });
+  });
+});
+
 describe("AudioRecorder", () => {
-  it("records then returns a blob + mime + duration, and releases the mic", async () => {
-    const { rec, getUserMedia, stopTrack } = makeRecorder();
+  it("captures PCM and returns a 16 kHz WAV blob, releasing the mic", async () => {
+    const { opts, stopTrack, getUserMedia } = deps();
+    const rec = new AudioRecorder(opts);
     await rec.start();
     expect(rec.recording).toBe(true);
-    // Requests 48 kHz so the Opus/WebM header lands on a rate Google STT accepts.
-    expect(getUserMedia).toHaveBeenCalledWith(STT_AUDIO_CONSTRAINTS);
+    // Asks for a clean speech-tuned stream (not a sample-rate constraint).
+    expect(getUserMedia).toHaveBeenCalledWith({
+      audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true },
+    });
+    lastNode!.emit(320); // ~one chunk of PCM
 
     const result = await rec.stop();
-    expect(result.mimeType).toBe("audio/webm");
-    expect(result.blob.size).toBeGreaterThan(0);
+    expect(result.mimeType).toBe("audio/wav");
+    const view = new DataView(await result.blob.arrayBuffer());
+    expect(view.getUint32(24, true)).toBe(CAPTURE_RATE); // 16 kHz in the header
+    expect(result.blob.size).toBeGreaterThan(44); // header + the emitted samples
     expect(result.durationMs).toBeGreaterThan(0);
-    expect(rec.recording).toBe(false);
-    expect(stopTrack).toHaveBeenCalled(); // mic track stopped
-  });
-
-  it("stop() throws when not recording", async () => {
-    const { rec } = makeRecorder();
-    await expect(rec.stop()).rejects.toThrow(/not recording/);
-  });
-
-  it("cancel() releases the mic without resolving a blob", async () => {
-    const { rec, stopTrack } = makeRecorder();
-    await rec.start();
-    rec.cancel();
     expect(rec.recording).toBe(false);
     expect(stopTrack).toHaveBeenCalled();
   });
 
-  it("start() is idempotent (no double stream)", async () => {
-    const { rec, getUserMedia } = makeRecorder();
+  it("stop() throws when not recording", async () => {
+    const { opts } = deps();
+    await expect(new AudioRecorder(opts).stop()).rejects.toThrow(/not recording/);
+  });
+
+  it("start() is idempotent (one mic stream)", async () => {
+    const { opts, getUserMedia } = deps();
+    const rec = new AudioRecorder(opts);
     await rec.start();
     await rec.start();
     expect(getUserMedia).toHaveBeenCalledTimes(1);
-  });
-
-  it("falls back to an unconstrained stream when the 48 kHz constraint is rejected", async () => {
-    const stopTrack = vi.fn();
-    const stream = { getTracks: () => [{ stop: stopTrack }] } as unknown as MediaStream;
-    const getUserMedia = vi
-      .fn()
-      .mockRejectedValueOnce(new Error("OverconstrainedError"))
-      .mockResolvedValueOnce(stream);
-    const rec = new AudioRecorder({
-      getUserMedia,
-      MediaRecorderCtor: FakeMediaRecorder as unknown as typeof MediaRecorder,
-      now: () => 1000,
-      pickMime: () => "audio/webm",
-    });
-
-    await rec.start();
-    expect(rec.recording).toBe(true);
-    expect(getUserMedia).toHaveBeenNthCalledWith(1, STT_AUDIO_CONSTRAINTS);
-    expect(getUserMedia).toHaveBeenNthCalledWith(2, { audio: true });
   });
 });
 
 describe("SegmentedRecorder", () => {
   afterEach(() => vi.useRealTimers());
 
-  function deps() {
-    const stopTrack = vi.fn();
-    const stream = { getTracks: () => [{ stop: stopTrack }] } as unknown as MediaStream;
-    return {
-      getUserMedia: vi.fn().mockResolvedValue(stream),
-      MediaRecorderCtor: FakeMediaRecorder as unknown as typeof MediaRecorder,
-      now: () => 0,
-      pickMime: () => "audio/webm",
-    };
-  }
-
-  it("emits a segment per rotation and flushes the final on stop", async () => {
+  it("emits a WAV segment per rotation and flushes the final on stop", async () => {
     vi.useFakeTimers();
-    const seqs: number[] = [];
-    const seg = new SegmentedRecorder((_r, i) => seqs.push(i), 1000, deps());
+    const segs: { seq: number; type: string }[] = [];
+    const { opts } = deps();
+    const seg = new SegmentedRecorder((r, i) => segs.push({ seq: i, type: r.mimeType }), 1000, opts);
     await seg.start();
+
+    lastNode!.emit(160);
     await vi.advanceTimersByTimeAsync(1000); // rotation -> seg 0
+    lastNode!.emit(160);
     await vi.advanceTimersByTimeAsync(1000); // rotation -> seg 1
+    lastNode!.emit(160);
     await seg.stop(); // flush final -> seg 2
-    expect(seqs).toEqual([0, 1, 2]);
-  });
 
-  it("stop() after no rotation still flushes one segment", async () => {
-    vi.useFakeTimers();
-    const seqs: number[] = [];
-    const seg = new SegmentedRecorder((_r, i) => seqs.push(i), 60_000, deps());
-    await seg.start();
-    await seg.stop();
-    expect(seqs).toEqual([0]);
+    expect(segs.map((s) => s.seq)).toEqual([0, 1, 2]);
+    expect(segs.every((s) => s.type === "audio/wav")).toBe(true);
   });
 
   it("cancel() stops without emitting a flush segment", async () => {
     vi.useFakeTimers();
-    const seqs: number[] = [];
-    const seg = new SegmentedRecorder((_r, i) => seqs.push(i), 60_000, deps());
+    const segs: number[] = [];
+    const { opts } = deps();
+    const seg = new SegmentedRecorder((_r, i) => segs.push(i), 60_000, opts);
     await seg.start();
     seg.cancel();
-    expect(seqs).toEqual([]);
+    expect(segs).toEqual([]);
     expect(seg.recording).toBe(false);
   });
 });

@@ -15,6 +15,7 @@ vi.mock("@/lib/audioCapture", () => ({
     start = startMock;
     stop = stopMock;
     cancel = vi.fn();
+    getLevel = () => 0;
     get recording() {
       return false;
     }

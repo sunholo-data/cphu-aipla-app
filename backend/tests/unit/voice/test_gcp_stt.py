@@ -3,6 +3,8 @@
 from __future__ import annotations
 
 import asyncio
+import io
+import wave
 from types import SimpleNamespace
 
 import pytest
@@ -10,6 +12,18 @@ from google.cloud import speech
 
 from voice.providers.gcp_stt import GCPSTTProvider, _encoding_for, _normalize_lang
 from voice.registry import _build_stt
+
+
+def _wav_bytes(pcm: bytes, rate: int = 16000, channels: int = 1) -> bytes:
+    """A minimal mono 16-bit WAV wrapping ``pcm`` — mirrors the frontend's
+    encodeWav output that the capture path now uploads."""
+    buf = io.BytesIO()
+    with wave.open(buf, "wb") as wf:
+        wf.setnchannels(channels)
+        wf.setsampwidth(2)
+        wf.setframerate(rate)
+        wf.writeframes(pcm)
+    return buf.getvalue()
 
 
 def _fake_resp(*transcripts: str):
@@ -43,6 +57,22 @@ def test_transcribe_joins_result_segments():
     cfg = client.calls[0][0]
     assert cfg.language_code == "da-DK"
     assert cfg.encoding == speech.RecognitionConfig.AudioEncoding.WEBM_OPUS
+
+
+def test_wav_sent_as_linear16_with_header_rate_and_stripped_pcm():
+    pcm = b"\x01\x00\x02\x00\x03\x00\x04\x00"  # 4 int16 frames
+    wav = _wav_bytes(pcm, rate=16000, channels=1)
+    client = _FakeClient(_fake_resp("hej"))
+    p = GCPSTTProvider(client=client)
+    out = asyncio.run(p.transcribe(wav, "audio/wav", "da", None))
+    assert out == "hej"
+    cfg, audio = client.calls[0]
+    # WAV header is parsed: LINEAR16 + the real rate, NOT the container-sniff path.
+    assert cfg.encoding == speech.RecognitionConfig.AudioEncoding.LINEAR16
+    assert cfg.sample_rate_hertz == 16000
+    assert cfg.audio_channel_count == 1
+    # The RIFF header is stripped — STT gets the raw PCM frames only.
+    assert audio.content == pcm
 
 
 def test_empty_audio_returns_empty_string_without_calling_api():

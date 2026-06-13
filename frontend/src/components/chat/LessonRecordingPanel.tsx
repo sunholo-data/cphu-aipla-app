@@ -7,6 +7,7 @@ import { cn } from "@/lib/utils";
 import { fetchWithAuth } from "@/lib/apiClient";
 import { fetchMyTranscript, type GroupTranscript } from "@/lib/transcriptApi";
 import { SegmentedRecorder, isAudioCaptureSupported, type RecordingResult } from "@/lib/audioCapture";
+import { RecordingLevelMeter } from "./RecordingLevelMeter";
 
 const POLL_MS = 30_000;
 
@@ -74,7 +75,7 @@ export function LessonRecordingPanel({ lang, disabled, onRecordingChange, onNoti
     async (r: RecordingResult, seq: number) => {
       try {
         const fd = new FormData();
-        fd.append("audio", r.blob, `lesson-${seq}.${r.mimeType.includes("mp4") ? "m4a" : "webm"}`);
+        fd.append("audio", r.blob, `lesson-${seq}.wav`);
         fd.append("durationMs", String(r.durationMs));
         fd.append("seq", String(seq));
         fd.append("lang", lang);
@@ -169,6 +170,7 @@ export function LessonRecordingPanel({ lang, disabled, onRecordingChange, onNoti
         <div className="flex items-center gap-2 border-t border-border bg-red-50 px-3 py-1.5 text-xs text-red-700 dark:bg-red-950/30 dark:text-red-300">
           <Radio className="h-3.5 w-3.5 animate-pulse" aria-hidden="true" />
           <span className="font-medium">Recording this class…</span>
+          <RecordingLevelMeter getLevel={() => segRef.current?.getLevel() ?? 0} className="ml-1" />
         </div>
       ) : null}
 

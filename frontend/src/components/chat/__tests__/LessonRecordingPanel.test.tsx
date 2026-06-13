@@ -20,11 +20,12 @@ vi.mock("@/lib/audioCapture", () => ({
     start = vi.fn().mockResolvedValue(undefined);
     stop = vi.fn(async () => {
       this.onSegment(
-        { blob: new Blob(["a"], { type: "audio/webm" }), mimeType: "audio/webm", durationMs: 1000 },
+        { blob: new Blob(["a"], { type: "audio/wav" }), mimeType: "audio/wav", durationMs: 1000 },
         0,
       );
     });
     cancel = vi.fn();
+    getLevel = () => 0;
   },
 }));
 
