@@ -12,12 +12,15 @@ Every SQL string uses `@`-named parameter binding via
 from __future__ import annotations
 
 import calendar
+import logging
 from datetime import UTC, datetime, timedelta
 from typing import Any, Literal
 
 from analytics.rate_card import CURRENCY, cost_eur
-from db.bigquery import CHAT_TURN_TABLE, run_query, table_ref
+from db.bigquery import CHAT_TURN_TABLE, jsonpayload_columns, run_query, table_ref
 from db.classes import get_class, list_all_classes
+
+log = logging.getLogger(__name__)
 
 Period = Literal["this_month", "last_month", "all_time"]
 
@@ -54,20 +57,34 @@ def project_month_eur(spend_eur: float, *, now: datetime | None = None) -> float
 
 def spend_rows(group_codes: list[str], since: datetime, until: datetime) -> list[dict[str, Any]]:
     """Summed token usage grouped by (model, skill_id, group_id) for the
-    given group codes + window. Empty codes short-circuit (no BQ call)."""
+    given group codes + window. Empty codes short-circuit (no BQ call).
+
+    **Schema-tolerant.** The Cloud Logging → BQ sink only creates a
+    ``jsonPayload.*`` column once a non-null value is logged for it, so
+    ``model`` / ``token_in`` / ``token_out`` may be ABSENT on a young dataset
+    (this caused a 400 ``Field name model does not exist`` 500 on first
+    ship). We probe the live schema and reference only existing columns:
+    a missing ``model`` becomes NULL (→ "unknown" at pricing), missing token
+    columns become 0. The column-name selection is from the BQ schema, not
+    caller input — no injection surface (group codes/timestamps stay bound)."""
     if not group_codes:
         return []
+    cols = jsonpayload_columns(CHAT_TURN_TABLE)
+    model_sel = "jsonPayload.model" if "model" in cols else "CAST(NULL AS STRING)"
+    tin_sel = "SUM(CAST(jsonPayload.token_in AS INT64))" if "token_in" in cols else "0"
+    tout_sel = "SUM(CAST(jsonPayload.token_out AS INT64))" if "token_out" in cols else "0"
+    group_by = "jsonPayload.skill_id, jsonPayload.group_id" + (", jsonPayload.model" if "model" in cols else "")
     sql = f"""
         SELECT
-          jsonPayload.model AS model,
+          {model_sel} AS model,
           jsonPayload.skill_id AS skill_id,
           jsonPayload.group_id AS group_id,
-          SUM(CAST(jsonPayload.token_in AS INT64)) AS token_in,
-          SUM(CAST(jsonPayload.token_out AS INT64)) AS token_out
+          {tin_sel} AS token_in,
+          {tout_sel} AS token_out
         FROM {table_ref(CHAT_TURN_TABLE)}
         WHERE jsonPayload.group_id IN UNNEST(@group_codes)
           AND timestamp BETWEEN @since AND @until
-        GROUP BY model, skill_id, group_id
+        GROUP BY {group_by}
     """.strip()
     rows = run_query(
         sql,
@@ -85,6 +102,18 @@ def spend_rows(group_codes: list[str], since: datetime, until: datetime) -> list
             }
         )
     return out
+
+
+def _safe_spend_rows(group_codes: list[str], since: datetime, until: datetime) -> list[dict[str, Any]]:
+    """``spend_rows`` that degrades to ``[]`` on any BQ error instead of
+    surfacing a 500. Matches the chat-log read path's established
+    "callers wrap BQ in try/except" contract (see ``db/bigquery.py``):
+    a spend dashboard that can't reach BQ should show zero, not crash."""
+    try:
+        return spend_rows(group_codes, since, until)
+    except Exception as exc:
+        log.warning("cost_queries: spend query failed, returning empty (%s)", type(exc).__name__)
+        return []
 
 
 def _fold(rows: list[dict[str, Any]]) -> dict[str, Any]:
@@ -126,7 +155,7 @@ def class_spend(class_id: str, period: Period, *, now: datetime | None = None) -
     since, until = period_bounds(period, now=now)
     cls = get_class(class_id)
     codes = list(cls.group_codes) if cls else []
-    folded = _fold(spend_rows(codes, since, until))
+    folded = _fold(_safe_spend_rows(codes, since, until))
     folded["class_id"] = class_id
     folded["period"] = period
     folded["projected_eur"] = project_month_eur(folded["total_eur"], now=now) if period == "this_month" else None
@@ -143,7 +172,7 @@ def cohort_spend(period: Period, *, now: datetime | None = None) -> dict[str, An
     for cls in classes:
         for code in cls.group_codes:
             code_to_class[code] = cls
-    rows = spend_rows(list(code_to_class.keys()), since, until)
+    rows = _safe_spend_rows(list(code_to_class.keys()), since, until)
 
     by_cohort: dict[str, float] = {}
     by_model: dict[str, float] = {}

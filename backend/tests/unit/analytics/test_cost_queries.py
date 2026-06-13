@@ -63,6 +63,9 @@ def test_projection_linear() -> None:
 # --- spend_rows SQL shape --------------------------------------------------
 
 
+_ALL_COLS = {"model", "skill_id", "group_id", "token_in", "token_out"}
+
+
 def test_spend_rows_empty_codes_short_circuits() -> None:
     with patch.object(cost_queries, "run_query") as mock_q:
         assert cost_queries.spend_rows([], NOW, NOW) == []
@@ -70,7 +73,10 @@ def test_spend_rows_empty_codes_short_circuits() -> None:
 
 
 def test_spend_rows_param_binding_no_interpolation() -> None:
-    with patch.object(cost_queries, "run_query") as mock_q:
+    with (
+        patch.object(cost_queries, "jsonpayload_columns", return_value=_ALL_COLS),
+        patch.object(cost_queries, "run_query") as mock_q,
+    ):
         mock_q.return_value = []
         cost_queries.spend_rows(["a-b-1"], datetime(2026, 6, 1, tzinfo=UTC), NOW)
         sql = mock_q.call_args.args[0]
@@ -78,6 +84,45 @@ def test_spend_rows_param_binding_no_interpolation() -> None:
         assert "@group_codes" in sql and "@since" in sql and "@until" in sql
         assert "a-b-1" not in sql  # value bound, not interpolated
         assert params["group_codes"] == ["a-b-1"]
+        assert "jsonPayload.model" in sql  # column present → selected
+
+
+def test_spend_rows_tolerates_missing_model_column() -> None:
+    """The bug that 500'd on first ship: model column absent on a young
+    log-sink dataset. The query must NOT reference jsonPayload.model then."""
+    with (
+        patch.object(
+            cost_queries, "jsonpayload_columns", return_value={"skill_id", "group_id", "token_in", "token_out"}
+        ),
+        patch.object(cost_queries, "run_query") as mock_q,
+    ):
+        mock_q.return_value = []
+        cost_queries.spend_rows(["a-b-1"], datetime(2026, 6, 1, tzinfo=UTC), NOW)
+        sql = mock_q.call_args.args[0]
+        assert "jsonPayload.model" not in sql
+        assert "CAST(NULL AS STRING) AS model" in sql
+        assert "GROUP BY jsonPayload.skill_id, jsonPayload.group_id" in sql
+
+
+def test_spend_rows_tolerates_missing_token_columns() -> None:
+    with (
+        patch.object(cost_queries, "jsonpayload_columns", return_value={"model", "skill_id", "group_id"}),
+        patch.object(cost_queries, "run_query") as mock_q,
+    ):
+        mock_q.return_value = []
+        cost_queries.spend_rows(["a-b-1"], datetime(2026, 6, 1, tzinfo=UTC), NOW)
+        sql = mock_q.call_args.args[0]
+        assert "CAST(jsonPayload.token_in AS INT64)" not in sql
+        assert "0 AS token_in" in sql
+
+
+def test_class_spend_degrades_to_zero_on_bq_error() -> None:
+    """A BQ failure must yield €0, never a 500 (graceful degradation)."""
+    cls = _seed_class("teacher-A", group_codes=["g-1"])
+    with patch.object(cost_queries, "spend_rows", side_effect=RuntimeError("BQ down")):
+        result = cost_queries.class_spend(cls.class_id, "this_month", now=NOW)
+    assert result["total_eur"] == 0.0
+    assert result["by_activity"] == []
 
 
 # --- class_spend folding ---------------------------------------------------

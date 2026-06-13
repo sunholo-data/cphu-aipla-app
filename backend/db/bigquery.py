@@ -45,6 +45,29 @@ def table_ref(table: str) -> str:
     return f"`{resolve_gcp_project()}.{CHAT_LOGS_DATASET}.{table}`"
 
 
+def jsonpayload_columns(table: str) -> set[str]:
+    """Return the set of ``jsonPayload.*`` subfield names that exist on
+    ``table``'s BQ schema.
+
+    The Cloud Logging → BigQuery sink only materialises a ``jsonPayload``
+    subfield once a row has logged a NON-NULL value for it. So a field that
+    is always null (e.g. ``model`` before model-logging landed) simply does
+    not exist as a column, and ``SELECT jsonPayload.model`` raises a 400
+    ``Field name model does not exist``. Callers building SQL over volatile
+    log-sink schemas must consult this and reference only existing columns.
+
+    Raises on BQ/credential errors — callers degrade. Result is not cached:
+    the schema grows as new fields start logging, and the call is one cheap
+    metadata RPC on an infrequently-hit path.
+    """
+    client = _get_client()
+    tbl = client.get_table(f"{resolve_gcp_project()}.{CHAT_LOGS_DATASET}.{table}")
+    for field in tbl.schema:
+        if field.name == "jsonPayload" and field.fields:
+            return {sub.name for sub in field.fields}
+    return set()
+
+
 def run_query(sql: str, params: dict[str, Any] | None = None) -> list[Any]:
     """Run a parameterised query and return the rows.
 
@@ -86,6 +109,7 @@ __all__ = [
     "CHAT_LOGS_DATASET",
     "CHAT_TURN_TABLE",
     "WORKBENCH_EVENT_TABLE",
+    "jsonpayload_columns",
     "run_query",
     "table_ref",
 ]

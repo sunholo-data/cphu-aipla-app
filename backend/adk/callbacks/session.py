@@ -76,6 +76,19 @@ def _emit_new_turns(
         if not events:
             return
 
+        # Resolve the skill's configured model once so tutor turns log it
+        # (1.1.9 cost dashboard). Without this, jsonPayload.model is never
+        # written, the BQ column never materialises, and the spend query 400s.
+        turn_model: str | None = None
+        try:
+            from skills.skill_config import get_skill
+
+            cfg = get_skill(skill_id) if skill_id else None
+            if cfg is not None:
+                turn_model = cfg.skill_metadata.model or None
+        except Exception:
+            turn_model = None
+
         current_inv = getattr(callback_context, "invocation_id", None)
         if not current_inv:
             current_inv = getattr(events[-1], "invocation_id", None)
@@ -110,6 +123,7 @@ def _emit_new_turns(
                 turn_index=idx,
                 role=role,
                 content=text,
+                model=turn_model if role == "tutor" else None,
                 token_in=token_in,
                 token_out=token_out,
             )
