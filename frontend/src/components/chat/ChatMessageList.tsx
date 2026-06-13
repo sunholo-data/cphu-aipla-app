@@ -72,6 +72,11 @@ interface ChatMessageListProps {
    * MCPAppToolCallRouter so iframe `ui/update-model-context` pushes can
    * POST to /api/proxy/api/sessions/{id}/iframe-context (sprint 1.25). */
   sessionId?: string | null;
+  /** True while the proactive greet is being generated server-side
+   * (POST /greet). The greet runs OUTSIDE the agent loop, so `isLoading`
+   * is false during it — without this the chat looks empty/broken while
+   * the (slower) opening turn is produced. Shows the typing indicator. */
+  greetLoading?: boolean;
 }
 
 const SCROLL_THRESHOLD = 100;
@@ -99,6 +104,7 @@ export function ChatMessageList({
   mcpServerIds,
   onChatMessage,
   sessionId,
+  greetLoading,
 }: ChatMessageListProps) {
   const scrollRef = useRef<HTMLDivElement>(null);
   const innerRef = useRef<HTMLDivElement>(null);
@@ -149,6 +155,10 @@ export function ChatMessageList({
     isLoading && lastMessage?.role === "assistant" && lastMessage.content.length > 0;
   const isTyping =
     isLoading && (!lastMessage || lastMessage.role !== "assistant" || lastMessage.content.length === 0);
+  // The proactive greet runs outside the agent loop (isLoading stays false),
+  // so show the typing indicator while it's being generated and nothing has
+  // rendered yet — otherwise the chat looks empty during the slower opening.
+  const isGreeting = !!greetLoading && !isStreaming && messages.length === 0;
 
   // Stable messages: all finalised (when streaming, exclude last assistant msg)
   const stableMessages = isStreaming ? messages.slice(0, -1) : messages;
@@ -271,7 +281,7 @@ export function ChatMessageList({
             />
           )}
 
-          {isTyping && (
+          {(isTyping || isGreeting) && (
             <TypingIndicator stageLabel={stageLabel} activeToolName={activeToolName} />
           )}
 

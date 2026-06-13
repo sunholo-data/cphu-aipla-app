@@ -574,7 +574,7 @@ function ChatShell({
   // instead of staring at the static welcome banner. Idempotent on the
   // backend; ref-guarded on the frontend.
   const proactiveGreetEnabled = skillProactiveGreet && sessionId === null;
-  const { greetMessage: proactiveGreetMessage } = useProactiveGreet({
+  const { greetMessage: proactiveGreetMessage, loading: greetLoading } = useProactiveGreet({
     sessionId: stableThreadId,
     skillId,
     enabled: proactiveGreetEnabled,
@@ -1017,6 +1017,7 @@ function ChatShell({
             thinkingContent={thinkingContent}
             isThinking={isThinking}
             isLoading={isLoading}
+            greetLoading={greetLoading}
             error={error}
             skillId={skillId}
             skillDisplayName={displayName}
