@@ -6,6 +6,7 @@ import type { Skill } from "@/types/skill";
 import { SkillTab } from "./SkillTab";
 import { BRANDING } from "@/lib/branding";
 import { isAnonymousGroupAuthMode } from "@/lib/anonymousGroupAuth";
+import { GroupCodeBadge } from "@/components/chat/GroupCodeBadge";
 
 interface SkillsBarProps {
   skills: Skill[];
@@ -15,9 +16,12 @@ interface SkillsBarProps {
   /** Optional right-aligned controls (e.g. the chat auto-read toggle), placed
    *  in the header bar so they don't claim a row of their own in the page. */
   actions?: ReactNode;
+  /** Anonymous group code (e.g. "lazy-flute-39") shown as a copyable badge so
+   *  students can share it for others to join. Null/omitted = no badge. */
+  groupCode?: string | null;
 }
 
-export function SkillsBar({ skills, activeSkillId, isLoading, onCreateClick, actions }: SkillsBarProps) {
+export function SkillsBar({ skills, activeSkillId, isLoading, onCreateClick, actions, groupCode }: SkillsBarProps) {
   // Anonymous-group users (ADR-001) — students working from a teacher-
   // minted group code — don't author skills. Hide the "+ Create" button
   // (no path to actually create) and the "No skills yet" empty-state
@@ -61,6 +65,8 @@ export function SkillsBar({ skills, activeSkillId, isLoading, onCreateClick, act
           ))
         )}
       </nav>
+
+      <GroupCodeBadge code={groupCode ?? null} />
 
       {actions ? <div className="flex shrink-0 items-center gap-2">{actions}</div> : null}
 

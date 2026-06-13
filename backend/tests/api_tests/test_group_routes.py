@@ -442,3 +442,39 @@ class TestJoinSessionResumption:
         delete_group(group_id, requesting_uid="t1")
         resp = client.post("/api/auth/group/join", json={"group_id": group_id})
         assert resp.status_code == 401
+
+
+# ─── GET /api/auth/group/active-session (1.F resume re-resolution) ───────────
+
+
+class TestActiveSession:
+    def _group_client(self, group_id: str = "lazy-flute-39") -> TestClient:
+        user = User(uid=f"anon-{group_id}", email="", group_id=group_id, auth_mode="anonymous_group_id")
+        app = FastAPI()
+        app.include_router(router)
+        app.dependency_overrides[get_current_user] = lambda: user
+        return TestClient(app)
+
+    def test_returns_active_session_id(self):
+        from unittest.mock import patch
+
+        with patch("auth.group_routes.get_active_session_for_group", return_value="sess-123"):
+            resp = self._group_client().get("/api/auth/group/active-session")
+        assert resp.status_code == 200
+        assert resp.json()["sessionId"] == "sess-123"
+
+    def test_returns_null_when_no_session(self):
+        from unittest.mock import patch
+
+        with patch("auth.group_routes.get_active_session_for_group", return_value=None):
+            resp = self._group_client().get("/api/auth/group/active-session")
+        assert resp.status_code == 200
+        assert resp.json()["sessionId"] is None
+
+    def test_404_for_non_group_user(self):
+        user = User(uid="teacher-1", email="t@example.com")  # no group_id
+        app = FastAPI()
+        app.include_router(router)
+        app.dependency_overrides[get_current_user] = lambda: user
+        resp = TestClient(app).get("/api/auth/group/active-session")
+        assert resp.status_code == 404

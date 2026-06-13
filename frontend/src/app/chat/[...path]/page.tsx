@@ -227,6 +227,8 @@ function ChatPageInner({
 
   // Write ?session=resumedSessionId immediately on mount so useSessionMessages
   // starts loading the prior history without waiting for the first message.
+  // This is the fast path: it only fires when the STORED resumedSessionId is
+  // fresh. The authoritative resolution is the backend fetch below.
   useEffect(() => {
     if (resumedSessionId && !urlSessionId) {
       const params = new URLSearchParams(searchParams.toString());
@@ -234,6 +236,41 @@ function ChatPageInner({
       router.replace(`${pathPrefix}?${params.toString()}`);
     }
   }, []); // eslint-disable-line react-hooks/exhaustive-deps -- intentionally runs once on mount
+
+  // 1.F resume fix (2026-06-13): the stored resumedSessionId is frozen at join
+  // time — null on the first join (before any chat) and never refreshed. So a
+  // student who joins, chats, then revisits in the same tab keeps reading null
+  // and starts a blank session every time (lazy-flute-39: 122 turns, always
+  // restarted). Re-resolve the group's live active session from the backend on
+  // load and adopt it via ?session= (useStableThreadId picks up the change,
+  // useSessionMessages loads the history). No-op once a session is in the URL
+  // (mid-chat or already resumed) so we never disrupt an active conversation.
+  useEffect(() => {
+    if (!isAnonymousGroupAuthMode() || urlSessionId) return;
+    let cancelled = false;
+    fetchWithAuth(`/api/proxy/api/auth/group/active-session`)
+      .then((r) => (r.ok ? r.json() : null))
+      .then((data: { sessionId?: string | null } | null) => {
+        const sid = data?.sessionId;
+        // Guard against the LIVE url (the captured searchParams is the mount
+        // snapshot): only adopt if the user hasn't navigated to / started a
+        // session while we were fetching.
+        const liveSession =
+          typeof window !== "undefined"
+            ? new URLSearchParams(window.location.search).get("session")
+            : null;
+        if (cancelled || !sid || liveSession) return;
+        const params = new URLSearchParams(window.location.search);
+        params.set("session", sid);
+        router.replace(`${pathPrefix}?${params.toString()}`);
+      })
+      .catch(() => {
+        /* resume is best-effort; a fresh session is the safe fallback */
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps -- once on mount
 
   // chat-history-deep-fixes-2 Bug A': pre-allocate a stable threadId so the
   // URL-writeback effect after the first turn doesn't change AGUIProvider's
@@ -811,6 +848,7 @@ function ChatShell({
         isLoading={skillsLoading}
         onCreateClick={() => router.push("/skills/new")}
         actions={<AutoReadToggle />}
+        groupCode={readStoredGroupSession()?.group_code ?? null}
       />
 
       {showDocumentUI && (

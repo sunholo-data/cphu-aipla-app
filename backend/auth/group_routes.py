@@ -252,6 +252,33 @@ async def get_my_skill_ids(
     return CurrentSkillsResponse(skill_ids=[], class_name=None, class_id=None)
 
 
+class ActiveSessionResponse(BaseModel):
+    """Live-resolved active ADK session for the caller's group (1.F)."""
+
+    session_id: str | None = Field(default=None, alias="sessionId")
+
+    model_config = {"populate_by_name": True}
+
+
+@router.get("/active-session", response_model=ActiveSessionResponse)
+async def get_active_session_endpoint(
+    user: User = Depends(_resolve_firebase_user_dep()),  # noqa: B008
+) -> ActiveSessionResponse:
+    """Re-resolve the group's active session id WITHOUT a re-join (1.F fix).
+
+    The join response's ``resumedSessionId`` is frozen at join time — null on
+    the first join (before any chat), and never refreshed afterward. So a
+    student who joins, chats, then revisits in the same tab keeps reading a
+    stale null and starts a blank session every time. The chat page calls this
+    on load to resume the group's live session (mapping written by
+    ``/api/sessions/{id}/bootstrap``). Returns null when there's no active
+    session (first ever, expired, or teacher-reset). 404 if not group-auth.
+    """
+    if not user.group_id:
+        raise HTTPException(status_code=404, detail="not a group-auth user")
+    return ActiveSessionResponse(session_id=get_active_session_for_group(user.group_id))
+
+
 @router.delete("/{group_id}", status_code=204)
 async def delete_group_endpoint(
     group_id: str,
