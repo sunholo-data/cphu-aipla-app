@@ -57,7 +57,14 @@ _DEFAULT_VOICE = {
     ("neural2", "en-US"): "en-US-Neural2-F",
     ("chirp3hd", "da-DK"): "da-DK-Chirp3-HD-Aoede",
     ("chirp3hd", "en-US"): "en-US-Chirp3-HD-Aoede",
+    # Gemini-TTS uses BARE voice names (no lang/tier prefix) + a model_name.
+    ("gemini", "da-DK"): "Aoede",
+    ("gemini", "en-US"): "Aoede",
 }
+
+# Gemini-TTS model that backs the promptable/"Style Instructions" voices.
+# Override via env if Google ships a newer model id.
+_GEMINI_TTS_MODEL = os.getenv("VOICE_GEMINI_TTS_MODEL", "gemini-2.5-flash-tts")
 
 
 class GCPTTSProvider:
@@ -68,7 +75,7 @@ class GCPTTSProvider:
     provider name (`gcp_wavenet` -> tier=`"wavenet"`).
     """
 
-    SUPPORTED_TIERS = frozenset({"standard", "wavenet", "neural2", "chirp3hd"})
+    SUPPORTED_TIERS = frozenset({"standard", "wavenet", "neural2", "chirp3hd", "gemini"})
 
     def __init__(self, tier: str, *, client: texttospeech.TextToSpeechClient | None = None):
         if tier not in self.SUPPORTED_TIERS:
@@ -101,7 +108,10 @@ class GCPTTSProvider:
         # voice 'da-DK-...'"), so prefer voice-derived lang over the
         # caller's lang when they differ. The caller-lang still wins
         # when no voice is supplied (we'll pick a default voice for it).
-        if voice:
+        is_gemini = self.tier == "gemini"
+        # Gemini voices are BARE names (e.g. "Aoede") with no lang prefix, so the
+        # caller's lang is authoritative; other tiers derive lang from the voice.
+        if voice and not is_gemini:
             derived = self._derive_lang_from_voice(voice)
             lang_full = derived or self._normalize_lang(lang)
         else:
@@ -113,16 +123,33 @@ class GCPTTSProvider:
         # natural prosody so 0.85 sounds sluggish. Per-skill overrides
         # via SkillConfig.voice.rate still apply via the extras dict.
         rate = float((extras or {}).get("rate", 1.0))
+        prompt = (extras or {}).get("prompt") or None
 
-        synthesis_input = texttospeech.SynthesisInput(text=text)
-        voice_params = texttospeech.VoiceSelectionParams(
-            language_code=lang_full,
-            name=voice_name,
-        )
-        audio_config = texttospeech.AudioConfig(
-            audio_encoding=texttospeech.AudioEncoding.MP3,
-            speaking_rate=rate,
-        )
+        if is_gemini:
+            # Gemini-TTS: pass the style "prompt" (voice direction) + the model.
+            # speaking_rate isn't part of the Gemini control surface (the prompt
+            # steers pace/tone), so we omit it to avoid a 400.
+            synthesis_input = (
+                texttospeech.SynthesisInput(text=text, prompt=prompt)
+                if prompt
+                else (texttospeech.SynthesisInput(text=text))
+            )
+            voice_params = texttospeech.VoiceSelectionParams(
+                language_code=lang_full,
+                name=voice_name,
+                model_name=_GEMINI_TTS_MODEL,
+            )
+            audio_config = texttospeech.AudioConfig(audio_encoding=texttospeech.AudioEncoding.MP3)
+        else:
+            synthesis_input = texttospeech.SynthesisInput(text=text)
+            voice_params = texttospeech.VoiceSelectionParams(
+                language_code=lang_full,
+                name=voice_name,
+            )
+            audio_config = texttospeech.AudioConfig(
+                audio_encoding=texttospeech.AudioEncoding.MP3,
+                speaking_rate=rate,
+            )
 
         client = self._lazy_client()
         try:

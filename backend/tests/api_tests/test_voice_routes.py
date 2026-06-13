@@ -152,11 +152,11 @@ def test_config_persona_voice_overrides_class_and_skill(client, monkeypatch):
     resp = client.get("/api/voice/config?skill_id=concept-x")
     assert resp.status_code == 200
     data = resp.json()
-    # Frida's voice (da-DK-Chirp3-HD-Leda / gcp_chirp3hd) wins over the absent class/skill.
-    assert data["tts"]["voice"] == "da-DK-Chirp3-HD-Leda"
+    # Frida's Gemini-TTS voice (bare "Leda" / gcp_gemini) wins over absent class/skill.
+    assert data["tts"]["voice"] == "Leda"
     assert data["tts"]["language"] == "da"
     # The persona's provider override reached the registry via the wrapped skill.
-    assert seen["skill"].voice.tts_provider == "gcp_chirp3hd"
+    assert seen["skill"].voice.tts_provider == "gcp_gemini"
 
 
 # --- POST /api/voice/tts/synthesize ---

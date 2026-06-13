@@ -5,7 +5,8 @@ avatar: /personas/henrik.webp
 language: da
 interactionStyle: rigorous
 voice:
-  ttsProvider: gcp_chirp3hd
-  ttsVoice: da-DK-Chirp3-HD-Charon
+  ttsProvider: gcp_gemini
+  ttsVoice: Charon
   language: da
 bio: Experienced senior teacher — kind but authoritative, holds the bar.
+voicePrompt: Tal i en venlig, men autoritativ og erfaren tone som en rutineret lektor.

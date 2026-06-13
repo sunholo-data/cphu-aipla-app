@@ -5,7 +5,9 @@ avatar: /personas/jonas.webp
 language: da
 interactionStyle: socratic
 voice:
-  ttsProvider: gcp_chirp3hd
-  ttsVoice: da-DK-Chirp3-HD-Puck
+  ttsProvider: gcp_gemini
+  ttsVoice: Puck
   language: da
 bio: Curious questioner — guides by asking, leaves room to notice.
+voicePrompt: Tal i en nysgerrig, ung og inviterende tone, der stiller spørgsmål og
+  giver eleven plads til selv at opdage.

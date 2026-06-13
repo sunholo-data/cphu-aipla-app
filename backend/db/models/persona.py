@@ -30,6 +30,11 @@ class Persona(BaseModel):
     language: str = Field(default="da", max_length=16)
     interaction_style: InteractionStyle = Field(default="socratic", alias="interactionStyle")
     voice: SkillVoiceConfig | None = None
+    # Voice direction / "Style Instructions" (1.1.12 follow-up). A natural-
+    # language steer ("Tal i en varm, opmuntrende tone…") passed to Gemini-TTS
+    # voices (provider gcp_gemini) so the spoken delivery matches the persona's
+    # character. Ignored by non-Gemini tiers (Chirp3-HD/WaveNet reject prompts).
+    voice_prompt: str | None = Field(default=None, alias="voicePrompt", max_length=600)
     bio: str | None = Field(default=None, max_length=500)
     source: Literal["yaml"] = "yaml"
 

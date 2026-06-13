@@ -124,6 +124,9 @@ class ResolvedVoice:
     provider: str | None = None
     voice: str | None = None
     lang: str | None = None
+    # Voice direction / "Style Instructions" for promptable (Gemini-TTS) voices.
+    # Sourced from the resolved persona; ignored by non-Gemini tiers.
+    prompt: str | None = None
 
 
 def resolve_voice(user: User, skill_id: str | None, skill: object | None) -> ResolvedVoice:
@@ -159,11 +162,14 @@ def resolve_voice(user: User, skill_id: str | None, skill: object | None) -> Res
         rv.provider = class_voice.provider
         rv.voice = class_voice.voice
         rv.lang = class_voice.language
-    # 2. Persona voice fills gaps.
+    # 2. Persona voice fills gaps. The persona also supplies the voice direction
+    #    (Style Instructions) — applied only by the Gemini-TTS tier.
     if persona_voice is not None:
         rv.provider = rv.provider or persona_voice.tts_provider
         rv.voice = rv.voice or persona_voice.tts_voice
         rv.lang = rv.lang or persona_voice.language
+    if persona is not None:
+        rv.prompt = getattr(persona, "voice_prompt", None)
     # 3. Skill voice fills the voice name + language (not provider — the skill's
     #    provider is handled by get_tts when no override is set).
     if skill is not None:
@@ -457,7 +463,14 @@ async def synthesize(
             if v is not None:
                 rate = float(getattr(v, "rate", rate))
 
+        # Fold the style prompt into the cache key's voice slot so a different
+        # voice direction produces a distinct cached entry (same voice + same
+        # text but a new prompt must re-synthesize). No CacheKey schema change.
         voice_for_key = effective_voice or "_default_"
+        if rv.prompt:
+            import hashlib
+
+            voice_for_key = f"{voice_for_key}:p{hashlib.sha256(rv.prompt.encode()).hexdigest()[:8]}"
         key = CacheKey(
             provider=provider.name,
             voice=voice_for_key,
@@ -483,7 +496,7 @@ async def synthesize(
                 text=body.text,
                 lang=body.lang,
                 voice=effective_voice,
-                extras={"rate": rate},
+                extras={"rate": rate, "prompt": rv.prompt},
             )
         except RuntimeError as exc:
             logger.warning("Voice synthesize failed: %s", exc)

@@ -35,8 +35,11 @@ def test_frida_ties_warm_style_and_a_voice():
     assert frida is not None
     assert frida.interaction_style == "warm"
     assert frida.voice is not None
-    # All personas use distinct premium Chirp3-HD voices (cost experiment, 2026-06-12).
-    assert frida.voice.tts_voice == "da-DK-Chirp3-HD-Leda"
+    # Personas use Gemini-TTS (bare voice name + gcp_gemini) so they can carry a
+    # voice-direction prompt (Style Instructions). 2026-06-13.
+    assert frida.voice.tts_provider == "gcp_gemini"
+    assert frida.voice.tts_voice == "Leda"
+    assert frida.voice_prompt and "tone" in frida.voice_prompt.lower()
 
 
 def test_load_persona_unknown_is_none():

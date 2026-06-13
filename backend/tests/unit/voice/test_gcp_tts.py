@@ -158,3 +158,43 @@ async def test_synthesize_voice_derived_lang_overrides_caller_lang():
     assert voice_arg.name == "da-DK-Chirp3-HD-Charon"
     # Lang derived from the voice prefix, not from the caller's "en".
     assert voice_arg.language_code == "da-DK"
+
+
+@pytest.mark.asyncio
+async def test_gemini_tier_passes_prompt_and_model():
+    """Gemini-TTS tier: bare voice name + model_name + the style prompt, and
+    NO speaking_rate (the prompt steers delivery; rate would 400)."""
+    response = MagicMock()
+    response.audio_content = b"\xff\xfb gem"
+    client = MagicMock()
+    client.synthesize_speech = MagicMock(return_value=response)
+    provider = GCPTTSProvider(tier="gemini", client=client)
+    assert provider.name == "gcp_gemini"
+
+    await provider.synthesize(
+        text="Hej",
+        lang="da",
+        voice="Aoede",
+        extras={"rate": 1.0, "prompt": "Tal i en varm tone."},
+    )
+    kw = client.synthesize_speech.call_args.kwargs
+    assert kw["input"].prompt == "Tal i en varm tone."
+    assert kw["voice"].name == "Aoede"
+    assert kw["voice"].model_name == "gemini-2.5-flash-tts"
+    assert kw["voice"].language_code == "da-DK"
+    # speaking_rate must not be set for the gemini tier (defaults to 0.0/unset).
+    assert not kw["audio_config"].speaking_rate
+
+
+@pytest.mark.asyncio
+async def test_gemini_tier_without_prompt_still_synthesizes():
+    response = MagicMock()
+    response.audio_content = b"\xff\xfb gem"
+    client = MagicMock()
+    client.synthesize_speech = MagicMock(return_value=response)
+    provider = GCPTTSProvider(tier="gemini", client=client)
+    audio, _mime = await provider.synthesize(text="Hej", lang="da", voice="Kore", extras={"rate": 1.0})
+    assert audio == b"\xff\xfb gem"
+    kw = client.synthesize_speech.call_args.kwargs
+    # No prompt provided -> SynthesisInput.prompt is empty/unset.
+    assert not kw["input"].prompt
