@@ -161,21 +161,6 @@ function SurfaceSessionLifecycle({ sessionId }: { sessionId: string | null }) {
   return null;
 }
 
-/**
- * Voice controls — just the auto-read toggle now. The verbose voice-status
- * pill (provider/voice/lang readout) and the language pill were debug-leaning
- * surfaces; dropped 2026-06-12 to declutter the chat header. Read-aloud
- * auto-detects Danish vs English from the message text, so the manual lang
- * pill isn't needed for the spoken voice.
- */
-function ChatVoiceControls() {
-  return (
-    <div className="flex flex-wrap items-center justify-end gap-2 px-4 pt-2">
-      <AutoReadToggle />
-    </div>
-  );
-}
-
 export default function ChatPage({
   params,
 }: {
@@ -825,6 +810,7 @@ function ChatShell({
         activeSkillId={skillId}
         isLoading={skillsLoading}
         onCreateClick={() => router.push("/skills/new")}
+        actions={<AutoReadToggle />}
       />
 
       {showDocumentUI && (
@@ -963,9 +949,8 @@ function ChatShell({
               welcome/intro block (PinnedWelcome) rather than a horizontal
               header strip, so it reads bigger without adding a vertical bar.
               The per-bubble avatar still reinforces it on each turn. */}
-          {/* Voice controls — just the auto-read toggle (verbose voice pill +
-              lang pill dropped 2026-06-12 to declutter the chat header). */}
-          <ChatVoiceControls />
+          {/* The auto-read toggle moved into the SkillsBar header (2026-06-13)
+              so it no longer claims a horizontal row above the transcript. */}
           <ChatMessageList
             messages={messages}
             // initialMessages are the persisted history fetched by

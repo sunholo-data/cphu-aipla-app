@@ -1,5 +1,6 @@
 "use client";
 
+import type { ReactNode } from "react";
 import Link from "next/link";
 import type { Skill } from "@/types/skill";
 import { SkillTab } from "./SkillTab";
@@ -11,9 +12,12 @@ interface SkillsBarProps {
   activeSkillId: string;
   isLoading: boolean;
   onCreateClick: () => void;
+  /** Optional right-aligned controls (e.g. the chat auto-read toggle), placed
+   *  in the header bar so they don't claim a row of their own in the page. */
+  actions?: ReactNode;
 }
 
-export function SkillsBar({ skills, activeSkillId, isLoading, onCreateClick }: SkillsBarProps) {
+export function SkillsBar({ skills, activeSkillId, isLoading, onCreateClick, actions }: SkillsBarProps) {
   // Anonymous-group users (ADR-001) — students working from a teacher-
   // minted group code — don't author skills. Hide the "+ Create" button
   // (no path to actually create) and the "No skills yet" empty-state
@@ -57,6 +61,8 @@ export function SkillsBar({ skills, activeSkillId, isLoading, onCreateClick }: S
           ))
         )}
       </nav>
+
+      {actions ? <div className="flex shrink-0 items-center gap-2">{actions}</div> : null}
 
       {!isAnonGroup && (
         <button

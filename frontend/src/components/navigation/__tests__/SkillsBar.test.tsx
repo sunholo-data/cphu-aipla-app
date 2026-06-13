@@ -74,6 +74,19 @@ describe("SkillsBar", () => {
     expect(handleCreate).toHaveBeenCalledTimes(1);
   });
 
+  it("renders right-aligned actions in the header when provided", () => {
+    render(
+      <SkillsBar
+        skills={[]}
+        activeSkillId=""
+        isLoading={false}
+        onCreateClick={() => {}}
+        actions={<button type="button">Auto</button>}
+      />,
+    );
+    expect(screen.getByRole("button", { name: "Auto" })).toBeInTheDocument();
+  });
+
   it("uses friendly URL on tab when slug is set, UUID fallback otherwise", () => {
     const skills = [
       makeSkill({ skillId: "uuid-1", slug: "research", ownerId: "mark" }),
