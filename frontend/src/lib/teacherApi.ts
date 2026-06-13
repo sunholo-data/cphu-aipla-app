@@ -114,6 +114,9 @@ export interface SessionSummaryPayload {
   simRunCount: number;
   conversation: SessionTurnPayload[];
   workbenchEvents?: WorkbenchEventPayload[];
+  /** 1.1.4 — AI narrative summary (structured markdown), or null when not
+   *  yet generated / no conversation to summarise. */
+  narrative?: string | null;
 }
 
 export class NotFoundError extends Error {

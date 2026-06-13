@@ -18,6 +18,7 @@ import logging
 from fastapi import APIRouter, Depends, HTTPException, Path, Query
 
 from auth import User, get_current_user
+from reports.narrative import resolve_narrative
 from reports.session_summary import (
     SessionSummary,
     find_latest_session_for_group,
@@ -38,6 +39,7 @@ def _serialize(summary: SessionSummary) -> dict:
 async def get_session_report(
     session_id: str = Path(...),
     source: str = Query("auto", pattern="^(auto|bq)$"),
+    narrative: bool = Query(True),
     _user: User = Depends(get_current_user),  # noqa: B008
 ) -> dict:
     """Return the session summary for ``session_id``. 404 if missing.
@@ -47,6 +49,9 @@ async def get_session_report(
     ``aiplatform logs verify`` to prove the chat-log pipeline reached BigQuery
     rather than being masked by the live-session fallback. 404 until the row
     has been ingested by the sink.
+
+    ``narrative=true`` (default) attaches the cached/generated AI summary
+    (1.1.4). The ``source=bq`` verify path skips it to stay LLM-free.
     """
     if source == "bq":
         summary = await summarize_session_bq(session_id)
@@ -54,6 +59,8 @@ async def get_session_report(
         summary = await resolve_session_summary(session_id)
     if summary is None:
         raise HTTPException(status_code=404, detail="session not found")
+    if narrative and source != "bq":
+        await resolve_narrative(summary)
     return _serialize(summary)
 
 
@@ -80,6 +87,7 @@ async def get_group_latest_report(
         # cross-group enumeration by guessing session ids.
         if summary.group_code and summary.group_code != group_code:
             raise HTTPException(status_code=404, detail="session not found for this group")
+        await resolve_narrative(summary)
         return _serialize(summary)
 
     idx = find_latest_session_for_group(group_code)
@@ -89,4 +97,5 @@ async def get_group_latest_report(
     if summary is None:
         # Race: index existed, ADK session gone. Same UX as "no sessions".
         raise HTTPException(status_code=404, detail="no sessions for this group yet")
+    await resolve_narrative(summary)
     return _serialize(summary)

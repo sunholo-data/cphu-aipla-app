@@ -24,6 +24,9 @@ import {
 } from "@/lib/teacherApi";
 import { downloadCsv, downloadJson } from "@/lib/download";
 import { GroupTranscriptSection } from "@/components/teacher/GroupTranscriptSection";
+import { ChatMarkdown } from "@/components/chat/ChatMarkdown";
+
+const TRANSCRIPT_OPEN_KEY = "aipla.report.transcriptOpen";
 
 type ReportState =
   | { kind: "loading" }
@@ -69,6 +72,31 @@ export default function TeacherGroupReportPage() {
   const sessionId = searchParams?.get("session_id") ?? null;
 
   const [state, setState] = useState<ReportState>({ kind: "loading" });
+
+  // 1.1.4 — transcript collapses by default (summary-first). The choice
+  // persists per teacher so a researcher reviewing many sessions can leave
+  // it open.
+  const [transcriptOpen, setTranscriptOpen] = useState(false);
+  useEffect(() => {
+    try {
+      if (window.localStorage?.getItem(TRANSCRIPT_OPEN_KEY) === "1") {
+        setTranscriptOpen(true);
+      }
+    } catch {
+      /* localStorage unavailable (private mode / test env) — default collapsed */
+    }
+  }, []);
+  const toggleTranscript = () => {
+    setTranscriptOpen((prev) => {
+      const next = !prev;
+      try {
+        window.localStorage?.setItem(TRANSCRIPT_OPEN_KEY, next ? "1" : "0");
+      } catch {
+        /* non-fatal */
+      }
+      return next;
+    });
+  };
 
   useEffect(() => {
     let alive = true;
@@ -127,6 +155,7 @@ export default function TeacherGroupReportPage() {
       ? getMockClass(report.classId)
       : undefined;
   const isLive = state.kind === "live";
+  const narrative = state.kind === "live" ? (state.data.narrative ?? null) : null;
 
   return (
     <div className="flex flex-col gap-6">
@@ -176,12 +205,35 @@ export default function TeacherGroupReportPage() {
         </p>
       </header>
 
+      {isLive ? (
+        <section
+          aria-labelledby="narrative-label"
+          className="flex flex-col gap-2 rounded border border-border bg-background p-4"
+        >
+          <h2 id="narrative-label" className="text-base font-semibold">
+            Summary
+          </h2>
+          {narrative ? (
+            <div className="text-sm">
+              {/* Summaries carry no doc-block links, so navigation is a no-op. */}
+              <ChatMarkdown content={narrative} navigateToBlock={() => {}} />
+            </div>
+          ) : (
+            <p className="text-sm text-muted-foreground">
+              {report.conversation.length === 0
+                ? "No conversation yet — a summary appears once the group has chatted."
+                : "Generating a summary… reopen the report in a moment."}
+            </p>
+          )}
+        </section>
+      ) : null}
+
       <section
         aria-labelledby="summary-label"
         className="flex flex-col gap-2 rounded border border-border bg-background p-4"
       >
         <h2 id="summary-label" className="text-base font-semibold">
-          Session summary
+          At a glance
         </h2>
         <dl className="flex flex-wrap gap-x-6 gap-y-1 text-sm">
           <div>
@@ -245,9 +297,20 @@ export default function TeacherGroupReportPage() {
 
       <section aria-labelledby="log-label" className="flex flex-col gap-2">
         <header className="flex flex-wrap items-center justify-between gap-2">
-          <h2 id="log-label" className="text-base font-semibold">
-            Conversation log
-          </h2>
+          <button
+            type="button"
+            onClick={toggleTranscript}
+            aria-expanded={transcriptOpen}
+            className="flex items-center gap-1.5 text-base font-semibold hover:text-foreground/80"
+          >
+            <span id="log-label">
+              {transcriptOpen ? "Hide full transcript" : "View full transcript"}
+            </span>
+            <span className="text-xs font-normal text-muted-foreground">
+              ({report.conversation.length} message
+              {report.conversation.length === 1 ? "" : "s"})
+            </span>
+          </button>
           <div className="flex items-center gap-1.5">
             <button
               type="button"
@@ -267,21 +330,23 @@ export default function TeacherGroupReportPage() {
             </button>
           </div>
         </header>
-        <ol className="flex flex-col gap-2 rounded border border-border bg-background p-3 text-sm">
-          {report.conversation.length === 0 ? (
-            <li className="text-muted-foreground">
-              No messages exchanged in this session yet.
-            </li>
-          ) : null}
-          {report.conversation.map((turn, i) => (
-            <li key={`${turn.timestamp}-${i}`} className="flex flex-col gap-0.5">
-              <span className="text-[10px] uppercase tracking-wide text-muted-foreground">
-                [{turn.timestamp}] {turn.role === "student" ? "Student" : "Tutor"}
-              </span>
-              <span>{turn.content}</span>
-            </li>
-          ))}
-        </ol>
+        {transcriptOpen ? (
+          <ol className="flex flex-col gap-2 rounded border border-border bg-background p-3 text-sm">
+            {report.conversation.length === 0 ? (
+              <li className="text-muted-foreground">
+                No messages exchanged in this session yet.
+              </li>
+            ) : null}
+            {report.conversation.map((turn, i) => (
+              <li key={`${turn.timestamp}-${i}`} className="flex flex-col gap-0.5">
+                <span className="text-[10px] uppercase tracking-wide text-muted-foreground">
+                  [{turn.timestamp}] {turn.role === "student" ? "Student" : "Tutor"}
+                </span>
+                <span>{turn.content}</span>
+              </li>
+            ))}
+          </ol>
+        ) : null}
       </section>
 
       {isLive && state.kind === "live" && state.data.workbenchEvents && state.data.workbenchEvents.length > 0 ? (

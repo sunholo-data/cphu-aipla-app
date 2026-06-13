@@ -1,4 +1,5 @@
 import { render, screen, waitFor } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
 
 const groupId = "bold-kazoo-87";
@@ -47,12 +48,17 @@ describe("/teacher/reports/groups/[groupId] — single-group report (mock fallba
     expect(screen.getByText(String(mockReport.simRunCount))).toBeInTheDocument();
   });
 
-  it("renders the conversation log turns from the mock", async () => {
+  it("collapses the transcript by default and reveals it on toggle (1.1.4)", async () => {
     render(<TeacherGroupReportPage />);
 
     await waitFor(() => {
       expect(screen.queryByText(/loading report/i)).not.toBeInTheDocument();
     });
+
+    // Summary-first: the transcript is collapsed, so turns are not in the DOM.
+    expect(screen.queryByText(mockReport.conversation[0].content)).not.toBeInTheDocument();
+
+    await userEvent.click(screen.getByRole("button", { name: /view full transcript/i }));
 
     for (const turn of mockReport.conversation) {
       expect(screen.getByText(turn.content)).toBeInTheDocument();

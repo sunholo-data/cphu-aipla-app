@@ -1,7 +1,39 @@
 # Session report — narrative summary as the primary display
 
 **Status:** Planned (P1)
-**Last Updated:** 2026-06-03
+**Last Updated:** 2026-06-13
+
+> ## Implementation reconciliation (2026-06-13) — grounded against current code
+>
+> - **Real paths.** The report lives at
+>   [`frontend/src/app/teacher/reports/groups/[groupId]/page.tsx`](../../../../frontend/src/app/teacher/reports/groups/%5BgroupId%5D/page.tsx)
+>   (group-centric, not `sessions/[sessionId]`). Summary generation lives in
+>   [`backend/reports/session_summary.py`](../../../../backend/reports/session_summary.py)
+>   (not `skills/summarize_session.py`); the session model is `ChatSessionIndex`
+>   in [`backend/db/models/chat_session.py`](../../../../backend/db/models/chat_session.py).
+> - **Narrative is genuinely new.** The shipped `SessionSummary` only aggregates
+>   transcript + metadata — there was NO narrative generation. New
+>   [`backend/reports/narrative.py`](../../../../backend/reports/narrative.py) adds
+>   it: a grounded Gemini-Flash prompt (sim params from the workbench-event stream,
+>   never invented; "the group" not individuals; no verbatim quoting; no emoji),
+>   generated **on-demand** and cached on `ChatSessionIndex`
+>   (`summary_text` / `summary_generated_at` / `summary_based_on_turn_count`),
+>   regenerated when the live message count grows. Best-effort: a generation
+>   failure leaves the report rendering without a narrative.
+> - **Layout flip done; CSV reuses the existing client download.** The report now
+>   shows the AI **Summary** prominently with an **At a glance** metric row, and
+>   the transcript collapses behind a **View full transcript** toggle
+>   (localStorage-persisted). The design's *server* `GET /…/transcript.csv` is
+>   **deferred** — the page already has working client-side CSV/JSON download, and
+>   the endpoint's value (consent-gated 410) depends on [1.1.3 consent](student-consent-prompt.md),
+>   which is OPEN. Build it with consent.
+> - **Lesson transcript already integrated.** `GroupTranscriptSection`
+>   (REC-TRANSCRIPT) already renders below the report; the summary-first layout
+>   makes audio/transcript a deeper-dive artefact exactly as the design intended.
+> - **Consent badge deferred.** Per-session `consent_given` does not exist (1.1.3
+>   OPEN), so the "No research consent" badge + 410-on-declined path are deferred.
+>
+> Sprint plan: [implemented/session-report-summary-primary-sprint.md](implemented/session-report-summary-primary-sprint.md).
 **Priority:** P1 — teachers asked at the 3 June check-in for narrative summaries, not raw chat transcripts. Also the privacy-strategy foundation for eventual audio inclusion
 **Estimated:** ~0.5d frontend + ~1h prompt update + ~0.5d backend (summary structure)
 **Scope:** Frontend (collapse-by-default transcript + download); backend (summary-generation prompt update); session-report rendering

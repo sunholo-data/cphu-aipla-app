@@ -68,6 +68,10 @@ class SessionSummary(BaseModel):
     sim_run_count: int = Field(alias="simRunCount")
     conversation: list[SessionTurn]
     workbench_events: list[WorkbenchEvent] = Field(default_factory=list, alias="workbenchEvents")
+    narrative: str | None = Field(default=None)
+    """1.1.4 — AI narrative summary (structured markdown). Attached by
+    ``reports.narrative.resolve_narrative`` at the route layer; None until
+    generated (or when there is no conversation to summarise)."""
 
     model_config = ConfigDict(populate_by_name=True)
 

@@ -75,6 +75,15 @@ class ChatSessionIndex(BaseModel):
     not yet typed anything in this session — gate treats that as
     vacuously passing. Sprint PROACTIVE-SIM-REACTIVE M8-fix #2 added
     this field."""
+    summary_text: str | None = Field(default=None, alias="summaryText")
+    """1.1.4 — cached AI narrative summary for the teacher session report.
+    Generated on-demand when a teacher opens the report; regenerated when
+    ``summary_based_on_turn_count`` lags the live turn count."""
+    summary_generated_at: datetime | None = Field(default=None, alias="summaryGeneratedAt")
+    """When ``summary_text`` was last generated (audit + staleness)."""
+    summary_based_on_turn_count: int | None = Field(default=None, alias="summaryBasedOnTurnCount")
+    """The message count the cached summary was generated from. The summary
+    is regenerated when the live count exceeds this."""
 
     model_config = ConfigDict(populate_by_name=True)
 
