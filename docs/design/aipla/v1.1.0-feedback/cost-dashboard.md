@@ -1,7 +1,43 @@
 # Cost dashboard — teacher + researcher spend visibility
 
 **Status:** Planned (P1); **supersedes the originally-planned 1.12** `budget-dashboard.md`
-**Last Updated:** 2026-06-03
+**Last Updated:** 2026-06-13
+
+> ## Implementation reconciliation (2026-06-13) — grounded against current code
+>
+> Read before the original design body; these correct assumptions that the
+> 2026-06-03 draft got wrong against the shipped schema:
+>
+> - **BQ rows key on `group_id`, not `class_id`.** `aipla_chat_turn` carries
+>   `group_id` / `token_in` / `token_out` / `model` / `skill_id` (see
+>   `backend/observability/chat_log.py`) — there is no `class_id` column. So
+>   `class_spend` resolves the class → its `group_codes` (exactly like
+>   `analytics.auth.resolve_caller_group_codes`) and filters
+>   `WHERE group_id IN UNNEST(@codes)`. The design's "JOIN on class_id" is replaced.
+> - **Rate card lives in code, not a BQ table.** A `MODEL_RATE_CARD` dict in
+>   `backend/analytics/rate_card.py` (EUR per-1k in/out per model) + a
+>   `cost_eur()` helper. Cost is computed in Python after the query sums tokens —
+>   we already pull rows into Python, so no SQL join. Rationale: version-controlled
+>   + code-reviewed (no silent staleness), unit-testable, and no Terraform-seed /
+>   deploy dependency. Update procedure = edit the dict + PR.
+> - **Multimodal cost needs no new column.** Gemini bills image/PDF Part tokens as
+>   `token_in`, which `aipla_chat_turn` already records — so per-turn cost already
+>   includes multimodal. The design's "add `tokens_image`" risk is moot.
+> - **Cap progress bar is DEFERRED.** There is no class-level budget cap — the
+>   shipped enforcer (`backend/budget/`) is skill/identity-level, not per-class. v1
+>   ships spend visibility (this-month, projected, top activities/groups) + the
+>   researcher cross-class/cohort/model views; the cap bar waits for a class-level
+>   cap field + enforcer wiring (separate row).
+> - **Researcher view = an Insights tab.** Per the shipped 1.1.26 consolidation,
+>   the cross-class cost view is a new tab in `InsightsTabs`
+>   (`/teacher/insights/cost`), researcher-gated via the now-shipped
+>   [1.1.5 researcher-role](researcher-role.md) (`useIsResearcher` + backend
+>   `assert_can_read_class`), not a standalone page.
+> - **`cohort`** is added to the `Class` model + accepted on create/PATCH +
+>   serialized; the researcher view groups by it (defaulting to "uncategorised").
+>   No dedicated teacher UI setter in v1 (set via the class API/CLI).
+>
+> Sprint plan: [implemented/cost-dashboard-sprint.md](implemented/cost-dashboard-sprint.md).
 **Priority:** P1 — priority lifted by DK's Indian beta cohort scaling to ~100s of students. Teachers and researchers need per-session, per-class, per-month spend visibility
 **Estimated:** ~1d
 **Scope:** Mostly a BigQuery query + display; no new instrumentation (token counts already in BQ via OTel)

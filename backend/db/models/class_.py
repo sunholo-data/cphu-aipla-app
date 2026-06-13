@@ -85,6 +85,10 @@ class Class(BaseModel):
     """Per-class default persona (avatar + name + voice + teaching style). The
     one identity choice — resolution is: activity persona > THIS class persona >
     global default. None means the class falls back to the global default."""
+    cohort: str | None = Field(default=None, max_length=64)
+    """1.1.9 — optional cohort tag (e.g. ``dk`` vs ``in-beta``) used to group
+    spend in the researcher cost view. None ⇒ "uncategorised". Set via the
+    class create/PATCH API; no dedicated teacher UI setter in v1.1."""
     voice_input_enabled: bool = Field(default=True, alias="voiceInputEnabled")
     """VOICE-IN-REC — student voice input (talk-to-type / push-to-talk); gates
     the composer mic. Default-ON (2026-06-11, M) — benign: transcript-only, raw

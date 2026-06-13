@@ -24,6 +24,7 @@ from fastapi import APIRouter, Depends, HTTPException, Path, Query
 from opentelemetry import trace
 from pydantic import BaseModel, ConfigDict, Field
 
+from analytics import cost_queries
 from analytics.auth import assert_can_read_class
 from auth import User, get_current_user
 from db.classes import (
@@ -68,6 +69,9 @@ class ClassUpdate(BaseModel):
 
     name: str | None = Field(default=None, min_length=1, max_length=200)
     description: str | None = Field(default=None, max_length=2000)
+    cohort: str | None = Field(default=None, max_length=64)
+    """1.1.9 — set/clear the cohort tag for the researcher cost view.
+    Empty string clears it; None leaves it unchanged."""
 
     model_config = ConfigDict(populate_by_name=True, extra="forbid")
 
@@ -281,10 +285,10 @@ async def patch_class(
     class_id: str = Path(...),
     user: User = Depends(get_current_user),  # noqa: B008
 ) -> dict:
-    """Update name and/or description of a class."""
+    """Update name, description and/or cohort of a class."""
     _assert_teacher(user)
     _load_owned(class_id, user)
-    update_class(class_id, name=body.name, description=body.description)
+    update_class(class_id, name=body.name, description=body.description, cohort=body.cohort)
     _tag_span(class_id, user.uid)
     reloaded = get_class(class_id)
     if reloaded is None:  # paranoia — update_class shouldn't drop the doc
@@ -447,6 +451,27 @@ async def list_class_recent_sessions(
         for s in sessions
     ]
     return RecentSessionsResponse(sessions=rows)
+
+
+@router.get("/{class_id}/spend")
+async def get_class_spend(
+    class_id: str = Path(...),
+    period: str = Query(default="this_month"),
+    user: User = Depends(get_current_user),  # noqa: B008
+) -> dict:
+    """Per-class spend breakdown (sprint 1.1.9).
+
+    Owner — or a researcher reading any class (via ``_load_readable``).
+    ``period`` is ``this_month`` (default) / ``last_month`` / ``all_time``.
+    Returns EUR totals + by-activity / by-group / by-model + a linear
+    month-end projection for ``this_month``.
+    """
+    _assert_teacher(user)
+    _load_readable(class_id, user)
+    _tag_span(class_id, user.uid)
+    if period not in ("this_month", "last_month", "all_time"):
+        raise HTTPException(status_code=400, detail=f"invalid period {period!r}")
+    return cost_queries.class_spend(class_id, period)  # type: ignore[arg-type]
 
 
 __all__ = ["router"]

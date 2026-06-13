@@ -25,6 +25,7 @@ vi.mock("@/lib/teacherApi", () => ({
 
 vi.mock("@/lib/firebase", () => ({
   subscribeToAuthState: vi.fn(() => () => undefined),
+  getIsResearcher: vi.fn(async () => false),
 }));
 
 vi.mock("@/lib/localMode", () => ({

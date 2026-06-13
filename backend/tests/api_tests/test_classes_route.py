@@ -467,3 +467,45 @@ class TestResearcherBypass:
         cid = other_teacher_client.post("/api/classes", json={"name": "Bob's"}).json()["classId"]
         resp = researcher_client.delete(f"/api/classes/{cid}")
         assert resp.status_code == 404
+
+
+# ---------------------------------------------------------------------------
+# Cohort field + spend endpoint (sprint 1.1.9)
+# ---------------------------------------------------------------------------
+
+
+class TestCohortAndSpend:
+    def test_patch_sets_cohort(self, client):
+        cid = client.post("/api/classes", json={"name": "C"}).json()["classId"]
+        resp = client.patch(f"/api/classes/{cid}", json={"cohort": "dk"})
+        assert resp.status_code == 200, resp.text
+        assert resp.json()["cohort"] == "dk"
+
+    def test_spend_owner_ok(self, client, monkeypatch):
+        import analytics.cost_queries as cq
+
+        cid = client.post("/api/classes", json={"name": "C"}).json()["classId"]
+        monkeypatch.setattr(cq, "spend_rows", lambda *a, **k: [])
+        resp = client.get(f"/api/classes/{cid}/spend", params={"period": "this_month"})
+        assert resp.status_code == 200, resp.text
+        body = resp.json()
+        assert body["total_eur"] == 0.0
+        assert body["currency"] == "EUR"
+
+    def test_spend_invalid_period_400(self, client):
+        cid = client.post("/api/classes", json={"name": "C"}).json()["classId"]
+        resp = client.get(f"/api/classes/{cid}/spend", params={"period": "yesterday"})
+        assert resp.status_code == 400
+
+    def test_spend_other_teachers_class_404_for_non_researcher(self, client, other_teacher_client):
+        cid = other_teacher_client.post("/api/classes", json={"name": "B"}).json()["classId"]
+        resp = client.get(f"/api/classes/{cid}/spend")
+        assert resp.status_code == 404
+
+    def test_spend_researcher_reads_any_class(self, other_teacher_client, researcher_client, monkeypatch):
+        import analytics.cost_queries as cq
+
+        cid = other_teacher_client.post("/api/classes", json={"name": "B"}).json()["classId"]
+        monkeypatch.setattr(cq, "spend_rows", lambda *a, **k: [])
+        resp = researcher_client.get(f"/api/classes/{cid}/spend")
+        assert resp.status_code == 200

@@ -108,15 +108,26 @@ def list_all_classes(*, include_revoked: bool = False) -> list[Class]:
     return classes
 
 
-def update_class(class_id: str, *, name: str | None = None, description: str | None = None) -> None:
-    """Partial update — name + description only. Tag namespace is
+def update_class(
+    class_id: str,
+    *,
+    name: str | None = None,
+    description: str | None = None,
+    cohort: str | None = None,
+) -> None:
+    """Partial update — name + description + cohort. Tag namespace is
     immutable, lessons go through add_lessons/remove_lessons, group
-    codes through mint_group_codes_under_class."""
+    codes through mint_group_codes_under_class.
+
+    ``cohort`` (1.1.9): a non-None value sets the cohort tag; the empty
+    string clears it (→ "uncategorised" in the cost view)."""
     fields: dict = {"updatedAt": _utcnow().isoformat()}
     if name is not None:
         fields["name"] = name
     if description is not None:
         fields["description"] = description
+    if cohort is not None:
+        fields["cohort"] = cohort or None
     update_document(_COLLECTION, class_id, fields)
 
 

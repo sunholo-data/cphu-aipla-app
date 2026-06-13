@@ -79,12 +79,12 @@ def _mock_queries(monkeypatch):
     )
 
 
-def _make_app(*, uid: str = TEACHER_UID, is_teacher: bool = True) -> FastAPI:
+def _make_app(*, uid: str = TEACHER_UID, is_teacher: bool = True, is_researcher: bool = False) -> FastAPI:
     app = FastAPI()
     app.include_router(router)
 
     async def _override(request: Request) -> User:
-        u = User(uid=uid, email=f"{uid}@example.test", is_teacher=is_teacher)
+        u = User(uid=uid, email=f"{uid}@example.test", is_teacher=is_teacher, is_researcher=is_researcher)
         request.state.access = build_access_context(u)
         return u
 
@@ -112,6 +112,42 @@ def other_teacher_client():
 @pytest.fixture()
 def student_client():
     return TestClient(_make_app(uid="anon-X", is_teacher=False))
+
+
+@pytest.fixture()
+def researcher_client():
+    return TestClient(_make_app(uid="researcher-rae", is_researcher=True))
+
+
+# ---------------------------------------------------------------------------
+# GET /api/insights/cost — researcher cross-class spend (sprint 1.1.9)
+# ---------------------------------------------------------------------------
+
+
+class TestCostOverview:
+    def test_cost_requires_researcher(self, teacher_client):
+        """A plain teacher (no researcher claim) is rejected — even via URL."""
+        resp = teacher_client.get("/api/insights/cost")
+        assert resp.status_code == 403
+
+    def test_cost_rejects_student(self, student_client):
+        resp = student_client.get("/api/insights/cost")
+        assert resp.status_code == 403
+
+    def test_cost_researcher_ok(self, researcher_client, monkeypatch):
+        import analytics.cost_queries as cq
+
+        monkeypatch.setattr(cq, "spend_rows", lambda *a, **k: [])
+        resp = researcher_client.get("/api/insights/cost", params={"period": "this_month"})
+        assert resp.status_code == 200, resp.text
+        body = resp.json()
+        assert body["currency"] == "EUR"
+        assert body["total_eur"] == 0.0
+        assert "by_cohort" in body and "by_model" in body and "per_class" in body
+
+    def test_cost_invalid_period_400(self, researcher_client):
+        resp = researcher_client.get("/api/insights/cost", params={"period": "nope"})
+        assert resp.status_code == 400
 
 
 # ---------------------------------------------------------------------------

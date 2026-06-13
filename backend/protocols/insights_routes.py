@@ -262,3 +262,25 @@ async def class_trend(
         since=since,
         until=until,
     )
+
+
+@router.get("/cost")
+async def cost_overview(
+    period: str = Query("this_month"),
+    user: User = Depends(get_current_user),  # noqa: B008
+) -> dict[str, Any]:
+    """Cross-class spend overview for the researcher cost view (sprint 1.1.9).
+
+    Researcher-only: a non-researcher (even a teacher) gets 403, including
+    a URL-hack. Returns EUR totals + per-cohort + per-model + per-class
+    breakdowns across every class (researchers query cross-tenant by design —
+    [1.1.5] researcher-role)."""
+    from analytics import cost_queries
+
+    _assert_teacher(user)
+    if not user.is_researcher:
+        raise HTTPException(status_code=403, detail="researcher access required")
+    if period not in ("this_month", "last_month", "all_time"):
+        raise HTTPException(status_code=400, detail=f"invalid period {period!r}")
+    log.info("insights_query route=cost researcher_uid=%s period=%s", user.uid, period)
+    return cost_queries.cohort_spend(period)  # type: ignore[arg-type]

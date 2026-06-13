@@ -68,7 +68,7 @@ Verified by code inspection on 2026-06-08 (not by doc placement, which lags). Le
 | 1.1.6 | group-code-ttl rename + archival | **SHIPPED** | `DEFAULT_GROUP_CODE_TTL_DAYS` + 410-on-expiry (QUICK-WINS-V11) |
 | 1.1.7 | student-multimodal-upload | **SHIPPED** | 2026-06-11. Native AG-UI multimodal (images ride `UserMessage.content` as `ImageInputContent` → ADK Parts, retained in session history; docs → docparse). Composer paperclip+camera, on-device person guardrail (1.1.21), client resize, units-loop preamble. M1→M3 incl. the native-rewire that deleted the first custom-injector pass. Sprint `MMU-1`. Commits incl. `6fbbe92`→`1fdb3a0` |
 | 1.1.8 | exit-ticket | **OPEN** | gated on JB/AR question set |
-| 1.1.9 | cost-dashboard | **OPEN** | no BudgetPanel; BQ token data already present via OTel |
+| 1.1.9 | cost-dashboard | **SHIPPED** | 2026-06-13 — code rate-card (`analytics/rate_card.py`) + spend queries (`analytics/cost_queries.py`, keyed on `group_id`, EUR-folded); `GET /api/classes/{id}/spend` (owner or researcher via `assert_can_read_class`) + `GET /api/insights/cost` (researcher-only cohort/model/per-class); `Class.cohort` field + PATCH; FE `BudgetPanel` on class-detail (this-month/projected/top activities+groups) + researcher **Cost** tab in `InsightsTabs` (`/teacher/insights/cost`). Multimodal cost folds into `token_in` (no new column). **Cap progress bar deferred** (no class-level cap; enforcer is skill-level). Sprint [implemented/cost-dashboard-sprint.md](implemented/cost-dashboard-sprint.md). Backend 1932 + FE 1044 tests green |
 | 1.1.10 | teacher-choice-ttl | **OPEN** | backend `mint_group(ttl_days)` pre-existed; route-validation + teacher-UI form field + CLI `--ttl-days` not built |
 | 1.1.11 | voice-provider-abstraction | **SHIPPED** | `backend/voice/` (base, providers/, registry, cache, cost) |
 | 1.1.12 | voice-personas | **SHIPPED (core bundle)** | `VoiceStatusPill` + the full persona bundle (2026-06-10/11): `Persona` model + 6 Danish-educator YAML defs (`backend/personas/`, real avatar images in `frontend/public/personas/`) + loader + `GET /api/personas`; builder **persona-card picker** that ties `interaction_style` + records the persona; **student chat bubble shows the persona's avatar + name**; **tutor read-aloud uses the persona's voice** (precedence: persona > class > skill > env). Commits `567d986`→`3b141b8`. **Pick Astrid → rigorous + her voice + her face.** **Remaining:** optimise the ~2MB avatar PNGs → webp, custom (Firestore) personas, `aiplatform personas` CLI, VoiceStatusPill friendly-mode |
@@ -88,7 +88,7 @@ Verified by code inspection on 2026-06-08 (not by doc placement, which lags). Le
 | 1.1.26 | teacher-ui-consolidation | **SHIPPED (P1–P5)** | 2026-06-09 — full foundation: P1 primitives (`components/teacher/ui/`), P2 by-breakpoint nav (`TeacherNav`), P3 class-detail onto primitives + "Class settings", P4 real Activities library, P5 Insights unification (`InsightsTabs`). Commits `6bb33af`→`d4692ee`; 958 FE tests. **Builder Essential/Advanced section-model intentionally deferred** to when its config features (1.1.20/1.1.23) are built into it |
 | 1.1.27 | lesson-author-surface | **OPEN** | design-only, **re-scoped 2026-06-12** to two net-new pieces: resolved-prompt preview (source-attributed, read-only) + trial session (`is_trial`, analytics-excluded). Dropped knobs/curriculum/chat-skill → 1.1.20/1.1.25/1.1.19. ~2d. Gated on JB sign-off on what the preview reveals |
 
-**Tally (incl. 9 June batch + 2026-06-11/12/13 sessions): 17 SHIPPED · 11 OPEN.** (1.1.26+1.1.20 2026-06-09/10; 1.1.12 2026-06-10/11; 1.1.7+1.1.21+1.1.23 shipped 2026-06-11; 1.1.25 M1 2026-06-11, M2–M5 + full sprint complete 2026-06-12. 1.1.27 added/re-scoped 2026-06-12. 1.1.5 researcher-role shipped 2026-06-13.)
+**Tally (incl. 9 June batch + 2026-06-11/12/13 sessions): 18 SHIPPED · 10 OPEN.** (1.1.26+1.1.20 2026-06-09/10; 1.1.12 2026-06-10/11; 1.1.7+1.1.21+1.1.23 shipped 2026-06-11; 1.1.25 M1 2026-06-11, M2–M5 + full sprint complete 2026-06-12. 1.1.27 added/re-scoped 2026-06-12. 1.1.5 researcher-role + 1.1.9 cost-dashboard shipped 2026-06-13.)
 
 ### Beyond the numbered roadmap — also shipped 2026-06-11
 
@@ -133,9 +133,9 @@ These landed this session but aren't numbered rows (they extend shipped work):
 
 - **1.1.26 teacher-UI-consolidation P1 (design-system primitives)** — frontend-only, ~1.5d. **DECIDED FIRST (M, 2026-06-09): a hard prerequisite, not soft** — "in place first before we add more complexity to it." P1 + the class-detail (P3) + builder (P4) refactors land **before** the config-heavy rows (personas 1.1.20, voice 1.1.23, TTL 1.1.10, budget 1.1.9, quiz/materials 1.1.19 M2–M8) so each new config slots into the pattern, not the old mess (no refactor-twice).
 - **1.1.19 teacher-activity-authoring M0** — no-workbench concept activity, end-to-end (~1.5d, lands pre-freeze; the 3-June headline ask). **M0+M1 already shipped (commits 3f65f97 → baeaae5).**
-- ~~1.1.5 researcher-role~~ — ✅ **SHIPPED 2026-06-13** (unblocks 1.1.9 researcher/cohort views).
+- ~~1.1.5 researcher-role~~ — ✅ **SHIPPED 2026-06-13** (unblocked 1.1.9 researcher/cohort views).
+- ~~1.1.9 cost-dashboard~~ — ✅ **SHIPPED 2026-06-13** (teacher BudgetPanel + researcher Cost tab).
 - 1.1.4 session-report summary-primary (~1d)
-- 1.1.9 cost-dashboard (~1d)
 - 1.1.10 teacher-choice-ttl (~0.5–1d)
 - 1.1.12 voice-personas — finish Persona model + cards (~2d remaining)
 - **1.1.22 end-of-class-notes-summary** (~1d) — *but sequence after 1.1.7 lands* (composes its upload path)

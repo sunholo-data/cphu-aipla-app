@@ -31,6 +31,7 @@ import {
   resetGroupSession,
 } from "@/lib/teacherApi";
 import { ClassInsightsPanel } from "@/components/teacher/insights/ClassInsightsPanel";
+import { BudgetPanel } from "@/components/teacher/BudgetPanel";
 import { ClassVoiceSettingsPanel } from "@/components/teacher/ClassVoiceSettingsPanel";
 import { ClassPersonaPanel } from "@/components/teacher/ClassPersonaPanel";
 import { SettingsSection } from "@/components/teacher/ui/SettingsSection";
@@ -508,6 +509,15 @@ export default function TeacherClassDetailPage() {
             onSaved={refresh}
           />
         </div>
+      </SettingsSection>
+
+      <SettingsSection
+        title="Spend"
+        description="Model cost for this class. Estimated from token usage at current provider rates."
+        collapsible
+        defaultOpen={false}
+      >
+        <BudgetPanel classId={cls.classId} />
       </SettingsSection>
 
       {showInsights ? (
