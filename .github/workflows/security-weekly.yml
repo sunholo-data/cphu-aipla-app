@@ -20,7 +20,12 @@ on:
 permissions:
   contents: read
   issues: write
-  security-events: read
+  # write (not read) so the reconcile step can dismiss alerts already fixed on
+  # the default branch. NOTE: the default GITHUB_TOKEN may still lack
+  # Dependabot-alerts write even with this — the reconcile step degrades
+  # gracefully and reports DENIED. Add a DEPENDABOT_TOKEN secret (fine-grained
+  # PAT, "Dependabot alerts: write") to guarantee it.
+  security-events: write
 
 jobs:
   audit:
@@ -61,6 +66,27 @@ jobs:
             echo "exit_code=$EXIT"
             echo "summary<<EOF"
             echo "$OUTPUT"
+            echo "EOF"
+          } >> "$GITHUB_OUTPUT"
+
+      - name: Auto-dismiss alerts already fixed on the default branch
+        id: reconcile
+        env:
+          # Prefer a fine-grained PAT with "Dependabot alerts: write" if set;
+          # fall back to GITHUB_TOKEN (which may lack the permission — the
+          # script then reports DENIED and exits 0, non-fatal).
+          GH_TOKEN: ${{ secrets.DEPENDABOT_TOKEN || secrets.GITHUB_TOKEN }}
+        run: |
+          # Layer 3: close the gap left by GitHub's unreliable native
+          # auto-dismiss. Re-audits the committed lockfiles and dismisses any
+          # open npm alert whose advisory the audit no longer flags.
+          set +e
+          OUT=$(scripts/reconcile-dependabot-alerts.sh --apply 2>&1)
+          echo "$OUT"
+          set -e
+          {
+            echo "summary<<EOF"
+            echo "$OUT" | sed -n '/== Summary ==/,$p'
             echo "EOF"
           } >> "$GITHUB_OUTPUT"
 
@@ -122,6 +148,16 @@ jobs:
 
           **Production-dep gate:** $AUDIT_STATUS
           **Open dependabot alerts:** ${{ steps.dependabot.outputs.summary }}
+
+          ---
+
+          ### Auto-reconciliation (Layer 3)
+
+          Alerts already fixed in the committed lockfiles are dismissed automatically before the count above is taken.
+
+          \`\`\`
+          ${{ steps.reconcile.outputs.summary }}
+          \`\`\`
 
           ---
 
