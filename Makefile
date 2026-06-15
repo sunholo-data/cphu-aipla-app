@@ -1,4 +1,4 @@
-.PHONY: dev dev-local dev-recompile dev-status dev-stop proxy-check logs cloud-logs cloud-errors cloud-build verify-chat-logs smoke-session-persistence smoke-teacher-cli help cli-install cli-reinstall cli-uninstall cli-doctor cli-selftest-mock cli-selftest-live cli-selftest seed reset-group-state provision-curriculum-rag seed-curriculum
+.PHONY: dev dev-local dev-recompile dev-status dev-stop proxy-check logs cloud-logs cloud-errors cloud-build verify-chat-logs smoke-session-persistence smoke-chat-resume smoke-teacher-cli help cli-install cli-reinstall cli-uninstall cli-doctor cli-selftest-mock cli-selftest-live cli-selftest seed reset-group-state provision-curriculum-rag seed-curriculum
 
 # Seed SKILL.md templates -> Firestore after a deploy that changed any template
 # (avatar, multimodalInput, persona, tools, accessControl, instructions). A code
@@ -118,6 +118,16 @@ smoke-session-persistence:
 	@chmod +x scripts/smoke-v1-session-persistence.sh
 	@scripts/smoke-v1-session-persistence.sh
 
+# Chat RESUME / history-readback smoke — the demo-readiness gate for the
+# reload-shows-history path. Joins a group, ensures a real tutor turn, then
+# reads it back through GET /sessions/{id}/messages TWICE (reload sim) and
+# asserts persistence + stable readback. No creds (group JWT). Targets the
+# DEPLOYED dev frontend proxy by default; override BASE / GROUP:
+#   make smoke-chat-resume GROUP=wooly-kettle-61
+smoke-chat-resume:
+	@chmod +x scripts/smoke-chat-resume.sh
+	@scripts/smoke-chat-resume.sh
+
 # 1.G-Ph3 teacher CLI smoke: class new/list/get/lessons/groups/delete round-trip
 # Requires make dev with LOCAL_MODE=1, or a deployed backend:
 #   make smoke-teacher-cli URL=https://aipla-backend-... AIPLATFORM_ID_TOKEN=<token>
@@ -208,6 +218,7 @@ help:
 	@echo "make proxy-check        — smoke-test the proxy bridge (CI helper)"
 	@echo "make verify-chat-logs            — e2e smoke: join a group, drive a turn, confirm it reached BigQuery (GROUP=… ENV=…)"
 	@echo "make smoke-session-persistence   — 1.F smoke: join→bootstrap→rejoin→restore→reset (requires make dev)"
+	@echo "make smoke-chat-resume           — DEMO GATE: join→real turn→read history→reload-read (deployed dev; GROUP=…)"
 	@echo "make smoke-teacher-cli           — 1.G-Ph3 smoke: class new/list/get/lessons/groups/delete (requires make dev)"
 	@echo
 	@echo "make cli-install        — install the aiplatform CLI as a global uv tool"
