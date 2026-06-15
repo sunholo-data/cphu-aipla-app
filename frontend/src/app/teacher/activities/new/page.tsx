@@ -213,7 +213,7 @@ function NewActivityForm() {
         </PanelMessage>
       ) : (
         <form onSubmit={handleSave} className="flex max-w-2xl flex-col gap-5">
-          <SettingsMap highlight="activity" />
+          <SettingsMap highlight="activity" classId={classId} />
           <Field label="Activity name" htmlFor="activity-title">
             <input
               id="activity-title"

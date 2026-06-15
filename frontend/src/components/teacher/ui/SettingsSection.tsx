@@ -16,6 +16,8 @@ export interface SettingsSectionProps {
   collapsible?: boolean;
   defaultOpen?: boolean;
   className?: string;
+  /** Anchor id on the section element (e.g. for in-page links from SettingsMap). */
+  id?: string;
 }
 
 /**
@@ -32,6 +34,7 @@ export function SettingsSection({
   collapsible = false,
   defaultOpen = true,
   className,
+  id,
 }: SettingsSectionProps) {
   const [open, setOpen] = useState(defaultOpen);
   const bodyId = useId();
@@ -44,7 +47,7 @@ export function SettingsSection({
   );
 
   return (
-    <section className={cn("flex flex-col gap-3", className)}>
+    <section id={id} className={cn("scroll-mt-4 flex flex-col gap-3", className)}>
       <div className="flex items-start justify-between gap-2">
         {collapsible ? (
           <button

@@ -305,7 +305,7 @@ export default function TeacherClassDetailPage() {
         </Link>
       }
     >
-      <SettingsMap highlight="class" />
+      <SettingsMap highlight="class" classId={cls.classId} />
       <SettingsSection
         title="Groups"
         action={
@@ -494,6 +494,7 @@ export default function TeacherClassDetailPage() {
       </SettingsSection>
 
       <SettingsSection
+        id="class-settings"
         title="Class settings"
         description="The tutor persona, voice, and what students can do — for this class."
       >
