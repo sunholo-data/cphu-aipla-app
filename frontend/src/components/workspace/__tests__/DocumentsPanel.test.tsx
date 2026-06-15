@@ -8,7 +8,7 @@ describe("DocumentsPanel", () => {
     expect(container.firstChild).toBeNull();
   });
 
-  it("shows every material NAME (names-always) with shared / not-shared badges", () => {
+  it("lists shared docs prominently and tucks not-shared ones into a collapsed disclosure", () => {
     render(
       <DocumentsPanel
         materials={[
@@ -18,12 +18,27 @@ describe("DocumentsPanel", () => {
         images={[]}
       />,
     );
-    // Both names appear regardless of visibility (debug / transparency).
+    // Shared doc is shown prominently.
     expect(screen.getByText("A-level kinematics")).toBeTruthy();
+    // Not-shared docs collapse into a compact disclosure (names still in the
+    // DOM for debug/transparency, just minimised by default).
+    expect(
+      screen.getByText(/1 more source the tutor uses \(not shared with you\)/i),
+    ).toBeTruthy();
     expect(screen.getByText("Teacher worksheet")).toBeTruthy();
-    // ...with the right badge each.
-    expect(screen.getByText("Shared")).toBeTruthy();
-    expect(screen.getByText("Not shared")).toBeTruthy();
+  });
+
+  it("pluralises the not-shared disclosure", () => {
+    render(
+      <DocumentsPanel
+        materials={[
+          { docId: "a", origin: "One", studentVisible: false },
+          { docId: "b", origin: "Two", studentVisible: false },
+        ]}
+        images={[]}
+      />,
+    );
+    expect(screen.getByText(/2 more sources the tutor uses/i)).toBeTruthy();
   });
 
   it("renders an uploads gallery from session images", () => {
