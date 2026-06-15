@@ -10,6 +10,7 @@ import {
   type Difficulty,
   type InteractionStyle,
   type Language,
+  type MaterialRef,
   type PersonaPayload,
   type WorkbenchType,
   fetchPersonaList,
@@ -22,6 +23,7 @@ import {
   INTERACTION_STYLE_HELP,
   INTERACTION_STYLE_OPTIONS,
 } from "@/lib/personaDisplay";
+import { MaterialsSection } from "@/components/teacher/MaterialsSection";
 
 // TAA-1 M0: a from-scratch activity runs the `concept-dialogue` base
 // skill (chat-only Socratic tutor). The teacher's title + lesson prompt
@@ -102,6 +104,9 @@ function NewActivityForm() {
   // Optional teacher-authored checklist. `key` is a stable client id for
   // React; the persisted item id is positional, assigned on save.
   const [checklist, setChecklist] = useState<{ key: number; label: string }[]>([]);
+  // Curriculum materials (1.1.25): documents the tutor grounds this activity in.
+  // Teachers browse/cite the A/B/C library or upload their own here at creation.
+  const [materials, setMaterials] = useState<MaterialRef[]>([]);
   const nextKeyRef = useRef(1);
   const addChecklistItem = () => setChecklist((cur) => [...cur, { key: nextKeyRef.current++, label: "" }]);
   const removeChecklistItem = (key: number) => setChecklist((cur) => cur.filter((i) => i.key !== key));
@@ -184,6 +189,7 @@ function NewActivityForm() {
           .map((i) => i.label.trim())
           .filter(Boolean)
           .map((label, idx) => ({ id: `step-${idx + 1}`, label })),
+        materials,
       });
       // Bind the concept-dialogue lesson to the class so students in it
       // actually see the activity. Idempotent — adding it again is a no-op.
@@ -363,6 +369,8 @@ function NewActivityForm() {
               </ul>
             )}
           </div>
+
+          <MaterialsSection materials={materials} onChange={setMaterials} />
 
           <div className="flex gap-4">
             <Field label="Language" htmlFor="activity-language">
