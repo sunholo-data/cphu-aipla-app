@@ -47,6 +47,23 @@ function makeClassPayload(overrides: Partial<ClassPayload> = {}): ClassPayload {
   };
 }
 
+function makeActivityConfig(
+  overrides: Partial<teacherApi.ActivityConfigPayload> = {},
+): teacherApi.ActivityConfigPayload {
+  return {
+    activityId: "skill-pset",
+    classId: CLASS_ID,
+    teacherUid: "teacher-1",
+    title: "Mechanical Waves",
+    teachingGoal: "Explore wave components.",
+    language: "da",
+    difficulty: "standard",
+    pairedWorkbench: null,
+    updatedAt: "2026-06-15T00:00:00Z",
+    ...overrides,
+  };
+}
+
 vi.mock("next/navigation", () => ({
   useParams: () => ({ id: CLASS_ID }),
   notFound: () => {
@@ -61,19 +78,23 @@ type GetClassMock = MockedFunction<typeof teacherApi.getClass>;
 type MintMock = MockedFunction<typeof teacherApi.mintGroupCodes>;
 type ListSkillsMock = MockedFunction<typeof teacherApi.listAccessibleSkills>;
 type PatchLessonsMock = MockedFunction<typeof teacherApi.patchLessons>;
+type ListActivitiesMock = MockedFunction<typeof teacherApi.listMyActivities>;
 
 let getSpy: GetClassMock;
 let mintSpy: MintMock;
 let listSkillsSpy: ListSkillsMock;
 let patchLessonsSpy: PatchLessonsMock;
+let listActivitiesSpy: ListActivitiesMock;
 
 beforeEach(() => {
   getSpy = vi.spyOn(teacherApi, "getClass") as unknown as GetClassMock;
   mintSpy = vi.spyOn(teacherApi, "mintGroupCodes") as unknown as MintMock;
   listSkillsSpy = vi.spyOn(teacherApi, "listAccessibleSkills") as unknown as ListSkillsMock;
   patchLessonsSpy = vi.spyOn(teacherApi, "patchLessons") as unknown as PatchLessonsMock;
-  // Default: empty catalogue. Individual tests override.
+  listActivitiesSpy = vi.spyOn(teacherApi, "listMyActivities") as unknown as ListActivitiesMock;
+  // Default: empty catalogue + no authored configs. Individual tests override.
   listSkillsSpy.mockResolvedValue([]);
+  listActivitiesSpy.mockResolvedValue([]);
 });
 
 afterEach(() => {
@@ -231,6 +252,26 @@ describe("/teacher/classes/[id] — class detail", () => {
       // as student lessons, so they never appear in the picker.
       expect(screen.queryByText("Manage classes")).not.toBeInTheDocument();
       expect(screen.queryByText("Analytics chat")).not.toBeInTheDocument();
+    });
+
+    it("labels an assigned activity with the teacher's title + a Configure link (1.1.32)", async () => {
+      getSpy.mockResolvedValue(makeClassPayload({ lessons: ["skill-pset"] }));
+      listSkillsSpy.mockResolvedValue([makeSkill()]); // skill name: "Problem-set hints (Boldkast)"
+      listActivitiesSpy.mockResolvedValue([
+        makeActivityConfig({ activityId: "skill-pset", title: "Mechanical Waves" }),
+      ]);
+
+      render(<TeacherClassDetailPage />);
+      // The assigned row shows the teacher's OWN activity title, not the bare
+      // skill name — so the class view matches the Activities page.
+      await waitFor(() =>
+        expect(screen.getByText("Mechanical Waves")).toBeInTheDocument(),
+      );
+      // …and links to the same editor the Activities page uses (editable here).
+      const configure = screen.getByRole("link", { name: /^configure$/i });
+      const href = configure.getAttribute("href") ?? "";
+      expect(href).toContain("/teacher/activities/skill-pset");
+      expect(href).toContain(`classId=${CLASS_ID}`);
     });
 
     it("picking a lesson calls patchLessons + refreshes the class", async () => {

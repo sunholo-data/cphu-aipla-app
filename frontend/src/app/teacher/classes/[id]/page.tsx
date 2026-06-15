@@ -20,6 +20,7 @@ import {
 } from "lucide-react";
 
 import {
+  type ActivityConfigPayload,
   type ClassPayload,
   type SessionRow,
   type SkillSummary,
@@ -27,6 +28,7 @@ import {
   isTeacherOnlySkill,
   listAccessibleSkills,
   listClassRecentSessions,
+  listMyActivities,
   mintGroupCodes,
   patchLessons,
   resetGroupSession,
@@ -78,6 +80,14 @@ export default function TeacherClassDetailPage() {
   const [catalogue, setCatalogue] = useState<SkillSummary[]>([]);
   const [showPicker, setShowPicker] = useState(false);
   const [busyLesson, setBusyLesson] = useState<string | null>(null);
+  // The teacher's authored configs for THIS class, keyed by activityId
+  // (== the lesson's skill_id). Lets the assigned-activities list show the
+  // teacher's own title ("Test 4 Checklist") + a Configure link, instead of
+  // the bare skill name — so the class view matches the Activities page
+  // (1.1.32, in-place fix; cross-class reuse is the Phase-B template model).
+  const [configByActivity, setConfigByActivity] = useState<
+    Map<string, ActivityConfigPayload>
+  >(new Map());
 
   const refresh = useCallback(async () => {
     setLoadError(null);
@@ -120,6 +130,17 @@ export default function TeacherClassDetailPage() {
         setCatalogue([]);
       });
   }, []);
+
+  // The teacher's authored activity configs for this class — used to label +
+  // link the assigned-activities list with the teacher's own titles.
+  useEffect(() => {
+    if (!id) return;
+    void listMyActivities(id)
+      .then((configs) =>
+        setConfigByActivity(new Map(configs.map((c) => [c.activityId, c]))),
+      )
+      .catch(() => setConfigByActivity(new Map()));
+  }, [id]);
 
   // Derived views of the catalogue split by whether they're already on
   // the class. Memoised so the picker doesn't recompute per render.
@@ -456,45 +477,60 @@ export default function TeacherClassDetailPage() {
           </p>
         ) : (
           <ul className="divide-y divide-border rounded border border-border">
-            {linkedLessons.map((lesson) => (
-              <li
-                key={lesson.skillId}
-                className="flex flex-wrap items-center justify-between gap-2 px-3 py-2"
-              >
-                <div className="flex min-w-0 flex-1 items-center gap-3">
-                  <LessonAvatar
-                    avatar={lesson.avatar}
-                    title={lesson.displayName}
-                  />
-                  <div className="flex flex-col">
-                    <span className="text-sm font-medium">{lesson.displayName}</span>
-                    {lesson.description ? (
-                      <span className="line-clamp-1 text-xs text-muted-foreground">
-                        {lesson.description}
-                      </span>
-                    ) : null}
+            {linkedLessons.map((lesson) => {
+              // Prefer the teacher's authored activity title over the bare
+              // skill name, and link to the SAME editor the Activities page
+              // uses — so the class view and the Activities page are one
+              // coherent thing (1.1.32 in-place fix).
+              const cfg = configByActivity.get(lesson.skillId);
+              const displayTitle = cfg?.title?.trim() || lesson.displayName;
+              const subtitle = cfg?.title?.trim()
+                ? `${lesson.displayName}${cfg.language ? ` · ${cfg.language === "da" ? "Dansk" : "English"}` : ""}`
+                : lesson.description;
+              const configureHref = `/teacher/activities/${encodeURIComponent(
+                lesson.skillId,
+              )}?classId=${encodeURIComponent(cls.classId)}${
+                cfg?.title ? `&title=${encodeURIComponent(cfg.title)}` : ""
+              }`;
+              return (
+                <li
+                  key={lesson.skillId}
+                  className="flex flex-wrap items-center justify-between gap-2 px-3 py-2"
+                >
+                  <div className="flex min-w-0 flex-1 items-center gap-3">
+                    <LessonAvatar avatar={lesson.avatar} title={displayTitle} />
+                    <div className="flex min-w-0 flex-col">
+                      <span className="truncate text-sm font-medium">{displayTitle}</span>
+                      {subtitle ? (
+                        <span className="line-clamp-1 text-xs text-muted-foreground">
+                          {subtitle}
+                        </span>
+                      ) : null}
+                    </div>
                   </div>
-                </div>
-                <div className="flex items-center gap-1">
-                  {/* "Configure" button intentionally absent. The
-                      /teacher/activities/<id> page exists for mock
-                      activity ids only and 404s for real skill_ids.
-                      Wiring it to /api/activity-configs for arbitrary
-                      lessons is v1.1 territory
-                      (teacher-artefact-parameters.md). */}
-                  <button
-                    type="button"
-                    onClick={() => handleRemoveLesson(lesson.skillId)}
-                    disabled={busyLesson === lesson.skillId}
-                    aria-label={`Remove ${lesson.displayName}`}
-                    className="flex items-center gap-1 rounded border border-border px-2 py-1 text-xs font-medium text-muted-foreground hover:bg-destructive/10 hover:text-destructive disabled:opacity-50"
-                  >
-                    <X className="h-3.5 w-3.5" aria-hidden="true" />
-                    Remove
-                  </button>
-                </div>
-              </li>
-            ))}
+                  <div className="flex items-center gap-1">
+                    <Link
+                      href={configureHref}
+                      title={`Configure ${displayTitle}`}
+                      className="flex items-center gap-1 rounded border border-border px-2 py-1 text-xs font-medium text-muted-foreground hover:bg-accent hover:text-foreground"
+                    >
+                      <Settings className="h-3.5 w-3.5" aria-hidden="true" />
+                      Configure
+                    </Link>
+                    <button
+                      type="button"
+                      onClick={() => handleRemoveLesson(lesson.skillId)}
+                      disabled={busyLesson === lesson.skillId}
+                      aria-label={`Remove ${displayTitle}`}
+                      className="flex items-center gap-1 rounded border border-border px-2 py-1 text-xs font-medium text-muted-foreground hover:bg-destructive/10 hover:text-destructive disabled:opacity-50"
+                    >
+                      <X className="h-3.5 w-3.5" aria-hidden="true" />
+                      Remove
+                    </button>
+                  </div>
+                </li>
+              );
+            })}
           </ul>
         )}
       </SettingsSection>
