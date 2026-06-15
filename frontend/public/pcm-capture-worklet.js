@@ -1,22 +1,21 @@
 /**
  * PCM capture AudioWorklet for AIPLA voice (dictation + lesson recording).
  *
- * Ported from the ailang streaming demos (dev/sunholo/demos/streaming/shared/
- * audio-worklet.js). Captures the mic as raw 16-bit PCM at a fixed target rate
- * (16 kHz mono) by downsampling from whatever the hardware/AudioContext rate is
- * (commonly 44.1 kHz on macOS, 48 kHz elsewhere).
+ * Captures the mic as raw 16-bit PCM at the AudioContext's NATIVE sample rate
+ * (commonly 44.1 kHz on macOS, 48 kHz elsewhere) — no JS resampling.
  *
- * WHY: the browser's MediaRecorder encodes Opus and stamps the hardware sample
- * rate (44100) into the WebM header, which Google Cloud STT's WEBM_OPUS decoder
- * rejects ("Opus sample rate (44100) not in supported rates"). Capturing raw
- * PCM at a known 16 kHz sidesteps the container entirely — the audio IS
- * LINEAR16 @ 16 kHz, exactly what STT wants. No transcode, no header to misread.
+ * WHY no resampling: the browser's MediaRecorder encodes Opus and stamps the
+ * hardware rate (44100) into the WebM header, which Google Cloud STT's
+ * WEBM_OPUS decoder rejects. Earlier we downsampled to 16 kHz here with naive
+ * nearest-neighbour decimation (no anti-alias filter), which folded high
+ * frequencies back as noise and GARBLED even clear speech. LINEAR16 accepts any
+ * rate 8–48 kHz, so we hand Cloud STT the native-rate PCM and let ITS
+ * production resampler do the downsampling cleanly. The WAV header (written on
+ * the main thread from ctx.sampleRate) carries the rate, so STT knows it.
  *
  * Usage:
  *   await ctx.audioWorklet.addModule('/pcm-capture-worklet.js');
- *   const node = new AudioWorkletNode(ctx, 'pcm-capture', {
- *     processorOptions: { targetRate: 16000 },
- *   });
+ *   const node = new AudioWorkletNode(ctx, 'pcm-capture');
  *   node.port.onmessage = (e) => { if (e.data.type === 'pcm-chunk') {...} };
  *   source.connect(node);
  */
@@ -24,11 +23,12 @@
 class PCMCaptureProcessor extends AudioWorkletProcessor {
   constructor(options) {
     super();
-    this.targetRate = options?.processorOptions?.targetRate || 16000;
-    // Emit a chunk roughly every 100ms so a 50s segment is ~500 messages.
+    // Emit a chunk roughly every 100ms so message traffic stays modest.
     this.chunkMs = options?.processorOptions?.chunkMs || 100;
     this.buffer = new Float32Array(0);
-    this.samplesPerChunk = Math.floor((this.targetRate * this.chunkMs) / 1000);
+    // `sampleRate` is the global injected into the worklet scope (the
+    // AudioContext's native rate).
+    this.samplesPerChunk = Math.floor((sampleRate * this.chunkMs) / 1000);
     this.isRecording = true;
 
     this.port.onmessage = (e) => {
@@ -42,20 +42,11 @@ class PCMCaptureProcessor extends AudioWorkletProcessor {
     const input = inputs[0];
     if (!input || !input[0]) return true;
 
-    const inputData = input[0]; // mono channel
+    const inputData = input[0]; // mono channel, native rate — NOT resampled
 
-    // Downsample from the AudioContext's sampleRate to targetRate. `sampleRate`
-    // is the global injected into the worklet scope (the context's rate).
-    const ratio = sampleRate / this.targetRate;
-    const downsampledLength = Math.floor(inputData.length / ratio);
-    const downsampled = new Float32Array(downsampledLength);
-    for (let i = 0; i < downsampledLength; i++) {
-      downsampled[i] = inputData[Math.floor(i * ratio)];
-    }
-
-    const merged = new Float32Array(this.buffer.length + downsampled.length);
+    const merged = new Float32Array(this.buffer.length + inputData.length);
     merged.set(this.buffer);
-    merged.set(downsampled, this.buffer.length);
+    merged.set(inputData, this.buffer.length);
     this.buffer = merged;
 
     while (this.buffer.length >= this.samplesPerChunk) {
@@ -70,7 +61,7 @@ class PCMCaptureProcessor extends AudioWorkletProcessor {
       }
 
       this.port.postMessage(
-        { type: "pcm-chunk", pcmData: pcm16.buffer, sampleRate: this.targetRate },
+        { type: "pcm-chunk", pcmData: pcm16.buffer, sampleRate },
         [pcm16.buffer],
       );
     }

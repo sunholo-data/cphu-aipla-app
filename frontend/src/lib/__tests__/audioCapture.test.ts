@@ -1,12 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-import {
-  AudioRecorder,
-  SegmentedRecorder,
-  encodeWav,
-  isAudioCaptureSupported,
-  CAPTURE_RATE,
-} from "../audioCapture";
+import { AudioRecorder, SegmentedRecorder, encodeWav, isAudioCaptureSupported } from "../audioCapture";
 
 // ── encodeWav: the core correctness — STT only works if the WAV header is right.
 describe("encodeWav", () => {
@@ -69,6 +63,7 @@ class FakeAnalyser {
 }
 class FakeAudioContext {
   state = "running";
+  sampleRate = 48000; // native hardware rate — written into the WAV header
   audioWorklet = { addModule: vi.fn().mockResolvedValue(undefined) };
   resume = vi.fn().mockResolvedValue(undefined);
   close = vi.fn().mockResolvedValue(undefined);
@@ -110,7 +105,7 @@ describe("isAudioCaptureSupported", () => {
 });
 
 describe("AudioRecorder", () => {
-  it("captures PCM and returns a 16 kHz WAV blob, releasing the mic", async () => {
+  it("captures PCM and returns a native-rate WAV blob, releasing the mic", async () => {
     const { opts, stopTrack, getUserMedia } = deps();
     const rec = new AudioRecorder(opts);
     await rec.start();
@@ -124,7 +119,8 @@ describe("AudioRecorder", () => {
     const result = await rec.stop();
     expect(result.mimeType).toBe("audio/wav");
     const view = new DataView(await result.blob.arrayBuffer());
-    expect(view.getUint32(24, true)).toBe(CAPTURE_RATE); // 16 kHz in the header
+    // WAV header carries the AudioContext's NATIVE rate (no JS resampling).
+    expect(view.getUint32(24, true)).toBe(48000);
     expect(result.blob.size).toBeGreaterThan(44); // header + the emitted samples
     expect(result.durationMs).toBeGreaterThan(0);
     expect(rec.recording).toBe(false);

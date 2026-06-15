@@ -25,7 +25,9 @@ export interface RecordingResult {
 }
 
 /** Target capture rate — a Google STT-supported Opus/LINEAR16 rate and the
- *  standard for speech recognition. */
+ *  fallback rate used only if the AudioContext doesn't report one. We capture
+ *  at the context's NATIVE rate (no JS resampling — see pcm-capture-worklet.js)
+ *  and let Google STT downsample, so this constant is just a safety default. */
 export const CAPTURE_RATE = 16000;
 
 const WORKLET_PATH = "/pcm-capture-worklet.js";
@@ -99,6 +101,9 @@ class PcmCaptureSession {
   private _analyser: AnalyserNode | null = null;
   private _levelBuf: Uint8Array<ArrayBuffer> | null = null;
   private _chunks: ArrayBuffer[] = [];
+  // The AudioContext's native rate, captured at start() and written into the
+  // WAV header so the backend (and STT) know the true rate.
+  private _rate = CAPTURE_RATE;
   private readonly _getUserMedia: (c: MediaStreamConstraints) => Promise<MediaStream>;
   private readonly _createCtx: () => AudioContext;
 
@@ -119,6 +124,7 @@ class PcmCaptureSession {
     this._stream = stream;
     const ctx = this._createCtx();
     this._ctx = ctx;
+    this._rate = Math.round(ctx.sampleRate) || CAPTURE_RATE;
     if (ctx.state === "suspended") await ctx.resume();
     await ctx.audioWorklet.addModule(WORKLET_PATH);
 
@@ -129,9 +135,8 @@ class PcmCaptureSession {
     this._levelBuf = new Uint8Array(analyser.frequencyBinCount);
     source.connect(analyser);
 
-    const node = new AudioWorkletNode(ctx, "pcm-capture", {
-      processorOptions: { targetRate: CAPTURE_RATE },
-    });
+    // No processorOptions — the worklet captures at the context's native rate.
+    const node = new AudioWorkletNode(ctx, "pcm-capture");
     node.port.onmessage = (e: MessageEvent) => {
       if (e.data?.type === "pcm-chunk") this._chunks.push(e.data.pcmData as ArrayBuffer);
     };
@@ -143,7 +148,7 @@ class PcmCaptureSession {
   take(): Blob {
     const chunks = this._chunks;
     this._chunks = [];
-    return encodeWav(chunks, CAPTURE_RATE);
+    return encodeWav(chunks, this._rate);
   }
 
   /** Live RMS input level 0..1 for a recording VFX. 0 when idle. */
