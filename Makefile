@@ -1,4 +1,4 @@
-.PHONY: dev dev-local dev-recompile dev-status dev-stop proxy-check logs cloud-logs cloud-errors cloud-build verify-chat-logs smoke-session-persistence smoke-teacher-cli help cli-install cli-reinstall cli-uninstall cli-doctor cli-selftest-mock cli-selftest-live cli-selftest seed provision-curriculum-rag seed-curriculum
+.PHONY: dev dev-local dev-recompile dev-status dev-stop proxy-check logs cloud-logs cloud-errors cloud-build verify-chat-logs smoke-session-persistence smoke-teacher-cli help cli-install cli-reinstall cli-uninstall cli-doctor cli-selftest-mock cli-selftest-live cli-selftest seed reset-group-state provision-curriculum-rag seed-curriculum
 
 # Seed SKILL.md templates -> Firestore after a deploy that changed any template
 # (avatar, multimodalInput, persona, tools, accessControl, instructions). A code
@@ -9,6 +9,16 @@
 #   make seed ENV=test
 seed:
 	@scripts/seed-platform-skills.sh $(ENV)
+
+# Clean-slate the anonymous-group session state for an env: wipe the
+# group_sessions pointers (always) and chat_sessions mirror (SESSIONS=1),
+# optionally the anon_groups codes (GROUPS=1 — invalidates all codes).
+# Use when stale group→session pointers orphan history (see the script header).
+#   make reset-group-state ENV=dev                 # pointers only
+#   make reset-group-state ENV=dev SESSIONS=1      # + chat_sessions metadata
+#   make reset-group-state ENV=dev SESSIONS=1 GROUPS=1   # full nuke incl. codes
+reset-group-state:
+	@scripts/reset-group-state.sh $(ENV) $(if $(filter 1,$(SESSIONS)),--sessions) $(if $(filter 1,$(GROUPS)),--groups)
 
 # Provision the curriculum RAG corpus for an env (1.1.25 M2/M5): enables the
 # Vertex AI API, grants IAM, creates/finds the RagManagedDb corpus, stores the

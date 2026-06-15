@@ -148,3 +148,34 @@ module "curriculum_rag" {
 ```
 
 …or run `scripts/provision-curriculum-rag.sh {test,prod}` directly (same end state — the script IS the corpus bridge the module's `null_resource` invokes). The module's per-env apply table tracks which envs are bootstrapped.
+
+---
+
+## 2026-06-15 — anonymous-group session clean slate (dev Firestore data wipe)
+
+**What:** deleted all documents in `group_sessions` (16) + `chat_sessions` (256)
+in `aipla-dev-2026` Firestore. `anon_groups` (5 group codes) preserved.
+
+**Why:** the 2026-06-13 stable-per-group-uid change (`_synthesize_uid` →
+`anon-<group>`, dropping the old random suffix) orphaned pre-existing group
+sessions: the group→session pointer is first-wins / 30-day-TTL, so reused
+codes kept resuming a session whose frozen `owner_uid` was the OLD scheme,
+while live students read/wrote under the new uid — so saved turns were
+unreadable (`GET /sessions/{id}/messages` queries Vertex under the stale
+`owner_uid`). No history worth preserving, so a clean slate was chosen over a
+migration. Post-wipe every code starts a fresh session owned by the current
+stable uid → history persists and displays.
+
+**How (repeatable):** `make reset-group-state ENV=dev SESSIONS=1`
+(= `scripts/reset-group-state.sh dev --sessions`). Needs gcloud Firestore
+write (`datastore.user`). Add `GROUPS=1` to also wipe `anon_groups` (invalidates
+all codes).
+
+**Not deleted:** the ADK event store in Agent Engine (Vertex sessions) — those
+orphan harmlessly; new sessions create new Vertex sessions. Only the Firestore
+mirror + pointers were cleared.
+
+**Test/prod:** if the same uid-scheme orphaning is ever observed there, run
+`make reset-group-state ENV=<env> SESSIONS=1`. Better: land the auto-heal fix
+(archive a pointer when its session's `owner_uid != _synthesize_uid(group_id)`)
+so it self-heals without a manual wipe.
