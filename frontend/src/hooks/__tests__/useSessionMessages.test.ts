@@ -67,6 +67,10 @@ describe("useSessionMessages", () => {
     expect(result.current.initialMessages[0].role).toBe("user");
     expect(result.current.initialMessages[0].content).toBe("Hello");
     expect(result.current.initialMessages[1].role).toBe("assistant");
+    // Timestamps must survive — without them every restored bubble rendered at
+    // the current time (all identical) instead of when the turn happened.
+    expect(result.current.initialMessages[0].timestamp).toBe(1714000000);
+    expect(result.current.initialMessages[1].timestamp).toBe(1714000001);
     expect(result.current.historyError).toBeNull();
   });
 

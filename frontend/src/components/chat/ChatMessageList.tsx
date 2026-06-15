@@ -17,6 +17,7 @@ import { useHumanToolEvents } from "@/hooks/useHumanToolEvents";
 import { HumanToolUseCard } from "./HumanToolUseCard";
 import { MessageBubble, type PersonaSummary } from "./MessageBubble";
 import { PinnedWelcome } from "./PinnedWelcome";
+import { latestAssistantMessageId } from "./autoReadTarget";
 import { StreamingBubble } from "./StreamingBubble";
 import { TypingIndicator } from "./TypingIndicator";
 import type React from "react";
@@ -178,6 +179,17 @@ export function ChatMessageList({
     return acc;
   }, {});
 
+  // Auto-read plays ONLY the latest assistant turn — never the whole restored
+  // history at once (chat-history restore renders N assistant bubbles; each
+  // self-speaking made them all play on load). The "latest" is the last
+  // assistant message across the rendered history + finalised live messages;
+  // the streaming bubble isn't auto-read here — it speaks once it finalises
+  // into a stable MessageBubble (and becomes this id).
+  const autoReadAssistantId = latestAssistantMessageId([
+    ...(initialMessages ?? []),
+    ...stableMessages,
+  ]);
+
   // Show the most recent running tool name in the TypingIndicator
   const activeToolName = toolCalls.find((tc) => tc.status === "running")?.name ?? null;
 
@@ -221,6 +233,7 @@ export function ChatMessageList({
                   mcpServerIds={mcpServerIds}
                   onChatMessage={onChatMessage}
                   sessionId={sessionId}
+                  autoSpeakAllowed={m.id === autoReadAssistantId}
                 />
               ))}
               <div className="flex items-center gap-2 text-xs text-muted-foreground">
@@ -261,6 +274,7 @@ export function ChatMessageList({
                 mcpServerIds={mcpServerIds}
                 onChatMessage={onChatMessage}
                 sessionId={sessionId}
+                autoSpeakAllowed={m.id === autoReadAssistantId}
               />
             </Fragment>
           ))}

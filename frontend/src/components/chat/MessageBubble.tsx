@@ -69,6 +69,12 @@ interface MessageBubbleProps {
    * to `"da"` because the LOCAL_MODE demo skill (problem-set-hints)
    * is Danish stx. Has no effect on non-assistant turns. */
   ttsLang?: string;
+  /** Auto-read (1.1.11): when auto-read is ON, ONLY the message the parent
+   *  designates as the latest assistant turn self-speaks on mount — never the
+   *  whole restored history at once. The parent (ChatMessageList) sets this
+   *  true for exactly one bubble. Defaults false so a bubble never
+   *  spontaneously speaks unless explicitly designated. */
+  autoSpeakAllowed?: boolean;
 }
 
 /**
@@ -120,11 +126,19 @@ export function parseA2UIResult(
   }
 }
 
-function formatTime(): string {
+function formatTime(epochSeconds?: number): string {
+  // Restored history carries the turn's recorded epoch-SECONDS timestamp; live
+  // messages omit it and render at "now". Guard against a value already in ms
+  // (epoch seconds are ~1.7e9 today; ms are ~1.7e12) so both forms render right
+  // instead of a far-future date.
+  const d =
+    epochSeconds != null
+      ? new Date(epochSeconds < 1e12 ? epochSeconds * 1000 : epochSeconds)
+      : new Date();
   return new Intl.DateTimeFormat("en", {
     hour: "numeric",
     minute: "2-digit",
-  }).format(new Date());
+  }).format(d);
 }
 
 function PersonaBubbleAvatar({ persona }: { persona: PersonaSummary }) {
@@ -162,6 +176,7 @@ export const MessageBubble = React.memo(function MessageBubble({
   onChatMessage,
   sessionId,
   ttsLang = "da",
+  autoSpeakAllowed = false,
 }: MessageBubbleProps) {
   // 1.1.11 — pick up the voice provider config for this skill so the
   // read-aloud button can route through Cloud TTS when configured (vs
@@ -175,7 +190,10 @@ export const MessageBubble = React.memo(function MessageBubble({
   // config has resolved — otherwise that first read used the
   // "browser" default and only later messages got Cloud TTS.
   const { enabled: autoReadEnabled } = useAutoReadAloud();
-  const autoSpeak = autoReadEnabled && !voiceConfig.loading;
+  // Only the parent-designated latest assistant turn auto-speaks — otherwise a
+  // resumed session with N restored assistant bubbles would play them all at
+  // once on load (the regression chat-history restore exposed).
+  const autoSpeak = autoSpeakAllowed && autoReadEnabled && !voiceConfig.loading;
   // 1.1.11 follow-up — resolution order changed 2026-06-04:
   //   skill/class committed lang > student preference > ttsLang prop
   // When the skill (or class) has declared a language (e.g. KineBot
@@ -187,7 +205,7 @@ export const MessageBubble = React.memo(function MessageBubble({
   const { lang: studentLang } = useVoiceLang();
   const effectiveLang = voiceConfig.tts.language ?? studentLang ?? ttsLang;
   const isBot = message.role === "assistant";
-  const time = formatTime();
+  const time = formatTime(message.timestamp);
 
   const A2UI_TOOL_NAME = "send_a2ui_json_to_client";
 

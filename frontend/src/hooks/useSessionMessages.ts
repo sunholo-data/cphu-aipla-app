@@ -39,7 +39,7 @@ function nextId(): string {
 }
 
 function toSkillMessage(m: SessionMessage): SkillMessage {
-  return { id: nextId(), role: m.role, content: m.content };
+  return { id: nextId(), role: m.role, content: m.content, timestamp: m.timestamp };
 }
 
 export function useSessionMessages(sessionId: string | null): UseSessionMessagesReturn {

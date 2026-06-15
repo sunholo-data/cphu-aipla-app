@@ -27,6 +27,11 @@ export interface SkillMessage {
    * native AG-UI `ImageInputContent` parts in the message content; rendered as
    * thumbnails in the user bubble. `data` is raw base64 (no data-URL prefix). */
   images?: { mimeType: string; data: string }[];
+  /** Epoch seconds the turn was recorded (from the session store, for restored
+   * history). Optional — live messages omit it and render at "now", which is
+   * correct since they just arrived. Without it, restored history all showed
+   * the current render time (every bubble's timestamp identical). */
+  timestamp?: number;
 }
 
 /** Shape the AG-UI user-message content: plain string, or a multimodal
