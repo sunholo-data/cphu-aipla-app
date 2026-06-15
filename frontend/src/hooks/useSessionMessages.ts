@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { SkillMessage } from "@/hooks/useSkillAgent";
 import { fetchWithAuth } from "@/lib/apiClient";
+import { isProactiveSentinel } from "@/lib/proactiveSentinels";
 
 interface SessionMessage {
   role: "user" | "assistant";
@@ -69,7 +70,17 @@ export function useSessionMessages(sessionId: string | null): UseSessionMessages
           return res.json() as Promise<GetSessionMessagesResponse>;
         })
         .then((data) => {
-          setInitialMessages(data.messages.map(toSkillMessage));
+          // Drop proactive-trigger sentinels ([session_start],
+          // [event_reactive:*]) from restored history — they're synthetic
+          // system markers used to kick off a tutor turn, NOT real student
+          // messages, and would otherwise render as a literal "[session_start]"
+          // bubble. The live path (useSkillAgent.toSkillMessage) already
+          // filters these; this keeps the resumed transcript consistent.
+          setInitialMessages(
+            data.messages
+              .filter((m) => !isProactiveSentinel(m.content))
+              .map(toSkillMessage),
+          );
         })
         .catch((err: Error) => {
           if (err.name === "AbortError") return;

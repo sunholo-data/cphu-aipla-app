@@ -74,6 +74,24 @@ describe("useSessionMessages", () => {
     expect(result.current.historyError).toBeNull();
   });
 
+  it("drops proactive-trigger sentinels ([session_start]) from restored history", async () => {
+    mockOk([
+      { role: "user", content: "[session_start]", timestamp: 1714000000 },
+      { role: "assistant", content: "Hej og velkommen!", timestamp: 1714000001 },
+      { role: "user", content: "hi", timestamp: 1714000002 },
+    ]);
+
+    const { result } = renderHook(() => useSessionMessages("sess-1"));
+
+    await waitFor(() => expect(result.current.isLoadingHistory).toBe(false));
+    // The synthetic trigger is filtered — transcript starts at the real greet.
+    expect(result.current.initialMessages).toHaveLength(2);
+    expect(
+      result.current.initialMessages.some((m) => m.content.includes("session_start")),
+    ).toBe(false);
+    expect(result.current.initialMessages[0].content).toBe("Hej og velkommen!");
+  });
+
   it("sets historyError on HTTP failure", async () => {
     mockError(500);
 
