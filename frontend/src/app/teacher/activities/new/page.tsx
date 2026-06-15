@@ -11,7 +11,6 @@ import {
   type Language,
   type MaterialRef,
   type PersonaPayload,
-  type WorkbenchType,
   fetchPersonaList,
   listAccessibleSkills,
   listClasses,
@@ -41,15 +40,6 @@ const LANGUAGE_OPTIONS: { value: Language; label: string }[] = [
   { value: "da", label: "Dansk" },
   { value: "en", label: "English" },
 ];
-// M0 ships the no-workbench (concept) type. Other types are declared so
-// the picker signals direction-of-travel, but are disabled until M4.
-const WORKBENCH_OPTIONS: { value: WorkbenchType; label: string; enabled: boolean }[] = [
-  { value: "none", label: "None — chat-only concept dialogue", enabled: true },
-  { value: "notebook", label: "Lab notebook (coming soon)", enabled: false },
-  { value: "drawing", label: "Drawing board (coming soon)", enabled: false },
-  { value: "app", label: "Simulator (paired sim)", enabled: false },
-];
-
 const GOAL_PLACEHOLDER =
   "e.g. Guide students to discover why the horizontal and vertical components of projectile motion are independent — without giving the answer.";
 
@@ -95,7 +85,6 @@ function NewActivityForm() {
   };
   // First-run default: the concept (no-workbench) path is pre-selected so
   // the happy path to a working activity is the default, not a blank form.
-  const [workbenchType] = useState<WorkbenchType>("none");
   // Optional teacher-authored checklist. `key` is a stable client id for
   // React; the persisted item id is positional, assigned on save.
   const [checklist, setChecklist] = useState<{ key: number; label: string }[]>([]);
@@ -176,8 +165,6 @@ function NewActivityForm() {
         language,
         interactionStyle,
         persona,
-        pairedWorkbench: null,
-        workbenchType,
         // Positional ids assigned on save; empty rows dropped.
         checklist: checklist
           .map((i) => i.label.trim())
@@ -286,24 +273,15 @@ function NewActivityForm() {
             </select>
           </Field>
 
-          <Field label="Workbench" htmlFor="activity-workbench">
-            <select
-              id="activity-workbench"
-              value={workbenchType}
-              disabled
-              className="w-full rounded-md border border-slate-200 bg-slate-50 px-3 py-2 text-sm text-slate-600"
-            >
-              {WORKBENCH_OPTIONS.map((w) => (
-                <option key={w.value} value={w.value} disabled={!w.enabled}>
-                  {w.label}
-                </option>
-              ))}
-            </select>
-            <p className="mt-1 flex items-center gap-1 text-xs text-slate-500">
-              <MessageCircle className="h-3.5 w-3.5" /> Chat-only for now — other workbench types arrive in a
-              later release.
-            </p>
-          </Field>
+          <p className="flex items-start gap-1.5 rounded-md border border-slate-200 bg-slate-50 px-3 py-2 text-xs text-slate-500">
+            <MessageCircle className="mt-0.5 h-3.5 w-3.5 shrink-0" />
+            <span>
+              This creates a chat-only concept activity (plus any checklist and
+              materials below). The Boldkast, LED&nbsp;Planck and KineBot
+              simulators are their own activities — a simulator is the tutor it
+              runs, not a setting you attach here.
+            </span>
+          </p>
 
           <Field label="Lesson prompt (Socratic teaching goal)" htmlFor="activity-goal">
             <textarea

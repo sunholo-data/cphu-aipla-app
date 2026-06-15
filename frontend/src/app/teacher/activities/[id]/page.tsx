@@ -48,8 +48,6 @@ const LANGUAGE_OPTIONS = [
   { value: "en", label: "English" },
 ];
 
-const WORKBENCH_NONE = "none";
-const WORKBENCH_BOLDKAST = "boldkast-simulator-v1";
 
 const GENERIC_HELPER =
   "Describe what you want students to discover. The tutor turns this into Socratic scaffolding — you never write the prompt yourself.";
@@ -72,7 +70,6 @@ export default function TeacherActivityConfigPage() {
   const [displayName, setDisplayName] = useState(titleParam || "Activity");
   const [teachingGoal, setTeachingGoal] = useState("");
   const [language, setLanguage] = useState<"da" | "en">("da");
-  const [pairedWorkbench, setPairedWorkbench] = useState<string>(WORKBENCH_NONE);
   const [materials, setMaterials] = useState<MaterialRef[]>([]);
   const [toast, setToast] = useState<string | null>(null);
   const [isSaving, setIsSaving] = useState(false);
@@ -96,7 +93,6 @@ export default function TeacherActivityConfigPage() {
         if (saved.title) setDisplayName(saved.title);
         setTeachingGoal(saved.teachingGoal || "");
         setLanguage(saved.language);
-        setPairedWorkbench(saved.pairedWorkbench ?? WORKBENCH_NONE);
         setMaterials(saved.materials ?? []);
         setLoadState("ready");
       })
@@ -126,8 +122,6 @@ export default function TeacherActivityConfigPage() {
         title: displayName,
         teachingGoal,
         language,
-        pairedWorkbench:
-          pairedWorkbench === WORKBENCH_NONE ? null : pairedWorkbench,
         materials,
       });
       setToast("Saved — students see your teaching goal on their next turn");
@@ -262,31 +256,12 @@ export default function TeacherActivityConfigPage() {
               <p className="text-xs text-muted-foreground">{helperText}</p>
             </fieldset>
 
-            <fieldset className="flex flex-col gap-2">
-              <legend className="text-sm font-medium">Paired workbench</legend>
-              <div className="flex flex-wrap gap-4 text-sm">
-                <label className="flex items-center gap-2">
-                  <input
-                    type="radio"
-                    name="workbench"
-                    value={WORKBENCH_BOLDKAST}
-                    checked={pairedWorkbench === WORKBENCH_BOLDKAST}
-                    onChange={() => setPairedWorkbench(WORKBENCH_BOLDKAST)}
-                  />
-                  Boldkast simulator
-                </label>
-                <label className="flex items-center gap-2">
-                  <input
-                    type="radio"
-                    name="workbench"
-                    value={WORKBENCH_NONE}
-                    checked={pairedWorkbench === WORKBENCH_NONE}
-                    onChange={() => setPairedWorkbench(WORKBENCH_NONE)}
-                  />
-                  None (chat only)
-                </label>
-              </div>
-            </fieldset>
+            <p className="rounded border border-border bg-muted/40 px-3 py-2 text-xs text-muted-foreground">
+              This is a chat-only concept activity (plus any checklist and
+              materials below). The Boldkast, LED&nbsp;Planck and KineBot
+              simulators are their own activities — a simulator is the tutor it
+              runs, not a setting you attach here.
+            </p>
 
             <MaterialsSection materials={materials} onChange={setMaterials} />
 

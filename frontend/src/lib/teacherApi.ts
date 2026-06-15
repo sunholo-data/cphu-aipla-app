@@ -88,7 +88,13 @@ export interface ActivityConfigUpsert {
   difficulty?: Difficulty;
   interactionStyle?: InteractionStyle;
   persona?: string | null;
-  pairedWorkbench: string | null;
+  /** Legacy decoupled-sim pointer (1.1.32) — a sim is the *skill* it runs
+   *  (the chat workspace dispatches on the skill slug), so a concept
+   *  activity can't host one. The teacher control was removed; the field
+   *  stays on the model (legacy rows backfill `workbenchType="app"`) but is
+   *  no longer set from the form. Activity↔sim 1:1 is the Phase-B template
+   *  refactor. Omit it. */
+  pairedWorkbench?: string | null;
   workbenchType?: WorkbenchType;
   checklist?: ChecklistItem[];
   materials?: MaterialRef[];

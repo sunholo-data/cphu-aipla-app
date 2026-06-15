@@ -54,11 +54,14 @@ describe("/teacher/activities/new — concept activity builder", () => {
     expect(screen.getByLabelText(/^class$/i)).toBeInTheDocument();
   });
 
-  it("defaults the workbench to the no-workbench concept type", async () => {
+  it("states honestly that this is a chat-only concept activity (1.1.32 — no decoupled sim knob)", async () => {
     listClassesMock.mockResolvedValue(ONE_CLASS);
     render(<NewActivityPage />);
-    const workbench = (await screen.findByLabelText(/workbench/i)) as HTMLSelectElement;
-    expect(workbench.value).toBe("none");
+    await screen.findByLabelText(/activity name/i);
+    // The lying "Paired workbench" picker was removed; the form now explains
+    // that simulators are their own activities.
+    expect(screen.getByText(/chat-only concept activity/i)).toBeInTheDocument();
+    expect(screen.queryByLabelText(/workbench/i)).not.toBeInTheDocument();
   });
 
   it("creates a concept-dialogue activity with the entered title + goal", async () => {
@@ -80,8 +83,6 @@ describe("/teacher/activities/new — concept activity builder", () => {
         classId: "c-1",
         title: "Energibevarelse",
         teachingGoal: "Explore energy conservation Socratically.",
-        workbenchType: "none",
-        pairedWorkbench: null,
       }),
     );
     // Binds the lesson to the class by its real skill_id so students see it
