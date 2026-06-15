@@ -83,6 +83,14 @@ class SkillResponse(BaseModel):
     protocols: dict
     initial_message: str = Field(alias="initialMessage")
     problem_statement: str = Field(default="", alias="problemStatement")
+    # 1.1.7 — exposed so the composer can show the image-upload affordance
+    # (paperclip + camera). SAME surfacing bug as proactive_greet below: the
+    # SkillConfig + Firestore doc + agent preamble all carry this flag, but
+    # without it on SkillResponse the GET /api/skills/{id} response strips it,
+    # so useSkillMeta always reads false and the upload UI stays hidden for
+    # EVERY skill — no amount of re-seeding helps. (Found 2026-06-15: Boldkast
+    # showed no upload despite multimodalInput:true in the seeded doc.)
+    multimodal_input: bool = Field(default=False, alias="multimodalInput")
     # 1.I-PhA — exposed so the frontend can decide whether to fire the
     # proactive-greet POST on chat mount (useSkillMeta reads this).
     # Without this field the GET response strips them and the proactive

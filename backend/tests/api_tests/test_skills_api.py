@@ -134,6 +134,27 @@ def test_get_skill(client):
         assert resp.json()["skillId"] == "abc-123"
 
 
+def test_get_skill_surfaces_multimodal_input(client):
+    """Regression (2026-06-15): SkillResponse must carry multimodalInput.
+
+    The flag lives on SkillConfig + Firestore + the agent preamble, but if
+    SkillResponse omits it the GET response strips it and the composer's
+    image-upload affordance stays hidden for every skill, no matter how many
+    times platform_seed runs. Boldkast (multimodalInput:true) showed no
+    upload because of exactly this. Mirrors the proactiveGreet surfacing.
+    """
+    with patch("skills.routes.skill_config.get_skill") as mock_get:
+        mock_get.return_value = _make_config(multimodalInput=True)
+        resp = client.get("/api/skills/abc-123")
+        assert resp.status_code == 200
+        assert resp.json()["multimodalInput"] is True
+
+    with patch("skills.routes.skill_config.get_skill") as mock_get:
+        mock_get.return_value = _make_config()  # default
+        resp = client.get("/api/skills/abc-123")
+        assert resp.json()["multimodalInput"] is False
+
+
 def test_get_skill_not_found(client):
     with patch("skills.routes.skill_config.get_skill") as mock_get:
         mock_get.return_value = None
