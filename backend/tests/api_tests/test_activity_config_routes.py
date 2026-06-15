@@ -106,6 +106,37 @@ def test_get_returns_the_saved_config(client):
     assert resp.json()["teacherUid"] == TEACHER_UID
 
 
+def test_material_student_visible_round_trips(client):
+    # 1.1.33 M2a: the teacher decides, per material, whether it's student-facing.
+    # studentVisible must survive POST + GET; default false when omitted.
+    body = _sample_body(
+        materials=[
+            {"docId": "doc-visible", "origin": "A-level kinematics", "studentVisible": True},
+            {"docId": "doc-hidden", "origin": "teacher upload"},  # default
+        ]
+    )
+    client.post("/api/activity-configs", json=body)
+    resp = client.get(f"/api/activity-configs/{TEACHER_UID}/7b-physics-a-2026/boldkast")
+    assert resp.status_code == 200
+    mats = {m["docId"]: m for m in resp.json()["materials"]}
+    assert mats["doc-visible"]["studentVisible"] is True
+    assert mats["doc-hidden"]["studentVisible"] is False
+
+
+def test_patch_updates_material_student_visible(client):
+    # Flipping visibility via PATCH round-trips too.
+    client.post(
+        "/api/activity-configs",
+        json=_sample_body(materials=[{"docId": "d1", "origin": "o", "studentVisible": False}]),
+    )
+    resp = client.patch(
+        f"/api/activity-configs/{TEACHER_UID}/7b-physics-a-2026/boldkast",
+        json=_sample_body(materials=[{"docId": "d1", "origin": "o", "studentVisible": True}]),
+    )
+    assert resp.status_code == 200
+    assert resp.json()["materials"][0]["studentVisible"] is True
+
+
 def test_get_blocks_cross_teacher_access(client):
     client.post("/api/activity-configs", json=_sample_body())
     resp = client.get(f"/api/activity-configs/{OTHER_TEACHER_UID}/7b-physics-a-2026/boldkast")
@@ -321,3 +352,33 @@ def test_active_returns_empty_when_no_config(client):
     resp = student.get("/api/activity-configs/active/missing-activity")
     assert resp.status_code == 200
     assert resp.json()["checklist"] == []
+
+
+def test_active_surfaces_all_material_names_with_visibility(client):
+    # 1.1.33 M2b: the student-facing active config surfaces ALL of the activity's
+    # material NAMES (so "what is this grounded in?" is debuggable) plus a
+    # studentVisible flag — names-always; content-open is gated by the flag, not
+    # the name. A bound student sees both a shared and a hidden material's name.
+    from db.activity_configs import upsert_activity_config
+    from db.models.activity_config import MaterialRef
+
+    upsert_activity_config(
+        teacher_uid="t-77",
+        class_id="cls-7",
+        activity_id="act-mats",
+        teaching_goal="g",
+        materials=[
+            MaterialRef(doc_id="d-shared", origin="A-level kinematics", student_visible=True),
+            MaterialRef(doc_id="d-hidden", origin="Teacher worksheet"),  # default false
+        ],
+    )
+    student = _group_client({"class:t-77:cls-7"})
+    resp = student.get("/api/activity-configs/active/act-mats")
+    assert resp.status_code == 200, resp.text
+    mats = {m["docId"]: m for m in resp.json()["materials"]}
+    # Both names present (debug/transparency) ...
+    assert mats["d-shared"]["origin"] == "A-level kinematics"
+    assert mats["d-hidden"]["origin"] == "Teacher worksheet"
+    # ... each with the visibility flag so the UI can gate content-open.
+    assert mats["d-shared"]["studentVisible"] is True
+    assert mats["d-hidden"]["studentVisible"] is False

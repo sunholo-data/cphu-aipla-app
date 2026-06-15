@@ -171,13 +171,21 @@ async def get_active_activity_config(
             "checklist": [],
             "workbenchType": "none",
             "persona": persona_block,
+            "materials": [],
         }
+    # 1.1.33 M2b: surface ALL of the activity's materials (names-always) with a
+    # studentVisible flag. The Documents workbench shows every source name (so
+    # "what is this grounded in?" is debuggable / transparent); the flag gates
+    # whether the student can OPEN the content, not whether the name shows.
+    # RAG grounding is unaffected — it uses every cited material regardless.
+    materials = [{"docId": m.doc_id, "origin": m.origin, "studentVisible": m.student_visible} for m in cfg.materials]
     return {
         "activityId": activity_id,
         "title": cfg.title,
         "checklist": [item.model_dump() for item in cfg.checklist],
         "workbenchType": cfg.workbench_type,
         "persona": persona_block,
+        "materials": materials,
     }
 
 

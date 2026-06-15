@@ -37,10 +37,16 @@ class MaterialRef(BaseModel):
     ``doc_id`` resolves to a ``CurriculumDoc`` in the curriculum library.
     ``origin`` is cached from ``CurriculumDoc.origin`` at citation time so the
     grounding preamble can name sources without an extra Firestore read.
+
+    ``student_visible`` (1.1.33 M2a): the teacher decides, per material, whether
+    it is shown to students in the Documents workbench surface. Default **false**
+    (opt-in). This governs ONLY the student-facing surface — RAG grounding always
+    uses every cited material regardless of visibility.
     """
 
     doc_id: str = Field(alias="docId", min_length=1, max_length=200)
     origin: str = Field(default="", alias="origin", max_length=200)
+    student_visible: bool = Field(default=False, alias="studentVisible")
 
     model_config = ConfigDict(populate_by_name=True)
 

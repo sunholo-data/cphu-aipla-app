@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
-import { BookOpen, Check, FileUp, Loader2, Plus, X } from "lucide-react";
+import { BookOpen, Check, Eye, EyeOff, FileUp, Loader2, Plus, X } from "lucide-react";
 
 import {
   type CurriculumDoc,
@@ -70,8 +70,18 @@ export function MaterialsSection({ materials, onChange }: Props) {
     if (citedIds.has(doc.docId)) {
       onChange(materials.filter((m) => m.docId !== doc.docId));
     } else {
-      onChange([...materials, { docId: doc.docId, origin: doc.origin }]);
+      // Default not student-visible (opt-in, 1.1.33 M2a) — the teacher reveals
+      // it deliberately. Grounding uses it either way.
+      onChange([...materials, { docId: doc.docId, origin: doc.origin, studentVisible: false }]);
     }
+  }
+
+  function toggleStudentVisible(docId: string) {
+    onChange(
+      materials.map((m) =>
+        m.docId === docId ? { ...m, studentVisible: !m.studentVisible } : m,
+      ),
+    );
   }
 
   return (
@@ -82,30 +92,58 @@ export function MaterialsSection({ materials, onChange }: Props) {
       </legend>
       <p className="text-xs text-muted-foreground">
         Cite curriculum documents so the tutor can ground its answers with a
-        source. Students only see the documents you cite here.
+        source. The tutor uses every cited document; students only see the ones
+        you mark <span className="font-medium">visible</span>.
       </p>
 
-      {/* Cited materials chips */}
+      {/* Cited materials chips — each with a per-material student-visibility toggle (1.1.33 M2a) */}
       {materials.length > 0 ? (
         <ul className="flex flex-wrap gap-2" aria-label="Cited materials">
-          {materials.map((m) => (
-            <li
-              key={m.docId}
-              className="flex items-center gap-1.5 rounded border border-primary/40 bg-primary/5 px-2 py-1 text-xs"
-            >
-              <span className="font-medium">{m.origin || m.docId}</span>
-              <button
-                type="button"
-                aria-label={`Remove ${m.origin || m.docId}`}
-                onClick={() =>
-                  onChange(materials.filter((x) => x.docId !== m.docId))
-                }
-                className="text-muted-foreground hover:text-foreground"
+          {materials.map((m) => {
+            const label = m.origin || m.docId;
+            const visible = Boolean(m.studentVisible);
+            return (
+              <li
+                key={m.docId}
+                className="flex items-center gap-1.5 rounded border border-primary/40 bg-primary/5 px-2 py-1 text-xs"
               >
-                <X className="h-3.5 w-3.5" aria-hidden="true" />
-              </button>
-            </li>
-          ))}
+                <span className="font-medium">{label}</span>
+                <button
+                  type="button"
+                  aria-pressed={visible}
+                  aria-label={
+                    visible
+                      ? `Hide ${label} from students`
+                      : `Show ${label} to students`
+                  }
+                  title={visible ? "Visible to students" : "Hidden from students"}
+                  onClick={() => toggleStudentVisible(m.docId)}
+                  className={
+                    visible
+                      ? "flex items-center gap-1 rounded px-1 text-emerald-700 hover:text-emerald-800"
+                      : "flex items-center gap-1 rounded px-1 text-muted-foreground hover:text-foreground"
+                  }
+                >
+                  {visible ? (
+                    <Eye className="h-3.5 w-3.5" aria-hidden="true" />
+                  ) : (
+                    <EyeOff className="h-3.5 w-3.5" aria-hidden="true" />
+                  )}
+                  <span>{visible ? "Visible" : "Hidden"}</span>
+                </button>
+                <button
+                  type="button"
+                  aria-label={`Remove ${label}`}
+                  onClick={() =>
+                    onChange(materials.filter((x) => x.docId !== m.docId))
+                  }
+                  className="text-muted-foreground hover:text-foreground"
+                >
+                  <X className="h-3.5 w-3.5" aria-hidden="true" />
+                </button>
+              </li>
+            );
+          })}
         </ul>
       ) : null}
 

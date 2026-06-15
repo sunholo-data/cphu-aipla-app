@@ -54,12 +54,32 @@ describe("MaterialsSection", () => {
     expect(screen.getByText(/uvm\.dk · Level B · mechanics/)).toBeInTheDocument();
   });
 
-  it("citing a doc calls onChange with a MaterialRef", async () => {
+  it("citing a doc calls onChange with a MaterialRef (default not student-visible)", async () => {
     browseCurriculum.mockResolvedValue([makeDoc()]);
     const onChange = vi.fn();
     render(<MaterialsSection materials={[]} onChange={onChange} />);
     fireEvent.click(await screen.findByRole("button", { name: /Cite Energi og arbejde/i }));
-    expect(onChange).toHaveBeenCalledWith([{ docId: "d1", origin: "uvm.dk" }]);
+    expect(onChange).toHaveBeenCalledWith([
+      { docId: "d1", origin: "uvm.dk", studentVisible: false },
+    ]);
+  });
+
+  it("toggling a cited material flips studentVisible (1.1.33 M2a)", async () => {
+    browseCurriculum.mockResolvedValue([]);
+    const onChange = vi.fn();
+    render(
+      <MaterialsSection
+        materials={[{ docId: "d1", origin: "Haka Fysik", studentVisible: false }]}
+        onChange={onChange}
+      />,
+    );
+    // Hidden by default → the toggle offers to "Show … to students".
+    fireEvent.click(
+      await screen.findByRole("button", { name: /Show Haka Fysik to students/i }),
+    );
+    expect(onChange).toHaveBeenCalledWith([
+      { docId: "d1", origin: "Haka Fysik", studentVisible: true },
+    ]);
   });
 
   it("un-citing an already-cited doc removes it", async () => {
