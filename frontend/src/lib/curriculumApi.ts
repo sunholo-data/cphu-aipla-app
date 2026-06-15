@@ -16,7 +16,9 @@ import type { StxLevel } from "@/lib/teacherApi";
 export interface CurriculumDoc {
   docId: string;
   title: string;
-  level: StxLevel;
+  /** 1.1.33: optional. Shared cleared library docs carry A/B/C; ad-hoc teacher
+   *  uploads are level-less (null) unless a level is later assigned. */
+  level: StxLevel | null;
   topic: string | null;
   source: "shared" | "teacher_upload";
   ownerScope: string;
@@ -67,7 +69,8 @@ export async function browseCurriculum(
 export interface IngestCurriculumParams {
   file: File;
   title: string;
-  level: StxLevel;
+  /** 1.1.33: optional — uploads are level-less unless the teacher assigns one. */
+  level?: StxLevel;
   origin: string;
   topic?: string;
   /** Teacher uploads default to teacher_owned (un-gated). Shared ingestion
@@ -81,7 +84,7 @@ export async function ingestCurriculum(
   const form = new FormData();
   form.set("file", params.file);
   form.set("title", params.title);
-  form.set("level", params.level);
+  if (params.level) form.set("level", params.level);
   form.set("origin", params.origin);
   if (params.topic) form.set("topic", params.topic);
   // shared=false, copyright_status=teacher_owned are the backend defaults.

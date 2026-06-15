@@ -177,9 +177,10 @@ export function MaterialsSection({ materials, onChange }: Props) {
           />
         </label>
         <UploadButton onUploaded={(doc) => {
-          // Add the new doc to the visible list + cite it immediately.
+          // Add the new doc to the visible list + cite it immediately. Default
+          // not student-visible (opt-in, 1.1.33 M2a) — same as toggleCite.
           setDocs((prev) => (prev ? [doc, ...prev] : [doc]));
-          onChange([...materials, { docId: doc.docId, origin: doc.origin }]);
+          onChange([...materials, { docId: doc.docId, origin: doc.origin, studentVisible: false }]);
         }} />
       </div>
 
@@ -217,7 +218,8 @@ export function MaterialsSection({ materials, onChange }: Props) {
                   <div className="flex min-w-0 flex-col gap-0.5">
                     <span className="truncate font-medium">{doc.title}</span>
                     <span className="text-xs text-muted-foreground">
-                      {doc.origin} · Level {doc.level}
+                      {doc.origin}
+                      {doc.level ? ` · Level ${doc.level}` : ""}
                       {doc.topic ? ` · ${doc.topic}` : ""}
                     </span>
                   </div>
@@ -277,9 +279,8 @@ function UploadButton({
       const doc = await ingestCurriculum({
         file,
         title: file.name.replace(/\.[^.]+$/, ""),
-        // Uploaded docs default to level B (teacher can re-file later); the
-        // origin is the teacher's filename so the citation is recognisable.
-        level: "B",
+        // 1.1.33: uploads are level-less (no forced "B" — the teacher may file
+        // it A/B/C later). origin is the filename so the citation is recognisable.
         origin: file.name,
       });
       onUploaded(doc);

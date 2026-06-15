@@ -82,6 +82,23 @@ def test_level_and_topic_filter(monkeypatch):
     assert [d.doc_id for d in out2] == ["b"]
 
 
+def test_level_optional_doc_lists_and_sorts(monkeypatch):
+    # 1.1.33: uploads are level-less (no forced "B"). A level=None doc must be
+    # constructible, appear in browse, and not crash the (level, title) sort
+    # (level-less sorts after A/B/C). A level filter simply doesn't match it.
+    _wire_store(
+        monkeypatch,
+        shared=[],
+        mine=[_doc("no-level", None, TEACHER), _doc("has-b", "B", TEACHER)],
+    )
+    out = dbc.list_curriculum_for_teacher(TEACHER)
+    ids = [d.doc_id for d in out]
+    assert ids == ["has-b", "no-level"]  # A/B/C first, level-less last
+    # A specific-level filter excludes the level-less doc.
+    filtered = dbc.list_curriculum_for_teacher(TEACHER, level="B")
+    assert [d.doc_id for d in filtered] == ["has-b"]
+
+
 # --- browse endpoint ---
 
 

@@ -136,8 +136,12 @@ describe("MaterialsSection", () => {
     fireEvent.change(input, { target: { files: [file] } });
 
     await waitFor(() => expect(ingestCurriculum).toHaveBeenCalled());
+    // 1.1.33: uploads are level-less — ingest is called WITHOUT a level.
+    expect(ingestCurriculum.mock.calls[0][0]).not.toHaveProperty("level");
     await waitFor(() =>
-      expect(onChange).toHaveBeenCalledWith([{ docId: "up1", origin: "my-notes.txt" }]),
+      expect(onChange).toHaveBeenCalledWith([
+        { docId: "up1", origin: "my-notes.txt", studentVisible: false },
+      ]),
     );
   });
 });

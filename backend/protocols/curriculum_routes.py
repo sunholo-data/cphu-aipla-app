@@ -106,8 +106,9 @@ async def _extract_text(tmp_path: str, filename: str) -> str:
 async def ingest_curriculum(
     file: UploadFile,
     title: Annotated[str, Form(min_length=1, max_length=300)],
-    level: Annotated[StxLevel, Form()],
     origin: Annotated[str, Form(min_length=1, max_length=200)],
+    # 1.1.33: optional — uploads are level-less unless the teacher assigns one.
+    level: Annotated[StxLevel | None, Form()] = None,
     topic: Annotated[str | None, Form(max_length=120)] = None,
     shared: Annotated[bool, Form()] = False,
     copyright_status: Annotated[CopyrightStatus, Form()] = "teacher_owned",

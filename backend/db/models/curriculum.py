@@ -29,7 +29,11 @@ class CurriculumDoc(BaseModel):
 
     doc_id: str = Field(alias="docId")
     title: str = Field(min_length=1, max_length=300)
-    level: StxLevel
+    # 1.1.33: optional. A/B/C is the organising axis for the SHARED cleared
+    # library, but ad-hoc teacher uploads have no inherent level — None means
+    # "unfiled", a teacher may assign A/B/C later from the catalogue. Never
+    # auto-assigned (the old forced "B" on upload was a bug).
+    level: StxLevel | None = None
     topic: str | None = Field(default=None, max_length=120)
     source: CurriculumSource
     # "shared" | a teacher uid | a class tag "class:<uid>:<id>" — the ACL key.

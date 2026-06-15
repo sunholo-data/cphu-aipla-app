@@ -57,5 +57,6 @@ def list_curriculum_for_teacher(
         docs = [d for d in docs if d.level == level]
     if topic:
         docs = [d for d in docs if (d.topic or "").lower() == topic.lower()]
-    docs.sort(key=lambda d: (d.level, d.title.lower()))
+    # Level-less (unfiled) docs sort after A/B/C; None can't compare to str.
+    docs.sort(key=lambda d: (d.level or "Z", d.title.lower()))
     return docs

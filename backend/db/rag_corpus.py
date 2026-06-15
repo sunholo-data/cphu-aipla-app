@@ -49,7 +49,7 @@ async def upload_text_as_rag_file(
     doc_id: str,
     *,
     title: str,
-    level: str,
+    level: str | None,
     topic: str | None,
     owner_scope: str,
 ) -> str | None:
