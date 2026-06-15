@@ -268,6 +268,9 @@ function UploadButton({
   const inputRef = useRef<HTMLInputElement>(null);
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);
+  // 1.1.33 M4 — what AILANG Parse extracted from the last upload, so the teacher
+  // can verify the parse before it grounds the tutor.
+  const [preview, setPreview] = useState<{ text: string; chars: number } | null>(null);
 
   async function handleFile(ev: React.ChangeEvent<HTMLInputElement>) {
     const file = ev.target.files?.[0];
@@ -275,15 +278,17 @@ function UploadButton({
     if (!file) return;
     setBusy(true);
     setErr(null);
+    setPreview(null);
     try {
-      const doc = await ingestCurriculum({
+      const result = await ingestCurriculum({
         file,
         title: file.name.replace(/\.[^.]+$/, ""),
         // 1.1.33: uploads are level-less (no forced "B" — the teacher may file
         // it A/B/C later). origin is the filename so the citation is recognisable.
         origin: file.name,
       });
-      onUploaded(doc);
+      onUploaded(result.doc);
+      setPreview({ text: result.parsedPreview, chars: result.parsedChars });
     } catch (e) {
       if (e instanceof CurriculumApiError && e.status === 422) {
         setErr("Unsupported file. Convert PDFs to .docx or .txt first.");
@@ -319,6 +324,26 @@ function UploadButton({
         aria-label="Upload curriculum document"
       />
       {err ? <span className="text-xs text-destructive">{err}</span> : null}
+      {preview ? (
+        <details className="mt-1 rounded border border-border bg-muted/30 text-xs">
+          <summary className="cursor-pointer px-2 py-1 font-medium">
+            What we extracted{" "}
+            <span className="font-normal text-muted-foreground">
+              ({preview.chars.toLocaleString()} characters
+              {preview.text.length < preview.chars ? ", preview truncated" : ""})
+            </span>
+          </summary>
+          {preview.text.trim() ? (
+            <pre className="max-h-48 overflow-auto whitespace-pre-wrap px-2 py-1 font-sans text-muted-foreground">
+              {preview.text}
+            </pre>
+          ) : (
+            <p className="px-2 py-1 text-destructive">
+              Nothing was extracted — check the file parsed correctly before relying on it.
+            </p>
+          )}
+        </details>
+      ) : null}
     </div>
   );
 }

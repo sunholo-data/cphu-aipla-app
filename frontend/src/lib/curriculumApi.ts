@@ -77,10 +77,19 @@ export interface IngestCurriculumParams {
    *  is admin-only and requires copyright_status=cleared — not exposed here. */
 }
 
+/** The ingest result. 1.1.33 M4 — `parsedPreview` is what AILANG Parse
+ *  extracted (capped; `parsedChars` is the full length), returned so the
+ *  teacher can verify the parse before it grounds the tutor. */
+export interface IngestResult {
+  doc: CurriculumDoc;
+  parsedPreview: string;
+  parsedChars: number;
+}
+
 /** Ingest a teacher's own document into the library (teacher_owned). */
 export async function ingestCurriculum(
   params: IngestCurriculumParams,
-): Promise<CurriculumDoc> {
+): Promise<IngestResult> {
   const form = new FormData();
   form.set("file", params.file);
   form.set("title", params.title);
@@ -93,6 +102,14 @@ export async function ingestCurriculum(
     method: "POST",
     body: form,
   });
-  const body = await readJson<{ doc: CurriculumDoc }>(resp, "ingest curriculum");
-  return body.doc;
+  const body = await readJson<{
+    doc: CurriculumDoc;
+    parsedPreview?: string;
+    parsedChars?: number;
+  }>(resp, "ingest curriculum");
+  return {
+    doc: body.doc,
+    parsedPreview: body.parsedPreview ?? "",
+    parsedChars: body.parsedChars ?? 0,
+  };
 }

@@ -45,6 +45,10 @@ _PLAINTEXT_EXTENSIONS = {".txt", ".md"}
 # All extensions accepted by this endpoint.
 _ALLOWED_EXTENSIONS = _PLAINTEXT_EXTENSIONS | DETERMINISTIC_EXTENSIONS
 
+# 1.1.33 M4 — cap the parse preview returned to the teacher (full char count is
+# reported separately). Generous: most uploads are worksheets, not books.
+_PARSE_PREVIEW_CAP = 20000
+
 
 # ---------------------------------------------------------------------------
 # M1 — browse
@@ -177,7 +181,15 @@ async def ingest_curriculum(
         shared,
         bool(rag_file_name),
     )
-    return {"doc": doc.model_dump(by_alias=True, mode="json")}
+    # 1.1.33 M4 — return what AILANG Parse extracted so the teacher can VERIFY
+    # the parse before it grounds the tutor (the text is already computed above
+    # and uploaded to RAG; we were discarding the copy). Preview capped; the full
+    # length is reported so the teacher knows if it was truncated for display.
+    return {
+        "doc": doc.model_dump(by_alias=True, mode="json"),
+        "parsedPreview": text[:_PARSE_PREVIEW_CAP],
+        "parsedChars": len(text),
+    }
 
 
 # ---------------------------------------------------------------------------

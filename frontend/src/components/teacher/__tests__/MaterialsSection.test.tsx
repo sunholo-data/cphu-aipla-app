@@ -124,9 +124,13 @@ describe("MaterialsSection", () => {
     );
   });
 
-  it("uploading ingests then cites the new doc", async () => {
+  it("uploading ingests, cites the new doc, and shows the parse preview", async () => {
     browseCurriculum.mockResolvedValue([]);
-    ingestCurriculum.mockResolvedValue(makeDoc({ docId: "up1", origin: "my-notes.txt" }));
+    ingestCurriculum.mockResolvedValue({
+      doc: makeDoc({ docId: "up1", origin: "my-notes.txt" }),
+      parsedPreview: "Newton's second law: F = m a.",
+      parsedChars: 29,
+    });
     const onChange = vi.fn();
     render(<MaterialsSection materials={[]} onChange={onChange} />);
     await waitFor(() => expect(browseCurriculum).toHaveBeenCalled());
@@ -143,5 +147,8 @@ describe("MaterialsSection", () => {
         { docId: "up1", origin: "my-notes.txt", studentVisible: false },
       ]),
     );
+    // M4 — the teacher sees what was parsed (verify before it grounds the tutor).
+    await waitFor(() => expect(screen.getByText(/what we extracted/i)).toBeInTheDocument());
+    expect(screen.getByText(/Newton's second law/)).toBeInTheDocument();
   });
 });

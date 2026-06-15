@@ -117,3 +117,36 @@ def test_browse_student_forbidden(monkeypatch):
 def test_browse_rejects_bad_scope():
     resp = _client().get("/api/curriculum?scope=everything")
     assert resp.status_code == 422  # pattern guard
+
+
+# --- M4: ingest returns the parsed preview (teacher reviews before grounding) ---
+
+
+def test_ingest_returns_parsed_preview_and_levelless(monkeypatch):
+    # 1.1.33 M4 — the ingest response carries what AILANG Parse extracted
+    # (parsedPreview + parsedChars) so the teacher can verify before it grounds
+    # the tutor. Also covers level-less upload end-to-end (no level form field).
+    import protocols.curriculum_routes as cr
+
+    extracted = "Newtons anden lov: F = m * a. Et regneeksempel følger."
+
+    async def fake_extract(tmp_path, filename):
+        return extracted
+
+    async def fake_upload(*a, **k):
+        return "rag/parsed-1"
+
+    monkeypatch.setattr(cr, "_extract_text", fake_extract)
+    monkeypatch.setattr(cr, "upload_text_as_rag_file", fake_upload)
+    monkeypatch.setattr(cr, "create_curriculum_doc", lambda doc: None)
+
+    resp = _client().post(
+        "/api/curriculum/ingest",
+        files={"file": ("worksheet.txt", b"raw bytes - extract is mocked", "text/plain")},
+        data={"title": "Worksheet", "origin": "worksheet.txt"},  # no level
+    )
+    assert resp.status_code == 201, resp.text
+    body = resp.json()
+    assert body["parsedPreview"].startswith("Newtons anden lov")
+    assert body["parsedChars"] == len(extracted)
+    assert body["doc"]["level"] is None  # level-less upload (1.1.33)
