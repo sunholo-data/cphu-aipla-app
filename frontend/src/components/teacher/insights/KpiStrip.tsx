@@ -18,13 +18,17 @@ import type { InsightsClassSummary } from "@/lib/insightsApi";
 
 interface KpiStripProps {
   summary: InsightsClassSummary | undefined;
+  /** True only while the insights round-trip is in flight. When false and
+   *  there's no summary, the class simply has no activity yet — distinct from
+   *  "loading" so the strip never shows a perpetual "Loading engagement…". */
+  loading?: boolean;
 }
 
-export function KpiStrip({ summary }: KpiStripProps) {
+export function KpiStrip({ summary, loading = false }: KpiStripProps) {
   if (!summary) {
     return (
       <p data-testid="kpi-strip-loading" className="text-xs text-muted-foreground">
-        Loading engagement…
+        {loading ? "Loading engagement…" : "No activity yet"}
       </p>
     );
   }

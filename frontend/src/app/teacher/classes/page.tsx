@@ -54,6 +54,11 @@ export default function TeacherClassesPage() {
   // BigQuery-backed insights (per-card KPIs + cross-class compare) are
   // deferred — loaded on demand so the class list opens fast (Firestore-only).
   const [showInsights, setShowInsights] = useState(false);
+  // True only while the insights round-trip is in flight — lets the KPI strip
+  // distinguish "loading" from "no activity yet" (and the cards suppress the
+  // strip entirely until insights are requested, so they don't show a
+  // misleading perpetual "Loading engagement…").
+  const [insightsLoading, setInsightsLoading] = useState(false);
   // Research view (sprint 1.1.5): researchers can switch to a cross-class
   // list of every teacher's classes. Toggle is hidden for non-researchers;
   // the backend independently rejects scope=all without the claim.
@@ -120,6 +125,7 @@ export default function TeacherClassesPage() {
   useEffect(() => {
     if (!showInsights) return;
     let cancelled = false;
+    setInsightsLoading(true);
     void fetchInsightsSummary()
       .then((p) => {
         if (cancelled) return;
@@ -127,6 +133,9 @@ export default function TeacherClassesPage() {
       })
       .catch(() => {
         if (!cancelled) setInsightsSummary(new Map());
+      })
+      .finally(() => {
+        if (!cancelled) setInsightsLoading(false);
       });
     return () => {
       cancelled = true;
@@ -241,6 +250,8 @@ export default function TeacherClassesPage() {
               key={cls.classId}
               cls={cls}
               insightsSummary={insightsSummary.get(cls.classId)}
+              insightsRequested={showInsights}
+              insightsLoading={insightsLoading}
               showOwner={researchView}
             />
           ))
@@ -358,10 +369,14 @@ export default function TeacherClassesPage() {
 function ClassCard({
   cls,
   insightsSummary,
+  insightsRequested = false,
+  insightsLoading = false,
   showOwner = false,
 }: {
   cls: ClassPayload;
   insightsSummary: InsightsClassSummary | undefined;
+  insightsRequested?: boolean;
+  insightsLoading?: boolean;
   showOwner?: boolean;
 }) {
   return (
@@ -380,7 +395,12 @@ function ClassCard({
         {cls.lessons.length} {cls.lessons.length === 1 ? "activity" : "activities"}{" "}
         configured
       </p>
-      <KpiStrip summary={insightsSummary} />
+      {/* Only show the engagement strip once insights are requested (the
+          "Show insights" button defers the BigQuery round-trip). Before that
+          the card stays clean — no misleading "Loading engagement…". */}
+      {insightsRequested ? (
+        <KpiStrip summary={insightsSummary} loading={insightsLoading} />
+      ) : null}
       <div className="mt-1 flex flex-wrap gap-2">
         <Link
           href={`/teacher/classes/${cls.classId}`}

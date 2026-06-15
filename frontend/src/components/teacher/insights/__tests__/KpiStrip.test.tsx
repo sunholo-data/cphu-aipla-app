@@ -4,9 +4,18 @@ import { describe, expect, it } from "vitest";
 import { KpiStrip } from "@/components/teacher/insights/KpiStrip";
 
 describe("KpiStrip", () => {
-  it("shows a loading placeholder when no summary is given", () => {
-    render(<KpiStrip summary={undefined} />);
-    expect(screen.getByTestId("kpi-strip-loading")).toBeInTheDocument();
+  it("shows 'Loading engagement…' only while the round-trip is in flight", () => {
+    render(<KpiStrip summary={undefined} loading />);
+    expect(screen.getByTestId("kpi-strip-loading")).toHaveTextContent(
+      /loading engagement/i,
+    );
+  });
+
+  it("shows 'No activity yet' (not a perpetual loading) when loaded with no summary", () => {
+    render(<KpiStrip summary={undefined} loading={false} />);
+    expect(screen.getByTestId("kpi-strip-loading")).toHaveTextContent(
+      /no activity yet/i,
+    );
   });
 
   it("renders activeGroups + totalMessages + last-activity relative", () => {
