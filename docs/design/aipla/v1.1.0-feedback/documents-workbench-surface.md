@@ -55,23 +55,49 @@ The workbench is already config-driven (`workspaceContentKind()` → `WorkspaceS
 ### Data sources (all native reads)
 
 - **Uploads gallery:** derive from the already-loaded `message.images` across session messages — a pure selector, no fetch. Each thumbnail is a `ZoomableImage` (shipped M0).
-- **Assigned materials:** new student endpoint `GET /api/activity-configs/active/{activity_id}/materials` (or fold into the existing `…/active/{activity_id}` resolve) → returns the activity's `MaterialRef[]` resolved to display metadata, ACL-scoped to the caller's group→class (deny-by-default; mirrors `build_curriculum_retrieval_tool`'s allow-list). No open-corpus browse.
+- **Assigned materials:** new student endpoint `GET /api/activity-configs/active/{activity_id}/materials` (or fold into the existing `…/active/{activity_id}` resolve) → returns the activity's `MaterialRef[]` **filtered to `studentVisible === true`**, resolved to display metadata, ACL-scoped to the caller's group→class (deny-by-default; mirrors `build_curriculum_retrieval_tool`'s allow-list). No open-corpus browse. The teacher's per-material `studentVisible` toggle (default off) governs what appears here; RAG grounding still uses all cited materials.
 - **Parsed view:** for a selected document, show AILANG Parse text; HTML/PDF previews render in the ADR-013 sandboxed frame.
 
 ### Milestones
 
 - **M0 — image click-to-expand (SHIPPED `445422d`).** Reuse the existing lightbox (`ZoomableImage`, extracted from `InlineImage`) on upload thumbnails. ~0.1d.
 - **M1 — Documents tab: uploads gallery.** New `documents` workbench kind; aggregate `message.images`; full-size on click. Frontend-only. ~1d.
-- **M2 — assigned materials visible.** Student-scoped materials read + render titles/sources in the tab; click opens parsed text. Gated on the **open pedagogical question** below. ~1d.
+- **M2 — assigned materials visible (teacher-controlled).** Two thin halves:
+  **M2a** — `MaterialRef.studentVisible` field (default off) + a "Show to
+  students" per-row toggle in the activity builder's `MaterialsSection`. **M2b**
+  — student-scoped read returns only `studentVisible` materials (+ activity ACL);
+  render titles/sources in the tab, click opens parsed text. ~1d total. No JB/AR
+  gate (the teacher control replaces it).
 - **M3 — docparse'd document rendering.** Parsed-text/preview view for uploads + materials; sandboxed frame for rich previews. ~0.5–1d.
 
 ### CLI surface
 
 Minimal — this is a student-facing render surface. The existing `aiplatform sessions inspect` already surfaces a session's uploaded-image parts for debugging; M2's materials read is exercised by the existing curriculum CLI (`aiplatform curriculum query/list`). No new command needed. (Noted per the mandatory CLI-affordance check; revisit if M3 adds a parse-preview worth a local `aiplatform documents preview`.)
 
-## Open question (for JB / AR — pedagogical, gates M2)
+## Resolved decision: the teacher decides, per material (M, 2026-06-15)
 
-**Should teacher-assigned RAG sources be student-visible?** Making the assigned materials viewable closes a transparency gap and supports "read then ask". But it also (a) may distract from the Socratic flow (the point is dialogue, not document-dumping), and (b) re-exposes copyright-cleared-only material to students directly (today the corpus is teacher-browse; student-visible changes the clearance surface — see [project_curriculum_clearance]). **M2 is gated on this call.** M1 (own uploads) and M0 carry no such question and can proceed regardless.
+The "should assigned sources be student-visible?" question is **not a global
+pedagogical ruling — it's a per-material teacher control.** When a teacher
+attaches/uploads a material to an activity, they choose whether it is
+student-facing. This sidesteps the global transparency-vs-Socratic debate and
+neatly contains the clearance concern: a teacher only marks student-visible the
+materials they are entitled to share.
+
+- **Data model:** add `studentVisible: boolean` to `MaterialRef` (default
+  **false** — opt-in). RAG grounding is unaffected (the tutor still grounds in
+  *all* cited materials regardless of visibility); the flag governs only the
+  student-facing Documents tab.
+- **Authoring (M2a):** a per-row "Show to students" toggle in the activity
+  builder's `MaterialsSection` (1.1.25). Default off.
+- **Student read (M2b):** the student-scoped materials endpoint returns **only**
+  materials with `studentVisible === true` (on top of the existing activity ACL).
+- **Default-off rationale:** safe for copyright clearance (no accidental
+  exposure) and for Socratic flow (no document-dumping unless the teacher
+  intends it). A teacher opts a material *in*.
+
+This removes the M2 gate — no JB/AR sign-off needed to build; the control *is*
+the answer. (JB/AR input is still welcome on the default and the toggle wording,
+but it no longer blocks.)
 
 ## Axiom Alignment
 
@@ -87,17 +113,17 @@ Net must be ≥ +4; ≤ 2 conflicts. See [Product Axioms](../../product-axioms.m
 | 6 | PROTOCOL OVER CUSTOM | +1 | Reads AG-UI `ImageInputContent` / ADK session events / `MaterialRef` natively; ADR-013 frame for previews. No custom store or format. |
 | 7 | API FIRST | +1 | The one new capability is a typed student-scoped materials endpoint; everything else is existing API. |
 | 8 | OBSERVABLE BY DEFAULT | 0 | Render surface; inherits existing chat/session telemetry. |
-| 9 | SECURE BY CONSTRUCTION | 0 | M2 endpoint is deny-by-default, ACL-scoped to the caller's activity (mirrors the retrieval allow-list); but it does widen who can read cleared materials → see the open question + clearance note. Net neutral with the gate. |
+| 9 | SECURE BY CONSTRUCTION | +1 | M2 endpoint is deny-by-default and ACL-scoped to the caller's activity (mirrors the retrieval allow-list), AND filtered to `studentVisible` (default off). Exposure is opt-in per material by the teacher — no accidental widening of the clearance surface. |
 | 10 | THIN CLIENT, FAT PROTOCOL | +1 | Client aggregates protocol-native data; logic (ACL, parse) stays server/protocol side. |
 | 11 | USABLE BY DESIGN | +1 | A single obvious home for documents; full-size view; keyboard/ESC close via Radix Dialog. |
 
-**Net: +8** (0 conflicts). Hard-fail rules satisfied (EARNED TRUST not −1; SECURE BY CONSTRUCTION not −1 — the clearance widening is gated as an explicit decision, not shipped silently).
+**Net: +9** (0 conflicts). Hard-fail rules satisfied (EARNED TRUST not −1; SECURE BY CONSTRUCTION +1 — exposure is opt-in per material, default off, no silent widening).
 
 ## Testing strategy
 
 - **M0 (done):** `ZoomableImage` unit test (trigger className, opens lightbox, broken-image fallback); `InlineImage` regression unchanged. 42 image/MessageBubble tests green.
 - **M1:** selector unit test (aggregate `message.images` across messages, de-dupe, order); tab renders gallery; empty state when no uploads.
-- **M2:** backend test for the student-scoped materials endpoint (ACL: own activity → 200 with materials; other activity / open corpus → denied); frontend renders titles/sources; gated-off state when the pedagogical decision is "no".
+- **M2:** backend tests — endpoint returns only `studentVisible` materials (a not-visible material is excluded), ACL: own activity → 200, other activity / open corpus → denied; `MaterialRef.studentVisible` round-trips through upsert (default false). Frontend — the `MaterialsSection` toggle flips `studentVisible`; the student tab renders only visible ones.
 - **M3:** parsed-text render test; sandboxed-frame mount for a preview.
 
 ## Related documents
