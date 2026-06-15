@@ -51,16 +51,24 @@ export default async function HomePage() {
         <p className="text-muted-foreground text-lg">{BRANDING.tagline}</p>
 
         {isAnonymousGroupMode ? (
-          // AIPLA v0.1 — anonymous group join is the only student-facing
-          // auth path. Google Sign-In isn't configured on aipla-dev-2026
-          // (no teacher routes ship until v1.0.0-pilot per ADR-001
-          // teacher-auth/UCPH SSO). Send users straight to /group.
-          <Link
-            href="/group"
-            className="rounded-lg bg-primary px-6 py-3 text-primary-foreground font-medium hover:opacity-90 transition-opacity"
-          >
-            Tilslut din gruppe / Join your group →
-          </Link>
+          // AIPLA v0.1 — anonymous group join is the primary student-facing
+          // auth path. Students go straight to /group; teachers get a quiet
+          // secondary link to the email/Google sign-in (ADR-001 teacher auth).
+          <div className="flex flex-col items-center gap-3">
+            <Link
+              href="/group"
+              className="rounded-lg bg-primary px-6 py-3 text-primary-foreground font-medium hover:opacity-90 transition-opacity"
+            >
+              Tilslut din gruppe / Join your group →
+            </Link>
+            <Link
+              href="/teacher/sign-in"
+              className="text-sm text-muted-foreground underline-offset-4 hover:text-foreground hover:underline"
+            >
+              Er du lærer? Log ind her{" "}
+              <span className="opacity-70">/ Are you a teacher? Sign in</span>
+            </Link>
+          </div>
         ) : (
           <SignInButton />
         )}

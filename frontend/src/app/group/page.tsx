@@ -164,6 +164,17 @@ function GroupJoinForm() {
         </span>
       </p>
 
+      <p className="border-t border-border pt-4 text-xs text-muted-foreground">
+        Er du lærer?{" "}
+        <Link
+          href="/teacher/sign-in"
+          className="font-medium underline underline-offset-4 hover:text-foreground"
+        >
+          Log ind her
+        </Link>
+        <span className="opacity-70"> / Are you a teacher? Sign in here.</span>
+      </p>
+
       <AppFooter />
     </main>
   );
