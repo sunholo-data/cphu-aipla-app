@@ -1,10 +1,10 @@
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-// Mutable navigation state so a single mock can drive both the legacy mock
-// wireframe path (no classId) and the real path (classId in the URL).
+// Mutable navigation state so a single mock drives the real path (classId in
+// the URL) and the missing-classId error path.
 const nav = vi.hoisted(() => ({
-  params: { id: "boldkast" } as { id: string },
+  params: { id: "act-real-123" } as { id: string },
   search: new Map<string, string>(),
 }));
 
@@ -22,7 +22,6 @@ vi.mock("@/lib/teacherApi", async () => {
   );
   return {
     ...actual,
-    // Default: first-time teacher, no saved config -> NotFoundError branch.
     fetchMyActivityConfig: vi.fn(async () => {
       throw new actual.NotFoundError();
     }),
@@ -45,81 +44,17 @@ const fetchMock = vi.mocked(fetchMyActivityConfig);
 const saveMock = vi.mocked(saveActivityConfig);
 
 beforeEach(() => {
-  nav.params = { id: "boldkast" };
-  nav.search = new Map();
+  nav.params = { id: "act-real-123" };
+  nav.search = new Map([
+    ["classId", "c-1"],
+    ["title", "Projectile motion"],
+  ]);
   fetchMock.mockReset();
   fetchMock.mockRejectedValue(new NotFoundError());
   saveMock.mockClear();
 });
 
-describe("/teacher/activities/[id] — mock wireframe path (no classId)", () => {
-  it("renders the teaching-goal textarea pre-filled from mock data", () => {
-    render(<TeacherActivityConfigPage />);
-    const textarea = screen.getByRole("textbox", {
-      name: /teaching goal/i,
-    }) as HTMLTextAreaElement;
-    expect(textarea).toBeInTheDocument();
-    expect(textarea.value).toMatch(/horizontal and vertical motion are independent/);
-  });
-
-  it("preserves an edited teaching goal across re-renders", () => {
-    render(<TeacherActivityConfigPage />);
-    const textarea = screen.getByRole("textbox", {
-      name: /teaching goal/i,
-    }) as HTMLTextAreaElement;
-    fireEvent.change(textarea, { target: { value: "Custom goal copy" } });
-    expect(textarea.value).toBe("Custom goal copy");
-  });
-
-  it("surfaces the 3-tab roadmap signals (Parameters / Code / History) with version pills", () => {
-    render(<TeacherActivityConfigPage />);
-    expect(screen.getByRole("tab", { name: /teaching goal/i })).toHaveAttribute(
-      "aria-selected",
-      "true",
-    );
-    const params = screen.getByRole("tab", { name: /parameters/i });
-    const code = screen.getByRole("tab", { name: /code/i });
-    const history = screen.getByRole("tab", { name: /history/i });
-    expect(params).toHaveTextContent(/v1\.1/i);
-    expect(code).toHaveTextContent(/v2/i);
-    expect(history).toHaveTextContent(/v2/i);
-  });
-
-  it("clicking the Parameters tab swaps in the v1.1 roadmap preview", () => {
-    render(<TeacherActivityConfigPage />);
-    fireEvent.click(screen.getByRole("tab", { name: /parameters/i }));
-    expect(
-      screen.getByRole("tabpanel", { name: /parameters/i }),
-    ).toBeInTheDocument();
-    expect(screen.getByText(/initial angle range/i)).toBeInTheDocument();
-  });
-
-  it("'Save configuration' click POSTs to /api/activity-configs and shows the saved toast", async () => {
-    render(<TeacherActivityConfigPage />);
-    const textarea = screen.getByRole("textbox", {
-      name: /teaching goal/i,
-    }) as HTMLTextAreaElement;
-    fireEvent.change(textarea, { target: { value: "Edited goal" } });
-
-    fireEvent.click(screen.getByRole("button", { name: /save configuration/i }));
-
-    await waitFor(() => {
-      expect(screen.getByRole("status").textContent ?? "").toMatch(/saved\b/i);
-    });
-    expect(textarea.value).toBe("Edited goal");
-  });
-});
-
-describe("/teacher/activities/[id] — real path (classId in URL)", () => {
-  beforeEach(() => {
-    // Real activity id (not a mock key) + classId in the URL.
-    nav.params = { id: "act-real-123" };
-    nav.search = new Map([
-      ["classId", "c-1"],
-      ["title", "Projectile motion"],
-    ]);
-  });
-
+describe("/teacher/activities/[id] — real activity editor", () => {
   it("loads the live config and pre-fills the goal + cited materials", async () => {
     fetchMock.mockResolvedValueOnce({
       activityId: "act-real-123",
@@ -147,8 +82,25 @@ describe("/teacher/activities/[id] — real path (classId in URL)", () => {
     expect(screen.getByText(/configure: projectile motion/i)).toBeInTheDocument();
   });
 
+  it("renders an empty form for a not-yet-saved activity (404, no mock)", async () => {
+    fetchMock.mockRejectedValueOnce(new NotFoundError());
+    render(<TeacherActivityConfigPage />);
+
+    const textarea = (await screen.findByRole("textbox", {
+      name: /teaching goal/i,
+    })) as HTMLTextAreaElement;
+    expect(textarea.value).toBe("");
+  });
+
+  it("surfaces the 3-tab roadmap signals (Parameters / Code / History)", async () => {
+    render(<TeacherActivityConfigPage />);
+    await screen.findByRole("textbox", { name: /teaching goal/i });
+    expect(screen.getByRole("tab", { name: /parameters/i })).toHaveTextContent(/v1\.1/i);
+    expect(screen.getByRole("tab", { name: /code/i })).toHaveTextContent(/v2/i);
+    expect(screen.getByRole("tab", { name: /history/i })).toHaveTextContent(/v2/i);
+  });
+
   it("saves with the real classId + activityId", async () => {
-    fetchMock.mockRejectedValueOnce(new NotFoundError()); // not-yet-saved activity
     render(<TeacherActivityConfigPage />);
 
     const textarea = (await screen.findByRole("textbox", {
@@ -166,11 +118,18 @@ describe("/teacher/activities/[id] — real path (classId in URL)", () => {
         }),
       );
     });
+    expect(screen.getByRole("status").textContent ?? "").toMatch(/saved\b/i);
   });
 
   it("shows an error panel when the load fails (non-404)", async () => {
     fetchMock.mockRejectedValueOnce(new Error("boom"));
     render(<TeacherActivityConfigPage />);
     expect(await screen.findByRole("alert")).toHaveTextContent(/could not load/i);
+  });
+
+  it("shows the error state (never mock data) when arriving without a classId", () => {
+    nav.search = new Map(); // no classId
+    render(<TeacherActivityConfigPage />);
+    expect(screen.getByRole("alert")).toHaveTextContent(/could not load/i);
   });
 });

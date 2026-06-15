@@ -2,10 +2,11 @@
  * Teacher API client — wraps the /api/activity-configs and /api/reports
  * endpoints behind typed helpers.
  *
- * Phase 2 (1.G-Ph2) scope: only the two screens that wire to real
- * backend data go through this client (activity config + per-group
- * report). Dashboard, class detail, and analytics still consume
- * `_mock-data.ts` directly until Phase 3.
+ * The teacher surfaces (dashboard, class detail, activity editor, group
+ * report, analytics) all read live backend data through this client. There
+ * is no mock-data fallback: pages show real data, an honest empty state, or
+ * a load error — never fabricated content. (The former `_mock-data.ts`
+ * scaffold was removed once these endpoints existed.)
  *
  * Every call goes through `/api/proxy/...` so the Next.js proxy can
  * attach the right host headers + forward Authorization to the FastAPI

@@ -3,19 +3,8 @@
 import Link from "next/link";
 import { useParams, useSearchParams } from "next/navigation";
 import { useEffect, useState } from "react";
-import {
-  ArrowLeft,
-  CheckCircle2,
-  Circle,
-  Download,
-  Sliders,
-} from "lucide-react";
+import { ArrowLeft, Download, Sliders } from "lucide-react";
 
-import {
-  type MockSessionReport,
-  getMockClass,
-  getMockSessionReport,
-} from "../../../_mock-data";
 import {
   NotFoundError,
   type SessionSummaryPayload,
@@ -28,40 +17,47 @@ import { ChatMarkdown } from "@/components/chat/ChatMarkdown";
 
 const TRANSCRIPT_OPEN_KEY = "aipla.report.transcriptOpen";
 
+/** The shape the report UI renders — derived from the live session summary.
+ *  No mock fallback: a teacher only ever sees real session data, an honest
+ *  "no sessions yet" empty state, or a load error. */
+type ReportTurn = { timestamp: string; role: "student" | "tutor"; content: string };
+type ReportDisplay = {
+  groupCode: string;
+  activityName: string;
+  startedAtLabel: string;
+  durationMinutes: number;
+  messageCount: number;
+  simRunCount: number;
+  highlights: string[];
+  conversation: ReportTurn[];
+};
+
 type ReportState =
   | { kind: "loading" }
   | { kind: "live"; data: SessionSummaryPayload }
-  | { kind: "mock"; data: MockSessionReport }
-  | { kind: "empty" };
+  | { kind: "empty" }
+  | { kind: "error" };
 
-function toDisplay(state: ReportState): MockSessionReport | null {
-  if (state.kind === "live") {
-    const d = state.data;
-    return {
-      classId: "",
-      groupCode: d.groupCode ?? "",
-      activityName: d.activityId,
-      startedAtLabel: d.startedAt.slice(0, 16).replace("T", " "),
-      durationMinutes: Math.round(d.durationSeconds / 60),
-      messageCount: d.messageCount,
-      simRunCount: d.simRunCount,
-      highlights: [
-        `${d.messageCount} messages exchanged`,
-        `${d.simRunCount} workbench interactions`,
-      ],
-      checklistComplete: [],
-      checklistIncomplete: [],
-      conversation: d.conversation.map((t) => ({
-        timestamp: t.timestamp.slice(11, 16),
-        role: t.role,
-        content: t.content,
-      })),
-    };
-  }
-  if (state.kind === "mock") {
-    return state.data;
-  }
-  return null;
+function toDisplay(state: ReportState): ReportDisplay | null {
+  if (state.kind !== "live") return null;
+  const d = state.data;
+  return {
+    groupCode: d.groupCode ?? "",
+    activityName: d.activityId,
+    startedAtLabel: d.startedAt.slice(0, 16).replace("T", " "),
+    durationMinutes: Math.round(d.durationSeconds / 60),
+    messageCount: d.messageCount,
+    simRunCount: d.simRunCount,
+    highlights: [
+      `${d.messageCount} messages exchanged`,
+      `${d.simRunCount} workbench interactions`,
+    ],
+    conversation: d.conversation.map((t) => ({
+      timestamp: t.timestamp.slice(11, 16),
+      role: t.role,
+      content: t.content,
+    })),
+  };
 }
 
 export default function TeacherGroupReportPage() {
@@ -108,21 +104,15 @@ export default function TeacherGroupReportPage() {
       })
       .catch((err) => {
         if (!alive) return;
-        const mock = getMockSessionReport(groupId);
+        // No mock fallback — a teacher must never see fabricated session
+        // data. 404 = no session yet (honest empty state); anything else is
+        // a real load failure.
         if (err instanceof NotFoundError) {
-          if (mock) {
-            setState({ kind: "mock", data: mock });
-          } else {
-            setState({ kind: "empty" });
-          }
+          setState({ kind: "empty" });
           return;
         }
         console.warn("[teacher-ui] group report load failed:", err);
-        if (mock) {
-          setState({ kind: "mock", data: mock });
-        } else {
-          setState({ kind: "empty" });
-        }
+        setState({ kind: "error" });
       });
     return () => {
       alive = false;
@@ -149,37 +139,33 @@ export default function TeacherGroupReportPage() {
     );
   }
 
+  if (state.kind === "error") {
+    return (
+      <div className="flex min-h-[40vh] flex-col items-center justify-center gap-2 text-sm text-muted-foreground">
+        <p className="font-medium text-foreground">Couldn&apos;t load this report</p>
+        <p>
+          Something went wrong fetching the session for group{" "}
+          <code className="rounded bg-muted px-1.5 py-0.5 font-mono text-xs">{groupId}</code>. Refresh to try again.
+        </p>
+      </div>
+    );
+  }
+
+  // Only the "live" state reaches here (loading / empty / error returned
+  // above), so the report is always real session data.
   const report = toDisplay(state)!;
-  const parentClass =
-    state.kind === "mock" && report.classId
-      ? getMockClass(report.classId)
-      : undefined;
-  const isLive = state.kind === "live";
   const narrative = state.kind === "live" ? (state.data.narrative ?? null) : null;
 
   return (
     <div className="flex flex-col gap-6">
       <nav className="flex flex-wrap items-center gap-1 text-sm text-muted-foreground">
-        {parentClass ? (
-          <>
-            <Link
-              href={`/teacher/classes/${parentClass.id}`}
-              className="flex items-center gap-1 hover:text-foreground"
-            >
-              <ArrowLeft className="h-4 w-4" aria-hidden="true" />
-              {parentClass.name}
-            </Link>
-            <span aria-hidden="true">/</span>
-          </>
-        ) : (
-          <Link
-            href="/teacher/classes"
-            className="flex items-center gap-1 hover:text-foreground"
-          >
-            <ArrowLeft className="h-4 w-4" aria-hidden="true" />
-            Dashboard
-          </Link>
-        )}
+        <Link
+          href="/teacher/classes"
+          className="flex items-center gap-1 hover:text-foreground"
+        >
+          <ArrowLeft className="h-4 w-4" aria-hidden="true" />
+          Dashboard
+        </Link>
         <span aria-hidden="true">/</span>
         <code className="rounded bg-muted px-1.5 py-0.5 font-mono text-xs text-foreground">
           {groupId}
@@ -189,44 +175,35 @@ export default function TeacherGroupReportPage() {
       </nav>
 
       <header className="flex flex-col gap-1">
-        <div className="flex items-center gap-2">
-          <h1 className="text-xl font-semibold sm:text-2xl">
-            {sessionId ? "Session" : "Latest session"}
-          </h1>
-          {!isLive ? (
-            <span className="rounded border border-dashed border-amber-300 bg-amber-50 px-2 py-0.5 text-[10px] font-medium text-amber-900 dark:border-amber-700 dark:bg-amber-950 dark:text-amber-200">
-              mock data
-            </span>
-          ) : null}
-        </div>
+        <h1 className="text-xl font-semibold sm:text-2xl">
+          {sessionId ? "Session" : "Latest session"}
+        </h1>
         <p className="text-sm text-muted-foreground">
           Activity: <strong>{report.activityName}</strong> · Session:{" "}
           {report.startedAtLabel}
         </p>
       </header>
 
-      {isLive ? (
-        <section
-          aria-labelledby="narrative-label"
-          className="flex flex-col gap-2 rounded border border-border bg-background p-4"
-        >
-          <h2 id="narrative-label" className="text-base font-semibold">
-            Summary
-          </h2>
-          {narrative ? (
-            <div className="text-sm">
-              {/* Summaries carry no doc-block links, so navigation is a no-op. */}
-              <ChatMarkdown content={narrative} navigateToBlock={() => {}} />
-            </div>
-          ) : (
-            <p className="text-sm text-muted-foreground">
-              {report.conversation.length === 0
-                ? "No conversation yet — a summary appears once the group has chatted."
-                : "Generating a summary… reopen the report in a moment."}
-            </p>
-          )}
-        </section>
-      ) : null}
+      <section
+        aria-labelledby="narrative-label"
+        className="flex flex-col gap-2 rounded border border-border bg-background p-4"
+      >
+        <h2 id="narrative-label" className="text-base font-semibold">
+          Summary
+        </h2>
+        {narrative ? (
+          <div className="text-sm">
+            {/* Summaries carry no doc-block links, so navigation is a no-op. */}
+            <ChatMarkdown content={narrative} navigateToBlock={() => {}} />
+          </div>
+        ) : (
+          <p className="text-sm text-muted-foreground">
+            {report.conversation.length === 0
+              ? "No conversation yet — a summary appears once the group has chatted."
+              : "Generating a summary… reopen the report in a moment."}
+          </p>
+        )}
+      </section>
 
       <section
         aria-labelledby="summary-label"
@@ -266,33 +243,6 @@ export default function TeacherGroupReportPage() {
             </li>
           ))}
         </ul>
-
-        {report.checklistComplete.length + report.checklistIncomplete.length >
-        0 ? (
-          <>
-            <h3 className="mt-2 text-sm font-semibold">Self-assessment</h3>
-            <ul className="flex flex-col gap-1 text-sm">
-              {report.checklistComplete.map((c) => (
-                <li key={c} className="flex items-start gap-2">
-                  <CheckCircle2
-                    className="mt-0.5 h-4 w-4 shrink-0 text-emerald-600"
-                    aria-label="Completed"
-                  />
-                  <span>{c}</span>
-                </li>
-              ))}
-              {report.checklistIncomplete.map((c) => (
-                <li key={c} className="flex items-start gap-2 text-muted-foreground">
-                  <Circle
-                    className="mt-0.5 h-4 w-4 shrink-0"
-                    aria-label="Not completed"
-                  />
-                  <span>{c}</span>
-                </li>
-              ))}
-            </ul>
-          </>
-        ) : null}
       </section>
 
       <section aria-labelledby="log-label" className="flex flex-col gap-2">
@@ -349,7 +299,7 @@ export default function TeacherGroupReportPage() {
         ) : null}
       </section>
 
-      {isLive && state.kind === "live" && state.data.workbenchEvents && state.data.workbenchEvents.length > 0 ? (
+      {state.kind === "live" && state.data.workbenchEvents && state.data.workbenchEvents.length > 0 ? (
         <WorkbenchActivitySection events={state.data.workbenchEvents} />
       ) : null}
 
@@ -374,16 +324,7 @@ function reportFilenameStem(state: ReportState, groupId: string): string {
  *  audience asked for spreadsheet-friendly transcripts; workbench
  *  interactions live in the JSON export instead. */
 function handleDownloadCsv(state: ReportState, groupId: string): void {
-  const conversation =
-    state.kind === "live"
-      ? state.data.conversation
-      : state.kind === "mock"
-        ? state.data.conversation.map((t) => ({
-            timestamp: t.timestamp,
-            role: t.role,
-            content: t.content,
-          }))
-        : [];
+  const conversation = state.kind === "live" ? state.data.conversation : [];
   const rows: ReadonlyArray<ReadonlyArray<unknown>> = [
     ["timestamp", "role", "content"],
     ...conversation.map((t) => [t.timestamp, t.role, t.content]),
@@ -391,15 +332,10 @@ function handleDownloadCsv(state: ReportState, groupId: string): void {
   downloadCsv(`${reportFilenameStem(state, groupId)}.csv`, rows);
 }
 
-/** JSON: the full SessionSummary payload (or mock equivalent) including
- *  metadata, conversation, and workbench events. */
+/** JSON: the full SessionSummary payload including metadata, conversation,
+ *  and workbench events. */
 function handleDownloadJson(state: ReportState, groupId: string): void {
-  const data =
-    state.kind === "live"
-      ? state.data
-      : state.kind === "mock"
-        ? state.data
-        : {};
+  const data = state.kind === "live" ? state.data : {};
   downloadJson(`${reportFilenameStem(state, groupId)}.json`, data);
 }
 

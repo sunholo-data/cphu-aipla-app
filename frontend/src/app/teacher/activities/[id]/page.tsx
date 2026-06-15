@@ -1,8 +1,8 @@
 "use client";
 
 import Link from "next/link";
-import { notFound, useParams, useSearchParams } from "next/navigation";
-import { useEffect, useMemo, useState } from "react";
+import { useParams, useSearchParams } from "next/navigation";
+import { useEffect, useState } from "react";
 import {
   AlertTriangle,
   ArrowLeft,
@@ -18,11 +18,6 @@ import {
   Wand2,
 } from "lucide-react";
 
-import {
-  MOCK_DEFAULT_CLASS_ID,
-  getMockActivityConfig,
-  getMockClass,
-} from "../../_mock-data";
 import {
   type MaterialRef,
   NotFoundError,
@@ -60,8 +55,6 @@ const DIFFICULTY_OPTIONS = [
 const WORKBENCH_NONE = "none";
 const WORKBENCH_BOLDKAST = "boldkast-simulator-v1";
 
-// Real-mode helper text — shown when the activity is loaded from the live
-// /api/activity-configs endpoint (no per-activity mock flavour text).
 const GENERIC_HELPER =
   "Describe what you want students to discover. The tutor turns this into Socratic scaffolding — you never write the prompt yourself.";
 
@@ -72,67 +65,43 @@ export default function TeacherActivityConfigPage() {
   const searchParams = useSearchParams();
   const activityId = typeof params?.id === "string" ? params.id : "";
 
-  // Real mode whenever a classId is supplied in the URL — all production
-  // navigation (activities list, new→edit redirect) passes it. Without a
-  // classId we fall back to the legacy mock wireframe path keyed by a known
-  // mock activity id (LOCAL_MODE / Phase-2 demos), which 404s for unknown ids.
-  const classIdParam = searchParams.get("classId") ?? "";
+  // The editor is real-only: the activity is loaded from the live
+  // /api/activity-configs endpoint, keyed by (classId, activityId). All
+  // navigation here (activities list "Configure", new→edit handoff) carries
+  // the classId. Arriving without one is an error state, never mock data.
+  const classId = searchParams.get("classId") ?? "";
   const titleParam = searchParams.get("title") ?? "";
-  const isRealMode = classIdParam.length > 0;
+  const helperText = GENERIC_HELPER;
 
-  const mockConfig = isRealMode ? undefined : getMockActivityConfig(activityId);
-  if (!isRealMode && !mockConfig) {
-    notFound();
-  }
-
-  const classId = isRealMode ? classIdParam : mockConfig!.classId;
-  const helperText = isRealMode ? GENERIC_HELPER : mockConfig!.helperText;
-
-  const parentClass = useMemo(
-    () =>
-      isRealMode
-        ? undefined
-        : getMockClass(mockConfig!.classId) ??
-          getMockClass(MOCK_DEFAULT_CLASS_ID),
-    [isRealMode, mockConfig],
-  );
-
-  const [displayName, setDisplayName] = useState(
-    isRealMode ? titleParam || "Activity" : mockConfig!.name,
-  );
-  const [teachingGoal, setTeachingGoal] = useState(
-    isRealMode ? "" : mockConfig!.defaultTeachingGoal,
-  );
-  const [language, setLanguage] = useState<"da" | "en">(
-    isRealMode ? "da" : mockConfig!.language,
-  );
+  const [displayName, setDisplayName] = useState(titleParam || "Activity");
+  const [teachingGoal, setTeachingGoal] = useState("");
+  const [language, setLanguage] = useState<"da" | "en">("da");
   const [difficulty, setDifficulty] = useState<"standard" | "guided">(
-    isRealMode ? "standard" : mockConfig!.difficulty,
+    "standard",
   );
-  const [pairedWorkbench, setPairedWorkbench] = useState<string>(
-    isRealMode ? WORKBENCH_NONE : mockConfig!.pairedWorkbench ?? WORKBENCH_NONE,
-  );
+  const [pairedWorkbench, setPairedWorkbench] = useState<string>(WORKBENCH_NONE);
   const [materials, setMaterials] = useState<MaterialRef[]>([]);
   const [toast, setToast] = useState<string | null>(null);
   const [isSaving, setIsSaving] = useState(false);
   const [activeTab, setActiveTab] = useState<TabId>("goal");
-  // In real mode we block the form on the network load; in mock mode the
-  // wireframe renders immediately from mock defaults (load is a soft override).
+  // Block the form on the network load; a missing classId can't be loaded.
   const [loadState, setLoadState] = useState<LoadState>(
-    isRealMode ? "loading" : "ready",
+    classId ? "loading" : "error",
   );
 
-  // Load the teacher's saved config. In real mode this IS the data source
-  // (404 = a not-yet-saved activity, render an empty form). In mock mode it
-  // soft-overrides the mock defaults so a returning teacher sees their work.
-  const mockGoalFallback = isRealMode ? "" : mockConfig!.defaultTeachingGoal;
+  // Load the teacher's saved config. This IS the data source — a 404 means a
+  // not-yet-saved activity (render an empty form so the teacher can save it).
   useEffect(() => {
+    if (!classId || !activityId) {
+      setLoadState("error");
+      return;
+    }
     let alive = true;
     fetchMyActivityConfig(classId, activityId)
       .then((saved) => {
         if (!alive) return;
         if (saved.title) setDisplayName(saved.title);
-        setTeachingGoal(saved.teachingGoal || mockGoalFallback);
+        setTeachingGoal(saved.teachingGoal || "");
         setLanguage(saved.language);
         setDifficulty(saved.difficulty);
         setPairedWorkbench(saved.pairedWorkbench ?? WORKBENCH_NONE);
@@ -142,20 +111,18 @@ export default function TeacherActivityConfigPage() {
       .catch((err) => {
         if (!alive) return;
         if (err instanceof NotFoundError) {
-          // No saved config yet — fresh activity (or a first-time mock). The
-          // scaffold/empty form is already in state; let the teacher save.
+          // No saved config yet — fresh activity. The empty form is already
+          // in state; let the teacher fill it in and save.
           setLoadState("ready");
           return;
         }
         console.warn("[teacher-ui] activity-config load failed:", err);
-        // Real mode can't fall back to mock data, so surface the failure.
-        // Mock mode keeps the wireframe usable.
-        setLoadState(isRealMode ? "error" : "ready");
+        setLoadState("error");
       });
     return () => {
       alive = false;
     };
-  }, [classId, activityId, mockGoalFallback, isRealMode]);
+  }, [classId, activityId]);
 
   async function handleSave(ev: React.FormEvent) {
     ev.preventDefault();
@@ -184,29 +151,14 @@ export default function TeacherActivityConfigPage() {
 
   const breadcrumb = (
     <nav className="flex flex-wrap items-center gap-1 text-sm text-muted-foreground">
-      {parentClass ? (
-        <>
-          <Link
-            href={`/teacher/classes/${parentClass.id}`}
-            className="flex items-center gap-1 hover:text-foreground"
-          >
-            <ArrowLeft className="h-4 w-4" aria-hidden="true" />
-            {parentClass.name}
-          </Link>
-          <span aria-hidden="true">/</span>
-        </>
-      ) : (
-        <>
-          <Link
-            href="/teacher/activities"
-            className="flex items-center gap-1 hover:text-foreground"
-          >
-            <ArrowLeft className="h-4 w-4" aria-hidden="true" />
-            Activities
-          </Link>
-          <span aria-hidden="true">/</span>
-        </>
-      )}
+      <Link
+        href="/teacher/activities"
+        className="flex items-center gap-1 hover:text-foreground"
+      >
+        <ArrowLeft className="h-4 w-4" aria-hidden="true" />
+        Activities
+      </Link>
+      <span aria-hidden="true">/</span>
       <span className="text-foreground">Configure: {displayName}</span>
     </nav>
   );

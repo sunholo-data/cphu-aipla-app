@@ -9,7 +9,6 @@ import {
   vi,
 } from "vitest";
 
-import { MOCK_CLASSES } from "@/app/teacher/_mock-data";
 import * as teacherApi from "@/lib/teacherApi";
 import type { ClassPayload, SkillSummary } from "@/lib/teacherApi";
 
@@ -26,7 +25,9 @@ function makeSkill(overrides: Partial<SkillSummary> = {}): SkillSummary {
   };
 }
 
-const targetClass = MOCK_CLASSES[0]!;
+// Inline fixture — the class-detail page is fully real (getClass is mocked
+// below); this just supplies a stable id + name for assertions.
+const targetClass = { id: "class-7b-physics-a", name: "Physics A — 7B" };
 const CLASS_ID = targetClass.id;
 
 function makeClassPayload(overrides: Partial<ClassPayload> = {}): ClassPayload {
