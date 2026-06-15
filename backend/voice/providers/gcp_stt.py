@@ -39,9 +39,13 @@ _LANG_DEFAULTS = {
     "fr": "fr-FR",
 }
 
-# Sync recognize() caps at ~1 min / ~10 MB; talk-to-type utterances are short.
-# Longer audio (lesson recording) does not come through this path.
+# Inline content caps at ~10 MB for both sync and long-running recognize.
+# Sync additionally caps at ~1 min of audio; long-running does not.
 _MAX_AUDIO_BYTES = 10 * 1024 * 1024
+
+# Upper bound on how long we wait for a long-running op to resolve. A ~50 s
+# segment transcribes in seconds; this is just a safety ceiling.
+_LONG_RUNNING_TIMEOUT_S = 300
 
 
 def _normalize_lang(lang: str) -> str:
@@ -106,14 +110,11 @@ class GCPSTTProvider:
             self._client = speech.SpeechClient()
         return self._client
 
-    async def transcribe(self, audio: bytes, mime: str, lang: str, extras: dict | None) -> str:
-        if not audio:
-            return ""
-        if len(audio) > _MAX_AUDIO_BYTES:
-            raise ValueError(f"audio too large: {len(audio)} bytes > {_MAX_AUDIO_BYTES}")
-        lang_full = _normalize_lang(lang)
+    def _build_request(self, audio: bytes, mime: str, lang_full: str):
+        """Build (RecognitionConfig, RecognitionAudio) for inline ``audio``.
+        WAV is unwrapped to headerless LINEAR16 + its real rate (the capture
+        path uploads WAV); anything else falls back to MIME sniffing."""
         enc = speech.RecognitionConfig.AudioEncoding
-
         wav = _wav_pcm(audio)
         if wav is not None:
             pcm, rate, channels = wav
@@ -125,25 +126,60 @@ class GCPSTTProvider:
                 model=self.model,
                 enable_automatic_punctuation=True,
             )
-            rec_audio = speech.RecognitionAudio(content=pcm)
-        else:
-            config = speech.RecognitionConfig(
-                encoding=_encoding_for(mime),
-                language_code=lang_full,
-                model=self.model,
-                enable_automatic_punctuation=True,
-            )
-            rec_audio = speech.RecognitionAudio(content=audio)
+            return config, speech.RecognitionAudio(content=pcm)
+        config = speech.RecognitionConfig(
+            encoding=_encoding_for(mime),
+            language_code=lang_full,
+            model=self.model,
+            enable_automatic_punctuation=True,
+        )
+        return config, speech.RecognitionAudio(content=audio)
+
+    @staticmethod
+    def _join(resp) -> str:
+        parts = [r.alternatives[0].transcript for r in resp.results if r.alternatives]
+        return " ".join(p.strip() for p in parts if p and p.strip()).strip()
+
+    async def transcribe(self, audio: bytes, mime: str, lang: str, extras: dict | None) -> str:
+        """Synchronous recognize — for short, interactive audio (dictation).
+        Cloud Speech caps sync at ~1 min / 10 MB; longer audio MUST use
+        ``transcribe_long`` instead (lesson recording segments)."""
+        if not audio:
+            return ""
+        if len(audio) > _MAX_AUDIO_BYTES:
+            raise ValueError(f"audio too large: {len(audio)} bytes > {_MAX_AUDIO_BYTES}")
+        lang_full = _normalize_lang(lang)
+        config, rec_audio = self._build_request(audio, mime, lang_full)
 
         def _call() -> str:
-            resp = self._get_client().recognize(config=config, audio=rec_audio)
-            parts = [r.alternatives[0].transcript for r in resp.results if r.alternatives]
-            return " ".join(p.strip() for p in parts if p and p.strip()).strip()
+            return self._join(self._get_client().recognize(config=config, audio=rec_audio))
 
         try:
             return await asyncio.to_thread(_call)
         except Exception as exc:
             logger.warning("gcp stt transcribe failed (model=%s lang=%s): %s", self.model, lang_full, exc)
+            raise RuntimeError(f"STT failed: {exc}") from exc
+
+    async def transcribe_long(self, audio: bytes, mime: str, lang: str, extras: dict | None = None) -> str:
+        """Long-running recognize — for lesson-recording segments. No ~1-min
+        sync cap (that limit is sync-only); still inline content, so no GCS-read
+        IAM dependency. Blocks on the operation result (run off-request, e.g. a
+        FastAPI BackgroundTask, since it polls)."""
+        if not audio:
+            return ""
+        if len(audio) > _MAX_AUDIO_BYTES:
+            raise ValueError(f"audio too large: {len(audio)} bytes > {_MAX_AUDIO_BYTES}")
+        lang_full = _normalize_lang(lang)
+        config, rec_audio = self._build_request(audio, mime, lang_full)
+
+        def _call() -> str:
+            op = self._get_client().long_running_recognize(config=config, audio=rec_audio)
+            return self._join(op.result(timeout=_LONG_RUNNING_TIMEOUT_S))
+
+        try:
+            return await asyncio.to_thread(_call)
+        except Exception as exc:
+            logger.warning("gcp stt long-running failed (model=%s lang=%s): %s", self.model, lang_full, exc)
             raise RuntimeError(f"STT failed: {exc}") from exc
 
     def describe(self) -> VoiceCapabilities:

@@ -46,7 +46,7 @@ def store():
     return _FakeStore()
 
 
-def _client(group_id: str | None, monkeypatch, store=None, cls=None, writes=None):
+def _client(group_id: str | None, monkeypatch, store=None, cls=None, writes=None, updates=None):
     app = FastAPI()
     app.include_router(rr.router)
 
@@ -64,50 +64,62 @@ def _client(group_id: str | None, monkeypatch, store=None, cls=None, writes=None
     monkeypatch.setattr(rr, "get_class", lambda cid: cls)
     captured = writes if writes is not None else []
     monkeypatch.setattr(rr, "set_document", lambda c, i, d: captured.append((i, d)))
-    # REC-TRANSCRIPT M1 — upload transcribes each segment; mock STT.
+    # REC-TRANSCRIPT — transcription runs in a BackgroundTask that update_document's
+    # the doc; the TestClient runs background tasks after the response.
+    upd = updates if updates is not None else []
+    monkeypatch.setattr(rr, "update_document", lambda c, i, d: upd.append((i, d)))
     stt = MagicMock()
     stt.name = "gcp_latest_long"
-    stt.transcribe = AsyncMock(return_value="hej fra gruppen")
+    stt.transcribe_long = AsyncMock(return_value="hej fra gruppen")
     monkeypatch.setattr(rr, "get_stt", lambda skill=None: stt)
     return TestClient(app), captured
 
 
-def test_upload_stores_audio_and_metadata(store, monkeypatch):
+def test_upload_stores_audio_then_transcribes_in_background(store, monkeypatch):
     writes: list = []
-    client, captured = _client(GROUP_ID, monkeypatch, store=store, cls=_fake_class(True), writes=writes)
+    updates: list = []
+    client, captured = _client(
+        GROUP_ID, monkeypatch, store=store, cls=_fake_class(True), writes=writes, updates=updates
+    )
     resp = client.post(
         "/api/voice/recording",
-        files={"audio": ("lesson.webm", b"\x1aE\xdf\xa3-fake", "audio/webm")},
+        files={"audio": ("lesson.wav", b"\x1aE\xdf\xa3-fake", "audio/wav")},
         data={"durationMs": "60000"},
     )
     assert resp.status_code == 200
     body = resp.json()
     assert body["gcsUri"].startswith("gs://bucket/")
     assert len(store.writes) == 1  # audio written to GCS
-    assert len(captured) == 1  # metadata doc written
+    assert len(captured) == 1  # metadata doc written immediately
     _id, meta = captured[0]
     assert meta["classId"] == CLASS_ID and meta["groupId"] == GROUP_ID and meta["durationMs"] == 60000
-    # REC-TRANSCRIPT M1 — the segment is transcribed + stored alongside the audio
-    assert meta["transcript"] == "hej fra gruppen"
+    # Doc is created with an empty/pending transcript; STT runs off-request.
+    assert meta["transcript"] == "" and meta["transcriptStatus"] == "pending"
+    # The background task (run by the TestClient after the response) fills it in.
+    assert updates == [(_id, {"transcript": "hej fra gruppen", "transcriptStatus": "done"})]
 
 
 def test_upload_keeps_audio_when_transcription_fails(store, monkeypatch):
     writes: list = []
-    client, captured = _client(GROUP_ID, monkeypatch, store=store, cls=_fake_class(True), writes=writes)
-    # STT blows up -> transcript empty, but audio + doc still stored (research record)
+    updates: list = []
+    client, captured = _client(
+        GROUP_ID, monkeypatch, store=store, cls=_fake_class(True), writes=writes, updates=updates
+    )
+    # STT blows up -> doc marked failed, but audio + doc still stored (research record)
     failing = MagicMock()
     failing.name = "gcp_latest_long"
-    failing.transcribe = AsyncMock(side_effect=RuntimeError("stt down"))
+    failing.transcribe_long = AsyncMock(side_effect=RuntimeError("stt down"))
     monkeypatch.setattr(rr, "get_stt", lambda skill=None: failing)
     resp = client.post(
         "/api/voice/recording",
-        files={"audio": ("l.webm", b"x", "audio/webm")},
+        files={"audio": ("l.wav", b"x", "audio/wav")},
         data={"seq": "2"},
     )
     assert resp.status_code == 200
     assert len(store.writes) == 1
     _id, meta = captured[0]
     assert meta["transcript"] == "" and meta["seq"] == 2
+    assert updates == [(_id, {"transcriptStatus": "failed"})]
 
 
 def test_upload_blocked_when_recording_disabled(store, monkeypatch):

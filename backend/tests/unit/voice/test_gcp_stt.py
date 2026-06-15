@@ -35,10 +35,16 @@ class _FakeClient:
     def __init__(self, resp):
         self._resp = resp
         self.calls: list = []
+        self.long_calls: list = []
 
     def recognize(self, config=None, audio=None):
         self.calls.append((config, audio))
         return self._resp
+
+    def long_running_recognize(self, config=None, audio=None):
+        self.long_calls.append((config, audio))
+        resp = self._resp
+        return SimpleNamespace(result=lambda timeout=None: resp)
 
 
 def test_name_and_describe():
@@ -72,6 +78,21 @@ def test_wav_sent_as_linear16_with_header_rate_and_stripped_pcm():
     assert cfg.sample_rate_hertz == 16000
     assert cfg.audio_channel_count == 1
     # The RIFF header is stripped — STT gets the raw PCM frames only.
+    assert audio.content == pcm
+
+
+def test_transcribe_long_uses_long_running_recognize_and_joins():
+    pcm = b"\x01\x00\x02\x00"
+    wav = _wav_bytes(pcm, rate=16000, channels=1)
+    client = _FakeClient(_fake_resp("lang ", "running"))
+    p = GCPSTTProvider(client=client)
+    out = asyncio.run(p.transcribe_long(wav, "audio/wav", "da", None))
+    assert out == "lang running"
+    # used the long-running surface (no ~1-min sync cap), not sync recognize
+    assert client.calls == [] and len(client.long_calls) == 1
+    cfg, audio = client.long_calls[0]
+    assert cfg.encoding == speech.RecognitionConfig.AudioEncoding.LINEAR16
+    assert cfg.sample_rate_hertz == 16000
     assert audio.content == pcm
 
 

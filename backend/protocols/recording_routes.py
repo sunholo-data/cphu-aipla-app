@@ -19,12 +19,12 @@ import uuid
 from datetime import UTC, datetime
 from typing import Any
 
-from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile
+from fastapi import APIRouter, BackgroundTasks, Depends, File, Form, HTTPException, UploadFile
 from opentelemetry import trace
 
 from auth import User, get_current_user
 from db.classes import get_class
-from db.firestore import delete_document, get_document, query_documents, set_document
+from db.firestore import delete_document, get_document, query_documents, set_document, update_document
 from db.models.class_ import Class
 from voice import get_stt
 from voice.recording_store import ResearchAudioStore, uri_to_path
@@ -70,32 +70,51 @@ def _class_for_user(user: User) -> Class | None:
         return None
 
 
-async def _transcribe_segment(raw: bytes, mime: str, lang: str) -> str:
-    """Best-effort transcript of a recording segment (REC-TRANSCRIPT M1). Reuses
-    the STT provider (sync recognize, <1-min segments). Never raises — the audio
-    is the research record and is kept regardless; an empty transcript just means
-    'not transcribed' (STT disabled / failed)."""
+async def _transcribe_segment_in_background(rec_id: str, raw: bytes, mime: str, lang: str) -> None:
+    """Transcribe a stored segment off-request and write the result back to its
+    Firestore doc (REC-TRANSCRIPT). Uses LONG-RUNNING recognize — lesson segments
+    can exceed sync recognize's ~1-min cap (a 50 s segment at the device's native
+    rate is well over it), and long-running has no such limit. Runs as a
+    BackgroundTask so the upload returns immediately; the student panel + teacher
+    report poll the transcript and pick it up when it lands.
+
+    Never raises — the audio is the research record and is kept regardless; a
+    failed/empty transcript just flips ``transcriptStatus`` so the UI can tell
+    "still working" from "nothing recognised"."""
     try:
         provider = get_stt(None)
         if provider.name in ("disabled", "null"):
-            return ""
-        return await provider.transcribe(raw, mime, lang, None)
+            update_document(_COLLECTION, rec_id, {"transcriptStatus": "disabled"})
+            return
+        text = await provider.transcribe_long(raw, mime, lang, None)
+        update_document(
+            _COLLECTION,
+            rec_id,
+            {"transcript": text, "transcriptStatus": "done" if text.strip() else "empty"},
+        )
     except Exception as exc:
         logger.warning("recording segment transcription failed (audio kept): %s", exc)
-        return ""
+        update_document(_COLLECTION, rec_id, {"transcriptStatus": "failed"})
 
 
 @router.post("")
 async def upload_recording(
+    background_tasks: BackgroundTasks,
     audio: UploadFile = File(...),  # noqa: B008
     duration_ms: int = Form(0, alias="durationMs"),
     seq: int = Form(0),
     lang: str = Form("da"),
     user: User = Depends(get_current_user),  # noqa: B008
 ) -> dict[str, str]:
-    """Store a lesson-recording segment for the caller's group/class + transcribe
-    it. Gated on the class's ``recording_enabled`` (the teacher's paper-consent
-    attestation). ``seq`` orders segments within a group's recording."""
+    """Store a lesson-recording segment for the caller's group/class, then
+    transcribe it in the background. Gated on the class's ``recording_enabled``
+    (the teacher's paper-consent attestation). ``seq`` orders segments within a
+    group's recording.
+
+    Transcription is deferred to a BackgroundTask (long-running recognize) so the
+    upload returns immediately — a segment can be seconds of audio that takes
+    longer to transcribe than to store, and we never want the rolling recorder's
+    uploads to stall behind STT."""
     cls = _class_for_user(user)
     if cls is None:
         raise HTTPException(status_code=403, detail="No class context for recording.")
@@ -123,8 +142,6 @@ async def upload_recording(
         span.set_attribute("recording.duration_ms", duration_ms)
         span.set_attribute("recording.seq", seq)
         gcs_uri = await store.write(path, raw, mime)
-        transcript = await _transcribe_segment(raw, mime, lang)
-        span.set_attribute("recording.transcript_chars", len(transcript))
 
     meta = {
         "recordingId": rec_id,
@@ -136,17 +153,18 @@ async def upload_recording(
         "durationMs": duration_ms,
         "seq": seq,
         "lang": lang,
-        "transcript": transcript,
+        "transcript": "",
+        "transcriptStatus": "pending",
         "createdAt": datetime.now(UTC).isoformat(),
     }
     set_document(_COLLECTION, rec_id, meta)
+    background_tasks.add_task(_transcribe_segment_in_background, rec_id, raw, mime, lang)
     logger.info(
-        "lesson recording stored: class=%s group=%s seq=%d bytes=%d transcript_chars=%d",
+        "lesson recording stored: class=%s group=%s seq=%d bytes=%d (transcribing in background)",
         cls.class_id,
         group_id,
         seq,
         len(raw),
-        len(transcript),
     )
     return {"recordingId": rec_id, "gcsUri": gcs_uri}
 
