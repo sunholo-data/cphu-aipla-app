@@ -27,6 +27,7 @@ import { useSkillAgent, type StreamError } from "@/hooks/useSkillAgent";
 import { useSkillMeta } from "@/hooks/useSkillMeta";
 import { useUserSkills } from "@/hooks/useUserSkills";
 import { useSessionMessages } from "@/hooks/useSessionMessages";
+import { useEnteredViaResume } from "@/hooks/useEnteredViaResume";
 import { useSessionDocuments } from "@/hooks/useSessionDocuments";
 import { useStableThreadId } from "@/hooks/useStableThreadId";
 import { useProactiveGreet } from "@/lib/proactiveGreet";
@@ -603,8 +604,14 @@ function ChatShell({
   // Updated by handleSelectSession (true) and handleNewSession (false);
   // intentionally NOT set by the URL-writeback effect that runs after a
   // fresh chat's first message — that's not a resume.
-  const [enteredViaResume, setEnteredViaResume] = useState<boolean>(
-    () => sessionId !== null,
+  // Whether this mount resumed an existing session — gates rendering of the
+  // fetched history (initialMessages). Robust to the anon-group async
+  // session-adoption that previously left history unrendered on reload; see
+  // useEnteredViaResume for the full rationale. Explicit nav still sets it
+  // directly (select-thread → true, new-conversation → false).
+  const [enteredViaResume, setEnteredViaResume] = useEnteredViaResume(
+    sessionId,
+    messages.length,
   );
 
   // When the URL points at an existing session and we've resolved its
@@ -715,7 +722,7 @@ function ChatShell({
       setEnteredViaResume(true);
       navigateToSession(sid);
     },
-    [navigateToSession],
+    [navigateToSession, setEnteredViaResume],
   );
 
   const handleNewSession = useCallback(() => {
@@ -724,7 +731,7 @@ function ChatShell({
     params.delete("session");
     const qs = params.toString();
     router.replace(qs ? `${pathPrefix}?${qs}` : pathPrefix);
-  }, [router, pathPrefix, searchParams]);
+  }, [router, pathPrefix, searchParams, setEnteredViaResume]);
 
   // Defensive auto-clear: when ANY mutation site reports a deletion via the
   // sessions-changed bus and that id matches the URL session we're showing,
