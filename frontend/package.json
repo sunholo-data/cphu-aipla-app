@@ -11,9 +11,10 @@
     "test": "vitest",
     "test:run": "vitest run",
     "test:coverage": "vitest run --coverage",
-    "quality:check": "npm run lint && npm run typecheck && CI=true npm run test:run && npm run build",
-    "quality:check:fast": "npm run lint && npm run typecheck && npm run check:auth-fetch",
+    "quality:check": "npm run lint && npm run typecheck && npm run check:auth-fetch && npm run check:no-mock && CI=true npm run test:run && npm run build",
+    "quality:check:fast": "npm run lint && npm run typecheck && npm run check:auth-fetch && npm run check:no-mock",
     "check:auth-fetch": "! grep -rn --include='*.ts' --include='*.tsx' 'fetch(`/api/proxy' src/hooks/ src/components/ src/app/ 2>/dev/null | grep -v fetchWithAuth | grep -v '//.*fetch' | grep -v '.test.' | grep .",
+    "check:no-mock": "! grep -rn --include='*.ts' --include='*.tsx' -E '_mock-data|getMock|MOCK_[A-Z]' src/ 2>/dev/null | grep -v '__tests__' | grep -v '.test.' | grep .",
     "seed": "node src/scripts/seed-skills.mjs"
   },
   "dependencies": {

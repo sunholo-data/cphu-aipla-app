@@ -4,9 +4,10 @@
  *
  * The teacher surfaces (dashboard, class detail, activity editor, group
  * report, analytics) all read live backend data through this client. There
- * is no mock-data fallback: pages show real data, an honest empty state, or
- * a load error — never fabricated content. (The former `_mock-data.ts`
- * scaffold was removed once these endpoints existed.)
+ * is no fallback to fabricated fixtures: pages show real data, an honest
+ * empty state, or a load error — never invented content. (The earlier
+ * scaffold module was removed once these endpoints existed; a CI guard
+ * `check:no-mock` keeps it from creeping back into shipped surfaces.)
  *
  * Every call goes through `/api/proxy/...` so the Next.js proxy can
  * attach the right host headers + forward Authorization to the FastAPI
