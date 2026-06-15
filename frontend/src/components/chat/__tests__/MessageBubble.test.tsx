@@ -81,10 +81,23 @@ describe("MessageBubble — bot variant", () => {
     expect(screen.getByRole("img", { name: BRANDING.appName })).toBeInTheDocument();
   });
 
-  it("shows a timestamp", () => {
+  it("renders a live message (no timestamp) as 'just now'", () => {
     render(<MessageBubble message={botMsg()} {...baseProps} />);
-    // Timestamp is in AM/PM format — just check something time-like exists
-    expect(document.body.textContent).toMatch(/\d{1,2}:\d{2}/);
+    expect(screen.getByText(/just now/i)).toBeInTheDocument();
+  });
+
+  it("shows a human-friendly relative time with the full timestamp in a tooltip", () => {
+    const threeDaysAgoSec = Math.floor(Date.now() / 1000) - 3 * 24 * 3600;
+    render(
+      <MessageBubble
+        message={{ ...botMsg(), timestamp: threeDaysAgoSec }}
+        {...baseProps}
+      />,
+    );
+    const ts = screen.getByText(/days ago/i);
+    expect(ts).toBeInTheDocument();
+    // Exact moment is one hover away (title tooltip).
+    expect((ts.getAttribute("title") ?? "").length).toBeGreaterThan(0);
   });
 });
 

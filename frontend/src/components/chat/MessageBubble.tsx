@@ -20,6 +20,7 @@ import { ChatMarkdown } from "@/components/chat/ChatMarkdown";
 import { ZoomableImage } from "@/components/chat/media/ZoomableImage";
 import { InlineCitation } from "@/components/chat/InlineCitation";
 import { ReadAloudButton } from "@/components/chat/ReadAloudButton";
+import { formatRelativeTime, formatAbsoluteTime } from "@/lib/relativeTime";
 import { useAutoReadAloud } from "@/hooks/useAutoReadAloud";
 import { useVoiceConfig } from "@/hooks/useVoiceConfig";
 import { useVoiceLang } from "@/hooks/useVoiceLang";
@@ -126,20 +127,6 @@ export function parseA2UIResult(
   }
 }
 
-function formatTime(epochSeconds?: number): string {
-  // Restored history carries the turn's recorded epoch-SECONDS timestamp; live
-  // messages omit it and render at "now". Guard against a value already in ms
-  // (epoch seconds are ~1.7e9 today; ms are ~1.7e12) so both forms render right
-  // instead of a far-future date.
-  const d =
-    epochSeconds != null
-      ? new Date(epochSeconds < 1e12 ? epochSeconds * 1000 : epochSeconds)
-      : new Date();
-  return new Intl.DateTimeFormat("en", {
-    hour: "numeric",
-    minute: "2-digit",
-  }).format(d);
-}
 
 function PersonaBubbleAvatar({ persona }: { persona: PersonaSummary }) {
   if (persona.avatar) {
@@ -205,7 +192,13 @@ export const MessageBubble = React.memo(function MessageBubble({
   const { lang: studentLang } = useVoiceLang();
   const effectiveLang = voiceConfig.tts.language ?? studentLang ?? ttsLang;
   const isBot = message.role === "assistant";
-  const time = formatTime(message.timestamp);
+  // Restored history carries the turn's recorded epoch-seconds timestamp; live
+  // messages omit it and render at "now". Show a human-friendly relative time
+  // ("3 days ago") so days are never ambiguous, with the full timestamp on
+  // hover.
+  const tsValue = message.timestamp ?? Date.now(); // seconds (history) or ms (live) — util normalises
+  const time = formatRelativeTime(tsValue);
+  const timeFull = formatAbsoluteTime(tsValue);
 
   const A2UI_TOOL_NAME = "send_a2ui_json_to_client";
 
@@ -263,7 +256,9 @@ export const MessageBubble = React.memo(function MessageBubble({
             <span className="text-xs font-medium text-orange-600">
               {persona ? persona.name : (skillDisplayName ?? skillId)}
             </span>
-            <span className="text-xs text-muted-foreground">{time}</span>
+            <span className="text-xs text-muted-foreground" title={timeFull}>
+              {time}
+            </span>
             {/* Sprint 1.H-TTS — only render when this bubble has text
              *  for the engine to speak. Tool-call-only bubbles (no
              *  message.content) skip the button so we don't leave an
