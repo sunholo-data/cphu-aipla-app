@@ -16,6 +16,7 @@ Three features converge on a surface that doesn't exist:
 1. **Student uploads are in-chat only.** A photo a student attaches (1.1.7) renders as a 96px thumbnail inside one message bubble. There's no gallery, no "everything I've shared this session", and — until M0 — no way to view one full-size. As docparse joins the picture (a student photographs a worksheet → parsed to text), "an image in a bubble" is the wrong home.
 2. **Teacher-assigned materials are invisible to students.** The curriculum `MaterialRef`s a teacher cites (1.1.25) are used *server-side* to ground the tutor (RAG retrieval) — but the student never sees *which* documents the activity is built on. The tutor can say "per your level-B syllabus…", yet the syllabus itself is not viewable. That's a transparency gap (Axiom 2) and a missed pedagogical affordance ("read the assigned text, then ask").
 3. **docparse'd documents have nowhere to live.** AILANG Parse (ADR-004) already turns uploads/materials into structured text. There's no student-facing place to show that parsed content or let the student re-open it.
+4. **A teacher can't see what docparse extracted before it grounds the tutor.** When a teacher uploads a material, `POST /api/curriculum/ingest` parses it (AILANG Parse) and uploads the text straight into the RAG corpus — the parsed text is computed ([curriculum_routes.py:142](../../../backend/protocols/curriculum_routes.py#L142)) but never returned or stored retrievably. So the teacher has **no way to verify the parse** (did the PDF extract cleanly? did a scan OCR correctly?) before that text starts grounding the tutor. Garbage-in is invisible until a student gets a wrong answer. This is an EARNED-TRUST gap (M, 15 June: "review what was parsed before we see it in the skill").
 
 **Pattern, not one-off:** each of the three shipped its own slice and stopped at its own boundary — exactly the seam-leaving pattern that produced the de-mock and stale-pointer issues. The fix is a single aggregating surface, designed once to cover all three sources, not three more bolt-ons.
 
@@ -69,6 +70,7 @@ The workbench is already config-driven (`workspaceContentKind()` → `WorkspaceS
   render titles/sources in the tab, click opens parsed text. ~1d total. No JB/AR
   gate (the teacher control replaces it).
 - **M3 — docparse'd document rendering.** Parsed-text/preview view for uploads + materials; sandboxed frame for rich previews. ~0.5–1d.
+- **M4 — teacher parse-review (verify before it grounds the skill).** When a teacher uploads a material, surface what AILANG Parse extracted so they can confirm it before it's used. Thin path: `POST /api/curriculum/ingest` **returns the parsed text** (it's already computed at `_extract_text`, just discarded) as `parsedPreview` (full text, or first N chars + char count); `MaterialsSection` shows it in a collapsible "What we extracted" panel right after upload, so the teacher can re-upload or un-cite a bad parse. ~0.5d. **Stronger variant (later):** split ingest into *parse* (returns preview, no RAG write) → teacher confirms → *commit* (RAG upload), making review a hard gate before the text ever grounds the tutor; needs the parsed text stored between the two calls (GCS/Firestore) — note, don't over-build the gate before the preview proves useful. This is the highest-trust piece — prioritise alongside M2.
 
 ### CLI surface
 
@@ -99,6 +101,28 @@ This removes the M2 gate — no JB/AR sign-off needed to build; the control *is*
 the answer. (JB/AR input is still welcome on the default and the toggle wording,
 but it no longer blocks.)
 
+## Resolved decision: uploads are level-less (M, 2026-06-15) — amends 1.1.25
+
+A teacher upload was being filed as **level "B" at random** — the upload button
+hardcodes `level: "B"` ([MaterialsSection.tsx UploadButton](../../../frontend/src/components/teacher/MaterialsSection.tsx)) because the
+ingest endpoint + `CurriculumDoc` model **require** an `StxLevel` (A/B/C). The
+A/B/C level concept is real for the *shared cleared library* (it's how Danish
+stx is stratified) but is **confusing and wrong for ad-hoc teacher uploads** —
+a teacher's own PDF has no inherent level.
+
+**Decision:** `level` becomes **optional** (a label, not a requirement).
+- Backend: `CurriculumDoc.level: StxLevel | None` (default `None`); ingest
+  `level` param optional; `GET /api/curriculum?level=` filter unchanged (it just
+  matches docs that *have* that level).
+- Frontend: the upload path stops sending a forced level (uploads are
+  level-less); the catalogue browse keeps A/B/C as a filter facet; a doc with no
+  level shows no level badge. A teacher *may* assign A/B/C later from the
+  catalogue, but it is never auto-assigned.
+- This **amends [curriculum-library.md](curriculum-library.md) (1.1.25)** — level
+  goes from "primary required axis" to "optional organising label". RAG grounding
+  doesn't depend on level, so this is safe. Build as **M2a-level** (a small,
+  separable fix folded into the materials work).
+
 ## Axiom Alignment
 
 Net must be ≥ +4; ≤ 2 conflicts. See [Product Axioms](../../product-axioms.md).
@@ -125,6 +149,7 @@ Net must be ≥ +4; ≤ 2 conflicts. See [Product Axioms](../../product-axioms.m
 - **M1:** selector unit test (aggregate `message.images` across messages, de-dupe, order); tab renders gallery; empty state when no uploads.
 - **M2:** backend tests — endpoint returns only `studentVisible` materials (a not-visible material is excluded), ACL: own activity → 200, other activity / open corpus → denied; `MaterialRef.studentVisible` round-trips through upsert (default false). Frontend — the `MaterialsSection` toggle flips `studentVisible`; the student tab renders only visible ones.
 - **M3:** parsed-text render test; sandboxed-frame mount for a preview.
+- **M4:** backend test — ingest response carries `parsedPreview` matching the extracted text (and char count); empty/parse-failure surfaces the existing 422, not a silent empty preview. Frontend — the "What we extracted" panel renders the preview after upload; collapsible; absent when no upload yet.
 
 ## Related documents
 

@@ -1,0 +1,99 @@
+{
+  "sprint_id": "DOCWORK",
+  "created": "2026-06-15T20:22:24Z",
+  "estimated_duration_days": 1.5,
+  "design_doc": "docs/design/aipla/v1.1.0-feedback/documents-workbench-surface.md",
+  "sprint_plan": "docs/design/aipla/v1.1.0-feedback/documents-workbench-surface-sprint.md",
+  "features": [
+    {
+      "id": "M2a",
+      "description": "MaterialRef.studentVisible field (default false) + per-material 'Show to students' toggle in the activity builder. Teacher controls whether each assigned material is student-facing; RAG grounding unchanged (uses all materials).",
+      "scope": "fullstack",
+      "estimated_loc": 90,
+      "dependencies": [],
+      "acceptance_criteria": [
+        "MaterialRef has student_visible: bool = Field(default=False, alias='studentVisible') in backend/db/models/activity_config.py; it round-trips through POST + PATCH /api/activity-configs (backend test); default false when omitted",
+        "Frontend MaterialRef type + ActivityConfigUpsert carry studentVisible; new cites default false",
+        "MaterialsSection renders a 'Show to students' toggle per cited material; toggling emits onChange with studentVisible true (vitest)",
+        "Backend make lint + test-fast green; frontend npm run quality:check green"
+      ],
+      "files_to_create": [],
+      "files_to_modify": [
+        "backend/db/models/activity_config.py",
+        "backend/tests/api_tests/test_activity_config_routes.py",
+        "frontend/src/lib/teacherApi.ts",
+        "frontend/src/components/teacher/MaterialsSection.tsx",
+        "frontend/src/components/teacher/__tests__/MaterialsSection.test.tsx"
+      ],
+      "passes": true,
+      "started": "2026-06-15",
+      "completed": null,
+      "actual_loc": 95,
+      "notes": "Code-complete + green (backend 25/25 targeted, 1956 full suite; FE 9/9 MaterialsSection + quality:check:fast exit 0). COMMIT PENDING: teacherApi.ts is entangled with the user's in-flight 1.1.32 accessControl feature; per user's choice they commit their teacher-UI work first, then M2a commits on a clean tree. studentVisible field on MaterialRef (backend activity_config.py + FE type); per-chip Eye/EyeOff 'Show to students' toggle in MaterialsSection (default off)."
+    },
+    {
+      "id": "M2b",
+      "description": "Student-scoped, visibility-filtered materials read: GET /api/activity-configs/active/{activity_id}/materials returns the active activity's materials filtered to student_visible, ACL-scoped via resolve_active_config(group_tags). Frontend client fn. Does NOT filter inside resolve_active_config (agent grounding needs all).",
+      "scope": "backend",
+      "estimated_loc": 110,
+      "actual_loc": null,
+      "dependencies": ["M2a"],
+      "acceptance_criteria": [
+        "GET /api/activity-configs/active/{activity_id}/materials returns only materials with student_visible True, resolved to {docId, origin, ...} display metadata",
+        "A hidden (studentVisible=false) material is excluded; an activity the caller's group cannot access is denied (deny-by-default, mirrors /active/{id})",
+        "resolve_active_config is unchanged (still returns all materials for agent RAG grounding) — verified by an existing-behaviour test",
+        "Frontend fetchActivityMaterials(activityId) client added; backend make lint + test-fast green"
+      ],
+      "files_to_create": [],
+      "files_to_modify": [
+        "backend/protocols/activity_config_routes.py",
+        "backend/tests/api_tests/test_activity_config_routes.py",
+        "frontend/src/lib/studentApi.ts"
+      ],
+      "passes": null,
+      "started": null,
+      "completed": null,
+      "notes": "studentApi.ts may be a new file; reuse an existing student-facing api lib if one fits."
+    },
+    {
+      "id": "M1",
+      "description": "Documents surface in the student workbench: DocumentsPanel showing (a) uploads gallery aggregated from messages[].images (ZoomableImage thumbnails, full-size on click) and (b) teacher-marked-visible assigned materials (from M2b). Honest empty state. Wired into the workbench as an additional surface coexisting with sim/checklist (not a 4th mutually-exclusive kind).",
+      "scope": "frontend",
+      "estimated_loc": 170,
+      "actual_loc": null,
+      "dependencies": ["M2b"],
+      "acceptance_criteria": [
+        "DocumentsPanel renders a gallery from messages[].images (N thumbnails) with ZoomableImage; click opens full-size",
+        "DocumentsPanel renders the visible assigned materials from a mocked fetchActivityMaterials (title/source)",
+        "Honest empty state when there are no uploads and no visible materials (no mock/placeholder)",
+        "Wired into the workbench so it appears in a group session alongside any sim/checklist; messages + activityId passed in; vitest covers gallery + materials + empty state",
+        "frontend npm run quality:check green"
+      ],
+      "files_to_create": [
+        "frontend/src/components/workspace/DocumentsPanel.tsx",
+        "frontend/src/components/workspace/__tests__/DocumentsPanel.test.tsx"
+      ],
+      "files_to_modify": [
+        "frontend/src/app/chat/[...path]/workspaceContent.ts",
+        "frontend/src/components/workspace/WorkspaceShell.tsx",
+        "frontend/src/app/chat/[...path]/page.tsx"
+      ],
+      "passes": null,
+      "started": null,
+      "completed": null,
+      "notes": "Workbench is a composed column today, not tabbed. A collapsible Documents section is acceptable for M1; a true tab bar is a larger refactor — note, do not over-build."
+    }
+  ],
+  "velocity": {
+    "target_loc_per_day": 250,
+    "actual_loc_per_day": null,
+    "estimated_total_loc": 370,
+    "actual_total_loc": null,
+    "estimated_days": 1.5,
+    "actual_days": null
+  },
+  "github_issues": [],
+  "last_session": null,
+  "last_checkpoint": null,
+  "status": "not_started"
+}
