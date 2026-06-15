@@ -1,12 +1,12 @@
 # Teacher activity authoring — non-sim activities first class
 
 **Status:** Planned (P1, aggressive v1.1 target — phased; thin slice pre-freeze)
-**Last Updated:** 2026-06-09 (added curriculum-library tie-in + the 9 June equipment co-design milestone)
+**Last Updated:** 2026-06-15 (15 June: per-activity RAG **source-selection** sharpened to a first-class authoring control — see *Per-activity RAG source selection*)
 **Priority:** **P1** — recorded as *"the primary design priority in the 3 June teacher check-in"* in the scoping site (`strands.qmd`, three separate mentions). Teachers want to create activities from scratch — including activities with **no simulator at all** — without a developer in the loop.
 **Estimated:** ~6–8d full builder; **~1.5d for the M0 pre-freeze thin slice** (see Milestone phasing)
 **Scope:** Fullstack — `backend/db/models/activity_config.py` (extend) + `backend/db/activity_configs.py` + `backend/protocols/activity_config_routes.py` (extend to CRUD) + new A2UI student surfaces (quiz / notebook / drawing / none) + `frontend/src/app/teacher/activities/` (builder) + generalize `frontend/src/components/workspace/ProgressChecklist.tsx` + `aiplatform activity` CLI
 **Dependencies:** [teacher-ui.md](../v1.0.0-pilot/implemented/teacher-ui.md) (Phase 2 `ActivityConfig` is the parent surface — shipped); [teacher-permission-model.md](../v1.0.0-pilot/implemented/teacher-permission-model.md) (1.A teacher auth — shipped); [expanded-workbench-types.md](../v1.0.0-pilot/expanded-workbench-types.md) (1.J — workbench type system); [lesson-picker.md](../v1.0.0-pilot/implemented/lesson-picker.md) (shipped); ADR-015 (unified multi-surface UI) + ADR-013 (artefact safety) in the scoping site
-**Source brief:** [`june-03-feedback-sprint-brief.md`](file:///Users/mark/Documents/clients/cph-uni/strand-a-pedagogical-bot/prototypes/june-03-feedback-sprint-brief.md) + [`june-09-feedback-sprint-brief.md` §A](file:///Users/mark/Documents/clients/cph-uni/strand-a-pedagogical-bot/prototypes/june-09-feedback-sprint-brief.md) (curriculum library + equipment co-design) + scoping-site [`strands.qmd`](file:///Users/mark/Documents/clients/cph-uni/strands.qmd) "Teacher activity creation and branching"
+**Source brief:** [`june-03-feedback-sprint-brief.md`](file:///Users/mark/Documents/clients/cph-uni/strand-a-pedagogical-bot/prototypes/june-03-feedback-sprint-brief.md) + [`june-09-feedback-sprint-brief.md` §A](file:///Users/mark/Documents/clients/cph-uni/strand-a-pedagogical-bot/prototypes/june-09-feedback-sprint-brief.md) (curriculum library + equipment co-design) + [`notes/2026-06-15-teacher-feedback.md`](file:///Users/mark/Documents/clients/cph-uni/notes/2026-06-15-teacher-feedback.md) (15 June: teacher chooses RAG inputs) + scoping-site [`strands.qmd`](file:///Users/mark/Documents/clients/cph-uni/strands.qmd) "Teacher activity creation and branching"
 
 > **9 June split (read with the realism note).** The 9 June brief folds two more requirements into "design doc A": (1) a **referenceable A/B/C curriculum library** teachers cite when authoring, and (2) **AI co-designing the missing workbench element** around a teacher's existing lab equipment. The **library** is a standalone subsystem (storage, taxonomy, ingestion, ACL, retrieval) and has been split into its own doc — [curriculum-library.md](curriculum-library.md) — which this builder *consumes* (its `materials` picker browses that library). The **co-design** stays here as **M6**, because it is an authoring *interaction*, not a corpus.
 
@@ -205,6 +205,49 @@ Per the 9 June steer (*coverage of the possibility space beats depth on any one 
 
 These are **gated on [curriculum-library](curriculum-library.md) landing** (which now runs on **managed ADK RAG — no pgvector build to wait on**; just needs the B/C corpus parsed), so they sequence after the core builder (M0–M3) but can come **much earlier than originally feared**. Per the breadth steer they are **high-value-as-soon-as-unblocked**, not bottom-of-backlog. See M7/M8.
 
+### Per-activity RAG source selection (15 June — first-class authoring control)
+
+15 June sharpened the authoring flow with an explicit teacher control: when authoring an activity,
+the teacher **selects which sources feed it** — the activity's RAG inputs — from the A/B/C curriculum
+library and their own uploads [M, 15 June]. The ask is *"which curriculum PDFs / uploads are in scope
+for **this** activity"*, surfaced as a **selectable, visible set**, not a global corpus.
+
+**Most of this already ships — the 15-June work is making it first-class, not new retrieval plumbing.**
+The per-activity scoping landed with [curriculum-library](curriculum-library.md) (1.1.25 M3):
+
+- The activity's `materials: list[MaterialRef]` field **is** the source set. Note the shipped shape
+  is `MaterialRef(doc_id, origin)` — the `origin` is cached at citation time so the grounding
+  preamble can name the source without an extra read. (The earlier `MaterialRef(doc_id, label)` sketch
+  in the *Data-model extension* section above is superseded by the shipped `origin` field; reconcile
+  on the next edit of that block.)
+- [`build_curriculum_retrieval_tool(materials)`](../../../../backend/adk/curriculum_retrieval.py)
+  builds a **single `VertexAiRagRetrieval` tool with `rag_file_ids` scoped to only the cited docs'
+  files** — and returns `None` (graceful degradation) when `materials` is empty, the corpus env var
+  is unset, or none of the cited docs are RAG-ingested yet. So retrieval is **deny-by-default at the
+  activity level**: the tutor reaches only this activity's sources, never the open corpus.
+- The builder `MaterialsSection` + `curriculumApi.ts` (1.1.25 M4) are the picker that writes `materials`.
+
+So the **per-activity → pgvector/store mapping** the 15-June note asks us to resolve is already
+resolved: scoping is `rag_file_ids` filtering on the single **managed ADK RAG corpus** (ADR-010;
+[parent 1.3 pgvector](../SEQUENCE.md) is deferred to the Year-2 self-hosting swap — the retrieval
+interface is backend-agnostic, so the activity-level scope carries over unchanged).
+
+**What the 15-June ask still wants (the first-class refinements):**
+
+1. **A visible, editable "Sources for this activity" panel** in the builder — the selected set shown
+   as a list the teacher can review and prune per activity, not a control buried in an advanced tab.
+   The de-mock (1.1.28) already lit up this picker against real `/api/activity-configs`; this makes
+   the *selection* legible.
+2. **Per-source include/exclude at author time** with a clear default (cite nothing → tutor uses its
+   general physics knowledge ungrounded; cite ≥1 → grounded + attributed). Surface which sources are
+   ingested vs pending so the teacher knows what's actually retrievable.
+3. **Confirm the framing in the student-facing attribution** — the grounding preamble already tells
+   the tutor to attribute to `origin`; the lesson-author resolved-prompt preview ([lesson-author-surface.md](lesson-author-surface.md),
+   1.1.27) is where the teacher *sees* that the cited sources made it into the prompt.
+
+Net: this is a **builder-UX sharpening on shipped retrieval scoping**, not a new subsystem — it folds
+into the Materials picker + M7/M8 work, not a separate row.
+
 ### CLI surface
 
 Per the CLI-affordance rule, ship the commands with the feature (CLI is `aiplatform`, the AIPLA tool):
@@ -308,4 +351,5 @@ Ordered so **M0 is independently valuable and lands before the 2026-06-29 freeze
 - [offline-lab-workbench.md](offline-lab-workbench.md) — a `notebook` activity type M6 co-design proposes; consumes 1.J Type 5
 - [tutor-personas.md](tutor-personas.md) — the `interaction_style` field rides this builder's activity-config surface
 - [mcp-app-artefact skill](../../../../.claude/skills/mcp-app-artefact/SKILL.md) — the sim-authoring runbook (the MCP-App side of the A2UI/MCP split)
+- [june-15-feedback.md](june-15-feedback.md) — the 15-June check-in map; this doc absorbs its "teacher chooses RAG inputs" item
 - ADR-015 (unified multi-surface UI) + ADR-013 (artefact safety) — scoping-site `architecture.qmd`

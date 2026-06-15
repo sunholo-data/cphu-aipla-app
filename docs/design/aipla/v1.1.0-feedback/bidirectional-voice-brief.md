@@ -1,7 +1,7 @@
 # Bidirectional voice — sound in **and** out as a swap-shaped `voice_mode` config (target 2026-06-23)
 
 **Status:** Brief — **DECISION 2026-06-11 (M, post-meeting): `gemini_live` is DEFERRED** until there's a clear non-Google / open-source (local Whisper, ADR-003 `server_local`) port path — the cloud-locked duplex is the harder, lock-in-prone bet. **`stt_tts_roundtrip` is the v1 mode and voice-in is a requirement.** That removes the heavy continuous-audio GDPR review from the critical path; the round-trip's posture is the small transcript-only dictation delta. The remaining gate is M's confirmation of that delta — not a build decision.
-**Last Updated:** 2026-06-09
+**Last Updated:** 2026-06-15 (added an explicit **latency budget** acceptance criterion — see *Latency budget*; 15 June raised audio latency as a concrete concern)
 **Priority:** **P1 — the one urgent new date.** Sound-in-and-out was stressed by teachers on 9 June. It was explicitly "not in this brief" on 3 June; it now carries a **hard near-term target of 2026-06-23**, ahead of the week-27 holiday freeze (2026-06-29 → 07-05).
 **Estimated:** the **`voice_mode` abstraction** itself is small (~0.5d — it extends the 1.1.11 registry with a mode axis). Then **per mode**: `stt_tts_roundtrip` ~0.5–1.5d (composes shipped 1.1.11 parts), `gemini_live` ~3–5d (LiveRunner integration off the existing stub). Enable whichever mode(s) fit the date + the GDPR sign-off.
 **Scope:** A **`voice_mode` config axis** (per-class/per-activity, swap-shaped per ADR-003 — the same pattern as the shipped `TTSProvider`/`STTProvider` selection) with **pluggable mode implementations**, + the frontend voice-loop UX. Each mode is a **config option**, not a separate app.
@@ -52,6 +52,58 @@ The two **mode options** (others follow the ADR-003 tiers):
 2. **GDPR posture per mode (M).** `stt_tts_roundtrip`: confirm the dictation posture (transcript-only, raw audio not retained) extends to the loop — small delta on the 1.1.11 sign-off. `gemini_live`: the full audio-capture five-question review (continuous audio egress to the model) — bigger, and it gates *that mode*, not the axis.
 
 There is no "who owns the build" decision — the `voice_mode` axis is platform config the app agent ships; each mode is an implementation behind it, scoped and enabled independently.
+
+## Latency budget (15 June — acceptance criterion)
+
+15 June raised **audio latency** as a concrete concern [M, 15 June]. Round-trip voice feels broken
+long before it is broken — a tutor that takes four seconds to start speaking reads as "stuck". So
+latency is promoted from a soft quality to an **explicit acceptance criterion**, and the
+STT+TTS-vs-`gemini_live` choice is now **partly a latency decision**, not only a portability/GDPR one.
+
+**Metric:** end-to-end round-trip = *utterance-end (student stops speaking) → first audio of the
+tutor's reply*. Measured p50/p95, not mean (the tail is what teachers notice). Decomposed into the
+three legs already spanned by the 1.1.11 `voice.*` instrumentation:
+
+```
+utterance-end ─► STT transcribe ─► tutor TTFT (first AG-UI token) ─► TTS first-audio ─► playback
+                 voice.stt.ms        (existing turn span)            voice.tts.ms
+```
+
+**Targets (per mode):**
+
+| Mode | p50 round-trip | p95 round-trip | Notes |
+|---|---|---|---|
+| `stt_tts_roundtrip` (shipped) | **≤ 2.0s** | **≤ 4.0s** | Turn-based; the legs are sequential. STT ~0.3–0.8s + tutor TTFT (the platform's <1s-no-tools bar) + TTS first-audio (1.1.11 Axiom-1 target ≤500ms p95). Streaming the tutor turn + early TTS chunking is the main lever. |
+| `gemini_live` (deferred) | **≤ 0.8s** | **≤ 1.5s** | Duplex/interruptible — the latency win is the whole reason to keep it on the roadmap despite the cloud-lock portability cost. Barge-in is native. |
+
+These are **initial budgets to validate against the pilot**, not contractually fixed — the point is
+that we *measure and gate* on them, and that the numbers are visibly different per mode so the
+latency/portability trade is explicit.
+
+**Latency as a mode-selection input.** The round-trip mode is portable (rides the four-tier swap to
+server-local Whisper / on-device per ADR-003) but its legs are sequential, so it sits in the
+2–4s band. `gemini_live` is cloud-locked but sub-second and interruptible. The decision is therefore
+*"how much latency can this class tolerate vs how much lock-in"* — a class that wants natural
+conversation pays the `gemini_live` portability cost for the latency; a locked-down or
+self-host-bound class takes the round-trip's higher latency for portability. The budget makes that
+trade legible.
+
+**Mobile is the worst case — coordinate with [mobile-performance-pass.md](mobile-performance-pass.md)
+(1.1.30).** Measure the latency budget on the representative low-mid Android over a throttled
+classroom network, *not* on a dev laptop — that is the device students actually use, and the leg most
+sensitive to it is the network round-trips to STT/TTS. The two docs share one measurement on one
+device.
+
+**Instrumentation:** extend the 1.1.11 `voice.*` spans with a derived `voice.roundtrip_ms` (and the
+per-leg breakdown already present) → BigQuery, so p50/p95 per mode/class is a dashboard, not a
+one-off measurement (Axiom 8). The cost-dashboard (1.1.9) already surfaces `voice.*` spans; latency
+joins them.
+
+**Acceptance (added):**
+
+- [ ] `voice.roundtrip_ms` (utterance-end → first reply audio) is captured per turn and lands in BQ with the per-leg breakdown.
+- [ ] `stt_tts_roundtrip` meets **p50 ≤ 2.0s / p95 ≤ 4.0s** on the representative low-mid Android over a throttled network (shared measurement with 1.1.30).
+- [ ] The first-enabled-mode decision (Q1) records latency as one of its stated grounds, alongside GDPR and portability.
 
 ## UX (mode-agnostic where possible)
 
@@ -107,4 +159,6 @@ There is no "who owns the build" decision — the `voice_mode` axis is platform 
 - [voice-personas.md](voice-personas.md) — 1.1.12; the voice/avatar layer a spoken reply uses (any mode)
 - [audio-capture-and-tts.md](../v1.0.0-pilot/audio-capture-and-tts.md) — the audio-in privacy review; **gates the `gemini_live` mode**, delta for `stt_tts_roundtrip`
 - [backend/adk/live_agent.py](../../../../backend/adk/live_agent.py) — the LiveRunner stub the `gemini_live` mode builds on
+- [mobile-performance-pass.md](mobile-performance-pass.md) — mobile is the worst case for the latency budget; shared measurement (1.1.30)
+- [june-15-feedback.md](june-15-feedback.md) — the 15-June map; this doc absorbs its "audio latency" item
 - ADR-003 (four-tier swap-shaped model/voice selection) + ADR-005/007 (EU residency) — scoping-site `architecture.qmd`; the pattern `voice_mode` mirrors
