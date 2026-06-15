@@ -11,7 +11,10 @@ const listClassesMock = vi.fn();
 const listSkillsMock = vi.fn();
 const saveActivityConfigMock = vi.fn();
 const patchLessonsMock = vi.fn();
-const fetchPersonaListMock = vi.fn();
+// Persona is class-default-only (1.1.32): the form renders InheritedPersona,
+// which resolves the class persona via fetchPersonaCatalogue + getClass.
+const fetchPersonaCatalogueMock = vi.fn();
+const getClassMock = vi.fn();
 vi.mock("@/lib/teacherApi", async () => {
   const actual = await vi.importActual<typeof import("@/lib/teacherApi")>("@/lib/teacherApi");
   return {
@@ -20,7 +23,8 @@ vi.mock("@/lib/teacherApi", async () => {
     listAccessibleSkills: () => listSkillsMock(),
     saveActivityConfig: (body: unknown) => saveActivityConfigMock(body),
     patchLessons: (classId: string, body: unknown) => patchLessonsMock(classId, body),
-    fetchPersonaList: () => fetchPersonaListMock(),
+    fetchPersonaCatalogue: () => fetchPersonaCatalogueMock(),
+    getClass: (id: string) => getClassMock(id),
   };
 });
 
@@ -42,8 +46,24 @@ describe("/teacher/activities/new — concept activity builder", () => {
     listSkillsMock.mockResolvedValue(SKILLS);
     saveActivityConfigMock.mockResolvedValue({});
     patchLessonsMock.mockResolvedValue({});
-    fetchPersonaListMock.mockReset();
-    fetchPersonaListMock.mockResolvedValue([]); // no picker by default
+    fetchPersonaCatalogueMock.mockReset();
+    getClassMock.mockReset();
+    // Default: the class inherits the global default persona (Sofie).
+    fetchPersonaCatalogueMock.mockResolvedValue({
+      personas: [
+        {
+          id: "sofie",
+          name: "Sofie",
+          title: "Fysikvejleder",
+          avatar: "",
+          language: "da",
+          interactionStyle: "socratic",
+          bio: null,
+        },
+      ],
+      defaultId: "sofie",
+    });
+    getClassMock.mockResolvedValue({ classId: "c-1", persona: null });
   });
 
   it("renders the builder form once classes load", async () => {
@@ -92,50 +112,27 @@ describe("/teacher/activities/new — concept activity builder", () => {
     expect(await screen.findByText(/is live for/i)).toBeInTheDocument();
   });
 
-  it("defaults the teaching style to socratic and sends the chosen style (1.1.20)", async () => {
+  it("shows the inherited class persona read-only and never writes persona/style (1.1.32 — class-default-only)", async () => {
     listClassesMock.mockResolvedValue(ONE_CLASS);
     render(<NewActivityPage />);
     fireEvent.change(await screen.findByLabelText(/activity name/i), { target: { value: "E" } });
     fireEvent.change(screen.getByLabelText(/lesson prompt/i), { target: { value: "g" } });
 
-    const stylePicker = screen.getByLabelText(/teaching style/i) as HTMLSelectElement;
-    expect(stylePicker.value).toBe("socratic");
-    fireEvent.change(stylePicker, { target: { value: "concise" } });
-
-    fireEvent.click(screen.getByRole("button", { name: /create activity/i }));
-    await waitFor(() => expect(saveActivityConfigMock).toHaveBeenCalledTimes(1));
-    expect(saveActivityConfigMock.mock.calls[0][0].interactionStyle).toBe("concise");
-  });
-
-  it("picking a persona sets its teaching style and records the persona id (1.1.12)", async () => {
-    listClassesMock.mockResolvedValue(ONE_CLASS);
-    fetchPersonaListMock.mockResolvedValue([
-      {
-        id: "astrid",
-        name: "Astrid",
-        title: "Senior underviser",
-        avatar: "",
-        language: "da",
-        interactionStyle: "rigorous",
-        bio: null,
-      },
-    ]);
-    render(<NewActivityPage />);
-    fireEvent.change(await screen.findByLabelText(/activity name/i), { target: { value: "E" } });
-    fireEvent.change(screen.getByLabelText(/lesson prompt/i), { target: { value: "g" } });
-
-    // the manual style control is visible while on the "Custom" default…
-    expect(screen.getByLabelText(/teaching style/i)).toBeInTheDocument();
-    // …picking a named persona OWNS the style, so the manual control disappears
-    fireEvent.click(await screen.findByRole("button", { name: /Astrid/ }));
+    // The persona is shown read-only (resolved from the class default) — there
+    // is NO co-equal picker and NO standalone teaching-style control anymore.
+    expect(await screen.findByText("Sofie")).toBeInTheDocument();
+    expect(screen.getByText(/change in class settings/i)).toBeInTheDocument();
     expect(screen.queryByLabelText(/teaching style/i)).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /^Custom$/ })).not.toBeInTheDocument();
 
     fireEvent.click(screen.getByRole("button", { name: /create activity/i }));
     await waitFor(() => expect(saveActivityConfigMock).toHaveBeenCalledTimes(1));
+    // The activity leaves persona + interaction_style unset so the backend
+    // resolves the class default (interaction_style.py inherits the class
+    // persona's style when cfg.persona is empty).
     const body = saveActivityConfigMock.mock.calls[0][0];
-    expect(body.persona).toBe("astrid");
-    // the persona's tied style was still recorded internally
-    expect(body.interactionStyle).toBe("rigorous");
+    expect(body).not.toHaveProperty("persona");
+    expect(body).not.toHaveProperty("interactionStyle");
   });
 
   it("sends teacher-authored checklist items with positional ids", async () => {

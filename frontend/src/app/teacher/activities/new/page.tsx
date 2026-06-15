@@ -7,22 +7,16 @@ import { ArrowLeft, MessageCircle, Plus, Save, Sparkles, X } from "lucide-react"
 
 import {
   type ClassPayload,
-  type InteractionStyle,
   type Language,
   type MaterialRef,
-  type PersonaPayload,
-  fetchPersonaList,
   listAccessibleSkills,
   listClasses,
   patchLessons,
   saveActivityConfig,
 } from "@/lib/teacherApi";
-import {
-  INTERACTION_STYLE_HELP,
-  INTERACTION_STYLE_OPTIONS,
-} from "@/lib/personaDisplay";
 import { MaterialsSection } from "@/components/teacher/MaterialsSection";
 import { SettingsMap } from "@/components/teacher/SettingsMap";
+import { InheritedPersona } from "@/components/teacher/InheritedPersona";
 
 // TAA-1 M0: a from-scratch activity runs the `concept-dialogue` base
 // skill (chat-only Socratic tutor). The teacher's title + lesson prompt
@@ -74,17 +68,10 @@ function NewActivityForm() {
   const [title, setTitle] = useState("");
   const [teachingGoal, setTeachingGoal] = useState("");
   const [language, setLanguage] = useState<Language>("da");
-  const [interactionStyle, setInteractionStyle] = useState<InteractionStyle>("socratic");
-  // Persona (1.1.12): the named character. Picking one sets the tied
-  // interaction_style; the style dropdown below stays an override.
-  const [personas, setPersonas] = useState<PersonaPayload[]>([]);
-  const [persona, setPersona] = useState<string | null>(null);
-  const pickPersona = (p: PersonaPayload | null) => {
-    setPersona(p?.id ?? null);
-    if (p) setInteractionStyle(p.interactionStyle);
-  };
-  // First-run default: the concept (no-workbench) path is pre-selected so
-  // the happy path to a working activity is the default, not a blank form.
+  // Persona is class-default-only (1.1.32 Q4): set in class settings, inherited
+  // by every activity. The form shows it read-only (InheritedPersona) and does
+  // not write persona / interaction_style — leaving them unset lets the backend
+  // resolve the class default (avatar + name + voice + style together).
   // Optional teacher-authored checklist. `key` is a stable client id for
   // React; the persisted item id is positional, assigned on save.
   const [checklist, setChecklist] = useState<{ key: number; label: string }[]>([]);
@@ -131,23 +118,6 @@ function NewActivityForm() {
     };
   }, [preferredClassId]);
 
-  // Persona catalogue. No silent failure — surface a load error so a
-  // misconfigured /api/personas is visible instead of an empty-looking form.
-  const [personaError, setPersonaError] = useState<string | null>(null);
-  useEffect(() => {
-    let alive = true;
-    fetchPersonaList()
-      .then((ps) => {
-        if (alive) setPersonas(ps);
-      })
-      .catch((e) => {
-        if (alive) setPersonaError(e instanceof Error ? e.message : "failed to load personas");
-      });
-    return () => {
-      alive = false;
-    };
-  }, []);
-
   const canSubmit = title.trim().length > 0 && teachingGoal.trim().length > 0 && classId.length > 0 && !isSaving;
 
   async function handleSave(ev: React.FormEvent) {
@@ -163,8 +133,6 @@ function NewActivityForm() {
         title: title.trim(),
         teachingGoal: teachingGoal.trim(),
         language,
-        interactionStyle,
-        persona,
         // Positional ids assigned on save; empty rows dropped.
         checklist: checklist
           .map((i) => i.label.trim())
@@ -362,61 +330,11 @@ function NewActivityForm() {
             </Field>
           </div>
 
-          {personaError ? (
-            <p className="rounded border border-red-300 bg-red-50 px-3 py-2 text-sm text-red-700">
-              Couldn&rsquo;t load personas: {personaError}
-            </p>
-          ) : null}
-          {personas.length > 0 ? (
-            <div className="flex flex-col gap-2">
-              <span className="text-sm font-medium text-slate-700">Persona</span>
-              <div className="flex flex-wrap gap-2">
-                <PersonaCard
-                  selected={persona === null}
-                  onClick={() => pickPersona(null)}
-                  name="Custom"
-                  title="Set the style yourself"
-                />
-                {personas.map((p) => (
-                  <PersonaCard
-                    key={p.id}
-                    selected={persona === p.id}
-                    onClick={() => pickPersona(p)}
-                    name={p.name}
-                    title={p.title}
-                    avatar={p.avatar}
-                  />
-                ))}
-              </div>
-              <p className="text-xs text-slate-500">
-                A persona sets the avatar, name, voice &amp; teaching style together. Leave it on the
-                class default, or pick &ldquo;Custom&rdquo; to set the style yourself.
-              </p>
-            </div>
-          ) : null}
-
-          {/* The persona OWNS the teaching style. Only the "Custom" persona
-              (persona === null) exposes the manual style control; picking any
-              named persona sets the style for you (pickPersona above). */}
-          {persona === null ? (
-            <div className="flex flex-col gap-1">
-              <Field label="Teaching style" htmlFor="activity-style">
-                <select
-                  id="activity-style"
-                  value={interactionStyle}
-                  onChange={(e) => setInteractionStyle(e.target.value as InteractionStyle)}
-                  className="rounded-md border border-slate-300 px-3 py-2 text-sm"
-                >
-                  {INTERACTION_STYLE_OPTIONS.map((o) => (
-                    <option key={o.value} value={o.value}>
-                      {o.label}
-                    </option>
-                  ))}
-                </select>
-              </Field>
-              <p className="text-xs text-slate-500">{INTERACTION_STYLE_HELP[interactionStyle]}</p>
-            </div>
-          ) : null}
+          {/* Persona is class-default-only (1.1.32 Q4): set once in class
+              settings, inherited by every activity. Shown read-only here so
+              the teacher knows which tutor + where to change it — no duplicate
+              per-activity picker. */}
+          <InheritedPersona classId={classId} />
 
           {saveError ? (
             <p role="alert" className="text-sm text-red-600">
@@ -437,52 +355,6 @@ function NewActivityForm() {
         </form>
       )}
     </div>
-  );
-}
-
-function PersonaAvatar({ name, avatar }: { name: string; avatar?: string }) {
-  if (avatar) {
-    // eslint-disable-next-line @next/next/no-img-element
-    return <img src={avatar} alt="" aria-hidden="true" className="h-8 w-8 shrink-0 rounded-full object-cover" />;
-  }
-  return (
-    <span
-      aria-hidden="true"
-      className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-indigo-100 text-xs font-bold text-indigo-700"
-    >
-      {name[0]?.toUpperCase() ?? "?"}
-    </span>
-  );
-}
-
-function PersonaCard({
-  selected,
-  onClick,
-  name,
-  title,
-  avatar,
-}: {
-  selected: boolean;
-  onClick: () => void;
-  name: string;
-  title?: string | null;
-  avatar?: string;
-}) {
-  return (
-    <button
-      type="button"
-      onClick={onClick}
-      aria-pressed={selected}
-      className={`flex w-40 items-center gap-2 rounded-md border px-2 py-2 text-left ${
-        selected ? "border-indigo-500 bg-indigo-50" : "border-slate-300 hover:bg-slate-50"
-      }`}
-    >
-      <PersonaAvatar name={name} avatar={avatar} />
-      <span className="flex min-w-0 flex-col">
-        <span className="truncate text-sm font-medium text-slate-900">{name}</span>
-        {title ? <span className="truncate text-xs text-slate-500">{title}</span> : null}
-      </span>
-    </button>
   );
 }
 

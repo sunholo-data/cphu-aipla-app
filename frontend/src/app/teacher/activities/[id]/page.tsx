@@ -26,6 +26,7 @@ import {
 } from "@/lib/teacherApi";
 import { MaterialsSection } from "@/components/teacher/MaterialsSection";
 import { SettingsMap } from "@/components/teacher/SettingsMap";
+import { InheritedPersona } from "@/components/teacher/InheritedPersona";
 
 type TabId = "goal" | "parameters" | "code" | "history";
 
@@ -255,6 +256,8 @@ export default function TeacherActivityConfigPage() {
               />
               <p className="text-xs text-muted-foreground">{helperText}</p>
             </fieldset>
+
+            <InheritedPersona classId={classId} />
 
             <p className="rounded border border-border bg-muted/40 px-3 py-2 text-xs text-muted-foreground">
               This is a chat-only concept activity (plus any checklist and
