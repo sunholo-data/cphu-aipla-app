@@ -1,17 +1,17 @@
 /**
  * PCM capture AudioWorklet for AIPLA voice (dictation + lesson recording).
  *
- * Captures the mic as raw 16-bit PCM at the AudioContext's NATIVE sample rate
- * (commonly 44.1 kHz on macOS, 48 kHz elsewhere) — no JS resampling.
+ * Captures the mic as raw 16-bit PCM at the AudioContext's sample rate — no JS
+ * resampling. The caller runs the context at 16 kHz (see audioCapture.ts), so
+ * the BROWSER's high-quality resampler downsamples the 44.1/48 kHz hardware and
+ * this worklet just passes the result through.
  *
- * WHY no resampling: the browser's MediaRecorder encodes Opus and stamps the
- * hardware rate (44100) into the WebM header, which Google Cloud STT's
- * WEBM_OPUS decoder rejects. Earlier we downsampled to 16 kHz here with naive
- * nearest-neighbour decimation (no anti-alias filter), which folded high
- * frequencies back as noise and GARBLED even clear speech. LINEAR16 accepts any
- * rate 8–48 kHz, so we hand Cloud STT the native-rate PCM and let ITS
- * production resampler do the downsampling cleanly. The WAV header (written on
- * the main thread from ctx.sampleRate) carries the rate, so STT knows it.
+ * WHY: MediaRecorder stamps the hardware rate (44100) into the Opus/WebM header,
+ * which Cloud STT's WEBM_OPUS decoder rejects. We also can't downsample here
+ * with naive nearest-neighbour decimation — that aliases and GARBLES speech.
+ * Letting the AudioContext run at 16 kHz gives clean, anti-aliased 16 kHz PCM
+ * that's small enough to stay under sync-recognize's ~1-minute limit. The WAV
+ * header (written on the main thread from ctx.sampleRate) carries the rate.
  *
  * Usage:
  *   await ctx.audioWorklet.addModule('/pcm-capture-worklet.js');

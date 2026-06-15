@@ -79,7 +79,21 @@ function defaultAudioContext(): AudioContext {
   const Ctx =
     window.AudioContext ||
     (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext;
-  return new Ctx();
+  // Run the context at 16 kHz so the BROWSER's (high-quality) resampler does the
+  // downsampling from the 44.1/48 kHz hardware, and the worklet just passes it
+  // through. This gets clean 16 kHz two ways at once:
+  //   - no aliasing (vs our old nearest-neighbour JS decimation that garbled
+  //     speech), and
+  //   - small enough that 50 s segments stay under Cloud Speech sync
+  //     recognize's ~1-minute limit (native-rate 44.1 kHz tripped "Sync input
+  //     too long" — 2.2M samples for the same 50 s).
+  // The AudioContext sampleRate option IS honoured (unlike the getUserMedia
+  // constraint); fall back to the native rate if a browser rejects it.
+  try {
+    return new Ctx({ sampleRate: 16000 });
+  } catch {
+    return new Ctx();
+  }
 }
 
 export interface RecorderDeps {
