@@ -35,6 +35,7 @@ import { BudgetPanel } from "@/components/teacher/BudgetPanel";
 import { ClassVoiceSettingsPanel } from "@/components/teacher/ClassVoiceSettingsPanel";
 import { ClassPersonaPanel } from "@/components/teacher/ClassPersonaPanel";
 import { SettingsSection } from "@/components/teacher/ui/SettingsSection";
+import { SettingsMap } from "@/components/teacher/SettingsMap";
 import { TeacherPage } from "@/components/teacher/ui/TeacherPage";
 
 import { handleExportSessions } from "./_exportHelpers";
@@ -304,6 +305,7 @@ export default function TeacherClassDetailPage() {
         </Link>
       }
     >
+      <SettingsMap highlight="class" />
       <SettingsSection
         title="Groups"
         action={

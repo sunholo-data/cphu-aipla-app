@@ -25,6 +25,7 @@ import {
   saveActivityConfig,
 } from "@/lib/teacherApi";
 import { MaterialsSection } from "@/components/teacher/MaterialsSection";
+import { SettingsMap } from "@/components/teacher/SettingsMap";
 
 type TabId = "goal" | "parameters" | "code" | "history";
 
@@ -244,6 +245,7 @@ export default function TeacherActivityConfigPage() {
           aria-labelledby="tab-goal"
         >
           <form onSubmit={handleSave} className="flex flex-col gap-6">
+            <SettingsMap highlight="activity" />
             <fieldset className="flex flex-col gap-2">
               <label htmlFor="teaching-goal" className="text-sm font-medium">
                 Teaching goal

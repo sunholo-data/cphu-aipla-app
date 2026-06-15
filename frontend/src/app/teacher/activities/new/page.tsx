@@ -23,6 +23,7 @@ import {
   INTERACTION_STYLE_OPTIONS,
 } from "@/lib/personaDisplay";
 import { MaterialsSection } from "@/components/teacher/MaterialsSection";
+import { SettingsMap } from "@/components/teacher/SettingsMap";
 
 // TAA-1 M0: a from-scratch activity runs the `concept-dialogue` base
 // skill (chat-only Socratic tutor). The teacher's title + lesson prompt
@@ -257,6 +258,7 @@ function NewActivityForm() {
         </PanelMessage>
       ) : (
         <form onSubmit={handleSave} className="flex max-w-2xl flex-col gap-5">
+          <SettingsMap highlight="activity" />
           <Field label="Activity name" htmlFor="activity-title">
             <input
               id="activity-title"
