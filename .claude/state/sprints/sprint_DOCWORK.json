@@ -27,9 +27,9 @@
       ],
       "passes": true,
       "started": "2026-06-15",
-      "completed": null,
+      "completed": "2026-06-15",
       "actual_loc": 95,
-      "notes": "Code-complete + green (backend 25/25 targeted, 1956 full suite; FE 9/9 MaterialsSection + quality:check:fast exit 0). COMMIT PENDING: teacherApi.ts is entangled with the user's in-flight 1.1.32 accessControl feature; per user's choice they commit their teacher-UI work first, then M2a commits on a clean tree. studentVisible field on MaterialRef (backend activity_config.py + FE type); per-chip Eye/EyeOff 'Show to students' toggle in MaterialsSection (default off)."
+      "notes": "Code-complete + green (backend 25/25 targeted, 1956 full suite; FE 9/9 MaterialsSection + quality:check:fast exit 0). COMMIT PENDING: teacherApi.ts is entangled with the user's in-flight 1.1.32 accessControl feature; per user's choice they commit their teacher-UI work first, then M2a commits on a clean tree. studentVisible field on MaterialRef (backend activity_config.py + FE type); per-chip Eye/EyeOff 'Show to students' toggle in MaterialsSection (default off). SHIPPED 7c923af."
     },
     {
       "id": "M2b",
@@ -37,11 +37,13 @@
       "scope": "backend",
       "estimated_loc": 110,
       "actual_loc": null,
-      "dependencies": ["M2a"],
+      "dependencies": [
+        "M2a"
+      ],
       "acceptance_criteria": [
         "GET /api/activity-configs/active/{activity_id}/materials returns only materials with student_visible True, resolved to {docId, origin, ...} display metadata",
         "A hidden (studentVisible=false) material is excluded; an activity the caller's group cannot access is denied (deny-by-default, mirrors /active/{id})",
-        "resolve_active_config is unchanged (still returns all materials for agent RAG grounding) — verified by an existing-behaviour test",
+        "resolve_active_config is unchanged (still returns all materials for agent RAG grounding) \u2014 verified by an existing-behaviour test",
         "Frontend fetchActivityMaterials(activityId) client added; backend make lint + test-fast green"
       ],
       "files_to_create": [],
@@ -50,10 +52,10 @@
         "backend/tests/api_tests/test_activity_config_routes.py",
         "frontend/src/lib/studentApi.ts"
       ],
-      "passes": null,
+      "passes": true,
       "started": null,
-      "completed": null,
-      "notes": "studentApi.ts may be a new file; reuse an existing student-facing api lib if one fits."
+      "completed": "2026-06-15",
+      "notes": "studentApi.ts may be a new file; reuse an existing student-facing api lib if one fits. SHIPPED 7c923af."
     },
     {
       "id": "M1",
@@ -61,7 +63,9 @@
       "scope": "frontend",
       "estimated_loc": 170,
       "actual_loc": null,
-      "dependencies": ["M2b"],
+      "dependencies": [
+        "M2b"
+      ],
       "acceptance_criteria": [
         "DocumentsPanel renders a gallery from messages[].images (N thumbnails) with ZoomableImage; click opens full-size",
         "DocumentsPanel renders the visible assigned materials from a mocked fetchActivityMaterials (title/source)",
@@ -78,10 +82,10 @@
         "frontend/src/components/workspace/WorkspaceShell.tsx",
         "frontend/src/app/chat/[...path]/page.tsx"
       ],
-      "passes": null,
+      "passes": true,
       "started": null,
-      "completed": null,
-      "notes": "Workbench is a composed column today, not tabbed. A collapsible Documents section is acceptable for M1; a true tab bar is a larger refactor — note, do not over-build."
+      "completed": "2026-06-15",
+      "notes": "Workbench is a composed column today, not tabbed. A collapsible Documents section is acceptable for M1; a true tab bar is a larger refactor \u2014 note, do not over-build. SHIPPED ca89a14."
     }
   ],
   "velocity": {
@@ -93,7 +97,7 @@
     "actual_days": null
   },
   "github_issues": [],
-  "last_session": null,
-  "last_checkpoint": null,
-  "status": "not_started"
+  "last_session": "2026-06-15",
+  "last_checkpoint": "SHIPPED + pushed (deploying). M2a (per-material studentVisible toggle, default off) + M2b (/active returns ALL material names + flag, names-always for debug) + M1 (DocumentsPanel: grounding-doc names with shared/not-shared badges + uploads gallery). Plus two mid-sprint additions from M's live feedback: level-less uploads (killed the hardcoded 'B'; CurriculumDoc.level + ingest optional, amends 1.1.25) and M4 teacher parse-review (ingest returns parsedPreview + 'What we extracted' panel). Commits 7c923af, ca89a14, 39fde66, e2e0007 (+ 94ea7d0 docs). Backend 1962 + FE 1061 tests green; clean build. REMAINING (design doc, not this sprint): M3 docparse rich rendering; the stronger M4 parse-then-commit gate; teacher-side A/B/C level assignment from the catalogue.",
+  "status": "complete"
 }
