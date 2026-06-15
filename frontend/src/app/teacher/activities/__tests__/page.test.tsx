@@ -41,12 +41,19 @@ describe("TeacherActivitiesPage", () => {
     expect(newLinks[0]).toHaveAttribute("href", "/teacher/activities/new");
   });
 
-  it("lists the teacher's activities with a workbench-type badge and an Open-class link", async () => {
+  it("names the class each activity belongs to + a workbench badge + Open-class link", async () => {
     vi.spyOn(teacherApi, "listMyActivities").mockResolvedValue([makeActivity()]);
+    vi.spyOn(teacherApi, "listClasses").mockResolvedValue([
+      { classId: "c-1", name: "Physics A — 7B" },
+    ] as unknown as teacherApi.ClassPayload[]);
     render(<TeacherActivitiesPage />);
 
     await waitFor(() => expect(screen.getByText("Energy basics")).toBeInTheDocument());
     expect(screen.getByText("Concept dialogue")).toBeInTheDocument(); // workbenchType=none label
+    // The card names the class the activity belongs to (per-class binding is
+    // now visible, not hidden) + the listing states the binding explicitly.
+    expect(screen.getByText("Physics A — 7B")).toBeInTheDocument();
+    expect(screen.getByText(/belongs to the one class/i)).toBeInTheDocument();
 
     const classLink = screen.getByRole("link", { name: /Open class/ });
     expect(classLink).toHaveAttribute("href", "/teacher/classes/c-1");

@@ -2,9 +2,13 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
-import { ArrowRight, ClipboardList, Plus, Sliders } from "lucide-react";
+import { ArrowRight, ClipboardList, Plus, Sliders, Users } from "lucide-react";
 
-import { listMyActivities, type ActivityConfigPayload } from "@/lib/teacherApi";
+import {
+  listClasses,
+  listMyActivities,
+  type ActivityConfigPayload,
+} from "@/lib/teacherApi";
 import { EmptyState } from "@/components/teacher/ui/EmptyState";
 import { TeacherCard } from "@/components/teacher/ui/TeacherCard";
 import { TeacherPage } from "@/components/teacher/ui/TeacherPage";
@@ -35,15 +39,20 @@ const NEW_ACTIVITY_SECONDARY =
 export default function TeacherActivitiesPage() {
   const [status, setStatus] = useState<"loading" | "ok" | "error">("loading");
   const [activities, setActivities] = useState<ActivityConfigPayload[]>([]);
+  // classId -> class name, so each activity card can show WHICH class it
+  // belongs to (an activity is keyed per-class; without this the list looks
+  // like a flat library when it isn't). Class fetch failure is non-fatal —
+  // we fall back to the classId.
+  const [classNames, setClassNames] = useState<Map<string, string>>(new Map());
 
   useEffect(() => {
     let cancelled = false;
-    listMyActivities()
-      .then((rows) => {
-        if (!cancelled) {
-          setActivities(rows);
-          setStatus("ok");
-        }
+    Promise.all([listMyActivities(), listClasses().catch(() => [])])
+      .then(([rows, classes]) => {
+        if (cancelled) return;
+        setActivities(rows);
+        setClassNames(new Map(classes.map((c) => [c.classId, c.name])));
+        setStatus("ok");
       })
       .catch(() => {
         if (!cancelled) setStatus("error");
@@ -89,9 +98,17 @@ export default function TeacherActivitiesPage() {
           }
         />
       ) : (
-        <ul className="grid gap-3 sm:grid-cols-2">
-          {activities.map((a) => (
-            <li key={`${a.classId}:${a.activityId}`}>
+        <>
+          <p className="mb-3 rounded-md border border-border bg-muted/30 px-3 py-2 text-xs text-muted-foreground">
+            Each activity belongs to the one class it was created in (shown on
+            each card) — it isn&rsquo;t shared across classes yet. To use a
+            similar activity in another class, create it from that class.
+          </p>
+          <ul className="grid gap-3 sm:grid-cols-2">
+            {activities.map((a) => {
+              const className = classNames.get(a.classId) ?? a.classId;
+              return (
+                <li key={`${a.classId}:${a.activityId}`}>
               <TeacherCard>
                 <div className="flex items-start justify-between gap-2">
                   <h2 className="text-sm font-semibold">
@@ -101,6 +118,10 @@ export default function TeacherActivitiesPage() {
                     {WORKBENCH_LABELS[a.workbenchType ?? "none"] ?? a.workbenchType}
                   </span>
                 </div>
+                <p className="flex items-center gap-1 text-xs text-muted-foreground">
+                  <Users className="h-3 w-3 shrink-0" aria-hidden="true" />
+                  <span className="font-medium text-foreground">{className}</span>
+                </p>
                 {a.teachingGoal ? (
                   <p className="line-clamp-2 text-xs text-muted-foreground">{a.teachingGoal}</p>
                 ) : null}
@@ -124,9 +145,11 @@ export default function TeacherActivitiesPage() {
                   </div>
                 </div>
               </TeacherCard>
-            </li>
-          ))}
-        </ul>
+                </li>
+              );
+            })}
+          </ul>
+        </>
       )}
     </TeacherPage>
   );
