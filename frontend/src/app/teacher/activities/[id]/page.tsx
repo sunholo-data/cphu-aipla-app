@@ -1,13 +1,15 @@
 "use client";
 
 import Link from "next/link";
-import { notFound, useParams } from "next/navigation";
+import { notFound, useParams, useSearchParams } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
 import {
+  AlertTriangle,
   ArrowLeft,
   Code2,
   Eye,
   History,
+  Loader2,
   RotateCcw,
   Save,
   Sliders,
@@ -58,67 +60,111 @@ const DIFFICULTY_OPTIONS = [
 const WORKBENCH_NONE = "none";
 const WORKBENCH_BOLDKAST = "boldkast-simulator-v1";
 
+// Real-mode helper text — shown when the activity is loaded from the live
+// /api/activity-configs endpoint (no per-activity mock flavour text).
+const GENERIC_HELPER =
+  "Describe what you want students to discover. The tutor turns this into Socratic scaffolding — you never write the prompt yourself.";
+
+type LoadState = "loading" | "ready" | "error";
+
 export default function TeacherActivityConfigPage() {
   const params = useParams();
-  const id = typeof params?.id === "string" ? params.id : "";
-  const maybeConfig = getMockActivityConfig(id);
-  if (!maybeConfig) {
+  const searchParams = useSearchParams();
+  const activityId = typeof params?.id === "string" ? params.id : "";
+
+  // Real mode whenever a classId is supplied in the URL — all production
+  // navigation (activities list, new→edit redirect) passes it. Without a
+  // classId we fall back to the legacy mock wireframe path keyed by a known
+  // mock activity id (LOCAL_MODE / Phase-2 demos), which 404s for unknown ids.
+  const classIdParam = searchParams.get("classId") ?? "";
+  const titleParam = searchParams.get("title") ?? "";
+  const isRealMode = classIdParam.length > 0;
+
+  const mockConfig = isRealMode ? undefined : getMockActivityConfig(activityId);
+  if (!isRealMode && !mockConfig) {
     notFound();
   }
-  const config = maybeConfig as NonNullable<typeof maybeConfig>;
+
+  const classId = isRealMode ? classIdParam : mockConfig!.classId;
+  const helperText = isRealMode ? GENERIC_HELPER : mockConfig!.helperText;
 
   const parentClass = useMemo(
-    () => getMockClass(config.classId) ?? getMockClass(MOCK_DEFAULT_CLASS_ID),
-    [config.classId],
+    () =>
+      isRealMode
+        ? undefined
+        : getMockClass(mockConfig!.classId) ??
+          getMockClass(MOCK_DEFAULT_CLASS_ID),
+    [isRealMode, mockConfig],
   );
 
-  const [teachingGoal, setTeachingGoal] = useState(config.defaultTeachingGoal);
-  const [language, setLanguage] = useState<"da" | "en">(config.language);
+  const [displayName, setDisplayName] = useState(
+    isRealMode ? titleParam || "Activity" : mockConfig!.name,
+  );
+  const [teachingGoal, setTeachingGoal] = useState(
+    isRealMode ? "" : mockConfig!.defaultTeachingGoal,
+  );
+  const [language, setLanguage] = useState<"da" | "en">(
+    isRealMode ? "da" : mockConfig!.language,
+  );
   const [difficulty, setDifficulty] = useState<"standard" | "guided">(
-    config.difficulty,
+    isRealMode ? "standard" : mockConfig!.difficulty,
   );
   const [pairedWorkbench, setPairedWorkbench] = useState<string>(
-    config.pairedWorkbench ?? WORKBENCH_NONE,
+    isRealMode ? WORKBENCH_NONE : mockConfig!.pairedWorkbench ?? WORKBENCH_NONE,
   );
   const [materials, setMaterials] = useState<MaterialRef[]>([]);
   const [toast, setToast] = useState<string | null>(null);
   const [isSaving, setIsSaving] = useState(false);
   const [activeTab, setActiveTab] = useState<TabId>("goal");
+  // In real mode we block the form on the network load; in mock mode the
+  // wireframe renders immediately from mock defaults (load is a soft override).
+  const [loadState, setLoadState] = useState<LoadState>(
+    isRealMode ? "loading" : "ready",
+  );
 
-  // Load the teacher's saved config (if any) on mount. 404 = use the
-  // mock defaults already loaded into state — Phase 2 onboards first-
-  // time teachers with no prior config without an error toast.
+  // Load the teacher's saved config. In real mode this IS the data source
+  // (404 = a not-yet-saved activity, render an empty form). In mock mode it
+  // soft-overrides the mock defaults so a returning teacher sees their work.
+  const mockGoalFallback = isRealMode ? "" : mockConfig!.defaultTeachingGoal;
   useEffect(() => {
     let alive = true;
-    fetchMyActivityConfig(config.classId, config.id)
+    fetchMyActivityConfig(classId, activityId)
       .then((saved) => {
         if (!alive) return;
-        setTeachingGoal(saved.teachingGoal || config.defaultTeachingGoal);
+        if (saved.title) setDisplayName(saved.title);
+        setTeachingGoal(saved.teachingGoal || mockGoalFallback);
         setLanguage(saved.language);
         setDifficulty(saved.difficulty);
         setPairedWorkbench(saved.pairedWorkbench ?? WORKBENCH_NONE);
         setMaterials(saved.materials ?? []);
+        setLoadState("ready");
       })
       .catch((err) => {
-        if (!alive || err instanceof NotFoundError) {
+        if (!alive) return;
+        if (err instanceof NotFoundError) {
+          // No saved config yet — fresh activity (or a first-time mock). The
+          // scaffold/empty form is already in state; let the teacher save.
+          setLoadState("ready");
           return;
         }
-        // Network or unexpected error — surface it but keep the form
-        // populated with mock defaults so the teacher can still save.
         console.warn("[teacher-ui] activity-config load failed:", err);
+        // Real mode can't fall back to mock data, so surface the failure.
+        // Mock mode keeps the wireframe usable.
+        setLoadState(isRealMode ? "error" : "ready");
       });
     return () => {
       alive = false;
     };
-  }, [config.classId, config.id, config.defaultTeachingGoal]);
+  }, [classId, activityId, mockGoalFallback, isRealMode]);
 
   async function handleSave(ev: React.FormEvent) {
     ev.preventDefault();
     setIsSaving(true);
     try {
       await saveActivityConfig({
-        activityId: config.id,
-        classId: config.classId,
+        activityId,
+        classId,
+        title: displayName,
         teachingGoal,
         language,
         difficulty,
@@ -136,27 +182,75 @@ export default function TeacherActivityConfigPage() {
     }
   }
 
+  const breadcrumb = (
+    <nav className="flex flex-wrap items-center gap-1 text-sm text-muted-foreground">
+      {parentClass ? (
+        <>
+          <Link
+            href={`/teacher/classes/${parentClass.id}`}
+            className="flex items-center gap-1 hover:text-foreground"
+          >
+            <ArrowLeft className="h-4 w-4" aria-hidden="true" />
+            {parentClass.name}
+          </Link>
+          <span aria-hidden="true">/</span>
+        </>
+      ) : (
+        <>
+          <Link
+            href="/teacher/activities"
+            className="flex items-center gap-1 hover:text-foreground"
+          >
+            <ArrowLeft className="h-4 w-4" aria-hidden="true" />
+            Activities
+          </Link>
+          <span aria-hidden="true">/</span>
+        </>
+      )}
+      <span className="text-foreground">Configure: {displayName}</span>
+    </nav>
+  );
+
+  if (loadState === "loading") {
+    return (
+      <div className="flex flex-col gap-6">
+        {breadcrumb}
+        <div className="flex items-center gap-2 text-sm text-muted-foreground">
+          <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />
+          Loading activity…
+        </div>
+      </div>
+    );
+  }
+
+  if (loadState === "error") {
+    return (
+      <div className="flex flex-col gap-6">
+        {breadcrumb}
+        <div
+          role="alert"
+          className="flex items-start gap-2 rounded border border-destructive/40 bg-destructive/10 p-3 text-sm text-destructive"
+        >
+          <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" aria-hidden="true" />
+          <span>
+            Could not load this activity. Refresh to try again, or return to{" "}
+            <Link href="/teacher/activities" className="font-medium underline">
+              Activities
+            </Link>
+            .
+          </span>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="flex flex-col gap-6">
-      <nav className="flex flex-wrap items-center gap-1 text-sm text-muted-foreground">
-        {parentClass ? (
-          <>
-            <Link
-              href={`/teacher/classes/${parentClass.id}`}
-              className="flex items-center gap-1 hover:text-foreground"
-            >
-              <ArrowLeft className="h-4 w-4" aria-hidden="true" />
-              {parentClass.name}
-            </Link>
-            <span aria-hidden="true">/</span>
-          </>
-        ) : null}
-        <span className="text-foreground">Configure: {config.name}</span>
-      </nav>
+      {breadcrumb}
 
       <header>
         <h1 className="text-xl font-semibold sm:text-2xl">
-          Configure {config.name}
+          Configure {displayName}
         </h1>
         <p className="text-sm text-muted-foreground">
           Teachers don&apos;t write system prompts — write a teaching intention.
@@ -221,7 +315,7 @@ export default function TeacherActivityConfigPage() {
                 className="rounded border border-border bg-background px-3 py-2 text-sm leading-relaxed"
                 placeholder="What do you want students to discover in this session?"
               />
-              <p className="text-xs text-muted-foreground">{config.helperText}</p>
+              <p className="text-xs text-muted-foreground">{helperText}</p>
             </fieldset>
 
             <fieldset className="flex flex-col gap-2">
@@ -309,7 +403,7 @@ export default function TeacherActivityConfigPage() {
       ) : null}
 
       {activeTab === "parameters" ? (
-        <ParametersTabPreview activityName={config.name} />
+        <ParametersTabPreview activityName={displayName} />
       ) : null}
 
       {activeTab === "code" ? <CodeTabPreview /> : null}

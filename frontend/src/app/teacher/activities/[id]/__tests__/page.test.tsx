@@ -1,8 +1,16 @@
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
-import { describe, expect, it, vi } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
+
+// Mutable navigation state so a single mock can drive both the legacy mock
+// wireframe path (no classId) and the real path (classId in the URL).
+const nav = vi.hoisted(() => ({
+  params: { id: "boldkast" } as { id: string },
+  search: new Map<string, string>(),
+}));
 
 vi.mock("next/navigation", () => ({
-  useParams: () => ({ id: "boldkast" }),
+  useParams: () => nav.params,
+  useSearchParams: () => ({ get: (k: string) => nav.search.get(k) ?? null }),
   notFound: () => {
     throw new Error("notFound() was called");
   },
@@ -14,7 +22,7 @@ vi.mock("@/lib/teacherApi", async () => {
   );
   return {
     ...actual,
-    // First-time teacher: no saved config -> hit the mock defaults branch.
+    // Default: first-time teacher, no saved config -> NotFoundError branch.
     fetchMyActivityConfig: vi.fn(async () => {
       throw new actual.NotFoundError();
     }),
@@ -27,8 +35,24 @@ vi.mock("@/lib/teacherApi", async () => {
 });
 
 import TeacherActivityConfigPage from "@/app/teacher/activities/[id]/page";
+import {
+  NotFoundError,
+  fetchMyActivityConfig,
+  saveActivityConfig,
+} from "@/lib/teacherApi";
 
-describe("/teacher/activities/[id] — activity configuration", () => {
+const fetchMock = vi.mocked(fetchMyActivityConfig);
+const saveMock = vi.mocked(saveActivityConfig);
+
+beforeEach(() => {
+  nav.params = { id: "boldkast" };
+  nav.search = new Map();
+  fetchMock.mockReset();
+  fetchMock.mockRejectedValue(new NotFoundError());
+  saveMock.mockClear();
+});
+
+describe("/teacher/activities/[id] — mock wireframe path (no classId)", () => {
   it("renders the teaching-goal textarea pre-filled from mock data", () => {
     render(<TeacherActivityConfigPage />);
     const textarea = screen.getByRole("textbox", {
@@ -49,13 +73,10 @@ describe("/teacher/activities/[id] — activity configuration", () => {
 
   it("surfaces the 3-tab roadmap signals (Parameters / Code / History) with version pills", () => {
     render(<TeacherActivityConfigPage />);
-    // The active tab is "Teaching goal" — visible content matches.
     expect(screen.getByRole("tab", { name: /teaching goal/i })).toHaveAttribute(
       "aria-selected",
       "true",
     );
-    // Roadmap-preview tabs exist + carry the version badge so JB/AR can
-    // see what's signalled without us having to commit to building it.
     const params = screen.getByRole("tab", { name: /parameters/i });
     const code = screen.getByRole("tab", { name: /code/i });
     const history = screen.getByRole("tab", { name: /history/i });
@@ -83,10 +104,73 @@ describe("/teacher/activities/[id] — activity configuration", () => {
     fireEvent.click(screen.getByRole("button", { name: /save configuration/i }));
 
     await waitFor(() => {
-      expect(screen.getByRole("status").textContent ?? "").toMatch(
-        /saved\b/i,
-      );
+      expect(screen.getByRole("status").textContent ?? "").toMatch(/saved\b/i);
     });
     expect(textarea.value).toBe("Edited goal");
+  });
+});
+
+describe("/teacher/activities/[id] — real path (classId in URL)", () => {
+  beforeEach(() => {
+    // Real activity id (not a mock key) + classId in the URL.
+    nav.params = { id: "act-real-123" };
+    nav.search = new Map([
+      ["classId", "c-1"],
+      ["title", "Projectile motion"],
+    ]);
+  });
+
+  it("loads the live config and pre-fills the goal + cited materials", async () => {
+    fetchMock.mockResolvedValueOnce({
+      activityId: "act-real-123",
+      classId: "c-1",
+      teacherUid: "teacher-1",
+      title: "Projectile motion",
+      teachingGoal: "Discover component independence",
+      language: "da",
+      difficulty: "standard",
+      pairedWorkbench: null,
+      materials: [{ docId: "doc-1", origin: "A-level kinematics" }],
+      updatedAt: "2026-06-15T10:00:00Z",
+    });
+
+    render(<TeacherActivityConfigPage />);
+
+    // Blocks on the network load first.
+    expect(screen.getByText(/loading activity/i)).toBeInTheDocument();
+
+    const textarea = (await screen.findByRole("textbox", {
+      name: /teaching goal/i,
+    })) as HTMLTextAreaElement;
+    expect(textarea.value).toBe("Discover component independence");
+    expect(fetchMock).toHaveBeenCalledWith("c-1", "act-real-123");
+    expect(screen.getByText(/configure: projectile motion/i)).toBeInTheDocument();
+  });
+
+  it("saves with the real classId + activityId", async () => {
+    fetchMock.mockRejectedValueOnce(new NotFoundError()); // not-yet-saved activity
+    render(<TeacherActivityConfigPage />);
+
+    const textarea = (await screen.findByRole("textbox", {
+      name: /teaching goal/i,
+    })) as HTMLTextAreaElement;
+    fireEvent.change(textarea, { target: { value: "New goal" } });
+    fireEvent.click(screen.getByRole("button", { name: /save configuration/i }));
+
+    await waitFor(() => {
+      expect(saveMock).toHaveBeenCalledWith(
+        expect.objectContaining({
+          activityId: "act-real-123",
+          classId: "c-1",
+          teachingGoal: "New goal",
+        }),
+      );
+    });
+  });
+
+  it("shows an error panel when the load fails (non-404)", async () => {
+    fetchMock.mockRejectedValueOnce(new Error("boom"));
+    render(<TeacherActivityConfigPage />);
+    expect(await screen.findByRole("alert")).toHaveTextContent(/could not load/i);
   });
 });

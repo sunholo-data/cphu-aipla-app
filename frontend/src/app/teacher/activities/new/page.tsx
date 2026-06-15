@@ -111,6 +111,9 @@ function NewActivityForm() {
   const [isSaving, setIsSaving] = useState(false);
   const [saveError, setSaveError] = useState<string | null>(null);
   const [savedClassName, setSavedClassName] = useState<string | null>(null);
+  // Deep link into the real edit page for the activity we just created, so
+  // the teacher can add curriculum materials / refine the goal immediately.
+  const [savedActivityHref, setSavedActivityHref] = useState<string | null>(null);
 
   useEffect(() => {
     let alive = true;
@@ -190,6 +193,9 @@ function NewActivityForm() {
       await patchLessons(classId, { add: [conceptSkillId] });
       const cls = classesState.classes.find((c) => c.classId === classId);
       setSavedClassName(cls?.name ?? classId);
+      setSavedActivityHref(
+        `/teacher/activities/${encodeURIComponent(conceptSkillId)}?classId=${encodeURIComponent(classId)}&title=${encodeURIComponent(title.trim())}`,
+      );
     } catch (err) {
       console.error("[teacher-ui] create activity failed:", err);
       setSaveError("Could not create the activity — your changes were not saved. Please try again.");
@@ -221,8 +227,10 @@ function NewActivityForm() {
         <SuccessPanel
           className={savedClassName}
           title={title.trim()}
+          configureHref={savedActivityHref}
           onAnother={() => {
             setSavedClassName(null);
+            setSavedActivityHref(null);
             setTitle("");
             setTeachingGoal("");
           }}
@@ -549,10 +557,12 @@ function PanelMessage({
 function SuccessPanel({
   className,
   title,
+  configureHref,
   onAnother,
 }: {
   className: string;
   title: string;
+  configureHref: string | null;
   onAnother: () => void;
 }) {
   return (
@@ -562,9 +572,17 @@ function SuccessPanel({
       </p>
       <p className="text-sm text-green-700">
         Students who join this class&apos;s group code can now open the concept dialogue and explore the topic
-        you set.
+        you set. Want to ground it in curriculum materials? Configure it next.
       </p>
-      <div className="flex gap-3">
+      <div className="flex flex-wrap gap-3">
+        {configureHref ? (
+          <Link
+            href={configureHref}
+            className="rounded-md bg-green-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-green-700"
+          >
+            Configure &amp; add materials
+          </Link>
+        ) : null}
         <button
           type="button"
           onClick={onAnother}
@@ -574,7 +592,7 @@ function SuccessPanel({
         </button>
         <Link
           href="/teacher/classes"
-          className="rounded-md bg-green-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-green-700"
+          className="rounded-md border border-green-300 bg-white px-3 py-1.5 text-sm font-medium text-green-800 hover:bg-green-100"
         >
           Back to classes
         </Link>

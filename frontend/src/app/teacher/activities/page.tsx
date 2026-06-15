@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
-import { ArrowRight, ClipboardList, Plus } from "lucide-react";
+import { ArrowRight, ClipboardList, Plus, Sliders } from "lucide-react";
 
 import { listMyActivities, type ActivityConfigPayload } from "@/lib/teacherApi";
 import { EmptyState } from "@/components/teacher/ui/EmptyState";
@@ -27,10 +27,10 @@ const NEW_ACTIVITY_SECONDARY =
 /**
  * Activities library — the Activities nav destination. Lists every activity
  * the teacher has configured (across their classes) from the real
- * /api/activity-configs list endpoint; each row opens the class it belongs
- * to. "New activity" is the create entry point. The activity builder is
- * reached per-class (the `[id]` route is a mock wireframe for now), so rows
- * link to the class rather than a not-yet-real edit page.
+ * /api/activity-configs list endpoint. Each row has a "Configure" link into
+ * the real edit page (carrying classId + title so it loads live config +
+ * curriculum materials) and an "Open class" link. "New activity" is the
+ * create entry point.
  */
 export default function TeacherActivitiesPage() {
   const [status, setStatus] = useState<"loading" | "ok" | "error">("loading");
@@ -108,13 +108,22 @@ export default function TeacherActivitiesPage() {
                   <span>
                     {a.language === "da" ? "Dansk" : "English"} · {a.difficulty}
                   </span>
-                  <Link
-                    href={`/teacher/classes/${encodeURIComponent(a.classId)}`}
-                    className="flex items-center gap-1 font-medium hover:text-foreground"
-                  >
-                    Open class
-                    <ArrowRight className="h-3 w-3" aria-hidden="true" />
-                  </Link>
+                  <div className="flex items-center gap-3">
+                    <Link
+                      href={`/teacher/activities/${encodeURIComponent(a.activityId)}?classId=${encodeURIComponent(a.classId)}${a.title ? `&title=${encodeURIComponent(a.title)}` : ""}`}
+                      className="flex items-center gap-1 font-medium hover:text-foreground"
+                    >
+                      <Sliders className="h-3 w-3" aria-hidden="true" />
+                      Configure
+                    </Link>
+                    <Link
+                      href={`/teacher/classes/${encodeURIComponent(a.classId)}`}
+                      className="flex items-center gap-1 font-medium hover:text-foreground"
+                    >
+                      Open class
+                      <ArrowRight className="h-3 w-3" aria-hidden="true" />
+                    </Link>
+                  </div>
                 </div>
               </TeacherCard>
             </li>
