@@ -20,12 +20,14 @@ on:
 permissions:
   contents: read
   issues: write
-  # write (not read) so the reconcile step can dismiss alerts already fixed on
-  # the default branch. NOTE: the default GITHUB_TOKEN may still lack
-  # Dependabot-alerts write even with this — the reconcile step degrades
-  # gracefully and reports DENIED. Add a DEPENDABOT_TOKEN secret (fine-grained
-  # PAT, "Dependabot alerts: write") to guarantee it.
-  security-events: write
+  # security-events here only scopes the automatic GITHUB_TOKEN — which CANNOT
+  # access the Dependabot alerts API at all (verified 2026-06-15: HTTP 403
+  # "Resource not accessible by integration" on both list AND dismiss). Reading
+  # and dismissing Dependabot alerts therefore REQUIRES a DEPENDABOT_TOKEN
+  # secret (fine-grained PAT, "Dependabot alerts: read and write"); a PAT
+  # carries its own scope independent of this block. Kept at read for least
+  # privilege; without the PAT the dependabot query + reconcile steps no-op.
+  security-events: read
 
 jobs:
   audit:
@@ -93,7 +95,8 @@ jobs:
       - name: Query dependabot alerts
         id: dependabot
         env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          # GITHUB_TOKEN gets 403 on the Dependabot alerts API — needs the PAT.
+          GH_TOKEN: ${{ secrets.DEPENDABOT_TOKEN || secrets.GITHUB_TOKEN }}
         run: |
           # Group open alerts by severity. If the repo has no security-events
           # permission for this token, the gh call will fail — make that
