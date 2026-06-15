@@ -82,7 +82,10 @@ export interface ActivityConfigUpsert {
   title?: string;
   teachingGoal: string;
   language: Language;
-  difficulty: Difficulty;
+  /** Dead knob (1.1.32) — stored on the model for back-compat but no longer
+   *  set from the teacher UI and consumed nowhere. Omit and the backend keeps
+   *  its `"standard"` default. Do not resurrect a control without a consumer. */
+  difficulty?: Difficulty;
   interactionStyle?: InteractionStyle;
   persona?: string | null;
   pairedWorkbench: string | null;

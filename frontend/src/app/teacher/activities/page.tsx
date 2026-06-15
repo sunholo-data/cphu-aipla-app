@@ -105,9 +105,7 @@ export default function TeacherActivitiesPage() {
                   <p className="line-clamp-2 text-xs text-muted-foreground">{a.teachingGoal}</p>
                 ) : null}
                 <div className="flex items-center justify-between gap-2 text-xs text-muted-foreground">
-                  <span>
-                    {a.language === "da" ? "Dansk" : "English"} · {a.difficulty}
-                  </span>
+                  <span>{a.language === "da" ? "Dansk" : "English"}</span>
                   <div className="flex items-center gap-3">
                     <Link
                       href={`/teacher/activities/${encodeURIComponent(a.activityId)}?classId=${encodeURIComponent(a.classId)}${a.title ? `&title=${encodeURIComponent(a.title)}` : ""}`}

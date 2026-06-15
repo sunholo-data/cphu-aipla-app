@@ -47,11 +47,6 @@ const LANGUAGE_OPTIONS = [
   { value: "en", label: "English" },
 ];
 
-const DIFFICULTY_OPTIONS = [
-  { value: "standard", label: "Standard" },
-  { value: "guided", label: "Guided" },
-];
-
 const WORKBENCH_NONE = "none";
 const WORKBENCH_BOLDKAST = "boldkast-simulator-v1";
 
@@ -76,9 +71,6 @@ export default function TeacherActivityConfigPage() {
   const [displayName, setDisplayName] = useState(titleParam || "Activity");
   const [teachingGoal, setTeachingGoal] = useState("");
   const [language, setLanguage] = useState<"da" | "en">("da");
-  const [difficulty, setDifficulty] = useState<"standard" | "guided">(
-    "standard",
-  );
   const [pairedWorkbench, setPairedWorkbench] = useState<string>(WORKBENCH_NONE);
   const [materials, setMaterials] = useState<MaterialRef[]>([]);
   const [toast, setToast] = useState<string | null>(null);
@@ -103,7 +95,6 @@ export default function TeacherActivityConfigPage() {
         if (saved.title) setDisplayName(saved.title);
         setTeachingGoal(saved.teachingGoal || "");
         setLanguage(saved.language);
-        setDifficulty(saved.difficulty);
         setPairedWorkbench(saved.pairedWorkbench ?? WORKBENCH_NONE);
         setMaterials(saved.materials ?? []);
         setLoadState("ready");
@@ -134,7 +125,6 @@ export default function TeacherActivityConfigPage() {
         title: displayName,
         teachingGoal,
         language,
-        difficulty,
         pairedWorkbench:
           pairedWorkbench === WORKBENCH_NONE ? null : pairedWorkbench,
         materials,
@@ -307,22 +297,6 @@ export default function TeacherActivityConfigPage() {
                   className="rounded border border-border bg-background px-2 py-1.5 text-sm"
                 >
                   {LANGUAGE_OPTIONS.map((o) => (
-                    <option key={o.value} value={o.value}>
-                      {o.label}
-                    </option>
-                  ))}
-                </select>
-              </label>
-              <label className="flex flex-col gap-1 text-sm font-medium">
-                Difficulty
-                <select
-                  value={difficulty}
-                  onChange={(e) =>
-                    setDifficulty(e.target.value as "standard" | "guided")
-                  }
-                  className="rounded border border-border bg-background px-2 py-1.5 text-sm"
-                >
-                  {DIFFICULTY_OPTIONS.map((o) => (
                     <option key={o.value} value={o.value}>
                       {o.label}
                     </option>

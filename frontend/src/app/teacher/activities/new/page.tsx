@@ -7,7 +7,6 @@ import { ArrowLeft, MessageCircle, Plus, Save, Sparkles, X } from "lucide-react"
 
 import {
   type ClassPayload,
-  type Difficulty,
   type InteractionStyle,
   type Language,
   type MaterialRef,
@@ -40,10 +39,6 @@ const CONCEPT_SKILL_NAME = "concept-dialogue";
 const LANGUAGE_OPTIONS: { value: Language; label: string }[] = [
   { value: "da", label: "Dansk" },
   { value: "en", label: "English" },
-];
-const DIFFICULTY_OPTIONS: { value: Difficulty; label: string }[] = [
-  { value: "standard", label: "Standard" },
-  { value: "guided", label: "Guided" },
 ];
 // M0 ships the no-workbench (concept) type. Other types are declared so
 // the picker signals direction-of-travel, but are disabled until M4.
@@ -88,7 +83,6 @@ function NewActivityForm() {
   const [title, setTitle] = useState("");
   const [teachingGoal, setTeachingGoal] = useState("");
   const [language, setLanguage] = useState<Language>("da");
-  const [difficulty, setDifficulty] = useState<Difficulty>("standard");
   const [interactionStyle, setInteractionStyle] = useState<InteractionStyle>("socratic");
   // Persona (1.1.12): the named character. Picking one sets the tied
   // interaction_style; the style dropdown below stays an override.
@@ -179,7 +173,6 @@ function NewActivityForm() {
         title: title.trim(),
         teachingGoal: teachingGoal.trim(),
         language,
-        difficulty,
         interactionStyle,
         persona,
         pairedWorkbench: null,
@@ -381,20 +374,6 @@ function NewActivityForm() {
                 className="rounded-md border border-slate-300 px-3 py-2 text-sm"
               >
                 {LANGUAGE_OPTIONS.map((o) => (
-                  <option key={o.value} value={o.value}>
-                    {o.label}
-                  </option>
-                ))}
-              </select>
-            </Field>
-            <Field label="Difficulty" htmlFor="activity-difficulty">
-              <select
-                id="activity-difficulty"
-                value={difficulty}
-                onChange={(e) => setDifficulty(e.target.value as Difficulty)}
-                className="rounded-md border border-slate-300 px-3 py-2 text-sm"
-              >
-                {DIFFICULTY_OPTIONS.map((o) => (
                   <option key={o.value} value={o.value}>
                     {o.label}
                   </option>
