@@ -108,3 +108,36 @@ def test_missing_preamble_file_falls_back_to_passthrough(monkeypatch):
     _seed("concise")
     monkeypatch.setattr(mod, "_load_preamble", lambda _style: "")
     assert inject_interaction_style_preamble(BASE, ACTIVITY) == BASE
+
+
+# --- list_interaction_styles: teacher-facing transparency (1.1.32) ---
+
+
+def test_list_interaction_styles_returns_all_four_with_injected_flags():
+    from adk.interaction_style import list_interaction_styles
+
+    styles = {s["id"]: s for s in list_interaction_styles()}
+    assert set(styles) == {"socratic", "concise", "rigorous", "warm"}
+    # socratic is the baked-in default (not appended); the rest are overrides.
+    assert styles["socratic"]["injected"] is False
+    assert styles["concise"]["injected"] is True
+    assert styles["rigorous"]["injected"] is True
+    assert styles["warm"]["injected"] is True
+
+
+def test_list_interaction_styles_strips_internal_html_comments():
+    from adk.interaction_style import list_interaction_styles
+
+    for s in list_interaction_styles():
+        # AR-TODOs + the socratic canonical-source banner are HTML comments —
+        # never surfaced to teachers.
+        assert "<!--" not in s["prompt"]
+        assert s["prompt"].strip() != ""
+
+
+def test_list_interaction_styles_prompt_text_matches_the_style():
+    from adk.interaction_style import list_interaction_styles
+
+    styles = {s["id"]: s for s in list_interaction_styles()}
+    assert "concise" in styles["concise"]["prompt"].lower()
+    assert "exam" in styles["rigorous"]["prompt"].lower()

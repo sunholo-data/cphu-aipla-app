@@ -66,6 +66,38 @@ describe("ClassPersonaPanel", () => {
     await waitFor(() => expect(screen.getByText("Custom persona")).toBeInTheDocument());
   });
 
+  it("discloses the exact instruction each teaching style enforces (1.1.32)", async () => {
+    fetchPersonaCatalogue.mockResolvedValue({
+      ...CATALOGUE,
+      interactionStyles: [
+        {
+          id: "socratic",
+          prompt: "## Interaction style: Socratic\n\nMaximum 3 sentences; end with a question.",
+          injected: false,
+        },
+        {
+          id: "rigorous",
+          prompt: "## Interaction style: Rigorous\n\nHold the student to exam-level expectations.",
+          injected: true,
+        },
+      ],
+    });
+    render(<ClassPersonaPanel classId="c1" />);
+    await screen.findByText("Sofie");
+    // The disclosure shows the ACTUAL injected instruction (heading stripped),
+    // so a teacher sees what the style does — not a paraphrase.
+    expect(screen.getByText(/How teaching styles are enforced/i)).toBeInTheDocument();
+    expect(
+      screen.getByText(/Maximum 3 sentences; end with a question\./),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByText(/Hold the student to exam-level expectations\./),
+    ).toBeInTheDocument();
+    // socratic is the baked-in default; rigorous is an appended override.
+    expect(screen.getByText("Built-in default")).toBeInTheDocument();
+    expect(screen.getByText("Added as an override")).toBeInTheDocument();
+  });
+
   it("surfaces an explicit error when the catalogue fails (NOT silent)", async () => {
     fetchPersonaCatalogue.mockRejectedValue(new Error("HTTP 500"));
     render(<ClassPersonaPanel classId="c1" />);

@@ -12,6 +12,7 @@ import logging
 
 from fastapi import APIRouter, Depends, HTTPException, Path
 
+from adk.interaction_style import list_interaction_styles
 from auth import User, get_current_user
 from db.models.persona import Persona
 from personas.loader import DEFAULT_PERSONA_ID, load_persona, load_personas
@@ -34,10 +35,16 @@ async def list_personas_route(
     ``defaultId`` is the global fallback persona id (``DEFAULT_PERSONA_ID``) so
     the picker can badge it as the default instead of synthesising a separate
     "Default" entry — a class with no explicit persona inherits this one.
+
+    ``interactionStyles`` carries the actual instruction each teaching style
+    enforces (the injected preamble, or the baked-in default for socratic), so
+    the picker can show a teacher *exactly* what a persona's style does to the
+    tutor — the single source of truth, not a duplicated paraphrase.
     """
     return {
         "personas": [_serialize(p) for p in load_personas()],
         "defaultId": DEFAULT_PERSONA_ID or None,
+        "interactionStyles": list_interaction_styles(),
     }
 
 

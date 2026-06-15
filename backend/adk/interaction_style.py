@@ -21,6 +21,7 @@ module consumes, so this stays the primitive.
 from __future__ import annotations
 
 import logging
+import re
 from collections.abc import Iterable
 from functools import lru_cache
 from pathlib import Path
@@ -34,6 +35,13 @@ _PREAMBLE_DIR = Path(__file__).resolve().parents[1] / "skills" / "preambles" / "
 
 # socratic is the untouched default — no preamble is injected for it this sprint.
 _PASSTHROUGH = "socratic"
+
+# The teaching-style vocabulary (mirrors db.models.activity_config.InteractionStyle).
+_STYLE_IDS = ("socratic", "concise", "rigorous", "warm")
+# Internal authoring notes (AR-TODOs, the socratic canonical-source banner) live
+# as HTML comments in the preamble files — strip them before surfacing the text
+# to teachers.
+_COMMENT_RE = re.compile(r"<!--.*?-->", re.DOTALL)
 
 
 @lru_cache(maxsize=8)
@@ -103,4 +111,29 @@ def inject_interaction_style_preamble(
     return f"{instructions}\n\n{preamble}"
 
 
-__all__ = ["inject_interaction_style_preamble"]
+def list_interaction_styles() -> list[dict]:
+    """Return each teaching style's enforced instruction, for teacher visibility.
+
+    A persona's teaching style is enforced as a **prompt**: the ``concise`` /
+    ``rigorous`` / ``warm`` styles APPEND an override preamble to the tutor's
+    system instructions (``injected=True``); ``socratic`` is the untouched
+    default whose "≤3 sentences, end with a question" rule is baked into the
+    tutor ``SKILL.md`` itself, so nothing is appended (``injected=False``). The
+    text is the single source of truth read from the preamble files, with
+    internal HTML comments stripped — so the teacher UI can show exactly what
+    the tutor is told without duplicating (and drifting from) the prompt.
+    """
+    styles: list[dict] = []
+    for style in _STYLE_IDS:
+        prompt = _COMMENT_RE.sub("", _load_preamble(style)).strip()
+        styles.append(
+            {
+                "id": style,
+                "prompt": prompt,
+                "injected": style != _PASSTHROUGH,
+            }
+        )
+    return styles
+
+
+__all__ = ["inject_interaction_style_preamble", "list_interaction_styles"]

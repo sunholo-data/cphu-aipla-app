@@ -211,21 +211,38 @@ export async function fetchPersonaList(): Promise<PersonaPayload[]> {
   return body.personas;
 }
 
+/** What a teaching style actually enforces (1.1.32 transparency). ``prompt`` is
+ *  the exact instruction the tutor is given; ``injected: false`` means it's the
+ *  baked-in default (socratic) rather than an appended override. */
+export interface InteractionStyleSpec {
+  id: InteractionStyle;
+  prompt: string;
+  injected: boolean;
+}
+
 export interface PersonaCatalogue {
   personas: PersonaPayload[];
   /** The global default persona id (the one a class inherits when none is
    *  explicitly set). Used to badge it instead of a synthetic "Default" card. */
   defaultId: string | null;
+  /** The instruction each teaching style enforces — so the picker can show a
+   *  teacher exactly what a persona's style does to the tutor. */
+  interactionStyles: InteractionStyleSpec[];
 }
 
 /** Fetch the persona catalogue + the global default id (1.1.12). */
 export async function fetchPersonaCatalogue(): Promise<PersonaCatalogue> {
   const resp = await fetchWithAuth(`/api/proxy/api/personas`);
-  const body = await readJson<{ personas: PersonaPayload[]; defaultId?: string | null }>(
-    resp,
-    "fetch personas",
-  );
-  return { personas: body.personas, defaultId: body.defaultId ?? null };
+  const body = await readJson<{
+    personas: PersonaPayload[];
+    defaultId?: string | null;
+    interactionStyles?: InteractionStyleSpec[];
+  }>(resp, "fetch personas");
+  return {
+    personas: body.personas,
+    defaultId: body.defaultId ?? null,
+    interactionStyles: body.interactionStyles ?? [],
+  };
 }
 
 /** Fetch a session summary for an anonymous group code.
