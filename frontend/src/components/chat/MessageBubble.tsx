@@ -17,6 +17,7 @@ import { A2UIRenderer } from "@/components/protocols/A2UIRenderer";
 import { MCPAppToolCallRouter } from "@/components/protocols/MCPAppToolCallRouter";
 import { BrandAvatar } from "@/components/chat/BrandAvatar";
 import { ChatMarkdown } from "@/components/chat/ChatMarkdown";
+import { ZoomableImage } from "@/components/chat/media/ZoomableImage";
 import { InlineCitation } from "@/components/chat/InlineCitation";
 import { ReadAloudButton } from "@/components/chat/ReadAloudButton";
 import { useAutoReadAloud } from "@/hooks/useAutoReadAloud";
@@ -329,12 +330,11 @@ export const MessageBubble = React.memo(function MessageBubble({
           {message.images && message.images.length > 0 && (
             <div className="mb-2 flex flex-wrap gap-2">
               {message.images.map((img, i) => (
-                // eslint-disable-next-line @next/next/no-img-element
-                <img
+                <ZoomableImage
                   key={i}
                   src={`data:${img.mimeType};base64,${img.data}`}
                   alt="attachment"
-                  className="h-24 w-24 rounded-md border object-cover"
+                  triggerClassName="h-24 w-24 rounded-md border object-cover"
                 />
               ))}
             </div>
