@@ -75,6 +75,7 @@ export function InheritedPersona({ classId }: { classId: string }) {
               <p className="truncate text-xs text-slate-500">
                 {persona.title ? `${persona.title} · ` : ""}
                 {INTERACTION_STYLE_LABEL[persona.interactionStyle]} style
+                {persona.voice?.ttsVoice ? ` · ${persona.voice.ttsVoice} voice` : ""}
               </p>
             </div>
           </>

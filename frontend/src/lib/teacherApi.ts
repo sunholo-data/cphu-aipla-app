@@ -46,7 +46,20 @@ export interface ActivityConfigPayload {
   updatedAt: string;
 }
 
-/** A persona — a named character that ties configs together (1.1.12). */
+/** The voice an persona speaks with (1.1.11/1.1.12) — a Gemini-TTS voice
+ *  (``ttsVoice``) directed by the persona's ``voicePrompt``. */
+export interface PersonaVoice {
+  ttsProvider?: string | null;
+  ttsVoice?: string | null;
+  language?: string | null;
+  rate?: number | null;
+}
+
+/** A persona — a named character that ties configs together (1.1.12).
+ *  A persona bundles four things, all surfaced in the picker so a teacher
+ *  sees what it changes: identity (name + avatar), teaching style
+ *  (``interactionStyle`` → an injected preamble), voice (``voice`` +
+ *  ``voicePrompt`` spoken-tone direction), and a one-line ``bio``. */
 export interface PersonaPayload {
   id: string;
   name: string;
@@ -55,6 +68,10 @@ export interface PersonaPayload {
   language: string;
   interactionStyle: InteractionStyle;
   bio: string | null;
+  /** The persona's spoken voice (how it sounds). */
+  voice?: PersonaVoice | null;
+  /** Plain-language direction for the voice (what tone it's told to use). */
+  voicePrompt?: string | null;
 }
 
 export interface ChecklistItem {

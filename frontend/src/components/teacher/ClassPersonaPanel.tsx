@@ -177,6 +177,29 @@ function PersonaCard({
         </span>
       </div>
       <p className="text-xs leading-relaxed text-muted-foreground">{styleHelp}</p>
+      {/* What this persona actually changes, beyond the style chip: the voice
+          (name + the spoken-tone direction it's given) and a one-line bio —
+          so a teacher picking here sees the full bundle, not an opaque name
+          (1.1.32 persona transparency). */}
+      <div className="flex flex-col gap-1 border-t border-border pt-2 text-[11px] leading-relaxed text-muted-foreground">
+        {persona.voice?.ttsVoice ? (
+          <p>
+            <span className="font-medium text-foreground">Voice:</span>{" "}
+            {persona.voice.ttsVoice}
+            {persona.voicePrompt ? (
+              <span className="mt-0.5 block italic opacity-80">
+                &ldquo;{persona.voicePrompt}&rdquo;
+              </span>
+            ) : null}
+          </p>
+        ) : null}
+        {persona.bio ? (
+          <p>
+            <span className="font-medium text-foreground">About:</span>{" "}
+            {persona.bio}
+          </p>
+        ) : null}
+      </div>
       {selected && !saving ? <Check className="absolute right-2 top-2 h-4 w-4 text-indigo-600" /> : null}
       {saving ? <Loader2 className="absolute right-2 top-2 h-4 w-4 animate-spin text-indigo-600" /> : null}
     </button>
