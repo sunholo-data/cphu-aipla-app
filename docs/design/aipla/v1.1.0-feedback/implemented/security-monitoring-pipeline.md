@@ -118,6 +118,18 @@ Why a workflow instead of just relying on Dependabot:
 
 The cron job also runs `gh api repos/$REPO/dependabot/alerts -q '...'` to attach the current dependabot alert count to the issue body, giving one view of both audit-tool output and dependabot's higher-quality CVE classification.
 
+#### Addendum (2026-06-15) — auto-reconciliation + the `GITHUB_TOKEN` limitation [DEFERRED, lower priority]
+
+Two findings from the 2026-06-15 alert review, recorded here for the backlog:
+
+1. **The Actions `GITHUB_TOKEN` cannot access the Dependabot alerts API at all** — verified on a dispatch run, HTTP 403 *"Resource not accessible by integration"* on both list and dismiss. The `permissions:` block (`security-events`) only scopes `GITHUB_TOKEN`, which has no Dependabot-alerts access regardless. **Consequence:** the alert-count line above has been *silently failing since the cron shipped* — the rolling issue's "Open dependabot alerts" field has always read `dependabot query failed: …403`, never real data.
+
+2. **GitHub's native auto-dismiss of fixed alerts is unreliable here** — all 27 open alerts sat `open` (`updated_at == created_at`) for 3–10 days *after* their fixes landed on `dev`. To close that gap, an auto-reconciliation mechanism was built and the logic verified (locally, against a PAT-backed `gh`): [`scripts/reconcile-dependabot-alerts.sh`](../../../../../scripts/reconcile-dependabot-alerts.sh) runs a full `npm audit` of each committed lockfile and dismisses any open npm alert whose GHSA the audit no longer flags (conservative — a lingering vulnerable nested copy, e.g. `next`'s bundled `postcss`, keeps its alert). It is wired into the cron and the query step, both preferring `secrets.DEPENDABOT_TOKEN`.
+
+**Both need a `DEPENDABOT_TOKEN` fine-grained PAT** (repo-scoped, "Dependabot alerts: read and write"). The workflow uses `secrets.DEPENDABOT_TOKEN || secrets.GITHUB_TOKEN` and **no-ops gracefully without it** — nothing is broken, the two steps just don't activate.
+
+**Decision (2026-06-15): deferred, lower priority.** Not creating the PAT now. Rationale: the CI gate (Layer 1) is the real merge blocker and is *unaffected* — it uses `npm audit` / `pip-audit` against lockfiles, not the Dependabot API. Until the PAT is added, manual dismissal via `/aipla-security-checkup` covers cleanup (as done for the 27-alert pile on 2026-06-15). Revisit when security-tab noise becomes a recurring annoyance, or when a repo-secret/PAT-management policy is established. Tracked in [SEQUENCE.md](../SEQUENCE.md) under filed follow-ups.
+
 ### Layer 3 — Triage skill
 
 A new project-local skill at `.claude/skills/aipla-security-checkup/SKILL.md`. Triggers documented in the frontmatter so it auto-loads when the user says any of:
