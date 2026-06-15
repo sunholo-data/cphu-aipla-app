@@ -8,6 +8,7 @@ import { fetchWithAuth } from "@/lib/apiClient";
 import { fetchMyTranscript, type GroupTranscript } from "@/lib/transcriptApi";
 import { SegmentedRecorder, isAudioCaptureSupported, type RecordingResult } from "@/lib/audioCapture";
 import { RecordingLevelMeter } from "./RecordingLevelMeter";
+import { TranscriptRows } from "./TranscriptRows";
 
 const POLL_MS = 30_000;
 
@@ -177,7 +178,7 @@ export function LessonRecordingPanel({ lang, disabled, onRecordingChange, onNoti
       {open ? (
         <div className="max-h-60 overflow-y-auto border-t border-border p-3 text-sm">
           {hasText ? (
-            <p className="whitespace-pre-wrap leading-relaxed text-foreground">{data!.text}</p>
+            <TranscriptRows segments={data!.segments} />
           ) : (
             <p className="text-muted-foreground">
               No transcript yet — it appears about a minute after recording starts.

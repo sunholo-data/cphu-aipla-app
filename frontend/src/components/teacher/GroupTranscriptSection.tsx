@@ -3,11 +3,13 @@
 import { useEffect, useState } from "react";
 
 import { fetchGroupTranscript, type GroupTranscript } from "@/lib/transcriptApi";
+import { TranscriptRows } from "@/components/chat/TranscriptRows";
 
 /**
  * The group's lesson-recording transcript on the teacher report (REC-TRANSCRIPT
  * M4). Renders nothing when the group has no transcript (recording wasn't
- * enabled/used), so it's invisible for non-recorded sessions.
+ * enabled/used), so it's invisible for non-recorded sessions. Shows one
+ * timestamped row per recorded segment (TranscriptRows).
  */
 export function GroupTranscriptSection({ groupId }: { groupId: string }) {
   const [data, setData] = useState<GroupTranscript | null | "loading">("loading");
@@ -29,8 +31,8 @@ export function GroupTranscriptSection({ groupId }: { groupId: string }) {
       <h2 id="transcript-label" className="text-base font-semibold">
         Lesson recording transcript
       </h2>
-      <div className="max-h-80 overflow-y-auto whitespace-pre-wrap rounded-md border border-border p-3 text-sm leading-relaxed">
-        {data.text}
+      <div className="max-h-80 overflow-y-auto rounded-md border border-border p-3 text-sm">
+        <TranscriptRows segments={data.segments} />
       </div>
       <p className="text-xs text-muted-foreground">
         {data.segments.length} segment{data.segments.length === 1 ? "" : "s"} · transcribed from the

@@ -48,7 +48,7 @@ describe("LessonRecordingPanel", () => {
   it("auto-expands the transcript body once there is text to read", async () => {
     fetchMyTranscript.mockResolvedValue({
       groupId: "g1",
-      segments: [{ seq: 0, text: "hej", createdAt: "" }],
+      segments: [{ seq: 0, text: "hej fra gruppen", createdAt: "" }],
       text: "hej fra gruppen",
     });
     render(<LessonRecordingPanel {...base} />);
@@ -74,7 +74,7 @@ describe("LessonRecordingPanel", () => {
   it("hides the transcript while recording even when text exists, and reveals it on stop", async () => {
     fetchMyTranscript.mockResolvedValue({
       groupId: "g1",
-      segments: [{ seq: 0, text: "hej", createdAt: "" }],
+      segments: [{ seq: 0, text: "hej fra gruppen", createdAt: "" }],
       text: "hej fra gruppen",
     });
     fetchMock.mockResolvedValue({ ok: true, json: async () => ({}) });
@@ -94,7 +94,7 @@ describe("LessonRecordingPanel", () => {
   it("lets the student manually collapse an auto-expanded transcript", async () => {
     fetchMyTranscript.mockResolvedValue({
       groupId: "g1",
-      segments: [{ seq: 0, text: "hej", createdAt: "" }],
+      segments: [{ seq: 0, text: "hej fra gruppen", createdAt: "" }],
       text: "hej fra gruppen",
     });
     render(<LessonRecordingPanel {...base} />);
