@@ -54,6 +54,7 @@ import { DocumentPanel } from "@/components/document/DocumentPanel";
 import { LatencyHUD } from "@/components/dev/LatencyHUD";
 import { WorkspaceShell } from "@/components/workspace/WorkspaceShell";
 import { ProgressChecklist, type ChecklistItem } from "@/components/workspace/ProgressChecklist";
+import { DocumentsPanel, type ActivityMaterial } from "@/components/workspace/DocumentsPanel";
 import { workspaceContentKind } from "./workspaceContent";
 import { BoldkastWorkbench } from "@/components/workspace/BoldkastWorkbench";
 import {
@@ -394,13 +395,23 @@ function ChatShell({
   // generically — for sims it sits alongside the sim handles its own;
   // for no-sim concept activities it IS the workspace.
   const [activeChecklist, setActiveChecklist] = useState<ChecklistItem[]>([]);
+  // 1.1.33 M2b/M1 — the activity's grounding documents (names-always + a
+  // studentVisible flag), surfaced in the Documents workbench panel.
+  const [activeMaterials, setActiveMaterials] = useState<ActivityMaterial[]>([]);
   // Persona (1.1.12) resolved for this activity — the bot bubbles show its
   // avatar + name. Optional; null leaves the default brand byline.
   const [activePersona, setActivePersona] = useState<PersonaSummary | null>(null);
   // Config-driven workspace gate: a registered sim OR an authored checklist
   // (workspaceContent.ts — pure + unit-tested; no inline slug allowlist).
   const workspaceKind = workspaceContentKind(skillSlug, activeChecklist.length > 0);
-  const showWorkspace = isAnonymousGroupAuthMode() && workspaceKind !== "none";
+  // 1.1.33 M1 — the student's uploaded photos this session (native AG-UI image
+  // parts already on the messages); fed to the Documents panel's gallery.
+  const uploadedImages = messages.flatMap((m) => m.images ?? []);
+  // Documents (assigned materials OR uploads) also warrant the workspace column,
+  // even for a bare concept activity with no sim/checklist.
+  const hasDocuments = activeMaterials.length > 0 || uploadedImages.length > 0;
+  const showWorkspace =
+    isAnonymousGroupAuthMode() && (workspaceKind !== "none" || hasDocuments);
 
   // Fetch this activity's teacher-authored checklist (M1.2 resolves it from the
   // student's class). Optional — failure/absence leaves the chat-only render.
@@ -408,6 +419,7 @@ function ChatShell({
     if (!skillId || !isAnonymousGroupAuthMode()) {
       setActiveChecklist([]);
       setActivePersona(null);
+      setActiveMaterials([]);
       return;
     }
     let alive = true;
@@ -417,6 +429,7 @@ function ChatShell({
         if (!alive || !data) return;
         if (Array.isArray(data.checklist)) setActiveChecklist(data.checklist as ChecklistItem[]);
         setActivePersona((data.persona as PersonaSummary | null) ?? null);
+        setActiveMaterials(Array.isArray(data.materials) ? (data.materials as ActivityMaterial[]) : []);
       })
       .catch(() => {
         /* checklist + persona are optional — stay chat-only on failure */
@@ -1137,7 +1150,8 @@ function ChatShell({
             ratio={workspaceRatio}
             onRatioChange={setWorkspaceRatio}
           >
-            {skillSlug === "kinebot-kinematics-tutor" ? (
+            {workspaceKind !== "none" &&
+              (skillSlug === "kinebot-kinematics-tutor" ? (
               showKinebotLab && BOLDKAST_SANDBOX_ORIGIN ? (
                 <KineBotFrame
                   ref={kinebotFrameRef}
@@ -1208,7 +1222,11 @@ function ChatShell({
                   sessionId={sessionId ?? agentSessionId}
                 />
               </div>
-            )}
+            ))}
+            {/* 1.1.33 M1 — Documents: the activity's grounding sources (names
+                always shown, shared/not-shared badge) + the student's uploads.
+                Self-hides when there are neither. */}
+            <DocumentsPanel materials={activeMaterials} images={uploadedImages} />
           </WorkspaceShell>
         )}
       </div>
