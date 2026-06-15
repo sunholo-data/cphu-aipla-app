@@ -24,6 +24,7 @@ import {
   type SessionRow,
   type SkillSummary,
   getClass,
+  isTeacherOnlySkill,
   listAccessibleSkills,
   listClassRecentSessions,
   mintGroupCodes,
@@ -131,9 +132,14 @@ export default function TeacherClassDetailPage() {
   }, [cls, catalogue]);
 
   const availableLessons = useMemo<SkillSummary[]>(() => {
-    if (!cls) return catalogue;
+    const studentRunnable = catalogue.filter((s) => !isTeacherOnlySkill(s));
+    if (!cls) return studentRunnable;
     const taken = new Set(cls.lessons);
-    return catalogue.filter((s) => !taken.has(s.skillId));
+    // Exclude teacher-only skills (manage-class, analytics-chat): they can
+    // never be a student lesson, so they don't belong in this picker (1.1.32).
+    // `linkedLessons` is NOT filtered, so a defensive already-assigned one
+    // stays visible + removable.
+    return studentRunnable.filter((s) => !taken.has(s.skillId));
   }, [cls, catalogue]);
 
   // Most recent session per group code — for the per-row "last active" hint.

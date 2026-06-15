@@ -194,6 +194,45 @@ describe("/teacher/classes/[id] — class detail", () => {
       expect(psetMentions.length).toBe(1);
     });
 
+    it("excludes teacher-only (role:teacher) skills from the catalogue picker (1.1.32)", async () => {
+      getSpy.mockResolvedValue(makeClassPayload({ lessons: [] }));
+      listSkillsSpy.mockResolvedValue([
+        makeSkill(), // student-facing — no accessControl
+        makeSkill({
+          skillId: "skill-mc",
+          displayName: "Manage classes",
+          accessControl: { type: "tagged", tags: ["role:teacher"] },
+        }),
+        makeSkill({
+          skillId: "skill-analytics",
+          displayName: "Analytics chat",
+          accessControl: { type: "tagged", tags: ["role:teacher"] },
+        }),
+      ]);
+
+      render(<TeacherClassDetailPage />);
+      await waitFor(() => {
+        expect(
+          screen.getByRole("button", { name: /add from catalogue/i }),
+        ).toBeInTheDocument();
+      });
+      fireEvent.click(screen.getByRole("button", { name: /add from catalogue/i }));
+
+      await waitFor(() => {
+        expect(
+          screen.getByRole("region", { name: /pick an activity/i }),
+        ).toBeInTheDocument();
+      });
+      // Student-facing skill is offered…
+      expect(
+        screen.getByText("Problem-set hints (Boldkast)"),
+      ).toBeInTheDocument();
+      // …teacher-only tools (manage-class, analytics-chat) are NOT assignable
+      // as student lessons, so they never appear in the picker.
+      expect(screen.queryByText("Manage classes")).not.toBeInTheDocument();
+      expect(screen.queryByText("Analytics chat")).not.toBeInTheDocument();
+    });
+
     it("picking a lesson calls patchLessons + refreshes the class", async () => {
       getSpy
         .mockResolvedValueOnce(makeClassPayload({ lessons: [] }))

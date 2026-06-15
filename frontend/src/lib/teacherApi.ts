@@ -88,6 +88,10 @@ export type StxLevel = "A" | "B" | "C";
 export interface MaterialRef {
   docId: string;
   origin: string;
+  /** 1.1.33 M2a — the teacher decides, per material, whether it's shown to
+   *  students in the Documents workbench surface. Default false (opt-in).
+   *  Governs only the student-facing surface; RAG grounding uses all materials. */
+  studentVisible?: boolean;
 }
 
 export interface ActivityConfigUpsert {
@@ -455,6 +459,15 @@ export async function mintGroupCodes(
 // student-side /lessons picker.
 // ---------------------------------------------------------------------------
 
+/** A skill's access policy as the catalogue needs it (mirror of the backend
+ *  `AccessControl`). Teacher-facing skills (manage-class, analytics-chat) are
+ *  `{type: "tagged", tags: ["role:teacher"]}`; student-facing skills are
+ *  `{type: "public"}` or null. */
+export interface SkillAccessControl {
+  type?: string | null;
+  tags?: string[] | null;
+}
+
 export interface SkillSummary {
   skillId: string;
   name: string;
@@ -463,6 +476,18 @@ export interface SkillSummary {
   description: string;
   avatar: string;
   ownerId: string;
+  /** Access policy — lets the student-lesson picker exclude teacher-only
+   *  skills (see `isTeacherOnlySkill`). */
+  accessControl?: SkillAccessControl | null;
+}
+
+/** A skill gated to teachers (e.g. manage-class, analytics-chat) — it can never
+ *  be a student lesson, so it must not appear in the "Add from catalogue"
+ *  student-lesson picker (1.1.32). The gate is the synthetic `role:teacher`
+ *  tag the backend AccessContext evaluator checks. */
+export function isTeacherOnlySkill(s: SkillSummary): boolean {
+  const ac = s.accessControl;
+  return ac?.type === "tagged" && (ac.tags ?? []).includes("role:teacher");
 }
 
 /** List skills the current teacher can access (their own + class-bound + public).
@@ -482,6 +507,7 @@ export async function listAccessibleSkills(): Promise<SkillSummary[]> {
     description?: string;
     avatar?: string;
     ownerId: string;
+    accessControl?: SkillAccessControl | null;
   }>;
   return full.map((s) => ({
     skillId: s.skillId,
@@ -491,6 +517,7 @@ export async function listAccessibleSkills(): Promise<SkillSummary[]> {
     description: s.description || "",
     avatar: s.avatar || "",
     ownerId: s.ownerId,
+    accessControl: s.accessControl ?? null,
   }));
 }
 
