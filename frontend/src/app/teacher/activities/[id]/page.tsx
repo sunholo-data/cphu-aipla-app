@@ -289,7 +289,7 @@ export default function TeacherActivityConfigPage() {
               <button
                 type="button"
                 disabled
-                title="Preview lands in Phase 3"
+                title="Opens the activity exactly as a student sees it — coming next (1.1.32 Phase B)"
                 className="flex items-center gap-1.5 rounded border border-border px-3 py-1.5 text-sm font-medium text-muted-foreground opacity-60"
               >
                 <Eye className="h-4 w-4" aria-hidden="true" />

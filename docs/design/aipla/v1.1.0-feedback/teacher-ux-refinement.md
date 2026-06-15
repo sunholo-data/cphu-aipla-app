@@ -1,6 +1,6 @@
 # Teacher UX refinement — collapse the activity / sim / persona / difficulty sprawl
 
-**Status:** Planned (P1, design-doc stage) — **refinement / correction doc** prompted by M's 15-June live critique of the teacher surfaces
+**Status:** **Phase A implemented (2026-06-15)** · Phase B planned — **refinement / correction doc** prompted by M's 15-June live critique of the teacher surfaces. Phase A (difficulty knob removed · "where settings live" `SettingsMap` · sim↔activity honesty · persona class-default-only) shipped to `dev`; teacher preview + activity-template/assignment reuse are Phase B.
 **Last Updated:** 2026-06-15
 **Priority:** **P1 — coherence before the pilot.** The teacher build shipped feature-by-feature (1.1.12 personas, 1.1.19 authoring, 1.1.20 interaction styles, 1.1.25 materials, 1.1.26 UI consolidation, 1.J workbench types) and accreted **five overlapping levels** — teacher → class → persona → activity → sim — each with settings that overlap or contradict. M can't tell what the Activities page is for, where prompts are set, why a sim doesn't match an activity, or what "difficulty" does. This is the opposite of the breadth-over-depth bet's promise (`aipla-breadth-over-depth`): degrees of freedom without a coherent mental model.
 **Estimated:** ~3–4d for the pre-pilot slice (Phase A); the activity-reuse refactor (Phase B) is ~3–5d post-pilot.
@@ -84,12 +84,13 @@ CLASS    (who can run it + roster)           — assignment + access
 
    > **Implementation note (Phase A shipped, 2026-06-15). Q4 resolved → class-default-only for v1.** M chose the simplest option: persona lives in **one** place (class settings), and an activity does **not** override it in v1. So the activity forms drop the per-activity persona picker entirely (the new form's co-equal `PersonaCard` grid + its "Custom" manual-style branch are gone) and instead render a read-only `InheritedPersona` panel resolving the class default → global default chain — name + avatar + teaching style + a "Change in class settings" link. The activity forms also stop *writing* `persona` and `interaction_style`; leaving them unset is what makes the backend inherit the class persona's style (`interaction_style.py:74-82` already falls through to `get_class(cfg.class_id).persona` when `cfg.persona` is empty — verified, no backend change needed). The student-facing `/active` endpoint already resolves the same chain (`resolve_persona_chain`), so avatar/name/voice were always correct; this only removes the duplicate authoring surface. The per-activity persona override + the "Advanced" style disclosure move to **Phase B** (alongside activity templates). Net: one place to set persona, no co-equal picker, no standalone style knob — directly answers "do we juggle three places?".
 3. **Kill the dead difficulty knob (problem 5).** Remove `difficulty` from the teacher UI (it's consumed nowhere — showing it is anti-transparent, Axiom 2). Keep the field in the model (no migration) but stop surfacing it until it maps to a real behaviour. **Follow-up option (noted, not built):** if we want it, `guided` injects a scaffolding preamble (same mechanism as interaction styles) — then it earns its place. Until then it's gone from the form.
-4. **Teacher preview (problem 6).** Enable "Open as student" on an activity: starts a teacher-owned preview chat session against the activity's resolved config (persona + goal + sim + materials), so the teacher sees exactly what students get. Uses the existing chat surface with the teacher's Firebase identity; no new endpoint (the chat page already accepts a skill + session).
+4. **Teacher preview (problem 6).** ~~Enable "Open as student" on an activity~~ — **DEFERRED to its own change (M, 2026-06-15)**, not part of the Phase-A coherence slice. The "no new endpoint, just open the chat" framing was wrong: the chat page gates the *entire* AIPLA student surface (workspace, persona, checklist, doc-UI) on `isAnonymousGroupAuthMode()`, so a teacher opening the chat URL gets the inherited **template** chat — not what students see (a *new* incoherence). And config resolution is group-tag-based (`class:<owner>:<class_id>` in the student JWT), which a teacher doesn't carry, so `/active/{skillId}` falls back to the LOCAL_MODE workshop config or empty. A faithful preview therefore needs **(a)** a chat **preview mode** (`?preview=1&classId=`) that un-gates the student surface for a teacher identity, and **(b)** a backend `classId`-scoped resolution that loads the `(teacher, class, activity)` config with an **owns-class** ACL. That's a dedicated ~½-day piece touching the chat auth gating; deferred past the 16 June demo so it isn't built under demo pressure. The button stays disabled with an honest tooltip until then. **Tracked as a Phase-B item** (see below).
 5. **A one-line "where settings live" explainer** at the top of the activity form and the class settings, mapping the three nouns (the table above) — so the mental model is stated, not inferred.
 
 ### Phase B — activity reuse (post-pilot, scoped not built, ~3–5d)
 
 6. **Decouple activity definition from class (problems 1/7).** Today config is keyed per `(teacher, class, activity)`. Target: an **activity template** owned by the teacher (definition: goal + sim + persona override + materials + checklist), and a separate **assignment** binding a template to one or more classes. The Activities page becomes the teacher's template library; the class page lists *assigned* templates. This removes the per-class duplication and makes "Open class" coherent (assignment, not ownership). Migration: the current composite-keyed configs become templates keyed by `(teacher, activity)` with a join table for class assignment; existing rows backfill one template per distinct `(teacher, activity)` taking the most-recent config. Deferred post-pilot because it touches the storage key + the student resolution path (`resolve_active_config`).
+7. **Teacher "Open as student" preview (problem 6 — pulled forward from Phase A, M 2026-06-15).** A chat **preview mode** (`?preview=1&classId=`) that un-gates the AIPLA student surface (workspace + persona + checklist) for the teacher's own identity, plus a backend `classId`-scoped resolution that loads the `(teacher, class, activity)` config with an **owns-class** ACL (no group-tag needed). Wire the disabled "Preview as student" button to it. Its own focused change (chat auth gating is sensitive) — does **not** have to wait for the template/assignment refactor (#6); it's listed here only because it left Phase A. The `aiplatform activity preview` CLI command (below) ships with it.
 
 ### CLI surface
 
@@ -155,14 +156,14 @@ CLASS    (who can run it + roster)           — assignment + access
 
 ## Success criteria
 
-- [ ] Activity form shows: title, teaching goal, **kind/sim (1:1)**, materials, checklist, **inherited persona (read-only + override)** — no standalone difficulty, no co-equal style picker.
-- [ ] The sim a teacher picks is the sim the student sees (workspace reads the activity config, not the slug).
-- [ ] No no-op control remains in the teacher UI.
-- [ ] "Open as student" preview works for any owned activity.
-- [ ] A one-line "where settings live" explainer is present on the activity + class-settings surfaces.
-- [ ] `aiplatform activity preview` works end-to-end.
-- [ ] (Phase B) an activity template can be assigned to ≥2 classes without re-authoring.
-- [ ] `npm run quality:check` + `make lint` + `make test-fast` green.
+- [x] Activity form shows: title, teaching goal, materials, checklist, **inherited persona (read-only)** — no standalone difficulty, no co-equal style picker, no decoupled paired-workbench knob. *(Phase A, 2026-06-15.)*
+- [x] No no-op control remains in the teacher UI (difficulty + paired-workbench both gone). *(Phase A.)*
+- [x] A one-line "where settings live" explainer is present on the activity + class-settings surfaces. *(Phase A — `SettingsMap`.)*
+- [x] Persona is set in one place (class settings) and shown read-only on the activity; the sim a teacher sees is honestly the skill it runs (no mismatched-sim knob). *(Phase A; full activity↔sim 1:1 is Phase B.)*
+- [ ] **(Deferred → Phase B #7)** "Open as student" preview works for any owned activity (chat preview mode + `classId`-scoped resolution + owns-class ACL).
+- [ ] **(Phase B #7)** `aiplatform activity preview` works end-to-end.
+- [ ] **(Phase B #6)** an activity template can be assigned to ≥2 classes without re-authoring.
+- [x] `npm run quality:check` + `make lint` + `make test-fast` green *(for the Phase-A slice)*.
 
 ## Related documents
 
