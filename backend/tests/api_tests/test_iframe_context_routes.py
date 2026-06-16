@@ -211,6 +211,28 @@ class TestHappyPath:
     @patch("protocols.iframe_context_routes.get_session_service")
     @patch("protocols.iframe_context_routes.skill_config")
     @patch("protocols.iframe_context_routes.get_session_index")
+    def test_stores_label_for_transcript_restore(self, mock_get_index, mock_skill_module, mock_get_svc):
+        """1.1.34: an optional ``label`` is persisted into the state_delta so
+        the resumed transcript can re-render the interaction card."""
+        mock_get_index.return_value = _make_index()
+        mock_skill_module.get_skill.return_value = _make_skill(
+            activated_servers=["ext-apps-map"],
+            context_write_servers=["ext-apps-map"],
+        )
+        svc = _mock_session_service()
+        mock_get_svc.return_value = svc
+
+        body = {**_HAPPY_BODY, "label": "Sendte spoergsmaal med v0=15"}
+        resp = _make_client("viewer").post("/api/sessions/sess-1/iframe-context", json=body)
+
+        assert resp.status_code == 204, resp.text
+        delta = svc.append_event.await_args.args[1].actions.state_delta
+        written = delta["mcp_app_context.ext-apps-map.show-map"]
+        assert written["_label"] == "Sendte spoergsmaal med v0=15"
+
+    @patch("protocols.iframe_context_routes.get_session_service")
+    @patch("protocols.iframe_context_routes.skill_config")
+    @patch("protocols.iframe_context_routes.get_session_index")
     def test_empty_payload_is_no_op(self, mock_get_index, mock_skill_module, mock_get_svc):
         """Iframes that fire ``ui/update-model-context`` with no
         structured content (e.g. a bug or a no-op clear) should NOT

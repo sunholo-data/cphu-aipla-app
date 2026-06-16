@@ -108,6 +108,11 @@ class IframeContextRequest(BaseModel):
     # we can extend the merge logic without a wire change).
     structured_content: dict[str, Any] | None = Field(default=None, alias="structuredContent")
     content: list[Any] | None = Field(default=None)
+    # 1.1.34: the human-readable card label the client already computes for the
+    # live human-tool-use card ("Sendte spørgsmål med v₀=15, θ=40"). Stored on
+    # the persisted state_delta so the resumed transcript can re-render the card
+    # without re-deriving per-sim label text server-side. Optional + capped.
+    label: str | None = Field(default=None, max_length=200)
 
     model_config = {"populate_by_name": True, "extra": "forbid"}
 
@@ -245,6 +250,10 @@ async def post_iframe_context(
         state_value["structuredContent"] = body.structured_content
     if body.content:
         state_value["content"] = body.content
+    if body.label:
+        # Stored for transcript restore (1.1.34); not merged into the agent
+        # prompt — iframe-context content is namespaced data, never instruction.
+        state_value["_label"] = body.label
     state_value["_pushedAt"] = time.time()
 
     # Write via ADK's append_event(state_delta) pattern — same as

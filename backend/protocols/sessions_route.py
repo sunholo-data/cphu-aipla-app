@@ -54,9 +54,28 @@ class ChatMessage(BaseModel):
     timestamp: float
 
 
+class InteractionEvent(BaseModel):
+    """A restored MCP-app interaction (1.1.34).
+
+    Surfaced from the ADK ``state_delta`` events the iframe-context push
+    already persists, so a resumed transcript can re-render the student's
+    sim interactions ("Sendte spørgsmål med …") in place — not just the
+    tutor's reaction. ``label`` is the human-readable card text (the client
+    label, stored at push time, else a generic fallback)."""
+
+    label: str
+    timestamp: float
+    server_id: str | None = None
+    tool_name: str | None = None
+
+
 class GetSessionMessagesResponse(BaseModel):
     messages: list[ChatMessage]
     session_id: str
+    # 1.1.34: MCP-app interactions interleaved into the transcript on restore.
+    # Default empty so existing clients (and text-only sessions) are unaffected.
+    interactions: list[InteractionEvent] = []
+    interactions_truncated: bool = False
 
 
 class ChatSessionSummary(BaseModel):
@@ -127,6 +146,90 @@ def _events_to_messages(events: list) -> list[ChatMessage]:
         role: Literal["user", "assistant"] = "user" if e.author == "user" else "assistant"
         messages.append(ChatMessage(role=role, content=text, timestamp=e.timestamp))
     return messages
+
+
+# 1.1.34 — MCP-app interaction restore. The iframe-context push writes each
+# sim interaction as an ADK state_delta event keyed under
+# ``mcp_app_context.{server}.{tool}`` (see iframe_context_routes); ADK retains
+# those events for the session lifetime. We surface them here so the resumed
+# transcript can re-render the human-tool-use cards. Mirrored literal (not an
+# import) to avoid coupling the read path to the write module.
+_MCP_CONTEXT_PREFIX = "mcp_app_context."
+_MAX_INTERACTIONS = 200
+_GENERIC_INTERACTION_LABEL = "Interaktion med simuleringen"
+
+
+def _interaction_label(state_value: dict) -> str:
+    """Human-readable card text for a restored interaction.
+
+    Prefers the client-computed label stored at push time (``_label``); falls
+    back to the ``structuredContent.changed`` hint, then a generic Danish
+    label. Capped to match the write-side label cap."""
+    label = state_value.get("_label")
+    if isinstance(label, str) and label.strip():
+        return label.strip()[:200]
+    sc = state_value.get("structuredContent")
+    if isinstance(sc, dict):
+        changed = sc.get("changed")
+        if isinstance(changed, list) and changed:
+            return f"Interaktion: {', '.join(str(c) for c in changed)}"[:200]
+        if isinstance(changed, str) and changed.strip():
+            return f"Interaktion: {changed.strip()}"[:200]
+    return _GENERIC_INTERACTION_LABEL
+
+
+def _events_to_interactions(events: list) -> tuple[list[InteractionEvent], bool]:
+    """Extract MCP-app interaction events from ADK session events.
+
+    Selects events carrying a ``state_delta`` dict with an ``mcp_app_context.*``
+    key (the iframe-context push). Coalesces runs of consecutive identical
+    ``(label, server, tool)`` (a slider "settle" emits several), then caps to
+    the most-recent ``_MAX_INTERACTIONS`` — returning ``truncated=True`` when
+    older ones were dropped (no silent cap). Tolerant of non-interaction events
+    (text turns, tool calls) — the caller passes the SAME event list to both
+    this and ``_events_to_messages``."""
+    raw: list[InteractionEvent] = []
+    for e in events:
+        actions = getattr(e, "actions", None)
+        state_delta = getattr(actions, "state_delta", None) if actions is not None else None
+        if not isinstance(state_delta, dict) or not state_delta:
+            continue
+        for key, value in state_delta.items():
+            if not isinstance(key, str) or not key.startswith(_MCP_CONTEXT_PREFIX):
+                continue
+            if not isinstance(value, dict):
+                continue
+            server_id, _, tool_name = key[len(_MCP_CONTEXT_PREFIX) :].partition(".")
+            ts = getattr(e, "timestamp", None)
+            if ts is None:
+                ts = value.get("_pushedAt", 0.0)
+            raw.append(
+                InteractionEvent(
+                    label=_interaction_label(value),
+                    timestamp=float(ts),
+                    server_id=server_id or None,
+                    tool_name=tool_name or None,
+                )
+            )
+
+    raw.sort(key=lambda i: i.timestamp)
+
+    coalesced: list[InteractionEvent] = []
+    for it in raw:
+        prev = coalesced[-1] if coalesced else None
+        if (
+            prev is not None
+            and prev.label == it.label
+            and prev.server_id == it.server_id
+            and prev.tool_name == it.tool_name
+        ):
+            continue
+        coalesced.append(it)
+
+    truncated = len(coalesced) > _MAX_INTERACTIONS
+    if truncated:
+        coalesced = coalesced[-_MAX_INTERACTIONS:]
+    return coalesced, truncated
 
 
 def _require_session(session_id: str) -> ChatSessionIndex:
@@ -262,9 +365,12 @@ async def get_session_messages(
         session_id=session_id,
     )
     events = session.events if session is not None else []
+    interactions, interactions_truncated = _events_to_interactions(events)
     return GetSessionMessagesResponse(
         messages=_events_to_messages(events),
         session_id=session_id,
+        interactions=interactions,
+        interactions_truncated=interactions_truncated,
     )
 
 
