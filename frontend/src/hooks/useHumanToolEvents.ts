@@ -39,8 +39,18 @@ export interface HumanToolEvent {
    *  ChatMessageList uses this to interleave cards between messages:
    *  events with afterMessageIndex===N render between messages N-1 and N
    *  (so clicks made before the first message land at the top, clicks
-   *  made after the second message land between #2 and #3, etc). */
+   *  made after the second message land between #2 and #3, etc).
+   *
+   *  For RESTORED events (1.1.34) this indexes into the RESTORED history
+   *  (`initialMessages`), a separate index space from live `messages` —
+   *  ChatMessageList interleaves restored cards only within the history
+   *  loop and live cards only within the live loop. */
   afterMessageIndex: number;
+  /** True for cards reconstructed from persisted interactions on reload
+   *  (1.1.34). Always `confirmed` (it persisted, so it succeeded) and
+   *  never re-pushes. `afterMessageIndex` is in the restored-history index
+   *  space. Live dispatches leave this unset. */
+  restored?: boolean;
 }
 
 /** A function the dispatcher calls to perform the network side-effect.
@@ -51,6 +61,10 @@ export interface HumanToolEventsApi {
   events: HumanToolEvent[];
   /** Append a pending card, run `push`, then flip to confirmed/failed. */
   dispatch: (args: { label: string; push: HumanToolPush }) => void;
+  /** Replace the RESTORED card set (1.1.34) — read-only confirmed cards
+   *  reconstructed from persisted interactions on reload. Idempotent:
+   *  clears the previous restored set and keeps all live dispatches. */
+  seed: (events: HumanToolEvent[]) => void;
   /** Test/dev helper — drop everything (the chat-page provider doesn't
    *  call this; the events naturally roll off when the page unmounts). */
   clear: () => void;
@@ -166,11 +180,19 @@ export function HumanToolEventsProvider({
 
   const clear = useCallback(() => setEvents([]), []);
 
+  // 1.1.34: load restored cards without clobbering live dispatches. Replace
+  // the prior restored subset (idempotent across re-seeds) and keep every
+  // live event. Restored cards are forced to `restored: true` + `confirmed`.
+  const seed = useCallback((restored: HumanToolEvent[]) => {
+    const normalised = restored.map((e) => ({ ...e, restored: true, status: "confirmed" as const }));
+    setEvents((prev) => [...prev.filter((e) => !e.restored), ...normalised]);
+  }, []);
+
   const setCurrentMessageCount = useCallback((n: number) => {
     messageCountRef.current = n;
   }, []);
 
-  const api: HumanToolEventsApi = { events, dispatch, clear, setCurrentMessageCount };
+  const api: HumanToolEventsApi = { events, dispatch, seed, clear, setCurrentMessageCount };
   return createElement(HumanToolEventsContext.Provider, { value: api }, children);
 }
 
@@ -184,6 +206,19 @@ export function useSyncMessageCount(currentMessageCount: number): void {
   useEffect(() => {
     ctx?.setCurrentMessageCount(currentMessageCount);
   }, [ctx, currentMessageCount]);
+}
+
+/** Seed the surrounding provider with restored interaction cards (1.1.34)
+ *  whenever the list identity changes. Mirrors `useSyncMessageCount` so the
+ *  provider can sit ABOVE the component that owns `useSessionMessages`. Pass
+ *  the restored interactions for a resumed session, or an empty array for a
+ *  fresh chat (clears any prior restored set). No-op without a provider. */
+export function useSeedRestoredInteractions(events: HumanToolEvent[]): void {
+  const ctx = useContext(HumanToolEventsContext);
+  const seed = ctx?.seed;
+  useEffect(() => {
+    seed?.(events);
+  }, [seed, events]);
 }
 
 /** Hook used by workspace surfaces to dispatch cards, and by the chat
@@ -203,6 +238,7 @@ export function useHumanToolEvents(): HumanToolEventsApi {
       _warnNoProviderOnce();
       void push().catch(() => {});
     },
+    seed: () => {},
     clear: () => {},
     setCurrentMessageCount: () => {},
   };

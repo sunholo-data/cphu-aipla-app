@@ -130,6 +130,57 @@ describe("useHumanToolEvents", () => {
     expect(result.current.events).toEqual([]);
   });
 
+  describe("seed (1.1.34 — restore)", () => {
+    const restored = (id: string, afterMessageIndex: number) => ({
+      id,
+      label: `restored ${id}`,
+      status: "pending" as const, // deliberately wrong — seed must force confirmed
+      t: 1,
+      afterMessageIndex,
+      restored: true,
+    });
+
+    it("loads restored cards as read-only confirmed", () => {
+      const { result } = renderHook(() => useHumanToolEvents(), { wrapper });
+      act(() => {
+        result.current.seed([restored("a", 0), restored("b", 1)]);
+      });
+      expect(result.current.events).toHaveLength(2);
+      expect(result.current.events.every((e) => e.status === "confirmed")).toBe(true);
+      expect(result.current.events.every((e) => e.restored)).toBe(true);
+    });
+
+    it("is idempotent — re-seeding replaces the prior restored set", () => {
+      const { result } = renderHook(() => useHumanToolEvents(), { wrapper });
+      act(() => result.current.seed([restored("a", 0), restored("b", 1)]));
+      act(() => result.current.seed([restored("c", 0)]));
+      expect(result.current.events).toHaveLength(1);
+      expect(result.current.events[0].id).toBe("c");
+    });
+
+    it("keeps live dispatches when seeding (no collision)", () => {
+      const { result } = renderHook(() => useHumanToolEvents(), { wrapper });
+      act(() => {
+        result.current.dispatch({ label: "live", push: () => Promise.resolve(okResponse()) });
+      });
+      act(() => result.current.seed([restored("a", 0)]));
+      // both the live card and the restored card coexist
+      expect(result.current.events).toHaveLength(2);
+      expect(result.current.events.some((e) => e.label === "live" && !e.restored)).toBe(true);
+      expect(result.current.events.some((e) => e.id === "a" && e.restored)).toBe(true);
+    });
+
+    it("a live dispatch AFTER seeding does not clear restored cards", () => {
+      const { result } = renderHook(() => useHumanToolEvents(), { wrapper });
+      act(() => result.current.seed([restored("a", 0)]));
+      act(() => {
+        result.current.dispatch({ label: "live", push: () => Promise.resolve(okResponse()) });
+      });
+      expect(result.current.events.some((e) => e.id === "a" && e.restored)).toBe(true);
+      expect(result.current.events.some((e) => e.label === "live")).toBe(true);
+    });
+  });
+
   describe("useSyncMessageCount", () => {
     // Regression for 2026-06-01: when the provider was moved inside the
     // component that owns useSkillAgent so it could read messages.length

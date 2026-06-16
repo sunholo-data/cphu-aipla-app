@@ -197,7 +197,7 @@ export function useKineBotSnapshot(
       setSnapshot(next);
       snapshotRef.current = next;
 
-      const req = pushSnapshotRequest(next, evt.kind);
+      const req = pushSnapshotRequest(next, evt.kind, pushedLabel);
       if (req) {
         if (pushedLabel) {
           humanToolEvents.dispatch({ label: pushedLabel, push: () => req });

@@ -13,6 +13,13 @@ function mockOk(messages: object[]) {
   } as Response);
 }
 
+function mockOkFull(body: object) {
+  mockFetch.mockResolvedValueOnce({
+    ok: true,
+    json: () => Promise.resolve({ session_id: "sess-1", ...body }),
+  } as Response);
+}
+
 function mockError(status = 500) {
   mockFetch.mockResolvedValueOnce({ ok: false, status } as Response);
 }
@@ -90,6 +97,65 @@ describe("useSessionMessages", () => {
       result.current.initialMessages.some((m) => m.content.includes("session_start")),
     ).toBe(false);
     expect(result.current.initialMessages[0].content).toBe("Hej og velkommen!");
+  });
+
+  describe("1.1.34 — restored interactions", () => {
+    it("defaults initialInteractions to [] and truncated to false", async () => {
+      mockOk([{ role: "user", content: "hi", timestamp: 1 }]);
+      const { result } = renderHook(() => useSessionMessages("sess-1"));
+      await waitFor(() => expect(result.current.isLoadingHistory).toBe(false));
+      expect(result.current.initialInteractions).toEqual([]);
+      expect(result.current.interactionsTruncated).toBe(false);
+    });
+
+    it("maps interactions to afterMessageIndex in the restored-history index space", async () => {
+      // 3 history messages at t=1,2,3; an interaction at t=2.5 falls AFTER the
+      // first two messages (index 2) → renders before the 3rd bubble.
+      mockOkFull({
+        messages: [
+          { role: "user", content: "q1", timestamp: 1 },
+          { role: "assistant", content: "a1", timestamp: 2 },
+          { role: "assistant", content: "reaction", timestamp: 3 },
+        ],
+        interactions: [
+          { label: "Sendte spoergsmaal med v0=15", timestamp: 2.5, server_id: "boldkast", tool_name: "state" },
+        ],
+      });
+      const { result } = renderHook(() => useSessionMessages("sess-1"));
+      await waitFor(() => expect(result.current.initialInteractions).toHaveLength(1));
+      const card = result.current.initialInteractions[0];
+      expect(card.label).toBe("Sendte spoergsmaal med v0=15");
+      expect(card.afterMessageIndex).toBe(2);
+      expect(card.status).toBe("confirmed");
+      expect(card.restored).toBe(true);
+    });
+
+    it("counts only restored messages at/before the interaction (sentinels excluded)", async () => {
+      // A [session_start] sentinel is dropped from history; the interaction's
+      // index must be computed against the FILTERED messages that render.
+      mockOkFull({
+        messages: [
+          { role: "user", content: "[session_start]", timestamp: 1 },
+          { role: "assistant", content: "greet", timestamp: 2 },
+        ],
+        interactions: [{ label: "x", timestamp: 5, server_id: "boldkast", tool_name: "state" }],
+      });
+      const { result } = renderHook(() => useSessionMessages("sess-1"));
+      await waitFor(() => expect(result.current.initialInteractions).toHaveLength(1));
+      // Only 1 message survives filtering (the greet) → index 1, not 2.
+      expect(result.current.initialMessages).toHaveLength(1);
+      expect(result.current.initialInteractions[0].afterMessageIndex).toBe(1);
+    });
+
+    it("surfaces interactions_truncated", async () => {
+      mockOkFull({
+        messages: [{ role: "user", content: "hi", timestamp: 1 }],
+        interactions: [{ label: "x", timestamp: 1, server_id: "boldkast", tool_name: "state" }],
+        interactions_truncated: true,
+      });
+      const { result } = renderHook(() => useSessionMessages("sess-1"));
+      await waitFor(() => expect(result.current.interactionsTruncated).toBe(true));
+    });
   });
 
   it("sets historyError on HTTP failure", async () => {

@@ -165,7 +165,7 @@ export function useBoldkastSnapshot(
       snapshotRef.current = next;
 
       if (!shouldPush) return;
-      const req = pushSnapshotRequest(next, evt.kind);
+      const req = pushSnapshotRequest(next, evt.kind, pushedLabel);
       if (req) {
         if (pushedLabel) {
           humanToolEvents.dispatch({ label: pushedLabel, push: () => req });

@@ -31,7 +31,12 @@ import { useEnteredViaResume } from "@/hooks/useEnteredViaResume";
 import { useSessionDocuments } from "@/hooks/useSessionDocuments";
 import { useStableThreadId } from "@/hooks/useStableThreadId";
 import { useProactiveGreet } from "@/lib/proactiveGreet";
-import { HumanToolEventsProvider, useSyncMessageCount } from "@/hooks/useHumanToolEvents";
+import {
+  HumanToolEventsProvider,
+  useSyncMessageCount,
+  useSeedRestoredInteractions,
+  type HumanToolEvent,
+} from "@/hooks/useHumanToolEvents";
 import { fetchWithAuth } from "@/lib/apiClient";
 import { computeIncludedDocIds } from "@/lib/docContext";
 import { notifySessionsChanged, subscribeSessionsChangedDetailed } from "@/lib/sessionEvents";
@@ -341,6 +346,10 @@ function StreamErrorBanner({
   );
 }
 
+// Stable empty array for the no-restore branch of useSeedRestoredInteractions
+// — a fresh `[]` each render would re-fire the seed effect every render.
+const NO_RESTORED_INTERACTIONS: HumanToolEvent[] = [];
+
 function ChatShell({
   skillId,
   pathPrefix,
@@ -566,7 +575,8 @@ function ChatShell({
 
   // Session routing: read ?session= from URL, allow programmatic navigation
   const sessionId = searchParams.get("session");
-  const { initialMessages, historyError, sessionGone } = useSessionMessages(sessionId);
+  const { initialMessages, initialInteractions, interactionsTruncated, historyError, sessionGone } =
+    useSessionMessages(sessionId);
 
   // KineBot shared snapshot (sim iframe + React quiz/graph/topic feed it).
   const { snapshot: kinebotSnapshot, reportEvent: reportKinebotEvent } =
@@ -837,6 +847,12 @@ function ChatShell({
   // upstream of this component.
   useSyncMessageCount(messages.length);
 
+  // 1.1.34 — seed restored MCP-app interaction cards into the provider on a
+  // resumed session, so reload re-renders "student did X" before the tutor's
+  // reaction (not just the reaction). Gated on enteredViaResume, exactly like
+  // initialMessages — a fresh chat seeds nothing (stable empty array).
+  useSeedRestoredInteractions(enteredViaResume ? initialInteractions : NO_RESTORED_INTERACTIONS);
+
   // Sprint PROACTIVE-SIM-REACTIVE M8-fix #2 (2026-06-03): populate the
   // ProactiveSimProvider's ref via useEffect AFTER useSkillAgent has
   // produced sendMessage. The provider itself is mounted in ChatPage
@@ -1031,6 +1047,7 @@ function ChatShell({
                   ? [proactiveGreetMessage]
                   : undefined
             }
+            interactionsTruncated={enteredViaResume && interactionsTruncated}
             skillInitialMessage={skillInitialMessage}
             historyError={historyError}
             toolCalls={toolCalls}

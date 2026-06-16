@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { SkillMessage } from "@/hooks/useSkillAgent";
+import type { HumanToolEvent } from "@/hooks/useHumanToolEvents";
 import { fetchWithAuth } from "@/lib/apiClient";
 import { isProactiveSentinel } from "@/lib/proactiveSentinels";
 
@@ -11,16 +12,53 @@ interface SessionMessage {
   timestamp: number;
 }
 
+interface SessionInteraction {
+  label: string;
+  timestamp: number;
+  server_id: string | null;
+  tool_name: string | null;
+}
+
 interface GetSessionMessagesResponse {
   messages: SessionMessage[];
   session_id: string;
+  // 1.1.34 — persisted MCP-app interactions, for transcript restore.
+  interactions?: SessionInteraction[];
+  interactions_truncated?: boolean;
 }
 
 interface UseSessionMessagesReturn {
   initialMessages: SkillMessage[];
+  /** 1.1.34 — restored MCP-app interaction cards, positioned in the
+   *  restored-history index space (afterMessageIndex counts restored
+   *  messages, NOT live ones). Seed into HumanToolEventsProvider on resume. */
+  initialInteractions: HumanToolEvent[];
+  /** True when older interactions were dropped by the backend cap. */
+  interactionsTruncated: boolean;
   isLoadingHistory: boolean;
   historyError: string | null;
   sessionGone: boolean;
+}
+
+const NO_INTERACTIONS: HumanToolEvent[] = [];
+
+/** Map persisted interactions into restored cards. `afterMessageIndex` is
+ *  the count of restored messages at or before the interaction's timestamp,
+ *  so the card renders just before the tutor turn it preceded. The `<=`
+ *  tie-break keeps a card after a message sharing its exact timestamp. */
+function buildRestoredInteractions(
+  messages: SessionMessage[],
+  interactions: SessionInteraction[],
+): HumanToolEvent[] {
+  if (interactions.length === 0) return NO_INTERACTIONS;
+  return interactions.map((it, n) => ({
+    id: `htu-restored-${n}`,
+    label: it.label,
+    status: "confirmed" as const,
+    t: it.timestamp,
+    afterMessageIndex: messages.filter((m) => m.timestamp <= it.timestamp).length,
+    restored: true,
+  }));
 }
 
 // Stranded-session-prevention (1.23) Option 1: distinguishes
@@ -45,6 +83,8 @@ function toSkillMessage(m: SessionMessage): SkillMessage {
 
 export function useSessionMessages(sessionId: string | null): UseSessionMessagesReturn {
   const [initialMessages, setInitialMessages] = useState<SkillMessage[]>([]);
+  const [initialInteractions, setInitialInteractions] = useState<HumanToolEvent[]>(NO_INTERACTIONS);
+  const [interactionsTruncated, setInteractionsTruncated] = useState(false);
   const [isLoadingHistory, setIsLoadingHistory] = useState(false);
   const [historyError, setHistoryError] = useState<string | null>(null);
   const [sessionGone, setSessionGone] = useState(false);
@@ -76,21 +116,28 @@ export function useSessionMessages(sessionId: string | null): UseSessionMessages
           // messages, and would otherwise render as a literal "[session_start]"
           // bubble. The live path (useSkillAgent.toSkillMessage) already
           // filters these; this keeps the resumed transcript consistent.
-          setInitialMessages(
-            data.messages
-              .filter((m) => !isProactiveSentinel(m.content))
-              .map(toSkillMessage),
-          );
+          const filtered = data.messages.filter((m) => !isProactiveSentinel(m.content));
+          setInitialMessages(filtered.map(toSkillMessage));
+          // 1.1.34 — restored MCP-app interaction cards, indexed against the
+          // SAME filtered history that renders. The reactive sentinel (the
+          // trigger) is filtered above; the interaction (the card) is restored
+          // here — distinct events, never conflated.
+          setInitialInteractions(buildRestoredInteractions(filtered, data.interactions ?? []));
+          setInteractionsTruncated(Boolean(data.interactions_truncated));
         })
         .catch((err: Error) => {
           if (err.name === "AbortError") return;
           if (err instanceof SessionNotFoundError) {
             setSessionGone(true);
             setInitialMessages([]);
+            setInitialInteractions(NO_INTERACTIONS);
+            setInteractionsTruncated(false);
             return;
           }
           setHistoryError("Couldn't load previous messages — starting fresh.");
           setInitialMessages([]);
+          setInitialInteractions(NO_INTERACTIONS);
+          setInteractionsTruncated(false);
         })
         .finally(() => {
           setIsLoadingHistory(false);
@@ -102,6 +149,8 @@ export function useSessionMessages(sessionId: string | null): UseSessionMessages
   useEffect(() => {
     if (!sessionId) {
       setInitialMessages([]);
+      setInitialInteractions(NO_INTERACTIONS);
+      setInteractionsTruncated(false);
       setHistoryError(null);
       setSessionGone(false);
       return;
@@ -114,5 +163,12 @@ export function useSessionMessages(sessionId: string | null): UseSessionMessages
     return () => abortRef.current?.abort();
   }, [sessionId, fetch_]);
 
-  return { initialMessages, isLoadingHistory, historyError, sessionGone };
+  return {
+    initialMessages,
+    initialInteractions,
+    interactionsTruncated,
+    isLoadingHistory,
+    historyError,
+    sessionGone,
+  };
 }

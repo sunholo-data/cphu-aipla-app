@@ -1,7 +1,13 @@
 import { render, screen } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
+import type { ReactElement } from "react";
 import { ChatMessageList } from "../ChatMessageList";
 import type { SkillMessage } from "@/hooks/useSkillAgent";
+import {
+  HumanToolEventsProvider,
+  useSeedRestoredInteractions,
+  type HumanToolEvent,
+} from "@/hooks/useHumanToolEvents";
 
 // A2UIRenderer and MCPAppToolCallRouter mount external surfaces — stub them.
 vi.mock("@/components/protocols/A2UIRenderer", () => ({
@@ -141,5 +147,70 @@ describe("ChatMessageList", () => {
     // bubbles (every non-keyed bubble falls back to __unparented__).
     const occurrences = screen.queryAllByText("web_search");
     expect(occurrences).toHaveLength(1);
+  });
+
+  describe("1.1.34 — restored MCP-app interaction cards", () => {
+    const restoredCard = (afterMessageIndex: number, label = "RESTORED-CARD"): HumanToolEvent => ({
+      id: `r-${afterMessageIndex}-${label}`,
+      label,
+      status: "confirmed",
+      t: 1,
+      afterMessageIndex,
+      restored: true,
+    });
+
+    function withSeed(events: HumanToolEvent[], node: ReactElement) {
+      function Harness() {
+        useSeedRestoredInteractions(events);
+        return node;
+      }
+      return render(
+        <HumanToolEventsProvider>
+          <Harness />
+        </HumanToolEventsProvider>,
+      );
+    }
+
+    it("renders a restored card interleaved in the history at its index", async () => {
+      const initialMessages = [msg("h1", "user", "q1"), msg("h2", "assistant", "reaction")];
+      withSeed(
+        [restoredCard(1, "Sendte spoergsmaal med v0=15")],
+        <ChatMessageList messages={[]} initialMessages={initialMessages} {...baseProps} />,
+      );
+      const card = await screen.findByText("Sendte spoergsmaal med v0=15");
+      // lives in the RESTORED index space at index 1 (before the 2nd bubble)
+      expect(screen.getByTestId("human-tool-events-at-restored-1")).toContainElement(card);
+      // read-only = confirmed (no pending spinner / retry)
+      expect(screen.getByTestId("human-tool-use-card").getAttribute("data-status")).toBe("confirmed");
+    });
+
+    it("keeps the restored and live card index spaces separate", async () => {
+      withSeed(
+        [restoredCard(0)],
+        <ChatMessageList
+          messages={[msg("L0", "user", "live msg")]}
+          initialMessages={[msg("h0", "assistant", "history")]}
+          {...baseProps}
+        />,
+      );
+      const card = await screen.findByText("RESTORED-CARD");
+      // under the restored container, NOT the live one at index 0
+      expect(screen.getByTestId("human-tool-events-at-restored-0")).toContainElement(card);
+      expect(screen.queryByTestId("human-tool-events-at-0")).toBeNull();
+    });
+
+    it("shows the truncated marker when interactionsTruncated is set", () => {
+      render(
+        <HumanToolEventsProvider>
+          <ChatMessageList
+            messages={[]}
+            initialMessages={[msg("h1", "user", "q1")]}
+            interactionsTruncated
+            {...baseProps}
+          />
+        </HumanToolEventsProvider>,
+      );
+      expect(screen.getByText(/Tidligere interaktioner er skjult/)).toBeInTheDocument();
+    });
   });
 });

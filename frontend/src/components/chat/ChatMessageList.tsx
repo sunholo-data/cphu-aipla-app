@@ -25,6 +25,9 @@ import type React from "react";
 interface ChatMessageListProps {
   messages: SkillMessage[];
   initialMessages?: SkillMessage[];
+  /** 1.1.34 — true when the backend dropped older interactions past the cap;
+   *  renders a quiet "earlier interactions hidden" note above the history. */
+  interactionsTruncated?: boolean;
   /** Markdown text from the current skill's `initialMessage` field. When
    * the chat is empty (no live messages, no resumed history), render
    * this as the welcome / starter-prompts panel instead of the generic
@@ -85,6 +88,7 @@ const SCROLL_THRESHOLD = 100;
 export function ChatMessageList({
   messages,
   initialMessages,
+  interactionsTruncated,
   skillInitialMessage,
   historyError,
   toolCalls,
@@ -219,23 +223,37 @@ export function ChatMessageList({
 
           {initialMessages && initialMessages.length > 0 && (
             <>
-              {initialMessages.map((m) => (
-                <MessageBubble
-                  key={m.id}
-                  message={m}
-                  skillId={skillId}
-                  persona={persona}
-                  userInitial={userInitial}
-                  userDisplayName={userDisplayName}
-                  toolCalls={[]}
-                  navigateToBlock={navigate}
-                  onAction={onAction}
-                  mcpServerIds={mcpServerIds}
-                  onChatMessage={onChatMessage}
-                  sessionId={sessionId}
-                  autoSpeakAllowed={m.id === autoReadAssistantId}
-                />
+              {/* 1.1.34: a quiet note when older interactions were dropped by
+                  the backend cap — never a silent truncation. */}
+              {interactionsTruncated && (
+                <p className="text-center text-[11px] text-muted-foreground italic">
+                  Tidligere interaktioner er skjult
+                </p>
+              )}
+              {initialMessages.map((m, i) => (
+                <Fragment key={m.id}>
+                  {/* Restored interaction cards dispatched before this history
+                      message — indexed into the RESTORED history index space. */}
+                  <HumanToolEventsAt index={i} restored />
+                  <MessageBubble
+                    message={m}
+                    skillId={skillId}
+                    persona={persona}
+                    userInitial={userInitial}
+                    userDisplayName={userDisplayName}
+                    toolCalls={[]}
+                    navigateToBlock={navigate}
+                    onAction={onAction}
+                    mcpServerIds={mcpServerIds}
+                    onChatMessage={onChatMessage}
+                    sessionId={sessionId}
+                    autoSpeakAllowed={m.id === autoReadAssistantId}
+                  />
+                </Fragment>
               ))}
+              {/* Restored cards after the last history message (before the
+                  live transcript / "Earlier in this conversation" divider). */}
+              <HumanToolEventsAt index={initialMessages.length} restored />
               <div className="flex items-center gap-2 text-xs text-muted-foreground">
                 <div className="flex-1 border-t" />
                 <span>Earlier in this conversation</span>
@@ -322,12 +340,19 @@ export function ChatMessageList({
 // the chronologically correct point in the transcript, not always at
 // the bottom. See `HumanToolEvent.afterMessageIndex` in
 // useHumanToolEvents.ts for the dispatch-time snapshot.
-function HumanToolEventsAt({ index }: { index: number }) {
+function HumanToolEventsAt({ index, restored = false }: { index: number; restored?: boolean }) {
   const { events } = useHumanToolEvents();
-  const here = events.filter((e) => e.afterMessageIndex === index);
+  // Two separate index spaces (1.1.34): restored cards index into the
+  // RESTORED history loop; live cards index into the live `messages` loop.
+  // Filtering by `restored` keeps a card with afterMessageIndex===2 from
+  // rendering in BOTH loops.
+  const here = events.filter((e) => e.afterMessageIndex === index && Boolean(e.restored) === restored);
   if (here.length === 0) return null;
   return (
-    <div className="flex flex-wrap gap-1.5" data-testid={`human-tool-events-at-${index}`}>
+    <div
+      className="flex flex-wrap gap-1.5"
+      data-testid={`human-tool-events-at-${restored ? "restored-" : ""}${index}`}
+    >
       {here.map((e) => (
         <HumanToolUseCard
           key={e.id}

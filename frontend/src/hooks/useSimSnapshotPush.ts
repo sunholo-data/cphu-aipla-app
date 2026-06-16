@@ -68,7 +68,7 @@ export function useSimSnapshotPush<TSnapshot extends object>(
    *  explicit override exists for tests and for sims mounted outside
    *  the chat surface that need different wiring. */
   proactiveOpts?: UseSimSnapshotPushProactiveOpts,
-): (snap: TSnapshot, latestKind: string) => Promise<Response> | null {
+): (snap: TSnapshot, latestKind: string, label?: string | null) => Promise<Response> | null {
   const sessionIdRef = useRef(sessionId);
   sessionIdRef.current = sessionId;
   // Capture the explicit-opts override in a ref so it stays current
@@ -86,14 +86,24 @@ export function useSimSnapshotPush<TSnapshot extends object>(
   const contextOptsRef = useOptionalProactiveSimOptsRef();
 
   return useCallback(
-    (snap, latestKind) => {
+    (snap, latestKind, label) => {
       const sid = sessionIdRef.current;
       if (!sid) return null;
-      const body = {
+      // 1.1.34: carry the human-readable card label so the resumed transcript
+      // can re-render this interaction without re-deriving per-sim label text
+      // server-side. Optional — omitted for label-less pushes (catch-up syncs,
+      // silent state pushes).
+      const body: {
+        serverId: string;
+        toolName: string;
+        structuredContent: Record<string, unknown>;
+        label?: string;
+      } = {
         serverId,
         toolName,
         structuredContent: { ...snap, lastEvent: latestKind },
       };
+      if (label) body.label = label;
       const req = fetchWithAuth(
         `/api/proxy/api/sessions/${sid}/iframe-context`,
         {
