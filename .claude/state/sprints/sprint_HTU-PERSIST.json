@@ -26,10 +26,11 @@
         "backend/protocols/sessions_route.py",
         "backend/tests/api_tests/test_sessions_route.py"
       ],
-      "passes": null,
-      "started": null,
-      "completed": null,
-      "notes": null
+      "passes": true,
+      "started": "2026-06-16",
+      "completed": "2026-06-16",
+      "notes": "Committed 03b0b66. _events_to_interactions + InteractionEvent model + label persistence; 2009 backend tests green, lint clean. _events_to_messages byte-identical (regression test).",
+      "actual_loc": 175
     },
     {
       "id": "M2-frontend-restore",
@@ -56,10 +57,11 @@
         "frontend/src/components/chat/HumanToolUseCard.tsx",
         "frontend/src/components/chat/ChatMessageList.tsx"
       ],
-      "passes": null,
-      "started": null,
-      "completed": null,
-      "notes": null
+      "passes": true,
+      "started": "2026-06-16",
+      "completed": "2026-06-16",
+      "notes": "Committed cf5c620. Label threaded into push body (3 sim hooks); useSessionMessages maps interactions->restored-history index space; useHumanToolEvents.seed() read-only confirmed cards + useSeedRestoredInteractions; ChatMessageList interleaves in history loop (separate index space). confirmed status IS the read-only variant (no card change). 1099 FE tests + build green, lint+typecheck clean.",
+      "actual_loc": 192
     },
     {
       "id": "M3-verify-live",
@@ -90,7 +92,7 @@
     "actual_days": null
   },
   "github_issues": [],
-  "last_session": null,
-  "last_checkpoint": null,
-  "status": "not_started"
+  "last_session": "2026-06-16",
+  "last_checkpoint": "M1 + M2 complete and committed (03b0b66, cf5c620); local CI parity green both sides. M3 (deploy + live verify) pending a push-to-dev decision.",
+  "status": "in_progress"
 }
