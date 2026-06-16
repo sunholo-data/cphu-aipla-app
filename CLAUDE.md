@@ -379,6 +379,11 @@ on *every* identity-touching change.
   student branch keys off `user.group_id` / `user.group_tags`.
 - **Firestore `onSnapshot`.** Gate listeners on `isAnonymousGroupAuthMode()` —
   group JWTs aren't Firebase identities, so client-SDK rules deny them.
+- **Streaming agent (AG-UI) on teacher surfaces.** `AGUIProvider` mints the
+  stream's `Authorization` token. On a teacher-only chat (`/teacher/analytics`)
+  pass `useTeacherAuth` — otherwise it mints the *group* token (or, since
+  `useAuth()` is the group context whose `user` is null for a teacher, mints
+  **nothing** → stream POST `401: Missing Authorization header`).
 
 Full history + fixes: memory `feedback-anonymous-users-are-corner-case`. New
 identity bugs → log them in [docs/upstream-feedback.md](docs/upstream-feedback.md)

@@ -950,6 +950,18 @@ The contribution this represents for the template: ship the defensive SSE wrappe
 
 **Upstream fix:** The template's `apiClient` should make the role explicit at the call site for any shared endpoint — e.g. a single `fetchWithAuth(path, { audience: "student" | "teacher" | "either" })` that picks the token (and, for `"either"`, prefers whichever is present). Bundling the choice into one helper removes the "which import did this module pick?" footgun that produced #19–#21 and this one. A lint rule flagging `fetchWithTeacherAuth` inside student-surface dirs (`components/workspace`, `app/lessons`) would catch regressions.
 
+## 34. The AG-UI streaming provider gates on the group AuthContext, so teacher chat surfaces send no token
+
+**Where:** `frontend/src/providers/AGUIProvider.tsx`. The provider mints the SSE stream's `Authorization` header in a token effect gated on `useAuth()` — which on AIPLA is the anonymous-GROUP `AuthContext`. A `useTeacherAuth` prop switches the token *fetcher* to `getTeacherIdToken()`, but the effect's guard `if (!user) { resolve-with-no-token }` still reads `useAuth().user`, which is **permanently null for a teacher** (they have no group session). So the fetcher never runs and the agent ships with empty headers.
+
+**What hurt:** `/teacher/analytics` chat returned `401: Missing Authorization header` (the agent ran with no token at all). Distinct from #33 (wrong token) — here it's *no* token, because the gate short-circuited before minting one.
+
+**Root cause:** Same family as #19–#21, #33 — an auth-touching module reads `useAuth()` and assumes it reflects the acting user. For a teacher, `useAuth()` is the group context (null user); for a student it carries no Firebase identity. The provider needs the *Firebase* auth state for the teacher path, not the group context.
+
+**Workaround on AIPLA:** When `useTeacherAuth` is set, subscribe to Firebase auth directly (`subscribeToAuthState`) and gate on that instead of `useAuth()`. AIPLA commit `7900678` + a regression test (null group user + signed-in Firebase teacher → agent still carries the teacher bearer).
+
+**Upstream fix:** `AGUIProvider` should take the auth source as an explicit input (an `audience`/token-getter prop) rather than reaching into one global `useAuth()`. A teacher-surface provider passes the Firebase getter; a student-surface provider passes the group getter; neither relies on a context that's only correct for one role. Pairs with #33's `apiClient` change — the whole app should never infer "who is acting" from a single global auth context that's role-specific.
+
 ## Backlog (likely additions as v0.1 sprint continues)
 
 - M5 may surface IAM bindings the bootstrap script should add
