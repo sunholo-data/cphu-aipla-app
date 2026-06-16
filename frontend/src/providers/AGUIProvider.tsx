@@ -18,7 +18,8 @@ import {
   useState,
 } from "react";
 import { useAuth } from "@/contexts/AuthContext";
-import { getTeacherIdToken } from "@/lib/firebase";
+import { getTeacherIdToken, subscribeToAuthState, type User } from "@/lib/firebase";
+import { isLocalMode, LOCAL_MODE_WORKSHOP_USER } from "@/lib/localMode";
 
 /**
  * AG-UI-native provider. Exposes one `HttpAgent` per `skillId`, targeting the
@@ -62,7 +63,37 @@ export function AGUIProvider({
   useTeacherAuth?: boolean;
   children: ReactNode;
 }) {
-  const { user, loading: authLoading, getIdToken } = useAuth();
+  const groupAuth = useAuth();
+
+  // In `useTeacherAuth` mode, `useAuth()` is the WRONG auth source: on the
+  // deployed app it's the anonymous-GROUP context, and a teacher has no group
+  // session → `groupAuth.user` is null. The token effect below short-circuits
+  // at `if (!user)` and NEVER calls `getTeacherIdToken()`, so the agent runs
+  // with no Authorization header → stream POST 401 'Missing Authorization
+  // header'. (Re-found 2026-06-16 on /teacher/analytics — the 2026-06-03 fix
+  // gated on `user`, but for a teacher that user comes from the group context
+  // and is permanently null.) So when useTeacherAuth is set, track the Firebase
+  // teacher's auth state DIRECTLY and gate on that. We can't call the
+  // `useTeacherAuth()` hook here — it redirects to /teacher/sign-in as a side
+  // effect, which would be wrong for the student path.
+  const [teacherUser, setTeacherUser] = useState<User | null>(null);
+  const [teacherLoading, setTeacherLoading] = useState<boolean>(true);
+  useEffect(() => {
+    if (!useTeacherAuth) return undefined;
+    if (isLocalMode()) {
+      setTeacherUser(LOCAL_MODE_WORKSHOP_USER as unknown as User);
+      setTeacherLoading(false);
+      return undefined;
+    }
+    return subscribeToAuthState((u) => {
+      setTeacherUser(u);
+      setTeacherLoading(false);
+    });
+  }, [useTeacherAuth]);
+
+  const user = useTeacherAuth ? teacherUser : groupAuth.user;
+  const authLoading = useTeacherAuth ? teacherLoading : groupAuth.loading;
+  const getIdToken = groupAuth.getIdToken;
   const [token, setToken] = useState<string | null>(null);
   const [tokenResolved, setTokenResolved] = useState<boolean>(false);
 
