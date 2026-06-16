@@ -150,3 +150,71 @@ def test_ingest_returns_parsed_preview_and_levelless(monkeypatch):
     assert body["parsedPreview"].startswith("Newtons anden lov")
     assert body["parsedChars"] == len(extracted)
     assert body["doc"]["level"] is None  # level-less upload (1.1.33)
+
+
+# --- M3: read a doc's parsed content (display ACL) ---
+
+
+def _cfg_with(materials):
+    from types import SimpleNamespace
+
+    return SimpleNamespace(materials=materials)
+
+
+def _mat(doc_id, visible):
+    from db.models.activity_config import MaterialRef
+
+    return MaterialRef(doc_id=doc_id, origin="o", student_visible=visible)
+
+
+def test_content_teacher_reads_own_or_shared(monkeypatch):
+    import protocols.curriculum_routes as cr
+
+    monkeypatch.setattr(cr, "get_curriculum_doc", lambda d: _doc(d, "A", TEACHER))
+    monkeypatch.setattr(cr, "get_curriculum_content", lambda d: {"text": "Newtons love.", "chars": 13})
+    resp = _client().get("/api/curriculum/doc-1/content")  # teacher, owns it
+    assert resp.status_code == 200, resp.text
+    body = resp.json()
+    assert body["available"] is True
+    assert body["text"] == "Newtons love."
+
+
+def test_content_teacher_denied_other_owner(monkeypatch):
+    import protocols.curriculum_routes as cr
+
+    monkeypatch.setattr(cr, "get_curriculum_doc", lambda d: _doc(d, "A", "other-teacher"))
+    monkeypatch.setattr(cr, "get_curriculum_content", lambda d: {"text": "x", "chars": 1})
+    resp = _client().get("/api/curriculum/doc-1/content")
+    assert resp.status_code == 403
+
+
+def test_content_student_reads_cited_visible(monkeypatch):
+    import protocols.curriculum_routes as cr
+
+    monkeypatch.setattr(cr, "get_curriculum_doc", lambda d: _doc(d, "A", TEACHER))
+    monkeypatch.setattr(cr, "get_curriculum_content", lambda d: {"text": "Visible.", "chars": 8})
+    monkeypatch.setattr(cr, "resolve_active_config", lambda aid, group_tags=None: _cfg_with([_mat("doc-1", True)]))
+    resp = _client(group_id="grp-1").get("/api/curriculum/doc-1/content?activityId=act-1")
+    assert resp.status_code == 200, resp.text
+    assert resp.json()["text"] == "Visible."
+
+
+def test_content_student_denied_when_hidden(monkeypatch):
+    import protocols.curriculum_routes as cr
+
+    monkeypatch.setattr(cr, "get_curriculum_doc", lambda d: _doc(d, "A", TEACHER))
+    monkeypatch.setattr(cr, "get_curriculum_content", lambda d: {"text": "secret", "chars": 6})
+    # cited but NOT student_visible -> denied
+    monkeypatch.setattr(cr, "resolve_active_config", lambda aid, group_tags=None: _cfg_with([_mat("doc-1", False)]))
+    resp = _client(group_id="grp-1").get("/api/curriculum/doc-1/content?activityId=act-1")
+    assert resp.status_code == 403
+
+
+def test_content_unavailable_when_not_stored(monkeypatch):
+    import protocols.curriculum_routes as cr
+
+    monkeypatch.setattr(cr, "get_curriculum_doc", lambda d: _doc(d, "A", TEACHER))
+    monkeypatch.setattr(cr, "get_curriculum_content", lambda d: None)  # ingested pre-M3
+    resp = _client().get("/api/curriculum/doc-1/content")
+    assert resp.status_code == 200
+    assert resp.json()["available"] is False

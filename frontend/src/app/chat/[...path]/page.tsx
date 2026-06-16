@@ -1233,7 +1233,11 @@ function ChatShell({
             {/* 1.1.33 M1 — Documents: the activity's grounding sources (names
                 always shown, shared/not-shared badge) + the student's uploads.
                 Self-hides when there are neither. */}
-            <DocumentsPanel materials={activeMaterials} images={uploadedImages} />
+            <DocumentsPanel
+              materials={activeMaterials}
+              images={uploadedImages}
+              activityId={skillId}
+            />
           </WorkspaceShell>
         )}
       </div>

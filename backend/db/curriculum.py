@@ -14,10 +14,34 @@ from db.firestore import delete_document, get_document, query_documents, set_doc
 from db.models.curriculum import SHARED_SCOPE, CurriculumDoc, StxLevel
 
 _COLLECTION = "curriculum_docs"
+# 1.1.33 M3 — the parsed text, kept SEPARATE from the metadata doc so browse/list
+# queries stay light. Read on demand when a student opens a shared doc.
+_CONTENT_COLLECTION = "curriculum_content"
+# Cap the stored text well under Firestore's 1 MB doc limit. The full length is
+# stored too, so the viewer can flag truncation.
+_CONTENT_CAP = 200_000
 
 
 def _utcnow() -> datetime:
     return datetime.now(UTC)
+
+
+def set_curriculum_content(doc_id: str, text: str) -> None:
+    """Store the parsed text for *doc_id* (capped) so it can be displayed later.
+
+    Separate from the metadata doc — only fetched when a student opens the doc.
+    """
+    set_document(
+        _CONTENT_COLLECTION,
+        doc_id,
+        {"text": text[:_CONTENT_CAP], "chars": len(text)},
+    )
+
+
+def get_curriculum_content(doc_id: str) -> dict | None:
+    """Return ``{text, chars}`` for *doc_id*, or None if no content was stored
+    (e.g. a doc ingested before content storage existed — re-upload to view)."""
+    return get_document(_CONTENT_COLLECTION, doc_id)
 
 
 def create_curriculum_doc(doc: CurriculumDoc) -> None:

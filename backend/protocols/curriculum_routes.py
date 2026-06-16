@@ -26,11 +26,18 @@ from datetime import UTC, datetime
 from pathlib import PurePosixPath
 from typing import Annotated, Any, Literal
 
-from fastapi import APIRouter, Depends, Form, HTTPException, UploadFile
+from fastapi import APIRouter, Depends, Form, HTTPException, Query, UploadFile
 from pydantic import BaseModel, Field
 
+from adk.teacher_focus import resolve_active_config
 from auth import User, get_current_user
-from db.curriculum import create_curriculum_doc, list_curriculum_for_teacher
+from db.curriculum import (
+    create_curriculum_doc,
+    get_curriculum_content,
+    get_curriculum_doc,
+    list_curriculum_for_teacher,
+    set_curriculum_content,
+)
 from db.models.curriculum import SHARED_SCOPE, CopyrightStatus, CurriculumDoc, StxLevel
 from db.rag_corpus import query_rag_files, upload_text_as_rag_file
 from tools.documents.ailang_parse import DETERMINISTIC_EXTENSIONS, _parse_file_sync
@@ -173,6 +180,9 @@ async def ingest_curriculum(
         updatedAt=now,
     )
     create_curriculum_doc(doc)
+    # 1.1.33 M3 — persist the parsed text so a teacher/student can READ a shared
+    # doc later (not just see its name). Kept in a separate collection.
+    set_curriculum_content(doc_id, text)
 
     logger.info(
         "Curriculum doc ingested: %s level=%s shared=%s rag=%s",
@@ -189,6 +199,55 @@ async def ingest_curriculum(
         "doc": doc.model_dump(by_alias=True, mode="json"),
         "parsedPreview": text[:_PARSE_PREVIEW_CAP],
         "parsedChars": len(text),
+    }
+
+
+# ---------------------------------------------------------------------------
+# M3 — read a doc's parsed content (display, not retrieval)
+# ---------------------------------------------------------------------------
+
+
+@router.get("/{doc_id}/content")
+async def get_curriculum_doc_content(
+    doc_id: str,
+    activity_id: str | None = Query(default=None, alias="activityId"),
+    user: User = Depends(get_current_user),  # noqa: B008
+) -> dict:
+    """Return the parsed text of a curriculum doc for display (1.1.33 M3).
+
+    Deny-by-default ACL:
+    - **Student** (anonymous group): allowed only when the doc is cited by their
+      active activity AND ``student_visible`` is true. Requires ``activityId``.
+      The teacher's visibility toggle gates the CONTENT here (the name shows
+      regardless, via the active-config materials list).
+    - **Teacher** (Firebase): allowed for their own docs or the shared corpus.
+
+    Returns ``available=false`` (not 404) when no content was stored — e.g. a doc
+    ingested before M3; re-upload to make it viewable.
+    """
+    doc = get_curriculum_doc(doc_id)
+    if doc is None:
+        raise HTTPException(status_code=404, detail="Document not found.")
+
+    if getattr(user, "group_id", None):
+        cfg = resolve_active_config(activity_id, group_tags=user.group_tags) if activity_id else None
+        allowed = bool(cfg is not None and any(m.doc_id == doc_id and m.student_visible for m in cfg.materials))
+    else:
+        allowed = doc.owner_scope in (user.uid, SHARED_SCOPE)
+
+    if not allowed:
+        # 403 (not 404): doc ids are random UUIDs, no existence leak.
+        raise HTTPException(status_code=403, detail="Access denied.")
+
+    content = get_curriculum_content(doc_id)
+    if content is None:
+        return {"docId": doc_id, "title": doc.title, "available": False, "text": "", "chars": 0}
+    return {
+        "docId": doc_id,
+        "title": doc.title,
+        "available": True,
+        "text": content.get("text", ""),
+        "chars": int(content.get("chars", 0)),
     }
 
 

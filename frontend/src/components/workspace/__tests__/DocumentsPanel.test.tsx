@@ -1,6 +1,17 @@
-import { describe, it, expect } from "vitest";
-import { render, screen } from "@testing-library/react";
+import { describe, it, expect, vi } from "vitest";
+import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { DocumentsPanel } from "@/components/workspace/DocumentsPanel";
+
+const fetchCurriculumContent = vi.fn();
+vi.mock("@/lib/curriculumApi", async () => {
+  const actual = await vi.importActual<typeof import("@/lib/curriculumApi")>(
+    "@/lib/curriculumApi",
+  );
+  return {
+    ...actual,
+    fetchCurriculumContent: (...a: unknown[]) => fetchCurriculumContent(...a),
+  };
+});
 
 describe("DocumentsPanel", () => {
   it("returns null when there are no materials and no uploads", () => {
@@ -50,5 +61,48 @@ describe("DocumentsPanel", () => {
     );
     expect(screen.getByText(/your uploads/i)).toBeTruthy();
     expect(screen.getByRole("img", { name: "your upload" })).toBeTruthy();
+  });
+
+  it("opens a viewer with the parsed content when a shared doc is clicked (M3)", async () => {
+    fetchCurriculumContent.mockResolvedValue({
+      docId: "d1",
+      title: "A-level kinematics",
+      available: true,
+      text: "Newton's second law: F = m a.",
+      chars: 29,
+    });
+    render(
+      <DocumentsPanel
+        materials={[{ docId: "d1", origin: "A-level kinematics", studentVisible: true }]}
+        images={[]}
+        activityId="act-1"
+      />,
+    );
+    fireEvent.click(screen.getByRole("button", { name: /A-level kinematics/i }));
+    expect(fetchCurriculumContent).toHaveBeenCalledWith("d1", "act-1");
+    await waitFor(() =>
+      expect(screen.getByText(/Newton's second law/)).toBeInTheDocument(),
+    );
+  });
+
+  it("tells the student to re-upload when a doc has no stored content (M3)", async () => {
+    fetchCurriculumContent.mockResolvedValue({
+      docId: "d1",
+      title: "Old doc",
+      available: false,
+      text: "",
+      chars: 0,
+    });
+    render(
+      <DocumentsPanel
+        materials={[{ docId: "d1", origin: "Old doc", studentVisible: true }]}
+        images={[]}
+        activityId="act-1"
+      />,
+    );
+    fireEvent.click(screen.getByRole("button", { name: /Old doc/i }));
+    await waitFor(() =>
+      expect(screen.getByText(/re-upload it to read it here/i)).toBeInTheDocument(),
+    );
   });
 });

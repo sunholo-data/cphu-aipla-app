@@ -113,3 +113,27 @@ export async function ingestCurriculum(
     parsedChars: body.parsedChars ?? 0,
   };
 }
+
+/** A doc's parsed content for display (1.1.33 M3). `available` is false when no
+ *  content was stored (doc ingested before M3 — re-upload to view). */
+export interface DocContent {
+  docId: string;
+  title: string;
+  available: boolean;
+  text: string;
+  chars: number;
+}
+
+/** Fetch a curriculum doc's parsed text for display. `activityId` is required
+ *  for the student path (ACL: the doc must be cited + student-visible in their
+ *  active activity); teachers omit it (read their own / shared). */
+export async function fetchCurriculumContent(
+  docId: string,
+  activityId?: string,
+): Promise<DocContent> {
+  const qs = activityId ? `?activityId=${encodeURIComponent(activityId)}` : "";
+  const resp = await fetchWithAuth(
+    `/api/proxy/api/curriculum/${encodeURIComponent(docId)}/content${qs}`,
+  );
+  return readJson<DocContent>(resp, "load document content");
+}
