@@ -167,7 +167,8 @@ accurate but with a repetition-loop artifact, ~8–16× Gemini's cost, and activ
 deprecation; the engine is **Gemini, full stop**.)
 
 **A1a — Gemini whole-file transcription (primary).** On recording stop / an end-of-class job, pass
-the full GCS audio to Gemini (`gemini-2.5-flash`, an audio `Part` from the GCS URI) with a
+the full GCS audio to Gemini (model is config-driven — `config/models.yaml` `platform_default`,
+not pinned in STT code; `VOICE_STT_PROVIDER=gemini`), an audio `Part` from the GCS URI, with a
 grounding prompt (Danish+English physics lesson; transcribe verbatim; keep each phrase in the
 language spoken; punctuate; one speaker turn per line). This is the **authoritative** transcript —
 full-conversation context, no slice boundaries. Already in our stack (tutor + narrative use Gemini)
@@ -321,7 +322,9 @@ Backlink: [local-dev-cli.md](../../../v6.1.0/local-dev-cli.md). Estimate ~0.3d.
 
 - **Q1 (JB) — retention periods per env.** What `research_audio_retention_days` for test and
   prod? (Dev = 0 / keep-all is decided.) Feeds the data-management plan.
-- **Q2 — Gemini model tier?** Spike used `gemini-2.5-flash` (best accuracy + cheapest, no
+- **Q2 — Gemini model tier?** Now **config-driven** — STT uses `config/models.yaml`
+  `platform_default` (currently `gemini-3-flash`), the same knob as the rest of the platform; no
+  STT-specific pin. (Spike used `gemini-2.5-flash` — best accuracy + cheapest, no
   repetition-loop). Open: Flash vs Flash-Lite (cheaper) vs Pro (if accuracy demands), standard vs
   batch tier. Decide from a small multi-group eval. (Engine settled: Gemini, full stop.)
 - **Q3 (M) — higher-fidelity archive?** Likely **no** — recordings confirmed adequate by

@@ -24,12 +24,12 @@ _TTS_USD_PER_MILLION_CHARS = {
 }
 
 # USD per second of audio transcribed. Gemini is the only STT engine (RAQ-1,
-# 2026-06-16 — Cloud STT removed). Gemini counts audio at ~32 tokens/s; at the
-# 2.5 Flash input rate ($1.00/1M tokens) that's ~$0.000032/s (batch ~half,
-# Flash-Lite cheaper). Estimate for the dashboard; actual GCP billing trumps it.
+# 2026-06-16 — Cloud STT removed); the model is config-driven (config/models.yaml
+# platform_default), provider name "gemini". Gemini counts audio at ~32 tokens/s;
+# at a Flash input rate that's ~$0.000037/s. Estimate for the dashboard; actual
+# GCP billing trumps it.
 _STT_USD_PER_SECOND = {
-    "gemini_2.5-flash": 0.000032,
-    "gemini_2.5-flash-lite": 0.0000096,
+    "gemini": 0.000037,
     "disabled": 0.0,
     "null": 0.0,
 }

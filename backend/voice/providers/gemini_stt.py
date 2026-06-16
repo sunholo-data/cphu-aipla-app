@@ -3,14 +3,17 @@
 Transcribes audio by handing the whole clip to a Gemini model with a grounding
 prompt — *not* a classic ASR. The 16 June Jutland demo spike proved this on the
 real classroom audio: Cloud STT v1 single-language returned 360 chars of garbage
-on the Danish/English code-switched discussion; Gemini 2.5 Flash returned ~12k
-chars, accurate, with the physics terms and the tutor's turns correct — and at
-~8-16x lower cost. See research-audio-capture-quality.md (SEQUENCE 1.1.35).
+on the Danish/English code-switched discussion; Gemini returned ~12k chars,
+accurate, with the physics terms and the tutor's turns correct — and at ~8-16x
+lower cost. See research-audio-capture-quality.md (SEQUENCE 1.1.35).
 
-Swap-shaped per ADR-003: this registers as a `gemini_<model>` STT provider, so
-`VOICE_STT_PROVIDER=gemini_2.5-flash` routes the lesson-recording transcribe path
-(`recording_routes._transcribe_segment_in_background`) through Gemini with no
-route change. Cloud STT (`gcp_*`) stays the graceful-degradation fallback.
+**Config-driven model.** Set `VOICE_STT_PROVIDER=gemini` and the model resolves
+from the central registry (`config/models.yaml` `platform_default`) — the SAME
+model the rest of the platform uses, one knob, no STT-specific version pinned in
+code. An explicit `gemini_<model>` still overrides for a one-off. This routes the
+lesson-recording transcribe path (`recording_routes._transcribe_segment_in_background`)
+through Gemini with no route change. Cloud STT was removed entirely (it garbled
+the audio); there is no fallback.
 
 Auth: Application Default Credentials via Vertex (`genai.Client(vertexai=True)`),
 the same pattern as `reports/narrative.py` and `tools/structured_extraction.py`.
@@ -46,19 +49,30 @@ _PROMPT = (
 
 
 class GeminiSTTProvider:
-    """STT provider backed by a Gemini model. One instance per model.
+    """STT provider backed by a Gemini model.
 
-    The model short form (``"2.5-flash"``) comes from the registry provider name
-    (``gemini_2.5-flash`` -> model=``"2.5-flash"``) and is reconstructed to the
-    real id ``gemini-2.5-flash``.
+    Default (``model=None``, registry name ``"gemini"``): the model resolves from
+    ``config/models.yaml`` ``platform_default`` — config-driven, same as the rest
+    of the platform. An explicit ``gemini_<model>`` overrides (name
+    ``"gemini_<model>"``, model ``gemini-<model>``).
     """
 
     name: str
 
-    def __init__(self, model: str = "2.5-flash", *, client=None):
-        short = (model or "2.5-flash").removeprefix("gemini-")
-        self.model = f"gemini-{short}"
-        self.name = f"gemini_{short}"
+    def __init__(self, model: str | None = None, *, client=None):
+        if model:
+            short = model.removeprefix("gemini-")
+            self.model = f"gemini-{short}"
+            self.name = f"gemini_{short}"
+        else:
+            # Config-driven: the platform default model (config/models.yaml).
+            # One knob — change platform_default and STT follows, no code change.
+            from config.models import load_models_config
+
+            cfg = load_models_config()
+            entry = next((m for m in cfg.models if m.id == cfg.platform_default), None)
+            self.model = entry.api_name if entry else cfg.platform_default
+            self.name = "gemini"
         # Lazy: constructing the genai client resolves ADC + opens a channel,
         # wasteful at import/registry time. Tests inject a fake client.
         self._client = client

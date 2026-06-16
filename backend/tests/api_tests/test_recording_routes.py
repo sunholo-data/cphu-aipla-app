@@ -69,7 +69,7 @@ def _client(group_id: str | None, monkeypatch, store=None, cls=None, writes=None
     upd = updates if updates is not None else []
     monkeypatch.setattr(rr, "update_document", lambda c, i, d: upd.append((i, d)))
     stt = MagicMock()
-    stt.name = "gemini_2.5-flash"
+    stt.name = "gemini"
     stt.transcribe_long = AsyncMock(return_value="hej fra gruppen")
     monkeypatch.setattr(rr, "get_stt", lambda skill=None: stt)
     return TestClient(app), captured
@@ -98,7 +98,7 @@ def test_upload_stores_audio_then_transcribes_in_background(store, monkeypatch):
     # The background task (run by the TestClient after the response) fills it in.
     # transcriptEngine stamps which engine served it — RAQ-1 M3.
     assert updates == [
-        (_id, {"transcript": "hej fra gruppen", "transcriptStatus": "done", "transcriptEngine": "gemini_2.5-flash"})
+        (_id, {"transcript": "hej fra gruppen", "transcriptStatus": "done", "transcriptEngine": "gemini"})
     ]
 
 
@@ -110,7 +110,7 @@ def test_upload_keeps_audio_when_transcription_fails(store, monkeypatch):
     )
     # STT blows up -> doc marked failed, but audio + doc still stored (research record)
     failing = MagicMock()
-    failing.name = "gemini_2.5-flash"
+    failing.name = "gemini"
     failing.transcribe_long = AsyncMock(side_effect=RuntimeError("stt down"))
     monkeypatch.setattr(rr, "get_stt", lambda skill=None: failing)
     resp = client.post(

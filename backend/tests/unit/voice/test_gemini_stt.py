@@ -2,7 +2,7 @@
 
 The 16 June demo spike showed Cloud STT v1 single-language garbled the
 Danish/English classroom audio; Gemini transcribed it accurately. This provider
-makes Gemini a swap-in STT engine (`VOICE_STT_PROVIDER=gemini_2.5-flash`).
+makes Gemini a swap-in STT engine (`VOICE_STT_PROVIDER=gemini_3.5-flash`).
 """
 
 from __future__ import annotations
@@ -32,28 +32,28 @@ class _FakeGenaiClient:
 
 
 def test_name_describe_and_model_id():
-    p = GeminiSTTProvider(model="2.5-flash", client=_FakeGenaiClient())
-    assert p.name == "gemini_2.5-flash"
-    assert p.model == "gemini-2.5-flash"  # short form reconstructed to the real id
+    p = GeminiSTTProvider(model="3.5-flash", client=_FakeGenaiClient())
+    assert p.name == "gemini_3.5-flash"
+    assert p.model == "gemini-3.5-flash"  # short form reconstructed to the real id
     d = p.describe()
     assert d["stt"] is True and d["tts"] is False and d["streaming"] is False
     assert "da" in d["languages"] and "en" in d["languages"]
 
 
 def test_model_id_accepts_full_form_too():
-    # passing the full "gemini-2.5-flash" must not double-prefix
-    p = GeminiSTTProvider(model="gemini-2.5-flash", client=_FakeGenaiClient())
-    assert p.model == "gemini-2.5-flash"
-    assert p.name == "gemini_2.5-flash"
+    # passing the full "gemini-3.5-flash" must not double-prefix
+    p = GeminiSTTProvider(model="gemini-3.5-flash", client=_FakeGenaiClient())
+    assert p.model == "gemini-3.5-flash"
+    assert p.name == "gemini_3.5-flash"
 
 
 def test_transcribe_sends_audio_and_grounding_prompt():
     client = _FakeGenaiClient("the trajectory is steep")
-    p = GeminiSTTProvider(model="2.5-flash", client=client)
+    p = GeminiSTTProvider(model="3.5-flash", client=client)
     out = asyncio.run(p.transcribe(b"RIFF....wavbytes", "audio/wav", "da", None))
     assert out == "the trajectory is steep"
     call = client.aio.models.calls[0]
-    assert call.model == "gemini-2.5-flash"
+    assert call.model == "gemini-3.5-flash"
     # contents = [audio Part, grounding prompt]
     assert len(call.contents) == 2
     audio_part, prompt = call.contents
@@ -98,7 +98,21 @@ def test_provider_error_wrapped_as_runtimeerror():
 
 
 def test_registry_builds_gemini_stt_from_name():
-    p = _build_stt("gemini_2.5-flash")
+    # explicit override: VOICE_STT_PROVIDER=gemini_<model>
+    p = _build_stt("gemini_3.5-flash")
     assert isinstance(p, GeminiSTTProvider)
-    assert p.name == "gemini_2.5-flash"
-    assert p.model == "gemini-2.5-flash"
+    assert p.name == "gemini_3.5-flash"
+    assert p.model == "gemini-3.5-flash"
+
+
+def test_bare_gemini_uses_config_default_model():
+    # VOICE_STT_PROVIDER=gemini -> model from config/models.yaml platform_default.
+    # The point of the RAQ-1 config-driven fix: no model version pinned in STT code.
+    from config.models import load_models_config
+
+    cfg = load_models_config()
+    expected = next(m.api_name for m in cfg.models if m.id == cfg.platform_default)
+    p = _build_stt("gemini")
+    assert isinstance(p, GeminiSTTProvider)
+    assert p.name == "gemini"
+    assert p.model == expected

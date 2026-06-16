@@ -17,11 +17,11 @@ from voice.providers.null import NullTTSProvider
 
 def test_skill_voice_config_parses_from_camel_case_aliases():
     cfg = SkillVoiceConfig.model_validate(
-        {"ttsProvider": "gcp_wavenet", "ttsVoice": "da-DK-Wavenet-A", "sttProvider": "gemini_2.5-flash", "rate": 0.9}
+        {"ttsProvider": "gcp_wavenet", "ttsVoice": "da-DK-Wavenet-A", "sttProvider": "gemini", "rate": 0.9}
     )
     assert cfg.tts_provider == "gcp_wavenet"
     assert cfg.tts_voice == "da-DK-Wavenet-A"
-    assert cfg.stt_provider == "gemini_2.5-flash"
+    assert cfg.stt_provider == "gemini"
     assert cfg.rate == 0.9
 
 

@@ -115,6 +115,10 @@ def _build_stt(name: str) -> STTProvider:
         return NullSTTProvider()
     if name == "null":
         return NullSTTProvider()
+    if name == "gemini":
+        from voice.providers.gemini_stt import GeminiSTTProvider
+
+        return GeminiSTTProvider()  # model from config/models.yaml platform_default
     if name.startswith("gemini_"):
         from voice.providers.gemini_stt import GeminiSTTProvider
 
@@ -122,4 +126,4 @@ def _build_stt(name: str) -> STTProvider:
     # Cloud STT (gcp_*) removed 2026-06-16 — the demo + spike showed it garbled
     # the Danish/English classroom audio; Gemini is the only STT engine. There is
     # no fallback: on a Gemini outage the audio is retained and re-transcribed.
-    raise ValueError(f"Unknown STT provider {name!r}. Known: disabled, null, gemini_<model>.")
+    raise ValueError(f"Unknown STT provider {name!r}. Known: disabled, null, gemini, gemini_<model>.")

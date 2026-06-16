@@ -232,7 +232,7 @@ steps:
       # Danish/English classroom audio; Gemini transcribes it accurately at
       # ~8-16x lower cost. Already wired via Vertex (tutor + narrative use it),
       # so no extra IAM. UI still gated per-class on voiceInputEnabled.
-      - '--set-env-vars=VOICE_STT_PROVIDER=gemini_2.5-flash'
+      - '--set-env-vars=VOICE_STT_PROVIDER=gemini'
 
   # --- Post-deploy smoke: fail the build if any critical endpoint is not 200 ---
   # Per CLAUDE.md: no feature lands with manual-only verification. This step
