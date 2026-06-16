@@ -1,4 +1,4 @@
-.PHONY: dev dev-local dev-recompile dev-status dev-stop proxy-check logs cloud-logs cloud-errors cloud-build verify-chat-logs smoke-session-persistence smoke-chat-resume smoke-teacher-cli help cli-install cli-reinstall cli-uninstall cli-doctor cli-selftest-mock cli-selftest-live cli-selftest seed reset-group-state provision-curriculum-rag seed-curriculum
+.PHONY: dev dev-local dev-recompile dev-status dev-stop proxy-check logs cloud-logs cloud-errors cloud-build verify-chat-logs smoke-session-persistence smoke-chat-resume smoke-teacher-cli help cli-install cli-reinstall cli-uninstall cli-doctor cli-selftest-mock cli-selftest-live cli-selftest seed reset-group-state provision-curriculum-rag seed-curriculum backfill-curriculum-content
 
 # Seed SKILL.md templates -> Firestore after a deploy that changed any template
 # (avatar, multimodalInput, persona, tools, accessControl, instructions). A code
@@ -37,6 +37,15 @@ provision-curriculum-rag:
 #   make seed-curriculum ENV=dev LEVELS="A"      # one level
 seed-curriculum:
 	@CURRICULUM_LEVELS="$(LEVELS)" scripts/seed-curriculum.sh $(ENV)
+
+# Backfill curriculum_content for SHARED docs seeded before 1.1.33 M3 (so the
+# læreplan/vejledning are readable in the viewer, not just retrievable). New
+# ingests store content automatically — this only fixes the historical gap.
+# Idempotent (skips docs that already have content). Add ARGS="--dry-run" first.
+#   make backfill-curriculum-content ENV=dev ARGS="--dry-run"
+#   make backfill-curriculum-content ENV=dev
+backfill-curriculum-content:
+	@scripts/backfill-curriculum-content.sh $(ENV) $(ARGS)
 
 # Launch backend (port 1956) + frontend (port 3000) for local development.
 # Logs stream to stdout; Ctrl-C stops both.
