@@ -110,6 +110,54 @@ def test_missing_preamble_file_falls_back_to_passthrough(monkeypatch):
     assert inject_interaction_style_preamble(BASE, ACTIVITY) == BASE
 
 
+# --- class-persona style inheritance (the avatar/voice/style coherence fix) ---
+
+
+def _seed_class(class_id: str, owner: str, persona: str | None) -> None:
+    """Write a Class doc straight to the in-memory store with a default persona.
+    (Bypasses Class.create_for_teacher — we only need the persona + namespace.)"""
+    from db.firestore import set_document
+
+    set_document(
+        "classes",
+        class_id,
+        {
+            "classId": class_id,
+            "ownerUid": owner,
+            "name": "C",
+            "tagNamespace": f"class:{owner}:{class_id}",
+            "persona": persona,
+            "createdAt": "2026-06-16T00:00:00+00:00",
+            "updatedAt": "2026-06-16T00:00:00+00:00",
+        },
+    )
+
+
+def test_class_persona_style_applies_without_activity_config():
+    """A class default persona's teaching style must reach the tutor even when NO
+    ActivityConfig was ever saved for the activity — the avatar and voice already
+    resolve the class persona regardless, and the style must follow or it drifts
+    (avatar switches with the persona, tutor stays socratic)."""
+    _seed_class("cls-1", "teacher-1", persona="astrid")  # astrid -> rigorous
+    tags = ["class:teacher-1:cls-1"]
+
+    out = inject_interaction_style_preamble(BASE, "never-saved-activity", group_tags=tags)
+
+    assert out.startswith(BASE)
+    assert "exam" in out.lower()  # rigorous preamble injected
+
+
+def test_no_class_persona_and_no_config_is_passthrough():
+    """A class that has not picked a persona keeps the untouched socratic default
+    (we do NOT force the global-default persona's style on unconfigured classes)."""
+    _seed_class("cls-2", "teacher-1", persona=None)
+    tags = ["class:teacher-1:cls-2"]
+
+    out = inject_interaction_style_preamble(BASE, "never-saved-activity", group_tags=tags)
+
+    assert out == BASE
+
+
 # --- list_interaction_styles: teacher-facing transparency (1.1.32) ---
 
 

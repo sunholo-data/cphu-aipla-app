@@ -134,15 +134,24 @@ def resolve_voice(user: User, skill_id: str | None, skill: object | None) -> Res
     of truth for the voice chain.
 
     Precedence (most specific wins; each tier only fills what's still unset):
-      1. Explicit per-class voice override (the "Custom voice (advanced)" panel)
-      2. **Persona** — a persona is a complete bundle (avatar + name + voice +
-         style). Resolved via the SAME chain as the chat avatar
-         (``activity persona > class persona > global default``), so picking any
-         persona — including the global default — sets the spoken voice too.
-      3. Skill author's ``SkillConfig.voice`` (voice name + language only)
+      1. **Explicitly-chosen persona** — a persona is a complete identity bundle
+         (avatar + name + voice + style). When an activity OR the class names a
+         persona, its voice is authoritative; it can never be spoken over by a
+         legacy class voice override. Resolved via the SAME chain as the chat
+         avatar (``activity persona > class persona``).
+      2. Per-class voice override (the "Custom voice (advanced)" panel) — the
+         escape hatch, and it applies ONLY when no persona was explicitly chosen.
+         Picking a persona clears this override at write time
+         (``update_class_persona``); this guard is belt-and-suspenders for legacy
+         classes that still carry both.
+      3. The resolved persona's voice — incl. the global default persona — fills
+         any remaining gap (so a class with no explicit identity still speaks in
+         the platform default voice rather than going silent).
+      4. Skill author's ``SkillConfig.voice`` (voice name + language only).
 
     The env/registry default is applied later by ``get_tts`` when ``provider``
-    is still None.
+    is still None. The voice direction (Style Instructions) always comes from the
+    resolved persona, regardless of which voice-name tier won.
     """
     cls = _class_for_user(user)
     class_voice = cls.voice if cls is not None else None
@@ -152,25 +161,34 @@ def resolve_voice(user: User, skill_id: str | None, skill: object | None) -> Res
     if skill_id:
         cfg = resolve_active_config(skill_id, group_tags=user.group_tags)
         activity_persona = cfg.persona if cfg is not None else None
-    # Same chain (incl. global default) as the avatar — persona is a full bundle.
+    # An explicit persona id (activity or class) makes the persona authoritative;
+    # absent one we fall back to the global default (which must NOT override the
+    # advanced voice panel — that's the no-identity escape hatch).
+    explicit_persona = activity_persona or class_persona
     persona = resolve_persona_chain(activity_persona, class_persona)
     persona_voice = persona.voice if persona is not None else None
 
     rv = ResolvedVoice()
-    # 1. Explicit class override (advanced) wins.
-    if class_voice is not None:
-        rv.provider = class_voice.provider
-        rv.voice = class_voice.voice
-        rv.lang = class_voice.language
-    # 2. Persona voice fills gaps. The persona also supplies the voice direction
-    #    (Style Instructions) — applied only by the Gemini-TTS tier.
+    # 1. Explicitly-chosen persona wins outright.
+    if explicit_persona and persona_voice is not None:
+        rv.provider = persona_voice.tts_provider
+        rv.voice = persona_voice.tts_voice
+        rv.lang = persona_voice.language
+    # 2. Class override (advanced) — only when no persona was explicitly chosen.
+    if class_voice is not None and not explicit_persona:
+        rv.provider = rv.provider or class_voice.provider
+        rv.voice = rv.voice or class_voice.voice
+        rv.lang = rv.lang or class_voice.language
+    # 3. Resolved persona voice (incl. global default) fills any remaining gap.
     if persona_voice is not None:
         rv.provider = rv.provider or persona_voice.tts_provider
         rv.voice = rv.voice or persona_voice.tts_voice
         rv.lang = rv.lang or persona_voice.language
+    # The voice direction (Style Instructions) is always the resolved persona's —
+    # applied only by the Gemini-TTS tier.
     if persona is not None:
         rv.prompt = getattr(persona, "voice_prompt", None)
-    # 3. Skill voice fills the voice name + language (not provider — the skill's
+    # 4. Skill voice fills the voice name + language (not provider — the skill's
     #    provider is handled by get_tts when no override is set).
     if skill is not None:
         sv = getattr(skill, "voice", None)

@@ -76,6 +76,24 @@ def resolve_active_config(
     )
 
 
+def class_id_from_group_tags(group_tags: Iterable[str] | None) -> str | None:
+    """Recover the bound ``class_id`` from a student's verified ``group_tags``.
+
+    Returns the ``class_id`` carried by the first ``class:<owner>:<id>`` tag
+    (the same trusted, HS256-signed binding ``resolve_active_config`` reads),
+    else None. Exposed so the interaction-style path can resolve the class
+    persona's teaching style even when NO ``ActivityConfig`` has been saved — the
+    avatar and voice already fall back to the class persona regardless of an
+    activity config, and the teaching style must use the same fallback or it
+    silently drifts.
+    """
+    for tag in group_tags or ():
+        m = _CLASS_TAG_RE.match(tag)
+        if m:
+            return m.group(2)
+    return None
+
+
 def inject_teacher_focus(
     instructions: str,
     activity_id: str,
@@ -117,6 +135,7 @@ def inject_teacher_focus(
 
 __all__ = [
     "LOCAL_MODE_DEMO_CLASS_ID",
+    "class_id_from_group_tags",
     "inject_teacher_focus",
     "resolve_active_config",
 ]

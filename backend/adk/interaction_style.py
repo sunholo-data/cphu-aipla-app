@@ -26,7 +26,7 @@ from collections.abc import Iterable
 from functools import lru_cache
 from pathlib import Path
 
-from adk.teacher_focus import resolve_active_config
+from adk.teacher_focus import class_id_from_group_tags, resolve_active_config
 
 log = logging.getLogger(__name__)
 
@@ -63,8 +63,14 @@ def inject_interaction_style_preamble(
 ) -> str:
     """Append the chosen interaction-style override preamble to a tutor prompt.
 
+    The style is resolved from (most specific first): the activity's own
+    ``interaction_style``, else the class default persona's style (looked up via
+    the student's group->class binding, so it applies even with NO saved
+    ``ActivityConfig`` — matching how the avatar/voice resolve the persona).
+
     No-op (returns ``instructions`` unchanged) when:
-      - no ``ActivityConfig`` resolves (unconfigured activity), or
+      - no activity config AND no class persona resolves (unconfigured, no
+        identity chosen), or
       - the resolved style is ``socratic`` (the untouched default), or
       - the style is unknown / its preamble file is missing.
 
@@ -79,15 +85,24 @@ def inject_interaction_style_preamble(
     # explicit persona, inherit THIS class's default persona's style (so picking
     # one persona at the class level sets avatar + voice + style together). An
     # activity persona already wrote its style into cfg.interaction_style at save.
-    if cfg is not None and not cfg.persona:
-        from db.classes import get_class
-        from personas.loader import load_persona
+    #
+    # The avatar and voice resolve the class persona via the group->class binding
+    # REGARDLESS of whether an ActivityConfig was ever saved; the teaching style
+    # must use the same fallback or it silently drifts (the avatar switches with
+    # the class persona but the tutor keeps behaving socratically). So resolve the
+    # class from cfg.class_id when a config exists, else straight from the
+    # student's verified group tags.
+    if cfg is None or not cfg.persona:
+        class_id = cfg.class_id if cfg is not None else class_id_from_group_tags(group_tags)
+        if class_id:
+            from db.classes import get_class
+            from personas.loader import load_persona
 
-        cls = get_class(cfg.class_id)
-        if cls is not None and cls.persona:
-            p = load_persona(cls.persona)
-            if p is not None:
-                style = p.interaction_style
+            cls = get_class(class_id)
+            if cls is not None and cls.persona:
+                p = load_persona(cls.persona)
+                if p is not None:
+                    style = p.interaction_style
 
     if style == _PASSTHROUGH:
         return instructions

@@ -96,6 +96,41 @@ class TestUpdateClass:
         assert reloaded.description == "A new description"
 
 
+class TestPersonaClearsVoiceOverride:
+    """Picking a persona is a complete identity choice (avatar + name + voice +
+    style); it must clear any legacy per-class voice override so the override
+    can't keep speaking over the persona's voice (the avatar-switched-but-voice-
+    stayed bug). Clearing the persona (None) keeps the override as the escape
+    hatch for classes that have not picked an identity."""
+
+    def test_picking_persona_clears_voice_override(self) -> None:
+        cls = _create()
+        classes_db.update_class_voice_settings(
+            cls.class_id, language="da", voice="da-DK-Chirp3-HD-Charon", provider="gcp_chirp3hd"
+        )
+        assert classes_db.get_class(cls.class_id).voice is not None  # type: ignore[union-attr]
+
+        classes_db.update_class_persona(cls.class_id, "astrid")
+
+        reloaded = classes_db.get_class(cls.class_id)
+        assert reloaded is not None
+        assert reloaded.persona == "astrid"
+        assert reloaded.voice is None  # legacy override cleared
+
+    def test_clearing_persona_preserves_voice_override(self) -> None:
+        cls = _create()
+        classes_db.update_class_voice_settings(
+            cls.class_id, language="da", voice="da-DK-Wavenet-C", provider="gcp_wavenet"
+        )
+
+        classes_db.update_class_persona(cls.class_id, None)  # "default" — no identity chosen
+
+        reloaded = classes_db.get_class(cls.class_id)
+        assert reloaded is not None
+        assert reloaded.persona is None
+        assert reloaded.voice is not None  # escape hatch preserved
+
+
 class TestLessons:
     def test_add_lessons_idempotent(self) -> None:
         cls = _create()

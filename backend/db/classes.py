@@ -179,8 +179,20 @@ def get_class_for_group(group_id: str | None) -> Class | None:
 
 
 def update_class_persona(class_id: str, persona_id: str | None) -> None:
-    """Set (or clear, with None) the per-class default persona."""
-    update_document(_COLLECTION, class_id, {"persona": persona_id, "updatedAt": _utcnow().isoformat()})
+    """Set (or clear, with None) the per-class default persona.
+
+    Picking an explicit persona ALSO clears any per-class voice override (the
+    "Custom voice (advanced)" panel). A persona is a complete identity bundle
+    (avatar + name + voice + teaching style), so a stale override must not keep
+    speaking over the chosen persona's voice — the bug where switching persona
+    changed the avatar but the spoken voice stayed the old override. Clearing the
+    persona (``None``) leaves any override in place: the advanced panel is the
+    escape hatch for classes that have NOT picked an identity.
+    """
+    patch: dict = {"persona": persona_id, "updatedAt": _utcnow().isoformat()}
+    if persona_id:
+        patch["voice"] = None
+    update_document(_COLLECTION, class_id, patch)
 
 
 def update_class_capabilities(

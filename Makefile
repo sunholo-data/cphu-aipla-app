@@ -1,4 +1,4 @@
-.PHONY: dev dev-local dev-recompile dev-status dev-stop proxy-check logs cloud-logs cloud-errors cloud-build verify-chat-logs smoke-session-persistence smoke-chat-resume smoke-teacher-cli help cli-install cli-reinstall cli-uninstall cli-doctor cli-selftest-mock cli-selftest-live cli-selftest seed reset-group-state provision-curriculum-rag seed-curriculum backfill-curriculum-content
+.PHONY: dev dev-local dev-recompile dev-status dev-stop proxy-check logs cloud-logs cloud-errors cloud-build verify-chat-logs smoke-session-persistence smoke-chat-resume smoke-teacher-cli help cli-install cli-reinstall cli-uninstall cli-doctor cli-selftest-mock cli-selftest-live cli-selftest seed reset-group-state provision-curriculum-rag seed-curriculum backfill-curriculum-content migrate-clear-persona-voice-override
 
 # Seed SKILL.md templates -> Firestore after a deploy that changed any template
 # (avatar, multimodalInput, persona, tools, accessControl, instructions). A code
@@ -46,6 +46,14 @@ seed-curriculum:
 #   make backfill-curriculum-content ENV=dev
 backfill-curriculum-content:
 	@scripts/backfill-curriculum-content.sh $(ENV) $(ARGS)
+
+# Clear stale per-class voice overrides on classes that already name a persona,
+# so the persona's voice takes effect (fixes "switched persona, avatar changed
+# but the spoken voice stayed the old override"). Idempotent. Dry-run first.
+#   make migrate-clear-persona-voice-override ENV=dev ARGS="--dry-run"
+#   make migrate-clear-persona-voice-override ENV=dev
+migrate-clear-persona-voice-override:
+	@scripts/migrate-clear-persona-voice-override.sh $(ENV) $(ARGS)
 
 # Launch backend (port 1956) + frontend (port 3000) for local development.
 # Logs stream to stdout; Ctrl-C stops both.

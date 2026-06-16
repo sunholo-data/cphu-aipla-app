@@ -159,6 +159,57 @@ def test_config_persona_voice_overrides_class_and_skill(client, monkeypatch):
     assert seen["skill"].voice.tts_provider == "gcp_gemini"
 
 
+def test_config_explicit_persona_beats_legacy_class_voice_override(client, monkeypatch):
+    """Regression (avatar switched but voice didn't): an explicitly-chosen
+    persona's voice must win over a legacy per-class voice override. A class with
+    persona=astrid and a stale male Charon override speaks in astrid's Kore."""
+    from types import SimpleNamespace
+
+    monkeypatch.setattr("protocols.voice_routes.get_tts", lambda skill=None: _fake_tts("gcp_chirp3hd"))
+    monkeypatch.setattr("protocols.voice_routes.get_stt", lambda skill=None: _fake_stt("disabled"))
+    monkeypatch.setattr("protocols.voice_routes.get_skill", lambda sid: None)
+    # Class names an explicit persona AND carries a legacy male voice override.
+    cls = SimpleNamespace(
+        persona="astrid",
+        voice=SimpleNamespace(provider="gcp_chirp3hd", voice="da-DK-Chirp3-HD-Charon", language="da"),
+        voice_input_enabled=False,
+        recording_enabled=False,
+    )
+    monkeypatch.setattr("protocols.voice_routes.get_class_for_group", lambda gid: cls)
+    monkeypatch.setattr("protocols.voice_routes.resolve_active_config", lambda sid, group_tags=None: None)
+
+    resp = client.get("/api/voice/config?skill_id=problem-set-hints")
+    assert resp.status_code == 200
+    data = resp.json()
+    assert data["tts"]["voice"] == "Kore"  # astrid's persona voice, not Charon
+
+
+def test_config_class_voice_override_applies_when_no_persona(client, monkeypatch):
+    """The "Custom voice (advanced)" override is the escape hatch: with NO
+    explicit persona it still applies, beating even the global default persona's
+    voice (so a class that never picked an identity keeps its chosen voice)."""
+    from types import SimpleNamespace
+
+    monkeypatch.setattr("protocols.voice_routes.get_tts", lambda skill=None: _fake_tts("gcp_wavenet"))
+    monkeypatch.setattr("protocols.voice_routes.get_stt", lambda skill=None: _fake_stt("disabled"))
+    monkeypatch.setattr("protocols.voice_routes.get_skill", lambda sid: None)
+    cls = SimpleNamespace(
+        persona=None,  # no explicit identity → advanced override applies
+        voice=SimpleNamespace(provider="gcp_wavenet", voice="da-DK-Wavenet-C", language="da"),
+        voice_input_enabled=False,
+        recording_enabled=False,
+    )
+    monkeypatch.setattr("protocols.voice_routes.get_class_for_group", lambda gid: cls)
+    monkeypatch.setattr("protocols.voice_routes.resolve_active_config", lambda sid, group_tags=None: None)
+
+    resp = client.get("/api/voice/config?skill_id=concept-x")
+    assert resp.status_code == 200
+    data = resp.json()
+    # Override wins over the resolved global-default persona voice.
+    assert data["tts"]["voice"] == "da-DK-Wavenet-C"
+    assert data["tts"]["language"] == "da"
+
+
 # --- POST /api/voice/tts/synthesize ---
 
 
