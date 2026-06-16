@@ -309,16 +309,28 @@ def list_sessions_for_group_codes(
     """
     if not group_codes:
         return []
+    from auth.group_id_auth import anon_owner_uid_match
+
     seen: set[str] = set()
     results: list[ChatSessionIndex] = []
     for code in group_codes:
-        cleaned = code.replace("-", "")
-        lo = f"anon-{cleaned}-"
-        hi = lo + "￿"
-        rows = query_documents(
-            _COLLECTION,
-            filters=[("ownerUid", ">=", lo), ("ownerUid", "<", hi)],
-            limit=page_size,
+        # Match BOTH the current deterministic uid (anon-{cleaned}, no suffix)
+        # AND legacy suffixed uids (anon-{cleaned}-{hex}). Querying only the
+        # legacy prefix dropped every session under the new exact uid →
+        # "No activity yet" on the class page despite live history.
+        exact, lo, hi = anon_owner_uid_match(code)
+        rows = list(
+            query_documents(
+                _COLLECTION,
+                filters=[("ownerUid", "==", exact)],
+                limit=page_size,
+            )
+        ) + list(
+            query_documents(
+                _COLLECTION,
+                filters=[("ownerUid", ">=", lo), ("ownerUid", "<", hi)],
+                limit=page_size,
+            )
         )
         for row in rows:
             try:

@@ -315,6 +315,26 @@ def _synthesize_uid(group_id: str) -> str:
     return f"anon-{cleaned}"
 
 
+def anon_owner_uid_match(group_id: str) -> tuple[str, str, str]:
+    """Firestore ``ownerUid`` match bounds for an anonymous group's sessions.
+
+    Returns ``(exact, lo, hi)``:
+      - ``exact`` — the current deterministic uid ``anon-{cleaned}`` (no
+        suffix); match with ``ownerUid == exact``.
+      - ``[lo, hi)`` — the LEGACY ``anon-{cleaned}-{random_hex}`` range (the
+        per-join suffixed uids written before the 2026-06-15 deterministic-uid
+        change); match with ``ownerUid >= lo AND ownerUid < hi``.
+
+    Callers must query BOTH and merge, so sessions written under either scheme
+    are found. Using only the legacy ``anon-{cleaned}-`` prefix (the old code)
+    silently drops every session under the new exact uid — which is what broke
+    the teacher's recent-sessions, per-group "last active", reports + export
+    after the uid change while chat history (a separate pointer) kept working.
+    """
+    exact = _synthesize_uid(group_id)
+    return exact, f"{exact}-", f"{exact}-￿"
+
+
 def _check_group_active(record: GroupRecord) -> None:
     """Common gate logic: revoked? expired? Raise typed exception."""
     if record.group_id in _state.revoked_group_ids:

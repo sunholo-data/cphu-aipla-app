@@ -180,3 +180,39 @@ def test_find_latest_session_for_group_picks_most_recent():
     found = find_latest_session_for_group("bold-kazoo-87")
     assert found is not None
     assert found.session_id == "late"
+
+
+def test_find_latest_session_for_group_matches_new_deterministic_uid():
+    """Regression (2026-06-16): the deterministic uid ``anon-{cleaned}`` (NO
+    suffix) must be found. The old ``anon-{cleaned}-`` prefix range excluded it
+    — which is why the teacher dashboard showed 'No activity yet' + empty
+    reports despite live chat history."""
+    when = datetime(2026, 6, 16, 9, 0, 0, tzinfo=UTC)
+    _persist_index(session_id="new", owner_uid="anon-boldkazoo87", last_at=when)
+    found = find_latest_session_for_group("bold-kazoo-87")
+    assert found is not None
+    assert found.session_id == "new"
+
+
+def test_list_sessions_for_group_codes_matches_new_deterministic_uid():
+    """Same regression on the teacher recent-sessions path (the 'No activity
+    yet' rows on the class page)."""
+    from db.chat_sessions import list_sessions_for_group_codes
+
+    when = datetime(2026, 6, 16, 9, 0, 0, tzinfo=UTC)
+    _persist_index(session_id="s-new", owner_uid="anon-woolykettle61", last_at=when)
+    rows = list_sessions_for_group_codes(["wooly-kettle-61"])
+    assert "s-new" in {r.session_id for r in rows}
+    # group_code is backfilled to the queried code for display.
+    assert any(r.group_code == "wooly-kettle-61" for r in rows)
+
+
+def test_anon_owner_uid_match_brackets_both_schemes():
+    from auth.group_id_auth import anon_owner_uid_match
+
+    exact, lo, hi = anon_owner_uid_match("wooly-kettle-61")
+    assert exact == "anon-woolykettle61"  # new deterministic uid (no suffix)
+    assert lo == "anon-woolykettle61-"  # legacy suffixed range start
+    # The new exact uid is NOT inside the legacy range — that's the original
+    # bug, and exactly why callers must ALSO query `ownerUid == exact`.
+    assert not (lo <= exact < hi)

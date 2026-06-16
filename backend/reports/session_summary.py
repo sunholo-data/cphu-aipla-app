@@ -150,7 +150,10 @@ async def summarize_session(session_id: str) -> SessionSummary | None:
 
     return SessionSummary(
         sessionId=idx.session_id,
-        groupCode=_group_code_from_owner_uid(idx.owner_uid),
+        # Prefer the index's stored group_code — the new deterministic uid
+        # strips hyphens (anon-woolykettle61) and can't be reversed to the
+        # hyphenated code; the uid parse is a legacy fallback only.
+        groupCode=idx.group_code or _group_code_from_owner_uid(idx.owner_uid),
         activityId=idx.skill_id,
         startedAt=idx.first_message_at,
         endedAt=idx.archived_at,
@@ -271,13 +274,24 @@ def find_latest_session_for_group(group_code: str) -> ChatSessionIndex | None:
     Firestore supports prefix matching with the ``[>=, <]`` range pattern;
     we sort in Python by ``lastMessageAt`` so the query needs no composite index.
     """
-    cleaned = group_code.replace("-", "")
-    lo = f"anon-{cleaned}-"
-    hi = lo + "￿"  # high-codepoint sentinel
-    rows = query_documents(
-        "chat_sessions",
-        filters=[("ownerUid", ">=", lo), ("ownerUid", "<", hi)],
-        limit=100,
+    # Match BOTH the current deterministic uid (anon-{cleaned}, no suffix) AND
+    # legacy suffixed uids (anon-{cleaned}-{hex}). Querying only the legacy
+    # prefix missed every session under the new exact uid → empty reports.
+    from auth.group_id_auth import anon_owner_uid_match
+
+    exact, lo, hi = anon_owner_uid_match(group_code)
+    rows = list(
+        query_documents(
+            "chat_sessions",
+            filters=[("ownerUid", "==", exact)],
+            limit=100,
+        )
+    ) + list(
+        query_documents(
+            "chat_sessions",
+            filters=[("ownerUid", ">=", lo), ("ownerUid", "<", hi)],
+            limit=100,
+        )
     )
     if not rows:
         return None
