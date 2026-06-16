@@ -79,7 +79,9 @@ describe("DocumentsPanel", () => {
       />,
     );
     fireEvent.click(screen.getByRole("button", { name: /A-level kinematics/i }));
-    expect(fetchCurriculumContent).toHaveBeenCalledWith("d1", "act-1");
+    // Student workbench MUST use the anonymous-group token, not teacher auth
+    // (else 401 — a student has no Firebase identity).
+    expect(fetchCurriculumContent).toHaveBeenCalledWith("d1", "act-1", { as: "student" });
     await waitFor(() =>
       expect(screen.getByText(/Newton's second law/)).toBeInTheDocument(),
     );

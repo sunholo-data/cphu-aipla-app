@@ -1,15 +1,19 @@
 /**
  * Curriculum-library API client (1.1.25 M4).
  *
- * Wraps the two teacher-facing endpoints behind the Next proxy:
- *   GET  /api/curriculum            — browse the library (ACL: shared + own)
- *   POST /api/curriculum/ingest     — upload a doc (AILANG Parse → RAG corpus)
+ * Behind the Next proxy:
+ *   GET  /api/curriculum            — browse the library (teacher-only)
+ *   POST /api/curriculum/ingest     — upload a doc (teacher-only)
+ *   GET  /api/curriculum/{id}/content — read parsed text (DUAL-audience)
  *
- * Both are teacher-only (anonymous-group students get 403). Every call uses
- * the Firebase teacher token via `fetchWithTeacherAuth`.
+ * Browse + ingest are teacher-only (Firebase token via `fetchWithTeacherAuth`).
+ * The content endpoint serves BOTH a teacher (own/shared docs) AND a student
+ * (anonymous-group token, ACL'd to a cited + student-visible doc in their active
+ * activity) — so its caller picks the auth via `opts.as`. A student using the
+ * teacher token would 401 (no Firebase identity); see fetchCurriculumContent.
  */
 
-import { fetchWithTeacherAuth as fetchWithAuth } from "@/lib/apiClient";
+import { fetchWithAuth, fetchWithTeacherAuth } from "@/lib/apiClient";
 import type { StxLevel } from "@/lib/teacherApi";
 
 /** One curriculum document's metadata (mirrors backend CurriculumDoc). */
@@ -61,7 +65,7 @@ export async function browseCurriculum(
   if (params.topic) qs.set("topic", params.topic);
   if (params.scope) qs.set("scope", params.scope);
   const suffix = qs.toString() ? `?${qs.toString()}` : "";
-  const resp = await fetchWithAuth(`/api/proxy/api/curriculum${suffix}`);
+  const resp = await fetchWithTeacherAuth(`/api/proxy/api/curriculum${suffix}`);
   const body = await readJson<{ docs: CurriculumDoc[] }>(resp, "browse curriculum");
   return body.docs;
 }
@@ -98,7 +102,7 @@ export async function ingestCurriculum(
   if (params.topic) form.set("topic", params.topic);
   // shared=false, copyright_status=teacher_owned are the backend defaults.
 
-  const resp = await fetchWithAuth(`/api/proxy/api/curriculum/ingest`, {
+  const resp = await fetchWithTeacherAuth(`/api/proxy/api/curriculum/ingest`, {
     method: "POST",
     body: form,
   });
@@ -126,13 +130,20 @@ export interface DocContent {
 
 /** Fetch a curriculum doc's parsed text for display. `activityId` is required
  *  for the student path (ACL: the doc must be cited + student-visible in their
- *  active activity); teachers omit it (read their own / shared). */
+ *  active activity); teachers omit it (read their own / shared).
+ *
+ *  `opts.as` selects the auth token: `"student"` sends the anonymous-group token
+ *  (the workbench viewer), `"teacher"` (default) sends the Firebase token (the
+ *  activity editor). Sending the wrong one 401s — a student has no Firebase
+ *  identity, a teacher has no group session. */
 export async function fetchCurriculumContent(
   docId: string,
   activityId?: string,
+  opts: { as?: "teacher" | "student" } = {},
 ): Promise<DocContent> {
   const qs = activityId ? `?activityId=${encodeURIComponent(activityId)}` : "";
-  const resp = await fetchWithAuth(
+  const doFetch = opts.as === "student" ? fetchWithAuth : fetchWithTeacherAuth;
+  const resp = await doFetch(
     `/api/proxy/api/curriculum/${encodeURIComponent(docId)}/content${qs}`,
   );
   return readJson<DocContent>(resp, "load document content");

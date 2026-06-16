@@ -58,7 +58,7 @@ export function DocumentsPanel({ materials, images, activityId }: DocumentsPanel
     setOpenDoc({ docId: m.docId, title });
     setView({ kind: "loading" });
     try {
-      const content = await fetchCurriculumContent(m.docId, activityId);
+      const content = await fetchCurriculumContent(m.docId, activityId, { as: "student" });
       setView({ kind: "ready", content });
     } catch (e) {
       const msg =
