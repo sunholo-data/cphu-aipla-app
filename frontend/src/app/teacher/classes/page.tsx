@@ -13,7 +13,6 @@ import {
   Plus,
   Settings,
   Trash2,
-  UserRound,
   Users,
 } from "lucide-react";
 
@@ -235,11 +234,15 @@ export default function TeacherClassesPage() {
   // explicit persona inherits the global default; mark that so it reads as
   // inherited rather than chosen.
   const personaLabelForClass = useCallback(
-    (cls: ClassPayload): { name: string; inherited: boolean } => {
+    (cls: ClassPayload): { name: string; inherited: boolean; avatar: string } => {
       const explicit = cls.persona ?? null;
       const id = explicit ?? defaultPersonaId;
-      const name = (id && personaById.get(id)?.name) || "Default tutor";
-      return { name, inherited: !explicit };
+      const p = id ? personaById.get(id) : undefined;
+      return {
+        name: p?.name || "Default tutor",
+        inherited: !explicit,
+        avatar: p?.avatar || "",
+      };
     },
     [personaById, defaultPersonaId],
   );
@@ -507,6 +510,28 @@ export default function TeacherClassesPage() {
   );
 }
 
+function PersonaAvatar({ name, avatar }: { name: string; avatar?: string }) {
+  if (avatar) {
+    // eslint-disable-next-line @next/next/no-img-element
+    return (
+      <img
+        src={avatar}
+        alt=""
+        aria-hidden
+        className="h-6 w-6 shrink-0 rounded-full object-cover"
+      />
+    );
+  }
+  return (
+    <span
+      aria-hidden
+      className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-indigo-100 text-[10px] font-bold text-indigo-700"
+    >
+      {name[0]?.toUpperCase() ?? "?"}
+    </span>
+  );
+}
+
 function ClassRow({
   cls,
   activities,
@@ -521,7 +546,7 @@ function ClassRow({
 }: {
   cls: ClassPayload;
   activities: string[];
-  persona: { name: string; inherited: boolean };
+  persona: { name: string; inherited: boolean; avatar: string };
   insightsSummary: InsightsClassSummary | undefined;
   insightsRequested?: boolean;
   insightsLoading?: boolean;
@@ -569,8 +594,8 @@ function ClassRow({
         )}
       </td>
       <td className="px-3 py-3 text-muted-foreground">
-        <span className="inline-flex items-center gap-1">
-          <UserRound className="h-3.5 w-3.5 shrink-0" aria-hidden="true" />
+        <span className="inline-flex items-center gap-1.5">
+          <PersonaAvatar name={persona.name} avatar={persona.avatar} />
           {persona.name}
           {persona.inherited ? (
             <span className="text-muted-foreground/60">· default</span>

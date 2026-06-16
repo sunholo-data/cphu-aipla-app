@@ -195,7 +195,7 @@ describe("/teacher/classes — dashboard", () => {
           id: "mikkel",
           name: "Mikkel",
           title: null,
-          avatar: "",
+          avatar: "/personas/mikkel.webp",
           language: "da",
           interactionStyle: "concise",
           bio: null,
@@ -222,8 +222,12 @@ describe("/teacher/classes — dashboard", () => {
     await waitFor(() =>
       expect(screen.getByRole("link", { name: "Physik 9A" })).toBeInTheDocument(),
     );
-    // The row distinguishes the class by its persona + its activity title.
+    // The row distinguishes the class by its persona (name + avatar) + its
+    // activity title.
     expect(await screen.findByText("Mikkel")).toBeInTheDocument();
+    expect(
+      document.querySelector('img[src="/personas/mikkel.webp"]'),
+    ).toBeInTheDocument();
     expect(await screen.findByText(/Mechanical Waves/)).toBeInTheDocument();
   });
 
