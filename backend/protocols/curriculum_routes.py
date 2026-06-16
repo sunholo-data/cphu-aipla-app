@@ -49,12 +49,48 @@ router = APIRouter(prefix="/api/curriculum", tags=["curriculum"])
 # Plain-text extensions we can read directly (no AILANG Parse needed).
 _PLAINTEXT_EXTENSIONS = {".txt", ".md"}
 
+# 1.1.33 — PDFs go through Gemini multimodal (OCR-capable: handles scanned
+# PDFs too). AILANG Parse's deterministic path doesn't do PDF; Gemini-for-now.
+_PDF_EXTENSIONS = {".pdf"}
+
 # All extensions accepted by this endpoint.
-_ALLOWED_EXTENSIONS = _PLAINTEXT_EXTENSIONS | DETERMINISTIC_EXTENSIONS
+_ALLOWED_EXTENSIONS = _PLAINTEXT_EXTENSIONS | _PDF_EXTENSIONS | DETERMINISTIC_EXTENSIONS
 
 # 1.1.33 M4 — cap the parse preview returned to the teacher (full char count is
 # reported separately). Generous: most uploads are worksheets, not books.
 _PARSE_PREVIEW_CAP = 20000
+
+# Vertex Gemini model for PDF text extraction (override via env).
+_PDF_PARSE_MODEL = os.environ.get("PDF_PARSE_MODEL", "gemini-2.5-flash")
+
+
+async def _extract_pdf_text(pdf_bytes: bytes) -> str:
+    """Extract a PDF's text as Markdown via Gemini (Vertex). OCR-capable, so
+    scanned PDFs work too. Raises 422 on failure / empty output."""
+    from google import genai
+    from google.genai import types as genai_types
+
+    prompt = (
+        "Extract ALL text from this document as clean Markdown. Preserve headings, "
+        "lists, and tables in reading order. Do NOT summarise, translate, comment, "
+        "or add anything — output only the document's own content."
+    )
+    try:
+        client = genai.Client(vertexai=True)
+        response = await client.aio.models.generate_content(
+            model=_PDF_PARSE_MODEL,
+            contents=[
+                prompt,
+                genai_types.Part.from_bytes(data=pdf_bytes, mime_type="application/pdf"),
+            ],
+        )
+    except Exception as exc:
+        logger.warning("PDF extraction via Gemini failed: %s", exc)
+        raise HTTPException(status_code=422, detail="Couldn't read this PDF. Try another file.") from exc
+    text = (response.text or "").strip()
+    if not text:
+        raise HTTPException(status_code=422, detail="No text could be extracted from this PDF.")
+    return text
 
 
 # ---------------------------------------------------------------------------
@@ -88,11 +124,7 @@ async def _extract_text(tmp_path: str, filename: str) -> str:
     if ext not in _ALLOWED_EXTENSIONS:
         raise HTTPException(
             status_code=422,
-            detail=(
-                f"Unsupported format for curriculum ingestion: {ext!r}. "
-                f"Supported: {sorted(_ALLOWED_EXTENSIONS)}. "
-                "Convert PDF to .docx or .txt before ingesting."
-            ),
+            detail=(f"Unsupported format for curriculum ingestion: {ext!r}. Supported: {sorted(_ALLOWED_EXTENSIONS)}."),
         )
 
     if ext in _PLAINTEXT_EXTENSIONS:
@@ -100,6 +132,10 @@ async def _extract_text(tmp_path: str, filename: str) -> str:
         if not content.strip():
             raise HTTPException(status_code=422, detail="File is empty.")
         return content
+
+    if ext in _PDF_EXTENSIONS:
+        pdf_bytes = await asyncio.to_thread(lambda: open(tmp_path, "rb").read())
+        return await _extract_pdf_text(pdf_bytes)
 
     # AILANG Parse path (docx, pptx, xlsx, odt, …)
     outcome = await asyncio.to_thread(_parse_file_sync, tmp_path, "markdown")

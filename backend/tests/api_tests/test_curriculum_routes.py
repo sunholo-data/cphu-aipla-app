@@ -218,3 +218,28 @@ def test_content_unavailable_when_not_stored(monkeypatch):
     resp = _client().get("/api/curriculum/doc-1/content")
     assert resp.status_code == 200
     assert resp.json()["available"] is False
+
+
+def test_ingest_pdf_routes_through_gemini(monkeypatch):
+    # 1.1.33 — PDFs are accepted (no 422) and parsed via Gemini OCR, not rejected
+    # as "convert first". Mock the Gemini call + the stores.
+    import protocols.curriculum_routes as cr
+
+    async def fake_pdf(pdf_bytes):
+        return "## Fysik A\nNewtons love…"
+
+    async def fake_upload(*a, **k):
+        return "rag/pdf-1"
+
+    monkeypatch.setattr(cr, "_extract_pdf_text", fake_pdf)
+    monkeypatch.setattr(cr, "upload_text_as_rag_file", fake_upload)
+    monkeypatch.setattr(cr, "create_curriculum_doc", lambda doc: None)
+    monkeypatch.setattr(cr, "set_curriculum_content", lambda d, t: None)
+
+    resp = _client().post(
+        "/api/curriculum/ingest",
+        files={"file": ("laereplan.pdf", b"%PDF-1.4 fake bytes", "application/pdf")},
+        data={"title": "Læreplan", "origin": "laereplan.pdf"},
+    )
+    assert resp.status_code == 201, resp.text
+    assert resp.json()["parsedPreview"].startswith("## Fysik A")

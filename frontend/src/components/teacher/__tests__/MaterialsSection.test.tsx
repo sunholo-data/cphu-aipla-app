@@ -3,6 +3,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 
 const browseCurriculum = vi.fn();
 const ingestCurriculum = vi.fn();
+const fetchCurriculumContent = vi.fn();
 
 vi.mock("@/lib/curriculumApi", async () => {
   const actual = await vi.importActual<typeof import("@/lib/curriculumApi")>(
@@ -12,6 +13,7 @@ vi.mock("@/lib/curriculumApi", async () => {
     ...actual,
     browseCurriculum: (...a: unknown[]) => browseCurriculum(...a),
     ingestCurriculum: (...a: unknown[]) => ingestCurriculum(...a),
+    fetchCurriculumContent: (...a: unknown[]) => fetchCurriculumContent(...a),
   };
 });
 
@@ -124,12 +126,19 @@ describe("MaterialsSection", () => {
     );
   });
 
-  it("uploading ingests, cites the new doc, and shows the parse preview", async () => {
+  it("uploading ingests, cites the new doc, and opens its parse viewer (per-document)", async () => {
     browseCurriculum.mockResolvedValue([]);
     ingestCurriculum.mockResolvedValue({
-      doc: makeDoc({ docId: "up1", origin: "my-notes.txt" }),
+      doc: makeDoc({ docId: "up1", origin: "my-notes.txt", title: "my-notes" }),
       parsedPreview: "Newton's second law: F = m a.",
       parsedChars: 29,
+    });
+    fetchCurriculumContent.mockResolvedValue({
+      docId: "up1",
+      title: "my-notes",
+      available: true,
+      text: "Newton's second law: F = m a.",
+      chars: 29,
     });
     const onChange = vi.fn();
     render(<MaterialsSection materials={[]} onChange={onChange} />);
@@ -147,8 +156,31 @@ describe("MaterialsSection", () => {
         { docId: "up1", origin: "my-notes.txt", studentVisible: false },
       ]),
     );
-    // M4 — the teacher sees what was parsed (verify before it grounds the tutor).
-    await waitFor(() => expect(screen.getByText(/what we extracted/i)).toBeInTheDocument());
+    // M4/M3 — the viewer opens for THIS doc (per-document), fetching its content.
+    expect(fetchCurriculumContent).toHaveBeenCalledWith("up1");
+    await waitFor(() =>
+      expect(screen.getByText(/what we extracted — my-notes/i)).toBeInTheDocument(),
+    );
     expect(screen.getByText(/Newton's second law/)).toBeInTheDocument();
+  });
+
+  it("clicking a cited material opens its content viewer", async () => {
+    browseCurriculum.mockResolvedValue([]);
+    fetchCurriculumContent.mockResolvedValue({
+      docId: "d1",
+      title: "Haka Fysik",
+      available: true,
+      text: "Energi bevares.",
+      chars: 15,
+    });
+    render(
+      <MaterialsSection
+        materials={[{ docId: "d1", origin: "Haka Fysik", studentVisible: true }]}
+        onChange={() => {}}
+      />,
+    );
+    fireEvent.click(await screen.findByRole("button", { name: "Haka Fysik" }));
+    expect(fetchCurriculumContent).toHaveBeenCalledWith("d1");
+    await waitFor(() => expect(screen.getByText(/Energi bevares/)).toBeInTheDocument());
   });
 });

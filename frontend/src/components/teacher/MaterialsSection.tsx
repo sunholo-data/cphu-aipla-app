@@ -1,15 +1,23 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
-import { BookOpen, Check, Eye, EyeOff, FileUp, Loader2, Plus, X } from "lucide-react";
+import * as Dialog from "@radix-ui/react-dialog";
+import { BookOpen, Check, Eye, EyeOff, FileText, FileUp, Loader2, Plus, X } from "lucide-react";
 
 import {
   type CurriculumDoc,
+  type DocContent,
   CurriculumApiError,
   browseCurriculum,
+  fetchCurriculumContent,
   ingestCurriculum,
 } from "@/lib/curriculumApi";
 import type { MaterialRef, StxLevel } from "@/lib/teacherApi";
+
+type ViewState =
+  | { kind: "loading" }
+  | { kind: "ready"; content: DocContent }
+  | { kind: "error"; message: string };
 
 interface Props {
   /** Currently-cited materials (controlled by the parent builder). */
@@ -84,6 +92,29 @@ export function MaterialsSection({ materials, onChange }: Props) {
     );
   }
 
+  // 1.1.33 M4/M3 — "what we extracted" is per-document: click any cited or
+  // library doc to read exactly what was parsed from IT (not a generic panel).
+  const [viewDoc, setViewDoc] = useState<{ docId: string; title: string } | null>(null);
+  const [view, setView] = useState<ViewState | null>(null);
+
+  async function openContent(docId: string, title: string) {
+    setViewDoc({ docId, title });
+    setView({ kind: "loading" });
+    try {
+      // Teacher path — no activityId; ACL allows own/shared docs.
+      const content = await fetchCurriculumContent(docId);
+      setView({ kind: "ready", content });
+    } catch (e) {
+      setView({
+        kind: "error",
+        message:
+          e instanceof CurriculumApiError && e.status === 403
+            ? "You don't have access to this document."
+            : "Couldn't load this document.",
+      });
+    }
+  }
+
   return (
     <fieldset className="flex flex-col gap-4">
       <legend className="flex items-center gap-1.5 text-sm font-medium">
@@ -107,7 +138,14 @@ export function MaterialsSection({ materials, onChange }: Props) {
                 key={m.docId}
                 className="flex items-center gap-1.5 rounded border border-primary/40 bg-primary/5 px-2 py-1 text-xs"
               >
-                <span className="font-medium">{label}</span>
+                <button
+                  type="button"
+                  onClick={() => openContent(m.docId, label)}
+                  title="View what was extracted"
+                  className="font-medium underline-offset-2 hover:underline"
+                >
+                  {label}
+                </button>
                 <button
                   type="button"
                   aria-pressed={visible}
@@ -181,6 +219,8 @@ export function MaterialsSection({ materials, onChange }: Props) {
           // not student-visible (opt-in, 1.1.33 M2a) — same as toggleCite.
           setDocs((prev) => (prev ? [doc, ...prev] : [doc]));
           onChange([...materials, { docId: doc.docId, origin: doc.origin, studentVisible: false }]);
+          // Show what was extracted FROM THIS doc immediately (per-document, M4).
+          void openContent(doc.docId, doc.title);
         }} />
       </div>
 
@@ -216,7 +256,14 @@ export function MaterialsSection({ materials, onChange }: Props) {
                   className="flex items-center justify-between gap-3 p-3 text-sm"
                 >
                   <div className="flex min-w-0 flex-col gap-0.5">
-                    <span className="truncate font-medium">{doc.title}</span>
+                    <button
+                      type="button"
+                      onClick={() => openContent(doc.docId, doc.title)}
+                      title="View what was extracted"
+                      className="truncate text-left font-medium underline-offset-2 hover:underline"
+                    >
+                      {doc.title}
+                    </button>
                     <span className="text-xs text-muted-foreground">
                       {doc.origin}
                       {doc.level ? ` · Level ${doc.level}` : ""}
@@ -252,6 +299,66 @@ export function MaterialsSection({ materials, onChange }: Props) {
           </ul>
         )}
       </div>
+
+      {/* Per-document "what we extracted" viewer (M4/M3). */}
+      <Dialog.Root
+        open={viewDoc !== null}
+        onOpenChange={(o) => {
+          if (!o) {
+            setViewDoc(null);
+            setView(null);
+          }
+        }}
+      >
+        <Dialog.Portal>
+          <Dialog.Overlay className="fixed inset-0 z-50 bg-black/60" />
+          <Dialog.Content className="fixed left-1/2 top-1/2 z-50 flex max-h-[85vh] w-[90vw] max-w-2xl -translate-x-1/2 -translate-y-1/2 flex-col rounded-lg border border-border bg-background shadow-xl">
+            <div className="flex items-center justify-between gap-2 border-b border-border px-4 py-2">
+              <Dialog.Title className="flex min-w-0 items-center gap-1.5 text-sm font-semibold">
+                <FileText className="h-4 w-4 shrink-0 text-muted-foreground" aria-hidden="true" />
+                <span className="truncate">What we extracted — {viewDoc?.title}</span>
+              </Dialog.Title>
+              <Dialog.Close
+                aria-label="Close"
+                className="rounded p-1 text-muted-foreground hover:bg-muted hover:text-foreground"
+              >
+                <X className="h-4 w-4" aria-hidden="true" />
+              </Dialog.Close>
+            </div>
+            <div className="min-h-0 flex-1 overflow-auto px-4 py-3 text-sm">
+              {view?.kind === "loading" ? (
+                <p className="flex items-center gap-2 text-muted-foreground">
+                  <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />
+                  Loading…
+                </p>
+              ) : view?.kind === "error" ? (
+                <p className="text-destructive">{view.message}</p>
+              ) : view?.kind === "ready" && !view.content.available ? (
+                <p className="text-muted-foreground">
+                  This document was added before content viewing existed — re-upload it to see what
+                  was extracted.
+                </p>
+              ) : view?.kind === "ready" && !view.content.text.trim() ? (
+                <p className="text-destructive">
+                  Nothing was extracted — check the file parsed correctly before relying on it.
+                </p>
+              ) : view?.kind === "ready" ? (
+                <>
+                  <pre className="whitespace-pre-wrap font-sans leading-relaxed text-foreground">
+                    {view.content.text}
+                  </pre>
+                  {view.content.text.length < view.content.chars ? (
+                    <p className="mt-2 text-xs text-muted-foreground">
+                      Showing the first {view.content.text.length.toLocaleString()} of{" "}
+                      {view.content.chars.toLocaleString()} characters.
+                    </p>
+                  ) : null}
+                </>
+              ) : null}
+            </div>
+          </Dialog.Content>
+        </Dialog.Portal>
+      </Dialog.Root>
     </fieldset>
   );
 }
@@ -268,9 +375,6 @@ function UploadButton({
   const inputRef = useRef<HTMLInputElement>(null);
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);
-  // 1.1.33 M4 — what AILANG Parse extracted from the last upload, so the teacher
-  // can verify the parse before it grounds the tutor.
-  const [preview, setPreview] = useState<{ text: string; chars: number } | null>(null);
 
   async function handleFile(ev: React.ChangeEvent<HTMLInputElement>) {
     const file = ev.target.files?.[0];
@@ -278,7 +382,6 @@ function UploadButton({
     if (!file) return;
     setBusy(true);
     setErr(null);
-    setPreview(null);
     try {
       const result = await ingestCurriculum({
         file,
@@ -287,11 +390,13 @@ function UploadButton({
         // it A/B/C later). origin is the filename so the citation is recognisable.
         origin: file.name,
       });
+      // The parent cites it + opens the per-document "what we extracted" viewer
+      // (M4/M3) — so the preview is tied to the doc, not a generic panel.
       onUploaded(result.doc);
-      setPreview({ text: result.parsedPreview, chars: result.parsedChars });
     } catch (e) {
       if (e instanceof CurriculumApiError && e.status === 422) {
-        setErr("Unsupported file. Convert PDFs to .docx or .txt first.");
+        // PDFs are supported now (Gemini OCR); 422 = a genuinely unsupported type.
+        setErr(e.message || "Unsupported file type.");
       } else {
         setErr(e instanceof Error ? e.message : "Upload failed.");
       }
@@ -318,32 +423,12 @@ function UploadButton({
       <input
         ref={inputRef}
         type="file"
-        accept=".txt,.md,.docx,.pptx,.xlsx,.odt,.odp,.ods,.epub,.html,.htm,.csv"
+        accept=".pdf,.txt,.md,.docx,.pptx,.xlsx,.odt,.odp,.ods,.epub,.html,.htm,.csv"
         onChange={handleFile}
         className="hidden"
         aria-label="Upload curriculum document"
       />
       {err ? <span className="text-xs text-destructive">{err}</span> : null}
-      {preview ? (
-        <details className="mt-1 rounded border border-border bg-muted/30 text-xs">
-          <summary className="cursor-pointer px-2 py-1 font-medium">
-            What we extracted{" "}
-            <span className="font-normal text-muted-foreground">
-              ({preview.chars.toLocaleString()} characters
-              {preview.text.length < preview.chars ? ", preview truncated" : ""})
-            </span>
-          </summary>
-          {preview.text.trim() ? (
-            <pre className="max-h-48 overflow-auto whitespace-pre-wrap px-2 py-1 font-sans text-muted-foreground">
-              {preview.text}
-            </pre>
-          ) : (
-            <p className="px-2 py-1 text-destructive">
-              Nothing was extracted — check the file parsed correctly before relying on it.
-            </p>
-          )}
-        </details>
-      ) : null}
     </div>
   );
 }
