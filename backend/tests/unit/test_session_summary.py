@@ -155,6 +155,26 @@ def test_find_latest_session_for_group_returns_none_when_empty():
     assert find_latest_session_for_group("bold-kazoo-87") is None
 
 
+def test_find_latest_session_id_for_group_bq_picks_newest_turn():
+    from reports.session_summary import find_latest_session_id_for_group_bq
+
+    # The BQ finder returns the session with the newest turn (the SQL does the
+    # GROUP BY/ORDER BY); the helper just reads the first row's session_id.
+    with patch("db.bigquery.run_query", return_value=[{"session_id": "bq-real", "last_ts": None}]) as q:
+        assert find_latest_session_id_for_group_bq("bold-kazoo-87") == "bq-real"
+        # filters by the group code (not a hyphen-stripped uid — BQ logs the real code)
+        assert q.call_args.kwargs["params"] == {"group_code": "bold-kazoo-87"}
+
+
+def test_find_latest_session_id_for_group_bq_none_on_no_rows_or_error():
+    from reports.session_summary import find_latest_session_id_for_group_bq
+
+    with patch("db.bigquery.run_query", return_value=[]):
+        assert find_latest_session_id_for_group_bq("bold-kazoo-87") is None
+    with patch("db.bigquery.run_query", side_effect=RuntimeError("no BQ creds")):
+        assert find_latest_session_id_for_group_bq("bold-kazoo-87") is None
+
+
 def test_find_latest_session_for_group_picks_most_recent():
     early = datetime(2026, 5, 25, 12, 0, 0, tzinfo=UTC)
     late = datetime(2026, 5, 25, 14, 0, 0, tzinfo=UTC)

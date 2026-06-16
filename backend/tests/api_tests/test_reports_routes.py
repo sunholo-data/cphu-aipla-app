@@ -104,6 +104,8 @@ def test_group_report_404_when_no_sessions(client):
 
 
 def test_group_report_returns_latest(client):
+    # No BQ creds in test -> the BQ latest-session finder returns None and we
+    # fall back to the Firestore index (which picks the newest by lastMessageAt).
     _seed_session(
         session_id="early",
         owner_uid="anon-boldkazoo87-aaa",
@@ -122,3 +124,43 @@ def test_group_report_returns_latest(client):
 
     assert resp.status_code == 200, resp.text
     assert resp.json()["sessionId"] == "late"
+
+
+def test_group_report_prefers_bq_latest_over_index(client):
+    """The chat-turn log (BigQuery) wins: even with a newer but turn-less index
+    session, the report shows the session BQ says actually has the latest chat.
+    Reproduces the tilted-petal-71 bug — a bare join shadowing the real one."""
+    from reports.session_summary import SessionSummary, SessionTurn
+
+    # Index "latest" is a bare join with no conversation (the empty shell).
+    _seed_session(
+        session_id="bare-join",
+        owner_uid="anon-boldkazoo87-zzz",
+        last_at=datetime(2026, 5, 26, 9, 0, 0, tzinfo=UTC),
+    )
+    real = SessionSummary(
+        sessionId="bq-real",
+        groupCode="bold-kazoo-87",
+        activityId="boldkast",
+        startedAt=datetime(2026, 5, 25, 14, 0, 0, tzinfo=UTC),
+        endedAt=datetime(2026, 5, 25, 14, 5, 0, tzinfo=UTC),
+        durationSeconds=300,
+        messageCount=2,
+        simRunCount=0,
+        conversation=[SessionTurn(timestamp="2026-05-25T14:00:00+00:00", role="student", content="hej")],
+    )
+
+    async def _resolve(session_id: str):
+        return real if session_id == "bq-real" else None
+
+    with (
+        patch("protocols.reports_routes.find_latest_session_id_for_group_bq", return_value="bq-real"),
+        patch("protocols.reports_routes.resolve_session_summary", side_effect=_resolve),
+        patch("protocols.reports_routes.resolve_narrative", new=AsyncMock()),
+    ):
+        resp = client.get("/api/reports/groups/bold-kazoo-87")
+
+    assert resp.status_code == 200, resp.text
+    body = resp.json()
+    assert body["sessionId"] == "bq-real"  # NOT "bare-join"
+    assert body["messageCount"] == 2

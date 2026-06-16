@@ -263,6 +263,36 @@ async def resolve_session_summary(session_id: str) -> SessionSummary | None:
     return await summarize_session(session_id)
 
 
+def find_latest_session_id_for_group_bq(group_code: str) -> str | None:
+    """The group's most-recently-active session id, resolved from the chat-turn
+    log in BigQuery (every turn carries ``group_id``).
+
+    Preferred over the Firestore ``chat_sessions`` index for anonymous groups:
+    the index is sparse — many sessions chat (and land in BQ) without ever
+    getting an index row, and a bare join creates an index row with ZERO turns
+    that then wins "latest" by timestamp, yielding an empty "no conversation"
+    report. Picking the session with the newest *turn* excludes turn-less bare
+    joins by construction. Returns None on no rows / BQ error, so the caller
+    falls back to the index-based finder.
+    """
+    from db.bigquery import CHAT_TURN_TABLE, run_query, table_ref
+
+    try:
+        rows = run_query(
+            "SELECT jsonPayload.session_id AS session_id, MAX(timestamp) AS last_ts "
+            f"FROM {table_ref(CHAT_TURN_TABLE)} "
+            "WHERE jsonPayload.group_id = @group_code "
+            "GROUP BY session_id ORDER BY last_ts DESC LIMIT 1",
+            params={"group_code": group_code},
+        )
+    except Exception as exc:
+        log.warning("find_latest_session_id_for_group_bq: query failed (%s) — caller will fall back", exc)
+        return None
+    if not rows:
+        return None
+    return rows[0]["session_id"]
+
+
 def find_latest_session_for_group(group_code: str) -> ChatSessionIndex | None:
     """Return the most-recently-active session for an anonymous group.
 
@@ -313,6 +343,7 @@ __all__ = [
     "SessionTurn",
     "WorkbenchEvent",
     "find_latest_session_for_group",
+    "find_latest_session_id_for_group_bq",
     "resolve_session_summary",
     "summarize_session",
     "summarize_session_bq",

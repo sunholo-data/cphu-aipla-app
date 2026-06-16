@@ -22,6 +22,7 @@ from reports.narrative import resolve_narrative
 from reports.session_summary import (
     SessionSummary,
     find_latest_session_for_group,
+    find_latest_session_id_for_group_bq,
     resolve_session_summary,
     summarize_session_bq,
 )
@@ -89,6 +90,18 @@ async def get_group_latest_report(
             raise HTTPException(status_code=404, detail="session not found for this group")
         await resolve_narrative(summary)
         return _serialize(summary)
+
+    # Prefer the chat-turn log (BigQuery) as the source of truth for the
+    # group's latest *real* session. The Firestore chat_sessions index is
+    # sparse for anonymous groups, and a bare join (0 turns) can otherwise win
+    # "latest" by timestamp — surfacing an empty "no conversation" report when
+    # the group actually chatted in another session.
+    bq_session_id = find_latest_session_id_for_group_bq(group_code)
+    if bq_session_id:
+        summary = await resolve_session_summary(bq_session_id)
+        if summary is not None:
+            await resolve_narrative(summary)
+            return _serialize(summary)
 
     idx = find_latest_session_for_group(group_code)
     if idx is None:
