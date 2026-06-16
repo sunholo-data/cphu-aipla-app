@@ -162,6 +162,35 @@ def class_spend(class_id: str, period: Period, *, now: datetime | None = None) -
     return folded
 
 
+def classes_spend(
+    class_id_to_codes: dict[str, list[str]], period: Period, *, now: datetime | None = None
+) -> dict[str, Any]:
+    """Teacher-scoped spend: EUR total + per-class breakdown across the supplied
+    ``{class_id: group_codes}`` map (the caller's OWN classes). One BQ query
+    over the union of codes, aggregated by the class each code belongs to.
+
+    Distinct from ``cohort_spend`` (cross-tenant, researcher-only) — this is
+    scoped to exactly the classes passed in, so any teacher can see the cost of
+    their own cohort without the researcher claim."""
+    since, until = period_bounds(period, now=now)
+    code_to_class: dict[str, str] = {code: cid for cid, codes in class_id_to_codes.items() for code in codes}
+    rows = _safe_spend_rows(list(code_to_class.keys()), since, until)
+    per_class: dict[str, float] = dict.fromkeys(class_id_to_codes, 0.0)
+    total = 0.0
+    for r in rows:
+        c = cost_eur(r["model"], r["token_in"], r["token_out"])
+        total += c
+        cid = code_to_class.get(r["group_id"])
+        if cid is not None:
+            per_class[cid] = per_class.get(cid, 0.0) + c
+    return {
+        "currency": CURRENCY,
+        "period": period,
+        "total_eur": round(total, 4),
+        "per_class": [{"class_id": cid, "eur": round(v, 4)} for cid, v in per_class.items()],
+    }
+
+
 def cohort_spend(period: Period, *, now: datetime | None = None) -> dict[str, Any]:
     """Cross-class spend grouped by cohort + by model + per class. Researcher
     surface (the route layer enforces the claim). Maps every group code to its
@@ -207,4 +236,12 @@ def cohort_spend(period: Period, *, now: datetime | None = None) -> dict[str, An
     }
 
 
-__all__ = ["Period", "class_spend", "cohort_spend", "period_bounds", "project_month_eur", "spend_rows"]
+__all__ = [
+    "Period",
+    "class_spend",
+    "classes_spend",
+    "cohort_spend",
+    "period_bounds",
+    "project_month_eur",
+    "spend_rows",
+]

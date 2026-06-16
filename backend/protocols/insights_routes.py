@@ -284,3 +284,26 @@ async def cost_overview(
         raise HTTPException(status_code=400, detail=f"invalid period {period!r}")
     log.info("insights_query route=cost researcher_uid=%s period=%s", user.uid, period)
     return cost_queries.cohort_spend(period)  # type: ignore[arg-type]
+
+
+@router.get("/cost/mine")
+async def my_cost_overview(
+    period: str = Query("this_month"),
+    user: User = Depends(get_current_user),  # noqa: B008
+) -> dict[str, Any]:
+    """Teacher-scoped spend: EUR total + per-class across the CALLER's OWN
+    classes (1.1.9 follow-up — the teacher-level total the class list shows).
+
+    Any teacher; scoped to their own classes (NO researcher claim, unlike
+    ``/cost`` which is cross-tenant). Sums one BQ query over the union of the
+    caller's classes' group codes."""
+    from analytics import cost_queries
+    from db.classes import list_classes_for_owner
+
+    _assert_teacher(user)
+    if period not in ("this_month", "last_month", "all_time"):
+        raise HTTPException(status_code=400, detail=f"invalid period {period!r}")
+    classes = list_classes_for_owner(user.uid)
+    mapping = {c.class_id: list(c.group_codes) for c in classes}
+    log.info("insights_query route=cost/mine uid=%s classes=%d period=%s", user.uid, len(mapping), period)
+    return cost_queries.classes_spend(mapping, period)  # type: ignore[arg-type]

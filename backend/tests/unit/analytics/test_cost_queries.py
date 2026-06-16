@@ -173,3 +173,30 @@ def test_cohort_spend_groups_by_cohort() -> None:
     assert cohorts["in-beta"] == pytest.approx(0.015)
     assert result["by_cohort"][0]["cohort"] == "dk"  # descending
     assert len(result["per_class"]) == 2
+
+
+def test_classes_spend_aggregates_per_class_and_total() -> None:
+    """Teacher-scoped spend: one BQ query over the union of codes, summed back
+    to each class + a grand total. Regression guard for the class-list spend
+    column + teacher-level total."""
+    mapping = {
+        "class-A": ["wooly-kettle-61"],
+        "class-B": ["bold-fox-2"],
+        "class-C": ["lonely-code-9"],  # no rows -> 0.0
+    }
+    rows = [
+        {"model": "m", "skill_id": "s", "group_id": "wooly-kettle-61", "token_in": 0, "token_out": 0},
+        {"model": "m", "skill_id": "s", "group_id": "bold-fox-2", "token_in": 0, "token_out": 0},
+        {"model": "m", "skill_id": "s", "group_id": "bold-fox-2", "token_in": 0, "token_out": 0},
+    ]
+    with (
+        patch.object(cost_queries, "_safe_spend_rows", return_value=rows),
+        patch.object(cost_queries, "cost_eur", side_effect=lambda *a, **k: 0.5),
+    ):
+        out = cost_queries.classes_spend(mapping, "this_month", now=NOW)
+
+    assert out["total_eur"] == pytest.approx(1.5)  # 3 rows x 0.5 EUR
+    per = {p["class_id"]: p["eur"] for p in out["per_class"]}
+    assert per["class-A"] == pytest.approx(0.5)  # 1 row
+    assert per["class-B"] == pytest.approx(1.0)  # 2 rows
+    assert per["class-C"] == pytest.approx(0.0)  # class with no activity still listed

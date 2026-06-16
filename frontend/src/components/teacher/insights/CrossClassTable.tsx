@@ -19,14 +19,25 @@ import { useMemo, useState } from "react";
 import { ArrowDown, ArrowUp, ArrowUpDown } from "lucide-react";
 
 import type { InsightsCompareRow } from "@/lib/insightsApi";
+import { formatEur } from "@/lib/costApi";
 
-type SortKey = "name" | "activeGroups" | "messages" | "messagesDelta" | "simRuns" | "lastActivity";
+type SortKey =
+  | "name"
+  | "activeGroups"
+  | "messages"
+  | "messagesDelta"
+  | "simRuns"
+  | "lastActivity"
+  | "spend";
 type Direction = "asc" | "desc";
 
 interface CrossClassTableProps {
   rows: InsightsCompareRow[];
   /** Default column to sort by on first render. */
   defaultSort?: SortKey;
+  /** classId -> EUR spend. When provided, a sortable "Spend" column is added
+   *  (engagement + cost in one table — no separate spend surface). */
+  spendByClassId?: Map<string, number>;
 }
 
 interface ColumnDef {
@@ -59,13 +70,33 @@ const COLUMNS: ColumnDef[] = [
   },
 ];
 
-export function CrossClassTable({ rows, defaultSort = "messages" }: CrossClassTableProps) {
+export function CrossClassTable({
+  rows,
+  defaultSort = "messages",
+  spendByClassId,
+}: CrossClassTableProps) {
   const [sortKey, setSortKey] = useState<SortKey>(defaultSort);
   const [direction, setDirection] = useState<Direction>("desc");
 
+  const columns = useMemo<ColumnDef[]>(() => {
+    if (!spendByClassId) return COLUMNS;
+    return [
+      ...COLUMNS,
+      {
+        key: "spend",
+        label: "Spend",
+        numeric: true,
+        render: (r) => formatEur(spendByClassId.get(r.classId) ?? 0),
+        sortValue: (r) => spendByClassId.get(r.classId) ?? 0,
+      },
+    ];
+  }, [spendByClassId]);
+
   const sortedRows = useMemo(() => {
-    const col = COLUMNS.find((c) => c.key === sortKey);
-    const get = col?.sortValue ?? ((r: InsightsCompareRow) => r[sortKey] as string | number);
+    const col = columns.find((c) => c.key === sortKey);
+    const get =
+      col?.sortValue ??
+      ((r: InsightsCompareRow) => r[sortKey as keyof InsightsCompareRow] as string | number);
     const dirFactor = direction === "asc" ? 1 : -1;
     return [...rows].sort((a, b) => {
       const av = get(a);
@@ -73,7 +104,7 @@ export function CrossClassTable({ rows, defaultSort = "messages" }: CrossClassTa
       if (typeof av === "number" && typeof bv === "number") return (av - bv) * dirFactor;
       return String(av).localeCompare(String(bv)) * dirFactor;
     });
-  }, [rows, sortKey, direction]);
+  }, [rows, sortKey, direction, columns]);
 
   const onSort = (key: SortKey) => {
     if (key === sortKey) {
@@ -82,7 +113,7 @@ export function CrossClassTable({ rows, defaultSort = "messages" }: CrossClassTa
       setSortKey(key);
       // First click on a new column: default to descending for numeric
       // (most engagement first), ascending for text (A-Z).
-      const col = COLUMNS.find((c) => c.key === key);
+      const col = columns.find((c) => c.key === key);
       setDirection(col?.numeric ? "desc" : "asc");
     }
   };
@@ -100,7 +131,7 @@ export function CrossClassTable({ rows, defaultSort = "messages" }: CrossClassTa
       <table className="w-full text-sm">
         <thead className="bg-muted/40 text-xs uppercase tracking-wide text-muted-foreground">
           <tr>
-            {COLUMNS.map((col) => (
+            {columns.map((col) => (
               <th
                 key={col.key}
                 scope="col"
@@ -122,7 +153,7 @@ export function CrossClassTable({ rows, defaultSort = "messages" }: CrossClassTa
         <tbody>
           {sortedRows.map((row) => (
             <tr key={row.classId} className="border-t border-border hover:bg-muted/40">
-              {COLUMNS.map((col) => (
+              {columns.map((col) => (
                 <td
                   key={col.key}
                   className={`whitespace-nowrap px-3 py-2 ${col.numeric ? "text-right tabular-nums" : ""}`}

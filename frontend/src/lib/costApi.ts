@@ -81,6 +81,22 @@ export async function fetchCostInsights(
   return readJson<CostInsightsPayload>(resp, "fetch cost insights");
 }
 
+/** Teacher-scoped spend: EUR total + per-class across the CALLER's own classes
+ *  (any teacher; no researcher claim). Powers the class-list spend summary. */
+export interface TeacherSpendPayload {
+  currency: string;
+  period: SpendPeriod;
+  total_eur: number;
+  per_class: { class_id: string; eur: number }[];
+}
+
+export async function fetchTeacherSpend(
+  period: SpendPeriod = "this_month",
+): Promise<TeacherSpendPayload> {
+  const resp = await fetchWithAuth(`/api/proxy/api/insights/cost/mine?period=${period}`);
+  return readJson<TeacherSpendPayload>(resp, "fetch teacher spend");
+}
+
 /** Format an EUR amount for display (2 dp, € prefix). */
 export function formatEur(eur: number): string {
   return `€${eur.toFixed(2)}`;

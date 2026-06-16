@@ -36,8 +36,12 @@ import {
   type InsightsClassSummary,
   type InsightsComparePayload,
 } from "@/lib/insightsApi";
+import {
+  type TeacherSpendPayload,
+  fetchTeacherSpend,
+  formatEur,
+} from "@/lib/costApi";
 import { CrossClassTable } from "@/components/teacher/insights/CrossClassTable";
-import { KpiStrip } from "@/components/teacher/insights/KpiStrip";
 import { useIsResearcher } from "@/hooks/useIsResearcher";
 
 
@@ -88,6 +92,10 @@ export default function TeacherClassesPage() {
   const [confirmDelete, setConfirmDelete] = useState<ClassPayload | null>(null);
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const [actionError, setActionError] = useState<string | null>(null);
+  // Teacher-level + per-class spend (1.1.9 follow-up). Loaded on demand with
+  // the rest of the insights; non-fatal.
+  const [teacherSpend, setTeacherSpend] = useState<TeacherSpendPayload | null>(null);
+  const [spendLoading, setSpendLoading] = useState(false);
 
   // Skill displayName lookup so we can fall back to the lesson name when a
   // session hasn't generated a title yet (titles are auto-generated after
@@ -200,7 +208,7 @@ export default function TeacherClassesPage() {
   // 2+ classes AND has opted into insights. The single-class case has no
   // useful comparison and would just push the existing surfaces down.
   useEffect(() => {
-    if (!showInsights || !classes || classes.length < 2) {
+    if (!showInsights || !classes || classes.length < 1) {
       setInsightsCompare(null);
       return;
     }
@@ -216,6 +224,30 @@ export default function TeacherClassesPage() {
       cancelled = true;
     };
   }, [classes, showInsights]);
+
+  // Teacher-level + per-class spend — loaded with the insights panel. Scoped
+  // to the caller's own classes, so skipped in research view. Non-fatal.
+  useEffect(() => {
+    if (!showInsights || researchView) {
+      setTeacherSpend(null);
+      return;
+    }
+    let cancelled = false;
+    setSpendLoading(true);
+    void fetchTeacherSpend()
+      .then((p) => {
+        if (!cancelled) setTeacherSpend(p);
+      })
+      .catch(() => {
+        if (!cancelled) setTeacherSpend(null);
+      })
+      .finally(() => {
+        if (!cancelled) setSpendLoading(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [showInsights, researchView]);
 
   // Resolve the teacher-facing titles of a class's assigned activities: prefer
   // the teacher's own config title, fall back to the skill catalogue name.
@@ -245,6 +277,28 @@ export default function TeacherClassesPage() {
       };
     },
     [personaById, defaultPersonaId],
+  );
+
+  // Teacher-level engagement totals — summed across the per-class summaries
+  // (no extra fetch). Shown at the top of the insights panel so a teacher sees
+  // their whole cohort at a glance, not just per-class.
+  const insightsTotals = useMemo(() => {
+    const vals = [...insightsSummary.values()];
+    return {
+      activeGroups: vals.reduce((s, v) => s + (v.activeGroups || 0), 0),
+      totalMessages: vals.reduce((s, v) => s + (v.totalMessages || 0), 0),
+      lastActivity: vals.reduce<string | null>(
+        (acc, v) =>
+          v.lastActivity && (!acc || v.lastActivity > acc) ? v.lastActivity : acc,
+        null,
+      ),
+    };
+  }, [insightsSummary]);
+
+  // classId -> EUR spend, for the per-class Spend column.
+  const spendByClassId = useMemo<Map<string, number>>(
+    () => new Map((teacherSpend?.per_class ?? []).map((r) => [r.class_id, r.eur])),
+    [teacherSpend],
   );
 
   const handleDelete = useCallback(
@@ -362,9 +416,6 @@ export default function TeacherClassesPage() {
                   <th className="px-3 py-2 font-medium">Groups</th>
                   <th className="px-3 py-2 font-medium">Activities</th>
                   <th className="px-3 py-2 font-medium">Tutor persona</th>
-                  {showInsights ? (
-                    <th className="px-3 py-2 font-medium">Engagement</th>
-                  ) : null}
                   <th className="px-3 py-2 text-right font-medium">Actions</th>
                 </tr>
               </thead>
@@ -375,9 +426,6 @@ export default function TeacherClassesPage() {
                     cls={cls}
                     activities={activityTitlesForClass(cls)}
                     persona={personaLabelForClass(cls)}
-                    insightsSummary={insightsSummary.get(cls.classId)}
-                    insightsRequested={showInsights}
-                    insightsLoading={insightsLoading}
                     showOwner={researchView}
                     canDelete={!researchView}
                     deleting={deletingId === cls.classId}
@@ -402,41 +450,92 @@ export default function TeacherClassesPage() {
         />
       ) : null}
 
-      {!showInsights ? (
-        <button
-          type="button"
-          onClick={() => setShowInsights(true)}
-          className="flex items-center gap-2 self-start rounded border border-dashed border-border px-4 py-3 text-sm font-medium text-muted-foreground hover:bg-muted/50"
-        >
-          <BarChart3 className="h-4 w-4" aria-hidden="true" />
-          Show insights
-          <span className="text-xs font-normal text-muted-foreground/70">
-            — per-class KPIs + cross-class comparison (loads analytics)
-          </span>
-        </button>
-      ) : null}
-
-      {insightsCompare && insightsCompare.rows.length >= 2 ? (
-        <section
-          aria-labelledby="compare-label"
-          className="flex flex-col gap-3"
-          data-testid="cross-class-compare-section"
-        >
-          <details>
-            <summary className="cursor-pointer text-sm font-medium text-foreground">
-              <span id="compare-label">
-                Compare across classes ({insightsCompare.rows.length})
+      <section aria-labelledby="insights-label" className="flex flex-col gap-3">
+        <h2 id="insights-label" className="sr-only">
+          Insights and spend
+        </h2>
+        {!showInsights ? (
+          <button
+            type="button"
+            onClick={() => setShowInsights(true)}
+            className="flex items-center gap-2 self-start rounded border border-dashed border-border px-4 py-3 text-sm font-medium text-muted-foreground hover:bg-muted/50"
+          >
+            <BarChart3 className="h-4 w-4" aria-hidden="true" />
+            Show insights &amp; spend
+            <span className="text-xs font-normal text-muted-foreground/70">
+              — engagement + model cost across your classes (loads analytics)
+            </span>
+          </button>
+        ) : insightsLoading && !insightsCompare ? (
+          <p
+            data-testid="insights-loading"
+            className="flex items-center gap-2 self-start rounded border border-border px-4 py-3 text-sm text-muted-foreground"
+          >
+            <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />
+            Loading insights &amp; spend&hellip;
+          </p>
+        ) : (
+          <div
+            data-testid="insights-panel"
+            className="flex flex-col gap-4 rounded-lg border border-border p-4"
+          >
+            <div className="flex flex-wrap items-baseline justify-between gap-2">
+              <h3 className="text-base font-semibold">Insights &amp; spend</h3>
+              <span className="text-xs text-muted-foreground">
+                Across your classes · last 7 days
               </span>
-              <span className="ml-2 text-xs font-normal text-muted-foreground">
-                — sortable table; last 7 days
-              </span>
-            </summary>
-            <div className="mt-3">
-              <CrossClassTable rows={insightsCompare.rows} />
             </div>
-          </details>
-        </section>
-      ) : null}
+            <dl className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+              <SummaryStat
+                label="Active groups"
+                value={String(insightsTotals.activeGroups)}
+              />
+              <SummaryStat
+                label="Messages 7d"
+                value={String(insightsTotals.totalMessages)}
+              />
+              <SummaryStat
+                label="Spend (this month)"
+                value={
+                  spendLoading
+                    ? "…"
+                    : teacherSpend
+                      ? formatEur(teacherSpend.total_eur)
+                      : "—"
+                }
+              />
+              <SummaryStat
+                label="Last activity"
+                value={
+                  insightsTotals.lastActivity
+                    ? relativeTime(insightsTotals.lastActivity)
+                    : "none"
+                }
+              />
+            </dl>
+            {insightsCompare && insightsCompare.rows.length > 0 ? (
+              <details open data-testid="cross-class-compare-section">
+                <summary className="cursor-pointer text-sm font-medium text-foreground">
+                  Per class
+                  <span className="ml-2 text-xs font-normal text-muted-foreground">
+                    — engagement + spend; sortable; last 7 days
+                  </span>
+                </summary>
+                <div className="mt-3">
+                  <CrossClassTable
+                    rows={insightsCompare.rows}
+                    spendByClassId={spendByClassId}
+                  />
+                </div>
+              </details>
+            ) : (
+              <p className="text-sm text-muted-foreground">
+                No engagement recorded in the last 7 days.
+              </p>
+            )}
+          </div>
+        )}
+      </section>
 
       <section aria-labelledby="recent-activity-label" className="flex flex-col gap-3">
         <header className="flex items-center justify-between">
@@ -510,6 +609,17 @@ export default function TeacherClassesPage() {
   );
 }
 
+function SummaryStat({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="rounded-md border border-border bg-muted/30 px-3 py-2">
+      <dt className="text-xs uppercase tracking-wide text-muted-foreground">
+        {label}
+      </dt>
+      <dd className="mt-0.5 text-lg font-semibold tabular-nums">{value}</dd>
+    </div>
+  );
+}
+
 function PersonaAvatar({ name, avatar }: { name: string; avatar?: string }) {
   if (avatar) {
     // eslint-disable-next-line @next/next/no-img-element
@@ -536,9 +646,6 @@ function ClassRow({
   cls,
   activities,
   persona,
-  insightsSummary,
-  insightsRequested = false,
-  insightsLoading = false,
   showOwner = false,
   canDelete = true,
   deleting = false,
@@ -547,9 +654,6 @@ function ClassRow({
   cls: ClassPayload;
   activities: string[];
   persona: { name: string; inherited: boolean; avatar: string };
-  insightsSummary: InsightsClassSummary | undefined;
-  insightsRequested?: boolean;
-  insightsLoading?: boolean;
   showOwner?: boolean;
   canDelete?: boolean;
   deleting?: boolean;
@@ -602,11 +706,6 @@ function ClassRow({
           ) : null}
         </span>
       </td>
-      {insightsRequested ? (
-        <td className="px-3 py-3">
-          <KpiStrip summary={insightsSummary} loading={insightsLoading} />
-        </td>
-      ) : null}
       <td className="px-3 py-3">
         <div className="flex items-center justify-end gap-1.5">
           <Link

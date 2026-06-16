@@ -13,6 +13,7 @@ import {
 import TeacherClassesPage from "@/app/teacher/classes/page";
 import * as teacherApi from "@/lib/teacherApi";
 import * as insightsApi from "@/lib/insightsApi";
+import * as costApi from "@/lib/costApi";
 import type { ClassPayload } from "@/lib/teacherApi";
 
 function makeClass(overrides: Partial<ClassPayload> = {}): ClassPayload {
@@ -64,6 +65,12 @@ beforeEach(() => {
     interactionStyles: [],
   });
   vi.spyOn(teacherApi, "listMyActivities").mockResolvedValue([]);
+  vi.spyOn(costApi, "fetchTeacherSpend").mockResolvedValue({
+    currency: "EUR",
+    period: "this_month",
+    total_eur: 0,
+    per_class: [],
+  });
 });
 
 afterEach(() => {
@@ -153,7 +160,7 @@ describe("/teacher/classes — dashboard", () => {
     });
   });
 
-  it("shows the cross-class compare section when 2+ classes exist", async () => {
+  it("loads the integrated insights panel with per-class table + spend on demand", async () => {
     listSpy.mockResolvedValue([
       makeClass({ classId: "a", name: "Class A" }),
       makeClass({ classId: "b", name: "Class B" }),
@@ -166,14 +173,30 @@ describe("/teacher/classes — dashboard", () => {
         { classId: "b", name: "Class B", activeGroups: 1, messages: 20, messagesPrior: 30, messagesDelta: -10, simRuns: 0, lastActivity: null },
       ],
     });
+    vi.spyOn(costApi, "fetchTeacherSpend").mockResolvedValue({
+      currency: "EUR",
+      period: "this_month",
+      total_eur: 1.23,
+      per_class: [
+        { class_id: "a", eur: 1.0 },
+        { class_id: "b", eur: 0.23 },
+      ],
+    });
 
     render(<TeacherClassesPage />);
-    // Insights are deferred (BigQuery) — opt in to load the cross-class compare.
+    // Insights + spend are deferred (BigQuery) — opt in to load the panel.
     await userEvent.click(await screen.findByRole("button", { name: /show insights/i }));
     await waitFor(() => {
-      expect(screen.getByTestId("cross-class-compare-section")).toBeInTheDocument();
+      expect(screen.getByTestId("insights-panel")).toBeInTheDocument();
     });
-    expect(screen.getByText(/compare across classes \(2\)/i)).toBeInTheDocument();
+    // Teacher-LEVEL spend total is surfaced in the panel (not just per-class).
+    expect(screen.getByText("€1.23")).toBeInTheDocument();
+    // …and the per-class engagement+spend table is integrated in the SAME panel
+    // (Class A now appears both in the config table AND the per-class table).
+    expect(screen.getByTestId("cross-class-compare-section")).toBeInTheDocument();
+    expect(screen.getAllByText("Class A").length).toBeGreaterThan(1);
+    // Per-class spend is in the table too.
+    expect(screen.getByText("€1.00")).toBeInTheDocument();
   });
 
   it("hides the cross-class compare section when only 1 class exists", async () => {
