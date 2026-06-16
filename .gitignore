@@ -78,3 +78,4 @@ backend/aitana_platform/
 **/.terraform/
 *.tfstate
 *.tfstate.*
+demo-captures/
