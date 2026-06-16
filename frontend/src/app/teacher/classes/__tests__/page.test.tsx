@@ -54,6 +54,16 @@ beforeEach(() => {
     until: "2026-06-02T00:00:00+00:00",
     rows: [],
   });
+  // Default the table's supporting fetches to empty so rows render
+  // deterministically (and the recent-sessions fan-out doesn't hit the network).
+  vi.spyOn(teacherApi, "listClassRecentSessions").mockResolvedValue([]);
+  vi.spyOn(teacherApi, "listAccessibleSkills").mockResolvedValue([]);
+  vi.spyOn(teacherApi, "fetchPersonaCatalogue").mockResolvedValue({
+    personas: [],
+    defaultId: null,
+    interactionStyles: [],
+  });
+  vi.spyOn(teacherApi, "listMyActivities").mockResolvedValue([]);
 });
 
 afterEach(() => {
@@ -69,9 +79,9 @@ describe("/teacher/classes — dashboard", () => {
 
     render(<TeacherClassesPage />);
     await waitFor(() => {
-      expect(screen.getByRole("heading", { name: "Class A" })).toBeInTheDocument();
+      expect(screen.getByRole("link", { name: "Class A" })).toBeInTheDocument();
     });
-    expect(screen.getByRole("heading", { name: "Class B" })).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "Class B" })).toBeInTheDocument();
   });
 
   it("links each class card to its detail page", async () => {
@@ -139,7 +149,7 @@ describe("/teacher/classes — dashboard", () => {
       });
     });
     await waitFor(() => {
-      expect(screen.getByRole("heading", { name: "Brand new" })).toBeInTheDocument();
+      expect(screen.getByRole("link", { name: "Brand new" })).toBeInTheDocument();
     });
   });
 
@@ -170,8 +180,74 @@ describe("/teacher/classes — dashboard", () => {
     listSpy.mockResolvedValue([makeClass({ classId: "a", name: "Only class" })]);
     render(<TeacherClassesPage />);
     await waitFor(() => {
-      expect(screen.getByRole("heading", { name: "Only class" })).toBeInTheDocument();
+      expect(screen.getByRole("link", { name: "Only class" })).toBeInTheDocument();
     });
     expect(screen.queryByTestId("cross-class-compare-section")).not.toBeInTheDocument();
+  });
+
+  it("surfaces each class's tutor persona + assigned activity titles (1.1.32)", async () => {
+    listSpy.mockResolvedValue([
+      makeClass({ classId: "c-1", name: "Physik 9A", lessons: ["skill-x"], persona: "mikkel" }),
+    ]);
+    vi.spyOn(teacherApi, "fetchPersonaCatalogue").mockResolvedValue({
+      personas: [
+        {
+          id: "mikkel",
+          name: "Mikkel",
+          title: null,
+          avatar: "",
+          language: "da",
+          interactionStyle: "concise",
+          bio: null,
+        },
+      ],
+      defaultId: "sofie",
+      interactionStyles: [],
+    });
+    vi.spyOn(teacherApi, "listMyActivities").mockResolvedValue([
+      {
+        activityId: "skill-x",
+        classId: "c-1",
+        teacherUid: "teacher-1",
+        title: "Mechanical Waves",
+        teachingGoal: "g",
+        language: "da",
+        difficulty: "standard",
+        pairedWorkbench: null,
+        updatedAt: "2026-06-16T00:00:00Z",
+      },
+    ]);
+
+    render(<TeacherClassesPage />);
+    await waitFor(() =>
+      expect(screen.getByRole("link", { name: "Physik 9A" })).toBeInTheDocument(),
+    );
+    // The row distinguishes the class by its persona + its activity title.
+    expect(await screen.findByText("Mikkel")).toBeInTheDocument();
+    expect(await screen.findByText(/Mechanical Waves/)).toBeInTheDocument();
+  });
+
+  it("deletes a class only after confirming the warning (1.1.32)", async () => {
+    listSpy.mockResolvedValue([
+      makeClass({ classId: "c-9", name: "Old Class", groupCodes: ["alpha-bee-1"] }),
+    ]);
+    const deleteSpy = vi
+      .spyOn(teacherApi, "deleteClass")
+      .mockResolvedValue({ revoked: true, classId: "c-9" });
+
+    render(<TeacherClassesPage />);
+    await waitFor(() =>
+      expect(screen.getByRole("link", { name: "Old Class" })).toBeInTheDocument(),
+    );
+
+    // Clicking the row Delete opens a confirmation — it does NOT delete yet.
+    await userEvent.click(screen.getByRole("button", { name: "Delete Old Class" }));
+    expect(deleteSpy).not.toHaveBeenCalled();
+    expect(screen.getByRole("dialog")).toBeInTheDocument();
+    expect(screen.getByText(/can.t be undone/i)).toBeInTheDocument();
+
+    // Confirming deletes + refreshes.
+    await userEvent.click(screen.getByRole("button", { name: "Delete class" }));
+    await waitFor(() => expect(deleteSpy).toHaveBeenCalledWith("c-9"));
   });
 });

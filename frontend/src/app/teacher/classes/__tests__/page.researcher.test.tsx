@@ -51,7 +51,7 @@ describe("/teacher/classes — Research view (1.1.5)", () => {
 
     render(<TeacherClassesPage />);
     await waitFor(() => {
-      expect(screen.getByRole("heading", { name: "Mine" })).toBeInTheDocument();
+      expect(screen.getByRole("link", { name: "Mine" })).toBeInTheDocument();
     });
     expect(screen.queryByRole("button", { name: "Research view" })).not.toBeInTheDocument();
   });
@@ -72,7 +72,7 @@ describe("/teacher/classes — Research view (1.1.5)", () => {
       expect(listSpy).toHaveBeenCalledWith("own");
     });
     // Other teacher's class not visible in My classes scope.
-    expect(screen.queryByRole("heading", { name: "Theirs" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("link", { name: "Theirs" })).not.toBeInTheDocument();
 
     await userEvent.click(screen.getByRole("button", { name: "Research view" }));
 
@@ -80,7 +80,7 @@ describe("/teacher/classes — Research view (1.1.5)", () => {
       expect(listSpy).toHaveBeenCalledWith("all");
     });
     await waitFor(() => {
-      expect(screen.getByRole("heading", { name: "Theirs" })).toBeInTheDocument();
+      expect(screen.getByRole("link", { name: "Theirs" })).toBeInTheDocument();
     });
     // Owner labels are surfaced in Research view.
     expect(screen.getAllByTestId("class-owner").length).toBeGreaterThan(0);

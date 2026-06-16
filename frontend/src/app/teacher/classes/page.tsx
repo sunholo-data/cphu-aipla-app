@@ -6,20 +6,30 @@ import {
   ArrowRight,
   BarChart3,
   BookOpen,
+  ClipboardList,
   FileText,
+  Loader2,
   MessageCircle,
   Plus,
+  Settings,
+  Trash2,
+  UserRound,
   Users,
 } from "lucide-react";
 
 import {
+  type ActivityConfigPayload,
   type ClassPayload,
+  type PersonaPayload,
   type SessionRow,
   type SkillSummary,
   createClass,
+  deleteClass,
+  fetchPersonaCatalogue,
   listAccessibleSkills,
   listClassRecentSessions,
   listClasses,
+  listMyActivities,
 } from "@/lib/teacherApi";
 import {
   fetchInsightsCompare,
@@ -64,6 +74,21 @@ export default function TeacherClassesPage() {
   // the backend independently rejects scope=all without the claim.
   const isResearcher = useIsResearcher();
   const [researchView, setResearchView] = useState(false);
+
+  // Persona catalogue (1.1.32) — resolve each class's default persona id to a
+  // display name in the table. defaultId is the global fallback a class
+  // inherits when it has no explicit persona.
+  const [personaById, setPersonaById] = useState<Map<string, PersonaPayload>>(new Map());
+  const [defaultPersonaId, setDefaultPersonaId] = useState<string | null>(null);
+  // The teacher's authored activity configs, keyed `${classId}:${activityId}`,
+  // so the table can show the teacher's OWN activity titles for assigned
+  // lessons (matching the class-detail view) instead of bare skill ids.
+  const [configByKey, setConfigByKey] = useState<Map<string, ActivityConfigPayload>>(new Map());
+  // Delete-class flow: the class pending confirmation, the in-flight id, and a
+  // surfaced error (never a silent failure).
+  const [confirmDelete, setConfirmDelete] = useState<ClassPayload | null>(null);
+  const [deletingId, setDeletingId] = useState<string | null>(null);
+  const [actionError, setActionError] = useState<string | null>(null);
 
   // Skill displayName lookup so we can fall back to the lesson name when a
   // session hasn't generated a title yet (titles are auto-generated after
@@ -119,6 +144,36 @@ export default function TeacherClassesPage() {
       .catch(() => setCatalogue([]));
   }, []);
 
+  // Persona catalogue — to label each class's tutor persona. Non-fatal.
+  useEffect(() => {
+    void fetchPersonaCatalogue()
+      .then((cat) => {
+        setPersonaById(new Map(cat.personas.map((p) => [p.id, p])));
+        setDefaultPersonaId(cat.defaultId);
+      })
+      .catch(() => {
+        /* persona column degrades to the default label */
+      });
+  }, []);
+
+  // The teacher's authored activity configs (across their classes) so the
+  // table shows their own activity titles for assigned lessons. Non-fatal —
+  // falls back to the skill catalogue name. Skipped in research view (the
+  // configs are the caller's, not the viewed teacher's).
+  useEffect(() => {
+    if (researchView) {
+      setConfigByKey(new Map());
+      return;
+    }
+    void listMyActivities()
+      .then((configs) =>
+        setConfigByKey(
+          new Map(configs.map((c) => [`${c.classId}:${c.activityId}`, c])),
+        ),
+      )
+      .catch(() => setConfigByKey(new Map()));
+  }, [researchView]);
+
   // One round-trip for the per-card KPI strips (M9). Failure is
   // silent: the cards still render without the strip. Deferred behind
   // showInsights so it doesn't fire BigQuery on every class-list open.
@@ -162,6 +217,51 @@ export default function TeacherClassesPage() {
       cancelled = true;
     };
   }, [classes, showInsights]);
+
+  // Resolve the teacher-facing titles of a class's assigned activities: prefer
+  // the teacher's own config title, fall back to the skill catalogue name.
+  const activityTitlesForClass = useCallback(
+    (cls: ClassPayload): string[] =>
+      cls.lessons.map(
+        (skillId) =>
+          configByKey.get(`${cls.classId}:${skillId}`)?.title?.trim() ||
+          skillNameById.get(skillId) ||
+          skillId,
+      ),
+    [configByKey, skillNameById],
+  );
+
+  // Resolve a class's tutor persona to a display label. A class with no
+  // explicit persona inherits the global default; mark that so it reads as
+  // inherited rather than chosen.
+  const personaLabelForClass = useCallback(
+    (cls: ClassPayload): { name: string; inherited: boolean } => {
+      const explicit = cls.persona ?? null;
+      const id = explicit ?? defaultPersonaId;
+      const name = (id && personaById.get(id)?.name) || "Default tutor";
+      return { name, inherited: !explicit };
+    },
+    [personaById, defaultPersonaId],
+  );
+
+  const handleDelete = useCallback(
+    async (cls: ClassPayload) => {
+      setActionError(null);
+      setDeletingId(cls.classId);
+      try {
+        await deleteClass(cls.classId);
+        setConfirmDelete(null);
+        await refresh();
+      } catch (err) {
+        setActionError(
+          err instanceof Error ? err.message : `failed to delete ${cls.name}`,
+        );
+      } finally {
+        setDeletingId(null);
+      }
+    },
+    [refresh],
+  );
 
   return (
     <div className="flex flex-col gap-8">
@@ -233,30 +333,71 @@ export default function TeacherClassesPage() {
         </p>
       ) : null}
 
-      <section
-        aria-labelledby="classes-grid-label"
-        className="grid gap-4 sm:grid-cols-2"
-      >
-        <h2 id="classes-grid-label" className="sr-only">
-          Class cards
+      {actionError ? (
+        <p
+          role="alert"
+          className="rounded border border-destructive bg-destructive/10 px-3 py-2 text-sm text-destructive"
+        >
+          {actionError}
+        </p>
+      ) : null}
+
+      <section aria-labelledby="classes-table-label">
+        <h2 id="classes-table-label" className="sr-only">
+          Classes
         </h2>
         {classes === null ? (
           <p className="text-sm text-muted-foreground">Loading classes&hellip;</p>
         ) : classes.length === 0 ? (
           <EmptyState onCreateClick={() => setShowNewClassForm(true)} />
         ) : (
-          classes.map((cls) => (
-            <ClassCard
-              key={cls.classId}
-              cls={cls}
-              insightsSummary={insightsSummary.get(cls.classId)}
-              insightsRequested={showInsights}
-              insightsLoading={insightsLoading}
-              showOwner={researchView}
-            />
-          ))
+          <div className="overflow-x-auto rounded-lg border border-border">
+            <table className="w-full min-w-[680px] text-sm">
+              <thead>
+                <tr className="border-b border-border bg-muted/40 text-left text-xs uppercase tracking-wide text-muted-foreground">
+                  <th className="px-3 py-2 font-medium">Class</th>
+                  <th className="px-3 py-2 font-medium">Groups</th>
+                  <th className="px-3 py-2 font-medium">Activities</th>
+                  <th className="px-3 py-2 font-medium">Tutor persona</th>
+                  {showInsights ? (
+                    <th className="px-3 py-2 font-medium">Engagement</th>
+                  ) : null}
+                  <th className="px-3 py-2 text-right font-medium">Actions</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-border">
+                {classes.map((cls) => (
+                  <ClassRow
+                    key={cls.classId}
+                    cls={cls}
+                    activities={activityTitlesForClass(cls)}
+                    persona={personaLabelForClass(cls)}
+                    insightsSummary={insightsSummary.get(cls.classId)}
+                    insightsRequested={showInsights}
+                    insightsLoading={insightsLoading}
+                    showOwner={researchView}
+                    canDelete={!researchView}
+                    deleting={deletingId === cls.classId}
+                    onDelete={() => setConfirmDelete(cls)}
+                  />
+                ))}
+              </tbody>
+            </table>
+          </div>
         )}
       </section>
+
+      {confirmDelete ? (
+        <DeleteClassDialog
+          cls={confirmDelete}
+          busy={deletingId === confirmDelete.classId}
+          onCancel={() => {
+            setConfirmDelete(null);
+            setActionError(null);
+          }}
+          onConfirm={() => void handleDelete(confirmDelete)}
+        />
+      ) : null}
 
       {!showInsights ? (
         <button
@@ -366,58 +507,185 @@ export default function TeacherClassesPage() {
   );
 }
 
-function ClassCard({
+function ClassRow({
   cls,
+  activities,
+  persona,
   insightsSummary,
   insightsRequested = false,
   insightsLoading = false,
   showOwner = false,
+  canDelete = true,
+  deleting = false,
+  onDelete,
 }: {
   cls: ClassPayload;
+  activities: string[];
+  persona: { name: string; inherited: boolean };
   insightsSummary: InsightsClassSummary | undefined;
   insightsRequested?: boolean;
   insightsLoading?: boolean;
   showOwner?: boolean;
+  canDelete?: boolean;
+  deleting?: boolean;
+  onDelete: () => void;
 }) {
+  const activitySummary =
+    activities.length <= 2
+      ? activities.join(", ")
+      : `${activities[0]} +${activities.length - 1} more`;
   return (
-    <article className="flex flex-col gap-3 rounded border border-border bg-background p-4 shadow-sm">
-      <header className="flex items-start justify-between gap-2">
-        <h3 className="text-lg font-semibold">{cls.name}</h3>
-        <Users className="h-5 w-5 text-muted-foreground" aria-hidden="true" />
-      </header>
-      {showOwner ? (
-        <p className="text-xs text-muted-foreground" data-testid="class-owner">
-          Owner: {cls.ownerUid}
-        </p>
-      ) : null}
-      <p className="text-sm text-muted-foreground">
-        {cls.groupCodes.length} group{cls.groupCodes.length === 1 ? "" : "s"} ·{" "}
-        {cls.lessons.length} {cls.lessons.length === 1 ? "activity" : "activities"}{" "}
-        configured
-      </p>
-      {/* Only show the engagement strip once insights are requested (the
-          "Show insights" button defers the BigQuery round-trip). Before that
-          the card stays clean — no misleading "Loading engagement…". */}
-      {insightsRequested ? (
-        <KpiStrip summary={insightsSummary} loading={insightsLoading} />
-      ) : null}
-      <div className="mt-1 flex flex-wrap gap-2">
+    <tr className="align-top hover:bg-muted/30">
+      <td className="px-3 py-3">
         <Link
           href={`/teacher/classes/${cls.classId}`}
-          className="rounded bg-primary px-3 py-1.5 text-sm font-medium text-primary-foreground hover:opacity-90"
+          className="font-medium text-foreground hover:underline"
         >
-          Manage
+          {cls.name}
         </Link>
-        {cls.groupCodes[0] ? (
-          <Link
-            href={`/teacher/reports/groups/${cls.groupCodes[0]}`}
-            className="rounded border border-border px-3 py-1.5 text-sm font-medium hover:bg-accent"
-          >
-            Latest report
-          </Link>
+        {showOwner ? (
+          <div className="text-xs text-muted-foreground" data-testid="class-owner">
+            Owner: {cls.ownerUid}
+          </div>
         ) : null}
+      </td>
+      <td className="px-3 py-3 text-muted-foreground">
+        <span className="inline-flex items-center gap-1">
+          <Users className="h-3.5 w-3.5 shrink-0" aria-hidden="true" />
+          {cls.groupCodes.length}
+        </span>
+      </td>
+      <td className="max-w-[18rem] px-3 py-3 text-muted-foreground">
+        {activities.length === 0 ? (
+          <span className="text-muted-foreground/60">None yet</span>
+        ) : (
+          <span
+            className="inline-flex max-w-full items-center gap-1"
+            title={activities.join(", ")}
+          >
+            <ClipboardList className="h-3.5 w-3.5 shrink-0" aria-hidden="true" />
+            <span className="truncate">{activitySummary}</span>
+          </span>
+        )}
+      </td>
+      <td className="px-3 py-3 text-muted-foreground">
+        <span className="inline-flex items-center gap-1">
+          <UserRound className="h-3.5 w-3.5 shrink-0" aria-hidden="true" />
+          {persona.name}
+          {persona.inherited ? (
+            <span className="text-muted-foreground/60">· default</span>
+          ) : null}
+        </span>
+      </td>
+      {insightsRequested ? (
+        <td className="px-3 py-3">
+          <KpiStrip summary={insightsSummary} loading={insightsLoading} />
+        </td>
+      ) : null}
+      <td className="px-3 py-3">
+        <div className="flex items-center justify-end gap-1.5">
+          <Link
+            href={`/teacher/classes/${cls.classId}`}
+            className="flex items-center gap-1 rounded bg-primary px-2.5 py-1 text-xs font-medium text-primary-foreground hover:opacity-90"
+          >
+            <Settings className="h-3.5 w-3.5" aria-hidden="true" />
+            Manage
+          </Link>
+          {cls.groupCodes[0] ? (
+            <Link
+              href={`/teacher/reports/groups/${cls.groupCodes[0]}`}
+              className="rounded border border-border px-2.5 py-1 text-xs font-medium hover:bg-accent"
+            >
+              Report
+            </Link>
+          ) : null}
+          {canDelete ? (
+            <button
+              type="button"
+              onClick={onDelete}
+              disabled={deleting}
+              aria-label={`Delete ${cls.name}`}
+              className="flex items-center gap-1 rounded border border-border px-2 py-1 text-xs font-medium text-muted-foreground hover:bg-destructive/10 hover:text-destructive disabled:opacity-50"
+            >
+              {deleting ? (
+                <Loader2 className="h-3.5 w-3.5 animate-spin" aria-hidden="true" />
+              ) : (
+                <Trash2 className="h-3.5 w-3.5" aria-hidden="true" />
+              )}
+              Delete
+            </button>
+          ) : null}
+        </div>
+      </td>
+    </tr>
+  );
+}
+
+function DeleteClassDialog({
+  cls,
+  busy,
+  onCancel,
+  onConfirm,
+}: {
+  cls: ClassPayload;
+  busy: boolean;
+  onCancel: () => void;
+  onConfirm: () => void;
+}) {
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape" && !busy) onCancel();
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [onCancel, busy]);
+
+  return (
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4"
+      onClick={() => !busy && onCancel()}
+    >
+      <div
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="delete-class-title"
+        onClick={(e) => e.stopPropagation()}
+        className="w-full max-w-md rounded-lg border border-border bg-background p-5 shadow-xl"
+      >
+        <h2 id="delete-class-title" className="text-lg font-semibold">
+          Delete &ldquo;{cls.name}&rdquo;?
+        </h2>
+        <p className="mt-2 text-sm text-muted-foreground">
+          This revokes the class and its {cls.groupCodes.length} group code
+          {cls.groupCodes.length === 1 ? "" : "s"} — students can no longer
+          join, and its assigned activities &amp; session reports become
+          inaccessible. This can&rsquo;t be undone here.
+        </p>
+        <div className="mt-5 flex justify-end gap-2">
+          <button
+            type="button"
+            onClick={onCancel}
+            disabled={busy}
+            className="rounded border border-border px-3 py-1.5 text-sm font-medium hover:bg-accent disabled:opacity-50"
+          >
+            Cancel
+          </button>
+          <button
+            type="button"
+            onClick={onConfirm}
+            disabled={busy}
+            className="flex items-center gap-1.5 rounded bg-red-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-red-700 disabled:opacity-60"
+          >
+            {busy ? (
+              <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />
+            ) : (
+              <Trash2 className="h-4 w-4" aria-hidden="true" />
+            )}
+            Delete class
+          </button>
+        </div>
       </div>
-    </article>
+    </div>
   );
 }
 
