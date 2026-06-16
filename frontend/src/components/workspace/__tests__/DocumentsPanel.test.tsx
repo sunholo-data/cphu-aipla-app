@@ -85,7 +85,7 @@ describe("DocumentsPanel", () => {
     );
   });
 
-  it("tells the student to re-upload when a doc has no stored content (M3)", async () => {
+  it("shows a graceful note when a doc has no stored content (M3)", async () => {
     fetchCurriculumContent.mockResolvedValue({
       docId: "d1",
       title: "Old doc",
@@ -102,7 +102,34 @@ describe("DocumentsPanel", () => {
     );
     fireEvent.click(screen.getByRole("button", { name: /Old doc/i }));
     await waitFor(() =>
-      expect(screen.getByText(/re-upload it to read it here/i)).toBeInTheDocument(),
+      expect(screen.getByText(/isn't available to read here yet/i)).toBeInTheDocument(),
     );
+  });
+
+  it("renders the opened doc content INLINE (no modal dialog)", async () => {
+    fetchCurriculumContent.mockResolvedValue({
+      docId: "d1",
+      title: "A-level kinematics",
+      available: true,
+      text: "Inline body text.",
+      chars: 17,
+    });
+    render(
+      <DocumentsPanel
+        materials={[{ docId: "d1", origin: "A-level kinematics", studentVisible: true }]}
+        images={[]}
+        activityId="act-1"
+      />,
+    );
+    fireEvent.click(screen.getByRole("button", { name: /A-level kinematics/i }));
+    await waitFor(() => expect(screen.getByText(/Inline body text/)).toBeInTheDocument());
+    // Inline pane, not a modal — there must be no dialog role, and the source
+    // button stays in the document (so the student can switch / it stays visible).
+    expect(screen.queryByRole("dialog")).toBeNull();
+    expect(screen.getByRole("button", { name: /A-level kinematics/i })).toBeInTheDocument();
+    // Closing the inline pane hides the content but keeps the source list.
+    fireEvent.click(screen.getByRole("button", { name: /close document/i }));
+    await waitFor(() => expect(screen.queryByText(/Inline body text/)).toBeNull());
+    expect(screen.getByRole("button", { name: /A-level kinematics/i })).toBeInTheDocument();
   });
 });
