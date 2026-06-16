@@ -164,3 +164,42 @@ def test_group_report_prefers_bq_latest_over_index(client):
     body = resp.json()
     assert body["sessionId"] == "bq-real"  # NOT "bare-join"
     assert body["messageCount"] == 2
+
+
+def test_group_report_enriches_class_link_and_activity_name(client):
+    """The report carries the class (for a back-link) + a real activity name,
+    not the raw skill UUID — so a teacher landing on a group report knows which
+    class/activity it came from."""
+    from reports.session_summary import SessionSummary, SessionTurn
+
+    summary = SessionSummary(
+        sessionId="s",
+        groupCode="bold-kazoo-87",
+        activityId="ec34861d-uuid",
+        startedAt=datetime(2026, 5, 25, 14, 0, 0, tzinfo=UTC),
+        durationSeconds=0,
+        messageCount=1,
+        simRunCount=0,
+        conversation=[SessionTurn(timestamp="2026-05-25T14:00:00+00:00", role="student", content="hej")],
+    )
+    fake_class = MagicMock()
+    fake_class.class_id = "cls-xyz"
+    fake_class.name = "My class 1"
+
+    async def _resolve(_sid):
+        return summary
+
+    with (
+        patch("protocols.reports_routes.find_latest_session_id_for_group_bq", return_value="s"),
+        patch("protocols.reports_routes.resolve_session_summary", side_effect=_resolve),
+        patch("protocols.reports_routes.resolve_narrative", new=AsyncMock()),
+        patch("db.classes.get_class_for_group", return_value=fake_class),
+        patch("db.firestore.get_document", return_value={"displayName": "Boldkast Projectile"}),
+    ):
+        resp = client.get("/api/reports/groups/bold-kazoo-87")
+
+    assert resp.status_code == 200, resp.text
+    body = resp.json()
+    assert body["classId"] == "cls-xyz"
+    assert body["className"] == "My class 1"
+    assert body["activityName"] == "Boldkast Projectile"  # resolved, not the UUID

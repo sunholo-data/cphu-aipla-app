@@ -24,6 +24,8 @@ type ReportTurn = { timestamp: string; role: "student" | "tutor"; content: strin
 type ReportDisplay = {
   groupCode: string;
   activityName: string;
+  classId: string | null;
+  className: string | null;
   startedAtLabel: string;
   durationMinutes: number;
   messageCount: number;
@@ -43,7 +45,9 @@ function toDisplay(state: ReportState): ReportDisplay | null {
   const d = state.data;
   return {
     groupCode: d.groupCode ?? "",
-    activityName: d.activityId,
+    activityName: d.activityName || d.activityId,
+    classId: d.classId ?? null,
+    className: d.className ?? null,
     startedAtLabel: d.startedAt.slice(0, 16).replace("T", " "),
     durationMinutes: Math.round(d.durationSeconds / 60),
     messageCount: d.messageCount,
@@ -166,6 +170,14 @@ export default function TeacherGroupReportPage() {
           <ArrowLeft className="h-4 w-4" aria-hidden="true" />
           Dashboard
         </Link>
+        {report.classId ? (
+          <>
+            <span aria-hidden="true">/</span>
+            <Link href={`/teacher/classes/${report.classId}`} className="hover:text-foreground hover:underline">
+              {report.className || "Class"}
+            </Link>
+          </>
+        ) : null}
         <span aria-hidden="true">/</span>
         <code className="rounded bg-muted px-1.5 py-0.5 font-mono text-xs text-foreground">
           {groupId}

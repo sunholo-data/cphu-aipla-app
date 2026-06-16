@@ -32,8 +32,37 @@ log = logging.getLogger(__name__)
 router = APIRouter(prefix="/api/reports", tags=["reports"])
 
 
+def _report_labels(summary: SessionSummary) -> dict:
+    """Human labels for the report header: which class this group belongs to
+    (so the UI can link back to it) and the activity's display name rather than
+    its raw UUID. All best-effort — a missing binding just yields nulls / the
+    raw id, never an error."""
+    from db.classes import get_class_for_group
+    from db.firestore import get_document
+
+    labels: dict = {"classId": None, "className": None, "activityName": summary.activity_id}
+    try:
+        cls = get_class_for_group(summary.group_code)
+        if cls is not None:
+            labels["classId"] = cls.class_id
+            labels["className"] = cls.name
+    except Exception as exc:
+        log.warning("report labels: class lookup failed for group=%s: %s", summary.group_code, exc)
+    try:
+        if summary.activity_id:
+            skill = get_document("skills", summary.activity_id) or {}
+            name = skill.get("displayName") or skill.get("name")
+            if name:
+                labels["activityName"] = name
+    except Exception as exc:
+        log.warning("report labels: skill lookup failed for id=%s: %s", summary.activity_id, exc)
+    return labels
+
+
 def _serialize(summary: SessionSummary) -> dict:
-    return summary.model_dump(by_alias=True, mode="json")
+    data = summary.model_dump(by_alias=True, mode="json")
+    data.update(_report_labels(summary))
+    return data
 
 
 @router.get("/sessions/{session_id}")

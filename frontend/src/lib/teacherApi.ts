@@ -139,6 +139,11 @@ export interface SessionSummaryPayload {
   sessionId: string;
   groupCode: string | null;
   activityId: string;
+  /** Activity display name (resolved server-side), falls back to activityId. */
+  activityName?: string | null;
+  /** The class this group belongs to (for a back-link), null if unbound. */
+  classId?: string | null;
+  className?: string | null;
   startedAt: string;
   endedAt: string | null;
   durationSeconds: number;
