@@ -227,10 +227,12 @@ steps:
       # until M-B5 ships the per-class teacher toggle.
       - '--set-env-vars=VOICE_TTS_PROVIDER=gcp_wavenet'
       - '--set-env-vars=VOICE_TTS_CACHE_BUCKET=${_PROJECT_ID}-tts-cache'
-      # VOICE-IN-REC — Cloud STT (Danish/English) for voice-in / talk-to-type.
-      # Makes the provider available; the actual UI is gated per-class on the
-      # teacher's voiceInputEnabled toggle, so this env-on is safe.
-      - '--set-env-vars=VOICE_STT_PROVIDER=gcp_latest_long'
+      # RAQ-1 (1.1.35) — Gemini is the STT engine for voice-in + research
+      # recording. The 16 June demo + spike showed Cloud STT garbled the
+      # Danish/English classroom audio; Gemini transcribes it accurately at
+      # ~8-16x lower cost. Already wired via Vertex (tutor + narrative use it),
+      # so no extra IAM. UI still gated per-class on voiceInputEnabled.
+      - '--set-env-vars=VOICE_STT_PROVIDER=gemini_2.5-flash'
 
   # --- Post-deploy smoke: fail the build if any critical endpoint is not 200 ---
   # Per CLAUDE.md: no feature lands with manual-only verification. This step

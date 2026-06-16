@@ -245,7 +245,7 @@ async def get_config(
           "capabilities": VoiceCapabilities
         },
         "stt": {
-          "provider": "disabled" | "gcp_latest_long" | ...,
+          "provider": "disabled" | "gemini_2.5-flash" | ...,
           "capabilities": VoiceCapabilities
         }
       }

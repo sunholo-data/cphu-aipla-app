@@ -59,7 +59,7 @@ After applying, the backend Cloud Run service needs:
 ```
 VOICE_TTS_CACHE_BUCKET=aipla-{env}-2026-tts-cache
 VOICE_TTS_PROVIDER=gcp_wavenet   # or browser to disable backend TTS for an env
-VOICE_STT_PROVIDER=gcp_latest_long
+VOICE_STT_PROVIDER=gemini_2.5-flash   # Gemini is the only STT engine (RAQ-1)
 ```
 
 (Per-skill overrides in `SkillConfig.voice.tts_provider` / `stt_provider`.)

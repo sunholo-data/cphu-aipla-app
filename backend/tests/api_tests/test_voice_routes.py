@@ -361,7 +361,7 @@ def test_synthesize_with_cache_miss_writes_after_synth(client, monkeypatch):
 
 def _enabled_stt(monkeypatch, transcript: str = "hej med dig"):
     """Wire get_stt to an enabled fake provider whose transcribe returns text."""
-    p = _fake_stt("gcp_latest_long")
+    p = _fake_stt("gemini_2.5-flash")
     p.transcribe = AsyncMock(return_value=transcript)
     monkeypatch.setattr("protocols.voice_routes.get_stt", lambda skill=None: p)
     monkeypatch.setattr("protocols.voice_routes.get_skill", lambda sid: None)
@@ -403,7 +403,7 @@ def test_transcribe_empty_audio_returns_400(client, monkeypatch):
 
 
 def test_transcribe_provider_runtime_error_returns_503(client, monkeypatch):
-    p = _fake_stt("gcp_latest_long")
+    p = _fake_stt("gemini_2.5-flash")
     p.transcribe = AsyncMock(side_effect=RuntimeError("grpc down"))
     monkeypatch.setattr("protocols.voice_routes.get_stt", lambda skill=None: p)
     monkeypatch.setattr("protocols.voice_routes.get_skill", lambda sid: None)

@@ -23,15 +23,13 @@ _TTS_USD_PER_MILLION_CHARS = {
     "null": 0.0,
 }
 
-# USD per second of audio transcribed. Cloud STT bills per 15-second
-# increment ($0.006 / 15s = $0.0004/s) for standard models; chirp_2 /
-# chirp_3 are 4x ($0.016/15s = $0.00107/s). We bill per-second for
-# simplicity at the dashboard level.
+# USD per second of audio transcribed. Gemini is the only STT engine (RAQ-1,
+# 2026-06-16 — Cloud STT removed). Gemini counts audio at ~32 tokens/s; at the
+# 2.5 Flash input rate ($1.00/1M tokens) that's ~$0.000032/s (batch ~half,
+# Flash-Lite cheaper). Estimate for the dashboard; actual GCP billing trumps it.
 _STT_USD_PER_SECOND = {
-    "gcp_latest_long": 0.0004,
-    "gcp_default": 0.0004,
-    "gcp_chirp_3": 0.00107,
-    "gcp_chirp_2": 0.00107,
+    "gemini_2.5-flash": 0.000032,
+    "gemini_2.5-flash-lite": 0.0000096,
     "disabled": 0.0,
     "null": 0.0,
 }

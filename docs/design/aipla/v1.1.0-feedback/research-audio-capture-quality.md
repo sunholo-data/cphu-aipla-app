@@ -123,8 +123,8 @@ per class, and (d) making audio retention switchable per environment.
 | 1 | INSTANT FEEL | 0 | Research capture is background; not on the interactive latency path. Recorder-alive work adds a heartbeat, not blocking UI. |
 | 2 | EARNED TRUST | +1 | Honest capture state (no false "we recorded it"); and because Gemini can paraphrase, the transcript is pinned to **verbatim**, the **raw audio is retained as ground truth**, and Gemini↔Cloud-STT cross-check is available (A3). |
 | 3 | SKILLS, NOT FEATURES | 0 | Platform-level research affordance, not a skill. |
-| 4 | RIGHT MODEL, RIGHT MOMENT | +1 | **The core fit.** Spike: Gemini most accurate *and* ~8–16× cheaper than Cloud STT; engine swap-shaped per ADR-003 (Gemini primary, Cloud STT fallback, Whisper for self-host). |
-| 5 | GRACEFUL DEGRADATION | +1 | Gemini primary → Cloud STT multi-language fallback if Gemini is down; recorder survives reload/resumes instead of dying silently; the audio is always retained even if transcription fails; re-transcribe recovers any gap. |
+| 4 | RIGHT MODEL, RIGHT MOMENT | +1 | **The core fit.** Spike: Gemini most accurate *and* ~8–16× cheaper than Cloud STT; engine swap-shaped per ADR-003 (Gemini only now — Cloud STT removed; Whisper a future self-host option). |
+| 5 | GRACEFUL DEGRADATION | +1 | No Cloud STT fallback (removed) — degradation is audio-first: the audio is always retained even if Gemini fails and is re-transcribed later; the recorder survives reload/resumes instead of dying silently. |
 | 6 | PROTOCOL OVER CUSTOM | 0 | Reuses the shipped `STTProvider` registry + Cloud STT + GCS lifecycle primitives; no new protocol. (Capture is a bespoke research pipeline by necessity — see framework-native check.) |
 | 7 | API FIRST | +1 | Re-transcribe is an API/CLI operation over the same `recordings` store; no channel-specific logic. |
 | 8 | OBSERVABLE BY DEFAULT | +1 | Adds `voice.stt.cost` (engine/model/minutes/tokens/$) + yield + capture-coverage spans → BigQuery, so transcription spend and "% empty this week" are dashboard lines (joining the 1.1.11 `voice.*` spans). |
@@ -139,7 +139,7 @@ per class, and (d) making audio retention switchable per environment.
 
 Before adding plumbing, confirm the stack doesn't already do it:
 
-- **Transcription engine:** Gemini is already wired (`google-genai`, used by tutor + narrative) and takes a GCS audio `Part` natively — *no new transport*. Cloud STT stays a registered `STTProvider` (1.1.11) as the fallback; the multi-language fix is a one-line `alternative_language_codes` addition. A new engine (e.g. Whisper) is a new registered provider name — *no new abstraction*. Reuse, don't rebuild.
+- **Transcription engine:** Gemini is already wired (`google-genai`, used by tutor + narrative) and takes a GCS audio `Part` natively — *no new transport*. Cloud STT was removed entirely (it garbled the audio). A new engine (e.g. Whisper) is a new registered provider name — *no new abstraction*. Reuse, don't rebuild.
 - **Re-transcription:** the `recordings` Firestore docs already carry `gcsUri` + `transcriptStatus`; the background-transcribe function already exists ([recording_routes.py](../../../../backend/protocols/recording_routes.py)). Re-transcribe is **re-invoking the existing function over stored rows**, not a new pipeline.
 - **Retention:** GCS **bucket lifecycle rules** are the native TTL primitive (already used for the TTS-cache bucket in `infrastructure/modules/voice/main.tf`). No custom expiry job — just parameterize the existing Terraform pattern.
 - **Capture (genuinely custom, justified):** this is far-field group-discussion recording to a research bucket — it is **not** the tutor turn, so AG-UI/ADK media transport does not apply (those carry *interaction* audio into the model; this is *ambient research* audio that never enters a model turn). The bespoke recorder is necessary; the fix keeps it minimal (lifecycle robustness, not a new transport).
@@ -175,31 +175,12 @@ and **~$0.06–0.12 / hr audio** (batch/standard) — ~8–16× cheaper than Clo
 The per-50 s live transcription stays a best-effort preview (or is dropped to save cost); capture
 keeps 50 s chunks only for upload resilience.
 
-**A1b — Cloud STT multi-language (graceful-degradation fallback).** If Gemini is unavailable
-(Axiom 5) or we want a deterministic ASR cross-check, Cloud STT with `alternative_language_codes`
-(da↔en), whole-file via `long_running_recognize` reading the GCS URI (no 10 MB inline cap). This is
-the fallback, not the primary. Local to
-[`_build_request`](../../../../backend/voice/providers/gcp_stt.py#L113-L136), both branches:
-
-```python
-# gcp_stt.py — _build_request
-_ALT_LANGS = {  # primary -> alternates (auto-detect per utterance, max 3)
-    "da-DK": ["en-US"],
-    "en-US": ["da-DK"],
-}
-config = speech.RecognitionConfig(
-    encoding=enc.LINEAR16,
-    sample_rate_hertz=rate,
-    audio_channel_count=max(1, channels),
-    language_code=lang_full,
-    alternative_language_codes=_ALT_LANGS.get(lang_full, []),   # <-- new
-    model=self.model,
-    enable_automatic_punctuation=True,
-)
-```
-
-On the Cloud STT fallback, surface the detected language (`result.language_code`); on Gemini,
-record `model` + version on the transcript doc.
+**A1b — No fallback (Cloud STT removed 2026-06-16).** The spike showed Cloud STT garbled the audio
+even with multi-language enabled, so it is **removed entirely** — Gemini is the only STT engine
+(registry `_build_stt` knows only `gemini_*`; `gcp_stt.py` deleted). Graceful degradation is
+*audio-first*: on a Gemini outage the audio is retained (the durable research record) and
+re-transcribed later (A3/M6), rather than falling back to an engine we've rejected. Record `model`
++ version on the transcript doc.
 
 **Cost tracking (a must, per M).** Every transcription emits a `voice.stt.cost` span —
 `{engine, model, audio_seconds, input_tokens, output_tokens, usd}` → BigQuery, joining the shipped
@@ -298,8 +279,8 @@ Backlink: [local-dev-cli.md](../../../v6.1.0/local-dev-cli.md). Estimate ~0.3d.
 
 ## Testing Strategy
 
-- **pytest `gcp_stt`:** assert `alternative_language_codes` set per primary; WAV + fallback
-  branches both carry alternates; detected language surfaced.
+- **pytest `gemini_stt`:** mocked genai client — assert the audio Part + grounding prompt reach
+  Gemini, `transcribe_long` delegates, size cap + error wrapping, registry builds `gemini_*`.
 - **pytest re-transcribe route:** iterates a group's docs, overwrites transcript, auth-gated
   (researcher/owner-teacher → 200; other → 403).
 - **vitest recorder lifecycle:** `visibilitychange`/`beforeunload` flush; `sessionStorage`
@@ -315,7 +296,7 @@ Backlink: [local-dev-cli.md](../../../v6.1.0/local-dev-cli.md). Estimate ~0.3d.
 | Phase | Step | Est |
 |---|---|---|
 | **A** | A1a — Gemini whole-file transcription (GCS audio Part + grounding prompt) + end-of-session trigger + `voice.stt.cost` span | 0.75d |
-| **A** | A1b — Cloud STT multi-language fallback (`alternative_language_codes`) + Gemini↔STT cross-check + test | 0.25d |
+| **A** | A1b — REMOVED: Cloud STT deleted entirely (`gcp_stt.py` gone; registry knows only `gemini_*`); Gemini only, no fallback | done |
 | **A** | A3 — re-transcribe route + CLI `audio retranscribe` (shares A1a) + test | 0.25d |
 | **A** | A1 eval — re-transcribe 16 June audio; diff today (slice/single-lang) → Gemini whole-file; tune | 0.25d |
 | **A** | A2 — recorder survive-reload (coverage; guard + sessionStorage resume + honest state + heartbeat) | 0.5d |
@@ -327,7 +308,7 @@ Backlink: [local-dev-cli.md](../../../v6.1.0/local-dev-cli.md). Estimate ~0.3d.
 ## Success Criteria
 
 - [ ] The authoritative transcript is a **whole-recording Gemini pass** at end of class (GCS audio → grounded prompt); per-segment STT is preview-only; raw audio retained as ground truth.
-- [ ] Cloud STT multi-language fallback works (`alternative_language_codes` da↔en) for graceful degradation.
+- [x] Cloud STT removed entirely; Gemini is the only STT engine (registry knows only `gemini_*`).
 - [ ] Every transcription emits a `voice.stt.cost` span (engine/model/minutes/tokens/$) → BigQuery cost dashboard.
 - [ ] Re-transcribing the 16 June `tiny-beetle`/`eager-stork` audio renders correct Danish+English physics terms (spike already shows Gemini 12k chars vs today's 360).
 - [ ] `tilted-petal-71` (134 min) is transcribed via the re-transcribe path.
