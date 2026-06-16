@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import type { ReactNode } from "react";
-import { GraduationCap, LogOut } from "lucide-react";
+import { LogOut } from "lucide-react";
 
 import { AppFooter } from "@/components/AppFooter";
 import { TeacherNav } from "@/components/teacher/ui/TeacherNav";
@@ -53,8 +53,15 @@ export function TeacherClientShell({ children }: { children: ReactNode }) {
           <Link
             href="/teacher/classes"
             className="flex items-center gap-2 text-sm font-semibold hover:opacity-80"
+            aria-label={`${BRANDING.appName} Teacher — home`}
           >
-            <GraduationCap className="h-5 w-5" aria-hidden="true" />
+            {/* Same AIPLA mark the student chat header uses (SkillsBar). */}
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img
+              src={BRANDING.logo.headerMark}
+              alt={BRANDING.appName}
+              className="h-7 w-7"
+            />
             <span>{BRANDING.appName} Teacher</span>
           </Link>
 

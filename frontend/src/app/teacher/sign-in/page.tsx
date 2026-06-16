@@ -2,7 +2,6 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { GraduationCap } from "lucide-react";
 import {
   signInWithEmail,
   signInWithGoogle,
@@ -60,7 +59,12 @@ export default function TeacherSignInPage() {
 
   return (
     <main className="mx-auto flex max-w-sm flex-col items-center justify-center gap-6 px-6 py-16 text-center">
-      <GraduationCap className="h-12 w-12 text-muted-foreground" aria-hidden="true" />
+      {/* eslint-disable-next-line @next/next/no-img-element */}
+      <img
+        src={BRANDING.logo.headerMark}
+        alt={BRANDING.appName}
+        className="h-16 w-16"
+      />
       <div className="flex flex-col gap-1">
         <h1 className="text-2xl font-semibold">{BRANDING.appName} Teacher</h1>
         <p className="text-sm text-muted-foreground">
