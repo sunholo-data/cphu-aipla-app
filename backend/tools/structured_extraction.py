@@ -22,9 +22,11 @@ from google import genai
 from google.adk.agents.callback_context import CallbackContext
 from google.genai import types as genai_types
 
+from config.models import default_model
+
 log = logging.getLogger(__name__)
 
-_EXTRACTION_MODEL = os.environ.get("EXTRACTION_MODEL", "gemini-2.5-flash")
+_EXTRACTION_MODEL = os.environ.get("EXTRACTION_MODEL") or default_model()
 _LARGE_OUTPUT_THRESHOLD = 50_000
 
 

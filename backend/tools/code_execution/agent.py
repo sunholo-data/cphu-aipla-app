@@ -12,7 +12,9 @@ import os
 from google.adk.agents import LlmAgent
 from google.adk.code_executors import BuiltInCodeExecutor
 
-_CODE_AGENT_MODEL = os.environ.get("CODE_AGENT_MODEL", "gemini-2.5-flash")
+from config.models import default_model
+
+_CODE_AGENT_MODEL = os.environ.get("CODE_AGENT_MODEL") or default_model()
 
 
 def create_code_agent() -> LlmAgent:

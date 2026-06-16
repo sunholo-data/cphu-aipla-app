@@ -23,6 +23,7 @@ from google.genai import types
 from adk.artifact_tools import retrieve_artifact
 from adk.session import get_compaction_config
 from config.gcp import resolve_gcp_project
+from config.models import default_model
 
 # Fallback project keeps module import working on CI runners (no env vars,
 # no ADC) — the resolver returns None there. Override via PLATFORM_DEFAULT_PROJECT
@@ -41,7 +42,7 @@ os.environ.setdefault("GOOGLE_GENAI_USE_VERTEXAI", "True")
 root_agent = Agent(
     name="aitana",
     model=Gemini(
-        model="gemini-2.5-flash",
+        model=default_model(),
         retry_options=types.HttpRetryOptions(attempts=3),
     ),
     instruction=(
@@ -57,5 +58,5 @@ root_agent = Agent(
 app = App(
     root_agent=root_agent,
     name="aitana_platform",
-    events_compaction_config=get_compaction_config("gemini-2.5-flash"),
+    events_compaction_config=get_compaction_config(default_model()),
 )

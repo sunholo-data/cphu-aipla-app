@@ -15,6 +15,7 @@ import uuid
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
+from config.models import default_model
 from db.models.access import AccessControl, AccessType
 from db.models.buckets import BucketConfig, BucketFolderConfig
 
@@ -36,7 +37,7 @@ class SkillMetadata(BaseModel):
 
     author: str = "aitana"
     version: str = "1.0"
-    model: str = "gemini-2.5-flash"
+    model: str = Field(default_factory=default_model)
     thinking_model: str | None = Field(default=None, alias="thinkingModel")
     tools: list[str] = []
     tool_configs: dict = Field(default_factory=dict, alias="toolConfigs")

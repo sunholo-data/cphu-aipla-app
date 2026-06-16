@@ -13,9 +13,10 @@ from __future__ import annotations
 import logging
 import os
 
+from config.models import default_model
+
 logger = logging.getLogger(__name__)
 
-_DEFAULT_TITLE_MODEL = "gemini-2.5-flash-lite"
 _PROMPT = (
     "Based on the conversation excerpt below, generate a short title "
     "(maximum 6 words, no quotes, no punctuation at the end).\n\n"
@@ -32,7 +33,7 @@ def generate_title_fast(events: list) -> str | None:
     if not excerpt:
         return None
 
-    model_name = os.environ.get("CHAT_TITLE_MODEL", _DEFAULT_TITLE_MODEL)
+    model_name = os.environ.get("CHAT_TITLE_MODEL") or default_model()
     try:
         from google import genai
         from google.genai import types as genai_types

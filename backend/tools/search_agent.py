@@ -21,6 +21,8 @@ from __future__ import annotations
 from google.adk.agents import LlmAgent
 from google.adk.tools import VertexAiSearchTool, google_search, url_context
 
+from config.models import default_model
+
 _WEB_INSTRUCTION = (
     "You are a web search assistant. Use the available tools to find relevant "
     "information from the web and return a comprehensive, well-structured answer. "
@@ -38,7 +40,7 @@ def create_web_search_agent() -> LlmAgent:
     """Gemini agent with google_search + url_context for open-web queries."""
     return LlmAgent(
         name="web_search_agent",
-        model="gemini-2.5-flash",
+        model=default_model(),
         description="Searches the web and fetches URL content. Use for web search and URL lookup.",
         instruction=_WEB_INSTRUCTION,
         tools=[google_search, url_context],
@@ -54,7 +56,7 @@ def create_enterprise_search_agent(datastore_id: str) -> LlmAgent:
     """
     return LlmAgent(
         name="enterprise_search_agent",
-        model="gemini-2.5-flash",
+        model=default_model(),
         description="Searches the enterprise knowledge base. Use for document and corpus search.",
         instruction=_ENTERPRISE_INSTRUCTION,
         tools=[VertexAiSearchTool(data_store_id=datastore_id)],

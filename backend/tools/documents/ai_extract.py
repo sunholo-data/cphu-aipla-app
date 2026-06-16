@@ -16,10 +16,12 @@ from __future__ import annotations
 import logging
 import os
 
+from config.models import default_model
+
 log = logging.getLogger(__name__)
 
-# Vertex Gemini model for AI extraction (override via env).
-PDF_PARSE_MODEL = os.environ.get("PDF_PARSE_MODEL", "gemini-2.5-flash")
+# Vertex Gemini model for AI extraction (config-driven; override via env).
+PDF_PARSE_MODEL = os.environ.get("PDF_PARSE_MODEL") or default_model()
 
 _EXTRACT_PROMPT = (
     "Extract ALL text from this document as clean Markdown. Preserve headings, "

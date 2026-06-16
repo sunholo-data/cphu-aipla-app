@@ -65,3 +65,16 @@ def load_models_config() -> ModelsConfig:
         defaults=raw["defaults"],
         platform_default=raw["platform_default"],
     )
+
+
+def default_model() -> str:
+    """API name of the platform default model (models.yaml ``platform_default``).
+
+    The single knob for "what model does the platform use". Code MUST call this
+    instead of hardcoding a model string, so a config change — e.g. when a model
+    deprecates (``gemini-2.5-flash`` is going away) — moves every call site at
+    once. RAQ-1 follow-up 2026-06-16.
+    """
+    cfg = load_models_config()
+    entry = next((m for m in cfg.models if m.id == cfg.platform_default), None)
+    return entry.api_name if entry else cfg.platform_default
