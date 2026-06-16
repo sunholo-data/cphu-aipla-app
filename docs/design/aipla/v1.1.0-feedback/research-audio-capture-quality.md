@@ -358,4 +358,4 @@ Backlink: [local-dev-cli.md](../../../v6.1.0/local-dev-cli.md). Estimate ~0.3d.
 - `demo-captures/2026-06-16/DEBRIEF.md` — the demo evidence base (gitignored — research-participant transcript fragments).
 - `scripts/capture-demo-logs.sh`, `scripts/sync-research-audio.sh` — the capture/sync tooling built during the demo; reuse for the August pilot.
 - ADR-001 (anonymous group IDs), ADR-003 (swap-shaped provider tiers), ADR-005/007 (EU residency) — scoping-site `architecture.qmd`.
-- SEQUENCE.md row **1.1.33**.
+- SEQUENCE.md row **1.1.35**.

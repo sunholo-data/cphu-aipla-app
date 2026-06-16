@@ -5,7 +5,7 @@ prompt — *not* a classic ASR. The 16 June Jutland demo spike proved this on th
 real classroom audio: Cloud STT v1 single-language returned 360 chars of garbage
 on the Danish/English code-switched discussion; Gemini 2.5 Flash returned ~12k
 chars, accurate, with the physics terms and the tutor's turns correct — and at
-~8-16x lower cost. See research-audio-capture-quality.md (SEQUENCE 1.1.33).
+~8-16x lower cost. See research-audio-capture-quality.md (SEQUENCE 1.1.35).
 
 Swap-shaped per ADR-003: this registers as a `gemini_<model>` STT provider, so
 `VOICE_STT_PROVIDER=gemini_2.5-flash` routes the lesson-recording transcribe path

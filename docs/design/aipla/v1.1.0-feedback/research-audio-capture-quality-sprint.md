@@ -1,6 +1,6 @@
 # Sprint plan — research-audio capture/transcription quality (RAQ-1)
 
-**Design doc:** [research-audio-capture-quality.md](research-audio-capture-quality.md) · SEQUENCE **1.1.33**
+**Design doc:** [research-audio-capture-quality.md](research-audio-capture-quality.md) · SEQUENCE **1.1.35**
 **Created:** 2026-06-16 · **Goal:** make research-audio transcription actually work (Gemini engine), end-to-end testable.
 
 ## Milestones
