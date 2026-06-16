@@ -323,7 +323,7 @@ Backlink: [local-dev-cli.md](../../../v6.1.0/local-dev-cli.md). Estimate ~0.3d.
 - **Q1 (JB) — retention periods per env.** What `research_audio_retention_days` for test and
   prod? (Dev = 0 / keep-all is decided.) Feeds the data-management plan.
 - **Q2 — Gemini model tier?** Now **config-driven** — STT uses `config/models.yaml`
-  `platform_default` (currently `gemini-3-flash`), the same knob as the rest of the platform; no
+  `platform_default` (currently `gemini-3.5-flash`), the same knob as the rest of the platform; no
   STT-specific pin. (Spike used `gemini-2.5-flash` — best accuracy + cheapest, no
   repetition-loop). Open: Flash vs Flash-Lite (cheaper) vs Pro (if accuracy demands), standard vs
   batch tier. Decide from a small multi-group eval. (Engine settled: Gemini, full stop.)

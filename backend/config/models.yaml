@@ -18,13 +18,13 @@ models:
   # Primary provider; ADK runs on Vertex AI (GOOGLE_GENAI_USE_VERTEXAI=True).
   # 1M token context window on all Gemini 3.x models.
 
-  gemini-3-flash:
-    api_name: "gemini-3-flash-preview"
+  gemini-3-5-flash:
+    api_name: "gemini-3.5-flash"
     provider: google
     tier: default
     context_window: 1_000_000
     max_output_tokens: 65_536
-    description: "Gemini 3 Flash — fast, 1M context, outperforms 2.5 Pro"
+    description: "Gemini 3.5 Flash — platform default; fast, 1M context (the model the tutor + skills run)"
 
   gemini-3-1-pro:
     api_name: "gemini-3.1-pro-preview"
@@ -94,7 +94,7 @@ models:
 # Model used when a skill specifies a provider but no explicit model ID.
 
 defaults:
-  google: "gemini-3-flash"       # api_name: gemini-3-flash-preview
+  google: "gemini-3-5-flash"     # api_name: gemini-3.5-flash
   anthropic: "claude-sonnet-4-6" # api_name: claude-sonnet-4-6
   openai: "gpt-5-1-instant"      # api_name: gpt-5.1-chat-latest
 
@@ -102,7 +102,7 @@ defaults:
 # Applied when no provider/model is specified at all.
 # Must be a google model (primary provider on Vertex AI).
 
-platform_default: "gemini-3-flash"
+platform_default: "gemini-3-5-flash"
 
 # ─── Compaction context windows ───────────────────────────────────────────
 # EventsCompactionConfig on App (not Agent/Runner).
