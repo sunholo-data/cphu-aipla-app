@@ -20,7 +20,7 @@ individually; no verbatim quoting; no emoji.
 from __future__ import annotations
 
 import logging
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 
 from config.models import default_model
 from db.chat_sessions import get_session_index, update_session_fields
@@ -78,6 +78,25 @@ def build_narrative_prompt(summary: SessionSummary) -> str:
     )
 
 
+#: Don't regenerate the narrative more than once per this window — a cost guard on
+#: a teacher refreshing a live lesson's report (1.1.36 A2).
+_DEBOUNCE_MINUTES = 5
+
+
+def _within_debounce(generated_at) -> bool:
+    """True if the cached summary was generated within the debounce window, so a
+    grown-but-recently-generated session serves the cache instead of re-running."""
+    if not generated_at:
+        return False
+    try:
+        ts = generated_at if isinstance(generated_at, datetime) else datetime.fromisoformat(str(generated_at))
+        if ts.tzinfo is None:
+            ts = ts.replace(tzinfo=UTC)
+        return (datetime.now(UTC) - ts) < timedelta(minutes=_DEBOUNCE_MINUTES)
+    except (ValueError, TypeError):
+        return False
+
+
 async def _call_gemini(prompt: str) -> str:
     """Run the prompt through Gemini Flash (plain text). Mocked in tests."""
     from google import genai
@@ -111,14 +130,16 @@ async def resolve_narrative(summary: SessionSummary) -> str | None:
 
     idx = get_session_index(summary.session_id)
     live_count = summary.message_count
-    if (
-        idx is not None
-        and idx.summary_text
-        and idx.summary_based_on_turn_count is not None
-        and idx.summary_based_on_turn_count >= live_count
-    ):
-        summary.narrative = idx.summary_text
-        return summary.narrative
+    live_voice = len((summary.voice_transcript or "").strip())
+    if idx is not None and idx.summary_text:
+        cached_turns = idx.summary_based_on_turn_count or 0
+        cached_voice = getattr(idx, "summary_based_on_voice_chars", None) or 0
+        grew = live_count > cached_turns or live_voice > cached_voice
+        # Serve the cache unless the content grew AND we're past the debounce — so a
+        # teacher refreshing a live lesson re-runs the LLM at most once per 5 min.
+        if not grew or _within_debounce(getattr(idx, "summary_generated_at", None)):
+            summary.narrative = idx.summary_text
+            return summary.narrative
 
     try:
         text = await generate_narrative(summary)
@@ -135,6 +156,7 @@ async def resolve_narrative(summary: SessionSummary) -> str | None:
                     "summaryText": text,
                     "summaryGeneratedAt": datetime.now(UTC).isoformat(),
                     "summaryBasedOnTurnCount": live_count,
+                    "summaryBasedOnVoiceChars": live_voice,
                 },
             )
         except Exception as exc:  # caching is best-effort

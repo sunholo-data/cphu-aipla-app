@@ -5,7 +5,7 @@ The LLM call (`_call_gemini`) and the session-index store are mocked.
 
 from __future__ import annotations
 
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 from unittest.mock import AsyncMock, patch
 
 from reports import narrative
@@ -89,6 +89,34 @@ async def test_resolve_regenerates_when_turns_grew() -> None:
     assert result == "fresh"
 
 
+async def test_resolve_debounced_serves_cache_when_grown_but_recent() -> None:
+    # 1.1.36 A2: grew (5 > 3) BUT generated 1 min ago -> within the 5-min debounce
+    # -> serve cache, no LLM (cost guard on a teacher refreshing a live lesson).
+    s = _summary(turns=5)
+    recent = (datetime.now(UTC) - timedelta(minutes=1)).isoformat()
+    with (
+        patch.object(narrative, "get_session_index", return_value=_FakeIndex("stale", 3, generated_at=recent)),
+        patch.object(narrative, "_call_gemini", new=AsyncMock()) as mock_llm,
+    ):
+        result = await narrative.resolve_narrative(s)
+    assert result == "stale"
+    mock_llm.assert_not_called()
+
+
+async def test_resolve_regenerates_when_voice_grew() -> None:
+    # 1.1.36 A2: turns unchanged (3 == 3) but the audio transcript grew -> regen.
+    s = _summary(turns=3)
+    s.voice_transcript = "we discussed it aloud at length"
+    with (
+        patch.object(narrative, "get_session_index", return_value=_FakeIndex("stale", 3, voice_chars=0)),
+        patch.object(narrative, "_call_gemini", new=AsyncMock(return_value="fresh w/ voice")),
+        patch.object(narrative, "update_session_fields") as mock_update,
+    ):
+        result = await narrative.resolve_narrative(s)
+    assert result == "fresh w/ voice"
+    assert mock_update.call_args.args[1]["summaryBasedOnVoiceChars"] == len("we discussed it aloud at length")
+
+
 async def test_resolve_swallows_llm_failure() -> None:
     s = _summary(turns=3)
     with (
@@ -110,6 +138,8 @@ async def test_resolve_skips_empty_conversation() -> None:
 class _FakeIndex:
     """Minimal stand-in for ChatSessionIndex with the summary cache fields."""
 
-    def __init__(self, summary_text, based_on):
+    def __init__(self, summary_text, based_on, *, generated_at=None, voice_chars=0):
         self.summary_text = summary_text
         self.summary_based_on_turn_count = based_on
+        self.summary_generated_at = generated_at
+        self.summary_based_on_voice_chars = voice_chars

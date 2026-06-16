@@ -84,6 +84,9 @@ class ChatSessionIndex(BaseModel):
     summary_based_on_turn_count: int | None = Field(default=None, alias="summaryBasedOnTurnCount")
     """The message count the cached summary was generated from. The summary
     is regenerated when the live count exceeds this."""
+    summary_based_on_voice_chars: int | None = Field(default=None, alias="summaryBasedOnVoiceChars")
+    """1.1.36 — the voice-transcript length the cached summary was built from.
+    Regenerated when chat turns OR voice chars grow (and past the debounce)."""
 
     model_config = ConfigDict(populate_by_name=True)
 
