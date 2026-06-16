@@ -938,6 +938,18 @@ The combination is the right shape: the adapter should never emit the bad sequen
 
 The contribution this represents for the template: ship the defensive SSE wrapper change as a one-line `saw_run_error` track + early-continue. The adapter-level fix can land in a follow-up PR against `ag_ui_adk` directly (separate repo); the SSE wrapper change is template-local and unblocks every fork immediately.
 
+## 33. Frontend API clients hardwire one auth helper, breaking dual-audience endpoints for anonymous-group users
+
+**Where:** `frontend/src/lib/curriculumApi.ts` imported `fetchWithTeacherAuth` for *every* call (`import { fetchWithTeacherAuth as fetchWithAuth }`). One of those, `GET /api/curriculum/{id}/content`, is **dual-audience**: the backend ACLs it for both teachers (own/shared docs) and anonymous-group students (a doc cited + `student_visible` in their active activity). The student workbench viewer hit the teacher-auth path.
+
+**What hurt:** Every shared-doc open in the deployed student workbench returned **HTTP 401**, surfaced as "Couldn't load this document." A teacher token comes from `getTeacherIdToken()`, which returns `null` for a student (no Firebase identity) → no `Authorization` header → backend rejects before the ACL even runs.
+
+**Root cause:** Same root as #19–#21 — the template models one user (Firebase teacher). Its `apiClient` ships two helpers (`fetchWithAuth` = group token via `getIdToken`; `fetchWithTeacherAuth` = Firebase via `getTeacherIdToken`) but provides no pattern for an endpoint that serves *both* roles, so a client author picks one helper for the whole module and silently breaks the other role.
+
+**Workaround on AIPLA:** `fetchCurriculumContent(docId, activityId, { as: "student" | "teacher" })` selects the helper; student-facing callers pass `{ as: "student" }`. Regression test asserts student→group / teacher→Firebase. AIPLA commit `71daf47`.
+
+**Upstream fix:** The template's `apiClient` should make the role explicit at the call site for any shared endpoint — e.g. a single `fetchWithAuth(path, { audience: "student" | "teacher" | "either" })` that picks the token (and, for `"either"`, prefers whichever is present). Bundling the choice into one helper removes the "which import did this module pick?" footgun that produced #19–#21 and this one. A lint rule flagging `fetchWithTeacherAuth` inside student-surface dirs (`components/workspace`, `app/lessons`) would catch regressions.
+
 ## Backlog (likely additions as v0.1 sprint continues)
 
 - M5 may surface IAM bindings the bootstrap script should add

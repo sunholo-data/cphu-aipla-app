@@ -1,4 +1,13 @@
 /**
+ * CHOOSING BETWEEN THE TWO HELPERS (we get this wrong a lot — see CLAUDE.md
+ * "Anonymous-Group Auth"):
+ *   - `fetchWithAuth`        → STUDENT / anonymous-group token (`getIdToken`).
+ *                              Use in student-facing surfaces (workspace, lessons, chat).
+ *   - `fetchWithTeacherAuth` → TEACHER Firebase token (`getTeacherIdToken`).
+ *                              Use in teacher-only surfaces (teacher/*).
+ * A student calling `fetchWithTeacherAuth` sends a NULL token → backend 401.
+ * For a DUAL-audience endpoint, let the caller pick — don't hardwire one.
+ *
  * `fetchWithAuth` — thin wrapper around `fetch` that attaches the current
  * Firebase ID token as `Authorization: Bearer <jwt>` so the backend's
  * `Depends(get_current_user)` can verify it.

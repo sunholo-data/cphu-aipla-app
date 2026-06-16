@@ -1,4 +1,4 @@
-.PHONY: dev dev-local dev-recompile dev-status dev-stop proxy-check logs cloud-logs cloud-errors cloud-build verify-chat-logs smoke-session-persistence smoke-chat-resume smoke-teacher-cli help cli-install cli-reinstall cli-uninstall cli-doctor cli-selftest-mock cli-selftest-live cli-selftest seed reset-group-state provision-curriculum-rag seed-curriculum backfill-curriculum-content migrate-clear-persona-voice-override
+.PHONY: dev dev-local dev-recompile dev-status dev-stop proxy-check logs cloud-logs cloud-errors cloud-build verify-chat-logs smoke-session-persistence smoke-chat-resume smoke-curriculum-content smoke-teacher-cli help cli-install cli-reinstall cli-uninstall cli-doctor cli-selftest-mock cli-selftest-live cli-selftest seed reset-group-state provision-curriculum-rag seed-curriculum backfill-curriculum-content migrate-clear-persona-voice-override
 
 # Seed SKILL.md templates -> Firestore after a deploy that changed any template
 # (avatar, multimodalInput, persona, tools, accessControl, instructions). A code
@@ -144,6 +144,16 @@ smoke-session-persistence:
 smoke-chat-resume:
 	@chmod +x scripts/smoke-chat-resume.sh
 	@scripts/smoke-chat-resume.sh
+
+# Student curriculum-content auth smoke — guards the dual-audience 401 regression
+# (commit 71daf47): a student opening a shared doc in the workbench must send the
+# anonymous-GROUP token, not the teacher token. Join → resolve active activity →
+# read a cited doc → assert AUTHENTICATED (never 401). No creds (group JWT).
+# Targets the deployed dev frontend proxy; override BASE / GROUP:
+#   make smoke-curriculum-content GROUP=aipla-demo-1
+smoke-curriculum-content:
+	@chmod +x scripts/smoke-curriculum-content.sh
+	@scripts/smoke-curriculum-content.sh
 
 # 1.G-Ph3 teacher CLI smoke: class new/list/get/lessons/groups/delete round-trip
 # Requires make dev with LOCAL_MODE=1, or a deployed backend:

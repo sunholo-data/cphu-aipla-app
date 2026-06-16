@@ -357,3 +357,29 @@ Always `cd backend && uv run ...` — never use global `python` or `pip`.
 
 ### Copying v5 Code Without Removing Sunholo
 Every v5 file has Sunholo imports. Strip them when copying. Replace with direct Firestore/ADK calls.
+
+### Anonymous-Group Auth — the one we keep forgetting
+AIPLA has **two** kinds of authenticated user (ADR-001): **teachers** (Firebase
+SSO) and **anonymous-group students** (a custom group JWT, `email=""`,
+`domain=""`, no `firebase.auth().currentUser`, synthetic `uid`). The inherited
+template was built for teachers only, so any identity-touching surface breaks for
+students unless explicitly wired. We have shipped this bug **4+ times** — check it
+on *every* identity-touching change.
+
+- **Frontend auth helpers (the recurring one).** `fetchWithAuth` sends the
+  **group** token (`getIdToken` → anon-group sessionStorage); `fetchWithTeacherAuth`
+  sends the **Firebase teacher** token. A student calling a teacher-auth helper
+  sends a null token → **401**. A **dual-audience** endpoint (one the backend ACLs
+  for *both* roles, e.g. `GET /api/curriculum/{id}/content`) must let the CALLER
+  pick — never hardwire one helper for all calls. Student-facing components
+  (`components/workspace/*`, `app/lessons/*`, chat) → group token; teacher
+  components (`components/teacher/*`, `app/teacher/*`) → Firebase token.
+- **Backend.** Guard `User.email` / `User.domain` before using them as Firestore
+  keys or gates (empty string → `400 invalid document path` / silent deny). The
+  student branch keys off `user.group_id` / `user.group_tags`.
+- **Firestore `onSnapshot`.** Gate listeners on `isAnonymousGroupAuthMode()` —
+  group JWTs aren't Firebase identities, so client-SDK rules deny them.
+
+Full history + fixes: memory `feedback-anonymous-users-are-corner-case`. New
+identity bugs → log them in [docs/upstream-feedback.md](docs/upstream-feedback.md)
+(template gap). Smoke: `make smoke-curriculum-content GROUP=<code>`.
