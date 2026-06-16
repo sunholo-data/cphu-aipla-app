@@ -45,14 +45,30 @@ describe("LessonRecordingPanel", () => {
     expect(screen.queryByText(/No transcript yet/i)).not.toBeInTheDocument();
   });
 
-  it("auto-expands the transcript body once there is text to read", async () => {
+  it("stays collapsed by default even when a transcript exists (student view)", async () => {
     fetchMyTranscript.mockResolvedValue({
       groupId: "g1",
       segments: [{ seq: 0, text: "hej fra gruppen", createdAt: "" }],
       text: "hej fra gruppen",
     });
     render(<LessonRecordingPanel {...base} />);
-    await waitFor(() => expect(screen.getByText("hej fra gruppen")).toBeInTheDocument());
+    await waitFor(() => expect(fetchMyTranscript).toHaveBeenCalled());
+    // Closed by default — the transcript is not shown until the student opens it.
+    expect(screen.queryByText("hej fra gruppen")).not.toBeInTheDocument();
+  });
+
+  it("opens the transcript on click and renders rows, closes again on click", async () => {
+    fetchMyTranscript.mockResolvedValue({
+      groupId: "g1",
+      segments: [{ seq: 0, text: "hej fra gruppen", createdAt: "" }],
+      text: "hej fra gruppen",
+    });
+    render(<LessonRecordingPanel {...base} />);
+    await waitFor(() => expect(fetchMyTranscript).toHaveBeenCalled());
+    fireEvent.click(screen.getByText("Lesson transcript"));
+    expect(screen.getByText("hej fra gruppen")).toBeInTheDocument();
+    fireEvent.click(screen.getByText("Lesson transcript"));
+    expect(screen.queryByText("hej fra gruppen")).not.toBeInTheDocument();
   });
 
   it("record -> stop posts the segment to /recording and reports recording state", async () => {
@@ -71,35 +87,4 @@ describe("LessonRecordingPanel", () => {
     await waitFor(() => expect(onRecordingChange).toHaveBeenCalledWith(false));
   });
 
-  it("hides the transcript while recording even when text exists, and reveals it on stop", async () => {
-    fetchMyTranscript.mockResolvedValue({
-      groupId: "g1",
-      segments: [{ seq: 0, text: "hej fra gruppen", createdAt: "" }],
-      text: "hej fra gruppen",
-    });
-    fetchMock.mockResolvedValue({ ok: true, json: async () => ({}) });
-    render(<LessonRecordingPanel {...base} />);
-    // Pre-existing transcript auto-expands on load.
-    await waitFor(() => expect(screen.getByText("hej fra gruppen")).toBeInTheDocument());
-
-    // Starting a recording collapses it — the live capture is the focus.
-    fireEvent.click(screen.getByLabelText("Record this class"));
-    await waitFor(() => expect(screen.queryByText("hej fra gruppen")).not.toBeInTheDocument());
-
-    // Stopping reveals it again for review.
-    fireEvent.click(screen.getByText("Stop recording"));
-    await waitFor(() => expect(screen.getByText("hej fra gruppen")).toBeInTheDocument());
-  });
-
-  it("lets the student manually collapse an auto-expanded transcript", async () => {
-    fetchMyTranscript.mockResolvedValue({
-      groupId: "g1",
-      segments: [{ seq: 0, text: "hej fra gruppen", createdAt: "" }],
-      text: "hej fra gruppen",
-    });
-    render(<LessonRecordingPanel {...base} />);
-    await waitFor(() => expect(screen.getByText("hej fra gruppen")).toBeInTheDocument());
-    fireEvent.click(screen.getByText("Lesson transcript"));
-    expect(screen.queryByText("hej fra gruppen")).not.toBeInTheDocument();
-  });
 });

@@ -44,8 +44,7 @@ export function LessonRecordingPanel({ lang, disabled, onRecordingChange, onNoti
   const [busy, setBusy] = useState(false);
   const [data, setData] = useState<GroupTranscript | null>(null);
   const [loading, setLoading] = useState(false);
-  // null = follow the auto-expand rule (open iff there's text); true/false =
-  // the student has manually overridden it.
+  // null = use the default (closed); true/false = the student toggled it.
   const [manualOpen, setManualOpen] = useState<boolean | null>(null);
 
   const load = useCallback(async () => {
@@ -122,11 +121,11 @@ export function LessonRecordingPanel({ lang, disabled, onRecordingChange, onNoti
   if (!isAudioCaptureSupported()) return null;
 
   const hasText = !!data?.text?.trim();
-  // Auto-expand once there's a transcript to read, but NOT while recording —
-  // the live capture is the focus then, and a growing transcript is noise.
-  // The transcript is for reviewing after the lesson, so it reveals on stop
-  // (or for a pre-existing transcript on load). A manual toggle overrides this.
-  const open = manualOpen ?? (hasText && !recording);
+  // Closed by default in the student view — the transcript is a research/review
+  // artifact, not something students should be reading mid-lesson. They can
+  // expand it on demand (chevron); teachers get it always-open in the per-group
+  // report (GroupTranscriptSection). A manual toggle overrides the default.
+  const open = manualOpen ?? false;
 
   return (
     <div className="rounded-md border border-border">
