@@ -75,6 +75,10 @@ class SessionSummary(BaseModel):
     voice_transcript: str | None = Field(default=None, alias="voiceTranscript")
     """1.1.36 — the group's spoken-discussion transcript (RAQ-1 audio recording),
     fed to the narrative alongside the chat. None when there's no recording."""
+    voice_minutes: float = Field(default=0.0, alias="voiceMinutes")
+    """1.1.36 — total recorded audio minutes for the group (the "what's included" line)."""
+    voice_segments: int = Field(default=0, alias="voiceSegments")
+    """1.1.36 — recorded segment count for the group."""
 
     model_config = ConfigDict(populate_by_name=True)
 
@@ -112,23 +116,25 @@ def _count_sim_runs(state: dict[str, Any]) -> int:
     return len(set(keys))
 
 
-def _voice_transcript_for_group(group_code: str) -> str:
-    """The group's spoken-discussion transcript (RAQ-1 audio recording), joined in
-    seq order — fed to the narrative alongside the chat (1.1.36). Mirrors
-    ``recording_routes._transcript_for_group``; kept local to avoid importing the
-    recording router here. Best-effort: returns "" on any error."""
+def _voice_transcript_for_group(group_code: str) -> tuple[str, float, int]:
+    """``(joined transcript, total audio minutes, recorded segment count)`` for the
+    group's recording — fed to the narrative + the report's "what's included" line
+    (1.1.36). Mirrors ``recording_routes._transcript_for_group``; kept local to avoid
+    importing the recording router. Best-effort: ``("", 0.0, 0)`` on any error."""
     try:
         docs = query_documents("recordings", filters=[("groupId", "==", group_code)])
     except Exception as exc:
         log.warning("voice transcript lookup failed for group=%s: %s", group_code, exc)
-        return ""
+        return "", 0.0, 0
+    total_ms = sum(int(d.get("durationMs", 0) or 0) for d in docs)
     segments = [
         (int(d.get("seq", 0)), str(d.get("createdAt", "")), (d.get("transcript") or "").strip())
         for d in docs
         if (d.get("transcript") or "").strip()
     ]
     segments.sort(key=lambda s: (s[0], s[1]))
-    return " ".join(t for _, _, t in segments)
+    text = " ".join(t for _, _, t in segments)
+    return text, round(total_ms / 60000.0, 1), len(docs)
 
 
 async def summarize_session(session_id: str) -> SessionSummary | None:
@@ -285,7 +291,10 @@ async def resolve_session_summary(session_id: str) -> SessionSummary | None:
     # 1.1.36 — attach the group's spoken-discussion transcript so the narrative
     # summarises chat + audio. Best-effort; never blocks the report.
     if summary is not None and summary.group_code:
-        summary.voice_transcript = _voice_transcript_for_group(summary.group_code) or None
+        text, minutes, segs = _voice_transcript_for_group(summary.group_code)
+        summary.voice_transcript = text or None
+        summary.voice_minutes = minutes
+        summary.voice_segments = segs
     return summary
 
 

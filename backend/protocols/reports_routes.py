@@ -18,6 +18,7 @@ import logging
 from fastapi import APIRouter, Depends, HTTPException, Path, Query
 
 from auth import User, get_current_user
+from config.models import default_model
 from reports.narrative import resolve_narrative
 from reports.session_summary import (
     SessionSummary,
@@ -59,9 +60,34 @@ def _report_labels(summary: SessionSummary) -> dict:
     return labels
 
 
+def _report_inputs(summary: SessionSummary) -> dict:
+    """"What's included" for the report UI (1.1.36 A3): the sources the narrative was
+    built from + the model + generation state, so the teacher knows what it's based on
+    and why it took a moment. Best-effort; never raises."""
+    generated_at = None
+    try:
+        from db.chat_sessions import get_session_index
+
+        idx = get_session_index(summary.session_id)
+        if idx is not None and idx.summary_generated_at is not None:
+            generated_at = idx.summary_generated_at.isoformat()
+    except Exception:  # best-effort metadata
+        generated_at = None
+    return {
+        "chatTurns": summary.message_count,
+        "audioMinutes": summary.voice_minutes,
+        "audioSegments": summary.voice_segments,
+        "simEvents": summary.sim_run_count,
+        "model": default_model(),
+        "generatedAt": generated_at,
+        "state": "ready" if summary.narrative else "none",
+    }
+
+
 def _serialize(summary: SessionSummary) -> dict:
     data = summary.model_dump(by_alias=True, mode="json")
     data.update(_report_labels(summary))
+    data["inputs"] = _report_inputs(summary)
     return data
 
 
