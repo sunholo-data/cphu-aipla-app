@@ -40,6 +40,7 @@ from db.curriculum import (
 )
 from db.models.curriculum import SHARED_SCOPE, CopyrightStatus, CurriculumDoc, StxLevel
 from db.rag_corpus import query_rag_files, upload_text_as_rag_file
+from tools.documents.ai_extract import extract_pdf_text
 from tools.documents.ailang_parse import DETERMINISTIC_EXTENSIONS, _parse_file_sync
 
 logger = logging.getLogger(__name__)
@@ -50,7 +51,8 @@ router = APIRouter(prefix="/api/curriculum", tags=["curriculum"])
 _PLAINTEXT_EXTENSIONS = {".txt", ".md"}
 
 # 1.1.33 — PDFs go through Gemini multimodal (OCR-capable: handles scanned
-# PDFs too). AILANG Parse's deterministic path doesn't do PDF; Gemini-for-now.
+# PDFs too). AILANG Parse's deterministic path doesn't do PDF, so we use the
+# shared AI fallback in tools.documents.ai_extract (one implementation, reused).
 _PDF_EXTENSIONS = {".pdf"}
 
 # All extensions accepted by this endpoint.
@@ -60,37 +62,15 @@ _ALLOWED_EXTENSIONS = _PLAINTEXT_EXTENSIONS | _PDF_EXTENSIONS | DETERMINISTIC_EX
 # reported separately). Generous: most uploads are worksheets, not books.
 _PARSE_PREVIEW_CAP = 20000
 
-# Vertex Gemini model for PDF text extraction (override via env).
-_PDF_PARSE_MODEL = os.environ.get("PDF_PARSE_MODEL", "gemini-2.5-flash")
-
 
 async def _extract_pdf_text(pdf_bytes: bytes) -> str:
-    """Extract a PDF's text as Markdown via Gemini (Vertex). OCR-capable, so
-    scanned PDFs work too. Raises 422 on failure / empty output."""
-    from google import genai
-    from google.genai import types as genai_types
-
-    prompt = (
-        "Extract ALL text from this document as clean Markdown. Preserve headings, "
-        "lists, and tables in reading order. Do NOT summarise, translate, comment, "
-        "or add anything — output only the document's own content."
-    )
+    """Extract a PDF's text via the shared Gemini fallback, mapping its domain
+    error to a 422 (the HTTP concern stays here, not in the shared helper)."""
     try:
-        client = genai.Client(vertexai=True)
-        response = await client.aio.models.generate_content(
-            model=_PDF_PARSE_MODEL,
-            contents=[
-                prompt,
-                genai_types.Part.from_bytes(data=pdf_bytes, mime_type="application/pdf"),
-            ],
-        )
-    except Exception as exc:
-        logger.warning("PDF extraction via Gemini failed: %s", exc)
+        return await extract_pdf_text(pdf_bytes)
+    except ValueError as exc:
+        logger.warning("PDF extraction failed: %s", exc)
         raise HTTPException(status_code=422, detail="Couldn't read this PDF. Try another file.") from exc
-    text = (response.text or "").strip()
-    if not text:
-        raise HTTPException(status_code=422, detail="No text could be extracted from this PDF.")
-    return text
 
 
 # ---------------------------------------------------------------------------
