@@ -194,7 +194,7 @@ function UniversalLessonsPage({
       {skills === null && !error ? (
         <p className="text-sm text-muted-foreground">Indlæser… / Loading…</p>
       ) : skills && skills.length === 0 ? (
-        <EmptyState />
+        <EmptyState className={className} />
       ) : skills ? (
         <section
           aria-labelledby="lessons-grid-label"
@@ -262,15 +262,20 @@ function LessonCover({ avatar, title }: { avatar: string; title: string }) {
   );
 }
 
-function EmptyState() {
+function EmptyState({ className = null }: { className?: string | null }) {
+  // The class resolved but has no activity assigned yet — say so plainly (vs a
+  // blank "nothing here") so the student knows it's a setup step, not a bug.
+  const da = className
+    ? `Din lærer har ikke tilføjet en aktivitet til ${className} endnu.`
+    : "Din lærer har ikke tilføjet en aktivitet endnu.";
+  const en = className
+    ? `Your teacher hasn't added an activity to ${className} yet.`
+    : "Your teacher hasn't added an activity yet.";
   return (
     <div className="flex flex-col items-start gap-2 rounded border border-dashed border-border p-6">
-      <p className="text-sm font-medium">
-        Ingen aktiviteter tilgængelige endnu.
-      </p>
+      <p className="text-sm font-medium">{da}</p>
       <p className="text-sm text-muted-foreground">
-        Spørg din lærer. /{" "}
-        <span className="italic">No activities available yet. Ask your teacher.</span>
+        <span className="italic">{en}</span> Tjek igen om lidt. / Check back soon.
       </p>
     </div>
   );

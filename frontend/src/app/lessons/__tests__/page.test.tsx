@@ -165,10 +165,10 @@ describe("/lessons — student lesson picker", () => {
     vi.mocked(fetchWithAuth).mockResolvedValue(jsonResponse([]));
     render(<LessonsPage />);
     await waitFor(() => {
-      expect(screen.getByText(/ingen aktiviteter tilgængelige/i)).toBeInTheDocument();
+      expect(screen.getByText(/din lærer har ikke tilføjet en aktivitet/i)).toBeInTheDocument();
     });
-    // Bilingual — English fallback also visible.
-    expect(screen.getByText(/no activities available yet/i)).toBeInTheDocument();
+    // Bilingual — clearer English: it's a setup step, not a blank.
+    expect(screen.getByText(/your teacher hasn't added an activity/i)).toBeInTheDocument();
   });
 
   it("renders the error banner when fetch rejects, with retry", async () => {
@@ -276,7 +276,7 @@ describe("class banner on /lessons", () => {
     vi.mocked(fetchWithAuth).mockResolvedValue(jsonResponse([]));
     render(<LessonsPage />);
     await waitFor(() => {
-      expect(screen.getByText(/ingen aktiviteter/i)).toBeInTheDocument();
+      expect(screen.getByText(/din lærer har ikke tilføjet en aktivitet/i)).toBeInTheDocument();
     });
     expect(screen.queryByText(/klasse \/ class/i)).toBeNull();
   });
