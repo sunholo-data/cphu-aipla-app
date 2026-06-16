@@ -65,6 +65,7 @@
     },
     {
       "id": "M3-verify-live",
+      "status_note": "HANDED OFF (2026-06-16) — M verifies on the live deployed dev session in their own flow. Pushed to dev (8aa7c4b..4c4da88); auto-deploy triggered. No make seed needed (no SKILL.md template change).",
       "description": "Verify on the deployed dev service (not just locally): Boldkast interaction restores in order with the tutor reaction following; two interactions in one gap; LED Planck / KineBot parity; text-only session unchanged.",
       "scope": "fullstack",
       "estimated_loc": 0,
