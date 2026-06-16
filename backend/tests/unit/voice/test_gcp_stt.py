@@ -65,6 +65,19 @@ def test_transcribe_joins_result_segments():
     assert cfg.encoding == speech.RecognitionConfig.AudioEncoding.WEBM_OPUS
 
 
+def test_alternative_language_codes_set_for_codeswitch_both_branches():
+    # RAQ-1 M2: da-DK primary -> en-US alternate (and vice versa), on BOTH the
+    # WAV/LINEAR16 branch and the container-sniff (webm) fallback branch.
+    wav = _wav_bytes(b"\x01\x00\x02\x00", rate=16000)
+    client = _FakeClient(_fake_resp("hej"))
+    asyncio.run(GCPSTTProvider(client=client).transcribe(wav, "audio/wav", "da", None))
+    assert list(client.calls[0][0].alternative_language_codes) == ["en-US"]
+
+    client2 = _FakeClient(_fake_resp("hi"))
+    asyncio.run(GCPSTTProvider(client=client2).transcribe(b"webm", "audio/webm;codecs=opus", "en", None))
+    assert list(client2.calls[0][0].alternative_language_codes) == ["da-DK"]
+
+
 def test_wav_sent_as_linear16_with_header_rate_and_stripped_pcm():
     pcm = b"\x01\x00\x02\x00\x03\x00\x04\x00"  # 4 int16 frames
     wav = _wav_bytes(pcm, rate=16000, channels=1)

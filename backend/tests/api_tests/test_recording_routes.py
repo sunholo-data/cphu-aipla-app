@@ -96,7 +96,10 @@ def test_upload_stores_audio_then_transcribes_in_background(store, monkeypatch):
     # Doc is created with an empty/pending transcript; STT runs off-request.
     assert meta["transcript"] == "" and meta["transcriptStatus"] == "pending"
     # The background task (run by the TestClient after the response) fills it in.
-    assert updates == [(_id, {"transcript": "hej fra gruppen", "transcriptStatus": "done"})]
+    # transcriptEngine stamps which engine served it (Gemini vs Cloud STT fallback) — RAQ-1 M3.
+    assert updates == [
+        (_id, {"transcript": "hej fra gruppen", "transcriptStatus": "done", "transcriptEngine": "gcp_latest_long"})
+    ]
 
 
 def test_upload_keeps_audio_when_transcription_fails(store, monkeypatch):

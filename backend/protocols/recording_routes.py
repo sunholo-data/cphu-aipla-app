@@ -81,20 +81,31 @@ async def _transcribe_segment_in_background(rec_id: str, raw: bytes, mime: str, 
     Never raises — the audio is the research record and is kept regardless; a
     failed/empty transcript just flips ``transcriptStatus`` so the UI can tell
     "still working" from "nothing recognised"."""
-    try:
-        provider = get_stt(None)
-        if provider.name in ("disabled", "null"):
-            update_document(_COLLECTION, rec_id, {"transcriptStatus": "disabled"})
-            return
-        text = await provider.transcribe_long(raw, mime, lang, None)
-        update_document(
-            _COLLECTION,
-            rec_id,
-            {"transcript": text, "transcriptStatus": "done" if text.strip() else "empty"},
-        )
-    except Exception as exc:
-        logger.warning("recording segment transcription failed (audio kept): %s", exc)
-        update_document(_COLLECTION, rec_id, {"transcriptStatus": "failed"})
+    provider = get_stt(None)
+    # RAQ-1 M3: an engine/bytes/status span so transcription volume + which engine
+    # served it (Gemini vs Cloud STT fallback) is queryable in BigQuery alongside
+    # the 1.1.11 voice.* spans. $-from-tokens is a follow-up.
+    with _tracer.start_as_current_span("voice.stt") as span:
+        span.set_attribute("voice.stt.engine", provider.name)
+        span.set_attribute("voice.stt.audio_bytes", len(raw))
+        try:
+            if provider.name in ("disabled", "null"):
+                span.set_attribute("voice.stt.status", "disabled")
+                update_document(_COLLECTION, rec_id, {"transcriptStatus": "disabled"})
+                return
+            text = await provider.transcribe_long(raw, mime, lang, None)
+            status = "done" if text.strip() else "empty"
+            span.set_attribute("voice.stt.status", status)
+            span.set_attribute("voice.stt.chars", len(text))
+            update_document(
+                _COLLECTION,
+                rec_id,
+                {"transcript": text, "transcriptStatus": status, "transcriptEngine": provider.name},
+            )
+        except Exception as exc:
+            span.set_attribute("voice.stt.status", "failed")
+            logger.warning("recording segment transcription failed (audio kept): %s", exc)
+            update_document(_COLLECTION, rec_id, {"transcriptStatus": "failed"})
 
 
 @router.post("")

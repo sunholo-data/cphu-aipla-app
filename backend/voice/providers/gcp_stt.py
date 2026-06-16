@@ -39,6 +39,16 @@ _LANG_DEFAULTS = {
     "fr": "fr-FR",
 }
 
+# Primary BCP-47 -> alternates (Cloud STT auto-detects per utterance, max 3). The
+# 16 June demo had Danish groups code-switching heavily into English (physics
+# terms); a single language_code returned empty/garbled. The alternates fix that.
+# This is the graceful-degradation fallback engine — Gemini (gemini_stt) is the
+# primary. RAQ-1 M2 / research-audio-capture-quality.md.
+_ALT_LANGS = {
+    "da-DK": ["en-US"],
+    "en-US": ["da-DK"],
+}
+
 # Inline content caps at ~10 MB for both sync and long-running recognize.
 # Sync additionally caps at ~1 min of audio; long-running does not.
 _MAX_AUDIO_BYTES = 10 * 1024 * 1024
@@ -123,6 +133,7 @@ class GCPSTTProvider:
                 sample_rate_hertz=rate,
                 audio_channel_count=max(1, channels),
                 language_code=lang_full,
+                alternative_language_codes=_ALT_LANGS.get(lang_full, []),
                 model=self.model,
                 enable_automatic_punctuation=True,
             )
@@ -130,6 +141,7 @@ class GCPSTTProvider:
         config = speech.RecognitionConfig(
             encoding=_encoding_for(mime),
             language_code=lang_full,
+            alternative_language_codes=_ALT_LANGS.get(lang_full, []),
             model=self.model,
             enable_automatic_punctuation=True,
         )

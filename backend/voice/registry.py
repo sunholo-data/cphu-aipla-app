@@ -119,4 +119,8 @@ def _build_stt(name: str) -> STTProvider:
         from voice.providers.gcp_stt import GCPSTTProvider
 
         return GCPSTTProvider(model=name.removeprefix("gcp_"))
-    raise ValueError(f"Unknown STT provider {name!r}. Known: disabled, null, gcp_<model>.")
+    if name.startswith("gemini_"):
+        from voice.providers.gemini_stt import GeminiSTTProvider
+
+        return GeminiSTTProvider(model=name.removeprefix("gemini_"))
+    raise ValueError(f"Unknown STT provider {name!r}. Known: disabled, null, gcp_<model>, gemini_<model>.")
