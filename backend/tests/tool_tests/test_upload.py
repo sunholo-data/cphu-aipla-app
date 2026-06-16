@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import io
+from types import SimpleNamespace
 from unittest.mock import patch
 
 import pytest
@@ -123,11 +124,25 @@ class TestUploadEndpoint:
         assert resp.status_code == 200
         assert resp.json()["status"] == "failed"
 
-    def test_pdf_gets_pending_ai_extraction_status(self, upload_client):
+    def test_pdf_routes_through_ai_fallback(self, upload_client, tmp_path):
+        """A PDF is no longer left as `pending_ai_extraction` — it goes through
+        the shared Gemini OCR fallback → markdown → blocks → parsed."""
+        pdf_path = tmp_path / "document.pdf"
+        pdf_path.write_bytes(b"%PDF-1.4 fake")
+
+        outcome = SimpleNamespace(ok=True, blocks=[{"type": "paragraph", "text": "Ohm's law"}])
+
+        async def _fake_extract(_bytes):
+            return "Ohm's law"
+
         with (
             patch("tools.documents.upload.resolve_documents_bucket", return_value="test-bucket"),
             patch("tools.documents.upload._upload_to_gcs"),
-            patch("tools.documents.ailang_parse.is_supported", return_value=False),
+            # ailang can't parse PDF deterministically → None → AI fallback fires
+            patch("tools.documents.ailang_parse.parse_gcs_file", return_value=None),
+            patch("tools.documents.ailang_parse._download_gcs_to_tempfile", return_value=str(pdf_path)),
+            patch("tools.documents.ai_extract.extract_pdf_text", side_effect=_fake_extract),
+            patch("tools.documents.ailang_parse._parse_file_sync", return_value=outcome),
             patch("tools.documents.upload.set_document"),
             patch("tools.documents.upload.folders_db.ensure_default_folder", return_value="folder1"),
             patch("tools.documents.upload.folders_db.update_folder_counts"),
@@ -138,7 +153,8 @@ class TestUploadEndpoint:
             )
 
         assert resp.status_code == 200
-        assert resp.json()["status"] == "pending_ai_extraction"
+        assert resp.json()["status"] == "parsed"
+        assert resp.json()["blocksCount"] == 1
 
     def test_bucket_comes_from_resolve_documents_bucket(self, upload_client):
         calls = []
@@ -226,3 +242,88 @@ class TestUploadEndpoint:
 
         assert len(stored_ids) > 0
         assert stored_ids[0] != "existing-id"
+
+
+class TestPdfAiFallback:
+    """PDFs aren't deterministic in AILANG Parse, so _run_parse routes them to
+    the shared Gemini OCR fallback → markdown → ailang markdown→blocks."""
+
+    @pytest.mark.asyncio
+    async def test_pdf_routes_to_ai_fallback_and_parses_blocks(self, tmp_path):
+        from tools.documents import upload
+
+        pdf_path = tmp_path / "lesson.pdf"
+        pdf_path.write_bytes(b"%PDF-1.4 fake")
+
+        expected_blocks = [{"type": "heading", "level": 1, "text": "Newton"}, {"type": "paragraph", "text": "F = m a"}]
+        outcome = SimpleNamespace(ok=True, blocks=expected_blocks)
+
+        async def _fake_extract(_bytes):
+            return "# Newton\n\nF = m a"
+
+        with (
+            # ailang can't parse PDF deterministically → None → triggers fallback
+            patch("tools.documents.ailang_parse.parse_gcs_file", return_value=None),
+            patch("tools.documents.ailang_parse._download_gcs_to_tempfile", return_value=str(pdf_path)),
+            patch("tools.documents.ai_extract.extract_pdf_text", side_effect=_fake_extract),
+            patch("tools.documents.ailang_parse._parse_file_sync", return_value=outcome),
+        ):
+            status, blocks, _ms, error = await upload._run_parse("gs://bucket/lesson.pdf")
+
+        assert status == "parsed"
+        assert error is None
+        assert blocks == expected_blocks
+
+    @pytest.mark.asyncio
+    async def test_pdf_extraction_failure_marks_failed(self, tmp_path):
+        from tools.documents import upload
+
+        pdf_path = tmp_path / "scan.pdf"
+        pdf_path.write_bytes(b"%PDF-1.4 fake")
+
+        async def _boom(_bytes):
+            raise ValueError("PDF extraction failed")
+
+        with (
+            patch("tools.documents.ailang_parse.parse_gcs_file", return_value=None),
+            patch("tools.documents.ailang_parse._download_gcs_to_tempfile", return_value=str(pdf_path)),
+            patch("tools.documents.ai_extract.extract_pdf_text", side_effect=_boom),
+        ):
+            status, blocks, _ms, error = await upload._run_parse("gs://bucket/scan.pdf")
+
+        assert status == "failed"
+        assert blocks == []
+        assert error and "PDF" in error
+
+    @pytest.mark.asyncio
+    async def test_pdf_with_no_structured_blocks_falls_back_to_one_paragraph(self, tmp_path):
+        from tools.documents import upload
+
+        pdf_path = tmp_path / "plain.pdf"
+        pdf_path.write_bytes(b"%PDF-1.4 fake")
+
+        empty = SimpleNamespace(ok=True, blocks=[])
+
+        async def _fake_extract(_bytes):
+            return "just some loose text"
+
+        with (
+            patch("tools.documents.ailang_parse.parse_gcs_file", return_value=None),
+            patch("tools.documents.ailang_parse._download_gcs_to_tempfile", return_value=str(pdf_path)),
+            patch("tools.documents.ai_extract.extract_pdf_text", side_effect=_fake_extract),
+            patch("tools.documents.ailang_parse._parse_file_sync", return_value=empty),
+        ):
+            status, blocks, _ms, _error = await upload._run_parse("gs://bucket/plain.pdf")
+
+        assert status == "parsed"
+        assert blocks == [{"type": "paragraph", "text": "just some loose text"}]
+
+    @pytest.mark.asyncio
+    async def test_non_pdf_unsupported_stays_pending(self):
+        from tools.documents import upload
+
+        with patch("tools.documents.ailang_parse.parse_gcs_file", return_value=None):
+            status, blocks, _ms, _error = await upload._run_parse("gs://bucket/photo.png")
+
+        assert status == "pending_ai_extraction"
+        assert blocks == []

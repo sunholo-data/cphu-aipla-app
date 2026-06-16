@@ -109,6 +109,9 @@ async def _run_parse(gs_url: str) -> tuple[str, list, int, str | None]:
 
     We render documents from the BlockADT directly — see
     docs/design/v6.1.0/document-rendering-decision.md.
+
+    PDFs aren't deterministic in AILANG Parse, so they take the shared Gemini
+    OCR fallback (tools.documents.ai_extract) → markdown → ailang markdown→blocks.
     """
     import time
 
@@ -119,6 +122,10 @@ async def _run_parse(gs_url: str) -> tuple[str, list, int, str | None]:
     elapsed_ms = int((time.monotonic() - t0) * 1000)
 
     if outcome is None:
+        # AILANG Parse returns None for formats it can't do deterministically
+        # (PDF, images). PDFs get the AI fallback; images stay pending.
+        if PurePosixPath(gs_url).suffix.lower() == ".pdf":
+            return await _run_pdf_ai_parse(gs_url, t0)
         log.info("AILANG Parse: extension not supported for %s, using AI extraction", gs_url)
         return "pending_ai_extraction", [], elapsed_ms, None
     if not outcome.ok:
@@ -126,6 +133,63 @@ async def _run_parse(gs_url: str) -> tuple[str, list, int, str | None]:
         return "failed", [], elapsed_ms, outcome.error
 
     return "parsed", outcome.blocks or [], elapsed_ms, None
+
+
+async def _run_pdf_ai_parse(gs_url: str, t0: float) -> tuple[str, list, int, str | None]:
+    """PDF fallback: shared Gemini OCR → markdown, then reuse AILANG Parse's
+    deterministic markdown→blocks path (no hand-rolled markdown splitter).
+
+    Returns the same (status, blocks, parsed_ms, error) tuple as _run_parse.
+    """
+    import asyncio
+    import os
+    import shutil
+    import tempfile
+    import time
+
+    from tools.documents.ai_extract import extract_pdf_text
+    from tools.documents.ailang_parse import _download_gcs_to_tempfile, _parse_file_sync
+
+    def _read_pdf() -> bytes:
+        path = _download_gcs_to_tempfile(gs_url)
+        if not path:
+            raise ValueError(f"could not download {gs_url}")
+        try:
+            with open(path, "rb") as fh:
+                return fh.read()
+        finally:
+            try:
+                os.unlink(path)
+            except OSError:
+                pass
+
+    try:
+        pdf_bytes = await asyncio.to_thread(_read_pdf)
+        markdown = await extract_pdf_text(pdf_bytes)
+    except Exception as exc:
+        elapsed_ms = int((time.monotonic() - t0) * 1000)
+        log.warning("PDF AI extraction failed for %s: %s", gs_url, exc)
+        return "failed", [], elapsed_ms, "Couldn't extract text from this PDF."
+
+    def _md_to_blocks() -> list:
+        tmp_dir = tempfile.mkdtemp(prefix="pdf_md_")
+        try:
+            md_path = os.path.join(tmp_dir, "extracted.md")
+            with open(md_path, "w", encoding="utf-8") as fh:
+                fh.write(markdown)
+            outcome = _parse_file_sync(md_path, "blocks")
+            return (outcome.blocks or []) if outcome.ok else []
+        finally:
+            shutil.rmtree(tmp_dir, ignore_errors=True)
+
+    blocks = await asyncio.to_thread(_md_to_blocks)
+    if not blocks:
+        # Extraction succeeded but the markdown parser found no structured blocks
+        # — keep the text as one paragraph so the AI still sees the content.
+        blocks = [{"type": "paragraph", "text": markdown}]
+    elapsed_ms = int((time.monotonic() - t0) * 1000)
+    log.info("PDF AI parse ok for %s: %d block(s)", gs_url, len(blocks))
+    return "parsed", blocks, elapsed_ms, None
 
 
 class _ParseResult:
