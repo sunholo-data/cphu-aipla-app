@@ -2,8 +2,8 @@
 
 **Status:** Planned — extends the shipped narrative (1.1.4) with the audio transcript (1.1.35) + a teacher-readable generation experience
 **Priority:** P1 — directly on the teacher pilot path; composes two shipped pieces (chat narrative + good audio transcript)
-**Estimated:** ~2–2.5d — backend dual-source + cache/debounce + inputs API ~1d; frontend readable-inputs + browseable sections + status ~1–1.5d
-**Scope:** Backend (`reports/narrative.py`, `reports/session_summary.py`, `protocols/reports_routes.py`, `db/models/chat_session.py` cache field); frontend (teacher report page — readable inputs while generating + persistent browseable sections + status)
+**Estimated:** ~3d — backend dual-source + cache/debounce + inputs API ~1d; settle job (internal endpoint + Cloud Scheduler) ~0.7d; frontend readable-inputs + browseable sections + status ~1–1.5d
+**Scope:** Backend (`reports/narrative.py`, `reports/session_summary.py`, `protocols/reports_routes.py`, `db/models/chat_session.py` cache field, internal `warm-summaries` endpoint); infra (Cloud Scheduler — AIPLA's first app-level scheduler); frontend (teacher report page — readable inputs while generating + persistent browseable sections + status)
 **Dependencies:** [1.1.4 session-report-summary-primary](implemented/session-report-summary-primary-sprint.md) (the narrative this extends — SHIPPED); [1.1.35 research-audio-capture-quality](research-audio-capture-quality.md) (the **good** audio transcript this consumes — Gemini); relationship to [1.1.31 teacher-analytics-framework](teacher-analytics-framework.md) (the **R1-gated live dashboard** — see "R1 boundary" below)
 **Source (request):** M, 2026-06-16 — "generated on request, but more feedback about why it's taking longer and what's included; include both audio and chat history; send the pre-parsed transcript not raw audio; debounce re-gen to ~5 min for live sessions; make the included text browseable."
 **Last Updated:** 2026-06-16
@@ -34,6 +34,10 @@ Three gaps, now that the audio transcript is finally usable (1.1.35):
 3. **Repeated regeneration during a live lesson.** Regen is gated only by turn count and
    evaluated on every open, so a teacher refreshing during an active lesson re-runs the LLM
    repeatedly (cost + churn), with no rate limit.
+4. **Cold first-open for review.** A **researcher** reviewing finished classes (1.1.5) opens
+   each report cold — the summary generates on *their* open, every session, every time.
+   Nothing pre-computes the final summary once a session settles, so historical review is slow
+   exactly where it's done in bulk.
 
 **Current State:**
 - Narrative: chat turns + workbench events only; one Gemini call (now config-driven model,
@@ -64,6 +68,9 @@ transparent, the basis is auditable, and the cost is bounded.
 - Regeneration is **debounced to ≥5 min**: repeated opens during a live lesson reuse the
   cache and show "last generated N min ago," never re-running the LLM more than once per 5 min.
 - Regen also fires when the **audio transcript grows** (a late segment landed), not only chat.
+- **Pre-warmed for review:** a finished session (idle ~20 min) has its summary **pre-generated
+  by a background job**, so a researcher/teacher reviewing it later sees it **instantly** (cache
+  hit, no LLM wait). The trigger reuses the existing `last_message_at` — no new field.
 
 **Non-Goals:**
 - **Raw audio to the narrative model** — explicitly rejected (see Design A1); we send the
@@ -79,7 +86,7 @@ transparent, the basis is auditable, and the cost is bounded.
 
 | # | Axiom | Score | Notes |
 |---|-------|-------|-------|
-| 1 | INSTANT FEEL | +1 | The raw inputs (chat + transcript) render **immediately**, no LLM wait — the teacher reads while the summary forms; the debounce removes redundant slow regens. |
+| 1 | INSTANT FEEL | +1 | The raw inputs (chat + transcript) render **immediately**, no LLM wait — the teacher reads while the summary forms; the debounce removes redundant slow regens; and the **settle job pre-warms finished-session summaries so review is instant** (cache hit). |
 | 2 | EARNED TRUST | +1 | The teacher can **read the exact source** the summary is drawn from (browseable chat + transcript) + an explicit "what's included"; the summary is auditable, not a black box over hidden data. |
 | 3 | SKILLS, NOT FEATURES | 0 | Platform report surface, not a skill. |
 | 4 | RIGHT MODEL, RIGHT MOMENT | +1 | Sends the cheap **pre-parsed transcript**, not raw audio (no per-open re-transcription); config-driven model; debounce avoids wasteful regen. |
@@ -184,6 +191,43 @@ The chat history and transcript are available **without** the LLM, so render the
 > = the raw material is readable; error (narrative failed) = the inputs still render with a
 > "summary unavailable, read the source below" note; empty = the no-summary-yet state above.
 
+### A4 — Background pre-generation (the "settle" job)
+
+On-demand is right while a session is live, but a **researcher reviewing finished classes**
+(1.1.5) opens each report cold — paying the LLM wait on every session. Pre-generate the final
+summary once a session **settles**, so review is instant.
+
+- **Trigger:** a session is "settled" when `last_message_at < now − SETTLE_MINUTES` (default
+  **20 min**). `last_message_at` already exists on `ChatSessionIndex` — **no new field**. By 20 min
+  idle the audio segments have all transcribed (background STT lands in seconds), so the summary
+  is built on the *whole* session, once.
+- **Mechanism (recommended — scan):** a **Cloud Scheduler** job (~every 10 min) calls an internal
+  `POST /api/internal/warm-summaries`; the handler queries `ChatSessionIndex` for settled sessions
+  whose summary is **stale** (none, or `summaryBasedOnTurnCount` / `summaryBasedOnVoiceChars` behind
+  the live counts) and runs `resolve_narrative` on each (bounded batch). Idempotent + self-healing:
+  a missed session is caught next scan, and the **same cache-gating means the job and the on-demand
+  path never double-generate** (already-opened → cache hit).
+  - *Alt (event-driven):* a **Cloud Tasks** task at `last_activity + 20 min`, re-debounced on each
+    turn — more precise, more infra; defer unless scan-polling cost matters.
+- **Auth:** internal-only — OIDC from the scheduler service account; the endpoint rejects
+  non-scheduler callers and is not exposed to the frontend.
+- **Infra (first app scheduler):** AIPLA has **no app-level scheduler today** (a2a.py explicitly
+  avoids one). This adds the first: 1 Cloud Scheduler job + 1 internal endpoint. Record the side
+  effects (scheduler API enablement, scheduler SA, OIDC binding) in the infra notes per the
+  side-effects rule, so it becomes Terraform for test/prod.
+- **Post-hoc, not live (R1).** The settle job summarises a *finished* session — the post-hoc
+  report narrative (1.1.4/1.1.36), **not** the R1-gated live rolling summary (1.1.31). Un-gated.
+
+**The three-tier generation model:**
+
+| Tier | When | Path |
+|---|---|---|
+| **Live** | teacher opens the report during the lesson | on-demand on GET, **debounced 5 min** |
+| **Settle** | ~20 min after last activity | **background job pre-generates** the final summary |
+| **Review** | researcher/teacher opens a finished class later | **cache hit — instant** |
+
+On-demand remains the fallback for the gap between "session ends" and "settle job runs."
+
 ## R1 boundary (important)
 
 The **5-min debounce is a cost-guard on the teacher's own on-demand opens** — it does **not**
@@ -204,6 +248,8 @@ into 1.1.31's R1 decision and is scoped there.
 
 - New Firestore field `summaryBasedOnVoiceChars` on `ChatSessionIndex` — additive, defaults
   absent (treated as 0 → first open with audio regenerates once). No backfill.
+- The settle job's trigger reuses the existing `last_message_at` — **no new field**; the
+  internal endpoint + Cloud Scheduler job are net-new infra (record side effects, per the rule).
 - No frontend flag; the readable-inputs layout replaces the current one.
 - Rollback: revert; cache fields are additive and ignored by the old code.
 
@@ -230,7 +276,9 @@ into 1.1.31's R1 decision and is scoped there.
 | 4 | FE: render raw inputs immediately + browseable Chat/Recording/Sim sections | 0.6d |
 | 5 | FE: summary-slot status (generating/cached/none) + "what's included" line + debounce messaging | 0.4d |
 | 6 | Tests (pytest + vitest) + manual live-refresh check | 0.4d |
-| | **Total** | **~2.4d** |
+| 7 | Settle job: internal `POST /api/internal/warm-summaries` (settled+stale scan → `resolve_narrative`) + OIDC auth + test | 0.5d |
+| 8 | Cloud Scheduler job (~10 min) + infra notes (side effects) | 0.2d |
+| | **Total** | **~3.1d** |
 
 ## Success Criteria
 
@@ -238,6 +286,7 @@ into 1.1.31's R1 decision and is scoped there.
 - [ ] On open, chat + transcript render immediately and stay browseable beneath the summary.
 - [ ] "What's included" line shows chat turns · audio minutes · sim events · model · generated-at.
 - [ ] Regen fires when chat **or** audio transcript grows; debounced to ≤ once / 5 min on a live session.
+- [ ] A settled session (idle ≥ 20 min) is pre-summarised by the background job; a later researcher/teacher open is a cache hit (instant).
 - [ ] Narrative-failed → report still renders with readable inputs.
 - [ ] pytest + vitest green.
 
@@ -252,6 +301,11 @@ into 1.1.31's R1 decision and is scoped there.
 - **Q4 — streaming (option b).** If teachers want live token-by-token summary text, stream via
   AG-UI as a follow-up; v1's readable-inputs loading state may already satisfy the "feedback"
   need.
+- **Q5 — settle-job mechanism + scope.** Cloud Scheduler scan (recommended — simple,
+  self-healing) vs Cloud Tasks per-session task (precise, more infra). And **which sessions to
+  pre-warm** — all settled+stale research sessions, or only classes a teacher/researcher is
+  active in (cost vs always-instant). Default: scan all settled+stale; cost is small at pilot
+  scale (only sessions that grew regenerate). `SETTLE_MINUTES` (20) is a config knob.
 
 ## Related Documents
 
