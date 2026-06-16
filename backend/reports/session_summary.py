@@ -72,6 +72,9 @@ class SessionSummary(BaseModel):
     """1.1.4 — AI narrative summary (structured markdown). Attached by
     ``reports.narrative.resolve_narrative`` at the route layer; None until
     generated (or when there is no conversation to summarise)."""
+    voice_transcript: str | None = Field(default=None, alias="voiceTranscript")
+    """1.1.36 — the group's spoken-discussion transcript (RAQ-1 audio recording),
+    fed to the narrative alongside the chat. None when there's no recording."""
 
     model_config = ConfigDict(populate_by_name=True)
 
@@ -107,6 +110,25 @@ def _count_sim_runs(state: dict[str, Any]) -> int:
     """
     keys = [k for k in state if k.startswith("mcp_app_context.")]
     return len(set(keys))
+
+
+def _voice_transcript_for_group(group_code: str) -> str:
+    """The group's spoken-discussion transcript (RAQ-1 audio recording), joined in
+    seq order — fed to the narrative alongside the chat (1.1.36). Mirrors
+    ``recording_routes._transcript_for_group``; kept local to avoid importing the
+    recording router here. Best-effort: returns "" on any error."""
+    try:
+        docs = query_documents("recordings", filters=[("groupId", "==", group_code)])
+    except Exception as exc:
+        log.warning("voice transcript lookup failed for group=%s: %s", group_code, exc)
+        return ""
+    segments = [
+        (int(d.get("seq", 0)), str(d.get("createdAt", "")), (d.get("transcript") or "").strip())
+        for d in docs
+        if (d.get("transcript") or "").strip()
+    ]
+    segments.sort(key=lambda s: (s[0], s[1]))
+    return " ".join(t for _, _, t in segments)
 
 
 async def summarize_session(session_id: str) -> SessionSummary | None:
@@ -258,9 +280,13 @@ async def resolve_session_summary(session_id: str) -> SessionSummary | None:
     the live ADK session state. Either way the response shape is identical.
     """
     summary = await summarize_session_bq(session_id)
-    if summary is not None:
-        return summary
-    return await summarize_session(session_id)
+    if summary is None:
+        summary = await summarize_session(session_id)
+    # 1.1.36 — attach the group's spoken-discussion transcript so the narrative
+    # summarises chat + audio. Best-effort; never blocks the report.
+    if summary is not None and summary.group_code:
+        summary.voice_transcript = _voice_transcript_for_group(summary.group_code) or None
+    return summary
 
 
 def find_latest_session_id_for_group_bq(group_code: str) -> str | None:

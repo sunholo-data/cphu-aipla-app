@@ -49,6 +49,9 @@ progress; otherwise omit.
 
 **Next time** (one sentence): what this group most needs next session.
 
+Draw on BOTH the chat and the spoken discussion below — the spoken transcript often
+shows reasoning the chat doesn't; it may be imperfect, so don't over-quote it.
+
 Refer to "the group" or "the students" — never to individuals. Do not quote
 students verbatim. Maximum ~250 words.
 """
@@ -62,12 +65,15 @@ def build_narrative_prompt(summary: SessionSummary) -> str:
         wb = "\n".join(f"- {e.server}.{e.tool} {e.field}={e.value}" for e in summary.workbench_events)
     else:
         wb = "(no workbench events)"
+    spoken = (summary.voice_transcript or "").strip()
+    spoken_block = spoken if spoken else "(no recorded discussion)"
     return (
         f"{_SYSTEM_PROMPT}\n\n"
         f"Activity: {summary.activity_id}\n"
         f"Duration: {summary.duration_seconds // 60} min · "
         f"{summary.message_count} messages · {summary.sim_run_count} sim runs\n\n"
-        f"Conversation:\n{convo}\n\n"
+        f"Chat with the tutor (what the group typed):\n{convo}\n\n"
+        f"Spoken group discussion (audio transcript — may be imperfect):\n{spoken_block}\n\n"
         f"Workbench events:\n{wb}\n"
     )
 
@@ -87,7 +93,7 @@ async def _call_gemini(prompt: str) -> str:
 async def generate_narrative(summary: SessionSummary) -> str:
     """Generate (uncached) the narrative for a summary. Empty conversation
     yields an empty string — nothing to summarise."""
-    if not summary.conversation:
+    if not summary.conversation and not (summary.voice_transcript or "").strip():
         return ""
     return await _call_gemini(build_narrative_prompt(summary))
 
@@ -100,7 +106,7 @@ async def resolve_narrative(summary: SessionSummary) -> str | None:
     failures are swallowed (logged) so the report still renders without a
     narrative — the metadata + transcript remain useful on their own.
     """
-    if not summary.conversation:
+    if not summary.conversation and not (summary.voice_transcript or "").strip():
         return None
 
     idx = get_session_index(summary.session_id)
