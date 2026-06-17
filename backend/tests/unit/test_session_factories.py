@@ -27,7 +27,11 @@ class TestGetSessionService:
         }
         with patch.dict("os.environ", env, clear=True):
             svc = session_mod.get_session_service()
-        assert type(svc).__name__ == "VertexAiSessionService"
+        # Wrapped in _LegacyAnonOwnerSessionService so deterministic anon-group
+        # uids can resume pre-2026-06-13 legacy-owned Vertex sessions; the inner
+        # service is still Vertex.
+        assert type(svc).__name__ == "_LegacyAnonOwnerSessionService"
+        assert type(svc._inner).__name__ == "VertexAiSessionService"
 
 
 class TestGetMemoryService:

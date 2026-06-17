@@ -132,3 +132,93 @@ class TestLocalSessionEscapeHatch:
         for val in ("memory", "Memory", "MEMORY", " memory", "memory ", "  Memory  "):
             with patch.dict(os.environ, {"AITANA_LOCAL_SESSION": val}):
                 assert _force_in_memory_session(), f"value {val!r} should opt in (case/trim)"
+
+
+class TestLegacyAnonOwnerRecovery:
+    """A deterministic anon-group uid (`anon-{code}`, post 2026-06-13) must be
+    able to resume a Vertex session created under the LEGACY per-join uid
+    (`anon-{code}-{hex}`). Before this wrapper, `get_session` raised
+    "... does not belong to user", ag_ui_adk swallowed it to None, and the
+    reused thread_id then collided on `create_session` — killing the chat run
+    so no text streamed. Reproduces the 2026-06-17 demo outage.
+    """
+
+    @staticmethod
+    def _build(inner):
+        from adk.session import _LegacyAnonOwnerSessionService
+
+        return _LegacyAnonOwnerSessionService(inner)
+
+    @pytest.mark.asyncio
+    async def test_recovers_session_owned_by_legacy_suffixed_uid(self):
+        from google.adk.sessions import Session
+
+        legacy_owner = "anon-aiplademo1-871820ccd99a42d01b3858da34f55706"
+        deterministic = "anon-aiplademo1"
+        sid = "a4ab508f-573a-40b9-9a74-0bd0a93a074a"
+
+        class FakeInner:
+            async def get_session(self, *, app_name, user_id, session_id, config=None):
+                if user_id == legacy_owner:
+                    return Session(app_name=app_name, user_id=legacy_owner, id=session_id)
+                raise ValueError(f"Session {session_id} does not belong to user {user_id}.")
+
+            def _get_reasoning_engine_id(self, app_name):
+                return "5594904500356775936"
+
+        svc = self._build(FakeInner())
+
+        async def fake_read_owner(app_name, session_id):
+            return legacy_owner
+
+        svc._read_owner_uid = fake_read_owner  # type: ignore[method-assign]
+
+        session = await svc.get_session(app_name="aitana_platform", user_id=deterministic, session_id=sid)
+        assert session is not None, "legacy-owned session must be recoverable"
+        # Presented under the requested deterministic uid (append_event keys off id).
+        assert session.user_id == deterministic
+        assert session.id == sid
+
+    @pytest.mark.asyncio
+    async def test_reraises_when_owner_is_a_different_group(self):
+        deterministic = "anon-aiplademo1"
+
+        class FakeInner:
+            async def get_session(self, *, app_name, user_id, session_id, config=None):
+                raise ValueError(f"Session {session_id} does not belong to user {user_id}.")
+
+        svc = self._build(FakeInner())
+
+        async def fake_read_owner(app_name, session_id):
+            return "anon-othergroup-deadbeef"  # different group → no recovery
+
+        svc._read_owner_uid = fake_read_owner  # type: ignore[method-assign]
+
+        with pytest.raises(ValueError, match="does not belong to user"):
+            await svc.get_session(app_name="aitana_platform", user_id=deterministic, session_id="s1")
+
+    @pytest.mark.asyncio
+    async def test_does_not_intercept_teacher_uid_mismatch(self):
+        """Firebase teacher uids never start with `anon-`; an ownership error
+        for one must surface unchanged, not trigger legacy recovery."""
+
+        class FakeInner:
+            async def get_session(self, *, app_name, user_id, session_id, config=None):
+                raise ValueError(f"Session {session_id} does not belong to user {user_id}.")
+
+        svc = self._build(FakeInner())
+        with pytest.raises(ValueError, match="does not belong to user"):
+            await svc.get_session(app_name="aitana_platform", user_id="firebase-teacher-uid", session_id="s1")
+
+    @pytest.mark.asyncio
+    async def test_passes_through_normal_hit_without_owner_lookup(self):
+        from google.adk.sessions import Session
+
+        class FakeInner:
+            async def get_session(self, *, app_name, user_id, session_id, config=None):
+                return Session(app_name=app_name, user_id=user_id, id=session_id)
+
+        svc = self._build(FakeInner())
+        session = await svc.get_session(app_name="aitana_platform", user_id="anon-aiplademo1", session_id="s1")
+        assert session is not None
+        assert session.user_id == "anon-aiplademo1"
