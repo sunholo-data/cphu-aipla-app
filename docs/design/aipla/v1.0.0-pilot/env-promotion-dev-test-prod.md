@@ -120,11 +120,16 @@ Each must exist in the target project **before its first push-deploy**:
 
 ## Milestones
 
-- **M1 — Complete the Terraform module.** Extend 1.1's module from dev's
-  inventory to cover cloud-bootstrap.md sections A–G (project+APIs, SA+IAM
-  cascade, buckets, secrets schema, Cloud Build connection+trigger, Firebase,
-  per-env wiring) — everything the dev shell script does. Author + plan against
-  dev (no-op / import existing) to prove parity before touching test.
+- **M0 — Dedicated deployments project (DECIDED 2026-06-17).** State lives in a
+  dedicated `aipla-deploy-2026` project (usual sunholo pattern — cf.
+  `multivac-deploy-aitana`), not an env project. Create the project (org-level)
+  + a versioned `gs://aipla-deploy-2026-tfstate` bucket. Per the pattern, this
+  project also becomes the eventual home for the Cloud Build connection +
+  triggers (today they sit in `aipla-dev-2026`).
+- **M1 — Complete the Terraform module.** *(Increment 1 DONE 2026-06-17:
+  `infrastructure/env/`, validated — foundation resources + composed modules.)*
+  Increment 2: Firebase (google-beta) + Cloud Build connection/triggers,
+  authored against a real `terraform plan` of the enabled test project.
 - **M2 — Provision test.** Write `test.tfvars`, `terraform apply` against
   `aipla-test-2026`. Then the per-env data steps that aren't pure IaC (Agent
   Engine create, RAG corpus + cleared-content seed, demo codes, skill seed).
@@ -165,12 +170,12 @@ Each must exist in the target project **before its first push-deploy**:
 
 ## Open questions
 
-1. ~~**Provisioning mechanism.**~~ **RESOLVED 2026-06-17:** Terraform-only for
-   test/prod, dev stays imperative (see "Provisioning model" above). Remaining
-   sub-question: **where does the root module live** — this repo's
-   `infrastructure/` (which already holds `modules/{chat-logs,curriculum-rag,voice}`)
-   or a separate infra repo? Only the BQ/sink slice is applied today; the full
-   A–G module needs authoring. Confirm the home before M1.
+1. ~~**Provisioning mechanism / module home / state home.**~~ **ALL RESOLVED
+   2026-06-17:** (a) Terraform-only for test/prod, dev stays imperative; (b) the
+   root module lives in this repo at `infrastructure/env/` (composes the existing
+   `modules/*`) — increment 1 authored + validated; (c) state lives in a
+   dedicated `aipla-deploy-2026` deployments project (usual sunholo pattern), not
+   an env project. Only the project-creation (M0) gates the first `plan`.
 2. **CI push triggers.** Add `push: [test, prod]` to `.github/workflows/ci.yml`,
    or rely solely on the deploy-time `ci-gate-*`? (The gate already covers it;
    adding push-CI gives a GitHub-visible green check per promotion.)

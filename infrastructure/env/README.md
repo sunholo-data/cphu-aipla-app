@@ -53,16 +53,25 @@ installed + COMPLETE in the project/region; Firebase added to the project;
 
 ## State backend
 
-Partial `backend "gcs"` (`versions.tf`). One state bucket, per-env prefix:
+**DECIDED 2026-06-17:** state lives in a **dedicated AIPLA deployments project**
+(the usual sunholo pattern — cf. `multivac-deploy-aitana`, `ailang-multivac-deploy`),
+not in any env project. Proposed name `aipla-deploy-2026`; bucket
+`gs://aipla-deploy-2026-tfstate` (versioning on), per-env prefix.
 
 ```bash
 terraform init \
-  -backend-config="bucket=<tf-state-bucket>" \
+  -backend-config="bucket=aipla-deploy-2026-tfstate" \
   -backend-config="prefix=aipla-env/test"
 ```
 
-**Decision pending:** which bucket holds state (a dedicated `aipla-tfstate`
-bucket vs an existing ops bucket). Create it before first `init`.
+Per the same pattern, the deployments project should also own the Cloud Build
+**connection + triggers** (which today sit in `aipla-dev-2026`). So increment 2's
+trigger resources target the env projects *from* the deploy project. Migrating
+dev's existing trigger/connection there is a follow-up, not a blocker for cutting
+test fresh.
+
+**Prereq:** the deploy project + state bucket must exist before the first `init`
+(project creation is org-level — see the env-promotion doc).
 
 ## Runbook — cut `test`
 
