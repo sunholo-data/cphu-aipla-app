@@ -62,7 +62,7 @@ describe("/teacher/reports/groups/[groupId] — real session report", () => {
 
     expect(screen.getByText(LIVE_REPORT.activityId)).toBeInTheDocument();
     expect(container.textContent).toContain("2026-06-15 09:30");
-    expect(screen.getByText(/18\s*min/)).toBeInTheDocument();
+    expect(screen.getByText(/18m/)).toBeInTheDocument(); // friendly "Group time" format (was "18 min")
     expect(screen.getByText(String(LIVE_REPORT.messageCount))).toBeInTheDocument();
     expect(screen.getByText(String(LIVE_REPORT.simRunCount))).toBeInTheDocument();
     // No mock-data badge should ever appear.

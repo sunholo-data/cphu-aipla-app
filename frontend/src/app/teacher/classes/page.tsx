@@ -715,14 +715,9 @@ function ClassRow({
             <Settings className="h-3.5 w-3.5" aria-hidden="true" />
             Manage
           </Link>
-          {cls.groupCodes[0] ? (
-            <Link
-              href={`/teacher/reports/groups/${cls.groupCodes[0]}`}
-              className="rounded border border-border px-2.5 py-1 text-xs font-medium hover:bg-accent"
-            >
-              Report
-            </Link>
-          ) : null}
+          {/* No class-level "Report" button: a class has many groups and reports are
+              per-group. The arbitrary-first-group link was misleading (1.1.36 feedback).
+              Reports are reached via Manage -> class detail (per-group) + recent sessions. */}
           {canDelete ? (
             <button
               type="button"

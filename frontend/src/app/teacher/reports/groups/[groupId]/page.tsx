@@ -40,6 +40,16 @@ type ReportState =
   | { kind: "empty" }
   | { kind: "error" };
 
+/** "946" -> "15h 46m"; under an hour stays "Nm". The report's time is the span
+ *  from the group's first to last activity (across sessions), so a raw "946 min"
+ *  reads badly — 1.1.36 feedback. */
+function formatGroupTime(minutes: number): string {
+  if (minutes < 60) return `${minutes}m`;
+  const h = Math.floor(minutes / 60);
+  const m = minutes % 60;
+  return m === 0 ? `${h}h` : `${h}h ${m}m`;
+}
+
 function toDisplay(state: ReportState): ReportDisplay | null {
   if (state.kind !== "live") return null;
   const d = state.data;
@@ -244,8 +254,13 @@ export default function TeacherGroupReportPage() {
         </h2>
         <dl className="flex flex-wrap gap-x-6 gap-y-1 text-sm">
           <div>
-            <dt className="text-xs uppercase text-muted-foreground">Duration</dt>
-            <dd className="font-medium">{report.durationMinutes} min</dd>
+            <dt className="text-xs uppercase text-muted-foreground">Group time</dt>
+            <dd
+              className="font-medium"
+              title="Total span from the group's first to last activity, across all their sessions — not just the latest chat."
+            >
+              {formatGroupTime(report.durationMinutes)}
+            </dd>
           </div>
           <div>
             <dt className="text-xs uppercase text-muted-foreground">Messages</dt>
