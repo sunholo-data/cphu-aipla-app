@@ -290,6 +290,15 @@ export default function TeacherGroupReportPage() {
         </ul>
       </section>
 
+      {/* 1.1.36 feedback — group the chat + recording transcripts as one
+          "Source material" (provenance) block so they read together. */}
+      <div className="flex flex-col gap-0.5">
+        <h2 className="text-base font-semibold">Source material</h2>
+        <p className="text-xs text-muted-foreground">
+          The chat and the recorded discussion this summary is drawn from — open either to read the provenance.
+        </p>
+      </div>
+
       <section aria-labelledby="log-label" className="flex flex-col gap-2">
         <header className="flex flex-wrap items-center justify-between gap-2">
           <button
@@ -344,13 +353,14 @@ export default function TeacherGroupReportPage() {
         ) : null}
       </section>
 
+      {/* The group's lesson-recording transcript, directly beside the chat above so
+          the two sources read as one provenance block (1.1.36 feedback). Renders only
+          when a recorded session produced a transcript. */}
+      <GroupTranscriptSection groupId={groupId} />
+
       {state.kind === "live" && state.data.workbenchEvents && state.data.workbenchEvents.length > 0 ? (
         <WorkbenchActivitySection events={state.data.workbenchEvents} />
       ) : null}
-
-      {/* REC-TRANSCRIPT M4 — the group's lesson-recording transcript (renders
-          only when a recorded session produced one). */}
-      <GroupTranscriptSection groupId={groupId} />
     </div>
   );
 }
