@@ -61,7 +61,7 @@ def _report_labels(summary: SessionSummary) -> dict:
 
 
 def _report_inputs(summary: SessionSummary) -> dict:
-    """"What's included" for the report UI (1.1.36 A3): the sources the narrative was
+    """ "What's included" for the report UI (1.1.36 A3): the sources the narrative was
     built from + the model + generation state, so the teacher knows what it's based on
     and why it took a moment. Best-effort; never raises."""
     generated_at = None
