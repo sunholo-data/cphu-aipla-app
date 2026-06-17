@@ -167,6 +167,7 @@ have explicit decision criteria for "when would we actually build this."
 | # | Doc (planned) | Why |
 |---|---|---|
 | 3.1 | `handover-package.md` | Index of all runbooks, deep-dive sessions, sign-offs. Per the handover-fan-out table in [timeline.qmd](file:///Users/mark/Documents/clients/cph-uni/timeline.qmd), each artefact has a named co-owner. This doc is the manifest. |
+| 3.2 | [aipla/v2.0.0-handover/self-hosting-and-terraform-handover.md](v2.0.0-handover/self-hosting-and-terraform-handover.md) | **P0 — opened 2026-06-17 on UCPH IT request.** The UCPH on-prem/hybrid **resource list**: accurate component inventory (corrects the out-of-date `self-hosting.qmd` stub — Firestore + Vertex RAG + Agent Engine, not the assumed Postgres), hybrid topologies, ADR-003-tier model sizing on real GPU hardware, and a portable two-layer Terraform deliverable (GCP modules + on-prem reference stack, shared variables). The costable half of the handover package. Workstream: [v2.0.0-handover/SEQUENCE.md](v2.0.0-handover/SEQUENCE.md). |
 
 ---
 
