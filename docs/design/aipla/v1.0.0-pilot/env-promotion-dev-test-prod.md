@@ -42,12 +42,28 @@ doesn't cover: **how code moves between envs** and **what "ready" means per env*
 shell bootstrap (`scripts/bootstrap-aipla-dev.sh`) is **dev-hardcoded**
 (`PROJECT="aipla-dev-2026"`), so it can't cut a new env as-is.
 
+## Provisioning model (DECIDED 2026-06-17)
+
+**dev is the imperative reference env; test/prod are Terraform-only.** dev is
+where we iterate — the shell bootstrap + ad-hoc `gcloud` are fine there because
+dev is the place we *discover* what infra is needed. test and prod are never
+touched imperatively: the Terraform module (owned by [1.1](aipla-cloud-bootstrap.md))
+is **authored by capturing dev's resource inventory**, then `terraform apply`-ed
+per env with a `test` / `prod` tfvars. No `bootstrap-aipla-dev.sh` on test/prod;
+no manual `gcloud` mutation on test/prod. This makes test/prod reproducible and
+drift-free, and turns "cut a new env" into "write a tfvars + apply".
+
+Consequence: the gating dependency for cutting `test` is **completing the
+Terraform module** so it reproduces *everything* dev has (cloud-bootstrap.md
+sections A–G), not just the BQ-dataset+sink slice that's applied today. dev's
+shell script + its `.NOTES.md` are the source-of-truth inventory the module must
+match.
+
 ## Two independent strands to "cut an env"
 
-1. **Provisioning** (owned by 1.1) — make the project deployable. Either the
-   infra-repo Terraform is complete enough that `terraform apply` against a
-   `test` tfvars stands the whole thing up, or we parameterise the shell script
-   by `ENV` as a bridge. **Decision needed — see Open Questions.**
+1. **Provisioning** (owned by 1.1) — complete the Terraform module from dev's
+   inventory, then `terraform apply` it against the target project. Terraform-only
+   per the decision above.
 2. **Code promotion** (this doc) — move the *same commit* dev → test → prod.
 
 ## Code-promotion flow
@@ -104,9 +120,14 @@ Each must exist in the target project **before its first push-deploy**:
 
 ## Milestones
 
-- **M1 — Decide + enable.** Pick provisioning mechanism (Terraform tfvars vs
-  parameterised script). Enable APIs on `aipla-test-2026`.
-- **M2 — Provision test.** Stand up the checklist above for test.
+- **M1 — Complete the Terraform module.** Extend 1.1's module from dev's
+  inventory to cover cloud-bootstrap.md sections A–G (project+APIs, SA+IAM
+  cascade, buckets, secrets schema, Cloud Build connection+trigger, Firebase,
+  per-env wiring) — everything the dev shell script does. Author + plan against
+  dev (no-op / import existing) to prove parity before touching test.
+- **M2 — Provision test.** Write `test.tfvars`, `terraform apply` against
+  `aipla-test-2026`. Then the per-env data steps that aren't pure IaC (Agent
+  Engine create, RAG corpus + cleared-content seed, demo codes, skill seed).
 - **M3 — First promotion.** `ff-only` dev → test, push, watch the gated build,
   `smoke-deployed.sh test all`, `verify-chat-logs GROUP=<code> ENV=test`. Verify
   a teacher (Firebase) + anon-group student round-trip on a **fresh** session
@@ -144,11 +165,12 @@ Each must exist in the target project **before its first push-deploy**:
 
 ## Open questions
 
-1. **Provisioning mechanism.** Is the infra-repo Terraform (1.1) complete enough
-   that `terraform apply` with a `test` tfvars cuts the whole env, or do we
-   parameterise `bootstrap-aipla-dev.sh` by `ENV` as the bridge? (1.1 says its
-   *primary goal* is "new env = a tfvars file, not a checklist" — confirm how
-   much landed vs the script's full scope.)
+1. ~~**Provisioning mechanism.**~~ **RESOLVED 2026-06-17:** Terraform-only for
+   test/prod, dev stays imperative (see "Provisioning model" above). Remaining
+   sub-question: **where does the root module live** — this repo's
+   `infrastructure/` (which already holds `modules/{chat-logs,curriculum-rag,voice}`)
+   or a separate infra repo? Only the BQ/sink slice is applied today; the full
+   A–G module needs authoring. Confirm the home before M1.
 2. **CI push triggers.** Add `push: [test, prod]` to `.github/workflows/ci.yml`,
    or rely solely on the deploy-time `ci-gate-*`? (The gate already covers it;
    adding push-CI gives a GitHub-visible green check per promotion.)
