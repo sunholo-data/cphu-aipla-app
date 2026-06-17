@@ -21,9 +21,18 @@ from db.models import AccessControl, BucketConfig, BucketFolderConfig
 _FOLDERS_SUBCOLLECTION = "folders"
 
 
-def _folder_path(bucket_id: str, folder_id: str | None = None) -> str:
-    base = f"buckets/{bucket_id}/{_FOLDERS_SUBCOLLECTION}"
-    return f"{base}/{folder_id}" if folder_id else base
+def _folder_collection(bucket_id: str) -> str:
+    """Firestore collection path for a bucket's folders subcollection.
+
+    The multi-segment path (``buckets/{id}/folders``) is a valid collection
+    reference on the real client and a flat keyed namespace in the in-memory
+    client — both reached via ``client.collection(path).document(id)`` through
+    the ``db.firestore`` helpers, never the top-level ``client.document(full/path)``
+    accessor (which the in-memory client does not implement — using it here
+    crashed bucket-folders under LOCAL_MODE until 2026-06-17). See
+    docs/design/aipla/v2.0.0-handover/firestore-portability-seam.md.
+    """
+    return f"buckets/{bucket_id}/{_FOLDERS_SUBCOLLECTION}"
 
 
 def _to_firestore(config: BucketFolderConfig) -> dict[str, Any]:
@@ -82,15 +91,15 @@ def create_folder(
         createdAt=now,
         updatedAt=now,
     )
-    fs.get_client().document(_folder_path(bucket.bucket_id, folder_id)).set(_to_firestore(config))
+    fs.set_document(_folder_collection(bucket.bucket_id), folder_id, _to_firestore(config))
     return config
 
 
 def get_folder(bucket_id: str, folder_id: str) -> BucketFolderConfig | None:
-    doc = fs.get_client().document(_folder_path(bucket_id, folder_id)).get()
-    if not doc.exists:
+    data = fs.get_document(_folder_collection(bucket_id), folder_id)
+    if data is None:
         return None
-    return _from_firestore(doc.to_dict() or {})
+    return _from_firestore(data)
 
 
 def update_folder(
@@ -107,24 +116,23 @@ def update_folder(
         effective = compute_effective_access(updates["accessControl"], bucket)
         updates["effectiveAccess"] = effective.model_dump()
     updates["updatedAt"] = time.time()
-    fs.get_client().document(_folder_path(bucket.bucket_id, folder_id)).update(updates)
+    fs.update_document(_folder_collection(bucket.bucket_id), folder_id, updates)
     return get_folder(bucket.bucket_id, folder_id)
 
 
 def delete_folder(bucket_id: str, folder_id: str) -> bool:
     if get_folder(bucket_id, folder_id) is None:
         return False
-    fs.get_client().document(_folder_path(bucket_id, folder_id)).delete()
+    fs.delete_document(_folder_collection(bucket_id), folder_id)
     return True
 
 
 def list_folders(bucket_id: str, limit: int = 50) -> list[BucketFolderConfig]:
     """List folders under a bucket."""
-    coll = fs.get_client().collection(_folder_path(bucket_id))
-    query = coll.order_by("updatedAt", direction="DESCENDING").limit(limit)
-    results: list[BucketFolderConfig] = []
-    for doc in query.stream():
-        data = doc.to_dict()
-        if data:
-            results.append(_from_firestore(data))
-    return results
+    rows = fs.query_documents(
+        _folder_collection(bucket_id),
+        order_by="updatedAt",
+        order_direction="DESCENDING",
+        limit=limit,
+    )
+    return [_from_firestore(row) for row in rows]

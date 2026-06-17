@@ -29,7 +29,7 @@ from __future__ import annotations
 import logging
 from datetime import UTC, datetime
 
-from db.firestore import get_client
+from db.firestore import get_document, set_document, update_document
 
 logger = logging.getLogger(__name__)
 
@@ -68,12 +68,10 @@ class IdentityResolver:
         cold mappings.
         """
         doc_id = _doc_id(channel, channel_user_id)
-        client = get_client()
-        snap = client.collection(COLLECTION).document(doc_id).get()
-        if not snap.exists:
+        data = get_document(COLLECTION, doc_id)
+        if data is None:
             return None
 
-        data = snap.to_dict() or {}
         uid = data.get("firebase_uid")
         if not uid:
             logger.warning("channel_identities/%s exists but has no firebase_uid", doc_id)
@@ -82,7 +80,7 @@ class IdentityResolver:
         # Best-effort last_seen_at touch — failure here must not block
         # the resolve, so we catch broadly and log.
         try:
-            client.collection(COLLECTION).document(doc_id).update({"last_seen_at": datetime.now(UTC)})
+            update_document(COLLECTION, doc_id, {"last_seen_at": datetime.now(UTC)})
         except Exception:
             logger.debug("Failed to touch last_seen_at for %s", doc_id, exc_info=True)
 
@@ -124,8 +122,7 @@ class IdentityResolver:
             "last_seen_at": now,
         }
 
-        client = get_client()
-        client.collection(COLLECTION).document(doc_id).set(record)
+        set_document(COLLECTION, doc_id, record)
         logger.info("auto-created channel_identity %s -> %s", doc_id, firebase_uid)
         return firebase_uid
 

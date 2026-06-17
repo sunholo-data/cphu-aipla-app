@@ -18,18 +18,27 @@ from google.cloud import firestore
 
 from config.gcp import resolve_gcp_project
 from config.local_mode import is_local_mode
+from db.firestore_protocol import FirestoreClient
 
 logger = logging.getLogger(__name__)
 
-_client: Any | None = None
+_client: FirestoreClient | None = None
 
 
-def get_client() -> Any:
+def get_client() -> FirestoreClient:
     """Return a module-level Firestore client (lazy singleton).
 
     Returns ``InMemoryFirestoreClient`` when LOCAL_MODE is on, else the
-    real ``google.cloud.firestore.Client``. The return type is ``Any`` so
-    callers don't need to import both; the public API surface is the same.
+    real ``google.cloud.firestore.Client``. Both satisfy the
+    :class:`~db.firestore_protocol.FirestoreClient` contract — the single
+    duck-typed surface the whole backend programs against, and the typed
+    checklist a future Postgres adapter must implement (see
+    docs/design/aipla/v2.0.0-handover/firestore-portability-seam.md).
+
+    Code outside ``db/`` must NOT call this directly — go through the
+    helper functions below (``get_document``, ``set_document``,
+    ``query_documents``, …) so the data-access surface stays centralised
+    and portable.
     """
     global _client
     if _client is None:
