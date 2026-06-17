@@ -36,4 +36,24 @@ describe("buildUserMessageContent", () => {
     expect((parts[1] as { source: { mimeType: string } }).source.mimeType).toBe("image/png");
     expect((parts[2] as { source: { value: string } }).source.value).toBe("BBB");
   });
+
+  it("emits an audio part for an audio/* attachment (1.1.37 — the tutor hears it)", () => {
+    const parts = buildUserMessageContent("", [
+      { mimeType: "audio/wav", data: "QUlV", name: "voice.wav" },
+    ]) as Array<Record<string, unknown>>;
+    expect(parts).toHaveLength(1);
+    expect(parts[0]).toEqual({
+      type: "audio",
+      source: { type: "data", value: "QUlV", mimeType: "audio/wav" },
+    });
+  });
+
+  it("chooses the part type per attachment mime (image vs audio) in one turn", () => {
+    const parts = buildUserMessageContent("see + hear", [
+      img("IMG", "image/png"),
+      { mimeType: "audio/wav", data: "AUD", name: "v.wav" },
+    ]) as Array<Record<string, unknown>>;
+    expect((parts[1] as { type: string }).type).toBe("image");
+    expect((parts[2] as { type: string }).type).toBe("audio");
+  });
 });

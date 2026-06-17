@@ -35,10 +35,14 @@ export interface SkillMessage {
 }
 
 /** Shape the AG-UI user-message content: plain string, or a multimodal
- * `InputContent[]` (text part + native `ImageInputContent` image parts) when
- * the turn carries images. Mirrors ag_ui core's `UserMessage.content` union —
- * ag_ui_adk converts each image part to an ADK `Part(inline_data=…)`, so the
- * image lands in session history and is replayed every turn natively (1.1.7). */
+ * `InputContent[]` (text part + native `ImageInputContent` / `AudioInputContent`
+ * parts) when the turn carries attachments. Mirrors ag_ui core's
+ * `UserMessage.content` union — ag_ui_adk converts each part to an ADK
+ * `Part(inline_data=…)`, so it lands in session history and is replayed natively:
+ * images (1.1.7) and now **audio** (1.1.37 — the Gemini tutor hears the audio
+ * directly; the parallel transcript is for the bubble + research log). The part
+ * type is chosen from the attachment's MIME so audio turns and image turns share
+ * one send path. */
 export function buildUserMessageContent(
   text: string,
   attachments?: Array<{ mimeType: string; data: string; name?: string }>,
@@ -47,7 +51,8 @@ export function buildUserMessageContent(
   const parts: Array<Record<string, unknown>> = [];
   if (text) parts.push({ type: "text", text });
   for (const a of attachments) {
-    parts.push({ type: "image", source: { type: "data", value: a.data, mimeType: a.mimeType } });
+    const kind = a.mimeType.startsWith("audio/") ? "audio" : "image";
+    parts.push({ type: kind, source: { type: "data", value: a.data, mimeType: a.mimeType } });
   }
   return parts;
 }
