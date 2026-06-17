@@ -239,15 +239,41 @@ def test_create_agent_omits_default_tools_when_opted_out():
     assert preload_memory_tool not in agent.tools
 
 
-def test_create_agent_keeps_default_tools_by_default():
-    """Inherited workshop demos don't declare `defaults`; the four
-    template-default tools stay attached (backwards-compat)."""
+def test_create_agent_keeps_artifact_tools_by_default():
+    """Skills that don't declare `defaults` still get the artifact tools
+    (backwards-compat). AIPLA 2026-06-17: memory tools now default OFF
+    (cross-session recall foreclosed by ADR-001 anonymity + never populated),
+    so they are NOT attached unless a skill opts in."""
     from google.adk.tools.load_artifacts_tool import load_artifacts_tool
     from google.adk.tools.load_memory_tool import load_memory_tool
+    from google.adk.tools.preload_memory_tool import preload_memory_tool
 
     agent = create_agent(_skill(), _user())
     assert load_artifacts_tool in agent.tools
+    assert load_memory_tool not in agent.tools
+    assert preload_memory_tool not in agent.tools
+
+
+def test_create_agent_memory_tools_opt_in():
+    """A skill can re-enable memory tools via `tool_configs.defaults.memory: true`
+    (retained for upstream-template parity / future populated-memory use)."""
+    from google.adk.tools.load_memory_tool import load_memory_tool
+    from google.adk.tools.preload_memory_tool import preload_memory_tool
+
+    skill = SkillConfig(
+        name="memory-opt-in",
+        description="Explicitly re-enabling memory tools.",
+        instructions="…",
+        skillId="55555555-5555-5555-5555-555555555555",
+        skillMetadata=SkillMetadata(
+            model="gemini-2.5-flash",
+            tools=[],
+            toolConfigs={"defaults": {"memory": True}},
+        ),
+    )
+    agent = create_agent(skill, _user())
     assert load_memory_tool in agent.tools
+    assert preload_memory_tool in agent.tools
 
 
 def test_create_agent_includes_a2ui_toolset_when_explicitly_enabled():
@@ -274,14 +300,14 @@ def test_create_agent_wires_tools_from_skill_metadata():
     # list_documents + get_document_content are in the registry (model-agnostic).
     # ai_search/google_search are model-aware and handled by agent.py directly, so not here.
     agent = create_agent(_skill(tools=["list_documents", "get_document_content"]), _user())
-    # Defaults from agent.py: load_artifacts_tool + retrieve_artifact +
-    # load_memory_tool + preload_memory_tool. Plus 2 registry tools and
-    # SendA2uiToClientToolset = 7 total.
-    assert len(agent.tools) == 7
+    # Defaults from agent.py: load_artifacts_tool + retrieve_artifact (memory
+    # tools default OFF since 2026-06-17). Plus 2 registry tools and
+    # SendA2uiToClientToolset = 5 total.
+    assert len(agent.tools) == 5
     tool_names = _tool_ids(agent)
     assert "load_artifacts" in tool_names
-    assert "load_memory" in tool_names
-    assert "preload_memory" in tool_names
+    assert "load_memory" not in tool_names
+    assert "preload_memory" not in tool_names
 
 
 def _tool_ids(agent) -> list[str]:

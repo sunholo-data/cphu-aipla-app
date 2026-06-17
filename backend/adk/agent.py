@@ -307,24 +307,34 @@ def create_agent(
     #                          eager-injects docs on resumed sessions).
     #   retrieve_artifact    - keyword/section search inside a known artifact.
     #   load_memory_tool     - LLM-driven semantic search over the Vertex
-    #                          memory bank. Required for cross-session recall.
+    #                          memory bank (cross-session recall).
     #   preload_memory_tool  - auto-fetches relevant memories before the LLM
     #                          turn (same memory bank). Pairs with
     #                          load_memory_tool: preload primes context,
     #                          load_memory follows up for deeper queries.
     #
-    # AIPLA 2026-05-21 — these four were always-on regardless of `tools: []`,
+    # AIPLA 2026-05-21 — these were always-on regardless of `tools: []`,
     # mirroring the A2UI anti-pattern fixed in upstream-feedback #22. For
     # chat-only skills (problem-set-hints) the model invokes them gratuitously
     # ("Tool: load_artifacts" chips in the chat) without value. Defaults
-    # block in tool_configs controls per-skill opt-out. Default behaviour
-    # unchanged for inherited workshop demos. See upstream-feedback #25.
+    # block in tool_configs controls per-skill opt-out. See upstream-feedback #25.
+    #
+    # AIPLA 2026-06-17 — memory tools now default OFF. Cross-session recall is
+    # foreclosed by anonymous group IDs (ADR-001 — we deliberately cannot follow
+    # individuals) and the Vertex memory bank is never populated (no
+    # `add_session_to_memory` write path anywhere), so load_memory only ever
+    # returned empty while costing prompt tokens + a per-turn preload fetch. All
+    # shipped AIPLA skill templates already opt out; flipping the default removes
+    # the footgun for new/inherited skills. The opt-in
+    # (`tool_configs.defaults.memory: true`) is retained for upstream-template
+    # parity / any future populated-memory deployment. See
+    # docs/design/aipla/v2.0.0-handover/self-hosting-and-terraform-handover.md §7.
     defaults_cfg = (md.tool_configs or {}).get("defaults") or {}
     tools: list = []
     if defaults_cfg.get("artifacts", True):
         tools.append(load_artifacts_tool)
         tools.append(retrieve_artifact)
-    if defaults_cfg.get("memory", True):
+    if defaults_cfg.get("memory", False):
         tools.append(load_memory_tool)
         tools.append(preload_memory_tool)
     tools.extend(resolve_tools(md.tools, md.tool_configs))
