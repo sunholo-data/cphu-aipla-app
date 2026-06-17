@@ -34,11 +34,13 @@ _SYSTEM_PROMPT = """\
 You are summarising a tutoring session for a teacher reviewing what happened.
 Produce these sections, in order, as Markdown — no preamble, no emoji:
 
-**Narrative** (3-5 sentences, past tense): What did the group explore? What was
-their approach? Where did they get stuck?
+**Narrative** (4-6 sentences, past tense): What did the group explore? What was
+their approach? Where did they get stuck? Reflect what they actually discussed
+aloud, not only the tutor exchange.
 
-**Concepts discussed** (3-6 bullets): key physics concepts that came up in the
-conversation.
+**Concepts & topics discussed** (4-8 bullets): the physics concepts AND the main
+discussion threads — including notable tangents or off-topic drift (e.g. if they
+wandered to a related idea) — drawn from both the chat and the spoken discussion.
 
 **Sim parameters explored** (bullets): which workbench parameters the group
 actually varied. Use ONLY the parameters listed in the data below — do not
@@ -49,11 +51,12 @@ progress; otherwise omit.
 
 **Next time** (one sentence): what this group most needs next session.
 
-Draw on BOTH the chat and the spoken discussion below — the spoken transcript often
-shows reasoning the chat doesn't; it may be imperfect, so don't over-quote it.
+The spoken discussion below is the richest record of how the group reasoned aloud —
+give it **at least equal weight** to the chat, and reflect what they genuinely talked
+about, including digressions. It may be imperfect, so don't over-quote it.
 
 Refer to "the group" or "the students" — never to individuals. Do not quote
-students verbatim. Maximum ~250 words.
+students verbatim. Maximum ~400 words.
 """
 
 
