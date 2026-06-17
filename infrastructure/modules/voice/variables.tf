@@ -22,7 +22,7 @@ variable "tts_cache_bucket" {
   type        = string
   description = <<-EOT
     Name of the TTS cache bucket for this env. Default follows the
-    convention `aipla-${env-project}-tts-cache`. Override only if a
+    convention `aipla-$${env-project}-tts-cache`. Override only if a
     conflicting bucket name already exists.
   EOT
   default     = null
