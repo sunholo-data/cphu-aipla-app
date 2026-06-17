@@ -976,6 +976,16 @@ The contribution this represents for the template: ship the defensive SSE wrappe
 
 **Upstream fix:** (a) ship a Vertex-semantics in-memory session service for tests (or make `InMemorySessionService` optionally enforce ownership) so identity regressions surface in unit tests; (b) document that ADK session ownership is exact-match and immutable, so any identity migration needs a compatibility shim like the above.
 
+## 36. The deploy trigger isn't gated on CI — red CI still ships
+
+**Where:** the branch-push Cloud Build deploy trigger (`cloudbuild.yaml`) vs `.github/workflows/ci.yml`. They're two independent systems: pushing to `dev` fires the Cloud Build trigger AND GitHub Actions CI in parallel, with no link between them. So a push whose CI is red (lint/format/test failure) deploys anyway.
+
+**What hurt:** on 2026-06-17 a commit with a ruff-format failure deployed to dev (CI red, revision shipped). The same day's chat-outage hotfix would also have deployed even if its tests had been red. Nothing structurally stopped a broken build from reaching the running service.
+
+**Workaround on AIPLA:** two blocking CI-gate steps at the top of `cloudbuild.yaml` (`ci-gate-backend`, `ci-gate-frontend`) that run the SAME checks as CI (backend `ruff check`/`ruff format --check`/`pytest -m "not slow"`; frontend `quality:check:fast` + `vitest run`) before anything is built; every downstream step `waitFor`s both. An emergency-only `_SKIP_CI_GATE` substitution can bypass them, but only on a manual `triggers run` (a push can't set it). Scope is deliberately **correctness**, not the `security-audit` job — dependency CVEs are governed separately (HIGH/CRITICAL-prod = PR merge-block; rest = weekly cron), so they don't block dev deploys. AIPLA commit landing with this entry.
+
+**Upstream fix:** the template should ship the deploy gated on its quality checks out of the box — either (a) these inline gate steps in the reference `cloudbuild.yaml`, or (b) the "proper" form: disable the push trigger and have the CI workflow invoke the deploy (via WIF) only after its jobs pass. (a) is zero-infra and race-free; (b) avoids duplicated test compute but needs Workload Identity Federation. Document the trade and pick one as the template default.
+
 ## Backlog (likely additions as v0.1 sprint continues)
 
 - M5 may surface IAM bindings the bootstrap script should add

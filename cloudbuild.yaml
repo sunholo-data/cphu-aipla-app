@@ -29,6 +29,13 @@ substitutions:
   # iframe shell; static artefacts are reached separately at
   # ${origin}/artefacts/<name>/v<version>/index.html.
   _MCP_SANDBOX_URL: 'https://aipla-v01-sandbox-wgwhd7mspa-lz.a.run.app/sandbox.html'
+  # CI gate escape hatch. Empty by default => the gate ALWAYS runs. A push
+  # cannot set this (push triggers use only the terraform-managed subs), so
+  # every push-triggered deploy is gated. The ONLY way to bypass is an explicit
+  # manual run: `gcloud builds triggers run aipla-dev-deploy --branch=dev \
+  #   --substitutions=_SKIP_CI_GATE=1` — emergency-hotfix use only, and you own
+  # the consequence. See docs/upstream-feedback.md #36 and the 2026-06-17 outage.
+  _SKIP_CI_GATE: ''
 
 tags: ['${_PROJECT_ID}', '${_SERVICE_NAME}']
 
@@ -37,6 +44,52 @@ options:
 logsBucket: gs://${_PROJECT_ID}-cloudbuild-logs
 
 steps:
+  # --- CI GATE: refuse to build/deploy unless the same checks CI runs pass ---
+  # Why this exists: the deploy trigger fires on push, fully decoupled from the
+  # GitHub Actions CI workflow, so a red CI (lint/format/test failure) still
+  # deployed — twice on 2026-06-17. These two steps run the SAME checks as
+  # .github/workflows/ci.yml (backend lint+format+test-fast; frontend
+  # lint+typecheck+vitest) BEFORE anything is built or deployed. They run in
+  # parallel (both waitFor ['-']) and EVERY downstream step waits on both, so a
+  # single failure here aborts the whole build with nothing shipped.
+  - name: 'ghcr.io/astral-sh/uv:python3.12-bookworm-slim'
+    id: 'ci-gate-backend'
+    waitFor: ['-']
+    dir: backend
+    entrypoint: bash
+    env:
+      # Match CI: empty bucket => InMemoryArtifactService, no GCS dependency.
+      - 'ADK_ARTIFACT_BUCKET='
+    args:
+      - '-c'
+      - |
+        set -euo pipefail
+        if [ -n "${_SKIP_CI_GATE}" ]; then
+          echo "CI gate (backend) SKIPPED via _SKIP_CI_GATE — emergency override."
+          exit 0
+        fi
+        uv sync --dev --extra lint
+        uv run ruff check .
+        uv run ruff format --check .
+        uv run pytest tests/ --ignore=tests/integration -m "not slow" --tb=short -q
+
+  - name: 'node:22'
+    id: 'ci-gate-frontend'
+    waitFor: ['-']
+    dir: frontend
+    entrypoint: bash
+    args:
+      - '-c'
+      - |
+        set -euo pipefail
+        if [ -n "${_SKIP_CI_GATE}" ]; then
+          echo "CI gate SKIPPED via _SKIP_CI_GATE — emergency override."
+          exit 0
+        fi
+        npm ci
+        npm run quality:check:fast
+        CI=true npm run test:run
+
   # --- Firebase rules ---
   # AIPLA v0.1 swaps the inherited sunholo-llmops/firebase helper image
   # (built by v5's separate trigger-dev-firebase Cloud Build trigger,
@@ -45,7 +98,7 @@ steps:
   # zero infrastructure dependency. Tracked in docs/upstream-feedback.md
   # entry 13.
   - name: 'node:20-alpine'
-    waitFor: ['-']
+    waitFor: ['ci-gate-backend', 'ci-gate-frontend']
     id: 'deploy-firebase-rules'
     entrypoint: 'sh'
     args:
@@ -57,7 +110,7 @@ steps:
   # --- Get Firebase config from Secret Manager ---
   - name: 'gcr.io/cloud-builders/gcloud'
     id: 'get-firebase-config'
-    waitFor: ['-']
+    waitFor: ['ci-gate-backend', 'ci-gate-frontend']
     entrypoint: 'bash'
     args:
       - './get-firebase-config.sh'
@@ -82,7 +135,7 @@ steps:
   # --- Build backend ---
   - name: 'gcr.io/cloud-builders/docker'
     id: build-backend
-    waitFor: ['-']
+    waitFor: ['ci-gate-backend', 'ci-gate-frontend']
     dir: ${_BUILD_FOLDER}/backend
     args:
       - 'build'
