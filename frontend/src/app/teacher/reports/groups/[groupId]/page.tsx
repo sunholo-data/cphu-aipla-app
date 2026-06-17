@@ -159,6 +159,8 @@ export default function TeacherGroupReportPage() {
   // above), so the report is always real session data.
   const report = toDisplay(state)!;
   const narrative = state.kind === "live" ? (state.data.narrative ?? null) : null;
+  // 1.1.36 A3/A5 — "what's included": the sources the narrative was built from.
+  const inputs = state.kind === "live" ? (state.data.inputs ?? null) : null;
 
   return (
     <div className="flex flex-col gap-6">
@@ -210,11 +212,27 @@ export default function TeacherGroupReportPage() {
           </div>
         ) : (
           <p className="text-sm text-muted-foreground">
-            {report.conversation.length === 0
+            {report.conversation.length === 0 && !(inputs && inputs.audioMinutes > 0)
               ? "No conversation yet — a summary appears once the group has chatted."
-              : "Generating a summary… reopen the report in a moment."}
+              : `Generating a summary from ${report.messageCount} chat turns${
+                  inputs && inputs.audioMinutes > 0
+                    ? ` + ${inputs.audioMinutes} min of recorded discussion`
+                    : ""
+                }… read the chat and recording below while it generates.`}
           </p>
         )}
+        {/* 1.1.36 A5 — "what's included": names the sources so the wait is transparent. */}
+        {inputs ? (
+          <p className="text-xs text-muted-foreground">
+            Based on {inputs.chatTurns} chat turns
+            {inputs.audioMinutes > 0
+              ? ` · ${inputs.audioMinutes} min recorded discussion (${inputs.audioSegments} clips)`
+              : ""}
+            {inputs.simEvents > 0 ? ` · ${inputs.simEvents} sim interactions` : ""}
+            {` · ${inputs.model}`}
+            {inputs.generatedAt ? ` · generated ${inputs.generatedAt.slice(11, 16)}` : ""}
+          </p>
+        ) : null}
       </section>
 
       <section

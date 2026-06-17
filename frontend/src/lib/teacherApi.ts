@@ -154,6 +154,22 @@ export interface SessionSummaryPayload {
   /** 1.1.4 — AI narrative summary (structured markdown), or null when not
    *  yet generated / no conversation to summarise. */
   narrative?: string | null;
+  /** 1.1.36 — the group's spoken-discussion transcript (joined), or null. */
+  voiceTranscript?: string | null;
+  /** 1.1.36 — total recorded audio minutes + segment count for the group. */
+  voiceMinutes?: number;
+  voiceSegments?: number;
+  /** 1.1.36 — "what's included": the sources the narrative was built from + the
+   *  model + generation state, for the report's transparency line. */
+  inputs?: {
+    chatTurns: number;
+    audioMinutes: number;
+    audioSegments: number;
+    simEvents: number;
+    model: string;
+    generatedAt: string | null;
+    state: "ready" | "none";
+  };
 }
 
 export class NotFoundError extends Error {
