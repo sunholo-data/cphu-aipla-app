@@ -962,6 +962,20 @@ The contribution this represents for the template: ship the defensive SSE wrappe
 
 **Upstream fix:** `AGUIProvider` should take the auth source as an explicit input (an `audience`/token-getter prop) rather than reaching into one global `useAuth()`. A teacher-surface provider passes the Firebase getter; a student-surface provider passes the group getter; neither relies on a context that's only correct for one role. Pairs with #33's `apiClient` change — the whole app should never infer "who is acting" from a single global auth context that's role-specific.
 
+## 35. A uid-scheme migration broke live Agent Engine sessions; test doubles hid it
+
+**Where:** `backend/adk/session.py` (the `get_session_service()` singleton) + the anon-group uid scheme in `backend/auth/group_id_auth.py`. The 2026-06-13 change from a per-join uid (`anon-{code}-{hex}`) to a deterministic per-group uid (`anon-{code}`) was correct for *new* sessions and was paired with `anon_owner_uid_match` so **Firestore queries** match both schemes. But a live **Vertex Agent Engine session is owned by exactly one uid** and ADK's `VertexAiSessionService.get_session` enforces an **exact** owner match (`if response.user_id != user_id: raise ValueError("... does not belong to user")`).
+
+**What hurt (prod-only, hit during a live demo):** anon-group chat returned no text. Sessions created before the migration are owned by the legacy suffixed uid; the new deterministic uid hit the ownership error → `ag_ui_adk`'s SessionManager swallows it to `None` → the reused threadId then collides on `create_session` (`400 ... already exists`) → the background ADK run dies → no tokens stream. The same fault 500'd `POST /iframe-context`. MCP-app tool events were unaffected, so sims worked while chat went silent — a confusing signature.
+
+**Two root causes worth fixing upstream:**
+1. **Stateful migration gap.** A change to identity/uid derivation must also migrate (or tolerate) pre-existing *backend session ownership*, not just query filters. The template offers no helper for "this session was created under an older identity scheme."
+2. **Permissive test doubles.** Every chat-path test (`test_agui`, `test_documents_reach_agent_e2e`) uses `InMemorySessionService`, which lets ANY uid read ANY session. The exact-uid ownership enforcement that broke us exists only in `VertexAiSessionService`, so the failure mode was invisible to CI. (Integration tests that hit real Vertex are `@pytest.mark.integration` and deselected in `test-fast`/CI.)
+
+**Workaround on AIPLA:** `_LegacyAnonOwnerSessionService` wraps the session service — on an ownership-denial for a deterministic anon uid it reads the session's real owner and, if it's a legacy uid of the same group, re-opens under the real owner and presents it under the requested uid (`append_event` addresses the backend by session id, not uid, so writes are unaffected). AIPLA commit `a87d0f2`. Regression guard (`62df248`): a `_VertexSemanticsSessionService` fake that replicates Vertex ownership semantics, driven through the **real** `ag_ui_adk` SessionManager, plus a control proving the chain raises "already exists" without the wrapper.
+
+**Upstream fix:** (a) ship a Vertex-semantics in-memory session service for tests (or make `InMemorySessionService` optionally enforce ownership) so identity regressions surface in unit tests; (b) document that ADK session ownership is exact-match and immutable, so any identity migration needs a compatibility shim like the above.
+
 ## Backlog (likely additions as v0.1 sprint continues)
 
 - M5 may surface IAM bindings the bootstrap script should add
