@@ -222,3 +222,159 @@ class TestLegacyAnonOwnerRecovery:
         session = await svc.get_session(app_name="aitana_platform", user_id="anon-aiplademo1", session_id="s1")
         assert session is not None
         assert session.user_id == "anon-aiplademo1"
+
+
+class _VertexSemanticsSessionService:
+    """Test double that replicates VertexAiSessionService OWNERSHIP semantics.
+
+    The chat-path tests (test_agui, test_documents_reach_agent_e2e) all use
+    ``InMemorySessionService``, which lets ANY user_id read ANY session — so the
+    "resume a session created under a different uid" failure mode is invisible
+    to them. That permissiveness is why the 2026-06-13 deterministic-uid change
+    shipped a prod-only outage. This fake closes the gap by enforcing what real
+    Vertex does:
+
+      * ``get_session`` -> ``None`` on miss (404); ``ValueError`` "does not
+        belong to user" when the session exists under a different owner.
+      * ``create_session`` -> ``ValueError`` "already exists" when the
+        user-provided session id is taken (regardless of owner).
+
+    It also exposes the ``_get_reasoning_engine_id`` / ``_get_api_client``
+    internals the recovery wrapper reads, so the wrapper's owner-lookup path is
+    exercised for real rather than monkeypatched.
+    """
+
+    def __init__(self):
+        self._store: dict[str, tuple[str, object]] = {}
+
+    async def create_session(self, *, app_name, user_id, state=None, session_id=None):
+        from google.adk.sessions import Session
+
+        sid = session_id or f"gen-{len(self._store)}"
+        if sid in self._store:
+            raise ValueError(f"400 INVALID_ARGUMENT. Session with user-provided ID '{sid}' already exists.")
+        session = Session(app_name=app_name, user_id=user_id, id=sid, state=state or {})
+        self._store[sid] = (user_id, session)
+        return session
+
+    async def get_session(self, *, app_name, user_id, session_id, config=None):
+        from google.adk.sessions import Session
+
+        entry = self._store.get(session_id)
+        if entry is None:
+            return None
+        owner, _ = entry
+        if owner != user_id:
+            raise ValueError(f"Session {session_id} does not belong to user {user_id}.")
+        return Session(app_name=app_name, user_id=user_id, id=session_id, state={})
+
+    async def list_sessions(self, *, app_name, user_id=None):
+        from google.adk.sessions.base_session_service import ListSessionsResponse
+
+        return ListSessionsResponse(sessions=[])
+
+    async def delete_session(self, *, app_name, user_id, session_id):
+        self._store.pop(session_id, None)
+
+    async def append_event(self, session, event):
+        return event
+
+    def _get_reasoning_engine_id(self, app_name):
+        return "eng"
+
+    def _get_api_client(self):
+        store = self._store
+
+        class _Raw:
+            def __init__(self, uid):
+                self.user_id = uid
+
+        class _Sessions:
+            async def get(self, *, name):
+                sid = name.split("/")[-1]
+                entry = store.get(sid)
+                return _Raw(entry[0] if entry else None)
+
+        class _Client:
+            class agent_engines:  # mirrors the genai client attribute shape
+                sessions = _Sessions()
+
+        class _CM:
+            async def __aenter__(self_):
+                return _Client()
+
+            async def __aexit__(self_, *exc):
+                return False
+
+        return _CM()
+
+
+class TestLegacyResumeThroughRealSessionManager:
+    """End-to-end regression for the 2026-06-17 demo outage, driving the REAL
+    ``ag_ui_adk`` SessionManager call chain (not a reimplementation) against a
+    faithful Vertex-semantics fake. This is the test that would have caught the
+    bug: it reproduces the exact prod chain — get_session denied -> swallowed to
+    None -> create_session collides "already exists" -> background run dies — and
+    pins that the recovery wrapper resolves it.
+    """
+
+    @staticmethod
+    def _fresh_session_manager(session_service):
+        """A fresh ag_ui_adk SessionManager. It is a process-wide singleton
+        (``__new__`` caches ``_instance`` and ``__init__`` guards re-init), so a
+        test MUST reset ``_instance`` first or it silently reuses a prior test's
+        session_service — which is how the control below leaked test 1's wrapper.
+        """
+        from ag_ui_adk.session_manager import SessionManager
+
+        SessionManager._instance = None
+        return SessionManager(session_service=session_service, use_thread_id_as_session_id=True)
+
+    @pytest.mark.asyncio
+    async def test_deterministic_uid_resumes_legacy_owned_session(self):
+        from adk.session import _LegacyAnonOwnerSessionService
+
+        legacy = "anon-aiplademo1-871820ccd99a42d01b3858da34f55706"
+        deterministic = "anon-aiplademo1"
+        thread = "a4ab508f-573a-40b9-9a74-0bd0a93a074a"
+        app = "aitana_platform"
+
+        fake = _VertexSemanticsSessionService()
+        # Session created under the LEGACY per-join uid (pre-migration).
+        await fake.create_session(app_name=app, user_id=legacy, session_id=thread)
+
+        mgr = self._fresh_session_manager(_LegacyAnonOwnerSessionService(fake))
+        try:
+            session, backend_sid = await mgr.get_or_create_session(
+                thread_id=thread, app_name=app, user_id=deterministic
+            )
+            assert session is not None, "deterministic uid must recover the legacy-owned session"
+            assert backend_sid == thread
+            assert session.user_id == deterministic
+        finally:
+            if mgr._cleanup_task:
+                mgr._cleanup_task.cancel()
+            type(mgr)._instance = None
+
+    @pytest.mark.asyncio
+    async def test_control_without_wrapper_reproduces_the_outage(self):
+        """Same chain WITHOUT the wrapper must still fail with the "already
+        exists" collision — proving the guard above actually guards something.
+        If this ever stops raising, the bug is no longer reproducible and the
+        wrapper test could pass for the wrong reason."""
+        legacy = "anon-aiplademo1-871820ccd99a42d01b3858da34f55706"
+        deterministic = "anon-aiplademo1"
+        thread = "a4ab508f-573a-40b9-9a74-0bd0a93a074a"
+        app = "aitana_platform"
+
+        fake = _VertexSemanticsSessionService()
+        await fake.create_session(app_name=app, user_id=legacy, session_id=thread)
+
+        mgr = self._fresh_session_manager(fake)
+        try:
+            with pytest.raises(ValueError, match="already exists"):
+                await mgr.get_or_create_session(thread_id=thread, app_name=app, user_id=deterministic)
+        finally:
+            if mgr._cleanup_task:
+                mgr._cleanup_task.cancel()
+            type(mgr)._instance = None
