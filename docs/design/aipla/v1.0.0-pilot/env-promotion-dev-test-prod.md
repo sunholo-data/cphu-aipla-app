@@ -68,6 +68,16 @@ match.
 
 ## Code-promotion flow
 
+> **Superseded (2026-06-18) by [build-once-artifact-promotion.md](build-once-artifact-promotion.md) (1.3a).**
+> The branch-merge flow below **rebuilds per env**, so prod runs a *second build* of
+> the commit rather than the bytes test verified. The replacement model is
+> **tag→test (build once, CI-gated), then COPY the tested backend artifact→prod
+> (no rebuild)** — frontend rebuilt from the same tag for its env config. The
+> ff-merge branch mechanics are retained only as the source-movement convention;
+> the *build/deploy* model is 1.3a's. Increment-2's triggers must follow 1.3a
+> (`aipla-test-release` tag-trigger + `aipla-prod-promote` manual), not the
+> per-branch rebuild triggers implied below.
+
 Per the project git policy (ff-merge, no PRs):
 
 ```
