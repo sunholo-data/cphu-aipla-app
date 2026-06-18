@@ -16,6 +16,7 @@ from aiplatform.commands.analytics import analytics
 from aiplatform.commands.bucket import bucket
 from aiplatform.commands.class_ import class_group
 from aiplatform.commands.curriculum import curriculum
+from aiplatform.commands.deploy import deploy
 from aiplatform.commands.docs import docs
 from aiplatform.commands.folder import folder
 from aiplatform.commands.groups import groups
@@ -60,6 +61,7 @@ main.add_command(insights)
 main.add_command(activity)
 main.add_command(curriculum)
 main.add_command(users)
+main.add_command(deploy)
 
 
 if __name__ == "__main__":

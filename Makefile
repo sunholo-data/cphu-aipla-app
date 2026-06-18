@@ -162,6 +162,22 @@ smoke-teacher-cli:
 	@chmod +x scripts/smoke-v1-teacher-cli.sh
 	@scripts/smoke-v1-teacher-cli.sh
 
+# Build-once artifact promotion (tag->test, copy->prod). Wraps
+# scripts/promote-env.sh (the single promotion implementation). Defaults to a
+# dry-run plan; pass GO=1 to actually submit. Override FROM / TO / VERSION:
+#   make promote VERSION=v1.1.40              # dry-run plan (test->prod)
+#   make promote VERSION=v1.1.40 GO=1         # submit
+#   make promote FROM=dev TO=test VERSION=v1.1.40 GO=1
+# See docs/design/aipla/v1.0.0-pilot/build-once-artifact-promotion.md.
+FROM ?= test
+TO ?= prod
+VERSION ?=
+GO ?=
+promote:
+	@chmod +x scripts/promote-env.sh
+	@test -n "$(VERSION)" || { echo "VERSION is required (e.g. make promote VERSION=v1.1.40)"; exit 1; }
+	@scripts/promote-env.sh --from $(FROM) --to $(TO) --version $(VERSION) $(if $(GO),,--dry-run)
+
 # --- CLI lifecycle ---
 
 # Install the `aiplatform` CLI as a global uv tool. Idempotent: --force

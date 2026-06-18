@@ -1,0 +1,132 @@
+# cloudbuild.promote.yaml — build-once artifact promotion (copy→prod).
+#
+# Runs in the TARGET project. Promotes a released ${_VERSION} from
+# ${_SOURCE_PROJECT} by COPYING the tested backend image (no rebuild) and
+# rebuilding ONLY the frontend from the same tagged source with the target
+# env's config. See docs/design/aipla/v1.0.0-pilot/build-once-artifact-promotion.md.
+#
+# Invoked by scripts/promote-env.sh (gcloud builds submit) or the increment-2
+# `aipla-<env>-promote` manual trigger. NO ci-gate: the artifact is frozen and
+# was gated at the test build.
+#
+# STATUS: authored v1, validated-not-yet-run (test/prod not provisioned yet —
+# cf. infrastructure/env increment-1). Validate at env-promotion M3 against a
+# real target; the deploy step assumes the target service already exists with
+# its env/secrets set (created at env-cut), so promotion only swaps images.
+
+substitutions:
+  _SOURCE_PROJECT: terraform_managed   # e.g. aipla-test-2026 (promote FROM)
+  _TARGET_PROJECT: terraform_managed   # e.g. aipla-prod-2026 (this build's project)
+  _VERSION: ''                         # release tag, e.g. v1.1.40 (required)
+  _REGION: europe-north1
+  _REPO: cphu
+  _SERVICE_NAME: aipla-v01-frontend
+  # Frontend rebuild needs the target env's baked-in config. Terraform-managed
+  # per target trigger; defaults keep `gcloud builds submit` sane for testing.
+  _MCP_SANDBOX_URL: 'https://aipla-v01-sandbox-wgwhd7mspa-lz.a.run.app/sandbox.html'
+
+tags: ['${_TARGET_PROJECT}', '${_SERVICE_NAME}', 'promote']
+
+options:
+  logging: GCS_ONLY
+logsBucket: gs://${_TARGET_PROJECT}-cloudbuild-logs
+
+steps:
+  # --- Guard: a version is mandatory (a promote without a frozen tag is a rebuild) ---
+  - name: 'gcr.io/cloud-builders/gcloud'
+    id: 'guard-version'
+    waitFor: ['-']
+    entrypoint: bash
+    args:
+      - '-c'
+      - |
+        set -euo pipefail
+        if [ -z "${_VERSION}" ]; then echo "FATAL: _VERSION is required"; exit 1; fi
+        echo "Promoting ${_VERSION}: ${_SOURCE_PROJECT} -> ${_TARGET_PROJECT}"
+
+  # --- Backend: COPY the tested image by digest (no rebuild) ---
+  - name: 'gcr.io/cloud-builders/gcloud'
+    id: 'copy-backend'
+    waitFor: ['guard-version']
+    entrypoint: bash
+    args:
+      - '-c'
+      - |
+        set -euo pipefail
+        SRC="${_REGION}-docker.pkg.dev/${_SOURCE_PROJECT}/${_REPO}/${_SERVICE_NAME}/backend:${_VERSION}"
+        DST="${_REGION}-docker.pkg.dev/${_TARGET_PROJECT}/${_REPO}/${_SERVICE_NAME}/backend:${_VERSION}"
+        DIGEST=$(gcloud artifacts docker images describe "$$SRC" --format='value(image_summary.digest)')
+        echo "Copying tested backend $$SRC ($$DIGEST) -> $$DST"
+        gcloud artifacts docker images copy "$$SRC" "$$DST" --quiet
+        # Record the digest deployed to prod == the digest tested in source.
+        echo "$$DIGEST" > /workspace/backend_digest
+
+  # --- Frontend: REBUILD from the tagged source with TARGET env config ---
+  # (NEXT_PUBLIC_* is compile-time-inlined and env-specific, so the frontend
+  #  cannot be copied — it is rebuilt from the same immutable tag. See the doc.)
+  - name: 'gcr.io/cloud-builders/gcloud'
+    id: 'get-firebase-config'
+    waitFor: ['guard-version']
+    entrypoint: 'bash'
+    args: ['./get-firebase-config.sh']
+    env: ['_PROJECT_ID=${_TARGET_PROJECT}']
+
+  - name: 'gcr.io/cloud-builders/docker'
+    id: 'build-frontend'
+    waitFor: ['get-firebase-config']
+    entrypoint: 'bash'
+    args:
+      - '-c'
+      - |
+        ARGS=$$(cat /workspace/docker_args)
+        docker build $$ARGS \
+          --build-arg NEXT_PUBLIC_MCP_SANDBOX_URL=${_MCP_SANDBOX_URL} \
+          -t ${_REGION}-docker.pkg.dev/${_TARGET_PROJECT}/${_REPO}/${_SERVICE_NAME}/ui:${_VERSION} \
+          -f frontend/Dockerfile frontend/
+
+  - name: 'gcr.io/cloud-builders/docker'
+    id: 'push-frontend'
+    waitFor: ['build-frontend']
+    args: ['push', '${_REGION}-docker.pkg.dev/${_TARGET_PROJECT}/${_REPO}/${_SERVICE_NAME}/ui:${_VERSION}']
+
+  # --- Deploy: swap both images on the EXISTING target service ---
+  # `services update` preserves env vars / secrets / volumes set at env-cut;
+  # promotion changes only the running images. Backend pinned by digest.
+  - name: 'gcr.io/google.com/cloudsdktool/cloud-sdk'
+    id: 'deploy'
+    waitFor: ['copy-backend', 'push-frontend']
+    entrypoint: bash
+    args:
+      - '-c'
+      - |
+        set -euo pipefail
+        DIGEST=$$(cat /workspace/backend_digest)
+        gcloud run services update ${_SERVICE_NAME} \
+          --project=${_TARGET_PROJECT} --region=${_REGION} \
+          --container=main \
+          --image=${_REGION}-docker.pkg.dev/${_TARGET_PROJECT}/${_REPO}/${_SERVICE_NAME}/ui:${_VERSION} \
+          --container=sidecar \
+          --image=${_REGION}-docker.pkg.dev/${_TARGET_PROJECT}/${_REPO}/${_SERVICE_NAME}/backend@$$DIGEST
+
+  # --- Smoke: fail the promotion if the target isn't healthy ---
+  - name: 'gcr.io/google.com/cloudsdktool/cloud-sdk'
+    id: 'smoke'
+    waitFor: ['deploy']
+    entrypoint: bash
+    args:
+      - '-c'
+      - |
+        set -e
+        URL=$$(gcloud run services describe ${_SERVICE_NAME} \
+          --project=${_TARGET_PROJECT} --region=${_REGION} --format='value(status.url)')
+        echo "Smoking $${URL}"
+        fail=0
+        for path in "/" "/api/health" "/api/proxy/health" "/api/proxy/api/skills/marketplace"; do
+          code=$$(curl -sS -o /dev/null -w '%{http_code}' --max-time 20 "$${URL}$${path}") || code=000
+          if [ "$${code}" = "200" ]; then echo "OK   $${path} -> 200"; else echo "FAIL $${path} -> $${code}"; fail=1; fi
+        done
+        for path in "/api/proxy/api/skills" "/api/proxy/api/auth/whoami"; do
+          code=$$(curl -sS -o /dev/null -w '%{http_code}' --max-time 20 "$${URL}$${path}") || code=000
+          if [ "$${code}" = "401" ]; then echo "OK   $${path} -> 401"; else echo "FAIL $${path} -> $${code} (expected 401)"; fail=1; fi
+        done
+        exit $${fail}
