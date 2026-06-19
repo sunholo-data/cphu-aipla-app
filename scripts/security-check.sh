@@ -27,6 +27,12 @@
 #     untrusted callers without Host validation already happening upstream
 #     (Cloud Run + load balancer set Host). Revisit when FastAPI ships
 #     1.0 (currently latest 0.99.x as of 2026-06-05).
+#   CVE-2026-48817, CVE-2026-48818, CVE-2026-54282, CVE-2026-54283
+#     (starlette, disclosed ~2026-06) — ALL fixed only in starlette 1.1.0+
+#     (1.1.0 / 1.3.0 / 1.3.1), unreachable under the same fastapi<1.0.0 pin
+#     that holds starlette on 0.x (installed fastapi 0.136.1 → starlette
+#     0.52.1, no 0.x backport exists). Same low reachability rationale as
+#     PYSEC-2026-161. Revisit together when we move to FastAPI 1.x.
 #
 set -euo pipefail
 
@@ -71,11 +77,15 @@ audit_python() {
   echo
   echo "${C_BOLD}[$label] pip-audit (uv export --frozen --no-dev, OSV)${C_RESET}"
   # --no-emit-project drops the local "-e ." line which pip-audit can't hash.
-  # --ignore-vuln PYSEC-2026-161: starlette BadHost, documented above.
+  # --ignore-vuln: starlette CVEs blocked by fastapi<1.0.0 — documented above.
   if (cd "$dir" && uvx pip-audit \
        --requirement <(uv export --frozen --no-dev --no-emit-project) \
        --strict \
        --ignore-vuln PYSEC-2026-161 \
+       --ignore-vuln CVE-2026-48817 \
+       --ignore-vuln CVE-2026-48818 \
+       --ignore-vuln CVE-2026-54282 \
+       --ignore-vuln CVE-2026-54283 \
        --vulnerability-service osv); then
     echo "${C_GREEN}PASS${C_RESET} $label"
   else
