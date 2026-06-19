@@ -36,6 +36,7 @@ logger = logging.getLogger(__name__)
 # Log ids — must match the sink filter in the chat-logs module + ensure_chat_logs().
 LOG_ID_CHAT_TURN = "aipla_chat_turn"
 LOG_ID_WORKBENCH_EVENT = "aipla_workbench_event"
+LOG_ID_VOICE_COST = "aipla_voice_cost"
 
 # Lazily-initialised google.cloud.logging.Client, shared across log ids.
 _client: Any = None
@@ -156,10 +157,49 @@ def emit_workbench_event(
         logger.warning("chat_log: emit_workbench_event failed (suppressed): %s", exc)
 
 
+def emit_voice_cost(
+    *,
+    group_id: str,
+    kind: str,
+    provider: str,
+    units: int,
+    cost_usd: float,
+    skill_id: str | None = None,
+    session_id: str | None = None,
+) -> None:
+    """Emit one voice-cost estimate (STT or TTS) for the cost dashboard
+    (1.1.9 voice integration). Never raises; no-op in LOCAL_MODE.
+
+    ``kind`` is ``"stt"`` or ``"tts"``. ``units`` is the provenance count —
+    ``duration_ms`` for STT, characters for TTS. ``cost_usd`` comes from
+    ``voice.cost`` (estimates, not invoiced billing). Cost bins to
+    ``group_id`` for class attribution (ADR-001 — never per-student); callers
+    skip emission when there is no group (teacher / LOCAL_MODE).
+    """
+    gl = _get_logger(LOG_ID_VOICE_COST)
+    if gl is None:
+        return
+    payload = {
+        "group_id": group_id,
+        "kind": kind,
+        "provider": provider,
+        "units": units,
+        "cost_usd": cost_usd,
+        "skill_id": skill_id,
+        "session_id": session_id,
+    }
+    try:
+        gl.log_struct(payload)
+    except Exception as exc:  # telemetry must never break the request
+        logger.warning("chat_log: emit_voice_cost failed (suppressed): %s", exc)
+
+
 __all__ = [
     "LOG_ID_CHAT_TURN",
+    "LOG_ID_VOICE_COST",
     "LOG_ID_WORKBENCH_EVENT",
     "emit_chat_turn",
+    "emit_voice_cost",
     "emit_workbench_event",
     "group_code_from_owner_uid",
 ]

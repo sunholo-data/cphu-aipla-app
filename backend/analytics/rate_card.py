@@ -62,6 +62,16 @@ MODEL_RATE_CARD: dict[str, Rate] = {
 #: Display currency for everything the rate card produces.
 CURRENCY = "EUR"
 
+#: Approximate USD→EUR rate for folding voice cost (voice/cost.py is priced in
+#: USD) into the EUR dashboard. Like the per-token rates, this is an estimate —
+#: refresh in a PR when it drifts materially. Actual GCP billing trumps it.
+USD_TO_EUR = 0.92
+
+
+def usd_to_eur(usd: float) -> float:
+    """Convert a USD estimate to EUR for the dashboard (approximate)."""
+    return (usd or 0.0) * USD_TO_EUR
+
 
 def _normalize(model: str) -> str:
     """Lowercase + unify the two id spellings (``gemini-2-5-flash`` and
@@ -105,4 +115,4 @@ def cost_eur(model: str | None, token_in: int, token_out: int) -> float:
     return (ti / 1000.0) * rate.in_per_1k + (to / 1000.0) * rate.out_per_1k
 
 
-__all__ = ["CURRENCY", "MODEL_RATE_CARD", "Rate", "cost_eur", "lookup_rate"]
+__all__ = ["CURRENCY", "MODEL_RATE_CARD", "USD_TO_EUR", "Rate", "cost_eur", "lookup_rate", "usd_to_eur"]

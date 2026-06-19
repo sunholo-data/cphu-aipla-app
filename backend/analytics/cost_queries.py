@@ -16,9 +16,11 @@ import logging
 from datetime import UTC, datetime, timedelta
 from typing import Any, Literal
 
-from analytics.rate_card import CURRENCY, cost_eur
+from analytics.rate_card import CURRENCY, cost_eur, usd_to_eur
 from db.bigquery import CHAT_TURN_TABLE, jsonpayload_columns, run_query, table_ref
 from db.classes import get_class, list_all_classes
+
+VOICE_COST_TABLE = "aipla_voice_cost"
 
 log = logging.getLogger(__name__)
 
@@ -116,6 +118,63 @@ def _safe_spend_rows(group_codes: list[str], since: datetime, until: datetime) -
         return []
 
 
+def voice_spend(group_codes: list[str], since: datetime, until: datetime) -> list[dict[str, Any]]:
+    """Summed voice (STT/TTS) cost in USD grouped by (kind, group_id) for the
+    given group codes + window (1.1.9 voice-cost integration). Reads the
+    ``aipla_voice_cost`` table that ``emit_voice_cost`` populates.
+
+    Empty codes short-circuit. **Schema-tolerant**: the table (and its
+    ``jsonPayload.*`` columns) does not exist until the first voice-cost row
+    lands, so probe the schema and bail to [] if the cost column is absent —
+    ``_safe_voice_spend`` additionally swallows a missing-table BQ error."""
+    if not group_codes:
+        return []
+    cols = jsonpayload_columns(VOICE_COST_TABLE)
+    if "cost_usd" not in cols or "group_id" not in cols:
+        return []
+    kind_sel = "jsonPayload.kind" if "kind" in cols else "CAST(NULL AS STRING)"
+    group_by = "jsonPayload.group_id" + (", jsonPayload.kind" if "kind" in cols else "")
+    sql = f"""
+        SELECT
+          {kind_sel} AS kind,
+          jsonPayload.group_id AS group_id,
+          SUM(CAST(jsonPayload.cost_usd AS FLOAT64)) AS cost_usd
+        FROM {table_ref(VOICE_COST_TABLE)}
+        WHERE jsonPayload.group_id IN UNNEST(@group_codes)
+          AND timestamp BETWEEN @since AND @until
+        GROUP BY {group_by}
+    """.strip()
+    rows = run_query(sql, params={"group_codes": list(group_codes), "since": since, "until": until})
+    return [{"kind": r["kind"], "group_id": r["group_id"], "cost_usd": float(r["cost_usd"] or 0.0)} for r in rows]
+
+
+def _safe_voice_spend(group_codes: list[str], since: datetime, until: datetime) -> list[dict[str, Any]]:
+    """``voice_spend`` that degrades to ``[]`` on any BQ error (incl. the
+    table not existing yet). Voice cost is additive context — its absence must
+    never 500 the dashboard or zero out the LLM spend."""
+    try:
+        return voice_spend(group_codes, since, until)
+    except Exception as exc:
+        log.warning("cost_queries: voice spend query failed, returning empty (%s)", type(exc).__name__)
+        return []
+
+
+def _fold_voice(rows: list[dict[str, Any]]) -> dict[str, Any]:
+    """Price voice rows (USD) into EUR: total + by-kind (stt/tts) breakdown."""
+    by_kind: dict[str, float] = {}
+    total = 0.0
+    for r in rows:
+        eur = usd_to_eur(r["cost_usd"])
+        total += eur
+        by_kind[r["kind"] or "unknown"] = by_kind.get(r["kind"] or "unknown", 0.0) + eur
+    return {
+        "voice_eur": round(total, 4),
+        "by_voice_kind": [
+            {"kind": k, "eur": round(v, 4)} for k, v in sorted(by_kind.items(), key=lambda kv: kv[1], reverse=True)
+        ],
+    }
+
+
 def _fold(rows: list[dict[str, Any]]) -> dict[str, Any]:
     """Price raw token rows into EUR totals + by-activity / by-group / by-model
     breakdowns (each a descending-by-spend list)."""
@@ -156,6 +215,12 @@ def class_spend(class_id: str, period: Period, *, now: datetime | None = None) -
     cls = get_class(class_id)
     codes = list(cls.group_codes) if cls else []
     folded = _fold(_safe_spend_rows(codes, since, until))
+    voice = _fold_voice(_safe_voice_spend(codes, since, until))
+    # total = LLM token cost + voice (STT/TTS); breakdowns stay LLM, voice is
+    # its own line. Combine BEFORE projecting so the projection includes voice.
+    folded["voice_eur"] = voice["voice_eur"]
+    folded["by_voice_kind"] = voice["by_voice_kind"]
+    folded["total_eur"] = round(folded["total_eur"] + voice["voice_eur"], 4)
     folded["class_id"] = class_id
     folded["period"] = period
     folded["projected_eur"] = project_month_eur(folded["total_eur"], now=now) if period == "this_month" else None
@@ -174,7 +239,8 @@ def classes_spend(
     their own cohort without the researcher claim."""
     since, until = period_bounds(period, now=now)
     code_to_class: dict[str, str] = {code: cid for cid, codes in class_id_to_codes.items() for code in codes}
-    rows = _safe_spend_rows(list(code_to_class.keys()), since, until)
+    codes = list(code_to_class.keys())
+    rows = _safe_spend_rows(codes, since, until)
     per_class: dict[str, float] = dict.fromkeys(class_id_to_codes, 0.0)
     total = 0.0
     for r in rows:
@@ -183,10 +249,19 @@ def classes_spend(
         cid = code_to_class.get(r["group_id"])
         if cid is not None:
             per_class[cid] = per_class.get(cid, 0.0) + c
+    # Voice cost (STT/TTS) folded in — total + per-class, same group→class map.
+    voice_total = 0.0
+    for vr in _safe_voice_spend(codes, since, until):
+        eur = usd_to_eur(vr["cost_usd"])
+        voice_total += eur
+        cid = code_to_class.get(vr["group_id"])
+        if cid is not None:
+            per_class[cid] = per_class.get(cid, 0.0) + eur
     return {
         "currency": CURRENCY,
         "period": period,
-        "total_eur": round(total, 4),
+        "total_eur": round(total + voice_total, 4),
+        "voice_eur": round(voice_total, 4),
         "per_class": [{"class_id": cid, "eur": round(v, 4)} for cid, v in per_class.items()],
     }
 
@@ -201,34 +276,58 @@ def cohort_spend(period: Period, *, now: datetime | None = None) -> dict[str, An
     for cls in classes:
         for code in cls.group_codes:
             code_to_class[code] = cls
-    rows = _safe_spend_rows(list(code_to_class.keys()), since, until)
+    codes = list(code_to_class.keys())
+    rows = _safe_spend_rows(codes, since, until)
 
     by_cohort: dict[str, float] = {}
     by_model: dict[str, float] = {}
+    by_voice_kind: dict[str, float] = {}
     per_class: dict[str, dict[str, Any]] = {}
     total = 0.0
+
+    def _cohort_of(cls: Any) -> str:
+        return (getattr(cls, "cohort", None) or "uncategorised") if cls else "uncategorised"
+
+    def _class_slot(cls: Any) -> dict[str, Any]:
+        return per_class.setdefault(
+            cls.class_id, {"class_id": cls.class_id, "name": cls.name, "cohort": _cohort_of(cls), "eur": 0.0}
+        )
+
     for r in rows:
         cls = code_to_class.get(r["group_id"])
-        cohort = (getattr(cls, "cohort", None) or "uncategorised") if cls else "uncategorised"
         c = cost_eur(r["model"], r["token_in"], r["token_out"])
         total += c
-        by_cohort[cohort] = by_cohort.get(cohort, 0.0) + c
+        by_cohort[_cohort_of(cls)] = by_cohort.get(_cohort_of(cls), 0.0) + c
         by_model[r["model"] or "unknown"] = by_model.get(r["model"] or "unknown", 0.0) + c
         if cls is not None:
-            slot = per_class.setdefault(
-                cls.class_id, {"class_id": cls.class_id, "name": cls.name, "cohort": cohort, "eur": 0.0}
-            )
-            slot["eur"] += c
+            _class_slot(cls)["eur"] += c
+
+    # Voice cost (STT/TTS) folded across the same dimensions.
+    voice_total = 0.0
+    for vr in _safe_voice_spend(codes, since, until):
+        cls = code_to_class.get(vr["group_id"])
+        eur = usd_to_eur(vr["cost_usd"])
+        total += eur
+        voice_total += eur
+        by_cohort[_cohort_of(cls)] = by_cohort.get(_cohort_of(cls), 0.0) + eur
+        by_voice_kind[vr["kind"] or "unknown"] = by_voice_kind.get(vr["kind"] or "unknown", 0.0) + eur
+        if cls is not None:
+            _class_slot(cls)["eur"] += eur
 
     return {
         "currency": CURRENCY,
         "period": period,
         "total_eur": round(total, 4),
+        "voice_eur": round(voice_total, 4),
         "by_cohort": [
             {"cohort": k, "eur": round(v, 4)} for k, v in sorted(by_cohort.items(), key=lambda kv: kv[1], reverse=True)
         ],
         "by_model": [
             {"model": k, "eur": round(v, 4)} for k, v in sorted(by_model.items(), key=lambda kv: kv[1], reverse=True)
+        ],
+        "by_voice_kind": [
+            {"kind": k, "eur": round(v, 4)}
+            for k, v in sorted(by_voice_kind.items(), key=lambda kv: kv[1], reverse=True)
         ],
         "per_class": [
             {**v, "eur": round(v["eur"], 4)} for v in sorted(per_class.values(), key=lambda x: x["eur"], reverse=True)
@@ -244,4 +343,5 @@ __all__ = [
     "period_bounds",
     "project_month_eur",
     "spend_rows",
+    "voice_spend",
 ]

@@ -289,3 +289,57 @@ def test_after_agent_falls_back_to_derived_group_when_no_real():
         make_after_agent_response("anon-aiplademo1-abc", "boldkast")(ctx)  # no real group_id
     # Derived (cleaned) form — still emits, just hyphen-stripped.
     assert mock_emit.call_args.kwargs["group_id"] == "aiplademo1"
+
+
+# --- emit_voice_cost (1.1.9 voice-cost integration) -------------------------
+
+VOICE_COST_KEYS = {"group_id", "kind", "provider", "units", "cost_usd", "skill_id", "session_id"}
+
+
+def test_emit_voice_cost_payload_shape():
+    gl = MagicMock()
+    with patch.object(chat_log, "_get_logger", return_value=gl):
+        chat_log.emit_voice_cost(
+            group_id="bold-kazoo-87",
+            kind="tts",
+            provider="gcp_chirp3hd",
+            units=420,
+            cost_usd=0.0126,
+            skill_id="boldkast",
+        )
+    gl.log_struct.assert_called_once()
+    payload = gl.log_struct.call_args.args[0]
+    assert set(payload.keys()) == VOICE_COST_KEYS
+    assert payload["group_id"] == "bold-kazoo-87"
+    assert payload["kind"] == "tts"
+    assert payload["cost_usd"] == 0.0126
+    assert payload["session_id"] is None  # optional, defaults None
+
+
+def test_emit_voice_cost_uses_correct_log_id():
+    captured = {}
+
+    def fake_get_logger(log_id):
+        captured["log_id"] = log_id
+        return MagicMock()
+
+    with patch.object(chat_log, "_get_logger", side_effect=fake_get_logger):
+        chat_log.emit_voice_cost(group_id="g", kind="stt", provider="gemini", units=3000, cost_usd=0.11)
+    assert captured["log_id"] == chat_log.LOG_ID_VOICE_COST == "aipla_voice_cost"
+
+
+def test_emit_voice_cost_no_pii():
+    gl = MagicMock()
+    with patch.object(chat_log, "_get_logger", return_value=gl):
+        chat_log.emit_voice_cost(group_id="g", kind="stt", provider="gemini", units=1, cost_usd=0.0)
+    payload = gl.log_struct.call_args.args[0]
+    assert not (set(payload.keys()) & FORBIDDEN_KEYS)
+
+
+def test_emit_voice_cost_never_raises_and_noops():
+    gl = MagicMock()
+    gl.log_struct.side_effect = RuntimeError("sink unreachable")
+    with patch.object(chat_log, "_get_logger", return_value=gl):
+        chat_log.emit_voice_cost(group_id="g", kind="tts", provider="x", units=1, cost_usd=0.0)
+    with patch.object(chat_log, "_get_logger", return_value=None):
+        chat_log.emit_voice_cost(group_id="g", kind="tts", provider="x", units=1, cost_usd=0.0)

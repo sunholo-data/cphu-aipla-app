@@ -26,7 +26,9 @@ from auth import User, get_current_user
 from db.classes import get_class
 from db.firestore import delete_document, get_document, query_documents, set_document, update_document
 from db.models.class_ import Class
+from observability.chat_log import emit_voice_cost
 from voice import get_stt
+from voice.cost import stt_cost_usd
 from voice.recording_store import ResearchAudioStore, uri_to_path
 
 logger = logging.getLogger(__name__)
@@ -70,7 +72,9 @@ def _class_for_user(user: User) -> Class | None:
         return None
 
 
-async def _transcribe_segment_in_background(rec_id: str, raw: bytes, mime: str, lang: str) -> None:
+async def _transcribe_segment_in_background(
+    rec_id: str, raw: bytes, mime: str, lang: str, group_id: str | None = None, duration_ms: int = 0
+) -> None:
     """Transcribe a stored segment off-request and write the result back to its
     Firestore doc (REC-TRANSCRIPT). Uses LONG-RUNNING recognize — lesson segments
     can exceed sync recognize's ~1-min cap (a 50 s segment at the device's native
@@ -102,6 +106,17 @@ async def _transcribe_segment_in_background(rec_id: str, raw: bytes, mime: str, 
                 rec_id,
                 {"transcript": text, "transcriptStatus": status, "transcriptEngine": provider.name},
             )
+            # 1.1.9 voice-cost: the STT API processed the audio (billable) —
+            # attribute the estimate to the group for the cost dashboard.
+            # group-attributed only (ADR-001); "unknown" group is un-attributable.
+            if group_id and group_id != "unknown" and duration_ms > 0:
+                emit_voice_cost(
+                    group_id=group_id,
+                    kind="stt",
+                    provider=provider.name,
+                    units=duration_ms,
+                    cost_usd=stt_cost_usd(provider.name, duration_ms),
+                )
         except Exception as exc:
             span.set_attribute("voice.stt.status", "failed")
             logger.warning("recording segment transcription failed (audio kept): %s", exc)
@@ -169,7 +184,7 @@ async def upload_recording(
         "createdAt": datetime.now(UTC).isoformat(),
     }
     set_document(_COLLECTION, rec_id, meta)
-    background_tasks.add_task(_transcribe_segment_in_background, rec_id, raw, mime, lang)
+    background_tasks.add_task(_transcribe_segment_in_background, rec_id, raw, mime, lang, group_id, duration_ms)
     logger.info(
         "lesson recording stored: class=%s group=%s seq=%d bytes=%d (transcribing in background)",
         cls.class_id,

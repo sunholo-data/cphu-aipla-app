@@ -8,8 +8,12 @@ These are *estimates* for the analytics dashboard, not invoiced billing.
 The dashboard sums them per-day to give M and JB a "how much voice cost
 us this week" signal. Actual GCP billing trumps these numbers.
 
-Update when tier prices change. The 1.1.9 cost-dashboard reads from
-BigQuery via the voice.cost_estimate_usd span attribute.
+Update when tier prices change. These same USD estimates are emitted to
+BigQuery for the 1.1.9 cost dashboard via ``emit_voice_cost`` (the
+``aipla_voice_cost`` log → table), which ``analytics.cost_queries`` reads
+and folds into per-class/cohort spend (converted USD→EUR). The
+``voice.cost_estimate_usd`` OTel span attribute is kept for Cloud Trace
+but is NOT the dashboard's source — spans don't land in BigQuery.
 """
 
 # USD per million characters synthesized.

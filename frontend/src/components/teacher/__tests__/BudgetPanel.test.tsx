@@ -20,6 +20,8 @@ function payload(overrides: Partial<ClassSpendPayload> = {}): ClassSpendPayload 
     ],
     by_group: [{ group_id: "g-1", eur: 4.2 }],
     by_model: [{ model: "claude-sonnet-4-6", eur: 4.2 }],
+    voice_eur: 0,
+    by_voice_kind: [],
     ...overrides,
   };
 }
@@ -52,5 +54,29 @@ describe("BudgetPanel", () => {
     vi.spyOn(costApi, "fetchClassSpend").mockRejectedValue(new Error("boom"));
     render(<BudgetPanel classId="c-1" />);
     await waitFor(() => expect(screen.getByRole("alert")).toHaveTextContent(/boom/));
+  });
+
+  it("shows the voice cost line when voice_eur > 0 (1.1.9)", async () => {
+    vi.spyOn(costApi, "fetchClassSpend").mockResolvedValue(
+      payload({
+        voice_eur: 0.12,
+        by_voice_kind: [
+          { kind: "stt", eur: 0.1 },
+          { kind: "tts", eur: 0.02 },
+        ],
+      }),
+    );
+    render(<BudgetPanel classId="c-1" />);
+    const line = await screen.findByTestId("voice-cost-line");
+    expect(line).toHaveTextContent("Includes voice €0.12");
+    expect(line).toHaveTextContent("STT €0.10");
+    expect(line).toHaveTextContent("TTS €0.02");
+  });
+
+  it("omits the voice line when there is no voice cost", async () => {
+    vi.spyOn(costApi, "fetchClassSpend").mockResolvedValue(payload());
+    render(<BudgetPanel classId="c-1" />);
+    await waitFor(() => expect(screen.getByText("boldkast")).toBeInTheDocument());
+    expect(screen.queryByTestId("voice-cost-line")).not.toBeInTheDocument();
   });
 });

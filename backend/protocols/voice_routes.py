@@ -45,6 +45,7 @@ from db.classes import (
     update_class_voice_settings,
 )
 from db.models.class_ import Class
+from observability.chat_log import emit_voice_cost
 from personas.loader import resolve_persona_chain
 from skills.skill_config import get_skill
 from voice import get_stt, get_tts
@@ -527,6 +528,16 @@ async def synthesize(
 
         cost = tts_cost_usd(provider.name, len(body.text))
         span.set_attribute("voice.cost_estimate_usd", cost)
+        _gid = getattr(user, "group_id", None)
+        if _gid:  # group-attributed only (ADR-001) — teacher/LOCAL_MODE skipped
+            emit_voice_cost(
+                group_id=_gid,
+                kind="tts",
+                provider=provider.name,
+                units=len(body.text),
+                cost_usd=cost,
+                skill_id=body.skill_id,
+            )
 
         # Best-effort cache write.
         if cache is not None:
@@ -577,7 +588,18 @@ async def transcribe(
             raise HTTPException(status_code=503, detail=str(exc)) from exc
         span.set_attribute("voice.transcript_chars", len(text))
         if duration_ms > 0:
-            span.set_attribute("voice.cost_estimate_usd", stt_cost_usd(provider.name, duration_ms))
+            stt_cost = stt_cost_usd(provider.name, duration_ms)
+            span.set_attribute("voice.cost_estimate_usd", stt_cost)
+            _gid = getattr(user, "group_id", None)
+            if _gid:  # group-attributed only (ADR-001)
+                emit_voice_cost(
+                    group_id=_gid,
+                    kind="stt",
+                    provider=provider.name,
+                    units=duration_ms,
+                    cost_usd=stt_cost,
+                    skill_id=skill_id,
+                )
 
     return {"text": text}
 

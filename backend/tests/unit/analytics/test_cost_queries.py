@@ -200,3 +200,87 @@ def test_classes_spend_aggregates_per_class_and_total() -> None:
     assert per["class-A"] == pytest.approx(0.5)  # 1 row
     assert per["class-B"] == pytest.approx(1.0)  # 2 rows
     assert per["class-C"] == pytest.approx(0.0)  # class with no activity still listed
+
+
+# --- voice cost integration (1.1.9 voice-cost) -----------------------------
+
+_VOICE_COLS = {"kind", "group_id", "cost_usd"}
+
+
+def test_voice_spend_empty_codes_short_circuits() -> None:
+    with patch.object(cost_queries, "run_query") as mock_q:
+        assert cost_queries.voice_spend([], NOW, NOW) == []
+        mock_q.assert_not_called()
+
+
+def test_voice_spend_param_binding_and_table() -> None:
+    with (
+        patch.object(cost_queries, "jsonpayload_columns", return_value=_VOICE_COLS),
+        patch.object(cost_queries, "run_query") as mock_q,
+    ):
+        mock_q.return_value = []
+        cost_queries.voice_spend(["g-1"], datetime(2026, 6, 1, tzinfo=UTC), NOW)
+        sql = mock_q.call_args.args[0]
+        assert "aipla_voice_cost" in sql
+        assert "@group_codes" in sql and "g-1" not in sql
+        assert "jsonPayload.cost_usd" in sql
+
+
+def test_voice_spend_absent_table_returns_empty() -> None:
+    # Table not created yet → jsonpayload_columns has no cost_usd → [] (no query).
+    with (
+        patch.object(cost_queries, "jsonpayload_columns", return_value=set()),
+        patch.object(cost_queries, "run_query") as mock_q,
+    ):
+        assert cost_queries.voice_spend(["g-1"], NOW, NOW) == []
+        mock_q.assert_not_called()
+
+
+def test_safe_voice_spend_degrades_on_error() -> None:
+    with patch.object(cost_queries, "voice_spend", side_effect=RuntimeError("no table")):
+        assert cost_queries._safe_voice_spend(["g-1"], NOW, NOW) == []
+
+
+def test_class_spend_includes_voice_in_total() -> None:
+    cls = _seed_class("teacher-A", group_codes=["g-1"])
+    llm = [{"model": "gemini-2.5-flash", "skill_id": "s", "group_id": "g-1", "token_in": 100_000, "token_out": 0}]
+    voice = [
+        {"kind": "stt", "group_id": "g-1", "cost_usd": 0.10},
+        {"kind": "tts", "group_id": "g-1", "cost_usd": 0.02},
+    ]
+    with (
+        patch.object(cost_queries, "spend_rows", return_value=llm),
+        patch.object(cost_queries, "voice_spend", return_value=voice),
+    ):
+        result = cost_queries.class_spend(cls.class_id, "this_month", now=NOW)
+    # LLM: 100k * 0.0003 = 0.03 ; voice: (0.10+0.02)*0.92 = 0.1104
+    assert result["voice_eur"] == pytest.approx(0.1104)
+    assert result["total_eur"] == pytest.approx(0.03 + 0.1104)
+    kinds = {v["kind"]: v["eur"] for v in result["by_voice_kind"]}
+    assert kinds["stt"] == pytest.approx(0.092)  # 0.10 * 0.92
+    # projection includes voice (day 15 → x2)
+    assert result["projected_eur"] == pytest.approx((0.03 + 0.1104) * 2)
+
+
+def test_class_spend_voice_absent_is_zero() -> None:
+    cls = _seed_class("teacher-A", group_codes=["g-1"])
+    with (
+        patch.object(cost_queries, "spend_rows", return_value=[]),
+        patch.object(cost_queries, "voice_spend", side_effect=RuntimeError("no table")),
+    ):
+        result = cost_queries.class_spend(cls.class_id, "this_month", now=NOW)
+    assert result["voice_eur"] == 0.0
+    assert result["total_eur"] == 0.0
+
+
+def test_cohort_spend_folds_voice() -> None:
+    _seed_class("t-A", name="DK", group_codes=["dk-1"], cohort="dk")
+    with (
+        patch.object(cost_queries, "spend_rows", return_value=[]),
+        patch.object(cost_queries, "voice_spend", return_value=[{"kind": "tts", "group_id": "dk-1", "cost_usd": 0.50}]),
+    ):
+        result = cost_queries.cohort_spend("this_month", now=NOW)
+    assert result["voice_eur"] == pytest.approx(0.46)  # 0.50 * 0.92
+    assert result["total_eur"] == pytest.approx(0.46)
+    assert {c["cohort"]: c["eur"] for c in result["by_cohort"]}["dk"] == pytest.approx(0.46)
+    assert {k["kind"]: k["eur"] for k in result["by_voice_kind"]}["tts"] == pytest.approx(0.46)

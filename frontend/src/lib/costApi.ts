@@ -23,6 +23,10 @@ export interface GroupSpend extends SpendBucket {
 export interface ModelSpend extends SpendBucket {
   model: string;
 }
+/** Voice (STT/TTS) spend by kind — 1.1.9 voice-cost integration. */
+export interface VoiceKindSpend extends SpendBucket {
+  kind: string;
+}
 
 export interface ClassSpendPayload {
   currency: string;
@@ -35,6 +39,9 @@ export interface ClassSpendPayload {
   by_activity: ActivitySpend[];
   by_group: GroupSpend[];
   by_model: ModelSpend[];
+  /** Voice (STT/TTS) cost, EUR — included in total_eur. */
+  voice_eur: number;
+  by_voice_kind: VoiceKindSpend[];
 }
 
 export interface CohortSpend extends SpendBucket {
@@ -53,6 +60,9 @@ export interface CostInsightsPayload {
   by_cohort: CohortSpend[];
   by_model: ModelSpend[];
   per_class: PerClassSpend[];
+  /** Voice (STT/TTS) cost, EUR — included in total_eur. */
+  voice_eur: number;
+  by_voice_kind: VoiceKindSpend[];
 }
 
 async function readJson<T>(resp: Response, what: string): Promise<T> {

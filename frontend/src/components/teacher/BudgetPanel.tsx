@@ -86,6 +86,17 @@ export function BudgetPanel({ classId }: { classId: string }) {
             ) : null}
           </div>
 
+          {data.voice_eur > 0 ? (
+            <p className="text-xs text-muted-foreground" data-testid="voice-cost-line">
+              Includes voice {formatEur(data.voice_eur)}
+              {data.by_voice_kind.length > 0
+                ? ` (${data.by_voice_kind
+                    .map((v) => `${v.kind.toUpperCase()} ${formatEur(v.eur)}`)
+                    .join(" · ")})`
+                : null}
+            </p>
+          ) : null}
+
           {data.total_eur === 0 ? (
             <p className="text-sm text-muted-foreground">No spend recorded for this period.</p>
           ) : (

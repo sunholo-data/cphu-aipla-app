@@ -36,9 +36,10 @@ variable "log_filter" {
     Cloud Logging filter selecting the structured entries the backend
     emits (see chat-log-pipeline.md). Project-agnostic regex on the log
     suffix so the same default works in every env. The backend emitter
-    must write under log ids `aipla_chat_turn` and `aipla_workbench_event`.
+    must write under log ids `aipla_chat_turn`, `aipla_workbench_event`,
+    and `aipla_voice_cost` (1.1.9 voice-cost integration).
   EOT
-  default     = "logName=~\"/logs/aipla_(chat_turn|workbench_event)$\""
+  default     = "logName=~\"/logs/aipla_(chat_turn|workbench_event|voice_cost)$\""
 }
 
 variable "partition_expiration_days" {

@@ -115,6 +115,13 @@ export default function TeacherCostInsightsPage() {
             headLabel="Model"
             rows={payload.by_model.map((m) => ({ label: m.model, eur: m.eur }))}
           />
+          {payload.voice_eur > 0 ? (
+            <SpendTable
+              title="By voice (STT/TTS)"
+              headLabel="Kind"
+              rows={payload.by_voice_kind.map((v) => ({ label: v.kind.toUpperCase(), eur: v.eur }))}
+            />
+          ) : null}
           <SpendTable
             title="By class"
             headLabel="Class"
