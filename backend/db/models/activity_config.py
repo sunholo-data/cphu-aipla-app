@@ -16,6 +16,7 @@ no-op in routes.
 
 from __future__ import annotations
 
+from dataclasses import dataclass
 from datetime import datetime
 from typing import Literal
 
@@ -72,6 +73,49 @@ class ChecklistItem(BaseModel):
 WorkbenchType = Literal["app", "drawing", "sensor", "video", "notebook", "none"]
 
 
+# ---------------------------------------------------------------------------
+# Activity element registry (1.1.38 M0)
+# ---------------------------------------------------------------------------
+# The *platform element* layer — the composable things a teacher layers on top
+# of any workbench type (checklist, and later data table / chart / calculator /
+# document). This registry is the single source of truth for *which element
+# kinds exist* and their bounds, so adding the next element is a registry entry
+# + a Pydantic model + a frontend renderer/editor, not a schema rewrite.
+#
+# The recipe to add element N is documented in
+# docs/design/aipla/v1.1.0-feedback/activity-elements-palette.md. The frontend
+# mirror lives in frontend/src/lib/activityElements.ts (kept in lock-step via
+# the consistency tests on both ends).
+#
+# v1.1 ships the shipped ``checklist`` re-homed onto the registry (no behaviour
+# change). ``table`` / ``chart`` / ``calculator`` / ``document`` land as further
+# entries in 1.1.38 M1-M4; ``quiz`` (inline, A2UI) joins when 1.1.19 M2 builds it.
+ElementKind = Literal["checklist"]
+ElementRender = Literal["workspace", "inline"]
+
+
+@dataclass(frozen=True)
+class ElementSpec:
+    """Registry descriptor for one teacher-authorable activity element.
+
+    ``field`` names the ``ActivityConfig`` field that stores this kind;
+    ``max_items`` is the registry-enforced cap (rejects oversized / malformed
+    input before persistence or render — 1.1.38 Security: bounded sizes);
+    ``render`` is where the element shows (``workspace`` pane vs ``inline``
+    A2UI chat card).
+    """
+
+    kind: ElementKind
+    field: str
+    max_items: int
+    render: ElementRender
+
+
+ELEMENT_REGISTRY: dict[ElementKind, ElementSpec] = {
+    "checklist": ElementSpec(kind="checklist", field="checklist", max_items=50, render="workspace"),
+}
+
+
 class ActivityConfig(BaseModel):
     """Firestore document at ``activity_configs/{teacher_uid}:{class_id}:{activity_id}``.
 
@@ -114,6 +158,21 @@ class ActivityConfig(BaseModel):
             self.workbench_type = "app"
         return self
 
+    @model_validator(mode="after")
+    def _enforce_element_caps(self) -> ActivityConfig:
+        """Reject configs whose element lists exceed the registry cap (1.1.38).
+
+        ``ELEMENT_REGISTRY`` is the single place element bounds live; enforcing
+        them on the model keeps a malformed / oversized payload from being
+        persisted or rendered. Caps are generous (a real activity never nears
+        them) so this is a guard against absurd input, not a behaviour change.
+        """
+        for spec in ELEMENT_REGISTRY.values():
+            value = getattr(self, spec.field, None)
+            if isinstance(value, list) and len(value) > spec.max_items:
+                raise ValueError(f"{spec.field} has {len(value)} items, exceeds the maximum of {spec.max_items}")
+        return self
+
     @staticmethod
     def doc_id(teacher_uid: str, class_id: str, activity_id: str) -> str:
         """Composite Firestore document id."""
@@ -126,9 +185,13 @@ class ActivityConfig(BaseModel):
 
 
 __all__ = [
+    "ELEMENT_REGISTRY",
     "ActivityConfig",
     "ChecklistItem",
     "Difficulty",
+    "ElementKind",
+    "ElementRender",
+    "ElementSpec",
     "InteractionStyle",
     "Language",
     "MaterialRef",

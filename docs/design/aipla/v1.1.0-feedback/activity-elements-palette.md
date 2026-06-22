@@ -1,6 +1,6 @@
 # Activity element palette — an extensible set of teacher-authorable workbench elements
 
-**Status:** Planned (P1, v1.1 — phased; M0 substrate + each element an independent thin probe)
+**Status:** M0 registry substrate **SHIPPED 2026-06-22**; M1–M5 planned (P1, v1.1 — phased; each element an independent thin probe)
 **Last Updated:** 2026-06-17 (17 June teacher check-in — Aswin: *"more guided form actions"* + M: more elements than just the checklist)
 **Priority:** **P1** — the activity-element layer is currently **one** live element (checklist). Teachers want to assemble richer activities (data tables, charts, calculators, inline documents) without a developer. This is the **breadth multiplier on the activity-element axis**: it makes *adding the next element type* a bounded, repeatable recipe rather than a bespoke build.
 **Estimated:** ~1d M0 registry substrate + ~1–2d per element (table, chart, calculator, document) — each independently shippable
@@ -224,8 +224,8 @@ Ordered so **M0 is the reusable substrate** and each element is an independent, 
 
 | MS | Deliverable | Est | Gate | Lands |
 |---|---|---|---|---|
-| **M0** | **Element registry substrate.** `ElementKind` + per-kind Pydantic models + `ELEMENT_REGISTRY` (validator/max/render) + frontend `elementRenderers` dispatch + a reusable `ElementEditor` builder shell. Re-homes the shipped checklist + the 1.1.19 quiz onto the registry (no behaviour change). The **"add element N" recipe** is documented + lint-checked. | ~1d | none | post-freeze |
-| **M1** | **Data table element.** Teacher column/row editor; student-fillable grid; commit via `iframe-context`; units header. Shares the wire shape [offline-lab](offline-lab-workbench.md) (1.1.24) extends. | ~1.5d | Q1 (sim composition) | post-freeze |
+| **M0** ✅ | **Element registry substrate — SHIPPED 2026-06-22.** Backend `ELEMENT_REGISTRY` (`ElementKind`/`ElementSpec` with field/max/render) + a model-level cap validator on `ActivityConfig` (re-homes the shipped `checklist`, no behaviour change) + the typed frontend contract mirror (`frontend/src/lib/activityElements.ts`) consumed by the workspace dispatch + consistency/cap tests both ends + the **"add element N" recipe**. **Deliberately scoped to the registry/contract/validation substrate**; the uniform renderer-component interface + `ElementEditor` shell move to M1 (extracting them from a single element is premature — the table is the right second data point). | ~1d | none | **shipped** |
+| **M1** | **Data table element + renderer/editor generalisation.** First new element: teacher column/row editor; student-fillable grid; commit via `iframe-context`; units header. Lands the uniform `elementRenderers` dispatch + reusable `ElementEditor` builder shell (deferred from M0 — now done with two elements to generalise from). Shares the wire shape [offline-lab](offline-lab-workbench.md) (1.1.24) extends. | ~2d | Q1 (sim composition) | post-freeze |
 | **M2** | **Chart element.** Plot-the-table + teacher static series; SVG/canvas; deterministic. | ~1.5d | M1 (for plot-the-table) | pilot-iteration |
 | **M3** | **Calculator element.** Scientific + formula modes; **safe-grammar evaluator** + `evaluate` endpoint; builder formula validation. | ~2d | **JB/AR formula set + safe-eval lib choice** | pilot-iteration |
 | **M4** | **Document (inline) element.** Reuse `MaterialRef` + 1.1.33 render + `studentVisible`; inline placement. | ~0.5–1d | none (reuse) | pilot-iteration |
@@ -267,7 +267,7 @@ Ordered so **M0 is the reusable substrate** and each element is an independent, 
 - [ ] A chart plots a student-filled table (M2).
 - [ ] A formula calculator evaluates server-side; the safe grammar refuses `eval`-class input under an adversarial test set (M3).
 - [ ] The inline document element reuses `MaterialRef` + 1.1.33 render with **no new store** (M4).
-- [ ] The shipped checklist behaviour is unchanged after the registry re-home (regression-guarded).
+- [x] The shipped checklist behaviour is unchanged after the registry re-home (regression-guarded) — **M0**.
 - [ ] Every element has a designed empty / loading / error state; no blank void at ~700px (Axiom 11).
 - [ ] Net axiom score ≥ +4 maintained; SECURE-by-construction mitigations implemented as specified.
 

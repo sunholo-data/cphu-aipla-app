@@ -1,3 +1,5 @@
+import { ELEMENT_REGISTRY } from "@/lib/activityElements";
+
 // Workspace composition decision (TAA-1 generalization), extracted as a pure
 // function so the dispatch is unit-testable without rendering the whole chat
 // page. The page renders the actual elements based on the returned kind.
@@ -40,6 +42,10 @@ export function workspaceContentKind(
   hasChecklist: boolean,
 ): WorkspaceContentKind {
   if (skillSlug && SIM_WORKSPACE_SLUGS.has(skillSlug)) return "sim";
-  if (hasChecklist) return "checklist";
+  // "checklist" is the workspace-rendered platform element in the registry
+  // today (1.1.38 M0). When more workspace elements land (M1+: data table,
+  // chart, calculator), generalize `hasChecklist` to the set of present element
+  // kinds filtered by `ELEMENT_REGISTRY[kind].render === "workspace"`.
+  if (hasChecklist && ELEMENT_REGISTRY.checklist.render === "workspace") return "checklist";
   return "none";
 }
