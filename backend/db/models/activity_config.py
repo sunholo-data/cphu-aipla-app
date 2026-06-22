@@ -67,6 +67,39 @@ class ChecklistItem(BaseModel):
     model_config = ConfigDict(populate_by_name=True)
 
 
+class TableColumn(BaseModel):
+    """One column of a teacher-defined data table (1.1.38 M1).
+
+    ``unit`` (e.g. ``"s"``, ``"m/s"``) shows in the header and drives the
+    units-loop the tutor already runs (1.1.21). ``kind`` gates the student
+    input control: a numeric measurement field vs free text.
+    """
+
+    id: str = Field(min_length=1, max_length=64)
+    label: str = Field(min_length=1, max_length=80)
+    unit: str = Field(default="", max_length=24)
+    kind: Literal["number", "text"] = "number"
+
+    model_config = ConfigDict(populate_by_name=True)
+
+
+class TableElement(BaseModel):
+    """A teacher-defined data table the student fills in (1.1.38 M1).
+
+    The teacher defines the columns + an empty row count; the student enters
+    readings and the committed grid is pushed to the tutor via the existing
+    ``iframe-context`` path (the checklist's wire). Ground-truth checking of
+    entered values is the offline-lab (1.1.24) extension, NOT authored here.
+    """
+
+    id: str = Field(min_length=1, max_length=64)
+    title: str = Field(default="", max_length=120)
+    columns: list[TableColumn] = Field(min_length=1, max_length=8)
+    rows: int = Field(default=5, ge=1, le=50)
+
+    model_config = ConfigDict(populate_by_name=True)
+
+
 # Workbench type system (1.J expanded-workbench-types). ``none`` is a
 # first-class, no-simulator activity (chat-only Socratic dialogue, the
 # v1.1 teacher-authoring headline). ``app`` is a paired MCP-App sim.
@@ -87,10 +120,10 @@ WorkbenchType = Literal["app", "drawing", "sensor", "video", "notebook", "none"]
 # mirror lives in frontend/src/lib/activityElements.ts (kept in lock-step via
 # the consistency tests on both ends).
 #
-# v1.1 ships the shipped ``checklist`` re-homed onto the registry (no behaviour
-# change). ``table`` / ``chart`` / ``calculator`` / ``document`` land as further
-# entries in 1.1.38 M1-M4; ``quiz`` (inline, A2UI) joins when 1.1.19 M2 builds it.
-ElementKind = Literal["checklist"]
+# v1.1 ships the ``checklist`` (re-homed M0) + the ``table`` (M1); ``chart`` /
+# ``calculator`` / ``document`` land as further entries in 1.1.38 M2-M4;
+# ``quiz`` (inline, A2UI) joins when 1.1.19 M2 builds it.
+ElementKind = Literal["checklist", "table"]
 ElementRender = Literal["workspace", "inline"]
 
 
@@ -113,6 +146,9 @@ class ElementSpec:
 
 ELEMENT_REGISTRY: dict[ElementKind, ElementSpec] = {
     "checklist": ElementSpec(kind="checklist", field="checklist", max_items=50, render="workspace"),
+    # ``max_items`` caps the NUMBER of tables on an activity; per-table column /
+    # row bounds live on ``TableElement`` itself.
+    "table": ElementSpec(kind="table", field="table", max_items=5, render="workspace"),
 }
 
 
@@ -140,6 +176,9 @@ class ActivityConfig(BaseModel):
     workbench_type: WorkbenchType = Field(default="none", alias="workbenchType")
     source_activity_id: str | None = Field(default=None, alias="sourceActivityId")
     checklist: list[ChecklistItem] = Field(default_factory=list)
+    # Teacher-defined data tables the student fills in (1.1.38 M1). Capped at
+    # ELEMENT_REGISTRY["table"].max_items by the element-cap validator below.
+    table: list[TableElement] = Field(default_factory=list)
     # Curriculum documents cited for this activity (1.1.25 M3). The tutor
     # retrieval tool is scoped to ONLY these docs (student deny-by-default).
     materials: list[MaterialRef] = Field(default_factory=list)
@@ -195,5 +234,7 @@ __all__ = [
     "InteractionStyle",
     "Language",
     "MaterialRef",
+    "TableColumn",
+    "TableElement",
     "WorkbenchType",
 ]

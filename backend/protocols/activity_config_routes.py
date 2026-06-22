@@ -37,6 +37,7 @@ from db.models.activity_config import (
     InteractionStyle,
     Language,
     MaterialRef,
+    TableElement,
     WorkbenchType,
 )
 from personas.loader import resolve_persona_chain
@@ -74,6 +75,8 @@ class ActivityConfigUpsert(BaseModel):
     paired_workbench: str | None = Field(default=None, alias="pairedWorkbench")
     workbench_type: WorkbenchType = Field(default="none", alias="workbenchType")
     checklist: list[ChecklistItem] = Field(default_factory=list)
+    # Teacher-defined data tables the student fills in (1.1.38 M1).
+    table: list[TableElement] = Field(default_factory=list)
     # Curriculum documents cited for this activity (1.1.25 M4). The tutor
     # retrieval tool is scoped to ONLY these docs (student deny-by-default).
     materials: list[MaterialRef] = Field(default_factory=list)
@@ -117,6 +120,7 @@ async def post_activity_config(
         paired_workbench=body.paired_workbench,
         workbench_type=body.workbench_type,
         checklist=body.checklist,
+        table=body.table,
         materials=body.materials,
     )
     log.info(
@@ -169,6 +173,7 @@ async def get_active_activity_config(
             "activityId": activity_id,
             "title": "",
             "checklist": [],
+            "table": [],
             "workbenchType": "none",
             "persona": persona_block,
             "materials": [],
@@ -183,6 +188,7 @@ async def get_active_activity_config(
         "activityId": activity_id,
         "title": cfg.title,
         "checklist": [item.model_dump() for item in cfg.checklist],
+        "table": [t.model_dump(by_alias=True) for t in cfg.table],
         "workbenchType": cfg.workbench_type,
         "persona": persona_block,
         "materials": materials,
@@ -253,6 +259,7 @@ async def patch_activity_config(
         paired_workbench=body.paired_workbench,
         workbench_type=body.workbench_type,
         checklist=body.checklist,
+        table=body.table,
         materials=body.materials,
     )
     return _serialize(cfg)

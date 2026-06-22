@@ -17,6 +17,8 @@ from db.models.activity_config import (
     ELEMENT_REGISTRY,
     ActivityConfig,
     ChecklistItem,
+    TableColumn,
+    TableElement,
 )
 
 
@@ -65,3 +67,49 @@ def test_checklist_over_cap_is_rejected() -> None:
     cap = ELEMENT_REGISTRY["checklist"].max_items
     with pytest.raises(ValidationError):
         _config(checklist=_checklist(cap + 1))
+
+
+# --- data table element (1.1.38 M1) ---------------------------------------
+
+
+def _table(n_cols: int = 2, rows: int = 5) -> TableElement:
+    cols = [TableColumn(id=f"c{i}", label=f"col {i}", unit="s") for i in range(n_cols)]
+    return TableElement(id="t1", title="Measurements", columns=cols, rows=rows)
+
+
+def test_table_is_a_registered_workspace_element() -> None:
+    spec = ELEMENT_REGISTRY["table"]
+    assert spec.field == "table"
+    assert spec.render == "workspace"
+
+
+def test_table_within_cap_roundtrips() -> None:
+    cfg = _config(table=[_table()])
+    assert len(cfg.table) == 1
+    assert cfg.table[0].columns[0].unit == "s"
+
+
+def test_table_over_cap_is_rejected() -> None:
+    cap = ELEMENT_REGISTRY["table"].max_items
+    tables = [TableElement(id=f"t{i}", columns=[TableColumn(id="c", label="x")]) for i in range(cap + 1)]
+    with pytest.raises(ValidationError):
+        _config(table=tables)
+
+
+def test_table_requires_at_least_one_column() -> None:
+    with pytest.raises(ValidationError):
+        TableElement(id="t", columns=[])
+
+
+def test_table_rejects_too_many_columns() -> None:
+    cols = [TableColumn(id=f"c{i}", label=f"c{i}") for i in range(9)]
+    with pytest.raises(ValidationError):
+        TableElement(id="t", columns=cols)
+
+
+def test_table_rows_must_be_in_bounds() -> None:
+    col = [TableColumn(id="c", label="x")]
+    with pytest.raises(ValidationError):
+        TableElement(id="t", columns=col, rows=0)
+    with pytest.raises(ValidationError):
+        TableElement(id="t", columns=col, rows=51)
