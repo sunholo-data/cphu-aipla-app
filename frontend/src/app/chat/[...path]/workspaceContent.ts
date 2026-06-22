@@ -1,5 +1,3 @@
-import { ELEMENT_REGISTRY } from "@/lib/activityElements";
-
 // Workspace composition decision (TAA-1 generalization), extracted as a pure
 // function so the dispatch is unit-testable without rendering the whole chat
 // page. The page renders the actual elements based on the returned kind.
@@ -29,23 +27,21 @@ export const SIM_WORKSPACE_SLUGS = new Set<string>([
 ]);
 
 /** What the workspace column should contain for this activity. */
-export type WorkspaceContentKind = "sim" | "checklist" | "none";
+export type WorkspaceContentKind = "sim" | "elements" | "none";
 
 /**
  * Decide the workspace content:
  *  - a registered sim slug → "sim" (the page dispatches to the right sim block)
- *  - else a teacher-authored checklist present → "checklist"
+ *  - else any teacher-authored workspace element present → "elements"
+ *    (checklist, data table, …; the page renders the present ones via the
+ *    element registry / `WorkspaceElements` — 1.1.38)
  *  - else "none" (chat-only — no workspace column)
  */
 export function workspaceContentKind(
   skillSlug: string | null | undefined,
-  hasChecklist: boolean,
+  hasWorkspaceElement: boolean,
 ): WorkspaceContentKind {
   if (skillSlug && SIM_WORKSPACE_SLUGS.has(skillSlug)) return "sim";
-  // "checklist" is the workspace-rendered platform element in the registry
-  // today (1.1.38 M0). When more workspace elements land (M1+: data table,
-  // chart, calculator), generalize `hasChecklist` to the set of present element
-  // kinds filtered by `ELEMENT_REGISTRY[kind].render === "workspace"`.
-  if (hasChecklist && ELEMENT_REGISTRY.checklist.render === "workspace") return "checklist";
+  if (hasWorkspaceElement) return "elements";
   return "none";
 }

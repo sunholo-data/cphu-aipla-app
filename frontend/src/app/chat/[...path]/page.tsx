@@ -59,7 +59,9 @@ import { A2UISurfaceMount } from "@/components/protocols/A2UISurfaceMount";
 import { DocumentPanel } from "@/components/document/DocumentPanel";
 import { LatencyHUD } from "@/components/dev/LatencyHUD";
 import { WorkspaceShell } from "@/components/workspace/WorkspaceShell";
-import { ProgressChecklist, type ChecklistItem } from "@/components/workspace/ProgressChecklist";
+import { type ChecklistItem } from "@/components/workspace/ProgressChecklist";
+import { type TableElementDef } from "@/components/workspace/WorkbenchTable";
+import { WorkspaceElements } from "@/components/workspace/elementRenderers";
 import { DocumentsPanel, type ActivityMaterial } from "@/components/workspace/DocumentsPanel";
 import { workspaceContentKind } from "./workspaceContent";
 import { BoldkastWorkbench } from "@/components/workspace/BoldkastWorkbench";
@@ -405,6 +407,9 @@ function ChatShell({
   // generically — for sims it sits alongside the sim handles its own;
   // for no-sim concept activities it IS the workspace.
   const [activeChecklist, setActiveChecklist] = useState<ChecklistItem[]>([]);
+  // 1.1.38 M1 — the activity's teacher-defined data tables (student-fillable),
+  // rendered in the workspace column via the element registry.
+  const [activeTable, setActiveTable] = useState<TableElementDef[]>([]);
   // 1.1.33 M2b/M1 — the activity's grounding documents (names-always + a
   // studentVisible flag), surfaced in the Documents workbench panel.
   const [activeMaterials, setActiveMaterials] = useState<ActivityMaterial[]>([]);
@@ -413,7 +418,10 @@ function ChatShell({
   const [activePersona, setActivePersona] = useState<PersonaSummary | null>(null);
   // Config-driven workspace gate: a registered sim OR an authored checklist
   // (workspaceContent.ts — pure + unit-tested; no inline slug allowlist).
-  const workspaceKind = workspaceContentKind(skillSlug, activeChecklist.length > 0);
+  const workspaceKind = workspaceContentKind(
+    skillSlug,
+    activeChecklist.length > 0 || activeTable.length > 0,
+  );
   // 1.1.33 M1 — the student's uploaded photos this session (native AG-UI image
   // parts already on the messages); fed to the Documents panel's gallery.
   const uploadedImages = messages.flatMap((m) => m.images ?? []);
@@ -428,6 +436,7 @@ function ChatShell({
   useEffect(() => {
     if (!skillId || !isAnonymousGroupAuthMode()) {
       setActiveChecklist([]);
+      setActiveTable([]);
       setActivePersona(null);
       setActiveMaterials([]);
       return;
@@ -438,6 +447,7 @@ function ChatShell({
       .then((data) => {
         if (!alive || !data) return;
         if (Array.isArray(data.checklist)) setActiveChecklist(data.checklist as ChecklistItem[]);
+        if (Array.isArray(data.table)) setActiveTable(data.table as TableElementDef[]);
         setActivePersona((data.persona as PersonaSummary | null) ?? null);
         setActiveMaterials(Array.isArray(data.materials) ? (data.materials as ActivityMaterial[]) : []);
       })
@@ -1238,14 +1248,12 @@ function ChatShell({
                 />
               )
             ) : (
-              <div className="space-y-3 p-4">
-                <h2 className="text-sm font-semibold text-foreground">Fremgang</h2>
-                <ProgressChecklist
-                  skillId={skillId}
-                  items={activeChecklist}
-                  sessionId={sessionId ?? agentSessionId}
-                />
-              </div>
+              <WorkspaceElements
+                skillId={skillId}
+                sessionId={sessionId ?? agentSessionId}
+                checklist={activeChecklist}
+                table={activeTable}
+              />
             ))}
             {/* 1.1.33 M1 — Documents: the activity's grounding sources (names
                 always shown, shared/not-shared badge) + the student's uploads.

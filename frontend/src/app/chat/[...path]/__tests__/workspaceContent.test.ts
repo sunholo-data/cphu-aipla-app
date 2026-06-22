@@ -3,27 +3,27 @@ import { describe, expect, it } from "vitest";
 import { SIM_WORKSPACE_SLUGS, workspaceContentKind } from "../workspaceContent";
 
 describe("workspaceContentKind — workspace composer dispatch", () => {
-  it("returns 'sim' for each registered sim slug (regardless of checklist)", () => {
+  it("returns 'sim' for each registered sim slug (regardless of elements)", () => {
     for (const slug of SIM_WORKSPACE_SLUGS) {
       expect(workspaceContentKind(slug, false)).toBe("sim");
       expect(workspaceContentKind(slug, true)).toBe("sim");
     }
   });
 
-  it("returns 'checklist' for a non-sim activity that has a checklist", () => {
-    expect(workspaceContentKind("concept-dialogue", true)).toBe("checklist");
-    expect(workspaceContentKind("0078a171-some-uuid", true)).toBe("checklist");
+  it("returns 'elements' for a non-sim activity that has a workspace element", () => {
+    expect(workspaceContentKind("concept-dialogue", true)).toBe("elements");
+    expect(workspaceContentKind("0078a171-some-uuid", true)).toBe("elements");
   });
 
-  it("returns 'none' for a non-sim activity with no checklist (chat-only)", () => {
+  it("returns 'none' for a non-sim activity with no workspace element (chat-only)", () => {
     expect(workspaceContentKind("concept-dialogue", false)).toBe("none");
   });
 
   it("returns 'none' when there is no skill slug yet", () => {
     expect(workspaceContentKind(null, false)).toBe("none");
     expect(workspaceContentKind(undefined, false)).toBe("none");
-    // a checklist still wins even without a resolved slug
-    expect(workspaceContentKind(null, true)).toBe("checklist");
+    // a workspace element still wins even without a resolved slug
+    expect(workspaceContentKind(null, true)).toBe("elements");
   });
 
   it("keeps the three shipped sims in the registry", () => {
