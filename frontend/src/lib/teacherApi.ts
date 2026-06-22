@@ -79,6 +79,24 @@ export interface ChecklistItem {
   label: string;
 }
 
+/** A column of a teacher-defined data table (1.1.38 M1). Mirrors the backend
+ *  `TableColumn`. `kind` gates the student input control (numeric vs text). */
+export interface TableColumn {
+  id: string;
+  label: string;
+  unit?: string;
+  kind?: "number" | "text";
+}
+
+/** A teacher-defined data table the student fills in (1.1.38 M1). Mirrors the
+ *  backend `TableElement`; capped server-side (columns 1-8, rows 1-50). */
+export interface TableElement {
+  id: string;
+  title?: string;
+  columns: TableColumn[];
+  rows: number;
+}
+
 /** Danish stx physics level — the primary curriculum browse axis (1.1.25). */
 export type StxLevel = "A" | "B" | "C";
 
@@ -118,6 +136,8 @@ export interface ActivityConfigUpsert {
   pairedWorkbench?: string | null;
   workbenchType?: WorkbenchType;
   checklist?: ChecklistItem[];
+  /** Teacher-defined data tables the student fills in (1.1.38 M1). */
+  table?: TableElement[];
   materials?: MaterialRef[];
 }
 

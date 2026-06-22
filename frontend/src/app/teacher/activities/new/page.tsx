@@ -9,6 +9,7 @@ import {
   type ClassPayload,
   type Language,
   type MaterialRef,
+  type TableElement,
   listAccessibleSkills,
   listClasses,
   patchLessons,
@@ -17,6 +18,7 @@ import {
 import { MaterialsSection } from "@/components/teacher/MaterialsSection";
 import { SettingsMap } from "@/components/teacher/SettingsMap";
 import { InheritedPersona } from "@/components/teacher/InheritedPersona";
+import { TableEditor, type TableEditorValue } from "@/components/teacher/TableEditor";
 
 // TAA-1 M0: a from-scratch activity runs the `concept-dialogue` base
 // skill (chat-only Socratic tutor). The teacher's title + lesson prompt
@@ -83,6 +85,8 @@ function NewActivityForm() {
   const removeChecklistItem = (key: number) => setChecklist((cur) => cur.filter((i) => i.key !== key));
   const setChecklistLabel = (key: number, label: string) =>
     setChecklist((cur) => cur.map((i) => (i.key === key ? { ...i, label } : i)));
+  // Optional teacher-defined data table (1.1.38 M1). `null` = no table.
+  const [table, setTable] = useState<TableEditorValue | null>(null);
 
   const [isSaving, setIsSaving] = useState(false);
   const [saveError, setSaveError] = useState<string | null>(null);
@@ -138,6 +142,9 @@ function NewActivityForm() {
           .map((i) => i.label.trim())
           .filter(Boolean)
           .map((label, idx) => ({ id: `step-${idx + 1}`, label })),
+        // Drop columns without a label; drop the whole table if none survive.
+        // Positional column ids assigned on save (the labels are the identity).
+        table: buildTablePayload(table),
         materials,
       });
       // Bind the concept-dialogue lesson to the class so students in it
@@ -311,6 +318,8 @@ function NewActivityForm() {
             )}
           </div>
 
+          <TableEditor value={table} onChange={setTable} />
+
           <MaterialsSection materials={materials} onChange={setMaterials} />
 
           <div className="flex gap-4">
@@ -356,6 +365,22 @@ function NewActivityForm() {
       )}
     </div>
   );
+}
+
+/** Build the `table` upsert payload: drop unlabelled columns, drop the whole
+ *  table if none survive, assign positional column ids. */
+function buildTablePayload(table: TableEditorValue | null): TableElement[] {
+  if (!table) return [];
+  const columns = table.columns
+    .filter((c) => c.label.trim())
+    .map((c, idx) => ({
+      id: `col-${idx + 1}`,
+      label: c.label.trim(),
+      unit: c.unit.trim(),
+      kind: c.kind,
+    }));
+  if (columns.length === 0) return [];
+  return [{ id: "table-1", title: table.title.trim(), columns, rows: table.rows }];
 }
 
 function Field({

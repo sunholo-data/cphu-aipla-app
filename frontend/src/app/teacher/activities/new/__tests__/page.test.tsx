@@ -166,6 +166,40 @@ describe("/teacher/activities/new — concept activity builder", () => {
     expect(saveActivityConfigMock.mock.calls[0][0].checklist).toEqual([]);
   });
 
+  it("sends a teacher-authored data table with positional column ids", async () => {
+    listClassesMock.mockResolvedValue(ONE_CLASS);
+    render(<NewActivityPage />);
+    fireEvent.change(await screen.findByLabelText(/activity name/i), { target: { value: "Lab" } });
+    fireEvent.change(screen.getByLabelText(/lesson prompt/i), { target: { value: "Measure." } });
+    // Add a data table + name its first (seeded) column.
+    fireEvent.click(screen.getByRole("button", { name: /add data table/i }));
+    fireEvent.change(screen.getByLabelText(/column 1 label/i), { target: { value: "Tid" } });
+    fireEvent.change(screen.getByLabelText(/column 1 unit/i), { target: { value: "s" } });
+    fireEvent.click(screen.getByRole("button", { name: /create activity/i }));
+
+    await waitFor(() => expect(saveActivityConfigMock).toHaveBeenCalledTimes(1));
+    expect(saveActivityConfigMock.mock.calls[0][0].table).toEqual([
+      {
+        id: "table-1",
+        title: "",
+        columns: [{ id: "col-1", label: "Tid", unit: "s", kind: "number" }],
+        rows: 5,
+      },
+    ]);
+  });
+
+  it("drops a data table with no labelled columns on save", async () => {
+    listClassesMock.mockResolvedValue(ONE_CLASS);
+    render(<NewActivityPage />);
+    fireEvent.change(await screen.findByLabelText(/activity name/i), { target: { value: "E" } });
+    fireEvent.change(screen.getByLabelText(/lesson prompt/i), { target: { value: "g" } });
+    fireEvent.click(screen.getByRole("button", { name: /add data table/i }));
+    // leave the seeded column blank → the table is dropped
+    fireEvent.click(screen.getByRole("button", { name: /create activity/i }));
+    await waitFor(() => expect(saveActivityConfigMock).toHaveBeenCalledTimes(1));
+    expect(saveActivityConfigMock.mock.calls[0][0].table).toEqual([]);
+  });
+
   it("blocks submit until a title and a lesson prompt are entered", async () => {
     listClassesMock.mockResolvedValue(ONE_CLASS);
     render(<NewActivityPage />);

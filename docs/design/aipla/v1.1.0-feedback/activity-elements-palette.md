@@ -1,6 +1,6 @@
 # Activity element palette — an extensible set of teacher-authorable workbench elements
 
-**Status:** M0 registry substrate **SHIPPED 2026-06-22**; M1–M5 planned (P1, v1.1 — phased; each element an independent thin probe)
+**Status:** M0 (registry) + M1 (data table, end-to-end) **SHIPPED 2026-06-22**; M2–M5 planned (P1, v1.1 — phased; each element an independent thin probe)
 **Last Updated:** 2026-06-17 (17 June teacher check-in — Aswin: *"more guided form actions"* + M: more elements than just the checklist)
 **Priority:** **P1** — the activity-element layer is currently **one** live element (checklist). Teachers want to assemble richer activities (data tables, charts, calculators, inline documents) without a developer. This is the **breadth multiplier on the activity-element axis**: it makes *adding the next element type* a bounded, repeatable recipe rather than a bespoke build.
 **Estimated:** ~1d M0 registry substrate + ~1–2d per element (table, chart, calculator, document) — each independently shippable
@@ -225,7 +225,7 @@ Ordered so **M0 is the reusable substrate** and each element is an independent, 
 | MS | Deliverable | Est | Gate | Lands |
 |---|---|---|---|---|
 | **M0** ✅ | **Element registry substrate — SHIPPED 2026-06-22.** Backend `ELEMENT_REGISTRY` (`ElementKind`/`ElementSpec` with field/max/render) + a model-level cap validator on `ActivityConfig` (re-homes the shipped `checklist`, no behaviour change) + the typed frontend contract mirror (`frontend/src/lib/activityElements.ts`) consumed by the workspace dispatch + consistency/cap tests both ends + the **"add element N" recipe**. **Deliberately scoped to the registry/contract/validation substrate**; the uniform renderer-component interface + `ElementEditor` shell move to M1 (extracting them from a single element is premature — the table is the right second data point). | ~1d | none | **shipped** |
-| **M1** | **Data table element + renderer/editor generalisation.** First new element: teacher column/row editor; student-fillable grid; commit via `iframe-context`; units header. Lands the uniform `elementRenderers` dispatch + reusable `ElementEditor` builder shell (deferred from M0 — now done with two elements to generalise from). Shares the wire shape [offline-lab](offline-lab-workbench.md) (1.1.24) extends. | ~2d | Q1 (sim composition) | post-freeze |
+| **M1** ✅ | **Data table element — SHIPPED 2026-06-22.** End-to-end: backend `TableColumn`/`TableElement` + registry entry + route/DB; student-fillable grid (`WorkbenchTable`) committing via `iframe-context` (units header, sessionStorage, catch-up push); teacher column/row editor (`TableEditor`) in `/teacher/activities/new`; the uniform `elementRenderers` dispatch (the M0-deferred abstraction, landed at n=2). **Q1 resolved: stack, not tabs** (consistent with `DocumentsPanel`). Shares the wire shape [offline-lab](offline-lab-workbench.md) (1.1.24) extends. *The reusable `ElementEditor` builder shell is **deferred to the 3rd element*** — extracting it from one editor is premature (same n=1 discipline as M0). *Edit-page table editing + multi-table author UI also deferred* (create-flow + single-table for v1.1, matching the checklist). | ~2.5d | — | **shipped** |
 | **M2** | **Chart element.** Plot-the-table + teacher static series; SVG/canvas; deterministic. | ~1.5d | M1 (for plot-the-table) | pilot-iteration |
 | **M3** | **Calculator element.** Scientific + formula modes; **safe-grammar evaluator** + `evaluate` endpoint; builder formula validation. | ~2d | **JB/AR formula set + safe-eval lib choice** | pilot-iteration |
 | **M4** | **Document (inline) element.** Reuse `MaterialRef` + 1.1.33 render + `studentVisible`; inline placement. | ~0.5–1d | none (reuse) | pilot-iteration |
@@ -263,7 +263,7 @@ Ordered so **M0 is the reusable substrate** and each element is an independent, 
 ## Success criteria
 
 - [ ] The "add element N" recipe is documented and exercised four times (table, chart, calculator, document) (M0–M4).
-- [ ] A teacher adds a data table; a student fills it; the tutor references an entered value (M1).
+- [x] A teacher adds a data table; a student fills it; the tutor references an entered value (M1) — **shipped 2026-06-22**.
 - [ ] A chart plots a student-filled table (M2).
 - [ ] A formula calculator evaluates server-side; the safe grammar refuses `eval`-class input under an adversarial test set (M3).
 - [ ] The inline document element reuses `MaterialRef` + 1.1.33 render with **no new store** (M4).
