@@ -167,6 +167,9 @@ export interface ActivityConfigUpsert {
    *  refactor. Omit it. */
   pairedWorkbench?: string | null;
   workbenchType?: WorkbenchType;
+  /** The vetted sim artefact this activity hosts (1.1.41) — a catalogue id
+   *  (`GET /api/artefacts`). Validated server-side; sets workbenchType=app. */
+  artefactId?: string | null;
   checklist?: ChecklistItem[];
   /** Teacher-defined data tables the student fills in (1.1.38 M1). */
   table?: TableElement[];

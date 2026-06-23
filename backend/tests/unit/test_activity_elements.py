@@ -218,3 +218,22 @@ def test_note_over_cap_is_rejected() -> None:
     notes = [NoteElement(id=f"n{i}", body="x") for i in range(cap + 1)]
     with pytest.raises(ValidationError):
         _config(note=notes)
+
+
+# --- sim artefact reference (1.1.41 M1) -----------------------------------
+
+
+def test_artefact_id_resolves_workbench_type_to_app() -> None:
+    cfg = _config(artefactId="boldkast")
+    assert cfg.artefact_id == "boldkast"
+    assert cfg.workbench_type == "app"  # backfilled
+
+
+def test_no_artefact_keeps_workbench_none() -> None:
+    assert _config().workbench_type == "none"
+    assert _config().artefact_id is None
+
+
+def test_explicit_workbench_type_not_overridden_by_artefact() -> None:
+    cfg = _config(artefactId="boldkast", workbenchType="notebook")
+    assert cfg.workbench_type == "notebook"

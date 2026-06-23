@@ -22,6 +22,7 @@ from fastapi import APIRouter, Depends, HTTPException, Path, Query
 from pydantic import BaseModel, ConfigDict, Field
 
 from adk.teacher_focus import resolve_active_config
+from artefacts.loader import is_known_artefact, load_artefact
 from auth import User, get_current_user
 from db.activity_configs import (
     delete_activity_config,
@@ -77,6 +78,9 @@ class ActivityConfigUpsert(BaseModel):
     persona: str | None = Field(default=None, max_length=64)
     paired_workbench: str | None = Field(default=None, alias="pairedWorkbench")
     workbench_type: WorkbenchType = Field(default="none", alias="workbenchType")
+    # The vetted artefact this activity hosts (1.1.41) — validated against the
+    # catalogue below (a bounded enum, never free input).
+    artefact_id: str | None = Field(default=None, alias="artefactId", max_length=64)
     checklist: list[ChecklistItem] = Field(default_factory=list)
     # Teacher-defined data tables the student fills in (1.1.38 M1).
     table: list[TableElement] = Field(default_factory=list)
@@ -103,6 +107,22 @@ def _assert_owns(user: User, teacher_uid: str) -> None:
         raise HTTPException(status_code=403, detail="teacher_uid mismatch")
 
 
+def _assert_known_artefact(artefact_id: str | None) -> None:
+    """Reject an unknown artefact reference (1.1.41) — the catalogue is the
+    vetting gate, so only a catalogued artefact id may be attached."""
+    if artefact_id and not is_known_artefact(artefact_id):
+        raise HTTPException(status_code=400, detail=f"unknown artefact: {artefact_id}")
+
+
+def _resolve_artefact(artefact_id: str | None) -> dict | None:
+    """Resolve an activity's artefact reference to its public catalogue view
+    (no ``tutorBlock``), or None if unset / de-catalogued."""
+    if not artefact_id:
+        return None
+    a = load_artefact(artefact_id)
+    return a.public() if a is not None else None
+
+
 @router.post("", status_code=201)
 async def post_activity_config(
     body: ActivityConfigUpsert,
@@ -115,6 +135,7 @@ async def post_activity_config(
     ``activityId`` is omitted, a teacher-namespaced id is minted (a
     from-scratch teacher-authored activity).
     """
+    _assert_known_artefact(body.artefact_id)
     activity_id = body.activity_id or _mint_activity_id()
     cfg = upsert_activity_config(
         teacher_uid=user.uid,
@@ -128,6 +149,7 @@ async def post_activity_config(
         persona=body.persona,
         paired_workbench=body.paired_workbench,
         workbench_type=body.workbench_type,
+        artefact_id=body.artefact_id,
         checklist=body.checklist,
         table=body.table,
         chart=body.chart,
@@ -189,6 +211,7 @@ async def get_active_activity_config(
             "chart": [],
             "calculator": [],
             "note": [],
+            "artefact": None,
             "workbenchType": "none",
             "persona": persona_block,
             "materials": [],
@@ -207,6 +230,10 @@ async def get_active_activity_config(
         "chart": [c.model_dump(by_alias=True) for c in cfg.chart],
         "calculator": [c.model_dump(by_alias=True) for c in cfg.calculator],
         "note": [n.model_dump(by_alias=True) for n in cfg.note],
+        # The resolved artefact (public view — never the tutorBlock) so the
+        # student workspace has the render path; None if unset or de-catalogued
+        # (graceful degradation — the activity stays chat + elements).
+        "artefact": (_resolve_artefact(cfg.artefact_id)),
         "workbenchType": cfg.workbench_type,
         "persona": persona_block,
         "materials": materials,
@@ -264,6 +291,7 @@ async def patch_activity_config(
             status_code=400,
             detail="body class_id/activity_id does not match URL",
         )
+    _assert_known_artefact(body.artefact_id)
     cfg = upsert_activity_config(
         teacher_uid=teacher_uid,
         class_id=class_id,
@@ -276,6 +304,7 @@ async def patch_activity_config(
         persona=body.persona,
         paired_workbench=body.paired_workbench,
         workbench_type=body.workbench_type,
+        artefact_id=body.artefact_id,
         checklist=body.checklist,
         table=body.table,
         chart=body.chart,

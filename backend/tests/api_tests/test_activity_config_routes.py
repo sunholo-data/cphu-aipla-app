@@ -382,3 +382,26 @@ def test_active_surfaces_all_material_names_with_visibility(client):
     # ... each with the visibility flag so the UI can gate content-open.
     assert mats["d-shared"]["studentVisible"] is True
     assert mats["d-hidden"]["studentVisible"] is False
+
+
+# --- sim artefact reference (1.1.41 M1) ---
+
+
+def test_post_with_known_artefact_succeeds(client):
+    resp = client.post(
+        "/api/activity-configs",
+        json=_sample_body(activityId="act-sim", artefactId="boldkast", pairedWorkbench=None),
+    )
+    assert resp.status_code == 201, resp.text
+    data = resp.json()
+    assert data["artefactId"] == "boldkast"
+    assert data["workbenchType"] == "app"  # backfilled from the artefact reference
+
+
+def test_post_with_unknown_artefact_is_400(client):
+    resp = client.post(
+        "/api/activity-configs",
+        json=_sample_body(activityId="act-bad", artefactId="does-not-exist"),
+    )
+    assert resp.status_code == 400
+    assert "unknown artefact" in resp.text

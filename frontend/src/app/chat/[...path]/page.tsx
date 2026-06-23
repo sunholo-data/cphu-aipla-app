@@ -64,6 +64,10 @@ import { type TableElementDef } from "@/components/workspace/WorkbenchTable";
 import { type ChartElementDef } from "@/components/workspace/WorkbenchChart";
 import { type CalculatorElementDef } from "@/components/workspace/WorkbenchCalculator";
 import { type NoteElementDef } from "@/components/workspace/WorkbenchNote";
+import {
+  GenericArtefactFrame,
+  type ActivityArtefact,
+} from "@/components/workspace/GenericArtefactFrame";
 import { WorkspaceElements } from "@/components/workspace/elementRenderers";
 import { DocumentsPanel, type ActivityMaterial } from "@/components/workspace/DocumentsPanel";
 import { workspaceContentKind } from "./workspaceContent";
@@ -419,6 +423,9 @@ function ChatShell({
   const [activeCalculator, setActiveCalculator] = useState<CalculatorElementDef[]>([]);
   // 1.1.38 M4 — teacher-authored instructions / reference notes (Markdown).
   const [activeNote, setActiveNote] = useState<NoteElementDef[]>([]);
+  // 1.1.41 M1 — the vetted sim artefact this activity hosts (resolved from the
+  // catalogue), mounted as the workspace surface via the generic frame.
+  const [activeArtefact, setActiveArtefact] = useState<ActivityArtefact | null>(null);
   // 1.1.33 M2b/M1 — the activity's grounding documents (names-always + a
   // studentVisible flag), surfaced in the Documents workbench panel.
   const [activeMaterials, setActiveMaterials] = useState<ActivityMaterial[]>([]);
@@ -433,7 +440,8 @@ function ChatShell({
       activeTable.length > 0 ||
       activeChart.length > 0 ||
       activeCalculator.length > 0 ||
-      activeNote.length > 0,
+      activeNote.length > 0 ||
+      activeArtefact != null,
   );
   // 1.1.33 M1 — the student's uploaded photos this session (native AG-UI image
   // parts already on the messages); fed to the Documents panel's gallery.
@@ -453,6 +461,7 @@ function ChatShell({
       setActiveChart([]);
       setActiveCalculator([]);
       setActiveNote([]);
+      setActiveArtefact(null);
       setActivePersona(null);
       setActiveMaterials([]);
       return;
@@ -467,6 +476,7 @@ function ChatShell({
         if (Array.isArray(data.chart)) setActiveChart(data.chart as ChartElementDef[]);
         if (Array.isArray(data.calculator)) setActiveCalculator(data.calculator as CalculatorElementDef[]);
         if (Array.isArray(data.note)) setActiveNote(data.note as NoteElementDef[]);
+        setActiveArtefact((data.artefact as ActivityArtefact | null) ?? null);
         setActivePersona((data.persona as PersonaSummary | null) ?? null);
         setActiveMaterials(Array.isArray(data.materials) ? (data.materials as ActivityMaterial[]) : []);
       })
@@ -1267,15 +1277,27 @@ function ChatShell({
                 />
               )
             ) : (
-              <WorkspaceElements
-                skillId={skillId}
-                sessionId={sessionId ?? agentSessionId}
-                checklist={activeChecklist}
-                table={activeTable}
-                chart={activeChart}
-                calculator={activeCalculator}
-                note={activeNote}
-              />
+              <>
+                {/* 1.1.41 M1 — a vetted sim artefact attached to a (non-legacy)
+                    activity is the workspace surface; the 1.1.38 elements layer
+                    below it (Q1: stack). */}
+                {activeArtefact && BOLDKAST_SANDBOX_ORIGIN ? (
+                  <GenericArtefactFrame
+                    sandboxOrigin={BOLDKAST_SANDBOX_ORIGIN}
+                    artefact={activeArtefact}
+                    sessionId={sessionId ?? agentSessionId}
+                  />
+                ) : null}
+                <WorkspaceElements
+                  skillId={skillId}
+                  sessionId={sessionId ?? agentSessionId}
+                  checklist={activeChecklist}
+                  table={activeTable}
+                  chart={activeChart}
+                  calculator={activeCalculator}
+                  note={activeNote}
+                />
+              </>
             ))}
             {/* 1.1.33 M1 — Documents: the activity's grounding sources (names
                 always shown, shared/not-shared badge) + the student's uploads.

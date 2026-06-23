@@ -245,6 +245,11 @@ class ActivityConfig(BaseModel):
     paired_workbench: str | None = Field(default=None, alias="pairedWorkbench")
     workbench_type: WorkbenchType = Field(default="none", alias="workbenchType")
     source_activity_id: str | None = Field(default=None, alias="sourceActivityId")
+    # The vetted MCP-App artefact this activity hosts (1.1.41). When set, the
+    # workspace mounts that artefact and ``workbench_type`` resolves to ``app``.
+    # The SAME artefact appears in many activities with different goals + 1.1.38
+    # elements; validated against the catalogue at the route layer (bounded enum).
+    artefact_id: str | None = Field(default=None, alias="artefactId", max_length=64)
     checklist: list[ChecklistItem] = Field(default_factory=list)
     # Teacher-defined data tables the student fills in (1.1.38 M1). Capped at
     # ELEMENT_REGISTRY["table"].max_items by the element-cap validator below.
@@ -265,12 +270,13 @@ class ActivityConfig(BaseModel):
 
     @model_validator(mode="after")
     def _backfill_workbench_type(self) -> ActivityConfig:
-        """Legacy rows (written before TAA-1) have ``paired_workbench`` set
-        but no ``workbench_type``. Resolve those to ``app`` so a Boldkast /
-        LED-Planck / KineBot config keeps rendering its sim. An explicitly
+        """Resolve ``workbench_type`` to ``app`` when the activity hosts a sim.
+
+        Legacy rows (pre-TAA-1) carry ``paired_workbench``; new rows (1.1.41)
+        carry ``artefact_id``. Either implies an ``app`` workbench. An explicitly
         chosen type is never overridden.
         """
-        if self.workbench_type == "none" and self.paired_workbench:
+        if self.workbench_type == "none" and (self.paired_workbench or self.artefact_id):
             self.workbench_type = "app"
         return self
 
