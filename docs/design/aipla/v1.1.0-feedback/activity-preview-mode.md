@@ -1,6 +1,6 @@
 # Activity preview mode — live in-builder workspace preview
 
-**Status:** Planned (P1, v1.1 — small, mostly frontend; reuses the shipped element renderers)
+**Status:** **M0 SHIPPED 2026-06-22** (frontend); M1–M2 planned (P1, v1.1 — small; reuses the shipped element renderers)
 **Last Updated:** 2026-06-22
 **Priority:** **P1** — closes the authoring feedback loop opened by the [element palette](activity-elements-palette.md) (1.1.38). A teacher now authors a checklist + data table + chart + calculator + note, but to **see how it looks and works** they must save → mint a group code → open another browser → join as a student. This is the fast, in-builder "what will the student see?" preview.
 **Estimated:** ~1–1.5d (frontend-only; the student renderers + the table→chart reactivity already ship)
@@ -114,7 +114,7 @@ They share the builder surface and are complementary; a teacher uses **1.1.40 to
 
 | MS | Deliverable | Est | Gate | Lands |
 |---|---|---|---|---|
-| **M0** | **Live element preview.** Extract `builderToElementDefs()` (refactor the save-payload builders to share it) + a collapsible preview pane in `/teacher/activities/new` mounting `WorkspaceElements`. Live + interactive + sandboxed (`sessionId=null`, `skillId="preview"`). | ~1d | Q1 (layout) | — |
+| **M0** ✅ | **Live element preview — SHIPPED 2026-06-22.** [`builderToElementDefs()`](../../../../frontend/src/lib/activityPreview.ts) (the save-payload logic factored out so **preview === save** — the `new/page` save handler now calls it too) + a **collapsible** [`ActivityPreview`](../../../../frontend/src/components/teacher/ActivityPreview.tsx) pane in `/teacher/activities/new` mounting the shipped `WorkspaceElements` (`sessionId=null`, a fixed non-student `skillId`, wrapped in a throwaway `HumanToolEventsProvider` to stay warning-free). Live + interactive + sandboxed. Q1 resolved: **collapsible-below**. 27 tests (converter + pane). | ~1d | — | **shipped** |
 | M1 | **Edit-page parity.** Same preview in `/teacher/activities/[id]`. | ~0.25d | edit-page element editing (see 1.1.38 deferred) | — |
 | M2 | **Wide-screen side-by-side** (`xl:` two-column) + "Preview as student" full-width toggle. | ~0.25d | none | — |
 

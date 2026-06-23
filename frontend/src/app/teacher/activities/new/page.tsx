@@ -6,16 +6,16 @@ import { Suspense, useEffect, useRef, useState } from "react";
 import { ArrowLeft, MessageCircle, Plus, Save, Sparkles, X } from "lucide-react";
 
 import {
-  type CalculatorElement,
   type ClassPayload,
   type Language,
   type MaterialRef,
-  type TableElement,
   listAccessibleSkills,
   listClasses,
   patchLessons,
   saveActivityConfig,
 } from "@/lib/teacherApi";
+import { ActivityPreview } from "@/components/teacher/ActivityPreview";
+import { builderToElementDefs } from "@/lib/activityPreview";
 import { MaterialsSection } from "@/components/teacher/MaterialsSection";
 import { SettingsMap } from "@/components/teacher/SettingsMap";
 import { InheritedPersona } from "@/components/teacher/InheritedPersona";
@@ -189,17 +189,8 @@ function NewActivityForm() {
         title: title.trim(),
         teachingGoal: teachingGoal.trim(),
         language,
-        // Positional ids assigned on save; empty rows dropped.
-        checklist: checklist
-          .map((i) => i.label.trim())
-          .filter(Boolean)
-          .map((label, idx) => ({ id: `step-${idx + 1}`, label })),
-        // Drop columns without a label; drop the whole table if none survive.
-        // Positional column ids assigned on save (the labels are the identity).
-        table: buildTablePayload(table),
-        chart: chart ? [{ id: "chart-1", title: chart.title.trim(), chartKind: chart.chartKind }] : [],
-        calculator: buildCalculatorPayload(calculator),
-        note: note && note.body.trim() ? [{ id: "note-1", title: note.title.trim(), body: note.body.trim() }] : [],
+        // Same converter the live preview uses, so preview === saved activity.
+        ...builderToElementDefs({ checklist, table, chart, calculator, note }),
         materials,
       });
       // Bind the concept-dialogue lesson to the class so students in it
@@ -411,6 +402,8 @@ function NewActivityForm() {
               per-activity picker. */}
           <InheritedPersona classId={classId} />
 
+          <ActivityPreview state={{ checklist, table, chart, calculator, note }} />
+
           {saveError ? (
             <p role="alert" className="text-sm text-red-600">
               {saveError}
@@ -431,36 +424,6 @@ function NewActivityForm() {
       )}
     </div>
   );
-}
-
-/** Build the `table` upsert payload: drop unlabelled columns, drop the whole
- *  table if none survive, assign positional column ids. */
-function buildTablePayload(table: TableEditorValue | null): TableElement[] {
-  if (!table) return [];
-  const columns = table.columns
-    .filter((c) => c.label.trim())
-    .map((c, idx) => ({
-      id: `col-${idx + 1}`,
-      label: c.label.trim(),
-      unit: c.unit.trim(),
-      kind: c.kind,
-    }));
-  if (columns.length === 0) return [];
-  return [{ id: "table-1", title: table.title.trim(), columns, rows: table.rows }];
-}
-
-const VAR_ID_RE = /^[A-Za-z_][A-Za-z0-9_]*$/;
-
-/** Build the `calculator` payload: keep inputs with a valid variable name +
- *  label; drop the calculator if it has no valid inputs or no formula. The
- *  formula string is stored verbatim (evaluated only client-side, safely). */
-function buildCalculatorPayload(calc: CalculatorEditorValue | null): CalculatorElement[] {
-  if (!calc) return [];
-  const inputs = calc.inputs
-    .filter((i) => VAR_ID_RE.test(i.id.trim()) && i.label.trim())
-    .map((i) => ({ id: i.id.trim(), label: i.label.trim(), unit: i.unit.trim() }));
-  if (inputs.length === 0 || !calc.formula.trim()) return [];
-  return [{ id: "calc-1", title: calc.title.trim(), formula: calc.formula.trim(), inputs }];
 }
 
 function Field({

@@ -28,6 +28,12 @@ vi.mock("@/lib/teacherApi", async () => {
   };
 });
 
+// The live preview mounts the full workspace renderer tree; the page tests
+// cover form/save logic, so stub it (ActivityPreview has its own test).
+vi.mock("@/components/teacher/ActivityPreview", () => ({
+  ActivityPreview: () => <div data-testid="activity-preview" />,
+}));
+
 import NewActivityPage from "@/app/teacher/activities/new/page";
 
 const ONE_CLASS = [{ classId: "c-1", name: "Physics A — 7B" }];
