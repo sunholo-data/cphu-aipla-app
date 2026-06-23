@@ -1,0 +1,27 @@
+id: kinebot
+version: v1
+displayName: "KineBot — kinematics & motion graphs"
+description: "Interactive kinematics: the student sets motion parameters and reads position/velocity/acceleration graphs."
+topics:
+  - kinematics
+  - motion-graphs
+levels:
+  - B
+  - C
+language: en
+eventVocabulary:
+  - play
+  - step
+  - advance
+  - spectrum
+  - fit
+  - reset
+  - state-change
+# PLACEHOLDER — AR to refine (1.1.41 M0 gate). Artefact-intrinsic only.
+tutorBlock: |
+  The student is working with a kinematics simulation that shows
+  position/velocity/acceleration graphs for motion they configure. When you see
+  'step'/'advance', the student has moved the motion forward — ask them to
+  predict the next graph segment before it appears, rather than describing it
+  for them.
+status: live

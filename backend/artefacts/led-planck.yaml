@@ -1,0 +1,27 @@
+id: led-planck
+version: v1
+displayName: "LED Planck — bestem Plancks konstant"
+description: "Virtuelt forsøg: eleven måler tændspændingen for LED'er med forskellig bølgelængde og bestemmer Plancks konstant."
+topics:
+  - kvantefysik
+  - elektricitet
+  - plancks-konstant
+levels:
+  - A
+  - B
+language: da
+eventVocabulary:
+  - set-led
+  - measure
+  - record
+  - reading
+  - reset
+  - state-change
+# PLACEHOLDER — AR to refine (1.1.41 M0 gate). Artefact-intrinsic only.
+tutorBlock: |
+  Eleven arbejder med et virtuelt LED-forsøg til bestemmelse af Plancks
+  konstant. De vælger en LED, øger spændingen til lysstart og aflæser
+  tændspændingen. Når du ser 'measure'/'reading', har eleven gjort en aflæsning
+  — bed dem vurdere usikkerheden og sammenhængen mellem bølgelængde og spænding
+  i stedet for at give resultatet.
+status: live

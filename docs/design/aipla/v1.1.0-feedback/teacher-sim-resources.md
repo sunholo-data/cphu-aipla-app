@@ -1,6 +1,6 @@
 # Teacher sim resources — simulations as reusable activity resources
 
-**Status:** Planned (**P1, pre-pilot** — foundation + per-activity composition in the v1.1 build window; legacy sims coexist; full migration deferred)
+**Status:** **M0 catalogue SHIPPED 2026-06-22**; M1–M3 planned (**P1, pre-pilot** — additive, the 3 legacy sims coexist; M4 migration post-pilot)
 **Last Updated:** 2026-06-22
 **Priority:** **P1.** Resolves the architectural nuance surfaced 2026-06-22: a teacher should be able to **add a simulation to an activity**, and **the same simulation should appear in many activities with different learning goals, supporting questions, and formulae.** Today a sim is welded to one fixed tutor prompt (it *is* a skill, 1.1.32), so it can't be reused with a different pedagogy. This decouples the **artefact (a reusable resource)** from the **activity (the per-instance pedagogy)**.
 **Estimated:** ~5–7d across the pre-pilot milestones (M0–M3); the legacy-retirement migration (M4) is post-pilot
@@ -92,7 +92,9 @@ Each artefact gains a colocated `meta.json` (so "drop an artefact dir → it sel
 }
 ```
 
-A backend loader (`backend/artefacts/catalogue.py`) aggregates every `meta.json` into an in-memory catalogue, served by `GET /api/artefacts` (teacher-auth). The hand-maintained markdown table in the `mcp-app-artefact` skill is replaced by these files (the skill points at them).
+A backend loader aggregates the catalogue, served by `GET /api/artefacts` (teacher-auth). The hand-maintained markdown table in the `mcp-app-artefact` skill is replaced by these files (the skill points at them).
+
+> **M0 shipped reality (2026-06-22) — adjusted for deployability.** The catalogue lives **backend-side as per-artefact YAML** (`backend/artefacts/<id>.yaml` + `backend/artefacts/loader.py` + `db/models/artefact.py`), **mirroring the shipped persona catalogue** (1.1.12) — so it deploys with the backend image rather than depending on the separate `mcp-sandbox` service at runtime. The artefact *code* stays under `infrastructure/mcp-sandbox/artefacts/<id>/v<v>/`; the *metadata* is the backend YAML. `tutorBlock` is **server-side only** — `ArtefactMeta.public()` strips it, and the no-leak property is route-tested. `artefactPath` is derived (`{id}/{version}`). The `mcp-app-artefact` recipe gains a "+ `backend/artefacts/<id>.yaml`" step.
 
 **The "marketplace."** For v1.1 this is a **curated library** — the 3 live artefacts + the [jitt-dk 23](../v1.0.0-pilot/jitt-dk-artefacts.md) as they onboard, each ADR-013-gated. An *open* marketplace (third-party contributions + a review queue) is the Year-2 evolution that connects to [post-pilot teacher-artefact-authoring (2.4)](../post-pilot/teacher-artefact-authoring.md); the manifest + the ADR-013 gate are its backbone.
 
@@ -172,7 +174,7 @@ CLI parity: `aiplatform artefact list` (catalogue) + `aiplatform activity set-si
 
 | MS | Deliverable | Est | Gate | Lands |
 |---|---|---|---|---|
-| **M0** | **Artefact catalogue.** `meta.json` for the 3 live artefacts + loader (`backend/artefacts/catalogue.py`) + `GET /api/artefacts` + `aiplatform artefact list` + tests. Replace the markdown table in the `mcp-app-artefact` skill. | ~1.5d | **AR** writes the 3 `tutorBlock`s | pre-pilot |
+| **M0** ✅ | **Artefact catalogue — SHIPPED 2026-06-22.** `ArtefactMeta` (`db/models/artefact.py`) + `backend/artefacts/{boldkast,led-planck,kinebot}.yaml` (placeholder `tutorBlock`s) + cached loader (`backend/artefacts/loader.py`, mirrors personas) + `GET /api/artefacts` (public view, **`tutorBlock` stripped + route-tested**) + 11 tests. Backend-side YAML (deployable). *`aiplatform artefact list` CLI deferred to M3.* `tutorBlock`s are placeholders pending AR. | ~1.5d | **AR** refines the 3 `tutorBlock`s | **shipped** |
 | **M1** | **Activity → artefact + generic mount.** `artefact_id` on `ActivityConfig` (catalogue-validated) + `GenericArtefactFrame` over `StaticArtefactFrame` + the additive third dispatch path. A sim renders for a student when an activity references it. | ~2d | Q1 base skill | pre-pilot |
 | **M2** | **Prompt composition.** Inject the artefact `tutorBlock` (focused injection, `artefact_id`-keyed) + verify the same artefact tutors per-`teaching_goal`. Generic proactive wiring confirmed for the new path. | ~1.5d | M1; **AR** on the composed prompt | pre-pilot |
 | **M3** | **Builder "Add a simulation" picker** + preview (1.1.40) extension + sim-aware templates. The teacher-facing marketplace. | ~1.5d | **JB/AR** on which artefacts are pilot-visible | pre-pilot |

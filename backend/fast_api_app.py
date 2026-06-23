@@ -248,6 +248,7 @@ from protocols.a2a import router as a2a_router  # noqa: E402
 from protocols.a2ui_surface_action_routes import router as a2ui_surface_action_router  # noqa: E402
 from protocols.activity_config_routes import router as activity_config_router  # noqa: E402
 from protocols.analytics_routes import router as analytics_router  # noqa: E402
+from protocols.artefact_routes import router as artefact_router  # noqa: E402
 from protocols.classes_routes import router as classes_router  # noqa: E402
 from protocols.curriculum_routes import router as curriculum_router  # noqa: E402
 from protocols.iframe_context_routes import router as iframe_context_router  # noqa: E402
@@ -289,6 +290,7 @@ app.include_router(session_restore_router)
 app.include_router(a2ui_surface_action_router)
 app.include_router(activity_config_router)
 app.include_router(personas_router)
+app.include_router(artefact_router)
 app.include_router(classes_router)
 app.include_router(analytics_router)
 app.include_router(insights_router)

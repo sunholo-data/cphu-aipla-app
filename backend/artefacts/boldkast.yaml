@@ -1,0 +1,25 @@
+id: boldkast
+version: v1
+displayName: "Boldkast — projektilbevægelse"
+description: "Interaktiv simulation af projektilbevægelse: eleven varierer udgangsvinkel og starthastighed og aflæser rækkevidden."
+topics:
+  - kastebevægelse
+  - kinematik
+levels:
+  - B
+  - C
+language: da
+eventVocabulary:
+  - play
+  - pause
+  - reset
+  - show_value
+  - state-change
+# PLACEHOLDER — AR to refine (1.1.41 M0 gate). Artefact-intrinsic only: what the
+# sim is + what its events mean. NOT the per-activity lesson goal.
+tutorBlock: |
+  Eleven arbejder med en simulation af projektilbevægelse. De kan ændre
+  udgangsvinkel og starthastighed og se den resulterende bane og rækkevidde.
+  Når du ser hændelsen 'show_value', har eleven afsløret et facit — spørg
+  ind til deres ræsonnement i stedet for at bekræfte tallet.
+status: live
