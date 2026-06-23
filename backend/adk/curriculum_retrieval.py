@@ -73,6 +73,9 @@ def build_curriculum_retrieval_tool(materials: list[MaterialRef]) -> object | No
     Returns:
         A ``VertexAiRagRetrieval`` instance or ``None`` (graceful degradation).
     """
+    # 1.1.44: image materials are not RAG docs — they reach the tutor as
+    # multimodal Parts (see adk/activity_images.py), not via retrieval.
+    materials = [m for m in materials if m.kind == "curriculum"]
     if not materials:
         return None
 
@@ -128,6 +131,8 @@ def build_curriculum_grounding_preamble(materials: list[MaterialRef]) -> str:
     M4 activity builder).  Returns empty string when there are no materials
     or when none have an ``origin`` label, so appending it is always safe.
     """
+    # 1.1.44: only curriculum materials ground the tutor's text answers.
+    materials = [m for m in materials if m.kind == "curriculum"]
     if not materials:
         return ""
 

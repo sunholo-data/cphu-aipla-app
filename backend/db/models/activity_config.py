@@ -33,23 +33,48 @@ InteractionStyle = Literal["socratic", "concise", "rigorous", "warm"]
 
 
 class MaterialRef(BaseModel):
-    """A curriculum document cited for this activity (1.1.25 M3).
+    """A resource cited for this activity.
 
-    ``doc_id`` resolves to a ``CurriculumDoc`` in the curriculum library.
-    ``origin`` is cached from ``CurriculumDoc.origin`` at citation time so the
-    grounding preamble can name sources without an extra Firestore read.
+    Two kinds (``kind`` discriminator; legacy rows have no ``kind`` → curriculum):
 
-    ``student_visible`` (1.1.33 M2a): the teacher decides, per material, whether
-    it is shown to students in the Documents workbench surface. Default **false**
-    (opt-in). This governs ONLY the student-facing surface — RAG grounding always
-    uses every cited material regardless of visibility.
+    ``kind="curriculum"`` (1.1.25 M3) — a ``CurriculumDoc`` in the RAG library.
+      ``doc_id`` resolves to the doc; ``origin`` is cached from ``CurriculumDoc.origin``
+      at citation time so the grounding preamble can name sources without an extra
+      Firestore read. The tutor reaches it via ``build_curriculum_retrieval_tool``.
+
+    ``kind="image"`` (1.1.44) — a teacher-attached image the tutor SEES multimodally
+      (a diagram/graph/photographed worksheet). ``material_id`` + ``mime_type``
+      identify the bytes in the activity artifact slot (``adk/activity_images.py``);
+      a session-start loader copies it into the student session and an injector
+      inlines it as an image Part. ``alt`` is a short label shown to the tutor.
+
+    ``student_visible`` (1.1.33 M2a): the teacher decides, per material, whether it is
+    shown to students in the Documents workbench surface. Default **false** (opt-in).
+    This governs ONLY the student-facing surface — RAG grounding always uses every
+    cited curriculum material, and the tutor always sees every image material,
+    regardless of visibility.
     """
 
-    doc_id: str = Field(alias="docId", min_length=1, max_length=200)
+    kind: Literal["curriculum", "image"] = "curriculum"
+    # curriculum
+    doc_id: str = Field(default="", alias="docId", max_length=200)
     origin: str = Field(default="", alias="origin", max_length=200)
+    # image (1.1.44)
+    material_id: str = Field(default="", alias="materialId", max_length=64)
+    mime_type: str = Field(default="", alias="mimeType", max_length=40)
+    alt: str = Field(default="", alias="alt", max_length=300)
+    # both
     student_visible: bool = Field(default=False, alias="studentVisible")
 
     model_config = ConfigDict(populate_by_name=True)
+
+    @model_validator(mode="after")
+    def _require_id_for_kind(self) -> MaterialRef:
+        if self.kind == "curriculum" and not self.doc_id:
+            raise ValueError("curriculum material requires docId")
+        if self.kind == "image" and not self.material_id:
+            raise ValueError("image material requires materialId")
+        return self
 
 
 class ChecklistItem(BaseModel):
