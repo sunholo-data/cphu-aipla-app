@@ -1,4 +1,4 @@
-import { fireEvent, render, screen } from "@testing-library/react";
+import { fireEvent, render, screen, within } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 
 // Capture the props the preview passes to the (mocked) workspace renderer —
@@ -61,6 +61,28 @@ describe("ActivityPreview", () => {
     // The sim is named in the preview (the labelled card when no sandbox origin
     // is configured in the test env; the live frame uses the same name).
     expect(await screen.findByText("Boldkast")).toBeInTheDocument();
+  });
+
+  it("pops the preview out to a full-screen dialog and closes it", async () => {
+    listArtefactsMock.mockResolvedValue([
+      {
+        id: "boldkast",
+        displayName: "Boldkast",
+        description: "Projektil",
+        topics: [],
+        levels: [],
+        language: "da",
+        artefactPath: "boldkast/v1",
+        status: "live",
+      },
+    ]);
+    render(<ActivityPreview state={WITH_CHECKLIST} artefactId="boldkast" />);
+    fireEvent.click(screen.getByRole("button", { name: /full-size/i }));
+    const dialog = await screen.findByRole("dialog");
+    expect(within(dialog).getByText("Boldkast")).toBeInTheDocument();
+    expect(within(dialog).getByTestId("workspace-elements")).toBeInTheDocument();
+    fireEvent.click(within(dialog).getByRole("button", { name: /close/i }));
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
   });
 
   it("collapses and expands the preview", () => {
