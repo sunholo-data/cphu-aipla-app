@@ -14,6 +14,11 @@ Submodules:
   large_output — oversized tool-response offloading to ADK artifacts
 """
 
+from adk.callbacks.activity_images import (
+    _STATE_IMAGES_LOADED,
+    make_activity_image_injector,
+    make_activity_image_loader,
+)
 from adk.callbacks.document import (
     _STATE_DOC_LOAD_ERROR,
     _STATE_DOCS_LOADED,
@@ -36,6 +41,7 @@ from adk.callbacks.session import (
 __all__ = [
     "_STATE_DOCS_LOADED",
     "_STATE_DOC_LOAD_ERROR",
+    "_STATE_IMAGES_LOADED",
     "_STATE_INITIALIZED",
     "_STATE_RESUMED_SESSION",
     "_STATE_TURN_COUNT",
@@ -44,6 +50,8 @@ __all__ = [
     "_derive_access_control",
     "_handle_large_output",
     "_try_generate_title",
+    "make_activity_image_injector",
+    "make_activity_image_loader",
     "make_after_agent_response",
     "make_before_agent",
     "make_document_injector",

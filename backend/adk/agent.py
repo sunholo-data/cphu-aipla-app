@@ -45,6 +45,8 @@ from adk.a2ui_surface_context import wrap_with_a2ui_surface_context
 from adk.artifact_tools import retrieve_artifact
 from adk.callbacks import (
     _handle_large_output,
+    make_activity_image_injector,
+    make_activity_image_loader,
     make_after_agent_response,
     make_before_agent,
     make_document_injector,
@@ -389,6 +391,12 @@ def create_agent(
     _session_tracker = make_session_tracker(user.uid, skill_config.skill_id, user.group_id)
     _document_loader = make_document_loader()
     _document_injector = make_document_injector()
+    # 1.1.44 — twins of the document loader/injector for teacher-attached image
+    # materials: copy the activity's images from the durable slot into the
+    # session, then inline them as image Parts so the tutor SEES them. Reuses the
+    # already-resolved _active_cfg (no extra Firestore read).
+    _activity_image_loader = make_activity_image_loader(_active_cfg)
+    _activity_image_injector = make_activity_image_injector(_active_cfg)
 
     async def _composed_before_agent(callback_context: object) -> None:
         # TTFT mark: ADK has finished its runner setup and is now invoking
@@ -412,6 +420,8 @@ def create_agent(
         _before_agent(callback_context)
         _session_tracker(callback_context)
         await _document_loader(callback_context)
+        # 1.1.44 — copy the activity's image materials into this session (idempotent).
+        await _activity_image_loader(callback_context)
 
         # TTFT: mark the end of the synchronous before-agent chain. Show
         # a user-facing "Reading documents…" label only when the loader
@@ -461,6 +471,9 @@ def create_agent(
         # The injector predates the budget gate; if dropping a
         # participant here, see test_composed_before_model.py.
         await _document_injector(callback_context, llm_request)
+        # 1.1.44 — inline the activity's teacher-attached images as image Parts
+        # (after docs, before the budget gate so the projection sees them).
+        await _activity_image_injector(callback_context, llm_request)
         # 1.1.7 images need no injector: they arrive as native AG-UI
         # ImageInputContent parts that ag_ui_adk turns into ADK Parts in the
         # user event, so they're already in llm_request.contents (and replayed
