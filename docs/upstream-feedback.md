@@ -986,6 +986,20 @@ The contribution this represents for the template: ship the defensive SSE wrappe
 
 **Upstream fix:** the template should ship the deploy gated on its quality checks out of the box — either (a) these inline gate steps in the reference `cloudbuild.yaml`, or (b) the "proper" form: disable the push trigger and have the CI workflow invoke the deploy (via WIF) only after its jobs pass. (a) is zero-infra and race-free; (b) avoids duplicated test compute but needs Workload Identity Federation. Document the trade and pick one as the template default.
 
+## 37. ADK `app:`-prefixed state keys are application-global — a silent footgun for per-session counters
+
+**Where:** `backend/adk/callbacks/session.py`. The ChatSessionIndex turn counter and "session initialized" flag were stored under `app:`-prefixed ADK state keys (`app:chat_session_turn_count`, `app:chat_session_initialized`).
+
+**What it does:** in ADK, a state key's prefix sets its *scope* — `app:` is application-global (shared across **every** user and session of the app), `user:` is per-user, `temp:` is non-persisted, and an unprefixed key is session-scoped (`google.adk.sessions.state.State.{APP,USER,TEMP}_PREFIX`). So `state["app:chat_session_turn_count"] = ... + 1` increments **one global odometer** that every turn of every session shares. `_flush_session_index` then stamped that global value onto whichever session happened to be flushing.
+
+**What hurt (2026-06-23):** the teacher reports overview read `ChatSessionIndex.turnCount` and showed **259** for a group session that had lived 18 seconds and produced exactly **2** messages (one student prompt + one tutor reply, confirmed in BigQuery). 259 was the app-wide cumulative turn total. The fingerprint was unmistakable in Firestore: `turnCount` values clustered in `246–262` across **four different owners** (two anon student groups *and* two Firebase teachers), climbing monotonically with wall-clock time — an odometer, not a count. The same bug also broke title generation (gated on `turn_count == 2`, which a global counter is almost never at for a given session's flush) and made the per-session "initialized" flag global (the first session to run permanently flipped it True for all future sessions; masked only because the join endpoint also creates the index row, and a B1 idempotency check prevents a clobber).
+
+**Why a plain-dict unit test missed it:** the existing `make_after_agent_response` tests use a `dict` for `state`, which ignores prefix scoping entirely. The counter looked correct in tests because a dict has no concept of app/session scope — the bug only manifests against a real `SessionService` (or a fake that honours prefixes).
+
+**Workaround on AIPLA:** drop the `app:` prefix from both keys (make them session-scoped). Regression guards: (a) a static tripwire asserting neither key starts with `State.APP_PREFIX`/`State.USER_PREFIX`; (b) a `_ScopedState` test double that routes `app:`/`user:` keys to a shared store and the rest per-session, proving two interleaved sessions keep independent counters (fails pre-fix). One-time `scripts/backfill-session-turncount.py` recomputes `turnCount` from the durable BigQuery chat-turn log (student-turn count per session). AIPLA commit landing with this entry.
+
+**Upstream fix:** (a) the reference session-callback example should NOT use an `app:` prefix for any per-session counter, and should carry a comment explaining the scoping (this is an easy, high-severity mistake to copy). (b) Ship a prefix-honouring in-memory state/session test double so scope regressions surface in unit tests — the template's `InMemorySessionService`-based fixtures hide them (same class of gap as #35's ownership-semantics blind spot). (c) Consider a lint/CI check that flags `app:`/`user:`-prefixed writes inside per-session callback factories.
+
 ## Backlog (likely additions as v0.1 sprint continues)
 
 - M5 may surface IAM bindings the bootstrap script should add

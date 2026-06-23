@@ -313,6 +313,124 @@ class TestMakeAfterAgentResponse:
 
 
 # ---------------------------------------------------------------------------
+# State-key scoping (regression guard for the app:-prefix turnCount bug)
+# ---------------------------------------------------------------------------
+
+
+class _ScopedState:
+    """Stand-in for ADK's ``State`` that honours key-prefix scoping.
+
+    ADK routes ``app:``-prefixed keys to app-global storage (shared across ALL
+    sessions of the app) and ``user:``-prefixed keys to per-user storage; every
+    other key is session-scoped. The other tests in this file use a plain dict,
+    which ignores prefixes entirely — so a plain dict CANNOT catch a key that is
+    accidentally promoted to app/user scope. This fake reproduces the routing:
+    multiple sessions share one ``app_store`` but keep private ``_session``
+    dicts, so a regression that re-prefixes ``_STATE_TURN_COUNT`` /
+    ``_STATE_INITIALIZED`` with ``app:`` makes the counter bleed across
+    sessions (the exact 2026-06-23 "turnCount=259" bug).
+    """
+
+    def __init__(self, app_store: dict, initial: dict | None = None):
+        self._app = app_store
+        self._session: dict = dict(initial or {})
+
+    def _store(self, key: str) -> dict:
+        if key.startswith("app:") or key.startswith("user:"):
+            return self._app
+        return self._session
+
+    def get(self, key, default=None):
+        return self._store(key).get(key, default)
+
+    def __getitem__(self, key):
+        return self._store(key)[key]
+
+    def __setitem__(self, key, value):
+        self._store(key)[key] = value
+
+    def __contains__(self, key):
+        return key in self._store(key)
+
+
+def _make_scoped_ctx(app_store, session_id="sess-1", initialized=None, turn_count=None, skill_id="skill-x"):
+    state = _ScopedState(app_store, initial={"skill_id": skill_id, "document_ids": []})
+    # Route through __setitem__ so the key's prefix decides where it lands —
+    # this is what makes the fake able to reproduce the cross-session bleed.
+    if initialized is not None:
+        state[_STATE_INITIALIZED] = initialized
+    if turn_count is not None:
+        state[_STATE_TURN_COUNT] = turn_count
+
+    session = MagicMock()
+    session.id = session_id
+    session.events = []
+
+    ctx = MagicMock()
+    ctx.state = state
+    ctx.session = session
+    return ctx
+
+
+class TestStateKeyScoping:
+    def test_state_keys_are_session_scoped_not_app_or_user(self):
+        """Tripwire: the index counters MUST stay session-scoped. An ``app:``
+        prefix makes them a single global odometer shared by every session;
+        a ``user:`` prefix shares them across one user's sessions. Either makes
+        ChatSessionIndex.turnCount meaningless (the 2026-06-23 regression)."""
+        from google.adk.sessions.state import State
+
+        for key in (_STATE_INITIALIZED, _STATE_TURN_COUNT):
+            assert not key.startswith(State.APP_PREFIX), (
+                f"{key!r} is app-scoped → turnCount becomes a global odometer across all sessions"
+            )
+            assert not key.startswith(State.USER_PREFIX), (
+                f"{key!r} is user-scoped → turnCount bleeds across one user's sessions"
+            )
+
+    @patch("db.chat_sessions.update_session_fields")
+    @patch("adk.callbacks.session._try_generate_title", return_value=None)
+    def test_two_sessions_keep_independent_turn_counts(self, _mock_title, _mock_update):
+        """Interleaved turns on two sessions must NOT share a counter.
+
+        With the app:-prefixed keys this fails: all five increments land in the
+        shared app store, so both sessions read 5. Session-scoped keys keep
+        A at 4 and B at 1."""
+        app_store: dict = {}
+        cb = make_after_agent_response()
+        ctx_a = _make_scoped_ctx(app_store, session_id="sess-A", initialized=True, turn_count=0)
+        ctx_b = _make_scoped_ctx(app_store, session_id="sess-B", initialized=True, turn_count=0)
+
+        cb(ctx_a)  # A -> 1
+        cb(ctx_a)  # A -> 2
+        cb(ctx_b)  # B -> 1  (must not see A's count)
+        cb(ctx_a)  # A -> 3
+        cb(ctx_a)  # A -> 4
+
+        assert ctx_a.state[_STATE_TURN_COUNT] == 4
+        assert ctx_b.state[_STATE_TURN_COUNT] == 1, (
+            "session B's counter bled from the shared app store — a state key regained app:/user: scope"
+        )
+        assert app_store == {}, f"per-session state leaked into app-global scope: {app_store}"
+
+    def test_init_flag_is_session_scoped(self):
+        """Initializing one session must not mark another initialized. Under the
+        old app: prefix the first session to run permanently flipped the flag
+        True for every future session, so the per-session create path (and the
+        after_agent early-return gate) keyed off a global flag."""
+        app_store: dict = {}
+        ctx_a = _make_scoped_ctx(app_store, session_id="sess-A")
+        ctx_b = _make_scoped_ctx(app_store, session_id="sess-B")
+
+        ctx_a.state[_STATE_INITIALIZED] = True
+
+        assert ctx_b.state.get(_STATE_INITIALIZED) is None, (
+            "init flag bled across sessions — the key is app/user-scoped, not session-scoped"
+        )
+        assert app_store == {}, f"init flag leaked into app-global scope: {app_store}"
+
+
+# ---------------------------------------------------------------------------
 # _derive_access_control
 # ---------------------------------------------------------------------------
 

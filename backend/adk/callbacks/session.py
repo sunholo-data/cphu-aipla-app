@@ -19,8 +19,19 @@ from db.models.access import AccessControl
 
 logger = logging.getLogger(__name__)
 
-_STATE_INITIALIZED = "app:chat_session_initialized"
-_STATE_TURN_COUNT = "app:chat_session_turn_count"
+# Session-scoped state keys. These MUST stay unprefixed: in ADK an ``app:``
+# prefix makes a key application-global (shared across every user and session
+# of the app), and a ``user:`` prefix shares it across one user's sessions.
+# Both keys were ``app:``-prefixed until 2026-06-23, which turned the per-turn
+# counter into a single global odometer — every turn of every session
+# incremented the same value, and ``_flush_session_index`` stamped that global
+# value onto whichever session was flushing. Symptom: ChatSessionIndex.turnCount
+# read e.g. 259 for an 18-second, 2-message session (the global total), and
+# title generation (gated on ``turn_count == 2``) almost never fired because the
+# global counter was rarely exactly 2 at a given session's flush.
+# See test_session_callbacks.py::TestStateKeyScoping and upstream-feedback.md #37.
+_STATE_INITIALIZED = "chat_session_initialized"
+_STATE_TURN_COUNT = "chat_session_turn_count"
 
 # Flush counter updates every N turns to reduce Firestore write amplification.
 _TURN_FLUSH_INTERVAL = 5
@@ -135,8 +146,8 @@ def make_session_tracker(owner_uid: str, skill_id: str, group_id: str | None = N
     """Return a ``before_agent_callback`` that creates the ChatSessionIndex once.
 
     ADK has no dedicated "session created" hook; ``before_agent_callback``
-    fires at the start of every turn. We use the
-    ``app:chat_session_initialized`` state flag to run creation only once
+    fires at the start of every turn. We use the session-scoped
+    ``chat_session_initialized`` state flag to run creation only once
     per session.
 
     ``owner_uid``, ``skill_id``, and ``group_id`` are captured in closures from the
