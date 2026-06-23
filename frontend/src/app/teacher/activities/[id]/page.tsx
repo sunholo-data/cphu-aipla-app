@@ -243,15 +243,8 @@ export default function TeacherActivityConfigPage() {
               personaSlot={<InheritedPersona classId={classId} />}
               footer={
                 <div className="flex flex-wrap gap-2">
-                  <button
-                    type="button"
-                    disabled
-                    title="Opens the activity exactly as a student sees it — coming next (1.1.32 Phase B)"
-                    className="flex items-center gap-1.5 rounded border border-border px-3 py-1.5 text-sm font-medium text-muted-foreground opacity-60"
-                  >
-                    <Eye className="h-4 w-4" aria-hidden="true" />
-                    Preview as student
-                  </button>
+                  {/* The live preview (+ its full-screen pop-out) replaces the
+                      old defunct "Preview as student" affordance (1.1.40). */}
                   <button
                     type="submit"
                     disabled={isSaving}

@@ -33,6 +33,11 @@ interface DocumentsPanelProps {
   /** The active activity id (skillId) — needed for the content-read ACL when a
    *  student opens a shared doc. */
   activityId?: string;
+  /** Whose token reads the content. `"student"` (default) uses the group token
+   *  + the activity-scoped student ACL — correct in the chat. `"teacher"` uses
+   *  the Firebase token — correct in the builder preview, where there is no real
+   *  activity to ACL the (preview) id against, so the student path 403s. */
+  viewerRole?: "student" | "teacher";
 }
 
 type ViewState =
@@ -48,7 +53,12 @@ type ViewState =
  *  - **Your uploads** — a gallery of the student's own attached photos,
  *    full-size on click (reuses the shared lightbox).
  */
-export function DocumentsPanel({ materials, images, activityId }: DocumentsPanelProps) {
+export function DocumentsPanel({
+  materials,
+  images,
+  activityId,
+  viewerRole = "student",
+}: DocumentsPanelProps) {
   // Hooks must run before any early return.
   const [openDoc, setOpenDoc] = useState<{ docId: string; title: string } | null>(null);
   const [view, setView] = useState<ViewState | null>(null);
@@ -58,7 +68,7 @@ export function DocumentsPanel({ materials, images, activityId }: DocumentsPanel
     setOpenDoc({ docId: m.docId, title });
     setView({ kind: "loading" });
     try {
-      const content = await fetchCurriculumContent(m.docId, activityId, { as: "student" });
+      const content = await fetchCurriculumContent(m.docId, activityId, { as: viewerRole });
       setView({ kind: "ready", content });
     } catch (e) {
       const msg =

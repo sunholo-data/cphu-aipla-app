@@ -163,6 +163,7 @@ function PreviewBody({
           studentVisible: m.studentVisible ?? false,
         }))}
         activityId={PREVIEW_SKILL_ID}
+        documentViewerRole="teacher"
       />
     </HumanToolEventsProvider>
   );
