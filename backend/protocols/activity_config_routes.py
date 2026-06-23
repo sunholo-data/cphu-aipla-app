@@ -221,7 +221,21 @@ async def get_active_activity_config(
     # "what is this grounded in?" is debuggable / transparent); the flag gates
     # whether the student can OPEN the content, not whether the name shows.
     # RAG grounding is unaffected — it uses every cited material regardless.
-    materials = [{"docId": m.doc_id, "origin": m.origin, "studentVisible": m.student_visible} for m in cfg.materials]
+    # 1.1.44: image materials carry kind/materialId/mimeType/alt so the student
+    # Documents surface can fetch + render the picture (the curriculum docId fields
+    # stay empty for them). The studentVisible flag still gates display.
+    materials = [
+        {
+            "kind": m.kind,
+            "docId": m.doc_id,
+            "origin": m.origin,
+            "studentVisible": m.student_visible,
+            "materialId": m.material_id,
+            "mimeType": m.mime_type,
+            "alt": m.alt,
+        }
+        for m in cfg.materials
+    ]
     return {
         "activityId": activity_id,
         "title": cfg.title,

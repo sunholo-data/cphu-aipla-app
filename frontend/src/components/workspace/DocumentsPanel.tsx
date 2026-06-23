@@ -1,7 +1,7 @@
 "use client";
 
-import { useState } from "react";
-import { EyeOff, FileText, Loader2, Paperclip, X } from "lucide-react";
+import { useEffect, useState } from "react";
+import { EyeOff, FileText, Image as ImageIcon, Loader2, Paperclip, X } from "lucide-react";
 
 import { ZoomableImage } from "@/components/chat/media/ZoomableImage";
 import {
@@ -9,15 +9,28 @@ import {
   CurriculumApiError,
   fetchCurriculumContent,
 } from "@/lib/curriculumApi";
+import { fetchActivityImageObjectUrl } from "@/lib/activityImageApi";
 
 /** One document the activity is grounded in, as surfaced by
  *  GET /api/activity-configs/active/{id} (1.1.33 M2b). NAMES are shown for
  *  every material (so "what is this grounded in?" is debuggable); the
- *  `studentVisible` flag governs whether the student can open the content. */
+ *  `studentVisible` flag governs whether the student can open the content.
+ *  1.1.44: `kind="image"` materials carry `materialId`/`alt` instead of `docId`
+ *  and render as an image (the tutor sees it too). */
 export interface ActivityMaterial {
+  kind?: "curriculum" | "image";
   docId: string;
   origin: string;
   studentVisible: boolean;
+  materialId?: string;
+  mimeType?: string;
+  alt?: string;
+}
+
+/** Display label for a material (image → alt; curriculum → origin/docId). */
+function materialLabel(m: ActivityMaterial): string {
+  if (m.kind === "image") return m.alt || "Image";
+  return m.origin || m.docId;
 }
 
 interface UploadedImage {
@@ -101,6 +114,19 @@ export function DocumentsPanel({
           </p>
           <ul className="flex flex-col gap-1">
             {shared.map((m) => {
+              // 1.1.44 — image material: render the picture (the tutor sees it too).
+              if (m.kind === "image" && m.materialId && activityId) {
+                return (
+                  <li key={`img:${m.materialId}`}>
+                    <ActivityImageThumb
+                      activityId={activityId}
+                      materialId={m.materialId}
+                      alt={materialLabel(m)}
+                      role={viewerRole}
+                    />
+                  </li>
+                );
+              }
               const selected = openDoc?.docId === m.docId;
               return (
                 <li key={m.docId}>
@@ -113,7 +139,7 @@ export function DocumentsPanel({
                     }`}
                   >
                     <FileText className="h-3.5 w-3.5 shrink-0 text-muted-foreground" aria-hidden="true" />
-                    <span className="truncate font-medium">{m.origin || m.docId}</span>
+                    <span className="truncate font-medium">{materialLabel(m)}</span>
                   </button>
                 </li>
               );
@@ -130,9 +156,16 @@ export function DocumentsPanel({
           </summary>
           <ul className="mt-1 flex flex-col gap-1 pl-4">
             {hidden.map((m) => (
-              <li key={m.docId} className="flex items-center gap-1.5">
-                <FileText className="h-3 w-3 shrink-0" aria-hidden="true" />
-                <span className="truncate">{m.origin || m.docId}</span>
+              <li
+                key={m.kind === "image" ? `img:${m.materialId}` : m.docId}
+                className="flex items-center gap-1.5"
+              >
+                {m.kind === "image" ? (
+                  <ImageIcon className="h-3 w-3 shrink-0" aria-hidden="true" />
+                ) : (
+                  <FileText className="h-3 w-3 shrink-0" aria-hidden="true" />
+                )}
+                <span className="truncate">{materialLabel(m)}</span>
               </li>
             ))}
           </ul>
@@ -214,5 +247,69 @@ export function DocumentsPanel({
         </div>
       ) : null}
     </section>
+  );
+}
+
+/**
+ * A teacher-attached image the student is allowed to see (1.1.44). The bytes are
+ * auth-gated, so we fetch them with the right token into an object URL (a plain
+ * `<img src>` can't carry the bearer) and revoke it on unmount. Click to zoom.
+ */
+function ActivityImageThumb({
+  activityId,
+  materialId,
+  alt,
+  role,
+}: {
+  activityId: string;
+  materialId: string;
+  alt: string;
+  role: "student" | "teacher";
+}) {
+  const [state, setState] = useState<
+    { kind: "loading" } | { kind: "ready"; url: string } | { kind: "error" }
+  >({ kind: "loading" });
+
+  useEffect(() => {
+    let objectUrl: string | null = null;
+    let cancelled = false;
+    fetchActivityImageObjectUrl(activityId, materialId, role)
+      .then((url) => {
+        objectUrl = url;
+        if (cancelled) URL.revokeObjectURL(url);
+        else setState({ kind: "ready", url });
+      })
+      .catch(() => {
+        if (!cancelled) setState({ kind: "error" });
+      });
+    return () => {
+      cancelled = true;
+      if (objectUrl) URL.revokeObjectURL(objectUrl);
+    };
+  }, [activityId, materialId, role]);
+
+  return (
+    <div className="flex flex-col gap-1">
+      {state.kind === "loading" ? (
+        <div className="flex h-24 w-full items-center justify-center rounded border border-border bg-muted/30 text-muted-foreground">
+          <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />
+        </div>
+      ) : state.kind === "error" ? (
+        <div className="flex items-center gap-1.5 rounded border border-border bg-background px-2 py-1.5 text-xs text-muted-foreground">
+          <ImageIcon className="h-3.5 w-3.5 shrink-0" aria-hidden="true" />
+          <span className="truncate">{alt} — couldn&apos;t load</span>
+        </div>
+      ) : (
+        <ZoomableImage
+          src={state.url}
+          alt={alt}
+          triggerClassName="max-h-48 w-full rounded-md border border-border object-contain"
+        />
+      )}
+      <span className="flex items-center gap-1 text-xs text-muted-foreground">
+        <ImageIcon className="h-3 w-3 shrink-0" aria-hidden="true" />
+        <span className="truncate">{alt}</span>
+      </span>
+    </div>
   );
 }

@@ -1,6 +1,8 @@
-import { describe, it, expect, vi } from "vitest";
+import { afterEach, describe, it, expect, vi } from "vitest";
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { DocumentsPanel } from "@/components/workspace/DocumentsPanel";
+
+afterEach(() => vi.clearAllMocks());
 
 const fetchCurriculumContent = vi.fn();
 vi.mock("@/lib/curriculumApi", async () => {
@@ -12,6 +14,20 @@ vi.mock("@/lib/curriculumApi", async () => {
     fetchCurriculumContent: (...a: unknown[]) => fetchCurriculumContent(...a),
   };
 });
+
+const fetchActivityImageObjectUrl = vi.fn();
+vi.mock("@/lib/activityImageApi", async () => {
+  const actual = await vi.importActual<typeof import("@/lib/activityImageApi")>(
+    "@/lib/activityImageApi",
+  );
+  return {
+    ...actual,
+    fetchActivityImageObjectUrl: (...a: unknown[]) => fetchActivityImageObjectUrl(...a),
+  };
+});
+
+// jsdom has no object-URL lifecycle; the component revokes on unmount.
+URL.revokeObjectURL = vi.fn();
 
 describe("DocumentsPanel", () => {
   it("returns null when there are no materials and no uploads", () => {
@@ -85,6 +101,57 @@ describe("DocumentsPanel", () => {
     await waitFor(() =>
       expect(screen.getByText(/Newton's second law/)).toBeInTheDocument(),
     );
+  });
+
+  it("renders a teacher-shared image material as an image (1.1.44 M4)", async () => {
+    fetchActivityImageObjectUrl.mockResolvedValue("blob:fake-url");
+    render(
+      <DocumentsPanel
+        materials={[
+          {
+            kind: "image",
+            docId: "",
+            origin: "",
+            studentVisible: true,
+            materialId: "img-1",
+            mimeType: "image/png",
+            alt: "free-body diagram",
+          },
+        ]}
+        images={[]}
+        activityId="act-1"
+      />,
+    );
+    // Fetched with the student token (default role) against the bound activity.
+    await waitFor(() =>
+      expect(fetchActivityImageObjectUrl).toHaveBeenCalledWith("act-1", "img-1", "student"),
+    );
+    await waitFor(() =>
+      expect(screen.getByRole("img", { name: "free-body diagram" })).toBeInTheDocument(),
+    );
+  });
+
+  it("does NOT fetch a not-shared image; lists it by name only (1.1.44 M4)", () => {
+    render(
+      <DocumentsPanel
+        materials={[
+          {
+            kind: "image",
+            docId: "",
+            origin: "",
+            studentVisible: false,
+            materialId: "img-2",
+            mimeType: "image/png",
+            alt: "secret graph",
+          },
+        ]}
+        images={[]}
+        activityId="act-1"
+      />,
+    );
+    expect(fetchActivityImageObjectUrl).not.toHaveBeenCalled();
+    expect(screen.getByText(/1 more source the tutor uses/i)).toBeTruthy();
+    expect(screen.getByText("secret graph")).toBeTruthy();
   });
 
   it("shows a graceful note when a doc has no stored content (M3)", async () => {

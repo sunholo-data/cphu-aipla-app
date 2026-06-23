@@ -90,7 +90,6 @@ def make_activity_image_loader(active_cfg: Any) -> Any:
                     teacher_uid=teacher_uid,
                     activity_id=activity_id,
                     material_id=m.material_id,
-                    mime_type=m.mime_type,
                 )
                 if part is None or getattr(part, "inline_data", None) is None:
                     logger.warning(

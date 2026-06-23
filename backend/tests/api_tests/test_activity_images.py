@@ -7,6 +7,7 @@ slot (verified via load_activity_image) and returns an image MaterialRef.
 from __future__ import annotations
 
 import io
+from unittest.mock import patch
 
 import pytest
 from fastapi import FastAPI, Request
@@ -28,12 +29,15 @@ def _fresh_artifact_service(monkeypatch):
     _reset_artifact_service_for_tests()
 
 
-def _client(group_id: str = "") -> TestClient:
+def _client(group_id: str = "", group_tags: list[str] | None = None) -> TestClient:
     app = FastAPI()
     app.include_router(routes.router)
 
     async def _override(request: Request) -> User:
-        u = User(uid=TEACHER_UID, email="t@school.dk", group_id=group_id)
+        if group_id:
+            u = User(uid=f"anon-{group_id}", email="", group_id=group_id, group_tags=group_tags or [])
+        else:
+            u = User(uid=TEACHER_UID, email="t@school.dk", group_id="")
         request.state.access = build_access_context(u)
         return u
 
@@ -89,9 +93,7 @@ async def test_upload_happy_path_saves_slot_and_returns_ref():
     assert material_id
 
     # The bytes really landed in the durable activity slot.
-    part = await load_activity_image(
-        teacher_uid=TEACHER_UID, activity_id="act-1", material_id=material_id, mime_type="image/png"
-    )
+    part = await load_activity_image(teacher_uid=TEACHER_UID, activity_id="act-1", material_id=material_id)
     assert part is not None
     assert part.inline_data.data == b"\x89PNG real"
 
@@ -104,12 +106,77 @@ async def test_delete_removes_slot():
     del_resp = _client().delete(f"/api/activity-images/act-1/{material_id}")
     assert del_resp.status_code == 204
 
-    part = await load_activity_image(
-        teacher_uid=TEACHER_UID, activity_id="act-1", material_id=material_id, mime_type="image/png"
-    )
+    part = await load_activity_image(teacher_uid=TEACHER_UID, activity_id="act-1", material_id=material_id)
     assert part is None
 
 
 def test_delete_student_forbidden():
     resp = _client(group_id="grp-1").delete("/api/activity-images/act-1/whatever")
     assert resp.status_code == 403
+
+
+# ---------------------------------------------------------------------------
+# GET — dual-audience (1.1.44 M4)
+# ---------------------------------------------------------------------------
+
+
+def _upload_one() -> str:
+    """Upload an image as the teacher; return its materialId."""
+    resp = _client().post("/api/activity-images", **_png(content=b"\x89PNG bytes"))
+    return resp.json()["materialRef"]["materialId"]
+
+
+def _img_material(material_id: str, *, student_visible: bool):
+    from db.models.activity_config import MaterialRef
+
+    return MaterialRef(kind="image", materialId=material_id, mimeType="image/png", studentVisible=student_visible)
+
+
+def _cfg_with(materials):
+    from types import SimpleNamespace
+
+    return SimpleNamespace(teacher_uid=TEACHER_UID, activity_id="act-1", materials=materials)
+
+
+def test_teacher_get_returns_image_bytes():
+    material_id = _upload_one()
+    resp = _client().get(f"/api/activity-images/act-1/{material_id}")
+    assert resp.status_code == 200
+    assert resp.headers["content-type"].startswith("image/png")
+    assert resp.content == b"\x89PNG bytes"
+
+
+def test_student_get_allowed_when_visible():
+    material_id = _upload_one()
+    cfg = _cfg_with([_img_material(material_id, student_visible=True)])
+    with patch.object(routes, "resolve_active_config", return_value=cfg):
+        resp = _client(group_id="grp-1", group_tags=["class:teacher-42:7b"]).get(
+            f"/api/activity-images/act-1/{material_id}"
+        )
+    assert resp.status_code == 200
+    assert resp.content == b"\x89PNG bytes"
+
+
+def test_student_get_forbidden_when_not_visible():
+    material_id = _upload_one()
+    cfg = _cfg_with([_img_material(material_id, student_visible=False)])
+    with patch.object(routes, "resolve_active_config", return_value=cfg):
+        resp = _client(group_id="grp-1", group_tags=["class:teacher-42:7b"]).get(
+            f"/api/activity-images/act-1/{material_id}"
+        )
+    assert resp.status_code == 403
+
+
+def test_student_get_forbidden_when_not_cited():
+    material_id = _upload_one()
+    cfg = _cfg_with([])  # activity cites no image materials
+    with patch.object(routes, "resolve_active_config", return_value=cfg):
+        resp = _client(group_id="grp-1", group_tags=["class:teacher-42:7b"]).get(
+            f"/api/activity-images/act-1/{material_id}"
+        )
+    assert resp.status_code == 403
+
+
+def test_get_missing_image_404():
+    resp = _client().get("/api/activity-images/act-1/does-not-exist")
+    assert resp.status_code == 404

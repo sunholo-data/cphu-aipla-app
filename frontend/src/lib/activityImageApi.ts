@@ -10,7 +10,7 @@
  * image `MaterialRef`; the builder adds it to the activity's `materials` on save.
  */
 
-import { fetchWithTeacherAuth } from "@/lib/apiClient";
+import { fetchWithAuth, fetchWithTeacherAuth } from "@/lib/apiClient";
 import type { MaterialRef } from "@/lib/teacherApi";
 
 export class ActivityImageApiError extends Error {
@@ -49,6 +49,30 @@ export async function uploadActivityImage(
   }
   const body = (await resp.json()) as { materialRef: MaterialRef };
   return body.materialRef;
+}
+
+/**
+ * Fetch an activity image's bytes (auth-gated) and return an object URL for an
+ * `<img src>`. A plain `<img>` can't carry the bearer token, so we fetch with the
+ * right helper and wrap the blob. The CALLER must `URL.revokeObjectURL` it on unmount.
+ *
+ * `role`: "student" (group token, the chat — backend ACLs against the bound
+ * activity + studentVisible) or "teacher" (Firebase token, the builder preview).
+ */
+export async function fetchActivityImageObjectUrl(
+  activityId: string,
+  materialId: string,
+  role: "student" | "teacher" = "student",
+): Promise<string> {
+  const fetcher = role === "teacher" ? fetchWithTeacherAuth : fetchWithAuth;
+  const resp = await fetcher(
+    `/api/proxy/api/activity-images/${encodeURIComponent(activityId)}/${encodeURIComponent(materialId)}`,
+  );
+  if (!resp.ok) {
+    throw new ActivityImageApiError("Couldn't load the image.", resp.status);
+  }
+  const blob = await resp.blob();
+  return URL.createObjectURL(blob);
 }
 
 /** Remove an image from the activity's slot (idempotent — a 404 is fine). */

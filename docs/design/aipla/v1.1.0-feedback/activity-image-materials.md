@@ -1,6 +1,6 @@
 # Activity image materials — images the tutor can actually see
 
-**Status:** **M0–M3 SHIPPED to dev (code) 2026-06-23** — sprint IMG-MAT (`54a832d`→`bc28052`). A teacher attaches an **image** (diagram/graph/photographed worksheet) to an activity and the **tutor sees the pixels** during the student conversation — not OCR'd text, the actual image as multimodal context. Backend 2125 + the new 44 tests (9 model/slot + 7 endpoint + 9 callbacks + 13 FE + 6 frontend image) green; `make lint` + `npm run quality:check` (incl. build) green. **Pending: a dev deploy + a real browser/E2E pass** (teacher attaches → student session carries the image Part). **M4 (student also sees the image) is optional/post-pilot.** (**P1** — additive; deepens the [1.1.25 Materials picker](curriculum-library.md) + the [1.1.41 resource](teacher-sim-resources.md) axis.)
+**Status:** **M0–M4 SHIPPED to dev (code) 2026-06-23** — sprint IMG-MAT. A teacher attaches an **image** (diagram/graph/photographed worksheet) to an activity; the **tutor sees the pixels** during the student conversation (multimodal, not OCR), AND — when the teacher marks it viewable — the **student sees it** in the Documents workbench (M4), via a dual-audience `GET /api/activity-images/{activityId}/{materialId}`. Backend (lint clean, 2130 fast tests) + frontend (`npm run quality:check`: 1216 tests + production build) green. Both retention + student-visibility gates resolved by M (2026-06-23). **Pending: a dev deploy + a real browser/E2E pass.** (**P1** — additive; deepens the [1.1.25 Materials picker](curriculum-library.md) + the [1.1.41 resource](teacher-sim-resources.md) axis.)
 **Last Updated:** 2026-06-23
 **Priority:** **P1.** Resolves the gap surfaced 2026-06-23: the activity "add document" component (`MaterialsSection`, 1.1.25 M4) only accepts text-extractable documents that feed the **RAG/text** pipeline. A physics teacher's reference material is frequently a **diagram or graph** whose meaning is the image, not its words — the tutor needs to *look at* it, the way a student-uploaded image already works (1.1.7).
 **Estimated:** ~3–4d across M0–M3 (M4 student-display is optional/post-pilot).
@@ -259,10 +259,10 @@ CLI parity (follow-up, not gating): `aiplatform activity add-image <activityId> 
 - **E2E (LOCAL_MODE).** Teacher attaches a diagram to an activity; a student opens it; the first tutor turn's request carries the image Part (assert via the ADK session artifact list + a backend log line). The same image appears for a second student (durable slot, not per-session upload).
 - **Regression.** A curriculum-only activity (no image materials) produces a byte-identical agent build and zero extra artifacts (loader no-op). The 1.1.7 student-upload path is untouched.
 
-## Human gates (tee up now)
+## Human gates (resolved 2026-06-23)
 
-1. **JB — image-retention posture** for teacher-supplied material (gates M2 ship). Lower-stakes than student uploads (teacher's own reference content, no person-in-frame), but record the decision. Likely: retained with the activity for its lifetime, deleted on activity delete.
-2. **JB/AR — student visibility default** (informs M4): confirm `studentVisible=false` default (tutor-only unless the teacher reveals) matches the cited-doc behaviour they expect.
+1. **Image-retention posture — RESOLVED (M, 2026-06-23): teacher-supplied images stay as long as needed.** No TTL / lifecycle rule; the bytes live with the activity. They are removed only when the teacher deletes the material (DELETE) or, in future, when the activity itself is deleted. (Lower-stakes than student uploads — teacher's own reference content, no person-in-frame.) Nothing to apply on the bucket.
+2. **Student visibility — RESOLVED (M, 2026-06-23): student sees the image when the teacher marks it viewable, same as cited docs.** `studentVisible=false` default (tutor always sees it; the student sees it only when revealed). M4 is therefore **in scope** (was optional): the student Documents surface renders the image via a dual-audience `GET /api/activity-images/{activityId}/{materialId}`.
 
 ## Open questions
 

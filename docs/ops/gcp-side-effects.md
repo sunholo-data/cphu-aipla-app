@@ -32,10 +32,10 @@ with it unset the code falls back to the in-memory artifact service (local dev).
 for that env's backend (same as ADK session artifacts). No `TODO: codify` — there
 is no new resource to codify.
 
-**Retention (open, JB gate):** these blobs currently persist for the bucket's
-lifetime (no per-object TTL). If a retention policy is wanted, add a lifecycle
-rule scoped to the `*/activity-image:*` prefix — tracked in the design doc's
-human-gates section, not yet applied.
+**Retention — RESOLVED (M, 2026-06-23): teacher images stay as long as needed.**
+No per-object TTL / lifecycle rule is applied or wanted. The bytes live with the
+activity and are removed only on explicit `DELETE` (or future activity-delete).
+Nothing to apply on the bucket.
 
 ---
 
