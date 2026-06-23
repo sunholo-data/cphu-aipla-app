@@ -16,6 +16,7 @@ from pydantic import ValidationError
 from db.models.activity_config import (
     ELEMENT_REGISTRY,
     ActivityConfig,
+    ChartElement,
     ChecklistItem,
     TableColumn,
     TableElement,
@@ -113,3 +114,34 @@ def test_table_rows_must_be_in_bounds() -> None:
         TableElement(id="t", columns=col, rows=0)
     with pytest.raises(ValidationError):
         TableElement(id="t", columns=col, rows=51)
+
+
+# --- chart element (1.1.38 M2) --------------------------------------------
+
+
+def test_chart_is_a_registered_workspace_element() -> None:
+    spec = ELEMENT_REGISTRY["chart"]
+    assert spec.field == "chart"
+    assert spec.render == "workspace"
+
+
+def test_chart_within_cap_roundtrips() -> None:
+    cfg = _config(chart=[ChartElement(id="c1", title="v-t", chartKind="line")])
+    assert len(cfg.chart) == 1
+    assert cfg.chart[0].chart_kind == "line"
+
+
+def test_chart_defaults_to_scatter() -> None:
+    assert ChartElement(id="c1").chart_kind == "scatter"
+
+
+def test_chart_rejects_unknown_kind() -> None:
+    with pytest.raises(ValidationError):
+        ChartElement(id="c1", chartKind="pie")
+
+
+def test_chart_over_cap_is_rejected() -> None:
+    cap = ELEMENT_REGISTRY["chart"].max_items
+    charts = [ChartElement(id=f"c{i}") for i in range(cap + 1)]
+    with pytest.raises(ValidationError):
+        _config(chart=charts)

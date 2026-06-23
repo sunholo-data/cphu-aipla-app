@@ -32,6 +32,7 @@ from db.activity_configs import (
 from db.classes import get_class_for_group
 from db.models.activity_config import (
     ActivityConfig,
+    ChartElement,
     ChecklistItem,
     Difficulty,
     InteractionStyle,
@@ -77,6 +78,8 @@ class ActivityConfigUpsert(BaseModel):
     checklist: list[ChecklistItem] = Field(default_factory=list)
     # Teacher-defined data tables the student fills in (1.1.38 M1).
     table: list[TableElement] = Field(default_factory=list)
+    # Charts plotting the activity's data table (1.1.38 M2).
+    chart: list[ChartElement] = Field(default_factory=list)
     # Curriculum documents cited for this activity (1.1.25 M4). The tutor
     # retrieval tool is scoped to ONLY these docs (student deny-by-default).
     materials: list[MaterialRef] = Field(default_factory=list)
@@ -121,6 +124,7 @@ async def post_activity_config(
         workbench_type=body.workbench_type,
         checklist=body.checklist,
         table=body.table,
+        chart=body.chart,
         materials=body.materials,
     )
     log.info(
@@ -174,6 +178,7 @@ async def get_active_activity_config(
             "title": "",
             "checklist": [],
             "table": [],
+            "chart": [],
             "workbenchType": "none",
             "persona": persona_block,
             "materials": [],
@@ -189,6 +194,7 @@ async def get_active_activity_config(
         "title": cfg.title,
         "checklist": [item.model_dump() for item in cfg.checklist],
         "table": [t.model_dump(by_alias=True) for t in cfg.table],
+        "chart": [c.model_dump(by_alias=True) for c in cfg.chart],
         "workbenchType": cfg.workbench_type,
         "persona": persona_block,
         "materials": materials,
@@ -260,6 +266,7 @@ async def patch_activity_config(
         workbench_type=body.workbench_type,
         checklist=body.checklist,
         table=body.table,
+        chart=body.chart,
         materials=body.materials,
     )
     return _serialize(cfg)

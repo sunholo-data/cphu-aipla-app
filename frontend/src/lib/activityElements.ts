@@ -4,8 +4,8 @@
 // and where each renders (workspace pane vs inline A2UI chat card).
 //
 // The *platform element* layer is the composable set a teacher layers on top of
-// any workbench type — checklist + data table today; chart / calculator /
-// document land as 1.1.38 M2–M4. Adding an element = a kind here + a backend
+// any workbench type — checklist + data table + chart today; calculator /
+// document land as 1.1.38 M3–M4. Adding an element = a kind here + a backend
 // spec + a renderer + an editor. The recipe is in
 // docs/design/aipla/v1.1.0-feedback/activity-elements-palette.md.
 //
@@ -13,7 +13,7 @@
 // metadata for builder UX. The consistency tests on both ends keep the two
 // registries in lock-step.
 
-export type ElementKind = "checklist" | "table";
+export type ElementKind = "checklist" | "table" | "chart";
 export type ElementRender = "workspace" | "inline";
 
 export interface ElementDescriptor {
@@ -29,6 +29,7 @@ export interface ElementDescriptor {
 export const ELEMENT_REGISTRY: Record<ElementKind, ElementDescriptor> = {
   checklist: { kind: "checklist", label: "Fremgang", render: "workspace", maxItems: 50 },
   table: { kind: "table", label: "Datatabel", render: "workspace", maxItems: 5 },
+  chart: { kind: "chart", label: "Graf", render: "workspace", maxItems: 5 },
 };
 
 export const ELEMENT_KINDS = Object.keys(ELEMENT_REGISTRY) as ElementKind[];

@@ -42,7 +42,14 @@ interface TableSnapshot {
   filledCells: number;
 }
 
-const KEY_PREFIX = "aipla.table:";
+/** Window event fired (same-document) after a table cell commits, so siblings
+ *  like WorkbenchChart can re-read the grid. `detail.skillId` scopes it. */
+export const TABLE_CHANGE_EVENT = "aipla:table-change";
+
+/** sessionStorage key holding a skill's table cell values. */
+export function tableStorageKey(skillId: string): string {
+  return `aipla.table:${skillId}`;
+}
 
 function cellKey(tableId: string, row: number, colId: string): string {
   return `${tableId}::${row}::${colId}`;
@@ -61,7 +68,7 @@ function cellKey(tableId: string, row: number, colId: string): string {
  * entered values is the offline-lab (1.1.24) extension, NOT done here.
  */
 export function WorkbenchTable({ skillId, tables, sessionId }: WorkbenchTableProps) {
-  const storageKey = KEY_PREFIX + skillId;
+  const storageKey = tableStorageKey(skillId);
   const [values, setValues] = useState<Record<string, string>>({});
   // Last-pushed value per cell — a blur with no change is a no-op (no duplicate
   // iframe-context push).
@@ -114,6 +121,8 @@ export function WorkbenchTable({ skillId, tables, sessionId }: WorkbenchTablePro
     committedRef.current[key] = current;
     if (typeof window !== "undefined") {
       window.sessionStorage.setItem(storageKey, JSON.stringify(values));
+      // Let a sibling chart (1.1.38 M2) re-read the grid.
+      window.dispatchEvent(new CustomEvent(TABLE_CHANGE_EVENT, { detail: { skillId } }));
     }
     const req = pushTableSnapshot(buildSnapshot(table, values), "table.commit");
     if (req) {

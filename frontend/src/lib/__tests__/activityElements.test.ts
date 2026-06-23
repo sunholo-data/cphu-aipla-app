@@ -28,6 +28,11 @@ describe("activity element registry (1.1.38 M0)", () => {
     expect(isWorkspaceElement("table")).toBe(true);
   });
 
+  it("chart is a registered workspace element (1.1.38 M2)", () => {
+    expect(ELEMENT_REGISTRY.chart.render).toBe("workspace");
+    expect(isWorkspaceElement("chart")).toBe(true);
+  });
+
   it("ELEMENT_KINDS lists exactly the registry keys", () => {
     expect([...ELEMENT_KINDS].sort()).toEqual(
       (Object.keys(ELEMENT_REGISTRY) as ElementKind[]).sort(),

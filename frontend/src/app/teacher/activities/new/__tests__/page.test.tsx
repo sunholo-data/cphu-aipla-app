@@ -200,6 +200,21 @@ describe("/teacher/activities/new — concept activity builder", () => {
     expect(saveActivityConfigMock.mock.calls[0][0].table).toEqual([]);
   });
 
+  it("sends a chart element when the teacher adds one", async () => {
+    listClassesMock.mockResolvedValue(ONE_CLASS);
+    render(<NewActivityPage />);
+    fireEvent.change(await screen.findByLabelText(/activity name/i), { target: { value: "Lab" } });
+    fireEvent.change(screen.getByLabelText(/lesson prompt/i), { target: { value: "Plot." } });
+    fireEvent.click(screen.getByRole("button", { name: /add chart/i }));
+    fireEvent.change(screen.getByLabelText(/chart type/i), { target: { value: "line" } });
+    fireEvent.click(screen.getByRole("button", { name: /create activity/i }));
+
+    await waitFor(() => expect(saveActivityConfigMock).toHaveBeenCalledTimes(1));
+    expect(saveActivityConfigMock.mock.calls[0][0].chart).toEqual([
+      { id: "chart-1", title: "", chartKind: "line" },
+    ]);
+  });
+
   it("blocks submit until a title and a lesson prompt are entered", async () => {
     listClassesMock.mockResolvedValue(ONE_CLASS);
     render(<NewActivityPage />);

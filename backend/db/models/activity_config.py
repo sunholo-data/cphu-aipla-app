@@ -100,6 +100,25 @@ class TableElement(BaseModel):
     model_config = ConfigDict(populate_by_name=True)
 
 
+ChartKind = Literal["scatter", "line", "bar"]
+
+
+class ChartElement(BaseModel):
+    """A chart that plots the activity's data table (1.1.38 M2).
+
+    v1.1 auto-binds to the activity's data table and plots its first two
+    numeric columns (x, y) — deterministic, zero LLM. Per-column selection and
+    teacher-supplied static series are future extensions; keeping it auto-bound
+    avoids fragile column-id coupling between the chart and table at author time.
+    """
+
+    id: str = Field(min_length=1, max_length=64)
+    title: str = Field(default="", max_length=120)
+    chart_kind: ChartKind = Field(default="scatter", alias="chartKind")
+
+    model_config = ConfigDict(populate_by_name=True)
+
+
 # Workbench type system (1.J expanded-workbench-types). ``none`` is a
 # first-class, no-simulator activity (chat-only Socratic dialogue, the
 # v1.1 teacher-authoring headline). ``app`` is a paired MCP-App sim.
@@ -120,10 +139,10 @@ WorkbenchType = Literal["app", "drawing", "sensor", "video", "notebook", "none"]
 # mirror lives in frontend/src/lib/activityElements.ts (kept in lock-step via
 # the consistency tests on both ends).
 #
-# v1.1 ships the ``checklist`` (re-homed M0) + the ``table`` (M1); ``chart`` /
-# ``calculator`` / ``document`` land as further entries in 1.1.38 M2-M4;
+# v1.1 ships the ``checklist`` (M0) + ``table`` (M1) + ``chart`` (M2); the
+# ``calculator`` (M3) / ``document`` (M4) land as further entries;
 # ``quiz`` (inline, A2UI) joins when 1.1.19 M2 builds it.
-ElementKind = Literal["checklist", "table"]
+ElementKind = Literal["checklist", "table", "chart"]
 ElementRender = Literal["workspace", "inline"]
 
 
@@ -149,6 +168,7 @@ ELEMENT_REGISTRY: dict[ElementKind, ElementSpec] = {
     # ``max_items`` caps the NUMBER of tables on an activity; per-table column /
     # row bounds live on ``TableElement`` itself.
     "table": ElementSpec(kind="table", field="table", max_items=5, render="workspace"),
+    "chart": ElementSpec(kind="chart", field="chart", max_items=5, render="workspace"),
 }
 
 
@@ -179,6 +199,8 @@ class ActivityConfig(BaseModel):
     # Teacher-defined data tables the student fills in (1.1.38 M1). Capped at
     # ELEMENT_REGISTRY["table"].max_items by the element-cap validator below.
     table: list[TableElement] = Field(default_factory=list)
+    # Charts plotting the activity's data table (1.1.38 M2).
+    chart: list[ChartElement] = Field(default_factory=list)
     # Curriculum documents cited for this activity (1.1.25 M3). The tutor
     # retrieval tool is scoped to ONLY these docs (student deny-by-default).
     materials: list[MaterialRef] = Field(default_factory=list)
@@ -226,6 +248,8 @@ class ActivityConfig(BaseModel):
 __all__ = [
     "ELEMENT_REGISTRY",
     "ActivityConfig",
+    "ChartElement",
+    "ChartKind",
     "ChecklistItem",
     "Difficulty",
     "ElementKind",

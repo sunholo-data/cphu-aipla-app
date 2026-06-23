@@ -97,6 +97,14 @@ export interface TableElement {
   rows: number;
 }
 
+/** A chart plotting the activity's data table (1.1.38 M2). Auto-binds to the
+ *  first data table's first two numeric columns. */
+export interface ChartElement {
+  id: string;
+  title?: string;
+  chartKind: "scatter" | "line" | "bar";
+}
+
 /** Danish stx physics level — the primary curriculum browse axis (1.1.25). */
 export type StxLevel = "A" | "B" | "C";
 
@@ -138,6 +146,8 @@ export interface ActivityConfigUpsert {
   checklist?: ChecklistItem[];
   /** Teacher-defined data tables the student fills in (1.1.38 M1). */
   table?: TableElement[];
+  /** Charts plotting the activity's data table (1.1.38 M2). */
+  chart?: ChartElement[];
   materials?: MaterialRef[];
 }
 

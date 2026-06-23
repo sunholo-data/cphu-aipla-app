@@ -5,6 +5,7 @@ import { Fragment, type ReactNode } from "react";
 import { ELEMENT_KINDS, isWorkspaceElement, type ElementKind } from "@/lib/activityElements";
 
 import { ProgressChecklist, type ChecklistItem } from "./ProgressChecklist";
+import { WorkbenchChart, type ChartElementDef } from "./WorkbenchChart";
 import { WorkbenchTable, type TableElementDef } from "./WorkbenchTable";
 
 /**
@@ -19,6 +20,7 @@ export interface ElementRenderContext {
   sessionId?: string | null;
   checklist: ChecklistItem[];
   table: TableElementDef[];
+  chart: ChartElementDef[];
 }
 
 /**
@@ -42,6 +44,10 @@ export const elementRenderers: Record<ElementKind, (ctx: ElementRenderContext) =
   table: (ctx) =>
     ctx.table.length > 0 ? (
       <WorkbenchTable skillId={ctx.skillId} tables={ctx.table} sessionId={ctx.sessionId} />
+    ) : null,
+  chart: (ctx) =>
+    ctx.chart.length > 0 ? (
+      <WorkbenchChart skillId={ctx.skillId} charts={ctx.chart} tables={ctx.table} />
     ) : null,
 };
 
