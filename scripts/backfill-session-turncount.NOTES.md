@@ -28,7 +28,10 @@ Cause: teacher reports overview showed `turnCount=259` for a 2-message session
 
 ### 2026-06-23 — aipla-dev-2026 (--commit)
 
-<!-- Fill in after the committed run: number of rows written, exit status. -->
+Wrote **12 corrections** (the 12 dry-run rows above), exit 0. Largest: `a325b6dc-…`
+259→1, `a4ab508f-…` 261→13, `548ded40-…` 256→33. Verified `a325b6dc-…`.turnCount
+reads 1 afterwards; immediate dry-run re-run reported "0 session(s) need
+correction" (idempotent). 49 sessions left untouched (no BQ rows).
 
 ## test / prod
 
