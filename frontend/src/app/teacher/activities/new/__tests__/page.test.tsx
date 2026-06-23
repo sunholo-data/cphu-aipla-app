@@ -15,6 +15,7 @@ const patchLessonsMock = vi.fn();
 // which resolves the class persona via fetchPersonaCatalogue + getClass.
 const fetchPersonaCatalogueMock = vi.fn();
 const getClassMock = vi.fn();
+const listArtefactsMock = vi.fn();
 vi.mock("@/lib/teacherApi", async () => {
   const actual = await vi.importActual<typeof import("@/lib/teacherApi")>("@/lib/teacherApi");
   return {
@@ -25,6 +26,7 @@ vi.mock("@/lib/teacherApi", async () => {
     patchLessons: (classId: string, body: unknown) => patchLessonsMock(classId, body),
     fetchPersonaCatalogue: () => fetchPersonaCatalogueMock(),
     getClass: (id: string) => getClassMock(id),
+    listArtefacts: () => listArtefactsMock(),
   };
 });
 
@@ -70,6 +72,19 @@ describe("/teacher/activities/new — concept activity builder", () => {
       defaultId: "sofie",
     });
     getClassMock.mockResolvedValue({ classId: "c-1", persona: null });
+    listArtefactsMock.mockReset();
+    listArtefactsMock.mockResolvedValue([
+      {
+        id: "boldkast",
+        displayName: "Boldkast",
+        description: "Projektil",
+        topics: [],
+        levels: [],
+        language: "da",
+        artefactPath: "boldkast/v1",
+        status: "live",
+      },
+    ]);
   });
 
   it("renders the builder form once classes load", async () => {
@@ -80,14 +95,14 @@ describe("/teacher/activities/new — concept activity builder", () => {
     expect(screen.getByLabelText(/^class$/i)).toBeInTheDocument();
   });
 
-  it("states honestly that this is a chat-only concept activity (1.1.32 — no decoupled sim knob)", async () => {
+  it("offers an optional vetted simulation picker (1.1.41 — sim is an attachable resource)", async () => {
     listClassesMock.mockResolvedValue(ONE_CLASS);
     render(<NewActivityPage />);
     await screen.findByLabelText(/activity name/i);
-    // The lying "Paired workbench" picker was removed; the form now explains
-    // that simulators are their own activities.
-    expect(screen.getByText(/chat-only concept activity/i)).toBeInTheDocument();
-    expect(screen.queryByLabelText(/workbench/i)).not.toBeInTheDocument();
+    // 1.1.41 reverses 1.1.32's "you can't attach a sim" lie — the artefact is now
+    // decoupled from the skill, so the builder has a real catalogue picker.
+    expect(await screen.findByText("Boldkast")).toBeInTheDocument();
+    expect(screen.getByText(/optionally host a vetted simulation/i)).toBeInTheDocument();
   });
 
   it("creates a concept-dialogue activity with the entered title + goal", async () => {
@@ -278,6 +293,19 @@ describe("/teacher/activities/new — concept activity builder", () => {
       },
     ]);
     expect(body.note?.[0]?.title).toBe("Formel");
+  });
+
+  it("attaches a simulation picked from the catalogue", async () => {
+    listClassesMock.mockResolvedValue(ONE_CLASS);
+    render(<NewActivityPage />);
+    fireEvent.change(await screen.findByLabelText(/activity name/i), { target: { value: "Lab" } });
+    fireEvent.change(screen.getByLabelText(/lesson prompt/i), { target: { value: "Explore." } });
+    // Pick the Boldkast sim from the catalogue picker.
+    fireEvent.click(await screen.findByText("Boldkast"));
+    fireEvent.click(screen.getByRole("button", { name: /create activity/i }));
+
+    await waitFor(() => expect(saveActivityConfigMock).toHaveBeenCalledTimes(1));
+    expect(saveActivityConfigMock.mock.calls[0][0].artefactId).toBe("boldkast");
   });
 
   it("blocks submit until a title and a lesson prompt are entered", async () => {

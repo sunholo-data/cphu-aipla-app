@@ -24,6 +24,7 @@ import { ChartEditor, type ChartEditorValue } from "@/components/teacher/ChartEd
 import { CalculatorEditor, type CalculatorEditorValue } from "@/components/teacher/CalculatorEditor";
 import { NoteEditor, type NoteEditorValue } from "@/components/teacher/NoteEditor";
 import { TemplatePicker } from "@/components/teacher/TemplatePicker";
+import { SimPicker } from "@/components/teacher/SimPicker";
 import { type ActivityTemplate } from "@/lib/activityTemplates";
 
 // TAA-1 M0: a from-scratch activity runs the `concept-dialogue` base
@@ -99,6 +100,8 @@ function NewActivityForm() {
   const [calculator, setCalculator] = useState<CalculatorEditorValue | null>(null);
   // Optional instructions / reference note (1.1.38 M4). `null` = no note.
   const [note, setNote] = useState<NoteEditorValue | null>(null);
+  // Optional sim artefact this activity hosts (1.1.41 M3). `null` = chat-only.
+  const [artefactId, setArtefactId] = useState<string | null>(null);
 
   const [isSaving, setIsSaving] = useState(false);
   const [saveError, setSaveError] = useState<string | null>(null);
@@ -172,6 +175,7 @@ function NewActivityForm() {
         : null,
     );
     setNote(t.note ? { title: t.note.title, body: t.note.body } : null);
+    setArtefactId(t.artefactId ?? null);
   }
 
   const canSubmit = title.trim().length > 0 && teachingGoal.trim().length > 0 && classId.length > 0 && !isSaving;
@@ -189,6 +193,7 @@ function NewActivityForm() {
         title: title.trim(),
         teachingGoal: teachingGoal.trim(),
         language,
+        artefactId,
         // Same converter the live preview uses, so preview === saved activity.
         ...builderToElementDefs({ checklist, table, chart, calculator, note }),
         materials,
@@ -298,12 +303,13 @@ function NewActivityForm() {
           <p className="flex items-start gap-1.5 rounded-md border border-slate-200 bg-slate-50 px-3 py-2 text-xs text-slate-500">
             <MessageCircle className="mt-0.5 h-3.5 w-3.5 shrink-0" />
             <span>
-              This creates a chat-only concept activity (plus any checklist and
-              materials below). The Boldkast, LED&nbsp;Planck and KineBot
-              simulators are their own activities — a simulator is the tutor it
-              runs, not a setting you attach here.
+              This activity runs in chat. Optionally host a vetted simulation below — the same sim
+              can power many activities with different goals — or keep it chat-only. Add a checklist,
+              data table, chart, calculator, or note to structure the student&apos;s work.
             </span>
           </p>
+
+          <SimPicker value={artefactId} onChange={setArtefactId} />
 
           <Field label="Lesson prompt (Socratic teaching goal)" htmlFor="activity-goal">
             <textarea

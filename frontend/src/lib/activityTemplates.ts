@@ -42,6 +42,8 @@ export interface ActivityTemplate {
   /** Suggested activity title (the teacher renames). */
   title: string;
   teachingGoal: string;
+  /** Optional sim artefact to host (1.1.41) — a catalogue id. */
+  artefactId?: string;
   checklist: string[];
   table?: TemplateTable;
   chart?: TemplateChart;
@@ -85,9 +87,10 @@ export const ACTIVITY_TEMPLATES: ActivityTemplate[] = [
   {
     id: "projectile-motion",
     name: "Kastebevægelse",
-    summary: "Vinkel vs. rækkevidde — datatabel + graf, til brug med Boldkast-simulationen.",
+    summary: "Boldkast-simulation + datatabel + graf — vinkel vs. rækkevidde.",
     language: "da",
     title: "Kastebevægelse",
+    artefactId: "boldkast",
     teachingGoal:
       "Hjælp eleven med at undersøge kastebevægelse med Boldkast-simulationen. Bed eleven variere " +
       "udgangsvinklen, aflæse rækkevidden og notere den i tabellen. Stil spørgsmål til sammenhængen " +

@@ -129,6 +129,19 @@ export interface NoteElement {
   body: string;
 }
 
+/** A catalogued sim artefact a teacher can attach to an activity (1.1.41) — the
+ *  public view from `GET /api/artefacts` (never the server-side `tutorBlock`). */
+export interface ArtefactSummary {
+  id: string;
+  displayName: string;
+  description: string;
+  topics: string[];
+  levels: StxLevel[];
+  language: string;
+  artefactPath: string;
+  status: string;
+}
+
 /** Danish stx physics level — the primary curriculum browse axis (1.1.25). */
 export type StxLevel = "A" | "B" | "C";
 
@@ -284,6 +297,14 @@ export async function listMyActivities(
   const qs = classId ? `?classId=${encodeURIComponent(classId)}` : "";
   const resp = await fetchWithAuth(`/api/proxy/api/activity-configs${qs}`);
   return readJson<ActivityConfigPayload[]>(resp, "list activities");
+}
+
+/** List the sim-artefact catalogue (1.1.41) — the vetted, pilot-visible sims a
+ *  teacher can attach to an activity. `tutorBlock` is never returned. */
+export async function listArtefacts(): Promise<ArtefactSummary[]> {
+  const resp = await fetchWithAuth(`/api/proxy/api/artefacts?status=live`);
+  const data = await readJson<{ artefacts: ArtefactSummary[] }>(resp, "list artefacts");
+  return data.artefacts;
 }
 
 /** List the available personas (the YAML catalogue, 1.1.12). */
