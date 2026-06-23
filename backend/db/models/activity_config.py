@@ -151,6 +151,22 @@ class CalculatorElement(BaseModel):
     model_config = ConfigDict(populate_by_name=True)
 
 
+class NoteElement(BaseModel):
+    """A teacher-authored reference / instructions note (1.1.38 M4).
+
+    A Markdown ``body`` rendered read-only in the workspace — instructions, a
+    formula reference, a definition. This is the architecture's "instructions /
+    formula references are AIPLA's job" element; it is distinct from uploaded
+    curriculum ``materials`` (which are files surfaced in the Documents tab).
+    """
+
+    id: str = Field(min_length=1, max_length=64)
+    title: str = Field(default="", max_length=120)
+    body: str = Field(min_length=1, max_length=4000)
+
+    model_config = ConfigDict(populate_by_name=True)
+
+
 # Workbench type system (1.J expanded-workbench-types). ``none`` is a
 # first-class, no-simulator activity (chat-only Socratic dialogue, the
 # v1.1 teacher-authoring headline). ``app`` is a paired MCP-App sim.
@@ -172,9 +188,9 @@ WorkbenchType = Literal["app", "drawing", "sensor", "video", "notebook", "none"]
 # the consistency tests on both ends).
 #
 # v1.1 ships the ``checklist`` (M0) + ``table`` (M1) + ``chart`` (M2) +
-# ``calculator`` (M3); ``document`` (M4) lands next; ``quiz`` (inline, A2UI)
-# joins when 1.1.19 M2 builds it.
-ElementKind = Literal["checklist", "table", "chart", "calculator"]
+# ``calculator`` (M3) + ``note`` (M4 — the teacher-authored instructions /
+# reference element). ``quiz`` (inline, A2UI) joins when 1.1.19 M2 builds it.
+ElementKind = Literal["checklist", "table", "chart", "calculator", "note"]
 ElementRender = Literal["workspace", "inline"]
 
 
@@ -202,6 +218,7 @@ ELEMENT_REGISTRY: dict[ElementKind, ElementSpec] = {
     "table": ElementSpec(kind="table", field="table", max_items=5, render="workspace"),
     "chart": ElementSpec(kind="chart", field="chart", max_items=5, render="workspace"),
     "calculator": ElementSpec(kind="calculator", field="calculator", max_items=5, render="workspace"),
+    "note": ElementSpec(kind="note", field="note", max_items=5, render="workspace"),
 }
 
 
@@ -237,6 +254,8 @@ class ActivityConfig(BaseModel):
     # Formula calculators the student uses (1.1.38 M3). The formula string is
     # inert here — evaluated only client-side by a safe parser (no eval).
     calculator: list[CalculatorElement] = Field(default_factory=list)
+    # Teacher-authored instructions / reference notes (1.1.38 M4), Markdown body.
+    note: list[NoteElement] = Field(default_factory=list)
     # Curriculum documents cited for this activity (1.1.25 M3). The tutor
     # retrieval tool is scoped to ONLY these docs (student deny-by-default).
     materials: list[MaterialRef] = Field(default_factory=list)
@@ -296,6 +315,7 @@ __all__ = [
     "InteractionStyle",
     "Language",
     "MaterialRef",
+    "NoteElement",
     "TableColumn",
     "TableElement",
     "WorkbenchType",

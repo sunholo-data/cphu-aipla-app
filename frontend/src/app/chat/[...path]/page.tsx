@@ -63,6 +63,7 @@ import { type ChecklistItem } from "@/components/workspace/ProgressChecklist";
 import { type TableElementDef } from "@/components/workspace/WorkbenchTable";
 import { type ChartElementDef } from "@/components/workspace/WorkbenchChart";
 import { type CalculatorElementDef } from "@/components/workspace/WorkbenchCalculator";
+import { type NoteElementDef } from "@/components/workspace/WorkbenchNote";
 import { WorkspaceElements } from "@/components/workspace/elementRenderers";
 import { DocumentsPanel, type ActivityMaterial } from "@/components/workspace/DocumentsPanel";
 import { workspaceContentKind } from "./workspaceContent";
@@ -416,6 +417,8 @@ function ChatShell({
   const [activeChart, setActiveChart] = useState<ChartElementDef[]>([]);
   // 1.1.38 M3 — formula calculators (computed client-side via the safe parser).
   const [activeCalculator, setActiveCalculator] = useState<CalculatorElementDef[]>([]);
+  // 1.1.38 M4 — teacher-authored instructions / reference notes (Markdown).
+  const [activeNote, setActiveNote] = useState<NoteElementDef[]>([]);
   // 1.1.33 M2b/M1 — the activity's grounding documents (names-always + a
   // studentVisible flag), surfaced in the Documents workbench panel.
   const [activeMaterials, setActiveMaterials] = useState<ActivityMaterial[]>([]);
@@ -429,7 +432,8 @@ function ChatShell({
     activeChecklist.length > 0 ||
       activeTable.length > 0 ||
       activeChart.length > 0 ||
-      activeCalculator.length > 0,
+      activeCalculator.length > 0 ||
+      activeNote.length > 0,
   );
   // 1.1.33 M1 — the student's uploaded photos this session (native AG-UI image
   // parts already on the messages); fed to the Documents panel's gallery.
@@ -448,6 +452,7 @@ function ChatShell({
       setActiveTable([]);
       setActiveChart([]);
       setActiveCalculator([]);
+      setActiveNote([]);
       setActivePersona(null);
       setActiveMaterials([]);
       return;
@@ -461,6 +466,7 @@ function ChatShell({
         if (Array.isArray(data.table)) setActiveTable(data.table as TableElementDef[]);
         if (Array.isArray(data.chart)) setActiveChart(data.chart as ChartElementDef[]);
         if (Array.isArray(data.calculator)) setActiveCalculator(data.calculator as CalculatorElementDef[]);
+        if (Array.isArray(data.note)) setActiveNote(data.note as NoteElementDef[]);
         setActivePersona((data.persona as PersonaSummary | null) ?? null);
         setActiveMaterials(Array.isArray(data.materials) ? (data.materials as ActivityMaterial[]) : []);
       })
@@ -1268,6 +1274,7 @@ function ChatShell({
                 table={activeTable}
                 chart={activeChart}
                 calculator={activeCalculator}
+                note={activeNote}
               />
             ))}
             {/* 1.1.33 M1 — Documents: the activity's grounding sources (names

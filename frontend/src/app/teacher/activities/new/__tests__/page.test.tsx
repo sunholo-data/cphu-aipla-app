@@ -232,6 +232,21 @@ describe("/teacher/activities/new — concept activity builder", () => {
     ]);
   });
 
+  it("sends a note element when the teacher writes one", async () => {
+    listClassesMock.mockResolvedValue(ONE_CLASS);
+    render(<NewActivityPage />);
+    fireEvent.change(await screen.findByLabelText(/activity name/i), { target: { value: "Lab" } });
+    fireEvent.change(screen.getByLabelText(/lesson prompt/i), { target: { value: "Read." } });
+    fireEvent.click(screen.getByRole("button", { name: /add note/i }));
+    fireEvent.change(screen.getByLabelText(/note text/i), { target: { value: "v = s / t" } });
+    fireEvent.click(screen.getByRole("button", { name: /create activity/i }));
+
+    await waitFor(() => expect(saveActivityConfigMock).toHaveBeenCalledTimes(1));
+    expect(saveActivityConfigMock.mock.calls[0][0].note).toEqual([
+      { id: "note-1", title: "", body: "v = s / t" },
+    ]);
+  });
+
   it("blocks submit until a title and a lesson prompt are entered", async () => {
     listClassesMock.mockResolvedValue(ONE_CLASS);
     render(<NewActivityPage />);

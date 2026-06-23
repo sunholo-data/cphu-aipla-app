@@ -7,6 +7,7 @@ import { ELEMENT_KINDS, isWorkspaceElement, type ElementKind } from "@/lib/activ
 import { ProgressChecklist, type ChecklistItem } from "./ProgressChecklist";
 import { WorkbenchCalculator, type CalculatorElementDef } from "./WorkbenchCalculator";
 import { WorkbenchChart, type ChartElementDef } from "./WorkbenchChart";
+import { WorkbenchNote, type NoteElementDef } from "./WorkbenchNote";
 import { WorkbenchTable, type TableElementDef } from "./WorkbenchTable";
 
 /**
@@ -23,6 +24,7 @@ export interface ElementRenderContext {
   table: TableElementDef[];
   chart: ChartElementDef[];
   calculator: CalculatorElementDef[];
+  note: NoteElementDef[];
 }
 
 /**
@@ -55,6 +57,8 @@ export const elementRenderers: Record<ElementKind, (ctx: ElementRenderContext) =
     ctx.calculator.length > 0 ? (
       <WorkbenchCalculator skillId={ctx.skillId} calculators={ctx.calculator} />
     ) : null,
+  note: (ctx) =>
+    ctx.note.length > 0 ? <WorkbenchNote skillId={ctx.skillId} notes={ctx.note} /> : null,
 };
 
 /**

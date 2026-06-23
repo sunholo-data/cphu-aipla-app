@@ -21,6 +21,7 @@ from db.models.activity_config import (
     InteractionStyle,
     Language,
     MaterialRef,
+    NoteElement,
     TableElement,
     WorkbenchType,
 )
@@ -61,6 +62,7 @@ def upsert_activity_config(
     table: list[TableElement] | None = None,
     chart: list[ChartElement] | None = None,
     calculator: list[CalculatorElement] | None = None,
+    note: list[NoteElement] | None = None,
     materials: list[MaterialRef] | None = None,
 ) -> ActivityConfig:
     """Create or overwrite the activity config for this (teacher, class, activity).
@@ -85,6 +87,7 @@ def upsert_activity_config(
         table=table or [],
         chart=chart or [],
         calculator=calculator or [],
+        note=note or [],
         materials=materials or [],
         updatedAt=_utcnow(),
     )

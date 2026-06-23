@@ -15,6 +15,9 @@ vi.mock("../WorkbenchChart", () => ({
 vi.mock("../WorkbenchCalculator", () => ({
   WorkbenchCalculator: () => <div data-testid="calculator" />,
 }));
+vi.mock("../WorkbenchNote", () => ({
+  WorkbenchNote: () => <div data-testid="note" />,
+}));
 
 import { WorkspaceElements } from "../elementRenderers";
 
@@ -22,9 +25,10 @@ const CHECK = [{ id: "a", label: "A" }];
 const TABLE = [{ id: "t1", title: "T", columns: [{ id: "c", label: "C" }], rows: 2 }];
 const CHART = [{ id: "c1", chartKind: "scatter" as const }];
 const CALC = [{ id: "calc1", formula: "s", inputs: [{ id: "s", label: "S" }] }];
-const EMPTY = { checklist: [], table: [], chart: [], calculator: [] };
+const NOTE = [{ id: "n1", body: "hej" }];
+const EMPTY = { checklist: [], table: [], chart: [], calculator: [], note: [] };
 
-describe("WorkspaceElements dispatch (1.1.38 M1/M2/M3)", () => {
+describe("WorkspaceElements dispatch (1.1.38 M1–M4)", () => {
   it("renders nothing when no workspace element is present", () => {
     const { container } = render(<WorkspaceElements skillId="s" {...EMPTY} />);
     expect(container).toBeEmptyDOMElement();
@@ -51,11 +55,24 @@ describe("WorkspaceElements dispatch (1.1.38 M1/M2/M3)", () => {
     expect(screen.getByTestId("calculator")).toBeInTheDocument();
   });
 
+  it("renders the note when present", () => {
+    render(<WorkspaceElements skillId="s" {...EMPTY} note={NOTE} />);
+    expect(screen.getByTestId("note")).toBeInTheDocument();
+  });
+
   it("stacks all present elements", () => {
-    render(<WorkspaceElements skillId="s" checklist={CHECK} table={TABLE} chart={CHART} calculator={CALC} />);
-    expect(screen.getByTestId("checklist")).toBeInTheDocument();
-    expect(screen.getByTestId("table")).toBeInTheDocument();
-    expect(screen.getByTestId("chart")).toBeInTheDocument();
-    expect(screen.getByTestId("calculator")).toBeInTheDocument();
+    render(
+      <WorkspaceElements
+        skillId="s"
+        checklist={CHECK}
+        table={TABLE}
+        chart={CHART}
+        calculator={CALC}
+        note={NOTE}
+      />,
+    );
+    for (const id of ["checklist", "table", "chart", "calculator", "note"]) {
+      expect(screen.getByTestId(id)).toBeInTheDocument();
+    }
   });
 });

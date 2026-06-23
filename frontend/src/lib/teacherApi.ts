@@ -121,6 +121,14 @@ export interface CalculatorElement {
   inputs: CalcInput[];
 }
 
+/** A teacher-authored instructions / reference note (1.1.38 M4). Markdown body,
+ *  rendered read-only in the workspace. Distinct from uploaded `materials`. */
+export interface NoteElement {
+  id: string;
+  title?: string;
+  body: string;
+}
+
 /** Danish stx physics level — the primary curriculum browse axis (1.1.25). */
 export type StxLevel = "A" | "B" | "C";
 
@@ -166,6 +174,8 @@ export interface ActivityConfigUpsert {
   chart?: ChartElement[];
   /** Formula calculators the student uses (1.1.38 M3). */
   calculator?: CalculatorElement[];
+  /** Teacher-authored instructions / reference notes (1.1.38 M4). */
+  note?: NoteElement[];
   materials?: MaterialRef[];
 }
 

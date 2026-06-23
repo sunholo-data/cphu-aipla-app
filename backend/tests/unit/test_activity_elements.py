@@ -20,6 +20,7 @@ from db.models.activity_config import (
     CalculatorElement,
     ChartElement,
     ChecklistItem,
+    NoteElement,
     TableColumn,
     TableElement,
 )
@@ -191,3 +192,29 @@ def test_calc_input_id_must_be_an_identifier() -> None:
     with pytest.raises(ValidationError):
         CalcInput(id="s+t", label="bad")
     assert CalcInput(id="v_0", label="ok").id == "v_0"
+
+
+# --- note element (1.1.38 M4) ---------------------------------------------
+
+
+def test_note_is_a_registered_workspace_element() -> None:
+    spec = ELEMENT_REGISTRY["note"]
+    assert spec.field == "note"
+    assert spec.render == "workspace"
+
+
+def test_note_within_cap_roundtrips() -> None:
+    cfg = _config(note=[NoteElement(id="n1", title="Husk", body="**v = s / t**")])
+    assert cfg.note[0].body == "**v = s / t**"
+
+
+def test_note_requires_a_body() -> None:
+    with pytest.raises(ValidationError):
+        NoteElement(id="n", body="")
+
+
+def test_note_over_cap_is_rejected() -> None:
+    cap = ELEMENT_REGISTRY["note"].max_items
+    notes = [NoteElement(id=f"n{i}", body="x") for i in range(cap + 1)]
+    with pytest.raises(ValidationError):
+        _config(note=notes)

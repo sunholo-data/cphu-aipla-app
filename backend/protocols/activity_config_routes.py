@@ -39,6 +39,7 @@ from db.models.activity_config import (
     InteractionStyle,
     Language,
     MaterialRef,
+    NoteElement,
     TableElement,
     WorkbenchType,
 )
@@ -83,6 +84,8 @@ class ActivityConfigUpsert(BaseModel):
     chart: list[ChartElement] = Field(default_factory=list)
     # Formula calculators the student uses (1.1.38 M3).
     calculator: list[CalculatorElement] = Field(default_factory=list)
+    # Teacher-authored instructions / reference notes (1.1.38 M4).
+    note: list[NoteElement] = Field(default_factory=list)
     # Curriculum documents cited for this activity (1.1.25 M4). The tutor
     # retrieval tool is scoped to ONLY these docs (student deny-by-default).
     materials: list[MaterialRef] = Field(default_factory=list)
@@ -129,6 +132,7 @@ async def post_activity_config(
         table=body.table,
         chart=body.chart,
         calculator=body.calculator,
+        note=body.note,
         materials=body.materials,
     )
     log.info(
@@ -184,6 +188,7 @@ async def get_active_activity_config(
             "table": [],
             "chart": [],
             "calculator": [],
+            "note": [],
             "workbenchType": "none",
             "persona": persona_block,
             "materials": [],
@@ -201,6 +206,7 @@ async def get_active_activity_config(
         "table": [t.model_dump(by_alias=True) for t in cfg.table],
         "chart": [c.model_dump(by_alias=True) for c in cfg.chart],
         "calculator": [c.model_dump(by_alias=True) for c in cfg.calculator],
+        "note": [n.model_dump(by_alias=True) for n in cfg.note],
         "workbenchType": cfg.workbench_type,
         "persona": persona_block,
         "materials": materials,
@@ -274,6 +280,7 @@ async def patch_activity_config(
         table=body.table,
         chart=body.chart,
         calculator=body.calculator,
+        note=body.note,
         materials=body.materials,
     )
     return _serialize(cfg)

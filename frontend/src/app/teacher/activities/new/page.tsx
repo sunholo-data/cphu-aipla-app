@@ -22,6 +22,7 @@ import { InheritedPersona } from "@/components/teacher/InheritedPersona";
 import { TableEditor, type TableEditorValue } from "@/components/teacher/TableEditor";
 import { ChartEditor, type ChartEditorValue } from "@/components/teacher/ChartEditor";
 import { CalculatorEditor, type CalculatorEditorValue } from "@/components/teacher/CalculatorEditor";
+import { NoteEditor, type NoteEditorValue } from "@/components/teacher/NoteEditor";
 
 // TAA-1 M0: a from-scratch activity runs the `concept-dialogue` base
 // skill (chat-only Socratic tutor). The teacher's title + lesson prompt
@@ -94,6 +95,8 @@ function NewActivityForm() {
   const [chart, setChart] = useState<ChartEditorValue | null>(null);
   // Optional formula calculator (1.1.38 M3). `null` = no calculator.
   const [calculator, setCalculator] = useState<CalculatorEditorValue | null>(null);
+  // Optional instructions / reference note (1.1.38 M4). `null` = no note.
+  const [note, setNote] = useState<NoteEditorValue | null>(null);
 
   const [isSaving, setIsSaving] = useState(false);
   const [saveError, setSaveError] = useState<string | null>(null);
@@ -154,6 +157,7 @@ function NewActivityForm() {
         table: buildTablePayload(table),
         chart: chart ? [{ id: "chart-1", title: chart.title.trim(), chartKind: chart.chartKind }] : [],
         calculator: buildCalculatorPayload(calculator),
+        note: note && note.body.trim() ? [{ id: "note-1", title: note.title.trim(), body: note.body.trim() }] : [],
         materials,
       });
       // Bind the concept-dialogue lesson to the class so students in it
@@ -336,6 +340,8 @@ function NewActivityForm() {
           />
 
           <CalculatorEditor value={calculator} onChange={setCalculator} />
+
+          <NoteEditor value={note} onChange={setNote} />
 
           <MaterialsSection materials={materials} onChange={setMaterials} />
 
