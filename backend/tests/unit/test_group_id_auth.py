@@ -37,6 +37,7 @@ from auth.group_id_auth import (
     delete_group,
     get_group,
     join_group,
+    refresh_group_token,
     upsert_group,
     verify_group_token,
 )
@@ -517,3 +518,96 @@ def test_upsert_group_rejects_empty_code():
             creator_uid="u",
             ttl_days=30,
         )
+
+
+# ─── Token refresh (silent renewal for long-lived anonymous sessions) ─────────
+
+
+def test_refresh_mints_a_new_valid_token_for_same_group():
+    """The happy path: a held token is traded for a fresh, verifiable one
+    that resolves to the SAME deterministic uid (shared group session)."""
+    rec = create_group(title="x", skill_ids=["s"], creator_uid="u", ttl_days=30)
+    joined = join_group(rec.group_id, client_ip="1.2.3.4")
+
+    refreshed = refresh_group_token(joined.token)
+
+    assert refreshed.uid == joined.uid  # deterministic uid preserved
+    assert refreshed.group_id == rec.group_id
+    claims = verify_group_token(refreshed.token)
+    assert claims["group_id"] == rec.group_id
+    assert claims["auth_mode"] == "anonymous_group_id"
+
+
+def test_refresh_accepts_an_expired_but_validly_signed_token():
+    """The whole point: a stale token (laptop slept past the 8h TTL) is
+    rejected by verify_group_token but ACCEPTED by refresh, which returns a
+    fresh token — as long as the underlying group CODE is still alive."""
+    rec = create_group(title="x", skill_ids=["s"], creator_uid="u", ttl_days=30)
+    secret = os.environ[GROUP_AUTH_SIGNING_SECRET_ENV]
+    expired = jwt.encode(
+        {
+            "sub": f"anon-{rec.group_id.replace('-', '')}",
+            "group_id": rec.group_id,
+            "exp": time.time() - 3600,  # expired an hour ago
+            "iat": time.time() - 9 * 3600,
+            "auth_mode": "anonymous_group_id",
+        },
+        secret,
+        algorithm="HS256",
+    )
+
+    with pytest.raises(InvalidGroupToken):
+        verify_group_token(expired)  # genuinely expired
+
+    refreshed = refresh_group_token(expired)  # ...but refreshable
+    claims = verify_group_token(refreshed.token)
+    assert claims["group_id"] == rec.group_id
+    assert refreshed.expires_at > time.time()
+
+
+def test_refresh_rejects_a_tampered_signature():
+    rec = create_group(title="x", skill_ids=["s"], creator_uid="u", ttl_days=30)
+    joined = join_group(rec.group_id, client_ip="1.2.3.4")
+    with pytest.raises(InvalidGroupToken):
+        refresh_group_token(joined.token + "tamper")
+
+
+def test_refresh_rejects_a_revoked_group():
+    rec = create_group(title="x", skill_ids=["s"], creator_uid="u1", ttl_days=30)
+    joined = join_group(rec.group_id, client_ip="1.2.3.4")
+    delete_group(rec.group_id, requesting_uid="u1")
+    with pytest.raises(GroupRevoked):
+        refresh_group_token(joined.token)
+
+
+def test_refresh_rejects_when_the_group_code_has_expired():
+    """The token's own expiry is ignored, but the CODE's TTL is enforced:
+    a dead code can't be refreshed into a live token (the student must get a
+    new code from their teacher)."""
+    t0 = time.time()
+    rec = create_group(title="x", skill_ids=["s"], creator_uid="u", ttl_days=1)
+    joined = join_group(rec.group_id, client_ip="1.2.3.4")
+    with _freeze_time(t0 + 2 * 86400):  # past the 1-day code TTL
+        with pytest.raises(GroupExpired):
+            refresh_group_token(joined.token)
+
+
+def test_refresh_does_not_consume_a_session_cap_slot():
+    """Refresh is the same member continuing, not a new join: it must NOT
+    burn a daily session-cap slot. Proven by capping at 1, joining once, then
+    refreshing repeatedly — and showing a genuine second join still hits the
+    cap (so the accounting was untouched)."""
+    rec = create_group(
+        title="x",
+        skill_ids=["s"],
+        creator_uid="u",
+        ttl_days=30,
+        max_concurrent_sessions=1,
+    )
+    joined = join_group(rec.group_id, client_ip="1.2.3.4")  # consumes the slot
+
+    for _ in range(5):
+        refresh_group_token(joined.token)  # must not raise / not increment
+
+    with pytest.raises(GroupSessionCapExceeded):
+        join_group(rec.group_id, client_ip="5.6.7.8")

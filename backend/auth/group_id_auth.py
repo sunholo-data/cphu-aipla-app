@@ -113,6 +113,9 @@ class JoinResult:
     """Human-readable class name (e.g. "Hold 9A"). Null for unbound codes."""
     class_id: str | None = None
     """Firestore class_id for the bound class. Null for unbound codes."""
+    group_id: str = ""
+    """The (normalized) group code this token authorizes. Set by join + refresh
+    so callers can resolve the active session without re-decoding the JWT."""
 
 
 # ─── State holder (module-level singleton) ──────────────────────────────────
@@ -613,6 +616,51 @@ def delete_group(group_id: str, requesting_uid: str) -> None:
     logger.info("group_auth: revoked group=%s by uid=%s", group_id, requesting_uid)
 
 
+def _mint_token(uid: str, group_id: str, now: float) -> tuple[str, float]:
+    """Sign a fresh group JWT for ``uid``. Returns ``(token, exp)``.
+
+    Shared by ``join_group`` (gate 7) and ``refresh_group_token`` so the two
+    paths always mint an identical claim shape — the only difference is that
+    join counts against the daily session cap and refresh does not.
+    """
+    exp = now + DEFAULT_TOKEN_LIFETIME_SECONDS
+    claims = {
+        "sub": uid,
+        "group_id": group_id,
+        "exp": exp,
+        "iat": now,
+        "auth_mode": AUTH_MODE,
+    }
+    token = jwt.encode(claims, _signing_secret(), algorithm=JWT_ALGORITHM)
+    return token, exp
+
+
+def _resolve_live_class_context(group_id: str, record: GroupRecord) -> tuple[tuple[str, ...], str | None, str | None]:
+    """Resolve ``(skill_ids, class_name, class_id)`` for a group code.
+
+    Class-bound codes read their lesson list from the live ``Class.lessons``
+    (so teacher edits show up without re-minting the code); unbound codes fall
+    back to the snapshot in ``GroupRecord.skill_ids``. Shared by join + refresh.
+    """
+    live_skill_ids = record.skill_ids
+    resolved_class_name: str | None = None
+    resolved_class_id: str | None = None
+
+    from db.classes import get_class
+    from db.firestore import get_document
+
+    anon_doc = get_document("anon_groups", group_id)
+    if anon_doc:
+        bound_class_id = anon_doc.get("classId")
+        if bound_class_id:
+            cls = get_class(bound_class_id)
+            if cls and not cls.revoked:
+                live_skill_ids = tuple(cls.lessons)
+                resolved_class_name = cls.name
+                resolved_class_id = cls.class_id
+    return live_skill_ids, resolved_class_name, resolved_class_id
+
+
 # ─── Public API: join ───────────────────────────────────────────────────────
 
 
@@ -671,18 +719,10 @@ def join_group(group_id: str, *, client_ip: str) -> JoinResult:
     if current >= record.max_concurrent_sessions:
         raise GroupSessionCapExceeded(f"group {group_id} reached daily session cap ({record.max_concurrent_sessions})")
 
-    # Gate 7: happy path — mint token.
+    # Gate 7: happy path — mint token + count the session against the daily cap.
     now = AnonymousGroupAuth.time_provider()
     uid = _synthesize_uid(group_id)
-    exp = now + DEFAULT_TOKEN_LIFETIME_SECONDS
-    claims = {
-        "sub": uid,
-        "group_id": group_id,
-        "exp": exp,
-        "iat": now,
-        "auth_mode": AUTH_MODE,
-    }
-    token = jwt.encode(claims, _signing_secret(), algorithm=JWT_ALGORITHM)
+    token, exp = _mint_token(uid, group_id, now)
     _state.sessions_today[cap_key] = current + 1
     logger.info(
         "group_auth: joined group=%s uid=%s session_n=%d",
@@ -691,26 +731,7 @@ def join_group(group_id: str, *, client_ip: str) -> JoinResult:
         current + 1,
     )
 
-    # Live-resolve class context. If the code is bound to a class, use the
-    # class's current lesson list instead of the snapshot in GroupRecord so
-    # teachers can add/remove lessons without re-minting codes.
-    live_skill_ids = record.skill_ids
-    resolved_class_name: str | None = None
-    resolved_class_id: str | None = None
-
-    from db.classes import get_class
-    from db.firestore import get_document
-
-    anon_doc = get_document("anon_groups", group_id)
-    if anon_doc:
-        bound_class_id = anon_doc.get("classId")
-        if bound_class_id:
-            cls = get_class(bound_class_id)
-            if cls and not cls.revoked:
-                live_skill_ids = tuple(cls.lessons)
-                resolved_class_name = cls.name
-                resolved_class_id = cls.class_id
-
+    live_skill_ids, resolved_class_name, resolved_class_id = _resolve_live_class_context(group_id, record)
     return JoinResult(
         token=token,
         uid=uid,
@@ -718,6 +739,7 @@ def join_group(group_id: str, *, client_ip: str) -> JoinResult:
         skill_ids=live_skill_ids,
         class_name=resolved_class_name,
         class_id=resolved_class_id,
+        group_id=group_id,
     )
 
 
@@ -760,6 +782,83 @@ def verify_group_token(token: str) -> dict:
     return claims
 
 
+# ─── Public API: refresh ────────────────────────────────────────────────────
+
+
+def refresh_group_token(token: str) -> JoinResult:
+    """Re-mint a fresh token for a caller presenting an EXISTING group token.
+
+    The silent-renewal path for long-lived anonymous sessions. A group JWT
+    lives ``DEFAULT_TOKEN_LIFETIME_SECONDS`` (8h); the group CODE lives up to
+    30 days. When a student leaves a tab open across a laptop sleep, the
+    in-memory token goes stale and every API call 401s with no recovery — the
+    frontend's only durable credential is the code itself. This lets the
+    frontend trade an expired-but-validly-signed token for a fresh one WITHOUT
+    re-running the join flow.
+
+    Differs from ``join_group`` in two deliberate ways:
+      1. **Accepts expired tokens.** Signature + claim-shape + auth_mode must
+         still verify, but ``exp`` is intentionally NOT enforced — a stale
+         token is exactly the case being recovered. The group code's own
+         expiry (``_check_group_active``) IS still enforced, so a dead code
+         cannot be refreshed into a live token.
+      2. **Does NOT consume a daily session-cap slot** and is NOT IP rate-
+         limited. Refresh is the SAME member continuing the SAME shared group
+         session (deterministic uid), not a new join: counting it against the
+         cap would let one long-lived student exhaust the group quota, and
+         rate-limiting would 429 a whole classroom waking laptops behind one
+         NAT. The valid-signature requirement is the abuse gate.
+
+    Raises:
+        InvalidGroupToken: bad signature, wrong algorithm, or malformed claims.
+        GroupNotFound:     the group code no longer exists.
+        GroupExpired:      the group code's TTL has elapsed.
+        GroupRevoked:      the teacher revoked the group.
+    """
+    # Decode WITHOUT expiry enforcement — recovering a stale token is the point.
+    try:
+        claims = jwt.decode(
+            token,
+            _signing_secret(),
+            algorithms=[JWT_ALGORITHM],
+            options={"verify_exp": False},
+        )
+    except jwt.InvalidTokenError as exc:
+        raise InvalidGroupToken(f"token invalid: {exc}") from exc
+
+    required = {"sub", "group_id", "exp", "iat", "auth_mode"}
+    if set(claims.keys()) != required:
+        raise InvalidGroupToken(f"token claims must be {sorted(required)}; got {sorted(claims.keys())}")
+    if claims["auth_mode"] != AUTH_MODE:
+        raise InvalidGroupToken(f"token auth_mode is {claims['auth_mode']!r}, expected {AUTH_MODE!r}")
+
+    group_id = claims["group_id"]
+
+    # Group-level gates (mirror join gates 2-4): revoked? exists? code expired?
+    if group_id in _state.revoked_group_ids:
+        raise GroupRevoked(f"group {group_id} has been revoked")
+    record = get_group(group_id)
+    if record is None:
+        raise GroupNotFound(f"group {group_id} not found")
+    _check_group_active(record)
+
+    now = AnonymousGroupAuth.time_provider()
+    uid = _synthesize_uid(group_id)
+    new_token, exp = _mint_token(uid, group_id, now)
+    logger.info("group_auth: refreshed token group=%s uid=%s", group_id, uid)
+
+    live_skill_ids, resolved_class_name, resolved_class_id = _resolve_live_class_context(group_id, record)
+    return JoinResult(
+        token=new_token,
+        uid=uid,
+        expires_at=exp,
+        skill_ids=live_skill_ids,
+        class_name=resolved_class_name,
+        class_id=resolved_class_id,
+        group_id=group_id,
+    )
+
+
 __all__ = [
     "AUTH_MODE",
     "GROUP_AUTH_SIGNING_SECRET_ENV",
@@ -775,6 +874,7 @@ __all__ = [
     "delete_group",
     "get_group",
     "join_group",
+    "refresh_group_token",
     "upsert_group",
     "verify_group_token",
 ]

@@ -216,3 +216,83 @@ describe("useAnonymousGroupAuth hook misuse", () => {
     spy.mockRestore();
   });
 });
+
+describe("AnonymousGroupAuthProvider — silent token refresh", () => {
+  /** Re-hydrate from storage with a token that's inside the renewal skew
+   * window (fireAt already in the past), so the proactive effect renews it. */
+  function seedNearExpirySession() {
+    sessionStorage.setItem(
+      ANON_GROUP_TOKEN_STORAGE_KEY,
+      JSON.stringify({
+        token: "stale.token",
+        uid: "anon-phys7k2n",
+        expires_at: Date.now() / 1000 + 60, // 60s left — inside the 5-min skew
+        group_code: "PHYS-7K2N",
+      }),
+    );
+  }
+
+  it("silently renews a near-expiry token on mount and carries the code forward", async () => {
+    seedNearExpirySession();
+    mockFetchSuccess({
+      token: "fresh.token",
+      uid: "anon-phys7k2n",
+      expires_at: Date.now() / 1000 + 28800,
+    });
+
+    const { result } = renderHook(() => useAnonymousGroupAuth(), { wrapper: wrap });
+
+    await waitFor(() =>
+      expect(fetchMock).toHaveBeenCalledWith(
+        "/api/proxy/api/auth/group/refresh",
+        expect.objectContaining({ method: "POST" }),
+      ),
+    );
+    await waitFor(() => expect(result.current.token).toBe("fresh.token"));
+    // group_code is preserved across the refresh (refresh response omits it).
+    expect(result.current.groupCode).toBe("PHYS-7K2N");
+    expect(result.current.status).toBe("joined");
+  });
+
+  it("transitions to expired when refresh is rejected (code revoked/expired)", async () => {
+    seedNearExpirySession();
+    mockFetchFailure(401);
+
+    const { result } = renderHook(() => useAnonymousGroupAuth(), { wrapper: wrap });
+
+    await waitFor(() => expect(result.current.status).toBe("expired"));
+  });
+
+  it("renews on tab wake (visibilitychange) without waiting for the timer", async () => {
+    vi.useFakeTimers();
+    try {
+      // visibilityState is a getter in jsdom — force it visible for the handler.
+      Object.defineProperty(document, "visibilityState", {
+        configurable: true,
+        get: () => "visible",
+      });
+      seedNearExpirySession();
+      mockFetchSuccess({
+        token: "fresh.token",
+        uid: "anon-phys7k2n",
+        expires_at: Date.now() / 1000 + 28800,
+      });
+
+      renderHook(() => useAnonymousGroupAuth(), { wrapper: wrap });
+
+      // Do NOT advance timers — prove the wake path fires refresh on its own.
+      // The async refresh resolves a microtask later; await act so the
+      // setSession lands inside act() (no React warning).
+      await act(async () => {
+        document.dispatchEvent(new Event("visibilitychange"));
+      });
+
+      expect(fetchMock).toHaveBeenCalledWith(
+        "/api/proxy/api/auth/group/refresh",
+        expect.objectContaining({ method: "POST" }),
+      );
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+});

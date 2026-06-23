@@ -40,10 +40,12 @@ from auth.group_id_auth import (
     GroupRecord,
     GroupRevoked,
     GroupSessionCapExceeded,
+    InvalidGroupToken,
     create_group,
     delete_group,
     get_group,
     join_group,
+    refresh_group_token,
 )
 from auth.group_rate_limit import RateLimitExceeded
 from db.group_sessions import get_active_session_for_group
@@ -96,6 +98,14 @@ class JoinGroupResponse(BaseModel):
     # Class context for class-bound codes. Null for unbound groups.
     class_name: str | None = None
     class_id: str | None = None
+
+
+class RefreshGroupRequest(BaseModel):
+    """Body of POST /api/auth/group/refresh."""
+
+    token: str = Field(min_length=1)
+
+    model_config = {"extra": "forbid"}
 
 
 class GroupMetadataResponse(BaseModel):
@@ -210,6 +220,39 @@ async def join_group_endpoint(
         expires_at=result.expires_at,
         skill_ids=list(result.skill_ids),
         resumedSessionId=get_active_session_for_group(body.group_id),
+        class_name=result.class_name,
+        class_id=result.class_id,
+    )
+
+
+@router.post("/refresh", status_code=200, response_model=JoinGroupResponse)
+async def refresh_group_endpoint(body: RefreshGroupRequest) -> JoinGroupResponse:
+    """Trade an existing (possibly expired) group token for a fresh one.
+
+    Silent token renewal for long-lived anonymous sessions (a student who
+    leaves a tab open across a laptop sleep). No Firebase auth: the presented
+    token's signature is the credential. NOT rate-limited and does NOT consume
+    a daily session-cap slot — it's the same member continuing the same shared
+    group session, not a new join. See ``refresh_group_token`` for the gates.
+
+    All failure modes are terminal (the caller must re-join with a code), so
+    every one maps to 401 — the frontend treats a 401 here as "session ended".
+    """
+    try:
+        result = refresh_group_token(body.token)
+    except GroupExpired as exc:
+        raise HTTPException(status_code=401, detail=str(exc)) from exc
+    except (GroupRevoked, GroupNotFound) as exc:
+        # Privacy: don't distinguish revoked from unknown in the client message.
+        raise HTTPException(status_code=401, detail="group not found or no longer active") from exc
+    except InvalidGroupToken as exc:
+        raise HTTPException(status_code=401, detail="session token invalid; please re-join") from exc
+    return JoinGroupResponse(
+        token=result.token,
+        uid=result.uid,
+        expires_at=result.expires_at,
+        skill_ids=list(result.skill_ids),
+        resumedSessionId=get_active_session_for_group(result.group_id),
         class_name=result.class_name,
         class_id=result.class_id,
     )

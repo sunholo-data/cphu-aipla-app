@@ -32,6 +32,7 @@ import {
   useCallback,
   useContext,
   useEffect,
+  useRef,
   useState,
 } from "react";
 
@@ -42,6 +43,11 @@ import {
   readStoredGroupSession,
   writeStoredGroupSession,
 } from "@/lib/anonymousGroupAuth";
+
+/** Renew the group token this many seconds before it expires. The token
+ * lives 8h server-side; we renew ~5 min early so an in-flight request never
+ * races the expiry boundary. */
+const REFRESH_SKEW_SECONDS = 5 * 60;
 
 // ─── Public types ───────────────────────────────────────────────────────────
 
@@ -132,6 +138,9 @@ export function AnonymousGroupAuthProvider({ children }: { children: ReactNode }
   const [status, setStatus] = useState<GroupAuthStatus>("idle");
   const [session, setSession] = useState<PersistedGroupSession | null>(null);
   const [error, setError] = useState<GroupAuthError | null>(null);
+  // Guards against overlapping refreshes (timer + visibilitychange can both
+  // fire near expiry).
+  const refreshingRef = useRef(false);
 
   // Re-hydrate from sessionStorage on first mount (e.g. page refresh in
   // the same tab — token is still valid until expires_at).
@@ -196,6 +205,66 @@ export function AnonymousGroupAuthProvider({ children }: { children: ReactNode }
   const markExpired = useCallback(() => {
     setStatus("expired");
   }, []);
+
+  // Silent token renewal. Trades the current (possibly already-expired) token
+  // for a fresh one via the stored group code's still-valid backend record —
+  // no re-join, no new identity (the group uid is deterministic). This is the
+  // fix for "student leaves a tab open across a laptop sleep, token goes stale,
+  // every call 401s". See backend refresh_group_token.
+  const refresh = useCallback(async (): Promise<void> => {
+    const current = session;
+    if (!current?.token || refreshingRef.current) return;
+    refreshingRef.current = true;
+    try {
+      const resp = await fetch("/api/proxy/api/auth/group/refresh", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ token: current.token }),
+      });
+      if (resp.status === 401) {
+        // The code itself is revoked/expired — only a fresh code recovers.
+        setStatus("expired");
+        return;
+      }
+      if (!resp.ok) return; // transient (5xx) — keep the old token, retry later
+      const data = (await resp.json()) as PersistedGroupSession;
+      // The refresh response doesn't echo group_code; carry it forward (it's
+      // the durable credential the UI shows + we re-use).
+      const next: PersistedGroupSession = {
+        ...data,
+        group_code: current.group_code ?? null,
+      };
+      writeStoredGroupSession(next);
+      setSession(next);
+    } catch {
+      // Network error — leave the session intact; a later trigger retries.
+    } finally {
+      refreshingRef.current = false;
+    }
+  }, [session]);
+
+  // Proactively renew before expiry. Two triggers because a setTimeout alone
+  // is unreliable across a laptop sleep (suspended timers fire late or not at
+  // all): (1) a timer ~5 min before expiry for the always-awake case; (2) tab
+  // regaining visibility, which re-checks the skew window on wake.
+  useEffect(() => {
+    if (status !== "joined" || !session?.expires_at) return;
+
+    const fireAt = session.expires_at * 1000 - REFRESH_SKEW_SECONDS * 1000;
+    const timer = setTimeout(() => void refresh(), Math.max(0, fireAt - Date.now()));
+
+    const onVisible = () => {
+      if (document.visibilityState === "visible" && Date.now() >= fireAt) {
+        void refresh();
+      }
+    };
+    document.addEventListener("visibilitychange", onVisible);
+
+    return () => {
+      clearTimeout(timer);
+      document.removeEventListener("visibilitychange", onVisible);
+    };
+  }, [status, session?.expires_at, refresh]);
 
   const clearStoredToken = useCallback(() => {
     clearStoredGroupSession();

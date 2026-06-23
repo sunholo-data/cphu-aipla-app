@@ -478,3 +478,41 @@ class TestActiveSession:
         app.dependency_overrides[get_current_user] = lambda: user
         resp = TestClient(app).get("/api/auth/group/active-session")
         assert resp.status_code == 404
+
+
+class TestRefreshGroupToken:
+    """POST /api/auth/group/refresh — silent renewal of a stale group token."""
+
+    def _join(self) -> tuple[TestClient, dict]:
+        """Create + join a group; return (anon_client, join_response_body)."""
+        teacher = _make_teacher_client("teacher-1")
+        created = teacher.post(
+            "/api/auth/group/create",
+            json={"title": "Physics", "skill_ids": ["s"], "ttl_days": 30},
+        )
+        assert created.status_code == 201, created.text
+        gid = created.json()["group_id"]
+        anon = _make_anonymous_client()
+        joined = anon.post("/api/auth/group/join", json={"group_id": gid})
+        assert joined.status_code == 200, joined.text
+        return anon, joined.json()
+
+    def test_refresh_returns_a_fresh_token_for_the_same_uid(self):
+        anon, joined = self._join()
+        resp = anon.post("/api/auth/group/refresh", json={"token": joined["token"]})
+        assert resp.status_code == 200, resp.text
+        body = resp.json()
+        assert body["uid"] == joined["uid"]
+        assert body["token"]
+        assert "expires_at" in body
+        assert "skill_ids" in body
+
+    def test_refresh_rejects_a_garbage_token_with_401(self):
+        anon = _make_anonymous_client()
+        resp = anon.post("/api/auth/group/refresh", json={"token": "not-a-jwt"})
+        assert resp.status_code == 401, resp.text
+
+    def test_refresh_rejects_an_empty_body_with_422(self):
+        anon = _make_anonymous_client()
+        resp = anon.post("/api/auth/group/refresh", json={})
+        assert resp.status_code == 422, resp.text
