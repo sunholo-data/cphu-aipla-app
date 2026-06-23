@@ -64,11 +64,8 @@ import { type TableElementDef } from "@/components/workspace/WorkbenchTable";
 import { type ChartElementDef } from "@/components/workspace/WorkbenchChart";
 import { type CalculatorElementDef } from "@/components/workspace/WorkbenchCalculator";
 import { type NoteElementDef } from "@/components/workspace/WorkbenchNote";
-import {
-  GenericArtefactFrame,
-  type ActivityArtefact,
-} from "@/components/workspace/GenericArtefactFrame";
-import { WorkspaceElements } from "@/components/workspace/elementRenderers";
+import { type ActivityArtefact } from "@/components/workspace/GenericArtefactFrame";
+import { StudentWorkspace } from "@/components/workspace/StudentWorkspace";
 import { DocumentsPanel, type ActivityMaterial } from "@/components/workspace/DocumentsPanel";
 import { workspaceContentKind } from "./workspaceContent";
 import { BoldkastWorkbench } from "@/components/workspace/BoldkastWorkbench";
@@ -451,6 +448,16 @@ function ChatShell({
   const hasDocuments = activeMaterials.length > 0 || uploadedImages.length > 0;
   const showWorkspace =
     isAnonymousGroupAuthMode() && (workspaceKind !== "none" || hasDocuments);
+  // The generic-artefact activity surface (sim + elements + documents) is the
+  // shared StudentWorkspace — the same component the builder preview renders.
+  // The per-skill legacy frames below predate it and keep the standalone
+  // DocumentsPanel; this flag routes documents through one path or the other so
+  // they never double-render.
+  const usesStudentWorkspace =
+    workspaceKind !== "none" &&
+    skillSlug !== "kinebot-kinematics-tutor" &&
+    skillSlug !== "led-planck-tutor" &&
+    skillSlug !== "problem-set-hints";
 
   // Fetch this activity's teacher-authored checklist (M1.2 resolves it from the
   // student's class). Optional — failure/absence leaves the chat-only render.
@@ -1277,36 +1284,35 @@ function ChatShell({
                 />
               )
             ) : (
-              <>
-                {/* 1.1.41 M1 — a vetted sim artefact attached to a (non-legacy)
-                    activity is the workspace surface; the 1.1.38 elements layer
-                    below it (Q1: stack). */}
-                {activeArtefact && BOLDKAST_SANDBOX_ORIGIN ? (
-                  <GenericArtefactFrame
-                    sandboxOrigin={BOLDKAST_SANDBOX_ORIGIN}
-                    artefact={activeArtefact}
-                    sessionId={sessionId ?? agentSessionId}
-                  />
-                ) : null}
-                <WorkspaceElements
-                  skillId={skillId}
-                  sessionId={sessionId ?? agentSessionId}
-                  checklist={activeChecklist}
-                  table={activeTable}
-                  chart={activeChart}
-                  calculator={activeCalculator}
-                  note={activeNote}
-                />
-              </>
+              // 1.1.41 M1 — a vetted sim artefact is the workspace surface, the
+              // 1.1.38 element tools stack below it, then the documents panel
+              // (1.1.33). One shared component with the builder preview (1.1.40)
+              // so the two can't drift.
+              <StudentWorkspace
+                skillId={skillId}
+                sessionId={sessionId ?? agentSessionId}
+                sandboxOrigin={BOLDKAST_SANDBOX_ORIGIN}
+                artefact={activeArtefact}
+                checklist={activeChecklist}
+                table={activeTable}
+                chart={activeChart}
+                calculator={activeCalculator}
+                note={activeNote}
+                materials={activeMaterials}
+                images={uploadedImages}
+                activityId={skillId}
+              />
             ))}
-            {/* 1.1.33 M1 — Documents: the activity's grounding sources (names
-                always shown, shared/not-shared badge) + the student's uploads.
-                Self-hides when there are neither. */}
-            <DocumentsPanel
-              materials={activeMaterials}
-              images={uploadedImages}
-              activityId={skillId}
-            />
+            {/* Documents for the legacy sim frames + chat-only activities. The
+                generic StudentWorkspace renders its own (guarded so they never
+                double up). Self-hides when there are no materials/uploads. */}
+            {usesStudentWorkspace ? null : (
+              <DocumentsPanel
+                materials={activeMaterials}
+                images={uploadedImages}
+                activityId={skillId}
+              />
+            )}
           </WorkspaceShell>
         )}
       </div>

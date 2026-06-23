@@ -3,11 +3,8 @@
 import { ChevronDown, Eye, FlaskConical, Maximize2, X } from "lucide-react";
 import { type ReactNode, useEffect, useRef, useState } from "react";
 
-import { WorkspaceElements } from "@/components/workspace/elementRenderers";
-import {
-  GenericArtefactFrame,
-  type ActivityArtefact,
-} from "@/components/workspace/GenericArtefactFrame";
+import { StudentWorkspace } from "@/components/workspace/StudentWorkspace";
+import { type ActivityArtefact } from "@/components/workspace/GenericArtefactFrame";
 import { HumanToolEventsProvider } from "@/hooks/useHumanToolEvents";
 import {
   builderToElementDefs,
@@ -15,13 +12,16 @@ import {
   type ActivityElementDefs,
   type BuilderElements,
 } from "@/lib/activityPreview";
-import { listArtefacts, type ArtefactSummary } from "@/lib/teacherApi";
+import { listArtefacts, type ArtefactSummary, type MaterialRef } from "@/lib/teacherApi";
 
 interface ActivityPreviewProps {
   state: BuilderElements;
   /** The attached sim artefact id (1.1.41) — rendered above the elements, the
    *  way a student sees the workspace (sim on top, tools below). */
   artefactId?: string | null;
+  /** Curriculum materials cited for the activity — shown in the documents
+   *  panel exactly as a student sees them (studentVisible governs access). */
+  materials?: MaterialRef[];
 }
 
 // A fixed, non-student skill id so the preview's scratch state (table cells in
@@ -30,7 +30,7 @@ const PREVIEW_SKILL_ID = "__activity_preview__";
 
 // Same origin the chat page derives — NEXT_PUBLIC_MCP_SANDBOX_URL points at
 // /sandbox.html; strip the suffix for the bare sandbox origin. Empty when the
-// environment has no sandbox service (the preview degrades to a labelled card).
+// environment has no sandbox service (the preview shows a labelled card).
 const SANDBOX_ORIGIN = (process.env.NEXT_PUBLIC_MCP_SANDBOX_URL ?? "").replace(
   /\/sandbox\.html$/,
   "",
@@ -38,14 +38,13 @@ const SANDBOX_ORIGIN = (process.env.NEXT_PUBLIC_MCP_SANDBOX_URL ?? "").replace(
 
 /**
  * ActivityPreview — live in-builder preview of the workspace (1.1.40). Renders
- * the SHIPPED student surfaces from the builder's current state — the attached
- * sim (`GenericArtefactFrame`) stacked above the `WorkspaceElements` — so the
- * teacher sees exactly what a student sees, updating as they author. Everything
- * is interactive but sandboxed: `sessionId=null` so nothing reaches a tutor or
- * persists. A pop-out opens the same preview full-screen so the teacher can
+ * the SHARED `StudentWorkspace` from the builder's current state, so the teacher
+ * sees exactly what a student sees (sim + element tools + documents), updating
+ * as they author. Sandboxed: `sessionId=null` so nothing reaches a tutor or
+ * persists. A pop-out opens the same workspace full-screen so the teacher can
  * actually drive the simulation while reviewing the activity.
  */
-export function ActivityPreview({ state, artefactId }: ActivityPreviewProps) {
+export function ActivityPreview({ state, artefactId, materials = [] }: ActivityPreviewProps) {
   const [open, setOpen] = useState(true);
   const [expanded, setExpanded] = useState(false);
   const [catalogue, setCatalogue] = useState<ArtefactSummary[]>([]);
@@ -70,7 +69,7 @@ export function ActivityPreview({ state, artefactId }: ActivityPreviewProps) {
 
   const sim = artefactId ? (catalogue.find((a) => a.id === artefactId) ?? null) : null;
   const showElements = hasAnyElement(defs);
-  const hasContent = !!artefactId || showElements;
+  const hasContent = !!artefactId || showElements || materials.length > 0;
 
   return (
     <div className="rounded-lg border border-slate-200">
@@ -106,67 +105,64 @@ export function ActivityPreview({ state, artefactId }: ActivityPreviewProps) {
           ) : expanded ? (
             <p className="px-4 py-6 text-center text-xs text-slate-400">Åbnet i fuld skærm.</p>
           ) : (
-            <PreviewBody artefactId={artefactId} sim={sim} defs={defs} showElements={showElements} />
+            <PreviewBody artefactId={artefactId} sim={sim} defs={defs} materials={materials} />
           )}
         </div>
       )}
 
       {expanded ? (
         <PreviewModal onClose={() => setExpanded(false)}>
-          <PreviewBody artefactId={artefactId} sim={sim} defs={defs} showElements={showElements} />
+          <PreviewBody artefactId={artefactId} sim={sim} defs={defs} materials={materials} />
         </PreviewModal>
       ) : null}
     </div>
   );
 }
 
-/** The student workspace itself — the attached sim stacked over the element
- *  tools. Shared by the inline panel and the full-screen pop-out so they render
- *  identically. */
+/** The student workspace itself, sandboxed for the preview. Renders the SHARED
+ *  `StudentWorkspace` (sim + elements + documents) so it can't drift from chat;
+ *  the only preview-specific touch is the labelled card when the environment has
+ *  no sandbox service to mount the live sim. */
 function PreviewBody({
   artefactId,
   sim,
   defs,
-  showElements,
+  materials,
 }: {
   artefactId?: string | null;
   sim: ArtefactSummary | null;
   defs: ActivityElementDefs;
-  showElements: boolean;
+  materials: MaterialRef[];
 }) {
   return (
     <HumanToolEventsProvider>
-      {artefactId ? (
-        SANDBOX_ORIGIN && sim ? (
-          <GenericArtefactFrame
-            sandboxOrigin={SANDBOX_ORIGIN}
-            artefact={simToArtefact(sim)}
-            sessionId={null}
-          />
-        ) : (
-          <div className="flex items-start gap-2 border-b border-slate-200 px-4 py-3 text-xs text-slate-500">
-            <FlaskConical className="mt-0.5 h-4 w-4 shrink-0 text-emerald-500" aria-hidden="true" />
-            <span>
-              <span className="font-medium text-slate-700">{sim?.displayName ?? artefactId}</span>{" "}
-              simulation attached.
-              {SANDBOX_ORIGIN
-                ? " Loading the live simulation…"
-                : " The live simulation appears here once the sandbox service is configured for this environment."}
-            </span>
-          </div>
-        )
+      {artefactId && !SANDBOX_ORIGIN ? (
+        <div className="flex items-start gap-2 border-b border-slate-200 px-4 py-3 text-xs text-slate-500">
+          <FlaskConical className="mt-0.5 h-4 w-4 shrink-0 text-emerald-500" aria-hidden="true" />
+          <span>
+            <span className="font-medium text-slate-700">{sim?.displayName ?? artefactId}</span>{" "}
+            simulation attached. The live simulation appears here once the sandbox service is configured
+            for this environment.
+          </span>
+        </div>
       ) : null}
-      {showElements ? (
-        <WorkspaceElements
-          skillId={PREVIEW_SKILL_ID}
-          sessionId={null}
-          checklist={defs.checklist}
-          table={defs.table}
-          chart={defs.chart}
-          calculator={defs.calculator}
-          note={defs.note}
-        />
-      ) : null}
+      <StudentWorkspace
+        skillId={PREVIEW_SKILL_ID}
+        sessionId={null}
+        sandboxOrigin={SANDBOX_ORIGIN}
+        artefact={sim ? simToArtefact(sim) : null}
+        checklist={defs.checklist}
+        table={defs.table}
+        chart={defs.chart}
+        calculator={defs.calculator}
+        note={defs.note}
+        materials={materials.map((m) => ({
+          docId: m.docId,
+          origin: m.origin,
+          studentVisible: m.studentVisible ?? false,
+        }))}
+        activityId={PREVIEW_SKILL_ID}
+      />
     </HumanToolEventsProvider>
   );
 }
