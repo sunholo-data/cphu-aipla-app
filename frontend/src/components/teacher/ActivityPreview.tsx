@@ -1,32 +1,70 @@
 "use client";
 
-import { ChevronDown, Eye } from "lucide-react";
-import { useState } from "react";
+import { ChevronDown, Eye, FlaskConical } from "lucide-react";
+import { useEffect, useState } from "react";
 
 import { WorkspaceElements } from "@/components/workspace/elementRenderers";
+import {
+  GenericArtefactFrame,
+  type ActivityArtefact,
+} from "@/components/workspace/GenericArtefactFrame";
 import { HumanToolEventsProvider } from "@/hooks/useHumanToolEvents";
 import { builderToElementDefs, hasAnyElement, type BuilderElements } from "@/lib/activityPreview";
+import { listArtefacts, type ArtefactSummary } from "@/lib/teacherApi";
 
 interface ActivityPreviewProps {
   state: BuilderElements;
+  /** The attached sim artefact id (1.1.41) — rendered above the elements, the
+   *  way a student sees the workspace (sim on top, tools below). */
+  artefactId?: string | null;
 }
 
 // A fixed, non-student skill id so the preview's scratch state (table cells in
 // sessionStorage, the table→chart event) can't collide with a real session.
 const PREVIEW_SKILL_ID = "__activity_preview__";
 
+// Same origin the chat page derives — NEXT_PUBLIC_MCP_SANDBOX_URL points at
+// /sandbox.html; strip the suffix for the bare sandbox origin. Empty when the
+// environment has no sandbox service (the preview degrades to a labelled card).
+const SANDBOX_ORIGIN = (process.env.NEXT_PUBLIC_MCP_SANDBOX_URL ?? "").replace(
+  /\/sandbox\.html$/,
+  "",
+);
+
 /**
- * ActivityPreview — live in-builder preview of the workspace elements (1.1.40).
- * Renders the SHIPPED `WorkspaceElements` from the builder's current state, so
- * the teacher sees exactly what a student sees, updating as they author. The
- * elements are interactive (tick the checklist, fill the table → the chart
- * plots, use the calculator) but sandboxed: `sessionId=null` so nothing reaches
- * a tutor or persists to the activity. The `HumanToolEventsProvider` wrapper
- * keeps checklist ticks from warning about a missing chat provider.
+ * ActivityPreview — live in-builder preview of the workspace (1.1.40). Renders
+ * the SHIPPED student surfaces from the builder's current state — the attached
+ * sim (`GenericArtefactFrame`) stacked above the `WorkspaceElements` — so the
+ * teacher sees exactly what a student sees, updating as they author. Everything
+ * is interactive but sandboxed: `sessionId=null` so nothing reaches a tutor or
+ * persists. The `HumanToolEventsProvider` wrapper keeps checklist ticks from
+ * warning about a missing chat provider.
  */
-export function ActivityPreview({ state }: ActivityPreviewProps) {
+export function ActivityPreview({ state, artefactId }: ActivityPreviewProps) {
   const [open, setOpen] = useState(true);
+  const [catalogue, setCatalogue] = useState<ArtefactSummary[]>([]);
   const defs = builderToElementDefs(state);
+
+  // Resolve the attached sim id → its catalogue entry (displayName +
+  // artefactPath) so the frame can mount it. Only fetched when a sim is set.
+  useEffect(() => {
+    if (!artefactId) return;
+    let alive = true;
+    listArtefacts()
+      .then((a) => {
+        if (alive) setCatalogue(a);
+      })
+      .catch(() => {
+        /* catalogue unreachable — the labelled-card fallback still names it */
+      });
+    return () => {
+      alive = false;
+    };
+  }, [artefactId]);
+
+  const sim = artefactId ? (catalogue.find((a) => a.id === artefactId) ?? null) : null;
+  const showElements = hasAnyElement(defs);
+  const hasContent = !!artefactId || showElements;
 
   return (
     <div className="rounded-lg border border-slate-200">
@@ -43,26 +81,62 @@ export function ActivityPreview({ state }: ActivityPreviewProps) {
       </button>
       {open && (
         <div className="border-t border-slate-200 bg-slate-50">
-          {hasAnyElement(defs) ? (
+          {hasContent ? (
             <HumanToolEventsProvider>
-              <WorkspaceElements
-                skillId={PREVIEW_SKILL_ID}
-                sessionId={null}
-                checklist={defs.checklist}
-                table={defs.table}
-                chart={defs.chart}
-                calculator={defs.calculator}
-                note={defs.note}
-              />
+              {artefactId ? (
+                SANDBOX_ORIGIN && sim ? (
+                  <GenericArtefactFrame
+                    sandboxOrigin={SANDBOX_ORIGIN}
+                    artefact={simToArtefact(sim)}
+                    sessionId={null}
+                  />
+                ) : (
+                  <div className="flex items-start gap-2 border-b border-slate-200 px-4 py-3 text-xs text-slate-500">
+                    <FlaskConical className="mt-0.5 h-4 w-4 shrink-0 text-emerald-500" aria-hidden="true" />
+                    <span>
+                      <span className="font-medium text-slate-700">
+                        {sim?.displayName ?? artefactId}
+                      </span>{" "}
+                      simulation attached.
+                      {SANDBOX_ORIGIN
+                        ? " Loading the live simulation…"
+                        : " The live simulation appears here once the sandbox service is configured for this environment."}
+                    </span>
+                  </div>
+                )
+              ) : null}
+              {showElements ? (
+                <WorkspaceElements
+                  skillId={PREVIEW_SKILL_ID}
+                  sessionId={null}
+                  checklist={defs.checklist}
+                  table={defs.table}
+                  chart={defs.chart}
+                  calculator={defs.calculator}
+                  note={defs.note}
+                />
+              ) : null}
             </HumanToolEventsProvider>
           ) : (
             <p className="px-4 py-6 text-center text-xs text-slate-400">
-              Tilføj elementer (tjekliste, datatabel, graf, beregner eller note) for at se en
-              forhåndsvisning af elevernes arbejdsområde.
+              Tilføj elementer (tjekliste, datatabel, graf, beregner eller note) eller en simulation for
+              at se en forhåndsvisning af elevernes arbejdsområde.
             </p>
           )}
         </div>
       )}
     </div>
   );
+}
+
+function simToArtefact(s: ArtefactSummary): ActivityArtefact {
+  return {
+    id: s.id,
+    displayName: s.displayName,
+    artefactPath: s.artefactPath,
+    topics: s.topics,
+    levels: s.levels,
+    language: s.language,
+    status: s.status,
+  };
 }

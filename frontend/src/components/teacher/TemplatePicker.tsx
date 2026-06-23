@@ -47,7 +47,7 @@ export function TemplatePicker({ onPick }: TemplatePickerProps) {
         A starting point you can fully edit — prompt, checklist, and workspace tools. Between them the
         templates show every feature you can add.
       </p>
-      <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+      <div className="grid grid-cols-1 gap-2 sm:grid-cols-2 lg:grid-cols-3 2xl:grid-cols-4">
         {ACTIVITY_TEMPLATES.map((t) => {
           const features = templateFeatures(t);
           return (

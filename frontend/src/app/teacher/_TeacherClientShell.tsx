@@ -1,12 +1,14 @@
 "use client";
 
 import Link from "next/link";
+import { usePathname } from "next/navigation";
 import type { ReactNode } from "react";
 import { LogOut } from "lucide-react";
 
 import { AppFooter } from "@/components/AppFooter";
 import { TeacherNav } from "@/components/teacher/ui/TeacherNav";
 import { BRANDING } from "@/lib/branding";
+import { cn } from "@/lib/utils";
 import { isLocalMode } from "@/lib/localMode";
 import { signOut } from "@/lib/firebase";
 import { useTeacherAuth } from "@/hooks/useTeacherAuth";
@@ -20,6 +22,12 @@ import { useTeacherAuth } from "@/hooks/useTeacherAuth";
  */
 export function TeacherClientShell({ children }: { children: ReactNode }) {
   const { user, loading } = useTeacherAuth();
+  const pathname = usePathname() ?? "";
+  // The activity builder (new + edit) is an app-like surface — like the student
+  // chat it wants the full width for its two-column config + live preview. The
+  // list/insight/settings pages stay capped for comfortable reading lengths.
+  const wide = pathname.startsWith("/teacher/activities/");
+  const containerMax = wide ? "max-w-none" : "max-w-6xl";
 
   // Show a minimal loading state while Firebase auth resolves.
   // useTeacherAuth will redirect to /teacher/sign-in if auth fails —
@@ -49,7 +57,7 @@ export function TeacherClientShell({ children }: { children: ReactNode }) {
   return (
     <div className="flex min-h-screen flex-col">
       <header className="sticky top-0 z-10 border-b border-border bg-background/90 backdrop-blur">
-        <div className="mx-auto flex max-w-6xl items-center justify-between gap-3 px-4 py-3 sm:px-6">
+        <div className={cn("mx-auto flex items-center justify-between gap-3 px-4 py-3 sm:px-6", containerMax)}>
           <Link
             href="/teacher/classes"
             className="flex items-center gap-2 text-sm font-semibold hover:opacity-80"
@@ -94,7 +102,7 @@ export function TeacherClientShell({ children }: { children: ReactNode }) {
         </div>
       </header>
 
-      <div className="mx-auto flex w-full max-w-6xl flex-1 px-4 sm:px-6">
+      <div className={cn("mx-auto flex w-full flex-1 px-4 sm:px-6", containerMax)}>
         <TeacherNav />
         {/* pb-24 on mobile clears the fixed bottom nav bar; reset at md. */}
         <div className="flex min-w-0 flex-1 flex-col md:pl-6">

@@ -187,7 +187,7 @@ export default function TeacherActivityConfigPage() {
         <h1 className="text-xl font-semibold sm:text-2xl">
           Configure {displayName}
         </h1>
-        <p className="text-sm text-muted-foreground">
+        <p className="max-w-3xl text-sm text-muted-foreground">
           Teachers don&apos;t write system prompts — write a teaching intention.
           The tutor handles the Socratic scaffolding.
         </p>

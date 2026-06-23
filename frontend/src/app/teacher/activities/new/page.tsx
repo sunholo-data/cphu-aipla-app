@@ -147,7 +147,7 @@ function NewActivityForm() {
         <h1 className="flex items-center gap-2 text-xl font-semibold sm:text-2xl">
           <Sparkles className="h-6 w-6 text-primary" /> New activity
         </h1>
-        <p className="mt-1 text-sm text-muted-foreground">
+        <p className="mt-1 max-w-3xl text-sm text-muted-foreground">
           Build a guided activity: set the lesson, add a workspace (simulation, tables, charts, tools),
           and watch the live preview update as you go. Students join with a group code.
         </p>

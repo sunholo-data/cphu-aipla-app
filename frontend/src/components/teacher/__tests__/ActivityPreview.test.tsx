@@ -11,6 +11,12 @@ vi.mock("@/components/workspace/elementRenderers", () => ({
   },
 }));
 
+const listArtefactsMock = vi.fn();
+vi.mock("@/lib/teacherApi", async (orig) => {
+  const actual = await orig<typeof import("@/lib/teacherApi")>();
+  return { ...actual, listArtefacts: () => listArtefactsMock() };
+});
+
 import { ActivityPreview } from "../ActivityPreview";
 import { type BuilderElements } from "@/lib/activityPreview";
 
@@ -34,6 +40,27 @@ describe("ActivityPreview", () => {
         checklist: [{ id: "step-1", label: "Step" }],
       }),
     );
+  });
+
+  it("surfaces an attached simulation (and so isn't 'empty') even with no elements", async () => {
+    listArtefactsMock.mockResolvedValue([
+      {
+        id: "boldkast",
+        displayName: "Boldkast",
+        description: "Projektil",
+        topics: [],
+        levels: [],
+        language: "da",
+        artefactPath: "boldkast/v1",
+        status: "live",
+      },
+    ]);
+    render(<ActivityPreview state={EMPTY} artefactId="boldkast" />);
+    // The sim counts as workspace content, so the empty hint must NOT show.
+    expect(screen.queryByText(/tilføj elementer/i)).not.toBeInTheDocument();
+    // The sim is named in the preview (the labelled card when no sandbox origin
+    // is configured in the test env; the live frame uses the same name).
+    expect(await screen.findByText("Boldkast")).toBeInTheDocument();
   });
 
   it("collapses and expands the preview", () => {

@@ -42,7 +42,7 @@ export function ActivityBuilderBody({
 }: ActivityBuilderBodyProps) {
   const b = builder;
   return (
-    <div className="grid items-start gap-6 lg:grid-cols-[minmax(0,1fr)_24rem]">
+    <div className="grid items-start gap-6 lg:grid-cols-[minmax(0,46rem)_minmax(0,1fr)]">
       {/* LEFT — configuration, grouped into four colour-coded sections. */}
       <div className="flex min-w-0 flex-col gap-4">
         <BuilderSectionNav
@@ -191,6 +191,7 @@ export function ActivityBuilderBody({
           screens (1.1.40 M2) so the result is never hidden. */}
       <div className="lg:sticky lg:top-2 lg:max-h-[calc(100vh-1rem)] lg:overflow-y-auto">
         <ActivityPreview
+          artefactId={b.artefactId}
           state={{
             checklist: b.checklist,
             table: b.table,

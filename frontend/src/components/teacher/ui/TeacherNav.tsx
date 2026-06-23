@@ -1,11 +1,13 @@
 "use client";
 
-import type { ComponentType } from "react";
+import { type ComponentType, useEffect, useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { BarChart3, ClipboardList, Settings, Users } from "lucide-react";
+import { BarChart3, ClipboardList, PanelLeftClose, PanelLeftOpen, Settings, Users } from "lucide-react";
 
 import { cn } from "@/lib/utils";
+
+const COLLAPSE_KEY = "teacher-nav-collapsed";
 
 interface Destination {
   href: string;
@@ -50,14 +52,56 @@ function isActive(pathname: string, match: string[]): boolean {
  */
 export function TeacherNav() {
   const pathname = usePathname() ?? "";
+  // Collapse the desktop rail to an icon strip to give app-like surfaces (the
+  // activity builder) more room. Persisted so it stays across navigation +
+  // refresh. Default expanded (server render); synced from storage on mount.
+  const [collapsed, setCollapsed] = useState(false);
+  useEffect(() => {
+    try {
+      setCollapsed(localStorage.getItem(COLLAPSE_KEY) === "1");
+    } catch {
+      /* storage unavailable — stay expanded */
+    }
+  }, []);
+  const toggleCollapsed = () =>
+    setCollapsed((c) => {
+      const next = !c;
+      try {
+        localStorage.setItem(COLLAPSE_KEY, next ? "1" : "0");
+      } catch {
+        /* ignore */
+      }
+      return next;
+    });
 
   return (
     <>
       {/* Desktop: left rail */}
       <nav
         aria-label="Teacher sections"
-        className="hidden shrink-0 md:flex md:w-52 md:flex-col md:gap-1 md:border-r md:border-border md:py-4 md:pr-3"
+        className={cn(
+          "hidden shrink-0 md:flex md:flex-col md:gap-1 md:border-r md:border-border md:py-4",
+          collapsed ? "md:w-14 md:items-center md:pr-2" : "md:w-52 md:pr-3",
+        )}
       >
+        <button
+          type="button"
+          onClick={toggleCollapsed}
+          aria-label={collapsed ? "Expand navigation" : "Collapse navigation"}
+          aria-expanded={!collapsed}
+          title={collapsed ? "Expand navigation" : "Collapse navigation"}
+          className={cn(
+            "mb-1 flex items-center rounded py-2 text-muted-foreground hover:bg-accent hover:text-foreground",
+            collapsed ? "justify-center px-0" : "gap-2 px-3",
+          )}
+        >
+          {collapsed ? (
+            <PanelLeftOpen className="h-4 w-4" aria-hidden="true" />
+          ) : (
+            <PanelLeftClose className="h-4 w-4" aria-hidden="true" />
+          )}
+          {!collapsed ? <span className="text-xs font-medium">Collapse</span> : null}
+        </button>
         {DESTINATIONS.map((d) => {
           const active = isActive(pathname, d.match);
           const Icon = d.icon;
@@ -66,15 +110,17 @@ export function TeacherNav() {
               key={d.href}
               href={d.href}
               aria-current={active ? "page" : undefined}
+              title={collapsed ? d.label : undefined}
               className={cn(
-                "flex items-center gap-2 rounded px-3 py-2 text-sm font-medium",
+                "flex items-center rounded text-sm font-medium",
+                collapsed ? "justify-center px-0 py-2" : "gap-2 px-3 py-2",
                 active
                   ? "bg-accent text-foreground"
                   : "text-muted-foreground hover:bg-accent hover:text-foreground",
               )}
             >
               <Icon className="h-4 w-4" aria-hidden="true" />
-              {d.label}
+              {!collapsed ? d.label : null}
             </Link>
           );
         })}
