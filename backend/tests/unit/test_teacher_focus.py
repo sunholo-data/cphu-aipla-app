@@ -115,3 +115,51 @@ def test_group_tag_isolation_across_classes():
     # Student bound to class B asks for the same activity → no config for B → empty.
     out = inject_teacher_focus("{teacher_focus}", "act-z", group_tags=frozenset({"class:t-b:cls-b"}))
     assert out == ""
+
+
+# --- artefact tutor-block composition (1.1.41 M2) ---
+
+
+def test_artefact_tutor_block_is_composed_with_the_goal():
+    upsert_activity_config(
+        teacher_uid=WORKSHOP_USER_UID,
+        class_id=LOCAL_MODE_DEMO_CLASS_ID,
+        activity_id="sim-act",
+        teaching_goal="Find the angle for the longest range.",
+        artefact_id="boldkast",
+    )
+    out = inject_teacher_focus("Focus:\n{teacher_focus}", "sim-act")
+    # The boldkast tutorBlock (placeholder) AND the goal are both present...
+    assert "simulation" in out.lower()  # from the artefact tutorBlock
+    assert "longest range" in out
+    # ...with the artefact block FIRST (sim context, then the lesson goal).
+    assert out.lower().index("simulation") < out.index("longest range")
+
+
+def test_same_artefact_different_goals_compose_differently():
+    for act, goal in [("a1", "Goal about energy."), ("a2", "Goal about momentum.")]:
+        upsert_activity_config(
+            teacher_uid=WORKSHOP_USER_UID,
+            class_id=LOCAL_MODE_DEMO_CLASS_ID,
+            activity_id=act,
+            teaching_goal=goal,
+            artefact_id="boldkast",
+        )
+    out1 = inject_teacher_focus("{teacher_focus}", "a1")
+    out2 = inject_teacher_focus("{teacher_focus}", "a2")
+    # The SAME sim, different per-activity goals — the unlock.
+    assert "energy" in out1 and "momentum" not in out1
+    assert "momentum" in out2 and "energy" not in out2
+    # ...both still carry the shared artefact block (the sim mechanics).
+    assert "simulation" in out1.lower() and "simulation" in out2.lower()
+
+
+def test_unknown_artefact_falls_back_to_goal_only():
+    upsert_activity_config(
+        teacher_uid=WORKSHOP_USER_UID,
+        class_id=LOCAL_MODE_DEMO_CLASS_ID,
+        activity_id="bad-sim",
+        teaching_goal="Just the goal.",
+        artefact_id="does-not-exist",
+    )
+    assert inject_teacher_focus("{teacher_focus}", "bad-sim") == "Just the goal."

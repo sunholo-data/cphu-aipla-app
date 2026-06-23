@@ -21,6 +21,7 @@ import logging
 import re
 from collections.abc import Iterable
 
+from artefacts.loader import load_artefact
 from db.activity_configs import get_activity_config
 from db.models.activity_config import ActivityConfig
 
@@ -94,14 +95,37 @@ def class_id_from_group_tags(group_tags: Iterable[str] | None) -> str | None:
     return None
 
 
+def compose_teacher_focus(cfg: ActivityConfig | None) -> str:
+    """Compose the ``{teacher_focus}`` substitution (1.1.41 M2).
+
+    The activity's ``teaching_goal``, prefixed with the hosted sim artefact's
+    intrinsic ``tutor_block`` (what the sim IS + what its events MEAN) when the
+    activity references one. The artefact block is the **same** for every
+    activity using that sim (from the catalogue, AR-authored); the goal is
+    **per-activity** — so the same sim tutors differently per activity purely
+    because the goal differs. Graceful: a de-catalogued or block-less artefact
+    falls back to just the goal.
+    """
+    goal = (cfg.teaching_goal if cfg else "").strip()
+    if cfg is None or not cfg.artefact_id:
+        return goal
+    artefact = load_artefact(cfg.artefact_id)
+    block = artefact.tutor_block.strip() if artefact else ""
+    if not block:
+        return goal
+    return f"{block}\n\n{goal}" if goal else block
+
+
 def inject_teacher_focus(
     instructions: str,
     activity_id: str,
     *,
     group_tags: Iterable[str] | None = None,
 ) -> str:
-    """Replace the ``{teacher_focus}`` placeholder with the teacher's goal.
+    """Replace the ``{teacher_focus}`` placeholder with the composed focus.
 
+    The composed focus is the teacher's goal, prefixed with the hosted
+    artefact's tutor block (1.1.41 M2 — see ``compose_teacher_focus``).
     ``group_tags`` is the authenticated student's verified group→class tags;
     when present they select the real (teacher, class) config (Phase 3).
 
@@ -114,7 +138,7 @@ def inject_teacher_focus(
         return instructions
 
     cfg = resolve_active_config(activity_id, group_tags=group_tags)
-    goal = cfg.teaching_goal if cfg else ""
+    focus = compose_teacher_focus(cfg)
 
     if cfg is None:
         log.debug(
@@ -123,19 +147,21 @@ def inject_teacher_focus(
         )
     else:
         log.info(
-            "inject_teacher_focus: activity=%s teacher=%s class=%s goal_chars=%d",
+            "inject_teacher_focus: activity=%s teacher=%s class=%s artefact=%s focus_chars=%d",
             activity_id,
             cfg.teacher_uid,
             cfg.class_id,
-            len(goal),
+            cfg.artefact_id or "-",
+            len(focus),
         )
 
-    return instructions.replace(_PLACEHOLDER, goal)
+    return instructions.replace(_PLACEHOLDER, focus)
 
 
 __all__ = [
     "LOCAL_MODE_DEMO_CLASS_ID",
     "class_id_from_group_tags",
+    "compose_teacher_focus",
     "inject_teacher_focus",
     "resolve_active_config",
 ]
