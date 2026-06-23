@@ -1,0 +1,124 @@
+{
+  "sprint_id": "IMG-MAT",
+  "created": "2026-06-23T18:48:18Z",
+  "estimated_duration_days": 3.25,
+  "design_doc": "docs/design/aipla/v1.1.0-feedback/activity-image-materials.md",
+  "sprint_plan": "docs/design/aipla/v1.1.0-feedback/activity-image-materials-sprint.md",
+  "features": [
+    {
+      "id": "M0",
+      "description": "Data model + storage primitive: MaterialRef kind discriminator + image fields + validator; adk/activity_images.py slot helper over the ADK ArtifactService; curriculum builders filter to kind=='curriculum'",
+      "scope": "backend",
+      "estimated_loc": 180,
+      "actual_loc": null,
+      "dependencies": [],
+      "acceptance_criteria": [
+        "MaterialRef round-trips both kinds via alias; validator rejects image-without-materialId and curriculum-without-docId",
+        "save_activity_image -> load_activity_image round-trips bytes + mime via InMemoryArtifactService (singleton reset per test); delete removes the slot; missing slot loads as None",
+        "build_curriculum_retrieval_tool and build_curriculum_grounding_preamble ignore kind=='image' refs",
+        "make test-fast green for the new unit + tool tests"
+      ],
+      "files_to_create": [
+        "backend/adk/activity_images.py",
+        "backend/tests/unit/test_material_ref.py",
+        "backend/tests/tool_tests/test_activity_images.py"
+      ],
+      "files_to_modify": [
+        "backend/db/models/activity_config.py",
+        "backend/adk/curriculum_retrieval.py"
+      ],
+      "passes": null,
+      "started": null,
+      "completed": null,
+      "notes": "Use _reset_artifact_service_for_tests() per test. Keep doc_id optional (default '') for back-compat."
+    },
+    {
+      "id": "M1",
+      "description": "Teacher-only upload endpoint POST /api/activity-images (+ DELETE): type/size gate, save to activity slot, return image MaterialRef",
+      "scope": "backend",
+      "estimated_loc": 160,
+      "actual_loc": null,
+      "dependencies": ["M0"],
+      "acceptance_criteria": [
+        "Student (group_id present) gets 403 on POST and DELETE",
+        "Disallowed extension/mime -> 422; oversize (> IMAGE_MAX_BYTES) -> 422",
+        "Happy path saves to the durable slot (verified via load_activity_image) and returns a well-formed image MaterialRef (kind=image, materialId, mimeType, studentVisible=false)",
+        "DELETE removes the slot (204); make test-fast green"
+      ],
+      "files_to_create": [
+        "backend/protocols/activity_image_routes.py",
+        "backend/tests/api_tests/test_activity_images.py"
+      ],
+      "files_to_modify": [
+        "backend/fast_api_app.py"
+      ],
+      "passes": null,
+      "started": null,
+      "completed": null,
+      "notes": "Router mount mirrors curriculum_routes. Endpoint does NOT write MaterialRef to ActivityConfig (the builder full-overwrite save owns that)."
+    },
+    {
+      "id": "M2",
+      "description": "Image loader (before_agent) copies durable->session artifact at session start; image injector (before_model) inlines an image Part; wired into agent.py composed callbacks",
+      "scope": "backend",
+      "estimated_loc": 220,
+      "actual_loc": null,
+      "dependencies": ["M0", "M1"],
+      "acceptance_criteria": [
+        "Loader copies a durable activity image into the student session + records id in app:activity_images_loaded; idempotent on a 2nd turn; orphaned id re-loads",
+        "Injector inserts a Part whose inline_data.mime_type starts with 'image/' ahead of the trailing user content, with a naming text Part",
+        "Injector is a no-op when no images loaded and skips a mid-turn function_response turn",
+        "Loader wired after _document_loader in _composed_before_agent; injector after _document_injector in _composed_before_model (before budget gate); make test-fast green"
+      ],
+      "files_to_create": [
+        "backend/adk/callbacks/activity_images.py",
+        "backend/tests/tool_tests/test_activity_image_callbacks.py"
+      ],
+      "files_to_modify": [
+        "backend/adk/agent.py",
+        "backend/adk/callbacks/__init__.py"
+      ],
+      "passes": null,
+      "started": null,
+      "completed": null,
+      "notes": "Twins of make_document_loader/make_document_injector. Human gate: JB image-retention posture before pilot-env ship (not blocking code)."
+    },
+    {
+      "id": "M3",
+      "description": "Frontend: MaterialsSection image-upload affordance (fetchWithTeacherAuth -> /api/activity-images), thumbnail chips, visibility toggle, remove->DELETE; MaterialRef type fields",
+      "scope": "frontend",
+      "estimated_loc": 200,
+      "actual_loc": null,
+      "dependencies": ["M1"],
+      "acceptance_criteria": [
+        "Image file upload calls fetchWithTeacherAuth against /api/activity-images (NOT the curriculum ingest helper)",
+        "Returned image MaterialRef renders as a thumbnail chip; studentVisible toggle + remove (DELETE then drop ref) behave",
+        "A non-image document still routes to curriculum ingest (no regression)",
+        "npm run quality:check green"
+      ],
+      "files_to_create": [],
+      "files_to_modify": [
+        "frontend/src/lib/teacherApi.ts",
+        "frontend/src/lib/curriculumApi.ts",
+        "frontend/src/components/teacher/MaterialsSection.tsx",
+        "frontend/src/components/teacher/MaterialsSection.test.tsx"
+      ],
+      "passes": null,
+      "started": null,
+      "completed": null,
+      "notes": "Q4: auto-route by MIME behind the existing Upload button. accept includes image extensions."
+    }
+  ],
+  "velocity": {
+    "target_loc_per_day": 250,
+    "actual_loc_per_day": null,
+    "estimated_total_loc": 760,
+    "actual_total_loc": null,
+    "estimated_days": 3.25,
+    "actual_days": null
+  },
+  "github_issues": [],
+  "last_session": null,
+  "last_checkpoint": null,
+  "status": "not_started"
+}
