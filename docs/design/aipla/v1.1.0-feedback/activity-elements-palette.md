@@ -10,6 +10,10 @@
 
 > **Read this with [teacher-activity-authoring.md](teacher-activity-authoring.md) (1.1.19).** That doc is the umbrella for *"a teacher creates an activity from scratch"* and already owns the first three elements as **fixed fields** (`checklist` shipped, `quiz` designed, `materials` shipped). This doc is the **substrate underneath them**: it reframes the element layer from "a handful of hardcoded fields" into a **bounded element registry** so the next element (table / chart / calculator / document) is an additive entry, not a schema rewrite. The companion [activity-authoring-assistant.md](activity-authoring-assistant.md) (1.1.39) is the AI co-pilot that *assembles* elements from this palette for a non-technical teacher — it consumes this doc.
 
+> **Follow-ups (2026-06-22).** Two authoring-UX additions on top of the palette:
+> (1) **Starter templates SHIPPED** — [`activityTemplates.ts`](../../../../frontend/src/lib/activityTemplates.ts) + [`TemplatePicker`](../../../../frontend/src/components/teacher/TemplatePicker.tsx): quick-default activities (concept-dialogue, measurement-lab+chart, calculator, energy-note) a teacher picks and modifies, so the builder is never a blank form. Physics content is JB/AR-reviewable starter material.
+> (2) **Live preview mode DESIGNED** — [activity-preview-mode.md](activity-preview-mode.md) (1.1.40): an in-builder pane that renders the workspace elements exactly as a student sees them, live + interactive, reusing the shipped `WorkspaceElements`. Complements [1.1.27](lesson-author-surface.md) (prompt + trial chat).
+
 ## Why this exists
 
 The platform architecture already draws the line this doc builds on. From [expanded-workbench-types.md](../v1.0.0-pilot/expanded-workbench-types.md#L30):

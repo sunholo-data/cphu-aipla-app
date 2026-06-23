@@ -23,6 +23,8 @@ import { TableEditor, type TableEditorValue } from "@/components/teacher/TableEd
 import { ChartEditor, type ChartEditorValue } from "@/components/teacher/ChartEditor";
 import { CalculatorEditor, type CalculatorEditorValue } from "@/components/teacher/CalculatorEditor";
 import { NoteEditor, type NoteEditorValue } from "@/components/teacher/NoteEditor";
+import { TemplatePicker } from "@/components/teacher/TemplatePicker";
+import { type ActivityTemplate } from "@/lib/activityTemplates";
 
 // TAA-1 M0: a from-scratch activity runs the `concept-dialogue` base
 // skill (chat-only Socratic tutor). The teacher's title + lesson prompt
@@ -132,6 +134,46 @@ function NewActivityForm() {
     };
   }, [preferredClassId]);
 
+  // Apply a starter template (1.1.38 follow-up): pre-fill every builder field
+  // from the template, converting to the editor value shapes (client `key`s
+  // allocated from the shared counter). The teacher edits everything after.
+  function applyTemplate(t: ActivityTemplate) {
+    setTitle(t.title);
+    setTeachingGoal(t.teachingGoal);
+    setLanguage(t.language);
+    setChecklist(t.checklist.map((label) => ({ key: nextKeyRef.current++, label })));
+    setTable(
+      t.table
+        ? {
+            title: t.table.title,
+            columns: t.table.columns.map((c) => ({
+              key: nextKeyRef.current++,
+              label: c.label,
+              unit: c.unit ?? "",
+              kind: c.kind,
+            })),
+            rows: t.table.rows,
+          }
+        : null,
+    );
+    setChart(t.chart ? { title: t.chart.title, chartKind: t.chart.chartKind } : null);
+    setCalculator(
+      t.calculator
+        ? {
+            title: t.calculator.title,
+            formula: t.calculator.formula,
+            inputs: t.calculator.inputs.map((i) => ({
+              key: nextKeyRef.current++,
+              id: i.id,
+              label: i.label,
+              unit: i.unit ?? "",
+            })),
+          }
+        : null,
+    );
+    setNote(t.note ? { title: t.note.title, body: t.note.body } : null);
+  }
+
   const canSubmit = title.trim().length > 0 && teachingGoal.trim().length > 0 && classId.length > 0 && !isSaving;
 
   async function handleSave(ev: React.FormEvent) {
@@ -234,6 +276,7 @@ function NewActivityForm() {
       ) : (
         <form onSubmit={handleSave} className="flex max-w-2xl flex-col gap-5">
           <SettingsMap highlight="activity" classId={classId} />
+          <TemplatePicker onPick={applyTemplate} />
           <Field label="Activity name" htmlFor="activity-title">
             <input
               id="activity-title"

@@ -247,6 +247,33 @@ describe("/teacher/activities/new — concept activity builder", () => {
     ]);
   });
 
+  it("pre-fills the builder from a template and saves its elements", async () => {
+    listClassesMock.mockResolvedValue(ONE_CLASS);
+    render(<NewActivityPage />);
+    await screen.findByLabelText(/activity name/i);
+    // Pick the "Beregning" (calculator) template.
+    fireEvent.click(screen.getByText("Beregning"));
+    expect((screen.getByLabelText(/activity name/i) as HTMLInputElement).value).toBe("Beregn fart");
+    expect((screen.getByLabelText(/lesson prompt/i) as HTMLTextAreaElement).value.length).toBeGreaterThan(0);
+
+    fireEvent.click(screen.getByRole("button", { name: /create activity/i }));
+    await waitFor(() => expect(saveActivityConfigMock).toHaveBeenCalledTimes(1));
+    const body = saveActivityConfigMock.mock.calls[0][0];
+    expect(body.checklist).toHaveLength(3);
+    expect(body.calculator).toEqual([
+      {
+        id: "calc-1",
+        title: "Fart",
+        formula: "s / t",
+        inputs: [
+          { id: "s", label: "Strækning", unit: "m" },
+          { id: "t", label: "Tid", unit: "s" },
+        ],
+      },
+    ]);
+    expect(body.note?.[0]?.title).toBe("Formel");
+  });
+
   it("blocks submit until a title and a lesson prompt are entered", async () => {
     listClassesMock.mockResolvedValue(ONE_CLASS);
     render(<NewActivityPage />);
