@@ -83,6 +83,38 @@ export const ACTIVITY_TEMPLATES: ActivityTemplate[] = [
     chart: { title: "Position mod tid", chartKind: "scatter" },
   },
   {
+    id: "projectile-motion",
+    name: "Kastebevægelse",
+    summary: "Vinkel vs. rækkevidde — datatabel + graf, til brug med Boldkast-simulationen.",
+    language: "da",
+    title: "Kastebevægelse",
+    teachingGoal:
+      "Hjælp eleven med at undersøge kastebevægelse med Boldkast-simulationen. Bed eleven variere " +
+      "udgangsvinklen, aflæse rækkevidden og notere den i tabellen. Stil spørgsmål til sammenhængen " +
+      "mellem vinkel og rækkevidde — konkludér ikke selv, men lad eleven opdage, hvilken vinkel der " +
+      "giver den største rækkevidde.",
+    checklist: [
+      "Mål rækkevidden for mindst 5 forskellige vinkler",
+      "Find vinklen med størst rækkevidde",
+      "Forklar hvorfor netop den vinkel er optimal",
+    ],
+    table: {
+      title: "Forsøg",
+      columns: [
+        { label: "Vinkel", unit: "°", kind: "number" },
+        { label: "Rækkevidde", unit: "m", kind: "number" },
+      ],
+      rows: 6,
+    },
+    chart: { title: "Rækkevidde mod vinkel", chartKind: "scatter" },
+    note: {
+      title: "Tip",
+      body:
+        "Brug **Boldkast**-simulationen til at variere vinklen og aflæse rækkevidden.\n\n" +
+        "Husk: den vandrette og den lodrette bevægelse er uafhængige.",
+    },
+  },
+  {
     id: "speed-calculator",
     name: "Beregning",
     summary: "Formelberegner + noteark — fx fart v = s / t.",
