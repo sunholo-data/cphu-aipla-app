@@ -47,8 +47,16 @@ vi.mock("@/lib/teacherApi", async () => {
       defaultId: "sofie",
     })),
     getClass: vi.fn(async (id: string) => ({ classId: id, persona: null })),
+    // The editor now renders the full builder body (sim picker + element
+    // editors + live preview). Stub the catalogue; the preview tree has its own
+    // test, so stub it too (mirrors the create-page test).
+    listArtefacts: vi.fn(async () => []),
   };
 });
+
+vi.mock("@/components/teacher/ActivityPreview", () => ({
+  ActivityPreview: () => <div data-testid="activity-preview" />,
+}));
 
 import TeacherActivityConfigPage from "@/app/teacher/activities/[id]/page";
 import {
@@ -136,6 +144,58 @@ describe("/teacher/activities/[id] — real activity editor", () => {
       );
     });
     expect(screen.getByRole("status").textContent ?? "").toMatch(/saved\b/i);
+  });
+
+  it("round-trips a loaded activity's elements + sim on save (no data loss)", async () => {
+    // POST is a full overwrite, so editing the goal must re-send every element
+    // and the attached sim — else saving silently wipes them. Load a rich
+    // config, tweak the goal, save, and assert the workspace survives.
+    fetchMock.mockResolvedValueOnce({
+      activityId: "act-real-123",
+      classId: "c-1",
+      teacherUid: "teacher-1",
+      title: "Kastebevægelse",
+      teachingGoal: "Discover the optimal angle",
+      language: "da",
+      difficulty: "standard",
+      pairedWorkbench: null,
+      artefactId: "boldkast",
+      checklist: [{ id: "step-1", label: "Measure ranges" }],
+      table: [
+        {
+          id: "table-1",
+          title: "Forsøg",
+          columns: [{ id: "col-1", label: "Vinkel", unit: "°", kind: "number" }],
+          rows: 6,
+        },
+      ],
+      note: [{ id: "note-1", title: "Tip", body: "Vary the angle." }],
+      materials: [],
+      updatedAt: "2026-06-20T10:00:00Z",
+    });
+
+    render(<TeacherActivityConfigPage />);
+    const textarea = (await screen.findByRole("textbox", {
+      name: /teaching goal/i,
+    })) as HTMLTextAreaElement;
+    expect(textarea.value).toBe("Discover the optimal angle");
+    fireEvent.change(textarea, { target: { value: "Discover the optimal launch angle" } });
+    fireEvent.click(screen.getByRole("button", { name: /save configuration/i }));
+
+    await waitFor(() => expect(saveMock).toHaveBeenCalledTimes(1));
+    const body = saveMock.mock.calls[0][0];
+    expect(body.artefactId).toBe("boldkast");
+    expect(body.checklist).toEqual([{ id: "step-1", label: "Measure ranges" }]);
+    expect(body.table).toEqual([
+      {
+        id: "table-1",
+        title: "Forsøg",
+        columns: [{ id: "col-1", label: "Vinkel", unit: "°", kind: "number" }],
+        rows: 6,
+      },
+    ]);
+    expect(body.note).toEqual([{ id: "note-1", title: "Tip", body: "Vary the angle." }]);
+    expect(body.teachingGoal).toBe("Discover the optimal launch angle");
   });
 
   it("shows an error panel when the load fails (non-404)", async () => {

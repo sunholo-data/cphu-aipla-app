@@ -42,6 +42,14 @@ export interface ActivityConfigPayload {
   persona?: string | null;
   pairedWorkbench: string | null;
   workbenchType?: WorkbenchType;
+  /** The vetted sim artefact this activity hosts (1.1.41). The GET serialises
+   *  the full model, so the editor can hydrate + round-trip it. */
+  artefactId?: string | null;
+  checklist?: ChecklistItem[];
+  table?: TableElement[];
+  chart?: ChartElement[];
+  calculator?: CalculatorElement[];
+  note?: NoteElement[];
   materials?: MaterialRef[];
   updatedAt: string;
 }

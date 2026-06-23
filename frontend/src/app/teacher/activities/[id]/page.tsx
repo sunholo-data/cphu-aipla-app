@@ -19,14 +19,14 @@ import {
 } from "lucide-react";
 
 import {
-  type MaterialRef,
   NotFoundError,
   fetchMyActivityConfig,
   saveActivityConfig,
 } from "@/lib/teacherApi";
-import { MaterialsSection } from "@/components/teacher/MaterialsSection";
 import { SettingsMap } from "@/components/teacher/SettingsMap";
 import { InheritedPersona } from "@/components/teacher/InheritedPersona";
+import { ActivityBuilderBody } from "@/components/teacher/ActivityBuilderBody";
+import { useActivityBuilder } from "@/hooks/useActivityBuilder";
 
 type TabId = "goal" | "parameters" | "code" | "history";
 
@@ -44,15 +44,6 @@ const TABS: TabDescriptor[] = [
   { id: "history", label: "History", icon: History, status: "v2" },
 ];
 
-const LANGUAGE_OPTIONS = [
-  { value: "da", label: "Dansk" },
-  { value: "en", label: "English" },
-];
-
-
-const GENERIC_HELPER =
-  "Describe what you want students to discover. The tutor turns this into Socratic scaffolding — you never write the prompt yourself.";
-
 type LoadState = "loading" | "ready" | "error";
 
 export default function TeacherActivityConfigPage() {
@@ -66,12 +57,11 @@ export default function TeacherActivityConfigPage() {
   // the classId. Arriving without one is an error state, never mock data.
   const classId = searchParams.get("classId") ?? "";
   const titleParam = searchParams.get("title") ?? "";
-  const helperText = GENERIC_HELPER;
 
-  const [displayName, setDisplayName] = useState(titleParam || "Activity");
-  const [teachingGoal, setTeachingGoal] = useState("");
-  const [language, setLanguage] = useState<"da" | "en">("da");
-  const [materials, setMaterials] = useState<MaterialRef[]>([]);
+  // The activity builder — the SAME hook the create page uses, so create and
+  // edit render identical config + preview and assemble identical save payloads.
+  const builder = useActivityBuilder();
+  const displayName = builder.title || titleParam || "Activity";
   const [toast, setToast] = useState<string | null>(null);
   const [isSaving, setIsSaving] = useState(false);
   const [activeTab, setActiveTab] = useState<TabId>("goal");
@@ -88,20 +78,22 @@ export default function TeacherActivityConfigPage() {
       return;
     }
     let alive = true;
+    // Seed the title from the deep-link param so the header + name field show
+    // something before the load resolves (and for a 404 fresh form).
+    if (titleParam) builder.setTitle(titleParam);
     fetchMyActivityConfig(classId, activityId)
       .then((saved) => {
         if (!alive) return;
-        if (saved.title) setDisplayName(saved.title);
-        setTeachingGoal(saved.teachingGoal || "");
-        setLanguage(saved.language);
-        setMaterials(saved.materials ?? []);
+        // Hydrate the FULL builder — goal, language, every element, the sim,
+        // materials — so editing round-trips instead of wiping (1.1.40 M1).
+        builder.hydrate(saved);
         setLoadState("ready");
       })
       .catch((err) => {
         if (!alive) return;
         if (err instanceof NotFoundError) {
-          // No saved config yet — fresh activity. The empty form is already
-          // in state; let the teacher fill it in and save.
+          // No saved config yet — fresh activity. The empty form (title seeded
+          // from the param) is ready for the teacher to fill in and save.
           setLoadState("ready");
           return;
         }
@@ -111,6 +103,7 @@ export default function TeacherActivityConfigPage() {
     return () => {
       alive = false;
     };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [classId, activityId]);
 
   async function handleSave(ev: React.FormEvent) {
@@ -120,10 +113,14 @@ export default function TeacherActivityConfigPage() {
       await saveActivityConfig({
         activityId,
         classId,
-        title: displayName,
-        teachingGoal,
-        language,
-        materials,
+        title: builder.title.trim() || displayName,
+        teachingGoal: builder.teachingGoal,
+        language: builder.language,
+        // The full element + sim slice. POST is a full overwrite, so sending
+        // this is what stops a goal edit from wiping the activity's tables,
+        // charts, calculators, notes and attached sim (1.1.40 M1).
+        ...builder.elementPayload(),
+        materials: builder.materials,
       });
       setToast("Saved — students see your teaching goal on their next turn");
     } catch (err) {
@@ -239,71 +236,33 @@ export default function TeacherActivityConfigPage() {
           id="tabpanel-goal"
           aria-labelledby="tab-goal"
         >
-          <form onSubmit={handleSave} className="flex flex-col gap-6">
+          <form onSubmit={handleSave} className="flex flex-col gap-5">
             <SettingsMap highlight="activity" classId={classId} />
-            <fieldset className="flex flex-col gap-2">
-              <label htmlFor="teaching-goal" className="text-sm font-medium">
-                Teaching goal
-              </label>
-              <textarea
-                id="teaching-goal"
-                value={teachingGoal}
-                onChange={(e) => setTeachingGoal(e.target.value)}
-                rows={6}
-                maxLength={1000}
-                className="rounded border border-border bg-background px-3 py-2 text-sm leading-relaxed"
-                placeholder="What do you want students to discover in this session?"
-              />
-              <p className="text-xs text-muted-foreground">{helperText}</p>
-            </fieldset>
-
-            <InheritedPersona classId={classId} />
-
-            <p className="rounded border border-border bg-muted/40 px-3 py-2 text-xs text-muted-foreground">
-              This is a chat-only concept activity (plus any checklist and
-              materials below). The Boldkast, LED&nbsp;Planck and KineBot
-              simulators are their own activities — a simulator is the tutor it
-              runs, not a setting you attach here.
-            </p>
-
-            <MaterialsSection materials={materials} onChange={setMaterials} />
-
-            <div className="flex flex-wrap gap-4">
-              <label className="flex flex-col gap-1 text-sm font-medium">
-                Language
-                <select
-                  value={language}
-                  onChange={(e) => setLanguage(e.target.value as "da" | "en")}
-                  className="rounded border border-border bg-background px-2 py-1.5 text-sm"
-                >
-                  {LANGUAGE_OPTIONS.map((o) => (
-                    <option key={o.value} value={o.value}>
-                      {o.label}
-                    </option>
-                  ))}
-                </select>
-              </label>
-            </div>
-
-            <div className="flex flex-wrap gap-2">
-              <button
-                type="button"
-                disabled
-                title="Opens the activity exactly as a student sees it — coming next (1.1.32 Phase B)"
-                className="flex items-center gap-1.5 rounded border border-border px-3 py-1.5 text-sm font-medium text-muted-foreground opacity-60"
-              >
-                <Eye className="h-4 w-4" aria-hidden="true" />
-                Preview as student
-              </button>
-              <button
-                type="submit"
-                disabled={isSaving}
-                className="flex items-center gap-1.5 rounded bg-primary px-3 py-1.5 text-sm font-medium text-primary-foreground hover:opacity-90 disabled:opacity-60"
-              >
-                <Save className="h-4 w-4" aria-hidden="true" />
-                {isSaving ? "Saving…" : "Save configuration"}
-              </button>
-            </div>
+            <ActivityBuilderBody
+              builder={builder}
+              personaSlot={<InheritedPersona classId={classId} />}
+              footer={
+                <div className="flex flex-wrap gap-2">
+                  <button
+                    type="button"
+                    disabled
+                    title="Opens the activity exactly as a student sees it — coming next (1.1.32 Phase B)"
+                    className="flex items-center gap-1.5 rounded border border-border px-3 py-1.5 text-sm font-medium text-muted-foreground opacity-60"
+                  >
+                    <Eye className="h-4 w-4" aria-hidden="true" />
+                    Preview as student
+                  </button>
+                  <button
+                    type="submit"
+                    disabled={isSaving}
+                    className="flex items-center gap-1.5 rounded bg-primary px-3 py-1.5 text-sm font-medium text-primary-foreground hover:opacity-90 disabled:opacity-60"
+                  >
+                    <Save className="h-4 w-4" aria-hidden="true" />
+                    {isSaving ? "Saving…" : "Save configuration"}
+                  </button>
+                </div>
+              }
+            />
           </form>
         </section>
       ) : null}
