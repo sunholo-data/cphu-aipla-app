@@ -15,6 +15,10 @@ import type { ActivityBuilder } from "@/hooks/useActivityBuilder";
 
 interface ActivityBuilderBodyProps {
   builder: ActivityBuilder;
+  /** The activity id, threaded to the Materials section so image uploads can be
+   *  attached to the activity slot (1.1.44). Edit page: route param; create
+   *  page: the resolved concept skill id. */
+  activityId?: string;
   /** The class control for the Setup section — a `<select>` on the create page,
    *  a read-only line on the edit page (class is fixed once an activity exists). */
   classControl?: ReactNode;
@@ -35,6 +39,7 @@ interface ActivityBuilderBodyProps {
  */
 export function ActivityBuilderBody({
   builder,
+  activityId,
   classControl,
   personaSlot,
   footer,
@@ -180,7 +185,7 @@ export function ActivityBuilderBody({
         </BuilderSection>
 
         <BuilderSection section={SECTION.materials}>
-          <MaterialsSection materials={b.materials} onChange={b.setMaterials} />
+          <MaterialsSection materials={b.materials} onChange={b.setMaterials} activityId={activityId} />
         </BuilderSection>
 
         {error}

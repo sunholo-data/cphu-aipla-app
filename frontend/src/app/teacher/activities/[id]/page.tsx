@@ -240,6 +240,7 @@ export default function TeacherActivityConfigPage() {
             <SettingsMap highlight="activity" classId={classId} />
             <ActivityBuilderBody
               builder={builder}
+              activityId={activityId}
               personaSlot={<InheritedPersona classId={classId} />}
               footer={
                 <div className="flex flex-wrap gap-2">

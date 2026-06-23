@@ -4,6 +4,8 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 const browseCurriculum = vi.fn();
 const ingestCurriculum = vi.fn();
 const fetchCurriculumContent = vi.fn();
+const uploadActivityImage = vi.fn();
+const deleteActivityImage = vi.fn();
 
 vi.mock("@/lib/curriculumApi", async () => {
   const actual = await vi.importActual<typeof import("@/lib/curriculumApi")>(
@@ -14,6 +16,17 @@ vi.mock("@/lib/curriculumApi", async () => {
     browseCurriculum: (...a: unknown[]) => browseCurriculum(...a),
     ingestCurriculum: (...a: unknown[]) => ingestCurriculum(...a),
     fetchCurriculumContent: (...a: unknown[]) => fetchCurriculumContent(...a),
+  };
+});
+
+vi.mock("@/lib/activityImageApi", async () => {
+  const actual = await vi.importActual<typeof import("@/lib/activityImageApi")>(
+    "@/lib/activityImageApi",
+  );
+  return {
+    ...actual,
+    uploadActivityImage: (...a: unknown[]) => uploadActivityImage(...a),
+    deleteActivityImage: (...a: unknown[]) => deleteActivityImage(...a),
   };
 });
 
@@ -145,10 +158,11 @@ describe("MaterialsSection", () => {
     await waitFor(() => expect(browseCurriculum).toHaveBeenCalled());
 
     const file = new File(["content"], "my-notes.txt", { type: "text/plain" });
-    const input = screen.getByLabelText("Upload curriculum document") as HTMLInputElement;
+    const input = screen.getByLabelText("Upload document or image") as HTMLInputElement;
     fireEvent.change(input, { target: { files: [file] } });
 
     await waitFor(() => expect(ingestCurriculum).toHaveBeenCalled());
+    expect(uploadActivityImage).not.toHaveBeenCalled();
     // 1.1.33: uploads are level-less — ingest is called WITHOUT a level.
     expect(ingestCurriculum.mock.calls[0][0]).not.toHaveProperty("level");
     await waitFor(() =>
@@ -162,6 +176,68 @@ describe("MaterialsSection", () => {
       expect(screen.getByText(/what we extracted — my-notes/i)).toBeInTheDocument(),
     );
     expect(screen.getByText(/Newton's second law/)).toBeInTheDocument();
+  });
+
+  it("uploading an image routes to the activity-image endpoint (not curriculum ingest) and cites it (1.1.44)", async () => {
+    browseCurriculum.mockResolvedValue([]);
+    uploadActivityImage.mockResolvedValue({
+      kind: "image",
+      docId: "",
+      origin: "",
+      materialId: "img-1",
+      mimeType: "image/png",
+      alt: "free-body",
+      studentVisible: false,
+    });
+    const onChange = vi.fn();
+    render(<MaterialsSection materials={[]} onChange={onChange} activityId="act-1" />);
+    await waitFor(() => expect(browseCurriculum).toHaveBeenCalled());
+
+    const file = new File(["png"], "free-body.png", { type: "image/png" });
+    const input = screen.getByLabelText("Upload document or image") as HTMLInputElement;
+    fireEvent.change(input, { target: { files: [file] } });
+
+    await waitFor(() => expect(uploadActivityImage).toHaveBeenCalledWith("act-1", file, "free-body"));
+    expect(ingestCurriculum).not.toHaveBeenCalled();
+    await waitFor(() =>
+      expect(onChange).toHaveBeenCalledWith([
+        expect.objectContaining({ kind: "image", materialId: "img-1", mimeType: "image/png" }),
+      ]),
+    );
+  });
+
+  it("blocks image upload when there is no activityId yet", async () => {
+    browseCurriculum.mockResolvedValue([]);
+    render(<MaterialsSection materials={[]} onChange={() => {}} />);
+    await waitFor(() => expect(browseCurriculum).toHaveBeenCalled());
+
+    const file = new File(["png"], "diagram.png", { type: "image/png" });
+    fireEvent.change(screen.getByLabelText("Upload document or image"), { target: { files: [file] } });
+
+    await waitFor(() => expect(screen.getByText(/Save the activity before adding an image/i)).toBeInTheDocument());
+    expect(uploadActivityImage).not.toHaveBeenCalled();
+  });
+
+  it("renders an image material as a chip and removes it via the API (1.1.44)", async () => {
+    browseCurriculum.mockResolvedValue([]);
+    deleteActivityImage.mockResolvedValue(undefined);
+    const onChange = vi.fn();
+    const imageMat: MaterialRef = {
+      kind: "image",
+      docId: "",
+      origin: "",
+      materialId: "img-1",
+      mimeType: "image/png",
+      alt: "free-body diagram",
+      studentVisible: false,
+    };
+    render(<MaterialsSection materials={[imageMat]} onChange={onChange} activityId="act-1" />);
+    const chips = await screen.findByLabelText("Cited materials");
+    expect(chips).toHaveTextContent("free-body diagram");
+
+    fireEvent.click(screen.getByRole("button", { name: /Remove free-body diagram/i }));
+    expect(deleteActivityImage).toHaveBeenCalledWith("act-1", "img-1");
+    expect(onChange).toHaveBeenCalledWith([]);
   });
 
   it("clicking a cited material opens its content viewer", async () => {

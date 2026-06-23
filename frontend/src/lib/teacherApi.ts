@@ -160,8 +160,18 @@ export type StxLevel = "A" | "B" | "C";
  *  ``origin`` is cached from the library doc at citation time so the tutor
  *  grounding preamble can name the source without an extra read. */
 export interface MaterialRef {
+  /** 1.1.44 — "curriculum" (a RAG doc, the default/legacy) or "image" (a teacher
+   *  image the tutor SEES multimodally). Absent ⇒ curriculum. */
+  kind?: "curriculum" | "image";
+  /** Curriculum doc id. Empty string for image materials. */
   docId: string;
+  /** Source label (curriculum). Empty string for image materials. */
   origin: string;
+  /** Image fields (1.1.44) — set when kind === "image". The bytes live in the
+   *  activity artifact slot; materialId + mimeType identify them. */
+  materialId?: string;
+  mimeType?: string;
+  alt?: string;
   /** 1.1.33 M2a — the teacher decides, per material, whether it's shown to
    *  students in the Documents workbench surface. Default false (opt-in).
    *  Governs only the student-facing surface; RAG grounding uses all materials. */

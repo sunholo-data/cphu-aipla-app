@@ -193,6 +193,7 @@ function NewActivityForm() {
 
           <ActivityBuilderBody
             builder={builder}
+            activityId={classesState.conceptSkillId}
             classControl={
               <label htmlFor="activity-class" className="flex flex-col gap-1">
                 <span className="text-sm font-medium text-slate-700">Class</span>

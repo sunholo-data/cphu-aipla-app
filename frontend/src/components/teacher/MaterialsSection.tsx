@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import * as Dialog from "@radix-ui/react-dialog";
-import { BookOpen, Check, Eye, EyeOff, FileText, FileUp, Loader2, Plus, X } from "lucide-react";
+import { BookOpen, Check, Eye, EyeOff, FileText, FileUp, Image as ImageIcon, Loader2, Plus, X } from "lucide-react";
 
 import {
   type CurriculumDoc,
@@ -12,6 +12,7 @@ import {
   fetchCurriculumContent,
   ingestCurriculum,
 } from "@/lib/curriculumApi";
+import { ActivityImageApiError, deleteActivityImage, uploadActivityImage } from "@/lib/activityImageApi";
 import type { MaterialRef, StxLevel } from "@/lib/teacherApi";
 
 type ViewState =
@@ -24,6 +25,10 @@ interface Props {
   materials: MaterialRef[];
   /** Called whenever the cited set changes (cite/un-cite/upload). */
   onChange: (next: MaterialRef[]) => void;
+  /** The activity id — required to attach an image (1.1.44). Both builder pages
+   *  have one (edit: route param; new: the resolved concept skill id). When
+   *  absent, image upload is disabled with an explanatory message. */
+  activityId?: string;
 }
 
 const LEVELS: StxLevel[] = ["A", "B", "C"];
@@ -40,14 +45,15 @@ const LEVELS: StxLevel[] = ["A", "B", "C"];
  * cited docs — students never see the open corpus. Empty / loading / error
  * states are designed (Axiom 11).
  */
-export function MaterialsSection({ materials, onChange }: Props) {
+export function MaterialsSection({ materials, onChange, activityId }: Props) {
   const [docs, setDocs] = useState<CurriculumDoc[] | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [levelFilter, setLevelFilter] = useState<StxLevel | "">("");
   const [topicFilter, setTopicFilter] = useState("");
 
-  const citedIds = new Set(materials.map((m) => m.docId));
+  // Only curriculum materials map to library docs; image materials carry no docId.
+  const citedIds = new Set(materials.filter((m) => m.kind !== "image").map((m) => m.docId));
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -131,6 +137,63 @@ export function MaterialsSection({ materials, onChange }: Props) {
       {materials.length > 0 ? (
         <ul className="flex flex-wrap gap-2" aria-label="Cited materials">
           {materials.map((m) => {
+            // 1.1.44 — image materials: an icon chip (the tutor sees the image;
+            // there's no text-extraction viewer). Same visibility toggle + remove.
+            if (m.kind === "image") {
+              const imgLabel = m.alt || "Image";
+              const imgVisible = Boolean(m.studentVisible);
+              return (
+                <li
+                  key={`img:${m.materialId}`}
+                  className="flex items-center gap-1.5 rounded border border-primary/40 bg-primary/5 px-2 py-1 text-xs"
+                >
+                  <span className="flex items-center gap-1 font-medium">
+                    <ImageIcon className="h-3.5 w-3.5 text-muted-foreground" aria-hidden="true" />
+                    {imgLabel}
+                  </span>
+                  <button
+                    type="button"
+                    aria-pressed={imgVisible}
+                    aria-label={imgVisible ? `Hide ${imgLabel} from students` : `Show ${imgLabel} to students`}
+                    title={imgVisible ? "Visible to students" : "Hidden from students"}
+                    onClick={() =>
+                      onChange(
+                        materials.map((x) =>
+                          x.kind === "image" && x.materialId === m.materialId
+                            ? { ...x, studentVisible: !x.studentVisible }
+                            : x,
+                        ),
+                      )
+                    }
+                    className={
+                      imgVisible
+                        ? "flex items-center gap-1 rounded px-1 text-emerald-700 hover:text-emerald-800"
+                        : "flex items-center gap-1 rounded px-1 text-muted-foreground hover:text-foreground"
+                    }
+                  >
+                    {imgVisible ? (
+                      <Eye className="h-3.5 w-3.5" aria-hidden="true" />
+                    ) : (
+                      <EyeOff className="h-3.5 w-3.5" aria-hidden="true" />
+                    )}
+                    <span>{imgVisible ? "Visible" : "Hidden"}</span>
+                  </button>
+                  <button
+                    type="button"
+                    aria-label={`Remove ${imgLabel}`}
+                    onClick={() => {
+                      if (activityId && m.materialId) {
+                        void deleteActivityImage(activityId, m.materialId).catch(() => {});
+                      }
+                      onChange(materials.filter((x) => !(x.kind === "image" && x.materialId === m.materialId)));
+                    }}
+                    className="text-muted-foreground hover:text-foreground"
+                  >
+                    <X className="h-3.5 w-3.5" aria-hidden="true" />
+                  </button>
+                </li>
+              );
+            }
             const label = m.origin || m.docId;
             const visible = Boolean(m.studentVisible);
             return (
@@ -214,14 +277,22 @@ export function MaterialsSection({ materials, onChange }: Props) {
             className="rounded border border-border bg-background px-2 py-1.5 text-sm"
           />
         </label>
-        <UploadButton onUploaded={(doc) => {
-          // Add the new doc to the visible list + cite it immediately. Default
-          // not student-visible (opt-in, 1.1.33 M2a) — same as toggleCite.
-          setDocs((prev) => (prev ? [doc, ...prev] : [doc]));
-          onChange([...materials, { docId: doc.docId, origin: doc.origin, studentVisible: false }]);
-          // Show what was extracted FROM THIS doc immediately (per-document, M4).
-          void openContent(doc.docId, doc.title);
-        }} />
+        <UploadButton
+          activityId={activityId}
+          onUploaded={(doc) => {
+            // Add the new doc to the visible list + cite it immediately. Default
+            // not student-visible (opt-in, 1.1.33 M2a) — same as toggleCite.
+            setDocs((prev) => (prev ? [doc, ...prev] : [doc]));
+            onChange([...materials, { docId: doc.docId, origin: doc.origin, studentVisible: false }]);
+            // Show what was extracted FROM THIS doc immediately (per-document, M4).
+            void openContent(doc.docId, doc.title);
+          }}
+          onImageUploaded={(ref) => {
+            // 1.1.44 — an image material the tutor will SEE. Cite it immediately;
+            // no parse viewer (it isn't text-extracted).
+            onChange([...materials, ref]);
+          }}
+        />
       </div>
 
       {/* Library list */}
@@ -367,10 +438,16 @@ export function MaterialsSection({ materials, onChange }: Props) {
 // Upload sub-control — minimal inline upload that ingests then cites.
 // -----------------------------------------------------------------------------
 
+const _IMAGE_EXT_RE = /\.(png|jpe?g|webp|gif)$/i;
+
 function UploadButton({
+  activityId,
   onUploaded,
+  onImageUploaded,
 }: {
+  activityId?: string;
   onUploaded: (doc: CurriculumDoc) => void;
+  onImageUploaded: (ref: MaterialRef) => void;
 }) {
   const inputRef = useRef<HTMLInputElement>(null);
   const [busy, setBusy] = useState(false);
@@ -383,6 +460,18 @@ function UploadButton({
     setBusy(true);
     setErr(null);
     try {
+      // 1.1.44 — route by type: an image becomes a material the tutor SEES
+      // (stored in the activity artifact slot); anything else is text-extracted
+      // into the curriculum/RAG corpus.
+      if (_IMAGE_EXT_RE.test(file.name)) {
+        if (!activityId) {
+          setErr("Save the activity before adding an image.");
+          return;
+        }
+        const ref = await uploadActivityImage(activityId, file, file.name.replace(/\.[^.]+$/, ""));
+        onImageUploaded(ref);
+        return;
+      }
       const result = await ingestCurriculum({
         file,
         title: file.name.replace(/\.[^.]+$/, ""),
@@ -394,8 +483,8 @@ function UploadButton({
       // (M4/M3) — so the preview is tied to the doc, not a generic panel.
       onUploaded(result.doc);
     } catch (e) {
-      if (e instanceof CurriculumApiError && e.status === 422) {
-        // PDFs are supported now (Gemini OCR); 422 = a genuinely unsupported type.
+      if ((e instanceof CurriculumApiError || e instanceof ActivityImageApiError) && e.status === 422) {
+        // 422 = a genuinely unsupported type (PDFs/images are supported).
         setErr(e.message || "Unsupported file type.");
       } else {
         setErr(e instanceof Error ? e.message : "Upload failed.");
@@ -423,10 +512,10 @@ function UploadButton({
       <input
         ref={inputRef}
         type="file"
-        accept=".pdf,.txt,.md,.docx,.pptx,.xlsx,.odt,.odp,.ods,.epub,.html,.htm,.csv"
+        accept=".pdf,.txt,.md,.docx,.pptx,.xlsx,.odt,.odp,.ods,.epub,.html,.htm,.csv,.png,.jpg,.jpeg,.webp,.gif"
         onChange={handleFile}
         className="hidden"
-        aria-label="Upload curriculum document"
+        aria-label="Upload document or image"
       />
       {err ? <span className="text-xs text-destructive">{err}</span> : null}
     </div>
