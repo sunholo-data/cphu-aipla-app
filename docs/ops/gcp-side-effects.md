@@ -8,6 +8,37 @@ Per [env-promotion-audit.md](env-promotion-audit.md): **manual IAM is a smell, n
 
 ---
 
+## 2026-06-23 — IMG-MAT sprint (activity image materials, 1.1.44) (aipla-dev-2026)
+
+**Sprint:** [IMG-MAT (1.1.44)](../design/aipla/v1.1.0-feedback/activity-image-materials.md)
+**Terraform module:** none new — reuses the **existing ADK artifact bucket** (`$ADK_ARTIFACT_BUCKET`, already provisioned + IAM-bound for ADK session artifacts).
+
+### No API enabled, no bucket created, no new IAM
+
+Teacher-attached activity images are stored via the **existing** ADK `GcsArtifactService`
+(`adk/session.py` `get_artifact_service()`), under a new **blob-key prefix** in the
+same bucket:
+
+```
+gs://$ADK_ARTIFACT_BUCKET/aipla/{teacher_uid}/{activity_id}/activity-image:{material_id}.{ext}/{version}
+```
+
+The Cloud Run runtime SA already has read/write on this bucket (it reads/writes
+ADK session artifacts there), so **no IAM change** was needed. The only ops
+prerequisite is that `ADK_ARTIFACT_BUCKET` is set (it is, for the dev backend);
+with it unset the code falls back to the in-memory artifact service (local dev).
+
+**Test/prod:** nothing to provision beyond `ADK_ARTIFACT_BUCKET` already being set
+for that env's backend (same as ADK session artifacts). No `TODO: codify` — there
+is no new resource to codify.
+
+**Retention (open, JB gate):** these blobs currently persist for the bucket's
+lifetime (no per-object TTL). If a retention policy is wanted, add a lifecycle
+rule scoped to the `*/activity-image:*` prefix — tracked in the design doc's
+human-gates section, not yet applied.
+
+---
+
 ## 2026-06-03 — VOICE-PROVIDER sprint M0 (aipla-dev-2026)
 
 **Sprint:** [VOICE-PROVIDER (1.1.11)](../design/aipla/v1.1.0-feedback/voice-provider-abstraction.md)

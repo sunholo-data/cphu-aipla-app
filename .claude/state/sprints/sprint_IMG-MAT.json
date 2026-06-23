@@ -118,7 +118,7 @@
     "actual_days": null
   },
   "github_issues": [],
-  "last_session": null,
-  "last_checkpoint": null,
-  "status": "not_started"
+  "last_session": "2026-06-23",
+  "last_checkpoint": "M0-M3 shipped to dev (54a832d->bc28052); backend make lint + test-fast green (2125+44); frontend quality:check incl. build green. Pending: dev deploy + browser/E2E. M4 optional.",
+  "status": "completed"
 }
