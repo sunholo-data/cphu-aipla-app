@@ -62,6 +62,7 @@ import { WorkspaceShell } from "@/components/workspace/WorkspaceShell";
 import { type ChecklistItem } from "@/components/workspace/ProgressChecklist";
 import { type TableElementDef } from "@/components/workspace/WorkbenchTable";
 import { type ChartElementDef } from "@/components/workspace/WorkbenchChart";
+import { type CalculatorElementDef } from "@/components/workspace/WorkbenchCalculator";
 import { WorkspaceElements } from "@/components/workspace/elementRenderers";
 import { DocumentsPanel, type ActivityMaterial } from "@/components/workspace/DocumentsPanel";
 import { workspaceContentKind } from "./workspaceContent";
@@ -413,6 +414,8 @@ function ChatShell({
   const [activeTable, setActiveTable] = useState<TableElementDef[]>([]);
   // 1.1.38 M2 — charts that plot the activity's data table.
   const [activeChart, setActiveChart] = useState<ChartElementDef[]>([]);
+  // 1.1.38 M3 — formula calculators (computed client-side via the safe parser).
+  const [activeCalculator, setActiveCalculator] = useState<CalculatorElementDef[]>([]);
   // 1.1.33 M2b/M1 — the activity's grounding documents (names-always + a
   // studentVisible flag), surfaced in the Documents workbench panel.
   const [activeMaterials, setActiveMaterials] = useState<ActivityMaterial[]>([]);
@@ -423,7 +426,10 @@ function ChatShell({
   // (workspaceContent.ts — pure + unit-tested; no inline slug allowlist).
   const workspaceKind = workspaceContentKind(
     skillSlug,
-    activeChecklist.length > 0 || activeTable.length > 0 || activeChart.length > 0,
+    activeChecklist.length > 0 ||
+      activeTable.length > 0 ||
+      activeChart.length > 0 ||
+      activeCalculator.length > 0,
   );
   // 1.1.33 M1 — the student's uploaded photos this session (native AG-UI image
   // parts already on the messages); fed to the Documents panel's gallery.
@@ -441,6 +447,7 @@ function ChatShell({
       setActiveChecklist([]);
       setActiveTable([]);
       setActiveChart([]);
+      setActiveCalculator([]);
       setActivePersona(null);
       setActiveMaterials([]);
       return;
@@ -453,6 +460,7 @@ function ChatShell({
         if (Array.isArray(data.checklist)) setActiveChecklist(data.checklist as ChecklistItem[]);
         if (Array.isArray(data.table)) setActiveTable(data.table as TableElementDef[]);
         if (Array.isArray(data.chart)) setActiveChart(data.chart as ChartElementDef[]);
+        if (Array.isArray(data.calculator)) setActiveCalculator(data.calculator as CalculatorElementDef[]);
         setActivePersona((data.persona as PersonaSummary | null) ?? null);
         setActiveMaterials(Array.isArray(data.materials) ? (data.materials as ActivityMaterial[]) : []);
       })
@@ -1259,6 +1267,7 @@ function ChatShell({
                 checklist={activeChecklist}
                 table={activeTable}
                 chart={activeChart}
+                calculator={activeCalculator}
               />
             ))}
             {/* 1.1.33 M1 — Documents: the activity's grounding sources (names

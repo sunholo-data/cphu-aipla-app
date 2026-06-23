@@ -105,6 +105,22 @@ export interface ChartElement {
   chartKind: "scatter" | "line" | "bar";
 }
 
+/** A named variable a calculator formula references (1.1.38 M3). */
+export interface CalcInput {
+  id: string;
+  label: string;
+  unit?: string;
+}
+
+/** A teacher-authored formula calculator (1.1.38 M3). The formula is evaluated
+ *  client-side by a safe whitelisted-grammar parser (no eval). */
+export interface CalculatorElement {
+  id: string;
+  title?: string;
+  formula: string;
+  inputs: CalcInput[];
+}
+
 /** Danish stx physics level — the primary curriculum browse axis (1.1.25). */
 export type StxLevel = "A" | "B" | "C";
 
@@ -148,6 +164,8 @@ export interface ActivityConfigUpsert {
   table?: TableElement[];
   /** Charts plotting the activity's data table (1.1.38 M2). */
   chart?: ChartElement[];
+  /** Formula calculators the student uses (1.1.38 M3). */
+  calculator?: CalculatorElement[];
   materials?: MaterialRef[];
 }
 

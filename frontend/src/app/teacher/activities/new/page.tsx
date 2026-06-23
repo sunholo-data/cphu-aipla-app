@@ -6,6 +6,7 @@ import { Suspense, useEffect, useRef, useState } from "react";
 import { ArrowLeft, MessageCircle, Plus, Save, Sparkles, X } from "lucide-react";
 
 import {
+  type CalculatorElement,
   type ClassPayload,
   type Language,
   type MaterialRef,
@@ -20,6 +21,7 @@ import { SettingsMap } from "@/components/teacher/SettingsMap";
 import { InheritedPersona } from "@/components/teacher/InheritedPersona";
 import { TableEditor, type TableEditorValue } from "@/components/teacher/TableEditor";
 import { ChartEditor, type ChartEditorValue } from "@/components/teacher/ChartEditor";
+import { CalculatorEditor, type CalculatorEditorValue } from "@/components/teacher/CalculatorEditor";
 
 // TAA-1 M0: a from-scratch activity runs the `concept-dialogue` base
 // skill (chat-only Socratic tutor). The teacher's title + lesson prompt
@@ -90,6 +92,8 @@ function NewActivityForm() {
   const [table, setTable] = useState<TableEditorValue | null>(null);
   // Optional chart that plots the data table (1.1.38 M2). `null` = no chart.
   const [chart, setChart] = useState<ChartEditorValue | null>(null);
+  // Optional formula calculator (1.1.38 M3). `null` = no calculator.
+  const [calculator, setCalculator] = useState<CalculatorEditorValue | null>(null);
 
   const [isSaving, setIsSaving] = useState(false);
   const [saveError, setSaveError] = useState<string | null>(null);
@@ -149,6 +153,7 @@ function NewActivityForm() {
         // Positional column ids assigned on save (the labels are the identity).
         table: buildTablePayload(table),
         chart: chart ? [{ id: "chart-1", title: chart.title.trim(), chartKind: chart.chartKind }] : [],
+        calculator: buildCalculatorPayload(calculator),
         materials,
       });
       // Bind the concept-dialogue lesson to the class so students in it
@@ -330,6 +335,8 @@ function NewActivityForm() {
             hasTable={!!table && table.columns.filter((c) => c.kind === "number" && c.label.trim()).length >= 2}
           />
 
+          <CalculatorEditor value={calculator} onChange={setCalculator} />
+
           <MaterialsSection materials={materials} onChange={setMaterials} />
 
           <div className="flex gap-4">
@@ -391,6 +398,20 @@ function buildTablePayload(table: TableEditorValue | null): TableElement[] {
     }));
   if (columns.length === 0) return [];
   return [{ id: "table-1", title: table.title.trim(), columns, rows: table.rows }];
+}
+
+const VAR_ID_RE = /^[A-Za-z_][A-Za-z0-9_]*$/;
+
+/** Build the `calculator` payload: keep inputs with a valid variable name +
+ *  label; drop the calculator if it has no valid inputs or no formula. The
+ *  formula string is stored verbatim (evaluated only client-side, safely). */
+function buildCalculatorPayload(calc: CalculatorEditorValue | null): CalculatorElement[] {
+  if (!calc) return [];
+  const inputs = calc.inputs
+    .filter((i) => VAR_ID_RE.test(i.id.trim()) && i.label.trim())
+    .map((i) => ({ id: i.id.trim(), label: i.label.trim(), unit: i.unit.trim() }));
+  if (inputs.length === 0 || !calc.formula.trim()) return [];
+  return [{ id: "calc-1", title: calc.title.trim(), formula: calc.formula.trim(), inputs }];
 }
 
 function Field({

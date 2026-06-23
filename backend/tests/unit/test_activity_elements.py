@@ -16,6 +16,8 @@ from pydantic import ValidationError
 from db.models.activity_config import (
     ELEMENT_REGISTRY,
     ActivityConfig,
+    CalcInput,
+    CalculatorElement,
     ChartElement,
     ChecklistItem,
     TableColumn,
@@ -145,3 +147,47 @@ def test_chart_over_cap_is_rejected() -> None:
     charts = [ChartElement(id=f"c{i}") for i in range(cap + 1)]
     with pytest.raises(ValidationError):
         _config(chart=charts)
+
+
+# --- calculator element (1.1.38 M3) ---------------------------------------
+
+
+def _calc() -> CalculatorElement:
+    return CalculatorElement(
+        id="calc1",
+        title="Fart",
+        formula="s / t",
+        inputs=[CalcInput(id="s", label="Strækning"), CalcInput(id="t", label="Tid", unit="s")],
+    )
+
+
+def test_calculator_is_a_registered_workspace_element() -> None:
+    spec = ELEMENT_REGISTRY["calculator"]
+    assert spec.field == "calculator"
+    assert spec.render == "workspace"
+
+
+def test_calculator_within_cap_roundtrips() -> None:
+    cfg = _config(calculator=[_calc()])
+    assert cfg.calculator[0].formula == "s / t"
+    assert [i.id for i in cfg.calculator[0].inputs] == ["s", "t"]
+
+
+def test_calculator_requires_a_formula() -> None:
+    with pytest.raises(ValidationError):
+        CalculatorElement(id="c", formula="", inputs=[CalcInput(id="s", label="S")])
+
+
+def test_calculator_requires_at_least_one_input() -> None:
+    with pytest.raises(ValidationError):
+        CalculatorElement(id="c", formula="s", inputs=[])
+
+
+def test_calc_input_id_must_be_an_identifier() -> None:
+    # The formula references inputs by id, so an id must be a safe identifier
+    # (no spaces / operators) — never an injection vector regardless.
+    with pytest.raises(ValidationError):
+        CalcInput(id="2 s", label="bad")
+    with pytest.raises(ValidationError):
+        CalcInput(id="s+t", label="bad")
+    assert CalcInput(id="v_0", label="ok").id == "v_0"

@@ -215,6 +215,23 @@ describe("/teacher/activities/new — concept activity builder", () => {
     ]);
   });
 
+  it("sends a calculator element with its variables + formula", async () => {
+    listClassesMock.mockResolvedValue(ONE_CLASS);
+    render(<NewActivityPage />);
+    fireEvent.change(await screen.findByLabelText(/activity name/i), { target: { value: "Lab" } });
+    fireEvent.change(screen.getByLabelText(/lesson prompt/i), { target: { value: "Compute." } });
+    fireEvent.click(screen.getByRole("button", { name: /add calculator/i }));
+    fireEvent.change(screen.getByLabelText(/variable 1 name/i), { target: { value: "s" } });
+    fireEvent.change(screen.getByLabelText(/variable 1 label/i), { target: { value: "Strækning" } });
+    fireEvent.change(screen.getByLabelText(/^formula$/i), { target: { value: "s * 2" } });
+    fireEvent.click(screen.getByRole("button", { name: /create activity/i }));
+
+    await waitFor(() => expect(saveActivityConfigMock).toHaveBeenCalledTimes(1));
+    expect(saveActivityConfigMock.mock.calls[0][0].calculator).toEqual([
+      { id: "calc-1", title: "", formula: "s * 2", inputs: [{ id: "s", label: "Strækning", unit: "" }] },
+    ]);
+  });
+
   it("blocks submit until a title and a lesson prompt are entered", async () => {
     listClassesMock.mockResolvedValue(ONE_CLASS);
     render(<NewActivityPage />);

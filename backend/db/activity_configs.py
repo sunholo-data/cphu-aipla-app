@@ -14,6 +14,7 @@ from typing import Any
 from db.firestore import delete_document, get_document, query_documents, set_document
 from db.models.activity_config import (
     ActivityConfig,
+    CalculatorElement,
     ChartElement,
     ChecklistItem,
     Difficulty,
@@ -59,6 +60,7 @@ def upsert_activity_config(
     checklist: list[ChecklistItem] | None = None,
     table: list[TableElement] | None = None,
     chart: list[ChartElement] | None = None,
+    calculator: list[CalculatorElement] | None = None,
     materials: list[MaterialRef] | None = None,
 ) -> ActivityConfig:
     """Create or overwrite the activity config for this (teacher, class, activity).
@@ -82,6 +84,7 @@ def upsert_activity_config(
         checklist=checklist or [],
         table=table or [],
         chart=chart or [],
+        calculator=calculator or [],
         materials=materials or [],
         updatedAt=_utcnow(),
     )

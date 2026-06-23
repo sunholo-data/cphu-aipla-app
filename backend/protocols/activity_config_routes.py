@@ -32,6 +32,7 @@ from db.activity_configs import (
 from db.classes import get_class_for_group
 from db.models.activity_config import (
     ActivityConfig,
+    CalculatorElement,
     ChartElement,
     ChecklistItem,
     Difficulty,
@@ -80,6 +81,8 @@ class ActivityConfigUpsert(BaseModel):
     table: list[TableElement] = Field(default_factory=list)
     # Charts plotting the activity's data table (1.1.38 M2).
     chart: list[ChartElement] = Field(default_factory=list)
+    # Formula calculators the student uses (1.1.38 M3).
+    calculator: list[CalculatorElement] = Field(default_factory=list)
     # Curriculum documents cited for this activity (1.1.25 M4). The tutor
     # retrieval tool is scoped to ONLY these docs (student deny-by-default).
     materials: list[MaterialRef] = Field(default_factory=list)
@@ -125,6 +128,7 @@ async def post_activity_config(
         checklist=body.checklist,
         table=body.table,
         chart=body.chart,
+        calculator=body.calculator,
         materials=body.materials,
     )
     log.info(
@@ -179,6 +183,7 @@ async def get_active_activity_config(
             "checklist": [],
             "table": [],
             "chart": [],
+            "calculator": [],
             "workbenchType": "none",
             "persona": persona_block,
             "materials": [],
@@ -195,6 +200,7 @@ async def get_active_activity_config(
         "checklist": [item.model_dump() for item in cfg.checklist],
         "table": [t.model_dump(by_alias=True) for t in cfg.table],
         "chart": [c.model_dump(by_alias=True) for c in cfg.chart],
+        "calculator": [c.model_dump(by_alias=True) for c in cfg.calculator],
         "workbenchType": cfg.workbench_type,
         "persona": persona_block,
         "materials": materials,
@@ -267,6 +273,7 @@ async def patch_activity_config(
         checklist=body.checklist,
         table=body.table,
         chart=body.chart,
+        calculator=body.calculator,
         materials=body.materials,
     )
     return _serialize(cfg)

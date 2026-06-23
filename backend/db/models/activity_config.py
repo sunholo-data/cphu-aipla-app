@@ -119,6 +119,38 @@ class ChartElement(BaseModel):
     model_config = ConfigDict(populate_by_name=True)
 
 
+class CalcInput(BaseModel):
+    """A named variable a calculator formula references (1.1.38 M3).
+
+    ``id`` is the variable name used in the formula (a simple identifier);
+    ``label`` is the student-facing display; ``unit`` is shown beside the field.
+    """
+
+    id: str = Field(min_length=1, max_length=24, pattern=r"^[A-Za-z_][A-Za-z0-9_]*$")
+    label: str = Field(min_length=1, max_length=80)
+    unit: str = Field(default="", max_length=24)
+
+    model_config = ConfigDict(populate_by_name=True)
+
+
+class CalculatorElement(BaseModel):
+    """A teacher-authored formula calculator the student uses (1.1.38 M3).
+
+    The teacher writes a ``formula`` (e.g. ``"s / t"``) over named ``inputs``;
+    the student enters values and the result is computed **client-side** by a
+    whitelisted safe-expression evaluator (no ``eval`` — Axiom 9). The backend
+    only stores the bounded formula string; it never evaluates it, so the
+    formula text is inert data here.
+    """
+
+    id: str = Field(min_length=1, max_length=64)
+    title: str = Field(default="", max_length=120)
+    formula: str = Field(min_length=1, max_length=200)
+    inputs: list[CalcInput] = Field(min_length=1, max_length=8)
+
+    model_config = ConfigDict(populate_by_name=True)
+
+
 # Workbench type system (1.J expanded-workbench-types). ``none`` is a
 # first-class, no-simulator activity (chat-only Socratic dialogue, the
 # v1.1 teacher-authoring headline). ``app`` is a paired MCP-App sim.
@@ -139,10 +171,10 @@ WorkbenchType = Literal["app", "drawing", "sensor", "video", "notebook", "none"]
 # mirror lives in frontend/src/lib/activityElements.ts (kept in lock-step via
 # the consistency tests on both ends).
 #
-# v1.1 ships the ``checklist`` (M0) + ``table`` (M1) + ``chart`` (M2); the
-# ``calculator`` (M3) / ``document`` (M4) land as further entries;
-# ``quiz`` (inline, A2UI) joins when 1.1.19 M2 builds it.
-ElementKind = Literal["checklist", "table", "chart"]
+# v1.1 ships the ``checklist`` (M0) + ``table`` (M1) + ``chart`` (M2) +
+# ``calculator`` (M3); ``document`` (M4) lands next; ``quiz`` (inline, A2UI)
+# joins when 1.1.19 M2 builds it.
+ElementKind = Literal["checklist", "table", "chart", "calculator"]
 ElementRender = Literal["workspace", "inline"]
 
 
@@ -169,6 +201,7 @@ ELEMENT_REGISTRY: dict[ElementKind, ElementSpec] = {
     # row bounds live on ``TableElement`` itself.
     "table": ElementSpec(kind="table", field="table", max_items=5, render="workspace"),
     "chart": ElementSpec(kind="chart", field="chart", max_items=5, render="workspace"),
+    "calculator": ElementSpec(kind="calculator", field="calculator", max_items=5, render="workspace"),
 }
 
 
@@ -201,6 +234,9 @@ class ActivityConfig(BaseModel):
     table: list[TableElement] = Field(default_factory=list)
     # Charts plotting the activity's data table (1.1.38 M2).
     chart: list[ChartElement] = Field(default_factory=list)
+    # Formula calculators the student uses (1.1.38 M3). The formula string is
+    # inert here — evaluated only client-side by a safe parser (no eval).
+    calculator: list[CalculatorElement] = Field(default_factory=list)
     # Curriculum documents cited for this activity (1.1.25 M3). The tutor
     # retrieval tool is scoped to ONLY these docs (student deny-by-default).
     materials: list[MaterialRef] = Field(default_factory=list)
@@ -248,6 +284,8 @@ class ActivityConfig(BaseModel):
 __all__ = [
     "ELEMENT_REGISTRY",
     "ActivityConfig",
+    "CalcInput",
+    "CalculatorElement",
     "ChartElement",
     "ChartKind",
     "ChecklistItem",
