@@ -252,7 +252,7 @@ Ordered so **M0 is the reusable substrate** and each element is an independent, 
 
 ## Open questions
 
-- **Q1 — sim composition:** how platform elements coexist with an `app`-type sim in the workspace pane (tabs per 1.1.33 vs stacked). Decide before M1.
+- **Q1 — sim composition:** how platform elements coexist with an `app`-type sim in the workspace pane (tabs per 1.1.33 vs stacked). **Answered by [teacher-sim-resources.md](teacher-sim-resources.md) (1.1.41):** the **sim is the workbench surface** (`workbench_type="app"` + `artefact_id`) and the elements **layer on top** — the [preview](activity-preview-mode.md) (1.1.40) renders both; stacked-below for M0, tabs a later enhancement.
 - **Q2 — table vs Type-5 notebook boundary:** the data-table element and the [Type-5 lab notebook](../v1.0.0-pilot/expanded-workbench-types.md) (1.J) overlap. Recommendation: the **table element is the notebook's structured-field primitive** — 1.J Type 5 becomes "a workbench surface composed of table element(s)", not a parallel implementation. Confirm so they don't fork.
 - **Q3 — calculator eval location:** server-side `evaluate` (Axiom 10, consistent with quiz grading, auditable) vs client-side safe-eval (instant, offline-friendly on the shared phone). Recommendation: server-side for v1.1 (auditable + single safe-eval implementation); revisit if latency on the shared phone bites.
 - **Q4 — `elements[]` array trigger:** what pilot signal promotes the post-pilot array migration (multiple-of-a-kind requested? reorder requested?). Capture as a pilot-review checkpoint.
