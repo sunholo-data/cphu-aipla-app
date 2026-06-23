@@ -39,6 +39,10 @@ class ArtefactMeta(BaseModel):
     # Injected into the sim-activity tutor at session-start; SERVER-SIDE ONLY —
     # excluded from the public catalogue view.
     tutor_block: str = Field(default="", alias="tutorBlock", max_length=2000)
+    # Optional preview image (a path/URL the picker renders to help a teacher
+    # identify the sim at a glance). Unset → the frontend draws an icon/monogram
+    # tile. Supply a screenshot here per sim as they're produced.
+    thumbnail: str | None = Field(default=None, max_length=300)
     status: ArtefactStatus = "live"
 
     model_config = ConfigDict(populate_by_name=True)
@@ -60,6 +64,7 @@ class ArtefactMeta(BaseModel):
             "levels": self.levels,
             "language": self.language,
             "artefactPath": self.artefact_path,
+            "thumbnail": self.thumbnail,
             "status": self.status,
         }
 

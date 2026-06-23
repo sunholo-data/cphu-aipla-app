@@ -1,8 +1,9 @@
 "use client";
 
-import { ChevronDown, Eye, FlaskConical, Maximize2, X } from "lucide-react";
+import { ChevronDown, Eye, Maximize2, X } from "lucide-react";
 import { type ReactNode, useEffect, useRef, useState } from "react";
 
+import { SimThumbnail } from "@/components/teacher/SimThumbnail";
 import { StudentWorkspace } from "@/components/workspace/StudentWorkspace";
 import { type ActivityArtefact } from "@/components/workspace/GenericArtefactFrame";
 import { HumanToolEventsProvider } from "@/hooks/useHumanToolEvents";
@@ -137,8 +138,8 @@ function PreviewBody({
   return (
     <HumanToolEventsProvider>
       {artefactId && !SANDBOX_ORIGIN ? (
-        <div className="flex items-start gap-2 border-b border-slate-200 px-4 py-3 text-xs text-slate-500">
-          <FlaskConical className="mt-0.5 h-4 w-4 shrink-0 text-emerald-500" aria-hidden="true" />
+        <div className="flex items-start gap-2.5 border-b border-slate-200 px-4 py-3 text-xs text-slate-500">
+          <SimThumbnail id={sim?.id ?? artefactId} displayName={sim?.displayName ?? artefactId} thumbnail={sim?.thumbnail} />
           <span>
             <span className="font-medium text-slate-700">{sim?.displayName ?? artefactId}</span>{" "}
             simulation attached. The live simulation appears here once the sandbox service is configured

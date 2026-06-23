@@ -147,6 +147,9 @@ export interface ArtefactSummary {
   levels: StxLevel[];
   language: string;
   artefactPath: string;
+  /** Optional preview image (path/URL). Unset → the UI draws an icon/monogram
+   *  tile so the sim is still identifiable at a glance. */
+  thumbnail?: string | null;
   status: string;
 }
 
