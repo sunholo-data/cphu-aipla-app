@@ -112,11 +112,14 @@ def list_documents_for_user(user_id: str, skill_id: str | None = None, limit: in
 
     Sorted in Python rather than via a Firestore ``order_by``: combining several
     equality filters (userId + status + skillId) with an ``order_by`` on a
-    *different* field (createdAt) needs a composite index that isn't provisioned,
-    which 500s the documents list (the StudentDocumentWorkbench error state). The
-    equality-only query needs no composite index, and the per-(user, skill) result
-    set is small, so we fetch the matches (bounded) and sort here. ``createdAt`` is
-    stored as an ISO-8601 string, so a reverse lexical sort is chronological.
+    *different* field (createdAt) needs a composite index. The canonical indexes
+    ARE now declared in ``firestore.indexes.json`` (parsed_documents:
+    userId,status[,skillId],createdAt — auto-deployed by cloudbuild.yaml), but the
+    equality-only query here needs no composite index at all, so it stays resilient
+    to the async index-build window after a deploy and never 500s (it was the
+    StudentDocumentWorkbench "couldn't list" error). The per-(user, skill) result
+    set is small; ``createdAt`` is an ISO-8601 string so a reverse lexical sort is
+    chronological.
     """
     filters: list[tuple[str, str, Any]] = [
         ("userId", "==", user_id),
