@@ -116,7 +116,7 @@
       "description": "Rich-text solution editor element (JB-2): lazy TipTap (B/I/U, lists, link, image, fx math, undo) as a new 1.1.38 element; autosave + save; serialised to markdown; surfaced to the tutor. May split to 1.1.46.",
       "scope": "fullstack",
       "estimated_loc": 520,
-      "actual_loc": null,
+      "actual_loc": 1100,
       "dependencies": [
         "M1"
       ],
@@ -137,9 +137,9 @@
         "frontend/package.json"
       ],
       "passes": null,
-      "started": null,
+      "started": "2026-06-24",
       "completed": null,
-      "notes": "Largest piece; greenfield TipTap. Decision point after M3: split to 1.1.46 if window is full. AR feedback-prompt gate."
+      "notes": "CODE-COMPLETE + static gate green (2026-06-24), NOT yet browser-verified. Built: TipTap v3 deps (frontend security gate green); solutionMarkdown serialiser (JSON->markdown+$math$, 13 tests); WorkbenchSolution editor (JB-2 toolbar + word count + autosave/submit); backend SolutionElement + ELEMENT_REGISTRY + routes/db + SOLUTION_FEEDBACK_PROMPT injected via compose_teacher_focus; full element wiring (SolutionElementMount + elementRenderers + StudentWorkspace + chat page + builder SolutionEditor + useActivityBuilder + ActivityPreview). Commits d24637d (core) ef222b4 (backend) d7e22fd (wiring). Gate: FE 1262 + BE 2151 tests, lint+typecheck clean. REMAINING (gates passes=true): (1) browser runtime verification of the editor (KaTeX render / Next-SSR hydration) via aitana-frontend-verify; (2) AR sign-off on the feedback prompt (gates pilot ship, not dev). Prompt migrates to 1.1.47 config next sprint."
     }
   ],
   "velocity": {
