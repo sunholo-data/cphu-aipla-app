@@ -22,6 +22,17 @@ vi.mock("@/lib/teacherApi", async () => {
   );
   return {
     ...actual,
+    // ALS-1 M0: an act- id loads/saves via the class-independent Activity store.
+    fetchActivity: vi.fn(async () => {
+      throw new actual.NotFoundError();
+    }),
+    updateActivity: vi.fn(async (activityId, body) => ({
+      ...body,
+      activityId,
+      ownerUid: "workshop-user",
+      updatedAt: "2026-05-25T15:00:00Z",
+    })),
+    // Legacy path (non-act id) kept mocked for the dual-read test below.
     fetchMyActivityConfig: vi.fn(async () => {
       throw new actual.NotFoundError();
     }),
@@ -61,12 +72,16 @@ vi.mock("@/components/teacher/ActivityPreview", () => ({
 import TeacherActivityConfigPage from "@/app/teacher/activities/[id]/page";
 import {
   NotFoundError,
+  fetchActivity,
   fetchMyActivityConfig,
   saveActivityConfig,
+  updateActivity,
 } from "@/lib/teacherApi";
 
-const fetchMock = vi.mocked(fetchMyActivityConfig);
-const saveMock = vi.mocked(saveActivityConfig);
+const fetchMock = vi.mocked(fetchActivity);
+const saveMock = vi.mocked(updateActivity);
+const legacyFetchMock = vi.mocked(fetchMyActivityConfig);
+const legacySaveMock = vi.mocked(saveActivityConfig);
 
 beforeEach(() => {
   nav.params = { id: "act-real-123" };
@@ -77,12 +92,18 @@ beforeEach(() => {
   fetchMock.mockReset();
   fetchMock.mockRejectedValue(new NotFoundError());
   saveMock.mockClear();
+  legacyFetchMock.mockReset();
+  legacyFetchMock.mockRejectedValue(new NotFoundError());
+  legacySaveMock.mockClear();
 });
 
 describe("/teacher/activities/[id] — real activity editor", () => {
   it("loads the live config and pre-fills the goal + cited materials", async () => {
     fetchMock.mockResolvedValueOnce({
       activityId: "act-real-123",
+      ownerUid: "teacher-1",
+      skillId: "concept",
+      visibility: "private",
       classId: "c-1",
       teacherUid: "teacher-1",
       title: "Projectile motion",
@@ -103,7 +124,7 @@ describe("/teacher/activities/[id] — real activity editor", () => {
       name: /teaching goal/i,
     })) as HTMLTextAreaElement;
     expect(textarea.value).toBe("Discover component independence");
-    expect(fetchMock).toHaveBeenCalledWith("c-1", "act-real-123");
+    expect(fetchMock).toHaveBeenCalledWith("act-real-123");
     expect(screen.getByText(/configure: projectile motion/i)).toBeInTheDocument();
   });
 
@@ -135,12 +156,11 @@ describe("/teacher/activities/[id] — real activity editor", () => {
     fireEvent.click(screen.getByRole("button", { name: /save configuration/i }));
 
     await waitFor(() => {
+      // ALS-1 M0: PATCH /api/activities/{id} — (activityId, body). The body
+      // carries the running skill + content; the id is the path param.
       expect(saveMock).toHaveBeenCalledWith(
-        expect.objectContaining({
-          activityId: "act-real-123",
-          classId: "c-1",
-          teachingGoal: "New goal",
-        }),
+        "act-real-123",
+        expect.objectContaining({ teachingGoal: "New goal" }),
       );
     });
     expect(screen.getByRole("status").textContent ?? "").toMatch(/saved\b/i);
@@ -152,6 +172,9 @@ describe("/teacher/activities/[id] — real activity editor", () => {
     // config, tweak the goal, save, and assert the workspace survives.
     fetchMock.mockResolvedValueOnce({
       activityId: "act-real-123",
+      ownerUid: "teacher-1",
+      skillId: "concept",
+      visibility: "private",
       classId: "c-1",
       teacherUid: "teacher-1",
       title: "Kastebevægelse",
@@ -183,7 +206,7 @@ describe("/teacher/activities/[id] — real activity editor", () => {
     fireEvent.click(screen.getByRole("button", { name: /save configuration/i }));
 
     await waitFor(() => expect(saveMock).toHaveBeenCalledTimes(1));
-    const body = saveMock.mock.calls[0][0];
+    const body = saveMock.mock.calls[0][1];
     expect(body.artefactId).toBe("boldkast");
     expect(body.checklist).toEqual([{ id: "step-1", label: "Measure ranges" }]);
     expect(body.table).toEqual([
@@ -204,9 +227,40 @@ describe("/teacher/activities/[id] — real activity editor", () => {
     expect(await screen.findByRole("alert")).toHaveTextContent(/could not load/i);
   });
 
-  it("shows the error state (never mock data) when arriving without a classId", () => {
+  it("shows the error state (never mock data) when a LEGACY activity arrives without a classId", () => {
+    // A legacy (non-act) id resolves from the per-class store, so it needs the
+    // classId. (An act- activity is class-independent and loads without one.)
+    nav.params = { id: "legacy-skill-uuid" };
     nav.search = new Map(); // no classId
     render(<TeacherActivityConfigPage />);
     expect(screen.getByRole("alert")).toHaveTextContent(/could not load/i);
+  });
+
+  it("dual-read: a LEGACY (non-act) id loads + saves via the per-class config store", async () => {
+    nav.params = { id: "legacy-skill-uuid" };
+    nav.search = new Map([["classId", "c-1"]]);
+    legacyFetchMock.mockResolvedValueOnce({
+      activityId: "legacy-skill-uuid",
+      classId: "c-1",
+      teacherUid: "teacher-1",
+      title: "Legacy",
+      teachingGoal: "Old goal",
+      language: "da",
+      difficulty: "standard",
+      pairedWorkbench: null,
+      materials: [],
+      updatedAt: "2026-06-20T10:00:00Z",
+    });
+    render(<TeacherActivityConfigPage />);
+    const textarea = (await screen.findByRole("textbox", { name: /teaching goal/i })) as HTMLTextAreaElement;
+    expect(textarea.value).toBe("Old goal");
+    expect(legacyFetchMock).toHaveBeenCalledWith("c-1", "legacy-skill-uuid");
+    fireEvent.change(textarea, { target: { value: "Edited" } });
+    fireEvent.click(screen.getByRole("button", { name: /save configuration/i }));
+    await waitFor(() =>
+      expect(legacySaveMock).toHaveBeenCalledWith(
+        expect.objectContaining({ activityId: "legacy-skill-uuid", classId: "c-1", teachingGoal: "Edited" }),
+      ),
+    );
   });
 });

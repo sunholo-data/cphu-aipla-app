@@ -20,8 +20,10 @@ import {
 
 import {
   NotFoundError,
+  fetchActivity,
   fetchMyActivityConfig,
   saveActivityConfig,
+  updateActivity,
 } from "@/lib/teacherApi";
 import { SettingsMap } from "@/components/teacher/SettingsMap";
 import { InheritedPersona } from "@/components/teacher/InheritedPersona";
@@ -58,6 +60,14 @@ export default function TeacherActivityConfigPage() {
   const classId = searchParams.get("classId") ?? "";
   const titleParam = searchParams.get("title") ?? "";
 
+  // ALS-1 M0: a minted `act-…` id lives in the class-independent Activity store;
+  // a legacy skill-id id is still in the per-class activity_configs store (dual-read
+  // window). Branch load + save on the prefix so both keep working through cutover.
+  const isActivityStore = activityId.startsWith("act-");
+  // The running skill of the loaded activity — needed to PATCH it back (the
+  // Activity carries its own skill_id; the editor must preserve it).
+  const [loadedSkillId, setLoadedSkillId] = useState("");
+
   // The activity builder — the SAME hook the create page uses, so create and
   // edit render identical config + preview and assemble identical save payloads.
   const builder = useActivityBuilder();
@@ -65,15 +75,16 @@ export default function TeacherActivityConfigPage() {
   const [toast, setToast] = useState<string | null>(null);
   const [isSaving, setIsSaving] = useState(false);
   const [activeTab, setActiveTab] = useState<TabId>("goal");
-  // Block the form on the network load; a missing classId can't be loaded.
+  // Block the form on the network load. An act- activity loads by id alone; a
+  // legacy config needs the classId, so a missing one is an error there only.
   const [loadState, setLoadState] = useState<LoadState>(
-    classId ? "loading" : "error",
+    isActivityStore || classId ? "loading" : "error",
   );
 
-  // Load the teacher's saved config. This IS the data source — a 404 means a
-  // not-yet-saved activity (render an empty form so the teacher can save it).
+  // Load the saved activity. This IS the data source — a 404 means a not-yet-saved
+  // activity (render an empty form so the teacher can save it).
   useEffect(() => {
-    if (!classId || !activityId) {
+    if (!activityId || (!isActivityStore && !classId)) {
       setLoadState("error");
       return;
     }
@@ -81,12 +92,17 @@ export default function TeacherActivityConfigPage() {
     // Seed the title from the deep-link param so the header + name field show
     // something before the load resolves (and for a 404 fresh form).
     if (titleParam) builder.setTitle(titleParam);
-    fetchMyActivityConfig(classId, activityId)
+    const loader = isActivityStore
+      ? fetchActivity(activityId)
+      : fetchMyActivityConfig(classId, activityId);
+    loader
       .then((saved) => {
         if (!alive) return;
         // Hydrate the FULL builder — goal, language, every element, the sim,
         // materials — so editing round-trips instead of wiping (1.1.40 M1).
         builder.hydrate(saved);
+        // Preserve the running skill for the PATCH back (Activity store only).
+        if (isActivityStore) setLoadedSkillId((saved as { skillId?: string }).skillId ?? "");
         setLoadState("ready");
       })
       .catch((err) => {
@@ -97,7 +113,7 @@ export default function TeacherActivityConfigPage() {
           setLoadState("ready");
           return;
         }
-        console.warn("[teacher-ui] activity-config load failed:", err);
+        console.warn("[teacher-ui] activity load failed:", err);
         setLoadState("error");
       });
     return () => {
@@ -110,22 +126,27 @@ export default function TeacherActivityConfigPage() {
     ev.preventDefault();
     setIsSaving(true);
     try {
-      await saveActivityConfig({
-        activityId,
-        classId,
+      const elementSlice = {
         title: builder.title.trim() || displayName,
         teachingGoal: builder.teachingGoal,
         language: builder.language,
         workbenchType: builder.workbenchType,
-        // The full element + sim slice. POST is a full overwrite, so sending
+        // The full element + sim slice. The save is a full overwrite, so sending
         // this is what stops a goal edit from wiping the activity's tables,
         // charts, calculators, notes and attached sim (1.1.40 M1).
         ...builder.elementPayload(),
         materials: builder.materials,
-      });
+      };
+      if (isActivityStore) {
+        // ALS-1 M0: PATCH the class-independent activity, preserving its skill.
+        await updateActivity(activityId, { skillId: loadedSkillId, ...elementSlice });
+      } else {
+        // Legacy per-class config (dual-read window).
+        await saveActivityConfig({ activityId, classId, ...elementSlice });
+      }
       setToast("Saved — students see your teaching goal on their next turn");
     } catch (err) {
-      console.error("[teacher-ui] activity-config save failed:", err);
+      console.error("[teacher-ui] activity save failed:", err);
       setToast("Save failed — your changes were not stored");
     } finally {
       setIsSaving(false);

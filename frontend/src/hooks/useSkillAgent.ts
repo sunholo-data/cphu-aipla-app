@@ -224,8 +224,13 @@ function classifyRunError(event: unknown): StreamError {
  * We mirror `agent.messages` to React state on every change so consumers see
  * fresh renders. The agent keeps the canonical list; we just copy it.
  */
-export function useSkillAgent(options?: { _hangTimeoutMs?: number }): UseSkillAgentReturn {
+export function useSkillAgent(options?: { _hangTimeoutMs?: number; activityId?: string }): UseSkillAgentReturn {
   const hangTimeoutMs = options?._hangTimeoutMs ?? 30_000;
+  // ALS-1 M0: the specific activity this chat runs (an act- id from the lesson
+  // card). Rides every send on forwardedProps.activity_id so the backend injects
+  // THIS activity's teacher-focus. Absent (teacher chats / direct skill links) →
+  // the backend falls back to the skill id, so behaviour is unchanged.
+  const activityId = options?.activityId;
   const agent = useAGUIAgent();
   // Sprint 2.10: read every active A2UI surface's snapshot at sendMessage
   // time and ride it back on `forwardedProps.a2ui_surface_state`. Optional
@@ -507,6 +512,12 @@ export function useSkillAgent(options?: { _hangTimeoutMs?: number }): UseSkillAg
         if (opts?.resumedSession) {
           forwardedProps.resumed_session = true;
         }
+        // ALS-1 M0: select THIS activity's teacher-focus on the backend. Only an
+        // act- id is meaningful (a skill id == the legacy welding the backend
+        // already falls back to), so omit it otherwise to keep the wire clean.
+        if (activityId && activityId.startsWith("act-")) {
+          forwardedProps.activity_id = activityId;
+        }
         // 1.1.7 images do NOT ride forwardedProps — they're native AG-UI
         // ImageInputContent parts in the message content (see addMessage
         // above), so ADK persists + replays them. Nothing to add here.
@@ -536,7 +547,7 @@ export function useSkillAgent(options?: { _hangTimeoutMs?: number }): UseSkillAg
         setRunStarted(false);
       }
     },
-    [agent, clearError, surfaceRegistry],
+    [agent, clearError, surfaceRegistry, activityId],
   );
 
   const stop = useCallback(() => {

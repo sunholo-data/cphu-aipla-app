@@ -7,11 +7,9 @@ import { ArrowLeft, Save, Sparkles } from "lucide-react";
 
 import {
   type ClassPayload,
-  ConflictError,
+  createActivity,
   listAccessibleSkills,
   listClasses,
-  patchLessons,
-  saveActivityConfig,
 } from "@/lib/teacherApi";
 import { SettingsMap } from "@/components/teacher/SettingsMap";
 import { InheritedPersona } from "@/components/teacher/InheritedPersona";
@@ -105,8 +103,13 @@ function NewActivityForm() {
     setIsSaving(true);
     setSaveError(null);
     try {
-      await saveActivityConfig({
-        activityId: conceptSkillId,
+      // ALS-1 M0: create a NEW activity in the class-independent store. The backend
+      // mints a distinct `act-…` id every time, so creating a second activity in
+      // the same class can never overwrite the first (the bug). `classId` makes the
+      // POST also assign it to the class — no separate patchLessons needed (the
+      // student lesson list now resolves from Class.activity_ids).
+      const activity = await createActivity({
+        skillId: conceptSkillId,
         classId,
         title: builder.title.trim(),
         teachingGoal: builder.teachingGoal.trim(),
@@ -116,33 +119,15 @@ function NewActivityForm() {
         // so preview === saved activity).
         ...builder.elementPayload(),
         materials: builder.materials,
-        // Day-0 overwrite guard (ALS-1 M0.5-guard): this is a CREATE, so refuse
-        // to silently overwrite an existing activity in this class. Until M0
-        // mints distinct ids, a class holds one concept activity — fail loudly
-        // (the catch below shows the backend's honest message) rather than
-        // destroying the first activity's config.
-        createOnly: true,
       });
-      // Bind the concept-dialogue lesson to the class so students in it
-      // actually see the activity. Idempotent — adding it again is a no-op.
-      // Without this, a class with a lesson allowlist filters it out
-      // (see frontend/src/app/lessons/page.tsx). Must use the real skill_id
-      // (UUID), not the name, or the lessons PATCH 404s.
-      await patchLessons(classId, { add: [conceptSkillId] });
       const cls = classesState.classes.find((c) => c.classId === classId);
       setSavedClassName(cls?.name ?? classId);
       setSavedActivityHref(
-        `/teacher/activities/${encodeURIComponent(conceptSkillId)}?classId=${encodeURIComponent(classId)}&title=${encodeURIComponent(builder.title.trim())}`,
+        `/teacher/activities/${encodeURIComponent(activity.activityId)}?classId=${encodeURIComponent(classId)}&title=${encodeURIComponent(builder.title.trim())}`,
       );
     } catch (err) {
       console.error("[teacher-ui] create activity failed:", err);
-      // The day-0 guard returns 409 with an honest explanation — surface it
-      // verbatim so the teacher understands this isn't a transient failure.
-      setSaveError(
-        err instanceof ConflictError
-          ? err.message
-          : "Could not create the activity — your changes were not saved. Please try again.",
-      );
+      setSaveError("Could not create the activity — your changes were not saved. Please try again.");
     } finally {
       setIsSaving(false);
     }
@@ -175,8 +160,11 @@ function NewActivityForm() {
           onAnother={() => {
             setSavedClassName(null);
             setSavedActivityHref(null);
-            builder.setTitle("");
-            builder.setTeachingGoal("");
+            // Clean reset for a genuinely fresh activity (ALS-1 M0): hydrating an
+            // empty config clears the title, goal AND every element (hydrate reads
+            // each field with a `?? default`), so "Create another" starts blank —
+            // no stale state carried into the next mint.
+            builder.hydrate({} as Parameters<typeof builder.hydrate>[0]);
           }}
         />
       ) : classesState.status === "loading" ? (

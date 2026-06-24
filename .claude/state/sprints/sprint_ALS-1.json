@@ -114,7 +114,7 @@
       "description": "Student /lessons enumerates activities (title + activity_id) not skills; card href carries activity_id. Chat resolves config + persona by activity_id.",
       "scope": "frontend",
       "estimated_loc": 230,
-      "actual_loc": null,
+      "actual_loc": 220,
       "dependencies": [
         "M0.3-student-resolution"
       ],
@@ -129,17 +129,17 @@
         "frontend/src/components/navigation/skillHref.ts",
         "frontend/src/lib/apiClient.ts"
       ],
-      "passes": null,
-      "started": null,
-      "completed": null,
-      "notes": "Group-token (fetchWithAuth) student surface \u2014 NOT teacher auth."
+      "passes": true,
+      "started": "2026-06-24",
+      "completed": "2026-06-24",
+      "notes": "Shipped. /lessons (anon-group) fetches my-activities + renders one card per activity -> /chat/{skillId}?activity_id={act-}. Chat: activityId=searchParams||skillId drives the /active config fetch + per-activity image surfaces; useSkillAgent rides forwardedProps.activity_id (act- only). 1271 FE tests green."
     },
     {
       "id": "M0.5-teacher-create",
       "description": "Teacher create mints distinct ids: new/page.tsx writes to POST /api/activities (mint act-), stops sending conceptSkillId, binds the activity id to class.activity_ids. onAnother() does a clean reset so 'Create another' cannot reuse the prior id.",
       "scope": "frontend",
       "estimated_loc": 120,
-      "actual_loc": null,
+      "actual_loc": 200,
       "dependencies": [
         "M0.1-model-repo",
         "M0.4-student-frontend"
@@ -155,10 +155,10 @@
         "frontend/src/lib/teacherApi.ts",
         "frontend/src/hooks/useActivityBuilder.ts"
       ],
-      "passes": null,
-      "started": null,
-      "completed": null,
-      "notes": "Completes M0 \u2014 the bug is dead here. This is the shippable-before-freeze gate."
+      "passes": true,
+      "started": "2026-06-24",
+      "completed": "2026-06-24",
+      "notes": "Shipped. new/page createActivity (mint act-, classId auto-assign, no patchLessons/guard); onAnother clean reset via hydrate({}). edit [id]/page dual-path: act- -> fetchActivity/updateActivity, legacy -> fetchMyActivityConfig/saveActivityConfig. teacherApi: create/fetch/update/list/delete Activity + patchClassActivities. Tests updated; FE green."
     },
     {
       "id": "M1.1-assignment-api",
@@ -244,6 +244,6 @@
   },
   "github_issues": [],
   "last_session": "2026-06-24",
-  "last_checkpoint": "M1.1 activities API complete (built early)",
+  "last_checkpoint": "M0.4 + M0.5 complete \u2014 bug fixed end-to-end",
   "status": "in_progress"
 }

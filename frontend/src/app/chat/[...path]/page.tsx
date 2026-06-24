@@ -373,6 +373,12 @@ function ChatShell({
   stableThreadId: string;
   resumedSessionId: string | null;
 }) {
+  // ALS-1 M0: the chat runs a SKILL but is scoped to a specific ACTIVITY. The
+  // lesson card opens /chat/{skillId}?activity_id={act-…}; the activity selects the
+  // teacher-focus + workbench config. Falls back to skillId for teacher chats /
+  // direct skill links (the backend's legacy welding), so nothing else changes.
+  const _chatSearchParams = useSearchParams();
+  const activityId = _chatSearchParams.get("activity_id") || skillId;
   const {
     sessionId: agentSessionId,
     messages,
@@ -385,7 +391,7 @@ function ChatShell({
     error,
     clearError,
     stop,
-  } = useSkillAgent();
+  } = useSkillAgent({ activityId });
   const {
     displayName,
     mcpServerIds,
@@ -490,7 +496,11 @@ function ChatShell({
       return;
     }
     let alive = true;
-    fetchWithAuth(`/api/proxy/api/activity-configs/active/${encodeURIComponent(skillId)}`)
+    // ALS-1 M0: resolve the workbench config (checklist/tables/persona/materials)
+    // by ACTIVITY id, not skill id — so two concept activities in one class show
+    // their own elements. The /active endpoint is dual-read (act- → new store,
+    // else legacy composite), so this works pre- and post-migration.
+    fetchWithAuth(`/api/proxy/api/activity-configs/active/${encodeURIComponent(activityId)}`)
       .then((r) => (r.ok ? r.json() : null))
       .then((data) => {
         if (!alive || !data) return;
@@ -511,7 +521,7 @@ function ChatShell({
     return () => {
       alive = false;
     };
-  }, [skillId]);
+  }, [skillId, activityId]);
   const searchParams = useSearchParams();
   const router = useRouter();
   const [draft, setDraft] = useState("");
@@ -1272,7 +1282,7 @@ function ChatShell({
                 <DocumentsPanel
                   materials={activeMaterials}
                   images={uploadedImages}
-                  activityId={skillId}
+                  activityId={activityId}
                 />
               </>
             ) : (
@@ -1358,7 +1368,7 @@ function ChatShell({
                 solution={activeSolution}
                 materials={activeMaterials}
                 images={uploadedImages}
-                activityId={skillId}
+                activityId={activityId}
               />
             ))}
             {/* Documents for the legacy sim frames + chat-only activities. The
@@ -1368,7 +1378,7 @@ function ChatShell({
               <DocumentsPanel
                 materials={activeMaterials}
                 images={uploadedImages}
-                activityId={skillId}
+                activityId={activityId}
               />
             )}
               </>

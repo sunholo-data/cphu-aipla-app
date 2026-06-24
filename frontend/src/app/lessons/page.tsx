@@ -43,13 +43,25 @@ export default function LessonsPage() {
   return <UniversalLessonsPage groupAuthStatus="ready" />;
 }
 
+/** One activity in a student's lesson list (ALS-1 M0). The card opens a chat for
+ *  (skillId, activityId): the skill runs the agent, the activity selects the
+ *  teacher-focus + workbench config. */
+interface StudentActivity {
+  activityId: string;
+  skillId: string;
+  title: string;
+  artefactId?: string | null;
+  workbenchType?: string;
+}
+
 function AnonGroupLessonsPage() {
   const router = useRouter();
   const groupAuth = useAnonymousGroupAuth();
-  // Live-resolved skill list from the server (refreshed on every /lessons visit
-  // so teacher add/remove takes effect without a re-join). null = still loading;
-  // undefined = loaded but unbound (no class filter).
-  const [liveSkillIds, setLiveSkillIds] = useState<string[] | null | undefined>(null);
+  // Live-resolved ACTIVITY list (ALS-1 M0): one card per assigned activity, so a
+  // class can show many concept activities (each its own act- id) instead of
+  // colliding on one. null = loading; [] = bound but no activities yet.
+  const [activities, setActivities] = useState<StudentActivity[] | null>(null);
+  const [loadError, setLoadError] = useState(false);
   const [liveClassName, setLiveClassName] = useState<string | null>(groupAuth.className);
 
   // Anon-group gate: if not yet joined, bounce back to /group.
@@ -59,19 +71,21 @@ function AnonGroupLessonsPage() {
     }
   }, [groupAuth.status, router]);
 
-  // Refresh skill list from the server on each page visit.
+  // Refresh the activity list from the server on each page visit (so a teacher's
+  // add/remove takes effect without a re-join).
   useEffect(() => {
     if (groupAuth.status !== "joined" && groupAuth.status !== "expired") return;
-    fetchWithAuth("/api/proxy/api/auth/group/my-skill-ids")
+    setLoadError(false);
+    fetchWithAuth("/api/proxy/api/auth/group/my-activities")
       .then(async (res) => {
-        if (!res.ok) return;
-        const data = (await res.json()) as { skill_ids: string[]; class_name: string | null };
-        setLiveSkillIds(data.skill_ids.length > 0 ? data.skill_ids : undefined);
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        const data = (await res.json()) as { activities: StudentActivity[]; class_name: string | null };
+        setActivities(data.activities ?? []);
         if (data.class_name) setLiveClassName(data.class_name);
       })
       .catch(() => {
-        // Network error / expired token: fall back to stored value
-        setLiveSkillIds(groupAuth.skillIds.length > 0 ? groupAuth.skillIds : undefined);
+        setActivities([]);
+        setLoadError(true);
       });
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [groupAuth.status]);
@@ -81,14 +95,7 @@ function AnonGroupLessonsPage() {
     router.replace("/group");
   }
 
-  // Fire the fetch once joined (or after expiry — server returns the
-  // right thing either way; renders the error banner on 401).
-  const ready =
-    groupAuth.status === "joined" || groupAuth.status === "expired";
-  // Use liveSkillIds once the server responds; fall back to stored while loading.
-  const effectiveSkillIds = liveSkillIds !== null
-    ? (liveSkillIds ?? null)
-    : (groupAuth.skillIds.length > 0 ? groupAuth.skillIds : null);
+  const ready = groupAuth.status === "joined" || groupAuth.status === "expired";
   return (
     <>
       {ready ? (
@@ -114,12 +121,58 @@ function AnonGroupLessonsPage() {
           </div>
         </div>
       ) : null}
-      <UniversalLessonsPage
-        groupAuthStatus={ready ? "ready" : "waiting"}
-        allowedSkillIds={effectiveSkillIds}
-        className={liveClassName}
-      />
+      <main className="mx-auto flex max-w-5xl flex-col gap-6 p-4 sm:p-6">
+        <header className="flex flex-col gap-1">
+          <h1 className="text-xl font-semibold sm:text-2xl">Aktiviteter / Activities</h1>
+          <p className="text-sm text-muted-foreground">
+            Vælg en aktivitet at arbejde med. / Pick an activity to work on.
+          </p>
+        </header>
+        {liveClassName ? (
+          <div className="rounded border border-border bg-muted/40 px-3 py-2 text-sm">
+            <span className="text-muted-foreground">Klasse / Class: </span>
+            <span className="font-medium">{liveClassName}</span>
+          </div>
+        ) : null}
+
+        {loadError ? <ErrorBanner message="kunne ikke hentes" onRetry={() => router.refresh()} /> : null}
+
+        {!ready || activities === null ? (
+          <p className="text-sm text-muted-foreground">Indlæser… / Loading…</p>
+        ) : activities.length === 0 ? (
+          <EmptyState className={liveClassName} />
+        ) : (
+          <section aria-labelledby="lessons-grid-label" className="grid gap-4 sm:grid-cols-2">
+            <h2 id="lessons-grid-label" className="sr-only">
+              Available activities
+            </h2>
+            {activities.map((a) => (
+              <ActivityLessonCard key={a.activityId} activity={a} />
+            ))}
+          </section>
+        )}
+      </main>
     </>
+  );
+}
+
+/** Card for a student activity. Opens /chat/{skillId}?activity_id={act-…} so the
+ *  agent runs the activity's skill with the activity's teacher-focus. */
+function ActivityLessonCard({ activity }: { activity: StudentActivity }) {
+  const href = `/chat/${encodeURIComponent(activity.skillId)}?activity_id=${encodeURIComponent(
+    activity.activityId,
+  )}`;
+  const title = activity.title || "Aktivitet";
+  return (
+    <Link
+      href={href}
+      className="group flex flex-col gap-3 overflow-hidden rounded border border-border bg-background shadow-sm transition hover:border-primary"
+    >
+      <LessonCover avatar="" title={title} />
+      <div className="flex flex-col gap-2 p-4 pt-0">
+        <h3 className="text-base font-semibold">{title}</h3>
+      </div>
+    </Link>
   );
 }
 

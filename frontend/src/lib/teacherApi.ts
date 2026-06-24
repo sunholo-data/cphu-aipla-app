@@ -353,6 +353,95 @@ export async function listMyActivities(
   return readJson<ActivityConfigPayload[]>(resp, "list activities");
 }
 
+// ── ALS-1 M0/M1: the class-independent Activity store ─────────────────────────
+// An Activity is owned by a teacher and minted `act-…` (distinct from any skill
+// id — which is what removed the overwrite collision). The builder create/edit
+// pages write here; the student lesson list resolves from Class.activity_ids.
+
+/** Wire shape for the Activity content the builder assembles (create + edit). */
+export interface ActivityUpsertBody {
+  /** The skill this activity runs (concept-dialogue id for a concept activity). */
+  skillId: string;
+  /** On create only: also assign the new activity to this class. */
+  classId?: string;
+  title?: string;
+  teachingGoal: string;
+  language: Language;
+  workbenchType?: WorkbenchType;
+  artefactId?: string | null;
+  checklist?: ChecklistItem[];
+  table?: TableElement[];
+  chart?: ChartElement[];
+  calculator?: CalculatorElement[];
+  note?: NoteElement[];
+  solution?: SolutionElement[];
+  materials?: MaterialRef[];
+}
+
+/** The persisted Activity (create/edit responses). Structurally a superset of
+ *  ActivityConfigPayload for the fields `useActivityBuilder.hydrate` reads. */
+export interface ActivityPayload extends ActivityConfigPayload {
+  ownerUid: string;
+  skillId: string;
+  visibility: "draft" | "private" | "published";
+}
+
+/** Create a new activity (mints a distinct `act-…` id — never collides). When
+ *  `classId` is set it is also assigned to that class in one call. */
+export async function createActivity(body: ActivityUpsertBody): Promise<ActivityPayload> {
+  const resp = await fetchWithAuth(`/api/proxy/api/activities`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(body),
+  });
+  return readJson<ActivityPayload>(resp, "create activity");
+}
+
+/** Load one activity for editing (owner-only). */
+export async function fetchActivity(activityId: string): Promise<ActivityPayload> {
+  const resp = await fetchWithAuth(`/api/proxy/api/activities/${encodeURIComponent(activityId)}`);
+  return readJson<ActivityPayload>(resp, "load activity");
+}
+
+/** Edit an activity (owner-only, full payload). */
+export async function updateActivity(activityId: string, body: ActivityUpsertBody): Promise<ActivityPayload> {
+  const resp = await fetchWithAuth(`/api/proxy/api/activities/${encodeURIComponent(activityId)}`, {
+    method: "PATCH",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(body),
+  });
+  return readJson<ActivityPayload>(resp, "update activity");
+}
+
+/** List the caller's activity library (ALS-1 M1.2). */
+export async function listActivities(): Promise<ActivityPayload[]> {
+  const resp = await fetchWithAuth(`/api/proxy/api/activities?owner=me`);
+  return readJson<ActivityPayload[]>(resp, "list activities");
+}
+
+/** Soft-delete an activity (owner-only). */
+export async function deleteActivity(activityId: string): Promise<void> {
+  const resp = await fetchWithAuth(`/api/proxy/api/activities/${encodeURIComponent(activityId)}`, {
+    method: "DELETE",
+  });
+  if (!resp.ok && resp.status !== 204) {
+    throw new Error(`delete activity: ${resp.status}`);
+  }
+}
+
+/** Assign / unassign activities to a class (ALS-1 M1). */
+export async function patchClassActivities(
+  classId: string,
+  body: { add?: string[]; remove?: string[] },
+): Promise<ClassPayload> {
+  const resp = await fetchWithAuth(`/api/proxy/api/classes/${encodeURIComponent(classId)}/activities`, {
+    method: "PATCH",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(body),
+  });
+  return readJson<ClassPayload>(resp, "assign activities");
+}
+
 /** List the sim-artefact catalogue (1.1.41) — the vetted, pilot-visible sims a
  *  teacher can attach to an activity. `tutorBlock` is never returned. */
 export async function listArtefacts(): Promise<ArtefactSummary[]> {

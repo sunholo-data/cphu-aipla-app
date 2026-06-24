@@ -9,8 +9,7 @@ vi.mock("next/navigation", () => ({
 
 const listClassesMock = vi.fn();
 const listSkillsMock = vi.fn();
-const saveActivityConfigMock = vi.fn();
-const patchLessonsMock = vi.fn();
+const createActivityMock = vi.fn();
 // Persona is class-default-only (1.1.32): the form renders InheritedPersona,
 // which resolves the class persona via fetchPersonaCatalogue + getClass.
 const fetchPersonaCatalogueMock = vi.fn();
@@ -22,8 +21,7 @@ vi.mock("@/lib/teacherApi", async () => {
     ...actual,
     listClasses: () => listClassesMock(),
     listAccessibleSkills: () => listSkillsMock(),
-    saveActivityConfig: (body: unknown) => saveActivityConfigMock(body),
-    patchLessons: (classId: string, body: unknown) => patchLessonsMock(classId, body),
+    createActivity: (body: unknown) => createActivityMock(body),
     fetchPersonaCatalogue: () => fetchPersonaCatalogueMock(),
     getClass: (id: string) => getClassMock(id),
     listArtefacts: () => listArtefactsMock(),
@@ -49,11 +47,9 @@ describe("/teacher/activities/new — concept activity builder", () => {
     pushMock.mockReset();
     listClassesMock.mockReset();
     listSkillsMock.mockReset();
-    saveActivityConfigMock.mockReset();
-    patchLessonsMock.mockReset();
+    createActivityMock.mockReset();
     listSkillsMock.mockResolvedValue(SKILLS);
-    saveActivityConfigMock.mockResolvedValue({});
-    patchLessonsMock.mockResolvedValue({});
+    createActivityMock.mockResolvedValue({ activityId: "act-new-1" });
     fetchPersonaCatalogueMock.mockReset();
     getClassMock.mockReset();
     // Default: the class inherits the global default persona (Sofie).
@@ -116,40 +112,37 @@ describe("/teacher/activities/new — concept activity builder", () => {
     });
     fireEvent.click(screen.getByRole("button", { name: /create activity/i }));
 
-    await waitFor(() => expect(saveActivityConfigMock).toHaveBeenCalledTimes(1));
-    // Uses the resolved skill UUID, NOT the name "concept-dialogue".
-    expect(saveActivityConfigMock).toHaveBeenCalledWith(
+    await waitFor(() => expect(createActivityMock).toHaveBeenCalledTimes(1));
+    // ALS-1 M0: creates a NEW activity in the class-independent store. skillId is
+    // the resolved concept-dialogue UUID; classId auto-assigns to the class. The
+    // backend mints a distinct act- id, so a second create can't overwrite the first.
+    expect(createActivityMock).toHaveBeenCalledWith(
       expect.objectContaining({
-        activityId: CONCEPT_UUID,
+        skillId: CONCEPT_UUID,
         classId: "c-1",
         title: "Energibevarelse",
         teachingGoal: "Explore energy conservation Socratically.",
       }),
     );
-    // Binds the lesson to the class by its real skill_id so students see it
-    // (passing the name 404s the backend lessons PATCH).
-    await waitFor(() => expect(patchLessonsMock).toHaveBeenCalledWith("c-1", { add: [CONCEPT_UUID] }));
-    // Day-0 overwrite guard (ALS-1 M0.5-guard): a create declares create intent
-    // so the backend refuses to clobber an existing activity in this class.
-    expect(saveActivityConfigMock.mock.calls[0][0].createOnly).toBe(true);
+    // No activityId is sent on create — the backend mints it (distinct every time).
+    expect(createActivityMock.mock.calls[0][0]).not.toHaveProperty("activityId");
     // Success state replaces the form.
     expect(await screen.findByText(/is live for/i)).toBeInTheDocument();
   });
 
-  it("surfaces the day-0 overwrite guard 409 message instead of a generic error", async () => {
-    const { ConflictError } = await vi.importActual<typeof import("@/lib/teacherApi")>("@/lib/teacherApi");
+  it("links the success panel to the MINTED activity id, not the shared skill id", async () => {
     listClassesMock.mockResolvedValue(ONE_CLASS);
-    saveActivityConfigMock.mockRejectedValue(
-      new ConflictError("An activity already exists for this class. Editing the existing activity is the current limit."),
-    );
+    createActivityMock.mockResolvedValueOnce({ activityId: "act-aaa" });
     render(<NewActivityPage />);
-    fireEvent.change(await screen.findByLabelText(/activity name/i), { target: { value: "Anden aktivitet" } });
-    fireEvent.change(screen.getByLabelText(/lesson prompt/i), { target: { value: "A second activity." } });
+    fireEvent.change(await screen.findByLabelText(/activity name/i), { target: { value: "First" } });
+    fireEvent.change(screen.getByLabelText(/lesson prompt/i), { target: { value: "g1" } });
     fireEvent.click(screen.getByRole("button", { name: /create activity/i }));
-
-    // The honest backend message reaches the teacher (not "please try again").
-    expect(await screen.findByText(/an activity already exists for this class/i)).toBeInTheDocument();
-    expect(screen.queryByText(/please try again/i)).not.toBeInTheDocument();
+    // The configure deep-link carries the minted act- id (the root-cause fix:
+    // never the shared concept-dialogue skill id that used to collide).
+    await waitFor(() =>
+      expect(document.querySelector('a[href*="/teacher/activities/act-aaa"]')).not.toBeNull(),
+    );
+    expect(document.querySelector(`a[href*="/teacher/activities/${CONCEPT_UUID}"]`)).toBeNull();
   });
 
   it("shows the inherited class persona read-only and never writes persona/style (1.1.32 — class-default-only)", async () => {
@@ -166,11 +159,11 @@ describe("/teacher/activities/new — concept activity builder", () => {
     expect(screen.queryByRole("button", { name: /^Custom$/ })).not.toBeInTheDocument();
 
     fireEvent.click(screen.getByRole("button", { name: /create activity/i }));
-    await waitFor(() => expect(saveActivityConfigMock).toHaveBeenCalledTimes(1));
+    await waitFor(() => expect(createActivityMock).toHaveBeenCalledTimes(1));
     // The activity leaves persona + interaction_style unset so the backend
     // resolves the class default (interaction_style.py inherits the class
     // persona's style when cfg.persona is empty).
-    const body = saveActivityConfigMock.mock.calls[0][0];
+    const body = createActivityMock.mock.calls[0][0];
     expect(body).not.toHaveProperty("persona");
     expect(body).not.toHaveProperty("interactionStyle");
   });
@@ -187,8 +180,8 @@ describe("/teacher/activities/new — concept activity builder", () => {
     fireEvent.change(screen.getByLabelText(/checklist step 2/i), { target: { value: "List transforms" } });
     fireEvent.click(screen.getByRole("button", { name: /create activity/i }));
 
-    await waitFor(() => expect(saveActivityConfigMock).toHaveBeenCalledTimes(1));
-    expect(saveActivityConfigMock.mock.calls[0][0].checklist).toEqual([
+    await waitFor(() => expect(createActivityMock).toHaveBeenCalledTimes(1));
+    expect(createActivityMock.mock.calls[0][0].checklist).toEqual([
       { id: "step-1", label: "Identify the system" },
       { id: "step-2", label: "List transforms" },
     ]);
@@ -202,8 +195,8 @@ describe("/teacher/activities/new — concept activity builder", () => {
     fireEvent.click(screen.getByRole("button", { name: /add step/i }));
     // leave it blank
     fireEvent.click(screen.getByRole("button", { name: /create activity/i }));
-    await waitFor(() => expect(saveActivityConfigMock).toHaveBeenCalledTimes(1));
-    expect(saveActivityConfigMock.mock.calls[0][0].checklist).toEqual([]);
+    await waitFor(() => expect(createActivityMock).toHaveBeenCalledTimes(1));
+    expect(createActivityMock.mock.calls[0][0].checklist).toEqual([]);
   });
 
   it("sends a teacher-authored data table with positional column ids", async () => {
@@ -217,8 +210,8 @@ describe("/teacher/activities/new — concept activity builder", () => {
     fireEvent.change(screen.getByLabelText(/column 1 unit/i), { target: { value: "s" } });
     fireEvent.click(screen.getByRole("button", { name: /create activity/i }));
 
-    await waitFor(() => expect(saveActivityConfigMock).toHaveBeenCalledTimes(1));
-    expect(saveActivityConfigMock.mock.calls[0][0].table).toEqual([
+    await waitFor(() => expect(createActivityMock).toHaveBeenCalledTimes(1));
+    expect(createActivityMock.mock.calls[0][0].table).toEqual([
       {
         id: "table-1",
         title: "",
@@ -236,8 +229,8 @@ describe("/teacher/activities/new — concept activity builder", () => {
     fireEvent.click(screen.getByRole("button", { name: /add data table/i }));
     // leave the seeded column blank → the table is dropped
     fireEvent.click(screen.getByRole("button", { name: /create activity/i }));
-    await waitFor(() => expect(saveActivityConfigMock).toHaveBeenCalledTimes(1));
-    expect(saveActivityConfigMock.mock.calls[0][0].table).toEqual([]);
+    await waitFor(() => expect(createActivityMock).toHaveBeenCalledTimes(1));
+    expect(createActivityMock.mock.calls[0][0].table).toEqual([]);
   });
 
   it("sends a chart element when the teacher adds one", async () => {
@@ -249,8 +242,8 @@ describe("/teacher/activities/new — concept activity builder", () => {
     fireEvent.change(screen.getByLabelText(/chart type/i), { target: { value: "line" } });
     fireEvent.click(screen.getByRole("button", { name: /create activity/i }));
 
-    await waitFor(() => expect(saveActivityConfigMock).toHaveBeenCalledTimes(1));
-    expect(saveActivityConfigMock.mock.calls[0][0].chart).toEqual([
+    await waitFor(() => expect(createActivityMock).toHaveBeenCalledTimes(1));
+    expect(createActivityMock.mock.calls[0][0].chart).toEqual([
       { id: "chart-1", title: "", chartKind: "line" },
     ]);
   });
@@ -266,8 +259,8 @@ describe("/teacher/activities/new — concept activity builder", () => {
     fireEvent.change(screen.getByLabelText(/^formula$/i), { target: { value: "s * 2" } });
     fireEvent.click(screen.getByRole("button", { name: /create activity/i }));
 
-    await waitFor(() => expect(saveActivityConfigMock).toHaveBeenCalledTimes(1));
-    expect(saveActivityConfigMock.mock.calls[0][0].calculator).toEqual([
+    await waitFor(() => expect(createActivityMock).toHaveBeenCalledTimes(1));
+    expect(createActivityMock.mock.calls[0][0].calculator).toEqual([
       { id: "calc-1", title: "", formula: "s * 2", inputs: [{ id: "s", label: "Strækning", unit: "" }] },
     ]);
   });
@@ -281,8 +274,8 @@ describe("/teacher/activities/new — concept activity builder", () => {
     fireEvent.change(screen.getByLabelText(/note text/i), { target: { value: "v = s / t" } });
     fireEvent.click(screen.getByRole("button", { name: /create activity/i }));
 
-    await waitFor(() => expect(saveActivityConfigMock).toHaveBeenCalledTimes(1));
-    expect(saveActivityConfigMock.mock.calls[0][0].note).toEqual([
+    await waitFor(() => expect(createActivityMock).toHaveBeenCalledTimes(1));
+    expect(createActivityMock.mock.calls[0][0].note).toEqual([
       { id: "note-1", title: "", body: "v = s / t" },
     ]);
   });
@@ -297,8 +290,8 @@ describe("/teacher/activities/new — concept activity builder", () => {
     expect((screen.getByLabelText(/lesson prompt/i) as HTMLTextAreaElement).value.length).toBeGreaterThan(0);
 
     fireEvent.click(screen.getByRole("button", { name: /create activity/i }));
-    await waitFor(() => expect(saveActivityConfigMock).toHaveBeenCalledTimes(1));
-    const body = saveActivityConfigMock.mock.calls[0][0];
+    await waitFor(() => expect(createActivityMock).toHaveBeenCalledTimes(1));
+    const body = createActivityMock.mock.calls[0][0];
     expect(body.checklist).toHaveLength(3);
     expect(body.calculator).toEqual([
       {
@@ -323,8 +316,8 @@ describe("/teacher/activities/new — concept activity builder", () => {
     fireEvent.click(await screen.findByText("Boldkast"));
     fireEvent.click(screen.getByRole("button", { name: /create activity/i }));
 
-    await waitFor(() => expect(saveActivityConfigMock).toHaveBeenCalledTimes(1));
-    expect(saveActivityConfigMock.mock.calls[0][0].artefactId).toBe("boldkast");
+    await waitFor(() => expect(createActivityMock).toHaveBeenCalledTimes(1));
+    expect(createActivityMock.mock.calls[0][0].artefactId).toBe("boldkast");
   });
 
   it("defaults a standard activity to workbenchType 'none'", async () => {
@@ -333,8 +326,8 @@ describe("/teacher/activities/new — concept activity builder", () => {
     fireEvent.change(await screen.findByLabelText(/activity name/i), { target: { value: "E" } });
     fireEvent.change(screen.getByLabelText(/lesson prompt/i), { target: { value: "g" } });
     fireEvent.click(screen.getByRole("button", { name: /create activity/i }));
-    await waitFor(() => expect(saveActivityConfigMock).toHaveBeenCalledTimes(1));
-    expect(saveActivityConfigMock.mock.calls[0][0].workbenchType).toBe("none");
+    await waitFor(() => expect(createActivityMock).toHaveBeenCalledTimes(1));
+    expect(createActivityMock.mock.calls[0][0].workbenchType).toBe("none");
   });
 
   it("switches to a document-feedback activity: hides workspace tools, saves workbenchType 'document'", async () => {
@@ -352,8 +345,8 @@ describe("/teacher/activities/new — concept activity builder", () => {
     expect(screen.getByText(/gives feedback on the active file/i)).toBeInTheDocument();
 
     fireEvent.click(screen.getByRole("button", { name: /create activity/i }));
-    await waitFor(() => expect(saveActivityConfigMock).toHaveBeenCalledTimes(1));
-    expect(saveActivityConfigMock.mock.calls[0][0].workbenchType).toBe("document");
+    await waitFor(() => expect(createActivityMock).toHaveBeenCalledTimes(1));
+    expect(createActivityMock.mock.calls[0][0].workbenchType).toBe("document");
   });
 
   it("pre-fills + saves the solution-writing template (solution editor, standard mode)", async () => {
@@ -365,8 +358,8 @@ describe("/teacher/activities/new — concept activity builder", () => {
     // The solution prompt is pre-filled in the builder's solution editor.
     expect((screen.getByLabelText(/solution prompt/i) as HTMLTextAreaElement).value.length).toBeGreaterThan(0);
     fireEvent.click(screen.getByRole("button", { name: /create activity/i }));
-    await waitFor(() => expect(saveActivityConfigMock).toHaveBeenCalledTimes(1));
-    const body = saveActivityConfigMock.mock.calls[0][0];
+    await waitFor(() => expect(createActivityMock).toHaveBeenCalledTimes(1));
+    const body = createActivityMock.mock.calls[0][0];
     expect(body.solution).toEqual([{ id: "solution-1", prompt: expect.stringContaining("løsning") }]);
     expect(body.workbenchType).toBe("none");
   });
@@ -380,8 +373,8 @@ describe("/teacher/activities/new — concept activity builder", () => {
     expect(screen.queryByRole("button", { name: /add step/i })).not.toBeInTheDocument();
     expect(screen.getByText(/gives feedback on the active file/i)).toBeInTheDocument();
     fireEvent.click(screen.getByRole("button", { name: /create activity/i }));
-    await waitFor(() => expect(saveActivityConfigMock).toHaveBeenCalledTimes(1));
-    expect(saveActivityConfigMock.mock.calls[0][0].workbenchType).toBe("document");
+    await waitFor(() => expect(createActivityMock).toHaveBeenCalledTimes(1));
+    expect(createActivityMock.mock.calls[0][0].workbenchType).toBe("document");
   });
 
   it("adds a solution editor element and saves it with its prompt (1.1.45 M4)", async () => {
@@ -393,8 +386,8 @@ describe("/teacher/activities/new — concept activity builder", () => {
     fireEvent.change(screen.getByLabelText(/solution prompt/i), { target: { value: "Skriv din løsning" } });
     fireEvent.click(screen.getByRole("button", { name: /create activity/i }));
 
-    await waitFor(() => expect(saveActivityConfigMock).toHaveBeenCalledTimes(1));
-    expect(saveActivityConfigMock.mock.calls[0][0].solution).toEqual([
+    await waitFor(() => expect(createActivityMock).toHaveBeenCalledTimes(1));
+    expect(createActivityMock.mock.calls[0][0].solution).toEqual([
       { id: "solution-1", prompt: "Skriv din løsning" },
     ]);
   });
