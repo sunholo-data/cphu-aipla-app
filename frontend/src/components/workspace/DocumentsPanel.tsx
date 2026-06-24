@@ -11,6 +11,7 @@ import {
 } from "@/lib/curriculumApi";
 import { fetchActivityImageObjectUrl } from "@/lib/activityImageApi";
 import { reportDocumentEvent } from "@/lib/documentApi";
+import { useDocInteractionReporting } from "@/hooks/useDocInteractionReporting";
 import { MarkdownBody } from "./MarkdownBody";
 
 /** One document the activity is grounded in, as surfaced by
@@ -81,6 +82,8 @@ export function DocumentsPanel({
   // Hooks must run before any early return.
   const [openDoc, setOpenDoc] = useState<{ docId: string; title: string } | null>(null);
   const [view, setView] = useState<ViewState | null>(null);
+  // 1.1.45 M5 — research telemetry for reading interactions on the open doc.
+  const docEvents = useDocInteractionReporting(sessionId, openDoc?.docId ?? null);
 
   async function openContent(m: ActivityMaterial) {
     const title = m.origin || m.docId;
@@ -233,7 +236,12 @@ export function DocumentsPanel({
               <X className="h-4 w-4" aria-hidden="true" />
             </button>
           </div>
-          <div className="max-h-[55vh] min-h-0 overflow-auto px-3 py-2 text-sm">
+          <div
+            className="max-h-[55vh] min-h-0 overflow-auto px-3 py-2 text-sm"
+            onCopy={docEvents.onCopy}
+            onMouseUp={docEvents.onMouseUp}
+            onScroll={docEvents.onScroll}
+          >
             {view?.kind === "loading" ? (
               <p className="flex items-center gap-2 text-muted-foreground">
                 <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />

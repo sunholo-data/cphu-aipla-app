@@ -101,7 +101,7 @@ Student interactions with documents/images (**open, page-turn, zoom, fullscreen*
 - **Surfaced to the tutor's context** via the same `iframe-context` / `update-model-context` channel the sims use ([`useArtefactReportEvent`](../../../../frontend/src/hooks/useArtefactReportEvent.ts)), so a *later* reply can reference "you're on page 6".
 - **Not proactive triggers (for now).** They do **not** provoke a tutor turn on their own — exactly M's "in the list when events are sent, but they don't deserve a response".
 
-**Event shape:** `{ kind: "document.open" | "document.page" | "image.zoom" | "image.fullscreen" | …, docId/materialId, detail? }`.
+**Event shape:** `{ kind, docId/materialId, detail? }`. **Captured now (records only, never sent to the AI):** `document.open`, `image.fullscreen`, `document.copy`, `document.select`, `document.scroll` (debounced "settled"). **Privacy default — size/position, not content:** `detail` carries `{ chars }` (copy/select length) or `{ percent }` (scroll) or `{ page }` — **not** the copied/selected text. Capturing the actual text is a consent-gated extension deferred to the research-telemetry doc. (`document.page` / `image.zoom` land with the M2 PDF viewer once it's mounted in M3b.)
 
 > **Deferred (M, 2026-06-24): the reactability *ranking* — which events merit an AI response — moves to its own design doc.** That doc will decide how/whether events graduate from observational to proactive triggers (per-kind default, teacher override, derived signals like "stuck on page N"). M5 here stays purely observational so the research capture + context-awareness land without coupling to the proactive gate.
 

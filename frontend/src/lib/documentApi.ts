@@ -20,10 +20,21 @@ export class DocumentApiError extends Error {
 }
 
 /** A student document/image interaction (1.1.45 M5). Observational research
- *  telemetry — captured server-side; NOT a tutor-context write or a proactive
- *  trigger (the reactability ranking is a separate design doc). */
+ *  telemetry — captured server-side **for records only**; NEVER a tutor-context
+ *  write or a proactive trigger (the reactability ranking is a separate doc).
+ *
+ *  Privacy default: `detail` carries SIZE/POSITION (char counts, percent, page)
+ *  — NOT the copied/selected TEXT itself. Capturing content is a consent-gated
+ *  extension for the research-telemetry design doc. */
 export interface DocumentEvent {
-  kind: "document.open" | "document.page" | "image.zoom" | "image.fullscreen";
+  kind:
+    | "document.open"
+    | "document.page"
+    | "document.scroll"
+    | "document.select"
+    | "document.copy"
+    | "image.zoom"
+    | "image.fullscreen";
   docId?: string;
   materialId?: string;
   detail?: unknown;
