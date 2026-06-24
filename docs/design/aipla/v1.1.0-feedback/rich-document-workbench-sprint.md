@@ -54,6 +54,26 @@
 - Collaborative editing; version history on solutions.
 - M4 may be **split to 1.1.46** if M0–M3 fill the window (decision point after M3).
 
+## M3b handoff notes (for a fresh session — 2026-06-24)
+
+**Resume with:** `.claude/skills/sprint-executor/scripts/session_start.sh RICH-DOC` (reads `sprint_RICH-DOC.json`; M0–M2+M3a `passes=true`, M3 in progress). All work pushed to `dev` (`d9f0c99`). Local dev: `make dev` → frontend **:3456**, backend :1956 (LOCAL_MODE; group code `local-demo`; teacher UI needs no login).
+
+**Done so far in M3/extras (don't rebuild):**
+- Backend M3a + M3b.1: `parsed_documents` are **group-owned** (`userId = anon-<groupId>` = `user.uid` for students); `WorkbenchType` gained `"document"`; endpoints live —
+  - `GET /api/documents?skillId=` → the group's uploads `[{docId,name,sourceFormat}]` (file tabs).
+  - `GET /api/documents/{id}/raw` → original bytes (owner-ACL).
+  - `DELETE /api/documents/{id}` → hard-delete (owner-ACL).
+  - `POST /api/documents/upload` (existing; sets `skillId`, group-owned).
+  - `POST /api/sessions/{id}/doc-event` → research telemetry (`emit_workbench_event`); observational only.
+- Frontend ready-to-use primitives: `DocumentViewer` ([components/workspace/DocumentViewer.tsx], lazy-mount via `next/dynamic`; props `{files: ViewerFile[], role, onActiveChange}`), `fetchDocumentObjectUrl` + `reportDocumentEvent` ([lib/documentApi.ts]), `useDocInteractionReporting` ([hooks/]). `DocumentsPanel` already rich-renders + cites not-shared names + emits open/fullscreen/copy/select/scroll.
+
+**M3b remaining (frontend surface — the delicate part):**
+- **M3b.2** — a `StudentDocumentWorkbench` surface: `listMyDocuments(skillId)` → file tabs → lazy `DocumentViewer` + **"Upload fil"** (`/api/documents/upload` via `fetchWithAuth` + the activity's skillId) + **delete ✕** (`DELETE /api/documents/{id}`). Build self-contained + vitest with mocks first.
+- **M3b.3** — wire **active-file → `document_ids`**: the chat page sends attached docs to the tutor via `forwardedProps.document_ids` (see `_extract_document_ids` in `backend/fast_api_app.py` + the doc-tab mechanism in `frontend/src/app/chat/[...path]/page.tsx`); push the active file's `docId` there so the tutor critiques it. Wire `DocumentViewer.onActiveChange`/page → `reportDocumentEvent` (`document.page`) + image zoom.
+- **M3b.4** — chat-page dispatch: when the active config `workbenchType === "document"`, mount `StudentDocumentWorkbench` (the chat page already reads the active config + `workspaceContentKind`); builder gains a "Document feedback" activity-type option that sets `workbenchType="document"`.
+
+**M4** — TipTap solution editor; **gated on AR feedback-prompt sign-off**; recommend splitting to its own row **1.1.46**.
+
 ## Human gates
 - **JB/AR** — confirm the two activity types (document-feedback M3, solution-writing M4) for the pilot; **AR** on the solution-editor feedback prompt (gates M4 ship to a pilot env).
 - **Dep sign-off** — `react-pdf`/`pdfjs-dist` (M2) + `@tiptap/*` (M4) through `make security-check` before adding.
