@@ -30,7 +30,8 @@ from db.models.class_ import Class
 log = logging.getLogger(__name__)
 
 DEMO_TEACHER = "aipla-demo-teacher"
-DEMO_CODE = "aipla-demo-1"
+# All three demo codes land in the same Demo class (3 parallel demo groups).
+DEMO_CODES = ["aipla-demo-1", "aipla-demo-2", "aipla-demo-3"]
 DEMO_CLASS_NAME = "Demo class"
 # The real concept-dialogue skill UUID (some legacy rows stored the *name* as the
 # skill id, which doesn't resolve — remap so the activity actually runs).
@@ -95,22 +96,26 @@ def run(*, dry_run: bool = True) -> dict:
         if not dry_run:
             create_class(demo_class)
 
-    # 4. Assign + bind the code.
+    # 4. Assign + bind every demo code to the Demo class.
     if not dry_run:
         add_activities(demo_class.class_id, demo_ids)
-        # Bind aipla-demo-1 → the Demo class + extend its TTL so it survives.
-        existing_doc = get_document("anon_groups", DEMO_CODE) or {}
-        update_document(
-            "anon_groups",
-            DEMO_CODE,
-            {"classId": demo_class.class_id, "expires_at": time.time() + DEMO_TTL_DAYS * 86400},
-        )
-        # Record the code on the class so the teacher dashboard shows it.
-        reloaded = get_class(demo_class.class_id)
-        codes = list(reloaded.group_codes) if reloaded else []
-        if DEMO_CODE not in codes:
-            update_document("classes", demo_class.class_id, {"groupCodes": [*codes, DEMO_CODE]})
-        log.info("bound %s → class %s (was bound to %s)", DEMO_CODE, demo_class.class_id, existing_doc.get("classId"))
+        for code in DEMO_CODES:
+            existing_doc = get_document("anon_groups", code)
+            if existing_doc is None:
+                log.warning("demo code %s does not exist — skipping (create it first)", code)
+                continue
+            # Bind the code → the Demo class + extend its TTL so it survives.
+            update_document(
+                "anon_groups",
+                code,
+                {"classId": demo_class.class_id, "expires_at": time.time() + DEMO_TTL_DAYS * 86400},
+            )
+            # Record the code on the class so the teacher dashboard shows it.
+            reloaded = get_class(demo_class.class_id)
+            codes = list(reloaded.group_codes) if reloaded else []
+            if code not in codes:
+                update_document("classes", demo_class.class_id, {"groupCodes": [*codes, code]})
+            log.info("bound %s → class %s (was %s)", code, demo_class.class_id, existing_doc.get("classId"))
 
     final_count = len(demo_ids) if dry_run else len(get_class(demo_class.class_id).activity_ids)
     return {

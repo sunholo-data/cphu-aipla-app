@@ -9,7 +9,7 @@ from db.activities import create_activity, list_activities_by_owner
 from db.classes import list_classes_for_owner
 from db.firestore import get_document, set_document
 from db.models.activity import Activity
-from scripts.setup_demo import DEMO_CODE, DEMO_TEACHER, run
+from scripts.setup_demo import DEMO_CODES, DEMO_TEACHER, run
 
 
 @pytest.fixture(autouse=True)
@@ -17,7 +17,7 @@ def _local_mode(monkeypatch):
     monkeypatch.setenv("LOCAL_MODE", "1")
     fs_module._reset_client_for_testing()
     # The demo code must already exist (created standalone), unbound.
-    set_document("anon_groups", DEMO_CODE, {"group_id": DEMO_CODE, "skill_ids": [], "revoked": False})
+    set_document("anon_groups", DEMO_CODES[0], {"group_id": DEMO_CODES[0], "skill_ids": [], "revoked": False})
     yield
     fs_module._reset_client_for_testing()
 
@@ -42,8 +42,8 @@ def test_seeds_demo_class_with_distinct_activities_and_binds_code():
     assert len(demo[0].activity_ids) == 2
 
     # The demo code is bound to the class + recorded on it.
-    assert get_document("anon_groups", DEMO_CODE)["classId"] == demo[0].class_id
-    assert DEMO_CODE in demo[0].group_codes
+    assert get_document("anon_groups", DEMO_CODES[0])["classId"] == demo[0].class_id
+    assert DEMO_CODES[0] in demo[0].group_codes
     # Copies record provenance.
     assert all(a.source_activity_id for a in demo_lib)
 
