@@ -182,7 +182,12 @@ def seed_local_fixture() -> None:
                 "classId": _AIPLA_DEMO_CLASS_ID,
                 "name": "7B Physics A",
                 "ownerUid": WORKSHOP_USER_UID,
+                # The Class model requires these (load-bearing invariant:
+                # tagNamespace == class:<owner_uid>:<class_id>). Without them the
+                # demo class fails Class validation and GET /api/classes 500s.
+                "tagNamespace": f"class:{WORKSHOP_USER_UID}:{_AIPLA_DEMO_CLASS_ID}",
                 "createdAt": now,
+                "updatedAt": now,
             }
         )
         logger.info(
