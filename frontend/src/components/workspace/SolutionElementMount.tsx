@@ -4,8 +4,16 @@ import dynamic from "next/dynamic";
 import { useCallback, useEffect, useState } from "react";
 import { Loader2 } from "lucide-react";
 
+import { useOptionalProactiveSimOptsRef } from "@/contexts/ProactiveSimContext";
 import { useSimSnapshotPush } from "@/hooks/useSimSnapshotPush";
 import type { SolutionDoc } from "./WorkbenchSolution";
+
+// The turn the student's submit kicks off. The solution itself rides the
+// iframe-context (mcp_app_context.solution.state, injected into the tutor's
+// prompt); this short message is the visible "I submitted" turn that makes the
+// tutor respond. The tutor matches the student's language regardless (feedback
+// prompt). Must be non-empty — ag_ui_adk drops empty-content turns.
+const SOLUTION_FEEDBACK_TRIGGER = "Jeg har gemt min løsning — giv mig feedback på den.";
 
 /** Teacher-authored solution-editor element (1.1.45 M4). Mirrors the backend
  *  `SolutionElement` — the teacher authors the `prompt`, the student writes. */
@@ -54,6 +62,9 @@ export function SolutionElementMount({
   // undefined = restoring; null = blank; doc = restored draft.
   const [initialDoc, setInitialDoc] = useState<SolutionDoc | null | undefined>(undefined);
   const pushSolution = useSimSnapshotPush<SolutionSnapshot>(sessionId, "solution");
+  // The chat page registers { skillId, onProactiveTrigger } here; we use it to
+  // kick off the feedback turn on submit (null in the builder preview).
+  const proactiveRef = useOptionalProactiveSimOptsRef();
 
   useEffect(() => {
     try {
@@ -76,11 +87,16 @@ export function SolutionElementMount({
   );
 
   const onSubmit = useCallback(
-    (markdown: string, doc: SolutionDoc) => {
+    async (markdown: string, doc: SolutionDoc) => {
       persist(doc);
-      void pushSolution({ markdown }, "solution.submit");
+      // Push the solution into the agent's context, THEN trigger a feedback turn.
+      // Await the push so the triggered turn sees the latest solution. The submit
+      // is a deliberate click → always responds (ungated, unlike the automatic
+      // sim-event proactive path with its cooldown/allowlist).
+      await pushSolution({ markdown }, "solution.submit");
+      proactiveRef?.current?.onProactiveTrigger(SOLUTION_FEEDBACK_TRIGGER);
     },
-    [persist, pushSolution],
+    [persist, pushSolution, proactiveRef],
   );
 
   if (!def) return null;
