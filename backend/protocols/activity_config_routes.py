@@ -70,6 +70,12 @@ class ActivityConfigUpsert(BaseModel):
     """
 
     activity_id: str | None = Field(default=None, alias="activityId", max_length=128)
+    # Day-0 overwrite guard (ALS-1 M0.5-guard): the create page sets this so a
+    # SECOND create of the same (teacher, class, activity) is refused (409)
+    # rather than silently overwriting the first activity. The edit page leaves
+    # it false, preserving the idempotent upsert. Retired once M0 mints distinct
+    # ids (no collision possible), but cheap insurance for the live pilot until then.
+    create_only: bool = Field(default=False, alias="createOnly")
     class_id: str = Field(alias="classId", min_length=1, max_length=128)
     title: str = Field(default="", alias="title", max_length=200)
     teaching_goal: str = Field(alias="teachingGoal", max_length=2000)
@@ -140,6 +146,19 @@ async def post_activity_config(
     """
     _assert_known_artefact(body.artefact_id)
     activity_id = body.activity_id or _mint_activity_id()
+    # Day-0 overwrite guard (ALS-1 M0.5-guard). Today the create page sends the
+    # shared concept-dialogue skill id for every concept activity, so a second
+    # create would upsert onto — and silently destroy — the first. When the
+    # caller declares create intent, refuse to clobber an existing doc.
+    if body.create_only and get_activity_config(teacher_uid=user.uid, class_id=body.class_id, activity_id=activity_id):
+        raise HTTPException(
+            status_code=409,
+            detail=(
+                "An activity already exists for this class. Editing the existing "
+                "activity is the current limit — saving here would overwrite it. "
+                "Multiple activities per class is landing shortly (ALS-1 M0)."
+            ),
+        )
     cfg = upsert_activity_config(
         teacher_uid=user.uid,
         class_id=body.class_id,

@@ -129,8 +129,27 @@ describe("/teacher/activities/new — concept activity builder", () => {
     // Binds the lesson to the class by its real skill_id so students see it
     // (passing the name 404s the backend lessons PATCH).
     await waitFor(() => expect(patchLessonsMock).toHaveBeenCalledWith("c-1", { add: [CONCEPT_UUID] }));
+    // Day-0 overwrite guard (ALS-1 M0.5-guard): a create declares create intent
+    // so the backend refuses to clobber an existing activity in this class.
+    expect(saveActivityConfigMock.mock.calls[0][0].createOnly).toBe(true);
     // Success state replaces the form.
     expect(await screen.findByText(/is live for/i)).toBeInTheDocument();
+  });
+
+  it("surfaces the day-0 overwrite guard 409 message instead of a generic error", async () => {
+    const { ConflictError } = await vi.importActual<typeof import("@/lib/teacherApi")>("@/lib/teacherApi");
+    listClassesMock.mockResolvedValue(ONE_CLASS);
+    saveActivityConfigMock.mockRejectedValue(
+      new ConflictError("An activity already exists for this class. Editing the existing activity is the current limit."),
+    );
+    render(<NewActivityPage />);
+    fireEvent.change(await screen.findByLabelText(/activity name/i), { target: { value: "Anden aktivitet" } });
+    fireEvent.change(screen.getByLabelText(/lesson prompt/i), { target: { value: "A second activity." } });
+    fireEvent.click(screen.getByRole("button", { name: /create activity/i }));
+
+    // The honest backend message reaches the teacher (not "please try again").
+    expect(await screen.findByText(/an activity already exists for this class/i)).toBeInTheDocument();
+    expect(screen.queryByText(/please try again/i)).not.toBeInTheDocument();
   });
 
   it("shows the inherited class persona read-only and never writes persona/style (1.1.32 — class-default-only)", async () => {

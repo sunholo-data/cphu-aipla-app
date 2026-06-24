@@ -226,6 +226,11 @@ export interface ActivityConfigUpsert {
   note?: NoteElement[];
   solution?: SolutionElement[];
   materials?: MaterialRef[];
+  /** Day-0 overwrite guard (ALS-1 M0.5-guard). The create page sets this so a
+   *  SECOND create of the same (teacher, class, activity) is refused (409)
+   *  instead of silently overwriting the first. The edit page omits it (the
+   *  idempotent upsert stands). Retired once M0 mints distinct ids. */
+  createOnly?: boolean;
 }
 
 export interface SessionTurnPayload {
@@ -286,9 +291,25 @@ export class NotFoundError extends Error {
   }
 }
 
+/** Thrown on a 409 — carries the backend's `detail` so the caller can show the
+ *  honest message (e.g. the ALS-1 day-0 overwrite guard). */
+export class ConflictError extends Error {
+  constructor(message = "conflict") {
+    super(message);
+    this.name = "ConflictError";
+  }
+}
+
 async function readJson<T>(resp: Response, errMsg: string): Promise<T> {
   if (resp.status === 404) {
     throw new NotFoundError(errMsg);
+  }
+  if (resp.status === 409) {
+    const detail = await resp
+      .json()
+      .then((b) => (typeof b?.detail === "string" ? b.detail : ""))
+      .catch(() => "");
+    throw new ConflictError(detail || errMsg);
   }
   if (!resp.ok) {
     const body = await resp.text().catch(() => "");

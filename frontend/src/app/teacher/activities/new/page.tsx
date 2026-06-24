@@ -7,6 +7,7 @@ import { ArrowLeft, Save, Sparkles } from "lucide-react";
 
 import {
   type ClassPayload,
+  ConflictError,
   listAccessibleSkills,
   listClasses,
   patchLessons,
@@ -115,6 +116,12 @@ function NewActivityForm() {
         // so preview === saved activity).
         ...builder.elementPayload(),
         materials: builder.materials,
+        // Day-0 overwrite guard (ALS-1 M0.5-guard): this is a CREATE, so refuse
+        // to silently overwrite an existing activity in this class. Until M0
+        // mints distinct ids, a class holds one concept activity — fail loudly
+        // (the catch below shows the backend's honest message) rather than
+        // destroying the first activity's config.
+        createOnly: true,
       });
       // Bind the concept-dialogue lesson to the class so students in it
       // actually see the activity. Idempotent — adding it again is a no-op.
@@ -129,7 +136,13 @@ function NewActivityForm() {
       );
     } catch (err) {
       console.error("[teacher-ui] create activity failed:", err);
-      setSaveError("Could not create the activity — your changes were not saved. Please try again.");
+      // The day-0 guard returns 409 with an honest explanation — surface it
+      // verbatim so the teacher understands this isn't a transient failure.
+      setSaveError(
+        err instanceof ConflictError
+          ? err.message
+          : "Could not create the activity — your changes were not saved. Please try again.",
+      );
     } finally {
       setIsSaving(false);
     }

@@ -91,6 +91,43 @@ def test_post_rejects_unknown_fields(client):
     assert resp.status_code == 422
 
 
+# --- Day-0 overwrite guard (ALS-1 M0.5-guard) ---
+#
+# The create page sends ``createOnly: true`` so a SECOND create of the same
+# (teacher, class, activity) is rejected loudly (409) instead of silently
+# overwriting the first activity. The edit page sends no flag, so the
+# idempotent upsert above is unaffected. Retired once M0 mints distinct ids.
+
+
+def test_post_create_only_allows_first_create(client):
+    resp = client.post("/api/activity-configs", json=_sample_body(createOnly=True))
+    assert resp.status_code == 201, resp.text
+    assert resp.json()["activityId"] == "boldkast"
+
+
+def test_post_create_only_rejects_overwrite(client):
+    client.post("/api/activity-configs", json=_sample_body(createOnly=True))
+    resp = client.post(
+        "/api/activity-configs",
+        json=_sample_body(createOnly=True, teachingGoal="Would clobber the first."),
+    )
+    assert resp.status_code == 409, resp.text
+    # The first config must be intact — the overwrite was refused, not applied.
+    saved = client.get(f"/api/activity-configs/{TEACHER_UID}/7b-physics-a-2026/boldkast")
+    assert saved.json()["teachingGoal"].startswith("Independence")
+
+
+def test_post_without_create_only_still_overwrites(client):
+    # The edit path (no flag) keeps the idempotent upsert semantics.
+    client.post("/api/activity-configs", json=_sample_body(createOnly=True))
+    resp = client.post(
+        "/api/activity-configs",
+        json=_sample_body(teachingGoal="An intentional edit."),
+    )
+    assert resp.status_code == 201, resp.text
+    assert resp.json()["teachingGoal"] == "An intentional edit."
+
+
 # --- GET ---
 
 

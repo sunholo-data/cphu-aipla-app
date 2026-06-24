@@ -1,0 +1,246 @@
+{
+  "sprint_id": "ALS-1",
+  "created": "2026-06-24T14:31:32Z",
+  "estimated_duration_days": 5,
+  "design_doc": "docs/design/aipla/v1.1.0-feedback/activity-library-sharing.md",
+  "sprint_plan": "docs/design/aipla/v1.1.0-feedback/activity-library-sharing-sprint.md",
+  "features": [
+    {
+      "id": "M0.5-guard",
+      "description": "Day-0 safety guard: backend rejects a second POST that would overwrite an existing (teacher,class,conceptSkillId) activity config unless activity_id is explicitly the same. Stops silent data loss immediately, independent of the rest of M0.",
+      "scope": "backend",
+      "estimated_loc": 60,
+      "actual_loc": 95,
+      "dependencies": [],
+      "acceptance_criteria": [
+        "A second POST /api/activity-configs that would overwrite an existing concept config for the same (teacher,class) is rejected with a clear error (409/400), not silently set()",
+        "An explicit same-activity_id re-save (legitimate edit) still succeeds",
+        "Regression test covers both paths; make test-fast green"
+      ],
+      "files_to_create": [],
+      "files_to_modify": [
+        "backend/protocols/activity_config_routes.py",
+        "frontend/src/lib/teacherApi.ts",
+        "frontend/src/app/teacher/activities/new/page.tsx"
+      ],
+      "passes": true,
+      "started": "2026-06-24",
+      "completed": "2026-06-24",
+      "notes": "Shipped. createOnly flag on POST; backend 409 if doc exists; ConflictError surfaces honest message on create page. 31 backend + 23 frontend tests green. Edit path (no flag) keeps idempotent upsert."
+    },
+    {
+      "id": "M0.1-model-repo",
+      "description": "Activity Pydantic model (activities/{act-...}) mirroring ActivityConfig content minus class_id, plus owner_uid, visibility(draft|private), source_* nullables, timestamps. db/activities.py repo (create/mint act-, get, list-by-owner, patch, soft-delete). Class.activity_ids field.",
+      "scope": "backend",
+      "estimated_loc": 375,
+      "actual_loc": null,
+      "dependencies": [],
+      "acceptance_criteria": [
+        "Activity model validates; mint produces unique act-... ids; repo round-trips through Firestore helpers",
+        "Class gains activity_ids: list[str] with camelCase alias",
+        "Unit tests: model validation, mint uniqueness, repo CRUD; make test-fast green"
+      ],
+      "files_to_create": [
+        "backend/db/models/activity.py",
+        "backend/db/activities.py"
+      ],
+      "files_to_modify": [
+        "backend/db/models/class_.py"
+      ],
+      "passes": null,
+      "started": null,
+      "completed": null,
+      "notes": "Reuse ActivityConfig element/material types verbatim; published visibility deferred to M3."
+    },
+    {
+      "id": "M0.2-backfill-dualread",
+      "description": "One-shot backfill: each activity_configs/{t}:{c}:{a} -> one Activity + append id to class.activity_ids; wrap bare lessons (skill id with no config) as minimal Activity. Dual-read fallback in resolution (new activity id, else legacy composite key). Dry-run mode + migration notes file.",
+      "scope": "backend",
+      "estimated_loc": 320,
+      "actual_loc": null,
+      "dependencies": [
+        "M0.1-model-repo"
+      ],
+      "acceptance_criteria": [
+        "Backfill on a curly-goose-50 data COPY maps every config + every bare lesson to an Activity; no lesson lost; idempotent on re-run",
+        "Dual-read: a mid-session legacy skill-id still resolves a config during cutover",
+        "Backfill is additive (never deletes activity_configs); dry-run mode works; side effects recorded in a migration-notes file",
+        "Tests: backfill idempotency, bare-lesson wrap, dual-read fallback; make test-fast green"
+      ],
+      "files_to_create": [
+        "backend/scripts/backfill_activities.py"
+      ],
+      "files_to_modify": [
+        "backend/adk/teacher_focus.py",
+        "backend/db/activity_configs.py"
+      ],
+      "passes": null,
+      "started": null,
+      "completed": null,
+      "notes": "MIGRATION-RISK task. Run against a data copy before prod; confirm cutover window before 06-29 freeze."
+    },
+    {
+      "id": "M0.3-student-resolution",
+      "description": "Re-key student resolution to activity id. GET /api/classes/{id}/activities (student-resolvable from group tag) returns the class's activities by {activityId,title,...}. Resolve running skill from content (artefact -> sim skill, else concept-dialogue). Chat/agent instantiation keys off activity_id and injects that activity's focus.",
+      "scope": "backend",
+      "estimated_loc": 300,
+      "actual_loc": null,
+      "dependencies": [
+        "M0.1-model-repo",
+        "M0.2-backfill-dualread"
+      ],
+      "acceptance_criteria": [
+        "Two concept activities in one class resolve to DISTINCT teacher_focus values",
+        "An activity with an artefact resolves to that sim's skill; else concept-dialogue",
+        "GET /api/classes/{id}/activities returns the class's activities for a bound student group token",
+        "Tests cover distinct-focus + sim-resolution; make test-fast green"
+      ],
+      "files_to_create": [],
+      "files_to_modify": [
+        "backend/adk/teacher_focus.py",
+        "backend/protocols/activity_config_routes.py",
+        "backend/protocols/class_routes.py"
+      ],
+      "passes": null,
+      "started": null,
+      "completed": null,
+      "notes": "THE CENTRAL SPIKE. Land + test before M0.4 frontend wiring depends on it."
+    },
+    {
+      "id": "M0.4-student-frontend",
+      "description": "Student /lessons enumerates activities (title + activity_id) not skills; card href carries activity_id. Chat resolves config + persona by activity_id.",
+      "scope": "frontend",
+      "estimated_loc": 230,
+      "actual_loc": null,
+      "dependencies": [
+        "M0.3-student-resolution"
+      ],
+      "acceptance_criteria": [
+        "/lessons renders N concept activities for a class (not one skill card)",
+        "Each card opens a chat URL carrying the activity_id; chat injects that activity's focus",
+        "Vitest covers list render + href id; npm run quality:check green"
+      ],
+      "files_to_create": [],
+      "files_to_modify": [
+        "frontend/src/app/lessons/page.tsx",
+        "frontend/src/components/navigation/skillHref.ts",
+        "frontend/src/lib/apiClient.ts"
+      ],
+      "passes": null,
+      "started": null,
+      "completed": null,
+      "notes": "Group-token (fetchWithAuth) student surface \u2014 NOT teacher auth."
+    },
+    {
+      "id": "M0.5-teacher-create",
+      "description": "Teacher create mints distinct ids: new/page.tsx writes to POST /api/activities (mint act-), stops sending conceptSkillId, binds the activity id to class.activity_ids. onAnother() does a clean reset so 'Create another' cannot reuse the prior id.",
+      "scope": "frontend",
+      "estimated_loc": 120,
+      "actual_loc": null,
+      "dependencies": [
+        "M0.1-model-repo",
+        "M0.4-student-frontend"
+      ],
+      "acceptance_criteria": [
+        "Two consecutive creates in one class produce two DISTINCT activity ids (both persist, neither overwrites)",
+        "onAnother() resets to clean builder state (no stale id)",
+        "Vitest covers distinct-id creation; browser-verify A-then-B on a scratch class; npm run quality:check green"
+      ],
+      "files_to_create": [],
+      "files_to_modify": [
+        "frontend/src/app/teacher/activities/new/page.tsx",
+        "frontend/src/lib/teacherApi.ts",
+        "frontend/src/hooks/useActivityBuilder.ts"
+      ],
+      "passes": null,
+      "started": null,
+      "completed": null,
+      "notes": "Completes M0 \u2014 the bug is dead here. This is the shippable-before-freeze gate."
+    },
+    {
+      "id": "M1.1-assignment-api",
+      "description": "PATCH /api/classes/{id}/activities {add,remove} (owner-only, validates activities are the caller's). GET /api/activities?owner=me library list.",
+      "scope": "backend",
+      "estimated_loc": 190,
+      "actual_loc": null,
+      "dependencies": [
+        "M0.1-model-repo"
+      ],
+      "acceptance_criteria": [
+        "PATCH assigns/unassigns an activity to/from the owner's class; cross-owner assignment rejected",
+        "GET ?owner=me returns the teacher's library",
+        "Tests: assign/unassign, owner-only guard; make test-fast green"
+      ],
+      "files_to_create": [],
+      "files_to_modify": [
+        "backend/protocols/class_routes.py",
+        "backend/protocols/activity_config_routes.py"
+      ],
+      "passes": null,
+      "started": null,
+      "completed": null,
+      "notes": "published/sharing endpoints deferred to M3."
+    },
+    {
+      "id": "M1.2-library-view",
+      "description": "Teacher activities index becomes a library: cards with visibility badge (draft/private), assigned-classes chips, Assign-to-classes multiselect, Edit, Delete. Teacher-auth throughout.",
+      "scope": "frontend",
+      "estimated_loc": 290,
+      "actual_loc": null,
+      "dependencies": [
+        "M1.1-assignment-api"
+      ],
+      "acceptance_criteria": [
+        "Library lists the teacher's activities with visibility badge + assigned-class chips",
+        "Assign-to-classes multiselect calls the activities PATCH; one activity assignable to two classes (both classes' students see it)",
+        "Vitest covers render + assign; uses fetchWithTeacherAuth; npm run quality:check green"
+      ],
+      "files_to_create": [],
+      "files_to_modify": [
+        "frontend/src/app/teacher/activities/page.tsx",
+        "frontend/src/lib/teacherApi.ts"
+      ],
+      "passes": null,
+      "started": null,
+      "completed": null,
+      "notes": "Teacher (Firebase) auth surface \u2014 the recurring 401 corner."
+    },
+    {
+      "id": "M1.3-repoint-picker",
+      "description": "Re-point class-detail picker: 'Add from catalogue' -> 'Add activity'. List the owner's library activities not already assigned; assign via PATCH /classes/{id}/activities (NOT patchLessons). Retire LessonPicker/patchLessons/listAccessibleSkills for this surface; update empty-state copy.",
+      "scope": "frontend",
+      "estimated_loc": 210,
+      "actual_loc": null,
+      "dependencies": [
+        "M1.1-assignment-api",
+        "M1.2-library-view"
+      ],
+      "acceptance_criteria": [
+        "Class-detail picker lists the teacher's activities (not raw skills) and assigns via the activities PATCH",
+        "patchLessons is no longer called from the class-detail page; empty-state copy updated",
+        "Vitest covers picker-lists-activities + add-calls-activities-PATCH; npm run quality:check green"
+      ],
+      "files_to_create": [],
+      "files_to_modify": [
+        "frontend/src/app/teacher/classes/[id]/page.tsx",
+        "frontend/src/lib/teacherApi.ts"
+      ],
+      "passes": null,
+      "started": null,
+      "completed": null,
+      "notes": "Keep lessons READS through the freeze (dual-read); retire lessons WRITES only this sprint."
+    }
+  ],
+  "velocity": {
+    "target_loc_per_day": 480,
+    "actual_loc_per_day": null,
+    "estimated_total_loc": 2385,
+    "actual_total_loc": null,
+    "estimated_days": 5,
+    "actual_days": null
+  },
+  "github_issues": [],
+  "last_session": "2026-06-24",
+  "last_checkpoint": "M0.5-guard complete",
+  "status": "in_progress"
+}
