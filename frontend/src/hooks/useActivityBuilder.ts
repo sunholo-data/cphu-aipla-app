@@ -134,10 +134,10 @@ export function useActivityBuilder(): ActivityBuilder {
         : null,
     );
     setNote(t.note ? { title: t.note.title, body: t.note.body } : null);
-    setSolution(null);
+    setSolution(t.solution ? { prompt: t.solution.prompt } : null);
     setArtefactId(t.artefactId ?? null);
-    // Templates are standard workspace activities — leaving document mode.
-    setWorkbenchType("none");
+    // A template may set the activity type (e.g. document feedback); else standard.
+    setWorkbenchType(t.workbenchType ?? "none");
   }
 
   // The inverse of `elementPayload` — saved element arrays → editor values.

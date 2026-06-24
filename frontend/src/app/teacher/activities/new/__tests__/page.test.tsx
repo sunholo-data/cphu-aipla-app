@@ -337,6 +337,34 @@ describe("/teacher/activities/new — concept activity builder", () => {
     expect(saveActivityConfigMock.mock.calls[0][0].workbenchType).toBe("document");
   });
 
+  it("pre-fills + saves the solution-writing template (solution editor, standard mode)", async () => {
+    listClassesMock.mockResolvedValue(ONE_CLASS);
+    render(<NewActivityPage />);
+    await screen.findByLabelText(/activity name/i);
+    fireEvent.click(screen.getByText("Skriv din løsning"));
+    expect((screen.getByLabelText(/activity name/i) as HTMLInputElement).value).toBe("Skriv din løsning");
+    // The solution prompt is pre-filled in the builder's solution editor.
+    expect((screen.getByLabelText(/solution prompt/i) as HTMLTextAreaElement).value.length).toBeGreaterThan(0);
+    fireEvent.click(screen.getByRole("button", { name: /create activity/i }));
+    await waitFor(() => expect(saveActivityConfigMock).toHaveBeenCalledTimes(1));
+    const body = saveActivityConfigMock.mock.calls[0][0];
+    expect(body.solution).toEqual([{ id: "solution-1", prompt: expect.stringContaining("løsning") }]);
+    expect(body.workbenchType).toBe("none");
+  });
+
+  it("pre-fills the document-feedback template in document mode (hides workspace tools)", async () => {
+    listClassesMock.mockResolvedValue(ONE_CLASS);
+    render(<NewActivityPage />);
+    await screen.findByLabelText(/activity name/i);
+    fireEvent.click(screen.getByText("Dokumentfeedback"));
+    // Document mode: the workspace tools are hidden behind the explanatory note.
+    expect(screen.queryByRole("button", { name: /add step/i })).not.toBeInTheDocument();
+    expect(screen.getByText(/gives feedback on the active file/i)).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: /create activity/i }));
+    await waitFor(() => expect(saveActivityConfigMock).toHaveBeenCalledTimes(1));
+    expect(saveActivityConfigMock.mock.calls[0][0].workbenchType).toBe("document");
+  });
+
   it("adds a solution editor element and saves it with its prompt (1.1.45 M4)", async () => {
     listClassesMock.mockResolvedValue(ONE_CLASS);
     render(<NewActivityPage />);

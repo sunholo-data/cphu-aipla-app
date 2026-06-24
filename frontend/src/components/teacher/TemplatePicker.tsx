@@ -3,9 +3,11 @@
 import type { LucideIcon } from "lucide-react";
 import {
   Calculator,
+  FileUp,
   FlaskConical,
   LineChart,
   ListChecks,
+  PenLine,
   Sparkles,
   StickyNote,
   Table2,
@@ -28,6 +30,8 @@ function templateFeatures(t: ActivityTemplate): { label: string; icon: LucideIco
   if (t.chart) f.push({ label: "Chart", icon: LineChart });
   if (t.calculator) f.push({ label: "Calculator", icon: Calculator });
   if (t.note) f.push({ label: "Note", icon: StickyNote });
+  if (t.solution) f.push({ label: "Solution", icon: PenLine });
+  if (t.workbenchType === "document") f.push({ label: "Document", icon: FileUp });
   return f;
 }
 

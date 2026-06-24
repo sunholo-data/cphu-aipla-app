@@ -1,9 +1,10 @@
-import type { Language } from "@/lib/teacherApi";
+import type { Language, WorkbenchType } from "@/lib/teacherApi";
 
 // Starter activity templates (1.1.38 follow-up) — quick defaults a teacher picks
 // and then modifies, so the builder is never a blank form. Each showcases a
 // different slice of the element palette (checklist / table / chart / calculator
-// / note). Pure data: the builder converts these into its editor state.
+// / note / solution editor) or activity type (document feedback). Pure data: the
+// builder converts these into its editor state.
 //
 // The physics CONTENT here is starter material for JB/AR review (same posture as
 // the calculator formula set) — the value is the quick-default affordance; the
@@ -31,6 +32,11 @@ export interface TemplateNote {
   body: string;
 }
 
+export interface TemplateSolution {
+  /** Teacher prompt shown above the student's rich-text solution editor. */
+  prompt: string;
+}
+
 export interface ActivityTemplate {
   /** Stable id (for the picker key + tests). */
   id: string;
@@ -44,11 +50,16 @@ export interface ActivityTemplate {
   teachingGoal: string;
   /** Optional sim artefact to host (1.1.41) — a catalogue id. */
   artefactId?: string;
+  /** Activity type (1.1.45 M3b). Omitted/"none" = standard workspace; "document"
+   *  = a document-feedback activity (student uploads their own work). */
+  workbenchType?: WorkbenchType;
   checklist: string[];
   table?: TemplateTable;
   chart?: TemplateChart;
   calculator?: TemplateCalculator;
   note?: TemplateNote;
+  /** Optional rich-text solution editor (1.1.45 M4, JB-2). */
+  solution?: TemplateSolution;
 }
 
 export const ACTIVITY_TEMPLATES: ActivityTemplate[] = [
@@ -158,5 +169,45 @@ export const ACTIVITY_TEMPLATES: ActivityTemplate[] = [
         "**Potentiel energi:** E_pot = m · g · h\n\n" +
         "**Bevarelse:** E_kin + E_pot er konstant (uden friktion).",
     },
+  },
+  {
+    // 1.1.45 M4 (JB-2) — the solution editor: the student writes their own
+    // worked solution and the tutor gives Socratic feedback on it.
+    id: "solution-writing",
+    name: "Skriv din løsning",
+    summary: "Eleven skriver sin løsning — tutoren giver feedback (aldrig svaret).",
+    language: "da",
+    title: "Skriv din løsning",
+    teachingGoal:
+      "Hjælp eleven med at forbedre sin egen skriftlige løsning. Giv aldrig den fulde løsning — peg på, " +
+      "hvor et skridt, en værdi eller en formel er forkert, og stil et spørgsmål, så eleven selv kan rette " +
+      "den. Ros først ét rigtigt skridt, og fokusér så på det vigtigste, der mangler. Tjek fysikken — " +
+      "enheder, fortegn, om resultatet er realistisk — ikke kun algebraen.",
+    checklist: ["Skriv din løsning med udregninger", "Forklar dine skridt", "Tjek enheder og fortegn"],
+    solution: {
+      prompt: "Skriv din løsning til opgaven her — vis dine udregninger og forklar dine skridt.",
+    },
+    note: {
+      title: "Tip",
+      body:
+        "Brug **fx**-knappen til at skrive matematik, fx $v = \\frac{s}{t}$.\n\n" +
+        "Skriv hvert skridt, så tutoren kan give feedback på din fremgangsmåde — ikke bare facit.",
+    },
+  },
+  {
+    // 1.1.45 M3b (JB-1) — document feedback: the student uploads their own
+    // file(s) and the tutor critiques the active one. Document mode hides the
+    // workspace tools, so this template carries only the goal + type.
+    id: "document-feedback",
+    name: "Dokumentfeedback",
+    summary: "Eleven uploader sit eget arbejde — tutoren giver feedback på filen.",
+    language: "da",
+    title: "Dokumentfeedback",
+    workbenchType: "document",
+    teachingGoal:
+      "Hjælp eleven med at forbedre det dokument, de har uploadet. Tag udgangspunkt i den aktive fil. Giv " +
+      "aldrig det fulde svar — peg på, hvor noget er forkert eller mangler, og stil et spørgsmål, så eleven " +
+      "selv kan rette det. Ros først noget, der virker, og fokusér så på det vigtigste at forbedre.",
+    checklist: [],
   },
 ];

@@ -33,4 +33,20 @@ describe("ACTIVITY_TEMPLATES", () => {
       expect(numeric.length).toBeGreaterThanOrEqual(2);
     }
   });
+
+  it("ships a solution-writing template with a solution editor (1.1.45 M4)", () => {
+    const t = ACTIVITY_TEMPLATES.find((x) => x.id === "solution-writing");
+    expect(t?.solution?.prompt).toBeTruthy();
+    // A standard-workspace activity (solution editor + checklist + note).
+    expect(t?.workbenchType ?? "none").toBe("none");
+  });
+
+  it("ships a document-feedback template in document mode with no workspace tools (1.1.45 M3b)", () => {
+    const t = ACTIVITY_TEMPLATES.find((x) => x.id === "document-feedback");
+    expect(t?.workbenchType).toBe("document");
+    // Document mode hides workspace tools — the template carries none.
+    expect(t?.checklist).toEqual([]);
+    expect(t?.table).toBeUndefined();
+    expect(t?.solution).toBeUndefined();
+  });
 });
