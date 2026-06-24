@@ -214,12 +214,18 @@ def _store_document(
     folder_id: str | None,
     parse_result: _ParseResult,
     now: datetime,
+    group_id: str | None = None,
 ) -> None:
     pr = parse_result
     blocks = pr.blocks
     doc: dict = {
         "skillId": skill_id,
         "userId": user_id,
+        # 1.1.45 M3 — anonymous-group uploads are GROUP-owned: user_id is the
+        # group-stable synthetic uid (anon-<groupId>), shared by every member +
+        # the shared session, so the whole group sees the file and the shared
+        # tutor critiques it. groupId is persisted explicitly for queryability.
+        "groupId": group_id or None,
         "sourceUrl": gs_url,
         "sourceFormat": source_format,
         "originalFilename": original_filename,
@@ -307,6 +313,7 @@ async def upload_document(
     _store_document(
         doc_id,
         user_id=user.uid,
+        group_id=getattr(user, "group_id", None) or None,
         skill_id=skill_id,
         gs_url=gs_url,
         storage_path=storage_path,
@@ -351,6 +358,7 @@ async def upload_document(
     _store_document(
         doc_id,
         user_id=user.uid,
+        group_id=getattr(user, "group_id", None) or None,
         skill_id=skill_id,
         gs_url=gs_url,
         storage_path=storage_path,

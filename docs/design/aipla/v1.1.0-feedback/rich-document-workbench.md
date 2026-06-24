@@ -76,7 +76,11 @@ A real viewer surface, lazy-loaded (`pdfjs-dist`/`react-pdf`, code-split):
 
 ### 4. Student upload + the active file (M3 — JB-1 wiring)
 
-The "Upload fil" affordance in the Documents tab lets the student attach **their own** document (JB-1's "din fil"), reusing the [1.1.7] upload + `parsed_documents` pipeline (PDF→Gemini-OCR→blocks). The **active file** is the one the tutor "works with": its `doc_id` is pushed into the session's **`document_ids`** (the existing [`make_document_loader`](../../../../backend/adk/callbacks/document.py) path), so the tutor's feedback is grounded in the active file — switching the active tab switches what the bot critiques ("Skift fil ovenfor for at få feedback på en anden fil"). This is the **document-feedback activity** shape: chat-feedback + your-files-viewer.
+**Document-feedback is a confirmed new activity type (JB, 2026-06-24).** Its workbench primary surface is the document viewer over the group's uploaded files.
+
+The "Upload fil" affordance in the Documents tab lets the student attach **their own** document (JB-1's "din fil"), reusing the [1.1.7] upload + `parsed_documents` pipeline (PDF→Gemini-OCR→blocks). The **active file** is the one the tutor "works with": its `doc_id` is pushed into the session's **`document_ids`** (the existing [`make_document_loader`](../../../../backend/adk/callbacks/document.py) path), so the tutor's feedback is grounded in the active file — switching the active tab switches what the bot critiques ("Skift fil ovenfor for at få feedback på en anden fil").
+
+**Ownership: the document is assigned to the GROUP, not an individual (M, 2026-06-24).** AIPLA students are anonymous-group and share a stable synthetic uid `anon-<groupId>` (`_synthesize_uid`, [group_id_auth.py](../../../../backend/auth/group_id_auth.py)) + a shared session. So a student upload is stored with `userId = user.uid` (= `anon-<groupId>`) → **group-owned**: every member sees it, the shared tutor critiques it, and the M2 owner-ACL (`doc.userId == user.uid`) already grants every member access (they share the uid). `groupId` is also persisted explicitly on the record for queryability. This sidesteps the anonymous-group bucket landmine: `resolve_documents_bucket` falls back to `DOCUMENTS_BUCKET` for anon users (no email domain), and the storage path (`users/anon-<groupId>/docs/…`) is group-scoped via the shared uid. The upload uses the **group token** (`fetchWithAuth`).
 
 ### 5. The rich-text solution editor (M4 — JB-2's "din løsning")
 
