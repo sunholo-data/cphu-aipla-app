@@ -108,20 +108,29 @@ def apply_edits(blocks: list[dict[str, Any]], edited_blocks: dict[str, Any]) -> 
 
 
 def list_documents_for_user(user_id: str, skill_id: str | None = None, limit: int = 20) -> list[dict[str, Any]]:
-    """List parsed documents owned by a user, optionally filtered by skill."""
+    """List parsed documents owned by a user, newest first, optionally by skill.
+
+    Sorted in Python rather than via a Firestore ``order_by``: combining several
+    equality filters (userId + status + skillId) with an ``order_by`` on a
+    *different* field (createdAt) needs a composite index that isn't provisioned,
+    which 500s the documents list (the StudentDocumentWorkbench error state). The
+    equality-only query needs no composite index, and the per-(user, skill) result
+    set is small, so we fetch the matches (bounded) and sort here. ``createdAt`` is
+    stored as an ISO-8601 string, so a reverse lexical sort is chronological.
+    """
     filters: list[tuple[str, str, Any]] = [
         ("userId", "==", user_id),
         ("status", "==", "parsed"),
     ]
     if skill_id:
         filters.append(("skillId", "==", skill_id))
-    return query_documents(
+    rows = query_documents(
         collection=_PARSED_DOCS_COLLECTION,
         filters=filters,
-        order_by="createdAt",
-        order_direction="DESCENDING",
-        limit=limit,
+        limit=500,  # defensive bound; a real (user, skill) set is a handful
     )
+    rows.sort(key=lambda r: r.get("createdAt") or "", reverse=True)
+    return rows[:limit]
 
 
 def build_document_context(
