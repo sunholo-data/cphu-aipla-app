@@ -25,6 +25,7 @@ Thinking strategy (3 tiers, see docs/design/v6.0.0/agent-factory.md):
 from __future__ import annotations
 
 import logging
+import os
 import re
 from collections.abc import Callable
 from dataclasses import dataclass
@@ -161,11 +162,47 @@ def _should_think(message: str) -> bool:
     return bool(tokens & THINK_KEYWORDS)
 
 
+#: Env var that overrides the default Gemini thinking budget (Tier A).
+#: Unset/blank → -1 (Gemini's unbounded dynamic thinking, the historical
+#: default). See ``_resolve_thinking_budget``.
+THINKING_BUDGET_ENV = "AIPLA_THINKING_BUDGET"
+
+
+def _resolve_thinking_budget() -> int:
+    """Thinking-token budget for the default (Tier A) Gemini planner.
+
+    ``ThinkingConfig.thinking_budget`` semantics:
+      * ``-1`` — Gemini's *dynamic* thinking: the model decides how much to
+        think per request. Unbounded; can add many seconds of pre-first-token
+        latency on hard prompts (the 19-36s turns in the 2026-06-23 demo).
+      * ``0``  — thinking OFF: fastest first token (valid on 2.5/3.5 *Flash*;
+        Pro requires >= 128).
+      * ``N>0`` — cap thinking to ~N tokens: bounded latency, some reasoning.
+
+    Read from ``AIPLA_THINKING_BUDGET`` so an environment can trade latency
+    against depth WITHOUT a code change or re-seed — dev can run a low/zero
+    budget for snappy demos while prod stays dynamic. Defaults to ``-1``
+    (unchanged behaviour) when unset or non-integer.
+
+    This is the simplest dynamic knob; per-skill and per-turn (difficulty-
+    routed) budgets are the natural next steps — see the design note.
+    """
+    raw = os.environ.get(THINKING_BUDGET_ENV)
+    if raw is None or raw.strip() == "":
+        return -1
+    try:
+        return int(raw)
+    except ValueError:
+        logger.warning("%s=%r is not an integer; falling back to -1 (dynamic)", THINKING_BUDGET_ENV, raw)
+        return -1
+
+
 def _planner_for(skill_config: SkillConfig) -> BuiltInPlanner | None:
     """Return a BuiltInPlanner for Gemini skills with no thinking_model.
 
-    - Gemini + no thinking_model: `BuiltInPlanner(thinking_budget=-1)` —
-      Gemini 2.5's dynamic thinking (the model decides per request).
+    - Gemini + no thinking_model: `BuiltInPlanner` with the budget from
+      `_resolve_thinking_budget()` (default -1 = Gemini 2.5 dynamic thinking;
+      override via `AIPLA_THINKING_BUDGET` to bound first-token latency).
     - Claude / OpenAI: BuiltInPlanner is Gemini-specific; return None.
     - thinking_model set: routing happens in Python via _HeuristicRouter;
       the single-agent case doesn't apply, so return None here.
@@ -174,7 +211,7 @@ def _planner_for(skill_config: SkillConfig) -> BuiltInPlanner | None:
         return None
     if not skill_config.skill_metadata.model.startswith("gemini-"):
         return None
-    return BuiltInPlanner(thinking_config=ThinkingConfig(thinking_budget=-1))
+    return BuiltInPlanner(thinking_config=ThinkingConfig(thinking_budget=_resolve_thinking_budget()))
 
 
 @dataclass

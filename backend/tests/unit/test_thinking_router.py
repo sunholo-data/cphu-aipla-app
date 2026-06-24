@@ -19,8 +19,10 @@ from google.adk.agents import LlmAgent
 from google.adk.planners import BuiltInPlanner
 
 from adk.agent import (
+    THINKING_BUDGET_ENV,
     _HeuristicRouter,
     _planner_for,
+    _resolve_thinking_budget,
     _should_think,
     create_agent_with_thinking,
 )
@@ -61,6 +63,44 @@ def test_planner_for_gemini_pro_without_thinking_model_returns_builtinplanner():
 def test_planner_for_claude_returns_none():
     # Claude/OpenAI don't support BuiltInPlanner — use the router instead.
     assert _planner_for(_skill(model="claude-opus-4-7")) is None
+
+
+# --- AIPLA_THINKING_BUDGET env knob (latency vs depth, no re-seed) ---
+
+
+def test_thinking_budget_defaults_to_dynamic_when_unset(monkeypatch):
+    monkeypatch.delenv(THINKING_BUDGET_ENV, raising=False)
+    assert _resolve_thinking_budget() == -1
+
+
+def test_thinking_budget_reads_integer_env_override(monkeypatch):
+    monkeypatch.setenv(THINKING_BUDGET_ENV, "0")
+    assert _resolve_thinking_budget() == 0
+    monkeypatch.setenv(THINKING_BUDGET_ENV, "512")
+    assert _resolve_thinking_budget() == 512
+
+
+def test_thinking_budget_invalid_or_blank_falls_back_to_dynamic(monkeypatch):
+    monkeypatch.setenv(THINKING_BUDGET_ENV, "lots")
+    assert _resolve_thinking_budget() == -1
+    monkeypatch.setenv(THINKING_BUDGET_ENV, "")
+    assert _resolve_thinking_budget() == -1
+
+
+def test_planner_applies_env_thinking_budget(monkeypatch):
+    """The dev "minimum budget" lever: AIPLA_THINKING_BUDGET=0 flows into the
+    Gemini planner so first-token latency is bounded without a re-seed."""
+    monkeypatch.setenv(THINKING_BUDGET_ENV, "0")
+    planner = _planner_for(_skill(model="gemini-2.5-flash"))
+    assert isinstance(planner, BuiltInPlanner)
+    assert planner.thinking_config.thinking_budget == 0
+
+
+def test_planner_default_budget_is_dynamic(monkeypatch):
+    monkeypatch.delenv(THINKING_BUDGET_ENV, raising=False)
+    planner = _planner_for(_skill(model="gemini-2.5-flash"))
+    assert isinstance(planner, BuiltInPlanner)
+    assert planner.thinking_config.thinking_budget == -1
 
 
 def test_planner_for_openai_returns_none():

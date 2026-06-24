@@ -286,6 +286,14 @@ steps:
       # ~8-16x lower cost. Already wired via Vertex (tutor + narrative use it),
       # so no extra IAM. UI still gated per-class on voiceInputEnabled.
       - '--set-env-vars=VOICE_STT_PROVIDER=gemini'
+      # TTFT / thinking-budget (2026-06-23 demo follow-up). The default Gemini
+      # planner used thinking_budget=-1 (unbounded dynamic thinking), which gave
+      # 19-36s pre-first-token latency on hard prompts in the demo. 0 disables
+      # thinking for the fastest first token on dev — valid for the Flash models
+      # all dev skills use (Pro requires >=128). Dial up (e.g. 512) for more
+      # reasoning; it's a plain env flip, no re-seed. Read by
+      # adk.agent._resolve_thinking_budget. Prod can stay dynamic by omitting it.
+      - '--set-env-vars=AIPLA_THINKING_BUDGET=0'
 
   # --- Post-deploy smoke: fail the build if any critical endpoint is not 200 ---
   # Per CLAUDE.md: no feature lands with manual-only verification. This step

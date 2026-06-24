@@ -49,12 +49,22 @@ if not is_local_mode():
 
 # Default Python logging is WARNING+ only, which silently drops every
 # `log.info()` observability marker (M10 — analytics_tool, insights_query,
-# dashboard_load). uvicorn's access logs go through its own logger, not
-# ours, so they show up regardless. Set INFO at the root so per-module
-# `log.info()` reaches Cloud Logging via stdout. Module-level
-# `setLevel(CRITICAL)` calls in observability.telemetry still silence
-# the OTEL exporter noise.
+# dashboard_load) AND the per-turn TTFT breakdown (observability.timing).
+# uvicorn's access logs go through its own logger, not ours, so they show up
+# regardless. Module-level `setLevel(CRITICAL)` calls in
+# observability.telemetry still silence the OTEL exporter noise.
+#
+# The explicit root `setLevel(INFO)` below is load-bearing: `setup_telemetry()`
+# (called above) installs a root handler via OTEL, after which a plain
+# `basicConfig(...)` is a NO-OP — basicConfig does nothing once the root logger
+# has handlers, so it never lowers the root LEVEL off the WARNING default. The
+# 2026-06-23 demo proved this: ZERO INFO app lines reached Cloud Logging
+# (no `stream_skill:`, no `group_auth:`, no `ttft` line), only WARNING+. Forcing
+# the level lowers the bar so INFO records reach the existing handler. We do NOT
+# use `basicConfig(force=True)` here: that CLOSES pre-existing handlers, which
+# nukes pytest's capture handlers when this module is imported under test.
 logging.basicConfig(level=logging.INFO, format="%(levelname)s:%(name)s:%(message)s")
+logging.getLogger().setLevel(logging.INFO)
 
 _log = logging.getLogger(__name__)
 
