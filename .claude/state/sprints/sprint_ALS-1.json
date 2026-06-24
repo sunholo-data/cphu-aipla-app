@@ -244,6 +244,6 @@
   },
   "github_issues": [],
   "last_session": "2026-06-24",
-  "last_checkpoint": "M0.4 + M0.5 complete \u2014 bug fixed end-to-end",
+  "last_checkpoint": "M0 COMPLETE \u2014 bug fixed end-to-end; backend 2189 + frontend 1271+build green. M1.2/M1.3 remain.",
   "status": "in_progress"
 }
