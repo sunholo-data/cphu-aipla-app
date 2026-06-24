@@ -107,6 +107,53 @@ def test_falls_back_to_legacy_lessons_when_not_backfilled():
     assert all(a["activityId"] == a["skillId"] for a in body["activities"])
 
 
+def test_additive_fallback_new_activity_does_not_hide_unmigrated_lessons():
+    """The edge case the additive fallback fixes: a NEW activity assigned to an
+    un-backfilled class must NOT make the old lessons vanish. The assigned
+    activity AND the not-yet-migrated lessons both show."""
+    now = datetime.now(UTC)
+    create_activity(Activity(activityId="act-new", skillId="concept-dialogue", title="New One", ownerUid=OWNER))
+    create_class(
+        Class(
+            classId=CLASS_ID,
+            ownerUid=OWNER,
+            name="Physics 7B",
+            tagNamespace=f"class:{OWNER}:{CLASS_ID}",
+            lessons=["boldkast", "led-planck"],  # legacy sims, not yet backfilled
+            activityIds=["act-new"],
+            createdAt=now,
+            updatedAt=now,
+        )
+    )
+    set_document("anon_groups", GROUP_ID, {"classId": CLASS_ID})
+    body = _student_client().get("/api/auth/group/my-activities").json()
+    ids = {a["activityId"] for a in body["activities"]}
+    # The new activity AND both un-migrated lessons are present (nothing vanished).
+    assert ids == {"act-new", "boldkast", "led-planck"}
+
+
+def test_no_synthetic_duplicate_when_lesson_skill_already_an_activity():
+    """After backfill a lesson's skill is represented by an activity → no
+    synthetic duplicate is produced for it."""
+    now = datetime.now(UTC)
+    create_activity(Activity(activityId="act-bk", skillId="boldkast", title="Boldkast act", ownerUid=OWNER))
+    create_class(
+        Class(
+            classId=CLASS_ID,
+            ownerUid=OWNER,
+            name="P",
+            tagNamespace=f"class:{OWNER}:{CLASS_ID}",
+            lessons=["boldkast"],  # same skill as the assigned activity
+            activityIds=["act-bk"],
+            createdAt=now,
+            updatedAt=now,
+        )
+    )
+    set_document("anon_groups", GROUP_ID, {"classId": CLASS_ID})
+    body = _student_client().get("/api/auth/group/my-activities").json()
+    assert [a["activityId"] for a in body["activities"]] == ["act-bk"]  # no "boldkast" synthetic
+
+
 def test_non_group_user_404s():
     app = FastAPI()
     app.include_router(router)
