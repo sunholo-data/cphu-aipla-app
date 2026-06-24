@@ -163,3 +163,44 @@ def test_unknown_artefact_falls_back_to_goal_only():
         artefact_id="does-not-exist",
     )
     assert inject_teacher_focus("{teacher_focus}", "bad-sim") == "Just the goal."
+
+
+# --- solution feedback prompt injection (1.1.45 M4, JB-2) ---
+
+
+def test_solution_element_injects_feedback_prompt_and_task() -> None:
+    from datetime import UTC, datetime
+
+    from adk.teacher_focus import SOLUTION_FEEDBACK_PROMPT, compose_teacher_focus
+    from db.models.activity_config import ActivityConfig, SolutionElement
+
+    cfg = ActivityConfig(
+        activityId="a",
+        classId="c",
+        teacherUid="t",
+        teachingGoal="Understand projectile motion",
+        solution=[SolutionElement(id="sol-1", prompt="Find the range")],
+        updatedAt=datetime.now(UTC),
+    )
+    focus = compose_teacher_focus(cfg)
+    assert SOLUTION_FEEDBACK_PROMPT in focus
+    assert "Find the range" in focus
+    assert "Understand projectile motion" in focus
+
+
+def test_no_solution_element_omits_the_feedback_prompt() -> None:
+    from datetime import UTC, datetime
+
+    from adk.teacher_focus import SOLUTION_FEEDBACK_PROMPT, compose_teacher_focus
+    from db.models.activity_config import ActivityConfig
+
+    cfg = ActivityConfig(
+        activityId="a",
+        classId="c",
+        teacherUid="t",
+        teachingGoal="Just a goal",
+        updatedAt=datetime.now(UTC),
+    )
+    focus = compose_teacher_focus(cfg)
+    assert SOLUTION_FEEDBACK_PROMPT not in focus
+    assert focus == "Just a goal"

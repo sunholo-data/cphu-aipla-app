@@ -95,25 +95,60 @@ def class_id_from_group_tags(group_tags: Iterable[str] | None) -> str | None:
     return None
 
 
-def compose_teacher_focus(cfg: ActivityConfig | None) -> str:
-    """Compose the ``{teacher_focus}`` substitution (1.1.41 M2).
+# Solution-editor feedback prompt (1.1.45 M4, JB-2). The DEFAULT instruction the
+# tutor uses to critique a student's written solution. Drafted v0.1 (AR sign-off
+# gates the pilot ship); structured as a single composable block so 1.1.47
+# (prompt transparency + config) can later make it a researcher-overridable
+# registry layer with zero rework here. Socratic by construction: never hands over
+# the answer (reuses the verbosity/Socratic posture the eval already checks).
+SOLUTION_FEEDBACK_PROMPT = (
+    "The student writes their own solution to a physics task in the solution "
+    "editor and submits it for your feedback (it appears in the workbench "
+    "context as their written solution). Give feedback on it — do NOT rewrite "
+    "it for them:\n"
+    "- Never hand over the full corrected solution; point to where a step, "
+    "value, or formula goes wrong and ask a question that lets the student fix "
+    "it themselves.\n"
+    "- Be specific — quote their actual values and formulas.\n"
+    "- Lead with one thing the solution gets right, then probe the single most "
+    "important gap with a question.\n"
+    "- Check the physics, not just the algebra: units, signs, whether the "
+    "formula fits the situation, whether the result is physically plausible.\n"
+    "- 3-5 sentences, ending with a question. Match the student's language."
+)
 
-    The activity's ``teaching_goal``, prefixed with the hosted sim artefact's
-    intrinsic ``tutor_block`` (what the sim IS + what its events MEAN) when the
-    activity references one. The artefact block is the **same** for every
-    activity using that sim (from the catalogue, AR-authored); the goal is
-    **per-activity** — so the same sim tutors differently per activity purely
-    because the goal differs. Graceful: a de-catalogued or block-less artefact
-    falls back to just the goal.
+
+def compose_teacher_focus(cfg: ActivityConfig | None) -> str:
+    """Compose the ``{teacher_focus}`` substitution (1.1.41 M2 + 1.1.45 M4).
+
+    Stacks, in order: the hosted sim artefact's intrinsic ``tutor_block`` (what
+    the sim IS + what its events MEAN, when the activity references a sim); the
+    **solution feedback prompt** + the teacher's solution task (when the activity
+    has a solution-editor element — 1.1.45 M4); and the per-activity
+    ``teaching_goal``. The artefact block is the **same** for every activity using
+    that sim (AR-authored catalogue); the goal is **per-activity** — so the same
+    sim tutors differently per activity purely because the goal differs. Graceful:
+    each block is optional and a de-catalogued / block-less artefact is skipped.
     """
     goal = (cfg.teaching_goal if cfg else "").strip()
-    if cfg is None or not cfg.artefact_id:
-        return goal
-    artefact = load_artefact(cfg.artefact_id)
-    block = artefact.tutor_block.strip() if artefact else ""
-    if not block:
-        return goal
-    return f"{block}\n\n{goal}" if goal else block
+    blocks: list[str] = []
+
+    if cfg is not None and cfg.artefact_id:
+        artefact = load_artefact(cfg.artefact_id)
+        block = artefact.tutor_block.strip() if artefact else ""
+        if block:
+            blocks.append(block)
+
+    if cfg is not None and cfg.solution:
+        blocks.append(SOLUTION_FEEDBACK_PROMPT)
+        task = (cfg.solution[0].prompt or "").strip()
+        if task:
+            blocks.append(f"The task the student is solving: {task}")
+
+    if goal:
+        blocks.append(goal)
+
+    return "\n\n".join(blocks)
 
 
 def inject_teacher_focus(
@@ -160,6 +195,7 @@ def inject_teacher_focus(
 
 __all__ = [
     "LOCAL_MODE_DEMO_CLASS_ID",
+    "SOLUTION_FEEDBACK_PROMPT",
     "class_id_from_group_tags",
     "compose_teacher_focus",
     "inject_teacher_focus",

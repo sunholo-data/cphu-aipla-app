@@ -21,6 +21,7 @@ from db.models.activity_config import (
     ChartElement,
     ChecklistItem,
     NoteElement,
+    SolutionElement,
     TableColumn,
     TableElement,
 )
@@ -237,3 +238,25 @@ def test_no_artefact_keeps_workbench_none() -> None:
 def test_explicit_workbench_type_not_overridden_by_artefact() -> None:
     cfg = _config(artefactId="boldkast", workbenchType="notebook")
     assert cfg.workbench_type == "notebook"
+
+
+# --- solution editor element (1.1.45 M4, JB-2) ---
+
+
+def test_solution_is_a_registered_workspace_element() -> None:
+    spec = ELEMENT_REGISTRY["solution"]
+    assert spec.field == "solution"
+    assert spec.render == "workspace"
+    # One solution editor per activity — the student's writing is session state.
+    assert spec.max_items == 1
+
+
+def test_solution_within_cap_roundtrips() -> None:
+    cfg = _config(solution=[SolutionElement(id="sol-1", prompt="Solve problem 3")])
+    assert len(cfg.solution) == 1
+    assert cfg.solution[0].prompt == "Solve problem 3"
+
+
+def test_solution_over_cap_is_rejected() -> None:
+    with pytest.raises(ValidationError):
+        _config(solution=[SolutionElement(id=f"s{i}", prompt="") for i in range(2)])

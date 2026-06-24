@@ -192,6 +192,22 @@ class NoteElement(BaseModel):
     model_config = ConfigDict(populate_by_name=True)
 
 
+class SolutionElement(BaseModel):
+    """A teacher-authored rich-text solution-editor element (1.1.45 M4, JB-2).
+
+    The teacher authors only the ``prompt`` ("Write your solution to…"); the
+    *student* writes the answer in the TipTap editor on the workbench. The
+    student's submission is session state (pushed to the tutor over the
+    ``iframe-context`` wire, the same path the data table uses) — NOT stored on
+    the activity config. The tutor critiques it via the solution feedback prompt.
+    """
+
+    id: str = Field(min_length=1, max_length=64)
+    prompt: str = Field(default="", max_length=2000)
+
+    model_config = ConfigDict(populate_by_name=True)
+
+
 # Workbench type system (1.J expanded-workbench-types). ``none`` is a
 # first-class, no-simulator activity (chat-only Socratic dialogue, the
 # v1.1 teacher-authoring headline). ``app`` is a paired MCP-App sim.
@@ -218,7 +234,7 @@ WorkbenchType = Literal["app", "drawing", "sensor", "video", "notebook", "docume
 # v1.1 ships the ``checklist`` (M0) + ``table`` (M1) + ``chart`` (M2) +
 # ``calculator`` (M3) + ``note`` (M4 — the teacher-authored instructions /
 # reference element). ``quiz`` (inline, A2UI) joins when 1.1.19 M2 builds it.
-ElementKind = Literal["checklist", "table", "chart", "calculator", "note"]
+ElementKind = Literal["checklist", "table", "chart", "calculator", "note", "solution"]
 ElementRender = Literal["workspace", "inline"]
 
 
@@ -247,6 +263,10 @@ ELEMENT_REGISTRY: dict[ElementKind, ElementSpec] = {
     "chart": ElementSpec(kind="chart", field="chart", max_items=5, render="workspace"),
     "calculator": ElementSpec(kind="calculator", field="calculator", max_items=5, render="workspace"),
     "note": ElementSpec(kind="note", field="note", max_items=5, render="workspace"),
+    # One rich-text solution editor per activity (JB-2 "din løsning"); the
+    # student's writing is session state, not config — so the cap is on the
+    # number of editor surfaces, which is 1.
+    "solution": ElementSpec(kind="solution", field="solution", max_items=1, render="workspace"),
 }
 
 
@@ -289,6 +309,9 @@ class ActivityConfig(BaseModel):
     calculator: list[CalculatorElement] = Field(default_factory=list)
     # Teacher-authored instructions / reference notes (1.1.38 M4), Markdown body.
     note: list[NoteElement] = Field(default_factory=list)
+    # Rich-text solution editor (1.1.45 M4, JB-2). Teacher authors the prompt;
+    # the student's writing is session state (iframe-context), not stored here.
+    solution: list[SolutionElement] = Field(default_factory=list)
     # Curriculum documents cited for this activity (1.1.25 M3). The tutor
     # retrieval tool is scoped to ONLY these docs (student deny-by-default).
     materials: list[MaterialRef] = Field(default_factory=list)

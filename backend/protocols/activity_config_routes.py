@@ -41,6 +41,7 @@ from db.models.activity_config import (
     Language,
     MaterialRef,
     NoteElement,
+    SolutionElement,
     TableElement,
     WorkbenchType,
 )
@@ -90,6 +91,8 @@ class ActivityConfigUpsert(BaseModel):
     calculator: list[CalculatorElement] = Field(default_factory=list)
     # Teacher-authored instructions / reference notes (1.1.38 M4).
     note: list[NoteElement] = Field(default_factory=list)
+    # Rich-text solution editor (1.1.45 M4, JB-2).
+    solution: list[SolutionElement] = Field(default_factory=list)
     # Curriculum documents cited for this activity (1.1.25 M4). The tutor
     # retrieval tool is scoped to ONLY these docs (student deny-by-default).
     materials: list[MaterialRef] = Field(default_factory=list)
@@ -155,6 +158,7 @@ async def post_activity_config(
         chart=body.chart,
         calculator=body.calculator,
         note=body.note,
+        solution=body.solution,
         materials=body.materials,
     )
     log.info(
@@ -211,6 +215,7 @@ async def get_active_activity_config(
             "chart": [],
             "calculator": [],
             "note": [],
+            "solution": [],
             "artefact": None,
             "workbenchType": "none",
             "persona": persona_block,
@@ -244,6 +249,7 @@ async def get_active_activity_config(
         "chart": [c.model_dump(by_alias=True) for c in cfg.chart],
         "calculator": [c.model_dump(by_alias=True) for c in cfg.calculator],
         "note": [n.model_dump(by_alias=True) for n in cfg.note],
+        "solution": [s.model_dump(by_alias=True) for s in cfg.solution],
         # The resolved artefact (public view — never the tutorBlock) so the
         # student workspace has the render path; None if unset or de-catalogued
         # (graceful degradation — the activity stays chat + elements).
@@ -324,6 +330,7 @@ async def patch_activity_config(
         chart=body.chart,
         calculator=body.calculator,
         note=body.note,
+        solution=body.solution,
         materials=body.materials,
     )
     return _serialize(cfg)
