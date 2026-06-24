@@ -47,10 +47,10 @@
         "frontend/src/components/workspace/StudentWorkspace.tsx",
         "frontend/src/components/workspace/__tests__/StudentWorkspace.test.tsx"
       ],
-      "passes": null,
-      "started": null,
-      "completed": null,
-      "notes": "Layout decision (M): activity-driven primary surface + tabs when >1. Radix Tabs already in package.json."
+      "passes": true,
+      "started": "2026-06-24",
+      "completed": "2026-06-24",
+      "notes": "WorkbenchTabs (Radix) wraps elements+documents ONLY when both have content; single surface renders directly; sim takeover pre-empts; doc count badge. 4 new tests; tsc clean. Committed c0f05c0 (pushed)."
     },
     {
       "id": "M2",
@@ -142,7 +142,7 @@
     "actual_days": null
   },
   "github_issues": [],
+  "last_checkpoint": "M0+M1 complete + pushed (c0f05c0). M2-M4 pending: greenfield dep gate (react-pdf/TipTap) + the anon-group document-bytes/bucket subtlety to resolve.",
   "last_session": "2026-06-24",
-  "last_checkpoint": "M0 complete",
   "status": "in_progress"
 }
