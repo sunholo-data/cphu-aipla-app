@@ -209,8 +209,10 @@ export default function ChatPage({
     );
   }
 
-  // path is validated by useSlugResolution; safe to construct the friendly prefix.
-  const pathPrefix = `/chat/${path[0]}/${path[1]}`;
+  // path is validated by useSlugResolution. Friendly URL is 2 segments
+  // (@owner/slug); a raw skill id is 1 segment (/chat/{skillId}). Build the
+  // matching prefix for session-URL navigation either way.
+  const pathPrefix = path.length >= 2 ? `/chat/${path[0]}/${path[1]}` : `/chat/${path[0]}`;
 
   return (
     <ProactiveSimProvider>

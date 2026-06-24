@@ -57,6 +57,17 @@ export function useSlugResolution(path: string[] | undefined, enabled: boolean =
       }
     });
 
+    // A single-segment path is a RAW skill id — the `/chat/{skillId}` route, used
+    // by the student activity cards (`/chat/{skillId}?activity_id=…`) and by
+    // skillHref's fallback for slug-less skills. Use it directly; no slug lookup
+    // needed. Access is enforced downstream (the skill-meta + stream endpoints
+    // 404 / refuse on no-access), so passing the id through here is safe.
+    if (decoded && decoded.length === 1 && decoded[0].length > 0 && !decoded[0].startsWith("@")) {
+      setSkillId(decoded[0]);
+      setLoading(false);
+      return () => undefined;
+    }
+
     if (!decoded || decoded.length !== 2 || !decoded[0].startsWith("@") || decoded[0].length < 2) {
       setNotFound(true);
       setLoading(false);

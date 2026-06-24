@@ -48,8 +48,19 @@ describe("useSlugResolution", () => {
     );
   });
 
-  it("returns notFound on path of wrong length", async () => {
-    const { result } = renderHook(() => useSlugResolution(["just-one-segment"]));
+  it("resolves a single-segment path as a RAW skill id (the /chat/{skillId} route)", async () => {
+    // ALS-1: student activity cards open /chat/{skillId}?activity_id=… (one
+    // segment). Use the id directly — no by-slug fetch; access is enforced
+    // downstream. (This was returning 'Skill not found' before the fix.)
+    const { result } = renderHook(() => useSlugResolution(["cb778efa-f34f-4ead"]));
+    await waitFor(() => expect(result.current.loading).toBe(false));
+    expect(result.current.skillId).toBe("cb778efa-f34f-4ead");
+    expect(result.current.notFound).toBe(false);
+    expect(mockFetch).not.toHaveBeenCalled();
+  });
+
+  it("returns notFound on a 3+ segment path", async () => {
+    const { result } = renderHook(() => useSlugResolution(["a", "b", "c"]));
     await waitFor(() => expect(result.current.loading).toBe(false));
     expect(result.current.notFound).toBe(true);
     expect(mockFetch).not.toHaveBeenCalled();
