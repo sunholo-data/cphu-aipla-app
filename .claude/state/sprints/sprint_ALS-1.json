@@ -33,7 +33,7 @@
       "description": "Activity Pydantic model (activities/{act-...}) mirroring ActivityConfig content minus class_id, plus owner_uid, visibility(draft|private), source_* nullables, timestamps. db/activities.py repo (create/mint act-, get, list-by-owner, patch, soft-delete). Class.activity_ids field.",
       "scope": "backend",
       "estimated_loc": 375,
-      "actual_loc": null,
+      "actual_loc": 360,
       "dependencies": [],
       "acceptance_criteria": [
         "Activity model validates; mint produces unique act-... ids; repo round-trips through Firestore helpers",
@@ -47,10 +47,10 @@
       "files_to_modify": [
         "backend/db/models/class_.py"
       ],
-      "passes": null,
-      "started": null,
-      "completed": null,
-      "notes": "Reuse ActivityConfig element/material types verbatim; published visibility deferred to M3."
+      "passes": true,
+      "started": "2026-06-24",
+      "completed": "2026-06-24",
+      "notes": "Shipped. Activity model (act- mint, private default, sharing envelope) reusing ActivityConfig element types; db/activities.py repo (create/save/get/list-by-owner/soft-delete); Class.activity_ids. 12 new tests + 282 class/activity tests green."
     },
     {
       "id": "M0.2-backfill-dualread",
@@ -241,6 +241,6 @@
   },
   "github_issues": [],
   "last_session": "2026-06-24",
-  "last_checkpoint": "M0.5-guard complete",
+  "last_checkpoint": "M0.1-model-repo complete",
   "status": "in_progress"
 }

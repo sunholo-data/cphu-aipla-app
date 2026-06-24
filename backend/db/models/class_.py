@@ -77,6 +77,14 @@ class Class(BaseModel):
     description: str | None = Field(default=None, max_length=2000)
     tag_namespace: str = Field(alias="tagNamespace")
     lessons: list[str] = Field(default_factory=list)
+    """Legacy skill-id allowlist (pre-ALS-1). Read-only during the M0 dual-read
+    window; the student lesson list now resolves from ``activity_ids``. Writes to
+    this field retire once the class picker re-points to activities (M1.3)."""
+    activity_ids: list[str] = Field(alias="activityIds", default_factory=list)
+    """ALS-1 M0 — the owner's library activities (``act-…`` ids) this class runs.
+    Many-to-many: one activity may be assigned to several of the owner's classes.
+    The student lesson list resolves from here; the running skill is derived from
+    each activity's content (artefact → sim skill, else concept-dialogue)."""
     group_codes: list[str] = Field(alias="groupCodes", default_factory=list)
     voice: ClassVoiceSettings | None = Field(default=None)
     """1.1.11 — teacher's per-class voice override. None means the class
