@@ -53,6 +53,7 @@ class BackfillReport:
     configs_migrated: list[str] = field(default_factory=list)
     bare_lessons_wrapped: list[str] = field(default_factory=list)
     skipped_already_migrated: list[str] = field(default_factory=list)
+    skipped_teacher_only: list[str] = field(default_factory=list)
     class_assignments: list[str] = field(default_factory=list)
 
     def summary(self) -> str:
@@ -61,6 +62,7 @@ class BackfillReport:
             f"[{mode}] configs→activities: {len(self.configs_migrated)} · "
             f"bare lessons wrapped: {len(self.bare_lessons_wrapped)} · "
             f"already-migrated skipped: {len(self.skipped_already_migrated)} · "
+            f"teacher-only skipped: {len(self.skipped_teacher_only)} · "
             f"class assignments: {len(self.class_assignments)}"
         )
 
@@ -84,6 +86,25 @@ def _wrap_artefact_id(skill_id: str) -> str | None:
         return skill_id if is_known_artefact(skill_id) else None
     except Exception:
         return None
+
+
+def _is_teacher_only_skill(skill_id: str) -> bool:
+    """True for a teacher-tooling skill (``role:teacher`` tag) — e.g. manage-class.
+
+    These are never student lessons, so they must NOT be wrapped as activities
+    (the old class picker excluded them; the first backfill pass didn't, and they
+    leaked into the library). Mirrors the frontend ``isTeacherOnlySkill``.
+    """
+    try:
+        from skills.skill_config import get_skill
+
+        skill = get_skill(skill_id)
+        if skill is None:
+            return False
+        tags = getattr(getattr(skill, "access_control", None), "tags", None) or []
+        return "role:teacher" in tags
+    except Exception:
+        return False
 
 
 def _activity_from_config(data: dict, *, activity_id: str) -> Activity:
@@ -142,15 +163,22 @@ def run_backfill(*, dry_run: bool = True) -> BackfillReport:
         report.class_assignments.append(f"{class_id}←{act_id}")
 
     # 2. bare lessons (a Class.lessons skill id with no config) → minimal Activity.
+    #    DEDUPED per (owner, skill): the same sim added to N of a teacher's classes
+    #    becomes ONE library activity assigned to all N (edit once, applies
+    #    everywhere) — not N copies. Teacher-only skills (manage-class) are skipped
+    #    entirely (never student lessons). Authored configs (step 1) stay per-class.
     for cls in list_all_classes(include_revoked=False):
         configured = seen_by_class.get(cls.class_id, set())
         for skill_id in cls.lessons:
             if skill_id in configured:
-                continue  # already handled in step 1
+                continue  # already handled in step 1 (authored config)
             if get_activity_config(teacher_uid=cls.owner_uid, class_id=cls.class_id, activity_id=skill_id):
                 continue  # defensive — a config exists even if not in step-1 scan
-            legacy_key = f"{cls.owner_uid}:{cls.class_id}:{skill_id}"
-            act_id = migrated_activity_id(legacy_key)
+            if _is_teacher_only_skill(skill_id):
+                report.skipped_teacher_only.append(f"{cls.class_id}:{skill_id}")
+                continue  # teacher tooling is never a student activity
+            # Dedup key is owner+skill (NOT class) so one activity spans all classes.
+            act_id = migrated_activity_id(f"bare:{cls.owner_uid}:{skill_id}")
             if get_activity(act_id, include_deleted=True) is not None:
                 report.skipped_already_migrated.append(act_id)
             elif dry_run:
@@ -168,20 +196,54 @@ def run_backfill(*, dry_run: bool = True) -> BackfillReport:
                 )
                 report.bare_lessons_wrapped.append(act_id)
             if not dry_run:
-                add_activities(cls.class_id, [act_id])
+                add_activities(cls.class_id, [act_id])  # idempotent — assigns to each class
             report.class_assignments.append(f"{cls.class_id}←{act_id} (bare:{skill_id})")
 
     return report
 
 
+def reset_migrated(*, dry_run: bool = True) -> int:
+    """Undo a prior backfill: hard-delete every ``act-mig-…`` activity and strip
+    those ids from all classes' ``activity_ids``. For re-running the backfill with
+    corrected logic (e.g. the dedup + teacher-only fix). Only touches migration
+    artefacts — authored ``act-…`` activities and ``activity_configs`` are untouched.
+    Returns the count of activities deleted (or that would be).
+    """
+    from db.firestore import delete_document, update_document
+
+    deleted = 0
+    for data in query_documents("activities"):
+        aid = data.get("activityId") or data.get("__id", "")
+        if aid.startswith("act-mig-"):
+            deleted += 1
+            if not dry_run:
+                delete_document("activities", aid)
+    for cls in list_all_classes(include_revoked=True):
+        kept = [aid for aid in cls.activity_ids if not aid.startswith("act-mig-")]
+        if kept != list(cls.activity_ids) and not dry_run:
+            update_document("classes", cls.class_id, {"activityIds": kept})
+    return deleted
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(description="Backfill activity_configs → activities (ALS-1 M0.2)")
     parser.add_argument("--apply", action="store_true", help="actually write (default is dry-run)")
+    parser.add_argument(
+        "--reset",
+        action="store_true",
+        help="first hard-delete prior act-mig-* activities + strip them from classes, then re-run",
+    )
     args = parser.parse_args()
     logging.basicConfig(level=logging.INFO, format="%(message)s")
 
+    if args.reset:
+        n = reset_migrated(dry_run=not args.apply)
+        log.info("[%s] reset: %d act-mig-* activities", "APPLIED" if args.apply else "DRY-RUN", n)
+
     report = run_backfill(dry_run=not args.apply)
     log.info(report.summary())
+    for line in report.skipped_teacher_only:
+        log.info("  skip teacher-only %s", line)
     for line in report.class_assignments:
         log.info("  assign %s", line)
     if not args.apply:

@@ -69,12 +69,43 @@ def test_apply_wraps_bare_lesson_with_no_config():
     _class("c2", lessons=["boldkast"])  # no upsert_activity_config for it
     run_backfill(dry_run=False)
 
-    act_id = migrated_activity_id(f"{OWNER}:c2:boldkast")
+    act_id = migrated_activity_id(f"bare:{OWNER}:boldkast")  # deduped per owner+skill
     activity = get_activity(act_id)
     assert activity is not None
     assert act_id in get_class("c2").activity_ids
     # boldkast is a known artefact → carried onto the wrapping activity.
     assert activity.artefact_id == "boldkast"
+
+
+def test_bare_sim_deduped_across_classes():
+    """A sim added to N of a teacher's classes → ONE library activity assigned to
+    all N (not N copies)."""
+    _class("c1", lessons=["boldkast"])
+    _class("c2", lessons=["boldkast"])
+    _class("c3", lessons=["boldkast"])
+    run_backfill(dry_run=False)
+
+    act_id = migrated_activity_id(f"bare:{OWNER}:boldkast")
+    # Exactly ONE boldkast activity in the library...
+    boldkast_acts = [a for a in list_activities_by_owner(OWNER) if a.skill_id == "boldkast"]
+    assert len(boldkast_acts) == 1 and boldkast_acts[0].activity_id == act_id
+    # ...assigned to all three classes.
+    for cid in ("c1", "c2", "c3"):
+        assert act_id in get_class(cid).activity_ids
+
+
+def test_teacher_only_skill_skipped(monkeypatch):
+    """A teacher-tooling skill (manage-class) is never wrapped as a student activity."""
+    import scripts.backfill_activities as bf
+
+    monkeypatch.setattr(bf, "_is_teacher_only_skill", lambda sid: sid == "manage-class")
+    _class("c1", lessons=["manage-class", "boldkast"])
+    report = run_backfill(dry_run=False)
+
+    titles = {a.skill_id for a in list_activities_by_owner(OWNER)}
+    assert "manage-class" not in titles  # not wrapped
+    assert "boldkast" in titles  # student sim still wrapped
+    assert any("manage-class" in s for s in report.skipped_teacher_only)
 
 
 def test_backfill_is_idempotent():

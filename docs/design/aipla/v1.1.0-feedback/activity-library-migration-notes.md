@@ -4,7 +4,21 @@ Records every Firestore side effect of the `activity_configs → activities`
 backfill, so test/prod cutover is a known recipe (the side-effects discipline).
 
 **Script:** [`backend/scripts/backfill_activities.py`](../../../backend/scripts/backfill_activities.py)
-**Status:** code-complete + tested (in-memory). **APPLIED to `aipla-dev-2026` on 2026-06-24** — 4 configs → activities, 13 bare lessons wrapped, 17 class assignments, 0 already-migrated; re-run confirmed idempotent (0 new, 17 skipped). **test/prod NOT yet run.**
+**Status:** code-complete + tested (in-memory). **APPLIED to `aipla-dev-2026` on 2026-06-24**, then **re-run with `--reset` after a dedup + teacher-only fix** (see below). Final dev state: **12 activities across 5 teachers, no per-owner duplicates, `manage-class` excluded.** **test/prod NOT yet run.**
+
+### Dedup + teacher-only fix (2026-06-24, second pass)
+
+The first pass minted bare-lesson activities per `(owner, class, skill)`, so a sim
+added to N classes became N copies, and a `role:teacher` skill (`manage-class`)
+leaked into the student library. Fixed:
+- **Bare lessons dedupe per `(owner, skill)`** (`bare:{owner}:{skill}` key) → ONE
+  library activity per sim, assigned to all the owner's classes that ran it.
+  (Authored configs stay per `(teacher, class, activity)` — they may have diverged.)
+- **Teacher-only skills skipped** (`role:teacher` tag) — never wrapped.
+- `--reset` flag hard-deletes prior `act-mig-*` activities + strips them from
+  classes' `activityIds`, for a clean re-run: `… --reset --apply`.
+
+Re-run result: reset 17 → 12 (4 configs + 8 deduped bare), 1 teacher-only skipped.
 
 ## What the backfill does (additive only — no deletes)
 
