@@ -522,6 +522,9 @@ export interface ClassPayload {
   description: string | null;
   tagNamespace: string;
   lessons: string[];
+  /** ALS-1 M0/M1 — the class-independent activities (act- ids) this class runs.
+   *  Optional in the type (older fixtures omit it); the backend always sends it. */
+  activityIds?: string[];
   groupCodes: string[];
   voice?: ClassVoiceSettingsPayload | null;
   persona?: string | null;

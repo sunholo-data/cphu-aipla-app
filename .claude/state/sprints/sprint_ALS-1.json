@@ -189,7 +189,7 @@
       "description": "Teacher activities index becomes a library: cards with visibility badge (draft/private), assigned-classes chips, Assign-to-classes multiselect, Edit, Delete. Teacher-auth throughout.",
       "scope": "frontend",
       "estimated_loc": 290,
-      "actual_loc": null,
+      "actual_loc": 260,
       "dependencies": [
         "M1.1-assignment-api"
       ],
@@ -203,10 +203,10 @@
         "frontend/src/app/teacher/activities/page.tsx",
         "frontend/src/lib/teacherApi.ts"
       ],
-      "passes": null,
-      "started": null,
-      "completed": null,
-      "notes": "Teacher (Firebase) auth surface \u2014 the recurring 401 corner."
+      "passes": true,
+      "started": "2026-06-24",
+      "completed": "2026-06-24",
+      "notes": "Shipped. Activities index reworked to the new-store library: lists listActivities() with visibility badge (draft), assigned-class chips (reverse of Class.activityIds), inline assign-to-classes checkboxes (patchClassActivities), Edit (class-independent href), Delete (soft). ClassPayload.activityIds added. 4 tests green."
     },
     {
       "id": "M1.3-repoint-picker",
@@ -244,6 +244,6 @@
   },
   "github_issues": [],
   "last_session": "2026-06-24",
-  "last_checkpoint": "M0 COMPLETE \u2014 bug fixed end-to-end; backend 2189 + frontend 1271+build green. M1.2/M1.3 remain.",
+  "last_checkpoint": "M1.2 library view complete",
   "status": "in_progress"
 }
