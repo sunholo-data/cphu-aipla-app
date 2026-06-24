@@ -76,10 +76,10 @@
         "frontend/src/lib/activityImageApi.ts",
         "frontend/package.json"
       ],
-      "passes": null,
-      "started": null,
-      "completed": null,
-      "notes": "Generalise the 1.1.44 dual-audience bytes handler + fetchActivityImageObjectUrl pattern. react-pdf greenfield, lazy."
+      "passes": true,
+      "started": "2026-06-24",
+      "completed": "2026-06-24",
+      "notes": "Backend GET /api/documents/{id}/raw (owner-ACL, reads stored gs:// URL -> anon-group safe; 5 tests). Frontend DocumentViewer (react-pdf, page-nav/zoom/fullscreen/download, file tabs, active file; 5 tests). react-pdf@10 gated (frontend audit clean of HIGH/CRITICAL). Production build green. Committed e2c010a (pushed). NOT yet mounted in an activity surface — M3 wires it via next/dynamic."
     },
     {
       "id": "M3",
@@ -142,7 +142,7 @@
     "actual_days": null
   },
   "github_issues": [],
-  "last_checkpoint": "M0+M1 complete + pushed (c0f05c0). M2-M4 pending: greenfield dep gate (react-pdf/TipTap) + the anon-group document-bytes/bucket subtlety to resolve.",
+  "last_checkpoint": "M0+M1+M2 complete + pushed (e3c010a). M3 (student upload + active-file->tutor) is the anon-group landmine + JB activity-type gate; M4 (TipTap editor) is the AR feedback-prompt gate + a 2nd greenfield dep (split candidate -> 1.1.46).",
   "last_session": "2026-06-24",
   "status": "in_progress"
 }
