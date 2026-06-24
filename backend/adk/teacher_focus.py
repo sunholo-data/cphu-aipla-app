@@ -20,9 +20,12 @@ from __future__ import annotations
 import logging
 import re
 from collections.abc import Iterable
+from datetime import UTC, datetime
 
 from artefacts.loader import load_artefact
+from db.activities import get_activity
 from db.activity_configs import get_activity_config
+from db.models.activity import Activity
 from db.models.activity_config import ActivityConfig
 
 log = logging.getLogger(__name__)
@@ -42,6 +45,44 @@ LOCAL_MODE_DEMO_CLASS_ID = "7b-physics-a-2026"
 # cannot forge a different class binding (Axiom 9: secure by construction).
 _CLASS_TAG_RE = re.compile(r"^class:([^:]+):(.+)$")
 
+# ALS-1 M0: a library activity id is minted ``act-…`` (db/models/activity.py),
+# distinct from any skill id. That prefix is the dual-read discriminator —
+# ``act-`` resolves the new class-independent Activity store; anything else is a
+# legacy skill-id keyed into the per-class ``activity_configs`` composite store.
+_ACTIVITY_ID_PREFIX = "act-"
+
+
+def _activity_to_config(activity: Activity, *, class_id: str) -> ActivityConfig:
+    """Adapt a class-independent ``Activity`` to the ``ActivityConfig`` shape every
+    downstream consumer (``compose_teacher_focus``, the ``/active`` route) already
+    expects — so the M0 re-key needs zero changes below the resolution boundary.
+
+    ``class_id`` comes from the student's verified group tag (the Activity itself is
+    class-independent); ``interaction_style`` falls back to ``socratic`` (the
+    ActivityConfig default) when the activity leaves it unset.
+    """
+    return ActivityConfig(
+        activityId=activity.activity_id,
+        classId=class_id,
+        teacherUid=activity.owner_uid,
+        title=activity.title,
+        teachingGoal=activity.teaching_goal,
+        language=activity.language,
+        difficulty=activity.difficulty,
+        interactionStyle=activity.interaction_style or "socratic",
+        persona=activity.persona,
+        workbenchType=activity.workbench_type,
+        artefactId=activity.artefact_id,
+        checklist=activity.checklist,
+        table=activity.table,
+        chart=activity.chart,
+        calculator=activity.calculator,
+        note=activity.note,
+        solution=activity.solution,
+        materials=activity.materials,
+        updatedAt=activity.updated_at or datetime.now(UTC),
+    )
+
 
 def resolve_active_config(
     activity_id: str,
@@ -50,14 +91,28 @@ def resolve_active_config(
 ) -> ActivityConfig | None:
     """Return the ActivityConfig that should shape this activity's tutor.
 
-    Phase 3: when the student's ``group_tags`` carry a ``class:<owner>:<id>``
-    binding, resolve the config from that REAL (teacher, class) tuple so a
-    teacher's authored goal reaches their own students.
+    ALS-1 M0 (dual-read): an ``act-…`` id resolves the class-independent
+    ``Activity`` (the new store); the ``class_id`` is recovered from the student's
+    verified group tag. Any other id is a **legacy skill id** and falls back to the
+    per-class ``activity_configs`` composite lookup, keeping live pre-cutover
+    sessions working through the migration window.
 
-    Falls back to the Phase-2 LOCAL_MODE stub (workshop-user, seeded
-    demo-class) for unbound groups (pre-1.A) and LOCAL_MODE workshop sessions
-    that carry no class tag.
+    Phase 3: when the student's ``group_tags`` carry a ``class:<owner>:<id>``
+    binding, resolve from that REAL (teacher, class) tuple so a teacher's authored
+    goal reaches their own students. Falls back to the LOCAL_MODE stub for unbound
+    groups (pre-1.A) and workshop sessions that carry no class tag.
     """
+    # New store first: a minted ``act-…`` id resolves directly to the owned
+    # Activity. If it isn't there, fall THROUGH to the legacy lookup — that covers
+    # pre-cutover composite rows (and tests) that used an ``act-*`` id, so the
+    # dual-read is "try new, fall back to legacy", never a hard None.
+    if activity_id.startswith(_ACTIVITY_ID_PREFIX):
+        activity = get_activity(activity_id)
+        if activity is not None:
+            class_id = class_id_from_group_tags(group_tags) or LOCAL_MODE_DEMO_CLASS_ID
+            return _activity_to_config(activity, class_id=class_id)
+
+    # Legacy dual-read: skill-id keyed composite lookup for pre-cutover sessions.
     for tag in group_tags or ():
         m = _CLASS_TAG_RE.match(tag)
         if m:

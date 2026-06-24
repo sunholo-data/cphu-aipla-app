@@ -57,7 +57,7 @@
       "description": "One-shot backfill: each activity_configs/{t}:{c}:{a} -> one Activity + append id to class.activity_ids; wrap bare lessons (skill id with no config) as minimal Activity. Dual-read fallback in resolution (new activity id, else legacy composite key). Dry-run mode + migration notes file.",
       "scope": "backend",
       "estimated_loc": 320,
-      "actual_loc": null,
+      "actual_loc": 420,
       "dependencies": [
         "M0.1-model-repo"
       ],
@@ -74,10 +74,10 @@
         "backend/adk/teacher_focus.py",
         "backend/db/activity_configs.py"
       ],
-      "passes": null,
-      "started": null,
-      "completed": null,
-      "notes": "MIGRATION-RISK task. Run against a data copy before prod; confirm cutover window before 06-29 freeze."
+      "passes": true,
+      "started": "2026-06-24",
+      "completed": "2026-06-24",
+      "notes": "Shipped. Backfill (deterministic act-mig- ids, idempotent, additive, dry-run default) + bare-lesson wrap; resolve_active_config dual-read (new Activity store first, fall back to legacy composite); add/remove_activities on classes repo; migration-notes doc. 27 new/changed tests + 312 sweep green."
     },
     {
       "id": "M0.3-student-resolution",
@@ -241,6 +241,6 @@
   },
   "github_issues": [],
   "last_session": "2026-06-24",
-  "last_checkpoint": "M0.1-model-repo complete",
+  "last_checkpoint": "M0.2-backfill-dualread complete",
   "status": "in_progress"
 }

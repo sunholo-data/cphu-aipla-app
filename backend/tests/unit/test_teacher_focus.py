@@ -117,6 +117,48 @@ def test_group_tag_isolation_across_classes():
     assert out == ""
 
 
+# --- ALS-1 M0 dual-read: minted act- ids resolve via the new Activity store ---
+
+
+def test_minted_activity_resolves_from_new_store():
+    """An ``act-…`` id resolves the class-independent Activity; class_id comes
+    from the student's verified group tag."""
+    from db.activities import create_activity
+    from db.models.activity import Activity
+
+    a = create_activity(
+        Activity(activityId="act-real-1", ownerUid="teacher-9", teachingGoal="Energy conservation via Activity store.")
+    )
+    out = inject_teacher_focus("{teacher_focus}", a.activity_id, group_tags=frozenset({"class:teacher-9:cls-7b"}))
+    assert "Energy conservation via Activity store" in out
+
+
+def test_two_activities_one_class_resolve_to_distinct_goals():
+    """The bug fix at the resolution layer: two distinct activities in one class
+    no longer collide — each resolves to its OWN goal."""
+    from db.activities import create_activity
+    from db.models.activity import Activity
+
+    create_activity(Activity(activityId="act-aaa", ownerUid="t", teachingGoal="GOAL A"))
+    create_activity(Activity(activityId="act-bbb", ownerUid="t", teachingGoal="GOAL B"))
+    tags = frozenset({"class:t:cls-1"})
+    assert inject_teacher_focus("{teacher_focus}", "act-aaa", group_tags=tags) == "GOAL A"
+    assert inject_teacher_focus("{teacher_focus}", "act-bbb", group_tags=tags) == "GOAL B"
+
+
+def test_missing_new_store_activity_falls_back_to_legacy():
+    """An ``act-*`` id absent from the new store falls THROUGH to the legacy
+    composite lookup (dual-read), so pre-cutover rows keep resolving."""
+    upsert_activity_config(
+        teacher_uid="t-legacy",
+        class_id="cls-legacy",
+        activity_id="act-legacyonly",
+        teaching_goal="LEGACY COMPOSITE GOAL",
+    )
+    out = inject_teacher_focus("{teacher_focus}", "act-legacyonly", group_tags=frozenset({"class:t-legacy:cls-legacy"}))
+    assert out == "LEGACY COMPOSITE GOAL"
+
+
 # --- artefact tutor-block composition (1.1.41 M2) ---
 
 

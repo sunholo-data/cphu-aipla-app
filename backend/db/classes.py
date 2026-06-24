@@ -244,6 +244,40 @@ def remove_lessons(class_id: str, skill_ids: list[str]) -> None:
     )
 
 
+def add_activities(class_id: str, activity_ids: list[str]) -> None:
+    """Idempotent: append activity ids to Class.activity_ids, no duplicates (ALS-1).
+
+    The activity-era twin of ``add_lessons``. The caller (assignment API / backfill)
+    is responsible for the owner-only invariant — you may only assign activities you
+    own; this repo helper just maintains the array."""
+    cls = get_class(class_id)
+    if cls is None:
+        raise ValueError(f"class {class_id} not found")
+    new_ids = list(cls.activity_ids)
+    for aid in activity_ids:
+        if aid not in new_ids:
+            new_ids.append(aid)
+    update_document(
+        _COLLECTION,
+        class_id,
+        {"activityIds": new_ids, "updatedAt": _utcnow().isoformat()},
+    )
+
+
+def remove_activities(class_id: str, activity_ids: list[str]) -> None:
+    """Remove activity ids from Class.activity_ids. Missing ids are no-ops (ALS-1)."""
+    cls = get_class(class_id)
+    if cls is None:
+        raise ValueError(f"class {class_id} not found")
+    drop = set(activity_ids)
+    new_ids = [aid for aid in cls.activity_ids if aid not in drop]
+    update_document(
+        _COLLECTION,
+        class_id,
+        {"activityIds": new_ids, "updatedAt": _utcnow().isoformat()},
+    )
+
+
 def revoke_class(class_id: str) -> None:
     """Soft-delete. Idempotent — second call doesn't shift revoked_at."""
     cls = get_class(class_id)
