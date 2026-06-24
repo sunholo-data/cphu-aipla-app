@@ -1,6 +1,6 @@
 "use client";
 
-import { MessageCircle, Plus, X } from "lucide-react";
+import { FileText, MessageCircle, Plus, X } from "lucide-react";
 import type { ReactNode } from "react";
 
 import { ActivityPreview } from "@/components/teacher/ActivityPreview";
@@ -12,6 +12,7 @@ import { NoteEditor } from "@/components/teacher/NoteEditor";
 import { SimPicker } from "@/components/teacher/SimPicker";
 import { TableEditor } from "@/components/teacher/TableEditor";
 import type { ActivityBuilder } from "@/hooks/useActivityBuilder";
+import type { WorkbenchType } from "@/lib/teacherApi";
 
 interface ActivityBuilderBodyProps {
   builder: ActivityBuilder;
@@ -46,6 +47,7 @@ export function ActivityBuilderBody({
   error,
 }: ActivityBuilderBodyProps) {
   const b = builder;
+  const isDocument = b.workbenchType === "document";
   return (
     <div className="grid items-start gap-6 lg:grid-cols-[minmax(0,46rem)_minmax(0,1fr)]">
       {/* LEFT — configuration, grouped into four colour-coded sections. */}
@@ -84,6 +86,8 @@ export function ActivityBuilderBody({
             </select>
           </Field>
 
+          <ActivityTypeSelector value={b.workbenchType} onChange={b.setWorkbenchType} />
+
           {/* Persona is class-default-only (1.1.32 Q4): set once in class
               settings, inherited by every activity. Shown read-only here so the
               teacher knows which tutor + where to change it. */}
@@ -109,6 +113,19 @@ export function ActivityBuilderBody({
         </BuilderSection>
 
         <BuilderSection section={SECTION.workspace}>
+          {isDocument ? (
+            <p className="flex items-start gap-1.5 rounded-md border border-indigo-200 bg-indigo-50/60 px-3 py-2 text-xs text-slate-600">
+              <FileText className="mt-0.5 h-3.5 w-3.5 shrink-0 text-indigo-500" />
+              <span>
+                This is a <span className="font-medium">document-feedback</span> activity: the student
+                uploads their own work and the tutor gives feedback on the active file. The workspace
+                tools below don&apos;t apply — switch the activity type back to{" "}
+                <span className="font-medium">Standard</span> to author a checklist, table, chart, or
+                simulation.
+              </span>
+            </p>
+          ) : (
+            <>
           <p className="flex items-start gap-1.5 rounded-md border border-slate-200 bg-slate-50 px-3 py-2 text-xs text-slate-500">
             <MessageCircle className="mt-0.5 h-3.5 w-3.5 shrink-0" />
             <span>
@@ -182,6 +199,8 @@ export function ActivityBuilderBody({
           <CalculatorEditor value={b.calculator} onChange={b.setCalculator} />
 
           <NoteEditor value={b.note} onChange={b.setNote} />
+            </>
+          )}
         </BuilderSection>
 
         <BuilderSection section={SECTION.materials}>
@@ -196,6 +215,7 @@ export function ActivityBuilderBody({
           screens (1.1.40 M2) so the result is never hidden. */}
       <div className="lg:sticky lg:top-2 lg:max-h-[calc(100vh-1rem)] lg:overflow-y-auto">
         <ActivityPreview
+          workbenchType={b.workbenchType}
           artefactId={b.artefactId}
           materials={b.materials}
           activityId={activityId}
@@ -207,6 +227,51 @@ export function ActivityBuilderBody({
             note: b.note,
           }}
         />
+      </div>
+    </div>
+  );
+}
+
+// The two activity types a teacher can author here. Legacy/sim values ("app"
+// etc.) round-trip as "Standard" (only "document" toggles the upload surface).
+const ACTIVITY_TYPES: { value: "none" | "document"; label: string; desc: string }[] = [
+  { value: "none", label: "Standard", desc: "Chat with the workspace tools you author below." },
+  { value: "document", label: "Document feedback", desc: "Students upload their own work for tutor feedback." },
+];
+
+/** Explicit activity-type selector (1.1.45 M3b) — "document" routes the student
+ *  workspace to the upload surface and hides the workspace tools. */
+function ActivityTypeSelector({
+  value,
+  onChange,
+}: {
+  value: WorkbenchType;
+  onChange: (v: WorkbenchType) => void;
+}) {
+  return (
+    <div className="flex flex-col gap-1">
+      <span className="text-sm font-medium text-slate-700">Activity type</span>
+      <div role="radiogroup" aria-label="Activity type" className="grid gap-2 sm:grid-cols-2">
+        {ACTIVITY_TYPES.map((opt) => {
+          const selected = opt.value === "document" ? value === "document" : value !== "document";
+          return (
+            <button
+              key={opt.value}
+              type="button"
+              role="radio"
+              aria-checked={selected}
+              onClick={() => onChange(opt.value)}
+              className={`flex flex-col items-start gap-0.5 rounded-md border px-3 py-2 text-left transition-colors ${
+                selected
+                  ? "border-indigo-400 bg-indigo-50 ring-1 ring-indigo-200"
+                  : "border-slate-300 hover:border-indigo-300 hover:bg-indigo-50/40"
+              }`}
+            >
+              <span className="text-sm font-medium text-slate-800">{opt.label}</span>
+              <span className="text-xs text-slate-500">{opt.desc}</span>
+            </button>
+          );
+        })}
       </div>
     </div>
   );

@@ -39,6 +39,15 @@ describe("ActivityPreview", () => {
     expect(screen.queryByTestId("workspace-elements")).not.toBeInTheDocument();
   });
 
+  it("previews the document-feedback surface (no workspace tools) in document mode", () => {
+    render(<ActivityPreview state={EMPTY} workbenchType="document" />);
+    expect(screen.getByText(/document feedback/i)).toBeInTheDocument();
+    expect(screen.getByText(/students upload their own work/i)).toBeInTheDocument();
+    // Not the "add elements" empty hint, and no workspace renderer.
+    expect(screen.queryByText(/tilføj elementer/i)).not.toBeInTheDocument();
+    expect(screen.queryByTestId("workspace-elements")).not.toBeInTheDocument();
+  });
+
   it("renders the workspace from converted builder state, sandboxed (sessionId null)", () => {
     wsSpy.mockClear();
     render(<ActivityPreview state={WITH_CHECKLIST} />);

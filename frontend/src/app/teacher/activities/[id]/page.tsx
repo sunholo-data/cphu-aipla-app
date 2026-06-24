@@ -116,6 +116,7 @@ export default function TeacherActivityConfigPage() {
         title: builder.title.trim() || displayName,
         teachingGoal: builder.teachingGoal,
         language: builder.language,
+        workbenchType: builder.workbenchType,
         // The full element + sim slice. POST is a full overwrite, so sending
         // this is what stops a goal edit from wiping the activity's tables,
         // charts, calculators, notes and attached sim (1.1.40 M1).

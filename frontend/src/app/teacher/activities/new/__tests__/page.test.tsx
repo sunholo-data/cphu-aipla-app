@@ -308,6 +308,35 @@ describe("/teacher/activities/new — concept activity builder", () => {
     expect(saveActivityConfigMock.mock.calls[0][0].artefactId).toBe("boldkast");
   });
 
+  it("defaults a standard activity to workbenchType 'none'", async () => {
+    listClassesMock.mockResolvedValue(ONE_CLASS);
+    render(<NewActivityPage />);
+    fireEvent.change(await screen.findByLabelText(/activity name/i), { target: { value: "E" } });
+    fireEvent.change(screen.getByLabelText(/lesson prompt/i), { target: { value: "g" } });
+    fireEvent.click(screen.getByRole("button", { name: /create activity/i }));
+    await waitFor(() => expect(saveActivityConfigMock).toHaveBeenCalledTimes(1));
+    expect(saveActivityConfigMock.mock.calls[0][0].workbenchType).toBe("none");
+  });
+
+  it("switches to a document-feedback activity: hides workspace tools, saves workbenchType 'document'", async () => {
+    listClassesMock.mockResolvedValue(ONE_CLASS);
+    render(<NewActivityPage />);
+    fireEvent.change(await screen.findByLabelText(/activity name/i), { target: { value: "Aflever opgave" } });
+    fireEvent.change(screen.getByLabelText(/lesson prompt/i), { target: { value: "Give feedback." } });
+    // Standard mode shows the workspace tools.
+    expect(screen.getByRole("button", { name: /add step/i })).toBeInTheDocument();
+    // Pick the explicit "Document feedback" activity type.
+    fireEvent.click(screen.getByRole("radio", { name: /document feedback/i }));
+    // The workspace tools are gone; the document-mode note explains why.
+    expect(screen.queryByRole("button", { name: /add step/i })).not.toBeInTheDocument();
+    expect(screen.queryByText(/optionally host a vetted simulation/i)).not.toBeInTheDocument();
+    expect(screen.getByText(/gives feedback on the active file/i)).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: /create activity/i }));
+    await waitFor(() => expect(saveActivityConfigMock).toHaveBeenCalledTimes(1));
+    expect(saveActivityConfigMock.mock.calls[0][0].workbenchType).toBe("document");
+  });
+
   it("blocks submit until a title and a lesson prompt are entered", async () => {
     listClassesMock.mockResolvedValue(ONE_CLASS);
     render(<NewActivityPage />);

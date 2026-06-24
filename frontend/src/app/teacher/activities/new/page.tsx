@@ -110,6 +110,7 @@ function NewActivityForm() {
         title: builder.title.trim(),
         teachingGoal: builder.teachingGoal.trim(),
         language: builder.language,
+        workbenchType: builder.workbenchType,
         // The shared element + sim slice (same converter the live preview uses,
         // so preview === saved activity).
         ...builder.elementPayload(),

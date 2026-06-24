@@ -2,7 +2,7 @@
 
 import { useMemo, useRef, useState } from "react";
 
-import type { ActivityConfigPayload, Language, MaterialRef } from "@/lib/teacherApi";
+import type { ActivityConfigPayload, Language, MaterialRef, WorkbenchType } from "@/lib/teacherApi";
 import { builderToElementDefs } from "@/lib/activityPreview";
 import type { TableEditorValue } from "@/components/teacher/TableEditor";
 import type { ChartEditorValue } from "@/components/teacher/ChartEditor";
@@ -31,6 +31,10 @@ export interface ActivityBuilder {
   setTeachingGoal: (v: string) => void;
   language: Language;
   setLanguage: (v: Language) => void;
+  /** The activity type (1.1.45 M3b). "document" = a document-feedback activity
+   *  (student uploads work for tutor critique); "none" = the standard workspace. */
+  workbenchType: WorkbenchType;
+  setWorkbenchType: (v: WorkbenchType) => void;
 
   checklist: ChecklistRow[];
   addChecklistItem: () => void;
@@ -72,6 +76,7 @@ export function useActivityBuilder(): ActivityBuilder {
   const [title, setTitle] = useState("");
   const [teachingGoal, setTeachingGoal] = useState("");
   const [language, setLanguage] = useState<Language>("da");
+  const [workbenchType, setWorkbenchType] = useState<WorkbenchType>("none");
   // `key` is a stable client id for React; the persisted id is positional.
   const [checklist, setChecklist] = useState<ChecklistRow[]>([]);
   const [table, setTable] = useState<TableEditorValue | null>(null);
@@ -125,6 +130,8 @@ export function useActivityBuilder(): ActivityBuilder {
     );
     setNote(t.note ? { title: t.note.title, body: t.note.body } : null);
     setArtefactId(t.artefactId ?? null);
+    // Templates are standard workspace activities — leaving document mode.
+    setWorkbenchType("none");
   }
 
   // The inverse of `elementPayload` — saved element arrays → editor values.
@@ -134,6 +141,7 @@ export function useActivityBuilder(): ActivityBuilder {
     setTitle(cfg.title ?? "");
     setTeachingGoal(cfg.teachingGoal ?? "");
     setLanguage(cfg.language);
+    setWorkbenchType(cfg.workbenchType ?? "none");
     setArtefactId(cfg.artefactId ?? null);
     setMaterials(cfg.materials ?? []);
     setChecklist((cfg.checklist ?? []).map((c) => ({ key: nextKeyRef.current++, label: c.label })));
@@ -200,6 +208,8 @@ export function useActivityBuilder(): ActivityBuilder {
       setTeachingGoal,
       language,
       setLanguage,
+      workbenchType,
+      setWorkbenchType,
       checklist,
       addChecklistItem,
       removeChecklistItem,
@@ -222,6 +232,6 @@ export function useActivityBuilder(): ActivityBuilder {
       elementPayload,
     }),
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [title, teachingGoal, language, checklist, table, chart, calculator, note, artefactId, materials],
+    [title, teachingGoal, language, workbenchType, checklist, table, chart, calculator, note, artefactId, materials],
   );
 }
