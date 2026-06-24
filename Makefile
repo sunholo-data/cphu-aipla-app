@@ -1,4 +1,4 @@
-.PHONY: dev dev-local dev-recompile dev-status dev-stop proxy-check logs cloud-logs cloud-errors cloud-build verify-chat-logs smoke-session-persistence smoke-chat-resume smoke-curriculum-content smoke-teacher-cli help cli-install cli-reinstall cli-uninstall cli-doctor cli-selftest-mock cli-selftest-live cli-selftest seed reset-group-state provision-curriculum-rag seed-curriculum backfill-curriculum-content migrate-clear-persona-voice-override
+.PHONY: dev dev-local dev-recompile dev-status dev-stop proxy-check logs cloud-logs cloud-errors cloud-build verify-chat-logs smoke-session-persistence smoke-chat-resume smoke-curriculum-content smoke-teacher-cli help cli-install cli-reinstall cli-uninstall cli-doctor cli-selftest-mock cli-selftest-live cli-selftest seed reset-group-state provision-curriculum-rag seed-curriculum backfill-curriculum-content migrate-clear-persona-voice-override docs-linkcheck
 
 # Seed SKILL.md templates -> Firestore after a deploy that changed any template
 # (avatar, multimodalInput, persona, tools, accessControl, instructions). A code
@@ -54,6 +54,12 @@ backfill-curriculum-content:
 #   make migrate-clear-persona-voice-override ENV=dev
 migrate-clear-persona-voice-override:
 	@scripts/migrate-clear-persona-voice-override.sh $(ENV) $(ARGS)
+
+# Verify relative links across the docs tree (default: docs/). Catches the
+# link-rot that doc relocations introduce when inbound/outbound paths aren't
+# updated. ARGS overrides the scan root, e.g. `make docs-linkcheck ARGS=docs/design/aipla`.
+docs-linkcheck:
+	@python3 scripts/check-doc-links.py $(ARGS)
 
 # Launch backend (port 1956) + frontend (port 3000) for local development.
 # Logs stream to stdout; Ctrl-C stops both.
