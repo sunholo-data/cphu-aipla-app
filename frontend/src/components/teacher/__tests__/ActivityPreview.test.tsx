@@ -29,7 +29,7 @@ URL.revokeObjectURL = vi.fn();
 import { ActivityPreview } from "../ActivityPreview";
 import { type BuilderElements } from "@/lib/activityPreview";
 
-const EMPTY: BuilderElements = { checklist: [], table: null, chart: null, calculator: null, note: null };
+const EMPTY: BuilderElements = { checklist: [], table: null, chart: null, calculator: null, note: null, solution: null };
 const WITH_CHECKLIST: BuilderElements = { ...EMPTY, checklist: [{ key: 1, label: "Step" }] };
 
 describe("ActivityPreview", () => {

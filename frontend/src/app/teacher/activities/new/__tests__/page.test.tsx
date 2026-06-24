@@ -337,6 +337,21 @@ describe("/teacher/activities/new — concept activity builder", () => {
     expect(saveActivityConfigMock.mock.calls[0][0].workbenchType).toBe("document");
   });
 
+  it("adds a solution editor element and saves it with its prompt (1.1.45 M4)", async () => {
+    listClassesMock.mockResolvedValue(ONE_CLASS);
+    render(<NewActivityPage />);
+    fireEvent.change(await screen.findByLabelText(/activity name/i), { target: { value: "Aflever" } });
+    fireEvent.change(screen.getByLabelText(/lesson prompt/i), { target: { value: "Feedback." } });
+    fireEvent.click(screen.getByRole("button", { name: /add solution editor/i }));
+    fireEvent.change(screen.getByLabelText(/solution prompt/i), { target: { value: "Skriv din løsning" } });
+    fireEvent.click(screen.getByRole("button", { name: /create activity/i }));
+
+    await waitFor(() => expect(saveActivityConfigMock).toHaveBeenCalledTimes(1));
+    expect(saveActivityConfigMock.mock.calls[0][0].solution).toEqual([
+      { id: "solution-1", prompt: "Skriv din løsning" },
+    ]);
+  });
+
   it("blocks submit until a title and a lesson prompt are entered", async () => {
     listClassesMock.mockResolvedValue(ONE_CLASS);
     render(<NewActivityPage />);

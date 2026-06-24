@@ -13,6 +13,7 @@ import type { ChartElementDef } from "./WorkbenchChart";
 import type { ChecklistItem } from "./ProgressChecklist";
 import type { NoteElementDef } from "./WorkbenchNote";
 import type { TableElementDef } from "./WorkbenchTable";
+import type { SolutionElementDef } from "./SolutionElementMount";
 
 interface StudentWorkspaceProps {
   skillId: string;
@@ -27,6 +28,7 @@ interface StudentWorkspaceProps {
   chart: ChartElementDef[];
   calculator: CalculatorElementDef[];
   note: NoteElementDef[];
+  solution: SolutionElementDef[];
   materials: ActivityMaterial[];
   images?: ComponentProps<typeof DocumentsPanel>["images"];
   /** DocumentsPanel scopes content fetches by activity; defaults to skillId. */
@@ -62,6 +64,7 @@ export function StudentWorkspace({
   chart,
   calculator,
   note,
+  solution,
   materials,
   images = [],
   activityId,
@@ -99,7 +102,8 @@ export function StudentWorkspace({
     table.length > 0 ||
     chart.length > 0 ||
     calculator.length > 0 ||
-    note.length > 0;
+    note.length > 0 ||
+    solution.length > 0;
   const hasDocuments = materials.length > 0 || images.length > 0;
   const docCount = materials.length + images.length;
 
@@ -112,6 +116,7 @@ export function StudentWorkspace({
       chart={chart}
       calculator={calculator}
       note={note}
+      solution={solution}
     />
   );
   const documentsSurface = (

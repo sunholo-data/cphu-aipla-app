@@ -8,9 +8,11 @@ import type { CalculatorEditorValue } from "@/components/teacher/CalculatorEdito
 import type { ChartEditorValue } from "@/components/teacher/ChartEditor";
 import type { NoteEditorValue } from "@/components/teacher/NoteEditor";
 import type { TableEditorValue } from "@/components/teacher/TableEditor";
+import type { SolutionEditorValue } from "@/components/teacher/SolutionEditor";
 import type { CalculatorElementDef } from "@/components/workspace/WorkbenchCalculator";
 import type { ChartElementDef } from "@/components/workspace/WorkbenchChart";
 import type { NoteElementDef } from "@/components/workspace/WorkbenchNote";
+import type { SolutionElementDef } from "@/components/workspace/SolutionElementMount";
 import type { TableElementDef } from "@/components/workspace/WorkbenchTable";
 
 export interface BuilderChecklistItem {
@@ -25,6 +27,7 @@ export interface BuilderElements {
   chart: ChartEditorValue | null;
   calculator: CalculatorEditorValue | null;
   note: NoteEditorValue | null;
+  solution: SolutionEditorValue | null;
 }
 
 /** The normalised element defs — what the renderers (and the save payload) take. */
@@ -34,6 +37,7 @@ export interface ActivityElementDefs {
   chart: ChartElementDef[];
   calculator: CalculatorElementDef[];
   note: NoteElementDef[];
+  solution: SolutionElementDef[];
 }
 
 const VAR_ID_RE = /^[A-Za-z_][A-Za-z0-9_]*$/;
@@ -74,6 +78,9 @@ export function builderToElementDefs(s: BuilderElements): ActivityElementDefs {
     chart: s.chart ? [{ id: "chart-1", title: s.chart.title.trim(), chartKind: s.chart.chartKind }] : [],
     calculator: calculatorDefs(s.calculator),
     note: s.note && s.note.body.trim() ? [{ id: "note-1", title: s.note.title.trim(), body: s.note.body.trim() }] : [],
+    // The solution editor needs no content to be valid — the student writes; a
+    // present (enabled) element ships with its (optional) teacher prompt.
+    solution: s.solution ? [{ id: "solution-1", prompt: s.solution.prompt.trim() }] : [],
   };
 }
 
@@ -84,6 +91,7 @@ export function hasAnyElement(defs: ActivityElementDefs): boolean {
     defs.table.length > 0 ||
     defs.chart.length > 0 ||
     defs.calculator.length > 0 ||
-    defs.note.length > 0
+    defs.note.length > 0 ||
+    defs.solution.length > 0
   );
 }

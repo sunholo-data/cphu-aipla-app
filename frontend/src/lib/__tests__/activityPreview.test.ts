@@ -2,13 +2,19 @@ import { describe, expect, it } from "vitest";
 
 import { builderToElementDefs, hasAnyElement, type BuilderElements } from "@/lib/activityPreview";
 
-const EMPTY: BuilderElements = { checklist: [], table: null, chart: null, calculator: null, note: null };
+const EMPTY: BuilderElements = { checklist: [], table: null, chart: null, calculator: null, note: null, solution: null };
 
 describe("builderToElementDefs", () => {
   it("returns empty arrays for empty state", () => {
     const d = builderToElementDefs(EMPTY);
-    expect(d).toEqual({ checklist: [], table: [], chart: [], calculator: [], note: [] });
+    expect(d).toEqual({ checklist: [], table: [], chart: [], calculator: [], note: [], solution: [] });
     expect(hasAnyElement(d)).toBe(false);
+  });
+
+  it("includes a solution element with its prompt when present (1.1.45 M4)", () => {
+    const d = builderToElementDefs({ ...EMPTY, solution: { prompt: "Solve it" } });
+    expect(d.solution).toEqual([{ id: "solution-1", prompt: "Solve it" }]);
+    expect(hasAnyElement(d)).toBe(true);
   });
 
   it("assigns positional ids and drops empty checklist rows", () => {

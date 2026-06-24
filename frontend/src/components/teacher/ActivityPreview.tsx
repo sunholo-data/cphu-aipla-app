@@ -180,6 +180,7 @@ function PreviewBody({
         chart={defs.chart}
         calculator={defs.calculator}
         note={defs.note}
+        solution={defs.solution}
         materials={materials.map((m) => ({
           // Preserve the full ref — dropping kind/materialId made image
           // materials (1.1.44) render as (empty-docId) curriculum docs that

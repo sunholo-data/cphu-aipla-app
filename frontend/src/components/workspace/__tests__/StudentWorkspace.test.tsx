@@ -28,6 +28,7 @@ function renderWS(props: Record<string, unknown> = {}) {
       chart={[]}
       calculator={[]}
       note={[]}
+      solution={[]}
       materials={[]}
       {...props}
     />,

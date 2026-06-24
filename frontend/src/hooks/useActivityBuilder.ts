@@ -8,6 +8,7 @@ import type { TableEditorValue } from "@/components/teacher/TableEditor";
 import type { ChartEditorValue } from "@/components/teacher/ChartEditor";
 import type { CalculatorEditorValue } from "@/components/teacher/CalculatorEditor";
 import type { NoteEditorValue } from "@/components/teacher/NoteEditor";
+import type { SolutionEditorValue } from "@/components/teacher/SolutionEditor";
 import type { ActivityTemplate } from "@/lib/activityTemplates";
 
 // Shared activity-builder state (1.1.40 M1). Both the create page and the edit
@@ -49,6 +50,8 @@ export interface ActivityBuilder {
   setCalculator: (v: CalculatorEditorValue | null) => void;
   note: NoteEditorValue | null;
   setNote: (v: NoteEditorValue | null) => void;
+  solution: SolutionEditorValue | null;
+  setSolution: (v: SolutionEditorValue | null) => void;
   artefactId: string | null;
   setArtefactId: (v: string | null) => void;
   materials: MaterialRef[];
@@ -69,6 +72,7 @@ export interface ActivityBuilder {
     chart: ReturnType<typeof builderToElementDefs>["chart"];
     calculator: ReturnType<typeof builderToElementDefs>["calculator"];
     note: ReturnType<typeof builderToElementDefs>["note"];
+    solution: ReturnType<typeof builderToElementDefs>["solution"];
   };
 }
 
@@ -83,6 +87,7 @@ export function useActivityBuilder(): ActivityBuilder {
   const [chart, setChart] = useState<ChartEditorValue | null>(null);
   const [calculator, setCalculator] = useState<CalculatorEditorValue | null>(null);
   const [note, setNote] = useState<NoteEditorValue | null>(null);
+  const [solution, setSolution] = useState<SolutionEditorValue | null>(null);
   const [artefactId, setArtefactId] = useState<string | null>(null);
   const [materials, setMaterials] = useState<MaterialRef[]>([]);
   const nextKeyRef = useRef(1);
@@ -129,6 +134,7 @@ export function useActivityBuilder(): ActivityBuilder {
         : null,
     );
     setNote(t.note ? { title: t.note.title, body: t.note.body } : null);
+    setSolution(null);
     setArtefactId(t.artefactId ?? null);
     // Templates are standard workspace activities — leaving document mode.
     setWorkbenchType("none");
@@ -183,12 +189,15 @@ export function useActivityBuilder(): ActivityBuilder {
 
     const n = cfg.note?.[0];
     setNote(n ? { title: n.title ?? "", body: n.body } : null);
+
+    const sol = cfg.solution?.[0];
+    setSolution(sol ? { prompt: sol.prompt ?? "" } : null);
   }
 
   function elementPayload() {
     return {
       artefactId,
-      ...builderToElementDefs({ checklist, table, chart, calculator, note }),
+      ...builderToElementDefs({ checklist, table, chart, calculator, note, solution }),
     };
   }
 
@@ -198,7 +207,8 @@ export function useActivityBuilder(): ActivityBuilder {
     (table ? 1 : 0) +
     (chart ? 1 : 0) +
     (calculator ? 1 : 0) +
-    (note ? 1 : 0);
+    (note ? 1 : 0) +
+    (solution ? 1 : 0);
 
   return useMemo(
     () => ({
@@ -222,6 +232,8 @@ export function useActivityBuilder(): ActivityBuilder {
       setCalculator,
       note,
       setNote,
+      solution,
+      setSolution,
       artefactId,
       setArtefactId,
       materials,
@@ -232,6 +244,6 @@ export function useActivityBuilder(): ActivityBuilder {
       elementPayload,
     }),
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [title, teachingGoal, language, workbenchType, checklist, table, chart, calculator, note, artefactId, materials],
+    [title, teachingGoal, language, workbenchType, checklist, table, chart, calculator, note, solution, artefactId, materials],
   );
 }

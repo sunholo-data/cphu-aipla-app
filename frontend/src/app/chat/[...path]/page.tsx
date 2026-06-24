@@ -67,6 +67,7 @@ import { type NoteElementDef } from "@/components/workspace/WorkbenchNote";
 import { type ActivityArtefact } from "@/components/workspace/GenericArtefactFrame";
 import { StudentWorkspace } from "@/components/workspace/StudentWorkspace";
 import { StudentDocumentWorkbench } from "@/components/workspace/StudentDocumentWorkbench";
+import type { SolutionElementDef } from "@/components/workspace/SolutionElementMount";
 import { DocumentsPanel, type ActivityMaterial } from "@/components/workspace/DocumentsPanel";
 import { reportDocumentEvent } from "@/lib/documentApi";
 import type { WorkbenchType } from "@/lib/teacherApi";
@@ -423,6 +424,8 @@ function ChatShell({
   const [activeCalculator, setActiveCalculator] = useState<CalculatorElementDef[]>([]);
   // 1.1.38 M4 — teacher-authored instructions / reference notes (Markdown).
   const [activeNote, setActiveNote] = useState<NoteElementDef[]>([]);
+  // 1.1.45 M4 — the rich-text solution editor element (JB-2 "din løsning").
+  const [activeSolution, setActiveSolution] = useState<SolutionElementDef[]>([]);
   // 1.1.41 M1 — the vetted sim artefact this activity hosts (resolved from the
   // catalogue), mounted as the workspace surface via the generic frame.
   const [activeArtefact, setActiveArtefact] = useState<ActivityArtefact | null>(null);
@@ -444,6 +447,7 @@ function ChatShell({
       activeChart.length > 0 ||
       activeCalculator.length > 0 ||
       activeNote.length > 0 ||
+      activeSolution.length > 0 ||
       activeArtefact != null,
   );
   // 1.1.33 M1 — the student's uploaded photos this session (native AG-UI image
@@ -478,6 +482,7 @@ function ChatShell({
       setActiveChart([]);
       setActiveCalculator([]);
       setActiveNote([]);
+      setActiveSolution([]);
       setActiveArtefact(null);
       setActivePersona(null);
       setActiveMaterials([]);
@@ -494,6 +499,7 @@ function ChatShell({
         if (Array.isArray(data.chart)) setActiveChart(data.chart as ChartElementDef[]);
         if (Array.isArray(data.calculator)) setActiveCalculator(data.calculator as CalculatorElementDef[]);
         if (Array.isArray(data.note)) setActiveNote(data.note as NoteElementDef[]);
+        if (Array.isArray(data.solution)) setActiveSolution(data.solution as SolutionElementDef[]);
         setActiveArtefact((data.artefact as ActivityArtefact | null) ?? null);
         setActivePersona((data.persona as PersonaSummary | null) ?? null);
         setActiveMaterials(Array.isArray(data.materials) ? (data.materials as ActivityMaterial[]) : []);
@@ -1337,6 +1343,7 @@ function ChatShell({
                 chart={activeChart}
                 calculator={activeCalculator}
                 note={activeNote}
+                solution={activeSolution}
                 materials={activeMaterials}
                 images={uploadedImages}
                 activityId={skillId}

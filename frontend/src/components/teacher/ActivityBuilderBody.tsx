@@ -10,6 +10,7 @@ import { ChartEditor } from "@/components/teacher/ChartEditor";
 import { MaterialsSection } from "@/components/teacher/MaterialsSection";
 import { NoteEditor } from "@/components/teacher/NoteEditor";
 import { SimPicker } from "@/components/teacher/SimPicker";
+import { SolutionEditor } from "@/components/teacher/SolutionEditor";
 import { TableEditor } from "@/components/teacher/TableEditor";
 import type { ActivityBuilder } from "@/hooks/useActivityBuilder";
 import type { WorkbenchType } from "@/lib/teacherApi";
@@ -199,6 +200,8 @@ export function ActivityBuilderBody({
           <CalculatorEditor value={b.calculator} onChange={b.setCalculator} />
 
           <NoteEditor value={b.note} onChange={b.setNote} />
+
+          <SolutionEditor value={b.solution} onChange={b.setSolution} />
             </>
           )}
         </BuilderSection>
@@ -225,6 +228,7 @@ export function ActivityBuilderBody({
             chart: b.chart,
             calculator: b.calculator,
             note: b.note,
+            solution: b.solution,
           }}
         />
       </div>

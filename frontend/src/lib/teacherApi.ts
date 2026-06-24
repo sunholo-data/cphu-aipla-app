@@ -53,6 +53,7 @@ export interface ActivityConfigPayload {
   chart?: ChartElement[];
   calculator?: CalculatorElement[];
   note?: NoteElement[];
+  solution?: SolutionElement[];
   materials?: MaterialRef[];
   updatedAt: string;
 }
@@ -140,6 +141,13 @@ export interface NoteElement {
   body: string;
 }
 
+/** A rich-text solution-editor element (1.1.45 M4, JB-2). The teacher authors the
+ *  `prompt`; the student's writing is session state, not persisted on the config. */
+export interface SolutionElement {
+  id: string;
+  prompt?: string;
+}
+
 /** A catalogued sim artefact a teacher can attach to an activity (1.1.41) — the
  *  public view from `GET /api/artefacts` (never the server-side `tutorBlock`). */
 export interface ArtefactSummary {
@@ -216,6 +224,7 @@ export interface ActivityConfigUpsert {
   calculator?: CalculatorElement[];
   /** Teacher-authored instructions / reference notes (1.1.38 M4). */
   note?: NoteElement[];
+  solution?: SolutionElement[];
   materials?: MaterialRef[];
 }
 

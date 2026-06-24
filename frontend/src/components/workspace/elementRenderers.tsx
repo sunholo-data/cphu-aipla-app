@@ -9,6 +9,7 @@ import { WorkbenchCalculator, type CalculatorElementDef } from "./WorkbenchCalcu
 import { WorkbenchChart, type ChartElementDef } from "./WorkbenchChart";
 import { WorkbenchNote, type NoteElementDef } from "./WorkbenchNote";
 import { WorkbenchTable, type TableElementDef } from "./WorkbenchTable";
+import { SolutionElementMount, type SolutionElementDef } from "./SolutionElementMount";
 
 /**
  * Uniform render context shared by every workspace element renderer (1.1.38
@@ -25,6 +26,7 @@ export interface ElementRenderContext {
   chart: ChartElementDef[];
   calculator: CalculatorElementDef[];
   note: NoteElementDef[];
+  solution: SolutionElementDef[];
 }
 
 /**
@@ -59,6 +61,10 @@ export const elementRenderers: Record<ElementKind, (ctx: ElementRenderContext) =
     ) : null,
   note: (ctx) =>
     ctx.note.length > 0 ? <WorkbenchNote skillId={ctx.skillId} notes={ctx.note} /> : null,
+  solution: (ctx) =>
+    ctx.solution.length > 0 ? (
+      <SolutionElementMount skillId={ctx.skillId} sessionId={ctx.sessionId} solution={ctx.solution} />
+    ) : null,
 };
 
 /**
