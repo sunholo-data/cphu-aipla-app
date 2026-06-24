@@ -67,6 +67,15 @@ class Activity(BaseModel):
 
     activity_id: str = Field(alias="activityId", max_length=128)
     owner_uid: str = Field(alias="ownerUid")
+    # The skill this activity RUNS (the "running skill"). For a concept activity
+    # it's the concept-dialogue skill id; for a sim it's the sim's skill id. The
+    # design doc derives this from content; we record it instead — both the create
+    # flow and the backfill already know it (a legacy config's activity_id IS the
+    # skill id, by the old welding), and storing it avoids a fragile backend
+    # name→id + artefact→skill derivation. Many activities may share one skill_id
+    # (distinct activity_ids), which is exactly what lets a class hold many concept
+    # activities. Empty only for a not-yet-resolved draft.
+    skill_id: str = Field(default="", alias="skillId", max_length=128)
     title: str = Field(default="", max_length=200)
     teaching_goal: str = Field(default="", alias="teachingGoal", max_length=2000)
     language: Language = "da"

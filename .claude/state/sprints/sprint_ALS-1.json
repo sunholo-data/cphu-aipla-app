@@ -84,7 +84,7 @@
       "description": "Re-key student resolution to activity id. GET /api/classes/{id}/activities (student-resolvable from group tag) returns the class's activities by {activityId,title,...}. Resolve running skill from content (artefact -> sim skill, else concept-dialogue). Chat/agent instantiation keys off activity_id and injects that activity's focus.",
       "scope": "backend",
       "estimated_loc": 300,
-      "actual_loc": null,
+      "actual_loc": 330,
       "dependencies": [
         "M0.1-model-repo",
         "M0.2-backfill-dualread"
@@ -97,14 +97,17 @@
       ],
       "files_to_create": [],
       "files_to_modify": [
-        "backend/adk/teacher_focus.py",
-        "backend/protocols/activity_config_routes.py",
-        "backend/protocols/class_routes.py"
+        "backend/adk/agent.py",
+        "backend/skills/skill_processor.py",
+        "backend/fast_api_app.py",
+        "backend/auth/group_routes.py",
+        "backend/db/models/activity.py",
+        "backend/scripts/backfill_activities.py"
       ],
-      "passes": null,
-      "started": null,
-      "completed": null,
-      "notes": "THE CENTRAL SPIKE. Land + test before M0.4 frontend wiring depends on it."
+      "passes": true,
+      "started": "2026-06-24",
+      "completed": "2026-06-24",
+      "notes": "Shipped. activity_id threaded create_agent/create_agent_with_thinking/process_skill_request/stream_skill (_extract_activity_id from forwardedProps|state); falls back to skill_id when absent. Activity.skill_id records running skill (set in create+backfill). GET /api/auth/group/my-activities student endpoint. Full fast suite 2182 passed."
     },
     {
       "id": "M0.4-student-frontend",
@@ -241,6 +244,6 @@
   },
   "github_issues": [],
   "last_session": "2026-06-24",
-  "last_checkpoint": "M0.2-backfill-dualread complete",
+  "last_checkpoint": "M0.3-student-resolution complete (central spike)",
   "status": "in_progress"
 }

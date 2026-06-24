@@ -90,6 +90,9 @@ def _activity_from_config(data: dict, *, activity_id: str) -> Activity:
     """Build a class-independent Activity from a legacy activity_configs row."""
     return Activity(
         activityId=activity_id,
+        # The legacy activity_id IS the running skill id (the old welding) — record
+        # it as the activity's skill so student resolution knows what to run.
+        skillId=data.get("activityId", ""),
         ownerUid=data.get("teacherUid", ""),
         title=data.get("title", ""),
         teachingGoal=data.get("teachingGoal", ""),
@@ -156,6 +159,7 @@ def run_backfill(*, dry_run: bool = True) -> BackfillReport:
                 create_activity(
                     Activity(
                         activityId=act_id,
+                        skillId=skill_id,  # the bare lesson runs its own skill
                         ownerUid=cls.owner_uid,
                         title=_skill_display_name(skill_id),
                         artefactId=_wrap_artefact_id(skill_id),

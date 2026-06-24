@@ -295,6 +295,73 @@ async def get_my_skill_ids(
     return CurrentSkillsResponse(skill_ids=[], class_name=None, class_id=None)
 
 
+class StudentActivitySummary(BaseModel):
+    """One activity in a student's lesson list (ALS-1 M0). ``skill_id`` is the
+    skill the activity runs — the frontend opens a chat for ``(skill_id,
+    activity_id)``: the skill runs the agent, the activity selects the focus."""
+
+    activity_id: str = Field(alias="activityId")
+    skill_id: str = Field(alias="skillId")
+    title: str = ""
+    artefact_id: str | None = Field(default=None, alias="artefactId")
+    workbench_type: str = Field(default="none", alias="workbenchType")
+
+    model_config = {"populate_by_name": True}
+
+
+class CurrentActivitiesResponse(BaseModel):
+    activities: list[StudentActivitySummary]
+    class_name: str | None = None
+    class_id: str | None = None
+
+
+@router.get("/my-activities", response_model=CurrentActivitiesResponse)
+async def get_my_activities(
+    user: User = Depends(_resolve_firebase_user_dep()),  # noqa: B008
+) -> CurrentActivitiesResponse:
+    """Return the activity-keyed lesson list for the authenticated group member (ALS-1 M0).
+
+    The activity-era replacement for ``my-skill-ids``: resolves the bound class,
+    then loads each assigned ``Activity`` from ``Class.activity_ids``. Many concept
+    activities can now share one skill — each carries a distinct ``activity_id``, so
+    the collision that overwrote the second activity is gone. Live-resolves so a
+    teacher's add/remove is visible on the next ``/lessons`` load without a re-join.
+    404 if the caller is not a group-auth user.
+    """
+    if not user.group_id:
+        raise HTTPException(status_code=404, detail="not a group-auth user")
+    from db.activities import get_activity
+    from db.classes import get_class
+    from db.firestore import get_document
+
+    anon_doc = get_document("anon_groups", user.group_id)
+    if anon_doc:
+        bound_class_id = anon_doc.get("classId")
+        if bound_class_id:
+            cls = get_class(bound_class_id)
+            if cls and not cls.revoked:
+                activities: list[StudentActivitySummary] = []
+                for aid in cls.activity_ids:
+                    a = get_activity(aid)
+                    if a is None:
+                        continue  # soft-deleted / dangling reference — skip silently
+                    activities.append(
+                        StudentActivitySummary(
+                            activityId=a.activity_id,
+                            skillId=a.skill_id,
+                            title=a.title,
+                            artefactId=a.artefact_id,
+                            workbenchType=a.workbench_type,
+                        )
+                    )
+                return CurrentActivitiesResponse(
+                    activities=activities,
+                    class_name=cls.name,
+                    class_id=cls.class_id,
+                )
+    return CurrentActivitiesResponse(activities=[], class_name=None, class_id=None)
+
+
 class ActiveSessionResponse(BaseModel):
     """Live-resolved active ADK session for the caller's group (1.F)."""
 

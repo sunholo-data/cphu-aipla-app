@@ -522,6 +522,19 @@ def _extract_a2ui_surface_state(body: "_StreamSkillRequest") -> dict | None:
     return None
 
 
+def _extract_activity_id(body: "_StreamSkillRequest") -> str | None:
+    """Pull the ALS-1 activity id (the ``act-…`` the student opened) from the wire.
+
+    The lesson card opens a chat for a (skill, activity) pair — the skill runs the
+    agent, the activity selects the teacher-focus. Read from
+    ``forwardedProps.activity_id`` (the AG-UI HttpAgent path) or
+    ``state.activity_id``. None (every legacy caller / teacher chat) falls back to
+    the skill id inside the agent factory, so behaviour is unchanged when absent.
+    """
+    raw = (body.forwardedProps or {}).get("activity_id") or (body.state or {}).get("activity_id")
+    return raw if isinstance(raw, str) and raw else None
+
+
 def _extract_resumed_flag(body: "_StreamSkillRequest") -> bool:
     """True when the frontend signalled this chat was entered by clicking a
     conversation thread from the per-document Conversations panel.
@@ -629,6 +642,7 @@ async def stream_skill(
         document_ids=extracted_doc_ids,
         resumed_session=extracted_resumed,
         a2ui_surface_state=extracted_surface_state,
+        activity_id=_extract_activity_id(body),
     )
     try:
         # Surface SkillNotFoundError *before* returning the StreamingResponse so

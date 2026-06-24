@@ -398,3 +398,35 @@ def test_create_agent_detects_indirect_cycle():
     with patch("adk.agent.get_skill", side_effect=lambda sid: lookup.get(sid)):
         with pytest.raises(ValueError, match="Sub-skill cycle detected"):
             create_agent(a, _user())
+
+
+# --- ALS-1 M0: activity_id threads into teacher-focus resolution ---
+
+
+def test_explicit_activity_id_threads_into_teacher_focus():
+    """When the student opens a specific activity, its ``act-…`` id (NOT the skill
+    id) selects the teacher-focus — the core of the M0 re-key. inject_teacher_focus
+    runs eagerly while composing the instruction, so we capture its activity arg."""
+    captured: dict[str, str] = {}
+
+    def _capture(instructions, activity_id, *, group_tags=None):
+        captured["activity_id"] = activity_id
+        return instructions
+
+    with patch("adk.agent.inject_teacher_focus", side_effect=_capture):
+        create_agent(_skill(skill_id="concept-skill-uuid"), _user(), activity_id="act-abc123")
+    assert captured["activity_id"] == "act-abc123"
+
+
+def test_absent_activity_id_falls_back_to_skill_id():
+    """No activity_id (every legacy caller / teacher chat) → the skill id, so
+    existing behaviour is unchanged."""
+    captured: dict[str, str] = {}
+
+    def _capture(instructions, activity_id, *, group_tags=None):
+        captured["activity_id"] = activity_id
+        return instructions
+
+    with patch("adk.agent.inject_teacher_focus", side_effect=_capture):
+        create_agent(_skill(skill_id="concept-skill-uuid"), _user())
+    assert captured["activity_id"] == "concept-skill-uuid"

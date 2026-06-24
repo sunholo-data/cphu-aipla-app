@@ -74,6 +74,7 @@ async def process_skill_request(
     document_ids: list[str] | None = None,
     resumed_session: bool = False,
     a2ui_surface_state: dict[str, Any] | None = None,
+    activity_id: str | None = None,
 ) -> AsyncGenerator[dict, None]:
     """Yield AG-UI events for one turn of `skill_id`.
 
@@ -127,7 +128,10 @@ async def process_skill_request(
     _ensure_session_index(thread_id, skill_id, user.uid, document_ids, user.group_id or None)
 
     message_text = _message_text(message)
-    agent_or_router = create_agent_with_thinking(skill, user)
+    # ALS-1 M0: the student opened a specific activity (an act- id from the lesson
+    # card); thread it so the agent injects THAT activity's teacher-focus. None
+    # (every legacy caller) falls back to the skill id inside the factory.
+    agent_or_router = create_agent_with_thinking(skill, user, activity_id=activity_id)
     if isinstance(agent_or_router, _HeuristicRouter):
         agent = agent_or_router.pick_agent(message_text)
         routing_choice = "thinking" if agent is agent_or_router.thinking else "fast"

@@ -302,6 +302,7 @@ def create_agent(
     skill_config: SkillConfig,
     user: User,
     *,
+    activity_id: str | None = None,
     access_context: AccessContext | None = None,
     _seen: set[str] | None = None,
     _model_override: str | None = None,
@@ -335,6 +336,13 @@ def create_agent(
             f"Sub-skill cycle detected: {skill_config.skill_id!r} already on the resolution stack {seen!r}"
         )
     seen.add(skill_config.skill_id)
+
+    # ALS-1 M0: the activity whose teacher-focus / materials / interaction-style
+    # shape THIS agent. When the caller passes an explicit ``act-…`` id (the
+    # student opened a specific activity), that selects the config; otherwise we
+    # fall back to ``skill_config.skill_id`` — the legacy welding, which keeps
+    # every existing call site (sub-agents, skills with no activity) unchanged.
+    _activity_id = activity_id or skill_config.skill_id
 
     md = skill_config.skill_metadata
     effective_model = _model_override or md.model
@@ -384,7 +392,7 @@ def create_agent(
     # student never sees the open corpus, only their activity's allow-list).
     # resolve_active_config is the same Firestore path used by inject_teacher_focus
     # below; the double read is acceptable at agent-build-time (once per session).
-    _active_cfg = resolve_active_config(skill_config.skill_id, group_tags=user.group_tags)
+    _active_cfg = resolve_active_config(_activity_id, group_tags=user.group_tags)
     _materials = _active_cfg.materials if _active_cfg else []
     _curriculum_tool = build_curriculum_retrieval_tool(_materials)
     if _curriculum_tool is not None:
@@ -604,7 +612,7 @@ def create_agent(
                                 skill_config.instructions + build_curriculum_grounding_preamble(_materials),
                                 skill_config.multimodal_input,
                             ),
-                            skill_config.skill_id,
+                            _activity_id,
                             group_tags=user.group_tags,
                         ),
                         proactive_greet=skill_config.proactive_greet,
@@ -613,7 +621,7 @@ def create_agent(
                     proactive_event_reactive=skill_config.proactive_event_reactive,
                     reactive_template=skill_config.reactive_template,
                 ),
-                skill_config.skill_id,
+                _activity_id,
                 # Phase 3: resolve the teacher's goal from THIS student's
                 # verified group→class binding, not the LOCAL_MODE stub.
                 group_tags=user.group_tags,
@@ -639,6 +647,7 @@ def create_agent_with_thinking(
     skill_config: SkillConfig,
     user: User,
     *,
+    activity_id: str | None = None,
     access_context: AccessContext | None = None,
 ) -> LlmAgent | _HeuristicRouter:
     """Dispatch to the three-tier thinking strategy.
@@ -648,18 +657,22 @@ def create_agent_with_thinking(
     - thinking_model set → two agents built (fast from `metadata.model`,
       thinking from `metadata.thinking_model`), wrapped in `_HeuristicRouter`.
 
+    ``activity_id`` (ALS-1 M0) selects the specific activity whose teacher-focus
+    shapes the agent; ``None`` falls back to the skill id (legacy welding).
+
     See module docstring for the three tiers in full.
     """
     md = skill_config.skill_metadata
     if md.thinking_model is None:
-        return create_agent(skill_config, user, access_context=access_context)
+        return create_agent(skill_config, user, activity_id=activity_id, access_context=access_context)
 
     # Tier 3: two agents + picker. Build both via the same recursive factory
     # so sub-skills/tools/callbacks stay wired identically.
-    fast = create_agent(skill_config, user, access_context=access_context)
+    fast = create_agent(skill_config, user, activity_id=activity_id, access_context=access_context)
     thinking = create_agent(
         skill_config,
         user,
+        activity_id=activity_id,
         access_context=access_context,
         _model_override=md.thinking_model,
         _planner_override=None,
