@@ -27,13 +27,16 @@ from pydantic import BaseModel, ConfigDict, Field
 from analytics import cost_queries
 from analytics.auth import assert_can_read_class
 from auth import User, get_current_user
+from db.activities import get_activity
 from db.classes import (
+    add_activities,
     add_lessons,
     create_class,
     get_class,
     list_all_classes,
     list_classes_for_owner,
     mint_group_codes_under_class,
+    remove_activities,
     remove_lessons,
     revoke_class,
     revoke_group_code,
@@ -78,6 +81,15 @@ class ClassUpdate(BaseModel):
 
 class LessonsPatch(BaseModel):
     """Body for ``PATCH /api/classes/{class_id}/lessons``."""
+
+    add: list[str] = Field(default_factory=list)
+    remove: list[str] = Field(default_factory=list)
+
+    model_config = ConfigDict(populate_by_name=True, extra="forbid")
+
+
+class ActivitiesPatch(BaseModel):
+    """Body for ``PATCH /api/classes/{class_id}/activities`` (ALS-1 M1)."""
 
     add: list[str] = Field(default_factory=list)
     remove: list[str] = Field(default_factory=list)
@@ -339,6 +351,36 @@ async def patch_lessons(
     reloaded = get_class(class_id)
     if reloaded is None:
         raise HTTPException(status_code=500, detail="class disappeared during lessons update")
+    return _serialize(reloaded)
+
+
+@router.patch("/{class_id}/activities")
+async def patch_activities(
+    body: ActivitiesPatch,
+    class_id: str = Path(...),
+    user: User = Depends(get_current_user),  # noqa: B008
+) -> dict:
+    """Assign / unassign activities to a class (ALS-1 M1). Owner-only on both the
+    class AND every added activity — you can only assign activities you own (the
+    cross-teacher path is adopt-by-copy on the library page, never a direct assign).
+    Idempotent. No skill-tag mutation: the student lesson list resolves from
+    ``Class.activity_ids`` (each activity carries its own running skill)."""
+    _assert_teacher(user)
+    _load_owned(class_id, user)
+
+    for activity_id in body.add:
+        activity = get_activity(activity_id)
+        if activity is None or activity.owner_uid != user.uid:
+            raise HTTPException(status_code=404, detail=f"activity not found: {activity_id}")
+    if body.add:
+        add_activities(class_id, body.add)
+    if body.remove:
+        remove_activities(class_id, body.remove)
+
+    _tag_span(class_id, user.uid)
+    reloaded = get_class(class_id)
+    if reloaded is None:
+        raise HTTPException(status_code=500, detail="class disappeared during activities update")
     return _serialize(reloaded)
 
 

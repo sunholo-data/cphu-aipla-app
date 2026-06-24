@@ -165,7 +165,7 @@
       "description": "PATCH /api/classes/{id}/activities {add,remove} (owner-only, validates activities are the caller's). GET /api/activities?owner=me library list.",
       "scope": "backend",
       "estimated_loc": 190,
-      "actual_loc": null,
+      "actual_loc": 290,
       "dependencies": [
         "M0.1-model-repo"
       ],
@@ -179,10 +179,10 @@
         "backend/protocols/class_routes.py",
         "backend/protocols/activity_config_routes.py"
       ],
-      "passes": null,
-      "started": null,
-      "completed": null,
-      "notes": "published/sharing endpoints deferred to M3."
+      "passes": true,
+      "started": "2026-06-24",
+      "completed": "2026-06-24",
+      "notes": "Shipped EARLY (frontend M0.4/M0.5 depend on it). protocols/activity_routes.py: POST (mint act-, optional class auto-assign), GET ?owner=me, GET/PATCH/DELETE /{id} owner-only. PATCH /api/classes/{id}/activities in classes_routes (owner-only on class AND each added activity). 6+ tests, 43 route-regression green."
     },
     {
       "id": "M1.2-library-view",
@@ -244,6 +244,6 @@
   },
   "github_issues": [],
   "last_session": "2026-06-24",
-  "last_checkpoint": "M0.3-student-resolution complete (central spike)",
+  "last_checkpoint": "M1.1 activities API complete (built early)",
   "status": "in_progress"
 }
