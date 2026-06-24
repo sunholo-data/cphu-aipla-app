@@ -20,17 +20,14 @@ import {
 } from "lucide-react";
 
 import {
-  type ActivityConfigPayload,
+  type ActivityPayload,
   type ClassPayload,
   type SessionRow,
-  type SkillSummary,
   getClass,
-  isTeacherOnlySkill,
-  listAccessibleSkills,
+  listActivities,
   listClassRecentSessions,
-  listMyActivities,
   mintGroupCodes,
-  patchLessons,
+  patchClassActivities,
   resetGroupSession,
 } from "@/lib/teacherApi";
 import { ClassInsightsPanel } from "@/components/teacher/insights/ClassInsightsPanel";
@@ -74,20 +71,13 @@ export default function TeacherClassDetailPage() {
   const [recentSessions, setRecentSessions] = useState<SessionRow[]>([]);
   const [exporting, setExporting] = useState<"csv" | "json" | null>(null);
 
-  // 1.A follow-up (2026-05-26) — Lessons section now backed by the
-  // real /api/skills catalogue + cls.lessons[]. Pick-from-list UI
-  // replaces the disabled "v1.1 placeholder" button.
-  const [catalogue, setCatalogue] = useState<SkillSummary[]>([]);
+  // ALS-1 M1.3 — the Activities section is backed by the teacher's class-independent
+  // activity library (/api/activities) + cls.activityIds. "Add activity" assigns one
+  // of the teacher's own activities to this class (replaces the old skills-catalogue
+  // "Add from catalogue" → patchLessons path).
+  const [libraryActivities, setLibraryActivities] = useState<ActivityPayload[]>([]);
   const [showPicker, setShowPicker] = useState(false);
-  const [busyLesson, setBusyLesson] = useState<string | null>(null);
-  // The teacher's authored configs for THIS class, keyed by activityId
-  // (== the lesson's skill_id). Lets the assigned-activities list show the
-  // teacher's own title ("Test 4 Checklist") + a Configure link, instead of
-  // the bare skill name — so the class view matches the Activities page
-  // (1.1.32, in-place fix; cross-class reuse is the Phase-B template model).
-  const [configByActivity, setConfigByActivity] = useState<
-    Map<string, ActivityConfigPayload>
-  >(new Map());
+  const [busyActivity, setBusyActivity] = useState<string | null>(null);
 
   const refresh = useCallback(async () => {
     setLoadError(null);
@@ -119,49 +109,28 @@ export default function TeacherClassDetailPage() {
       .catch(() => setRecentSessions([]));
   }, [id]);
 
-  // Load the lesson catalogue once on mount. Fire-and-forget — picker
-  // shows "Loading lessons…" if the fetch is in flight at click time.
+  // Load the teacher's activity library once on mount. Fire-and-forget — the
+  // class itself loads independently; the picker shows an empty state on failure.
   useEffect(() => {
-    void listAccessibleSkills()
-      .then(setCatalogue)
-      .catch(() => {
-        // Picker just shows an empty state on failure — class itself
-        // still loads independently.
-        setCatalogue([]);
-      });
+    void listActivities()
+      .then(setLibraryActivities)
+      .catch(() => setLibraryActivities([]));
   }, []);
 
-  // The teacher's authored activity configs for this class — used to label +
-  // link the assigned-activities list with the teacher's own titles.
-  useEffect(() => {
-    if (!id) return;
-    void listMyActivities(id)
-      .then((configs) =>
-        setConfigByActivity(new Map(configs.map((c) => [c.activityId, c]))),
-      )
-      .catch(() => setConfigByActivity(new Map()));
-  }, [id]);
-
-  // Derived views of the catalogue split by whether they're already on
-  // the class. Memoised so the picker doesn't recompute per render.
-  const linkedLessons = useMemo<SkillSummary[]>(() => {
+  // Derived views of the library split by whether they're assigned to this class.
+  const assignedActivities = useMemo<ActivityPayload[]>(() => {
     if (!cls) return [];
-    const byId = new Map(catalogue.map((s) => [s.skillId, s]));
-    return cls.lessons
-      .map((sid) => byId.get(sid))
-      .filter((s): s is SkillSummary => s !== undefined);
-  }, [cls, catalogue]);
+    const byId = new Map(libraryActivities.map((a) => [a.activityId, a]));
+    return (cls.activityIds ?? [])
+      .map((aid) => byId.get(aid))
+      .filter((a): a is ActivityPayload => a !== undefined);
+  }, [cls, libraryActivities]);
 
-  const availableLessons = useMemo<SkillSummary[]>(() => {
-    const studentRunnable = catalogue.filter((s) => !isTeacherOnlySkill(s));
-    if (!cls) return studentRunnable;
-    const taken = new Set(cls.lessons);
-    // Exclude teacher-only skills (manage-class, analytics-chat): they can
-    // never be a student lesson, so they don't belong in this picker (1.1.32).
-    // `linkedLessons` is NOT filtered, so a defensive already-assigned one
-    // stays visible + removable.
-    return studentRunnable.filter((s) => !taken.has(s.skillId));
-  }, [cls, catalogue]);
+  const addableActivities = useMemo<ActivityPayload[]>(() => {
+    if (!cls) return libraryActivities;
+    const taken = new Set(cls.activityIds ?? []);
+    return libraryActivities.filter((a) => !taken.has(a.activityId));
+  }, [cls, libraryActivities]);
 
   // Most recent session per group code — for the per-row "last active" hint.
   const latestByGroup = useMemo<Map<string, SessionRow>>(() => {
@@ -174,12 +143,14 @@ export default function TeacherClassDetailPage() {
     return map;
   }, [recentSessions]);
 
-  // Skill name lookup for the activity list.
+  // Best-effort skill-id → name for the session-history rows (a session records
+  // the skill it ran). Derived from the library by skill id; sessions usually
+  // carry their own `title`, so this is only a fallback before the row's id.
   const skillNameById = useMemo<Map<string, string>>(() => {
     const m = new Map<string, string>();
-    for (const s of catalogue) m.set(s.skillId, s.displayName || s.name);
+    for (const a of libraryActivities) if (a.skillId && a.title) m.set(a.skillId, a.title);
     return m;
-  }, [catalogue]);
+  }, [libraryActivities]);
 
   if (!id) {
     notFound();
@@ -265,13 +236,13 @@ export default function TeacherClassDetailPage() {
     }
   }
 
-  async function handleAddLesson(skillId: string) {
-    setBusyLesson(skillId);
+  async function handleAddActivity(activityId: string) {
+    setBusyActivity(activityId);
     try {
-      await patchLessons(cls!.classId, { add: [skillId] });
+      await patchClassActivities(cls!.classId, { add: [activityId] });
       setShowPicker(false);
       await refresh();
-      const title = catalogue.find((s) => s.skillId === skillId)?.displayName ?? skillId;
+      const title = libraryActivities.find((a) => a.activityId === activityId)?.title ?? activityId;
       setToast(`Added "${title}"`);
       window.setTimeout(() => setToast(null), 3000);
     } catch (err) {
@@ -280,16 +251,16 @@ export default function TeacherClassDetailPage() {
       );
       window.setTimeout(() => setToast(null), 5000);
     } finally {
-      setBusyLesson(null);
+      setBusyActivity(null);
     }
   }
 
-  async function handleRemoveLesson(skillId: string) {
-    setBusyLesson(skillId);
+  async function handleRemoveActivity(activityId: string) {
+    setBusyActivity(activityId);
     try {
-      await patchLessons(cls!.classId, { remove: [skillId] });
+      await patchClassActivities(cls!.classId, { remove: [activityId] });
       await refresh();
-      const title = catalogue.find((s) => s.skillId === skillId)?.displayName ?? skillId;
+      const title = libraryActivities.find((a) => a.activityId === activityId)?.title ?? activityId;
       setToast(`Removed "${title}"`);
       window.setTimeout(() => setToast(null), 3000);
     } catch (err) {
@@ -298,7 +269,7 @@ export default function TeacherClassDetailPage() {
       );
       window.setTimeout(() => setToast(null), 5000);
     } finally {
-      setBusyLesson(null);
+      setBusyActivity(null);
     }
   }
 
@@ -317,8 +288,8 @@ export default function TeacherClassDetailPage() {
       subtitle={
         <>
           {cls.groupCodes.length} group
-          {cls.groupCodes.length === 1 ? "" : "s"} · {cls.lessons.length}{" "}
-          {cls.lessons.length === 1 ? "activity" : "activities"} assigned
+          {cls.groupCodes.length === 1 ? "" : "s"} · {(cls.activityIds ?? []).length}{" "}
+          {(cls.activityIds ?? []).length === 1 ? "activity" : "activities"} assigned
         </>
       }
       actions={
@@ -445,82 +416,73 @@ export default function TeacherClassDetailPage() {
             <button
               type="button"
               onClick={() => setShowPicker((v) => !v)}
-              disabled={availableLessons.length === 0}
+              disabled={addableActivities.length === 0}
               title={
-                availableLessons.length === 0
-                  ? "No more activities available to add"
-                  : "Add an existing activity from the catalogue"
+                addableActivities.length === 0
+                  ? "All your activities are already assigned to this class"
+                  : "Assign one of your activities to this class"
               }
               className="flex items-center gap-1.5 rounded bg-primary px-3 py-1.5 text-sm font-medium text-primary-foreground hover:opacity-90 disabled:opacity-50"
             >
               <Plus className="h-4 w-4" aria-hidden="true" />
-              Add from catalogue
+              Add activity
             </button>
           </div>
         }
       >
         {showPicker ? (
-          <LessonPicker
-            options={availableLessons}
-            onPick={handleAddLesson}
+          <ActivityPicker
+            options={addableActivities}
+            onPick={handleAddActivity}
             onCancel={() => setShowPicker(false)}
-            busyId={busyLesson}
+            busyId={busyActivity}
           />
         ) : null}
 
-        {linkedLessons.length === 0 ? (
+        {assignedActivities.length === 0 ? (
           <p className="rounded border border-dashed border-border px-3 py-4 text-sm text-muted-foreground">
             No activities assigned yet. Click &ldquo;New activity&rdquo; to create
-            a chat-only concept activity from scratch, or &ldquo;Add from
-            catalogue&rdquo; to pick an existing one. Students who join via this
-            class&rsquo;s group codes will only see activities listed here.
+            one from scratch, or &ldquo;Add activity&rdquo; to assign one from your
+            library. Students who join via this class&rsquo;s group codes will only
+            see activities listed here.
           </p>
         ) : (
           <ul className="divide-y divide-border rounded border border-border">
-            {linkedLessons.map((lesson) => {
-              // Prefer the teacher's authored activity title over the bare
-              // skill name, and link to the SAME editor the Activities page
-              // uses — so the class view and the Activities page are one
-              // coherent thing (1.1.32 in-place fix).
-              const cfg = configByActivity.get(lesson.skillId);
-              const displayTitle = cfg?.title?.trim() || lesson.displayName;
-              const subtitle = cfg?.title?.trim()
-                ? `${lesson.displayName}${cfg.language ? ` · ${cfg.language === "da" ? "Dansk" : "English"}` : ""}`
-                : lesson.description;
-              const configureHref = `/teacher/activities/${encodeURIComponent(
-                lesson.skillId,
-              )}?classId=${encodeURIComponent(cls.classId)}${
-                cfg?.title ? `&title=${encodeURIComponent(cfg.title)}` : ""
+            {assignedActivities.map((activity) => {
+              const displayTitle = activity.title?.trim() || activity.activityId;
+              const subtitle = activity.teachingGoal?.trim() || undefined;
+              // Edit the activity itself (class-independent — it may run in several
+              // classes); the Activities-page editor is the one coherent surface.
+              const editHref = `/teacher/activities/${encodeURIComponent(activity.activityId)}${
+                activity.title ? `?title=${encodeURIComponent(activity.title)}` : ""
               }`;
               return (
                 <li
-                  key={lesson.skillId}
+                  key={activity.activityId}
                   className="flex flex-wrap items-center justify-between gap-2 px-3 py-2"
                 >
                   <div className="flex min-w-0 flex-1 items-center gap-3">
-                    <LessonAvatar avatar={lesson.avatar} title={displayTitle} />
+                    <LessonAvatar avatar="" title={displayTitle} />
                     <div className="flex min-w-0 flex-col">
                       <span className="truncate text-sm font-medium">{displayTitle}</span>
                       {subtitle ? (
-                        <span className="line-clamp-1 text-xs text-muted-foreground">
-                          {subtitle}
-                        </span>
+                        <span className="line-clamp-1 text-xs text-muted-foreground">{subtitle}</span>
                       ) : null}
                     </div>
                   </div>
                   <div className="flex items-center gap-1">
                     <Link
-                      href={configureHref}
-                      title={`Configure ${displayTitle}`}
+                      href={editHref}
+                      title={`Edit ${displayTitle}`}
                       className="flex items-center gap-1 rounded border border-border px-2 py-1 text-xs font-medium text-muted-foreground hover:bg-accent hover:text-foreground"
                     >
                       <Settings className="h-3.5 w-3.5" aria-hidden="true" />
-                      Configure
+                      Edit
                     </Link>
                     <button
                       type="button"
-                      onClick={() => handleRemoveLesson(lesson.skillId)}
-                      disabled={busyLesson === lesson.skillId}
+                      onClick={() => handleRemoveActivity(activity.activityId)}
+                      disabled={busyActivity === activity.activityId}
                       aria-label={`Remove ${displayTitle}`}
                       className="flex items-center gap-1 rounded border border-border px-2 py-1 text-xs font-medium text-muted-foreground hover:bg-destructive/10 hover:text-destructive disabled:opacity-50"
                     >
@@ -674,30 +636,30 @@ export default function TeacherClassDetailPage() {
   );
 }
 
-/** Inline picker rendered above the linked-lessons list when the
- *  teacher clicks "Add lesson". Lists every catalogue entry not yet on
- *  the class — click a row to add it. Cancel collapses without writing.
- *  Kept inline (vs a modal) so the page state is simpler and screen
- *  readers see the picker in the natural document flow. */
-function LessonPicker({
+/** Inline picker (ALS-1 M1.3) rendered above the assigned-activities list when
+ *  the teacher clicks "Add activity". Lists the teacher's library activities not
+ *  yet assigned to this class — click a row to assign it. Cancel collapses without
+ *  writing. Inline (vs a modal) so page state stays simple and screen readers see
+ *  it in the natural document flow. */
+function ActivityPicker({
   options,
   onPick,
   onCancel,
   busyId,
 }: {
-  options: SkillSummary[];
-  onPick: (skillId: string) => void;
+  options: ActivityPayload[];
+  onPick: (activityId: string) => void;
   onCancel: () => void;
   busyId: string | null;
 }) {
   return (
     <div
       role="region"
-      aria-label="Pick an activity to add"
+      aria-label="Pick an activity to assign"
       className="flex flex-col gap-2 rounded border border-border bg-background p-3"
     >
       <header className="flex items-center justify-between">
-        <h3 className="text-sm font-semibold">Catalogue</h3>
+        <h3 className="text-sm font-semibold">Your activities</h3>
         <button
           type="button"
           onClick={onCancel}
@@ -708,39 +670,39 @@ function LessonPicker({
       </header>
       {options.length === 0 ? (
         <p className="text-sm text-muted-foreground">
-          No more activities available to add. Drop new activities into{" "}
-          <code>backend/skills/templates/</code> and re-seed.
+          Every activity in your library is already assigned to this class. Create a
+          new one with &ldquo;New activity&rdquo;.
         </p>
       ) : (
         <ul className="flex flex-col gap-1">
-          {options.map((lesson) => (
-            <li key={lesson.skillId}>
-              <button
-                type="button"
-                onClick={() => onPick(lesson.skillId)}
-                disabled={busyId !== null}
-                className="flex w-full items-center justify-between gap-3 rounded px-2 py-1.5 text-left text-sm hover:bg-accent disabled:opacity-50"
-              >
-                <span className="flex min-w-0 flex-1 items-center gap-3">
-                  <LessonAvatar
-                    avatar={lesson.avatar}
-                    title={lesson.displayName}
-                  />
-                  <span className="flex min-w-0 flex-col">
-                    <span className="font-medium">{lesson.displayName}</span>
-                    {lesson.description ? (
-                      <span className="line-clamp-1 text-xs text-muted-foreground">
-                        {lesson.description}
-                      </span>
-                    ) : null}
+          {options.map((activity) => {
+            const title = activity.title?.trim() || activity.activityId;
+            return (
+              <li key={activity.activityId}>
+                <button
+                  type="button"
+                  onClick={() => onPick(activity.activityId)}
+                  disabled={busyId !== null}
+                  className="flex w-full items-center justify-between gap-3 rounded px-2 py-1.5 text-left text-sm hover:bg-accent disabled:opacity-50"
+                >
+                  <span className="flex min-w-0 flex-1 items-center gap-3">
+                    <LessonAvatar avatar="" title={title} />
+                    <span className="flex min-w-0 flex-col">
+                      <span className="font-medium">{title}</span>
+                      {activity.teachingGoal ? (
+                        <span className="line-clamp-1 text-xs text-muted-foreground">
+                          {activity.teachingGoal}
+                        </span>
+                      ) : null}
+                    </span>
                   </span>
-                </span>
-                <span className="text-xs text-muted-foreground">
-                  {busyId === lesson.skillId ? "Adding…" : "Add"}
-                </span>
-              </button>
-            </li>
-          ))}
+                  <span className="text-xs text-muted-foreground">
+                    {busyId === activity.activityId ? "Adding…" : "Add"}
+                  </span>
+                </button>
+              </li>
+            );
+          })}
         </ul>
       )}
     </div>

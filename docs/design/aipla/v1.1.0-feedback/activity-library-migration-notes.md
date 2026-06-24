@@ -4,7 +4,7 @@ Records every Firestore side effect of the `activity_configs → activities`
 backfill, so test/prod cutover is a known recipe (the side-effects discipline).
 
 **Script:** [`backend/scripts/backfill_activities.py`](../../../backend/scripts/backfill_activities.py)
-**Status:** code-complete + tested (in-memory). **NOT yet run against any real project.**
+**Status:** code-complete + tested (in-memory). **APPLIED to `aipla-dev-2026` on 2026-06-24** — 4 configs → activities, 13 bare lessons wrapped, 17 class assignments, 0 already-migrated; re-run confirmed idempotent (0 new, 17 skipped). **test/prod NOT yet run.**
 
 ## What the backfill does (additive only — no deletes)
 

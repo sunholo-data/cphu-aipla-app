@@ -213,7 +213,7 @@
       "description": "Re-point class-detail picker: 'Add from catalogue' -> 'Add activity'. List the owner's library activities not already assigned; assign via PATCH /classes/{id}/activities (NOT patchLessons). Retire LessonPicker/patchLessons/listAccessibleSkills for this surface; update empty-state copy.",
       "scope": "frontend",
       "estimated_loc": 210,
-      "actual_loc": null,
+      "actual_loc": 240,
       "dependencies": [
         "M1.1-assignment-api",
         "M1.2-library-view"
@@ -228,10 +228,10 @@
         "frontend/src/app/teacher/classes/[id]/page.tsx",
         "frontend/src/lib/teacherApi.ts"
       ],
-      "passes": null,
-      "started": null,
-      "completed": null,
-      "notes": "Keep lessons READS through the freeze (dual-read); retire lessons WRITES only this sprint."
+      "passes": true,
+      "started": "2026-06-24",
+      "completed": "2026-06-24",
+      "notes": "Shipped. class-detail picker re-pointed: 'Add from catalogue'(skills/patchLessons) -> 'Add activity'(library/patchClassActivities). assignedActivities from cls.activityIds, addableActivities from library; ActivityPicker; assigned list Edit(class-independent)+Remove. Retired listAccessibleSkills/patchLessons/LessonPicker/isTeacherOnlySkill on this surface. Backfill applied to dev. 10 tests green."
     }
   ],
   "velocity": {
@@ -244,6 +244,6 @@
   },
   "github_issues": [],
   "last_session": "2026-06-24",
-  "last_checkpoint": "M1.2 library view complete",
-  "status": "in_progress"
+  "last_checkpoint": "ALS-1 COMPLETE \u2014 M0+M1 shipped; bug fixed, library + picker live; backfill applied to dev",
+  "status": "complete"
 }
