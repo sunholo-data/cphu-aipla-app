@@ -354,12 +354,34 @@ async def get_my_activities(
                             workbenchType=a.workbench_type,
                         )
                     )
+                # Rollout safety (ALS-1 M0): a class not yet backfilled has an empty
+                # activity_ids but a populated lessons list. Present each legacy
+                # lesson as a synthetic activity (activityId == skillId) so the class
+                # keeps working THROUGH the dual-read window even before the backfill
+                # runs — the chat resolves it via the legacy composite path. Once
+                # backfilled, activity_ids is populated and this branch never fires.
+                if not activities and cls.lessons:
+                    activities = [_lesson_as_activity(skill_id) for skill_id in cls.lessons]
                 return CurrentActivitiesResponse(
                     activities=activities,
                     class_name=cls.name,
                     class_id=cls.class_id,
                 )
     return CurrentActivitiesResponse(activities=[], class_name=None, class_id=None)
+
+
+def _lesson_as_activity(skill_id: str) -> StudentActivitySummary:
+    """Wrap a legacy ``Class.lessons`` skill id as a synthetic activity (the id IS
+    the skill id, so the chat resolves it via the legacy composite path)."""
+    from skills.skill_config import get_skill
+
+    skill = get_skill(skill_id)
+    title = (
+        (getattr(skill, "display_name", "") if skill else "")
+        or (getattr(skill, "name", "") if skill else "")
+        or skill_id
+    )
+    return StudentActivitySummary(activityId=skill_id, skillId=skill_id, title=title)
 
 
 class ActiveSessionResponse(BaseModel):

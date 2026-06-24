@@ -85,6 +85,28 @@ def test_skips_dangling_activity_reference():
     assert [a["activityId"] for a in resp.json()["activities"]] == ["act-live"]
 
 
+def test_falls_back_to_legacy_lessons_when_not_backfilled():
+    """Rollout safety: a class with lessons but no activity_ids (pre-backfill)
+    still shows its lessons as synthetic activities (activityId == skillId)."""
+    now = datetime.now(UTC)
+    create_class(
+        Class(
+            classId=CLASS_ID,
+            ownerUid=OWNER,
+            name="Physics 7B",
+            tagNamespace=f"class:{OWNER}:{CLASS_ID}",
+            lessons=["boldkast", "concept-x"],
+            createdAt=now,
+            updatedAt=now,
+        )
+    )
+    set_document("anon_groups", GROUP_ID, {"classId": CLASS_ID})
+    body = _student_client().get("/api/auth/group/my-activities").json()
+    # Each legacy lesson surfaces as a synthetic activity keyed by the skill id.
+    assert {a["activityId"] for a in body["activities"]} == {"boldkast", "concept-x"}
+    assert all(a["activityId"] == a["skillId"] for a in body["activities"])
+
+
 def test_non_group_user_404s():
     app = FastAPI()
     app.include_router(router)
