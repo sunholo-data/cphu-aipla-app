@@ -13,7 +13,7 @@ import logging
 from datetime import UTC, datetime
 from typing import Annotated
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Query
 from fastapi.responses import Response
 from pydantic import BaseModel
 
@@ -76,6 +76,32 @@ def list_folder_documents(folder_id: str, user: _CurrentUser) -> _DocumentsListR
 
 
 _PARSED_DOCS_COLLECTION = "parsed_documents"
+
+
+@router.get("/api/documents")
+def list_my_documents(
+    user: _CurrentUser,
+    skill_id: str = Query(default="", alias="skillId"),
+) -> _DocumentsListResponse:
+    """List the caller's uploaded (parsed) documents, optionally for one activity.
+
+    For anonymous-group students ``user.uid`` is the group-stable ``anon-<groupId>``
+    uid, so this returns the GROUP's uploads — the file tabs for the
+    document-feedback viewer (1.1.45 M3b). Trimmed to the fields the viewer needs.
+    """
+    from tools.documents.context import list_documents_for_user
+
+    rows = list_documents_for_user(user.uid, skill_id=skill_id or None)
+    docs = [
+        {
+            "docId": r.get("__id"),
+            "name": r.get("originalFilename") or r.get("name") or "document",
+            "sourceFormat": r.get("sourceFormat") or "",
+        }
+        for r in rows
+        if r.get("__id")
+    ]
+    return _DocumentsListResponse(documents=docs)
 
 
 @router.get("/api/documents/{doc_id}")

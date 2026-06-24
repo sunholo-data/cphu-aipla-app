@@ -77,3 +77,24 @@ def test_read_failure_404():
     ):
         resp = _client().get("/api/documents/d1/raw")
     assert resp.status_code == 404
+
+
+# ---------------------------------------------------------------------------
+# 1.1.45 M3b — list the caller's (group's) uploads (viewer file tabs)
+# ---------------------------------------------------------------------------
+
+
+def test_list_my_documents_returns_trimmed_group_uploads():
+    rows = [
+        {"__id": "d1", "originalFilename": "Rapport.pdf", "sourceFormat": "pdf", "userId": OWNER},
+        {"__id": "d2", "originalFilename": "Noter.docx", "sourceFormat": "docx", "userId": OWNER},
+    ]
+    with patch("tools.documents.context.list_documents_for_user", return_value=rows) as q:
+        resp = _client(uid=OWNER).get("/api/documents?skillId=act-1")
+    assert resp.status_code == 200
+    docs = resp.json()["documents"]
+    assert [d["docId"] for d in docs] == ["d1", "d2"]
+    assert docs[0]["name"] == "Rapport.pdf"
+    # Listed for the CALLER's uid (the group-stable uid for students) + the skill.
+    assert q.call_args.args[0] == OWNER
+    assert q.call_args.kwargs.get("skill_id") == "act-1"

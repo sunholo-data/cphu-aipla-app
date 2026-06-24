@@ -195,7 +195,10 @@ class NoteElement(BaseModel):
 # Workbench type system (1.J expanded-workbench-types). ``none`` is a
 # first-class, no-simulator activity (chat-only Socratic dialogue, the
 # v1.1 teacher-authoring headline). ``app`` is a paired MCP-App sim.
-WorkbenchType = Literal["app", "drawing", "sensor", "video", "notebook", "none"]
+# ``document`` (1.1.45 M3b) is the JB-1 "document-feedback" activity: the student
+# uploads their own file(s) and the tutor critiques the active one — the workbench
+# primary surface is the upload + document viewer.
+WorkbenchType = Literal["app", "drawing", "sensor", "video", "notebook", "document", "none"]
 
 
 # ---------------------------------------------------------------------------
