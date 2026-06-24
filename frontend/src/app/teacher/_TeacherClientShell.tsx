@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import type { ReactNode } from "react";
-import { LogOut } from "lucide-react";
+import { FlaskConical, LogOut } from "lucide-react";
 
 import { AppFooter } from "@/components/AppFooter";
 import { TeacherNav } from "@/components/teacher/ui/TeacherNav";
@@ -12,6 +12,7 @@ import { cn } from "@/lib/utils";
 import { isLocalMode } from "@/lib/localMode";
 import { signOut } from "@/lib/firebase";
 import { useTeacherAuth } from "@/hooks/useTeacherAuth";
+import { useIsResearcher } from "@/hooks/useIsResearcher";
 
 /**
  * Client shell for /teacher/* routes.
@@ -22,6 +23,7 @@ import { useTeacherAuth } from "@/hooks/useTeacherAuth";
  */
 export function TeacherClientShell({ children }: { children: ReactNode }) {
   const { user, loading } = useTeacherAuth();
+  const isResearcher = useIsResearcher();
   const pathname = usePathname() ?? "";
   // The activity builder (new + edit) is an app-like surface — like the student
   // chat it wants the full width for its two-column config + live preview. The
@@ -81,6 +83,17 @@ export function TeacherClientShell({ children }: { children: ReactNode }) {
                 className="hidden rounded border border-dashed border-amber-300 bg-amber-50 px-2 py-1 text-[11px] font-medium text-amber-900 sm:block dark:border-amber-700 dark:bg-amber-950 dark:text-amber-200"
               >
                 LOCAL_MODE
+              </div>
+            ) : null}
+            {isResearcher ? (
+              <div
+                role="status"
+                aria-label="Researcher role active"
+                title="Researcher role — cross-class read access across every teacher"
+                className="flex items-center gap-1 rounded border border-indigo-300 bg-indigo-50 px-2 py-1 text-[11px] font-medium text-indigo-900 dark:border-indigo-700 dark:bg-indigo-950 dark:text-indigo-200"
+              >
+                <FlaskConical className="h-3.5 w-3.5" aria-hidden="true" />
+                <span>Researcher</span>
               </div>
             ) : null}
             <div
