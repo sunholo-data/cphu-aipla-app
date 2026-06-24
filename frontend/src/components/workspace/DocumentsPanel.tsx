@@ -10,6 +10,7 @@ import {
   fetchCurriculumContent,
 } from "@/lib/curriculumApi";
 import { fetchActivityImageObjectUrl } from "@/lib/activityImageApi";
+import { MarkdownBody } from "./MarkdownBody";
 
 /** One document the activity is grounded in, as surfaced by
  *  GET /api/activity-configs/active/{id} (1.1.33 M2b). NAMES are shown for
@@ -232,9 +233,7 @@ export function DocumentsPanel({
               <p className="text-destructive">Nothing was extracted from this document.</p>
             ) : view?.kind === "ready" ? (
               <>
-                <pre className="whitespace-pre-wrap font-sans leading-relaxed text-foreground">
-                  {view.content.text}
-                </pre>
+                <MarkdownBody text={view.content.text} />
                 {view.content.text.length < view.content.chars ? (
                   <p className="mt-2 text-xs text-muted-foreground">
                     Showing the first {view.content.text.length.toLocaleString()} of{" "}

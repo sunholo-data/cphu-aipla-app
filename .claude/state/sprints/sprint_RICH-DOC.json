@@ -23,10 +23,10 @@
         "frontend/src/components/workspace/DocumentsPanel.tsx",
         "frontend/src/components/workspace/__tests__/DocumentsPanel.test.tsx"
       ],
-      "passes": null,
-      "started": null,
-      "completed": null,
-      "notes": "Reuses shipped ChatMarkdown (already does markdown/tables/SVG/KaTeX). No backend change."
+      "passes": true,
+      "started": "2026-06-24",
+      "completed": "2026-06-24",
+      "notes": "MarkdownBody (ChatMarkdown + error-boundary text fallback) replaces the <pre> viewer in DocumentsPanel. 3 new tests + 9 existing green; tsc clean. Completes 1.1.33 M3."
     },
     {
       "id": "M1",
@@ -142,7 +142,7 @@
     "actual_days": null
   },
   "github_issues": [],
-  "last_session": null,
-  "last_checkpoint": null,
-  "status": "not_started"
+  "last_session": "2026-06-24",
+  "last_checkpoint": "M0 complete",
+  "status": "in_progress"
 }
