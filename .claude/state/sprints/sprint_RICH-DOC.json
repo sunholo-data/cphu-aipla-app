@@ -100,9 +100,9 @@
         "frontend/src/app/chat/[...path]/page.tsx"
       ],
       "passes": null,
-      "started": null,
+      "started": "2026-06-24",
       "completed": null,
-      "notes": "Reuses 1.1.7 upload + make_document_loader. JB gate on the document-feedback activity type."
+      "notes": "M3a (backend) DONE + pushed ceeec0e: groupId persisted on uploads; group-owned via anon-<groupId> uid (members share the M2 owner-ACL). JB confirmed the document-feedback activity type; group-ownership confirmed (M). REMAINING M3b (frontend): mount DocumentViewer (lazy next/dynamic) as the document-feedback activity surface + Upload-fil affordance (fetchWithAuth) + active-file -> session document_ids so the tutor critiques it + declare the document-feedback workbench type."
     },
     {
       "id": "M4",
@@ -142,7 +142,7 @@
     "actual_days": null
   },
   "github_issues": [],
-  "last_checkpoint": "M0+M1+M2 complete + pushed (e3c010a). M3 (student upload + active-file->tutor) is the anon-group landmine + JB activity-type gate; M4 (TipTap editor) is the AR feedback-prompt gate + a 2nd greenfield dep (split candidate -> 1.1.46).",
+  "last_checkpoint": "M0+M1+M2 done + M3a (group-owned upload backend) done, all pushed (ceeec0e). REMAINING: M3b frontend (document-feedback activity surface: lazy-mount DocumentViewer + Upload-fil + active-file->document_ids) and M4 (TipTap editor, AR prompt gate, split candidate -> 1.1.46).",
   "last_session": "2026-06-24",
   "status": "in_progress"
 }
