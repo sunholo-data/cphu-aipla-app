@@ -142,7 +142,7 @@
     "actual_days": null
   },
   "github_issues": [],
-  "last_checkpoint": "M0+M1+M2 done + M3a (group-owned upload backend) done, all pushed (ceeec0e). REMAINING: M3b frontend (document-feedback activity surface: lazy-mount DocumentViewer + Upload-fil + active-file->document_ids) and M4 (TipTap editor, AR prompt gate, split candidate -> 1.1.46).",
+  "last_checkpoint": "M0+M1+M2+M3a done; PLUS not-shared-name fix, M5 telemetry (open/fullscreen/copy/select/scroll, records-only), and M3b.1 (WorkbenchType 'document' + GET /api/documents list endpoint), all pushed (d9f0c99). REMAINING: M3b frontend surface (builder document-feedback option + chat-page dispatch to mount upload+DocumentViewer + active-file->document_ids + delete + page/zoom events) and M4 (TipTap editor, AR prompt gate, split -> 1.1.46).",
   "last_session": "2026-06-24",
   "status": "in_progress"
 }
