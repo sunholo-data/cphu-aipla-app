@@ -66,7 +66,10 @@ import { type CalculatorElementDef } from "@/components/workspace/WorkbenchCalcu
 import { type NoteElementDef } from "@/components/workspace/WorkbenchNote";
 import { type ActivityArtefact } from "@/components/workspace/GenericArtefactFrame";
 import { StudentWorkspace } from "@/components/workspace/StudentWorkspace";
+import { StudentDocumentWorkbench } from "@/components/workspace/StudentDocumentWorkbench";
 import { DocumentsPanel, type ActivityMaterial } from "@/components/workspace/DocumentsPanel";
+import { reportDocumentEvent } from "@/lib/documentApi";
+import type { WorkbenchType } from "@/lib/teacherApi";
 import { workspaceContentKind } from "./workspaceContent";
 import { BoldkastWorkbench } from "@/components/workspace/BoldkastWorkbench";
 import {
@@ -426,6 +429,9 @@ function ChatShell({
   // 1.1.33 M2b/M1 — the activity's grounding documents (names-always + a
   // studentVisible flag), surfaced in the Documents workbench panel.
   const [activeMaterials, setActiveMaterials] = useState<ActivityMaterial[]>([]);
+  // 1.1.45 M3b — the activity's workbench type. "document" routes the workspace
+  // to the StudentDocumentWorkbench (the student uploads work for tutor feedback).
+  const [activeWorkbenchType, setActiveWorkbenchType] = useState<WorkbenchType | null>(null);
   // Persona (1.1.12) resolved for this activity — the bot bubbles show its
   // avatar + name. Optional; null leaves the default brand byline.
   const [activePersona, setActivePersona] = useState<PersonaSummary | null>(null);
@@ -446,8 +452,12 @@ function ChatShell({
   // Documents (assigned materials OR uploads) also warrant the workspace column,
   // even for a bare concept activity with no sim/checklist.
   const hasDocuments = activeMaterials.length > 0 || uploadedImages.length > 0;
+  // 1.1.45 M3b — a document-feedback activity routes the workspace to the
+  // StudentDocumentWorkbench (student uploads → active file → tutor). Its own
+  // surface, so it pre-empts the sim/elements/documents composition below.
+  const isDocumentActivity = activeWorkbenchType === "document";
   const showWorkspace =
-    isAnonymousGroupAuthMode() && (workspaceKind !== "none" || hasDocuments);
+    isAnonymousGroupAuthMode() && (workspaceKind !== "none" || hasDocuments || isDocumentActivity);
   // The generic-artefact activity surface (sim + elements + documents) is the
   // shared StudentWorkspace — the same component the builder preview renders.
   // The per-skill legacy frames below predate it and keep the standalone
@@ -471,6 +481,7 @@ function ChatShell({
       setActiveArtefact(null);
       setActivePersona(null);
       setActiveMaterials([]);
+      setActiveWorkbenchType(null);
       return;
     }
     let alive = true;
@@ -486,6 +497,7 @@ function ChatShell({
         setActiveArtefact((data.artefact as ActivityArtefact | null) ?? null);
         setActivePersona((data.persona as PersonaSummary | null) ?? null);
         setActiveMaterials(Array.isArray(data.materials) ? (data.materials as ActivityMaterial[]) : []);
+        setActiveWorkbenchType((data.workbenchType as WorkbenchType | null) ?? null);
       })
       .catch(() => {
         /* checklist + persona are optional — stay chat-only on failure */
@@ -720,6 +732,25 @@ function ChatShell({
   // (multi-doc-context-fix.md / 1.22 D2).
   const includedDocIds = computeIncludedDocIds(openTabs);
 
+  // 1.1.45 M3b — the document-feedback workbench's active file. Merged into the
+  // docs sent to the tutor so it critiques whatever file the student is viewing.
+  const [workbenchDocId, setWorkbenchDocId] = useState<string | null>(null);
+  const outgoingDocIds = useMemo(
+    () =>
+      workbenchDocId && !includedDocIds.includes(workbenchDocId)
+        ? [...includedDocIds, workbenchDocId]
+        : includedDocIds,
+    [includedDocIds, workbenchDocId],
+  );
+  const handleWorkbenchActiveDoc = useCallback(
+    (docId: string | null) => {
+      setWorkbenchDocId(docId);
+      // Research telemetry only (best-effort) — never a tutor-context write.
+      if (docId) reportDocumentEvent(sessionId ?? agentSessionId, { kind: "document.open", docId });
+    },
+    [sessionId, agentSessionId],
+  );
+
   async function handleSend() {
     const text = draft.trim();
     const attachments = images.attachments;
@@ -744,7 +775,7 @@ function ChatShell({
     // stream in. No effect on md+ where both panels are visible.
     setMobileTab("chat");
     await sendMessage(text, {
-      documentIds: includedDocIds,
+      documentIds: outgoingDocIds,
       resumedSession: enteredViaResume,
       attachments: attachments.length > 0 ? attachments : undefined,
     });
@@ -755,19 +786,19 @@ function ChatShell({
     if (!text) { clearError(); return; }
     clearError();
     void sendMessage(text, {
-      documentIds: includedDocIds,
+      documentIds: outgoingDocIds,
       resumedSession: enteredViaResume,
     });
-  }, [clearError, sendMessage, includedDocIds, enteredViaResume]);
+  }, [clearError, sendMessage, outgoingDocIds, enteredViaResume]);
 
   const handleAction = useCallback(
     (event: { actionName: string; context: Record<string, unknown> }) => {
       void sendMessage(
         `[a2ui:${event.actionName}] ${JSON.stringify(event.context)}`,
-        { documentIds: includedDocIds, resumedSession: enteredViaResume },
+        { documentIds: outgoingDocIds, resumedSession: enteredViaResume },
       );
     },
-    [sendMessage, includedDocIds, enteredViaResume],
+    [sendMessage, outgoingDocIds, enteredViaResume],
   );
 
   // Wraps navigateToSession with the resume signal so we differentiate
@@ -909,11 +940,11 @@ function ChatShell({
   const onProactiveTrigger = useCallback(
     (trigger: string) => {
       void sendMessage(trigger, {
-        documentIds: includedDocIds,
+        documentIds: outgoingDocIds,
         resumedSession: enteredViaResume,
       });
     },
-    [sendMessage, includedDocIds, enteredViaResume],
+    [sendMessage, outgoingDocIds, enteredViaResume],
   );
   useEffect(() => {
     setProactiveSimWiring({ skillId, onProactiveTrigger });
@@ -1116,7 +1147,7 @@ function ChatShell({
               // turn. Goes out as a normal sendMessage (with the same
               // doc-context + resume flags as a typed message).
               void sendMessage(text, {
-                documentIds: includedDocIds,
+                documentIds: outgoingDocIds,
                 resumedSession: enteredViaResume,
               });
             }}
@@ -1220,6 +1251,14 @@ function ChatShell({
             ratio={workspaceRatio}
             onRatioChange={setWorkspaceRatio}
           >
+            {isDocumentActivity ? (
+              <StudentDocumentWorkbench
+                skillId={skillId}
+                sessionId={sessionId ?? agentSessionId}
+                onActiveDocChange={handleWorkbenchActiveDoc}
+              />
+            ) : (
+              <>
             {workspaceKind !== "none" &&
               (skillSlug === "kinebot-kinematics-tutor" ? (
               showKinebotLab && BOLDKAST_SANDBOX_ORIGIN ? (
@@ -1312,6 +1351,8 @@ function ChatShell({
                 images={uploadedImages}
                 activityId={skillId}
               />
+            )}
+              </>
             )}
           </WorkspaceShell>
         )}

@@ -18,13 +18,16 @@ import { fetchWithTeacherAuth as fetchWithAuth } from "@/lib/apiClient";
 
 export type Language = "da" | "en";
 export type Difficulty = "standard" | "guided";
-/** Workbench type system (1.J). ``none`` = chat-only concept activity. */
+/** Workbench type system (1.J). ``none`` = chat-only concept activity.
+ *  ``document`` (1.1.45 M3b) = a document-feedback activity: the student uploads
+ *  their own work into the workbench and the tutor critiques the active file. */
 export type WorkbenchType =
   | "app"
   | "drawing"
   | "sensor"
   | "video"
   | "notebook"
+  | "document"
   | "none";
 
 /** Tutor interaction style (1.1.20). ``socratic`` is the untouched default. */
