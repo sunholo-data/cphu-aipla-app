@@ -14,6 +14,7 @@ from datetime import UTC, datetime
 from typing import Annotated
 
 from fastapi import APIRouter, Depends, HTTPException
+from fastapi.responses import Response
 from pydantic import BaseModel
 
 import db.folders as folders_db
@@ -90,6 +91,76 @@ def get_document(doc_id: str, user: _CurrentUser) -> dict:
         raise HTTPException(status_code=403, detail=_ACCESS_DENIED)
     doc.setdefault("id", doc_id)
     return doc
+
+
+_MIME_BY_EXT = {
+    ".pdf": "application/pdf",
+    ".png": "image/png",
+    ".jpg": "image/jpeg",
+    ".jpeg": "image/jpeg",
+    ".webp": "image/webp",
+    ".gif": "image/gif",
+}
+
+
+def _doc_mime(doc: dict) -> str:
+    """Best-effort content type for the original bytes (1.1.45 M2)."""
+    name = str(doc.get("originalName") or doc.get("filename") or doc.get("name") or "").lower()
+    for ext, mime in _MIME_BY_EXT.items():
+        if name.endswith(ext):
+            return mime
+    return str(doc.get("mimeType") or doc.get("contentType") or "application/octet-stream")
+
+
+async def _read_doc_bytes(doc: dict) -> bytes:
+    """Read a document's original bytes from its stored ``gs://`` URL.
+
+    Reading from the stored URL (not a re-derived bucket) keeps this correct for
+    anonymous-group uploads, whose owner has no email domain to resolve a bucket
+    from (the CLAUDE.md anon-group corner). Raises on a missing/unreadable object.
+    """
+    import asyncio
+
+    source_url = str(doc.get("sourceUrl") or "")
+    if not source_url.startswith("gs://"):
+        raise FileNotFoundError("no gs:// source")
+    bucket_name, _, blob_path = source_url[len("gs://") :].partition("/")
+    if not bucket_name or not blob_path:
+        raise FileNotFoundError("malformed gs:// source")
+
+    from google.cloud import storage as gcs
+
+    blob = gcs.Client().bucket(bucket_name).blob(blob_path)
+    return await asyncio.to_thread(blob.download_as_bytes)
+
+
+@router.get("/api/documents/{doc_id}/raw")
+async def get_document_raw(doc_id: str, user: _CurrentUser) -> Response:
+    """Stream a document's ORIGINAL bytes (e.g. the real PDF) for the workbench
+    viewer (1.1.45 M2). Owner-only: the uploader — a student viewing their own
+    upload, or a teacher viewing their own. (A teacher-shared doc the student may
+    view is the dual-audience activity-material case — handled by the rich render
+    today; original-bytes sharing is a follow-up.) 404 when no original bytes are
+    stored, so the viewer falls back to the rich render."""
+    doc = _get_firestore_doc(_PARSED_DOCS_COLLECTION, doc_id)
+    if doc is None:
+        raise HTTPException(status_code=404, detail="Document not found")
+    if doc.get("userId") != user.uid:
+        raise HTTPException(status_code=403, detail=_ACCESS_DENIED)
+    if not str(doc.get("sourceUrl") or "").startswith("gs://"):
+        raise HTTPException(status_code=404, detail="No original file stored for this document")
+    try:
+        data = await _read_doc_bytes(doc)
+    except Exception as exc:
+        log.warning("raw bytes read failed for doc %s: %s", doc_id, exc)
+        raise HTTPException(status_code=404, detail="Original file unavailable") from exc
+    if not data:
+        raise HTTPException(status_code=404, detail="Original file is empty")
+    return Response(
+        content=data,
+        media_type=_doc_mime(doc),
+        headers={"Cache-Control": "private, max-age=3600"},
+    )
 
 
 @router.post("/api/documents/{doc_id}/reparse")
