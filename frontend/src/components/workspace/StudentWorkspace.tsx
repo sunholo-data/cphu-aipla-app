@@ -6,6 +6,7 @@ import { DocumentsPanel, type ActivityMaterial } from "./DocumentsPanel";
 import { GenericArtefactFrame, type ActivityArtefact } from "./GenericArtefactFrame";
 import { SimFrameHeader } from "./SimFrameHeader";
 import { SimLauncher } from "./SimLauncher";
+import { WorkbenchTabs } from "./WorkbenchTabs";
 import { WorkspaceElements } from "./elementRenderers";
 import type { CalculatorElementDef } from "./WorkbenchCalculator";
 import type { ChartElementDef } from "./WorkbenchChart";
@@ -91,24 +92,48 @@ export function StudentWorkspace({
     );
   }
 
+  // 1.1.45 M1 — activity-driven surfaces: tabs ONLY when BOTH the element tools
+  // and documents have content; a single surface renders directly (no tab layer).
+  const hasElements =
+    checklist.length > 0 ||
+    table.length > 0 ||
+    chart.length > 0 ||
+    calculator.length > 0 ||
+    note.length > 0;
+  const hasDocuments = materials.length > 0 || images.length > 0;
+  const docCount = materials.length + images.length;
+
+  const elementsSurface = (
+    <WorkspaceElements
+      skillId={skillId}
+      sessionId={sessionId}
+      checklist={checklist}
+      table={table}
+      chart={chart}
+      calculator={calculator}
+      note={note}
+    />
+  );
+  const documentsSurface = (
+    <DocumentsPanel
+      materials={materials}
+      images={images}
+      activityId={activityId ?? skillId}
+      viewerRole={documentViewerRole}
+    />
+  );
+
   return (
     <>
       {hasSim && artefact ? <SimLauncher artefact={artefact} onOpen={() => setSimOpen(true)} /> : null}
-      <WorkspaceElements
-        skillId={skillId}
-        sessionId={sessionId}
-        checklist={checklist}
-        table={table}
-        chart={chart}
-        calculator={calculator}
-        note={note}
-      />
-      <DocumentsPanel
-        materials={materials}
-        images={images}
-        activityId={activityId ?? skillId}
-        viewerRole={documentViewerRole}
-      />
+      {hasElements && hasDocuments ? (
+        <WorkbenchTabs work={elementsSurface} documents={documentsSurface} docCount={docCount} />
+      ) : (
+        <>
+          {elementsSurface}
+          {documentsSurface}
+        </>
+      )}
     </>
   );
 }

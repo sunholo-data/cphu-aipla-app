@@ -59,3 +59,39 @@ describe("StudentWorkspace — sim launch/takeover", () => {
     expect(screen.getByTestId("workspace-elements")).toBeInTheDocument();
   });
 });
+
+describe("StudentWorkspace — Documents tab (1.1.45 M1, activity-driven)", () => {
+  const CHECKLIST = [{ id: "c1", label: "Step 1" }];
+  const MATERIALS = [{ docId: "d1", origin: "Haka Fysik", studentVisible: true }];
+
+  it("shows NO tabs when only the element tools have content", () => {
+    renderWS({ sandboxOrigin: "", checklist: CHECKLIST, materials: [] });
+    expect(screen.queryByRole("tablist")).not.toBeInTheDocument();
+    expect(screen.getByTestId("workspace-elements")).toBeInTheDocument();
+  });
+
+  it("shows NO tabs when only documents have content", () => {
+    renderWS({ sandboxOrigin: "", checklist: [], materials: MATERIALS });
+    expect(screen.queryByRole("tablist")).not.toBeInTheDocument();
+    expect(screen.getByTestId("documents")).toBeInTheDocument();
+  });
+
+  it("shows Arbejde/Dokumenter tabs with a count badge when BOTH surfaces have content", () => {
+    renderWS({ sandboxOrigin: "", checklist: CHECKLIST, materials: MATERIALS });
+    expect(screen.getByRole("tablist")).toBeInTheDocument();
+    expect(screen.getByRole("tab", { name: /arbejde/i })).toBeInTheDocument();
+    const docsTab = screen.getByRole("tab", { name: /dokumenter/i });
+    expect(docsTab).toHaveTextContent("1"); // 1 material → badge
+    // Documents is wired to the Dokumenter tabpanel (Radix unmounts the inactive
+    // panel; the default Arbejde panel shows the element tools).
+    expect(screen.getByTestId("workspace-elements")).toBeInTheDocument();
+    expect(screen.getByRole("tabpanel")).toContainElement(screen.getByTestId("workspace-elements"));
+  });
+
+  it("a launched sim takes over even when both surfaces have content (no tabs visible)", () => {
+    renderWS({ checklist: CHECKLIST, materials: MATERIALS });
+    fireEvent.click(screen.getByRole("button", { name: /åbn boldkast/i }));
+    expect(screen.getByTestId("sim-frame")).toBeInTheDocument();
+    expect(screen.queryByRole("tablist")).not.toBeInTheDocument();
+  });
+});
