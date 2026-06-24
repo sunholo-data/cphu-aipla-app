@@ -17,6 +17,16 @@ import { SolutionElementMount, type SolutionElementDef } from "./SolutionElement
  * adds its data here + a renderer below + the descriptor in `activityElements.ts`
  * + the backend spec — see the recipe in
  * docs/design/aipla/v1.1.0-feedback/activity-elements-palette.md.
+ *
+ * ⚠ If a student INTERACTS with the element (enters data, computes, writes),
+ * the renderer MUST pass `sessionId` and the component MUST push its state to
+ * the tutor via `useSimSnapshotPush(sessionId, "<kind>")` — otherwise the AI
+ * never sees what the student did. The pushed state lands in
+ * `mcp_app_context.<kind>.state`, which `wrap_with_iframe_context` injects into
+ * EVERY agent's prompt (this is NOT MCP-app-specific — the data table, the
+ * checklist, the calculator, and the solution editor all use it). This step has
+ * been forgotten before (the calculator shipped silent). Read-only elements
+ * (e.g. note) don't push.
  */
 export interface ElementRenderContext {
   skillId: string;
@@ -57,7 +67,7 @@ export const elementRenderers: Record<ElementKind, (ctx: ElementRenderContext) =
     ) : null,
   calculator: (ctx) =>
     ctx.calculator.length > 0 ? (
-      <WorkbenchCalculator skillId={ctx.skillId} calculators={ctx.calculator} />
+      <WorkbenchCalculator skillId={ctx.skillId} sessionId={ctx.sessionId} calculators={ctx.calculator} />
     ) : null,
   note: (ctx) =>
     ctx.note.length > 0 ? <WorkbenchNote skillId={ctx.skillId} notes={ctx.note} /> : null,

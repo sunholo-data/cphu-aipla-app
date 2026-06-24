@@ -138,9 +138,10 @@ class DocumentElement(BaseModel):
 1. Add `ElementKind` value + a Pydantic `<Name>Element` model with a `kind` discriminator + bounded fields (the registry rejects unbounded text/lists).
 2. Register `ELEMENT_REGISTRY["<kind>"] = ElementSpec(model=..., max=..., render="workspace"|"inline")`.
 3. Add a frontend renderer `elementRenderers["<kind>"]` (a workspace pane component) + the TS type mirror in `teacherApi.ts`.
-4. Add a per-element builder editor block (reuse the `ElementEditor` shell from M0).
-5. Add OTel span emission for the element's primary interaction.
-6. Tests: round-trip + validation + render empty/loading/error + (if it ingests student input) the deterministic-check path.
+4. **⚠ If a student INTERACTS with the element** (enters data, computes, writes, selects): the renderer MUST pass `sessionId`, and the component MUST push its state to the tutor via `useSimSnapshotPush(sessionId, "<kind>")` (commit-on-blur/change + catch-up-on-`sessionId`, like `WorkbenchTable`/`WorkbenchCalculator`/`SolutionElementMount`). The state lands in `mcp_app_context.<kind>.state`, which `wrap_with_iframe_context` injects into **every** agent's prompt — this is **NOT** MCP-app-specific. **Skip this and the AI never sees what the student did** (it was missed for the calculator until 1.1.45). Read-only elements (note) don't push. Use a `<kind>.commit`-style event name so it's *passive* context (no unprompted tutor reply); only fire a turn deliberately (the solution editor's "submit" does, via `onProactiveTrigger`).
+5. Add a per-element builder editor block (reuse the `ElementEditor` shell from M0).
+6. Add OTel span emission for the element's primary interaction.
+7. Tests: round-trip + validation + render empty/loading/error + (if it ingests student input) the tutor-state push + the deterministic-check path.
 
 This recipe, written down and exercised four times in this doc, **is** the breadth multiplier — it is the artefact a future teammate (or the [authoring assistant](activity-authoring-assistant.md)) follows.
 
