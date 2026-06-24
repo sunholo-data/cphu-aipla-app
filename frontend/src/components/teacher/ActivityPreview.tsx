@@ -23,6 +23,10 @@ interface ActivityPreviewProps {
   /** Curriculum materials cited for the activity — shown in the documents
    *  panel exactly as a student sees them (studentVisible governs access). */
   materials?: MaterialRef[];
+  /** The real activity id — needed so image materials (1.1.44) resolve their
+   *  bytes from the right activity slot and curriculum content ACLs correctly.
+   *  Falls back to the preview sandbox id when absent (e.g. a brand-new draft). */
+  activityId?: string;
 }
 
 // A fixed, non-student skill id so the preview's scratch state (table cells in
@@ -45,7 +49,7 @@ const SANDBOX_ORIGIN = (process.env.NEXT_PUBLIC_MCP_SANDBOX_URL ?? "").replace(
  * persists. A pop-out opens the same workspace full-screen so the teacher can
  * actually drive the simulation while reviewing the activity.
  */
-export function ActivityPreview({ state, artefactId, materials = [] }: ActivityPreviewProps) {
+export function ActivityPreview({ state, artefactId, materials = [], activityId }: ActivityPreviewProps) {
   const [open, setOpen] = useState(true);
   const [expanded, setExpanded] = useState(false);
   const [catalogue, setCatalogue] = useState<ArtefactSummary[]>([]);
@@ -106,14 +110,14 @@ export function ActivityPreview({ state, artefactId, materials = [] }: ActivityP
           ) : expanded ? (
             <p className="px-4 py-6 text-center text-xs text-slate-400">Åbnet i fuld skærm.</p>
           ) : (
-            <PreviewBody artefactId={artefactId} sim={sim} defs={defs} materials={materials} />
+            <PreviewBody artefactId={artefactId} sim={sim} defs={defs} materials={materials} activityId={activityId} />
           )}
         </div>
       )}
 
       {expanded ? (
         <PreviewModal onClose={() => setExpanded(false)}>
-          <PreviewBody artefactId={artefactId} sim={sim} defs={defs} materials={materials} />
+          <PreviewBody artefactId={artefactId} sim={sim} defs={defs} materials={materials} activityId={activityId} />
         </PreviewModal>
       ) : null}
     </div>
@@ -129,11 +133,13 @@ function PreviewBody({
   sim,
   defs,
   materials,
+  activityId,
 }: {
   artefactId?: string | null;
   sim: ArtefactSummary | null;
   defs: ActivityElementDefs;
   materials: MaterialRef[];
+  activityId?: string;
 }) {
   return (
     <HumanToolEventsProvider>
@@ -158,11 +164,13 @@ function PreviewBody({
         calculator={defs.calculator}
         note={defs.note}
         materials={materials.map((m) => ({
-          docId: m.docId,
-          origin: m.origin,
+          // Preserve the full ref — dropping kind/materialId made image
+          // materials (1.1.44) render as (empty-docId) curriculum docs that
+          // 404 ("Couldn't load this document") instead of showing the image.
+          ...m,
           studentVisible: m.studentVisible ?? false,
         }))}
-        activityId={PREVIEW_SKILL_ID}
+        activityId={activityId ?? PREVIEW_SKILL_ID}
         documentViewerRole="teacher"
       />
     </HumanToolEventsProvider>

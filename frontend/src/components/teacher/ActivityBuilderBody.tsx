@@ -198,6 +198,7 @@ export function ActivityBuilderBody({
         <ActivityPreview
           artefactId={b.artefactId}
           materials={b.materials}
+          activityId={activityId}
           state={{
             checklist: b.checklist,
             table: b.table,

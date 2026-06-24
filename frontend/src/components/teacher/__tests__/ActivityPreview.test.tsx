@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, within } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 
 // Capture the props the preview passes to the (mocked) workspace renderer —
@@ -16,6 +16,15 @@ vi.mock("@/lib/teacherApi", async (orig) => {
   const actual = await orig<typeof import("@/lib/teacherApi")>();
   return { ...actual, listArtefacts: () => listArtefactsMock() };
 });
+
+// 1.1.45 — capture the image-bytes fetch the (real) DocumentsPanel makes for an
+// image material, to lock in that the preview keeps kind="image" + the real id.
+const imgFetch = vi.fn();
+vi.mock("@/lib/activityImageApi", async (orig) => {
+  const actual = await orig<typeof import("@/lib/activityImageApi")>();
+  return { ...actual, fetchActivityImageObjectUrl: (...a: unknown[]) => imgFetch(...a) };
+});
+URL.revokeObjectURL = vi.fn();
 
 import { ActivityPreview } from "../ActivityPreview";
 import { type BuilderElements } from "@/lib/activityPreview";
@@ -83,6 +92,31 @@ describe("ActivityPreview", () => {
     expect(within(dialog).getByTestId("workspace-elements")).toBeInTheDocument();
     fireEvent.click(within(dialog).getByRole("button", { name: /close/i }));
     expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+  });
+
+  it("renders an image material via the activity-image fetch with the REAL activityId (1.1.45 regression)", async () => {
+    imgFetch.mockResolvedValue("blob:fake");
+    render(
+      <ActivityPreview
+        state={EMPTY}
+        activityId="act-real"
+        materials={[
+          {
+            kind: "image",
+            docId: "",
+            origin: "",
+            materialId: "img1",
+            mimeType: "image/png",
+            alt: "diagram",
+            studentVisible: true,
+          },
+        ]}
+      />,
+    );
+    // If the preview dropped kind/materialId (the bug) it would treat this as a
+    // curriculum doc and never hit the image fetch; if it kept the placeholder id
+    // it would fetch the wrong slot. Both are pinned here.
+    await waitFor(() => expect(imgFetch).toHaveBeenCalledWith("act-real", "img1", "teacher"));
   });
 
   it("collapses and expands the preview", () => {
