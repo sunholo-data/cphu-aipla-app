@@ -1,0 +1,127 @@
+{
+  "sprint_id": "SUBMIT-1",
+  "created": "2026-06-24",
+  "estimated_duration_days": 5,
+  "design_doc": "docs/design/aipla/v1.1.0-feedback/student-submission-surfaces.md",
+  "sprint_plan": "docs/design/aipla/v1.1.0-feedback/student-submission-surfaces.md#milestones",
+  "features": [
+    {
+      "id": "M0",
+      "description": "Reconcile: document-upload becomes a 'document' element (registry + renderer mounts StudentDocumentWorkbench). Delete the chat-page workbenchType=='document' pre-emption + the builder document-mode hiding. Retire 'document' from WorkbenchType. Migrate existing workbenchType='document' configs -> a document element + workbenchType='none'.",
+      "scope": "fullstack",
+      "estimated_loc": 320,
+      "actual_loc": null,
+      "dependencies": [],
+      "acceptance_criteria": [
+        "'document' is a registered workspace element (backend ELEMENT_REGISTRY + frontend activityElements), max 1",
+        "Document-upload renders as an element (composes with checklist/note/etc.) \u2014 no isDocumentActivity pre-emption",
+        "Builder adds 'Document upload' as an element (not an activity-type mode); the Standard/Document activity-type selector is removed or repurposed",
+        "WorkbenchType no longer includes 'document'; a backfill maps old configs",
+        "make lint + make test-fast + npm run quality:check green"
+      ],
+      "files_to_create": [
+        "frontend/src/components/workspace/DocumentElementMount.tsx (or reuse StudentDocumentWorkbench via renderer)"
+      ],
+      "files_to_modify": [
+        "backend/db/models/activity_config.py",
+        "frontend/src/lib/activityElements.ts",
+        "frontend/src/components/workspace/elementRenderers.tsx",
+        "frontend/src/app/chat/[...path]/page.tsx",
+        "frontend/src/components/teacher/ActivityBuilderBody.tsx",
+        "frontend/src/hooks/useActivityBuilder.ts",
+        "frontend/src/lib/teacherApi.ts"
+      ],
+      "passes": null,
+      "started": null,
+      "completed": null,
+      "notes": ""
+    },
+    {
+      "id": "M1",
+      "description": "Photo solution: the 'solution' element becomes a photo-of-pen-and-paper capture (camera/file), reusing the 1.1.7 multimodal upload path (resize + 1.1.21 guardrail). Submit = a native multimodal chat turn so the tutor sees the image; the 1.1.45 feedback prompt critiques it.",
+      "scope": "fullstack",
+      "estimated_loc": 260,
+      "actual_loc": null,
+      "dependencies": [
+        "M0"
+      ],
+      "acceptance_criteria": [
+        "Solution element renders a photo-capture surface (camera + file picker), NOT a TipTap editor",
+        "Submitting sends the image as a multimodal turn (1.1.7 ImageInputContent) -> tutor responds with feedback",
+        "No LaTeX/URL/image-URL inputs",
+        "Tests green"
+      ],
+      "files_to_create": [],
+      "files_to_modify": [
+        "frontend solution element components",
+        "backend feedback prompt wording if needed"
+      ],
+      "passes": null,
+      "started": null,
+      "completed": null,
+      "notes": ""
+    },
+    {
+      "id": "M2",
+      "description": "Freehand whiteboard solution mode: a custom <canvas> + Pointer Events surface (pen/eraser/colours/clear/stroke-list undo/retina DPR/touch-action) with perfect-freehand (~4KB) for strokes; canvas.toBlob -> same image submit path. Dep through make security-check.",
+      "scope": "frontend",
+      "estimated_loc": 340,
+      "actual_loc": null,
+      "dependencies": [
+        "M1"
+      ],
+      "acceptance_criteria": [
+        "perfect-freehand added + passes make security-check",
+        "Whiteboard: draw/erase/colour/clear/undo, crisp on retina, no page-scroll on touch",
+        "Submit exports the canvas to an image and sends it via the M1 path",
+        "Tests green"
+      ],
+      "files_to_create": [
+        "frontend/src/components/workspace/SolutionWhiteboard.tsx"
+      ],
+      "files_to_modify": [
+        "frontend solution element"
+      ],
+      "passes": null,
+      "started": null,
+      "completed": null,
+      "notes": ""
+    },
+    {
+      "id": "M3",
+      "description": "Remove TipTap: delete @tiptap/* deps + solutionMarkdown.ts + WorkbenchSolution.tsx + the iframe-context/onProactiveTrigger solution wiring. Migrate any existing TipTap-solution data shape.",
+      "scope": "frontend",
+      "estimated_loc": 60,
+      "actual_loc": null,
+      "dependencies": [
+        "M1",
+        "M2"
+      ],
+      "acceptance_criteria": [
+        "@tiptap/* removed from package.json; bundle no longer includes them",
+        "solutionMarkdown.ts + WorkbenchSolution.tsx deleted (or repurposed)",
+        "Tests green; security-check green"
+      ],
+      "files_to_create": [],
+      "files_to_modify": [
+        "frontend/package.json"
+      ],
+      "passes": null,
+      "started": null,
+      "completed": null,
+      "notes": ""
+    }
+  ],
+  "velocity": {
+    "target_loc_per_day": 250,
+    "actual_loc_per_day": null,
+    "estimated_total_loc": 980,
+    "actual_total_loc": null,
+    "estimated_days": 5,
+    "actual_days": null
+  },
+  "github_issues": [],
+  "last_checkpoint": null,
+  "last_session": "2026-06-24",
+  "status": "in_progress"
+}

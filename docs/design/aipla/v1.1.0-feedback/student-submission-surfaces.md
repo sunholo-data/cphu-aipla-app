@@ -169,9 +169,15 @@ makes solutions student-appropriate (photo); **M2** adds the in-app option.
 
 1. **JB/AR — solution = pure image, or image + optional short caption?** Lead
    image-only (the work is the image); an optional one-line text note is cheap.
-2. **Whiteboard library** — custom canvas vs. a light vetted lib
-   (`perfect-freehand` for nice strokes / `react-sketch-canvas`). Smallest
-   footprint that gives pen+eraser+undo; through the dep security gate.
+2. **Whiteboard library — RESOLVED 2026-06-24: custom canvas + `perfect-freehand`.**
+   A custom `<canvas>` + Pointer Events surface (pen / eraser / colours / clear /
+   stroke-list undo / retina DPR / `touch-action:none`) — ~a day, zero full-
+   whiteboard dependency. The **only** dep is `perfect-freehand` (~4 KB, zero
+   transitive deps, a pure points→outline function) for nice variable-width
+   strokes; it keeps all canvas/event/undo/export logic ours and passes
+   `make security-check` trivially. Rejected: `react-sketch-canvas` (heavier
+   component dep) and `excalidraw` (a whole diagramming app) — both more than a
+   free-body-diagram sketch needs.
 3. **AR** — the 1.1.45 feedback prompt was written for text; confirm it reads
    well when the "solution" is an image of handwriting (likely fine — same Socratic
    rules — but worth a glance with sample photos).
