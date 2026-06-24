@@ -11,6 +11,9 @@ interface ZoomableImageProps {
   triggerClassName?: string;
   /** Inline style for the trigger thumbnail (e.g. a maxHeight cap). */
   triggerStyle?: React.CSSProperties;
+  /** Called when the full-screen lightbox opens (1.1.45 — lets the documents
+   *  surface report an `image.fullscreen` interaction). */
+  onOpen?: () => void;
 }
 
 function BrokenImageFallback({ alt }: { alt?: string }) {
@@ -50,6 +53,7 @@ export function ZoomableImage({
   alt,
   triggerClassName,
   triggerStyle,
+  onOpen,
 }: ZoomableImageProps) {
   const [errored, setErrored] = useState(false);
   const [open, setOpen] = useState(false);
@@ -57,7 +61,13 @@ export function ZoomableImage({
   if (errored) return <BrokenImageFallback alt={alt} />;
 
   return (
-    <Dialog.Root open={open} onOpenChange={setOpen}>
+    <Dialog.Root
+      open={open}
+      onOpenChange={(next) => {
+        setOpen(next);
+        if (next) onOpen?.();
+      }}
+    >
       <Dialog.Trigger asChild>
         {/* eslint-disable-next-line @next/next/no-img-element */}
         <img

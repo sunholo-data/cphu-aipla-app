@@ -326,4 +326,49 @@ async def post_iframe_context(
     return None
 
 
+class DocEventRequest(BaseModel):
+    """A student document/image interaction (1.1.45 M5)."""
+
+    kind: str = Field(min_length=1, max_length=64)  # document.open | image.fullscreen | document.page | …
+    doc_id: str = Field(default="", alias="docId", max_length=200)
+    material_id: str = Field(default="", alias="materialId", max_length=64)
+    detail: Any = None
+
+    model_config = {"populate_by_name": True}
+
+
+@router.post("/{session_id}/doc-event", status_code=204)
+async def post_doc_event(
+    session_id: str,
+    body: DocEventRequest,
+    request: Request,
+    user: User = Depends(get_current_user),  # noqa: B008
+) -> None:
+    """Capture a student's document/image interaction (open, page-turn, zoom,
+    fullscreen) as a **research** workbench event (1.1.45 M5).
+
+    OBSERVATIONAL ONLY: logged to ``aipla_workbench_event`` for research; it is
+    NOT written into the tutor's context and is NOT a proactive trigger — whether
+    such events should ever provoke an AI response (the *reactability ranking*) is
+    a separate design doc. Telemetry must never break the UI, so failures are
+    swallowed; only the session-access gate can reject (403/404)."""
+    idx = _require_session(session_id)
+    ctx = request.state.access
+    if not ctx.can_access(idx):
+        raise HTTPException(status_code=403, detail="Access denied")
+
+    from observability.chat_log import emit_workbench_event
+
+    emit_workbench_event(
+        group_id=getattr(user, "group_id", "") or "",
+        session_id=session_id,
+        skill_id=idx.skill_id,
+        server="documents",
+        tool=body.kind,
+        field=body.material_id or body.doc_id,
+        value=body.detail if body.detail is not None else "",
+    )
+    return None
+
+
 __all__ = ["router"]

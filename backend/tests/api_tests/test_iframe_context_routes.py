@@ -504,3 +504,56 @@ class TestSchemaAndSize:
             },
         )
         assert resp.status_code == 422
+
+
+# ---------------------------------------------------------------------------
+# 1.1.45 M5 — document interaction telemetry (POST /{id}/doc-event)
+# ---------------------------------------------------------------------------
+
+
+class TestDocEvent:
+    """Observational research capture; never touches context or the proactive gate."""
+
+    def test_logs_a_workbench_event(self):
+        idx = _make_index()  # public → viewer can access
+        with (
+            patch("protocols.iframe_context_routes.get_session_index", return_value=idx),
+            patch("observability.chat_log.emit_workbench_event") as emit,
+        ):
+            resp = _make_client(uid="viewer").post(
+                "/api/sessions/sess-1/doc-event",
+                json={"kind": "document.open", "docId": "d1", "detail": {"title": "Worksheet"}},
+            )
+        assert resp.status_code == 204
+        emit.assert_called_once()
+        kw = emit.call_args.kwargs
+        assert kw["server"] == "documents"
+        assert kw["tool"] == "document.open"
+        assert kw["field"] == "d1"
+        assert kw["session_id"] == "sess-1"
+
+    def test_image_event_uses_material_id(self):
+        idx = _make_index()
+        with (
+            patch("protocols.iframe_context_routes.get_session_index", return_value=idx),
+            patch("observability.chat_log.emit_workbench_event") as emit,
+        ):
+            resp = _make_client(uid="viewer").post(
+                "/api/sessions/sess-1/doc-event",
+                json={"kind": "image.fullscreen", "materialId": "img-1"},
+            )
+        assert resp.status_code == 204
+        assert emit.call_args.kwargs["field"] == "img-1"
+
+    def test_unknown_session_404(self):
+        with patch("protocols.iframe_context_routes.get_session_index", return_value=None):
+            resp = _make_client().post("/api/sessions/nope/doc-event", json={"kind": "image.zoom"})
+        assert resp.status_code == 404
+
+    def test_no_access_403(self):
+        idx = _make_index(owner_uid="other", ac=AccessControl(type="private"))
+        with patch("protocols.iframe_context_routes.get_session_index", return_value=idx):
+            resp = _make_client(uid="viewer").post(
+                "/api/sessions/sess-1/doc-event", json={"kind": "document.open", "docId": "d1"}
+            )
+        assert resp.status_code == 403

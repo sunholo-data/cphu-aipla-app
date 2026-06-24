@@ -26,6 +26,12 @@ vi.mock("@/lib/activityImageApi", async () => {
   };
 });
 
+const reportDocumentEvent = vi.fn();
+vi.mock("@/lib/documentApi", async () => {
+  const actual = await vi.importActual<typeof import("@/lib/documentApi")>("@/lib/documentApi");
+  return { ...actual, reportDocumentEvent: (...a: unknown[]) => reportDocumentEvent(...a) };
+});
+
 // jsdom has no object-URL lifecycle; the component revokes on unmount.
 URL.revokeObjectURL = vi.fn();
 
@@ -35,7 +41,7 @@ describe("DocumentsPanel", () => {
     expect(container.firstChild).toBeNull();
   });
 
-  it("lists shared docs prominently and tucks not-shared ones into a collapsed disclosure", () => {
+  it("shows shared docs prominently and cites not-shared ones by name (not contents)", () => {
     render(
       <DocumentsPanel
         materials={[
@@ -45,17 +51,16 @@ describe("DocumentsPanel", () => {
         images={[]}
       />,
     );
-    // Shared doc is shown prominently.
+    // Shared doc is shown prominently + openable.
     expect(screen.getByText("A-level kinematics")).toBeTruthy();
-    // Not-shared docs collapse into a compact disclosure (names still in the
-    // DOM for debug/transparency, just minimised by default).
-    expect(
-      screen.getByText(/1 more source the tutor uses \(not shared with you\)/i),
-    ).toBeTruthy();
+    // Not-shared doc: its NAME is cited (visible, transparency), but not openable.
+    expect(screen.getByText(/also used by the tutor/i)).toBeTruthy();
     expect(screen.getByText("Teacher worksheet")).toBeTruthy();
+    // The not-shared name is plain text, NOT a clickable open-content button.
+    expect(screen.queryByRole("button", { name: /Teacher worksheet/i })).toBeNull();
   });
 
-  it("pluralises the not-shared disclosure", () => {
+  it("cites every not-shared material by name", () => {
     render(
       <DocumentsPanel
         materials={[
@@ -65,7 +70,9 @@ describe("DocumentsPanel", () => {
         images={[]}
       />,
     );
-    expect(screen.getByText(/2 more sources the tutor uses/i)).toBeTruthy();
+    expect(screen.getByText(/also used by the tutor/i)).toBeTruthy();
+    expect(screen.getByText("One")).toBeTruthy();
+    expect(screen.getByText("Two")).toBeTruthy();
   });
 
   it("renders an uploads gallery from session images", () => {
@@ -150,7 +157,7 @@ describe("DocumentsPanel", () => {
       />,
     );
     expect(fetchActivityImageObjectUrl).not.toHaveBeenCalled();
-    expect(screen.getByText(/1 more source the tutor uses/i)).toBeTruthy();
+    expect(screen.getByText(/also used by the tutor/i)).toBeTruthy();
     expect(screen.getByText("secret graph")).toBeTruthy();
   });
 
@@ -200,5 +207,25 @@ describe("DocumentsPanel", () => {
     fireEvent.click(screen.getByRole("button", { name: /close document/i }));
     await waitFor(() => expect(screen.queryByText(/Inline body text/)).toBeNull());
     expect(screen.getByRole("button", { name: /A-level kinematics/i })).toBeInTheDocument();
+  });
+
+  it("reports a document.open interaction for research when a shared doc is opened (1.1.45 M5)", async () => {
+    fetchCurriculumContent.mockResolvedValue({
+      docId: "d1",
+      title: "Haka Fysik",
+      available: true,
+      text: "Energi.",
+      chars: 7,
+    });
+    render(
+      <DocumentsPanel
+        materials={[{ docId: "d1", origin: "Haka Fysik", studentVisible: true }]}
+        images={[]}
+        activityId="act-1"
+        sessionId="sess-1"
+      />,
+    );
+    fireEvent.click(await screen.findByRole("button", { name: "Haka Fysik" }));
+    expect(reportDocumentEvent).toHaveBeenCalledWith("sess-1", { kind: "document.open", docId: "d1" });
   });
 });

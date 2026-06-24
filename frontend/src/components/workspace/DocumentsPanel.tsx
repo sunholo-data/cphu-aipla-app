@@ -10,6 +10,7 @@ import {
   fetchCurriculumContent,
 } from "@/lib/curriculumApi";
 import { fetchActivityImageObjectUrl } from "@/lib/activityImageApi";
+import { reportDocumentEvent } from "@/lib/documentApi";
 import { MarkdownBody } from "./MarkdownBody";
 
 /** One document the activity is grounded in, as surfaced by
@@ -52,6 +53,9 @@ interface DocumentsPanelProps {
    *  the Firebase token — correct in the builder preview, where there is no real
    *  activity to ACL the (preview) id against, so the student path 403s. */
   viewerRole?: "student" | "teacher";
+  /** Active chat session — used to report document interactions for research
+   *  (1.1.45 M5). Null in the builder preview (no session → events are no-ops). */
+  sessionId?: string | null;
 }
 
 type ViewState =
@@ -72,6 +76,7 @@ export function DocumentsPanel({
   images,
   activityId,
   viewerRole = "student",
+  sessionId = null,
 }: DocumentsPanelProps) {
   // Hooks must run before any early return.
   const [openDoc, setOpenDoc] = useState<{ docId: string; title: string } | null>(null);
@@ -81,6 +86,8 @@ export function DocumentsPanel({
     const title = m.origin || m.docId;
     setOpenDoc({ docId: m.docId, title });
     setView({ kind: "loading" });
+    // Research telemetry (1.1.45 M5) — observational; not a tutor-context write.
+    reportDocumentEvent(sessionId, { kind: "document.open", docId: m.docId });
     try {
       const content = await fetchCurriculumContent(m.docId, activityId, { as: viewerRole });
       setView({ kind: "ready", content });
@@ -124,6 +131,12 @@ export function DocumentsPanel({
                       materialId={m.materialId}
                       alt={materialLabel(m)}
                       role={viewerRole}
+                      onFullscreen={() =>
+                        reportDocumentEvent(sessionId, {
+                          kind: "image.fullscreen",
+                          materialId: m.materialId,
+                        })
+                      }
                     />
                   </li>
                 );
@@ -150,27 +163,30 @@ export function DocumentsPanel({
       ) : null}
 
       {hidden.length > 0 ? (
-        <details className="text-xs text-muted-foreground">
-          <summary className="flex cursor-pointer items-center gap-1.5 py-0.5">
-            <EyeOff className="h-3 w-3 shrink-0" aria-hidden="true" />
-            {hidden.length} more source{hidden.length === 1 ? "" : "s"} the tutor uses (not shared with you)
-          </summary>
-          <ul className="mt-1 flex flex-col gap-1 pl-4">
+        <div className="flex flex-col gap-1.5">
+          {/* Not-shared materials are CITED BY NAME (transparency) but their
+              content isn't openable — the teacher's per-material visibility
+              toggle gates the contents, not the name. */}
+          <p className="flex items-center gap-1.5 text-xs font-medium text-muted-foreground">
+            <EyeOff className="h-3.5 w-3.5 shrink-0" aria-hidden="true" />
+            Also used by the tutor — name shown, contents not shared
+          </p>
+          <ul className="flex flex-col gap-1">
             {hidden.map((m) => (
               <li
                 key={m.kind === "image" ? `img:${m.materialId}` : m.docId}
-                className="flex items-center gap-1.5"
+                className="flex items-center gap-1.5 rounded border border-dashed border-border bg-background px-2 py-1.5 text-xs text-muted-foreground"
               >
                 {m.kind === "image" ? (
-                  <ImageIcon className="h-3 w-3 shrink-0" aria-hidden="true" />
+                  <ImageIcon className="h-3.5 w-3.5 shrink-0" aria-hidden="true" />
                 ) : (
-                  <FileText className="h-3 w-3 shrink-0" aria-hidden="true" />
+                  <FileText className="h-3.5 w-3.5 shrink-0" aria-hidden="true" />
                 )}
                 <span className="truncate">{materialLabel(m)}</span>
               </li>
             ))}
           </ul>
-        </details>
+        </div>
       ) : null}
 
       {images.length > 0 ? (
@@ -259,11 +275,13 @@ function ActivityImageThumb({
   materialId,
   alt,
   role,
+  onFullscreen,
 }: {
   activityId: string;
   materialId: string;
   alt: string;
   role: "student" | "teacher";
+  onFullscreen?: () => void;
 }) {
   const [state, setState] = useState<
     { kind: "loading" } | { kind: "ready"; url: string } | { kind: "error" }
@@ -303,6 +321,7 @@ function ActivityImageThumb({
           src={state.url}
           alt={alt}
           triggerClassName="max-h-48 w-full rounded-md border border-border object-contain"
+          onOpen={onFullscreen}
         />
       )}
       <span className="flex items-center gap-1 text-xs text-muted-foreground">

@@ -86,6 +86,25 @@ The "Upload fil" affordance in the Documents tab lets the student attach **their
 
 A new **element** (extends the [1.1.38] registry: `solution`/`free-response`), lazy-loaded **TipTap** with the JB-2 toolbar — **bold/italic/underline, bullet/numbered lists, link, image, `fx` math, undo/redo** — and a word count. Math via a KaTeX node (renders inline like `h = v₀t·sin(θ) − ½gt²`). The student's answer saves to session state (autosave "Gem kladde" + explicit "Gem løsning"), and is surfaced to the tutor as text/markdown content (so feedback can highlight values + formulas, as the mockup's bot does). Sanitised on store; never executed. **This is the largest, most independent piece — a candidate to split to its own row if the viewer work fills the window.**
 
+### 6. Deleting uploads (M3b)
+
+Uploaded documents/images must be **deletable**, not just un-cited:
+- **Images** (1.1.44) — already deletable: the Materials chip ✕ calls `deleteActivityImage` → `DELETE /api/activity-images/{activityId}/{materialId}` (removes the stored bytes + the material).
+- **Document uploads** (`parsed_documents`) — the backend `DELETE /api/documents/{docId}` (owner-ACL, removes Firestore + GCS) exists; M3b wires a ✕ on the file-tab strip / Documents row that calls it (owner = the group, via the `anon-<groupId>` uid, so any member can remove a group upload). Un-cite (drop the `MaterialRef`) stays distinct from hard-delete (remove the file).
+- **Curriculum library docs** — a "delete from library" is a small separate add (a curriculum-delete endpoint); out of M3b unless asked.
+
+### 7. Document interaction events (M5) — emit now; reactability ranking deferred
+
+Student interactions with documents/images (**open, page-turn, zoom, fullscreen**) are valuable **research data** and let the tutor be *aware* of what the student is looking at. **M5 emits these events now** as **observational** signals:
+
+- **Captured** for research (the chat-log / BigQuery path, alongside turns + the 1.1.17 engagement signals).
+- **Surfaced to the tutor's context** via the same `iframe-context` / `update-model-context` channel the sims use ([`useArtefactReportEvent`](../../../../frontend/src/hooks/useArtefactReportEvent.ts)), so a *later* reply can reference "you're on page 6".
+- **Not proactive triggers (for now).** They do **not** provoke a tutor turn on their own — exactly M's "in the list when events are sent, but they don't deserve a response".
+
+**Event shape:** `{ kind: "document.open" | "document.page" | "image.zoom" | "image.fullscreen" | …, docId/materialId, detail? }`.
+
+> **Deferred (M, 2026-06-24): the reactability *ranking* — which events merit an AI response — moves to its own design doc.** That doc will decide how/whether events graduate from observational to proactive triggers (per-kind default, teacher override, derived signals like "stuck on page N"). M5 here stays purely observational so the research capture + context-awareness land without coupling to the proactive gate.
+
 ## API changes
 
 | Endpoint | Method | Description | Auth |

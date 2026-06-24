@@ -19,6 +19,30 @@ export class DocumentApiError extends Error {
   }
 }
 
+/** A student document/image interaction (1.1.45 M5). Observational research
+ *  telemetry — captured server-side; NOT a tutor-context write or a proactive
+ *  trigger (the reactability ranking is a separate design doc). */
+export interface DocumentEvent {
+  kind: "document.open" | "document.page" | "image.zoom" | "image.fullscreen";
+  docId?: string;
+  materialId?: string;
+  detail?: unknown;
+}
+
+/** Fire-and-forget a document interaction event for research capture. No-op
+ *  without a session (e.g. the builder preview). Never throws — telemetry must
+ *  not break the workbench. */
+export function reportDocumentEvent(sessionId: string | null | undefined, event: DocumentEvent): void {
+  if (!sessionId) return;
+  void fetchWithAuth(`/api/proxy/api/sessions/${encodeURIComponent(sessionId)}/doc-event`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(event),
+  }).catch(() => {
+    /* telemetry is best-effort */
+  });
+}
+
 /** Fetch a document's original bytes as an object URL (revoke it on unmount). */
 export async function fetchDocumentObjectUrl(
   docId: string,

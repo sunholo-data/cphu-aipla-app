@@ -120,6 +120,7 @@ export function StudentWorkspace({
       images={images}
       activityId={activityId ?? skillId}
       viewerRole={documentViewerRole}
+      sessionId={sessionId}
     />
   );
 
