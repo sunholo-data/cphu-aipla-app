@@ -91,7 +91,7 @@
       "description": "Student upload + active file -> tutor: Upload fil in the Documents tab reuses 1.1.7 -> parsed_documents; active file's doc_id pushed into session document_ids so the tutor critiques it.",
       "scope": "fullstack",
       "estimated_loc": 260,
-      "actual_loc": null,
+      "actual_loc": 628,
       "dependencies": [
         "M2"
       ],
@@ -106,10 +106,10 @@
         "frontend/src/components/workspace/DocumentViewer.tsx",
         "frontend/src/app/chat/[...path]/page.tsx"
       ],
-      "passes": null,
+      "passes": true,
       "started": "2026-06-24",
-      "completed": null,
-      "notes": "M3a (backend) DONE + pushed ceeec0e: groupId persisted on uploads; group-owned via anon-<groupId> uid (members share the M2 owner-ACL). JB confirmed the document-feedback activity type; group-ownership confirmed (M). REMAINING M3b (frontend): mount DocumentViewer (lazy next/dynamic) as the document-feedback activity surface + Upload-fil affordance (fetchWithAuth) + active-file -> session document_ids so the tutor critiques it + declare the document-feedback workbench type. | M3b.2 DONE (d19d8fa): StudentDocumentWorkbench surface (listMyDocuments/uploadDocument/deleteDocument in documentApi; file tabs + per-file delete + Upload fil + empty/error states; lazy DocumentViewer; 8 vitest). M3b.3 + chat-page dispatch DONE (1807680): frontend WorkbenchType gains 'document'; chat page mounts StudentDocumentWorkbench when config.workbenchType=='document'; active file merged into tutor document_ids (outgoingDocIds) every send; document.open telemetry. Backend verified ready (Literal+upsert persist 'document', no override). REMAINING (M3b.4 teacher half): builder sets workbenchType='document' (useActivityBuilder state + save payload + a 'Dokumentfeedback' entry point) \u2014 UX approach TBD with user."
+      "completed": "2026-06-24",
+      "notes": "M3a (backend) DONE + pushed ceeec0e: groupId persisted on uploads; group-owned via anon-<groupId> uid (members share the M2 owner-ACL). JB confirmed the document-feedback activity type; group-ownership confirmed (M). REMAINING M3b (frontend): mount DocumentViewer (lazy next/dynamic) as the document-feedback activity surface + Upload-fil affordance (fetchWithAuth) + active-file -> session document_ids so the tutor critiques it + declare the document-feedback workbench type. | M3b.2 DONE (d19d8fa): StudentDocumentWorkbench surface (listMyDocuments/uploadDocument/deleteDocument in documentApi; file tabs + per-file delete + Upload fil + empty/error states; lazy DocumentViewer; 8 vitest). M3b.3 + chat-page dispatch DONE (1807680): frontend WorkbenchType gains 'document'; chat page mounts StudentDocumentWorkbench when config.workbenchType=='document'; active file merged into tutor document_ids (outgoingDocIds) every send; document.open telemetry. Backend verified ready (Literal+upsert persist 'document', no override). REMAINING (M3b.4 teacher half): builder sets workbenchType='document' (useActivityBuilder state + save payload + a 'Dokumentfeedback' entry point) \u2014 UX approach TBD with user. | M3 COMPLETE (2026-06-24): M3b.4 builder option shipped (845c003) \u2014 explicit activity-type selector (Standard | Document feedback) in the teacher builder; useActivityBuilder tracks/saves/hydrates workbenchType; document mode hides workspace tools + previews the upload surface. Full gate green: 1245 frontend + 2146 backend tests. Commits: d19d8fa (M3b.2) 1807680 (M3b.3) 845c003 (M3b.4)."
     },
     {
       "id": "M4",
