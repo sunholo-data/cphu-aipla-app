@@ -1,0 +1,148 @@
+{
+  "sprint_id": "RICH-DOC",
+  "created": "2026-06-24T04:12:29Z",
+  "estimated_duration_days": 8,
+  "design_doc": "docs/design/aipla/v1.1.0-feedback/rich-document-workbench.md",
+  "sprint_plan": "docs/design/aipla/v1.1.0-feedback/rich-document-workbench-sprint.md",
+  "features": [
+    {
+      "id": "M0",
+      "description": "Rich parsed-doc rendering: DocumentsPanel viewer renders ChatMarkdown (markdown/tables/SVG/KaTeX) instead of <pre>, with text fallback. Completes 1.1.33 M3.",
+      "scope": "frontend",
+      "estimated_loc": 90,
+      "actual_loc": null,
+      "dependencies": [],
+      "acceptance_criteria": [
+        "A fixture doc with heading + table + KaTeX formula + SVG renders as rich nodes, not a single <pre>",
+        "A doc whose render throws falls back to plain text (graceful)",
+        "Existing not-available/empty states unchanged",
+        "npm run quality:check green"
+      ],
+      "files_to_create": [],
+      "files_to_modify": [
+        "frontend/src/components/workspace/DocumentsPanel.tsx",
+        "frontend/src/components/workspace/__tests__/DocumentsPanel.test.tsx"
+      ],
+      "passes": null,
+      "started": null,
+      "completed": null,
+      "notes": "Reuses shipped ChatMarkdown (already does markdown/tables/SVG/KaTeX). No backend change."
+    },
+    {
+      "id": "M1",
+      "description": "Documents tab + activity-driven workbench shell: Radix Tabs (Arbejde/Dokumenter) ONLY when >1 surface; single surface renders directly; sim takeover pre-empts; count badge.",
+      "scope": "frontend",
+      "estimated_loc": 220,
+      "actual_loc": null,
+      "dependencies": ["M0"],
+      "acceptance_criteria": [
+        "elements-only -> no tabs; documents-only -> no tabs; both -> tabs with Arbejde/Dokumenter + count badge",
+        "sim open -> takeover (no tabs); tab switch shows the right surface",
+        "npm run quality:check green"
+      ],
+      "files_to_create": [
+        "frontend/src/components/workspace/WorkbenchTabs.tsx"
+      ],
+      "files_to_modify": [
+        "frontend/src/components/workspace/StudentWorkspace.tsx",
+        "frontend/src/components/workspace/__tests__/StudentWorkspace.test.tsx"
+      ],
+      "passes": null,
+      "started": null,
+      "completed": null,
+      "notes": "Layout decision (M): activity-driven primary surface + tabs when >1. Radix Tabs already in package.json."
+    },
+    {
+      "id": "M2",
+      "description": "Document viewer + file tabs + GET raw bytes: dual-audience GET /api/documents/{docId}/raw; lazy react-pdf multi-page viewer (page-nav/zoom/fullscreen/download), image->zoom, other->rich render, active file.",
+      "scope": "fullstack",
+      "estimated_loc": 480,
+      "actual_loc": null,
+      "dependencies": ["M0", "M1"],
+      "acceptance_criteria": [
+        "react-pdf passed the security gate (make security-check) before adding; lazy-loaded via next/dynamic (separate chunk)",
+        "GET /api/documents/{docId}/raw ACL suite: teacher 200, student-visible 200, student-not-visible 403, unauth 401, missing 404",
+        "Viewer renders a fixture PDF page count + page-nav/zoom controls (react-pdf mocked); non-PDF routes to rich render / zoom; file-tab switch sets active file",
+        "make lint + make test-fast + npm run quality:check green"
+      ],
+      "files_to_create": [
+        "backend/protocols/document_bytes_routes.py",
+        "backend/tests/api_tests/test_document_bytes.py",
+        "frontend/src/components/workspace/DocumentViewer.tsx",
+        "frontend/src/components/workspace/__tests__/DocumentViewer.test.tsx"
+      ],
+      "files_to_modify": [
+        "backend/fast_api_app.py",
+        "frontend/src/lib/activityImageApi.ts",
+        "frontend/package.json"
+      ],
+      "passes": null,
+      "started": null,
+      "completed": null,
+      "notes": "Generalise the 1.1.44 dual-audience bytes handler + fetchActivityImageObjectUrl pattern. react-pdf greenfield, lazy."
+    },
+    {
+      "id": "M3",
+      "description": "Student upload + active file -> tutor: Upload fil in the Documents tab reuses 1.1.7 -> parsed_documents; active file's doc_id pushed into session document_ids so the tutor critiques it.",
+      "scope": "fullstack",
+      "estimated_loc": 260,
+      "actual_loc": null,
+      "dependencies": ["M2"],
+      "acceptance_criteria": [
+        "Uploading a doc adds a file tab + sets it active",
+        "Switching the active file updates the document_ids sent on the next turn (the tutor critiques the active file)",
+        "A student-uploaded doc_id in document_ids loads its artifact (loader coverage)",
+        "make lint + make test-fast + npm run quality:check green"
+      ],
+      "files_to_create": [],
+      "files_to_modify": [
+        "frontend/src/components/workspace/DocumentViewer.tsx",
+        "frontend/src/app/chat/[...path]/page.tsx"
+      ],
+      "passes": null,
+      "started": null,
+      "completed": null,
+      "notes": "Reuses 1.1.7 upload + make_document_loader. JB gate on the document-feedback activity type."
+    },
+    {
+      "id": "M4",
+      "description": "Rich-text solution editor element (JB-2): lazy TipTap (B/I/U, lists, link, image, fx math, undo) as a new 1.1.38 element; autosave + save; serialised to markdown; surfaced to the tutor. May split to 1.1.46.",
+      "scope": "fullstack",
+      "estimated_loc": 520,
+      "actual_loc": null,
+      "dependencies": ["M1"],
+      "acceptance_criteria": [
+        "@tiptap/* passed the security gate before adding; lazy-loaded via next/dynamic",
+        "solution element validates + persists (ELEMENT_REGISTRY); authorable in the builder",
+        "Editor saves/restores; math + formatting round-trip to markdown; sanitisation strips scripts; word count updates",
+        "The saved solution reaches the tutor context",
+        "make lint + make test-fast + npm run quality:check green"
+      ],
+      "files_to_create": [
+        "frontend/src/components/workspace/WorkbenchSolution.tsx",
+        "frontend/src/components/teacher/SolutionEditorEditor.tsx"
+      ],
+      "files_to_modify": [
+        "backend/db/models/activity_config.py",
+        "frontend/src/components/workspace/elementRenderers.tsx",
+        "frontend/package.json"
+      ],
+      "passes": null,
+      "started": null,
+      "completed": null,
+      "notes": "Largest piece; greenfield TipTap. Decision point after M3: split to 1.1.46 if window is full. AR feedback-prompt gate."
+    }
+  ],
+  "velocity": {
+    "target_loc_per_day": 250,
+    "actual_loc_per_day": null,
+    "estimated_total_loc": 1570,
+    "actual_total_loc": null,
+    "estimated_days": 8,
+    "actual_days": null
+  },
+  "github_issues": [],
+  "last_session": null,
+  "last_checkpoint": null,
+  "status": "not_started"
+}
