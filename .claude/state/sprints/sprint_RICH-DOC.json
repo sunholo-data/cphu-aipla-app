@@ -34,7 +34,9 @@
       "scope": "frontend",
       "estimated_loc": 220,
       "actual_loc": null,
-      "dependencies": ["M0"],
+      "dependencies": [
+        "M0"
+      ],
       "acceptance_criteria": [
         "elements-only -> no tabs; documents-only -> no tabs; both -> tabs with Arbejde/Dokumenter + count badge",
         "sim open -> takeover (no tabs); tab switch shows the right surface",
@@ -58,7 +60,10 @@
       "scope": "fullstack",
       "estimated_loc": 480,
       "actual_loc": null,
-      "dependencies": ["M0", "M1"],
+      "dependencies": [
+        "M0",
+        "M1"
+      ],
       "acceptance_criteria": [
         "react-pdf passed the security gate (make security-check) before adding; lazy-loaded via next/dynamic (separate chunk)",
         "GET /api/documents/{docId}/raw ACL suite: teacher 200, student-visible 200, student-not-visible 403, unauth 401, missing 404",
@@ -79,7 +84,7 @@
       "passes": true,
       "started": "2026-06-24",
       "completed": "2026-06-24",
-      "notes": "Backend GET /api/documents/{id}/raw (owner-ACL, reads stored gs:// URL -> anon-group safe; 5 tests). Frontend DocumentViewer (react-pdf, page-nav/zoom/fullscreen/download, file tabs, active file; 5 tests). react-pdf@10 gated (frontend audit clean of HIGH/CRITICAL). Production build green. Committed e2c010a (pushed). NOT yet mounted in an activity surface — M3 wires it via next/dynamic."
+      "notes": "Backend GET /api/documents/{id}/raw (owner-ACL, reads stored gs:// URL -> anon-group safe; 5 tests). Frontend DocumentViewer (react-pdf, page-nav/zoom/fullscreen/download, file tabs, active file; 5 tests). react-pdf@10 gated (frontend audit clean of HIGH/CRITICAL). Production build green. Committed e2c010a (pushed). NOT yet mounted in an activity surface \u2014 M3 wires it via next/dynamic."
     },
     {
       "id": "M3",
@@ -87,7 +92,9 @@
       "scope": "fullstack",
       "estimated_loc": 260,
       "actual_loc": null,
-      "dependencies": ["M2"],
+      "dependencies": [
+        "M2"
+      ],
       "acceptance_criteria": [
         "Uploading a doc adds a file tab + sets it active",
         "Switching the active file updates the document_ids sent on the next turn (the tutor critiques the active file)",
@@ -102,7 +109,7 @@
       "passes": null,
       "started": "2026-06-24",
       "completed": null,
-      "notes": "M3a (backend) DONE + pushed ceeec0e: groupId persisted on uploads; group-owned via anon-<groupId> uid (members share the M2 owner-ACL). JB confirmed the document-feedback activity type; group-ownership confirmed (M). REMAINING M3b (frontend): mount DocumentViewer (lazy next/dynamic) as the document-feedback activity surface + Upload-fil affordance (fetchWithAuth) + active-file -> session document_ids so the tutor critiques it + declare the document-feedback workbench type."
+      "notes": "M3a (backend) DONE + pushed ceeec0e: groupId persisted on uploads; group-owned via anon-<groupId> uid (members share the M2 owner-ACL). JB confirmed the document-feedback activity type; group-ownership confirmed (M). REMAINING M3b (frontend): mount DocumentViewer (lazy next/dynamic) as the document-feedback activity surface + Upload-fil affordance (fetchWithAuth) + active-file -> session document_ids so the tutor critiques it + declare the document-feedback workbench type. | M3b.2 DONE (d19d8fa): StudentDocumentWorkbench surface (listMyDocuments/uploadDocument/deleteDocument in documentApi; file tabs + per-file delete + Upload fil + empty/error states; lazy DocumentViewer; 8 vitest). M3b.3 + chat-page dispatch DONE (1807680): frontend WorkbenchType gains 'document'; chat page mounts StudentDocumentWorkbench when config.workbenchType=='document'; active file merged into tutor document_ids (outgoingDocIds) every send; document.open telemetry. Backend verified ready (Literal+upsert persist 'document', no override). REMAINING (M3b.4 teacher half): builder sets workbenchType='document' (useActivityBuilder state + save payload + a 'Dokumentfeedback' entry point) \u2014 UX approach TBD with user."
     },
     {
       "id": "M4",
@@ -110,7 +117,9 @@
       "scope": "fullstack",
       "estimated_loc": 520,
       "actual_loc": null,
-      "dependencies": ["M1"],
+      "dependencies": [
+        "M1"
+      ],
       "acceptance_criteria": [
         "@tiptap/* passed the security gate before adding; lazy-loaded via next/dynamic",
         "solution element validates + persists (ELEMENT_REGISTRY); authorable in the builder",
