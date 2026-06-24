@@ -135,7 +135,9 @@ export function StudentDocumentWorkbench({
 
   return (
     <section className="flex min-h-0 flex-col gap-2 p-2" aria-label="Dine dokumenter">
-      {state.kind === "ready" ? (
+      {/* Upload is always available once we're past the initial load — a failed
+          LIST must never block the student from uploading their work. */}
+      {state.kind !== "loading" ? (
         <div className="flex flex-wrap items-center gap-1">
           {docs.length > 0 ? (
             <div role="tablist" aria-label="Dine filer" className="flex flex-wrap gap-1">
@@ -211,7 +213,7 @@ export function StudentDocumentWorkbench({
         </div>
       ) : state.kind === "error" ? (
         <div className="flex flex-col items-start gap-2 rounded border border-border bg-background p-4 text-sm text-muted-foreground">
-          <p>Kunne ikke hente dine dokumenter.</p>
+          <p>Kunne ikke hente dine eksisterende filer. Du kan stadig uploade en ny ovenfor.</p>
           <button
             type="button"
             onClick={() => void refresh()}

@@ -1258,11 +1258,23 @@ function ChatShell({
             onRatioChange={setWorkspaceRatio}
           >
             {isDocumentActivity ? (
-              <StudentDocumentWorkbench
-                skillId={skillId}
-                sessionId={sessionId ?? agentSessionId}
-                onActiveDocChange={handleWorkbenchActiveDoc}
-              />
+              <>
+                <StudentDocumentWorkbench
+                  skillId={skillId}
+                  sessionId={sessionId ?? agentSessionId}
+                  onActiveDocChange={handleWorkbenchActiveDoc}
+                />
+                {/* Teacher-assigned materials also surface in a document-feedback
+                    activity (names-always; openable when studentVisible). The
+                    tutor's RAG grounding uses them regardless of visibility —
+                    that's backend-side, independent of this panel. Self-hides
+                    when the activity has no materials/uploads. */}
+                <DocumentsPanel
+                  materials={activeMaterials}
+                  images={uploadedImages}
+                  activityId={skillId}
+                />
+              </>
             ) : (
               <>
             {workspaceKind !== "none" &&

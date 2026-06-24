@@ -87,6 +87,14 @@ describe("StudentDocumentWorkbench (1.1.45 M3b)", () => {
     expect(await screen.findByTestId("viewer")).toHaveTextContent("opgave.pdf");
   });
 
+  it("keeps Upload available when listing fails — a list error must not block uploading", async () => {
+    listMyDocuments.mockRejectedValue(new Error("boom"));
+    render(<StudentDocumentWorkbench skillId="s" />);
+    // The error banner renders, AND the upload toolbar is still present.
+    await screen.findByRole("button", { name: "Prøv igen" });
+    expect(screen.getByRole("button", { name: /Upload fil/ })).toBeInTheDocument();
+  });
+
   it("surfaces an upload failure without losing the surface", async () => {
     listMyDocuments.mockResolvedValue([]);
     uploadDocument.mockRejectedValueOnce(new Error("nope"));
