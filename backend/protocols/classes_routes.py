@@ -27,6 +27,7 @@ from pydantic import BaseModel, ConfigDict, Field
 from analytics import cost_queries
 from analytics.auth import assert_can_read_class
 from auth import User, get_current_user
+from auth.owner_labels import resolve_owner_labels
 from db.activities import get_activity
 from db.classes import (
     add_activities,
@@ -274,7 +275,18 @@ async def list_classes(
         if span.is_recording():
             span.set_attribute("auth.researcher_bypass", True)
         classes = list_all_classes()
-        return {"classes": [_serialize(c) for c in classes], "scope": "all"}
+        # Friendly owner labels (display name / email) so the research view
+        # doesn't show raw Firebase uids. Best-effort — unresolved owners carry
+        # no label and the client falls back to the uid.
+        labels = resolve_owner_labels({c.owner_uid for c in classes})
+        rows: list[dict] = []
+        for c in classes:
+            row = _serialize(c)
+            label = labels.get(c.owner_uid)
+            if label:
+                row["ownerLabel"] = label
+            rows.append(row)
+        return {"classes": rows, "scope": "all"}
     classes = list_classes_for_owner(user.uid)
     return {"classes": [_serialize(c) for c in classes], "scope": "own"}
 

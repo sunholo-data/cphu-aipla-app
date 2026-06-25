@@ -62,7 +62,7 @@ describe("/teacher/classes — Research view (1.1.5)", () => {
       scope === "all"
         ? [
             makeClass({ classId: "mine", name: "Mine", ownerUid: "me" }),
-            makeClass({ classId: "theirs", name: "Theirs", ownerUid: "other-teacher" }),
+            makeClass({ classId: "theirs", name: "Theirs", ownerUid: "R5Z5Y", ownerLabel: "Bob Jensen" }),
           ]
         : [makeClass({ classId: "mine", name: "Mine", ownerUid: "me" })],
     );
@@ -82,8 +82,10 @@ describe("/teacher/classes — Research view (1.1.5)", () => {
     await waitFor(() => {
       expect(screen.getByRole("link", { name: "Theirs" })).toBeInTheDocument();
     });
-    // Owner labels are surfaced in Research view.
+    // Owner is surfaced in Research view — friendly label when resolved, raw
+    // uid as the fallback.
     expect(screen.getAllByTestId("class-owner").length).toBeGreaterThan(0);
-    expect(screen.getByText(/Owner: other-teacher/)).toBeInTheDocument();
+    expect(screen.getByText(/Owner: Bob Jensen/)).toBeInTheDocument();
+    expect(screen.getByText(/Owner: me/)).toBeInTheDocument();
   });
 });

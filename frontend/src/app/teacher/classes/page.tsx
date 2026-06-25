@@ -673,8 +673,8 @@ function ClassRow({
           {cls.name}
         </Link>
         {showOwner ? (
-          <div className="text-xs text-muted-foreground" data-testid="class-owner">
-            Owner: {cls.ownerUid}
+          <div className="text-xs text-muted-foreground" data-testid="class-owner" title={cls.ownerUid}>
+            Owner: {cls.ownerLabel ?? cls.ownerUid}
           </div>
         ) : null}
       </td>

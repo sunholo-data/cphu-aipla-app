@@ -536,6 +536,10 @@ export interface ClassVoiceSettingsPayload {
 export interface ClassPayload {
   classId: string;
   ownerUid: string;
+  /** Friendly owner label (display name / email), present only in the
+   *  researcher `scope=all` view and only when resolvable; clients fall back
+   *  to `ownerUid`. */
+  ownerLabel?: string;
   name: string;
   description: string | null;
   tagNamespace: string;

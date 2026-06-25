@@ -439,6 +439,19 @@ class TestResearcherBypass:
         assert {"Alice 1", "Bob 1"} <= names
         assert body["scope"] == "all"
 
+    def test_scope_all_enriches_owner_label(self, monkeypatch, client, researcher_client):
+        """The research view replaces the raw owner uid with a friendly label
+        (display name / email) when the resolver can map it; unresolved owners
+        carry no label and the client falls back to the uid."""
+        monkeypatch.setattr(
+            "protocols.classes_routes.resolve_owner_labels",
+            lambda uids: {TEACHER_UID: "Alice Hansen"},
+        )
+        client.post("/api/classes", json={"name": "Alice 1"})
+        body = researcher_client.get("/api/classes", params={"scope": "all"}).json()
+        row = next(c for c in body["classes"] if c["name"] == "Alice 1")
+        assert row["ownerLabel"] == "Alice Hansen"
+
     def test_scope_all_rejected_for_non_researcher(self, client):
         """URL-hacking scope=all without the claim is a hard 403, not a fallback."""
         resp = client.get("/api/classes", params={"scope": "all"})
