@@ -41,8 +41,13 @@ interface StudentDocumentWorkbenchProps {
   onActiveDocChange?: (docId: string | null) => void;
 }
 
-// AILANG-parseable formats the student can attach (mirrors the backend allow-list).
-const ACCEPT = ".pdf,.png,.jpg,.jpeg,.webp,.gif,.txt,.md,.docx,.csv,.xlsx,.pptx";
+// Documents only — one clear route per type (1.1.48). Images do NOT belong here:
+// the document route PARSES files to text (AILANG Parse), which mangles
+// handwriting/diagrams and the backend gate rejects them anyway. Photos of work
+// go through the solution element, which sends the actual pixels to the
+// multimodal tutor. Mirrors the backend _ALLOWED_EXTENSIONS gate
+// (tools/documents/upload.py) — keep them in sync.
+const ACCEPT = ".pdf,.txt,.md,.docx,.csv,.xlsx,.pptx";
 
 /**
  * StudentDocumentWorkbench (1.1.45 M3b) — the workbench surface for a

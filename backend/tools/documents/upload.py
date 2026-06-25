@@ -122,8 +122,10 @@ async def _run_parse(gs_url: str) -> tuple[str, list, int, str | None]:
     elapsed_ms = int((time.monotonic() - t0) * 1000)
 
     if outcome is None:
-        # AILANG Parse returns None for formats it can't do deterministically
-        # (PDF, images). PDFs get the AI fallback; images stay pending.
+        # AILANG Parse returns None for formats it can't do deterministically.
+        # Images aren't accepted at upload (see _ALLOWED_EXTENSIONS — they go
+        # through the solution element as pixels, not the parse route), so among
+        # accepted formats only PDF lands here; it gets the AI fallback.
         if PurePosixPath(gs_url).suffix.lower() == ".pdf":
             return await _run_pdf_ai_parse(gs_url, t0)
         log.info("AILANG Parse: extension not supported for %s, using AI extraction", gs_url)
