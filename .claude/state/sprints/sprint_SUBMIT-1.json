@@ -10,7 +10,7 @@
       "description": "Reconcile: document-upload becomes a 'document' element (registry + renderer mounts StudentDocumentWorkbench). Delete the chat-page workbenchType=='document' pre-emption + the builder document-mode hiding. Retire 'document' from WorkbenchType. Migrate existing workbenchType='document' configs -> a document element + workbenchType='none'.",
       "scope": "fullstack",
       "estimated_loc": 320,
-      "actual_loc": null,
+      "actual_loc": 700,
       "dependencies": [],
       "acceptance_criteria": [
         "'document' is a registered workspace element (backend ELEMENT_REGISTRY + frontend activityElements), max 1",
@@ -31,10 +31,10 @@
         "frontend/src/hooks/useActivityBuilder.ts",
         "frontend/src/lib/teacherApi.ts"
       ],
-      "passes": null,
+      "passes": true,
       "started": null,
-      "completed": null,
-      "notes": ""
+      "completed": "2026-06-24",
+      "notes": "DONE 418108d: document is a composable element; migration validator maps legacy workbench_type=document; removed the dispatch/selector/preview-mode. FE 1277 + BE 2195 green. M1 (photo solution) next."
     },
     {
       "id": "M1",
