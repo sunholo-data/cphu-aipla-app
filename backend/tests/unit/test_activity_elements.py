@@ -52,6 +52,20 @@ def test_registry_specs_are_internally_consistent() -> None:
         assert spec.field in ActivityConfig.model_fields, f"{spec.field} missing on ActivityConfig"
 
 
+def test_every_element_field_is_present_on_all_activity_models() -> None:
+    """A new element must be threaded through ALL THREE activity stores, not just
+    ActivityConfig: the ALS-1 split added a class-independent ``Activity`` + its
+    ``ActivityUpsert`` request body, both ``extra="forbid"``. Missing the field on
+    ActivityUpsert → the builder's ``document: []`` 422s with extra_forbidden
+    (the 1.1.48 document regression). This guards the whole surface at once."""
+    from db.models.activity import Activity
+    from protocols.activity_routes import ActivityUpsert
+
+    for spec in ELEMENT_REGISTRY.values():
+        for model in (ActivityConfig, Activity, ActivityUpsert):
+            assert spec.field in model.model_fields, f"{model.__name__} missing element field {spec.field!r}"
+
+
 def test_checklist_is_a_registered_workspace_element() -> None:
     spec = ELEMENT_REGISTRY["checklist"]
     assert spec.field == "checklist"
