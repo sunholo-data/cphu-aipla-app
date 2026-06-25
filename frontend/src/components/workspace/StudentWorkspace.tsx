@@ -42,9 +42,10 @@ interface StudentWorkspaceProps {
    *  where there is no real activity to ACL against. Default student. */
   documentViewerRole?: "student" | "teacher";
   /** Registers a "flush the open sim's pending state" callback the chat page
-   *  calls before each outgoing message (null while no sim is open). Omitted in
-   *  the builder preview (no tutor turn to flush for). */
-  onRegisterArtefactFlush?: (flush: (() => void) | null) => void;
+   *  awaits before each outgoing message (null while no sim is open). Omitted in
+   *  the builder preview (no tutor turn to flush for). Resolves once the flushed
+   *  state has committed (or a short cap elapses). */
+  onRegisterArtefactFlush?: (flush: (() => Promise<void>) | null) => void;
 }
 
 /**

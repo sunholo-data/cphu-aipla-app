@@ -602,10 +602,11 @@ function ChatShell({
   const [activeTabId, setActiveTabId] = useState<string | null>(null);
   const lastUserMessageRef = useRef<string>("");
   // Flush hook registered by the mounted sim artefact (StudentWorkspace →
-  // GenericArtefactFrame). Invoked before each outgoing message so an artefact
+  // GenericArtefactFrame). Awaited before each outgoing message so an artefact
   // that buffers continuous input (Boldkast's commit-on-submit sliders) commits
-  // its latest state to the tutor for this turn. null when no sim is open.
-  const artefactFlushRef = useRef<(() => void) | null>(null);
+  // its latest state to the tutor BEFORE the turn reads it. null when no sim is
+  // open. Resolves on commit, or a short cap when nothing was pending.
+  const artefactFlushRef = useRef<(() => Promise<void>) | null>(null);
 
   // Session routing: read ?session= from URL, allow programmatic navigation
   const sessionId = searchParams.get("session");
@@ -728,9 +729,9 @@ function ChatShell({
     images.clear();
     // Ask the open sim artefact to flush any buffered state (e.g. Boldkast's
     // commit-on-submit slider values) BEFORE the message goes out, so the tutor
-    // sees what the student has set this turn. Fire-and-forget; no-op when no
-    // sim is open (ref is null).
-    artefactFlushRef.current?.();
+    // sees what the student has set this turn. Awaited (bounded) so the flushed
+    // state commits ahead of the AI run reading it; no-op when no sim is open.
+    await artefactFlushRef.current?.();
     // Snap to chat tab on mobile so the student sees the response
     // stream in. No effect on md+ where both panels are visible.
     setMobileTab("chat");

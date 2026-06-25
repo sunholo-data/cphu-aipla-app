@@ -114,7 +114,7 @@ describe("GenericArtefactFrame", () => {
     // Regression-closer for the commit-on-submit gap: a buffering artefact only
     // emits its pending state on an inbound chat-flush. The chat page invokes
     // the registered flush before each message so the tutor sees what's set.
-    let flush: (() => void) | null = null;
+    let flush: (() => Promise<void>) | null = null;
     render(
       <GenericArtefactFrame
         sandboxOrigin="https://sandbox"
@@ -126,12 +126,47 @@ describe("GenericArtefactFrame", () => {
       />,
     );
     expect(flush).toBeTypeOf("function");
-    flush!();
+    void flush!();
     expect(sendNotificationSpy).toHaveBeenCalledWith("ui/notifications/chat-flush", {});
   });
 
+  it("flush resolves once the post-flush push commits (closes the send race)", async () => {
+    let flush: (() => Promise<void>) | null = null;
+    render(
+      <GenericArtefactFrame
+        sandboxOrigin="https://sandbox"
+        artefact={ARTEFACT}
+        sessionId="s1"
+        onRegisterFlush={(fn) => {
+          flush = fn;
+        }}
+      />,
+    );
+    const settled = flush!(); // sends chat-flush, awaits the resulting push
+    // The artefact responds by emitting its flushed state-change.
+    onUpdate()({ kind: "boldkast.state-change", state: { v0: 15 }, label: "Sendte" });
+    await settled; // resolves only after the (mocked 204) push settles
+    expect(fetchWithAuth).toHaveBeenCalledTimes(1);
+  });
+
+  it("flush resolves on the cap when the artefact has nothing to flush", async () => {
+    let flush: (() => Promise<void>) | null = null;
+    render(
+      <GenericArtefactFrame
+        sandboxOrigin="https://sandbox"
+        artefact={ARTEFACT}
+        sessionId="s1"
+        onRegisterFlush={(fn) => {
+          flush = fn;
+        }}
+      />,
+    );
+    await flush!(); // no push emitted → resolves via the bounded cap, never hangs
+    expect(fetchWithAuth).not.toHaveBeenCalled();
+  });
+
   it("unregisters the flush (null) on unmount", () => {
-    const registrations: Array<(() => void) | null> = [];
+    const registrations: Array<(() => Promise<void>) | null> = [];
     const { unmount } = render(
       <GenericArtefactFrame
         sandboxOrigin="https://sandbox"

@@ -14,6 +14,13 @@ import { StaticArtefactFrame, type StaticArtefactFrameHandle } from "./StaticArt
 // don't buffer simply ignore it.
 const CHAT_FLUSH_NOTIFICATION = "ui/notifications/chat-flush";
 
+// Upper bound the chat page waits for a flush to commit before sending the
+// message anyway. A buffering artefact emits its pending state-change within a
+// postMessage round-trip (a few ms), so we resolve as soon as the resulting
+// push settles; this cap only bites when the artefact had nothing to flush (no
+// push will ever come) — keeping send latency negligible in that common case.
+const FLUSH_MAX_WAIT_MS = 150;
+
 /** The resolved artefact the student-facing `/active` endpoint returns (the
  *  public catalogue view — never the `tutorBlock`). Mirrors `ArtefactMeta.public()`. */
 export interface ActivityArtefact {
@@ -32,11 +39,13 @@ interface GenericArtefactFrameProps {
   artefact: ActivityArtefact;
   /** Active chat session id; when set, artefact events push to the tutor. */
   sessionId?: string | null;
-  /** Registers a "flush pending state" callback the chat page invokes right
+  /** Registers a "flush pending state" callback the chat page awaits right
    *  before each outgoing student message (and `null` on unmount). Lets a
    *  buffering artefact commit its latest state to the tutor for that turn —
-   *  the unified replacement for the old per-sim `sendChatFlush()` ref. */
-  onRegisterFlush?: (flush: (() => void) | null) => void;
+   *  the unified replacement for the old per-sim `sendChatFlush()` ref. The
+   *  callback resolves once the flushed state's push has committed (or a short
+   *  cap elapses), so the AI run reads the fresh state, not a stale snapshot. */
+  onRegisterFlush?: (flush: (() => Promise<void>) | null) => void;
 }
 
 // Generic noise: events that update local artefact UI but aren't state worth
@@ -84,16 +93,38 @@ export function GenericArtefactFrame({
   // Trust-card dispatcher. No-op fallback when rendered outside a
   // HumanToolEventsProvider (the builder preview), so this stays safe there.
   const humanToolEvents = useHumanToolEvents();
+  // Set while a flush is awaiting its resulting push. `handleStructuredContent`
+  // settles it with the push promise so the chat page's `await flush()` resolves
+  // only once the flushed state has actually committed to the backend.
+  const flushAwaitRef = useRef<((push: Promise<Response> | null) => void) | null>(null);
 
-  // Hand the chat page a "flush before send" hook. Fire-and-forget: the
-  // notification is a postMessage to the artefact, which (if it buffers) emits
-  // its pending state-change synchronously in-frame so the resulting
-  // iframe-context POST lands ahead of the chat turn in practice.
+  // Hand the chat page an awaitable "flush before send" hook. The returned
+  // promise resolves once the artefact's flushed state-change has committed
+  // (its iframe-context POST settled), or after a short cap when the artefact
+  // had nothing pending — so the AI run reads fresh state, not a stale snapshot.
   useEffect(() => {
     if (!onRegisterFlush) return;
-    onRegisterFlush(() => {
-      frameRef.current?.sendNotification(CHAT_FLUSH_NOTIFICATION, {});
-    });
+    onRegisterFlush(
+      () =>
+        new Promise<void>((resolve) => {
+          let settled = false;
+          const finish = () => {
+            if (settled) return;
+            settled = true;
+            flushAwaitRef.current = null;
+            resolve();
+          };
+          const timer = setTimeout(finish, FLUSH_MAX_WAIT_MS);
+          // Called by handleStructuredContent with the post-flush push (or null);
+          // await its completion, then resolve. Cancels the cap timer.
+          flushAwaitRef.current = (push) => {
+            clearTimeout(timer);
+            if (push) void push.finally(finish);
+            else finish();
+          };
+          frameRef.current?.sendNotification(CHAT_FLUSH_NOTIFICATION, {});
+        }),
+    );
     return () => onRegisterFlush(null);
   }, [onRegisterFlush]);
 
@@ -104,6 +135,12 @@ export function GenericArtefactFrame({
     // Pass the label through so the backend persists it on the iframe-context
     // state_delta — the chat transcript re-renders the same card on reload.
     const req = pushSnapshot(sc, kind, label);
+    // If a flush is awaiting, hand it THIS push so it resolves on commit.
+    const awaiting = flushAwaitRef.current;
+    if (awaiting) {
+      flushAwaitRef.current = null;
+      awaiting(req);
+    }
     if (req) {
       // Render the in-chat trust card (pending → confirmed/failed) so the
       // student SEES what reached the tutor — the affordance the bespoke sim
