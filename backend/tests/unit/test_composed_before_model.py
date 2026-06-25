@@ -107,3 +107,46 @@ async def test_composed_before_model_runs_document_injector_when_budget_allows(m
         "document_injector must run as part of the composed before_model chain. "
         "Sprint 2.12 M2 introduced budget gating; the injector predates it and must not be dropped."
     )
+
+
+# --- 1.1.48: strip grounding built-ins for image turns (Gemini non-text 400) ---
+
+
+def test_request_has_image_part_detects_inline_image():
+    from types import SimpleNamespace
+
+    from google.genai.types import Content, Part
+
+    from adk.agent import _request_has_image_part
+
+    text_only = SimpleNamespace(contents=[Content(role="user", parts=[Part.from_text(text="hi")])])
+    assert _request_has_image_part(text_only) is False
+
+    with_image = SimpleNamespace(
+        contents=[Content(role="user", parts=[Part.from_bytes(data=b"\x89PNG", mime_type="image/png")])]
+    )
+    assert _request_has_image_part(with_image) is True
+
+
+def test_strip_grounding_tools_removes_grounding_keeps_function_tools():
+    from types import SimpleNamespace
+
+    from adk.agent import _strip_grounding_tools
+
+    retrieval = SimpleNamespace(retrieval=object(), google_search=None, google_search_retrieval=None)
+    search = SimpleNamespace(retrieval=None, google_search=object(), google_search_retrieval=None)
+    fn = SimpleNamespace(retrieval=None, google_search=None, google_search_retrieval=None, function_declarations=[1])
+    req = SimpleNamespace(config=SimpleNamespace(tools=[retrieval, search, fn]))
+
+    removed = _strip_grounding_tools(req)
+    assert removed == 2
+    assert req.config.tools == [fn]  # the FunctionTool survives
+
+
+def test_strip_grounding_tools_is_a_noop_without_tools():
+    from types import SimpleNamespace
+
+    from adk.agent import _strip_grounding_tools
+
+    assert _strip_grounding_tools(SimpleNamespace(config=SimpleNamespace(tools=None))) == 0
+    assert _strip_grounding_tools(SimpleNamespace(config=None)) == 0

@@ -295,6 +295,46 @@ def _resolve_code_executor(
     return None, [AgentTool(create_code_agent())]
 
 
+def _request_has_image_part(llm_request: object) -> bool:
+    """True if any content part in the request carries image bytes — a 1.1.7
+    photo upload, the solution element's photo/drawing (1.1.48), or an injected
+    activity image (1.1.44). Used to decide whether to strip grounding built-ins,
+    which Gemini rejects alongside non-text input."""
+    for content in getattr(llm_request, "contents", None) or []:
+        for part in getattr(content, "parts", None) or []:
+            blob = getattr(part, "inline_data", None)
+            mime = getattr(blob, "mime_type", "") if blob is not None else ""
+            if (mime or "").startswith("image/"):
+                return True
+    return False
+
+
+def _strip_grounding_tools(llm_request: object) -> int:
+    """Drop grounding built-ins (Vertex RAG ``retrieval`` + ``google_search``)
+    from a request's tool list; return how many were removed. FunctionTools
+    (``function_declarations``) and everything else are kept, so the only effect
+    is to disable curriculum grounding for this one (multimodal) turn — Gemini
+    400s otherwise. Defensive ``getattr`` throughout: non-Gemini requests simply
+    have no such typed tools and pass through unchanged."""
+    config = getattr(llm_request, "config", None)
+    tools = getattr(config, "tools", None) if config is not None else None
+    if not tools:
+        return 0
+    kept = [
+        t
+        for t in tools
+        if not (
+            getattr(t, "retrieval", None)
+            or getattr(t, "google_search", None)
+            or getattr(t, "google_search_retrieval", None)
+        )
+    ]
+    removed = len(tools) - len(kept)
+    if removed:
+        config.tools = kept
+    return removed
+
+
 # --- Agent factory ---
 
 
@@ -523,6 +563,21 @@ def create_agent(
         # ImageInputContent parts that ag_ui_adk turns into ADK Parts in the
         # user event, so they're already in llm_request.contents (and replayed
         # from session history every turn). The budget gate sees them naturally.
+        #
+        # 1.1.48 — Gemini 400s ("grounding is not supported non-text input.
+        # Remove the retrieval tool") when a grounding built-in (the curriculum
+        # VertexAiRagRetrieval / google_search) rides alongside image input. The
+        # solution element's photo/drawing, a 1.1.7 upload, or an injected
+        # activity image all make THIS turn multimodal — strip the grounding
+        # tools for it (per-turn: text turns keep grounding). The curriculum
+        # *preamble* stays in the instruction, so grounding degrades gracefully
+        # (curriculum_retrieval.py promises exactly this). Sibling case:
+        # _resolve_search_tools dodges grounding-alongside-FunctionTools the
+        # same way, via sub-agents.
+        if _request_has_image_part(llm_request):
+            removed = _strip_grounding_tools(llm_request)
+            if removed:
+                logger.info("stripped %d grounding tool(s) for an image turn (Gemini non-text incompat)", removed)
         await _budget_before(callback_context, llm_request)
 
     async def _composed_after_model(callback_context: object, llm_response: object) -> None:
