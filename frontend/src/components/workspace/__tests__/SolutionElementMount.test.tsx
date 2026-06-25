@@ -30,9 +30,9 @@ vi.mock("@/components/chat/ImageComposer", () => ({
   ImageUploadButtons: () => <div data-testid="upload-buttons" />,
 }));
 vi.mock("../SolutionWhiteboard", () => ({
-  SolutionWhiteboard: ({ onCancel }: { onCancel: () => void }) => (
+  SolutionWhiteboard: ({ onAdd }: { onAdd: (f: File) => void }) => (
     <div data-testid="whiteboard">
-      <button onClick={onCancel}>cancel-wb</button>
+      <button onClick={() => onAdd(new File(["x"], "tegning.png", { type: "image/png" }))}>add-drawing</button>
     </div>
   ),
 }));
@@ -73,16 +73,20 @@ describe("SolutionElementMount — photo solution (1.1.48 M1)", () => {
     expect(screen.queryByRole("textbox")).not.toBeInTheDocument();
   });
 
-  it("opens the freehand whiteboard from the Tegn button (1.1.48 M2)", () => {
+  it("shows the whiteboard first, with photo upload as an option (1.1.48 M2)", () => {
     mockState.value = makePhoto(0);
     render(<SolutionElementMount solution={DEF} />);
-    expect(screen.queryByTestId("whiteboard")).not.toBeInTheDocument();
-    fireEvent.click(screen.getByRole("button", { name: /tegn/i }));
+    // Whiteboard is the primary surface (no toggle needed); upload is secondary.
     expect(screen.getByTestId("whiteboard")).toBeInTheDocument();
-    // Cancel returns to the photo/upload view.
-    fireEvent.click(screen.getByText("cancel-wb"));
-    expect(screen.queryByTestId("whiteboard")).not.toBeInTheDocument();
     expect(screen.getByTestId("upload-buttons")).toBeInTheDocument();
+  });
+
+  it("staging a drawing from the whiteboard feeds the same image set", () => {
+    const photo = makePhoto(0);
+    mockState.value = photo;
+    render(<SolutionElementMount solution={DEF} />);
+    fireEvent.click(screen.getByText("add-drawing"));
+    expect(photo.addFiles).toHaveBeenCalledTimes(1);
   });
 
   it("renders nothing when there is no solution element", () => {

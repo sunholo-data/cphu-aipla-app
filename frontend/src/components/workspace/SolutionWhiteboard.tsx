@@ -2,31 +2,42 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { getStroke } from "perfect-freehand";
-import { Check, Eraser, PenLine, RotateCcw, Trash2, X } from "lucide-react";
+import { Check, Eraser, PenLine, RotateCcw, Trash2, Type } from "lucide-react";
 
 /**
- * SolutionWhiteboard (1.1.48 M2, JB-2) — a freehand drawing surface for the
- * no-paper case: the student sketches their solution (equations, a free-body
- * diagram) and it's exported to an image that rides the same multimodal-turn
- * path as a photo. Custom `<canvas>` + Pointer Events (mouse / touch / stylus);
- * `perfect-freehand` (~4 KB) only smooths the strokes — canvas, events, undo and
- * export are ours. Retina-crisp; `touch-action: none` so drawing never scrolls
- * the page.
+ * SolutionWhiteboard (1.1.48 M2, JB-2) — the PRIMARY solution surface: the
+ * student sketches their solution (equations, a free-body diagram) and adds
+ * **typed text labels** (e.g. "F_g", "v₀ = 5 m/s"). It exports to an image that
+ * rides the same multimodal-turn path as a photo. Custom `<canvas>` + Pointer
+ * Events (mouse / touch / stylus); `perfect-freehand` (~4 KB) only smooths the
+ * strokes — canvas, events, undo, text and export are ours. Retina-crisp;
+ * `touch-action: none` so drawing never scrolls the page.
  *
- * Stroke-list model (not direct-to-bitmap) so undo is a pop + redraw. The canvas
- * rendering needs a browser — unit tests cover the toolbar + the export wiring.
+ * Item-list model (strokes + text), not direct-to-bitmap, so undo is a pop +
+ * redraw. Canvas rendering needs a browser — unit tests cover the toolbar +
+ * wiring.
  */
 type StrokePoint = [number, number, number]; // x, y, pressure
 interface Stroke {
+  kind: "stroke";
   color: string;
   size: number;
   points: StrokePoint[];
 }
+interface TextItem {
+  kind: "text";
+  x: number;
+  y: number;
+  color: string;
+  text: string;
+}
+type Item = Stroke | TextItem;
 
 const COLOURS = ["#1e293b", "#dc2626", "#2563eb", "#16a34a"]; // slate, red, blue, green
 const PEN_SIZE = 4;
 const ERASER_SIZE = 26;
 const ERASER_COLOUR = "#ffffff";
+const TEXT_PX = 20;
 
 function strokePath(s: Stroke): Path2D {
   const outline = getStroke(s.points, { size: s.size, thinning: 0.5, smoothing: 0.5, streamline: 0.5 });
@@ -38,20 +49,13 @@ function strokePath(s: Stroke): Path2D {
   return path;
 }
 
-export function SolutionWhiteboard({
-  onAdd,
-  onCancel,
-}: {
-  /** Called with the exported drawing (PNG on a white background). */
-  onAdd: (file: File) => void;
-  onCancel: () => void;
-}) {
+export function SolutionWhiteboard({ onAdd }: { onAdd: (file: File) => void }) {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const currentRef = useRef<Stroke | null>(null);
   const dprRef = useRef(1);
-  const [strokes, setStrokes] = useState<Stroke[]>([]);
+  const [items, setItems] = useState<Item[]>([]);
   const [colour, setColour] = useState(COLOURS[0]);
-  const [tool, setTool] = useState<"pen" | "eraser">("pen");
+  const [tool, setTool] = useState<"pen" | "eraser" | "text">("pen");
 
   const redraw = useCallback(() => {
     const c = canvasRef.current;
@@ -60,12 +64,15 @@ export function SolutionWhiteboard({
     const dpr = dprRef.current;
     ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
     ctx.clearRect(0, 0, c.width / dpr, c.height / dpr);
-    const all = currentRef.current ? [...strokes, currentRef.current] : strokes;
-    for (const s of all) {
-      ctx.fillStyle = s.color;
-      ctx.fill(strokePath(s));
+    ctx.textBaseline = "top";
+    ctx.font = `${TEXT_PX}px sans-serif`;
+    const all: Item[] = currentRef.current ? [...items, currentRef.current] : items;
+    for (const it of all) {
+      ctx.fillStyle = it.color;
+      if (it.kind === "stroke") ctx.fill(strokePath(it));
+      else ctx.fillText(it.text, it.x, it.y);
     }
-  }, [strokes]);
+  }, [items]);
 
   const fit = useCallback(() => {
     const c = canvasRef.current;
@@ -90,8 +97,15 @@ export function SolutionWhiteboard({
     return [e.clientX - rect.left, e.clientY - rect.top, e.pressure || 0.5];
   };
   const down = (e: React.PointerEvent) => {
+    if (tool === "text") {
+      const [x, y] = point(e);
+      const text = window.prompt("Tekst (fx F_g eller v₀ = 5 m/s)")?.trim();
+      if (text) setItems((arr) => [...arr, { kind: "text", x, y, color: colour, text }]);
+      return;
+    }
     canvasRef.current?.setPointerCapture(e.pointerId);
     currentRef.current = {
+      kind: "stroke",
       color: tool === "eraser" ? ERASER_COLOUR : colour,
       size: tool === "eraser" ? ERASER_SIZE : PEN_SIZE,
       points: [point(e)],
@@ -106,7 +120,7 @@ export function SolutionWhiteboard({
   const up = () => {
     const done = currentRef.current;
     currentRef.current = null;
-    if (done) setStrokes((s) => [...s, done]);
+    if (done) setItems((arr) => [...arr, done]);
   };
 
   const add = () => {
@@ -122,17 +136,22 @@ export function SolutionWhiteboard({
     octx.fillRect(0, 0, out.width, out.height);
     octx.drawImage(c, 0, 0);
     out.toBlob((blob) => {
-      if (blob) onAdd(new File([blob], `tegning-${Date.now()}.png`, { type: "image/png" }));
+      if (!blob) return;
+      onAdd(new File([blob], `tegning-${Date.now()}.png`, { type: "image/png" }));
+      setItems([]); // staged → clear the board for the next page
     }, "image/png");
   };
 
-  const hasInk = strokes.length > 0;
+  const hasInk = items.length > 0;
 
   return (
     <div className="flex flex-col gap-2 rounded-md border border-border p-2">
       <div className="flex flex-wrap items-center gap-1" role="toolbar" aria-label="Tegneværktøjer">
         <ToolBtn label="Pen" active={tool === "pen"} onClick={() => setTool("pen")}>
           <PenLine className="h-4 w-4" aria-hidden="true" />
+        </ToolBtn>
+        <ToolBtn label="Tekst" active={tool === "text"} onClick={() => setTool("text")}>
+          <Type className="h-4 w-4" aria-hidden="true" />
         </ToolBtn>
         <ToolBtn label="Viskelæder" active={tool === "eraser"} onClick={() => setTool("eraser")}>
           <Eraser className="h-4 w-4" aria-hidden="true" />
@@ -143,25 +162,29 @@ export function SolutionWhiteboard({
             key={col}
             type="button"
             aria-label={`Farve ${col}`}
-            aria-pressed={tool === "pen" && colour === col}
+            aria-pressed={tool !== "eraser" && colour === col}
             onClick={() => {
-              setTool("pen");
+              if (tool === "eraser") setTool("pen");
               setColour(col);
             }}
             className={`h-5 w-5 rounded-full border ${
-              tool === "pen" && colour === col ? "ring-2 ring-offset-1 ring-primary" : "border-border"
+              tool !== "eraser" && colour === col ? "ring-2 ring-offset-1 ring-primary" : "border-border"
             }`}
             style={{ backgroundColor: col }}
           />
         ))}
         <span className="mx-1 h-4 w-px bg-border" />
-        <ToolBtn label="Fortryd" active={false} onClick={() => setStrokes((s) => s.slice(0, -1))}>
+        <ToolBtn label="Fortryd" active={false} onClick={() => setItems((s) => s.slice(0, -1))}>
           <RotateCcw className="h-4 w-4" aria-hidden="true" />
         </ToolBtn>
-        <ToolBtn label="Ryd" active={false} onClick={() => setStrokes([])}>
+        <ToolBtn label="Ryd" active={false} onClick={() => setItems([])}>
           <Trash2 className="h-4 w-4" aria-hidden="true" />
         </ToolBtn>
       </div>
+
+      {tool === "text" ? (
+        <p className="text-xs text-muted-foreground">Tryk på tavlen for at placere en tekst (fx en formel eller et navn).</p>
+      ) : null}
 
       <canvas
         ref={canvasRef}
@@ -173,14 +196,7 @@ export function SolutionWhiteboard({
         className="h-64 w-full touch-none rounded border border-border bg-white"
       />
 
-      <div className="flex items-center justify-end gap-2">
-        <button
-          type="button"
-          onClick={onCancel}
-          className="inline-flex items-center gap-1.5 rounded-md border border-border px-3 py-1.5 text-sm hover:bg-muted"
-        >
-          <X className="h-4 w-4" aria-hidden="true" /> Annuller
-        </button>
+      <div className="flex items-center justify-end">
         <button
           type="button"
           onClick={add}
