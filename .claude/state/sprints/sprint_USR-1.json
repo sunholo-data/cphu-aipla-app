@@ -6,22 +6,94 @@
   "sprint_plan": "docs/design/aipla/v1.1.0-feedback/unified-sim-rendering-sprint.md",
   "features": [
     {
-      "id": "M1-data-migration",
-      "description": "backfill_sim_artefacts.py: set artefactId (problem-set-hints->boldkast, led-planck-tutor->led-planck, kinebot-kinematics-tutor->kinebot) + seed checklist (sub-parts) + note (problem statement) on each sim activity. Idempotent, dry-run then apply on dev. Done FIRST so the generic path has everything before dispatch flips (no regression).",
-      "scope": "backend",
-      "estimated_loc": 180,
+      "id": "A0-rehydrate",
+      "description": "GenericArtefactFrame posts prior mcp_app_context.<artefact>.* state into the iframe on mount (host->app restore message); generic, every artefact gets resume-persistence.",
+      "scope": "frontend",
+      "estimated_loc": 0,
       "actual_loc": null,
       "dependencies": [],
       "acceptance_criteria": [
-        "Each sim activity gets artefactId + checklist + note",
-        "Re-run is a no-op (idempotent)",
-        "dry-run writes nothing",
-        "Tests cover mapping + idempotency"
+        "see sprint doc"
       ],
-      "files_to_create": [
-        "backend/scripts/backfill_sim_artefacts.py",
-        "backend/tests/api_tests/test_backfill_sim_artefacts.py"
+      "files_to_create": [],
+      "files_to_modify": [],
+      "passes": null,
+      "started": null,
+      "completed": null,
+      "notes": null
+    },
+    {
+      "id": "A1-boldkast",
+      "description": "Boldkast artefact: add a restore(state) handler (UI already self-contained). Capture emit payloads first.",
+      "scope": "frontend",
+      "estimated_loc": 0,
+      "actual_loc": null,
+      "dependencies": [
+        "A0-rehydrate"
       ],
+      "acceptance_criteria": [
+        "see sprint doc"
+      ],
+      "files_to_create": [],
+      "files_to_modify": [],
+      "passes": null,
+      "started": null,
+      "completed": null,
+      "notes": null
+    },
+    {
+      "id": "A1-led",
+      "description": "LED-Planck artefact: move the Measurements table (+ Noter->note element) INTO index.html + restore handler; emit payloads byte-identical.",
+      "scope": "frontend",
+      "estimated_loc": 0,
+      "actual_loc": null,
+      "dependencies": [
+        "A0-rehydrate"
+      ],
+      "acceptance_criteria": [
+        "see sprint doc"
+      ],
+      "files_to_create": [],
+      "files_to_modify": [],
+      "passes": null,
+      "started": null,
+      "completed": null,
+      "notes": null
+    },
+    {
+      "id": "A1-kinebot",
+      "description": "KineBot artefact: move the topic-nav INTO index.html (uses existing topic->sim map) + restore handler; emit payloads byte-identical.",
+      "scope": "frontend",
+      "estimated_loc": 0,
+      "actual_loc": null,
+      "dependencies": [
+        "A0-rehydrate"
+      ],
+      "acceptance_criteria": [
+        "see sprint doc"
+      ],
+      "files_to_create": [],
+      "files_to_modify": [],
+      "passes": null,
+      "started": null,
+      "completed": null,
+      "notes": null
+    },
+    {
+      "id": "M1-data",
+      "description": "backfill_sim_artefacts.py: set artefact_id on the 3 sim activities + seed Boldkast checklist(sub-parts)+note(problem); LED note(instructions). Dry-run then apply on dev. BEFORE dispatch flip.",
+      "scope": "backend",
+      "estimated_loc": 0,
+      "actual_loc": null,
+      "dependencies": [
+        "A1-boldkast",
+        "A1-led",
+        "A1-kinebot"
+      ],
+      "acceptance_criteria": [
+        "see sprint doc"
+      ],
+      "files_to_create": [],
       "files_to_modify": [],
       "passes": null,
       "started": null,
@@ -30,50 +102,37 @@
     },
     {
       "id": "M2-dispatch",
-      "description": "Unify runtime dispatch on artefact_id: workspaceContentKind selects sim from activeArtefact; delete the skillSlug=='problem-set-hints|led-planck-tutor|kinebot-kinematics-tutor' render branches; usesStudentWorkspace true for sims; render all via StudentWorkspace. Verify iframe-context payloads unchanged.",
+      "description": "workspaceContentKind keys off artefact_id; drop the 3 skillSlug render branches; usesStudentWorkspace true for sims; render all via StudentWorkspace.",
       "scope": "frontend",
-      "estimated_loc": 120,
+      "estimated_loc": 0,
       "actual_loc": null,
       "dependencies": [
-        "M1-data-migration"
+        "M1-data"
       ],
       "acceptance_criteria": [
-        "A migrated sim activity renders artefact+checklist+note via the generic mount",
-        "Builder preview === runtime",
-        "Tutor still receives sim events (iframe-context payload unchanged)",
-        "workspaceContent.test updated; quality:check green"
+        "see sprint doc"
       ],
       "files_to_create": [],
-      "files_to_modify": [
-        "frontend/src/app/chat/[...path]/workspaceContent.ts",
-        "frontend/src/app/chat/[...path]/page.tsx",
-        "frontend/src/app/chat/[...path]/__tests__/workspaceContent.test.ts"
-      ],
+      "files_to_modify": [],
       "passes": null,
       "started": null,
       "completed": null,
       "notes": null
     },
     {
-      "id": "M3-delete-legacy",
-      "description": "Delete SIM_WORKSPACE_SLUGS + BoldkastSimFrame/BoldkastWorkbench/LedPlanckLabFrame/LedPlanckLabButton/LedPlanckWorkbench/KineBotFrame/KineBotWorkbench + useBoldkastSnapshot/useLedPlanckSnapshot/useKineBotSnapshot + BOLDKAST_SUBPARTS + the per-sim refs/state/render cases in the chat page. Keep useSimSnapshotPush.",
+      "id": "M3-delete",
+      "description": "Delete SIM_WORKSPACE_SLUGS + the 3 SimFrames/Workbenches (+LedPlanckLabButton/Results/MeasureTable, TopicRow) + per-sim snapshot hooks + BOLDKAST_SUBPARTS + chat-page render cases. Keep useSimSnapshotPush.",
       "scope": "frontend",
-      "estimated_loc": -600,
+      "estimated_loc": 0,
       "actual_loc": null,
       "dependencies": [
         "M2-dispatch"
       ],
       "acceptance_criteria": [
-        "The bespoke frames/workbenches/hooks + slug registry deleted",
-        "No dead imports; no orphaned tests",
-        "Exactly one sim render path",
-        "Full CI green"
+        "see sprint doc"
       ],
       "files_to_create": [],
-      "files_to_modify": [
-        "frontend/src/app/chat/[...path]/page.tsx",
-        "frontend/src/app/chat/[...path]/workspaceContent.ts"
-      ],
+      "files_to_modify": [],
       "passes": null,
       "started": null,
       "completed": null,
