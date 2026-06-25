@@ -230,6 +230,29 @@ def test_solution_element_injects_feedback_prompt_and_task() -> None:
     assert "Understand projectile motion" in focus
 
 
+def test_activity_to_config_carries_document_element() -> None:
+    """1.1.48 regression: the ALS-1 Activity→ActivityConfig adapter must carry the
+    ``document`` element through to the student session — dropping it meant a
+    document-feedback activity created fine but rendered no upload surface."""
+    from datetime import UTC, datetime
+
+    from adk.teacher_focus import _activity_to_config
+    from db.models.activity import Activity
+    from db.models.activity_config import DocumentElement
+
+    activity = Activity(
+        activityId="act-1",
+        skillId="concept",
+        ownerUid="t",
+        title="Doc activity",
+        document=[DocumentElement(id="document-1", prompt="Upload din opgave")],
+        updatedAt=datetime.now(UTC),
+    )
+    cfg = _activity_to_config(activity, class_id="c")
+    assert [d.id for d in cfg.document] == ["document-1"]
+    assert cfg.document[0].prompt == "Upload din opgave"
+
+
 def test_no_solution_element_omits_the_feedback_prompt() -> None:
     from datetime import UTC, datetime
 

@@ -66,6 +66,25 @@ def test_post_mints_distinct_ids_no_collision():
     assert aid.startswith("act-") and bid.startswith("act-")
 
 
+def test_post_accepts_document_and_solution_elements():
+    """Regression (1.1.48): the builder POSTs the full element set. ``document``
+    must be accepted on the ALS-1 path + round-trip on GET — it was missing from
+    ActivityUpsert/Activity/_activity_from_body, so creating a document-feedback
+    activity 422'd with extra_forbidden('document')."""
+    c = _client()
+    body = {
+        "skillId": "concept",
+        "title": "Doc + solution",
+        "document": [{"id": "document-1", "prompt": "Upload din opgave"}],
+        "solution": [{"id": "solution-1", "prompt": "Tegn din løsning"}],
+    }
+    resp = c.post("/api/activities", json=body)
+    assert resp.status_code == 201, resp.text
+    got = c.get(f"/api/activities/{resp.json()['activityId']}").json()
+    assert got["document"] == [{"id": "document-1", "prompt": "Upload din opgave"}]
+    assert got["solution"][0]["id"] == "solution-1"
+
+
 def test_post_with_class_auto_assigns():
     _make_class("c1")
     c = _client()

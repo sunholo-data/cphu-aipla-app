@@ -79,6 +79,7 @@ def _activity_to_config(activity: Activity, *, class_id: str) -> ActivityConfig:
         calculator=activity.calculator,
         note=activity.note,
         solution=activity.solution,
+        document=activity.document,
         materials=activity.materials,
         updatedAt=activity.updated_at or datetime.now(UTC),
     )

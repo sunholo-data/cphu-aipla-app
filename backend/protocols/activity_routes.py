@@ -38,6 +38,7 @@ from db.models.activity_config import (
     ChartElement,
     ChecklistItem,
     Difficulty,
+    DocumentElement,
     InteractionStyle,
     Language,
     MaterialRef,
@@ -77,6 +78,7 @@ class ActivityUpsert(BaseModel):
     calculator: list[CalculatorElement] = Field(default_factory=list)
     note: list[NoteElement] = Field(default_factory=list)
     solution: list[SolutionElement] = Field(default_factory=list)
+    document: list[DocumentElement] = Field(default_factory=list)
     materials: list[MaterialRef] = Field(default_factory=list)
     visibility: Visibility = "private"
 
@@ -124,6 +126,7 @@ def _activity_from_body(body: ActivityUpsert, *, owner_uid: str, activity_id: st
         calculator=body.calculator,
         note=body.note,
         solution=body.solution,
+        document=body.document,
         materials=body.materials,
         visibility=body.visibility,
     )

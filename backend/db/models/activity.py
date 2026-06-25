@@ -31,6 +31,7 @@ from db.models.activity_config import (
     ChartElement,
     ChecklistItem,
     Difficulty,
+    DocumentElement,
     InteractionStyle,
     Language,
     MaterialRef,
@@ -92,6 +93,7 @@ class Activity(BaseModel):
     calculator: list[CalculatorElement] = Field(default_factory=list)
     note: list[NoteElement] = Field(default_factory=list)
     solution: list[SolutionElement] = Field(default_factory=list)
+    document: list[DocumentElement] = Field(default_factory=list)
     materials: list[MaterialRef] = Field(default_factory=list)
     # Sharing envelope. Default ``private`` (not ``draft``): today's builder has no
     # separate publish step, so a created+assigned activity is immediately
