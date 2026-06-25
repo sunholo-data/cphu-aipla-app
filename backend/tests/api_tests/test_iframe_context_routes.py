@@ -32,6 +32,7 @@ from __future__ import annotations
 from datetime import UTC, datetime
 from unittest.mock import AsyncMock, MagicMock, patch
 
+import pytest
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
 
@@ -439,11 +440,35 @@ class TestArtefactCatalogueBypass:
         delta = svc.append_event.await_args.args[1].actions.state_delta
         assert "mcp_app_context.boldkast.snapshot" in delta
 
+    @patch("protocols.iframe_context_routes.get_session_service")
+    @patch("protocols.iframe_context_routes.skill_config")
+    @patch("protocols.iframe_context_routes.get_session_index")
+    @pytest.mark.parametrize("server", ["progress", "table", "calculator", "chart"])
+    def test_first_party_workspace_element_writes_on_skill_with_no_mcp_config(
+        self, mock_get_index, mock_skill_module, mock_get_svc, server
+    ):
+        """A first-party workspace element (the checklist's 'progress', the data
+        table, the calculator) reports student interaction on a concept-dialogue
+        activity whose skill declares no servers. These are our OWN UI, trusted
+        like artefacts → 204, not 403."""
+        mock_get_index.return_value = _make_index(skill_id="concept-dialogue")
+        mock_skill_module.get_skill.return_value = _make_skill(skill_id="concept-dialogue")
+        svc = _mock_session_service()
+        mock_get_svc.return_value = svc
+
+        body = {"serverId": server, "toolName": "state", "structuredContent": {"done": ["a"]}}
+        client = _make_client("viewer")
+        resp = client.post("/api/sessions/sess-1/iframe-context", json=body)
+        assert resp.status_code == 204, resp.text
+        delta = svc.append_event.await_args.args[1].actions.state_delta
+        assert f"mcp_app_context.{server}.state" in delta
+
     @patch("protocols.iframe_context_routes.skill_config")
     @patch("protocols.iframe_context_routes.get_session_index")
     def test_unknown_server_still_rejected_on_skill_with_no_mcp_config(self, mock_get_index, mock_skill_module):
-        """The bypass is bounded to the artefact catalogue: a server that is
-        neither activated by the skill NOR a known artefact is still 403."""
+        """The bypass is bounded to the artefact catalogue + first-party element
+        set: a server that is neither activated by the skill, a known artefact,
+        NOR a workspace element is still 403."""
         mock_get_index.return_value = _make_index()
         mock_skill_module.get_skill.return_value = _make_skill()  # no MCP config
         body = {**_HAPPY_BODY, "serverId": "not-an-artefact-nor-a-server"}

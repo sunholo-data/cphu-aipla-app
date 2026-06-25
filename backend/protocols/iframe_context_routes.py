@@ -94,6 +94,16 @@ _MAX_STRUCTURED_CONTENT_BYTES = 4096
 # context that this is iframe-supplied state, not user instructions.
 _STATE_KEY_NAMESPACE = "mcp_app_context"
 
+# First-party AIPLA workspace-element surfaces that report student interaction
+# to the tutor (the checklist → "progress", the data table, the calculator).
+# These are our OWN React components rendering teacher-authored activity content
+# — not external MCP servers and not sandboxed artefacts — so, like a catalogue
+# artefact, their membership in this fixed set IS their authorization to write
+# context, independent of which skill the activity runs. Without this a checklist
+# or table on a concept-dialogue activity (whose skill declares no mcp.servers)
+# would 403 and the tutor would never see the student's progress.
+_WORKSPACE_ELEMENT_SERVERS = frozenset({"progress", "table", "calculator", "chart"})
+
 
 class IframeContextRequest(BaseModel):
     """The body of ``POST /api/sessions/{id}/iframe-context``."""
@@ -154,7 +164,7 @@ def _enforce_skill_allowlists(
     # still governs genuine MCP servers (not in the artefact catalogue).
     from artefacts.loader import is_known_artefact
 
-    if is_known_artefact(server_id):
+    if is_known_artefact(server_id) or server_id in _WORKSPACE_ELEMENT_SERVERS:
         return
 
     mcp_config = (skill.skill_metadata.tool_configs or {}).get("mcp") or {}
