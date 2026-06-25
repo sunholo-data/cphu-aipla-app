@@ -744,6 +744,20 @@
   // intent signals, not continuous probing.
   const pendingChanges = {};
 
+  // Danish label for the in-chat trust card the host renders ("Afspillede med
+  // v₀=15 m/s, θ=40°"). Emitted in the payload so the host stays generic — the
+  // artefact owns its own symbols/units/language. Mirrors the label the
+  // pre-USR-1 BoldkastSimFrame produced.
+  function labelForStateChange(changed, state, triggeredBy) {
+    const parts = [];
+    if (changed.indexOf("v0") >= 0 && typeof state.v0 === "number") parts.push("v₀=" + state.v0 + " m/s");
+    if (changed.indexOf("theta") >= 0 && typeof state.theta === "number") parts.push("θ=" + state.theta + "°");
+    if (changed.indexOf("g") >= 0 && typeof state.g === "number") parts.push("g=" + state.g + " m/s²");
+    const verb = triggeredBy === "chat-submit" ? "Sendte spørgsmål med" : "Afspillede med";
+    return parts.length > 0 ? verb + " " + parts.join(", ") : verb + " aktuel konfiguration";
+  }
+  const MARKER_DA = { ymax: "maksimal højde", range: "rækkevidde", tof: "flyvetid" };
+
   function flushPendingChanges(triggeredBy) {
     const changedKeys = Object.keys(pendingChanges);
     if (changedKeys.length === 0) {
@@ -754,6 +768,7 @@
       changed: changedKeys,
       state: state,
       triggeredBy: triggeredBy,
+      label: labelForStateChange(changedKeys, state, triggeredBy),
     });
     // Clear after flush. Mutate in place so any closure capturing the
     // object sees the empty state.
@@ -866,7 +881,14 @@
       revealed[m] = !revealed[m];
       updateMarkers();
       render();
-      emit("boldkast.show_value", { marker: m, revealed: revealed[m] });
+      // Card only on REVEAL (a deliberate "show me the answer"); un-reveal
+      // still pushes state so the tutor tracks it, but renders no card (null
+      // label → host skips the dispatch).
+      emit("boldkast.show_value", {
+        marker: m,
+        revealed: revealed[m],
+        label: revealed[m] ? "Afslørede " + (MARKER_DA[m] || m) : null,
+      });
     });
   });
 

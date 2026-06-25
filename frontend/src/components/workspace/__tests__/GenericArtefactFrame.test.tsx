@@ -9,9 +9,10 @@ import { fetchWithAuth } from "@/lib/apiClient";
 // Capture StaticArtefactFrame's props so we can drive its onUpdateModelContext,
 // and expose a sendNotification spy through the forwarded ref so the flush
 // wiring (host → artefact chat-flush) is testable.
-const { frameSpy, sendNotificationSpy } = vi.hoisted(() => ({
+const { frameSpy, sendNotificationSpy, dispatchSpy } = vi.hoisted(() => ({
   frameSpy: vi.fn(),
   sendNotificationSpy: vi.fn(),
+  dispatchSpy: vi.fn(),
 }));
 vi.mock("../StaticArtefactFrame", async () => {
   const { forwardRef, useImperativeHandle } = await import("react");
@@ -23,6 +24,10 @@ vi.mock("../StaticArtefactFrame", async () => {
     }),
   };
 });
+// Capture the trust-card dispatch (the in-chat "what was sent to the AI" card).
+vi.mock("@/hooks/useHumanToolEvents", () => ({
+  useHumanToolEvents: () => ({ dispatch: dispatchSpy }),
+}));
 
 import { GenericArtefactFrame, type ActivityArtefact } from "../GenericArtefactFrame";
 
@@ -37,6 +42,7 @@ describe("GenericArtefactFrame", () => {
     vi.mocked(fetchWithAuth).mockClear();
     frameSpy.mockClear();
     sendNotificationSpy.mockClear();
+    dispatchSpy.mockClear();
   });
 
   it("mounts the artefact by its catalogue path", () => {
@@ -63,6 +69,39 @@ describe("GenericArtefactFrame", () => {
     onUpdate()({ kind: "boldkast.pause" });
     onUpdate()({ kind: "led-planck.reset" });
     expect(fetchWithAuth).not.toHaveBeenCalled();
+    expect(dispatchSpy).not.toHaveBeenCalled();
+  });
+
+  it("dispatches the in-chat trust card with the artefact's own label", () => {
+    // The regression USR-1 reintroduced: the bespoke frames rendered a card
+    // showing what reached the tutor; the generic mount must do the same.
+    render(<GenericArtefactFrame sandboxOrigin="https://sandbox" artefact={ARTEFACT} sessionId="s1" />);
+    onUpdate()({
+      kind: "boldkast.state-change",
+      state: { v0: 15, theta: 40 },
+      label: "Afspillede med v₀=15 m/s, θ=40°",
+    });
+    expect(dispatchSpy).toHaveBeenCalledTimes(1);
+    const arg = dispatchSpy.mock.calls[0][0];
+    expect(arg.label).toBe("Afspillede med v₀=15 m/s, θ=40°");
+    expect(typeof arg.push).toBe("function");
+    // The label is also persisted on the push so the transcript re-renders it.
+    const body = JSON.parse((vi.mocked(fetchWithAuth).mock.calls[0][1] as RequestInit).body as string);
+    expect(body.label).toBe("Afspillede med v₀=15 m/s, θ=40°");
+  });
+
+  it("falls back to a generic key=value label when the artefact emits none", () => {
+    render(<GenericArtefactFrame sandboxOrigin="https://sandbox" artefact={ARTEFACT} sessionId="s1" />);
+    onUpdate()({ kind: "boldkast.state-change", state: { v0: 15, theta: 40 } });
+    expect(dispatchSpy).toHaveBeenCalledTimes(1);
+    expect(dispatchSpy.mock.calls[0][0].label).toBe("v0=15, theta=40");
+  });
+
+  it("pushes but renders NO card when there's nothing to show (no label, no state)", () => {
+    render(<GenericArtefactFrame sandboxOrigin="https://sandbox" artefact={ARTEFACT} sessionId="s1" />);
+    onUpdate()({ kind: "boldkast.open" });
+    expect(fetchWithAuth).toHaveBeenCalledTimes(1); // still informs the tutor
+    expect(dispatchSpy).not.toHaveBeenCalled(); // but no trust card
   });
 
   it("does not push before a session exists", () => {
