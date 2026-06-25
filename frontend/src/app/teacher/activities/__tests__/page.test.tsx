@@ -5,6 +5,10 @@ import * as teacherApi from "@/lib/teacherApi";
 import type { ActivityPayload, ClassPayload } from "@/lib/teacherApi";
 import TeacherActivitiesPage from "@/app/teacher/activities/page";
 
+// Controllable researcher claim (drives the My/All toggle + the All view).
+const { researcherRef } = vi.hoisted(() => ({ researcherRef: { current: false } }));
+vi.mock("@/hooks/useIsResearcher", () => ({ useIsResearcher: () => researcherRef.current }));
+
 function makeActivity(overrides: Partial<ActivityPayload> = {}): ActivityPayload {
   return {
     activityId: "act-energy",
@@ -36,6 +40,7 @@ function makeClass(overrides: Partial<ClassPayload> = {}): ClassPayload {
 
 beforeEach(() => {
   vi.restoreAllMocks();
+  researcherRef.current = false;
 });
 afterEach(() => {
   vi.restoreAllMocks();
@@ -52,7 +57,27 @@ describe("TeacherActivitiesPage (ALS-1 M1.2 library)", () => {
     expect(newLinks[0]).toHaveAttribute("href", "/teacher/activities/new");
   });
 
-  it("lists an activity with its assigned-class chips + an Edit link (no classId)", async () => {
+  it("shows the composition (sim + elements + docs) from the payload", async () => {
+    vi.spyOn(teacherApi, "listActivities").mockResolvedValue([
+      makeActivity({
+        artefactId: "boldkast",
+        workbenchType: "app",
+        checklist: [{ id: "a", label: "a" }, { id: "b", label: "b" }] as ActivityPayload["checklist"],
+        note: [{ id: "n", title: "t", body: "x" }] as unknown as ActivityPayload["note"],
+        materials: [{ documentId: "d1" }] as unknown as ActivityPayload["materials"],
+      }),
+    ]);
+    vi.spyOn(teacherApi, "listClasses").mockResolvedValue([]);
+    render(<TeacherActivitiesPage />);
+
+    await screen.findByText("Energy basics");
+    expect(screen.getByText("Boldkast")).toBeInTheDocument(); // sim artefact, friendly name
+    expect(screen.getByText("Checklist 2")).toBeInTheDocument(); // element + count
+    expect(screen.getByText("Note")).toBeInTheDocument();
+    expect(screen.getByText("1 document")).toBeInTheDocument();
+  });
+
+  it("lists an activity with an Edit link (class-independent) + a chip for its assigned class", async () => {
     vi.spyOn(teacherApi, "listActivities").mockResolvedValue([makeActivity()]);
     vi.spyOn(teacherApi, "listClasses").mockResolvedValue([
       makeClass({ classId: "c-1", name: "Physics A — 7B", activityIds: ["act-energy"] }),
@@ -62,16 +87,15 @@ describe("TeacherActivitiesPage (ALS-1 M1.2 library)", () => {
 
     await waitFor(() => expect(screen.getByText("Energy basics")).toBeInTheDocument());
     expect(screen.getByText("Concept dialogue")).toBeInTheDocument();
-    // Assigned-class chip shows the one class it's assigned to (also appears as an
-    // assign checkbox, so allow more than one occurrence).
-    expect(screen.getAllByText("Physics A — 7B").length).toBeGreaterThanOrEqual(1);
-    // Edit link is class-independent (no classId in the href).
+    // The assigned class is a pressed chip-toggle (no separate read-only chip row).
+    const assignedChip = screen.getByRole("button", { name: "Physics A — 7B" });
+    expect(assignedChip).toHaveAttribute("aria-pressed", "true");
     const editLink = screen.getByRole("link", { name: /Edit/ });
     expect(editLink.getAttribute("href")).toContain("/teacher/activities/act-energy");
     expect(editLink.getAttribute("href")).not.toContain("classId");
   });
 
-  it("assigns the activity to another class via the checkbox", async () => {
+  it("assigns the activity to another class via its chip toggle", async () => {
     vi.spyOn(teacherApi, "listActivities").mockResolvedValue([makeActivity()]);
     vi.spyOn(teacherApi, "listClasses").mockResolvedValue([
       makeClass({ classId: "c-1", name: "7B", activityIds: [] }),
@@ -83,11 +107,40 @@ describe("TeacherActivitiesPage (ALS-1 M1.2 library)", () => {
     render(<TeacherActivitiesPage />);
 
     await screen.findByText("Energy basics");
-    // The assign checkboxes are inline now; classes order [7B, 8A] -> index 1 = 8A.
-    const checkboxes = document.querySelectorAll<HTMLInputElement>('input[type="checkbox"]');
-    expect(checkboxes).toHaveLength(2);
-    fireEvent.click(checkboxes[1]);
+    const chip8A = screen.getByRole("button", { name: "8A" });
+    expect(chip8A).toHaveAttribute("aria-pressed", "false");
+    fireEvent.click(chip8A);
     await waitFor(() => expect(patchMock).toHaveBeenCalledWith("c-2", { add: ["act-energy"] }));
+  });
+
+  it("non-researchers get no My/All toggle", async () => {
+    vi.spyOn(teacherApi, "listActivities").mockResolvedValue([makeActivity()]);
+    vi.spyOn(teacherApi, "listClasses").mockResolvedValue([]);
+    render(<TeacherActivitiesPage />);
+
+    await screen.findByText("Energy basics");
+    expect(screen.queryByRole("button", { name: "All activities" })).not.toBeInTheDocument();
+  });
+
+  it("researcher All view: cross-teacher, read-only, shows the owner", async () => {
+    researcherRef.current = true;
+    const listSpy = vi.spyOn(teacherApi, "listActivities").mockImplementation(async (scope) =>
+      scope === "all"
+        ? [makeActivity({ activityId: "act-x", ownerUid: "other-teacher", title: "Theirs" })]
+        : [makeActivity()],
+    );
+    vi.spyOn(teacherApi, "listClasses").mockResolvedValue([]);
+    render(<TeacherActivitiesPage />);
+
+    await screen.findByText("Energy basics"); // own view first
+    fireEvent.click(screen.getByRole("button", { name: "All activities" }));
+
+    await screen.findByText("Theirs");
+    expect(listSpy).toHaveBeenCalledWith("all");
+    expect(screen.getByTestId("activity-owner")).toHaveTextContent("Owner: other-teacher");
+    // Read-only observation: no edit/delete on another teacher's activity.
+    expect(screen.queryByRole("link", { name: /Edit/ })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /Delete/ })).not.toBeInTheDocument();
   });
 
   it("degrades to an error empty-state when the list fails", async () => {
@@ -95,6 +148,6 @@ describe("TeacherActivitiesPage (ALS-1 M1.2 library)", () => {
     vi.spyOn(teacherApi, "listClasses").mockResolvedValue([]);
     render(<TeacherActivitiesPage />);
 
-    await waitFor(() => expect(screen.getByText(/Couldn.t load your activities/)).toBeInTheDocument());
+    await waitFor(() => expect(screen.getByText(/Couldn.t load activities/)).toBeInTheDocument());
   });
 });

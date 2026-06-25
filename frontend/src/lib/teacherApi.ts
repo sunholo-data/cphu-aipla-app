@@ -423,9 +423,13 @@ export async function updateActivity(activityId: string, body: ActivityUpsertBod
   return readJson<ActivityPayload>(resp, "update activity");
 }
 
-/** List the caller's activity library (ALS-1 M1.2). */
-export async function listActivities(): Promise<ActivityPayload[]> {
-  const resp = await fetchWithAuth(`/api/proxy/api/activities?owner=me`);
+/** List activities (ALS-1 M1.2). `scope="own"` (default) → the caller's own
+ *  library. `scope="all"` → every activity across all teachers, researcher-only
+ *  (the backend 403s non-researchers; never a silent fallback). Read-only
+ *  observation, mirroring the classes Research view. */
+export async function listActivities(scope: "own" | "all" = "own"): Promise<ActivityPayload[]> {
+  const query = scope === "all" ? "scope=all" : "owner=me";
+  const resp = await fetchWithAuth(`/api/proxy/api/activities?${query}`);
   return readJson<ActivityPayload[]>(resp, "list activities");
 }
 

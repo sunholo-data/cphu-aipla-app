@@ -27,13 +27,19 @@ def _local_mode(monkeypatch):
     fs_module._reset_client_for_testing()
 
 
-def _client(uid: str = TEACHER) -> TestClient:
+def _client(uid: str = TEACHER, *, researcher: bool = False) -> TestClient:
     app = FastAPI()
     app.include_router(activities_router)
     app.include_router(classes_router)
 
     async def _override(request: Request) -> User:
-        u = User(uid=uid, email=f"{uid}@example.test", domain="example.test", is_teacher=True)
+        u = User(
+            uid=uid,
+            email=f"{uid}@example.test",
+            domain="example.test",
+            is_teacher=True,
+            is_researcher=researcher,
+        )
         request.state.access = build_access_context(u)
         return u
 
@@ -104,6 +110,32 @@ def test_list_owner_scoped():
     _client().post("/api/activities", json={"skillId": "concept", "title": "Mine"})
     _client(OTHER).post("/api/activities", json={"skillId": "concept", "title": "Theirs"})
     mine = _client().get("/api/activities?owner=me").json()
+    assert {a["title"] for a in mine} == {"Mine"}
+
+
+def test_scope_all_researcher_sees_every_owner():
+    """Research view (1.1.5): a researcher's ``scope=all`` returns activities
+    across ALL teachers, not just their own."""
+    _client().post("/api/activities", json={"skillId": "concept", "title": "Mine"})
+    _client(OTHER).post("/api/activities", json={"skillId": "concept", "title": "Theirs"})
+    rows = _client(researcher=True).get("/api/activities?scope=all").json()
+    assert {a["title"] for a in rows} == {"Mine", "Theirs"}
+
+
+def test_scope_all_non_researcher_forbidden():
+    """A non-researcher cannot reach scope=all even by URL-hacking it — 403,
+    never a silent fallback to own-scope."""
+    _client(OTHER).post("/api/activities", json={"skillId": "concept", "title": "Theirs"})
+    resp = _client().get("/api/activities?scope=all")  # default researcher=False
+    assert resp.status_code == 403
+
+
+def test_scope_own_still_owner_scoped_for_researcher():
+    """A researcher's DEFAULT (own) scope is still just their own library —
+    the cross-owner scan only happens on the explicit scope=all opt-in."""
+    _client(researcher=True).post("/api/activities", json={"skillId": "concept", "title": "Mine"})
+    _client(OTHER).post("/api/activities", json={"skillId": "concept", "title": "Theirs"})
+    mine = _client(researcher=True).get("/api/activities?owner=me").json()
     assert {a["title"] for a in mine} == {"Mine"}
 
 

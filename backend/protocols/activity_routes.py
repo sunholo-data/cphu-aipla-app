@@ -28,6 +28,7 @@ from db.activities import (
     create_activity,
     get_activity,
     list_activities_by_owner,
+    list_all_activities,
     save_activity,
     soft_delete_activity,
 )
@@ -157,11 +158,26 @@ async def post_activity(
 @router.get("")
 async def list_my_activities(
     owner: str = Query(default="me"),
+    scope: str = Query(default="own"),
     user: User = Depends(get_current_user),  # noqa: B008
 ) -> list[dict]:
-    """The caller's activity library. ``?owner=me`` (the only mode in M1) — the
-    cross-teacher ``?published=true`` catalogue is M3."""
+    """List activities.
+
+    - ``scope=own`` (default, ``?owner=me``): the caller's own library.
+    - ``scope=all``: every activity across all teachers — researcher-only
+      (1.1.5 Research view, mirroring ``GET /api/classes?scope=all``).
+      Non-researchers get 403 even via a URL-hack, never a silent fallback to
+      own-scope. Read-only observation: assign/edit/delete stay owner-gated on
+      their own routes.
+
+    The cross-teacher ``?published=true`` publish/adopt catalogue is still M3.
+    """
     _assert_teacher(user)
+    if scope == "all":
+        if not user.is_researcher:
+            raise HTTPException(status_code=403, detail="researcher access required")
+        log.info("activities research view (scope=all) uid=%s", user.uid)
+        return [_serialize(a) for a in list_all_activities()]
     if owner != "me":
         raise HTTPException(status_code=400, detail="only owner=me is supported (published catalogue is M3)")
     return [_serialize(a) for a in list_activities_by_owner(user.uid)]

@@ -92,6 +92,21 @@ def list_activities_by_owner(owner_uid: str, *, include_deleted: bool = False) -
     return rows
 
 
+def list_all_activities(*, include_deleted: bool = False) -> list[Activity]:
+    """List every activity across all owners (newest first), soft-deleted excluded.
+
+    The cross-owner scan that backs the researcher "Research view" (1.1.5) of the
+    activities library. Callers MUST gate this on the researcher claim before
+    invoking — like ``db.classes.list_all_classes``, this performs NO
+    authorization; it is the bypass target, not the bypass check.
+    """
+    rows = [_from_firestore(d) for d in query_documents(_COLLECTION)]
+    if not include_deleted:
+        rows = [a for a in rows if a.deleted_at is None]
+    rows.sort(key=lambda a: a.updated_at or datetime.min.replace(tzinfo=UTC), reverse=True)
+    return rows
+
+
 def soft_delete_activity(activity_id: str) -> None:
     """Soft-delete (sets ``deletedAt``). Idempotent — no-op if already gone.
 
@@ -106,6 +121,7 @@ __all__ = [
     "create_activity",
     "get_activity",
     "list_activities_by_owner",
+    "list_all_activities",
     "save_activity",
     "soft_delete_activity",
 ]
