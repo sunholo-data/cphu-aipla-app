@@ -13,6 +13,7 @@ import { isLocalMode } from "@/lib/localMode";
 import { signOut } from "@/lib/firebase";
 import { useTeacherAuth } from "@/hooks/useTeacherAuth";
 import { useIsResearcher } from "@/hooks/useIsResearcher";
+import { useTeacherBootstrap } from "@/hooks/useTeacherBootstrap";
 
 /**
  * Client shell for /teacher/* routes.
@@ -25,6 +26,9 @@ export function TeacherClientShell({ children }: { children: ReactNode }) {
   const { user, loading } = useTeacherAuth();
   const isResearcher = useIsResearcher();
   const pathname = usePathname() ?? "";
+  // First sign-in (incl. the first after a clean-slate wipe): seed the teacher's
+  // onboarding demo. Idempotent backend; reloads once if it just seeded.
+  useTeacherBootstrap(!!user);
   // The activity builder (new + edit) is an app-like surface — like the student
   // chat it wants the full width for its two-column config + live preview. The
   // list/insight/settings pages stay capped for comfortable reading lengths.

@@ -437,6 +437,23 @@ export async function listActivities(scope: "own" | "all" = "own"): Promise<Acti
   return readJson<ActivityPayload[]>(resp, "list activities");
 }
 
+export interface TeacherBootstrapResult {
+  /** True when this call just seeded the onboarding demo (first sign-in). */
+  seeded: boolean;
+  classId?: string;
+  className?: string;
+  activityIds?: string[];
+  joinCode?: string | null;
+}
+
+/** Seed the teacher's onboarding demo (a Demo class + example activities) on
+ *  first app load. Idempotent backend no-op once the teacher owns any class, so
+ *  it's safe to call on every mount. */
+export async function bootstrapTeacher(): Promise<TeacherBootstrapResult> {
+  const resp = await fetchWithAuth(`/api/proxy/api/teacher/bootstrap`, { method: "POST" });
+  return readJson<TeacherBootstrapResult>(resp, "teacher bootstrap");
+}
+
 /** Soft-delete an activity (owner-only). */
 export async function deleteActivity(activityId: string): Promise<void> {
   const resp = await fetchWithAuth(`/api/proxy/api/activities/${encodeURIComponent(activityId)}`, {
