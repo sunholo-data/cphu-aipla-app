@@ -29,6 +29,13 @@ vi.mock("@/components/chat/ImageComposer", () => ({
   ImageStagingRow: () => <div data-testid="staging" />,
   ImageUploadButtons: () => <div data-testid="upload-buttons" />,
 }));
+vi.mock("../SolutionWhiteboard", () => ({
+  SolutionWhiteboard: ({ onCancel }: { onCancel: () => void }) => (
+    <div data-testid="whiteboard">
+      <button onClick={onCancel}>cancel-wb</button>
+    </div>
+  ),
+}));
 
 import { SolutionElementMount } from "../SolutionElementMount";
 
@@ -64,6 +71,18 @@ describe("SolutionElementMount — photo solution (1.1.48 M1)", () => {
     expect(screen.getByText("Vis dine udregninger")).toBeInTheDocument();
     expect(screen.getByTestId("upload-buttons")).toBeInTheDocument();
     expect(screen.queryByRole("textbox")).not.toBeInTheDocument();
+  });
+
+  it("opens the freehand whiteboard from the Tegn button (1.1.48 M2)", () => {
+    mockState.value = makePhoto(0);
+    render(<SolutionElementMount solution={DEF} />);
+    expect(screen.queryByTestId("whiteboard")).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: /tegn/i }));
+    expect(screen.getByTestId("whiteboard")).toBeInTheDocument();
+    // Cancel returns to the photo/upload view.
+    fireEvent.click(screen.getByText("cancel-wb"));
+    expect(screen.queryByTestId("whiteboard")).not.toBeInTheDocument();
+    expect(screen.getByTestId("upload-buttons")).toBeInTheDocument();
   });
 
   it("renders nothing when there is no solution element", () => {

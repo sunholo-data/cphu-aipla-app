@@ -1,10 +1,12 @@
 "use client";
 
 import { useCallback, useState } from "react";
+import { Pencil } from "lucide-react";
 
 import { ImageStagingRow, ImageUploadButtons } from "@/components/chat/ImageComposer";
 import { useImageAttachments, MAX_IMAGES } from "@/hooks/useImageAttachments";
 import { useOptionalProactiveSimOptsRef } from "@/contexts/ProactiveSimContext";
+import { SolutionWhiteboard } from "./SolutionWhiteboard";
 
 /** Teacher-authored solution element (1.1.45 M4 → image-based 1.1.48 M1, JB-2).
  *  The teacher authors the `prompt`; the student submits a PHOTO of their own
@@ -37,6 +39,8 @@ export function SolutionElementMount({ solution }: { solution: SolutionElementDe
   const proactiveRef = useOptionalProactiveSimOptsRef();
   const [submitting, setSubmitting] = useState(false);
   const [sent, setSent] = useState(false);
+  const [drawing, setDrawing] = useState(false);
+  const full = photo.count >= MAX_IMAGES;
 
   const submit = useCallback(() => {
     if (photo.count === 0) return;
@@ -56,27 +60,45 @@ export function SolutionElementMount({ solution }: { solution: SolutionElementDe
   return (
     <section className="flex min-h-0 flex-col gap-2 p-2" aria-label="Din løsning">
       <p className="text-sm font-medium text-foreground">
-        {def.prompt || "Tag et billede af din håndskrevne løsning, så giver tutoren feedback."}
+        {def.prompt || "Tag et billede af din håndskrevne løsning, eller tegn den — så giver tutoren feedback."}
       </p>
-      <ImageStagingRow staged={photo.staged} notice={photo.notice} onRemove={photo.remove} />
-      <div className="flex items-center justify-between gap-2">
-        <ImageUploadButtons
-          onFiles={photo.addFiles}
-          disabled={submitting}
-          full={photo.count >= MAX_IMAGES}
+      {drawing ? (
+        <SolutionWhiteboard
+          onAdd={(file) => {
+            void photo.addFiles([file]);
+            setDrawing(false);
+          }}
+          onCancel={() => setDrawing(false)}
         />
-        <button
-          type="button"
-          onClick={submit}
-          disabled={photo.count === 0 || submitting}
-          className="inline-flex items-center gap-1.5 rounded-md bg-primary px-3 py-1.5 text-sm text-primary-foreground hover:bg-primary/90 disabled:opacity-50"
-        >
-          Send løsning
-        </button>
-      </div>
-      {sent && photo.count === 0 ? (
-        <p className="text-xs text-muted-foreground">Løsning sendt — tutoren svarer i chatten.</p>
-      ) : null}
+      ) : (
+        <>
+          <ImageStagingRow staged={photo.staged} notice={photo.notice} onRemove={photo.remove} />
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <div className="flex items-center gap-1">
+              <ImageUploadButtons onFiles={photo.addFiles} disabled={submitting} full={full} />
+              <button
+                type="button"
+                onClick={() => setDrawing(true)}
+                disabled={submitting || full}
+                className="inline-flex items-center gap-1.5 rounded-md border border-border px-2 py-1.5 text-sm hover:bg-muted disabled:opacity-50"
+              >
+                <Pencil className="h-4 w-4" aria-hidden="true" /> Tegn
+              </button>
+            </div>
+            <button
+              type="button"
+              onClick={submit}
+              disabled={photo.count === 0 || submitting}
+              className="inline-flex items-center gap-1.5 rounded-md bg-primary px-3 py-1.5 text-sm text-primary-foreground hover:bg-primary/90 disabled:opacity-50"
+            >
+              Send løsning
+            </button>
+          </div>
+          {sent && photo.count === 0 ? (
+            <p className="text-xs text-muted-foreground">Løsning sendt — tutoren svarer i chatten.</p>
+          ) : null}
+        </>
+      )}
     </section>
   );
 }
