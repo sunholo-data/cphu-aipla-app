@@ -126,7 +126,7 @@ describe("TeacherActivitiesPage (ALS-1 M1.2 library)", () => {
     researcherRef.current = true;
     const listSpy = vi.spyOn(teacherApi, "listActivities").mockImplementation(async (scope) =>
       scope === "all"
-        ? [makeActivity({ activityId: "act-x", ownerUid: "other-teacher", title: "Theirs" })]
+        ? [makeActivity({ activityId: "act-x", ownerUid: "R5Z5Y", ownerLabel: "Alice Hansen", title: "Theirs" })]
         : [makeActivity()],
     );
     vi.spyOn(teacherApi, "listClasses").mockResolvedValue([]);
@@ -137,7 +137,8 @@ describe("TeacherActivitiesPage (ALS-1 M1.2 library)", () => {
 
     await screen.findByText("Theirs");
     expect(listSpy).toHaveBeenCalledWith("all");
-    expect(screen.getByTestId("activity-owner")).toHaveTextContent("Owner: other-teacher");
+    // Friendly owner label, not the raw uid.
+    expect(screen.getByTestId("activity-owner")).toHaveTextContent("Owner: Alice Hansen");
     // Read-only observation: no edit/delete on another teacher's activity.
     expect(screen.queryByRole("link", { name: /Edit/ })).not.toBeInTheDocument();
     expect(screen.queryByRole("button", { name: /Delete/ })).not.toBeInTheDocument();

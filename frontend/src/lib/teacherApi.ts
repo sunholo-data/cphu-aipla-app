@@ -392,6 +392,10 @@ export interface ActivityUpsertBody {
  *  ActivityConfigPayload for the fields `useActivityBuilder.hydrate` reads. */
 export interface ActivityPayload extends ActivityConfigPayload {
   ownerUid: string;
+  /** Friendly owner label (display name / email), present only in the
+   *  researcher `scope=all` view and only when resolvable; clients fall back
+   *  to `ownerUid`. */
+  ownerLabel?: string;
   skillId: string;
   visibility: "draft" | "private" | "published";
 }

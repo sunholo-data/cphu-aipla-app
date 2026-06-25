@@ -322,7 +322,7 @@ function ActivityCard({
         <span>{activity.language === "da" ? "Dansk" : "English"}</span>
         {readOnly ? (
           <span className="truncate" data-testid="activity-owner" title={activity.ownerUid}>
-            Owner: {activity.ownerUid}
+            Owner: {activity.ownerLabel ?? activity.ownerUid}
           </span>
         ) : (
           <div className="flex items-center gap-3">

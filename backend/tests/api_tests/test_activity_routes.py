@@ -122,6 +122,28 @@ def test_scope_all_researcher_sees_every_owner():
     assert {a["title"] for a in rows} == {"Mine", "Theirs"}
 
 
+def test_scope_all_enriches_owner_label(monkeypatch):
+    """The research view replaces raw owner uids with a friendly label when the
+    resolver can map them (display name / email)."""
+    monkeypatch.setattr(
+        "protocols.activity_routes.resolve_owner_labels",
+        lambda uids: {TEACHER: "Alice Hansen"},
+    )
+    _client().post("/api/activities", json={"skillId": "concept", "title": "Mine"})
+    rows = _client(researcher=True).get("/api/activities?scope=all").json()
+    assert rows[0]["ownerLabel"] == "Alice Hansen"
+
+
+def test_scope_all_falls_back_to_uid_when_unresolved(monkeypatch):
+    """An owner the resolver can't map carries no label — the client falls back
+    to the uid (no crash, no empty label)."""
+    monkeypatch.setattr("protocols.activity_routes.resolve_owner_labels", lambda uids: {})
+    _client().post("/api/activities", json={"skillId": "concept", "title": "Mine"})
+    rows = _client(researcher=True).get("/api/activities?scope=all").json()
+    assert "ownerLabel" not in rows[0]
+    assert rows[0]["ownerUid"] == TEACHER
+
+
 def test_scope_all_non_researcher_forbidden():
     """A non-researcher cannot reach scope=all even by URL-hacking it — 403,
     never a silent fallback to own-scope."""

@@ -24,6 +24,7 @@ from pydantic import BaseModel, ConfigDict, Field
 
 from artefacts.loader import is_known_artefact
 from auth import User, get_current_user
+from auth.owner_labels import resolve_owner_labels
 from db.activities import (
     create_activity,
     get_activity,
@@ -177,7 +178,19 @@ async def list_my_activities(
         if not user.is_researcher:
             raise HTTPException(status_code=403, detail="researcher access required")
         log.info("activities research view (scope=all) uid=%s", user.uid)
-        return [_serialize(a) for a in list_all_activities()]
+        activities = list_all_activities()
+        # Enrich with a friendly owner label (display name / email) so the
+        # research view doesn't show raw Firebase uids. Best-effort: unresolved
+        # owners simply carry no label and the client falls back to the uid.
+        labels = resolve_owner_labels({a.owner_uid for a in activities})
+        rows: list[dict] = []
+        for a in activities:
+            row = _serialize(a)
+            label = labels.get(a.owner_uid)
+            if label:
+                row["ownerLabel"] = label
+            rows.append(row)
+        return rows
     if owner != "me":
         raise HTTPException(status_code=400, detail="only owner=me is supported (published catalogue is M3)")
     return [_serialize(a) for a in list_activities_by_owner(user.uid)]
