@@ -31,7 +31,7 @@ function templateFeatures(t: ActivityTemplate): { label: string; icon: LucideIco
   if (t.calculator) f.push({ label: "Calculator", icon: Calculator });
   if (t.note) f.push({ label: "Note", icon: StickyNote });
   if (t.solution) f.push({ label: "Solution", icon: PenLine });
-  if (t.workbenchType === "document") f.push({ label: "Document", icon: FileUp });
+  if (t.document) f.push({ label: "Document", icon: FileUp });
   return f;
 }
 

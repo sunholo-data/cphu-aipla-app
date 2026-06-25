@@ -37,6 +37,7 @@ from db.models.activity_config import (
     ChartElement,
     ChecklistItem,
     Difficulty,
+    DocumentElement,
     InteractionStyle,
     Language,
     MaterialRef,
@@ -99,6 +100,8 @@ class ActivityConfigUpsert(BaseModel):
     note: list[NoteElement] = Field(default_factory=list)
     # Rich-text solution editor (1.1.45 M4, JB-2).
     solution: list[SolutionElement] = Field(default_factory=list)
+    # Document-upload element (1.1.48 — reconciled from workbench_type="document").
+    document: list[DocumentElement] = Field(default_factory=list)
     # Curriculum documents cited for this activity (1.1.25 M4). The tutor
     # retrieval tool is scoped to ONLY these docs (student deny-by-default).
     materials: list[MaterialRef] = Field(default_factory=list)
@@ -178,6 +181,7 @@ async def post_activity_config(
         calculator=body.calculator,
         note=body.note,
         solution=body.solution,
+        document=body.document,
         materials=body.materials,
     )
     log.info(
@@ -235,6 +239,7 @@ async def get_active_activity_config(
             "calculator": [],
             "note": [],
             "solution": [],
+            "document": [],
             "artefact": None,
             "workbenchType": "none",
             "persona": persona_block,
@@ -269,6 +274,7 @@ async def get_active_activity_config(
         "calculator": [c.model_dump(by_alias=True) for c in cfg.calculator],
         "note": [n.model_dump(by_alias=True) for n in cfg.note],
         "solution": [s.model_dump(by_alias=True) for s in cfg.solution],
+        "document": [d.model_dump(by_alias=True) for d in cfg.document],
         # The resolved artefact (public view — never the tutorBlock) so the
         # student workspace has the render path; None if unset or de-catalogued
         # (graceful degradation — the activity stays chat + elements).
@@ -350,6 +356,7 @@ async def patch_activity_config(
         calculator=body.calculator,
         note=body.note,
         solution=body.solution,
+        document=body.document,
         materials=body.materials,
     )
     return _serialize(cfg)

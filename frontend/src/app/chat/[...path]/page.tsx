@@ -66,11 +66,10 @@ import { type CalculatorElementDef } from "@/components/workspace/WorkbenchCalcu
 import { type NoteElementDef } from "@/components/workspace/WorkbenchNote";
 import { type ActivityArtefact } from "@/components/workspace/GenericArtefactFrame";
 import { StudentWorkspace } from "@/components/workspace/StudentWorkspace";
-import { StudentDocumentWorkbench } from "@/components/workspace/StudentDocumentWorkbench";
 import type { SolutionElementDef } from "@/components/workspace/SolutionElementMount";
+import type { DocumentElementDef } from "@/components/workspace/DocumentElementMount";
 import { DocumentsPanel, type ActivityMaterial } from "@/components/workspace/DocumentsPanel";
 import { reportDocumentEvent } from "@/lib/documentApi";
-import type { WorkbenchType } from "@/lib/teacherApi";
 import { workspaceContentKind } from "./workspaceContent";
 import { BoldkastWorkbench } from "@/components/workspace/BoldkastWorkbench";
 import {
@@ -440,9 +439,9 @@ function ChatShell({
   // 1.1.33 M2b/M1 — the activity's grounding documents (names-always + a
   // studentVisible flag), surfaced in the Documents workbench panel.
   const [activeMaterials, setActiveMaterials] = useState<ActivityMaterial[]>([]);
-  // 1.1.45 M3b — the activity's workbench type. "document" routes the workspace
-  // to the StudentDocumentWorkbench (the student uploads work for tutor feedback).
-  const [activeWorkbenchType, setActiveWorkbenchType] = useState<WorkbenchType | null>(null);
+  // 1.1.48 — the document-upload element (JB-1 "din fil"); reconciled from the
+  // legacy workbench_type="document" mode into a composable element.
+  const [activeDocument, setActiveDocument] = useState<DocumentElementDef[]>([]);
   // Persona (1.1.12) resolved for this activity — the bot bubbles show its
   // avatar + name. Optional; null leaves the default brand byline.
   const [activePersona, setActivePersona] = useState<PersonaSummary | null>(null);
@@ -456,6 +455,7 @@ function ChatShell({
       activeCalculator.length > 0 ||
       activeNote.length > 0 ||
       activeSolution.length > 0 ||
+      activeDocument.length > 0 ||
       activeArtefact != null,
   );
   // 1.1.33 M1 — the student's uploaded photos this session (native AG-UI image
@@ -464,12 +464,8 @@ function ChatShell({
   // Documents (assigned materials OR uploads) also warrant the workspace column,
   // even for a bare concept activity with no sim/checklist.
   const hasDocuments = activeMaterials.length > 0 || uploadedImages.length > 0;
-  // 1.1.45 M3b — a document-feedback activity routes the workspace to the
-  // StudentDocumentWorkbench (student uploads → active file → tutor). Its own
-  // surface, so it pre-empts the sim/elements/documents composition below.
-  const isDocumentActivity = activeWorkbenchType === "document";
   const showWorkspace =
-    isAnonymousGroupAuthMode() && (workspaceKind !== "none" || hasDocuments || isDocumentActivity);
+    isAnonymousGroupAuthMode() && (workspaceKind !== "none" || hasDocuments);
   // The generic-artefact activity surface (sim + elements + documents) is the
   // shared StudentWorkspace — the same component the builder preview renders.
   // The per-skill legacy frames below predate it and keep the standalone
@@ -491,10 +487,10 @@ function ChatShell({
       setActiveCalculator([]);
       setActiveNote([]);
       setActiveSolution([]);
+      setActiveDocument([]);
       setActiveArtefact(null);
       setActivePersona(null);
       setActiveMaterials([]);
-      setActiveWorkbenchType(null);
       return;
     }
     let alive = true;
@@ -512,10 +508,10 @@ function ChatShell({
         if (Array.isArray(data.calculator)) setActiveCalculator(data.calculator as CalculatorElementDef[]);
         if (Array.isArray(data.note)) setActiveNote(data.note as NoteElementDef[]);
         if (Array.isArray(data.solution)) setActiveSolution(data.solution as SolutionElementDef[]);
+        if (Array.isArray(data.document)) setActiveDocument(data.document as DocumentElementDef[]);
         setActiveArtefact((data.artefact as ActivityArtefact | null) ?? null);
         setActivePersona((data.persona as PersonaSummary | null) ?? null);
         setActiveMaterials(Array.isArray(data.materials) ? (data.materials as ActivityMaterial[]) : []);
-        setActiveWorkbenchType((data.workbenchType as WorkbenchType | null) ?? null);
       })
       .catch(() => {
         /* checklist + persona are optional — stay chat-only on failure */
@@ -1269,26 +1265,7 @@ function ChatShell({
             ratio={workspaceRatio}
             onRatioChange={setWorkspaceRatio}
           >
-            {isDocumentActivity ? (
-              <>
-                <StudentDocumentWorkbench
-                  skillId={skillId}
-                  sessionId={sessionId ?? agentSessionId}
-                  onActiveDocChange={handleWorkbenchActiveDoc}
-                />
-                {/* Teacher-assigned materials also surface in a document-feedback
-                    activity (names-always; openable when studentVisible). The
-                    tutor's RAG grounding uses them regardless of visibility —
-                    that's backend-side, independent of this panel. Self-hides
-                    when the activity has no materials/uploads. */}
-                <DocumentsPanel
-                  materials={activeMaterials}
-                  images={uploadedImages}
-                  activityId={activityId}
-                />
-              </>
-            ) : (
-              <>
+            <>
             {workspaceKind !== "none" &&
               (skillSlug === "kinebot-kinematics-tutor" ? (
               showKinebotLab && BOLDKAST_SANDBOX_ORIGIN ? (
@@ -1368,6 +1345,8 @@ function ChatShell({
                 calculator={activeCalculator}
                 note={activeNote}
                 solution={activeSolution}
+                document={activeDocument}
+                onDocumentActiveChange={handleWorkbenchActiveDoc}
                 materials={activeMaterials}
                 images={uploadedImages}
                 activityId={activityId}
@@ -1384,7 +1363,6 @@ function ChatShell({
               />
             )}
               </>
-            )}
           </WorkspaceShell>
         )}
       </div>

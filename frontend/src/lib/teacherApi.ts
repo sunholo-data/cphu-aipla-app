@@ -54,6 +54,7 @@ export interface ActivityConfigPayload {
   calculator?: CalculatorElement[];
   note?: NoteElement[];
   solution?: SolutionElement[];
+  document?: DocumentElement[];
   materials?: MaterialRef[];
   updatedAt: string;
 }
@@ -148,6 +149,13 @@ export interface SolutionElement {
   prompt?: string;
 }
 
+/** A document-upload element (1.1.48 — reconciled from workbench_type="document").
+ *  The teacher authors the `prompt`; the student uploads their own file(s). */
+export interface DocumentElement {
+  id: string;
+  prompt?: string;
+}
+
 /** A catalogued sim artefact a teacher can attach to an activity (1.1.41) — the
  *  public view from `GET /api/artefacts` (never the server-side `tutorBlock`). */
 export interface ArtefactSummary {
@@ -225,6 +233,7 @@ export interface ActivityConfigUpsert {
   /** Teacher-authored instructions / reference notes (1.1.38 M4). */
   note?: NoteElement[];
   solution?: SolutionElement[];
+  document?: DocumentElement[];
   materials?: MaterialRef[];
   /** Day-0 overwrite guard (ALS-1 M0.5-guard). The create page sets this so a
    *  SECOND create of the same (teacher, class, activity) is refused (409)
@@ -375,6 +384,7 @@ export interface ActivityUpsertBody {
   calculator?: CalculatorElement[];
   note?: NoteElement[];
   solution?: SolutionElement[];
+  document?: DocumentElement[];
   materials?: MaterialRef[];
 }
 

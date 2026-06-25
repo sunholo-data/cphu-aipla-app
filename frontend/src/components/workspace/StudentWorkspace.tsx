@@ -14,6 +14,7 @@ import type { ChecklistItem } from "./ProgressChecklist";
 import type { NoteElementDef } from "./WorkbenchNote";
 import type { TableElementDef } from "./WorkbenchTable";
 import type { SolutionElementDef } from "./SolutionElementMount";
+import type { DocumentElementDef } from "./DocumentElementMount";
 
 interface StudentWorkspaceProps {
   skillId: string;
@@ -29,6 +30,9 @@ interface StudentWorkspaceProps {
   calculator: CalculatorElementDef[];
   note: NoteElementDef[];
   solution: SolutionElementDef[];
+  document: DocumentElementDef[];
+  /** Active uploaded-file → tutor document_ids (threaded to the document element). */
+  onDocumentActiveChange?: (docId: string | null) => void;
   materials: ActivityMaterial[];
   images?: ComponentProps<typeof DocumentsPanel>["images"];
   /** DocumentsPanel scopes content fetches by activity; defaults to skillId. */
@@ -65,6 +69,8 @@ export function StudentWorkspace({
   calculator,
   note,
   solution,
+  document,
+  onDocumentActiveChange,
   materials,
   images = [],
   activityId,
@@ -103,7 +109,8 @@ export function StudentWorkspace({
     chart.length > 0 ||
     calculator.length > 0 ||
     note.length > 0 ||
-    solution.length > 0;
+    solution.length > 0 ||
+    document.length > 0;
   const hasDocuments = materials.length > 0 || images.length > 0;
   const docCount = materials.length + images.length;
 
@@ -117,6 +124,9 @@ export function StudentWorkspace({
       calculator={calculator}
       note={note}
       solution={solution}
+      document={document}
+      onDocumentActiveChange={onDocumentActiveChange}
+      documentViewerRole={documentViewerRole}
     />
   );
   const documentsSurface = (

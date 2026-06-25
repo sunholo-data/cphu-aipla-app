@@ -208,12 +208,32 @@ class SolutionElement(BaseModel):
     model_config = ConfigDict(populate_by_name=True)
 
 
+class DocumentElement(BaseModel):
+    """A document-upload element (1.1.45 M3b → reconciled 1.1.48, JB-1 "din fil").
+
+    The student uploads their own file(s) and the tutor critiques the active one
+    (the StudentDocumentWorkbench surface). The teacher authors only the
+    ``prompt`` ("Upload your worksheet…"); the files are the student's own
+    group-owned ``parsed_documents``, not stored here. **Reconciled from the
+    legacy ``workbench_type="document"`` MODE into a composable element** so a
+    document activity can also carry a checklist / note / other elements.
+    """
+
+    id: str = Field(min_length=1, max_length=64)
+    prompt: str = Field(default="", max_length=2000)
+
+    model_config = ConfigDict(populate_by_name=True)
+
+
 # Workbench type system (1.J expanded-workbench-types). ``none`` is a
 # first-class, no-simulator activity (chat-only Socratic dialogue, the
 # v1.1 teacher-authoring headline). ``app`` is a paired MCP-App sim.
-# ``document`` (1.1.45 M3b) is the JB-1 "document-feedback" activity: the student
-# uploads their own file(s) and the tutor critiques the active one — the workbench
-# primary surface is the upload + document viewer.
+# ``document`` (1.1.45 M3b) is DEPRECATED (1.1.48): document-feedback is now a
+# composable ``document`` *element*, not an activity mode. The literal value is
+# kept only so legacy Firestore rows load; ``_migrate_document_workbench`` below
+# normalises any such row to a document element + ``workbench_type="none"``. New
+# configs never set it. ``workbench_type`` now means only the runtime surface
+# (``app`` = sim iframe, ``none`` = standard element workspace).
 WorkbenchType = Literal["app", "drawing", "sensor", "video", "notebook", "document", "none"]
 
 
@@ -234,7 +254,7 @@ WorkbenchType = Literal["app", "drawing", "sensor", "video", "notebook", "docume
 # v1.1 ships the ``checklist`` (M0) + ``table`` (M1) + ``chart`` (M2) +
 # ``calculator`` (M3) + ``note`` (M4 — the teacher-authored instructions /
 # reference element). ``quiz`` (inline, A2UI) joins when 1.1.19 M2 builds it.
-ElementKind = Literal["checklist", "table", "chart", "calculator", "note", "solution"]
+ElementKind = Literal["checklist", "table", "chart", "calculator", "note", "solution", "document"]
 ElementRender = Literal["workspace", "inline"]
 
 
@@ -267,6 +287,9 @@ ELEMENT_REGISTRY: dict[ElementKind, ElementSpec] = {
     # student's writing is session state, not config — so the cap is on the
     # number of editor surfaces, which is 1.
     "solution": ElementSpec(kind="solution", field="solution", max_items=1, render="workspace"),
+    # One document-upload surface per activity (JB-1 "din fil"); reconciled from
+    # the legacy workbench_type="document" mode (1.1.48).
+    "document": ElementSpec(kind="document", field="document", max_items=1, render="workspace"),
 }
 
 
@@ -312,6 +335,8 @@ class ActivityConfig(BaseModel):
     # Rich-text solution editor (1.1.45 M4, JB-2). Teacher authors the prompt;
     # the student's writing is session state (iframe-context), not stored here.
     solution: list[SolutionElement] = Field(default_factory=list)
+    # Document-upload element (1.1.48 — reconciled from workbench_type="document").
+    document: list[DocumentElement] = Field(default_factory=list)
     # Curriculum documents cited for this activity (1.1.25 M3). The tutor
     # retrieval tool is scoped to ONLY these docs (student deny-by-default).
     materials: list[MaterialRef] = Field(default_factory=list)
@@ -329,6 +354,21 @@ class ActivityConfig(BaseModel):
         """
         if self.workbench_type == "none" and (self.paired_workbench or self.artefact_id):
             self.workbench_type = "app"
+        return self
+
+    @model_validator(mode="after")
+    def _migrate_document_workbench(self) -> ActivityConfig:
+        """Reconcile the legacy ``workbench_type="document"`` MODE into a composable
+        ``document`` element (1.1.48). Old configs picked a document-feedback
+        *activity type* that pre-empted the workspace; the upload surface is now an
+        element like any other. Normalise any such row to a document element + a
+        neutral ``workbench_type`` so the element registry drives rendering. New
+        configs never set "document". Runs before the cap check below.
+        """
+        if self.workbench_type == "document":
+            if not self.document:
+                self.document = [DocumentElement(id="document-1", prompt="")]
+            self.workbench_type = "none"
         return self
 
     @model_validator(mode="after")

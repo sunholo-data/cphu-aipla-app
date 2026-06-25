@@ -21,6 +21,9 @@ vi.mock("../WorkbenchNote", () => ({
 vi.mock("../SolutionElementMount", () => ({
   SolutionElementMount: () => <div data-testid="solution" />,
 }));
+vi.mock("../DocumentElementMount", () => ({
+  DocumentElementMount: () => <div data-testid="document" />,
+}));
 
 import { WorkspaceElements } from "../elementRenderers";
 
@@ -30,7 +33,8 @@ const CHART = [{ id: "c1", chartKind: "scatter" as const }];
 const CALC = [{ id: "calc1", formula: "s", inputs: [{ id: "s", label: "S" }] }];
 const NOTE = [{ id: "n1", body: "hej" }];
 const SOLUTION = [{ id: "sol1", prompt: "Solve it" }];
-const EMPTY = { checklist: [], table: [], chart: [], calculator: [], note: [], solution: [] };
+const DOCUMENT = [{ id: "doc1", prompt: "Upload" }];
+const EMPTY = { checklist: [], table: [], chart: [], calculator: [], note: [], solution: [], document: [] };
 
 describe("WorkspaceElements dispatch (1.1.38 M1–M4)", () => {
   it("renders nothing when no workspace element is present", () => {
@@ -69,6 +73,11 @@ describe("WorkspaceElements dispatch (1.1.38 M1–M4)", () => {
     expect(screen.getByTestId("solution")).toBeInTheDocument();
   });
 
+  it("renders the document upload when present (1.1.48)", () => {
+    render(<WorkspaceElements skillId="s" {...EMPTY} document={DOCUMENT} />);
+    expect(screen.getByTestId("document")).toBeInTheDocument();
+  });
+
   it("stacks all present elements", () => {
     render(
       <WorkspaceElements
@@ -79,9 +88,10 @@ describe("WorkspaceElements dispatch (1.1.38 M1–M4)", () => {
         calculator={CALC}
         note={NOTE}
         solution={SOLUTION}
+        document={DOCUMENT}
       />,
     );
-    for (const id of ["checklist", "table", "chart", "calculator", "note", "solution"]) {
+    for (const id of ["checklist", "table", "chart", "calculator", "note", "solution", "document"]) {
       expect(screen.getByTestId(id)).toBeInTheDocument();
     }
   });

@@ -9,6 +9,7 @@ import type { ChartEditorValue } from "@/components/teacher/ChartEditor";
 import type { CalculatorEditorValue } from "@/components/teacher/CalculatorEditor";
 import type { NoteEditorValue } from "@/components/teacher/NoteEditor";
 import type { SolutionEditorValue } from "@/components/teacher/SolutionEditor";
+import type { DocumentEditorValue } from "@/components/teacher/DocumentEditor";
 import type { ActivityTemplate } from "@/lib/activityTemplates";
 
 // Shared activity-builder state (1.1.40 M1). Both the create page and the edit
@@ -32,8 +33,9 @@ export interface ActivityBuilder {
   setTeachingGoal: (v: string) => void;
   language: Language;
   setLanguage: (v: Language) => void;
-  /** The activity type (1.1.45 M3b). "document" = a document-feedback activity
-   *  (student uploads work for tutor critique); "none" = the standard workspace. */
+  /** Runtime workbench surface (1.1.48): "app" = a sim iframe, "none" = the
+   *  standard element workspace. No longer teacher-chosen (document-feedback is
+   *  now the `document` element); kept for round-trip + the sim backfill. */
   workbenchType: WorkbenchType;
   setWorkbenchType: (v: WorkbenchType) => void;
 
@@ -52,6 +54,8 @@ export interface ActivityBuilder {
   setNote: (v: NoteEditorValue | null) => void;
   solution: SolutionEditorValue | null;
   setSolution: (v: SolutionEditorValue | null) => void;
+  document: DocumentEditorValue | null;
+  setDocument: (v: DocumentEditorValue | null) => void;
   artefactId: string | null;
   setArtefactId: (v: string | null) => void;
   materials: MaterialRef[];
@@ -73,6 +77,7 @@ export interface ActivityBuilder {
     calculator: ReturnType<typeof builderToElementDefs>["calculator"];
     note: ReturnType<typeof builderToElementDefs>["note"];
     solution: ReturnType<typeof builderToElementDefs>["solution"];
+    document: ReturnType<typeof builderToElementDefs>["document"];
   };
 }
 
@@ -88,6 +93,7 @@ export function useActivityBuilder(): ActivityBuilder {
   const [calculator, setCalculator] = useState<CalculatorEditorValue | null>(null);
   const [note, setNote] = useState<NoteEditorValue | null>(null);
   const [solution, setSolution] = useState<SolutionEditorValue | null>(null);
+  const [document, setDocument] = useState<DocumentEditorValue | null>(null);
   const [artefactId, setArtefactId] = useState<string | null>(null);
   const [materials, setMaterials] = useState<MaterialRef[]>([]);
   const nextKeyRef = useRef(1);
@@ -135,9 +141,9 @@ export function useActivityBuilder(): ActivityBuilder {
     );
     setNote(t.note ? { title: t.note.title, body: t.note.body } : null);
     setSolution(t.solution ? { prompt: t.solution.prompt } : null);
+    setDocument(t.document ? { prompt: t.document.prompt } : null);
     setArtefactId(t.artefactId ?? null);
-    // A template may set the activity type (e.g. document feedback); else standard.
-    setWorkbenchType(t.workbenchType ?? "none");
+    setWorkbenchType("none");
   }
 
   // The inverse of `elementPayload` — saved element arrays → editor values.
@@ -192,12 +198,15 @@ export function useActivityBuilder(): ActivityBuilder {
 
     const sol = cfg.solution?.[0];
     setSolution(sol ? { prompt: sol.prompt ?? "" } : null);
+
+    const doc = cfg.document?.[0];
+    setDocument(doc ? { prompt: doc.prompt ?? "" } : null);
   }
 
   function elementPayload() {
     return {
       artefactId,
-      ...builderToElementDefs({ checklist, table, chart, calculator, note, solution }),
+      ...builderToElementDefs({ checklist, table, chart, calculator, note, solution, document }),
     };
   }
 
@@ -208,7 +217,8 @@ export function useActivityBuilder(): ActivityBuilder {
     (chart ? 1 : 0) +
     (calculator ? 1 : 0) +
     (note ? 1 : 0) +
-    (solution ? 1 : 0);
+    (solution ? 1 : 0) +
+    (document ? 1 : 0);
 
   return useMemo(
     () => ({
@@ -234,6 +244,8 @@ export function useActivityBuilder(): ActivityBuilder {
       setNote,
       solution,
       setSolution,
+      document,
+      setDocument,
       artefactId,
       setArtefactId,
       materials,
@@ -244,6 +256,6 @@ export function useActivityBuilder(): ActivityBuilder {
       elementPayload,
     }),
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [title, teachingGoal, language, workbenchType, checklist, table, chart, calculator, note, solution, artefactId, materials],
+    [title, teachingGoal, language, workbenchType, checklist, table, chart, calculator, note, solution, document, artefactId, materials],
   );
 }

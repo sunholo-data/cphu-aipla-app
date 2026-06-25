@@ -1,6 +1,6 @@
 "use client";
 
-import { ChevronDown, Eye, FileUp, Maximize2, X } from "lucide-react";
+import { ChevronDown, Eye, Maximize2, X } from "lucide-react";
 import { type ReactNode, useEffect, useRef, useState } from "react";
 
 import { SimThumbnail } from "@/components/teacher/SimThumbnail";
@@ -13,18 +13,10 @@ import {
   type ActivityElementDefs,
   type BuilderElements,
 } from "@/lib/activityPreview";
-import {
-  listArtefacts,
-  type ArtefactSummary,
-  type MaterialRef,
-  type WorkbenchType,
-} from "@/lib/teacherApi";
+import { listArtefacts, type ArtefactSummary, type MaterialRef } from "@/lib/teacherApi";
 
 interface ActivityPreviewProps {
   state: BuilderElements;
-  /** The activity type (1.1.45 M3b). "document" previews the upload surface
-   *  instead of the workspace tools. */
-  workbenchType?: WorkbenchType;
   /** The attached sim artefact id (1.1.41) — rendered above the elements, the
    *  way a student sees the workspace (sim on top, tools below). */
   artefactId?: string | null;
@@ -59,7 +51,6 @@ const SANDBOX_ORIGIN = (process.env.NEXT_PUBLIC_MCP_SANDBOX_URL ?? "").replace(
  */
 export function ActivityPreview({
   state,
-  workbenchType,
   artefactId,
   materials = [],
   activityId,
@@ -67,7 +58,6 @@ export function ActivityPreview({
   const [open, setOpen] = useState(true);
   const [expanded, setExpanded] = useState(false);
   const [catalogue, setCatalogue] = useState<ArtefactSummary[]>([]);
-  const isDocument = workbenchType === "document";
   const defs = builderToElementDefs(state);
 
   // Resolve the attached sim id → its catalogue entry (displayName +
@@ -103,7 +93,7 @@ export function ActivityPreview({
           <Eye className="h-4 w-4 text-slate-500" /> Preview — what students see
           <ChevronDown className={`h-4 w-4 transition-transform ${open ? "" : "-rotate-90"}`} />
         </button>
-        {hasContent && !isDocument ? (
+        {hasContent ? (
           <button
             type="button"
             onClick={() => setExpanded(true)}
@@ -117,9 +107,7 @@ export function ActivityPreview({
       </div>
       {open && (
         <div className="border-t border-slate-200 bg-slate-50">
-          {isDocument ? (
-            <DocumentPreviewNote />
-          ) : !hasContent ? (
+          {!hasContent ? (
             <p className="px-4 py-6 text-center text-xs text-slate-400">
               Tilføj elementer (tjekliste, datatabel, graf, beregner eller note) eller en simulation for
               at se en forhåndsvisning af elevernes arbejdsområde.
@@ -181,6 +169,7 @@ function PreviewBody({
         calculator={defs.calculator}
         note={defs.note}
         solution={defs.solution}
+        document={defs.document}
         materials={materials.map((m) => ({
           // Preserve the full ref — dropping kind/materialId made image
           // materials (1.1.44) render as (empty-docId) curriculum docs that
@@ -242,22 +231,6 @@ function PreviewModal({ onClose, children }: { onClose: () => void; children: Re
         </div>
         <div className="min-h-0 flex-1 overflow-y-auto bg-slate-50">{children}</div>
       </div>
-    </div>
-  );
-}
-
-/** Document-feedback preview (1.1.45 M3b). The live upload surface is the
- *  student's own (group-scoped) workspace, so the builder shows an honest
- *  description rather than the teacher's own uploads under a sandbox id. */
-function DocumentPreviewNote() {
-  return (
-    <div className="flex flex-col items-center gap-2.5 px-4 py-8 text-center">
-      <FileUp className="h-7 w-7 text-indigo-400" aria-hidden="true" />
-      <p className="text-sm font-medium text-slate-700">Document feedback</p>
-      <p className="max-w-sm text-xs text-slate-500">
-        Students upload their own work into the workspace — files appear as tabs, and the tutor gives
-        feedback on the active file. There are no teacher-authored workspace tools in this mode.
-      </p>
     </div>
   );
 }

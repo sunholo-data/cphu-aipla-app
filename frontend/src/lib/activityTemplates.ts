@@ -1,4 +1,4 @@
-import type { Language, WorkbenchType } from "@/lib/teacherApi";
+import type { Language } from "@/lib/teacherApi";
 
 // Starter activity templates (1.1.38 follow-up) — quick defaults a teacher picks
 // and then modifies, so the builder is never a blank form. Each showcases a
@@ -50,9 +50,6 @@ export interface ActivityTemplate {
   teachingGoal: string;
   /** Optional sim artefact to host (1.1.41) — a catalogue id. */
   artefactId?: string;
-  /** Activity type (1.1.45 M3b). Omitted/"none" = standard workspace; "document"
-   *  = a document-feedback activity (student uploads their own work). */
-  workbenchType?: WorkbenchType;
   checklist: string[];
   table?: TemplateTable;
   chart?: TemplateChart;
@@ -60,6 +57,9 @@ export interface ActivityTemplate {
   note?: TemplateNote;
   /** Optional rich-text solution editor (1.1.45 M4, JB-2). */
   solution?: TemplateSolution;
+  /** Optional document-upload element (1.1.48, JB-1) — the prompt above the
+   *  student's upload surface. */
+  document?: TemplateSolution;
 }
 
 export const ACTIVITY_TEMPLATES: ActivityTemplate[] = [
@@ -196,18 +196,18 @@ export const ACTIVITY_TEMPLATES: ActivityTemplate[] = [
   },
   {
     // 1.1.45 M3b (JB-1) — document feedback: the student uploads their own
-    // file(s) and the tutor critiques the active one. Document mode hides the
-    // workspace tools, so this template carries only the goal + type.
+    // file(s) and the tutor critiques the active one. A composable document
+    // element (1.1.48) — can carry a checklist/note alongside if the teacher adds.
     id: "document-feedback",
     name: "Dokumentfeedback",
     summary: "Eleven uploader sit eget arbejde — tutoren giver feedback på filen.",
     language: "da",
     title: "Dokumentfeedback",
-    workbenchType: "document",
     teachingGoal:
       "Hjælp eleven med at forbedre det dokument, de har uploadet. Tag udgangspunkt i den aktive fil. Giv " +
       "aldrig det fulde svar — peg på, hvor noget er forkert eller mangler, og stil et spørgsmål, så eleven " +
       "selv kan rette det. Ros først noget, der virker, og fokusér så på det vigtigste at forbedre.",
     checklist: [],
+    document: { prompt: "Upload et billede eller en fil af dit arbejde, så giver tutoren feedback." },
   },
 ];

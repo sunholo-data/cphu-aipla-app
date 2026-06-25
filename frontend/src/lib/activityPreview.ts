@@ -9,10 +9,12 @@ import type { ChartEditorValue } from "@/components/teacher/ChartEditor";
 import type { NoteEditorValue } from "@/components/teacher/NoteEditor";
 import type { TableEditorValue } from "@/components/teacher/TableEditor";
 import type { SolutionEditorValue } from "@/components/teacher/SolutionEditor";
+import type { DocumentEditorValue } from "@/components/teacher/DocumentEditor";
 import type { CalculatorElementDef } from "@/components/workspace/WorkbenchCalculator";
 import type { ChartElementDef } from "@/components/workspace/WorkbenchChart";
 import type { NoteElementDef } from "@/components/workspace/WorkbenchNote";
 import type { SolutionElementDef } from "@/components/workspace/SolutionElementMount";
+import type { DocumentElementDef } from "@/components/workspace/DocumentElementMount";
 import type { TableElementDef } from "@/components/workspace/WorkbenchTable";
 
 export interface BuilderChecklistItem {
@@ -28,6 +30,7 @@ export interface BuilderElements {
   calculator: CalculatorEditorValue | null;
   note: NoteEditorValue | null;
   solution: SolutionEditorValue | null;
+  document: DocumentEditorValue | null;
 }
 
 /** The normalised element defs — what the renderers (and the save payload) take. */
@@ -38,6 +41,7 @@ export interface ActivityElementDefs {
   calculator: CalculatorElementDef[];
   note: NoteElementDef[];
   solution: SolutionElementDef[];
+  document: DocumentElementDef[];
 }
 
 const VAR_ID_RE = /^[A-Za-z_][A-Za-z0-9_]*$/;
@@ -81,6 +85,9 @@ export function builderToElementDefs(s: BuilderElements): ActivityElementDefs {
     // The solution editor needs no content to be valid — the student writes; a
     // present (enabled) element ships with its (optional) teacher prompt.
     solution: s.solution ? [{ id: "solution-1", prompt: s.solution.prompt.trim() }] : [],
+    // The document upload needs no content to be valid — the student uploads; a
+    // present element ships with its (optional) teacher prompt.
+    document: s.document ? [{ id: "document-1", prompt: s.document.prompt.trim() }] : [],
   };
 }
 
@@ -92,6 +99,7 @@ export function hasAnyElement(defs: ActivityElementDefs): boolean {
     defs.chart.length > 0 ||
     defs.calculator.length > 0 ||
     defs.note.length > 0 ||
-    defs.solution.length > 0
+    defs.solution.length > 0 ||
+    defs.document.length > 0
   );
 }

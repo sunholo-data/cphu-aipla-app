@@ -18,6 +18,7 @@ from db.models.activity_config import (
     ChartElement,
     ChecklistItem,
     Difficulty,
+    DocumentElement,
     InteractionStyle,
     Language,
     MaterialRef,
@@ -66,6 +67,7 @@ def upsert_activity_config(
     calculator: list[CalculatorElement] | None = None,
     note: list[NoteElement] | None = None,
     solution: list[SolutionElement] | None = None,
+    document: list[DocumentElement] | None = None,
     materials: list[MaterialRef] | None = None,
 ) -> ActivityConfig:
     """Create or overwrite the activity config for this (teacher, class, activity).
@@ -93,6 +95,7 @@ def upsert_activity_config(
         calculator=calculator or [],
         note=note or [],
         solution=solution or [],
+        document=document or [],
         materials=materials or [],
         updatedAt=_utcnow(),
     )

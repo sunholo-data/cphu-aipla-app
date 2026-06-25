@@ -10,6 +10,7 @@ import { WorkbenchChart, type ChartElementDef } from "./WorkbenchChart";
 import { WorkbenchNote, type NoteElementDef } from "./WorkbenchNote";
 import { WorkbenchTable, type TableElementDef } from "./WorkbenchTable";
 import { SolutionElementMount, type SolutionElementDef } from "./SolutionElementMount";
+import { DocumentElementMount, type DocumentElementDef } from "./DocumentElementMount";
 
 /**
  * Uniform render context shared by every workspace element renderer (1.1.38
@@ -37,6 +38,13 @@ export interface ElementRenderContext {
   calculator: CalculatorElementDef[];
   note: NoteElementDef[];
   solution: SolutionElementDef[];
+  document: DocumentElementDef[];
+  /** Active uploaded-file → tutor document_ids (the document element's hook;
+   *  threaded from the chat page). */
+  onDocumentActiveChange?: (docId: string | null) => void;
+  /** Whose token the document element reads with: student (group) or teacher
+   *  (builder preview). Defaults student. */
+  documentViewerRole?: "student" | "teacher";
 }
 
 /**
@@ -74,6 +82,16 @@ export const elementRenderers: Record<ElementKind, (ctx: ElementRenderContext) =
   solution: (ctx) =>
     ctx.solution.length > 0 ? (
       <SolutionElementMount skillId={ctx.skillId} sessionId={ctx.sessionId} solution={ctx.solution} />
+    ) : null,
+  document: (ctx) =>
+    ctx.document.length > 0 ? (
+      <DocumentElementMount
+        skillId={ctx.skillId}
+        sessionId={ctx.sessionId}
+        role={ctx.documentViewerRole ?? "student"}
+        document={ctx.document}
+        onActiveDocChange={ctx.onDocumentActiveChange}
+      />
     ) : null,
 };
 

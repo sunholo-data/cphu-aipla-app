@@ -29,22 +29,21 @@ URL.revokeObjectURL = vi.fn();
 import { ActivityPreview } from "../ActivityPreview";
 import { type BuilderElements } from "@/lib/activityPreview";
 
-const EMPTY: BuilderElements = { checklist: [], table: null, chart: null, calculator: null, note: null, solution: null };
+const EMPTY: BuilderElements = {
+  checklist: [],
+  table: null,
+  chart: null,
+  calculator: null,
+  note: null,
+  solution: null,
+  document: null,
+};
 const WITH_CHECKLIST: BuilderElements = { ...EMPTY, checklist: [{ key: 1, label: "Step" }] };
 
 describe("ActivityPreview", () => {
   it("shows an empty hint when there are no elements", () => {
     render(<ActivityPreview state={EMPTY} />);
     expect(screen.getByText(/tilføj elementer/i)).toBeInTheDocument();
-    expect(screen.queryByTestId("workspace-elements")).not.toBeInTheDocument();
-  });
-
-  it("previews the document-feedback surface (no workspace tools) in document mode", () => {
-    render(<ActivityPreview state={EMPTY} workbenchType="document" />);
-    expect(screen.getByText(/document feedback/i)).toBeInTheDocument();
-    expect(screen.getByText(/students upload their own work/i)).toBeInTheDocument();
-    // Not the "add elements" empty hint, and no workspace renderer.
-    expect(screen.queryByText(/tilføj elementer/i)).not.toBeInTheDocument();
     expect(screen.queryByTestId("workspace-elements")).not.toBeInTheDocument();
   });
 

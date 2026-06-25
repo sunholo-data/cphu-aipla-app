@@ -13,7 +13,14 @@
 // metadata for builder UX. The consistency tests on both ends keep the two
 // registries in lock-step.
 
-export type ElementKind = "checklist" | "table" | "chart" | "calculator" | "note" | "solution";
+export type ElementKind =
+  | "checklist"
+  | "table"
+  | "chart"
+  | "calculator"
+  | "note"
+  | "solution"
+  | "document";
 export type ElementRender = "workspace" | "inline";
 
 export interface ElementDescriptor {
@@ -34,6 +41,8 @@ export const ELEMENT_REGISTRY: Record<ElementKind, ElementDescriptor> = {
   note: { kind: "note", label: "Note", render: "workspace", maxItems: 5 },
   // One rich-text solution editor per activity (1.1.45 M4, JB-2 "din løsning").
   solution: { kind: "solution", label: "Din løsning", render: "workspace", maxItems: 1 },
+  // Document-upload surface (1.1.48 — reconciled from workbench_type="document").
+  document: { kind: "document", label: "Dokumentupload", render: "workspace", maxItems: 1 },
 };
 
 export const ELEMENT_KINDS = Object.keys(ELEMENT_REGISTRY) as ElementKind[];

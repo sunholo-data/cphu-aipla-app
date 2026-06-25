@@ -330,23 +330,21 @@ describe("/teacher/activities/new — concept activity builder", () => {
     expect(createActivityMock.mock.calls[0][0].workbenchType).toBe("none");
   });
 
-  it("switches to a document-feedback activity: hides workspace tools, saves workbenchType 'document'", async () => {
+  it("adds a document-upload element and saves it with its prompt — composes (1.1.48)", async () => {
     listClassesMock.mockResolvedValue(ONE_CLASS);
     render(<NewActivityPage />);
     fireEvent.change(await screen.findByLabelText(/activity name/i), { target: { value: "Aflever opgave" } });
     fireEvent.change(screen.getByLabelText(/lesson prompt/i), { target: { value: "Give feedback." } });
-    // Standard mode shows the workspace tools.
+    fireEvent.click(screen.getByRole("button", { name: /add document upload/i }));
+    fireEvent.change(screen.getByLabelText(/document prompt/i), { target: { value: "Upload dit arbejde" } });
+    // It's an element, not a mode — the workspace tools are still available.
     expect(screen.getByRole("button", { name: /add step/i })).toBeInTheDocument();
-    // Pick the explicit "Document feedback" activity type.
-    fireEvent.click(screen.getByRole("radio", { name: /document feedback/i }));
-    // The workspace tools are gone; the document-mode note explains why.
-    expect(screen.queryByRole("button", { name: /add step/i })).not.toBeInTheDocument();
-    expect(screen.queryByText(/optionally host a vetted simulation/i)).not.toBeInTheDocument();
-    expect(screen.getByText(/gives feedback on the active file/i)).toBeInTheDocument();
 
     fireEvent.click(screen.getByRole("button", { name: /create activity/i }));
     await waitFor(() => expect(createActivityMock).toHaveBeenCalledTimes(1));
-    expect(createActivityMock.mock.calls[0][0].workbenchType).toBe("document");
+    expect(createActivityMock.mock.calls[0][0].document).toEqual([
+      { id: "document-1", prompt: "Upload dit arbejde" },
+    ]);
   });
 
   it("pre-fills + saves the solution-writing template (solution editor, standard mode)", async () => {
@@ -364,17 +362,19 @@ describe("/teacher/activities/new — concept activity builder", () => {
     expect(body.workbenchType).toBe("none");
   });
 
-  it("pre-fills the document-feedback template in document mode (hides workspace tools)", async () => {
+  it("pre-fills + saves the document-feedback template (document element, composes)", async () => {
     listClassesMock.mockResolvedValue(ONE_CLASS);
     render(<NewActivityPage />);
     await screen.findByLabelText(/activity name/i);
     fireEvent.click(screen.getByText("Dokumentfeedback"));
-    // Document mode: the workspace tools are hidden behind the explanatory note.
-    expect(screen.queryByRole("button", { name: /add step/i })).not.toBeInTheDocument();
-    expect(screen.getByText(/gives feedback on the active file/i)).toBeInTheDocument();
+    // The document prompt is pre-filled; the workspace tools stay available (element, not mode).
+    expect((screen.getByLabelText(/document prompt/i) as HTMLTextAreaElement).value.length).toBeGreaterThan(0);
+    expect(screen.getByRole("button", { name: /add step/i })).toBeInTheDocument();
     fireEvent.click(screen.getByRole("button", { name: /create activity/i }));
     await waitFor(() => expect(createActivityMock).toHaveBeenCalledTimes(1));
-    expect(createActivityMock.mock.calls[0][0].workbenchType).toBe("document");
+    const body = createActivityMock.mock.calls[0][0];
+    expect(body.document?.[0]?.prompt?.length).toBeGreaterThan(0);
+    expect(body.workbenchType).toBe("none");
   });
 
   it("adds a solution editor element and saves it with its prompt (1.1.45 M4)", async () => {

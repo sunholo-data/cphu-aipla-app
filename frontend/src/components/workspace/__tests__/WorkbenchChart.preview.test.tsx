@@ -36,6 +36,7 @@ describe("WorkspaceElements — chart replots from table edits (sessionId null)"
         calculator={[]}
         note={[]}
         solution={[]}
+        document={[]}
       />,
     );
 

@@ -20,6 +20,7 @@ from db.models.activity_config import (
     CalculatorElement,
     ChartElement,
     ChecklistItem,
+    DocumentElement,
     NoteElement,
     SolutionElement,
     TableColumn,
@@ -260,3 +261,37 @@ def test_solution_within_cap_roundtrips() -> None:
 def test_solution_over_cap_is_rejected() -> None:
     with pytest.raises(ValidationError):
         _config(solution=[SolutionElement(id=f"s{i}", prompt="") for i in range(2)])
+
+
+# --- document element + legacy workbench_type migration (1.1.48) ---
+
+
+def test_document_is_a_registered_workspace_element() -> None:
+    spec = ELEMENT_REGISTRY["document"]
+    assert spec.field == "document"
+    assert spec.render == "workspace"
+    assert spec.max_items == 1
+
+
+def test_document_within_cap_roundtrips() -> None:
+    cfg = _config(document=[DocumentElement(id="document-1", prompt="Upload your worksheet")])
+    assert len(cfg.document) == 1
+    assert cfg.document[0].prompt == "Upload your worksheet"
+
+
+def test_legacy_workbench_type_document_migrates_to_an_element() -> None:
+    # Old document-feedback activities picked workbenchType="document"; that mode
+    # is reconciled (1.1.48) to a composable document element + a neutral type.
+    cfg = _config(workbenchType="document")
+    assert cfg.workbench_type == "none"
+    assert len(cfg.document) == 1
+    assert cfg.document[0].id == "document-1"
+
+
+def test_migration_does_not_clobber_an_explicit_document_element() -> None:
+    cfg = _config(
+        workbenchType="document",
+        document=[DocumentElement(id="d-keep", prompt="keep me")],
+    )
+    assert cfg.workbench_type == "none"
+    assert [d.id for d in cfg.document] == ["d-keep"]

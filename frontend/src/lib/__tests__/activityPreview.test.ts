@@ -2,13 +2,35 @@ import { describe, expect, it } from "vitest";
 
 import { builderToElementDefs, hasAnyElement, type BuilderElements } from "@/lib/activityPreview";
 
-const EMPTY: BuilderElements = { checklist: [], table: null, chart: null, calculator: null, note: null, solution: null };
+const EMPTY: BuilderElements = {
+  checklist: [],
+  table: null,
+  chart: null,
+  calculator: null,
+  note: null,
+  solution: null,
+  document: null,
+};
 
 describe("builderToElementDefs", () => {
   it("returns empty arrays for empty state", () => {
     const d = builderToElementDefs(EMPTY);
-    expect(d).toEqual({ checklist: [], table: [], chart: [], calculator: [], note: [], solution: [] });
+    expect(d).toEqual({
+      checklist: [],
+      table: [],
+      chart: [],
+      calculator: [],
+      note: [],
+      solution: [],
+      document: [],
+    });
     expect(hasAnyElement(d)).toBe(false);
+  });
+
+  it("includes a document element with its prompt when present (1.1.48)", () => {
+    const d = builderToElementDefs({ ...EMPTY, document: { prompt: "Upload your work" } });
+    expect(d.document).toEqual([{ id: "document-1", prompt: "Upload your work" }]);
+    expect(hasAnyElement(d)).toBe(true);
   });
 
   it("includes a solution element with its prompt when present (1.1.45 M4)", () => {
