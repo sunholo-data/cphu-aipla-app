@@ -154,6 +154,15 @@ messaging is already proven in practice — KineBot's `set-topic` is host→app 
 `GenericArtefactFrame` (and the builder preview that wraps it) gain restore for free;
 no per-sim code.
 
+> **Finding (2026-06-25): re-hydration is net-new, NOT a parity requirement.** Today
+> `restoredWorkbenchState` is fetched from `/restore` but **never passed to any frame**
+> (it's a half-built M6 hook), and the bespoke workbenches render from the live snapshot
+> which is **also** empty on resume. So **neither** system restores artefact state today.
+> Therefore A0 does not *block* the migration (the self-contained model is no worse than
+> today on resume) — it **completes** that half-built feature and is part of the correct
+> pattern. Sequence: ship the self-contained artefacts + dispatch first; A0 can land in
+> the same sprint or immediately after without a regression risk.
+
 ### Skills keep their tutor logic
 
 `problem-set-hints` / `led-planck-tutor` / `kinebot-kinematics-tutor` stay as distinct
