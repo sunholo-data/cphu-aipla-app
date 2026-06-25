@@ -390,12 +390,66 @@ class TestSkillActivationGate:
     @patch("protocols.iframe_context_routes.skill_config")
     @patch("protocols.iframe_context_routes.get_session_index")
     def test_returns_403_when_skill_has_no_mcp_config(self, mock_get_index, mock_skill_module):
-        """Skill doesn't even use MCP — empty tool_configs.mcp."""
+        """Skill doesn't even use MCP — empty tool_configs.mcp. ``ext-apps-map``
+        is NOT a catalogued artefact, so the artefact bypass doesn't apply."""
         mock_get_index.return_value = _make_index()
         mock_skill_module.get_skill.return_value = _make_skill()  # no MCP config
 
         client = _make_client("viewer")
         resp = client.post("/api/sessions/sess-1/iframe-context", json=_HAPPY_BODY)
+        assert resp.status_code == 403
+
+
+# ---------------------------------------------------------------------------
+# Artefact-catalogue bypass (USR-1) — a vetted catalogue artefact hosted by an
+# activity authorizes its OWN context-writes, independent of the session
+# skill's mcp.servers. This is what makes a sim (e.g. boldkast) attached to a
+# concept-dialogue activity (whose skill declares no servers) talk to the tutor.
+# ---------------------------------------------------------------------------
+
+
+class TestArtefactCatalogueBypass:
+    @patch("protocols.iframe_context_routes.get_session_service")
+    @patch("protocols.iframe_context_routes.skill_config")
+    @patch("protocols.iframe_context_routes.get_session_index")
+    def test_known_artefact_writes_context_on_skill_with_no_mcp_config(
+        self, mock_get_index, mock_skill_module, mock_get_svc
+    ):
+        """Regression: the Kastebevægelse bug. A concept-dialogue activity hosts
+        the ``boldkast`` artefact; the skill declares NO mcp.servers, so the
+        skill-allowlist gate would 403 the artefact's context-writes and the
+        tutor would never see the sim state. The artefact is a vetted catalogue
+        entry, so its push must be authorized → 204 + namespaced state write."""
+        mock_get_index.return_value = _make_index(skill_id="concept-dialogue")
+        # No mcp config at all — exactly like the real concept-dialogue skill.
+        mock_skill_module.get_skill.return_value = _make_skill(skill_id="concept-dialogue")
+        svc = _mock_session_service()
+        mock_get_svc.return_value = svc
+
+        body = {
+            "serverId": "boldkast",  # a real catalogued artefact id
+            "toolName": "snapshot",
+            "structuredContent": {"v0": 15, "angle": 40, "g": 9.8},
+        }
+        client = _make_client("viewer")
+        resp = client.post("/api/sessions/sess-1/iframe-context", json=body)
+        assert resp.status_code == 204, resp.text
+
+        svc.append_event.assert_awaited_once()
+        delta = svc.append_event.await_args.args[1].actions.state_delta
+        assert "mcp_app_context.boldkast.snapshot" in delta
+
+    @patch("protocols.iframe_context_routes.skill_config")
+    @patch("protocols.iframe_context_routes.get_session_index")
+    def test_unknown_server_still_rejected_on_skill_with_no_mcp_config(self, mock_get_index, mock_skill_module):
+        """The bypass is bounded to the artefact catalogue: a server that is
+        neither activated by the skill NOR a known artefact is still 403."""
+        mock_get_index.return_value = _make_index()
+        mock_skill_module.get_skill.return_value = _make_skill()  # no MCP config
+        body = {**_HAPPY_BODY, "serverId": "not-an-artefact-nor-a-server"}
+
+        client = _make_client("viewer")
+        resp = client.post("/api/sessions/sess-1/iframe-context", json=body)
         assert resp.status_code == 403
 
 

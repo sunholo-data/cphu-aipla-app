@@ -143,6 +143,20 @@ def _enforce_skill_allowlists(
         )
         raise HTTPException(status_code=403, detail="Access denied")
 
+    # Artefact model (1.1.41 / USR-1): a sim is a VETTED CATALOGUE ARTEFACT hosted by
+    # the ACTIVITY, not an MCP server declared on the skill. A concept-dialogue activity
+    # hosting the `boldkast` artefact runs the concept skill (which declares no
+    # mcp.servers), so the skill-based allowlist below would wrongly 403 the artefact's
+    # context writes — the workbench would emit but the tutor would never see the sim
+    # state. A catalogued artefact is vetted (ADR-013: sandboxed, CSP, size-capped) and
+    # is only ever rendered when an activity hosts it, so the artefact's catalogue
+    # membership IS its authorization to write context. The skill-server allowlist below
+    # still governs genuine MCP servers (not in the artefact catalogue).
+    from artefacts.loader import is_known_artefact
+
+    if is_known_artefact(server_id):
+        return
+
     mcp_config = (skill.skill_metadata.tool_configs or {}).get("mcp") or {}
     activated_servers = mcp_config.get("servers") or []
     if server_id not in activated_servers:
