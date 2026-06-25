@@ -479,6 +479,81 @@ class TestArtefactCatalogueBypass:
 
 
 # ---------------------------------------------------------------------------
+# Lazy ADK-session create — a workbench event arriving before the agent's first
+# run (e.g. a sim touched right after a resume) finds the index but no ADK
+# session. Instead of 404-dropping the student's state, the route creates it.
+# ---------------------------------------------------------------------------
+
+
+class TestLazyAdkSessionCreate:
+    @patch("protocols.iframe_context_routes.get_session_service")
+    @patch("protocols.iframe_context_routes.skill_config")
+    @patch("protocols.iframe_context_routes.get_session_index")
+    def test_missing_adk_session_is_lazy_created_then_written(self, mock_get_index, mock_skill_module, mock_get_svc):
+        mock_get_index.return_value = _make_index()
+        mock_skill_module.get_skill.return_value = _make_skill(
+            activated_servers=["ext-apps-map"], context_write_servers=["ext-apps-map"]
+        )
+        created = MagicMock()
+        created.state = {}
+        svc = MagicMock()
+        svc.get_session = AsyncMock(return_value=None)  # ADK session missing
+        svc.create_session = AsyncMock(return_value=created)
+        svc.append_event = AsyncMock()
+        mock_get_svc.return_value = svc
+
+        client = _make_client("viewer")
+        resp = client.post("/api/sessions/sess-1/iframe-context", json=_HAPPY_BODY)
+        assert resp.status_code == 204, resp.text
+        svc.create_session.assert_awaited_once()
+        svc.append_event.assert_awaited_once()
+
+    @patch("protocols.iframe_context_routes.get_session_service")
+    @patch("protocols.iframe_context_routes.skill_config")
+    @patch("protocols.iframe_context_routes.get_session_index")
+    def test_lazy_create_race_falls_back_to_reread(self, mock_get_index, mock_skill_module, mock_get_svc):
+        """If create collides with the agent's concurrent create, re-read and use
+        the now-present session — no 404, no double-create error to the client."""
+        mock_get_index.return_value = _make_index()
+        mock_skill_module.get_skill.return_value = _make_skill(
+            activated_servers=["ext-apps-map"], context_write_servers=["ext-apps-map"]
+        )
+        recovered = MagicMock()
+        recovered.state = {}
+        svc = MagicMock()
+        svc.get_session = AsyncMock(side_effect=[None, recovered])  # miss, then found on re-read
+        svc.create_session = AsyncMock(side_effect=RuntimeError("Session already exists"))
+        svc.append_event = AsyncMock()
+        mock_get_svc.return_value = svc
+
+        client = _make_client("viewer")
+        resp = client.post("/api/sessions/sess-1/iframe-context", json=_HAPPY_BODY)
+        assert resp.status_code == 204, resp.text
+        svc.append_event.assert_awaited_once()
+
+    @patch("protocols.iframe_context_routes.get_session_service")
+    @patch("protocols.iframe_context_routes.skill_config")
+    @patch("protocols.iframe_context_routes.get_session_index")
+    def test_still_404_when_unrecoverable(self, mock_get_index, mock_skill_module, mock_get_svc):
+        """Create fails AND re-read still finds nothing → the original 404 stands
+        (the agent's run will recover it)."""
+        mock_get_index.return_value = _make_index()
+        mock_skill_module.get_skill.return_value = _make_skill(
+            activated_servers=["ext-apps-map"], context_write_servers=["ext-apps-map"]
+        )
+        svc = MagicMock()
+        svc.get_session = AsyncMock(return_value=None)
+        svc.create_session = AsyncMock(side_effect=RuntimeError("nope"))
+        svc.append_event = AsyncMock()
+        mock_get_svc.return_value = svc
+
+        client = _make_client("viewer")
+        resp = client.post("/api/sessions/sess-1/iframe-context", json=_HAPPY_BODY)
+        assert resp.status_code == 404
+        svc.append_event.assert_not_awaited()
+
+
+# ---------------------------------------------------------------------------
 # Per-server context-write opt-in gate (6) — the NEW gate this design adds
 # ---------------------------------------------------------------------------
 

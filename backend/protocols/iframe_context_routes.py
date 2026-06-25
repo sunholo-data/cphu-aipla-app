@@ -297,9 +297,41 @@ async def post_iframe_context(
         session_id=session_id,
     )
     if session is None:
+        # Index exists but the ADK session is missing — typically a workbench
+        # event that arrived BEFORE the agent's first run created the session
+        # (a sim touched right after a resume, before the student typed). Lazy-
+        # create under the canonical triple (mirrors session_bootstrap) so the
+        # student's state reaches the tutor instead of 404-dropping until the
+        # first chat turn. Idempotent: a concurrent create (the agent's run)
+        # collides benignly — re-read and use the now-present session.
+        try:
+            session = await session_service.create_session(
+                app_name=APP_NAME,
+                user_id=user.uid,
+                session_id=session_id,
+            )
+            log.info(
+                "iframe_context: lazy-created missing ADK session uid=%s session=%s skill=%s",
+                user.uid,
+                session_id,
+                idx.skill_id,
+            )
+        except Exception as exc:
+            log.info(
+                "iframe_context: lazy create_session raced uid=%s session=%s exc=%s",
+                user.uid,
+                session_id,
+                exc,
+            )
+            session = await session_service.get_session(
+                app_name=APP_NAME,
+                user_id=user.uid,
+                session_id=session_id,
+            )
+    if session is None:
         log.info(
-            "iframe_context: ADK session not found uid=%s session_id=%s "
-            "skill_id=%s (index exists, ADK session missing)",
+            "iframe_context: ADK session unrecoverable uid=%s session_id=%s "
+            "skill_id=%s (index exists, ADK session missing after lazy-create)",
             user.uid,
             session_id,
             idx.skill_id,
