@@ -130,25 +130,38 @@ def emit_workbench_event(
     skill_id: str,
     server: str,
     tool: str,
-    field: str,
+    field: Any,
     value: Any,
 ) -> None:
     """Emit one workbench interaction. Never raises.
 
     ``value`` is stringified (the BQ view's ``value`` column is STRING) so a
-    complex artefact payload still lands as a queryable scalar.
+    complex artefact payload still lands as a queryable scalar. ``field`` is
+    likewise coerced to a scalar string — a list (a sim's ``changed`` keys)
+    becomes comma-joined — so the BQ ``field`` column (non-repeated STRING)
+    never rejects the row.
     """
     gl = _get_logger(LOG_ID_WORKBENCH_EVENT)
     if gl is None:
         return
     value_str = value if isinstance(value, str) else json.dumps(value, default=str)
+    # The BQ ``field`` column is a non-repeated STRING. Coerce defensively so a
+    # caller passing a list (e.g. a sim state-change's ``changed`` key array)
+    # can never break the chat-logs sink with "Array specified for non-repeated
+    # field" — a list becomes a comma-joined scalar; anything else is stringified.
+    if isinstance(field, str):
+        field_str = field
+    elif isinstance(field, (list, tuple)):
+        field_str = ",".join(str(f) for f in field)
+    else:
+        field_str = str(field)
     payload = {
         "group_id": group_id,
         "session_id": session_id,
         "skill_id": skill_id,
         "server": server,
         "tool": tool,
-        "field": field,
+        "field": field_str,
         "value": value_str,
     }
     try:

@@ -139,6 +139,19 @@ def test_emit_workbench_event_stringifies_complex_value():
     assert isinstance(payload["value"], str)
 
 
+def test_emit_workbench_event_coerces_list_field_to_scalar_string():
+    """Regression for the aipla-chat-logs BQ sink failure: a sim state-change
+    passes its ``changed`` key ARRAY as ``field``, but the BQ ``field`` column
+    is a non-repeated STRING. The emitter must join it to a scalar — otherwise
+    the sink rejects every row with 'Array specified for non-repeated field'."""
+    gl = MagicMock()
+    with patch.object(chat_log, "_get_logger", return_value=gl):
+        chat_log.emit_workbench_event(**{**WB_KW, "field": ["v0", "theta"]})
+    payload = gl.log_struct.call_args.args[0]
+    assert payload["field"] == "v0,theta"
+    assert isinstance(payload["field"], str)
+
+
 def test_emit_workbench_event_never_raises_on_client_error():
     gl = MagicMock()
     gl.log_struct.side_effect = RuntimeError("down")
