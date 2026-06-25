@@ -1,0 +1,95 @@
+{
+  "sprint_id": "USR-1",
+  "created": "2026-06-25T04:33:43Z",
+  "estimated_duration_days": 1,
+  "design_doc": "docs/design/aipla/v1.1.0-feedback/unified-sim-rendering.md",
+  "sprint_plan": "docs/design/aipla/v1.1.0-feedback/unified-sim-rendering-sprint.md",
+  "features": [
+    {
+      "id": "M1-data-migration",
+      "description": "backfill_sim_artefacts.py: set artefactId (problem-set-hints->boldkast, led-planck-tutor->led-planck, kinebot-kinematics-tutor->kinebot) + seed checklist (sub-parts) + note (problem statement) on each sim activity. Idempotent, dry-run then apply on dev. Done FIRST so the generic path has everything before dispatch flips (no regression).",
+      "scope": "backend",
+      "estimated_loc": 180,
+      "actual_loc": null,
+      "dependencies": [],
+      "acceptance_criteria": [
+        "Each sim activity gets artefactId + checklist + note",
+        "Re-run is a no-op (idempotent)",
+        "dry-run writes nothing",
+        "Tests cover mapping + idempotency"
+      ],
+      "files_to_create": [
+        "backend/scripts/backfill_sim_artefacts.py",
+        "backend/tests/api_tests/test_backfill_sim_artefacts.py"
+      ],
+      "files_to_modify": [],
+      "passes": null,
+      "started": null,
+      "completed": null,
+      "notes": null
+    },
+    {
+      "id": "M2-dispatch",
+      "description": "Unify runtime dispatch on artefact_id: workspaceContentKind selects sim from activeArtefact; delete the skillSlug=='problem-set-hints|led-planck-tutor|kinebot-kinematics-tutor' render branches; usesStudentWorkspace true for sims; render all via StudentWorkspace. Verify iframe-context payloads unchanged.",
+      "scope": "frontend",
+      "estimated_loc": 120,
+      "actual_loc": null,
+      "dependencies": [
+        "M1-data-migration"
+      ],
+      "acceptance_criteria": [
+        "A migrated sim activity renders artefact+checklist+note via the generic mount",
+        "Builder preview === runtime",
+        "Tutor still receives sim events (iframe-context payload unchanged)",
+        "workspaceContent.test updated; quality:check green"
+      ],
+      "files_to_create": [],
+      "files_to_modify": [
+        "frontend/src/app/chat/[...path]/workspaceContent.ts",
+        "frontend/src/app/chat/[...path]/page.tsx",
+        "frontend/src/app/chat/[...path]/__tests__/workspaceContent.test.ts"
+      ],
+      "passes": null,
+      "started": null,
+      "completed": null,
+      "notes": null
+    },
+    {
+      "id": "M3-delete-legacy",
+      "description": "Delete SIM_WORKSPACE_SLUGS + BoldkastSimFrame/BoldkastWorkbench/LedPlanckLabFrame/LedPlanckLabButton/LedPlanckWorkbench/KineBotFrame/KineBotWorkbench + useBoldkastSnapshot/useLedPlanckSnapshot/useKineBotSnapshot + BOLDKAST_SUBPARTS + the per-sim refs/state/render cases in the chat page. Keep useSimSnapshotPush.",
+      "scope": "frontend",
+      "estimated_loc": -600,
+      "actual_loc": null,
+      "dependencies": [
+        "M2-dispatch"
+      ],
+      "acceptance_criteria": [
+        "The bespoke frames/workbenches/hooks + slug registry deleted",
+        "No dead imports; no orphaned tests",
+        "Exactly one sim render path",
+        "Full CI green"
+      ],
+      "files_to_create": [],
+      "files_to_modify": [
+        "frontend/src/app/chat/[...path]/page.tsx",
+        "frontend/src/app/chat/[...path]/workspaceContent.ts"
+      ],
+      "passes": null,
+      "started": null,
+      "completed": null,
+      "notes": null
+    }
+  ],
+  "velocity": {
+    "target_loc_per_day": 400,
+    "actual_loc_per_day": null,
+    "estimated_total_loc": 300,
+    "actual_total_loc": null,
+    "estimated_days": 1,
+    "actual_days": null
+  },
+  "github_issues": [],
+  "last_session": null,
+  "last_checkpoint": null,
+  "status": "in_progress"
+}
