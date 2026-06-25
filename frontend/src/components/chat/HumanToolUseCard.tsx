@@ -1,7 +1,7 @@
 // HumanToolUseCard — chip-style affordance for student workspace actions.
 //
 // The visual mirror of ToolCallChip but for human tool-use. Renders when
-// the student clicks a workspace surface (BoldkastSimFrame marker reveal,
+// the student acts on a workspace surface (a sim-artefact control, a
 // ProgressChecklist toggle) — the act of pushing iframe-context to the
 // agent. Three states: pending (POST in flight), confirmed (204), failed
 // (4xx/5xx or network). The failed state is the whole point — if it

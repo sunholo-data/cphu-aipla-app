@@ -14,8 +14,8 @@ import type { UseSimSnapshotPushProactiveOpts } from "@/hooks/useSimSnapshotPush
 
 /**
  * React Context for the proactive sim-reactive wiring shared by every
- * workspace artefact hook (useBoldkastSnapshot, useLedPlanckSnapshot,
- * useKineBotSnapshot, and any future sim hook).
+ * workspace artefact — consumed by `useSimSnapshotPush` inside
+ * `GenericArtefactFrame`, the single mount every sim artefact renders through.
  *
  * **Why a context.** Without it, every new workspace artefact would
  * need to thread the same two values (`skillId` + `onProactiveTrigger`)

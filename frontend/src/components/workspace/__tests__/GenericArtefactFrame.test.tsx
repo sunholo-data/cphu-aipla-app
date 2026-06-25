@@ -6,14 +6,23 @@ vi.mock("@/lib/apiClient", () => ({
 }));
 import { fetchWithAuth } from "@/lib/apiClient";
 
-// Capture StaticArtefactFrame's props so we can drive its onUpdateModelContext.
-const { frameSpy } = vi.hoisted(() => ({ frameSpy: vi.fn() }));
-vi.mock("../StaticArtefactFrame", () => ({
-  StaticArtefactFrame: (props: Record<string, unknown>) => {
-    frameSpy(props);
-    return <div data-testid="static-frame" />;
-  },
+// Capture StaticArtefactFrame's props so we can drive its onUpdateModelContext,
+// and expose a sendNotification spy through the forwarded ref so the flush
+// wiring (host → artefact chat-flush) is testable.
+const { frameSpy, sendNotificationSpy } = vi.hoisted(() => ({
+  frameSpy: vi.fn(),
+  sendNotificationSpy: vi.fn(),
 }));
+vi.mock("../StaticArtefactFrame", async () => {
+  const { forwardRef, useImperativeHandle } = await import("react");
+  return {
+    StaticArtefactFrame: forwardRef((props: Record<string, unknown>, ref) => {
+      frameSpy(props);
+      useImperativeHandle(ref, () => ({ sendNotification: sendNotificationSpy }));
+      return <div data-testid="static-frame" />;
+    }),
+  };
+});
 
 import { GenericArtefactFrame, type ActivityArtefact } from "../GenericArtefactFrame";
 
@@ -27,6 +36,7 @@ describe("GenericArtefactFrame", () => {
   beforeEach(() => {
     vi.mocked(fetchWithAuth).mockClear();
     frameSpy.mockClear();
+    sendNotificationSpy.mockClear();
   });
 
   it("mounts the artefact by its catalogue path", () => {
@@ -59,5 +69,39 @@ describe("GenericArtefactFrame", () => {
     render(<GenericArtefactFrame sandboxOrigin="https://sandbox" artefact={ARTEFACT} sessionId={null} />);
     onUpdate()({ kind: "boldkast.state-change", state: {} });
     expect(fetchWithAuth).not.toHaveBeenCalled();
+  });
+
+  it("registers a flush that sends the chat-flush notification to the artefact", () => {
+    // Regression-closer for the commit-on-submit gap: a buffering artefact only
+    // emits its pending state on an inbound chat-flush. The chat page invokes
+    // the registered flush before each message so the tutor sees what's set.
+    let flush: (() => void) | null = null;
+    render(
+      <GenericArtefactFrame
+        sandboxOrigin="https://sandbox"
+        artefact={ARTEFACT}
+        sessionId="s1"
+        onRegisterFlush={(fn) => {
+          flush = fn;
+        }}
+      />,
+    );
+    expect(flush).toBeTypeOf("function");
+    flush!();
+    expect(sendNotificationSpy).toHaveBeenCalledWith("ui/notifications/chat-flush", {});
+  });
+
+  it("unregisters the flush (null) on unmount", () => {
+    const registrations: Array<(() => void) | null> = [];
+    const { unmount } = render(
+      <GenericArtefactFrame
+        sandboxOrigin="https://sandbox"
+        artefact={ARTEFACT}
+        sessionId="s1"
+        onRegisterFlush={(fn) => registrations.push(fn)}
+      />,
+    );
+    unmount();
+    expect(registrations.at(-1)).toBeNull();
   });
 });

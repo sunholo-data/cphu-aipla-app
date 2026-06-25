@@ -184,12 +184,12 @@ describe("useHumanToolEvents", () => {
   describe("useSyncMessageCount", () => {
     // Regression for 2026-06-01: when the provider was moved inside the
     // component that owns useSkillAgent so it could read messages.length
-    // as a prop, all snapshot hooks called at that component's top level
-    // (useBoldkastSnapshot, useLedPlanckSnapshot, useKineBotSnapshot)
+    // as a prop, the workspace artefact surface (the snapshot push inside
+    // GenericArtefactFrame, which calls useHumanToolEvents during render)
     // fell outside the provider subtree and got the no-op fallback —
     // POSTs still went out, but no cards rendered. useSyncMessageCount
-    // exists so the provider can sit ABOVE that component (keeping all
-    // snapshot hooks inside its subtree) while still tracking the
+    // exists so the provider can sit ABOVE that component (keeping the
+    // artefact surface inside its subtree) while still tracking the
     // current message count.
     it("updates afterMessageIndex on the NEXT dispatch", async () => {
       const { result } = renderHook(

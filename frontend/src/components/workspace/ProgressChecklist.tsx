@@ -81,9 +81,9 @@ export function ProgressChecklist({ skillId, items, sessionId }: ProgressCheckli
   const buildSnapshot = (doneMap: Record<string, boolean>): ProgressSnapshot => ({
     done: items.filter((i) => doneMap[i.id]).map((i) => i.id),
     // Include both ids AND labels so the agent's prompt is self-describing
-    // (no correlation to system-prompt text required). v1 sources items
-    // from SkillConfig.problemDefinition.subparts; for v0.1 we lift the
-    // hardcoded BOLDKAST_SUBPARTS into the push payload.
+    // (no correlation to system-prompt text required). Items are the
+    // activity's teacher-authored `checklist` element (USR-1: sourced from
+    // activity config, no longer a hardcoded per-sim constant).
     items: items.map((i) => ({ id: i.id, label: i.label })),
     total: items.length,
   });

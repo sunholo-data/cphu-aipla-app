@@ -72,40 +72,12 @@ import type { DocumentElementDef } from "@/components/workspace/DocumentElementM
 import { DocumentsPanel, type ActivityMaterial } from "@/components/workspace/DocumentsPanel";
 import { reportDocumentEvent } from "@/lib/documentApi";
 import { workspaceContentKind } from "./workspaceContent";
-import { BoldkastWorkbench } from "@/components/workspace/BoldkastWorkbench";
-import {
-  BoldkastSimFrame,
-  type BoldkastSimFrameHandle,
-} from "@/components/workspace/BoldkastSimFrame";
-import { useBoldkastSnapshot } from "@/hooks/useBoldkastSnapshot";
-import {
-  LedPlanckLabFrame,
-  type LedPlanckLabFrameHandle,
-} from "@/components/workspace/LedPlanckLabFrame";
-import { LedPlanckLabButton } from "@/components/workspace/LedPlanckLabButton";
-import { LedPlanckWorkbench } from "@/components/workspace/LedPlanckWorkbench";
-import { useLedPlanckSnapshot } from "@/hooks/useLedPlanckSnapshot";
-import {
-  KineBotFrame,
-  type KineBotFrameHandle,
-} from "@/components/workspace/KineBotFrame";
-import { KineBotWorkbench } from "@/components/workspace/KineBotWorkbench";
-import { useKineBotSnapshot } from "@/hooks/useKineBotSnapshot";
 import { useResizableWorkspaceRatio } from "@/hooks/useResizableWorkspaceRatio";
 
-// PEDCTX M5 — sub-parts of the Boldkast problem-set-hints v0.1 skill.
-// v1's problem-set-helper-config will source this from skill metadata;
-// for the Jutland demo we ship hardcoded Danish sub-part labels.
-const BOLDKAST_SUBPARTS = [
-  { id: "a", label: "a) Hvor lang tid er bolden i luften?" },
-  { id: "b", label: "b) Hvor langt rækker den (vandret distance)?" },
-  { id: "c", label: "c) Hvad er den maksimale højde?" },
-  { id: "d", label: "d) Tegn en skitse over banen." },
-];
-
-// Sandbox origin for the Boldkast sim iframe. NEXT_PUBLIC_MCP_SANDBOX_URL
+// Sandbox origin for the sim artefact iframes. NEXT_PUBLIC_MCP_SANDBOX_URL
 // points at /sandbox.html on the sandbox service; strip the suffix so we
-// have the bare origin, then BoldkastSimFrame appends the artefact path.
+// have the bare origin, then GenericArtefactFrame (inside StudentWorkspace)
+// appends the artefact path.
 // Empty string => sim launcher disabled (graceful — workspace still works).
 const BOLDKAST_SANDBOX_ORIGIN = (process.env.NEXT_PUBLIC_MCP_SANDBOX_URL ?? "")
   .replace(/\/sandbox\.html$/, "");
@@ -311,14 +283,14 @@ function ChatPageInner({
   return (
     <AGUIProvider skillId={skillId} sessionId={stableThreadId}>
       {/* HumanToolEventsProvider MUST wrap ChatShell from outside, not
-       *  live inside its return — ChatShell's top-level snapshot hooks
-       *  (useBoldkastSnapshot / useLedPlanckSnapshot / useKineBotSnapshot)
-       *  call useHumanToolEvents during render. If the provider sits
-       *  inside ChatShell's JSX, those hook calls fall outside the
-       *  provider's subtree and silently get the no-op fallback — POSTs
-       *  still go out, but no "Sendte spørgsmål med …" cards render in
-       *  chat. messages.length is synced via useSyncMessageCount inside
-       *  ChatShell. (Was lost between 86e24ee → 3563af1; restored 2026-06-01.) */}
+       *  live inside its return — the workspace artefact surface
+       *  (StudentWorkspace → GenericArtefactFrame) calls useHumanToolEvents
+       *  during render. If the provider sits inside ChatShell's JSX, those
+       *  hook calls fall outside the provider's subtree and silently get the
+       *  no-op fallback — POSTs still go out, but no "Sendte spørgsmål med …"
+       *  cards render in chat. messages.length is synced via
+       *  useSyncMessageCount inside ChatShell. (Was lost between
+       *  86e24ee → 3563af1; restored 2026-06-01.) */}
       <HumanToolEventsProvider>
         <ChatShell
           skillId={skillId}
@@ -407,7 +379,6 @@ function ChatShell({
     mcpServerIds,
     initialMessage: skillInitialMessage,
     slug: skillSlug,
-    problemStatement: skillProblemStatement,
     proactiveGreet: skillProactiveGreet,
     multimodalInput: skillMultimodalInput,
   } = useSkillMeta(skillId);
@@ -454,10 +425,10 @@ function ChatShell({
   // Persona (1.1.12) resolved for this activity — the bot bubbles show its
   // avatar + name. Optional; null leaves the default brand byline.
   const [activePersona, setActivePersona] = useState<PersonaSummary | null>(null);
-  // Config-driven workspace gate: a registered sim OR an authored checklist
-  // (workspaceContent.ts — pure + unit-tested; no inline slug allowlist).
+  // Config-driven workspace gate: any workspace surface present (a vetted
+  // artefact or an authored element) → render the column. USR-1: purely
+  // content-driven — no skill-slug sim registry.
   const workspaceKind = workspaceContentKind(
-    skillSlug,
     activeChecklist.length > 0 ||
       activeTable.length > 0 ||
       activeChart.length > 0 ||
@@ -476,19 +447,12 @@ function ChatShell({
   const showWorkspace =
     isAnonymousGroupAuthMode() && (workspaceKind !== "none" || hasDocuments);
   // The generic-artefact activity surface (sim + elements + documents) is the
-  // shared StudentWorkspace — the same component the builder preview renders.
-  // The per-skill legacy frames below predate it and keep the standalone
-  // DocumentsPanel; this flag routes documents through one path or the other so
-  // they never double-render.
-  // USR-1: a sim activity migrated to an artefact renders through StudentWorkspace
-  // too (which owns its own documents panel), so treat artefact presence as
-  // "uses the generic workspace" — only an UN-migrated sim slug uses the legacy frame.
-  const usesStudentWorkspace =
-    activeArtefact != null ||
-    (workspaceKind !== "none" &&
-      skillSlug !== "kinebot-kinematics-tutor" &&
-      skillSlug !== "led-planck-tutor" &&
-      skillSlug !== "problem-set-hints");
+  // shared StudentWorkspace — the same component the builder preview renders,
+  // and it owns its own documents panel. USR-1: this is now the ONLY workspace
+  // render path, so any non-empty workspace uses it; the standalone
+  // DocumentsPanel below only serves chat-only activities (workspaceKind ===
+  // "none" but with assigned materials / uploads).
+  const usesStudentWorkspace = workspaceKind !== "none";
 
   // Fetch this activity's teacher-authored checklist (M1.2 resolves it from the
   // student's class). Optional — failure/absence leaves the chat-only render.
@@ -547,21 +511,6 @@ function ChatShell({
   // A lesson recording holds the mic — block dictation so only one
   // getUserMedia stream is ever live at a time.
   const [lessonRecording, setLessonRecording] = useState(false);
-  // PEDCTX/Boldkast — workspace toggle between default content
-  // (problem statement + checklist) and the Boldkast sim iframe.
-  const [showBoldkastSim, setShowBoldkastSim] = useState(false);
-  // 1.C follow-up / middle-path UX rework — same toggle shape for LED
-  // Planck. Default surface is the launcher button + lesson workbench;
-  // click to mount the bench-only lab frame. The snapshot now lives in
-  // a shared hook (called below, once sessionId is defined) that both
-  // the bench iframe and the React Results surface report into.
-  const [showLedPlanckLab, setShowLedPlanckLab] = useState(false);
-  // 1.D — KineBot. After the workbench-split rework the workbench is
-  // the always-on surface (topics + quiz + graph + notes) and the sim
-  // opens as a toggle. The snapshot lives in a shared hook (called
-  // below, once sessionId is defined) that both the sim iframe and the
-  // React workbench report into.
-  const [showKinebotLab, setShowKinebotLab] = useState(false);
   // resize-workspace sprint — chat <-> workspace split ratio.
   // Keyed by skillSlug so KineBot remembers a different width than
   // LED Planck (per-skill defaults in the hook).
@@ -652,30 +601,16 @@ function ChatShell({
   const [openTabs, setOpenTabs] = useState<DocTabData[]>([]);
   const [activeTabId, setActiveTabId] = useState<string | null>(null);
   const lastUserMessageRef = useRef<string>("");
-  // 1.E Phase 2: ref into BoldkastSimFrame so handleSend can ask the
-  // artefact to flush any pending slider changes before the user
-  // message lands. Optional chaining on the ref means handleSend
-  // proceeds unaffected when the frame isn't mounted.
-  const boldkastFrameRef = useRef<BoldkastSimFrameHandle | null>(null);
-  const ledPlanckFrameRef = useRef<LedPlanckLabFrameHandle | null>(null);
-  const kinebotFrameRef = useRef<KineBotFrameHandle | null>(null);
+  // Flush hook registered by the mounted sim artefact (StudentWorkspace →
+  // GenericArtefactFrame). Invoked before each outgoing message so an artefact
+  // that buffers continuous input (Boldkast's commit-on-submit sliders) commits
+  // its latest state to the tutor for this turn. null when no sim is open.
+  const artefactFlushRef = useRef<(() => void) | null>(null);
 
   // Session routing: read ?session= from URL, allow programmatic navigation
   const sessionId = searchParams.get("session");
   const { initialMessages, initialInteractions, interactionsTruncated, historyError, sessionGone } =
     useSessionMessages(sessionId);
-
-  // KineBot shared snapshot (sim iframe + React quiz/graph/topic feed it).
-  const { snapshot: kinebotSnapshot, reportEvent: reportKinebotEvent } =
-    useKineBotSnapshot(sessionId ?? agentSessionId);
-
-  // LED Planck shared snapshot (bench iframe + React Results feed it).
-  const { snapshot: ledPlanckSnapshot, reportEvent: reportLedPlanckEvent } =
-    useLedPlanckSnapshot(sessionId ?? agentSessionId);
-
-  // Boldkast shared snapshot (bench iframe feeds it; workbench mirrors it).
-  const { snapshot: boldkastSnapshot, reportEvent: reportBoldkastEvent } =
-    useBoldkastSnapshot(sessionId ?? agentSessionId);
 
   // Phase 1.I-PhA proactive greet: fire POST /api/sessions/{id}/greet on
   // chat mount when the skill opts in AND we're starting a brand-new
@@ -791,15 +726,11 @@ function ChatShell({
     // composer immediately — the backend injects them transiently and never
     // persists, so there's nothing to show back in history.
     images.clear();
-    // 1.E Phase 2: ask any mounted workbench artefact to flush its
-    // pending slider changes BEFORE the user message goes out. The
-    // artefact responds synchronously inside its iframe (postMessage
-    // is queued in-process) so the resulting state-change ends up on
-    // the wire ahead of sendMessage in practice. Fire-and-forget: we
-    // don't await, and missing ref = no-op.
-    boldkastFrameRef.current?.sendChatFlush();
-    ledPlanckFrameRef.current?.sendChatFlush();
-    kinebotFrameRef.current?.sendChatFlush();
+    // Ask the open sim artefact to flush any buffered state (e.g. Boldkast's
+    // commit-on-submit slider values) BEFORE the message goes out, so the tutor
+    // sees what the student has set this turn. Fire-and-forget; no-op when no
+    // sim is open (ref is null).
+    artefactFlushRef.current?.();
     // Snap to chat tab on mobile so the student sees the response
     // stream in. No effect on md+ where both panels are visible.
     setMobileTab("chat");
@@ -1282,78 +1213,13 @@ function ChatShell({
             onRatioChange={setWorkspaceRatio}
           >
             <>
-            {workspaceKind !== "none" &&
-              // USR-1: an activity with an artefact renders through the ONE generic
-              // mount (StudentWorkspace) — editor preview === runtime. The per-skill
-              // legacy branches below only fire for a sim activity that has NOT been
-              // migrated to an artefact_id (a transient state during cutover).
-              (activeArtefact == null && skillSlug === "kinebot-kinematics-tutor" ? (
-              showKinebotLab && BOLDKAST_SANDBOX_ORIGIN ? (
-                <KineBotFrame
-                  ref={kinebotFrameRef}
-                  sandboxOrigin={BOLDKAST_SANDBOX_ORIGIN}
-                  topic={kinebotSnapshot?.currentTopic ?? "intro"}
-                  reportEvent={reportKinebotEvent}
-                  onClose={() => setShowKinebotLab(false)}
-                />
-              ) : (
-                <KineBotWorkbench
-                  snapshot={kinebotSnapshot}
-                  sandboxOrigin={BOLDKAST_SANDBOX_ORIGIN}
-                  onOpenSim={() => setShowKinebotLab(true)}
-                  onTopicChange={(topic) => {
-                    reportKinebotEvent({ kind: "kinebot.set-topic", topic });
-                    kinebotFrameRef.current?.setTopic(topic);
-                  }}
-                  reportEvent={reportKinebotEvent}
-                  simDisabled={!BOLDKAST_SANDBOX_ORIGIN}
-                />
-              )
-            ) : activeArtefact == null && skillSlug === "led-planck-tutor" ? (
-              showLedPlanckLab && BOLDKAST_SANDBOX_ORIGIN ? (
-                <LedPlanckLabFrame
-                  ref={ledPlanckFrameRef}
-                  sandboxOrigin={BOLDKAST_SANDBOX_ORIGIN}
-                  onClose={() => setShowLedPlanckLab(false)}
-                  reportEvent={reportLedPlanckEvent}
-                />
-              ) : (
-                <div className="space-y-4">
-                  <LedPlanckLabButton
-                    onOpen={() => setShowLedPlanckLab(true)}
-                    disabled={!BOLDKAST_SANDBOX_ORIGIN}
-                  />
-                  <LedPlanckWorkbench
-                    snapshot={ledPlanckSnapshot}
-                    reportEvent={reportLedPlanckEvent}
-                    sessionId={sessionId ?? agentSessionId}
-                  />
-                </div>
-              )
-            ) : activeArtefact == null && skillSlug === "problem-set-hints" ? (
-              showBoldkastSim && BOLDKAST_SANDBOX_ORIGIN ? (
-                <BoldkastSimFrame
-                  ref={boldkastFrameRef}
-                  sandboxOrigin={BOLDKAST_SANDBOX_ORIGIN}
-                  reportEvent={reportBoldkastEvent}
-                  onClose={() => setShowBoldkastSim(false)}
-                />
-              ) : (
-                <BoldkastWorkbench
-                  snapshot={boldkastSnapshot}
-                  onOpenSim={() => setShowBoldkastSim(true)}
-                  simDisabled={!BOLDKAST_SANDBOX_ORIGIN}
-                  skillId={skillId}
-                  subParts={BOLDKAST_SUBPARTS}
-                  problemStatement={skillProblemStatement}
-                  sessionId={sessionId ?? agentSessionId}
-                />
-              )
-            ) : (
-              // 1.1.41 M1 — a vetted sim artefact is the workspace surface, the
-              // 1.1.38 element tools stack below it, then the documents panel
-              // (1.1.33). One shared component with the builder preview (1.1.40)
-              // so the two can't drift.
+            {workspaceKind !== "none" && (
+              // USR-1 (2026-06-25): ONE sim render path. Every workspace surface
+              // — a vetted sim artefact, the 1.1.38 element tools, and the
+              // documents panel (1.1.33) — renders through the single generic
+              // StudentWorkspace mount, the same component the builder preview
+              // uses (1.1.40) so the two can't drift. The slug-driven bespoke
+              // sim frames (Boldkast/LED-Planck/KineBot) are gone.
               <StudentWorkspace
                 skillId={skillId}
                 sessionId={sessionId ?? agentSessionId}
@@ -1370,8 +1236,11 @@ function ChatShell({
                 materials={activeMaterials}
                 images={uploadedImages}
                 activityId={activityId}
+                onRegisterArtefactFlush={(fn) => {
+                  artefactFlushRef.current = fn;
+                }}
               />
-            ))}
+            )}
             {/* Documents for the legacy sim frames + chat-only activities. The
                 generic StudentWorkspace renders its own (guarded so they never
                 double up). Self-hides when there are no materials/uploads. */}

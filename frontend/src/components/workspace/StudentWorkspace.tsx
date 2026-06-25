@@ -41,6 +41,10 @@ interface StudentWorkspaceProps {
    *  the real activity) or the teacher (Firebase token) for the builder preview,
    *  where there is no real activity to ACL against. Default student. */
   documentViewerRole?: "student" | "teacher";
+  /** Registers a "flush the open sim's pending state" callback the chat page
+   *  calls before each outgoing message (null while no sim is open). Omitted in
+   *  the builder preview (no tutor turn to flush for). */
+  onRegisterArtefactFlush?: (flush: (() => void) | null) => void;
 }
 
 /**
@@ -75,6 +79,7 @@ export function StudentWorkspace({
   images = [],
   activityId,
   documentViewerRole = "student",
+  onRegisterArtefactFlush,
 }: StudentWorkspaceProps) {
   const [simOpen, setSimOpen] = useState(false);
   // Callback ref → state so SimFrameHeader gets the real wrapper element once it
@@ -96,7 +101,12 @@ export function StudentWorkspace({
           onClose={() => setSimOpen(false)}
           fullscreenTarget={simWrap}
         />
-        <GenericArtefactFrame sandboxOrigin={sandboxOrigin} artefact={artefact} sessionId={sessionId} />
+        <GenericArtefactFrame
+          sandboxOrigin={sandboxOrigin}
+          artefact={artefact}
+          sessionId={sessionId}
+          onRegisterFlush={onRegisterArtefactFlush}
+        />
       </div>
     );
   }

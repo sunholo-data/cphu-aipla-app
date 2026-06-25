@@ -11,8 +11,9 @@ import {
 } from "@/lib/proactiveEventCheck";
 
 /**
- * Shared helper for sim snapshot hooks (useBoldkastSnapshot, useLedPlanckSnapshot,
- * useKineBotSnapshot, and any future sim hook).
+ * Shared helper that pushes a sim/artefact snapshot to the tutor. Used by
+ * `GenericArtefactFrame` — the one generic mount every sim artefact renders
+ * through since USR-1 (the per-sim snapshot hooks it replaced are gone).
  *
  * Returns a stable ``pushSnapshot(snap, latestKind)`` function that POSTs the
  * snapshot to ``/api/sessions/{sessionId}/iframe-context`` under the given

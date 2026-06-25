@@ -7,8 +7,8 @@ import { useArtefactReportEvent } from "../useArtefactReportEvent";
  * Unit coverage for useArtefactReportEvent (sprint SIM-ERGONOMICS M1).
  *
  * The helper is the denylist-shaped replacement for the per-artefact
- * allowlist filters in BoldkastSimFrame / LedPlanckLabFrame /
- * KineBotFrame. These tests pin the five paths:
+ * allowlist filters the old bespoke sim frames carried before USR-1
+ * unified them onto GenericArtefactFrame. These tests pin the five paths:
  *   1. kind in `drop` → not forwarded
  *   2. kind in `narrow` → narrower called; valid return forwarded
  *   3. kind in `narrow` → narrower returns null → not forwarded
