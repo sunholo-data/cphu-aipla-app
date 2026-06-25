@@ -66,7 +66,7 @@
       "description": "Freehand whiteboard solution mode: a custom <canvas> + Pointer Events surface (pen/eraser/colours/clear/stroke-list undo/retina DPR/touch-action) with perfect-freehand (~4KB) for strokes; canvas.toBlob -> same image submit path. Dep through make security-check.",
       "scope": "frontend",
       "estimated_loc": 340,
-      "actual_loc": null,
+      "actual_loc": 320,
       "dependencies": [
         "M1"
       ],
@@ -82,10 +82,10 @@
       "files_to_modify": [
         "frontend solution element"
       ],
-      "passes": null,
+      "passes": true,
       "started": null,
-      "completed": null,
-      "notes": ""
+      "completed": "2026-06-24",
+      "notes": "DONE a2c0e70: custom canvas + perfect-freehand whiteboard; exports to image \u2192 1.1.7 submit path. Browser-verify the drawing."
     },
     {
       "id": "M3",
@@ -123,5 +123,5 @@
   "github_issues": [],
   "last_checkpoint": null,
   "last_session": "2026-06-24",
-  "status": "in_progress"
+  "status": "complete"
 }
