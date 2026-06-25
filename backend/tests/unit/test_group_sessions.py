@@ -157,3 +157,55 @@ def test_archive_nonexistent_group_is_noop():
     from db.group_sessions import archive_session_for_group
 
     archive_session_for_group("group-never-existed")  # should not raise
+
+
+# ---------------------------------------------------------------------------
+# ALS-1: per-activity scoping
+# ---------------------------------------------------------------------------
+
+
+def test_sessions_are_scoped_per_activity():
+    """A group's different activities each keep their own session (the bug:
+    they used to share one)."""
+    from db.group_sessions import get_active_session_for_group, set_active_session_for_group
+
+    set_active_session_for_group("grp", "sess-A", activity_id="act-1")
+    set_active_session_for_group("grp", "sess-B", activity_id="act-2")
+
+    assert get_active_session_for_group("grp", "act-1") == "sess-A"
+    assert get_active_session_for_group("grp", "act-2") == "sess-B"
+    # The group-level (no-activity) lookup is independent of either.
+    assert get_active_session_for_group("grp") is None
+
+
+def test_first_wins_is_per_activity():
+    from db.group_sessions import get_active_session_for_group, set_active_session_for_group
+
+    set_active_session_for_group("grp", "sess-A1", activity_id="act-1")
+    set_active_session_for_group("grp", "sess-A2", activity_id="act-1")  # later — must NOT clobber
+    assert get_active_session_for_group("grp", "act-1") == "sess-A1"
+
+
+def test_archive_all_resets_every_activity_session():
+    """Teacher reset (no activity_id) archives EVERY activity's session for the group."""
+    from db.group_sessions import archive_session_for_group, get_active_session_for_group, set_active_session_for_group
+
+    set_active_session_for_group("grp", "sess-A", activity_id="act-1")
+    set_active_session_for_group("grp", "sess-B", activity_id="act-2")
+
+    archive_session_for_group("grp")  # reset the whole group
+
+    assert get_active_session_for_group("grp", "act-1") is None
+    assert get_active_session_for_group("grp", "act-2") is None
+
+
+def test_archive_one_activity_leaves_others():
+    from db.group_sessions import archive_session_for_group, get_active_session_for_group, set_active_session_for_group
+
+    set_active_session_for_group("grp", "sess-A", activity_id="act-1")
+    set_active_session_for_group("grp", "sess-B", activity_id="act-2")
+
+    archive_session_for_group("grp", activity_id="act-1")
+
+    assert get_active_session_for_group("grp", "act-1") is None
+    assert get_active_session_for_group("grp", "act-2") == "sess-B"

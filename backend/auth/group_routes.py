@@ -30,7 +30,7 @@ from __future__ import annotations
 import logging
 from typing import TYPE_CHECKING
 
-from fastapi import APIRouter, Depends, HTTPException, Request
+from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from pydantic import BaseModel, Field
 
 from auth.group_id_auth import (
@@ -399,21 +399,25 @@ class ActiveSessionResponse(BaseModel):
 
 @router.get("/active-session", response_model=ActiveSessionResponse)
 async def get_active_session_endpoint(
+    activity_id: str | None = Query(default=None, alias="activityId"),
     user: User = Depends(_resolve_firebase_user_dep()),  # noqa: B008
 ) -> ActiveSessionResponse:
-    """Re-resolve the group's active session id WITHOUT a re-join (1.F fix).
+    """Re-resolve the group's active session id for THIS activity, without a
+    re-join (1.F fix, ALS-1 per-activity).
 
     The join response's ``resumedSessionId`` is frozen at join time — null on
     the first join (before any chat), and never refreshed afterward. So a
     student who joins, chats, then revisits in the same tab keeps reading a
     stale null and starts a blank session every time. The chat page calls this
-    on load to resume the group's live session (mapping written by
-    ``/api/sessions/{id}/bootstrap``). Returns null when there's no active
-    session (first ever, expired, or teacher-reset). 404 if not group-auth.
+    on load to resume THIS activity's live session (mapping written by
+    ``/api/sessions/{id}/bootstrap``). ALS-1: scoped by ``activityId`` so a
+    group's different activities each resume their own conversation instead of
+    sharing one. Returns null when there's no active session for the activity
+    (first ever, expired, or teacher-reset). 404 if not group-auth.
     """
     if not user.group_id:
         raise HTTPException(status_code=404, detail="not a group-auth user")
-    return ActiveSessionResponse(session_id=get_active_session_for_group(user.group_id))
+    return ActiveSessionResponse(session_id=get_active_session_for_group(user.group_id, activity_id))
 
 
 @router.delete("/{group_id}", status_code=204)

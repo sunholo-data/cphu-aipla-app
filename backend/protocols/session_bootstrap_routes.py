@@ -52,6 +52,9 @@ class BootstrapRequest(BaseModel):
     """Body shape for ``POST /api/sessions/{id}/bootstrap``."""
 
     skill_id: str = Field(alias="skillId", min_length=1, max_length=128)
+    # ALS-1: the activity this session belongs to, so the group's active-session
+    # mapping is scoped per (group, activity) — each activity keeps its own thread.
+    activity_id: str | None = Field(default=None, alias="activityId", max_length=128)
 
     model_config = {"populate_by_name": True, "extra": "forbid"}
 
@@ -116,7 +119,7 @@ async def post_session_bootstrap(
     # resumedSessionId. Only written for anonymous-group users — Firebase
     # users have their own session persistence via ChatSessionIndex queries.
     if user.auth_mode == "anonymous_group_id" and user.group_id:
-        set_active_session_for_group(user.group_id, session_id)
+        set_active_session_for_group(user.group_id, session_id, activity_id=body.activity_id)
 
     # ALSO pre-create the ADK session under the canonical APP_NAME triple.
     # Without this, iframe-context POSTs that arrive before the agent's

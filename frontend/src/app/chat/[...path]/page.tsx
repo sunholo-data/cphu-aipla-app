@@ -232,14 +232,21 @@ function ChatPageInner({
   const router = useRouter();
   const searchParams = useSearchParams();
   const urlSessionId = searchParams.get("session");
+  // ALS-1: the activity this chat runs. The group's active session is now scoped
+  // per activity (a group runs many activities, each its own conversation), so we
+  // resolve/resume by activity below.
+  const activityId = searchParams.get("activity_id") || skillId;
+  const isActivityChat = (searchParams.get("activity_id") || "").startsWith("act-");
 
-  // 1.F: for anonymous-group users, read the resumedSessionId from the
-  // stored join response. Memoised with an empty dep array so it's read
-  // exactly once at mount — by the time any effect fires the URL may have
-  // already been updated, so we freeze the "was there a resume on load?" state.
+  // 1.F: for anonymous-group users, read the resumedSessionId from the stored
+  // join response (a GROUP-level pointer). For an ALS-1 activity chat this is the
+  // wrong scope (it would resume some other activity's conversation), so suppress
+  // the group-level fast-path there and let the per-activity active-session fetch
+  // below be authoritative. Memoised once at mount.
   const resumedSessionId = useMemo<string | null>(() => {
     if (!isAnonymousGroupAuthMode()) return null;
     if (urlSessionId !== null) return null; // already navigated to a specific session
+    if (isActivityChat) return null; // per-activity resume is handled by the fetch below
     return readStoredGroupSession()?.resumedSessionId ?? null;
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -266,7 +273,8 @@ function ChatPageInner({
   useEffect(() => {
     if (!isAnonymousGroupAuthMode() || urlSessionId) return;
     let cancelled = false;
-    fetchWithAuth(`/api/proxy/api/auth/group/active-session`)
+    // ALS-1: resolve the active session for THIS activity (per-activity scope).
+    fetchWithAuth(`/api/proxy/api/auth/group/active-session?activityId=${encodeURIComponent(activityId)}`)
       .then((r) => (r.ok ? r.json() : null))
       .then((data: { sessionId?: string | null } | null) => {
         const sid = data?.sessionId;
@@ -587,14 +595,16 @@ function ChatShell({
     void fetchWithAuth(`/api/proxy/api/sessions/${agentSessionId}/bootstrap`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ skillId }),
+      // ALS-1: scope the group's active-session mapping per activity, so each
+      // activity keeps its own conversation instead of sharing the group's.
+      body: JSON.stringify({ skillId, activityId }),
     }).catch((err) => {
       if (process.env.NODE_ENV !== "production") {
         // eslint-disable-next-line no-console
         console.warn("[session_bootstrap] failed:", err);
       }
     });
-  }, [agentSessionId, skillId]);
+  }, [agentSessionId, skillId, activityId]);
 
   // 1.F: fetch workbench state from the prior session so artefacts can
   // be restored via aipla:restore (M6). Also controls the banner.
