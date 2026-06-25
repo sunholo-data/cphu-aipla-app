@@ -91,6 +91,23 @@ canvas#simCanvas{width:100%;height:100%;display:block;}
  <!-- TOAST -->
  <div class="toast" id="toast"></div>
 
+ <!-- TOPIC NAV — self-contained (USR-1): was in the React workbench; clicking a
+      tab switches the sim (__applyTopic) AND emits to the tutor. -->
+ <style>#topicTabs{display:flex;gap:6px;overflow-x:auto;padding:8px 10px;border-bottom:1px solid #e5e7eb;background:#f8fafc}#topicTabs button{flex:0 0 auto;padding:6px 11px;border:1px solid #cbd5e1;background:#fff;border-radius:999px;font:inherit;font-size:.8rem;cursor:pointer;color:#334155;white-space:nowrap}#topicTabs button:hover{background:#f1f5f9}#topicTabs button.active{background:#2563eb;border-color:#2563eb;color:#fff;font-weight:600}</style>
+ <div id="topicTabs">
+  <button data-topic="intro" class="active">Intro</button>
+  <button data-topic="displacement">Displacement</button>
+  <button data-topic="velocity">Velocity</button>
+  <button data-topic="graphs">Motion graphs</button>
+  <button data-topic="acceleration">Acceleration</button>
+  <button data-topic="equations">Equations</button>
+  <button data-topic="freefall">Free fall</button>
+  <button data-topic="vectors">Vectors</button>
+  <button data-topic="projectile">Projectile</button>
+  <button data-topic="circular">Circular</button>
+  <button data-topic="relative">Relative</button>
+ </div>
+
  <!-- SIMULATION (fills the whole iframe) -->
  <div class="sim-panel" id="simPanel">
  <div class="sim-canvas-wrap">
@@ -169,7 +186,12 @@ function __applyTopic(topic){
     const sel=document.getElementById('simType');
     if(sel){sel.value=simType; if(typeof changeSim==='function') changeSim();}
   }
+  document.querySelectorAll('#topicTabs button').forEach(b=>b.classList.toggle('active', b.dataset.topic===topic));
 }
+// USR-1: a topic-tab click switches the sim AND emits to the tutor (the React
+// workbench used to emit kinebot.set-topic; the artefact now owns both).
+function __selectTopic(topic){__applyTopic(topic); emit('set-topic',{topic:topic});}
+document.querySelectorAll('#topicTabs button').forEach(b=>{b.addEventListener('click',()=>__selectTopic(b.dataset.topic));});
 
 // Phase-2 commit-on-submit: slider input writes to pendingChanges;
 // togglePlay (start) flushes as state-change with triggeredBy:'play'.

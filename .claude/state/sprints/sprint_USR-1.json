@@ -36,9 +36,9 @@
       ],
       "files_to_create": [],
       "files_to_modify": [],
-      "passes": null,
-      "started": null,
-      "completed": null,
+      "passes": true,
+      "started": "2026-06-25",
+      "completed": "2026-06-25",
       "notes": null
     },
     {
@@ -55,9 +55,9 @@
       ],
       "files_to_create": [],
       "files_to_modify": [],
-      "passes": null,
-      "started": null,
-      "completed": null,
+      "passes": true,
+      "started": "2026-06-25",
+      "completed": "2026-06-25",
       "notes": null
     },
     {
@@ -74,9 +74,9 @@
       ],
       "files_to_create": [],
       "files_to_modify": [],
-      "passes": null,
-      "started": null,
-      "completed": null,
+      "passes": true,
+      "started": "2026-06-25",
+      "completed": "2026-06-25",
       "notes": null
     },
     {
@@ -95,9 +95,9 @@
       ],
       "files_to_create": [],
       "files_to_modify": [],
-      "passes": null,
-      "started": null,
-      "completed": null,
+      "passes": true,
+      "started": "2026-06-25",
+      "completed": "2026-06-25",
       "notes": null
     },
     {
@@ -114,9 +114,9 @@
       ],
       "files_to_create": [],
       "files_to_modify": [],
-      "passes": null,
-      "started": null,
-      "completed": null,
+      "passes": true,
+      "started": "2026-06-25",
+      "completed": "2026-06-25",
       "notes": null
     },
     {
@@ -149,6 +149,6 @@
   },
   "github_issues": [],
   "last_session": null,
-  "last_checkpoint": null,
+  "last_checkpoint": "M1 applied to dev; M2 dispatch + LED table + KineBot tabs done; verifying on dev before M3 delete",
   "status": "in_progress"
 }

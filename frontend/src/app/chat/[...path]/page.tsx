@@ -480,11 +480,15 @@ function ChatShell({
   // The per-skill legacy frames below predate it and keep the standalone
   // DocumentsPanel; this flag routes documents through one path or the other so
   // they never double-render.
+  // USR-1: a sim activity migrated to an artefact renders through StudentWorkspace
+  // too (which owns its own documents panel), so treat artefact presence as
+  // "uses the generic workspace" — only an UN-migrated sim slug uses the legacy frame.
   const usesStudentWorkspace =
-    workspaceKind !== "none" &&
-    skillSlug !== "kinebot-kinematics-tutor" &&
-    skillSlug !== "led-planck-tutor" &&
-    skillSlug !== "problem-set-hints";
+    activeArtefact != null ||
+    (workspaceKind !== "none" &&
+      skillSlug !== "kinebot-kinematics-tutor" &&
+      skillSlug !== "led-planck-tutor" &&
+      skillSlug !== "problem-set-hints");
 
   // Fetch this activity's teacher-authored checklist (M1.2 resolves it from the
   // student's class). Optional — failure/absence leaves the chat-only render.
@@ -1279,7 +1283,11 @@ function ChatShell({
           >
             <>
             {workspaceKind !== "none" &&
-              (skillSlug === "kinebot-kinematics-tutor" ? (
+              // USR-1: an activity with an artefact renders through the ONE generic
+              // mount (StudentWorkspace) — editor preview === runtime. The per-skill
+              // legacy branches below only fire for a sim activity that has NOT been
+              // migrated to an artefact_id (a transient state during cutover).
+              (activeArtefact == null && skillSlug === "kinebot-kinematics-tutor" ? (
               showKinebotLab && BOLDKAST_SANDBOX_ORIGIN ? (
                 <KineBotFrame
                   ref={kinebotFrameRef}
@@ -1301,7 +1309,7 @@ function ChatShell({
                   simDisabled={!BOLDKAST_SANDBOX_ORIGIN}
                 />
               )
-            ) : skillSlug === "led-planck-tutor" ? (
+            ) : activeArtefact == null && skillSlug === "led-planck-tutor" ? (
               showLedPlanckLab && BOLDKAST_SANDBOX_ORIGIN ? (
                 <LedPlanckLabFrame
                   ref={ledPlanckFrameRef}
@@ -1322,7 +1330,7 @@ function ChatShell({
                   />
                 </div>
               )
-            ) : skillSlug === "problem-set-hints" ? (
+            ) : activeArtefact == null && skillSlug === "problem-set-hints" ? (
               showBoldkastSim && BOLDKAST_SANDBOX_ORIGIN ? (
                 <BoldkastSimFrame
                   ref={boldkastFrameRef}
