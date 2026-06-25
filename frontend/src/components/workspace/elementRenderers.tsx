@@ -80,9 +80,7 @@ export const elementRenderers: Record<ElementKind, (ctx: ElementRenderContext) =
   note: (ctx) =>
     ctx.note.length > 0 ? <WorkbenchNote skillId={ctx.skillId} notes={ctx.note} /> : null,
   solution: (ctx) =>
-    ctx.solution.length > 0 ? (
-      <SolutionElementMount skillId={ctx.skillId} sessionId={ctx.sessionId} solution={ctx.solution} />
-    ) : null,
+    ctx.solution.length > 0 ? <SolutionElementMount solution={ctx.solution} /> : null,
   document: (ctx) =>
     ctx.document.length > 0 ? (
       <DocumentElementMount

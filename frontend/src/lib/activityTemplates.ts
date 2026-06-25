@@ -171,27 +171,27 @@ export const ACTIVITY_TEMPLATES: ActivityTemplate[] = [
     },
   },
   {
-    // 1.1.45 M4 (JB-2) — the solution editor: the student writes their own
-    // worked solution and the tutor gives Socratic feedback on it.
+    // 1.1.45 M4 → image-based 1.1.48 M1 (JB-2): the student photographs their
+    // own pen-and-paper solution and the tutor gives Socratic feedback on it.
     id: "solution-writing",
-    name: "Skriv din løsning",
-    summary: "Eleven skriver sin løsning — tutoren giver feedback (aldrig svaret).",
+    name: "Din løsning",
+    summary: "Eleven fotograferer sin løsning — tutoren giver feedback (aldrig svaret).",
     language: "da",
-    title: "Skriv din løsning",
+    title: "Din løsning",
     teachingGoal:
-      "Hjælp eleven med at forbedre sin egen skriftlige løsning. Giv aldrig den fulde løsning — peg på, " +
-      "hvor et skridt, en værdi eller en formel er forkert, og stil et spørgsmål, så eleven selv kan rette " +
-      "den. Ros først ét rigtigt skridt, og fokusér så på det vigtigste, der mangler. Tjek fysikken — " +
-      "enheder, fortegn, om resultatet er realistisk — ikke kun algebraen.",
+      "Hjælp eleven med at forbedre sin egen løsning (et foto af håndskrevet arbejde). Giv aldrig den " +
+      "fulde løsning — peg på, hvor et skridt, en værdi eller en formel er forkert, og stil et spørgsmål, " +
+      "så eleven selv kan rette den. Ros først ét rigtigt skridt, og fokusér så på det vigtigste, der " +
+      "mangler. Tjek fysikken — enheder, fortegn, om resultatet er realistisk — ikke kun algebraen.",
     checklist: ["Skriv din løsning med udregninger", "Forklar dine skridt", "Tjek enheder og fortegn"],
     solution: {
-      prompt: "Skriv din løsning til opgaven her — vis dine udregninger og forklar dine skridt.",
+      prompt: "Tag et billede af din håndskrevne løsning — vis dine udregninger og forklar dine skridt.",
     },
     note: {
       title: "Tip",
       body:
-        "Brug **fx**-knappen til at skrive matematik, fx $v = \\frac{s}{t}$.\n\n" +
-        "Skriv hvert skridt, så tutoren kan give feedback på din fremgangsmåde — ikke bare facit.",
+        "Skriv din løsning på papir med alle udregninger, og tag et tydeligt billede.\n\n" +
+        "Tutoren giver feedback på din fremgangsmåde — ikke bare facit.",
     },
   },
   {

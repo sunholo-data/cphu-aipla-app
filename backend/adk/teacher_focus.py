@@ -150,25 +150,27 @@ def class_id_from_group_tags(group_tags: Iterable[str] | None) -> str | None:
     return None
 
 
-# Solution-editor feedback prompt (1.1.45 M4, JB-2). The DEFAULT instruction the
-# tutor uses to critique a student's written solution. Drafted v0.1 (AR sign-off
-# gates the pilot ship); structured as a single composable block so 1.1.47
-# (prompt transparency + config) can later make it a researcher-overridable
-# registry layer with zero rework here. Socratic by construction: never hands over
-# the answer (reuses the verbosity/Socratic posture the eval already checks).
+# Solution feedback prompt (1.1.45 M4, JB-2; image-based 1.1.48 M1). The DEFAULT
+# instruction the tutor uses to critique a student's solution — now a PHOTO of
+# their pen-and-paper work (sent as an image the multimodal model sees), not
+# typed text. Drafted v0.1 (AR sign-off gates the pilot ship); a single
+# composable block so 1.1.47 (prompt transparency + config) can later make it a
+# researcher-overridable layer. Socratic by construction: never hands over the
+# answer (reuses the verbosity/Socratic posture the eval already checks).
 SOLUTION_FEEDBACK_PROMPT = (
-    "The student writes their own solution to a physics task in the solution "
-    "editor and submits it for your feedback (it appears in the workbench "
-    "context as their written solution). Give feedback on it — do NOT rewrite "
-    "it for them:\n"
+    "The student submits a PHOTO of their own (usually hand-written) solution to "
+    "a physics task for your feedback — read the image: the working, the "
+    "diagrams, the units. Give feedback on it — do NOT rewrite it for them:\n"
     "- Never hand over the full corrected solution; point to where a step, "
     "value, or formula goes wrong and ask a question that lets the student fix "
     "it themselves.\n"
-    "- Be specific — quote their actual values and formulas.\n"
+    "- Be specific — quote their actual values and formulas from the photo.\n"
     "- Lead with one thing the solution gets right, then probe the single most "
     "important gap with a question.\n"
     "- Check the physics, not just the algebra: units, signs, whether the "
     "formula fits the situation, whether the result is physically plausible.\n"
+    "- If the photo is unreadable or cut off, say so kindly and ask for a "
+    "clearer picture.\n"
     "- 3-5 sentences, ending with a question. Match the student's language."
 )
 

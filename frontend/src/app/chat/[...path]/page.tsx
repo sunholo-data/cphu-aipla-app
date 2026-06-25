@@ -39,6 +39,7 @@ import {
 } from "@/hooks/useHumanToolEvents";
 import { fetchWithAuth } from "@/lib/apiClient";
 import { computeIncludedDocIds } from "@/lib/docContext";
+import type { EncodedImage } from "@/lib/imageResize";
 import { notifySessionsChanged, subscribeSessionsChangedDetailed } from "@/lib/sessionEvents";
 import { useSkillSessions } from "@/hooks/useSkillSessions";
 import { useSlugResolution } from "@/hooks/useSlugResolution";
@@ -962,10 +963,11 @@ function ChatShell({
   // each render without re-rendering the provider.
   const setProactiveSimWiring = useSetProactiveSimWiring();
   const onProactiveTrigger = useCallback(
-    (trigger: string) => {
+    (trigger: string, attachments?: EncodedImage[]) => {
       void sendMessage(trigger, {
         documentIds: outgoingDocIds,
         resumedSession: enteredViaResume,
+        attachments: attachments && attachments.length > 0 ? attachments : undefined,
       });
     },
     [sendMessage, outgoingDocIds, enteredViaResume],

@@ -1,10 +1,5 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
-
-const pushSolution = vi.fn().mockResolvedValue(undefined);
-vi.mock("@/hooks/useSimSnapshotPush", () => ({
-  useSimSnapshotPush: () => pushSolution,
-}));
+import { fireEvent, render, screen } from "@testing-library/react";
 
 const onProactiveTrigger = vi.fn();
 const optsRef = { current: { skillId: "s", onProactiveTrigger } };
@@ -12,48 +7,68 @@ vi.mock("@/contexts/ProactiveSimContext", () => ({
   useOptionalProactiveSimOptsRef: () => optsRef,
 }));
 
-// The lazy TipTap editor — expose its onSubmit via a button (TipTap itself is
-// covered by WorkbenchSolution's own concerns; here we test the mount wiring).
-vi.mock("../WorkbenchSolution", () => ({
-  WorkbenchSolution: ({ onSubmit }: { onSubmit: (md: string, doc: unknown) => void }) => (
-    <button onClick={() => onSubmit("# min løsning", { type: "doc" })}>submit</button>
-  ),
+// Mock the 1.1.7 image stack — assert the staged photo(s) reach the tutor turn.
+const mockClear = vi.fn();
+const mockState: { value: ReturnType<typeof makePhoto> } = { value: makePhoto(0) };
+function makePhoto(count: number) {
+  return {
+    staged: Array.from({ length: count }, (_, i) => ({ id: `s${i}` })),
+    notice: null as string | null,
+    count,
+    attachments: Array.from({ length: count }, () => ({ data: "img" })),
+    addFiles: vi.fn(),
+    remove: vi.fn(),
+    clear: mockClear,
+  };
+}
+vi.mock("@/hooks/useImageAttachments", () => ({
+  MAX_IMAGES: 4,
+  useImageAttachments: () => mockState.value,
+}));
+vi.mock("@/components/chat/ImageComposer", () => ({
+  ImageStagingRow: () => <div data-testid="staging" />,
+  ImageUploadButtons: () => <div data-testid="upload-buttons" />,
 }));
 
 import { SolutionElementMount } from "../SolutionElementMount";
 
-afterEach(() => {
-  vi.clearAllMocks();
-  window.sessionStorage.clear();
-});
+const DEF = [{ id: "sol-1", prompt: "Skriv din løsning" }];
 
-describe("SolutionElementMount (1.1.45 M4)", () => {
-  it("on submit, pushes the solution to context AND triggers a feedback turn", async () => {
-    render(
-      <SolutionElementMount skillId="phys" sessionId="sess-1" solution={[{ id: "sol-1", prompt: "Solve" }]} />,
-    );
-    fireEvent.click(await screen.findByText("submit"));
+afterEach(() => vi.clearAllMocks());
 
-    // The solution rides the iframe-context wire (mcp_app_context.solution.state)…
-    await waitFor(() =>
-      expect(pushSolution).toHaveBeenCalledWith({ markdown: "# min løsning" }, "solution.submit"),
-    );
-    // …and a feedback turn is triggered with a NON-EMPTY message (ag_ui_adk drops
-    // empty-content turns) — this is what makes the tutor actually respond.
-    await waitFor(() => expect(onProactiveTrigger).toHaveBeenCalledTimes(1));
-    expect(onProactiveTrigger.mock.calls[0][0]).toMatch(/\S/);
+describe("SolutionElementMount — photo solution (1.1.48 M1)", () => {
+  it("submits the staged photo(s) as a multimodal turn for tutor feedback", () => {
+    mockState.value = makePhoto(1);
+    render(<SolutionElementMount solution={DEF} />);
+    fireEvent.click(screen.getByRole("button", { name: /send løsning/i }));
+
+    expect(onProactiveTrigger).toHaveBeenCalledTimes(1);
+    const [text, attachments] = onProactiveTrigger.mock.calls[0];
+    expect(text).toMatch(/\S/); // non-empty (ag_ui_adk drops empty turns)
+    expect(attachments).toEqual([{ data: "img" }]);
+    expect(mockClear).toHaveBeenCalled();
+  });
+
+  it("disables submit until a photo is staged", () => {
+    mockState.value = makePhoto(0);
+    render(<SolutionElementMount solution={DEF} />);
+    const btn = screen.getByRole("button", { name: /send løsning/i }) as HTMLButtonElement;
+    expect(btn.disabled).toBe(true);
+    fireEvent.click(btn);
+    expect(onProactiveTrigger).not.toHaveBeenCalled();
+  });
+
+  it("shows the teacher prompt and never renders a text/LaTeX editor", () => {
+    mockState.value = makePhoto(0);
+    render(<SolutionElementMount solution={[{ id: "sol-1", prompt: "Vis dine udregninger" }]} />);
+    expect(screen.getByText("Vis dine udregninger")).toBeInTheDocument();
+    expect(screen.getByTestId("upload-buttons")).toBeInTheDocument();
+    expect(screen.queryByRole("textbox")).not.toBeInTheDocument();
   });
 
   it("renders nothing when there is no solution element", () => {
-    const { container } = render(<SolutionElementMount skillId="s" solution={[]} />);
+    mockState.value = makePhoto(0);
+    const { container } = render(<SolutionElementMount solution={[]} />);
     expect(container).toBeEmptyDOMElement();
-  });
-
-  it("persists the submitted draft to sessionStorage (reload survives)", async () => {
-    render(
-      <SolutionElementMount skillId="phys" sessionId="sess-1" solution={[{ id: "sol-1", prompt: "" }]} />,
-    );
-    fireEvent.click(await screen.findByText("submit"));
-    await waitFor(() => expect(window.sessionStorage.getItem("aipla:solution:phys")).toContain("doc"));
   });
 });

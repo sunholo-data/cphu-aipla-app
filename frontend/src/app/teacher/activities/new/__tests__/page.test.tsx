@@ -351,8 +351,8 @@ describe("/teacher/activities/new — concept activity builder", () => {
     listClassesMock.mockResolvedValue(ONE_CLASS);
     render(<NewActivityPage />);
     await screen.findByLabelText(/activity name/i);
-    fireEvent.click(screen.getByText("Skriv din løsning"));
-    expect((screen.getByLabelText(/activity name/i) as HTMLInputElement).value).toBe("Skriv din løsning");
+    fireEvent.click(screen.getByText("Din løsning"));
+    expect((screen.getByLabelText(/activity name/i) as HTMLInputElement).value).toBe("Din løsning");
     // The solution prompt is pre-filled in the builder's solution editor.
     expect((screen.getByLabelText(/solution prompt/i) as HTMLTextAreaElement).value.length).toBeGreaterThan(0);
     fireEvent.click(screen.getByRole("button", { name: /create activity/i }));

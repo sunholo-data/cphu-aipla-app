@@ -4,6 +4,7 @@ import { useCallback, useRef } from "react";
 
 import { useOptionalProactiveSimOptsRef } from "@/contexts/ProactiveSimContext";
 import { fetchWithAuth } from "@/lib/apiClient";
+import type { EncodedImage } from "@/lib/imageResize";
 import {
   fetchProactiveEventCheck,
   mapArtefactKindToMeaningful,
@@ -53,9 +54,12 @@ export interface UseSimSnapshotPushProactiveOpts {
   /** Current skill id — required by the gate endpoint. When null/empty
    * the proactive check is skipped (same posture as sessionId). */
   skillId: string | null | undefined;
-  /** Called with the trigger sentinel when the backend gate says fire.
-   * Caller hands this to useSkillAgent.sendMessage. */
-  onProactiveTrigger: (trigger: string) => void;
+  /** Called with the trigger sentinel when the backend gate says fire, OR
+   * directly by a workbench element to send a turn. Optional `attachments`
+   * ride the turn as native multimodal image parts (1.1.7) — the photo
+   * solution element (1.1.48) submits the student's work this way. Caller
+   * hands this to useSkillAgent.sendMessage. */
+  onProactiveTrigger: (trigger: string, attachments?: EncodedImage[]) => void;
 }
 
 export function useSimSnapshotPush<TSnapshot extends object>(
