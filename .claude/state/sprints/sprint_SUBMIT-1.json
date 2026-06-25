@@ -41,7 +41,7 @@
       "description": "Photo solution: the 'solution' element becomes a photo-of-pen-and-paper capture (camera/file), reusing the 1.1.7 multimodal upload path (resize + 1.1.21 guardrail). Submit = a native multimodal chat turn so the tutor sees the image; the 1.1.45 feedback prompt critiques it.",
       "scope": "fullstack",
       "estimated_loc": 260,
-      "actual_loc": null,
+      "actual_loc": 200,
       "dependencies": [
         "M0"
       ],
@@ -56,10 +56,10 @@
         "frontend solution element components",
         "backend feedback prompt wording if needed"
       ],
-      "passes": null,
+      "passes": true,
       "started": null,
-      "completed": null,
-      "notes": ""
+      "completed": "2026-06-24",
+      "notes": "DONE b98275c: photo solution reusing 1.1.7 stack; multimodal turn; feedback prompt\u2192image. FE 1279 green."
     },
     {
       "id": "M2",
