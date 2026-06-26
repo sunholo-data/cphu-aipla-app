@@ -10,7 +10,7 @@
       "description": "Generalize the proposal pipeline: standardize the proposal envelope {kind, ...}; generalize the FE parseLessonProposal -> parseProposal(tc) dispatching on kind; an Apply router mapping kind -> builder setter. Refactor COPILOT-1 set_lesson_prompt + card onto the general path, behavior-preserving (existing tests stay green).",
       "scope": "fullstack",
       "estimated_loc": 220,
-      "actual_loc": null,
+      "actual_loc": 220,
       "dependencies": [],
       "acceptance_criteria": [
         "parseProposal dispatches on proposal.kind; Apply router maps each kind to a builder setter",
@@ -23,9 +23,9 @@
         "frontend/src/app/teacher/activities/[id]/_AuthoringCopilot.tsx",
         "backend/adk/authoring_tools.py"
       ],
-      "passes": null,
+      "passes": true,
       "started": null,
-      "completed": null,
+      "completed": "2026-06-26",
       "notes": null
     },
     {
@@ -33,8 +33,10 @@
       "description": "add_element tool: owner-scoped, propose-only FunctionTool proposing a palette element (checklist/table/chart/calculator) validated against ELEMENT_REGISTRY (known kind + within cap). Card renders an add-element proposal; Apply calls the builder element setter. Declarative-only; never persists.",
       "scope": "fullstack",
       "estimated_loc": 280,
-      "actual_loc": null,
-      "dependencies": ["M0"],
+      "actual_loc": 300,
+      "dependencies": [
+        "M0"
+      ],
       "acceptance_criteria": [
         "add_element rejects a non-owner (denial shape) and an unknown/over-cap kind",
         "returns a well-formed proposal for the owner; never persists",
@@ -48,9 +50,9 @@
         "backend/skills/templates/activity-authoring-assistant/SKILL.md",
         "frontend/src/app/teacher/activities/[id]/_AuthoringCopilot.tsx"
       ],
-      "passes": null,
+      "passes": true,
       "started": null,
-      "completed": null,
+      "completed": "2026-06-26",
       "notes": null
     },
     {
@@ -58,8 +60,10 @@
       "description": "set_artefact tool: owner-scoped, propose-only, proposing a vetted sim from the artefact catalogue (is_known_artefact / GET /api/artefacts). Card renders use-this-sim; Apply calls setArtefactId (derives workbenchType=app).",
       "scope": "fullstack",
       "estimated_loc": 200,
-      "actual_loc": null,
-      "dependencies": ["M0"],
+      "actual_loc": 220,
+      "dependencies": [
+        "M0"
+      ],
       "acceptance_criteria": [
         "set_artefact rejects a non-owner and an unknown artefact id (is_known_artefact)",
         "proposes a vetted sim; Apply sets artefactId on the builder",
@@ -72,18 +76,20 @@
         "backend/skills/templates/activity-authoring-assistant/SKILL.md",
         "frontend/src/app/teacher/activities/[id]/_AuthoringCopilot.tsx"
       ],
-      "passes": null,
+      "passes": true,
       "started": null,
-      "completed": null,
+      "completed": "2026-06-26",
       "notes": null
     },
     {
       "id": "M3",
-      "description": "OPTIONAL: set_interaction_style / suggest_persona tool (1.1.39 M1 remainder) — propose a teaching style/persona; Apply sets interactionStyle.",
+      "description": "OPTIONAL: set_interaction_style / suggest_persona tool (1.1.39 M1 remainder) \u2014 propose a teaching style/persona; Apply sets interactionStyle.",
       "scope": "fullstack",
       "estimated_loc": 160,
       "actual_loc": null,
-      "dependencies": ["M0"],
+      "dependencies": [
+        "M0"
+      ],
       "acceptance_criteria": [
         "set_interaction_style proposes a valid style; Apply sets interactionStyle",
         "owner-scoped; gates green"
@@ -96,19 +102,19 @@
       "passes": null,
       "started": null,
       "completed": null,
-      "notes": "Optional — ship M0-M2 first; M3 if time allows."
+      "notes": "DEFERRED (optional). Core M0-M2 delivered the workbench-config ask; M3 (style/persona) is a clean follow-on \u2014 same propose-only pattern."
     }
   ],
   "velocity": {
     "target_loc_per_day": 300,
     "actual_loc_per_day": null,
     "estimated_total_loc": 860,
-    "actual_total_loc": null,
+    "actual_total_loc": 740,
     "estimated_days": 3,
     "actual_days": null
   },
   "github_issues": [],
-  "last_session": null,
-  "last_checkpoint": null,
-  "status": "not_started"
+  "last_session": "2026-06-26",
+  "last_checkpoint": "M0-M2 shipped to dev (M0 5e75313, M1 756211c, M2 829a413). M3 (style/persona) deferred optional. Feature dark-flagged pending AR/JB framework + browser-verify.",
+  "status": "core_complete"
 }
