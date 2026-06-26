@@ -46,7 +46,8 @@ export function authoringCopilotEnabled(): boolean {
  */
 export type Proposal =
   | { kind: "set_lesson_prompt"; value: string }
-  | { kind: "add_element"; elementKind: "checklist"; items: string[]; label: string };
+  | { kind: "add_element"; elementKind: "checklist"; items: string[]; label: string }
+  | { kind: "set_artefact"; artefactId: string; label: string };
 
 export type ApplyProposal = (proposal: Proposal) => void;
 
@@ -135,6 +136,10 @@ export function parseProposal(tc: ToolCallState): Proposal | null {
       }
       return null;
     }
+    case "set_artefact":
+      return typeof p.artefactId === "string" && p.artefactId
+        ? { kind: "set_artefact", artefactId: p.artefactId, label: typeof p.label === "string" ? p.label : p.artefactId }
+        : null;
     default:
       return null; // unknown/unsupported kind (a newer tool than this build)
   }
@@ -147,6 +152,8 @@ function proposalTitle(p: Proposal): string {
       return "Forslag til lærer-prompt";
     case "add_element":
       return `Forslag: ${p.label}`;
+    case "set_artefact":
+      return "Forslag: brug en simulation";
   }
 }
 
@@ -270,6 +277,10 @@ function ProposalCard({ proposal, onApply }: { proposal: Proposal; onApply: Appl
             <li key={i}>{it}</li>
           ))}
         </ul>
+      ) : proposal.kind === "set_artefact" ? (
+        <p className="text-sm" data-testid="proposal-sim">
+          {proposal.label}
+        </p>
       ) : null}
       <div className="flex flex-wrap gap-2">
         <button

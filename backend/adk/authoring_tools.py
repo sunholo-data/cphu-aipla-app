@@ -162,3 +162,48 @@ def add_element(
             "label": f"Tjekliste ({len(clean)} trin)",
         },
     }
+
+
+def _artefact_label(meta: Any) -> str:
+    return getattr(meta, "name", None) or getattr(meta, "id", "")
+
+
+def set_artefact(
+    artefact_id: str,
+    activity_id: str,
+    tool_context: ToolContext = None,
+) -> dict[str, Any]:
+    """Propose a vetted sim for an activity (COPILOT-2 M2).
+
+    Owner-scoped + propose-only. The sim is validated against the artefact
+    catalogue; an unknown/empty id returns the available sims so the agent can
+    retry with a valid one. Applying it sets ``artefactId`` (which derives
+    ``workbenchType=app`` — the workbench *type* is never chosen directly).
+
+    Args:
+        artefact_id: a catalogued sim id (e.g. ``boldkast``).
+        activity_id: the activity being authored (the teacher owns it).
+    """
+    from artefacts.loader import load_artefact, load_artefacts
+
+    uid = _caller_uid(tool_context)
+    if not uid:
+        return dict(_DENY)
+
+    meta = load_artefact(artefact_id) if artefact_id else None
+    if meta is None:
+        return {
+            "ok": False,
+            "error": f"unknown sim {artefact_id!r}",
+            "available": [{"id": a.id, "label": _artefact_label(a)} for a in load_artefacts()],
+        }
+
+    activity = get_activity(activity_id)
+    if activity is None or activity.owner_uid != uid:
+        return dict(_DENY)
+
+    logger.info("authoring: set_artefact(%s) proposal for activity=%s by uid=%s", artefact_id, activity_id, uid)
+    return {
+        "ok": True,
+        "proposal": {"kind": "set_artefact", "artefactId": artefact_id, "label": _artefact_label(meta)},
+    }

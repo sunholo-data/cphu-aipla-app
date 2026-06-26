@@ -150,6 +150,7 @@ TOOL_REGISTRY: dict[str, Callable[[dict], FunctionTool]] = {
     # owner-scoped, propose-only (the teacher's Apply persists). 1.1.39 / 1.1.50.
     "set_lesson_prompt": lambda _config: FunctionTool(_authoring_tools.set_lesson_prompt),
     "add_element": lambda _config: FunctionTool(_authoring_tools.add_element),
+    "set_artefact": lambda _config: FunctionTool(_authoring_tools.set_artefact),
 }
 
 # Tools handled entirely outside this registry (no ValueError for these)

@@ -157,3 +157,32 @@ describe("AuthoringCopilot — add_element proposal (COPILOT-2 M1)", () => {
     });
   });
 });
+
+const SET_ARTEFACT = JSON.stringify({
+  ok: true,
+  proposal: { kind: "set_artefact", artefactId: "boldkast", label: "Boldkast — projektilbevægelse" },
+});
+
+describe("AuthoringCopilot — set_artefact proposal (COPILOT-2 M2)", () => {
+  it("parseProposal returns a typed set_artefact proposal", () => {
+    expect(parseProposal(tc({ name: "set_artefact", resultContent: SET_ARTEFACT }))).toEqual({
+      kind: "set_artefact",
+      artefactId: "boldkast",
+      label: "Boldkast — projektilbevægelse",
+    });
+  });
+
+  it("renders the sim label + Apply routes the set_artefact proposal", async () => {
+    const onApply = vi.fn();
+    mockHook.toolCalls = [tc({ name: "set_artefact", resultContent: SET_ARTEFACT })];
+    render(<AuthoringCopilot activityId="act-1" onApplyProposal={onApply} />);
+    await screen.findByTestId("proposal-card");
+    expect(screen.getByTestId("proposal-sim")).toHaveTextContent("Boldkast");
+    fireEvent.click(screen.getByRole("button", { name: /anvend/i }));
+    expect(onApply).toHaveBeenCalledWith({
+      kind: "set_artefact",
+      artefactId: "boldkast",
+      label: "Boldkast — projektilbevægelse",
+    });
+  });
+});

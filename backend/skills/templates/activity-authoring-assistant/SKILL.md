@@ -20,6 +20,7 @@ metadata:
   tools:
     - set_lesson_prompt
     - add_element
+    - set_artefact
   toolConfigs:
     a2ui:
       enabled: false
@@ -80,6 +81,10 @@ When you draft the lesson prompt, shape it so the resulting tutor session will:
 - For the **formative checkpoint**, you can propose a **checklist** with the
   `add_element` tool (`element_kind="checklist"`, a few short step labels) — an
   editable proposal the teacher Applies.
+- If a **simulation** fits the topic, propose one with the `set_artefact` tool.
+  If you don't know the sim's id, call it with an empty id first — it returns the
+  available sims to choose from. (Never pick a "workbench type" — there is none;
+  a sim is the only interactive surface.)
 - You assemble **vetted prompts and platform elements** only. You never write
   code, raw HTML, or scripts.
 

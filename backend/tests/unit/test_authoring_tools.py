@@ -172,3 +172,47 @@ def test_add_element_never_persists(monkeypatch):
     )
     res = authoring_tools.add_element(element_kind="checklist", items=["a"], activity_id=aid, tool_context=_tc(TEACHER))
     assert res["ok"] is True
+
+
+# --- COPILOT-2 M2: set_artefact (owner-scoped, propose-only, catalogue-validated) ---
+
+
+def test_set_artefact_owner_gets_a_sim_proposal():
+    from adk.authoring_tools import set_artefact
+
+    aid = _make_activity(TEACHER)
+    res = set_artefact(artefact_id="boldkast", activity_id=aid, tool_context=_tc(TEACHER))
+    assert res["ok"] is True
+    assert res["proposal"]["kind"] == "set_artefact"
+    assert res["proposal"]["artefactId"] == "boldkast"
+    assert "boldkast" in res["proposal"]["label"].lower()
+
+
+def test_set_artefact_non_owner_is_denied():
+    from adk.authoring_tools import set_artefact
+
+    aid = _make_activity(TEACHER)
+    res = set_artefact(artefact_id="boldkast", activity_id=aid, tool_context=_tc(OTHER))
+    assert res["ok"] is False
+
+
+def test_set_artefact_unknown_sim_returns_the_catalogue():
+    # Self-correcting: an invalid id returns the available sims so the agent retries.
+    from adk.authoring_tools import set_artefact
+
+    aid = _make_activity(TEACHER)
+    res = set_artefact(artefact_id="not-a-sim", activity_id=aid, tool_context=_tc(TEACHER))
+    assert res["ok"] is False
+    ids = {s["id"] for s in res["available"]}
+    assert {"boldkast", "kinebot", "led-planck"} <= ids
+
+
+def test_set_artefact_never_persists(monkeypatch):
+    from adk import authoring_tools
+
+    aid = _make_activity(TEACHER)
+    monkeypatch.setattr(
+        authoring_tools, "save_activity", lambda *a, **k: (_ for _ in ()).throw(AssertionError("must not persist"))
+    )
+    res = authoring_tools.set_artefact(artefact_id="boldkast", activity_id=aid, tool_context=_tc(TEACHER))
+    assert res["ok"] is True
