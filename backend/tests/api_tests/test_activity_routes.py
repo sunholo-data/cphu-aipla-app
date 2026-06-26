@@ -322,3 +322,63 @@ class TestAdopt:
 
     def test_adopt_missing_is_404(self):
         assert _client().post("/api/activities/act-nope/adopt").status_code == 404
+
+
+class TestResearcherCrud:
+    """M3b (ALS-SHARE): researcher CRUD-over-all — write/delete bypass on the
+    activities collection. The shipped researcher role only bypassed reads."""
+
+    def test_researcher_can_patch_another_teachers_activity_owner_preserved(self):
+        aid = _client(OTHER).post("/api/activities", json={"skillId": "c", "title": "Theirs"}).json()["activityId"]
+        resp = _client(researcher=True).patch(
+            f"/api/activities/{aid}", json={"skillId": "c", "title": "Edited by researcher"}
+        )
+        assert resp.status_code == 200, resp.text
+        assert resp.json()["title"] == "Edited by researcher"
+        assert resp.json()["ownerUid"] == OTHER  # ownership preserved, NOT reassigned to the researcher
+
+    def test_researcher_can_delete_another_teachers_activity(self):
+        aid = _client(OTHER).post("/api/activities", json={"skillId": "c", "title": "Theirs"}).json()["activityId"]
+        assert _client(researcher=True).delete(f"/api/activities/{aid}").status_code == 204
+        assert _client(OTHER).get(f"/api/activities/{aid}").status_code == 404
+
+    def test_non_researcher_non_owner_still_404_on_patch_delete(self):
+        aid = _client(OTHER).post("/api/activities", json={"skillId": "c", "title": "Theirs"}).json()["activityId"]
+        assert _client().patch(f"/api/activities/{aid}", json={"skillId": "c", "title": "hax"}).status_code == 404
+        assert _client().delete(f"/api/activities/{aid}").status_code == 404
+
+
+class TestHistoryProvenance:
+    """M-HIST (ALS-SHARE): GET /{id} enriches an adopted activity with a friendly
+    ``sourceOwnerLabel`` so the History panel can read 'Adapted from {name}'."""
+
+    def test_get_adopted_enriches_source_owner_label(self, monkeypatch):
+        monkeypatch.setattr("protocols.activity_routes.resolve_owner_labels", lambda uids: {OTHER: "Bob Jensen"})
+        pub = (
+            _client(OTHER)
+            .post("/api/activities", json={"skillId": "c", "title": "Pub", "visibility": "published"})
+            .json()["activityId"]
+        )
+        copy_id = _client().post(f"/api/activities/{pub}/adopt").json()["activityId"]
+        got = _client().get(f"/api/activities/{copy_id}").json()
+        assert got["sourceActivityId"] == pub
+        assert got["sourceOwnerUid"] == OTHER
+        assert got["sourceOwnerLabel"] == "Bob Jensen"
+
+    def test_get_from_scratch_has_no_provenance(self):
+        aid = _client().post("/api/activities", json={"skillId": "c", "title": "Fresh"}).json()["activityId"]
+        got = _client().get(f"/api/activities/{aid}").json()
+        assert got.get("sourceActivityId") is None
+        assert "sourceOwnerLabel" not in got
+
+    def test_get_adopted_unresolved_source_owner_omits_label(self, monkeypatch):
+        monkeypatch.setattr("protocols.activity_routes.resolve_owner_labels", lambda uids: {})
+        pub = (
+            _client(OTHER)
+            .post("/api/activities", json={"skillId": "c", "title": "Pub", "visibility": "published"})
+            .json()["activityId"]
+        )
+        copy_id = _client().post(f"/api/activities/{pub}/adopt").json()["activityId"]
+        got = _client().get(f"/api/activities/{copy_id}").json()
+        assert got["sourceOwnerUid"] == OTHER  # raw uid still present for client fallback
+        assert "sourceOwnerLabel" not in got

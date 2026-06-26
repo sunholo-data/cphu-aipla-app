@@ -100,14 +100,6 @@ def _assert_known_artefact(artefact_id: str | None) -> None:
         raise HTTPException(status_code=400, detail=f"unknown artefact: {artefact_id}")
 
 
-def _load_owned(activity_id: str, user: User) -> Activity:
-    """Load + ownership-check. 404 if missing OR not owned (don't leak existence)."""
-    activity = get_activity(activity_id)
-    if activity is None or activity.owner_uid != user.uid:
-        raise HTTPException(status_code=404, detail="activity not found")
-    return activity
-
-
 def _load_for_modify(activity_id: str, user: User) -> Activity:
     """Load for a write op (publish/unpublish, and — M3b — patch/delete).
 
@@ -233,9 +225,21 @@ async def get_activity_route(
     activity_id: str = Path(...),
     user: User = Depends(get_current_user),  # noqa: B008
 ) -> dict:
-    """Load one activity for editing (owner-only)."""
+    """Load one activity for editing. Owner — or a researcher (M3b moderation).
+
+    For an adopted activity (``source_owner_uid`` set), enrich the payload with a
+    friendly ``sourceOwnerLabel`` so the History panel can read 'Adapted from
+    {name}' (M-HIST). Best-effort: an unresolved source owner carries no label
+    and the client falls back to the raw uid.
+    """
     _assert_teacher(user)
-    return _serialize(_load_owned(activity_id, user))
+    activity = _load_for_modify(activity_id, user)
+    row = _serialize(activity)
+    if activity.source_owner_uid:
+        label = resolve_owner_labels({activity.source_owner_uid}).get(activity.source_owner_uid)
+        if label:
+            row["sourceOwnerLabel"] = label
+    return row
 
 
 @router.patch("/{activity_id}")
@@ -244,15 +248,18 @@ async def patch_activity(
     activity_id: str = Path(...),
     user: User = Depends(get_current_user),  # noqa: B008
 ) -> dict:
-    """Edit an activity (owner-only). Full payload — same shape as create.
+    """Edit an activity. Owner — or a **researcher** (ALS-SHARE M3b moderation).
+    Full payload — same shape as create.
 
-    Preserves immutable identity (id, owner, provenance, created_at) and overwrites
-    the editable content + visibility.
+    Preserves immutable identity (id, **owner**, provenance, created_at) and
+    overwrites the editable content + visibility. Ownership is taken from the
+    EXISTING activity, not the caller — so a researcher edit never silently
+    reassigns the activity to themselves.
     """
     _assert_teacher(user)
-    existing = _load_owned(activity_id, user)
+    existing = _load_for_modify(activity_id, user)
     _assert_known_artefact(body.artefact_id)
-    updated = _activity_from_body(body, owner_uid=user.uid, activity_id=activity_id).model_copy(
+    updated = _activity_from_body(body, owner_uid=existing.owner_uid, activity_id=activity_id).model_copy(
         update={
             "created_at": existing.created_at,
             "source_activity_id": existing.source_activity_id,
@@ -267,9 +274,9 @@ async def delete_activity_route(
     activity_id: str = Path(...),
     user: User = Depends(get_current_user),  # noqa: B008
 ) -> None:
-    """Soft-delete (owner-only). Idempotent."""
+    """Soft-delete. Owner — or a researcher (M3b moderation). Idempotent."""
     _assert_teacher(user)
-    _load_owned(activity_id, user)
+    _load_for_modify(activity_id, user)
     soft_delete_activity(activity_id)
     return None
 
