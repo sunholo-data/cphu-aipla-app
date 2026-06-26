@@ -352,3 +352,34 @@ async def unpublish_activity_route(
     activity = _load_for_modify(activity_id, user)
     log.info("activity unpublished id=%s owner=%s by=%s", activity_id, activity.owner_uid, user.uid)
     return _set_visibility(activity, "private")
+
+
+class VisibilitySet(BaseModel):
+    """Body for the unified visibility setter — the teacher card's status control
+    sends the target state directly (ALS-SHARE-UX M1)."""
+
+    visibility: Visibility
+
+
+@router.post("/{activity_id}/visibility", status_code=200)
+async def set_visibility_route(
+    body: VisibilitySet,
+    activity_id: str = Path(...),
+    user: User = Depends(get_current_user),  # noqa: B008
+) -> dict:
+    """Set an activity's visibility to any of ``draft|private|published`` — the
+    single setter behind the card's status control (ALS-SHARE-UX M1), replacing
+    the binary publish/unpublish pair. Owner or researcher (shared
+    ``_load_for_modify`` guard). Lowering visibility (→ private/draft) never
+    touches copies others already adopted; those are independent activities.
+    An invalid state is rejected by the ``Visibility`` literal (422)."""
+    _assert_teacher(user)
+    activity = _load_for_modify(activity_id, user)
+    log.info(
+        "activity visibility set id=%s -> %s owner=%s by=%s",
+        activity_id,
+        body.visibility,
+        activity.owner_uid,
+        user.uid,
+    )
+    return _set_visibility(activity, body.visibility)

@@ -382,3 +382,44 @@ class TestHistoryProvenance:
         got = _client().get(f"/api/activities/{copy_id}").json()
         assert got["sourceOwnerUid"] == OTHER  # raw uid still present for client fallback
         assert "sourceOwnerLabel" not in got
+
+
+class TestSetVisibility:
+    """ALS-SHARE-UX M1: POST /{id}/visibility — the unified setter behind the
+    teacher card's status control (draft/private/published in one call)."""
+
+    def test_owner_can_set_each_state(self):
+        c = _client()
+        aid = c.post("/api/activities", json={"skillId": "c", "title": "A"}).json()["activityId"]  # private default
+        for state in ("draft", "published", "private"):
+            resp = c.post(f"/api/activities/{aid}/visibility", json={"visibility": state})
+            assert resp.status_code == 200, resp.text
+            assert resp.json()["visibility"] == state
+
+    def test_invalid_visibility_is_422(self):
+        aid = _client().post("/api/activities", json={"skillId": "c", "title": "A"}).json()["activityId"]
+        resp = _client().post(f"/api/activities/{aid}/visibility", json={"visibility": "public"})
+        assert resp.status_code == 422
+
+    def test_non_owner_non_researcher_404(self):
+        aid = _client(OTHER).post("/api/activities", json={"skillId": "c", "title": "Theirs"}).json()["activityId"]
+        resp = _client().post(f"/api/activities/{aid}/visibility", json={"visibility": "published"})
+        assert resp.status_code == 404
+
+    def test_researcher_can_set_any_owner_preserved(self):
+        aid = _client(OTHER).post("/api/activities", json={"skillId": "c", "title": "Theirs"}).json()["activityId"]
+        resp = _client(researcher=True).post(f"/api/activities/{aid}/visibility", json={"visibility": "published"})
+        assert resp.status_code == 200, resp.text
+        assert resp.json()["visibility"] == "published"
+        assert resp.json()["ownerUid"] == OTHER  # ownership preserved on a researcher edit
+
+    def test_published_then_private_does_not_touch_adopted_copies(self):
+        # Publish, someone adopts, then unpublish via the setter — the copy survives.
+        pub = (
+            _client()
+            .post("/api/activities", json={"skillId": "c", "title": "Pub", "visibility": "published"})
+            .json()["activityId"]
+        )
+        copy_id = _client(OTHER).post(f"/api/activities/{pub}/adopt").json()["activityId"]
+        _client().post(f"/api/activities/{pub}/visibility", json={"visibility": "private"})
+        assert _client(OTHER).get(f"/api/activities/{copy_id}").status_code == 200  # adopted copy untouched
