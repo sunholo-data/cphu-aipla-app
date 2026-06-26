@@ -43,40 +43,63 @@ if TYPE_CHECKING:
 PERMISSION_ERROR_MESSAGE = "class not accessible"
 
 
-def caller_uid(tool_context: ToolContext | None) -> str:
-    """Resolve the authenticated caller's uid from an ADK ``ToolContext``.
+def _resolve_caller_uid(tool_context: ToolContext | None) -> str | None:
+    """Core identity resolution shared by :func:`caller_uid` (raising) and
+    :func:`caller_uid_or_none` (non-raising). Returns ``None`` when no usable
+    string uid is present.
 
     Priority:
-      1. ``tool_context._invocation_context.user_id`` — the canonical
-         ADK-side user_id wired by ``build_agui_adk_agent(user_id=...)``
-         in ``adk/agui.py``. This is the production path for tools an
-         agent invokes during a stream turn.
-      2. ``tool_context.state["user:id"]`` / ``["user_id"]`` — the
-         REST-probe / CLI path that constructs a ``SimpleNamespace`` with
-         this shape so tool surfaces work without going through the agent.
+      1. ``tool_context._invocation_context.user_id`` — the canonical ADK-side
+         user_id wired by ``build_agui_adk_agent(user_id=...)`` in
+         ``adk/agui.py``. The production path for tools an agent invokes during
+         a stream turn.
+      2. ``tool_context.state["user:id"]`` / ``["user_id"]`` — the REST-probe /
+         CLI path that constructs a namespace with this shape.
 
-    Lives here (not in any single tool module) because both the
-    ``analytics-chat`` and ``manage-class`` tool sets need the same
-    identity resolution before calling :func:`assert_caller_owns`.
-
-    History: originally only (2) was checked, in ``analytics.tools``.
-    (1) was missing because nothing writes ``state['user:id']`` during an
-    ADK turn — so chat-driven tool calls always raised "class not
-    accessible" even when the user owned the class. Caught 2026-06-02
-    after analytics-chat shipped (stream RUN_ERROR on every tool call).
+    History: originally only (2) was checked, in ``analytics.tools``. (1) was
+    missing because nothing writes ``state['user:id']`` during an ADK turn — so
+    chat-driven tool calls always denied even when the user owned the class.
+    Caught 2026-06-02 after analytics-chat shipped (stream RUN_ERROR per tool).
     """
     if tool_context is None:
-        raise PermissionError(PERMISSION_ERROR_MESSAGE)
+        return None
     invocation_ctx = getattr(tool_context, "_invocation_context", None)
     # Require a real non-empty string at every step — MagicMock-based test
     # fixtures auto-create `_invocation_context.user_id` as a Mock object,
-    # which is truthy but not a useful identity. Only accept str.
+    # which is truthy but not a useful identity. Only accept str. ``state`` is
+    # read defensively (some probe contexts omit it) so neither wrapper trips
+    # an AttributeError.
     candidate = getattr(invocation_ctx, "user_id", None) if invocation_ctx else None
     if not isinstance(candidate, str) or not candidate:
-        candidate = tool_context.state.get("user:id") or tool_context.state.get("user_id")
-    if not isinstance(candidate, str) or not candidate:
+        state = getattr(tool_context, "state", None) or {}
+        candidate = state.get("user:id") or state.get("user_id")
+    return candidate if isinstance(candidate, str) and candidate else None
+
+
+def caller_uid(tool_context: ToolContext | None) -> str:
+    """Resolve the authenticated caller's uid from an ADK ``ToolContext``,
+    RAISING :class:`PermissionError` ("class not accessible") when absent.
+
+    The raising variant — for direct-action tools (``analytics-chat``,
+    ``manage-class``) where a missing caller aborts the turn before any
+    :func:`assert_caller_owns`. Propose-only tools that return their own denial
+    dict (the activity-authoring co-pilot) want :func:`caller_uid_or_none`.
+
+    Lives here (not in any single tool module) because all three teacher tool
+    sets share this resolution.
+    """
+    uid = _resolve_caller_uid(tool_context)
+    if uid is None:
         raise PermissionError(PERMISSION_ERROR_MESSAGE)
-    return candidate
+    return uid
+
+
+def caller_uid_or_none(tool_context: ToolContext | None) -> str | None:
+    """Non-raising twin of :func:`caller_uid`: returns ``None`` when no caller
+    identity is present, so propose-only tools (the activity-authoring co-pilot)
+    can return their own denial shape rather than let a ``PermissionError``
+    abort the turn. Same resolution, two ergonomics — one implementation."""
+    return _resolve_caller_uid(tool_context)
 
 
 def resolve_caller_class_ids(user_uid: str) -> set[str]:
@@ -176,6 +199,7 @@ __all__ = [
     "assert_caller_owns",
     "assert_can_read_class",
     "caller_uid",
+    "caller_uid_or_none",
     "resolve_caller_class_ids",
     "resolve_caller_group_codes",
 ]

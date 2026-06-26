@@ -28,15 +28,14 @@
 
 "use client";
 
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { Lightbulb, Send, Sparkles } from "lucide-react";
 
 import { AGUIProvider } from "@/providers/AGUIProvider";
 import { useSkillAgent, type ToolCallState } from "@/hooks/useSkillAgent";
-import { fetchWithTeacherAuth } from "@/lib/apiClient";
+import { useSkillSlugResolver } from "@/hooks/useSkillSlugResolver";
 
 const SKILL_NAME = "analytics-chat";
-const PLATFORM_OWNER_ID = "aipla-platform";
 
 export const SUGGESTED_QUESTIONS = [
   "How many messages did groups send this week?",
@@ -64,36 +63,7 @@ interface AnalyticsChatProps {
  * "Skill not found". Caught in dev 2026-06-02 (RUN_ERROR on submit).
  */
 export function AnalyticsChat(props: AnalyticsChatProps) {
-  const [skillId, setSkillId] = useState<string | null>(null);
-  const [resolveError, setResolveError] = useState<string | null>(null);
-
-  useEffect(() => {
-    let cancelled = false;
-    setResolveError(null);
-    fetchWithTeacherAuth(
-      `/api/proxy/api/skills/by-slug/${encodeURIComponent(PLATFORM_OWNER_ID)}/${encodeURIComponent(SKILL_NAME)}`,
-    )
-      .then(async (res) => {
-        if (cancelled) return;
-        if (!res.ok) {
-          throw new Error(
-            res.status === 404
-              ? "Analytics-chat skill is not registered on this environment yet — run scripts/seed-platform-skills.sh."
-              : `failed to resolve skill (${res.status})`,
-          );
-        }
-        const body = (await res.json()) as { skillId?: string; skill_id?: string };
-        const id = body.skillId ?? body.skill_id;
-        if (!id) throw new Error("skill resolution returned no id");
-        setSkillId(id);
-      })
-      .catch((e) => {
-        if (!cancelled) setResolveError(e instanceof Error ? e.message : String(e));
-      });
-    return () => {
-      cancelled = true;
-    };
-  }, []);
+  const { skillId, resolveError } = useSkillSlugResolver(SKILL_NAME);
 
   if (!props.classId) {
     return <EmptyState />;

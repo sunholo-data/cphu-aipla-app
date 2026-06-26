@@ -18,6 +18,11 @@ from typing import Any
 
 from google.adk.tools import ToolContext
 
+# The non-raising identity resolver — propose-only tools return a denial dict
+# rather than let a PermissionError abort the turn. Single source of truth
+# shared with analytics-chat + manage-class (analytics.auth.caller_uid).
+from analytics.auth import caller_uid_or_none as _caller_uid
+
 # save_activity is imported (not called) so tests can guard that the proposal
 # path never persists; get_activity is the owner-scoped read.
 from db.activities import get_activity, save_activity  # noqa: F401  (save_activity: guard-only)
@@ -44,27 +49,6 @@ MAX_PROMPT_LEN = 2000  # solution / document prompt
 # Byte-identical denial for missing AND not-owned, so the tool can't be used to
 # enumerate other teachers' activities (mirrors activity_routes._load_for_modify).
 _DENY = {"ok": False, "error": "activity not found"}
-
-
-def _caller_uid(tool_context: ToolContext | None) -> str | None:
-    """Resolve the authenticated caller's uid, or None.
-
-    Priority mirrors ``analytics.tools._caller_uid`` (the canonical resolver):
-      1. ``tool_context._invocation_context.user_id`` — the ADK-side user_id
-         wired by ``build_agui_adk_agent(user_id=...)``; the production path for
-         tools invoked during a stream turn.
-      2. ``tool_context.state['user:id']`` / ``['user_id']`` — the REST-probe
-         shape. (Only checking (2) was the 2026-06-02 analytics-chat bug: nothing
-         writes ``state['user:id']`` during a turn, so chat tool-calls denied.)
-    Returns None (caller decides the denial) rather than raising."""
-    if tool_context is None:
-        return None
-    inv = getattr(tool_context, "_invocation_context", None)
-    candidate = getattr(inv, "user_id", None) if inv else None
-    if not isinstance(candidate, str) or not candidate:
-        state = getattr(tool_context, "state", None) or {}
-        candidate = state.get("user:id") or state.get("user_id")
-    return candidate if isinstance(candidate, str) and candidate else None
 
 
 def set_lesson_prompt(
