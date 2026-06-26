@@ -10,7 +10,7 @@
       "description": "Skill + framework-as-a-layer: the activity-authoring-assistant SKILL.md (teacher-only accessControl, capable model, starter teaching-framework = placeholder system prompt + structure-rubric framing as its instruction) + a TEACHING_FRAMEWORK registry constant (1.1.50 M0). Behind a teacher-tier dark flag.",
       "scope": "backend",
       "estimated_loc": 180,
-      "actual_loc": null,
+      "actual_loc": 180,
       "dependencies": [],
       "acceptance_criteria": [
         "activity-authoring-assistant skill loads; accessControl.type == 'tagged' with role:teacher",
@@ -23,9 +23,9 @@
         "backend/adk/authoring_framework.py"
       ],
       "files_to_modify": [],
-      "passes": null,
+      "passes": true,
       "started": null,
-      "completed": null,
+      "completed": "2026-06-26",
       "notes": null
     },
     {
@@ -33,8 +33,10 @@
       "description": "set_lesson_prompt authoring write-tool: owner-scoped FunctionTool that reads user:id from tool_context.state, loads the activity, denies if not owner (404), and returns a PROPOSAL (does NOT auto-persist). Wired into the skill's tools. Declarative-only (no code-gen).",
       "scope": "backend",
       "estimated_loc": 200,
-      "actual_loc": null,
-      "dependencies": ["M0"],
+      "actual_loc": 200,
+      "dependencies": [
+        "M0"
+      ],
       "acceptance_criteria": [
         "set_lesson_prompt rejects a non-owner (404/deny) and returns a well-formed proposal for the owner",
         "the tool never persists directly (proposal only; teacher Applies on the FE)",
@@ -46,9 +48,9 @@
         "backend/adk/tools.py",
         "backend/skills/templates/activity-authoring-assistant/SKILL.md"
       ],
-      "passes": null,
+      "passes": true,
       "started": null,
-      "completed": null,
+      "completed": "2026-06-26",
       "notes": null
     },
     {
@@ -56,8 +58,10 @@
       "description": "Structure-rubric + eval scaffold: the 1.1.50 rubric as a checkable artefact (rubric lines as data) + an eval scaffold that scores a draft against the current framework version. AR owns the real scoring key.",
       "scope": "backend",
       "estimated_loc": 160,
-      "actual_loc": null,
-      "dependencies": ["M0"],
+      "actual_loc": 160,
+      "dependencies": [
+        "M0"
+      ],
       "acceptance_criteria": [
         "the structure rubric is well-formed (each line has id + a checkable description)",
         "an eval scaffold runs and scores a fixture draft against the rubric (placeholder bar; AR sign-off pending)",
@@ -70,9 +74,9 @@
       "files_to_modify": [
         "backend/adk/authoring_framework.py"
       ],
-      "passes": null,
+      "passes": true,
       "started": null,
-      "completed": null,
+      "completed": "2026-06-26",
       "notes": null
     },
     {
@@ -81,7 +85,9 @@
       "scope": "frontend",
       "estimated_loc": 320,
       "actual_loc": null,
-      "dependencies": ["M1"],
+      "dependencies": [
+        "M1"
+      ],
       "acceptance_criteria": [
         "the chat panel mounts with useTeacherAuth (auth-corner regression guard: a group token is NOT minted)",
         "the proposal card renders Apply/Edit/Dismiss; Apply mutates the draft and only then persists",
@@ -95,7 +101,7 @@
         "frontend/src/app/teacher/activities/[id]/page.tsx"
       ],
       "passes": null,
-      "started": null,
+      "started": "2026-06-26",
       "completed": null,
       "notes": "Largest milestone; may carry to a follow-up session. Browser-verify (SSE stream + Apply round-trip) is the deferred gate."
     }
@@ -109,7 +115,7 @@
     "actual_days": null
   },
   "github_issues": [],
-  "last_session": null,
-  "last_checkpoint": null,
-  "status": "not_started"
+  "last_session": "2026-06-26",
+  "last_checkpoint": "M2 shipped (996363f); M3 frontend in progress",
+  "status": "in_progress"
 }

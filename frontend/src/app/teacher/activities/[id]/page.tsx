@@ -29,6 +29,7 @@ import { SettingsMap } from "@/components/teacher/SettingsMap";
 import { InheritedPersona } from "@/components/teacher/InheritedPersona";
 import { ActivityBuilderBody } from "@/components/teacher/ActivityBuilderBody";
 import { useActivityBuilder } from "@/hooks/useActivityBuilder";
+import { AuthoringCopilot } from "./_AuthoringCopilot";
 
 type TabId = "goal" | "parameters" | "code" | "history";
 
@@ -287,6 +288,10 @@ export default function TeacherActivityConfigPage() {
               }
             />
           </form>
+          {/* COPILOT-1 M3: the authoring co-pilot (dark-flagged → renders null
+              when NEXT_PUBLIC_AUTHORING_COPILOT !== "1", so the builder is
+              unaffected). Apply writes into the builder's teachingGoal. */}
+          <AuthoringCopilot activityId={activityId} onApplyLessonPrompt={builder.setTeachingGoal} />
         </section>
       ) : null}
 
