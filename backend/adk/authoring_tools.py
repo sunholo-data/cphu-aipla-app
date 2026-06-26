@@ -29,12 +29,17 @@ logger = logging.getLogger(__name__)
 # proposal never 422s on length.
 MAX_GOAL_LEN = 2000
 
-# Palette element kinds the co-pilot can assemble today (COPILOT-2 M1). The
-# checklist is the framework's formative-checkpoint instance (1.1.50); table /
-# chart / calculator carry richer specs and are a follow-on.
-_SUPPORTED_ELEMENT_KINDS = {"checklist"}
-# Cap from the registry (1.1.38) so an Applied checklist never exceeds the bound.
+# Palette element kinds the co-pilot can assemble (COPILOT-2). Text-authored
+# kinds — the teacher writes a note body / solution prompt / document prompt; the
+# student does the drawing/upload at runtime. table / chart / calculator carry
+# richer structured specs and remain a follow-on.
+_TEXT_ELEMENT_KINDS = {"note", "solution", "document"}
+_SUPPORTED_ELEMENT_KINDS = {"checklist"} | _TEXT_ELEMENT_KINDS
+# Caps mirror the element models (activity_config.py) so an Applied element never 422s.
 MAX_CHECKLIST_ITEMS = ELEMENT_REGISTRY["checklist"].max_items
+MAX_NOTE_TITLE = 120
+MAX_NOTE_BODY = 4000
+MAX_PROMPT_LEN = 2000  # solution / document prompt
 
 # Byte-identical denial for missing AND not-owned, so the tool can't be used to
 # enumerate other teachers' activities (mirrors activity_routes._load_for_modify).
@@ -109,19 +114,25 @@ def set_lesson_prompt(
 
 def add_element(
     element_kind: str,
-    items: list[str],
     activity_id: str,
+    items: list[str] | None = None,
+    text: str | None = None,
+    title: str | None = None,
     tool_context: ToolContext = None,
 ) -> dict[str, Any]:
-    """Propose adding a workspace element to an activity (COPILOT-2 M1).
+    """Propose adding a workspace element to an activity (COPILOT-2).
 
     Owner-scoped + propose-only: returns a proposal the teacher Applies; never
     persists. The kind is validated against the 1.1.38 ``ELEMENT_REGISTRY``.
 
     Args:
-        element_kind: the palette element kind (currently ``checklist``).
-        items: for a checklist, the step labels (blanks dropped, capped, trimmed).
+        element_kind: the palette element kind. Supported: ``checklist`` (use
+            ``items``); ``note`` / ``solution`` / ``document`` (use ``text``).
         activity_id: the activity being authored (the teacher owns it).
+        items: for a checklist, the step labels (blanks dropped, capped, trimmed).
+        text: the text the TEACHER authors — a note's body, or the prompt shown
+            above the student's solution (drawing/photo) / document-upload surface.
+        title: optional title for a ``note``.
 
     Returns:
         ``{"ok": True, "proposal": {"kind": "add_element", "element_kind": ...,
@@ -137,31 +148,37 @@ def add_element(
     if element_kind not in _SUPPORTED_ELEMENT_KINDS:
         return {"ok": False, "error": f"the co-pilot can't assemble a {element_kind!r} element yet"}
 
-    clean = [s.strip() for s in (items or []) if isinstance(s, str) and s.strip()]
-    if not clean:
-        return {"ok": False, "error": "the checklist has no steps"}
-    clean = clean[:MAX_CHECKLIST_ITEMS]
+    spec, label = _build_element_spec(element_kind, items, text, title)
+    if spec is None:
+        return {"ok": False, "error": label}  # label carries the validation error
 
     activity = get_activity(activity_id)
     if activity is None or activity.owner_uid != uid:
         return dict(_DENY)
 
-    logger.info(
-        "authoring: add_element(%s, %d items) proposal for activity=%s by uid=%s",
-        element_kind,
-        len(clean),
-        activity_id,
-        uid,
-    )
-    return {
-        "ok": True,
-        "proposal": {
-            "kind": "add_element",
-            "element_kind": element_kind,
-            "spec": {"items": clean},
-            "label": f"Tjekliste ({len(clean)} trin)",
-        },
-    }
+    logger.info("authoring: add_element(%s) proposal for activity=%s by uid=%s", element_kind, activity_id, uid)
+    return {"ok": True, "proposal": {"kind": "add_element", "element_kind": element_kind, "spec": spec, "label": label}}
+
+
+def _build_element_spec(
+    element_kind: str, items: list[str] | None, text: str | None, title: str | None
+) -> tuple[dict[str, Any] | None, str]:
+    """Validate + build the (spec, label) for an element kind, or (None, error)."""
+    if element_kind == "checklist":
+        clean = [s.strip() for s in (items or []) if isinstance(s, str) and s.strip()][:MAX_CHECKLIST_ITEMS]
+        if not clean:
+            return None, "the checklist has no steps"
+        return {"items": clean}, f"Tjekliste ({len(clean)} trin)"
+
+    body = (text or "").strip()
+    if not body:
+        return None, f"the {element_kind} has no text"
+    if element_kind == "note":
+        clean_title = (title or "").strip()[:MAX_NOTE_TITLE]
+        return {"title": clean_title, "body": body[:MAX_NOTE_BODY]}, f"Note: {clean_title or body[:30]}"
+    # solution / document — a teacher prompt above the student's surface.
+    label = "Løsningsfelt (elevens løsning)" if element_kind == "solution" else "Dokument-upload (elevens fil)"
+    return {"prompt": body[:MAX_PROMPT_LEN]}, label
 
 
 def _artefact_label(meta: Any) -> str:

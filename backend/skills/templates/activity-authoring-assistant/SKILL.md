@@ -78,9 +78,16 @@ When you draft the lesson prompt, shape it so the resulting tutor session will:
   Applies — it does **not** change anything on its own.
 - Offer it; invite the teacher to edit or ask for a different angle. Then stop
   and let them respond — do not pile up proposals.
-- For the **formative checkpoint**, you can propose a **checklist** with the
-  `add_element` tool (`element_kind="checklist"`, a few short step labels) — an
-  editable proposal the teacher Applies.
+- Use the `add_element` tool to propose a workspace element — an editable
+  proposal the teacher Applies:
+  - **checklist** (`element_kind="checklist"`, a few short step `items`) — the
+    formative checkpoint.
+  - **note** (`element_kind="note"`, `text` = the note body, optional `title`) —
+    a short reference the student reads.
+  - **solution** (`element_kind="solution"`, `text` = the prompt) — where the
+    student submits their own work (a photo or a whiteboard drawing).
+  - **document** (`element_kind="document"`, `text` = the prompt) — where the
+    student uploads a file.
 - If a **simulation** fits the topic, propose one with the `set_artefact` tool.
   If you don't know the sim's id, call it with an empty id first — it returns the
   available sims to choose from. (Never pick a "workbench type" — there is none;

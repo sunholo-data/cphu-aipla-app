@@ -186,3 +186,48 @@ describe("AuthoringCopilot — set_artefact proposal (COPILOT-2 M2)", () => {
     });
   });
 });
+
+const NOTE = JSON.stringify({
+  ok: true,
+  proposal: { kind: "add_element", element_kind: "note", spec: { title: "Energi", body: "Måles i joule." }, label: "Note: Energi" },
+});
+const SOLUTION = JSON.stringify({
+  ok: true,
+  proposal: { kind: "add_element", element_kind: "solution", spec: { prompt: "Vis din løsning." }, label: "Løsningsfelt" },
+});
+const DOCUMENT = JSON.stringify({
+  ok: true,
+  proposal: { kind: "add_element", element_kind: "document", spec: { prompt: "Upload din opgave." }, label: "Dokument-upload" },
+});
+
+describe("AuthoringCopilot — note/solution/document elements (COPILOT-2 M3)", () => {
+  it("parses + Apply routes a note proposal", async () => {
+    expect(parseProposal(tc({ resultContent: NOTE }))).toEqual({
+      kind: "add_element", elementKind: "note", title: "Energi", body: "Måles i joule.", label: "Note: Energi",
+    });
+    const onApply = vi.fn();
+    mockHook.toolCalls = [tc({ resultContent: NOTE })];
+    render(<AuthoringCopilot activityId="act-1" onApplyProposal={onApply} />);
+    await screen.findByTestId("proposal-note");
+    fireEvent.click(screen.getByRole("button", { name: /anvend/i }));
+    expect(onApply).toHaveBeenCalledWith({ kind: "add_element", elementKind: "note", title: "Energi", body: "Måles i joule.", label: "Note: Energi" });
+  });
+
+  it("parses solution + document (student drawing/upload) as prompt elements", () => {
+    expect(parseProposal(tc({ resultContent: SOLUTION }))).toEqual({
+      kind: "add_element", elementKind: "solution", prompt: "Vis din løsning.", label: "Løsningsfelt",
+    });
+    expect(parseProposal(tc({ resultContent: DOCUMENT }))).toEqual({
+      kind: "add_element", elementKind: "document", prompt: "Upload din opgave.", label: "Dokument-upload",
+    });
+  });
+
+  it("renders the solution prompt + Apply routes it (the student drawing surface)", async () => {
+    const onApply = vi.fn();
+    mockHook.toolCalls = [tc({ resultContent: SOLUTION })];
+    render(<AuthoringCopilot activityId="act-1" onApplyProposal={onApply} />);
+    await screen.findByTestId("proposal-prompt");
+    fireEvent.click(screen.getByRole("button", { name: /anvend/i }));
+    expect(onApply).toHaveBeenCalledWith({ kind: "add_element", elementKind: "solution", prompt: "Vis din løsning.", label: "Løsningsfelt" });
+  });
+});

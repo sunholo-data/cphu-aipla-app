@@ -47,6 +47,8 @@ export function authoringCopilotEnabled(): boolean {
 export type Proposal =
   | { kind: "set_lesson_prompt"; value: string }
   | { kind: "add_element"; elementKind: "checklist"; items: string[]; label: string }
+  | { kind: "add_element"; elementKind: "note"; title: string; body: string; label: string }
+  | { kind: "add_element"; elementKind: "solution" | "document"; prompt: string; label: string }
   | { kind: "set_artefact"; artefactId: string; label: string };
 
 export type ApplyProposal = (proposal: Proposal) => void;
@@ -130,9 +132,17 @@ export function parseProposal(tc: ToolCallState): Proposal | null {
     case "set_lesson_prompt":
       return typeof p.value === "string" && p.field === "teachingGoal" ? { kind: "set_lesson_prompt", value: p.value } : null;
     case "add_element": {
-      const items = (p.spec as { items?: unknown })?.items;
-      if (p.element_kind === "checklist" && Array.isArray(items) && items.every((s) => typeof s === "string")) {
-        return { kind: "add_element", elementKind: "checklist", items: items as string[], label: typeof p.label === "string" ? p.label : "Element" };
+      const ek = p.element_kind;
+      const spec = (p.spec ?? {}) as Record<string, unknown>;
+      const label = typeof p.label === "string" ? p.label : "Element";
+      if (ek === "checklist" && Array.isArray(spec.items) && spec.items.every((s) => typeof s === "string")) {
+        return { kind: "add_element", elementKind: "checklist", items: spec.items as string[], label };
+      }
+      if (ek === "note" && typeof spec.body === "string") {
+        return { kind: "add_element", elementKind: "note", title: typeof spec.title === "string" ? spec.title : "", body: spec.body, label };
+      }
+      if ((ek === "solution" || ek === "document") && typeof spec.prompt === "string") {
+        return { kind: "add_element", elementKind: ek, prompt: spec.prompt, label };
       }
       return null;
     }
@@ -271,12 +281,21 @@ function ProposalCard({ proposal, onApply }: { proposal: Proposal; onApply: Appl
         />
       ) : editable !== null ? (
         <p className="whitespace-pre-wrap">{editable}</p>
-      ) : proposal.kind === "add_element" ? (
+      ) : proposal.kind === "add_element" && proposal.elementKind === "checklist" ? (
         <ul className="list-disc pl-5 text-sm" data-testid="proposal-items">
           {proposal.items.map((it, i) => (
             <li key={i}>{it}</li>
           ))}
         </ul>
+      ) : proposal.kind === "add_element" && proposal.elementKind === "note" ? (
+        <div data-testid="proposal-note">
+          {proposal.title ? <p className="font-medium">{proposal.title}</p> : null}
+          <p className="whitespace-pre-wrap text-sm">{proposal.body}</p>
+        </div>
+      ) : proposal.kind === "add_element" ? (
+        <p className="whitespace-pre-wrap text-sm" data-testid="proposal-prompt">
+          {proposal.prompt}
+        </p>
       ) : proposal.kind === "set_artefact" ? (
         <p className="text-sm" data-testid="proposal-sim">
           {proposal.label}

@@ -216,3 +216,50 @@ def test_set_artefact_never_persists(monkeypatch):
     )
     res = authoring_tools.set_artefact(artefact_id="boldkast", activity_id=aid, tool_context=_tc(TEACHER))
     assert res["ok"] is True
+
+
+# --- COPILOT-2 M3: add_element note / solution / document (text-authored kinds) ---
+
+
+def test_add_element_note_owner_gets_a_proposal():
+    from adk.authoring_tools import add_element
+
+    aid = _make_activity(TEACHER)
+    res = add_element(
+        element_kind="note",
+        text="Husk: energi måles i joule.",
+        title="Energi",
+        activity_id=aid,
+        tool_context=_tc(TEACHER),
+    )
+    assert res["ok"] is True
+    assert res["proposal"]["element_kind"] == "note"
+    assert res["proposal"]["spec"] == {"title": "Energi", "body": "Husk: energi måles i joule."}
+
+
+def test_add_element_solution_and_document_carry_a_prompt():
+    from adk.authoring_tools import add_element
+
+    aid = _make_activity(TEACHER)
+    for kind in ("solution", "document"):
+        res = add_element(element_kind=kind, text="Vis din løsning.", activity_id=aid, tool_context=_tc(TEACHER))
+        assert res["ok"] is True, kind
+        assert res["proposal"]["element_kind"] == kind
+        assert res["proposal"]["spec"] == {"prompt": "Vis din løsning."}
+
+
+def test_add_element_text_kinds_require_text():
+    from adk.authoring_tools import add_element
+
+    aid = _make_activity(TEACHER)
+    for kind in ("note", "solution", "document"):
+        assert add_element(element_kind=kind, text="  ", activity_id=aid, tool_context=_tc(TEACHER))["ok"] is False, (
+            kind
+        )
+
+
+def test_add_element_text_kinds_owner_scoped():
+    from adk.authoring_tools import add_element
+
+    aid = _make_activity(TEACHER)
+    assert add_element(element_kind="note", text="x", activity_id=aid, tool_context=_tc(OTHER))["ok"] is False
