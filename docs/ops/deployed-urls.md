@@ -13,6 +13,11 @@ Canonical list of live Cloud Run services, per environment.
   - Hosts `/sandbox.html` (iframe shell) + `/artefacts/<name>/v<version>/index.html` (curated artefacts — Boldkast, future physics sims)
   - Cloud Build trigger: `aipla-mcp-sandbox-deploy` (filter `infrastructure/mcp-sandbox/**`, fires on `dev` push when sandbox files change)
   - Public smoke: `curl https://aipla-v01-sandbox-wgwhd7mspa-lz.a.run.app/sandbox.html` → 200
+- **Public MCP endpoint (EXT-MCP / 1.1.49):** `https://aipla-v01-frontend-wgwhd7mspa-lz.a.run.app/api/mcp`
+  - The backend FastMCP server (mounted at `/mcp`) reached via the dedicated `frontend/src/app/api/mcp/route.ts` (forwards to backend `mcp/` with the trailing slash — avoids the 307 the catch-all proxy can't replay).
+  - **Public, no auth** (matches the public-skills posture). Speaks Streamable HTTP — point a ChatGPT remote connector or Claude Desktop `mcp-remote` here, no tunnel.
+  - Offers the public skills as tools **and** the sims as `ui://` MCP Apps (`show_boldkast|kinebot|led_planck`; artefact HTML lazily fetched from the sandbox via `MCP_SANDBOX_URL`).
+  - Smoke: `REQUIRE_SIMS=1 ./scripts/smoke-deployed-mcp.sh dev` → initialize + sims listed + `ui://` readable. (Visual render is host-dependent — Claude Desktop is currently blocked by upstream claude-ai-mcp#165; ChatGPT/MCP Inspector render reliably.)
 - Test/prod: not yet cut.
 
 ---

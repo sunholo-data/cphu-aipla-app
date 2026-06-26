@@ -1,7 +1,16 @@
 # External-host MCP App rendering — serve the sims from the cloud URL
 
-**Status:** Planned — **proof-of-concept SHIPPED** (standalone demo, verified end-to-end);
-the production cloud-URL path is **designed + the blocker proven**, not yet built.
+**Status:** **IMPLEMENTED** (Phase 1 + 2 shipped to dev 2026-06-26, sprint EXT-MCP).
+The deployed cloud endpoint `https://aipla-v01-frontend-…/api/mcp` is live: anonymous
+Streamable HTTP, `tools/list` offers `show_boldkast|kinebot|led_planck` with
+`_meta.ui.resourceUri`, and `resources/read` returns the artefact HTML
+(`text/html;profile=mcp-app`, 34 KB, bridge present) via the lazy sandbox fetch.
+Phase 3 (model drives the sim) deferred. **Caveat:** the wire is verified end-to-end;
+the *visual* render depends on the host — Claude Desktop currently fetches the resource
+but does not mount the iframe (upstream bug
+[claude-ai-mcp#165](https://github.com/anthropics/claude-ai-mcp/issues/165); also
+[ext-apps#671](https://github.com/modelcontextprotocol/ext-apps/issues/671) for the
+`mcp-remote` path). ChatGPT / MCP Inspector / MCPJam are the reliable render checks.
 **Last Updated:** 2026-06-26
 **Priority:** P2 — a **breadth probe** (memory `aipla-breadth-over-depth`): proves AIPLA
 sims are portable, vendor-neutral research instruments. Not pilot-blocking; high

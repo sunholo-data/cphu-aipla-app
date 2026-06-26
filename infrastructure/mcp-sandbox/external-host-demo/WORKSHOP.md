@@ -137,17 +137,34 @@ Planck's constant). Drop a new simulation in as `artefacts/<name>/v<n>/index.htm
 and it appears automatically — no code change. That is what "available as
 standard" means in practice.
 
-## Running it from our deployed service (for a hosted demo, no laptop)
+## Running it from our deployed service — no laptop, no tunnel (LIVE on dev)
 
-Our backend already publishes a standard MCP endpoint at
-`https://aipla-v01-frontend-wgwhd7mspa-lz.a.run.app/api/proxy/mcp`. To serve the
-simulations from there (so a ChatGPT/Claude connector can point at our cloud URL
-with no tunnel), we fold this demo's resource/tool registration into that backend
-server. Two things to settle first: confirm the web proxy passes the streaming
-connection cleanly, and — more importantly — decide **who is allowed to load the
-simulations**, since that endpoint is currently open to anyone. The simulations
-are teaching material whose design assumes the AIPLA tutor on the other end, so
-exposing them publicly is a project decision, not just a wiring step.
+As of 2026-06-26 the sims are served straight from our cloud, so you can point a
+ChatGPT or Claude connector at a URL with nothing running locally:
+
+```
+https://aipla-v01-frontend-wgwhd7mspa-lz.a.run.app/api/mcp
+```
+
+- **ChatGPT:** in the Create-connector step (route B above), use this URL instead
+  of a tunnel.
+- **Claude Desktop:** add it as a remote connector, or use the `mcp-remote` bridge
+  in config, exactly like the existing `ailang-docs` entry:
+  `{ "command": "npx", "args": ["-y", "mcp-remote", "https://…/api/mcp"] }`.
+
+It is **public, no auth** (the same posture as our public-skills endpoint), and
+verified end-to-end: `REQUIRE_SIMS=1 ./scripts/smoke-deployed-mcp.sh dev` confirms
+initialize + the three sim tools + readable `ui://` resources. The artefact HTML is
+fetched on demand from the sandbox host, so the cloud endpoint always serves the
+canonical sim.
+
+Two caveats carry over: the **visual render is host-dependent** (see the route-A
+note — Claude Desktop currently fetches the resource but doesn't mount the iframe,
+upstream bug claude-ai-mcp#165; ChatGPT / MCP Inspector are the reliable checks),
+and **exposure is a project decision** — the dev endpoint is open to anyone with
+the URL, which is fine for a research demo but wants an auth/allow-list call before
+test/prod, since the sims are teaching material whose design assumes the AIPLA
+tutor on the other end.
 
 ## Status and honest caveats
 

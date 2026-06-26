@@ -106,48 +106,38 @@ npx @modelcontextprotocol/inspector uv run --script ./server.py
 Inspect `tools/list` → see `_meta.ui.resourceUri`; open the resource → see the
 HTML render in the Inspector's MCP-Apps preview.
 
-## Can this run from our deployed Cloud Run URL? (Yes — no local server needed)
+## Run it from our deployed Cloud Run URL — LIVE (no local server, no tunnel)
 
-The local stdio server above is the zero-setup demo. For real use you point
-hosts at a **deployed HTTPS Streamable-HTTP endpoint** instead — and we already
-have one running.
+The local stdio server above is the zero-setup demo. **The sims are now also
+served from our cloud** (shipped 2026-06-26, sprint EXT-MCP / design 1.1.49):
 
-- The backend's FastMCP server is mounted at `/mcp`
-  ([`backend/fast_api_app.py:395`](../../../backend/fast_api_app.py#L395),
-  `app.mount("/mcp", get_mcp_asgi_app())`).
-- The backend is a sidecar inside the `aipla-v01-frontend` Cloud Run service;
-  the Next.js frontend proxies to it, so the **public** MCP URL today is:
+```
+https://aipla-v01-frontend-wgwhd7mspa-lz.a.run.app/api/mcp
+```
 
-  ```
-  https://aipla-v01-frontend-wgwhd7mspa-lz.a.run.app/api/proxy/mcp
-  ```
+- The backend FastMCP server (mounted at `/mcp`,
+  [`backend/fast_api_app.py:395`](../../../backend/fast_api_app.py#L395)) now
+  registers the sims as `ui://` resources + `show_<name>` tools
+  ([`backend/protocols/sim_apps.py`](../../../backend/protocols/sim_apps.py)),
+  alongside the public-skill tools.
+- It's reached via a **dedicated** [`frontend/src/app/api/mcp/route.ts`](../../../frontend/src/app/api/mcp/route.ts)
+  — *not* the catch-all `/api/proxy/mcp`. Why: the catch-all forwards `/mcp`
+  (no slash), FastMCP 307-redirects to `/mcp/`, and the proxy's consumed-body
+  fetch can't replay across the redirect → 502. The dedicated route forwards
+  straight to `mcp/` (trailing slash), so there is no redirect.
+- **Public, no auth** (same posture as the public-skills endpoint). Paste it into
+  a ChatGPT remote connector or a Claude Desktop `mcp-remote` entry — no tunnel.
+- Verified end-to-end: `REQUIRE_SIMS=1 ./scripts/smoke-deployed-mcp.sh dev` →
+  initialize + the three sim tools + readable `ui://` resources. The artefact HTML
+  is fetched on demand from the sandbox host (`MCP_SANDBOX_URL`), so the backend
+  image doesn't carry the HTML and the cloud always serves the canonical sim.
 
-  It is **public, no auth** by design (`mcp_server.py` — "Public-only, no auth",
-  same posture as the A2A discovery card). That URL is exactly what you'd paste
-  into a ChatGPT remote connector or a Claude Desktop remote-MCP entry — no
-  tunnel, no local process.
-
-**Two things stand between "endpoint exists" and "sims render from it":**
-
-1. **It doesn't serve the sims yet.** The deployed `/mcp` currently exposes
-   *skills as text tools* — it has no `ui://` resources. Making the deployed URL
-   render sims = folding this demo's resource/tool registration (the
-   `discover_artefacts()` + `ui://` + `_meta.ui.resourceUri` logic) into
-   [`backend/protocols/mcp_server.py`](../../../backend/protocols/mcp_server.py).
-   The artefacts already ship in the same image as the sandbox service, so the
-   server can read them off disk exactly as this demo does.
-2. **Verify the proxy passes Streamable HTTP cleanly.** The Next.js
-   `/api/proxy/[...path]` route must forward the `Mcp-Session-Id` header and the
-   SSE `GET` stream, not just buffer a `POST`. Smoke-test the deployed `/mcp`
-   path end-to-end with MCP Inspector before relying on it. (For a public demo,
-   exposing the FastMCP app on its own dedicated route/origin avoids depending on
-   the app proxy at all.)
-
-And one **product** decision, not a wiring one: the live endpoint is anonymous,
-so anyone with the URL could load the sims into their own ChatGPT/Claude. The
-sims are pedagogical IP and their model-context contract assumes the AIPLA tutor
-on the other end. Decide allow-list / auth / which sims are public before
-advertising the deployed URL (ADR territory — see *From demo to production*).
+Still true: the **visual render is host-dependent** (Claude Desktop currently
+fetches the resource but doesn't mount the iframe — upstream
+[claude-ai-mcp#165](https://github.com/anthropics/claude-ai-mcp/issues/165);
+ChatGPT / MCP Inspector render reliably), and the open endpoint is a **product
+decision** — anyone with the URL can load the sims, fine for a dev research demo
+but decide auth/allow-list before test/prod (ADR territory).
 
 ## How communication in & out of a sim works
 

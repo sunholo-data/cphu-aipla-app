@@ -2,7 +2,7 @@
   "sprint_id": "EXT-MCP",
   "created": "2026-06-26T12:33:55Z",
   "estimated_duration_days": 1,
-  "status": "in_progress",
+  "status": "completed",
   "design_doc": "docs/design/aipla/v1.1.0-feedback/external-host-mcp-apps.md",
   "sprint_plan": "docs/design/aipla/v1.1.0-feedback/external-host-mcp-apps-sprint.md",
   "features": [
@@ -79,10 +79,11 @@
         "docs/ops/deployed-urls.md",
         "docs/design/aipla/v1.1.0-feedback/SEQUENCE.md"
       ],
-      "passes": null,
-      "started": null,
-      "completed": null,
-      "notes": "Exposure is dev-only/open (authorised by M; consistent with existing public/no-auth /mcp skills). Host render variance is real (Jan 2026) — ChatGPT/Inspector are the reliable checks; Claude Desktop best-effort."
+      "passes": true,
+      "started": "2026-06-26T13:00:00Z",
+      "completed": "2026-06-26T13:35:00Z",
+      "actual_loc": 90,
+      "notes": "Done. cloudbuild: +MCP_SANDBOX_URL on the sidecar. Pushed (rebased onto an incoming deps patch). Deploy ran ~25min (ADK backend image slow) — aipla-dev-deploy check-run green. Verified deployed: REQUIRE_SIMS smoke + a direct resources/read both PASS on https://aipla-v01-frontend-wgwhd7mspa-lz.a.run.app/api/mcp (anonymous Streamable HTTP; 4 skill tools + show_boldkast/kinebot/led_planck; ui://aipla/boldkast/v1 read returns 34269 bytes text/html;profile=mcp-app with the bridge — lazy sandbox fetch works in prod). Docs updated (design Implemented + host caveat, WORKSHOP/README cloud path, deployed-urls, SEQUENCE) + memory. Live VISUAL render is host-dependent: Claude Desktop recognises the UI resource but doesn't mount the iframe (upstream claude-ai-mcp#165; the MCP Python SDK 1.27 has no MCP Apps support, our hand-rolled metadata is spec-correct); ChatGPT/Inspector are the reliable checks. Acceptance #1/#2/#4 met; #3 (visual render) host-blocked on Claude Desktop, reliable elsewhere; #5 exposure dev-only/authorised."
     }
   ],
   "velocity": {
