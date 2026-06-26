@@ -147,8 +147,8 @@ function NewActivityForm() {
           <Sparkles className="h-6 w-6 text-primary" /> New activity
         </h1>
         <p className="mt-1 max-w-3xl text-sm text-muted-foreground">
-          Build a guided activity: set the lesson, add a workspace (simulation, tables, charts, tools),
-          and watch the live preview update as you go. Students join with a group code.
+          Build a guided activity: set a teaching goal, add a workspace — a simulation, tables, a chart, a
+          calculator, or guiding notes — and watch the live preview update as you go. Students join with a group code.
         </p>
       </div>
 
@@ -275,8 +275,9 @@ function SuccessPanel({
         Activity “{title}” is live for <span className="font-semibold">{className}</span>.
       </p>
       <p className="text-sm text-green-700">
-        Students who join this class&apos;s group code can now open the concept dialogue and explore the topic
-        you set. Want to ground it in curriculum materials? Configure it next.
+        Students who join this class&apos;s group code can open it now and explore the topic you set. Configure
+        it to add a workspace — a simulation, tables, a chart, a calculator, or guiding notes (and curriculum
+        documents if you want).
       </p>
       <div className="flex flex-wrap gap-3">
         {configureHref ? (
@@ -284,7 +285,7 @@ function SuccessPanel({
             href={configureHref}
             className="rounded-md bg-green-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-green-700"
           >
-            Configure &amp; add materials
+            Configure activity
           </Link>
         ) : null}
         <button
