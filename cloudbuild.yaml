@@ -302,6 +302,13 @@ steps:
       # frontend gets; sim_apps strips the trailing /sandbox.html to the base.
       # Unset => sim tools still list, but resources/read fails (skills unaffected).
       - '--set-env-vars=MCP_SANDBOX_URL=${_MCP_SANDBOX_URL}'
+      # EXT-MCP Tier 1 (1.1.49) — the sims' ui:// resources declare a stable
+      # widget domain so ChatGPT renders them under a dedicated sandbox origin
+      # (and clears the "widget domain required" app-submission warning). Value
+      # is this env's own public frontend origin. Unset => domain omitted (CSP is
+      # always declared in code; only the domain is env-gated). Per-env: set the
+      # test/prod frontend origin when those are cut.
+      - '--set-env-vars=MCP_WIDGET_DOMAIN=https://aipla-v01-frontend-wgwhd7mspa-lz.a.run.app'
 
   # --- Post-deploy smoke: fail the build if any critical endpoint is not 200 ---
   # Per CLAUDE.md: no feature lands with manual-only verification. This step

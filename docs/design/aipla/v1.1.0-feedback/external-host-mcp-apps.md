@@ -279,6 +279,33 @@ behind user approval. Tracked here as the path *if* external-host research captu
 ever required; out of scope for this sprint. (Same two-surface / trust-card tension as
 the in-app workbench — see the `workbench-element-builder` skill.)
 
+## Widget metadata + distribution (CSP, domain, the ChatGPT app store)
+
+**Tier 1 — shipped 2026-06-26.** Each `ui://` resource now declares `_meta.ui.csp`
+(locked down — our sims fetch nothing external, verified, so every domain list is
+empty and the host keeps its restrictive default of self + unsafe-inline + data:,
+matching the sandbox's ADR-013 CSP) and `_meta.ui.domain` (from `MCP_WIDGET_DOMAIN`
+= this env's frontend origin → ChatGPT renders the widget under a dedicated
+`<domain>.web-sandbox.oaiusercontent.com` sandbox origin instead of a
+per-conversation one). Both the standard `_meta.ui.*` keys and the OpenAI aliases
+(`openai/widgetCSP`, `openai/widgetDomain`) are emitted, in `backend/protocols/sim_apps.py`.
+This clears ChatGPT's "CSP/domain required for submission" warnings and is good
+hygiene; it does **not** change our own app (which reads `structuredContent` and
+ignores resource `_meta`).
+
+**Tier 2 — ChatGPT app store (future option, deliberately not ruled out).** Publishing
+to the public ChatGPT directory is a genuine distribution channel: teachers could use
+the AIPLA sims with **zero install**, just by adding the app in ChatGPT — potentially
+one of the lowest-friction ways to get this in front of teachers. Per OpenAI's
+[submission guidelines](https://developers.openai.com/apps-sdk/deploy/submission) it
+needs: org/business verification + `api.apps.write`; a public endpoint (we have one)
+likely behind **OAuth**; a submission package (logo, description, **company +
+privacy-policy URLs**, screenshots, test prompts/responses); and OpenAI review. It is
+also the fullest form of the exposure decision above — public to all ChatGPT users,
+AIPLA named as the "company", and a privacy policy covering student data. **Tier 1 is
+the technical prerequisite (done); Tier 2 is an ADR-level product/legal decision** —
+revisit if app-store distribution to teachers becomes a goal (it's a credible one).
+
 ## Acceptance criteria (roll-up)
 
 1. **Transport:** a remote MCP client (`streamablehttp_client`) can `initialize` +

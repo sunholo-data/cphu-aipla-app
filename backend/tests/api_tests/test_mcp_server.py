@@ -318,3 +318,31 @@ def test_discover_sims_skips_non_bridge_scaffold():
     names = {s.name for s in discover_sims()}
     assert "boldkast" in names
     assert "_template" not in names  # scaffold has no bridge handshake
+
+
+async def test_sim_resource_declares_locked_down_csp(_fresh_mcp):
+    """ChatGPT app-submission readiness: the ui:// resource carries a CSP."""
+    from protocols.sim_apps import register_sim_apps
+
+    register_sim_apps(_fresh_mcp)
+    contents = next(iter(await _fresh_mcp.read_resource("ui://aipla/boldkast/v1")))
+    meta = contents.meta or {}
+    # Self-contained sims -> no external domains (host keeps its restrictive default).
+    assert meta["ui"]["csp"]["connectDomains"] == []
+    assert meta["ui"]["csp"]["resourceDomains"] == []
+    # OpenAI-flavoured alias (snake_case) present for the Apps SDK validator.
+    assert meta["openai/widgetCSP"]["connect_domains"] == []
+
+
+def test_widget_meta_includes_domain_only_when_env_set(monkeypatch):
+    from protocols import sim_apps
+
+    monkeypatch.setattr(sim_apps, "WIDGET_DOMAIN", "https://example.test")
+    meta = sim_apps._widget_meta()
+    assert meta["ui"]["domain"] == "https://example.test"
+    assert meta["openai/widgetDomain"] == "https://example.test"
+
+    monkeypatch.setattr(sim_apps, "WIDGET_DOMAIN", "")
+    meta = sim_apps._widget_meta()
+    assert "domain" not in meta["ui"]
+    assert "openai/widgetDomain" not in meta

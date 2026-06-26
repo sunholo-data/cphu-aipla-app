@@ -60,6 +60,34 @@ KNOWN_SIMS: list[tuple[str, str, str]] = [
     ("led-planck", "v1", "LED-Planck — measuring Planck's constant"),
 ]
 
+# Widget metadata on the ui:// resource (design 1.1.49 Tier 1 — ChatGPT render +
+# app-submission readiness). Our sims are fully self-contained (inline canvas/JS,
+# no external fetches — verified), so the CSP locks down to NO external domains;
+# the host keeps its restrictive default (self + unsafe-inline + data:), matching
+# the sandbox's ADR-013 CSP. WIDGET_DOMAIN gives the view a stable, dedicated
+# sandbox origin (ChatGPT renders under <domain>.web-sandbox.oaiusercontent.com)
+# instead of a per-conversation one — set per-env via MCP_WIDGET_DOMAIN (omitted
+# when unset, e.g. local dev). Both the standard _meta.ui.* keys and the
+# OpenAI-flavoured aliases are emitted for host compatibility. None of this
+# affects our own app, which reads structuredContent and ignores resource _meta.
+WIDGET_DOMAIN = os.getenv("MCP_WIDGET_DOMAIN", "").strip()
+
+
+def _widget_meta() -> dict:
+    ui: dict = {
+        "csp": {"connectDomains": [], "resourceDomains": [], "frameDomains": []},
+        "prefersBorder": False,
+    }
+    meta: dict = {
+        "ui": ui,
+        # OpenAI-flavoured aliases (snake_case CSP), for the Apps SDK validator.
+        "openai/widgetCSP": {"connect_domains": [], "resource_domains": [], "frame_domains": []},
+    }
+    if WIDGET_DOMAIN:
+        ui["domain"] = WIDGET_DOMAIN
+        meta["openai/widgetDomain"] = WIDGET_DOMAIN
+    return meta
+
 
 class SimApp:
     """One discovered sim + a lazy, cached loader for its HTML."""
@@ -164,6 +192,7 @@ def register_sim_apps(mcp) -> list[str]:
             name=sim.title,
             description=f"AIPLA physics-tutor workbench sim ({sim.name} {sim.version}).",
             mime_type=UI_MIME_TYPE,
+            meta=_widget_meta(),
         )
         mcp.add_resource(resource)
 
