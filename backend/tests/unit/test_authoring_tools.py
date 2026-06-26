@@ -263,3 +263,80 @@ def test_add_element_text_kinds_owner_scoped():
 
     aid = _make_activity(TEACHER)
     assert add_element(element_kind="note", text="x", activity_id=aid, tool_context=_tc(OTHER))["ok"] is False
+
+
+# --- COPILOT-2 M4: structured elements — table / chart / calculator ---
+
+
+def test_add_element_table_builds_a_validated_spec():
+    from adk.authoring_tools import add_element
+
+    aid = _make_activity(TEACHER)
+    res = add_element(
+        element_kind="table",
+        title="Målinger",
+        columns=[{"label": "tid", "unit": "s", "kind": "number"}, {"label": "navn", "kind": "text"}],
+        rows=6,
+        activity_id=aid,
+        tool_context=_tc(TEACHER),
+    )
+    assert res["ok"] is True
+    assert res["proposal"]["element_kind"] == "table"
+    assert res["proposal"]["spec"]["rows"] == 6
+    assert [c["label"] for c in res["proposal"]["spec"]["columns"]] == ["tid", "navn"]
+
+
+def test_add_element_table_rejects_no_columns():
+    from adk.authoring_tools import add_element
+
+    aid = _make_activity(TEACHER)
+    assert add_element(element_kind="table", columns=[], activity_id=aid, tool_context=_tc(TEACHER))["ok"] is False
+
+
+def test_add_element_chart_carries_kind():
+    from adk.authoring_tools import add_element
+
+    aid = _make_activity(TEACHER)
+    res = add_element(element_kind="chart", chart_kind="line", title="v-t", activity_id=aid, tool_context=_tc(TEACHER))
+    assert res["ok"] is True
+    assert res["proposal"]["spec"]["chartKind"] == "line"
+
+
+def test_add_element_chart_rejects_unknown_kind():
+    from adk.authoring_tools import add_element
+
+    aid = _make_activity(TEACHER)
+    assert (
+        add_element(element_kind="chart", chart_kind="pie", activity_id=aid, tool_context=_tc(TEACHER))["ok"] is False
+    )
+
+
+def test_add_element_calculator_validates_formula_coherence():
+    from adk.authoring_tools import add_element
+
+    aid = _make_activity(TEACHER)
+    ok = add_element(
+        element_kind="calculator",
+        formula="s / t",
+        inputs=[{"id": "s", "label": "strækning", "unit": "m"}, {"id": "t", "label": "tid", "unit": "s"}],
+        activity_id=aid,
+        tool_context=_tc(TEACHER),
+    )
+    assert ok["ok"] is True
+    assert ok["proposal"]["spec"]["formula"] == "s / t"
+    # a formula referencing an undefined variable is rejected (coherence)
+    bad = add_element(
+        element_kind="calculator",
+        formula="s / q",
+        inputs=[{"id": "s", "label": "strækning"}],
+        activity_id=aid,
+        tool_context=_tc(TEACHER),
+    )
+    assert bad["ok"] is False
+
+
+def test_add_element_structured_kinds_owner_scoped():
+    from adk.authoring_tools import add_element
+
+    aid = _make_activity(TEACHER)
+    assert add_element(element_kind="chart", chart_kind="bar", activity_id=aid, tool_context=_tc(OTHER))["ok"] is False

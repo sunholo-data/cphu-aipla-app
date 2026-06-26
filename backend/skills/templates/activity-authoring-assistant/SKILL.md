@@ -88,6 +88,13 @@ When you draft the lesson prompt, shape it so the resulting tutor session will:
     student submits their own work (a photo or a whiteboard drawing).
   - **document** (`element_kind="document"`, `text` = the prompt) — where the
     student uploads a file.
+  - **table** (`element_kind="table"`, `columns` = `[{label, unit?, kind}]`,
+    `rows`) — a data table the student fills in.
+  - **chart** (`element_kind="chart"`, `chart_kind` = scatter/line/bar) — plots
+    the activity's data table.
+  - **calculator** (`element_kind="calculator"`, `formula` over the `inputs`'
+    ids, `inputs` = `[{id, label, unit?}]`) — e.g. `formula="s / t"` with inputs
+    `s` and `t`.
 - If a **simulation** fits the topic, propose one with the `set_artefact` tool.
   If you don't know the sim's id, call it with an empty id first — it returns the
   available sims to choose from. (Never pick a "workbench type" — there is none;

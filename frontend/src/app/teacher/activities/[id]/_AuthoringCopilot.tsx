@@ -48,6 +48,23 @@ export type Proposal =
   | { kind: "add_element"; elementKind: "checklist"; items: string[]; label: string }
   | { kind: "add_element"; elementKind: "note"; title: string; body: string; label: string }
   | { kind: "add_element"; elementKind: "solution" | "document"; prompt: string; label: string }
+  | {
+      kind: "add_element";
+      elementKind: "table";
+      title: string;
+      columns: { label: string; unit: string; kind: "number" | "text" }[];
+      rows: number;
+      label: string;
+    }
+  | { kind: "add_element"; elementKind: "chart"; title: string; chartKind: "scatter" | "line" | "bar"; label: string }
+  | {
+      kind: "add_element";
+      elementKind: "calculator";
+      title: string;
+      formula: string;
+      inputs: { id: string; label: string; unit: string }[];
+      label: string;
+    }
   | { kind: "set_artefact"; artefactId: string; label: string };
 
 export type ApplyProposal = (proposal: Proposal) => void;
@@ -115,6 +132,35 @@ export function parseProposal(tc: ToolCallState): Proposal | null {
       }
       if ((ek === "solution" || ek === "document") && typeof spec.prompt === "string") {
         return { kind: "add_element", elementKind: ek, prompt: spec.prompt, label };
+      }
+      if (ek === "table" && Array.isArray(spec.columns)) {
+        return {
+          kind: "add_element",
+          elementKind: "table",
+          title: typeof spec.title === "string" ? spec.title : "",
+          columns: spec.columns as { label: string; unit: string; kind: "number" | "text" }[],
+          rows: typeof spec.rows === "number" ? spec.rows : 5,
+          label,
+        };
+      }
+      if (ek === "chart" && typeof spec.chartKind === "string") {
+        return {
+          kind: "add_element",
+          elementKind: "chart",
+          title: typeof spec.title === "string" ? spec.title : "",
+          chartKind: spec.chartKind as "scatter" | "line" | "bar",
+          label,
+        };
+      }
+      if (ek === "calculator" && typeof spec.formula === "string" && Array.isArray(spec.inputs)) {
+        return {
+          kind: "add_element",
+          elementKind: "calculator",
+          title: typeof spec.title === "string" ? spec.title : "",
+          formula: spec.formula,
+          inputs: spec.inputs as { id: string; label: string; unit: string }[],
+          label,
+        };
       }
       return null;
     }
@@ -253,21 +299,8 @@ function ProposalCard({ proposal, onApply }: { proposal: Proposal; onApply: Appl
         />
       ) : editable !== null ? (
         <p className="whitespace-pre-wrap">{editable}</p>
-      ) : proposal.kind === "add_element" && proposal.elementKind === "checklist" ? (
-        <ul className="list-disc pl-5 text-sm" data-testid="proposal-items">
-          {proposal.items.map((it, i) => (
-            <li key={i}>{it}</li>
-          ))}
-        </ul>
-      ) : proposal.kind === "add_element" && proposal.elementKind === "note" ? (
-        <div data-testid="proposal-note">
-          {proposal.title ? <p className="font-medium">{proposal.title}</p> : null}
-          <p className="whitespace-pre-wrap text-sm">{proposal.body}</p>
-        </div>
       ) : proposal.kind === "add_element" ? (
-        <p className="whitespace-pre-wrap text-sm" data-testid="proposal-prompt">
-          {proposal.prompt}
-        </p>
+        <AddElementBody proposal={proposal} />
       ) : proposal.kind === "set_artefact" ? (
         <p className="text-sm" data-testid="proposal-sim">
           {proposal.label}
@@ -303,6 +336,52 @@ function ProposalCard({ proposal, onApply }: { proposal: Proposal; onApply: Appl
       </div>
     </div>
   );
+}
+
+/** Card body preview for an add_element proposal, per element kind. */
+function AddElementBody({ proposal }: { proposal: Extract<Proposal, { kind: "add_element" }> }) {
+  switch (proposal.elementKind) {
+    case "checklist":
+      return (
+        <ul className="list-disc pl-5 text-sm" data-testid="proposal-items">
+          {proposal.items.map((it, i) => (
+            <li key={i}>{it}</li>
+          ))}
+        </ul>
+      );
+    case "note":
+      return (
+        <div data-testid="proposal-note">
+          {proposal.title ? <p className="font-medium">{proposal.title}</p> : null}
+          <p className="whitespace-pre-wrap text-sm">{proposal.body}</p>
+        </div>
+      );
+    case "solution":
+    case "document":
+      return (
+        <p className="whitespace-pre-wrap text-sm" data-testid="proposal-prompt">
+          {proposal.prompt}
+        </p>
+      );
+    case "table":
+      return (
+        <p className="text-sm" data-testid="proposal-table">
+          {proposal.columns.map((c) => c.label).join(", ")} · {proposal.rows} rækker
+        </p>
+      );
+    case "chart":
+      return (
+        <p className="text-sm" data-testid="proposal-chart">
+          {proposal.chartKind}
+        </p>
+      );
+    case "calculator":
+      return (
+        <p className="font-mono text-sm" data-testid="proposal-calc">
+          {proposal.formula}
+        </p>
+      );
+  }
 }
 
 /** Hide the `[activity_id=…] ` prefix from the rendered user bubble. */

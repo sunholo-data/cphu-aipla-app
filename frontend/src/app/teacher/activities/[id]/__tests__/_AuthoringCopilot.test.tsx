@@ -231,3 +231,49 @@ describe("AuthoringCopilot — note/solution/document elements (COPILOT-2 M3)", 
     expect(onApply).toHaveBeenCalledWith({ kind: "add_element", elementKind: "solution", prompt: "Vis din løsning.", label: "Løsningsfelt" });
   });
 });
+
+const TABLE = JSON.stringify({
+  ok: true,
+  proposal: { kind: "add_element", element_kind: "table", spec: { title: "Målinger", columns: [{ label: "tid", unit: "s", kind: "number" }], rows: 6 }, label: "Tabel (1 kolonner)" },
+});
+const CHART = JSON.stringify({
+  ok: true,
+  proposal: { kind: "add_element", element_kind: "chart", spec: { title: "v-t", chartKind: "line" }, label: "Graf (line)" },
+});
+const CALC = JSON.stringify({
+  ok: true,
+  proposal: { kind: "add_element", element_kind: "calculator", spec: { title: "Fart", formula: "s / t", inputs: [{ id: "s", label: "strækning", unit: "m" }, { id: "t", label: "tid", unit: "s" }] }, label: "Lommeregner" },
+});
+
+describe("AuthoringCopilot — structured elements table/chart/calculator (COPILOT-2 M4)", () => {
+  it("parses + Apply routes a table proposal", async () => {
+    expect(parseProposal(tc({ resultContent: TABLE }))).toEqual({
+      kind: "add_element", elementKind: "table", title: "Målinger", columns: [{ label: "tid", unit: "s", kind: "number" }], rows: 6, label: "Tabel (1 kolonner)",
+    });
+    const onApply = vi.fn();
+    mockHook.toolCalls = [tc({ resultContent: TABLE })];
+    render(<AuthoringCopilot activityId="act-1" onApplyProposal={onApply} />);
+    expect(await screen.findByTestId("proposal-table")).toHaveTextContent("tid");
+    fireEvent.click(screen.getByRole("button", { name: /anvend/i }));
+    expect(onApply).toHaveBeenCalledWith(expect.objectContaining({ elementKind: "table", rows: 6 }));
+  });
+
+  it("parses chart (kind) + calculator (formula + inputs)", () => {
+    expect(parseProposal(tc({ resultContent: CHART }))).toEqual({
+      kind: "add_element", elementKind: "chart", title: "v-t", chartKind: "line", label: "Graf (line)",
+    });
+    expect(parseProposal(tc({ resultContent: CALC }))).toEqual({
+      kind: "add_element", elementKind: "calculator", title: "Fart", formula: "s / t",
+      inputs: [{ id: "s", label: "strækning", unit: "m" }, { id: "t", label: "tid", unit: "s" }], label: "Lommeregner",
+    });
+  });
+
+  it("renders the calculator formula + Apply routes it", async () => {
+    const onApply = vi.fn();
+    mockHook.toolCalls = [tc({ resultContent: CALC })];
+    render(<AuthoringCopilot activityId="act-1" onApplyProposal={onApply} />);
+    expect(await screen.findByTestId("proposal-calc")).toHaveTextContent("s / t");
+    fireEvent.click(screen.getByRole("button", { name: /anvend/i }));
+    expect(onApply).toHaveBeenCalledWith(expect.objectContaining({ elementKind: "calculator", formula: "s / t" }));
+  });
+});
