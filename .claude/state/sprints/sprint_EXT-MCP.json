@@ -53,10 +53,11 @@
         "backend/tests/api_tests/test_mcp_server.py",
         "backend/Dockerfile"
       ],
-      "passes": null,
-      "started": null,
-      "completed": null,
-      "notes": "FastMCP supports meta= on add_tool and mime_type=/meta= on resources (verified). Main risk is artefact availability in the backend sidecar image (artefacts currently live only in the sandbox image) + FunctionResource constructor specifics — both verifiable by the in-process TestClient unit test, no deploy needed."
+      "passes": true,
+      "started": "2026-06-26T14:45:00Z",
+      "completed": "2026-06-26T14:52:00Z",
+      "actual_loc": 230,
+      "notes": "Done. backend/protocols/sim_apps.py: discover_sims() (FS scan when present, else KNOWN_SIMS) + register_sim_apps(mcp) registers each as a FunctionResource (ui://aipla/<name>/<ver>, mime text/html;profile=mcp-app, lazy load_html) + show_<name> tool with meta {ui.resourceUri+visibility, openai/outputTemplate}. Wired into get_mcp_asgi_app() (defensive try/except). Artefact availability: FS-first (dev/CI/tests read the repo path), lazy sandbox-URL fetch in prod via MCP_SANDBOX_URL (derived from the existing _MCP_SANDBOX_URL substitution) — NO Dockerfile bake, NO git duplication, NO startup network. DEVIATION from plan: no backend/Dockerfile change; instead M3 adds MCP_SANDBOX_URL to the sidecar env in cloudbuild. Gotcha fixed: tool fn must have zero params (FastMCP turns params into inputSchema; _title default-arg rejected) -> factory closure. Test-isolation fix: extended _clean_registry autouse fixture to also clear sim tools (they register on the shared instance at app import, leaking into the rebuild_tools tool-list assertions). 4 new tests; make lint + make test-fast green (2274 passed)."
     },
     {
       "id": "M3",

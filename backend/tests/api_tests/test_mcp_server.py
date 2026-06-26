@@ -44,16 +44,26 @@ def _skill(
 @pytest.fixture(autouse=True)
 def _clean_registry():
     """Each test starts with a fresh MCP tool registry."""
-    from protocols import mcp_server
+    from protocols import mcp_server, sim_apps
 
-    # Remove anything left over from another test / module init.
-    for skill_id, tool_name in list(mcp_server._registered.items()):
-        mcp_server.mcp.remove_tool(tool_name)
-        del mcp_server._registered[skill_id]
+    def _clear():
+        # Skill tools.
+        for skill_id, tool_name in list(mcp_server._registered.items()):
+            mcp_server.mcp.remove_tool(tool_name)
+            del mcp_server._registered[skill_id]
+        # Sim MCP-App tools register on the SAME shared instance at app import
+        # (get_mcp_asgi_app). Clear them too so per-test tool-list assertions see
+        # only what the test sets up.
+        for tool_name in list(sim_apps._registered):
+            try:
+                mcp_server.mcp.remove_tool(tool_name)
+            except Exception:
+                pass
+        sim_apps._registered.clear()
+
+    _clear()
     yield
-    for skill_id, tool_name in list(mcp_server._registered.items()):
-        mcp_server.mcp.remove_tool(tool_name)
-        del mcp_server._registered[skill_id]
+    _clear()
 
 
 # --- Tool-name sanitisation ---
@@ -245,3 +255,66 @@ def test_mcp_initialize_via_http_mount_returns_jsonrpc_result():
     # always includes the serverInfo we registered on the FastMCP instance.
     assert '"serverInfo"' in resp.text
     assert '"aitana-platform"' in resp.text
+
+
+# --- Sims as ui:// MCP Apps (design 1.1.49) ---
+
+
+@pytest.fixture
+def _fresh_mcp():
+    """A throwaway FastMCP + isolated sim-registration state for each test."""
+    from mcp.server.fastmcp import FastMCP
+
+    from protocols import sim_apps
+
+    saved = set(sim_apps._registered)
+    sim_apps._registered.clear()
+    try:
+        yield FastMCP("test-sims")
+    finally:
+        sim_apps._registered.clear()
+        sim_apps._registered.update(saved)
+
+
+async def test_register_sim_apps_registers_ui_linked_tools(_fresh_mcp):
+    from protocols.sim_apps import register_sim_apps
+
+    added = register_sim_apps(_fresh_mcp)
+    assert {"show_boldkast", "show_kinebot", "show_led_planck"} <= set(added)
+
+    tools = {t.name: t for t in await _fresh_mcp.list_tools()}
+    bold = tools["show_boldkast"]
+    # Both the standard linkage and the ChatGPT-flavoured key are set.
+    assert bold.meta["ui"]["resourceUri"] == "ui://aipla/boldkast/v1"
+    assert bold.meta["openai/outputTemplate"] == "ui://aipla/boldkast/v1"
+    # The tool takes no arguments (FastMCP turns fn params into inputSchema).
+    assert bold.inputSchema.get("properties") == {}
+
+
+async def test_sim_resource_read_returns_mcp_app_html(_fresh_mcp):
+    from protocols.sim_apps import register_sim_apps
+
+    register_sim_apps(_fresh_mcp)
+    contents = list(await _fresh_mcp.read_resource("ui://aipla/boldkast/v1"))
+    assert contents, "expected resource content"
+    block = contents[0]
+    assert block.mime_type == "text/html;profile=mcp-app"
+    assert "ui/initialize" in block.content  # speaks the SEP-1865 bridge
+    assert "<!doctype html>" in block.content.lower()
+
+
+def test_register_sim_apps_is_idempotent(_fresh_mcp):
+    from protocols.sim_apps import register_sim_apps
+
+    first = register_sim_apps(_fresh_mcp)
+    second = register_sim_apps(_fresh_mcp)
+    assert first, "first call should register sims"
+    assert second == [], "second call should add nothing"
+
+
+def test_discover_sims_skips_non_bridge_scaffold():
+    from protocols.sim_apps import discover_sims
+
+    names = {s.name for s in discover_sims()}
+    assert "boldkast" in names
+    assert "_template" not in names  # scaffold has no bridge handshake

@@ -33,6 +33,7 @@ from mcp.server.transport_security import TransportSecuritySettings
 
 from auth.access_context import build_access_context
 from auth.firebase_auth import User
+from protocols.sim_apps import register_sim_apps
 from skills.skill_config import list_marketplace
 
 if TYPE_CHECKING:
@@ -159,4 +160,10 @@ def rebuild_tools() -> None:
 def get_mcp_asgi_app() -> ASGIApp:
     """Return the MCP streamable-HTTP ASGI app ready to mount on FastAPI."""
     rebuild_tools()
+    # Additively expose the sims as ui:// MCP Apps (design 1.1.49). Idempotent;
+    # never blocks startup (artefact HTML loads lazily on resources/read).
+    try:
+        register_sim_apps(mcp)
+    except Exception:
+        logger.exception("mcp_server: register_sim_apps failed; sims unavailable, skills unaffected")
     return mcp.streamable_http_app()
