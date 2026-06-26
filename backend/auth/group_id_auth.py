@@ -638,15 +638,22 @@ def _mint_token(uid: str, group_id: str, now: float) -> tuple[str, float]:
 def _resolve_live_class_context(group_id: str, record: GroupRecord) -> tuple[tuple[str, ...], str | None, str | None]:
     """Resolve ``(skill_ids, class_name, class_id)`` for a group code.
 
-    Class-bound codes read their lesson list from the live ``Class.lessons``
-    (so teacher edits show up without re-minting the code); unbound codes fall
-    back to the snapshot in ``GroupRecord.skill_ids``. Shared by join + refresh.
+    Class-bound codes derive their live skill list from the class (so teacher
+    edits show up without re-minting the code); unbound codes fall back to the
+    snapshot in ``GroupRecord.skill_ids``. Shared by join + refresh.
+
+    NEW model (ALS-1): a class's skills are the skills of its assigned
+    ``activityIds`` (resolved via the ``activities`` collection). The legacy
+    ``Class.lessons`` is only used as a fallback for a class that has no
+    activities yet (pre-backfill) — after the clean-slate wipe every class is
+    activity-driven, so reading ``lessons`` here would resolve to an EMPTY skill
+    list and the student's universal lessons view would show nothing.
     """
     live_skill_ids = record.skill_ids
     resolved_class_name: str | None = None
     resolved_class_id: str | None = None
 
-    from db.classes import get_class
+    from db.classes import get_class, live_skill_ids_for_class
     from db.firestore import get_document
 
     anon_doc = get_document("anon_groups", group_id)
@@ -655,7 +662,7 @@ def _resolve_live_class_context(group_id: str, record: GroupRecord) -> tuple[tup
         if bound_class_id:
             cls = get_class(bound_class_id)
             if cls and not cls.revoked:
-                live_skill_ids = tuple(cls.lessons)
+                live_skill_ids = live_skill_ids_for_class(cls)
                 resolved_class_name = cls.name
                 resolved_class_id = cls.class_id
     return live_skill_ids, resolved_class_name, resolved_class_id

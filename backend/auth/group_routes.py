@@ -270,14 +270,14 @@ async def get_my_skill_ids(
 ) -> CurrentSkillsResponse:
     """Return the current lesson list for the authenticated group member.
 
-    Live-resolves from ``Class.lessons`` so that teacher updates (add/remove
-    lesson) are visible to students immediately on the next ``/lessons`` page
-    load, without requiring a re-join. 404 if the caller is not a group-auth
-    user (no group_id on their token).
+    Live-resolves the class's skills from its assigned activities (new model)
+    so that teacher updates (add/remove activity) are visible to students
+    immediately on the next ``/lessons`` page load, without requiring a re-join.
+    404 if the caller is not a group-auth user (no group_id on their token).
     """
     if not user.group_id:
         raise HTTPException(status_code=404, detail="not a group-auth user")
-    from db.classes import get_class
+    from db.classes import get_class, live_skill_ids_for_class
     from db.firestore import get_document
 
     anon_doc = get_document("anon_groups", user.group_id)
@@ -287,7 +287,7 @@ async def get_my_skill_ids(
             cls = get_class(bound_class_id)
             if cls and not cls.revoked:
                 return CurrentSkillsResponse(
-                    skill_ids=list(cls.lessons),
+                    skill_ids=list(live_skill_ids_for_class(cls)),
                     class_name=cls.name,
                     class_id=cls.class_id,
                 )

@@ -81,6 +81,26 @@ def get_class(class_id: str) -> Class | None:
     return _from_firestore(data, class_id)
 
 
+def live_skill_ids_for_class(cls: Class) -> tuple[str, ...]:
+    """The class's live skill list (NEW model): the skills of its assigned
+    activities (``Class.activityIds`` → the ``activities`` collection), deduped
+    and order-preserving. Falls back to the legacy ``Class.lessons`` ONLY when
+    the class has no activities (a pre-backfill class). Used to gate the
+    student's visible lessons; reading ``lessons`` directly would resolve to an
+    empty list for an activity-driven class (e.g. anything created after the
+    clean-slate wipe, including the onboarding demo)."""
+    from db.activities import get_activity
+
+    skill_ids: list[str] = []
+    seen: set[str] = set()
+    for activity_id in cls.activity_ids:
+        activity = get_activity(activity_id)
+        if activity and activity.skill_id and activity.skill_id not in seen:
+            seen.add(activity.skill_id)
+            skill_ids.append(activity.skill_id)
+    return tuple(skill_ids) if skill_ids else tuple(cls.lessons)
+
+
 def list_classes_for_owner(owner_uid: str, *, include_revoked: bool = False) -> list[Class]:
     """List classes by owner. Excludes revoked by default."""
     docs = query_documents(
@@ -390,6 +410,7 @@ __all__ = [
     "get_class",
     "list_all_classes",
     "list_classes_for_owner",
+    "live_skill_ids_for_class",
     "mint_group_codes_under_class",
     "remove_lessons",
     "revoke_class",

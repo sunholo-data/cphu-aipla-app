@@ -222,3 +222,37 @@ class TestGroupBinding:
         reloaded = classes_db.get_class(cls.class_id)
         assert reloaded is not None
         assert code not in reloaded.group_codes
+
+
+class TestLiveSkillIdsForClass:
+    """The new-model skill resolution that gates a student's visible lessons:
+    a class's skills = the skills of its assigned activities (not Class.lessons,
+    which is empty for activity-driven classes after the clean-slate wipe)."""
+
+    def test_resolves_skill_ids_from_assigned_activities_deduped(self) -> None:
+        from db.activities import create_activity
+        from db.models.activity import Activity
+
+        cls = _create()
+        a1 = create_activity(Activity(activityId="", ownerUid="teacher-1", skillId="concept-dialogue", title="A"))
+        a2 = create_activity(Activity(activityId="", ownerUid="teacher-1", skillId="problem-set-hints", title="B"))
+        a3 = create_activity(Activity(activityId="", ownerUid="teacher-1", skillId="concept-dialogue", title="C"))
+        classes_db.add_activities(cls.class_id, [a1.activity_id, a2.activity_id, a3.activity_id])
+
+        reloaded = classes_db.get_class(cls.class_id)
+        assert reloaded is not None
+        # Deduped + order-preserving: concept appears once, before problem-set.
+        assert classes_db.live_skill_ids_for_class(reloaded) == ("concept-dialogue", "problem-set-hints")
+
+    def test_falls_back_to_lessons_when_no_activities(self) -> None:
+        cls = _create()
+        classes_db.add_lessons(cls.class_id, ["legacy-skill-x"])
+        reloaded = classes_db.get_class(cls.class_id)
+        assert reloaded is not None
+        assert classes_db.live_skill_ids_for_class(reloaded) == ("legacy-skill-x",)
+
+    def test_empty_when_no_activities_and_no_lessons(self) -> None:
+        cls = _create()
+        reloaded = classes_db.get_class(cls.class_id)
+        assert reloaded is not None
+        assert classes_db.live_skill_ids_for_class(reloaded) == ()
