@@ -86,7 +86,10 @@ describe("TeacherActivitiesPage (ALS-1 M1.2 library)", () => {
     render(<TeacherActivitiesPage />);
 
     await waitFor(() => expect(screen.getByText("Energy basics")).toBeInTheDocument());
-    expect(screen.getByText("Concept dialogue")).toBeInTheDocument();
+    // The legacy workbench-type badge was dropped; a chat-only activity reads
+    // from its (empty) composition row instead.
+    expect(screen.queryByText("Concept dialogue")).not.toBeInTheDocument();
+    expect(screen.getByText(/Chat only/i)).toBeInTheDocument();
     // The assigned class is a pressed chip-toggle (no separate read-only chip row).
     const assignedChip = screen.getByRole("button", { name: "Physics A — 7B" });
     expect(assignedChip).toHaveAttribute("aria-pressed", "true");

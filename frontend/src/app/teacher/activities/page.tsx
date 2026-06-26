@@ -17,17 +17,6 @@ import { EmptyState } from "@/components/teacher/ui/EmptyState";
 import { TeacherCard } from "@/components/teacher/ui/TeacherCard";
 import { TeacherPage } from "@/components/teacher/ui/TeacherPage";
 
-/** Human labels for the workbench-type badge (1.J types). */
-const WORKBENCH_LABELS: Record<string, string> = {
-  none: "Concept dialogue",
-  app: "Sim",
-  drawing: "Drawing board",
-  notebook: "Lab notebook",
-  sensor: "Experiment tool",
-  video: "Video analysis",
-  document: "Document feedback",
-};
-
 /** Friendly names for the catalogued sim artefacts (fallback: the raw id). */
 const SIM_NAMES: Record<string, string> = {
   boldkast: "Boldkast",
@@ -304,12 +293,11 @@ function ActivityCard({
         <h2 className="text-sm font-semibold">
           {activity.title || activity.teachingGoal?.slice(0, 60) || activity.activityId}
         </h2>
-        <div className="flex shrink-0 items-center gap-1">
-          <VisibilityBadge visibility={activity.visibility} />
-          <span className="rounded bg-muted px-1.5 py-0.5 text-[11px] font-medium text-muted-foreground">
-            {WORKBENCH_LABELS[activity.workbenchType ?? "none"] ?? activity.workbenchType}
-          </span>
-        </div>
+        {/* Visibility (Draft/Published) only. The legacy workbench_type badge
+            ("Sim"/"Concept dialogue") was dropped: it conflated the tutor skill
+            with the student surface, and the composition row below already shows
+            what the activity is made of. */}
+        <VisibilityBadge visibility={activity.visibility} />
       </div>
 
       <CompositionRow activity={activity} />
