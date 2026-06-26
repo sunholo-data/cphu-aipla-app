@@ -192,6 +192,77 @@ follow-up. JB/M sign-off on dev exposure of the three sims before advertising th
 Full step-by-step for both lives in
 [`infrastructure/mcp-sandbox/external-host-demo/WORKSHOP.md`](../../../../infrastructure/mcp-sandbox/external-host-demo/WORKSHOP.md).
 
+## Communication & observability in an external host (vs the AIPLA app)
+
+*Added 2026-06-26 after first ChatGPT render — answers "can we log what the student
+does in the sim from ChatGPT?" (no) and "how does it communicate?" (same bridge,
+different sink).*
+
+### The channels are identical; the data sink is not
+
+A sim is the same artefact everywhere — it speaks **one** bridge (JSON-RPC over
+`postMessage`) to whatever host renders it. What differs is **who consumes the
+messages**.
+
+| Channel | In the AIPLA app | In ChatGPT / Claude Desktop |
+|---|---|---|
+| Host → our server: `tools/call show_<sim>`, `resources/read ui://…` | our backend (visible in MCP request logs) | our backend via `/api/mcp` (visible in MCP request logs) |
+| Sim → host: **`ui/update-model-context`** (the student's actions) | our frontend catches it → `POST /api/sessions/{id}/iframe-context` → session state (`mcp_app_context.<sim>`) + BigQuery chat-log pipeline + renders the **"shared with the AI" trust card** | the **host's own model context**. **Never reaches AIPLA.** |
+| Host → sim: `ui/initialize` (theme/size), `tool-input`, `tool-result`, `ping` | our frontend | the external host |
+| `ui/notifications/chat-flush` (flush pending slider changes before a chat turn) | our frontend sends it before a chat submit | **external hosts don't send it** — it's our custom message |
+
+So the **sim side is identical** in every host; the **AIPLA-specific data capture
+lives entirely in our frontend host**. An external host receives the same
+`ui/update-model-context` stream but feeds it to *its* model — we see none of it.
+
+### What AIPLA can and cannot see when a sim runs in ChatGPT
+
+- **CAN see** (backend MCP request logs, verified 2026-06-26 ~13:31–13:32 UTC for the
+  first ChatGPT session): the connector initialized, listed tools, called
+  `show_boldkast`, and read `ui://aipla/boldkast/v1` — i.e. **that the sim was
+  opened**. (`POST /mcp/ → 200`; plus the startup line `sim_apps: registered 3 sim
+  MCP App(s)`.)
+- **CANNOT see**: anything the student *did* inside the sim — slider changes, play,
+  revealed values. Those ride `ui/update-model-context` to the external host's model
+  and never touch our backend. No session, no BigQuery row, no engagement signal
+  (1.1.17), no trust card.
+
+> **Research implication (important).** The external-host path is a **demo /
+> dissemination / bring-your-own-AI** surface, **not a research-data surface**. To
+> capture student interactions for the study (the [chat-log pipeline](../v1.0.0-pilot/implemented/chat-log-pipeline.md),
+> [engagement signals](student-engagement-signals.md)), students must use the
+> **AIPLA app**, where our frontend host persists the bridge events. A sim used via
+> ChatGPT/Claude is invisible to the research pipeline.
+
+### Why ChatGPT reported "I haven't received any updates"
+
+Both reasons are expected, not a bug:
+1. **Commit-on-submit gating (by design).** Boldkast accumulates slider changes
+   locally and only emits them on a deliberate commit — pressing **Afspil (play)** —
+   or on `ui/notifications/chat-flush`. Dragging sliders alone emits nothing (1.E
+   Phase 2, [workbench-state-debounce](../v1.0.0-pilot/workbench-state-debounce.md)).
+2. **ChatGPT doesn't send `chat-flush`** (our custom message — only our frontend
+   sends it before a chat submit). So in ChatGPT, **only pressing Afspil** commits
+   the state to the model; sending a chat message does *not* flush pending changes.
+   Hosts also MAY defer context to the next user message (spec). **To see it work in
+   ChatGPT: change a parameter → press Afspil → then ask "what did I just do?".**
+
+### Render lifecycle ("it rendered for a while then not")
+
+Hosts own the iframe lifecycle and may tear the View down (`ui/resource-teardown`)
+on a new turn, scroll-away, or memory pressure — then show the text fallback.
+Re-invoking the tool re-renders. This is host behaviour, not artefact state loss.
+
+### To capture external-host interactions (future option, not built)
+
+The only sim→AIPLA channel from an external host is **`tools/call`**. An artefact
+could call a `record_sim_interaction` tool on our MCP server (the host proxies it to
+us) instead of/alongside `ui/update-model-context`. Costs: needs an attributable
+session/identity (absent on an anonymous connector) and hosts may gate tool calls
+behind user approval. Tracked here as the path *if* external-host research capture is
+ever required; out of scope for this sprint. (Same two-surface / trust-card tension as
+the in-app workbench — see the `workbench-element-builder` skill.)
+
 ## Acceptance criteria (roll-up)
 
 1. **Transport:** a remote MCP client (`streamablehttp_client`) can `initialize` +
