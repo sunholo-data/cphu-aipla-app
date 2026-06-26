@@ -3,9 +3,10 @@
 import { type ComponentType, useEffect, useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { BarChart3, ClipboardList, PanelLeftClose, PanelLeftOpen, Settings, Users } from "lucide-react";
+import { BarChart3, ClipboardList, Microscope, PanelLeftClose, PanelLeftOpen, Settings, Users } from "lucide-react";
 
 import { cn } from "@/lib/utils";
+import { useIsResearcher } from "@/hooks/useIsResearcher";
 
 const COLLAPSE_KEY = "teacher-nav-collapsed";
 
@@ -39,6 +40,18 @@ const DESTINATIONS: Destination[] = [
   { href: "/teacher/settings", label: "Settings", icon: Settings, match: ["/teacher/settings"] },
 ];
 
+/**
+ * Researcher-only destination (1.1.5): the cross-teacher read-only research scan.
+ * Appended after the core four when the account carries the `role:researcher`
+ * claim — it is a separate place, not a toggle inside the teacher library.
+ */
+const RESEARCH_DESTINATION: Destination = {
+  href: "/teacher/research/activities",
+  label: "Research",
+  icon: Microscope,
+  match: ["/teacher/research"],
+};
+
 function isActive(pathname: string, match: string[]): boolean {
   return match.some((m) => pathname === m || pathname.startsWith(`${m}/`));
 }
@@ -52,6 +65,9 @@ function isActive(pathname: string, match: string[]): boolean {
  */
 export function TeacherNav() {
   const pathname = usePathname() ?? "";
+  // Researchers get one extra destination (the cross-teacher Research scan).
+  const isResearcher = useIsResearcher();
+  const destinations = isResearcher ? [...DESTINATIONS, RESEARCH_DESTINATION] : DESTINATIONS;
   // Collapse the desktop rail to an icon strip to give app-like surfaces (the
   // activity builder) more room. Persisted so it stays across navigation +
   // refresh. Default expanded (server render); synced from storage on mount.
@@ -102,7 +118,7 @@ export function TeacherNav() {
           )}
           {!collapsed ? <span className="text-xs font-medium">Collapse</span> : null}
         </button>
-        {DESTINATIONS.map((d) => {
+        {destinations.map((d) => {
           const active = isActive(pathname, d.match);
           const Icon = d.icon;
           return (
@@ -131,7 +147,7 @@ export function TeacherNav() {
         aria-label="Teacher sections"
         className="fixed inset-x-0 bottom-0 z-20 flex items-stretch border-t border-border bg-background md:hidden"
       >
-        {DESTINATIONS.map((d) => {
+        {destinations.map((d) => {
           const active = isActive(pathname, d.match);
           const Icon = d.icon;
           return (

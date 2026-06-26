@@ -1,18 +1,35 @@
 import { render, screen } from "@testing-library/react";
-import { describe, expect, it, vi } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const mockPathname = vi.fn<() => string>(() => "/teacher/classes");
 vi.mock("next/navigation", () => ({ usePathname: () => mockPathname() }));
 
+// Controllable researcher claim — drives the extra "Research" destination.
+const { researcherRef } = vi.hoisted(() => ({ researcherRef: { current: false } }));
+vi.mock("@/hooks/useIsResearcher", () => ({ useIsResearcher: () => researcherRef.current }));
+
 import { TeacherNav } from "@/components/teacher/ui/TeacherNav";
 
+beforeEach(() => {
+  researcherRef.current = false;
+});
+
 describe("TeacherNav", () => {
-  it("renders all four destinations in both rail and bottom bar", () => {
+  it("renders the four core destinations (no Research) for a non-researcher", () => {
     mockPathname.mockReturnValue("/teacher/classes");
     render(<TeacherNav />);
     for (const label of ["Classes", "Activities", "Insights", "Settings"]) {
       expect(screen.getAllByRole("link", { name: new RegExp(label) })).toHaveLength(2);
     }
+    expect(screen.queryByRole("link", { name: /Research/ })).not.toBeInTheDocument();
+  });
+
+  it("adds a Research destination for a researcher", () => {
+    researcherRef.current = true;
+    mockPathname.mockReturnValue("/teacher/classes");
+    render(<TeacherNav />);
+    // Present in both the rail and the bottom bar.
+    expect(screen.getAllByRole("link", { name: /Research/ })).toHaveLength(2);
   });
 
   it("marks the active destination with aria-current and leaves others unset", () => {

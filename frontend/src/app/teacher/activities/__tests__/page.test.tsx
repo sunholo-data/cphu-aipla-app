@@ -5,9 +5,8 @@ import * as teacherApi from "@/lib/teacherApi";
 import type { ActivityPayload, ClassPayload } from "@/lib/teacherApi";
 import TeacherActivitiesPage from "@/app/teacher/activities/page";
 
-// Controllable researcher claim (drives the My/All toggle + the All view).
-const { researcherRef } = vi.hoisted(() => ({ researcherRef: { current: false } }));
-vi.mock("@/hooks/useIsResearcher", () => ({ useIsResearcher: () => researcherRef.current }));
+// The cross-teacher researcher scan moved to its own page (/teacher/research/
+// activities); this library page is purely the teacher's own working surface.
 
 function makeActivity(overrides: Partial<ActivityPayload> = {}): ActivityPayload {
   return {
@@ -40,7 +39,6 @@ function makeClass(overrides: Partial<ClassPayload> = {}): ClassPayload {
 
 beforeEach(() => {
   vi.restoreAllMocks();
-  researcherRef.current = false;
   vi.spyOn(teacherApi, "listSharedCatalogue").mockResolvedValue([]); // no shared catalogue by default
 });
 afterEach(() => {
@@ -117,35 +115,16 @@ describe("TeacherActivitiesPage (ALS-1 M1.2 library)", () => {
     await waitFor(() => expect(patchMock).toHaveBeenCalledWith("c-2", { add: ["act-energy"] }));
   });
 
-  it("non-researchers get no My/All toggle", async () => {
-    vi.spyOn(teacherApi, "listActivities").mockResolvedValue([makeActivity()]);
+  it("calls listActivities for the OWN library only (no scope=all here)", async () => {
+    const listSpy = vi.spyOn(teacherApi, "listActivities").mockResolvedValue([makeActivity()]);
     vi.spyOn(teacherApi, "listClasses").mockResolvedValue([]);
     render(<TeacherActivitiesPage />);
 
     await screen.findByText("Energy basics");
+    // The cross-teacher scan lives on /teacher/research/activities now, so this
+    // page never requests scope=all and has no My/All toggle.
+    expect(listSpy).toHaveBeenCalledWith();
     expect(screen.queryByRole("button", { name: "All activities" })).not.toBeInTheDocument();
-  });
-
-  it("researcher All view: cross-teacher, read-only, shows the owner", async () => {
-    researcherRef.current = true;
-    const listSpy = vi.spyOn(teacherApi, "listActivities").mockImplementation(async (scope) =>
-      scope === "all"
-        ? [makeActivity({ activityId: "act-x", ownerUid: "R5Z5Y", ownerLabel: "Alice Hansen", title: "Theirs" })]
-        : [makeActivity()],
-    );
-    vi.spyOn(teacherApi, "listClasses").mockResolvedValue([]);
-    render(<TeacherActivitiesPage />);
-
-    await screen.findByText("Energy basics"); // own view first
-    fireEvent.click(screen.getByRole("button", { name: "All activities" }));
-
-    await screen.findByText("Theirs");
-    expect(listSpy).toHaveBeenCalledWith("all");
-    // Friendly owner label, not the raw uid.
-    expect(screen.getByTestId("activity-owner")).toHaveTextContent("Owner: Alice Hansen");
-    // Read-only observation: no edit/delete on another teacher's activity.
-    expect(screen.queryByRole("link", { name: /Edit/ })).not.toBeInTheDocument();
-    expect(screen.queryByRole("button", { name: /Delete/ })).not.toBeInTheDocument();
   });
 
   it("degrades to an error empty-state when the list fails", async () => {
