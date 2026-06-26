@@ -174,6 +174,10 @@ describe("TeacherActivitiesPage (ALS-1 M1.2 library)", () => {
     // A draft offers no class-assignment chip — instead an explicit review prompt.
     expect(screen.queryByRole("button", { name: "7B" })).not.toBeInTheDocument();
     expect(screen.getByText(/review and save/i)).toBeInTheDocument();
+    // Draft is read-only: it shows a pill, not the Private/Shared selector (you
+    // can't manually pick Draft, and you can't share it without reviewing first).
+    expect(screen.queryByRole("combobox", { name: /visibility/i })).not.toBeInTheDocument();
+    expect(screen.getByText("Draft")).toBeInTheDocument();
   });
 
   it("shows the Shared activities section and adopts a published activity (M3.4)", async () => {

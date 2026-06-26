@@ -198,16 +198,19 @@ def test_assign_endpoint_owner_only_on_activity():
 def test_assign_draft_is_rejected_until_reviewed_and_saved():
     """A draft is not assignable (ALS-SHARE-UX): adding one is 409. Saving it in
     the editor promotes it to private, after which it assigns fine — the whole
-    review-before-use lifecycle in one test."""
+    review-before-use lifecycle in one test. The draft arises the real way (adopt
+    a published activity), since ``draft`` is not a user-settable state."""
     _make_class("c1")
     c = _client()
-    aid = c.post("/api/activities", json={"skillId": "concept", "title": "D"}).json()["activityId"]
-    c.post(
-        f"/api/activities/{aid}/visibility", json={"visibility": "draft"}
-    )  # force draft (as an adopt/duplicate would)
+    pub = (
+        _client(OTHER)
+        .post("/api/activities", json={"skillId": "concept", "title": "P", "visibility": "published"})
+        .json()["activityId"]
+    )
+    aid = c.post(f"/api/activities/{pub}/adopt").json()["activityId"]  # -> draft copy owned by caller
     blocked = c.patch("/api/classes/c1/activities", json={"add": [aid]})
     assert blocked.status_code == 409, blocked.text
-    c.patch(f"/api/activities/{aid}", json={"skillId": "concept", "title": "D"})  # save -> promotes draft to private
+    c.patch(f"/api/activities/{aid}", json={"skillId": "concept", "title": "Mine"})  # save -> promotes draft to private
     ok = c.patch("/api/classes/c1/activities", json={"add": [aid]})
     assert ok.status_code == 200 and aid in ok.json()["activityIds"]
 
@@ -375,15 +378,22 @@ class TestHistoryProvenance:
 
 class TestSetVisibility:
     """ALS-SHARE-UX M1: POST /{id}/visibility — the unified setter behind the
-    teacher card's status control (draft/private/published in one call)."""
+    teacher card's status control. Only private/published are user-settable."""
 
-    def test_owner_can_set_each_state(self):
+    def test_owner_can_set_private_and_shared(self):
         c = _client()
         aid = c.post("/api/activities", json={"skillId": "c", "title": "A"}).json()["activityId"]  # private default
-        for state in ("draft", "published", "private"):
+        for state in ("published", "private"):
             resp = c.post(f"/api/activities/{aid}/visibility", json={"visibility": state})
             assert resp.status_code == 200, resp.text
             assert resp.json()["visibility"] == state
+
+    def test_cannot_set_draft_is_422(self):
+        # draft is a system state (set on copy/adopt, cleared by review+save), not
+        # a value a teacher can pick — selecting it would bypass review-before-use.
+        aid = _client().post("/api/activities", json={"skillId": "c", "title": "A"}).json()["activityId"]
+        resp = _client().post(f"/api/activities/{aid}/visibility", json={"visibility": "draft"})
+        assert resp.status_code == 422
 
     def test_invalid_visibility_is_422(self):
         aid = _client().post("/api/activities", json={"skillId": "c", "title": "A"}).json()["activityId"]

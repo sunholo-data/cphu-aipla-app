@@ -18,6 +18,7 @@ Cross-teacher publish/adopt + researcher CRUD are M3/M3b — not here.
 from __future__ import annotations
 
 import logging
+from typing import Literal
 
 from fastapi import APIRouter, Depends, HTTPException, Path, Query
 from opentelemetry import trace
@@ -338,9 +339,15 @@ def _set_visibility(activity: Activity, visibility: Visibility) -> dict:
 
 class VisibilitySet(BaseModel):
     """Body for the unified visibility setter — the teacher card's status control
-    sends the target state directly (ALS-SHARE-UX M1)."""
+    sends the target state directly (ALS-SHARE-UX M1).
 
-    visibility: Visibility
+    Only ``private`` and ``published`` are user-settable. **``draft`` is not** — it
+    is a system state set on copy/adopt and cleared by review-and-save (the PATCH
+    promotes draft→private). Selecting draft for a reviewed activity has no
+    meaning and would be a back-door around "review before use", so the literal
+    rejects it (422)."""
+
+    visibility: Literal["private", "published"]
 
 
 @router.post("/{activity_id}/visibility", status_code=200)
@@ -349,12 +356,12 @@ async def set_visibility_route(
     activity_id: str = Path(...),
     user: User = Depends(get_current_user),  # noqa: B008
 ) -> dict:
-    """Set an activity's visibility to any of ``draft|private|published`` — the
-    single setter behind the card's status control (ALS-SHARE-UX M1), replacing
-    the binary publish/unpublish pair. Owner or researcher (shared
-    ``_load_for_modify`` guard). Lowering visibility (→ private/draft) never
-    touches copies others already adopted; those are independent activities.
-    An invalid state is rejected by the ``Visibility`` literal (422)."""
+    """Set an activity's visibility to ``private`` or ``published`` — the single
+    setter behind the card's status control (ALS-SHARE-UX M1), replacing the
+    binary publish/unpublish pair. ``draft`` is not settable here (system state;
+    422). Owner or researcher (shared ``_load_for_modify`` guard). Unpublishing
+    (→ private) never touches copies others already adopted; those are
+    independent activities."""
     _assert_teacher(user)
     activity = _load_for_modify(activity_id, user)
     log.info(

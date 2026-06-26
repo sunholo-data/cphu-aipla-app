@@ -16,7 +16,7 @@ import {
   patchClassActivities,
   setActivityVisibility,
 } from "@/lib/teacherApi";
-import { CompositionRow, VISIBILITY_LABEL, visibilityColor } from "@/components/teacher/activityDisplay";
+import { CompositionRow, VISIBILITY_LABEL, VisibilityBadge, visibilityColor } from "@/components/teacher/activityDisplay";
 import { EmptyState } from "@/components/teacher/ui/EmptyState";
 import { TeacherCard } from "@/components/teacher/ui/TeacherCard";
 import { TeacherPage } from "@/components/teacher/ui/TeacherPage";
@@ -316,16 +316,16 @@ function SharedActivityCard({
 const VISIBILITY_HELP =
   "Draft = a new copy to review · Private = your classes only · Shared = other teachers can adopt a copy. Students only ever see activities you assign.";
 
-/** The single status control on an own card: shows the current state AND switches
- *  it (Draft / Private / Shared) in one place — replaces the old separate badge +
- *  Publish button. A freshly-copied Draft promotes to Private on first save;
- *  Shared lists it in the cross-teacher catalogue. */
+/** The status pill on an own card: shows the current state AND switches it between
+ *  the two user-settable states, Private ↔ Shared. **Draft is not offered** — it
+ *  is a system state (set on copy/adopt, cleared by review-and-save), so a draft
+ *  card renders a read-only Draft pill instead of this control. */
 function VisibilityControl({
   value,
   busy,
   onChange,
 }: {
-  value: ActivityPayload["visibility"];
+  value: "private" | "published";
   busy: boolean;
   onChange: (v: ActivityPayload["visibility"]) => void;
 }) {
@@ -338,7 +338,7 @@ function VisibilityControl({
       onChange={(e) => onChange(e.target.value as ActivityPayload["visibility"])}
       className={`shrink-0 cursor-pointer rounded border px-1.5 py-0.5 text-[11px] font-medium focus:outline-none focus:ring-1 focus:ring-ring disabled:opacity-50 ${visibilityColor(value)}`}
     >
-      {(["draft", "private", "published"] as const).map((v) => (
+      {(["private", "published"] as const).map((v) => (
         <option key={v} value={v}>
           {VISIBILITY_LABEL[v]}
         </option>
@@ -372,9 +372,18 @@ function ActivityCard({
   const isDraft = activity.visibility === "draft";
   return (
     <TeacherCard>
-      <h2 className="text-sm font-semibold">
-        {activity.title || activity.teachingGoal?.slice(0, 60) || activity.activityId}
-      </h2>
+      <div className="flex items-start justify-between gap-2">
+        <h2 className="text-sm font-semibold">
+          {activity.title || activity.teachingGoal?.slice(0, 60) || activity.activityId}
+        </h2>
+        {/* Status pill, top-right. A Draft is read-only (system state, resolved by
+            review-and-save); Private/Shared switch in place via the control. */}
+        {activity.visibility === "draft" ? (
+          <VisibilityBadge visibility="draft" />
+        ) : (
+          <VisibilityControl value={activity.visibility} busy={busy} onChange={onSetVisibility} />
+        )}
+      </div>
 
       <CompositionRow activity={activity} />
 
@@ -399,7 +408,6 @@ function ActivityCard({
             <Copy className="h-3 w-3" aria-hidden="true" />
             Duplicate
           </button>
-          <VisibilityControl value={activity.visibility} busy={busy} onChange={onSetVisibility} />
           <button
             type="button"
             onClick={onDelete}
