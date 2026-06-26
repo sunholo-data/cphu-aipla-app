@@ -83,10 +83,10 @@
     },
     {
       "id": "M3",
-      "description": "OPTIONAL: set_interaction_style / suggest_persona tool (1.1.39 M1 remainder) \u2014 propose a teaching style/persona; Apply sets interactionStyle.",
+      "description": "add_element coverage: note + solution (student drawing/photo) + document (student upload) \u2014 the text-authored elements the user flagged. (Original optional style/persona scope folded to a follow-on.)",
       "scope": "fullstack",
       "estimated_loc": 160,
-      "actual_loc": null,
+      "actual_loc": 240,
       "dependencies": [
         "M0"
       ],
@@ -99,22 +99,22 @@
         "backend/adk/authoring_tools.py",
         "frontend/src/app/teacher/activities/[id]/_AuthoringCopilot.tsx"
       ],
-      "passes": null,
+      "passes": true,
       "started": null,
-      "completed": null,
-      "notes": "DEFERRED (optional). Core M0-M2 delivered the workbench-config ask; M3 (style/persona) is a clean follow-on \u2014 same propose-only pattern."
+      "completed": "2026-06-26",
+      "notes": "Shipped 51f1f26. Co-pilot now covers every TEXT-authored surface. Follow-on: the 3 STRUCTURED elements (table/chart/calculator) + the original style/persona tool."
     }
   ],
   "velocity": {
     "target_loc_per_day": 300,
     "actual_loc_per_day": null,
     "estimated_total_loc": 860,
-    "actual_total_loc": 740,
+    "actual_total_loc": 980,
     "estimated_days": 3,
     "actual_days": null
   },
   "github_issues": [],
   "last_session": "2026-06-26",
-  "last_checkpoint": "M0-M2 shipped to dev (M0 5e75313, M1 756211c, M2 829a413). M3 (style/persona) deferred optional. Feature dark-flagged pending AR/JB framework + browser-verify.",
-  "status": "core_complete"
+  "last_checkpoint": "All 4 milestones shipped (M0 5e75313, M1 756211c, M2 829a413, M3 51f1f26). Co-pilot covers lesson prompt + checklist + note + solution + document + sim. Follow-on: table/chart/calculator + style/persona.",
+  "status": "complete"
 }
