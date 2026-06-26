@@ -127,10 +127,10 @@
         "frontend/src/app/teacher/activities/page.tsx",
         "frontend/src/app/teacher/activities/__tests__/page.test.tsx"
       ],
-      "passes": null,
-      "started": null,
-      "completed": null,
-      "notes": null
+      "passes": true,
+      "started": "2026-06-26",
+      "completed": "2026-06-26",
+      "notes": "Shared activities section (grouped by owner) + Use/adapt -> adopt-copy draft into Your activities; Publish/Unpublish toggle + visibility on own cards. teacherApi: publish/unpublish/adopt/listSharedCatalogue. 41 FE tests (page.test.tsx) green; committed e703878."
     },
     {
       "id": "M3b-researcher-crud",
@@ -151,10 +151,10 @@
         "backend/protocols/activity_routes.py",
         "backend/tests/api_tests/test_activity_routes.py"
       ],
-      "passes": null,
-      "started": null,
-      "completed": null,
-      "notes": null
+      "passes": true,
+      "started": "2026-06-26",
+      "completed": "2026-06-26",
+      "notes": "GET/PATCH/DELETE authorize via _load_for_modify (owner OR researcher); ownership preserved on a researcher edit; auth.researcher_bypass OTel span. Removed the now-dead _load_owned. TestResearcherCrud x3. Committed 2b9f9d8."
     },
     {
       "id": "M-HIST-history-panel",
@@ -177,10 +177,10 @@
         "frontend/src/app/teacher/activities/[id]/page.tsx",
         "frontend/src/app/teacher/activities/[id]/__tests__/page.test.tsx"
       ],
-      "passes": null,
-      "started": null,
-      "completed": null,
-      "notes": null
+      "passes": true,
+      "started": "2026-06-26",
+      "completed": "2026-06-26",
+      "notes": "Backend: GET /{id} enriches sourceOwnerLabel (resolve_owner_labels). Frontend: History tab is now a real read-only provenance + lifecycle panel (adapted-from vs from-scratch, visibility, created/updated); Year-2 timeline+rollback stays a roadmap note; tab drops v2 badge. TestHistoryProvenance x3 + 2 FE tests. Committed 2b9f9d8 (be) + e703878 (fe)."
     }
   ],
   "velocity": {
@@ -192,7 +192,7 @@
     "actual_days": null
   },
   "github_issues": [],
-  "last_session": null,
-  "last_checkpoint": null,
-  "status": "not_started"
+  "last_session": "2026-06-26",
+  "last_checkpoint": "2026-06-26 M-HIST complete — all 7 milestones pass (M4 attribution deferred)",
+  "status": "complete"
 }
