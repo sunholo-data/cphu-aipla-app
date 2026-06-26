@@ -20,14 +20,20 @@ import { DocumentElementMount, type DocumentElementDef } from "./DocumentElement
  * docs/design/aipla/v1.1.0-feedback/activity-elements-palette.md.
  *
  * ⚠ If a student INTERACTS with the element (enters data, computes, writes),
- * the renderer MUST pass `sessionId` and the component MUST push its state to
- * the tutor via `useSimSnapshotPush(sessionId, "<kind>")` — otherwise the AI
- * never sees what the student did. The pushed state lands in
- * `mcp_app_context.<kind>.state`, which `wrap_with_iframe_context` injects into
- * EVERY agent's prompt (this is NOT MCP-app-specific — the data table, the
- * checklist, the calculator, and the solution editor all use it). This step has
- * been forgotten before (the calculator shipped silent). Read-only elements
- * (e.g. note) don't push.
+ * sharing with the tutor is TWO wirings — BOTH are required or it's incomplete:
+ *   1. THE PUSH — pass `sessionId` and `useSimSnapshotPush(sessionId, "<kind>")`
+ *      so the AI sees the state. It lands in `mcp_app_context.<kind>.state`,
+ *      which `wrap_with_iframe_context` injects into EVERY agent's prompt (NOT
+ *      MCP-app-specific — table, checklist, calculator, solution all use it).
+ *   2. THE TRUST CARD — on a *deliberate* action, also
+ *      `useHumanToolEvents().dispatch({ label, push: () => req })` so a
+ *      pending→confirmed card shows the student their work reached the tutor.
+ * Dropping #2 still flows the data (so it passes tests) but leaves the student
+ * blind — the most-repeated drop here (calculator + table both shipped without
+ * it). Per-action card for one-shot actions; ONE debounced card per burst for
+ * grid entry (see WorkbenchTable); none when the action sends a real chat turn
+ * (SolutionElementMount) or for read-only elements (note) / catch-up syncs.
+ * Full recipe: docs/design/aipla/v1.1.0-feedback/activity-elements-palette.md.
  */
 export interface ElementRenderContext {
   skillId: string;

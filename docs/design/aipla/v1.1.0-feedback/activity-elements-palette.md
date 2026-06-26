@@ -140,9 +140,14 @@ class DocumentElement(BaseModel):
 2. Register `ELEMENT_REGISTRY["<kind>"] = ElementSpec(model=..., max=..., render="workspace"|"inline")`.
 3. Add a frontend renderer `elementRenderers["<kind>"]` (a workspace pane component) + the TS type mirror in `teacherApi.ts`.
 4. **⚠ If a student INTERACTS with the element** (enters data, computes, writes, selects): the renderer MUST pass `sessionId`, and the component MUST push its state to the tutor via `useSimSnapshotPush(sessionId, "<kind>")` (commit-on-blur/change + catch-up-on-`sessionId`, like `WorkbenchTable`/`WorkbenchCalculator`/`SolutionElementMount`). The state lands in `mcp_app_context.<kind>.state`, which `wrap_with_iframe_context` injects into **every** agent's prompt — this is **NOT** MCP-app-specific. **Skip this and the AI never sees what the student did** (it was missed for the calculator until 1.1.45). Read-only elements (note) don't push. Use a `<kind>.commit`-style event name so it's *passive* context (no unprompted tutor reply); only fire a turn deliberately (the solution editor's "submit" does, via `onProactiveTrigger`).
+4b. **⚠ Sharing with the tutor is TWO wirings — the push (step 4) AND the visible "shared with the AI" trust card.** After a *deliberate* student action, also `useHumanToolEvents().dispatch({ label, push: () => req })` so a pending→confirmed card appears in the chat and the student can SEE their work reached the tutor. The data flows without it, so this passes tests/demos but leaves the student in the dark — **dropped for the calculator (fixed 1.1.45) and the table (fixed: debounced) — this is the most-repeated drop on this axis** (see memory `feedback-trust-card-with-tutor-push`). Decision rule by interaction shape:
+   - **One-shot action** (toggle a step, compute a value) → **one card per action** — `ProgressChecklist`, `WorkbenchCalculator`.
+   - **Continuous data entry** (a grid of cells) → **one debounced card per editing burst**, NOT per cell — `WorkbenchTable` (`TABLE_CARD_DEBOUNCE_MS`).
+   - **Sends a real chat turn** (submit work as a multimodal message) → **no card needed**, the turn IS the confirmation — `SolutionElementMount`.
+   - **Read-only / catch-up sync** (note; the silent `sessionId`-arrival re-push) → **no card**.
 5. Add a per-element builder editor block (reuse the `ElementEditor` shell from M0).
 6. Add OTel span emission for the element's primary interaction.
-7. Tests: round-trip + validation + render empty/loading/error + (if it ingests student input) the tutor-state push + the deterministic-check path.
+7. Tests: round-trip + validation + render empty/loading/error + (if it ingests student input) the tutor-state push **and the trust-card dispatch** (mock `useHumanToolEvents`, assert one card with a labelled value; for a debounced card use fake timers) + the deterministic-check path.
 
 This recipe, written down and exercised four times in this doc, **is** the breadth multiplier — it is the artefact a future teammate (or the [authoring assistant](activity-authoring-assistant.md)) follows.
 

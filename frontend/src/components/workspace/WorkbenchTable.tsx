@@ -1,8 +1,14 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 
+import { useHumanToolEvents } from "@/hooks/useHumanToolEvents";
 import { useSimSnapshotPush } from "@/hooks/useSimSnapshotPush";
+
+/** Coalesce the "shared with the tutor" card to one per editing burst — a cell
+ *  blur fires as the student tabs through the grid, so a per-cell card would
+ *  spam the chat. The PUSH still fires per cell; only the card is debounced. */
+export const TABLE_CARD_DEBOUNCE_MS = 1200;
 
 /**
  * One column of a teacher-defined data table (1.1.38 M1). Mirrors the backend
@@ -63,9 +69,10 @@ function cellKey(tableId: string, row: number, colId: string): string {
  * uses), so the tutor can reference "your third trial gives v = 2.1 m/s".
  *
  * Pedagogical principle (shared with ProgressChecklist): student-driven. The
- * grid IS the student's feedback — the commit is silent (no chat card per cell)
- * so entering data doesn't spam the conversation. Ground-truth checking of the
- * entered values is the offline-lab (1.1.24) extension, NOT done here.
+ * grid IS the student's feedback. A per-cell chat card would spam the
+ * conversation, so the "shared with the tutor" card is DEBOUNCED to one per
+ * editing burst (the push itself still fires per cell). Ground-truth checking of
+ * the entered values is the offline-lab (1.1.24) extension, NOT done here.
  */
 export function WorkbenchTable({ skillId, tables, sessionId }: WorkbenchTableProps) {
   const storageKey = tableStorageKey(skillId);
@@ -74,6 +81,28 @@ export function WorkbenchTable({ skillId, tables, sessionId }: WorkbenchTablePro
   // iframe-context push).
   const committedRef = useRef<Record<string, string>>({});
   const pushTableSnapshot = useSimSnapshotPush<TableSnapshot>(sessionId ?? null, "table");
+  const humanToolEvents = useHumanToolEvents();
+  // Debounced trust card: the latest committed push + its filled-count, flushed
+  // once the student stops editing for TABLE_CARD_DEBOUNCE_MS.
+  const cardTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const pendingCard = useRef<{ req: Promise<Response>; filled: number; title: string } | null>(null);
+
+  const flushTableCard = useCallback(() => {
+    const p = pendingCard.current;
+    pendingCard.current = null;
+    cardTimer.current = null;
+    if (!p || p.filled === 0) return; // nothing entered → no card
+    const unit = p.filled === 1 ? "felt" : "felter";
+    humanToolEvents.dispatch({
+      label: `${p.title || "Datatabel"} delt med vejlederen (${p.filled} ${unit})`,
+      push: () => p.req,
+    });
+  }, [humanToolEvents]);
+
+  // Clear any pending card timer on unmount (avoids a dispatch after teardown).
+  useEffect(() => () => {
+    if (cardTimer.current) clearTimeout(cardTimer.current);
+  }, []);
 
   useEffect(() => {
     if (typeof window === "undefined") return;
@@ -124,7 +153,8 @@ export function WorkbenchTable({ skillId, tables, sessionId }: WorkbenchTablePro
       // Let a sibling chart (1.1.38 M2) re-read the grid.
       window.dispatchEvent(new CustomEvent(TABLE_CHANGE_EVENT, { detail: { skillId } }));
     }
-    const req = pushTableSnapshot(buildSnapshot(table, values), "table.commit");
+    const snap = buildSnapshot(table, values);
+    const req = pushTableSnapshot(snap, "table.commit");
     if (req) {
       void req.catch((err) => {
         if (process.env.NODE_ENV !== "production") {
@@ -132,6 +162,13 @@ export function WorkbenchTable({ skillId, tables, sessionId }: WorkbenchTablePro
           console.warn("[table] iframe-context push failed:", err);
         }
       });
+      // Coalesce a single "shared with the tutor" card per editing burst — the
+      // card rides this push but only flushes once edits settle (see
+      // TABLE_CARD_DEBOUNCE_MS). Mirrors the calculator/checklist trust bit
+      // without a card per cell.
+      pendingCard.current = { req, filled: snap.filledCells, title: snap.title };
+      if (cardTimer.current) clearTimeout(cardTimer.current);
+      cardTimer.current = setTimeout(flushTableCard, TABLE_CARD_DEBOUNCE_MS);
     }
   };
 
