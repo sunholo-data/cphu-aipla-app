@@ -107,6 +107,17 @@ describe("ActivityPreview", () => {
     expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
   });
 
+  it("closes the full-screen dialog on Escape and moves focus into it on open", async () => {
+    listArtefactsMock.mockResolvedValue([]);
+    render(<ActivityPreview state={WITH_CHECKLIST} />);
+    fireEvent.click(screen.getByRole("button", { name: /full-size/i }));
+    const dialog = await screen.findByRole("dialog");
+    // Radix traps focus inside the modal — focus lands within it on open.
+    await waitFor(() => expect(dialog.contains(document.activeElement)).toBe(true));
+    fireEvent.keyDown(document.activeElement ?? document.body, { key: "Escape" });
+    await waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument());
+  });
+
   it("renders an image material via the activity-image fetch with the REAL activityId (1.1.45 regression)", async () => {
     imgFetch.mockResolvedValue("blob:fake");
     render(

@@ -1,8 +1,8 @@
 "use client";
 
+import * as Dialog from "@radix-ui/react-dialog";
 import { ChevronDown, Eye, Maximize2, X } from "lucide-react";
-import { type ReactNode, useEffect, useRef, useState } from "react";
-import { createPortal } from "react-dom";
+import { type ReactNode, useEffect, useState } from "react";
 
 import { SimThumbnail } from "@/components/teacher/SimThumbnail";
 import { StudentWorkspace } from "@/components/workspace/StudentWorkspace";
@@ -121,11 +121,9 @@ export function ActivityPreview({
         </div>
       )}
 
-      {expanded ? (
-        <PreviewModal onClose={() => setExpanded(false)}>
-          <PreviewBody artefactId={artefactId} sim={sim} defs={defs} materials={materials} activityId={activityId} />
-        </PreviewModal>
-      ) : null}
+      <PreviewModal open={expanded} onOpenChange={setExpanded}>
+        <PreviewBody artefactId={artefactId} sim={sim} defs={defs} materials={materials} activityId={activityId} />
+      </PreviewModal>
     </div>
   );
 }
@@ -186,62 +184,48 @@ function PreviewBody({
 }
 
 /** A full-screen overlay holding the preview so the teacher can drive the sim
- *  at real size. Escape / backdrop / the close button all dismiss it; focus
- *  starts on close and body scroll is locked while open.
+ *  at real size. Built on Radix `Dialog`, so it is a proper modal: focus is
+ *  trapped inside and restored to the trigger on close, body scroll is locked,
+ *  Escape / backdrop / the close button all dismiss it, and `role="dialog"` +
+ *  `aria-modal` are set for assistive tech.
  *
- *  Portalled to `document.body`: the builder's right column is `lg:sticky`,
- *  which establishes a stacking context that would otherwise trap this
- *  `fixed` overlay below the left column's `sticky z-10` section nav (a
- *  positive-z sibling context outranks the column's z-auto one wholesale). The
- *  portal lifts the overlay to the root so its z-50 actually covers the nav. */
-function PreviewModal({ onClose, children }: { onClose: () => void; children: ReactNode }) {
-  const closeRef = useRef<HTMLButtonElement>(null);
-  useEffect(() => {
-    closeRef.current?.focus();
-    const onKey = (e: KeyboardEvent) => {
-      if (e.key === "Escape") onClose();
-    };
-    document.addEventListener("keydown", onKey);
-    const prevOverflow = document.body.style.overflow;
-    document.body.style.overflow = "hidden";
-    return () => {
-      document.removeEventListener("keydown", onKey);
-      document.body.style.overflow = prevOverflow;
-    };
-  }, [onClose]);
-
-  if (typeof document === "undefined") return null;
-
-  return createPortal(
-    <div
-      className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/50 p-4"
-      onClick={onClose}
-    >
-      <div
-        role="dialog"
-        aria-modal="true"
-        aria-label="Preview — what students see"
-        onClick={(e) => e.stopPropagation()}
-        className="flex max-h-[92vh] w-full max-w-5xl flex-col overflow-hidden rounded-lg border border-slate-200 bg-background shadow-xl"
-      >
-        <div className="flex items-center justify-between border-b border-slate-200 px-4 py-2.5">
-          <span className="flex items-center gap-1.5 text-sm font-medium text-slate-700">
-            <Eye className="h-4 w-4 text-slate-500" /> Preview — what students see
-          </span>
-          <button
-            ref={closeRef}
-            type="button"
-            onClick={onClose}
-            aria-label="Close"
-            className="rounded p-1 text-slate-500 hover:bg-slate-100 hover:text-slate-700"
-          >
-            <X className="h-4 w-4" />
-          </button>
-        </div>
-        <div className="min-h-0 flex-1 overflow-y-auto bg-slate-50">{children}</div>
-      </div>
-    </div>,
-    document.body,
+ *  Radix portals the content to `document.body`, which also fixes the stacking
+ *  bug: the builder's right column is `lg:sticky` (a stacking context) that
+ *  would otherwise trap a nested `fixed` overlay below the left column's
+ *  `sticky z-10` section nav. At the document root, the overlay's z-50 covers
+ *  the page chrome as intended. */
+function PreviewModal({
+  open,
+  onOpenChange,
+  children,
+}: {
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  children: ReactNode;
+}) {
+  return (
+    <Dialog.Root open={open} onOpenChange={onOpenChange}>
+      <Dialog.Portal>
+        <Dialog.Overlay className="fixed inset-0 z-50 bg-slate-900/50" />
+        <Dialog.Content
+          aria-describedby={undefined}
+          className="fixed left-1/2 top-1/2 z-50 flex max-h-[92vh] w-[calc(100vw-2rem)] max-w-5xl -translate-x-1/2 -translate-y-1/2 flex-col overflow-hidden rounded-lg border border-slate-200 bg-background shadow-xl focus:outline-none"
+        >
+          <div className="flex items-center justify-between border-b border-slate-200 px-4 py-2.5">
+            <Dialog.Title className="flex items-center gap-1.5 text-sm font-medium text-slate-700">
+              <Eye className="h-4 w-4 text-slate-500" /> Preview — what students see
+            </Dialog.Title>
+            <Dialog.Close
+              aria-label="Close"
+              className="rounded p-1 text-slate-500 hover:bg-slate-100 hover:text-slate-700"
+            >
+              <X className="h-4 w-4" />
+            </Dialog.Close>
+          </div>
+          <div className="min-h-0 flex-1 overflow-y-auto bg-slate-50">{children}</div>
+        </Dialog.Content>
+      </Dialog.Portal>
+    </Dialog.Root>
   );
 }
 
