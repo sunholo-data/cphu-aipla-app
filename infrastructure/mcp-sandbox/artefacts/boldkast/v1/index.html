@@ -708,13 +708,20 @@
   // structuredContent.kind carries the event vocabulary. Queued until
   // ui/initialize handshake completes; flushed in order on init.
   function emit(kind, extra) {
-    const msg = {
-      jsonrpc: "2.0",
-      method: "ui/update-model-context",
-      params: {
-        structuredContent: Object.assign({}, extra || {}, { kind: kind }),
-      },
+    const params = {
+      structuredContent: Object.assign({}, extra || {}, { kind: kind }),
     };
+    // ALSO surface a human-readable text block. Generic MCP hosts (ChatGPT,
+    // Claude Desktop) feed `content` to the model and treat `structuredContent`
+    // as app/UI data validated against an outputSchema we don't ship — so
+    // without `content` the model never sees what the student did ("I didn't
+    // receive the interaction data"). The AIPLA frontend reads
+    // structuredContent and ignores content, so this is purely additive for our
+    // own app (no extra trust card, no behaviour change). See design 1.1.49.
+    if (extra && typeof extra.label === "string" && extra.label) {
+      params.content = [{ type: "text", text: extra.label }];
+    }
+    const msg = { jsonrpc: "2.0", method: "ui/update-model-context", params: params };
     if (!__initialized) {
       __pendingEmits.push(msg);
       return;

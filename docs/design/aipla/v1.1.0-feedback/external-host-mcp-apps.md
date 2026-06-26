@@ -234,18 +234,34 @@ lives entirely in our frontend host**. An external host receives the same
 > **AIPLA app**, where our frontend host persists the bridge events. A sim used via
 > ChatGPT/Claude is invisible to the research pipeline.
 
-### Why ChatGPT reported "I haven't received any updates"
+### Why ChatGPT reported "I haven't received any updates" — and the fix
 
-Both reasons are expected, not a bug:
-1. **Commit-on-submit gating (by design).** Boldkast accumulates slider changes
-   locally and only emits them on a deliberate commit — pressing **Afspil (play)** —
-   or on `ui/notifications/chat-flush`. Dragging sliders alone emits nothing (1.E
-   Phase 2, [workbench-state-debounce](../v1.0.0-pilot/workbench-state-debounce.md)).
-2. **ChatGPT doesn't send `chat-flush`** (our custom message — only our frontend
-   sends it before a chat submit). So in ChatGPT, **only pressing Afspil** commits
-   the state to the model; sending a chat message does *not* flush pending changes.
-   Hosts also MAY defer context to the next user message (spec). **To see it work in
-   ChatGPT: change a parameter → press Afspil → then ask "what did I just do?".**
+**Root cause (confirmed 2026-06-26, and it was on our side).** Our artefacts emitted
+`ui/update-model-context` with **`structuredContent` only**. Per the OpenAI Apps SDK,
+*"`content` is the required field for ChatGPT to show to the user/model, while
+`structuredContent` is for the app and validated against an `outputSchema`."* We ship
+no `outputSchema`, so ChatGPT's model received nothing readable → "I can see you
+interacted but didn't receive the interaction data." Our own app only worked because
+*our* frontend explicitly reads `structuredContent`.
+
+**Fix (shipped, sprint EXT-MCP follow-up):** the artefacts now also send a `content`
+text block on every `ui/update-model-context` — Boldkast uses its curated Danish label
+("Afspillede med v₀=15 m/s, θ=40°"); KineBot/LED-Planck synthesise a readable
+`kind (key=value, …)` string. Additive only: the AIPLA frontend reads
+`structuredContent` and ignores `content`, so no in-app change (no extra trust card).
+
+**Two behaviours that still apply:**
+1. **Commit-on-submit gating (by design).** Boldkast only emits on a deliberate commit
+   — pressing **Afspil (play)** — or on `ui/notifications/chat-flush`. Dragging sliders
+   alone emits nothing (1.E Phase 2, [workbench-state-debounce](../v1.0.0-pilot/workbench-state-debounce.md)).
+2. **ChatGPT doesn't send `chat-flush`** (our custom message). So in ChatGPT, **only
+   pressing Afspil** commits the state; a chat message does not flush pending changes.
+   Hosts also MAY defer context to the next user turn. **To see it: change a parameter
+   → press Afspil → ask "what did I just do?".**
+
+> **Deploy note:** `sim_apps.SimApp.load_html()` caches the artefact HTML per backend
+> process, so an artefact edit reaches `/api/mcp` only after the **backend** redeploys
+> (a `dev` push redeploys both the sandbox and the backend, so this is automatic).
 
 ### Render lifecycle ("it rendered for a while then not")
 
