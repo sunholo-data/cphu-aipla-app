@@ -84,7 +84,7 @@
       "description": "Teacher-auth chat panel + A2UI accept/edit card, modeled on _AnalyticsChat.tsx: <AGUIProvider skillId useTeacherAuth> in the builder behind the dark flag; proposal -> Apply/Edit/Dismiss card; Apply mutates teachingGoal via the shipped save path; builder fully usable with the assistant disabled. Browser-verify is the remaining gate.",
       "scope": "frontend",
       "estimated_loc": 320,
-      "actual_loc": null,
+      "actual_loc": 380,
       "dependencies": [
         "M1"
       ],
@@ -100,22 +100,22 @@
       "files_to_modify": [
         "frontend/src/app/teacher/activities/[id]/page.tsx"
       ],
-      "passes": null,
+      "passes": true,
       "started": "2026-06-26",
-      "completed": null,
-      "notes": "Largest milestone; may carry to a follow-up session. Browser-verify (SSE stream + Apply round-trip) is the deferred gate."
+      "completed": "2026-06-26",
+      "notes": "Code-complete + unit-tested. GATES: browser-verify the live SSE set_lesson_prompt tool-result + Apply->save round-trip; AR/JB framework content (placeholder shipped); feature dark-flagged (NEXT_PUBLIC_AUTHORING_COPILOT)."
     }
   ],
   "velocity": {
     "target_loc_per_day": 300,
     "actual_loc_per_day": null,
     "estimated_total_loc": 860,
-    "actual_total_loc": null,
+    "actual_total_loc": 920,
     "estimated_days": 3,
     "actual_days": null
   },
   "github_issues": [],
   "last_session": "2026-06-26",
-  "last_checkpoint": "M2 shipped (996363f); M3 frontend in progress",
-  "status": "in_progress"
+  "last_checkpoint": "All 4 milestones shipped to dev (M0 ec74ba6, M1 22d4b7d, M2 996363f, M3 5674d3f). Feature dark-flagged pending AR/JB framework + browser-verify.",
+  "status": "complete"
 }
