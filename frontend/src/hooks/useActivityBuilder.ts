@@ -41,6 +41,8 @@ export interface ActivityBuilder {
 
   checklist: ChecklistRow[];
   addChecklistItem: () => void;
+  /** Append a batch of labelled steps (the co-pilot's add_element Apply target). */
+  addChecklistItems: (labels: string[]) => void;
   removeChecklistItem: (key: number) => void;
   setChecklistLabel: (key: number, label: string) => void;
 
@@ -100,6 +102,8 @@ export function useActivityBuilder(): ActivityBuilder {
 
   const addChecklistItem = () =>
     setChecklist((cur) => [...cur, { key: nextKeyRef.current++, label: "" }]);
+  const addChecklistItems = (labels: string[]) =>
+    setChecklist((cur) => [...cur, ...labels.map((label) => ({ key: nextKeyRef.current++, label }))]);
   const removeChecklistItem = (key: number) =>
     setChecklist((cur) => cur.filter((i) => i.key !== key));
   const setChecklistLabel = (key: number, label: string) =>
@@ -232,6 +236,7 @@ export function useActivityBuilder(): ActivityBuilder {
       setWorkbenchType,
       checklist,
       addChecklistItem,
+      addChecklistItems,
       removeChecklistItem,
       setChecklistLabel,
       table,

@@ -21,12 +21,20 @@ from google.adk.tools import ToolContext
 # save_activity is imported (not called) so tests can guard that the proposal
 # path never persists; get_activity is the owner-scoped read.
 from db.activities import get_activity, save_activity  # noqa: F401  (save_activity: guard-only)
+from db.models.activity_config import ELEMENT_REGISTRY
 
 logger = logging.getLogger(__name__)
 
 # Matches ActivityUpsert.teaching_goal (activity_routes.py) so an Applied
 # proposal never 422s on length.
 MAX_GOAL_LEN = 2000
+
+# Palette element kinds the co-pilot can assemble today (COPILOT-2 M1). The
+# checklist is the framework's formative-checkpoint instance (1.1.50); table /
+# chart / calculator carry richer specs and are a follow-on.
+_SUPPORTED_ELEMENT_KINDS = {"checklist"}
+# Cap from the registry (1.1.38) so an Applied checklist never exceeds the bound.
+MAX_CHECKLIST_ITEMS = ELEMENT_REGISTRY["checklist"].max_items
 
 # Byte-identical denial for missing AND not-owned, so the tool can't be used to
 # enumerate other teachers' activities (mirrors activity_routes._load_for_modify).
@@ -95,5 +103,62 @@ def set_lesson_prompt(
             "field": "teachingGoal",
             "activityId": activity_id,
             "value": goal,
+        },
+    }
+
+
+def add_element(
+    element_kind: str,
+    items: list[str],
+    activity_id: str,
+    tool_context: ToolContext = None,
+) -> dict[str, Any]:
+    """Propose adding a workspace element to an activity (COPILOT-2 M1).
+
+    Owner-scoped + propose-only: returns a proposal the teacher Applies; never
+    persists. The kind is validated against the 1.1.38 ``ELEMENT_REGISTRY``.
+
+    Args:
+        element_kind: the palette element kind (currently ``checklist``).
+        items: for a checklist, the step labels (blanks dropped, capped, trimmed).
+        activity_id: the activity being authored (the teacher owns it).
+
+    Returns:
+        ``{"ok": True, "proposal": {"kind": "add_element", "element_kind": ...,
+        "spec": {...}, "label": ...}}`` or ``{"ok": False, "error": ...}``.
+    """
+    uid = _caller_uid(tool_context)
+    if not uid:
+        return dict(_DENY)
+
+    # Input validation first — activity-independent, so no enumeration risk.
+    if element_kind not in ELEMENT_REGISTRY:
+        return {"ok": False, "error": f"unknown element kind {element_kind!r}"}
+    if element_kind not in _SUPPORTED_ELEMENT_KINDS:
+        return {"ok": False, "error": f"the co-pilot can't assemble a {element_kind!r} element yet"}
+
+    clean = [s.strip() for s in (items or []) if isinstance(s, str) and s.strip()]
+    if not clean:
+        return {"ok": False, "error": "the checklist has no steps"}
+    clean = clean[:MAX_CHECKLIST_ITEMS]
+
+    activity = get_activity(activity_id)
+    if activity is None or activity.owner_uid != uid:
+        return dict(_DENY)
+
+    logger.info(
+        "authoring: add_element(%s, %d items) proposal for activity=%s by uid=%s",
+        element_kind,
+        len(clean),
+        activity_id,
+        uid,
+    )
+    return {
+        "ok": True,
+        "proposal": {
+            "kind": "add_element",
+            "element_kind": element_kind,
+            "spec": {"items": clean},
+            "label": f"Tjekliste ({len(clean)} trin)",
         },
     }

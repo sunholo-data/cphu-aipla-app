@@ -44,7 +44,9 @@ export function authoringCopilotEnabled(): boolean {
  * router maps each `kind` to a builder setter. Extend the union when adding a
  * tool (COPILOT-2 M1 add_element, M2 set_artefact, …).
  */
-export type Proposal = { kind: "set_lesson_prompt"; value: string };
+export type Proposal =
+  | { kind: "set_lesson_prompt"; value: string }
+  | { kind: "add_element"; elementKind: "checklist"; items: string[]; label: string };
 
 export type ApplyProposal = (proposal: Proposal) => void;
 
@@ -126,6 +128,13 @@ export function parseProposal(tc: ToolCallState): Proposal | null {
   switch (p.kind) {
     case "set_lesson_prompt":
       return typeof p.value === "string" && p.field === "teachingGoal" ? { kind: "set_lesson_prompt", value: p.value } : null;
+    case "add_element": {
+      const items = (p.spec as { items?: unknown })?.items;
+      if (p.element_kind === "checklist" && Array.isArray(items) && items.every((s) => typeof s === "string")) {
+        return { kind: "add_element", elementKind: "checklist", items: items as string[], label: typeof p.label === "string" ? p.label : "Element" };
+      }
+      return null;
+    }
     default:
       return null; // unknown/unsupported kind (a newer tool than this build)
   }
@@ -136,6 +145,8 @@ function proposalTitle(p: Proposal): string {
   switch (p.kind) {
     case "set_lesson_prompt":
       return "Forslag til lærer-prompt";
+    case "add_element":
+      return `Forslag: ${p.label}`;
   }
 }
 
@@ -251,9 +262,15 @@ function ProposalCard({ proposal, onApply }: { proposal: Proposal; onApply: Appl
           rows={4}
           className="w-full rounded border border-border bg-background px-2 py-1 text-sm"
         />
-      ) : (
-        <p className="whitespace-pre-wrap">{editable ?? proposalTitle(proposal)}</p>
-      )}
+      ) : editable !== null ? (
+        <p className="whitespace-pre-wrap">{editable}</p>
+      ) : proposal.kind === "add_element" ? (
+        <ul className="list-disc pl-5 text-sm" data-testid="proposal-items">
+          {proposal.items.map((it, i) => (
+            <li key={i}>{it}</li>
+          ))}
+        </ul>
+      ) : null}
       <div className="flex flex-wrap gap-2">
         <button
           type="button"

@@ -19,6 +19,7 @@ metadata:
   model: gemini-2.5-flash
   tools:
     - set_lesson_prompt
+    - add_element
   toolConfigs:
     a2ui:
       enabled: false
@@ -76,6 +77,9 @@ When you draft the lesson prompt, shape it so the resulting tutor session will:
   Applies — it does **not** change anything on its own.
 - Offer it; invite the teacher to edit or ask for a different angle. Then stop
   and let them respond — do not pile up proposals.
+- For the **formative checkpoint**, you can propose a **checklist** with the
+  `add_element` tool (`element_kind="checklist"`, a few short step labels) — an
+  editable proposal the teacher Applies.
 - You assemble **vetted prompts and platform elements** only. You never write
   code, raw HTML, or scripts.
 

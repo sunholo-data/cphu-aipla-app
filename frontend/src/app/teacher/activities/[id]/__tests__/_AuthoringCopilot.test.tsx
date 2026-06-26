@@ -121,3 +121,39 @@ describe("AuthoringCopilot — proposal card", () => {
     expect(onApply).not.toHaveBeenCalled();
   });
 });
+
+const ADD_ELEMENT = JSON.stringify({
+  ok: true,
+  proposal: {
+    kind: "add_element",
+    element_kind: "checklist",
+    spec: { items: ["Find massen", "Beregn energien"] },
+    label: "Tjekliste (2 trin)",
+  },
+});
+
+describe("AuthoringCopilot — add_element proposal (COPILOT-2 M1)", () => {
+  it("parseProposal returns a typed add_element proposal", () => {
+    expect(parseProposal(tc({ name: "add_element", resultContent: ADD_ELEMENT }))).toEqual({
+      kind: "add_element",
+      elementKind: "checklist",
+      items: ["Find massen", "Beregn energien"],
+      label: "Tjekliste (2 trin)",
+    });
+  });
+
+  it("renders the checklist items + Apply routes the add_element proposal", async () => {
+    const onApply = vi.fn();
+    mockHook.toolCalls = [tc({ name: "add_element", resultContent: ADD_ELEMENT })];
+    render(<AuthoringCopilot activityId="act-1" onApplyProposal={onApply} />);
+    await screen.findByTestId("proposal-card");
+    expect(screen.getByTestId("proposal-items")).toHaveTextContent("Find massen");
+    fireEvent.click(screen.getByRole("button", { name: /anvend/i }));
+    expect(onApply).toHaveBeenCalledWith({
+      kind: "add_element",
+      elementKind: "checklist",
+      items: ["Find massen", "Beregn energien"],
+      label: "Tjekliste (2 trin)",
+    });
+  });
+});

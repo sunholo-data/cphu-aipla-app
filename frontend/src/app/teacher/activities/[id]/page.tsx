@@ -296,6 +296,8 @@ export default function TeacherActivityConfigPage() {
             activityId={activityId}
             onApplyProposal={(p) => {
               if (p.kind === "set_lesson_prompt") builder.setTeachingGoal(p.value);
+              else if (p.kind === "add_element" && p.elementKind === "checklist")
+                builder.addChecklistItems(p.items);
             }}
           />
         </section>

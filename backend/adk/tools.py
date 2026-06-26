@@ -149,6 +149,7 @@ TOOL_REGISTRY: dict[str, Callable[[dict], FunctionTool]] = {
     # Authoring co-pilot write-tools (COPILOT-1; backend/adk/authoring_tools.py) —
     # owner-scoped, propose-only (the teacher's Apply persists). 1.1.39 / 1.1.50.
     "set_lesson_prompt": lambda _config: FunctionTool(_authoring_tools.set_lesson_prompt),
+    "add_element": lambda _config: FunctionTool(_authoring_tools.add_element),
 }
 
 # Tools handled entirely outside this registry (no ValueError for these)

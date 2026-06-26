@@ -101,3 +101,74 @@ def test_tool_never_persists(monkeypatch):
     from db.activities import get_activity
 
     assert get_activity(aid).teaching_goal == ""
+
+
+# --- COPILOT-2 M1: add_element (owner-scoped, propose-only, registry-validated) ---
+
+
+def test_add_element_owner_gets_a_checklist_proposal():
+    from adk.authoring_tools import add_element
+
+    aid = _make_activity(TEACHER)
+    res = add_element(
+        element_kind="checklist",
+        items=["Find massen", " Beregn energien ", "", "Sammenlign"],
+        activity_id=aid,
+        tool_context=_tc(TEACHER),
+    )
+    assert res["ok"] is True
+    assert res["proposal"]["kind"] == "add_element"
+    assert res["proposal"]["element_kind"] == "checklist"
+    # blanks stripped, whitespace trimmed
+    assert res["proposal"]["spec"]["items"] == ["Find massen", "Beregn energien", "Sammenlign"]
+
+
+def test_add_element_non_owner_is_denied():
+    from adk.authoring_tools import add_element
+
+    aid = _make_activity(TEACHER)
+    res = add_element(element_kind="checklist", items=["x"], activity_id=aid, tool_context=_tc(OTHER))
+    assert res["ok"] is False
+
+
+def test_add_element_rejects_unknown_and_unsupported_kinds():
+    from adk.authoring_tools import add_element
+
+    aid = _make_activity(TEACHER)
+    unknown = add_element(element_kind="bogus", items=["x"], activity_id=aid, tool_context=_tc(TEACHER))
+    unsupported = add_element(element_kind="calculator", items=["x"], activity_id=aid, tool_context=_tc(TEACHER))
+    assert unknown["ok"] is False and unsupported["ok"] is False
+
+
+def test_add_element_rejects_empty_checklist():
+    from adk.authoring_tools import add_element
+
+    aid = _make_activity(TEACHER)
+    assert (
+        add_element(element_kind="checklist", items=["  ", ""], activity_id=aid, tool_context=_tc(TEACHER))["ok"]
+        is False
+    )
+
+
+def test_add_element_caps_item_count():
+    from adk.authoring_tools import MAX_CHECKLIST_ITEMS, add_element
+
+    aid = _make_activity(TEACHER)
+    res = add_element(
+        element_kind="checklist",
+        items=[f"trin {i}" for i in range(MAX_CHECKLIST_ITEMS + 10)],
+        activity_id=aid,
+        tool_context=_tc(TEACHER),
+    )
+    assert len(res["proposal"]["spec"]["items"]) == MAX_CHECKLIST_ITEMS
+
+
+def test_add_element_never_persists(monkeypatch):
+    from adk import authoring_tools
+
+    aid = _make_activity(TEACHER)
+    monkeypatch.setattr(
+        authoring_tools, "save_activity", lambda *a, **k: (_ for _ in ()).throw(AssertionError("must not persist"))
+    )
+    res = authoring_tools.add_element(element_kind="checklist", items=["a"], activity_id=aid, tool_context=_tc(TEACHER))
+    assert res["ok"] is True
