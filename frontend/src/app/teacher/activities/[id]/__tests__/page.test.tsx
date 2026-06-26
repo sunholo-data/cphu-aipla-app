@@ -138,10 +138,11 @@ describe("/teacher/activities/[id] — real activity editor", () => {
     expect(textarea.value).toBe("");
   });
 
-  it("surfaces the 3-tab roadmap signals (Parameters / Code / History)", async () => {
+  it("surfaces the roadmap signals (Code / History) and not the dropped Parameters tab", async () => {
     render(<TeacherActivityConfigPage />);
     await screen.findByRole("textbox", { name: /teaching goal/i });
-    expect(screen.getByRole("tab", { name: /parameters/i })).toHaveTextContent(/v1\.1/i);
+    // Parameters was dropped (parked: conflicts with the research baseline).
+    expect(screen.queryByRole("tab", { name: /parameters/i })).not.toBeInTheDocument();
     expect(screen.getByRole("tab", { name: /code/i })).toHaveTextContent(/v2/i);
     expect(screen.getByRole("tab", { name: /history/i })).toHaveTextContent(/v2/i);
   });

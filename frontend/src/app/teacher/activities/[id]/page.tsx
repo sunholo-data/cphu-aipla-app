@@ -12,7 +12,6 @@ import {
   Loader2,
   RotateCcw,
   Save,
-  Sliders,
   Sparkles,
   Target,
   Wand2,
@@ -41,7 +40,6 @@ type TabDescriptor = {
 
 const TABS: TabDescriptor[] = [
   { id: "goal", label: "Teaching goal", icon: Target, status: "active" },
-  { id: "parameters", label: "Parameters", icon: Sliders, status: "v1.1" },
   { id: "code", label: "Code", icon: Code2, status: "v2" },
   { id: "history", label: "History", icon: History, status: "v2" },
 ];
@@ -283,10 +281,6 @@ export default function TeacherActivityConfigPage() {
         </section>
       ) : null}
 
-      {activeTab === "parameters" ? (
-        <ParametersTabPreview activityName={displayName} />
-      ) : null}
-
       {activeTab === "code" ? <CodeTabPreview /> : null}
 
       {activeTab === "history" ? <HistoryTabPreview /> : null}
@@ -341,107 +335,6 @@ function RoadmapBanner({
         <span className="leading-relaxed opacity-90">{description}</span>
       </div>
     </div>
-  );
-}
-
-function ParametersTabPreview({ activityName }: { activityName: string }) {
-  return (
-    <section
-      role="tabpanel"
-      id="tabpanel-parameters"
-      aria-labelledby="tab-parameters"
-      className="flex flex-col gap-4 opacity-90"
-    >
-      <RoadmapBanner
-        version="v1.1"
-        description="Post-pilot iteration. First-party artefacts expose a schema of bounded parameters teachers can tune without writing code. Schema-validated server-side."
-      />
-
-      <div className="flex flex-col gap-4 rounded border border-border bg-background p-4">
-        <h2 className="text-sm font-semibold">{activityName} parameters</h2>
-
-        <div className="flex flex-col gap-1">
-          <label className="text-xs font-medium text-muted-foreground">
-            Initial angle range (degrees)
-          </label>
-          <div className="flex items-center gap-3">
-            <input
-              type="range"
-              min={0}
-              max={90}
-              defaultValue={20}
-              disabled
-              aria-label="Min angle"
-              className="flex-1"
-            />
-            <span className="font-mono text-xs">20°</span>
-            <span aria-hidden="true">–</span>
-            <input
-              type="range"
-              min={0}
-              max={90}
-              defaultValue={75}
-              disabled
-              aria-label="Max angle"
-              className="flex-1"
-            />
-            <span className="font-mono text-xs">75°</span>
-          </div>
-        </div>
-
-        <div className="flex flex-col gap-2 text-sm">
-          <label className="flex items-center gap-2">
-            <input type="checkbox" disabled defaultChecked />
-            Show velocity vectors during flight
-          </label>
-          <label className="flex items-center gap-2">
-            <input type="checkbox" disabled defaultChecked={false} />
-            Show trajectory trail after launch
-          </label>
-          <label className="flex items-center gap-2">
-            <input type="checkbox" disabled defaultChecked />
-            Allow students to drag launch position
-          </label>
-        </div>
-
-        <div className="flex flex-wrap gap-4">
-          <label className="flex flex-col gap-1 text-sm font-medium">
-            Trials per round
-            <input
-              type="number"
-              disabled
-              defaultValue={5}
-              className="w-20 rounded border border-border bg-background px-2 py-1 text-sm"
-            />
-          </label>
-          <label className="flex flex-col gap-1 text-sm font-medium">
-            Artefact labels language
-            <select
-              disabled
-              defaultValue="da"
-              className="rounded border border-border bg-background px-2 py-1.5 text-sm"
-            >
-              <option value="da">Dansk</option>
-              <option value="en">English</option>
-            </select>
-          </label>
-        </div>
-
-        <button
-          type="button"
-          disabled
-          className="w-fit rounded border border-border bg-background px-3 py-1.5 text-sm font-medium text-muted-foreground opacity-60"
-        >
-          Save parameters
-        </button>
-      </div>
-
-      <p className="text-xs text-muted-foreground">
-        Open question for JB/AR: which parameters per artefact? Should
-        per-class overrides be allowed, or class-wide only? Should students
-        see which parameters their teacher tuned?
-      </p>
-    </section>
   );
 }
 
