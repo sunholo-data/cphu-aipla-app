@@ -1,6 +1,6 @@
 ---
 name: workbench-element-builder
-description: Wire a new student-facing workbench/activity element so it reaches the tutor on BOTH surfaces — the iframe-context state push AND the visible "shared with the AI" human-tool-use trust card. Use when adding a workbench element, a new activity element, when a student interaction (table/calculator/checklist/etc.) does not show in the chat, when "the AI didn't see what the student did", when wiring or debugging the trust card, or reviewing an element PR for the dropped-card bug.
+description: Wire a new student-facing workbench/activity element so it reaches the tutor on BOTH surfaces — the iframe-context state push AND the visible "shared with the AI" human-tool-use trust card — AND make it proposable by the activity-authoring co-pilot (the add_element tool). Use when adding a workbench element, a new activity element, when a student interaction (table/calculator/checklist/etc.) does not show in the chat, when "the AI didn't see what the student did", when wiring or debugging the trust card, when a new element isn't offered by the authoring co-pilot, or reviewing an element PR for the dropped-card or dropped-co-pilot-coverage bug.
 ---
 
 # Workbench Element Builder
@@ -62,6 +62,38 @@ A label should name what was shared, in Danish (student-facing UI is Danish):
    ```
    Lists every workspace component that pushes but does **not** dispatch a card —
    your new element should not be a new red row (unless it's a no-card shape).
+6. **Wire the co-pilot** — see the section below. A teacher-authorable element the
+   co-pilot can't propose is a silent gap.
+
+## Also: make the element co-pilot-authorable
+
+The two wirings above are the **student**-facing tutor surfaces. There is a third,
+separate requirement on the **teacher**-authoring side: the activity-authoring
+co-pilot (`docs/design/aipla/v1.1.0-feedback/activity-authoring-assistant.md`, its
+`add_element` tool) must be able to **propose** the new element — or a teacher can
+add it by hand but can't ask the co-pilot for it. Every element except the three
+structured ones (table/chart/calculator) shipped before the co-pilot could propose
+them; COPILOT-2 closed that gap, and this step keeps it closed.
+
+This is **recipe step 5b** in
+`docs/design/aipla/v1.1.0-feedback/activity-elements-palette.md`. Wire **both** sides:
+
+- **Backend** `backend/adk/authoring_tools.py`: add the kind to
+  `_SUPPORTED_ELEMENT_KINDS` (under `_TEXT_ELEMENT_KINDS` for a prompt/text element,
+  `_STRUCTURED_ELEMENT_KINDS` for a richer spec) + a `_build_element_spec` branch
+  that **validates by constructing the Pydantic element model** and returns a spec
+  shaped for the **FE editor value**; accept the kind's params on `add_element`;
+  list it in the authoring `SKILL.md`. Test owner-scoping + validation in
+  `backend/tests/unit/test_authoring_tools.py`.
+- **Frontend** `frontend/src/app/teacher/activities/[id]/_AuthoringCopilot.tsx`: a
+  `Proposal` variant + `parseProposal` case + `AddElementBody` preview, and the
+  **Apply-router case** in `[id]/page.tsx` mapping the proposal to the builder
+  setter from recipe step 5 (`setTable`/`setNote`/…). Test parse + Apply in
+  `_AuthoringCopilot.test.tsx`.
+
+Skip only for elements that are **not** teacher-authored (none today). The pattern
+is mechanical — each kind mirrors an existing one (`set_lesson_prompt` for
+owner-scoping; the text vs structured branches for the spec).
 
 ## Canonical references (read these, don't re-derive)
 
