@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
-import { ClipboardList, Copy, Plus, Share2, Sliders, Trash2, Users } from "lucide-react";
+import { ClipboardList, Copy, Plus, Sliders, Trash2, Users } from "lucide-react";
 
 import {
   type ActivityPayload,
@@ -14,8 +14,7 @@ import {
   listClasses,
   listSharedCatalogue,
   patchClassActivities,
-  publishActivity,
-  unpublishActivity,
+  setActivityVisibility,
 } from "@/lib/teacherApi";
 import { useIsResearcher } from "@/hooks/useIsResearcher";
 import { EmptyState } from "@/components/teacher/ui/EmptyState";
@@ -173,11 +172,12 @@ export default function TeacherActivitiesPage() {
     }
   }
 
-  // M3.1: toggle an activity's shared-catalogue visibility (publish ↔ unpublish).
-  async function handlePublishToggle(activityId: string, publish: boolean) {
+  // Set an activity's visibility via the single status control (draft/private/
+  // published). Replace on success; the next load re-syncs on error.
+  async function handleSetVisibility(activityId: string, visibility: ActivityPayload["visibility"]) {
     setBusyId(activityId);
     try {
-      const updated = publish ? await publishActivity(activityId) : await unpublishActivity(activityId);
+      const updated = await setActivityVisibility(activityId, visibility);
       setActivities((prev) => prev.map((a) => (a.activityId === activityId ? updated : a)));
     } catch {
       // Non-fatal; the next load re-syncs.
@@ -220,6 +220,15 @@ export default function TeacherActivitiesPage() {
         </div>
       }
     >
+      {status === "ok" && view === "own" ? (
+        <p className="mb-3 text-xs text-muted-foreground">
+          Set each activity&rsquo;s status with its chip —{" "}
+          <span className="font-medium text-foreground">Private</span> (your classes only) or{" "}
+          <span className="font-medium text-foreground">Shared</span> (other teachers can find and adopt a copy).
+          Students only ever see activities you <span className="font-medium text-foreground">assign</span> to their
+          class.
+        </p>
+      ) : null}
       {status === "loading" ? (
         <p className="text-sm text-muted-foreground">Loading activities&hellip;</p>
       ) : status === "error" ? (
@@ -259,7 +268,7 @@ export default function TeacherActivitiesPage() {
                 onToggleAssign={(classId, assigned) => toggleAssign(a.activityId, classId, assigned)}
                 onDelete={() => handleDelete(a.activityId, a.title ?? "")}
                 onDuplicate={() => handleDuplicate(a.activityId)}
-                onTogglePublish={(publish) => handlePublishToggle(a.activityId, publish)}
+                onSetVisibility={(visibility) => handleSetVisibility(a.activityId, visibility)}
               />
             </li>
           ))}
@@ -377,23 +386,65 @@ function ViewToggle({ view, onChange }: { view: View; onChange: (v: View) => voi
   );
 }
 
+/** Visibility vocabulary shared by the read-only badge and the editable control.
+ *  Backend value ``published`` reads as "Shared" on teacher surfaces — the
+ *  audience is colleagues, via the "Shared activities" catalogue. */
+const VISIBILITY_LABEL: Record<ActivityPayload["visibility"], string> = {
+  draft: "Draft",
+  private: "Private",
+  published: "Shared",
+};
+
+function visibilityColor(v: ActivityPayload["visibility"]): string {
+  if (v === "draft")
+    return "border-amber-300 bg-amber-100 text-amber-800 dark:border-amber-700 dark:bg-amber-900/40 dark:text-amber-300";
+  if (v === "published")
+    return "border-emerald-300 bg-emerald-100 text-emerald-800 dark:border-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-300";
+  return "border-border bg-muted text-muted-foreground"; // private
+}
+
+const VISIBILITY_HELP =
+  "Draft = a new copy to review · Private = your classes only · Shared = other teachers can adopt a copy. Students only ever see activities you assign.";
+
+/** Read-only status pill — used in the research view, where there is no control.
+ *  All three states are labelled (private is no longer an invisible blank). */
 function VisibilityBadge({ visibility }: { visibility: ActivityPayload["visibility"] }) {
-  if (visibility === "draft") {
-    return (
-      <span className="shrink-0 rounded bg-amber-100 px-1.5 py-0.5 text-[11px] font-medium text-amber-800 dark:bg-amber-900/40 dark:text-amber-300">
-        Draft
-      </span>
-    );
-  }
-  if (visibility === "published") {
-    return (
-      <span className="shrink-0 rounded bg-emerald-100 px-1.5 py-0.5 text-[11px] font-medium text-emerald-800 dark:bg-emerald-900/40 dark:text-emerald-300">
-        Published
-      </span>
-    );
-  }
-  // private renders no badge — the normal student-facing state.
-  return null;
+  return (
+    <span className={`shrink-0 rounded border px-1.5 py-0.5 text-[11px] font-medium ${visibilityColor(visibility)}`}>
+      {VISIBILITY_LABEL[visibility]}
+    </span>
+  );
+}
+
+/** The single status control on an own card: shows the current state AND switches
+ *  it (Draft / Private / Shared) in one place — replaces the old separate badge +
+ *  Publish button. A freshly-copied Draft promotes to Private on first save;
+ *  Shared lists it in the cross-teacher catalogue. */
+function VisibilityControl({
+  value,
+  busy,
+  onChange,
+}: {
+  value: ActivityPayload["visibility"];
+  busy: boolean;
+  onChange: (v: ActivityPayload["visibility"]) => void;
+}) {
+  return (
+    <select
+      aria-label="Visibility"
+      value={value}
+      disabled={busy}
+      title={VISIBILITY_HELP}
+      onChange={(e) => onChange(e.target.value as ActivityPayload["visibility"])}
+      className={`shrink-0 cursor-pointer rounded border px-1.5 py-0.5 text-[11px] font-medium focus:outline-none focus:ring-1 focus:ring-ring disabled:opacity-50 ${visibilityColor(value)}`}
+    >
+      {(["draft", "private", "published"] as const).map((v) => (
+        <option key={v} value={v}>
+          {VISIBILITY_LABEL[v]}
+        </option>
+      ))}
+    </select>
+  );
 }
 
 /** The composition row: sim artefact + workbench elements + documents. */
@@ -429,7 +480,7 @@ function ActivityCard({
   onToggleAssign,
   onDelete,
   onDuplicate,
-  onTogglePublish,
+  onSetVisibility,
 }: {
   activity: ActivityPayload;
   classes: ClassPayload[];
@@ -439,20 +490,23 @@ function ActivityCard({
   onToggleAssign: (classId: string, assigned: boolean) => void;
   onDelete: () => void;
   onDuplicate: () => void;
-  onTogglePublish: (publish: boolean) => void;
+  onSetVisibility: (visibility: ActivityPayload["visibility"]) => void;
 }) {
-  const published = activity.visibility === "published";
+  const editHref = `/teacher/activities/${encodeURIComponent(activity.activityId)}${
+    activity.title ? `?title=${encodeURIComponent(activity.title)}` : ""
+  }`;
+  const isDraft = activity.visibility === "draft";
   return (
     <TeacherCard>
       <div className="flex items-start justify-between gap-2">
         <h2 className="text-sm font-semibold">
           {activity.title || activity.teachingGoal?.slice(0, 60) || activity.activityId}
         </h2>
-        {/* Visibility (Draft/Published) only. The legacy workbench_type badge
-            ("Sim"/"Concept dialogue") was dropped: it conflated the tutor skill
-            with the student surface, and the composition row below already shows
-            what the activity is made of. */}
-        <VisibilityBadge visibility={activity.visibility} />
+        {/* Read-only research view shows the state as a pill; an own card shows
+            it via the editable status control in the footer instead (no
+            redundant badge). The legacy workbench_type badge was dropped — the
+            composition row already shows what the activity is made of. */}
+        {readOnly ? <VisibilityBadge visibility={activity.visibility} /> : null}
       </div>
 
       <CompositionRow activity={activity} />
@@ -469,10 +523,7 @@ function ActivityCard({
           </span>
         ) : (
           <div className="flex items-center gap-3">
-            <Link
-              href={`/teacher/activities/${encodeURIComponent(activity.activityId)}${activity.title ? `?title=${encodeURIComponent(activity.title)}` : ""}`}
-              className="flex items-center gap-1 font-medium hover:text-foreground"
-            >
+            <Link href={editHref} className="flex items-center gap-1 font-medium hover:text-foreground">
               <Sliders className="h-3 w-3" aria-hidden="true" />
               Edit
             </Link>
@@ -486,16 +537,7 @@ function ActivityCard({
               <Copy className="h-3 w-3" aria-hidden="true" />
               Duplicate
             </button>
-            <button
-              type="button"
-              onClick={() => onTogglePublish(!published)}
-              disabled={busy}
-              className="flex items-center gap-1 font-medium hover:text-foreground disabled:opacity-50"
-              title={published ? "Remove from the shared catalogue" : "Share with other teachers"}
-            >
-              <Share2 className="h-3 w-3" aria-hidden="true" />
-              {published ? "Unpublish" : "Publish"}
-            </button>
+            <VisibilityControl value={activity.visibility} busy={busy} onChange={onSetVisibility} />
             <button
               type="button"
               onClick={onDelete}
@@ -509,9 +551,19 @@ function ActivityCard({
         )}
       </div>
 
-      {/* Class assignment — chip toggles (own view only). Each chip is both the
-          status and the control: filled = assigned, outline = not. */}
-      {!readOnly && classes.length > 0 ? (
+      {/* Class assignment — own cards only. A DRAFT is not assignable yet: it
+          must be reviewed + saved (→ Private) first, so we show an explicit
+          prompt instead of the chips. Each chip is both status and control:
+          filled = assigned, outline = not. */}
+      {!readOnly && isDraft ? (
+        <div className="rounded border border-amber-300 bg-amber-50 p-2 text-[11px] text-amber-900 dark:border-amber-700 dark:bg-amber-950 dark:text-amber-200">
+          <span className="font-medium">Draft — not assignable yet.</span> Review and save it to make it Private, then
+          assign it to a class.{" "}
+          <Link href={editHref} className="font-medium underline hover:no-underline">
+            Review &amp; save
+          </Link>
+        </div>
+      ) : !readOnly && classes.length > 0 ? (
         <div>
           <p className="mb-1 flex items-center gap-1 text-[11px] font-medium text-foreground">
             <Users className="h-3 w-3 shrink-0" aria-hidden="true" />

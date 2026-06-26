@@ -252,18 +252,26 @@ async def patch_activity(
     Full payload — same shape as create.
 
     Preserves immutable identity (id, **owner**, provenance, created_at) and
-    overwrites the editable content + visibility. Ownership is taken from the
-    EXISTING activity, not the caller — so a researcher edit never silently
-    reassigns the activity to themselves.
+    overwrites the editable content. Ownership is taken from the EXISTING
+    activity, not the caller — so a researcher edit never silently reassigns it.
+
+    **Visibility is NOT edited here** — the card's status control owns it
+    (ALS-SHARE-UX). The save preserves the existing state, except it promotes a
+    freshly-copied ``draft`` to ``private`` (saving = "I've reviewed this copy,
+    it's mine now"). This stops a save from silently *unpublishing* a shared
+    activity, which the old "take visibility from the body (default private)"
+    path did on every edit.
     """
     _assert_teacher(user)
     existing = _load_for_modify(activity_id, user)
     _assert_known_artefact(body.artefact_id)
+    preserved_visibility: Visibility = "private" if existing.visibility == "draft" else existing.visibility
     updated = _activity_from_body(body, owner_uid=existing.owner_uid, activity_id=activity_id).model_copy(
         update={
             "created_at": existing.created_at,
             "source_activity_id": existing.source_activity_id,
             "source_owner_uid": existing.source_owner_uid,
+            "visibility": preserved_visibility,
         }
     )
     return _serialize(save_activity(updated))

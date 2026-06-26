@@ -454,21 +454,20 @@ export async function listSharedCatalogue(): Promise<ActivityPayload[]> {
   return readJson<ActivityPayload[]>(resp, "list shared catalogue");
 }
 
-/** Publish an activity to the shared catalogue (ALS-SHARE M3.1). */
-export async function publishActivity(activityId: string): Promise<ActivityPayload> {
-  const resp = await fetchWithAuth(`/api/proxy/api/activities/${encodeURIComponent(activityId)}/publish`, {
+/** Set an activity's visibility to any of `draft | private | published` in one
+ *  call (ALS-SHARE-UX M1) — the setter behind the card's status control.
+ *  `published` lists it in the shared catalogue; already-adopted copies are never
+ *  affected. Owner or researcher. */
+export async function setActivityVisibility(
+  activityId: string,
+  visibility: ActivityPayload["visibility"],
+): Promise<ActivityPayload> {
+  const resp = await fetchWithAuth(`/api/proxy/api/activities/${encodeURIComponent(activityId)}/visibility`, {
     method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ visibility }),
   });
-  return readJson<ActivityPayload>(resp, "publish activity");
-}
-
-/** Remove an activity from the shared catalogue (ALS-SHARE M3.1). Already-adopted
- *  copies are unaffected. */
-export async function unpublishActivity(activityId: string): Promise<ActivityPayload> {
-  const resp = await fetchWithAuth(`/api/proxy/api/activities/${encodeURIComponent(activityId)}/unpublish`, {
-    method: "POST",
-  });
-  return readJson<ActivityPayload>(resp, "unpublish activity");
+  return readJson<ActivityPayload>(resp, "set activity visibility");
 }
 
 /** Adopt a published activity into your library as a fresh `draft` (ALS-SHARE

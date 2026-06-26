@@ -168,18 +168,33 @@ describe("TeacherActivitiesPage (ALS-1 M1.2 library)", () => {
     // The copy is prepended -> two cards now carry the title.
     await waitFor(() => expect(screen.getAllByText("Energy basics").length).toBe(2));
   });
-  it("publishes/unpublishes an own activity (M3.1 toggle)", async () => {
+  it("switches an activity's visibility via the single status control (M2)", async () => {
     vi.spyOn(teacherApi, "listActivities").mockResolvedValue([makeActivity()]); // private
     vi.spyOn(teacherApi, "listClasses").mockResolvedValue([]);
-    const pubSpy = vi
-      .spyOn(teacherApi, "publishActivity")
+    const setSpy = vi
+      .spyOn(teacherApi, "setActivityVisibility")
       .mockResolvedValue(makeActivity({ visibility: "published" }));
     render(<TeacherActivitiesPage />);
     await screen.findByText("Energy basics");
-    fireEvent.click(screen.getByRole("button", { name: /Publish/ }));
-    await waitFor(() => expect(pubSpy).toHaveBeenCalledWith("act-energy"));
-    // Card flips to the Unpublish affordance.
-    await screen.findByRole("button", { name: /Unpublish/ });
+    const control = screen.getByRole("combobox", { name: /visibility/i });
+    expect(control).toHaveValue("private");
+    fireEvent.change(control, { target: { value: "published" } });
+    await waitFor(() => expect(setSpy).toHaveBeenCalledWith("act-energy", "published"));
+    // The same control reflects the new state (no separate badge/button).
+    await waitFor(() => expect(screen.getByRole("combobox", { name: /visibility/i })).toHaveValue("published"));
+  });
+
+  it("blocks assignment of a Draft and prompts review & save (not assignable yet)", async () => {
+    vi.spyOn(teacherApi, "listActivities").mockResolvedValue([makeActivity({ visibility: "draft" })]);
+    vi.spyOn(teacherApi, "listClasses").mockResolvedValue([
+      makeClass({ classId: "c-1", name: "7B", activityIds: [] }),
+    ]);
+    render(<TeacherActivitiesPage />);
+
+    await screen.findByText("Energy basics");
+    // A draft offers no class-assignment chip — instead an explicit review prompt.
+    expect(screen.queryByRole("button", { name: "7B" })).not.toBeInTheDocument();
+    expect(screen.getByText(/review and save/i)).toBeInTheDocument();
   });
 
   it("shows the Shared activities section and adopts a published activity (M3.4)", async () => {

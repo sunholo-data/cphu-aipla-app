@@ -376,7 +376,11 @@ async def patch_activities(
     class AND every added activity — you can only assign activities you own (the
     cross-teacher path is adopt-by-copy on the library page, never a direct assign).
     Idempotent. No skill-tag mutation: the student lesson list resolves from
-    ``Class.activity_ids`` (each activity carries its own running skill)."""
+    ``Class.activity_ids`` (each activity carries its own running skill).
+
+    A **draft** activity is not assignable (ALS-SHARE-UX): a freshly-copied
+    activity must be reviewed + saved (→ private) before it reaches students, so
+    adding one returns 409. Removing is always allowed."""
     _assert_teacher(user)
     _load_owned(class_id, user)
 
@@ -384,6 +388,11 @@ async def patch_activities(
         activity = get_activity(activity_id)
         if activity is None or activity.owner_uid != user.uid:
             raise HTTPException(status_code=404, detail=f"activity not found: {activity_id}")
+        if activity.visibility == "draft":
+            raise HTTPException(
+                status_code=409,
+                detail=f"activity is a draft; review and save it before assigning: {activity_id}",
+            )
     if body.add:
         add_activities(class_id, body.add)
     if body.remove:

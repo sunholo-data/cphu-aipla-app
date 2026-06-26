@@ -195,6 +195,23 @@ def test_assign_endpoint_owner_only_on_activity():
     assert mine not in removed.json()["activityIds"]
 
 
+def test_assign_draft_is_rejected_until_reviewed_and_saved():
+    """A draft is not assignable (ALS-SHARE-UX): adding one is 409. Saving it in
+    the editor promotes it to private, after which it assigns fine — the whole
+    review-before-use lifecycle in one test."""
+    _make_class("c1")
+    c = _client()
+    aid = c.post("/api/activities", json={"skillId": "concept", "title": "D"}).json()["activityId"]
+    c.post(
+        f"/api/activities/{aid}/visibility", json={"visibility": "draft"}
+    )  # force draft (as an adopt/duplicate would)
+    blocked = c.patch("/api/classes/c1/activities", json={"add": [aid]})
+    assert blocked.status_code == 409, blocked.text
+    c.patch(f"/api/activities/{aid}", json={"skillId": "concept", "title": "D"})  # save -> promotes draft to private
+    ok = c.patch("/api/classes/c1/activities", json={"add": [aid]})
+    assert ok.status_code == 200 and aid in ok.json()["activityIds"]
+
+
 class TestDuplicate:
     """M2 (ALS-SHARE): POST /api/activities/{id}/duplicate — copy into the
     caller's library (own source OR published)."""
@@ -423,3 +440,36 @@ class TestSetVisibility:
         copy_id = _client(OTHER).post(f"/api/activities/{pub}/adopt").json()["activityId"]
         _client().post(f"/api/activities/{pub}/visibility", json={"visibility": "private"})
         assert _client(OTHER).get(f"/api/activities/{copy_id}").status_code == 200  # adopted copy untouched
+
+
+class TestEditVisibilityLifecycle:
+    """ALS-SHARE-UX: the editor save (PATCH) must NOT clobber visibility. It
+    preserves private/published and promotes a freshly-copied draft to private."""
+
+    def test_save_preserves_published(self):
+        # Regression: editing a SHARED activity must not silently unpublish it.
+        c = _client()
+        aid = c.post("/api/activities", json={"skillId": "c", "title": "A", "visibility": "published"}).json()[
+            "activityId"
+        ]
+        r = c.patch(f"/api/activities/{aid}", json={"skillId": "c", "title": "A edited"})
+        assert r.status_code == 200, r.text
+        assert r.json()["visibility"] == "published"
+
+    def test_save_promotes_draft_to_private(self):
+        # adopt -> draft; saving in the editor is the review that makes it yours.
+        pub = (
+            _client(OTHER)
+            .post("/api/activities", json={"skillId": "c", "title": "P", "visibility": "published"})
+            .json()["activityId"]
+        )
+        aid = _client().post(f"/api/activities/{pub}/adopt").json()["activityId"]
+        assert _client().get(f"/api/activities/{aid}").json()["visibility"] == "draft"
+        r = _client().patch(f"/api/activities/{aid}", json={"skillId": "c", "title": "P mine"})
+        assert r.json()["visibility"] == "private"
+
+    def test_save_preserves_private(self):
+        c = _client()
+        aid = c.post("/api/activities", json={"skillId": "c", "title": "A"}).json()["activityId"]  # private
+        r = c.patch(f"/api/activities/{aid}", json={"skillId": "c", "title": "A2"})
+        assert r.json()["visibility"] == "private"
