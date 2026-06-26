@@ -1,0 +1,114 @@
+{
+  "sprint_id": "COPILOT-2",
+  "created": "2026-06-26T19:30:00Z",
+  "estimated_duration_days": 3,
+  "design_doc": "docs/design/aipla/v1.1.0-feedback/activity-authoring-assistant.md",
+  "sprint_plan": "docs/design/aipla/v1.1.0-feedback/authoring-copilot-2-sprint.md",
+  "features": [
+    {
+      "id": "M0",
+      "description": "Generalize the proposal pipeline: standardize the proposal envelope {kind, ...}; generalize the FE parseLessonProposal -> parseProposal(tc) dispatching on kind; an Apply router mapping kind -> builder setter. Refactor COPILOT-1 set_lesson_prompt + card onto the general path, behavior-preserving (existing tests stay green).",
+      "scope": "fullstack",
+      "estimated_loc": 220,
+      "actual_loc": null,
+      "dependencies": [],
+      "acceptance_criteria": [
+        "parseProposal dispatches on proposal.kind; Apply router maps each kind to a builder setter",
+        "COPILOT-1 set_lesson_prompt flow unchanged (its FE + BE tests stay green)",
+        "the proposal envelope shape is documented",
+        "FE quality:check + BE lint/test-fast green"
+      ],
+      "files_to_create": [],
+      "files_to_modify": [
+        "frontend/src/app/teacher/activities/[id]/_AuthoringCopilot.tsx",
+        "backend/adk/authoring_tools.py"
+      ],
+      "passes": null,
+      "started": null,
+      "completed": null,
+      "notes": null
+    },
+    {
+      "id": "M1",
+      "description": "add_element tool: owner-scoped, propose-only FunctionTool proposing a palette element (checklist/table/chart/calculator) validated against ELEMENT_REGISTRY (known kind + within cap). Card renders an add-element proposal; Apply calls the builder element setter. Declarative-only; never persists.",
+      "scope": "fullstack",
+      "estimated_loc": 280,
+      "actual_loc": null,
+      "dependencies": ["M0"],
+      "acceptance_criteria": [
+        "add_element rejects a non-owner (denial shape) and an unknown/over-cap kind",
+        "returns a well-formed proposal for the owner; never persists",
+        "the card's Apply adds the element to the builder draft (setChecklist/setTable/setChart/setCalculator)",
+        "registered in TOOL_REGISTRY + named in the authoring SKILL.md metadata.tools; gates green"
+      ],
+      "files_to_create": [],
+      "files_to_modify": [
+        "backend/adk/authoring_tools.py",
+        "backend/adk/tools.py",
+        "backend/skills/templates/activity-authoring-assistant/SKILL.md",
+        "frontend/src/app/teacher/activities/[id]/_AuthoringCopilot.tsx"
+      ],
+      "passes": null,
+      "started": null,
+      "completed": null,
+      "notes": null
+    },
+    {
+      "id": "M2",
+      "description": "set_artefact tool: owner-scoped, propose-only, proposing a vetted sim from the artefact catalogue (is_known_artefact / GET /api/artefacts). Card renders use-this-sim; Apply calls setArtefactId (derives workbenchType=app).",
+      "scope": "fullstack",
+      "estimated_loc": 200,
+      "actual_loc": null,
+      "dependencies": ["M0"],
+      "acceptance_criteria": [
+        "set_artefact rejects a non-owner and an unknown artefact id (is_known_artefact)",
+        "proposes a vetted sim; Apply sets artefactId on the builder",
+        "registered + named in SKILL.md metadata.tools; gates green"
+      ],
+      "files_to_create": [],
+      "files_to_modify": [
+        "backend/adk/authoring_tools.py",
+        "backend/adk/tools.py",
+        "backend/skills/templates/activity-authoring-assistant/SKILL.md",
+        "frontend/src/app/teacher/activities/[id]/_AuthoringCopilot.tsx"
+      ],
+      "passes": null,
+      "started": null,
+      "completed": null,
+      "notes": null
+    },
+    {
+      "id": "M3",
+      "description": "OPTIONAL: set_interaction_style / suggest_persona tool (1.1.39 M1 remainder) — propose a teaching style/persona; Apply sets interactionStyle.",
+      "scope": "fullstack",
+      "estimated_loc": 160,
+      "actual_loc": null,
+      "dependencies": ["M0"],
+      "acceptance_criteria": [
+        "set_interaction_style proposes a valid style; Apply sets interactionStyle",
+        "owner-scoped; gates green"
+      ],
+      "files_to_create": [],
+      "files_to_modify": [
+        "backend/adk/authoring_tools.py",
+        "frontend/src/app/teacher/activities/[id]/_AuthoringCopilot.tsx"
+      ],
+      "passes": null,
+      "started": null,
+      "completed": null,
+      "notes": "Optional — ship M0-M2 first; M3 if time allows."
+    }
+  ],
+  "velocity": {
+    "target_loc_per_day": 300,
+    "actual_loc_per_day": null,
+    "estimated_total_loc": 860,
+    "actual_total_loc": null,
+    "estimated_days": 3,
+    "actual_days": null
+  },
+  "github_issues": [],
+  "last_session": null,
+  "last_checkpoint": null,
+  "status": "not_started"
+}

@@ -1,7 +1,8 @@
 # Activity authoring assistant — an AI co-pilot that helps a non-technical teacher build a good teaching bot
 
-**Status:** Planned (P1, v1.1 — phased; **M0 gated on Aswin's meta-prompt**)
-**Last Updated:** 2026-06-17 (17 June teacher check-in — Aswin: *"when creating a new activity, have an AI chatbot help guide the teacher in the lesson prompt — Aswin will send a meta-prompt"* + *"look at more guided form actions"*)
+**Status:** **M0 SHIPPED** (sprint COPILOT-1, dark-flagged, placeholder framework); M1–M2 rescoped + built as sprint COPILOT-2 (P1, v1.1 — phased). The teaching framework ([1.1.50](authoring-teaching-framework.md)) is the quality gate.
+**Last Updated:** 2026-06-26 (M — **corrected the stale workbench-*type* tool**: `set_workbench_type` retired → `set_artefact` (sim) + `add_element` (palette); marked M0 shipped via COPILOT-1; `set_lesson_prompt` repointed to the ALS-1 `/api/activities` store)
+**Originally:** 2026-06-17 (17 June teacher check-in — Aswin: *"have an AI chatbot help guide the teacher in the lesson prompt"* + *"look at more guided form actions"*)
 **Priority:** **P1** — the most direct answer to *"onboard non-technical teachers to make good teaching AI bots."* The manual builder ([teacher-activity-authoring.md](teacher-activity-authoring.md), 1.1.19) assumes a teacher who can write a good Socratic prompt and knows which elements help. This is the affordance for the teacher who can't yet — a new authoring **interface**, which is exactly the breadth-over-depth bet (a high-leverage new probe over the possibility space).
 **Estimated:** ~1.5d M0 (prompt co-pilot) + ~1d per later milestone — phased; the full assistant is pilot-iteration work
 **Scope:** Fullstack — a new teacher-facing ADK agent (`backend/skills/templates/activity-authoring-assistant/`) + authoring tools (`backend/adk/authoring_tools.py`) that mutate the in-progress `ActivityConfig` draft via the existing `/api/activity-configs` upsert + an AG-UI chat panel in `frontend/src/app/teacher/activities/` + A2UI accept/edit proposal cards + `frontend/src/lib/teacherApi.ts` wiring. **Reuses the student chat stack** (AG-UI) on the teacher auth path.
@@ -90,7 +91,7 @@ This is a **teacher surface that streams an agent**. Per [CLAUDE.md](../../../..
 ┌─ Create activity ─────────────────────────────┬─ Build assistant ──────────────┐
 │  Name        [ Energibevarelse — 7B        ]  │  You: I want to teach energy   │
 │  Language     (•) Dansk  ( ) English          │  conservation to a B class.    │
-│  Workbench    [ None ▾ ]                       │  We have a ramp + photogate.   │
+│  Sim          [ pick a sim… ]                  │  We have a ramp + photogate.   │
 │                                                │                                │
 │  Lesson prompt (Socratic teaching goal)        │  Assistant: Here's a Socratic  │
 │  ┌──────────────────────────────────────────┐  │  prompt + a 4-step checklist + │
@@ -112,13 +113,15 @@ Each tool is an ADK `FunctionTool` over an existing API, owner-scoped to the dra
 
 | Tool | Backs onto | Proposes |
 |---|---|---|
-| `set_lesson_prompt(text)` | `PATCH /api/activity-configs` `teachingGoal` | A Socratic lesson prompt (the M0 core — Aswin's meta-prompt drives quality) |
+| `set_lesson_prompt(text)` | `PATCH /api/activities` `teachingGoal` (ALS-1 store) | A Socratic lesson prompt (the M0 core — the teaching framework drives quality). **Shipped — COPILOT-1 M0.** |
 | `set_interaction_style(style)` / `suggest_persona` | `interactionStyle` (1.1.20) / persona (1.1.12) | A teaching style / persona fitting the lesson |
 | `propose_checklist(items)` | `checklist` (1.1.38) | Progress steps — sources [curriculum #4](teacher-activity-authoring.md) auto-rubric (re-homes 1.1.19 M7) |
-| `add_element(kind, spec)` | the [palette](activity-elements-palette.md) (1.1.38) | A table / chart / calculator that fits the lesson (re-homes 1.1.19 M6 equipment co-design) |
-| `set_workbench_type(type)` | `workbenchType` (1.J) | `none` / a sim / notebook fitting the activity |
+| `add_element(kind, spec)` | the [palette](activity-elements-palette.md) (1.1.38) | A table / chart / calculator / checklist that fits the lesson (re-homes 1.1.19 M6 equipment co-design) |
+| `suggest_sim` / `set_artefact(artefactId)` | `artefactId` → derives `workbenchType=app` (the **`SimPicker`** catalogue) | A **vetted sim** from the catalogue that fits the activity |
 | `suggest_materials(topic, level)` | `GET /api/curriculum` retrieval (1.1.25) | Real *faglige mål* / *kernestof* docs to cite, at the right A/B/C level |
 | `coverage_hint()` | [curriculum #6](teacher-activity-authoring.md) coverage map (1.1.19 M8) | "you have no activity on X" — points at the next probe |
+
+> **⚠ Correction (2026-06-26): the workbench-*type* is retired as a teacher choice.** This row originally read `set_workbench_type(type)` (`none` / sim / notebook). That is stale: the "make workbenchType honest" line (1.1.32) + the SUBMIT-1 element reconciliation (1.1.48, `document`→element) + dropping the workbench-type badge (`255f413`) reduced `workbenchType` to a **derived/internal** field — `app` when an `artefactId` is set, else `none` (`_backfill_workbench_type`). The `drawing/sensor/video/notebook` literals were never shipped; `document` is deprecated. The builder has **no workbench-type picker** (`useActivityBuilder.ts`: *"No longer teacher-chosen"*). So the co-pilot configures the workbench through the **real** teacher choices: a **sim** (`set_artefact` → `artefactId`) + **elements** (`add_element` from the palette) — never a `workbench_type` menu.
 
 This is the unification: **1.1.19 M6 (equipment co-design) and M7 (auto-rubric) stop being standalone milestones and become `add_element` and `propose_checklist` here** — driven conversationally instead of headlessly. (1.1.19's milestone table should be amended to note the re-home; see *Reconciliation*.)
 
@@ -152,9 +155,9 @@ Ordered so **M0 is the standalone headline** (Aswin's literal ask — help with 
 
 | MS | Deliverable | Est | Gate | Lands |
 |---|---|---|---|---|
-| **M0** | **Prompt co-pilot.** The chat panel in the builder (teacher auth), the `activity-authoring-assistant` skill with **Aswin's meta-prompt**, and the single `set_lesson_prompt` tool → accept/edit card → fills `teachingGoal`. A teacher chats and gets a good Socratic prompt. | ~1.5d | **Aswin's meta-prompt** | pilot-iteration |
-| **M1** | **Guided form actions.** (Aswin's *"more guided form actions"*) — `propose_checklist` + `set_workbench_type` + `set_interaction_style`/persona as accept/edit cards. | ~1d | none (post-M0) | pilot-iteration |
-| **M2** | **Element assembly.** `add_element` proposing table/chart/calculator from the [palette](activity-elements-palette.md); re-homes 1.1.19 M6 equipment co-design. | ~1.5d | [1.1.38](activity-elements-palette.md) M1+ landed | pilot-iteration |
+| **M0** | **Prompt co-pilot.** The chat panel in the builder (teacher auth), the `activity-authoring-assistant` skill with the **teaching framework** ([1.1.50](authoring-teaching-framework.md)), and the single `set_lesson_prompt` tool → accept/edit card → fills `teachingGoal`. A teacher chats and gets a good Socratic prompt. **✅ Shipped — sprint COPILOT-1** (against a placeholder framework, dark-flagged). | ~1.5d | the [teaching framework](authoring-teaching-framework.md) | **done** |
+| **M1** | **Guided form actions.** (Aswin's *"more guided form actions"*) — `propose_checklist` + `set_interaction_style`/persona as accept/edit cards. (Workbench *type* is no longer a choice — see the Correction above; the sim path is `set_artefact`, M2.) Rescoped + executed as **sprint COPILOT-2**. | ~1d | none (post-M0) | pilot-iteration |
+| **M2** | **Workbench assembly.** `add_element` proposing table/chart/calculator/checklist from the [palette](activity-elements-palette.md) (re-homes 1.1.19 M6) **+ `set_artefact`** proposing a vetted sim from the `SimPicker` catalogue (the real "configure the workbench" surface — workbench *type* is derived). Rescoped + executed as **sprint COPILOT-2**. | ~1.5d | [1.1.38](activity-elements-palette.md) M1+ landed (✅) | pilot-iteration |
 | **M3** | **Curriculum-grounded suggestions.** `suggest_materials` + level calibration + `propose_checklist` sourcing the auto-rubric; re-homes 1.1.19 M7. | ~1.5d | [1.1.25](curriculum-library.md) active (corpus seeded) | pilot-iteration |
 | **M4** | **Provenance + observability.** Accept/edit/reject trail per proposal → OTel → BQ; `coverage_hint` (re-homes 1.1.19 M8). The research signal on how teachers author. | ~1d | aligns 1.1.17 / 2.5 | pilot-iteration |
 
