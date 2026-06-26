@@ -242,12 +242,16 @@ export default function TeacherClassesPage() {
     };
   }, [showInsights, researchView]);
 
-  // Resolve the teacher-facing titles of a class's assigned activities from the
-  // new model (`activityIds` → the activity library), matching the class-detail
-  // view. Falls back to the id when a title can't be resolved.
-  const activityTitlesForClass = useCallback(
-    (cls: ClassPayload): string[] =>
-      (cls.activityIds ?? []).map((id) => activityById.get(id)?.title?.trim() || id),
+  // Resolve a class's assigned activities to {id, title} from the new model
+  // (`activityIds` → the activity library), matching the class-detail view. The
+  // id rides along so the list can link each title to its editor. Falls back to
+  // the id as the title when it can't be resolved.
+  const activitiesForClass = useCallback(
+    (cls: ClassPayload): { activityId: string; title: string }[] =>
+      (cls.activityIds ?? []).map((id) => ({
+        activityId: id,
+        title: activityById.get(id)?.title?.trim() || id,
+      })),
     [activityById],
   );
 
@@ -413,7 +417,7 @@ export default function TeacherClassesPage() {
                   <ClassRow
                     key={cls.classId}
                     cls={cls}
-                    activities={activityTitlesForClass(cls)}
+                    activities={activitiesForClass(cls)}
                     persona={personaLabelForClass(cls)}
                     showOwner={researchView}
                     canDelete={!researchView}
@@ -641,7 +645,7 @@ function ClassRow({
   onDelete,
 }: {
   cls: ClassPayload;
-  activities: string[];
+  activities: { activityId: string; title: string }[];
   persona: { name: string; inherited: boolean; avatar: string };
   showOwner?: boolean;
   canDelete?: boolean;
@@ -678,12 +682,25 @@ function ClassRow({
           <span className="text-muted-foreground/60">None yet</span>
         ) : (
           <ul className="space-y-0.5">
-            {activities.slice(0, 3).map((title, i) => (
-              <li key={i} className="flex items-center gap-1.5">
+            {activities.slice(0, 3).map((a) => (
+              <li key={a.activityId} className="flex items-center gap-1.5">
                 <ClipboardList className="h-3.5 w-3.5 shrink-0" aria-hidden="true" />
-                <span className="truncate" title={title}>
-                  {title}
-                </span>
+                {/* Own view: click a title to edit that activity. Research view
+                    (showOwner) is read-only — another teacher's activity isn't
+                    editable, so render plain text. */}
+                {showOwner ? (
+                  <span className="truncate" title={a.title}>
+                    {a.title}
+                  </span>
+                ) : (
+                  <Link
+                    href={`/teacher/activities/${encodeURIComponent(a.activityId)}?title=${encodeURIComponent(a.title)}`}
+                    className="truncate hover:text-foreground hover:underline"
+                    title={`Edit ${a.title}`}
+                  >
+                    {a.title}
+                  </Link>
+                )}
               </li>
             ))}
             {activities.length > 3 ? (

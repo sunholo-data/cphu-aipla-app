@@ -254,7 +254,9 @@ describe("/teacher/classes — dashboard", () => {
     expect(
       document.querySelector('img[src="/personas/mikkel.webp"]'),
     ).toBeInTheDocument();
-    expect(await screen.findByText(/Mechanical Waves/)).toBeInTheDocument();
+    // The activity title links to its editor (click-through from the class list).
+    const activityLink = await screen.findByRole("link", { name: /Mechanical Waves/ });
+    expect(activityLink.getAttribute("href")).toContain("/teacher/activities/act-x");
   });
 
   it("deletes a class only after confirming the warning (1.1.32)", async () => {
