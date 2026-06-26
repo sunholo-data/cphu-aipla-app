@@ -24,6 +24,7 @@ from collections.abc import Callable
 
 from google.adk.tools import FunctionTool, ToolContext
 
+from adk import authoring_tools as _authoring_tools
 from analytics import summarise as _analytics_summarise
 from analytics import tools as _analytics_tools
 from db.firestore import query_documents
@@ -145,6 +146,9 @@ TOOL_REGISTRY: dict[str, Callable[[dict], FunctionTool]] = {
     "most_active_groups": lambda _config: FunctionTool(_analytics_tools.most_active_groups),
     "group_summary": lambda _config: FunctionTool(_analytics_tools.group_summary),
     "summarise_chat_excerpts": lambda _config: FunctionTool(_analytics_summarise.summarise_chat_excerpts),
+    # Authoring co-pilot write-tools (COPILOT-1; backend/adk/authoring_tools.py) —
+    # owner-scoped, propose-only (the teacher's Apply persists). 1.1.39 / 1.1.50.
+    "set_lesson_prompt": lambda _config: FunctionTool(_authoring_tools.set_lesson_prompt),
 }
 
 # Tools handled entirely outside this registry (no ValueError for these)
