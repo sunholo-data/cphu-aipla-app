@@ -1,0 +1,198 @@
+{
+  "sprint_id": "ALS-SHARE",
+  "created": "2026-06-26T08:54:39Z",
+  "estimated_duration_days": 5,
+  "design_doc": "docs/design/aipla/v1.1.0-feedback/activity-library-sharing.md",
+  "sprint_plan": "docs/design/aipla/v1.1.0-feedback/activity-library-sharing-share-sprint.md",
+  "features": [
+    {
+      "id": "M2-duplicate",
+      "description": "Duplicate/branch primitive: POST /api/activities/{id}/duplicate copies an activity into the caller's library (new act- id, source_* provenance, visibility=draft, content deep-copied, unassigned). Source must be the caller's own OR published. + Duplicate affordance on own activity cards / 'New from an existing one'.",
+      "scope": "fullstack",
+      "estimated_loc": 180,
+      "actual_loc": null,
+      "dependencies": [],
+      "acceptance_criteria": [
+        "Duplicating an own activity yields a new draft with source_activity_id + source_owner_uid set, unassigned, independently editable",
+        "Duplicating a non-owned, non-published id returns 404 (no existence leak)",
+        "A shared _copy_activity helper deep-copies content (skill/artefact/elements/materials) and resets id/owner/assignment/visibility",
+        "Frontend: Duplicate action on own cards refreshes the list with the new draft"
+      ],
+      "files_to_create": [],
+      "files_to_modify": [
+        "backend/protocols/activity_routes.py",
+        "backend/db/activities.py",
+        "backend/tests/api_tests/test_activity_routes.py",
+        "frontend/src/lib/teacherApi.ts",
+        "frontend/src/app/teacher/activities/page.tsx",
+        "frontend/src/app/teacher/activities/__tests__/page.test.tsx"
+      ],
+      "passes": true,
+      "started": "2026-06-26",
+      "completed": "2026-06-26",
+      "notes": "db.copy_activity shared helper (deep-copy, reset id/owner/provenance/visibility/timestamps) + POST /{id}/duplicate (own OR published source, else 404). Frontend: duplicateActivity() + Duplicate action prepends the draft. 4 backend + 1 frontend test."
+    },
+    {
+      "id": "M3.1-publish",
+      "description": "Publish/unpublish endpoints: POST /api/activities/{id}/publish (->published) and /unpublish (->private). Owner OR researcher (shared guard with M3b). Validate the transition set; unpublish never touches already-adopted copies.",
+      "scope": "backend",
+      "estimated_loc": 110,
+      "actual_loc": null,
+      "dependencies": [],
+      "acceptance_criteria": [
+        "publish sets visibility=published; unpublish sets visibility=private",
+        "Owner can publish/unpublish their own; non-owner non-researcher gets 404",
+        "Transition validation rejects nonsense states; unpublish leaves adopted copies untouched",
+        "Both endpoints OTel-span the action keyed by activity + owner"
+      ],
+      "files_to_create": [],
+      "files_to_modify": [
+        "backend/protocols/activity_routes.py",
+        "backend/tests/api_tests/test_activity_routes.py"
+      ],
+      "passes": null,
+      "started": null,
+      "completed": null,
+      "notes": null
+    },
+    {
+      "id": "M3.2-catalogue",
+      "description": "Shared catalogue endpoint: GET /api/activities?published=true returns every teacher's published activities, enriched with ownerLabel (resolve_owner_labels) for by-owner grouping. Open to any teacher (published-only, read-only) - distinct from researcher scope=all.",
+      "scope": "backend",
+      "estimated_loc": 90,
+      "actual_loc": null,
+      "dependencies": [
+        "M3.1-publish"
+      ],
+      "acceptance_criteria": [
+        "?published=true returns published activities across all owners, each with ownerLabel",
+        "Any teacher can call it (not researcher-gated); it never returns draft/private",
+        "Distinct gate from scope=all; explicit per-mode tests, no silent fallback"
+      ],
+      "files_to_create": [],
+      "files_to_modify": [
+        "backend/protocols/activity_routes.py",
+        "backend/tests/api_tests/test_activity_routes.py"
+      ],
+      "passes": null,
+      "started": null,
+      "completed": null,
+      "notes": null
+    },
+    {
+      "id": "M3.3-adopt",
+      "description": "Adopt-by-copy: POST /api/activities/{id}/adopt copies a PUBLISHED activity into the caller's library (copy semantics from M2, source_* provenance, visibility=draft). Rejects adopting a non-published activity you don't own (404).",
+      "scope": "backend",
+      "estimated_loc": 80,
+      "actual_loc": null,
+      "dependencies": [
+        "M2-duplicate",
+        "M3.1-publish"
+      ],
+      "acceptance_criteria": [
+        "Adopting a published activity creates a draft copy owned by the caller with source_* set",
+        "Adopting a non-published activity you don't own returns 404",
+        "Reuses the _copy_activity helper; the source teacher's edits never mutate the adopted copy"
+      ],
+      "files_to_create": [],
+      "files_to_modify": [
+        "backend/protocols/activity_routes.py",
+        "backend/tests/api_tests/test_activity_routes.py"
+      ],
+      "passes": null,
+      "started": null,
+      "completed": null,
+      "notes": null
+    },
+    {
+      "id": "M3.4-shared-ui",
+      "description": "Shared activities UI + publish toggle: a 'Shared activities' section on the activities library (grouped by owner, attribution shown) with a Use/adapt action -> adopt-copy -> lands in Your activities as a draft; a Publish/Unpublish control + visibility badge on own cards. Teacher-auth throughout.",
+      "scope": "frontend",
+      "estimated_loc": 280,
+      "actual_loc": null,
+      "dependencies": [
+        "M3.2-catalogue",
+        "M3.3-adopt",
+        "M3.1-publish"
+      ],
+      "acceptance_criteria": [
+        "Shared activities section lists other teachers' published activities grouped by owner name",
+        "Use/adapt copies into the caller's library as a draft and surfaces it in Your activities",
+        "Publish/Unpublish toggle + visibility badge on own cards; unpublish removes from the catalogue",
+        "A teacher cannot edit or assign another teacher's activity directly (only adopt)"
+      ],
+      "files_to_create": [],
+      "files_to_modify": [
+        "frontend/src/lib/teacherApi.ts",
+        "frontend/src/app/teacher/activities/page.tsx",
+        "frontend/src/app/teacher/activities/__tests__/page.test.tsx"
+      ],
+      "passes": null,
+      "started": null,
+      "completed": null,
+      "notes": null
+    },
+    {
+      "id": "M3b-researcher-crud",
+      "description": "Researcher CRUD-over-all moderation: extend the shipped researcher read-bypass to write/delete/publish/unpublish on the activities collection only. role:researcher may modify any teacher's activity; User.is_researcher guard + auth.researcher_bypass OTel span. Scoped to activities, not a general write-bypass.",
+      "scope": "backend",
+      "estimated_loc": 90,
+      "actual_loc": null,
+      "dependencies": [
+        "M3.1-publish"
+      ],
+      "acceptance_criteria": [
+        "A researcher can PATCH/DELETE/publish/unpublish another teacher's activity (200)",
+        "A non-researcher non-owner still gets 404 on the same operations",
+        "The bypass is scoped to the activities collection and OTel-spanned like the read path"
+      ],
+      "files_to_create": [],
+      "files_to_modify": [
+        "backend/protocols/activity_routes.py",
+        "backend/tests/api_tests/test_activity_routes.py"
+      ],
+      "passes": null,
+      "started": null,
+      "completed": null,
+      "notes": null
+    },
+    {
+      "id": "M-HIST-history-panel",
+      "description": "Light History panel: replace the History tab roadmap stub with a read-only provenance + lifecycle view -- 'Adapted from {sourceOwnerLabel} activity' (when source_* set), current visibility, created/updated timestamps. Backend surfaces sourceOwnerLabel on the activity GET. NOT version-timeline+rollback (Year-2).",
+      "scope": "fullstack",
+      "estimated_loc": 120,
+      "actual_loc": null,
+      "dependencies": [
+        "M3.3-adopt"
+      ],
+      "acceptance_criteria": [
+        "An adopted activity History shows its provenance (adapted-from + owner) + lifecycle",
+        "A from-scratch activity shows created/updated + visibility with no provenance line",
+        "Backend enriches the activity GET with sourceOwnerLabel (resolve_owner_labels); read-only"
+      ],
+      "files_to_create": [],
+      "files_to_modify": [
+        "backend/protocols/activity_routes.py",
+        "backend/tests/api_tests/test_activity_routes.py",
+        "frontend/src/app/teacher/activities/[id]/page.tsx",
+        "frontend/src/app/teacher/activities/[id]/__tests__/page.test.tsx"
+      ],
+      "passes": null,
+      "started": null,
+      "completed": null,
+      "notes": null
+    }
+  ],
+  "velocity": {
+    "target_loc_per_day": 220,
+    "actual_loc_per_day": null,
+    "estimated_total_loc": 1050,
+    "actual_total_loc": null,
+    "estimated_days": 5,
+    "actual_days": null
+  },
+  "github_issues": [],
+  "last_session": null,
+  "last_checkpoint": null,
+  "status": "not_started"
+}

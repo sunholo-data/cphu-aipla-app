@@ -193,3 +193,49 @@ def test_assign_endpoint_owner_only_on_activity():
     # remove works
     removed = c.patch("/api/classes/c1/activities", json={"remove": [mine]})
     assert mine not in removed.json()["activityIds"]
+
+
+class TestDuplicate:
+    """M2 (ALS-SHARE): POST /api/activities/{id}/duplicate — copy into the
+    caller's library (own source OR published)."""
+
+    def test_duplicate_own_creates_draft_copy_with_provenance(self):
+        c = _client()
+        src = c.post(
+            "/api/activities",
+            json={"skillId": "concept", "title": "Orig", "teachingGoal": "g", "artefactId": "boldkast"},
+        ).json()
+        sid = src["activityId"]
+        resp = c.post(f"/api/activities/{sid}/duplicate")
+        assert resp.status_code == 201, resp.text
+        copy = resp.json()
+        assert copy["activityId"] != sid and copy["activityId"].startswith("act-")
+        assert copy["ownerUid"] == TEACHER
+        assert copy["sourceActivityId"] == sid
+        assert copy["sourceOwnerUid"] == TEACHER
+        assert copy["visibility"] == "draft"
+        # content copied
+        assert copy["title"] == "Orig"
+        assert copy["teachingGoal"] == "g"
+        assert copy["artefactId"] == "boldkast"
+
+    def test_duplicate_published_of_another_owner_allowed(self):
+        theirs = _client(OTHER).post(
+            "/api/activities", json={"skillId": "concept", "title": "Pub", "visibility": "published"}
+        ).json()["activityId"]
+        resp = _client().post(f"/api/activities/{theirs}/duplicate")
+        assert resp.status_code == 201, resp.text
+        copy = resp.json()
+        assert copy["ownerUid"] == TEACHER  # copied into the caller's library
+        assert copy["sourceOwnerUid"] == OTHER
+        assert copy["visibility"] == "draft"
+
+    def test_duplicate_anothers_private_is_404(self):
+        theirs = _client(OTHER).post(
+            "/api/activities", json={"skillId": "concept", "title": "Priv"}  # default visibility=private
+        ).json()["activityId"]
+        resp = _client().post(f"/api/activities/{theirs}/duplicate")
+        assert resp.status_code == 404
+
+    def test_duplicate_missing_is_404(self):
+        assert _client().post("/api/activities/act-nope/duplicate").status_code == 404

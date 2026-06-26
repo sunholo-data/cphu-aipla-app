@@ -26,6 +26,7 @@ from artefacts.loader import is_known_artefact
 from auth import User, get_current_user
 from auth.owner_labels import resolve_owner_labels
 from db.activities import (
+    copy_activity,
     create_activity,
     get_activity,
     list_activities_by_owner,
@@ -240,3 +241,24 @@ async def delete_activity_route(
     _load_owned(activity_id, user)
     soft_delete_activity(activity_id)
     return None
+
+
+@router.post("/{activity_id}/duplicate", status_code=201)
+async def duplicate_activity_route(
+    activity_id: str = Path(...),
+    user: User = Depends(get_current_user),  # noqa: B008
+) -> dict:
+    """Duplicate an activity into the caller's library (ALS-SHARE M2).
+
+    "Edit on top of an existing one": copies the source into a fresh ``draft``
+    owned by the caller, with ``source_*`` provenance and NO class assignment.
+    The source must be the caller's **own** OR ``published`` (a colleague's
+    private/draft is invisible) — else 404, enumeration-resistant.
+    """
+    _assert_teacher(user)
+    source = get_activity(activity_id)
+    if source is None or (source.owner_uid != user.uid and source.visibility != "published"):
+        raise HTTPException(status_code=404, detail="Activity not found")
+    copy = copy_activity(source, new_owner_uid=user.uid)
+    log.info("activity duplicated src=%s -> %s owner=%s", activity_id, copy.activity_id, user.uid)
+    return _serialize(copy)

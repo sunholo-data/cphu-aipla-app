@@ -454,6 +454,15 @@ export async function bootstrapTeacher(): Promise<TeacherBootstrapResult> {
   return readJson<TeacherBootstrapResult>(resp, "teacher bootstrap");
 }
 
+/** Duplicate an activity into your library as a fresh `draft` (ALS-SHARE M2) —
+ *  source must be your own OR `published`. Returns the new copy. */
+export async function duplicateActivity(activityId: string): Promise<ActivityPayload> {
+  const resp = await fetchWithAuth(`/api/proxy/api/activities/${encodeURIComponent(activityId)}/duplicate`, {
+    method: "POST",
+  });
+  return readJson<ActivityPayload>(resp, "duplicate activity");
+}
+
 /** Soft-delete an activity (owner-only). */
 export async function deleteActivity(activityId: string): Promise<void> {
   const resp = await fetchWithAuth(`/api/proxy/api/activities/${encodeURIComponent(activityId)}`, {

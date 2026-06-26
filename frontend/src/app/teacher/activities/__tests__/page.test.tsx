@@ -154,4 +154,17 @@ describe("TeacherActivitiesPage (ALS-1 M1.2 library)", () => {
 
     await waitFor(() => expect(screen.getByText(/Couldn.t load activities/)).toBeInTheDocument());
   });
+  it("duplicates an activity into the list as a new draft (M2)", async () => {
+    vi.spyOn(teacherApi, "listActivities").mockResolvedValue([makeActivity()]);
+    vi.spyOn(teacherApi, "listClasses").mockResolvedValue([]);
+    const dupSpy = vi
+      .spyOn(teacherApi, "duplicateActivity")
+      .mockResolvedValue(makeActivity({ activityId: "act-copy", visibility: "draft" }));
+    render(<TeacherActivitiesPage />);
+    await screen.findByText("Energy basics");
+    fireEvent.click(screen.getByRole("button", { name: /Duplicate/ }));
+    await waitFor(() => expect(dupSpy).toHaveBeenCalledWith("act-energy"));
+    // The copy is prepended -> two cards now carry the title.
+    await waitFor(() => expect(screen.getAllByText("Energy basics").length).toBe(2));
+  });
 });

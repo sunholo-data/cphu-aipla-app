@@ -68,6 +68,33 @@ def create_activity(activity: Activity) -> Activity:
     return save_activity(activity.model_copy(update={"activity_id": activity_id}))
 
 
+def copy_activity(source: Activity, *, new_owner_uid: str) -> Activity:
+    """Deep-copy an activity into ``new_owner_uid``'s library — the shared
+    primitive behind **duplicate** (own/published → your library) and **adopt**
+    (another teacher's published → your library), ALS-SHARE M2/M3.3.
+
+    Mints a fresh ``act-…`` id, sets ``owner_uid = new_owner_uid``, records
+    provenance (``source_activity_id`` / ``source_owner_uid`` → the source), and
+    resets to ``visibility = draft`` with fresh timestamps. Content (skill,
+    artefact, elements, materials) is deep-copied; **class assignment is NOT
+    carried** — a copy is an unassigned draft in its new owner's library.
+    """
+    copy = source.model_copy(
+        deep=True,
+        update={
+            "activity_id": "",  # create_activity mints a fresh id
+            "owner_uid": new_owner_uid,
+            "source_activity_id": source.activity_id,
+            "source_owner_uid": source.owner_uid,
+            "visibility": "draft",
+            "created_at": None,
+            "updated_at": None,
+            "deleted_at": None,
+        },
+    )
+    return create_activity(copy)
+
+
 def get_activity(activity_id: str, *, include_deleted: bool = False) -> Activity | None:
     """Return the activity, or ``None`` if missing (or soft-deleted, unless asked)."""
     data = get_document(_COLLECTION, activity_id)
@@ -118,6 +145,7 @@ def soft_delete_activity(activity_id: str) -> None:
 
 
 __all__ = [
+    "copy_activity",
     "create_activity",
     "get_activity",
     "list_activities_by_owner",

@@ -2,12 +2,13 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
-import { ClipboardList, Plus, Sliders, Trash2, Users } from "lucide-react";
+import { ClipboardList, Copy, Plus, Sliders, Trash2, Users } from "lucide-react";
 
 import {
   type ActivityPayload,
   type ClassPayload,
   deleteActivity,
+  duplicateActivity,
   listActivities,
   listClasses,
   patchClassActivities,
@@ -144,6 +145,20 @@ export default function TeacherActivitiesPage() {
     }
   }
 
+  // M2: copy an activity into your library as a fresh draft ("edit on top of an
+  // existing one"). Prepends the new draft so it's immediately visible.
+  async function handleDuplicate(activityId: string) {
+    setBusyId(activityId);
+    try {
+      const copy = await duplicateActivity(activityId);
+      setActivities((prev) => [copy, ...prev]);
+    } catch {
+      // Non-fatal; the next load re-syncs.
+    } finally {
+      setBusyId(null);
+    }
+  }
+
   const count = activities.length;
   const subtitle =
     status === "ok"
@@ -202,6 +217,7 @@ export default function TeacherActivitiesPage() {
                 readOnly={readOnly}
                 onToggleAssign={(classId, assigned) => toggleAssign(a.activityId, classId, assigned)}
                 onDelete={() => handleDelete(a.activityId, a.title ?? "")}
+                onDuplicate={() => handleDuplicate(a.activityId)}
               />
             </li>
           ))}
@@ -278,6 +294,7 @@ function ActivityCard({
   readOnly,
   onToggleAssign,
   onDelete,
+  onDuplicate,
 }: {
   activity: ActivityPayload;
   classes: ClassPayload[];
@@ -286,6 +303,7 @@ function ActivityCard({
   readOnly: boolean;
   onToggleAssign: (classId: string, assigned: boolean) => void;
   onDelete: () => void;
+  onDuplicate: () => void;
 }) {
   return (
     <TeacherCard>
@@ -321,6 +339,16 @@ function ActivityCard({
               <Sliders className="h-3 w-3" aria-hidden="true" />
               Edit
             </Link>
+            <button
+              type="button"
+              onClick={onDuplicate}
+              disabled={busy}
+              className="flex items-center gap-1 font-medium hover:text-foreground disabled:opacity-50"
+              title="Duplicate as a new draft"
+            >
+              <Copy className="h-3 w-3" aria-hidden="true" />
+              Duplicate
+            </button>
             <button
               type="button"
               onClick={onDelete}
