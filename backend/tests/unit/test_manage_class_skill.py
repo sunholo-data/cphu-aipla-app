@@ -39,6 +39,49 @@ def test_manage_class_template_has_instructions() -> None:
     assert "PII" in instructions or "student emails" in instructions.lower()
 
 
+def test_manage_class_declares_the_safe_tool_set() -> None:
+    """The skill went active in 0.2.0: it must declare exactly the safe
+    create/list/mint tools. Destructive ops (revoke) stay dashboard-only,
+    so they must NOT appear here."""
+    parsed = _parse_template(TEMPLATE_PATH)
+    tools = parsed["metadata"]["tools"]
+    assert set(tools) == {
+        "list_my_classes",
+        "create_class",
+        "mint_group_codes",
+        "list_activities",
+        "class_spend",
+        "class_kpis",
+        "class_trend",
+    }
+    assert "revoke_class" not in tools
+    assert "revoke_group_code" not in tools
+
+
+def test_manage_class_delegates_engagement_to_analytics_chat() -> None:
+    """The hub reaches analytics-chat via agentTools (AgentTool delegation),
+    NOT by copy-listing its tools. Referenced by stable slug so it resolves
+    across environments."""
+    parsed = _parse_template(TEMPLATE_PATH)
+    assert parsed["metadata"].get("agentTools") == ["analytics-chat"]
+    # And it must NOT have copy-listed the analytics tools into its own list.
+    assert "count_messages" not in parsed["metadata"]["tools"]
+
+
+def test_manage_class_tools_resolve_against_registry() -> None:
+    """Every declared tool must resolve to a FunctionTool — guards against
+    a SKILL.md naming a tool that isn't wired into TOOL_REGISTRY (which
+    would raise ValueError at agent-build time, i.e. on first chat turn)."""
+    from google.adk.tools import FunctionTool
+
+    from adk.tools import resolve_tools
+
+    parsed = _parse_template(TEMPLATE_PATH)
+    resolved = resolve_tools(parsed["metadata"]["tools"], {})
+    assert len(resolved) == 7
+    assert all(isinstance(t, FunctionTool) for t in resolved)
+
+
 class TestAccessControlGating:
     """The real AccessContext evaluator gates manage-class — no
     edits to access_context.py, no custom evaluator. Teachers carry

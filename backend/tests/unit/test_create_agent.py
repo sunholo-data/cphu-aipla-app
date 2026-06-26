@@ -30,6 +30,7 @@ def _skill(
     skill_id: str = "11111111-1111-1111-1111-111111111111",
     tools: list[str] | None = None,
     sub_skills: list[str] | None = None,
+    agent_tools: list[str] | None = None,
     model: str = "gemini-2.5-flash",
     thinking_model: str | None = None,
     instructions: str = "Do the thing.",
@@ -44,6 +45,7 @@ def _skill(
             thinkingModel=thinking_model,
             tools=tools or [],
             subSkills=sub_skills or [],
+            agentTools=agent_tools or [],
         ),
     )
 
@@ -398,6 +400,47 @@ def test_create_agent_detects_indirect_cycle():
     with patch("adk.agent.get_skill", side_effect=lambda sid: lookup.get(sid)):
         with pytest.raises(ValueError, match="Sub-skill cycle detected"):
             create_agent(a, _user())
+
+
+# --- agent_tools (AgentTool delegation, call-and-return) ---
+
+
+def test_create_agent_wraps_agent_tools_as_agenttool():
+    """A skill listed in `agent_tools` becomes an AgentTool in the parent's
+    tools (call-and-return), NOT a sub_agent (transfer)."""
+    from google.adk.tools import AgentTool
+
+    child = _skill(name="analytics-chat", skill_id="analytics-id", instructions="answer data Qs")
+    parent = _skill(name="hub-skill", skill_id="hub-id", agent_tools=["analytics-id"])
+    with patch("adk.agent.get_skill", return_value=child):
+        agent = create_agent(parent, _user())
+    # Delivered as a tool, not a sub_agent — named from the skill's human name
+    # ("analytics-chat" → "analytics_chat"), not the UUID skill_id.
+    agent_tools = [t for t in agent.tools if isinstance(t, AgentTool)]
+    assert any(getattr(t.agent, "name", None) == _safe_agent_name("analytics-chat") for t in agent_tools)
+    assert not agent.sub_agents
+
+
+def test_create_agent_missing_agent_tool_warns_and_skips(caplog):
+    parent = _skill(name="hub-skill", skill_id="hub-id", agent_tools=["missing-id"])
+    # Both resolution paths miss → warn + skip (no real Firestore in unit tests).
+    with patch("adk.agent.get_skill", return_value=None), patch("adk.agent.find_by_slug", return_value=None):
+        with caplog.at_level(logging.WARNING):
+            agent = create_agent(parent, _user())
+    from google.adk.tools import AgentTool
+
+    assert not [t for t in agent.tools if isinstance(t, AgentTool)]
+    assert any("missing-id" in rec.message for rec in caplog.records)
+
+
+def test_create_agent_detects_cycle_via_agent_tools():
+    """The `_seen` cycle guard spans agent_tools too — a skill that delegates
+    back to itself (directly or through analytics) must raise, not recurse
+    forever."""
+    skill = _skill(name="loop-skill", skill_id="loop-id", agent_tools=["loop-id"])
+    with patch("adk.agent.get_skill", return_value=skill):
+        with pytest.raises(ValueError, match="cycle detected"):
+            create_agent(skill, _user())
 
 
 # --- ALS-1 M0: activity_id threads into teacher-focus resolution ---

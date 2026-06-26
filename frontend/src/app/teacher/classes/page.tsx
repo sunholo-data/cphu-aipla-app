@@ -352,6 +352,15 @@ export default function TeacherClassesPage() {
             </div>
           ) : null}
           {researchView ? null : (
+            <Link
+              href="/teacher/classes/assistant"
+              className="flex items-center gap-1.5 rounded border border-border px-3 py-1.5 text-sm font-medium hover:bg-accent"
+            >
+              <MessageCircle className="h-4 w-4" aria-hidden="true" />
+              Manage by chat
+            </Link>
+          )}
+          {researchView ? null : (
             <button
               type="button"
               onClick={() => setShowNewClassForm((v) => !v)}

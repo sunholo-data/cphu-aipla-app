@@ -28,6 +28,7 @@ from adk import authoring_tools as _authoring_tools
 from analytics import summarise as _analytics_summarise
 from analytics import tools as _analytics_tools
 from db.firestore import query_documents
+from tools import class_management as _class_management
 from tools.documents.context import build_document_context
 from tools.url_processing import url_processing
 
@@ -151,6 +152,18 @@ TOOL_REGISTRY: dict[str, Callable[[dict], FunctionTool]] = {
     "set_lesson_prompt": lambda _config: FunctionTool(_authoring_tools.set_lesson_prompt),
     "add_element": lambda _config: FunctionTool(_authoring_tools.add_element),
     "set_artefact": lambda _config: FunctionTool(_authoring_tools.set_artefact),
+    # Manage-class tools — see backend/tools/class_management.py. Active
+    # class management from the manage-class teacher hub skill (create / list /
+    # mint + read-only activity metadata). Destructive ops (revoke) stay
+    # dashboard-only by design; engagement stats are delegated to analytics-chat
+    # via agentTools, not duplicated here.
+    "list_my_classes": lambda _config: FunctionTool(_class_management.list_my_classes),
+    "create_class": lambda _config: FunctionTool(_class_management.create_class),
+    "mint_group_codes": lambda _config: FunctionTool(_class_management.mint_group_codes),
+    "list_activities": lambda _config: FunctionTool(_class_management.list_activities),
+    "class_spend": lambda _config: FunctionTool(_class_management.class_spend),
+    "class_kpis": lambda _config: FunctionTool(_class_management.class_kpis),
+    "class_trend": lambda _config: FunctionTool(_class_management.class_trend),
 }
 
 # Tools handled entirely outside this registry (no ValueError for these)

@@ -35,6 +35,7 @@ from analytics.auth import (
     assert_caller_owns,
     resolve_caller_group_codes,
 )
+from analytics.auth import caller_uid as _caller_uid
 from db.chat_sessions import list_sessions_for_group_codes
 from db.classes import get_class
 
@@ -67,40 +68,6 @@ def _parse_until(until: str | None) -> datetime:
         except ValueError:
             logger.warning("analytics.tools: bad until=%r, defaulting to now", until)
     return _now()
-
-
-def _caller_uid(tool_context: ToolContext | None) -> str:
-    """Resolve the authenticated caller's uid for an analytics tool.
-
-    Priority:
-      1. ``tool_context._invocation_context.user_id`` — the canonical
-         ADK-side user_id wired by ``build_agui_adk_agent(user_id=...)``
-         in ``adk/agui.py``. This is the production path for tools the
-         analytics-chat agent invokes during a stream turn.
-      2. ``tool_context.state["user:id"]`` / ``["user_id"]`` — the
-         REST-probe path (``/api/analytics/probe`` constructs a
-         ``SimpleNamespace`` with this shape so the tool surfaces work
-         from the CLI without going through the agent).
-
-    Originally only (2) was checked. (1) was missing because nobody in
-    the codebase writes ``state["user:id"]`` during an ADK turn — so
-    chat-driven tool calls always raised ``class not accessible`` even
-    when the user owned the class. Caught 2026-06-02 after analytics-
-    chat shipped: stream returned RUN_ERROR on every tool call. Both
-    paths now resolve to the same Firebase uid.
-    """
-    if tool_context is None:
-        raise PermissionError(PERMISSION_ERROR_MESSAGE)
-    invocation_ctx = getattr(tool_context, "_invocation_context", None)
-    # Require a real non-empty string at every step — MagicMock-based test
-    # fixtures auto-create `_invocation_context.user_id` as a Mock object,
-    # which is truthy but not a useful identity. Only accept str.
-    candidate = getattr(invocation_ctx, "user_id", None) if invocation_ctx else None
-    if not isinstance(candidate, str) or not candidate:
-        candidate = tool_context.state.get("user:id") or tool_context.state.get("user_id")
-    if not isinstance(candidate, str) or not candidate:
-        raise PermissionError(PERMISSION_ERROR_MESSAGE)
-    return candidate
 
 
 def _class_group_codes(class_id: str) -> list[str]:

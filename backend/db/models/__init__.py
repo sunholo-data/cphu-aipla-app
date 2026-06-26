@@ -42,6 +42,13 @@ class SkillMetadata(BaseModel):
     tools: list[str] = []
     tool_configs: dict = Field(default_factory=dict, alias="toolConfigs")
     sub_skills: list[str] = Field(default_factory=list, alias="subSkills")
+    agent_tools: list[str] = Field(default_factory=list, alias="agentTools")
+    """Skill IDs to expose to THIS agent as ADK ``AgentTool``s (call-and-return
+    delegation) rather than ``sub_agents`` (LLM transfer of control). Use when a
+    "hub" skill should consult a focused specialist agent and integrate its
+    answer while staying in control of the turn — e.g. manage-class delegating
+    engagement questions to analytics-chat. Resolved in ``adk.agent.create_agent``;
+    cycle-detected via the same ``_seen`` set as ``sub_skills``."""
 
     model_config = {"populate_by_name": True}
 

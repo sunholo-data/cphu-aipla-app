@@ -37,6 +37,8 @@ def skill_from_config(config: SkillConfig) -> models.Skill:
         frontmatter_metadata["toolConfigs"] = metadata.tool_configs
     if metadata.sub_skills:
         frontmatter_metadata["subSkills"] = metadata.sub_skills
+    if metadata.agent_tools:
+        frontmatter_metadata["agentTools"] = metadata.agent_tools
 
     return models.Skill(
         frontmatter=models.Frontmatter(

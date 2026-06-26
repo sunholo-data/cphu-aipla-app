@@ -32,6 +32,8 @@ from opentelemetry import trace
 from db.classes import get_class, list_classes_for_owner
 
 if TYPE_CHECKING:
+    from google.adk.tools import ToolContext
+
     from auth.firebase_auth import User
 
 #: Byte-identical message used for every authorization failure. Tests
@@ -39,6 +41,42 @@ if TYPE_CHECKING:
 #: helper turns this into a 404 (same shape as "class not found") so
 #: external callers cannot distinguish missing from forbidden.
 PERMISSION_ERROR_MESSAGE = "class not accessible"
+
+
+def caller_uid(tool_context: ToolContext | None) -> str:
+    """Resolve the authenticated caller's uid from an ADK ``ToolContext``.
+
+    Priority:
+      1. ``tool_context._invocation_context.user_id`` — the canonical
+         ADK-side user_id wired by ``build_agui_adk_agent(user_id=...)``
+         in ``adk/agui.py``. This is the production path for tools an
+         agent invokes during a stream turn.
+      2. ``tool_context.state["user:id"]`` / ``["user_id"]`` — the
+         REST-probe / CLI path that constructs a ``SimpleNamespace`` with
+         this shape so tool surfaces work without going through the agent.
+
+    Lives here (not in any single tool module) because both the
+    ``analytics-chat`` and ``manage-class`` tool sets need the same
+    identity resolution before calling :func:`assert_caller_owns`.
+
+    History: originally only (2) was checked, in ``analytics.tools``.
+    (1) was missing because nothing writes ``state['user:id']`` during an
+    ADK turn — so chat-driven tool calls always raised "class not
+    accessible" even when the user owned the class. Caught 2026-06-02
+    after analytics-chat shipped (stream RUN_ERROR on every tool call).
+    """
+    if tool_context is None:
+        raise PermissionError(PERMISSION_ERROR_MESSAGE)
+    invocation_ctx = getattr(tool_context, "_invocation_context", None)
+    # Require a real non-empty string at every step — MagicMock-based test
+    # fixtures auto-create `_invocation_context.user_id` as a Mock object,
+    # which is truthy but not a useful identity. Only accept str.
+    candidate = getattr(invocation_ctx, "user_id", None) if invocation_ctx else None
+    if not isinstance(candidate, str) or not candidate:
+        candidate = tool_context.state.get("user:id") or tool_context.state.get("user_id")
+    if not isinstance(candidate, str) or not candidate:
+        raise PermissionError(PERMISSION_ERROR_MESSAGE)
+    return candidate
 
 
 def resolve_caller_class_ids(user_uid: str) -> set[str]:
@@ -137,6 +175,7 @@ __all__ = [
     "PERMISSION_ERROR_MESSAGE",
     "assert_caller_owns",
     "assert_can_read_class",
+    "caller_uid",
     "resolve_caller_class_ids",
     "resolve_caller_group_codes",
 ]

@@ -77,7 +77,8 @@ from adk.tools import resolve_mcp_tools, resolve_tools
 from auth.access_context import AccessContext
 from auth.firebase_auth import User
 from db.models import SkillConfig
-from skills.skill_config import get_skill
+from skills.platform import PLATFORM_OWNER_UID
+from skills.skill_config import find_by_slug, get_skill
 from tools.structured_extraction import structured_extraction_callback
 
 logger = logging.getLogger(__name__)
@@ -467,6 +468,33 @@ def create_agent(
             )
             continue
         sub_agents.append(create_agent(sub, user, access_context=access_context, _seen=seen))
+
+    # AgentTool delegation (call-and-return): unlike `sub_skills` → `sub_agents`
+    # (LLM transfer of control), each `agent_tools` skill is wrapped as an
+    # AgentTool the parent CALLS like a function and gets the answer back from,
+    # staying in control of its own turn. Lets a "hub" skill (manage-class)
+    # consult a focused specialist (analytics-chat) and reuse its whole prompt +
+    # tools + guardrails without copy-listing them. Same `_seen` cycle guard.
+    for at_ref in md.agent_tools:
+        # Resolve by document id first, then by platform slug — so a SKILL.md
+        # template can reference a platform skill by its stable slug
+        # (e.g. "analytics-chat") rather than a per-environment UUID.
+        at_skill = get_skill(at_ref) or find_by_slug(PLATFORM_OWNER_UID, at_ref)
+        if at_skill is None:
+            logger.warning(
+                "agent_tool %r referenced by %r not found; skipping",
+                at_ref,
+                skill_config.skill_id,
+            )
+            continue
+        at_agent = create_agent(at_skill, user, access_context=access_context, _seen=seen)
+        # The wrapped agent's name becomes the tool's function name the hub LLM
+        # selects on (and the frontend tool-call pill). Derive it from the
+        # skill's human name (e.g. "analytics-chat" → "analytics_chat") rather
+        # than the default sanitized-UUID skill_id, so tool selection is
+        # reliable and the UI reads cleanly.
+        at_agent.name = _safe_agent_name(at_skill.name)
+        tools.append(AgentTool(at_agent))
 
     _before_agent = make_before_agent(
         skill_config.skill_id,
