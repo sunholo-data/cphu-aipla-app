@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 
+import { useHumanToolEvents } from "@/hooks/useHumanToolEvents";
 import { useSimSnapshotPush } from "@/hooks/useSimSnapshotPush";
 import { evaluateFormula } from "@/lib/safeFormula";
 
@@ -44,6 +45,16 @@ function fmt(n: number): string {
   return String(Number(n.toPrecision(6)));
 }
 
+/** Human-readable card label for a commit — names the computed value(s) so the
+ *  student sees what reached the tutor. Returns null when nothing has a result
+ *  yet (a card for an incomplete calculator would be noise). */
+function commitLabel(snap: CalcSnapshot): string | null {
+  const computed = snap.calculators.filter((c) => c.result !== null);
+  if (computed.length === 0) return null;
+  const parts = computed.map((c) => `${c.title.trim() || c.formula} = ${c.result}`);
+  return `Beregnede ${parts.join(", ")}`;
+}
+
 /** Pure: the current inputs + computed results, for the tutor snapshot. */
 function buildCalcSnapshot(
   calculators: CalculatorElementDef[],
@@ -79,14 +90,18 @@ function buildCalcSnapshot(
  *
  * The student's inputs + computed result are pushed to the tutor on blur
  * (`mcp_app_context.calculator.state`, injected into the agent prompt) so the
- * tutor can react to what the student calculated — silent passive context (kind
- * `calculator.commit` doesn't map to a proactive trigger, mirroring the data
- * table). See the "push interactive state to the tutor" step in the element
- * recipe (docs/design/aipla/v1.1.0-feedback/activity-elements-palette.md).
+ * tutor can react to what the student calculated. The commit also surfaces a
+ * human-tool-use card in the chat (the "shared with the AI" trust bit) so the
+ * student can SEE their value reached the tutor — mirroring ProgressChecklist.
+ * It is still passive re: proactive turns (kind `calculator.commit` doesn't map
+ * to a proactive trigger, like the data table). See the "push interactive state
+ * to the tutor" step in the element recipe
+ * (docs/design/aipla/v1.1.0-feedback/activity-elements-palette.md).
  */
 export function WorkbenchCalculator({ skillId: _skillId, sessionId = null, calculators }: WorkbenchCalculatorProps) {
   const [values, setValues] = useState<Record<string, string>>({});
   const pushCalc = useSimSnapshotPush<CalcSnapshot>(sessionId, "calculator");
+  const humanToolEvents = useHumanToolEvents();
   const committedRef = useRef<string>("");
 
   // Push the current snapshot when an input loses focus (the value is stable).
@@ -96,8 +111,14 @@ export function WorkbenchCalculator({ skillId: _skillId, sessionId = null, calcu
     if (serialised === committedRef.current) return; // nothing changed
     committedRef.current = serialised;
     const req = pushCalc(snap, "calculator.commit");
-    if (req) void req.catch(() => {});
-  }, [calculators, values, pushCalc]);
+    if (!req) return;
+    // Surface the push as a chat card so the student sees the computed value
+    // reached the tutor. Only once something is actually computed; the catch-up
+    // sync below stays silent (no card), matching ProgressChecklist.
+    const label = commitLabel(snap);
+    if (label) humanToolEvents.dispatch({ label, push: () => req });
+    else void req.catch(() => {});
+  }, [calculators, values, pushCalc, humanToolEvents]);
 
   // Catch-up push when sessionId arrives: a student may compute before the first
   // chat turn (sessionId null → push short-circuits). Push any computed result.

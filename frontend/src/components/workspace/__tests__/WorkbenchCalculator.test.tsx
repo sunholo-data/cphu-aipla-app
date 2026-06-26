@@ -5,6 +5,10 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 const pushCalc = vi.fn().mockResolvedValue(undefined);
 vi.mock("@/hooks/useSimSnapshotPush", () => ({ useSimSnapshotPush: () => pushCalc }));
 
+// Capture the human-tool-use card dispatch (the "shared with the AI" trust bit).
+const dispatch = vi.fn();
+vi.mock("@/hooks/useHumanToolEvents", () => ({ useHumanToolEvents: () => ({ dispatch }) }));
+
 import { WorkbenchCalculator, type CalculatorElementDef } from "../WorkbenchCalculator";
 
 const CALC: CalculatorElementDef = {
@@ -51,7 +55,28 @@ describe("WorkbenchCalculator", () => {
     ]);
   });
 
-  it("does not re-push when nothing changed (dedup)", () => {
+  it("surfaces a 'shared with the AI' card naming the computed value (trust bit)", () => {
+    render(<WorkbenchCalculator skillId="s" sessionId="sess-1" calculators={[CALC]} />);
+    fireEvent.change(screen.getByLabelText("Strækning"), { target: { value: "100" } });
+    fireEvent.change(screen.getByLabelText("Tid"), { target: { value: "10" } });
+    fireEvent.blur(screen.getByLabelText("Tid"));
+
+    expect(dispatch).toHaveBeenCalledTimes(1);
+    const arg = dispatch.mock.calls[0][0];
+    expect(arg.label).toMatch(/Fart = 10/); // title + computed result
+    expect(typeof arg.push).toBe("function"); // reuses the in-flight request
+  });
+
+  it("does not dispatch a card while the calculator is incomplete (no result)", () => {
+    render(<WorkbenchCalculator skillId="s" sessionId="sess-1" calculators={[CALC]} />);
+    const s = screen.getByLabelText("Strækning");
+    fireEvent.change(s, { target: { value: "100" } }); // t still empty → no result
+    fireEvent.blur(s);
+    expect(pushCalc).toHaveBeenCalledTimes(1); // state still synced to the tutor
+    expect(dispatch).not.toHaveBeenCalled(); // but no card for a half-filled calc
+  });
+
+  it("does not re-push or re-card when nothing changed (dedup)", () => {
     render(<WorkbenchCalculator skillId="s" sessionId="sess-1" calculators={[CALC]} />);
     const t = screen.getByLabelText("Tid");
     fireEvent.change(screen.getByLabelText("Strækning"), { target: { value: "100" } });
@@ -59,7 +84,11 @@ describe("WorkbenchCalculator", () => {
     fireEvent.blur(t);
     fireEvent.blur(t); // same state → no second push
     expect(pushCalc).toHaveBeenCalledTimes(1);
+    expect(dispatch).toHaveBeenCalledTimes(1);
   });
 });
 
-afterEach(() => pushCalc.mockClear());
+afterEach(() => {
+  pushCalc.mockClear();
+  dispatch.mockClear();
+});
