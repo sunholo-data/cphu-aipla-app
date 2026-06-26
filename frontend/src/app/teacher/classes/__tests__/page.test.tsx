@@ -64,7 +64,7 @@ beforeEach(() => {
     defaultId: null,
     interactionStyles: [],
   });
-  vi.spyOn(teacherApi, "listMyActivities").mockResolvedValue([]);
+  vi.spyOn(teacherApi, "listActivities").mockResolvedValue([]);
   vi.spyOn(costApi, "fetchTeacherSpend").mockResolvedValue({
     currency: "EUR",
     period: "this_month",
@@ -210,7 +210,7 @@ describe("/teacher/classes — dashboard", () => {
 
   it("surfaces each class's tutor persona + assigned activity titles (1.1.32)", async () => {
     listSpy.mockResolvedValue([
-      makeClass({ classId: "c-1", name: "Physik 9A", lessons: ["skill-x"], persona: "mikkel" }),
+      makeClass({ classId: "c-1", name: "Physik 9A", activityIds: ["act-x"], persona: "mikkel" }),
     ]);
     vi.spyOn(teacherApi, "fetchPersonaCatalogue").mockResolvedValue({
       personas: [
@@ -227,10 +227,13 @@ describe("/teacher/classes — dashboard", () => {
       defaultId: "sofie",
       interactionStyles: [],
     });
-    vi.spyOn(teacherApi, "listMyActivities").mockResolvedValue([
+    vi.spyOn(teacherApi, "listActivities").mockResolvedValue([
       {
-        activityId: "skill-x",
-        classId: "c-1",
+        activityId: "act-x",
+        ownerUid: "teacher-1",
+        skillId: "concept-dialogue",
+        visibility: "private",
+        classId: "",
         teacherUid: "teacher-1",
         title: "Mechanical Waves",
         teachingGoal: "g",

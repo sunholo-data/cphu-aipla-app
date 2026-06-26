@@ -17,7 +17,7 @@ import {
 } from "lucide-react";
 
 import {
-  type ActivityConfigPayload,
+  type ActivityPayload,
   type ClassPayload,
   type PersonaPayload,
   type SessionRow,
@@ -26,9 +26,9 @@ import {
   deleteClass,
   fetchPersonaCatalogue,
   listAccessibleSkills,
+  listActivities,
   listClassRecentSessions,
   listClasses,
-  listMyActivities,
 } from "@/lib/teacherApi";
 import {
   fetchInsightsCompare,
@@ -83,10 +83,11 @@ export default function TeacherClassesPage() {
   // inherits when it has no explicit persona.
   const [personaById, setPersonaById] = useState<Map<string, PersonaPayload>>(new Map());
   const [defaultPersonaId, setDefaultPersonaId] = useState<string | null>(null);
-  // The teacher's authored activity configs, keyed `${classId}:${activityId}`,
-  // so the table can show the teacher's OWN activity titles for assigned
-  // lessons (matching the class-detail view) instead of bare skill ids.
-  const [configByKey, setConfigByKey] = useState<Map<string, ActivityConfigPayload>>(new Map());
+  // The activity library (new model), keyed by activity id, so the table
+  // resolves each class's assigned `activityIds` to its title — matching the
+  // class-detail view. (The old path read `lessons` + activity_configs, which
+  // are empty on new-model activities, so the column wrongly showed "None yet".)
+  const [activityById, setActivityById] = useState<Map<string, ActivityPayload>>(new Map());
   // Delete-class flow: the class pending confirmation, the in-flight id, and a
   // surfaced error (never a silent failure).
   const [confirmDelete, setConfirmDelete] = useState<ClassPayload | null>(null);
@@ -163,22 +164,14 @@ export default function TeacherClassesPage() {
       });
   }, []);
 
-  // The teacher's authored activity configs (across their classes) so the
-  // table shows their own activity titles for assigned lessons. Non-fatal —
-  // falls back to the skill catalogue name. Skipped in research view (the
-  // configs are the caller's, not the viewed teacher's).
+  // The activity library so the table can resolve each class's assigned
+  // `activityIds` to a title. Research view pulls the cross-teacher library
+  // (researcher-only scope=all) so other teachers' activity titles resolve too;
+  // own view pulls the caller's. Non-fatal — falls back to the id.
   useEffect(() => {
-    if (researchView) {
-      setConfigByKey(new Map());
-      return;
-    }
-    void listMyActivities()
-      .then((configs) =>
-        setConfigByKey(
-          new Map(configs.map((c) => [`${c.classId}:${c.activityId}`, c])),
-        ),
-      )
-      .catch(() => setConfigByKey(new Map()));
+    void listActivities(researchView ? "all" : "own")
+      .then((acts) => setActivityById(new Map(acts.map((a) => [a.activityId, a]))))
+      .catch(() => setActivityById(new Map()));
   }, [researchView]);
 
   // One round-trip for the per-card KPI strips (M9). Failure is
@@ -249,17 +242,13 @@ export default function TeacherClassesPage() {
     };
   }, [showInsights, researchView]);
 
-  // Resolve the teacher-facing titles of a class's assigned activities: prefer
-  // the teacher's own config title, fall back to the skill catalogue name.
+  // Resolve the teacher-facing titles of a class's assigned activities from the
+  // new model (`activityIds` → the activity library), matching the class-detail
+  // view. Falls back to the id when a title can't be resolved.
   const activityTitlesForClass = useCallback(
     (cls: ClassPayload): string[] =>
-      cls.lessons.map(
-        (skillId) =>
-          configByKey.get(`${cls.classId}:${skillId}`)?.title?.trim() ||
-          skillNameById.get(skillId) ||
-          skillId,
-      ),
-    [configByKey, skillNameById],
+      (cls.activityIds ?? []).map((id) => activityById.get(id)?.title?.trim() || id),
+    [activityById],
   );
 
   // Resolve a class's tutor persona to a display label. A class with no
