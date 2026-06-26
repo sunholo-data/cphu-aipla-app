@@ -1,27 +1,26 @@
 /**
  * `AuthoringCopilot` — the teacher-facing AG-UI chat island for the activity
- * builder (COPILOT-1 M3; designs 1.1.39 + 1.1.50).
+ * builder (COPILOT-1 + COPILOT-2; designs 1.1.39 + 1.1.50).
  *
- * The teacher describes what they want to teach; the co-pilot calls
- * `set_lesson_prompt` (backend M1) and the proposal surfaces here as an
- * **Apply / Edit / Dismiss** card. Apply writes the value into the builder's
- * `teachingGoal` (the existing save persists it) — nothing changes without the
- * teacher's action (EARNED TRUST).
+ * The teacher describes what they want to teach; the co-pilot's owner-scoped,
+ * propose-only tools surface **proposals** here as Apply / Edit / Dismiss cards.
+ * Apply writes into the builder draft (the existing save persists it) — nothing
+ * changes without the teacher's action (EARNED TRUST).
+ *
+ * COPILOT-2 M0 generalized the pipeline: every tool returns a `{kind, …}`
+ * proposal; `parseProposal` dispatches on `kind`; the parent supplies one
+ * `onApplyProposal` router that maps each kind to a builder setter. Adding a
+ * tool (add_element, set_artefact, …) is a new `Proposal` variant + a router
+ * case — the card + transport are shared.
  *
  * Modeled on `_AnalyticsChat.tsx` (the teacher-auth AG-UI precedent):
- * - **`useTeacherAuth`** on the AGUIProvider — the recurring AIPLA auth corner
- *   (a group token would 401 the stream). Regression-guarded in the tests.
- * - **Slug→UUID resolve** before mounting (the stream route wants the Firestore id).
+ * - **`useTeacherAuth`** on the AGUIProvider — the recurring AIPLA auth corner.
+ * - **Slug→UUID resolve** before mounting.
  * - **`activity_id` rides a message prefix** (`[activity_id=…]`), matching the
- *   analytics-chat `[class_id=…]` contract — the agent reads context from the
- *   message, the same shape across surfaces.
+ *   analytics-chat `[class_id=…]` contract.
  *
- * Dark-flagged: returns null unless `NEXT_PUBLIC_AUTHORING_COPILOT === "1"`, so
- * the builder is fully usable with the co-pilot disabled (GRACEFUL DEGRADATION)
- * until the researcher teaching framework lands (1.1.50 human gate).
- *
- * Browser-verify gate: the live SSE `set_lesson_prompt` tool-result shape +
- * the Apply→save round-trip. Unit tests cover the panel wiring + the card.
+ * Dark-flagged: renders null unless `NEXT_PUBLIC_AUTHORING_COPILOT === "1"`.
+ * Browser-verify gate: the live SSE tool-result shapes + the Apply round-trips.
  */
 
 "use client";
@@ -40,10 +39,19 @@ export function authoringCopilotEnabled(): boolean {
   return process.env.NEXT_PUBLIC_AUTHORING_COPILOT === "1";
 }
 
+/**
+ * A co-pilot proposal. One variant per tool; the parent's `onApplyProposal`
+ * router maps each `kind` to a builder setter. Extend the union when adding a
+ * tool (COPILOT-2 M1 add_element, M2 set_artefact, …).
+ */
+export type Proposal = { kind: "set_lesson_prompt"; value: string };
+
+export type ApplyProposal = (proposal: Proposal) => void;
+
 interface AuthoringCopilotProps {
   activityId: string;
-  /** Apply target — writes the proposed lesson prompt into the builder draft. */
-  onApplyLessonPrompt: (value: string) => void;
+  /** Apply router — maps a proposal to the right builder mutation. */
+  onApplyProposal: ApplyProposal;
 }
 
 /** Public entry. Dark-flagged → renders nothing when disabled (degradation). */
@@ -52,7 +60,7 @@ export function AuthoringCopilot(props: AuthoringCopilotProps) {
   return <AuthoringCopilotResolver {...props} />;
 }
 
-function AuthoringCopilotResolver({ activityId, onApplyLessonPrompt }: AuthoringCopilotProps) {
+function AuthoringCopilotResolver({ activityId, onApplyProposal }: AuthoringCopilotProps) {
   const [skillId, setSkillId] = useState<string | null>(null);
   const [resolveError, setResolveError] = useState<string | null>(null);
 
@@ -98,26 +106,50 @@ function AuthoringCopilotResolver({ activityId, onApplyLessonPrompt }: Authoring
   }
   return (
     <AGUIProvider key={`${skillId}:${activityId}`} skillId={skillId} useTeacherAuth>
-      <AuthoringCopilotInner activityId={activityId} onApplyLessonPrompt={onApplyLessonPrompt} />
+      <AuthoringCopilotInner activityId={activityId} onApplyProposal={onApplyProposal} />
     </AGUIProvider>
   );
 }
 
-/** Pull the proposed teaching goal out of a successful set_lesson_prompt call. */
-export function parseLessonProposal(tc: ToolCallState): string | null {
-  if (tc.name !== "set_lesson_prompt" || tc.status !== "success" || !tc.resultContent) return null;
+/** Parse a co-pilot tool result into a typed Proposal, or null. Dispatches on
+ *  `proposal.kind` so each tool's result renders + applies through one path. */
+export function parseProposal(tc: ToolCallState): Proposal | null {
+  if (tc.status !== "success" || !tc.resultContent) return null;
+  let r: { ok?: boolean; proposal?: Record<string, unknown> };
   try {
-    const r = JSON.parse(tc.resultContent) as { ok?: boolean; proposal?: { field?: string; value?: unknown } };
-    if (r?.ok && r.proposal?.field === "teachingGoal" && typeof r.proposal.value === "string") {
-      return r.proposal.value;
-    }
+    r = JSON.parse(tc.resultContent);
   } catch {
-    /* not JSON — no proposal to surface */
+    return null; // not JSON — no proposal to surface
   }
-  return null;
+  if (!r?.ok || !r.proposal || typeof r.proposal.kind !== "string") return null;
+  const p = r.proposal;
+  switch (p.kind) {
+    case "set_lesson_prompt":
+      return typeof p.value === "string" && p.field === "teachingGoal" ? { kind: "set_lesson_prompt", value: p.value } : null;
+    default:
+      return null; // unknown/unsupported kind (a newer tool than this build)
+  }
 }
 
-function AuthoringCopilotInner({ activityId, onApplyLessonPrompt }: AuthoringCopilotProps) {
+/** A human label for the card header, per proposal kind. */
+function proposalTitle(p: Proposal): string {
+  switch (p.kind) {
+    case "set_lesson_prompt":
+      return "Forslag til lærer-prompt";
+  }
+}
+
+/** Whether the proposal carries free text the teacher can refine inline. */
+function proposalEditableText(p: Proposal): string | null {
+  return p.kind === "set_lesson_prompt" ? p.value : null;
+}
+
+/** Re-build a proposal with edited text (only the editable kinds). */
+function withEditedText(p: Proposal, text: string): Proposal {
+  return p.kind === "set_lesson_prompt" ? { ...p, value: text } : p;
+}
+
+function AuthoringCopilotInner({ activityId, onApplyProposal }: AuthoringCopilotProps) {
   const { messages, toolCalls, sendMessage, isLoading, error } = useSkillAgent();
   const [input, setInput] = useState("");
 
@@ -125,15 +157,14 @@ function AuthoringCopilotInner({ activityId, onApplyLessonPrompt }: AuthoringCop
     e.preventDefault();
     const trimmed = input.trim();
     if (!trimmed || isLoading) return;
-    // activity_id rides the message prefix (the analytics-chat contract) so the
-    // agent passes it to set_lesson_prompt(activity_id=…).
+    // activity_id rides the message prefix (the analytics-chat contract).
     setInput("");
     await sendMessage(`[activity_id=${activityId}] ${trimmed}`);
   };
 
   const proposals = toolCalls
-    .map((tc) => ({ id: tc.id, value: parseLessonProposal(tc) }))
-    .filter((p): p is { id: string; value: string } => p.value !== null);
+    .map((tc) => ({ id: tc.id, proposal: parseProposal(tc) }))
+    .filter((p): p is { id: string; proposal: Proposal } => p.proposal !== null);
 
   return (
     <div className="flex flex-col gap-3" data-testid="authoring-copilot">
@@ -157,7 +188,7 @@ function AuthoringCopilotInner({ activityId, onApplyLessonPrompt }: AuthoringCop
           </article>
         ))}
         {proposals.map((p) => (
-          <ProposalCard key={p.id} value={p.value} onApply={onApplyLessonPrompt} />
+          <ProposalCard key={p.id} proposal={p.proposal} onApply={onApplyProposal} />
         ))}
         {isLoading ? <p className="text-xs text-muted-foreground">Tænker…</p> : null}
       </div>
@@ -191,49 +222,50 @@ function AuthoringCopilotInner({ activityId, onApplyLessonPrompt }: AuthoringCop
   );
 }
 
-/** Apply / Edit / Dismiss card for one proposed lesson prompt. Self-contained:
- *  Edit refines the text inline before applying — no parent focus wiring. */
-function ProposalCard({ value, onApply }: { value: string; onApply: (v: string) => void }) {
+/** Apply / Edit / Dismiss card for one proposal. Generic across kinds: free-text
+ *  kinds (set_lesson_prompt) get an inline Edit; others are Apply/Dismiss. */
+function ProposalCard({ proposal, onApply }: { proposal: Proposal; onApply: ApplyProposal }) {
   const [applied, setApplied] = useState(false);
   const [dismissed, setDismissed] = useState(false);
   const [editing, setEditing] = useState(false);
-  const [draft, setDraft] = useState(value);
+  const editable = proposalEditableText(proposal);
+  const [draft, setDraft] = useState(editable ?? "");
 
   if (dismissed) return null;
   if (applied) {
     return (
       <div className="rounded border border-emerald-300 bg-emerald-50 px-3 py-2 text-xs text-emerald-900" role="status">
-        Lærer-prompt anvendt ✓ — du kan stadig rette i den i feltet.
+        Anvendt ✓ — du kan stadig rette det i feltet.
       </div>
     );
   }
 
   return (
     <div className="flex flex-col gap-2 rounded border border-border bg-muted/40 p-3 text-sm" data-testid="proposal-card">
-      <p className="text-xs font-medium text-muted-foreground">Forslag til lærer-prompt</p>
-      {editing ? (
+      <p className="text-xs font-medium text-muted-foreground">{proposalTitle(proposal)}</p>
+      {editing && editable !== null ? (
         <textarea
-          aria-label="Rediger lærer-prompt"
+          aria-label="Rediger forslag"
           value={draft}
           onChange={(e) => setDraft(e.target.value)}
           rows={4}
           className="w-full rounded border border-border bg-background px-2 py-1 text-sm"
         />
       ) : (
-        <p className="whitespace-pre-wrap">{value}</p>
+        <p className="whitespace-pre-wrap">{editable ?? proposalTitle(proposal)}</p>
       )}
       <div className="flex flex-wrap gap-2">
         <button
           type="button"
           onClick={() => {
-            onApply(editing ? draft : value);
+            onApply(editing ? withEditedText(proposal, draft) : proposal);
             setApplied(true);
           }}
           className="inline-flex items-center gap-1 rounded bg-primary px-2.5 py-1 text-xs text-primary-foreground hover:bg-primary/90"
         >
           <Check className="h-3.5 w-3.5" aria-hidden="true" /> {editing ? "Brug denne" : "Anvend"}
         </button>
-        {!editing ? (
+        {editable !== null && !editing ? (
           <button
             type="button"
             onClick={() => setEditing(true)}

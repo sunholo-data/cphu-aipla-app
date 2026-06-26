@@ -288,10 +288,16 @@ export default function TeacherActivityConfigPage() {
               }
             />
           </form>
-          {/* COPILOT-1 M3: the authoring co-pilot (dark-flagged → renders null
+          {/* COPILOT-1/2: the authoring co-pilot (dark-flagged → renders null
               when NEXT_PUBLIC_AUTHORING_COPILOT !== "1", so the builder is
-              unaffected). Apply writes into the builder's teachingGoal. */}
-          <AuthoringCopilot activityId={activityId} onApplyLessonPrompt={builder.setTeachingGoal} />
+              unaffected). The Apply router maps each proposal kind to a builder
+              setter (M0: lesson prompt; M1/M2 add element + sim). */}
+          <AuthoringCopilot
+            activityId={activityId}
+            onApplyProposal={(p) => {
+              if (p.kind === "set_lesson_prompt") builder.setTeachingGoal(p.value);
+            }}
+          />
         </section>
       ) : null}
 
