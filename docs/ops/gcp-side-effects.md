@@ -8,6 +8,54 @@ Per [env-promotion-audit.md](env-promotion-audit.md): **manual IAM is a smell, n
 
 ---
 
+## 2026-06-26 — Research view owner labels (1.1.5 follow-up) (aipla-dev-2026)
+
+**Feature:** the researcher "Research view" (cross-teacher classes + "All activities")
+resolves each owner's raw Firebase uid to a friendly label (display name → email)
+via `auth.owner_labels.resolve_owner_labels` → Firebase Admin `auth.get_users`.
+**Terraform module:** none yet — `TODO: codify` in the runtime-SA IAM module.
+
+### IAM binding — REQUIRED (runtime SA needs read access to Firebase Auth users)
+
+Symptom without it: the research view shows `Owner: <raw-uid>`; backend logs
+`resolve_owner_labels: get_users failed … INSUFFICIENT_PERMISSION`. The Cloud Run
+runtime SA can verify ID tokens but cannot READ user records (`firebaseauth.users.get`)
+until granted `roles/firebaseauth.viewer`.
+
+```bash
+gcloud projects add-iam-policy-binding aipla-dev-2026 \
+  --member=serviceAccount:aipla-v6@aipla-dev-2026.iam.gserviceaccount.com \
+  --role=roles/firebaseauth.viewer \
+  --condition=None
+```
+
+`roles/firebaseauth.viewer` is read-only (includes `firebaseauth.users.get` +
+`.list`). The code is best-effort: until the binding lands it silently falls back
+to the raw uid (no crash), so this grant is what turns uids into names — nothing
+else depends on it.
+
+**Status:** NOT YET APPLIED — the agent's `add-iam-policy-binding` call is blocked
+by the harness (same as the 2026-06-03 VOICE-PROVIDER entry). **Apply directly (M)**
+with the command above.
+
+### Verification (after IAM lands)
+
+```bash
+gcloud projects get-iam-policy aipla-dev-2026 \
+  --flatten=bindings --format="value(bindings.role)" \
+  --filter="bindings.members:aipla-v6@aipla-dev-2026.iam.gserviceaccount.com AND bindings.role:roles/firebaseauth.viewer"
+# expect: roles/firebaseauth.viewer
+# then reload the teacher Research view → owner shows display name / email, not the uid.
+```
+
+### Test/prod promotion
+
+Same binding for each env's runtime SA (`aipla-v6@aipla-{test,prod}-2026`).
+`TODO: codify` — add `roles/firebaseauth.viewer` for the runtime SA to the IAM
+module so test/prod don't repeat this manual step.
+
+---
+
 ## 2026-06-23 — IMG-MAT sprint (activity image materials, 1.1.44) (aipla-dev-2026)
 
 **Sprint:** [IMG-MAT (1.1.44)](../design/aipla/v1.1.0-feedback/activity-image-materials.md)

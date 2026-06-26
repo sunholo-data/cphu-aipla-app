@@ -648,10 +648,6 @@ function ClassRow({
   deleting?: boolean;
   onDelete: () => void;
 }) {
-  const activitySummary =
-    activities.length <= 2
-      ? activities.join(", ")
-      : `${activities[0]} +${activities.length - 1} more`;
   return (
     <tr className="align-top hover:bg-muted/30">
       <td className="px-3 py-3">
@@ -662,7 +658,11 @@ function ClassRow({
           {cls.name}
         </Link>
         {showOwner ? (
-          <div className="text-xs text-muted-foreground" data-testid="class-owner" title={cls.ownerUid}>
+          <div
+            className="max-w-[15rem] truncate text-xs text-muted-foreground"
+            data-testid="class-owner"
+            title={cls.ownerLabel ?? cls.ownerUid}
+          >
             Owner: {cls.ownerLabel ?? cls.ownerUid}
           </div>
         ) : null}
@@ -673,21 +673,29 @@ function ClassRow({
           {cls.groupCodes.length}
         </span>
       </td>
-      <td className="max-w-[18rem] px-3 py-3 text-muted-foreground">
+      <td className="max-w-[20rem] px-3 py-3 text-muted-foreground">
         {activities.length === 0 ? (
           <span className="text-muted-foreground/60">None yet</span>
         ) : (
-          <span
-            className="inline-flex max-w-full items-center gap-1"
-            title={activities.join(", ")}
-          >
-            <ClipboardList className="h-3.5 w-3.5 shrink-0" aria-hidden="true" />
-            <span className="truncate">{activitySummary}</span>
-          </span>
+          <ul className="space-y-0.5">
+            {activities.slice(0, 3).map((title, i) => (
+              <li key={i} className="flex items-center gap-1.5">
+                <ClipboardList className="h-3.5 w-3.5 shrink-0" aria-hidden="true" />
+                <span className="truncate" title={title}>
+                  {title}
+                </span>
+              </li>
+            ))}
+            {activities.length > 3 ? (
+              <li className="pl-[1.375rem] text-xs text-muted-foreground/70">
+                +{activities.length - 3} more
+              </li>
+            ) : null}
+          </ul>
         )}
       </td>
       <td className="px-3 py-3 text-muted-foreground">
-        <span className="inline-flex items-center gap-1.5">
+        <span className="inline-flex items-center gap-1.5 whitespace-nowrap">
           <PersonaAvatar name={persona.name} avatar={persona.avatar} />
           {persona.name}
           {persona.inherited ? (
