@@ -265,34 +265,6 @@ class TestDuplicate:
         assert _client().post("/api/activities/act-nope/duplicate").status_code == 404
 
 
-class TestPublishUnpublish:
-    """M3.1 (ALS-SHARE): POST /{id}/publish · /unpublish — owner OR researcher."""
-
-    def test_owner_publishes_then_unpublishes(self):
-        c = _client()
-        aid = c.post("/api/activities", json={"skillId": "concept", "title": "P"}).json()["activityId"]
-        pub = c.post(f"/api/activities/{aid}/publish")
-        assert pub.status_code == 200, pub.text
-        assert pub.json()["visibility"] == "published"
-        unp = c.post(f"/api/activities/{aid}/unpublish")
-        assert unp.status_code == 200, unp.text
-        assert unp.json()["visibility"] == "private"
-
-    def test_non_owner_non_researcher_cannot_publish(self):
-        aid = _client(OTHER).post("/api/activities", json={"skillId": "concept", "title": "X"}).json()["activityId"]
-        assert _client().post(f"/api/activities/{aid}/publish").status_code == 404
-        assert _client().post(f"/api/activities/{aid}/unpublish").status_code == 404
-
-    def test_researcher_can_publish_any_teachers_activity(self):
-        aid = _client(OTHER).post("/api/activities", json={"skillId": "concept", "title": "X"}).json()["activityId"]
-        resp = _client(researcher=True).post(f"/api/activities/{aid}/publish")
-        assert resp.status_code == 200, resp.text
-        assert resp.json()["visibility"] == "published"
-
-    def test_publish_missing_404(self):
-        assert _client().post("/api/activities/act-nope/publish").status_code == 404
-
-
 class TestSharedCatalogue:
     """M3.2 (ALS-SHARE): GET /api/activities?published=true — open to any teacher."""
 

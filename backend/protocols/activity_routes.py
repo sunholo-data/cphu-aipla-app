@@ -336,32 +336,6 @@ def _set_visibility(activity: Activity, visibility: Visibility) -> dict:
     return _serialize(save_activity(activity.model_copy(update={"visibility": visibility})))
 
 
-@router.post("/{activity_id}/publish", status_code=200)
-async def publish_activity_route(
-    activity_id: str = Path(...),
-    user: User = Depends(get_current_user),  # noqa: B008
-) -> dict:
-    """List an activity in the cross-teacher shared catalogue (→ ``published``).
-    Owner or researcher (ALS-SHARE M3.1)."""
-    _assert_teacher(user)
-    activity = _load_for_modify(activity_id, user)
-    log.info("activity published id=%s owner=%s by=%s", activity_id, activity.owner_uid, user.uid)
-    return _set_visibility(activity, "published")
-
-
-@router.post("/{activity_id}/unpublish", status_code=200)
-async def unpublish_activity_route(
-    activity_id: str = Path(...),
-    user: User = Depends(get_current_user),  # noqa: B008
-) -> dict:
-    """Remove an activity from the shared catalogue (→ ``private``). Already-adopted
-    copies are unaffected. Owner or researcher (ALS-SHARE M3.1)."""
-    _assert_teacher(user)
-    activity = _load_for_modify(activity_id, user)
-    log.info("activity unpublished id=%s owner=%s by=%s", activity_id, activity.owner_uid, user.uid)
-    return _set_visibility(activity, "private")
-
-
 class VisibilitySet(BaseModel):
     """Body for the unified visibility setter — the teacher card's status control
     sends the target state directly (ALS-SHARE-UX M1)."""
