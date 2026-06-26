@@ -1,0 +1,99 @@
+{
+  "sprint_id": "EXT-MCP",
+  "created": "2026-06-26T12:33:55Z",
+  "estimated_duration_days": 1,
+  "status": "in_progress",
+  "design_doc": "docs/design/aipla/v1.1.0-feedback/external-host-mcp-apps.md",
+  "sprint_plan": "docs/design/aipla/v1.1.0-feedback/external-host-mcp-apps-sprint.md",
+  "features": [
+    {
+      "id": "M1",
+      "description": "Public MCP transport: a dedicated frontend route to the FastMCP /mcp server that survives the trailing-slash redirect, plus a deployed Streamable-HTTP smoke script.",
+      "scope": "frontend",
+      "estimated_loc": 120,
+      "actual_loc": null,
+      "dependencies": [],
+      "acceptance_criteria": [
+        "Extract shared forwardToBackend(req, backendPath) from the catch-all proxy without changing /api/proxy/** behaviour",
+        "frontend/src/app/api/mcp/route.ts forwards GET/POST/DELETE/OPTIONS to backend 'mcp/' (trailing slash) with SSE passthrough + duplex:half + Mcp-Session-Id passthrough",
+        "scripts/smoke-deployed-mcp.sh: a streamablehttp_client probe that initialize + list_tools anonymously against <frontend-url>/api/mcp, mirroring scripts/smoke-deployed.sh URL resolution",
+        "Local: frontend route proxies POST to backend /mcp/ returning 200 (not 502/308)",
+        "Existing /api/proxy/** routes and skill tools unchanged"
+      ],
+      "files_to_create": [
+        "frontend/src/app/api/mcp/route.ts",
+        "scripts/smoke-deployed-mcp.sh"
+      ],
+      "files_to_modify": [
+        "frontend/src/app/api/proxy/[...path]/route.ts"
+      ],
+      "passes": true,
+      "started": "2026-06-26T14:38:00Z",
+      "completed": "2026-06-26T14:40:00Z",
+      "actual_loc": 250,
+      "notes": "Done. Extracted forwardToBackend() to frontend/src/lib/backendProxy.ts; catch-all refactored to use it (8 existing tests still green); /api/mcp/route.ts forwards to backend 'mcp/' (trailing slash); scripts/smoke-deployed-mcp.sh added (streamablehttp_client probe, REQUIRE_SIMS gate). 4 new route tests + 8 catch-all tests pass; quality:check:fast clean. Local-verify covered by unit tests + existing test_mcp_server.py (POSTs /mcp/ -> 200); end-to-end deployed verify is M3."
+    },
+    {
+      "id": "M2",
+      "description": "Register every bridge-speaking artefact as a ui:// MCP App resource + show_<name> tool on the deployed FastMCP server, additively (skill tools unchanged). Resolve backend artefact availability.",
+      "scope": "backend",
+      "estimated_loc": 160,
+      "actual_loc": null,
+      "dependencies": ["M1"],
+      "acceptance_criteria": [
+        "register_sim_apps(mcp) in backend/protocols/mcp_server.py ports the PoC discover_artefacts(): for each artefact, a FunctionResource (uri ui://aipla/<name>/<ver>, mime_type text/html;profile=mcp-app) + mcp.add_tool(show_fn, name show_<name>, meta {ui.resourceUri + visibility, openai/outputTemplate})",
+        "register_sim_apps(mcp) called once from get_mcp_asgi_app() after rebuild_tools()",
+        "Artefact availability resolved: backend can read the artefact HTML at runtime (bake into backend image via Dockerfile COPY if build context allows, else read from the sandbox URL) — chosen approach documented in code + sprint notes",
+        "tests/api_tests/test_mcp_server.py extended: tools/list includes show_boldkast|kinebot|led_planck with _meta.ui.resourceUri; resources/read of a ui:// URI returns text/html;profile=mcp-app HTML containing 'ui/initialize'; existing skill-tool tests still pass",
+        "cd backend && make lint && make test-fast green"
+      ],
+      "files_to_create": [],
+      "files_to_modify": [
+        "backend/protocols/mcp_server.py",
+        "backend/tests/api_tests/test_mcp_server.py",
+        "backend/Dockerfile"
+      ],
+      "passes": null,
+      "started": null,
+      "completed": null,
+      "notes": "FastMCP supports meta= on add_tool and mime_type=/meta= on resources (verified). Main risk is artefact availability in the backend sidecar image (artefacts currently live only in the sandbox image) + FunctionResource constructor specifics — both verifiable by the in-process TestClient unit test, no deploy needed."
+    },
+    {
+      "id": "M3",
+      "description": "Deploy to dev, verify the cloud URL with the smoke script + a live render in an external host, and update docs (design doc status, WORKSHOP/README cloud path, deployed-urls, SEQUENCE).",
+      "scope": "fullstack",
+      "estimated_loc": 60,
+      "actual_loc": null,
+      "dependencies": ["M1", "M2"],
+      "acceptance_criteria": [
+        "Push to dev; CI + Cloud Build green; scripts/smoke-deployed-mcp.sh dev green (initialize + sims listed + ui:// readable)",
+        "Live render: <frontend-url>/api/mcp added as a ChatGPT developer-mode connector and/or MCP Inspector renders a sim as an interactive widget",
+        "Docs updated: design doc 1.1.49 status -> Implemented; WORKSHOP.md + README.md note the cloud-URL path; docs/ops/deployed-urls.md lists the endpoint; SEQUENCE build status marks 1.1.49"
+      ],
+      "files_to_create": [],
+      "files_to_modify": [
+        "docs/design/aipla/v1.1.0-feedback/external-host-mcp-apps.md",
+        "infrastructure/mcp-sandbox/external-host-demo/WORKSHOP.md",
+        "infrastructure/mcp-sandbox/external-host-demo/README.md",
+        "docs/ops/deployed-urls.md",
+        "docs/design/aipla/v1.1.0-feedback/SEQUENCE.md"
+      ],
+      "passes": null,
+      "started": null,
+      "completed": null,
+      "notes": "Exposure is dev-only/open (authorised by M; consistent with existing public/no-auth /mcp skills). Host render variance is real (Jan 2026) — ChatGPT/Inspector are the reliable checks; Claude Desktop best-effort."
+    }
+  ],
+  "velocity": {
+    "target_loc_per_day": 340,
+    "actual_loc_per_day": null,
+    "estimated_total_loc": 340,
+    "actual_total_loc": null,
+    "estimated_days": 1,
+    "actual_days": null
+  },
+  "github_issues": [],
+  "last_session": null,
+  "last_checkpoint": null,
+  "status": "not_started"
+}
