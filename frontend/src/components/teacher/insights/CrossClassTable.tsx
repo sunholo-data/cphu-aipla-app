@@ -23,6 +23,7 @@ import { formatEur } from "@/lib/costApi";
 
 type SortKey =
   | "name"
+  | "owner"
   | "activeGroups"
   | "messages"
   | "messagesDelta"
@@ -78,10 +79,28 @@ export function CrossClassTable({
   const [sortKey, setSortKey] = useState<SortKey>(defaultSort);
   const [direction, setDirection] = useState<Direction>("desc");
 
+  // The cross-teacher (researcher scope=all) view carries an owner per row;
+  // surface an Owner column so classes from different teachers are
+  // distinguishable. Hidden entirely for the own-classes view.
+  const hasOwners = useMemo(() => rows.some((r) => r.ownerLabel || r.ownerUid), [rows]);
+
   const columns = useMemo<ColumnDef[]>(() => {
-    if (!spendByClassId) return COLUMNS;
+    const base: ColumnDef[] = hasOwners
+      ? [
+          COLUMNS[0],
+          {
+            key: "owner",
+            label: "Owner",
+            numeric: false,
+            render: (r) => r.ownerLabel ?? r.ownerUid ?? "—",
+            sortValue: (r) => r.ownerLabel ?? r.ownerUid ?? "",
+          },
+          ...COLUMNS.slice(1),
+        ]
+      : COLUMNS;
+    if (!spendByClassId) return base;
     return [
-      ...COLUMNS,
+      ...base,
       {
         key: "spend",
         label: "Spend",
@@ -90,7 +109,7 @@ export function CrossClassTable({
         sortValue: (r) => spendByClassId.get(r.classId) ?? 0,
       },
     ];
-  }, [spendByClassId]);
+  }, [spendByClassId, hasOwners]);
 
   const sortedRows = useMemo(() => {
     const col = columns.find((c) => c.key === sortKey);

@@ -24,15 +24,18 @@ from __future__ import annotations
 
 import statistics
 from datetime import UTC, datetime, timedelta
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 from analytics import queries
 from analytics.auth import (
     PERMISSION_ERROR_MESSAGE,
-    assert_caller_owns,
+    assert_can_read_class,
     resolve_caller_group_codes,
 )
-from db.classes import get_class, list_classes_for_owner
+from db.classes import get_class, list_all_classes, list_classes_for_owner
+
+if TYPE_CHECKING:
+    from auth.firebase_auth import User
 
 
 def _utcnow() -> datetime:
@@ -81,6 +84,24 @@ def _common_params(
     }
 
 
+def _widen_allowed(allowed: list[str], class_codes: list[str]) -> list[str]:
+    """Append any ``class_codes`` not already in ``allowed`` (researcher
+    cross-class bypass — sprint 1.1.51).
+
+    ``allowed_group_codes`` is a defense-in-depth filter scoped to the
+    caller's OWNED group codes (the M2 HARD GATE: never trust the SQL
+    ``WHERE`` to scope to the caller). For an OWNER, ``class_codes`` is a
+    subset of ``allowed`` so this is a no-op and the emitted SQL / params /
+    ``_debug`` output are byte-identical to before. For a RESEARCHER reading
+    a class they do not own, ``assert_can_read_class`` has already authorized
+    the class, but its codes are absent from the caller's owned set — without
+    this widening the ``allowed ∩ class`` intersection is empty and the query
+    returns authorized-but-zero rows. Append-only preserves owner ordering.
+    """
+    missing = [c for c in class_codes if c not in allowed]
+    return allowed + missing if missing else allowed
+
+
 # ---------------------------------------------------------------------------
 # Per-class KPI grid (the six cards documented in the design doc)
 # ---------------------------------------------------------------------------
@@ -88,7 +109,7 @@ def _common_params(
 
 def class_kpis(
     *,
-    teacher_uid: str,
+    user: User,
     class_id: str,
     since: datetime,
     until: datetime,
@@ -99,10 +120,14 @@ def class_kpis(
     total messages, active activities, sim runs, avg time-on-task,
     last activity. Each card's "Show data" disclosure on the frontend
     pulls from ``_debug.queries``.
+
+    Owner reads its own class; a researcher (1.1.51) may read any class
+    via ``assert_can_read_class``, with the defense-in-depth filter widened
+    to the target class's codes.
     """
-    assert_caller_owns(teacher_uid, class_id)
-    allowed = list(resolve_caller_group_codes(teacher_uid))
+    assert_can_read_class(user, class_id)
     class_codes = _class_group_codes(class_id)
+    allowed = _widen_allowed(list(resolve_caller_group_codes(user.uid)), class_codes)
     base = _common_params(since=since, until=until, allowed=allowed, class_codes=class_codes)
 
     counts = queries.count_messages(**base)
@@ -163,16 +188,18 @@ def class_kpis(
 
 def class_groups(
     *,
-    teacher_uid: str,
+    user: User,
     class_id: str,
     since: datetime,
     until: datetime,
 ) -> dict[str, Any]:
     """Per-group engagement breakdown: message count + session count
-    per group code in the class. Sorted most-active first."""
-    assert_caller_owns(teacher_uid, class_id)
-    allowed = list(resolve_caller_group_codes(teacher_uid))
+    per group code in the class. Sorted most-active first.
+
+    Owner or researcher read (1.1.51) — see ``class_kpis``."""
+    assert_can_read_class(user, class_id)
     class_codes = _class_group_codes(class_id)
+    allowed = _widen_allowed(list(resolve_caller_group_codes(user.uid)), class_codes)
     base = _common_params(since=since, until=until, allowed=allowed, class_codes=class_codes)
 
     # most_active_groups returns ordered + paged; the panel wants all
@@ -195,7 +222,7 @@ def class_groups(
 
 def class_activities(
     *,
-    teacher_uid: str,
+    user: User,
     class_id: str,
     since: datetime,
     until: datetime,
@@ -203,10 +230,12 @@ def class_activities(
     """Per-activity (skill) breakdown for a class. For each skill,
     pairs sim-run count from ``sim_runs_per_skill`` with message count
     derived from ``time_on_task`` (which has a per-skill row per group
-    so summing rows gives a per-skill total)."""
-    assert_caller_owns(teacher_uid, class_id)
-    allowed = list(resolve_caller_group_codes(teacher_uid))
+    so summing rows gives a per-skill total).
+
+    Owner or researcher read (1.1.51) — see ``class_kpis``."""
+    assert_can_read_class(user, class_id)
     class_codes = _class_group_codes(class_id)
+    allowed = _widen_allowed(list(resolve_caller_group_codes(user.uid)), class_codes)
     base = _common_params(since=since, until=until, allowed=allowed, class_codes=class_codes)
 
     tot = queries.time_on_task(**base)
@@ -253,11 +282,34 @@ def class_activities(
 # ---------------------------------------------------------------------------
 
 
+def _scope_classes(user: User, scope: str) -> tuple[list[Any], list[str]]:
+    """Resolve the (classes, allowed_group_codes) pair for ``summary`` /
+    ``compare`` (sprint 1.1.51).
+
+    ``scope == "all"`` AND a researcher claim → every class across all
+    teachers, with ``allowed`` widened to the union of all those classes'
+    codes (so each class's ``allowed ∩ class`` intersection is the class's
+    own codes). Any other case is the unchanged owner path:
+    ``list_classes_for_owner`` + the caller's owned group codes — so owner
+    behaviour and emitted SQL are identical to before. The route enforces
+    the 403 for a non-researcher requesting ``scope=all``; the
+    ``is_researcher`` guard here is defense-in-depth (a non-researcher who
+    somehow reaches this with ``scope=all`` silently gets their own scope,
+    never someone else's data).
+    """
+    if scope == "all" and getattr(user, "is_researcher", False):
+        classes = list_all_classes()
+        allowed = sorted({code for cls in classes for code in cls.group_codes})
+        return classes, allowed
+    return list_classes_for_owner(user.uid), list(resolve_caller_group_codes(user.uid))
+
+
 def teacher_summary(
     *,
-    teacher_uid: str,
+    user: User,
     since: datetime,
     until: datetime,
+    scope: str = "own",
 ) -> dict[str, Any]:
     """Lightweight strip for ``/teacher/classes``: one entry per class,
     each carrying active_groups + total_messages + last_activity.
@@ -265,13 +317,15 @@ def teacher_summary(
     Fires the count_messages + time_on_task queries per class. The
     cache (60s TTL) is the load-bearing performance story; this
     function intentionally does not parallelise.
+
+    ``scope="all"`` (researcher-only, 1.1.51) spans every teacher's class
+    instead of the caller's own — see :func:`_scope_classes`.
     """
-    owned = list_classes_for_owner(teacher_uid)
-    allowed = list(resolve_caller_group_codes(teacher_uid))
+    classes, allowed = _scope_classes(user, scope)
 
     class_entries: list[dict[str, Any]] = []
     debug_entries: list[dict[str, Any]] = []
-    for cls in owned:
+    for cls in classes:
         class_codes = list(cls.group_codes)
         base = _common_params(since=since, until=until, allowed=allowed, class_codes=class_codes)
         counts = queries.count_messages(**base)
@@ -281,6 +335,7 @@ def teacher_summary(
             {
                 "class_id": cls.class_id,
                 "name": cls.name,
+                "owner_uid": cls.owner_uid,
                 "active_groups": len(counts["per_group"]),
                 "total_messages": counts["total"],
                 "last_activity": last_iso,
@@ -311,23 +366,26 @@ def teacher_summary(
 
 def teacher_compare(
     *,
-    teacher_uid: str,
+    user: User,
     since: datetime,
     until: datetime,
+    scope: str = "own",
 ) -> dict[str, Any]:
     """Cross-class comparison rows + a delta vs the prior equally-sized
     window. The frontend sorts client-side; the API returns rows in
     class-creation order.
+
+    ``scope="all"`` (researcher-only, 1.1.51) spans every teacher's class
+    instead of the caller's own — see :func:`_scope_classes`.
     """
-    owned = list_classes_for_owner(teacher_uid)
-    allowed = list(resolve_caller_group_codes(teacher_uid))
+    classes, allowed = _scope_classes(user, scope)
     window = until - since
     prior_since = since - window
     prior_until = since
 
     rows: list[dict[str, Any]] = []
     debug_entries: list[dict[str, Any]] = []
-    for cls in owned:
+    for cls in classes:
         class_codes = list(cls.group_codes)
         current_params = _common_params(since=since, until=until, allowed=allowed, class_codes=class_codes)
         prior_params = _common_params(since=prior_since, until=prior_until, allowed=allowed, class_codes=class_codes)
@@ -341,6 +399,7 @@ def teacher_compare(
             {
                 "class_id": cls.class_id,
                 "name": cls.name,
+                "owner_uid": cls.owner_uid,
                 "active_groups": len(current["per_group"]),
                 "messages": current["total"],
                 "messages_prior": prior["total"],
@@ -376,17 +435,19 @@ def teacher_compare(
 
 def class_trend(
     *,
-    teacher_uid: str,
+    user: User,
     class_id: str,
     since: datetime,
     until: datetime,
 ) -> dict[str, Any]:
     """Per-day message counts for one class. Returns a dense series —
     every day in ``[since, until]`` is present, even if zero — so the
-    frontend can render without date arithmetic."""
-    assert_caller_owns(teacher_uid, class_id)
-    allowed = list(resolve_caller_group_codes(teacher_uid))
+    frontend can render without date arithmetic.
+
+    Owner or researcher read (1.1.51) — see ``class_kpis``."""
+    assert_can_read_class(user, class_id)
     class_codes = _class_group_codes(class_id)
+    allowed = _widen_allowed(list(resolve_caller_group_codes(user.uid)), class_codes)
     base = _common_params(since=since, until=until, allowed=allowed, class_codes=class_codes)
 
     raw = queries.messages_per_day(**base)

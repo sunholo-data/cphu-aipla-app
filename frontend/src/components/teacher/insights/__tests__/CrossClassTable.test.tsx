@@ -100,4 +100,20 @@ describe("CrossClassTable", () => {
     const rows = within(screen.getByTestId("cross-class-table")).getAllByRole("row").slice(1);
     expect(rows[0]).toHaveTextContent("Astrophysics 9A");
   });
+
+  it("hides the Owner column for own-classes rows (no owner info)", () => {
+    render(<CrossClassTable rows={ROWS} />);
+    expect(screen.queryByRole("button", { name: /sort by owner/i })).not.toBeInTheDocument();
+  });
+
+  it("shows an Owner column for cross-teacher rows, preferring the label over the uid", () => {
+    const crossRows: InsightsCompareRow[] = [
+      { ...ROWS[0], ownerUid: "teacher-1", ownerLabel: "Alice Hansen" },
+      { ...ROWS[1], ownerUid: "teacher-2" }, // no label -> falls back to uid
+    ];
+    render(<CrossClassTable rows={crossRows} />);
+    expect(screen.getByRole("button", { name: /sort by owner/i })).toBeInTheDocument();
+    expect(screen.getByText("Alice Hansen")).toBeInTheDocument();
+    expect(screen.getByText("teacher-2")).toBeInTheDocument();
+  });
 });

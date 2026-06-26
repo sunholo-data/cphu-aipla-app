@@ -20,9 +20,11 @@ import { ArrowLeft } from "lucide-react";
 import { CrossClassTable } from "@/components/teacher/insights/CrossClassTable";
 import { InsightsTabs } from "@/components/teacher/insights/InsightsTabs";
 import { TeacherPage } from "@/components/teacher/ui/TeacherPage";
+import { useIsResearcher } from "@/hooks/useIsResearcher";
 import {
   fetchInsightsCompare,
   type InsightsComparePayload,
+  type InsightsScope,
   type InsightsSince,
 } from "@/lib/insightsApi";
 
@@ -34,6 +36,12 @@ const SINCE_LABEL: Record<InsightsSince, string> = {
 
 export default function TeacherInsightsPage() {
   const [since, setSince] = useState<InsightsSince>("7d");
+  // Researchers can switch to a cross-teacher comparison of EVERY class
+  // (scope=all, 1.1.51). The toggle is hidden for non-researchers; the
+  // backend independently 403s scope=all without the claim.
+  const isResearcher = useIsResearcher();
+  const [scope, setScope] = useState<InsightsScope>("own");
+  const effectiveScope: InsightsScope = isResearcher ? scope : "own";
   const [payload, setPayload] = useState<InsightsComparePayload | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(true);
@@ -42,7 +50,7 @@ export default function TeacherInsightsPage() {
     let cancelled = false;
     setIsLoading(true);
     setError(null);
-    fetchInsightsCompare(since)
+    fetchInsightsCompare(since, undefined, effectiveScope)
       .then((p) => {
         if (cancelled) return;
         setPayload(p);
@@ -57,7 +65,7 @@ export default function TeacherInsightsPage() {
     return () => {
       cancelled = true;
     };
-  }, [since]);
+  }, [since, effectiveScope]);
 
   return (
     <TeacherPage
@@ -71,13 +79,19 @@ export default function TeacherInsightsPage() {
         </Link>
       }
       title="Insights"
-      subtitle="Cross-class comparison"
-      actions={<SinceSelect value={since} onChange={setSince} />}
+      subtitle={effectiveScope === "all" ? "Cross-class comparison · all teachers" : "Cross-class comparison"}
+      actions={
+        <div className="flex items-center gap-2">
+          {isResearcher ? <ScopeToggle value={scope} onChange={setScope} /> : null}
+          <SinceSelect value={since} onChange={setSince} />
+        </div>
+      }
     >
       <InsightsTabs />
 
       <p className="text-xs text-muted-foreground" data-testid="window-label">
         Window: <strong>{SINCE_LABEL[since]}</strong>
+        {effectiveScope === "all" ? " · all teachers" : null}
       </p>
 
       {error ? (
@@ -94,6 +108,39 @@ export default function TeacherInsightsPage() {
 
       {payload ? <CrossClassTable rows={payload.rows} /> : null}
     </TeacherPage>
+  );
+}
+
+function ScopeToggle({
+  value,
+  onChange,
+}: {
+  value: InsightsScope;
+  onChange: (v: InsightsScope) => void;
+}) {
+  return (
+    <div
+      role="group"
+      aria-label="Class scope"
+      className="flex items-center rounded border border-border text-xs font-medium"
+    >
+      <button
+        type="button"
+        aria-pressed={value === "own"}
+        onClick={() => onChange("own")}
+        className={`rounded-l px-2.5 py-1 ${value === "own" ? "bg-accent" : "hover:bg-accent"}`}
+      >
+        My classes
+      </button>
+      <button
+        type="button"
+        aria-pressed={value === "all"}
+        onClick={() => onChange("all")}
+        className={`rounded-r px-2.5 py-1 ${value === "all" ? "bg-accent" : "hover:bg-accent"}`}
+      >
+        All teachers
+      </button>
+    </div>
   );
 }
 

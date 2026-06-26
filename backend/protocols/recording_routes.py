@@ -236,15 +236,28 @@ async def get_group_transcript(
     group_id: str,
     user: User = Depends(get_current_user),  # noqa: B008
 ) -> dict[str, Any]:
-    """A group's lesson transcript. Authorized for (a) a student OF this group
-    or (b) the teacher who owns the class the group belongs to (teacher report,
-    M4)."""
+    """A group's lesson transcript. Authorized for (a) a student OF this group,
+    (b) the teacher who owns the class the group belongs to (teacher report,
+    M4), or (c) a researcher reading any class (1.1.51 cross-class read).
+
+    The researcher bypass widens only the *ownership* gate (and tags the OTel
+    bypass span); it does not loosen the consent posture — content suppression
+    for consent-declined sessions happens upstream at recording-creation time
+    and is unchanged here."""
     caller_group = getattr(user, "group_id", None)
     if caller_group != group_id:
-        # not the group's own student -> must be the owning teacher
+        # not the group's own student -> the owning teacher, or a researcher.
         cls = _class_for_group(group_id)
-        if cls is None or cls.owner_uid != user.uid:
+        is_owner = cls is not None and cls.owner_uid == user.uid
+        is_researcher_bypass = cls is not None and not is_owner and getattr(user, "is_researcher", False)
+        if not (is_owner or is_researcher_bypass):
             raise HTTPException(status_code=403, detail="Not authorized for this group's transcript.")
+        if is_researcher_bypass:
+            # Audit who read across classes (mirrors analytics.auth bypass tag).
+            span = trace.get_current_span()
+            if span.is_recording():
+                span.set_attribute("auth.researcher_bypass", True)
+                span.set_attribute("class_id", cls.class_id)
     return _transcript_for_group(group_id)
 
 

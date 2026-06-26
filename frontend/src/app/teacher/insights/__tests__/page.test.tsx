@@ -34,6 +34,11 @@ vi.mock("@/components/teacher/insights/CrossClassTable", () => ({
   ),
 }));
 
+let isResearcher = false;
+vi.mock("@/hooks/useIsResearcher", () => ({
+  useIsResearcher: () => isResearcher,
+}));
+
 const PAYLOAD: InsightsComparePayload = {
   since: "2026-05-26T00:00:00+00:00",
   until: "2026-06-02T00:00:00+00:00",
@@ -53,6 +58,7 @@ const PAYLOAD: InsightsComparePayload = {
 
 beforeEach(() => {
   fetchCompare.mockReset();
+  isResearcher = false;
 });
 
 describe("/teacher/insights — page shell", () => {
@@ -79,7 +85,7 @@ describe("/teacher/insights — page shell", () => {
     expect(alert).toHaveTextContent("Backend hiccup");
   });
 
-  it("changing the since dropdown refetches with the new value", async () => {
+  it("changing the since dropdown refetches with the new value (own scope)", async () => {
     fetchCompare.mockResolvedValue(PAYLOAD);
     render(<TeacherInsightsPage />);
     await screen.findByTestId("table-stub");
@@ -88,8 +94,30 @@ describe("/teacher/insights — page shell", () => {
     fireEvent.change(select, { target: { value: "30d" } });
 
     await waitFor(() => {
-      expect(fetchCompare).toHaveBeenLastCalledWith("30d");
+      expect(fetchCompare).toHaveBeenLastCalledWith("30d", undefined, "own");
     });
     expect(screen.getByTestId("window-label")).toHaveTextContent("Last 30 days");
+  });
+
+  it("hides the scope toggle for a non-researcher", async () => {
+    fetchCompare.mockResolvedValueOnce(PAYLOAD);
+    render(<TeacherInsightsPage />);
+    await screen.findByTestId("table-stub");
+    expect(screen.queryByRole("group", { name: "Class scope" })).not.toBeInTheDocument();
+    expect(fetchCompare).toHaveBeenLastCalledWith("7d", undefined, "own");
+  });
+
+  it("researcher can switch to all-teachers scope and refetches with scope=all", async () => {
+    isResearcher = true;
+    fetchCompare.mockResolvedValue(PAYLOAD);
+    render(<TeacherInsightsPage />);
+    await screen.findByTestId("table-stub");
+
+    fireEvent.click(screen.getByRole("button", { name: "All teachers" }));
+
+    await waitFor(() => {
+      expect(fetchCompare).toHaveBeenLastCalledWith("7d", undefined, "all");
+    });
+    expect(screen.getByTestId("window-label")).toHaveTextContent("all teachers");
   });
 });

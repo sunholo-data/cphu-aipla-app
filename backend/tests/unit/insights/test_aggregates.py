@@ -18,6 +18,7 @@ from typing import Any
 
 import pytest
 
+from auth import User
 from db import firestore as fs_module
 from db.classes import create_class, mint_group_codes_under_class
 from db.models.class_ import Class
@@ -25,6 +26,12 @@ from insights import aggregates
 
 TEACHER_UID = "teacher-alice"
 OTHER_TEACHER_UID = "teacher-bob"
+
+
+def _user(uid: str = TEACHER_UID, *, is_researcher: bool = False) -> User:
+    """Build the authenticated caller the aggregates now take (1.1.51).
+    A researcher (`is_researcher=True`) may read any class cross-tenant."""
+    return User(uid=uid, email=f"{uid}@example.test", is_teacher=True, is_researcher=is_researcher)
 
 
 @pytest.fixture(autouse=True)
@@ -94,7 +101,7 @@ class TestClassKpis:
             lambda **_: {"groups": [{"group_code": "g1", "message_count": 60, "session_count": 4}]},
         )
 
-        out = aggregates.class_kpis(teacher_uid=TEACHER_UID, class_id=class_id, since=since, until=until)
+        out = aggregates.class_kpis(user=_user(TEACHER_UID), class_id=class_id, since=since, until=until)
 
         assert out["kpis"]["active_groups"] == 2
         assert out["kpis"]["total_messages"] == 100
@@ -114,7 +121,7 @@ class TestClassKpis:
         monkeypatch.setattr("analytics.queries.sim_runs_per_skill", lambda **_: {"per_skill": [], "total": 0})
         monkeypatch.setattr("analytics.queries.most_active_groups", lambda **_: {"groups": []})
 
-        out = aggregates.class_kpis(teacher_uid=TEACHER_UID, class_id=class_id, since=_ts(), until=_ts(day=8))
+        out = aggregates.class_kpis(user=_user(TEACHER_UID), class_id=class_id, since=_ts(), until=_ts(day=8))
 
         names = [q["name"] for q in out["_debug"]["queries"]]
         assert names == ["count_messages", "time_on_task", "sim_runs_per_skill", "most_active_groups"]
@@ -128,7 +135,7 @@ class TestClassKpis:
         bobs_class = _create_class(OTHER_TEACHER_UID, name="Bob's class")
         with pytest.raises(PermissionError, match="class not accessible"):
             aggregates.class_kpis(
-                teacher_uid=TEACHER_UID,
+                user=_user(TEACHER_UID),
                 class_id=bobs_class,
                 since=_ts(),
                 until=_ts(day=8),
@@ -137,7 +144,7 @@ class TestClassKpis:
     def test_missing_class_raises_same_error_as_cross_tenant(self, monkeypatch):
         with pytest.raises(PermissionError, match="class not accessible"):
             aggregates.class_kpis(
-                teacher_uid=TEACHER_UID,
+                user=_user(TEACHER_UID),
                 class_id="not-a-real-id",
                 since=_ts(),
                 until=_ts(day=8),
@@ -173,7 +180,7 @@ def test_teacher_summary_returns_entry_per_owned_class(monkeypatch):
         },
     )
 
-    out = aggregates.teacher_summary(teacher_uid=TEACHER_UID, since=_ts(), until=_ts(day=8))
+    out = aggregates.teacher_summary(user=_user(TEACHER_UID), since=_ts(), until=_ts(day=8))
     ids = {c["class_id"] for c in out["classes"]}
     assert ids == {a, b}
     assert all(c["active_groups"] == 1 and c["total_messages"] == 7 for c in out["classes"])
@@ -200,7 +207,7 @@ def test_class_trend_fills_zero_days(monkeypatch):
         },
     )
 
-    out = aggregates.class_trend(teacher_uid=TEACHER_UID, class_id=class_id, since=since, until=until)
+    out = aggregates.class_trend(user=_user(TEACHER_UID), class_id=class_id, since=since, until=until)
     days = [r["day"] for r in out["per_day"]]
     assert days == [
         "2026-06-01",
@@ -221,7 +228,7 @@ def test_class_trend_cross_tenant(monkeypatch):
     bobs_class = _create_class(OTHER_TEACHER_UID, name="bob")
     with pytest.raises(PermissionError, match="class not accessible"):
         aggregates.class_trend(
-            teacher_uid=TEACHER_UID,
+            user=_user(TEACHER_UID),
             class_id=bobs_class,
             since=_ts(),
             until=_ts(day=8),
@@ -249,9 +256,140 @@ def test_teacher_compare_computes_delta(monkeypatch):
     monkeypatch.setattr("analytics.queries.sim_runs_per_skill", lambda **_: {"per_skill": [], "total": 2})
     monkeypatch.setattr("analytics.queries.time_on_task", lambda **_: {"per_group": []})
 
-    out = aggregates.teacher_compare(teacher_uid=TEACHER_UID, since=since, until=until)
+    out = aggregates.teacher_compare(user=_user(TEACHER_UID), since=since, until=until)
     row = out["rows"][0]
     assert row["messages"] == 10
     assert row["messages_prior"] == 4
     assert row["messages_delta"] == 6
     assert row["sim_runs"] == 2
+
+
+# ---------------------------------------------------------------------------
+# Researcher cross-class bypass (sprint 1.1.51)
+# ---------------------------------------------------------------------------
+
+
+def _simple_query_mocks(monkeypatch) -> None:
+    monkeypatch.setattr(
+        "analytics.queries.count_messages",
+        lambda **_: {"total": 9, "per_group": [{"group_code": "g", "count": 9}]},
+    )
+    monkeypatch.setattr("analytics.queries.time_on_task", lambda **_: {"per_group": []})
+    monkeypatch.setattr(
+        "analytics.queries.sim_runs_per_skill",
+        lambda **_: {"per_skill": [], "total": 0},
+    )
+    monkeypatch.setattr("analytics.queries.most_active_groups", lambda **_: {"groups": []})
+
+
+def test_researcher_reads_non_owned_class_kpis(monkeypatch):
+    """A researcher gets real KPIs for a class they do NOT own — where a
+    plain teacher would raise PermissionError (the 404 cliff)."""
+    _simple_query_mocks(monkeypatch)
+    bobs_class = _create_class(OTHER_TEACHER_UID, name="Bob's class")
+
+    out = aggregates.class_kpis(
+        user=_user("researcher-rae", is_researcher=True),
+        class_id=bobs_class,
+        since=_ts(),
+        until=_ts(day=8),
+    )
+    assert out["kpis"]["total_messages"] == 9
+
+
+def test_researcher_bypass_widens_allowed_group_codes(monkeypatch):
+    """The defense-in-depth ``allowed_group_codes`` filter is widened to the
+    target class's codes — without this the SQL intersection would be empty
+    and the researcher would get authorized-but-zero rows."""
+    from db.classes import get_class
+
+    _simple_query_mocks(monkeypatch)
+    bobs_class = _create_class(OTHER_TEACHER_UID, name="Bob's class")
+    class_codes = set(get_class(bobs_class).group_codes)
+    assert class_codes, "fixture should mint group codes"
+
+    out = aggregates.class_kpis(
+        user=_user("researcher-rae", is_researcher=True),
+        class_id=bobs_class,
+        since=_ts(),
+        until=_ts(day=8),
+    )
+    allowed = set(out["_debug"]["queries"][0]["params"]["allowed_group_codes"])
+    assert class_codes <= allowed
+
+
+def test_owner_path_allowed_codes_unchanged_byte_identical(monkeypatch):
+    """For an OWNER, _widen_allowed is a no-op — the emitted allowed_group_codes
+    equal the caller's owned codes (regression bar: don't change owner output)."""
+    from analytics.auth import resolve_caller_group_codes
+
+    _simple_query_mocks(monkeypatch)
+    class_id = _create_class(TEACHER_UID)
+    owned_codes = set(resolve_caller_group_codes(TEACHER_UID))
+
+    out = aggregates.class_kpis(user=_user(TEACHER_UID), class_id=class_id, since=_ts(), until=_ts(day=8))
+    allowed = set(out["_debug"]["queries"][0]["params"]["allowed_group_codes"])
+    assert allowed == owned_codes
+
+
+def test_non_researcher_still_blocked_cross_tenant(monkeypatch):
+    """A teacher without the claim is still refused a non-owned class."""
+    _simple_query_mocks(monkeypatch)
+    bobs_class = _create_class(OTHER_TEACHER_UID, name="bob")
+    with pytest.raises(PermissionError, match="class not accessible"):
+        aggregates.class_kpis(
+            user=_user("teacher-carol", is_researcher=False),
+            class_id=bobs_class,
+            since=_ts(),
+            until=_ts(day=8),
+        )
+
+
+def test_teacher_summary_scope_all_spans_all_teachers(monkeypatch):
+    """scope='all' + researcher → every teacher's class, not just the caller's."""
+    _simple_query_mocks(monkeypatch)
+    a = _create_class(TEACHER_UID, name="Alice 1")
+    b = _create_class(OTHER_TEACHER_UID, name="Bob 1")
+
+    out = aggregates.teacher_summary(
+        user=_user("researcher-rae", is_researcher=True),
+        since=_ts(),
+        until=_ts(day=8),
+        scope="all",
+    )
+    ids = {c["class_id"] for c in out["classes"]}
+    assert {a, b} <= ids
+    # Each row carries the owner uid so the route can resolve a label.
+    assert all("owner_uid" in c for c in out["classes"])
+
+
+def test_teacher_summary_scope_all_ignored_without_claim(monkeypatch):
+    """A non-researcher passing scope='all' silently gets their OWN scope
+    (defense-in-depth; the route also 403s before reaching here)."""
+    _simple_query_mocks(monkeypatch)
+    _create_class(TEACHER_UID, name="Alice 1")
+    _create_class(OTHER_TEACHER_UID, name="Bob 1")
+
+    out = aggregates.teacher_summary(
+        user=_user(TEACHER_UID, is_researcher=False),
+        since=_ts(),
+        until=_ts(day=8),
+        scope="all",
+    )
+    owners = {c["owner_uid"] for c in out["classes"]}
+    assert owners == {TEACHER_UID}
+
+
+def test_teacher_compare_scope_all_spans_all_teachers(monkeypatch):
+    _simple_query_mocks(monkeypatch)
+    a = _create_class(TEACHER_UID, name="Alice 1")
+    b = _create_class(OTHER_TEACHER_UID, name="Bob 1")
+
+    out = aggregates.teacher_compare(
+        user=_user("researcher-rae", is_researcher=True),
+        since=_ts(),
+        until=_ts(day=8),
+        scope="all",
+    )
+    ids = {r["class_id"] for r in out["rows"]}
+    assert {a, b} <= ids

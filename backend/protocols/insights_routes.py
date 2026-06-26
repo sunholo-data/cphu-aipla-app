@@ -27,9 +27,11 @@ from datetime import UTC, datetime, timedelta
 from typing import Any
 
 from fastapi import APIRouter, Depends, HTTPException, Path, Query
+from opentelemetry import trace
 
 from analytics.auth import PERMISSION_ERROR_MESSAGE
 from auth import User, get_current_user
+from auth.owner_labels import resolve_owner_labels
 from insights import aggregates
 from insights.cache import CACHE, make_key
 
@@ -56,6 +58,38 @@ def _assert_teacher(user: User) -> None:
     """Mirror ``classes_routes._assert_teacher``."""
     if not user.is_teacher:
         raise HTTPException(status_code=403, detail="teacher access required")
+
+
+def _resolve_scope(user: User, scope: str) -> str:
+    """Validate ``?scope=`` for the cross-class overview routes (1.1.51).
+
+    ``own`` (default) is unchanged for everyone. ``all`` spans every
+    teacher's class and is **researcher-only** — a non-researcher (even a
+    teacher) gets 403, never a silent fallback to own-scope (mirrors
+    ``classes_routes.list_classes``). Tags the current OTel span on the
+    bypass path so "who looked across all classes" stays answerable.
+    """
+    if scope not in ("own", "all"):
+        raise HTTPException(status_code=400, detail=f"invalid scope {scope!r}")
+    if scope == "all":
+        if not user.is_researcher:
+            raise HTTPException(status_code=403, detail="researcher access required")
+        span = trace.get_current_span()
+        if span.is_recording():
+            span.set_attribute("auth.researcher_bypass", True)
+    return scope
+
+
+def _attach_owner_labels(rows: list[dict[str, Any]]) -> None:
+    """Add a friendly ``ownerLabel`` (display name / email) to each row so
+    the cross-class researcher overview shows who owns each class rather
+    than a raw Firebase uid. Best-effort, in place — unresolved owners
+    carry no label and the client falls back to the uid."""
+    labels = resolve_owner_labels({r["owner_uid"] for r in rows if r.get("owner_uid")})
+    for r in rows:
+        label = labels.get(r.get("owner_uid", ""))
+        if label:
+            r["ownerLabel"] = label
 
 
 def _resolve_window(since: str, until: str | None) -> tuple[datetime, datetime]:
@@ -93,21 +127,29 @@ def _surface_key(surface: str, class_id: str | None = None) -> str:
 async def summary(
     since: str = Query("7d"),
     until: str | None = Query(None),
+    scope: str = Query("own"),
     user: User = Depends(get_current_user),  # noqa: B008
 ) -> dict[str, Any]:
-    """KPI strip for every class the caller owns."""
+    """KPI strip for every class the caller owns (default) or, for a
+    researcher with ``?scope=all``, every class across all teachers
+    (1.1.51 — cross-class research overview)."""
     _assert_teacher(user)
+    scope = _resolve_scope(user, scope)
     since_dt, until_dt = _resolve_window(since, until)
     key = make_key(
         teacher_uid=user.uid,
-        surface=_surface_key("summary"),
+        surface=_surface_key(f"summary:{scope}"),
         since=since_dt,
         until=until_dt,
     )
-    result = CACHE.get_or_compute(
-        key,
-        lambda: aggregates.teacher_summary(teacher_uid=user.uid, since=since_dt, until=until_dt),
-    )
+
+    def _compute() -> dict[str, Any]:
+        res = aggregates.teacher_summary(user=user, since=since_dt, until=until_dt, scope=scope)
+        if scope == "all":
+            _attach_owner_labels(res.get("classes", []))
+        return res
+
+    result = CACHE.get_or_compute(key, _compute)
     # M10 observability — `dashboard_load` fires on the canonical
     # first request /teacher/classes makes; `insights_query` covers
     # every /api/insights/* route. Filter Cloud Logging via
@@ -126,21 +168,29 @@ async def summary(
 async def compare(
     since: str = Query("7d"),
     until: str | None = Query(None),
+    scope: str = Query("own"),
     user: User = Depends(get_current_user),  # noqa: B008
 ) -> dict[str, Any]:
-    """Cross-class comparison table data."""
+    """Cross-class comparison table data — the caller's own classes
+    (default) or, for a researcher with ``?scope=all``, every class across
+    all teachers (1.1.51)."""
     _assert_teacher(user)
+    scope = _resolve_scope(user, scope)
     since_dt, until_dt = _resolve_window(since, until)
     key = make_key(
         teacher_uid=user.uid,
-        surface=_surface_key("compare"),
+        surface=_surface_key(f"compare:{scope}"),
         since=since_dt,
         until=until_dt,
     )
-    result = CACHE.get_or_compute(
-        key,
-        lambda: aggregates.teacher_compare(teacher_uid=user.uid, since=since_dt, until=until_dt),
-    )
+
+    def _compute() -> dict[str, Any]:
+        res = aggregates.teacher_compare(user=user, since=since_dt, until=until_dt, scope=scope)
+        if scope == "all":
+            _attach_owner_labels(res.get("rows", []))
+        return res
+
+    result = CACHE.get_or_compute(key, _compute)
     log.info("insights_query route=compare teacher_uid=%s since=%s", user.uid, since)
     return result
 
@@ -168,7 +218,7 @@ def _per_class(
     def _compute() -> dict[str, Any]:
         try:
             return fn(
-                teacher_uid=user.uid,
+                user=user,
                 class_id=class_id,
                 since=since_dt,
                 until=until_dt,

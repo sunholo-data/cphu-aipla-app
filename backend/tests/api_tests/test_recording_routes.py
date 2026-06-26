@@ -46,12 +46,14 @@ def store():
     return _FakeStore()
 
 
-def _client(group_id: str | None, monkeypatch, store=None, cls=None, writes=None, updates=None):
+def _client(group_id: str | None, monkeypatch, store=None, cls=None, writes=None, updates=None, user=None):
     app = FastAPI()
     app.include_router(rr.router)
 
     async def _override(request: Request) -> User:
-        if group_id:
+        if user is not None:
+            u = user
+        elif group_id:
             u = User(uid=STUDENT_UID, email="", group_id=group_id)
         else:
             u = User(uid=TEACHER_UID, email="")
@@ -221,6 +223,26 @@ def test_transcript_owning_teacher(monkeypatch):
 def test_transcript_other_group_student_forbidden(monkeypatch):
     # a student whose own group differs from the requested group, and not a teacher
     client, _ = _client("other-group", monkeypatch, store=None, cls=_fake_class(owner="someone-else"))
+    resp = client.get(f"/api/voice/recording/group/{GROUP_ID}/transcript")
+    assert resp.status_code == 403
+
+
+def test_transcript_researcher_non_owner_ok(monkeypatch):
+    """A researcher reads any group's transcript even though they don't own
+    the class (1.1.51 cross-class read)."""
+    researcher = User(uid="researcher-rae", email="rae@example.test", is_teacher=True, is_researcher=True)
+    client, _ = _client(None, monkeypatch, store=None, cls=_fake_class(owner="someone-else"), user=researcher)
+    monkeypatch.setattr(rr, "query_documents", lambda c, filters=None: list(_SEGMENTS))
+    resp = client.get(f"/api/voice/recording/group/{GROUP_ID}/transcript")
+    assert resp.status_code == 200
+    assert resp.json()["text"] == "first part second part"
+
+
+def test_transcript_non_researcher_non_owner_teacher_forbidden(monkeypatch):
+    """A teacher WITHOUT the researcher claim still can't read another
+    teacher's group transcript — the bypass is claim-gated."""
+    teacher = User(uid="teacher-carol", email="carol@example.test", is_teacher=True, is_researcher=False)
+    client, _ = _client(None, monkeypatch, store=None, cls=_fake_class(owner="someone-else"), user=teacher)
     resp = client.get(f"/api/voice/recording/group/{GROUP_ID}/transcript")
     assert resp.status_code == 403
 

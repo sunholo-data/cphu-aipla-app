@@ -13,9 +13,21 @@ import { fetchWithTeacherAuth as fetchWithAuth } from "@/lib/apiClient";
 
 export type InsightsSince = "7d" | "30d" | "all";
 
+/**
+ * Cross-class scope for the Overview surfaces (sprint 1.1.51). `own`
+ * (default) is the caller's own classes; `all` spans every teacher's class
+ * and is researcher-only — the backend 403s a non-researcher, so the toggle
+ * that selects it is also gated on the researcher claim in the UI.
+ */
+export type InsightsScope = "own" | "all";
+
 export interface InsightsClassSummary {
   classId: string;
   name: string;
+  /** Owner uid — present so a cross-class (scope=all) view can disambiguate. */
+  ownerUid?: string;
+  /** Friendly owner display name/email (scope=all only); falls back to uid. */
+  ownerLabel?: string;
   activeGroups: number;
   totalMessages: number;
   lastActivity: string | null;
@@ -77,6 +89,10 @@ export interface InsightsClassActivitiesPayload {
 export interface InsightsCompareRow {
   classId: string;
   name: string;
+  /** Owner uid — present so a cross-class (scope=all) view can disambiguate. */
+  ownerUid?: string;
+  /** Friendly owner display name/email (scope=all only); falls back to uid. */
+  ownerLabel?: string;
   activeGroups: number;
   messages: number;
   messagesPrior: number;
@@ -91,9 +107,12 @@ export interface InsightsComparePayload {
   rows: InsightsCompareRow[];
 }
 
-function _query(since: InsightsSince, until?: string): string {
+function _query(since: InsightsSince, until?: string, scope?: InsightsScope): string {
   const params = new URLSearchParams({ since });
   if (until) params.set("until", until);
+  // Only send scope when it diverges from the default so existing owner-scoped
+  // calls keep their exact URL (and cache key) shape.
+  if (scope && scope !== "own") params.set("scope", scope);
   return params.toString() ? `?${params.toString()}` : "";
 }
 
@@ -112,7 +131,15 @@ async function _ok<T>(resp: Response, what: string): Promise<T> {
 function _mapSummary(json: {
   since: string;
   until: string;
-  classes: Array<{ class_id: string; name: string; active_groups: number; total_messages: number; last_activity: string | null }>;
+  classes: Array<{
+    class_id: string;
+    name: string;
+    owner_uid?: string;
+    ownerLabel?: string;
+    active_groups: number;
+    total_messages: number;
+    last_activity: string | null;
+  }>;
 }): InsightsSummaryPayload {
   return {
     since: json.since,
@@ -120,6 +147,8 @@ function _mapSummary(json: {
     classes: json.classes.map((c) => ({
       classId: c.class_id,
       name: c.name,
+      ownerUid: c.owner_uid,
+      ownerLabel: c.ownerLabel,
       activeGroups: c.active_groups,
       totalMessages: c.total_messages,
       lastActivity: c.last_activity,
@@ -163,6 +192,8 @@ function _mapCompare(json: {
   rows: Array<{
     class_id: string;
     name: string;
+    owner_uid?: string;
+    ownerLabel?: string;
     active_groups: number;
     messages: number;
     messages_prior: number;
@@ -177,6 +208,8 @@ function _mapCompare(json: {
     rows: json.rows.map((r) => ({
       classId: r.class_id,
       name: r.name,
+      ownerUid: r.owner_uid,
+      ownerLabel: r.ownerLabel,
       activeGroups: r.active_groups,
       messages: r.messages,
       messagesPrior: r.messages_prior,
@@ -190,8 +223,9 @@ function _mapCompare(json: {
 export async function fetchInsightsSummary(
   since: InsightsSince = "7d",
   until?: string,
+  scope: InsightsScope = "own",
 ): Promise<InsightsSummaryPayload> {
-  const resp = await fetchWithAuth(`/api/proxy/api/insights/summary${_query(since, until)}`);
+  const resp = await fetchWithAuth(`/api/proxy/api/insights/summary${_query(since, until, scope)}`);
   const json = await _ok<Parameters<typeof _mapSummary>[0]>(resp, "fetch insights summary");
   return _mapSummary(json);
 }
@@ -199,8 +233,9 @@ export async function fetchInsightsSummary(
 export async function fetchInsightsCompare(
   since: InsightsSince = "7d",
   until?: string,
+  scope: InsightsScope = "own",
 ): Promise<InsightsComparePayload> {
-  const resp = await fetchWithAuth(`/api/proxy/api/insights/compare${_query(since, until)}`);
+  const resp = await fetchWithAuth(`/api/proxy/api/insights/compare${_query(since, until, scope)}`);
   const json = await _ok<Parameters<typeof _mapCompare>[0]>(resp, "fetch insights compare");
   return _mapCompare(json);
 }

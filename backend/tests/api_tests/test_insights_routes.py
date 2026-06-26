@@ -176,6 +176,32 @@ class TestSummary:
         resp = teacher_client.get("/api/insights/summary?since=banana")
         assert resp.status_code == 400
 
+    def test_scope_all_forbidden_for_non_researcher(self, teacher_client):
+        """A plain teacher cannot URL-hack scope=all into a cross-class view."""
+        resp = teacher_client.get("/api/insights/summary?scope=all")
+        assert resp.status_code == 403
+
+    def test_invalid_scope_rejected(self, researcher_client):
+        resp = researcher_client.get("/api/insights/summary?scope=banana")
+        assert resp.status_code == 400
+
+    def test_researcher_scope_all_spans_all_teachers(self, researcher_client):
+        a = _make_class(TEACHER_UID, name="Alice 1")
+        b = _make_class(OTHER_TEACHER_UID, name="Bob 1")
+
+        resp = researcher_client.get("/api/insights/summary?scope=all")
+        assert resp.status_code == 200, resp.text
+        ids = {c["class_id"] for c in resp.json()["classes"]}
+        assert {a, b} <= ids
+
+    def test_researcher_scope_own_is_still_owner_scoped(self, researcher_client):
+        """Default scope=own stays the researcher's own classes (which is none
+        here) even though the claim is present — no accidental cross-class."""
+        _make_class(OTHER_TEACHER_UID, name="Bob 1")
+        resp = researcher_client.get("/api/insights/summary")
+        assert resp.status_code == 200, resp.text
+        assert resp.json()["classes"] == []
+
 
 # ---------------------------------------------------------------------------
 # GET /api/insights/classes/{id}/kpis
@@ -208,6 +234,21 @@ class TestClassKpis:
         assert cross.status_code == missing.status_code == 404
         assert cross.json() == missing.json()
         assert cross.content == missing.content  # HARD GATE: byte equality
+
+    def test_researcher_reads_non_owned_class(self, researcher_client):
+        """A researcher gets the KPI grid for a class they don't own (1.1.51) —
+        no 404 cliff."""
+        bobs_class = _make_class(OTHER_TEACHER_UID, name="Bob's class")
+        resp = researcher_client.get(f"/api/insights/classes/{bobs_class}/kpis")
+        assert resp.status_code == 200, resp.text
+        assert resp.json()["kpis"]["total_messages"] == 5
+
+    def test_researcher_missing_class_still_404(self, researcher_client):
+        """The bypass is read-all-real, not read-into-nothing — a missing class
+        is still the byte-identical 404 for a researcher too."""
+        resp = researcher_client.get(f"/api/insights/classes/{MISSING_CLASS_ID}/kpis")
+        assert resp.status_code == 404
+        assert resp.json()["detail"] == "class not accessible"
 
     def test_cache_hit_avoids_second_compute(self, teacher_client, monkeypatch):
         class_id = _make_class(TEACHER_UID)
@@ -309,6 +350,18 @@ class TestCompare:
     def test_student_forbidden(self, student_client):
         resp = student_client.get("/api/insights/compare")
         assert resp.status_code == 403
+
+    def test_scope_all_forbidden_for_non_researcher(self, teacher_client):
+        resp = teacher_client.get("/api/insights/compare?scope=all")
+        assert resp.status_code == 403
+
+    def test_researcher_scope_all_spans_all_teachers(self, researcher_client):
+        a = _make_class(TEACHER_UID, name="Alice 1")
+        b = _make_class(OTHER_TEACHER_UID, name="Bob 1")
+        resp = researcher_client.get("/api/insights/compare?scope=all")
+        assert resp.status_code == 200, resp.text
+        ids = {r["class_id"] for r in resp.json()["rows"]}
+        assert {a, b} <= ids
 
 
 # ---------------------------------------------------------------------------
