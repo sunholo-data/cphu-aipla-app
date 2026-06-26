@@ -220,9 +220,11 @@ class TestDuplicate:
         assert copy["artefactId"] == "boldkast"
 
     def test_duplicate_published_of_another_owner_allowed(self):
-        theirs = _client(OTHER).post(
-            "/api/activities", json={"skillId": "concept", "title": "Pub", "visibility": "published"}
-        ).json()["activityId"]
+        theirs = (
+            _client(OTHER)
+            .post("/api/activities", json={"skillId": "concept", "title": "Pub", "visibility": "published"})
+            .json()["activityId"]
+        )
         resp = _client().post(f"/api/activities/{theirs}/duplicate")
         assert resp.status_code == 201, resp.text
         copy = resp.json()
@@ -231,11 +233,92 @@ class TestDuplicate:
         assert copy["visibility"] == "draft"
 
     def test_duplicate_anothers_private_is_404(self):
-        theirs = _client(OTHER).post(
-            "/api/activities", json={"skillId": "concept", "title": "Priv"}  # default visibility=private
-        ).json()["activityId"]
+        theirs = (
+            _client(OTHER)
+            .post(
+                "/api/activities",
+                json={"skillId": "concept", "title": "Priv"},  # default visibility=private
+            )
+            .json()["activityId"]
+        )
         resp = _client().post(f"/api/activities/{theirs}/duplicate")
         assert resp.status_code == 404
 
     def test_duplicate_missing_is_404(self):
         assert _client().post("/api/activities/act-nope/duplicate").status_code == 404
+
+
+class TestPublishUnpublish:
+    """M3.1 (ALS-SHARE): POST /{id}/publish · /unpublish — owner OR researcher."""
+
+    def test_owner_publishes_then_unpublishes(self):
+        c = _client()
+        aid = c.post("/api/activities", json={"skillId": "concept", "title": "P"}).json()["activityId"]
+        pub = c.post(f"/api/activities/{aid}/publish")
+        assert pub.status_code == 200, pub.text
+        assert pub.json()["visibility"] == "published"
+        unp = c.post(f"/api/activities/{aid}/unpublish")
+        assert unp.status_code == 200, unp.text
+        assert unp.json()["visibility"] == "private"
+
+    def test_non_owner_non_researcher_cannot_publish(self):
+        aid = _client(OTHER).post("/api/activities", json={"skillId": "concept", "title": "X"}).json()["activityId"]
+        assert _client().post(f"/api/activities/{aid}/publish").status_code == 404
+        assert _client().post(f"/api/activities/{aid}/unpublish").status_code == 404
+
+    def test_researcher_can_publish_any_teachers_activity(self):
+        aid = _client(OTHER).post("/api/activities", json={"skillId": "concept", "title": "X"}).json()["activityId"]
+        resp = _client(researcher=True).post(f"/api/activities/{aid}/publish")
+        assert resp.status_code == 200, resp.text
+        assert resp.json()["visibility"] == "published"
+
+    def test_publish_missing_404(self):
+        assert _client().post("/api/activities/act-nope/publish").status_code == 404
+
+
+class TestSharedCatalogue:
+    """M3.2 (ALS-SHARE): GET /api/activities?published=true — open to any teacher."""
+
+    def test_published_returns_all_published_across_owners_excludes_private(self):
+        _client().post("/api/activities", json={"skillId": "c", "title": "Mine-pub", "visibility": "published"})
+        _client().post("/api/activities", json={"skillId": "c", "title": "Mine-priv"})  # private (default)
+        _client(OTHER).post("/api/activities", json={"skillId": "c", "title": "Theirs-pub", "visibility": "published"})
+        rows = _client().get("/api/activities?published=true").json()
+        assert {r["title"] for r in rows} == {"Mine-pub", "Theirs-pub"}
+
+    def test_published_catalogue_open_to_any_teacher_not_researcher_gated(self):
+        _client(OTHER).post("/api/activities", json={"skillId": "c", "title": "Pub", "visibility": "published"})
+        resp = _client().get("/api/activities?published=true")  # non-researcher
+        assert resp.status_code == 200
+        assert {r["title"] for r in resp.json()} == {"Pub"}
+
+    def test_published_enriches_owner_label(self, monkeypatch):
+        monkeypatch.setattr("protocols.activity_routes.resolve_owner_labels", lambda uids: {OTHER: "Bob Jensen"})
+        _client(OTHER).post("/api/activities", json={"skillId": "c", "title": "Pub", "visibility": "published"})
+        rows = _client().get("/api/activities?published=true").json()
+        assert rows[0]["ownerLabel"] == "Bob Jensen"
+
+
+class TestAdopt:
+    """M3.3 (ALS-SHARE): POST /{id}/adopt — copy a PUBLISHED activity into your library."""
+
+    def test_adopt_published_creates_draft_copy_with_provenance(self):
+        pub = (
+            _client(OTHER)
+            .post("/api/activities", json={"skillId": "c", "title": "Pub", "visibility": "published"})
+            .json()["activityId"]
+        )
+        resp = _client().post(f"/api/activities/{pub}/adopt")
+        assert resp.status_code == 201, resp.text
+        copy = resp.json()
+        assert copy["ownerUid"] == TEACHER
+        assert copy["sourceOwnerUid"] == OTHER
+        assert copy["sourceActivityId"] == pub
+        assert copy["visibility"] == "draft"
+
+    def test_adopt_non_published_is_404(self):
+        priv = _client(OTHER).post("/api/activities", json={"skillId": "c", "title": "Priv"}).json()["activityId"]
+        assert _client().post(f"/api/activities/{priv}/adopt").status_code == 404
+
+    def test_adopt_missing_is_404(self):
+        assert _client().post("/api/activities/act-nope/adopt").status_code == 404

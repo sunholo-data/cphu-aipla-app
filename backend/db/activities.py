@@ -134,6 +134,17 @@ def list_all_activities(*, include_deleted: bool = False) -> list[Activity]:
     return rows
 
 
+def list_published_activities() -> list[Activity]:
+    """Every ``published`` activity across all owners (newest first) — the
+    cross-teacher shared catalogue (ALS-SHARE M3.2). No authorization: being
+    ``published`` IS the share gate, so this is open to any teacher (unlike
+    ``list_all_activities``, which is researcher-only)."""
+    rows = [_from_firestore(d) for d in query_documents(_COLLECTION, filters=[("visibility", "==", "published")])]
+    rows = [a for a in rows if a.deleted_at is None]
+    rows.sort(key=lambda a: a.updated_at or datetime.min.replace(tzinfo=UTC), reverse=True)
+    return rows
+
+
 def soft_delete_activity(activity_id: str) -> None:
     """Soft-delete (sets ``deletedAt``). Idempotent — no-op if already gone.
 
@@ -150,6 +161,7 @@ __all__ = [
     "get_activity",
     "list_activities_by_owner",
     "list_all_activities",
+    "list_published_activities",
     "save_activity",
     "soft_delete_activity",
 ]

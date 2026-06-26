@@ -19,7 +19,35 @@ const FUNCS: Record<string, (x: number) => number> = {
 
 type Token = { t: "num"; v: number } | { t: "id"; v: string } | { t: "op"; v: string };
 
-function tokenize(src: string): Token[] {
+const IDENT_RE = /^[A-Za-z_][A-Za-z0-9_]*$/;
+
+/** Map the Unicode math operators a teacher might paste (from a formula editor
+ *  or a maths palette) onto the ASCII the grammar accepts: × ⋅ → *, ÷ → /,
+ *  − (minus sign) → -. Purely cosmetic — the grammar is unchanged. */
+function normalizeOps(src: string): string {
+  return src.replace(/[×⋅]/g, "*").replace(/÷/g, "/").replace(/−/g, "-");
+}
+
+/**
+ * Split an optional leading `name =` off a formula. Teachers naturally write the
+ * whole equation (`E = m * c^2`), but the evaluator only computes the
+ * right-hand side. Accept and strip a single `identifier =` prefix so the
+ * equation form just works; return the identifier as `label` (used as the
+ * calculator's result name when no title is set). Anything that isn't a clean
+ * `name = expr` (no `=`, several `=`, or a non-identifier left side) is returned
+ * untouched so the tokenizer can still report the real problem.
+ */
+export function splitFormula(raw: string): { label: string | null; expr: string } {
+  const eqCount = (raw.match(/=/g) ?? []).length;
+  if (eqCount !== 1) return { label: null, expr: raw };
+  const idx = raw.indexOf("=");
+  const lhs = raw.slice(0, idx).trim();
+  if (!IDENT_RE.test(lhs)) return { label: null, expr: raw };
+  return { label: lhs, expr: raw.slice(idx + 1) };
+}
+
+function tokenize(rawSrc: string): Token[] {
+  const src = normalizeOps(rawSrc);
   const tokens: Token[] = [];
   let i = 0;
   while (i < src.length) {
@@ -151,10 +179,12 @@ class Parser {
 }
 
 /** Evaluate a formula with the given variable bindings. Returns the numeric
- *  result, or `null` on any parse / eval error or non-finite result. */
+ *  result, or `null` on any parse / eval error or non-finite result. An optional
+ *  leading `name =` (the equation form) is stripped first. */
 export function evaluateFormula(formula: string, vars: Record<string, number>): number | null {
   try {
-    const tokens = tokenize(formula);
+    const { expr } = splitFormula(formula);
+    const tokens = tokenize(expr);
     if (tokens.length === 0) return null;
     const result = new Parser(tokens, vars).parse();
     return Number.isFinite(result) ? result : null;
@@ -163,19 +193,50 @@ export function evaluateFormula(formula: string, vars: Record<string, number>): 
   }
 }
 
+/** Turn a raw tokenizer/parser error into a teacher-facing sentence. The two
+ *  cases worth catching by hand are the equation form (`=` left in the
+ *  expression) and implicit multiplication (`mc` where `m` and `c` are both
+ *  declared) — the rest get a single friendly fallback. */
+function explainFormulaError(error: string, expr: string, allowedVars: string[]): string {
+  if (expr.includes("=")) {
+    return "Write only the right-hand side of the equation — the result is shown for you. For E = mc², enter m * c^2.";
+  }
+  const unknownVar = error.match(/^unknown variable: (.+)$/);
+  if (unknownVar) {
+    const name = unknownVar[1];
+    const letters = [...name];
+    if (letters.length > 1 && letters.every((ch) => allowedVars.includes(ch))) {
+      return `Put * between variables: write ${letters.join(" * ")}, not ${name}.`;
+    }
+    return `"${name}" isn't one of your variables — add it above, or check the spelling.`;
+  }
+  const unknownFn = error.match(/^unknown function: (.+)$/);
+  if (unknownFn) {
+    return `"${unknownFn[1]}" isn't an allowed function. Use: sqrt, sin, cos, tan, ln, log, abs, exp.`;
+  }
+  return "This formula isn't valid yet. Use your variables, numbers, + - * / ^ ( ) and the allowed functions.";
+}
+
 /** Validate a formula at author time: it must parse and reference only the
  *  allowed variables / whitelisted functions (checked by evaluating with every
- *  allowed variable bound to 1). */
+ *  allowed variable bound to 1). An optional leading `name =` is stripped first. */
 export function validateFormula(formula: string, allowedVars: string[]): { ok: boolean; error?: string } {
-  const trimmed = formula.trim();
-  if (!trimmed) return { ok: false, error: "Formlen er tom." };
+  const { expr } = splitFormula(formula);
+  const trimmed = expr.trim();
+  if (!trimmed) {
+    return formula.includes("=")
+      ? { ok: false, error: "Add the right-hand side of the equation after the = sign." }
+      : { ok: false, error: "The formula is empty." };
+  }
   const vars: Record<string, number> = {};
   for (const v of allowedVars) vars[v] = 1;
   try {
     const result = new Parser(tokenize(trimmed), vars).parse();
-    if (!Number.isFinite(result)) return { ok: false, error: "Formlen kan ikke beregnes." };
+    if (!Number.isFinite(result)) {
+      return { ok: false, error: "This formula can't be calculated — check for a divide-by-zero." };
+    }
     return { ok: true };
   } catch (e) {
-    return { ok: false, error: e instanceof Error ? e.message : "Ugyldig formel." };
+    return { ok: false, error: explainFormulaError(e instanceof Error ? e.message : "", trimmed, allowedVars) };
   }
 }

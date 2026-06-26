@@ -120,6 +120,33 @@ describe("builderToElementDefs", () => {
     ]);
   });
 
+  it("normalises the equation form: stores the right-hand side, title falls back to the left", () => {
+    const d = builderToElementDefs({
+      ...EMPTY,
+      calculator: {
+        title: "",
+        formula: "E = m * c^2",
+        inputs: [
+          { key: 1, id: "m", label: "Mass", unit: "kg" },
+          { key: 2, id: "c", label: "Speed of light", unit: "m/s" },
+        ],
+      },
+    });
+    expect(d.calculator[0]).toMatchObject({ title: "E", formula: "m * c^2" });
+  });
+
+  it("keeps an explicit title over the equation's left-hand side", () => {
+    const d = builderToElementDefs({
+      ...EMPTY,
+      calculator: {
+        title: "Einstein energy",
+        formula: "E = m * c^2",
+        inputs: [{ key: 1, id: "m", label: "Mass", unit: "kg" }, { key: 2, id: "c", label: "c", unit: "" }],
+      },
+    });
+    expect(d.calculator[0]).toMatchObject({ title: "Einstein energy", formula: "m * c^2" });
+  });
+
   it("drops a calculator with no formula or no valid inputs", () => {
     expect(
       builderToElementDefs({

@@ -1,9 +1,46 @@
 "use client";
 
-import { Calculator as CalcIcon, Plus, X } from "lucide-react";
+import { Calculator as CalcIcon, HelpCircle, Plus, X } from "lucide-react";
 import { useRef } from "react";
 
 import { validateFormula } from "@/lib/safeFormula";
+
+/** A hover/focus help bubble explaining how to author a calculator. Self-
+ *  contained (no Radix provider): CSS reveals it on hover or keyboard focus. */
+function FormulaHelp() {
+  return (
+    <span className="group relative inline-flex">
+      <button
+        type="button"
+        aria-label="How the calculator works"
+        className="text-slate-400 hover:text-slate-600 focus:text-slate-600 focus:outline-none"
+      >
+        <HelpCircle className="h-4 w-4" />
+      </button>
+      <span
+        role="tooltip"
+        className="pointer-events-none absolute left-1/2 top-6 z-20 hidden w-72 -translate-x-1/2 flex-col gap-1 rounded-md border border-slate-200 bg-white p-3 text-left text-xs leading-relaxed text-slate-600 shadow-lg group-hover:flex group-focus-within:flex"
+      >
+        <span className="font-semibold text-slate-700">How the calculator works</span>
+        <span>
+          • Name each variable with a short letter or word (e.g. <code>m</code>, <code>c</code>) — that&apos;s
+          what you use in the formula.
+        </span>
+        <span>
+          • In the formula, write the right-hand side. Both <code>E = m * c^2</code> and <code>m * c^2</code>{" "}
+          work — the result is shown for you.
+        </span>
+        <span>
+          • Put <code>*</code> between variables: <code>m * c</code>, not <code>mc</code>.
+        </span>
+        <span>
+          • Allowed: <code>+ - * / ^ ( )</code> and sqrt, sin, cos, tan, ln, log, abs, exp.
+        </span>
+        <span>• The student computes the result on their device, and what they get is shared with the tutor.</span>
+      </span>
+    </span>
+  );
+}
 
 export interface CalcInputRow {
   key: number;
@@ -41,7 +78,9 @@ export function CalculatorEditor({ value, onChange }: CalculatorEditorProps) {
     return (
       <div className="flex flex-col gap-2">
         <div className="flex items-center justify-between">
-          <span className="text-sm font-medium text-slate-700">Calculator (optional)</span>
+          <span className="flex items-center gap-1.5 text-sm font-medium text-slate-700">
+            Calculator (optional) <FormulaHelp />
+          </span>
           <button
             type="button"
             onClick={() =>
@@ -57,8 +96,9 @@ export function CalculatorEditor({ value, onChange }: CalculatorEditorProps) {
           </button>
         </div>
         <p className="text-xs text-slate-500">
-          A formula the student computes — name the variables (e.g. <code>s</code>, <code>t</code>) and
-          write a formula (e.g. <code>s / t</code>). The result is calculated on the student&apos;s device.
+          A formula the student computes — name the variables (e.g. <code>m</code>, <code>c</code>) and
+          write the formula (e.g. <code>E = m * c^2</code>). The result is calculated on the
+          student&apos;s device.
         </p>
       </div>
     );
@@ -78,7 +118,7 @@ export function CalculatorEditor({ value, onChange }: CalculatorEditorProps) {
     <div className="flex flex-col gap-3 rounded-lg border border-slate-200 p-3">
       <div className="flex items-center justify-between">
         <span className="flex items-center gap-1.5 text-sm font-medium text-slate-700">
-          <CalcIcon className="h-4 w-4 text-slate-500" /> Calculator
+          <CalcIcon className="h-4 w-4 text-slate-500" /> Calculator <FormulaHelp />
         </span>
         <button
           type="button"
@@ -170,19 +210,20 @@ export function CalculatorEditor({ value, onChange }: CalculatorEditorProps) {
           aria-label="Formula"
           value={value.formula}
           onChange={(e) => onChange({ ...value, formula: e.target.value })}
-          placeholder="e.g. s / t"
+          placeholder="e.g. E = m * c^2"
           maxLength={200}
           className="rounded-md border border-slate-300 px-3 py-1.5 font-mono text-sm"
         />
         {formulaCheck && !formulaCheck.ok ? (
           <span role="alert" className="text-xs text-red-600">
-            Formula problem: {formulaCheck.error}
+            {formulaCheck.error}
           </span>
         ) : formulaCheck?.ok ? (
           <span className="text-xs text-green-600">Formula looks good.</span>
         ) : (
           <span className="text-xs text-slate-400">
-            Use only your variables, numbers, + − × ÷ ^ and ( ). Functions: sqrt, sin, cos, tan, ln, log,
+            Write the right-hand side (the <code>E =</code> is optional). Put <code>*</code> between
+            variables — <code>m * c</code>, not <code>mc</code>. Functions: sqrt, sin, cos, tan, ln, log,
             abs, exp.
           </span>
         )}

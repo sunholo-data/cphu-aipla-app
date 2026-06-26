@@ -20,6 +20,7 @@ from __future__ import annotations
 import logging
 
 from fastapi import APIRouter, Depends, HTTPException, Path, Query
+from opentelemetry import trace
 from pydantic import BaseModel, ConfigDict, Field
 
 from artefacts.loader import is_known_artefact
@@ -31,6 +32,7 @@ from db.activities import (
     get_activity,
     list_activities_by_owner,
     list_all_activities,
+    list_published_activities,
     save_activity,
     soft_delete_activity,
 )
@@ -106,6 +108,26 @@ def _load_owned(activity_id: str, user: User) -> Activity:
     return activity
 
 
+def _load_for_modify(activity_id: str, user: User) -> Activity:
+    """Load for a write op (publish/unpublish, and — M3b — patch/delete).
+
+    Allowed for the **owner** OR a **researcher** (the post-hoc moderation
+    bypass, ALS-SHARE M3b). Otherwise 404 (enumeration-resistant). When a
+    researcher reaches another teacher's activity, span it like the class
+    read-bypass so the elevated access is observable.
+    """
+    activity = get_activity(activity_id)
+    if activity is None:
+        raise HTTPException(status_code=404, detail="activity not found")
+    if activity.owner_uid != user.uid:
+        if not user.is_researcher:
+            raise HTTPException(status_code=404, detail="activity not found")
+        span = trace.get_current_span()
+        if span.is_recording():
+            span.set_attribute("auth.researcher_bypass", True)
+    return activity
+
+
 def _serialize(activity: Activity) -> dict:
     return activity.model_dump(by_alias=True, mode="json")
 
@@ -157,43 +179,52 @@ async def post_activity(
     return _serialize(activity)
 
 
+def _serialize_with_owner_labels(activities: list[Activity]) -> list[dict]:
+    """Serialize + enrich each row with a friendly ``ownerLabel`` (display name /
+    email) so cross-owner views don't show raw Firebase uids. Best-effort:
+    unresolved owners carry no label and the client falls back to the uid."""
+    labels = resolve_owner_labels({a.owner_uid for a in activities})
+    rows: list[dict] = []
+    for a in activities:
+        row = _serialize(a)
+        label = labels.get(a.owner_uid)
+        if label:
+            row["ownerLabel"] = label
+        rows.append(row)
+    return rows
+
+
 @router.get("")
 async def list_my_activities(
     owner: str = Query(default="me"),
     scope: str = Query(default="own"),
+    published: bool = Query(default=False),
     user: User = Depends(get_current_user),  # noqa: B008
 ) -> list[dict]:
     """List activities.
 
     - ``scope=own`` (default, ``?owner=me``): the caller's own library.
-    - ``scope=all``: every activity across all teachers — researcher-only
+    - ``?published=true``: the cross-teacher **shared catalogue** — every
+      teacher's ``published`` activities, owner-labelled for by-owner grouping
+      (ALS-SHARE M3.2). Open to **any** teacher (publish is the share gate);
+      read-only — adopt is the only cross-teacher write.
+    - ``scope=all``: every activity across all teachers — **researcher-only**
       (1.1.5 Research view, mirroring ``GET /api/classes?scope=all``).
-      Non-researchers get 403 even via a URL-hack, never a silent fallback to
-      own-scope. Read-only observation: assign/edit/delete stay owner-gated on
-      their own routes.
+      Non-researchers get 403 even via a URL-hack, never a silent fallback.
 
-    The cross-teacher ``?published=true`` publish/adopt catalogue is still M3.
+    ``published`` and ``scope=all`` are deliberately different gates.
     """
     _assert_teacher(user)
+    if published:
+        log.info("activities shared catalogue (published=true) uid=%s", user.uid)
+        return _serialize_with_owner_labels(list_published_activities())
     if scope == "all":
         if not user.is_researcher:
             raise HTTPException(status_code=403, detail="researcher access required")
         log.info("activities research view (scope=all) uid=%s", user.uid)
-        activities = list_all_activities()
-        # Enrich with a friendly owner label (display name / email) so the
-        # research view doesn't show raw Firebase uids. Best-effort: unresolved
-        # owners simply carry no label and the client falls back to the uid.
-        labels = resolve_owner_labels({a.owner_uid for a in activities})
-        rows: list[dict] = []
-        for a in activities:
-            row = _serialize(a)
-            label = labels.get(a.owner_uid)
-            if label:
-                row["ownerLabel"] = label
-            rows.append(row)
-        return rows
+        return _serialize_with_owner_labels(list_all_activities())
     if owner != "me":
-        raise HTTPException(status_code=400, detail="only owner=me is supported (published catalogue is M3)")
+        raise HTTPException(status_code=400, detail="only owner=me, scope=all, or published=true are supported")
     return [_serialize(a) for a in list_activities_by_owner(user.uid)]
 
 
@@ -262,3 +293,55 @@ async def duplicate_activity_route(
     copy = copy_activity(source, new_owner_uid=user.uid)
     log.info("activity duplicated src=%s -> %s owner=%s", activity_id, copy.activity_id, user.uid)
     return _serialize(copy)
+
+
+@router.post("/{activity_id}/adopt", status_code=201)
+async def adopt_activity_route(
+    activity_id: str = Path(...),
+    user: User = Depends(get_current_user),  # noqa: B008
+) -> dict:
+    """Adopt a **published** activity from the shared catalogue → a fresh ``draft``
+    copy in the caller's library (ALS-SHARE M3.3). Copy semantics: provenance is
+    recorded (``source_*``); the source teacher's later edits never mutate this
+    copy, and the caller can only edit their copy. A non-published source (even
+    one the caller doesn't own) is 404 — adopt is for the catalogue only.
+    """
+    _assert_teacher(user)
+    source = get_activity(activity_id)
+    if source is None or source.visibility != "published":
+        raise HTTPException(status_code=404, detail="Activity not found")
+    copy = copy_activity(source, new_owner_uid=user.uid)
+    log.info("activity adopted src=%s owner=%s -> %s by=%s", activity_id, source.owner_uid, copy.activity_id, user.uid)
+    return _serialize(copy)
+
+
+def _set_visibility(activity: Activity, visibility: Visibility) -> dict:
+    """Persist a visibility change, preserving all other fields. Unpublish never
+    touches copies others already adopted — those are independent activities."""
+    return _serialize(save_activity(activity.model_copy(update={"visibility": visibility})))
+
+
+@router.post("/{activity_id}/publish", status_code=200)
+async def publish_activity_route(
+    activity_id: str = Path(...),
+    user: User = Depends(get_current_user),  # noqa: B008
+) -> dict:
+    """List an activity in the cross-teacher shared catalogue (→ ``published``).
+    Owner or researcher (ALS-SHARE M3.1)."""
+    _assert_teacher(user)
+    activity = _load_for_modify(activity_id, user)
+    log.info("activity published id=%s owner=%s by=%s", activity_id, activity.owner_uid, user.uid)
+    return _set_visibility(activity, "published")
+
+
+@router.post("/{activity_id}/unpublish", status_code=200)
+async def unpublish_activity_route(
+    activity_id: str = Path(...),
+    user: User = Depends(get_current_user),  # noqa: B008
+) -> dict:
+    """Remove an activity from the shared catalogue (→ ``private``). Already-adopted
+    copies are unaffected. Owner or researcher (ALS-SHARE M3.1)."""
+    _assert_teacher(user)
+    activity = _load_for_modify(activity_id, user)
+    log.info("activity unpublished id=%s owner=%s by=%s", activity_id, activity.owner_uid, user.uid)
+    return _set_visibility(activity, "private")

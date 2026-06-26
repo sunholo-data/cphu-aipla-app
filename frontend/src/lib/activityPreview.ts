@@ -16,6 +16,7 @@ import type { NoteElementDef } from "@/components/workspace/WorkbenchNote";
 import type { SolutionElementDef } from "@/components/workspace/SolutionElementMount";
 import type { DocumentElementDef } from "@/components/workspace/DocumentElementMount";
 import type { TableElementDef } from "@/components/workspace/WorkbenchTable";
+import { splitFormula } from "@/lib/safeFormula";
 
 export interface BuilderChecklistItem {
   key: number;
@@ -58,14 +59,18 @@ function tableDefs(table: TableEditorValue | null): TableElementDef[] {
 }
 
 /** Keep inputs with a valid variable name + label; drop the calculator if it
- *  has no valid inputs or no formula. */
+ *  has no valid inputs or no formula. The teacher may write the equation form
+ *  (`E = m * c^2`): we store only the right-hand side as the formula and fall
+ *  back to the left-hand side (`E`) as the result title when none was set. */
 function calculatorDefs(calc: CalculatorEditorValue | null): CalculatorElementDef[] {
   if (!calc) return [];
   const inputs = calc.inputs
     .filter((i) => VAR_ID_RE.test(i.id.trim()) && i.label.trim())
     .map((i) => ({ id: i.id.trim(), label: i.label.trim(), unit: i.unit.trim() }));
-  if (inputs.length === 0 || !calc.formula.trim()) return [];
-  return [{ id: "calc-1", title: calc.title.trim(), formula: calc.formula.trim(), inputs }];
+  const { label, expr } = splitFormula(calc.formula.trim());
+  const formula = expr.trim();
+  if (inputs.length === 0 || !formula) return [];
+  return [{ id: "calc-1", title: calc.title.trim() || label || "", formula, inputs }];
 }
 
 /**

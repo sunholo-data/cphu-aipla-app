@@ -50,10 +50,10 @@
         "backend/protocols/activity_routes.py",
         "backend/tests/api_tests/test_activity_routes.py"
       ],
-      "passes": null,
-      "started": null,
-      "completed": null,
-      "notes": null
+      "passes": true,
+      "started": "2026-06-26",
+      "completed": "2026-06-26",
+      "notes": "POST /{id}/publish + /unpublish via shared _load_for_modify (owner OR researcher; researcher path OTel-spans auth.researcher_bypass). 4 tests. _load_for_modify is also the M3b guard for PATCH/DELETE."
     },
     {
       "id": "M3.2-catalogue",
@@ -74,10 +74,10 @@
         "backend/protocols/activity_routes.py",
         "backend/tests/api_tests/test_activity_routes.py"
       ],
-      "passes": null,
-      "started": null,
-      "completed": null,
-      "notes": null
+      "passes": true,
+      "started": "2026-06-26",
+      "completed": "2026-06-26",
+      "notes": "db.list_published_activities + GET ?published=true (any teacher, published-only, ownerLabel-enriched via shared _serialize_with_owner_labels). 3 tests; distinct gate from scope=all."
     },
     {
       "id": "M3.3-adopt",
@@ -99,10 +99,10 @@
         "backend/protocols/activity_routes.py",
         "backend/tests/api_tests/test_activity_routes.py"
       ],
-      "passes": null,
-      "started": null,
-      "completed": null,
-      "notes": null
+      "passes": true,
+      "started": "2026-06-26",
+      "completed": "2026-06-26",
+      "notes": "POST /{id}/adopt — published-only source (else 404), reuses copy_activity -> draft copy w/ provenance. 3 tests. Backend full fast suite green."
     },
     {
       "id": "M3.4-shared-ui",

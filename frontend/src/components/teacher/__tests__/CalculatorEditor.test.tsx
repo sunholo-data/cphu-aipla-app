@@ -28,7 +28,41 @@ describe("CalculatorEditor", () => {
 
   it("flags a formula that references an undeclared variable", () => {
     render(<CalculatorEditor value={{ ...VALUE, formula: "s / q" }} onChange={vi.fn()} />);
-    expect(screen.getByRole("alert")).toHaveTextContent(/formula problem/i);
+    expect(screen.getByRole("alert")).toHaveTextContent(/isn't one of your variables/i);
+  });
+
+  it("accepts the equation form (E = right-hand side)", () => {
+    render(
+      <CalculatorEditor
+        value={{
+          title: "",
+          formula: "E = m * c^2",
+          inputs: [
+            { key: 1, id: "m", label: "Mass", unit: "kg" },
+            { key: 2, id: "c", label: "Speed of light", unit: "m/s" },
+          ],
+        }}
+        onChange={vi.fn()}
+      />,
+    );
+    expect(screen.getByText(/formula looks good/i)).toBeInTheDocument();
+  });
+
+  it("suggests * between variables for implicit multiplication (mc)", () => {
+    render(
+      <CalculatorEditor
+        value={{
+          title: "",
+          formula: "mc^2",
+          inputs: [
+            { key: 1, id: "m", label: "Mass", unit: "kg" },
+            { key: 2, id: "c", label: "Speed of light", unit: "m/s" },
+          ],
+        }}
+        onChange={vi.fn()}
+      />,
+    );
+    expect(screen.getByRole("alert")).toHaveTextContent(/m \* c/i);
   });
 
   it("adds and removes variables", () => {
