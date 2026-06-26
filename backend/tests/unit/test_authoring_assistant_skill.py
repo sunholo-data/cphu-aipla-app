@@ -16,11 +16,7 @@ from auth.firebase_auth import User
 from db.models.access import AccessControl
 
 TEMPLATE_PATH = (
-    Path(__file__).resolve().parent.parent.parent
-    / "skills"
-    / "templates"
-    / "activity-authoring-assistant"
-    / "SKILL.md"
+    Path(__file__).resolve().parent.parent.parent / "skills" / "templates" / "activity-authoring-assistant" / "SKILL.md"
 )
 
 
