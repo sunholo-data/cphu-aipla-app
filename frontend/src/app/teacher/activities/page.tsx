@@ -2,16 +2,20 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
-import { ClipboardList, Copy, Plus, Sliders, Trash2, Users } from "lucide-react";
+import { ClipboardList, Copy, Plus, Share2, Sliders, Trash2, Users } from "lucide-react";
 
 import {
   type ActivityPayload,
   type ClassPayload,
+  adoptActivity,
   deleteActivity,
   duplicateActivity,
   listActivities,
   listClasses,
+  listSharedCatalogue,
   patchClassActivities,
+  publishActivity,
+  unpublishActivity,
 } from "@/lib/teacherApi";
 import { useIsResearcher } from "@/hooks/useIsResearcher";
 import { EmptyState } from "@/components/teacher/ui/EmptyState";
@@ -76,6 +80,9 @@ export default function TeacherActivitiesPage() {
   const [view, setView] = useState<View>("own");
   const [status, setStatus] = useState<"loading" | "ok" | "error">("loading");
   const [activities, setActivities] = useState<ActivityPayload[]>([]);
+  // The cross-teacher shared catalogue (published, others' activities) — shown
+  // below "Your activities" in the own view (ALS-SHARE M3.4).
+  const [shared, setShared] = useState<ActivityPayload[]>([]);
   const [classes, setClasses] = useState<ClassPayload[]>([]);
   // activityId -> the classIds it's assigned to (reverse of Class.activityIds).
   const [assignments, setAssignments] = useState<Map<string, Set<string>>>(new Map());
@@ -102,12 +109,19 @@ export default function TeacherActivitiesPage() {
     Promise.all([
       listActivities(view),
       view === "own" ? listClasses().catch(() => [] as ClassPayload[]) : Promise.resolve([] as ClassPayload[]),
+      // The shared catalogue only makes sense in the own view (the All/research
+      // view already shows every activity). Non-fatal — degrades to no section.
+      view === "own" ? listSharedCatalogue().catch(() => [] as ActivityPayload[]) : Promise.resolve([] as ActivityPayload[]),
     ])
-      .then(([rows, cls]) => {
+      .then(([rows, cls, catalogue]) => {
         if (cancelled) return;
         setActivities(rows);
         setClasses(cls);
         setAssignments(indexAssignments(cls));
+        // Exclude the caller's OWN published activities — they're already above
+        // in "Your activities"; the shared section is for adopting OTHERS'.
+        const ownIds = new Set(rows.map((a) => a.activityId));
+        setShared(catalogue.filter((a) => !ownIds.has(a.activityId)));
         setStatus("ok");
       })
       .catch(() => {
@@ -151,6 +165,33 @@ export default function TeacherActivitiesPage() {
     setBusyId(activityId);
     try {
       const copy = await duplicateActivity(activityId);
+      setActivities((prev) => [copy, ...prev]);
+    } catch {
+      // Non-fatal; the next load re-syncs.
+    } finally {
+      setBusyId(null);
+    }
+  }
+
+  // M3.1: toggle an activity's shared-catalogue visibility (publish ↔ unpublish).
+  async function handlePublishToggle(activityId: string, publish: boolean) {
+    setBusyId(activityId);
+    try {
+      const updated = publish ? await publishActivity(activityId) : await unpublishActivity(activityId);
+      setActivities((prev) => prev.map((a) => (a.activityId === activityId ? updated : a)));
+    } catch {
+      // Non-fatal; the next load re-syncs.
+    } finally {
+      setBusyId(null);
+    }
+  }
+
+  // M3.3: adopt another teacher's published activity → a draft copy in your
+  // library. Prepends it so it's immediately visible in "Your activities".
+  async function handleAdopt(activityId: string) {
+    setBusyId(activityId);
+    try {
+      const copy = await adoptActivity(activityId);
       setActivities((prev) => [copy, ...prev]);
     } catch {
       // Non-fatal; the next load re-syncs.
@@ -218,12 +259,105 @@ export default function TeacherActivitiesPage() {
                 onToggleAssign={(classId, assigned) => toggleAssign(a.activityId, classId, assigned)}
                 onDelete={() => handleDelete(a.activityId, a.title ?? "")}
                 onDuplicate={() => handleDuplicate(a.activityId)}
+                onTogglePublish={(publish) => handlePublishToggle(a.activityId, publish)}
               />
             </li>
           ))}
         </ul>
       )}
+
+      {/* M3.4: the cross-teacher shared catalogue — other teachers' published
+          activities, grouped by owner, each adoptable into your library. Own
+          view only (the All/research view already shows everything). */}
+      {view === "own" && status === "ok" && shared.length > 0 ? (
+        <SharedActivitiesSection shared={shared} busyId={busyId} onAdopt={handleAdopt} />
+      ) : null}
     </TeacherPage>
+  );
+}
+
+/** The "Shared activities" section: other teachers' published activities grouped
+ *  by owner, each with a "Use / adapt" (adopt-copy) action. */
+function SharedActivitiesSection({
+  shared,
+  busyId,
+  onAdopt,
+}: {
+  shared: ActivityPayload[];
+  busyId: string | null;
+  onAdopt: (activityId: string) => void;
+}) {
+  // Group by owner, preserving the catalogue's newest-first order within a group.
+  const groups = new Map<string, { label: string; items: ActivityPayload[] }>();
+  for (const a of shared) {
+    const key = a.ownerUid;
+    if (!groups.has(key)) groups.set(key, { label: a.ownerLabel ?? a.ownerUid, items: [] });
+    groups.get(key)!.items.push(a);
+  }
+  return (
+    <section className="mt-8">
+      <h2 className="text-sm font-semibold">Shared activities</h2>
+      <p className="mb-3 text-xs text-muted-foreground">
+        Published by other teachers. <span className="font-medium">Use / adapt</span> copies one into your library as
+        a draft you can edit and assign.
+      </p>
+      <div className="flex flex-col gap-5">
+        {Array.from(groups.values()).map((group) => (
+          <div key={group.label}>
+            <p className="mb-1.5 flex items-center gap-1 text-xs font-medium text-muted-foreground">
+              <Users className="h-3 w-3 shrink-0" aria-hidden="true" />
+              {group.label}
+            </p>
+            <ul className="grid gap-3 sm:grid-cols-2">
+              {group.items.map((a) => (
+                <li key={a.activityId}>
+                  <SharedActivityCard
+                    activity={a}
+                    busy={busyId === a.activityId}
+                    onAdopt={() => onAdopt(a.activityId)}
+                  />
+                </li>
+              ))}
+            </ul>
+          </div>
+        ))}
+      </div>
+    </section>
+  );
+}
+
+function SharedActivityCard({
+  activity,
+  busy,
+  onAdopt,
+}: {
+  activity: ActivityPayload;
+  busy: boolean;
+  onAdopt: () => void;
+}) {
+  return (
+    <TeacherCard>
+      <h3 className="text-sm font-semibold">
+        {activity.title || activity.teachingGoal?.slice(0, 60) || activity.activityId}
+      </h3>
+      <CompositionRow activity={activity} />
+      {activity.teachingGoal ? (
+        <p className="line-clamp-2 text-xs text-muted-foreground">{activity.teachingGoal}</p>
+      ) : null}
+      <div className="flex items-center justify-between gap-2 text-xs text-muted-foreground">
+        <span>{activity.language === "da" ? "Dansk" : "English"}</span>
+        <button
+          type="button"
+          onClick={onAdopt}
+          disabled={busy}
+          className="flex items-center gap-1 rounded bg-primary px-2.5 py-1 font-medium text-primary-foreground hover:bg-primary/90 disabled:opacity-50"
+          title="Copy into your library as a draft"
+        >
+          <Copy className="h-3 w-3" aria-hidden="true" />
+          Use / adapt
+        </button>
+      </div>
+    </TeacherCard>
   );
 }
 
@@ -295,6 +429,7 @@ function ActivityCard({
   onToggleAssign,
   onDelete,
   onDuplicate,
+  onTogglePublish,
 }: {
   activity: ActivityPayload;
   classes: ClassPayload[];
@@ -304,7 +439,9 @@ function ActivityCard({
   onToggleAssign: (classId: string, assigned: boolean) => void;
   onDelete: () => void;
   onDuplicate: () => void;
+  onTogglePublish: (publish: boolean) => void;
 }) {
+  const published = activity.visibility === "published";
   return (
     <TeacherCard>
       <div className="flex items-start justify-between gap-2">
@@ -348,6 +485,16 @@ function ActivityCard({
             >
               <Copy className="h-3 w-3" aria-hidden="true" />
               Duplicate
+            </button>
+            <button
+              type="button"
+              onClick={() => onTogglePublish(!published)}
+              disabled={busy}
+              className="flex items-center gap-1 font-medium hover:text-foreground disabled:opacity-50"
+              title={published ? "Remove from the shared catalogue" : "Share with other teachers"}
+            >
+              <Share2 className="h-3 w-3" aria-hidden="true" />
+              {published ? "Unpublish" : "Publish"}
             </button>
             <button
               type="button"

@@ -41,6 +41,7 @@ function makeClass(overrides: Partial<ClassPayload> = {}): ClassPayload {
 beforeEach(() => {
   vi.restoreAllMocks();
   researcherRef.current = false;
+  vi.spyOn(teacherApi, "listSharedCatalogue").mockResolvedValue([]); // no shared catalogue by default
 });
 afterEach(() => {
   vi.restoreAllMocks();
@@ -166,5 +167,38 @@ describe("TeacherActivitiesPage (ALS-1 M1.2 library)", () => {
     await waitFor(() => expect(dupSpy).toHaveBeenCalledWith("act-energy"));
     // The copy is prepended -> two cards now carry the title.
     await waitFor(() => expect(screen.getAllByText("Energy basics").length).toBe(2));
+  });
+  it("publishes/unpublishes an own activity (M3.1 toggle)", async () => {
+    vi.spyOn(teacherApi, "listActivities").mockResolvedValue([makeActivity()]); // private
+    vi.spyOn(teacherApi, "listClasses").mockResolvedValue([]);
+    const pubSpy = vi
+      .spyOn(teacherApi, "publishActivity")
+      .mockResolvedValue(makeActivity({ visibility: "published" }));
+    render(<TeacherActivitiesPage />);
+    await screen.findByText("Energy basics");
+    fireEvent.click(screen.getByRole("button", { name: /Publish/ }));
+    await waitFor(() => expect(pubSpy).toHaveBeenCalledWith("act-energy"));
+    // Card flips to the Unpublish affordance.
+    await screen.findByRole("button", { name: /Unpublish/ });
+  });
+
+  it("shows the Shared activities section and adopts a published activity (M3.4)", async () => {
+    vi.spyOn(teacherApi, "listActivities").mockResolvedValue([]); // own library empty
+    vi.spyOn(teacherApi, "listClasses").mockResolvedValue([]);
+    vi.spyOn(teacherApi, "listSharedCatalogue").mockResolvedValue([
+      makeActivity({ activityId: "act-pub", ownerUid: "other", ownerLabel: "Bob Jensen", title: "Shared one", visibility: "published" }),
+    ]);
+    const adoptSpy = vi
+      .spyOn(teacherApi, "adoptActivity")
+      .mockResolvedValue(makeActivity({ activityId: "act-mine", title: "Shared one", visibility: "draft" }));
+    render(<TeacherActivitiesPage />);
+
+    await screen.findByText("Shared activities");
+    expect(screen.getByText("Bob Jensen")).toBeInTheDocument(); // grouped by owner
+    expect(screen.getByText("Shared one")).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: /Use \/ adapt/ }));
+    await waitFor(() => expect(adoptSpy).toHaveBeenCalledWith("act-pub"));
+    // The adopted draft lands in Your activities (a 2nd "Shared one" appears).
+    await waitFor(() => expect(screen.getAllByText("Shared one").length).toBe(2));
   });
 });

@@ -138,13 +138,77 @@ describe("/teacher/activities/[id] — real activity editor", () => {
     expect(textarea.value).toBe("");
   });
 
-  it("surfaces the roadmap signals (Code / History) and not the dropped Parameters tab", async () => {
+  it("keeps Code as a v2 roadmap tab, ships History as real, and drops Parameters", async () => {
     render(<TeacherActivityConfigPage />);
     await screen.findByRole("textbox", { name: /teaching goal/i });
     // Parameters was dropped (parked: conflicts with the research baseline).
     expect(screen.queryByRole("tab", { name: /parameters/i })).not.toBeInTheDocument();
     expect(screen.getByRole("tab", { name: /code/i })).toHaveTextContent(/v2/i);
-    expect(screen.getByRole("tab", { name: /history/i })).toHaveTextContent(/v2/i);
+    // History is no longer a pure roadmap stub — it ships a real provenance panel
+    // (M-HIST), so its tab carries no "v2" badge.
+    const historyTab = screen.getByRole("tab", { name: /history/i });
+    expect(historyTab).toBeInTheDocument();
+    expect(historyTab).not.toHaveTextContent(/v2/i);
+  });
+
+  it("History tab shows adapted-from provenance + lifecycle for an adopted activity", async () => {
+    fetchMock.mockResolvedValueOnce({
+      activityId: "act-real-123",
+      ownerUid: "teacher-1",
+      skillId: "concept",
+      visibility: "published",
+      classId: "",
+      teacherUid: "teacher-1",
+      title: "Adopted one",
+      teachingGoal: "Goal",
+      language: "da",
+      difficulty: "standard",
+      pairedWorkbench: null,
+      materials: [],
+      sourceActivityId: "act-src",
+      sourceOwnerUid: "teacher-other",
+      sourceOwnerLabel: "Bob Jensen",
+      createdAt: "2026-06-22T09:00:00Z",
+      updatedAt: "2026-06-24T10:00:00Z",
+    });
+    render(<TeacherActivityConfigPage />);
+    await screen.findByRole("textbox", { name: /teaching goal/i });
+    fireEvent.click(screen.getByRole("tab", { name: /history/i }));
+
+    const panel = await screen.findByRole("tabpanel", { name: /history/i });
+    expect(panel).toHaveTextContent(/adapted from/i);
+    expect(panel).toHaveTextContent("Bob Jensen");
+    expect(panel).toHaveTextContent(/published/i);
+    expect(panel).not.toHaveTextContent(/from scratch/i);
+  });
+
+  it("History tab shows a from-scratch lifecycle (no provenance) for an original activity", async () => {
+    fetchMock.mockResolvedValueOnce({
+      activityId: "act-real-123",
+      ownerUid: "teacher-1",
+      skillId: "concept",
+      visibility: "private",
+      classId: "",
+      teacherUid: "teacher-1",
+      title: "Original",
+      teachingGoal: "Goal",
+      language: "da",
+      difficulty: "standard",
+      pairedWorkbench: null,
+      materials: [],
+      sourceActivityId: null,
+      sourceOwnerUid: null,
+      createdAt: "2026-06-22T09:00:00Z",
+      updatedAt: "2026-06-24T10:00:00Z",
+    });
+    render(<TeacherActivityConfigPage />);
+    await screen.findByRole("textbox", { name: /teaching goal/i });
+    fireEvent.click(screen.getByRole("tab", { name: /history/i }));
+
+    const panel = await screen.findByRole("tabpanel", { name: /history/i });
+    expect(panel).toHaveTextContent(/from scratch/i);
+    expect(panel).not.toHaveTextContent(/adapted from/i);
+    expect(panel).toHaveTextContent(/private/i);
   });
 
   it("saves with the real classId + activityId", async () => {

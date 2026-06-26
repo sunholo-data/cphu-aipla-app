@@ -8,9 +8,9 @@ import {
   ArrowLeft,
   Code2,
   Eye,
+  GitBranch,
   History,
   Loader2,
-  RotateCcw,
   Save,
   Sparkles,
   Target,
@@ -24,6 +24,7 @@ import {
   saveActivityConfig,
   updateActivity,
 } from "@/lib/teacherApi";
+import type { ActivityPayload } from "@/lib/teacherApi";
 import { SettingsMap } from "@/components/teacher/SettingsMap";
 import { InheritedPersona } from "@/components/teacher/InheritedPersona";
 import { ActivityBuilderBody } from "@/components/teacher/ActivityBuilderBody";
@@ -41,7 +42,9 @@ type TabDescriptor = {
 const TABS: TabDescriptor[] = [
   { id: "goal", label: "Teaching goal", icon: Target, status: "active" },
   { id: "code", label: "Code", icon: Code2, status: "v2" },
-  { id: "history", label: "History", icon: History, status: "v2" },
+  // History ships a real read-only provenance + lifecycle panel (M-HIST); the
+  // version-timeline + rollback half stays a Year-2 roadmap note inside it.
+  { id: "history", label: "History", icon: History, status: "active" },
 ];
 
 type LoadState = "loading" | "ready" | "error";
@@ -73,6 +76,10 @@ export default function TeacherActivityConfigPage() {
   const [toast, setToast] = useState<string | null>(null);
   const [isSaving, setIsSaving] = useState(false);
   const [activeTab, setActiveTab] = useState<TabId>("goal");
+  // The loaded activity's provenance + lifecycle metadata (visibility, source_*,
+  // timestamps), surfaced read-only in the History tab (M-HIST). Null for a
+  // not-yet-saved (404) activity — the panel shows a "no history yet" state.
+  const [meta, setMeta] = useState<ActivityPayload | null>(null);
   // Block the form on the network load. An act- activity loads by id alone; a
   // legacy config needs the classId, so a missing one is an error there only.
   const [loadState, setLoadState] = useState<LoadState>(
@@ -99,6 +106,8 @@ export default function TeacherActivityConfigPage() {
         // Hydrate the FULL builder — goal, language, every element, the sim,
         // materials — so editing round-trips instead of wiping (1.1.40 M1).
         builder.hydrate(saved);
+        // Keep the raw payload for the History panel's provenance + lifecycle.
+        setMeta(saved as ActivityPayload);
         // Preserve the running skill for the PATCH back (Activity store only).
         if (isActivityStore) setLoadedSkillId((saved as { skillId?: string }).skillId ?? "");
         setLoadState("ready");
@@ -283,7 +292,7 @@ export default function TeacherActivityConfigPage() {
 
       {activeTab === "code" ? <CodeTabPreview /> : null}
 
-      {activeTab === "history" ? <HistoryTabPreview /> : null}
+      {activeTab === "history" ? <HistoryPanel meta={meta} /> : null}
 
       <div
         role="status"
@@ -437,81 +446,86 @@ function CodeTabPreview() {
   );
 }
 
-function HistoryTabPreview() {
-  const versions = [
-    {
-      v: "v4",
-      when: "2026-09-15",
-      author: "you",
-      summary: "Tuned default angle range to 20°–75°",
-      live: true,
-    },
-    {
-      v: "v3",
-      when: "2026-09-12",
-      author: "you",
-      summary: "Added velocity-vector toggle",
-      live: false,
-    },
-    {
-      v: "v2",
-      when: "2026-08-04",
-      author: "M",
-      summary: "Localised labels to Danish",
-      live: false,
-    },
-    {
-      v: "v1",
-      when: "2026-05-25",
-      author: "M",
-      summary: "Initial Boldkast release",
-      live: false,
-    },
-  ];
+// -----------------------------------------------------------------------------
+// History — real read-only provenance + lifecycle panel (M-HIST, ALS-SHARE)
+// -----------------------------------------------------------------------------
+// Where an activity came from (original vs adapted-from another teacher) and its
+// lifecycle (visibility + created/updated stamps). Backed by the activity GET,
+// which enriches an adopted activity with `sourceOwnerLabel`. The richer
+// per-edit version timeline + rollback stays a Year-2 roadmap note below.
+
+const VISIBILITY_COPY: Record<ActivityPayload["visibility"], string> = {
+  draft: "Draft — not shared yet",
+  private: "Private — your classes only",
+  published: "Published — in the shared catalogue",
+};
+
+function formatStamp(iso?: string | null): string {
+  if (!iso) return "—";
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return "—";
+  return d.toLocaleDateString(undefined, { year: "numeric", month: "short", day: "numeric" });
+}
+
+function HistoryPanel({ meta }: { meta: ActivityPayload | null }) {
+  const visibility = meta?.visibility ?? "draft";
+  const adapted = Boolean(meta?.sourceOwnerUid);
+  const sourceLabel = meta?.sourceOwnerLabel ?? meta?.sourceOwnerUid ?? "another teacher";
+
   return (
     <section
       role="tabpanel"
       id="tabpanel-history"
       aria-labelledby="tab-history"
-      className="flex flex-col gap-4 opacity-90"
+      className="flex flex-col gap-4"
     >
+      <div className="flex flex-col gap-3 rounded border border-border bg-background p-4">
+        <h2 className="flex items-center gap-1.5 text-sm font-semibold">
+          <History className="h-4 w-4" aria-hidden="true" />
+          Provenance
+        </h2>
+        {meta == null ? (
+          <p className="text-sm text-muted-foreground">
+            No history yet — save this activity to start its record.
+          </p>
+        ) : adapted ? (
+          <p className="flex items-start gap-2 text-sm">
+            <GitBranch className="mt-0.5 h-4 w-4 shrink-0 text-muted-foreground" aria-hidden="true" />
+            <span>
+              Adapted from{" "}
+              <span className="font-medium text-foreground">{sourceLabel}</span>
+              ’s activity. Your copy is independent — the original owner’s later
+              edits don’t change it.
+            </span>
+          </p>
+        ) : (
+          <p className="flex items-start gap-2 text-sm text-muted-foreground">
+            <Sparkles className="mt-0.5 h-4 w-4 shrink-0" aria-hidden="true" />
+            <span>Created from scratch — this is an original activity.</span>
+          </p>
+        )}
+      </div>
+
+      <dl className="grid grid-cols-1 gap-px overflow-hidden rounded border border-border bg-border text-sm sm:grid-cols-3">
+        <div className="flex flex-col gap-0.5 bg-background p-3">
+          <dt className="text-xs text-muted-foreground">Visibility</dt>
+          <dd className="font-medium capitalize">{visibility}</dd>
+          <dd className="text-xs text-muted-foreground">{VISIBILITY_COPY[visibility]}</dd>
+        </div>
+        <div className="flex flex-col gap-0.5 bg-background p-3">
+          <dt className="text-xs text-muted-foreground">Created</dt>
+          <dd className="font-medium">{formatStamp(meta?.createdAt)}</dd>
+        </div>
+        <div className="flex flex-col gap-0.5 bg-background p-3">
+          <dt className="text-xs text-muted-foreground">Last updated</dt>
+          <dd className="font-medium">{formatStamp(meta?.updatedAt)}</dd>
+        </div>
+      </dl>
+
       <RoadmapBanner
         version="v2"
-        description="Per-teacher version history of artefact and parameter edits. Rollback is one click; the previous version stays available to existing student sessions until they refresh."
+        description="A per-edit version timeline with one-click rollback is Year-2. The previous version would stay live for existing student sessions until they refresh."
       />
-
-      <ol className="flex flex-col divide-y divide-border rounded border border-border bg-background">
-        {versions.map((row) => (
-          <li
-            key={row.v}
-            className="flex flex-wrap items-center justify-between gap-2 p-3 text-sm"
-          >
-            <div className="flex min-w-0 flex-1 flex-col gap-0.5">
-              <div className="flex items-center gap-2">
-                <code className="rounded bg-muted px-1.5 py-0.5 font-mono text-xs">
-                  {row.v}
-                </code>
-                <span className="text-xs text-muted-foreground">{row.when}</span>
-                <span className="text-xs text-muted-foreground">by {row.author}</span>
-                {row.live ? (
-                  <span className="rounded border border-emerald-300 bg-emerald-50 px-1.5 py-0.5 text-[10px] font-medium text-emerald-900 dark:border-emerald-700 dark:bg-emerald-950 dark:text-emerald-200">
-                    live
-                  </span>
-                ) : null}
-              </div>
-              <span className="text-foreground">{row.summary}</span>
-            </div>
-            <button
-              type="button"
-              disabled
-              className="flex items-center gap-1.5 rounded border border-border bg-background px-2 py-1 text-xs font-medium text-muted-foreground opacity-60"
-            >
-              <RotateCcw className="h-3.5 w-3.5" aria-hidden="true" />
-              Roll back to this
-            </button>
-          </li>
-        ))}
-      </ol>
     </section>
   );
 }

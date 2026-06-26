@@ -398,6 +398,15 @@ export interface ActivityPayload extends ActivityConfigPayload {
   ownerLabel?: string;
   skillId: string;
   visibility: "draft" | "private" | "published";
+  /** Provenance (set when this activity was duplicated or adopted from another).
+   *  `sourceOwnerLabel` is the friendly name of the source owner — present only
+   *  on the single-activity GET and only when resolvable (M-HIST); clients fall
+   *  back to `sourceOwnerUid`. */
+  sourceActivityId?: string | null;
+  sourceOwnerUid?: string | null;
+  sourceOwnerLabel?: string;
+  /** ISO lifecycle timestamps (the create stamp; `updatedAt` is inherited). */
+  createdAt?: string | null;
 }
 
 /** Create a new activity (mints a distinct `act-…` id — never collides). When
@@ -435,6 +444,40 @@ export async function listActivities(scope: "own" | "all" = "own"): Promise<Acti
   const query = scope === "all" ? "scope=all" : "owner=me";
   const resp = await fetchWithAuth(`/api/proxy/api/activities?${query}`);
   return readJson<ActivityPayload[]>(resp, "list activities");
+}
+
+/** The cross-teacher SHARED catalogue (ALS-SHARE M3.2) — every teacher's
+ *  `published` activities, owner-labelled for by-owner grouping. Open to any
+ *  teacher; read-only (adopt is the only cross-teacher write). */
+export async function listSharedCatalogue(): Promise<ActivityPayload[]> {
+  const resp = await fetchWithAuth(`/api/proxy/api/activities?published=true`);
+  return readJson<ActivityPayload[]>(resp, "list shared catalogue");
+}
+
+/** Publish an activity to the shared catalogue (ALS-SHARE M3.1). */
+export async function publishActivity(activityId: string): Promise<ActivityPayload> {
+  const resp = await fetchWithAuth(`/api/proxy/api/activities/${encodeURIComponent(activityId)}/publish`, {
+    method: "POST",
+  });
+  return readJson<ActivityPayload>(resp, "publish activity");
+}
+
+/** Remove an activity from the shared catalogue (ALS-SHARE M3.1). Already-adopted
+ *  copies are unaffected. */
+export async function unpublishActivity(activityId: string): Promise<ActivityPayload> {
+  const resp = await fetchWithAuth(`/api/proxy/api/activities/${encodeURIComponent(activityId)}/unpublish`, {
+    method: "POST",
+  });
+  return readJson<ActivityPayload>(resp, "unpublish activity");
+}
+
+/** Adopt a published activity into your library as a fresh `draft` (ALS-SHARE
+ *  M3.3) — copy semantics with provenance. Returns the new copy. */
+export async function adoptActivity(activityId: string): Promise<ActivityPayload> {
+  const resp = await fetchWithAuth(`/api/proxy/api/activities/${encodeURIComponent(activityId)}/adopt`, {
+    method: "POST",
+  });
+  return readJson<ActivityPayload>(resp, "adopt activity");
 }
 
 export interface TeacherBootstrapResult {
