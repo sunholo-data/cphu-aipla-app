@@ -117,6 +117,19 @@ Source: M's 2026-06-24 review of the shipped [1.1.45](rich-document-workbench.md
 |---|---|---|---|---|---|
 | 1.1.48 | [student-submission-surfaces.md](student-submission-surfaces.md) | **P1 — pre-pilot correction** | ~3–5d phased (reconcile ~1d; photo solution ~1d; whiteboard ~1.5–2d; TipTap removal ~0.5d) | **Amends [1.1.45](rich-document-workbench.md)** (supersedes M3b mode + M4 TipTap); [1.1.38](activity-elements-palette.md) (registry); [1.1.7](student-multimodal-upload.md) (**the image→tutor path reused**); [1.1.44](activity-image-materials.md); [1.1.32](teacher-ux-refinement.md); **JB/AR** image-vs-caption + feedback-prompt-on-image; whiteboard lib via `make security-check` | **New 2026-06-24 (M).** **Image-in, composable.** M0: document-upload → a `document` **element** (delete the `workbenchType="document"` pre-emption + builder mode-hiding; retire `"document"` from `WorkbenchType` — continues 1.1.32's "make workbenchType honest"). M1: the **solution** element becomes a **photo** of pen-and-paper work (reuses 1.1.7 resize + 1.1.21 guardrail); submit = a native multimodal turn, so the tutor *sees* it and the 1.1.45 feedback prompt critiques the image. M2: a **freehand whiteboard** (canvas → `toBlob` → same path) for no-paper cases. M3: **remove `@tiptap/*`** + the markdown serialiser (smaller bundle + dep/security surface). Net axiom +7. Design |
 
+### 26 June — external-host MCP App rendering (added 2026-06-26, M)
+
+Source: M's realisation that the sims we build as MCP Apps should render in *other*
+clients (Claude Desktop, ChatGPT), then *"make it so for the cloud URL … document it
+first and prove it."* A **breadth probe** (memory `aipla-breadth-over-depth`): proves
+the sims are portable, vendor-neutral research instruments. A standalone proof-of-concept
+shipped 2026-06-26 (renders all 3 sims in external hosts, verified end-to-end); this row
+is the production cloud-URL path. **Not pilot-blocking; high demo/dissemination value.**
+
+| Order | Doc | Priority | Estimate | Dependencies / Gate | Notes |
+|---|---|---|---|---|---|
+| 1.1.49 | [external-host-mcp-apps.md](external-host-mcp-apps.md) | **P2 — breadth probe** | ~1.5–2.5d phased (Phase 1 transport ~0.5–1d · Phase 2 `ui://` resources ~0.5d · Phase 3 optional ~0.5–1d) | [mcp_server.py](../../../../backend/protocols/mcp_server.py) (FastMCP `/mcp`); the standalone PoC `infrastructure/mcp-sandbox/external-host-demo/`; ADR-013; **JB/M sign-off on dev exposure of the 3 sims** (the `/mcp` endpoint is public/no-auth) | **New 2026-06-26 (M).** Serve the sims as `ui://` MCP App resources from the deployed cloud URL so Claude Desktop / ChatGPT render them as live interactive widgets (not text). **View half already done** (artefacts speak the SEP-1865 bridge); **PoC shipped + verified** (all 3 sims render in external hosts via stdio / Streamable HTTP). **Proven blocker:** the public `…/api/proxy/mcp` is currently **502 `backend_unreachable`** — the proxy forwards `/mcp` (no slash) but FastMCP 307-redirects to `/mcp/` and the consumed POST body can't replay; Next then 308-strips the slash. Phase 1 = a working public MCP route (dedicated route hitting `/mcp/`, or remove the redirect, or own origin) + a Streamable-HTTP smoke test; Phase 2 = fold the PoC's `discover_artefacts()` `ui://` registration into `mcp_server.py` (additive — skill tools unchanged); Phase 3 (optional) = `ui/notifications/tool-input` so the model can open a sim pre-configured. **Dev-only, open, for the workshop/research demo; public exposure on test/prod is an ADR follow-up.** |
+
 ## Build status — verified 2026-06-08
 
 Verified by code inspection on 2026-06-08 (not by doc placement, which lags). Legend: **SHIPPED** (in `dev`, evidence cited) · **PARTIAL** · **OPEN** (designed, not built).
