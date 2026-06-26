@@ -2,6 +2,7 @@
 
 import { ChevronDown, Eye, Maximize2, X } from "lucide-react";
 import { type ReactNode, useEffect, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 
 import { SimThumbnail } from "@/components/teacher/SimThumbnail";
 import { StudentWorkspace } from "@/components/workspace/StudentWorkspace";
@@ -186,7 +187,13 @@ function PreviewBody({
 
 /** A full-screen overlay holding the preview so the teacher can drive the sim
  *  at real size. Escape / backdrop / the close button all dismiss it; focus
- *  starts on close and body scroll is locked while open. */
+ *  starts on close and body scroll is locked while open.
+ *
+ *  Portalled to `document.body`: the builder's right column is `lg:sticky`,
+ *  which establishes a stacking context that would otherwise trap this
+ *  `fixed` overlay below the left column's `sticky z-10` section nav (a
+ *  positive-z sibling context outranks the column's z-auto one wholesale). The
+ *  portal lifts the overlay to the root so its z-50 actually covers the nav. */
 function PreviewModal({ onClose, children }: { onClose: () => void; children: ReactNode }) {
   const closeRef = useRef<HTMLButtonElement>(null);
   useEffect(() => {
@@ -203,7 +210,9 @@ function PreviewModal({ onClose, children }: { onClose: () => void; children: Re
     };
   }, [onClose]);
 
-  return (
+  if (typeof document === "undefined") return null;
+
+  return createPortal(
     <div
       className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/50 p-4"
       onClick={onClose}
@@ -231,7 +240,8 @@ function PreviewModal({ onClose, children }: { onClose: () => void; children: Re
         </div>
         <div className="min-h-0 flex-1 overflow-y-auto bg-slate-50">{children}</div>
       </div>
-    </div>
+    </div>,
+    document.body,
   );
 }
 

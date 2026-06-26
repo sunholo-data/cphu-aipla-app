@@ -93,11 +93,16 @@ describe("ActivityPreview", () => {
         status: "live",
       },
     ]);
-    render(<ActivityPreview state={WITH_CHECKLIST} artefactId="boldkast" />);
+    const { container } = render(<ActivityPreview state={WITH_CHECKLIST} artefactId="boldkast" />);
     fireEvent.click(screen.getByRole("button", { name: /full-size/i }));
     const dialog = await screen.findByRole("dialog");
     expect(within(dialog).getByText("Boldkast")).toBeInTheDocument();
     expect(within(dialog).getByTestId("workspace-elements")).toBeInTheDocument();
+    // Portalled OUT of the component's subtree (to document.body) so the
+    // builder's sticky right column can't trap the overlay below the left
+    // column's sticky section nav (z-index regression).
+    expect(container.contains(dialog)).toBe(false);
+    expect(document.body.contains(dialog)).toBe(true);
     fireEvent.click(within(dialog).getByRole("button", { name: /close/i }));
     expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
   });
