@@ -16,11 +16,14 @@ export function ProposalCard<P>({
   proposal,
   descriptor,
   onApply,
+  dismissOnApply = false,
   labels: labelsOverride,
 }: {
   proposal: P;
   descriptor: ProposalDescriptor<P>;
   onApply: (proposal: P) => void | Promise<void>;
+  /** Remove the card on Apply (no lingering badge) — see TeacherCopilotConfig. */
+  dismissOnApply?: boolean;
   labels?: Partial<CopilotLabels>;
 }) {
   const labels: CopilotLabels = { ...DEFAULT_LABELS, ...labelsOverride };
@@ -62,7 +65,10 @@ export function ProposalCard<P>({
           onClick={() => {
             const toApply = editing && descriptor.withEditedText ? descriptor.withEditedText(proposal, draft) : proposal;
             void onApply(toApply);
-            setApplied(true);
+            // Remove the card when the effect shows up elsewhere (e.g. the new
+            // class in the list); otherwise leave a one-line "Applied ✓" badge.
+            if (dismissOnApply) setDismissed(true);
+            else setApplied(true);
           }}
           className="inline-flex items-center gap-1 rounded bg-primary px-2.5 py-1 text-xs text-primary-foreground hover:bg-primary/90"
         >

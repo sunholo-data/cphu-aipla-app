@@ -20,6 +20,9 @@ export function ManageClassCopilot({ onChanged }: { onChanged?: () => void }) {
       emptyText="Tell me what you'd like to do — create a class, mint join-codes, or check how a class is doing. I propose changes you Apply, and they appear in your list."
       parseProposal={parseClassProposal}
       proposalDescriptor={classProposalDescriptor}
+      // The created class / minted codes appear in the list (onChanged refetch),
+      // so the card removes itself on Apply rather than leaving a lingering badge.
+      dismissOnApply
       onApplyProposal={async (proposal) => {
         await applyClassProposal(proposal);
         onChanged?.();

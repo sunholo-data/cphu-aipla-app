@@ -64,6 +64,12 @@ export interface TeacherCopilotConfig<P> {
    *  This is where "the change lands next to the teacher's own edits". Omit for
    *  a read-only co-pilot. */
   onApplyProposal?: (proposal: P) => void | Promise<void>;
+  /** When true, the proposal card is REMOVED on Apply instead of leaving a
+   *  persistent "Applied ✓" badge. Right when the effect is visible elsewhere
+   *  (the class appears in the list), so the chat doesn't accumulate badges.
+   *  Default false (keep the badge — e.g. the authoring co-pilot, where the
+   *  badge reminds the teacher they can still edit the applied field). */
+  dismissOnApply?: boolean;
   /** Strip the scope prefix from rendered user bubbles (the prefix is for the
    *  agent's eyes, not the teacher's). */
   stripPrefix?: (content: string) => string;

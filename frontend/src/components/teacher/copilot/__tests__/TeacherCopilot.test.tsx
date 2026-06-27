@@ -137,6 +137,17 @@ describe("TeacherCopilot (shared shell)", () => {
     expect(onApply.mock.calls[0]![0]).toMatchObject({ value: "Fysik 9B" });
   });
 
+  it("dismissOnApply removes the card on Apply (no lingering badge)", () => {
+    const onApply = vi.fn();
+    hook = { ...defaultHook, toolCalls: withTool() };
+    render(<TeacherCopilot {...config(onApply)} dismissOnApply />);
+    fireEvent.click(screen.getByRole("button", { name: /^apply$/i }));
+    expect(onApply).toHaveBeenCalledTimes(1);
+    // No persistent "Applied ✓" badge — the card is gone (effect shows elsewhere).
+    expect(screen.queryByTestId("proposal-card")).not.toBeInTheDocument();
+    expect(screen.queryByRole("status")).not.toBeInTheDocument();
+  });
+
   it("Dismiss discards the proposal without applying", () => {
     const onApply = vi.fn();
     hook = { ...defaultHook, toolCalls: withTool() };

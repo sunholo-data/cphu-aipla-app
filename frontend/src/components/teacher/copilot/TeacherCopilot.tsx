@@ -7,6 +7,7 @@ import { AGUIProvider } from "@/providers/AGUIProvider";
 import { useSkillAgent } from "@/hooks/useSkillAgent";
 import { useSkillSlugResolver } from "@/hooks/useSkillSlugResolver";
 import { useSessionMessages } from "@/hooks/useSessionMessages";
+import { ChatMarkdown } from "@/components/chat/ChatMarkdown";
 
 import { FloatingCopilot } from "./FloatingCopilot";
 import { ProposalCard } from "./ProposalCard";
@@ -136,7 +137,14 @@ function CopilotChat<P>({ config, threadId }: { config: TeacherCopilotConfig<P>;
                 : "max-w-prose rounded border border-border bg-background px-3 py-2 text-sm"
             }
           >
-            <p className="whitespace-pre-wrap">{m.role === "user" ? strip(m.content) : m.content}</p>
+            {m.role === "user" ? (
+              <p className="whitespace-pre-wrap">{strip(m.content)}</p>
+            ) : (
+              // Assistant turns are Markdown (bold, lists, links) — render them,
+              // don't show the raw source. navigateToBlock is a no-op here (no
+              // document-citation surface in the co-pilot panel).
+              <ChatMarkdown content={m.content} navigateToBlock={() => {}} />
+            )}
           </article>
         ))}
         {config.proposalDescriptor && config.onApplyProposal
@@ -146,6 +154,7 @@ function CopilotChat<P>({ config, threadId }: { config: TeacherCopilotConfig<P>;
                 proposal={p.proposal}
                 descriptor={config.proposalDescriptor!}
                 onApply={config.onApplyProposal!}
+                dismissOnApply={config.dismissOnApply}
                 labels={config.labels}
               />
             ))
