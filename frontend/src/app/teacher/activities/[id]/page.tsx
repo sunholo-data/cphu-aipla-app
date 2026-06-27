@@ -30,6 +30,7 @@ import { InheritedPersona } from "@/components/teacher/InheritedPersona";
 import { ActivityBuilderBody } from "@/components/teacher/ActivityBuilderBody";
 import { useActivityBuilder } from "@/hooks/useActivityBuilder";
 import { AuthoringCopilot } from "./_AuthoringCopilot";
+import { applyCopilotProposal } from "../applyCopilotProposal";
 
 type TabId = "goal" | "parameters" | "code" | "history";
 
@@ -292,31 +293,7 @@ export default function TeacherActivityConfigPage() {
               when NEXT_PUBLIC_AUTHORING_COPILOT !== "1", so the builder is
               unaffected). The Apply router maps each proposal kind to a builder
               setter (M0: lesson prompt; M1/M2 add element + sim). */}
-          <AuthoringCopilot
-            activityId={activityId}
-            onApplyProposal={(p) => {
-              if (p.kind === "set_lesson_prompt") builder.setTeachingGoal(p.value);
-              else if (p.kind === "add_element") {
-                if (p.elementKind === "checklist") builder.addChecklistItems(p.items);
-                else if (p.elementKind === "note") builder.setNote({ title: p.title, body: p.body });
-                else if (p.elementKind === "solution") builder.setSolution({ prompt: p.prompt });
-                else if (p.elementKind === "document") builder.setDocument({ prompt: p.prompt });
-                else if (p.elementKind === "table")
-                  builder.setTable({
-                    title: p.title,
-                    columns: p.columns.map((c, i) => ({ key: i + 1, ...c })),
-                    rows: p.rows,
-                  });
-                else if (p.elementKind === "chart") builder.setChart({ title: p.title, chartKind: p.chartKind });
-                else if (p.elementKind === "calculator")
-                  builder.setCalculator({
-                    title: p.title,
-                    formula: p.formula,
-                    inputs: p.inputs.map((inp, i) => ({ key: i + 1, ...inp })),
-                  });
-              } else if (p.kind === "set_artefact") builder.setArtefactId(p.artefactId);
-            }}
-          />
+          <AuthoringCopilot activityId={activityId} onApplyProposal={(p) => applyCopilotProposal(p, builder)} />
         </section>
       ) : null}
 

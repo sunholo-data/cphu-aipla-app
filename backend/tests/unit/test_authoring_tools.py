@@ -340,3 +340,22 @@ def test_add_element_structured_kinds_owner_scoped():
 
     aid = _make_activity(TEACHER)
     assert add_element(element_kind="chart", chart_kind="bar", activity_id=aid, tool_context=_tc(OTHER))["ok"] is False
+
+
+# --- Draft mode: authoring a brand-new activity (/new) has no activity_id yet ---
+
+
+def test_draft_mode_no_activity_id_proposes_without_owner_check():
+    # On /new the activity isn't persisted yet, so the tools propose without an
+    # owner-check (nothing to scope to; the Save is owner-scoped at the API).
+    from adk.authoring_tools import add_element, set_artefact, set_lesson_prompt
+
+    tc = _tc(TEACHER)
+    assert set_lesson_prompt(text="Udforsk energi.", tool_context=tc)["ok"] is True
+    assert add_element(element_kind="checklist", items=["a"], tool_context=tc)["ok"] is True
+    assert set_artefact(artefact_id="boldkast", tool_context=tc)["ok"] is True
+    # still requires an authenticated caller
+    assert set_lesson_prompt(text="x", tool_context=_tc(None))["ok"] is False
+    # an explicit, non-owned activity_id is still denied (the security boundary)
+    other = _make_activity(OTHER)
+    assert set_lesson_prompt(text="x", activity_id=other, tool_context=tc)["ok"] is False

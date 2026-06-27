@@ -203,9 +203,11 @@ function AuthoringCopilotInner({ activityId, onApplyProposal }: AuthoringCopilot
     e.preventDefault();
     const trimmed = input.trim();
     if (!trimmed || isLoading) return;
-    // activity_id rides the message prefix (the analytics-chat contract).
+    // activity_id rides the message prefix (the analytics-chat contract) when
+    // editing an existing activity; on /new (no id yet) it's a draft — omit it.
     setInput("");
-    await sendMessage(`[activity_id=${activityId}] ${trimmed}`);
+    const prefix = activityId ? `[activity_id=${activityId}] ` : "";
+    await sendMessage(`${prefix}${trimmed}`);
   };
 
   const proposals = toolCalls

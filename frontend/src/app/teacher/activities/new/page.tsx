@@ -16,6 +16,8 @@ import { InheritedPersona } from "@/components/teacher/InheritedPersona";
 import { TemplatePicker } from "@/components/teacher/TemplatePicker";
 import { ActivityBuilderBody } from "@/components/teacher/ActivityBuilderBody";
 import { useActivityBuilder } from "@/hooks/useActivityBuilder";
+import { AuthoringCopilot } from "../[id]/_AuthoringCopilot";
+import { applyCopilotProposal } from "../applyCopilotProposal";
 
 // TAA-1 M0: a from-scratch activity runs the `concept-dialogue` base
 // skill (chat-only Socratic tutor). The teacher's title + lesson prompt
@@ -236,6 +238,12 @@ function NewActivityForm() {
           />
         </form>
       )}
+      {/* COPILOT-1/2: the authoring co-pilot on the CREATE page. Dark-flagged
+          (renders null when NEXT_PUBLIC_AUTHORING_COPILOT !== "1"). No activity_id
+          yet — it proposes into the draft (the Save is owner-scoped). */}
+      {classesState.status === "ready" ? (
+        <AuthoringCopilot activityId="" onApplyProposal={(p) => applyCopilotProposal(p, builder)} />
+      ) : null}
     </div>
   );
 }

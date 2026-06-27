@@ -89,9 +89,22 @@ MAX_PROMPT_LEN = 2000  # solution / document prompt
 _DENY = {"ok": False, "error": "activity not found"}
 
 
+def _can_author(activity_id: str, uid: str) -> bool:
+    """True if the caller may author this target.
+
+    An empty ``activity_id`` is a **brand-new draft** (the teacher is authoring on
+    /new — nothing is persisted yet, so there's no activity to own-check; the
+    eventual Save is owner-scoped at the API). A given id must EXIST and be OWNED —
+    a byte-identical denial for missing + not-owned (no enumeration)."""
+    if not activity_id:
+        return True
+    activity = get_activity(activity_id)
+    return activity is not None and activity.owner_uid == uid
+
+
 def set_lesson_prompt(
     text: str,
-    activity_id: str,
+    activity_id: str = "",
     tool_context: ToolContext = None,
 ) -> dict[str, Any]:
     """Propose a Socratic lesson prompt (the teaching goal) for an activity.
@@ -118,11 +131,10 @@ def set_lesson_prompt(
     if len(goal) > MAX_GOAL_LEN:
         return {"ok": False, "error": f"the lesson prompt is too long (max {MAX_GOAL_LEN} characters)"}
 
-    activity = get_activity(activity_id)
-    if activity is None or activity.owner_uid != uid:
+    if not _can_author(activity_id, uid):
         return dict(_DENY)
 
-    logger.info("authoring: set_lesson_prompt proposal for activity=%s by uid=%s", activity_id, uid)
+    logger.info("authoring: set_lesson_prompt proposal for activity=%s by uid=%s", activity_id or "(draft)", uid)
     return {
         "ok": True,
         "proposal": {
@@ -136,7 +148,7 @@ def set_lesson_prompt(
 
 def add_element(
     element_kind: str,
-    activity_id: str,
+    activity_id: str = "",
     items: list[str] | None = None,
     text: str | None = None,
     title: str | None = None,
@@ -198,11 +210,12 @@ def add_element(
     if spec is None:
         return {"ok": False, "error": label}  # label carries the validation error
 
-    activity = get_activity(activity_id)
-    if activity is None or activity.owner_uid != uid:
+    if not _can_author(activity_id, uid):
         return dict(_DENY)
 
-    logger.info("authoring: add_element(%s) proposal for activity=%s by uid=%s", element_kind, activity_id, uid)
+    logger.info(
+        "authoring: add_element(%s) proposal for activity=%s by uid=%s", element_kind, activity_id or "(draft)", uid
+    )
     return {"ok": True, "proposal": {"kind": "add_element", "element_kind": element_kind, "spec": spec, "label": label}}
 
 
@@ -322,7 +335,7 @@ def _artefact_label(meta: Any) -> str:
 
 def set_artefact(
     artefact_id: str,
-    activity_id: str,
+    activity_id: str = "",
     tool_context: ToolContext = None,
 ) -> dict[str, Any]:
     """Propose a vetted sim for an activity (COPILOT-2 M2).
@@ -350,11 +363,12 @@ def set_artefact(
             "available": [{"id": a.id, "label": _artefact_label(a)} for a in load_artefacts()],
         }
 
-    activity = get_activity(activity_id)
-    if activity is None or activity.owner_uid != uid:
+    if not _can_author(activity_id, uid):
         return dict(_DENY)
 
-    logger.info("authoring: set_artefact(%s) proposal for activity=%s by uid=%s", artefact_id, activity_id, uid)
+    logger.info(
+        "authoring: set_artefact(%s) proposal for activity=%s by uid=%s", artefact_id, activity_id or "(draft)", uid
+    )
     return {
         "ok": True,
         "proposal": {"kind": "set_artefact", "artefactId": artefact_id, "label": _artefact_label(meta)},

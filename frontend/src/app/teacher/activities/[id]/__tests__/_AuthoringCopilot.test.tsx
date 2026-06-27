@@ -88,6 +88,14 @@ describe("AuthoringCopilot — auth corner + panel", () => {
     fireEvent.submit(screen.getByRole("button", { name: /send/i }).closest("form")!);
     expect(sendMessage).toHaveBeenCalledWith("[activity_id=act-42] energi");
   });
+
+  it("omits the prefix when there's no activity yet (draft / the /new page)", async () => {
+    render(<AuthoringCopilot activityId="" onApplyProposal={vi.fn()} />);
+    await screen.findByTestId("authoring-copilot");
+    fireEvent.change(screen.getByLabelText(/beskriv hvad du vil undervise/i), { target: { value: "energi" } });
+    fireEvent.submit(screen.getByRole("button", { name: /send/i }).closest("form")!);
+    expect(sendMessage).toHaveBeenCalledWith("energi");
+  });
 });
 
 describe("AuthoringCopilot — proposal card", () => {
