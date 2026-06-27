@@ -18,7 +18,7 @@ import {
   useState,
 } from "react";
 import { useAuth } from "@/contexts/AuthContext";
-import { getTeacherIdToken, subscribeToAuthState, type User } from "@/lib/firebase";
+import { getTeacherIdToken, subscribeToAuthState, subscribeToIdToken, type User } from "@/lib/firebase";
 import { isLocalMode, LOCAL_MODE_WORKSHOP_USER } from "@/lib/localMode";
 
 /**
@@ -165,6 +165,25 @@ export function AGUIProvider({
       cancelled = true;
     };
   }, [authLoading, user, getIdToken, useTeacherAuth]);
+
+  // Keep the AG-UI stream's token fresh across Firebase's silent ~hourly
+  // ID-token rotation. The teacherUser subscription above uses
+  // onAuthStateChanged, which does NOT fire on rotation — so the token effect
+  // never re-runs and the HttpAgent keeps the token minted at mount. A session
+  // that crosses the ~1h expiry then sends an expired token → stream POST 401
+  // "Token expired", and the agent run fails with no recovery (seen 2026-06-27
+  // on the activity co-pilot after the page was open ~1h; other requests use
+  // fetchWithTeacherAuth, which mints fresh per call, so only the stream broke).
+  // onIdTokenChanged fires on rotation with a fresh token; re-minting `token`
+  // rebuilds the HttpAgent (useMemo dep) so subsequent runs carry it. Teacher
+  // (Firebase) path only — the group/student token has its own source/lifecycle;
+  // LOCAL_MODE uses a non-expiring stub.
+  useEffect(() => {
+    if (!useTeacherAuth || isLocalMode()) return undefined;
+    return subscribeToIdToken((fresh) => {
+      if (fresh) setToken(fresh);
+    });
+  }, [useTeacherAuth]);
 
   const agent = useMemo(() => {
     const headers: Record<string, string> = {};

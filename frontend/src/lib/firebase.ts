@@ -5,6 +5,7 @@ import {
   getIdTokenResult,
   GoogleAuthProvider,
   onAuthStateChanged,
+  onIdTokenChanged,
   signInWithEmailAndPassword,
   signInWithPopup,
   signInWithRedirect,
@@ -63,6 +64,28 @@ export function subscribeToAuthState(
     return () => {};
   }
   return onAuthStateChanged(auth, callback);
+}
+
+/**
+ * Subscribe to Firebase ID-TOKEN changes — fires on sign-in, sign-out, AND the
+ * silent ~hourly token rotation (Firebase proactively refreshes ~5min before
+ * expiry while a listener is active). `subscribeToAuthState` (onAuthStateChanged)
+ * does NOT fire on rotation, so long-lived holders of a token (the AG-UI stream's
+ * HttpAgent, which bakes the token into its headers) go stale after ~1h and the
+ * next request 401s "Token expired". Use this to keep such a token fresh.
+ *
+ * The callback receives a freshly-minted token string (or null when signed out),
+ * so callers don't need to re-fetch.
+ */
+export function subscribeToIdToken(onToken: (token: string | null) => void): () => void {
+  const auth = getFirebaseAuth();
+  if (!auth) {
+    onToken(null);
+    return () => {};
+  }
+  return onIdTokenChanged(auth, async (user) => {
+    onToken(user ? await user.getIdToken() : null);
+  });
 }
 
 export async function getIdToken(): Promise<string | null> {

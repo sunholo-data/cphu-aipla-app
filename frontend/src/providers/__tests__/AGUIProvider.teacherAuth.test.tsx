@@ -1,4 +1,4 @@
-import { render, waitFor } from "@testing-library/react";
+import { act, render, waitFor } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 
 import { AGUIProvider } from "@/providers/AGUIProvider";
@@ -18,13 +18,26 @@ vi.mock("@/contexts/AuthContext", () => ({
 
 const TEACHER = { uid: "teacher-1", email: "teacher@skole.dk" };
 
+// Hoisted holder so the rotation test can drive onIdTokenChanged + swap the
+// minted token mid-render.
+const tokenMock = vi.hoisted(() => ({
+  current: "teacher-token",
+  idTokenCallback: null as ((t: string | null) => void) | null,
+}));
+
 vi.mock("@/lib/firebase", () => ({
   subscribeToAuthState: (cb: (u: unknown) => void) => {
     // Firebase hydrates the signed-in teacher asynchronously.
     queueMicrotask(() => cb(TEACHER));
     return () => {};
   },
-  getTeacherIdToken: async () => "teacher-token",
+  subscribeToIdToken: (cb: (t: string | null) => void) => {
+    tokenMock.idTokenCallback = cb;
+    return () => {
+      tokenMock.idTokenCallback = null;
+    };
+  },
+  getTeacherIdToken: async () => tokenMock.current,
   getIdToken: async () => null,
 }));
 
@@ -72,5 +85,37 @@ describe("AGUIProvider — useTeacherAuth with a null group user", () => {
     for (const [cfg] of httpAgentCtor.mock.calls.slice(firstAuthedIdx)) {
       expect(cfg?.headers?.Authorization).toBe("Bearer teacher-token");
     }
+  });
+
+  it("refreshes the stream token on Firebase id-token rotation (no stale-token 401)", async () => {
+    // Regression for 2026-06-27: the HttpAgent baked the token minted at mount;
+    // onAuthStateChanged never fires on Firebase's ~hourly rotation, so a long
+    // session sent an expired token → stream POST 401 "Token expired". The
+    // provider now also listens to onIdTokenChanged and re-mints the token.
+    httpAgentCtor.mockClear();
+    tokenMock.current = "teacher-token";
+    const { findByText } = render(
+      <AGUIProvider skillId="analytics-skill" useTeacherAuth>
+        <div>analytics-chat</div>
+      </AGUIProvider>,
+    );
+    expect(await findByText("analytics-chat")).toBeTruthy();
+    await waitFor(() => {
+      expect(
+        httpAgentCtor.mock.calls.some(([cfg]) => cfg?.headers?.Authorization === "Bearer teacher-token"),
+      ).toBe(true);
+    });
+
+    // Firebase rotates the token; onIdTokenChanged fires with a fresh one.
+    await act(async () => {
+      tokenMock.idTokenCallback?.("teacher-token-rotated");
+    });
+
+    await waitFor(() => {
+      const refreshed = httpAgentCtor.mock.calls.find(
+        ([cfg]) => cfg?.headers?.Authorization === "Bearer teacher-token-rotated",
+      );
+      expect(refreshed).toBeDefined();
+    });
   });
 });

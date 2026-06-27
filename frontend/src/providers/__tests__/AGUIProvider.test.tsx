@@ -31,6 +31,7 @@ vi.mock("@/lib/firebase", () => ({
       authMock.authStateCallback = null;
     };
   },
+  subscribeToIdToken: () => () => {},
   getIdToken: async () => authMock.currentToken,
   getTeacherIdToken: async () => authMock.currentToken,
   signInWithGoogle: async () => {},
