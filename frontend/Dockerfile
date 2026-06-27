@@ -26,6 +26,10 @@ ARG NEXT_PUBLIC_AUTH_MODE
 # on the dev trigger only). Empty on test/prod so the layout renders
 # the "sign-in required" placeholder instead of the seeded fixtures.
 ARG NEXT_PUBLIC_TEACHER_MOCK
+# COPILOT-1/2 — show the activity-authoring co-pilot panel in the teacher
+# builder. '1' on the dev trigger ("for dev we always want to see what we
+# built"); empty on test/prod until AR/JB's teaching framework lands.
+ARG NEXT_PUBLIC_AUTHORING_COPILOT
 ARG MAILGUN_WEBHOOK_SECRET
 
 ENV NEXT_PUBLIC_FIREBASE_API_KEY=$NEXT_PUBLIC_FIREBASE_API_KEY
@@ -39,6 +43,7 @@ ENV NEXT_PUBLIC_BACKEND_URL=$NEXT_PUBLIC_BACKEND_URL
 ENV NEXT_PUBLIC_MCP_SANDBOX_URL=$NEXT_PUBLIC_MCP_SANDBOX_URL
 ENV NEXT_PUBLIC_AUTH_MODE=$NEXT_PUBLIC_AUTH_MODE
 ENV NEXT_PUBLIC_TEACHER_MOCK=$NEXT_PUBLIC_TEACHER_MOCK
+ENV NEXT_PUBLIC_AUTHORING_COPILOT=$NEXT_PUBLIC_AUTHORING_COPILOT
 ENV MAILGUN_WEBHOOK_SECRET=$MAILGUN_WEBHOOK_SECRET
 
 COPY package*.json ./
