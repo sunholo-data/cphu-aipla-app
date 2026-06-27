@@ -1,4 +1,4 @@
-.PHONY: dev dev-local dev-recompile dev-status dev-stop proxy-check logs cloud-logs cloud-errors cloud-build verify-chat-logs smoke-session-persistence smoke-chat-resume smoke-curriculum-content smoke-teacher-cli help cli-install cli-reinstall cli-uninstall cli-doctor cli-selftest-mock cli-selftest-live cli-selftest seed reset-group-state provision-curriculum-rag seed-curriculum backfill-curriculum-content migrate-clear-persona-voice-override docs-linkcheck
+.PHONY: dev dev-local dev-recompile dev-status dev-stop proxy-check logs cloud-logs cloud-errors cloud-build verify-chat-logs smoke-session-persistence smoke-chat-resume smoke-curriculum-content smoke-teacher-cli help cli-install cli-reinstall cli-uninstall cli-doctor cli-selftest-mock cli-selftest-live cli-selftest seed seed-demo-codes reset-group-state provision-curriculum-rag seed-curriculum backfill-curriculum-content migrate-clear-persona-voice-override docs-linkcheck
 
 # Seed SKILL.md templates -> Firestore after a deploy that changed any template
 # (avatar, multimodalInput, persona, tools, accessControl, instructions). A code
@@ -9,6 +9,16 @@
 #   make seed ENV=test
 seed:
 	@scripts/seed-platform-skills.sh $(ENV)
+
+# (Re)assert the demo student join code(s) (default aipla-demo-1, ~300d TTL)
+# against a deployed env. Like `seed`, this is a MANUAL post-deploy step (the
+# admin mint-demo-group call 403s inside Cloud Build). Run it after a deploy or
+# whenever a demo code has lapsed (TTL) / been wiped (clean-slate GROUPS=1),
+# else verify-chat-logs / smoke-* (GROUP=aipla-demo-1) break.
+#   make seed-demo-codes ENV=dev
+#   CODES="aipla-demo-1 aipla-demo-2" make seed-demo-codes ENV=dev
+seed-demo-codes:
+	@scripts/seed-demo-codes.sh $(ENV)
 
 # Clean-slate the anonymous-group session state for an env: wipe the
 # group_sessions pointers (always) and chat_sessions mirror (SESSIONS=1),
