@@ -98,19 +98,32 @@ export function useProactiveGreet({
   const firedRef = useRef<string | null>(null);
 
   useEffect(() => {
-    if (!enabled) return;
-    if (!sessionId) return;
+    // Never strand the "thinking" affordance. When we're not in a state where
+    // a greet should be pending, force `loading` false. This is load-bearing
+    // when `enabled` flips false mid-flight: the per-activity active-session
+    // resume (ALS-1) pins `?session=` asynchronously while a greet POST is
+    // still in flight, which changes this effect's deps (`enabled`/`sessionId`)
+    // and supersedes the run that set `loading=true`. Without this explicit
+    // clear, `greetLoading` sticks true forever and the chat shows a permanent
+    // "thinking" indicator even though the greet already returned 200. The slow
+    // path (a Vertex "Server disconnected" retry stretching the greet to ~6s)
+    // widens the race window. See proactiveGreet.test.ts.
+    if (!enabled || !sessionId) {
+      setLoading(false);
+      return;
+    }
     // Guard against React StrictMode double-effects: the ref pins the
     // (sessionId, skillId) tuple we've already fired for.
     const fireKey = `${sessionId}::${skillId}`;
     if (firedRef.current === fireKey) return;
     firedRef.current = fireKey;
 
-    let alive = true;
+    let superseded = false;
     setLoading(true);
     fetchProactiveGreet(sessionId, skillId)
       .then((text) => {
-        if (!alive) return;
+        // Don't render a greet that belongs to a superseded tuple.
+        if (superseded) return;
         if (text) {
           setGreetMessage({
             id: nextGreetId(),
@@ -125,11 +138,17 @@ export function useProactiveGreet({
         console.warn("[proactive-greet] fetch failed:", err);
       })
       .finally(() => {
-        if (alive) setLoading(false);
+        // Always clear the spinner for this run — unless a newer run for a
+        // DIFFERENT tuple has taken over (it set its own `loading=true` and
+        // owns the clear). Note we intentionally do NOT guard this on the
+        // supersede flag: a dep change within the same mount must still clear
+        // the spinner, or it stays stuck — the activity-chat "stuck thinking"
+        // bug this whole block exists to prevent.
+        if (firedRef.current === fireKey) setLoading(false);
       });
 
     return () => {
-      alive = false;
+      superseded = true;
     };
   }, [sessionId, skillId, enabled]);
 
