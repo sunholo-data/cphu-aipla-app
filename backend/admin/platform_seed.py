@@ -196,9 +196,19 @@ def _template_updates(parsed: dict[str, Any]) -> dict[str, Any]:
 
     Includes only the fields the SKILL.md template owns — instructions,
     description, displayName, initialMessage, problemStatement,
-    proactiveGreet, openingTemplate. Leaves usage_count, createdAt,
+    proactiveGreet, openingTemplate, and **skillMetadata** (model, tools,
+    agentTools, toolConfigs, version). Leaves usage_count, createdAt,
     accessControl, and friends alone (those are platform-managed, not
-    template-sourced).
+    template-sourced — accessControl in particular gets class tag
+    namespaces appended at runtime, so a re-seed must NOT clobber it).
+
+    ``skillMetadata`` MUST be here: it carries the tools list + agentTools.
+    Omitting it was a real bug (2026-06-27) — re-seeding an already-
+    registered skill propagated the new prompt but kept the OLD tools list,
+    so the agent built with no function tools while the prompt still named
+    them. The model then hallucinated calls to undeclared tools and ADK
+    raised "Tool '<name>' not found" with no output. The CREATE path always
+    passed ``skillMetadata=parsed['metadata']``; UPDATE now matches it.
 
     Camel-cased keys because ``skill_config.update_skill`` writes them
     directly into Firestore, and the Firestore documents use camelCase
@@ -207,6 +217,11 @@ def _template_updates(parsed: dict[str, Any]) -> dict[str, Any]:
     updates: dict[str, Any] = {
         "description": parsed["description"],
         "instructions": parsed["instructions"],
+        # Template-owned: tools, agentTools, toolConfigs, model, version.
+        # Nothing mutates skillMetadata at runtime (unlike accessControl), so
+        # overwriting it wholesale is safe — and necessary for tool changes
+        # to reach already-registered skills.
+        "skillMetadata": parsed["metadata"],
     }
     if parsed["displayName"]:
         updates["displayName"] = parsed["displayName"]

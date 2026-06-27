@@ -28,10 +28,12 @@ metadata:
   agentTools:
     - analytics-chat
   toolConfigs:
+    # A2UI is OFF: manage-class tools return data (class lists, codes, KPIs),
+    # not declarative UI. The teacher sees effects in the class page, not as
+    # A2UI cards in chat. Leaving it on only attaches an unused
+    # send_a2ui_json_to_client tool. (See upstream-feedback: a2ui defaults on.)
     a2ui:
-      enabled: true
-      default_surface: chat
-      allow_surface_context_writes: true
+      enabled: false
 initialMessage: |
   Hi! I help you run your classes. I can do these from chat:
 

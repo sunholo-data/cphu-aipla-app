@@ -131,6 +131,43 @@ def test_seed_idempotent_upserts_existing(tmp_path):
         assert "proactiveHeartbeatSeconds" in updates
         assert "proactiveMaxPerSession" in updates
         assert "reactiveTemplate" in updates
+        # skillMetadata (tools + agentTools) MUST propagate on update — see
+        # test_seed_update_propagates_skill_metadata_tools.
+        assert "skillMetadata" in updates
+
+
+def test_seed_update_propagates_skill_metadata_tools(tmp_path):
+    """Re-seeding an already-registered skill MUST propagate ``skillMetadata``
+    (the tools list + agentTools), not just instructions.
+
+    Regression for the 2026-06-27 bug: ``manage-class`` was re-seeded after
+    its template flipped from advisory (``tools: []``) to active (7 tools +
+    ``agentTools``). The update path propagated the new prompt but NOT the
+    tools, so the deployed agent built with no function tools while its prompt
+    still named them — the model hallucinated calls to undeclared tools and ADK
+    raised "Tool 'create_class' not found" with no output. The CREATE path
+    always sent skillMetadata; UPDATE must too."""
+    _fake_template_dir(
+        tmp_path,
+        "alpha",
+        metadata={
+            "model": "gemini-2.5-flash",
+            "tools": ["create_class", "list_my_classes"],
+            "agentTools": ["analytics-chat"],
+        },
+    )
+    with (
+        patch("admin.platform_seed.skill_config.list_skills") as mock_list,
+        patch("admin.platform_seed.skill_config.create_skill"),
+        patch("admin.platform_seed.skill_config.update_skill") as mock_update,
+    ):
+        mock_list.return_value = [_make_config("alpha")]
+        seed(templates_root=tmp_path)
+
+    _skill_id, updates = mock_update.call_args.args
+    assert "skillMetadata" in updates, "update payload must carry the tools list"
+    assert updates["skillMetadata"]["tools"] == ["create_class", "list_my_classes"]
+    assert updates["skillMetadata"]["agentTools"] == ["analytics-chat"]
 
 
 def test_seed_malformed_template_is_failed_not_raise(tmp_path):
