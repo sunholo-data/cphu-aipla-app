@@ -1,5 +1,17 @@
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
-import { describe, expect, it, vi, beforeEach } from "vitest";
+import { afterEach, describe, expect, it, vi, beforeEach } from "vitest";
+
+// The test runner's bundled localStorage is unreliable here; back it with a
+// plain Map so the threadId-persistence assertions are deterministic.
+const memStore = new Map<string, string>();
+const fakeStorage: Storage = {
+  getItem: (k) => memStore.get(k) ?? null,
+  setItem: (k, v) => void memStore.set(k, String(v)),
+  removeItem: (k) => void memStore.delete(k),
+  clear: () => memStore.clear(),
+  key: () => null,
+  length: 0,
+};
 
 import { TeacherCopilot } from "../TeacherCopilot";
 import type { ProposalDescriptor } from "../types";
@@ -28,6 +40,9 @@ const defaultHook = {
 } as unknown as UseSkillAgentReturn;
 let hook: UseSkillAgentReturn = defaultHook;
 vi.mock("@/hooks/useSkillAgent", () => ({ useSkillAgent: () => hook }));
+
+let sessionMessages: { initialMessages: unknown[] } = { initialMessages: [] };
+vi.mock("@/hooks/useSessionMessages", () => ({ useSessionMessages: () => sessionMessages }));
 
 type TestProposal = { kind: "make"; label: string; value: string };
 
@@ -61,6 +76,13 @@ beforeEach(() => {
   sendMessage.mockClear();
   resolver = { skillId: "uuid-1", resolveError: null };
   hook = { ...defaultHook, toolCalls: [] };
+  sessionMessages = { initialMessages: [] };
+  memStore.clear();
+  vi.stubGlobal("localStorage", fakeStorage);
+});
+
+afterEach(() => {
+  vi.unstubAllGlobals();
 });
 
 describe("TeacherCopilot (shared shell)", () => {
@@ -122,6 +144,31 @@ describe("TeacherCopilot (shared shell)", () => {
     fireEvent.click(screen.getByRole("button", { name: /dismiss/i }));
     expect(screen.queryByTestId("proposal-card")).not.toBeInTheDocument();
     expect(onApply).not.toHaveBeenCalled();
+  });
+
+  it("persists a threadId on mount (for cross-visit resume)", () => {
+    render(<TeacherCopilot {...config()} />);
+    expect(window.localStorage.getItem("teacherCopilot:manage-class")).toBeTruthy();
+  });
+
+  it("resumes: prior messages render before the live ones", () => {
+    sessionMessages = {
+      initialMessages: [{ id: "hist-1", role: "assistant", content: "Earlier turn", timestamp: 1 }],
+    };
+    hook = { ...defaultHook, messages: [{ id: "m1", role: "user", content: "live turn" }] as never };
+    render(<TeacherCopilot {...config()} />);
+    expect(screen.getByText("Earlier turn")).toBeInTheDocument();
+    expect(screen.getByText("live turn")).toBeInTheDocument();
+  });
+
+  it("New chat resets the persisted thread to a fresh id", () => {
+    render(<TeacherCopilot {...config()} />);
+    const before = window.localStorage.getItem("teacherCopilot:manage-class");
+    expect(before).toBeTruthy();
+    fireEvent.click(screen.getByRole("button", { name: /new chat/i }));
+    const after = window.localStorage.getItem("teacherCopilot:manage-class");
+    expect(after).toBeTruthy();
+    expect(after).not.toBe(before);
   });
 
   it("read-only mode (no parseProposal) renders chat with no proposal cards", () => {

@@ -1,38 +1,76 @@
 "use client";
 
-import { useState } from "react";
+import { useCallback, useState } from "react";
 import { Send } from "lucide-react";
 
 import { AGUIProvider } from "@/providers/AGUIProvider";
 import { useSkillAgent } from "@/hooks/useSkillAgent";
 import { useSkillSlugResolver } from "@/hooks/useSkillSlugResolver";
+import { useSessionMessages } from "@/hooks/useSessionMessages";
 
 import { FloatingCopilot } from "./FloatingCopilot";
 import { ProposalCard } from "./ProposalCard";
 import { DEFAULT_LABELS, type TeacherCopilotConfig } from "./types";
 
+const STORAGE_PREFIX = "teacherCopilot:";
+
+/** Read the persisted threadId for a co-pilot scope, or mint + persist a fresh
+ *  one. SSR-safe (returns "" when there's no window; the panel only mounts the
+ *  AG-UI provider client-side after the skill slug resolves). */
+function readOrMintThreadId(storageKey: string): string {
+  if (typeof window === "undefined") return "";
+  try {
+    const stored = window.localStorage.getItem(storageKey);
+    if (stored) return stored;
+    const fresh = crypto.randomUUID();
+    window.localStorage.setItem(storageKey, fresh);
+    return fresh;
+  } catch {
+    return crypto.randomUUID();
+  }
+}
+
 /**
  * Shared teacher co-pilot — a floating, propose/Apply chat partner that drops
  * onto any teacher surface (class management, activity authoring, analytics).
  * The shell owns the panel, slug→UUID resolution, teacher auth, the AG-UI chat
- * transport, and the proposal cards; each surface supplies only its config
- * (skill slug, scope prefix, proposal parser + descriptor, apply router).
+ * transport, the proposal cards, AND cross-visit continuity (a persisted
+ * threadId resumes the conversation, with a "New chat" reset). Each surface
+ * supplies only its config (skill slug, scope prefix, proposal parser +
+ * descriptor, apply router).
  *
  * Design: docs/design/aipla/v1.1.0-feedback/teacher-coworking-copilot.md.
  */
 export function TeacherCopilot<P>(config: TeacherCopilotConfig<P>) {
+  const storageKey = `${STORAGE_PREFIX}${config.persistKey ?? config.skillName}`;
+  // Mint/restore a stable threadId so the conversation survives leaving the page
+  // and coming back (the backend session is keyed on it; useSessionMessages
+  // reloads the prior turns). Stable from mount → no URL-writeback rebuild.
+  const [threadId, setThreadId] = useState<string>(() => readOrMintThreadId(storageKey));
+
+  const newChat = useCallback(() => {
+    const fresh = crypto.randomUUID();
+    try {
+      window.localStorage.setItem(storageKey, fresh);
+    } catch {
+      /* private mode / no storage — still resets in-memory below */
+    }
+    setThreadId(fresh);
+  }, [storageKey]);
+
   return (
-    <FloatingCopilot title={config.title}>
-      <CopilotResolver {...config} />
+    <FloatingCopilot title={config.title} onNewChat={newChat}>
+      <CopilotResolver config={config} threadId={threadId} />
     </FloatingCopilot>
   );
 }
 
 /**
  * Resolve the skill slug to its per-environment Firestore UUID (the stream
- * endpoint keys on UUID, not slug), then mount the teacher-auth AG-UI provider.
+ * endpoint keys on UUID, not slug), then mount the teacher-auth AG-UI provider
+ * seeded with the persisted threadId so the session resumes.
  */
-function CopilotResolver<P>(config: TeacherCopilotConfig<P>) {
+function CopilotResolver<P>({ config, threadId }: { config: TeacherCopilotConfig<P>; threadId: string }) {
   const { skillId, resolveError } = useSkillSlugResolver(config.skillName);
 
   if (resolveError) {
@@ -50,15 +88,20 @@ function CopilotResolver<P>(config: TeacherCopilotConfig<P>) {
     );
   }
   return (
-    <AGUIProvider key={skillId} skillId={skillId} useTeacherAuth>
-      <CopilotChat {...config} />
+    <AGUIProvider key={skillId} skillId={skillId} sessionId={threadId || undefined} useTeacherAuth>
+      <CopilotChat config={config} threadId={threadId} />
     </AGUIProvider>
   );
 }
 
-function CopilotChat<P>(config: TeacherCopilotConfig<P>) {
+function CopilotChat<P>({ config, threadId }: { config: TeacherCopilotConfig<P>; threadId: string }) {
   const labels = { ...DEFAULT_LABELS, ...config.labels };
-  const { messages, toolCalls, sendMessage, isLoading, error } = useSkillAgent();
+  const { messages: liveMessages, toolCalls, sendMessage, isLoading, error } = useSkillAgent();
+  // Prior turns for a resumed thread (empty for a fresh one — a 404 lands as
+  // sessionGone, not an error). Prepend before the live turns; ids never clash
+  // (history ids are `hist-*`, live ids are AG-UI message ids).
+  const { initialMessages } = useSessionMessages(threadId || null);
+  const messages = initialMessages.length ? [...initialMessages, ...liveMessages] : liveMessages;
   const [input, setInput] = useState("");
 
   const onSubmit = async (e: React.FormEvent) => {

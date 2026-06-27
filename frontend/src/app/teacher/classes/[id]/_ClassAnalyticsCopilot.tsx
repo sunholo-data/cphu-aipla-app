@@ -15,6 +15,8 @@ export function ClassAnalyticsCopilot({ classId, className }: { classId: string;
     <TeacherCopilot
       skillName="analytics-chat"
       title="Analytics co-pilot"
+      // Per-class thread — each class resumes its own analytics conversation.
+      persistKey={`analytics-chat:${classId}`}
       scopePrefix={`[class_id=${classId} time_scope="this week"] `}
       placeholder={`Ask about ${className ?? "this class"}…`}
       emptyText="Ask about this class — messages this week, most-active groups, time on task, common misconceptions. I answer here; I don't change anything."

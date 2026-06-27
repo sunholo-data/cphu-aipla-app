@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, type ReactNode } from "react";
-import { ChevronDown, Sparkles } from "lucide-react";
+import { ChevronDown, Sparkles, SquarePen } from "lucide-react";
 
 /**
  * Shared floating chat shell — a fixed bottom-right panel so the teacher can
@@ -13,7 +13,16 @@ import { ChevronDown, Sparkles } from "lucide-react";
  * Extracted from the activity co-pilot (`_AuthoringCopilot`) so every teacher
  * surface shares one panel — see teacher-coworking-copilot.md.
  */
-export function FloatingCopilot({ title, children }: { title: string; children: ReactNode }) {
+export function FloatingCopilot({
+  title,
+  onNewChat,
+  children,
+}: {
+  title: string;
+  /** When provided, a "New chat" control appears that resets the conversation. */
+  onNewChat?: () => void;
+  children: ReactNode;
+}) {
   const [minimized, setMinimized] = useState(false);
   return (
     <>
@@ -28,14 +37,26 @@ export function FloatingCopilot({ title, children }: { title: string; children: 
           <h2 className="flex items-center gap-2 text-sm font-medium">
             <Sparkles className="h-4 w-4 text-muted-foreground" aria-hidden="true" /> {title}
           </h2>
-          <button
-            type="button"
-            onClick={() => setMinimized(true)}
-            aria-label="Minimize"
-            className="rounded p-1 text-muted-foreground hover:bg-muted"
-          >
-            <ChevronDown className="h-4 w-4" aria-hidden="true" />
-          </button>
+          <div className="flex items-center gap-1">
+            {onNewChat ? (
+              <button
+                type="button"
+                onClick={onNewChat}
+                aria-label="New chat"
+                className="rounded p-1 text-muted-foreground hover:bg-muted"
+              >
+                <SquarePen className="h-4 w-4" aria-hidden="true" />
+              </button>
+            ) : null}
+            <button
+              type="button"
+              onClick={() => setMinimized(true)}
+              aria-label="Minimize"
+              className="rounded p-1 text-muted-foreground hover:bg-muted"
+            >
+              <ChevronDown className="h-4 w-4" aria-hidden="true" />
+            </button>
+          </div>
         </div>
         {children}
       </section>

@@ -68,4 +68,9 @@ export interface TeacherCopilotConfig<P> {
    *  agent's eyes, not the teacher's). */
   stripPrefix?: (content: string) => string;
   labels?: Partial<CopilotLabels>;
+  /** localStorage key suffix for resuming this chat across visits (default:
+   *  skillName). The threadId is persisted so returning re-loads the prior
+   *  conversation (via the backend session); "New chat" resets it. Pass a
+   *  scope-specific value (e.g. `manage-class:<classId>`) for per-scope threads. */
+  persistKey?: string;
 }
