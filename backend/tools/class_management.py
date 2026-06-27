@@ -8,11 +8,22 @@ pattern (see :mod:`analytics.tools`):
    same identity path analytics-chat uses (``_invocation_context.user_id``
    in the chat stream, ``state['user:id']`` for the CLI/probe path).
 2. For anything scoped to an existing class, gate on ownership with
-   :func:`analytics.auth.assert_caller_owns` BEFORE touching Firestore —
-   the byte-identical "class not accessible" refusal for both missing and
-   not-owned classes (enumeration-resistant).
-3. Call the :mod:`db.classes` repository — the same business logic the
-   REST handlers in ``protocols/classes_routes.py`` call.
+   :func:`analytics.auth.assert_caller_owns` — the byte-identical "class not
+   accessible" refusal for both missing and not-owned classes.
+
+WRITES are **propose-only** (``create_class``, ``mint_group_codes``): they
+return ``{"ok", "proposal": {...}}`` and persist NOTHING. The teacher Applies
+the proposal in the co-pilot, and the Apply does the real write via the same
+REST endpoints the dashboard uses. This is the co-working / earned-trust model
+(the AI drafts, the human commits) — see
+docs/design/aipla/v1.1.0-feedback/teacher-coworking-copilot.md. Propose tools
+return a soft ``{"ok": False, "error"}`` rather than raise, so a hallucinated
+arg doesn't abort the turn.
+
+READS are direct (``list_my_classes``, ``list_activities``, ``class_spend``,
+``class_kpis``, ``class_trend``): they call the :mod:`db.classes` /
+:mod:`insights` / :mod:`analytics` business logic and answer in chat. Engagement
+Q&A is delegated to ``analytics-chat`` via ``agentTools``.
 
 Deliberately NOT exposed as tools (destructive — dashboard-only, behind
 the explicit confirmation flow): ``revoke_class`` and
@@ -35,7 +46,7 @@ from typing import Any
 from google.adk.tools import ToolContext
 
 from analytics import cost_queries
-from analytics.auth import assert_caller_owns, caller_uid
+from analytics.auth import assert_caller_owns, caller_uid, caller_uid_or_none
 from auth.firebase_auth import User
 from db import activities as activities_db
 from db import classes as classes_db
@@ -132,30 +143,35 @@ async def create_class(
     description: str | None = None,
     tool_context: ToolContext = None,
 ) -> dict[str, Any]:
-    """Create a new class owned by the signed-in teacher.
+    """PROPOSE creating a new class — does NOT persist.
+
+    Propose-only (earned trust): returns an editable proposal the teacher Applies
+    in the co-pilot; the Apply does the real write via ``POST /api/classes``. The
+    AI never creates a class on its own. Tell the teacher you've *proposed* it,
+    not that it's done.
 
     Args:
-        name: The class name, e.g. "Fysik 9A vår 2026". Required,
-            1-200 characters.
-        description: Optional one-line description (topic / year level /
-            anything worth recording in the audit log). Up to 2000
-            characters.
+        name: The proposed class name, e.g. "Fysik 9A vår 2026". Required.
+        description: Optional one-line description (topic / year level).
 
     Returns:
-        ``{"class_id", "name", "description"}`` for the created class.
+        ``{"ok": True, "proposal": {"kind": "create_class", "name",
+        "description"}}`` on success, or ``{"ok": False, "error": ...}``.
     """
-    uid = caller_uid(tool_context)
+    uid = caller_uid_or_none(tool_context)
+    if not uid:
+        return {"ok": False, "error": "not signed in"}
     clean = (name or "").strip()
     if not clean:
-        raise ValueError("class name is required")
-    cls = Class.create_for_teacher(
-        owner_uid=uid,
-        name=clean,
-        description=(description.strip() if description else None),
-    )
-    await asyncio.to_thread(classes_db.create_class, cls)
-    logger.info("manage_class.create_class: created class=%s owner=%s", cls.class_id, uid)
-    return {"class_id": cls.class_id, "name": cls.name, "description": cls.description}
+        return {"ok": False, "error": "a class name is required"}
+    return {
+        "ok": True,
+        "proposal": {
+            "kind": "create_class",
+            "name": clean,
+            "description": (description.strip() if description else None),
+        },
+    }
 
 
 async def mint_group_codes(
@@ -163,32 +179,42 @@ async def mint_group_codes(
     count: int = 1,
     tool_context: ToolContext = None,
 ) -> dict[str, Any]:
-    """Mint group join-codes for one of the teacher's own classes.
+    """PROPOSE minting join-codes for one of the teacher's classes — does NOT
+    persist.
 
-    Students enter a code to join the class anonymously. Each call mints
-    ``count`` fresh codes and binds them to the class. The class keeps its
-    previously-minted codes — this appends, it does not replace.
+    Propose-only (earned trust): returns a proposal the teacher Applies; the
+    Apply does the real mint via ``POST /api/classes/{id}/groups``. Validates
+    ownership before proposing (byte-identical "class not accessible" for a
+    missing or not-owned class). Tell the teacher you've *proposed* it.
 
     Args:
-        class_id: The class to mint codes for. Must be owned by the
-            signed-in teacher (use ``list_my_classes`` to find the id).
+        class_id: The class to mint codes for. Must be owned by the signed-in
+            teacher (use ``list_my_classes`` to find the id).
         count: How many codes to mint. Clamped to 1-50. Default 1.
 
     Returns:
-        ``{"class_id", "codes": [...], "count": int}`` — ``codes`` is the
-        newly-minted batch.
+        ``{"ok": True, "proposal": {"kind": "mint_codes", "class_id",
+        "class_name", "count"}}`` or ``{"ok": False, "error": ...}``.
     """
-    uid = caller_uid(tool_context)
-    assert_caller_owns(uid, class_id)
+    uid = caller_uid_or_none(tool_context)
+    if not uid:
+        return {"ok": False, "error": "not signed in"}
+    # Soft ownership gate (propose tools return an error dict rather than raise,
+    # so a hallucinated class id doesn't abort the turn). Same refusal text for
+    # missing + not-owned — no enumeration. (Reads keep assert_caller_owns.)
+    cls = await asyncio.to_thread(classes_db.get_class, class_id)
+    if cls is None or cls.owner_uid != uid:
+        return {"ok": False, "error": "class not accessible"}
     bounded = max(1, min(int(count), _MAX_CODES_PER_CALL))
-    codes = await asyncio.to_thread(classes_db.mint_group_codes_under_class, class_id, count=bounded)
-    logger.info(
-        "manage_class.mint_group_codes: minted %d under class=%s owner=%s",
-        len(codes),
-        class_id,
-        uid,
-    )
-    return {"class_id": class_id, "codes": codes, "count": len(codes)}
+    return {
+        "ok": True,
+        "proposal": {
+            "kind": "mint_codes",
+            "class_id": class_id,
+            "class_name": cls.name,
+            "count": bounded,
+        },
+    }
 
 
 async def class_spend(

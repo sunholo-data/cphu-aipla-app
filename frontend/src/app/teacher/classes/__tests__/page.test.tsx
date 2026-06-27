@@ -16,6 +16,10 @@ import * as insightsApi from "@/lib/insightsApi";
 import * as costApi from "@/lib/costApi";
 import type { ClassPayload } from "@/lib/teacherApi";
 
+// The floating class co-pilot has its own tests and pulls in AG-UI + teacher
+// auth; stub it so these dashboard tests stay focused on the list/insights.
+vi.mock("../_ManageClassCopilot", () => ({ ManageClassCopilot: () => null }));
+
 function makeClass(overrides: Partial<ClassPayload> = {}): ClassPayload {
   return {
     classId: "c-1",

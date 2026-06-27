@@ -61,17 +61,17 @@ class TestCallerUidGate:
             await tools.list_my_classes()
         assert str(exc.value) == PERMISSION_ERROR_MESSAGE
 
-    async def test_create_blank_uid_refuses(self) -> None:
+    async def test_create_blank_uid_soft_error(self) -> None:
+        # Propose tools are soft (return ok/error, never raise) so a missing
+        # caller doesn't abort the turn.
         ctx = MagicMock()
         ctx.state = {}
-        with pytest.raises(PermissionError) as exc:
-            await tools.create_class("Physics 101", tool_context=ctx)
-        assert str(exc.value) == PERMISSION_ERROR_MESSAGE
+        result = await tools.create_class("Physics 101", tool_context=ctx)
+        assert result == {"ok": False, "error": "not signed in"}
 
-    async def test_mint_no_context_refuses(self) -> None:
-        with pytest.raises(PermissionError) as exc:
-            await tools.mint_group_codes("any-class")
-        assert str(exc.value) == PERMISSION_ERROR_MESSAGE
+    async def test_mint_no_context_soft_error(self) -> None:
+        result = await tools.mint_group_codes("any-class")
+        assert result == {"ok": False, "error": "not signed in"}
 
     async def test_uid_from_invocation_context_when_state_missing(self) -> None:
         """The production chat-flow path: ADK wires the user_id into
@@ -89,26 +89,31 @@ class TestCallerUidGate:
 
 
 class TestCreateClass:
-    async def test_creates_owned_by_caller(self) -> None:
+    """Propose-only: create_class returns a proposal and persists NOTHING — the
+    teacher Applies it in the co-pilot (which calls the REST create)."""
+
+    async def test_proposes_without_persisting(self) -> None:
         result = await tools.create_class(
             "Fysik 9A",
             description="Vår 2026",
             tool_context=_ctx("teacher-A"),
         )
-        assert result["name"] == "Fysik 9A"
-        assert result["description"] == "Vår 2026"
-        stored = classes_db.get_class(result["class_id"])
-        assert stored is not None
-        assert stored.owner_uid == "teacher-A"
-        assert stored.name == "Fysik 9A"
+        assert result["ok"] is True
+        assert result["proposal"] == {
+            "kind": "create_class",
+            "name": "Fysik 9A",
+            "description": "Vår 2026",
+        }
+        # Nothing written — it's a proposal, not a create.
+        assert classes_db.list_classes_for_owner("teacher-A") == []
 
-    async def test_blank_name_raises(self) -> None:
-        with pytest.raises(ValueError, match="name is required"):
-            await tools.create_class("   ", tool_context=_ctx("teacher-A"))
+    async def test_blank_name_soft_error(self) -> None:
+        result = await tools.create_class("   ", tool_context=_ctx("teacher-A"))
+        assert result == {"ok": False, "error": "a class name is required"}
 
-    async def test_name_is_trimmed(self) -> None:
+    async def test_name_is_trimmed_in_proposal(self) -> None:
         result = await tools.create_class("  Mekanik  ", tool_context=_ctx("teacher-A"))
-        assert result["name"] == "Mekanik"
+        assert result["proposal"]["name"] == "Mekanik"
 
 
 class TestListMyClasses:
@@ -232,48 +237,42 @@ class TestClassKpisAndTrend:
 
 
 class TestMintGroupCodes:
-    async def test_mints_and_binds_codes(self) -> None:
+    """Propose-only: mint_group_codes returns a proposal and mints NOTHING — the
+    teacher Applies it (which calls the REST mint). Ownership is still validated
+    before proposing, with a soft refusal (no raise)."""
+
+    async def test_proposes_without_minting(self) -> None:
         cls = _seed_class("teacher-A")
         result = await tools.mint_group_codes(cls.class_id, count=2, tool_context=_ctx("teacher-A"))
-        assert result["count"] == 2
-        assert len(result["codes"]) == 2
-        # The class now carries the new codes...
-        stored = classes_db.get_class(cls.class_id)
-        assert set(result["codes"]).issubset(set(stored.group_codes))
-        # ...and each code is bound back to the class in anon_groups.
-        for code in result["codes"]:
-            doc = fs_module.get_document("anon_groups", code)
-            assert doc is not None
-            assert doc["classId"] == cls.class_id
+        assert result["ok"] is True
+        assert result["proposal"] == {
+            "kind": "mint_codes",
+            "class_id": cls.class_id,
+            "class_name": cls.name,
+            "count": 2,
+        }
+        # Nothing minted — the class has no new codes, no anon_groups docs.
+        assert classes_db.get_class(cls.class_id).group_codes == []
 
-    async def test_unowned_class_refuses(self) -> None:
+    async def test_unowned_class_soft_refusal(self) -> None:
         cls_b = _seed_class("teacher-B")
-        with pytest.raises(PermissionError) as exc:
-            await tools.mint_group_codes(cls_b.class_id, tool_context=_ctx("teacher-A"))
-        assert str(exc.value) == PERMISSION_ERROR_MESSAGE
+        result = await tools.mint_group_codes(cls_b.class_id, tool_context=_ctx("teacher-A"))
+        assert result == {"ok": False, "error": "class not accessible"}
 
-    async def test_missing_class_refuses(self) -> None:
-        with pytest.raises(PermissionError) as exc:
-            await tools.mint_group_codes("does-not-exist", tool_context=_ctx("teacher-A"))
-        assert str(exc.value) == PERMISSION_ERROR_MESSAGE
+    async def test_missing_class_soft_refusal(self) -> None:
+        result = await tools.mint_group_codes("does-not-exist", tool_context=_ctx("teacher-A"))
+        assert result == {"ok": False, "error": "class not accessible"}
 
-    async def test_auth_runs_before_mint(self) -> None:
-        """A future refactor that mints before the ownership check fails
-        this test — the load-bearing property for the safe write set."""
-        cls_b = _seed_class("teacher-B")
+    async def test_never_mints_during_propose(self) -> None:
+        """Propose must NOT touch the real mint path, even for an owned class."""
+        cls = _seed_class("teacher-A")
         with patch.object(classes_db, "mint_group_codes_under_class") as mock_mint:
-            with pytest.raises(PermissionError):
-                await tools.mint_group_codes(cls_b.class_id, tool_context=_ctx("teacher-A"))
+            await tools.mint_group_codes(cls.class_id, count=3, tool_context=_ctx("teacher-A"))
             mock_mint.assert_not_called()
 
-    async def test_clamps_count_upper(self) -> None:
+    async def test_clamps_count_in_proposal(self) -> None:
         cls = _seed_class("teacher-A")
-        with patch.object(classes_db, "mint_group_codes_under_class", return_value=[]) as mock_mint:
-            await tools.mint_group_codes(cls.class_id, count=9999, tool_context=_ctx("teacher-A"))
-            assert mock_mint.call_args.kwargs["count"] == 50
-
-    async def test_clamps_count_lower(self) -> None:
-        cls = _seed_class("teacher-A")
-        with patch.object(classes_db, "mint_group_codes_under_class", return_value=[]) as mock_mint:
-            await tools.mint_group_codes(cls.class_id, count=0, tool_context=_ctx("teacher-A"))
-            assert mock_mint.call_args.kwargs["count"] == 1
+        upper = await tools.mint_group_codes(cls.class_id, count=9999, tool_context=_ctx("teacher-A"))
+        assert upper["proposal"]["count"] == 50
+        lower = await tools.mint_group_codes(cls.class_id, count=0, tool_context=_ctx("teacher-A"))
+        assert lower["proposal"]["count"] == 1

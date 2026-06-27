@@ -43,6 +43,7 @@ import {
 } from "@/lib/costApi";
 import { CrossClassTable } from "@/components/teacher/insights/CrossClassTable";
 import { useIsResearcher } from "@/hooks/useIsResearcher";
+import { ManageClassCopilot } from "./_ManageClassCopilot";
 
 
 function relativeTime(iso: string): string {
@@ -315,6 +316,9 @@ export default function TeacherClassesPage() {
 
   return (
     <div className="flex flex-col gap-8">
+      {/* Floating class co-pilot — the teacher creates classes / mints codes by
+          talking, beside the list; proposals Apply into the list below. */}
+      {researchView ? null : <ManageClassCopilot onChanged={refresh} />}
       <header className="flex flex-wrap items-center justify-between gap-3">
         <div>
           <h1 className="text-xl font-semibold sm:text-2xl">
@@ -351,15 +355,6 @@ export default function TeacherClassesPage() {
               </button>
             </div>
           ) : null}
-          {researchView ? null : (
-            <Link
-              href="/teacher/classes/assistant"
-              className="flex items-center gap-1.5 rounded border border-border px-3 py-1.5 text-sm font-medium hover:bg-accent"
-            >
-              <MessageCircle className="h-4 w-4" aria-hidden="true" />
-              Manage by chat
-            </Link>
-          )}
           {researchView ? null : (
             <button
               type="button"
