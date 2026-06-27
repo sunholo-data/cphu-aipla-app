@@ -56,12 +56,14 @@ export interface TeacherCopilotConfig<P> {
   scopePrefix?: string;
   placeholder: string;
   emptyText: string;
-  /** Parse one tool-call result into a typed proposal, or null if it isn't one. */
-  parseProposal: (toolCall: ToolCallState) => P | null;
-  proposalDescriptor: ProposalDescriptor<P>;
+  /** Parse one tool-call result into a typed proposal, or null if it isn't one.
+   *  Omit for a READ-ONLY co-pilot (e.g. analytics) — no proposal cards. */
+  parseProposal?: (toolCall: ToolCallState) => P | null;
+  proposalDescriptor?: ProposalDescriptor<P>;
   /** Commit a proposal to the human's surface (REST write, builder mutation, …).
-   *  This is where "the change lands next to the teacher's own edits". */
-  onApplyProposal: (proposal: P) => void | Promise<void>;
+   *  This is where "the change lands next to the teacher's own edits". Omit for
+   *  a read-only co-pilot. */
+  onApplyProposal?: (proposal: P) => void | Promise<void>;
   /** Strip the scope prefix from rendered user bubbles (the prefix is for the
    *  agent's eyes, not the teacher's). */
   stripPrefix?: (content: string) => string;

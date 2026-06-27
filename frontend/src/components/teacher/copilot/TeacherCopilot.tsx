@@ -69,9 +69,12 @@ function CopilotChat<P>(config: TeacherCopilotConfig<P>) {
     await sendMessage(`${config.scopePrefix ?? ""}${trimmed}`);
   };
 
-  const proposals = toolCalls
-    .map((tc) => ({ id: tc.id, proposal: config.parseProposal(tc) }))
-    .filter((p): p is { id: string; proposal: P } => p.proposal !== null);
+  const parse = config.parseProposal;
+  const proposals = parse
+    ? toolCalls
+        .map((tc) => ({ id: tc.id, proposal: parse(tc) }))
+        .filter((p): p is { id: string; proposal: P } => p.proposal !== null)
+    : [];
 
   const empty = messages.length === 0 && proposals.length === 0 && !isLoading;
   const strip = config.stripPrefix ?? ((c: string) => c);
@@ -93,15 +96,17 @@ function CopilotChat<P>(config: TeacherCopilotConfig<P>) {
             <p className="whitespace-pre-wrap">{m.role === "user" ? strip(m.content) : m.content}</p>
           </article>
         ))}
-        {proposals.map((p) => (
-          <ProposalCard
-            key={p.id}
-            proposal={p.proposal}
-            descriptor={config.proposalDescriptor}
-            onApply={config.onApplyProposal}
-            labels={config.labels}
-          />
-        ))}
+        {config.proposalDescriptor && config.onApplyProposal
+          ? proposals.map((p) => (
+              <ProposalCard
+                key={p.id}
+                proposal={p.proposal}
+                descriptor={config.proposalDescriptor!}
+                onApply={config.onApplyProposal!}
+                labels={config.labels}
+              />
+            ))
+          : null}
         {isLoading ? <p className="text-xs text-muted-foreground">{labels.thinking}</p> : null}
       </div>
 

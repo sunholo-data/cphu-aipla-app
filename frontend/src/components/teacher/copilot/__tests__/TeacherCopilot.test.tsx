@@ -123,4 +123,21 @@ describe("TeacherCopilot (shared shell)", () => {
     expect(screen.queryByTestId("proposal-card")).not.toBeInTheDocument();
     expect(onApply).not.toHaveBeenCalled();
   });
+
+  it("read-only mode (no parseProposal) renders chat with no proposal cards", () => {
+    // The analytics co-pilot omits parseProposal/descriptor/onApplyProposal.
+    hook = { ...defaultHook, toolCalls: withTool() };
+    render(
+      <TeacherCopilot
+        skillName="analytics-chat"
+        title="Analytics co-pilot"
+        scopePrefix={`[class_id=c1] `}
+        placeholder="Ask…"
+        emptyText="Ask about this class."
+      />,
+    );
+    // Even with a tool call present, no Apply card appears (nothing to apply).
+    expect(screen.queryByTestId("proposal-card")).not.toBeInTheDocument();
+    expect(screen.getByTestId("teacher-copilot")).toBeInTheDocument();
+  });
 });

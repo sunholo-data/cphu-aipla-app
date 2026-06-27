@@ -39,6 +39,7 @@ import { SettingsMap } from "@/components/teacher/SettingsMap";
 import { TeacherPage } from "@/components/teacher/ui/TeacherPage";
 
 import { handleExportSessions } from "./_exportHelpers";
+import { ClassAnalyticsCopilot } from "./_ClassAnalyticsCopilot";
 
 function relativeTime(iso: string): string {
   const diff = Date.now() - new Date(iso).getTime();
@@ -632,6 +633,9 @@ export default function TeacherClassDetailPage() {
           </div>
         ) : null}
       </div>
+      {/* Read-only analytics co-pilot scoped to this class — ask about it while
+          you look at it; answers in chat, changes nothing. */}
+      <ClassAnalyticsCopilot classId={cls.classId} className={cls.name} />
     </TeacherPage>
   );
 }

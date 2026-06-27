@@ -61,6 +61,10 @@ vi.mock("next/navigation", () => ({
   },
 }));
 
+// The analytics co-pilot has its own tests and pulls in AG-UI + teacher auth;
+// stub it so these detail-page tests stay focused on the class surface.
+vi.mock("../_ClassAnalyticsCopilot", () => ({ ClassAnalyticsCopilot: () => null }));
+
 // Importing after vi.mock so the mocked hook is wired before the page resolves.
 import TeacherClassDetailPage from "@/app/teacher/classes/[id]/page";
 
