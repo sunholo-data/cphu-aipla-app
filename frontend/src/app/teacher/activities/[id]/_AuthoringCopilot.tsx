@@ -26,7 +26,7 @@
 "use client";
 
 import { useState } from "react";
-import { Check, Pencil, Send, Sparkles, X } from "lucide-react";
+import { Check, ChevronDown, Pencil, Send, Sparkles, X } from "lucide-react";
 
 import { AGUIProvider } from "@/providers/AGUIProvider";
 import { useSkillAgent, type ToolCallState } from "@/hooks/useSkillAgent";
@@ -78,7 +78,53 @@ interface AuthoringCopilotProps {
 /** Public entry. Dark-flagged → renders nothing when disabled (degradation). */
 export function AuthoringCopilot(props: AuthoringCopilotProps) {
   if (!authoringCopilotEnabled()) return null;
-  return <AuthoringCopilotResolver {...props} />;
+  return <FloatingCopilot {...props} />;
+}
+
+/**
+ * Floating chat shell — a fixed bottom-right panel so the teacher can browse the
+ * builder and watch proposals land in the form behind it. Minimizes to a pill;
+ * the chat (and its conversation) stays MOUNTED while minimized (hidden, not
+ * unmounted) so nothing is lost on collapse.
+ */
+function FloatingCopilot(props: AuthoringCopilotProps) {
+  const [minimized, setMinimized] = useState(false);
+  return (
+    <>
+      <section
+        data-testid="copilot-panel"
+        aria-label="Medbygger"
+        className={`fixed bottom-4 right-4 z-50 max-h-[70vh] w-[min(384px,calc(100vw-2rem))] flex-col overflow-hidden rounded-xl border border-border bg-background shadow-2xl ${
+          minimized ? "hidden" : "flex"
+        }`}
+      >
+        <div className="flex items-center justify-between border-b border-border bg-muted/40 px-3 py-2">
+          <h2 className="flex items-center gap-2 text-sm font-medium">
+            <Sparkles className="h-4 w-4 text-muted-foreground" aria-hidden="true" /> Medbygger
+          </h2>
+          <button
+            type="button"
+            onClick={() => setMinimized(true)}
+            aria-label="Skjul medbygger"
+            className="rounded p-1 text-muted-foreground hover:bg-muted"
+          >
+            <ChevronDown className="h-4 w-4" aria-hidden="true" />
+          </button>
+        </div>
+        <AuthoringCopilotResolver {...props} />
+      </section>
+      {minimized ? (
+        <button
+          type="button"
+          onClick={() => setMinimized(false)}
+          data-testid="copilot-fab"
+          className="fixed bottom-4 right-4 z-50 inline-flex items-center gap-2 rounded-full bg-primary px-4 py-3 text-sm font-medium text-primary-foreground shadow-lg hover:bg-primary/90"
+        >
+          <Sparkles className="h-4 w-4" aria-hidden="true" /> Medbygger
+        </button>
+      ) : null}
+    </>
+  );
 }
 
 function AuthoringCopilotResolver({ activityId, onApplyProposal }: AuthoringCopilotProps) {
@@ -214,14 +260,17 @@ function AuthoringCopilotInner({ activityId, onApplyProposal }: AuthoringCopilot
     .map((tc) => ({ id: tc.id, proposal: parseProposal(tc) }))
     .filter((p): p is { id: string; proposal: Proposal } => p.proposal !== null);
 
-  return (
-    <div className="flex flex-col gap-3" data-testid="authoring-copilot">
-      <h2 className="flex items-center gap-2 text-sm font-medium">
-        <Sparkles className="h-4 w-4 text-muted-foreground" aria-hidden="true" />
-        Medbygger
-      </h2>
+  const empty = messages.length === 0 && proposals.length === 0 && !isLoading;
 
-      <div className="flex flex-col gap-2" aria-live="polite">
+  return (
+    <div className="flex min-h-0 flex-1 flex-col" data-testid="authoring-copilot">
+      <div className="flex min-h-0 flex-1 flex-col gap-2 overflow-y-auto p-3" aria-live="polite">
+        {empty ? (
+          <p className="text-xs text-muted-foreground">
+            Fortæl hvad du vil undervise i — jeg foreslår en lærer-prompt og elementer, du kan rette og
+            anvende. Du kan stadig bladre i siden mens jeg arbejder.
+          </p>
+        ) : null}
         {messages.map((m) => (
           <article
             key={m.id}
@@ -242,12 +291,12 @@ function AuthoringCopilotInner({ activityId, onApplyProposal }: AuthoringCopilot
       </div>
 
       {error ? (
-        <div role="alert" className="rounded border border-destructive bg-destructive/10 p-2 text-xs text-destructive">
+        <div role="alert" className="mx-3 mb-1 rounded border border-destructive bg-destructive/10 p-2 text-xs text-destructive">
           {error.message}
         </div>
       ) : null}
 
-      <form onSubmit={onSubmit} className="flex items-stretch gap-2">
+      <form onSubmit={onSubmit} className="flex items-stretch gap-2 border-t border-border p-2">
         <input
           type="text"
           aria-label="Beskriv hvad du vil undervise i"
