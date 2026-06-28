@@ -66,10 +66,10 @@
         "frontend/src/hooks/useSkillMeta.ts",
         "frontend/src/app/teacher/activities/[id]/page.tsx"
       ],
-      "passes": null,
-      "started": null,
-      "completed": null,
-      "notes": "ProgressChecklist docstring already anticipates this: 'v1 will source this from skillMetadata.subParts'."
+      "passes": true,
+      "started": "2026-06-08T19:00:00Z",
+      "completed": "2026-06-08T21:00:00Z",
+      "notes": "ProgressChecklist docstring already anticipates this: 'v1 will source this from skillMetadata.subParts'. [SHIPPED 2026-06-08 — tracking froze at the M0 'pause-point 2' checkpoint and never recorded these: M1.1 checklist field on ActivityConfig (9aead3a), M1.2 student-facing active-checklist endpoint (0ef0875), M1.3a checklist editor in the builder (1b3d05d). ProgressChecklist now sources the teacher-authored checklist (not hardcoded Boldkast); ActivityBuilderBody has addChecklistItem/removeChecklistItem. checklist was subsequently absorbed into the bounded ELEMENT_REGISTRY by 1.1.38 (elements-palette). Marked true 2026-06-28.]"
     }
   ],
   "velocity": {
@@ -81,8 +81,8 @@
     "actual_days": null
   },
   "github_issues": [],
-  "last_session": null,
+  "last_session": "2026-06-08",
   "last_checkpoint": null,
-  "status": "in_progress",
-  "status_note": "GENUINELY IN PROGRESS (not stale). M0 code-complete + paused at pause-point 2 (commits c45af85, 85726cd, 91930ec); M1 pending. Pre-freeze target (freeze 2026-06-29 -> 07-05). 'not_started' was wrong — M0 landed. Updated 2026-06-28."
+  "status": "complete",
+  "completion_note": "COMPLETE — the M0+M1 sprint scope shipped 2026-06-08 (M0 verified online: teacher create->bind->student-open->chat, +2 post-deploy fixes 7127808/73ac7f7; M1 checklist 9aead3a/0ef0875/1b3d05d). Earlier flagged 'in_progress/one-genuinely-open' on 2026-06-28 was a MISREAD of the frozen JSON checkpoint — git shows M1 landed the same day. The umbrella design doc's later milestones (M2 quiz, M3 branching/materials, M4 drawing/notebook, M6 equipment co-design, M7 auto-rubric, M8 coverage) were RE-HOMED to other sprints per the doc's own 17-June note: the element substrate -> 1.1.38 (activity-elements-palette), the AI co-pilot front-end -> 1.1.39 (COPILOT-1/COPILOT-2), rubric/coverage -> curriculum-library. Closed 2026-06-28."
 }
