@@ -364,6 +364,22 @@ The 3-June subtotal comfortably fit the window. The 9-June batch adds **~14-18d*
 - [teacher-chat-history-tier.md](teacher-chat-history-tier.md) (DESIGN 2026-06-27, **P2**, = Part 4b) — browse + reopen PAST co-pilot chats grouped by class. Backend: `classId`/`kind` tag on `ChatSessionIndex` at session creation + `GET /api/teacher/chats`; frontend: history affordance in the shell + class-level "Conversations" view (reopen via shipped resume). Clean-session sprint.
 - [activity-copilot-shared-shell-migration.md](activity-copilot-shared-shell-migration.md) (DESIGN 2026-06-27, **P2**) — re-express `_AuthoringCopilot.tsx` on the shared shell (delete ~250 lines of duplicate chrome; no behaviour change). Recon done: small shell config knobs + 7 element previews → `ProposalDescriptor.body` + test adaptations. ⚠ the other agent's 15-test file — coordinate. Clean-session sprint.
 
+## Shipped — mid-point → pre-freeze week (2026-06-22 → 06-28)
+
+A heavy pre-freeze push (mid-point review 26 June; M+JB freeze week 27 begins 29 June). The 2026-06-08 Build-status table below is now stale; this block is the authoritative "what landed on dev this week", by workstream. (~195 commits.)
+
+- **Teacher co-working co-pilot** (this batch's headline; [teacher-coworking-copilot.md](teacher-coworking-copilot.md)) — shared floating co-pilot shell (`components/teacher/copilot/`) + **class-management co-pilot** (propose/Apply on `/teacher/classes`) + **scoped read-only analytics co-pilot** on the class detail page + **cross-visit resume**. Plus enablers: manage-class promoted to an active tool hub (`agent_tools` AgentTool delegation), seed-skillMetadata propagation fix, AG-UI token-rotation fix, markdown-render + Applied-badge fixes. **Parts 1–4a shipped; Part 4b (history tier) + the `_AuthoringCopilot` shell-migration are designed, not built.**
+- **Activity-authoring co-pilot** (COPILOT-1 + COPILOT-2; [activity-authoring-assistant.md](activity-authoring-assistant.md)) — the AI composes an activity from a teacher's description: `set_lesson_prompt`, `add_element` (checklist/table/chart/calculator/note/solution/document), `set_artefact` (propose a sim), floating panel, mounted on builder + `/new`. Dark-flagged → enabled on dev.
+- **ALS-SHARE — cross-teacher activity sharing** ([implemented/activity-library-sharing](implemented/)) — duplicate/branch, publish + shared catalogue + adopt, researcher CRUD, provenance/history panel, unified status lifecycle + visibility setter, separate researcher Research surface. M0–M3 done; **M4 attribution deferred (optional).**
+- **EXT-MCP — sims as portable MCP Apps** ([external-host-mcp-apps.md](external-host-mcp-apps.md)) — public `/api/mcp` route, sims exposed as `ui://` MCP Apps with CSP, `content`+`structuredContent` emission for external-host models. Phase 1+2 shipped.
+- **Researcher analytics (1.1.51)** — cross-class drill-downs, overview, transcripts; the researcher Research surface; friendly owner-name labels across class/activity views.
+- **Workbench / activity polish** — element palette (table/chart/calculator/note, 06-22), "shared with the AI" trust-card audit across elements, single sim render path (USR-1, legacy slug path deleted), first-party workspace elements reach the tutor on concept activities, lazy ADK session for early workbench events, class list reads the `activityIds` model, draft-status lifecycle cleanup, activity preview modal as a real Radix dialog.
+- **Onboarding** — clean-slate dev wipe + auto-seed a demo for new teachers.
+- **Thinking budget** — env-level layer ([thinking-budget-configuration.md](thinking-budget-configuration.md)); per-skill/per-turn/persona layers still Planned.
+- **Ops** — `make seed-demo-codes` (stop `aipla-demo-1` lapsing), 2 prod frontend dep patches, greet-spinner race fix.
+
+**In progress (not finished this week):** RICH-DOC — [rich-document-workbench.md](rich-document-workbench.md) (M0–M4, started 06-24).
+
 ## Cross-version updates
 
 When these ship, mark them in this file's `Sprint status` section (mirroring the v1.0 pattern) and move docs into a sibling `implemented/` directory.
