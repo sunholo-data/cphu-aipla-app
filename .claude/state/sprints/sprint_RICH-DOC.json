@@ -136,10 +136,10 @@
         "frontend/src/components/workspace/elementRenderers.tsx",
         "frontend/package.json"
       ],
-      "passes": null,
+      "passes": "superseded",
       "started": "2026-06-24",
-      "completed": null,
-      "notes": "CODE-COMPLETE + static gate green (2026-06-24), NOT yet browser-verified. Built: TipTap v3 deps (frontend security gate green); solutionMarkdown serialiser (JSON->markdown+$math$, 13 tests); WorkbenchSolution editor (JB-2 toolbar + word count + autosave/submit); backend SolutionElement + ELEMENT_REGISTRY + routes/db + SOLUTION_FEEDBACK_PROMPT injected via compose_teacher_focus; full element wiring (SolutionElementMount + elementRenderers + StudentWorkspace + chat page + builder SolutionEditor + useActivityBuilder + ActivityPreview). Commits d24637d (core) ef222b4 (backend) d7e22fd (wiring). Gate: FE 1262 + BE 2151 tests, lint+typecheck clean. REMAINING (gates passes=true): (1) browser runtime verification of the editor (KaTeX render / Next-SSR hydration) via aitana-frontend-verify; (2) AR sign-off on the feedback prompt (gates pilot ship, not dev). Prompt migrates to 1.1.47 config next sprint."
+      "completed": "2026-06-25",
+      "notes": "SUPERSEDED by SUBMIT-1 (2026-06-25), never browser-verified/shipped as built. The TipTap rich-text solution editor was code-complete + static-gate-green on 2026-06-24 (commits d24637d core, ef222b4 backend, d7e22fd wiring) but left passes=null pending browser-verify + AR prompt sign-off. The NEXT day, SUBMIT-1 reconceived the solution element as image-based (photo-of-paper + freehand whiteboard); commit ff7c889 REMOVED TipTap entirely (WorkbenchSolution.tsx, solutionMarkdown.ts + 13 tests, 5 @tiptap/* deps). Those files no longer exist on disk. The backend SolutionElement/ELEMENT_REGISTRY/feedback-prompt scaffolding survives and is used by the image-based element. Net: the solution-editor feature shipped via SUBMIT-1 (status: complete), just not in TipTap form. See docs/design/aipla/v1.1.0-feedback/student-submission-surfaces.md."
     }
   ],
   "velocity": {
@@ -152,6 +152,7 @@
   },
   "github_issues": [],
   "last_checkpoint": "M0+M1+M2+M3a done; PLUS not-shared-name fix, M5 telemetry (open/fullscreen/copy/select/scroll, records-only), and M3b.1 (WorkbenchType 'document' + GET /api/documents list endpoint), all pushed (d9f0c99). REMAINING: M3b frontend surface (builder document-feedback option + chat-page dispatch to mount upload+DocumentViewer + active-file->document_ids + delete + page/zoom events) and M4 (TipTap editor, AR prompt gate, split -> 1.1.46).",
-  "last_session": "2026-06-24",
-  "status": "in_progress"
+  "last_session": "2026-06-25",
+  "status": "complete",
+  "completion_note": "M0–M3 shipped and passing (the rich-document workbench). M4 (TipTap rich-text solution editor) superseded the next day by SUBMIT-1, which made the solution element image-based and removed TipTap (ff7c889). Closed 2026-06-28."
 }

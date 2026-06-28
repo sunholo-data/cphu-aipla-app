@@ -2,7 +2,7 @@
   "sprint_id": "EXT-MCP",
   "created": "2026-06-26T12:33:55Z",
   "estimated_duration_days": 1,
-  "status": "completed",
+  "status": "complete",
   "design_doc": "docs/design/aipla/v1.1.0-feedback/external-host-mcp-apps.md",
   "sprint_plan": "docs/design/aipla/v1.1.0-feedback/external-host-mcp-apps-sprint.md",
   "features": [
@@ -11,7 +11,7 @@
       "description": "Public MCP transport: a dedicated frontend route to the FastMCP /mcp server that survives the trailing-slash redirect, plus a deployed Streamable-HTTP smoke script.",
       "scope": "frontend",
       "estimated_loc": 120,
-      "actual_loc": null,
+      "actual_loc": 250,
       "dependencies": [],
       "acceptance_criteria": [
         "Extract shared forwardToBackend(req, backendPath) from the catch-all proxy without changing /api/proxy/** behaviour",
@@ -30,7 +30,6 @@
       "passes": true,
       "started": "2026-06-26T14:38:00Z",
       "completed": "2026-06-26T14:40:00Z",
-      "actual_loc": 250,
       "notes": "Done. Extracted forwardToBackend() to frontend/src/lib/backendProxy.ts; catch-all refactored to use it (8 existing tests still green); /api/mcp/route.ts forwards to backend 'mcp/' (trailing slash); scripts/smoke-deployed-mcp.sh added (streamablehttp_client probe, REQUIRE_SIMS gate). 4 new route tests + 8 catch-all tests pass; quality:check:fast clean. Local-verify covered by unit tests + existing test_mcp_server.py (POSTs /mcp/ -> 200); end-to-end deployed verify is M3."
     },
     {
@@ -38,8 +37,10 @@
       "description": "Register every bridge-speaking artefact as a ui:// MCP App resource + show_<name> tool on the deployed FastMCP server, additively (skill tools unchanged). Resolve backend artefact availability.",
       "scope": "backend",
       "estimated_loc": 160,
-      "actual_loc": null,
-      "dependencies": ["M1"],
+      "actual_loc": 230,
+      "dependencies": [
+        "M1"
+      ],
       "acceptance_criteria": [
         "register_sim_apps(mcp) in backend/protocols/mcp_server.py ports the PoC discover_artefacts(): for each artefact, a FunctionResource (uri ui://aipla/<name>/<ver>, mime_type text/html;profile=mcp-app) + mcp.add_tool(show_fn, name show_<name>, meta {ui.resourceUri + visibility, openai/outputTemplate})",
         "register_sim_apps(mcp) called once from get_mcp_asgi_app() after rebuild_tools()",
@@ -56,7 +57,6 @@
       "passes": true,
       "started": "2026-06-26T14:45:00Z",
       "completed": "2026-06-26T14:52:00Z",
-      "actual_loc": 230,
       "notes": "Done. backend/protocols/sim_apps.py: discover_sims() (FS scan when present, else KNOWN_SIMS) + register_sim_apps(mcp) registers each as a FunctionResource (ui://aipla/<name>/<ver>, mime text/html;profile=mcp-app, lazy load_html) + show_<name> tool with meta {ui.resourceUri+visibility, openai/outputTemplate}. Wired into get_mcp_asgi_app() (defensive try/except). Artefact availability: FS-first (dev/CI/tests read the repo path), lazy sandbox-URL fetch in prod via MCP_SANDBOX_URL (derived from the existing _MCP_SANDBOX_URL substitution) — NO Dockerfile bake, NO git duplication, NO startup network. DEVIATION from plan: no backend/Dockerfile change; instead M3 adds MCP_SANDBOX_URL to the sidecar env in cloudbuild. Gotcha fixed: tool fn must have zero params (FastMCP turns params into inputSchema; _title default-arg rejected) -> factory closure. Test-isolation fix: extended _clean_registry autouse fixture to also clear sim tools (they register on the shared instance at app import, leaking into the rebuild_tools tool-list assertions). 4 new tests; make lint + make test-fast green (2274 passed)."
     },
     {
@@ -64,8 +64,11 @@
       "description": "Deploy to dev, verify the cloud URL with the smoke script + a live render in an external host, and update docs (design doc status, WORKSHOP/README cloud path, deployed-urls, SEQUENCE).",
       "scope": "fullstack",
       "estimated_loc": 60,
-      "actual_loc": null,
-      "dependencies": ["M1", "M2"],
+      "actual_loc": 90,
+      "dependencies": [
+        "M1",
+        "M2"
+      ],
       "acceptance_criteria": [
         "Push to dev; CI + Cloud Build green; scripts/smoke-deployed-mcp.sh dev green (initialize + sims listed + ui:// readable)",
         "Live render: <frontend-url>/api/mcp added as a ChatGPT developer-mode connector and/or MCP Inspector renders a sim as an interactive widget",
@@ -82,7 +85,6 @@
       "passes": true,
       "started": "2026-06-26T13:00:00Z",
       "completed": "2026-06-26T13:35:00Z",
-      "actual_loc": 90,
       "notes": "Done. cloudbuild: +MCP_SANDBOX_URL on the sidecar. Pushed (rebased onto an incoming deps patch). Deploy ran ~25min (ADK backend image slow) — aipla-dev-deploy check-run green. Verified deployed: REQUIRE_SIMS smoke + a direct resources/read both PASS on https://aipla-v01-frontend-wgwhd7mspa-lz.a.run.app/api/mcp (anonymous Streamable HTTP; 4 skill tools + show_boldkast/kinebot/led_planck; ui://aipla/boldkast/v1 read returns 34269 bytes text/html;profile=mcp-app with the bridge — lazy sandbox fetch works in prod). Docs updated (design Implemented + host caveat, WORKSHOP/README cloud path, deployed-urls, SEQUENCE) + memory. Live VISUAL render is host-dependent: Claude Desktop recognises the UI resource but doesn't mount the iframe (upstream claude-ai-mcp#165; the MCP Python SDK 1.27 has no MCP Apps support, our hand-rolled metadata is spec-correct); ChatGPT/Inspector are the reliable checks. Acceptance #1/#2/#4 met; #3 (visual render) host-blocked on Claude Desktop, reliable elsewhere; #5 exposure dev-only/authorised."
     }
   ],
@@ -95,7 +97,7 @@
     "actual_days": null
   },
   "github_issues": [],
-  "last_session": null,
+  "last_session": "2026-06-26",
   "last_checkpoint": null,
-  "status": "not_started"
+  "completion_note": "Stale 'not_started' — actually SHIPPED to dev 2026-06-26. All 3 milestones pass=true; commits f2fadc7 (M1 public /api/mcp), a0b7a4e (M2 ui:// MCP Apps), 6e1b50e (M3 deploy). Design doc: IMPLEMENTED (Phase 1+2). Closed 2026-06-28."
 }

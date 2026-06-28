@@ -377,8 +377,7 @@ A heavy pre-freeze push (mid-point review 26 June; M+JB freeze week 27 begins 29
 - **Onboarding** — clean-slate dev wipe + auto-seed a demo for new teachers.
 - **Thinking budget** — env-level layer ([thinking-budget-configuration.md](thinking-budget-configuration.md)); per-skill/per-turn/persona layers still Planned.
 - **Ops** — `make seed-demo-codes` (stop `aipla-demo-1` lapsing), 2 prod frontend dep patches, greet-spinner race fix.
-
-**In progress (not finished this week):** RICH-DOC — [rich-document-workbench.md](rich-document-workbench.md) (M0–M4, started 06-24).
+- **RICH-DOC — rich-document workbench** ([rich-document-workbench.md](rich-document-workbench.md), started 06-24) — M0–M3 shipped: rich parsed-doc rendering (ChatMarkdown, not a `<pre>` dump), Documents tab + activity-driven workbench shell, in-place document viewer (react-pdf page-nav/zoom/fullscreen + ACL-gated `GET /api/documents/{id}/raw`), student upload + active-file → tutor `document_ids`. **M4 (TipTap rich-text solution editor) was superseded the next day by SUBMIT-1** ([student-submission-surfaces.md](student-submission-surfaces.md)): the solution element became image-based (photo + freehand whiteboard) and TipTap was removed (`ff7c889`). Nothing outstanding.
 
 ## Cross-version updates
 

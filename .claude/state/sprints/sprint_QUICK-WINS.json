@@ -35,7 +35,9 @@
       "scope": "frontend",
       "estimated_loc": 80,
       "actual_loc": null,
-      "dependencies": ["M1"],
+      "dependencies": [
+        "M1"
+      ],
       "acceptance_criteria": [
         "Existing StaticArtefactFrame vitest tests green",
         "New vitest: two rapid v0 deltas within 300ms → one POST",
@@ -82,7 +84,9 @@
       "scope": "frontend",
       "estimated_loc": 30,
       "actual_loc": null,
-      "dependencies": ["M3"],
+      "dependencies": [
+        "M3"
+      ],
       "acceptance_criteria": [
         "Tutor message renders Volume2 button right of timestamp",
         "Click reads the message text aloud in Danish (skill default da)",
@@ -104,7 +108,10 @@
       "scope": "frontend",
       "estimated_loc": 0,
       "actual_loc": null,
-      "dependencies": ["M2", "M4"],
+      "dependencies": [
+        "M2",
+        "M4"
+      ],
       "acceptance_criteria": [
         "npm run quality:check green (lint + typecheck + tests + build)",
         "Manual: Boldkast v0 drag continuously → ≤1 chat card per 800ms idle window",
@@ -124,7 +131,9 @@
       "scope": "frontend",
       "estimated_loc": 0,
       "actual_loc": null,
-      "dependencies": ["M5"],
+      "dependencies": [
+        "M5"
+      ],
       "acceptance_criteria": [
         "PR opened against dev from feature/quick-wins-debounce-tts",
         "PR body links workbench-state-debounce.md + audio-capture-and-tts.md Part 1",
@@ -149,5 +158,6 @@
   "github_issues": [],
   "last_session": null,
   "last_checkpoint": null,
-  "status": "in_progress"
+  "status": "superseded",
+  "completion_note": "Never executed under this name — the umbrella 'quick wins' plan was SPLIT into QUICK-WINS-V11 (verbosity prompt + session TTL/archival, shipped) and VOICE-PROVIDER (TTS/STT). No commits tagged plain 'QUICK-WINS'. Closed 2026-06-28."
 }

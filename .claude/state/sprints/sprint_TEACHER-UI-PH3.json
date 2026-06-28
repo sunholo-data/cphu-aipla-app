@@ -21,9 +21,15 @@
         "Unauthed user with no in-flight auth → returns user=null, triggers redirect to /teacher/sign-in",
         "Already-authed user → returns user immediately on mount"
       ],
-      "files_to_create": ["frontend/src/hooks/useTeacherAuth.ts", "frontend/src/hooks/__tests__/useTeacherAuth.test.tsx"],
+      "files_to_create": [
+        "frontend/src/hooks/useTeacherAuth.ts",
+        "frontend/src/hooks/__tests__/useTeacherAuth.test.tsx"
+      ],
       "files_to_modify": [],
-      "passes": null, "started": null, "completed": null, "notes": null
+      "passes": null,
+      "started": null,
+      "completed": null,
+      "notes": null
     },
     {
       "id": "M2",
@@ -31,16 +37,24 @@
       "scope": "frontend",
       "estimated_loc": 160,
       "actual_loc": null,
-      "dependencies": ["M1"],
+      "dependencies": [
+        "M1"
+      ],
       "acceptance_criteria": [
         "Page renders a Google sign-in button (lucide-react icon, no emoji)",
         "Click triggers signInWithRedirect(auth, new GoogleAuthProvider())",
         "On successful redirect-return, lands at /teacher/classes",
         "Error handling for popup-blocked / network-failure with retry"
       ],
-      "files_to_create": ["frontend/src/app/teacher/sign-in/page.tsx", "frontend/src/app/teacher/sign-in/__tests__/page.test.tsx"],
+      "files_to_create": [
+        "frontend/src/app/teacher/sign-in/page.tsx",
+        "frontend/src/app/teacher/sign-in/__tests__/page.test.tsx"
+      ],
       "files_to_modify": [],
-      "passes": null, "started": null, "completed": null, "notes": "Document Firebase console OAuth redirect URI prerequisite in the M2 commit message."
+      "passes": null,
+      "started": null,
+      "completed": null,
+      "notes": "Document Firebase console OAuth redirect URI prerequisite in the M2 commit message."
     },
     {
       "id": "M3",
@@ -48,7 +62,9 @@
       "scope": "frontend",
       "estimated_loc": 200,
       "actual_loc": null,
-      "dependencies": ["M2"],
+      "dependencies": [
+        "M2"
+      ],
       "acceptance_criteria": [
         "AuthContext exposes both firebaseUser and groupAuth state",
         "fetchWithAuth attaches Firebase token to /api/classes/* and /api/teacher/* paths",
@@ -56,8 +72,15 @@
         "Existing /group + /chat/* flows unaffected (regression tests)"
       ],
       "files_to_create": [],
-      "files_to_modify": ["frontend/src/contexts/AuthContext.tsx", "frontend/src/contexts/__tests__/AuthContext.test.tsx", "frontend/src/lib/apiClient.ts"],
-      "passes": null, "started": null, "completed": null, "notes": null
+      "files_to_modify": [
+        "frontend/src/contexts/AuthContext.tsx",
+        "frontend/src/contexts/__tests__/AuthContext.test.tsx",
+        "frontend/src/lib/apiClient.ts"
+      ],
+      "passes": null,
+      "started": null,
+      "completed": null,
+      "notes": null
     },
     {
       "id": "M4",
@@ -65,16 +88,23 @@
       "scope": "frontend",
       "estimated_loc": 100,
       "actual_loc": null,
-      "dependencies": ["M3"],
+      "dependencies": [
+        "M3"
+      ],
       "acceptance_criteria": [
         "/teacher/classes unauthed → redirects to /teacher/sign-in",
         "/teacher/classes/<id> unauthed → redirects to /teacher/sign-in (preserves return path)",
         "LOCAL_MODE: workshop-user stub still works for /teacher/* (is_teacher=true per 1.A M3)",
         "Production: unauthed user cannot view any /teacher/* page"
       ],
-      "files_to_create": ["frontend/src/app/teacher/layout.tsx"],
+      "files_to_create": [
+        "frontend/src/app/teacher/layout.tsx"
+      ],
       "files_to_modify": [],
-      "passes": null, "started": null, "completed": null, "notes": "If a layout.tsx already exists for /teacher, modify rather than create."
+      "passes": null,
+      "started": null,
+      "completed": null,
+      "notes": "If a layout.tsx already exists for /teacher, modify rather than create."
     },
     {
       "id": "M5",
@@ -82,7 +112,9 @@
       "scope": "frontend",
       "estimated_loc": 250,
       "actual_loc": null,
-      "dependencies": ["M4"],
+      "dependencies": [
+        "M4"
+      ],
       "acceptance_criteria": [
         "Reports page: dropdown lists all teacher's classes; selecting one filters sessions to that class's group codes",
         "Analytics page: same dropdown; chat skill receives class context in its prompt",
@@ -90,8 +122,14 @@
         "Default: 'All classes' selected on first load"
       ],
       "files_to_create": [],
-      "files_to_modify": ["frontend/src/app/teacher/reports/page.tsx", "frontend/src/app/teacher/analytics/page.tsx"],
-      "passes": null, "started": null, "completed": null, "notes": null
+      "files_to_modify": [
+        "frontend/src/app/teacher/reports/page.tsx",
+        "frontend/src/app/teacher/analytics/page.tsx"
+      ],
+      "passes": null,
+      "started": null,
+      "completed": null,
+      "notes": null
     },
     {
       "id": "M6",
@@ -106,9 +144,17 @@
         "GET /api/skills as anon-group student excludes analytics-chat",
         "Skill prompt scaffolds the teacher Q&A flow (3+ suggested-question patterns)"
       ],
-      "files_to_create": ["backend/skills/templates/analytics-chat/SKILL.md", "backend/tests/unit/test_analytics_chat_skill.py"],
-      "files_to_modify": ["backend/admin/platform_seed.py"],
-      "passes": null, "started": null, "completed": null, "notes": "M6 has no dependency on M1-M5; could parallelize."
+      "files_to_create": [
+        "backend/skills/templates/analytics-chat/SKILL.md",
+        "backend/tests/unit/test_analytics_chat_skill.py"
+      ],
+      "files_to_modify": [
+        "backend/admin/platform_seed.py"
+      ],
+      "passes": null,
+      "started": null,
+      "completed": null,
+      "notes": "M6 has no dependency on M1-M5; could parallelize."
     },
     {
       "id": "M7",
@@ -116,7 +162,9 @@
       "scope": "fullstack",
       "estimated_loc": 280,
       "actual_loc": null,
-      "dependencies": ["M3"],
+      "dependencies": [
+        "M3"
+      ],
       "acceptance_criteria": [
         "Student session-end shows a small 'Send summary to teacher?' toggle (default off)",
         "Flipping it POSTs to backend; ChatSessionIndex carries the optInShared flag",
@@ -130,7 +178,10 @@
         "backend/protocols/sessions_route.py",
         "backend/db/models/chat_session.py"
       ],
-      "passes": null, "started": null, "completed": null, "notes": null
+      "passes": null,
+      "started": null,
+      "completed": null,
+      "notes": null
     },
     {
       "id": "M8",
@@ -138,15 +189,22 @@
       "scope": "fullstack",
       "estimated_loc": 80,
       "actual_loc": null,
-      "dependencies": ["M4"],
+      "dependencies": [
+        "M4"
+      ],
       "acceptance_criteria": [
         "scripts/smoke-v1-teacher-cli.sh runs the full lifecycle (create → list → lessons → mint group → delete)",
         "Exits 0 on success",
         "Documents the aiplatform auth login step required for Firebase token acquisition"
       ],
-      "files_to_create": ["scripts/smoke-v1-teacher-cli.sh"],
+      "files_to_create": [
+        "scripts/smoke-v1-teacher-cli.sh"
+      ],
       "files_to_modify": [],
-      "passes": null, "started": null, "completed": null, "notes": null
+      "passes": null,
+      "started": null,
+      "completed": null,
+      "notes": null
     },
     {
       "id": "M9",
@@ -154,7 +212,12 @@
       "scope": "fullstack",
       "estimated_loc": 60,
       "actual_loc": null,
-      "dependencies": ["M5", "M6", "M7", "M8"],
+      "dependencies": [
+        "M5",
+        "M6",
+        "M7",
+        "M8"
+      ],
       "acceptance_criteria": [
         "cd backend && make test-fast green (no regression)",
         "cd frontend && npm run quality:check green",
@@ -164,7 +227,10 @@
       ],
       "files_to_create": [],
       "files_to_modify": [],
-      "passes": null, "started": null, "completed": null, "notes": null
+      "passes": null,
+      "started": null,
+      "completed": null,
+      "notes": null
     }
   ],
   "velocity": {
@@ -178,7 +244,8 @@
   "github_issues": [],
   "last_session": null,
   "last_checkpoint": null,
-  "status": "planned",
+  "status": "complete",
   "queue_position": 2,
-  "queue_rationale": "Consumes 1.A backend (Class entity + is_teacher gate, both shipped). Runs AFTER the 3 June Phase 2 demo since Phase 2 already works on LOCAL_MODE. Bigger sprint (~2-2.5d). M6 (analytics-chat skill) is parallelizable with M1-M5."
+  "queue_rationale": "Consumes 1.A backend (Class entity + is_teacher gate, both shipped). Runs AFTER the 3 June Phase 2 demo since Phase 2 already works on LOCAL_MODE. Bigger sprint (~2-2.5d). M6 (analytics-chat skill) is parallelizable with M1-M5.",
+  "completion_note": "SHIPPED — close-out commit 4db2dd1 moved the sprint to implemented/ with shipped status. M1-M4 + M6-M9 landed; M5 (multi-class dropdown) deliberately skipped (per-class detail view replaced it); M6 analytics-chat wiring shipped via ANALYTICS-CHAT-AND-INSIGHTS. Milestone passes left null (untracked). Closed 2026-06-28."
 }

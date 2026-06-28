@@ -17,10 +17,10 @@
       ],
       "files_to_create": [],
       "files_to_modify": [],
-      "passes": null,
+      "passes": "deferred",
       "started": null,
       "completed": null,
-      "notes": null
+      "notes": " [DEFERRED 2026-06-28: not built. GenericArtefactFrame pushes state OUT (useSimSnapshotPush) but has no restore/rehydrate path posting prior mcp_app_context state back INTO the iframe on mount. Sims work; they just don't restore prior state on reload. Carry-forward enhancement, non-blocking.]"
     },
     {
       "id": "A1-boldkast",
@@ -133,10 +133,10 @@
       ],
       "files_to_create": [],
       "files_to_modify": [],
-      "passes": null,
+      "passes": true,
       "started": null,
-      "completed": null,
-      "notes": null
+      "completed": "2026-06-25",
+      "notes": " [SHIPPED: commit 7c13d78 deleted the legacy slug-driven path; SIM_WORKSPACE_SLUGS removed (only a tombstone comment remains in workspaceContent.ts); regression fixed in 0fa754f. Marked true 2026-06-28.]"
     }
   ],
   "velocity": {
@@ -148,7 +148,8 @@
     "actual_days": null
   },
   "github_issues": [],
-  "last_session": null,
+  "last_session": "2026-06-25",
   "last_checkpoint": "M1 applied to dev; M2 dispatch + LED table + KineBot tabs done; verifying on dev before M3 delete",
-  "status": "in_progress"
+  "status": "complete",
+  "completion_note": "Headline goal SHIPPED — sim rendering unified onto one artefact render path (M1 backfill, M2 dispatch, A1 self-contained LED/KineBot/Boldkast, M3 legacy-path delete all landed; commits 7f79ab6, d73daf5, 7c13d78 + fixes 7983b0e, 0fa754f). ONE deferred enhancement: A0-rehydrate (post prior artefact state into the iframe on mount) was never built — flagged as a non-blocking carry-forward. Closed 2026-06-28."
 }

@@ -42,13 +42,17 @@
       "scope": "backend",
       "estimated_loc": 0,
       "actual_loc": 0,
-      "dependencies": ["M0"],
+      "dependencies": [
+        "M0"
+      ],
       "acceptance_criteria": [
         "Recon notes recorded in sprint plan ## Recon findings section",
         "Decision made: proceed with provider impl OR escalate if API surface materially different"
       ],
       "files_to_create": [],
-      "files_to_modify": ["docs/design/aipla/v1.1.0-feedback/voice-provider-abstraction-sprint.md (Recon findings section)"],
+      "files_to_modify": [
+        "docs/design/aipla/v1.1.0-feedback/voice-provider-abstraction-sprint.md (Recon findings section)"
+      ],
       "passes": true,
       "started": "2026-06-03T17:40:00Z",
       "completed": "2026-06-03T17:45:00Z",
@@ -60,7 +64,9 @@
       "scope": "backend",
       "estimated_loc": 260,
       "actual_loc": 280,
-      "dependencies": ["M-A1"],
+      "dependencies": [
+        "M-A1"
+      ],
       "acceptance_criteria": [
         "backend/voice/base.py defines TTSProvider, STTProvider Protocols + VoiceCapabilities TypedDict",
         "backend/voice/registry.py implements get_tts() and get_stt() with SkillConfig > env > default resolution",
@@ -93,7 +99,10 @@
       "scope": "backend",
       "estimated_loc": 140,
       "actual_loc": 320,
-      "dependencies": ["M-A2", "M0"],
+      "dependencies": [
+        "M-A2",
+        "M0"
+      ],
       "acceptance_criteria": [
         "backend/voice/cache.py implements key derivation + lookup + write",
         "Key = sha256(provider + voice + lang + rate + text)",
@@ -124,7 +133,9 @@
       "scope": "backend",
       "estimated_loc": 270,
       "actual_loc": 540,
-      "dependencies": ["M-A3"],
+      "dependencies": [
+        "M-A3"
+      ],
       "acceptance_criteria": [
         "google-cloud-texttospeech 2.36.0 added to backend deps",
         "backend/voice/providers/browser.py shipped in M-A2 (pulled forward)",
@@ -159,7 +170,9 @@
       "scope": "backend",
       "estimated_loc": 280,
       "actual_loc": 440,
-      "dependencies": ["M-A4"],
+      "dependencies": [
+        "M-A4"
+      ],
       "acceptance_criteria": [
         "backend/protocols/voice_routes.py implements GET /api/voice/config, POST /api/voice/tts/synthesize, and stubs POST /api/voice/stt/transcribe with 501",
         "backend/voice/cost.py provides tier->price table for cost estimate",
@@ -192,7 +205,9 @@
       "scope": "backend",
       "estimated_loc": 90,
       "actual_loc": 130,
-      "dependencies": ["M-A5"],
+      "dependencies": [
+        "M-A5"
+      ],
       "acceptance_criteria": [
         "SkillVoiceConfig Pydantic class defined with tts_provider, tts_voice, stt_provider, rate fields",
         "SkillConfig has optional voice: SkillVoiceConfig field",
@@ -213,11 +228,16 @@
       "started": "2026-06-03T19:15:00Z",
       "completed": "2026-06-03T19:30:00Z",
       "notes": "9 SkillVoiceConfig tests added (1749 -> 1758). Skipped backend/skills/routes.py DTO edit — voice config flows through /api/voice/config, not through skill metadata GET, by design. Skipped skill_processor.py / platform_seed.py edits because Pydantic's populate_by_name=True + nested model resolution already parses voice: {ttsProvider: ...} blocks from frontmatter via the existing skill-loader path. Also normalized backend.voice.* imports to voice.* throughout the package to match the rest of the codebase's import style (fixed isinstance() comparison failures from duplicate-module-load)."
+    },
+    {
+      "id": "M-A7",
       "description": "useVoiceConfig hook + ReadAloudButton Cloud TTS path + MessageBubble wiring + vitest",
       "scope": "frontend",
       "estimated_loc": 180,
       "actual_loc": null,
-      "dependencies": ["M-A5"],
+      "dependencies": [
+        "M-A5"
+      ],
       "acceptance_criteria": [
         "frontend/src/hooks/useVoiceConfig.ts fetches GET /api/voice/config per skill_id with client cache",
         "ReadAloudButton accepts provider + voice props",
@@ -248,7 +268,9 @@
       "scope": "frontend",
       "estimated_loc": 245,
       "actual_loc": null,
-      "dependencies": ["M-A7"],
+      "dependencies": [
+        "M-A7"
+      ],
       "acceptance_criteria": [
         "useAutoReadAloud persists toggle to localStorage under aipla.voice.auto_read",
         "Hook listens for AG-UI RUN_FINISHED events and fires imperative speak on last assistant message when toggle ON",
@@ -274,9 +296,9 @@
         "frontend/src/components/chat/MessageBubble.tsx (forwardRef speak handle)",
         "frontend/src/components/chat/ChatInput.tsx (emit voice.cancel on type-start)"
       ],
-      "passes": null,
+      "passes": true,
       "started": null,
-      "completed": null,
+      "completed": "2026-06-03",
       "notes": null
     },
     {
@@ -285,11 +307,13 @@
       "scope": "fullstack",
       "estimated_loc": 0,
       "actual_loc": 0,
-      "dependencies": ["M-A7b"],
+      "dependencies": [
+        "M-A7b"
+      ],
       "passes": true,
-      "started": "2026-06-03T20:10:00Z",
-      "completed": "2026-06-03T20:15:00Z",
-      "notes": "Pushed origin/dev 2d20fc5..1fbdbde (9 voice commits + 1 unrelated proactive fix). Cloud Build trigger picks up push to dev for auto-deploy. Manual acceptance happens in dev once deploy lands — M to verify Cloud TTS Danish voice, auto-read toggle, barge-in, proactive-turn auto-read, cache hit on second play. Phase A done; Phase B (STT + dictation + teacher toggle) deferred to a follow-up session per the sprint plan's pause point between phases.",
+      "started": null,
+      "completed": "2026-06-03",
+      "notes": null,
       "acceptance_criteria": [
         "Manual: read-aloud plays Cloud TTS Danish in concept-dialogue-config",
         "Manual: click again stops mid-utterance",
@@ -304,11 +328,7 @@
         "git push origin dev succeeds"
       ],
       "files_to_create": [],
-      "files_to_modify": [],
-      "passes": null,
-      "started": null,
-      "completed": null,
-      "notes": null
+      "files_to_modify": []
     },
     {
       "id": "M-B1",
@@ -316,17 +336,21 @@
       "scope": "backend",
       "estimated_loc": 0,
       "actual_loc": null,
-      "dependencies": ["M-A8"],
+      "dependencies": [
+        "M-A8"
+      ],
       "acceptance_criteria": [
         "Recon notes recorded in sprint plan ## Recon findings section (M-B1 subsection)",
         "Audio format path confirmed: MediaRecorder webm/opus -> bytes -> recognize() with WEBM_OPUS, no transcoding"
       ],
       "files_to_create": [],
-      "files_to_modify": ["docs/design/aipla/v1.1.0-feedback/voice-provider-abstraction-sprint.md"],
-      "passes": null,
+      "files_to_modify": [
+        "docs/design/aipla/v1.1.0-feedback/voice-provider-abstraction-sprint.md"
+      ],
+      "passes": "superseded",
       "started": null,
       "completed": null,
-      "notes": null
+      "notes": " [SUPERSEDED 2026-06-28: Phase B Cloud STT (google-cloud-speech) was reimplemented on Gemini under sprint RAQ-1 (23ca548) and Cloud STT was explicitly removed (54ca64b). This milestone never shipped as specced.]"
     },
     {
       "id": "M-B2",
@@ -334,7 +358,9 @@
       "scope": "backend",
       "estimated_loc": 160,
       "actual_loc": null,
-      "dependencies": ["M-B1"],
+      "dependencies": [
+        "M-B1"
+      ],
       "acceptance_criteria": [
         "google-cloud-speech added to backend deps (if missing)",
         "backend/voice/providers/gcp_stt.py wraps SpeechClient with latest_long da-DK + WEBM_OPUS",
@@ -350,10 +376,10 @@
       "files_to_modify": [
         "backend/pyproject.toml"
       ],
-      "passes": null,
+      "passes": "superseded",
       "started": null,
       "completed": null,
-      "notes": null
+      "notes": " [SUPERSEDED 2026-06-28: Phase B Cloud STT (google-cloud-speech) was reimplemented on Gemini under sprint RAQ-1 (23ca548) and Cloud STT was explicitly removed (54ca64b). This milestone never shipped as specced.]"
     },
     {
       "id": "M-B3",
@@ -361,7 +387,9 @@
       "scope": "backend",
       "estimated_loc": 170,
       "actual_loc": null,
-      "dependencies": ["M-B2"],
+      "dependencies": [
+        "M-B2"
+      ],
       "acceptance_criteria": [
         "scripts/spike_stt.py round-trips M-A4 WaveNet output back into STT, asserts transcript match",
         "POST /api/voice/stt/transcribe implemented with multipart parser",
@@ -381,10 +409,10 @@
         "backend/protocols/voice_routes.py",
         "backend/tests/api_tests/test_voice_routes.py"
       ],
-      "passes": null,
+      "passes": "superseded",
       "started": null,
       "completed": null,
-      "notes": null
+      "notes": " [SUPERSEDED 2026-06-28: Phase B Cloud STT (google-cloud-speech) was reimplemented on Gemini under sprint RAQ-1 (23ca548) and Cloud STT was explicitly removed (54ca64b). This milestone never shipped as specced.]"
     },
     {
       "id": "M-B4",
@@ -392,7 +420,10 @@
       "scope": "frontend",
       "estimated_loc": 250,
       "actual_loc": null,
-      "dependencies": ["M-B3", "M-A7"],
+      "dependencies": [
+        "M-B3",
+        "M-A7"
+      ],
       "acceptance_criteria": [
         "DictateButton.tsx implements 4 designed states (idle/recording/transcribing/error)",
         "Lucide Mic/MicOff icons; recording shows pulsing red dot + timer badge",
@@ -412,10 +443,10 @@
       "files_to_modify": [
         "frontend/src/components/chat/ChatInput.tsx"
       ],
-      "passes": null,
+      "passes": "superseded",
       "started": null,
       "completed": null,
-      "notes": null
+      "notes": " [SUPERSEDED 2026-06-28: Phase B Cloud STT (google-cloud-speech) was reimplemented on Gemini under sprint RAQ-1 (23ca548) and Cloud STT was explicitly removed (54ca64b). This milestone never shipped as specced.]"
     },
     {
       "id": "M-B5",
@@ -423,7 +454,9 @@
       "scope": "fullstack",
       "estimated_loc": 200,
       "actual_loc": null,
-      "dependencies": ["M-B4"],
+      "dependencies": [
+        "M-B4"
+      ],
       "acceptance_criteria": [
         "backend class_settings model has voice_stt_enabled: bool = False + voice_tts_provider: str | None = None",
         "GET /api/voice/config consults class settings for the requesting student's class, overrides registry defaults",
@@ -441,10 +474,10 @@
         "backend/protocols/voice_routes.py",
         "frontend/src/components/chat/ChatInput.tsx"
       ],
-      "passes": null,
+      "passes": "superseded",
       "started": null,
       "completed": null,
-      "notes": null
+      "notes": " [SUPERSEDED 2026-06-28: Phase B Cloud STT (google-cloud-speech) was reimplemented on Gemini under sprint RAQ-1 (23ca548) and Cloud STT was explicitly removed (54ca64b). This milestone never shipped as specced.]"
     },
     {
       "id": "M-B6",
@@ -452,7 +485,9 @@
       "scope": "fullstack",
       "estimated_loc": 140,
       "actual_loc": null,
-      "dependencies": ["M-B3"],
+      "dependencies": [
+        "M-B3"
+      ],
       "acceptance_criteria": [
         "aiplatform voice list-providers fetches GET /api/voice/config and prints providers + capabilities",
         "aiplatform voice spike <text> --lang da [--provider X] [--voice Y] [--out PATH] writes audio file",
@@ -469,10 +504,10 @@
       "files_to_modify": [
         "cli/aiplatform/__init__.py (register subcommand if needed)"
       ],
-      "passes": null,
+      "passes": "superseded",
       "started": null,
       "completed": null,
-      "notes": null
+      "notes": " [SUPERSEDED 2026-06-28: Phase B Cloud STT (google-cloud-speech) was reimplemented on Gemini under sprint RAQ-1 (23ca548) and Cloud STT was explicitly removed (54ca64b). This milestone never shipped as specced.]"
     },
     {
       "id": "M-B7",
@@ -480,7 +515,10 @@
       "scope": "ops",
       "estimated_loc": 150,
       "actual_loc": null,
-      "dependencies": ["M-B5", "M-B6"],
+      "dependencies": [
+        "M-B5",
+        "M-B6"
+      ],
       "acceptance_criteria": [
         "docs/ops/voice-providers-runbook.md documents provider config matrix, swap procedure, cost queries, troubleshooting",
         "docs/ops/gcp-side-effects.md records all M0 grants for Terraform export to test/prod",
@@ -501,10 +539,10 @@
         "docs/ops/gcp-side-effects.md (if exists; else created in M0)",
         "docs/design/aipla/v1.1.0-feedback/cost-dashboard.md"
       ],
-      "passes": null,
+      "passes": "superseded",
       "started": null,
       "completed": null,
-      "notes": null
+      "notes": " [SUPERSEDED 2026-06-28: Phase B Cloud STT (google-cloud-speech) was reimplemented on Gemini under sprint RAQ-1 (23ca548) and Cloud STT was explicitly removed (54ca64b). This milestone never shipped as specced.]"
     }
   ],
   "velocity": {
@@ -516,7 +554,8 @@
     "actual_days": null
   },
   "github_issues": [],
-  "last_session": "2026-06-03T18:55:00Z",
+  "last_session": "2026-06-03T20:10:00Z",
   "last_checkpoint": "M-A4",
-  "status": "in_progress"
+  "status": "complete",
+  "completion_note": "Phase A (TTS) FULLY shipped 2026-06-03 — M0..M-A8, incl M-A7b auto-read (1fbdbde) and M-A8 push-to-dev (2f6120b). Phase B (Cloud STT) SUPERSEDED: STT reimplemented on Gemini under RAQ-1 (23ca548) and Cloud STT removed (54ca64b). Closed 2026-06-28."
 }

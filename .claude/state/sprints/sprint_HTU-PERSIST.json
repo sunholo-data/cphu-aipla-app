@@ -10,7 +10,7 @@
       "description": "Persist client label on the iframe-context event + surface a parallel interactions[] on GET /messages, derived from the already-persisted mcp_app_context.* state_delta events. _events_to_messages stays text-only and unchanged.",
       "scope": "backend",
       "estimated_loc": 165,
-      "actual_loc": null,
+      "actual_loc": 175,
       "dependencies": [],
       "acceptance_criteria": [
         "GET /messages returns interactions[] ordered by timestamp with correct labels for persisted sim interactions",
@@ -29,16 +29,17 @@
       "passes": true,
       "started": "2026-06-16",
       "completed": "2026-06-16",
-      "notes": "Committed 03b0b66. _events_to_interactions + InteractionEvent model + label persistence; 2009 backend tests green, lint clean. _events_to_messages byte-identical (regression test).",
-      "actual_loc": 175
+      "notes": "Committed 03b0b66. _events_to_interactions + InteractionEvent model + label persistence; 2009 backend tests green, lint clean. _events_to_messages byte-identical (regression test)."
     },
     {
       "id": "M2-frontend-restore",
       "description": "Thread the client-computed pushedLabel into the iframe-context POST body; parse interactions[] in useSessionMessages and map timestamp->afterMessageIndex; seed useHumanToolEvents with read-only confirmed cards on restore; read-only HumanToolUseCard variant. Live dispatch path untouched.",
       "scope": "frontend",
       "estimated_loc": 155,
-      "actual_loc": null,
-      "dependencies": ["M1-backend-read-label"],
+      "actual_loc": 192,
+      "dependencies": [
+        "M1-backend-read-label"
+      ],
       "acceptance_criteria": [
         "Reloading a session with sim interactions renders each as a read-only card in original order, before the tutor's reaction",
         "Live dispatch still flows pending -> confirmed/failed for fresh interactions; restored ids never collide (htu-restored- namespace)",
@@ -60,8 +61,7 @@
       "passes": true,
       "started": "2026-06-16",
       "completed": "2026-06-16",
-      "notes": "Committed cf5c620. Label threaded into push body (3 sim hooks); useSessionMessages maps interactions->restored-history index space; useHumanToolEvents.seed() read-only confirmed cards + useSeedRestoredInteractions; ChatMessageList interleaves in history loop (separate index space). confirmed status IS the read-only variant (no card change). 1099 FE tests + build green, lint+typecheck clean.",
-      "actual_loc": 192
+      "notes": "Committed cf5c620. Label threaded into push body (3 sim hooks); useSessionMessages maps interactions->restored-history index space; useHumanToolEvents.seed() read-only confirmed cards + useSeedRestoredInteractions; ChatMessageList interleaves in history loop (separate index space). confirmed status IS the read-only variant (no card change). 1099 FE tests + build green, lint+typecheck clean."
     },
     {
       "id": "M3-verify-live",
@@ -70,7 +70,10 @@
       "scope": "fullstack",
       "estimated_loc": 0,
       "actual_loc": null,
-      "dependencies": ["M1-backend-read-label", "M2-frontend-restore"],
+      "dependencies": [
+        "M1-backend-read-label",
+        "M2-frontend-restore"
+      ],
       "acceptance_criteria": [
         "All five manual reload scenarios pass on the deployed dev service",
         "No regression to the live card lifecycle",
@@ -95,5 +98,6 @@
   "github_issues": [],
   "last_session": "2026-06-16",
   "last_checkpoint": "M1 + M2 complete and committed (03b0b66, cf5c620); local CI parity green both sides. M3 (deploy + live verify) pending a push-to-dev decision.",
-  "status": "in_progress"
+  "status": "complete",
+  "completion_note": "M1+M2 complete (03b0b66, cf5c620); M3 deployed + handed off for live verify 2026-06-16 (4c4da88, 72f46df). Closed 2026-06-28."
 }
