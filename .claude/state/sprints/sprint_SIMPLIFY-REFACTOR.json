@@ -40,10 +40,10 @@
       ],
       "files_to_create": ["backend/auth/require_teacher.py"],
       "files_to_modify": ["backend/fast_api_app.py", "backend/app.py", "backend/protocols/classes_routes.py", "backend/protocols/activity_routes.py", "backend/protocols/voice_routes.py", "backend/protocols/recording_routes.py", "backend/db/firestore.py", "backend/db/classes.py"],
-      "passes": null,
-      "started": null,
-      "completed": null,
-      "notes": "Low-Med. B2 is auth-sensitive: T3 must stay green. B9 touches query plumbing: keep firestore/query tests green."
+      "passes": true,
+      "started": "2026-06-29",
+      "completed": "2026-06-29 (partial — B9/B10 deferred, see notes)",
+      "notes": "SHIPPED 2026-06-29: B2 shared assert_teacher guard (7382231, netted by T3), B4 aitana->aipla startup-guard prefix (b3a5dce), B6 recording_routes uses shared get_class_for_group dropping 3 inline copies (d164927). DEFERRED: B9 __id sentinel — the audit mis-sized it as 'S effort/4 callers'; query_documents has ~35 call sites and __id is read/popped in ~25+ more (db/tools/adk/scripts/reports/onboarding) + many test fixtures = a 60+ site load-bearing change, NOT a quick win. Needs its own netted refactor. B10 collection-name constants — cosmetic/L-impact; the main anon_groups duplication was already reduced by B6. NOTE: full make test-fast shows 4 PRE-EXISTING flakes (test_auth_whoami + test_tenant_attribution) — a global OTel meter-provider->localhost:1957 leak across tests; confirmed identical at pre-M2 commit c6c5f6d, NOT caused by M2. Worth a separate fix."
     },
     {
       "id": "M3-F2-ELEMENT-TYPES",
@@ -195,6 +195,6 @@
   },
   "github_issues": [],
   "last_session": "2026-06-29",
-  "last_checkpoint": "M1 shipped (F4+F3+useToast); EmptyState pre-existing; AlertBox/SessionRow/ExportButton deferred. M2 next.",
+  "last_checkpoint": "M1 shipped (F4+F3+useToast). M2 shipped (B2+B4+B6); B9 deferred (60+ site load-bearing change, mis-sized by audit), B10 deferred (cosmetic). 4 pre-existing OTel test flakes noted (not M2). M3 (F2 element-type unification) next.",
   "status": "in_progress"
 }
