@@ -39,17 +39,7 @@ import { TeacherPage } from "@/components/teacher/ui/TeacherPage";
 import { handleExportSessions } from "./_exportHelpers";
 import { ClassAnalyticsCopilot } from "./_ClassAnalyticsCopilot";
 import { LiveClassView } from "./_LiveClassView";
-
-function relativeTime(iso: string): string {
-  const diff = Date.now() - new Date(iso).getTime();
-  const mins = Math.floor(diff / 60_000);
-  if (mins < 1) return "just now";
-  if (mins < 60) return `${mins} min ago`;
-  const hrs = Math.floor(mins / 60);
-  if (hrs < 24) return `${hrs} hr ago`;
-  const days = Math.floor(hrs / 24);
-  return days === 1 ? "yesterday" : `${days} days ago`;
-}
+import { formatRelativeTime } from "@/lib/relativeTime";
 
 export default function TeacherClassDetailPage() {
   const params = useParams();
@@ -329,7 +319,7 @@ export default function TeacherClassDetailPage() {
                     </code>
                     {latest ? (
                       <span className="text-xs text-muted-foreground">
-                        Last active {relativeTime(latest.lastMessageAt)} · {latest.turnCount} turn{latest.turnCount === 1 ? "" : "s"}
+                        Last active {formatRelativeTime(latest.lastMessageAt)} · {latest.turnCount} turn{latest.turnCount === 1 ? "" : "s"}
                         {latest.title ? ` · ${latest.title}` : ""}
                       </span>
                     ) : (
@@ -581,7 +571,7 @@ export default function TeacherClassDetailPage() {
                         {row.title ?? skillNameById.get(row.skillId) ?? row.skillId}
                       </span>
                       <span className="text-xs text-muted-foreground">
-                        {row.turnCount} turn{row.turnCount === 1 ? "" : "s"} · {relativeTime(row.lastMessageAt)}
+                        {row.turnCount} turn{row.turnCount === 1 ? "" : "s"} · {formatRelativeTime(row.lastMessageAt)}
                       </span>
                     </div>
                     <span className="flex shrink-0 items-center gap-1 text-xs font-medium text-muted-foreground">
@@ -601,7 +591,7 @@ export default function TeacherClassDetailPage() {
                       {row.title ?? skillNameById.get(row.skillId) ?? row.skillId}
                     </span>
                     <span className="text-xs text-muted-foreground">
-                      {row.turnCount} turn{row.turnCount === 1 ? "" : "s"} · {relativeTime(row.lastMessageAt)}
+                      {row.turnCount} turn{row.turnCount === 1 ? "" : "s"} · {formatRelativeTime(row.lastMessageAt)}
                     </span>
                   </div>
                 </li>

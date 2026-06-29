@@ -42,18 +42,7 @@ import {
 import { CrossClassTable } from "@/components/teacher/insights/CrossClassTable";
 import { useIsResearcher } from "@/hooks/useIsResearcher";
 import { ManageClassCopilot } from "./_ManageClassCopilot";
-
-
-function relativeTime(iso: string): string {
-  const diff = Date.now() - new Date(iso).getTime();
-  const mins = Math.floor(diff / 60_000);
-  if (mins < 1) return "just now";
-  if (mins < 60) return `${mins} min ago`;
-  const hrs = Math.floor(mins / 60);
-  if (hrs < 24) return `${hrs} hr ago`;
-  const days = Math.floor(hrs / 24);
-  return days === 1 ? "yesterday" : `${days} days ago`;
-}
+import { formatRelativeTime } from "@/lib/relativeTime";
 
 export default function TeacherClassesPage() {
   const [classes, setClasses] = useState<ClassPayload[] | null>(null);
@@ -508,7 +497,7 @@ export default function TeacherClassesPage() {
                 label="Last activity"
                 value={
                   insightsTotals.lastActivity
-                    ? relativeTime(insightsTotals.lastActivity)
+                    ? formatRelativeTime(insightsTotals.lastActivity)
                     : "none"
                 }
               />
@@ -568,7 +557,7 @@ export default function TeacherClassesPage() {
                         {label}
                       </span>
                       <span className="text-xs text-muted-foreground">
-                        {row.turnCount} turn{row.turnCount === 1 ? "" : "s"} · {relativeTime(row.lastMessageAt)}
+                        {row.turnCount} turn{row.turnCount === 1 ? "" : "s"} · {formatRelativeTime(row.lastMessageAt)}
                       </span>
                     </div>
                     <span className="flex shrink-0 items-center gap-1 text-xs font-medium text-muted-foreground">
@@ -588,7 +577,7 @@ export default function TeacherClassesPage() {
                       {label}
                     </span>
                     <span className="text-xs text-muted-foreground">
-                      {row.turnCount} turn{row.turnCount === 1 ? "" : "s"} · {relativeTime(row.lastMessageAt)}
+                      {row.turnCount} turn{row.turnCount === 1 ? "" : "s"} · {formatRelativeTime(row.lastMessageAt)}
                     </span>
                   </div>
                 </li>

@@ -5,6 +5,7 @@ import { type SessionFilter, useDocumentSessions } from "@/hooks/useDocumentSess
 import type { ChatSessionSummary } from "@/hooks/useDocumentSessions";
 import { fetchWithAuth } from "@/lib/apiClient";
 import { notifySessionsChanged } from "@/lib/sessionEvents";
+import { formatRelativeTimeCompact } from "@/lib/relativeTime";
 
 export interface DocumentHistoryPanelProps {
   documentId: string;
@@ -16,15 +17,6 @@ export interface DocumentHistoryPanelProps {
    * the parent clear the URL ?session= so the chat surface resets to
    * a fresh state (same code path as "+ New conversation"). */
   onDeleteActive?: () => void;
-}
-
-function relativeTime(iso: string): string {
-  const diff = Date.now() - new Date(iso).getTime();
-  const mins = Math.floor(diff / 60_000);
-  if (mins < 60) return `${mins}m ago`;
-  const hrs = Math.floor(mins / 60);
-  if (hrs < 24) return `${hrs}h ago`;
-  return `${Math.floor(hrs / 24)}d ago`;
 }
 
 interface SessionRowProps {
@@ -40,7 +32,7 @@ interface SessionRowProps {
 
 function SessionRow({ session, isActive, isOwner, onClick, onRename, onDelete }: SessionRowProps) {
   const initialTitle = session.title ?? "Untitled conversation";
-  const time = relativeTime(session.last_message_at);
+  const time = formatRelativeTimeCompact(session.last_message_at);
   const [isEditing, setIsEditing] = useState(false);
   const [draft, setDraft] = useState(initialTitle);
   const [saving, setSaving] = useState(false);

@@ -1,6 +1,10 @@
 import { describe, it, expect } from "vitest";
 
-import { formatRelativeTime, formatAbsoluteTime } from "@/lib/relativeTime";
+import {
+  formatRelativeTime,
+  formatRelativeTimeCompact,
+  formatAbsoluteTime,
+} from "@/lib/relativeTime";
 
 const NOW = Date.parse("2026-06-16T12:00:00Z");
 const DAY = 24 * 3600_000;
@@ -30,6 +34,37 @@ describe("formatRelativeTime", () => {
   it("normalises epoch SECONDS identically to ms (history sends seconds)", () => {
     const ms = NOW - 3 * DAY;
     expect(formatRelativeTime(ms / 1000, NOW)).toBe(formatRelativeTime(ms, NOW));
+  });
+
+  it("accepts an ISO string (the session lists store ISO timestamps)", () => {
+    const iso = new Date(NOW - 5 * 60_000).toISOString();
+    expect(formatRelativeTime(iso, NOW)).toMatch(/minute/);
+  });
+
+  it("returns '' on an unparseable input rather than 'NaN ...'", () => {
+    expect(formatRelativeTime("not-a-date", NOW)).toBe("");
+  });
+});
+
+describe("formatRelativeTimeCompact", () => {
+  it("'just now' under a minute", () => {
+    expect(formatRelativeTimeCompact(NOW - 30_000, NOW)).toBe("just now");
+  });
+
+  it("compact units: Xm / Xh / Xd ago", () => {
+    expect(formatRelativeTimeCompact(NOW - 5 * 60_000, NOW)).toBe("5m ago");
+    expect(formatRelativeTimeCompact(NOW - 3 * 3600_000, NOW)).toBe("3h ago");
+    expect(formatRelativeTimeCompact(NOW - 2 * DAY, NOW)).toBe("2d ago");
+  });
+
+  it("does NOT fall back to an absolute date past a week (stays 'Nd ago')", () => {
+    expect(formatRelativeTimeCompact(NOW - 30 * DAY, NOW)).toBe("30d ago");
+  });
+
+  it("accepts an ISO string and returns '' on garbage", () => {
+    const iso = new Date(NOW - 2 * 3600_000).toISOString();
+    expect(formatRelativeTimeCompact(iso, NOW)).toBe("2h ago");
+    expect(formatRelativeTimeCompact("nope", NOW)).toBe("");
   });
 });
 

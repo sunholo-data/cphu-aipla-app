@@ -9,14 +9,16 @@
  * moment is always one hover away.
  */
 
-/** Normalise a Date | epoch-ms | epoch-seconds value to epoch milliseconds.
- *  Epoch seconds (~1.7e9 today) are auto-scaled; ms (~1.7e12) pass through. */
-function toMillis(input: Date | number): number {
+/** Normalise a Date | ISO string | epoch-ms | epoch-seconds value to epoch
+ *  milliseconds. Epoch seconds (~1.7e9 today) are auto-scaled; ms (~1.7e12)
+ *  pass through; ISO strings are parsed (most callers store ISO timestamps). */
+function toMillis(input: Date | number | string): number {
   if (input instanceof Date) return input.getTime();
+  if (typeof input === "string") return new Date(input).getTime();
   return input < 1e12 ? input * 1000 : input;
 }
 
-export function formatRelativeTime(input: Date | number, now: number = Date.now()): string {
+export function formatRelativeTime(input: Date | number | string, now: number = Date.now()): string {
   const ms = toMillis(input);
   if (Number.isNaN(ms)) return "";
   const diffSec = Math.round((now - ms) / 1000);
@@ -41,8 +43,25 @@ export function formatRelativeTime(input: Date | number, now: number = Date.now(
   }).format(ms);
 }
 
+/** Compact relative time for tight surfaces (chat session lists): "just now",
+ *  "5m ago", "3h ago", "2d ago". No >1-week absolute fallback — these lists
+ *  only ever show recent sessions, and the column is narrow. */
+export function formatRelativeTimeCompact(
+  input: Date | number | string,
+  now: number = Date.now(),
+): string {
+  const ms = toMillis(input);
+  if (Number.isNaN(ms)) return "";
+  const min = Math.floor((now - ms) / 60_000);
+  if (min < 1) return "just now";
+  if (min < 60) return `${min}m ago`;
+  const hr = Math.floor(min / 60);
+  if (hr < 24) return `${hr}h ago`;
+  return `${Math.floor(hr / 24)}d ago`;
+}
+
 /** Full, unambiguous timestamp for a tooltip — e.g. "13 Jun 2026, 15:42". */
-export function formatAbsoluteTime(input: Date | number): string {
+export function formatAbsoluteTime(input: Date | number | string): string {
   const ms = toMillis(input);
   if (Number.isNaN(ms)) return "";
   return new Intl.DateTimeFormat(undefined, {

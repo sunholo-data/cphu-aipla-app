@@ -1,6 +1,7 @@
 "use client";
 
 import type { ChatSessionSummary } from "@/hooks/useSkillSessions";
+import { formatRelativeTimeCompact } from "@/lib/relativeTime";
 
 interface SkillSessionPanelProps {
   sessions: ChatSessionSummary[];
@@ -24,19 +25,6 @@ function SessionSkeleton() {
   );
 }
 
-function relativeTime(iso: string): string {
-  try {
-    const diffMs = Date.now() - new Date(iso).getTime();
-    const diffMin = Math.floor(diffMs / 60_000);
-    if (diffMin < 1) return "just now";
-    if (diffMin < 60) return `${diffMin}m ago`;
-    const diffH = Math.floor(diffMin / 60);
-    if (diffH < 24) return `${diffH}h ago`;
-    return `${Math.floor(diffH / 24)}d ago`;
-  } catch {
-    return "";
-  }
-}
 
 export function SkillSessionPanel({
   sessions,
@@ -76,7 +64,7 @@ export function SkillSessionPanel({
               aria-current={isActive ? "true" : undefined}
             >
               <span className="line-clamp-1 w-full">{title}</span>
-              <span className="text-xs opacity-60">{relativeTime(s.last_message_at)}</span>
+              <span className="text-xs opacity-60">{formatRelativeTimeCompact(s.last_message_at)}</span>
             </button>
             {onDelete && s.is_owner && (
               <button
