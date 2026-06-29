@@ -1,0 +1,200 @@
+{
+  "sprint_id": "SIMPLIFY-REFACTOR",
+  "created": "2026-06-29T05:10:10Z",
+  "estimated_duration_days": 16,
+  "design_doc": "docs/design/aipla/v1.1.0-feedback/simplification-refactor-audit.md",
+  "sprint_plan": "docs/design/aipla/v1.1.0-feedback/simplification-refactor-sprint.md",
+  "features": [
+    {
+      "id": "M1-FE-QUICKWINS",
+      "description": "Phase 2 FE quick wins: F4 relativeTime dedupe, F3 shared apiResponse readJson helper, F9 shared UI components (AlertBox/EmptyState/useToast/SessionRow/ExportButton)",
+      "scope": "frontend",
+      "estimated_loc": 250,
+      "actual_loc": null,
+      "dependencies": [],
+      "acceptance_criteria": [
+        "4 inline relativeTime copies deleted; all import lib/relativeTime.ts",
+        "lib/apiResponse.ts readJson<T> consumed by teacherApi/insightsApi/curriculumApi/costApi with per-client error subclasses preserved",
+        "lib/__tests__/apiResponse.test.ts covers ok/404/409/500",
+        "shared UI components extracted and migrated; full safety net green; npm run quality:check clean"
+      ],
+      "files_to_create": ["frontend/src/lib/apiResponse.ts", "frontend/src/lib/__tests__/apiResponse.test.ts", "frontend/src/components/ui/AlertBox.tsx", "frontend/src/components/ui/EmptyState.tsx", "frontend/src/hooks/useToast.ts"],
+      "files_to_modify": ["frontend/src/lib/teacherApi.ts", "frontend/src/lib/insightsApi.ts", "frontend/src/app/teacher/classes/page.tsx", "frontend/src/app/teacher/classes/[id]/page.tsx"],
+      "passes": null,
+      "started": null,
+      "completed": null,
+      "notes": "Low risk. Net LOC delta negative. One component per commit; re-run net after each. T1 nets F3."
+    },
+    {
+      "id": "M2-BE-QUICKWINS",
+      "description": "Phase 2 BE quick wins: B4 aitana->aipla startup-guard prefix, B2 require_teacher dependency, B6 _class_for_user fold, B9 __id sentinel removal, B10 collection-name constants",
+      "scope": "backend",
+      "estimated_loc": 200,
+      "actual_loc": null,
+      "dependencies": [],
+      "acceptance_criteria": [
+        "fast_api_app.py:74 + app.py:32 guard against aipla- prefix (no spurious STARTUP WARNING on a correct boot)",
+        "single require_teacher dependency replaces all 5 _assert_teacher clones; T3 reject test green",
+        "_class_for_user folded into db/classes.py; query_documents no longer leaks __id (4 callers updated)",
+        "cd backend && make lint && make test-fast green; no route dropped"
+      ],
+      "files_to_create": ["backend/auth/require_teacher.py"],
+      "files_to_modify": ["backend/fast_api_app.py", "backend/app.py", "backend/protocols/classes_routes.py", "backend/protocols/activity_routes.py", "backend/protocols/voice_routes.py", "backend/protocols/recording_routes.py", "backend/db/firestore.py", "backend/db/classes.py"],
+      "passes": null,
+      "started": null,
+      "completed": null,
+      "notes": "Low-Med. B2 is auth-sensitive: T3 must stay green. B9 touches query plumbing: keep firestore/query tests green."
+    },
+    {
+      "id": "M3-F2-ELEMENT-TYPES",
+      "description": "Phase 3: unify the 2-3x parallel workbench element-type definitions into one lib/elementTypes.ts, re-exported from old sites",
+      "scope": "frontend",
+      "estimated_loc": 200,
+      "actual_loc": null,
+      "dependencies": [],
+      "acceptance_criteria": [
+        "lib/elementTypes.ts is the single source for Checklist/Table/Chart/Calc/Note/Solution/Document",
+        "teacherApi.ts + workspace/* + activityPreview.ts re-export from it; all *Def redefinitions deleted",
+        "tsc clean; T1 + T4 green"
+      ],
+      "files_to_create": ["frontend/src/lib/elementTypes.ts"],
+      "files_to_modify": ["frontend/src/lib/teacherApi.ts", "frontend/src/lib/activityPreview.ts", "frontend/src/components/workspace/WorkbenchTable.tsx", "frontend/src/components/workspace/WorkbenchChart.tsx", "frontend/src/components/workspace/WorkbenchCalculator.tsx", "frontend/src/components/workspace/WorkbenchNote.tsx"],
+      "passes": null,
+      "started": null,
+      "completed": null,
+      "notes": "Low-Med. Removes FE duplication only; BE Pydantic stays the wire source. tsc catches most. Foundation for M4."
+    },
+    {
+      "id": "M4-F5-F8-BUILDER",
+      "description": "Phase 3: F5 push save-payload assembly+validation into useActivityBuilder; F8 collapse 15 useState into one reducer; thin out create/edit activity pages",
+      "scope": "frontend",
+      "estimated_loc": 350,
+      "actual_loc": null,
+      "dependencies": ["M3-F2-ELEMENT-TYPES"],
+      "acceptance_criteria": [
+        "useActivityBuilder exposes toSavePayload() + isFormValid(); both pages call them (no inline payload assembly)",
+        "15 useState collapsed to one useReducer; exhaustive-deps disable removed",
+        "T4 green - elementPayload() emits the COMPLETE element+sim set (data-loss guard)",
+        "activities/new and activities/[id] save byte-identically to before"
+      ],
+      "files_to_create": [],
+      "files_to_modify": ["frontend/src/hooks/useActivityBuilder.ts", "frontend/src/app/teacher/activities/new/page.tsx", "frontend/src/app/teacher/activities/[id]/page.tsx"],
+      "passes": null,
+      "started": null,
+      "completed": null,
+      "notes": "Med. GATE: activity-config POST is a FULL OVERWRITE - a dropped field wipes data. Do NOT merge unless T4 complete-payload assertion is green."
+    },
+    {
+      "id": "M5-F1-CHATSHELL",
+      "description": "Phase 3: decompose the 1269-line ChatShell god-component into hooks (useActivityWorkbenchConfig, useSessionBootstrap, useSessionRestore, useMobileTabPersistence) + DocBrowserPanel; add a Suspense boundary",
+      "scope": "frontend",
+      "estimated_loc": 500,
+      "actual_loc": null,
+      "dependencies": [],
+      "acceptance_criteria": [
+        "GATE: Chrome-MCP (aitana-frontend-verify) baseline captured for student+teacher chat BEFORE the cut",
+        "useActivityWorkbenchConfig collapses the 11 active* slices + 1 effect; other seams extracted one per commit",
+        "Suspense boundary added (React 19 use(params))",
+        "T2 green AND Chrome-MCP after == before on SSE/token-refresh/doc-inject/layout; ChatShell < ~400 lines"
+      ],
+      "files_to_create": ["frontend/src/hooks/useActivityWorkbenchConfig.ts", "frontend/src/components/chat/DocBrowserPanel.tsx"],
+      "files_to_modify": ["frontend/src/app/chat/[...path]/page.tsx"],
+      "passes": null,
+      "started": null,
+      "completed": null,
+      "notes": "Med-High. PREREQ/GATE: Chrome-MCP verification pass before AND after - the jsdom net (T2) cannot see SSE/refresh/doc-inject/layout. Mandatory."
+    },
+    {
+      "id": "M6-F6-USESKILLAGENT",
+      "description": "Phase 3: split the 188-line useSkillAgent subscription into per-event handlers; merge classifyError + classifyRunError",
+      "scope": "frontend",
+      "estimated_loc": 350,
+      "actual_loc": null,
+      "dependencies": [],
+      "acceptance_criteria": [
+        "GATE: per-event branch tests added to useSkillAgent.test.tsx covering all 11 AG-UI event types BEFORE touching the subscription",
+        "subscription split into named per-event handler functions",
+        "classifyError + classifyRunError merged into classifyStreamError(err, {isRunError})",
+        "every event-branch test green before and after; no streaming regression"
+      ],
+      "files_to_create": [],
+      "files_to_modify": ["frontend/src/hooks/useSkillAgent.ts", "frontend/src/hooks/__tests__/useSkillAgent.test.tsx"],
+      "passes": null,
+      "started": null,
+      "completed": null,
+      "notes": "High. Streaming core, stale-closure prone. PREREQ/GATE: extend branch tests first. Small commits; consider a Chrome-MCP smoke on a real stream."
+    },
+    {
+      "id": "M7-B1-OWNERSHIP-GUARD",
+      "description": "Phase 3: build auth/ownership.py (load_owned / load_readable folding researcher-bypass + OTel span); migrate the 9+ inline ownership/ACL sites",
+      "scope": "backend",
+      "estimated_loc": 400,
+      "actual_loc": null,
+      "dependencies": ["M2-BE-QUICKWINS"],
+      "acceptance_criteria": [
+        "GATE: ownership api_tests backfilled for activities + voice (404-non-owner, 404-missing, owner-200, researcher-bypass-200-with-span)",
+        "auth/ownership.py load_owned/load_readable centralizes the guard",
+        "9+ inline sites migrated (classes/activity/voice/recording/activity_config routes)",
+        "all ownership tests green on every migrated route; non-owner returns 404 not 403 (enumeration resistance)"
+      ],
+      "files_to_create": ["backend/auth/ownership.py", "backend/tests/api_tests/test_activity_ownership.py", "backend/tests/api_tests/test_voice_ownership.py"],
+      "files_to_modify": ["backend/protocols/classes_routes.py", "backend/protocols/activity_routes.py", "backend/protocols/voice_routes.py", "backend/protocols/recording_routes.py", "backend/protocols/activity_config_routes.py"],
+      "passes": null,
+      "started": null,
+      "completed": null,
+      "notes": "Med. Highest-leverage backend change. PREREQ/GATE: activities+voice owner-test backfill (classes already covered by T3-adjacent suite). Migrate one route file per commit."
+    },
+    {
+      "id": "M8-B5-FASTAPI-SPLIT",
+      "description": "Phase 3: split the 736-line fast_api_app.py into app_factory / startup_checks / channels bootstrap; lift _StreamSkillRequest + _extract_* + stream_skill into protocols/stream_routes.py",
+      "scope": "backend",
+      "estimated_loc": 400,
+      "actual_loc": null,
+      "dependencies": [],
+      "acceptance_criteria": [
+        "GATE: _extract_document_ids priority-logic unit test added before moving it (fast_api_app.py:469-506)",
+        "fast_api_app.py split into app_factory.py / startup_checks.py / channels/bootstrap.py",
+        "stream handler + wire model moved to protocols/stream_routes.py",
+        "T5b route-table green (no route or auth-dep dropped); app boots"
+      ],
+      "files_to_create": ["backend/app_factory.py", "backend/startup_checks.py", "backend/channels/bootstrap.py", "backend/protocols/stream_routes.py", "backend/tests/unit/test_extract_document_ids.py"],
+      "files_to_modify": ["backend/fast_api_app.py"],
+      "passes": null,
+      "started": null,
+      "completed": null,
+      "notes": "Med. PREREQ/GATE: _extract_document_ids test first (subtle priority logic). T5b is the route-drop tripwire; assert route table after each move."
+    },
+    {
+      "id": "M9-B7-B8-SERVICE-LAYER",
+      "description": "Phase 3: B7 extract proactive/gates.py + voice/service.py (thin the route handlers); B8 refactor create_agent tool assembly behind _assemble_tools",
+      "scope": "backend",
+      "estimated_loc": 400,
+      "actual_loc": null,
+      "dependencies": [],
+      "acceptance_criteria": [
+        "GATE: make eval green baseline captured before touching create_agent",
+        "proactive/gates.py returns a decision object; voice/service.py does resolve->cache->synthesize->cost; routes are thin",
+        "create_agent tool assembly behind _assemble_tools(md, user, activity_id)",
+        "unit tests green AND make eval == baseline (no agent-quality regression)"
+      ],
+      "files_to_create": ["backend/proactive/gates.py", "backend/voice/service.py"],
+      "files_to_modify": ["backend/protocols/proactive_routes.py", "backend/protocols/voice_routes.py", "backend/adk/agent.py"],
+      "passes": null,
+      "started": null,
+      "completed": null,
+      "notes": "Med-High. Agent construction is the hot path. PREREQ/GATE: make eval green before+after; gate-fail = revert. Save for last."
+    }
+  ],
+  "velocity": {
+    "target_loc_per_day": 190,
+    "actual_loc_per_day": null,
+    "estimated_total_loc": 3050,
+    "actual_total_loc": null,
+    "estimated_days": 16,
+    "actual_days": null
+  },
+  "github_issues": [],
+  "last_session": null,
+  "last_checkpoint": null,
+  "status": "not_started"
+}
