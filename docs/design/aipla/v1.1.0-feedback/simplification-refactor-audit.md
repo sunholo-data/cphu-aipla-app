@@ -105,7 +105,7 @@ Ranked by impact/effort. Full detail in the per-finding notes below the table.
 | B6 | `_class_for_user` duplicated verbatim across two route files | `voice_routes:100`, `recording_routes:55` | M | S | Low |
 | B7 | Business logic in route handlers (proactive 7-gate tree, voice TTS pipeline) instead of a service layer | `proactive_routes:322-421`, `voice_routes:423-605` | M | M | Med |
 | B8 | `adk/agent.py` `create_agent` god-function: ~10 tool-wiring concerns inline | `adk/agent.py:342-459` | M | M | Med |
-| B9 | `query_documents` leaks `__id` sentinel; every caller strips it manually | `db/firestore.py:121` + 4 callers | M | S | Low |
+| B9 | `query_documents` leaks `__id` sentinel; every caller strips it manually | `db/firestore.py:121` + ~35 callers | M | **XL** | Med |
 | B10 | Collection-name magic strings not centralized (`"anon_groups"`, `"mcp_servers"`, …) | `auth/group_routes`, `db/classes`, `recording_routes`, `tools/documents/*` | L | S | Low |
 | B11 | Per-file env-var reads bypass `config/gcp.py` | `adk/session.py`, `db/rag_corpus.py` | L | M | Low |
 | B12 | Sync Firestore I/O inside `async def` handlers (no thread offload) | 26 call sites across routes | L | L | Med |
