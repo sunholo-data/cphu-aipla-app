@@ -79,10 +79,17 @@ export function CrossClassTable({
   const [sortKey, setSortKey] = useState<SortKey>(defaultSort);
   const [direction, setDirection] = useState<Direction>("desc");
 
-  // The cross-teacher (researcher scope=all) view carries an owner per row;
-  // surface an Owner column so classes from different teachers are
-  // distinguishable. Hidden entirely for the own-classes view.
-  const hasOwners = useMemo(() => rows.some((r) => r.ownerLabel || r.ownerUid), [rows]);
+  // Surface the Owner column ONLY when the rows span more than one owner —
+  // i.e. the researcher cross-teacher (scope=all) view, where it disambiguates
+  // whose class is whose and is resolved to a display name/email server-side.
+  // An own-classes view is always a single owner (the caller), so the column
+  // is pure repetition of the caller's uid; it's also the widest column, which
+  // pushes the table off-screen. Distinctness keys off the stable uid, falling
+  // back to the label.
+  const hasOwners = useMemo(() => {
+    const owners = new Set(rows.map((r) => r.ownerUid ?? r.ownerLabel).filter(Boolean));
+    return owners.size > 1;
+  }, [rows]);
 
   const columns = useMemo<ColumnDef[]>(() => {
     const base: ColumnDef[] = hasOwners

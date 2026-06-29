@@ -106,6 +106,18 @@ describe("CrossClassTable", () => {
     expect(screen.queryByRole("button", { name: /sort by owner/i })).not.toBeInTheDocument();
   });
 
+  it("hides the Owner column when every row shares one owner (own-classes view)", () => {
+    // The own-scope /teacher/classes view carries the caller's uid on every
+    // row. One distinct owner -> the column is redundant, so it stays hidden.
+    const ownRows: InsightsCompareRow[] = [
+      { ...ROWS[0], ownerUid: "me", ownerLabel: "Mark Edmondson" },
+      { ...ROWS[1], ownerUid: "me", ownerLabel: "Mark Edmondson" },
+    ];
+    render(<CrossClassTable rows={ownRows} />);
+    expect(screen.queryByRole("button", { name: /sort by owner/i })).not.toBeInTheDocument();
+    expect(screen.queryByText("Mark Edmondson")).not.toBeInTheDocument();
+  });
+
   it("shows an Owner column for cross-teacher rows, preferring the label over the uid", () => {
     const crossRows: InsightsCompareRow[] = [
       { ...ROWS[0], ownerUid: "teacher-1", ownerLabel: "Alice Hansen" },
