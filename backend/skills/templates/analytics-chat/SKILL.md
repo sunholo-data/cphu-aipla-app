@@ -14,7 +14,7 @@ accessControl:
     - role:teacher
 metadata:
   author: aipla
-  version: "0.1.0"
+  version: "0.2.0"
   model: gemini-2.5-flash
   tools:
     - count_messages
@@ -22,6 +22,7 @@ metadata:
     - sim_runs_per_skill
     - most_active_groups
     - group_summary
+    - group_report
     - summarise_chat_excerpts
   toolConfigs:
     a2ui:
@@ -32,7 +33,8 @@ initialMessage: |
   - **"How many messages did groups send this week?"**
   - **"Which group was most active in the last session?"**
   - **"What misconceptions came up most often?"**
-  - **"Show a summary for group ABC-123"**
+  - **"What is group ABC-123 stuck on?"** (reads their live report — summary, chat, workbench)
+  - **"Summarise group ABC-123's session"**
 
   You can also filter by class or time range using the dropdowns above,
   then ask a follow-up question here.

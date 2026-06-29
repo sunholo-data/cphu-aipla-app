@@ -11,7 +11,7 @@ testing lives in ``test_queries_*.py``; this file is one level up.
 from __future__ import annotations
 
 from datetime import UTC
-from unittest.mock import MagicMock, patch
+from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
@@ -227,3 +227,79 @@ class TestGroupSummaryTool:
             result = await tools.group_summary(cls.class_id, "a-1", tool_context=_ctx("teacher-A"))
         assert result["sessions"][0]["session_id"] == "sess-1"
         assert result["sessions"][0]["turn_count"] == 12
+
+
+class TestGroupReportTool:
+    """group_report reads the SAME per-group report the teacher sees (summary +
+    recent turns + workbench), gated identically to the other tools."""
+
+    def _summary(self):
+        from datetime import datetime
+
+        from reports.session_summary import SessionSummary, SessionTurn, WorkbenchEvent
+
+        return SessionSummary(
+            sessionId="sess-1",
+            groupCode="a-1",
+            activityId="boldkast",
+            startedAt=datetime(2026, 5, 28, 9, 0, tzinfo=UTC),
+            durationSeconds=600,
+            messageCount=2,
+            simRunCount=3,
+            conversation=[
+                SessionTurn(timestamp="t1", role="student", content="why does it fall?"),
+                SessionTurn(timestamp="t2", role="tutor", content="what do you think?"),
+            ],
+            workbenchEvents=[
+                WorkbenchEvent(timestamp="t1", server="boldkast", tool="state", field="v0", value="17.5"),
+            ],
+        )
+
+    def _index(self):
+        idx = MagicMock()
+        idx.session_id = "sess-1"
+        idx.turn_count = 12
+        return idx
+
+    async def test_refuses_group_code_outside_class(self) -> None:
+        cls = _seed_class("teacher-A", group_codes=["a-1"])
+        with pytest.raises(PermissionError) as exc:
+            await tools.group_report(cls.class_id, "not-in-class", tool_context=_ctx("teacher-A"))
+        assert str(exc.value) == PERMISSION_ERROR_MESSAGE
+
+    async def test_found_false_when_no_sessions(self) -> None:
+        cls = _seed_class("teacher-A", group_codes=["a-1"])
+        with patch("analytics.tools.list_sessions_for_group_codes", return_value=[]):
+            result = await tools.group_report(cls.class_id, "a-1", tool_context=_ctx("teacher-A"))
+        assert result["found"] is False
+
+    async def test_returns_report_with_narrative_turns_and_workbench(self) -> None:
+        cls = _seed_class("teacher-A", group_codes=["a-1"])
+        summary = self._summary()
+
+        async def fake_narrative(s, *, force=False):
+            s.narrative = "Group is exploring projectile independence."
+            return s.narrative
+
+        with (
+            patch("analytics.tools.list_sessions_for_group_codes", return_value=[self._index()]),
+            patch("analytics.tools.resolve_session_summary", new=AsyncMock(return_value=summary)),
+            patch("analytics.tools.resolve_narrative", new=AsyncMock(side_effect=fake_narrative)),
+        ):
+            result = await tools.group_report(cls.class_id, "a-1", tool_context=_ctx("teacher-A"))
+        assert result["found"] is True
+        assert result["narrative"] == "Group is exploring projectile independence."
+        assert [t["role"] for t in result["recent_turns"]] == ["student", "tutor"]
+        assert result["workbench_events"][0]["field"] == "v0"
+        assert result["message_count"] == 2
+
+    async def test_refresh_forces_summary_regeneration(self) -> None:
+        cls = _seed_class("teacher-A", group_codes=["a-1"])
+        narr = AsyncMock(return_value="x")
+        with (
+            patch("analytics.tools.list_sessions_for_group_codes", return_value=[self._index()]),
+            patch("analytics.tools.resolve_session_summary", new=AsyncMock(return_value=self._summary())),
+            patch("analytics.tools.resolve_narrative", new=narr),
+        ):
+            await tools.group_report(cls.class_id, "a-1", refresh=True, tool_context=_ctx("teacher-A"))
+        assert narr.await_args.kwargs.get("force") is True

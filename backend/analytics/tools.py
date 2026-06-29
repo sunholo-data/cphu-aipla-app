@@ -38,6 +38,8 @@ from analytics.auth import (
 from analytics.auth import caller_uid as _caller_uid
 from db.chat_sessions import list_sessions_for_group_codes
 from db.classes import get_class
+from reports.narrative import resolve_narrative
+from reports.session_summary import resolve_session_summary
 
 logger = logging.getLogger(__name__)
 
@@ -258,6 +260,80 @@ async def group_summary(
     }
 
 
+# Bound the per-group report payload so a long lesson doesn't blow the
+# co-pilot's token budget — the narrative carries the gist; these give the
+# co-pilot raw material to answer specific follow-ups.
+_REPORT_MAX_TURNS = 20
+_REPORT_MAX_WB_EVENTS = 30
+
+
+async def group_report(
+    class_id: str,
+    group_code: str,
+    refresh: bool = False,
+    tool_context: ToolContext = None,
+) -> dict[str, Any]:
+    """Read ONE group's latest session report — the SAME data the teacher sees on
+    the live group report: the AI summary, recent chat turns, and workbench
+    interactions.
+
+    Use this when a teacher asks about a specific group — e.g. "what is group
+    7B-rød stuck on?", "summarise their session", "what did they try in the
+    workbench?". For class-wide questions use the other analytics tools.
+
+    Args:
+        class_id: The class. Must be owned by the calling teacher.
+        group_code: A group code within that class. Rejected if it doesn't belong.
+        refresh: Force the AI summary to regenerate now (bypasses the ~5-min
+            cache). Default False — the cached/auto summary is usually current.
+
+    Returns:
+        ``{"found", "session_id", "group_code", "activity_id", "message_count",
+        "sim_run_count", "narrative", "recent_turns": [{role, content,
+        timestamp}], "workbench_events": [{tool, field, value, timestamp}],
+        "voice_minutes", "has_voice"}``. ``found=False`` when the group has no
+        session yet. The lists are bounded to the most recent turns/events.
+    """
+    uid = _caller_uid(tool_context)
+    assert_caller_owns(uid, class_id)
+    if group_code not in _class_group_codes(class_id):
+        raise PermissionError(PERMISSION_ERROR_MESSAGE)
+
+    sessions = list_sessions_for_group_codes([group_code])
+    if not sessions:
+        return {"found": False, "group_code": group_code}
+    # Newest session with actual turns; a bare 0-turn join can otherwise win
+    # "latest" by timestamp and yield an empty report. list_sessions_* is
+    # newest-first.
+    with_turns = [s for s in sessions if s.turn_count > 0]
+    latest = (with_turns or sessions)[0]
+
+    summary = await resolve_session_summary(latest.session_id)
+    if summary is None:
+        return {"found": False, "group_code": group_code}
+    await resolve_narrative(summary, force=refresh)
+
+    return {
+        "found": True,
+        "session_id": summary.session_id,
+        "group_code": group_code,
+        "activity_id": summary.activity_id,
+        "message_count": summary.message_count,
+        "sim_run_count": summary.sim_run_count,
+        "narrative": summary.narrative,
+        "recent_turns": [
+            {"role": t.role, "content": t.content, "timestamp": t.timestamp}
+            for t in summary.conversation[-_REPORT_MAX_TURNS:]
+        ],
+        "workbench_events": [
+            {"tool": e.tool, "field": e.field, "value": e.value, "timestamp": e.timestamp}
+            for e in summary.workbench_events[-_REPORT_MAX_WB_EVENTS:]
+        ],
+        "voice_minutes": summary.voice_minutes,
+        "has_voice": bool((summary.voice_transcript or "").strip()),
+    }
+
+
 #: Names the analytics-chat SKILL.md's ``tools:`` field references.
 #: ``analytics.summarise`` registers itself separately in M4.
 ANALYTICS_TOOLS = (
@@ -266,12 +342,14 @@ ANALYTICS_TOOLS = (
     sim_runs_per_skill,
     most_active_groups,
     group_summary,
+    group_report,
 )
 
 
 __all__ = [
     "ANALYTICS_TOOLS",
     "count_messages",
+    "group_report",
     "group_summary",
     "most_active_groups",
     "sim_runs_per_skill",

@@ -146,6 +146,7 @@ TOOL_REGISTRY: dict[str, Callable[[dict], FunctionTool]] = {
     "sim_runs_per_skill": lambda _config: FunctionTool(_analytics_tools.sim_runs_per_skill),
     "most_active_groups": lambda _config: FunctionTool(_analytics_tools.most_active_groups),
     "group_summary": lambda _config: FunctionTool(_analytics_tools.group_summary),
+    "group_report": lambda _config: FunctionTool(_analytics_tools.group_report),
     "summarise_chat_excerpts": lambda _config: FunctionTool(_analytics_summarise.summarise_chat_excerpts),
     # Authoring co-pilot write-tools (COPILOT-1; backend/adk/authoring_tools.py) —
     # owner-scoped, propose-only (the teacher's Apply persists). 1.1.39 / 1.1.50.
