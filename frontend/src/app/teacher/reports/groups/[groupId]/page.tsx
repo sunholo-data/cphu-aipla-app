@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useParams, useSearchParams } from "next/navigation";
 import { useCallback, useEffect, useState } from "react";
-import { RefreshCw } from "lucide-react";
+import { ChevronRight, RefreshCw } from "lucide-react";
 import { ArrowLeft, Download, Sliders } from "lucide-react";
 
 import {
@@ -17,6 +17,11 @@ import { GroupTranscriptSection } from "@/components/teacher/GroupTranscriptSect
 import { ChatMarkdown } from "@/components/chat/ChatMarkdown";
 
 const TRANSCRIPT_OPEN_KEY = "aipla.report.transcriptOpen";
+
+// Mirrors backend analytics/live_class.py LIVE_WINDOW_S: a latest session quiet
+// longer than this is historical, not "live" — the report shows "last active …"
+// instead of the live badge.
+const LIVE_WINDOW_S = 5400;
 
 /** "…/2026-06-29T12:00:00Z" → "3 min ago" for the AI-summary freshness line. */
 function relAgo(iso: string | null | undefined): string {
@@ -191,6 +196,14 @@ export default function TeacherGroupReportPage() {
   const narrative = state.kind === "live" ? (state.data.narrative ?? null) : null;
   // 1.1.36 A3/A5 — "what's included": the sources the narrative was built from.
   const inputs = state.kind === "live" ? (state.data.inputs ?? null) : null;
+  // Recency for the live badge: the last chat turn's timestamp. Viewing the
+  // latest session (no ?session_id) AND active within the live window → "live";
+  // otherwise it's historical → "last active N ago".
+  const lastActivityIso = report.conversation.at(-1)?.timestamp ?? null;
+  const liveActive =
+    !sessionId &&
+    lastActivityIso !== null &&
+    (Date.now() - new Date(lastActivityIso).getTime()) / 1000 < LIVE_WINDOW_S;
 
   return (
     <div className="flex flex-col gap-6">
@@ -221,10 +234,17 @@ export default function TeacherGroupReportPage() {
       <header className="flex flex-col gap-1">
         <h1 className="flex items-center gap-2 text-xl font-semibold sm:text-2xl">
           {sessionId ? "Session" : "Latest session"}
-          {!sessionId && (
+          {liveActive ? (
             <span className="flex items-center gap-1 text-xs font-normal text-green-600">
               <span className="h-2 w-2 animate-pulse rounded-full bg-green-500" aria-hidden /> live
             </span>
+          ) : (
+            !sessionId &&
+            lastActivityIso && (
+              <span className="text-xs font-normal text-muted-foreground">
+                last active {relAgo(lastActivityIso)}
+              </span>
+            )
           )}
         </h1>
         <p className="text-sm text-muted-foreground">
@@ -344,8 +364,14 @@ export default function TeacherGroupReportPage() {
             type="button"
             onClick={toggleTranscript}
             aria-expanded={transcriptOpen}
-            className="flex items-center gap-1.5 text-base font-semibold hover:text-foreground/80"
+            className="group flex items-center gap-1.5 text-base font-semibold hover:text-foreground/80"
           >
+            <ChevronRight
+              className={`h-4 w-4 text-muted-foreground transition-transform group-hover:text-foreground ${
+                transcriptOpen ? "rotate-90" : ""
+              }`}
+              aria-hidden="true"
+            />
             <span id="log-label">
               {transcriptOpen ? "Hide full transcript" : "View full transcript"}
             </span>
