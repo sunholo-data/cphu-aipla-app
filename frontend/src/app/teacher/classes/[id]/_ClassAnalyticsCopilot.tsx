@@ -7,8 +7,8 @@ import { TeacherCopilot } from "@/components/teacher/copilot";
  * proposal/apply config (analytics answers in chat, nothing to Apply). Floats
  * on the class detail page so a teacher can ask about the class they're looking
  * at ("how active this week?", "which group did most?", "common misconceptions?")
- * without leaving for /teacher/analytics. Scope rides the message prefix, the
- * same contract the analytics-chat surface uses.
+ * right where they're working — no separate analytics page. Scope rides the
+ * message prefix, the same `[class_id=…]` contract the analytics-chat skill uses.
  */
 export function ClassAnalyticsCopilot({ classId, className }: { classId: string; className?: string }) {
   return (

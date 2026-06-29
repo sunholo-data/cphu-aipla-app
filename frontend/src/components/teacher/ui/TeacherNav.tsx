@@ -19,9 +19,10 @@ interface Destination {
 }
 
 /**
- * The four teacher destinations. Insights is the single home for the
- * analytics surfaces (Overview / Ask-the-data / Reports), so it stays active
- * across `/insights`, `/analytics`, and `/reports`.
+ * The four teacher destinations. Insights is the home for the analytics
+ * surfaces (Overview / Reports), so it stays active across `/insights` and
+ * `/reports`. (The standalone `/teacher/analytics` chat was retired in favour
+ * of the floating co-pilots, so it's no longer a match prefix.)
  */
 const DESTINATIONS: Destination[] = [
   { href: "/teacher/classes", label: "Classes", icon: Users, match: ["/teacher/classes"] },
@@ -35,7 +36,7 @@ const DESTINATIONS: Destination[] = [
     href: "/teacher/insights",
     label: "Insights",
     icon: BarChart3,
-    match: ["/teacher/insights", "/teacher/analytics", "/teacher/reports"],
+    match: ["/teacher/insights", "/teacher/reports"],
   },
   { href: "/teacher/settings", label: "Settings", icon: Settings, match: ["/teacher/settings"] },
 ];

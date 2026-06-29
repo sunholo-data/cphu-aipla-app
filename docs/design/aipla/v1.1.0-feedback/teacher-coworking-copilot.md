@@ -1,6 +1,24 @@
 # Teacher co-working co-pilot — one shared AI partner across every teacher surface
 
-**Status:** DESIGN (2026-06-27). The pattern already exists and ships for activity authoring (`_AuthoringCopilot` — floating panel + propose/Apply cards). This doc generalises it into a **shared** mechanism and brings it to **class management** and **analytics**. No refactor code yet.
+> **Update 2026-06-29 (route consolidation).** Parts 1–3 have landed: the shared
+> shell is `frontend/src/components/teacher/copilot/` (`TeacherCopilot` +
+> `FloatingCopilot` + `ProposalCard`), and the three surfaces float their
+> co-pilots — `_AuthoringCopilot` (activities), `_ManageClassCopilot`
+> (`/teacher/classes`, propose/Apply writes), `_ClassAnalyticsCopilot`
+> (`/teacher/classes/[id]`, read-only per-class). With the co-pilots resident on
+> the working pages, the **standalone `/teacher/analytics` chat page and all four
+> entry points to it were removed** (the "Ask the data" Insights tab, the
+> TeacherNav match prefix, and the two class-page "chat with … data" links) — two
+> routes for one job was the confusion M flagged. **Part 3 resolution:** no
+> separate analytics co-pilot was mounted on `/teacher/insights` — the
+> `analytics-chat` skill *requires* a `class_id` per tool call and can't
+> enumerate classes, so a cross-class panel there isn't viable as-is; cross-class
+> "ask the data" is already served by the manage-class hub co-pilot (it
+> `list_my_classes` + delegates to `analytics_chat`), and per-class by the
+> class-detail co-pilot. Insights stays a pure cross-class comparison table.
+> Part 4 (resume/history) is the remaining open work.
+
+**Status:** PARTLY SHIPPED (Parts 1–3, 2026-06-29) · DESIGN for Part 4. The pattern already exists and ships for activity authoring (`_AuthoringCopilot` — floating panel + propose/Apply cards). This doc generalises it into a **shared** mechanism and brings it to **class management** and **analytics**.
 **Last Updated:** 2026-06-27 (M, after first hands-on with the deployed manage-class assistant): *"we want the co-pilots and AI chat helpers to be on the same page the human uses, and see the changes the AI makes alongside those they edit themselves — so it's a co-working partnership."* + *"apply [the activity co-pilot approach] to ours in a centralised, refactored way."*
 **Priority:** **P1** — the teacher AI helpers (manage-class, analytics-chat, activity-authoring) are diverging: the authoring co-pilot is a floating, propose/Apply **co-working partner**; manage-class is a standalone full-page chat that mutates state invisibly (no trust). Unify them onto one shared co-pilot so every surface gets the same trustworthy experience and the *next* helper is a thin config, not a rebuild.
 **Estimated:** ~2d Part 1 (extract shared co-pilot shell) · ~2–2.5d Part 2 (class-management co-pilot, propose-only writes) · ~0.5–1d Part 3 (analytics panel) · ~1d Part 4a (resume) · ~2–3d Part 4b (history tier)

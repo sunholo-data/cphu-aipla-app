@@ -2,25 +2,24 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { BarChart3, Coins, MessageCircle } from "lucide-react";
+import { BarChart3, Coins } from "lucide-react";
 
 import { cn } from "@/lib/utils";
 import { useIsResearcher } from "@/hooks/useIsResearcher";
 
 /**
- * Sub-navigation for the Insights area (1.1.26 P5). Unifies the previously
- * separate analytics surfaces into one mental model: Overview (cross-class
- * KPIs, /teacher/insights) and Ask-the-data (the analytics chat,
- * /teacher/analytics). Per-group Reports stay a leaf reached from a group
- * row, so they are not a top-level tab here.
+ * Sub-navigation for the Insights area (1.1.26 P5). The "Ask the data" tab
+ * (the standalone /teacher/analytics chat) was retired in favour of the
+ * floating teacher co-pilots — per-class analytics lives on each class page,
+ * cross-class on the manage-class hub co-pilot (/teacher/classes). Per-group
+ * Reports stay a leaf reached from a group row.
  *
- * The Cost tab (1.1.9) is researcher-only — cross-class spend is a
- * cross-tenant view gated on the researcher claim (1.1.5).
+ * What remains: Overview (cross-class KPIs) plus the researcher-only Cost tab
+ * (1.1.9) — cross-class spend gated on the researcher claim (1.1.5). With only
+ * Overview for a non-researcher there's a single destination, so the bar hides
+ * itself (nothing to switch between).
  */
-const TABS = [
-  { href: "/teacher/insights", label: "Overview", icon: BarChart3 },
-  { href: "/teacher/analytics", label: "Ask the data", icon: MessageCircle },
-];
+const TABS = [{ href: "/teacher/insights", label: "Overview", icon: BarChart3 }];
 
 const RESEARCHER_TABS = [{ href: "/teacher/insights/cost", label: "Cost", icon: Coins }];
 
@@ -28,6 +27,9 @@ export function InsightsTabs() {
   const pathname = usePathname() ?? "";
   const isResearcher = useIsResearcher();
   const tabs = isResearcher ? [...TABS, ...RESEARCHER_TABS] : TABS;
+
+  // A single destination needs no tab bar — nothing to switch between.
+  if (tabs.length <= 1) return null;
 
   return (
     <nav aria-label="Insights views" className="flex items-center gap-1 border-b border-border">

@@ -13,7 +13,7 @@
  * tool (add_element, set_artefact, …) is a new `Proposal` variant + a router
  * case — the card + transport are shared.
  *
- * Modeled on `_AnalyticsChat.tsx` (the teacher-auth AG-UI precedent):
+ * Follows the teacher-auth AG-UI precedent (the shared `TeacherCopilot` shell):
  * - **`useTeacherAuth`** on the AGUIProvider — the recurring AIPLA auth corner.
  * - **Slug→UUID resolve** before mounting.
  * - **`activity_id` rides a message prefix** (`[activity_id=…]`), matching the

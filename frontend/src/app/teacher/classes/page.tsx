@@ -3,13 +3,11 @@
 import Link from "next/link";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import {
-  ArrowRight,
   BarChart3,
   BookOpen,
   ClipboardList,
   FileText,
   Loader2,
-  MessageCircle,
   Plus,
   Settings,
   Trash2,
@@ -535,18 +533,10 @@ export default function TeacherClassesPage() {
       </section>
 
       <section aria-labelledby="recent-activity-label" className="flex flex-col gap-3">
-        <header className="flex items-center justify-between">
+        <header>
           <h2 id="recent-activity-label" className="text-lg font-semibold">
             Recent activity
           </h2>
-          <Link
-            href="/teacher/analytics"
-            className="flex items-center gap-1 text-sm font-medium text-primary hover:opacity-80"
-          >
-            <MessageCircle className="h-4 w-4" aria-hidden="true" />
-            <span>Chat with all session data</span>
-            <ArrowRight className="h-4 w-4" aria-hidden="true" />
-          </Link>
         </header>
 
         {recentSessions.length === 0 ? (

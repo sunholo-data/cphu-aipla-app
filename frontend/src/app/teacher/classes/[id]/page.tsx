@@ -5,14 +5,12 @@ import { notFound, useParams } from "next/navigation";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import {
   ArrowLeft,
-  ArrowRight,
   BarChart3,
   BookOpen,
   Copy,
   Download,
   ExternalLink,
   FileText,
-  MessageCircle,
   MessageSquare,
   Plus,
   Settings,
@@ -292,16 +290,6 @@ export default function TeacherClassDetailPage() {
           {cls.groupCodes.length === 1 ? "" : "s"} · {(cls.activityIds ?? []).length}{" "}
           {(cls.activityIds ?? []).length === 1 ? "activity" : "activities"} assigned
         </>
-      }
-      actions={
-        <Link
-          href="/teacher/analytics"
-          className="flex items-center gap-1.5 rounded border border-border px-3 py-1.5 text-sm font-medium hover:bg-accent"
-        >
-          <MessageCircle className="h-4 w-4" aria-hidden="true" />
-          Chat with class data
-          <ArrowRight className="h-3.5 w-3.5" aria-hidden="true" />
-        </Link>
       }
     >
       <SettingsMap highlight="class" classId={cls.classId} />

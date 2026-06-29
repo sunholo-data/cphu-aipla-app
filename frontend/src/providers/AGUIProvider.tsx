@@ -51,7 +51,8 @@ export function AGUIProvider({
   /**
    * When true, mint the Authorization token via `getTeacherIdToken()`
    * (Firebase) instead of `useAuth().getIdToken()` (auth-context).
-   * Required for teacher-only chat surfaces (`/teacher/analytics`)
+   * Required for teacher-only chat surfaces (the teacher co-pilots:
+   * manage-class, analytics-chat, activity authoring)
    * because the dev frontend ships with
    * `NEXT_PUBLIC_AUTH_MODE=anonymous_group_id` — in that mode the
    * auth-context's `getIdToken` returns the *group* token instead of

@@ -43,7 +43,7 @@ describe("TeacherNav", () => {
     }
   });
 
-  it("treats analytics and reports as part of Insights", () => {
+  it("treats reports as part of Insights", () => {
     mockPathname.mockReturnValue("/teacher/reports/groups/abc");
     render(<TeacherNav />);
     for (const link of screen.getAllByRole("link", { name: /Insights/ })) {

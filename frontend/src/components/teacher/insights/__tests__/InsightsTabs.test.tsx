@@ -12,54 +12,49 @@ import { InsightsTabs } from "@/components/teacher/insights/InsightsTabs";
 afterEach(() => mockIsResearcher.mockReturnValue(false));
 
 describe("InsightsTabs", () => {
-  it("renders Overview and Ask-the-data links", () => {
+  it("renders nothing for a non-researcher (Overview is the only destination)", () => {
+    mockIsResearcher.mockReturnValue(false);
+    mockPathname.mockReturnValue("/teacher/insights");
+    const { container } = render(<InsightsTabs />);
+    expect(container).toBeEmptyDOMElement();
+  });
+
+  it("never links to the retired /teacher/analytics chat surface", () => {
+    mockIsResearcher.mockReturnValue(true);
+    mockPathname.mockReturnValue("/teacher/insights");
+    render(<InsightsTabs />);
+    expect(screen.queryByRole("link", { name: /Ask the data/ })).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole("link", { name: /Overview/ })?.getAttribute("href"),
+    ).not.toBe("/teacher/analytics");
+  });
+
+  it("renders Overview + Cost for a researcher, with Overview active on the insights route", () => {
+    mockIsResearcher.mockReturnValue(true);
     mockPathname.mockReturnValue("/teacher/insights");
     render(<InsightsTabs />);
     expect(screen.getByRole("link", { name: /Overview/ })).toHaveAttribute(
       "href",
       "/teacher/insights",
     );
-    expect(screen.getByRole("link", { name: /Ask the data/ })).toHaveAttribute(
-      "href",
-      "/teacher/analytics",
-    );
-  });
-
-  it("marks Overview active on the insights route", () => {
-    mockPathname.mockReturnValue("/teacher/insights");
-    render(<InsightsTabs />);
     expect(screen.getByRole("link", { name: /Overview/ })).toHaveAttribute(
       "aria-current",
       "page",
     );
-    expect(screen.getByRole("link", { name: /Ask the data/ })).not.toHaveAttribute(
-      "aria-current",
-    );
-  });
-
-  it("marks Ask-the-data active on the analytics route", () => {
-    mockPathname.mockReturnValue("/teacher/analytics");
-    render(<InsightsTabs />);
-    expect(screen.getByRole("link", { name: /Ask the data/ })).toHaveAttribute(
-      "aria-current",
-      "page",
-    );
-  });
-
-  it("hides the Cost tab for non-researchers", () => {
-    mockIsResearcher.mockReturnValue(false);
-    mockPathname.mockReturnValue("/teacher/insights");
-    render(<InsightsTabs />);
-    expect(screen.queryByRole("link", { name: /Cost/ })).not.toBeInTheDocument();
-  });
-
-  it("shows the Cost tab for researchers", () => {
-    mockIsResearcher.mockReturnValue(true);
-    mockPathname.mockReturnValue("/teacher/insights");
-    render(<InsightsTabs />);
     expect(screen.getByRole("link", { name: /Cost/ })).toHaveAttribute(
       "href",
       "/teacher/insights/cost",
+    );
+    expect(screen.getByRole("link", { name: /Cost/ })).not.toHaveAttribute("aria-current");
+  });
+
+  it("marks the Cost tab active on the cost route", () => {
+    mockIsResearcher.mockReturnValue(true);
+    mockPathname.mockReturnValue("/teacher/insights/cost");
+    render(<InsightsTabs />);
+    expect(screen.getByRole("link", { name: /Cost/ })).toHaveAttribute(
+      "aria-current",
+      "page",
     );
   });
 });

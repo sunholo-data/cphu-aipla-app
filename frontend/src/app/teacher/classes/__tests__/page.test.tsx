@@ -122,17 +122,6 @@ describe("/teacher/classes — dashboard", () => {
     });
   });
 
-  it("links to the analytics chat surface", async () => {
-    listSpy.mockResolvedValue([]);
-    render(<TeacherClassesPage />);
-    await waitFor(() => {
-      const link = screen.getByRole("link", {
-        name: /chat with all session data/i,
-      });
-      expect(link).toHaveAttribute("href", "/teacher/analytics");
-    });
-  });
-
   it("submits the new-class form to createClass and refreshes the list", async () => {
     const user = userEvent.setup();
     listSpy
