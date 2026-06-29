@@ -156,7 +156,9 @@ export function useActivityBuilder(): ActivityBuilder {
   function hydrate(cfg: ActivityConfigPayload) {
     setTitle(cfg.title ?? "");
     setTeachingGoal(cfg.teachingGoal ?? "");
-    setLanguage(cfg.language);
+    // Default like every other field — an empty hydrate ("Create another")
+    // must reset language to the default, not leave it undefined.
+    setLanguage(cfg.language ?? "da");
     setWorkbenchType(cfg.workbenchType ?? "none");
     setArtefactId(cfg.artefactId ?? null);
     setMaterials(cfg.materials ?? []);

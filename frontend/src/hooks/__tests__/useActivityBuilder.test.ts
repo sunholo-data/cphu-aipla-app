@@ -505,7 +505,8 @@ describe("useActivityBuilder — hydrate (load an existing activity)", () => {
     const b = result.current;
     expect(b.title).toBe("");
     expect(b.teachingGoal).toBe("");
-    // language has no default in hydrate — it takes cfg.language verbatim.
+    // language resets to the default like every other field on an empty hydrate.
+    expect(b.language).toBe("da");
     expect(b.workbenchType).toBe("none");
     expect(b.artefactId).toBeNull();
     expect(b.materials).toEqual([]);

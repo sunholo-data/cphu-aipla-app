@@ -536,13 +536,6 @@ export async function listArtefacts(): Promise<ArtefactSummary[]> {
   return data.artefacts;
 }
 
-/** List the available personas (the YAML catalogue, 1.1.12). */
-export async function fetchPersonaList(): Promise<PersonaPayload[]> {
-  const resp = await fetchWithAuth(`/api/proxy/api/personas`);
-  const body = await readJson<{ personas: PersonaPayload[] }>(resp, "fetch personas");
-  return body.personas;
-}
-
 /** What a teaching style actually enforces (1.1.32 transparency). ``prompt`` is
  *  the exact instruction the tutor is given; ``injected: false`` means it's the
  *  baked-in default (socratic) rather than an appended override. */
@@ -911,7 +904,13 @@ export async function listClassRecentSessions(
   const resp = await fetchWithAuth(
     `/api/proxy/api/classes/${encodeURIComponent(classId)}/recent-sessions?page_size=${pageSize}`,
   );
-  if (!resp.ok) return [];
+  // Don't swallow a load error into an empty list — that renders a backend
+  // failure as "no sessions" (fabricated empty state, against the no-mock
+  // policy). Throw and let each caller decide how to degrade.
+  if (!resp.ok) {
+    const text = await resp.text().catch(() => "");
+    throw new Error(`list recent sessions failed (${resp.status}): ${text.slice(0, 200)}`);
+  }
   const body = (await resp.json()) as {
     sessions: Array<{
       sessionId: string;

@@ -216,25 +216,30 @@ split: live SSE round-trip (group token accepted 200 vs 401), token-refresh
 mid-stream, full doc-injection inlining, the resume reload flicker, mobile-tab /
 resize layout gates, and the MCP-App-iframe → synthetic-turn bridge.
 
-#### Latent issues surfaced while writing the net (pinned as-is, NOT fixed)
+#### Latent issues surfaced while writing the net
 
-These are real findings the characterization work turned up. None are fixed (the
-tests pin current behavior); fold them into the refactor or a bug pass:
+Real findings the characterization work turned up. Status after the bug pass:
 
-1. **`listClassRecentSessions` swallows a 500 into `[]`** — a load error renders
-   as "no sessions" instead of an error state. This **violates the documented
-   no-mock / honest-empty-or-error policy** (`check:no-mock` rationale). Worth
-   fixing independent of the refactor.
-2. **`listAccessibleSkills` 404 → generic `Error`, not `NotFoundError`** —
-   inconsistent with the `readJson` callers; the dedupe in F3 should normalize.
-3. **`createActivity`/`updateActivity` forward `classId` verbatim** even on edit,
-   where the type marks it create-only — enforced by convention, not the client.
-4. **`fetchPersonaList` + `fetchPersonaCatalogue` GET the identical `/api/personas`**
-   and unwrap differently → duplicate network calls if a page uses both.
-5. **`useActivityBuilder.hydrate({})` leaves `language` `undefined`** (the one
-   field with no `?? "da"` default) — harmless today but a latent reset gap.
-6. **`hydrate` reads only `[0]` of each element array** — lossy against any
-   future multi-element-per-type payload (fine under today's single-element rule).
+1. **✅ FIXED — `listClassRecentSessions` swallowed a 500 into `[]`** — a load
+   error rendered as "no sessions" instead of an error state, **violating the
+   no-mock / honest-empty-or-error policy** (`check:no-mock`). Now throws on
+   non-ok; the cross-class dashboard fan-out switched to `Promise.allSettled`
+   so one class's failure degrades the strip per-class instead of fabricating an
+   empty list. (The `[id]` page and export helper already had explicit handling.)
+2. **Deferred to F3 — `listAccessibleSkills` 404 → generic `Error`, not
+   `NotFoundError`** — all callers catch generically, so this is cosmetic; the
+   F3 `readJson` dedupe will normalize it. Not worth churning the contract now.
+3. **Deferred — `createActivity`/`updateActivity` forward `classId` verbatim**
+   even on edit (type marks it create-only). Not a client bug (it faithfully
+   forwards); no caller currently misuses it. Tighten in the F2/F5 activity work.
+4. **✅ FIXED (dead code) — `fetchPersonaList`** had **zero callers** (the
+   "duplicate `/api/personas`" framing was a red herring — only
+   `fetchPersonaCatalogue` is used). Removed.
+5. **✅ FIXED — `useActivityBuilder.hydrate({})` left `language` `undefined`**
+   (the one field with no `?? "da"` default). Now defaults like every other
+   field, so the "Create another" reset is complete.
+6. **Not a bug — `hydrate` reads only `[0]` of each element array** — that's the
+   intended single-element-per-type convention, not a defect. Left as-is.
 
 **Refactor note (T2):** `ChatPage` uses React 19 `use(params)` with **no
 `<Suspense>` boundary** — the `ChatShell` decomposition should add one.

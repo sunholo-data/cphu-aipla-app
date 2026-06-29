@@ -121,9 +121,14 @@ export default function TeacherClassesPage() {
       }
       // Fetch recent student sessions across all classes (per-class endpoint
       // queries by groupCode, so only student sessions appear here).
-      const batches = await Promise.all(list.map((c) => listClassRecentSessions(c.classId)));
+      // allSettled, not all: one class's fetch failing shouldn't blank the
+      // whole strip or take down the (already-loaded) classes table — the
+      // strip degrades to the classes that did load.
+      const batches = await Promise.allSettled(
+        list.map((c) => listClassRecentSessions(c.classId)),
+      );
       const merged = batches
-        .flat()
+        .flatMap((b) => (b.status === "fulfilled" ? b.value : []))
         .sort(
           (a, b) =>
             new Date(b.lastMessageAt).getTime() -

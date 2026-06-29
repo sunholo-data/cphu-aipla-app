@@ -260,13 +260,6 @@ describe("teacherApi — artefacts & personas", () => {
     expect(r).toEqual([{ id: "art-1" }]);
   });
 
-  it("fetchPersonaList: GET /api/personas, unwraps .personas", async () => {
-    mockResp({ personas: [{ id: "p1" }] });
-    const r = await api.fetchPersonaList();
-    expect(lastUrl()).toBe("/api/proxy/api/personas");
-    expect(r).toEqual([{ id: "p1" }]);
-  });
-
   it("fetchPersonaCatalogue: GET /api/personas, defaults missing fields", async () => {
     // Only personas present -> defaultId null, interactionStyles [].
     mockResp({ personas: [{ id: "p1" }] });
@@ -533,7 +526,7 @@ describe("teacherApi — skills catalogue", () => {
 });
 
 // ---------------------------------------------------------------------------
-// recent sessions & reset — bespoke handling (empty array on !ok; throw on reset)
+// recent sessions & reset — bespoke handling (throw on !ok; throw on reset)
 // ---------------------------------------------------------------------------
 describe("teacherApi — recent sessions & reset", () => {
   it("listClassRecentSessions: GET /recent-sessions?page_size=<n> (default 20)", async () => {
@@ -552,9 +545,11 @@ describe("teacherApi — recent sessions & reset", () => {
     );
   });
 
-  it("listClassRecentSessions: returns [] (no throw) when the response is !ok", async () => {
+  it("listClassRecentSessions: throws on !ok (does NOT fabricate an empty list)", async () => {
     fetchWithTeacherAuth.mockResolvedValueOnce(textResponse("err", 500));
-    await expect(api.listClassRecentSessions("c1")).resolves.toEqual([]);
+    await expect(api.listClassRecentSessions("c1")).rejects.toThrow(
+      /list recent sessions failed \(500\)/,
+    );
   });
 
   it("listClassRecentSessions: maps the session rows through", async () => {
