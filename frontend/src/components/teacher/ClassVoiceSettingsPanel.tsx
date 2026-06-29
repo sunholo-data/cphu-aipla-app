@@ -16,6 +16,7 @@
  */
 
 import { useEffect, useMemo, useState } from "react";
+import { useToast } from "@/hooks/useToast";
 import { Loader2, Save, X } from "lucide-react";
 
 import {
@@ -56,7 +57,7 @@ export function ClassVoiceSettingsPanel({
   );
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [toast, setToast] = useState<string | null>(null);
+  const { toast, showToast } = useToast();
 
   // VOICE-IN-REC M4 — the two plain capability toggles. Optimistic + save on
   // change (no extra Save button — the point is fewer steps, not more).
@@ -75,8 +76,7 @@ export function ClassVoiceSettingsPanel({
         classId,
         which === "voiceInput" ? { voiceInputEnabled: next } : { recordingEnabled: next },
       );
-      setToast(next ? "Enabled" : "Disabled");
-      setTimeout(() => setToast(null), 2000);
+      showToast(next ? "Enabled" : "Disabled", 2000);
       onSaved();
     } catch (err) {
       // revert on failure
@@ -132,8 +132,7 @@ export function ClassVoiceSettingsPanel({
         provider: selectedVoiceEntry?.provider ?? null,
       };
       await setClassVoiceSettings(classId, body);
-      setToast("Voice settings saved");
-      setTimeout(() => setToast(null), 2500);
+      showToast("Voice settings saved", 2500);
       onSaved();
     } catch (err) {
       setError(err instanceof Error ? err.message : "failed to save");
@@ -153,8 +152,7 @@ export function ClassVoiceSettingsPanel({
       });
       setLanguage("");
       setVoice("");
-      setToast("Reverted to skill defaults");
-      setTimeout(() => setToast(null), 2500);
+      showToast("Reverted to skill defaults", 2500);
       onSaved();
     } catch (err) {
       setError(err instanceof Error ? err.message : "failed to clear");

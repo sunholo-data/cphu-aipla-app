@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { useToast } from "@/hooks/useToast";
 import { useParams, useSearchParams } from "next/navigation";
 import { useEffect, useState } from "react";
 import {
@@ -75,7 +76,7 @@ export default function TeacherActivityConfigPage() {
   // edit render identical config + preview and assemble identical save payloads.
   const builder = useActivityBuilder();
   const displayName = builder.title || titleParam || "Activity";
-  const [toast, setToast] = useState<string | null>(null);
+  const { toast, showToast } = useToast();
   const [isSaving, setIsSaving] = useState(false);
   const [activeTab, setActiveTab] = useState<TabId>("goal");
   // The loaded activity's provenance + lifecycle metadata (visibility, source_*,
@@ -153,13 +154,12 @@ export default function TeacherActivityConfigPage() {
         // Legacy per-class config (dual-read window).
         await saveActivityConfig({ activityId, classId, ...elementSlice });
       }
-      setToast("Saved — students see your teaching goal on their next turn");
+      showToast("Saved — students see your teaching goal on their next turn", 4000);
     } catch (err) {
       console.error("[teacher-ui] activity save failed:", err);
-      setToast("Save failed — your changes were not stored");
+      showToast("Save failed — your changes were not stored", 4000);
     } finally {
       setIsSaving(false);
-      window.setTimeout(() => setToast(null), 4000);
     }
   }
 

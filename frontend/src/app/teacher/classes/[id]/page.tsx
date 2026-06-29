@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { useToast } from "@/hooks/useToast";
 import { notFound, useParams } from "next/navigation";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import {
@@ -50,7 +51,7 @@ export default function TeacherClassDetailPage() {
   const [loadStatus, setLoadStatus] = useState<
     "loading" | "ok" | "not-found" | "error"
   >("loading");
-  const [toast, setToast] = useState<string | null>(null);
+  const { toast, showToast } = useToast();
   const [minting, setMinting] = useState(false);
   const [confirmResetCode, setConfirmResetCode] = useState<string | null>(null);
   const [resetting, setResetting] = useState(false);
@@ -173,10 +174,10 @@ export default function TeacherClassDetailPage() {
     try {
       await handleExportSessions(cls, skillNameById, format);
     } catch (err) {
-      setToast(
+      showToast(
         err instanceof Error ? `Export failed: ${err.message}` : "Export failed",
+        5000,
       );
-      window.setTimeout(() => setToast(null), 5000);
     } finally {
       setExporting(null);
     }
@@ -188,16 +189,13 @@ export default function TeacherClassDetailPage() {
       const result = await mintGroupCodes(cls!.classId, 1);
       const code = result.codes[0] ?? "";
       void navigator.clipboard?.writeText(code).catch(() => {});
-      setToast(`Group code ${code} created — copied to clipboard`);
-      window.setTimeout(() => setToast(null), 4000);
+      showToast(`Group code ${code} created — copied to clipboard`, 4000);
       await refresh();
     } catch (err) {
-      setToast(
-        err instanceof Error
-          ? `Mint failed: ${err.message}`
-          : "Mint failed",
+      showToast(
+        err instanceof Error ? `Mint failed: ${err.message}` : "Mint failed",
+        5000,
       );
-      window.setTimeout(() => setToast(null), 5000);
     } finally {
       setMinting(false);
     }
@@ -205,8 +203,7 @@ export default function TeacherClassDetailPage() {
 
   function handleCopyCode(code: string) {
     void navigator.clipboard?.writeText(code).catch(() => {});
-    setToast(`Copied ${code}`);
-    window.setTimeout(() => setToast(null), 2500);
+    showToast(`Copied ${code}`, 2500);
   }
 
   async function handleResetSession(code: string) {
@@ -214,13 +211,12 @@ export default function TeacherClassDetailPage() {
     try {
       await resetGroupSession(cls!.classId, code);
       setConfirmResetCode(null);
-      setToast(`Session reset for ${code} — next join starts fresh`);
-      window.setTimeout(() => setToast(null), 4000);
+      showToast(`Session reset for ${code} — next join starts fresh`, 4000);
     } catch (err) {
-      setToast(
+      showToast(
         err instanceof Error ? `Reset failed: ${err.message}` : "Reset failed",
+        5000,
       );
-      window.setTimeout(() => setToast(null), 5000);
     } finally {
       setResetting(false);
     }
@@ -233,13 +229,12 @@ export default function TeacherClassDetailPage() {
       setShowPicker(false);
       await refresh();
       const title = libraryActivities.find((a) => a.activityId === activityId)?.title ?? activityId;
-      setToast(`Added "${title}"`);
-      window.setTimeout(() => setToast(null), 3000);
+      showToast(`Added "${title}"`, 3000);
     } catch (err) {
-      setToast(
+      showToast(
         err instanceof Error ? `Add failed: ${err.message}` : "Add failed",
+        5000,
       );
-      window.setTimeout(() => setToast(null), 5000);
     } finally {
       setBusyActivity(null);
     }
@@ -251,13 +246,12 @@ export default function TeacherClassDetailPage() {
       await patchClassActivities(cls!.classId, { remove: [activityId] });
       await refresh();
       const title = libraryActivities.find((a) => a.activityId === activityId)?.title ?? activityId;
-      setToast(`Removed "${title}"`);
-      window.setTimeout(() => setToast(null), 3000);
+      showToast(`Removed "${title}"`, 3000);
     } catch (err) {
-      setToast(
+      showToast(
         err instanceof Error ? `Remove failed: ${err.message}` : "Remove failed",
+        5000,
       );
-      window.setTimeout(() => setToast(null), 5000);
     } finally {
       setBusyActivity(null);
     }
