@@ -103,6 +103,21 @@ async def test_resolve_debounced_serves_cache_when_grown_but_recent() -> None:
     mock_llm.assert_not_called()
 
 
+async def test_resolve_force_bypasses_debounce_and_regenerates() -> None:
+    # Manual "Refresh summary" on a live drill-down: even within the debounce
+    # window with a cached summary, force=True regenerates now.
+    s = _summary(turns=5)
+    recent = (datetime.now(UTC) - timedelta(minutes=1)).isoformat()
+    with (
+        patch.object(narrative, "get_session_index", return_value=_FakeIndex("stale", 3, generated_at=recent)),
+        patch.object(narrative, "_call_gemini", new=AsyncMock(return_value="forced fresh")) as mock_llm,
+        patch.object(narrative, "update_session_fields"),
+    ):
+        result = await narrative.resolve_narrative(s, force=True)
+    assert result == "forced fresh"
+    mock_llm.assert_called_once()
+
+
 async def test_resolve_regenerates_when_voice_grew() -> None:
     # 1.1.36 A2: turns unchanged (3 == 3) but the audio transcript grew -> regen.
     s = _summary(turns=3)

@@ -14,6 +14,7 @@
  */
 
 import { Hand, Loader2, TriangleAlert } from "lucide-react";
+import Link from "next/link";
 import { useCallback, useEffect, useState } from "react";
 
 import { SettingsSection } from "@/components/teacher/ui";
@@ -85,7 +86,12 @@ export function LiveClassView({ classId, pollMs = 10_000 }: { classId: string; p
               <li key={c.groupId} className="flex flex-wrap items-center justify-between gap-2 px-3 py-2">
                 <span className="flex items-center gap-2 text-sm text-amber-800">
                   <Hand className="h-4 w-4" aria-hidden />
-                  <code className="rounded bg-amber-100 px-1.5 py-0.5 font-mono">{c.groupId}</code>
+                  <Link
+                    href={`/teacher/reports/groups/${encodeURIComponent(c.groupId)}`}
+                    className="rounded bg-amber-100 px-1.5 py-0.5 font-mono underline-offset-2 hover:underline"
+                  >
+                    {c.groupId}
+                  </Link>
                   {c.activityTitle && <span className="text-amber-700">· {c.activityTitle}</span>}
                   <span className="text-xs text-amber-600">{relTime(c.raisedHandAt)}</span>
                 </span>
@@ -120,24 +126,29 @@ export function LiveClassView({ classId, pollMs = 10_000 }: { classId: string; p
         ) : (
           <ul className="divide-y divide-border rounded border border-border">
             {groups.map((g) => (
-              <li key={g.groupId} className="flex flex-wrap items-center justify-between gap-2 px-3 py-2 text-sm">
-                <span className="flex items-center gap-2">
-                  <span
-                    aria-hidden
-                    className={`h-2 w-2 rounded-full ${g.status === "active" ? "bg-green-500" : "bg-gray-300"}`}
-                  />
-                  <code className="rounded bg-muted px-1.5 py-0.5 font-mono">{g.groupId}</code>
-                  <span className="text-muted-foreground">{g.status}</span>
-                  {g.activityTitle && <span className="text-muted-foreground">· {g.activityTitle}</span>}
-                </span>
-                <span className="flex items-center gap-3 text-xs text-muted-foreground">
-                  <span>{g.turns} turns</span>
-                  {g.stuck && (
-                    <span className="flex items-center gap-1 text-amber-700">
-                      <TriangleAlert className="h-3.5 w-3.5" aria-hidden /> stuck
-                    </span>
-                  )}
-                </span>
+              <li key={g.groupId}>
+                <Link
+                  href={`/teacher/reports/groups/${encodeURIComponent(g.groupId)}`}
+                  className="flex flex-wrap items-center justify-between gap-2 px-3 py-2 text-sm hover:bg-muted/50"
+                >
+                  <span className="flex items-center gap-2">
+                    <span
+                      aria-hidden
+                      className={`h-2 w-2 rounded-full ${g.status === "active" ? "bg-green-500" : "bg-gray-300"}`}
+                    />
+                    <code className="rounded bg-muted px-1.5 py-0.5 font-mono">{g.groupId}</code>
+                    <span className="text-muted-foreground">{g.status}</span>
+                    {g.activityTitle && <span className="text-muted-foreground">· {g.activityTitle}</span>}
+                  </span>
+                  <span className="flex items-center gap-3 text-xs text-muted-foreground">
+                    <span>{g.turns} turns</span>
+                    {g.stuck && (
+                      <span className="flex items-center gap-1 text-amber-700">
+                        <TriangleAlert className="h-3.5 w-3.5" aria-hidden /> stuck
+                      </span>
+                    )}
+                  </span>
+                </Link>
               </li>
             ))}
           </ul>

@@ -2,7 +2,8 @@
 
 import Link from "next/link";
 import { useParams, useSearchParams } from "next/navigation";
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
+import { RefreshCw } from "lucide-react";
 import { ArrowLeft, Download, Sliders } from "lucide-react";
 
 import {
@@ -16,6 +17,15 @@ import { GroupTranscriptSection } from "@/components/teacher/GroupTranscriptSect
 import { ChatMarkdown } from "@/components/chat/ChatMarkdown";
 
 const TRANSCRIPT_OPEN_KEY = "aipla.report.transcriptOpen";
+
+/** "…/2026-06-29T12:00:00Z" → "3 min ago" for the AI-summary freshness line. */
+function relAgo(iso: string | null | undefined): string {
+  if (!iso) return "";
+  const secs = Math.max(0, Math.round((Date.now() - new Date(iso).getTime()) / 1000));
+  if (secs < 60) return "just now";
+  const mins = Math.round(secs / 60);
+  return mins < 60 ? `${mins} min ago` : `${Math.round(mins / 60)}h ago`;
+}
 
 /** The shape the report UI renders — derived from the live session summary.
  *  No mock fallback: a teacher only ever sees real session data, an honest
@@ -82,6 +92,7 @@ export default function TeacherGroupReportPage() {
   const sessionId = searchParams?.get("session_id") ?? null;
 
   const [state, setState] = useState<ReportState>({ kind: "loading" });
+  const [refreshing, setRefreshing] = useState(false);
 
   // 1.1.4 — transcript collapses by default (summary-first). The choice
   // persists per teacher so a researcher reviewing many sessions can leave
@@ -108,30 +119,39 @@ export default function TeacherGroupReportPage() {
     });
   };
 
-  useEffect(() => {
-    let alive = true;
-    fetchGroupLatestReport(groupId, sessionId)
-      .then((data) => {
-        if (alive) {
-          setState({ kind: "live", data });
-        }
-      })
-      .catch((err) => {
-        if (!alive) return;
-        // No mock fallback — a teacher must never see fabricated session
-        // data. 404 = no session yet (honest empty state); anything else is
-        // a real load failure.
+  // Load the report. ``refresh`` forces the AI summary to regenerate
+  // (?refresh=1); a plain load just streams the raw data (transcript /
+  // workbench / signals) with no LLM call. Once we have live data, a failed
+  // poll keeps the last good data rather than flipping to empty/error.
+  const load = useCallback(
+    async (opts?: { refresh?: boolean }) => {
+      if (opts?.refresh) setRefreshing(true);
+      try {
+        const data = await fetchGroupLatestReport(groupId, sessionId, opts);
+        setState({ kind: "live", data });
+      } catch (err) {
         if (err instanceof NotFoundError) {
-          setState({ kind: "empty" });
+          setState((prev) => (prev.kind === "live" ? prev : { kind: "empty" }));
           return;
         }
         console.warn("[teacher-ui] group report load failed:", err);
-        setState({ kind: "error" });
-      });
-    return () => {
-      alive = false;
-    };
-  }, [groupId, sessionId]);
+        setState((prev) => (prev.kind === "live" ? prev : { kind: "error" }));
+      } finally {
+        if (opts?.refresh) setRefreshing(false);
+      }
+    },
+    [groupId, sessionId],
+  );
+
+  // Initial load + live poll of the raw layer. Viewing a specific past session
+  // (?session_id=) is historical, so it doesn't poll. The poll never forces the
+  // LLM — the AI summary regenerates on its own debounce, or via Refresh.
+  useEffect(() => {
+    void load();
+    if (sessionId) return; // historical session — no live polling
+    const id = window.setInterval(() => void load(), 12_000);
+    return () => window.clearInterval(id);
+  }, [load, sessionId]);
 
   if (state.kind === "loading") {
     return (
@@ -199,8 +219,13 @@ export default function TeacherGroupReportPage() {
       </nav>
 
       <header className="flex flex-col gap-1">
-        <h1 className="text-xl font-semibold sm:text-2xl">
+        <h1 className="flex items-center gap-2 text-xl font-semibold sm:text-2xl">
           {sessionId ? "Session" : "Latest session"}
+          {!sessionId && (
+            <span className="flex items-center gap-1 text-xs font-normal text-green-600">
+              <span className="h-2 w-2 animate-pulse rounded-full bg-green-500" aria-hidden /> live
+            </span>
+          )}
         </h1>
         <p className="text-sm text-muted-foreground">
           Activity: <strong>{report.activityName}</strong> · Session:{" "}
@@ -212,9 +237,23 @@ export default function TeacherGroupReportPage() {
         aria-labelledby="narrative-label"
         className="flex flex-col gap-2 rounded border border-border bg-background p-4"
       >
-        <h2 id="narrative-label" className="text-base font-semibold">
-          Summary
-        </h2>
+        <div className="flex items-center justify-between gap-2">
+          <h2 id="narrative-label" className="text-base font-semibold">
+            Summary
+          </h2>
+          <div className="flex items-center gap-2 text-xs text-muted-foreground">
+            {narrative && inputs?.generatedAt && <span>updated {relAgo(inputs.generatedAt)}</span>}
+            <button
+              type="button"
+              onClick={() => void load({ refresh: true })}
+              disabled={refreshing}
+              className="flex items-center gap-1 rounded border px-2 py-1 hover:bg-muted disabled:opacity-50"
+            >
+              <RefreshCw className={`h-3.5 w-3.5 ${refreshing ? "animate-spin" : ""}`} aria-hidden />
+              {refreshing ? "Refreshing…" : "Refresh"}
+            </button>
+          </div>
+        </div>
         {narrative ? (
           <div className="text-sm">
             {/* Summaries carry no doc-block links, so navigation is a no-op. */}

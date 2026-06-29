@@ -583,8 +583,12 @@ export async function fetchPersonaCatalogue(): Promise<PersonaCatalogue> {
 export async function fetchGroupLatestReport(
   groupCode: string,
   sessionId?: string | null,
+  opts?: { refresh?: boolean },
 ): Promise<SessionSummaryPayload> {
-  const qs = sessionId ? `?session_id=${encodeURIComponent(sessionId)}` : "";
+  const params = new URLSearchParams();
+  if (sessionId) params.set("session_id", sessionId);
+  if (opts?.refresh) params.set("refresh", "1"); // force AI-summary regeneration (live drill-down)
+  const qs = params.toString() ? `?${params.toString()}` : "";
   const resp = await fetchWithAuth(
     `/api/proxy/api/reports/groups/${encodeURIComponent(groupCode)}${qs}`,
   );

@@ -124,6 +124,7 @@ async def get_session_report(
 async def get_group_latest_report(
     group_code: str = Path(...),
     session_id: str | None = Query(None),
+    refresh: bool = Query(False),
     _user: User = Depends(get_current_user),  # noqa: B008
 ) -> dict:
     """Return a session summary for an anonymous group.
@@ -132,6 +133,10 @@ async def get_group_latest_report(
     to pick a specific past session (used by the teacher dashboard's
     activity-feed rows to deep-link to the row's own session rather than
     always landing on the latest).
+
+    ``?refresh=1`` forces the AI summary to regenerate now (the teacher's
+    manual "Refresh summary" on a live report), bypassing the cache/debounce.
+    The raw transcript + workbench data are always live regardless.
 
     404 when the group has no sessions yet (frontend renders an empty state).
     """
@@ -143,7 +148,7 @@ async def get_group_latest_report(
         # cross-group enumeration by guessing session ids.
         if summary.group_code and summary.group_code != group_code:
             raise HTTPException(status_code=404, detail="session not found for this group")
-        await resolve_narrative(summary)
+        await resolve_narrative(summary, force=refresh)
         return _serialize(summary)
 
     # Prefer the chat-turn log (BigQuery) as the source of truth for the
@@ -155,7 +160,7 @@ async def get_group_latest_report(
     if bq_session_id:
         summary = await resolve_session_summary(bq_session_id)
         if summary is not None:
-            await resolve_narrative(summary)
+            await resolve_narrative(summary, force=refresh)
             return _serialize(summary)
 
     idx = find_latest_session_for_group(group_code)
@@ -165,5 +170,5 @@ async def get_group_latest_report(
     if summary is None:
         # Race: index existed, ADK session gone. Same UX as "no sessions".
         raise HTTPException(status_code=404, detail="no sessions for this group yet")
-    await resolve_narrative(summary)
+    await resolve_narrative(summary, force=refresh)
     return _serialize(summary)

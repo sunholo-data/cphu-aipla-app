@@ -120,9 +120,13 @@ async def generate_narrative(summary: SessionSummary) -> str:
     return await _call_gemini(build_narrative_prompt(summary))
 
 
-async def resolve_narrative(summary: SessionSummary) -> str | None:
+async def resolve_narrative(summary: SessionSummary, *, force: bool = False) -> str | None:
     """Return the narrative for ``summary`` — cached on the session index
     when fresh, regenerated when the live message count has grown.
+
+    ``force=True`` bypasses the cache + debounce and regenerates now (the
+    teacher's manual "Refresh summary" on a live report); the fresh text is
+    still written back to the cache.
 
     Mutates ``summary.narrative`` in place and returns it. Generation
     failures are swallowed (logged) so the report still renders without a
@@ -134,7 +138,7 @@ async def resolve_narrative(summary: SessionSummary) -> str | None:
     idx = get_session_index(summary.session_id)
     live_count = summary.message_count
     live_voice = len((summary.voice_transcript or "").strip())
-    if idx is not None and idx.summary_text:
+    if not force and idx is not None and idx.summary_text:
         cached_turns = idx.summary_based_on_turn_count or 0
         cached_voice = getattr(idx, "summary_based_on_voice_chars", None) or 0
         grew = live_count > cached_turns or live_voice > cached_voice
