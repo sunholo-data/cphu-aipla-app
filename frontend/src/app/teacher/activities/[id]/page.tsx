@@ -136,17 +136,14 @@ export default function TeacherActivityConfigPage() {
     ev.preventDefault();
     setIsSaving(true);
     try {
-      const elementSlice = {
-        title: builder.title.trim() || displayName,
-        teachingGoal: builder.teachingGoal,
-        language: builder.language,
-        workbenchType: builder.workbenchType,
-        // The full element + sim slice. The save is a full overwrite, so sending
-        // this is what stops a goal edit from wiping the activity's tables,
-        // charts, calculators, notes and attached sim (1.1.40 M1).
-        ...builder.elementPayload(),
-        materials: builder.materials,
-      };
+      // builder.toSavePayload() assembles the COMPLETE payload (title/goal/
+      // language/workbenchType + element+sim slice + materials) in one place,
+      // shared with the create page. The save is a full overwrite, so sending the
+      // whole element slice is what stops a goal edit from wiping the activity's
+      // tables, charts, calculators, notes and attached sim (1.1.40 M1).
+      // Edit-only: keep the existing title if the field was cleared.
+      const payload = builder.toSavePayload();
+      const elementSlice = { ...payload, title: payload.title || displayName };
       if (isActivityStore) {
         // ALS-1 M0: PATCH the class-independent activity, preserving its skill.
         await updateActivity(activityId, { skillId: loadedSkillId, ...elementSlice });

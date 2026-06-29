@@ -519,3 +519,72 @@ describe("useActivityBuilder — hydrate (load an existing activity)", () => {
     expect(b.document).toBeNull();
   });
 });
+
+describe("useActivityBuilder — toSavePayload + isFormValid (F5)", () => {
+  it("isFormValid: requires BOTH a non-empty title AND goal (whitespace-only counts as empty)", () => {
+    const { result } = renderHook(() => useActivityBuilder());
+    expect(result.current.isFormValid()).toBe(false);
+    act(() => {
+      result.current.setTitle("   ");
+      result.current.setTeachingGoal("   ");
+    });
+    expect(result.current.isFormValid()).toBe(false); // whitespace-only is empty
+    act(() => result.current.setTitle("Projectile motion"));
+    expect(result.current.isFormValid()).toBe(false); // goal still blank
+    act(() => result.current.setTeachingGoal("Understand v = u + at"));
+    expect(result.current.isFormValid()).toBe(true);
+  });
+
+  it("toSavePayload: trims title + goal and carries the COMPLETE element slice (anti-data-loss)", () => {
+    const { result } = renderHook(() => useActivityBuilder());
+    act(() => {
+      result.current.setTitle("  Projectile  ");
+      result.current.setTeachingGoal("  Understand g  ");
+      result.current.setLanguage("en");
+      result.current.setArtefactId("boldkast");
+      result.current.setTable(fullTable());
+      result.current.setCalculator(fullCalculator());
+      result.current.addChecklistItems(["Step one"]);
+    });
+    const payload = result.current.toSavePayload();
+    expect(payload.title).toBe("Projectile"); // trimmed
+    expect(payload.teachingGoal).toBe("Understand g"); // trimmed (edit page used to skip this)
+    expect(payload.language).toBe("en");
+    expect(payload.workbenchType).toBe("none");
+    // The element slice is byte-for-byte what elementPayload emits...
+    expect(payload).toMatchObject(result.current.elementPayload());
+    // ...and complete: artefact + every configured element present.
+    expect(payload.artefactId).toBe("boldkast");
+    expect(payload.table).toHaveLength(1);
+    expect(payload.calculator).toHaveLength(1);
+    expect(payload.checklist).toHaveLength(1);
+    expect(payload.materials).toEqual([]);
+  });
+
+  it("toSavePayload key set = the 8 element-slice keys + the 5 wrapper fields (one source for both pages)", () => {
+    const { result } = renderHook(() => useActivityBuilder());
+    act(() => {
+      result.current.setTitle("T");
+      result.current.setTeachingGoal("G");
+    });
+    expect(Object.keys(result.current.toSavePayload()).sort()).toEqual(
+      [
+        // element slice (from elementPayload)
+        "artefactId",
+        "checklist",
+        "table",
+        "chart",
+        "calculator",
+        "note",
+        "solution",
+        "document",
+        // wrapper fields
+        "title",
+        "teachingGoal",
+        "language",
+        "workbenchType",
+        "materials",
+      ].sort(),
+    );
+  });
+});

@@ -92,11 +92,7 @@ function NewActivityForm() {
     };
   }, [preferredClassId]);
 
-  const canSubmit =
-    builder.title.trim().length > 0 &&
-    builder.teachingGoal.trim().length > 0 &&
-    classId.length > 0 &&
-    !isSaving;
+  const canSubmit = builder.isFormValid() && classId.length > 0 && !isSaving;
 
   async function handleSave(ev: React.FormEvent) {
     ev.preventDefault();
@@ -113,14 +109,10 @@ function NewActivityForm() {
       const activity = await createActivity({
         skillId: conceptSkillId,
         classId,
-        title: builder.title.trim(),
-        teachingGoal: builder.teachingGoal.trim(),
-        language: builder.language,
-        workbenchType: builder.workbenchType,
-        // The shared element + sim slice (same converter the live preview uses,
-        // so preview === saved activity).
-        ...builder.elementPayload(),
-        materials: builder.materials,
+        // Title/goal/language/workbenchType + the element+sim slice + materials,
+        // all assembled in one place (builder.toSavePayload) so create and edit
+        // can't drift on which fields they persist.
+        ...builder.toSavePayload(),
       });
       const cls = classesState.classes.find((c) => c.classId === classId);
       setSavedClassName(cls?.name ?? classId);

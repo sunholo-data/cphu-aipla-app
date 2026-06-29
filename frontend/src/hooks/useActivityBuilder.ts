@@ -26,6 +26,31 @@ export interface ChecklistRow {
   label: string;
 }
 
+/** The element + sim slice of the save payload — the data-loss-critical part.
+ *  Same shape the live preview reads, so preview === saved activity. */
+export interface ElementPayload {
+  artefactId: string | null;
+  checklist: { id: string; label: string }[];
+  table: ReturnType<typeof builderToElementDefs>["table"];
+  chart: ReturnType<typeof builderToElementDefs>["chart"];
+  calculator: ReturnType<typeof builderToElementDefs>["calculator"];
+  note: ReturnType<typeof builderToElementDefs>["note"];
+  solution: ReturnType<typeof builderToElementDefs>["solution"];
+  document: ReturnType<typeof builderToElementDefs>["document"];
+}
+
+/** The full payload both the create and edit pages POST/PATCH. Page-specific
+ *  fields (skillId, classId on create) are added by the caller. Title + goal are
+ *  trimmed; the element slice is the COMPLETE set (a partial wipes data — the
+ *  POST is a full overwrite). */
+export interface SavePayload extends ElementPayload {
+  title: string;
+  teachingGoal: string;
+  language: Language;
+  workbenchType: WorkbenchType;
+  materials: MaterialRef[];
+}
+
 export interface ActivityBuilder {
   title: string;
   setTitle: (v: string) => void;
@@ -71,16 +96,14 @@ export interface ActivityBuilder {
   hydrate: (cfg: ActivityConfigPayload) => void;
   /** The element + sim slice of the save payload — the SAME shape the live
    *  preview reads, so preview === saved activity, on BOTH pages. */
-  elementPayload: () => {
-    artefactId: string | null;
-    checklist: { id: string; label: string }[];
-    table: ReturnType<typeof builderToElementDefs>["table"];
-    chart: ReturnType<typeof builderToElementDefs>["chart"];
-    calculator: ReturnType<typeof builderToElementDefs>["calculator"];
-    note: ReturnType<typeof builderToElementDefs>["note"];
-    solution: ReturnType<typeof builderToElementDefs>["solution"];
-    document: ReturnType<typeof builderToElementDefs>["document"];
-  };
+  elementPayload: () => ElementPayload;
+  /** The full save payload (title/goal/language/workbenchType + element slice +
+   *  materials) both pages send. Centralized here so the two pages can't drift
+   *  on which fields they persist — the data-loss footgun this hook exists for. */
+  toSavePayload: () => SavePayload;
+  /** Whether the form is submittable on its own terms: non-empty title + goal.
+   *  Pages add their own gates (e.g. a selected class on create). */
+  isFormValid: () => boolean;
 }
 
 export function useActivityBuilder(): ActivityBuilder {
@@ -209,11 +232,26 @@ export function useActivityBuilder(): ActivityBuilder {
     setDocument(doc ? { prompt: doc.prompt ?? "" } : null);
   }
 
-  function elementPayload() {
+  function elementPayload(): ElementPayload {
     return {
       artefactId,
       ...builderToElementDefs({ checklist, table, chart, calculator, note, solution, document }),
     };
+  }
+
+  function toSavePayload(): SavePayload {
+    return {
+      title: title.trim(),
+      teachingGoal: teachingGoal.trim(),
+      language,
+      workbenchType,
+      ...elementPayload(),
+      materials,
+    };
+  }
+
+  function isFormValid(): boolean {
+    return title.trim().length > 0 && teachingGoal.trim().length > 0;
   }
 
   const workspaceCount =
@@ -261,6 +299,8 @@ export function useActivityBuilder(): ActivityBuilder {
       applyTemplate,
       hydrate,
       elementPayload,
+      toSavePayload,
+      isFormValid,
     }),
     // eslint-disable-next-line react-hooks/exhaustive-deps
     [title, teachingGoal, language, workbenchType, checklist, table, chart, calculator, note, solution, document, artefactId, materials],
