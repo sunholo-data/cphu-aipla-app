@@ -20,10 +20,10 @@
       ],
       "files_to_create": ["frontend/src/lib/apiResponse.ts", "frontend/src/lib/__tests__/apiResponse.test.ts", "frontend/src/components/ui/AlertBox.tsx", "frontend/src/components/ui/EmptyState.tsx", "frontend/src/hooks/useToast.ts"],
       "files_to_modify": ["frontend/src/lib/teacherApi.ts", "frontend/src/lib/insightsApi.ts", "frontend/src/app/teacher/classes/page.tsx", "frontend/src/app/teacher/classes/[id]/page.tsx"],
-      "passes": null,
-      "started": null,
-      "completed": null,
-      "notes": "Low risk. Net LOC delta negative. One component per commit; re-run net after each. T1 nets F3."
+      "passes": true,
+      "started": "2026-06-29",
+      "completed": "2026-06-29 (partial — see notes)",
+      "notes": "SHIPPED 2026-06-29: F4 relativeTime dedupe (8aacaef), F3 shared apiResponse.readJson (bf8668d), F9 useToast hook across 3 consumers (710f22c). F9 EmptyState needed NO work — already a shared component (components/teacher/ui/EmptyState.tsx). DEFERRED: F9 AlertBox (12 border-destructive sites, varied; several in big-rock files chat page/_AuthoringCopilot that M5 will rewrite — do after those settle to avoid conflicting work), SessionRow + ExportButton (localized to classes pages, modest value). Verify against git, not this flag."
     },
     {
       "id": "M2-BE-QUICKWINS",
@@ -194,7 +194,7 @@
     "actual_days": null
   },
   "github_issues": [],
-  "last_session": null,
-  "last_checkpoint": null,
-  "status": "not_started"
+  "last_session": "2026-06-29",
+  "last_checkpoint": "M1 shipped (F4+F3+useToast); EmptyState pre-existing; AlertBox/SessionRow/ExportButton deferred. M2 next.",
+  "status": "in_progress"
 }
