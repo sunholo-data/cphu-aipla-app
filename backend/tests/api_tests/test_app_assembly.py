@@ -35,7 +35,6 @@ once.
 from __future__ import annotations
 
 import importlib
-import os
 
 import pytest
 from fastapi.routing import APIRoute
@@ -48,15 +47,24 @@ def assembled_app():
     Forces LOCAL_MODE + a signing secret and clears the genai/Vertex env vars
     that Mark's shell may carry (they only trigger noisy STARTUP-ERROR logs, but
     we keep the import clean). Imports via ``importlib`` so the env is set first.
+
+    Uses a module-scoped ``MonkeyPatch`` (restored on teardown) rather than a raw
+    ``os.environ`` write: the raw write leaked LOCAL_MODE=1 into every later test
+    in the session, which flipped the auth dispatcher to the LOCAL_MODE stub and
+    broke the Firebase-auth tests (whoami / tenant-attribution) that ran after.
+    The function-scoped ``monkeypatch`` fixture can't be used from a module-scoped
+    fixture (ScopeMismatch), hence the explicit ``pytest.MonkeyPatch``.
     """
-    os.environ["LOCAL_MODE"] = "1"
-    os.environ.setdefault("GROUP_AUTH_SIGNING_SECRET", "test-secret-32-chars-long-enough-x")
+    mp = pytest.MonkeyPatch()
+    mp.setenv("LOCAL_MODE", "1")
+    mp.setenv("GROUP_AUTH_SIGNING_SECRET", "test-secret-32-chars-long-enough-x")
     # Avoid the API-key-vs-Vertex STARTUP ERROR noise during the import.
     for var in ("GOOGLE_API_KEY", "GEMINI_API_KEY", "GOOGLE_GENAI_API_KEY", "GOOGLE_GENAI_USE_VERTEXAI"):
-        os.environ.pop(var, None)
+        mp.delenv(var, raising=False)
 
     module = importlib.import_module("fast_api_app")
-    return module.app
+    yield module.app
+    mp.undo()
 
 
 def _api_routes(app) -> list[APIRoute]:
