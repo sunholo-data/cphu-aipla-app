@@ -3,16 +3,11 @@
 import { useEffect, useState } from "react";
 import { useHumanToolEvents } from "@/hooks/useHumanToolEvents";
 import { useSimSnapshotPush } from "@/hooks/useSimSnapshotPush";
+import type { ChecklistItem } from "@/lib/elementTypes";
 
-/**
- * One sub-part of a problem the student can mark as worked-through.
- * `id` is the slug used in storage (must be stable across reloads);
- * `label` is the Danish display text.
- */
-export interface ChecklistItem {
-  id: string;
-  label: string;
-}
+// Canonical ChecklistItem (lib/elementTypes), re-exported for existing importers
+// of this module.
+export type { ChecklistItem };
 
 interface ProgressChecklistProps {
   /** Skill id — scopes the storage key so different skills don't

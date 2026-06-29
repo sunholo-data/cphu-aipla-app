@@ -6,14 +6,12 @@ import { ImageStagingRow, ImageUploadButtons } from "@/components/chat/ImageComp
 import { useImageAttachments, MAX_IMAGES } from "@/hooks/useImageAttachments";
 import { useOptionalProactiveSimOptsRef } from "@/contexts/ProactiveSimContext";
 import { SolutionWhiteboard } from "./SolutionWhiteboard";
+import type { SolutionElement } from "@/lib/elementTypes";
 
-/** Teacher-authored solution element (1.1.45 M4 → image-based 1.1.48, JB-2).
- *  The teacher authors the `prompt`; the student DRAWS their solution (or uploads
- *  a photo of pen-and-paper work). */
-export interface SolutionElementDef {
-  id: string;
-  prompt: string;
-}
+// Canonical SolutionElement re-exported under the render-side name. NOTE: `prompt`
+// is optional in the canonical type (it was required here but optional on the
+// wire — a real drift); this component already guards it (`def.prompt || …`).
+export type SolutionElementDef = SolutionElement;
 
 // The turn the image(s) ride on. The work IS the image (the tutor is multimodal,
 // 1.1.7) — no LaTeX. Non-empty (ag_ui_adk drops empty turns); the tutor matches

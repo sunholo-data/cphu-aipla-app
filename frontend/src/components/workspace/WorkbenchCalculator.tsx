@@ -5,21 +5,11 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { useHumanToolEvents } from "@/hooks/useHumanToolEvents";
 import { useSimSnapshotPush } from "@/hooks/useSimSnapshotPush";
 import { evaluateFormula } from "@/lib/safeFormula";
+import type { CalcInput, CalculatorElement } from "@/lib/elementTypes";
 
-/** Mirrors the backend `CalcInput` (1.1.38 M3). */
-export interface CalcInputDef {
-  id: string;
-  label: string;
-  unit?: string;
-}
-
-/** Mirrors the backend `CalculatorElement`. */
-export interface CalculatorElementDef {
-  id: string;
-  title?: string;
-  formula: string;
-  inputs: CalcInputDef[];
-}
+/** Canonical CalcInput/CalculatorElement re-exported under the render-side names. */
+export type CalcInputDef = CalcInput;
+export type CalculatorElementDef = CalculatorElement;
 
 interface WorkbenchCalculatorProps {
   skillId: string;

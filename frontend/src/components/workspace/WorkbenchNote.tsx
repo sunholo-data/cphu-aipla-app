@@ -1,13 +1,10 @@
 "use client";
 
 import { ChatMarkdown } from "@/components/chat/ChatMarkdown";
+import type { NoteElement } from "@/lib/elementTypes";
 
-/** Mirrors the backend `NoteElement` (1.1.38 M4). */
-export interface NoteElementDef {
-  id: string;
-  title?: string;
-  body: string;
-}
+/** Canonical NoteElement re-exported under the render-side name. */
+export type NoteElementDef = NoteElement;
 
 interface WorkbenchNoteProps {
   skillId: string;

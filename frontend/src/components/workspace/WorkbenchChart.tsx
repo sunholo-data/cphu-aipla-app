@@ -3,13 +3,10 @@
 import { useEffect, useMemo, useState } from "react";
 
 import { TABLE_CHANGE_EVENT, tableStorageKey, type TableElementDef } from "./WorkbenchTable";
+import type { ChartElement } from "@/lib/elementTypes";
 
-/** Mirrors the backend `ChartElement` (1.1.38 M2). */
-export interface ChartElementDef {
-  id: string;
-  title?: string;
-  chartKind: "scatter" | "line" | "bar";
-}
+/** Canonical ChartElement re-exported under the render-side name. */
+export type ChartElementDef = ChartElement;
 
 interface WorkbenchChartProps {
   skillId: string;

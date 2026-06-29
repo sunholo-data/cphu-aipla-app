@@ -88,74 +88,33 @@ export interface PersonaPayload {
   voicePrompt?: string | null;
 }
 
-export interface ChecklistItem {
-  id: string;
-  label: string;
-}
+// Workbench element types are defined once in lib/elementTypes.ts (the single
+// TS mirror of the backend Pydantic models). Imported here for the wire/save
+// payloads below and re-exported so existing `from "@/lib/teacherApi"` imports
+// keep working.
+import type {
+  CalcInput,
+  CalculatorElement,
+  ChartElement,
+  ChecklistItem,
+  DocumentElement,
+  NoteElement,
+  SolutionElement,
+  TableColumn,
+  TableElement,
+} from "./elementTypes";
 
-/** A column of a teacher-defined data table (1.1.38 M1). Mirrors the backend
- *  `TableColumn`. `kind` gates the student input control (numeric vs text). */
-export interface TableColumn {
-  id: string;
-  label: string;
-  unit?: string;
-  kind?: "number" | "text";
-}
-
-/** A teacher-defined data table the student fills in (1.1.38 M1). Mirrors the
- *  backend `TableElement`; capped server-side (columns 1-8, rows 1-50). */
-export interface TableElement {
-  id: string;
-  title?: string;
-  columns: TableColumn[];
-  rows: number;
-}
-
-/** A chart plotting the activity's data table (1.1.38 M2). Auto-binds to the
- *  first data table's first two numeric columns. */
-export interface ChartElement {
-  id: string;
-  title?: string;
-  chartKind: "scatter" | "line" | "bar";
-}
-
-/** A named variable a calculator formula references (1.1.38 M3). */
-export interface CalcInput {
-  id: string;
-  label: string;
-  unit?: string;
-}
-
-/** A teacher-authored formula calculator (1.1.38 M3). The formula is evaluated
- *  client-side by a safe whitelisted-grammar parser (no eval). */
-export interface CalculatorElement {
-  id: string;
-  title?: string;
-  formula: string;
-  inputs: CalcInput[];
-}
-
-/** A teacher-authored instructions / reference note (1.1.38 M4). Markdown body,
- *  rendered read-only in the workspace. Distinct from uploaded `materials`. */
-export interface NoteElement {
-  id: string;
-  title?: string;
-  body: string;
-}
-
-/** A rich-text solution-editor element (1.1.45 M4, JB-2). The teacher authors the
- *  `prompt`; the student's writing is session state, not persisted on the config. */
-export interface SolutionElement {
-  id: string;
-  prompt?: string;
-}
-
-/** A document-upload element (1.1.48 — reconciled from workbench_type="document").
- *  The teacher authors the `prompt`; the student uploads their own file(s). */
-export interface DocumentElement {
-  id: string;
-  prompt?: string;
-}
+export type {
+  CalcInput,
+  CalculatorElement,
+  ChartElement,
+  ChecklistItem,
+  DocumentElement,
+  NoteElement,
+  SolutionElement,
+  TableColumn,
+  TableElement,
+};
 
 /** A catalogued sim artefact a teacher can attach to an activity (1.1.41) — the
  *  public view from `GET /api/artefacts` (never the server-side `tutorBlock`). */

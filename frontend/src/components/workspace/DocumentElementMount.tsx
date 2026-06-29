@@ -1,14 +1,12 @@
 "use client";
 
 import { StudentDocumentWorkbench } from "./StudentDocumentWorkbench";
+import type { DocumentElement } from "@/lib/elementTypes";
 
-/** Teacher-authored document-upload element (1.1.48 — reconciled from the
- *  workbench_type="document" mode). Mirrors the backend `DocumentElement`: the
- *  teacher authors the `prompt`; the student uploads their own files. */
-export interface DocumentElementDef {
-  id: string;
-  prompt: string;
-}
+// Canonical DocumentElement re-exported under the render-side name. `prompt` is
+// optional in the canonical type (it was required here but optional on the wire);
+// this component already guards it (`def.prompt ? … : null`).
+export type DocumentElementDef = DocumentElement;
 
 /**
  * DocumentElementMount (1.1.48) — the workspace mount for the document-upload

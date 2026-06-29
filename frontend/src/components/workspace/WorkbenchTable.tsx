@@ -4,30 +4,17 @@ import { useCallback, useEffect, useRef, useState } from "react";
 
 import { useHumanToolEvents } from "@/hooks/useHumanToolEvents";
 import { useSimSnapshotPush } from "@/hooks/useSimSnapshotPush";
+import type { TableColumn, TableElement } from "@/lib/elementTypes";
 
 /** Coalesce the "shared with the tutor" card to one per editing burst — a cell
  *  blur fires as the student tabs through the grid, so a per-cell card would
  *  spam the chat. The PUSH still fires per cell; only the card is debounced. */
 export const TABLE_CARD_DEBOUNCE_MS = 1200;
 
-/**
- * One column of a teacher-defined data table (1.1.38 M1). Mirrors the backend
- * `TableColumn` (`backend/db/models/activity_config.py`).
- */
-export interface TableColumnDef {
-  id: string;
-  label: string;
-  unit?: string;
-  kind?: "number" | "text";
-}
-
-/** A teacher-defined data table the student fills in. Mirrors `TableElement`. */
-export interface TableElementDef {
-  id: string;
-  title?: string;
-  columns: TableColumnDef[];
-  rows: number;
-}
+// `*Def` are the canonical lib/elementTypes definitions, re-exported under the
+// historical render-side names so existing imports keep working.
+export type TableColumnDef = TableColumn;
+export type TableElementDef = TableElement;
 
 interface WorkbenchTableProps {
   /** Skill id — scopes the sessionStorage key so activities don't share state. */
