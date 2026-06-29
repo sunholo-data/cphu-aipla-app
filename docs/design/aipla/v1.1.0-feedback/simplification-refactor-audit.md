@@ -192,7 +192,54 @@ no Pydantic v1/v2 mixing (clean v2), no dead channels, ruff F401-clean.
 
 ## Sequencing (do this in order)
 
-### Phase 1 — Safety net (write these tests FIRST)
+### Phase 1 — Safety net — ✅ DONE (2026-06-29)
+
+All five landed as characterization tests pinning **current** behavior, zero
+source changes. **145 new tests, all green** (136 frontend / 9 backend):
+
+| Test | Files | Count | Pins |
+|---|---|---|---|
+| T1 | `lib/__tests__/teacherApi.test.ts` | ~50 | every method's URL/verb/body/error; the POST-vs-PATCH (`createActivity` POST vs `updateActivity` PATCH) + `act-`/legacy id branches |
+| T5a | `lib/__tests__/insightsApi.test.ts` | ~33 | KPI/trend/summary URLs+params; `scope` omitted when `own`; `_debug.queries` passthrough |
+| T4 | `hooks/__tests__/useActivityBuilder.test.ts` + `components/teacher/__tests__/ActivityBuilderBody.test.tsx` | 41 | element add/remove/reorder; **`elementPayload()` emits the COMPLETE set** (anti-data-loss); hydrate round-trip |
+| T2 | `app/chat/[...path]/__tests__/chat-page-characterization.test.tsx` | 12 | **auth-token selection** (group vs teacher), workspace mounting gate, threadId/resume wiring |
+| T3 | `tests/api_tests/test_dual_auth_rejection.py` | 3 | **real** group JWT → 403 on `POST /api/classes` + `/api/activities`; same token → 200 on student endpoint |
+| T5b | `tests/api_tests/test_app_assembly.py` | 6 | critical route table (path+methods); anonymous endpoints carry no auth dep |
+
+Run: `cd frontend && npx vitest run src/lib/__tests__/teacherApi.test.ts src/lib/__tests__/insightsApi.test.ts src/hooks/__tests__/useActivityBuilder.test.ts src/components/teacher/__tests__/ActivityBuilderBody.test.tsx "src/app/chat/[...path]/__tests__/chat-page-characterization.test.tsx"` ·
+`cd backend && uv run pytest tests/api_tests/test_dual_auth_rejection.py tests/api_tests/test_app_assembly.py`
+
+**The chat page (T2) is netted for what jsdom can reach** (the auth-token
+decision, mount gating, resume wiring). A residual list genuinely needs the
+`aitana-frontend-verify` Chrome-MCP harness as a follow-up before the `ChatShell`
+split: live SSE round-trip (group token accepted 200 vs 401), token-refresh
+mid-stream, full doc-injection inlining, the resume reload flicker, mobile-tab /
+resize layout gates, and the MCP-App-iframe → synthetic-turn bridge.
+
+#### Latent issues surfaced while writing the net (pinned as-is, NOT fixed)
+
+These are real findings the characterization work turned up. None are fixed (the
+tests pin current behavior); fold them into the refactor or a bug pass:
+
+1. **`listClassRecentSessions` swallows a 500 into `[]`** — a load error renders
+   as "no sessions" instead of an error state. This **violates the documented
+   no-mock / honest-empty-or-error policy** (`check:no-mock` rationale). Worth
+   fixing independent of the refactor.
+2. **`listAccessibleSkills` 404 → generic `Error`, not `NotFoundError`** —
+   inconsistent with the `readJson` callers; the dedupe in F3 should normalize.
+3. **`createActivity`/`updateActivity` forward `classId` verbatim** even on edit,
+   where the type marks it create-only — enforced by convention, not the client.
+4. **`fetchPersonaList` + `fetchPersonaCatalogue` GET the identical `/api/personas`**
+   and unwrap differently → duplicate network calls if a page uses both.
+5. **`useActivityBuilder.hydrate({})` leaves `language` `undefined`** (the one
+   field with no `?? "da"` default) — harmless today but a latent reset gap.
+6. **`hydrate` reads only `[0]` of each element array** — lossy against any
+   future multi-element-per-type payload (fine under today's single-element rule).
+
+**Refactor note (T2):** `ChatPage` uses React 19 `use(params)` with **no
+`<Suspense>` boundary** — the `ChatShell` decomposition should add one.
+
+### Phase 1 — original work list (for reference)
 
 Ranked by (risk × churn × current-gap). These convert "high test volume" into
 "actually safe to cut." Nothing in Phase 2/3 starts until the matching test
