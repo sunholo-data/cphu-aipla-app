@@ -71,7 +71,11 @@ _log = logging.getLogger(__name__)
 # Startup guard: log resolved GCP project so misconfiguration (e.g. shell-level
 # GCP_PROJECT pointing at the v5 project) is immediately visible in server output.
 _resolved_project = resolve_gcp_project() or "(unset)"
-_expected_prefix = "aitana-multivac"
+# AIPLA projects are aipla-{dev,test,prod}-2026 (ADR-007). The guard was still
+# checking the upstream template's "aitana-multivac" prefix, so a correctly
+# configured AIPLA boot logged a spurious STARTUP WARNING and a genuinely
+# misconfigured one passed silently.
+_expected_prefix = "aipla-"
 if not _resolved_project.startswith(_expected_prefix):
     _log.warning(
         "STARTUP WARNING: GCP project is %r — expected a project starting with %r. "

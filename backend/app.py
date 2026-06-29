@@ -26,10 +26,10 @@ from config.gcp import resolve_gcp_project
 from config.models import default_model
 
 # Fallback project keeps module import working on CI runners (no env vars,
-# no ADC) — the resolver returns None there. Override via PLATFORM_DEFAULT_PROJECT
-# in a downstream fork; default stays Aitana's dev project so existing
-# dev/test/prod behaviour is unchanged.
-_FALLBACK_PROJECT = os.environ.get("PLATFORM_DEFAULT_PROJECT", "aitana-multivac-dev")
+# no ADC) — the resolver returns None there. Override via PLATFORM_DEFAULT_PROJECT.
+# Default is AIPLA's dev project (ADR-007); a misconfigured boot should not
+# silently fall back to the upstream template's project.
+_FALLBACK_PROJECT = os.environ.get("PLATFORM_DEFAULT_PROJECT", "aipla-dev-2026")
 os.environ.setdefault("GOOGLE_CLOUD_PROJECT", resolve_gcp_project() or _FALLBACK_PROJECT)
 os.environ.setdefault("GOOGLE_CLOUD_LOCATION", "global")
 os.environ.setdefault("GOOGLE_GENAI_USE_VERTEXAI", "True")
