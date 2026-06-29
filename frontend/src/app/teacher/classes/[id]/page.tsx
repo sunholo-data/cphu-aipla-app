@@ -377,6 +377,27 @@ export default function TeacherClassDetailPage() {
       </SettingsSection>
 
       <SettingsSection
+        id="class-settings"
+        title="Class settings"
+        description="The tutor persona, voice, and what students can do — for this class."
+      >
+        <div className="flex flex-col gap-6">
+          <ClassPersonaPanel
+            classId={cls.classId}
+            initialPersona={cls.persona ?? null}
+            onSaved={refresh}
+          />
+          <ClassVoiceSettingsPanel
+            classId={cls.classId}
+            initial={cls.voice ?? null}
+            initialVoiceInput={cls.voiceInputEnabled ?? false}
+            initialRecording={cls.recordingEnabled ?? false}
+            onSaved={refresh}
+          />
+        </div>
+      </SettingsSection>
+
+      <SettingsSection
         title="Activities assigned to this class"
         action={
           <div className="flex items-center gap-2">
@@ -470,27 +491,6 @@ export default function TeacherClassDetailPage() {
             })}
           </ul>
         )}
-      </SettingsSection>
-
-      <SettingsSection
-        id="class-settings"
-        title="Class settings"
-        description="The tutor persona, voice, and what students can do — for this class."
-      >
-        <div className="flex flex-col gap-6">
-          <ClassPersonaPanel
-            classId={cls.classId}
-            initialPersona={cls.persona ?? null}
-            onSaved={refresh}
-          />
-          <ClassVoiceSettingsPanel
-            classId={cls.classId}
-            initial={cls.voice ?? null}
-            initialVoiceInput={cls.voiceInputEnabled ?? false}
-            initialRecording={cls.recordingEnabled ?? false}
-            onSaved={refresh}
-          />
-        </div>
       </SettingsSection>
 
       <SettingsSection

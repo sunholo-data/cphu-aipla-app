@@ -16,8 +16,10 @@
  */
 
 import { useEffect, useMemo, useState } from "react";
+import type { ReactNode } from "react";
 import { useToast } from "@/hooks/useToast";
-import { Loader2, Save, X } from "lucide-react";
+import { CircleDot, Loader2, Mic, Save, ShieldCheck, X } from "lucide-react";
+import type { LucideIcon } from "lucide-react";
 
 import {
   type ClassVoiceSettingsPayload,
@@ -27,7 +29,8 @@ import {
   setClassCapabilities,
   setClassVoiceSettings,
 } from "@/lib/teacherApi";
-import { AdvancedDisclosure, SettingRow } from "@/components/teacher/ui";
+import { AdvancedDisclosure } from "@/components/teacher/ui";
+import { cn } from "@/lib/utils";
 
 interface Props {
   classId: string;
@@ -166,47 +169,62 @@ export function ClassVoiceSettingsPanel({
       aria-labelledby="voice-settings-label"
       className="flex flex-col gap-3"
     >
-      <header className="flex flex-wrap items-center justify-between gap-2">
+      <header className="flex flex-col gap-1">
         <h2 id="voice-settings-label" className="text-lg font-semibold">
           Voice &amp; recording
         </h2>
-        <span className="text-xs text-muted-foreground">
-          The tutor speaks in its persona&rsquo;s voice. These toggle what
-          students can do; advanced voice tuning is below.
-        </span>
+        <p className="text-xs text-muted-foreground">
+          The tutor speaks in its persona&rsquo;s voice. These two switches set
+          what students can do in this class; advanced voice tuning is below.
+        </p>
       </header>
 
-      {/* M4 — the essential surface: two plain on/off capabilities. */}
-      <div className="divide-y divide-border rounded border border-border px-3">
-        <SettingRow
+      {/* M4 — the essential surface: two prominent on/off capabilities rendered
+          as toggle-switch cards. The raw tier/voice picker is demoted below. */}
+      <div className="grid gap-3 sm:grid-cols-2">
+        <CapabilityToggleCard
+          id="cap-voice-input"
+          icon={Mic}
           label="Student voice input"
-          htmlFor="cap-voice-input"
-          help="Let students talk-to-type (press the mic, speak, it fills the box)."
-        >
-          <input
-            id="cap-voice-input"
-            type="checkbox"
-            checked={voiceInput}
-            disabled={capBusy}
-            onChange={(e) => void toggleCapability("voiceInput", e.target.checked)}
-            className="h-5 w-5 accent-primary"
-          />
-        </SettingRow>
-        <SettingRow
+          help="Let students talk-to-type — press the mic, speak, and it fills the box."
+          checked={voiceInput}
+          disabled={capBusy}
+          onChange={(next) => void toggleCapability("voiceInput", next)}
+        />
+        <CapabilityToggleCard
+          id="cap-recording"
+          icon={CircleDot}
+          tone="warning"
           label="Record this class"
-          htmlFor="cap-recording"
-          help="Capture the group's audio as a research record. Only enable if you hold signed consent forms for this class."
-        >
-          <input
-            id="cap-recording"
-            type="checkbox"
-            checked={recording}
-            disabled={capBusy}
-            onChange={(e) => void toggleCapability("recording", e.target.checked)}
-            className="h-5 w-5 accent-primary"
-          />
-        </SettingRow>
+          help="Capture the group's audio as a research record."
+          checked={recording}
+          disabled={capBusy}
+          onChange={(next) => void toggleCapability("recording", next)}
+          footer={
+            <span
+              className={cn(
+                "flex items-start gap-1.5 text-xs",
+                recording ? "text-amber-700" : "text-muted-foreground",
+              )}
+            >
+              <ShieldCheck className="mt-0.5 h-3.5 w-3.5 shrink-0" aria-hidden="true" />
+              {recording
+                ? "Recording on — only keep this enabled while you hold signed consent for every participant."
+                : "Only enable if you hold signed consent forms for this class."}
+            </span>
+          }
+        />
       </div>
+
+      {/* Shared status line — covers both the toggle saves and the advanced save. */}
+      {toast || error ? (
+        <p
+          role="status"
+          className={cn("text-xs", error ? "text-red-600" : "text-emerald-600")}
+        >
+          {error ?? toast}
+        </p>
+      ) : null}
 
       {/* M4 — the raw tier/voice picker is now ADVANCED (default collapsed).
           Personas are the primary way to choose a voice; this is the override. */}
@@ -280,11 +298,135 @@ export function ClassVoiceSettingsPanel({
               Revert to skill default
             </button>
           ) : null}
-          {toast ? <span className="text-xs text-emerald-600">{toast}</span> : null}
-          {error ? <span className="text-xs text-red-600">{error}</span> : null}
         </div>
       </div>
       </AdvancedDisclosure>
     </section>
+  );
+}
+
+/**
+ * A prominent on/off capability rendered as a toggle-switch card — the primary
+ * surface for "what students can do in this class". `tone="warning"` tints the
+ * card amber when on (used for recording, which carries a consent obligation).
+ * Keeps a real `<input type="checkbox">` under the hood for a11y + tests.
+ */
+function CapabilityToggleCard({
+  id,
+  icon: Icon,
+  label,
+  help,
+  checked,
+  disabled,
+  onChange,
+  tone = "primary",
+  footer,
+}: {
+  id: string;
+  icon: LucideIcon;
+  label: string;
+  help: string;
+  checked: boolean;
+  disabled?: boolean;
+  onChange: (next: boolean) => void;
+  tone?: "primary" | "warning";
+  footer?: ReactNode;
+}) {
+  const warn = tone === "warning";
+  return (
+    <div
+      className={cn(
+        "flex flex-col gap-3 rounded-lg border p-4 transition-colors",
+        checked
+          ? warn
+            ? "border-amber-400/60 bg-amber-50"
+            : "border-primary/40 bg-primary/[0.04]"
+          : "border-border bg-card",
+      )}
+    >
+      <div className="flex items-start justify-between gap-3">
+        <div className="flex items-start gap-3">
+          <span
+            className={cn(
+              "mt-0.5 flex h-9 w-9 shrink-0 items-center justify-center rounded-full transition-colors",
+              checked
+                ? warn
+                  ? "bg-amber-100 text-amber-700"
+                  : "bg-primary/15 text-primary"
+                : "bg-muted text-muted-foreground",
+            )}
+          >
+            <Icon className="h-[18px] w-[18px]" aria-hidden="true" />
+          </span>
+          <div className="flex flex-col gap-0.5">
+            <span className="text-sm font-semibold text-foreground">{label}</span>
+            <span className="text-xs text-muted-foreground">{help}</span>
+          </div>
+        </div>
+        <ToggleSwitch
+          id={id}
+          label={label}
+          checked={checked}
+          disabled={disabled}
+          onChange={onChange}
+          warn={warn}
+        />
+      </div>
+      {footer ? <div className="pl-12">{footer}</div> : null}
+    </div>
+  );
+}
+
+/**
+ * Styled toggle switch backed by a visually-hidden real checkbox, so it stays
+ * keyboard-operable and addressable by `getByLabelText` in tests.
+ */
+function ToggleSwitch({
+  id,
+  label,
+  checked,
+  disabled,
+  onChange,
+  warn,
+}: {
+  id: string;
+  label: string;
+  checked: boolean;
+  disabled?: boolean;
+  onChange: (next: boolean) => void;
+  warn?: boolean;
+}) {
+  return (
+    <label
+      htmlFor={id}
+      className={cn(
+        "relative inline-flex shrink-0 cursor-pointer items-center",
+        disabled && "cursor-not-allowed opacity-50",
+      )}
+    >
+      <input
+        id={id}
+        type="checkbox"
+        checked={checked}
+        disabled={disabled}
+        onChange={(e) => onChange(e.target.checked)}
+        aria-label={label}
+        className="peer sr-only"
+      />
+      <span
+        aria-hidden="true"
+        className={cn(
+          "h-6 w-11 rounded-full bg-muted-foreground/30 transition-colors peer-focus-visible:ring-2 peer-focus-visible:ring-ring peer-focus-visible:ring-offset-1",
+          checked && (warn ? "bg-amber-500" : "bg-primary"),
+        )}
+      />
+      <span
+        aria-hidden="true"
+        className={cn(
+          "pointer-events-none absolute left-0.5 top-0.5 h-5 w-5 rounded-full bg-white shadow transition-transform",
+          checked ? "translate-x-5" : "translate-x-0",
+        )}
+      />
+    </label>
   );
 }
