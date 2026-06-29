@@ -59,10 +59,10 @@
       ],
       "files_to_create": ["frontend/src/lib/elementTypes.ts"],
       "files_to_modify": ["frontend/src/lib/teacherApi.ts", "frontend/src/lib/activityPreview.ts", "frontend/src/components/workspace/WorkbenchTable.tsx", "frontend/src/components/workspace/WorkbenchChart.tsx", "frontend/src/components/workspace/WorkbenchCalculator.tsx", "frontend/src/components/workspace/WorkbenchNote.tsx"],
-      "passes": null,
-      "started": null,
-      "completed": null,
-      "notes": "Low-Med. Removes FE duplication only; BE Pydantic stays the wire source. tsc catches most. Foundation for M4."
+      "passes": true,
+      "started": "2026-06-29",
+      "completed": "2026-06-29",
+      "notes": "SHIPPED 2026-06-29 (3c340ff): created lib/elementTypes.ts as the single TS mirror; teacherApi + 7 workspace files re-export canonical types under their historical names (incl *Def aliases) so zero consumers changed. Found + reconciled a real drift: Solution/Document `prompt` was optional on the wire but REQUIRED in the renderers -> canonical optional (renderers already guard). tsc clean; full frontend suite 1396 passed."
     },
     {
       "id": "M4-F5-F8-BUILDER",
@@ -195,6 +195,6 @@
   },
   "github_issues": [],
   "last_session": "2026-06-29",
-  "last_checkpoint": "M1 shipped (F4+F3+useToast). M2 shipped (B2+B4+B6); B9 deferred (60+ site load-bearing change, mis-sized by audit), B10 deferred (cosmetic). 4 pre-existing OTel test flakes noted (not M2). M3 (F2 element-type unification) next.",
+  "last_checkpoint": "M1 (F4+F3+useToast), M2 (B2+B4+B6; B9/B10 deferred), and the leaked-LOCAL_MODE test fix all shipped. M3 (F2 element-type unification) shipped 3c340ff — reconciled a real Solution/Document prompt drift. M4 (F5+F8 builder consolidation, depends on M3) next.",
   "status": "in_progress"
 }
