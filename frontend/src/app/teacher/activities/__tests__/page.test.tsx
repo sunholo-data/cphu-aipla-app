@@ -147,7 +147,7 @@ describe("TeacherActivitiesPage (ALS-1 M1.2 library)", () => {
     // The copy is prepended -> two cards now carry the title.
     await waitFor(() => expect(screen.getAllByText("Energy basics").length).toBe(2));
   });
-  it("switches an activity's visibility via the single status control (M2)", async () => {
+  it("toggles an activity's visibility via the status pill (M2)", async () => {
     vi.spyOn(teacherApi, "listActivities").mockResolvedValue([makeActivity()]); // private
     vi.spyOn(teacherApi, "listClasses").mockResolvedValue([]);
     const setSpy = vi
@@ -155,12 +155,12 @@ describe("TeacherActivitiesPage (ALS-1 M1.2 library)", () => {
       .mockResolvedValue(makeActivity({ visibility: "published" }));
     render(<TeacherActivitiesPage />);
     await screen.findByText("Energy basics");
-    const control = screen.getByRole("combobox", { name: /visibility/i });
-    expect(control).toHaveValue("private");
-    fireEvent.change(control, { target: { value: "published" } });
+    const pill = screen.getByRole("button", { name: /visibility/i });
+    expect(pill).toHaveTextContent("Private");
+    fireEvent.click(pill);
     await waitFor(() => expect(setSpy).toHaveBeenCalledWith("act-energy", "published"));
-    // The same control reflects the new state (no separate badge/button).
-    await waitFor(() => expect(screen.getByRole("combobox", { name: /visibility/i })).toHaveValue("published"));
+    // The same pill reflects the new state (no separate badge/button).
+    await waitFor(() => expect(screen.getByRole("button", { name: /visibility/i })).toHaveTextContent("Shared"));
   });
 
   it("blocks assignment of a Draft and prompts review & save (not assignable yet)", async () => {
@@ -174,9 +174,9 @@ describe("TeacherActivitiesPage (ALS-1 M1.2 library)", () => {
     // A draft offers no class-assignment chip — instead an explicit review prompt.
     expect(screen.queryByRole("button", { name: "7B" })).not.toBeInTheDocument();
     expect(screen.getByText(/review and save/i)).toBeInTheDocument();
-    // Draft is read-only: it shows a pill, not the Private/Shared selector (you
-    // can't manually pick Draft, and you can't share it without reviewing first).
-    expect(screen.queryByRole("combobox", { name: /visibility/i })).not.toBeInTheDocument();
+    // Draft is read-only: it shows a static badge, not the Private/Shared toggle
+    // pill (you can't manually pick Draft, nor share it without reviewing first).
+    expect(screen.queryByRole("button", { name: /visibility/i })).not.toBeInTheDocument();
     expect(screen.getByText("Draft")).toBeInTheDocument();
   });
 

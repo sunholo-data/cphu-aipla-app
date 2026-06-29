@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
-import { ClipboardList, Copy, Plus, Sliders, Trash2, Users } from "lucide-react";
+import { ClipboardList, Copy, Lock, Plus, Share2, Sliders, Trash2, Users } from "lucide-react";
 
 import {
   type ActivityPayload,
@@ -316,10 +316,10 @@ function SharedActivityCard({
 const VISIBILITY_HELP =
   "Draft = a new copy to review · Private = your classes only · Shared = other teachers can adopt a copy. Students only ever see activities you assign.";
 
-/** The status pill on an own card: shows the current state AND switches it between
- *  the two user-settable states, Private ↔ Shared. **Draft is not offered** — it
- *  is a system state (set on copy/adopt, cleared by review-and-save), so a draft
- *  card renders a read-only Draft pill instead of this control. */
+/** The status pill on an own card: shows the current state AND toggles it between
+ *  the two user-settable states, Private ↔ Shared, in one click. **Draft is not
+ *  offered** — it is a system state (set on copy/adopt, cleared by
+ *  review-and-save), so a draft card renders a read-only Draft pill instead. */
 function VisibilityControl({
   value,
   busy,
@@ -329,21 +329,20 @@ function VisibilityControl({
   busy: boolean;
   onChange: (v: ActivityPayload["visibility"]) => void;
 }) {
+  const next: "private" | "published" = value === "private" ? "published" : "private";
+  const Icon = value === "published" ? Share2 : Lock;
   return (
-    <select
-      aria-label="Visibility"
-      value={value}
+    <button
+      type="button"
+      aria-label={`Visibility: ${VISIBILITY_LABEL[value]}. Click to make ${VISIBILITY_LABEL[next]}.`}
       disabled={busy}
-      title={VISIBILITY_HELP}
-      onChange={(e) => onChange(e.target.value as ActivityPayload["visibility"])}
-      className={`shrink-0 cursor-pointer rounded border px-1.5 py-0.5 text-[11px] font-medium focus:outline-none focus:ring-1 focus:ring-ring disabled:opacity-50 ${visibilityColor(value)}`}
+      title={`Click to make ${VISIBILITY_LABEL[next]}. ${VISIBILITY_HELP}`}
+      onClick={() => onChange(next)}
+      className={`inline-flex shrink-0 items-center gap-1 rounded border px-1.5 py-0.5 text-[11px] font-medium focus:outline-none focus:ring-1 focus:ring-ring disabled:opacity-50 ${visibilityColor(value)}`}
     >
-      {(["private", "published"] as const).map((v) => (
-        <option key={v} value={v}>
-          {VISIBILITY_LABEL[v]}
-        </option>
-      ))}
-    </select>
+      <Icon className="h-3 w-3" aria-hidden="true" />
+      {VISIBILITY_LABEL[value]}
+    </button>
   );
 }
 
