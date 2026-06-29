@@ -70,3 +70,11 @@ def test_sessions_without_group_code_skipped(monkeypatch):
     s.group_code = None
     _patch_sessions(monkeypatch, [s])
     assert compute_group_signals(["g"], now=NOW) == []
+
+
+def test_stale_group_beyond_live_window_excluded(monkeypatch):
+    # A session from another day (200 min idle) is historical, not live, and
+    # must not surface as a stale "idle"/"stuck" row in the live view.
+    _patch_sessions(monkeypatch, [_sess("g-live", 5), _sess("g-old", 200)])
+    out = {g.group_code for g in compute_group_signals(["g-live", "g-old"], now=NOW)}
+    assert out == {"g-live"}

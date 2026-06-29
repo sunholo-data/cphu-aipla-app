@@ -17,6 +17,7 @@ import { Hand, Loader2, TriangleAlert } from "lucide-react";
 import Link from "next/link";
 import { useCallback, useEffect, useState } from "react";
 
+import { ChatMarkdown } from "@/components/chat/ChatMarkdown";
 import { SettingsSection } from "@/components/teacher/ui";
 import { ackClassSignal, listClassLive, type LiveClass } from "@/lib/teacherApi";
 
@@ -111,7 +112,9 @@ export function LiveClassView({ classId, pollMs = 10_000 }: { classId: string; p
         {/* Rolling class summary (1.1.31 M1) — only when present */}
         {summary && (
           <div className="rounded border border-border bg-muted/40 px-3 py-2 text-sm" data-testid="live-summary">
-            <p className="text-foreground">{summary.text}</p>
+            <div className="text-foreground">
+              <ChatMarkdown content={summary.text} navigateToBlock={() => {}} />
+            </div>
             <p className="mt-1 text-xs text-muted-foreground">
               AI · {summary.framework} · updated {relTime(summary.generatedAt)}
             </p>

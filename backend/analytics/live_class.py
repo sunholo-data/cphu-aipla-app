@@ -24,6 +24,10 @@ ACTIVE_WINDOW_S = 300  # last turn < 5 min ago → "active"
 STUCK_MIN_IDLE_S = 360  # 6 min quiet after working → candidate "stuck"
 STUCK_MAX_IDLE_S = 1800  # beyond 30 min it's just idle, not "stuck"
 STUCK_MIN_TURNS = 2  # only flag groups that were actually working
+LIVE_WINDOW_S = 5400  # 90 min — a group quiet longer than this is a PAST session,
+# not "live now". It drops off the live view (and the live summary) so yesterday's
+# sessions don't show up as stale "idle"/"stuck" rows; the full history is still in
+# the per-group report.
 
 
 @dataclass
@@ -47,7 +51,9 @@ def compute_group_signals(
 
     Reads the chat-session index for the class's group codes, collapses to the
     most-recent session per group (the group's current activity), and derives
-    active/idle + a "stuck" flag from turn count and idle time.
+    active/idle + a "stuck" flag from turn count and idle time. Groups whose
+    most-recent session is older than ``LIVE_WINDOW_S`` are excluded — they're
+    historical, not live (so a session from another day doesn't surface here).
     """
     if not group_codes:
         return []
@@ -73,6 +79,8 @@ def compute_group_signals(
         if last.tzinfo is None:
             last = last.replace(tzinfo=UTC)
         idle = max(0, int((now - last).total_seconds()))
+        if idle > LIVE_WINDOW_S:
+            continue  # stale/past session — historical, not live; excluded
         status = "active" if idle < ACTIVE_WINDOW_S else "idle"
         stuck = (
             s.turn_count >= STUCK_MIN_TURNS  # type: ignore[attr-defined]
