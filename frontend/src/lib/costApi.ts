@@ -8,6 +8,7 @@
  */
 
 import { fetchWithTeacherAuth as fetchWithAuth } from "@/lib/apiClient";
+import { readJson as sharedReadJson } from "@/lib/apiResponse";
 
 export type SpendPeriod = "this_month" | "last_month" | "all_time";
 
@@ -66,10 +67,9 @@ export interface CostInsightsPayload {
 }
 
 async function readJson<T>(resp: Response, what: string): Promise<T> {
-  if (!resp.ok) {
-    throw new Error(`${what} failed (${resp.status})`);
-  }
-  return (await resp.json()) as T;
+  return sharedReadJson<T>(resp, what, {
+    toError: ({ status, message }) => new Error(`${message} failed (${status})`),
+  });
 }
 
 /** Per-class spend breakdown. */

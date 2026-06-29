@@ -15,6 +15,7 @@
  */
 
 import { fetchWithTeacherAuth as fetchWithAuth } from "@/lib/apiClient";
+import { readJson as sharedReadJson } from "@/lib/apiResponse";
 
 export type Language = "da" | "en";
 export type Difficulty = "standard" | "guided";
@@ -310,21 +311,22 @@ export class ConflictError extends Error {
 }
 
 async function readJson<T>(resp: Response, errMsg: string): Promise<T> {
-  if (resp.status === 404) {
-    throw new NotFoundError(errMsg);
-  }
-  if (resp.status === 409) {
-    const detail = await resp
-      .json()
-      .then((b) => (typeof b?.detail === "string" ? b.detail : ""))
-      .catch(() => "");
-    throw new ConflictError(detail || errMsg);
-  }
-  if (!resp.ok) {
-    const body = await resp.text().catch(() => "");
-    throw new Error(`${errMsg}: ${resp.status} ${body.slice(0, 200)}`);
-  }
-  return (await resp.json()) as T;
+  return sharedReadJson<T>(resp, errMsg, {
+    toError: ({ status, body, message }) => {
+      if (status === 404) return new NotFoundError(message);
+      if (status === 409) {
+        let detail = "";
+        try {
+          const parsed = JSON.parse(body) as { detail?: unknown };
+          if (typeof parsed.detail === "string") detail = parsed.detail;
+        } catch {
+          /* non-JSON body → fall back to the per-call label */
+        }
+        return new ConflictError(detail || message);
+      }
+      return new Error(`${message}: ${status} ${body.slice(0, 200)}`);
+    },
+  });
 }
 
 /** Read the current teacher's saved config for an activity in a class. */

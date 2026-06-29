@@ -14,6 +14,7 @@
  */
 
 import { fetchWithAuth, fetchWithTeacherAuth } from "@/lib/apiClient";
+import { readJson as sharedReadJson } from "@/lib/apiResponse";
 import type { StxLevel } from "@/lib/teacherApi";
 
 /** One curriculum document's metadata (mirrors backend CurriculumDoc). */
@@ -43,11 +44,10 @@ export class CurriculumApiError extends Error {
 }
 
 async function readJson<T>(resp: Response, errMsg: string): Promise<T> {
-  if (!resp.ok) {
-    const body = await resp.text().catch(() => "");
-    throw new CurriculumApiError(`${errMsg}: ${resp.status} ${body.slice(0, 200)}`, resp.status);
-  }
-  return (await resp.json()) as T;
+  return sharedReadJson<T>(resp, errMsg, {
+    toError: ({ status, body, message }) =>
+      new CurriculumApiError(`${message}: ${status} ${body.slice(0, 200)}`, status),
+  });
 }
 
 export interface BrowseCurriculumParams {

@@ -10,6 +10,7 @@
  */
 
 import { fetchWithTeacherAuth as fetchWithAuth } from "@/lib/apiClient";
+import { readJson as sharedReadJson } from "@/lib/apiResponse";
 
 export type InsightsSince = "7d" | "30d" | "all";
 
@@ -117,11 +118,10 @@ function _query(since: InsightsSince, until?: string, scope?: InsightsScope): st
 }
 
 async function _ok<T>(resp: Response, what: string): Promise<T> {
-  if (!resp.ok) {
-    const text = await resp.text().catch(() => "");
-    throw new Error(`${what} failed (${resp.status}): ${text.slice(0, 200)}`);
-  }
-  return (await resp.json()) as T;
+  return sharedReadJson<T>(resp, what, {
+    toError: ({ status, body, message }) =>
+      new Error(`${message} failed (${status}): ${body.slice(0, 200)}`),
+  });
 }
 
 // The backend returns snake_case JSON. The dashboard surface wants
