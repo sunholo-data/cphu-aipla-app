@@ -62,8 +62,9 @@ def _client(group_id: str | None, monkeypatch, store=None, cls=None, writes=None
 
     app.dependency_overrides[get_current_user] = _override
     monkeypatch.setattr(rr, "_get_store", lambda: store)
-    monkeypatch.setattr(rr, "get_document", lambda c, i: {"classId": CLASS_ID})
-    monkeypatch.setattr(rr, "get_class", lambda cid: cls)
+    # Mock at the class-resolution seam (the route now uses the shared
+    # db.classes.get_class_for_group instead of inlining the anon_groups lookup).
+    monkeypatch.setattr(rr, "get_class_for_group", lambda gid: cls)
     captured = writes if writes is not None else []
     monkeypatch.setattr(rr, "set_document", lambda c, i, d: captured.append((i, d)))
     # REC-TRANSCRIPT — transcription runs in a BackgroundTask that update_document's

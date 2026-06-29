@@ -23,9 +23,8 @@ from fastapi import APIRouter, BackgroundTasks, Depends, File, Form, HTTPExcepti
 from opentelemetry import trace
 
 from auth import User, get_current_user
-from db.classes import get_class
-from db.firestore import delete_document, get_document, query_documents, set_document, update_document
-from db.models.class_ import Class
+from db.classes import get_class_for_group
+from db.firestore import delete_document, query_documents, set_document, update_document
 from observability.chat_log import emit_voice_cost
 from voice import get_stt
 from voice.cost import stt_cost_usd
@@ -50,26 +49,6 @@ def _get_store() -> ResearchAudioStore | None:
     if _store_singleton is _NOT_BUILT:
         _store_singleton = ResearchAudioStore.from_env()
     return _store_singleton  # type: ignore[return-value]
-
-
-def _class_for_user(user: User) -> Class | None:
-    """Resolve the requesting anonymous-group student's class via the
-    anon_groups -> classId binding (same path as voice_routes). None when the
-    caller has no group context (e.g. a teacher in chat mode)."""
-    group_id = getattr(user, "group_id", None)
-    if not group_id:
-        return None
-    try:
-        anon_doc = get_document("anon_groups", group_id)
-        if not anon_doc:
-            return None
-        class_id = anon_doc.get("classId")
-        if not class_id:
-            return None
-        return get_class(class_id)
-    except Exception as exc:
-        logger.warning("recording: class lookup failed for group=%s: %s", group_id, exc)
-        return None
 
 
 async def _transcribe_segment_in_background(
@@ -141,7 +120,7 @@ async def upload_recording(
     upload returns immediately — a segment can be seconds of audio that takes
     longer to transcribe than to store, and we never want the rolling recorder's
     uploads to stall behind STT."""
-    cls = _class_for_user(user)
+    cls = get_class_for_group(getattr(user, "group_id", None))
     if cls is None:
         raise HTTPException(status_code=403, detail="No class context for recording.")
     if not cls.recording_enabled:
@@ -195,13 +174,6 @@ async def upload_recording(
     return {"recordingId": rec_id, "gcsUri": gcs_uri}
 
 
-def _class_for_group(group_id: str) -> Class | None:
-    """Resolve the class a given group belongs to (anon_groups -> classId)."""
-    anon_doc = get_document("anon_groups", group_id)
-    class_id = anon_doc.get("classId") if anon_doc else None
-    return get_class(class_id) if class_id else None
-
-
 def _transcript_for_group(group_id: str) -> dict[str, Any]:
     """Build a group's transcript — ordered segments + joined text. No auth here
     (callers gate first)."""
@@ -247,7 +219,7 @@ async def get_group_transcript(
     caller_group = getattr(user, "group_id", None)
     if caller_group != group_id:
         # not the group's own student -> the owning teacher, or a researcher.
-        cls = _class_for_group(group_id)
+        cls = get_class_for_group(group_id)
         is_owner = cls is not None and cls.owner_uid == user.uid
         is_researcher_bypass = cls is not None and not is_owner and getattr(user, "is_researcher", False)
         if not (is_owner or is_researcher_bypass):
@@ -287,9 +259,7 @@ async def delete_group_recordings(
     if getattr(user, "group_id", None):
         # Anonymous-group students cannot erase research data.
         raise HTTPException(status_code=403, detail="Not authorized.")
-    anon_doc = get_document("anon_groups", group_id)
-    class_id = anon_doc.get("classId") if anon_doc else None
-    cls = get_class(class_id) if class_id else None
+    cls = get_class_for_group(group_id)
     if cls is None or cls.owner_uid != user.uid:
         raise HTTPException(status_code=403, detail="Not the owning teacher.")
     deleted = await delete_recordings_for_group(group_id)
