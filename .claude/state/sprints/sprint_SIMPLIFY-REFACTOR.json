@@ -79,10 +79,10 @@
       ],
       "files_to_create": [],
       "files_to_modify": ["frontend/src/hooks/useActivityBuilder.ts", "frontend/src/app/teacher/activities/new/page.tsx", "frontend/src/app/teacher/activities/[id]/page.tsx"],
-      "passes": null,
-      "started": null,
-      "completed": null,
-      "notes": "Med. GATE: activity-config POST is a FULL OVERWRITE - a dropped field wipes data. Do NOT merge unless T4 complete-payload assertion is green."
+      "passes": true,
+      "started": "2026-06-29",
+      "completed": "2026-06-29 (F5 shipped, F8 deferred)",
+      "notes": "SHIPPED 2026-06-29 (ca17d6c): F5 — builder.toSavePayload() + isFormValid() centralize the save payload both pages assembled inline. Found + fixed a real drift (edit page left teachingGoal untrimmed; new page trimmed it) — now consistent. Named the element-slice shape (ElementPayload/SavePayload). T4 extended with 3 tests; full frontend suite 1399 passed. DEFERRED: F8 (collapse the 13 useState into a useReducer) — pure internal cleanup, zero behavior change, only removes one eslint-disable, on the most data-loss-sensitive hook + complicated by the nextKeyRef counter. Warrants a focused standalone change, not a bundled tail-of-M4 rewrite. T4 nets it whenever it's done."
     },
     {
       "id": "M5-F1-CHATSHELL",
@@ -195,6 +195,6 @@
   },
   "github_issues": [],
   "last_session": "2026-06-29",
-  "last_checkpoint": "M1 (F4+F3+useToast), M2 (B2+B4+B6; B9/B10 deferred), and the leaked-LOCAL_MODE test fix all shipped. M3 (F2 element-type unification) shipped 3c340ff — reconciled a real Solution/Document prompt drift. M4 (F5+F8 builder consolidation, depends on M3) next.",
+  "last_checkpoint": "Shipped: M1 (F4+F3+useToast), M2 (B2+B4+B6), leaked-LOCAL_MODE test fix, M3 (F2 element types, ca-3c340ff), M4/F5 (ca17d6c — toSavePayload/isFormValid, reconciled a teachingGoal-trim drift). Deferred: B9, B10, F9-AlertBox/SessionRow/ExportButton, F8 (reducer). Next big rocks: M5 (F1 ChatShell, needs Chrome-MCP gate), M6 (F6 useSkillAgent, needs branch-test gate), M7 (B1 ownership guard, needs owner-test backfill), M8 (B5 fast_api_app split), M9 (B7/B8 service layer).",
   "status": "in_progress"
 }
