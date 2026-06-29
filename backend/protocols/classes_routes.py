@@ -27,6 +27,7 @@ from pydantic import BaseModel, ConfigDict, Field
 from analytics import cost_queries
 from analytics.auth import assert_can_read_class
 from auth import User, get_current_user
+from auth import assert_teacher as _assert_teacher
 from auth.owner_labels import resolve_owner_labels
 from db.activities import get_activity
 from db.classes import (
@@ -109,13 +110,6 @@ class GroupsMint(BaseModel):
 # ---------------------------------------------------------------------------
 # Guards + helpers
 # ---------------------------------------------------------------------------
-
-
-def _assert_teacher(user: User) -> None:
-    """Reject non-teacher callers. Anonymous-group students hit this gate
-    when they try to call ``/api/classes/*``."""
-    if not user.is_teacher:
-        raise HTTPException(status_code=403, detail="teacher access required")
 
 
 def _load_owned(class_id: str, user: User) -> Class:

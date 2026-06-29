@@ -33,6 +33,7 @@ from analytics import summarise as _summarise
 from analytics import tools as _tools
 from analytics.auth import PERMISSION_ERROR_MESSAGE
 from auth import User, get_current_user
+from auth import assert_teacher as _assert_teacher
 
 log = logging.getLogger(__name__)
 
@@ -55,13 +56,6 @@ _ANALYTICS_TOOLS: dict[str, Any] = {
     "group_summary": _tools.group_summary,
     "summarise_chat_excerpts": _summarise.summarise_chat_excerpts,
 }
-
-
-def _assert_teacher(user: User) -> None:
-    """Mirror ``classes_routes._assert_teacher`` — analytics is teacher-only.
-    Anonymous-group students never reach this surface."""
-    if not user.is_teacher:
-        raise HTTPException(status_code=403, detail="teacher access required")
 
 
 def _summarise_signature(fn: Any) -> list[dict[str, Any]]:

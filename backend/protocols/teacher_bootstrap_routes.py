@@ -10,9 +10,9 @@ from __future__ import annotations
 
 import logging
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends
 
-from auth import User, get_current_user
+from auth import User, assert_teacher, get_current_user
 from onboarding.demo_seed import seed_demo_for_teacher
 
 log = logging.getLogger(__name__)
@@ -27,7 +27,6 @@ async def bootstrap(user: User = Depends(get_current_user)) -> dict:  # noqa: B0
     Returns ``{"seeded": false}`` for an established teacher (nothing created),
     or ``{"seeded": true, ...}`` with the new class + activity ids + join code.
     """
-    if not user.is_teacher:
-        raise HTTPException(status_code=403, detail="teacher access required")
+    assert_teacher(user)
     result = seed_demo_for_teacher(user.uid)
     return {"seeded": result is not None, **(result or {})}

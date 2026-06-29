@@ -26,6 +26,7 @@ from pydantic import BaseModel, ConfigDict, Field
 
 from artefacts.loader import is_known_artefact
 from auth import User, get_current_user
+from auth import assert_teacher as _assert_teacher
 from auth.owner_labels import resolve_owner_labels
 from db.activities import (
     copy_activity,
@@ -89,11 +90,6 @@ class ActivityUpsert(BaseModel):
     visibility: Visibility = "private"
 
     model_config = ConfigDict(populate_by_name=True, extra="forbid")
-
-
-def _assert_teacher(user: User) -> None:
-    if not user.is_teacher:
-        raise HTTPException(status_code=403, detail="teacher access required")
 
 
 def _assert_known_artefact(artefact_id: str | None) -> None:

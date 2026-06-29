@@ -31,6 +31,7 @@ from opentelemetry import trace
 
 from analytics.auth import PERMISSION_ERROR_MESSAGE
 from auth import User, get_current_user
+from auth import assert_teacher as _assert_teacher
 from auth.owner_labels import resolve_owner_labels
 from insights import aggregates
 from insights.cache import CACHE, make_key
@@ -52,12 +53,6 @@ _SINCE_PRESETS: dict[str, timedelta] = {
     # practical "all-time" since BQ scans want a bound.
     "all": timedelta(days=365 * 5),
 }
-
-
-def _assert_teacher(user: User) -> None:
-    """Mirror ``classes_routes._assert_teacher``."""
-    if not user.is_teacher:
-        raise HTTPException(status_code=403, detail="teacher access required")
 
 
 def _resolve_scope(user: User, scope: str) -> str:

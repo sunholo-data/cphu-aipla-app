@@ -39,6 +39,7 @@ from auth.group_id_auth import (
     GroupRevoked,
     InvalidGroupToken,
 )
+from auth.guards import assert_teacher
 from auth.permissions import ToolPermissionDenied, can_use_tool
 from config.local_mode import is_local_mode
 
@@ -154,6 +155,7 @@ __all__ = [
     "AccessContext",
     "ToolPermissionDenied",
     "User",
+    "assert_teacher",
     "build_access_context",
     "can_access",
     "can_use_tool",
