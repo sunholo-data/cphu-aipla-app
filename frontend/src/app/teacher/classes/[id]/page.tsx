@@ -38,6 +38,7 @@ import { TeacherPage } from "@/components/teacher/ui/TeacherPage";
 
 import { handleExportSessions } from "./_exportHelpers";
 import { ClassAnalyticsCopilot } from "./_ClassAnalyticsCopilot";
+import { LiveClassView } from "./_LiveClassView";
 
 function relativeTime(iso: string): string {
   const diff = Date.now() - new Date(iso).getTime();
@@ -293,6 +294,7 @@ export default function TeacherClassDetailPage() {
       }
     >
       <SettingsMap highlight="class" classId={cls.classId} />
+      <LiveClassView classId={cls.classId} />
       <SettingsSection
         title="Groups"
         action={

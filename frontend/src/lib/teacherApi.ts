@@ -944,3 +944,53 @@ export async function resetGroupSession(
     throw new Error(`reset session failed (${resp.status}): ${text}`);
   }
 }
+
+// --- Live class dashboard (1.1.29 + 1.1.31) ---------------------------------
+
+export type LiveCall = {
+  groupId: string;
+  activityId: string;
+  activityTitle: string;
+  raisedHandAt: string;
+};
+
+export type LiveGroup = {
+  groupId: string;
+  status: string; // "active" | "idle"
+  turns: number;
+  lastActivityAt: string;
+  idleSeconds: number;
+  stuck: boolean;
+  activityTitle: string;
+  skillId: string;
+};
+
+/** The rolling class summary (1.1.31 M1, placeholder framework). Null until wired. */
+export type LiveSummary = {
+  text: string;
+  framework: string;
+  generatedAt: string;
+};
+
+export type LiveClass = {
+  calls: LiveCall[];
+  groups: LiveGroup[];
+  summary: LiveSummary | null;
+  generatedAt: string;
+};
+
+/** Live dashboard payload: incoming raised hands + deterministic per-group signals. */
+export async function listClassLive(classId: string): Promise<LiveClass> {
+  const resp = await fetchWithAuth(`/api/proxy/api/classes/${encodeURIComponent(classId)}/live`);
+  if (!resp.ok) throw new Error(`live fetch failed (${resp.status})`);
+  return (await resp.json()) as LiveClass;
+}
+
+/** Acknowledge (clear) a group's raised hand. */
+export async function ackClassSignal(classId: string, groupId: string): Promise<void> {
+  const resp = await fetchWithAuth(
+    `/api/proxy/api/classes/${encodeURIComponent(classId)}/signals/${encodeURIComponent(groupId)}/ack`,
+    { method: "POST" },
+  );
+  if (!resp.ok) throw new Error(`ack failed (${resp.status})`);
+}

@@ -537,4 +537,144 @@ async def get_class_spend(
     return cost_queries.class_spend(class_id, period)  # type: ignore[arg-type]
 
 
+class RaisedHandRow(BaseModel):
+    model_config = ConfigDict(populate_by_name=True)
+    group_id: str = Field(alias="groupId")
+    activity_id: str = Field(default="", alias="activityId")
+    activity_title: str = Field(default="", alias="activityTitle")
+    raised_hand_at: str = Field(alias="raisedHandAt")
+
+
+class ClassSignalsResponse(BaseModel):
+    calls: list[RaisedHandRow]
+
+
+class LiveGroupRow(BaseModel):
+    model_config = ConfigDict(populate_by_name=True)
+    group_id: str = Field(alias="groupId")
+    status: str
+    turns: int
+    last_activity_at: str = Field(alias="lastActivityAt")
+    idle_seconds: int = Field(alias="idleSeconds")
+    stuck: bool
+    activity_title: str = Field(default="", alias="activityTitle")
+    skill_id: str = Field(default="", alias="skillId")
+
+
+class LiveClassResponse(BaseModel):
+    model_config = ConfigDict(populate_by_name=True)
+    calls: list[RaisedHandRow]
+    groups: list[LiveGroupRow]
+    summary: dict | None = None  # M1 (placeholder-framework LLM roll-up) populates this
+    generated_at: str = Field(alias="generatedAt")
+
+
+def _raised_hand_rows(class_id: str) -> list[RaisedHandRow]:
+    from db.group_signals import list_raised_for_class
+
+    return [
+        RaisedHandRow(
+            groupId=s.group_id,
+            activityId=s.activity_id,
+            activityTitle=s.activity_title,
+            raisedHandAt=s.raised_hand_at or "",
+        )
+        for s in list_raised_for_class(class_id)
+    ]
+
+
+@router.get("/{class_id}/signals", response_model=ClassSignalsResponse)
+async def list_class_signals(
+    class_id: str = Path(...),
+    user: User = Depends(get_current_user),  # noqa: B008
+) -> ClassSignalsResponse:
+    """Groups in this class with an active raised hand (1.1.29).
+
+    Owner — or a researcher reading any class. Lightweight payload, designed to
+    be polled ~10s on the live class view for near-real-time calls.
+    """
+    _assert_teacher(user)
+    _load_readable(class_id, user)
+    _tag_span(class_id, user.uid)
+    return ClassSignalsResponse(calls=_raised_hand_rows(class_id))
+
+
+@router.get("/{class_id}/live", response_model=LiveClassResponse)
+async def get_class_live(
+    class_id: str = Path(...),
+    user: User = Depends(get_current_user),  # noqa: B008
+) -> LiveClassResponse:
+    """The live teacher dashboard payload (1.1.31 M0, un-gated).
+
+    Composes the incoming raised hands (1.1.29) with deterministic per-group
+    signals (active/idle, turns, last-activity, "stuck"). ``summary`` is null
+    until the M1 placeholder-framework roll-up is wired — the deterministic
+    layer never depends on the LLM layer (graceful degradation). Owner or
+    researcher.
+    """
+    _assert_teacher(user)
+    cls = _load_readable(class_id, user)
+    _tag_span(class_id, user.uid)
+
+    from datetime import UTC, datetime
+
+    from analytics.live_class import compute_group_signals
+    from analytics.live_class_summary import resolve_live_summary
+
+    signals = compute_group_signals(list(cls.group_codes))
+    groups = [
+        LiveGroupRow(
+            groupId=g.group_code,
+            status=g.status,
+            turns=g.turns,
+            lastActivityAt=g.last_activity_at,
+            idleSeconds=g.idle_seconds,
+            stuck=g.stuck,
+            activityTitle=g.activity_title,
+            skillId=g.skill_id,
+        )
+        for g in signals
+    ]
+    # Placeholder-framework roll-up (env-gated; cached/debounced). Failure or
+    # disabled → None, and the deterministic layer above still renders.
+    summary_obj = await resolve_live_summary(class_id, signals)
+    summary = (
+        {
+            "text": summary_obj.text,
+            "framework": summary_obj.framework,
+            "generatedAt": summary_obj.generated_at,
+        }
+        if summary_obj
+        else None
+    )
+    return LiveClassResponse(
+        calls=_raised_hand_rows(class_id),
+        groups=groups,
+        summary=summary,
+        generatedAt=datetime.now(UTC).isoformat(),
+    )
+
+
+@router.post("/{class_id}/signals/{group_id}/ack", status_code=204)
+async def ack_class_signal(
+    class_id: str = Path(...),
+    group_id: str = Path(...),
+    user: User = Depends(get_current_user),  # noqa: B008
+) -> None:
+    """Acknowledge (clear) a group's raised hand (1.1.29).
+
+    Owner or researcher. Idempotent. 404 if the group is not in this class
+    (a teacher can only clear hands for their own class's groups).
+    """
+    _assert_teacher(user)
+    cls = _load_readable(class_id, user)
+    _tag_span(class_id, user.uid)
+    if group_id not in cls.group_codes:
+        raise HTTPException(status_code=404, detail="group not in this class")
+
+    from db.group_signals import clear_hand
+
+    clear_hand(group_id, cleared_by=user.uid)
+
+
 __all__ = ["router"]

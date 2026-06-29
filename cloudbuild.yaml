@@ -300,6 +300,14 @@ steps:
       # reasoning; it's a plain env flip, no re-seed. Read by
       # adk.agent._resolve_thinking_budget. Prod can stay dynamic by omitting it.
       - '--set-env-vars=AIPLA_THINKING_BUDGET=0'
+      # Live teacher dashboard (1.1.31 M1) — enables the rolling class summary on
+      # dev using the PLACEHOLDER R1 framework ("AIPLA live-summary v0", ICAP-lite,
+      # analytics/live_framework.py). One Gemini-Flash call per class per ~5 min
+      # (debounced + cached). Read by analytics.live_class_summary.summary_enabled.
+      # The deterministic live layer + raised hands (1.1.29) are always on and do
+      # NOT depend on this. Switch to the real framework once AR signs off R1
+      # (config swap, no code change); unset to hide the AI summary again.
+      - '--set-env-vars=AIPLA_LIVE_SUMMARY=1'
       # EXT-MCP (1.1.49) — the deployed backend serves the sims as ui:// MCP Apps
       # (Boldkast/KineBot/LED-Planck) reachable by external hosts via /api/mcp.
       # The artefact HTML is NOT in the backend image (build context is backend/),

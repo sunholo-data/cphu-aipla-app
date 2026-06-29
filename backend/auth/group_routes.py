@@ -420,6 +420,87 @@ async def get_active_session_endpoint(
     return ActiveSessionResponse(session_id=get_active_session_for_group(user.group_id, activity_id))
 
 
+class RaiseHandRequest(BaseModel):
+    activity_id: str = Field(default="", alias="activityId")
+    activity_title: str = Field(default="", alias="activityTitle")
+    model_config = {"populate_by_name": True}
+
+
+class GroupSignalResponse(BaseModel):
+    raised: bool
+    raised_hand_at: str | None = Field(default=None, alias="raisedHandAt")
+    cleared_at: str | None = Field(default=None, alias="clearedAt")
+    cleared_by: str = Field(default="", alias="clearedBy")
+    activity_title: str = Field(default="", alias="activityTitle")
+    model_config = {"populate_by_name": True}
+
+
+def _signal_response(sig) -> GroupSignalResponse:
+    if sig is None:
+        return GroupSignalResponse(raised=False)
+    return GroupSignalResponse(
+        raised=sig.is_raised,
+        raisedHandAt=sig.raised_hand_at,
+        clearedAt=sig.cleared_at,
+        clearedBy=sig.cleared_by,
+        activityTitle=sig.activity_title,
+    )
+
+
+@router.post("/raise-hand", response_model=GroupSignalResponse)
+async def raise_hand_endpoint(
+    body: RaiseHandRequest | None = None,
+    user: User = Depends(_resolve_firebase_user_dep()),  # noqa: B008
+) -> GroupSignalResponse:
+    """Raise THIS group's hand (student session, 1.1.29).
+
+    Keyed by ``user.group_id`` — a student can only raise their own group's hand.
+    Idempotent (a second raise while up is a no-op). The class is derived from
+    ``anon_groups/{group_id}.classId`` so the teacher's class view can find it;
+    the activity is display-only context from the body.
+    """
+    if not user.group_id:
+        raise HTTPException(status_code=404, detail="not a group-auth user")
+    from db.firestore import get_document
+    from db.group_signals import raise_hand
+
+    anon_doc = get_document("anon_groups", user.group_id) or {}
+    class_id = anon_doc.get("classId", "") or ""
+    body = body or RaiseHandRequest()
+    sig = raise_hand(
+        user.group_id,
+        class_id=class_id,
+        activity_id=body.activity_id,
+        activity_title=body.activity_title,
+    )
+    return _signal_response(sig)
+
+
+@router.post("/lower-hand", response_model=GroupSignalResponse)
+async def lower_hand_endpoint(
+    user: User = Depends(_resolve_firebase_user_dep()),  # noqa: B008
+) -> GroupSignalResponse:
+    """Lower THIS group's own hand (student self-clear, 1.1.29). Idempotent."""
+    if not user.group_id:
+        raise HTTPException(status_code=404, detail="not a group-auth user")
+    from db.group_signals import clear_hand
+
+    return _signal_response(clear_hand(user.group_id, cleared_by="student"))
+
+
+@router.get("/signal", response_model=GroupSignalResponse)
+async def get_signal_endpoint(
+    user: User = Depends(_resolve_firebase_user_dep()),  # noqa: B008
+) -> GroupSignalResponse:
+    """THIS group's current signal (1.1.29) — lets the student reconcile to the
+    acknowledged state after a teacher clears the hand."""
+    if not user.group_id:
+        raise HTTPException(status_code=404, detail="not a group-auth user")
+    from db.group_signals import get_signal
+
+    return _signal_response(get_signal(user.group_id))
+
+
 @router.delete("/{group_id}", status_code=204)
 async def delete_group_endpoint(
     group_id: str,

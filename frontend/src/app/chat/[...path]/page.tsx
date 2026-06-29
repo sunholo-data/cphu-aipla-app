@@ -7,6 +7,7 @@ import { AutoReadToggle } from "@/components/chat/AutoReadToggle";
 import { ChatMessageList } from "@/components/chat/ChatMessageList";
 import type { PersonaSummary } from "@/components/chat/MessageBubble";
 import { ResumeWelcomeBanner } from "@/components/chat/ResumeWelcomeBanner";
+import { CallTeacherButton } from "@/components/chat/CallTeacherButton";
 import { ImageStagingRow, ImageUploadButtons } from "@/components/chat/ImageComposer";
 import { useImageAttachments, MAX_IMAGES } from "@/hooks/useImageAttachments";
 import { VoiceComposerControls } from "@/components/chat/VoiceComposerControls";
@@ -1167,6 +1168,7 @@ function ChatShell({
                 onTranscript={(t) => setDraft((d) => (d.trim() ? `${d} ${t}` : t))}
                 onNotice={setVoiceNotice}
               />
+              {isAnonymousGroupAuthMode() && <CallTeacherButton disabled={inputDisabled} />}
               <input
                 value={draft}
                 onChange={(e) => setDraft(e.target.value)}
