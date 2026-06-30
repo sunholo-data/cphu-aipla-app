@@ -143,9 +143,11 @@ describe("/teacher/classes/[id] — class detail", () => {
     await waitFor(() => {
       expect(screen.getByText("fresh-mint-01")).toBeInTheDocument();
     });
-    expect(screen.getByRole("status").textContent ?? "").toMatch(
-      /group code fresh-mint-01 created/i,
-    );
+    // The page now renders several role="status" live regions (voice panel,
+    // empty states, the analytics co-pilot), so scope to the one carrying the
+    // mint announcement rather than assuming a single status node.
+    const announcements = screen.getAllByRole("status").map((s) => s.textContent ?? "");
+    expect(announcements.some((t) => /group code fresh-mint-01 created/i.test(t))).toBe(true);
   });
 
   it("shows an error banner when the class fails to load", async () => {
