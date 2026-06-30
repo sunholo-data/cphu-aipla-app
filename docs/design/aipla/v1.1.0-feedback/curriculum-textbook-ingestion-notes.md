@@ -34,6 +34,23 @@ output. **Final shared corpus = 15 docs, all grounded** (6 physics + 9 textbook 
   fine, formulas garbled). The `ai` (multimodal) backend would handle layout+math better at token cost.
   Math super/subscripts also flatten (r² → "r 2"). Full feedback in the AILANG inbox.
 
+### Figures / images (2026-06-30)
+
+The figures (pgf/TikZ diagrams + graphs; 160 / 25 / 14 embedded raster images per book) are **NOT in the
+corpus** — text extraction skips them; only the **captions** ("Figur 1.8 viser…") are grounded (prose).
+
+- **`docparse --describe` extracts 0 figures** for these vector-derived PDFs (reports `Images: 0`), so the
+  quick auto-describe path doesn't work — richer descriptions would need a custom *render-page → Gemini
+  describe* pass.
+- **Multimodal image embeddings are out of reach in the current corpus** (verified): Vertex **RAG Engine is
+  text-only** (default `text-embedding-005`); `multimodalembedding@001` / **Gemini Embedding 2** exist but
+  run via the Embeddings API + **Vertex AI Vector Search** ("build-your-own retrieval"), not the managed
+  corpus. → **[SEQUENCE 2.8](../SEQUENCE.md)**.
+- **Image-on-chunk-match for display** [M's pattern] is **feasible at doc-level on the CURRENT corpus**:
+  `rag.retrieval_query` already returns `source_display_name` per context (we discard it at
+  `db/rag_corpus.py:176`) → capture it → map chunk → its `CurriculumDoc` → display that doc's stored
+  image(s). Exact *per-chunk* figure mapping needs the self-managed store (2.8).
+
 > **Deploy gotcha hit here:** the delete endpoint sat un-deployed because a **stale frontend test was
 > failing cloudbuild's CI gate, aborting every dev deploy** since the analytics co-pilot landed (last good
 > revision 00515, 2026-06-29). Fixed in `1f56534`; deploy 00516 then carried the delete endpoint + the
