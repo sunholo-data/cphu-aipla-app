@@ -1,6 +1,6 @@
 # Migrate the activity co-pilot onto the shared co-pilot shell
 
-**Status:** DESIGN (2026-06-27). The fast-follow from [teacher-coworking-copilot.md](teacher-coworking-copilot.md) Part 1. The shared shell shipped and is reused by the class + analytics co-pilots; the **activity-authoring** co-pilot still has its own duplicate copy of the chrome. No code yet.
+**Status:** IMPLEMENTED (2026-06-30) — code + tests + build green; one acceptance item open (browser-verify the live SSE round-trip behind the dark flag — see Acceptance). The fast-follow from [teacher-coworking-copilot.md](teacher-coworking-copilot.md) Part 1. The shared shell shipped and is reused by the class + analytics co-pilots; the **activity-authoring** co-pilot has now been folded back onto it (the duplicate chrome is deleted). One gap surfaced during the code read that the recon below missed: the card's inline-Edit textarea hardcoded `aria-label="Edit proposal"` (English) while the authoring suite asserts the Danish `Rediger forslag` — fixed by adding `editAriaLabel` to `CopilotLabels` (defaults to "Edit proposal").
 **Last Updated:** 2026-06-27 (recon done while shipping Parts 1–4a).
 **Priority:** **P2** — pure internal de-duplication (no new user-facing capability), so it's not urgent — BUT it's the thing that makes the centralisation real (one shell, not "a shell + the original"). Worth doing before the shell and `_AuthoringCopilot` drift.
 **Estimated:** ~1–1.5d (mechanical but touches a 15-test file).
@@ -12,6 +12,45 @@
 The shared shell (`components/teacher/copilot/`) was **extracted from** the activity co-pilot, then used to build the class + analytics co-pilots. The activity co-pilot still runs its own copy of the floating panel, slug→UUID resolver, chat loop, and proposal card (~250 lines). Migrating it onto `TeacherCopilot` removes the duplication, gives it **cross-visit resume for free** (Part 4a), and means future co-pilot changes happen in one place.
 
 **No behaviour change is the bar.** This is a refactor; all 15 authoring tests must still pass (after the adaptations below).
+
+## A2UI considered (and why the cards stay custom)
+
+The natural question when touching the proposal cards: should the co-pilot emit
+them as **A2UI** (declarative UI JSON) instead of hand-rolled React, to "use the
+protocol to full effect"? We checked the spec; the answer is **no**, and the
+reasoning is recorded here so it isn't re-litigated each time someone opens this
+doc.
+
+- **A2UI is not chat-bound.** A2UI surfaces are host-named — `createSurface`
+  takes a `surfaceId` the host mounts wherever it likes (main UI, side panel,
+  not just the transcript; [a2ui-protocol-v0.10.md:180,207](../../../../.claude/skills/agent-protocols/references/a2ui-protocol-v0.10.md)).
+  So "the proposal shows next to the builder, not in chat" is **not** a reason
+  to avoid A2UI. The old teacher-SKILL.md rationale ("not A2UI cards in chat")
+  was based on this misconception and has been corrected.
+- **The real mismatch is ownership.** A2UI fits agent-**owned** surfaces with an
+  agent-owned data model — a self-contained form the agent drives end-to-end
+  (the spec's contact-form example). Our proposals are the opposite shape: they
+  PROPOSE a patch to **frontend-owned** state (the `useActivityBuilder` React
+  state, or the class list via REST). The Apply path (`applyCopilotProposal` →
+  `builder.addChecklistItems()` / `createClass()`) must integrate with live
+  frontend state the agent does not own. A2UI's action/event model could carry
+  the "apply" intent back, but *something* host-side still has to map it onto the
+  builder mutation — so the genuinely custom part (the Apply router) is
+  irreducible and stays either way.
+- **It would move complexity, not remove it.** Today the backend emits a tiny
+  domain envelope (`{ok, proposal:{kind,...}}`). A2UI would push full
+  component-tree construction into the backend; the frontend's bespoke
+  `parseProposal` + previews would generify, but only the *presentation* half
+  (~90 lines), at the cost of a verbose backend emission path.
+- **The decision lever is type-count.** At ~8 proposal kinds, typed envelopes +
+  this shared shell win. If the catalogue balloons (25–30 kinds), the per-type
+  frontend cost scales linearly and a declarative renderer would start to pay
+  off — revisit then. This migration (one shared shell) is the right
+  centralisation for the current scale; A2UI is the next step only if breadth
+  forces it.
+
+**Conclusion:** finish the shared-shell migration below (custom, typed); keep
+A2UI off for the teacher co-pilots; revisit only if proposal-type count balloons.
 
 ## Recon — what the migration needs (gathered 2026-06-27)
 
@@ -50,11 +89,11 @@ The shared shell (`components/teacher/copilot/`) was **extracted from** the acti
 - **M4** — adapt the tests; run the full authoring + shell suites green; `quality:check`.
 
 ## Acceptance
-- `_AuthoringCopilot.tsx` renders via `TeacherCopilot`; the duplicate chrome is gone (~250 lines removed).
-- All 15 authoring tests pass (adapted only for the resume mock + the config knobs).
-- The activity co-pilot now resumes across visits (per-activity), like the others.
-- The class + analytics co-pilots are byte-for-byte unchanged (shell defaults preserved).
-- Browser-verify (per the co-pilot's own gate): proposals still render + Apply round-trips on `/teacher/activities/[id]` and `/new`.
+- ✅ `_AuthoringCopilot.tsx` renders via `TeacherCopilot`; the duplicate chrome is gone (442 → 278 lines; the local `FloatingCopilot`/resolver/inner/`ProposalCard`/`AddElementBody` card path is deleted — `AddElementBody` survives only as the descriptor's per-kind `body` preview).
+- ✅ All authoring tests pass (20 tests; adapted only for the `useSessionMessages` mock + an in-memory `localStorage` stub + the config knobs). `parseProposal` direct tests unchanged.
+- ✅ The activity co-pilot now resumes across visits (per-activity, `persistKey: activity-authoring:${activityId}`), like the others — a new benefit.
+- ✅ The class + analytics co-pilots are unchanged (shell defaults preserved; their suites + the full `/teacher` test scope (253 tests) + `tsc` + `next build` are green).
+- ⏳ Browser-verify (per the co-pilot's own gate, behind `NEXT_PUBLIC_AUTHORING_COPILOT=1`): proposals still render + Apply round-trips on `/teacher/activities/[id]` and `/new`. **Open** — the unit tests cover render + Apply for every proposal kind with mocked tool results; the live SSE tool-result shapes are the part only a browser run exercises. Run via the `aitana-frontend-verify` skill before un-dark-flagging.
 
 ## Risk
 The single real risk is regressing the other agent's shipped feature. Mitigations: it's their tests that gate it (run them constantly); the public signature + `parseProposal`/`applyCopilotProposal` are untouched; the shell is already proven on two surfaces. Coordinate timing so the file isn't being edited in parallel.

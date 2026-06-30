@@ -16,11 +16,14 @@ import { ChevronDown, Sparkles, SquarePen } from "lucide-react";
 export function FloatingCopilot({
   title,
   onNewChat,
+  minimizeLabel = "Minimize",
   children,
 }: {
   title: string;
   /** When provided, a "New chat" control appears that resets the conversation. */
   onNewChat?: () => void;
+  /** aria-label for the minimize control — locale-specific surfaces override it. */
+  minimizeLabel?: string;
   children: ReactNode;
 }) {
   const [minimized, setMinimized] = useState(false);
@@ -51,7 +54,7 @@ export function FloatingCopilot({
             <button
               type="button"
               onClick={() => setMinimized(true)}
-              aria-label="Minimize"
+              aria-label={minimizeLabel}
               className="rounded p-1 text-muted-foreground hover:bg-muted"
             >
               <ChevronDown className="h-4 w-4" aria-hidden="true" />

@@ -32,6 +32,8 @@ export interface CopilotLabels {
   dismiss: string;
   applied: string;
   thinking: string;
+  /** aria-label for the inline Edit textarea (a11y, locale-specific). */
+  editAriaLabel: string;
 }
 
 export const DEFAULT_LABELS: CopilotLabels = {
@@ -41,6 +43,7 @@ export const DEFAULT_LABELS: CopilotLabels = {
   dismiss: "Dismiss",
   applied: "Applied ✓",
   thinking: "Thinking…",
+  editAriaLabel: "Edit proposal",
 };
 
 /** Per-surface configuration for `<TeacherCopilot>`. The shell owns the panel,
@@ -56,6 +59,18 @@ export interface TeacherCopilotConfig<P> {
   scopePrefix?: string;
   placeholder: string;
   emptyText: string;
+  /** Root data-testid for the chat region (default "teacher-copilot"). Surfaces
+   *  with their own test suites (e.g. authoring → "authoring-copilot") override it. */
+  testId?: string;
+  /** aria-label for the message input, when it must differ from `placeholder`
+   *  (the Danish authoring co-pilot labels the field differently from its hint).
+   *  Defaults to `placeholder`. */
+  inputAriaLabel?: string;
+  /** Text shown while the skill slug resolves (default: the `thinking` label).
+   *  Locale-specific surfaces override it (authoring → "Indlæser medbygger…"). */
+  loadingText?: string;
+  /** aria-label for the panel's minimize control (default "Minimize"). */
+  minimizeLabel?: string;
   /** Parse one tool-call result into a typed proposal, or null if it isn't one.
    *  Omit for a READ-ONLY co-pilot (e.g. analytics) — no proposal cards. */
   parseProposal?: (toolCall: ToolCallState) => P | null;

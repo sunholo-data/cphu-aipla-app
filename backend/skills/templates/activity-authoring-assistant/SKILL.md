@@ -22,6 +22,11 @@ metadata:
     - add_element
     - set_artefact
   toolConfigs:
+    # A2UI OFF — same reason as manage-class: proposals patch FRONTEND-owned
+    # activity-builder state via a deterministic Apply router, which A2UI's
+    # agent-owned-surface model fits poorly. (A2UI surfaces CAN mount in the
+    # main UI, so "not in chat" is not the reason.) See the shared-shell-
+    # migration doc's "A2UI considered" section.
     a2ui:
       enabled: false
 initialMessage: |

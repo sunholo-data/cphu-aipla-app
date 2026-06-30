@@ -28,10 +28,17 @@ metadata:
   agentTools:
     - analytics-chat
   toolConfigs:
-    # A2UI is OFF: manage-class tools return data (class lists, codes, KPIs),
-    # not declarative UI. The teacher sees effects in the class page, not as
-    # A2UI cards in chat. Leaving it on only attaches an unused
-    # send_a2ui_json_to_client tool. (See upstream-feedback: a2ui defaults on.)
+    # A2UI is OFF — and NOT because "A2UI = in-chat cards" (it isn't; A2UI
+    # surfaces are host-named and can mount anywhere, incl. the main UI). The
+    # real reason is ownership: these tools PROPOSE mutations to FRONTEND-owned
+    # state (the class list via REST; the activity-builder React state) that the
+    # teacher Applies. A2UI fits agent-OWNED surfaces + data models
+    # (self-contained forms), not "propose a patch to state the frontend owns" —
+    # so we emit a typed domain envelope ({ok, proposal:{kind,...}}) rendered by
+    # a native proposal card with a deterministic Apply router. Leaving a2ui on
+    # only attaches an unused send_a2ui_json_to_client tool. (Full rationale:
+    # docs/design/aipla/v1.1.0-feedback/activity-copilot-shared-shell-migration.md
+    # "A2UI considered"; upstream-feedback: a2ui defaults on.)
     a2ui:
       enabled: false
 initialMessage: |

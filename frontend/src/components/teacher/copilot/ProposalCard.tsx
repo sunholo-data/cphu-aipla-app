@@ -48,7 +48,7 @@ export function ProposalCard<P>({
       <p className="text-xs font-medium text-muted-foreground">{descriptor.title(proposal)}</p>
       {editing && editable !== null ? (
         <textarea
-          aria-label="Edit proposal"
+          aria-label={labels.editAriaLabel}
           value={draft}
           onChange={(e) => setDraft(e.target.value)}
           rows={4}

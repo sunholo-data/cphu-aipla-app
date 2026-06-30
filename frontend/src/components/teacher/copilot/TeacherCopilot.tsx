@@ -60,7 +60,7 @@ export function TeacherCopilot<P>(config: TeacherCopilotConfig<P>) {
   }, [storageKey]);
 
   return (
-    <FloatingCopilot title={config.title} onNewChat={newChat}>
+    <FloatingCopilot title={config.title} onNewChat={newChat} minimizeLabel={config.minimizeLabel}>
       <CopilotResolver config={config} threadId={threadId} />
     </FloatingCopilot>
   );
@@ -84,7 +84,7 @@ function CopilotResolver<P>({ config, threadId }: { config: TeacherCopilotConfig
   if (!skillId) {
     return (
       <p data-testid="copilot-loading" className="p-3 text-sm text-muted-foreground">
-        {DEFAULT_LABELS.thinking}
+        {config.loadingText ?? DEFAULT_LABELS.thinking}
       </p>
     );
   }
@@ -124,7 +124,7 @@ function CopilotChat<P>({ config, threadId }: { config: TeacherCopilotConfig<P>;
   const strip = config.stripPrefix ?? ((c: string) => c);
 
   return (
-    <div className="flex min-h-0 flex-1 flex-col" data-testid="teacher-copilot">
+    <div className="flex min-h-0 flex-1 flex-col" data-testid={config.testId ?? "teacher-copilot"}>
       <div className="flex min-h-0 flex-1 flex-col gap-2 overflow-y-auto p-3" aria-live="polite">
         {empty ? <p className="text-xs text-muted-foreground">{config.emptyText}</p> : null}
         {messages.map((m) => (
@@ -171,7 +171,7 @@ function CopilotChat<P>({ config, threadId }: { config: TeacherCopilotConfig<P>;
       <form onSubmit={onSubmit} className="flex items-stretch gap-2 border-t border-border p-2">
         <input
           type="text"
-          aria-label={config.placeholder}
+          aria-label={config.inputAriaLabel ?? config.placeholder}
           value={input}
           onChange={(e) => setInput(e.target.value)}
           disabled={isLoading}

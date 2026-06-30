@@ -26,6 +26,24 @@ vi.mock("@/hooks/useSkillAgent", () => ({
   useSkillAgent: () => mockHook as UseSkillAgentReturn,
 }));
 
+// The shared shell resumes prior turns via useSessionMessages — stub it empty
+// (these tests drive live turns through the useSkillAgent mock).
+vi.mock("@/hooks/useSessionMessages", () => ({
+  useSessionMessages: () => ({ initialMessages: [] }),
+}));
+
+// The shell mints/persists a threadId in localStorage on mount; back it with a
+// plain Map so it's deterministic and doesn't bleed across tests.
+const memStore = new Map<string, string>();
+const fakeStorage: Storage = {
+  getItem: (k) => memStore.get(k) ?? null,
+  setItem: (k, v) => void memStore.set(k, String(v)),
+  removeItem: (k) => void memStore.delete(k),
+  clear: () => memStore.clear(),
+  key: () => null,
+  length: 0,
+};
+
 import { AuthoringCopilot, parseProposal } from "../_AuthoringCopilot";
 
 function tc(over: Partial<ToolCallState>): ToolCallState {
@@ -42,10 +60,13 @@ beforeEach(() => {
   aguiProps = null;
   mockHook = { messages: [], toolCalls: [], sendMessage, isLoading: false, error: null };
   sendMessage.mockReset();
+  memStore.clear();
+  vi.stubGlobal("localStorage", fakeStorage);
 });
 afterEach(() => {
   delete process.env.NEXT_PUBLIC_AUTHORING_COPILOT;
   vi.clearAllMocks();
+  vi.unstubAllGlobals();
 });
 
 describe("parseProposal (generalized dispatch)", () => {

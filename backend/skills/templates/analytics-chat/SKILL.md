@@ -25,6 +25,8 @@ metadata:
     - group_report
     - summarise_chat_excerpts
   toolConfigs:
+    # A2UI OFF: analytics-chat is read-only — it answers in chat (text +
+    # tables) and emits no proposals, so there is no declarative UI to render.
     a2ui:
       enabled: false
 initialMessage: |
