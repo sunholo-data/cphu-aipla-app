@@ -27,6 +27,7 @@ from analytics.auth import caller_uid_or_none as _caller_uid
 # save_activity is imported (not called) so tests can guard that the proposal
 # path never persists; get_activity is the owner-scoped read.
 from db.activities import get_activity, save_activity  # noqa: F401  (save_activity: guard-only)
+from db.curriculum import list_curriculum_for_teacher
 from db.models.activity_config import (
     ELEMENT_REGISTRY,
     CalcInput,
@@ -35,6 +36,7 @@ from db.models.activity_config import (
     TableColumn,
     TableElement,
 )
+from db.models.curriculum import CurriculumDoc
 
 logger = logging.getLogger(__name__)
 
@@ -372,4 +374,80 @@ def set_artefact(
     return {
         "ok": True,
         "proposal": {"kind": "set_artefact", "artefactId": artefact_id, "label": _artefact_label(meta)},
+    }
+
+
+def _curriculum_choice(doc: CurriculumDoc) -> dict[str, str]:
+    """A compact catalogue entry the agent picks a ``docId`` from."""
+    return {
+        "docId": doc.doc_id,
+        "title": doc.title,
+        "level": doc.level or "",
+        "topic": doc.topic or "",
+        "origin": doc.origin,
+    }
+
+
+def attach_material(
+    doc_id: str = "",
+    activity_id: str = "",
+    level: str = "",
+    topic: str = "",
+    tool_context: ToolContext = None,
+) -> dict[str, Any]:
+    """Propose attaching a curriculum reference document to an activity (COPILOT-2).
+
+    Owner-scoped (the activity) + propose-only: returns a proposal the teacher
+    Applies; never persists. The document is resolved against the teacher's
+    curriculum library — the SHARED cleared corpus plus their own uploads — so a
+    teacher can only attach a doc they may actually cite. An empty/unknown
+    ``doc_id`` returns the available documents (optionally narrowed by ``level`` /
+    ``topic``) so the agent can pick a valid one, exactly like ``set_artefact``.
+    Applying it appends a ``curriculum`` material the tutor grounds its answers on
+    (RAG retrieval).
+
+    Args:
+        doc_id: a curriculum document id from the teacher's library. Empty → list
+            the available documents to choose from.
+        activity_id: the activity being authored (the teacher owns it).
+        level: optional A/B/C filter when listing (narrows the available set).
+        topic: optional topic filter when listing.
+
+    Returns:
+        ``{"ok": True, "proposal": {"kind": "attach_material", "materialKind":
+        "curriculum", "docId": ..., "origin": ..., "label": ...}}`` on success, or
+        ``{"ok": False, "error": ..., "available": [...]}`` listing the documents
+        the teacher may attach.
+    """
+    uid = _caller_uid(tool_context)
+    if not uid:
+        return dict(_DENY)
+
+    # ACL-scoped to shared + the teacher's OWN docs — resolving the choice from
+    # this allow-set (not a bare get_curriculum_doc) stops a teacher attaching
+    # another teacher's private doc by guessing its id.
+    available = list_curriculum_for_teacher(uid, level=level or None, topic=topic or None)  # type: ignore[arg-type]
+    chosen = next((d for d in available if d.doc_id == doc_id), None) if doc_id else None
+    if chosen is None:
+        return {
+            "ok": False,
+            "error": f"unknown curriculum document {doc_id!r}" if doc_id else "give a docId from the available list",
+            "available": [_curriculum_choice(d) for d in available],
+        }
+
+    if not _can_author(activity_id, uid):
+        return dict(_DENY)
+
+    logger.info(
+        "authoring: attach_material(%s) proposal for activity=%s by uid=%s", doc_id, activity_id or "(draft)", uid
+    )
+    return {
+        "ok": True,
+        "proposal": {
+            "kind": "attach_material",
+            "materialKind": "curriculum",
+            "docId": chosen.doc_id,
+            "origin": chosen.origin,
+            "label": chosen.title,
+        },
     }

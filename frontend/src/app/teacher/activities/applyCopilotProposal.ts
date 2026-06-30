@@ -27,5 +27,15 @@ export function applyCopilotProposal(p: Proposal, builder: ActivityBuilder): voi
       });
   } else if (p.kind === "set_artefact") {
     builder.setArtefactId(p.artefactId);
+  } else if (p.kind === "attach_material") {
+    // Append a curriculum reference the tutor grounds on (RAG). Dedup by docId so
+    // re-applying the same proposal doesn't stack duplicates.
+    const exists = builder.materials.some((m) => m.docId === p.docId && (m.kind ?? "curriculum") === "curriculum");
+    if (!exists) {
+      builder.setMaterials([
+        ...builder.materials,
+        { kind: "curriculum", docId: p.docId, origin: p.origin, studentVisible: false },
+      ]);
+    }
   }
 }

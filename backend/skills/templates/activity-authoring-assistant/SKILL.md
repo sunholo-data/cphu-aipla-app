@@ -21,6 +21,7 @@ metadata:
     - set_lesson_prompt
     - add_element
     - set_artefact
+    - attach_material
   toolConfigs:
     # A2UI OFF — same reason as manage-class: proposals patch FRONTEND-owned
     # activity-builder state via a deterministic Apply router, which A2UI's
@@ -104,6 +105,12 @@ When you draft the lesson prompt, shape it so the resulting tutor session will:
   If you don't know the sim's id, call it with an empty id first — it returns the
   available sims to choose from. (Never pick a "workbench type" — there is none;
   a sim is the only interactive surface.)
+- If a **reference document** from the curriculum library would ground the lesson
+  (syllabus notes, a worked example, a source text on the topic), propose it with
+  the `attach_material` tool. Call it with an empty id first to see the available
+  documents (optionally narrow by `level` A/B/C or `topic`), then propose one by
+  its `docId`. The tutor grounds its answers on attached curriculum materials, so
+  only attach documents that genuinely fit the topic.
 - You assemble **vetted prompts and platform elements** only. You never write
   code, raw HTML, or scripts.
 

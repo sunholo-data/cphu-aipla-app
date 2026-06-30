@@ -316,3 +316,42 @@ describe("AuthoringCopilot — structured elements table/chart/calculator (COPIL
     expect(onApply).toHaveBeenCalledWith(expect.objectContaining({ elementKind: "calculator", formula: "s / t" }));
   });
 });
+
+const ATTACH_MATERIAL = JSON.stringify({
+  ok: true,
+  proposal: {
+    kind: "attach_material",
+    materialKind: "curriculum",
+    docId: "energi-b",
+    origin: "uvm.dk",
+    label: "Energibevarelse (B)",
+  },
+});
+
+describe("AuthoringCopilot — attach_material proposal (curriculum reference doc)", () => {
+  it("parseProposal returns a typed attach_material proposal", () => {
+    expect(parseProposal(tc({ name: "attach_material", resultContent: ATTACH_MATERIAL }))).toEqual({
+      kind: "attach_material",
+      materialKind: "curriculum",
+      docId: "energi-b",
+      origin: "uvm.dk",
+      label: "Energibevarelse (B)",
+    });
+  });
+
+  it("renders the material + Apply routes the attach_material proposal", async () => {
+    const onApply = vi.fn();
+    mockHook.toolCalls = [tc({ name: "attach_material", resultContent: ATTACH_MATERIAL })];
+    render(<AuthoringCopilot activityId="act-1" onApplyProposal={onApply} />);
+    await screen.findByTestId("proposal-material");
+    expect(screen.getByTestId("proposal-material")).toHaveTextContent("Energibevarelse (B)");
+    fireEvent.click(screen.getByRole("button", { name: /anvend/i }));
+    expect(onApply).toHaveBeenCalledWith({
+      kind: "attach_material",
+      materialKind: "curriculum",
+      docId: "energi-b",
+      origin: "uvm.dk",
+      label: "Energibevarelse (B)",
+    });
+  });
+});

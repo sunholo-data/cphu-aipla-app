@@ -359,3 +359,94 @@ def test_draft_mode_no_activity_id_proposes_without_owner_check():
     # an explicit, non-owned activity_id is still denied (the security boundary)
     other = _make_activity(OTHER)
     assert set_lesson_prompt(text="x", activity_id=other, tool_context=tc)["ok"] is False
+
+
+# --- attach_material: curriculum reference docs (owner-scoped, ACL-scoped, propose-only) ---
+
+
+def _make_curriculum(doc_id: str, *, owner_scope: str | None = None, level: str = "B", topic: str = "energi") -> str:
+    from datetime import UTC, datetime
+
+    from db.curriculum import create_curriculum_doc
+    from db.models.curriculum import SHARED_SCOPE, CurriculumDoc
+
+    scope = owner_scope or SHARED_SCOPE
+    now = datetime.now(UTC)
+    create_curriculum_doc(
+        CurriculumDoc(
+            docId=doc_id,
+            title=f"Doc {doc_id}",
+            level=level,
+            topic=topic,
+            source="shared" if scope == SHARED_SCOPE else "teacher_upload",
+            ownerScope=scope,
+            origin="uvm.dk",
+            copyrightStatus="cleared" if scope == SHARED_SCOPE else "teacher_owned",
+            createdAt=now,
+            updatedAt=now,
+        )
+    )
+    return doc_id
+
+
+def test_attach_material_owner_gets_a_curriculum_proposal():
+    from adk.authoring_tools import attach_material
+
+    did = _make_curriculum("energi-b")
+    aid = _make_activity(TEACHER)
+    res = attach_material(doc_id=did, activity_id=aid, tool_context=_tc(TEACHER))
+    assert res["ok"] is True
+    assert res["proposal"]["kind"] == "attach_material"
+    assert res["proposal"]["materialKind"] == "curriculum"
+    assert res["proposal"]["docId"] == did
+    assert res["proposal"]["origin"] == "uvm.dk"
+    assert res["proposal"]["label"] == "Doc energi-b"
+
+
+def test_attach_material_empty_or_unknown_id_lists_available():
+    # Self-correcting like set_artefact: no/unknown id returns the docs the
+    # teacher may attach so the agent retries with a valid docId.
+    from adk.authoring_tools import attach_material
+
+    _make_curriculum("shared-1")
+    aid = _make_activity(TEACHER)
+    empty = attach_material(doc_id="", activity_id=aid, tool_context=_tc(TEACHER))
+    unknown = attach_material(doc_id="nope", activity_id=aid, tool_context=_tc(TEACHER))
+    assert empty["ok"] is False and unknown["ok"] is False
+    assert "shared-1" in {d["docId"] for d in empty["available"]}
+    assert "shared-1" in {d["docId"] for d in unknown["available"]}
+
+
+def test_attach_material_cannot_attach_another_teachers_private_doc():
+    # ACL: a doc owned by OTHER (private upload) is NOT in TEACHER's allow-set,
+    # so picking it by id is rejected AND it never appears in the available list.
+    from adk.authoring_tools import attach_material
+
+    _make_curriculum("shared-1")
+    private = _make_curriculum("other-private", owner_scope=OTHER)
+    aid = _make_activity(TEACHER)
+    res = attach_material(doc_id=private, activity_id=aid, tool_context=_tc(TEACHER))
+    assert res["ok"] is False
+    assert private not in {d["docId"] for d in res["available"]}
+
+
+def test_attach_material_non_owner_activity_is_denied():
+    from adk import authoring_tools
+
+    did = _make_curriculum("energi-b")
+    other_activity = _make_activity(OTHER)
+    res = authoring_tools.attach_material(doc_id=did, activity_id=other_activity, tool_context=_tc(TEACHER))
+    assert res["ok"] is False
+    assert res.get("error") == authoring_tools._DENY["error"]
+
+
+def test_attach_material_never_persists(monkeypatch):
+    from adk import authoring_tools
+
+    did = _make_curriculum("energi-b")
+    aid = _make_activity(TEACHER)
+    monkeypatch.setattr(
+        authoring_tools, "save_activity", lambda *a, **k: (_ for _ in ()).throw(AssertionError("must not persist"))
+    )
+    res = authoring_tools.attach_material(doc_id=did, activity_id=aid, tool_context=_tc(TEACHER))
+    assert res["ok"] is True

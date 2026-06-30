@@ -67,7 +67,8 @@ export type Proposal =
       inputs: { id: string; label: string; unit: string }[];
       label: string;
     }
-  | { kind: "set_artefact"; artefactId: string; label: string };
+  | { kind: "set_artefact"; artefactId: string; label: string }
+  | { kind: "attach_material"; materialKind: "curriculum"; docId: string; origin: string; label: string };
 
 export type ApplyProposal = (proposal: Proposal) => void;
 
@@ -140,6 +141,16 @@ export function parseProposal(tc: ToolCallState): Proposal | null {
       return typeof p.artefactId === "string" && p.artefactId
         ? { kind: "set_artefact", artefactId: p.artefactId, label: typeof p.label === "string" ? p.label : p.artefactId }
         : null;
+    case "attach_material":
+      return p.materialKind === "curriculum" && typeof p.docId === "string" && p.docId
+        ? {
+            kind: "attach_material",
+            materialKind: "curriculum",
+            docId: p.docId,
+            origin: typeof p.origin === "string" ? p.origin : "",
+            label: typeof p.label === "string" ? p.label : p.docId,
+          }
+        : null;
     default:
       return null; // unknown/unsupported kind (a newer tool than this build)
   }
@@ -203,6 +214,8 @@ const authoringProposalDescriptor: ProposalDescriptor<Proposal> = {
         return `Forslag: ${p.label}`;
       case "set_artefact":
         return "Forslag: brug en simulation";
+      case "attach_material":
+        return `Forslag: materiale — ${p.label}`;
     }
   },
   editableText: (p) => (p.kind === "set_lesson_prompt" ? p.value : null),
@@ -213,6 +226,14 @@ const authoringProposalDescriptor: ProposalDescriptor<Proposal> = {
       return (
         <p className="text-sm" data-testid="proposal-sim">
           {p.label}
+        </p>
+      );
+    }
+    if (p.kind === "attach_material") {
+      return (
+        <p className="text-sm" data-testid="proposal-material">
+          {p.label}
+          {p.origin ? ` · ${p.origin}` : ""}
         </p>
       );
     }
