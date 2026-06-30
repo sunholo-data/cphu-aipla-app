@@ -33,13 +33,15 @@ from adk.teacher_focus import resolve_active_config
 from auth import User, get_current_user
 from db.curriculum import (
     create_curriculum_doc,
+    delete_curriculum_content,
+    delete_curriculum_doc,
     get_curriculum_content,
     get_curriculum_doc,
     list_curriculum_for_teacher,
     set_curriculum_content,
 )
 from db.models.curriculum import SHARED_SCOPE, CopyrightStatus, CurriculumDoc, StxLevel
-from db.rag_corpus import query_rag_files, upload_text_as_rag_file
+from db.rag_corpus import delete_rag_file, query_rag_files, upload_text_as_rag_file
 from tools.documents.ai_extract import extract_pdf_text
 from tools.documents.ailang_parse import DETERMINISTIC_EXTENSIONS, _parse_file_sync
 
@@ -216,6 +218,42 @@ async def ingest_curriculum(
         "parsedPreview": text[:_PARSE_PREVIEW_CAP],
         "parsedChars": len(text),
     }
+
+
+# ---------------------------------------------------------------------------
+# M6 — delete a doc (RAG file + parsed content + metadata)
+# ---------------------------------------------------------------------------
+
+
+@router.delete("/{doc_id}", status_code=204)
+async def delete_curriculum(
+    doc_id: str,
+    user: User = Depends(get_current_user),  # noqa: B008
+) -> None:
+    """Delete a curriculum doc — its RAG file, parsed content, and metadata.
+
+    Teacher-only. A teacher may delete their OWN uploads or any **shared**-corpus
+    doc — symmetric with ingest (any teacher can add a cleared shared doc), and
+    the shared corpus is institutional + teacher-curated. Deleting another
+    teacher's private upload is denied (403). RAG-file removal is best-effort:
+    the Firestore metadata is the source of truth for what's visible, so an
+    orphaned RagFile is harmless. Idempotent-ish: a missing doc returns 404.
+    """
+    if getattr(user, "group_id", None):
+        raise HTTPException(status_code=403, detail="Curriculum delete is teacher-only.")
+
+    doc = get_curriculum_doc(doc_id)
+    if doc is None:
+        raise HTTPException(status_code=404, detail="Document not found.")
+
+    if doc.owner_scope not in (SHARED_SCOPE, user.uid):
+        raise HTTPException(status_code=403, detail="You can only delete your own or shared docs.")
+
+    if doc.doc_artifact_id:
+        await delete_rag_file(doc.doc_artifact_id)
+    delete_curriculum_content(doc_id)
+    delete_curriculum_doc(doc_id)
+    logger.info("Curriculum doc deleted: %s (owner_scope=%s)", doc_id, doc.owner_scope)
 
 
 # ---------------------------------------------------------------------------

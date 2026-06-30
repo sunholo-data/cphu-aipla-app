@@ -114,4 +114,19 @@ def query_curriculum(
     click.echo(_json.dumps(result, indent=2))
 
 
+@curriculum.command("delete")
+@click.argument("doc_id")
+@click.option("--yes", is_flag=True, default=False, help="Skip the confirmation prompt.")
+@click.pass_context
+def delete_curriculum(ctx: click.Context, doc_id: str, yes: bool) -> None:
+    """Delete a doc (RAG file + parsed content + metadata) by DOC_ID.
+
+    Teacher-only; deletes your own uploads or any shared-corpus doc.
+    """
+    if not yes:
+        click.confirm(f"Delete curriculum doc {doc_id}? This removes its RAG file too.", abort=True)
+    _client(ctx).delete(f"/api/curriculum/{doc_id}")
+    click.echo(f"Deleted {doc_id}")
+
+
 __all__ = ["curriculum"]

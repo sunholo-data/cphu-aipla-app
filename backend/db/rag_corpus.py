@@ -114,6 +114,36 @@ async def upload_text_as_rag_file(
         return None
 
 
+async def delete_rag_file(rag_file_name: str) -> bool:
+    """Delete a RagFile from the curriculum corpus by its resource name.
+
+    Best-effort: the Firestore metadata is the source of truth for what's
+    visible, so an orphaned RagFile only wastes storage. Returns True on
+    success, False on no-name / failure (the caller still removes the metadata).
+    """
+    if not rag_file_name:
+        return False
+
+    def _delete_sync() -> bool:
+        import vertexai
+        from vertexai import rag
+
+        project = os.environ.get("GOOGLE_CLOUD_PROJECT")
+        # Init with the file's region (same reason as upload — the SDK routes by
+        # init location, not the resource name). A ragFile name carries the same
+        # /locations/<region>/ segment a corpus name does.
+        vertexai.init(project=project, location=_corpus_location(rag_file_name))
+        rag.delete_file(name=rag_file_name)
+        log.info("RAG file deleted: %s", rag_file_name)
+        return True
+
+    try:
+        return await asyncio.to_thread(_delete_sync)
+    except Exception as exc:
+        log.warning("RAG delete failed for %s (continuing): %s", rag_file_name, exc)
+        return False
+
+
 async def query_rag_files(file_ids: list[str], query: str, *, top_k: int = 5) -> list[str]:
     """Run a one-shot retrieval over the given RAG file IDs (1.1.25 M5).
 

@@ -152,6 +152,64 @@ def test_ingest_returns_parsed_preview_and_levelless(monkeypatch):
     assert body["doc"]["level"] is None  # level-less upload (1.1.33)
 
 
+# --- M6: delete (RAG file + content + metadata) ---
+
+
+def _wire_delete(monkeypatch, doc):
+    """Mock the delete handler's dependencies; record what got called."""
+    import protocols.curriculum_routes as cr
+
+    calls: dict[str, list] = {"rag": [], "content": [], "doc": []}
+    monkeypatch.setattr(cr, "get_curriculum_doc", lambda d: doc)
+
+    async def fake_rag_delete(name):
+        calls["rag"].append(name)
+        return True
+
+    monkeypatch.setattr(cr, "delete_rag_file", fake_rag_delete)
+    monkeypatch.setattr(cr, "delete_curriculum_content", lambda d: calls["content"].append(d))
+    monkeypatch.setattr(cr, "delete_curriculum_doc", lambda d: calls["doc"].append(d))
+    return calls
+
+
+def test_delete_shared_doc_removes_rag_content_metadata(monkeypatch):
+    doc = _doc("s1", "B", "shared", source="shared").model_copy(update={"doc_artifact_id": "rag/file-1"})
+    calls = _wire_delete(monkeypatch, doc)
+    resp = _client().delete("/api/curriculum/s1")
+    assert resp.status_code == 204, resp.text
+    assert calls == {"rag": ["rag/file-1"], "content": ["s1"], "doc": ["s1"]}
+
+
+def test_delete_own_doc_skips_rag_when_no_artifact(monkeypatch):
+    doc = _doc("m1", "B", TEACHER)  # doc_artifact_id defaults to ""
+    calls = _wire_delete(monkeypatch, doc)
+    resp = _client().delete("/api/curriculum/m1")
+    assert resp.status_code == 204
+    assert calls["doc"] == ["m1"]
+    assert calls["rag"] == []  # nothing to delete in RAG
+
+
+def test_delete_other_teachers_private_doc_forbidden(monkeypatch):
+    doc = _doc("x1", "B", "teacher-2")  # a different teacher's private upload
+    calls = _wire_delete(monkeypatch, doc)
+    resp = _client().delete("/api/curriculum/x1")
+    assert resp.status_code == 403
+    assert calls["doc"] == []  # nothing deleted
+
+
+def test_delete_missing_doc_404(monkeypatch):
+    import protocols.curriculum_routes as cr
+
+    monkeypatch.setattr(cr, "get_curriculum_doc", lambda d: None)
+    resp = _client().delete("/api/curriculum/nope")
+    assert resp.status_code == 404
+
+
+def test_delete_student_forbidden():
+    resp = _client(group_id="grp-1").delete("/api/curriculum/s1")
+    assert resp.status_code == 403
+
+
 # --- M3: read a doc's parsed content (display ACL) ---
 
 

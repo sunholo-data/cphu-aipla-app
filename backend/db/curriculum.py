@@ -57,6 +57,11 @@ def delete_curriculum_doc(doc_id: str) -> None:
     delete_document(_COLLECTION, doc_id)
 
 
+def delete_curriculum_content(doc_id: str) -> None:
+    """Remove the stored parsed text for *doc_id* (the M3 display copy)."""
+    delete_document(_CONTENT_COLLECTION, doc_id)
+
+
 def list_curriculum_for_teacher(
     teacher_uid: str,
     *,
