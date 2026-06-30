@@ -3,8 +3,10 @@
 These exercise the slot helper against the in-process ``InMemoryArtifactService``
 (no ``ADK_ARTIFACT_BUCKET`` → in-memory; the singleton is the same store the
 upload endpoint and the ADK runner share by design). The slot is keyed by
-(teacher_uid, activity_id, material_id) — NOT by a chat session — so it persists
-across every student's session.
+**material_id ONLY** (the 2026-06-30 fix) — NOT by teacher_uid/activity_id and
+NOT by a chat session — so a save and a later load always agree even when the
+upload's activity_id (sometimes the skill id) differs from the loader's canonical
+``active_cfg.activity_id``.
 """
 
 from __future__ import annotations
@@ -54,10 +56,31 @@ async def test_delete_removes_slot():
 
 
 @pytest.mark.asyncio
-async def test_distinct_activities_do_not_collide():
-    await save_activity_image(teacher_uid="t", activity_id="a1", material_id="m", data=b"one", mime_type="image/png")
-    await save_activity_image(teacher_uid="t", activity_id="a2", material_id="m", data=b"two", mime_type="image/png")
-    p1 = await load_activity_image(teacher_uid="t", activity_id="a1", material_id="m")
-    p2 = await load_activity_image(teacher_uid="t", activity_id="a2", material_id="m")
-    assert p1.inline_data.data == b"one"
-    assert p2.inline_data.data == b"two"
+async def test_load_finds_image_when_activity_id_and_uid_diverge_from_save():
+    """The bug this fixes (2026-06-30). The teacher upload saved the slot under
+    the client-sent activity_id — which was sometimes the SKILL id (``f45dc300…``)
+    — and the uploader's uid; the student-session loader reconstructs the
+    CANONICAL ``active_cfg.activity_id`` (``act-…``) and the OWNER uid. The old
+    (teacher_uid, activity_id, material_id) key diverged → ``load`` returned
+    ``None`` → "durable slot missing" → the tutor never saw the image.
+
+    The mocked callback tests never caught it (they stub ``load_activity_image``).
+    This drives the REAL save→load round-trip with DIFFERENT uid + activity_id on
+    each side, which must still resolve because the key is material_id-only.
+    """
+    await save_activity_image(
+        teacher_uid="uploader-uid",
+        activity_id="f45dc300-4b90-4162-8f28-07fb42989378",  # skill id, as seen in prod
+        material_id="84c41864fa05461e840082addee6a746",
+        data=b"\x89PNG real",
+        mime_type="image/png",
+    )
+    # Loader side: canonical activity id + the owner uid — both differ from save.
+    part = await load_activity_image(
+        teacher_uid="owner-uid",
+        activity_id="act-54fd3b543539a86",
+        material_id="84c41864fa05461e840082addee6a746",
+    )
+    assert part is not None, "image must load even when activity_id/uid differ from save-time"
+    assert part.inline_data.data == b"\x89PNG real"
+    assert part.inline_data.mime_type == "image/png"
