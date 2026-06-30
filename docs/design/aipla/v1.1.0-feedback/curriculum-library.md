@@ -12,6 +12,8 @@
 
 > **Breadth-over-depth steer (9 June meeting; `notes/2026-06-09-curriculum-content-uses.md`).** Year 1 is about **discovering which interfaces are worth pursuing** — *coverage of the possibility space beats polish on any single bet.* That reframes this corpus from "reference material" into a **breadth multiplier**: it drops the marginal cost of every new activity (grounding, rubric, and level-calibration come for free), so the team can run **many thin probes** instead of hand-building each. This is a standing project principle (`aipla-breadth-over-depth`). Two of the uses below — **#6 coverage/gap map** and **#4 auto-drafted rubrics** — *operationalise* the strategy (they say where to probe next and keep each probe measurable), so they are pulled forward as the earliest-build pieces.
 
+> **29 June (M) — concrete free-to-use source identified.** M has been using the **free-to-use maths + physics textbooks at [mathematicus.dk](https://mathematicus.dk/)** (physics: [/fysik](https://mathematicus.dk/fysik/)) and asked to add them so the tutor grounds in *"the standard Danish way of doing things"* (couples to the 29-June method-fidelity principle — the tutor should solve the way Danish students are taught, not by an alternative route). Unlike the 2010 exam archive in **Non-goals** (copyright/GDPR-gated), these are **free-to-use**, so the gate is a **licence-terms check** — does the licence permit ingestion into the shared ADK-RAG corpus + redistribution to students? — *not* full copyright clearance. Then AILANG-Parse ingest into the A/B/C taxonomy. Source: [june-29-feedback.md](june-29-feedback.md); tracked in the curriculum-clearance memory.
+
 ## Problem
 
 Two gaps from the 9 June session:

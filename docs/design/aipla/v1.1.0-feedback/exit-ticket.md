@@ -8,6 +8,8 @@
 **Dependencies:** [chat-log-pipeline.md](../v1.0.0-pilot/implemented/chat-log-pipeline.md) (1.2 shipped — BQ schema additions land here); JB/AR providing the question set + Danish/English translations
 **Source brief:** [`june-03-feedback-sprint-brief.md` §8](file:///Users/mark/Documents/clients/cph-uni/strand-a-pedagogical-bot/prototypes/june-03-feedback-sprint-brief.md)
 
+> **29 June (M) — parked, with new input for when it's revisited.** Decision: **park until Aswin delivers** — no roadmap move; this row stays *blocked*. Two changes to fold in when it's unparked: (1) the gating **question set owner is now Aswin (over summer)**, not JB/AR; (2) the framing gains an **affective** axis ("do students *feel* they're learning more / that it's more accessible") and a **longitudinal** axis — repeated before/after measurements *across the year*, explicitly **fatigue-aware** (many questions over a year risks response fatigue), beyond today's per-session one-shot. The longitudinal axis is a real design expansion (cross-session question scheduling) to scope when Aswin's set lands. Source: [june-29-feedback.md](june-29-feedback.md).
+
 ## Problem
 
 Sessions today end implicitly — student closes the tab, teacher revokes the code, or TTL fires. No structured signal is captured about how the student *felt* about the session. JB and AR have asked for a lightweight self-assessment + research-question capture to inform both the rubric framework decision (R1) and pilot iteration.
