@@ -16,6 +16,49 @@ All three sit on a single **per-group concept-mastery model** keyed by anonymous
 2. **Mastery monitoring (over time).** For each group, map demonstrated competence onto the graph nodes — from the **chat-log pipeline** (BigQuery turns, the durable group-ID-keyed source), the **DRA/rubric tagging** (2.5), and the **exit ticket** (1.1.8) self-reports. The result is a per-group **mastery vector across the graph that evolves over the year** — the longitudinal record the researchers want.
 3. **Cross-group matching (who should meet).** Over the per-group mastery/interest profiles, recommend which **groups** would most benefit from meeting in person — complementary gaps ("group A has what group B is stuck on"), shared frontier, or the social-network signal ("students link groups together"). **Group-level recommendation, never individual targeting** — respects the anonymity model.
 
+## Near-term entry point: the teacher's pre-lesson concept-map element (M, 2026-06-30)
+
+Capability 1 (**build the graph**) has a **buildable-now** surface that does *not* wait for pilot data or
+Strand-C scoping: a **teacher-authored concept-map element** in the activity builder, worked on *before*
+the lesson — the teacher adds the topics and maps their prerequisites. This decouples the BUILD piece (an
+authoring affordance) from capabilities 2–3 (monitoring + matching), which need the longitudinal pilot signal.
+
+**It's just another activity element.** It slots into the existing element system
+([activity-elements-palette](../v1.1.0-feedback/activity-elements-palette.md) + the `workbench-element-builder`
+skill) alongside table / calculator / checklist / note — a new `conceptMap` field on `ActivityConfig`.
+Authored in the builder, stored in the activity config, and **proposable by the activity-authoring co-pilot**
+(the AI-assist: it suggests nodes+edges from the activity's cited curriculum + the skill's DRA map; the
+teacher edits/approves — propose-not-act, Axiom 2). No new infrastructure — "another element" is exactly the
+breadth-over-depth-friendly shape.
+
+**List vs graph → one element, two modes.** A **graph fits the domain** — prerequisites form a DAG
+(branching + converging: *vectors* and *trigonometry* both feed *projectile motion*), which a flat list
+can't express without flattening that structure away. But a list is a cheaper v0 and lower authoring burden.
+So: **one element, two views over the same `{nodes, edges}` data** — a **list mode** (ordered concepts,
+fast, the simple default / on-ramp) and a **graph mode** (drag nodes, draw prerequisite edges) for the
+richer picture. The list is the on-ramp; the graph is where it pays off.
+
+**Wire shape (sketch):**
+```
+conceptMap: {
+  nodes: [{ id, label, level?, dra? }],          // a topic/concept (optionally tagged to a DRA / stx level)
+  edges: [{ from, to, kind: "prerequisite" }],   // "needs-before"
+}
+```
+Wired with the dual-surface + trust-card + co-pilot-proposability discipline (the `workbench-element-builder`
+recipe), so it stays coherent with the rest of the palette.
+
+**Why building it now is cheap leverage.** The teacher gets the *map* per activity — useful on its own as a
+planning + student-orientation aid. And because it's stored as structured `{nodes, edges}`, it is the **same
+data capability 2 maps mastery evidence onto.** So shipping the authoring element now *also* lays the
+foundation for the Year-2 monitoring — without committing to it. It does NOT do monitoring or matching.
+
+**Scope question (M to weigh):** the concept-map **element** (author + store + co-pilot-propose) is a
+**near-term, self-contained build** — a new activity element, no pilot-data dependency — distinct from this
+doc's Year-2 monitoring/matching. Pull it forward as a **v1.1 element**, or keep it parked here? Counterweight:
+the activity-element palette is already rich, and the [UX-coherence gate](file:///Users/mark/.claude/projects/-Users-mark-dev-sunholo-cphu-aipla-app/memory/project_ux_coherence_gate.md)
+says no new element earns its place until the current ones are coherent and a teacher would actually use it.
+
 ## Architecture (execution — reuses existing infra)
 
 ```
