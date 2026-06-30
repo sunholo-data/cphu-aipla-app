@@ -14,13 +14,25 @@ fine is ≤114k. Probed that a **200k-char part indexes cleanly**.
 Fix: split each book into ~200k-char parts (`/tmp/split_md.py`, paragraph-boundary split of the staged
 markdown) and ingest each part as its own shared doc:
 
-- **Atomer** → 4 parts · **Integralregning** → 3 · **Differentialregning** → 5 = **12 docs, 12/12 grounded.**
-- Titled `"<Book> (Mathematicus) — del N/M"`, `--level B`, subject in `--topic` (interim, → SEQUENCE 2.6).
-- The 3 failed full-book docs + a `[PROBE]` doc were removed via the **new `DELETE /api/curriculum/{id}`
-  endpoint** (commit `136238f`; the reason that endpoint now exists). Shared corpus = **18 docs, all grounded**
-  (6 physics + 12 textbook parts). Retrieval verified (`curriculum query` returns textbook chunks).
-- **Quality nit:** the docparse markdown keeps the table-of-contents dot-leaders, which can surface as a
-  low-value chunk. Acceptable for v1; a future pass could strip TOC/running-headers before ingest.
+Titled `"<Book> (Mathematicus) — del N/M"`, `--level B`, subject in `--topic` (interim, → SEQUENCE 2.6).
+Removed the failed full-book docs + a `[PROBE]` doc via the **new `DELETE /api/curriculum/{id}` endpoint**
+(commit `136238f`; the reason that endpoint now exists).
+
+**Retrieval-quality pass (chunk cleanup).** The first cut used docparse's **default `pdftotext` backend**,
+which for these LaTeX-generated books produced noisy chunks — TOC dot-leaders (131 lines), running
+page-headers + bare page numbers, hard line-breaks mid-sentence (paragraphs not joined), and **no heading
+structure**. Re-parsed with **`docparse --pdf-backend liteparse`** (font-size heading detection): **422
+headings**, TOC dot-leaders → 3, paragraphs joined into flowing prose, 33% smaller. A light post-process
+(`/tmp/clean_split.py`) strips residual page-number `## N` headings + running headers + leaked
+`[text:Normal]` tags, then splits at `##` headings into ~200k parts. Re-ingested → **9 cleaned parts**
+(Atomer 3, Integralregning 2, Differentialregning 4). Retrieval now returns clean prose
+(e.g. "Figur 1.8 viser fordelingen af de 13 elektroner i et aluminium-atom…") vs the earlier fragmented
+output. **Final shared corpus = 15 docs, all grounded** (6 physics + 9 textbook parts).
+
+- **Known limitation (→ docparse feedback sent via AILANG):** the **maths** books are 2-column with margin
+  notes; both pdftotext and liteparse **interleave columns + formulas** in formula-dense sections (prose is
+  fine, formulas garbled). The `ai` (multimodal) backend would handle layout+math better at token cost.
+  Math super/subscripts also flatten (r² → "r 2"). Full feedback in the AILANG inbox.
 
 > **Deploy gotcha hit here:** the delete endpoint sat un-deployed because a **stale frontend test was
 > failing cloudbuild's CI gate, aborting every dev deploy** since the analytics co-pilot landed (last good
