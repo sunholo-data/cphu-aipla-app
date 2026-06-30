@@ -1,7 +1,36 @@
 # Curriculum textbook ingestion — mathematicus.dk free-to-use textbooks
 
-**Status:** Prep complete (parsed + staged); **dev shared-corpus write pending approval** (live dev mutation during the 2026-06-29 → 07-05 freeze)
-**Date:** 2026-06-29
+**Status:** ✅ **DONE (2026-06-30)** — ingested into the dev shared corpus as **12 split parts, all RAG-grounded** (citable + tutor-groundable). The single-file approach below **failed Vertex RAG indexing** (too large); see *Outcome*.
+**Date:** 2026-06-29 (prep) · 2026-06-30 (ingested)
+
+## Outcome (2026-06-30)
+
+The single-file ingest of each full book **failed at the Vertex RAG indexing step** —
+`WARNING db.rag_corpus: RAG upload error … ('Failed in indexing the RagFile due to: ', {'code': 13})`
+(gRPC INTERNAL). The Firestore docs were created but with `docArtifactId=""` (not grounded). Cause:
+**file size** — the books are 430k–962k chars, while every physics læreplan/vejledning that indexes
+fine is ≤114k. Probed that a **200k-char part indexes cleanly**.
+
+Fix: split each book into ~200k-char parts (`/tmp/split_md.py`, paragraph-boundary split of the staged
+markdown) and ingest each part as its own shared doc:
+
+- **Atomer** → 4 parts · **Integralregning** → 3 · **Differentialregning** → 5 = **12 docs, 12/12 grounded.**
+- Titled `"<Book> (Mathematicus) — del N/M"`, `--level B`, subject in `--topic` (interim, → SEQUENCE 2.6).
+- The 3 failed full-book docs + a `[PROBE]` doc were removed via the **new `DELETE /api/curriculum/{id}`
+  endpoint** (commit `136238f`; the reason that endpoint now exists). Shared corpus = **18 docs, all grounded**
+  (6 physics + 12 textbook parts). Retrieval verified (`curriculum query` returns textbook chunks).
+- **Quality nit:** the docparse markdown keeps the table-of-contents dot-leaders, which can surface as a
+  low-value chunk. Acceptable for v1; a future pass could strip TOC/running-headers before ingest.
+
+> **Deploy gotcha hit here:** the delete endpoint sat un-deployed because a **stale frontend test was
+> failing cloudbuild's CI gate, aborting every dev deploy** since the analytics co-pilot landed (last good
+> revision 00515, 2026-06-29). Fixed in `1f56534`; deploy 00516 then carried the delete endpoint + the
+> group-auth fix. If a push doesn't produce a new Cloud Run revision, check `gh run list` for a red CI.
+
+---
+
+### Original single-file plan (superseded — failed indexing; kept for the record)
+
 **Source feedback:** [june-29-feedback.md](june-29-feedback.md) (Danish-textbook decision + follow-up thread)
 **Owner doc:** [curriculum-library.md](curriculum-library.md) (1.1.25 — the shared corpus this writes into)
 
