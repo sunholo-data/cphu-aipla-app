@@ -17,6 +17,10 @@
 import { Hand } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 
+import {
+  isAnonymousGroupAuthMode,
+  readStoredGroupSession,
+} from "@/lib/anonymousGroupAuth";
 import { getGroupSignal, lowerHand, raiseHand } from "@/lib/signalApi";
 
 type Props = {
@@ -33,6 +37,11 @@ export function CallTeacherButton({ activityTitle = "", disabled = false, pollMs
 
   useEffect(() => {
     let alive = true;
+    let intervalId: number | undefined;
+    function stop() {
+      alive = false;
+      if (intervalId !== undefined) window.clearInterval(intervalId);
+    }
     async function poll() {
       try {
         const s = await getGroupSignal();
@@ -48,15 +57,22 @@ export function CallTeacherButton({ activityTitle = "", disabled = false, pollMs
         }
         wasRaised.current = s.raised;
       } catch {
-        // Transient — keep the last known state; next poll reconciles.
+        if (!alive) return;
+        // `fetchWithAuth` already tried to refresh the group token before this
+        // surfaced. If the stored session is now gone, the failure is terminal
+        // (code revoked/expired) — STOP polling instead of hammering 401s
+        // ~6×/min forever (the bug this whole fix addresses). The provider's
+        // `expired` state drives the re-join UI. A transient error keeps the
+        // last known state; the next poll reconciles.
+        if (isAnonymousGroupAuthMode() && readStoredGroupSession() === null) {
+          stop();
+          return;
+        }
       }
     }
     void poll();
-    const id = window.setInterval(() => void poll(), pollMs);
-    return () => {
-      alive = false;
-      window.clearInterval(id);
-    };
+    intervalId = window.setInterval(() => void poll(), pollMs);
+    return stop;
   }, [pollMs]);
 
   async function toggle() {

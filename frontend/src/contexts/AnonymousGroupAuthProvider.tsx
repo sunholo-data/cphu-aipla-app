@@ -43,6 +43,7 @@ import {
   readStoredGroupSession,
   writeStoredGroupSession,
 } from "@/lib/anonymousGroupAuth";
+import { onGroupSessionChange } from "@/lib/groupTokenClient";
 
 /** Renew the group token this many seconds before it expires. The token
  * lives 8h server-side; we renew ~5 min early so an in-flight request never
@@ -150,6 +151,23 @@ export function AnonymousGroupAuthProvider({ children }: { children: ReactNode }
       setSession(stored);
       setStatus("joined");
     }
+  }, []);
+
+  // Stay in sync with refreshes initiated OUTSIDE React — the lib layer
+  // (`getIdToken` / `fetchWithAuth` via `groupTokenClient.refreshGroupSession`)
+  // can mint a fresh token or discover the code is terminally revoked. A new
+  // session → reflect it (resets the proactive-refresh timer below); null →
+  // flip to `expired` so the re-join UI shows. This is what wires the
+  // long-documented "joined → expired on a 401 from any downstream fetch".
+  useEffect(() => {
+    return onGroupSessionChange((next) => {
+      if (next) {
+        setSession(next);
+        setStatus("joined");
+      } else {
+        setStatus("expired");
+      }
+    });
   }, []);
 
   const join = useCallback(async (groupCode: string) => {

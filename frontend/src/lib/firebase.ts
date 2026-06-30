@@ -15,8 +15,12 @@ import {
 import { type Firestore, getFirestore } from "firebase/firestore";
 import {
   isAnonymousGroupAuthMode,
-  readStoredGroupSession,
+  readStoredGroupSessionRaw,
 } from "@/lib/anonymousGroupAuth";
+import {
+  GROUP_REFRESH_SKEW_SECONDS,
+  refreshGroupSession,
+} from "@/lib/groupTokenClient";
 import { isLocalMode, LOCAL_MODE_STUB_TOKEN } from "@/lib/localMode";
 
 const firebaseConfig = {
@@ -95,8 +99,19 @@ export async function getIdToken(): Promise<string | null> {
   // If no session exists, fall through: LOCAL_MODE can still supply the
   // workshop stub for teacher routes that don't require a group session.
   if (isAnonymousGroupAuthMode()) {
-    const session = readStoredGroupSession();
-    if (session?.token) return session.token;
+    // Read WITHOUT the expiry purge so an at/near-expiry token can still be
+    // refreshed (the refresh endpoint accepts an expired-but-valid-signature
+    // token). If it's safely in-window, use it as-is; otherwise refresh first
+    // so no request goes out with a dead token (returns null only when the
+    // code is terminally revoked/expired).
+    const session = readStoredGroupSessionRaw();
+    if (session?.token) {
+      if (session.expires_at > Date.now() / 1000 + GROUP_REFRESH_SKEW_SECONDS) {
+        return session.token;
+      }
+      const refreshed = await refreshGroupSession();
+      return refreshed?.token ?? null;
+    }
   }
   // LOCAL_MODE: every request sends the well-known stub token so the
   // backend's auth/local_mode_stub.py grants it. fetchWithAuth wires this

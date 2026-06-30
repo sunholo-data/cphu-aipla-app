@@ -22,18 +22,41 @@
  * — they don't need to branch on "am I signed in yet?" before every request.
  */
 
+import { isAnonymousGroupAuthMode } from "@/lib/anonymousGroupAuth";
 import { getIdToken, getTeacherIdToken } from "@/lib/firebase";
+import { refreshGroupSession } from "@/lib/groupTokenClient";
+
+function sendWithToken(
+  input: RequestInfo | URL,
+  init: RequestInit,
+  token: string | null,
+): Promise<Response> {
+  const headers = new Headers(init.headers);
+  if (token) {
+    headers.set("Authorization", `Bearer ${token}`);
+  }
+  return fetch(input, { ...init, headers, cache: "no-store" });
+}
 
 export async function fetchWithAuth(
   input: RequestInfo | URL,
   init: RequestInit = {},
 ): Promise<Response> {
   const token = await getIdToken();
-  const headers = new Headers(init.headers);
-  if (token) {
-    headers.set("Authorization", `Bearer ${token}`);
+  const resp = await sendWithToken(input, init, token);
+  // Reactive recovery for the anonymous-group (student) token: a 401 means the
+  // token lapsed (or was rejected for clock skew) — trade it for a fresh one
+  // and retry ONCE. If the refresh is terminal (code revoked/expired) it
+  // returns no new token and we surface the original 401, which flips the
+  // provider to `expired` (re-join UI). Prevents the lapsed-token 401 storm.
+  // See groupTokenClient + the anonymous-group corner-case memory.
+  if (resp.status === 401 && isAnonymousGroupAuthMode()) {
+    const refreshed = await refreshGroupSession();
+    if (refreshed?.token && refreshed.token !== token) {
+      return sendWithToken(input, init, refreshed.token);
+    }
   }
-  return fetch(input, { ...init, headers, cache: "no-store" });
+  return resp;
 }
 
 /**

@@ -96,6 +96,43 @@ export function readStoredGroupSession(): PersistedGroupSession | null {
   }
 }
 
+/**
+ * Read the persisted session WITHOUT purging on expiry.
+ *
+ * Unlike {@link readStoredGroupSession}, this returns the session even when
+ * `expires_at` is in the past — because the token-refresh path
+ * (`groupTokenClient.refreshGroupSession`) deliberately trades an
+ * **expired-but-valid-signature** token for a fresh one (the backend's
+ * `refresh_group_token` decodes with `verify_exp=False`). The eager purge in
+ * `readStoredGroupSession` would otherwise destroy the only credential we can
+ * refresh with — which is exactly how a lapsed token turned into an
+ * unrecoverable 401 loop. Still returns null on SSR / nothing-stored /
+ * malformed payload.
+ */
+export function readStoredGroupSessionRaw(): PersistedGroupSession | null {
+  if (typeof window === "undefined") return null;
+  const raw = window.sessionStorage.getItem(ANON_GROUP_TOKEN_STORAGE_KEY);
+  if (!raw) return null;
+  try {
+    const parsed = JSON.parse(raw) as PersistedGroupSession;
+    if (
+      typeof parsed.token !== "string" ||
+      typeof parsed.uid !== "string" ||
+      typeof parsed.expires_at !== "number"
+    ) {
+      window.sessionStorage.removeItem(ANON_GROUP_TOKEN_STORAGE_KEY);
+      return null;
+    }
+    if (!Array.isArray(parsed.skill_ids)) {
+      parsed.skill_ids = [];
+    }
+    return parsed;
+  } catch {
+    window.sessionStorage.removeItem(ANON_GROUP_TOKEN_STORAGE_KEY);
+    return null;
+  }
+}
+
 /** Persist a freshly-minted session. */
 export function writeStoredGroupSession(session: PersistedGroupSession): void {
   if (typeof window === "undefined") return;

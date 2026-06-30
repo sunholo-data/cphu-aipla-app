@@ -11,6 +11,13 @@ vi.mock("@/lib/signalApi", () => ({
   getGroupSignal: (...a: unknown[]) => getGroupSignal(...a),
 }));
 
+const isAnonymousGroupAuthMode = vi.fn();
+const readStoredGroupSession = vi.fn();
+vi.mock("@/lib/anonymousGroupAuth", () => ({
+  isAnonymousGroupAuthMode: () => isAnonymousGroupAuthMode(),
+  readStoredGroupSession: () => readStoredGroupSession(),
+}));
+
 import { CallTeacherButton } from "../CallTeacherButton";
 
 const RESTING = { raised: false, raisedHandAt: null, clearedAt: null, clearedBy: "", activityTitle: "" };
@@ -22,6 +29,8 @@ beforeEach(() => {
   raiseHand.mockReset().mockResolvedValue(RAISED);
   lowerHand.mockReset().mockResolvedValue(LOWERED);
   getGroupSignal.mockReset().mockResolvedValue(RESTING);
+  isAnonymousGroupAuthMode.mockReset().mockReturnValue(false);
+  readStoredGroupSession.mockReset().mockReturnValue({ token: "x" });
 });
 
 describe("CallTeacherButton", () => {
@@ -55,5 +64,32 @@ describe("CallTeacherButton", () => {
     render(<CallTeacherButton pollMs={1_000_000} activityTitle="Energibevarelse" />);
     fireEvent.click(screen.getByTestId("call-teacher-button"));
     await waitFor(() => expect(raiseHand).toHaveBeenCalledWith("Energibevarelse"));
+  });
+
+  it("stops polling after a terminal auth failure (no 401 storm)", async () => {
+    // fetchWithAuth already tried to refresh; a surfaced error + a now-empty
+    // stored session means the code is terminally revoked/expired.
+    isAnonymousGroupAuthMode.mockReturnValue(true);
+    readStoredGroupSession.mockReturnValue(null);
+    getGroupSignal.mockReset().mockRejectedValue(new Error("get signal failed: 401"));
+
+    render(<CallTeacherButton pollMs={50} />);
+
+    // The immediate poll rejects and stops the interval before the first tick.
+    await waitFor(() => expect(getGroupSignal).toHaveBeenCalledTimes(1));
+    // Five intervals' worth of time elapses with no further polls.
+    await new Promise((r) => setTimeout(r, 250));
+    expect(getGroupSignal).toHaveBeenCalledTimes(1);
+  });
+
+  it("keeps polling on a transient error (session still present)", async () => {
+    isAnonymousGroupAuthMode.mockReturnValue(true);
+    readStoredGroupSession.mockReturnValue({ token: "still-here" });
+    getGroupSignal.mockReset().mockRejectedValue(new Error("get signal failed: 503"));
+
+    render(<CallTeacherButton pollMs={30} />);
+
+    // Polling continues — a transient failure must not stop the loop.
+    await waitFor(() => expect(getGroupSignal.mock.calls.length).toBeGreaterThan(1));
   });
 });
