@@ -103,6 +103,10 @@ function CopilotChat<P>({ config, threadId }: { config: TeacherCopilotConfig<P>;
   // (history ids are `hist-*`, live ids are AG-UI message ids).
   const { initialMessages } = useSessionMessages(threadId || null);
   const messages = initialMessages.length ? [...initialMessages, ...liveMessages] : liveMessages;
+  // AG-UI tool-call turns arrive as assistant messages with empty text content
+  // (the proposal card stands in for them) — skip those so they don't render as
+  // empty bubbles above the proposals.
+  const visibleMessages = messages.filter((m) => m.content && m.content.trim().length > 0);
   const [input, setInput] = useState("");
 
   const onSubmit = async (e: React.FormEvent) => {
@@ -120,14 +124,14 @@ function CopilotChat<P>({ config, threadId }: { config: TeacherCopilotConfig<P>;
         .filter((p): p is { id: string; proposal: P } => p.proposal !== null)
     : [];
 
-  const empty = messages.length === 0 && proposals.length === 0 && !isLoading;
+  const empty = visibleMessages.length === 0 && proposals.length === 0 && !isLoading;
   const strip = config.stripPrefix ?? ((c: string) => c);
 
   return (
     <div className="flex min-h-0 flex-1 flex-col" data-testid={config.testId ?? "teacher-copilot"}>
       <div className="flex min-h-0 flex-1 flex-col gap-2 overflow-y-auto p-3" aria-live="polite">
         {empty ? <p className="text-xs text-muted-foreground">{config.emptyText}</p> : null}
-        {messages.map((m) => (
+        {visibleMessages.map((m) => (
           <article
             key={m.id}
             data-role={m.role}

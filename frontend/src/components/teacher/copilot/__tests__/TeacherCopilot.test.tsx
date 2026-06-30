@@ -182,6 +182,21 @@ describe("TeacherCopilot (shared shell)", () => {
     expect(after).not.toBe(before);
   });
 
+  it("skips empty-content message bubbles (AG-UI tool-call turns)", () => {
+    // A tool-call-only assistant turn arrives with empty content; the proposal
+    // card stands in for it, so it must NOT render as an empty bubble.
+    hook = {
+      ...defaultHook,
+      messages: [
+        { id: "m1", role: "assistant", content: "" },
+        { id: "m2", role: "assistant", content: "Here is my proposal." },
+      ] as never,
+    };
+    render(<TeacherCopilot {...config()} />);
+    expect(screen.getByText("Here is my proposal.")).toBeInTheDocument();
+    expect(screen.getAllByRole("article")).toHaveLength(1);
+  });
+
   it("read-only mode (no parseProposal) renders chat with no proposal cards", () => {
     // The analytics co-pilot omits parseProposal/descriptor/onApplyProposal.
     hook = { ...defaultHook, toolCalls: withTool() };
