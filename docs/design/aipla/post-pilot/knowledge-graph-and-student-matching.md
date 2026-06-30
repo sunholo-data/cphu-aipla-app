@@ -53,11 +53,49 @@ planning + student-orientation aid. And because it's stored as structured `{node
 data capability 2 maps mastery evidence onto.** So shipping the authoring element now *also* lays the
 foundation for the Year-2 monitoring — without committing to it. It does NOT do monitoring or matching.
 
-**Scope question (M to weigh):** the concept-map **element** (author + store + co-pilot-propose) is a
-**near-term, self-contained build** — a new activity element, no pilot-data dependency — distinct from this
-doc's Year-2 monitoring/matching. Pull it forward as a **v1.1 element**, or keep it parked here? Counterweight:
-the activity-element palette is already rich, and the [UX-coherence gate](file:///Users/mark/.claude/projects/-Users-mark-dev-sunholo-cphu-aipla-app/memory/project_ux_coherence_gate.md)
-says no new element earns its place until the current ones are coherent and a teacher would actually use it.
+### Then: the tutor checks the graph off as work is done (in-session) — M, 2026-06-30
+
+Once an activity *has* a concept graph, the tutor can **assess the student's work against it in real time and
+mark nodes off** — turning the static map into a **live formative-assessment instrument** for that activity.
+As the conversation/work proceeds, an evaluation step classifies each node **demonstrated / partial / not-yet**,
+with the **evidence** (which turn showed it). A **progress view** lights up the graph for the student
+(orientation — "you've got *vectors*; *projectile motion* is next") and the teacher (live coverage).
+
+This is the **per-session, single-activity form of capability 2** — but it needs **no pilot data and no batch
+pipeline**: it runs inside one tutor session against the authored graph. The Year-2 piece is *recording these
+per-session check-offs over time across groups* (capability 2 proper) + matching (capability 3). So the
+**near-term arc is author (1) → check-off (2)**; aggregation + matching stay Year-2.
+
+**Design notes:**
+- **Where the assessment runs.** Either a tutor **tool** the model calls when it judges a concept demonstrated
+  (explicit + visible — pairs with the human-tool-use **trust card**, "✓ marked *vectors* understood"), or a
+  lightweight **post-turn LLM-judge** pass mapping the turn → nodes (less intrusive, better coverage). Likely
+  both: the tool for the visible check, a reconciling pass so nothing is missed.
+- **Earned trust (Axiom 2).** A check-off must be **inspectable** — the student/teacher can see *why* a node
+  was marked (the evidence turn) — and the **teacher can override**. It's a teacher instrument the AI assists;
+  never a silent grade.
+- **Formative, not sanctionary.** Honours the 29-June guardrail (observe, don't punitively assess) and the
+  assessment-integrity stance — a learning map, not a scoreboard.
+- **Reliability.** LLM-as-judge against concept nodes has the same trust problem as the DRA tagging (2.5) —
+  premature or missed check-offs. The graph + the teacher override make it correctable; calibration is an
+  **eval task** (reuse the capability-floor eval harness). Don't ship the check-off as authoritative before
+  it's calibrated.
+- **Reuse.** A cousin of the **checklist element** — but here the "checklist" is the graph nodes and the *AI*
+  drives the checking with the human in the loop.
+
+The near-term arc is now a coherent feature — **a "living concept map"**: the teacher authors the prerequisite
+graph (1), and the tutor checks it off as the student works (2) — a structured, AI-assisted, formative
+progress instrument scoped to ONE activity, no pilot dependency. The longitudinal aggregation (2-proper) and
+cross-group matching (3) remain Year-2.
+
+**Scope question (M to weigh):** the near-term arc — the concept-map **element** (author + co-pilot-propose)
+**plus the in-session check-off** — is a **self-contained, pre-pilot build** (no longitudinal pipeline,
+no cross-group anything). It has grown from "an element" to "a small formative-assessment instrument," so
+weigh it as a feature, not a widget. Pull it forward (and at what depth — list-only author + manual check, vs
+graph + AI check-off), or keep it parked here? Counterweight: the activity-element palette is already rich,
+and the [UX-coherence gate](file:///Users/mark/.claude/projects/-Users-mark-dev-sunholo-cphu-aipla-app/memory/project_ux_coherence_gate.md)
+says nothing new earns its place until the current surfaces are coherent and a teacher would actually reach
+for it.
 
 ## Architecture (execution — reuses existing infra)
 
