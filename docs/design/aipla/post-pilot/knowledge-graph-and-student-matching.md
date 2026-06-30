@@ -18,6 +18,8 @@ All three sit on a single **per-group concept-mastery model** keyed by anonymous
 
 ## Near-term entry point: the teacher's pre-lesson concept-map element (M, 2026-06-30)
 
+> **Full execution spec:** [../v1.1.0-feedback/living-concept-map.md](../v1.1.0-feedback/living-concept-map.md) — the buildable "living concept map" (author + in-session check-off), phased M0–M3 with the eval plan. This section is the summary; the spec carries paths/wire/acceptance.
+
 Capability 1 (**build the graph**) has a **buildable-now** surface that does *not* wait for pilot data or
 Strand-C scoping: a **teacher-authored concept-map element** in the activity builder, worked on *before*
 the lesson — the teacher adds the topics and maps their prerequisites. This decouples the BUILD piece (an
