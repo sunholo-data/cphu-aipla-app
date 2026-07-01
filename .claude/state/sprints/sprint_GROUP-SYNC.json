@@ -1,0 +1,127 @@
+{
+  "sprint_id": "GROUP-SYNC",
+  "created": "2026-07-01T14:43:26Z",
+  "estimated_duration_days": 5,
+  "design_doc": "docs/design/aipla/v1.1.0-feedback/group-shared-session-sync.md",
+  "sprint_plan": "docs/design/aipla/v1.1.0-feedback/group-shared-session-sync-sprint.md",
+  "features": [
+    {
+      "id": "M0",
+      "description": "Turn-lock (backend, correctness first) — transactional CAS on the existing group_sessions doc; acquire before the ADK run, release in finally, 409 on collision, 90s TTL steal. The atomic guard that prevents the concurrent-turn race (bug #3). MUST land first.",
+      "scope": "backend",
+      "estimated_loc": 250,
+      "actual_loc": null,
+      "dependencies": [],
+      "acceptance_criteria": [
+        "acquire_turn_lock uses a Firestore transaction: two concurrent acquires return exactly one True and one False",
+        "A locked send surfaces HTTP 409 (turn_in_progress) from the student stream route before the SSE body starts; after release the next send succeeds",
+        "release_turn_lock clears only when the holding token matches; a foreign token cannot unlock a live turn",
+        "A lock older than the 90s TTL is stealable (a crashed/closed-tab turn does not wedge the group)",
+        "A proactive turn is skipped while a student turn holds the lock",
+        "cd backend && make lint && make test-fast green"
+      ],
+      "files_to_create": [],
+      "files_to_modify": [
+        "backend/db/group_sessions.py",
+        "backend/skills/skill_processor.py",
+        "backend/fast_api_app.py",
+        "backend/protocols/proactive_routes.py",
+        "backend/tests/unit/test_group_sessions.py"
+      ],
+      "passes": null,
+      "started": null,
+      "completed": null,
+      "notes": "process_skill_request (skill_processor.py:68) has user.group_id + activity_id in scope; acquire at the top before the run so all four callers (student stream fast_api_app.py:644, proactive, mcp, channels) are serialized. Student route returns 409; proactive route skips when locked."
+    },
+    {
+      "id": "M1",
+      "description": "Live chat sync (fullstack, the headline) — GET /api/sessions/{id}/pulse {revision,turnInFlight,turnStartedAt} + useSessionPulse poll (~2-3s active, back off hidden) + refetch useSessionMessages on revision change + composer lock/queue on turnInFlight (409 -> queued -> auto-retry). Fixes bug #1 (no live sync); bug #2 (ghost context) falls out.",
+      "scope": "fullstack",
+      "estimated_loc": 400,
+      "actual_loc": null,
+      "dependencies": ["M0"],
+      "acceptance_criteria": [
+        "GET /api/sessions/{id}/pulse returns {revision,turnInFlight,turnStartedAt}, group-auth'd, zero LLM; revision bumps after a turn commits; turnInFlight reflects the non-stale M0 lock",
+        "Device B (same group+activity, not reloaded) sees device A's new user turn AND the tutor reply within one poll (~2-3s of commit)",
+        "While A's turn is in flight, B's composer is disabled showing 'tutor is answering your group…'; a message B types is auto-sent when the turn clears",
+        "A 409 from the stream POST flips the sender into the queued state and auto-retries on the next lock clear",
+        "useSessionMessages does not double-apply the sender's own in-flight stream via a pulse refetch; sentinel filter preserved; scroll/half-typed composer not disrupted",
+        "cd backend && make lint && make test-fast green AND cd frontend && npm run quality:check green"
+      ],
+      "files_to_create": [
+        "frontend/src/hooks/useSessionPulse.ts"
+      ],
+      "files_to_modify": [
+        "backend/protocols/sessions_route.py",
+        "frontend/src/hooks/useSessionMessages.ts",
+        "backend/tests/api_tests/test_sessions_route.py",
+        "frontend/src/hooks/__tests__/useSessionMessages.test.ts"
+      ],
+      "passes": null,
+      "started": null,
+      "completed": null,
+      "notes": "revision source: prefer the ADK session event count if chat_sessions.turnCount lags; confirm the counter increments on EVERY committed turn (student + proactive) before wiring. All new fetches use the group token (fetchWithAuth), never the teacher helper."
+    },
+    {
+      "id": "M2",
+      "description": "Workbench state sync (fullstack) — add workbenchRevision to the pulse (bump on iframe-context write); other devices refetch iframe-context and reconcile element state (last-write-wins with convergence). Fixes bug #4 (workbench clobber). Groupmate trust-cards surface in the shared thread.",
+      "scope": "fullstack",
+      "estimated_loc": 250,
+      "actual_loc": null,
+      "dependencies": ["M1"],
+      "acceptance_criteria": [
+        "The pulse carries workbenchRevision which bumps on each iframe-context write",
+        "Device A edits the table/calculator -> device B's workbench reflects it within a poll",
+        "Device B's subsequent edit does not silently erase A's; both devices converge to the same state (last-write-wins documented)",
+        "A groupmate's 'shared with the AI' trust-card is visible in the shared thread",
+        "cd backend && make lint && make test-fast green AND cd frontend && npm run quality:check green"
+      ],
+      "files_to_create": [],
+      "files_to_modify": [
+        "backend/protocols/iframe_context_routes.py",
+        "backend/protocols/sessions_route.py",
+        "frontend/src/hooks/useSimSnapshotPush.ts",
+        "backend/tests/api_tests/test_iframe_context_routes.py"
+      ],
+      "passes": null,
+      "started": null,
+      "completed": null,
+      "notes": "Simultaneous same-cell edit is an accepted edge (no CRDT/OT). Reuse the M1 pulse infrastructure — just an added field + a refetch trigger."
+    },
+    {
+      "id": "M3",
+      "description": "Presence (fullstack, optional) — activeDevices heartbeat count in the pulse (a count, not identities, per 'single group voice') + a '● live · N here' indicator + turn-lock phrasing 'a classmate is asking…'.",
+      "scope": "fullstack",
+      "estimated_loc": 120,
+      "actual_loc": null,
+      "dependencies": ["M1"],
+      "acceptance_criteria": [
+        "The pulse carries activeDevices, a count of devices seen in a ~15s window (no per-student identity)",
+        "The student surface shows a '● live · N here' indicator that reflects the count and drops when a device leaves",
+        "The turn-lock message reads as 'a classmate is asking…' when N>1",
+        "cd backend && make lint && make test-fast green AND cd frontend && npm run quality:check green"
+      ],
+      "files_to_create": [],
+      "files_to_modify": [
+        "backend/protocols/sessions_route.py",
+        "frontend/src/hooks/useSessionPulse.ts"
+      ],
+      "passes": null,
+      "started": null,
+      "completed": null,
+      "notes": "Optional polish; only build after M0-M2 are green. Count-only keeps it within ADR-001 / single-group-voice."
+    }
+  ],
+  "velocity": {
+    "target_loc_per_day": 220,
+    "actual_loc_per_day": null,
+    "estimated_total_loc": 1020,
+    "actual_total_loc": null,
+    "estimated_days": 5,
+    "actual_days": null
+  },
+  "github_issues": [],
+  "last_session": null,
+  "last_checkpoint": null,
+  "status": "not_started"
+}
