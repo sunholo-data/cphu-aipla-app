@@ -1,6 +1,6 @@
 # Group shared-session live sync + turn-lock (1.1.53)
 
-**Status:** M0 + M1 + M2 (rescoped) SHIPPED to `dev` 2026-07-01; M3 optional/open. See the "Build" table for per-milestone state.
+**Status:** M0 + M1 + M2 (rescoped) + M3 SHIPPED to `dev` 2026-07-01. See the "Build" table for per-milestone state.
 **Priority:** P1 — correctness, not polish. The primary classroom shape is
 **several kids in one group working the same activity on separate devices**,
 and today that shape has a data race and a silent-desync bug (below). This is
@@ -170,9 +170,9 @@ commits; they do **not** get live token-by-token mirroring of a groupmate's turn
 | **M0 — turn-lock (correctness first)** | `acquire_turn_lock`/`release_turn_lock` + `get_turn_lock` + `TURN_LOCK_TTL_SECONDS` on `group_sessions` (best-effort CAS, 90s TTL steal). Wired into `process_skill_request` (a locking wrapper over `_run_skill_turn`, gated on `user.group_id` so teachers bypass): acquire before the run, **409 if held** (in the student route), release in `finally`. Proactive greet skips (`skipped=True`) when locked. | **SHIPPED** — 12 lock units + 3 stream-wiring + 1 proactive-skip test. |
 | **M1 — live chat sync (the headline)** | `turn_revision` counter bumped at turn completion + `GET /api/auth/group/pulse` → `{revision, turnInFlight, turnStartedAt}`. Frontend: `useGroupPulse` (poll ~2.5s active / back off hidden); `useSessionMessages` silent refetch on a forward revision jump (**watcher-gated** — see boundary); composer "A classmate is asking the tutor…" banner + local queue that auto-sends on release. | **SHIPPED** — +12 backend, +6 frontend tests. |
 | **M2 — workbench share sync (RESCOPED)** | **The chat is the shared surface; the workbench is a per-device scratchpad.** We do NOT live-mirror raw element state across devices (that would need every element to accept external state + a collaborative-edit conflict model — see "the one real collaborative artifact" below). Instead, a **"shared with the tutor" moment** (a *labelled* iframe-context push — the same trust-card the student already sees) bumps the group's `turn_revision` (`bump_turn_revision_for_session`, best-effort, in `post_iframe_context`), so a groupmate's watcher device refetches and the trust card appears live. Silent slider-drag pushes (no label) don't bump. | **SHIPPED (rescoped)** — +7 tests. |
-| **M3 — presence (optional)** | Pulse carries `activeDevices` (heartbeat count, ~15s window — a count, **not** identities). "● live · N here" indicator; phrase the turn-lock as "a classmate is asking…". | **OPEN** — polish. |
+| **M3 — presence** | Pulse carries `activeDevices` — each poll heartbeats an ephemeral per-tab `device` token (`touch_presence`, 15s window); the count is read-time so a closed tab drops out ~one window later. A count, **not** identities. Chat shows "● N in your group are here" when > 1 (below the composer, where the turn-lock banner sits). | **SHIPPED** — +7 tests. |
 
-**M0 + M1 + M2 SHIPPED — fix bugs #1–#4.** M3 is polish.
+**M0 + M1 + M2 + M3 SHIPPED — fix bugs #1–#4, plus presence.**
 
 ### The M2 rescope — why "shares through the chat", not "sync the workbench"
 

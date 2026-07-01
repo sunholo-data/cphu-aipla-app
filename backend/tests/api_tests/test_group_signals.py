@@ -249,7 +249,7 @@ def test_group_pulse_defaults_to_zero_when_no_turns():
     code = _setup_class_with_code()
     resp = _student_client(code).get("/api/auth/group/pulse?activityId=act-1")
     assert resp.status_code == 200, resp.text
-    assert resp.json() == {"revision": 0, "turnInFlight": False, "turnStartedAt": None}
+    assert resp.json() == {"revision": 0, "turnInFlight": False, "turnStartedAt": None, "activeDevices": 0}
 
 
 def test_group_pulse_reflects_revision_and_in_flight():
@@ -300,7 +300,7 @@ def test_two_devices_share_one_session_pulse_handoff():
 
     # 0) Quiet session: B's pulse is idle.
     p0 = b.get("/api/auth/group/pulse?activityId=act-1").json()
-    assert p0 == {"revision": 0, "turnInFlight": False, "turnStartedAt": None}
+    assert p0 == {"revision": 0, "turnInFlight": False, "turnStartedAt": None, "activeDevices": 0}
 
     # 1) Student A starts a turn (its stream acquired the shared turn-lock).
     assert acquire_turn_lock(code, "device-A", activity_id="act-1") is True
@@ -326,3 +326,23 @@ def test_two_devices_share_one_session_pulse_handoff():
 
     # 5) B can now take the turn.
     assert acquire_turn_lock(code, "device-B", activity_id="act-1") is True
+
+
+def test_group_pulse_reports_active_devices_with_a_device_token():
+    """1.1.53 M3 — passing ?device= heartbeats presence; two distinct devices on
+    the same (group, activity) report activeDevices=2."""
+    code = _setup_class_with_code()
+    c = _student_client(code)
+
+    p1 = c.get("/api/auth/group/pulse?activityId=act-1&device=dev-A").json()
+    assert p1["activeDevices"] == 1
+
+    p2 = c.get("/api/auth/group/pulse?activityId=act-1&device=dev-B").json()
+    assert p2["activeDevices"] == 2
+
+
+def test_group_pulse_without_device_reports_zero_active():
+    """No device token → no presence heartbeat, activeDevices defaults to 0."""
+    code = _setup_class_with_code()
+    body = _student_client(code).get("/api/auth/group/pulse?activityId=act-1").json()
+    assert body["activeDevices"] == 0

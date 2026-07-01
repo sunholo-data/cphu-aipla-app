@@ -619,8 +619,11 @@ function ChatShell({
   // `act-…` id, else the turn is keyed group-level), so the pulse reads the SAME
   // group_sessions doc the turn-lock writes.
   const pulseActivityId = activityId.startsWith("act-") ? activityId : null;
-  const { revision: groupRevision, turnInFlight: groupTurnInFlightRaw } =
-    useGroupPulse(pulseActivityId);
+  const {
+    revision: groupRevision,
+    turnInFlight: groupTurnInFlightRaw,
+    activeDevices: groupActiveDevices,
+  } = useGroupPulse(pulseActivityId);
   // A device with no live messages of its own is a "pure watcher": refetching
   // history on a revision bump is duplicate-free (ChatMessageList renders
   // restored history and the live block separately, un-deduped). Once this
@@ -1190,13 +1193,23 @@ function ChatShell({
             {voiceNotice && (
               <p className="mb-2 text-xs text-muted-foreground">{voiceNotice}</p>
             )}
-            {groupTurnInFlight && (
+            {groupTurnInFlight ? (
               <p className="mb-2 flex items-center gap-2 text-xs text-muted-foreground">
                 <Loader2 className="h-3 w-3 animate-spin" aria-hidden />
                 {queuedMessage
                   ? "A classmate is asking the tutor — your message will send when it's your group's turn."
                   : "A classmate is asking the tutor…"}
               </p>
+            ) : (
+              groupActiveDevices > 1 && (
+                <p className="mb-2 flex items-center gap-2 text-xs text-muted-foreground">
+                  <span
+                    className="inline-block h-2 w-2 rounded-full bg-emerald-500"
+                    aria-hidden
+                  />
+                  {groupActiveDevices} in your group are here
+                </p>
+              )
             )}
             <form
               className="flex items-center gap-2"

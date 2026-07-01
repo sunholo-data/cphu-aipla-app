@@ -96,38 +96,43 @@
     },
     {
       "id": "M3",
-      "description": "Presence (fullstack, optional) — activeDevices heartbeat count in the pulse (a count, not identities, per 'single group voice') + a '● live · N here' indicator + turn-lock phrasing 'a classmate is asking…'.",
+      "description": "Presence (fullstack) — activeDevices heartbeat count in the pulse (a count, not identities, per 'single group voice') via an ephemeral per-tab device token + a '● N in your group are here' indicator.",
       "scope": "fullstack",
       "estimated_loc": 120,
-      "actual_loc": null,
+      "actual_loc": 150,
       "dependencies": ["M1"],
       "acceptance_criteria": [
-        "The pulse carries activeDevices, a count of devices seen in a ~15s window (no per-student identity)",
-        "The student surface shows a '● live · N here' indicator that reflects the count and drops when a device leaves",
-        "The turn-lock message reads as 'a classmate is asking…' when N>1",
+        "The pulse's ?device= heartbeats presence; activeDevices counts distinct devices in a ~15s window; a closed tab drops out ~one window later (read-time count); no per-student identity",
+        "The student chat shows 'N in your group are here' when activeDevices > 1; hidden for a solo student",
+        "presence never disturbs the turn revision or the lock",
         "cd backend && make lint && make test-fast green AND cd frontend && npm run quality:check green"
       ],
       "files_to_create": [],
       "files_to_modify": [
-        "backend/protocols/sessions_route.py",
-        "frontend/src/hooks/useSessionPulse.ts"
+        "backend/db/group_sessions.py",
+        "backend/auth/group_routes.py",
+        "frontend/src/hooks/useGroupPulse.ts",
+        "frontend/src/app/chat/[...path]/page.tsx",
+        "backend/tests/unit/test_group_sessions.py",
+        "backend/tests/api_tests/test_group_signals.py",
+        "frontend/src/hooks/__tests__/useGroupPulse.test.ts"
       ],
-      "passes": null,
-      "started": null,
-      "completed": null,
-      "notes": "DEFERRED by decision (M, 2026-07-01) — optional polish, not built. Count-only keeps it within ADR-001 / single-group-voice when revisited."
+      "passes": true,
+      "started": "2026-07-01",
+      "completed": "2026-07-01",
+      "notes": "SHIPPED. touch_presence(group, device_token, activity) upserts an ephemeral per-tab token + returns the read-time count of tokens seen in a 15s window (PRESENCE_WINDOW_SECONDS). Pulse endpoint gained ?device=; response gained activeDevices. useGroupPulse mints a stable per-tab token (crypto.randomUUID) and sends it each poll; chat shows 'N in your group are here' below the composer when >1 (else the turn-lock banner). Storage note: in-memory set-merge replaces the presence map (tests see pruning); real Firestore keeps stale keys but the count is read-time-correct and the map stays bounded by distinct tabs. +5 unit +2 endpoint +frontend tests."
     }
   ],
   "velocity": {
     "target_loc_per_day": 220,
     "actual_loc_per_day": null,
     "estimated_total_loc": 1020,
-    "actual_total_loc": null,
+    "actual_total_loc": 1200,
     "estimated_days": 5,
-    "actual_days": null
+    "actual_days": 1
   },
   "github_issues": [],
   "last_session": "2026-07-01",
-  "last_checkpoint": "M0+M1+M2(rescoped) shipped to dev. M2 = 'shares flow through the chat' (labelled push bumps revision); NOT live workbench mirroring. True co-editing deferred to living-concept-map. M3 optional/open.",
-  "status": "m0_m1_m2_shipped_m3_optional"
+  "last_checkpoint": "M0+M1+M2(rescoped)+M3 all shipped to dev. Sprint complete. True co-editing of one shared artifact deferred to living-concept-map (by design).",
+  "status": "complete"
 }

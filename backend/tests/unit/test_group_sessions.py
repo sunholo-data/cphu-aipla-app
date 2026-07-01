@@ -446,3 +446,52 @@ def test_bump_for_session_handles_legacy_group_level_doc():
     set_active_session_for_group("grp", "sess-legacy")
     assert bump_turn_revision_for_session("grp", "sess-legacy") == 1
     assert read_group_pulse("grp")["revision"] == 1
+
+
+# ---------------------------------------------------------------------------
+# 1.1.53 M3 — presence ("N here")
+# ---------------------------------------------------------------------------
+
+
+def test_touch_presence_counts_distinct_devices():
+    from db.group_sessions import touch_presence
+
+    assert touch_presence("grp", "dev-A", activity_id="act-1") == 1
+    assert touch_presence("grp", "dev-B", activity_id="act-1") == 2
+    # Re-heartbeat of an existing device doesn't double-count.
+    assert touch_presence("grp", "dev-A", activity_id="act-1") == 2
+
+
+def test_touch_presence_prunes_stale_devices():
+    """A device that stopped polling drops out of the count after the window."""
+    from db import firestore as fs
+    from db.group_sessions import touch_presence
+
+    stale = (_now() - timedelta(seconds=999)).isoformat()
+    fs.set_document("group_sessions", "grp:act-1", {"presence": {"dev-gone": stale}})
+    # A fresh device heartbeats; the stale one is not counted.
+    assert touch_presence("grp", "dev-A", activity_id="act-1") == 1
+
+
+def test_touch_presence_is_per_activity():
+    from db.group_sessions import touch_presence
+
+    assert touch_presence("grp", "dev-A", activity_id="act-1") == 1
+    assert touch_presence("grp", "dev-A", activity_id="act-2") == 1  # independent surface
+
+
+def test_touch_presence_empty_token_is_noop():
+    from db.group_sessions import touch_presence
+
+    assert touch_presence("grp", "", activity_id="act-1") == 0
+
+
+def test_presence_does_not_disturb_revision_or_lock():
+    """Heartbeating presence must not touch the turn revision or the lock."""
+    from db.group_sessions import acquire_turn_lock, read_group_pulse, touch_presence
+
+    acquire_turn_lock("grp", "tok-1", activity_id="act-1")
+    touch_presence("grp", "dev-A", activity_id="act-1")
+    pulse = read_group_pulse("grp", activity_id="act-1")
+    assert pulse["in_flight"] is True
+    assert pulse["revision"] == 0

@@ -43,6 +43,11 @@ _COLLECTION = "group_sessions"
 # short; 90s is a generous ceiling on a single turn.
 TURN_LOCK_TTL_SECONDS = 90
 
+# 1.1.53 M3 — a device counts as "present" if it heartbeated within this window.
+# The pulse poll (~2.5s) is the heartbeat; 15s tolerates a couple of missed polls
+# before a closed tab drops out of the "N here" count.
+PRESENCE_WINDOW_SECONDS = 15
+
 
 def _doc_key(group_id: str, activity_id: str | None) -> str:
     """The session-mapping doc id. ALS-1: a group now runs MANY activities, each
@@ -311,6 +316,44 @@ def bump_turn_revision_for_session(group_id: str, session_id: str) -> int | None
     return None
 
 
+def touch_presence(
+    group_id: str,
+    device_token: str,
+    *,
+    activity_id: str | None = None,
+    window_seconds: int = PRESENCE_WINDOW_SECONDS,
+) -> int:
+    """Heartbeat a device on the group's shared session; return the live count
+    (1.1.53 M3 — presence).
+
+    A "device" is an ephemeral per-tab random token — NOT a student identity
+    (single group voice): the count is how many screens are on this (group,
+    activity), never who. Each pulse poll heartbeats here. The count is computed
+    from tokens seen within ``window_seconds``, so a closed tab drops out ~one
+    window after it stops polling. Returns 0 for a missing token (defensive — the
+    client always sends one).
+
+    Storage note: we write the freshly-pruned map. The in-memory client replaces
+    the field (so tests see pruning); real Firestore's set-merge keeps stale keys,
+    but the count is computed read-time so it stays correct either way — the map
+    just stays bounded by the distinct tabs ever opened for this session.
+    """
+    if not device_token:
+        return 0
+    key = _doc_key(group_id, activity_id)
+    data = get_document(_COLLECTION, key) or {}
+    presence = dict(data.get("presence") or {})
+    now = _utcnow()
+    presence[device_token] = now.isoformat()
+    fresh = {
+        tok: ts
+        for tok, ts in presence.items()
+        if _parse_dt(ts) is not None and (now - _parse_dt(ts)) < timedelta(seconds=window_seconds)
+    }
+    set_document(_COLLECTION, key, {"presence": fresh}, merge=True)
+    return len(fresh)
+
+
 def read_group_pulse(
     group_id: str,
     *,
@@ -334,6 +377,7 @@ def read_group_pulse(
 
 
 __all__ = [
+    "PRESENCE_WINDOW_SECONDS",
     "TURN_LOCK_TTL_SECONDS",
     "acquire_turn_lock",
     "archive_session_for_group",
@@ -344,4 +388,5 @@ __all__ = [
     "read_group_pulse",
     "release_turn_lock",
     "set_active_session_for_group",
+    "touch_presence",
 ]

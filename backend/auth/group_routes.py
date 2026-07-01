@@ -513,30 +513,38 @@ class GroupPulseResponse(BaseModel):
     revision: int
     turnInFlight: bool
     turnStartedAt: str | None = None
+    # 1.1.53 M3 — how many devices are on this (group, activity) right now. A
+    # count, never identities (single group voice). Drives the "N here" indicator.
+    activeDevices: int = 0
 
 
 @router.get("/pulse", response_model=GroupPulseResponse)
 async def group_pulse_endpoint(
     activityId: str | None = Query(default=None),
+    device: str | None = Query(default=None),
     user: User = Depends(_resolve_firebase_user_dep()),  # noqa: B008
 ) -> GroupPulseResponse:
-    """Live pulse for THIS group's shared session (1.1.53 M1).
+    """Live pulse for THIS group's shared session (1.1.53 M1 + M3).
 
     Keyed by ``user.group_id`` — a student reads only their own group's pulse; no
     cross-group leak. ``activityId`` scopes to the (group, activity) session (ALS-1
-    (a group runs many activities, each its own conversation). Zero LLM: one small
-    Firestore doc read, polled ~2.5s while the tab is active. Declared BEFORE the
-    ``GET /{group_id}`` route so it isn't captured as ``group_id="pulse"``.
+    (a group runs many activities, each its own conversation). ``device`` is the
+    caller's ephemeral per-tab token: it heartbeats presence and returns the live
+    ``activeDevices`` count (M3). Near-zero cost; polled ~2.5s while the tab is
+    active. Declared BEFORE the ``GET /{group_id}`` route so it isn't captured as
+    ``group_id="pulse"``.
     """
     if not user.group_id:
         raise HTTPException(status_code=404, detail="not a group-auth user")
-    from db.group_sessions import read_group_pulse
+    from db.group_sessions import read_group_pulse, touch_presence
 
     p = read_group_pulse(user.group_id, activity_id=activityId)
+    active_devices = touch_presence(user.group_id, device, activity_id=activityId) if device else 0
     return GroupPulseResponse(
         revision=int(p["revision"]),
         turnInFlight=bool(p["in_flight"]),
         turnStartedAt=p["started_at"],  # type: ignore[arg-type]
+        activeDevices=active_devices,
     )
 
 

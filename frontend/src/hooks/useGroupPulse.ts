@@ -14,9 +14,23 @@ import { isAnonymousGroupAuthMode } from "@/lib/anonymousGroupAuth";
 export interface GroupPulse {
   revision: number;
   turnInFlight: boolean;
+  /** 1.1.53 M3 — how many devices are on this (group, activity) right now. A
+   *  count, never identities. 0 until the first poll resolves. */
+  activeDevices: number;
 }
 
-const IDLE: GroupPulse = { revision: 0, turnInFlight: false };
+const IDLE: GroupPulse = { revision: 0, turnInFlight: false, activeDevices: 0 };
+
+/** An ephemeral per-tab device token for presence — random, not a student
+ *  identity (single group voice). Regenerated per tab load; that's the unit we
+ *  count as "a device here". */
+function makeDeviceToken(): string {
+  try {
+    return crypto.randomUUID();
+  } catch {
+    return `dev-${Math.floor(performance.now())}-${Date.now()}`;
+  }
+}
 
 /** Poll `GET /api/auth/group/pulse` while the tab is visible.
  *
@@ -32,6 +46,9 @@ export function useGroupPulse(
   const intervalMs = opts?.intervalMs ?? 2500;
   const [pulse, setPulse] = useState<GroupPulse>(IDLE);
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  // Stable per-tab device token for the presence heartbeat (M3).
+  const deviceRef = useRef<string>("");
+  if (!deviceRef.current) deviceRef.current = makeDeviceToken();
 
   useEffect(() => {
     if (!enabled) {
@@ -62,15 +79,22 @@ export function useGroupPulse(
       controller?.abort();
       controller = new AbortController();
       try {
-        const qs = activityId ? `?activityId=${encodeURIComponent(activityId)}` : "";
-        const res = await fetchWithAuth(`/api/proxy/api/auth/group/pulse${qs}`, {
+        const params = new URLSearchParams();
+        if (activityId) params.set("activityId", activityId);
+        params.set("device", deviceRef.current);
+        const res = await fetchWithAuth(`/api/proxy/api/auth/group/pulse?${params.toString()}`, {
           signal: controller.signal,
         });
         if (res.ok && !cancelled) {
-          const data = (await res.json()) as { revision?: number; turnInFlight?: boolean };
+          const data = (await res.json()) as {
+            revision?: number;
+            turnInFlight?: boolean;
+            activeDevices?: number;
+          };
           setPulse({
             revision: Number(data.revision) || 0,
             turnInFlight: Boolean(data.turnInFlight),
+            activeDevices: Number(data.activeDevices) || 0,
           });
         }
       } catch {
