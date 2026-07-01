@@ -92,7 +92,7 @@
       "passes": null,
       "started": null,
       "completed": null,
-      "notes": "Simultaneous same-cell edit is an accepted edge (no CRDT/OT). Reuse the M1 pulse infrastructure — just an added field + a refetch trigger."
+      "notes": "DEFERRED by decision (M, 2026-07-01) — needs its own scoping. Turned out bigger than the ~1-1.5d estimate: live workbench sync requires every workbench element (table/calculator/checklist/...) to accept EXTERNAL state updates (they currently own their local state), plus a real collaborative-edit product call (two kids editing one table = conflicts). The pulse already reserves a workbenchRevision slot; the hard part is the element-side controlled-state refactor, not the plumbing."
     },
     {
       "id": "M3",
@@ -115,7 +115,7 @@
       "passes": null,
       "started": null,
       "completed": null,
-      "notes": "Optional polish; only build after M0-M2 are green. Count-only keeps it within ADR-001 / single-group-voice."
+      "notes": "DEFERRED by decision (M, 2026-07-01) — optional polish, not built. Count-only keeps it within ADR-001 / single-group-voice when revisited."
     }
   ],
   "velocity": {
@@ -127,7 +127,7 @@
     "actual_days": null
   },
   "github_issues": [],
-  "last_session": null,
-  "last_checkpoint": null,
-  "status": "not_started"
+  "last_session": "2026-07-01",
+  "last_checkpoint": "M0+M1 shipped, ff-merged to dev @ 633b069 and pushed (auto-deploys). Two-device handoff integration test green. M2+M3 deferred by decision.",
+  "status": "core_shipped_m2_m3_deferred"
 }
