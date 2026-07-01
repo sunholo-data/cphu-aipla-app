@@ -281,3 +281,48 @@ def test_group_pulse_is_scoped_to_caller_group():
 def test_group_pulse_404_for_non_group_user():
     resp = _pulse_client_no_group().get("/api/auth/group/pulse?activityId=act-1")
     assert resp.status_code == 404
+
+
+# ---------------------------------------------------------------------------
+# 1.1.53 — two-device scenario (integration): the shared-session handoff a
+# second student on the same group code experiences, over HTTP.
+# ---------------------------------------------------------------------------
+
+
+def test_two_devices_share_one_session_pulse_handoff():
+    """Student A holds a turn; student B (same group, another device) sees it via
+    the pulse and is blocked, then unblocked + a new revision to refetch once A's
+    turn completes. This is the exact live-sync + turn-lock story M0+M1 ship."""
+    from db.group_sessions import acquire_turn_lock, bump_turn_revision, release_turn_lock
+
+    code = _setup_class_with_code()
+    b = _student_client(code)  # the "watcher" device, same group code as A
+
+    # 0) Quiet session: B's pulse is idle.
+    p0 = b.get("/api/auth/group/pulse?activityId=act-1").json()
+    assert p0 == {"revision": 0, "turnInFlight": False, "turnStartedAt": None}
+
+    # 1) Student A starts a turn (its stream acquired the shared turn-lock).
+    assert acquire_turn_lock(code, "device-A", activity_id="act-1") is True
+
+    # 2) B's device polls: it sees the group's turn in flight -> composer shows
+    #    "a classmate is asking the tutor..." and B's own send would 409.
+    p1 = b.get("/api/auth/group/pulse?activityId=act-1").json()
+    assert p1["turnInFlight"] is True
+    assert p1["revision"] == 0
+    #    ...and indeed B cannot acquire the shared turn concurrently.
+    assert acquire_turn_lock(code, "device-B", activity_id="act-1") is False
+
+    # 3) A's turn completes: revision bumps, lock releases (the M0 finally order).
+    bump_turn_revision(code, activity_id="act-1")
+    release_turn_lock(code, "device-A", activity_id="act-1")
+
+    # 4) B's next poll: the revision advanced (-> B refetches /messages and sees
+    #    A's exchange) and the turn is no longer in flight (-> composer unlocks,
+    #    any queued message auto-sends).
+    p2 = b.get("/api/auth/group/pulse?activityId=act-1").json()
+    assert p2["revision"] == 1
+    assert p2["turnInFlight"] is False
+
+    # 5) B can now take the turn.
+    assert acquire_turn_lock(code, "device-B", activity_id="act-1") is True

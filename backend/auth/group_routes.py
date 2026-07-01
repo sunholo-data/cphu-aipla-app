@@ -524,8 +524,8 @@ async def group_pulse_endpoint(
 
     Keyed by ``user.group_id`` — a student reads only their own group's pulse; no
     cross-group leak. ``activityId`` scopes to the (group, activity) session (ALS-1
-    — a group runs many activities, each its own conversation). Zero LLM: one small
-    Firestore doc read, polled ~2–3s while the tab is active. Declared BEFORE the
+    (a group runs many activities, each its own conversation). Zero LLM: one small
+    Firestore doc read, polled ~2.5s while the tab is active. Declared BEFORE the
     ``GET /{group_id}`` route so it isn't captured as ``group_id="pulse"``.
     """
     if not user.group_id:
