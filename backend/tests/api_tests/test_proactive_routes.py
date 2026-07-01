@@ -111,6 +111,30 @@ def test_greet_fires_on_fresh_session(client):
     assert data["sessionId"] == NEW_SESSION_ID
 
 
+def test_greet_skipped_when_group_turn_in_flight(client):
+    """1.1.53 M0 — a proactive greet must not race a student turn already in
+    flight on the shared group session; it skips gracefully (skipped=True)."""
+    from skills.skill_processor import TurnLockedError
+
+    async def _raise_turn_locked(*_args, **_kwargs):
+        raise TurnLockedError("grp-1")
+        yield  # pragma: no cover — makes this an async generator
+
+    skill = _make_skill(name="boldkast", proactive_greet=True, opening="Greet the student in Danish.")
+    with (
+        patch("protocols.proactive_routes.get_skill", return_value=skill),
+        patch("protocols.proactive_routes.process_skill_request", side_effect=_raise_turn_locked),
+    ):
+        resp = client.post(
+            f"/api/sessions/{NEW_SESSION_ID}/greet",
+            json={"skillId": skill.skill_id},
+        )
+    assert resp.status_code == 200, resp.text
+    data = resp.json()
+    assert data["skipped"] is True
+    assert data["text"] == ""
+
+
 def test_greet_skipped_when_session_has_prior_turns(client):
     _seed_existing_session(turn_count=4)
     skill = _make_skill(name="boldkast", proactive_greet=True, opening="…")

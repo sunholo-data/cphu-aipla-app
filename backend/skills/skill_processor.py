@@ -32,6 +32,7 @@ from adk.session import get_session_service
 from auth.access_context import AccessContext
 from auth.firebase_auth import User
 from budget import BudgetExceededError
+from db.group_sessions import acquire_turn_lock, release_turn_lock
 from skills.skill_config import get_skill
 
 logger = logging.getLogger(__name__)
@@ -51,6 +52,18 @@ class SkillNotFoundError(Exception):
         self.skill_id = skill_id
 
 
+class TurnLockedError(Exception):
+    """Raised when a group's shared session already has a turn in flight (1.1.53
+    M0). Another member of the group is mid-conversation with the tutor; this
+    turn must wait. The student streaming route collapses it into HTTP 409 so the
+    frontend can show the queued state; background callers (proactive) skip.
+    """
+
+    def __init__(self, group_id: str) -> None:
+        super().__init__(f"Turn already in flight for group: {group_id!r}")
+        self.group_id = group_id
+
+
 def _message_text(message: str | list[dict[str, Any]]) -> str:
     """Flatten a turn's message content to plain text for the thinking router
     and logs. A multimodal turn (1.1.7) is an AG-UI ``InputContent[]`` list;
@@ -66,6 +79,57 @@ def _message_text(message: str | list[dict[str, Any]]) -> str:
 
 
 async def process_skill_request(
+    skill_id: str,
+    user: User,
+    access: AccessContext,
+    session_id: str | None,
+    message: str | list[dict[str, Any]],
+    document_ids: list[str] | None = None,
+    resumed_session: bool = False,
+    a2ui_surface_state: dict[str, Any] | None = None,
+    activity_id: str | None = None,
+) -> AsyncGenerator[dict, None]:
+    """Public entry — wrap one skill turn with the group turn-lock (1.1.53 M0).
+
+    For an anonymous-group student (``user.group_id`` set), the group shares ONE
+    ADK session, so a turn already in flight for this ``(group, activity)`` must
+    not start a second parallel run. We acquire a best-effort per-group lock
+    before the turn and release it when the stream finishes; a contended acquire
+    raises ``TurnLockedError`` (→ 409 for the student route, skip for background
+    callers). Teachers and other individual-session callers (no ``group_id``)
+    bypass the lock entirely — there's no contention on a session only they use.
+
+    Delegates to ``_run_skill_turn`` for the actual work; see its docstring.
+
+    Raises:
+        SkillNotFoundError: when the skill is missing or not readable.
+        TurnLockedError: when the group already has a turn in flight.
+    """
+    group_id = user.group_id or None
+    lock_token: str | None = None
+    if group_id:
+        lock_token = uuid.uuid4().hex
+        if not acquire_turn_lock(group_id, lock_token, activity_id=activity_id):
+            raise TurnLockedError(group_id)
+    try:
+        async for event in _run_skill_turn(
+            skill_id=skill_id,
+            user=user,
+            access=access,
+            session_id=session_id,
+            message=message,
+            document_ids=document_ids,
+            resumed_session=resumed_session,
+            a2ui_surface_state=a2ui_surface_state,
+            activity_id=activity_id,
+        ):
+            yield event
+    finally:
+        if group_id and lock_token is not None:
+            release_turn_lock(group_id, lock_token, activity_id=activity_id)
+
+
+async def _run_skill_turn(
     skill_id: str,
     user: User,
     access: AccessContext,

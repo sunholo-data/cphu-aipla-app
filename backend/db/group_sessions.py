@@ -37,6 +37,12 @@ from db.firestore import get_document, query_documents, set_document, update_doc
 
 _COLLECTION = "group_sessions"
 
+# 1.1.53 M0 — how long a held turn-lock stays valid before it's considered stale
+# and stealable. A device that closes its tab mid-turn never runs the release, so
+# without a TTL the group's shared conversation would wedge. Tutor turns are
+# short; 90s is a generous ceiling on a single turn.
+TURN_LOCK_TTL_SECONDS = 90
+
 
 def _doc_key(group_id: str, activity_id: str | None) -> str:
     """The session-mapping doc id. ALS-1: a group now runs MANY activities, each
@@ -154,8 +160,112 @@ def archive_session_for_group(group_id: str, activity_id: str | None = None) -> 
         update_document(_COLLECTION, group_id, {"archived_at": now})
 
 
+# ---------------------------------------------------------------------------
+# 1.1.53 M0 — per-group turn-lock
+# ---------------------------------------------------------------------------
+#
+# A group shares ONE ADK session (deterministic uid + one session pointer), so
+# two students sending at once would fire two parallel ``ADKAgent.run()`` calls
+# against the same session with no serialisation — undefined turn order, events
+# that can interleave/clobber the shared transcript. This is a **best-effort
+# mutex**: a read-check-write over the same ``group_sessions`` doc, keyed by a
+# per-request token, with a TTL so a crashed turn self-heals.
+#
+# It is best-effort by design, not a hard mutex: the firestore abstraction
+# deliberately exposes no transactions (see ``db/firestore_inmemory``: "No
+# transactions. v6 doesn't use them.") — same posture as
+# ``set_active_session_for_group`` above, which also accepts a sub-second race
+# window with strict once-only semantics deferred to the prod Terraform runbook.
+# The residual window here is milliseconds wide, the client-side composer lock
+# (1.1.53 M1) removes most simultaneous sends before they reach the wire, and
+# the worst case of a lost race is simply today's behaviour (two turns) for that
+# one turn — never a new corruption. Net: a large reduction in the race, no
+# regression when it's lost.
+
+
+def acquire_turn_lock(
+    group_id: str,
+    token: str,
+    *,
+    activity_id: str | None = None,
+    ttl_seconds: int = TURN_LOCK_TTL_SECONDS,
+) -> bool:
+    """Try to hold the turn-lock for *(group_id, activity_id)*.
+
+    Returns True if the lock is now held by ``token`` (it was free, stale, or
+    already ours), False if another token holds a non-stale lock. The lock rides
+    the group's existing ``group_sessions`` doc (created lock-only if the group
+    hasn't bootstrapped a session yet — a lock-only doc has no ``session_id`` so
+    the pointer read still returns None).
+    """
+    key = _doc_key(group_id, activity_id)
+    data = get_document(_COLLECTION, key)
+    now = _utcnow()
+    if data is not None:
+        in_flight_at = _parse_dt(data.get("turn_in_flight_at"))
+        holder = data.get("turn_lock_token")
+        held = in_flight_at is not None and (now - in_flight_at) < timedelta(seconds=ttl_seconds)
+        if held and holder != token:
+            return False
+
+    set_document(
+        _COLLECTION,
+        key,
+        {"turn_in_flight_at": now.isoformat(), "turn_lock_token": token},
+        merge=True,
+    )
+    return True
+
+
+def release_turn_lock(group_id: str, token: str, *, activity_id: str | None = None) -> None:
+    """Release the turn-lock — but ONLY if ``token`` holds it.
+
+    A no-op when the doc is missing or a *different* token holds the lock (a
+    stale release from another client must not unlock a live turn — the TTL, not
+    a foreign release, is what reclaims a wedged lock).
+    """
+    key = _doc_key(group_id, activity_id)
+    data = get_document(_COLLECTION, key)
+    if data is None:
+        return
+    holder = data.get("turn_lock_token")
+    if holder is not None and holder != token:
+        return
+    set_document(
+        _COLLECTION,
+        key,
+        {"turn_in_flight_at": None, "turn_lock_token": None},
+        merge=True,
+    )
+
+
+def get_turn_lock(
+    group_id: str,
+    *,
+    activity_id: str | None = None,
+    ttl_seconds: int = TURN_LOCK_TTL_SECONDS,
+) -> dict[str, object]:
+    """Read the turn-lock state for the pulse endpoint (1.1.53 M1).
+
+    Returns ``{"in_flight": bool, "started_at": str | None}``. A stale (past-TTL)
+    or absent lock reports ``in_flight=False`` so a crashed turn never shows other
+    devices a permanently-locked composer.
+    """
+    data = get_document(_COLLECTION, _doc_key(group_id, activity_id))
+    if data is None:
+        return {"in_flight": False, "started_at": None}
+    in_flight_at = _parse_dt(data.get("turn_in_flight_at"))
+    if in_flight_at is None or (_utcnow() - in_flight_at) >= timedelta(seconds=ttl_seconds):
+        return {"in_flight": False, "started_at": None}
+    return {"in_flight": True, "started_at": data.get("turn_in_flight_at")}
+
+
 __all__ = [
+    "TURN_LOCK_TTL_SECONDS",
+    "acquire_turn_lock",
     "archive_session_for_group",
     "get_active_session_for_group",
+    "get_turn_lock",
+    "release_turn_lock",
     "set_active_session_for_group",
 ]

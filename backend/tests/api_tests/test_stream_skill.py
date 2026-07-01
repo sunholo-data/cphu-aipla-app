@@ -75,6 +75,12 @@ def _make_user() -> User:
     return User(uid="caller-uid", email="caller@aitanalabs.com", domain="aitanalabs.com")
 
 
+def _make_group_user() -> User:
+    """An anonymous-group student — email/domain empty, group_id set. The
+    turn-lock (1.1.53 M0) only engages for this shape (shared session)."""
+    return User(uid="anon-grp1", email="", domain="", group_id="grp-1")
+
+
 async def _fake_event_stream(input_data) -> AsyncGenerator:
     """Mock replacement for ADKAgent.run() — yields a canonical AG-UI sequence."""
     thread_id = input_data.thread_id
@@ -135,6 +141,20 @@ def client(app):
     app.dependency_overrides.pop(get_current_user, None)
 
 
+@pytest.fixture()
+def group_client(app):
+    """A TestClient authenticated as an anonymous-group student (1.1.53 M0)."""
+
+    async def _override(request: Request) -> User:
+        user = _make_group_user()
+        request.state.access = build_access_context(user)
+        return user
+
+    app.dependency_overrides[get_current_user] = _override
+    yield TestClient(app)
+    app.dependency_overrides.pop(get_current_user, None)
+
+
 # --- Tests ---
 
 
@@ -167,6 +187,71 @@ def test_stream_skill_passes_resumed_session_flag_into_state(client):
         )
     assert resp.status_code == 200, resp.text
     assert captured["state"].get("app:resumed_session") is True
+
+
+def test_stream_skill_returns_409_when_group_turn_in_flight(group_client):
+    """1.1.53 M0 — a second group member sending while a turn is in flight gets a
+    clean 409 (turn_in_progress) *before* the SSE opens, not a racing parallel run."""
+    skill = _make_skill(skill_id="test-skill-id", access_type="public")
+    with (
+        patch("skills.skill_processor.get_skill", return_value=skill),
+        patch("skills.skill_processor.acquire_turn_lock", return_value=False) as acq,
+    ):
+        resp = group_client.post(
+            "/api/skill/test-skill-id/stream",
+            json={"message": "hi", "forwardedProps": {"activity_id": "act-1"}},
+        )
+    assert resp.status_code == 409, resp.text
+    assert resp.json()["detail"]["error"] == "turn_in_progress"
+    # The lock was attempted for THIS group + activity.
+    acq.assert_called_once()
+    assert acq.call_args.kwargs.get("activity_id") == "act-1"
+
+
+def test_stream_skill_releases_turn_lock_after_stream(group_client):
+    """The lock is released when the stream finishes (finally), so the next group
+    turn isn't blocked. Acquire holds; release fires with the same token."""
+    skill = _make_skill(skill_id="test-skill-id", access_type="public")
+    seen: dict[str, object] = {}
+
+    def _acquire(group_id, token, *, activity_id=None, **_):
+        seen["token"] = token
+        seen["acquire_activity"] = activity_id
+        return True
+
+    def _release(group_id, token, *, activity_id=None, **_):
+        seen["released_token"] = token
+
+    with (
+        patch("skills.skill_processor.get_skill", return_value=skill),
+        patch("skills.skill_processor.acquire_turn_lock", side_effect=_acquire),
+        patch("skills.skill_processor.release_turn_lock", side_effect=_release),
+        patch("ag_ui_adk.ADKAgent.run", side_effect=_fake_event_stream),
+    ):
+        resp = group_client.post(
+            "/api/skill/test-skill-id/stream",
+            json={"message": "hi", "forwardedProps": {"activity_id": "act-1"}},
+        )
+        # Drain the SSE body so the generator's finally (release) runs.
+        _ = resp.text
+    assert resp.status_code == 200, resp.text
+    assert seen.get("acquire_activity") == "act-1"
+    assert seen.get("released_token") == seen.get("token")
+
+
+def test_stream_skill_teacher_bypasses_turn_lock(client):
+    """A teacher / individual-session caller (no group_id) never touches the
+    turn-lock — there's no shared session to serialise."""
+    skill = _make_skill(skill_id="test-skill-id", access_type="public")
+    with (
+        patch("skills.skill_processor.get_skill", return_value=skill),
+        patch("skills.skill_processor.acquire_turn_lock") as acq,
+        patch("ag_ui_adk.ADKAgent.run", side_effect=_fake_event_stream),
+    ):
+        resp = client.post("/api/skill/test-skill-id/stream", json={"message": "hi"})
+        _ = resp.text
+    assert resp.status_code == 200, resp.text
+    acq.assert_not_called()
 
 
 def test_stream_skill_omits_resumed_flag_for_fresh_chats(client):

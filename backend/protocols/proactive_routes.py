@@ -42,7 +42,7 @@ from db.chat_sessions import (
     increment_proactive_turn_count_no_stamp,
 )
 from skills.skill_config import get_skill
-from skills.skill_processor import SkillNotFoundError, process_skill_request
+from skills.skill_processor import SkillNotFoundError, TurnLockedError, process_skill_request
 
 log = logging.getLogger(__name__)
 
@@ -205,6 +205,13 @@ async def post_session_greet(
         # process_skill_request applies the same access-aware skill check;
         # surface as 404 to match the chat-stream behaviour.
         raise HTTPException(status_code=404, detail=str(exc)) from exc
+    except TurnLockedError:
+        # 1.1.53 M0 — a member of this group already has a turn in flight. Don't
+        # race a proactive greet onto the shared session; just skip it (a greet
+        # is a welcome, not a response — dropping it when the group is already
+        # talking to the tutor is correct, not a failure).
+        log.info("greet skipped: group turn in flight session=%s", session_id)
+        return _serialize(GreetResponse(skipped=True, text="", sessionId=session_id))
 
     text = "".join(assistant_parts).strip()
     log.info(
