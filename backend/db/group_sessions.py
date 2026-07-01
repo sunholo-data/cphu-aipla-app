@@ -280,6 +280,37 @@ def bump_turn_revision(group_id: str, *, activity_id: str | None = None) -> int:
     return revision
 
 
+def bump_turn_revision_for_session(group_id: str, session_id: str) -> int | None:
+    """Bump the turn revision for whichever (group, activity) session maps to
+    ``session_id`` (1.1.53 M2 — workbench "share with the tutor" sync).
+
+    A workbench push (`POST /sessions/{id}/iframe-context`) writes a trust-card
+    event into the shared session but does NOT run a chat turn, so it wouldn't
+    otherwise bump the revision — a groupmate wouldn't see the "shared the table"
+    card until the next turn. This finds the group's session doc **by session_id
+    match** (so it lands on the exact doc the watchers' pulse reads, regardless of
+    how the activity was keyed) and bumps it. Returns the new revision, or None if
+    no matching doc (e.g. a teacher/individual session — no group sync needed).
+
+    Best-effort + single-writer-ish: workbench pushes for one session are debounced
+    and effectively serial per device; a rare lost increment just defers one card
+    to the next bump. Callers should treat failures as non-fatal.
+    """
+    for d in query_documents(_COLLECTION, filters=[("group_id", "==", group_id)]):
+        if d.get("session_id") == session_id:
+            key = d.get("__id") or _doc_key(group_id, d.get("activity_id"))
+            revision = int(d.get("turn_revision") or 0) + 1
+            set_document(_COLLECTION, key, {"turn_revision": revision}, merge=True)
+            return revision
+    # Legacy group-level doc (id == group_id, no group_id field → missed by the query).
+    legacy = get_document(_COLLECTION, group_id)
+    if legacy is not None and legacy.get("session_id") == session_id:
+        revision = int(legacy.get("turn_revision") or 0) + 1
+        set_document(_COLLECTION, group_id, {"turn_revision": revision}, merge=True)
+        return revision
+    return None
+
+
 def read_group_pulse(
     group_id: str,
     *,
@@ -307,6 +338,7 @@ __all__ = [
     "acquire_turn_lock",
     "archive_session_for_group",
     "bump_turn_revision",
+    "bump_turn_revision_for_session",
     "get_active_session_for_group",
     "get_turn_lock",
     "read_group_pulse",

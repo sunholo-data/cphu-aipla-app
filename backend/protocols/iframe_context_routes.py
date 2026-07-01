@@ -370,6 +370,22 @@ async def post_iframe_context(
             value=value,
         )
 
+        # 1.1.53 M2 — when this push is a "shared with the tutor" moment (it
+        # carries a human-readable card label), bump the group's turn revision so
+        # a groupmate's device refetches and the trust card appears live. Only
+        # card-worthy shares bump (a labelled push); silent slider-drag state
+        # pushes don't, to avoid needless refetches. Best-effort — a failure here
+        # must never break the workbench push (the card still syncs on the next
+        # chat turn's bump).
+        if user.group_id and body.label:
+            try:
+                from db.group_sessions import bump_turn_revision_for_session
+
+                bump_turn_revision_for_session(user.group_id, session_id)
+            except Exception as exc:
+                # Non-fatal awareness sync — the card still syncs on the next turn.
+                log.warning("iframe_context: revision bump failed session=%s err=%s", session_id, exc)
+
     log.info(
         "iframe_context: write uid=%s session=%s skill=%s server=%s tool=%s bytes=%s",
         user.uid,

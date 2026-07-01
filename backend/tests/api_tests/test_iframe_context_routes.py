@@ -71,6 +71,24 @@ def _make_no_auth_client() -> TestClient:
     return TestClient(test_app)
 
 
+def _make_group_client(group_id: str = "grp-1", uid: str = "anon-grp1") -> TestClient:
+    """An anonymous-group student (email/domain empty, group_id set) — the only
+    caller shape the 1.1.53 M2 revision-bump engages for."""
+    user = User(uid=uid, email="", domain="", group_id=group_id)
+    ctx = AccessContext(uid=uid, email="", domain="", group_tags=frozenset())
+
+    test_app = FastAPI()
+    test_app.include_router(router)
+
+    @test_app.middleware("http")
+    async def _inject_access(request, call_next):
+        request.state.access = ctx
+        return await call_next(request)
+
+    test_app.dependency_overrides[get_current_user] = lambda: user
+    return TestClient(test_app)
+
+
 def _make_index(
     session_id: str = "sess-1",
     skill_id: str = "skill-1",
@@ -711,3 +729,64 @@ class TestDocEvent:
                 "/api/sessions/sess-1/doc-event", json={"kind": "document.open", "docId": "d1"}
             )
         assert resp.status_code == 403
+
+
+# ---------------------------------------------------------------------------
+# 1.1.53 M2 — a "shared with the tutor" push (labelled) bumps the group's turn
+# revision so a groupmate's device refetches and sees the trust card live.
+# ---------------------------------------------------------------------------
+
+
+class TestGroupRevisionBumpM2:
+    @patch("db.group_sessions.bump_turn_revision_for_session")
+    @patch("protocols.iframe_context_routes.get_session_service")
+    @patch("protocols.iframe_context_routes.skill_config")
+    @patch("protocols.iframe_context_routes.get_session_index")
+    def test_labelled_group_push_bumps_revision(self, mock_get_index, mock_skill_module, mock_get_svc, mock_bump):
+        mock_get_index.return_value = _make_index()
+        mock_skill_module.get_skill.return_value = _make_skill(
+            activated_servers=["ext-apps-map"], context_write_servers=["ext-apps-map"]
+        )
+        mock_get_svc.return_value = _mock_session_service()
+
+        body = {**_HAPPY_BODY, "label": "Sendte spoergsmaal med v0=15"}
+        resp = _make_group_client("grp-1").post("/api/sessions/sess-1/iframe-context", json=body)
+
+        assert resp.status_code == 204, resp.text
+        mock_bump.assert_called_once_with("grp-1", "sess-1")
+
+    @patch("db.group_sessions.bump_turn_revision_for_session")
+    @patch("protocols.iframe_context_routes.get_session_service")
+    @patch("protocols.iframe_context_routes.skill_config")
+    @patch("protocols.iframe_context_routes.get_session_index")
+    def test_unlabelled_group_push_does_not_bump(self, mock_get_index, mock_skill_module, mock_get_svc, mock_bump):
+        """A silent state push (no label — a slider drag) must NOT bump: only
+        card-worthy 'shared with the tutor' moments sync, to avoid needless refetches."""
+        mock_get_index.return_value = _make_index()
+        mock_skill_module.get_skill.return_value = _make_skill(
+            activated_servers=["ext-apps-map"], context_write_servers=["ext-apps-map"]
+        )
+        mock_get_svc.return_value = _mock_session_service()
+
+        resp = _make_group_client("grp-1").post("/api/sessions/sess-1/iframe-context", json=_HAPPY_BODY)
+
+        assert resp.status_code == 204, resp.text
+        mock_bump.assert_not_called()
+
+    @patch("db.group_sessions.bump_turn_revision_for_session")
+    @patch("protocols.iframe_context_routes.get_session_service")
+    @patch("protocols.iframe_context_routes.skill_config")
+    @patch("protocols.iframe_context_routes.get_session_index")
+    def test_non_group_push_does_not_bump(self, mock_get_index, mock_skill_module, mock_get_svc, mock_bump):
+        """A teacher/individual caller (no group_id) never bumps — no shared session."""
+        mock_get_index.return_value = _make_index()
+        mock_skill_module.get_skill.return_value = _make_skill(
+            activated_servers=["ext-apps-map"], context_write_servers=["ext-apps-map"]
+        )
+        mock_get_svc.return_value = _mock_session_service()
+
+        body = {**_HAPPY_BODY, "label": "Sendte spoergsmaal med v0=15"}
+        resp = _make_client("viewer").post("/api/sessions/sess-1/iframe-context", json=body)
+
+        assert resp.status_code == 204, resp.text
+        mock_bump.assert_not_called()

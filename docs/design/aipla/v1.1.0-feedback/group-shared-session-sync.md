@@ -1,6 +1,6 @@
 # Group shared-session live sync + turn-lock (1.1.53)
 
-**Status:** M0 + M1 SHIPPED to `dev` 2026-07-01 (branch `sprint/group-sync`); M2 + M3 open. See the "Build" table for per-milestone state.
+**Status:** M0 + M1 + M2 (rescoped) SHIPPED to `dev` 2026-07-01; M3 optional/open. See the "Build" table for per-milestone state.
 **Priority:** P1 — correctness, not polish. The primary classroom shape is
 **several kids in one group working the same activity on separate devices**,
 and today that shape has a data race and a silent-desync bug (below). This is
@@ -169,10 +169,29 @@ commits; they do **not** get live token-by-token mirroring of a groupmate's turn
 |---|---|---|
 | **M0 — turn-lock (correctness first)** | `acquire_turn_lock`/`release_turn_lock` + `get_turn_lock` + `TURN_LOCK_TTL_SECONDS` on `group_sessions` (best-effort CAS, 90s TTL steal). Wired into `process_skill_request` (a locking wrapper over `_run_skill_turn`, gated on `user.group_id` so teachers bypass): acquire before the run, **409 if held** (in the student route), release in `finally`. Proactive greet skips (`skipped=True`) when locked. | **SHIPPED** — 12 lock units + 3 stream-wiring + 1 proactive-skip test. |
 | **M1 — live chat sync (the headline)** | `turn_revision` counter bumped at turn completion + `GET /api/auth/group/pulse` → `{revision, turnInFlight, turnStartedAt}`. Frontend: `useGroupPulse` (poll ~2.5s active / back off hidden); `useSessionMessages` silent refetch on a forward revision jump (**watcher-gated** — see boundary); composer "A classmate is asking the tutor…" banner + local queue that auto-sends on release. | **SHIPPED** — +12 backend, +6 frontend tests. |
-| **M2 — workbench state sync** | Add `workbenchRevision` to the pulse (bump on iframe-context write). Other devices refetch `GET /api/sessions/{id}/iframe-context` and reconcile element state; **last-write-wins with convergence**. **Bigger than it looks:** the workbench elements currently OWN their local state and don't accept external updates, so this needs each element to take a controlled/external-state path — a materially larger change than M0/M1 with a real collaborative-edit product question. | **OPEN** — needs its own scoping. |
+| **M2 — workbench share sync (RESCOPED)** | **The chat is the shared surface; the workbench is a per-device scratchpad.** We do NOT live-mirror raw element state across devices (that would need every element to accept external state + a collaborative-edit conflict model — see "the one real collaborative artifact" below). Instead, a **"shared with the tutor" moment** (a *labelled* iframe-context push — the same trust-card the student already sees) bumps the group's `turn_revision` (`bump_turn_revision_for_session`, best-effort, in `post_iframe_context`), so a groupmate's watcher device refetches and the trust card appears live. Silent slider-drag pushes (no label) don't bump. | **SHIPPED (rescoped)** — +7 tests. |
 | **M3 — presence (optional)** | Pulse carries `activeDevices` (heartbeat count, ~15s window — a count, **not** identities). "● live · N here" indicator; phrase the turn-lock as "a classmate is asking…". | **OPEN** — polish. |
 
-**M0 + M1 are the core (SHIPPED) and fix bugs #1–#3.** M2 fixes #4. M3 is polish.
+**M0 + M1 + M2 SHIPPED — fix bugs #1–#4.** M3 is polish.
+
+### The M2 rescope — why "shares through the chat", not "sync the workbench"
+
+The group shares one **conversation**, not one **mouse**. Each kid's workbench
+(sim / calculator / table) is their own scratchpad; the moment something matters
+to the group it is *shared with the tutor*, and that already lands in the chat as
+a trust card + the tutor's reply — which M1 syncs. This **dissolves bug #4**
+rather than solving it: there's no "clobber" once we stop pretending the
+workbench UI is a shared canvas (two kids poking their own sims is correct, not a
+conflict). It also avoids the "every element accepts external state" refactor.
+The only added wire: a labelled push bumps the revision so the trust card syncs
+*immediately* rather than on the next turn. Same watcher-only boundary as M1.
+
+**The one real collaborative artifact** — where the group genuinely co-builds a
+*single* shared thing — is the **living concept-map / in-session check-off**
+([living-concept-map.md](living-concept-map.md)). That is where "the element
+accepts external state" earns its cost, scoped to that one element and owned by
+the concept-map design — NOT a generic workbench-sync feature. (Decision: M + AR
+lead, 2026-07-01.)
 
 ### M1 known boundary (shipped)
 
@@ -241,5 +260,5 @@ completed exchange ~one poll after commit) — the design's stated v1 boundary.
 |---|---|
 | #1 no live sync | **M1** (pulse + refetch on revision) |
 | #2 ghost context | **M1** (a consequence of #1 — every device sees the shared thread) |
-| #3 concurrent-turn race | **M0** (transactional turn-lock CAS + 409) |
-| #4 workbench clobber | **M2** (workbench revision sync + documented last-write-wins) |
+| #3 concurrent-turn race | **M0** (best-effort turn-lock CAS + 409) |
+| #4 workbench clobber | **M2 (rescoped)** — dissolved: workbench is per-device scratch; "shared with the tutor" moments flow through the chat (labelled push bumps the revision). True co-editing of one shared artifact → the concept-map design. |

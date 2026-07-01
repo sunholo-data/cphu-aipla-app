@@ -392,3 +392,57 @@ def test_bump_survives_a_lock_only_doc():
     acquire_turn_lock("grp", "tok-1", activity_id="act-1")
     bump_turn_revision("grp", activity_id="act-1")
     assert read_group_pulse("grp", activity_id="act-1")["revision"] == 1
+
+
+# ---------------------------------------------------------------------------
+# 1.1.53 M2 — workbench "share with the tutor" bumps the session's revision
+# ---------------------------------------------------------------------------
+
+
+def test_bump_for_session_finds_the_activity_doc_by_session_id():
+    from db.group_sessions import (
+        bump_turn_revision_for_session,
+        read_group_pulse,
+        set_active_session_for_group,
+    )
+
+    set_active_session_for_group("grp", "sess-1", activity_id="act-1")
+    assert bump_turn_revision_for_session("grp", "sess-1") == 1
+    # The pulse the watcher reads (same group+activity) now sees the bump.
+    assert read_group_pulse("grp", activity_id="act-1")["revision"] == 1
+
+
+def test_bump_for_session_targets_the_right_activity():
+    """Two activities, one group: a push in act-1's session must not bump act-2."""
+    from db.group_sessions import (
+        bump_turn_revision_for_session,
+        read_group_pulse,
+        set_active_session_for_group,
+    )
+
+    set_active_session_for_group("grp", "sess-A", activity_id="act-1")
+    set_active_session_for_group("grp", "sess-B", activity_id="act-2")
+
+    bump_turn_revision_for_session("grp", "sess-A")
+
+    assert read_group_pulse("grp", activity_id="act-1")["revision"] == 1
+    assert read_group_pulse("grp", activity_id="act-2")["revision"] == 0
+
+
+def test_bump_for_session_returns_none_when_no_match():
+    from db.group_sessions import bump_turn_revision_for_session
+
+    assert bump_turn_revision_for_session("grp", "unknown-session") is None
+
+
+def test_bump_for_session_handles_legacy_group_level_doc():
+    from db.group_sessions import (
+        bump_turn_revision_for_session,
+        read_group_pulse,
+        set_active_session_for_group,
+    )
+
+    # A pre-ALS-1 group-level session (no activity_id → doc id == group_id).
+    set_active_session_for_group("grp", "sess-legacy")
+    assert bump_turn_revision_for_session("grp", "sess-legacy") == 1
+    assert read_group_pulse("grp")["revision"] == 1

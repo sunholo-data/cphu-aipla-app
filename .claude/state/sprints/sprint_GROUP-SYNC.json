@@ -70,29 +70,29 @@
     },
     {
       "id": "M2",
-      "description": "Workbench state sync (fullstack) — add workbenchRevision to the pulse (bump on iframe-context write); other devices refetch iframe-context and reconcile element state (last-write-wins with convergence). Fixes bug #4 (workbench clobber). Groupmate trust-cards surface in the shared thread.",
-      "scope": "fullstack",
-      "estimated_loc": 250,
-      "actual_loc": null,
+      "description": "Workbench share sync (RESCOPED, backend-only) — the chat is the shared surface; the workbench stays a per-device scratchpad. A 'shared with the tutor' moment (a labelled iframe-context push) bumps the group turn_revision so a groupmate's watcher device refetches and the trust card appears live. Dissolves bug #4 (workbench clobber) rather than live-mirroring element state.",
+      "scope": "backend",
+      "estimated_loc": 200,
+      "actual_loc": 190,
       "dependencies": ["M1"],
       "acceptance_criteria": [
-        "The pulse carries workbenchRevision which bumps on each iframe-context write",
-        "Device A edits the table/calculator -> device B's workbench reflects it within a poll",
-        "Device B's subsequent edit does not silently erase A's; both devices converge to the same state (last-write-wins documented)",
-        "A groupmate's 'shared with the AI' trust-card is visible in the shared thread",
-        "cd backend && make lint && make test-fast green AND cd frontend && npm run quality:check green"
+        "bump_turn_revision_for_session finds the (group, activity) doc by session_id match and bumps its turn_revision; targets the right activity; returns None for no match; handles the legacy group-level doc",
+        "A labelled group push (a trust-card 'share with the tutor') bumps the revision the watcher's pulse reads; a groupmate refetches and sees the card live",
+        "A silent slider-drag push (no label) does NOT bump; a teacher/individual (no group_id) does NOT bump",
+        "The bump is best-effort — a failure never breaks the workbench push (card still syncs on the next chat turn)",
+        "cd backend && make lint && make test-fast green"
       ],
       "files_to_create": [],
       "files_to_modify": [
+        "backend/db/group_sessions.py",
         "backend/protocols/iframe_context_routes.py",
-        "backend/protocols/sessions_route.py",
-        "frontend/src/hooks/useSimSnapshotPush.ts",
+        "backend/tests/unit/test_group_sessions.py",
         "backend/tests/api_tests/test_iframe_context_routes.py"
       ],
-      "passes": null,
-      "started": null,
-      "completed": null,
-      "notes": "DEFERRED by decision (M, 2026-07-01) — needs its own scoping. Turned out bigger than the ~1-1.5d estimate: live workbench sync requires every workbench element (table/calculator/checklist/...) to accept EXTERNAL state updates (they currently own their local state), plus a real collaborative-edit product call (two kids editing one table = conflicts). The pulse already reserves a workbenchRevision slot; the hard part is the element-side controlled-state refactor, not the plumbing."
+      "passes": true,
+      "started": "2026-07-01",
+      "completed": "2026-07-01",
+      "notes": "SHIPPED, RESCOPED (M + AR, 2026-07-01). Original plan (live-mirror all workbench element state) was rejected — it needs every element to accept external state + a collaborative-edit conflict model, and pretending the workbench is a shared canvas is the wrong model anyway. Rescope: the group shares one CONVERSATION not one MOUSE; workbench is per-device scratch; 'shared with the tutor' moments flow through the chat (which M1 syncs). Impl: bump_turn_revision_for_session (finds the session's (group,activity) doc by session_id match — inherently consistent with what the pulse reads) called best-effort from post_iframe_context ONLY when user.group_id AND body.label (a card-worthy share; silent pushes don't bump). No FE/model/wire change. +4 unit +3 route tests. True co-editing of ONE shared artifact deferred to the living-concept-map design (living-concept-map.md), scoped to that element only."
     },
     {
       "id": "M3",
@@ -128,6 +128,6 @@
   },
   "github_issues": [],
   "last_session": "2026-07-01",
-  "last_checkpoint": "M0+M1 shipped, ff-merged to dev @ 633b069 and pushed (auto-deploys). Two-device handoff integration test green. M2+M3 deferred by decision.",
-  "status": "core_shipped_m2_m3_deferred"
+  "last_checkpoint": "M0+M1+M2(rescoped) shipped to dev. M2 = 'shares flow through the chat' (labelled push bumps revision); NOT live workbench mirroring. True co-editing deferred to living-concept-map. M3 optional/open.",
+  "status": "m0_m1_m2_shipped_m3_optional"
 }
