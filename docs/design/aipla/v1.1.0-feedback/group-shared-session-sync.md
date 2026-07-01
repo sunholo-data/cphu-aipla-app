@@ -1,6 +1,6 @@
 # Group shared-session live sync + turn-lock (1.1.53)
 
-**Status:** Design (2026-07-01)
+**Status:** M0 + M1 SHIPPED to `dev` 2026-07-01 (branch `sprint/group-sync`); M2 + M3 open. See the "Build" table for per-milestone state.
 **Priority:** P1 — correctness, not polish. The primary classroom shape is
 **several kids in one group working the same activity on separate devices**,
 and today that shape has a data race and a silent-desync bug (below). This is
@@ -93,14 +93,19 @@ turn_lock_token   : str | None   # the holder's ephemeral run id
                                   # (only the holder — or TTL — may release)
 ```
 
-- `acquire_turn_lock(group_id, activity_id, token)` runs a **Firestore
-  transaction**: read the doc; if `turn_in_flight_at` is set **and** younger than
-  the TTL → return `False` (locked); else set `turn_in_flight_at=now`,
-  `turn_lock_token=token` → return `True`. The transaction is what actually
-  prevents bug #3 — two simultaneous sends, one wins the CAS, the other is
-  refused. (The existing set-pointer path already notes it *should* be
-  transactional; this makes the lock path transactional from day one — see the
-  `group_sessions.py` module docstring.)
+- `acquire_turn_lock(group_id, token, activity_id=…)` runs a **best-effort CAS**:
+  read the doc; if `turn_in_flight_at` is set **and** younger than the TTL (and
+  held by a different token) → return `False` (locked); else set
+  `turn_in_flight_at=now`, `turn_lock_token=token` → return `True`. Two
+  simultaneous sends → one wins, the other is refused (409).
+  **Implementation note (shipped):** it is *best-effort*, not a hard mutex — the
+  `db.firestore` abstraction deliberately exposes **no transactions** (in-memory
+  client: "v6 doesn't use them"), the same posture as the sibling
+  `set_active_session_for_group`. The residual window is milliseconds wide, the
+  M1 client composer-lock removes most simultaneous sends before the wire, and a
+  lost race just reproduces today's behaviour (two turns) for that one turn — no
+  new corruption. Strict once-only semantics stay deferred to the prod Terraform
+  runbook, consistent with the sibling.
 - `release_turn_lock(group_id, activity_id, token)` clears the fields **only if
   the token matches**, so a stale release from a different client can't unlock a
   live turn.
@@ -113,19 +118,31 @@ turn_lock_token   : str | None   # the holder's ephemeral run id
 ([`group_signals.py`](../../../../backend/db/group_signals.py)):
 
 ```
-GET /api/sessions/{sessionId}/pulse   →
+GET /api/auth/group/pulse?activityId=<act>   →   (SHIPPED path — see note)
   {
-    revision:         <turn_count>,      # monotone; bumps when a turn commits
+    revision:         <turn_revision>,   # monotone; bumps when a turn commits
     turnInFlight:     bool,              # from the turn-lock (non-stale)
     turnStartedAt:    <iso>|null,
-    workbenchRevision:<int>,             # M2 — bumps on iframe-context write
-    activeDevices:    <int>              # M3 — presence count
+    workbenchRevision:<int>,             # M2 (open) — bumps on iframe-context write
+    activeDevices:    <int>              # M3 (open) — presence count
   }
 ```
 
-The `revision`/turn-count already exists — the proactive-turn work added session
-turn counters. The pulse is a **single small doc read, zero LLM**; polled ~2–3s
-while the tab is focused and active, backing off (or stopping) when idle/hidden.
+**Endpoint note (shipped as M1):** the pulse is keyed off the **caller's
+`group_id`** (from the group token) + an `activityId` query param — exactly like
+`raise-hand` — *not* `/sessions/{id}/pulse`. Keying by session id would need a
+session→(group, activity) lookup that doesn't exist; keying by the caller's group
+needs none and can't leak across groups. It lives at
+`/api/auth/group/pulse`, declared **before** `GET /{group_id}` so it isn't
+captured as `group_id="pulse"`.
+
+**Revision source (shipped as M1):** `chat_sessions.turnCount` is flushed to
+Firestore only **every N turns** (`adk/callbacks/session.py`), so it can't be the
+live signal. Instead a `turn_revision` counter on the `group_sessions` doc is
+bumped at **turn completion** (in the M0 lock-release path) — race-free because
+the lock serialises turns (single writer), so a plain read-increment-write is
+safe. The pulse is a **single small doc read, zero LLM**; polled ~2.5s while the
+tab is focused, backing off when hidden.
 
 ### How each device behaves
 
@@ -148,14 +165,27 @@ commits; they do **not** get live token-by-token mirroring of a groupmate's turn
 
 ## Build
 
-| MS | Deliverable | Est |
+| MS | Deliverable | State |
 |---|---|---|
-| **M0 — turn-lock (correctness first)** | Backend: add `turn_in_flight_at`/`turn_lock_token` to `group_sessions` + `acquire_turn_lock`/`release_turn_lock` (transactional CAS, 90s TTL steal). Wire into the skill-stream route ([`protocols/agui.py`](../../../../backend/protocols/agui.py) → `stream_agui_events`): acquire at stream start, **409 if held**, release in `finally`. Proactive/reactive turns acquire too. Tests: two concurrent acquires → exactly one 409; stale lock stolen after TTL; release only by token-holder; proactive turn holds the lock. | ~1d |
-| **M1 — live chat sync (the headline)** | Backend: `GET /api/sessions/{id}/pulse` → `{revision, turnInFlight, turnStartedAt}`. Frontend: a `useSessionPulse(sessionId)` hook (poll ~2–3s active / back off hidden); extend [`useSessionMessages`](../../../../frontend/src/hooks/useSessionMessages.ts) to refetch on `revision` change (drop the one-shot short-circuit; merge without disrupting scroll/compose; keep the sentinel filter); composer lock + local queue on `turnInFlight`; 409→queued→auto-retry. Tests: watcher sees a new turn within a poll; composer disabled while in-flight; queued send fires on release; sender's own stream isn't double-applied. | ~1.5–2d |
-| **M2 — workbench state sync** | Add `workbenchRevision` to the pulse (bump on iframe-context write). Other devices refetch `GET /api/sessions/{id}/iframe-context` on change and reconcile element state; **last-write-wins with convergence** (documented; simultaneous same-cell edit is an accepted edge). Groupmate trust-cards ("shared with the AI") surface in the shared thread. Reuses [`useSimSnapshotPush`](../../../../frontend/src/hooks/useSimSnapshotPush.ts). | ~1–1.5d |
-| **M3 — presence (optional)** | Pulse carries `activeDevices` (heartbeat count, ~15s window — a count, **not** identities, per "single group voice"). "● live · N here" indicator; phrase the turn-lock as "a classmate is asking…". | ~0.5d |
+| **M0 — turn-lock (correctness first)** | `acquire_turn_lock`/`release_turn_lock` + `get_turn_lock` + `TURN_LOCK_TTL_SECONDS` on `group_sessions` (best-effort CAS, 90s TTL steal). Wired into `process_skill_request` (a locking wrapper over `_run_skill_turn`, gated on `user.group_id` so teachers bypass): acquire before the run, **409 if held** (in the student route), release in `finally`. Proactive greet skips (`skipped=True`) when locked. | **SHIPPED** — 12 lock units + 3 stream-wiring + 1 proactive-skip test. |
+| **M1 — live chat sync (the headline)** | `turn_revision` counter bumped at turn completion + `GET /api/auth/group/pulse` → `{revision, turnInFlight, turnStartedAt}`. Frontend: `useGroupPulse` (poll ~2.5s active / back off hidden); `useSessionMessages` silent refetch on a forward revision jump (**watcher-gated** — see boundary); composer "A classmate is asking the tutor…" banner + local queue that auto-sends on release. | **SHIPPED** — +12 backend, +6 frontend tests. |
+| **M2 — workbench state sync** | Add `workbenchRevision` to the pulse (bump on iframe-context write). Other devices refetch `GET /api/sessions/{id}/iframe-context` and reconcile element state; **last-write-wins with convergence**. **Bigger than it looks:** the workbench elements currently OWN their local state and don't accept external updates, so this needs each element to take a controlled/external-state path — a materially larger change than M0/M1 with a real collaborative-edit product question. | **OPEN** — needs its own scoping. |
+| **M3 — presence (optional)** | Pulse carries `activeDevices` (heartbeat count, ~15s window — a count, **not** identities). "● live · N here" indicator; phrase the turn-lock as "a classmate is asking…". | **OPEN** — polish. |
 
-**M0 + M1 are the core (~3d)** and fix bugs #1–#3. M2 fixes #4. M3 is polish.
+**M0 + M1 are the core (SHIPPED) and fix bugs #1–#3.** M2 fixes #4. M3 is polish.
+
+### M1 known boundary (shipped)
+
+Live history-refetch is **watcher-only**: a device with no live messages of its
+own (`messages.length === 0`) refetches on a revision bump and sees groupmates'
+turns live. A device that has **itself** sent relies on its own live AG-UI stream
+and won't live-refetch others' turns until reload — because `ChatMessageList`
+renders restored history and the live block as **two un-deduped sections**, so a
+sender-side refetch would double every bubble. The **turn-lock is what covers the
+interaction case** (turns are serialised; while a groupmate holds the turn this
+device is queued, not diverging). Full bidirectional live-refetch = dedupe the
+merge; deferred. There is also **no live token-mirroring** (watchers see the
+completed exchange ~one poll after commit) — the design's stated v1 boundary.
 
 ## Acceptance
 
