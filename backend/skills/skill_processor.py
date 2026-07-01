@@ -32,7 +32,7 @@ from adk.session import get_session_service
 from auth.access_context import AccessContext
 from auth.firebase_auth import User
 from budget import BudgetExceededError
-from db.group_sessions import acquire_turn_lock, release_turn_lock
+from db.group_sessions import acquire_turn_lock, bump_turn_revision, release_turn_lock
 from skills.skill_config import get_skill
 
 logger = logging.getLogger(__name__)
@@ -126,7 +126,13 @@ async def process_skill_request(
             yield event
     finally:
         if group_id and lock_token is not None:
-            release_turn_lock(group_id, lock_token, activity_id=activity_id)
+            # 1.1.53 M1 — the turn is done: bump the group's revision so the other
+            # devices' pulse sees a new turn and refetches, THEN drop the lock. A
+            # bump failure must not block the release (the TTL is the backstop).
+            try:
+                bump_turn_revision(group_id, activity_id=activity_id)
+            finally:
+                release_turn_lock(group_id, lock_token, activity_id=activity_id)
 
 
 async def _run_skill_turn(

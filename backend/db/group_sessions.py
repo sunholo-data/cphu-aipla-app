@@ -260,12 +260,56 @@ def get_turn_lock(
     return {"in_flight": True, "started_at": data.get("turn_in_flight_at")}
 
 
+def bump_turn_revision(group_id: str, *, activity_id: str | None = None) -> int:
+    """Increment the group's shared-session turn revision (1.1.53 M1).
+
+    Called when a turn completes (from the skill-processor's release path). The
+    ``turn_revision`` is a monotone counter the pulse exposes so other devices
+    know a new turn committed and refetch ``/messages`` — robust even when a turn
+    is faster than a watcher's poll gap (a missed in-flight transition still
+    leaves a higher revision behind).
+
+    A plain read-increment-write, NOT an atomic increment: the turn-lock
+    guarantees a single writer per (group, activity) at a time, so there is no
+    concurrent bump to race. Returns the new revision.
+    """
+    key = _doc_key(group_id, activity_id)
+    data = get_document(_COLLECTION, key) or {}
+    revision = int(data.get("turn_revision") or 0) + 1
+    set_document(_COLLECTION, key, {"turn_revision": revision}, merge=True)
+    return revision
+
+
+def read_group_pulse(
+    group_id: str,
+    *,
+    activity_id: str | None = None,
+    ttl_seconds: int = TURN_LOCK_TTL_SECONDS,
+) -> dict[str, object]:
+    """Read the full live pulse for a group's shared session (1.1.53 M1).
+
+    Returns ``{"revision": int, "in_flight": bool, "started_at": str | None}`` —
+    the monotone turn counter plus the (TTL-aware) turn-lock state. Absent doc →
+    ``revision=0``, ``in_flight=False``.
+    """
+    data = get_document(_COLLECTION, _doc_key(group_id, activity_id)) or {}
+    in_flight_at = _parse_dt(data.get("turn_in_flight_at"))
+    in_flight = in_flight_at is not None and (_utcnow() - in_flight_at) < timedelta(seconds=ttl_seconds)
+    return {
+        "revision": int(data.get("turn_revision") or 0),
+        "in_flight": in_flight,
+        "started_at": data.get("turn_in_flight_at") if in_flight else None,
+    }
+
+
 __all__ = [
     "TURN_LOCK_TTL_SECONDS",
     "acquire_turn_lock",
     "archive_session_for_group",
+    "bump_turn_revision",
     "get_active_session_for_group",
     "get_turn_lock",
+    "read_group_pulse",
     "release_turn_lock",
     "set_active_session_for_group",
 ]

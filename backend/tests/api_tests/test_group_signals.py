@@ -229,3 +229,55 @@ def test_live_endpoint_populates_summary_when_enabled(monkeypatch):
     assert body["summary"]["text"] == "Most groups are working steadily."
     assert body["summary"]["framework"] == "AIPLA live-summary v0"
     assert body["summary"]["generatedAt"]
+
+
+# ---------------------------------------------------------------------------
+# 1.1.53 M1 — group live pulse (GET /api/auth/group/pulse)
+# ---------------------------------------------------------------------------
+
+
+def _pulse_client_no_group() -> TestClient:
+    from auth.group_routes import router
+
+    app = FastAPI()
+    app.include_router(router)
+    app.dependency_overrides[get_current_user] = lambda: User(uid="teacher-x", group_id="")
+    return TestClient(app)
+
+
+def test_group_pulse_defaults_to_zero_when_no_turns():
+    code = _setup_class_with_code()
+    resp = _student_client(code).get("/api/auth/group/pulse?activityId=act-1")
+    assert resp.status_code == 200, resp.text
+    assert resp.json() == {"revision": 0, "turnInFlight": False, "turnStartedAt": None}
+
+
+def test_group_pulse_reflects_revision_and_in_flight():
+    from db.group_sessions import acquire_turn_lock, bump_turn_revision
+
+    code = _setup_class_with_code()
+    bump_turn_revision(code, activity_id="act-1")
+    bump_turn_revision(code, activity_id="act-1")
+    acquire_turn_lock(code, "tok-1", activity_id="act-1")
+
+    resp = _student_client(code).get("/api/auth/group/pulse?activityId=act-1")
+    body = resp.json()
+    assert body["revision"] == 2
+    assert body["turnInFlight"] is True
+    assert body["turnStartedAt"]
+
+
+def test_group_pulse_is_scoped_to_caller_group():
+    """A bump in another group's activity is invisible to this caller."""
+    from db.group_sessions import bump_turn_revision
+
+    code = _setup_class_with_code()
+    bump_turn_revision("some-other-group", activity_id="act-1")
+
+    resp = _student_client(code).get("/api/auth/group/pulse?activityId=act-1")
+    assert resp.json()["revision"] == 0
+
+
+def test_group_pulse_404_for_non_group_user():
+    resp = _pulse_client_no_group().get("/api/auth/group/pulse?activityId=act-1")
+    assert resp.status_code == 404

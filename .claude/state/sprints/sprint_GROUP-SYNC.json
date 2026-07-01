@@ -37,32 +37,36 @@
     },
     {
       "id": "M1",
-      "description": "Live chat sync (fullstack, the headline) — GET /api/sessions/{id}/pulse {revision,turnInFlight,turnStartedAt} + useSessionPulse poll (~2-3s active, back off hidden) + refetch useSessionMessages on revision change + composer lock/queue on turnInFlight (409 -> queued -> auto-retry). Fixes bug #1 (no live sync); bug #2 (ghost context) falls out.",
+      "description": "Live chat sync (fullstack, the headline) — GET /api/auth/group/pulse {revision,turnInFlight,turnStartedAt} + useGroupPulse poll (~2.5s active, back off hidden) + refetch useSessionMessages on revision change (watcher-gated) + composer lock/queue on turnInFlight. Fixes bug #1 (no live sync); bug #2 (ghost context) falls out.",
       "scope": "fullstack",
       "estimated_loc": 400,
-      "actual_loc": null,
+      "actual_loc": 460,
       "dependencies": ["M0"],
       "acceptance_criteria": [
-        "GET /api/sessions/{id}/pulse returns {revision,turnInFlight,turnStartedAt}, group-auth'd, zero LLM; revision bumps after a turn commits; turnInFlight reflects the non-stale M0 lock",
-        "Device B (same group+activity, not reloaded) sees device A's new user turn AND the tutor reply within one poll (~2-3s of commit)",
-        "While A's turn is in flight, B's composer is disabled showing 'tutor is answering your group…'; a message B types is auto-sent when the turn clears",
-        "A 409 from the stream POST flips the sender into the queued state and auto-retries on the next lock clear",
-        "useSessionMessages does not double-apply the sender's own in-flight stream via a pulse refetch; sentinel filter preserved; scroll/half-typed composer not disrupted",
+        "GET /api/auth/group/pulse returns {revision,turnInFlight,turnStartedAt}, group-auth'd (keyed off caller group_id), zero LLM; revision bumps after a turn commits; turnInFlight reflects the non-stale M0 lock; scoped to caller group; 404 for non-group",
+        "Device B (pure watcher, same group+activity, not reloaded) sees device A's new user turn AND the tutor reply within one poll (~2.5s of commit)",
+        "While a groupmate's turn is in flight, this device's composer shows 'A classmate is asking the tutor…'; a message typed meanwhile is queued and auto-sent when the turn clears",
+        "useSessionMessages refetches silently (no loading flash) only on a FORWARD revision jump, and only for a pure watcher (messages.length===0) so ChatMessageList's un-deduped live block can't double; sentinel filter preserved",
         "cd backend && make lint && make test-fast green AND cd frontend && npm run quality:check green"
       ],
       "files_to_create": [
-        "frontend/src/hooks/useSessionPulse.ts"
+        "frontend/src/hooks/useGroupPulse.ts",
+        "frontend/src/hooks/__tests__/useGroupPulse.test.ts"
       ],
       "files_to_modify": [
-        "backend/protocols/sessions_route.py",
+        "backend/db/group_sessions.py",
+        "backend/skills/skill_processor.py",
+        "backend/auth/group_routes.py",
         "frontend/src/hooks/useSessionMessages.ts",
-        "backend/tests/api_tests/test_sessions_route.py",
+        "frontend/src/app/chat/[...path]/page.tsx",
+        "backend/tests/unit/test_group_sessions.py",
+        "backend/tests/api_tests/test_group_signals.py",
         "frontend/src/hooks/__tests__/useSessionMessages.test.ts"
       ],
-      "passes": null,
-      "started": null,
-      "completed": null,
-      "notes": "revision source: prefer the ADK session event count if chat_sessions.turnCount lags; confirm the counter increments on EVERY committed turn (student + proactive) before wiring. All new fetches use the group token (fetchWithAuth), never the teacher helper."
+      "passes": true,
+      "started": "2026-07-01",
+      "completed": "2026-07-01",
+      "notes": "DONE, with two reality-adjustments from the plan: (1) pulse endpoint is GET /api/auth/group/pulse?activityId= (keyed off caller group_id like raise-hand) NOT /sessions/{id}/pulse — avoids needing a session_id->group+activity mapping; declared before GET /{group_id} so it isn't shadowed. (2) revision source: chat_sessions.turnCount is flushed only every N turns (session.py:359), so it can't be the signal; instead a turn_revision counter on the group_sessions doc bumped at turn completion (in the M0 finally, before release) — race-free because the lock serializes turns. KNOWN BOUNDARY: live message refetch is watcher-only (a device that has itself sent relies on its live stream; ChatMessageList renders restored history + live as two un-deduped blocks so a sender-side refetch would duplicate). The turn-lock (turn-based) covers the interaction case. Full bidirectional live-refetch (dedupe the merge) is a documented follow-up. No live token-mirroring (design's stated v1 boundary). Backend 85 pass; frontend quality:check exit 0 (lint+tsc+vitest 22 hook tests+build)."
     },
     {
       "id": "M2",

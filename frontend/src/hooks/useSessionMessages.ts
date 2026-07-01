@@ -81,7 +81,16 @@ function toSkillMessage(m: SessionMessage): SkillMessage {
   return { id: nextId(), role: m.role, content: m.content, timestamp: m.timestamp };
 }
 
-export function useSessionMessages(sessionId: string | null): UseSessionMessagesReturn {
+export function useSessionMessages(
+  sessionId: string | null,
+  /** 1.1.53 M1 — a group's shared-session turn revision (from `useGroupPulse`).
+   *  When it advances, the history is refetched so a groupmate's turn appears
+   *  live. 0 (the default) disables live refetch — pass the pulse revision only
+   *  for a device that has no live messages of its own (a pure watcher), since
+   *  `ChatMessageList` renders restored history and live messages as separate
+   *  un-deduped blocks. */
+  revision = 0,
+): UseSessionMessagesReturn {
   const [initialMessages, setInitialMessages] = useState<SkillMessage[]>([]);
   const [initialInteractions, setInitialInteractions] = useState<HumanToolEvent[]>(NO_INTERACTIONS);
   const [interactionsTruncated, setInteractionsTruncated] = useState(false);
@@ -90,14 +99,18 @@ export function useSessionMessages(sessionId: string | null): UseSessionMessages
   const [sessionGone, setSessionGone] = useState(false);
   const abortRef = useRef<AbortController | null>(null);
   const lastSessionId = useRef<string | null>(null);
+  const lastRevision = useRef<number>(0);
 
   const fetch_ = useCallback(
-    (sid: string) => {
+    (sid: string, opts?: { silent?: boolean }) => {
       abortRef.current?.abort();
       const controller = new AbortController();
       abortRef.current = controller;
 
-      setIsLoadingHistory(true);
+      // A revision-driven live refresh is `silent`: don't flash the loading
+      // state or blank the transcript — the current messages stay on screen and
+      // are replaced in place when the fetch resolves.
+      if (!opts?.silent) setIsLoadingHistory(true);
       setHistoryError(null);
       setSessionGone(false);
 
@@ -153,15 +166,24 @@ export function useSessionMessages(sessionId: string | null): UseSessionMessages
       setInteractionsTruncated(false);
       setHistoryError(null);
       setSessionGone(false);
+      lastSessionId.current = null;
+      lastRevision.current = 0;
       return;
     }
 
-    if (sessionId === lastSessionId.current) return;
-    lastSessionId.current = sessionId;
+    const sessionChanged = sessionId !== lastSessionId.current;
+    // Live refresh only on a *forward* revision jump within the same session; a
+    // reset to 0 (e.g. this device started sending → no longer a pure watcher)
+    // must not retrigger a fetch.
+    const revisionAdvanced = !sessionChanged && revision > lastRevision.current;
+    if (!sessionChanged && !revisionAdvanced) return;
 
-    fetch_(sessionId);
+    lastSessionId.current = sessionId;
+    lastRevision.current = revision;
+
+    fetch_(sessionId, { silent: revisionAdvanced });
     return () => abortRef.current?.abort();
-  }, [sessionId, fetch_]);
+  }, [sessionId, revision, fetch_]);
 
   return {
     initialMessages,

@@ -265,6 +265,46 @@ describe("useSessionMessages", () => {
     expect(result.current.initialMessages).toHaveLength(1);
   });
 
+  describe("1.1.53 M1 — live refetch on group turn revision", () => {
+    it("refetches history when the pulse revision advances (a groupmate's turn committed)", async () => {
+      mockOk([{ role: "user", content: "turn 1", timestamp: 1 }]);
+      mockOk([
+        { role: "user", content: "turn 1", timestamp: 1 },
+        { role: "assistant", content: "turn 2 (from groupmate)", timestamp: 2 },
+      ]);
+
+      const { result, rerender } = renderHook(
+        ({ sid, rev }: { sid: string; rev: number }) => useSessionMessages(sid, rev),
+        { initialProps: { sid: "sess-1", rev: 0 } },
+      );
+
+      await waitFor(() => expect(result.current.initialMessages).toHaveLength(1));
+      // The pulse bumps → the watcher refetches and sees the new turn.
+      rerender({ sid: "sess-1", rev: 1 });
+      await waitFor(() => expect(result.current.initialMessages).toHaveLength(2));
+      expect(mockFetch).toHaveBeenCalledTimes(2);
+      expect(result.current.initialMessages[1].content).toContain("groupmate");
+    });
+
+    it("does NOT refetch when the revision is unchanged or resets to 0", async () => {
+      mockOk([{ role: "user", content: "x", timestamp: 1 }]);
+
+      const { result, rerender } = renderHook(
+        ({ sid, rev }: { sid: string; rev: number }) => useSessionMessages(sid, rev),
+        { initialProps: { sid: "sess-1", rev: 2 } },
+      );
+
+      await waitFor(() => expect(result.current.initialMessages).toHaveLength(1));
+      expect(mockFetch).toHaveBeenCalledTimes(1);
+
+      rerender({ sid: "sess-1", rev: 2 }); // same revision — no refetch
+      // Reset to 0 (this device started sending → no longer a pure watcher) must
+      // NOT be read as a forward jump.
+      rerender({ sid: "sess-1", rev: 0 });
+      expect(mockFetch).toHaveBeenCalledTimes(1);
+    });
+  });
+
   it("D4 (chat-history-deep-fixes H4): refetches when sessionId changes from one id to another", async () => {
     // Bug C from chat-history-deep-fixes.md: clicking a thread in
     // DocumentHistoryPanel calls handleSelectSession → navigateToSession,

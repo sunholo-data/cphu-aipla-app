@@ -501,6 +501,45 @@ async def get_signal_endpoint(
     return _signal_response(get_signal(user.group_id))
 
 
+class GroupPulseResponse(BaseModel):
+    """Live pulse for a group's shared session (1.1.53 M1).
+
+    ``revision`` bumps when a turn commits (a monotone change signal — other
+    devices refetch ``/messages`` when it grows). ``turnInFlight`` is the
+    (TTL-aware) turn-lock: true while some member's turn is streaming, so the
+    other members' composers show "tutor is answering your group…".
+    """
+
+    revision: int
+    turnInFlight: bool
+    turnStartedAt: str | None = None
+
+
+@router.get("/pulse", response_model=GroupPulseResponse)
+async def group_pulse_endpoint(
+    activityId: str | None = Query(default=None),
+    user: User = Depends(_resolve_firebase_user_dep()),  # noqa: B008
+) -> GroupPulseResponse:
+    """Live pulse for THIS group's shared session (1.1.53 M1).
+
+    Keyed by ``user.group_id`` — a student reads only their own group's pulse; no
+    cross-group leak. ``activityId`` scopes to the (group, activity) session (ALS-1
+    — a group runs many activities, each its own conversation). Zero LLM: one small
+    Firestore doc read, polled ~2–3s while the tab is active. Declared BEFORE the
+    ``GET /{group_id}`` route so it isn't captured as ``group_id="pulse"``.
+    """
+    if not user.group_id:
+        raise HTTPException(status_code=404, detail="not a group-auth user")
+    from db.group_sessions import read_group_pulse
+
+    p = read_group_pulse(user.group_id, activity_id=activityId)
+    return GroupPulseResponse(
+        revision=int(p["revision"]),
+        turnInFlight=bool(p["in_flight"]),
+        turnStartedAt=p["started_at"],  # type: ignore[arg-type]
+    )
+
+
 @router.delete("/{group_id}", status_code=204)
 async def delete_group_endpoint(
     group_id: str,

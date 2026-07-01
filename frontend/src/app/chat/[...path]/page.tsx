@@ -28,6 +28,8 @@ import { useSkillAgent, type StreamError } from "@/hooks/useSkillAgent";
 import { useSkillMeta } from "@/hooks/useSkillMeta";
 import { useUserSkills } from "@/hooks/useUserSkills";
 import { useSessionMessages } from "@/hooks/useSessionMessages";
+import { useGroupPulse } from "@/hooks/useGroupPulse";
+import { Loader2 } from "lucide-react";
 import { useEnteredViaResume } from "@/hooks/useEnteredViaResume";
 import { useSessionDocuments } from "@/hooks/useSessionDocuments";
 import { useStableThreadId } from "@/hooks/useStableThreadId";
@@ -611,8 +613,28 @@ function ChatShell({
 
   // Session routing: read ?session= from URL, allow programmatic navigation
   const sessionId = searchParams.get("session");
+
+  // 1.1.53 M1 — live pulse for the group's shared session. `pulseActivityId`
+  // mirrors what useSkillAgent puts on the wire (activity_id only when it's an
+  // `act-…` id, else the turn is keyed group-level), so the pulse reads the SAME
+  // group_sessions doc the turn-lock writes.
+  const pulseActivityId = activityId.startsWith("act-") ? activityId : null;
+  const { revision: groupRevision, turnInFlight: groupTurnInFlightRaw } =
+    useGroupPulse(pulseActivityId);
+  // A device with no live messages of its own is a "pure watcher": refetching
+  // history on a revision bump is duplicate-free (ChatMessageList renders
+  // restored history and the live block separately, un-deduped). Once this
+  // device sends, it relies on its own live stream and stops live-refetching.
+  const watcherRevision = messages.length === 0 ? groupRevision : 0;
   const { initialMessages, initialInteractions, interactionsTruncated, historyError, sessionGone } =
-    useSessionMessages(sessionId);
+    useSessionMessages(sessionId, watcherRevision);
+  // Another group member's turn is streaming (and it isn't THIS device's own
+  // send — that's `isLoading`). Drives the composer lock + queue below.
+  const groupTurnInFlight = groupTurnInFlightRaw && !isLoading;
+  // 1.1.53 M1 — a message the student composed while a groupmate held the turn.
+  // Held locally and auto-sent when the shared session frees (soft turn-lock),
+  // so two students can't race two parallel turns onto one session.
+  const [queuedMessage, setQueuedMessage] = useState<string | null>(null);
 
   // Phase 1.I-PhA proactive greet: fire POST /api/sessions/{id}/greet on
   // chat mount when the skill opts in AND we're starting a brand-new
@@ -722,6 +744,15 @@ function ChatShell({
     const attachments = images.attachments;
     // Allow an image-only turn (no text) when something is staged.
     if ((!text && attachments.length === 0) || isLoading || error) return;
+    // 1.1.53 M1 — a groupmate holds the turn: queue this text and let the
+    // auto-flush effect send it when the lock clears, instead of racing a second
+    // parallel run onto the shared session (the backend would 409 anyway). Only
+    // text is queued; staged images stay in the composer for a manual send.
+    if (groupTurnInFlight && text) {
+      setQueuedMessage(text);
+      setDraft("");
+      return;
+    }
     lastUserMessageRef.current = text;
     setDraft("");
     // Non-retention: the staged bytes ride this one turn only. Clear the
@@ -752,6 +783,19 @@ function ChatShell({
       resumedSession: enteredViaResume,
     });
   }, [clearError, sendMessage, outgoingDocIds, enteredViaResume]);
+
+  // 1.1.53 M1 — flush a queued message once the group's turn-lock clears (and
+  // this device isn't mid-send). Sends exactly once, then clears the queue.
+  useEffect(() => {
+    if (groupTurnInFlight || isLoading || !queuedMessage) return;
+    const text = queuedMessage;
+    setQueuedMessage(null);
+    lastUserMessageRef.current = text;
+    void sendMessage(text, {
+      documentIds: outgoingDocIds,
+      resumedSession: enteredViaResume,
+    });
+  }, [groupTurnInFlight, isLoading, queuedMessage, sendMessage, outgoingDocIds, enteredViaResume]);
 
   const handleAction = useCallback(
     (event: { actionName: string; context: Record<string, unknown> }) => {
@@ -1145,6 +1189,14 @@ function ChatShell({
             )}
             {voiceNotice && (
               <p className="mb-2 text-xs text-muted-foreground">{voiceNotice}</p>
+            )}
+            {groupTurnInFlight && (
+              <p className="mb-2 flex items-center gap-2 text-xs text-muted-foreground">
+                <Loader2 className="h-3 w-3 animate-spin" aria-hidden />
+                {queuedMessage
+                  ? "A classmate is asking the tutor — your message will send when it's your group's turn."
+                  : "A classmate is asking the tutor…"}
+              </p>
             )}
             <form
               className="flex items-center gap-2"

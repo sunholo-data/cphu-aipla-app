@@ -327,3 +327,68 @@ def test_lock_coexists_with_active_session_pointer():
     set_active_session_for_group("grp", "sess-A", activity_id="act-1")
     acquire_turn_lock("grp", "tok-1", activity_id="act-1")
     assert get_active_session_for_group("grp", "act-1") == "sess-A"
+
+
+# ---------------------------------------------------------------------------
+# 1.1.53 M1 — turn revision + live pulse
+# ---------------------------------------------------------------------------
+
+
+def test_bump_turn_revision_is_monotone():
+    from db.group_sessions import bump_turn_revision
+
+    assert bump_turn_revision("grp", activity_id="act-1") == 1
+    assert bump_turn_revision("grp", activity_id="act-1") == 2
+    assert bump_turn_revision("grp", activity_id="act-1") == 3
+
+
+def test_bump_turn_revision_is_per_activity():
+    from db.group_sessions import bump_turn_revision
+
+    assert bump_turn_revision("grp", activity_id="act-1") == 1
+    assert bump_turn_revision("grp", activity_id="act-2") == 1  # independent counter
+
+
+def test_read_group_pulse_defaults_when_absent():
+    from db.group_sessions import read_group_pulse
+
+    pulse = read_group_pulse("grp", activity_id="act-1")
+    assert pulse == {"revision": 0, "in_flight": False, "started_at": None}
+
+
+def test_read_group_pulse_reflects_revision_and_in_flight():
+    from db.group_sessions import acquire_turn_lock, bump_turn_revision, read_group_pulse
+
+    bump_turn_revision("grp", activity_id="act-1")
+    bump_turn_revision("grp", activity_id="act-1")
+    acquire_turn_lock("grp", "tok-1", activity_id="act-1")
+
+    pulse = read_group_pulse("grp", activity_id="act-1")
+    assert pulse["revision"] == 2
+    assert pulse["in_flight"] is True
+    assert pulse["started_at"]
+
+
+def test_read_group_pulse_ignores_stale_lock():
+    from db import firestore as fs
+    from db.group_sessions import read_group_pulse
+
+    stale = (_now() - timedelta(seconds=999)).isoformat()
+    fs.set_document(
+        "group_sessions",
+        "grp:act-1",
+        {"turn_in_flight_at": stale, "turn_lock_token": "dead", "turn_revision": 5},
+    )
+    pulse = read_group_pulse("grp", activity_id="act-1")
+    assert pulse["revision"] == 5
+    assert pulse["in_flight"] is False
+
+
+def test_bump_survives_a_lock_only_doc():
+    """A turn that acquired a lock (lock-only doc, no session pointer) can still
+    bump its revision at completion."""
+    from db.group_sessions import acquire_turn_lock, bump_turn_revision, read_group_pulse
+
+    acquire_turn_lock("grp", "tok-1", activity_id="act-1")
+    bump_turn_revision("grp", activity_id="act-1")
+    assert read_group_pulse("grp", activity_id="act-1")["revision"] == 1
