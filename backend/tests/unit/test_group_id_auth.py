@@ -520,6 +520,44 @@ def test_upsert_group_rejects_empty_code():
         )
 
 
+def test_persist_group_preserves_external_classid_on_reseed():
+    """Re-persisting a group (the ``make seed-demo-codes`` / ``upsert_group``
+    TTL-extend path) must NOT wipe the ``classId`` that ``setup_demo.py`` set on
+    the ``anon_groups`` doc to bind a code to its class of activities.
+
+    Regression for the 2026-07-02 "aipla-demo-1 has no activities" bug:
+    ``_persist_group`` did a full overwrite (``set_document(merge=False)``) and
+    ``_record_to_doc`` carries no ``classId``, so every re-seed silently
+    un-assigned every activity from the code. The fix is ``merge=True``.
+    """
+    import db.firestore as fs
+    from auth.group_id_auth import GroupRecord, _persist_group
+    from db.firestore_inmemory import InMemoryFirestoreClient
+
+    fs._client = InMemoryFirestoreClient()
+
+    # setup_demo.py binds the code → its class of activities (Boldkast et al.).
+    fs.set_document("anon_groups", "aipla-demo-1", {"classId": "cls-demo"})
+
+    # A later re-seed persists the GroupRecord with a fresh TTL.
+    _persist_group(
+        GroupRecord(
+            group_id="aipla-demo-1",
+            creator_uid="admin:seed",
+            title="dev demo",
+            skill_ids=("physics-tutor",),
+            created_at=1.0,
+            expires_at=2.0,
+            max_concurrent_sessions=5,
+        )
+    )
+
+    doc = fs.get_document("anon_groups", "aipla-demo-1")
+    assert doc["classId"] == "cls-demo"  # binding survives the re-seed
+    assert doc["expires_at"] == 2.0  # record's own fields still updated
+    assert doc["creator_uid"] == "admin:seed"
+
+
 # ─── Token refresh (silent renewal for long-lived anonymous sessions) ─────────
 
 

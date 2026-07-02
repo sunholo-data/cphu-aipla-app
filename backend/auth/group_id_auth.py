@@ -388,11 +388,20 @@ def _doc_to_record(doc: dict) -> GroupRecord:
 
 
 def _persist_group(record: GroupRecord) -> None:
-    """Write a group to Firestore. Best-effort: log + skip on failure."""
+    """Write a group to Firestore. Best-effort: log + skip on failure.
+
+    Uses ``merge=True`` so a re-persist (e.g. the ``upsert_group`` TTL-extend
+    path hit by ``make seed-demo-codes``) only updates the GroupRecord's own
+    fields and leaves externally-managed keys intact. The load-bearing one is
+    ``classId`` — set on the ``anon_groups`` doc by ``scripts/setup_demo.py`` to
+    bind a code to its class of activities. A full overwrite (``merge=False``)
+    dropped it, silently un-assigning every activity from the code on the next
+    re-seed (the "aipla-demo-1 has no activities" regression, 2026-07-02).
+    """
     try:
         from db import firestore as fs
 
-        fs.set_document(_GROUPS_COLLECTION, record.group_id, _record_to_doc(record))
+        fs.set_document(_GROUPS_COLLECTION, record.group_id, _record_to_doc(record), merge=True)
     except Exception:
         logger.exception("group_auth: failed to persist group=%s", record.group_id)
 
