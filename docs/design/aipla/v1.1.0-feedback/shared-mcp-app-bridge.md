@@ -263,6 +263,42 @@ handshake never resolves so the postMessage emits become harmless no-ops
 (`__post` try/catch; nothing listens). The two channels are mutually exclusive in
 every real host, and firing both would still be harmless.
 
+### 6.3a Host coverage matrix (incl. M365 Copilot — added 2026-07-04)
+
+Research after ship (2026-07-04, prompted by the teacher-research finding that the
+sims render in **Microsoft 365 Copilot**) confirmed the "one bridge, every host"
+thesis with a *third* host. Per the MS Learn *"Supported MCP Apps capabilities in
+Copilot"* table, Copilot is **native SEP-1865** — it reads the same
+`ui/update-model-context` postMessage our bridge already sends (that method is
+exactly what Copilot's App Bridge `app.updateModelContext()` wraps).
+**ChatGPT's `window.openai` is the outlier; everyone else is the postMessage
+family.**
+
+| Host | Renders sim? | Sees the student's commit via | Bridge branch that carries it |
+|---|---|---|---|
+| **AIPLA app** | yes | `ui/update-model-context` → `/iframe-context` + trust card | postMessage (authoritative) |
+| **M365 Copilot** | yes (MCP Apps GA, 2026-04) | `ui/update-model-context` = `app.updateModelContext()` | **postMessage — already covered, no new code** |
+| **Claude Desktop / Inspector** | host-dependent | `ui/update-model-context` (+ `content`) | postMessage |
+| **ChatGPT** | yes | `window.openai.setWidgetState` + `sendFollowUpMessage` | `window.openai` branch |
+
+So the sprint that shipped for ChatGPT **also made the sims Copilot-ready for
+free** — no third channel. Server-side, `sim_apps.py` already emits the
+`_meta` keys Copilot honours (`ui.resourceUri`, `ui.visibility`, `ui.csp`); the
+`ui.domain`/`frameDomains` it doesn't support are ignored (harmless). Two Copilot
+caveats for a live test, both server/deploy-side (not the bridge): Copilot renders
+under `{sha256(mcp-domain)}.widget-renderer.usercontent.microsoft.com` so the MCP
+server domain must be **CORS-allowlisted**, and production needs **OAuth 2.1 /
+Entra SSO** (anonymous is dev-only — our `/api/mcp` is anonymous, fine for the probe).
+
+**Possible double-signal in Copilot (verify in the live test):** Copilot also
+exposes a `window.openai` compatibility shim, so on a labelled commit our bridge
+*may* fire both `window.openai.sendFollowUpMessage` **and** the postMessage
+`ui/update-model-context`. Both are guarded and harmless (belt-and-suspenders —
+the model definitely sees the commit), but it could surface as an extra user turn.
+If it does, gate the `window.openai` follow-up on the absence of a resolved
+postMessage host. This is the §8 "double-signal in a hypothetical dual host" risk
+made concrete — Copilot is that host.
+
 **Why `sendFollowUpMessage` for the commit** (not `setWidgetState` alone):
 `setWidgetState` is silent and only visible on the model's *next* turn, and relies
 on the host folding widget state into context — finicky and easy to miss.
