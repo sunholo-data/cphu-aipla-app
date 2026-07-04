@@ -104,7 +104,7 @@
       "passes": true,
       "started": "2026-07-04",
       "completed": "2026-07-04",
-      "notes": "AUTOMATED HALF DONE + VERIFIED: the M1 sandbox bridge vitest proves dual-channel emit (labelled commit -> setWidgetState + sendFollowUpMessage; passive/no-openai -> no-op). Full sprint sweep green: sim-build-check OK; sandbox 33 vitest + tsc; CLI 5 pytest + ruff. TWO HUMAN-GATED ACs OUTSTANDING (NOT run — handed to M): (1) ChatGPT developer mode, all 3 sims, commit -> model states values (needs deployed/tunnelled sandbox + backend redeploy for the load_html cache); (2) AIPLA app manual no-regression. Frontend untouched (only artefacts/cli/scripts/ci/skill) so the CI frontend job is unaffected; 59 consumer tests already green."
+      "notes": "AUTOMATED HALF DONE + VERIFIED (M1 sandbox bridge vitest: labelled commit -> setWidgetState + sendFollowUpMessage; passive/no-openai -> no-op). Full sweep green: sim-build-check; sandbox 33 vitest + tsc; CLI 5 pytest + ruff. HUMAN AC-1 (ChatGPT) VERIFIED LIVE 2026-07-04 (M): on the deployed /api/mcp, hitting the commit button in ChatGPT -> the model responds immediately stating what the student did (the sendFollowUpMessage turn fires) — the exact behaviour that was broken pre-sprint. Deploy confirmed live on both surfaces (sandbox + backend /api/mcp carry the new bridge). REMAINING (optional, low-risk): AIPLA-app manual no-regression (automated 59 consumer tests already cover it); M365 Copilot live check (same postMessage path, high confidence). NOTE: CI sim-bridge job needed a follow-up fix (npm run build before serve.test.ts; commit 28f6ce1) — the deploy is a separate Cloud Build trigger and was unaffected."
     }
   ],
   "velocity": {
@@ -117,6 +117,6 @@
   },
   "github_issues": [],
   "last_session": "2026-07-04",
-  "last_checkpoint": "M1-M4 code-complete + automated-verified; ChatGPT + AIPLA-app human verification handed to M",
-  "status": "code_complete_pending_human_verification"
+  "last_checkpoint": "M1-M4 complete; ChatGPT commit-visibility VERIFIED LIVE by M 2026-07-04; deploy live on sandbox + backend; CI sim-bridge build-step fix pushed (28f6ce1)",
+  "status": "verified"
 }

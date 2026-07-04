@@ -1,10 +1,15 @@
 # Shared MCP App guest bridge — one bridge, every host (AIPLA app · ChatGPT · Claude / SEP-1865)
 
-**Status:** **IMPLEMENTED on `dev`** (2026-07-04, sprint SHARED-BRIDGE M1–M4) —
-**pending one human verification:** the ChatGPT-developer-mode end-to-end check
-(host-dependent; needs a deployed/tunnelled sandbox). All code + automated tests
-are shipped and green (the sandbox bridge vitest proves the dual-channel emit;
-frontend consumer tests pass unchanged; CI `sim-bridge` drift guard is live).
+**Status:** **IMPLEMENTED + VERIFIED on `dev`** (2026-07-04, sprint SHARED-BRIDGE
+M1–M4). **The headline check passed live in ChatGPT** (M, 2026-07-04): hitting the
+commit button (Afspil) → ChatGPT **responds immediately stating what the student
+did** — i.e. the `window.openai.sendFollowUpMessage` turn fires on the labelled
+commit and the model reacts. This is the exact behaviour that was broken (model
+blind on commit) before the sprint. Automated proof also green (sandbox bridge
+vitest; frontend consumer tests unchanged; CI `sim-bridge` drift guard live).
+Remaining (optional, low-risk): AIPLA-app manual no-regression (automated tests
+cover it) and the M365 Copilot live check (§6.3a — same postMessage path, high
+confidence, teacher-research-relevant).
 **Priority:** P2 — breadth-probe track with
 [external-host-mcp-apps.md](external-host-mcp-apps.md). Closes the gap that makes
 ChatGPT render a *dead* widget (interacts, but the model never sees the
