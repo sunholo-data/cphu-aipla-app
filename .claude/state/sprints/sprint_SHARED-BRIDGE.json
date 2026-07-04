@@ -1,0 +1,122 @@
+{
+  "sprint_id": "SHARED-BRIDGE",
+  "created": "2026-07-04T09:17:46Z",
+  "estimated_duration_days": 1.5,
+  "design_doc": "docs/design/aipla/v1.1.0-feedback/shared-mcp-app-bridge.md",
+  "sprint_plan": "docs/design/aipla/v1.1.0-feedback/shared-mcp-app-bridge-sprint.md",
+  "features": [
+    {
+      "id": "M1-BRIDGE-TOOLING",
+      "description": "Canonical guest bridge (aipla-mcp-bridge.js) with the dual-channel emit (postMessage + window.openai), a dependency-free build/inline script with a drift --check mode, make + aiplatform sim build wrappers, and a vitest that proves the window.openai calls fire — before touching any artefact.",
+      "scope": "fullstack",
+      "estimated_loc": 290,
+      "actual_loc": null,
+      "dependencies": [],
+      "acceptance_criteria": [
+        "infrastructure/mcp-sandbox/bridge/aipla-mcp-bridge.js exists: conservative-JS transport (__post, rpcRequest/rpcNotify, pending-emit queue, ping responder, envelope parser) + emit(kind,extra) with guarded window.openai branch (setWidgetState + sendFollowUpMessage) AND the postMessage path + __contentText fallback + public AIPLA_BRIDGE = {emit, init, onChatFlush, onHostNotification}",
+        "scripts/build-artefact-bridge.mjs supports write mode (stamp @aipla-bridge:start..end region) and --check mode (exit 1 on drift or missing markers on a migrated file)",
+        "make sim-build and make sim-build-check targets exist; aiplatform sim build [--check] subcommand shells out to the script",
+        "Sandbox vitest green including bridge/__tests__/aipla-mcp-bridge.test.ts: labeled commit -> setWidgetState(structuredContent) + sendFollowUpMessage({prompt:label}); unlabeled -> no follow-up; window.openai absent -> no throw + postMessage path; pending-queue flush on init",
+        "aiplatform sim build --check exits non-zero on a deliberately corrupted region (CLI unit test)",
+        "cd backend && make lint clean"
+      ],
+      "files_to_create": [
+        "infrastructure/mcp-sandbox/bridge/aipla-mcp-bridge.js",
+        "infrastructure/mcp-sandbox/bridge/__tests__/aipla-mcp-bridge.test.ts",
+        "scripts/build-artefact-bridge.mjs",
+        "cli/tests/test_cli_sim.py"
+      ],
+      "files_to_modify": [
+        "Makefile",
+        "cli/aiplatform/commands/sim.py"
+      ],
+      "passes": null,
+      "started": null,
+      "completed": null,
+      "notes": null
+    },
+    {
+      "id": "M2-MIGRATE-ARTEFACTS",
+      "description": "Migrate all four artefacts (boldkast, kinebot, led-planck, _template) to the shared bridge: one marked @aipla-bridge region + sim-authored call-sites (init, onChatFlush/onHostNotification, emit). Emitted JSON-RPC shape byte-unchanged for the 3 live sims; _template gains JSON-RPC + window.openai (retires the flat {source,type} format).",
+      "scope": "frontend",
+      "estimated_loc": 120,
+      "actual_loc": null,
+      "dependencies": ["M1-BRIDGE-TOOLING"],
+      "acceptance_criteria": [
+        "make sim-build-check green: all four artefacts' bridge regions byte-identical to the canonical source",
+        "grep -c 'window.openai' artefacts/*/v1/index.html -> 1 per file (was 0)",
+        "grep -c 'ui/update-model-context' _template/v1/index.html -> >=1 (was 0)",
+        "kinebot registers onHostNotification('kinebot.set-topic', setTopic); boldkast + led-planck register onChatFlush; per-sim __contentText removed (now in bridge)",
+        "Frontend consumer tests stay green WITHOUT edits (wire shape unchanged): GenericArtefactFrame.test.tsx, StaticArtefactFrame.test.tsx, useArtefactReportEvent.test.ts, proactiveEventCheck.test.ts. NOTE: the per-sim *SimFrame integration tests referenced in older docs were retired by unified-sim-rendering; the behavioural safety net is the M1 sandbox bridge vitest",
+        "Each artefact still opens standalone (?test=1) without throwing"
+      ],
+      "files_to_create": [],
+      "files_to_modify": [
+        "infrastructure/mcp-sandbox/artefacts/boldkast/v1/index.html",
+        "infrastructure/mcp-sandbox/artefacts/kinebot/v1/index.html",
+        "infrastructure/mcp-sandbox/artefacts/led-planck/v1/index.html",
+        "infrastructure/mcp-sandbox/artefacts/_template/v1/index.html"
+      ],
+      "passes": null,
+      "started": null,
+      "completed": null,
+      "notes": null
+    },
+    {
+      "id": "M3-CI-GUARD-HYGIENE",
+      "description": "Add the CI drift-guard (sim-bridge job running build-artefact-bridge.mjs --check) and stop the scaffolder + skill teaching the old pattern (new-artefact.sh stamps the clone; mcp-app-artefact SKILL.md drops the flat-format + hand-copy-the-handshake guidance).",
+      "scope": "backend",
+      "estimated_loc": 60,
+      "actual_loc": null,
+      "dependencies": ["M2-MIGRATE-ARTEFACTS"],
+      "acceptance_criteria": [
+        ".github/workflows/ci.yml has a sim-bridge job (node) running node scripts/build-artefact-bridge.mjs --check; green on this branch, red on a hand-edited region",
+        "scripts/new-artefact.sh clones a _template that carries the markers and passes --check (post-scaffold stamp or note)",
+        ".claude/skills/mcp-app-artefact/SKILL.md no longer documents the flat {source,type} format or 'copy the ~30 LoC handshake from an existing sim'; points to AIPLA_BRIDGE.emit + make sim-build",
+        "Root Makefile help text lists the new targets"
+      ],
+      "files_to_create": [],
+      "files_to_modify": [
+        ".github/workflows/ci.yml",
+        "scripts/new-artefact.sh",
+        ".claude/skills/mcp-app-artefact/SKILL.md",
+        "Makefile"
+      ],
+      "passes": null,
+      "started": null,
+      "completed": null,
+      "notes": null
+    },
+    {
+      "id": "M4-VERIFY",
+      "description": "Prove the channel end-to-end. Automated half: the M1 bridge vitest is the machine proof of dual-channel emit. Human half (host-dependent): ChatGPT developer mode for the 3 sims + AIPLA-app no-regression.",
+      "scope": "fullstack",
+      "estimated_loc": 20,
+      "actual_loc": null,
+      "dependencies": ["M2-MIGRATE-ARTEFACTS", "M3-CI-GUARD-HYGIENE"],
+      "acceptance_criteria": [
+        "Bridge vitest green (machine proof: labeled commit fires setWidgetState + sendFollowUpMessage; no-openai path is a no-op)",
+        "HUMAN-GATED: ChatGPT developer mode - show_boldkast/kinebot/led_planck, change a param, press Afspil/commit, ask 'what did I just do?' -> model states the committed values (needs deployed/tunneled sandbox + backend redeploy for load_html cache)",
+        "HUMAN-GATED: AIPLA app - commit gesture still renders the trust card, session context/iframe-context unchanged, no thrown errors"
+      ],
+      "files_to_create": [],
+      "files_to_modify": [],
+      "passes": null,
+      "started": null,
+      "completed": null,
+      "notes": "M4 human steps are host-dependent (ChatGPT dev mode + a deployed sandbox). The machine-checkable half is automated in M1's vitest per the self-testable-loops rule. Do not mark the human ACs passed without M running them."
+    }
+  ],
+  "velocity": {
+    "target_loc_per_day": 350,
+    "actual_loc_per_day": null,
+    "estimated_total_loc": 490,
+    "actual_total_loc": null,
+    "estimated_days": 1.5,
+    "actual_days": null
+  },
+  "github_issues": [],
+  "last_session": null,
+  "last_checkpoint": null,
+  "status": "not_started"
+}
