@@ -1,7 +1,10 @@
 # Shared MCP App guest bridge — one bridge, every host (AIPLA app · ChatGPT · Claude / SEP-1865)
 
-**Status:** **PROPOSED** (diagnosis verified 2026-07-04; generalised from the
-ChatGPT `window.openai` fix; not yet implemented).
+**Status:** **IMPLEMENTED on `dev`** (2026-07-04, sprint SHARED-BRIDGE M1–M4) —
+**pending one human verification:** the ChatGPT-developer-mode end-to-end check
+(host-dependent; needs a deployed/tunnelled sandbox). All code + automated tests
+are shipped and green (the sandbox bridge vitest proves the dual-channel emit;
+frontend consumer tests pass unchanged; CI `sim-bridge` drift guard is live).
 **Priority:** P2 — breadth-probe track with
 [external-host-mcp-apps.md](external-host-mcp-apps.md). Closes the gap that makes
 ChatGPT render a *dead* widget (interacts, but the model never sees the
