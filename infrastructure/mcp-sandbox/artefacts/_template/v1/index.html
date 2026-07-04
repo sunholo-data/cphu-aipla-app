@@ -477,7 +477,13 @@
     emit("param.change", { param: "p1", value: p1 });
   });
   document.getElementById("play").addEventListener("click", () => {
-    playing = true; lastFrameMs = 0; emit("play");
+    playing = true; lastFrameMs = 0;
+    // COMMIT event — carries a `label`, so it renders the trust card in the
+    // AIPLA app AND fires the ChatGPT sendFollowUpMessage turn ("the AI reacts
+    // now"). EVERY sim needs at least one labelled commit or it can't broadcast
+    // interactions to ChatGPT (checked by scripts/check-artefact-broadcast.mjs).
+    // Passive events (param.change on drag, open) stay UNlabelled = silent.
+    emit("play", { label: "Ran the simulation (p1=" + p1 + ")" });
   });
   document.getElementById("pause").addEventListener("click", () => {
     playing = false; emit("pause");

@@ -269,6 +269,7 @@ sim-build:
 
 sim-build-check:
 	@node scripts/build-artefact-bridge.mjs --check
+	@node scripts/check-artefact-broadcast.mjs
 
 help:
 	@echo "make dev                — start backend (1956) + frontend (3456) — cloud mode (real GCP/Vertex)"

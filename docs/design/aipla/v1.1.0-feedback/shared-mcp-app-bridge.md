@@ -304,6 +304,29 @@ If it does, gate the `window.openai` follow-up on the absence of a resolved
 postMessage host. This is the §8 "double-signal in a hypothetical dual host" risk
 made concrete — Copilot is that host.
 
+### 6.3b The `label` audit — every sim must carry a labelled commit (added 2026-07-04)
+
+Live-testing exposed a follow-on gap: the ChatGPT broadcast
+(`sendFollowUpMessage`) fires **only** when an `emit()` carries `extra.label`.
+Boldkast labels its Afspil commit, so it broadcasts. **KineBot and LED-Planck
+carried zero labelled emits** (audit: Boldkast 2, KineBot 0, LED-Planck 0), so in
+ChatGPT they only did the silent `setWidgetState` — the model saw the values only
+on the student's *next typed turn*, never proactively. (In the AIPLA app they
+still worked because `GenericArtefactFrame.cardLabel()` synthesises a card from
+`structuredContent.state` when no label is present — an asymmetry the ChatGPT
+branch does not replicate, and deliberately shouldn't: a blanket fallback would
+fire a follow-up on every passive event and flood the thread.)
+
+Fix: label each sim's **deliberate result moments** (KineBot `sim-run`;
+LED-Planck `fit` / `spectrum` / `auto-run` / `calibrated`), leaving passive /
+repeated events (slider drag, topic nav, individual readings) unlabelled. Plus a
+CI floor guard — `scripts/check-artefact-broadcast.mjs` (in the `sim-bridge` job
+and `make sim-build-check`) **fails any artefact that emits but never labels**,
+with an `<!-- @aipla-no-broadcast: <reason> -->` opt-out for read-only artefacts.
+The `_template` now models a labelled commit so scaffolded sims inherit it. This
+is the same "the trust-card/broadcast goes WITH the interaction" discipline as the
+workbench-element trust-card rule — enforced by CI, not memory.
+
 **Why `sendFollowUpMessage` for the commit** (not `setWidgetState` alone):
 `setWidgetState` is silent and only visible on the model's *next* turn, and relies
 on the host folding widget state into context — finicky and easy to miss.

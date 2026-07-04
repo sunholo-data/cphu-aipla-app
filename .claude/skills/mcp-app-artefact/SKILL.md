@@ -938,6 +938,22 @@ If you need to change the transport itself, edit
 inlined copy (CI catches it). See
 [docs/design/aipla/v1.1.0-feedback/shared-mcp-app-bridge.md](../../../docs/design/aipla/v1.1.0-feedback/shared-mcp-app-bridge.md).
 
+> **BROADCAST RULE (non-obvious — 2 of 3 sims shipped without it).** The `label`
+> field is the **only** signal that makes an interaction reach the tutor
+> *proactively*. On a labelled emit the bridge fires `setWidgetState` **and**
+> ChatGPT's `sendFollowUpMessage` (the model reacts immediately) + our app's
+> trust card. On an **unlabelled** emit it only does the silent `setWidgetState`
+> — in ChatGPT the model sees it only on the student's *next typed message*, and
+> proactive tutoring never triggers. So **every interactive sim needs at least
+> one labelled commit** on its deliberate action (Afspil / Run / Fit / Measure).
+> Label the *deliberate* actions; leave passive/continuous ones (slider drag,
+> navigation, repeated readings) **unlabelled** so you don't flood the ChatGPT
+> thread with follow-up turns. Match the label to the sim's own language
+> (Boldkast = Danish; LED-Planck / KineBot = English). CI enforces a floor via
+> `node scripts/check-artefact-broadcast.mjs` (also in `make sim-build-check`):
+> it FAILS a sim that emits but never labels — add a label, or for a genuinely
+> read-only artefact add `<!-- @aipla-no-broadcast: <reason> -->`.
+
 ### Step 4 — Extract (system prompt → SKILL.md)
 
 If the artefact embeds a system prompt for its own chat (KineBot's

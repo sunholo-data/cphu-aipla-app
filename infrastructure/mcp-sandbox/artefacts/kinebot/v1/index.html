@@ -454,7 +454,11 @@ function togglePlay(){
    const params={simType:sim.type,velocity:gV(),acceleration:gA()};
    if(document.getElementById('rowAngle').style.display!=='none') params.angle=Math.round(gAng()*180/Math.PI);
    if(document.getElementById('rowV2').style.display!=='none') params.v2=gV2();
-   emit('sim-run',{simType:sim.type,params:params});
+   // `label` = the deliberate-commit signal: it renders the trust card in the
+   // AIPLA app AND fires the ChatGPT sendFollowUpMessage turn. Without it the
+   // model only sees this on the student's next typed message.
+   const simName=document.getElementById('simType').selectedOptions[0].text;
+   emit('sim-run',{simType:sim.type,params:params,label:'Ran the '+simName+' simulation (v='+gV()+' m/s, a='+gA()+' m/s²)'});
    runSim();
  }
  else{ b.textContent='Play'; b.classList.remove('on'); cancelAnimationFrame(animId); }

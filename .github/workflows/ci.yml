@@ -136,6 +136,9 @@ jobs:
       - name: Bridge drift guard (no artefact hand-edited its bridge)
         run: node scripts/build-artefact-bridge.mjs --check
 
+      - name: Broadcast guard (every interactive sim has a labelled commit)
+        run: node scripts/check-artefact-broadcast.mjs
+
       - name: Sandbox tests (bridge dual-channel + serve)
         working-directory: infrastructure/mcp-sandbox
         run: |
