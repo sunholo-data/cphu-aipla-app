@@ -40,8 +40,12 @@
       "description": "Migrate all four artefacts (boldkast, kinebot, led-planck, _template) to the shared bridge: one marked @aipla-bridge region + sim-authored call-sites (init, onChatFlush/onHostNotification, emit). Emitted JSON-RPC shape byte-unchanged for the 3 live sims; _template gains JSON-RPC + window.openai (retires the flat {source,type} format).",
       "scope": "frontend",
       "estimated_loc": 120,
-      "actual_loc": null,
+      "actual_loc": 120,
       "dependencies": ["M1-BRIDGE-TOOLING"],
+      "passes": true,
+      "started": "2026-07-04",
+      "completed": "2026-07-04",
+      "notes": "All 4 stamped via make sim-build; sim-build-check green (byte-identical). Verified: no orphaned bridge internals in app code (awk-strip anchored on the HTML <!-- markers, not the bridge's self-referential comment); every real <script> block parses (new Function parse-only, HTML comments stripped — the template's line-14 <!-- ... <script> ... --> is a doc comment, harmless); window.openai present in all 4 (was 0); ui/update-model-context in _template (was flat {source,type}). kinebot keeps set-topic via onHostNotification; boldkast/led-planck via onChatFlush; local emit() wrappers preserve each sim's namespace prefix so call-sites are unchanged. NO-REGRESSION: 59 frontend consumer tests (GenericArtefactFrame/StaticArtefactFrame/useArtefactReportEvent/proactiveEventCheck) pass with ZERO edits. Sizes 20-46 KB, well under ADR-013 200 KB. NOTE: boldkast now emits a derived content text on every event (was label-only) — app-inert (frontend ignores content) + better for ChatGPT; follow-up still gated on label so passive settles stay silent.",
       "acceptance_criteria": [
         "make sim-build-check green: all four artefacts' bridge regions byte-identical to the canonical source",
         "grep -c 'window.openai' artefacts/*/v1/index.html -> 1 per file (was 0)",
@@ -56,11 +60,7 @@
         "infrastructure/mcp-sandbox/artefacts/kinebot/v1/index.html",
         "infrastructure/mcp-sandbox/artefacts/led-planck/v1/index.html",
         "infrastructure/mcp-sandbox/artefacts/_template/v1/index.html"
-      ],
-      "passes": null,
-      "started": null,
-      "completed": null,
-      "notes": null
+      ]
     },
     {
       "id": "M3-CI-GUARD-HYGIENE",
