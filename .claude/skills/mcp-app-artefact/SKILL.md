@@ -688,19 +688,22 @@ What actually shipped + what we learned:
 - Slider drag resets reveals — student must re-commit per parameter set.
 - Component / position graphs that ride the main animation cursor.
   Excellent for visualising decomposition-type misconceptions.
-- postMessage events `{source: name, type: name + ".event"}` with stable
-  names: `open / play / pause / reset / param.change / show_value`.
-  Boldkast also emits per-marker `show_value` so OTel sees which answers
-  the student revealed.
-- **Field-name discipline on emit():** the host validates `e.data.source
-  === "<artefact-name>"` to namespace messages. So the `extra` object
-  passed to `emit()` MUST NOT include a key named `source` — it'll
-  override the namespace via Object.assign and the host will reject
-  the message as cross-namespace. Use `triggeredBy` for "where did
-  this event come from" (slider vs preset click), `marker` for which
-  answer-marker, `param` for which parameter changed, etc. Reserved
-  field names enforced by convention only — easy to typo, easy to
-  catch in a Playwright test.
+- Telemetry events via the **shared guest bridge** — `emit("<name>.<event>", extra)`
+  → a SEP-1865 `ui/update-model-context` JSON-RPC message (`structuredContent`
+  carries the payload). Stable event names: `open / play / pause / reset /
+  param.change / show_value / state-change`. Boldkast also emits per-marker
+  `show_value` so OTel sees which answers the student revealed. **The old flat
+  `{source, type}` postMessage format is retired** (1.1.54) — the current
+  frontend reads only `structuredContent`.
+- **Field-name discipline on emit():** put the event vocabulary in `extra`.
+  Reserved keys the frontend's `useArtefactReportEvent` hook understands:
+  `triggeredBy` ("where did this come from" — slider vs preset click), `marker`
+  (which answer-marker), `param` (which parameter changed), `value`, `revealed`.
+  `extra.label` is special: a curated human string ("Afspillede med v₀=15 m/s")
+  that marks a **deliberate commit** — it renders the trust card in the AIPLA app
+  AND fires a ChatGPT `sendFollowUpMessage` turn. Omit `label` on passive/
+  continuous events so they stay silent. Reserved names are convention-only —
+  easy to typo, easy to catch in a Playwright test.
 - Self-test on `?test=1` — flips `document.title` to "TEST PASS" or
   "TEST FAIL". CI can probe headlessly.
 - Danish-first copy; pedagogical-warning panel ("Værdierne er skjult
@@ -773,12 +776,17 @@ PEDAGOGICAL CONSTRAINTS:
    Decimal separator: comma (e.g. "4,74 m" not "4.74 m").
 
 TELEMETRY / AGENT-OBSERVABILITY:
-10. Emit postMessage events on every pedagogically meaningful user
-    action so the host (and the agent through it) can observe what
-    the student is doing inside the iframe. Pattern:
-        parent.postMessage(
-          { source: "<artefact-name>", type: "<artefact-name>.<verb>",
-            ...payload }, "*");
+10. Emit events on every pedagogically meaningful user action so the host
+    (and the agent through it) can observe what the student is doing inside
+    the iframe. Use the shared guest bridge — do NOT hand-roll postMessage:
+        emit("<verb>", { ...payload });   // local wrapper namespaces to
+                                          // "<artefact-name>.<verb>" and calls
+                                          // AIPLA_BRIDGE.emit(...)
+    The bridge (inlined AIPLA_BRIDGE block, generated from
+    bridge/aipla-mcp-bridge.js) turns this into a SEP-1865
+    `ui/update-model-context` for the AIPLA app AND a window.openai
+    setWidgetState/sendFollowUpMessage for ChatGPT. Never write the old flat
+    `{source, type}` postMessage — it is retired (1.1.54).
     Mandatory event verbs (use these literal strings — the host has
     handlers keyed on them):
       - "open"          — fired once on artefact load.
@@ -903,23 +911,32 @@ Re-run the Step 1 audit greps. All matches should be zero.
 
 ### Step 3 — Wire (telemetry events)
 
-Add the JSON-RPC handshake + emit helpers (~30 LoC inline; copy from
-the Boldkast / LED Planck artefact). Then wire each pedagogically
-meaningful event hook through `emit()`:
+**Do NOT copy the handshake from another sim.** The transport is the shared
+guest bridge — one canonical `AIPLA_BRIDGE` inlined into every artefact from
+`infrastructure/mcp-sandbox/bridge/aipla-mcp-bridge.js` by `make sim-build`
+(CI's `sim-bridge` job fails on drift). A sim scaffolded from `_template`
+already carries the marked `@aipla-bridge` region; you only write the
+sim-authored call-sites:
 
 ```js
-emit("<artefact-name>.<event>", { ...payload });
-// → translated to:
-// rpcNotify("ui/update-model-context", {
-//   structuredContent: { kind: "<artefact-name>.<event>", ...payload }
-// });
+// 1. A local emit() that namespaces your event kinds (kept identical to
+//    every call-site you already have):
+function emit(event, payload) { return AIPLA_BRIDGE.emit("<artefact-name>." + event, payload); }
+// emit("state-change", { state, label }) → ui/update-model-context for the
+// AIPLA app + window.openai setWidgetState/sendFollowUpMessage for ChatGPT.
+
+// 2. At the bottom of your script, run the handshake once:
+AIPLA_BRIDGE.init({ name: "<artefact-name>", version: "1.0.0" });
+
+// 3. (optional) React any host → iframe notification to app state:
+AIPLA_BRIDGE.onChatFlush(function () { flushPendingChanges("chat-submit"); });
+AIPLA_BRIDGE.onHostNotification("<artefact-name>.set-topic", function (p) { applyTopic(p.topic); });
 ```
 
-If lesson navigation moves to React (typical for any
-multi-topic / multi-mode external artefact), also add the
-host → artefact notification listener so the React workbench can push
-state IN. See [Host → artefact notifications]
-(#host--artefact-notifications-set-state-pattern).
+If you need to change the transport itself, edit
+`bridge/aipla-mcp-bridge.js` and run `make sim-build` — never hand-edit the
+inlined copy (CI catches it). See
+[docs/design/aipla/v1.1.0-feedback/shared-mcp-app-bridge.md](../../../docs/design/aipla/v1.1.0-feedback/shared-mcp-app-bridge.md).
 
 ### Step 4 — Extract (system prompt → SKILL.md)
 

@@ -82,10 +82,10 @@
         ".claude/skills/mcp-app-artefact/SKILL.md",
         "Makefile"
       ],
-      "passes": null,
-      "started": null,
-      "completed": null,
-      "notes": null
+      "passes": true,
+      "started": "2026-07-04",
+      "completed": "2026-07-04",
+      "notes": "ci.yml: new sim-bridge job (node 22) runs `node scripts/build-artefact-bridge.mjs --check` + the sandbox vitest (npm ci + test + lint) — also fills a gap (sandbox vitest wasn't in CI before). YAML validates; jobs now backend/local-mode-safety/frontend/sim-bridge/security-audit/seed-reminder. SKILL.md: rewrote the 3 drift-teaching spots (flat {source,type} doc, TELEMETRY item 10, Step 3 'copy the handshake') to point at AIPLA_BRIDGE + make sim-build + the label-gated commit rule. new-artefact.sh: added a 'do not hand-edit the @aipla-bridge block' note. Makefile help lists sim-build/sim-build-check (done in M1). SELF-TEST: scaffolded a throwaway sim via new-artefact.sh -> it carried the bridge (window.openai:5, ui/update-model-context:2) and passed --check immediately (5/5), proving future sims get both-host compat for free; cleaned up."
     },
     {
       "id": "M4-VERIFY",

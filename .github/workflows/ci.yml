@@ -114,6 +114,35 @@ jobs:
       - name: Test
         run: CI=true npm run test:run
 
+  sim-bridge:
+    # Per docs/design/aipla/v1.1.0-feedback/shared-mcp-app-bridge.md
+    # Drift guard: every artefact inlines ONE canonical MCP App guest bridge
+    # (bridge/aipla-mcp-bridge.js). Fail if any inlined copy diverged from the
+    # source (i.e. someone hand-edited an artefact's bridge instead of editing
+    # the source + `make sim-build`). Also runs the sandbox vitest, which
+    # includes the bridge's dual-channel (postMessage + window.openai) tests.
+    name: Sim bridge (drift guard + sandbox tests)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: infrastructure/mcp-sandbox/package-lock.json
+
+      - name: Bridge drift guard (no artefact hand-edited its bridge)
+        run: node scripts/build-artefact-bridge.mjs --check
+
+      - name: Sandbox tests (bridge dual-channel + serve)
+        working-directory: infrastructure/mcp-sandbox
+        run: |
+          npm ci
+          npm run test
+          npm run lint
+
   security-audit:
     # Per docs/design/aipla/v1.1.0-feedback/security-monitoring-pipeline.md
     # Layer 1: fails PRs on new HIGH/CRITICAL CVEs in production deps across
