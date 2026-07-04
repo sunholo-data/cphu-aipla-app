@@ -30,10 +30,10 @@
         "Makefile",
         "cli/aiplatform/commands/sim.py"
       ],
-      "passes": null,
-      "started": null,
-      "completed": null,
-      "notes": null
+      "passes": true,
+      "started": "2026-07-04",
+      "completed": "2026-07-04",
+      "notes": "Canonical bridge infrastructure/mcp-sandbox/bridge/aipla-mcp-bridge.js (dual-channel emit: postMessage + window.openai; follow-up gated on extra.label NOT content so passive settles stay silent; __contentText folded in). scripts/build-artefact-bridge.mjs (write + --check + --root override). make sim-build/sim-build-check + aiplatform sim build [--check]. Tests: 12 sandbox vitest (zero-dep, evals bridge against a fake window) + 5 pytest (real mjs against a temp fixture tree via --root). Sandbox 33/33 vitest + tsc clean; cli ruff check+format clean."
     },
     {
       "id": "M2-MIGRATE-ARTEFACTS",

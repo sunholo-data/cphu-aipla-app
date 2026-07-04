@@ -1,4 +1,4 @@
-.PHONY: dev dev-local dev-recompile dev-status dev-stop proxy-check logs cloud-logs cloud-errors cloud-build verify-chat-logs smoke-session-persistence smoke-chat-resume smoke-curriculum-content smoke-teacher-cli help cli-install cli-reinstall cli-uninstall cli-doctor cli-selftest-mock cli-selftest-live cli-selftest seed seed-demo-codes reset-group-state provision-curriculum-rag seed-curriculum backfill-curriculum-content migrate-clear-persona-voice-override docs-linkcheck
+.PHONY: dev dev-local dev-recompile dev-status dev-stop proxy-check logs cloud-logs cloud-errors cloud-build verify-chat-logs smoke-session-persistence smoke-chat-resume smoke-curriculum-content smoke-teacher-cli help cli-install cli-reinstall cli-uninstall cli-doctor cli-selftest-mock cli-selftest-live cli-selftest seed seed-demo-codes reset-group-state provision-curriculum-rag seed-curriculum backfill-curriculum-content migrate-clear-persona-voice-override docs-linkcheck sim-build sim-build-check
 
 # Seed SKILL.md templates -> Firestore after a deploy that changed any template
 # (avatar, multimodalInput, persona, tools, accessControl, instructions). A code
@@ -260,6 +260,16 @@ cli-selftest:
 security-check:
 	@scripts/security-check.sh
 
+# Inline the canonical MCP App guest bridge into every artefact index.html from
+# the single source of truth (infrastructure/mcp-sandbox/bridge/aipla-mcp-bridge.js).
+# Run after editing the bridge. `sim-build-check` is the CI drift guard.
+# See docs/design/aipla/v1.1.0-feedback/shared-mcp-app-bridge.md.
+sim-build:
+	@node scripts/build-artefact-bridge.mjs
+
+sim-build-check:
+	@node scripts/build-artefact-bridge.mjs --check
+
 help:
 	@echo "make dev                — start backend (1956) + frontend (3456) — cloud mode (real GCP/Vertex)"
 	@echo "make dev-local          — start backend + frontend + MCP sandbox in LOCAL_MODE (pre-seeded group code: local-demo). Auto-clears .next on launch."
@@ -288,3 +298,6 @@ help:
 	@echo "make cli-selftest-live  — diagnostic against running \`make dev\` backend"
 	@echo
 	@echo "make security-check     — run the CI dep-security gate locally (frontend + sandbox + backend audits)"
+	@echo
+	@echo "make sim-build          — inline the canonical MCP App guest bridge into every artefact (edit bridge/aipla-mcp-bridge.js, then run this)"
+	@echo "make sim-build-check    — CI drift guard: fail if any artefact's inlined bridge != the canonical source"

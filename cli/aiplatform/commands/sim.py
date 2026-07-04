@@ -22,6 +22,8 @@ runs, the next steps are:
 from __future__ import annotations
 
 import re
+import shutil
+import subprocess
 from pathlib import Path
 
 import click
@@ -39,8 +41,7 @@ def _find_repo_root() -> Path:
         if (parent / "frontend" / "src" / "_sim-template").is_dir():
             return parent
     raise click.ClickException(
-        "Could not find frontend/src/_sim-template/. "
-        "Run this command from inside the cphu-aipla-app repository."
+        "Could not find frontend/src/_sim-template/. Run this command from inside the cphu-aipla-app repository."
     )
 
 
@@ -131,8 +132,7 @@ def scaffold(
 
     if not hook_template.is_file() or not frame_template.is_file():
         raise click.ClickException(
-            f"Template files missing under {template_dir}. "
-            "Has the _sim-template directory been removed?"
+            f"Template files missing under {template_dir}. Has the _sim-template directory been removed?"
         )
 
     hook_dest = repo_root / "frontend" / "src" / "hooks" / f"use{pascal}Snapshot.ts"
@@ -162,15 +162,10 @@ def scaffold(
     click.echo(f"Created {frame_dest.relative_to(repo_root)}")
     click.echo("")
     click.echo("Next steps (not done by this command):")
+    click.echo(f"  1. Customise the event types + reducer in use{pascal}Snapshot.ts to match your artefact")
+    click.echo(f"  2. Customise handleStructuredContent in {pascal}Frame.tsx to dispatch typed events")
     click.echo(
-        f"  1. Customise the event types + reducer in use{pascal}Snapshot.ts to match your artefact"
-    )
-    click.echo(
-        f"  2. Customise handleStructuredContent in {pascal}Frame.tsx to dispatch typed events"
-    )
-    click.echo(
-        f"  3. Author the artefact at infrastructure/mcp-sandbox/artefacts/{name}/v1/ "
-        "(see the mcp-app-artefact skill)"
+        f"  3. Author the artefact at infrastructure/mcp-sandbox/artefacts/{name}/v1/ (see the mcp-app-artefact skill)"
     )
     click.echo(
         f"  4. Author a skill template at backend/skills/templates/<skill>/SKILL.md "
@@ -180,3 +175,44 @@ def scaffold(
         f"  5. Mount {pascal}Frame in frontend/src/app/chat/[...path]/page.tsx "
         "alongside the existing Boldkast / LED-Planck / KineBot branches"
     )
+
+
+@sim.command()
+@click.option(
+    "--check",
+    is_flag=True,
+    help="Verify (don't write) that every artefact's inlined bridge matches the canonical source. Exit 1 on drift.",
+)
+def build(check: bool) -> None:
+    """Inline the canonical MCP App guest bridge into every artefact.
+
+    The bridge is the single source of truth at
+    ``infrastructure/mcp-sandbox/bridge/aipla-mcp-bridge.js``; this stamps it into
+    each artefact's ``index.html`` between the ``@aipla-bridge`` markers so all
+    sims speak both the AIPLA app (SEP-1865 postMessage) and ChatGPT
+    (``window.openai``). Thin wrapper over ``scripts/build-artefact-bridge.mjs``
+    (same script Make + CI run). Run after editing the bridge.
+
+    ``--check`` is the drift guard: it writes nothing and exits non-zero if any
+    inlined copy has diverged from the canonical source.
+    """
+    node = shutil.which("node")
+    if node is None:
+        raise click.ClickException("`node` not found on PATH — required to run the bridge build script.")
+
+    repo_root = _find_repo_root()
+    script = repo_root / "scripts" / "build-artefact-bridge.mjs"
+    if not script.is_file():
+        raise click.ClickException(f"Build script missing: {script}")
+
+    cmd = [node, str(script)]
+    if check:
+        cmd.append("--check")
+
+    result = subprocess.run(cmd, cwd=repo_root, capture_output=True, text=True)  # noqa: S603
+    if result.stdout:
+        click.echo(result.stdout, nl=False)
+    if result.stderr:
+        click.echo(result.stderr, nl=False, err=True)
+    if result.returncode != 0:
+        raise click.exceptions.Exit(result.returncode)
