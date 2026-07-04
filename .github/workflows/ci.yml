@@ -140,6 +140,7 @@ jobs:
         working-directory: infrastructure/mcp-sandbox
         run: |
           npm ci
+          npm run build   # serve.test.ts reads public/sandbox.html (a build output, gitignored)
           npm run test
           npm run lint
 
