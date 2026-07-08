@@ -26,6 +26,7 @@ interface FakeWindow {
   removeEventListener: (t: string, cb: (e: { data: any }) => void) => void;
   AIPLA_BRIDGE?: any;
   document?: any;
+  open?: (...args: any[]) => any;
   // test helpers
   __posted: Posted[];
   __deliver: (data: any) => void;
@@ -47,14 +48,25 @@ function makeWindow(openai?: any, bodyHeight = 0): FakeWindow {
     },
     __posted: posted,
     __deliver: (data) => listeners.slice().forEach((cb) => cb({ data })),
-    // minimal document so reportSize() can measure content height
+    // minimal document: measure height (reportSize) + create/append (showAppLink)
     document: {
+      __appended: [] as any[],
       body: {
         scrollHeight: bodyHeight,
         getBoundingClientRect: () => ({ height: bodyHeight }),
+        appendChild(el: any) {
+          (win.document.__appended as any[]).push(el);
+          return el;
+        },
       },
+      createElement: () => ({
+        style: {},
+        setAttribute() {},
+        addEventListener() {},
+      }),
     },
-  } as FakeWindow;
+  };
+  win.open = () => null;
   return win;
 }
 
@@ -265,5 +277,44 @@ describe("reportSize — content height to a window.openai host", () => {
     expect(() => bridge.init({ name: "x", version: "1.0.0" })).not.toThrow();
     // no window.openai → nothing sent on the wire beyond the handshake
     expect(win.__posted.some((m) => m.method === "ui/notifications/size-changed")).toBe(false);
+  });
+});
+
+describe("deep-link CTA — external-host only (advertising → app)", () => {
+  it("injects the 'open in AIPLA' link when window.openai is present (ChatGPT/Copilot)", () => {
+    const win = makeWindow({ setWidgetState() {} }, 300);
+    const bridge = loadBridge(win);
+    bridge.init({ name: "led-planck", version: "1.0.0" });
+    const appended = win.document.__appended;
+    expect(appended).toHaveLength(1);
+    expect(appended[0].href).toContain("aipla-v01-frontend");
+    expect(appended[0].href).toContain("sim=led-planck");
+    expect(appended[0].textContent).toMatch(/AIPLA/);
+  });
+
+  it("does NOT inject the link in the AIPLA app (no window.openai)", () => {
+    const win = makeWindow(undefined, 300);
+    const bridge = loadBridge(win);
+    bridge.init({ name: "boldkast", version: "1.0.0" });
+    expect(win.document.__appended).toHaveLength(0);
+  });
+
+  it("respects init({ appLink: false }) and custom appUrl/label", () => {
+    const off = makeWindow({ setWidgetState() {} }, 300);
+    loadBridge(off).init({ name: "x", appLink: false });
+    expect(off.document.__appended).toHaveLength(0);
+
+    const custom = makeWindow({ setWidgetState() {} }, 300);
+    loadBridge(custom).init({ name: "x", appUrl: "https://example.dk/go", appLinkLabel: "Åbn i appen" });
+    expect(custom.document.__appended[0].href).toBe("https://example.dk/go");
+    expect(custom.document.__appended[0].textContent).toBe("Åbn i appen");
+  });
+
+  it("injects only once, even after a late openai:set_globals", () => {
+    const win = makeWindow({ setWidgetState() {} }, 300);
+    const bridge = loadBridge(win);
+    bridge.init({ name: "x", version: "1.0.0" });
+    bridge.showAppLink(); // idempotent
+    expect(win.document.__appended).toHaveLength(1);
   });
 });

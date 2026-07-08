@@ -37,6 +37,20 @@ So when this reopens, the **first** thing to build is probably the deep-link CTA
 capture staying the gated, maybe-never tail. The rest of this doc (the
 `callTool` mechanism, §6) is the substrate both uses share.
 
+> **SHIPPED 2026-07-08 — the deep-link CTA (M pulled it forward).** Implemented
+> in the canonical bridge (`aipla-mcp-bridge.js`): `AIPLA_BRIDGE.showAppLink()`
+> injects one unobtrusive floating "Open the full tutor in AIPLA ↗" pill **only in
+> an external host** — gated on `window.openai` being present, which ChatGPT/
+> Copilot inject and the AIPLA app's sandbox iframe **never** does, so it can't
+> show in our own app. Click → `window.openai.openExternal({href})` (falls back to
+> a native `_blank` link). href = the deployed app + `?sim=<name>`. Auto-shown on
+> `init` (and on late `openai:set_globals`); disable/customise per sim via
+> `init({ appLink:false | appUrl | appLinkLabel })`. Covered by 4 bridge vitest
+> cases (shows with `window.openai`; not without; respects disable/custom; once
+> only). **Everything below this line stays DEFERRED** — the CTA needs no consent/
+> identity (auth happens in-app post-click); reach telemetry + per-student capture
+> remain gated.
+
 ## 1. Problem
 
 When a sim runs in an **external host** (ChatGPT, M365 Copilot), the student's

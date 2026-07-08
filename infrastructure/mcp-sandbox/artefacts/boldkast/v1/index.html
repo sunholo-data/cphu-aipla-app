@@ -284,6 +284,13 @@
   var __hostContext = null;
   var __handlers = {}; // method -> [cb]
   var __lastReportedHeight = 0;
+  var __appLinkShown = false;
+  var __appLinkOpts = null;
+
+  // Deployed AIPLA app — the deep-link target for the external-host "advertising
+  // → app" CTA (design 1.1.55 §0). Public URL; update per env / when a custom
+  // domain lands. Overridable per-sim via init({ appUrl: "…" }).
+  var APP_URL = "https://aipla-v01-frontend-wgwhd7mspa-lz.a.run.app";
 
   function __post(msg) {
     try {
@@ -445,12 +452,68 @@
     }
   }
 
+  // Deep-link CTA — external-host "advertising → app" (design 1.1.55 §0). Shows
+  // ONLY in an external host: window.openai is injected by ChatGPT/Copilot and
+  // NEVER by the AIPLA app's sandbox iframe, so its presence means "not our app".
+  // Injects one unobtrusive floating pill that opens the deployed app for the
+  // full tutor (agent + persona + research capture). Idempotent + guarded.
+  function showAppLink(opts) {
+    opts = opts || {};
+    if (__appLinkShown || opts.disabled) return;
+    var oa = typeof window !== "undefined" ? window.openai : undefined;
+    if (!oa && !opts.force) return; // no window.openai → the AIPLA app (or Claude) → don't show
+    var doc = typeof window !== "undefined" ? window.document : undefined;
+    if (!doc || !doc.body || typeof doc.createElement !== "function") return;
+    __appLinkShown = true;
+
+    var href = opts.href || APP_URL + (opts.sim ? "?sim=" + encodeURIComponent(opts.sim) : "");
+    var a = doc.createElement("a");
+    a.textContent = opts.label || "Open the full tutor in AIPLA ↗";
+    a.href = href;
+    a.target = "_blank";
+    a.rel = "noopener";
+    a.setAttribute("role", "button");
+    a.style.cssText =
+      "position:fixed;right:12px;bottom:12px;z-index:2147483647;" +
+      "font:600 12px/1 ui-sans-serif,system-ui,-apple-system,sans-serif;" +
+      "padding:8px 12px;border-radius:999px;background:#1e40af;color:#fff;" +
+      "text-decoration:none;box-shadow:0 2px 8px rgba(0,0,0,.25);cursor:pointer";
+    a.addEventListener("click", function (e) {
+      // Prefer the host's vetted external-open affordance; else the <a> opens natively.
+      if (oa && typeof oa.openExternal === "function") {
+        try {
+          e.preventDefault();
+          oa.openExternal({ href: href });
+        } catch (err) {
+          try {
+            window.open(href, "_blank");
+          } catch (e2) {
+            /* best effort */
+          }
+        }
+      }
+    });
+    try {
+      doc.body.appendChild(a);
+    } catch (e) {
+      /* best effort */
+    }
+  }
+
+  function __maybeShowAppLink() {
+    if (__appLinkOpts && __appLinkOpts.disabled) return;
+    showAppLink(__appLinkOpts || {});
+  }
+
   function __setupHostAdaptation() {
     if (typeof window === "undefined") return;
-    // window.openai can be injected slightly after load — re-report on its
-    // (re)injection, and whenever our content reflows.
+    // window.openai can be injected slightly after load — re-run host-dependent
+    // setup on its (re)injection, and re-report size whenever content reflows.
     try {
-      window.addEventListener("openai:set_globals", reportSize);
+      window.addEventListener("openai:set_globals", function () {
+        reportSize();
+        __maybeShowAppLink();
+      });
     } catch (e) {
       /* older engine */
     }
@@ -463,12 +526,22 @@
       }
     }
     reportSize();
+    __maybeShowAppLink();
   }
 
   function init(clientInfo) {
+    clientInfo = clientInfo || {};
     var ci = {
-      name: (clientInfo && clientInfo.name) || "aipla-sim",
-      version: (clientInfo && clientInfo.version) || "1.0.0",
+      name: clientInfo.name || "aipla-sim",
+      version: clientInfo.version || "1.0.0",
+    };
+    // Deep-link CTA options (external-host only). Disable per-sim with
+    // init({ appLink: false }); customise with appUrl / appLinkLabel.
+    __appLinkOpts = {
+      sim: ci.name,
+      href: clientInfo.appUrl,
+      label: clientInfo.appLinkLabel,
+      disabled: clientInfo.appLink === false,
     };
     // If parent isn't a sandbox proxy (standalone testing) this rejects and we
     // flip __initialized so queued emits stop queuing (they become __post
@@ -503,6 +576,7 @@
     },
     initialState: initialState,
     reportSize: reportSize,
+    showAppLink: showAppLink,
   };
 })();
 </script>

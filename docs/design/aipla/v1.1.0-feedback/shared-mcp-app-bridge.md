@@ -324,6 +324,15 @@ A **third** widget→host channel it documents — the **`callTool` mutation
 round-trip** (the only channel that reaches *our* server) — is the basis of a
 separate design: [external-host-research-capture.md](external-host-research-capture.md).
 
+**Also shipped (2026-07-08): the deep-link CTA.** `AIPLA_BRIDGE.showAppLink()`
+injects a floating "Open the full tutor in AIPLA ↗" pill **only in an external
+host** (gated on `window.openai`, which our sandbox iframe never injects → never
+shows in our app). Click → `window.openai.openExternal` (native `_blank`
+fallback), href = deployed app `?sim=<name>`. This is the "external hosts =
+advertising, app = the product" line: discover the sim in ChatGPT/Copilot, click
+through to the app for the real tutor + research capture. Auto on `init`;
+per-sim `init({ appLink:false | appUrl | appLinkLabel })`.
+
 ### 6.3b The `label` audit — every sim must carry a labelled commit (added 2026-07-04)
 
 Live-testing exposed a follow-on gap: the ChatGPT broadcast
