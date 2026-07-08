@@ -1,7 +1,7 @@
 # External-host research capture — the `callTool` mutation round-trip (get ChatGPT/Copilot sim interactions into the AIPLA pipeline)
 
-**Status:** **PROPOSED** (design exploration; gated on an identity/consent decision — not build-now).
-**Priority:** P2 — research-enabling, not pilot-blocking. Unblocks a question asked repeatedly once the sims started rendering in ChatGPT/Copilot.
+**Status:** **DEFERRED / backlog** — decision 2026-07-08 (M): *external-host capture is **not currently scoped**; the `callTool` round-trip is a new channel we may want to use, so this is **captured for a future discussion**, not scheduled.* Confirms this doc's own §11 open question ("AIPLA app for research, external hosts for dissemination" is the line — for now). No code to be written until that discussion reopens it. (Prior status: PROPOSED design exploration.)
+**Priority:** P2 — research-enabling, not pilot-blocking. Parked. Unblocks a question asked repeatedly once the sims started rendering in ChatGPT/Copilot.
 **Estimated:** ~1.5–2d for the *mechanism* (bridge channel + `record_interaction` tool + logging); the *identity/consent* half is an ADR, not an estimate.
 **Scope:** Backend (MCP server tool + logging) + Artefact (bridge channel + per-sim call-sites). No AIPLA-app frontend change.
 **Dependencies:** [shared-mcp-app-bridge.md](shared-mcp-app-bridge.md) (the dual-channel bridge this extends); [external-host-mcp-apps.md](external-host-mcp-apps.md) (1.1.49 — the `/api/mcp` endpoint + `ui://` sims); the `mcp-app-deploy-test` global skill's `host-compliance.md` (documents the `callTool` / `callServerTool` round-trip). ADR-001 (anonymous-group auth) — the crux of the hard half.
