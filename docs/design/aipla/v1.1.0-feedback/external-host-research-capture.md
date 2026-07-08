@@ -1,11 +1,41 @@
 # External-host research capture — the `callTool` mutation round-trip (get ChatGPT/Copilot sim interactions into the AIPLA pipeline)
 
-**Status:** **DEFERRED / backlog** — decision 2026-07-08 (M): *external-host capture is **not currently scoped**; the `callTool` round-trip is a new channel we may want to use, so this is **captured for a future discussion**, not scheduled.* Confirms this doc's own §11 open question ("AIPLA app for research, external hosts for dissemination" is the line — for now). No code to be written until that discussion reopens it. (Prior status: PROPOSED design exploration.)
+**Status:** **DEFERRED / backlog** — decision 2026-07-08 (M): *external-host capture is **not currently scoped**; the `callTool` round-trip is a new channel we may want to use, so this is **captured for a future discussion**, not scheduled.* Confirms this doc's own §11 open question ("AIPLA app for research, external hosts for dissemination" is the line — for now). No code to be written until that discussion reopens it. **Likely direction when it does — §0:** external hosts as an *advertising/discovery* surface with a deep-link CTA into the deployed app for full teaching+support (which sidesteps the identity/consent problem). (Prior status: PROPOSED design exploration.)
 **Priority:** P2 — research-enabling, not pilot-blocking. Parked. Unblocks a question asked repeatedly once the sims started rendering in ChatGPT/Copilot.
 **Estimated:** ~1.5–2d for the *mechanism* (bridge channel + `record_interaction` tool + logging); the *identity/consent* half is an ADR, not an estimate.
 **Scope:** Backend (MCP server tool + logging) + Artefact (bridge channel + per-sim call-sites). No AIPLA-app frontend change.
 **Dependencies:** [shared-mcp-app-bridge.md](shared-mcp-app-bridge.md) (the dual-channel bridge this extends); [external-host-mcp-apps.md](external-host-mcp-apps.md) (1.1.49 — the `/api/mcp` endpoint + `ui://` sims); the `mcp-app-deploy-test` global skill's `host-compliance.md` (documents the `callTool` / `callServerTool` round-trip). ADR-001 (anonymous-group auth) — the crux of the hard half.
 **Source:** 2026-07-04–07 thread — once the sims rendered + broadcast in ChatGPT (1.1.54), the recurring question was *"does ChatGPT also record chat/interactions, and how do we get that into research?"* The answer surfaced from the deploy-test skill: the two channels we ship (`setWidgetState` / `sendFollowUpMessage`) are one-way *notify* to the host's model and **never touch our server**; a widget-initiated **`callTool`** is the only channel that routes back through our MCP server — i.e. the only one we can observe.
+
+## 0. Product framing (M, 2026-07-08) — the likely direction for the future discussion
+
+> External hosts could be **"advertising" our sims** — a discovery / storefront
+> surface where a student or teacher (already in ChatGPT / Copilot / Teams) meets
+> a physics sim, plays with it, and gets a taste. **For full teaching + support
+> — our tutor (ADK agent, persona, Danish Socratic prompt, thinking budget),
+> research capture, engagement signals, teacher analytics — we link out to the
+> deployed AIPLA app.**
+
+This reframes the channel and **largely dissolves the §7 identity/consent
+problem**: the external host is low-commitment discovery (the host's model gives a
+taste), and the moment a student wants the *real* experience they click through to
+the app — where join-code auth (ADR-001), the consent gate (1.1.3), and the full
+research pipeline **already exist**. So we don't need to solve
+attribution-inside-ChatGPT; we need a good **"Open the full tutor in AIPLA →"
+call-to-action**.
+
+**Two distinct uses of the channel fall out — very different cost/consent:**
+
+| Use | Mechanism | Consent/identity | Value |
+|---|---|---|---|
+| **Deep-link conversion** (discovery → app) | a "Continue in AIPLA" affordance in the sim → `window.openai.openExternal({href})` / `setOpenInAppUrl({href})` (ChatGPT/Copilot; plain link elsewhere), href = deep-link to the deployed app (optionally sim-preselected / join flow) | **none needed** — it's just a link; real auth/consent happen in the app | **high, low-cost** — turns dissemination into engagement |
+| **Anonymous reach telemetry** | the `callServerTool` round-trip (§6) firing an *aggregate* "sim opened / CTA clicked in external host" event — no per-student id | **none** (aggregate, no PII) | marketing/reach signal ("how many met the sim in ChatGPT") |
+| Per-student research capture (the rest of this doc) | `record_interaction` + identity binding | **ADR (hard)** | deferred — only if a study needs in-host behaviour |
+
+So when this reopens, the **first** thing to build is probably the deep-link CTA
+(cheap, no consent, directly serves "advertising → app"), with per-student research
+capture staying the gated, maybe-never tail. The rest of this doc (the
+`callTool` mechanism, §6) is the substrate both uses share.
 
 ## 1. Problem
 
