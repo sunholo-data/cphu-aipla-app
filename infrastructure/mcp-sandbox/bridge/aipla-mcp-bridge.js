@@ -42,6 +42,7 @@
   var __pendingEmits = [];
   var __hostContext = null;
   var __handlers = {}; // method -> [cb]
+  var __lastReportedHeight = 0;
 
   function __post(msg) {
     try {
@@ -171,6 +172,58 @@
     });
   }
 
+  // The initial widget state a host restored for this render (ChatGPT/Copilot
+  // persist setWidgetState across navigate-away-and-back). A sim that wants to
+  // restore its UI reads this in its own init: e.g. AIPLA_BRIDGE.initialState().
+  // Returns null in the AIPLA app / Claude (no window.openai). Opt-in per sim.
+  function initialState() {
+    var oa = typeof window !== "undefined" ? window.openai : undefined;
+    return oa && oa.widgetState ? oa.widgetState : null;
+  }
+
+  // Report our content height so a host frame fits it. ChatGPT/Copilot default
+  // the widget iframe to ~600px and only shrink on this signal; we route it
+  // through window.openai only (the AIPLA app owns the workspace-pane height and
+  // Claude/Inspector default frames are fine — sending nothing there avoids
+  // noise). Guarded + best-effort: no-op where the API/host is absent. For a
+  // full-bleed sim (html,body height:100%) body.scrollHeight is the frame
+  // height, so this harmlessly reports the current size.
+  function reportSize() {
+    var oa = typeof window !== "undefined" ? window.openai : undefined;
+    if (!oa || typeof oa.notifyIntrinsicHeight !== "function") return;
+    var doc = typeof window !== "undefined" ? window.document : undefined;
+    if (!doc || !doc.body) return;
+    var rect = doc.body.getBoundingClientRect ? doc.body.getBoundingClientRect() : { height: 0 };
+    var h = Math.ceil(Math.max(doc.body.scrollHeight || 0, rect.height || 0));
+    if (!h || h === __lastReportedHeight) return;
+    __lastReportedHeight = h;
+    try {
+      oa.notifyIntrinsicHeight(h);
+    } catch (e) {
+      /* best effort */
+    }
+  }
+
+  function __setupHostAdaptation() {
+    if (typeof window === "undefined") return;
+    // window.openai can be injected slightly after load — re-report on its
+    // (re)injection, and whenever our content reflows.
+    try {
+      window.addEventListener("openai:set_globals", reportSize);
+    } catch (e) {
+      /* older engine */
+    }
+    var doc = window.document;
+    if (typeof ResizeObserver !== "undefined" && doc && doc.body) {
+      try {
+        new ResizeObserver(reportSize).observe(doc.body);
+      } catch (e) {
+        /* best effort */
+      }
+    }
+    reportSize();
+  }
+
   function init(clientInfo) {
     var ci = {
       name: (clientInfo && clientInfo.name) || "aipla-sim",
@@ -194,6 +247,9 @@
         __initialized = true;
         __pendingEmits.length = 0;
       });
+    // Independent of the postMessage handshake (which never resolves under
+    // ChatGPT): adapt to a window.openai host + report our size.
+    __setupHostAdaptation();
   }
 
   window.AIPLA_BRIDGE = {
@@ -204,5 +260,7 @@
     hostContext: function () {
       return __hostContext;
     },
+    initialState: initialState,
+    reportSize: reportSize,
   };
 })();

@@ -25,12 +25,13 @@ interface FakeWindow {
   addEventListener: (t: string, cb: (e: { data: any }) => void) => void;
   removeEventListener: (t: string, cb: (e: { data: any }) => void) => void;
   AIPLA_BRIDGE?: any;
+  document?: any;
   // test helpers
   __posted: Posted[];
   __deliver: (data: any) => void;
 }
 
-function makeWindow(openai?: any): FakeWindow {
+function makeWindow(openai?: any, bodyHeight = 0): FakeWindow {
   const listeners: Array<(e: { data: any }) => void> = [];
   const posted: Posted[] = [];
   const win: FakeWindow = {
@@ -46,7 +47,14 @@ function makeWindow(openai?: any): FakeWindow {
     },
     __posted: posted,
     __deliver: (data) => listeners.slice().forEach((cb) => cb({ data })),
-  };
+    // minimal document so reportSize() can measure content height
+    document: {
+      body: {
+        scrollHeight: bodyHeight,
+        getBoundingClientRect: () => ({ height: bodyHeight }),
+      },
+    },
+  } as FakeWindow;
   return win;
 }
 
@@ -217,5 +225,45 @@ describe("host→iframe notifications", () => {
       throw new Error("boom");
     });
     expect(() => win.__deliver({ jsonrpc: "2.0", method: "ui/notifications/chat-flush" })).not.toThrow();
+  });
+});
+
+describe("initialState — restore host-persisted widget state (ChatGPT/Copilot)", () => {
+  it("returns window.openai.widgetState when present", () => {
+    const win = makeWindow({ widgetState: { thetaDegrees: 40 } });
+    const bridge = loadBridge(win);
+    expect(bridge.initialState()).toEqual({ thetaDegrees: 40 });
+  });
+
+  it("returns null in the AIPLA app / Claude (no window.openai)", () => {
+    const bridge = loadBridge(makeWindow(undefined));
+    expect(bridge.initialState()).toBeNull();
+  });
+});
+
+describe("reportSize — content height to a window.openai host", () => {
+  it("calls notifyIntrinsicHeight with the body content height on init", () => {
+    const openai = { notifyIntrinsicHeight: vi.fn() };
+    const win = makeWindow(openai, 480);
+    const bridge = loadBridge(win);
+    bridge.init({ name: "boldkast", version: "1.0.0" });
+    expect(openai.notifyIntrinsicHeight).toHaveBeenCalledWith(480);
+  });
+
+  it("de-dupes — no repeat call when the height is unchanged", () => {
+    const openai = { notifyIntrinsicHeight: vi.fn() };
+    const win = makeWindow(openai, 300);
+    const bridge = loadBridge(win);
+    bridge.init({ name: "x", version: "1.0.0" });
+    bridge.reportSize();
+    expect(openai.notifyIntrinsicHeight).toHaveBeenCalledTimes(1);
+  });
+
+  it("is a no-op when the host lacks notifyIntrinsicHeight (AIPLA app / Claude)", () => {
+    const win = makeWindow(undefined, 480);
+    const bridge = loadBridge(win);
+    expect(() => bridge.init({ name: "x", version: "1.0.0" })).not.toThrow();
+    // no window.openai → nothing sent on the wire beyond the handshake
+    expect(win.__posted.some((m) => m.method === "ui/notifications/size-changed")).toBe(false);
   });
 });

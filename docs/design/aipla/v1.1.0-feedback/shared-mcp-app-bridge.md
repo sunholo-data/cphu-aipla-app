@@ -304,6 +304,26 @@ If it does, gate the `window.openai` follow-up on the absence of a resolved
 postMessage host. This is the §8 "double-signal in a hypothetical dual host" risk
 made concrete — Copilot is that host.
 
+### 6.3c Cross-referenced with the `mcp-app-deploy-test` skill (added 2026-07-08)
+
+An independent cross-host reference (the global `mcp-app-deploy-test` skill's
+`host-compliance.md` + scaffold `widget.html`) confirmed our dual-bridge +
+dual-metadata design, and surfaced two additive bridge improvements now shipped
+in `aipla-mcp-bridge.js`:
+
+- **`reportSize()`** — reports content height to a `window.openai` host via
+  `notifyIntrinsicHeight` (ChatGPT/Copilot default the widget frame to ~600px and
+  only shrink on this). Routed through `window.openai` **only** (the AIPLA app
+  owns the workspace-pane height; Claude/Inspector default frames are fine —
+  sending nothing there avoids noise). Guarded; auto-fires after `init` + on a
+  `ResizeObserver`. Full-bleed sims (kinebot) harmlessly report the frame height.
+- **`initialState()`** — returns `window.openai.widgetState` so a sim can restore
+  its UI when a host re-renders it (opt-in per sim; null in the AIPLA app).
+
+A **third** widget→host channel it documents — the **`callTool` mutation
+round-trip** (the only channel that reaches *our* server) — is the basis of a
+separate design: [external-host-research-capture.md](external-host-research-capture.md).
+
 ### 6.3b The `label` audit — every sim must carry a labelled commit (added 2026-07-04)
 
 Live-testing exposed a follow-on gap: the ChatGPT broadcast
