@@ -325,13 +325,17 @@ round-trip** (the only channel that reaches *our* server) — is the basis of a
 separate design: [external-host-research-capture.md](external-host-research-capture.md).
 
 **Also shipped (2026-07-08): the deep-link CTA.** `AIPLA_BRIDGE.showAppLink()`
-injects a floating "Open the full tutor in AIPLA ↗" pill **only in an external
-host** (gated on `window.openai`, which our sandbox iframe never injects → never
-shows in our app). Click → `window.openai.openExternal` (native `_blank`
-fallback), href = deployed app `?sim=<name>`. This is the "external hosts =
-advertising, app = the product" line: discover the sim in ChatGPT/Copilot, click
-through to the app for the real tutor + research capture. Auto on `init`;
-per-sim `init({ appLink:false | appUrl | appLinkLabel })`.
+injects a floating "Open the full tutor in AIPLA ↗" pill **only in a host that
+isn't the AIPLA app** — detected via the **open standard**, not the OpenAI shim:
+our app answers the `ui/initialize` handshake with `serverInfo.name: "aipla-host"`,
+so the bridge shows the CTA when the resolved `serverInfo` is *anything else*
+(Claude, Inspector, Goose, Copilot), **plus** when `window.openai` is present
+(ChatGPT, which never answers the handshake). Deny-by-default: standalone / no
+signal → not shown. (An earlier pass gated only on `window.openai`, which is
+ChatGPT-specific — Copilot ships it as a *compat shim* and the pure-standard
+hosts don't ship it at all; the standard-based check covers them.) Click →
+`window.openai.openExternal` (native `_blank` fallback), href = deployed app
+`?sim=<name>`. Auto on `init`; per-sim `init({ appLink:false | appUrl | appLinkLabel })`.
 
 ### 6.3b The `label` audit — every sim must carry a labelled commit (added 2026-07-04)
 

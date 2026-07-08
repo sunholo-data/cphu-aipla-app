@@ -40,16 +40,21 @@ capture staying the gated, maybe-never tail. The rest of this doc (the
 > **SHIPPED 2026-07-08 — the deep-link CTA (M pulled it forward).** Implemented
 > in the canonical bridge (`aipla-mcp-bridge.js`): `AIPLA_BRIDGE.showAppLink()`
 > injects one unobtrusive floating "Open the full tutor in AIPLA ↗" pill **only in
-> an external host** — gated on `window.openai` being present, which ChatGPT/
-> Copilot inject and the AIPLA app's sandbox iframe **never** does, so it can't
-> show in our own app. Click → `window.openai.openExternal({href})` (falls back to
-> a native `_blank` link). href = the deployed app + `?sim=<name>`. Auto-shown on
-> `init` (and on late `openai:set_globals`); disable/customise per sim via
-> `init({ appLink:false | appUrl | appLinkLabel })`. Covered by 4 bridge vitest
-> cases (shows with `window.openai`; not without; respects disable/custom; once
-> only). **Everything below this line stays DEFERRED** — the CTA needs no consent/
-> identity (auth happens in-app post-click); reach telemetry + per-student capture
-> remain gated.
+> a host that isn't the AIPLA app**. Detection uses the **open standard**, not the
+> OpenAI-specific `window.openai`: our app answers `ui/initialize` with
+> `serverInfo.name: "aipla-host"`, so the CTA shows when the resolved `serverInfo`
+> is anything else (Claude, Inspector, Goose, Copilot) **or** when `window.openai`
+> is present (ChatGPT never answers the handshake). Deny-by-default (standalone /
+> no signal → hidden). *Correction from the first pass, which gated only on
+> `window.openai` — that is ChatGPT-specific (Copilot ships it as a compat shim;
+> pure-standard hosts don't ship it), so it missed the standard hosts.* Click →
+> `window.openai.openExternal({href})` (native `_blank` fallback); href = deployed
+> app + `?sim=<name>`. Auto on `init` + late `openai:set_globals`; per-sim
+> `init({ appLink:false | appUrl | appLinkLabel })`. Covered by 7 bridge vitest
+> cases (ChatGPT via window.openai; foreign SEP-1865 host; suppressed for
+> aipla-host; standalone deny; disable/custom; once-only). **Everything below this
+> line stays DEFERRED** — the CTA needs no consent/identity (auth happens in-app
+> post-click); reach telemetry + per-student capture remain gated.
 
 ## 1. Problem
 

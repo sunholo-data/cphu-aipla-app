@@ -280,8 +280,15 @@ describe("reportSize — content height to a window.openai host", () => {
   });
 });
 
-describe("deep-link CTA — external-host only (advertising → app)", () => {
-  it("injects the 'open in AIPLA' link when window.openai is present (ChatGPT/Copilot)", () => {
+/** Resolve the ui/initialize handshake with a chosen serverInfo.name. */
+function completeHandshakeAs(win: FakeWindow, serverName: string) {
+  const initReq = win.__posted.find((m) => m.method === "ui/initialize")!;
+  win.__deliver({ jsonrpc: "2.0", id: initReq.id, result: { serverInfo: { name: serverName } } });
+  return Promise.resolve().then(() => Promise.resolve());
+}
+
+describe("deep-link CTA — 'not our app' via the OPEN STANDARD (not window.openai)", () => {
+  it("shows in ChatGPT — detected by window.openai (never answers the handshake)", () => {
     const win = makeWindow({ setWidgetState() {} }, 300);
     const bridge = loadBridge(win);
     bridge.init({ name: "led-planck", version: "1.0.0" });
@@ -292,10 +299,26 @@ describe("deep-link CTA — external-host only (advertising → app)", () => {
     expect(appended[0].textContent).toMatch(/AIPLA/);
   });
 
-  it("does NOT inject the link in the AIPLA app (no window.openai)", () => {
+  it("shows in a pure-standard MCP Apps host (Claude/Inspector — foreign serverInfo, NO window.openai)", async () => {
     const win = makeWindow(undefined, 300);
     const bridge = loadBridge(win);
     bridge.init({ name: "boldkast", version: "1.0.0" });
+    expect(win.document.__appended).toHaveLength(0); // nothing yet — handshake pending
+    await completeHandshakeAs(win, "claude-desktop");
+    expect(win.document.__appended).toHaveLength(1); // foreign host → CTA shows
+  });
+
+  it("does NOT show in the AIPLA app — serverInfo.name === 'aipla-host'", async () => {
+    const win = makeWindow(undefined, 300);
+    const bridge = loadBridge(win);
+    bridge.init({ name: "boldkast", version: "1.0.0" });
+    await completeHandshakeAs(win, "aipla-host");
+    expect(win.document.__appended).toHaveLength(0);
+  });
+
+  it("does NOT show standalone (no window.openai, no handshake) — deny by default", () => {
+    const win = makeWindow(undefined, 300);
+    loadBridge(win).init({ name: "x", version: "1.0.0" });
     expect(win.document.__appended).toHaveLength(0);
   });
 
@@ -310,7 +333,7 @@ describe("deep-link CTA — external-host only (advertising → app)", () => {
     expect(custom.document.__appended[0].textContent).toBe("Åbn i appen");
   });
 
-  it("injects only once, even after a late openai:set_globals", () => {
+  it("injects only once", () => {
     const win = makeWindow({ setWidgetState() {} }, 300);
     const bridge = loadBridge(win);
     bridge.init({ name: "x", version: "1.0.0" });

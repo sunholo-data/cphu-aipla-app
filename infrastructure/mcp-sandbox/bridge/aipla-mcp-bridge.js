@@ -45,6 +45,14 @@
   var __lastReportedHeight = 0;
   var __appLinkShown = false;
   var __appLinkOpts = null;
+  var __hostIsExternal = false; // a non-AIPLA host (any MCP-Apps host OR ChatGPT)
+  var __hostIsAipla = false; // our own app — identified by serverInfo.name below
+
+  // Our app self-identifies in its ui/initialize response so host detection
+  // uses the OPEN STANDARD, not the OpenAI-specific window.openai shim. Every
+  // other SEP-1865 host (Claude, Inspector, Goose, Copilot) returns a different
+  // serverInfo; ChatGPT never answers the handshake (caught by window.openai).
+  var AIPLA_HOST_NAME = "aipla-host";
 
   // Deployed AIPLA app — the deep-link target for the external-host "advertising
   // → app" CTA (design 1.1.55 §0). Public URL; update per env / when a custom
@@ -211,16 +219,15 @@
     }
   }
 
-  // Deep-link CTA — external-host "advertising → app" (design 1.1.55 §0). Shows
-  // ONLY in an external host: window.openai is injected by ChatGPT/Copilot and
-  // NEVER by the AIPLA app's sandbox iframe, so its presence means "not our app".
-  // Injects one unobtrusive floating pill that opens the deployed app for the
-  // full tutor (agent + persona + research capture). Idempotent + guarded.
+  // Deep-link CTA — external-host "advertising → app" (design 1.1.55 §0). The
+  // low-level injector: drops one unobtrusive floating pill that opens the
+  // deployed app for the full tutor (agent + persona + research capture).
+  // Idempotent + guarded. The SHOW DECISION (which host) is made by
+  // __maybeShowAppLink via the standard handshake — see __hostIsExternal.
   function showAppLink(opts) {
     opts = opts || {};
     if (__appLinkShown || opts.disabled) return;
     var oa = typeof window !== "undefined" ? window.openai : undefined;
-    if (!oa && !opts.force) return; // no window.openai → the AIPLA app (or Claude) → don't show
     var doc = typeof window !== "undefined" ? window.document : undefined;
     if (!doc || !doc.body || typeof doc.createElement !== "function") return;
     __appLinkShown = true;
@@ -259,17 +266,25 @@
     }
   }
 
+  // Show the CTA only when we KNOW we're in a host that isn't the AIPLA app.
+  // external (ChatGPT via window.openai, or any host whose ui/initialize
+  // serverInfo isn't "aipla-host") AND not our app.
   function __maybeShowAppLink() {
     if (__appLinkOpts && __appLinkOpts.disabled) return;
+    if (__hostIsAipla || !__hostIsExternal) return;
     showAppLink(__appLinkOpts || {});
   }
 
   function __setupHostAdaptation() {
     if (typeof window === "undefined") return;
-    // window.openai can be injected slightly after load — re-run host-dependent
-    // setup on its (re)injection, and re-report size whenever content reflows.
+    // ChatGPT never answers the ui/initialize handshake, so it can't be detected
+    // via serverInfo — but it injects window.openai, which is a definitive
+    // "external, not our app" signal. window.openai may arrive slightly after
+    // load → also react to its (re)injection.
+    if (window.openai) __hostIsExternal = true;
     try {
       window.addEventListener("openai:set_globals", function () {
+        __hostIsExternal = true;
         reportSize();
         __maybeShowAppLink();
       });
@@ -312,9 +327,19 @@
     })
       .then(function (result) {
         __hostContext = (result && result.hostContext) || null;
+        // Standard host identification: our own app answers with
+        // serverInfo.name === "aipla-host"; every other SEP-1865 host (Claude,
+        // Inspector, Goose, Copilot) is external → eligible for the app CTA.
+        var srvName = result && result.serverInfo && result.serverInfo.name;
+        if (srvName === AIPLA_HOST_NAME) {
+          __hostIsAipla = true;
+        } else {
+          __hostIsExternal = true;
+        }
         rpcNotify("ui/notifications/initialized", { clientInfo: ci });
         __initialized = true;
         while (__pendingEmits.length) __post(__pendingEmits.shift());
+        __maybeShowAppLink();
       })
       .catch(function () {
         __initialized = true;
