@@ -80,6 +80,7 @@ def _activity_to_config(activity: Activity, *, class_id: str) -> ActivityConfig:
         note=activity.note,
         solution=activity.solution,
         document=activity.document,
+        conceptMap=activity.concept_map,
         materials=activity.materials,
         updatedAt=activity.updated_at or datetime.now(UTC),
     )

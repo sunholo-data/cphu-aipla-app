@@ -20,7 +20,8 @@ export type ElementKind =
   | "calculator"
   | "note"
   | "solution"
-  | "document";
+  | "document"
+  | "conceptMap";
 export type ElementRender = "workspace" | "inline";
 
 export interface ElementDescriptor {
@@ -43,6 +44,9 @@ export const ELEMENT_REGISTRY: Record<ElementKind, ElementDescriptor> = {
   solution: { kind: "solution", label: "Din løsning", render: "workspace", maxItems: 1 },
   // Document-upload surface (1.1.48 — reconciled from workbench_type="document").
   document: { kind: "document", label: "Dokumentupload", render: "workspace", maxItems: 1 },
+  // The living concept map (living-concept-map M0) — one prerequisite DAG per
+  // activity; the tutor's in-session check-off lights its nodes up.
+  conceptMap: { kind: "conceptMap", label: "Begrebskort", render: "workspace", maxItems: 1 },
 };
 
 export const ELEMENT_KINDS = Object.keys(ELEMENT_REGISTRY) as ElementKind[];

@@ -97,6 +97,10 @@ export const elementRenderers: Record<ElementKind, (ctx: ElementRenderContext) =
         onActiveDocChange={ctx.onDocumentActiveChange}
       />
     ) : null,
+  // Living concept map (living-concept-map M0): the student read-only view
+  // mounts in CONCEPT-1 M1 (ConceptMapView); registered now so the registry
+  // mirror stays exhaustive.
+  conceptMap: () => null,
 };
 
 /**

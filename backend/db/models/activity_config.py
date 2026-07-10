@@ -22,6 +22,8 @@ from typing import Literal
 
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
+from db.models.curriculum import StxLevel
+
 Language = Literal["da", "en"]
 Difficulty = Literal["standard", "guided"]
 
@@ -225,6 +227,133 @@ class DocumentElement(BaseModel):
     model_config = ConfigDict(populate_by_name=True)
 
 
+class QuizOption(BaseModel):
+    """One answer option of a check question (the 1.1.19 ``QuizItem`` shape).
+
+    ``correct`` never reaches a *student-facing payload* in the 1.1.19 form-quiz
+    design (Axiom 10). In the chat-native checkpoint flow the whole question set
+    travels only to the MODEL via the ``run_checkpoint`` tool result — see the
+    Axiom-10 note on ``CheckQuestion``.
+    """
+
+    id: str = Field(min_length=1, max_length=64)
+    label: str = Field(min_length=1, max_length=200)
+    correct: bool = False
+
+    model_config = ConfigDict(populate_by_name=True)
+
+
+class CheckQuestion(BaseModel):
+    """A node-bound check question for a chat-native checkpoint (living-concept-map).
+
+    Reuses the 1.1.19 ``QuizItem`` shape (prompt / options / explanation) plus an
+    ``expected_answer`` the tutor judges free-text answers against. ``options``
+    are OPTIONAL — the general principle (M, 2026-07-10) is that student
+    assessment is chat-native: the tutor asks in its own voice, so most check
+    questions are just prompt + expected answer. A non-empty ``options`` list
+    needs 2-6 entries (the 1.1.19 bound).
+
+    Axiom-10 note: ``expected_answer`` (and any ``correct`` flags) are judging
+    material for the MODEL, delivered via the ``run_checkpoint`` tool result —
+    they ride the session stream, which a determined student could inspect.
+    Accepted for the formative dev demo; strip tool-result payloads from
+    student-visible frames before pilot (tracked in concept-map-sprint.md risks).
+    """
+
+    id: str = Field(min_length=1, max_length=64)
+    prompt: str = Field(min_length=1, max_length=500)
+    options: list[QuizOption] = Field(default_factory=list, max_length=6)
+    expected_answer: str = Field(default="", alias="expectedAnswer", max_length=1000)
+    explanation: str = Field(default="", max_length=1000)
+
+    model_config = ConfigDict(populate_by_name=True)
+
+    @model_validator(mode="after")
+    def _options_bound(self) -> CheckQuestion:
+        if self.options and len(self.options) < 2:
+            raise ValueError("options, when given, need at least 2 entries (1.1.19 QuizItem bound)")
+        return self
+
+
+class ConceptNode(BaseModel):
+    """One concept in the activity's prerequisite graph (living-concept-map M0).
+
+    ``id`` is a stable slug (survives relabels — edges and check-off state key on
+    it); ``level`` is the optional stx A/B/C tag; ``dra`` links the node to a DRA
+    map entry (1.K). ``check_questions`` power the chat-native checkpoint.
+    """
+
+    id: str = Field(min_length=1, max_length=64)
+    label: str = Field(min_length=1, max_length=120)
+    level: StxLevel | None = None
+    dra: str | None = Field(default=None, max_length=64)
+    check_questions: list[CheckQuestion] = Field(default_factory=list, alias="checkQuestions", max_length=5)
+
+    model_config = ConfigDict(populate_by_name=True)
+
+
+class ConceptEdge(BaseModel):
+    """A prerequisite edge: ``from`` must be demonstrated before ``to``.
+
+    ``from`` is a Python keyword, hence the ``from_`` field + alias (the design
+    doc's wire shape is ``{"from": ..., "to": ...}``).
+    """
+
+    from_: str = Field(alias="from", min_length=1, max_length=64)
+    to: str = Field(min_length=1, max_length=64)
+    kind: Literal["prerequisite"] = "prerequisite"
+
+    model_config = ConfigDict(populate_by_name=True)
+
+
+class ConceptMapElement(BaseModel):
+    """The teacher-authored living concept map (living-concept-map M0).
+
+    A prerequisite DAG over the activity's concepts. A *list* rendering is a
+    projection of this same data (nodes in topological/teacher order) — one data
+    shape, two view modes. Cycle-guarded: prerequisite edges must form a DAG, so
+    a student always has a well-defined "what's next".
+    """
+
+    id: str = Field(min_length=1, max_length=64)
+    title: str = Field(default="", max_length=120)
+    nodes: list[ConceptNode] = Field(default_factory=list, max_length=30)
+    edges: list[ConceptEdge] = Field(default_factory=list, max_length=60)
+
+    model_config = ConfigDict(populate_by_name=True)
+
+    @model_validator(mode="after")
+    def _validate_graph(self) -> ConceptMapElement:
+        ids = [n.id for n in self.nodes]
+        id_set = set(ids)
+        if len(ids) != len(id_set):
+            dupes = sorted({i for i in ids if ids.count(i) > 1})
+            raise ValueError(f"duplicate node ids: {dupes}")
+        for e in self.edges:
+            if e.from_ == e.to:
+                raise ValueError(f"edge from {e.from_!r} to itself forms a cycle")
+            unknown = {e.from_, e.to} - id_set
+            if unknown:
+                raise ValueError(f"edge references unknown node ids: {sorted(unknown)}")
+        # Kahn's algorithm — reject any cycle (prerequisites must be a DAG).
+        indegree = dict.fromkeys(id_set, 0)
+        for e in self.edges:
+            indegree[e.to] += 1
+        queue = [nid for nid, deg in indegree.items() if deg == 0]
+        seen = 0
+        while queue:
+            nid = queue.pop()
+            seen += 1
+            for e in self.edges:
+                if e.from_ == nid:
+                    indegree[e.to] -= 1
+                    if indegree[e.to] == 0:
+                        queue.append(e.to)
+        if seen != len(id_set):
+            raise ValueError("prerequisite edges contain a cycle — the concept map must be a DAG")
+        return self
+
+
 # Workbench type system (1.J expanded-workbench-types). ``none`` is a
 # first-class, no-simulator activity (chat-only Socratic dialogue, the
 # v1.1 teacher-authoring headline). ``app`` is a paired MCP-App sim.
@@ -254,7 +383,7 @@ WorkbenchType = Literal["app", "drawing", "sensor", "video", "notebook", "docume
 # v1.1 ships the ``checklist`` (M0) + ``table`` (M1) + ``chart`` (M2) +
 # ``calculator`` (M3) + ``note`` (M4 — the teacher-authored instructions /
 # reference element). ``quiz`` (inline, A2UI) joins when 1.1.19 M2 builds it.
-ElementKind = Literal["checklist", "table", "chart", "calculator", "note", "solution", "document"]
+ElementKind = Literal["checklist", "table", "chart", "calculator", "note", "solution", "document", "conceptMap"]
 ElementRender = Literal["workspace", "inline"]
 
 
@@ -290,6 +419,10 @@ ELEMENT_REGISTRY: dict[ElementKind, ElementSpec] = {
     # One document-upload surface per activity (JB-1 "din fil"); reconciled from
     # the legacy workbench_type="document" mode (1.1.48).
     "document": ElementSpec(kind="document", field="document", max_items=1, render="workspace"),
+    # One living concept map per activity (living-concept-map M0) — the
+    # prerequisite DAG the tutor checks off in-session. Per-map node/edge
+    # bounds live on ``ConceptMapElement`` itself.
+    "conceptMap": ElementSpec(kind="conceptMap", field="concept_map", max_items=1, render="workspace"),
 }
 
 
@@ -337,6 +470,9 @@ class ActivityConfig(BaseModel):
     solution: list[SolutionElement] = Field(default_factory=list)
     # Document-upload element (1.1.48 — reconciled from workbench_type="document").
     document: list[DocumentElement] = Field(default_factory=list)
+    # The living concept map (living-concept-map M0) — prerequisite DAG +
+    # per-node check questions; the in-session check-off keys on its node ids.
+    concept_map: list[ConceptMapElement] = Field(default_factory=list, alias="conceptMap")
     # Curriculum documents cited for this activity (1.1.25 M3). The tutor
     # retrieval tool is scoped to ONLY these docs (student deny-by-default).
     materials: list[MaterialRef] = Field(default_factory=list)
@@ -404,7 +540,11 @@ __all__ = [
     "CalculatorElement",
     "ChartElement",
     "ChartKind",
+    "CheckQuestion",
     "ChecklistItem",
+    "ConceptEdge",
+    "ConceptMapElement",
+    "ConceptNode",
     "Difficulty",
     "ElementKind",
     "ElementRender",
@@ -413,6 +553,7 @@ __all__ = [
     "Language",
     "MaterialRef",
     "NoteElement",
+    "QuizOption",
     "TableColumn",
     "TableElement",
     "WorkbenchType",

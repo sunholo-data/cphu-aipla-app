@@ -1,0 +1,159 @@
+{
+  "sprint_id": "CONCEPT-1",
+  "created": "2026-07-10T12:53:24Z",
+  "estimated_duration_days": 2,
+  "design_doc": "docs/design/aipla/v1.1.0-feedback/living-concept-map.md",
+  "sprint_plan": "docs/design/aipla/v1.1.0-feedback/concept-map-sprint.md",
+  "features": [
+    {
+      "id": "M0",
+      "description": "Data model + registry + BOTH stores: CheckQuestion/ConceptNode/ConceptEdge/ConceptMapElement (cycle-guard, edge-ref + bounded-size validators), ELEMENT_REGISTRY conceptMap entry (cap 1), concept_map threaded through ActivityConfig + Activity + ActivityUpsert + both adapters, FE activityElements.ts mirror.",
+      "scope": "backend",
+      "estimated_loc": 280,
+      "actual_loc": null,
+      "dependencies": [],
+      "acceptance_criteria": [
+        "validators reject cycles, dangling edge refs, and oversize maps (>30 nodes / >60 edges / >5 questions per node)",
+        "concept_map round-trips through both stores (create via ActivityUpsert -> 200, adapters preserve it; no 422)",
+        "test_every_element_field_is_present_on_all_activity_models covers concept_map; FE/BE registry consistency tests green",
+        "BE lint + test-fast green"
+      ],
+      "files_to_create": [],
+      "files_to_modify": [
+        "backend/db/models/activity_config.py",
+        "backend/db/models/activity.py",
+        "backend/protocols/activity_routes.py",
+        "frontend/src/lib/activityElements.ts"
+      ],
+      "passes": true,
+      "started": "2026-07-10",
+      "completed": "2026-07-10",
+      "notes": "Also registered a null conceptMap renderer in elementRenderers.tsx (exhaustive Record) — M1 replaces it with ConceptMapView. Adapter round-trip covered by test_concept_map_survives_both_adapters."
+    },
+    {
+      "id": "M1",
+      "description": "Teacher authoring + student read-only render: ConceptMapEditor (list mode + per-node depends-on + check-questions sub-editor), shared auto-layout SVG ConceptMapGraph (topo layers, no drag-edit), student ConceptMapView (nodeStates prop, not_yet default), useActivityBuilder conceptMap state, builder-page mounts, dark flag NEXT_PUBLIC_CONCEPT_MAP (Dockerfile + cloudbuild _CONCEPT_MAP='1' + .env.example).",
+      "scope": "frontend",
+      "estimated_loc": 500,
+      "actual_loc": null,
+      "dependencies": ["M0"],
+      "acceptance_criteria": [
+        "teacher authors nodes + depends-on + check questions in list mode; save -> reload intact on both builder pages",
+        "graph preview auto-lays out topologically; cycle attempts blocked client-side; scrolls at ~700px",
+        "student sees the map read-only in WorkbenchTabs with designed empty/loading states",
+        "flag conventions match NEXT_PUBLIC_AUTHORING_COPILOT; vitest + quality:check green"
+      ],
+      "files_to_create": [
+        "frontend/src/components/teacher/ConceptMapEditor.tsx",
+        "frontend/src/components/workspace/ConceptMapGraph.tsx",
+        "frontend/src/components/workspace/ConceptMapView.tsx"
+      ],
+      "files_to_modify": [
+        "frontend/src/hooks/useActivityBuilder.ts",
+        "frontend/src/app/teacher/activities/[id]/page.tsx",
+        "frontend/src/app/teacher/activities/new/page.tsx",
+        "frontend/src/components/workspace/WorkbenchTabs.tsx",
+        "frontend/Dockerfile",
+        "cloudbuild.yaml",
+        "frontend/.env.example"
+      ],
+      "passes": false,
+      "started": null,
+      "completed": null,
+      "notes": null
+    },
+    {
+      "id": "M2",
+      "description": "Co-pilot propose_concept_map DIFF tool (co-authoring, not one-shot): ops add_nodes(+check_questions)/add_edges/remove_nodes/relabel/set_check_questions, owner-scoped propose-only, server-side validation of the RESULTING map (cycle/caps/dangling) with self-correcting errors; TOOL_REGISTRY + authoring SKILL.md; FE parseProposal branch + diff-summary card + applyConceptMapDiff pure util + applyCopilotProposal route.",
+      "scope": "fullstack",
+      "estimated_loc": 380,
+      "actual_loc": null,
+      "dependencies": ["M0", "M1"],
+      "acceptance_criteria": [
+        "owner gets a valid diff proposal; non-owner denied; never persists (save_activity monkeypatch guard)",
+        "a cycle-producing or dangling-ref diff is rejected with current node ids returned (self-correcting)",
+        "Apply patches the builder map via applyConceptMapDiff (unit-tested pure function)",
+        "existing COPILOT-1/2 tests stay green; seed noted for deploy"
+      ],
+      "files_to_create": [
+        "frontend/src/app/teacher/activities/applyConceptMapDiff.ts"
+      ],
+      "files_to_modify": [
+        "backend/adk/authoring_tools.py",
+        "backend/adk/tools.py",
+        "backend/skills/templates/activity-authoring-assistant/SKILL.md",
+        "frontend/src/app/teacher/activities/[id]/_AuthoringCopilot.tsx",
+        "frontend/src/app/teacher/activities/applyCopilotProposal.ts"
+      ],
+      "passes": false,
+      "started": null,
+      "completed": null,
+      "notes": null
+    },
+    {
+      "id": "M3",
+      "description": "Chat-native checkpoints (the quiz-that-helps-the-AI-assess, pulled forward from design-M2): concept_progress Firestore store keyed (group_id, activity_id); run_checkpoint(node_id) returns questions + judging guidance to the model; record_checkpoint(node_id, passed, evidence_summary) writes evidence.kind=checkpoint (group_id from JWT); teacher_focus.py injects node list + statuses; GET concept-progress endpoint under GROUP-token auth; tools added to problem-set-hints + concept-dialogue SKILL.mds (seed!); FE checkpoint card from the record_checkpoint stream event + ConceptMapView light-up refetch at turn end (no onSnapshot).",
+      "scope": "fullstack",
+      "estimated_loc": 450,
+      "actual_loc": null,
+      "dependencies": ["M0"],
+      "acceptance_criteria": [
+        "run_checkpoint returns the node's questions for the session activity; unknown node id self-corrects with the node list",
+        "record_checkpoint persists status+evidence keyed by the JWT group_id; never trusts a group_id param",
+        "GET /api/activities/{id}/concept-progress returns states under a GROUP token (ADR-001 corner tested) and for the owning teacher",
+        "checkpoint card renders from a stream fixture; map refetch lights demonstrated nodes; pytest + vitest green"
+      ],
+      "files_to_create": [
+        "backend/db/concept_progress.py"
+      ],
+      "files_to_modify": [
+        "backend/adk/authoring_tools.py",
+        "backend/adk/tools.py",
+        "backend/adk/teacher_focus.py",
+        "backend/skills/templates/problem-set-hints/SKILL.md",
+        "backend/skills/templates/concept-dialogue/SKILL.md",
+        "frontend/src/components/workspace/ConceptMapView.tsx",
+        "frontend/src/components/chat/ChatMessageList.tsx"
+      ],
+      "passes": false,
+      "started": null,
+      "completed": null,
+      "notes": null
+    },
+    {
+      "id": "M4",
+      "description": "Demo seed + deploy + verify: demo activity with a small physics map (vektorer + trigonometri -> projektilbevaegelse) + check questions; deploy dev; make seed ENV=dev (SKILL.md changed!); browser smoke of the full loop author -> propose -> student view -> checkpoint -> light-up.",
+      "scope": "fullstack",
+      "estimated_loc": 100,
+      "actual_loc": null,
+      "dependencies": ["M1", "M2", "M3"],
+      "acceptance_criteria": [
+        "demo activity exists on dev with map + questions",
+        "make seed ENV=dev run post-deploy (authoring + tutor SKILL.md changes propagated)",
+        "full demo loop clicks through on deployed dev; findings logged",
+        "living-concept-map.md status flipped to committed/in-build"
+      ],
+      "files_to_create": [],
+      "files_to_modify": [
+        "backend/onboarding/demo_seed.py",
+        "docs/design/aipla/v1.1.0-feedback/living-concept-map.md"
+      ],
+      "passes": false,
+      "started": null,
+      "completed": null,
+      "notes": null
+    }
+  ],
+  "velocity": {
+    "target_loc_per_day": 900,
+    "actual_loc_per_day": null,
+    "estimated_total_loc": 1710,
+    "actual_total_loc": null,
+    "estimated_days": 2,
+    "actual_days": null
+  },
+  "github_issues": [],
+  "last_session": "2026-07-10",
+  "last_checkpoint": "M0 complete (models + registry + both stores + FE mirror; 2479 BE tests green). Next: M1 editor + student view.",
+  "status": "in_progress"
+}
