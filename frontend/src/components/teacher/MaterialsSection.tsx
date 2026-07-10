@@ -340,6 +340,9 @@ export function MaterialsSection({ materials, onChange, activityId }: Props) {
                       {doc.level ? ` · Level ${doc.level}` : ""}
                       {doc.topic ? ` · ${doc.topic}` : ""}
                     </span>
+                    {doc.summary ? (
+                      <span className="line-clamp-2 text-xs text-muted-foreground/80">{doc.summary}</span>
+                    ) : null}
                   </div>
                   <button
                     type="button"

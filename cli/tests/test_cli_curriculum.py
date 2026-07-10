@@ -102,3 +102,33 @@ def test_query_posts_payload() -> None:
     body = json.loads(route.calls.last.request.content)
     assert body == {"query": "what is energy conservation", "topK": 3, "level": "B"}
     assert "Energy is conserved." in result.output
+
+
+# --- summarize (1.1.52 backfill) ---
+
+
+@respx.mock
+def test_summarize_all() -> None:
+    route = respx.post(f"{BASE}/api/curriculum/summarize").mock(
+        return_value=httpx.Response(200, json={"updated": ["a"], "skipped": []}),
+    )
+    result = _run(["summarize", "--all"])
+    assert result.exit_code == 0, result.output
+    assert route.called
+    assert json.loads(route.calls.last.request.content) == {"force": False, "all": True}
+
+
+@respx.mock
+def test_summarize_one_doc_force() -> None:
+    route = respx.post(f"{BASE}/api/curriculum/summarize").mock(
+        return_value=httpx.Response(200, json={"updated": ["d1"], "skipped": []}),
+    )
+    result = _run(["summarize", "--doc-id", "d1", "--force"])
+    assert result.exit_code == 0, result.output
+    assert json.loads(route.calls.last.request.content) == {"force": True, "docId": "d1"}
+
+
+def test_summarize_requires_a_target() -> None:
+    result = _run(["summarize"])
+    assert result.exit_code != 0
+    assert "give --doc-id" in result.output.lower()

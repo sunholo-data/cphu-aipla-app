@@ -69,6 +69,12 @@ describe("MaterialsSection", () => {
     expect(screen.getByText(/uvm\.dk · Level B · mechanics/)).toBeInTheDocument();
   });
 
+  it("shows a doc's catalogue summary when present (1.1.52)", async () => {
+    browseCurriculum.mockResolvedValue([makeDoc({ summary: "Covers energy conservation for B-level." })]);
+    render(<MaterialsSection materials={[]} onChange={() => {}} />);
+    expect(await screen.findByText("Covers energy conservation for B-level.")).toBeInTheDocument();
+  });
+
   it("citing a doc calls onChange with a MaterialRef (default not student-visible)", async () => {
     browseCurriculum.mockResolvedValue([makeDoc()]);
     const onChange = vi.fn();

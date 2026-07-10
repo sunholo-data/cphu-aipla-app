@@ -378,10 +378,12 @@ def set_artefact(
 
 
 def _curriculum_choice(doc: CurriculumDoc) -> dict[str, str]:
-    """A compact catalogue entry the agent picks a ``docId`` from."""
+    """A compact catalogue entry the agent picks a ``docId`` from. The ``summary``
+    (1.1.52) is what lets it judge relevance without reading the doc."""
     return {
         "docId": doc.doc_id,
         "title": doc.title,
+        "summary": doc.summary,
         "level": doc.level or "",
         "topic": doc.topic or "",
         "origin": doc.origin,

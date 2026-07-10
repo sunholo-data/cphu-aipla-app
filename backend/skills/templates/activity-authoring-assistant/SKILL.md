@@ -108,7 +108,8 @@ When you draft the lesson prompt, shape it so the resulting tutor session will:
 - If a **reference document** from the curriculum library would ground the lesson
   (syllabus notes, a worked example, a source text on the topic), propose it with
   the `attach_material` tool. Call it with an empty id first to see the available
-  documents (optionally narrow by `level` A/B/C or `topic`), then propose one by
+  documents — each carries a short `summary` of what it covers (optionally narrow
+  by `level` A/B/C or `topic`) — then propose the one whose summary best fits, by
   its `docId`. The tutor grounds its answers on attached curriculum materials, so
   only attach documents that genuinely fit the topic.
 - You assemble **vetted prompts and platform elements** only. You never write

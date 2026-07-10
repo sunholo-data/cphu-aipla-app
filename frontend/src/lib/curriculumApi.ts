@@ -25,6 +25,9 @@ export interface CurriculumDoc {
    *  uploads are level-less (null) unless a level is later assigned. */
   level: StxLevel | null;
   topic: string | null;
+  /** 1.1.52 — a 1–2 sentence catalogue blurb generated at ingest. "" until the
+   *  `summarize` backfill runs on older docs. */
+  summary: string;
   source: "shared" | "teacher_upload";
   ownerScope: string;
   origin: string;

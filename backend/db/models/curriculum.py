@@ -35,6 +35,11 @@ class CurriculumDoc(BaseModel):
     # auto-assigned (the old forced "B" on upload was a bug).
     level: StxLevel | None = None
     topic: str | None = Field(default=None, max_length=120)
+    # 1.1.52 — a 1-2 sentence catalogue blurb (what the doc covers / is useful
+    # for), generated at ingest from the parsed text. Lets the authoring co-pilot
+    # and the teacher's Materials browse judge relevance WITHOUT opening the doc.
+    # Optional: legacy docs have none until the `summarize` backfill runs.
+    summary: str = Field(default="", max_length=1000)
     source: CurriculumSource
     # "shared" | a teacher uid | a class tag "class:<uid>:<id>" — the ACL key.
     owner_scope: str = Field(alias="ownerScope", max_length=200)

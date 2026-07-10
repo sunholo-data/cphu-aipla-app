@@ -10,6 +10,7 @@ from __future__ import annotations
 import io
 from unittest.mock import AsyncMock, patch
 
+import pytest
 from fastapi import FastAPI, Request
 from fastapi.testclient import TestClient
 
@@ -42,6 +43,17 @@ def _txt_upload(filename: str = "notes.txt", content: bytes = b"Newton's first l
         "files": {"file": (filename, io.BytesIO(content), "text/plain")},
         "data": {"title": "Test Doc", "level": "B", "origin": "uvm.dk"},
     }
+
+
+@pytest.fixture(autouse=True)
+def _stub_summary(monkeypatch):
+    """1.1.52 — ingest + the summarize endpoint call the Gemini summariser; stub
+    it so tests never hit Vertex (returns a fixed blurb for non-empty text)."""
+
+    async def _fake(text, *, model=None):
+        return "Auto summary." if (text or "").strip() else ""
+
+    monkeypatch.setattr(routes, "summarise_curriculum_text", _fake)
 
 
 # ---------------------------------------------------------------------------
@@ -118,6 +130,8 @@ def test_ingest_teacher_owned_txt_no_corpus():
     assert doc["copyrightStatus"] == "teacher_owned"
     assert doc["docArtifactId"] == ""
     assert doc["origin"] == "uvm.dk"
+    # 1.1.52 — a catalogue summary is generated at ingest.
+    assert doc["summary"] == "Auto summary."
     mock_create.assert_called_once()
 
 
@@ -211,6 +225,91 @@ def test_ingest_docx_via_ailang_parse():
     # RAG upload receives the parsed text.
     rag_call_kwargs = mock_rag.call_args
     assert parsed_text in rag_call_kwargs.args or rag_call_kwargs.args[0] == parsed_text
+
+
+# ---------------------------------------------------------------------------
+# 1.1.52 — POST /summarize (catalogue-summary backfill)
+# ---------------------------------------------------------------------------
+
+
+def _mk_doc(doc_id: str, *, owner: str = TEACHER_UID, summary: str = ""):
+    from datetime import UTC, datetime
+
+    from db.models.curriculum import CurriculumDoc
+
+    now = datetime.now(UTC)
+    return CurriculumDoc(
+        docId=doc_id,
+        title=f"Doc {doc_id}",
+        summary=summary,
+        source="teacher_upload",
+        ownerScope=owner,
+        origin="teacher",
+        copyrightStatus="teacher_owned",
+        createdAt=now,
+        updatedAt=now,
+    )
+
+
+def test_summarize_student_forbidden():
+    resp = _client(group_id="g1").post("/api/curriculum/summarize", json={"all": True})
+    assert resp.status_code == 403
+
+
+def test_summarize_requires_a_target():
+    resp = _client().post("/api/curriculum/summarize", json={})
+    assert resp.status_code == 422
+
+
+def test_summarize_one_doc_updates(monkeypatch):
+    doc = _mk_doc("d1")
+    saved: dict = {}
+    monkeypatch.setattr(routes, "get_curriculum_doc", lambda i: doc if i == "d1" else None)
+    monkeypatch.setattr(routes, "get_curriculum_content", lambda i: {"text": "energy text", "chars": 11})
+    monkeypatch.setattr(routes, "create_curriculum_doc", lambda d: saved.update(doc=d))
+
+    resp = _client().post("/api/curriculum/summarize", json={"docId": "d1"})
+    assert resp.status_code == 200
+    assert resp.json() == {"updated": ["d1"], "skipped": []}
+    assert saved["doc"].summary == "Auto summary."
+
+
+def test_summarize_skips_doc_that_already_has_a_summary(monkeypatch):
+    monkeypatch.setattr(routes, "get_curriculum_doc", lambda i: _mk_doc("d1", summary="already there"))
+    resp = _client().post("/api/curriculum/summarize", json={"docId": "d1"})
+    assert resp.json() == {"updated": [], "skipped": ["d1"]}
+
+
+def test_summarize_force_regenerates_existing(monkeypatch):
+    monkeypatch.setattr(routes, "get_curriculum_doc", lambda i: _mk_doc("d1", summary="old"))
+    monkeypatch.setattr(routes, "get_curriculum_content", lambda i: {"text": "x"})
+    monkeypatch.setattr(routes, "create_curriculum_doc", lambda d: None)
+    resp = _client().post("/api/curriculum/summarize", json={"docId": "d1", "force": True})
+    assert resp.json()["updated"] == ["d1"]
+
+
+def test_summarize_skips_doc_with_no_stored_content(monkeypatch):
+    monkeypatch.setattr(routes, "get_curriculum_doc", lambda i: _mk_doc("d1"))
+    monkeypatch.setattr(routes, "get_curriculum_content", lambda i: None)  # ingested pre-content-storage
+    resp = _client().post("/api/curriculum/summarize", json={"docId": "d1"})
+    assert resp.json() == {"updated": [], "skipped": ["d1"]}
+
+
+def test_summarize_other_teachers_private_doc_is_404(monkeypatch):
+    # ACL: enumeration-resistant — a doc owned by someone else looks missing.
+    monkeypatch.setattr(routes, "get_curriculum_doc", lambda i: _mk_doc("d1", owner="another-teacher"))
+    resp = _client().post("/api/curriculum/summarize", json={"docId": "d1"})
+    assert resp.status_code == 404
+
+
+def test_summarize_all_backfills_only_the_missing(monkeypatch):
+    monkeypatch.setattr(
+        routes, "list_curriculum_for_teacher", lambda uid: [_mk_doc("a"), _mk_doc("b", summary="has one")]
+    )
+    monkeypatch.setattr(routes, "get_curriculum_content", lambda i: {"text": "x"})
+    monkeypatch.setattr(routes, "create_curriculum_doc", lambda d: None)
+    resp = _client().post("/api/curriculum/summarize", json={"all": True})
+    assert resp.json() == {"updated": ["a"], "skipped": ["b"]}
 
 
 # ---------------------------------------------------------------------------

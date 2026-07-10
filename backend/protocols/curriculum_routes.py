@@ -27,7 +27,7 @@ from pathlib import PurePosixPath
 from typing import Annotated, Any, Literal
 
 from fastapi import APIRouter, Depends, Form, HTTPException, Query, UploadFile
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, ConfigDict, Field
 
 from adk.teacher_focus import resolve_active_config
 from auth import User, get_current_user
@@ -42,7 +42,7 @@ from db.curriculum import (
 )
 from db.models.curriculum import SHARED_SCOPE, CopyrightStatus, CurriculumDoc, StxLevel
 from db.rag_corpus import delete_rag_file, query_rag_files, upload_text_as_rag_file
-from tools.documents.ai_extract import extract_pdf_text
+from tools.documents.ai_extract import extract_pdf_text, summarise_curriculum_text
 from tools.documents.ailang_parse import DETERMINISTIC_EXTENSIONS, _parse_file_sync
 
 logger = logging.getLogger(__name__)
@@ -183,12 +183,18 @@ async def ingest_curriculum(
         owner_scope=owner_scope,
     )
 
+    # 1.1.52 — a catalogue summary the co-pilot + Materials browse read to judge
+    # relevance without opening the doc. Best-effort ("" on failure — never blocks
+    # ingest; the `summarize` backfill can fill it in later).
+    summary = await summarise_curriculum_text(text)
+
     now = datetime.now(UTC)
     doc = CurriculumDoc(
         docId=doc_id,
         title=title,
         level=level,
         topic=topic,
+        summary=summary,
         source="shared" if shared else "teacher_upload",
         ownerScope=owner_scope,
         origin=origin,
@@ -218,6 +224,68 @@ async def ingest_curriculum(
         "parsedPreview": text[:_PARSE_PREVIEW_CAP],
         "parsedChars": len(text),
     }
+
+
+# ---------------------------------------------------------------------------
+# 1.1.52 — (re)generate catalogue summaries (backfill for docs ingested before
+# the summary field, or a forced refresh)
+# ---------------------------------------------------------------------------
+
+
+class _SummarizeRequest(BaseModel):
+    doc_id: str | None = Field(default=None, alias="docId")
+    all: bool = False
+    force: bool = False
+
+    model_config = ConfigDict(populate_by_name=True)
+
+
+@router.post("/summarize")
+async def summarize_curriculum(
+    body: _SummarizeRequest,
+    user: User = Depends(get_current_user),  # noqa: B008
+) -> dict[str, Any]:
+    """(Re)generate the 1-2 sentence catalogue summary for curriculum docs (1.1.52).
+
+    Teacher-only. Target one doc (``docId``) or all your accessible docs
+    (``all=true`` — shared + your own). Skips docs that already have a summary
+    unless ``force=true``, and docs with no stored parsed content (nothing to
+    summarise). Returns the doc ids updated + skipped.
+    """
+    if getattr(user, "group_id", None):
+        raise HTTPException(status_code=403, detail="Curriculum summarize is teacher-only.")
+
+    if body.doc_id:
+        doc = get_curriculum_doc(body.doc_id)
+        # ACL mirrors delete: your own uploads or any shared-corpus doc. Missing +
+        # not-yours return the same 404 (no existence leak).
+        if doc is None or (doc.owner_scope != SHARED_SCOPE and doc.owner_scope != user.uid):
+            raise HTTPException(status_code=404, detail="Curriculum doc not found.")
+        targets = [doc]
+    elif body.all:
+        targets = list_curriculum_for_teacher(user.uid)
+    else:
+        raise HTTPException(status_code=422, detail="Provide docId or all=true.")
+
+    updated: list[str] = []
+    skipped: list[str] = []
+    for doc in targets:
+        if doc.summary and not body.force:
+            skipped.append(doc.doc_id)
+            continue
+        content = get_curriculum_content(doc.doc_id)
+        text = (content or {}).get("text") or ""
+        summary = await summarise_curriculum_text(text) if text else ""
+        if not summary:
+            skipped.append(doc.doc_id)
+            continue
+        doc.summary = summary
+        doc.updated_at = datetime.now(UTC)
+        create_curriculum_doc(doc)
+        updated.append(doc.doc_id)
+
+    logger.info("Curriculum summarize: %d updated, %d skipped (uid=%s)", len(updated), len(skipped), user.uid)
+    return {"updated": updated, "skipped": skipped}
 
 
 # ---------------------------------------------------------------------------

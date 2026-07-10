@@ -364,7 +364,9 @@ def test_draft_mode_no_activity_id_proposes_without_owner_check():
 # --- attach_material: curriculum reference docs (owner-scoped, ACL-scoped, propose-only) ---
 
 
-def _make_curriculum(doc_id: str, *, owner_scope: str | None = None, level: str = "B", topic: str = "energi") -> str:
+def _make_curriculum(
+    doc_id: str, *, owner_scope: str | None = None, level: str = "B", topic: str = "energi", summary: str = ""
+) -> str:
     from datetime import UTC, datetime
 
     from db.curriculum import create_curriculum_doc
@@ -378,6 +380,7 @@ def _make_curriculum(doc_id: str, *, owner_scope: str | None = None, level: str 
             title=f"Doc {doc_id}",
             level=level,
             topic=topic,
+            summary=summary,
             source="shared" if scope == SHARED_SCOPE else "teacher_upload",
             ownerScope=scope,
             origin="uvm.dk",
@@ -408,13 +411,16 @@ def test_attach_material_empty_or_unknown_id_lists_available():
     # teacher may attach so the agent retries with a valid docId.
     from adk.authoring_tools import attach_material
 
-    _make_curriculum("shared-1")
+    _make_curriculum("shared-1", summary="Covers energy conservation for B-level.")
     aid = _make_activity(TEACHER)
     empty = attach_material(doc_id="", activity_id=aid, tool_context=_tc(TEACHER))
     unknown = attach_material(doc_id="nope", activity_id=aid, tool_context=_tc(TEACHER))
     assert empty["ok"] is False and unknown["ok"] is False
     assert "shared-1" in {d["docId"] for d in empty["available"]}
     assert "shared-1" in {d["docId"] for d in unknown["available"]}
+    # 1.1.52 — the summary rides the available list so the co-pilot can judge fit.
+    choice = next(d for d in empty["available"] if d["docId"] == "shared-1")
+    assert choice["summary"] == "Covers energy conservation for B-level."
 
 
 def test_attach_material_cannot_attach_another_teachers_private_doc():

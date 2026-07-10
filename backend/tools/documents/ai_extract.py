@@ -57,3 +57,45 @@ async def extract_pdf_text(pdf_bytes: bytes, *, model: str | None = None) -> str
     if not text:
         raise ValueError("PDF extraction returned no text")
     return text
+
+
+_SUMMARY_PROMPT = (
+    "You are cataloguing a physics curriculum document for a teacher's reference "
+    "library. In ONE or TWO sentences (max ~40 words), say what this document "
+    "covers and what it is useful for — the topics, and the level/audience if "
+    "evident. Write it as a catalogue blurb a teacher scanning a list would find "
+    "useful. Match the document's language (Danish or English). Output ONLY the "
+    "summary — no preamble, no labels, no quotes."
+)
+
+# Cap the text we send (keep the summary call cheap on a large doc) + the output
+# (mirrors CurriculumDoc.summary max_length).
+_SUMMARY_INPUT_CAP = 12_000
+_SUMMARY_OUTPUT_CAP = 1000
+
+
+async def summarise_curriculum_text(text: str, *, model: str | None = None) -> str:
+    """Generate a 1-2 sentence catalogue summary of a curriculum document.
+
+    Cheap, one-shot — used at ingest and by the ``summarize`` backfill. Returns
+    ``""`` on empty input OR any failure: a missing summary must never block
+    ingest (it degrades to metadata-only selection), so the caller just stores
+    whatever comes back.
+    """
+    body = (text or "").strip()
+    if not body:
+        return ""
+
+    from google import genai
+
+    try:
+        client = genai.Client(vertexai=True)
+        response = await client.aio.models.generate_content(
+            model=model or PDF_PARSE_MODEL,
+            contents=[_SUMMARY_PROMPT, body[:_SUMMARY_INPUT_CAP]],
+        )
+    except Exception as exc:
+        log.warning("Curriculum summary generation failed: %s", exc)
+        return ""
+
+    return (response.text or "").strip()[:_SUMMARY_OUTPUT_CAP]

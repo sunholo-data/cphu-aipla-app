@@ -114,6 +114,25 @@ def query_curriculum(
     click.echo(_json.dumps(result, indent=2))
 
 
+@curriculum.command("summarize")
+@click.option("--doc-id", "doc_id", default=None, help="Summarise one doc by id.")
+@click.option("--all", "all_docs", is_flag=True, default=False, help="Summarise all your accessible docs (shared + own).")
+@click.option("--force", is_flag=True, default=False, help="Regenerate even if a summary already exists.")
+@click.pass_context
+def summarize_curriculum(ctx: click.Context, doc_id: str | None, all_docs: bool, force: bool) -> None:
+    """(Re)generate catalogue summaries (1.1.52) — the backfill for docs ingested
+    before the summary field. Give --doc-id <id> or --all."""
+    if not doc_id and not all_docs:
+        raise click.UsageError("give --doc-id <id> or --all")
+    payload: dict[str, object] = {"force": force}
+    if doc_id:
+        payload["docId"] = doc_id
+    if all_docs:
+        payload["all"] = True
+    result = _client(ctx).post("/api/curriculum/summarize", json=payload)
+    click.echo(_json.dumps(result, indent=2))
+
+
 @curriculum.command("delete")
 @click.argument("doc_id")
 @click.option("--yes", is_flag=True, default=False, help="Skip the confirmation prompt.")
