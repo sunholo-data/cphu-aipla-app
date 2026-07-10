@@ -235,4 +235,48 @@ describe("ChatMarkdown", () => {
       ).toBeTruthy();
     });
   });
+
+  // CHAT-SVG-FLICKER regression (2026-07-10): the chat page re-renders on a
+  // 2.5 s group-pulse poll (and on watcher refetches). Each re-render used to
+  // recreate the react-markdown `components` object — new component TYPES →
+  // full subtree REMOUNT → SVGBlock back to its async placeholder → visible
+  // flicker on every rendered diagram until the next turn.
+  describe("re-render stability (CHAT-SVG-FLICKER)", () => {
+    const svgContent =
+      'Look:\n\n<svg viewBox="0 0 10 10"><circle cx="5" cy="5" r="4"/></svg>\n\nDone.';
+
+    it("re-rendering with identical props keeps the SAME rendered SVG DOM node (no remount)", async () => {
+      const { container, rerender } = render(
+        <ChatMarkdown content={svgContent} navigateToBlock={noop} />,
+      );
+      await new Promise((r) => setTimeout(r, 50));
+      const before = container.querySelector(".svg-container svg");
+      expect(before).toBeTruthy();
+
+      rerender(<ChatMarkdown content={svgContent} navigateToBlock={noop} />);
+      // Same node identity — memo + stable `components` prevented a remount.
+      expect(container.querySelector(".svg-container svg")).toBe(before);
+      expect(
+        container.querySelector('.svg-container[aria-busy="true"]'),
+      ).toBeFalsy();
+    });
+
+    it("even a forced remount renders the SVG synchronously (no placeholder flash) once sanitised", async () => {
+      const { container, rerender } = render(
+        <ChatMarkdown content={svgContent} navigateToBlock={noop} />,
+      );
+      await new Promise((r) => setTimeout(r, 50));
+      expect(container.querySelector(".svg-container svg")).toBeTruthy();
+
+      // A new navigateToBlock identity defeats the memo AND invalidates the
+      // components useMemo — worst case: react-markdown remounts the whole
+      // subtree. SVGBlock's module-level sanitise cache must still render the
+      // SVG in the very first frame, with no aria-busy placeholder.
+      rerender(<ChatMarkdown content={svgContent} navigateToBlock={() => {}} />);
+      expect(container.querySelector(".svg-container svg")).toBeTruthy();
+      expect(
+        container.querySelector('.svg-container[aria-busy="true"]'),
+      ).toBeFalsy();
+    });
+  });
 });

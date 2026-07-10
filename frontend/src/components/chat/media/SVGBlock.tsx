@@ -40,26 +40,51 @@ export function SvgStreamingPlaceholder() {
   return <div className="svg-container my-4 min-h-[160px]" aria-busy="true" />;
 }
 
+// Module-level caches. DOMPurify loads once per page and every unique SVG
+// string sanitises once. Chat re-renders (group-pulse polling, streaming
+// tokens, watcher refetches) REMOUNT the markdown subtree — react-markdown's
+// component overrides get fresh identities — so SVGBlock cannot rely on
+// staying mounted. With these caches a remount renders its final DOM
+// synchronously; the async placeholder path only runs the very first time a
+// given SVG is seen before DOMPurify has loaded. The placeholder re-appearing
+// on every remount was the "SVG flickers until the next reply" bug.
+let purifier: typeof import("dompurify").default | null = null;
+const sanitizeCache = new Map<string, string>();
+
+// null = DOMPurify not loaded yet; "" = sanitiser rejected the whole input.
+function cachedSanitize(svgString: string): string | null {
+  if (!purifier) return null;
+  const hit = sanitizeCache.get(svgString);
+  if (hit !== undefined) return hit;
+  const clean = purifier.sanitize(svgString, PURIFY_CONFIG) as string;
+  sanitizeCache.set(svgString, clean);
+  return clean;
+}
+
 function SVGBlockInner({ svgString }: SVGBlockProps) {
-  // Empty string initial state: server renders nothing (no hydration mismatch).
-  // useEffect + dynamic import: DOMPurify only runs in the browser where DOM is available.
-  const [cleanSvg, setCleanSvg] = useState("");
-  const [failed, setFailed] = useState(false);
+  // Synchronous path: once DOMPurify is loaded (any render after first use),
+  // the sanitised SVG is available during render — no placeholder frame.
+  const syncClean = cachedSanitize(svgString);
+  // Async path: first-ever SVG before the dynamic import resolves. Server
+  // renders the placeholder (purifier stays null — no DOM), so no hydration
+  // mismatch.
+  const [asyncClean, setAsyncClean] = useState<string | null>(null);
 
   useEffect(() => {
+    if (syncClean !== null) return;
     let cancelled = false;
     import("dompurify").then(({ default: DOMPurify }) => {
+      purifier = DOMPurify;
       if (cancelled) return;
-      const clean = DOMPurify.sanitize(svgString, PURIFY_CONFIG) as string;
-      if (!clean) setFailed(true);
-      else setCleanSvg(clean);
+      setAsyncClean(cachedSanitize(svgString));
     });
     return () => {
       cancelled = true;
     };
-  }, [svgString]);
+  }, [svgString, syncClean]);
 
-  if (failed) return <CodeFallback code={svgString} />;
+  const cleanSvg = syncClean ?? asyncClean;
+  if (cleanSvg === "") return <CodeFallback code={svgString} />;
   // Reserve a min-height so the chat layout doesn't jump when the
   // dynamic DOMPurify import resolves and the SVG appears. Without this,
   // mount → setCleanSvg() causes a layout shift that the chat auto-
@@ -69,7 +94,7 @@ function SVGBlockInner({ svgString }: SVGBlockProps) {
   // but small enough not to leave a huge blank if the SVG never resolves.
   // Shared with ChatMarkdown's streaming-tail placeholder so the partial
   // → complete transition reconciles in place — no closing-tag jump.
-  if (!cleanSvg) {
+  if (cleanSvg === null) {
     return <SvgStreamingPlaceholder />;
   }
 

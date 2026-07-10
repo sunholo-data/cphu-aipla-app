@@ -810,6 +810,20 @@ function ChatShell({
     [sendMessage, outgoingDocIds, enteredViaResume],
   );
 
+  // MCP App iframe → notification adapter → synthetic chat turn. Goes out as
+  // a normal sendMessage (with the same doc-context + resume flags as a typed
+  // message). useCallback because it reaches every MessageBubble — an inline
+  // arrow here broke their React.memo on every page render.
+  const handleIframeChatMessage = useCallback(
+    (text: string) => {
+      void sendMessage(text, {
+        documentIds: outgoingDocIds,
+        resumedSession: enteredViaResume,
+      });
+    },
+    [sendMessage, outgoingDocIds, enteredViaResume],
+  );
+
   // Wraps navigateToSession with the resume signal so we differentiate
   // explicit thread clicks from the URL writeback that happens after a
   // fresh chat's first message.
@@ -1152,15 +1166,7 @@ function ChatShell({
             onAction={handleAction}
             mcpServerIds={mcpServerIds}
             sessionId={sessionId ?? agentSessionId}
-            onChatMessage={(text) => {
-              // MCP App iframe → notification adapter → synthetic chat
-              // turn. Goes out as a normal sendMessage (with the same
-              // doc-context + resume flags as a typed message).
-              void sendMessage(text, {
-                documentIds: outgoingDocIds,
-                resumedSession: enteredViaResume,
-              });
-            }}
+            onChatMessage={handleIframeChatMessage}
             errorBanner={
               error ? (
                 <StreamErrorBanner

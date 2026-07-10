@@ -8,7 +8,7 @@
 
 "use client";
 
-import { Fragment, useCallback, useEffect, useRef, useState } from "react";
+import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { StreamError, SkillMessage, ToolCallState } from "@/hooks/useSkillAgent";
 import type { ActiveDocumentContext } from "@/components/chat/ContextBanner";
 import { ContextBanner } from "@/components/chat/ContextBanner";
@@ -84,6 +84,12 @@ interface ChatMessageListProps {
 }
 
 const SCROLL_THRESHOLD = 100;
+
+// Shared empty array so bubbles without tool calls receive the SAME reference
+// every render — a fresh `[]` per render defeats MessageBubble's React.memo,
+// and with the markdown subtree remounting on every re-render that showed up
+// as SVG diagrams flickering on each chat-page render (group-pulse tick etc.).
+const NO_TOOL_CALLS: ToolCallState[] = [];
 
 export function ChatMessageList({
   messages,
@@ -177,11 +183,17 @@ export function ChatMessageList({
   const lastAssistantId = [...stableMessages]
     .reverse()
     .find((m) => m.role === "assistant")?.id;
-  const toolCallsByParent = toolCalls.reduce<Record<string, ToolCallState[]>>((acc, tc) => {
-    const key = tc.parentMessageId ?? lastAssistantId ?? "__unparented__";
-    acc[key] = [...(acc[key] ?? []), tc];
-    return acc;
-  }, {});
+  // Memoised so each bubble's toolCalls array keeps a stable identity across
+  // unrelated re-renders — see NO_TOOL_CALLS above for why that matters.
+  const toolCallsByParent = useMemo(
+    () =>
+      toolCalls.reduce<Record<string, ToolCallState[]>>((acc, tc) => {
+        const key = tc.parentMessageId ?? lastAssistantId ?? "__unparented__";
+        acc[key] = [...(acc[key] ?? []), tc];
+        return acc;
+      }, {}),
+    [toolCalls, lastAssistantId],
+  );
 
   // Auto-read plays ONLY the latest assistant turn — never the whole restored
   // history at once (chat-history restore renders N assistant bubbles; each
@@ -241,7 +253,7 @@ export function ChatMessageList({
                     persona={persona}
                     userInitial={userInitial}
                     userDisplayName={userDisplayName}
-                    toolCalls={[]}
+                    toolCalls={NO_TOOL_CALLS}
                     navigateToBlock={navigate}
                     onAction={onAction}
                     mcpServerIds={mcpServerIds}
@@ -286,7 +298,7 @@ export function ChatMessageList({
                 persona={persona}
                 userInitial={userInitial}
                 userDisplayName={userDisplayName}
-                toolCalls={toolCallsByParent[m.id] ?? []}
+                toolCalls={toolCallsByParent[m.id] ?? NO_TOOL_CALLS}
                 navigateToBlock={navigate}
                 onAction={onAction}
                 mcpServerIds={mcpServerIds}

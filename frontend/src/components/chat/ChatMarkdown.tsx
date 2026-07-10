@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo } from "react";
+import { memo, useMemo } from "react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import remarkMath from "remark-math";
@@ -66,7 +66,14 @@ const SVG_RAW_RE = /(^|\n)\s*(<svg[\s\S]*?<\/svg>)\s*(?=\n|$)/gi;
 const SVG_STREAMING_TAIL_RE = /(^|\n)\s*(<svg\b[\s\S]*)$/i;
 const SVG_STREAMING_SENTINEL = "AITANASVGSTREAMING";
 
-export function ChatMarkdown({ content, navigateToBlock }: ChatMarkdownProps) {
+// memo + the useMemo'd `components` object below are load-bearing, not an
+// optimisation: react-markdown uses each override function as a React element
+// TYPE, so a fresh `components` object per render makes React see new
+// component types and REMOUNT the whole rendered subtree — unmounting every
+// SVGBlock (and its sanitised DOM) on every parent re-render. With the chat
+// page re-rendering on a 2.5 s group-pulse poll, that was a visible SVG
+// flicker loop that ran until the next turn. Keep both stable.
+export const ChatMarkdown = memo(function ChatMarkdown({ content, navigateToBlock }: ChatMarkdownProps) {
   // Extract ```svg fenced blocks AND raw <svg>...</svg> blocks before
   // react-markdown processes them. Returns a cleaned content string plus
   // a map of index → raw SVG string. Both forms feed the same SVGBlock
@@ -99,7 +106,7 @@ export function ChatMarkdown({ content, navigateToBlock }: ChatMarkdownProps) {
     return { processedContent: processed, svgBlocks: blocks };
   }, [content]);
 
-  const components: Components = {
+  const components: Components = useMemo(() => ({
     a({ href, children }) {
       const h = href ?? "#";
       // aitana:// links → InlineCitation chip
@@ -224,7 +231,9 @@ export function ChatMarkdown({ content, navigateToBlock }: ChatMarkdownProps) {
         </blockquote>
       );
     },
-  };
+    // svgBlocks (not content) is the real dependency: it comes from the same
+    // useMemo as processedContent, so it only changes when content does.
+  }), [svgBlocks, navigateToBlock]);
 
   return (
     <ReactMarkdown
@@ -250,4 +259,4 @@ export function ChatMarkdown({ content, navigateToBlock }: ChatMarkdownProps) {
       {processedContent}
     </ReactMarkdown>
   );
-}
+});

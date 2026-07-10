@@ -91,11 +91,21 @@ export function useGroupPulse(
             turnInFlight?: boolean;
             activeDevices?: number;
           };
-          setPulse({
+          const next: GroupPulse = {
             revision: Number(data.revision) || 0,
             turnInFlight: Boolean(data.turnInFlight),
             activeDevices: Number(data.activeDevices) || 0,
-          });
+          };
+          // Keep the previous object when nothing changed — a fresh object
+          // every 2.5 s tick re-rendered the entire chat page (and remounted
+          // every rendered SVG) for the idle case, which is most ticks.
+          setPulse((prev) =>
+            prev.revision === next.revision &&
+            prev.turnInFlight === next.turnInFlight &&
+            prev.activeDevices === next.activeDevices
+              ? prev
+              : next,
+          );
         }
       } catch {
         // Transient (network/abort) — keep the last known pulse and retry.
