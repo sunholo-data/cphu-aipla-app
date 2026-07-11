@@ -1,9 +1,14 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Check, Pencil, X } from "lucide-react";
 
 import { DEFAULT_LABELS, type CopilotLabels, type ProposalDescriptor } from "./types";
+
+/** How long the "Applied ✓" confirmation lingers before it clears itself. The
+ *  change is already visible in the builder field, so the badge is a brief
+ *  acknowledgement — long enough to read, short enough not to pile up. */
+const APPLIED_BADGE_MS = 3500;
 
 /**
  * Apply / Edit / Dismiss card for ONE proposal — generic over the surface's
@@ -33,6 +38,14 @@ export function ProposalCard<P>({
   const editable = descriptor.editableText?.(proposal) ?? null;
   const canEdit = editable !== null && typeof descriptor.withEditedText === "function";
   const [draft, setDraft] = useState(editable ?? "");
+
+  // Auto-clear the "Applied ✓" confirmation so consecutive applies don't stack
+  // up a column of green badges (the effect is already in the builder field).
+  useEffect(() => {
+    if (!applied) return;
+    const timer = setTimeout(() => setDismissed(true), APPLIED_BADGE_MS);
+    return () => clearTimeout(timer);
+  }, [applied]);
 
   if (dismissed) return null;
   if (applied) {

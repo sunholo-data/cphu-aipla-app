@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi, beforeEach } from "vitest";
 
 // The test runner's bundled localStorage is unreliable here; back it with a
@@ -124,6 +124,25 @@ describe("TeacherCopilot (shared shell)", () => {
     expect(onApply).toHaveBeenCalledTimes(1);
     expect(onApply.mock.calls[0]![0]).toMatchObject({ kind: "make", value: "Fysik 9A" });
     expect(screen.getByRole("status")).toHaveTextContent(/applied/i);
+  });
+
+  it("auto-clears the Applied ✓ badge so confirmations don't pile up", () => {
+    vi.useFakeTimers();
+    try {
+      const onApply = vi.fn();
+      hook = { ...defaultHook, toolCalls: withTool() };
+      render(<TeacherCopilot {...config(onApply)} />);
+      fireEvent.click(screen.getByRole("button", { name: /^apply$/i }));
+      expect(screen.getByRole("status")).toHaveTextContent(/applied/i);
+      // …and it clears itself shortly after (no lingering column of badges).
+      act(() => {
+        vi.advanceTimersByTime(4000);
+      });
+      expect(screen.queryByRole("status")).not.toBeInTheDocument();
+      expect(screen.queryByTestId("proposal-card")).not.toBeInTheDocument();
+    } finally {
+      vi.useRealTimers();
+    }
   });
 
   it("Edit lets the teacher revise free text before applying", () => {
