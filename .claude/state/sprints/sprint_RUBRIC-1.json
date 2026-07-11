@@ -1,0 +1,119 @@
+{
+  "sprint_id": "RUBRIC-1",
+  "created": "2026-07-11T11:10:51Z",
+  "estimated_duration_days": 2,
+  "design_doc": "docs/design/aipla/v1.1.0-feedback/competency-rubrics.md",
+  "sprint_plan": "docs/design/aipla/v1.1.0-feedback/rubric-1-sprint.md",
+  "features": [
+    {
+      "id": "M0",
+      "description": "Lens registry + MAPS judge + evidence partition: analytics/session_rubric.py with config-shaped lens registry (Firestore override merged over code default), deterministic student-initiated vs tutor-prompted partition + SUBMIT-1 artifacts, MAPS judge (Docktor Table I verbatim CC-BY, 0-5 + NA codes, consistency rule, anti-correct-answer bias), abstain-without-anchors, genai-client call cached per session, every result stamps {lens_id, prompt_version, model, partition_summary}.",
+      "scope": "backend",
+      "estimated_loc": 380,
+      "actual_loc": 420,
+      "dependencies": [],
+      "acceptance_criteria": [
+        "fixture transcript partitions correctly; tutor-prompted turns excluded from judge evidence",
+        "MAPS judge returns the five-category profile with NA codes behind a model seam; abstains without an anchor pack",
+        "registry merges a Firestore override over the code default; results stamp prompt_version",
+        "BE lint + test-fast green"
+      ],
+      "files_to_create": [
+        "backend/analytics/session_rubric.py",
+        "backend/tests/unit/test_session_rubric.py"
+      ],
+      "files_to_modify": [],
+      "passes": true,
+      "started": "2026-07-11",
+      "completed": "2026-07-11",
+      "notes": "MAPS category text is a faithful paraphrase pending the verbatim CC-BY Table I from the scoping-site extraction (marked in-code). Anchor packs read from rubric_anchor_packs/{activity_id} (>=5 floor)."
+    },
+    {
+      "id": "M1",
+      "description": "CLI: aiplatform rubric score <session-id> --lens maps|saar (profile + partition printout) and aiplatform rubric anchors validate <activity-id> (>=5 anchors, NA(solver) example). Doc nit: 1.1.57 says 'aitana rubric'; our tree is aiplatform.",
+      "scope": "backend",
+      "estimated_loc": 130,
+      "actual_loc": null,
+      "dependencies": [
+        "M0"
+      ],
+      "acceptance_criteria": [
+        "both commands run against dev data / fixtures",
+        "make cli-selftest stays green"
+      ],
+      "files_to_create": [],
+      "files_to_modify": [
+        "cli/aiplatform"
+      ],
+      "passes": false,
+      "started": null,
+      "completed": null,
+      "notes": null
+    },
+    {
+      "id": "M2",
+      "description": "SAAR Lens D judge (Etkina testing-experiment rows 1-8, 0-3 scale, Tables X/XI few-shot with citation; refutation vs confirmation discrimination) registered in the lens registry + the chat-first agent-design activity template (goal + instructions note + five-phase checklist) in ACTIVITY_TEMPLATES.",
+      "scope": "fullstack",
+      "estimated_loc": 300,
+      "actual_loc": null,
+      "dependencies": [
+        "M0"
+      ],
+      "acceptance_criteria": [
+        "SAAR judge scores a refutation-oriented fixture 3 and a confirmation-oriented one 1 (behind the model seam)",
+        "agent-design template appears in the builder starter list and fills goal + note + checklist",
+        "gates green both ends"
+      ],
+      "files_to_create": [],
+      "files_to_modify": [
+        "backend/analytics/session_rubric.py",
+        "frontend/src/lib/activityTemplates.ts"
+      ],
+      "passes": false,
+      "started": null,
+      "completed": null,
+      "notes": null
+    },
+    {
+      "id": "M3",
+      "description": "Researcher lens-config surface: analytics_lens_configs Firestore store (enabled/model/prompt_override/prompt_version bump-on-save), researcher-gated GET/PUT /api/research/lens-configs + POST /api/research/rubric-score, and the 'Research - judge lenses' panel in /teacher/settings (useIsResearcher; per-lens card + experiment box with profile/partition/abstain states; teacher auth; placeholder untouched for non-researchers).",
+      "scope": "fullstack",
+      "estimated_loc": 450,
+      "actual_loc": null,
+      "dependencies": [
+        "M0"
+      ],
+      "acceptance_criteria": [
+        "non-researcher: endpoints deny (404-shaped) and the settings panel is absent; placeholder unchanged",
+        "PUT bumps prompt_version; next judge run uses + stamps the override",
+        "experiment box runs a session through a lens and renders profile + partition + abstain as designed states",
+        "gates green both ends"
+      ],
+      "files_to_create": [
+        "backend/protocols/research_lens_routes.py",
+        "frontend/src/app/teacher/settings/_LensConfigPanel.tsx"
+      ],
+      "files_to_modify": [
+        "backend/analytics/session_rubric.py",
+        "backend/fast_api_app.py",
+        "frontend/src/app/teacher/settings/page.tsx"
+      ],
+      "passes": false,
+      "started": null,
+      "completed": null,
+      "notes": null
+    }
+  ],
+  "velocity": {
+    "target_loc_per_day": 900,
+    "actual_loc_per_day": null,
+    "estimated_total_loc": 1260,
+    "actual_total_loc": null,
+    "estimated_days": 2,
+    "actual_days": null
+  },
+  "github_issues": [],
+  "last_session": null,
+  "last_checkpoint": "M0 complete (11 tests; 2510 BE green). Next: M1 CLI.",
+  "status": "in_progress"
+}
