@@ -33,6 +33,7 @@ from db.models.activity_config import (
     CalcInput,
     CalculatorElement,
     ChartElement,
+    ConceptMapElement,
     TableColumn,
     TableElement,
 )
@@ -374,6 +375,193 @@ def set_artefact(
     return {
         "ok": True,
         "proposal": {"kind": "set_artefact", "artefactId": artefact_id, "label": _artefact_label(meta)},
+    }
+
+
+_DANISH_TRANSLIT = str.maketrans({"æ": "ae", "ø": "oe", "å": "aa", "é": "e", "ü": "u"})
+
+
+def _concept_slug(label: str, i: int) -> str:
+    """Mint a stable node id from a (Danish) label — transliterated so
+    ``Projektilbevægelse`` → ``projektilbevaegelse``, not ``projektilbev_gelse``."""
+    return _slug(label.lower().translate(_DANISH_TRANSLIT), i)
+
+
+def _questions_wire(questions: list[dict[str, Any]] | None) -> list[dict[str, str]]:
+    """Normalise check-question dicts to the camelCase wire shape, dropping
+    entries without a prompt. Accepts either snake_case (the tool arg) or
+    camelCase (an agent echoing a previous proposal)."""
+    out = []
+    for i, q in enumerate(questions or []):
+        prompt = str(q.get("prompt", "")).strip()
+        if not prompt:
+            continue
+        expected = str(q.get("expected_answer") or q.get("expectedAnswer") or "").strip()
+        out.append({"id": f"q-{i + 1}", "prompt": prompt, "expectedAnswer": expected})
+    return out
+
+
+def _current_concept_map(activity_id: str) -> tuple[list[dict[str, Any]], list[dict[str, Any]], str]:
+    """The saved map as plain wire dicts ``(nodes, edges, title)`` — empty for a
+    draft or an activity without one. Caller has already passed ``_can_author``."""
+    if not activity_id:
+        return [], [], ""
+    activity = get_activity(activity_id)
+    if activity is None or not activity.concept_map:
+        return [], [], ""
+    m = activity.concept_map[0].model_dump(by_alias=True)
+    return m.get("nodes", []), m.get("edges", []), m.get("title", "")
+
+
+def propose_concept_map(
+    activity_id: str = "",
+    title: str | None = None,
+    add_nodes: list[dict[str, Any]] | None = None,
+    add_edges: list[dict[str, Any]] | None = None,
+    remove_nodes: list[str] | None = None,
+    relabel: list[dict[str, Any]] | None = None,
+    set_check_questions: list[dict[str, Any]] | None = None,
+    tool_context: ToolContext = None,
+) -> dict[str, Any]:
+    """Propose a DIFF to the activity's living concept map (CONCEPT-1 M2).
+
+    Co-authoring, not one-shot: the diff applies to the map's CURRENT state, so
+    the map is built up over several conversational rounds. Owner-scoped +
+    propose-only — the teacher Applies on the frontend; never persists. The
+    RESULTING map is validated server-side (DAG cycle-guard, size bounds); an
+    invalid diff returns the current node ids so you can retry.
+
+    Args:
+        activity_id: the activity being authored (the teacher owns it).
+        title: optionally set the map's title.
+        add_nodes: concepts to add — each ``{"label", "id"?, "check_questions"?:
+            [{"prompt", "expected_answer"?}]}``. The id is minted from the label
+            when omitted; check questions are what the tutor asks IN CHAT at a
+            checkpoint, judged against the expected answer.
+        add_edges: prerequisite links — each ``{"from": <prereq id>, "to": <id>}``.
+        remove_nodes: node ids to remove (their edges go with them).
+        relabel: label fixes — each ``{"id", "label"}``.
+        set_check_questions: replace one node's questions — each ``{"node_id",
+            "questions": [{"prompt", "expected_answer"?}]}``.
+
+    Returns:
+        ``{"ok": True, "proposal": {"kind": "propose_concept_map", "diff": ...,
+        "result": <the validated resulting map>, "label": ...}}`` or
+        ``{"ok": False, "error": ..., "nodes": [current ids]}``.
+    """
+    uid = _caller_uid(tool_context)
+    if not uid:
+        return dict(_DENY)
+    if not any([title, add_nodes, add_edges, remove_nodes, relabel, set_check_questions]):
+        return {"ok": False, "error": "empty diff — propose at least one change"}
+    if not _can_author(activity_id, uid):
+        return dict(_DENY)
+
+    nodes, edges, current_title = _current_concept_map(activity_id)
+    by_id = {n["id"]: n for n in nodes}
+    current_ids = sorted(by_id)
+
+    def _fail(msg: str) -> dict[str, Any]:
+        return {"ok": False, "error": msg, "nodes": current_ids}
+
+    # remove → relabel → set questions → add nodes → add edges → title.
+    removed = set(remove_nodes or [])
+    if unknown := removed - set(by_id):
+        return _fail(f"unknown node ids to remove: {sorted(unknown)}")
+    nodes = [n for n in nodes if n["id"] not in removed]
+    edges = [e for e in edges if e["from"] not in removed and e["to"] not in removed]
+    by_id = {n["id"]: n for n in nodes}
+
+    for r in relabel or []:
+        nid, label = str(r.get("id", "")), str(r.get("label", "")).strip()
+        if nid not in by_id:
+            return _fail(f"unknown node id to relabel: {nid!r}")
+        if not label:
+            return _fail(f"empty label for node {nid!r}")
+        by_id[nid]["label"] = label
+
+    for sq in set_check_questions or []:
+        nid = str(sq.get("node_id") or sq.get("nodeId") or "")
+        if nid not in by_id:
+            return _fail(f"unknown node id for check questions: {nid!r}")
+        by_id[nid]["checkQuestions"] = _questions_wire(sq.get("questions"))
+
+    added_nodes = []
+    for i, spec in enumerate(add_nodes or []):
+        label = str(spec.get("label", "")).strip()
+        if not label:
+            return _fail("every added node needs a label")
+        nid = str(spec.get("id") or "").strip() or _concept_slug(label, i)
+        if nid in by_id:
+            return _fail(f"node id {nid!r} already exists — relabel it or pick a new id")
+        node = {"id": nid, "label": label, "checkQuestions": _questions_wire(spec.get("check_questions"))}
+        by_id[nid] = node
+        nodes.append(node)
+        added_nodes.append(node)
+
+    # Edge refs resolve by id OR by label (case-insensitive) — the agent can't
+    # reliably predict a minted slug, so labels are an accepted alias.
+    by_label = {n["label"].strip().lower(): n["id"] for n in nodes}
+
+    def _resolve(ref: str) -> str | None:
+        return ref if ref in by_id else by_label.get(ref.strip().lower())
+
+    added_edges = []
+    for e in add_edges or []:
+        src = _resolve(str(e.get("from", "")))
+        dst = _resolve(str(e.get("to", "")))
+        if src is None or dst is None:
+            return _fail(f"edge {e.get('from')!r}->{e.get('to')!r} references an unknown node")
+        if any(x["from"] == src and x["to"] == dst for x in edges):
+            continue  # idempotent — re-proposing an existing link is not an error
+        edge = {"from": src, "to": dst}
+        edges.append(edge)
+        added_edges.append(edge)
+
+    new_title = title.strip() if isinstance(title, str) else current_title
+    try:
+        result = ConceptMapElement.model_validate(
+            {"id": "concept-map-1", "title": new_title, "nodes": nodes, "edges": edges}
+        )
+    except Exception as exc:
+        return _fail(_first_error(exc))
+
+    diff = {
+        "title": title.strip() if isinstance(title, str) else None,
+        "addNodes": added_nodes,
+        "addEdges": added_edges,
+        "removeNodes": sorted(removed),
+        "relabel": [{"id": str(r["id"]), "label": str(r["label"]).strip()} for r in relabel or []],
+        "setCheckQuestions": [
+            {
+                "nodeId": str(sq.get("node_id") or sq.get("nodeId") or ""),
+                "questions": _questions_wire(sq.get("questions")),
+            }
+            for sq in set_check_questions or []
+        ],
+    }
+    label = (
+        f"{len(added_nodes)} nye begreber, {len(added_edges)} nye forbindelser"
+        if added_nodes or added_edges
+        else "opdatering af begrebskortet"
+    )
+    logger.info(
+        "authoring: propose_concept_map(+%d nodes, +%d edges, -%d) for activity=%s by uid=%s",
+        len(added_nodes),
+        len(added_edges),
+        len(removed),
+        activity_id or "(draft)",
+        uid,
+    )
+    return {
+        "ok": True,
+        "proposal": {
+            "kind": "propose_concept_map",
+            "activityId": activity_id,
+            "diff": diff,
+            "result": result.model_dump(by_alias=True),
+            "label": label,
+        },
     }
 
 

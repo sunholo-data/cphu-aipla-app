@@ -456,3 +456,133 @@ def test_attach_material_never_persists(monkeypatch):
     )
     res = authoring_tools.attach_material(doc_id=did, activity_id=aid, tool_context=_tc(TEACHER))
     assert res["ok"] is True
+
+
+# --- CONCEPT-1 M2: propose_concept_map (owner-scoped, propose-only, DIFF-based) ---
+
+
+def _make_activity_with_map(owner: str = TEACHER) -> str:
+    from db.activities import create_activity as _create
+    from db.models.activity_config import ConceptEdge, ConceptMapElement, ConceptNode
+
+    a = _create(
+        Activity(
+            activityId="",
+            skillId="concept",
+            ownerUid=owner,
+            title="A",
+            conceptMap=[
+                ConceptMapElement(
+                    id="concept-map-1",
+                    nodes=[
+                        ConceptNode(id="vektorer", label="Vektorer"),
+                        ConceptNode(id="projektil", label="Projektil"),
+                    ],
+                    edges=[ConceptEdge.model_validate({"from": "vektorer", "to": "projektil"})],
+                )
+            ],
+        )
+    )
+    return a.activity_id
+
+
+def test_propose_concept_map_draft_add_nodes_and_edges():
+    from adk.authoring_tools import propose_concept_map
+
+    res = propose_concept_map(
+        add_nodes=[
+            {"label": "Vektorer"},
+            {"label": "Trigonometri"},
+            {
+                "label": "Projektilbevægelse",
+                "check_questions": [{"prompt": "Hvorfor en parabel?", "expected_answer": "konstant acceleration"}],
+            },
+        ],
+        add_edges=[
+            {"from": "vektorer", "to": "projektilbevaegelse"},
+            {"from": "trigonometri", "to": "projektilbevaegelse"},
+        ],
+        tool_context=_tc(TEACHER),
+    )
+    assert res["ok"] is True, res
+    p = res["proposal"]
+    assert p["kind"] == "propose_concept_map"
+    ids = [n["id"] for n in p["diff"]["addNodes"]]
+    assert ids == ["vektorer", "trigonometri", "projektilbevaegelse"]
+    assert p["diff"]["addNodes"][2]["checkQuestions"][0]["expectedAnswer"] == "konstant acceleration"
+    # the server-validated RESULT map is included for the card's preview
+    assert {n["id"] for n in p["result"]["nodes"]} == set(ids)
+    assert len(p["result"]["edges"]) == 2
+
+
+def test_propose_concept_map_diffs_against_the_saved_map():
+    from adk.authoring_tools import propose_concept_map
+
+    aid = _make_activity_with_map(TEACHER)
+    res = propose_concept_map(
+        add_nodes=[{"label": "Trigonometri"}],
+        add_edges=[{"from": "trigonometri", "to": "projektil"}],
+        relabel=[{"id": "projektil", "label": "Projektilbevægelse"}],
+        activity_id=aid,
+        tool_context=_tc(TEACHER),
+    )
+    assert res["ok"] is True, res
+    result_nodes = {n["id"]: n["label"] for n in res["proposal"]["result"]["nodes"]}
+    assert result_nodes["projektil"] == "Projektilbevægelse"
+    assert "trigonometri" in result_nodes
+    assert len(res["proposal"]["result"]["edges"]) == 2
+
+
+def test_propose_concept_map_rejects_a_cycle_with_current_nodes():
+    from adk.authoring_tools import propose_concept_map
+
+    aid = _make_activity_with_map(TEACHER)
+    res = propose_concept_map(
+        add_edges=[{"from": "projektil", "to": "vektorer"}],  # closes the cycle
+        activity_id=aid,
+        tool_context=_tc(TEACHER),
+    )
+    assert res["ok"] is False
+    assert "cycle" in res["error"].lower()
+    # self-correcting: the current node ids come back so the agent can retry
+    assert set(res["nodes"]) == {"vektorer", "projektil"}
+
+
+def test_propose_concept_map_unknown_ref_is_self_correcting():
+    from adk.authoring_tools import propose_concept_map
+
+    aid = _make_activity_with_map(TEACHER)
+    res = propose_concept_map(remove_nodes=["bogus"], activity_id=aid, tool_context=_tc(TEACHER))
+    assert res["ok"] is False
+    assert set(res["nodes"]) == {"vektorer", "projektil"}
+
+
+def test_propose_concept_map_remove_drops_incident_edges():
+    from adk.authoring_tools import propose_concept_map
+
+    aid = _make_activity_with_map(TEACHER)
+    res = propose_concept_map(remove_nodes=["vektorer"], activity_id=aid, tool_context=_tc(TEACHER))
+    assert res["ok"] is True, res
+    assert [n["id"] for n in res["proposal"]["result"]["nodes"]] == ["projektil"]
+    assert res["proposal"]["result"]["edges"] == []
+
+
+def test_propose_concept_map_non_owner_denied_and_empty_diff_rejected():
+    from adk.authoring_tools import propose_concept_map
+
+    aid = _make_activity_with_map(TEACHER)
+    assert propose_concept_map(add_nodes=[{"label": "X"}], activity_id=aid, tool_context=_tc(OTHER))["ok"] is False
+    assert propose_concept_map(activity_id=aid, tool_context=_tc(TEACHER))["ok"] is False
+
+
+def test_propose_concept_map_never_persists(monkeypatch):
+    from adk import authoring_tools
+
+    aid = _make_activity_with_map(TEACHER)
+    monkeypatch.setattr(
+        authoring_tools, "save_activity", lambda *a, **k: (_ for _ in ()).throw(AssertionError("must not persist"))
+    )
+    res = authoring_tools.propose_concept_map(
+        add_nodes=[{"label": "Trigonometri"}], activity_id=aid, tool_context=_tc(TEACHER)
+    )
+    assert res["ok"] is True

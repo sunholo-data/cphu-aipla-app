@@ -77,7 +77,8 @@
         "existing COPILOT-1/2 tests stay green; seed noted for deploy"
       ],
       "files_to_create": [
-        "frontend/src/app/teacher/activities/applyConceptMapDiff.ts"
+        "frontend/src/app/teacher/activities/applyConceptMapDiff.ts",
+        "frontend/src/app/teacher/activities/__tests__/applyConceptMapDiff.test.ts"
       ],
       "files_to_modify": [
         "backend/adk/authoring_tools.py",
@@ -86,10 +87,10 @@
         "frontend/src/app/teacher/activities/[id]/_AuthoringCopilot.tsx",
         "frontend/src/app/teacher/activities/applyCopilotProposal.ts"
       ],
-      "passes": false,
-      "started": null,
-      "completed": null,
-      "notes": null
+      "passes": true,
+      "started": "2026-07-11",
+      "completed": "2026-07-11",
+      "notes": "Edge refs resolve by id OR label (agents can't predict minted slugs); Danish transliteration in _concept_slug (ae/oe/aa). Apply patches the LOCAL builder map (drift-tolerant skip of missing ids). SKILL.md changed -> make seed ENV=dev required at deploy (M4)."
     },
     {
       "id": "M3",

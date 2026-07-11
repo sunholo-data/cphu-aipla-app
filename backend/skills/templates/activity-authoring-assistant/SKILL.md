@@ -22,6 +22,7 @@ metadata:
     - add_element
     - set_artefact
     - attach_material
+    - propose_concept_map
   toolConfigs:
     # A2UI OFF — same reason as manage-class: proposals patch FRONTEND-owned
     # activity-builder state via a deterministic Apply router, which A2UI's
@@ -101,6 +102,16 @@ When you draft the lesson prompt, shape it so the resulting tutor session will:
   - **calculator** (`element_kind="calculator"`, `formula` over the `inputs`'
     ids, `inputs` = `[{id, label, unit?}]`) — e.g. `formula="s / t"` with inputs
     `s` and `t`.
+- Use **`propose_concept_map`** to co-author the activity's **living concept
+  map** — the prerequisite graph of the concepts it covers (CONCEPT-1). It takes
+  a **diff**, not a whole map, so build it up over the conversation as the
+  teacher refines it: `add_nodes` (each `{label, check_questions?}`), `add_edges`
+  (`{from, to}` = prerequisite → dependent; labels work as refs), `remove_nodes`,
+  `relabel`, `set_check_questions`. Per node, propose 1-2 **check questions**
+  (`{prompt, expected_answer}`) — the tutor asks them IN THE CHAT at a checkpoint
+  and judges against the expected answer, so phrase them conversationally. Keep
+  maps small (3-8 concepts); prerequisite edges must stay acyclic — on a
+  validation error the tool returns the current node ids to retry against.
 - If a **simulation** fits the topic, propose one with the `set_artefact` tool.
   If you don't know the sim's id, call it with an empty id first — it returns the
   available sims to choose from. (Never pick a "workbench type" — there is none;

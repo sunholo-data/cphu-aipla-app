@@ -1,5 +1,6 @@
 import type { ActivityBuilder } from "@/hooks/useActivityBuilder";
 
+import { applyConceptMapDiff } from "./applyConceptMapDiff";
 import type { Proposal } from "./[id]/_AuthoringCopilot";
 
 /**
@@ -27,6 +28,10 @@ export function applyCopilotProposal(p: Proposal, builder: ActivityBuilder): voi
       });
   } else if (p.kind === "set_artefact") {
     builder.setArtefactId(p.artefactId);
+  } else if (p.kind === "propose_concept_map") {
+    // Co-authoring: the diff patches the CURRENT builder map (which may hold
+    // unsaved teacher edits) — it never replaces it wholesale.
+    builder.setConceptMap(applyConceptMapDiff(builder.conceptMap, p.diff, builder.nextElementKey));
   } else if (p.kind === "attach_material") {
     // Append a curriculum reference the tutor grounds on (RAG). Dedup by docId so
     // re-applying the same proposal doesn't stack duplicates.

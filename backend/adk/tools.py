@@ -154,6 +154,7 @@ TOOL_REGISTRY: dict[str, Callable[[dict], FunctionTool]] = {
     "add_element": lambda _config: FunctionTool(_authoring_tools.add_element),
     "set_artefact": lambda _config: FunctionTool(_authoring_tools.set_artefact),
     "attach_material": lambda _config: FunctionTool(_authoring_tools.attach_material),
+    "propose_concept_map": lambda _config: FunctionTool(_authoring_tools.propose_concept_map),
     # Manage-class tools — see backend/tools/class_management.py. Active
     # class management from the manage-class teacher hub skill (create / list /
     # mint + read-only activity metadata). Destructive ops (revoke) stay

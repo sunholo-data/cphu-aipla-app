@@ -85,6 +85,41 @@ describe("parseProposal (generalized dispatch)", () => {
       parseProposal(tc({ resultContent: JSON.stringify({ ok: true, proposal: { kind: "future_tool", value: "x" } }) })),
     ).toBeNull();
   });
+
+  it("returns a typed proposal for a propose_concept_map diff (CONCEPT-1 M2)", () => {
+    const wire = JSON.stringify({
+      ok: true,
+      proposal: {
+        kind: "propose_concept_map",
+        activityId: "act-1",
+        diff: {
+          addNodes: [{ id: "trig", label: "Trigonometri", checkQuestions: [] }],
+          addEdges: [{ from: "trig", to: "projektil" }],
+          removeNodes: [],
+          relabel: [],
+          setCheckQuestions: [],
+        },
+        result: {
+          id: "concept-map-1",
+          nodes: [
+            { id: "projektil", label: "Projektil" },
+            { id: "trig", label: "Trigonometri" },
+          ],
+          edges: [{ from: "trig", to: "projektil" }],
+        },
+        label: "1 nye begreber, 1 nye forbindelser",
+      },
+    });
+    const parsed = parseProposal(tc({ resultContent: wire }));
+    expect(parsed).toMatchObject({
+      kind: "propose_concept_map",
+      diff: { addNodes: [{ id: "trig" }], addEdges: [{ from: "trig", to: "projektil" }] },
+      resultNodes: [
+        { id: "projektil", label: "Projektil" },
+        { id: "trig", label: "Trigonometri" },
+      ],
+    });
+  });
 });
 
 describe("AuthoringCopilot — dark flag (degradation)", () => {

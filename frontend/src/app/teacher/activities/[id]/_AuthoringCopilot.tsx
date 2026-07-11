@@ -34,6 +34,8 @@ import { TeacherCopilot } from "@/components/teacher/copilot";
 import type { CopilotLabels, ProposalDescriptor, TeacherCopilotConfig } from "@/components/teacher/copilot";
 import type { ToolCallState } from "@/hooks/useSkillAgent";
 
+import type { ConceptMapDiff } from "../applyConceptMapDiff";
+
 const SKILL_NAME = "activity-authoring-assistant";
 
 export function authoringCopilotEnabled(): boolean {
@@ -68,7 +70,15 @@ export type Proposal =
       label: string;
     }
   | { kind: "set_artefact"; artefactId: string; label: string }
-  | { kind: "attach_material"; materialKind: "curriculum"; docId: string; origin: string; label: string };
+  | { kind: "attach_material"; materialKind: "curriculum"; docId: string; origin: string; label: string }
+  | {
+      kind: "propose_concept_map";
+      diff: ConceptMapDiff;
+      /** The server-validated resulting map — used for label lookups in the
+       *  card preview (edge refs are node ids). */
+      resultNodes: { id: string; label: string }[];
+      label: string;
+    };
 
 export type ApplyProposal = (proposal: Proposal) => void;
 
@@ -151,6 +161,16 @@ export function parseProposal(tc: ToolCallState): Proposal | null {
             label: typeof p.label === "string" ? p.label : p.docId,
           }
         : null;
+    case "propose_concept_map": {
+      const result = (p.result ?? {}) as Record<string, unknown>;
+      if (typeof p.diff !== "object" || p.diff === null || !Array.isArray(result.nodes)) return null;
+      return {
+        kind: "propose_concept_map",
+        diff: p.diff as ConceptMapDiff,
+        resultNodes: (result.nodes as { id: string; label: string }[]).map((n) => ({ id: n.id, label: n.label })),
+        label: typeof p.label === "string" ? p.label : "begrebskort",
+      };
+    }
     default:
       return null; // unknown/unsupported kind (a newer tool than this build)
   }
@@ -216,6 +236,8 @@ const authoringProposalDescriptor: ProposalDescriptor<Proposal> = {
         return "Forslag: brug en simulation";
       case "attach_material":
         return `Forslag: materiale — ${p.label}`;
+      case "propose_concept_map":
+        return `Forslag: begrebskort — ${p.label}`;
     }
   },
   editableText: (p) => (p.kind === "set_lesson_prompt" ? p.value : null),
@@ -237,9 +259,37 @@ const authoringProposalDescriptor: ProposalDescriptor<Proposal> = {
         </p>
       );
     }
+    if (p.kind === "propose_concept_map") return <ConceptMapDiffBody proposal={p} />;
     return null; // set_lesson_prompt renders via editableText, not body
   },
 };
+
+/** Card body for a concept-map DIFF — what changes, in the teacher's terms
+ *  (labels, not slugs). */
+function ConceptMapDiffBody({ proposal }: { proposal: Extract<Proposal, { kind: "propose_concept_map" }> }) {
+  const { diff, resultNodes } = proposal;
+  const labelOf = (id: string) => resultNodes.find((n) => n.id === id)?.label ?? id;
+  const rows: { key: string; text: string }[] = [];
+  for (const n of diff.addNodes ?? []) {
+    const q = n.checkQuestions?.length ? ` (${n.checkQuestions.length} tjekspørgsmål)` : "";
+    rows.push({ key: `+n-${n.id}`, text: `+ ${n.label}${q}` });
+  }
+  for (const e of diff.addEdges ?? []) {
+    rows.push({ key: `+e-${e.from}-${e.to}`, text: `→ ${labelOf(e.from)} før ${labelOf(e.to)}` });
+  }
+  for (const id of diff.removeNodes ?? []) rows.push({ key: `-n-${id}`, text: `− ${labelOf(id)}` });
+  for (const r of diff.relabel ?? []) rows.push({ key: `~n-${r.id}`, text: `✎ ${r.id} → ${r.label}` });
+  for (const sq of diff.setCheckQuestions ?? []) {
+    rows.push({ key: `?n-${sq.nodeId}`, text: `? ${labelOf(sq.nodeId)}: ${sq.questions.length} tjekspørgsmål` });
+  }
+  return (
+    <ul className="space-y-0.5 text-sm" data-testid="proposal-concept-map">
+      {rows.map((r) => (
+        <li key={r.key}>{r.text}</li>
+      ))}
+    </ul>
+  );
+}
 
 /** Danish labels for the card + chat — the authoring co-pilot is a fixed-locale
  *  surface (the shell defaults to English). */
