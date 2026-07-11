@@ -25,6 +25,7 @@ import { useAutoReadAloud } from "@/hooks/useAutoReadAloud";
 import { useVoiceConfig } from "@/hooks/useVoiceConfig";
 import { useVoiceLang } from "@/hooks/useVoiceLang";
 import { ToolCallChip } from "@/components/chat/ToolCallChip";
+import { CheckpointCard, parseCheckpointResult } from "@/components/chat/CheckpointCard";
 import { useSurfaceRegistry } from "@/providers/SurfaceRegistry";
 import type { SkillMessage, ToolCallState } from "@/hooks/useSkillAgent";
 
@@ -318,11 +319,22 @@ export const MessageBubble = React.memo(function MessageBubble({
                 skillId={skillId}
               />
             )}
+            {/* CONCEPT-1 M3 — a successful record_checkpoint renders as a
+                visible card (concept + forstået/på vej + the evidence) instead
+                of an opaque tool chip; everything else keeps the chip. */}
+            {nonA2uiCalls
+              .filter((tc) => tc.name === "record_checkpoint")
+              .map((tc) => {
+                const result = parseCheckpointResult(tc.resultContent);
+                return result ? <CheckpointCard key={tc.id} result={result} /> : null;
+              })}
             {nonA2uiCalls.length > 0 && (
               <div className="flex flex-wrap gap-1.5 pt-1">
-                {nonA2uiCalls.map((tc) => (
-                  <ToolCallChip key={tc.id} toolCall={tc} />
-                ))}
+                {nonA2uiCalls
+                  .filter((tc) => !(tc.name === "record_checkpoint" && parseCheckpointResult(tc.resultContent)))
+                  .map((tc) => (
+                    <ToolCallChip key={tc.id} toolCall={tc} />
+                  ))}
               </div>
             )}
           </div>

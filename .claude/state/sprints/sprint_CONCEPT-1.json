@@ -106,21 +106,24 @@
         "checkpoint card renders from a stream fixture; map refetch lights demonstrated nodes; pytest + vitest green"
       ],
       "files_to_create": [
-        "backend/db/concept_progress.py"
+        "backend/db/concept_progress.py",
+        "backend/adk/checkpoint_tools.py",
+        "backend/protocols/concept_progress_routes.py",
+        "frontend/src/components/chat/CheckpointCard.tsx"
       ],
       "files_to_modify": [
-        "backend/adk/authoring_tools.py",
-        "backend/adk/tools.py",
+        "backend/adk/agent.py",
         "backend/adk/teacher_focus.py",
-        "backend/skills/templates/problem-set-hints/SKILL.md",
-        "backend/skills/templates/concept-dialogue/SKILL.md",
-        "frontend/src/components/workspace/ConceptMapView.tsx",
-        "frontend/src/components/chat/ChatMessageList.tsx"
+        "backend/fast_api_app.py",
+        "frontend/src/components/chat/MessageBubble.tsx",
+        "frontend/src/components/workspace/elementRenderers.tsx",
+        "frontend/src/components/workspace/StudentWorkspace.tsx",
+        "frontend/src/app/chat/[...path]/page.tsx"
       ],
-      "passes": false,
-      "started": null,
-      "completed": null,
-      "notes": null
+      "passes": true,
+      "started": "2026-07-11",
+      "completed": "2026-07-11",
+      "notes": "DEVIATION (better mechanism): checkpoint tools are NOT in tutor SKILL.mds / TOOL_REGISTRY — they're built per session at agent-build time (the curriculum-tool precedent), closing over the resolved concept map + the VERIFIED group identity, so group/activity are never model params and NO tutor-skill seed is needed. The checkpoint contract is injected via compose_teacher_focus alongside the map. record_checkpoint renders as a CheckpointCard (forstået/på vej + evidence); map polls the group-token GET at turn end (no onSnapshot)."
     },
     {
       "id": "M4",
@@ -156,6 +159,6 @@
   },
   "github_issues": [],
   "last_session": "2026-07-11",
-  "last_checkpoint": "M0 + M1 complete (editor + graph + student view + flag; FE 1437 green). Next: M2 propose_concept_map diff tool.",
+  "last_checkpoint": "M0-M3 complete (BE 2499 + FE gates green). Next: M4 demo seed + deploy + make seed ENV=dev (authoring SKILL.md changed in M2) + browser smoke.",
   "status": "in_progress"
 }

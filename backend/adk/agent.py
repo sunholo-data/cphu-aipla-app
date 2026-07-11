@@ -55,6 +55,7 @@ from adk.callbacks import (
     make_permission_enforcer,
     make_session_tracker,
 )
+from adk.checkpoint_tools import build_checkpoint_tools
 from adk.curriculum_retrieval import (
     build_curriculum_grounding_preamble,
     build_curriculum_retrieval_tool,
@@ -438,6 +439,12 @@ def create_agent(
     _curriculum_tool = build_curriculum_retrieval_tool(_materials)
     if _curriculum_tool is not None:
         tools.append(_curriculum_tool)
+    # CONCEPT-1 M3 — chat-native checkpoint tools, built per session like the
+    # curriculum tool above: the closures capture the resolved concept map +
+    # the VERIFIED group identity, so group/activity are never model params.
+    # No-op (empty list) unless the activity has a map AND the caller is an
+    # anonymous-group student.
+    tools.extend(build_checkpoint_tools(_active_cfg, user))
     # MULTI-SURFACE-A2UI M1 — read the skill's `tool_configs.a2ui` block so
     # the toolset emits `surface_id`/`update_mode` siblings alongside
     # `validated_a2ui_json`. Defaults (no a2ui block) preserve pre-M1

@@ -12,6 +12,7 @@ import { WorkbenchTable, type TableElementDef } from "./WorkbenchTable";
 import { SolutionElementMount, type SolutionElementDef } from "./SolutionElementMount";
 import { DocumentElementMount, type DocumentElementDef } from "./DocumentElementMount";
 import { ConceptMapView, type ConceptMapElementDef } from "./ConceptMapView";
+import type { ConceptNodeStatus } from "./ConceptMapGraph";
 
 /**
  * Uniform render context shared by every workspace element renderer (1.1.38
@@ -47,6 +48,9 @@ export interface ElementRenderContext {
   solution: SolutionElementDef[];
   document: DocumentElementDef[];
   conceptMap: ConceptMapElementDef[];
+  /** Checkpoint light-up (CONCEPT-1 M3): node id → status for THIS group,
+   *  refetched by the chat page at turn end. Absent = all not_yet (preview). */
+  conceptMapNodeStates?: Record<string, ConceptNodeStatus>;
   /** Active uploaded-file → tutor document_ids (the document element's hook;
    *  threaded from the chat page). */
   onDocumentActiveChange?: (docId: string | null) => void;
@@ -99,9 +103,12 @@ export const elementRenderers: Record<ElementKind, (ctx: ElementRenderContext) =
         onActiveDocChange={ctx.onDocumentActiveChange}
       />
     ) : null,
-  // Living concept map (living-concept-map M1) — read-only orientation; the
-  // M3 checkpoint state (lit-up nodes) threads in via ConceptMapView later.
-  conceptMap: (ctx) => (ctx.conceptMap.length > 0 ? <ConceptMapView conceptMap={ctx.conceptMap} /> : null),
+  // Living concept map — read-only orientation that lights up as the tutor's
+  // checkpoints mark concepts demonstrated (CONCEPT-1 M3).
+  conceptMap: (ctx) =>
+    ctx.conceptMap.length > 0 ? (
+      <ConceptMapView conceptMap={ctx.conceptMap} nodeStates={ctx.conceptMapNodeStates} />
+    ) : null,
 };
 
 /**

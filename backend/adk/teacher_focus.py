@@ -204,6 +204,29 @@ def compose_teacher_focus(cfg: ActivityConfig | None) -> str:
         if task:
             blocks.append(f"The task the student is solving: {task}")
 
+    # CONCEPT-1 M3 — the living concept map: give the tutor the node structure
+    # + the chat-native checkpoint contract. Node STATUSES are deliberately not
+    # baked in here (the instruction is composed once per session and would go
+    # stale); the checkpoint tools return fresh state on every call.
+    if cfg is not None and cfg.concept_map:
+        cmap = cfg.concept_map[0]
+        lines = []
+        for n in cmap.nodes:
+            prereqs = [e.from_ for e in cmap.edges if e.to == n.id]
+            dep = f" (builds on: {', '.join(prereqs)})" if prereqs else ""
+            q = f" [{len(n.check_questions)} check questions]" if n.check_questions else ""
+            lines.append(f"- {n.id}: {n.label}{dep}{q}")
+        blocks.append(
+            "This activity has a concept map — the concepts the student should demonstrate, in "
+            "prerequisite order:\n"
+            + "\n".join(lines)
+            + "\n\nWhen a concept looks nearly understood (or at a wrap-up), offer a short checkpoint: "
+            "call run_checkpoint(node_id) to get its check questions, ask them ONE AT A TIME in your "
+            "own voice in the conversation (never as a form), judge the answers, then call "
+            "record_checkpoint(node_id, passed, evidence_summary). Frame results as progress "
+            "('på vej'), never as failure. This is the AI's read — the teacher can override it."
+        )
+
     if goal:
         blocks.append(goal)
 

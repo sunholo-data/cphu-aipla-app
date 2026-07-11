@@ -73,6 +73,7 @@ import { StudentWorkspace } from "@/components/workspace/StudentWorkspace";
 import type { SolutionElementDef } from "@/components/workspace/SolutionElementMount";
 import type { DocumentElementDef } from "@/components/workspace/DocumentElementMount";
 import type { ConceptMapElementDef } from "@/components/workspace/ConceptMapView";
+import type { ConceptNodeStatus } from "@/components/workspace/ConceptMapGraph";
 import { DocumentsPanel, type ActivityMaterial } from "@/components/workspace/DocumentsPanel";
 import { reportDocumentEvent } from "@/lib/documentApi";
 import { workspaceContentKind } from "./workspaceContent";
@@ -429,6 +430,10 @@ function ChatShell({
   // Living concept map (CONCEPT-1 M1) — read-only orientation; M3 lights the
   // nodes up from the checkpoint state.
   const [activeConceptMap, setActiveConceptMap] = useState<ConceptMapElementDef[]>([]);
+  // CONCEPT-1 M3 — this group's checkpoint states (node id → status). Polled
+  // at turn end via the API (NOT onSnapshot — group JWTs aren't Firebase
+  // identities, so client-SDK listeners are denied).
+  const [conceptNodeStates, setConceptNodeStates] = useState<Record<string, ConceptNodeStatus>>({});
   // Persona (1.1.12) resolved for this activity — the bot bubbles show its
   // avatar + name. Optional; null leaves the default brand byline.
   const [activePersona, setActivePersona] = useState<PersonaSummary | null>(null);
@@ -507,6 +512,30 @@ function ChatShell({
       alive = false;
     };
   }, [skillId, activityId]);
+
+  // CONCEPT-1 M3 — light the map up: fetch this group's checkpoint states when
+  // the activity has a map, and refetch at every turn end (`isLoading` falls)
+  // so a just-recorded checkpoint shows without a reload.
+  useEffect(() => {
+    if (isLoading || activeConceptMap.length === 0 || !isAnonymousGroupAuthMode()) return;
+    let alive = true;
+    fetchWithAuth(`/api/proxy/api/activities/${encodeURIComponent(activityId)}/concept-progress`)
+      .then((r) => (r.ok ? r.json() : null))
+      .then((data) => {
+        if (!alive || !data?.nodeStates) return;
+        const states: Record<string, ConceptNodeStatus> = {};
+        for (const [nid, s] of Object.entries(data.nodeStates as Record<string, { status?: string }>)) {
+          if (s?.status === "partial" || s?.status === "demonstrated") states[nid] = s.status;
+        }
+        setConceptNodeStates(states);
+      })
+      .catch(() => {
+        /* light-up is progressive enhancement — the map still renders */
+      });
+    return () => {
+      alive = false;
+    };
+  }, [isLoading, activeConceptMap.length, activityId]);
   const searchParams = useSearchParams();
   const router = useRouter();
   const [draft, setDraft] = useState("");
@@ -1314,6 +1343,7 @@ function ChatShell({
                 solution={activeSolution}
                 document={activeDocument}
                 conceptMap={activeConceptMap}
+                conceptMapNodeStates={conceptNodeStates}
                 onDocumentActiveChange={handleWorkbenchActiveDoc}
                 materials={activeMaterials}
                 images={uploadedImages}

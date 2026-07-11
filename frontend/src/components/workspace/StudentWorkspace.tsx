@@ -16,6 +16,7 @@ import type { TableElementDef } from "./WorkbenchTable";
 import type { SolutionElementDef } from "./SolutionElementMount";
 import type { DocumentElementDef } from "./DocumentElementMount";
 import type { ConceptMapElementDef } from "./ConceptMapView";
+import type { ConceptNodeStatus } from "./ConceptMapGraph";
 
 interface StudentWorkspaceProps {
   skillId: string;
@@ -33,6 +34,8 @@ interface StudentWorkspaceProps {
   solution: SolutionElementDef[];
   document: DocumentElementDef[];
   conceptMap: ConceptMapElementDef[];
+  /** Checkpoint light-up (CONCEPT-1 M3): node id → status; chat-page only. */
+  conceptMapNodeStates?: Record<string, ConceptNodeStatus>;
   /** Active uploaded-file → tutor document_ids (threaded to the document element). */
   onDocumentActiveChange?: (docId: string | null) => void;
   materials: ActivityMaterial[];
@@ -78,6 +81,7 @@ export function StudentWorkspace({
   solution,
   document,
   conceptMap,
+  conceptMapNodeStates,
   onDocumentActiveChange,
   materials,
   images = [],
@@ -141,6 +145,7 @@ export function StudentWorkspace({
       solution={solution}
       document={document}
       conceptMap={conceptMap}
+      conceptMapNodeStates={conceptMapNodeStates}
       onDocumentActiveChange={onDocumentActiveChange}
       documentViewerRole={documentViewerRole}
     />
