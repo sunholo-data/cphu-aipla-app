@@ -60,7 +60,7 @@
       "description": "SAAR Lens D judge (Etkina testing-experiment rows 1-8, 0-3 scale, Tables X/XI few-shot with citation; refutation vs confirmation discrimination) registered in the lens registry + the chat-first agent-design activity template (goal + instructions note + five-phase checklist) in ACTIVITY_TEMPLATES.",
       "scope": "fullstack",
       "estimated_loc": 300,
-      "actual_loc": null,
+      "actual_loc": 280,
       "dependencies": [
         "M0"
       ],
@@ -74,10 +74,10 @@
         "backend/analytics/session_rubric.py",
         "frontend/src/lib/activityTemplates.ts"
       ],
-      "passes": false,
-      "started": null,
-      "completed": null,
-      "notes": null
+      "passes": true,
+      "started": "2026-07-11",
+      "completed": "2026-07-11",
+      "notes": "SAAR rows + few-shot are faithful paraphrases pending verbatim Tables X/XI text from the scoping-site archive (marked in-code, same caveat as MAPS). Template is chat-first per plan."
     },
     {
       "id": "M3",
@@ -119,6 +119,6 @@
   },
   "github_issues": [],
   "last_session": null,
-  "last_checkpoint": "M0+M1 complete (research endpoints incl. lens-config GET/PUT landed with M1; 2519 BE green; cli-selftest-mock green). Next: M2 SAAR judge + template.",
+  "last_checkpoint": "M0-M2 complete (13 rubric tests; 2521 BE green). Next: M3 settings-pane panel (backend endpoints already landed in M1).",
   "status": "in_progress"
 }

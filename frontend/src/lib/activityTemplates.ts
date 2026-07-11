@@ -210,4 +210,37 @@ export const ACTIVITY_TEMPLATES: ActivityTemplate[] = [
     checklist: [],
     document: { prompt: "Upload et billede eller en fil af dit arbejde, så giver tutoren feedback." },
   },
+  {
+    // 1.1.57 M2 (RUBRIC-1) — the SAAR agent-design activity: the student
+    // designs an AI agent's instructions, then designs test cases that could
+    // REFUTE it (the Etkina testing-experiment mechanic, chat-first — the
+    // tutor guides the loop conversationally). The SAAR judge (Lens D) scores
+    // the transcript post-hoc, researcher-side.
+    id: "agent-design",
+    name: "Design din egen agent",
+    summary: "Eleven designer en AI-agent og tester den med forsøg, der kan AFVISE den.",
+    language: "da",
+    title: "Design din egen agent",
+    teachingGoal:
+      "Eleven designer en lille AI-agent (en instruks for, hvad agenten skal kunne) og afprøver den " +
+      "videnskabeligt. Vejled eleven gennem faserne: (1) formulér hvad agenten SKAL kunne som en hypotese, " +
+      "(2) design testtilfælde, der kunne AFVISE agenten — ikke kun bekræfte den, (3) forudsig resultatet " +
+      "af hver test FØR den køres, (4) gennemgå testene i samtalen og sammenlign forudsigelse med udfald, " +
+      "(5) identificér antagelser og revidér agent-instruksen. Det afgørende er refutationstankegangen: " +
+      "spørg altid 'hvilket udfald ville vise, at din agent IKKE virker?'. Konkludér ikke for eleven.",
+    checklist: [
+      "Formulér hvad din agent skal kunne (hypotesen)",
+      "Design mindst 3 testtilfælde — mindst ét der kan afvise agenten",
+      "Forudsig udfaldet af hver test, før du kører den",
+      "Sammenlign forudsigelse og udfald",
+      "Notér dine antagelser, og revidér agenten",
+    ],
+    note: {
+      title: "Videnskabelig test af din agent",
+      body:
+        "En god test er en, der KAN gå galt. Hvis alle dine tests bare bekræfter det, du allerede " +
+        "troede, har du ikke testet noget.\n\n" +
+        "Skriv din agent-instruks i chatten, og design så dine tests sammen med tutoren.",
+    },
+  },
 ];

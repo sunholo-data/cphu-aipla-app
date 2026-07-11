@@ -233,6 +233,71 @@ def build_maps_prompt(partition: EvidencePartition, pack: dict[str, Any], config
     )
 
 
+# --- SAAR judge (Lens D — testing-experiment rows, RUBRIC-1 M2) ---
+
+# Etkina et al. (2006) scientific-abilities rubric, testing-experiment scope
+# (Appendix A items 1-8), 0-3 scale: 0 missing / 1 inadequate / 2 needs
+# improvement / 3 adequate. NOTE: concise paraphrases pending the verbatim
+# open-access rows from the scoping-site extraction — swap in verbatim + keep
+# attribution when the archive syncs (same caveat as the MAPS table above).
+_SAAR_ROWS = {
+    "identify_hypothesis": "Identifies the hypothesis to be tested.",
+    "design_reliable_test": "Designs a reliable experiment that TESTS the hypothesis — one whose outcome could refute it, not merely confirm it.",
+    "distinguish_hypothesis_prediction": "Distinguishes between the hypothesis and the prediction that follows from it.",
+    "make_prediction": "Makes a reasonable prediction based on the hypothesis (if the hypothesis holds, then ...).",
+    "identify_assumptions": "Identifies the assumptions the prediction relies on.",
+    "compare_prediction_outcome": "Determines explicitly whether the prediction and the experimental outcome agree.",
+    "judge_hypothesis": "Makes a reasonable judgment about the hypothesis from the outcome.",
+    "revise_when_needed": "Revises the hypothesis when the outcome demands it (NA_problem when no revision was warranted).",
+}
+
+_SAAR_ATTRIBUTION = (
+    "Rubric: Etkina et al. (2006), 'Scientific abilities and their assessment', "
+    "PRST-PER 2, 020103 (open access; quoted with citation)."
+)
+
+# The canonical calibration contrast (the paper's Tables X/XI pattern):
+# refutation-oriented design scores 3; a confirmation-bias design — testing
+# only cases the hypothesis/agent is expected to get right — scores 1
+# ("Student B", the canonical negative). Illustrative pending the verbatim
+# graded transcripts from the archive.
+_SAAR_FEW_SHOT = (
+    "Calibration contrast:\n"
+    "- SCORE 3 (refutation-oriented): 'My agent should explain units. I will test it with trick "
+    "cases designed to REFUTE it — mixed units, a dimensionless quantity, and a case outside its "
+    "instructions — and state beforehand what outcome would falsify my design.'\n"
+    "- SCORE 1 (confirmation-oriented, the classic negative): 'My agent should explain units. "
+    "I tested it on three standard unit conversions it handled fine, so my design works.' The "
+    "design only sought confirmation; nothing about it could have refuted the hypothesis."
+)
+
+
+def build_saar_prompt(partition: EvidencePartition, pack: dict[str, Any], config: LensConfig) -> str:
+    """Assemble the SAAR (Lens D) judge prompt — 0-3 per testing-experiment row."""
+    preamble = config.prompt_override or (
+        "You are a physics-education research judge scoring a student's INQUIRY PROCESS with the "
+        "SAAR scientific-abilities rubric (testing-experiment scope). Score each row 0 (missing), "
+        "1 (inadequate), 2 (needs improvement) or 3 (adequate); NA_problem when the session gave "
+        "no occasion for the row. The decisive discriminator is refutation-orientation: a design "
+        "that could not possibly refute the hypothesis scores 1 on design_reliable_test no matter "
+        "how tidy it looks."
+    )
+    evidence = "\n".join(f"- {t.content}" for t in partition.student_initiated)
+    return "\n\n".join(
+        [
+            preamble,
+            _SAAR_ATTRIBUTION,
+            "Rows:\n" + "\n".join(f"- {key}: {text}" for key, text in _SAAR_ROWS.items()),
+            _SAAR_FEW_SHOT,
+            "Calibration anchors for THIS activity:\n" + _format_anchors(pack),
+            "STUDENT-INITIATED evidence (the ONLY scorable material — tutor-prompted turns are "
+            "excluded as scaffolded):\n" + evidence,
+            'Return STRICT JSON: {row_key: {"score": 0-3 | "NA_problem", "rationale": "one sentence"}} '
+            "for exactly these keys: " + ", ".join(_SAAR_ROWS),
+        ]
+    )
+
+
 # --- Judge execution ---
 
 
@@ -315,7 +380,10 @@ async def score_session_summary(summary: SessionSummary, lens_id: str) -> Rubric
     if lens_id == "maps":
         prompt = build_maps_prompt(partition, pack, config)
         expected = list(_MAPS_CATEGORIES)
-    else:  # pragma: no cover — SAAR prompt lands in RUBRIC-1 M2
+    elif lens_id == "saar":
+        prompt = build_saar_prompt(partition, pack, config)
+        expected = list(_SAAR_ROWS)
+    else:  # pragma: no cover — a registry entry without a judge prompt
         return _abstain(summary, config, partition, f"lens {lens_id!r} has no judge prompt yet")
 
     raw = await _call_judge_model(prompt, config.model)
@@ -350,6 +418,7 @@ __all__ = [
     "LensConfig",
     "RubricResult",
     "build_maps_prompt",
+    "build_saar_prompt",
     "get_lens_config",
     "list_lens_configs",
     "load_anchor_pack",

@@ -45,3 +45,18 @@ describe("ACTIVITY_TEMPLATES", () => {
     expect(t?.document?.prompt).toBeTruthy();
   });
 });
+
+describe("agent-design template (RUBRIC-1 M2 / 1.1.57)", () => {
+  const t = ACTIVITY_TEMPLATES.find((x) => x.id === "agent-design")!;
+
+  it("exists and carries the five-phase checklist", () => {
+    expect(t).toBeDefined();
+    expect(t.checklist).toHaveLength(5);
+    expect(t.checklist.some((c) => c.toLowerCase().includes("afvise"))).toBe(true);
+  });
+
+  it("the teaching goal is refutation-oriented, not confirmation-oriented", () => {
+    expect(t.teachingGoal).toContain("AFVISE");
+    expect(t.teachingGoal).toContain("hypotese");
+  });
+});

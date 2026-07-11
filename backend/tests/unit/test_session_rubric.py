@@ -217,3 +217,56 @@ async def test_prompt_override_is_used_and_stamped(monkeypatch):
     res = await sr.score_session_summary(_summary([_turn("student", "Min metode: ...")]), "maps")
     assert "OVERRIDE-MARKER" in captured["prompt"]
     assert res.prompt_version == "maps-r9"
+
+
+# --- RUBRIC-1 M2: SAAR judge (Lens D — testing-experiment rows) ---
+
+FAKE_SAAR_JSON = """
+{"identify_hypothesis": {"score": 3, "rationale": "clear"},
+ "design_reliable_test": {"score": 3, "rationale": "refutation-oriented"},
+ "distinguish_hypothesis_prediction": {"score": 2, "rationale": "mostly"},
+ "make_prediction": {"score": 3, "rationale": "if-then stated"},
+ "identify_assumptions": {"score": 1, "rationale": "unexamined"},
+ "compare_prediction_outcome": {"score": 3, "rationale": "explicit"},
+ "judge_hypothesis": {"score": 2, "rationale": "reasonable"},
+ "revise_when_needed": {"score": "NA_problem", "rationale": "no revision was warranted"}}
+"""
+
+
+@pytest.mark.asyncio
+async def test_saar_judge_scores_the_eight_rows(monkeypatch):
+    _anchored()
+    captured: dict = {}
+
+    async def _fake_model(prompt: str, model: str) -> str:
+        captured["prompt"] = prompt
+        return FAKE_SAAR_JSON
+
+    monkeypatch.setattr(sr, "_call_judge_model", _fake_model)
+    turns = [
+        _turn("student", "Min agent skal forklare enheder. Jeg tester den med opgaver, der kan AFVISE den."),
+        _turn("tutor", "Godt design! Hvilke antagelser gør du?"),
+        _turn("student", "At den altid svarer på dansk."),
+    ]
+    res = await sr.score_session_summary(_summary(turns), "saar")
+    assert res.abstained is False
+    assert res.profile["design_reliable_test"]["score"] == 3
+    assert len(res.profile) == 8
+    # calibration few-shot rides the prompt: the confirmation-bias NEGATIVE
+    # (the Etkina "Student B" pattern) must be present so the judge can
+    # distinguish refutation-oriented (3) from confirmation-oriented (1).
+    assert "confirmation" in captured["prompt"].lower()
+    assert "Etkina" in captured["prompt"]
+    # evidence integrity holds for SAAR too
+    assert "AFVISE" in captured["prompt"]
+    assert "altid svarer på dansk" not in captured["prompt"]
+
+
+@pytest.mark.asyncio
+async def test_saar_abstains_like_maps_without_anchors(monkeypatch):
+    async def _boom(prompt: str, model: str) -> str:
+        raise AssertionError("no judge call when abstaining")
+
+    monkeypatch.setattr(sr, "_call_judge_model", _boom)
+    res = await sr.score_session_summary(_summary([_turn("student", "x")]), "saar")
+    assert res.abstained is True and "anchor" in res.abstain_reason.lower()
