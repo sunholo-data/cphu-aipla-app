@@ -1,0 +1,104 @@
+{
+  "sprint_id": "SETTINGS-1",
+  "created": "2026-07-11T13:15:41Z",
+  "estimated_duration_days": 1.5,
+  "design_doc": "docs/design/aipla/v1.1.0-feedback/teacher-account-defaults.md",
+  "sprint_plan": "docs/design/aipla/v1.1.0-feedback/settings-1-sprint.md",
+  "features": [
+    {
+      "id": "M0",
+      "description": "teacher_prefs store (get/merge-put on teacher_prefs/{uid}) + GET/PUT /api/teacher/prefs (own-uid from token, partial update, extra=forbid, language validated, features str->bool). Registered in fast_api_app.",
+      "scope": "backend",
+      "estimated_loc": 180,
+      "actual_loc": 190,
+      "dependencies": [],
+      "acceptance_criteria": [
+        "GET returns {} unset; PUT partial-merges and round-trips",
+        "unknown fields 422; invalid language 422",
+        "caller can only touch their OWN doc (uid from token, never a param)",
+        "BE lint + test-fast green"
+      ],
+      "files_to_create": [
+        "backend/db/teacher_prefs.py",
+        "backend/protocols/teacher_prefs_routes.py",
+        "backend/tests/api_tests/test_teacher_prefs_routes.py"
+      ],
+      "files_to_modify": [
+        "backend/fast_api_app.py"
+      ],
+      "passes": true,
+      "started": "2026-07-11",
+      "completed": "2026-07-11",
+      "notes": null
+    },
+    {
+      "id": "M1",
+      "description": "useTeacherPrefs hook + the Defaults card in /teacher/settings for ALL teachers (language select, persona select from the catalogue, beta toggles with designed empty state), mounted above the researcher lens panel.",
+      "scope": "frontend",
+      "estimated_loc": 280,
+      "actual_loc": null,
+      "dependencies": [
+        "M0"
+      ],
+      "acceptance_criteria": [
+        "card renders for a plain teacher; saving PUTs partial updates",
+        "persona options come from the existing catalogue endpoint; unset supported",
+        "beta section shows the designed empty state when no flag is in 'beta'",
+        "vitest + quality:check green"
+      ],
+      "files_to_create": [
+        "frontend/src/hooks/useTeacherPrefs.ts",
+        "frontend/src/app/teacher/settings/_DefaultsCard.tsx",
+        "frontend/src/app/teacher/settings/__tests__/_DefaultsCard.test.tsx"
+      ],
+      "files_to_modify": [
+        "frontend/src/app/teacher/settings/page.tsx"
+      ],
+      "passes": false,
+      "started": null,
+      "completed": null,
+      "notes": null
+    },
+    {
+      "id": "M2",
+      "description": "Seeding + tri-state: builder /new seeds language from prefs (edit/hydrate untouched); class-create applies defaultPersonaId via the ClassPersonaPanel save path; useTeacherFeature(key, buildValue) hook ('1'/'beta'/'') with the authoring-copilot check converted (dev '1' -> unchanged).",
+      "scope": "fullstack",
+      "estimated_loc": 240,
+      "actual_loc": null,
+      "dependencies": [
+        "M0",
+        "M1"
+      ],
+      "acceptance_criteria": [
+        "default language en -> /new starts en; editing an existing da activity still shows da",
+        "class created with defaultPersonaId carries it; panel still overrides per class",
+        "useTeacherFeature: '1' true, 'beta' follows opt-in, '' false; copilot check uses it",
+        "gates green both ends"
+      ],
+      "files_to_create": [
+        "frontend/src/hooks/useTeacherFeature.ts"
+      ],
+      "files_to_modify": [
+        "frontend/src/app/teacher/activities/new/page.tsx",
+        "frontend/src/app/teacher/classes/page.tsx",
+        "frontend/src/app/teacher/activities/[id]/_AuthoringCopilot.tsx"
+      ],
+      "passes": false,
+      "started": null,
+      "completed": null,
+      "notes": null
+    }
+  ],
+  "velocity": {
+    "target_loc_per_day": 900,
+    "actual_loc_per_day": null,
+    "estimated_total_loc": 700,
+    "actual_total_loc": null,
+    "estimated_days": 1.5,
+    "actual_days": null
+  },
+  "github_issues": [],
+  "last_session": null,
+  "last_checkpoint": "M0 complete. Next: M1 Defaults card.",
+  "status": "in_progress"
+}
