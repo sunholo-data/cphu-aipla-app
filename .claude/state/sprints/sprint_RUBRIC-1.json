@@ -33,7 +33,7 @@
       "description": "CLI: aiplatform rubric score <session-id> --lens maps|saar (profile + partition printout) and aiplatform rubric anchors validate <activity-id> (>=5 anchors, NA(solver) example). Doc nit: 1.1.57 says 'aitana rubric'; our tree is aiplatform.",
       "scope": "backend",
       "estimated_loc": 130,
-      "actual_loc": null,
+      "actual_loc": 250,
       "dependencies": [
         "M0"
       ],
@@ -41,14 +41,19 @@
         "both commands run against dev data / fixtures",
         "make cli-selftest stays green"
       ],
-      "files_to_create": [],
-      "files_to_modify": [
-        "cli/aiplatform"
+      "files_to_create": [
+        "backend/protocols/research_lens_routes.py",
+        "backend/tests/api_tests/test_research_lens_routes.py",
+        "cli/aiplatform/commands/rubric.py"
       ],
-      "passes": false,
-      "started": null,
-      "completed": null,
-      "notes": null
+      "files_to_modify": [
+        "backend/fast_api_app.py",
+        "cli/aiplatform/cli.py"
+      ],
+      "passes": true,
+      "started": "2026-07-11",
+      "completed": "2026-07-11",
+      "notes": "SCOPE SHIFT (better fit): the CLI is an HTTP client, so the researcher endpoints (POST rubric-score, GET anchor validate, GET/PUT lens-configs) landed HERE in protocols/research_lens_routes.py rather than M3 — M3 keeps only the settings-pane FE. CLI needs a researcher-claim token."
     },
     {
       "id": "M2",
@@ -114,6 +119,6 @@
   },
   "github_issues": [],
   "last_session": null,
-  "last_checkpoint": "M0 complete (11 tests; 2510 BE green). Next: M1 CLI.",
+  "last_checkpoint": "M0+M1 complete (research endpoints incl. lens-config GET/PUT landed with M1; 2519 BE green; cli-selftest-mock green). Next: M2 SAAR judge + template.",
   "status": "in_progress"
 }

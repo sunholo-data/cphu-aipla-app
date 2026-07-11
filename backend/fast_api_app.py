@@ -279,6 +279,7 @@ from protocols.personas_routes import router as personas_router  # noqa: E402
 from protocols.proactive_routes import router as proactive_router  # noqa: E402
 from protocols.recording_routes import router as recording_router  # noqa: E402
 from protocols.reports_routes import router as reports_router  # noqa: E402
+from protocols.research_lens_routes import router as research_lens_router  # noqa: E402
 from protocols.session_bootstrap_routes import router as session_bootstrap_router  # noqa: E402
 from protocols.session_restore_routes import router as session_restore_router  # noqa: E402
 from protocols.sessions_route import router as sessions_router  # noqa: E402
@@ -310,6 +311,7 @@ app.include_router(activity_config_router)
 app.include_router(activity_router)
 app.include_router(activity_image_router)
 app.include_router(concept_progress_router)
+app.include_router(research_lens_router)
 app.include_router(personas_router)
 app.include_router(artefact_router)
 app.include_router(classes_router)

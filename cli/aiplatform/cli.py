@@ -22,6 +22,7 @@ from aiplatform.commands.folder import folder
 from aiplatform.commands.groups import groups
 from aiplatform.commands.insights import insights
 from aiplatform.commands.logs import logs
+from aiplatform.commands.rubric import rubric
 from aiplatform.commands.sessions import sessions
 from aiplatform.commands.sim import sim
 from aiplatform.commands.skill import skill
@@ -62,6 +63,7 @@ main.add_command(activity)
 main.add_command(curriculum)
 main.add_command(users)
 main.add_command(deploy)
+main.add_command(rubric)
 
 
 if __name__ == "__main__":
