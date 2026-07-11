@@ -27,7 +27,9 @@ import {
   listActivities,
   listClassRecentSessions,
   listClasses,
+  setClassPersona,
 } from "@/lib/teacherApi";
+import { fetchWithTeacherAuth } from "@/lib/apiClient";
 import {
   fetchInsightsCompare,
   fetchInsightsSummary,
@@ -846,10 +848,23 @@ function NewClassForm({
     setError(null);
     setSubmitting(true);
     try {
-      await createClass({
+      const created = await createClass({
         name: name.trim(),
         description: description.trim() || null,
       });
+      // 1.1.58 — apply the account's default persona at CREATE time (the
+      // ClassPersonaPanel stays the per-class override). Best-effort: a
+      // failure here must never fail the create.
+      try {
+        const prefs = (await (
+          await fetchWithTeacherAuth("/api/proxy/api/teacher/prefs")
+        ).json()) as { defaultPersonaId?: string | null };
+        if (prefs?.defaultPersonaId) {
+          await setClassPersona(created.classId, prefs.defaultPersonaId);
+        }
+      } catch {
+        /* the default persona is a convenience — never blocks class creation */
+      }
       onCreated();
     } catch (err) {
       setError(err instanceof Error ? err.message : "failed to create class");

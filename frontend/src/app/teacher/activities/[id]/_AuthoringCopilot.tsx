@@ -32,15 +32,13 @@ import type { ReactNode } from "react";
 
 import { TeacherCopilot } from "@/components/teacher/copilot";
 import type { CopilotLabels, ProposalDescriptor, TeacherCopilotConfig } from "@/components/teacher/copilot";
+import { useTeacherFeature } from "@/hooks/useTeacherFeature";
 import type { ToolCallState } from "@/hooks/useSkillAgent";
 
 import type { ConceptMapDiff } from "../applyConceptMapDiff";
 
 const SKILL_NAME = "activity-authoring-assistant";
 
-export function authoringCopilotEnabled(): boolean {
-  return process.env.NEXT_PUBLIC_AUTHORING_COPILOT === "1";
-}
 
 /**
  * A co-pilot proposal. One variant per tool; the parent's `onApplyProposal`
@@ -317,7 +315,12 @@ function stripActivityPrefix(content: string): string {
  * scope prefix, the proposal parser + descriptor, and the Apply router.
  */
 export function AuthoringCopilot({ activityId, onApplyProposal }: AuthoringCopilotProps) {
-  if (!authoringCopilotEnabled()) return null;
+  // 1.1.58 tri-state: '1' (dev) unchanged; 'beta' follows the teacher's
+  // settings opt-in; ''/unset renders nothing. Read inline (Next inlines
+  // NEXT_PUBLIC_* at build; tests mutate process.env at runtime). The hook
+  // runs before any early return (hook-order rule).
+  const enabled = useTeacherFeature("authoringCopilot", process.env.NEXT_PUBLIC_AUTHORING_COPILOT);
+  if (!enabled) return null;
 
   const config: TeacherCopilotConfig<Proposal> = {
     skillName: SKILL_NAME,

@@ -36,7 +36,7 @@
       "description": "useTeacherPrefs hook + the Defaults card in /teacher/settings for ALL teachers (language select, persona select from the catalogue, beta toggles with designed empty state), mounted above the researcher lens panel.",
       "scope": "frontend",
       "estimated_loc": 280,
-      "actual_loc": null,
+      "actual_loc": 300,
       "dependencies": [
         "M0"
       ],
@@ -54,17 +54,17 @@
       "files_to_modify": [
         "frontend/src/app/teacher/settings/page.tsx"
       ],
-      "passes": false,
-      "started": null,
-      "completed": null,
-      "notes": null
+      "passes": true,
+      "started": "2026-07-11",
+      "completed": "2026-07-11",
+      "notes": "Placeholder EmptyState copy updated (defaults have arrived; it now explains what stays contextual)."
     },
     {
       "id": "M2",
       "description": "Seeding + tri-state: builder /new seeds language from prefs (edit/hydrate untouched); class-create applies defaultPersonaId via the ClassPersonaPanel save path; useTeacherFeature(key, buildValue) hook ('1'/'beta'/'') with the authoring-copilot check converted (dev '1' -> unchanged).",
       "scope": "fullstack",
       "estimated_loc": 240,
-      "actual_loc": null,
+      "actual_loc": 230,
       "dependencies": [
         "M0",
         "M1"
@@ -83,22 +83,22 @@
         "frontend/src/app/teacher/classes/page.tsx",
         "frontend/src/app/teacher/activities/[id]/_AuthoringCopilot.tsx"
       ],
-      "passes": false,
-      "started": null,
-      "completed": null,
-      "notes": null
+      "passes": true,
+      "started": "2026-07-11",
+      "completed": "2026-07-11",
+      "notes": "languageSeed extracted as a pure tested rule (untouched-form guard). Copilot check converted to useTeacherFeature reading env inline (module-const would freeze test env mutation). Class-create persona apply is best-effort (never fails the create)."
     }
   ],
   "velocity": {
     "target_loc_per_day": 900,
     "actual_loc_per_day": null,
     "estimated_total_loc": 700,
-    "actual_total_loc": null,
+    "actual_total_loc": 720,
     "estimated_days": 1.5,
-    "actual_days": null
+    "actual_days": 0.5
   },
   "github_issues": [],
   "last_session": null,
-  "last_checkpoint": "M0 complete. Next: M1 Defaults card.",
-  "status": "in_progress"
+  "last_checkpoint": "All 3 milestones shipped. Teachers now have account defaults (language + persona) and the beta opt-in graduation path ('1'/'beta'/'').",
+  "status": "complete"
 }

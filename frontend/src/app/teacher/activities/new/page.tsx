@@ -16,6 +16,7 @@ import { InheritedPersona } from "@/components/teacher/InheritedPersona";
 import { TemplatePicker } from "@/components/teacher/TemplatePicker";
 import { ActivityBuilderBody } from "@/components/teacher/ActivityBuilderBody";
 import { useActivityBuilder } from "@/hooks/useActivityBuilder";
+import { languageSeed, useTeacherPrefs } from "@/hooks/useTeacherPrefs";
 import { AuthoringCopilot } from "../[id]/_AuthoringCopilot";
 import { applyCopilotProposal } from "../applyCopilotProposal";
 
@@ -55,6 +56,16 @@ function NewActivityForm() {
   const preferredClassId = useSearchParams().get("classId");
 
   const builder = useActivityBuilder();
+  // 1.1.58 — seed the language from the account default, CREATE-time only and
+  // only while the form is untouched (an explicit choice is never overridden).
+  const { prefs, loaded: prefsLoaded } = useTeacherPrefs();
+  useEffect(() => {
+    if (!prefsLoaded) return;
+    const seed = languageSeed(prefs, builder);
+    if (seed) builder.setLanguage(seed);
+    // Seed exactly once, when prefs resolve — not on later builder changes.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [prefsLoaded]);
   const [classesState, setClassesState] = useState<ClassesState>({ status: "loading" });
   const [classId, setClassId] = useState("");
 

@@ -6,6 +6,7 @@ import { ArrowRight, Settings as SettingsIcon } from "lucide-react";
 import { EmptyState } from "@/components/teacher/ui/EmptyState";
 import { TeacherPage } from "@/components/teacher/ui/TeacherPage";
 
+import { DefaultsCard } from "./_DefaultsCard";
 import { LensConfigPanel } from "./_LensConfigPanel";
 
 /**
@@ -22,11 +23,12 @@ export default function TeacherSettingsPage() {
   return (
     <TeacherPage title="Settings">
       <div className="flex flex-col gap-6">
+        <DefaultsCard />
         <LensConfigPanel />
         <EmptyState
           icon={SettingsIcon}
-          title="Account-wide defaults are coming here"
-          description="For now, settings live where they apply: open a class to set its voice and read-aloud language (the “Voice (read-aloud)” panel), and set an activity’s language and difficulty in the activity builder."
+          title="Everything else lives where it applies"
+          description="Per-class settings (tutor persona, voice and read-aloud language) are on each class page; per-activity settings (language, elements, materials) are in the activity builder. The defaults above only seed those — they never override them."
           action={
             <Link
               href="/teacher/classes"
