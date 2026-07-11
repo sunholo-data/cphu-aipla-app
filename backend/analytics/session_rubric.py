@@ -87,6 +87,9 @@ class LensConfig(BaseModel):
     prompt_version: str
     enabled: bool = True
     prompt_override: str | None = None
+    #: The code-default judge preamble (read-only reference for the settings
+    #: surface). Never persisted — derived from the lens id at read time.
+    default_prompt: str = ""
 
     model_config = ConfigDict(populate_by_name=True)
 
@@ -101,6 +104,8 @@ def get_lens_config(lens_id: str) -> LensConfig:
         "prompt_version": spec.prompt_version,
         "enabled": spec.enabled,
         "prompt_override": None,
+        # Read-only reference for the settings surface (never stored / overridable).
+        "default_prompt": LENS_DEFAULT_PROMPTS.get(lens_id, ""),
     }
     override = get_document(_CONFIG_COLLECTION, lens_id) or {}
     for key in ("model", "prompt_version", "enabled", "prompt_override", "label"):
@@ -204,20 +209,28 @@ def _format_anchors(pack: dict[str, Any]) -> str:
     return "\n\n".join(lines)
 
 
+# The DEFAULT judge preamble (the editable "instructions" layer a researcher's
+# prompt_override replaces). Named + exported so the settings surface can SHOW
+# it — a researcher edits from it rather than from a blank box. The rubric
+# categories, calibration anchors, attribution, and student evidence are always
+# assembled AROUND the preamble (see build_maps_prompt), never overridable.
+_MAPS_DEFAULT_PREAMBLE = (
+    "You are a physics-education research judge scoring a student's problem-solving PROCESS "
+    "with the MAPS rubric. Score each category 0-5, or NA_problem (the problem doesn't elicit "
+    "the category) or NA_solver (the student produced no independent evidence for it). "
+    "Do NOT reward a correct final answer as such: expert problem solvers generate incorrect "
+    "answers a significant fraction of the time — the categories score process quality. "
+    "Apply the consistency rule: an early error used consistently afterwards is penalised once, "
+    "not in every category it touches."
+)
+
+
 def build_maps_prompt(partition: EvidencePartition, pack: dict[str, Any], config: LensConfig) -> str:
     """Assemble the MAPS judge prompt. Scores PROCESS, not answers — expert
     solvers get wrong answers a significant fraction of the time — and applies
     the consistency rule (an early error carried through consistently is not
     re-penalised)."""
-    preamble = config.prompt_override or (
-        "You are a physics-education research judge scoring a student's problem-solving PROCESS "
-        "with the MAPS rubric. Score each category 0-5, or NA_problem (the problem doesn't elicit "
-        "the category) or NA_solver (the student produced no independent evidence for it). "
-        "Do NOT reward a correct final answer as such: expert problem solvers generate incorrect "
-        "answers a significant fraction of the time — the categories score process quality. "
-        "Apply the consistency rule: an early error used consistently afterwards is penalised once, "
-        "not in every category it touches."
-    )
+    preamble = config.prompt_override or _MAPS_DEFAULT_PREAMBLE
     evidence = "\n".join(f"- {t.content}" for t in partition.student_initiated)
     return "\n\n".join(
         [
@@ -272,16 +285,28 @@ _SAAR_FEW_SHOT = (
 )
 
 
+# The DEFAULT SAAR judge preamble — the editable layer (see _MAPS_DEFAULT_PREAMBLE).
+_SAAR_DEFAULT_PREAMBLE = (
+    "You are a physics-education research judge scoring a student's INQUIRY PROCESS with the "
+    "SAAR scientific-abilities rubric (testing-experiment scope). Score each row 0 (missing), "
+    "1 (inadequate), 2 (needs improvement) or 3 (adequate); NA_problem when the session gave "
+    "no occasion for the row. The decisive discriminator is refutation-orientation: a design "
+    "that could not possibly refute the hypothesis scores 1 on design_reliable_test no matter "
+    "how tidy it looks."
+)
+
+
+#: lens_id -> the default (code) judge preamble. The settings surface shows
+#: this so a researcher edits FROM the default instead of a blank box.
+LENS_DEFAULT_PROMPTS: dict[str, str] = {
+    "maps": _MAPS_DEFAULT_PREAMBLE,
+    "saar": _SAAR_DEFAULT_PREAMBLE,
+}
+
+
 def build_saar_prompt(partition: EvidencePartition, pack: dict[str, Any], config: LensConfig) -> str:
     """Assemble the SAAR (Lens D) judge prompt — 0-3 per testing-experiment row."""
-    preamble = config.prompt_override or (
-        "You are a physics-education research judge scoring a student's INQUIRY PROCESS with the "
-        "SAAR scientific-abilities rubric (testing-experiment scope). Score each row 0 (missing), "
-        "1 (inadequate), 2 (needs improvement) or 3 (adequate); NA_problem when the session gave "
-        "no occasion for the row. The decisive discriminator is refutation-orientation: a design "
-        "that could not possibly refute the hypothesis scores 1 on design_reliable_test no matter "
-        "how tidy it looks."
-    )
+    preamble = config.prompt_override or _SAAR_DEFAULT_PREAMBLE
     evidence = "\n".join(f"- {t.content}" for t in partition.student_initiated)
     return "\n\n".join(
         [
@@ -412,6 +437,7 @@ async def score_session(session_id: str, lens_id: str) -> RubricResult | None:
 
 
 __all__ = [
+    "LENS_DEFAULT_PROMPTS",
     "LENS_REGISTRY",
     "MIN_ANCHORS",
     "EvidencePartition",

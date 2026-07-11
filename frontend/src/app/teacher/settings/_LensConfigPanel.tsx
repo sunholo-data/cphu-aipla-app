@@ -11,7 +11,7 @@
 // never fabricates a score.
 
 import { useCallback, useEffect, useState } from "react";
-import { FlaskConical, RotateCcw } from "lucide-react";
+import { ClipboardCopy, FlaskConical, RotateCcw } from "lucide-react";
 
 import { useIsResearcher } from "@/hooks/useIsResearcher";
 import { fetchWithTeacherAuth } from "@/lib/apiClient";
@@ -23,6 +23,9 @@ interface LensConfig {
   prompt_version: string;
   enabled: boolean;
   prompt_override: string | null;
+  /** The code-default judge preamble — shown read-only so a researcher edits
+   *  FROM it instead of a blank box (RUBRIC-1 M3 follow-up). */
+  default_prompt: string;
 }
 
 interface RubricScore {
@@ -145,18 +148,39 @@ function LensCard({ lens, onSaved }: { lens: LensConfig; onSaved: () => void }) 
         </select>
       </label>
 
+      <details className="rounded-md border border-slate-200 bg-slate-50/70 px-3 py-2" data-testid={`lens-default-${lens.lens_id}`}>
+        <summary className="cursor-pointer text-xs font-medium text-slate-600">
+          Default prompt {prompt.trim() ? "" : "(currently in use)"} — click to view
+        </summary>
+        <p className="mt-1 whitespace-pre-wrap font-mono text-xs text-slate-600" data-testid={`lens-default-text-${lens.lens_id}`}>
+          {lens.default_prompt}
+        </p>
+        <button
+          type="button"
+          onClick={() => setPrompt(lens.default_prompt)}
+          className="mt-2 flex items-center gap-1 rounded border border-slate-300 px-2 py-0.5 text-xs font-medium text-slate-600 hover:bg-white"
+        >
+          <ClipboardCopy className="h-3 w-3" /> Copy into editor
+        </button>
+      </details>
+
       <label className="flex flex-col gap-1">
         <span className="text-xs font-medium text-slate-600">
-          Judge prompt override (empty = the code default; saving bumps the version)
+          Judge prompt override (empty = the default above; saving bumps the version)
         </span>
         <textarea
           aria-label={`Prompt override for ${lens.lens_id}`}
           value={prompt}
           onChange={(e) => setPrompt(e.target.value)}
-          rows={4}
+          rows={5}
           maxLength={8000}
+          placeholder="Empty → the default prompt above is used. Click “Copy into editor” to start from it."
           className="rounded-md border border-slate-300 px-3 py-2 font-mono text-xs"
         />
+        <span className="text-[11px] text-slate-400">
+          The override replaces only these instructions. The rubric categories, your anchor pack, the
+          attribution, and the student&apos;s evidence are always appended automatically.
+        </span>
       </label>
       <div className="flex items-center gap-2">
         <button

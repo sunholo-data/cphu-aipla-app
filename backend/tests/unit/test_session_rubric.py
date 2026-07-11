@@ -270,3 +270,30 @@ async def test_saar_abstains_like_maps_without_anchors(monkeypatch):
     monkeypatch.setattr(sr, "_call_judge_model", _boom)
     res = await sr.score_session_summary(_summary([_turn("student", "x")]), "saar")
     assert res.abstained is True and "anchor" in res.abstain_reason.lower()
+
+
+# --- RUBRIC-1 M3 follow-up: expose the default prompt (edit-from basis) ---
+
+
+def test_lens_config_exposes_the_default_prompt():
+    maps = sr.get_lens_config("maps")
+    saar = sr.get_lens_config("saar")
+    assert maps.default_prompt.startswith("You are a physics-education research judge")
+    assert "MAPS rubric" in maps.default_prompt
+    assert "SAAR scientific-abilities rubric" in saar.default_prompt
+
+
+def test_default_prompt_is_the_builder_fallback_and_is_not_persisted():
+    # The default shown in the UI is EXACTLY what the judge uses when no
+    # override is set — one source of truth.
+    from analytics.session_rubric import EvidencePartition, build_maps_prompt
+
+    cfg = sr.get_lens_config("maps")
+    part = EvidencePartition(student_initiated=[_turn("student", "min løsning")])
+    assert cfg.default_prompt in build_maps_prompt(part, {"anchors": []}, cfg)
+
+    # Setting an override never touches default_prompt (it's derived, not stored).
+    set_document("analytics_lens_configs", "maps", {"prompt_override": "custom"})
+    cfg2 = sr.get_lens_config("maps")
+    assert cfg2.prompt_override == "custom"
+    assert cfg2.default_prompt == cfg.default_prompt

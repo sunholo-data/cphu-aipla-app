@@ -26,6 +26,7 @@ const LENSES = {
       prompt_version: "maps-r1",
       enabled: true,
       prompt_override: null,
+      default_prompt: "You are a physics-education research judge scoring a student's problem-solving PROCESS with the MAPS rubric.",
     },
     {
       lens_id: "saar",
@@ -34,6 +35,7 @@ const LENSES = {
       prompt_version: "saar-r1",
       enabled: true,
       prompt_override: null,
+      default_prompt: "You are a physics-education research judge scoring a student's INQUIRY PROCESS.",
     },
   ],
 };
@@ -87,6 +89,22 @@ describe("LensConfigPanel — editing", () => {
         }),
       );
     });
+  });
+
+  it("shows the default prompt and copies it into the editor to edit from", async () => {
+    mockIsResearcher.mockReturnValue(true);
+    mockFetch.mockResolvedValue(ok(LENSES));
+    render(<LensConfigPanel />);
+    await screen.findByTestId("lens-card-maps");
+
+    // the default preamble is visible (read-only reference)
+    expect(screen.getByTestId("lens-default-text-maps")).toHaveTextContent("problem-solving PROCESS");
+    // the override editor starts empty…
+    const editor = screen.getByLabelText("Prompt override for maps") as HTMLTextAreaElement;
+    expect(editor.value).toBe("");
+    // …and "Copy into editor" seeds it with the default so you edit from it
+    fireEvent.click(screen.getAllByRole("button", { name: /copy into editor/i })[0]);
+    expect(editor.value).toContain("problem-solving PROCESS");
   });
 });
 
