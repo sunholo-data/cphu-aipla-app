@@ -36,7 +36,9 @@
       "scope": "frontend",
       "estimated_loc": 500,
       "actual_loc": null,
-      "dependencies": ["M0"],
+      "dependencies": [
+        "M0"
+      ],
       "acceptance_criteria": [
         "teacher authors nodes + depends-on + check questions in list mode; save -> reload intact on both builder pages",
         "graph preview auto-lays out topologically; cycle attempts blocked client-side; scrolls at ~700px",
@@ -69,7 +71,10 @@
       "scope": "fullstack",
       "estimated_loc": 380,
       "actual_loc": null,
-      "dependencies": ["M0", "M1"],
+      "dependencies": [
+        "M0",
+        "M1"
+      ],
       "acceptance_criteria": [
         "owner gets a valid diff proposal; non-owner denied; never persists (save_activity monkeypatch guard)",
         "a cycle-producing or dangling-ref diff is rejected with current node ids returned (self-correcting)",
@@ -98,7 +103,9 @@
       "scope": "fullstack",
       "estimated_loc": 450,
       "actual_loc": null,
-      "dependencies": ["M0"],
+      "dependencies": [
+        "M0"
+      ],
       "acceptance_criteria": [
         "run_checkpoint returns the node's questions for the session activity; unknown node id self-corrects with the node list",
         "record_checkpoint persists status+evidence keyed by the JWT group_id; never trusts a group_id param",
@@ -131,7 +138,11 @@
       "scope": "fullstack",
       "estimated_loc": 100,
       "actual_loc": null,
-      "dependencies": ["M1", "M2", "M3"],
+      "dependencies": [
+        "M1",
+        "M2",
+        "M3"
+      ],
       "acceptance_criteria": [
         "demo activity exists on dev with map + questions",
         "make seed ENV=dev run post-deploy (authoring + tutor SKILL.md changes propagated)",
@@ -143,22 +154,22 @@
         "backend/onboarding/demo_seed.py",
         "docs/design/aipla/v1.1.0-feedback/living-concept-map.md"
       ],
-      "passes": false,
-      "started": null,
-      "completed": null,
-      "notes": null
+      "passes": true,
+      "started": "2026-07-11",
+      "completed": "2026-07-11",
+      "notes": "Deploy SUCCESS (05d8d87), make seed ENV=dev run (7 updated / 0 failed), endpoint + frontend smoked. REMAINING GATE: M's browser click-through (author map -> co-pilot diff -> student view -> checkpoint -> light-up)."
     }
   ],
   "velocity": {
     "target_loc_per_day": 900,
     "actual_loc_per_day": null,
     "estimated_total_loc": 1710,
-    "actual_total_loc": null,
+    "actual_total_loc": 2050,
     "estimated_days": 2,
-    "actual_days": null
+    "actual_days": 1
   },
   "github_issues": [],
   "last_session": "2026-07-11",
-  "last_checkpoint": "M0-M3 complete (BE 2499 + FE gates green). Next: M4 demo seed + deploy + make seed ENV=dev (authoring SKILL.md changed in M2) + browser smoke.",
-  "status": "in_progress"
+  "last_checkpoint": "All 5 milestones shipped + deployed + seeded (M0 5f53956, M1 e5276d0, M2 f9a032e, M3 6e100a3, M4 05d8d87). Remaining gate: M's browser verify. Follow-ons per design doc: passive mark_concept check-off, teacher coverage dashboard, eval/calibration, strip tool results from student frames before pilot.",
+  "status": "complete"
 }
