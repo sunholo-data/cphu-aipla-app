@@ -7,6 +7,7 @@ import { ActivityPreview } from "@/components/teacher/ActivityPreview";
 import { BuilderSection, BuilderSectionNav, SECTION } from "@/components/teacher/BuilderLayout";
 import { CalculatorEditor } from "@/components/teacher/CalculatorEditor";
 import { ChartEditor } from "@/components/teacher/ChartEditor";
+import { ConceptMapEditor } from "@/components/teacher/ConceptMapEditor";
 import { DocumentEditor } from "@/components/teacher/DocumentEditor";
 import { MaterialsSection } from "@/components/teacher/MaterialsSection";
 import { NoteEditor } from "@/components/teacher/NoteEditor";
@@ -14,6 +15,10 @@ import { SimPicker } from "@/components/teacher/SimPicker";
 import { SolutionEditor } from "@/components/teacher/SolutionEditor";
 import { TableEditor } from "@/components/teacher/TableEditor";
 import type { ActivityBuilder } from "@/hooks/useActivityBuilder";
+
+// Living concept map (CONCEPT-1 M1) — dark-flagged like the authoring co-pilot;
+// bakes at build time (cloudbuild `_CONCEPT_MAP`), on for dev.
+const CONCEPT_MAP_ENABLED = process.env.NEXT_PUBLIC_CONCEPT_MAP === "1";
 
 interface ActivityBuilderBodyProps {
   builder: ActivityBuilder;
@@ -188,6 +193,10 @@ export function ActivityBuilderBody({
           <SolutionEditor value={b.solution} onChange={b.setSolution} />
 
           <DocumentEditor value={b.document} onChange={b.setDocument} />
+
+          {CONCEPT_MAP_ENABLED && (
+            <ConceptMapEditor value={b.conceptMap} onChange={b.setConceptMap} nextKey={b.nextElementKey} />
+          )}
         </BuilderSection>
 
         <BuilderSection section={SECTION.materials}>
@@ -213,6 +222,7 @@ export function ActivityBuilderBody({
             note: b.note,
             solution: b.solution,
             document: b.document,
+            conceptMap: b.conceptMap,
           }}
         />
       </div>

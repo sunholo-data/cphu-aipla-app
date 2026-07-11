@@ -10,6 +10,7 @@ const EMPTY: BuilderElements = {
   note: null,
   solution: null,
   document: null,
+  conceptMap: null,
 };
 
 describe("builderToElementDefs", () => {
@@ -23,6 +24,7 @@ describe("builderToElementDefs", () => {
       note: [],
       solution: [],
       document: [],
+      conceptMap: [],
     });
     expect(hasAnyElement(d)).toBe(false);
   });
@@ -164,5 +166,65 @@ describe("builderToElementDefs", () => {
       { id: "note-1", title: "N", body: "hej" },
     ]);
     expect(builderToElementDefs({ ...EMPTY, note: { title: "N", body: "   " } }).note).toEqual([]);
+  });
+});
+
+describe("builderToElementDefs — conceptMap (CONCEPT-1 M1)", () => {
+  const MAP = {
+    title: " Projektil ",
+    nodes: [
+      { key: 1, id: "n-1", label: "Vektorer", dependsOn: [], questions: [] },
+      { key: 2, id: "n-2", label: "Trigonometri", dependsOn: [], questions: [] },
+      {
+        key: 3,
+        id: "n-3",
+        label: " Projektilbevægelse ",
+        dependsOn: ["n-1", "n-2"],
+        questions: [
+          { key: 4, prompt: " Hvorfor en parabel? ", expectedAnswer: " konstant acceleration " },
+          { key: 5, prompt: "   ", expectedAnswer: "dropped — empty prompt" },
+        ],
+      },
+    ],
+  };
+
+  it("projects dependsOn into prerequisite edges and trims labels/questions", () => {
+    const d = builderToElementDefs({ ...EMPTY, conceptMap: MAP });
+    expect(d.conceptMap).toHaveLength(1);
+    const m = d.conceptMap[0];
+    expect(m.title).toBe("Projektil");
+    expect(m.nodes.map((n) => n.label)).toEqual(["Vektorer", "Trigonometri", "Projektilbevægelse"]);
+    expect(m.edges).toEqual([
+      { from: "n-1", to: "n-3" },
+      { from: "n-2", to: "n-3" },
+    ]);
+    expect(m.nodes[2].checkQuestions).toEqual([
+      { id: "q-1", prompt: "Hvorfor en parabel?", expectedAnswer: "konstant acceleration" },
+    ]);
+  });
+
+  it("drops unlabelled nodes AND their edges (no dangling refs reach the backend)", () => {
+    const d = builderToElementDefs({
+      ...EMPTY,
+      conceptMap: {
+        title: "",
+        nodes: [
+          { key: 1, id: "n-1", label: "  ", dependsOn: [], questions: [] },
+          { key: 2, id: "n-2", label: "Kraft", dependsOn: ["n-1"], questions: [] },
+        ],
+      },
+    });
+    expect(d.conceptMap[0].nodes.map((n) => n.id)).toEqual(["n-2"]);
+    expect(d.conceptMap[0].edges).toEqual([]);
+  });
+
+  it("drops the whole map when no node survives; hasAnyElement counts a map", () => {
+    expect(
+      builderToElementDefs({
+        ...EMPTY,
+        conceptMap: { title: "T", nodes: [{ key: 1, id: "n-1", label: " ", dependsOn: [], questions: [] }] },
+      }).conceptMap,
+    ).toEqual([]);
+    expect(hasAnyElement(builderToElementDefs({ ...EMPTY, conceptMap: MAP }))).toBe(true);
   });
 });

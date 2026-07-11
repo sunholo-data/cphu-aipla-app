@@ -56,6 +56,7 @@ export interface ActivityConfigPayload {
   note?: NoteElement[];
   solution?: SolutionElement[];
   document?: DocumentElement[];
+  conceptMap?: ConceptMapElement[];
   materials?: MaterialRef[];
   updatedAt: string;
 }
@@ -97,6 +98,7 @@ import type {
   CalculatorElement,
   ChartElement,
   ChecklistItem,
+  ConceptMapElement,
   DocumentElement,
   NoteElement,
   SolutionElement,
@@ -109,6 +111,7 @@ export type {
   CalculatorElement,
   ChartElement,
   ChecklistItem,
+  ConceptMapElement,
   DocumentElement,
   NoteElement,
   SolutionElement,
@@ -194,6 +197,7 @@ export interface ActivityConfigUpsert {
   note?: NoteElement[];
   solution?: SolutionElement[];
   document?: DocumentElement[];
+  conceptMap?: ConceptMapElement[];
   materials?: MaterialRef[];
   /** Day-0 overwrite guard (ALS-1 M0.5-guard). The create page sets this so a
    *  SECOND create of the same (teacher, class, activity) is refused (409)
@@ -346,6 +350,7 @@ export interface ActivityUpsertBody {
   note?: NoteElement[];
   solution?: SolutionElement[];
   document?: DocumentElement[];
+  conceptMap?: ConceptMapElement[];
   materials?: MaterialRef[];
 }
 

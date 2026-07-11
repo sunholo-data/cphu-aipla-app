@@ -46,7 +46,8 @@
       "files_to_create": [
         "frontend/src/components/teacher/ConceptMapEditor.tsx",
         "frontend/src/components/workspace/ConceptMapGraph.tsx",
-        "frontend/src/components/workspace/ConceptMapView.tsx"
+        "frontend/src/components/workspace/ConceptMapView.tsx",
+        "frontend/src/components/workspace/__tests__/ConceptMap.test.tsx"
       ],
       "files_to_modify": [
         "frontend/src/hooks/useActivityBuilder.ts",
@@ -57,10 +58,10 @@
         "cloudbuild.yaml",
         "frontend/.env.example"
       ],
-      "passes": false,
-      "started": null,
-      "completed": null,
-      "notes": null
+      "passes": true,
+      "started": "2026-07-10",
+      "completed": "2026-07-11",
+      "notes": "Wire types homed in lib/elementTypes.ts (the canonical TS mirror) with *Def aliases; chat page threads activeConceptMap through the /active config load. Session-split interruption mid-hook recovered — all 9 useActivityBuilder edits verified in place. 1437 FE tests green."
     },
     {
       "id": "M2",
@@ -153,7 +154,7 @@
     "actual_days": null
   },
   "github_issues": [],
-  "last_session": "2026-07-10",
-  "last_checkpoint": "M0 complete (models + registry + both stores + FE mirror; 2479 BE tests green). Next: M1 editor + student view.",
+  "last_session": "2026-07-11",
+  "last_checkpoint": "M0 + M1 complete (editor + graph + student view + flag; FE 1437 green). Next: M2 propose_concept_map diff tool.",
   "status": "in_progress"
 }

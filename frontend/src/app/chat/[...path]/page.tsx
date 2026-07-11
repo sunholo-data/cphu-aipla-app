@@ -72,6 +72,7 @@ import { type ActivityArtefact } from "@/components/workspace/GenericArtefactFra
 import { StudentWorkspace } from "@/components/workspace/StudentWorkspace";
 import type { SolutionElementDef } from "@/components/workspace/SolutionElementMount";
 import type { DocumentElementDef } from "@/components/workspace/DocumentElementMount";
+import type { ConceptMapElementDef } from "@/components/workspace/ConceptMapView";
 import { DocumentsPanel, type ActivityMaterial } from "@/components/workspace/DocumentsPanel";
 import { reportDocumentEvent } from "@/lib/documentApi";
 import { workspaceContentKind } from "./workspaceContent";
@@ -425,6 +426,9 @@ function ChatShell({
   // 1.1.48 — the document-upload element (JB-1 "din fil"); reconciled from the
   // legacy workbench_type="document" mode into a composable element.
   const [activeDocument, setActiveDocument] = useState<DocumentElementDef[]>([]);
+  // Living concept map (CONCEPT-1 M1) — read-only orientation; M3 lights the
+  // nodes up from the checkpoint state.
+  const [activeConceptMap, setActiveConceptMap] = useState<ConceptMapElementDef[]>([]);
   // Persona (1.1.12) resolved for this activity — the bot bubbles show its
   // avatar + name. Optional; null leaves the default brand byline.
   const [activePersona, setActivePersona] = useState<PersonaSummary | null>(null);
@@ -439,6 +443,7 @@ function ChatShell({
       activeNote.length > 0 ||
       activeSolution.length > 0 ||
       activeDocument.length > 0 ||
+      activeConceptMap.length > 0 ||
       activeArtefact != null,
   );
   // 1.1.33 M1 — the student's uploaded photos this session (native AG-UI image
@@ -468,6 +473,7 @@ function ChatShell({
       setActiveNote([]);
       setActiveSolution([]);
       setActiveDocument([]);
+      setActiveConceptMap([]);
       setActiveArtefact(null);
       setActivePersona(null);
       setActiveMaterials([]);
@@ -489,6 +495,7 @@ function ChatShell({
         if (Array.isArray(data.note)) setActiveNote(data.note as NoteElementDef[]);
         if (Array.isArray(data.solution)) setActiveSolution(data.solution as SolutionElementDef[]);
         if (Array.isArray(data.document)) setActiveDocument(data.document as DocumentElementDef[]);
+        if (Array.isArray(data.conceptMap)) setActiveConceptMap(data.conceptMap as ConceptMapElementDef[]);
         setActiveArtefact((data.artefact as ActivityArtefact | null) ?? null);
         setActivePersona((data.persona as PersonaSummary | null) ?? null);
         setActiveMaterials(Array.isArray(data.materials) ? (data.materials as ActivityMaterial[]) : []);
@@ -1306,6 +1313,7 @@ function ChatShell({
                 note={activeNote}
                 solution={activeSolution}
                 document={activeDocument}
+                conceptMap={activeConceptMap}
                 onDocumentActiveChange={handleWorkbenchActiveDoc}
                 materials={activeMaterials}
                 images={uploadedImages}

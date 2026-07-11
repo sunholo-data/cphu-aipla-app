@@ -34,7 +34,7 @@ const CALC = [{ id: "calc1", formula: "s", inputs: [{ id: "s", label: "S" }] }];
 const NOTE = [{ id: "n1", body: "hej" }];
 const SOLUTION = [{ id: "sol1", prompt: "Solve it" }];
 const DOCUMENT = [{ id: "doc1", prompt: "Upload" }];
-const EMPTY = { checklist: [], table: [], chart: [], calculator: [], note: [], solution: [], document: [] };
+const EMPTY = { checklist: [], table: [], chart: [], calculator: [], note: [], solution: [], document: [], conceptMap: [] };
 
 describe("WorkspaceElements dispatch (1.1.38 M1–M4)", () => {
   it("renders nothing when no workspace element is present", () => {
@@ -89,6 +89,7 @@ describe("WorkspaceElements dispatch (1.1.38 M1–M4)", () => {
         note={NOTE}
         solution={SOLUTION}
         document={DOCUMENT}
+        conceptMap={[]}
       />,
     );
     for (const id of ["checklist", "table", "chart", "calculator", "note", "solution", "document"]) {

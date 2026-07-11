@@ -34,6 +34,9 @@ substitutions:
   # override to '' until AR/JB's teaching framework lands. Baked at build time
   # (NEXT_PUBLIC_*), so it rides this build-arg, not a runtime env var.
   _AUTHORING_COPILOT: '1'
+  # CONCEPT-1 — the living-concept-map element in the teacher builder. '1' for
+  # dev (demo iteration); test/prod override to '' until it settles.
+  _CONCEPT_MAP: '1'
   # CI gate escape hatch. Empty by default => the gate ALWAYS runs. A push
   # cannot set this (push triggers use only the terraform-managed subs), so
   # every push-triggered deploy is gated. The ONLY way to bypass is an explicit
@@ -134,6 +137,7 @@ steps:
         docker build $$ARGS \
           --build-arg NEXT_PUBLIC_MCP_SANDBOX_URL=${_MCP_SANDBOX_URL} \
           --build-arg NEXT_PUBLIC_AUTHORING_COPILOT=${_AUTHORING_COPILOT} \
+          --build-arg NEXT_PUBLIC_CONCEPT_MAP=${_CONCEPT_MAP} \
           -t ${_ARTIFACT_REGISTRY_REPO_URL_CLIENT}/${_SERVICE_NAME}/ui:${BRANCH_NAME} \
           -f frontend/Dockerfile \
           frontend/

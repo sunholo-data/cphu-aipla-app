@@ -7,6 +7,7 @@ import { builderToElementDefs } from "@/lib/activityPreview";
 import type { TableEditorValue } from "@/components/teacher/TableEditor";
 import type { ChartEditorValue } from "@/components/teacher/ChartEditor";
 import type { CalculatorEditorValue } from "@/components/teacher/CalculatorEditor";
+import type { ConceptMapEditorValue } from "@/components/teacher/ConceptMapEditor";
 import type { NoteEditorValue } from "@/components/teacher/NoteEditor";
 import type { SolutionEditorValue } from "@/components/teacher/SolutionEditor";
 import type { DocumentEditorValue } from "@/components/teacher/DocumentEditor";
@@ -37,6 +38,7 @@ export interface ElementPayload {
   note: ReturnType<typeof builderToElementDefs>["note"];
   solution: ReturnType<typeof builderToElementDefs>["solution"];
   document: ReturnType<typeof builderToElementDefs>["document"];
+  conceptMap: ReturnType<typeof builderToElementDefs>["conceptMap"];
 }
 
 /** The full payload both the create and edit pages POST/PATCH. Page-specific
@@ -83,6 +85,10 @@ export interface ActivityBuilder {
   setSolution: (v: SolutionEditorValue | null) => void;
   document: DocumentEditorValue | null;
   setDocument: (v: DocumentEditorValue | null) => void;
+  conceptMap: ConceptMapEditorValue | null;
+  setConceptMap: (v: ConceptMapEditorValue | null) => void;
+  /** Mints a unique client key (checklist rows, concept nodes/questions). */
+  nextElementKey: () => number;
   artefactId: string | null;
   setArtefactId: (v: string | null) => void;
   materials: MaterialRef[];
@@ -119,9 +125,11 @@ export function useActivityBuilder(): ActivityBuilder {
   const [note, setNote] = useState<NoteEditorValue | null>(null);
   const [solution, setSolution] = useState<SolutionEditorValue | null>(null);
   const [document, setDocument] = useState<DocumentEditorValue | null>(null);
+  const [conceptMap, setConceptMap] = useState<ConceptMapEditorValue | null>(null);
   const [artefactId, setArtefactId] = useState<string | null>(null);
   const [materials, setMaterials] = useState<MaterialRef[]>([]);
   const nextKeyRef = useRef(1);
+  const nextElementKey = () => nextKeyRef.current++;
 
   const addChecklistItem = () =>
     setChecklist((cur) => [...cur, { key: nextKeyRef.current++, label: "" }]);
@@ -169,6 +177,7 @@ export function useActivityBuilder(): ActivityBuilder {
     setNote(t.note ? { title: t.note.title, body: t.note.body } : null);
     setSolution(t.solution ? { prompt: t.solution.prompt } : null);
     setDocument(t.document ? { prompt: t.document.prompt } : null);
+    setConceptMap(null);
     setArtefactId(t.artefactId ?? null);
     setWorkbenchType("none");
   }
@@ -230,12 +239,34 @@ export function useActivityBuilder(): ActivityBuilder {
 
     const doc = cfg.document?.[0];
     setDocument(doc ? { prompt: doc.prompt ?? "" } : null);
+
+    // Node ids are PRESERVED (edges + the M3 checkpoint state key on them);
+    // dependsOn is the list projection of the stored edges (from = prerequisite).
+    const cm = cfg.conceptMap?.[0];
+    setConceptMap(
+      cm
+        ? {
+            title: cm.title ?? "",
+            nodes: cm.nodes.map((n) => ({
+              key: nextKeyRef.current++,
+              id: n.id,
+              label: n.label,
+              dependsOn: (cm.edges ?? []).filter((e) => e.to === n.id).map((e) => e.from),
+              questions: (n.checkQuestions ?? []).map((q) => ({
+                key: nextKeyRef.current++,
+                prompt: q.prompt,
+                expectedAnswer: q.expectedAnswer ?? "",
+              })),
+            })),
+          }
+        : null,
+    );
   }
 
   function elementPayload(): ElementPayload {
     return {
       artefactId,
-      ...builderToElementDefs({ checklist, table, chart, calculator, note, solution, document }),
+      ...builderToElementDefs({ checklist, table, chart, calculator, note, solution, document, conceptMap }),
     };
   }
 
@@ -262,7 +293,8 @@ export function useActivityBuilder(): ActivityBuilder {
     (calculator ? 1 : 0) +
     (note ? 1 : 0) +
     (solution ? 1 : 0) +
-    (document ? 1 : 0);
+    (document ? 1 : 0) +
+    (conceptMap ? 1 : 0);
 
   return useMemo(
     () => ({
@@ -291,6 +323,9 @@ export function useActivityBuilder(): ActivityBuilder {
       setSolution,
       document,
       setDocument,
+      conceptMap,
+      setConceptMap,
+      nextElementKey,
       artefactId,
       setArtefactId,
       materials,
@@ -303,6 +338,6 @@ export function useActivityBuilder(): ActivityBuilder {
       isFormValid,
     }),
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [title, teachingGoal, language, workbenchType, checklist, table, chart, calculator, note, solution, document, artefactId, materials],
+    [title, teachingGoal, language, workbenchType, checklist, table, chart, calculator, note, solution, document, conceptMap, artefactId, materials],
   );
 }

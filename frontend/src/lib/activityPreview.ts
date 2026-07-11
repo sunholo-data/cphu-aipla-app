@@ -6,12 +6,14 @@
 
 import type { CalculatorEditorValue } from "@/components/teacher/CalculatorEditor";
 import type { ChartEditorValue } from "@/components/teacher/ChartEditor";
+import type { ConceptMapEditorValue } from "@/components/teacher/ConceptMapEditor";
 import type { NoteEditorValue } from "@/components/teacher/NoteEditor";
 import type { TableEditorValue } from "@/components/teacher/TableEditor";
 import type { SolutionEditorValue } from "@/components/teacher/SolutionEditor";
 import type { DocumentEditorValue } from "@/components/teacher/DocumentEditor";
 import type { CalculatorElementDef } from "@/components/workspace/WorkbenchCalculator";
 import type { ChartElementDef } from "@/components/workspace/WorkbenchChart";
+import type { ConceptMapElementDef } from "@/components/workspace/ConceptMapView";
 import type { NoteElementDef } from "@/components/workspace/WorkbenchNote";
 import type { SolutionElementDef } from "@/components/workspace/SolutionElementMount";
 import type { DocumentElementDef } from "@/components/workspace/DocumentElementMount";
@@ -32,6 +34,7 @@ export interface BuilderElements {
   note: NoteEditorValue | null;
   solution: SolutionEditorValue | null;
   document: DocumentEditorValue | null;
+  conceptMap: ConceptMapEditorValue | null;
 }
 
 /** The normalised element defs — what the renderers (and the save payload) take. */
@@ -43,6 +46,7 @@ export interface ActivityElementDefs {
   note: NoteElementDef[];
   solution: SolutionElementDef[];
   document: DocumentElementDef[];
+  conceptMap: ConceptMapElementDef[];
 }
 
 const VAR_ID_RE = /^[A-Za-z_][A-Za-z0-9_]*$/;
@@ -73,6 +77,32 @@ function calculatorDefs(calc: CalculatorEditorValue | null): CalculatorElementDe
   return [{ id: "calc-1", title: calc.title.trim() || label || "", formula, inputs }];
 }
 
+/** Nodes need a non-empty label; edges keep only refs to surviving nodes (a
+ *  removed/unlabelled concept silently drops its edges — same "drop invalid,
+ *  keep the rest" discipline as tableDefs). Check questions need a prompt. */
+function conceptMapDefs(map: ConceptMapEditorValue | null): ConceptMapElementDef[] {
+  if (!map) return [];
+  const nodes = map.nodes
+    .filter((n) => n.label.trim())
+    .map((n) => ({
+      id: n.id,
+      label: n.label.trim(),
+      checkQuestions: n.questions
+        .filter((q) => q.prompt.trim())
+        .map((q, qIdx) => ({
+          id: `q-${qIdx + 1}`,
+          prompt: q.prompt.trim(),
+          expectedAnswer: q.expectedAnswer.trim(),
+        })),
+    }));
+  if (nodes.length === 0) return [];
+  const ids = new Set(nodes.map((n) => n.id));
+  const edges = map.nodes
+    .filter((n) => ids.has(n.id))
+    .flatMap((n) => n.dependsOn.filter((d) => ids.has(d) && d !== n.id).map((d) => ({ from: d, to: n.id })));
+  return [{ id: "concept-map-1", title: map.title.trim(), nodes, edges }];
+}
+
 /**
  * Convert builder state → element defs. The single source of truth for "what
  * elements does this activity have", used by the save handler and the preview.
@@ -93,6 +123,7 @@ export function builderToElementDefs(s: BuilderElements): ActivityElementDefs {
     // The document upload needs no content to be valid — the student uploads; a
     // present element ships with its (optional) teacher prompt.
     document: s.document ? [{ id: "document-1", prompt: s.document.prompt.trim() }] : [],
+    conceptMap: conceptMapDefs(s.conceptMap),
   };
 }
 
@@ -105,6 +136,7 @@ export function hasAnyElement(defs: ActivityElementDefs): boolean {
     defs.calculator.length > 0 ||
     defs.note.length > 0 ||
     defs.solution.length > 0 ||
-    defs.document.length > 0
+    defs.document.length > 0 ||
+    defs.conceptMap.length > 0
   );
 }

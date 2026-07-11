@@ -67,6 +67,7 @@ describe("useActivityBuilder — initial state", () => {
       note: [],
       solution: [],
       document: [],
+      conceptMap: [],
     });
   });
 });
@@ -244,7 +245,7 @@ describe("useActivityBuilder — elementPayload() emits the COMPLETE set (anti-d
     // The keys of the payload object are exactly the element slice + artefactId
     // (no field silently missing, none unexpected).
     expect(Object.keys(p).sort()).toEqual(
-      ["artefactId", "calculator", "chart", "checklist", "document", "note", "solution", "table"].sort(),
+      ["artefactId", "calculator", "chart", "checklist", "conceptMap", "document", "note", "solution", "table"].sort(),
     );
   });
 
@@ -561,7 +562,7 @@ describe("useActivityBuilder — toSavePayload + isFormValid (F5)", () => {
     expect(payload.materials).toEqual([]);
   });
 
-  it("toSavePayload key set = the 8 element-slice keys + the 5 wrapper fields (one source for both pages)", () => {
+  it("toSavePayload key set = the 9 element-slice keys + the 5 wrapper fields (one source for both pages)", () => {
     const { result } = renderHook(() => useActivityBuilder());
     act(() => {
       result.current.setTitle("T");
@@ -578,6 +579,7 @@ describe("useActivityBuilder — toSavePayload + isFormValid (F5)", () => {
         "note",
         "solution",
         "document",
+        "conceptMap",
         // wrapper fields
         "title",
         "teachingGoal",

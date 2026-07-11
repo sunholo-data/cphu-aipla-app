@@ -24,6 +24,7 @@ function renderWS(props: Record<string, unknown> = {}) {
       sandboxOrigin="https://sandbox.example"
       artefact={ARTEFACT}
       checklist={[]}
+      conceptMap={[]}
       table={[]}
       chart={[]}
       calculator={[]}

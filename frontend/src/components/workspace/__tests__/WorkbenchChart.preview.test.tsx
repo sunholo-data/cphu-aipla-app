@@ -31,6 +31,7 @@ describe("WorkspaceElements — chart replots from table edits (sessionId null)"
         skillId="__activity_preview__"
         sessionId={null}
         checklist={[]}
+        conceptMap={[]}
         table={TABLE}
         chart={CHART}
         calculator={[]}

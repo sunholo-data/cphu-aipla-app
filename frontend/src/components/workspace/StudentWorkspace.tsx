@@ -15,6 +15,7 @@ import type { NoteElementDef } from "./WorkbenchNote";
 import type { TableElementDef } from "./WorkbenchTable";
 import type { SolutionElementDef } from "./SolutionElementMount";
 import type { DocumentElementDef } from "./DocumentElementMount";
+import type { ConceptMapElementDef } from "./ConceptMapView";
 
 interface StudentWorkspaceProps {
   skillId: string;
@@ -31,6 +32,7 @@ interface StudentWorkspaceProps {
   note: NoteElementDef[];
   solution: SolutionElementDef[];
   document: DocumentElementDef[];
+  conceptMap: ConceptMapElementDef[];
   /** Active uploaded-file → tutor document_ids (threaded to the document element). */
   onDocumentActiveChange?: (docId: string | null) => void;
   materials: ActivityMaterial[];
@@ -75,6 +77,7 @@ export function StudentWorkspace({
   note,
   solution,
   document,
+  conceptMap,
   onDocumentActiveChange,
   materials,
   images = [],
@@ -121,7 +124,8 @@ export function StudentWorkspace({
     calculator.length > 0 ||
     note.length > 0 ||
     solution.length > 0 ||
-    document.length > 0;
+    document.length > 0 ||
+    conceptMap.length > 0;
   const hasDocuments = materials.length > 0 || images.length > 0;
   const docCount = materials.length + images.length;
 
@@ -136,6 +140,7 @@ export function StudentWorkspace({
       note={note}
       solution={solution}
       document={document}
+      conceptMap={conceptMap}
       onDocumentActiveChange={onDocumentActiveChange}
       documentViewerRole={documentViewerRole}
     />

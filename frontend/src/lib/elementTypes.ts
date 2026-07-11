@@ -83,3 +83,41 @@ export interface DocumentElement {
   id: string;
   prompt?: string;
 }
+
+/** A node-bound check question for a chat-native checkpoint (living-concept-map).
+ *  The tutor asks it IN CONVERSATION (`options` optional); `expectedAnswer` is
+ *  the judging rubric. Mirrors the backend `CheckQuestion`. */
+export interface ConceptCheckQuestion {
+  id: string;
+  prompt: string;
+  options?: { id: string; label: string; correct?: boolean }[];
+  expectedAnswer?: string;
+  explanation?: string;
+}
+
+/** One concept in the activity's prerequisite graph. Mirrors the backend
+ *  `ConceptNode`; `id` is stable (edges + checkpoint state key on it). */
+export interface ConceptMapNode {
+  id: string;
+  label: string;
+  level?: "A" | "B" | "C" | null;
+  dra?: string | null;
+  checkQuestions?: ConceptCheckQuestion[];
+}
+
+/** A prerequisite edge (`from` must be demonstrated before `to`). Mirrors the
+ *  backend `ConceptEdge` wire shape. */
+export interface ConceptMapEdge {
+  from: string;
+  to: string;
+  kind?: "prerequisite";
+}
+
+/** The living concept map (living-concept-map M0) — one per activity (cap 1),
+ *  cycle-guarded server-side. Mirrors the backend `ConceptMapElement`. */
+export interface ConceptMapElement {
+  id: string;
+  title?: string;
+  nodes: ConceptMapNode[];
+  edges: ConceptMapEdge[];
+}

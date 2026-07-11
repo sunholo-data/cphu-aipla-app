@@ -11,6 +11,7 @@ import { WorkbenchNote, type NoteElementDef } from "./WorkbenchNote";
 import { WorkbenchTable, type TableElementDef } from "./WorkbenchTable";
 import { SolutionElementMount, type SolutionElementDef } from "./SolutionElementMount";
 import { DocumentElementMount, type DocumentElementDef } from "./DocumentElementMount";
+import { ConceptMapView, type ConceptMapElementDef } from "./ConceptMapView";
 
 /**
  * Uniform render context shared by every workspace element renderer (1.1.38
@@ -45,6 +46,7 @@ export interface ElementRenderContext {
   note: NoteElementDef[];
   solution: SolutionElementDef[];
   document: DocumentElementDef[];
+  conceptMap: ConceptMapElementDef[];
   /** Active uploaded-file → tutor document_ids (the document element's hook;
    *  threaded from the chat page). */
   onDocumentActiveChange?: (docId: string | null) => void;
@@ -97,10 +99,9 @@ export const elementRenderers: Record<ElementKind, (ctx: ElementRenderContext) =
         onActiveDocChange={ctx.onDocumentActiveChange}
       />
     ) : null,
-  // Living concept map (living-concept-map M0): the student read-only view
-  // mounts in CONCEPT-1 M1 (ConceptMapView); registered now so the registry
-  // mirror stays exhaustive.
-  conceptMap: () => null,
+  // Living concept map (living-concept-map M1) — read-only orientation; the
+  // M3 checkpoint state (lit-up nodes) threads in via ConceptMapView later.
+  conceptMap: (ctx) => (ctx.conceptMap.length > 0 ? <ConceptMapView conceptMap={ctx.conceptMap} /> : null),
 };
 
 /**

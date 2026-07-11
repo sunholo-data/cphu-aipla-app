@@ -37,6 +37,7 @@ const EMPTY: BuilderElements = {
   note: null,
   solution: null,
   document: null,
+  conceptMap: null,
 };
 const WITH_CHECKLIST: BuilderElements = { ...EMPTY, checklist: [{ key: 1, label: "Step" }] };
 
