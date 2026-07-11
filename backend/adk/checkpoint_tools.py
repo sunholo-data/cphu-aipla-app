@@ -11,11 +11,11 @@ the answers against the teacher's ``expected_answer`` rubric, and records the
 outcome with ``evidence.kind="checkpoint"`` — the map element stays read-only
 orientation and never becomes a quiz form.
 
-Axiom-10 note: ``run_checkpoint`` returns the expected answers TO THE MODEL as
-judging material; tool results ride the session stream, which a determined
-student could inspect. Accepted for the formative dev demo (concept-map-sprint
-risk table); strip tool-result payloads from student-visible frames before
-pilot.
+Axiom-10 note (RESOLVED, STRIP-1): ``run_checkpoint`` returns the expected
+answers TO THE MODEL as judging material. Tool results used to ride the SSE
+stream readable by a devtools-savvy student; ``adk/stream_redaction.py`` now
+redacts server-only tool results at the SSE boundary for anonymous-group
+sessions (``record_checkpoint``'s card-safe return stays visible).
 """
 
 from __future__ import annotations

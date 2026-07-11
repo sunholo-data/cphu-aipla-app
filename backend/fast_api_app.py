@@ -14,6 +14,7 @@ from fastapi import FastAPI
 from google.adk.cli.fast_api import get_fast_api_app
 
 from adk.session import get_artifact_service, get_artifact_service_uri, get_memory_service_uri, get_session_service_uri
+from adk.stream_redaction import redact_student_stream
 from config.gcp import resolve_gcp_credentials, resolve_gcp_project
 from config.local_mode import (
     assert_safe_local_mode,
@@ -658,6 +659,10 @@ async def stream_skill(
         a2ui_surface_state=extracted_surface_state,
         activity_id=_extract_activity_id(body),
     )
+    # STRIP-1 (Axiom 10): server-only tool results (the checkpoint judging
+    # rubric, document contents) never reach a STUDENT client's SSE frames.
+    # Teacher streams pass through untouched (co-pilot cards ARE tool results).
+    event_iter = redact_student_stream(event_iter, is_student=bool(user.group_id))
     try:
         # Surface SkillNotFoundError *before* returning the StreamingResponse so
         # the client sees a proper 404 rather than a half-open SSE stream.

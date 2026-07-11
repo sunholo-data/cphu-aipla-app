@@ -117,7 +117,7 @@ a parallel process active on dev — run serially, rebase before each push).
 
 | Risk | Mitigation |
 |---|---|
-| **Axiom-10 leak:** expected answers ride tool results over the AG-UI stream — a determined student can read SSE frames | Accepted for the formative dev demo; logged as a known limitation in the design doc; follow-up: strip tool-result payloads from student-visible frames before pilot |
+| **Axiom-10 leak:** expected answers ride tool results over the AG-UI stream — a determined student can read SSE frames | **RESOLVED (STRIP-1, 2026-07-11):** `adk/stream_redaction.py` redacts server-only tool results at the SSE boundary for anonymous-group sessions (fail-closed on unmatched call ids); `record_checkpoint`'s card-safe return, A2UI, and MCP-app results stay visible; teacher streams untouched |
 | Checkpoint feels like grading | Formative copy ("the AI's read — confirm it"); `partial` never renders as failure; orientation framing |
 | Group JWT auth corners (the 4×-shipped bug) | GET endpoint tested under a group token; no `onSnapshot`; group_id from JWT not params |
 | Missed seed after SKILL.md change | M4 explicitly runs `make seed ENV=dev`; CI seed-reminder as backstop |
