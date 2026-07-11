@@ -84,7 +84,7 @@
       "description": "Researcher lens-config surface: analytics_lens_configs Firestore store (enabled/model/prompt_override/prompt_version bump-on-save), researcher-gated GET/PUT /api/research/lens-configs + POST /api/research/rubric-score, and the 'Research - judge lenses' panel in /teacher/settings (useIsResearcher; per-lens card + experiment box with profile/partition/abstain states; teacher auth; placeholder untouched for non-researchers).",
       "scope": "fullstack",
       "estimated_loc": 450,
-      "actual_loc": null,
+      "actual_loc": 430,
       "dependencies": [
         "M0"
       ],
@@ -95,30 +95,28 @@
         "gates green both ends"
       ],
       "files_to_create": [
-        "backend/protocols/research_lens_routes.py",
-        "frontend/src/app/teacher/settings/_LensConfigPanel.tsx"
+        "frontend/src/app/teacher/settings/_LensConfigPanel.tsx",
+        "frontend/src/app/teacher/settings/__tests__/_LensConfigPanel.test.tsx"
       ],
       "files_to_modify": [
-        "backend/analytics/session_rubric.py",
-        "backend/fast_api_app.py",
         "frontend/src/app/teacher/settings/page.tsx"
       ],
-      "passes": false,
-      "started": null,
-      "completed": null,
-      "notes": null
+      "passes": true,
+      "started": "2026-07-11",
+      "completed": "2026-07-11",
+      "notes": "Backend endpoints landed in M1; M3 is the FE panel only. Panel renders null for non-researchers (placeholder untouched); abstains render as designed states; version bumps come from the server on prompt save/reset."
     }
   ],
   "velocity": {
     "target_loc_per_day": 900,
     "actual_loc_per_day": null,
     "estimated_total_loc": 1260,
-    "actual_total_loc": null,
+    "actual_total_loc": 1380,
     "estimated_days": 2,
-    "actual_days": null
+    "actual_days": 1
   },
   "github_issues": [],
   "last_session": null,
-  "last_checkpoint": "M0-M2 complete (13 rubric tests; 2521 BE green). Next: M3 settings-pane panel (backend endpoints already landed in M1).",
-  "status": "in_progress"
+  "last_checkpoint": "All 4 milestones shipped (M0 6bcb230, M1 9b9b3dc, M2 48dc99c, M3 this commit). Gates: AR/JB anchor packs (1.1.57 M1); corpus sync unblocks M4; teacher surfacing stays R1-gated. Researcher claim needed to see the panel.",
+  "status": "complete"
 }
