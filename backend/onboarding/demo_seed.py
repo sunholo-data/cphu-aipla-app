@@ -24,7 +24,14 @@ from db.classes import (
 )
 from db.firestore import query_documents
 from db.models.activity import Activity
-from db.models.activity_config import ChecklistItem, NoteElement
+from db.models.activity_config import (
+    ChecklistItem,
+    CheckQuestion,
+    ConceptEdge,
+    ConceptMapElement,
+    ConceptNode,
+    NoteElement,
+)
 from db.models.class_ import Class
 
 log = logging.getLogger(__name__)
@@ -100,6 +107,65 @@ def _demo_activities(owner_uid: str, concept_skill: str) -> list[Activity]:
             ChecklistItem(id="b", label="b) Hvor langt rækker den (vandret distance)?"),
             ChecklistItem(id="c", label="c) Hvad er den maksimale højde?"),
             ChecklistItem(id="d", label="d) Hvilken vinkel giver den største rækkevidde?"),
+        ],
+        # Living concept map (CONCEPT-1 M4): the demo's prerequisite graph +
+        # chat-native check questions — the tutor runs checkpoints in the
+        # conversation and the student's map lights up.
+        conceptMap=[
+            ConceptMapElement(
+                id="concept-map-1",
+                title="Kastebevægelse",
+                nodes=[
+                    ConceptNode(
+                        id="vektorer",
+                        label="Vektorer",
+                        check_questions=[
+                            CheckQuestion(
+                                id="q-1",
+                                prompt="Hvordan finder du den vandrette og lodrette del af starthastigheden ved 30°?",
+                                expected_answer="vx = v0·cos(30°), vy = v0·sin(30°) — dekomponering med cos og sin",
+                            )
+                        ],
+                    ),
+                    ConceptNode(
+                        id="trigonometri",
+                        label="Trigonometri",
+                        check_questions=[
+                            CheckQuestion(
+                                id="q-1",
+                                prompt="Hvorfor bruger vi cosinus til den vandrette komposant og sinus til den lodrette?",
+                                expected_answer=(
+                                    "cos giver den hosliggende (vandrette) katete, sin den modstående (lodrette) "
+                                    "i den retvinklede trekant hastigheden danner"
+                                ),
+                            )
+                        ],
+                    ),
+                    ConceptNode(
+                        id="projektilbevaegelse",
+                        label="Projektilbevægelse",
+                        check_questions=[
+                            CheckQuestion(
+                                id="q-1",
+                                prompt="Hvorfor er banen en parabel — hvad sker der i x- og y-retningen hver for sig?",
+                                expected_answer=(
+                                    "x: konstant hastighed (ingen kraft); y: konstant acceleration nedad (tyngden) "
+                                    "— tilsammen en parabel"
+                                ),
+                            ),
+                            CheckQuestion(
+                                id="q-2",
+                                prompt="Hvilken vinkel giver størst rækkevidde uden luftmodstand, og hvorfor?",
+                                expected_answer="45° — bedste balance mellem flyvetid (sin) og vandret fart (cos)",
+                            ),
+                        ],
+                    ),
+                ],
+                edges=[
+                    ConceptEdge.model_validate({"from": "vektorer", "to": "projektilbevaegelse"}),
+                    ConceptEdge.model_validate({"from": "trigonometri", "to": "projektilbevaegelse"}),
+                ],
+            )
         ],
     )
     return [welcome, boldkast]
