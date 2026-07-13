@@ -332,12 +332,13 @@ each), so the facets are testable without a Firebase token + curl-by-hand.
 - [x] Substring + multi-term AND over title/topic/summary — commit `1b7a52f`
 - [x] Tests (`test_search_*`)
 
-### M1 — Tags (~0.75d)
-- [ ] `tags` field on `CurriculumDoc` + include in the `q` haystack (~30 LOC)
-- [ ] Ingest `tags` form param + `PATCH /api/curriculum/{id}` for tag edits (~60 LOC)
-- [ ] `GET /api/curriculum/facets` distinct-tags (~30 LOC)
-- [ ] FE: tag chips on rows + tag facet chips in the bar + per-row "edit tags" (~120 LOC)
-- [ ] `aiplatform curriculum tag` (~20 LOC) + tests
+### M1 — Tags (~0.75d) — SHIPPED 2026-07-13 (TAGS-1)
+- [x] `tags` field on `CurriculumDoc` + `normalize_tags` + include in the `q` haystack
+- [x] Ingest `tags` form param + `PATCH /api/curriculum/{id}` (full-set or add/remove deltas)
+- [x] `GET /api/curriculum/facets` distinct-tags (ACL-scoped)
+- [x] FE: tag chips on rows + tag facet chips (AND) + per-row inline edit
+- [x] `aiplatform curriculum tag` / `facets` / `list --tag` + tests
+- Sprint: [curriculum-faceted-browse-sprint.md](curriculum-faceted-browse-sprint.md)
 
 ### M2 — Subject facet (~0.75d)
 - [ ] `subject` field + `SUBJECTS` vocab + browse/ingest/PATCH wiring (~60 LOC)

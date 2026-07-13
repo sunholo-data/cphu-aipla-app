@@ -1,15 +1,24 @@
-# Competency rubrics — MAPS + SAAR scoring layer, four-format quizzes, misconception index
+# Competency rubrics — a rubric experimentation platform (MAPS + SAAR as seed lenses), four-format quizzes, misconception index
 
 **Status:** **Proposed — extends the R1 input, does not re-litigate it.** The offline judge
 prototype + misconception index are **un-gated**; anything surfaced in the teacher UI in rubric
 vocabulary stays **R1-gated** (same split discipline as [1.1.31](teacher-analytics-framework.md)).
-**Last Updated:** 2026-07-11
+**2026-07-13 reframe (M's steer):** the compute layer is no longer a fixed MAPS/SAAR pair — it
+becomes a **rubric experimentation platform**: free-form user-authored rubrics, prompt versioning,
+retroactive re-scoring over past sessions **by group code**, doc/image reference, and
+promote-to-live provenance. MAPS and SAAR become the first two *seed* rubrics, not the schema.
+See the "What changed (2026-07-13)" section below.
+**Last Updated:** 2026-07-13
 **Priority:** P1 (the competency layer is AR's answer to "what do teachers evaluate with?");
 quiz template is a TAA M2 input; misconception index is un-gated enrichment of 2.5 Lens B.
-**Estimated:** M0 judge prototype ~2d · M1 anchor packs ~2–3 ped-days (AR/JB) · M2 SAAR
-agent-design activity ~2d · M3 four-format template into TAA +1d · M4 misconception index ~2d.
-**Scope:** Backend analytics (`backend/analytics/`, the planned 2.5 `session_rubric.py`) +
-activity templates + judge prompts. No student-surface change; no new instrumentation.
+**Estimated:** M0 platform primitives (registry + versioning + run store + group-code addressing
++ doc/image loader + MAPS as first seed judge) ~3–4d · M0.5 versioning/provenance/backfill ~1–1.5d ·
+M1 anchor packs ~2–3 ped-days (AR/JB) · M2 SAAR agent-design activity ~2d · M3 four-format template
+into TAA +1d · M4 misconception index ~2d.
+**Scope:** Backend analytics (`backend/analytics/session_rubric.py` — new: registry + runner +
+versioned prompt store + `rubric_runs` provenance) + activity templates + judge prompts.
+Researchers address everything by **group code** (never internal session ids). No student-surface
+change; no new *student* instrumentation (the run store is new researcher-facing metadata).
 **Dependencies:** [2.5 session-analytics-rubric](../post-pilot/session-analytics-rubric.md) (the
 lens stack this extends); 1.2 chat-log-pipeline (shipped — the BQ turn stream);
 [student-multimodal-upload](student-multimodal-upload.md) + SUBMIT-1 (shipped — the photo/whiteboard
@@ -30,6 +39,43 @@ Primary sources archived (CC-BY PDFs + extractions) in scoping-site
 > already anticipates exactly this kind of config-shaped extension — but note these lenses are
 > **post-hoc only** (2.5 cadence), never live-cadenced: cost, and the evidence-integrity rule
 > below make a rolling competency score meaningless.
+
+## What changed (2026-07-13) — from fixed lenses to a rubric experimentation platform
+
+The sections below (evidence-integrity rule, MAPS/SAAR rubrics, four-format quiz, misconception
+index) are the **pedagogical payload** and are unchanged. What changes is the **container**: M
+asked that the scoring layer be an experimentation platform, not a hardcoded MAPS+SAAR pair. Six
+requirements, each mapped to an already-shipped mechanism so we build glue, not plumbing:
+
+1. **Free-form rubrics, not just MAPS/SAAR.** A rubric is a *named prompt + metadata*, authored and
+   stored, not a Python `Lens` subclass. The registry accepts arbitrary rubrics; MAPS, SAAR, ICAP
+   and FCI-misconceptions become **seed entries**. New framework → new `rubric_defs` doc, no code
+   change.
+2. **Rubrics reference the session's docs + images.** The judge loads the same uploaded material
+   the tutor saw, via the existing offline artifact recipe: Firestore `parsed_documents`
+   (`build_document_context(doc_id, mode="blocks")`) + the durable `activity_images` slot
+   (`load_activity_image(...)`), joined to the session by `chat_sessions/{id}.documentIds`. No new
+   store.
+3. **Retroactive re-scoring over past sessions.** Every session a group ever produced is enumerable
+   from BigQuery `chat_logs.aipla_chat_turn` (the `find_latest_session_id_for_group_bq` query minus
+   its `LIMIT 1`); `summarize_session_bq(session_id)` reconstructs each transcript. A backfill runs
+   any rubric version over that history.
+4. **Prompt versioning + experiment → promote → live.** Rubrics are versioned. Draft versions run
+   as experiments over history; a good version is **promoted** (marked live); every score records
+   the exact `rubric_id@version` that produced it, so a researcher can always answer "which prompt
+   generated this live score?" and keep iterating new versions in parallel.
+5. **Metadata for later analysis.** Each run writes a `rubric_runs` provenance record (rubric id +
+   version, session, group code, activity, model, scores, evidence partition, cost/latency,
+   free-form `meta`), mirrored to BigQuery via the existing Cloud-Logging→BQ sink pattern so runs
+   are queryable next to the turns they scored.
+6. **Group-code addressing throughout.** Researchers pass `crisp-pebble-21`; the runner resolves
+   code → session ids internally. Internal UUIDs never surface in the CLI, the API, or results.
+
+**Reconciling "live" with the evidence-integrity rule.** These lenses stay **post-hoc**, at the 2.5
+cadence — "promote to live" means *"this rubric version is the one applied to real student
+sessions"* (as opposed to experimental scratch runs over test data), **not** a rolling live score.
+The cost + evidence-integrity reasons the 2.5 note gives still forbid a live-cadenced competency
+number.
 
 ## The five sources, one line each
 
@@ -136,28 +182,64 @@ is a JB/AR decision, not an app task.
 
 ### Where it lives in the architecture
 
-- **Compute:** the 2.5-planned `backend/analytics/session_rubric.py` gains a small **lens
-  registry** — Lens A (ICAP) and Lens B (FCI/misconceptions) as designed, Lens C (MAPS) and
-  Lens D (SAAR) as artifact-scoped judges. Post-hoc, one call per lens per session, cached
-  (the `reports/narrative.py` on-demand-and-cached pattern).
-- **Inputs:** all native — SUBMIT-1 images and turns are already in ADK session events / the BQ
-  stream (1.2). **Framework-native check:** no new transport, store, or callback; AG-UI
-  `InputContent` + session events already carry and retain the artifacts (the 1.1.7 lesson).
-  Anchor packs ride the existing activity-config storage.
-- **Storage/read:** rubric results alongside `ChatSessionIndex` → the 2.5 report panels; the
-  live dashboard (1.1.31) does **not** consume these lenses.
-- **Standards check (Axiom 6):** the entire point is adopting published instruments (MAPS, SAAR,
-  Kohl's item design) rather than inventing a bespoke competency taxonomy. Custom surface area is
-  limited to the anchor-pack YAML and the misconception-index schema — both thin metadata over
-  cited sources.
+**Compute — `backend/analytics/session_rubric.py` (new).** A rubric *registry* + *runner*:
+
+- `run_rubric(target, rubric_id, version=None, *, live=False)` — `target` is a **group code** or a
+  session id. Resolution: group code → session ids via BigQuery (`find_latest_session_id_for_group_bq`,
+  or its `LIMIT`-less form for backfill); each session → transcript via `summarize_session_bq`.
+  Doc/image evidence loaded via the offline artifact recipe (requirement 2 above). One judged call
+  per rubric per session, cached (the `reports/narrative.py` on-demand-and-cached pattern). Writes
+  one `rubric_runs` record per (session, rubric, version).
+- Seed rubrics registered at boot: ICAP (Lens A), FCI/misconceptions (Lens B), MAPS (Lens C),
+  SAAR (Lens D). These are *data*, not classes — inserted into `rubric_defs` if absent.
+
+**Data model (new Firestore collections + a BQ mirror):**
+
+| Store | Key | Holds |
+|---|---|---|
+| `rubric_defs/{rubric_id}` | rubric id | name, description, free-form `family` tag, `current_live_version`, `latest_version`, `meta` |
+| `rubric_defs/{id}/versions/{n}` | version int | the judge **prompt** (free-form — this is the framework), optional output schema, anchor-pack ref, judge `model`, evidence-partition config, `status` = draft \| live \| retired, author, notes |
+| `rubric_runs/{run_id}` | run id | `rubric_id`, `rubric_version`, `session_id`, `group_id` (code), `activity_id`, `model`, `scores` (free-form JSON profile), `evidence_partition` (audit), `is_live`, cost/latency, `created_at`, `meta` — **this is the provenance record** |
+
+The `rubric_runs` record is mirrored to BigQuery `chat_logs` via a new `aipla_rubric_run` log id
+(the same Cloud-Logging→BQ sink that already feeds `aipla_chat_turn`), so run metadata is queryable
+next to the turns it scored. Anchor packs continue to ride the existing activity-config storage.
+
+**Experiment → promote → live lifecycle.** Draft versions score over history (backfill) into
+`rubric_runs` with `is_live=false`; a curator promotes a version (`current_live_version` ← n,
+version `status` ← live); real student-session scoring reads `current_live_version` and stamps
+`is_live=true` + the exact version onto every run. New versions keep iterating in parallel without
+disturbing the promoted one. (Post-hoc throughout — see the reconciliation note above.)
+
+**Inputs:** all native — SUBMIT-1 images and turns are already in ADK session events / the BQ
+stream (1.2); docs/images via `parsed_documents` + the durable `activity_images` slot. No new
+*student* transport, store, or callback (the 1.1.7 lesson) — the new stores are researcher-facing.
+
+**Storage/read:** rubric results in `rubric_runs` (and alongside `ChatSessionIndex` for the report
+join) → the 2.5 report panels; the live dashboard (1.1.31) does **not** consume these lenses.
+
+**Standards check (Axiom 6):** the platform is *config over code* — adopting published instruments
+(MAPS, SAAR, Kohl) as seed data rather than a bespoke taxonomy. Custom surface is the rubric-def /
+run schema + anchor-pack YAML — thin metadata over cited sources.
 
 ### CLI surface
 
-Judge iteration shouldn't need a deployed session: `aitana rubric score <session-id> --lens maps|saar`
-(runs the judge locally against captured session data, prints the category profile + the evidence
-partition) and `aitana rubric anchors validate <activity-id>` (lints an anchor pack: ≥5 anchors,
-NA(solver) example present). ~0.25d each; position under the existing `aitana` tree
-([local-dev-cli.md](../../v6.1.0/local-dev-cli.md)).
+Judge iteration shouldn't need a deployed session, and researchers only ever type **group codes**:
+
+- `aitana rubric score <group-code|session-id> --rubric <id>[@<version>]` — runs the judge against
+  captured session data (group code → its latest session; a specific session id also accepted),
+  prints the score profile + the evidence partition, writes a `rubric_runs` record. `--rubric`
+  defaults to the live version.
+- `aitana rubric backfill <group-code> --rubric <id>[@<version>]` — retroactive re-score across
+  **every** past session for the group (the `LIMIT`-less enumeration); the experimentation workhorse.
+- `aitana rubric list` / `aitana rubric versions <id>` — inspect registered rubrics and versions.
+- `aitana rubric promote <id>@<version>` — mark a version live (sets `current_live_version`).
+- `aitana rubric anchors validate <activity-id>` — lints an anchor pack (≥5 anchors, NA(solver)
+  example present).
+
+Position under the existing `aitana` tree ([local-dev-cli.md](../../v6.1.0/local-dev-cli.md)).
+Free-form rubric authoring (create/edit a `rubric_defs` version) is CLI + file first
+(`aitana rubric new <id>` scaffolds a prompt file); a teacher/researcher UI is out of M0 scope.
 
 ## Axiom Alignment
 
@@ -180,15 +262,25 @@ NA(solver) example present). ~0.25d each; position under the existing `aitana` t
 
 | MS | Deliverable | Est | Gate |
 |---|---|---|---|
-| **M0** | **Lens registry + MAPS judge prototype, offline.** `session_rubric.py` lens registry; MAPS judge with evidence partition; run against captured pilot-test sessions (eval-style, no UI). Includes the two CLI commands. | ~2d + 0.5d CLI | none (offline) |
+| **M0** | **Rubric platform primitives, offline.** `session_rubric.py` registry + runner; `rubric_defs`/`versions`/`rubric_runs` stores; **group-code addressing** (code → sessions via BQ); doc/image evidence loader; **MAPS as the first seed judge** with evidence partition; run against captured pilot-test sessions (eval-style, no UI). Includes the `score` + `backfill` + `list`/`promote` CLI. | ~3–4d | none (offline) |
+| **M0.5** | **Prompt versioning + provenance + retroactive backfill.** Version lifecycle (draft/live/retired), promote, `is_live` stamping; `rubric_runs` → BigQuery mirror (`aipla_rubric_run`); backfill a rubric across a group's full history and query the runs in BQ. | ~1–1.5d | none (offline) |
 | **M1** | **Anchor packs** for 2–3 live activities (Boldkast, KineBot, one TAA-authored). Judge-vs-anchor agreement reported. | ~2–3 ped-days | AR/JB authoring |
-| **M2** | **SAAR agent-design activity** — template + Lens D judge (testing-experiment rows, Tables X/XI few-shot). | ~2d | none (new activity type; teacher opt-in) |
+| **M2** | **SAAR agent-design activity** — template + SAAR seed rubric (testing-experiment rows, Tables X/XI few-shot). | ~2d | none (new activity type; teacher opt-in) |
 | **M3** | **Four-format quiz template in TAA M2** — co-pilot format generation + mapped-distractor authoring + ≥2-format mastery rule. | +1d on TAA M2 | TAA M2 (JB/AR teaching framework) |
 | **M4** | **Misconception index pipeline** — extraction pass over the corpus → per-skill `misconceptions.yaml` provisioning. | ~2d | none (corpus archived) |
 | **M5** | **Teacher-facing surfacing** of Lens C/D profiles in the 2.5 report panels (and only there). | ~1d | **R1** + 2.5 R5/R6 |
 
 ## Acceptance
 
+- [ ] (M0) A researcher runs `aitana rubric score crisp-pebble-21 --rubric maps` — a **group code**,
+  never an internal id — and gets a score profile; the runner resolved the code → session(s) via BQ.
+- [ ] (M0) A new framework can be added as a `rubric_defs` entry (prompt + metadata) and scored with
+  **no code change**; the runner is not hardcoded to MAPS/SAAR.
+- [ ] (M0) The judge can reference a session's uploaded documents/images (the same material the tutor saw).
+- [ ] (M0.5) A rubric has ≥2 versions; every `rubric_runs` record stamps the exact `rubric_id@version`
+  and `is_live`; promoting a version changes which one live scoring uses without disturbing drafts.
+- [ ] (M0.5) `aitana rubric backfill <group-code>` re-scores every past session for the group; the runs
+  are queryable in BigQuery `chat_logs.aipla_rubric_run` for later analysis.
 - [ ] (M0) The MAPS judge scores a captured session's SUBMIT-1 artifact + partitioned turns into
   the five-category profile with NA codes; tutor-prompted turns demonstrably excluded from
   evidence; without an anchor pack the lens abstains.
