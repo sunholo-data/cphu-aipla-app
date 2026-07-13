@@ -501,6 +501,36 @@ async def test_free_form_rubric_can_require_anchors_and_abstain(monkeypatch):
     assert res.abstained is True and "anchor" in res.abstain_reason.lower()
 
 
+# --- RUBRIC-2 M4: retroactive backfill ---
+
+
+@pytest.mark.asyncio
+async def test_backfill_scores_every_session_and_tolerates_failures(monkeypatch):
+    from reports import session_summary as ss
+
+    monkeypatch.setattr(ss, "find_all_session_ids_for_group_bq", lambda code: ["s-1", "s-bad", "s-2"])
+    calls: list[str] = []
+
+    async def _fake_score(session_id: str, lens_id: str):
+        calls.append(session_id)
+        if session_id == "s-bad":
+            raise RuntimeError("boom")
+        return sr.RubricResult(sessionId=session_id, activityId="a", lensId=lens_id, promptVersion="maps-r1", model="m")
+
+    monkeypatch.setattr(sr, "score_session", _fake_score)
+    results = await sr.backfill_group("crisp-pebble-21", "maps")
+    assert calls == ["s-1", "s-bad", "s-2"]  # every session attempted
+    assert [r.session_id for r in results] == ["s-1", "s-2"]  # the bad one skipped, batch continued
+
+
+@pytest.mark.asyncio
+async def test_backfill_empty_group_returns_empty(monkeypatch):
+    from reports import session_summary as ss
+
+    monkeypatch.setattr(ss, "find_all_session_ids_for_group_bq", lambda code: [])
+    assert await sr.backfill_group("crisp-pebble-99", "maps") == []
+
+
 # --- RUBRIC-2 M0: group-code addressing ---
 
 

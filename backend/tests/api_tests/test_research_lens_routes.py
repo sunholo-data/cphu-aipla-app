@@ -281,6 +281,47 @@ def test_rubric_runs_endpoint_is_researcher_gated():
     assert _client(TEACHER).get("/api/research/rubric-runs").status_code == 404
 
 
+# --- retroactive backfill (RUBRIC-2 M4) ---
+
+
+def test_backfill_dry_run_counts_sessions(monkeypatch):
+    monkeypatch.setattr("reports.session_summary.find_all_session_ids_for_group_bq", lambda code: ["a", "b", "c"])
+    res = _client(RESEARCHER).post(
+        "/api/research/rubric-backfill", json={"groupCode": "crisp-pebble-21", "rubric": "maps", "dryRun": True}
+    )
+    assert res.status_code == 200
+    body = res.json()
+    assert body["sessions"] == 3 and body["dryRun"] is True
+
+
+def test_backfill_scores_and_summarizes(monkeypatch):
+    from analytics.session_rubric import RubricResult
+
+    monkeypatch.setattr("reports.session_summary.find_all_session_ids_for_group_bq", lambda code: ["a", "b"])
+
+    async def _fake_backfill(group_code: str, lens: str):
+        return [
+            RubricResult(sessionId="a", activityId="x", lensId=lens, promptVersion="maps-r1", model="m"),
+            RubricResult(
+                sessionId="b", activityId="x", lensId=lens, promptVersion="maps-r1", model="m", abstained=True
+            ),
+        ]
+
+    monkeypatch.setattr("protocols.research_lens_routes.backfill_group", _fake_backfill)
+    res = _client(RESEARCHER).post(
+        "/api/research/rubric-backfill", json={"groupCode": "crisp-pebble-21", "rubric": "maps"}
+    )
+    body = res.json()
+    assert body["sessions"] == 2 and body["scored"] == 1 and body["abstained"] == 1 and body["errors"] == 0
+
+
+def test_backfill_is_gated_and_validates_rubric():
+    c_teacher = _client(TEACHER)
+    assert c_teacher.post("/api/research/rubric-backfill", json={"groupCode": "g", "rubric": "maps"}).status_code == 404
+    c = _client(RESEARCHER)
+    assert c.post("/api/research/rubric-backfill", json={"groupCode": "g", "rubric": "bogus"}).status_code == 400
+
+
 # --- anchor lint (M1) ---
 
 

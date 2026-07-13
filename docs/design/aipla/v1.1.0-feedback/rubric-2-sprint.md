@@ -118,6 +118,11 @@ RUBRIC-1 researcher panel is untouched; a rubric-picker UI is a follow-on).
 Anchor-pack authoring (AR/JB pedagogy-days), four-format quiz, misconception index, any
 teacher-facing rubric vocabulary (R1-gated), a rubric-authoring **UI** (CLI + settings-JSON first).
 
+**Known limitation (deferred):** scoring always uses a rubric's *current effective* prompt. The
+version history + `promote` (M3) track which version is live and stamp every run, but re-scoring a
+session against an *arbitrary historical* version's prompt (`--rubric id@oldversion` reconstructing
+that version's text) is not wired — `@version` in the CLI surface is reserved for it. Follow-on.
+
 ## Side effects to record (for the Terraform recipe)
 
 - New Firestore collections: `rubric_defs`, `rubric_defs/{id}/versions`, `rubric_runs`.

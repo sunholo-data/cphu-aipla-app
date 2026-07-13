@@ -129,6 +129,30 @@ def new(
     click.echo(f"saved {r.get('lens_id')} version {r.get('prompt_version')} — keys: {', '.join(r.get('output_keys', []))}")
 
 
+@rubric.command("backfill")
+@click.argument("group_code")
+@click.option("--rubric", "rubric_id", default="maps", show_default=True, help="Rubric id to score with.")
+@click.option("--dry-run", is_flag=True, default=False, help="Count the sessions without scoring them.")
+@click.pass_context
+def backfill(ctx: click.Context, group_code: str, rubric_id: str, dry_run: bool) -> None:
+    """Retroactively score EVERY past session for GROUP_CODE with a rubric.
+
+    The experimentation workhorse: run a draft rubric across a group's whole
+    history, then inspect the runs (``rubric runs <group-code>``). Each run is
+    recorded to the run store; a bad session is skipped, not fatal.
+    """
+    body = {"groupCode": group_code, "rubric": rubric_id, "dryRun": dry_run}
+    res = _client(ctx).post("/api/research/rubric-backfill", json=body)
+    if res.get("dryRun"):
+        click.echo(f"{res.get('sessions', 0)} session(s) for {group_code} would be scored with {rubric_id}")
+        return
+    click.echo(
+        f"backfilled {group_code} with {rubric_id}: "
+        f"{res.get('scored', 0)} scored / {res.get('abstained', 0)} abstained / "
+        f"{res.get('errors', 0)} errors across {res.get('sessions', 0)} sessions"
+    )
+
+
 @rubric.command("promote")
 @click.argument("spec")
 @click.pass_context
