@@ -717,12 +717,37 @@ async def score_target(target: str, lens_id: str) -> RubricResult | None:
     """Score the LATEST session for a target (group code or session id).
 
     ``None`` when a group code has no sessions or a session id won't resolve.
-    Backfilling *every* session for a group is RUBRIC-2 M4.
+    Backfilling *every* session for a group is :func:`backfill_group`.
     """
     session_ids = resolve_target(target)
     if not session_ids:
         return None
     return await score_session(session_ids[0], lens_id)
+
+
+async def backfill_group(group_code: str, lens_id: str, *, limit: int | None = None) -> list[RubricResult]:
+    """Score EVERY past session for a group (RUBRIC-2 M4 — the experimentation
+    workhorse). Each session is scored with the rubric's current effective
+    prompt and recorded to the run store; a per-session failure is logged and
+    skipped, never aborting the batch. Returns the results that scored/abstained
+    (failed sessions are omitted).
+    """
+    from reports.session_summary import find_all_session_ids_for_group_bq
+
+    session_ids = find_all_session_ids_for_group_bq(group_code)
+    if limit is not None:
+        session_ids = session_ids[:limit]
+
+    results: list[RubricResult] = []
+    for session_id in session_ids:
+        try:
+            result = await score_session(session_id, lens_id)
+            if result is not None:
+                results.append(result)
+        except Exception as exc:
+            logger.warning("backfill: session %s (%s) failed — skipped: %s", session_id, group_code, exc)
+    logger.info("backfill: group=%s lens=%s sessions=%d scored=%d", group_code, lens_id, len(session_ids), len(results))
+    return results
 
 
 __all__ = [
@@ -732,6 +757,7 @@ __all__ = [
     "EvidencePartition",
     "LensConfig",
     "RubricResult",
+    "backfill_group",
     "build_generic_prompt",
     "build_maps_prompt",
     "build_saar_prompt",

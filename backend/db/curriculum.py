@@ -8,10 +8,15 @@ cited materials via the tutor, M3).
 
 from __future__ import annotations
 
+import logging
+import os
+import time
 from datetime import UTC, datetime
 
 from db.firestore import delete_document, get_document, query_documents, set_document
 from db.models.curriculum import SHARED_SCOPE, CurriculumDoc, StxLevel, normalize_tags
+
+logger = logging.getLogger(__name__)
 
 _COLLECTION = "curriculum_docs"
 # 1.1.33 M3 — the parsed text, kept SEPARATE from the metadata doc so browse/list
@@ -20,6 +25,43 @@ _CONTENT_COLLECTION = "curriculum_content"
 # Cap the stored text well under Firestore's 1 MB doc limit. The full length is
 # stored too, so the viewer can flag truncation.
 _CONTENT_CAP = 200_000
+
+# 1.1.59 — read-through cache for the SHARED corpus only. The shared cleared
+# library grows to thousands, is read-mostly (admin ingest/delete), and is
+# identical for every teacher — so re-reading + re-deserialising it on every
+# browse is the dominant cost. We cache ONLY ``ownerScope == SHARED_SCOPE`` docs;
+# a teacher's private docs are fetched live and unioned per request, so this
+# process-global cache can never hold or leak private data (SECURE BY
+# CONSTRUCTION). A short TTL bounds cross-instance staleness; any shared write
+# invalidates the same instance immediately. Set the TTL env to 0 to disable.
+_SHARED_TTL_S = float(os.getenv("CURRICULUM_SHARED_CACHE_TTL_S", "120"))
+_shared_cache: dict = {"docs": None, "expires": 0.0}
+
+
+def _monotonic() -> float:
+    """Indirection so tests can advance the clock without real sleeps."""
+    return time.monotonic()
+
+
+def _load_shared() -> list[CurriculumDoc]:
+    """Return the validated shared corpus, from cache when warm (0 Firestore
+    reads) or a single ``ownerScope == shared`` query on miss/expiry."""
+    cached = _shared_cache["docs"]
+    if cached is not None and _monotonic() < _shared_cache["expires"]:
+        return cached
+    raw = query_documents(_COLLECTION, filters=[("ownerScope", "==", SHARED_SCOPE)])
+    docs = [CurriculumDoc.model_validate(d) for d in raw]
+    _shared_cache["docs"] = docs
+    _shared_cache["expires"] = _monotonic() + _SHARED_TTL_S
+    logger.info("curriculum shared cache MISS: cached %d docs (ttl=%ss)", len(docs), _SHARED_TTL_S)
+    return docs
+
+
+def invalidate_shared_cache() -> None:
+    """Drop the cached shared corpus — call after any write/delete of a SHARED doc
+    so the next browse re-reads it."""
+    _shared_cache["docs"] = None
+    _shared_cache["expires"] = 0.0
 
 
 def _utcnow() -> datetime:
@@ -46,6 +88,11 @@ def get_curriculum_content(doc_id: str) -> dict | None:
 
 def create_curriculum_doc(doc: CurriculumDoc) -> None:
     set_document(_COLLECTION, doc.doc_id, doc.model_dump(by_alias=True, mode="json"))
+    # 1.1.59 — a write to a SHARED doc (ingest / tag-edit / summary backfill) must
+    # invalidate the cached corpus so the next browse reflects it. Own-doc writes
+    # never touch the cache (own docs aren't cached).
+    if doc.owner_scope == SHARED_SCOPE:
+        invalidate_shared_cache()
 
 
 def get_curriculum_doc(doc_id: str) -> CurriculumDoc | None:
@@ -55,6 +102,9 @@ def get_curriculum_doc(doc_id: str) -> CurriculumDoc | None:
 
 def delete_curriculum_doc(doc_id: str) -> None:
     delete_document(_COLLECTION, doc_id)
+    # 1.1.59 — deletes are rare; invalidate unconditionally rather than plumb the
+    # doc's scope to every call site. Worst case is one extra cache miss.
+    invalidate_shared_cache()
 
 
 def delete_curriculum_content(doc_id: str) -> None:
@@ -77,13 +127,15 @@ def list_curriculum_for_teacher(
     ``tags`` filter the result. ``topic`` is a free-text search; ``tags`` is an
     AND facet (every tag must be present). Sorted by (level, title).
     """
-    raw: list[dict] = []
+    # 1.1.59 — shared corpus from the read-through cache (0 reads when warm); own
+    # docs always live (few, and a just-uploaded doc must show immediately).
+    docs: list[CurriculumDoc] = []
     if scope in (None, "shared"):
-        raw += query_documents(_COLLECTION, filters=[("ownerScope", "==", SHARED_SCOPE)])
+        docs += _load_shared()
     if scope in (None, "mine"):
-        raw += query_documents(_COLLECTION, filters=[("ownerScope", "==", teacher_uid)])
+        raw_own = query_documents(_COLLECTION, filters=[("ownerScope", "==", teacher_uid)])
+        docs += [CurriculumDoc.model_validate(d) for d in raw_own]
 
-    docs = [CurriculumDoc.model_validate(d) for d in raw]
     if level:
         docs = [d for d in docs if d.level == level]
     if tags:

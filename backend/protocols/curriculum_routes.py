@@ -87,15 +87,27 @@ async def browse_curriculum(
     topic: str | None = None,
     tags: Annotated[list[str] | None, Query()] = None,  # 1.1.58 M1 — repeatable ?tags=
     scope: Literal["shared", "mine"] | None = None,
+    # 1.1.59 — paginate the response so a large corpus never dumps unbounded rows
+    # over the wire / into React. The full filtered list is computed server-side
+    # (cheap: shared is cached), then sliced. `total` lets the FE show "X of Y".
+    limit: Annotated[int, Query(ge=1, le=200)] = 50,
+    offset: Annotated[int, Query(ge=0)] = 0,
     user: User = Depends(get_current_user),  # noqa: B008
 ) -> dict[str, Any]:
     """Browse the curriculum library, ACL-scoped to the teacher (shared + own).
     FastAPI validates ``level``/``scope`` against their Literals → 422 on bad input.
-    ``tags`` (repeatable) is an AND facet; ``topic`` is a free-text search."""
+    ``tags`` (repeatable) is an AND facet; ``topic`` is a free-text search.
+    Paginated via ``limit`` (≤200) / ``offset``; ``total`` is the full match count."""
     if getattr(user, "group_id", None):
         raise HTTPException(status_code=403, detail="Curriculum browse is teacher-only.")
     docs = list_curriculum_for_teacher(user.uid, level=level, topic=topic, tags=tags, scope=scope)
-    return {"docs": [d.model_dump(by_alias=True, mode="json") for d in docs]}
+    page = docs[offset : offset + limit]
+    return {
+        "docs": [d.model_dump(by_alias=True, mode="json") for d in page],
+        "total": len(docs),
+        "limit": limit,
+        "offset": offset,
+    }
 
 
 @router.get("/facets")

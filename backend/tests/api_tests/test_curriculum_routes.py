@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from datetime import UTC, datetime
 
+import pytest
 from fastapi import FastAPI, Request
 from fastapi.testclient import TestClient
 
@@ -11,6 +12,16 @@ import db.curriculum as dbc
 from auth import User, build_access_context, get_current_user
 from db.models.curriculum import CurriculumDoc
 from protocols.curriculum_routes import router
+
+
+@pytest.fixture(autouse=True)
+def _reset_shared_cache():
+    """1.1.59 — the shared-corpus cache is process-global; reset it around every
+    test so one test's wired store can't leak into the next via a warm cache."""
+    dbc.invalidate_shared_cache()
+    yield
+    dbc.invalidate_shared_cache()
+
 
 TEACHER = "teacher-1"
 
@@ -157,6 +168,100 @@ def test_distinct_tags_sorted_and_deduped(monkeypatch):
     assert dbc.distinct_tags_for_teacher(TEACHER) == ["exam", "lab"]
 
 
+# --- 1.1.59 M1: shared-corpus read-through cache ---
+
+
+def _wire_counting(monkeypatch, shared, mine):
+    """Like _wire_store, but counts queries per ownerScope so cache HITs are visible."""
+    counts = {"shared": 0, "mine": 0}
+
+    def fake_query(collection, filters=None):
+        owner = filters[0][2] if filters else None
+        if owner == "shared":
+            counts["shared"] += 1
+            src = shared
+        elif owner == TEACHER:
+            counts["mine"] += 1
+            src = mine
+        else:
+            src = []
+        return [d.model_dump(by_alias=True, mode="json") for d in src]
+
+    monkeypatch.setattr(dbc, "query_documents", fake_query)
+    return counts
+
+
+def test_shared_cache_hit_avoids_second_query(monkeypatch):
+    counts = _wire_counting(monkeypatch, shared=[_doc("s1", "B", "shared", source="shared")], mine=[])
+    dbc.list_curriculum_for_teacher(TEACHER, scope="shared")
+    dbc.list_curriculum_for_teacher(TEACHER, scope="shared")
+    assert counts["shared"] == 1  # second browse served from cache — 0 reads
+
+
+def test_shared_cache_invalidate_forces_requery(monkeypatch):
+    counts = _wire_counting(monkeypatch, shared=[_doc("s1", "B", "shared", source="shared")], mine=[])
+    dbc.list_curriculum_for_teacher(TEACHER, scope="shared")
+    dbc.invalidate_shared_cache()
+    dbc.list_curriculum_for_teacher(TEACHER, scope="shared")
+    assert counts["shared"] == 2
+
+
+def test_shared_cache_ttl_expiry_requeries(monkeypatch):
+    counts = _wire_counting(monkeypatch, shared=[_doc("s1", "B", "shared", source="shared")], mine=[])
+    clock = {"t": 1000.0}
+    monkeypatch.setattr(dbc, "_monotonic", lambda: clock["t"])
+    dbc.list_curriculum_for_teacher(TEACHER, scope="shared")
+    clock["t"] += dbc._SHARED_TTL_S + 1  # past the TTL
+    dbc.list_curriculum_for_teacher(TEACHER, scope="shared")
+    assert counts["shared"] == 2
+
+
+def test_own_docs_always_live_not_cached(monkeypatch):
+    counts = _wire_counting(monkeypatch, shared=[], mine=[_doc("m1", "B", TEACHER)])
+    dbc.list_curriculum_for_teacher(TEACHER, scope="mine")
+    dbc.list_curriculum_for_teacher(TEACHER, scope="mine")
+    assert counts["mine"] == 2  # own docs re-read every browse (freshness)
+
+
+def test_new_own_doc_visible_immediately(monkeypatch):
+    mine = [_doc("m1", "B", TEACHER)]
+    _wire_counting(monkeypatch, shared=[], mine=mine)
+    assert {d.doc_id for d in dbc.list_curriculum_for_teacher(TEACHER, scope="mine")} == {"m1"}
+    mine.append(_doc("m2", "B", TEACHER))  # a just-uploaded doc
+    assert {d.doc_id for d in dbc.list_curriculum_for_teacher(TEACHER, scope="mine")} == {"m1", "m2"}
+
+
+def test_create_shared_doc_invalidates_cache(monkeypatch):
+    counts = _wire_counting(monkeypatch, shared=[_doc("s1", "B", "shared", source="shared")], mine=[])
+    monkeypatch.setattr(dbc, "set_document", lambda *a, **k: None)
+    dbc.list_curriculum_for_teacher(TEACHER, scope="shared")  # warm
+    dbc.create_curriculum_doc(_doc("s2", "B", "shared", source="shared"))  # SHARED write
+    dbc.list_curriculum_for_teacher(TEACHER, scope="shared")
+    assert counts["shared"] == 2  # re-queried after the shared write
+
+
+def test_create_own_doc_does_not_invalidate_shared(monkeypatch):
+    counts = _wire_counting(monkeypatch, shared=[_doc("s1", "B", "shared", source="shared")], mine=[])
+    monkeypatch.setattr(dbc, "set_document", lambda *a, **k: None)
+    dbc.list_curriculum_for_teacher(TEACHER, scope="shared")  # warm
+    dbc.create_curriculum_doc(_doc("m1", "B", TEACHER))  # OWN write — must not touch cache
+    dbc.list_curriculum_for_teacher(TEACHER, scope="shared")
+    assert counts["shared"] == 1  # still cached
+
+
+def test_shared_cache_holds_only_shared_docs(monkeypatch):
+    # SECURE BY CONSTRUCTION: the cache is populated by the shared-filtered query
+    # alone, so it can never contain a teacher's private doc.
+    _wire_counting(
+        monkeypatch,
+        shared=[_doc("s1", "B", "shared", source="shared")],
+        mine=[_doc("m1", "B", TEACHER)],
+    )
+    dbc._load_shared()
+    assert dbc._shared_cache["docs"] is not None
+    assert all(d.owner_scope == "shared" for d in dbc._shared_cache["docs"])
+
+
 def test_level_optional_doc_lists_and_sorts(monkeypatch):
     # 1.1.33: uploads are level-less (no forced "B"). A level=None doc must be
     # constructible, appear in browse, and not crash the (level, title) sort
@@ -203,6 +308,37 @@ def test_browse_tags_facet_param(monkeypatch):
     resp = _client().get("/api/curriculum?tags=lab")
     assert resp.status_code == 200
     assert [d["docId"] for d in resp.json()["docs"]] == ["a"]
+
+
+# --- 1.1.59 M2: pagination ---
+
+
+def test_browse_paginates_with_total(monkeypatch):
+    # 5 own docs (titles Doc a..e sort ascending); page size 2.
+    mine = [_doc(c, "A", TEACHER, title=f"Doc {c}") for c in "abcde"]
+    _wire_store(monkeypatch, shared=[], mine=mine)
+    body = _client().get("/api/curriculum?limit=2&offset=0").json()
+    assert body["total"] == 5
+    assert body["limit"] == 2 and body["offset"] == 0
+    assert [d["docId"] for d in body["docs"]] == ["a", "b"]
+    # Next page.
+    body2 = _client().get("/api/curriculum?limit=2&offset=2").json()
+    assert [d["docId"] for d in body2["docs"]] == ["c", "d"]
+    # Tail page (partial).
+    body3 = _client().get("/api/curriculum?limit=2&offset=4").json()
+    assert [d["docId"] for d in body3["docs"]] == ["e"]
+    assert body3["total"] == 5  # total is the full match count, not the page size
+
+
+def test_browse_default_limit_applied(monkeypatch):
+    _wire_store(monkeypatch, shared=[], mine=[_doc("a", "A", TEACHER)])
+    body = _client().get("/api/curriculum").json()
+    assert body["limit"] == 50 and body["offset"] == 0
+
+
+def test_browse_rejects_oversized_limit():
+    assert _client().get("/api/curriculum?limit=201").status_code == 422
+    assert _client().get("/api/curriculum?offset=-1").status_code == 422
 
 
 # --- 1.1.58 M1: facets + PATCH tags endpoints ---

@@ -17,6 +17,7 @@ from pydantic import BaseModel, ConfigDict, Field
 from analytics.rubric_runs import list_rubric_runs
 from analytics.session_rubric import (
     MIN_ANCHORS,
+    backfill_group,
     get_lens_config,
     list_lens_configs,
     promote_rubric,
@@ -269,6 +270,57 @@ async def promote(
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from None
     return {"rubric": get_lens_config(rubric_id).model_dump()}
+
+
+class BackfillBody(BaseModel):
+    """Retroactively score every past session for a group."""
+
+    group_code: str = Field(alias="groupCode", min_length=1, max_length=128)
+    rubric: str | None = Field(default=None, min_length=1, max_length=64)
+    lens: str | None = Field(default=None, min_length=1, max_length=64)
+    dry_run: bool = Field(default=False, alias="dryRun")
+
+    model_config = ConfigDict(populate_by_name=True)
+
+    @property
+    def effective_lens(self) -> str:
+        return (self.rubric or self.lens or "").strip()
+
+
+@router.post("/rubric-backfill")
+async def rubric_backfill(
+    body: BackfillBody,
+    user: User = Depends(get_current_user),  # noqa: B008
+) -> dict[str, Any]:
+    """Score every past session for a group code (RUBRIC-2 M4). ``dryRun`` just
+    counts the sessions that would be scored."""
+    _assert_researcher(user)
+    lens = body.effective_lens
+    if not lens:
+        raise HTTPException(status_code=400, detail="one of rubric / lens is required")
+    try:
+        get_lens_config(lens)
+    except KeyError:
+        raise HTTPException(status_code=400, detail=f"unknown rubric {lens!r}") from None
+
+    from reports.session_summary import find_all_session_ids_for_group_bq
+
+    session_ids = find_all_session_ids_for_group_bq(body.group_code)
+    if body.dry_run:
+        return {"groupCode": body.group_code, "rubric": lens, "sessions": len(session_ids), "dryRun": True}
+
+    results = await backfill_group(body.group_code, lens)
+    scored = sum(1 for r in results if not r.abstained)
+    abstained = sum(1 for r in results if r.abstained)
+    log.info("research: backfill group=%s rubric=%s by=%s scored=%d", body.group_code, lens, user.uid, scored)
+    return {
+        "groupCode": body.group_code,
+        "rubric": lens,
+        "sessions": len(session_ids),
+        "scored": scored,
+        "abstained": abstained,
+        "errors": len(session_ids) - len(results),
+    }
 
 
 @router.get("/rubric-runs")
