@@ -118,14 +118,16 @@ def list_curriculum_for_teacher(
     level: StxLevel | None = None,
     topic: str | None = None,
     tags: list[str] | None = None,
+    subject: str | None = None,
     scope: str | None = None,
 ) -> list[CurriculumDoc]:
     """ACL-scoped browse for a teacher: ``shared`` + their own docs.
 
     ``scope`` narrows within that allow-set: ``"shared"`` → only shared,
     ``"mine"`` → only the teacher's own, ``None`` → both. ``level`` / ``topic`` /
-    ``tags`` filter the result. ``topic`` is a free-text search; ``tags`` is an
-    AND facet (every tag must be present). Sorted by (level, title).
+    ``tags`` / ``subject`` filter the result. ``topic`` is a free-text search;
+    ``tags`` is an AND facet; ``subject`` is an exact-match facet. Sorted by
+    (level, title).
     """
     # 1.1.59 — shared corpus from the read-through cache (0 reads when warm); own
     # docs always live (few, and a just-uploaded doc must show immediately).
@@ -138,6 +140,8 @@ def list_curriculum_for_teacher(
 
     if level:
         docs = [d for d in docs if d.level == level]
+    if subject:
+        docs = [d for d in docs if d.subject == subject]
     if tags:
         # AND facet: a doc matches only if it carries EVERY selected tag. Tags in
         # the store are canonical (lowercased) — normalize the query side too so a
@@ -171,3 +175,10 @@ def distinct_tags_for_teacher(teacher_uid: str, *, scope: str | None = None) -> 
     """
     docs = list_curriculum_for_teacher(teacher_uid, scope=scope)
     return sorted({t for d in docs for t in d.tags})
+
+
+def distinct_subjects_for_teacher(teacher_uid: str, *, scope: str | None = None) -> list[str]:
+    """Distinct, sorted subjects present across the docs a teacher can see (1.1.58
+    M2) — the facet-chip source, ACL-scoped like the tags variant."""
+    docs = list_curriculum_for_teacher(teacher_uid, scope=scope)
+    return sorted({d.subject for d in docs if d.subject})

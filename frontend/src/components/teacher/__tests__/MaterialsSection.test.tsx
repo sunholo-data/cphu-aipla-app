@@ -50,6 +50,7 @@ function makeDoc(overrides: Partial<Record<string, unknown>> = {}) {
     docArtifactId: "rag/1",
     copyrightStatus: "cleared",
     tags: [],
+    subject: null,
     createdAt: "2026-06-12T00:00:00Z",
     updatedAt: "2026-06-12T00:00:00Z",
     ...overrides,
@@ -63,7 +64,7 @@ function page(docs: unknown[], total?: number) {
 
 // The facet endpoint fires on mount for every render; default it to empty so
 // existing tests don't need to know about it (a real value is set per-test).
-beforeEach(() => listCurriculumFacets.mockResolvedValue({ tags: [] }));
+beforeEach(() => listCurriculumFacets.mockResolvedValue({ tags: [], subjects: [] }));
 afterEach(() => vi.clearAllMocks());
 
 describe("MaterialsSection", () => {
@@ -150,6 +151,7 @@ describe("MaterialsSection", () => {
         level: "A",
         topic: undefined,
         tags: undefined,
+        subject: undefined,
         limit: 50,
         offset: 0,
       }),
@@ -158,7 +160,7 @@ describe("MaterialsSection", () => {
 
   it("renders tag facet chips and clicking one re-queries with that tag (1.1.58 M1)", async () => {
     browseCurriculum.mockResolvedValue(page([]));
-    listCurriculumFacets.mockResolvedValue({ tags: ["exam", "lab"] });
+    listCurriculumFacets.mockResolvedValue({ tags: ["exam", "lab"], subjects: [] });
     render(<MaterialsSection materials={[]} onChange={() => {}} />);
     const labChip = await screen.findByRole("button", { name: "lab" });
     fireEvent.click(labChip);
@@ -167,6 +169,7 @@ describe("MaterialsSection", () => {
         level: undefined,
         topic: undefined,
         tags: ["lab"],
+        subject: undefined,
         limit: 50,
         offset: 0,
       }),
@@ -175,10 +178,40 @@ describe("MaterialsSection", () => {
 
   it("shows no tag facet row when no docs carry tags", async () => {
     browseCurriculum.mockResolvedValue(page([makeDoc()]));
-    listCurriculumFacets.mockResolvedValue({ tags: [] });
+    listCurriculumFacets.mockResolvedValue({ tags: [], subjects: [] });
     render(<MaterialsSection materials={[]} onChange={() => {}} />);
     await screen.findByText("Energi og arbejde");
     expect(screen.queryByLabelText("Filter by tag")).not.toBeInTheDocument();
+  });
+
+  it("renders subject facet chips and clicking one re-queries with that subject (1.1.58 M2)", async () => {
+    browseCurriculum.mockResolvedValue(page([]));
+    listCurriculumFacets.mockResolvedValue({ tags: [], subjects: ["Mekanik", "Optik"] });
+    render(<MaterialsSection materials={[]} onChange={() => {}} />);
+    fireEvent.click(await screen.findByRole("button", { name: "Mekanik" }));
+    await waitFor(() =>
+      expect(browseCurriculum).toHaveBeenLastCalledWith(expect.objectContaining({ subject: "Mekanik", offset: 0 })),
+    );
+  });
+
+  it("shows a doc's subject in the row meta (1.1.58 M2)", async () => {
+    browseCurriculum.mockResolvedValue(page([makeDoc({ subject: "Kvantefysik" })]));
+    render(<MaterialsSection materials={[]} onChange={() => {}} />);
+    expect(await screen.findByText(/· Kvantefysik/)).toBeInTheDocument();
+  });
+
+  it("setting a subject inline calls patchCurriculumTags with the subject", async () => {
+    browseCurriculum.mockResolvedValue(page([makeDoc({ subject: null })]));
+    patchCurriculumTags.mockResolvedValue(makeDoc({ subject: "Mekanik" }));
+    render(<MaterialsSection materials={[]} onChange={() => {}} />);
+    // Open the row editor, then pick a subject.
+    fireEvent.click(await screen.findByRole("button", { name: /Add tags for Energi og arbejde/i }));
+    fireEvent.change(screen.getByLabelText("Set subject for Energi og arbejde"), {
+      target: { value: "Mekanik" },
+    });
+    await waitFor(() =>
+      expect(patchCurriculumTags).toHaveBeenCalledWith("d1", { subject: "Mekanik" }),
+    );
   });
 
   it("renders a doc's tags as chips on its row (1.1.58 M1)", async () => {

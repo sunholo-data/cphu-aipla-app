@@ -30,6 +30,8 @@ export interface CurriculumDoc {
   summary: string;
   /** 1.1.58 M1 — freeform tags (canonical: lowercased). Searchable + facet chips. */
   tags: string[];
+  /** 1.1.58 M2 — coarse subject facet (soft vocab, display-cased). */
+  subject: string | null;
   source: "shared" | "teacher_upload";
   ownerScope: string;
   origin: string;
@@ -60,6 +62,8 @@ export interface BrowseCurriculumParams {
   topic?: string;
   /** 1.1.58 M1 — AND facet: only docs carrying every tag. */
   tags?: string[];
+  /** 1.1.58 M2 — exact-match subject facet. */
+  subject?: string;
   scope?: "shared" | "mine";
   /** 1.1.59 — pagination. `limit` caps at 200 server-side (default 50). */
   limit?: number;
@@ -84,6 +88,7 @@ export async function browseCurriculum(
   if (params.level) qs.set("level", params.level);
   if (params.topic) qs.set("topic", params.topic);
   if (params.tags) for (const t of params.tags) qs.append("tags", t);
+  if (params.subject) qs.set("subject", params.subject);
   if (params.scope) qs.set("scope", params.scope);
   if (params.limit != null) qs.set("limit", String(params.limit));
   if (params.offset != null) qs.set("offset", String(params.offset));
@@ -101,21 +106,23 @@ export async function browseCurriculum(
   };
 }
 
-/** Distinct tags across the docs this teacher can see — populates facet chips (1.1.58 M1). */
+/** Distinct facet vocabularies (tags + subjects) across the docs this teacher can
+ *  see — populates facet chips (1.1.58 M1/M2). */
 export async function listCurriculumFacets(
   scope?: "shared" | "mine",
-): Promise<{ tags: string[] }> {
+): Promise<{ tags: string[]; subjects: string[] }> {
   const suffix = scope ? `?scope=${scope}` : "";
   const resp = await fetchWithTeacherAuth(`/api/proxy/api/curriculum/facets${suffix}`);
-  return readJson<{ tags: string[] }>(resp, "load curriculum facets");
+  const body = await readJson<{ tags: string[]; subjects?: string[] }>(resp, "load curriculum facets");
+  return { tags: body.tags, subjects: body.subjects ?? [] };
 }
 
-/** Edit a doc's tags (1.1.58 M1). Send a full `tags` replacement, or `addTags`/
- *  `removeTags` deltas (deltas apply against the doc's current tags server-side).
- *  Returns the updated doc (tags normalised: lowercased, trimmed, de-duped). */
+/** Edit a doc's facets (1.1.58 M1/M2). Tags: a full `tags` replacement or
+ *  `addTags`/`removeTags` deltas. `subject`: sending it (even null) sets/clears it.
+ *  Returns the updated doc (facets normalised server-side). */
 export async function patchCurriculumTags(
   docId: string,
-  body: { tags?: string[]; addTags?: string[]; removeTags?: string[] },
+  body: { tags?: string[]; addTags?: string[]; removeTags?: string[]; subject?: string | null },
 ): Promise<CurriculumDoc> {
   const resp = await fetchWithTeacherAuth(
     `/api/proxy/api/curriculum/${encodeURIComponent(docId)}`,

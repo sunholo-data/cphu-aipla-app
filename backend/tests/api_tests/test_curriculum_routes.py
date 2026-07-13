@@ -26,7 +26,7 @@ def _reset_shared_cache():
 TEACHER = "teacher-1"
 
 
-def _doc(doc_id, level, owner, topic=None, source="teacher_upload", title=None, summary="", tags=None):
+def _doc(doc_id, level, owner, topic=None, source="teacher_upload", title=None, summary="", tags=None, subject=None):
     now = datetime.now(UTC)
     return CurriculumDoc(
         docId=doc_id,
@@ -35,6 +35,7 @@ def _doc(doc_id, level, owner, topic=None, source="teacher_upload", title=None, 
         topic=topic,
         summary=summary,
         tags=tags or [],
+        subject=subject,
         source=source,
         ownerScope=owner,
         origin="uvm.dk" if source == "shared" else "teacher",
@@ -166,6 +167,77 @@ def test_distinct_tags_sorted_and_deduped(monkeypatch):
         mine=[_doc("m", "A", TEACHER, tags=["lab", "exam"])],
     )
     assert dbc.distinct_tags_for_teacher(TEACHER) == ["exam", "lab"]
+
+
+# --- 1.1.58 M2: subject facet ---
+
+
+def test_subject_filter_exact(monkeypatch):
+    _wire_store(
+        monkeypatch,
+        shared=[],
+        mine=[
+            _doc("a", "A", TEACHER, subject="Mekanik"),
+            _doc("b", "A", TEACHER, subject="Bølger og optik"),
+            _doc("c", "A", TEACHER, subject=None),
+        ],
+    )
+    assert [d.doc_id for d in dbc.list_curriculum_for_teacher(TEACHER, subject="Mekanik")] == ["a"]
+    assert dbc.list_curriculum_for_teacher(TEACHER, subject="Kvantefysik") == []
+
+
+def test_distinct_subjects_sorted(monkeypatch):
+    _wire_store(
+        monkeypatch,
+        shared=[_doc("s", "A", "shared", source="shared", subject="Termodynamik")],
+        mine=[_doc("m", "A", TEACHER, subject="Mekanik"), _doc("n", "A", TEACHER, subject=None)],
+    )
+    assert dbc.distinct_subjects_for_teacher(TEACHER) == ["Mekanik", "Termodynamik"]
+
+
+def test_facets_returns_tags_and_subjects(monkeypatch):
+    _wire_store(
+        monkeypatch,
+        shared=[],
+        mine=[_doc("m", "A", TEACHER, tags=["lab"], subject="Mekanik")],
+    )
+    body = _client().get("/api/curriculum/facets").json()
+    assert body["tags"] == ["lab"]
+    assert body["subjects"] == ["Mekanik"]
+
+
+def test_browse_subject_facet_param(monkeypatch):
+    _wire_store(
+        monkeypatch,
+        shared=[],
+        mine=[_doc("a", "A", TEACHER, subject="Optik"), _doc("b", "A", TEACHER, subject="Mekanik")],
+    )
+    resp = _client().get("/api/curriculum?subject=Optik")
+    assert [d["docId"] for d in resp.json()["docs"]] == ["a"]
+
+
+def test_patch_sets_and_clears_subject(monkeypatch):
+    doc = _doc("m1", "A", TEACHER, subject="Mekanik")
+    saved = _wire_patch(monkeypatch, doc)
+    # Set a new subject (trimmed).
+    resp = _client().patch("/api/curriculum/m1", json={"subject": "  Kvantefysik "})
+    assert resp.status_code == 200, resp.text
+    assert resp.json()["doc"]["subject"] == "Kvantefysik"
+    # Explicit null clears it (presence detected via model_fields_set).
+    resp2 = _client().patch("/api/curriculum/m1", json={"subject": None})
+    assert resp2.status_code == 200
+    assert resp2.json()["doc"]["subject"] is None
+    assert saved[-1].subject is None
+
+
+def test_patch_subject_and_tags_together(monkeypatch):
+    doc = _doc("m1", "A", TEACHER, tags=["lab"], subject=None)
+    _wire_patch(monkeypatch, doc)
+    resp = _client().patch("/api/curriculum/m1", json={"addTags": ["exam"], "subject": "Mekanik"})
+    assert resp.status_code == 200, resp.text
+    body = resp.json()["doc"]
+    assert set(body["tags"]) == {"lab", "exam"}
+    assert body["subject"] == "Mekanik"
 
 
 # --- 1.1.59 M1: shared-corpus read-through cache ---

@@ -95,3 +95,38 @@ teacher Materials browser, and CLI parity. First slice of the
 - **PATCH takes deltas (`addTags`/`removeTags`) AND/OR a full `tags` set** — deltas avoid a CLI read-modify-write race; the FE edit popover can send either.
 - Tag normalization lives in ONE place (`db/models/curriculum.py`) and is applied on every write path (ingest, PATCH) so the store is always canonical-form.
 - Facets computed from the already-fetched ACL set — no separate index, no extra store (keeps it honest re: what the teacher can see).
+
+---
+
+# Sprint 2: TAGS-1 continuation — subject facet, folders, UX unify (1.1.58 M2–M4)
+
+**Duration:** ~3 days · **Scope:** Fullstack · **Decision taken:** keep BOTH `topic`
+(freeform) and `subject` (faceted) — additive, reversible (design-doc open-question resolved).
+
+## M2 — Subject facet (~0.75d)
+Mirrors tags. `subject: str \| None` (≤60) on `CurriculumDoc`; a soft `SUBJECTS`
+vocab (Danish stx areas; free entry allowed). Filter by subject (exact) in
+`list_curriculum_for_teacher`; ingest `subject` Form; extend the doc PATCH to set
+`subject`; `facets` returns `{tags, subjects}`. CLI `curriculum set --subject` +
+`list --subject`. FE: subject facet chips + row meta + per-row set-subject select.
+**Acceptance:** subject filters + combines (AND) with level/tags; facets lists visible subjects; CI green.
+
+## M3 — Folders (~1.5d)
+`CurriculumFolder` model + `curriculum_folders` collection **keyed by `ownerScope`**
+(flat, no nesting). `folderId`/`folderName` on `CurriculumDoc`. Assign via PATCH —
+**asserts `folder.owner_scope == doc.owner_scope`** (ACL parity, the crux).
+Endpoints `GET/POST /api/curriculum/folders` (ACL-scoped) + folder filter on browse.
+`doc_count` computed on list (no denormalised counter to drift). CLI `folder new/list`
++ `set --folder`. FE: folder rail (chips incl. "Unfiled") + move-to-folder + designed states.
+**Acceptance:** folder filters; teacher-2 can't see/assign into teacher-1's private folder; scope-mismatch assign → 4xx; CI green.
+
+## M4 — Faceted-browse UX unify (~0.75d)
+Relabel search "Topic" → "Search materials"; an **active-filter chip row**
+(level/subject/tag/folder, each removable) + **Clear all**; the **no-match** state
+echoes the active filters + Clear all (never a blank void). Debounce already shipped (1.1.59).
+**Acceptance:** each facet echoes as a removable chip; Clear all resets; no-match shows the filters + a way back; CI green.
+
+## Notes
+- One PATCH endpoint (`PATCH /api/curriculum/{id}`) grows to set tags/subject/folder — not three endpoints.
+- Folders reuse the flat `db/folders.py` shape but re-keyed to `ownerScope` (NOT `users/{uid}`) so folder ACL == doc ACL by construction.
+- `facets` stays a single endpoint returning all facet vocabularies (`tags`, `subjects`); folders have their own endpoint (they carry ACL + counts).

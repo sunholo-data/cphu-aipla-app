@@ -135,12 +135,49 @@ def test_tag_requires_an_action() -> None:
 @respx.mock
 def test_facets_lists_tags() -> None:
     route = respx.get(f"{BASE}/api/curriculum/facets").mock(
-        return_value=httpx.Response(200, json={"tags": ["exam", "lab"]}),
+        return_value=httpx.Response(200, json={"tags": ["exam", "lab"], "subjects": ["Mekanik"]}),
     )
     result = _run(["facets", "--scope", "mine"])
     assert result.exit_code == 0, result.output
     assert route.calls.last.request.url.params.get("scope") == "mine"
     assert "lab" in result.output
+
+
+# --- set (subject facet, 1.1.58 M2) ---
+
+
+@respx.mock
+def test_set_subject() -> None:
+    route = respx.patch(f"{BASE}/api/curriculum/d1").mock(
+        return_value=httpx.Response(200, json={"doc": {"docId": "d1", "subject": "Mekanik"}}),
+    )
+    result = _run(["set", "d1", "--subject", "Mekanik"])
+    assert result.exit_code == 0, result.output
+    assert json.loads(route.calls.last.request.content) == {"subject": "Mekanik"}
+
+
+@respx.mock
+def test_set_subject_empty_clears() -> None:
+    route = respx.patch(f"{BASE}/api/curriculum/d1").mock(
+        return_value=httpx.Response(200, json={"doc": {"docId": "d1", "subject": None}}),
+    )
+    result = _run(["set", "d1", "--subject", ""])
+    assert result.exit_code == 0, result.output
+    assert json.loads(route.calls.last.request.content) == {"subject": None}
+
+
+def test_set_requires_a_field() -> None:
+    result = _run(["set", "d1"])
+    assert result.exit_code != 0
+    assert "--subject" in result.output
+
+
+@respx.mock
+def test_list_subject_filter() -> None:
+    route = respx.get(f"{BASE}/api/curriculum").mock(return_value=httpx.Response(200, json={"docs": []}))
+    result = _run(["list", "--subject", "Mekanik"])
+    assert result.exit_code == 0, result.output
+    assert route.calls.last.request.url.params.get("subject") == "Mekanik"
 
 
 # --- query ---

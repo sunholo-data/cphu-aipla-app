@@ -28,6 +28,32 @@ SHARED_SCOPE = "shared"
 MAX_TAGS = 20
 MAX_TAG_LEN = 40
 
+# 1.1.58 M2 — subject is a SOFT vocabulary: these seed the facet chips, but free
+# entry is allowed so a teacher is never blocked on a missing category. Danish stx
+# physics areas. Distinct from `topic` (freeform, fine-grained) — subject is the
+# coarse facet a teacher filters by.
+MAX_SUBJECT_LEN = 60
+SUBJECTS = [
+    "Mekanik",
+    "Termodynamik",
+    "Elektromagnetisme",
+    "Bølger og optik",
+    "Atom- og kernefysik",
+    "Kvantefysik",
+    "Astrofysik",
+    "Relativitet",
+    "Eksperimentel metode",
+]
+
+
+def normalize_subject(subject: str | None) -> str | None:
+    """Trim a subject to ``MAX_SUBJECT_LEN``; empty/whitespace → None. Case is
+    PRESERVED (unlike tags) — subjects are display-cased vocabulary terms."""
+    if subject is None:
+        return None
+    s = subject.strip()[:MAX_SUBJECT_LEN].strip()
+    return s or None
+
 
 def normalize_tags(tags: Iterable[str] | None) -> list[str]:
     """Canonicalise a tag list: lowercase, trim, drop empties, de-dupe (order-
@@ -73,6 +99,10 @@ class CurriculumDoc(BaseModel):
     # (folded into the browse haystack), filterable (AND), and surfaced as facet
     # chips. Always stored canonical (see normalize_tags) — apply it on write.
     tags: list[str] = Field(default_factory=list)
+    # 1.1.58 M2 — a coarse subject area from the soft SUBJECTS vocab (free entry
+    # allowed). The facet a teacher filters by; complements `topic` (freeform).
+    # Optional — legacy/unfiled docs have none.
+    subject: str | None = Field(default=None, max_length=MAX_SUBJECT_LEN)
     source: CurriculumSource
     # "shared" | a teacher uid | a class tag "class:<uid>:<id>" — the ACL key.
     owner_scope: str = Field(alias="ownerScope", max_length=200)

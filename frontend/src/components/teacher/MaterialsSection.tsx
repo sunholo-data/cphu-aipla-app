@@ -36,6 +36,20 @@ interface Props {
 const LEVELS: StxLevel[] = ["A", "B", "C"];
 // 1.1.59 — page size for the paginated browse (server caps at 200).
 const PAGE_SIZE = 50;
+// 1.1.58 M2 — soft subject vocabulary (mirrors backend SUBJECTS) seeding the
+// per-row subject picker. Free entry isn't offered in the UI picker; the CLI /
+// ingest allow arbitrary values, and any existing value is preserved.
+const SUBJECTS = [
+  "Mekanik",
+  "Termodynamik",
+  "Elektromagnetisme",
+  "Bølger og optik",
+  "Atom- og kernefysik",
+  "Kvantefysik",
+  "Astrofysik",
+  "Relativitet",
+  "Eksperimentel metode",
+];
 
 /**
  * Materials section for the activity builder (1.1.25 M4).
@@ -65,6 +79,9 @@ export function MaterialsSection({ materials, onChange, activityId }: Props) {
   const [facetTags, setFacetTags] = useState<string[]>([]);
   const [selectedTags, setSelectedTags] = useState<string[]>([]);
   const [editTagsFor, setEditTagsFor] = useState<string | null>(null);
+  // 1.1.58 M2 — subject facet (single-select).
+  const [facetSubjects, setFacetSubjects] = useState<string[]>([]);
+  const [selectedSubject, setSelectedSubject] = useState<string>("");
 
   // Only curriculum materials map to library docs; image materials carry no docId.
   const citedIds = new Set(materials.filter((m) => m.kind !== "image").map((m) => m.docId));
@@ -82,10 +99,11 @@ export function MaterialsSection({ materials, onChange, activityId }: Props) {
       level: levelFilter || undefined,
       topic: debouncedTopic || undefined,
       tags: selectedTags.length ? selectedTags : undefined,
+      subject: selectedSubject || undefined,
       limit: PAGE_SIZE,
       offset,
     }),
-    [levelFilter, debouncedTopic, selectedTags],
+    [levelFilter, debouncedTopic, selectedTags, selectedSubject],
   );
 
   // Load the FIRST page — replaces the list. Re-runs when a filter/search changes.
@@ -131,11 +149,13 @@ export function MaterialsSection({ materials, onChange, activityId }: Props) {
   // Populate the facet chips once (and after a tag edit refreshes them).
   const loadFacets = useCallback(async () => {
     try {
-      const { tags } = await listCurriculumFacets();
+      const { tags, subjects } = await listCurriculumFacets();
       setFacetTags(tags);
+      setFacetSubjects(subjects);
     } catch {
       // Facets are additive — a failure just means no chip row, never a blocker.
       setFacetTags([]);
+      setFacetSubjects([]);
     }
   }, []);
 
@@ -149,13 +169,16 @@ export function MaterialsSection({ materials, onChange, activityId }: Props) {
 
   // Persist a tag edit for one doc, then reflect it locally + refresh facets so a
   // brand-new tag becomes a filterable chip.
-  async function applyTagEdit(docId: string, body: { addTags?: string[]; removeTags?: string[] }) {
+  async function applyTagEdit(
+    docId: string,
+    body: { addTags?: string[]; removeTags?: string[]; subject?: string | null },
+  ) {
     try {
       const updated = await patchCurriculumTags(docId, body);
       setDocs((prev) => (prev ? prev.map((d) => (d.docId === docId ? updated : d)) : prev));
       void loadFacets();
     } catch {
-      // Non-fatal: the row keeps its prior tags; the teacher can retry.
+      // Non-fatal: the row keeps its prior facets; the teacher can retry.
     }
   }
 
@@ -411,6 +434,29 @@ export function MaterialsSection({ materials, onChange, activityId }: Props) {
         </div>
       ) : null}
 
+      {/* Subject facet chips (1.1.58 M2) — single-select; absent until docs carry a subject. */}
+      {facetSubjects.length > 0 ? (
+        <div className="flex flex-wrap items-center gap-1.5" aria-label="Filter by subject">
+          <span className="text-xs font-medium text-muted-foreground">Subject</span>
+          {facetSubjects.map((s) => {
+            const on = selectedSubject === s;
+            return (
+              <button
+                key={s}
+                type="button"
+                onClick={() => setSelectedSubject(on ? "" : s)}
+                aria-pressed={on}
+                className={`rounded-full border px-2 py-0.5 text-xs transition-colors ${
+                  on ? "border-primary bg-primary/10 text-foreground" : "border-border text-muted-foreground hover:bg-muted"
+                }`}
+              >
+                {s}
+              </button>
+            );
+          })}
+        </div>
+      ) : null}
+
       {/* Library list */}
       <div className="rounded border border-border">
         {loading ? (
@@ -454,13 +500,32 @@ export function MaterialsSection({ materials, onChange, activityId }: Props) {
                     <span className="text-xs text-muted-foreground">
                       {doc.origin}
                       {doc.level ? ` · Level ${doc.level}` : ""}
+                      {doc.subject ? ` · ${doc.subject}` : ""}
                       {doc.topic ? ` · ${doc.topic}` : ""}
                     </span>
                     {doc.summary ? (
                       <span className="line-clamp-2 text-xs text-muted-foreground/80">{doc.summary}</span>
                     ) : null}
-                    {/* Tags (1.1.58 M1) — chips with remove; an inline add editor. */}
+                    {/* Tags (1.1.58 M1) — chips with remove; an inline add editor.
+                        Subject (1.1.58 M2) — a picker shown while editing. */}
                     <div className="mt-0.5 flex flex-wrap items-center gap-1">
+                      {editTagsFor === doc.docId ? (
+                        <select
+                          value={doc.subject ?? ""}
+                          aria-label={`Set subject for ${doc.title}`}
+                          onChange={(e) => void applyTagEdit(doc.docId, { subject: e.target.value || null })}
+                          className="rounded border border-border bg-background px-1 py-0.5 text-[11px]"
+                        >
+                          <option value="">No subject</option>
+                          {(doc.subject && !SUBJECTS.includes(doc.subject) ? [doc.subject, ...SUBJECTS] : SUBJECTS).map(
+                            (s) => (
+                              <option key={s} value={s}>
+                                {s}
+                              </option>
+                            ),
+                          )}
+                        </select>
+                      ) : null}
                       {doc.tags.map((tag) => (
                         <span
                           key={tag}

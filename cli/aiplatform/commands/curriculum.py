@@ -2,9 +2,10 @@
 
 Subcommands:
     ingest  Upload a document into the library (AILANG Parse → ADK RAG corpus).
-    list    Browse the library (ACL: shared + your own; filter by level/tag/search).
+    list    Browse the library (ACL: shared + your own; filter by level/tag/subject/search).
     tag     Edit a doc's tags (--add/--remove deltas or --set) (1.1.58 M1).
-    facets  List the distinct tags across your visible docs (1.1.58 M1).
+    set     Set a doc's subject facet (1.1.58 M2).
+    facets  List the distinct tags + subjects across your visible docs (1.1.58 M1/M2).
     query   Test retrieval + provenance from the CLI (ops / eval parity).
 
 Wraps ``/api/curriculum`` (M1 browse), ``/api/curriculum/ingest`` (M2), and
@@ -81,16 +82,36 @@ def ingest_curriculum(
 @click.option("--level", type=click.Choice(_LEVELS), default=None, help="Filter by level.")
 @click.option("--topic", default=None, help="Free-text search (title + topic + summary + tags).")
 @click.option("--tag", "tags", multiple=True, help="Filter by tag (repeatable — AND).")
+@click.option("--subject", default=None, help="Filter by subject (exact).")
 @click.option("--scope", type=click.Choice(["shared", "mine"]), default=None, help="Limit to shared or your own.")
 @click.pass_context
 def list_curriculum(
-    ctx: click.Context, level: str | None, topic: str | None, tags: tuple[str, ...], scope: str | None
+    ctx: click.Context,
+    level: str | None,
+    topic: str | None,
+    tags: tuple[str, ...],
+    subject: str | None,
+    scope: str | None,
 ) -> None:
     """Browse the curriculum library (ACL: shared + your own)."""
-    params: dict[str, object] = {k: v for k, v in (("level", level), ("topic", topic), ("scope", scope)) if v}
+    params: dict[str, object] = {
+        k: v for k, v in (("level", level), ("topic", topic), ("subject", subject), ("scope", scope)) if v
+    }
     if tags:
         params["tags"] = list(tags)
     result = _client(ctx).get("/api/curriculum", params=params or None)
+    click.echo(_json.dumps(result, indent=2))
+
+
+@curriculum.command("set")
+@click.argument("doc_id")
+@click.option("--subject", default=None, help="Set the subject facet (empty string clears it).")
+@click.pass_context
+def set_curriculum(ctx: click.Context, doc_id: str, subject: str | None) -> None:
+    """Set a doc's facet fields (currently: --subject). Empty string clears."""
+    if subject is None:
+        raise click.UsageError("give --subject <value> (or --subject '' to clear)")
+    result = _client(ctx).patch(f"/api/curriculum/{doc_id}", json={"subject": subject or None})
     click.echo(_json.dumps(result, indent=2))
 
 
