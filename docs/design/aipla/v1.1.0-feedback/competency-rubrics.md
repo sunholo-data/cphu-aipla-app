@@ -11,14 +11,21 @@ See the "What changed (2026-07-13)" section below.
 **Last Updated:** 2026-07-13
 **Priority:** P1 (the competency layer is AR's answer to "what do teachers evaluate with?");
 quiz template is a TAA M2 input; misconception index is un-gated enrichment of 2.5 Lens B.
-**Estimated:** M0 platform primitives (registry + versioning + run store + group-code addressing
-+ doc/image loader + MAPS as first seed judge) ~3–4d · M0.5 versioning/provenance/backfill ~1–1.5d ·
-M1 anchor packs ~2–3 ped-days (AR/JB) · M2 SAAR agent-design activity ~2d · M3 four-format template
-into TAA +1d · M4 misconception index ~2d.
-**Scope:** Backend analytics (`backend/analytics/session_rubric.py` — new: registry + runner +
-versioned prompt store + `rubric_runs` provenance) + activity templates + judge prompts.
-Researchers address everything by **group code** (never internal session ids). No student-surface
-change; no new *student* instrumentation (the run store is new researcher-facing metadata).
+**Baseline:** the **RUBRIC-1** sprint (2026-07-11) already shipped the fixed-lens core —
+`backend/analytics/session_rubric.py` (registry + MAPS/SAAR judges + evidence partition + anchor
+packs + provenance-stamped `RubricResult`), the `aiplatform rubric score`/`anchors` CLI, the
+`/api/research/*` endpoints, and the researcher lens-config settings panel. The reframe below is
+the **RUBRIC-2** delta *on top of* that — it does not rebuild it.
+**Estimated (RUBRIC-2 delta):** M0 group-code addressing ~0.5d · M1 free-form rubrics ~1d ·
+M2 doc/image evidence ~0.75d · M3 versioning + `rubric_runs` store + BQ mirror ~1.5d ·
+M4 retroactive backfill ~0.75d. (The pedagogy milestones below — anchor packs, four-format quiz,
+misconception index — are unchanged and separately gated.)
+**Scope:** Backend analytics (`backend/analytics/session_rubric.py` — RUBRIC-1 shipped the
+registry + judges; RUBRIC-2 adds group-code addressing, a Firestore `rubric_defs` registry, a
+generic judge path, doc/image evidence, and the `rubric_runs` provenance store) + activity
+templates + judge prompts. Researchers address everything by **group code** (never internal session
+ids). No student-surface change; no new *student* instrumentation (the run store is new
+researcher-facing metadata).
 **Dependencies:** [2.5 session-analytics-rubric](../post-pilot/session-analytics-rubric.md) (the
 lens stack this extends); 1.2 chat-log-pipeline (shipped — the BQ turn stream);
 [student-multimodal-upload](student-multimodal-upload.md) + SUBMIT-1 (shipped — the photo/whiteboard
@@ -182,7 +189,9 @@ is a JB/AR decision, not an app task.
 
 ### Where it lives in the architecture
 
-**Compute — `backend/analytics/session_rubric.py` (new).** A rubric *registry* + *runner*:
+**Compute — `backend/analytics/session_rubric.py` (extends the shipped RUBRIC-1 module).** The
+RUBRIC-1 registry + judges + partition stay; RUBRIC-2 adds a group-code-aware *runner* and a
+Firestore-backed rubric registry over the existing seed lenses:
 
 - `run_rubric(target, rubric_id, version=None, *, live=False)` — `target` is a **group code** or a
   session id. Resolution: group code → session ids via BigQuery (`find_latest_session_id_for_group_bq`,
@@ -262,8 +271,12 @@ Free-form rubric authoring (create/edit a `rubric_defs` version) is CLI + file f
 
 | MS | Deliverable | Est | Gate |
 |---|---|---|---|
-| **M0** | **Rubric platform primitives, offline.** `session_rubric.py` registry + runner; `rubric_defs`/`versions`/`rubric_runs` stores; **group-code addressing** (code → sessions via BQ); doc/image evidence loader; **MAPS as the first seed judge** with evidence partition; run against captured pilot-test sessions (eval-style, no UI). Includes the `score` + `backfill` + `list`/`promote` CLI. | ~3–4d | none (offline) |
-| **M0.5** | **Prompt versioning + provenance + retroactive backfill.** Version lifecycle (draft/live/retired), promote, `is_live` stamping; `rubric_runs` → BigQuery mirror (`aipla_rubric_run`); backfill a rubric across a group's full history and query the runs in BQ. | ~1–1.5d | none (offline) |
+| **RUBRIC-1** | **Shipped (2026-07-11).** Lens registry (MAPS+SAAR), evidence partition, both judges, anchor-pack abstain, provenance-stamped `RubricResult`, `aiplatform rubric` CLI, `/api/research/*` endpoints, researcher lens-config settings panel. | done | — |
+| **R2·M0** | **Group-code addressing.** CLI + `/api/research/rubric-score` + `score_session` accept a **group code** (`crisp-pebble-21`), resolve via `find_latest_session_id_for_group_bq`. Fixes the reported "session not found". | ~0.5d | none (offline) |
+| **R2·M1** | **Free-form rubrics.** Firestore `rubric_defs` registry unioned with the seed code lenses; a **generic judge path** for researcher-authored prompts (self-contained prompt + declared output keys); CLI `--rubric <id>` (drops the fixed `--lens` Choice); `rubric new`/`list`/`versions`. | ~1d | none (offline) |
+| **R2·M2** | **Doc/image evidence.** Load the scored session's `parsed_documents` + `activity_images` (the offline artifact recipe) and feed them to the judge as evidence. | ~0.75d | none (offline) |
+| **R2·M3** | **Versioning + run store.** `rubric_runs` Firestore collection (one record per session×rubric×version, full metadata) + BigQuery mirror (`aipla_rubric_run` log id + sink table); version lifecycle (draft/live), `promote`, `current_live_version`, `is_live` stamping. | ~1.5d | none (offline) |
+| **R2·M4** | **Retroactive backfill.** `aiplatform rubric backfill <group-code>` scores every past session for the group (LIMIT-less BQ enumeration) into `rubric_runs`, queryable in BQ. | ~0.75d | none (offline) |
 | **M1** | **Anchor packs** for 2–3 live activities (Boldkast, KineBot, one TAA-authored). Judge-vs-anchor agreement reported. | ~2–3 ped-days | AR/JB authoring |
 | **M2** | **SAAR agent-design activity** — template + SAAR seed rubric (testing-experiment rows, Tables X/XI few-shot). | ~2d | none (new activity type; teacher opt-in) |
 | **M3** | **Four-format quiz template in TAA M2** — co-pilot format generation + mapped-distractor authoring + ≥2-format mastery rule. | +1d on TAA M2 | TAA M2 (JB/AR teaching framework) |
