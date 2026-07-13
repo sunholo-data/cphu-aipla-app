@@ -97,9 +97,9 @@ def test_put_unknown_lens_is_400():
 def test_rubric_score_returns_the_result(monkeypatch):
     from analytics.session_rubric import RubricResult
 
-    async def _fake(session_id: str, lens: str):
+    async def _fake(target: str, lens: str):
         return RubricResult(
-            sessionId=session_id,
+            sessionId=target,
             activityId="act-1",
             lensId=lens,
             promptVersion="maps-r1",
@@ -109,21 +109,55 @@ def test_rubric_score_returns_the_result(monkeypatch):
             partitionSummary={"student_initiated": 2, "tutor_prompted": 3},
         )
 
-    monkeypatch.setattr("protocols.research_lens_routes.score_session", _fake)
+    monkeypatch.setattr("protocols.research_lens_routes.score_target", _fake)
     res = _client(RESEARCHER).post("/api/research/rubric-score", json={"sessionId": "s-9", "lens": "maps"})
     assert res.status_code == 200
     body = res.json()
     assert body["abstained"] is True and body["partitionSummary"]["tutor_prompted"] == 3
 
 
-def test_rubric_score_unknown_lens_400_and_missing_session_404(monkeypatch):
-    async def _none(session_id: str, lens: str):
+def test_rubric_score_accepts_a_group_code(monkeypatch):
+    """Researchers address by group code; the route resolves it to a session."""
+    from analytics.session_rubric import RubricResult
+
+    seen: dict = {}
+
+    async def _fake(target: str, lens: str):
+        seen["target"] = target
+        return RubricResult(
+            sessionId="resolved-uuid", activityId="act-1", lensId=lens, promptVersion="maps-r1", model="m"
+        )
+
+    monkeypatch.setattr("protocols.research_lens_routes.score_target", _fake)
+    res = _client(RESEARCHER).post("/api/research/rubric-score", json={"groupCode": "crisp-pebble-21", "lens": "maps"})
+    assert res.status_code == 200
+    assert seen["target"] == "crisp-pebble-21"
+    assert res.json()["sessionId"] == "resolved-uuid"
+
+
+def test_rubric_score_unknown_lens_400_and_missing_target_404(monkeypatch):
+    async def _none(target: str, lens: str):
         return None
 
-    monkeypatch.setattr("protocols.research_lens_routes.score_session", _none)
+    monkeypatch.setattr("protocols.research_lens_routes.score_target", _none)
     c = _client(RESEARCHER)
     assert c.post("/api/research/rubric-score", json={"sessionId": "s", "lens": "bogus"}).status_code == 400
+    # a session id that won't resolve → generic "session not found"
     assert c.post("/api/research/rubric-score", json={"sessionId": "gone", "lens": "maps"}).status_code == 404
+    # neither target nor session id → 400
+    assert c.post("/api/research/rubric-score", json={"lens": "maps"}).status_code == 400
+
+
+def test_rubric_score_group_with_no_sessions_404s_with_a_clear_reason(monkeypatch):
+    async def _none(target: str, lens: str):
+        return None
+
+    # a group-code-shaped target that resolves to zero sessions
+    monkeypatch.setattr("protocols.research_lens_routes.score_target", _none)
+    monkeypatch.setattr("protocols.research_lens_routes.resolve_target", lambda t: [])
+    res = _client(RESEARCHER).post("/api/research/rubric-score", json={"groupCode": "crisp-pebble-99", "lens": "maps"})
+    assert res.status_code == 404
+    assert "no sessions found for group" in res.json()["detail"]
 
 
 # --- anchor lint (M1) ---

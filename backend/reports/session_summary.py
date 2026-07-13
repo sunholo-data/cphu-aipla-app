@@ -328,6 +328,30 @@ def find_latest_session_id_for_group_bq(group_code: str) -> str | None:
     return rows[0]["session_id"]
 
 
+def find_all_session_ids_for_group_bq(group_code: str) -> list[str]:
+    """Every session the group ever produced a turn for, newest-first.
+
+    ``find_latest_session_id_for_group_bq`` with the ``LIMIT 1`` dropped — the
+    enumeration a retroactive rubric backfill (RUBRIC-2) runs over. Same
+    turn-log source, so it excludes turn-less bare joins by construction.
+    Returns ``[]`` on no rows / BQ error (the caller reports "no sessions").
+    """
+    from db.bigquery import CHAT_TURN_TABLE, run_query, table_ref
+
+    try:
+        rows = run_query(
+            "SELECT jsonPayload.session_id AS session_id, MAX(timestamp) AS last_ts "
+            f"FROM {table_ref(CHAT_TURN_TABLE)} "
+            "WHERE jsonPayload.group_id = @group_code "
+            "GROUP BY session_id ORDER BY last_ts DESC",
+            params={"group_code": group_code},
+        )
+    except Exception as exc:
+        log.warning("find_all_session_ids_for_group_bq: query failed (%s)", exc)
+        return []
+    return [r["session_id"] for r in rows if r.get("session_id")]
+
+
 def find_latest_session_for_group(group_code: str) -> ChatSessionIndex | None:
     """Return the most-recently-active session for an anonymous group.
 

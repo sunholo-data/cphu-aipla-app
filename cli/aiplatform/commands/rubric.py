@@ -4,7 +4,7 @@ RUBRIC-1 M1: judge iteration shouldn't need a deployed UI session. Wraps the
 researcher-gated /api/research endpoints (your token needs the `role:researcher`
 claim — 1.1.5), so scores never leave the R1 quarantine.
 
-    aiplatform rubric score <session-id> --lens maps
+    aiplatform rubric score <group-code|session-id> --lens maps
     aiplatform rubric anchors validate <activity-id>
 """
 
@@ -25,16 +25,19 @@ def rubric() -> None:
 
 
 @rubric.command("score")
-@click.argument("session_id")
+@click.argument("target")
 @click.option("--lens", type=click.Choice(["maps", "saar"]), default="maps", show_default=True)
 @click.pass_context
-def score(ctx: click.Context, session_id: str, lens: str) -> None:
-    """Score SESSION_ID with one lens; prints the profile + evidence partition.
+def score(ctx: click.Context, target: str, lens: str) -> None:
+    """Score TARGET with one lens; prints the profile + evidence partition.
+
+    TARGET is a group join code (``crisp-pebble-21`` — resolved to the group's
+    latest session) or a raw session id. Researchers use group codes.
 
     An abstain (no anchor pack, no student-initiated evidence, disabled lens)
     is a DESIGNED outcome, not an error — the reason is printed.
     """
-    result = _client(ctx).post("/api/research/rubric-score", json={"sessionId": session_id, "lens": lens})
+    result = _client(ctx).post("/api/research/rubric-score", json={"target": target, "lens": lens})
 
     part = result.get("partitionSummary", {})
     click.echo(f"session   {result.get('sessionId')}  activity {result.get('activityId')}")

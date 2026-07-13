@@ -436,6 +436,48 @@ async def score_session(session_id: str, lens_id: str) -> RubricResult | None:
     return await score_session_summary(summary, lens_id)
 
 
+# --- Group-code addressing (RUBRIC-2 M0) ---
+
+#: A group JOIN code is ``<adjective>-<noun>-<NN>`` (``auth/group_id_wordlist``)
+#: — three hyphen-parts with a numeric tail. An ADK session id is a 5-part
+#: UUID, so the shape cleanly disambiguates the two without a wordlist lookup
+#: (demo codes like ``aipla-demo-1`` aren't in the wordlist but share the shape).
+_GROUP_CODE_RE = re.compile(r"[a-z][a-z0-9]*-[a-z0-9]+-\d+")
+
+
+def looks_like_group_code(target: str) -> bool:
+    """True if ``target`` has the group-join-code shape (vs a session id)."""
+    return bool(_GROUP_CODE_RE.fullmatch(target.strip()))
+
+
+def resolve_target(target: str) -> list[str]:
+    """Resolve a researcher-supplied target to session ids, newest-first.
+
+    A group code (``crisp-pebble-21``) → every session the group produced (via
+    the BQ turn log); anything else is treated as a session id verbatim.
+    Researchers only ever hold group codes — internal session UUIDs never
+    surface in the CLI or API (1.1.57 group-code-addressing rule).
+    """
+    t = target.strip()
+    if looks_like_group_code(t):
+        from reports.session_summary import find_all_session_ids_for_group_bq
+
+        return find_all_session_ids_for_group_bq(t)
+    return [t]
+
+
+async def score_target(target: str, lens_id: str) -> RubricResult | None:
+    """Score the LATEST session for a target (group code or session id).
+
+    ``None`` when a group code has no sessions or a session id won't resolve.
+    Backfilling *every* session for a group is RUBRIC-2 M4.
+    """
+    session_ids = resolve_target(target)
+    if not session_ids:
+        return None
+    return await score_session(session_ids[0], lens_id)
+
+
 __all__ = [
     "LENS_DEFAULT_PROMPTS",
     "LENS_REGISTRY",
@@ -448,7 +490,10 @@ __all__ = [
     "get_lens_config",
     "list_lens_configs",
     "load_anchor_pack",
+    "looks_like_group_code",
     "partition_evidence",
+    "resolve_target",
     "score_session",
     "score_session_summary",
+    "score_target",
 ]

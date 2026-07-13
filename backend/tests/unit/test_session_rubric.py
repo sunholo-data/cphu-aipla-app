@@ -283,6 +283,56 @@ def test_lens_config_exposes_the_default_prompt():
     assert "SAAR scientific-abilities rubric" in saar.default_prompt
 
 
+# --- RUBRIC-2 M0: group-code addressing ---
+
+
+def test_looks_like_group_code_distinguishes_codes_from_session_ids():
+    assert sr.looks_like_group_code("crisp-pebble-21")
+    assert sr.looks_like_group_code("aipla-demo-1")  # demo code — not in wordlist, same shape
+    # a UUID session id (5 hyphen-parts) is NOT a group code
+    assert not sr.looks_like_group_code("3f9a1c2d-1234-4567-89ab-0123456789ab")
+    # a non-numeric-tail thread id is not a group code
+    assert not sr.looks_like_group_code("plain-thread-abc")
+    assert not sr.looks_like_group_code("threadabc123")
+
+
+def test_resolve_target_group_code_enumerates_all_sessions(monkeypatch):
+    from reports import session_summary as ss
+
+    monkeypatch.setattr(ss, "find_all_session_ids_for_group_bq", lambda code: ["s-new", "s-old"])
+    assert sr.resolve_target("crisp-pebble-21") == ["s-new", "s-old"]
+
+
+def test_resolve_target_session_id_passes_through():
+    uuid = "3f9a1c2d-1234-4567-89ab-0123456789ab"
+    assert sr.resolve_target(uuid) == [uuid]
+
+
+@pytest.mark.asyncio
+async def test_score_target_scores_the_newest_session_for_a_group(monkeypatch):
+    from reports import session_summary as ss
+
+    monkeypatch.setattr(ss, "find_all_session_ids_for_group_bq", lambda code: ["s-new", "s-old"])
+    scored: dict = {}
+
+    async def _fake_score_session(session_id: str, lens_id: str):
+        scored["session_id"] = session_id
+        return sr.RubricResult(sessionId=session_id, activityId="a", lensId=lens_id, promptVersion="maps-r1", model="m")
+
+    monkeypatch.setattr(sr, "score_session", _fake_score_session)
+    res = await sr.score_target("crisp-pebble-21", "maps")
+    assert scored["session_id"] == "s-new"  # newest-first
+    assert res is not None and res.session_id == "s-new"
+
+
+@pytest.mark.asyncio
+async def test_score_target_group_with_no_sessions_returns_none(monkeypatch):
+    from reports import session_summary as ss
+
+    monkeypatch.setattr(ss, "find_all_session_ids_for_group_bq", lambda code: [])
+    assert await sr.score_target("crisp-pebble-21", "maps") is None
+
+
 def test_default_prompt_is_the_builder_fallback_and_is_not_persisted():
     # The default shown in the UI is EXACTLY what the judge uses when no
     # override is set — one source of truth.

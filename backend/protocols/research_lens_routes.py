@@ -18,7 +18,8 @@ from analytics.session_rubric import (
     MIN_ANCHORS,
     get_lens_config,
     list_lens_configs,
-    score_session,
+    resolve_target,
+    score_target,
 )
 from auth.firebase_auth import User, get_current_user
 from db.firestore import get_document, set_document
@@ -37,10 +38,23 @@ def _assert_researcher(user: User) -> None:
 
 
 class RubricScoreBody(BaseModel):
-    session_id: str = Field(alias="sessionId", min_length=1, max_length=128)
+    """Score target: a **group code** (``crisp-pebble-21``) or a session id.
+
+    Researchers hold group codes, not internal session UUIDs (1.1.57), so
+    ``groupCode`` / ``target`` are preferred; ``sessionId`` stays for
+    back-compat with the RUBRIC-1 CLI. Exactly one is required.
+    """
+
+    target: str | None = Field(default=None, min_length=1, max_length=128)
+    group_code: str | None = Field(default=None, alias="groupCode", min_length=1, max_length=128)
+    session_id: str | None = Field(default=None, alias="sessionId", min_length=1, max_length=128)
     lens: str = Field(min_length=1, max_length=32)
 
     model_config = ConfigDict(populate_by_name=True)
+
+    @property
+    def effective_target(self) -> str:
+        return (self.target or self.group_code or self.session_id or "").strip()
 
 
 @router.post("/rubric-score")
@@ -49,16 +63,25 @@ async def rubric_score(
     user: User = Depends(get_current_user),  # noqa: B008
 ) -> dict[str, Any]:
     """Run one lens over one captured session; returns the profile (or a
-    reasoned abstain) + the evidence partition, provenance-stamped."""
+    reasoned abstain) + the evidence partition, provenance-stamped.
+
+    Accepts a **group code** — resolved to the group's latest session — or a
+    raw session id."""
     _assert_researcher(user)
+    target = body.effective_target
+    if not target:
+        raise HTTPException(status_code=400, detail="one of target / groupCode / sessionId is required")
     try:
         get_lens_config(body.lens)
     except KeyError:
         raise HTTPException(status_code=400, detail=f"unknown lens {body.lens!r}") from None
-    result = await score_session(body.session_id, body.lens)
+    result = await score_target(target, body.lens)
     if result is None:
+        # Distinguish "valid group code, no sessions yet" from a bad session id.
+        if resolve_target(target) == []:
+            raise HTTPException(status_code=404, detail=f"no sessions found for group {target!r}")
         raise HTTPException(status_code=404, detail="session not found")
-    log.info("research: rubric-score session=%s lens=%s by=%s", body.session_id, body.lens, user.uid)
+    log.info("research: rubric-score target=%s lens=%s by=%s", target, body.lens, user.uid)
     return result.model_dump(by_alias=True)
 
 

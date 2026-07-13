@@ -175,6 +175,19 @@ def test_find_latest_session_id_for_group_bq_none_on_no_rows_or_error():
         assert find_latest_session_id_for_group_bq("bold-kazoo-87") is None
 
 
+def test_find_all_session_ids_for_group_bq_enumerates_newest_first():
+    from reports.session_summary import find_all_session_ids_for_group_bq
+
+    rows = [{"session_id": "s-new"}, {"session_id": "s-mid"}, {"session_id": "s-old"}]
+    with patch("db.bigquery.run_query", return_value=rows):
+        assert find_all_session_ids_for_group_bq("bold-kazoo-87") == ["s-new", "s-mid", "s-old"]
+    # empty / error → [] (backfill reports "no sessions", never crashes)
+    with patch("db.bigquery.run_query", return_value=[]):
+        assert find_all_session_ids_for_group_bq("bold-kazoo-87") == []
+    with patch("db.bigquery.run_query", side_effect=RuntimeError("no BQ creds")):
+        assert find_all_session_ids_for_group_bq("bold-kazoo-87") == []
+
+
 def test_find_latest_session_for_group_picks_most_recent():
     early = datetime(2026, 5, 25, 12, 0, 0, tzinfo=UTC)
     late = datetime(2026, 5, 25, 14, 0, 0, tzinfo=UTC)
