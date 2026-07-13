@@ -129,6 +129,48 @@ def new(
     click.echo(f"saved {r.get('lens_id')} version {r.get('prompt_version')} — keys: {', '.join(r.get('output_keys', []))}")
 
 
+@rubric.command("promote")
+@click.argument("spec")
+@click.pass_context
+def promote(ctx: click.Context, spec: str) -> None:
+    """Promote a rubric version to live. SPEC is ``<rubric-id>@<version>``.
+
+    e.g. ``aiplatform rubric promote clarity@2`` — from then on, live scoring
+    uses that version and every run stamps is_live against it.
+    """
+    if "@" not in spec:
+        raise click.BadParameter("SPEC must be <rubric-id>@<version>, e.g. clarity@2")
+    rubric_id, version = spec.split("@", 1)
+    r = _client(ctx).post(f"/api/research/rubrics/{rubric_id}/promote", json={"version": version}).get("rubric", {})
+    click.echo(f"promoted {r.get('lens_id')} — live version is now {r.get('prompt_version')}")
+
+
+@rubric.command("runs")
+@click.argument("group_code", required=False)
+@click.option("--rubric", "rubric_id", default=None, help="Filter by rubric id.")
+@click.option("--limit", default=20, show_default=True)
+@click.pass_context
+def runs(ctx: click.Context, group_code: str | None, rubric_id: str | None, limit: int) -> None:
+    """List recent rubric runs (provenance), optionally filtered by GROUP_CODE."""
+    params = {"limit": str(limit)}
+    if group_code:
+        params["groupCode"] = group_code
+    if rubric_id:
+        params["rubric"] = rubric_id
+    body = _client(ctx).get("/api/research/rubric-runs", params=params)
+    rows = body.get("runs", [])
+    if not rows:
+        click.echo("no runs")
+        return
+    for r in rows:
+        live = "LIVE" if r.get("is_live") else "exp "
+        state = "ABSTAIN" if r.get("abstained") else "scored "
+        click.echo(
+            f"{r.get('created_at', '')[:19]}  {live}  {state}  {r.get('rubric_id')}@{r.get('rubric_version')}  "
+            f"group={r.get('group_id')}  session={r.get('session_id')}"
+        )
+
+
 @rubric.group()
 def anchors() -> None:
     """Anchor-pack tooling (the AR/JB calibration inputs)."""

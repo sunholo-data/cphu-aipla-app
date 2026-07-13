@@ -244,6 +244,43 @@ def test_score_a_free_form_rubric_end_to_end(monkeypatch):
     assert body["abstained"] is False and body["profile"]["clarity"]["score"] == 4
 
 
+# --- versioning + run store (RUBRIC-2 M3) ---
+
+
+def test_promote_endpoint_sets_the_live_version():
+    c = _client(RESEARCHER)
+    c.put("/api/research/rubrics/clarity", json={"label": "C", "prompt": "P1", "outputKeys": ["a"]})
+    c.put("/api/research/rubrics/clarity", json={"label": "C", "prompt": "P2", "outputKeys": ["a"]})
+    res = c.post("/api/research/rubrics/clarity/promote", json={"version": "2"})
+    assert res.status_code == 200
+    assert res.json()["rubric"]["prompt_version"] == "clarity-r2"
+
+
+def test_promote_seed_lens_is_400():
+    assert _client(RESEARCHER).post("/api/research/rubrics/maps/promote", json={"version": "1"}).status_code == 400
+
+
+def test_promote_unknown_rubric_is_404():
+    assert _client(RESEARCHER).post("/api/research/rubrics/ghost/promote", json={"version": "1"}).status_code == 404
+
+
+def test_rubric_runs_endpoint_lists_records():
+    from analytics.rubric_runs import record_rubric_run
+    from analytics.session_rubric import RubricResult
+
+    record_rubric_run(
+        RubricResult(sessionId="s-1", activityId="a", lensId="maps", promptVersion="maps-r1", model="m"),
+        group_id="crisp-pebble-21",
+        is_live=True,
+    )
+    body = _client(RESEARCHER).get("/api/research/rubric-runs", params={"groupCode": "crisp-pebble-21"}).json()
+    assert len(body["runs"]) == 1 and body["runs"][0]["rubric_id"] == "maps"
+
+
+def test_rubric_runs_endpoint_is_researcher_gated():
+    assert _client(TEACHER).get("/api/research/rubric-runs").status_code == 404
+
+
 # --- anchor lint (M1) ---
 
 

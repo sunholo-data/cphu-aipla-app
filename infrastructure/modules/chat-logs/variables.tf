@@ -37,9 +37,10 @@ variable "log_filter" {
     emits (see chat-log-pipeline.md). Project-agnostic regex on the log
     suffix so the same default works in every env. The backend emitter
     must write under log ids `aipla_chat_turn`, `aipla_workbench_event`,
-    and `aipla_voice_cost` (1.1.9 voice-cost integration).
+    `aipla_voice_cost` (1.1.9 voice-cost integration), and
+    `aipla_rubric_run` (RUBRIC-2 M3 — rubric run provenance).
   EOT
-  default     = "logName=~\"/logs/aipla_(chat_turn|workbench_event|voice_cost)$\""
+  default     = "logName=~\"/logs/aipla_(chat_turn|workbench_event|voice_cost|rubric_run)$\""
 }
 
 variable "partition_expiration_days" {

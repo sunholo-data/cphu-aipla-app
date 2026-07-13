@@ -14,10 +14,12 @@ from typing import Any
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel, ConfigDict, Field
 
+from analytics.rubric_runs import list_rubric_runs
 from analytics.session_rubric import (
     MIN_ANCHORS,
     get_lens_config,
     list_lens_configs,
+    promote_rubric,
     resolve_target,
     score_target,
     upsert_rubric_def,
@@ -241,3 +243,42 @@ async def put_rubric(
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from None
     return {"rubric": get_lens_config(rubric_id).model_dump()}
+
+
+# --- versioning + run store (RUBRIC-2 M3) ---
+
+
+class PromoteBody(BaseModel):
+    version: str = Field(min_length=1, max_length=64)
+
+    model_config = ConfigDict(populate_by_name=True)
+
+
+@router.post("/rubrics/{rubric_id}/promote")
+async def promote(
+    rubric_id: str,
+    body: PromoteBody,
+    user: User = Depends(get_current_user),  # noqa: B008
+) -> dict[str, Any]:
+    """Mark a free-form rubric version live (the one live scoring uses)."""
+    _assert_researcher(user)
+    try:
+        promote_rubric(rubric_id, body.version, updated_by=user.uid)
+    except KeyError:
+        raise HTTPException(status_code=404, detail=f"unknown rubric {rubric_id!r}") from None
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from None
+    return {"rubric": get_lens_config(rubric_id).model_dump()}
+
+
+@router.get("/rubric-runs")
+async def rubric_runs_list(
+    groupCode: str | None = None,
+    rubric: str | None = None,
+    limit: int = 50,
+    user: User = Depends(get_current_user),  # noqa: B008
+) -> dict[str, Any]:
+    """Recent rubric runs (provenance records), newest-first."""
+    _assert_researcher(user)
+    runs = list_rubric_runs(group_code=groupCode, rubric_id=rubric, limit=min(max(limit, 1), 200))
+    return {"runs": runs}

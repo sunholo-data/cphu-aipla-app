@@ -213,6 +213,12 @@ def upsert_rubric_def(
     else:
         version = prev_version
 
+    # RUBRIC-2 M3 — keep a version history map (status draft|live|retired) so a
+    # good version can be promoted and every run stamps the version it used.
+    versions = dict(existing.get("versions") or {})
+    if version not in versions or versions[version].get("prompt") != prompt:
+        versions[version] = {"version": version, "prompt": prompt, "status": "draft", "updated_by": updated_by}
+
     doc = {
         "rubric_id": rubric_id,
         "label": label or rubric_id,
@@ -223,6 +229,8 @@ def upsert_rubric_def(
         "model": model or _DEFAULT_JUDGE_MODEL,
         "requires_anchors": requires_anchors,
         "prompt_version": version,
+        "versions": versions,
+        "current_live_version": existing.get("current_live_version"),
         "enabled": existing.get("enabled", True),
         "meta": meta if meta is not None else existing.get("meta", {}),
         "created_by": existing.get("created_by") or updated_by,
@@ -231,6 +239,59 @@ def upsert_rubric_def(
     set_document(_RUBRIC_DEFS_COLLECTION, rubric_id, {**existing, **doc}, merge=True)
     logger.info("rubric: upsert rubric_def %s version=%s by=%s", rubric_id, version, updated_by)
     return doc
+
+
+def _normalize_version(rubric_id: str, version: str | int) -> str:
+    """Accept ``clarity-r2`` / ``r2`` / ``2`` → the canonical ``clarity-r2``."""
+    v = str(version).strip()
+    if v.startswith(f"{rubric_id}-r"):
+        return v
+    return f"{rubric_id}-r{v.lstrip('rR')}"
+
+
+def promote_rubric(rubric_id: str, version: str | int, *, updated_by: str = "") -> str:
+    """Mark a free-form rubric version LIVE — the one live scoring will use.
+
+    Returns the promoted version key. Seed lenses have a single active config
+    and aren't promoted this way. Raises ``KeyError`` for an unknown rubric,
+    ``ValueError`` for a seed id or an unknown version.
+    """
+    if rubric_id in LENS_REGISTRY:
+        raise ValueError(f"{rubric_id!r} is a seed lens with a single active config; edit it via /lens-configs")
+    doc = get_document(_RUBRIC_DEFS_COLLECTION, rubric_id)
+    if doc is None:
+        raise KeyError(rubric_id)
+    vkey = _normalize_version(rubric_id, version)
+    versions = dict(doc.get("versions") or {})
+    if vkey not in versions:
+        raise ValueError(f"rubric {rubric_id!r} has no version {vkey!r}")
+    for key, entry in versions.items():
+        if key == vkey:
+            entry["status"] = "live"
+        elif entry.get("status") == "live":
+            entry["status"] = "retired"
+    set_document(
+        _RUBRIC_DEFS_COLLECTION,
+        rubric_id,
+        {**doc, "versions": versions, "current_live_version": vkey, "updated_by": updated_by},
+        merge=True,
+    )
+    logger.info("rubric: promoted %s -> %s by=%s", rubric_id, vkey, updated_by)
+    return vkey
+
+
+def is_version_live(rubric_id: str, prompt_version: str) -> bool:
+    """Whether a run's version was the live one at record time.
+
+    Seed lenses have a single active config → always live. A free-form rubric
+    is live only for its promoted ``current_live_version`` (None until promoted,
+    so experimental runs record ``is_live=False``).
+    """
+    if rubric_id in LENS_REGISTRY:
+        return True
+    doc = get_document(_RUBRIC_DEFS_COLLECTION, rubric_id) or {}
+    live = doc.get("current_live_version")
+    return live is not None and live == prompt_version
 
 
 # --- Evidence partition (deterministic-first, returned for audit) ---
@@ -599,15 +660,27 @@ async def score_session_summary(summary: SessionSummary, lens_id: str) -> Rubric
     )
 
 
+def _record_run(result: RubricResult, group_id: str | None) -> None:
+    """Persist a result to the run store (RUBRIC-2 M3). Best-effort."""
+    try:
+        from analytics.rubric_runs import record_rubric_run
+
+        record_rubric_run(result, group_id=group_id, is_live=is_version_live(result.lens_id, result.prompt_version))
+    except Exception as exc:
+        logger.warning("rubric: run record failed (suppressed): %s", exc)
+
+
 async def score_session(session_id: str, lens_id: str) -> RubricResult | None:
-    """Resolve a captured session and score it — the CLI / M3-surface entry.
-    ``None`` when the session can't be resolved."""
+    """Resolve a captured session, score it, and record the run — the CLI /
+    route / backfill entry. ``None`` when the session can't be resolved."""
     from reports.session_summary import resolve_session_summary
 
     summary = await resolve_session_summary(session_id)
     if summary is None:
         return None
-    return await score_session_summary(summary, lens_id)
+    result = await score_session_summary(summary, lens_id)
+    _record_run(result, summary.group_code)
+    return result
 
 
 # --- Group-code addressing (RUBRIC-2 M0) ---
@@ -663,11 +736,13 @@ __all__ = [
     "build_maps_prompt",
     "build_saar_prompt",
     "get_lens_config",
+    "is_version_live",
     "list_lens_configs",
     "list_rubric_defs",
     "load_anchor_pack",
     "looks_like_group_code",
     "partition_evidence",
+    "promote_rubric",
     "resolve_target",
     "score_session",
     "score_session_summary",

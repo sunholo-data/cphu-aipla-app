@@ -37,6 +37,7 @@ logger = logging.getLogger(__name__)
 LOG_ID_CHAT_TURN = "aipla_chat_turn"
 LOG_ID_WORKBENCH_EVENT = "aipla_workbench_event"
 LOG_ID_VOICE_COST = "aipla_voice_cost"
+LOG_ID_RUBRIC_RUN = "aipla_rubric_run"  # RUBRIC-2 M3 — one row per scored (session/rubric/version)
 
 # Lazily-initialised google.cloud.logging.Client, shared across log ids.
 _client: Any = None
@@ -207,11 +208,59 @@ def emit_voice_cost(
         logger.warning("chat_log: emit_voice_cost failed (suppressed): %s", exc)
 
 
+def emit_rubric_run(
+    *,
+    run_id: str,
+    rubric_id: str,
+    rubric_version: str,
+    session_id: str,
+    group_id: str,
+    activity_id: str,
+    model: str,
+    abstained: bool,
+    is_live: bool,
+    evidence_count: int,
+    student_initiated: int,
+    tutor_prompted: int,
+    profile_json: str,
+) -> None:
+    """Mirror one rubric run into BigQuery (RUBRIC-2 M3) so run metadata is
+    queryable next to the turns it scored. Never raises; no-op in LOCAL_MODE.
+
+    Group-keyed only (ADR-001). The full profile rides as a JSON string so the
+    row stays flat/scalar for the auto-created BQ schema (same discipline as the
+    workbench-event ``value`` column)."""
+    gl = _get_logger(LOG_ID_RUBRIC_RUN)
+    if gl is None:
+        return
+    payload = {
+        "run_id": run_id,
+        "rubric_id": rubric_id,
+        "rubric_version": rubric_version,
+        "session_id": session_id,
+        "group_id": group_id,
+        "activity_id": activity_id,
+        "model": model,
+        "abstained": abstained,
+        "is_live": is_live,
+        "evidence_count": evidence_count,
+        "student_initiated": student_initiated,
+        "tutor_prompted": tutor_prompted,
+        "profile_json": profile_json,
+    }
+    try:
+        gl.log_struct(payload)
+    except Exception as exc:  # telemetry must never break the scoring path
+        logger.warning("chat_log: emit_rubric_run failed (suppressed): %s", exc)
+
+
 __all__ = [
     "LOG_ID_CHAT_TURN",
+    "LOG_ID_RUBRIC_RUN",
     "LOG_ID_VOICE_COST",
     "LOG_ID_WORKBENCH_EVENT",
     "emit_chat_turn",
+    "emit_rubric_run",
     "emit_voice_cost",
     "emit_workbench_event",
     "group_code_from_owner_uid",

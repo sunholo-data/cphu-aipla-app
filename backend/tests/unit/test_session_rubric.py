@@ -283,6 +283,71 @@ def test_lens_config_exposes_the_default_prompt():
     assert "SAAR scientific-abilities rubric" in saar.default_prompt
 
 
+# --- RUBRIC-2 M3: versioning, promote, run recording ---
+
+
+def test_upsert_tracks_a_versions_map():
+    sr.upsert_rubric_def("clarity", label="C", prompt="P1", output_keys=["a"])
+    d = sr.upsert_rubric_def("clarity", label="C", prompt="P2", output_keys=["a"])
+    assert set(d["versions"]) == {"clarity-r1", "clarity-r2"}
+    assert d["versions"]["clarity-r2"]["status"] == "draft"
+
+
+def test_is_version_live_seed_lenses_are_always_live():
+    assert sr.is_version_live("maps", "maps-r1") is True
+    assert sr.is_version_live("saar", "saar-r7") is True
+
+
+def test_promote_sets_the_live_version():
+    sr.upsert_rubric_def("clarity", label="C", prompt="P1", output_keys=["a"])
+    sr.upsert_rubric_def("clarity", label="C", prompt="P2", output_keys=["a"])
+    # nothing promoted yet → experimental
+    assert sr.is_version_live("clarity", "clarity-r2") is False
+    sr.promote_rubric("clarity", 2)
+    assert sr.is_version_live("clarity", "clarity-r2") is True
+    assert sr.is_version_live("clarity", "clarity-r1") is False
+
+
+def test_promote_accepts_several_version_spellings():
+    sr.upsert_rubric_def("clarity", label="C", prompt="P1", output_keys=["a"])
+    assert sr.promote_rubric("clarity", "clarity-r1") == "clarity-r1"
+    assert sr.promote_rubric("clarity", "r1") == "clarity-r1"
+    assert sr.promote_rubric("clarity", 1) == "clarity-r1"
+
+
+def test_promote_rejects_seed_unknown_version_and_unknown_rubric():
+    sr.upsert_rubric_def("clarity", label="C", prompt="P1", output_keys=["a"])
+    with pytest.raises(ValueError, match="seed lens"):
+        sr.promote_rubric("maps", 1)
+    with pytest.raises(ValueError, match="no version"):
+        sr.promote_rubric("clarity", 9)
+    with pytest.raises(KeyError):
+        sr.promote_rubric("ghost", 1)
+
+
+@pytest.mark.asyncio
+async def test_score_session_records_a_run(monkeypatch):
+    _anchored()
+    from reports import session_summary as ss
+
+    async def _resolve(session_id: str):
+        return _summary([_turn("student", "min løsning: v = 7 m/s")])
+
+    monkeypatch.setattr(ss, "resolve_session_summary", _resolve)
+
+    async def _fake_model(prompt: str, model: str) -> str:
+        return FAKE_JUDGE_JSON
+
+    monkeypatch.setattr(sr, "_call_judge_model", _fake_model)
+    res = await sr.score_session("s-1", "maps")
+    assert res is not None and res.abstained is False
+
+    from analytics.rubric_runs import list_rubric_runs
+
+    runs = list_rubric_runs()
+    assert any(r["session_id"] == "s-1" and r["rubric_id"] == "maps" and r["is_live"] is True for r in runs)
+
+
 # --- RUBRIC-2 M2: uploaded doc/image evidence reaches the judge ---
 
 

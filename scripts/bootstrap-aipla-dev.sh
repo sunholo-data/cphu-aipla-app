@@ -193,7 +193,7 @@ ensure_chat_logs() {
   #    on the backend's structured chat-turn / workbench-event log ids
   #    (the 1.2 emitter must write under aipla_chat_turn / aipla_workbench_event).
   local sink_dest="bigquery.googleapis.com/projects/${PROJECT}/datasets/${CHATLOG_DATASET}"
-  local sink_filter='logName=~"/logs/aipla_(chat_turn|workbench_event|voice_cost)$"'
+  local sink_filter='logName=~"/logs/aipla_(chat_turn|workbench_event|voice_cost|rubric_run)$"'
   if gcloud logging sinks describe "$CHATLOG_SINK" --project="$PROJECT" &>/dev/null; then
     # Converge the filter on re-run so adding a new log id (e.g. the 1.1.9
     # aipla_voice_cost table) takes effect without recreating the sink.
