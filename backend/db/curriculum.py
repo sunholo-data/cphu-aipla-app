@@ -85,7 +85,15 @@ def list_curriculum_for_teacher(
     if level:
         docs = [d for d in docs if d.level == level]
     if topic:
-        docs = [d for d in docs if (d.topic or "").lower() == topic.lower()]
+        # Free-text search: case-insensitive SUBSTRING match across the fields a
+        # teacher would expect a search box to cover — title, topic, and the
+        # catalogue summary. NOT an exact equality on `topic` alone (the old bug:
+        # "atomer" never matched "Atomer og molekyler", and topic-less uploads —
+        # every teacher upload — were unsearchable). Content isn't searched here;
+        # that's the RAG path. Multi-word queries match when EVERY term appears
+        # somewhere in the haystack (AND), so "atom kemi" narrows rather than ORs.
+        needles = topic.lower().split()
+        docs = [d for d in docs if all(term in f"{d.title} {d.topic or ''} {d.summary}".lower() for term in needles)]
     # Level-less (unfiled) docs sort after A/B/C; None can't compare to str.
     docs.sort(key=lambda d: (d.level or "Z", d.title.lower()))
     return docs

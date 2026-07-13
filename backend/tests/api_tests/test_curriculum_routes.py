@@ -15,13 +15,14 @@ from protocols.curriculum_routes import router
 TEACHER = "teacher-1"
 
 
-def _doc(doc_id, level, owner, topic=None, source="teacher_upload"):
+def _doc(doc_id, level, owner, topic=None, source="teacher_upload", title=None, summary=""):
     now = datetime.now(UTC)
     return CurriculumDoc(
         docId=doc_id,
-        title=f"Doc {doc_id}",
+        title=title or f"Doc {doc_id}",
         level=level,
         topic=topic,
+        summary=summary,
         source=source,
         ownerScope=owner,
         origin="uvm.dk" if source == "shared" else "teacher",
@@ -80,6 +81,44 @@ def test_level_and_topic_filter(monkeypatch):
     assert [d.doc_id for d in out] == ["a"]
     out2 = dbc.list_curriculum_for_teacher(TEACHER, topic="OPTICS")  # case-insensitive
     assert [d.doc_id for d in out2] == ["b"]
+
+
+def test_search_matches_substring_and_title_and_summary(monkeypatch):
+    # The "atomer returns nothing" bug: search must be a substring match across
+    # title + topic + summary, not exact equality on `topic` alone.
+    _wire_store(
+        monkeypatch,
+        shared=[],
+        mine=[
+            _doc("t", "A", TEACHER, title="Atomer og molekyler"),  # title, topic=None
+            _doc("k", "A", TEACHER, topic="Kernekemi"),  # substring, not exact
+            _doc("s", "A", TEACHER, summary="Covers radioaktivt henfald"),  # summary
+            _doc("x", "A", TEACHER, title="Optik", topic="lys"),  # no match
+        ],
+    )
+    # Title-only, topic-less doc is now findable (was invisible before).
+    assert [d.doc_id for d in dbc.list_curriculum_for_teacher(TEACHER, topic="atom")] == ["t"]
+    # Substring of topic, case-insensitive.
+    assert [d.doc_id for d in dbc.list_curriculum_for_teacher(TEACHER, topic="kerne")] == ["k"]
+    # Summary text is searched.
+    assert [d.doc_id for d in dbc.list_curriculum_for_teacher(TEACHER, topic="henfald")] == ["s"]
+    # No false positive.
+    assert dbc.list_curriculum_for_teacher(TEACHER, topic="atom") != []
+    assert "x" not in {d.doc_id for d in dbc.list_curriculum_for_teacher(TEACHER, topic="atom")}
+
+
+def test_search_multi_term_is_and(monkeypatch):
+    # Every whitespace-separated term must appear (AND), so extra words narrow.
+    _wire_store(
+        monkeypatch,
+        shared=[],
+        mine=[
+            _doc("a", "A", TEACHER, title="Atomer", topic="kemi"),
+            _doc("b", "A", TEACHER, title="Atomer", topic="fysik"),
+        ],
+    )
+    assert [d.doc_id for d in dbc.list_curriculum_for_teacher(TEACHER, topic="atom kemi")] == ["a"]
+    assert {d.doc_id for d in dbc.list_curriculum_for_teacher(TEACHER, topic="atom")} == {"a", "b"}
 
 
 def test_level_optional_doc_lists_and_sorts(monkeypatch):
