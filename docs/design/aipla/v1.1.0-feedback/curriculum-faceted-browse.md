@@ -1,6 +1,6 @@
 # Curriculum Library — Faceted Browse (folders + tags + subject + search)
 
-**Status**: Planned
+**Status**: Implemented (M0–M4 SHIPPED 2026-07-13)
 **Priority**: P2 (breadth probe — teacher library ergonomics)
 **Estimated**: ~3–4 days (M0 shipped; M1 ~0.75d · M2 ~0.75d · M3 ~1.5d · M4 ~0.75d)
 **Scope**: Fullstack (backend model + browse filter + ingest; frontend Materials browser; CLI)
@@ -340,22 +340,23 @@ each), so the facets are testable without a Firebase token + curl-by-hand.
 - [x] `aiplatform curriculum tag` / `facets` / `list --tag` + tests
 - Sprint: [curriculum-faceted-browse-sprint.md](curriculum-faceted-browse-sprint.md)
 
-### M2 — Subject facet (~0.75d)
-- [ ] `subject` field + `SUBJECTS` vocab + browse/ingest/PATCH wiring (~60 LOC)
-- [ ] Optional: subject suggestion in the existing ingest summary pass (~30 LOC)
-- [ ] FE: subject facet chips + row meta + per-row set-subject (~90 LOC)
-- [ ] `aiplatform curriculum set --subject` + tests
+### M2 — Subject facet (~0.75d) — SHIPPED 2026-07-13
+- [x] `subject` field + `SUBJECTS` vocab + `normalize_subject` + browse/ingest/PATCH wiring
+- [x] FE: subject facet chips + row meta + per-row set-subject `<select>`
+- [x] `aiplatform curriculum set --subject` + `list --subject` + tests
+- (subject suggestion in the ingest summary pass — deferred; optional micro-feature)
 
-### M3 — Folders (~1.5d)
-- [ ] `CurriculumFolder` model + `curriculum_folders` CRUD in `db/curriculum.py` (~90 LOC)
-- [ ] `folder_id`/`folder_name` on `CurriculumDoc`; assign asserts scope-match (~40 LOC)
-- [ ] `GET`/`POST /api/curriculum/folders`, folder filter on browse, `doc_count` maintenance (~120 LOC)
-- [ ] FE: folder rail + "move to folder" + "Unfiled" chip + empty/loading states (~180 LOC)
-- [ ] `aiplatform curriculum folder new` + tests
+### M3 — Folders (~1.5d) — SHIPPED 2026-07-13
+- [x] `CurriculumFolder` model + `curriculum_folders` CRUD (keyed by `ownerScope`)
+- [x] `folderId`/`folderName` on `CurriculumDoc`; PATCH assign asserts scope-match (400/404)
+- [x] `GET`/`POST /api/curriculum/folders`, folder filter + `UNFILED` sentinel, live `docCount`
+- [x] FE: folder rail (All/Unfiled/folders+counts/New) + per-row move-to-folder (same-scope only)
+- [x] `aiplatform curriculum folder new/list` + `set --folder` + tests
 
-### M4 — Faceted browse UX unify (~0.75d)
-- [ ] Search box relabel (`topic`→`q`), 250ms debounce, active-filter chip row + Clear all (~120 LOC)
-- [ ] No-match / loading / empty designed states (~60 LOC)
+### M4 — Faceted browse UX unify (~0.75d) — SHIPPED 2026-07-13
+- [x] Search box relabel (`topic`→"Search materials"); debounce already shipped in 1.1.59
+- [x] Active-filter chip row (level/subject/tag/folder, each removable) + Clear all
+- [x] No-match state echoes filters + Clear all (never a dead end)
 - [ ] Browser verify (aitana-frontend-verify): the "atomer" case + a combined facet query end-to-end
 
 ## Migration & Rollout

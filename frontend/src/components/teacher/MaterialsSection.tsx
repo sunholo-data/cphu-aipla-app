@@ -41,6 +41,18 @@ const LEVELS: StxLevel[] = ["A", "B", "C"];
 const PAGE_SIZE = 50;
 // 1.1.58 M3 — sentinel folder filter → docs with no folder (mirrors backend).
 const UNFILED = "__unfiled__";
+
+/** 1.1.58 M4 — a removable active-filter chip. */
+function ActiveChip({ label, onRemove }: { label: string; onRemove: () => void }) {
+  return (
+    <span className="inline-flex items-center gap-1 rounded-full border border-primary/40 bg-primary/5 px-2 py-0.5 text-xs">
+      {label}
+      <button type="button" aria-label={`Remove filter ${label}`} onClick={onRemove} className="hover:text-foreground">
+        <X className="h-3 w-3" aria-hidden="true" />
+      </button>
+    </span>
+  );
+}
 // 1.1.58 M2 — soft subject vocabulary (mirrors backend SUBJECTS) seeding the
 // per-row subject picker. Free entry isn't offered in the UI picker; the CLI /
 // ingest allow arbitrary values, and any existing value is preserved.
@@ -172,6 +184,25 @@ export function MaterialsSection({ materials, onChange, activityId }: Props) {
       setFolders([]);
     }
   }, []);
+
+  // 1.1.58 M4 — active-filter summary + one-shot reset. The search term uses the
+  // live `topicFilter` (not the debounced copy) so the chip clears instantly.
+  const hasActiveFilters = Boolean(
+    levelFilter || topicFilter.trim() || selectedTags.length || selectedSubject || selectedFolder,
+  );
+
+  function clearAllFilters() {
+    setLevelFilter("");
+    setTopicFilter("");
+    setSelectedTags([]);
+    setSelectedSubject("");
+    setSelectedFolder("");
+  }
+
+  function folderLabel(id: string): string {
+    if (id === UNFILED) return "Unfiled";
+    return folders.find((f) => f.folderId === id)?.name ?? "Folder";
+  }
 
   async function newFolder() {
     const name = window.prompt("New folder name")?.trim();
@@ -393,14 +424,14 @@ export function MaterialsSection({ materials, onChange, activityId }: Props) {
             ))}
           </select>
         </label>
-        <label className="flex flex-col gap-1 text-xs font-medium">
-          Topic
+        <label className="flex flex-1 flex-col gap-1 text-xs font-medium">
+          Search materials
           <input
             type="text"
             value={topicFilter}
             onChange={(e) => setTopicFilter(e.target.value)}
-            placeholder="e.g. mechanics"
-            aria-label="Filter by topic"
+            placeholder="title, topic, tag…"
+            aria-label="Search materials"
             className="rounded border border-border bg-background px-2 py-1.5 text-sm"
           />
         </label>
@@ -518,6 +549,40 @@ export function MaterialsSection({ materials, onChange, activityId }: Props) {
         </button>
       </div>
 
+      {/* Active-filter chips (1.1.58 M4) — echo every applied filter, each
+          removable, plus Clear all. Only shown when something is active. */}
+      {hasActiveFilters ? (
+        <div className="flex flex-wrap items-center gap-1.5" aria-label="Active filters">
+          <span className="text-xs font-medium text-muted-foreground">Active</span>
+          {levelFilter ? (
+            <ActiveChip label={`Level ${levelFilter}`} onRemove={() => setLevelFilter("")} />
+          ) : null}
+          {topicFilter.trim() ? (
+            <ActiveChip label={`“${topicFilter.trim()}”`} onRemove={() => setTopicFilter("")} />
+          ) : null}
+          {selectedSubject ? (
+            <ActiveChip label={selectedSubject} onRemove={() => setSelectedSubject("")} />
+          ) : null}
+          {selectedFolder ? (
+            <ActiveChip label={folderLabel(selectedFolder)} onRemove={() => setSelectedFolder("")} />
+          ) : null}
+          {selectedTags.map((t) => (
+            <ActiveChip
+              key={t}
+              label={`#${t}`}
+              onRemove={() => setSelectedTags((prev) => prev.filter((x) => x !== t))}
+            />
+          ))}
+          <button
+            type="button"
+            onClick={clearAllFilters}
+            className="ml-1 text-xs font-medium text-muted-foreground underline-offset-2 hover:underline"
+          >
+            Clear all
+          </button>
+        </div>
+      ) : null}
+
       {/* Library list */}
       <div className="rounded border border-border">
         {loading ? (
@@ -537,9 +602,23 @@ export function MaterialsSection({ materials, onChange, activityId }: Props) {
             </button>
           </div>
         ) : !docs || docs.length === 0 ? (
-          <div className="p-4 text-sm text-muted-foreground">
-            No documents yet. Browse the shared A/B/C library or upload your own.
-          </div>
+          hasActiveFilters ? (
+            // No-match (filters active) — never a dead end: always a way back.
+            <div className="flex flex-col items-start gap-2 p-4 text-sm text-muted-foreground">
+              <span>No materials match your filters.</span>
+              <button
+                type="button"
+                onClick={clearAllFilters}
+                className="rounded border border-border px-2 py-1 text-xs font-medium hover:bg-muted"
+              >
+                Clear all filters
+              </button>
+            </div>
+          ) : (
+            <div className="p-4 text-sm text-muted-foreground">
+              No documents yet. Browse the shared A/B/C library or upload your own.
+            </div>
+          )
         ) : (
           <ul className="divide-y divide-border">
             {docs.map((doc) => {

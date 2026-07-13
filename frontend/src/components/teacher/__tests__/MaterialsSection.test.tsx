@@ -460,7 +460,7 @@ describe("MaterialsSection", () => {
     render(<MaterialsSection materials={[]} onChange={() => {}} />);
     await waitFor(() => expect(browseCurriculum).toHaveBeenCalled()); // mount load
 
-    const input = screen.getByLabelText("Filter by topic");
+    const input = screen.getByLabelText("Search materials");
     // Two rapid keystrokes within the 250ms window — the intermediate "at" timer
     // is cleared, so only the final value should ever reach a browse.
     fireEvent.change(input, { target: { value: "at" } });
@@ -473,5 +473,52 @@ describe("MaterialsSection", () => {
     const topicCalls = browseCurriculum.mock.calls.filter(([p]) => Boolean(p?.topic));
     expect(topicCalls).toHaveLength(1);
     expect(browseCurriculum).not.toHaveBeenCalledWith(expect.objectContaining({ topic: "at" }));
+  });
+
+  // --- 1.1.58 M4: UX unify (active-filter chips, Clear all, no-match) ---
+
+  it("shows an active-filter chip for a selected level and removing it re-queries", async () => {
+    browseCurriculum.mockResolvedValue(page([]));
+    render(<MaterialsSection materials={[]} onChange={() => {}} />);
+    await waitFor(() => expect(browseCurriculum).toHaveBeenCalled());
+    fireEvent.change(screen.getByLabelText("Filter by level"), { target: { value: "A" } });
+
+    const active = await screen.findByLabelText("Active filters");
+    expect(within(active).getByText("Level A")).toBeInTheDocument();
+    // Removing the chip clears the level → browse re-queries without it.
+    fireEvent.click(within(active).getByRole("button", { name: /Remove filter Level A/i }));
+    await waitFor(() =>
+      expect(browseCurriculum).toHaveBeenLastCalledWith(expect.objectContaining({ level: undefined })),
+    );
+  });
+
+  it("Clear all resets every active filter", async () => {
+    browseCurriculum.mockResolvedValue(page([]));
+    listCurriculumFacets.mockResolvedValue({ tags: ["lab"], subjects: ["Mekanik"] });
+    render(<MaterialsSection materials={[]} onChange={() => {}} />);
+    fireEvent.change(await screen.findByLabelText("Filter by level"), { target: { value: "B" } });
+    fireEvent.click(await screen.findByRole("button", { name: "lab" }));
+    fireEvent.click(await screen.findByRole("button", { name: "Mekanik" }));
+    // Clear all → next browse has no facets.
+    fireEvent.click(await screen.findByRole("button", { name: "Clear all" }));
+    await waitFor(() =>
+      expect(browseCurriculum).toHaveBeenLastCalledWith(
+        expect.objectContaining({ level: undefined, tags: undefined, subject: undefined }),
+      ),
+    );
+    expect(screen.queryByLabelText("Active filters")).not.toBeInTheDocument();
+  });
+
+  it("no-match state offers Clear all when filters are active (never a dead end)", async () => {
+    // First load (no filter) returns a doc; after filtering, empty.
+    browseCurriculum.mockResolvedValueOnce(page([makeDoc()])).mockResolvedValue(page([]));
+    render(<MaterialsSection materials={[]} onChange={() => {}} />);
+    await screen.findByText("Energi og arbejde");
+    fireEvent.change(screen.getByLabelText("Filter by level"), { target: { value: "A" } });
+    expect(await screen.findByText(/No materials match your filters/i)).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: /Clear all filters/i }));
+    await waitFor(() =>
+      expect(browseCurriculum).toHaveBeenLastCalledWith(expect.objectContaining({ level: undefined })),
+    );
   });
 });
