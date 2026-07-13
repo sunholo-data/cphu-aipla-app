@@ -470,16 +470,20 @@ def build_generic_prompt(partition: EvidencePartition, pack: dict[str, Any], con
 # --- Judge execution ---
 
 
-async def _call_judge_model(prompt: str, model: str) -> str:
+async def _call_judge_model(prompt: str, model: str, images: list[Any] | None = None) -> str:
     """One judged model call (the analytics/summarise genai precedent).
-    Isolated as a seam so tests and the CLI's --dry-run can stub it."""
+
+    Isolated as a seam so tests and the CLI's --dry-run can stub it. When
+    ``images`` are given (RUBRIC-2 M2 — uploaded evidence), the call is
+    multimodal: the prompt text plus each image Part."""
     from google import genai
     from google.genai.types import GenerateContentConfig
 
     client = genai.Client(vertexai=True)
+    contents: Any = [prompt, *images] if images else prompt
     response = await client.aio.models.generate_content(
         model=model,
-        contents=prompt,
+        contents=contents,
         config=GenerateContentConfig(temperature=0.0, response_mime_type="application/json"),
     )
     return response.text or ""
@@ -506,6 +510,8 @@ class RubricResult(BaseModel):
     abstain_reason: str = Field(default="", alias="abstainReason")
     profile: dict[str, Any] = Field(default_factory=dict)
     partition_summary: dict[str, int] = Field(default_factory=dict, alias="partitionSummary")
+    #: RUBRIC-2 M2 — uploaded evidence the judge saw (``doc:{id}``/``image:{id}``).
+    evidence_refs: list[str] = Field(default_factory=list, alias="evidenceRefs")
 
     model_config = ConfigDict(populate_by_name=True)
 
@@ -560,9 +566,27 @@ async def score_session_summary(summary: SessionSummary, lens_id: str) -> Rubric
     else:  # a rubric with no declared keys can't be scored
         return _abstain(summary, config, partition, f"rubric {lens_id!r} has no output keys to score")
 
-    raw = await _call_judge_model(prompt, config.model)
+    # RUBRIC-2 M2 — reference the session's uploaded material (same as the tutor
+    # saw): documents lead the prompt as context; images ride a multimodal call.
+    from analytics.rubric_evidence import format_document_evidence, load_session_evidence
+
+    evidence = await load_session_evidence(summary.session_id, summary.activity_id)
+    doc_block = format_document_evidence(evidence)
+    if doc_block:
+        prompt = doc_block + "\n\n" + prompt
+
+    if evidence.image_parts:
+        raw = await _call_judge_model(prompt, config.model, images=evidence.image_parts)
+    else:
+        raw = await _call_judge_model(prompt, config.model)
     profile = _parse_profile(raw, expected)
-    logger.info("rubric: scored session=%s lens=%s version=%s", summary.session_id, lens_id, config.prompt_version)
+    logger.info(
+        "rubric: scored session=%s lens=%s version=%s evidence=%d",
+        summary.session_id,
+        lens_id,
+        config.prompt_version,
+        len(evidence.refs),
+    )
     return RubricResult(
         sessionId=summary.session_id,
         activityId=summary.activity_id,
@@ -571,6 +595,7 @@ async def score_session_summary(summary: SessionSummary, lens_id: str) -> Rubric
         model=config.model,
         profile=profile,
         partitionSummary=partition.summary,
+        evidenceRefs=evidence.refs,
     )
 
 

@@ -283,6 +283,67 @@ def test_lens_config_exposes_the_default_prompt():
     assert "SAAR scientific-abilities rubric" in saar.default_prompt
 
 
+# --- RUBRIC-2 M2: uploaded doc/image evidence reaches the judge ---
+
+
+@pytest.mark.asyncio
+async def test_evidence_docs_lead_the_prompt_and_images_ride_the_call(monkeypatch):
+    _anchored()
+    import analytics.rubric_evidence as ev_mod
+    from analytics.rubric_evidence import RubricEvidence
+
+    evidence = RubricEvidence(
+        doc_texts=["WORKSHEET: solve for v"],
+        doc_refs=["doc-9"],
+        image_parts=[object()],
+        image_refs=["mat-1"],
+    )
+
+    async def _fake_ev(session_id, activity_id=""):
+        return evidence
+
+    monkeypatch.setattr(ev_mod, "load_session_evidence", _fake_ev)
+
+    captured: dict = {}
+
+    async def _fake_model(prompt: str, model: str, images=None) -> str:
+        captured["prompt"] = prompt
+        captured["images"] = images
+        return FAKE_JUDGE_JSON
+
+    monkeypatch.setattr(sr, "_call_judge_model", _fake_model)
+    res = await sr.score_session_summary(_summary([_turn("student", "min løsning: v = 7 m/s")]), "maps")
+    # the uploaded document leads the prompt as context…
+    assert "WORKSHEET: solve for v" in captured["prompt"]
+    # …and the JSON contract still comes last (judge discipline preserved)
+    assert captured["prompt"].rstrip().endswith(", ".join(_MAPS_CATEGORIES_KEYS()))
+    # the image Part rode the multimodal call
+    assert captured["images"] == evidence.image_parts
+    # provenance stamps what the judge saw
+    assert res.evidence_refs == ["doc:doc-9", "image:mat-1"]
+
+
+def _MAPS_CATEGORIES_KEYS() -> list[str]:
+    from analytics.session_rubric import _MAPS_CATEGORIES
+
+    return list(_MAPS_CATEGORIES)
+
+
+@pytest.mark.asyncio
+async def test_no_evidence_uses_the_plain_text_call(monkeypatch):
+    """A session with no uploads scores exactly as before — 2-arg judge call."""
+    _anchored()
+
+    async def _fake_model(prompt: str, model: str) -> str:  # NOTE: 2-arg, no images kwarg
+        return FAKE_JUDGE_JSON
+
+    monkeypatch.setattr(sr, "_call_judge_model", _fake_model)
+    # get_session_index("s-1") is None in LOCAL_MODE → empty evidence → text call
+    res = await sr.score_session_summary(_summary([_turn("student", "x")]), "maps")
+    assert res.abstained is False
+    assert res.evidence_refs == []
+
+
 # --- RUBRIC-2 M1: free-form rubrics ---
 
 
