@@ -10,7 +10,7 @@ from fastapi.testclient import TestClient
 
 import db.curriculum as dbc
 from auth import User, build_access_context, get_current_user
-from db.models.curriculum import CurriculumDoc
+from db.models.curriculum import CurriculumDoc, CurriculumFolder
 from protocols.curriculum_routes import router
 
 
@@ -26,7 +26,18 @@ def _reset_shared_cache():
 TEACHER = "teacher-1"
 
 
-def _doc(doc_id, level, owner, topic=None, source="teacher_upload", title=None, summary="", tags=None, subject=None):
+def _doc(
+    doc_id,
+    level,
+    owner,
+    topic=None,
+    source="teacher_upload",
+    title=None,
+    summary="",
+    tags=None,
+    subject=None,
+    folder_id=None,
+):
     now = datetime.now(UTC)
     return CurriculumDoc(
         docId=doc_id,
@@ -36,6 +47,7 @@ def _doc(doc_id, level, owner, topic=None, source="teacher_upload", title=None, 
         summary=summary,
         tags=tags or [],
         subject=subject,
+        folderId=folder_id,
         source=source,
         ownerScope=owner,
         origin="uvm.dk" if source == "shared" else "teacher",
@@ -238,6 +250,152 @@ def test_patch_subject_and_tags_together(monkeypatch):
     body = resp.json()["doc"]
     assert set(body["tags"]) == {"lab", "exam"}
     assert body["subject"] == "Mekanik"
+
+
+# --- 1.1.58 M3: folders ---
+
+
+def _folder(fid, owner, name="Folder"):
+    return CurriculumFolder(folderId=fid, name=name, ownerScope=owner, createdAt=datetime.now(UTC))
+
+
+def _wire_full(monkeypatch, *, docs_shared=(), docs_mine=(), folders_shared=(), folders_mine=()):
+    """Collection-aware query fake: dispatches curriculum_docs vs curriculum_folders."""
+
+    def fake_query(collection, filters=None):
+        owner = filters[0][2] if filters else None
+        if collection == dbc._FOLDER_COLLECTION:
+            src = folders_shared if owner == "shared" else (folders_mine if owner == TEACHER else [])
+        else:
+            src = docs_shared if owner == "shared" else (docs_mine if owner == TEACHER else [])
+        return [x.model_dump(by_alias=True, mode="json") for x in src]
+
+    monkeypatch.setattr(dbc, "query_documents", fake_query)
+
+
+def test_list_folders_scoped_with_live_counts(monkeypatch):
+    _wire_full(
+        monkeypatch,
+        docs_mine=[
+            _doc("a", "A", TEACHER, folder_id="f1"),
+            _doc("b", "A", TEACHER, folder_id="f1"),
+            _doc("c", "A", TEACHER),
+        ],
+        folders_mine=[_folder("f1", TEACHER, "Kap 4")],
+    )
+    out = dbc.list_curriculum_folders_for_teacher(TEACHER)
+    assert [(f.folder_id, f.doc_count) for f in out] == [("f1", 2)]  # 2 docs filed, count computed live
+
+
+def test_folder_acl_excludes_other_teacher(monkeypatch):
+    def fake_query(collection, filters=None):
+        owner = filters[0][2] if filters else None
+        if collection == dbc._FOLDER_COLLECTION and owner == "teacher-2":
+            return [_folder("fx", "teacher-2").model_dump(by_alias=True, mode="json")]
+        return []
+
+    monkeypatch.setattr(dbc, "query_documents", fake_query)
+    # TEACHER never queries teacher-2's scope → their private folder is invisible.
+    assert dbc.list_curriculum_folders_for_teacher(TEACHER) == []
+
+
+def test_create_folder_endpoint(monkeypatch):
+    import protocols.curriculum_routes as cr
+
+    saved: list = []
+    monkeypatch.setattr(cr, "create_curriculum_folder", lambda f: saved.append(f))
+    resp = _client().post("/api/curriculum/folders", json={"name": "Kap 4"})
+    assert resp.status_code == 201, resp.text
+    body = resp.json()["folder"]
+    assert body["name"] == "Kap 4" and body["ownerScope"] == TEACHER
+    assert saved[0].owner_scope == TEACHER
+
+
+def test_create_shared_folder(monkeypatch):
+    import protocols.curriculum_routes as cr
+
+    monkeypatch.setattr(cr, "create_curriculum_folder", lambda f: None)
+    resp = _client().post("/api/curriculum/folders", json={"name": "Delt", "shared": True})
+    assert resp.json()["folder"]["ownerScope"] == "shared"
+
+
+def test_folders_student_forbidden():
+    assert _client(group_id="g").get("/api/curriculum/folders").status_code == 403
+    assert _client(group_id="g").post("/api/curriculum/folders", json={"name": "x"}).status_code == 403
+
+
+def test_list_folders_endpoint(monkeypatch):
+    _wire_full(
+        monkeypatch,
+        docs_mine=[_doc("a", "A", TEACHER, folder_id="f1")],
+        folders_mine=[_folder("f1", TEACHER, "Kap 4")],
+    )
+    body = _client().get("/api/curriculum/folders").json()
+    assert body["folders"][0]["name"] == "Kap 4"
+    assert body["folders"][0]["docCount"] == 1
+
+
+def test_patch_assigns_folder_same_scope(monkeypatch):
+    import protocols.curriculum_routes as cr
+
+    doc = _doc("m1", "A", TEACHER)
+    _wire_patch(monkeypatch, doc)
+    monkeypatch.setattr(
+        cr, "get_curriculum_folder", lambda fid: _folder("f1", TEACHER, "Kap 4") if fid == "f1" else None
+    )
+    resp = _client().patch("/api/curriculum/m1", json={"folderId": "f1"})
+    assert resp.status_code == 200, resp.text
+    body = resp.json()["doc"]
+    assert body["folderId"] == "f1" and body["folderName"] == "Kap 4"
+
+
+def test_patch_folder_scope_mismatch_400(monkeypatch):
+    import protocols.curriculum_routes as cr
+
+    doc = _doc("m1", "A", TEACHER)  # owner TEACHER
+    _wire_patch(monkeypatch, doc)
+    monkeypatch.setattr(cr, "get_curriculum_folder", lambda fid: _folder("fS", "shared"))  # a SHARED folder
+    resp = _client().patch("/api/curriculum/m1", json={"folderId": "fS"})
+    assert resp.status_code == 400  # can't file a private doc into a shared folder
+
+
+def test_patch_folder_not_found_404(monkeypatch):
+    import protocols.curriculum_routes as cr
+
+    _wire_patch(monkeypatch, _doc("m1", "A", TEACHER))
+    monkeypatch.setattr(cr, "get_curriculum_folder", lambda fid: None)
+    resp = _client().patch("/api/curriculum/m1", json={"folderId": "nope"})
+    assert resp.status_code == 404
+
+
+def test_patch_clears_folder(monkeypatch):
+    doc = _doc("m1", "A", TEACHER, folder_id="f1")
+    doc.folder_name = "Kap 4"
+    saved = _wire_patch(monkeypatch, doc)
+    resp = _client().patch("/api/curriculum/m1", json={"folderId": None})
+    assert resp.status_code == 200
+    assert resp.json()["doc"]["folderId"] is None
+    assert saved[-1].folder_name is None
+
+
+def test_browse_folder_facet_param(monkeypatch):
+    _wire_store(
+        monkeypatch,
+        shared=[],
+        mine=[_doc("a", "A", TEACHER, folder_id="f1"), _doc("b", "A", TEACHER)],
+    )
+    resp = _client().get("/api/curriculum?folder=f1")
+    assert [d["docId"] for d in resp.json()["docs"]] == ["a"]
+
+
+def test_browse_unfiled_sentinel(monkeypatch):
+    _wire_store(
+        monkeypatch,
+        shared=[],
+        mine=[_doc("a", "A", TEACHER, folder_id="f1"), _doc("b", "A", TEACHER)],
+    )
+    resp = _client().get("/api/curriculum?folder=__unfiled__")
+    assert [d["docId"] for d in resp.json()["docs"]] == ["b"]  # only the folder-less doc
 
 
 # --- 1.1.59 M1: shared-corpus read-through cache ---

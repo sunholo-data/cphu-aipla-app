@@ -33,12 +33,15 @@ from adk.teacher_focus import resolve_active_config
 from auth import User, get_current_user
 from db.curriculum import (
     create_curriculum_doc,
+    create_curriculum_folder,
     delete_curriculum_content,
     delete_curriculum_doc,
     distinct_subjects_for_teacher,
     distinct_tags_for_teacher,
     get_curriculum_content,
     get_curriculum_doc,
+    get_curriculum_folder,
+    list_curriculum_folders_for_teacher,
     list_curriculum_for_teacher,
     set_curriculum_content,
 )
@@ -46,6 +49,7 @@ from db.models.curriculum import (
     SHARED_SCOPE,
     CopyrightStatus,
     CurriculumDoc,
+    CurriculumFolder,
     StxLevel,
     normalize_subject,
     normalize_tags,
@@ -95,6 +99,7 @@ async def browse_curriculum(
     topic: str | None = None,
     tags: Annotated[list[str] | None, Query()] = None,  # 1.1.58 M1 — repeatable ?tags=
     subject: str | None = None,  # 1.1.58 M2 — exact-match facet
+    folder: str | None = None,  # 1.1.58 M3 — folder_id exact-match facet
     scope: Literal["shared", "mine"] | None = None,
     # 1.1.59 — paginate the response so a large corpus never dumps unbounded rows
     # over the wire / into React. The full filtered list is computed server-side
@@ -109,7 +114,9 @@ async def browse_curriculum(
     Paginated via ``limit`` (≤200) / ``offset``; ``total`` is the full match count."""
     if getattr(user, "group_id", None):
         raise HTTPException(status_code=403, detail="Curriculum browse is teacher-only.")
-    docs = list_curriculum_for_teacher(user.uid, level=level, topic=topic, tags=tags, subject=subject, scope=scope)
+    docs = list_curriculum_for_teacher(
+        user.uid, level=level, topic=topic, tags=tags, subject=subject, folder_id=folder, scope=scope
+    )
     page = docs[offset : offset + limit]
     return {
         "docs": [d.model_dump(by_alias=True, mode="json") for d in page],
@@ -136,6 +143,48 @@ async def curriculum_facets(
     }
 
 
+@router.get("/folders")
+async def list_curriculum_folders(
+    scope: Literal["shared", "mine"] | None = None,
+    user: User = Depends(get_current_user),  # noqa: B008
+) -> dict[str, Any]:
+    """List the folders a teacher can see (shared + own), each with a live
+    ``docCount`` (1.1.58 M3). Teacher-only; ACL-scoped like the docs."""
+    if getattr(user, "group_id", None):
+        raise HTTPException(status_code=403, detail="Curriculum folders are teacher-only.")
+    folders = list_curriculum_folders_for_teacher(user.uid, scope=scope)
+    return {"folders": [f.model_dump(by_alias=True, mode="json") for f in folders]}
+
+
+class _FolderCreate(BaseModel):
+    name: str = Field(min_length=1, max_length=120)
+    # Create in the SHARED corpus (any teacher may — mirrors shared ingest). Else
+    # the folder is private to the caller.
+    shared: bool = False
+
+    model_config = ConfigDict(populate_by_name=True)
+
+
+@router.post("/folders", status_code=201)
+async def create_curriculum_folder_route(
+    body: _FolderCreate,
+    user: User = Depends(get_current_user),  # noqa: B008
+) -> dict[str, Any]:
+    """Create a flat folder (1.1.58 M3). Owner scope = SHARED (if ``shared``) or
+    the caller's uid. Teacher-only."""
+    if getattr(user, "group_id", None):
+        raise HTTPException(status_code=403, detail="Curriculum folders are teacher-only.")
+    folder = CurriculumFolder(
+        folderId=str(uuid.uuid4()),
+        name=body.name.strip(),
+        ownerScope=SHARED_SCOPE if body.shared else user.uid,
+        createdAt=datetime.now(UTC),
+    )
+    create_curriculum_folder(folder)
+    logger.info("Curriculum folder created: %s (owner_scope=%s)", folder.folder_id, folder.owner_scope)
+    return {"folder": folder.model_dump(by_alias=True, mode="json")}
+
+
 class _DocPatch(BaseModel):
     """Edit a doc's facets (1.1.58 M2). Tags: full replacement (``tags``) OR deltas
     (``addTags`` / ``removeTags``) — deltas let a CLI avoid a read-modify-write
@@ -146,6 +195,10 @@ class _DocPatch(BaseModel):
     add_tags: list[str] | None = Field(default=None, alias="addTags")
     remove_tags: list[str] | None = Field(default=None, alias="removeTags")
     subject: str | None = None
+    # 1.1.58 M3 — assign/clear folder. Sending it (even null) updates it; presence
+    # detected via model_fields_set. A non-null id must be a folder in the SAME
+    # ownerScope as the doc.
+    folder_id: str | None = Field(default=None, alias="folderId")
 
     model_config = ConfigDict(populate_by_name=True)
 
@@ -170,9 +223,10 @@ async def patch_curriculum_doc(
         raise HTTPException(status_code=404, detail="Curriculum doc not found.")
 
     set_subject = "subject" in body.model_fields_set
+    set_folder = "folderId" in body.model_fields_set or "folder_id" in body.model_fields_set
     touches_tags = body.tags is not None or body.add_tags is not None or body.remove_tags is not None
-    if not touches_tags and not set_subject:
-        raise HTTPException(status_code=422, detail="Provide tags, addTags, removeTags, or subject.")
+    if not touches_tags and not set_subject and not set_folder:
+        raise HTTPException(status_code=422, detail="Provide tags, addTags, removeTags, subject, or folderId.")
 
     if body.tags is not None:
         doc.tags = normalize_tags(body.tags)
@@ -184,9 +238,30 @@ async def patch_curriculum_doc(
     if set_subject:
         doc.subject = normalize_subject(body.subject)
 
+    if set_folder:
+        if body.folder_id:
+            folder = get_curriculum_folder(body.folder_id)
+            if folder is None:
+                raise HTTPException(status_code=404, detail="Folder not found.")
+            # ACL parity: a doc can only go in a folder of the SAME ownerScope.
+            if folder.owner_scope != doc.owner_scope:
+                raise HTTPException(status_code=400, detail="Folder and document are in different scopes.")
+            doc.folder_id = folder.folder_id
+            doc.folder_name = folder.name
+        else:
+            doc.folder_id = None  # unfiled
+            doc.folder_name = None
+
     doc.updated_at = datetime.now(UTC)
     create_curriculum_doc(doc)
-    logger.info("Curriculum doc %s patched (tags=%s subject=%s uid=%s)", doc_id, doc.tags, doc.subject, user.uid)
+    logger.info(
+        "Curriculum doc %s patched (tags=%s subject=%s folder=%s uid=%s)",
+        doc_id,
+        doc.tags,
+        doc.subject,
+        doc.folder_id,
+        user.uid,
+    )
     return {"doc": doc.model_dump(by_alias=True, mode="json")}
 
 

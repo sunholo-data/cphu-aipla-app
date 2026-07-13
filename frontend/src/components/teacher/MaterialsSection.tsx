@@ -2,16 +2,19 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import * as Dialog from "@radix-ui/react-dialog";
-import { BookOpen, Check, Eye, EyeOff, FileText, FileUp, Image as ImageIcon, Loader2, Plus, Tag, X } from "lucide-react";
+import { BookOpen, Check, Eye, EyeOff, FileText, FileUp, Folder, FolderPlus, Image as ImageIcon, Loader2, Plus, Tag, X } from "lucide-react";
 
 import {
   type CurriculumDoc,
+  type CurriculumFolder,
   type DocContent,
   CurriculumApiError,
   browseCurriculum,
+  createCurriculumFolder,
   fetchCurriculumContent,
   ingestCurriculum,
   listCurriculumFacets,
+  listCurriculumFolders,
   patchCurriculumTags,
 } from "@/lib/curriculumApi";
 import { ActivityImageApiError, deleteActivityImage, uploadActivityImage } from "@/lib/activityImageApi";
@@ -36,6 +39,8 @@ interface Props {
 const LEVELS: StxLevel[] = ["A", "B", "C"];
 // 1.1.59 — page size for the paginated browse (server caps at 200).
 const PAGE_SIZE = 50;
+// 1.1.58 M3 — sentinel folder filter → docs with no folder (mirrors backend).
+const UNFILED = "__unfiled__";
 // 1.1.58 M2 — soft subject vocabulary (mirrors backend SUBJECTS) seeding the
 // per-row subject picker. Free entry isn't offered in the UI picker; the CLI /
 // ingest allow arbitrary values, and any existing value is preserved.
@@ -82,6 +87,9 @@ export function MaterialsSection({ materials, onChange, activityId }: Props) {
   // 1.1.58 M2 — subject facet (single-select).
   const [facetSubjects, setFacetSubjects] = useState<string[]>([]);
   const [selectedSubject, setSelectedSubject] = useState<string>("");
+  // 1.1.58 M3 — folders. `selectedFolder`: "" = all, "__unfiled__" = unfiled, else a folder id.
+  const [folders, setFolders] = useState<CurriculumFolder[]>([]);
+  const [selectedFolder, setSelectedFolder] = useState<string>("");
 
   // Only curriculum materials map to library docs; image materials carry no docId.
   const citedIds = new Set(materials.filter((m) => m.kind !== "image").map((m) => m.docId));
@@ -100,10 +108,11 @@ export function MaterialsSection({ materials, onChange, activityId }: Props) {
       topic: debouncedTopic || undefined,
       tags: selectedTags.length ? selectedTags : undefined,
       subject: selectedSubject || undefined,
+      folder: selectedFolder || undefined,
       limit: PAGE_SIZE,
       offset,
     }),
-    [levelFilter, debouncedTopic, selectedTags, selectedSubject],
+    [levelFilter, debouncedTopic, selectedTags, selectedSubject, selectedFolder],
   );
 
   // Load the FIRST page — replaces the list. Re-runs when a filter/search changes.
@@ -149,15 +158,31 @@ export function MaterialsSection({ materials, onChange, activityId }: Props) {
   // Populate the facet chips once (and after a tag edit refreshes them).
   const loadFacets = useCallback(async () => {
     try {
-      const { tags, subjects } = await listCurriculumFacets();
+      const [{ tags, subjects }, folderList] = await Promise.all([
+        listCurriculumFacets(),
+        listCurriculumFolders(),
+      ]);
       setFacetTags(tags);
       setFacetSubjects(subjects);
+      setFolders(folderList);
     } catch {
       // Facets are additive — a failure just means no chip row, never a blocker.
       setFacetTags([]);
       setFacetSubjects([]);
+      setFolders([]);
     }
   }, []);
+
+  async function newFolder() {
+    const name = window.prompt("New folder name")?.trim();
+    if (!name) return;
+    try {
+      await createCurriculumFolder(name);
+      void loadFacets();
+    } catch {
+      // Non-fatal.
+    }
+  }
 
   useEffect(() => {
     void loadFacets();
@@ -171,7 +196,7 @@ export function MaterialsSection({ materials, onChange, activityId }: Props) {
   // brand-new tag becomes a filterable chip.
   async function applyTagEdit(
     docId: string,
-    body: { addTags?: string[]; removeTags?: string[]; subject?: string | null },
+    body: { addTags?: string[]; removeTags?: string[]; subject?: string | null; folderId?: string | null },
   ) {
     try {
       const updated = await patchCurriculumTags(docId, body);
@@ -457,6 +482,42 @@ export function MaterialsSection({ materials, onChange, activityId }: Props) {
         </div>
       ) : null}
 
+      {/* Folder rail (1.1.58 M3) — All / Unfiled / each folder (with count) + New. */}
+      <div className="flex flex-wrap items-center gap-1.5" aria-label="Filter by folder">
+        <span className="flex items-center gap-1 text-xs font-medium text-muted-foreground">
+          <Folder className="h-3.5 w-3.5" aria-hidden="true" />
+          Folders
+        </span>
+        {[
+          { id: "", label: "All" },
+          { id: UNFILED, label: "Unfiled" },
+          ...folders.map((f) => ({ id: f.folderId, label: `${f.name} (${f.docCount})` })),
+        ].map((chip) => {
+          const on = selectedFolder === chip.id;
+          return (
+            <button
+              key={chip.id || "all"}
+              type="button"
+              onClick={() => setSelectedFolder(chip.id)}
+              aria-pressed={on}
+              className={`rounded-full border px-2 py-0.5 text-xs transition-colors ${
+                on ? "border-primary bg-primary/10 text-foreground" : "border-border text-muted-foreground hover:bg-muted"
+              }`}
+            >
+              {chip.label}
+            </button>
+          );
+        })}
+        <button
+          type="button"
+          onClick={() => void newFolder()}
+          className="flex items-center gap-1 rounded-full border border-dashed border-border px-2 py-0.5 text-xs text-muted-foreground hover:bg-muted"
+        >
+          <FolderPlus className="h-3.5 w-3.5" aria-hidden="true" />
+          New
+        </button>
+      </div>
+
       {/* Library list */}
       <div className="rounded border border-border">
         {loading ? (
@@ -524,6 +585,24 @@ export function MaterialsSection({ materials, onChange, activityId }: Props) {
                               </option>
                             ),
                           )}
+                        </select>
+                      ) : null}
+                      {/* Move to folder — only folders of the SAME scope are assignable. */}
+                      {editTagsFor === doc.docId ? (
+                        <select
+                          value={doc.folderId ?? ""}
+                          aria-label={`Set folder for ${doc.title}`}
+                          onChange={(e) => void applyTagEdit(doc.docId, { folderId: e.target.value || null })}
+                          className="rounded border border-border bg-background px-1 py-0.5 text-[11px]"
+                        >
+                          <option value="">No folder</option>
+                          {folders
+                            .filter((f) => f.ownerScope === doc.ownerScope)
+                            .map((f) => (
+                              <option key={f.folderId} value={f.folderId}>
+                                {f.name}
+                              </option>
+                            ))}
                         </select>
                       ) : null}
                       {doc.tags.map((tag) => (

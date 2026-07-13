@@ -1,10 +1,12 @@
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 const browseCurriculum = vi.fn();
 const ingestCurriculum = vi.fn();
 const fetchCurriculumContent = vi.fn();
 const listCurriculumFacets = vi.fn();
+const listCurriculumFolders = vi.fn();
+const createCurriculumFolder = vi.fn();
 const patchCurriculumTags = vi.fn();
 const uploadActivityImage = vi.fn();
 const deleteActivityImage = vi.fn();
@@ -19,6 +21,8 @@ vi.mock("@/lib/curriculumApi", async () => {
     ingestCurriculum: (...a: unknown[]) => ingestCurriculum(...a),
     fetchCurriculumContent: (...a: unknown[]) => fetchCurriculumContent(...a),
     listCurriculumFacets: (...a: unknown[]) => listCurriculumFacets(...a),
+    listCurriculumFolders: (...a: unknown[]) => listCurriculumFolders(...a),
+    createCurriculumFolder: (...a: unknown[]) => createCurriculumFolder(...a),
     patchCurriculumTags: (...a: unknown[]) => patchCurriculumTags(...a),
   };
 });
@@ -51,6 +55,8 @@ function makeDoc(overrides: Partial<Record<string, unknown>> = {}) {
     copyrightStatus: "cleared",
     tags: [],
     subject: null,
+    folderId: null,
+    folderName: null,
     createdAt: "2026-06-12T00:00:00Z",
     updatedAt: "2026-06-12T00:00:00Z",
     ...overrides,
@@ -64,7 +70,10 @@ function page(docs: unknown[], total?: number) {
 
 // The facet endpoint fires on mount for every render; default it to empty so
 // existing tests don't need to know about it (a real value is set per-test).
-beforeEach(() => listCurriculumFacets.mockResolvedValue({ tags: [], subjects: [] }));
+beforeEach(() => {
+  listCurriculumFacets.mockResolvedValue({ tags: [], subjects: [] });
+  listCurriculumFolders.mockResolvedValue([]);
+});
 afterEach(() => vi.clearAllMocks());
 
 describe("MaterialsSection", () => {
@@ -152,6 +161,7 @@ describe("MaterialsSection", () => {
         topic: undefined,
         tags: undefined,
         subject: undefined,
+        folder: undefined,
         limit: 50,
         offset: 0,
       }),
@@ -170,6 +180,7 @@ describe("MaterialsSection", () => {
         topic: undefined,
         tags: ["lab"],
         subject: undefined,
+        folder: undefined,
         limit: 50,
         offset: 0,
       }),
@@ -212,6 +223,59 @@ describe("MaterialsSection", () => {
     await waitFor(() =>
       expect(patchCurriculumTags).toHaveBeenCalledWith("d1", { subject: "Mekanik" }),
     );
+  });
+
+  // --- 1.1.58 M3: folders ---
+
+  it("renders folder rail chips and filtering by a folder re-queries with its id", async () => {
+    browseCurriculum.mockResolvedValue(page([]));
+    listCurriculumFolders.mockResolvedValue([
+      { folderId: "f1", name: "Kapitel 4", ownerScope: "shared", docCount: 3 },
+    ]);
+    render(<MaterialsSection materials={[]} onChange={() => {}} />);
+    fireEvent.click(await screen.findByRole("button", { name: /Kapitel 4 \(3\)/ }));
+    await waitFor(() =>
+      expect(browseCurriculum).toHaveBeenLastCalledWith(expect.objectContaining({ folder: "f1", offset: 0 })),
+    );
+  });
+
+  it("the Unfiled chip filters by the unfiled sentinel", async () => {
+    browseCurriculum.mockResolvedValue(page([]));
+    render(<MaterialsSection materials={[]} onChange={() => {}} />);
+    fireEvent.click(await screen.findByRole("button", { name: "Unfiled" }));
+    await waitFor(() =>
+      expect(browseCurriculum).toHaveBeenLastCalledWith(expect.objectContaining({ folder: "__unfiled__" })),
+    );
+  });
+
+  it("moving a doc to a folder (same scope) calls patchCurriculumTags with folderId", async () => {
+    browseCurriculum.mockResolvedValue(page([makeDoc({ ownerScope: "shared", folderId: null })]));
+    listCurriculumFolders.mockResolvedValue([
+      { folderId: "f1", name: "Kapitel 4", ownerScope: "shared", docCount: 0 },
+    ]);
+    patchCurriculumTags.mockResolvedValue(makeDoc({ folderId: "f1", folderName: "Kapitel 4" }));
+    render(<MaterialsSection materials={[]} onChange={() => {}} />);
+    fireEvent.click(await screen.findByRole("button", { name: /Add tags for Energi og arbejde/i }));
+    fireEvent.change(screen.getByLabelText("Set folder for Energi og arbejde"), {
+      target: { value: "f1" },
+    });
+    await waitFor(() =>
+      expect(patchCurriculumTags).toHaveBeenCalledWith("d1", { folderId: "f1" }),
+    );
+  });
+
+  it("only offers same-scope folders in the move-to-folder picker", async () => {
+    // A teacher-owned doc must not be able to pick a SHARED folder (assign would 400).
+    browseCurriculum.mockResolvedValue(page([makeDoc({ ownerScope: "teacher-1", folderId: null })]));
+    listCurriculumFolders.mockResolvedValue([
+      { folderId: "fMine", name: "Mine", ownerScope: "teacher-1", docCount: 0 },
+      { folderId: "fShared", name: "Shared", ownerScope: "shared", docCount: 0 },
+    ]);
+    render(<MaterialsSection materials={[]} onChange={() => {}} />);
+    fireEvent.click(await screen.findByRole("button", { name: /Add tags for Energi og arbejde/i }));
+    const select = screen.getByLabelText("Set folder for Energi og arbejde");
+    expect(within(select).getByRole("option", { name: "Mine" })).toBeInTheDocument();
+    expect(within(select).queryByRole("option", { name: "Shared" })).not.toBeInTheDocument();
   });
 
   it("renders a doc's tags as chips on its row (1.1.58 M1)", async () => {

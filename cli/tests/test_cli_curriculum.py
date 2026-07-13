@@ -180,6 +180,58 @@ def test_list_subject_filter() -> None:
     assert route.calls.last.request.url.params.get("subject") == "Mekanik"
 
 
+# --- folders (1.1.58 M3) ---
+
+
+@respx.mock
+def test_folder_new() -> None:
+    route = respx.post(f"{BASE}/api/curriculum/folders").mock(
+        return_value=httpx.Response(201, json={"folder": {"folderId": "f1", "name": "Kap 4"}}),
+    )
+    result = _run(["folder", "new", "Kap 4", "--shared"])
+    assert result.exit_code == 0, result.output
+    assert json.loads(route.calls.last.request.content) == {"name": "Kap 4", "shared": True}
+
+
+@respx.mock
+def test_folder_list() -> None:
+    route = respx.get(f"{BASE}/api/curriculum/folders").mock(
+        return_value=httpx.Response(200, json={"folders": [{"folderId": "f1", "name": "Kap 4", "docCount": 3}]}),
+    )
+    result = _run(["folder", "list", "--scope", "mine"])
+    assert result.exit_code == 0, result.output
+    assert route.calls.last.request.url.params.get("scope") == "mine"
+    assert "Kap 4" in result.output
+
+
+@respx.mock
+def test_set_folder() -> None:
+    route = respx.patch(f"{BASE}/api/curriculum/d1").mock(
+        return_value=httpx.Response(200, json={"doc": {"docId": "d1", "folderId": "f1"}}),
+    )
+    result = _run(["set", "d1", "--folder", "f1"])
+    assert result.exit_code == 0, result.output
+    assert json.loads(route.calls.last.request.content) == {"folderId": "f1"}
+
+
+@respx.mock
+def test_set_folder_empty_clears() -> None:
+    route = respx.patch(f"{BASE}/api/curriculum/d1").mock(
+        return_value=httpx.Response(200, json={"doc": {"docId": "d1", "folderId": None}}),
+    )
+    result = _run(["set", "d1", "--folder", ""])
+    assert result.exit_code == 0, result.output
+    assert json.loads(route.calls.last.request.content) == {"folderId": None}
+
+
+@respx.mock
+def test_list_folder_filter() -> None:
+    route = respx.get(f"{BASE}/api/curriculum").mock(return_value=httpx.Response(200, json={"docs": []}))
+    result = _run(["list", "--folder", "f1"])
+    assert result.exit_code == 0, result.output
+    assert route.calls.last.request.url.params.get("folder") == "f1"
+
+
 # --- query ---
 
 

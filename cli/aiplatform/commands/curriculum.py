@@ -4,8 +4,9 @@ Subcommands:
     ingest  Upload a document into the library (AILANG Parse → ADK RAG corpus).
     list    Browse the library (ACL: shared + your own; filter by level/tag/subject/search).
     tag     Edit a doc's tags (--add/--remove deltas or --set) (1.1.58 M1).
-    set     Set a doc's subject facet (1.1.58 M2).
+    set     Set a doc's subject/folder facets (1.1.58 M2/M3).
     facets  List the distinct tags + subjects across your visible docs (1.1.58 M1/M2).
+    folder  Manage folders (new / list) (1.1.58 M3).
     query   Test retrieval + provenance from the CLI (ops / eval parity).
 
 Wraps ``/api/curriculum`` (M1 browse), ``/api/curriculum/ingest`` (M2), and
@@ -83,6 +84,7 @@ def ingest_curriculum(
 @click.option("--topic", default=None, help="Free-text search (title + topic + summary + tags).")
 @click.option("--tag", "tags", multiple=True, help="Filter by tag (repeatable — AND).")
 @click.option("--subject", default=None, help="Filter by subject (exact).")
+@click.option("--folder", "folder_id", default=None, help="Filter by folder id.")
 @click.option("--scope", type=click.Choice(["shared", "mine"]), default=None, help="Limit to shared or your own.")
 @click.pass_context
 def list_curriculum(
@@ -91,11 +93,14 @@ def list_curriculum(
     topic: str | None,
     tags: tuple[str, ...],
     subject: str | None,
+    folder_id: str | None,
     scope: str | None,
 ) -> None:
     """Browse the curriculum library (ACL: shared + your own)."""
     params: dict[str, object] = {
-        k: v for k, v in (("level", level), ("topic", topic), ("subject", subject), ("scope", scope)) if v
+        k: v
+        for k, v in (("level", level), ("topic", topic), ("subject", subject), ("folder", folder_id), ("scope", scope))
+        if v
     }
     if tags:
         params["tags"] = list(tags)
@@ -106,12 +111,43 @@ def list_curriculum(
 @curriculum.command("set")
 @click.argument("doc_id")
 @click.option("--subject", default=None, help="Set the subject facet (empty string clears it).")
+@click.option("--folder", "folder_id", default=None, help="File into a folder by id (empty string unfiles).")
 @click.pass_context
-def set_curriculum(ctx: click.Context, doc_id: str, subject: str | None) -> None:
-    """Set a doc's facet fields (currently: --subject). Empty string clears."""
-    if subject is None:
-        raise click.UsageError("give --subject <value> (or --subject '' to clear)")
-    result = _client(ctx).patch(f"/api/curriculum/{doc_id}", json={"subject": subject or None})
+def set_curriculum(ctx: click.Context, doc_id: str, subject: str | None, folder_id: str | None) -> None:
+    """Set a doc's facet fields (--subject, --folder). Empty string clears each."""
+    payload: dict[str, object] = {}
+    if subject is not None:
+        payload["subject"] = subject or None
+    if folder_id is not None:
+        payload["folderId"] = folder_id or None
+    if not payload:
+        raise click.UsageError("give --subject and/or --folder (use '' to clear)")
+    result = _client(ctx).patch(f"/api/curriculum/{doc_id}", json=payload)
+    click.echo(_json.dumps(result, indent=2))
+
+
+@curriculum.group("folder")
+def folder() -> None:
+    """Curriculum folders (flat; ACL: shared + your own)."""
+
+
+@folder.command("new")
+@click.argument("name")
+@click.option("--shared", is_flag=True, default=False, help="Create in the SHARED corpus (admin).")
+@click.pass_context
+def folder_new(ctx: click.Context, name: str, shared: bool) -> None:
+    """Create a folder named NAME."""
+    result = _client(ctx).post("/api/curriculum/folders", json={"name": name, "shared": shared})
+    click.echo(_json.dumps(result, indent=2))
+
+
+@folder.command("list")
+@click.option("--scope", type=click.Choice(["shared", "mine"]), default=None, help="Limit to shared or your own.")
+@click.pass_context
+def folder_list(ctx: click.Context, scope: str | None) -> None:
+    """List folders you can see, each with a live doc count."""
+    params = {"scope": scope} if scope else None
+    result = _client(ctx).get("/api/curriculum/folders", params=params)
     click.echo(_json.dumps(result, indent=2))
 
 

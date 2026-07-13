@@ -14,11 +14,15 @@ import time
 from datetime import UTC, datetime
 
 from db.firestore import delete_document, get_document, query_documents, set_document
-from db.models.curriculum import SHARED_SCOPE, CurriculumDoc, StxLevel, normalize_tags
+from db.models.curriculum import SHARED_SCOPE, CurriculumDoc, CurriculumFolder, StxLevel, normalize_tags
 
 logger = logging.getLogger(__name__)
 
 _COLLECTION = "curriculum_docs"
+# 1.1.58 M3 — flat folders, keyed by ownerScope like the docs themselves.
+_FOLDER_COLLECTION = "curriculum_folders"
+# Sentinel folder filter value → docs with NO folder ("Unfiled" rail chip).
+UNFILED = "__unfiled__"
 # 1.1.33 M3 — the parsed text, kept SEPARATE from the metadata doc so browse/list
 # queries stay light. Read on demand when a student opens a shared doc.
 _CONTENT_COLLECTION = "curriculum_content"
@@ -119,15 +123,16 @@ def list_curriculum_for_teacher(
     topic: str | None = None,
     tags: list[str] | None = None,
     subject: str | None = None,
+    folder_id: str | None = None,
     scope: str | None = None,
 ) -> list[CurriculumDoc]:
     """ACL-scoped browse for a teacher: ``shared`` + their own docs.
 
     ``scope`` narrows within that allow-set: ``"shared"`` → only shared,
     ``"mine"`` → only the teacher's own, ``None`` → both. ``level`` / ``topic`` /
-    ``tags`` / ``subject`` filter the result. ``topic`` is a free-text search;
-    ``tags`` is an AND facet; ``subject`` is an exact-match facet. Sorted by
-    (level, title).
+    ``tags`` / ``subject`` / ``folder_id`` filter the result. ``topic`` is a
+    free-text search; ``tags`` is an AND facet; ``subject`` / ``folder_id`` are
+    exact-match facets. Sorted by (level, title).
     """
     # 1.1.59 — shared corpus from the read-through cache (0 reads when warm); own
     # docs always live (few, and a just-uploaded doc must show immediately).
@@ -142,6 +147,11 @@ def list_curriculum_for_teacher(
         docs = [d for d in docs if d.level == level]
     if subject:
         docs = [d for d in docs if d.subject == subject]
+    if folder_id:
+        if folder_id == UNFILED:
+            docs = [d for d in docs if not d.folder_id]
+        else:
+            docs = [d for d in docs if d.folder_id == folder_id]
     if tags:
         # AND facet: a doc matches only if it carries EVERY selected tag. Tags in
         # the store are canonical (lowercased) — normalize the query side too so a
@@ -182,3 +192,40 @@ def distinct_subjects_for_teacher(teacher_uid: str, *, scope: str | None = None)
     M2) — the facet-chip source, ACL-scoped like the tags variant."""
     docs = list_curriculum_for_teacher(teacher_uid, scope=scope)
     return sorted({d.subject for d in docs if d.subject})
+
+
+# ---------------------------------------------------------------------------
+# 1.1.58 M3 — folders (flat, keyed by ownerScope like the docs)
+# ---------------------------------------------------------------------------
+
+
+def create_curriculum_folder(folder: CurriculumFolder) -> None:
+    set_document(_FOLDER_COLLECTION, folder.folder_id, folder.model_dump(by_alias=True, mode="json"))
+
+
+def get_curriculum_folder(folder_id: str) -> CurriculumFolder | None:
+    raw = get_document(_FOLDER_COLLECTION, folder_id)
+    return CurriculumFolder.model_validate(raw) if raw else None
+
+
+def list_curriculum_folders_for_teacher(teacher_uid: str, *, scope: str | None = None) -> list[CurriculumFolder]:
+    """Folders visible to a teacher: shared + their own, ACL-scoped exactly like
+    the docs. ``doc_count`` is computed here from the visible doc set (never
+    stored → can't drift). Sorted by name."""
+    raw: list[dict] = []
+    if scope in (None, "shared"):
+        raw += query_documents(_FOLDER_COLLECTION, filters=[("ownerScope", "==", SHARED_SCOPE)])
+    if scope in (None, "mine"):
+        raw += query_documents(_FOLDER_COLLECTION, filters=[("ownerScope", "==", teacher_uid)])
+
+    folders = [CurriculumFolder.model_validate(f) for f in raw]
+    # Count docs per folder from the same ACL-scoped set (cheap: shared is cached).
+    docs = list_curriculum_for_teacher(teacher_uid, scope=scope)
+    counts: dict[str, int] = {}
+    for d in docs:
+        if d.folder_id:
+            counts[d.folder_id] = counts.get(d.folder_id, 0) + 1
+    for f in folders:
+        f.doc_count = counts.get(f.folder_id, 0)
+    folders.sort(key=lambda f: f.name.lower())
+    return folders

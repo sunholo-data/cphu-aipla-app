@@ -103,6 +103,12 @@ class CurriculumDoc(BaseModel):
     # allowed). The facet a teacher filters by; complements `topic` (freeform).
     # Optional — legacy/unfiled docs have none.
     subject: str | None = Field(default=None, max_length=MAX_SUBJECT_LEN)
+    # 1.1.58 M3 — flat folder membership, denormalised (id + name) like
+    # ParsedDocument. The folder's ownerScope MUST equal this doc's ownerScope —
+    # enforced on assign so folder ACL can never diverge from doc ACL. None =
+    # "unfiled".
+    folder_id: str | None = Field(default=None, alias="folderId", max_length=200)
+    folder_name: str | None = Field(default=None, alias="folderName", max_length=120)
     source: CurriculumSource
     # "shared" | a teacher uid | a class tag "class:<uid>:<id>" — the ACL key.
     owner_scope: str = Field(alias="ownerScope", max_length=200)
@@ -114,5 +120,25 @@ class CurriculumDoc(BaseModel):
     copyright_status: CopyrightStatus = Field(alias="copyrightStatus")
     created_at: datetime = Field(alias="createdAt")
     updated_at: datetime = Field(alias="updatedAt")
+
+    model_config = ConfigDict(populate_by_name=True)
+
+
+class CurriculumFolder(BaseModel):
+    """A flat (non-nested) folder for grouping curriculum docs (1.1.58 M3).
+
+    Keyed by ``owner_scope`` exactly like ``CurriculumDoc`` — a shared folder
+    (``owner_scope == SHARED_SCOPE``) groups shared docs, a teacher's private
+    folder groups their own — so folder visibility can never diverge from
+    document visibility. ``doc_count`` is computed on list (not stored), so it
+    can't drift.
+    """
+
+    folder_id: str = Field(alias="folderId")
+    name: str = Field(min_length=1, max_length=120)
+    owner_scope: str = Field(alias="ownerScope", max_length=200)
+    created_at: datetime = Field(alias="createdAt")
+    # Computed on list; never persisted. Present here so the API response carries it.
+    doc_count: int = Field(default=0, alias="docCount")
 
     model_config = ConfigDict(populate_by_name=True)

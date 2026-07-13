@@ -32,6 +32,9 @@ export interface CurriculumDoc {
   tags: string[];
   /** 1.1.58 M2 — coarse subject facet (soft vocab, display-cased). */
   subject: string | null;
+  /** 1.1.58 M3 — flat folder membership (denormalised id + name). */
+  folderId: string | null;
+  folderName: string | null;
   source: "shared" | "teacher_upload";
   ownerScope: string;
   origin: string;
@@ -64,6 +67,8 @@ export interface BrowseCurriculumParams {
   tags?: string[];
   /** 1.1.58 M2 — exact-match subject facet. */
   subject?: string;
+  /** 1.1.58 M3 — exact-match folder facet (folder id). */
+  folder?: string;
   scope?: "shared" | "mine";
   /** 1.1.59 — pagination. `limit` caps at 200 server-side (default 50). */
   limit?: number;
@@ -89,6 +94,7 @@ export async function browseCurriculum(
   if (params.topic) qs.set("topic", params.topic);
   if (params.tags) for (const t of params.tags) qs.append("tags", t);
   if (params.subject) qs.set("subject", params.subject);
+  if (params.folder) qs.set("folder", params.folder);
   if (params.scope) qs.set("scope", params.scope);
   if (params.limit != null) qs.set("limit", String(params.limit));
   if (params.offset != null) qs.set("offset", String(params.offset));
@@ -117,12 +123,44 @@ export async function listCurriculumFacets(
   return { tags: body.tags, subjects: body.subjects ?? [] };
 }
 
-/** Edit a doc's facets (1.1.58 M1/M2). Tags: a full `tags` replacement or
- *  `addTags`/`removeTags` deltas. `subject`: sending it (even null) sets/clears it.
- *  Returns the updated doc (facets normalised server-side). */
+/** A flat curriculum folder (1.1.58 M3), with a live doc count. */
+export interface CurriculumFolder {
+  folderId: string;
+  name: string;
+  ownerScope: string;
+  docCount: number;
+}
+
+/** List the folders this teacher can see (shared + own), each with a doc count. */
+export async function listCurriculumFolders(
+  scope?: "shared" | "mine",
+): Promise<CurriculumFolder[]> {
+  const suffix = scope ? `?scope=${scope}` : "";
+  const resp = await fetchWithTeacherAuth(`/api/proxy/api/curriculum/folders${suffix}`);
+  const body = await readJson<{ folders: CurriculumFolder[] }>(resp, "load curriculum folders");
+  return body.folders;
+}
+
+/** Create a flat folder. `shared` puts it in the shared corpus (admin). */
+export async function createCurriculumFolder(
+  name: string,
+  shared = false,
+): Promise<CurriculumFolder> {
+  const resp = await fetchWithTeacherAuth(`/api/proxy/api/curriculum/folders`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ name, shared }),
+  });
+  const body = await readJson<{ folder: CurriculumFolder }>(resp, "create curriculum folder");
+  return body.folder;
+}
+
+/** Edit a doc's facets (1.1.58 M1/M2/M3). Tags: a full `tags` replacement or
+ *  `addTags`/`removeTags` deltas. `subject`/`folderId`: sending it (even null)
+ *  sets/clears it. Returns the updated doc (facets normalised server-side). */
 export async function patchCurriculumTags(
   docId: string,
-  body: { tags?: string[]; addTags?: string[]; removeTags?: string[]; subject?: string | null },
+  body: { tags?: string[]; addTags?: string[]; removeTags?: string[]; subject?: string | null; folderId?: string | null },
 ): Promise<CurriculumDoc> {
   const resp = await fetchWithTeacherAuth(
     `/api/proxy/api/curriculum/${encodeURIComponent(docId)}`,
