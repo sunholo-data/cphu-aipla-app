@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import * as Dialog from "@radix-ui/react-dialog";
-import { BookOpen, Check, Eye, EyeOff, FileText, FileUp, Image as ImageIcon, Loader2, Plus, X } from "lucide-react";
+import { BookOpen, Check, Eye, EyeOff, FileText, FileUp, Image as ImageIcon, Loader2, Plus, Tag, X } from "lucide-react";
 
 import {
   type CurriculumDoc,
@@ -11,6 +11,8 @@ import {
   browseCurriculum,
   fetchCurriculumContent,
   ingestCurriculum,
+  listCurriculumFacets,
+  patchCurriculumTags,
 } from "@/lib/curriculumApi";
 import { ActivityImageApiError, deleteActivityImage, uploadActivityImage } from "@/lib/activityImageApi";
 import type { MaterialRef, StxLevel } from "@/lib/teacherApi";
@@ -51,6 +53,11 @@ export function MaterialsSection({ materials, onChange, activityId }: Props) {
   const [error, setError] = useState<string | null>(null);
   const [levelFilter, setLevelFilter] = useState<StxLevel | "">("");
   const [topicFilter, setTopicFilter] = useState("");
+  // 1.1.58 M1 — tag facet: the tags available to click, and the selected subset
+  // (AND). `editTagsFor` holds the docId whose inline tag editor is open.
+  const [facetTags, setFacetTags] = useState<string[]>([]);
+  const [selectedTags, setSelectedTags] = useState<string[]>([]);
+  const [editTagsFor, setEditTagsFor] = useState<string | null>(null);
 
   // Only curriculum materials map to library docs; image materials carry no docId.
   const citedIds = new Set(materials.filter((m) => m.kind !== "image").map((m) => m.docId));
@@ -62,6 +69,7 @@ export function MaterialsSection({ materials, onChange, activityId }: Props) {
       const result = await browseCurriculum({
         level: levelFilter || undefined,
         topic: topicFilter.trim() || undefined,
+        tags: selectedTags.length ? selectedTags : undefined,
       });
       setDocs(result);
     } catch (e) {
@@ -74,11 +82,42 @@ export function MaterialsSection({ materials, onChange, activityId }: Props) {
     } finally {
       setLoading(false);
     }
-  }, [levelFilter, topicFilter]);
+  }, [levelFilter, topicFilter, selectedTags]);
 
   useEffect(() => {
     void load();
   }, [load]);
+
+  // Populate the facet chips once (and after a tag edit refreshes them).
+  const loadFacets = useCallback(async () => {
+    try {
+      const { tags } = await listCurriculumFacets();
+      setFacetTags(tags);
+    } catch {
+      // Facets are additive — a failure just means no chip row, never a blocker.
+      setFacetTags([]);
+    }
+  }, []);
+
+  useEffect(() => {
+    void loadFacets();
+  }, [loadFacets]);
+
+  function toggleTagFilter(tag: string) {
+    setSelectedTags((prev) => (prev.includes(tag) ? prev.filter((t) => t !== tag) : [...prev, tag]));
+  }
+
+  // Persist a tag edit for one doc, then reflect it locally + refresh facets so a
+  // brand-new tag becomes a filterable chip.
+  async function applyTagEdit(docId: string, body: { addTags?: string[]; removeTags?: string[] }) {
+    try {
+      const updated = await patchCurriculumTags(docId, body);
+      setDocs((prev) => (prev ? prev.map((d) => (d.docId === docId ? updated : d)) : prev));
+      void loadFacets();
+    } catch {
+      // Non-fatal: the row keeps its prior tags; the teacher can retry.
+    }
+  }
 
   function toggleCite(doc: CurriculumDoc) {
     if (citedIds.has(doc.docId)) {
@@ -295,6 +334,42 @@ export function MaterialsSection({ materials, onChange, activityId }: Props) {
         />
       </div>
 
+      {/* Tag facet chips (1.1.58 M1) — click to narrow by tag (AND). Absent when
+          no docs carry tags yet, so the row never shows as an empty affordance. */}
+      {facetTags.length > 0 ? (
+        <div className="flex flex-wrap items-center gap-1.5" aria-label="Filter by tag">
+          <span className="flex items-center gap-1 text-xs font-medium text-muted-foreground">
+            <Tag className="h-3.5 w-3.5" aria-hidden="true" />
+            Tags
+          </span>
+          {facetTags.map((tag) => {
+            const on = selectedTags.includes(tag);
+            return (
+              <button
+                key={tag}
+                type="button"
+                onClick={() => toggleTagFilter(tag)}
+                aria-pressed={on}
+                className={`rounded-full border px-2 py-0.5 text-xs transition-colors ${
+                  on ? "border-primary bg-primary/10 text-foreground" : "border-border text-muted-foreground hover:bg-muted"
+                }`}
+              >
+                {tag}
+              </button>
+            );
+          })}
+          {selectedTags.length > 0 ? (
+            <button
+              type="button"
+              onClick={() => setSelectedTags([])}
+              className="ml-1 text-xs text-muted-foreground underline-offset-2 hover:underline"
+            >
+              Clear tags
+            </button>
+          ) : null}
+        </div>
+      ) : null}
+
       {/* Library list */}
       <div className="rounded border border-border">
         {loading ? (
@@ -343,6 +418,70 @@ export function MaterialsSection({ materials, onChange, activityId }: Props) {
                     {doc.summary ? (
                       <span className="line-clamp-2 text-xs text-muted-foreground/80">{doc.summary}</span>
                     ) : null}
+                    {/* Tags (1.1.58 M1) — chips with remove; an inline add editor. */}
+                    <div className="mt-0.5 flex flex-wrap items-center gap-1">
+                      {doc.tags.map((tag) => (
+                        <span
+                          key={tag}
+                          className="inline-flex items-center gap-0.5 rounded-full bg-muted px-1.5 py-0.5 text-[11px] text-muted-foreground"
+                        >
+                          {tag}
+                          {editTagsFor === doc.docId ? (
+                            <button
+                              type="button"
+                              aria-label={`Remove tag ${tag} from ${doc.title}`}
+                              onClick={() => void applyTagEdit(doc.docId, { removeTags: [tag] })}
+                              className="hover:text-foreground"
+                            >
+                              <X className="h-3 w-3" aria-hidden="true" />
+                            </button>
+                          ) : null}
+                        </span>
+                      ))}
+                      {editTagsFor === doc.docId ? (
+                        <input
+                          type="text"
+                          autoFocus
+                          placeholder="add tag, Enter"
+                          aria-label={`Add a tag to ${doc.title}`}
+                          onKeyDown={(e) => {
+                            if (e.key === "Enter") {
+                              e.preventDefault();
+                              const val = e.currentTarget.value.trim();
+                              if (val) void applyTagEdit(doc.docId, { addTags: [val] });
+                              e.currentTarget.value = "";
+                            } else if (e.key === "Escape") {
+                              setEditTagsFor(null);
+                            }
+                          }}
+                          className="w-28 rounded border border-border bg-background px-1.5 py-0.5 text-[11px]"
+                        />
+                      ) : null}
+                      <button
+                        type="button"
+                        aria-label={
+                          editTagsFor === doc.docId
+                            ? `Done editing tags for ${doc.title}`
+                            : doc.tags.length === 0
+                              ? `Add tags for ${doc.title}`
+                              : `Edit tags for ${doc.title}`
+                        }
+                        onClick={() => setEditTagsFor((cur) => (cur === doc.docId ? null : doc.docId))}
+                        className="inline-flex items-center gap-0.5 rounded px-1 py-0.5 text-[11px] text-muted-foreground hover:text-foreground"
+                      >
+                        {editTagsFor === doc.docId ? (
+                          <>
+                            <Check className="h-3 w-3" aria-hidden="true" />
+                            Done
+                          </>
+                        ) : (
+                          <>
+                            <Tag className="h-3 w-3" aria-hidden="true" />
+                            {doc.tags.length === 0 ? "Add tags" : "Edit"}
+                          </>
+                        )}
+                      </button>
+                    </div>
                   </div>
                   <button
                     type="button"

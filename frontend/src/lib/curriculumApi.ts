@@ -28,6 +28,8 @@ export interface CurriculumDoc {
   /** 1.1.52 — a 1–2 sentence catalogue blurb generated at ingest. "" until the
    *  `summarize` backfill runs on older docs. */
   summary: string;
+  /** 1.1.58 M1 — freeform tags (canonical: lowercased). Searchable + facet chips. */
+  tags: string[];
   source: "shared" | "teacher_upload";
   ownerScope: string;
   origin: string;
@@ -56,6 +58,8 @@ async function readJson<T>(resp: Response, errMsg: string): Promise<T> {
 export interface BrowseCurriculumParams {
   level?: StxLevel;
   topic?: string;
+  /** 1.1.58 M1 — AND facet: only docs carrying every tag. */
+  tags?: string[];
   scope?: "shared" | "mine";
 }
 
@@ -66,11 +70,36 @@ export async function browseCurriculum(
   const qs = new URLSearchParams();
   if (params.level) qs.set("level", params.level);
   if (params.topic) qs.set("topic", params.topic);
+  if (params.tags) for (const t of params.tags) qs.append("tags", t);
   if (params.scope) qs.set("scope", params.scope);
   const suffix = qs.toString() ? `?${qs.toString()}` : "";
   const resp = await fetchWithTeacherAuth(`/api/proxy/api/curriculum${suffix}`);
   const body = await readJson<{ docs: CurriculumDoc[] }>(resp, "browse curriculum");
   return body.docs;
+}
+
+/** Distinct tags across the docs this teacher can see — populates facet chips (1.1.58 M1). */
+export async function listCurriculumFacets(
+  scope?: "shared" | "mine",
+): Promise<{ tags: string[] }> {
+  const suffix = scope ? `?scope=${scope}` : "";
+  const resp = await fetchWithTeacherAuth(`/api/proxy/api/curriculum/facets${suffix}`);
+  return readJson<{ tags: string[] }>(resp, "load curriculum facets");
+}
+
+/** Edit a doc's tags (1.1.58 M1). Send a full `tags` replacement, or `addTags`/
+ *  `removeTags` deltas (deltas apply against the doc's current tags server-side).
+ *  Returns the updated doc (tags normalised: lowercased, trimmed, de-duped). */
+export async function patchCurriculumTags(
+  docId: string,
+  body: { tags?: string[]; addTags?: string[]; removeTags?: string[] },
+): Promise<CurriculumDoc> {
+  const resp = await fetchWithTeacherAuth(
+    `/api/proxy/api/curriculum/${encodeURIComponent(docId)}`,
+    { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) },
+  );
+  const parsed = await readJson<{ doc: CurriculumDoc }>(resp, "update curriculum tags");
+  return parsed.doc;
 }
 
 export interface IngestCurriculumParams {

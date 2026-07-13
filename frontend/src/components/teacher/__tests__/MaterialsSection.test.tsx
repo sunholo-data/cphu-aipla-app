@@ -1,9 +1,11 @@
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 const browseCurriculum = vi.fn();
 const ingestCurriculum = vi.fn();
 const fetchCurriculumContent = vi.fn();
+const listCurriculumFacets = vi.fn();
+const patchCurriculumTags = vi.fn();
 const uploadActivityImage = vi.fn();
 const deleteActivityImage = vi.fn();
 
@@ -16,6 +18,8 @@ vi.mock("@/lib/curriculumApi", async () => {
     browseCurriculum: (...a: unknown[]) => browseCurriculum(...a),
     ingestCurriculum: (...a: unknown[]) => ingestCurriculum(...a),
     fetchCurriculumContent: (...a: unknown[]) => fetchCurriculumContent(...a),
+    listCurriculumFacets: (...a: unknown[]) => listCurriculumFacets(...a),
+    patchCurriculumTags: (...a: unknown[]) => patchCurriculumTags(...a),
   };
 });
 
@@ -45,12 +49,16 @@ function makeDoc(overrides: Partial<Record<string, unknown>> = {}) {
     origin: "uvm.dk",
     docArtifactId: "rag/1",
     copyrightStatus: "cleared",
+    tags: [],
     createdAt: "2026-06-12T00:00:00Z",
     updatedAt: "2026-06-12T00:00:00Z",
     ...overrides,
   };
 }
 
+// The facet endpoint fires on mount for every render; default it to empty so
+// existing tests don't need to know about it (a real value is set per-test).
+beforeEach(() => listCurriculumFacets.mockResolvedValue({ tags: [] }));
 afterEach(() => vi.clearAllMocks());
 
 describe("MaterialsSection", () => {
@@ -133,8 +141,51 @@ describe("MaterialsSection", () => {
       target: { value: "A" },
     });
     await waitFor(() =>
-      expect(browseCurriculum).toHaveBeenLastCalledWith({ level: "A", topic: undefined }),
+      expect(browseCurriculum).toHaveBeenLastCalledWith({ level: "A", topic: undefined, tags: undefined }),
     );
+  });
+
+  it("renders tag facet chips and clicking one re-queries with that tag (1.1.58 M1)", async () => {
+    browseCurriculum.mockResolvedValue([]);
+    listCurriculumFacets.mockResolvedValue({ tags: ["exam", "lab"] });
+    render(<MaterialsSection materials={[]} onChange={() => {}} />);
+    const labChip = await screen.findByRole("button", { name: "lab" });
+    fireEvent.click(labChip);
+    await waitFor(() =>
+      expect(browseCurriculum).toHaveBeenLastCalledWith({ level: undefined, topic: undefined, tags: ["lab"] }),
+    );
+  });
+
+  it("shows no tag facet row when no docs carry tags", async () => {
+    browseCurriculum.mockResolvedValue([makeDoc()]);
+    listCurriculumFacets.mockResolvedValue({ tags: [] });
+    render(<MaterialsSection materials={[]} onChange={() => {}} />);
+    await screen.findByText("Energi og arbejde");
+    expect(screen.queryByLabelText("Filter by tag")).not.toBeInTheDocument();
+  });
+
+  it("renders a doc's tags as chips on its row (1.1.58 M1)", async () => {
+    browseCurriculum.mockResolvedValue([makeDoc({ tags: ["lab", "exam"] })]);
+    render(<MaterialsSection materials={[]} onChange={() => {}} />);
+    await screen.findByText("Energi og arbejde");
+    expect(screen.getByText("lab")).toBeInTheDocument();
+    expect(screen.getByText("exam")).toBeInTheDocument();
+  });
+
+  it("adding a tag inline calls patchCurriculumTags and reflects the update", async () => {
+    browseCurriculum.mockResolvedValue([makeDoc({ tags: [] })]);
+    patchCurriculumTags.mockResolvedValue(makeDoc({ tags: ["mekanik"] }));
+    render(<MaterialsSection materials={[]} onChange={() => {}} />);
+    // Open the inline editor for the row.
+    fireEvent.click(await screen.findByRole("button", { name: /Add tags for Energi og arbejde/i }));
+    const input = screen.getByLabelText("Add a tag to Energi og arbejde");
+    fireEvent.change(input, { target: { value: "mekanik" } });
+    fireEvent.keyDown(input, { key: "Enter" });
+    await waitFor(() =>
+      expect(patchCurriculumTags).toHaveBeenCalledWith("d1", { addTags: ["mekanik"] }),
+    );
+    // Facets refresh after an edit so a new tag becomes filterable (mount + edit).
+    await waitFor(() => expect(listCurriculumFacets.mock.calls.length).toBeGreaterThanOrEqual(2));
   });
 
   it("surfaces a teacher-only 403 error", async () => {
