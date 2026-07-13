@@ -18,9 +18,10 @@ DELETES (teaching data):
   chat_sessions, documents, and every users/{uid}/folders subcollection.
 
 KEEPS (config + shared corpus + identity):
-  skills, curriculum_content, curriculum_docs, tool_permissions, clients,
-  the users/{uid} profile docs, and Firebase Auth teacher accounts (sign-in
-  stays intact).
+  skills, curriculum_content, curriculum_docs, curriculum_folders,
+  tool_permissions, clients, the users/{uid} profile docs, and Firebase Auth
+  teacher accounts (sign-in stays intact). Curriculum collections are preserved
+  by omission — none are in _TEACHING_COLLECTIONS.
 
 NOTE: ``chat_sessions`` is the Firestore session INDEX. The actual ADK
 conversation state lives in the Vertex AI session service; those rows aren't
