@@ -258,3 +258,33 @@ mirror + pointers were cleared.
 `make reset-group-state ENV=<env> SESSIONS=1`. Better: land the auto-heal fix
 (archive a pointer when its session's `owner_uid != _synthesize_uid(group_id)`)
 so it self-heals without a manual wipe.
+
+---
+
+## 2026-07-13 — Rubric run store + BQ mirror (RUBRIC-2 M3) (aipla-dev-2026)
+
+**Feature:** every competency-rubric score (RUBRIC-2) writes a provenance record
+to Firestore `rubric_runs/{run_id}` and mirrors it to BigQuery. New Firestore
+collections created implicitly on first write (no schema step): `rubric_defs`
+(+ inline `versions` map), `rubric_runs`. No IAM change — same backend SA,
+same `datastore.user`.
+
+**New BigQuery table:** `chat_logs.aipla_rubric_run`, auto-created by the existing
+`aipla-chat-logs` Log Router sink once the backend emits under the new log id
+`aipla_rubric_run` (`observability/chat_log.py`). Requires the sink FILTER to
+include the new log id, or rows are dropped silently.
+
+**Terraform module:** `infrastructure/modules/chat-logs/` — `variables.tf`
+`log_filter` default now includes `rubric_run`; no new resource (the sink
+auto-creates the partitioned table under the dataset's default retention).
+
+**How (repeatable):**
+- Terraform-managed envs: `terraform apply` the `chat-logs` module (the filter
+  change converges the existing sink; the table appears on first emit).
+- Dev bootstrap script parity: `scripts/bootstrap-aipla-dev.sh` `sink_filter`
+  updated to the same `aipla_(chat_turn|workbench_event|voice_cost|rubric_run)$`
+  regex; re-running the bootstrap converges the live sink filter.
+
+**Test/prod:** re-apply the `chat-logs` module (or re-run the bootstrap sink
+step) before the first rubric score, so `aipla_rubric_run` rows aren't dropped.
+No manual `bq mk` needed — the sink creates the table.
