@@ -10,6 +10,7 @@ gate); the shared corpus is a later slice.
 
 from __future__ import annotations
 
+from collections.abc import Iterable
 from datetime import datetime
 from typing import Literal
 
@@ -21,6 +22,33 @@ CopyrightStatus = Literal["cleared", "teacher_owned", "pending"]
 
 # Sentinel owner_scope for the shared corpus (vs a teacher uid / class tag).
 SHARED_SCOPE = "shared"
+
+# 1.1.58 M1 — tag validation. Tags are freeform teacher labels; we keep the store
+# in ONE canonical form so filter/facet/search never have to case-fold at read.
+MAX_TAGS = 20
+MAX_TAG_LEN = 40
+
+
+def normalize_tags(tags: Iterable[str] | None) -> list[str]:
+    """Canonicalise a tag list: lowercase, trim, drop empties, de-dupe (order-
+    preserving), truncate each to ``MAX_TAG_LEN`` and the list to ``MAX_TAGS``.
+
+    Applied on EVERY write path (ingest, PATCH) so the stored form is canonical
+    and downstream filter/facet/search can compare with plain equality/substring.
+    """
+    if not tags:
+        return []
+    seen: set[str] = set()
+    out: list[str] = []
+    for raw in tags:
+        t = (raw or "").strip().lower()[:MAX_TAG_LEN].strip()
+        if not t or t in seen:
+            continue
+        seen.add(t)
+        out.append(t)
+        if len(out) >= MAX_TAGS:
+            break
+    return out
 
 
 class CurriculumDoc(BaseModel):
@@ -40,6 +68,11 @@ class CurriculumDoc(BaseModel):
     # and the teacher's Materials browse judge relevance WITHOUT opening the doc.
     # Optional: legacy docs have none until the `summarize` backfill runs.
     summary: str = Field(default="", max_length=1000)
+    # 1.1.58 M1 — freeform cross-cutting labels (exam-prep, lab, "1.g", chapter
+    # refs) the A/B/C level + topic axes don't capture. Owner-set, searchable
+    # (folded into the browse haystack), filterable (AND), and surfaced as facet
+    # chips. Always stored canonical (see normalize_tags) — apply it on write.
+    tags: list[str] = Field(default_factory=list)
     source: CurriculumSource
     # "shared" | a teacher uid | a class tag "class:<uid>:<id>" — the ACL key.
     owner_scope: str = Field(alias="ownerScope", max_length=200)

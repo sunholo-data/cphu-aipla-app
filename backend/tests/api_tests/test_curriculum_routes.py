@@ -15,7 +15,7 @@ from protocols.curriculum_routes import router
 TEACHER = "teacher-1"
 
 
-def _doc(doc_id, level, owner, topic=None, source="teacher_upload", title=None, summary=""):
+def _doc(doc_id, level, owner, topic=None, source="teacher_upload", title=None, summary="", tags=None):
     now = datetime.now(UTC)
     return CurriculumDoc(
         docId=doc_id,
@@ -23,6 +23,7 @@ def _doc(doc_id, level, owner, topic=None, source="teacher_upload", title=None, 
         level=level,
         topic=topic,
         summary=summary,
+        tags=tags or [],
         source=source,
         ownerScope=owner,
         origin="uvm.dk" if source == "shared" else "teacher",
@@ -121,6 +122,41 @@ def test_search_multi_term_is_and(monkeypatch):
     assert {d.doc_id for d in dbc.list_curriculum_for_teacher(TEACHER, topic="atom")} == {"a", "b"}
 
 
+# --- 1.1.58 M1: tags (filter AND, search haystack, distinct facet) ---
+
+
+def test_tags_filter_is_and_and_normalized(monkeypatch):
+    _wire_store(
+        monkeypatch,
+        shared=[],
+        mine=[
+            _doc("a", "A", TEACHER, tags=["lab", "exam"]),
+            _doc("b", "A", TEACHER, tags=["lab"]),
+            _doc("c", "A", TEACHER, tags=["exam"]),
+        ],
+    )
+    # Single tag → all docs carrying it.
+    assert {d.doc_id for d in dbc.list_curriculum_for_teacher(TEACHER, tags=["lab"])} == {"a", "b"}
+    # Multiple tags → AND (only docs with EVERY tag). Query side is normalized too.
+    assert [d.doc_id for d in dbc.list_curriculum_for_teacher(TEACHER, tags=["LAB", " Exam "])] == ["a"]
+    # No match.
+    assert dbc.list_curriculum_for_teacher(TEACHER, tags=["missing"]) == []
+
+
+def test_search_includes_tags_in_haystack(monkeypatch):
+    _wire_store(monkeypatch, shared=[], mine=[_doc("a", "A", TEACHER, title="Worksheet", tags=["radioaktivitet"])])
+    assert [d.doc_id for d in dbc.list_curriculum_for_teacher(TEACHER, topic="radioakt")] == ["a"]
+
+
+def test_distinct_tags_sorted_and_deduped(monkeypatch):
+    _wire_store(
+        monkeypatch,
+        shared=[_doc("s", "A", "shared", source="shared", tags=["exam"])],
+        mine=[_doc("m", "A", TEACHER, tags=["lab", "exam"])],
+    )
+    assert dbc.distinct_tags_for_teacher(TEACHER) == ["exam", "lab"]
+
+
 def test_level_optional_doc_lists_and_sorts(monkeypatch):
     # 1.1.33: uploads are level-less (no forced "B"). A level=None doc must be
     # constructible, appear in browse, and not crash the (level, title) sort
@@ -156,6 +192,96 @@ def test_browse_student_forbidden(monkeypatch):
 def test_browse_rejects_bad_scope():
     resp = _client().get("/api/curriculum?scope=everything")
     assert resp.status_code == 422  # pattern guard
+
+
+def test_browse_tags_facet_param(monkeypatch):
+    _wire_store(
+        monkeypatch,
+        shared=[],
+        mine=[_doc("a", "A", TEACHER, tags=["lab"]), _doc("b", "A", TEACHER, tags=["exam"])],
+    )
+    resp = _client().get("/api/curriculum?tags=lab")
+    assert resp.status_code == 200
+    assert [d["docId"] for d in resp.json()["docs"]] == ["a"]
+
+
+# --- 1.1.58 M1: facets + PATCH tags endpoints ---
+
+
+def test_facets_returns_distinct_tags(monkeypatch):
+    _wire_store(
+        monkeypatch,
+        shared=[_doc("s", "A", "shared", source="shared", tags=["exam"])],
+        mine=[_doc("m", "A", TEACHER, tags=["lab", "exam"])],
+    )
+    resp = _client().get("/api/curriculum/facets")
+    assert resp.status_code == 200
+    assert resp.json()["tags"] == ["exam", "lab"]
+
+
+def test_facets_student_forbidden():
+    assert _client(group_id="grp-1").get("/api/curriculum/facets").status_code == 403
+
+
+def _wire_patch(monkeypatch, doc):
+    """Mock get/create for the PATCH handler; capture the saved doc."""
+    import protocols.curriculum_routes as cr
+
+    saved: list = []
+    monkeypatch.setattr(cr, "get_curriculum_doc", lambda d: doc)
+    monkeypatch.setattr(cr, "create_curriculum_doc", lambda d: saved.append(d))
+    return saved
+
+
+def test_patch_sets_tags_full_replacement(monkeypatch):
+    doc = _doc("m1", "A", TEACHER, tags=["old"])
+    saved = _wire_patch(monkeypatch, doc)
+    resp = _client().patch("/api/curriculum/m1", json={"tags": ["Lab", "lab", " Exam "]})
+    assert resp.status_code == 200, resp.text
+    assert resp.json()["doc"]["tags"] == ["lab", "exam"]  # normalized + deduped
+    assert saved[0].tags == ["lab", "exam"]
+
+
+def test_patch_add_remove_deltas(monkeypatch):
+    doc = _doc("m1", "A", TEACHER, tags=["lab", "exam"])
+    _wire_patch(monkeypatch, doc)
+    resp = _client().patch("/api/curriculum/m1", json={"addTags": ["mekanik"], "removeTags": ["exam"]})
+    assert resp.status_code == 200, resp.text
+    assert resp.json()["doc"]["tags"] == ["lab", "mekanik"]
+
+
+def test_patch_shared_doc_allowed(monkeypatch):
+    doc = _doc("s1", "A", "shared", source="shared", tags=[])
+    _wire_patch(monkeypatch, doc)
+    resp = _client().patch("/api/curriculum/s1", json={"addTags": ["cleared"]})
+    assert resp.status_code == 200
+
+
+def test_patch_other_teachers_doc_404(monkeypatch):
+    doc = _doc("x1", "A", "teacher-2", tags=[])
+    saved = _wire_patch(monkeypatch, doc)
+    resp = _client().patch("/api/curriculum/x1", json={"addTags": ["nope"]})
+    assert resp.status_code == 404  # no existence leak
+    assert saved == []
+
+
+def test_patch_missing_doc_404(monkeypatch):
+    import protocols.curriculum_routes as cr
+
+    monkeypatch.setattr(cr, "get_curriculum_doc", lambda d: None)
+    resp = _client().patch("/api/curriculum/nope", json={"addTags": ["x"]})
+    assert resp.status_code == 404
+
+
+def test_patch_empty_body_422(monkeypatch):
+    doc = _doc("m1", "A", TEACHER, tags=["lab"])
+    _wire_patch(monkeypatch, doc)
+    resp = _client().patch("/api/curriculum/m1", json={})
+    assert resp.status_code == 422
+
+
+def test_patch_student_forbidden():
+    assert _client(group_id="grp-1").patch("/api/curriculum/m1", json={"addTags": ["x"]}).status_code == 403
 
 
 # --- M4: ingest returns the parsed preview (teacher reviews before grounding) ---

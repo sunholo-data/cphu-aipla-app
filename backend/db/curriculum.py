@@ -11,7 +11,7 @@ from __future__ import annotations
 from datetime import UTC, datetime
 
 from db.firestore import delete_document, get_document, query_documents, set_document
-from db.models.curriculum import SHARED_SCOPE, CurriculumDoc, StxLevel
+from db.models.curriculum import SHARED_SCOPE, CurriculumDoc, StxLevel, normalize_tags
 
 _COLLECTION = "curriculum_docs"
 # 1.1.33 M3 — the parsed text, kept SEPARATE from the metadata doc so browse/list
@@ -67,13 +67,15 @@ def list_curriculum_for_teacher(
     *,
     level: StxLevel | None = None,
     topic: str | None = None,
+    tags: list[str] | None = None,
     scope: str | None = None,
 ) -> list[CurriculumDoc]:
     """ACL-scoped browse for a teacher: ``shared`` + their own docs.
 
     ``scope`` narrows within that allow-set: ``"shared"`` → only shared,
-    ``"mine"`` → only the teacher's own, ``None`` → both. ``level`` / ``topic``
-    filter the result. Sorted by (level, title).
+    ``"mine"`` → only the teacher's own, ``None`` → both. ``level`` / ``topic`` /
+    ``tags`` filter the result. ``topic`` is a free-text search; ``tags`` is an
+    AND facet (every tag must be present). Sorted by (level, title).
     """
     raw: list[dict] = []
     if scope in (None, "shared"):
@@ -84,16 +86,36 @@ def list_curriculum_for_teacher(
     docs = [CurriculumDoc.model_validate(d) for d in raw]
     if level:
         docs = [d for d in docs if d.level == level]
+    if tags:
+        # AND facet: a doc matches only if it carries EVERY selected tag. Tags in
+        # the store are canonical (lowercased) — normalize the query side too so a
+        # chip click and a CLI flag compare identically.
+        want = set(normalize_tags(tags))
+        docs = [d for d in docs if want <= set(d.tags)]
     if topic:
         # Free-text search: case-insensitive SUBSTRING match across the fields a
-        # teacher would expect a search box to cover — title, topic, and the
-        # catalogue summary. NOT an exact equality on `topic` alone (the old bug:
+        # teacher would expect a search box to cover — title, topic, the catalogue
+        # summary, and tags. NOT an exact equality on `topic` alone (the old bug:
         # "atomer" never matched "Atomer og molekyler", and topic-less uploads —
         # every teacher upload — were unsearchable). Content isn't searched here;
         # that's the RAG path. Multi-word queries match when EVERY term appears
         # somewhere in the haystack (AND), so "atom kemi" narrows rather than ORs.
         needles = topic.lower().split()
-        docs = [d for d in docs if all(term in f"{d.title} {d.topic or ''} {d.summary}".lower() for term in needles)]
+        docs = [
+            d
+            for d in docs
+            if all(term in f"{d.title} {d.topic or ''} {d.summary} {' '.join(d.tags)}".lower() for term in needles)
+        ]
     # Level-less (unfiled) docs sort after A/B/C; None can't compare to str.
     docs.sort(key=lambda d: (d.level or "Z", d.title.lower()))
     return docs
+
+
+def distinct_tags_for_teacher(teacher_uid: str, *, scope: str | None = None) -> list[str]:
+    """Distinct, sorted tags across the docs a teacher can see (for facet chips).
+
+    Computed from the same ACL-scoped set as the browse — so the chip row can
+    never offer a tag the teacher isn't allowed to see.
+    """
+    docs = list_curriculum_for_teacher(teacher_uid, scope=scope)
+    return sorted({t for d in docs for t in d.tags})

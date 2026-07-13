@@ -35,12 +35,13 @@ from db.curriculum import (
     create_curriculum_doc,
     delete_curriculum_content,
     delete_curriculum_doc,
+    distinct_tags_for_teacher,
     get_curriculum_content,
     get_curriculum_doc,
     list_curriculum_for_teacher,
     set_curriculum_content,
 )
-from db.models.curriculum import SHARED_SCOPE, CopyrightStatus, CurriculumDoc, StxLevel
+from db.models.curriculum import SHARED_SCOPE, CopyrightStatus, CurriculumDoc, StxLevel, normalize_tags
 from db.rag_corpus import delete_rag_file, query_rag_files, upload_text_as_rag_file
 from tools.documents.ai_extract import extract_pdf_text, summarise_curriculum_text
 from tools.documents.ailang_parse import DETERMINISTIC_EXTENSIONS, _parse_file_sync
@@ -84,15 +85,77 @@ async def _extract_pdf_text(pdf_bytes: bytes) -> str:
 async def browse_curriculum(
     level: StxLevel | None = None,
     topic: str | None = None,
+    tags: Annotated[list[str] | None, Query()] = None,  # 1.1.58 M1 — repeatable ?tags=
     scope: Literal["shared", "mine"] | None = None,
     user: User = Depends(get_current_user),  # noqa: B008
 ) -> dict[str, Any]:
     """Browse the curriculum library, ACL-scoped to the teacher (shared + own).
-    FastAPI validates ``level``/``scope`` against their Literals → 422 on bad input."""
+    FastAPI validates ``level``/``scope`` against their Literals → 422 on bad input.
+    ``tags`` (repeatable) is an AND facet; ``topic`` is a free-text search."""
     if getattr(user, "group_id", None):
         raise HTTPException(status_code=403, detail="Curriculum browse is teacher-only.")
-    docs = list_curriculum_for_teacher(user.uid, level=level, topic=topic, scope=scope)
+    docs = list_curriculum_for_teacher(user.uid, level=level, topic=topic, tags=tags, scope=scope)
     return {"docs": [d.model_dump(by_alias=True, mode="json") for d in docs]}
+
+
+@router.get("/facets")
+async def curriculum_facets(
+    scope: Literal["shared", "mine"] | None = None,
+    user: User = Depends(get_current_user),  # noqa: B008
+) -> dict[str, Any]:
+    """Distinct tags across the docs this teacher can see — populates the facet
+    chips (1.1.58 M1). Computed from the same ACL-scoped set as browse, so it can
+    never surface a tag the teacher isn't allowed to see."""
+    if getattr(user, "group_id", None):
+        raise HTTPException(status_code=403, detail="Curriculum facets are teacher-only.")
+    return {"tags": distinct_tags_for_teacher(user.uid, scope=scope)}
+
+
+class _TagPatch(BaseModel):
+    """Edit a doc's tags — either a full replacement (``tags``) or deltas
+    (``addTags`` / ``removeTags``). Deltas let a CLI avoid a read-modify-write
+    race; the web edit popover can send either. All are normalised on apply."""
+
+    tags: list[str] | None = None
+    add_tags: list[str] | None = Field(default=None, alias="addTags")
+    remove_tags: list[str] | None = Field(default=None, alias="removeTags")
+
+    model_config = ConfigDict(populate_by_name=True)
+
+
+@router.patch("/{doc_id}")
+async def patch_curriculum_doc(
+    doc_id: str,
+    body: _TagPatch,
+    user: User = Depends(get_current_user),  # noqa: B008
+) -> dict[str, Any]:
+    """Set a curriculum doc's tags (1.1.58 M1). Teacher-only.
+
+    ACL mirrors delete/summarize: a teacher may edit their OWN uploads or any
+    **shared**-corpus doc (the shared library is teacher-curated). Missing +
+    not-yours both return 404 (no existence leak, ids are random UUIDs).
+    """
+    if getattr(user, "group_id", None):
+        raise HTTPException(status_code=403, detail="Curriculum edit is teacher-only.")
+
+    doc = get_curriculum_doc(doc_id)
+    if doc is None or doc.owner_scope not in (SHARED_SCOPE, user.uid):
+        raise HTTPException(status_code=404, detail="Curriculum doc not found.")
+
+    if body.tags is not None:
+        new_tags = normalize_tags(body.tags)
+    elif body.add_tags is None and body.remove_tags is None:
+        raise HTTPException(status_code=422, detail="Provide tags, addTags, or removeTags.")
+    else:
+        remove = set(normalize_tags(body.remove_tags))
+        new_tags = normalize_tags([*doc.tags, *(body.add_tags or [])])
+        new_tags = [t for t in new_tags if t not in remove]
+
+    doc.tags = new_tags
+    doc.updated_at = datetime.now(UTC)
+    create_curriculum_doc(doc)
+    logger.info("Curriculum doc %s tags set: %s (uid=%s)", doc_id, new_tags, user.uid)
+    return {"doc": doc.model_dump(by_alias=True, mode="json")}
 
 
 # ---------------------------------------------------------------------------
@@ -139,6 +202,8 @@ async def ingest_curriculum(
     # 1.1.33: optional — uploads are level-less unless the teacher assigns one.
     level: Annotated[StxLevel | None, Form()] = None,
     topic: Annotated[str | None, Form(max_length=120)] = None,
+    # 1.1.58 M1 — optional comma-separated tags, normalised on ingest.
+    tags: Annotated[str | None, Form()] = None,
     shared: Annotated[bool, Form()] = False,
     copyright_status: Annotated[CopyrightStatus, Form()] = "teacher_owned",
     user: User = Depends(get_current_user),  # noqa: B008
@@ -195,6 +260,7 @@ async def ingest_curriculum(
         level=level,
         topic=topic,
         summary=summary,
+        tags=normalize_tags(tags.split(",")) if tags else [],
         source="shared" if shared else "teacher_upload",
         ownerScope=owner_scope,
         origin=origin,
