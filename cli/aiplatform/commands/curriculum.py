@@ -2,7 +2,9 @@
 
 Subcommands:
     ingest  Upload a document into the library (AILANG Parse → ADK RAG corpus).
-    list    Browse the library (ACL: shared + your own).
+    list    Browse the library (ACL: shared + your own; filter by level/tag/search).
+    tag     Edit a doc's tags (--add/--remove deltas or --set) (1.1.58 M1).
+    facets  List the distinct tags across your visible docs (1.1.58 M1).
     query   Test retrieval + provenance from the CLI (ops / eval parity).
 
 Wraps ``/api/curriculum`` (M1 browse), ``/api/curriculum/ingest`` (M2), and
@@ -77,13 +79,55 @@ def ingest_curriculum(
 
 @curriculum.command("list")
 @click.option("--level", type=click.Choice(_LEVELS), default=None, help="Filter by level.")
-@click.option("--topic", default=None, help="Filter by topic.")
+@click.option("--topic", default=None, help="Free-text search (title + topic + summary + tags).")
+@click.option("--tag", "tags", multiple=True, help="Filter by tag (repeatable — AND).")
 @click.option("--scope", type=click.Choice(["shared", "mine"]), default=None, help="Limit to shared or your own.")
 @click.pass_context
-def list_curriculum(ctx: click.Context, level: str | None, topic: str | None, scope: str | None) -> None:
+def list_curriculum(
+    ctx: click.Context, level: str | None, topic: str | None, tags: tuple[str, ...], scope: str | None
+) -> None:
     """Browse the curriculum library (ACL: shared + your own)."""
-    params = {k: v for k, v in (("level", level), ("topic", topic), ("scope", scope)) if v}
+    params: dict[str, object] = {k: v for k, v in (("level", level), ("topic", topic), ("scope", scope)) if v}
+    if tags:
+        params["tags"] = list(tags)
     result = _client(ctx).get("/api/curriculum", params=params or None)
+    click.echo(_json.dumps(result, indent=2))
+
+
+@curriculum.command("tag")
+@click.argument("doc_id")
+@click.option("--add", "add", multiple=True, help="Add a tag (repeatable).")
+@click.option("--remove", "remove", multiple=True, help="Remove a tag (repeatable).")
+@click.option("--set", "set_tags", multiple=True, help="Replace ALL tags with these (repeatable).")
+@click.pass_context
+def tag_curriculum(
+    ctx: click.Context, doc_id: str, add: tuple[str, ...], remove: tuple[str, ...], set_tags: tuple[str, ...]
+) -> None:
+    """Edit a doc's tags. Use --add/--remove deltas, or --set to replace all.
+
+    Deltas apply against the doc's current tags server-side (no read-modify-write
+    race). Tags are normalised (lowercased, trimmed, de-duped) by the backend.
+    """
+    if set_tags and (add or remove):
+        raise click.UsageError("use --set alone, or --add/--remove — not both")
+    if not (set_tags or add or remove):
+        raise click.UsageError("give --add, --remove, or --set")
+    payload: dict[str, object] = {"tags": list(set_tags)} if set_tags else {}
+    if add:
+        payload["addTags"] = list(add)
+    if remove:
+        payload["removeTags"] = list(remove)
+    result = _client(ctx).patch(f"/api/curriculum/{doc_id}", json=payload)
+    click.echo(_json.dumps(result, indent=2))
+
+
+@curriculum.command("facets")
+@click.option("--scope", type=click.Choice(["shared", "mine"]), default=None, help="Limit to shared or your own.")
+@click.pass_context
+def facets_curriculum(ctx: click.Context, scope: str | None) -> None:
+    """List the distinct tags across the docs you can see (facet chips)."""
+    params = {"scope": scope} if scope else None
+    result = _client(ctx).get("/api/curriculum/facets", params=params)
     click.echo(_json.dumps(result, indent=2))
 
 
@@ -116,7 +160,9 @@ def query_curriculum(
 
 @curriculum.command("summarize")
 @click.option("--doc-id", "doc_id", default=None, help="Summarise one doc by id.")
-@click.option("--all", "all_docs", is_flag=True, default=False, help="Summarise all your accessible docs (shared + own).")
+@click.option(
+    "--all", "all_docs", is_flag=True, default=False, help="Summarise all your accessible docs (shared + own)."
+)
 @click.option("--force", is_flag=True, default=False, help="Regenerate even if a summary already exists.")
 @click.pass_context
 def summarize_curriculum(ctx: click.Context, doc_id: str | None, all_docs: bool, force: bool) -> None:

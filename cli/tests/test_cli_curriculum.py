@@ -89,6 +89,60 @@ def test_list_gets_with_filters() -> None:
     assert params.get("scope") == "mine"
 
 
+@respx.mock
+def test_list_repeatable_tag_filter() -> None:
+    route = respx.get(f"{BASE}/api/curriculum").mock(return_value=httpx.Response(200, json={"docs": []}))
+    result = _run(["list", "--tag", "lab", "--tag", "exam"])
+    assert result.exit_code == 0, result.output
+    assert route.calls.last.request.url.params.get_list("tags") == ["lab", "exam"]
+
+
+# --- tag (1.1.58 M1) ---
+
+
+@respx.mock
+def test_tag_add_remove_deltas() -> None:
+    route = respx.patch(f"{BASE}/api/curriculum/d1").mock(
+        return_value=httpx.Response(200, json={"doc": {"docId": "d1", "tags": ["lab"]}}),
+    )
+    result = _run(["tag", "d1", "--add", "lab", "--remove", "old"])
+    assert result.exit_code == 0, result.output
+    assert json.loads(route.calls.last.request.content) == {"addTags": ["lab"], "removeTags": ["old"]}
+
+
+@respx.mock
+def test_tag_set_replaces_all() -> None:
+    route = respx.patch(f"{BASE}/api/curriculum/d1").mock(
+        return_value=httpx.Response(200, json={"doc": {"docId": "d1", "tags": ["lab", "exam"]}}),
+    )
+    result = _run(["tag", "d1", "--set", "lab", "--set", "exam"])
+    assert result.exit_code == 0, result.output
+    assert json.loads(route.calls.last.request.content) == {"tags": ["lab", "exam"]}
+
+
+def test_tag_set_conflicts_with_deltas() -> None:
+    result = _run(["tag", "d1", "--set", "lab", "--add", "exam"])
+    assert result.exit_code != 0
+    assert "not both" in result.output.lower()
+
+
+def test_tag_requires_an_action() -> None:
+    result = _run(["tag", "d1"])
+    assert result.exit_code != 0
+    assert "--add" in result.output
+
+
+@respx.mock
+def test_facets_lists_tags() -> None:
+    route = respx.get(f"{BASE}/api/curriculum/facets").mock(
+        return_value=httpx.Response(200, json={"tags": ["exam", "lab"]}),
+    )
+    result = _run(["facets", "--scope", "mine"])
+    assert result.exit_code == 0, result.output
+    assert route.calls.last.request.url.params.get("scope") == "mine"
+    assert "lab" in result.output
+
+
 # --- query ---
 
 
