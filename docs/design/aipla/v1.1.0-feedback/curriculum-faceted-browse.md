@@ -357,7 +357,9 @@ each), so the facets are testable without a Firebase token + curl-by-hand.
 - [x] Search box relabel (`topic`→"Search materials"); debounce already shipped in 1.1.59
 - [x] Active-filter chip row (level/subject/tag/folder, each removable) + Clear all
 - [x] No-match state echoes filters + Clear all (never a dead end)
-- [ ] Browser verify (aitana-frontend-verify): the "atomer" case + a combined facet query end-to-end
+- [x] Verified end-to-end on deployed dev (2026-07-13) via the real `/api/proxy` path + a Firebase teacher token: "atomer" returns 4 docs (incl. real "Atomer (Mathematicus)" shared docs — the title-match the old exact-topic bug missed); facets reflect tag+subject writes; folder create→assign→filter with live docCount; private→shared-folder assign guarded (400). React render covered by 30 vitest + prod build.
+
+**Follow-up gap noted:** folders have create/list but **no delete** — a teacher can't remove an empty/misnamed folder. Small but real UX gap; candidate for a fast M5 (`DELETE /api/curriculum/folders/{id}`, owner-scoped, unfile its docs).
 
 ## Migration & Rollout
 

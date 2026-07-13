@@ -264,6 +264,7 @@ Record in the side-effects notes per project rule (it's config, not GCP infra).
 
 ## Success Criteria
 
+- [x] Verified on deployed dev (2026-07-13): paginated browse returns `{docs,total,limit,offset}` (e.g. `?limit=3` → `total:0,limit:3`); large-corpus "atomer" search snappy. Cache 0-reads is test-proven (call count).
 - [ ] Steady-state shared browse issues 0 Firestore reads within TTL (test-proven via call count)
 - [ ] Browse response bounded (default 50 / cap 200) with correct `total`
 - [ ] Search debounced to one call per settle
