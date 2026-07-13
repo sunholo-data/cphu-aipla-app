@@ -7,6 +7,8 @@ stored scores stay interpretable.
 
 from __future__ import annotations
 
+from datetime import UTC, datetime
+
 import pytest
 from fastapi import FastAPI, Request
 from fastapi.testclient import TestClient
@@ -158,6 +160,88 @@ def test_rubric_score_group_with_no_sessions_404s_with_a_clear_reason(monkeypatc
     res = _client(RESEARCHER).post("/api/research/rubric-score", json={"groupCode": "crisp-pebble-99", "lens": "maps"})
     assert res.status_code == 404
     assert "no sessions found for group" in res.json()["detail"]
+
+
+# --- free-form rubrics (RUBRIC-2 M1) ---
+
+
+def test_rubrics_crud_is_researcher_gated():
+    c = _client(TEACHER)
+    assert c.get("/api/research/rubrics").status_code == 404
+    assert (
+        c.put("/api/research/rubrics/clarity", json={"label": "x", "prompt": "p", "outputKeys": ["a"]}).status_code
+        == 404
+    )
+
+
+def test_create_and_list_a_free_form_rubric():
+    c = _client(RESEARCHER)
+    res = c.put(
+        "/api/research/rubrics/clarity",
+        json={
+            "label": "Clarity",
+            "prompt": "Judge clarity.",
+            "outputKeys": ["clarity", "precision"],
+            "scoreScale": "0-4",
+        },
+    )
+    assert res.status_code == 200
+    rub = res.json()["rubric"]
+    assert rub["lens_id"] == "clarity" and rub["is_seed"] is False
+    assert rub["output_keys"] == ["clarity", "precision"]
+    assert rub["prompt_version"] == "clarity-r1"
+    # it now shows up in the union list alongside the seeds
+    ids = {r["lens_id"] for r in c.get("/api/research/rubrics").json()["rubrics"]}
+    assert {"maps", "saar", "clarity"} <= ids
+
+
+def test_editing_a_rubric_prompt_bumps_the_version():
+    c = _client(RESEARCHER)
+    c.put("/api/research/rubrics/clarity", json={"label": "C", "prompt": "P1", "outputKeys": ["a"]})
+    res = c.put("/api/research/rubrics/clarity", json={"label": "C", "prompt": "P2-edited", "outputKeys": ["a"]})
+    assert res.json()["rubric"]["prompt_version"] == "clarity-r2"
+
+
+def test_cannot_create_a_rubric_shadowing_a_seed_lens():
+    res = _client(RESEARCHER).put("/api/research/rubrics/maps", json={"label": "x", "prompt": "p", "outputKeys": ["a"]})
+    assert res.status_code == 400
+    assert "seed lens" in res.json()["detail"]
+
+
+def test_get_unknown_rubric_404s():
+    assert _client(RESEARCHER).get("/api/research/rubrics/nope").status_code == 404
+
+
+def test_score_a_free_form_rubric_end_to_end(monkeypatch):
+    """A rubric created via the API is scoreable via rubric-score with no code change."""
+    c = _client(RESEARCHER)
+    c.put("/api/research/rubrics/clarity", json={"label": "C", "prompt": "Judge clarity.", "outputKeys": ["clarity"]})
+
+    async def _fake_judge(prompt: str, model: str) -> str:
+        return '{"clarity": {"score": 4, "rationale": "crisp"}}'
+
+    # score through the real score_target → score_session_summary path, stubbing
+    # only the model call and the session resolution.
+    from reports.session_summary import SessionSummary, SessionTurn
+
+    async def _resolve(session_id: str):
+        return SessionSummary(
+            sessionId=session_id,
+            groupCode="grp",
+            activityId="act-1",
+            startedAt=datetime.now(UTC),
+            durationSeconds=1,
+            messageCount=1,
+            simRunCount=0,
+            conversation=[SessionTurn(timestamp="2026-07-13T10:00:00Z", role="student", content="min forklaring")],
+        )
+
+    monkeypatch.setattr("analytics.session_rubric._call_judge_model", _fake_judge)
+    monkeypatch.setattr("reports.session_summary.resolve_session_summary", _resolve)
+    res = c.post("/api/research/rubric-score", json={"sessionId": "s-1", "rubric": "clarity"})
+    assert res.status_code == 200
+    body = res.json()
+    assert body["abstained"] is False and body["profile"]["clarity"]["score"] == 4
 
 
 # --- anchor lint (M1) ---

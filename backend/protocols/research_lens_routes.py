@@ -20,6 +20,7 @@ from analytics.session_rubric import (
     list_lens_configs,
     resolve_target,
     score_target,
+    upsert_rubric_def,
 )
 from auth.firebase_auth import User, get_current_user
 from db.firestore import get_document, set_document
@@ -48,13 +49,20 @@ class RubricScoreBody(BaseModel):
     target: str | None = Field(default=None, min_length=1, max_length=128)
     group_code: str | None = Field(default=None, alias="groupCode", min_length=1, max_length=128)
     session_id: str | None = Field(default=None, alias="sessionId", min_length=1, max_length=128)
-    lens: str = Field(min_length=1, max_length=32)
+    #: The rubric to score with. ``rubric`` is the RUBRIC-2 name (any id incl.
+    #: free-form); ``lens`` is the RUBRIC-1 field, kept for back-compat.
+    rubric: str | None = Field(default=None, min_length=1, max_length=64)
+    lens: str | None = Field(default=None, min_length=1, max_length=64)
 
     model_config = ConfigDict(populate_by_name=True)
 
     @property
     def effective_target(self) -> str:
         return (self.target or self.group_code or self.session_id or "").strip()
+
+    @property
+    def effective_lens(self) -> str:
+        return (self.rubric or self.lens or "").strip()
 
 
 @router.post("/rubric-score")
@@ -71,17 +79,20 @@ async def rubric_score(
     target = body.effective_target
     if not target:
         raise HTTPException(status_code=400, detail="one of target / groupCode / sessionId is required")
+    lens = body.effective_lens
+    if not lens:
+        raise HTTPException(status_code=400, detail="one of rubric / lens is required")
     try:
-        get_lens_config(body.lens)
+        get_lens_config(lens)
     except KeyError:
-        raise HTTPException(status_code=400, detail=f"unknown lens {body.lens!r}") from None
-    result = await score_target(target, body.lens)
+        raise HTTPException(status_code=400, detail=f"unknown rubric {lens!r}") from None
+    result = await score_target(target, lens)
     if result is None:
         # Distinguish "valid group code, no sessions yet" from a bad session id.
         if resolve_target(target) == []:
             raise HTTPException(status_code=404, detail=f"no sessions found for group {target!r}")
         raise HTTPException(status_code=404, detail="session not found")
-    log.info("research: rubric-score target=%s lens=%s by=%s", target, body.lens, user.uid)
+    log.info("research: rubric-score target=%s rubric=%s by=%s", target, lens, user.uid)
     return result.model_dump(by_alias=True)
 
 
@@ -165,3 +176,68 @@ async def put_lens_config(
     set_document("analytics_lens_configs", lens_id, {**existing, **update}, merge=True)
     log.info("research: lens-config %s updated by %s (%s)", lens_id, user.uid, sorted(update))
     return {"lens": get_lens_config(lens_id).model_dump()}
+
+
+# --- free-form rubrics (RUBRIC-2 M1 — the experimentation registry) ---
+
+
+class RubricDefBody(BaseModel):
+    """Create/update a free-form researcher rubric (a whole framework as data)."""
+
+    label: str = Field(min_length=1, max_length=120)
+    prompt: str = Field(min_length=1, max_length=20000)
+    output_keys: list[str] = Field(alias="outputKeys", min_length=1, max_length=64)
+    family: str = Field(default="", max_length=64)
+    score_scale: str = Field(default="", alias="scoreScale", max_length=64)
+    model: str | None = Field(default=None, max_length=64)
+    requires_anchors: bool = Field(default=False, alias="requiresAnchors")
+    meta: dict[str, Any] = Field(default_factory=dict)
+
+    model_config = ConfigDict(populate_by_name=True, extra="forbid")
+
+
+@router.get("/rubrics")
+async def list_rubrics(user: User = Depends(get_current_user)) -> dict[str, Any]:  # noqa: B008
+    """Every scorable rubric — seed lenses + free-form researcher rubrics."""
+    _assert_researcher(user)
+    return {"rubrics": [c.model_dump() for c in list_lens_configs()]}
+
+
+@router.get("/rubrics/{rubric_id}")
+async def get_rubric(rubric_id: str, user: User = Depends(get_current_user)) -> dict[str, Any]:  # noqa: B008
+    """One rubric's effective config (seed or free-form)."""
+    _assert_researcher(user)
+    try:
+        return {"rubric": get_lens_config(rubric_id).model_dump()}
+    except KeyError:
+        raise HTTPException(status_code=404, detail=f"unknown rubric {rubric_id!r}") from None
+
+
+@router.put("/rubrics/{rubric_id}")
+async def put_rubric(
+    rubric_id: str,
+    body: RubricDefBody,
+    user: User = Depends(get_current_user),  # noqa: B008
+) -> dict[str, Any]:
+    """Create or update a free-form rubric. A prompt change bumps the version.
+
+    Seed lenses (``maps``/``saar``) are code-owned — edit those via
+    ``/lens-configs``; this route rejects their ids with a 400.
+    """
+    _assert_researcher(user)
+    try:
+        upsert_rubric_def(
+            rubric_id,
+            label=body.label,
+            prompt=body.prompt,
+            output_keys=body.output_keys,
+            family=body.family,
+            score_scale=body.score_scale,
+            model=body.model,
+            requires_anchors=body.requires_anchors,
+            meta=body.meta,
+            updated_by=user.uid,
+        )
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from None
+    return {"rubric": get_lens_config(rubric_id).model_dump()}

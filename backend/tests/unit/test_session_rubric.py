@@ -283,6 +283,98 @@ def test_lens_config_exposes_the_default_prompt():
     assert "SAAR scientific-abilities rubric" in saar.default_prompt
 
 
+# --- RUBRIC-2 M1: free-form rubrics ---
+
+
+def _make_rubric(rubric_id: str = "clarity", **over) -> dict:
+    doc = {
+        "rubric_id": rubric_id,
+        "label": "Clarity of explanation",
+        "prompt": "You are a judge of explanation clarity.",
+        "output_keys": ["clarity", "precision"],
+        "score_scale": "0-4",
+        "family": "communication",
+        "model": "gemini-2.5-flash",
+        "requires_anchors": False,
+        "prompt_version": f"{rubric_id}-r1",
+    }
+    doc.update(over)
+    set_document("rubric_defs", rubric_id, doc)
+    return doc
+
+
+def test_get_lens_config_reads_a_free_form_rubric():
+    _make_rubric()
+    cfg = sr.get_lens_config("clarity")
+    assert cfg.is_seed is False
+    assert cfg.output_keys == ["clarity", "precision"]
+    assert cfg.default_prompt.startswith("You are a judge")
+    assert cfg.requires_anchors is False
+
+
+def test_unknown_rubric_still_raises_keyerror():
+    with pytest.raises(KeyError):
+        sr.get_lens_config("does-not-exist")
+
+
+def test_list_lens_configs_unions_seeds_and_custom():
+    _make_rubric("clarity")
+    _make_rubric("depth", label="Conceptual depth")
+    ids = {c.lens_id for c in sr.list_lens_configs()}
+    assert {"maps", "saar", "clarity", "depth"} <= ids
+
+
+def test_upsert_rubric_def_bumps_version_only_on_prompt_change():
+    d1 = sr.upsert_rubric_def("clarity", label="C", prompt="P1", output_keys=["a"])
+    assert d1["prompt_version"] == "clarity-r1"
+    d2 = sr.upsert_rubric_def("clarity", label="C2", prompt="P1", output_keys=["a", "b"])
+    assert d2["prompt_version"] == "clarity-r1"  # same prompt → same version
+    d3 = sr.upsert_rubric_def("clarity", label="C2", prompt="P2-edited", output_keys=["a"])
+    assert d3["prompt_version"] == "clarity-r2"  # prompt changed → bump
+
+
+def test_upsert_rejects_seed_ids_and_empty_keys():
+    with pytest.raises(ValueError, match="seed lens"):
+        sr.upsert_rubric_def("maps", label="x", prompt="p", output_keys=["a"])
+    with pytest.raises(ValueError, match="output key"):
+        sr.upsert_rubric_def("newone", label="x", prompt="p", output_keys=[])
+
+
+@pytest.mark.asyncio
+async def test_free_form_rubric_scores_via_the_generic_judge(monkeypatch):
+    # No anchor pack, requires_anchors=False → it scores anyway (experimentation).
+    _make_rubric("clarity", output_keys=["clarity", "precision"])
+    captured: dict = {}
+
+    async def _fake_model(prompt: str, model: str) -> str:
+        captured["prompt"] = prompt
+        return '{"clarity": {"score": 3, "rationale": "clear"}, "precision": {"score": 2, "rationale": "ok"}}'
+
+    monkeypatch.setattr(sr, "_call_judge_model", _fake_model)
+    turns = [_turn("student", "Min forklaring: energien bevares fordi der ikke er friktion.")]
+    res = await sr.score_session_summary(_summary(turns), "clarity")
+    assert res.abstained is False
+    assert res.profile["clarity"]["score"] == 3
+    assert set(res.profile) == {"clarity", "precision"}
+    # the researcher's own prompt + the declared keys ride the judge call
+    assert "explanation clarity" in captured["prompt"]
+    assert "clarity, precision" in captured["prompt"]
+    # evidence integrity holds for the generic path too
+    assert "energien bevares" in captured["prompt"]
+
+
+@pytest.mark.asyncio
+async def test_free_form_rubric_can_require_anchors_and_abstain(monkeypatch):
+    _make_rubric("strict", requires_anchors=True, output_keys=["a"])
+
+    async def _boom(prompt: str, model: str) -> str:
+        raise AssertionError("no judge call when abstaining")
+
+    monkeypatch.setattr(sr, "_call_judge_model", _boom)
+    res = await sr.score_session_summary(_summary([_turn("student", "x")], activity_id="unanchored"), "strict")
+    assert res.abstained is True and "anchor" in res.abstain_reason.lower()
+
+
 # --- RUBRIC-2 M0: group-code addressing ---
 
 

@@ -34,13 +34,19 @@ from typing import Any
 
 from pydantic import BaseModel, ConfigDict, Field
 
-from db.firestore import get_document
+from db.firestore import get_document, query_documents, set_document
 from reports.session_summary import SessionSummary, SessionTurn
 
 logger = logging.getLogger(__name__)
 
 _CONFIG_COLLECTION = "analytics_lens_configs"
 _ANCHOR_COLLECTION = "rubric_anchor_packs"
+#: Researcher-authored free-form rubrics (RUBRIC-2 M1). Unioned with the seed
+#: code lenses below — a new framework is a new doc here, not a code change.
+_RUBRIC_DEFS_COLLECTION = "rubric_defs"
+
+#: Default judge model for a researcher rubric that doesn't pin one.
+_DEFAULT_JUDGE_MODEL = "gemini-2.5-flash"
 
 #: Anchor-pack floor (Docktor's calibration finding): fewer than this and the
 #: lens abstains. The CLI's ``rubric anchors validate`` lints the same bound.
@@ -79,7 +85,9 @@ LENS_REGISTRY: dict[str, LensSpec] = {
 
 
 class LensConfig(BaseModel):
-    """The effective lens config: Firestore override merged over the code default."""
+    """The effective config for one rubric — a seed lens (code default merged
+    under a Firestore override) or a free-form researcher rubric (RUBRIC-2 M1,
+    stored whole in ``rubric_defs``)."""
 
     lens_id: str
     label: str
@@ -88,34 +96,141 @@ class LensConfig(BaseModel):
     enabled: bool = True
     prompt_override: str | None = None
     #: The code-default judge preamble (read-only reference for the settings
-    #: surface). Never persisted — derived from the lens id at read time.
+    #: surface). Never persisted for seed lenses — derived from the lens id at
+    #: read time. For a researcher rubric it holds the stored prompt.
     default_prompt: str = ""
+    #: RUBRIC-2 M1 — free-form rubric extras (empty/defaults for seed lenses,
+    #: which carry their categories/scale in their hardcoded prompt builders).
+    family: str = ""
+    output_keys: list[str] = Field(default_factory=list)
+    score_scale: str = ""
+    #: Seed lenses (maps/saar) always require a calibration anchor pack (the
+    #: 1.1.57 discipline). Researcher rubrics default to NOT requiring one so a
+    #: new framework can be tried immediately; flip on when it graduates.
+    requires_anchors: bool = True
+    is_seed: bool = True
+    meta: dict[str, Any] = Field(default_factory=dict)
 
     model_config = ConfigDict(populate_by_name=True)
 
 
+def _rubric_def_to_config(doc: dict[str, Any]) -> LensConfig:
+    """Build the effective config for a researcher-authored ``rubric_defs`` doc."""
+    rid = doc["rubric_id"]
+    return LensConfig(
+        lens_id=rid,
+        label=doc.get("label") or rid,
+        model=doc.get("model") or _DEFAULT_JUDGE_MODEL,
+        prompt_version=doc.get("prompt_version") or f"{rid}-r1",
+        enabled=doc.get("enabled", True),
+        prompt_override=None,  # for a rubric_def the stored prompt IS the default
+        default_prompt=doc.get("prompt", ""),
+        family=doc.get("family", ""),
+        output_keys=list(doc.get("output_keys") or []),
+        score_scale=doc.get("score_scale", ""),
+        requires_anchors=bool(doc.get("requires_anchors", False)),
+        is_seed=False,
+        meta=doc.get("meta") or {},
+    )
+
+
 def get_lens_config(lens_id: str) -> LensConfig:
-    """Effective config for one lens; raises ``KeyError`` for an unknown lens."""
-    spec = LENS_REGISTRY[lens_id]  # KeyError is the contract for unknown lenses
-    base = {
-        "lens_id": spec.lens_id,
-        "label": spec.label,
-        "model": spec.model,
-        "prompt_version": spec.prompt_version,
-        "enabled": spec.enabled,
-        "prompt_override": None,
-        # Read-only reference for the settings surface (never stored / overridable).
-        "default_prompt": LENS_DEFAULT_PROMPTS.get(lens_id, ""),
-    }
-    override = get_document(_CONFIG_COLLECTION, lens_id) or {}
-    for key in ("model", "prompt_version", "enabled", "prompt_override", "label"):
-        if key in override and override[key] is not None:
-            base[key] = override[key]
-    return LensConfig(**base)
+    """Effective config for one rubric; raises ``KeyError`` for an unknown id.
+
+    Seed lenses (``LENS_REGISTRY``) merge a Firestore override over the code
+    default; anything else is looked up as a free-form ``rubric_defs`` doc.
+    """
+    if lens_id in LENS_REGISTRY:
+        spec = LENS_REGISTRY[lens_id]
+        base = {
+            "lens_id": spec.lens_id,
+            "label": spec.label,
+            "model": spec.model,
+            "prompt_version": spec.prompt_version,
+            "enabled": spec.enabled,
+            "prompt_override": None,
+            # Read-only reference for the settings surface (never stored / overridable).
+            "default_prompt": LENS_DEFAULT_PROMPTS.get(lens_id, ""),
+            "requires_anchors": True,
+            "is_seed": True,
+        }
+        override = get_document(_CONFIG_COLLECTION, lens_id) or {}
+        for key in ("model", "prompt_version", "enabled", "prompt_override", "label"):
+            if key in override and override[key] is not None:
+                base[key] = override[key]
+        return LensConfig(**base)
+
+    doc = get_document(_RUBRIC_DEFS_COLLECTION, lens_id)
+    if doc is None:
+        raise KeyError(lens_id)  # the unknown-rubric contract
+    return _rubric_def_to_config(doc)
+
+
+def list_rubric_defs() -> list[dict[str, Any]]:
+    """Every researcher-authored rubric doc (RUBRIC-2 M1)."""
+    return query_documents(_RUBRIC_DEFS_COLLECTION)
 
 
 def list_lens_configs() -> list[LensConfig]:
-    return [get_lens_config(lens_id) for lens_id in LENS_REGISTRY]
+    """Seed lenses + every free-form researcher rubric."""
+    configs = [get_lens_config(lens_id) for lens_id in LENS_REGISTRY]
+    for doc in list_rubric_defs():
+        rid = doc.get("rubric_id")
+        if rid and rid not in LENS_REGISTRY:
+            configs.append(_rubric_def_to_config(doc))
+    return configs
+
+
+def upsert_rubric_def(
+    rubric_id: str,
+    *,
+    label: str,
+    prompt: str,
+    output_keys: list[str],
+    family: str = "",
+    score_scale: str = "",
+    model: str | None = None,
+    requires_anchors: bool = False,
+    meta: dict[str, Any] | None = None,
+    updated_by: str = "",
+) -> dict[str, Any]:
+    """Create or update a free-form researcher rubric.
+
+    A prompt change bumps ``prompt_version`` (``{id}-r{n}``) so stored scores
+    stay interpretable against the prompt that produced them. Refuses to shadow
+    a seed lens id (``maps``/``saar``) — those are code-owned.
+    """
+    if rubric_id in LENS_REGISTRY:
+        raise ValueError(f"{rubric_id!r} is a seed lens; edit it via /lens-configs, not /rubrics")
+    if not output_keys:
+        raise ValueError("a scorable rubric needs at least one output key")
+
+    existing = get_document(_RUBRIC_DEFS_COLLECTION, rubric_id) or {}
+    prev_version = existing.get("prompt_version", f"{rubric_id}-r0")
+    if prompt != existing.get("prompt"):
+        rev = (int(prev_version.rsplit("-r", 1)[-1]) if "-r" in prev_version else 0) + 1
+        version = f"{rubric_id}-r{rev}"
+    else:
+        version = prev_version
+
+    doc = {
+        "rubric_id": rubric_id,
+        "label": label or rubric_id,
+        "family": family,
+        "prompt": prompt,
+        "output_keys": list(output_keys),
+        "score_scale": score_scale,
+        "model": model or _DEFAULT_JUDGE_MODEL,
+        "requires_anchors": requires_anchors,
+        "prompt_version": version,
+        "enabled": existing.get("enabled", True),
+        "meta": meta if meta is not None else existing.get("meta", {}),
+        "created_by": existing.get("created_by") or updated_by,
+        "updated_by": updated_by,
+    }
+    set_document(_RUBRIC_DEFS_COLLECTION, rubric_id, {**existing, **doc}, merge=True)
+    logger.info("rubric: upsert rubric_def %s version=%s by=%s", rubric_id, version, updated_by)
+    return doc
 
 
 # --- Evidence partition (deterministic-first, returned for audit) ---
@@ -323,6 +438,35 @@ def build_saar_prompt(partition: EvidencePartition, pack: dict[str, Any], config
     )
 
 
+# --- Generic judge (RUBRIC-2 M1 — free-form researcher rubrics) ---
+
+
+def build_generic_prompt(partition: EvidencePartition, pack: dict[str, Any], config: LensConfig) -> str:
+    """Assemble the judge prompt for a free-form rubric.
+
+    The researcher's stored prompt is the whole framework; we wrap it with the
+    same evidence-integrity guarantees the seed judges use (student-initiated
+    evidence only, anchors when present) and a strict-JSON contract over the
+    rubric's declared ``output_keys``.
+    """
+    preamble = config.prompt_override or config.default_prompt
+    evidence = "\n".join(f"- {t.content}" for t in partition.student_initiated)
+    parts = [preamble]
+    anchors = _format_anchors(pack) if pack.get("anchors") else ""
+    if anchors:
+        parts.append("Calibration anchors for THIS activity:\n" + anchors)
+    parts.append(
+        "STUDENT-INITIATED evidence (the ONLY scorable material — tutor-prompted "
+        "turns are excluded as scaffolded):\n" + evidence
+    )
+    scale = f" on the scale {config.score_scale}" if config.score_scale else ""
+    parts.append(
+        'Return STRICT JSON: {key: {"score": <score' + scale + '>, "rationale": "one sentence"}} '
+        "for exactly these keys: " + ", ".join(config.output_keys)
+    )
+    return "\n\n".join(parts)
+
+
 # --- Judge execution ---
 
 
@@ -392,7 +536,7 @@ async def score_session_summary(summary: SessionSummary, lens_id: str) -> Rubric
     if not config.enabled:
         return _abstain(summary, config, partition, f"lens {lens_id!r} is disabled")
     pack = load_anchor_pack(summary.activity_id)
-    if pack is None:
+    if config.requires_anchors and pack is None:
         return _abstain(
             summary,
             config,
@@ -402,14 +546,19 @@ async def score_session_summary(summary: SessionSummary, lens_id: str) -> Rubric
     if not partition.student_initiated:
         return _abstain(summary, config, partition, "no student-initiated evidence in this session")
 
+    pack = pack or {"anchors": []}  # generic path tolerates an absent pack when not required
+
     if lens_id == "maps":
         prompt = build_maps_prompt(partition, pack, config)
         expected = list(_MAPS_CATEGORIES)
     elif lens_id == "saar":
         prompt = build_saar_prompt(partition, pack, config)
         expected = list(_SAAR_ROWS)
-    else:  # pragma: no cover — a registry entry without a judge prompt
-        return _abstain(summary, config, partition, f"lens {lens_id!r} has no judge prompt yet")
+    elif config.output_keys:
+        prompt = build_generic_prompt(partition, pack, config)
+        expected = list(config.output_keys)
+    else:  # a rubric with no declared keys can't be scored
+        return _abstain(summary, config, partition, f"rubric {lens_id!r} has no output keys to score")
 
     raw = await _call_judge_model(prompt, config.model)
     profile = _parse_profile(raw, expected)
@@ -485,10 +634,12 @@ __all__ = [
     "EvidencePartition",
     "LensConfig",
     "RubricResult",
+    "build_generic_prompt",
     "build_maps_prompt",
     "build_saar_prompt",
     "get_lens_config",
     "list_lens_configs",
+    "list_rubric_defs",
     "load_anchor_pack",
     "looks_like_group_code",
     "partition_evidence",
@@ -496,4 +647,5 @@ __all__ = [
     "score_session",
     "score_session_summary",
     "score_target",
+    "upsert_rubric_def",
 ]
