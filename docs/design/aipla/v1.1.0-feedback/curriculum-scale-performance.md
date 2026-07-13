@@ -1,6 +1,6 @@
 # Curriculum Library — Scale & Search Performance
 
-**Status**: Planned
+**Status**: Implemented (SHIPPED 2026-07-13 — CURRICULUM-PERF M1–M3)
 **Priority**: P1 (scale correctness — a large-corpus import is imminent)
 **Estimated**: ~1.5–2 days (M1 cache ~0.75d · M2 pagination ~0.5d · M3 FE debounce+paging ~0.5d)
 **Scope**: Fullstack (backend read path + endpoint; frontend browse)

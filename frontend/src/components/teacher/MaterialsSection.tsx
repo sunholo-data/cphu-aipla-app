@@ -34,6 +34,8 @@ interface Props {
 }
 
 const LEVELS: StxLevel[] = ["A", "B", "C"];
+// 1.1.59 — page size for the paginated browse (server caps at 200).
+const PAGE_SIZE = 50;
 
 /**
  * Materials section for the activity builder (1.1.25 M4).
@@ -53,6 +55,11 @@ export function MaterialsSection({ materials, onChange, activityId }: Props) {
   const [error, setError] = useState<string | null>(null);
   const [levelFilter, setLevelFilter] = useState<StxLevel | "">("");
   const [topicFilter, setTopicFilter] = useState("");
+  // 1.1.59 — debounced search term (the input updates on every keystroke; the
+  // browse only fires 250ms after typing settles) + pagination state.
+  const [debouncedTopic, setDebouncedTopic] = useState("");
+  const [total, setTotal] = useState(0);
+  const [loadingMore, setLoadingMore] = useState(false);
   // 1.1.58 M1 — tag facet: the tags available to click, and the selected subset
   // (AND). `editTagsFor` holds the docId whose inline tag editor is open.
   const [facetTags, setFacetTags] = useState<string[]>([]);
@@ -62,16 +69,33 @@ export function MaterialsSection({ materials, onChange, activityId }: Props) {
   // Only curriculum materials map to library docs; image materials carry no docId.
   const citedIds = new Set(materials.filter((m) => m.kind !== "image").map((m) => m.docId));
 
+  // 1.1.59 — debounce the search input so a large corpus isn't re-queried on
+  // every keystroke (the browse loads the shared corpus; per-keystroke fetches
+  // are the exact cost this milestone removes).
+  useEffect(() => {
+    const t = setTimeout(() => setDebouncedTopic(topicFilter.trim()), 250);
+    return () => clearTimeout(t);
+  }, [topicFilter]);
+
+  const browseParams = useCallback(
+    (offset: number) => ({
+      level: levelFilter || undefined,
+      topic: debouncedTopic || undefined,
+      tags: selectedTags.length ? selectedTags : undefined,
+      limit: PAGE_SIZE,
+      offset,
+    }),
+    [levelFilter, debouncedTopic, selectedTags],
+  );
+
+  // Load the FIRST page — replaces the list. Re-runs when a filter/search changes.
   const load = useCallback(async () => {
     setLoading(true);
     setError(null);
     try {
-      const result = await browseCurriculum({
-        level: levelFilter || undefined,
-        topic: topicFilter.trim() || undefined,
-        tags: selectedTags.length ? selectedTags : undefined,
-      });
-      setDocs(result);
+      const page = await browseCurriculum(browseParams(0));
+      setDocs(page.docs);
+      setTotal(page.total);
     } catch (e) {
       if (e instanceof CurriculumApiError && e.status === 403) {
         setError("Curriculum library is teacher-only — sign in as a teacher.");
@@ -79,14 +103,30 @@ export function MaterialsSection({ materials, onChange, activityId }: Props) {
         setError(e instanceof Error ? e.message : "Failed to load the curriculum library.");
       }
       setDocs(null);
+      setTotal(0);
     } finally {
       setLoading(false);
     }
-  }, [levelFilter, topicFilter, selectedTags]);
+  }, [browseParams]);
 
   useEffect(() => {
     void load();
   }, [load]);
+
+  // Fetch the NEXT page and APPEND (never replace) — the large-list affordance.
+  async function loadMore() {
+    if (!docs) return;
+    setLoadingMore(true);
+    try {
+      const page = await browseCurriculum(browseParams(docs.length));
+      setDocs((prev) => (prev ? [...prev, ...page.docs] : page.docs));
+      setTotal(page.total);
+    } catch {
+      // Keep what we already have; the teacher can retry.
+    } finally {
+      setLoadingMore(false);
+    }
+  }
 
   // Populate the facet chips once (and after a tag edit refreshes them).
   const loadFacets = useCallback(async () => {
@@ -322,6 +362,7 @@ export function MaterialsSection({ materials, onChange, activityId }: Props) {
             // Add the new doc to the visible list + cite it immediately. Default
             // not student-visible (opt-in, 1.1.33 M2a) — same as toggleCite.
             setDocs((prev) => (prev ? [doc, ...prev] : [doc]));
+            setTotal((t) => t + 1);
             onChange([...materials, { docId: doc.docId, origin: doc.origin, studentVisible: false }]);
             // Show what was extracted FROM THIS doc immediately (per-document, M4).
             void openContent(doc.docId, doc.title);
@@ -511,6 +552,26 @@ export function MaterialsSection({ materials, onChange, activityId }: Props) {
             })}
           </ul>
         )}
+        {/* 1.1.59 — large-list footer: honest count + load-more (never an
+            unbounded dump). Shown only once a page is loaded. */}
+        {docs && docs.length > 0 ? (
+          <div className="flex items-center justify-between gap-3 border-t border-border p-2 text-xs text-muted-foreground">
+            <span>
+              Showing {docs.length} of {total}
+            </span>
+            {docs.length < total ? (
+              <button
+                type="button"
+                onClick={() => void loadMore()}
+                disabled={loadingMore}
+                className="flex items-center gap-1 rounded border border-border px-2 py-1 font-medium hover:bg-muted disabled:opacity-60"
+              >
+                {loadingMore ? <Loader2 className="h-3.5 w-3.5 animate-spin" aria-hidden="true" /> : null}
+                Load more
+              </button>
+            ) : null}
+          </div>
+        ) : null}
       </div>
 
       {/* Per-document "what we extracted" viewer (M4/M3). */}

@@ -61,21 +61,44 @@ export interface BrowseCurriculumParams {
   /** 1.1.58 M1 — AND facet: only docs carrying every tag. */
   tags?: string[];
   scope?: "shared" | "mine";
+  /** 1.1.59 — pagination. `limit` caps at 200 server-side (default 50). */
+  limit?: number;
+  offset?: number;
 }
 
-/** Browse the curriculum library, ACL-scoped to the current teacher. */
+/** A page of the curriculum library. `total` is the full match count (for
+ *  "Showing X of Y"); `docs` is the requested slice. */
+export interface CurriculumPage {
+  docs: CurriculumDoc[];
+  total: number;
+  limit: number;
+  offset: number;
+}
+
+/** Browse the curriculum library, ACL-scoped to the current teacher (1.1.59:
+ *  paginated). Returns the page + `total` so callers can render "X of Y". */
 export async function browseCurriculum(
   params: BrowseCurriculumParams = {},
-): Promise<CurriculumDoc[]> {
+): Promise<CurriculumPage> {
   const qs = new URLSearchParams();
   if (params.level) qs.set("level", params.level);
   if (params.topic) qs.set("topic", params.topic);
   if (params.tags) for (const t of params.tags) qs.append("tags", t);
   if (params.scope) qs.set("scope", params.scope);
+  if (params.limit != null) qs.set("limit", String(params.limit));
+  if (params.offset != null) qs.set("offset", String(params.offset));
   const suffix = qs.toString() ? `?${qs.toString()}` : "";
   const resp = await fetchWithTeacherAuth(`/api/proxy/api/curriculum${suffix}`);
-  const body = await readJson<{ docs: CurriculumDoc[] }>(resp, "browse curriculum");
-  return body.docs;
+  const body = await readJson<{ docs: CurriculumDoc[]; total?: number; limit?: number; offset?: number }>(
+    resp,
+    "browse curriculum",
+  );
+  return {
+    docs: body.docs,
+    total: body.total ?? body.docs.length,
+    limit: body.limit ?? params.limit ?? body.docs.length,
+    offset: body.offset ?? params.offset ?? 0,
+  };
 }
 
 /** Distinct tags across the docs this teacher can see — populates facet chips (1.1.58 M1). */
