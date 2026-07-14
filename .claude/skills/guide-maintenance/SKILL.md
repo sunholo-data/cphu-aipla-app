@@ -82,13 +82,14 @@ the UI actually changed.
 
 ## Gotchas
 
-- **Researcher screenshots need the role.** `capture.mjs` signs in as the test
-  teacher, who by default does **not** carry the `role:researcher` claim — so the
-  researcher surfaces (Research scan, all-teachers insights, Cost, the lens panel)
-  render "Researcher access required". To capture R1 for real, grant the claim to
-  the capture account first (`aiplatform users grant-researcher <uid>`, admin/SA
-  op), then re-run capture (a fresh login picks up the claim). Until then R1 ships
-  with placeholders.
+- **Researcher screenshots use a dedicated account.** R1's surfaces need the
+  `role:researcher` claim. A dedicated **`test-researcher@example.dk`** account
+  exists (uid `yZ4TjBAf5KOYALqVNZ8i5tpO5mt2`) and has been granted the claim on
+  dev; `capture-guide-screens.sh` runs a **researcher pass** that auto-detects it
+  (probes `scope=all`) and captures the R1 shots. Re-provisioning a fresh env?
+  Grant it there too (`aiplatform users grant-researcher <uid>`) — and note the
+  backend SA needs `roles/firebaseauth.admin` for that endpoint to work, else it
+  500s (`InsufficientPermissionError`); see `docs/design/aipla/v1.1.0-feedback/researcher-role.md`.
 - **The co-pilot converses before it proposes** (and its UI is Danish). The
   capture nudges it directively and answers follow-ups until a proposal card
   appears — see `copilotPropose()` in `capture.mjs`.

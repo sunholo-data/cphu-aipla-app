@@ -44,6 +44,17 @@ Firebase Auth custom claim:
 
 Set manually by an admin via the existing Firebase Admin SDK / `aiplatform users grant-researcher <uid>` CLI (small new CLI command). One claim, present-or-absent — no role hierarchies, no per-class researcher (deferred to year-2 if institutions need it).
 
+> **Deployment prerequisite (2026-07-14).** `grant-researcher` calls
+> `firebase_admin.auth.set_custom_user_claims`, which needs the backend
+> Cloud Run SA to hold **`roles/firebaseauth.admin`** — `roles/firebaseauth.viewer`
+> (read-only) is NOT enough and the endpoint returns **500
+> `InsufficientPermissionError`**. This was missing from the dev SA on first real
+> use (the feature's tests mock firebase-admin, so the gap went unnoticed until a
+> live grant was attempted). Fixed in `scripts/bootstrap-aipla-dev.sh` (SA role
+> list); apply on an existing env with:
+> `gcloud projects add-iam-policy-binding <project> --member="serviceAccount:aipla-v6@<project>.iam.gserviceaccount.com" --role="roles/firebaseauth.admin" --condition=None`.
+> test/prod SA role bindings must carry the same role.
+
 Researchers are still authenticated as themselves with Firebase Auth (Google OAuth provider per [teacher-permission-model.md](../v1.0.0-pilot/implemented/teacher-permission-model.md)) — they're not anonymous, not pseudonymous. The claim *layers on top of* their teacher identity. A researcher can also own classes (M might create a test class for development); the claim just means "you can see other people's stuff too".
 
 ### Backend changes

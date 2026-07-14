@@ -126,6 +126,7 @@ ensure_sa() {
     roles/artifactregistry.writer             # push Docker images (M5)
     roles/iam.serviceAccountUser              # act as itself when Cloud Build deploys Cloud Run with same SA
     roles/firebaserules.admin                 # M5: deploy firestore.rules
+    roles/firebaseauth.admin                  # 1.1.5: grant-researcher sets a custom claim (set_custom_user_claims); viewer is not enough
     roles/datastore.indexAdmin                # M5: deploy firestore.indexes.json
     roles/bigquery.dataViewer                 # 1.2: read chat_logs for the teacher report route
     roles/bigquery.jobUser                    # 1.2: run query jobs against chat_logs
