@@ -1,5 +1,5 @@
 # Runtime service account + project role bindings.
-# Mirrors ensure_sa() in scripts/bootstrap-aipla-dev.sh (13 roles).
+# Mirrors ensure_sa() in scripts/bootstrap-aipla-dev.sh (14 roles).
 resource "google_service_account" "runtime" {
   project      = var.project_id
   account_id   = var.sa_name
@@ -20,6 +20,7 @@ locals {
     "roles/artifactregistry.writer", # push Docker images (M5)
     "roles/iam.serviceAccountUser",  # act as itself when CB deploys Cloud Run as this SA
     "roles/firebaserules.admin",     # deploy firestore.rules
+    "roles/firebaseauth.admin",      # 1.1.5: grant-researcher sets a custom claim (set_custom_user_claims); viewer is not enough
     "roles/datastore.indexAdmin",    # deploy firestore.indexes.json
     "roles/bigquery.dataViewer",     # read chat_logs for the teacher report route
     "roles/bigquery.jobUser",        # run query jobs against chat_logs
