@@ -22,7 +22,9 @@
       "Bash(gcloud secrets *)",
       "Bash(git commit -q -m ' *)",
       "Bash(.claude/skills/workbench-element-builder/scripts/:*)",
-      "Skill(workbench-element-builder)"
+      "Skill(workbench-element-builder)",
+      "Bash(.claude/skills/guide-maintenance/scripts/:*)",
+      "Skill(guide-maintenance)"
     ],
     "ask": [
       "Bash(git push*)",
