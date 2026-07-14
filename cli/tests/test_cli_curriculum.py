@@ -232,6 +232,23 @@ def test_list_folder_filter() -> None:
     assert route.calls.last.request.url.params.get("folder") == "f1"
 
 
+@respx.mock
+def test_folder_delete() -> None:
+    route = respx.delete(f"{BASE}/api/curriculum/folders/f1").mock(
+        return_value=httpx.Response(200, json={"deleted": "f1", "unfiled": 2}),
+    )
+    result = _run(["folder", "delete", "f1", "--yes"])
+    assert result.exit_code == 0, result.output
+    assert route.called
+    assert "unfiled" in result.output
+
+
+def test_folder_delete_needs_confirmation() -> None:
+    # Without --yes and no tty input, click aborts (non-zero) and does not call.
+    result = _run(["folder", "delete", "f1"])
+    assert result.exit_code != 0
+
+
 # --- query ---
 
 

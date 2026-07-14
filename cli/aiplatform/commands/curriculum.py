@@ -151,6 +151,18 @@ def folder_list(ctx: click.Context, scope: str | None) -> None:
     click.echo(_json.dumps(result, indent=2))
 
 
+@folder.command("delete")
+@click.argument("folder_id")
+@click.option("--yes", is_flag=True, default=False, help="Skip the confirmation prompt.")
+@click.pass_context
+def folder_delete(ctx: click.Context, folder_id: str, yes: bool) -> None:
+    """Delete a folder by FOLDER_ID. Its documents are unfiled, not deleted."""
+    if not yes:
+        click.confirm(f"Delete folder {folder_id}? Its documents will be unfiled (not deleted).", abort=True)
+    result = _client(ctx).delete(f"/api/curriculum/folders/{folder_id}")
+    click.echo(_json.dumps(result, indent=2))
+
+
 @curriculum.command("tag")
 @click.argument("doc_id")
 @click.option("--add", "add", multiple=True, help="Add a tag (repeatable).")

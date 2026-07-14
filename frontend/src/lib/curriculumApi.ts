@@ -155,6 +155,15 @@ export async function createCurriculumFolder(
   return body.folder;
 }
 
+/** Delete a folder (1.1.58 M5). Its docs are UNFILED, not deleted. Returns the
+ *  count of docs unfiled. */
+export async function deleteCurriculumFolder(folderId: string): Promise<{ deleted: string; unfiled: number }> {
+  const resp = await fetchWithTeacherAuth(`/api/proxy/api/curriculum/folders/${encodeURIComponent(folderId)}`, {
+    method: "DELETE",
+  });
+  return readJson<{ deleted: string; unfiled: number }>(resp, "delete curriculum folder");
+}
+
 /** Edit a doc's facets (1.1.58 M1/M2/M3). Tags: a full `tags` replacement or
  *  `addTags`/`removeTags` deltas. `subject`/`folderId`: sending it (even null)
  *  sets/clears it. Returns the updated doc (facets normalised server-side). */

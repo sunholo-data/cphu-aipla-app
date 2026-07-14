@@ -36,6 +36,7 @@ from db.curriculum import (
     create_curriculum_folder,
     delete_curriculum_content,
     delete_curriculum_doc,
+    delete_curriculum_folder,
     distinct_subjects_for_teacher,
     distinct_tags_for_teacher,
     get_curriculum_content,
@@ -183,6 +184,26 @@ async def create_curriculum_folder_route(
     create_curriculum_folder(folder)
     logger.info("Curriculum folder created: %s (owner_scope=%s)", folder.folder_id, folder.owner_scope)
     return {"folder": folder.model_dump(by_alias=True, mode="json")}
+
+
+@router.delete("/folders/{folder_id}")
+async def delete_curriculum_folder_route(
+    folder_id: str,
+    user: User = Depends(get_current_user),  # noqa: B008
+) -> dict[str, Any]:
+    """Delete a folder and unfile its docs (1.1.58 M5). Teacher-only.
+
+    ACL mirrors doc delete: own folders or any **shared** folder (the shared
+    library is teacher-curated). Missing + not-yours both return 404. The docs
+    aren't deleted — they're moved to "Unfiled"."""
+    if getattr(user, "group_id", None):
+        raise HTTPException(status_code=403, detail="Curriculum folders are teacher-only.")
+    folder = get_curriculum_folder(folder_id)
+    if folder is None or folder.owner_scope not in (SHARED_SCOPE, user.uid):
+        raise HTTPException(status_code=404, detail="Folder not found.")
+    unfiled = delete_curriculum_folder(folder_id)
+    logger.info("Curriculum folder deleted: %s (unfiled %d docs, uid=%s)", folder_id, unfiled, user.uid)
+    return {"deleted": folder_id, "unfiled": unfiled}
 
 
 class _DocPatch(BaseModel):

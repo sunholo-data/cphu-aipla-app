@@ -398,6 +398,69 @@ def test_browse_unfiled_sentinel(monkeypatch):
     assert [d["docId"] for d in resp.json()["docs"]] == ["b"]  # only the folder-less doc
 
 
+def test_delete_folder_unfiles_docs(monkeypatch):
+    # Two docs filed into f1; deleting f1 clears their folder pointer and removes
+    # the folder, but does NOT delete the docs.
+    filed = [_doc("a", "A", TEACHER, folder_id="f1"), _doc("b", "A", TEACHER, folder_id="f1")]
+    saved: list = []
+
+    def fake_query(collection, filters=None):
+        # The unfile step queries docs by folderId.
+        if filters and filters[0][0] == "folderId":
+            return [d.model_dump(by_alias=True, mode="json") for d in filed]
+        return []
+
+    monkeypatch.setattr(dbc, "query_documents", fake_query)
+    monkeypatch.setattr(dbc, "set_document", lambda coll, _id, data: saved.append(CurriculumDoc.model_validate(data)))
+    deleted: list = []
+    monkeypatch.setattr(dbc, "delete_document", lambda coll, _id: deleted.append((coll, _id)))
+
+    n = dbc.delete_curriculum_folder("f1")
+    assert n == 2  # two docs unfiled
+    assert all(d.folder_id is None and d.folder_name is None for d in saved)  # cleared
+    assert (dbc._FOLDER_COLLECTION, "f1") in deleted  # folder row removed
+
+
+def test_delete_folder_endpoint_own(monkeypatch):
+    import protocols.curriculum_routes as cr
+
+    monkeypatch.setattr(cr, "get_curriculum_folder", lambda fid: _folder("f1", TEACHER))
+    monkeypatch.setattr(cr, "delete_curriculum_folder", lambda fid: 3)
+    resp = _client().delete("/api/curriculum/folders/f1")
+    assert resp.status_code == 200, resp.text
+    assert resp.json() == {"deleted": "f1", "unfiled": 3}
+
+
+def test_delete_folder_shared_allowed(monkeypatch):
+    import protocols.curriculum_routes as cr
+
+    monkeypatch.setattr(cr, "get_curriculum_folder", lambda fid: _folder("fS", "shared"))
+    monkeypatch.setattr(cr, "delete_curriculum_folder", lambda fid: 0)
+    assert _client().delete("/api/curriculum/folders/fS").status_code == 200
+
+
+def test_delete_other_teachers_folder_404(monkeypatch):
+    import protocols.curriculum_routes as cr
+
+    called: list = []
+    monkeypatch.setattr(cr, "get_curriculum_folder", lambda fid: _folder("fx", "teacher-2"))
+    monkeypatch.setattr(cr, "delete_curriculum_folder", lambda fid: called.append(fid))
+    resp = _client().delete("/api/curriculum/folders/fx")
+    assert resp.status_code == 404
+    assert called == []  # never deleted
+
+
+def test_delete_missing_folder_404(monkeypatch):
+    import protocols.curriculum_routes as cr
+
+    monkeypatch.setattr(cr, "get_curriculum_folder", lambda fid: None)
+    assert _client().delete("/api/curriculum/folders/nope").status_code == 404
+
+
+def test_delete_folder_student_forbidden():
+    assert _client(group_id="g").delete("/api/curriculum/folders/f1").status_code == 403
+
+
 # --- 1.1.59 M1: shared-corpus read-through cache ---
 
 

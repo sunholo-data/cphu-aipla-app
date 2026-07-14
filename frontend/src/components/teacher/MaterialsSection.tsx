@@ -11,6 +11,7 @@ import {
   CurriculumApiError,
   browseCurriculum,
   createCurriculumFolder,
+  deleteCurriculumFolder,
   fetchCurriculumContent,
   ingestCurriculum,
   listCurriculumFacets,
@@ -210,6 +211,20 @@ export function MaterialsSection({ materials, onChange, activityId }: Props) {
     try {
       await createCurriculumFolder(name);
       void loadFacets();
+    } catch {
+      // Non-fatal.
+    }
+  }
+
+  async function removeFolder(f: CurriculumFolder) {
+    if (!window.confirm(`Delete folder “${f.name}”? Its ${f.docCount} document(s) will be unfiled, not deleted.`)) {
+      return;
+    }
+    try {
+      await deleteCurriculumFolder(f.folderId);
+      if (selectedFolder === f.folderId) setSelectedFolder("");
+      void loadFacets();
+      void load(); // a filed doc may now be unfiled — refresh the list
     } catch {
       // Non-fatal.
     }
@@ -522,7 +537,6 @@ export function MaterialsSection({ materials, onChange, activityId }: Props) {
         {[
           { id: "", label: "All" },
           { id: UNFILED, label: "Unfiled" },
-          ...folders.map((f) => ({ id: f.folderId, label: `${f.name} (${f.docCount})` })),
         ].map((chip) => {
           const on = selectedFolder === chip.id;
           return (
@@ -537,6 +551,30 @@ export function MaterialsSection({ materials, onChange, activityId }: Props) {
             >
               {chip.label}
             </button>
+          );
+        })}
+        {/* Real folders: filter chip + a delete affordance (docs get unfiled). */}
+        {folders.map((f) => {
+          const on = selectedFolder === f.folderId;
+          return (
+            <span
+              key={f.folderId}
+              className={`inline-flex items-center gap-0.5 rounded-full border pl-2 pr-1 py-0.5 text-xs transition-colors ${
+                on ? "border-primary bg-primary/10 text-foreground" : "border-border text-muted-foreground"
+              }`}
+            >
+              <button type="button" onClick={() => setSelectedFolder(f.folderId)} aria-pressed={on} className="hover:underline">
+                {f.name} ({f.docCount})
+              </button>
+              <button
+                type="button"
+                aria-label={`Delete folder ${f.name}`}
+                onClick={() => void removeFolder(f)}
+                className="hover:text-destructive"
+              >
+                <X className="h-3 w-3" aria-hidden="true" />
+              </button>
+            </span>
           );
         })}
         <button

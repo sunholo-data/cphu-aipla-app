@@ -7,6 +7,7 @@ const fetchCurriculumContent = vi.fn();
 const listCurriculumFacets = vi.fn();
 const listCurriculumFolders = vi.fn();
 const createCurriculumFolder = vi.fn();
+const deleteCurriculumFolder = vi.fn();
 const patchCurriculumTags = vi.fn();
 const uploadActivityImage = vi.fn();
 const deleteActivityImage = vi.fn();
@@ -23,6 +24,7 @@ vi.mock("@/lib/curriculumApi", async () => {
     listCurriculumFacets: (...a: unknown[]) => listCurriculumFacets(...a),
     listCurriculumFolders: (...a: unknown[]) => listCurriculumFolders(...a),
     createCurriculumFolder: (...a: unknown[]) => createCurriculumFolder(...a),
+    deleteCurriculumFolder: (...a: unknown[]) => deleteCurriculumFolder(...a),
     patchCurriculumTags: (...a: unknown[]) => patchCurriculumTags(...a),
   };
 });
@@ -237,6 +239,31 @@ describe("MaterialsSection", () => {
     await waitFor(() =>
       expect(browseCurriculum).toHaveBeenLastCalledWith(expect.objectContaining({ folder: "f1", offset: 0 })),
     );
+  });
+
+  it("deleting a folder (confirmed) calls deleteCurriculumFolder and refreshes", async () => {
+    browseCurriculum.mockResolvedValue(page([]));
+    listCurriculumFolders.mockResolvedValue([
+      { folderId: "f1", name: "Kapitel 4", ownerScope: "shared", docCount: 2 },
+    ]);
+    deleteCurriculumFolder.mockResolvedValue({ deleted: "f1", unfiled: 2 });
+    const confirmSpy = vi.spyOn(window, "confirm").mockReturnValue(true);
+    render(<MaterialsSection materials={[]} onChange={() => {}} />);
+    fireEvent.click(await screen.findByRole("button", { name: /Delete folder Kapitel 4/i }));
+    await waitFor(() => expect(deleteCurriculumFolder).toHaveBeenCalledWith("f1"));
+    confirmSpy.mockRestore();
+  });
+
+  it("cancelling the delete confirm does NOT call the API", async () => {
+    browseCurriculum.mockResolvedValue(page([]));
+    listCurriculumFolders.mockResolvedValue([
+      { folderId: "f1", name: "Kapitel 4", ownerScope: "shared", docCount: 0 },
+    ]);
+    const confirmSpy = vi.spyOn(window, "confirm").mockReturnValue(false);
+    render(<MaterialsSection materials={[]} onChange={() => {}} />);
+    fireEvent.click(await screen.findByRole("button", { name: /Delete folder Kapitel 4/i }));
+    expect(deleteCurriculumFolder).not.toHaveBeenCalled();
+    confirmSpy.mockRestore();
   });
 
   it("the Unfiled chip filters by the unfiled sentinel", async () => {

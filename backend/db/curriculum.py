@@ -208,6 +208,22 @@ def get_curriculum_folder(folder_id: str) -> CurriculumFolder | None:
     return CurriculumFolder.model_validate(raw) if raw else None
 
 
+def delete_curriculum_folder(folder_id: str) -> int:
+    """Delete a folder and UNFILE every doc that pointed to it (clear
+    folderId/folderName). Returns the number of docs unfiled. A folder's docs are
+    in the same ownerScope as the folder by construction, so this touches only
+    in-scope docs. The caller enforces the ACL."""
+    filed = query_documents(_COLLECTION, filters=[("folderId", "==", folder_id)])
+    for raw in filed:
+        doc = CurriculumDoc.model_validate(raw)
+        doc.folder_id = None
+        doc.folder_name = None
+        doc.updated_at = _utcnow()
+        create_curriculum_doc(doc)  # invalidates the shared cache if the doc is shared
+    delete_document(_FOLDER_COLLECTION, folder_id)
+    return len(filed)
+
+
 def list_curriculum_folders_for_teacher(teacher_uid: str, *, scope: str | None = None) -> list[CurriculumFolder]:
     """Folders visible to a teacher: shared + their own, ACL-scoped exactly like
     the docs. ``doc_count`` is computed here from the visible doc set (never
