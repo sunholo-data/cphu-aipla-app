@@ -14,6 +14,7 @@ import { signOut } from "@/lib/firebase";
 import { useTeacherAuth } from "@/hooks/useTeacherAuth";
 import { useIsResearcher } from "@/hooks/useIsResearcher";
 import { useTeacherBootstrap } from "@/hooks/useTeacherBootstrap";
+import { AiplaHelpCopilot } from "./_AiplaHelpCopilot";
 
 /**
  * Client shell for /teacher/* routes.
@@ -129,6 +130,9 @@ export function TeacherClientShell({ children }: { children: ReactNode }) {
           </div>
         </div>
       </div>
+      {/* Always-available help co-pilot — floats over every teacher/researcher
+          surface (fixed position, so its DOM location here is irrelevant). */}
+      <AiplaHelpCopilot />
     </div>
   );
 }
