@@ -275,6 +275,24 @@ async function run() {
         await page.waitForTimeout(400);
       },
     },
+    // R1 — researcher surfaces. Only render for an account carrying the
+    // role:researcher claim (run this pass with TEACHER_EMAIL=test-researcher…).
+    {
+      file: "r1-01-research.png",
+      run: () => go(page, "/teacher/research/activities", "Research"),
+    },
+    {
+      file: "r1-02-lenses.png",
+      element: '[data-testid="lens-config-panel"]',
+      run: async () => {
+        await go(page, "/teacher/settings", "");
+        await page
+          .locator('[data-testid="lens-config-panel"]')
+          .first()
+          .waitFor({ timeout: 10000 })
+          .catch(() => {});
+      },
+    },
     // T2 success — LAST teacher shot; creates a throwaway activity we then delete.
     {
       file: "t2-05-success.png",
