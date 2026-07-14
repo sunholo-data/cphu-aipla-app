@@ -1,4 +1,4 @@
-.PHONY: dev dev-local dev-recompile dev-status dev-stop proxy-check logs cloud-logs cloud-errors cloud-build verify-chat-logs smoke-session-persistence smoke-chat-resume smoke-curriculum-content smoke-teacher-cli help cli-install cli-reinstall cli-uninstall cli-doctor cli-selftest-mock cli-selftest-live cli-selftest seed seed-demo-codes reset-group-state provision-curriculum-rag seed-curriculum backfill-curriculum-content migrate-clear-persona-voice-override docs-linkcheck sim-build sim-build-check guides guides-publish guide-screens seed-guide-corpus
+.PHONY: dev dev-local dev-recompile dev-status dev-stop proxy-check logs cloud-logs cloud-errors cloud-build verify-chat-logs smoke-session-persistence smoke-chat-resume smoke-curriculum-content smoke-teacher-cli help cli-install cli-reinstall cli-uninstall cli-doctor cli-selftest-mock cli-selftest-live cli-selftest seed seed-demo-codes reset-group-state provision-curriculum-rag seed-curriculum backfill-curriculum-content migrate-clear-persona-voice-override docs-linkcheck sim-build sim-build-check guides guides-publish guide-screens seed-guide-corpus guide-staleness
 
 # Seed SKILL.md templates -> Firestore after a deploy that changed any template
 # (avatar, multimodalInput, persona, tools, accessControl, instructions). A code
@@ -103,6 +103,13 @@ guide-screens:
 seed-guide-corpus:
 	@chmod +x scripts/seed-guide-corpus.sh
 	@scripts/seed-guide-corpus.sh
+
+# Flag guides that may be out of date: compares each guide against the UI
+# surfaces it documents (docs/guides/guide-surfaces.json). Heuristic — a prompt
+# to look. Add --strict (via scripts/) to fail CI on drift.
+guide-staleness:
+	@chmod +x scripts/check-guide-staleness.sh
+	@scripts/check-guide-staleness.sh
 
 # AIPLA — launch backend + frontend + MCP sandbox in LOCAL_MODE.
 # Pre-seeds group code LOCAL and the problem-set-hints skill. Auto-installs
@@ -332,3 +339,4 @@ help:
 	@echo "make guides             — render user guides (docs/guides/*.qmd) to PDF in docs/guides/_output/"
 	@echo "make guide-screens      — capture real teacher-guide screenshots via Playwright (logs into deployed dev as the test teacher)"
 	@echo "make seed-guide-corpus  — ingest the guide PDFs into the shared corpus + an onboarding class (teacher + student tutors)"
+	@echo "make guide-staleness    — flag guides whose documented UI changed after the guide (heuristic staleness check)"

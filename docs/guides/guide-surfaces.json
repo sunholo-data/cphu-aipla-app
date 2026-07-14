@@ -1,0 +1,30 @@
+{
+  "_comment": "Maps each guide slug to the code surfaces it documents. scripts/check-guide-staleness.sh flags a guide as possibly-stale when any mapped path has a newer commit than the guide. Keep this in sync when a guide's subject matter moves.",
+  "t1-set-up-a-class": [
+    "frontend/src/app/teacher/classes"
+  ],
+  "t2-create-your-first-activity": [
+    "frontend/src/app/teacher/activities/new",
+    "frontend/src/components/teacher/ActivityBuilderBody.tsx",
+    "frontend/src/components/teacher/BuilderLayout.tsx",
+    "frontend/src/hooks/useActivityBuilder.ts"
+  ],
+  "t3-add-curriculum-materials": [
+    "frontend/src/components/teacher/MaterialsSection.tsx"
+  ],
+  "t4-author-with-the-copilot": [
+    "frontend/src/app/teacher/activities/[id]/_AuthoringCopilot.tsx",
+    "frontend/src/components/teacher/copilot"
+  ],
+  "s1-join-and-use-your-tutor": [
+    "frontend/src/app/group",
+    "frontend/src/app/lessons",
+    "frontend/src/app/chat",
+    "frontend/src/components/workspace"
+  ],
+  "r1-researcher-onboarding": [
+    "frontend/src/app/teacher/research",
+    "frontend/src/app/teacher/insights",
+    "frontend/src/app/teacher/settings/_LensConfigPanel.tsx"
+  ]
+}
