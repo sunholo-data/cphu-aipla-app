@@ -133,15 +133,7 @@ function GroupJoinForm() {
               Use it
             </button>
           </div>
-        ) : (
-          <p className="rounded border border-dashed border-border bg-muted/30 px-2 py-1.5 text-xs text-muted-foreground">
-            GCP mode — use a code minted by your teacher at{" "}
-            <Link href="/teacher/classes" className="underline hover:text-foreground">
-              /teacher/classes
-            </Link>
-            .
-          </p>
-        )}
+        ) : null}
 
         {error && <ErrorBlock error={error} />}
 
