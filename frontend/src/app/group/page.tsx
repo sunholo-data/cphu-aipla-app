@@ -164,6 +164,15 @@ function GroupJoinForm() {
         </span>
       </p>
 
+      <p className="text-xs text-muted-foreground">
+        <Link
+          href="/guides"
+          className="font-medium underline underline-offset-4 hover:text-foreground"
+        >
+          Sådan virker det / How it works
+        </Link>
+      </p>
+
       <p className="border-t border-border pt-4 text-xs text-muted-foreground">
         Er du lærer?{" "}
         <Link

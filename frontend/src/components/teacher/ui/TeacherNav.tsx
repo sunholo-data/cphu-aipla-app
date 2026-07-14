@@ -3,7 +3,7 @@
 import { type ComponentType, useEffect, useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { BarChart3, ClipboardList, Microscope, PanelLeftClose, PanelLeftOpen, Settings, Users } from "lucide-react";
+import { BarChart3, BookOpen, ClipboardList, Microscope, PanelLeftClose, PanelLeftOpen, Settings, Users } from "lucide-react";
 
 import { cn } from "@/lib/utils";
 import { useIsResearcher } from "@/hooks/useIsResearcher";
@@ -39,6 +39,7 @@ const DESTINATIONS: Destination[] = [
     match: ["/teacher/insights", "/teacher/reports"],
   },
   { href: "/teacher/settings", label: "Settings", icon: Settings, match: ["/teacher/settings"] },
+  { href: "/guides", label: "Guides", icon: BookOpen, match: ["/guides"] },
 ];
 
 /**

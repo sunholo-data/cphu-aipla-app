@@ -111,13 +111,21 @@ function AnonGroupLessonsPage() {
             ) : (
               <span className="text-muted-foreground">Tilmeldt / Joined</span>
             )}
-            <button
-              type="button"
-              onClick={handleLeave}
-              className="rounded border border-border px-2.5 py-1 text-xs font-medium hover:bg-accent"
-            >
-              Skift kode / Change code
-            </button>
+            <div className="flex items-center gap-3">
+              <Link
+                href="/guides"
+                className="text-xs font-medium text-muted-foreground underline-offset-4 hover:text-foreground hover:underline"
+              >
+                Sådan virker det / How it works
+              </Link>
+              <button
+                type="button"
+                onClick={handleLeave}
+                className="rounded border border-border px-2.5 py-1 text-xs font-medium hover:bg-accent"
+              >
+                Skift kode / Change code
+              </button>
+            </div>
           </div>
         </div>
       ) : null}

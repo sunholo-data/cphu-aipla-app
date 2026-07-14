@@ -26,6 +26,3 @@ format:
     toc: true
     number-sections: false
     embed-resources: true
-  docx:
-    toc: true
-    number-sections: false

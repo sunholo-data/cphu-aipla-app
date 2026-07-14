@@ -1,4 +1,4 @@
-.PHONY: dev dev-local dev-recompile dev-status dev-stop proxy-check logs cloud-logs cloud-errors cloud-build verify-chat-logs smoke-session-persistence smoke-chat-resume smoke-curriculum-content smoke-teacher-cli help cli-install cli-reinstall cli-uninstall cli-doctor cli-selftest-mock cli-selftest-live cli-selftest seed seed-demo-codes reset-group-state provision-curriculum-rag seed-curriculum backfill-curriculum-content migrate-clear-persona-voice-override docs-linkcheck sim-build sim-build-check guides guide-screens seed-guide-corpus
+.PHONY: dev dev-local dev-recompile dev-status dev-stop proxy-check logs cloud-logs cloud-errors cloud-build verify-chat-logs smoke-session-persistence smoke-chat-resume smoke-curriculum-content smoke-teacher-cli help cli-install cli-reinstall cli-uninstall cli-doctor cli-selftest-mock cli-selftest-live cli-selftest seed seed-demo-codes reset-group-state provision-curriculum-rag seed-curriculum backfill-curriculum-content migrate-clear-persona-voice-override docs-linkcheck sim-build sim-build-check guides guides-publish guide-screens seed-guide-corpus
 
 # Seed SKILL.md templates -> Firestore after a deploy that changed any template
 # (avatar, multimodalInput, persona, tools, accessControl, instructions). A code
@@ -82,6 +82,12 @@ dev:
 guides:
 	@chmod +x scripts/render-guides.sh
 	@scripts/render-guides.sh
+
+# Render + publish the guides (HTML + PDF) into frontend/public/guides/ so the
+# app serves them for the /guides page and the in-app links.
+guides-publish:
+	@chmod +x scripts/publish-guides.sh
+	@scripts/publish-guides.sh
 
 # Capture real teacher-guide screenshots with Playwright: logs into the deployed
 # dev frontend as the test teacher (co-pilot + concept-map features on) and

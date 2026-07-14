@@ -68,6 +68,12 @@ export default async function HomePage() {
               Er du lærer? Log ind her{" "}
               <span className="opacity-70">/ Are you a teacher? Sign in</span>
             </Link>
+            <Link
+              href="/guides"
+              className="text-sm text-muted-foreground underline-offset-4 hover:text-foreground hover:underline"
+            >
+              Vejledninger <span className="opacity-70">/ Guides</span>
+            </Link>
           </div>
         ) : (
           <SignInButton />

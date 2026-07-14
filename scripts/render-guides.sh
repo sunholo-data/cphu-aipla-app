@@ -12,10 +12,11 @@ cd "$(dirname "$0")/../docs/guides"
 export LOCAL_MODE="${LOCAL_MODE:-1}"
 export NEXT_PUBLIC_LOCAL_MODE="${NEXT_PUBLIC_LOCAL_MODE:-1}"
 
+# Render every format declared in _quarto.yml (PDF + self-contained HTML).
 if [ "$#" -gt 0 ]; then
-  quarto render "$@" --to pdf
+  quarto render "$@"
 else
-  quarto render --to pdf
+  quarto render
 fi
 
-echo "Guides rendered to docs/guides/_output/"
+echo "Guides rendered to docs/guides/_output/ (PDF + HTML)"
