@@ -1,5 +1,6 @@
 {
   "_comment": "Maps each guide slug to the code surfaces it documents. scripts/check-guide-staleness.sh flags a guide as possibly-stale when any mapped path has a newer commit than the guide. Keep this in sync when a guide's subject matter moves.",
+  "_derived": "The check ALSO flags derived artefacts when a guide changes: each <slug>.da.qmd (Danish version) vs its English source, and backend/skills/templates/aipla-help/SKILL.md (the help co-pilot embeds condensed guide content) vs the newest English guide.",
   "t1-set-up-a-class": [
     "frontend/src/app/teacher/classes"
   ],

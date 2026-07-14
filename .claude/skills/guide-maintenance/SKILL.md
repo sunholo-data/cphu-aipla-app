@@ -40,10 +40,18 @@ staleness check reads it, so keep it current when a guide's subject moves.
 counterparts `docs/guides/<slug>.da.qmd` (render to `<slug>.da.{html,pdf}`, auto
 -published by the same glob). They reuse the English screenshots. Terminology +
 the "keep on-screen English labels as-is" rule live in
-[docs/guides/da-glossary.md](../../../docs/guides/da-glossary.md). When you change
-an English guide, update its `.da.qmd` alongside it (they document the same
-surfaces, so the staleness check flags the English slug). The `/guides` page
-links Danish as primary + English secondary for these; R1 is English-only.
+[docs/guides/da-glossary.md](../../../docs/guides/da-glossary.md). The `/guides`
+page links Danish as primary + English secondary for these; R1 is English-only.
+
+**Two derived artefacts move with the guides — `make guide-staleness` flags both:**
+
+- **The Danish versions** — when an English `<slug>.qmd` changes, update its
+  `<slug>.da.qmd` to match (the check flags a `.da.qmd` older than its source).
+- **The `aipla-help` help co-pilot** — its how-to knowledge is embedded in
+  `backend/skills/templates/aipla-help/SKILL.md` (a snapshot, not RAG). When a
+  guide's *content* changes, refresh that skill's instructions and re-register:
+  `make seed ENV=dev`. The help bot is the floating **"Hjælp"** panel (header
+  button) on every teacher/researcher surface; flag `NEXT_PUBLIC_AIPLA_HELP`.
 
 ## The pipeline (make targets)
 
