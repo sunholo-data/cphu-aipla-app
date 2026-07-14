@@ -1,4 +1,4 @@
-.PHONY: dev dev-local dev-recompile dev-status dev-stop proxy-check logs cloud-logs cloud-errors cloud-build verify-chat-logs smoke-session-persistence smoke-chat-resume smoke-curriculum-content smoke-teacher-cli help cli-install cli-reinstall cli-uninstall cli-doctor cli-selftest-mock cli-selftest-live cli-selftest seed seed-demo-codes reset-group-state provision-curriculum-rag seed-curriculum backfill-curriculum-content migrate-clear-persona-voice-override docs-linkcheck sim-build sim-build-check
+.PHONY: dev dev-local dev-recompile dev-status dev-stop proxy-check logs cloud-logs cloud-errors cloud-build verify-chat-logs smoke-session-persistence smoke-chat-resume smoke-curriculum-content smoke-teacher-cli help cli-install cli-reinstall cli-uninstall cli-doctor cli-selftest-mock cli-selftest-live cli-selftest seed seed-demo-codes reset-group-state provision-curriculum-rag seed-curriculum backfill-curriculum-content migrate-clear-persona-voice-override docs-linkcheck sim-build sim-build-check guides guide-screens
 
 # Seed SKILL.md templates -> Firestore after a deploy that changed any template
 # (avatar, multimodalInput, persona, tools, accessControl, instructions). A code
@@ -76,6 +76,19 @@ docs-linkcheck:
 dev:
 	@chmod +x scripts/dev.sh
 	@scripts/dev.sh
+
+# Render the user guides (docs/guides/*.qmd) to PDF (+ HTML/DOCX) in
+# docs/guides/_output/. Requires quarto + a LaTeX engine (xelatex).
+guides:
+	@chmod +x scripts/render-guides.sh
+	@scripts/render-guides.sh
+
+# Capture real teacher-guide screenshots with Playwright: logs into the deployed
+# dev frontend as the test teacher (co-pilot + concept-map features on) and
+# writes docs/guides/assets/. Then re-run `make guides` to embed them.
+guide-screens:
+	@chmod +x scripts/capture-guide-screens.sh
+	@scripts/capture-guide-screens.sh
 
 # AIPLA — launch backend + frontend + MCP sandbox in LOCAL_MODE.
 # Pre-seeds group code LOCAL and the problem-set-hints skill. Auto-installs
@@ -302,3 +315,5 @@ help:
 	@echo
 	@echo "make sim-build          — inline the canonical MCP App guest bridge into every artefact (edit bridge/aipla-mcp-bridge.js, then run this)"
 	@echo "make sim-build-check    — CI drift guard: fail if any artefact's inlined bridge != the canonical source"
+	@echo "make guides             — render user guides (docs/guides/*.qmd) to PDF in docs/guides/_output/"
+	@echo "make guide-screens      — capture real teacher-guide screenshots via Playwright (logs into deployed dev as the test teacher)"

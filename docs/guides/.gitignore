@@ -1,0 +1,4 @@
+_output/
+screenshots/node_modules/
+
+/.quarto/

@@ -1,0 +1,14 @@
+{
+  "name": "aipla-guide-screenshots",
+  "private": true,
+  "version": "0.0.0",
+  "description": "Reproducible screenshot capture for the AIPLA user guides. Drives a LOCAL_MODE frontend with Playwright and writes to ../assets/.",
+  "type": "module",
+  "scripts": {
+    "capture": "node capture.mjs",
+    "install-browser": "playwright install chromium"
+  },
+  "devDependencies": {
+    "playwright": "^1.48.0"
+  }
+}

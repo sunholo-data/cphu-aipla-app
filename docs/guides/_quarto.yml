@@ -1,0 +1,31 @@
+project:
+  type: default
+  output-dir: _output
+
+# Shared defaults for every AIPLA user guide. Each guide is a standalone
+# .qmd that renders to its own PDF (and HTML/DOCX) under _output/.
+# Author once in Markdown; the same prose is intended to also feed the
+# in-app /help route (fast-follow after the PDF set).
+
+author: "AIPLA project team"
+date: today
+lang: en
+
+format:
+  pdf:
+    toc: true
+    toc-depth: 2
+    number-sections: true
+    number-depth: 1
+    geometry: margin=1in
+    colorlinks: true
+    fig-align: center
+    # Screenshots live in assets/ and are kept at a readable width.
+    fig-width: 6
+  html:
+    toc: true
+    number-sections: false
+    embed-resources: true
+  docx:
+    toc: true
+    number-sections: false
