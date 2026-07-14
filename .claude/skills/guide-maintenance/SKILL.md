@@ -36,6 +36,15 @@ The map from each guide to the code it documents is
 [docs/guides/guide-surfaces.json](../../../docs/guides/guide-surfaces.json) — the
 staleness check reads it, so keep it current when a guide's subject moves.
 
+**Danish versions.** The teacher + student guides (T1–T4, S1) have Danish
+counterparts `docs/guides/<slug>.da.qmd` (render to `<slug>.da.{html,pdf}`, auto
+-published by the same glob). They reuse the English screenshots. Terminology +
+the "keep on-screen English labels as-is" rule live in
+[docs/guides/da-glossary.md](../../../docs/guides/da-glossary.md). When you change
+an English guide, update its `.da.qmd` alongside it (they document the same
+surfaces, so the staleness check flags the English slug). The `/guides` page
+links Danish as primary + English secondary for these; R1 is English-only.
+
 ## The pipeline (make targets)
 
 Run from the repo root. Order matters: capture → publish → (seed).

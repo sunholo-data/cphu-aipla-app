@@ -14,9 +14,11 @@ intended to also feed an in-app `/help` route (a fast-follow).
 | `t4-author-with-the-copilot.qmd` | Teacher | Draft an activity with the AI co-pilot |
 | `s1-join-and-use-your-tutor.qmd` | Student | Join with a group code and use the tutor |
 
-Each teacher guide points to T4 (the co-pilot can do the same step). Language:
-English first (the co-pilot UI itself is currently Danish-only — the guides name
-its Danish buttons with English glosses).
+Each teacher guide points to T4 (the co-pilot can do the same step). The teacher
+and student guides (T1–T4, S1) also ship in **Danish** as `<slug>.da.qmd`
+(rendered to `<slug>.da.{html,pdf}`, reusing the English screenshots); see
+[da-glossary.md](da-glossary.md) for the terminology + the keep-English-labels
+rule. R1 (researcher) is English-only.
 
 ## Regenerate
 

@@ -12,6 +12,8 @@ interface Guide {
   tag: string;
   title: string;
   desc: string;
+  /** A Danish (`<slug>.da.*`) version exists — show it as the primary link. */
+  da?: boolean;
 }
 
 const TEACHER_GUIDES: Guide[] = [
@@ -20,24 +22,28 @@ const TEACHER_GUIDES: Guide[] = [
     tag: "T1",
     title: "Set up a class and share it",
     desc: "Create a class, mint group codes, and share them with students.",
+    da: true,
   },
   {
     slug: "t2-create-your-first-activity",
     tag: "T2",
     title: "Create your first activity",
     desc: "Build a guided activity: teaching goal, workspace, and live preview.",
+    da: true,
   },
   {
     slug: "t3-add-curriculum-materials",
     tag: "T3",
     title: "Add and organise curriculum materials",
     desc: "Attach documents the tutor can cite, and keep them organised.",
+    da: true,
   },
   {
     slug: "t4-author-with-the-copilot",
     tag: "T4",
     title: "Author with the AI co-pilot",
     desc: "Describe what you want to teach and let the co-pilot draft it.",
+    da: true,
   },
 ];
 
@@ -47,6 +53,7 @@ const STUDENT_GUIDES: Guide[] = [
     tag: "S1",
     title: "Join and use your tutor",
     desc: "Join with a group code and work with the tutor and its workspace.",
+    da: true,
   },
 ];
 
@@ -73,15 +80,15 @@ function GuideCard({ g }: { g: Guide }) {
       </div>
       <div className="flex flex-wrap gap-2">
         <a
-          href={`/guides/${g.slug}.html`}
+          href={`/guides/${g.slug}${g.da ? ".da" : ""}.html`}
           target="_blank"
           rel="noopener noreferrer"
           className="inline-flex items-center gap-1.5 rounded-md bg-primary px-3 py-1.5 text-sm font-medium text-primary-foreground hover:opacity-90"
         >
-          <BookOpen className="h-4 w-4" aria-hidden="true" /> Open
+          <BookOpen className="h-4 w-4" aria-hidden="true" /> {g.da ? "Åbn" : "Open"}
         </a>
         <a
-          href={`/guides/${g.slug}.pdf`}
+          href={`/guides/${g.slug}${g.da ? ".da" : ""}.pdf`}
           target="_blank"
           rel="noopener noreferrer"
           className="inline-flex items-center gap-1.5 rounded-md border border-border px-3 py-1.5 text-sm font-medium text-muted-foreground hover:bg-accent hover:text-foreground"
@@ -89,6 +96,28 @@ function GuideCard({ g }: { g: Guide }) {
           <FileText className="h-4 w-4" aria-hidden="true" /> PDF
         </a>
       </div>
+      {g.da ? (
+        <p className="text-xs text-muted-foreground">
+          English:{" "}
+          <a
+            href={`/guides/${g.slug}.html`}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="underline underline-offset-2 hover:text-foreground"
+          >
+            Open
+          </a>{" "}
+          ·{" "}
+          <a
+            href={`/guides/${g.slug}.pdf`}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="underline underline-offset-2 hover:text-foreground"
+          >
+            PDF
+          </a>
+        </p>
+      ) : null}
     </li>
   );
 }
@@ -106,7 +135,7 @@ export default function GuidesPage() {
       <h1 className="text-2xl font-semibold sm:text-3xl">AIPLA guides</h1>
       <p className="mt-2 max-w-2xl text-muted-foreground">
         Short, task-focused how-to guides. Open one in your browser, or download
-        the PDF.
+        the PDF. Teacher and student guides are available in Danish and English.
       </p>
 
       <section className="mt-8" aria-labelledby="teacher-guides">

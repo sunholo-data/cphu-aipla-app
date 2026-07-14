@@ -1,0 +1,89 @@
+---
+title: "Tilføj og organiser pensummaterialer"
+subtitle: "AIPLA lærervejledning — T3"
+lang: da
+---
+
+::: callout-note
+## Hvor dette hører til
+
+Pensummaterialer tilføjes **inde i en aktivitet** (vejledning *T2*). Åbn en
+aktivitet, gå til dens **Materials**-sektion, og vedhæft de dokumenter, du vil
+have tutoren til at trække på. Der er ikke noget separat bibliotek at
+administrere — du organiserer materialerne på stedet, i konteksten af den
+aktivitet, der bruger dem.
+:::
+
+## Hvad materialer gør
+
+Når du vedhæfter et dokument til en aktivitet, kan tutoren **citere det** —
+forankre sine svar i din kilde frem for i almen viden. Du kan vedhæfte:
+
+- dokumenter fra **det delte materialebibliotek** — materiale, der allerede er
+  tilgængeligt for dig, og
+- dine **egne uploads** — en PDF, slides, et opgaveark, noter eller et billede.
+
+Hvert vedhæftet dokument er enten **synligt** for elever eller **skjult** (bruges
+kun til at forankre tutoren). Du vælger per dokument.
+
+::: callout-tip
+## Medbyggeren kan også hjælpe her
+
+Når AI-**medbyggeren** udarbejder et udkast til en aktivitet, kan den også
+foreslå pensummaterialer at vedhæfte — se *T4 — Byg med AI-medbyggeren*. Du kan
+altid tilføje og organisere materialer i hånden som beskrevet nedenfor.
+:::
+
+## Trin 1 — Åbn Materials-sektionen
+
+Åbn en aktivitet til redigering (eller opret en — vejledning *T2*). I byggerens
+sektionsnavigation vælger du **Materials**. Sektionen viser det delte
+materialebibliotek, du kan gennemse, med en **Upload**-knap og kontroller til at
+filtrere og organisere.
+
+![Materials-sektionen: gennemse det delte materialebibliotek, upload dit eget, filtrer efter niveau, tag, fag eller mappe.](assets/t3-01-materials.png)
+
+## Trin 2 — Vedhæft et dokument
+
+Du har to måder at vedhæfte materiale på:
+
+- **Citer et eksisterende dokument.** Brug **Search materials**-feltet eller
+  filtrene for **niveau**, **tag**, **fag** og **mappe** til at finde det, du vil
+  have, og vælg derefter **Cite** på dets række. Det flyttes ind i aktivitetens
+  citerede liste.
+- **Upload dit eget.** Vælg **Upload** og vælg en fil (PDF, Word, slides,
+  regneark, almindelig tekst eller et billede). AIPLA udtrækker teksten og viser
+  dig **hvad den udtrak**, så du kan bekræfte, at dokumentet blev læst korrekt,
+  før du forlader dig på det.
+
+![Efter en upload viser AIPLA den udtrukne tekst, så du kan verificere fortolkningen.](assets/t3-02-extracted.png)
+
+## Trin 3 — Organiser: mapper, tags og fag
+
+Hold et voksende materialebibliotek overskueligt:
+
+- **Mapper** — gruppér relaterede dokumenter; opret en med **New** i
+  mappepanelet. Sletning af en mappe fjerner dokumenterne fra mappen frem for at
+  slette dem.
+- **Tags** og **Fag** — sæt på et dokument, så filtrene kan finde det senere.
+
+Dette er fælles organisering, så et dokument, du tagger godt, er lettere for dig
+og dine kolleger at genbruge på tværs af aktiviteter.
+
+## Trin 4 — Styr hvad elever ser
+
+Hvert citeret dokument har en **Visible / Hidden**-omskifter. Skjulte dokumenter
+forankrer stadig tutorens svar; synlige dokumenter vises også for elever i
+aktiviteten. Nye uploads er som standard **Hidden** — gør kun et dokument synligt,
+når du vil have eleverne til at læse kilden direkte.
+
+::: callout-tip
+Forankring virker, uanset om et dokument er synligt eller skjult. Brug *hidden*
+til kildemateriale, der skal forme tutorens svar uden at blive udleveret ordret
+til eleverne.
+:::
+
+## Næste skridt
+
+- Lad AI-medbyggeren sammensætte en aktivitet — inklusive foreslåede materialer —
+  ud fra en beskrivelse: *T4 — Byg med AI-medbyggeren*.

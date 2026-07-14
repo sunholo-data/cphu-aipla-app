@@ -1,0 +1,105 @@
+---
+title: "Opret din første aktivitet"
+subtitle: "AIPLA lærervejledning — T2"
+lang: da
+---
+
+::: callout-note
+## Før du går i gang
+
+En aktivitet hører altid til en **klasse**. Hvis du ikke har oprettet en
+klasse endnu, så følg vejledning *T1 — Opret en klasse og del den* først, og
+kom så tilbage hertil. Denne vejledning tager cirka fem minutter.
+:::
+
+## Hvad en aktivitet er
+
+En **aktivitet** er en enkelt guidet opgave, som dine elever åbner i tutoren.
+Du sætter undervisningsmålet og eventuelt et arbejdsområde — en simulation, en
+tabel, en graf, en beregner eller vejledende noter. Elever tilslutter sig med
+klassens gruppekode og arbejder sig gennem aktiviteten i samtale med
+AI-fysiktutoren, som følger det mål, du har sat.
+
+Du behøver ikke skrive nogen kode, og du behøver ikke en udvikler. Alt på denne
+side gøres i din browser.
+
+::: callout-tip
+## Vil du hellere beskrive det i ord?
+
+Byggeren har en AI-**medbygger** (nederst til højre). Fortæl den, hvad du vil
+undervise i, og den udkaster et undervisningsmål og elementer til
+arbejdsområdet, som du kan redigere og anvende — se *T4 — Byg med
+AI-medbyggeren*. Hvert trin nedenfor kan også gøres af medbyggeren, ikke kun i
+hånden.
+:::
+
+## Trin 1 — Åbn aktivitetsbyggeren
+
+Fra dit lærerområde åbner du **Classes**, vælger den klasse, aktiviteten er
+til, og vælger **New activity**. (Du kan også nå byggeren fra klassesidens
+**New activity**-knap, som forvælger den klasse for dig.)
+
+![Aktivitetsbyggeren åbner med en skabelonvælger øverst og en live-forhåndsvisning til højre.](assets/t2-01-new-activity.png)
+
+## Trin 2 — Vælg et udgangspunkt
+
+Øverst i byggeren er der en **skabelonvælger**. Vælg en skabelon tæt på det, du
+vil have — den udfylder en fornuftig startkonfiguration — eller start fra
+blankt. Du kan ændre alt bagefter, så valget er ikke bindende.
+
+## Trin 3 — Sæt undervisningsmålet
+
+Giv aktiviteten en **titel** og et **undervisningsmål** (feltet hedder `Lesson
+prompt`). Målet er det vigtigste felt: det er den instruktion, tutoren følger,
+når den taler med dine elever. Skriv det, som du ville briefe en
+undervisningsassistent — for eksempel *"Hjælp eleven med at ræsonnere om
+energibevarelse på en friktionsfri rampe; giv ikke det endelige svar, stil
+vejledende spørgsmål."*
+
+Sæt det **sprog**, tutoren skal bruge med eleverne, og vælg en **workbench type**,
+hvis aktiviteten har brug for et arbejdsområde (eller lad det være en
+ren chat-baseret begrebsdialog).
+
+![Undervisningsmålet er den instruktion, tutoren følger. Hold det specifikt.](assets/t2-03-goal.png)
+
+## Trin 4 — Tilføj et arbejdsområde (valgfrit)
+
+Hvis du valgte en workbench, tilføjer du de elementer, dine elever vil bruge —
+en simulation, en tabel at udfylde, en graf, en beregner eller noter.
+**Live-forhåndsvisningen** til højre opdateres, efterhånden som du tilføjer
+hvert element, så du ser præcis, hvad eleven vil se.
+
+::: callout-tip
+Alt, hvad eleven gør i arbejdsområdet — værdier de indtaster, en simulation de
+kører — deles med tutoren, så den kan reagere på deres faktiske arbejde.
+:::
+
+![Live-forhåndsvisningen viser elevens visning, mens du bygger.](assets/t2-04-elements.png)
+
+## Trin 5 — Opret aktiviteten
+
+Når du er tilfreds med forhåndsvisningen, vælger du **Create activity**. Du vil
+se en bekræftelse på, at aktiviteten er live for din klasse.
+
+![Aktiviteten er nu live; elever, der tilslutter sig med klassens gruppekode, kan åbne den.](assets/t2-05-success.png)
+
+Fra bekræftelsen kan du:
+
+- **Configure activity** — genåbne den for at tilføje pensummaterialer eller
+  finjustere målet (se *T3 — Tilføj og organiser pensummaterialer*).
+- **Create another** — starte en ny aktivitet til den samme klasse.
+- **Back to classes** — vende tilbage til din klasseliste.
+
+## Hvad elever ser
+
+Elever åbner aktiviteten fra klassens gruppekode (intet login, ingen personlig
+konto — se *S1 — Tilslut dig og brug din tutor*). De får tutoren og, hvis du
+tilføjede et, arbejdsområdet. Tutoren følger det mål, du har sat, og kan se det
+arbejde, eleven laver i arbejdsområdet.
+
+## Næste skridt
+
+- Tilføj pensummaterialer, så tutoren kan forankre sine svar i dine
+  materialer — *T3*.
+- Lad AI-medbyggeren udkaste en aktivitet ud fra en beskrivelse i almindeligt
+  sprog — *T4 — Byg med AI-medbyggeren*.
