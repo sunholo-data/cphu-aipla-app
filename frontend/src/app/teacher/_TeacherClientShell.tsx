@@ -2,8 +2,8 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import type { ReactNode } from "react";
-import { FlaskConical, LogOut } from "lucide-react";
+import { useState, type ReactNode } from "react";
+import { FlaskConical, HelpCircle, LogOut } from "lucide-react";
 
 import { AppFooter } from "@/components/AppFooter";
 import { TeacherNav } from "@/components/teacher/ui/TeacherNav";
@@ -14,6 +14,7 @@ import { signOut } from "@/lib/firebase";
 import { useTeacherAuth } from "@/hooks/useTeacherAuth";
 import { useIsResearcher } from "@/hooks/useIsResearcher";
 import { useTeacherBootstrap } from "@/hooks/useTeacherBootstrap";
+import { useTeacherFeature } from "@/hooks/useTeacherFeature";
 import { AiplaHelpCopilot } from "./_AiplaHelpCopilot";
 
 /**
@@ -30,6 +31,10 @@ export function TeacherClientShell({ children }: { children: ReactNode }) {
   // First sign-in (incl. the first after a clean-slate wipe): seed the teacher's
   // onboarding demo. Idempotent backend; reloads once if it just seeded.
   useTeacherBootstrap(!!user);
+  // The "AIPLA Hjælp" help co-pilot — opened on demand from the header button
+  // (flag-gated), so it never floats over the page's own co-pilot.
+  const helpEnabled = useTeacherFeature("aiplaHelp", process.env.NEXT_PUBLIC_AIPLA_HELP);
+  const [helpOpen, setHelpOpen] = useState(false);
   // The activity builder (new + edit) is an app-like surface — like the student
   // chat it wants the full width for its two-column config + live preview. The
   // list/insight/settings pages stay capped for comfortable reading lengths.
@@ -81,6 +86,17 @@ export function TeacherClientShell({ children }: { children: ReactNode }) {
           </Link>
 
           <div className="flex items-center gap-3">
+            {helpEnabled ? (
+              <button
+                type="button"
+                onClick={() => setHelpOpen((o) => !o)}
+                aria-expanded={helpOpen}
+                className="flex items-center gap-1 rounded border border-border px-2 py-1 text-[11px] font-medium text-muted-foreground hover:bg-accent hover:text-foreground"
+              >
+                <HelpCircle className="h-3.5 w-3.5" aria-hidden="true" />
+                <span>Hjælp</span>
+              </button>
+            ) : null}
             {isLocalMode() ? (
               <div
                 role="status"
@@ -130,9 +146,10 @@ export function TeacherClientShell({ children }: { children: ReactNode }) {
           </div>
         </div>
       </div>
-      {/* Always-available help co-pilot — floats over every teacher/researcher
-          surface (fixed position, so its DOM location here is irrelevant). */}
-      <AiplaHelpCopilot />
+      {/* Help co-pilot — opened from the header "Hjælp" button, closed by
+          default so it never collides with a page's own co-pilot. Opens
+          bottom-left (work co-pilots are bottom-right). */}
+      {helpEnabled && helpOpen ? <AiplaHelpCopilot onClose={() => setHelpOpen(false)} /> : null}
     </div>
   );
 }

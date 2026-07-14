@@ -94,4 +94,10 @@ export interface TeacherCopilotConfig<P> {
    *  conversation (via the backend session); "New chat" resets it. Pass a
    *  scope-specific value (e.g. `manage-class:<classId>`) for per-scope threads. */
   persistKey?: string;
+  /** On-demand panels (opened from a header button) pass this: the panel shows
+   *  a Close (X) that unmounts it instead of the minimize-to-pill. */
+  onClose?: () => void;
+  /** Corner the panel sits in — "left" keeps a help co-pilot clear of the
+   *  work co-pilots (bottom-right). Default "right". */
+  align?: "left" | "right";
 }

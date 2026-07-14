@@ -60,7 +60,13 @@ export function TeacherCopilot<P>(config: TeacherCopilotConfig<P>) {
   }, [storageKey]);
 
   return (
-    <FloatingCopilot title={config.title} onNewChat={newChat} minimizeLabel={config.minimizeLabel}>
+    <FloatingCopilot
+      title={config.title}
+      onNewChat={newChat}
+      minimizeLabel={config.minimizeLabel}
+      onClose={config.onClose}
+      align={config.align}
+    >
       <CopilotResolver config={config} threadId={threadId} />
     </FloatingCopilot>
   );
