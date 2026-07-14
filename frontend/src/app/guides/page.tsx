@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import { ArrowLeft, BookOpen, FileText, GraduationCap, Users } from "lucide-react";
+import { ArrowLeft, BookOpen, FileText, GraduationCap, Microscope, Users } from "lucide-react";
 
 export const metadata: Metadata = {
   title: "Guides — AIPLA",
@@ -47,6 +47,15 @@ const STUDENT_GUIDES: Guide[] = [
     tag: "S1",
     title: "Join and use your tutor",
     desc: "Join with a group code and work with the tutor and its workspace.",
+  },
+];
+
+const RESEARCHER_GUIDES: Guide[] = [
+  {
+    slug: "r1-researcher-onboarding",
+    tag: "R1",
+    title: "Researcher onboarding",
+    desc: "Cross-teacher observation and the rubric experimentation workspace.",
   },
 ];
 
@@ -125,6 +134,21 @@ export default function GuidesPage() {
         </h2>
         <ul className="grid gap-3 sm:grid-cols-2">
           {STUDENT_GUIDES.map((g) => (
+            <GuideCard key={g.slug} g={g} />
+          ))}
+        </ul>
+      </section>
+
+      <section className="mt-8" aria-labelledby="researcher-guides">
+        <h2
+          id="researcher-guides"
+          className="mb-3 flex items-center gap-2 text-lg font-semibold"
+        >
+          <Microscope className="h-5 w-5 text-muted-foreground" aria-hidden="true" />
+          For researchers
+        </h2>
+        <ul className="grid gap-3 sm:grid-cols-2">
+          {RESEARCHER_GUIDES.map((g) => (
             <GuideCard key={g.slug} g={g} />
           ))}
         </ul>

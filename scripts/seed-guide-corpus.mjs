@@ -70,6 +70,7 @@ const GUIDES = [
   { file: "t3-add-curriculum-materials.pdf", title: "AIPLA guide — T3: Add curriculum materials", aud: "teacher" },
   { file: "t4-author-with-the-copilot.pdf", title: "AIPLA guide — T4: Author with the co-pilot", aud: "teacher" },
   { file: "s1-join-and-use-your-tutor.pdf", title: "AIPLA guide — S1: Join and use your tutor", aud: "student" },
+  { file: "r1-researcher-onboarding.pdf", title: "AIPLA guide — R1: Researcher onboarding", aud: "researcher" },
 ];
 
 const cite = (docs) =>
@@ -124,6 +125,20 @@ const studentActivity = await api("/api/proxy/api/activities", {
   }),
 });
 
+const researcherActivity = await api("/api/proxy/api/activities", {
+  method: "POST",
+  headers: JSON_H,
+  body: JSON.stringify({
+    skillId: concept.skillId,
+    classId: cls.classId,
+    title: "Researcher onboarding",
+    teachingGoal:
+      "You help researchers new to AIPLA. Answer questions about the cross-teacher observation views (research activity scan, research class view, all-teachers insights, cost) and the rubric experimentation workspace (judge lenses, versioning, running a judge), grounded in the AIPLA researcher guide (R1). Be concise and precise.",
+    language: "en",
+    materials: cite(docs.filter((d) => d.aud === "researcher")),
+  }),
+});
+
 console.log("5) Minting a group code…");
 const groups = await api(`/api/proxy/api/classes/${cls.classId}/groups`, {
   method: "POST",
@@ -135,5 +150,6 @@ console.log("\nDone.");
 console.log("  class:", cls.classId, `(${cls.name})`);
 console.log("  teacher tutor activity:", teacherActivity.activityId);
 console.log("  student tutor activity:", studentActivity.activityId);
+console.log("  researcher tutor activity:", researcherActivity.activityId);
 console.log("  group code(s):", JSON.stringify(groups));
 console.log("  guide docs:", docs.map((d) => d.docId).join(", "));
