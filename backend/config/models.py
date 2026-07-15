@@ -78,3 +78,15 @@ def default_model() -> str:
     cfg = load_models_config()
     entry = next((m for m in cfg.models if m.id == cfg.platform_default), None)
     return entry.api_name if entry else cfg.platform_default
+
+
+def model_api_names() -> set[str]:
+    """Every curated model's api_name — the allow-list for "is this a model we
+    support". Use to validate a caller-chosen model instead of hardcoding."""
+    return {m.api_name for m in load_models_config().models}
+
+
+def provider_for_api_name(api_name: str) -> str | None:
+    """The provider (``google`` | ``anthropic`` | ``openai``) for a curated
+    api_name, or ``None`` if the api_name isn't in the registry."""
+    return next((m.provider for m in load_models_config().models if m.api_name == api_name), None)

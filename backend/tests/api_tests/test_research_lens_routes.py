@@ -93,6 +93,18 @@ def test_put_unknown_lens_is_400():
     assert _client(RESEARCHER).put("/api/research/lens-configs/bogus", json={"enabled": True}).status_code == 400
 
 
+def test_put_model_must_be_curated():
+    from config.models import default_model
+
+    c = _client(RESEARCHER)
+    # a free-text / uncurated model is rejected
+    assert c.put("/api/research/lens-configs/maps", json={"model": "gpt-hallucinated-9"}).status_code == 400
+    # a curated model (the platform default) is accepted
+    res = c.put("/api/research/lens-configs/maps", json={"model": default_model()})
+    assert res.status_code == 200
+    assert res.json()["lens"]["model"] == default_model()
+
+
 # --- scoring (M1) ---
 
 

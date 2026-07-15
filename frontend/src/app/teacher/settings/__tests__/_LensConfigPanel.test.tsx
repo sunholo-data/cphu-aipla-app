@@ -15,6 +15,17 @@ vi.mock("@/lib/apiClient", () => ({
   fetchWithTeacherAuth: (...args: unknown[]) => mockFetch(...args),
 }));
 
+// The curated model picker fetches /api/models on its own — mock it to a plain
+// select so this panel test stays focused on the lens config behaviour.
+vi.mock("@/components/skill/ModelSelector", () => ({
+  default: ({ value, onChange }: { value: string; onChange: (v: string) => void }) => (
+    <select aria-label="Judge model" value={value} onChange={(e) => onChange(e.target.value)}>
+      <option value="gemini-3.5-flash">gemini-3.5-flash</option>
+      <option value="claude-sonnet-4-6">claude-sonnet-4-6</option>
+    </select>
+  ),
+}));
+
 import { LensConfigPanel } from "../_LensConfigPanel";
 
 const LENSES = {

@@ -26,6 +26,7 @@ from analytics.session_rubric import (
     upsert_rubric_def,
 )
 from auth.firebase_auth import User, get_current_user
+from config.models import model_api_names
 from db.firestore import get_document, set_document
 
 log = logging.getLogger(__name__)
@@ -169,6 +170,10 @@ async def put_lens_config(
     if "enabled" in fields and fields["enabled"] is not None:
         update["enabled"] = fields["enabled"]
     if fields.get("model"):
+        # Only a curated model (config/models.yaml) can be set — no free-text
+        # model strings, so a lens can't drift onto an unsupported/typo'd model.
+        if fields["model"] not in model_api_names():
+            raise HTTPException(status_code=400, detail=f"unknown model {fields['model']!r}")
         update["model"] = fields["model"]
     if "prompt_override" in fields:
         update["prompt_override"] = fields["prompt_override"]  # None = reset to default

@@ -34,6 +34,7 @@ from typing import Any
 
 from pydantic import BaseModel, ConfigDict, Field
 
+from config.models import default_model, provider_for_api_name
 from db.firestore import get_document, query_documents, set_document
 from reports.session_summary import SessionSummary, SessionTurn
 
@@ -67,10 +68,13 @@ class LensSpec:
 
 LENS_REGISTRY: dict[str, LensSpec] = {
     # Lens C — MAPS problem-solving judge (Docktor et al. 2016, CC-BY).
+    # Model defaults come from the curated registry (config/models.yaml) via the
+    # single-knob default_model() — never hardcode a model string, so a lens
+    # rides the same platform default + deprecation moves as every skill.
     "maps": LensSpec(
         lens_id="maps",
         label="MAPS problem solving (Docktor 2016)",
-        model="gemini-2.5-flash",
+        model=default_model(),
         prompt_version="maps-r1",
     ),
     # Lens D — SAAR scientific-abilities judge (Etkina et al. 2006);
@@ -78,7 +82,7 @@ LENS_REGISTRY: dict[str, LensSpec] = {
     "saar": LensSpec(
         lens_id="saar",
         label="SAAR scientific abilities (Etkina 2006)",
-        model="gemini-2.5-flash",
+        model=default_model(),
         prompt_version="saar-r1",
     ),
 }
@@ -612,6 +616,20 @@ async def score_session_summary(summary: SessionSummary, lens_id: str) -> Rubric
         )
     if not partition.student_initiated:
         return _abstain(summary, config, partition, "no student-initiated evidence in this session")
+
+    # The judge runs on Vertex/Gemini today (_call_judge_model). A curated
+    # non-google model is selectable (the registry is multi-provider) but not
+    # yet wired to run — abstain honestly rather than crash. Multi-provider
+    # judge execution is the flagged follow-up (RVIEW-1).
+    provider = provider_for_api_name(config.model)
+    if provider not in (None, "google"):
+        return _abstain(
+            summary,
+            config,
+            partition,
+            f"model {config.model!r} is a {provider} model — judge execution is Gemini-only for now; "
+            "pick a Gemini model to run this lens",
+        )
 
     pack = pack or {"anchors": []}  # generic path tolerates an absent pack when not required
 

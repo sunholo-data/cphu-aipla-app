@@ -595,3 +595,30 @@ def test_default_prompt_is_the_builder_fallback_and_is_not_persisted():
     cfg2 = sr.get_lens_config("maps")
     assert cfg2.prompt_override == "custom"
     assert cfg2.default_prompt == cfg.default_prompt
+
+
+# --- RVIEW-1 M0: curated models (no more hardcoded stale gemini-2.5-flash) ---
+
+
+def test_lens_default_model_is_the_curated_platform_default():
+    from config.models import default_model
+
+    # NOT the old hardcoded "gemini-2.5-flash" — the app's single-knob default.
+    assert sr.get_lens_config("maps").model == default_model()
+    assert sr.get_lens_config("saar").model == default_model()
+
+
+@pytest.mark.asyncio
+async def test_non_gemini_model_abstains_with_a_clear_reason(monkeypatch):
+    _anchored()
+
+    async def _boom(prompt: str, model: str, images=None) -> str:
+        raise AssertionError("the Vertex judge must not run for a non-google provider")
+
+    monkeypatch.setattr(sr, "_call_judge_model", _boom)
+    # a curated Anthropic model — selectable, but the judge only runs Gemini today
+    set_document("analytics_lens_configs", "maps", {"model": "claude-sonnet-4-6"})
+    res = await sr.score_session_summary(_summary([_turn("student", "min løsning")]), "maps")
+    assert res.abstained is True
+    assert "gemini" in res.abstain_reason.lower() or "provider" in res.abstain_reason.lower()
+    assert res.model == "claude-sonnet-4-6"  # provenance still records what was chosen

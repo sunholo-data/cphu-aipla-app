@@ -15,6 +15,7 @@ import { ClipboardCopy, FlaskConical, RotateCcw } from "lucide-react";
 
 import { useIsResearcher } from "@/hooks/useIsResearcher";
 import { fetchWithTeacherAuth } from "@/lib/apiClient";
+import ModelSelector from "@/components/skill/ModelSelector";
 
 interface LensConfig {
   lens_id: string;
@@ -38,7 +39,6 @@ interface RubricScore {
   partitionSummary: { student_initiated?: number; tutor_prompted?: number };
 }
 
-const MODEL_CHOICES = ["gemini-2.5-flash", "gemini-2.5-pro"];
 
 export function LensConfigPanel() {
   const isResearcher = useIsResearcher();
@@ -130,22 +130,19 @@ function LensCard({ lens, onSaved }: { lens: LensConfig; onSaved: () => void }) 
         </label>
       </div>
 
-      <label className="flex items-center gap-2 text-xs text-slate-600">
-        Judge model
-        <select
+      <label className="flex flex-col gap-1 text-xs text-slate-600">
+        <span>Judge model (from the platform&apos;s curated list)</span>
+        <ModelSelector
           value={model}
-          onChange={(e) => {
-            setModel(e.target.value);
-            void put({ model: e.target.value }, `Model set to ${e.target.value}.`);
+          onChange={(apiName) => {
+            setModel(apiName);
+            void put({ model: apiName }, `Model set to ${apiName}.`);
           }}
-          className="rounded border border-slate-300 px-2 py-1 text-xs"
-        >
-          {[...new Set([...MODEL_CHOICES, model])].map((m) => (
-            <option key={m} value={m}>
-              {m}
-            </option>
-          ))}
-        </select>
+        />
+        <span className="text-[11px] text-slate-400">
+          Judge execution runs on Gemini today; other providers are selectable but not yet wired —
+          a non-Gemini pick abstains with a clear note until then.
+        </span>
       </label>
 
       <details className="rounded-md border border-slate-200 bg-slate-50/70 px-3 py-2" data-testid={`lens-default-${lens.lens_id}`}>
