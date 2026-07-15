@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import Link from "next/link";
 import { ClipboardList, ShieldAlert } from "lucide-react";
 
 import { type ActivityPayload, listActivities } from "@/lib/teacherApi";
@@ -95,29 +96,36 @@ export default function ResearchActivitiesPage() {
 }
 
 /** A read-only activity card for the research scan: composition, the owner, and
- *  the visibility state — no edit/assign/delete affordances. */
+ *  the visibility state — no edit/assign/delete affordances. Clicking opens the
+ *  full read-only detail (RVIEW-1 M1). */
 function ResearchCard({ activity }: { activity: ActivityPayload }) {
   return (
-    <TeacherCard>
-      <div className="flex items-start justify-between gap-2">
-        <h2 className="text-sm font-semibold">
-          {activity.title || activity.teachingGoal?.slice(0, 60) || activity.activityId}
-        </h2>
-        <VisibilityBadge visibility={activity.visibility} />
-      </div>
+    <Link
+      href={`/teacher/research/activities/${encodeURIComponent(activity.activityId)}`}
+      className="block rounded focus:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+      data-testid="research-activity-link"
+    >
+      <TeacherCard className="transition-colors hover:border-foreground/30 hover:bg-muted/40">
+        <div className="flex items-start justify-between gap-2">
+          <h2 className="text-sm font-semibold">
+            {activity.title || activity.teachingGoal?.slice(0, 60) || activity.activityId}
+          </h2>
+          <VisibilityBadge visibility={activity.visibility} />
+        </div>
 
-      <CompositionRow activity={activity} />
+        <CompositionRow activity={activity} />
 
-      {activity.teachingGoal ? (
-        <p className="line-clamp-2 text-xs text-muted-foreground">{activity.teachingGoal}</p>
-      ) : null}
+        {activity.teachingGoal ? (
+          <p className="line-clamp-2 text-xs text-muted-foreground">{activity.teachingGoal}</p>
+        ) : null}
 
-      <div className="flex items-center justify-between gap-2 text-xs text-muted-foreground">
-        <span>{activity.language === "da" ? "Dansk" : "English"}</span>
-        <span className="truncate" data-testid="activity-owner" title={activity.ownerUid}>
-          Owner: {activity.ownerLabel ?? activity.ownerUid}
-        </span>
-      </div>
-    </TeacherCard>
+        <div className="flex items-center justify-between gap-2 text-xs text-muted-foreground">
+          <span>{activity.language === "da" ? "Dansk" : "English"}</span>
+          <span className="truncate" data-testid="activity-owner" title={activity.ownerUid}>
+            Owner: {activity.ownerLabel ?? activity.ownerUid}
+          </span>
+        </div>
+      </TeacherCard>
+    </Link>
   );
 }
