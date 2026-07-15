@@ -27,9 +27,14 @@ const PROVIDER_LABELS: Record<string, string> = {
 interface Props {
   value: string | null;
   onChange: (apiName: string) => void;
+  /** Restrict the pickable providers. Omit to show all (the skill-creation
+   *  default). The rubric-judge surface passes `["google"]` because judge
+   *  execution is Gemini-only for now (multi-provider — local/Ollama-focused —
+   *  is roadmapped, not built). */
+  providers?: ("google" | "anthropic" | "openai")[];
 }
 
-export default function ModelSelector({ value, onChange }: Props) {
+export default function ModelSelector({ value, onChange, providers }: Props) {
   const [config, setConfig] = useState<ModelsResponse | null>(null);
   const [error, setError] = useState<string | null>(null);
 
@@ -50,13 +55,13 @@ export default function ModelSelector({ value, onChange }: Props) {
     (m) => m.id === config.platform_default
   )?.api_name;
 
-  const byProvider = (["google", "anthropic", "openai"] as const).map(
-    (provider) => ({
+  const byProvider = (["google", "anthropic", "openai"] as const)
+    .filter((provider) => !providers || providers.includes(provider))
+    .map((provider) => ({
       provider,
       label: PROVIDER_LABELS[provider],
       models: config.models.filter((m) => m.provider === provider),
-    })
-  );
+    }));
 
   return (
     <select

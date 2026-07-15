@@ -134,14 +134,15 @@ function LensCard({ lens, onSaved }: { lens: LensConfig; onSaved: () => void }) 
         <span>Judge model (from the platform&apos;s curated list)</span>
         <ModelSelector
           value={model}
+          providers={["google"]}
           onChange={(apiName) => {
             setModel(apiName);
             void put({ model: apiName }, `Model set to ${apiName}.`);
           }}
         />
         <span className="text-[11px] text-slate-400">
-          Judge execution runs on Gemini today; other providers are selectable but not yet wired —
-          a non-Gemini pick abstains with a clear note until then.
+          Gemini for now. Multi-provider judges (local / self-hosted, Ollama-focused) are on the
+          roadmap.
         </span>
       </label>
 

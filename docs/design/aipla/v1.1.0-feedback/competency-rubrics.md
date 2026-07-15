@@ -187,6 +187,18 @@ around tutor use — official channels or a locked-down survey. **No PhysPort-ga
 items in the repo, the app bundle, or prompts.** No Danish translations exist; contributing one
 is a JB/AR decision, not an app task.
 
+### Judge model provider — Gemini now, local/Ollama on the roadmap (M, 2026-07-12)
+
+The judge model comes from the curated registry (`config/models.yaml`) via the single-knob
+`default_model()`, and the researcher lens surface picks from it — but **judge execution
+(`_call_judge_model`) is Vertex/Gemini-only** for now, and the lens model picker is filtered to
+`providers=["google"]` so only runnable models show. A curated non-google model set via API/CLI
+abstains with a clear reason (defensive; never crashes). Multi-provider judge execution is
+**roadmapped, not a near-term need** — and the intended direction is **local / self-hosted
+(Ollama-focused)** per ADR-003's on-prem tiers + `self-hosting.qmd`, NOT cloud OpenAI/Anthropic. So
+the follow-up is "route `_call_judge_model` through a local-model client when the on-prem tier is
+stood up", not "wire the Anthropic/OpenAI SDKs".
+
 ### Where it lives in the architecture
 
 **Compute — `backend/analytics/session_rubric.py` (extends the shipped RUBRIC-1 module).** The
