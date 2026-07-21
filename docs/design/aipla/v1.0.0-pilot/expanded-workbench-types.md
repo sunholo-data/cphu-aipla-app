@@ -68,7 +68,7 @@ A collaborative whiteboard surface where students sketch free-body diagrams, gra
 
 **Use cases:** Student draws a force diagram, tutor asks "what direction is the net force?"; student sketches a v-t graph; student annotates a photo of their experiment.
 
-**Implementation (recommended):** Self-host [Excalidraw](https://github.com/excalidraw/excalidraw) (MIT licence, iframe-embeddable). Bundle the static build at `infrastructure/mcp-sandbox/artefacts/drawing-board/v1/`. Fallback: tldraw (also MIT, similar API surface). Custom canvas is last resort.
+**Implementation (recommended):** Self-host [Excalidraw](https://github.com/excalidraw/excalidraw) (MIT licence, iframe-embeddable). Bundle the static build at `infrastructure/mcp-sandbox/artefacts/drawing-board/v1/`. Fallback: tldraw — but note tldraw is **proprietary, not MIT**: it requires a "Made with tldraw" watermark (or a paid business licence to remove) and a production licence key, so choose it **only for its AI/agent capabilities** (`@tldraw/ai`, make-real), not as a licence-equivalent Excalidraw swap. See [post-pilot/student-generated-apps-tldraw.md](../post-pilot/student-generated-apps-tldraw.md) for the full analysis. Custom canvas is last resort.
 
 **Wire shape:** The drawing board artefact is served through `StaticArtefactFrame` like any other App. It must include the RPC helpers and complete the `ui/initialize` handshake. On share or idle-timer, emit:
 
