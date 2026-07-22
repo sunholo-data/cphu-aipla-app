@@ -65,10 +65,10 @@ Two independent tracks (repo/docs vs code) in P0; interleave freely. Ordered by
 **Scope:** repo/docs · **Risk:** Low · **Duration:** ~0.5 day · **Behaviour:** none
 **Goal:** a tidy tree with a single "which doc is real" answer.
 
-- [ ] P0.9 — `git rm -r --cached .dev-logs/` (8 tracked, gitignored); delete root `node_modules/`; add `.pytest_cache/` to `.gitignore`; relocate `feedback-2026-*.md` into `docs/design/aipla/v1.1.0-feedback/`; pin or drop `.template-fork-target`
-- [ ] P0.8 — add `docs/design/README.md` doc-map (AIPLA→`aipla/SEQUENCE.md`; product→scoping site; template→archived); move `docs/design/v6.0.0/1/2` under `docs/design/_inherited-template/`
+- [x] P0.9 — `git rm -r --cached .dev-logs/` (8 tracked, gitignored); deleted stray root `node_modules/`; added `.pytest_cache/` to `.gitignore`; relocated `feedback-2026-*.md` into `docs/design/aipla/v1.1.0-feedback/` (+ updated the one inbound reference). `.template-fork-target` left as-is (pinning needs a known-good upstream SHA — deferred to M).
+- [x] P0.8 — added `docs/design/README.md` doc-map (AIPLA→`aipla/SEQUENCE.md`; product→scoping site; template dirs labelled inherited-history). **Did NOT physically move `v6.0.0/1/2`** — ~30 live code comments backlink to those paths (e.g. `ttft-instrumentation.md`), so a move would 404 them and trip `docs-linkcheck`. The doc-map delivers the navigability win without the link-rot; a physical archive is only worth it if those code backlinks are rewritten first.
 
-**Acceptance:** `git status` clean of scratch artifacts; `docs/design/` has one obvious entry point.
+**Acceptance:** `git status` clean of scratch artifacts; `docs/design/` has one obvious entry point. ✅
 
 ### M4 — CLAUDE.md resolution *(P0, load-bearing — do carefully)*
 **Scope:** docs · **Risk:** Med · **Duration:** ~0.5–1 day · **Behaviour:** none (agent-facing doc)

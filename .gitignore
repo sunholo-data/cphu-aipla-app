@@ -56,6 +56,10 @@ backend/certs/
 # Ruff cache
 backend/.ruff_cache/
 
+# Pytest cache
+.pytest_cache/
+**/.pytest_cache/
+
 # TypeScript
 tsconfig.tsbuildinfo
 

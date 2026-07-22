@@ -2,7 +2,7 @@
 
 **Status:** Triage / index — the execution-repo companion to the scoping-site note
 **Last Updated:** 2026-06-15
-**Source (product truth):** [`notes/2026-06-15-teacher-feedback.md`](file:///Users/mark/Documents/clients/cph-uni/notes/2026-06-15-teacher-feedback.md) (processed) + [`sources/feedback-2026-06-15.md`](file:///Users/mark/Documents/clients/cph-uni/sources/feedback-2026-06-15.md) (raw; the `## 15th Jan` header is a stale template line — the file is 15 June). Raw scratch copy also at repo root `feedback-2026-01-15.md`.
+**Source (product truth):** [`notes/2026-06-15-teacher-feedback.md`](file:///Users/mark/Documents/clients/cph-uni/notes/2026-06-15-teacher-feedback.md) (processed) + [`sources/feedback-2026-06-15.md`](file:///Users/mark/Documents/clients/cph-uni/sources/feedback-2026-06-15.md) (raw; the `## 15th Jan` header is a stale template line — the file is 15 June). Raw scratch copy alongside this doc: `feedback-2026-01-15.md` (relocated from the repo root, 2026-07-22).
 **Companion docs:** [`strands.qmd`](file:///Users/mark/Documents/clients/cph-uni/strands.qmd) · [`architecture.qmd`](file:///Users/mark/Documents/clients/cph-uni/architecture.qmd) (ADR-016 researcher tier) · the 9 June batch (this extends it)
 
 > **Why this file exists.** The scoping site holds the pedagogical/product truth; this repo holds
