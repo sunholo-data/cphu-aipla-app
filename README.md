@@ -1,48 +1,54 @@
-# Sunholo AI Protocol Platform v6
+# AIPLA — AI in Physics Learning and Assessment
 
-Open-source AI protocol platform — Skills + AG-UI + A2UI + MCP Apps + A2A on Google ADK.
+Execution repo for **AIPLA**, a technical-infrastructure contract for the
+University of Copenhagen Center for Digital Education: AI physics tutors,
+interactive sims, and teacher/researcher tooling for upper-secondary physics.
 
-> 🚀 **New here?** Start with [**WORKSHOP.md**](./WORKSHOP.md) — clone, set
-> `LOCAL_MODE=1`, run `make dev`, working chat UI in under 30 minutes with
-> zero GCP credentials. Use this for university courses, workshop attendees,
-> or quick exploration of the protocol stack.
+Repo: `sunholo-data/cphu-aipla-app` · Default & working branch: **`dev`**.
 
-## What's New in v6
+> Built on the open-source **AI Protocol Platform** template (Skills + AG-UI +
+> A2UI + MCP Apps + A2A on Google ADK). Some inherited files still say "Aitana
+> Platform v6" — the AIPLA reality is authoritative. See [CLAUDE.md](CLAUDE.md).
 
-- **Skills replace Assistants** — clearer user-facing abstraction
-- **Google ADK** — native agent orchestration (replaces Sunholo framework)
-- **Protocol-native** — AG-UI, A2UI, MCP Apps, A2A, MCP
-- **Three model providers** — Gemini, Claude, OpenAI
-- **OpenTelemetry** — native observability from ADK
+## Run it locally (no GCP credentials)
 
-## Quick Start
-
-### Backend
 ```bash
-cd backend
-make install
-make dev          # API on port 1956
-make playground   # ADK dev UI on port 8501
+cp .env.example backend/.env      # then set LOCAL_MODE=1
+cd backend && make install && cd ..
+make dev                          # frontend :3456 · backend :1956
 ```
 
-### Frontend
+Open **<http://localhost:3456>** — you get a yellow LOCAL_MODE banner and working
+demo skills, with Firestore/Firebase/Vertex all stubbed in-memory. Full walkthrough
+and the cloud tiers: [WORKSHOP.md](WORKSHOP.md).
+
+## Where things are
+
+| | |
+|---|---|
+| `frontend/` | Next.js 15 + React 19 + Tailwind (chat, teacher, researcher surfaces) |
+| `backend/` | FastAPI + Google ADK (skills, agents, protocols, auth, analytics) |
+| `cli/` | the `aiplatform` CLI (`make cli-install`) |
+| `infrastructure/` | mcp-sandbox (sim iframes) + Terraform |
+| `docs/design/` | design docs — **start at [docs/design/README.md](docs/design/README.md)** |
+
+## Where the design lives
+
+- **Execution design** (file paths, wire shapes, acceptance) → this repo,
+  [`docs/design/aipla/SEQUENCE.md`](docs/design/aipla/SEQUENCE.md).
+- **Product & pedagogical design** (ADRs, strands, timeline) → the AIPLA scoping
+  site (public preview: <https://www.sunholo.com/aipla/>).
+- **Working with this repo as an AI agent** → [CLAUDE.md](CLAUDE.md) is the
+  authoritative context (identity, gotchas, footguns, ports).
+
+## Common commands
+
 ```bash
-cd frontend
-npm install
-npm run dev       # Next.js on port 3000
+make dev                              # local dev servers (:3456 / :1956)
+make seed ENV=dev                     # push SKILL.md templates to Firestore (manual, post-deploy)
+cd frontend && npm run quality:check  # CI parity: lint + typecheck + tests + build
+cd backend && make lint && make test-fast
 ```
 
-## Architecture
-
-```
-platform/
-├── frontend/     # Next.js 14 + React 18 + AG-UI + A2UI + MCP Apps
-├── backend/      # FastAPI + Google ADK
-├── cli/          # `aiplatform` CLI
-├── docs/         # Design documents
-└── firestore.rules
-```
-
-See [CLAUDE.md](CLAUDE.md) for detailed development guidelines.
-
-See [docs/design/v5.0.0/migration-to-v6.md](docs/design/v5.0.0/migration-to-v6.md) for the full migration plan.
+See the [Makefile](Makefile) (`make help`) for the full target list and
+[CLAUDE.md](CLAUDE.md) for the development workflow.

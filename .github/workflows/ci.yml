@@ -86,6 +86,8 @@ jobs:
           python-version: "3.11"
       - name: Refuse local-mode truthy leaks in cloudbuild / tf / workflows
         run: python3 scripts/check_local_mode_safety.py
+      - name: Skill catalogue in sync with .claude/skills
+        run: bash scripts/check-skill-catalogue.sh
 
   frontend:
     name: Frontend (lint + typecheck + test)

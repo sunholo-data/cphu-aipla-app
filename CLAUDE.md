@@ -72,7 +72,7 @@ material. AIPLA-specific ADRs and progress live in the scoping site.
 ### Skills referencing Aitana
 
 The `.claude/skills/` directory still contains Aitana-named skills
-(`aitana-frontend-verify`, `aitana-adk-testing`, `aitana-v6-deploy`).
+(`aitana-frontend-verify`, `aitana-adk-testing`).
 They may reference Aitana service URLs, project IDs, or CLI auth flows.
 **Check what they actually run before invoking** — most logic is reusable,
 but URLs and IDs need AIPLA equivalents. The generic skills
@@ -169,13 +169,17 @@ make format            # Auto-format with ruff
 ```bash
 cd frontend
 npm install
-npm run dev            # Next.js on port 3000
+npm run dev            # Next.js dev (raw: port 3000)
 npm run build          # Production build
 npm run quality:check:fast  # Lint + typecheck
 ```
 
+> Use **`make dev`** (from the repo root) for the normal dev loop — it binds the
+> frontend to **3456** (via `scripts/dev.sh`, because 3000 is often taken) and
+> starts the backend together. Only a raw `npm run dev` uses 3000.
+
 ### Server Ports
-- Frontend: http://localhost:3000
+- Frontend: **http://localhost:3456** (`make dev`; a raw `npm run dev` uses 3000)
 - Backend API: http://localhost:1956
 - ADK Playground: http://localhost:8501
 
@@ -229,15 +233,22 @@ When copying v5 code, follow this pattern:
 
 Project-local skills auto-load when their trigger keywords match. Live in `.claude/skills/<name>/SKILL.md` with optional `resources/` and `scripts/` siblings. Adding a new skill: `~/.claude/skills/skill-builder/scripts/create_skill.sh --project <name> "<description with triggers>"` or invoke the `skill-builder` skill directly.
 
-**Aitana-specific operational skills** (load when debugging the v6 platform):
+**AIPLA operational skills** (load when debugging the platform). Every skill named
+here exists in `.claude/skills/` — a CI check (`scripts/check-skill-catalogue.sh`)
+fails the build if this list ever names one that doesn't:
 
-- **`aiplatform-cli`** — Operating manual for the `aiplatform` CLI when debugging from a terminal. Bundles a token-mint script that mints a fresh `AIPLATFORM_ID_TOKEN` for the dedicated `whoami-test@aitanalabs.test` user, plus curl fallbacks for endpoints the CLI doesn't yet wrap (sessions, skills, whoami, documents). Use when the next step is to reproduce a bug against the running backend, probe TTFT, or run a one-shot API call.
 - **`aitana-adk-testing`** — ADK session/event/artifact inspection via the HTTP endpoints `get_fast_api_app(web=True, ...)` ships. Use when the question is "where do messages live", "did the loader save the artifact", or anything that bypasses the Firestore mirror.
 - **`aitana-frontend-verify`** — Drive a real Chrome via the chrome-devtools MCP to verify frontend behaviour static checks can't see (SSE streams, hydration, auth state, DOM after click).
-- **`aitana-v6-deploy`** — dev → test → prod promotion manual, including the three-repo topology, IAM cascade, and pre-promotion audit procedure.
-- **`aitana-template-publish`** — refresh the public template at `sunholo-data/ai-protocol-platform`. Load when the user mentions publishing/refreshing the template, GitHub secret-scanner alerts on the template, or any operation that copies content out of this repo. Documents the sanitize pipeline, security gates (Firebase Web API keys are NOT safe in public), and the one-command refresh flow.
 - **`aipla-security-checkup`** (AIPLA-specific) — Triage runbook for the dep-security pile (frontend npm + sandbox npm + backend Python). Load whenever the CI gate's `security-audit` job fails, when the Monday weekly rolling issue surfaces a CVE, or when the user says "run the security audit", "triage dependabot", or "is this gate going to pass". Encodes the reachability rubric (direct prod / transitive / dev-only / deprecated) from the 2026-06-05 sweep + the per-ecosystem command tree + the `npm overrides` conflict pattern. Policy of record: `docs/design/aipla/v1.1.0-feedback/security-monitoring-pipeline.md`.
-- **`cloud-run-diagnostics`** — diagnose Cloud Run service issues (cold starts, IAM, connectivity, deploy failures).
+- **`guide-maintenance`** — keep the user-facing how-to guides (`docs/guides/`) in sync with the product: render, screenshot-capture on deployed dev, publish into the app, seed the in-product corpus + onboarding tutors, staleness check. Load when guides go stale or a documented UI surface changes.
+
+> **Referenced-but-not-present skills.** Earlier drafts of this file named
+> `aiplatform-cli`, `aitana-v6-deploy`, `aitana-template-publish`, and
+> `cloud-run-diagnostics`. **These are not in `.claude/skills/` — do not try to
+> load them.** Their runbooks (CLI debugging + token-mint, dev→test→prod promotion,
+> template publish, Cloud Run diagnostics) are candidates for extraction into
+> `docs/ops/runbooks/` during handover (audit item P4.3). Until then the knowledge
+> lives in the `aiplatform` CLI README (`cli/README.md`) and `cloudbuild*.yaml`.
 
 **Cross-project skills** (used everywhere, not Aitana-specific):
 
@@ -249,7 +260,7 @@ Project-local skills auto-load when their trigger keywords match. Live in `.clau
 - **`sprint-planner` / `sprint-executor` / `sprint-evaluator`** — the planning → execution → quality-check loop for non-trivial work.
 - **`skill-builder`** (global) — for creating/optimizing skills like the ones above.
 
-**These skills expand as the project grows.** When a recurring debug task or workflow emerges that's worth >10 minutes per session of re-derivation (auth incantations, multi-step CLI sequences, architecture lookups), it's signal to add a new skill or extend an existing one. The `aiplatform-cli` skill in particular is meant to grow new recipes and curl fallbacks as new failure modes appear — invoke `skill-builder` to extend it cleanly.
+**These skills expand as the project grows.** When a recurring debug task or workflow emerges that's worth >10 minutes per session of re-derivation (auth incantations, multi-step CLI sequences, architecture lookups), it's signal to add a new skill or extend an existing one — invoke `skill-builder` to do it cleanly. New skills must be added to the catalogue above (the CI check enforces the reverse: no catalogue entry may name a missing skill).
 
 ## ADK Development
 
@@ -352,7 +363,7 @@ When adding a new workflow, add it to `scripts/` and the root `Makefile` in the 
 ## Common Mistakes
 
 ### Frontend API Calls
-Always use `/api/proxy` to reach the backend — frontend (port 3000) and backend (port 1956) are separate services.
+Always use `/api/proxy` to reach the backend — frontend (port 3456 via `make dev`) and backend (port 1956) are separate services.
 
 ### Wrong Python Environment
 Always `cd backend && uv run ...` — never use global `python` or `pip`.

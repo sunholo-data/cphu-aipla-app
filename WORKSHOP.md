@@ -11,8 +11,8 @@ with **zero GCP credentials required**.
 ## TL;DR
 
 ```bash
-git clone https://github.com/Aitana-Labs/platform.git
-cd platform
+git clone https://github.com/sunholo-data/cphu-aipla-app.git
+cd cphu-aipla-app
 cp .env.example .env
 
 # Edit .env and uncomment these two lines:
@@ -28,7 +28,7 @@ cd frontend && npm install && npm run dev
 ```
 
 Open <http://localhost:3456> — you should see a yellow LOCAL_MODE banner
-across the top and a "Welcome to Aitana" page. Click a demo skill and
+across the top and the AIPLA welcome page. Click a demo skill and
 send a message. The agent streams a reply via AG-UI from a local ADK
 runtime; no Firebase, no Firestore, no Vertex AI.
 
@@ -231,8 +231,9 @@ For workshop attendees who want to read the code:
                               └─ Auth: Firebase JWT or LOCAL_MODE stub
 ```
 
-Read `docs/design/v6.1.0/SEQUENCE.md` for the build sequence and which
-sprints shipped which protocol layer.
+Read [`docs/design/aipla/SEQUENCE.md`](docs/design/aipla/SEQUENCE.md) for the
+AIPLA build sequence (the inherited template's own `v6.x` sequences are archived
+under `docs/design/_inherited-template/`).
 
 ## Next steps
 
