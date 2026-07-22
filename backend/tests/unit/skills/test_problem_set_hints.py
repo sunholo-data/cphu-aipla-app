@@ -30,9 +30,11 @@ def test_skill_name(skill):
     assert skill.frontmatter.name == "problem-set-hints"
 
 
-def test_skill_uses_gemini_3_5_flash(skill):
-    """Resolved Decision 1 (jutland-demo.md): default model is gemini-3.5-flash on Vertex AI global."""
-    assert skill.frontmatter.metadata["model"] == "gemini-3.5-flash"
+def test_skill_uses_the_advanced_gemini_tier(skill):
+    """Model upgrade 2026-07: the reasoning-heavy hint tutor runs on the advanced
+    Gemini tier (gemini-3.6-flash). Everyday/high-volume skills use the lite default
+    (gemini-3.5-flash-lite); this one is deliberately on the more-capable model."""
+    assert skill.frontmatter.metadata["model"] == "gemini-3.6-flash"
 
 
 def test_skill_aipla_author(skill):

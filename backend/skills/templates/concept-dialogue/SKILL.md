@@ -47,7 +47,7 @@ metadata:
   # 4.6 cross-provider fallback per ADR-003). No workbench / sim — this
   # is a chat-only concept tutor, so no mcp servers and no iframe
   # context are wired.
-  model: gemini-3.5-flash
+  model: gemini-3.6-flash
   tools: []
   toolConfigs:
     a2ui:

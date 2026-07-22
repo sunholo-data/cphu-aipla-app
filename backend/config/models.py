@@ -71,9 +71,9 @@ def default_model() -> str:
     """API name of the platform default model (models.yaml ``platform_default``).
 
     The single knob for "what model does the platform use". Code MUST call this
-    instead of hardcoding a model string, so a config change — e.g. when a model
-    deprecates (``gemini-2.5-flash`` is going away) — moves every call site at
-    once. RAQ-1 follow-up 2026-06-16.
+    instead of hardcoding a model string, so a config change — e.g. bumping the
+    default to a new model generation — moves every call site at once. Currently
+    ``gemini-3.5-flash-lite``. RAQ-1 follow-up 2026-06-16.
     """
     cfg = load_models_config()
     entry = next((m for m in cfg.models if m.id == cfg.platform_default), None)
@@ -81,14 +81,16 @@ def default_model() -> str:
 
 
 def fast_model() -> str:
-    """API name of the cheap / high-volume Google model (registry ``fast`` tier).
+    """API name of the cheap / high-volume Google model for analytics sub-tasks —
+    the rubric-judge fallback and the session-summary model.
 
-    Used for analytics sub-tasks — the rubric judge fallback and the session-summary
-    model — where cost and latency matter more than peak capability. Registry-sourced
-    (currently ``gemini-2.5-flash``) so a deprecation moves every call site at once,
-    instead of the hardcoded strings that would silently point at a dead model. This
-    is deliberately NOT ``default_model()`` (the premium ``gemini-3.5-flash``); the
-    analytics sub-tasks want the fast tier.
+    Returns the registry's ``fast``-tier Google model when one exists, else falls
+    back to ``default_model()``. Registry-sourced so a model swap moves every call
+    site at once instead of the hardcoded strings that would silently point at a
+    dead model. Currently there is no separate cheap Google tier — the platform
+    default is itself the lite model (``gemini-3.5-flash-lite``) — so this resolves
+    to the default. If a cheaper high-volume Google model is later added at the
+    ``fast`` tier, the analytics sub-tasks pick it up here without further changes.
     """
     cfg = load_models_config()
     entry = next((m for m in cfg.models if m.provider == "google" and m.tier == "fast"), None)

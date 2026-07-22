@@ -28,6 +28,11 @@ token_counter = _meter.create_counter(
 # Source: published pricing pages as of 2026-04
 _COST_PER_1M: dict[str, tuple[float, float]] = {
     # Gemini
+    # NOTE: the 3.x rates below are APPROXIMATE placeholders — confirm against the
+    # official Gemini 3.x pricing page and update. (Substring match: keep the more
+    # specific "-lite" key so it isn't shadowed by a "gemini-3.5-flash" key.)
+    "gemini-3.5-flash-lite": (0.10, 0.40),  # platform default — APPROXIMATE
+    "gemini-3.6-flash": (0.30, 1.20),  # advanced tier — APPROXIMATE
     "gemini-2.5-flash": (0.15, 0.60),
     "gemini-2.5-pro": (1.25, 10.00),
     "gemini-2.0-flash": (0.10, 0.40),

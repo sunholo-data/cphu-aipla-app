@@ -18,29 +18,21 @@ models:
   # Primary provider; ADK runs on Vertex AI (GOOGLE_GENAI_USE_VERTEXAI=True).
   # 1M token context window on all Gemini 3.x models.
 
-  gemini-3-5-flash:
-    api_name: "gemini-3.5-flash"
+  gemini-3-5-flash-lite:
+    api_name: "gemini-3.5-flash-lite"
     provider: google
     tier: default
     context_window: 1_000_000
     max_output_tokens: 65_536
-    description: "Gemini 3.5 Flash — platform default; fast, 1M context (the model the tutor + skills run)"
+    description: "Gemini 3.5 Flash-Lite — platform default; cheapest/fastest, 1M context (the tutor + skills + analytics sub-tasks run this). Replaces gemini-2.5-flash and the former gemini-3.5-flash default."
 
-  gemini-3-1-pro:
-    api_name: "gemini-3.1-pro-preview"
+  gemini-3-6-flash:
+    api_name: "gemini-3.6-flash"
     provider: google
     tier: smart
     context_window: 1_000_000
     max_output_tokens: 65_536
-    description: "Gemini 3.1 Pro — advanced reasoning, beats Opus 4.6 on 13/16 benchmarks"
-
-  gemini-2-5-flash:
-    api_name: "gemini-2.5-flash"
-    provider: google
-    tier: fast
-    context_window: 1_000_000
-    max_output_tokens: 65_536
-    description: "Gemini 2.5 Flash — stable fallback if 3.x preview unavailable"
+    description: "Gemini 3.6 Flash — the more-advanced Gemini tier for complex tasks (replaces gemini-3.1-pro as the advanced option)."
 
   # ─── Anthropic Claude ─────────────────────────────────────────────────────
   # 200K context window standard; 1M available in beta for Opus 4.7.
@@ -94,15 +86,15 @@ models:
 # Model used when a skill specifies a provider but no explicit model ID.
 
 defaults:
-  google: "gemini-3-5-flash"     # api_name: gemini-3.5-flash
-  anthropic: "claude-sonnet-4-6" # api_name: claude-sonnet-4-6
-  openai: "gpt-5-1-instant"      # api_name: gpt-5.1-chat-latest
+  google: "gemini-3-5-flash-lite" # api_name: gemini-3.5-flash-lite
+  anthropic: "claude-sonnet-4-6"  # api_name: claude-sonnet-4-6
+  openai: "gpt-5-1-instant"       # api_name: gpt-5.1-chat-latest
 
 # ─── Platform default ─────────────────────────────────────────────────────
 # Applied when no provider/model is specified at all.
 # Must be a google model (primary provider on Vertex AI).
 
-platform_default: "gemini-3-5-flash"
+platform_default: "gemini-3-5-flash-lite"
 
 # ─── Compaction context windows ───────────────────────────────────────────
 # EventsCompactionConfig on App (not Agent/Runner).

@@ -103,7 +103,7 @@ metadata:
   # docs/design/aipla/v0.1.0-jutland/jutland-demo.md.
   # Router-overridable per ADR-008. Sonnet 4.6 is the documented
   # cross-provider fallback (ADR-003).
-  model: gemini-3.5-flash
+  model: gemini-3.6-flash
   tools: []
   toolConfigs:
     # Opt out of A2UI toolset attachment — see backend/adk/agent.py

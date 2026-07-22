@@ -60,21 +60,20 @@ class TestLoadModelsConfig:
 
 
 class TestModelAccessors:
-    def test_fast_model_is_a_registry_api_name(self):
+    def test_fast_model_is_a_registry_google_api_name(self):
         cfg = load_models_config()
-        api_names = {m.api_name for m in cfg.models}
-        assert fast_model() in api_names
+        google_api_names = {m.api_name for m in cfg.models if m.provider == "google"}
+        assert fast_model() in google_api_names
 
-    def test_fast_model_is_google_fast_tier(self):
+    def test_fast_model_prefers_a_google_fast_tier_model_else_default(self):
         cfg = load_models_config()
-        entry = next(m for m in cfg.models if m.api_name == fast_model())
-        assert entry.provider == "google"
-        assert entry.tier == "fast"
-
-    def test_fast_model_is_distinct_from_the_premium_default(self):
-        # The analytics sub-tasks (rubric-judge fallback, session summary) route
-        # through fast_model() precisely so they DON'T ride the premium default.
-        assert fast_model() != default_model()
+        google_fast = next((m for m in cfg.models if m.provider == "google" and m.tier == "fast"), None)
+        if google_fast is not None:
+            assert fast_model() == google_fast.api_name
+        else:
+            # No separate cheap Google tier today — the platform default IS the lite
+            # model — so the analytics sub-tasks resolve to the default.
+            assert fast_model() == default_model()
 
 
 class TestModelEntry:

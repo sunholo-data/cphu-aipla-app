@@ -15,7 +15,7 @@ accessControl:
 metadata:
   author: aipla
   version: "0.2.0"
-  model: gemini-2.5-flash
+  model: gemini-3.5-flash-lite
   tools:
     - count_messages
     - time_on_task

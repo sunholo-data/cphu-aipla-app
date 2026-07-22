@@ -16,7 +16,7 @@ accessControl:
 metadata:
   author: aipla
   version: "0.3.0"
-  model: gemini-2.5-flash
+  model: gemini-3.5-flash-lite
   tools:
     - list_my_classes
     - create_class
