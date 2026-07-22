@@ -96,8 +96,7 @@
         {"fieldPath": "ownerId", "order": "ASCENDING"},
         {"fieldPath": "updatedAt", "order": "DESCENDING"}
       ]
-    }
-    ,
+    },
     {
       "collectionGroup": "chat_sessions",
       "queryScope": "COLLECTION",
@@ -132,82 +131,6 @@
         {"fieldPath": "ownerUid", "order": "ASCENDING"},
         {"fieldPath": "skillId", "order": "ASCENDING"},
         {"fieldPath": "lastMessageAt", "order": "DESCENDING"}
-      ]
-    },
-
-    {
-      "collectionGroup": "assistants",
-      "queryScope": "COLLECTION",
-      "fields": [
-        {"fieldPath": "ownerId", "order": "ASCENDING"},
-        {"fieldPath": "createdAt", "order": "DESCENDING"}
-      ]
-    },
-    {
-      "collectionGroup": "assistants",
-      "queryScope": "COLLECTION",
-      "fields": [
-        {"fieldPath": "accessControl.type", "order": "ASCENDING"},
-        {"fieldPath": "createdAt", "order": "DESCENDING"}
-      ]
-    },
-    {
-      "collectionGroup": "assistants",
-      "queryScope": "COLLECTION",
-      "fields": [
-        {"fieldPath": "accessControl.type", "order": "ASCENDING"},
-        {"fieldPath": "accessControl.emails", "arrayConfig": "CONTAINS"},
-        {"fieldPath": "createdAt", "order": "DESCENDING"}
-      ]
-    },
-    {
-      "collectionGroup": "assistants",
-      "queryScope": "COLLECTION",
-      "fields": [
-        {"fieldPath": "accessControl.type", "order": "ASCENDING"},
-        {"fieldPath": "accessControl.domain", "order": "ASCENDING"},
-        {"fieldPath": "createdAt", "order": "DESCENDING"}
-      ]
-    },
-    {
-      "collectionGroup": "assistants",
-      "queryScope": "COLLECTION",
-      "fields": [
-        {"fieldPath": "accessControl.type", "order": "ASCENDING"},
-        {"fieldPath": "accessControl.domains", "arrayConfig": "CONTAINS"},
-        {"fieldPath": "createdAt", "order": "DESCENDING"}
-      ]
-    },
-    {
-      "collectionGroup": "messages",
-      "queryScope": "COLLECTION",
-      "fields": [
-        {"fieldPath": "read", "order": "ASCENDING"},
-        {"fieldPath": "userEmail", "order": "ASCENDING"}
-      ]
-    },
-    {
-      "collectionGroup": "userPreviews",
-      "queryScope": "COLLECTION",
-      "fields": [
-        {"fieldPath": "userId", "order": "ASCENDING"},
-        {"fieldPath": "lastAccessedAt", "order": "DESCENDING"}
-      ]
-    },
-    {
-      "collectionGroup": "userPreviews",
-      "queryScope": "COLLECTION",
-      "fields": [
-        {"fieldPath": "userId", "order": "ASCENDING"},
-        {"fieldPath": "previewedAt", "order": "DESCENDING"}
-      ]
-    },
-    {
-      "collectionGroup": "userPreviews",
-      "queryScope": "COLLECTION",
-      "fields": [
-        {"fieldPath": "userId", "order": "ASCENDING"},
-        {"fieldPath": "fileName", "order": "ASCENDING"}
       ]
     },
     {

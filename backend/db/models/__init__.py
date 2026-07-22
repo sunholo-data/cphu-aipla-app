@@ -244,29 +244,6 @@ class SkillConfig(BaseModel):
         return v
 
 
-# === Other entities ===
-
-
-class Message(BaseModel):
-    message_id: str = Field(alias="messageId")
-    role: str  # "user" | "assistant" | "system"
-    content: str
-    timestamp: float
-    metadata: dict = Field(default_factory=dict)
-
-    model_config = {"populate_by_name": True}
-
-
-class UserProfile(BaseModel):
-    user_id: str = Field(alias="userId")
-    email: str
-    display_name: str = Field(default="", alias="displayName")
-    created_at: float = Field(default=0, alias="createdAt")
-    last_active: float = Field(default=0, alias="lastActive")
-
-    model_config = {"populate_by_name": True}
-
-
 # === Document models (see db/models/document.py) ===
 
 from db.models.document import (  # noqa: E402
@@ -290,11 +267,9 @@ __all__ = [
     "DocSummary",
     "DocumentStatus",
     "EditedBlock",
-    "Message",
     "ParsedDocument",
     "ProtocolConfig",
     "Protocols",
     "SkillConfig",
     "SkillMetadata",
-    "UserProfile",
 ]
