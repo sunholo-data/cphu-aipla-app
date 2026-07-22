@@ -22,8 +22,8 @@ dependencies = [
     "gcsfs>=2024.11.0",
     # AILANG Parse — deterministic document parsing
     "ailang-parse==0.5.4",
-    # MCP
-    "mcp>=1.7.1",
+    # MCP — floor pinned to 1.28.1 for CVE-2026-52870/-52869/-59950 (public /mcp endpoint)
+    "mcp>=1.28.1",
     # AG-UI protocol bridge (ADK -> AG-UI events over SSE)
     "ag-ui-adk>=0.6.0,<1.0.0",
     # HTTP client
@@ -33,7 +33,7 @@ dependencies = [
     # Utilities
     "rich>=14.0.0",
     "markdown>=3.8",
-    "json-repair>=0.46.2",
+    "json-repair>=0.60.1",  # GHSA-xf7x-x43h-rpqh
     "tiktoken>=0.11.0",
     "email-validator>=2.0.0",
     "psutil>=7.0.0",
