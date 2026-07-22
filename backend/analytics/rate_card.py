@@ -36,10 +36,10 @@ class Rate:
 #: is NOT required — lookup picks the longest matching key.
 MODEL_RATE_CARD: dict[str, Rate] = {
     # --- Gemini ---
-    # NOTE: the 3.x rates are APPROXIMATE — confirm against official Gemini 3.x
-    # pricing and update. Historical ids retained for costing past BigQuery rows.
-    "gemini-3.5-flash-lite": Rate(0.0001, 0.0004),  # platform default — APPROXIMATE
-    "gemini-3.6-flash": Rate(0.00035, 0.0014),  # advanced tier — APPROXIMATE
+    # Gemini 3.x rates confirmed 2026-07-22 (Vertex list price, USD per 1k).
+    # Historical ids retained below for costing past BigQuery rows.
+    "gemini-3.5-flash-lite": Rate(0.0003, 0.0025),  # platform default ($0.30 / $2.50 per 1M)
+    "gemini-3.6-flash": Rate(0.0015, 0.0075),  # advanced tier ($1.50 / $7.50 per 1M)
     "gemini-2.5-flash": Rate(0.0003, 0.0012),
     "gemini-3-flash": Rate(0.0003, 0.0012),
     "gemini-3.5-flash": Rate(0.00035, 0.0014),
