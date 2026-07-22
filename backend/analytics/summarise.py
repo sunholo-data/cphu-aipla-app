@@ -39,6 +39,7 @@ from analytics.auth import (
     assert_caller_owns,
     resolve_caller_group_codes,
 )
+from config.models import fast_model
 from db.bigquery import CHAT_TURN_TABLE, run_query, table_ref
 from db.classes import get_class
 
@@ -62,7 +63,7 @@ DEFAULT_SAMPLE_SIZE = 50
 #: Model — same tier as the analytics-chat skill itself, kept in this
 #: file rather than imported from the SKILL.md to avoid a circular
 #: load. Update both if the skill model changes.
-_SUMMARISE_MODEL = "gemini-2.5-flash"
+_SUMMARISE_MODEL = fast_model()
 
 
 def _sample_turns_sql(*, has_topic: bool) -> str:

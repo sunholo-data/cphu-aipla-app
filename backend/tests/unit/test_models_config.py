@@ -5,7 +5,7 @@ from __future__ import annotations
 import pytest
 
 # These imports will fail until models.py is implemented — that's the TDD red state.
-from config.models import ModelEntry, ModelsConfig, load_models_config
+from config.models import ModelEntry, ModelsConfig, default_model, fast_model, load_models_config
 
 
 class TestLoadModelsConfig:
@@ -57,6 +57,24 @@ class TestLoadModelsConfig:
         cfg = load_models_config()
         for m in cfg.models:
             assert m.context_window > 0, f"model {m.id!r} has non-positive context_window"
+
+
+class TestModelAccessors:
+    def test_fast_model_is_a_registry_api_name(self):
+        cfg = load_models_config()
+        api_names = {m.api_name for m in cfg.models}
+        assert fast_model() in api_names
+
+    def test_fast_model_is_google_fast_tier(self):
+        cfg = load_models_config()
+        entry = next(m for m in cfg.models if m.api_name == fast_model())
+        assert entry.provider == "google"
+        assert entry.tier == "fast"
+
+    def test_fast_model_is_distinct_from_the_premium_default(self):
+        # The analytics sub-tasks (rubric-judge fallback, session summary) route
+        # through fast_model() precisely so they DON'T ride the premium default.
+        assert fast_model() != default_model()
 
 
 class TestModelEntry:

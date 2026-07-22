@@ -80,6 +80,21 @@ def default_model() -> str:
     return entry.api_name if entry else cfg.platform_default
 
 
+def fast_model() -> str:
+    """API name of the cheap / high-volume Google model (registry ``fast`` tier).
+
+    Used for analytics sub-tasks — the rubric judge fallback and the session-summary
+    model — where cost and latency matter more than peak capability. Registry-sourced
+    (currently ``gemini-2.5-flash``) so a deprecation moves every call site at once,
+    instead of the hardcoded strings that would silently point at a dead model. This
+    is deliberately NOT ``default_model()`` (the premium ``gemini-3.5-flash``); the
+    analytics sub-tasks want the fast tier.
+    """
+    cfg = load_models_config()
+    entry = next((m for m in cfg.models if m.provider == "google" and m.tier == "fast"), None)
+    return entry.api_name if entry else default_model()
+
+
 def model_api_names() -> set[str]:
     """Every curated model's api_name — the allow-list for "is this a model we
     support". Use to validate a caller-chosen model instead of hardcoding."""

@@ -319,11 +319,17 @@ hardcode `"gemini-2.5-flash"` (the model `models.yaml` flags as going away) and
 `voice/providers/gcp_tts.py:67` hardcodes the TTS model. Worse, model→price maps
 live in **two** independent tables (`observability/llm_metrics.py:31` and
 `analytics/rate_card.py:39`) while the curated `config/models.yaml` carries *no*
-pricing — so retiring or repricing a model means editing 5 files. Add a `pricing`
-field to `models.yaml`, delete both hardcoded price tables in favour of a registry
-lookup, and route judge/summarise/TTS model selection through `default_model()`.
-Region appears as 3 different literals across code/build/scripts — fold into one
-`session_region()`/`model_region()` helper.
+pricing — so retiring or repricing a model means editing 5 files. ✅ **Model routing shipped 2026-07-22:** added `fast_model()` (registry `fast`-tier
+Google model) and routed `_SUMMARISE_MODEL` + `_DEFAULT_JUDGE_MODEL` through it.
+**Correction to this audit:** routing them through `default_model()` (as first
+written here) would have been a *behaviour change* — `default_model()` is the
+premium `gemini-3.5-flash`, but these sub-tasks deliberately use the cheap
+`gemini-2.5-flash` fast tier. `fast_model()` resolves to the same `gemini-2.5-flash`
+today (zero behaviour change) while making it deprecation-safe. The TTS model
+(`gemini-2.5-flash-tts`) is *not* in the registry (no TTS entry) and already has an
+env override, so it's left as-is. **Still open:** add a `pricing` field to
+`models.yaml` and delete the two hardcoded price tables; fold the 3 region literals
+into one `session_region()`/`model_region()` helper.
 
 **P2.3 — Right-size the "4 provider tiers" story.** *(S doc / M code, Low)*
 Only cloud-Gemini is wired: the Claude/OpenAI branches in `adk/agent.py:resolve_model`

@@ -34,7 +34,7 @@ from typing import Any
 
 from pydantic import BaseModel, ConfigDict, Field
 
-from config.models import default_model, provider_for_api_name
+from config.models import default_model, fast_model, provider_for_api_name
 from db.firestore import get_document, query_documents, set_document
 from reports.session_summary import SessionSummary, SessionTurn
 
@@ -46,8 +46,9 @@ _ANCHOR_COLLECTION = "rubric_anchor_packs"
 #: code lenses below — a new framework is a new doc here, not a code change.
 _RUBRIC_DEFS_COLLECTION = "rubric_defs"
 
-#: Default judge model for a researcher rubric that doesn't pin one.
-_DEFAULT_JUDGE_MODEL = "gemini-2.5-flash"
+#: Default judge model for a researcher rubric that doesn't pin one. Registry-sourced
+#: (fast tier) so it can't silently point at a deprecated model — see fast_model().
+_DEFAULT_JUDGE_MODEL = fast_model()
 
 #: Anchor-pack floor (Docktor's calibration finding): fewer than this and the
 #: lens abstains. The CLI's ``rubric anchors validate`` lints the same bound.
