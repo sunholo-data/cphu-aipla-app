@@ -22,7 +22,7 @@ TEACHER_UID = "teacher-42"
 
 
 def _teacher_user(group_id: str = "") -> User:
-    return User(uid=TEACHER_UID, email="t@school.dk", group_id=group_id)
+    return User(uid=TEACHER_UID, email="t@school.dk", group_id=group_id, is_teacher=not group_id)
 
 
 def _client(group_id: str = "") -> TestClient:

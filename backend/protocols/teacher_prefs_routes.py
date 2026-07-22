@@ -10,20 +10,16 @@ from __future__ import annotations
 import logging
 from typing import Any, Literal
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends
 from pydantic import BaseModel, ConfigDict, Field
 
 from auth.firebase_auth import User, get_current_user
+from auth.guards import assert_teacher
 from db.teacher_prefs import get_teacher_prefs, merge_teacher_prefs
 
 log = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/api/teacher", tags=["teacher-prefs"])
-
-
-def _assert_teacher(user: User) -> None:
-    if user.group_id or user.auth_mode == "anonymous_group_id":
-        raise HTTPException(status_code=403, detail="teacher account required")
 
 
 class TeacherPrefsUpdate(BaseModel):
@@ -39,7 +35,7 @@ class TeacherPrefsUpdate(BaseModel):
 @router.get("/prefs")
 async def get_prefs(user: User = Depends(get_current_user)) -> dict[str, Any]:  # noqa: B008
     """The caller's account defaults (``{}`` when unset)."""
-    _assert_teacher(user)
+    assert_teacher(user, detail="teacher account required")
     return get_teacher_prefs(user.uid)
 
 
@@ -49,7 +45,7 @@ async def put_prefs(
     user: User = Depends(get_current_user),  # noqa: B008
 ) -> dict[str, Any]:
     """Partial-merge the caller's account defaults; returns the merged doc."""
-    _assert_teacher(user)
+    assert_teacher(user, detail="teacher account required")
     updates = body.model_dump(exclude_unset=True, by_alias=True)
     merged = merge_teacher_prefs(user.uid, updates)
     log.info("teacher-prefs: %s updated %s", user.uid, sorted(updates))

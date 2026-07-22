@@ -73,7 +73,11 @@ def _client(group_id=None):
     app.include_router(router)
 
     async def _override(request: Request) -> User:
-        u = User(uid=TEACHER, email="t@x.dk", group_id=group_id) if group_id else User(uid=TEACHER, email="t@x.dk")
+        u = (
+            User(uid=TEACHER, email="t@x.dk", group_id=group_id)
+            if group_id
+            else User(uid=TEACHER, email="t@x.dk", is_teacher=True)
+        )
         request.state.access = build_access_context(u)
         return u
 

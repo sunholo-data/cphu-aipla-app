@@ -237,10 +237,16 @@ helpers** — they're correctly separate; make the *choice* safe instead.
 
 **P1.2 — Dual-auth, backend: collapse the three teacher gates + add `assert_student`.** *(M, Med — pairs with P3 B1)*
 Finish June's B2 properly: make `auth/guards.py::assert_teacher` the *only* teacher
-gate — delete `curriculum_routes.py`'s 11 inline copies (which use a *different*
-predicate) and `teacher_prefs_routes.py`'s third private copy, and where it's the
-first line of every handler (e.g. `classes_routes.py` ×15) promote it to a
-router-level `Depends(...)` so it's declared once. Add the missing `assert_student`
+gate. ✅ **Shipped 2026-07-22:** converted **10 of curriculum's 11** `group_id`
+checks to `assert_teacher(user, detail=…)` (the 11th — `GET /{doc_id}/content` L551 —
+is a genuine **dual-audience branch**, not a teacher-gate; audit had over-counted)
+and removed `teacher_prefs_routes.py`'s divergent copy. Note the migration hazard
+found: the divergent predicates were `not group_id`, but `assert_teacher` requires
+`is_teacher=True`; real Firebase teachers always carry it (`_user_from_decoded_token`),
+so production behaviour is unchanged, but **test fixtures that built teachers as
+`User(uid=…)` without `is_teacher=True` had to be updated**. 97 tests green.
+Still open: promote to a router-level `Depends(...)` where it's the first line of
+every handler (e.g. `classes_routes.py` ×15). Add the missing `assert_student`
 / `require_group` helper (the check `if not user.group_id: raise 404` is copy-pasted
 9× in `group_routes.py` with no shared helper), extract a `mark_researcher_bypass(span)`
 helper (the researcher-bypass telemetry block is verbatim 4×), and register one

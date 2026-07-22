@@ -31,6 +31,7 @@ from pydantic import BaseModel, ConfigDict, Field
 
 from adk.teacher_focus import resolve_active_config
 from auth import User, get_current_user
+from auth.guards import assert_teacher
 from db.curriculum import (
     create_curriculum_doc,
     create_curriculum_folder,
@@ -113,8 +114,7 @@ async def browse_curriculum(
     FastAPI validates ``level``/``scope`` against their Literals → 422 on bad input.
     ``tags`` (repeatable) is an AND facet; ``topic`` is a free-text search.
     Paginated via ``limit`` (≤200) / ``offset``; ``total`` is the full match count."""
-    if getattr(user, "group_id", None):
-        raise HTTPException(status_code=403, detail="Curriculum browse is teacher-only.")
+    assert_teacher(user, detail="Curriculum browse is teacher-only.")
     docs = list_curriculum_for_teacher(
         user.uid, level=level, topic=topic, tags=tags, subject=subject, folder_id=folder, scope=scope
     )
@@ -136,8 +136,7 @@ async def curriculum_facets(
     can see — populates the facet chips (1.1.58 M1/M2). Computed from the same
     ACL-scoped set as browse, so it can never surface a value the teacher isn't
     allowed to see."""
-    if getattr(user, "group_id", None):
-        raise HTTPException(status_code=403, detail="Curriculum facets are teacher-only.")
+    assert_teacher(user, detail="Curriculum facets are teacher-only.")
     return {
         "tags": distinct_tags_for_teacher(user.uid, scope=scope),
         "subjects": distinct_subjects_for_teacher(user.uid, scope=scope),
@@ -151,8 +150,7 @@ async def list_curriculum_folders(
 ) -> dict[str, Any]:
     """List the folders a teacher can see (shared + own), each with a live
     ``docCount`` (1.1.58 M3). Teacher-only; ACL-scoped like the docs."""
-    if getattr(user, "group_id", None):
-        raise HTTPException(status_code=403, detail="Curriculum folders are teacher-only.")
+    assert_teacher(user, detail="Curriculum folders are teacher-only.")
     folders = list_curriculum_folders_for_teacher(user.uid, scope=scope)
     return {"folders": [f.model_dump(by_alias=True, mode="json") for f in folders]}
 
@@ -173,8 +171,7 @@ async def create_curriculum_folder_route(
 ) -> dict[str, Any]:
     """Create a flat folder (1.1.58 M3). Owner scope = SHARED (if ``shared``) or
     the caller's uid. Teacher-only."""
-    if getattr(user, "group_id", None):
-        raise HTTPException(status_code=403, detail="Curriculum folders are teacher-only.")
+    assert_teacher(user, detail="Curriculum folders are teacher-only.")
     folder = CurriculumFolder(
         folderId=str(uuid.uuid4()),
         name=body.name.strip(),
@@ -196,8 +193,7 @@ async def delete_curriculum_folder_route(
     ACL mirrors doc delete: own folders or any **shared** folder (the shared
     library is teacher-curated). Missing + not-yours both return 404. The docs
     aren't deleted — they're moved to "Unfiled"."""
-    if getattr(user, "group_id", None):
-        raise HTTPException(status_code=403, detail="Curriculum folders are teacher-only.")
+    assert_teacher(user, detail="Curriculum folders are teacher-only.")
     folder = get_curriculum_folder(folder_id)
     if folder is None or folder.owner_scope not in (SHARED_SCOPE, user.uid):
         raise HTTPException(status_code=404, detail="Folder not found.")
@@ -236,8 +232,7 @@ async def patch_curriculum_doc(
     **shared**-corpus doc (the shared library is teacher-curated). Missing +
     not-yours both return 404 (no existence leak, ids are random UUIDs).
     """
-    if getattr(user, "group_id", None):
-        raise HTTPException(status_code=403, detail="Curriculum edit is teacher-only.")
+    assert_teacher(user, detail="Curriculum edit is teacher-only.")
 
     doc = get_curriculum_doc(doc_id)
     if doc is None or doc.owner_scope not in (SHARED_SCOPE, user.uid):
@@ -344,8 +339,7 @@ async def ingest_curriculum(
     Shared corpus ingestion requires ``copyright_status=cleared`` — the endpoint
     refuses ``pending`` to prevent accidental clearance-bypass.
     """
-    if getattr(user, "group_id", None):
-        raise HTTPException(status_code=403, detail="Curriculum ingest is teacher-only.")
+    assert_teacher(user, detail="Curriculum ingest is teacher-only.")
 
     if shared and copyright_status != "cleared":
         raise HTTPException(
@@ -449,8 +443,7 @@ async def summarize_curriculum(
     unless ``force=true``, and docs with no stored parsed content (nothing to
     summarise). Returns the doc ids updated + skipped.
     """
-    if getattr(user, "group_id", None):
-        raise HTTPException(status_code=403, detail="Curriculum summarize is teacher-only.")
+    assert_teacher(user, detail="Curriculum summarize is teacher-only.")
 
     if body.doc_id:
         doc = get_curriculum_doc(body.doc_id)
@@ -504,8 +497,7 @@ async def delete_curriculum(
     the Firestore metadata is the source of truth for what's visible, so an
     orphaned RagFile is harmless. Idempotent-ish: a missing doc returns 404.
     """
-    if getattr(user, "group_id", None):
-        raise HTTPException(status_code=403, detail="Curriculum delete is teacher-only.")
+    assert_teacher(user, detail="Curriculum delete is teacher-only.")
 
     doc = get_curriculum_doc(doc_id)
     if doc is None:
@@ -600,8 +592,7 @@ async def query_curriculum(
     Returns the matching chunks plus the in-scope docs for provenance. Degrades
     gracefully to an empty result + a note when no corpus / no ingested docs.
     """
-    if getattr(user, "group_id", None):
-        raise HTTPException(status_code=403, detail="Curriculum query is teacher-only.")
+    assert_teacher(user, detail="Curriculum query is teacher-only.")
 
     docs = list_curriculum_for_teacher(user.uid, level=body.level, topic=body.topic, scope=body.scope)
     ingested = [d for d in docs if d.doc_artifact_id]

@@ -37,11 +37,11 @@ def _client(user: User) -> TestClient:
 
 
 def test_unset_prefs_read_as_empty():
-    assert _client(User(uid="t-1")).get("/api/teacher/prefs").json() == {}
+    assert _client(User(uid="t-1", is_teacher=True)).get("/api/teacher/prefs").json() == {}
 
 
 def test_put_partial_merges_and_round_trips():
-    c = _client(User(uid="t-1"))
+    c = _client(User(uid="t-1", is_teacher=True))
     assert c.put("/api/teacher/prefs", json={"defaultLanguage": "en"}).status_code == 200
     c.put("/api/teacher/prefs", json={"defaultPersonaId": "astrid"})
     body = c.get("/api/teacher/prefs").json()
@@ -54,19 +54,19 @@ def test_put_partial_merges_and_round_trips():
 
 
 def test_features_opt_in_round_trips():
-    c = _client(User(uid="t-1"))
+    c = _client(User(uid="t-1", is_teacher=True))
     c.put("/api/teacher/prefs", json={"features": {"authoringCopilot": True}})
     assert c.get("/api/teacher/prefs").json()["features"] == {"authoringCopilot": True}
 
 
 def test_validation_unknown_field_and_bad_language_422():
-    c = _client(User(uid="t-1"))
+    c = _client(User(uid="t-1", is_teacher=True))
     assert c.put("/api/teacher/prefs", json={"bogus": 1}).status_code == 422
     assert c.put("/api/teacher/prefs", json={"defaultLanguage": "fr"}).status_code == 422
 
 
 def test_prefs_are_per_uid():
-    a, b = _client(User(uid="t-a")), _client(User(uid="t-b"))
+    a, b = _client(User(uid="t-a", is_teacher=True)), _client(User(uid="t-b", is_teacher=True))
     a.put("/api/teacher/prefs", json={"defaultLanguage": "en"})
     assert b.get("/api/teacher/prefs").json() == {}
 

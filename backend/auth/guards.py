@@ -11,9 +11,15 @@ from fastapi import HTTPException
 from auth.firebase_auth import User
 
 
-def assert_teacher(user: User) -> None:
+def assert_teacher(user: User, detail: str = "teacher access required") -> None:
     """Reject non-teacher callers. Anonymous-group students hit this gate when
     they try to call a teacher-only endpoint (``/api/classes/*``,
-    ``/api/activities/*``, insights, analytics, …)."""
+    ``/api/activities/*``, ``/api/curriculum/*``, insights, analytics, …).
+
+    ``detail`` lets a caller keep an endpoint-specific 403 message while sharing
+    the one canonical predicate (``not user.is_teacher``). Real Firebase teachers
+    always carry ``is_teacher=True`` (see ``_user_from_decoded_token``); students
+    carry a group JWT with ``is_teacher=False``.
+    """
     if not user.is_teacher:
-        raise HTTPException(status_code=403, detail="teacher access required")
+        raise HTTPException(status_code=403, detail=detail)
