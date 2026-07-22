@@ -352,6 +352,24 @@ When adding a new workflow, add it to `scripts/` and the root `Makefile` in the 
 > commits before noticing CI was red because it relied on the fast
 > variants.
 
+## Footguns & their guards
+
+The bugs this repo has shipped repeatedly. Each row says whether a machine catches
+it (**enforced**) or you must remember (**manual**). The handover goal is to drive
+every row to *enforced* — see `docs/design/aipla/v1.1.0-feedback/handover-maintainability-audit.md` (P1).
+
+| Footgun | Symptom | Guard | Status |
+|---|---|---|---|
+| **Dual-auth wrong token (frontend)** | student calls a teacher-auth helper → 401 | pick `fetchWithAuth` (student/group) vs `fetchWithTeacherAuth` (Firebase) by surface; dual-audience endpoints let the caller pick | **manual** (eslint `no-restricted-imports` guard is P1.1) |
+| **Dual-auth teacher gate (backend)** | divergent "is this a teacher?" predicates | one `auth.guards.assert_teacher` (predicate `not user.is_teacher`); students carry a group JWT | **partly enforced** — curriculum + teacher_prefs migrated (2026-07-22); `test_dual_auth_rejection` nets it |
+| **Seed after SKILL.md change** | "works in tests, deployed app shows old skill data" | `make seed ENV=dev` after any template change + deploy | **manual** (CI `seed-reminder` warns; auto-seed job is P1.3) |
+| **Trust card dropped** | tutor gets element state but student sees no "shared with AI" card | `scripts/audit-trust-cards.sh` | **manual** (CI-blocking gate is P1.4) |
+| **Full-overwrite activity POST** | partial payload silently wipes activity data | send the COMPLETE element+sim payload; `useActivityBuilder.elementPayload()` | **partly enforced** — `useActivityBuilder.test.ts` nets the FE; backend twin is P1.5 |
+| **CLI installs a stale build** | new `aiplatform` commands missing | `make cli-install` bakes in `--no-cache` | **enforced** |
+| **CLAUDE.md names a missing skill** | agent told to load a skill that doesn't exist | `scripts/check-skill-catalogue.sh` | **enforced** (CI `local-mode-safety` job) |
+
+Full history + fixes for the dual-auth one: memory `feedback-anonymous-users-are-corner-case`.
+
 ## Git Policy
 
 - Push with `sunholo-voight-kampff` account (now an `Aitana-Labs` org member)
