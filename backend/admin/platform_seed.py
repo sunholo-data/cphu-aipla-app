@@ -416,3 +416,67 @@ def prune(templates_root: Path | None = None, *, dry_run: bool = True) -> dict[s
             logger.info("platform_seed.prune: deleted %s (id=%s)", name, skill_id)
         pruned.append(name)
     return {"pruned": pruned, "kept": kept, "templates_on_disk": sorted(on_disk)}
+
+
+def main(argv: list[str] | None = None) -> int:
+    """CLI entrypoint for the post-deploy seed Cloud Run job (P1.3).
+
+    Runs :func:`seed` in-process, writing to Firestore via ADC as the
+    job's runtime SA — no HTTP call and no ID-token mint, so it sidesteps
+    the Cloud Build token-mint 403 that forced ``make seed`` to be a
+    manual post-deploy step (the repo's #1 operational footgun; see
+    docs/design/aipla/v1.1.0-feedback/handover-maintainability-audit.md P1.3).
+
+    Deliberately calls the same ``seed()`` the HTTP handler calls, so the
+    automated (job) and manual (curl) paths cannot drift.
+
+    Exit codes:
+      0  seed ran; every template seeded (created/updated/skipped)
+      1  seed ran but ≥1 template failed — the build should go red
+      2  refused to run (LOCAL_MODE set → would durably seed nothing)
+    """
+    import json
+    import sys
+
+    logging.basicConfig(level=logging.INFO)
+
+    # Guard the silent-no-op footgun. Seeding an InMemoryFirestoreClient
+    # (LOCAL_MODE) writes nothing durable; a job accidentally launched
+    # with LOCAL_MODE set would exit 0 having seeded nothing — strictly
+    # worse than failing loudly, because it looks like success.
+    if os.environ.get("LOCAL_MODE", "").strip().lower() in {"1", "true", "yes"}:
+        logger.error(
+            "platform_seed: refusing to run the seed job with LOCAL_MODE set — "
+            "it would write to the in-memory client and durably seed nothing."
+        )
+        return 2
+
+    # Log the owner namespace so a wrong-owner misconfig (the template
+    # default is 'aitana-platform'; AIPLA must seed under 'aipla-platform')
+    # is visible in the job logs, not a silent duplicate-rows bug.
+    logger.info(
+        "platform_seed: seeding platform skills under owner_id=%s (email=%s)",
+        PLATFORM_OWNER_UID,
+        PLATFORM_OWNER_EMAIL,
+    )
+    summary = seed()
+    json.dump(summary.as_dict(), sys.stdout, indent=2)
+    sys.stdout.write("\n")
+    if summary.failed:
+        logger.error(
+            "platform_seed: %d template(s) failed to seed: %s",
+            len(summary.failed),
+            summary.failed,
+        )
+        return 1
+    logger.info(
+        "platform_seed: done — created=%d updated=%d skipped=%d",
+        summary.created,
+        summary.updated,
+        summary.skipped,
+    )
+    return 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())

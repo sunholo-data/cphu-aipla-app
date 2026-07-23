@@ -372,18 +372,37 @@ steps:
         done
         exit $${fail}
 
-  # The deploy-time `seed-platform-skills` + `upsert-demo-codes` steps
-  # were REMOVED 2026-05-26 after every variant tried to mint a usable
-  # ID token from inside the Cloud Build container failed with the same
-  # opaque shape (metadata-server endpoints return "please provide a
-  # user-specified service account"; `gcloud iam service-accounts
-  # generate-id-token` returned empty in this trigger config). The
-  # trigger's user-managed SA wiring isn't fully set up on AIPLA dev,
-  # and resolving it correctly requires the Terraform module per
-  # SEQUENCE 1.1.
-  #
-  # Until then, ops runs the equivalent commands manually post-deploy
-  # — see docs/design/aipla/v1.0.0-pilot/aipla-cloud-bootstrap.md
-  # §Manual seed runbook (one-time per env). Codes minted that way
-  # persist in Firestore for their TTL, so this is a low-friction
-  # bridge despite the inconvenience.
+  # --- Post-deploy seed: SKILL.md templates -> Firestore (P1.3) ---
+  # A code deploy does NOT propagate SKILL.md changes to Firestore for
+  # already-registered skills. This used to be a MANUAL `make seed` step (the
+  # repo's #1 operational footgun) because minting an ID token to call the
+  # admin endpoint from inside Cloud Build 403'd (history below). Fixed by
+  # seeding as a Cloud Run JOB that runs AS the runtime SA
+  # (${_ADMIN_SEED_ALLOWED_SAS} = aipla-v6@) and writes Firestore DIRECTLY via
+  # ADC — no HTTP, no token mint. The build already deploys the SERVICE as this
+  # SA (needs run.admin + actAs on it), so the same identity creates + runs the
+  # job with NO new IAM grant. deploy-seed-job.sh re-resolves the freshly-built
+  # backend:${BRANCH_NAME} digest (jobs execute alone runs a stale digest) then
+  # runs `python -m admin.platform_seed`, which exits non-zero on any failed
+  # template — so a bad seed fails the build instead of silently shipping stale
+  # skill data.
+  - name: 'gcr.io/google.com/cloudsdktool/cloud-sdk'
+    id: seed-platform-skills
+    entrypoint: bash
+    args:
+      - 'scripts/deploy-seed-job.sh'
+      - '--project=${_PROJECT_ID}'
+      - '--region=${_REGION}'
+      - '--sa=${_ADMIN_SEED_ALLOWED_SAS}'
+      - '--image=${_ARTIFACT_REGISTRY_REPO_URL_CLIENT}/${_SERVICE_NAME}/backend:${BRANCH_NAME}'
+      - '--execute'
+
+  # History: the deploy-time seed + upsert-demo-codes steps were removed
+  # 2026-05-26 after every attempt to mint a usable ID token from inside Cloud
+  # Build failed (metadata endpoints returned "please provide a user-specified
+  # service account"; generate-id-token returned empty; the trigger's
+  # user-managed SA wiring wasn't set up). The Cloud Run job above sidesteps
+  # that entirely by writing Firestore directly. Demo join-codes are still
+  # minted manually (make seed-demo-codes) — that path still uses the HTTP
+  # endpoint; folding it into a job is a follow-on. See
+  # docs/design/aipla/v1.0.0-pilot/aipla-cloud-bootstrap.md §Manual seed.

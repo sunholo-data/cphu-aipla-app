@@ -195,7 +195,8 @@ Same GCP projects as v5, but v6 runs as **new parallel Cloud Run services** so v
 - **SA for Cloud Run**: `aitana-v6@{project_id}.iam.gserviceaccount.com`
 - **CI gate**: `.github/workflows/ci.yml` — lint + test-fast on PR and push to `dev`.
 - **Post-deploy smoke**: both `cloudbuild.yaml` pipelines end with a smoke step that curls critical endpoints and fails the build on any non-200. Run the same checks from a laptop with `./scripts/smoke-deployed.sh [dev|test|prod] [all|frontend|backend]`. Live service URLs are recorded in [docs/ops/deployed-urls.md](docs/ops/deployed-urls.md).
-- **⚠ Manual seed after any SKILL.md template change** (avatar, `multimodalInput`, persona, tools, accessControl, instructions): a code deploy does **NOT** propagate `backend/skills/templates/**/SKILL.md` → Firestore for already-registered skills (the seed token-mint can't run inside Cloud Build — 403, see `cloudbuild.yaml` ~L259). Run **`make seed ENV=dev`** (= `scripts/seed-platform-skills.sh dev`) after the deploy completes. The CI `seed-reminder` job emits a warning when a template changed on push, so this doesn't get forgotten (it has been, repeatedly). Symptom of a missed seed: "shipped feature works in tests but the deployed app shows the old skill data."
+- **Auto-seed on deploy (P1.3, since 2026-07-23):** the Cloud Build pipeline now seeds `backend/skills/templates/**/SKILL.md` → Firestore automatically, as its last step, via the **`aipla-seed-skills` Cloud Run job** (`scripts/deploy-seed-job.sh`, invoked from `cloudbuild.yaml`). The job runs **as the runtime SA (`aipla-v6@`)** and writes Firestore directly through ADC — no HTTP, no ID-token mint — so it sidesteps the old Cloud-Build 403 that made this a manual step. It runs `python -m admin.platform_seed`, which **exits non-zero on any failed template, failing the build** (a bad seed can no longer silently ship). No new IAM: the build already deploys the *service* as `aipla-v6@` (needs `run.admin` + `actAs`), which suffices to create + run the job. **First-deploy caveat:** the very first `dev` build after this merges will create the job; if that build's seed step fails, run `make seed-job ENV=dev` locally to diagnose. The `seed-reminder` CI job's warning is now belt-and-braces.
+- **Seed WITHOUT a deploy (manual):** to push a template change live before the next build, `make seed ENV=dev` (= `scripts/seed-platform-skills.sh dev`, the HTTP path) still works. Symptom of a stale seed: "shipped feature works in tests but the deployed app shows the old skill data."
 
 ## Key Differences from v5
 
@@ -329,7 +330,7 @@ Any local workflow that requires more than one manual step — setting env vars,
 | Task | Command |
 |------|---------|
 | Start local dev servers | `make dev` |
-| **Seed SKILL.md templates → Firestore (after ANY template change + deploy)** | `make seed ENV=dev` |
+| **Seed SKILL.md templates → Firestore** — *automatic on deploy since P1.3* (Cloud Build runs the `aipla-seed-skills` job) | `make seed-job ENV=dev` (job path, same as CI) · `make seed ENV=dev` (HTTP path, seed without a deploy) |
 | **(Re)assert demo student join codes (e.g. `aipla-demo-1`) — manual, like seed; demo codes lapse on TTL/clean-slate** | `make seed-demo-codes ENV=dev` |
 | Smoke-test proxy bridge | `make proxy-check` |
 | Verify chat-log pipeline e2e (join → turn → BigQuery) | `make verify-chat-logs GROUP=<code> ENV=<env>` |
@@ -363,7 +364,7 @@ every row to *enforced* — see `docs/design/aipla/v1.1.0-feedback/handover-main
 |---|---|---|---|
 | **Dual-auth wrong token (frontend)** | student calls a teacher-auth helper → 401 | pick `fetchWithAuth` (student/group) vs `fetchWithTeacherAuth` (Firebase) by surface; dual-audience endpoints let the caller pick | **partly enforced** — eslint `no-restricted-imports` (`frontend/.eslintrc.json`) fences teacher (`app/teacher`, `components/teacher`) and student (`app/lessons`, `app/chat`, `components/{workspace,chat,doc-browser,protocols}`) surface dirs against the wrong helper (P1.1 Step 1); the role-typed `api.student.*`/`api.teacher.*` client (Step 2) is the remaining follow-on |
 | **Dual-auth teacher gate (backend)** | divergent "is this a teacher?" predicates | one `auth.guards.assert_teacher` (predicate `not user.is_teacher`); students carry a group JWT | **partly enforced** — curriculum + teacher_prefs migrated (2026-07-22); `test_dual_auth_rejection` nets it |
-| **Seed after SKILL.md change** | "works in tests, deployed app shows old skill data" | `make seed ENV=dev` after any template change + deploy | **manual** (CI `seed-reminder` warns; auto-seed job is P1.3) |
+| **Seed after SKILL.md change** | "works in tests, deployed app shows old skill data" | Cloud Build post-deploy `aipla-seed-skills` job (`scripts/deploy-seed-job.sh`); `make seed`/`make seed-job` for no-deploy seeds | **enforced** — Cloud Build seeds every deploy and a failed seed reds the build (P1.3); pending first-deploy verification |
 | **Trust card dropped** | tutor gets element state but student sees no "shared with AI" card | `scripts/audit-trust-cards.sh` (`make audit-trust-cards`) | **enforced** (CI `local-mode-safety` job, P1.4) |
 | **Full-overwrite activity POST** | partial payload silently wipes activity data | send the COMPLETE element+sim payload; `useActivityBuilder.elementPayload()` | **partly enforced** — `useActivityBuilder.test.ts` nets the FE; backend twin is P1.5 |
 | **CLI installs a stale build** | new `aiplatform` commands missing | `make cli-install` bakes in `--no-cache` | **enforced** |

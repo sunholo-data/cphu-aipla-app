@@ -1,14 +1,24 @@
-.PHONY: dev dev-local dev-recompile dev-status dev-stop proxy-check logs cloud-logs cloud-errors cloud-build verify-chat-logs smoke-session-persistence smoke-chat-resume smoke-curriculum-content smoke-teacher-cli help cli-install cli-reinstall cli-uninstall cli-doctor cli-selftest-mock cli-selftest-live cli-selftest seed seed-demo-codes reset-group-state provision-curriculum-rag seed-curriculum backfill-curriculum-content migrate-clear-persona-voice-override docs-linkcheck check-skills sim-build sim-build-check guides guides-publish guide-screens seed-guide-corpus guide-staleness
+.PHONY: dev dev-local dev-recompile dev-status dev-stop proxy-check logs cloud-logs cloud-errors cloud-build verify-chat-logs smoke-session-persistence smoke-chat-resume smoke-curriculum-content smoke-teacher-cli help cli-install cli-reinstall cli-uninstall cli-doctor cli-selftest-mock cli-selftest-live cli-selftest seed seed-job seed-demo-codes reset-group-state provision-curriculum-rag seed-curriculum backfill-curriculum-content migrate-clear-persona-voice-override docs-linkcheck check-skills sim-build sim-build-check guides guides-publish guide-screens seed-guide-corpus guide-staleness
 
-# Seed SKILL.md templates -> Firestore after a deploy that changed any template
-# (avatar, multimodalInput, persona, tools, accessControl, instructions). A code
-# deploy does NOT propagate SKILL.md -> Firestore for already-registered skills,
-# and the seed token-mint can't run inside Cloud Build (403) — so this is run
-# manually post-deploy. The CI `seed-reminder` job nudges when a template changes.
+# Seed SKILL.md templates -> Firestore. Since P1.3 the Cloud Build deploy runs
+# this automatically via the `aipla-seed-skills` Cloud Run job (see
+# `make seed-job` / cloudbuild.yaml), so a normal deploy no longer needs a
+# manual seed. This HTTP-based target remains for seeding WITHOUT a deploy
+# (e.g. a template tweak you want live before the next build) — it mints an ID
+# token and calls the admin endpoint.
 #   make seed              # dev (default)
 #   make seed ENV=test
 seed:
 	@scripts/seed-platform-skills.sh $(ENV)
+
+# P1.3 — seed via the Cloud Run JOB (runs as the aipla-v6@ runtime SA; writes
+# Firestore directly, no ID-token mint). This is the SAME path Cloud Build runs
+# post-deploy; use it to (re)create the job or seed a deployed env from a
+# laptop. Derives the backend image from the live service when --image is unset.
+#   make seed-job ENV=dev          # create/update the job + run it now
+#   make seed-job ENV=dev EXECUTE=0  # create/update only, don't run
+seed-job:
+	@scripts/deploy-seed-job.sh $(ENV) $(if $(filter 0,$(EXECUTE)),,--execute)
 
 # (Re)assert the demo student join code(s) (default aipla-demo-1, ~300d TTL)
 # against a deployed env. Like `seed`, this is a MANUAL post-deploy step (the
@@ -345,6 +355,7 @@ help:
 	@echo
 	@echo "make security-check     — run the CI dep-security gate locally (frontend + sandbox + backend audits)"
 	@echo "make audit-trust-cards  — trust-card footgun gate: fail if a workspace element pushes to the tutor without a card (CI-gated)"
+	@echo "make seed-job           — P1.3: seed SKILL.md->Firestore via the aipla-seed-skills Cloud Run job (ENV=dev; same path Cloud Build runs post-deploy)"
 	@echo "make check-skills       — verify CLAUDE.md skill catalogue matches .claude/skills/ (CI-gated)"
 	@echo
 	@echo "make sim-build          — inline the canonical MCP App guest bridge into every artefact (edit bridge/aipla-mcp-bridge.js, then run this)"

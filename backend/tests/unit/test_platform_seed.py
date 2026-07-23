@@ -12,7 +12,7 @@ from unittest.mock import patch
 
 import pytest
 
-from admin.platform_seed import SeedSummary, _parse_template, prune, seed
+from admin.platform_seed import SeedSummary, _parse_template, main, prune, seed
 from db.models import SkillConfig
 
 
@@ -365,3 +365,37 @@ def test_parse_template_avatar_defaults_to_empty(tmp_path):
     _fake_template_dir(tmp_path, "noavatar")
     parsed = _parse_template(tmp_path / "noavatar" / "SKILL.md")
     assert parsed["avatar"] == ""
+
+
+# === main() — the P1.3 seed-job CLI entrypoint ===
+
+
+def test_main_returns_0_on_clean_seed(monkeypatch):
+    """No failed templates → exit 0 (build stays green)."""
+    monkeypatch.delenv("LOCAL_MODE", raising=False)
+    with patch(
+        "admin.platform_seed.seed",
+        return_value=SeedSummary(created=2, updated=1, skipped=0, failed=[]),
+    ) as mock_seed:
+        assert main([]) == 0
+    mock_seed.assert_called_once()
+
+
+def test_main_returns_1_when_a_template_fails(monkeypatch):
+    """A template in `failed` → exit 1 so the Cloud Run job (and the build
+    step that executes it) goes red instead of silently shipping stale data."""
+    monkeypatch.delenv("LOCAL_MODE", raising=False)
+    with patch(
+        "admin.platform_seed.seed",
+        return_value=SeedSummary(created=1, updated=0, skipped=0, failed=["broken-skill"]),
+    ):
+        assert main([]) == 1
+
+
+def test_main_refuses_to_run_under_local_mode(monkeypatch):
+    """LOCAL_MODE would seed the in-memory client (durably nothing) — refuse
+    loudly (exit 2) rather than exit 0 having seeded nothing."""
+    monkeypatch.setenv("LOCAL_MODE", "1")
+    with patch("admin.platform_seed.seed") as mock_seed:
+        assert main([]) == 2
+    mock_seed.assert_not_called()

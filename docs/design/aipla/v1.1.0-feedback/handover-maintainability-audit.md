@@ -273,6 +273,21 @@ the in-build seed was removed because the token-mint 403s inside Cloud Build —
 run it as a **post-deploy Cloud Run job** (executes as the runtime SA, which *can*
 mint), triggered by the build. Makes seed automatic; removes the most-cited
 footgun in the repo.
+✅ **Shipped 2026-07-23 (pending first-deploy verify):** implemented even simpler
+than "job mints a token to call the endpoint" — the job runs the backend image's
+`python -m admin.platform_seed` **in-process as `aipla-v6@`**, writing Firestore
+directly via ADC (no HTTP, no token at all). New: `admin.platform_seed.main()`
+(exit 1 on any failed template so the build reds; exit 2 if misrun under
+LOCAL_MODE → would seed the in-memory client and durably nothing; 3 unit tests);
+`scripts/deploy-seed-job.sh` (create/update + run the `aipla-seed-skills` job;
+re-resolves the fresh `:${BRANCH_NAME}` digest each deploy — `jobs execute` alone
+runs a stale digest); `cloudbuild.yaml` last step calls it; `make seed-job`.
+**No new IAM** (the crucial de-risk): the build already deploys the *service* as
+`aipla-v6@` (needs `run.admin` + `actAs` on it), which is exactly what creating +
+running a *job* as the same SA requires — so nothing to grant. **New GCP resource
+to record:** Cloud Run job `aipla-seed-skills` (europe-north1, per env), created
+on the first post-merge `dev` build. Footgun-table status flipped manual →
+enforced.
 
 **P1.4 — Wire the trust-card audit into CI.** *(M, Med)*
 `scripts/audit-trust-cards.sh` exists (per the `workbench-element-builder` skill)
