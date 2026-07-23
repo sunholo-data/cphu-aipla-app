@@ -43,6 +43,25 @@ export interface TemplateSolution {
   prompt: string;
 }
 
+export interface TemplateConceptQuestion {
+  prompt: string;
+  expectedAnswer: string;
+}
+
+export interface TemplateConceptNode {
+  /** Stable slug — edges + checkpoint state key on it. */
+  id: string;
+  label: string;
+  /** Prerequisite node ids (must be demonstrated first); forms the DAG. */
+  dependsOn?: string[];
+  questions?: TemplateConceptQuestion[];
+}
+
+export interface TemplateConceptMap {
+  title: string;
+  nodes: TemplateConceptNode[];
+}
+
 export interface ActivityTemplate {
   /** Stable id (for the picker key + tests). */
   id: string;
@@ -66,6 +85,10 @@ export interface ActivityTemplate {
   /** Optional document-upload element (1.1.48, JB-1) — the prompt above the
    *  student's upload surface. */
   document?: TemplateSolution;
+  /** Optional living concept map (living-concept-map M0) — a prerequisite DAG
+   *  over the activity's concepts + per-node chat-native check questions the
+   *  tutor runs as checkpoints. */
+  conceptMap?: TemplateConceptMap;
 }
 
 export const ACTIVITY_TEMPLATES: ActivityTemplate[] = [
@@ -126,6 +149,42 @@ export const ACTIVITY_TEMPLATES: ActivityTemplate[] = [
         "**Kinetisk energi:** E_kin = ½ · m · v²\n\n" +
         "**Potentiel energi:** E_pot = m · g · h\n\n" +
         "**Bevarelse:** E_kin + E_pot er konstant (uden friktion).",
+    },
+    conceptMap: {
+      title: "Energibevarelse",
+      nodes: [
+        {
+          id: "kinetisk",
+          label: "Kinetisk energi",
+          questions: [
+            {
+              prompt: "Hvad afhænger den kinetiske energi af?",
+              expectedAnswer: "massen m og farten v: E_kin = ½·m·v²",
+            },
+          ],
+        },
+        {
+          id: "potentiel",
+          label: "Potentiel energi",
+          questions: [
+            {
+              prompt: "Hvad afhænger den potentielle energi af?",
+              expectedAnswer: "massen m, tyngden g og højden h: E_pot = m·g·h",
+            },
+          ],
+        },
+        {
+          id: "bevarelse",
+          label: "Energibevarelse",
+          dependsOn: ["kinetisk", "potentiel"],
+          questions: [
+            {
+              prompt: "Hvad sker der med summen af kinetisk og potentiel energi uden friktion?",
+              expectedAnswer: "den er konstant — energien omdannes mellem formerne, men bevares",
+            },
+          ],
+        },
+      ],
     },
   },
   {
@@ -265,6 +324,47 @@ export const ACTIVITY_TEMPLATES: ActivityTemplate[] = [
         "Brug **Boldkast**-simulationen til at variere vinklen og aflæse rækkevidden.\n\n" +
         "Husk: den vandrette og den lodrette bevægelse er uafhængige.",
     },
+    conceptMap: {
+      title: "Kastebevægelse",
+      nodes: [
+        {
+          id: "vektorer",
+          label: "Vektorer",
+          questions: [
+            {
+              prompt: "Hvordan finder du den vandrette og lodrette del af starthastigheden ved 30°?",
+              expectedAnswer: "vx = v0·cos(30°), vy = v0·sin(30°) — dekomponering med cos og sin",
+            },
+          ],
+        },
+        {
+          id: "trigonometri",
+          label: "Trigonometri",
+          questions: [
+            {
+              prompt: "Hvorfor bruger vi cosinus til den vandrette komposant og sinus til den lodrette?",
+              expectedAnswer:
+                "cos giver den hosliggende (vandrette) katete, sin den modstående (lodrette) i trekanten",
+            },
+          ],
+        },
+        {
+          id: "projektilbevaegelse",
+          label: "Projektilbevægelse",
+          dependsOn: ["vektorer", "trigonometri"],
+          questions: [
+            {
+              prompt: "Hvorfor er banen en parabel — hvad sker der i x- og y-retningen hver for sig?",
+              expectedAnswer: "x: konstant hastighed; y: konstant acceleration nedad — tilsammen en parabel",
+            },
+            {
+              prompt: "Hvilken vinkel giver størst rækkevidde uden luftmodstand, og hvorfor?",
+              expectedAnswer: "45° — bedste balance mellem flyvetid (sin) og vandret fart (cos)",
+            },
+          ],
+        },
+      ],
+    },
   },
   {
     // NEW — the KineBot sim (kinematics + motion graphs). No template used it
@@ -291,6 +391,42 @@ export const ACTIVITY_TEMPLATES: ActivityTemplate[] = [
         "**Sted (s–t):** hældningen er farten.\n\n" +
         "**Fart (v–t):** hældningen er accelerationen; arealet er strækningen.\n\n" +
         "**Acceleration (a–t):** arealet er ændringen i fart.",
+    },
+    conceptMap: {
+      title: "Bevægelsesgrafer",
+      nodes: [
+        {
+          id: "fart",
+          label: "Fart",
+          questions: [
+            {
+              prompt: "Hvad fortæller hældningen på en sted-tid-graf?",
+              expectedAnswer: "farten (hastigheden) — jo stejlere kurve, jo større fart",
+            },
+          ],
+        },
+        {
+          id: "acceleration",
+          label: "Acceleration",
+          questions: [
+            {
+              prompt: "Hvad fortæller hældningen på en fart-tid-graf?",
+              expectedAnswer: "accelerationen — ændringen i fart pr. tid",
+            },
+          ],
+        },
+        {
+          id: "grafer",
+          label: "Bevægelsesgrafer",
+          dependsOn: ["fart", "acceleration"],
+          questions: [
+            {
+              prompt: "Hvordan ser fart-tid-grafen ud, når accelerationen er konstant?",
+              expectedAnswer: "en ret linje med konstant hældning",
+            },
+          ],
+        },
+      ],
     },
   },
   {

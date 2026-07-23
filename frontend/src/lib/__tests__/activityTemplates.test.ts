@@ -34,6 +34,22 @@ describe("ACTIVITY_TEMPLATES", () => {
     }
   });
 
+  it("ships at least one concept-map template, each a valid DAG over its own node ids", () => {
+    const withMap = ACTIVITY_TEMPLATES.filter((t) => t.conceptMap);
+    expect(withMap.length).toBeGreaterThan(0);
+    for (const t of withMap) {
+      const nodes = t.conceptMap!.nodes;
+      const ids = new Set(nodes.map((n) => n.id));
+      expect(ids.size, `template ${t.id} has duplicate node ids`).toBe(nodes.length);
+      for (const n of nodes) {
+        for (const dep of n.dependsOn ?? []) {
+          expect(ids.has(dep), `template ${t.id} node ${n.id} depends on unknown ${dep}`).toBe(true);
+          expect(dep, `template ${t.id} node ${n.id} depends on itself`).not.toBe(n.id);
+        }
+      }
+    }
+  });
+
   it("ships a solution-writing template with a solution editor (1.1.45 M4)", () => {
     const t = ACTIVITY_TEMPLATES.find((x) => x.id === "solution-writing");
     expect(t?.solution?.prompt).toBeTruthy();

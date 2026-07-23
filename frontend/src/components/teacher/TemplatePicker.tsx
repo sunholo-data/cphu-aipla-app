@@ -7,6 +7,7 @@ import {
   FlaskConical,
   LineChart,
   ListChecks,
+  Network,
   PenLine,
   Sparkles,
   StickyNote,
@@ -32,6 +33,7 @@ function templateFeatures(t: ActivityTemplate): { label: string; icon: LucideIco
   if (t.note) f.push({ label: "Note", icon: StickyNote });
   if (t.solution) f.push({ label: "Solution", icon: PenLine });
   if (t.document) f.push({ label: "Document", icon: FileUp });
+  if (t.conceptMap) f.push({ label: "Concept map", icon: Network });
   return f;
 }
 

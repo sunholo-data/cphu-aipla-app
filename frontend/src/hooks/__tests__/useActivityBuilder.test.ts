@@ -380,6 +380,38 @@ describe("useActivityBuilder — applyTemplate", () => {
     expect(p.document.length).toBe(1);
   });
 
+  it("fills the concept map from a template and round-trips its edges", () => {
+    const CM_TEMPLATE = {
+      ...TEMPLATE,
+      id: "tmpl-cm",
+      conceptMap: {
+        title: "Kinematics",
+        nodes: [
+          { id: "a", label: "A", questions: [{ prompt: "why A?", expectedAnswer: "because" }] },
+          { id: "b", label: "B", dependsOn: ["a"] },
+        ],
+      },
+    } as ActivityTemplate;
+    const { result } = renderHook(() => useActivityBuilder());
+    act(() => result.current.applyTemplate(CM_TEMPLATE));
+    const cm = result.current.conceptMap;
+    expect(cm?.title).toBe("Kinematics");
+    expect(cm?.nodes.map((n) => n.id)).toEqual(["a", "b"]);
+    expect(cm?.nodes[1].dependsOn).toEqual(["a"]);
+    expect(cm?.nodes[0].questions[0].expectedAnswer).toBe("because");
+    // The dependsOn projection becomes a stored prerequisite edge (from → to).
+    const p = result.current.elementPayload();
+    expect(p.conceptMap.length).toBe(1);
+    expect(p.conceptMap[0].edges).toEqual([{ from: "a", to: "b" }]);
+  });
+
+  it("clears the concept map when a template has none", () => {
+    const { result } = renderHook(() => useActivityBuilder());
+    act(() => result.current.setConceptMap({ title: "old", nodes: [] }));
+    act(() => result.current.applyTemplate(TEMPLATE)); // TEMPLATE has no conceptMap
+    expect(result.current.conceptMap).toBeNull();
+  });
+
   it("a template with sparse (null) elements clears the absent ones", () => {
     const SPARSE = {
       id: "tmpl-2",

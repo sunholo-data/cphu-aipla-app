@@ -177,7 +177,24 @@ export function useActivityBuilder(): ActivityBuilder {
     setNote(t.note ? { title: t.note.title, body: t.note.body } : null);
     setSolution(t.solution ? { prompt: t.solution.prompt } : null);
     setDocument(t.document ? { prompt: t.document.prompt } : null);
-    setConceptMap(null);
+    setConceptMap(
+      t.conceptMap
+        ? {
+            title: t.conceptMap.title,
+            nodes: t.conceptMap.nodes.map((n) => ({
+              key: nextKeyRef.current++,
+              id: n.id,
+              label: n.label,
+              dependsOn: n.dependsOn ?? [],
+              questions: (n.questions ?? []).map((q) => ({
+                key: nextKeyRef.current++,
+                prompt: q.prompt,
+                expectedAnswer: q.expectedAnswer,
+              })),
+            })),
+          }
+        : null,
+    );
     setArtefactId(t.artefactId ?? null);
     setWorkbenchType("none");
   }
