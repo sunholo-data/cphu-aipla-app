@@ -437,7 +437,56 @@ def _demo_activities(owner_uid: str, concept_skill: str) -> list[Activity]:
             )
         ],
     )
-    return [welcome, boldkast, kinebot, planck, hooke, pendul, solution, document]
+    find_error = Activity(
+        activityId="",
+        ownerUid=owner_uid,
+        skillId=concept_skill,
+        title="Find fejlen i måledata",
+        teachingGoal=(
+            "Eleven har fået et datasæt fra en tidligere gruppe (vist i noten) for en vogn, der kører "
+            "med konstant fart (ca. 0,20 m/s, så position = 0,20 · tid). ÉN måling er forkert: ved tiden "
+            "t = 3,0 s står positionen til 0,90 m, men den burde være ca. 0,60 m. AFSLØR IKKE hvilken "
+            "måling der er forkert. Bed eleven gentage forsøget selv, indtaste sine egne målinger i "
+            "tabellen og sammenligne med det udleverede datasæt. Stil spørgsmål til, hvilket punkt der "
+            "afviger, og hvad årsagen kunne være — lad eleven selv opdage og begrunde fejlen."
+        ),
+        note=[
+            NoteElement(
+                id="datasaet",
+                title="Udleveret datasæt",
+                body=(
+                    "En tidligere gruppe lod en vogn køre med konstant fart og målte positionen til "
+                    "forskellige tider:\n\n"
+                    "| Tid (s) | Position (m) |\n"
+                    "|---|---|\n"
+                    "| 1,0 | 0,20 |\n"
+                    "| 2,0 | 0,40 |\n"
+                    "| 3,0 | 0,90 |\n"
+                    "| 4,0 | 0,80 |\n"
+                    "| 5,0 | 1,00 |\n\n"
+                    "Én af målingerne ser forkert ud. Gentag forsøget selv, og find ud af hvilken."
+                ),
+            )
+        ],
+        checklist=[
+            ChecklistItem(id="gentag", label="Gentag forsøget og indtast dine egne målinger i tabellen"),
+            ChecklistItem(id="sammenlign", label="Sammenlign dine data med det udleverede datasæt"),
+            ChecklistItem(id="find", label="Find den måling der afviger, og forklar hvorfor"),
+        ],
+        table=[
+            TableElement(
+                id="maalinger",
+                title="Dine målinger",
+                rows=5,
+                columns=[
+                    TableColumn(id="tid", label="Tid", unit="s", kind="number"),
+                    TableColumn(id="position", label="Position", unit="m", kind="number"),
+                ],
+            )
+        ],
+        chart=[ChartElement(id="graf", title="Position mod tid", chart_kind="scatter")],
+    )
+    return [welcome, boldkast, kinebot, planck, hooke, pendul, solution, document, find_error]
 
 
 def seed_demo_for_teacher(owner_uid: str) -> dict | None:

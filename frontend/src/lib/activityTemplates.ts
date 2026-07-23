@@ -292,6 +292,54 @@ export const ACTIVITY_TEMPLATES: ActivityTemplate[] = [
     },
   },
   {
+    // Error-analysis lab: the handed-out dataset has ONE planted error; the
+    // student re-runs the experiment and the tutor guides them to find it. The
+    // error + its location live in `teachingGoal` (tutor-visible, student-hidden);
+    // the student sees only the data in the note. Uses the shipped note + empty
+    // table — seeded editable table cells are a future extension (offline-lab
+    // 1.1.24 adds deterministic ground-truth checking on top of this).
+    id: "measurement-error",
+    name: "Find fejlen i måledata",
+    summary: "Datatabel + graf — én måling er forkert; eleven gentager forsøget og finder fejlen.",
+    language: "da",
+    title: "Find fejlen i måledata",
+    teachingGoal:
+      "Eleven har fået et datasæt fra en tidligere gruppe (vist i noten) for en vogn, der kører med " +
+      "konstant fart (ca. 0,20 m/s, så position = 0,20 · tid). ÉN måling er forkert: ved tiden t = 3,0 s " +
+      "står positionen til 0,90 m, men den burde være ca. 0,60 m. AFSLØR IKKE hvilken måling der er " +
+      "forkert. Bed eleven gentage forsøget selv, indtaste sine egne målinger i tabellen og sammenligne " +
+      "med det udleverede datasæt. Stil spørgsmål: passer alle punkter på en ret linje? Hvilket punkt " +
+      "afviger? Hvad kunne årsagen være (aflæsningsfejl, forkert tidtagning)? Lad eleven selv opdage og " +
+      "begrunde fejlen — konkludér ikke for eleven.",
+    checklist: [
+      "Gentag forsøget og indtast dine egne målinger i tabellen",
+      "Sammenlign dine data med det udleverede datasæt",
+      "Find den måling der afviger, og forklar hvorfor",
+    ],
+    table: {
+      title: "Dine målinger",
+      columns: [
+        { label: "Tid", unit: "s", kind: "number" },
+        { label: "Position", unit: "m", kind: "number" },
+      ],
+      rows: 5,
+    },
+    chart: { title: "Position mod tid", chartKind: "scatter" },
+    note: {
+      title: "Udleveret datasæt",
+      body:
+        "En tidligere gruppe lod en vogn køre med konstant fart og målte positionen til forskellige tider:\n\n" +
+        "| Tid (s) | Position (m) |\n" +
+        "|---|---|\n" +
+        "| 1,0 | 0,20 |\n" +
+        "| 2,0 | 0,40 |\n" +
+        "| 3,0 | 0,90 |\n" +
+        "| 4,0 | 0,80 |\n" +
+        "| 5,0 | 1,00 |\n\n" +
+        "Én af målingerne ser forkert ud. Gentag forsøget selv, og find ud af hvilken.",
+    },
+  },
+  {
     // 1.1.38 → 1.1.41: projectile-motion companion to the Boldkast sim.
     id: "projectile-motion",
     name: "Kastebevægelse — den optimale vinkel",
