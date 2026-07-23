@@ -9,7 +9,7 @@ from fastapi.testclient import TestClient
 from auth import User, build_access_context, get_current_user
 from db import firestore as fs_module
 from db.classes import list_classes_for_owner
-from onboarding.demo_seed import seed_demo_for_teacher
+from onboarding.demo_seed import _demo_activities, seed_demo_for_teacher
 from protocols.teacher_bootstrap_routes import router as bootstrap_router
 
 TEACHER = "teacher-new"
@@ -38,11 +38,16 @@ def _client(uid: str = TEACHER, *, is_teacher: bool = True) -> TestClient:
     return TestClient(app)
 
 
-def test_seed_creates_demo_class_and_two_activities():
+def test_seed_creates_demo_class_with_activities():
     result = seed_demo_for_teacher(TEACHER)
     assert result is not None
     assert result["className"] == "Demo class"
-    assert len(result["activityIds"]) == 2
+    # The curated demo set (all element models validate + assign) — stays in sync
+    # with `_demo_activities` so dropping one is caught here.
+    expected = len(_demo_activities(TEACHER, "skill-x"))
+    assert expected >= 3  # a rich walk-in demo, not just the welcome activity
+    assert len(result["activityIds"]) == expected
+    assert len(set(result["activityIds"])) == expected  # no duplicate ids
     assert result["joinCode"]  # a code was minted
     classes = list_classes_for_owner(TEACHER)
     assert len(classes) == 1

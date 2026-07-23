@@ -284,8 +284,8 @@ describe("/teacher/activities/new — concept activity builder", () => {
     listClassesMock.mockResolvedValue(ONE_CLASS);
     render(<NewActivityPage />);
     await screen.findByLabelText(/activity name/i);
-    // Pick the "Beregning" (calculator) template.
-    fireEvent.click(screen.getByText("Beregning"));
+    // Pick the "Fart, tid og strækning" (calculator) template.
+    fireEvent.click(screen.getByText("Fart, tid og strækning"));
     expect((screen.getByLabelText(/activity name/i) as HTMLInputElement).value).toBe("Beregn fart");
     expect((screen.getByLabelText(/lesson prompt/i) as HTMLTextAreaElement).value.length).toBeGreaterThan(0);
 

@@ -1,9 +1,10 @@
 """Seed a brand-new teacher's onboarding demo on first app load.
 
-Creates a 'Demo class' with a join code and two example activities — a concept
-dialogue ("how this works") and a Boldkast sim — so a teacher signing in for the
-first time immediately sees what the platform does and can explore, edit, or
-delete it.
+Creates a 'Demo class' with a join code and a curated set of example activities —
+a "how this works" concept dialogue, all three sims (Boldkast / KineBot /
+LED-Planck), two bench labs, and the solution / document feedback surfaces — so a
+teacher signing in for the first time immediately sees what the platform does and
+can explore, edit, or delete it.
 
 Idempotent + safe by construction: no-ops if the teacher already owns ANY class,
 so it runs at most once per teacher and never overwrites their work. After the
@@ -25,12 +26,19 @@ from db.classes import (
 from db.firestore import query_documents
 from db.models.activity import Activity
 from db.models.activity_config import (
+    CalcInput,
+    CalculatorElement,
+    ChartElement,
     ChecklistItem,
     CheckQuestion,
     ConceptEdge,
     ConceptMapElement,
     ConceptNode,
+    DocumentElement,
     NoteElement,
+    SolutionElement,
+    TableColumn,
+    TableElement,
 )
 from db.models.class_ import Class
 
@@ -51,8 +59,16 @@ def _concept_skill_id() -> str:
 
 
 def _demo_activities(owner_uid: str, concept_skill: str) -> list[Activity]:
-    """The two example activities. Both run the concept-dialogue skill; the
-    second hosts the Boldkast sim artefact (the new artefact model)."""
+    """The demo class's example activities — a curated tour of the platform.
+
+    All run the concept-dialogue skill; the sim activities attach a vetted
+    artefact via ``artefactId`` (resolved to the sim's tutor at student-
+    instantiation time; sets ``workbench_type=app``). Between them they cover all
+    three sims (Boldkast / KineBot / LED-Planck), the element palette (checklist /
+    table / chart / calculator / note / solution / document) and a living concept
+    map. Kept deliberately curated (not every picker template) so a walk-in demo
+    stays focused; the full starter set lives in the teacher's template picker
+    (``frontend/src/lib/activityTemplates.ts``)."""
     welcome = Activity(
         activityId="",
         ownerUid=owner_uid,
@@ -168,7 +184,260 @@ def _demo_activities(owner_uid: str, concept_skill: str) -> list[Activity]:
             )
         ],
     )
-    return [welcome, boldkast]
+    kinebot = Activity(
+        activityId="",
+        ownerUid=owner_uid,
+        skillId=concept_skill,
+        artefactId="kinebot",
+        title="Bevægelsesgrafer (KineBot)",
+        teachingGoal=(
+            "Eleven undersøger sammenhængen mellem sted, fart og acceleration med "
+            "KineBot-simulationen. Stil spørgsmål til, hvad de tre grafer viser — "
+            "konkludér ikke selv, men lad eleven aflæse graferne."
+        ),
+        note=[
+            NoteElement(
+                id="grafer",
+                title="Bevægelsesgrafer",
+                body=(
+                    "**Sted (s-t):** hældningen er farten.\n\n"
+                    "**Fart (v-t):** hældningen er accelerationen; arealet er strækningen.\n\n"
+                    "**Acceleration (a-t):** arealet er ændringen i fart."
+                ),
+            )
+        ],
+        checklist=[
+            ChecklistItem(id="konstant-fart", label="Undersøg en bevægelse med konstant fart"),
+            ChecklistItem(id="konstant-acc", label="Undersøg en bevægelse med konstant acceleration"),
+            ChecklistItem(id="sammenhaeng", label="Forklar sammenhængen mellem de tre grafer"),
+        ],
+        conceptMap=[
+            ConceptMapElement(
+                id="concept-map-kinebot",
+                title="Bevægelsesgrafer",
+                nodes=[
+                    ConceptNode(
+                        id="fart",
+                        label="Fart",
+                        check_questions=[
+                            CheckQuestion(
+                                id="q-1",
+                                prompt="Hvad fortæller hældningen på en sted-tid-graf?",
+                                expected_answer="farten (hastigheden) — jo stejlere kurve, jo større fart",
+                            )
+                        ],
+                    ),
+                    ConceptNode(
+                        id="acceleration",
+                        label="Acceleration",
+                        check_questions=[
+                            CheckQuestion(
+                                id="q-1",
+                                prompt="Hvad fortæller hældningen på en fart-tid-graf?",
+                                expected_answer="accelerationen — ændringen i fart pr. tid",
+                            )
+                        ],
+                    ),
+                    ConceptNode(
+                        id="grafer",
+                        label="Bevægelsesgrafer",
+                        check_questions=[
+                            CheckQuestion(
+                                id="q-1",
+                                prompt="Hvordan ser fart-tid-grafen ud, når accelerationen er konstant?",
+                                expected_answer="en ret linje med konstant hældning",
+                            )
+                        ],
+                    ),
+                ],
+                edges=[
+                    ConceptEdge.model_validate({"from": "fart", "to": "grafer"}),
+                    ConceptEdge.model_validate({"from": "acceleration", "to": "grafer"}),
+                ],
+            )
+        ],
+    )
+    planck = Activity(
+        activityId="",
+        ownerUid=owner_uid,
+        skillId=concept_skill,
+        artefactId="led-planck",
+        title="Bestem Plancks konstant (LED)",
+        teachingGoal=(
+            "Eleven bestemmer Plancks konstant i det virtuelle LED-forsøg: mål tændspændingen "
+            "for forskellige bølgelængder og notér den i tabellen. Afslør ikke formlen, men led "
+            "eleven til selv at finde, hvordan h kan beregnes ud fra sammenhængen."
+        ),
+        note=[
+            NoteElement(
+                id="sammenhaeng",
+                title="Sammenhæng",
+                body=(
+                    "**Fotonenergi:** E = h · c / λ = e · U\n\n"
+                    "Deraf kan Plancks konstant h findes ud fra tændspændingen U og bølgelængden λ."
+                ),
+            )
+        ],
+        checklist=[
+            ChecklistItem(id="maal", label="Mål tændspændingen for mindst 4 bølgelængder"),
+            ChecklistItem(id="noter", label="Notér bølgelængde og tændspænding i tabellen"),
+            ChecklistItem(id="beregn", label="Undersøg sammenhængen og beregn Plancks konstant"),
+        ],
+        table=[
+            TableElement(
+                id="maalinger",
+                title="Målinger",
+                rows=5,
+                columns=[
+                    TableColumn(id="lambda", label="Bølgelængde", unit="nm", kind="number"),
+                    TableColumn(id="u", label="Tændspænding", unit="V", kind="number"),
+                ],
+            )
+        ],
+        chart=[ChartElement(id="graf", title="Tændspænding mod bølgelængde", chart_kind="scatter")],
+    )
+    hooke = Activity(
+        activityId="",
+        ownerUid=owner_uid,
+        skillId=concept_skill,
+        title="Hookes lov — fjederkraft",
+        teachingGoal=(
+            "Eleven undersøger Hookes lov på bænken: hæng lodder på en fjeder, mål forlængelsen, "
+            "og notér kraft og forlængelse i tabellen. Stil spørgsmål til, om grafen er en ret "
+            "linje, og hvad hældningen (fjederkonstanten k) betyder — konkludér ikke selv."
+        ),
+        note=[
+            NoteElement(
+                id="hooke",
+                title="Hookes lov",
+                body=(
+                    "**Hookes lov:** F = k · x\n\nKraften er proportional med forlængelsen. "
+                    "Hældningen på grafen er fjederkonstanten k."
+                ),
+            )
+        ],
+        checklist=[
+            ChecklistItem(id="opstil", label="Opstil fjederen og vælg et referencepunkt"),
+            ChecklistItem(id="maal", label="Mål forlængelsen for mindst 5 forskellige kræfter"),
+            ChecklistItem(id="aflaes", label="Aflæs fjederkonstanten fra grafen"),
+        ],
+        table=[
+            TableElement(
+                id="maalinger",
+                title="Målinger",
+                rows=6,
+                columns=[
+                    TableColumn(id="kraft", label="Kraft", unit="N", kind="number"),
+                    TableColumn(id="forlaengelse", label="Forlængelse", unit="m", kind="number"),
+                ],
+            )
+        ],
+        chart=[ChartElement(id="graf", title="Kraft mod forlængelse", chart_kind="scatter")],
+    )
+    pendul = Activity(
+        activityId="",
+        ownerUid=owner_uid,
+        skillId=concept_skill,
+        title="Pendulets svingningstid",
+        teachingGoal=(
+            "Eleven måler pendulets svingningstid for forskellige længder og bruger beregneren til "
+            "at finde tyngdeaccelerationen g. Stil spørgsmål til, hvordan svingningstiden afhænger "
+            "af længden — konkludér ikke selv."
+        ),
+        note=[
+            NoteElement(
+                id="formel",
+                title="Formel",
+                body=(
+                    "**Pendulets svingningstid:** T = 2π · √(L / g)\n\n"
+                    "Deraf: **g = 4π² · L / T²** — brug beregneren til at finde g ud fra dine målinger."
+                ),
+            )
+        ],
+        checklist=[
+            ChecklistItem(id="maal", label="Mål svingningstiden for mindst 5 forskellige længder"),
+            ChecklistItem(id="noter", label="Notér længde og svingningstid i tabellen"),
+            ChecklistItem(id="beregn", label="Beregn g og sammenlign med 9,82 m/s²"),
+        ],
+        table=[
+            TableElement(
+                id="maalinger",
+                title="Målinger",
+                rows=6,
+                columns=[
+                    TableColumn(id="laengde", label="Længde", unit="m", kind="number"),
+                    TableColumn(id="tid", label="Svingningstid", unit="s", kind="number"),
+                ],
+            )
+        ],
+        chart=[ChartElement(id="graf", title="Svingningstid mod længde", chart_kind="scatter")],
+        calculator=[
+            CalculatorElement(
+                id="g",
+                title="Tyngdeacceleration",
+                formula="4 * 3.14159 * 3.14159 * L / (T * T)",
+                inputs=[
+                    CalcInput(id="L", label="Længde", unit="m"),
+                    CalcInput(id="T", label="Svingningstid", unit="s"),
+                ],
+            )
+        ],
+    )
+    solution = Activity(
+        activityId="",
+        ownerUid=owner_uid,
+        skillId=concept_skill,
+        title="Din løsning",
+        teachingGoal=(
+            "Eleven fotograferer sin håndskrevne løsning på en fysikopgave. Giv aldrig det fulde "
+            "svar — peg på et skridt, en værdi eller en formel der er forkert, og stil et spørgsmål, "
+            "så eleven selv kan rette den. Tjek enheder, fortegn og om resultatet er realistisk."
+        ),
+        note=[
+            NoteElement(
+                id="tip",
+                title="Tip",
+                body=(
+                    "Skriv din løsning på papir med alle udregninger, og tag et tydeligt billede.\n\n"
+                    "Tutoren giver feedback på din fremgangsmåde — ikke bare facit."
+                ),
+            )
+        ],
+        checklist=[
+            ChecklistItem(id="skriv", label="Skriv din løsning med udregninger"),
+            ChecklistItem(id="forklar", label="Forklar dine skridt"),
+            ChecklistItem(id="tjek", label="Tjek enheder og fortegn"),
+        ],
+        solution=[
+            SolutionElement(
+                id="loesning",
+                prompt="Tag et billede af din håndskrevne løsning — vis dine udregninger og forklar dine skridt.",
+            )
+        ],
+    )
+    document = Activity(
+        activityId="",
+        ownerUid=owner_uid,
+        skillId=concept_skill,
+        title="Dokumentfeedback",
+        teachingGoal=(
+            "Eleven uploader sit eget arbejde (fx en rapport eller et opgavesæt), og tutoren giver "
+            "feedback på den aktive fil. Giv aldrig det fulde svar — peg på, hvor noget er forkert "
+            "eller mangler, og stil et spørgsmål, så eleven selv kan rette det."
+        ),
+        checklist=[
+            ChecklistItem(id="upload", label="Upload dit arbejde"),
+            ChecklistItem(id="laes", label="Læs tutorens feedback"),
+            ChecklistItem(id="ret", label="Ret det vigtigste og upload igen"),
+        ],
+        document=[
+            DocumentElement(
+                id="fil",
+                prompt="Upload et billede eller en fil af dit arbejde, så giver tutoren feedback.",
+            )
+        ],
+    )
+    return [welcome, boldkast, kinebot, planck, hooke, pendul, solution, document]
 
 
 def seed_demo_for_teacher(owner_uid: str) -> dict | None:
