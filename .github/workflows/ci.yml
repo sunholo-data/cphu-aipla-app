@@ -88,6 +88,13 @@ jobs:
         run: python3 scripts/check_local_mode_safety.py
       - name: Skill catalogue in sync with .claude/skills
         run: bash scripts/check-skill-catalogue.sh
+      - name: Trust-card footgun gate (workspace elements)
+        # P1.4: a workspace element that pushes state to the tutor
+        # (useSimSnapshotPush) MUST also dispatch the visible "shared with the
+        # AI" card (useHumanToolEvents), unless it's a no-card shape (sends a
+        # real turn / read-only). Shipped-then-fixed for the calculator + table;
+        # this makes a dropped card fail the build instead of a human's memory.
+        run: bash scripts/audit-trust-cards.sh
 
   frontend:
     name: Frontend (lint + typecheck + test)

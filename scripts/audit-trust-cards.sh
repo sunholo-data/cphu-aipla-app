@@ -5,7 +5,8 @@
 # legitimately needs no card (sends a real chat turn, or is read-only). Those
 # allowed exceptions are listed below; anything else red is a likely bug.
 #
-# Usage: .claude/skills/workbench-element-builder/scripts/audit-trust-cards.sh
+# Usage: make audit-trust-cards   (= scripts/audit-trust-cards.sh)
+# Wired into CI as a blocking gate (ci.yml → local-mode-safety job, P1.4).
 set -euo pipefail
 
 ROOT="$(git rev-parse --show-toplevel)"

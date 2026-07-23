@@ -85,10 +85,10 @@ Two independent tracks (repo/docs vs code) in P0; interleave freely. Ordered by
 **Scope:** fullstack/CI · **Risk:** Low–Med · **Duration:** ~3–4 days · **Net:** `test_dual_auth_rejection`, `useActivityBuilder`
 **Goal:** the 4×-shipped bug classes fail a build, not a human's memory.
 
-- [ ] P1.1 — `no-restricted-imports` banning `fetchWith*Auth` outside `src/lib/**`; then a role-typed API client (`api.student.*` / `api.teacher.*`, explicit `as` for dual-audience)
+- [~] P1.1 — **Step 1 shipped 2026-07-23** (`frontend/.eslintrc.json` `overrides`): path-scoped `no-restricted-imports` fences teacher surfaces (`app/teacher`, `components/teacher`) against `fetchWithAuth` and student surfaces (`app/lessons`, `app/chat`, `components/{workspace,chat,doc-browser,protocols}`) against `fetchWithTeacherAuth`. Chose the path-scoped fence over the audit's "ban both outside `src/lib/**`" because the latter red-flags all 45 existing call sites at once (not mergeable without Step 2 first). All 45 imports use the identical `@/lib/apiClient` specifier; both fences are green today and a planted violation errors (verified). **Step 2 (follow-on):** role-typed `api.student.*`/`api.teacher.*` client so the role is chosen once in `src/lib` — then the fence can widen to the full lib-boundary ban.
 - [ ] P1.2 — collapse the 3 divergent teacher gates onto `auth/guards.py::assert_teacher` (delete curriculum's 11 inline + teacher_prefs' copy; router-level `Depends`); add `assert_student`; extract `mark_researcher_bypass(span)`; one app-level `PermissionError` handler
 - [ ] P1.3 — automate post-deploy seed via a Cloud Run job (runs as runtime SA; sidesteps the Cloud Build token-mint 403)
-- [ ] P1.4 — wire `scripts/audit-trust-cards.sh` into CI as a blocking check
+- [x] P1.4 — **Shipped 2026-07-23.** Moved the script from the `workbench-element-builder` skill dir to its documented canonical path `scripts/audit-trust-cards.sh` (single source, matches the CLAUDE.md footgun-table + audit references), added `make audit-trust-cards`, and wired it as a **blocking** step in the CI `local-mode-safety` job (pure bash+git+grep, no deps). Currently green (5 pushing components all card). Footgun-table status flipped manual → enforced.
 - [ ] P1.5 — backend regression test: a partial activity-config POST is rejected/merged, never silently truncated
 - [ ] P1.6 — one "Footguns & their guards" table (enforced vs manual)
 - [ ] P1.7 — "Canonical helpers — use these, don't re-roll" section in backend/frontend CLAUDE.md + a CI grep guard against banned inline re-rolls

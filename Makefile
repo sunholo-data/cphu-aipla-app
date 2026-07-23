@@ -297,6 +297,14 @@ security-check:
 check-skills: ## Verify CLAUDE.md skill catalogue matches .claude/skills/ (CI-gated)
 	@bash scripts/check-skill-catalogue.sh
 
+# Trust-card footgun gate (P1.4). Flags any workspace element that pushes state
+# to the tutor (useSimSnapshotPush) without dispatching the visible "shared with
+# the AI" card (useHumanToolEvents) — the calculator+table bug. Same script the
+# CI local-mode-safety job runs as a blocking check. See the
+# workbench-element-builder skill + docs/design/aipla/v1.1.0-feedback/activity-elements-palette.md.
+audit-trust-cards: ## Fail if a workspace element pushes to the tutor without a trust card (CI-gated)
+	@bash scripts/audit-trust-cards.sh
+
 # Inline the canonical MCP App guest bridge into every artefact index.html from
 # the single source of truth (infrastructure/mcp-sandbox/bridge/aipla-mcp-bridge.js).
 # Run after editing the bridge. `sim-build-check` is the CI drift guard.
@@ -336,6 +344,8 @@ help:
 	@echo "make cli-selftest-live  — diagnostic against running \`make dev\` backend"
 	@echo
 	@echo "make security-check     — run the CI dep-security gate locally (frontend + sandbox + backend audits)"
+	@echo "make audit-trust-cards  — trust-card footgun gate: fail if a workspace element pushes to the tutor without a card (CI-gated)"
+	@echo "make check-skills       — verify CLAUDE.md skill catalogue matches .claude/skills/ (CI-gated)"
 	@echo
 	@echo "make sim-build          — inline the canonical MCP App guest bridge into every artefact (edit bridge/aipla-mcp-bridge.js, then run this)"
 	@echo "make sim-build-check    — CI drift guard: fail if any artefact's inlined bridge != the canonical source"

@@ -341,6 +341,7 @@ Any local workflow that requires more than one manual step — setting env vars,
 | Verify the `aiplatform` CLI works end-to-end | `make cli-selftest` |
 | Scaffold a new sim's frontend wiring | `aiplatform sim scaffold <name>` (uses `frontend/src/_sim-template/`; see `mcp-app-artefact` skill) |
 | **Run the CI dep-security gate locally** (before pushing dep changes) | `make security-check` (invokes the same `scripts/security-check.sh` the CI gate runs — see `aipla-security-checkup` skill for triage rubric) |
+| **Run the trust-card footgun gate locally** (after adding/editing a workspace element) | `make audit-trust-cards` (same `scripts/audit-trust-cards.sh` the CI `local-mode-safety` job runs — see `workbench-element-builder` skill) |
 
 When adding a new workflow, add it to `scripts/` and the root `Makefile` in the same PR.
 
@@ -360,10 +361,10 @@ every row to *enforced* — see `docs/design/aipla/v1.1.0-feedback/handover-main
 
 | Footgun | Symptom | Guard | Status |
 |---|---|---|---|
-| **Dual-auth wrong token (frontend)** | student calls a teacher-auth helper → 401 | pick `fetchWithAuth` (student/group) vs `fetchWithTeacherAuth` (Firebase) by surface; dual-audience endpoints let the caller pick | **manual** (eslint `no-restricted-imports` guard is P1.1) |
+| **Dual-auth wrong token (frontend)** | student calls a teacher-auth helper → 401 | pick `fetchWithAuth` (student/group) vs `fetchWithTeacherAuth` (Firebase) by surface; dual-audience endpoints let the caller pick | **partly enforced** — eslint `no-restricted-imports` (`frontend/.eslintrc.json`) fences teacher (`app/teacher`, `components/teacher`) and student (`app/lessons`, `app/chat`, `components/{workspace,chat,doc-browser,protocols}`) surface dirs against the wrong helper (P1.1 Step 1); the role-typed `api.student.*`/`api.teacher.*` client (Step 2) is the remaining follow-on |
 | **Dual-auth teacher gate (backend)** | divergent "is this a teacher?" predicates | one `auth.guards.assert_teacher` (predicate `not user.is_teacher`); students carry a group JWT | **partly enforced** — curriculum + teacher_prefs migrated (2026-07-22); `test_dual_auth_rejection` nets it |
 | **Seed after SKILL.md change** | "works in tests, deployed app shows old skill data" | `make seed ENV=dev` after any template change + deploy | **manual** (CI `seed-reminder` warns; auto-seed job is P1.3) |
-| **Trust card dropped** | tutor gets element state but student sees no "shared with AI" card | `scripts/audit-trust-cards.sh` | **manual** (CI-blocking gate is P1.4) |
+| **Trust card dropped** | tutor gets element state but student sees no "shared with AI" card | `scripts/audit-trust-cards.sh` (`make audit-trust-cards`) | **enforced** (CI `local-mode-safety` job, P1.4) |
 | **Full-overwrite activity POST** | partial payload silently wipes activity data | send the COMPLETE element+sim payload; `useActivityBuilder.elementPayload()` | **partly enforced** — `useActivityBuilder.test.ts` nets the FE; backend twin is P1.5 |
 | **CLI installs a stale build** | new `aiplatform` commands missing | `make cli-install` bakes in `--no-cache` | **enforced** |
 | **CLAUDE.md names a missing skill** | agent told to load a skill that doesn't exist | `scripts/check-skill-catalogue.sh` | **enforced** (CI `local-mode-safety` job) |

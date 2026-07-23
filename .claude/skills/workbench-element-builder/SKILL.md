@@ -58,10 +58,12 @@ A label should name what was shared, in Danish (student-facing UI is Danish):
    [resources/snippets.md](resources/snippets.md).
 5. **Audit** before you call it done:
    ```bash
-   .claude/skills/workbench-element-builder/scripts/audit-trust-cards.sh
+   make audit-trust-cards        # = scripts/audit-trust-cards.sh
    ```
    Lists every workspace component that pushes but does **not** dispatch a card —
    your new element should not be a new red row (unless it's a no-card shape).
+   This is the same script the CI `local-mode-safety` job runs as a blocking gate
+   (P1.4), so a dropped card fails the build, not just this manual check.
 6. **Wire the co-pilot** — see the section below. A teacher-authorable element the
    co-pilot can't propose is a silent gap.
 

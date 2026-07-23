@@ -234,6 +234,17 @@ once. Step 2: role-typed client — `api.student.*` / `api.teacher.*`, dual-audi
 endpoints take an explicit `as: 'student'|'teacher'` (the pattern
 `curriculumApi.fetchCurriculumContent` already uses). **Do not merge the two
 helpers** — they're correctly separate; make the *choice* safe instead.
+✅ **Step 1 shipped 2026-07-23:** `frontend/.eslintrc.json` `overrides` fence
+teacher surfaces (`app/teacher`, `components/teacher`) against `fetchWithAuth`
+and student surfaces (`app/lessons`, `app/chat`,
+`components/{workspace,chat,doc-browser,protocols}`) against `fetchWithTeacherAuth`
+via `no-restricted-imports` on the `@/lib/apiClient` import. Chose path-scoped
+over the "ban both outside `src/lib/**`" phrasing above because that red-flags
+all 45 existing call sites at once (unmergeable without Step 2). All 45 imports
+use the identical `@/lib/apiClient` specifier; both fences are green now and a
+planted violation errors + blocks the build (verified both directions). **Step 2
+(open):** role-typed `api.student.*`/`api.teacher.*` client so the role is chosen
+once in `src/lib`, then widen the fence to the full lib-boundary ban.
 
 **P1.2 — Dual-auth, backend: collapse the three teacher gates + add `assert_student`.** *(M, Med — pairs with P3 B1)*
 Finish June's B2 properly: make `auth/guards.py::assert_teacher` the *only* teacher
@@ -268,6 +279,12 @@ footgun in the repo.
 to catch a workbench element that pushes state to the tutor without the visible
 "shared with the AI" card — a bug shipped for the calculator and table. Promote it
 from a script to a **blocking CI check** so a push-without-card fails the build.
+✅ **Shipped 2026-07-23:** moved the script out of the skill dir to its documented
+canonical path `scripts/audit-trust-cards.sh` (single source; the CLAUDE.md
+footgun table + this doc already referenced that path), added `make
+audit-trust-cards`, and wired it as a blocking step in the CI `local-mode-safety`
+job. Green now (5 pushing components all card). Footgun-table status flipped
+manual → enforced.
 
 **P1.5 — Regression-test the full-overwrite activity POST.** *(M, Med)*
 The activity-config POST is a full overwrite — a partial payload silently wipes

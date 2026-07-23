@@ -4,5 +4,38 @@
     "no-console": "off",
     "react/no-unescaped-entities": "off",
     "react-hooks/exhaustive-deps": "warn"
-  }
+  },
+  "overrides": [
+    {
+      "files": ["src/app/teacher/**/*.{ts,tsx}", "src/components/teacher/**/*.{ts,tsx}"],
+      "rules": {
+        "no-restricted-imports": ["error", {
+          "paths": [{
+            "name": "@/lib/apiClient",
+            "importNames": ["fetchWithAuth"],
+            "message": "P1.1 dual-auth gate — teacher surface: use fetchWithTeacherAuth (Firebase teacher token). fetchWithAuth sends the anonymous-group student token → 401 for a teacher (shipped 4+ times). If this endpoint is genuinely dual-audience, call it from a src/lib/* module that lets the caller pick the token. See CLAUDE.md 'Anonymous-Group Auth'."
+          }]
+        }]
+      }
+    },
+    {
+      "files": [
+        "src/app/lessons/**/*.{ts,tsx}",
+        "src/app/chat/**/*.{ts,tsx}",
+        "src/components/workspace/**/*.{ts,tsx}",
+        "src/components/chat/**/*.{ts,tsx}",
+        "src/components/doc-browser/**/*.{ts,tsx}",
+        "src/components/protocols/**/*.{ts,tsx}"
+      ],
+      "rules": {
+        "no-restricted-imports": ["error", {
+          "paths": [{
+            "name": "@/lib/apiClient",
+            "importNames": ["fetchWithTeacherAuth"],
+            "message": "P1.1 dual-auth gate — student/group surface: use fetchWithAuth (anonymous-group token). fetchWithTeacherAuth sends the Firebase teacher token → null for a student → 401. If this endpoint is genuinely dual-audience, call it from a src/lib/* module that lets the caller pick the token. See CLAUDE.md 'Anonymous-Group Auth'."
+          }]
+        }]
+      }
+    }
+  ]
 }
