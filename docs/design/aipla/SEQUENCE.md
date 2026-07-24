@@ -22,6 +22,26 @@ own versions, **not** related to the template's `v6.x.x` versions.
 | **v1.0.0-pilot** | 2026-08-14 (Fri) | Danish teacher pilot — 10 teachers + K | 5 skills + curated sim library + teacher config + multimodal + BigQuery logs + per-class budgets enforced + **teacher monitoring & analysis (session rubric)** |
 | **v2.0.0-handover** | 2026-09-15 (Mon) | Final handover — co-owners run AIPLA after contract | v1 + runbooks + eval automation + DPIA + scoping-note Strand C delivered |
 
+## Current execution priority — pilot readiness (2026-07-24)
+
+The product has enough breadth for the 2026-08-14 teacher pilot. The active
+critical path is now **release readiness**, not further feature expansion.
+AIPLA dev is live, but test/prod are not yet cut, and the automatic Firestore
+seed job shipped 2026-07-23 still needs its first deployed verification.
+
+Until a fixed release candidate is healthy in test:
+
+1. verify dev deployment + automatic seeding;
+2. provision test from committed infrastructure and run the full smoke suite;
+3. close or explicitly disable privacy-gated capture paths;
+4. rehearse the teacher → two-student → analytics golden journeys;
+5. promote the tested candidate to prod and rehearse rollback.
+
+The evidence-based source of truth is
+[v1.0.0-pilot/pilot-readiness-checklist.md](v1.0.0-pilot/pilot-readiness-checklist.md).
+Older per-feature counts below are historical snapshots, not the current
+go/no-go signal.
+
 ## Phase 0 — Jutland demo (v0.1.0)
 
 **Status as of 2026-06-05:** Phase 0 shipped. v0.1 deployed 2026-05-20 (6 days ahead of the Jutland deadline); Boldkast over-deliver landed in the buffer window.
@@ -101,9 +121,9 @@ respects the **mid-point review (2026-06-26)** + **holiday freeze
 
 ### 1.13 — Pilot readiness (target: 2026-08-08, one week before pilot)
 
-| # | Doc (planned) | Why | ADRs | Est |
+| # | Doc | Why | ADRs | Est |
 |---|---|---|---|---|
-| **1.13** | `pilot-readiness-checklist.md` | Not a feature doc — a release checklist. DPIA scaffold, consent form sign-off (JB), capability-floor eval baseline locked, runbooks for "how to onboard a new teacher / class", smoke tests for the full v1 path, rollback procedures. | 005, 014 | 1d |
+| **1.13** | [v1.0.0-pilot/pilot-readiness-checklist.md](v1.0.0-pilot/pilot-readiness-checklist.md) | **ACTIVE P0 as of 2026-07-24.** Not a feature doc: the release gate for dev seed verification, test/prod provisioning, privacy decisions, golden journeys, production promotion, rollback, and pilot-day rehearsal. | 005, 014 | Through go/no-go |
 
 ## Phase 1.1 — Post-3-June teacher check-in feedback (v1.1.0-feedback)
 
@@ -111,10 +131,14 @@ The batch began as nine items distilled from the 3 June 2026 teacher check-in (f
 [`june-03-feedback-sprint-brief.md`](file:///Users/mark/Documents/clients/cph-uni/strand-a-pedagogical-bot/prototypes/june-03-feedback-sprint-brief.md)
 in the scoping site), grew to **1.1.1–1.1.19** (voice + chat-polish + security + teacher-activity-authoring), and absorbed the **9 June 2026 teacher check-in** (brief at
 [`june-09-feedback-sprint-brief.md`](file:///Users/mark/Documents/clients/cph-uni/strand-a-pedagogical-bot/prototypes/june-09-feedback-sprint-brief.md))
-as rows **1.1.20–1.1.25**. Per-item design docs, full ordering, and the **authoritative verified status** live in
-[v1.1.0-feedback/SEQUENCE.md → Build status (verified 2026-06-08)](v1.1.0-feedback/SEQUENCE.md#build-status--verified-2026-06-08).
+as rows **1.1.20–1.1.25**. Per-item design docs and historical build evidence
+live in [v1.1.0-feedback/SEQUENCE.md](v1.1.0-feedback/SEQUENCE.md). The current
+release go/no-go state lives in the
+[pilot-readiness checklist](v1.0.0-pilot/pilot-readiness-checklist.md).
 
-> **Status as of 2026-06-09: 9 SHIPPED · 1 PARTIAL · 15 OPEN** (6 OPEN rows added from the 9 June batch — all design/brief-only). The table below mirrors only the original nine; rows 1.1.10–1.1.25 and per-row evidence are in the child Build status + *9 June teacher check-in batch* sections.
+> **Historical snapshot (2026-06-09): 9 SHIPPED · 1 PARTIAL · 15 OPEN.**
+> Substantial additional work shipped in June/July; do not use this old count to
+> judge pilot readiness.
 
 > **⚠ One date-forced item from 9 June: [1.1.23 bidirectional voice](v1.1.0-feedback/bidirectional-voice-brief.md), target 2026-06-23** (sound in *and* out, ahead of the freeze). It is a **swap-shaped `voice_mode` config axis** (`gemini_live` duplex + `stt_tts_roundtrip` over the shipped 1.1.11 stack as **coexisting mode options**, mirroring ADR-003 model tiers) — not a pick-one build. **Decision-blocked, not engineering-blocked**: M gives the per-mode GDPR posture, JB picks the first-enabled mode. The axis + `stt_tts_roundtrip` guarantee something live; `gemini_live` slots in by config when LiveRunner + the audio review land. The rest of the 9-June batch is small Part-1 extensions (1.1.20–1.1.22) plus two post-mid-point Part-2 docs gated on existing infra: **1.1.24 offline-lab** on [1.J expanded-workbench-types](v1.0.0-pilot/expanded-workbench-types.md), **1.1.25 curriculum-library** on **1.3 rag-pgvector** below.
 

@@ -10,6 +10,22 @@ This is the per-version sequence file for the **v1.1.0-feedback** batch. It bega
 
 > **v1.1, not v1.0.** Brief tags these as v1.1 priorities; they refine v1.0 surfaces rather than ship new strands. Many can land before the 2026-08-14 pilot, which is good — every item the pilot sees with confidence is one less thing the post-pilot iteration window has to absorb.
 
+## Current execution override — pilot release (2026-07-24)
+
+The feature roadmap below is retained as design and implementation history.
+It is no longer the day-to-day priority queue before the pilot. Product breadth
+is sufficient; release confidence is the constraint.
+
+Until a fixed candidate is healthy in test, only work that closes a gate in the
+[v1.0 pilot-readiness checklist](../v1.0.0-pilot/pilot-readiness-checklist.md)
+is P0. New activity/workbench types, broad refactors, and optional integrations
+defer unless a documented golden journey is blocked without them.
+
+The **Build status — verified 2026-06-08** section is explicitly historical
+despite retaining its original heading/anchor for inbound links. Substantial
+June/July work shipped after that audit; it must not be used as a current
+open-work count.
+
 ## Ordering
 
 Brief priority is preserved; cross-cutting / blocking-dep ordering is noted in the dependency column.
@@ -182,6 +198,10 @@ literature-grounded misconception index for 2.5 Lens B.
 | 1.1.59 | [curriculum-scale-performance.md](curriculum-scale-performance.md) | **P1 — scale correctness. SHIPPED 2026-07-13 (M1–M3)** | M1 shared-corpus cache ~0.75d · M2 pagination ~0.5d · M3 FE debounce+load-more ~0.5d | [1.1.25 curriculum-library](curriculum-library.md); [1.1.58 curriculum-faceted-browse](curriculum-faceted-browse.md) (hardens the same browse path; absorbs its deferred M4 debounce); [`db/firestore.py`](../../../../backend/db/firestore.py) query helper | **New 2026-07-13 (M — "is the search efficient? we're about to add thousands of docs").** Root shape: [`list_curriculum_for_teacher`](../../../../backend/db/curriculum.py#L65) **fetches the entire ACL set, deserializes every row, filters in Python, unbounded, per request** — cost is O(corpus), not O(result), so a browse over a 3k-doc shared corpus is ~3k Firestore reads × keystrokes × teachers. Fix (no external index — free-text-over-content stays the RAG path, and Firestore has no substring op): **(M1)** a read-through, TTL-bounded, invalidate-on-write **in-process cache for the SHARED corpus only** (read-mostly, identical across teachers; keyed to `ownerScope==shared` **by construction** so it can never hold/leak a teacher's private docs — own docs stay live for freshness); **(M2)** **pagination at the endpoint** (limit≤200/offset + `total`) leaving the internal full-list function intact for the co-pilot/summarize/query callers; **(M3)** FE **250ms debounce + "Showing X of Y" + Load more**. Steady-state shared browse → **0 reads/TTL**. Net axiom **+7**. Design (OPEN). |
 
 ## Build status — verified 2026-06-08
+
+> **Historical snapshot.** Retained under its original heading so existing
+> references remain valid. It is not the current pilot go/no-go state; use the
+> [pilot-readiness checklist](../v1.0.0-pilot/pilot-readiness-checklist.md).
 
 Verified by code inspection on 2026-06-08 (not by doc placement, which lags). Legend: **SHIPPED** (in `dev`, evidence cited) · **PARTIAL** · **OPEN** (designed, not built).
 

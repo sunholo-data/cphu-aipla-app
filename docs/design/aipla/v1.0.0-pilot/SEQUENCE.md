@@ -9,6 +9,17 @@ roadmap lives at [../SEQUENCE.md](../SEQUENCE.md) — that file is the
 canonical phase ordering across versions; this file is the detail layer
 for v1.
 
+## Current priority (2026-07-24)
+
+Feature breadth is sufficient. The remaining critical path is the
+[pilot-readiness checklist](pilot-readiness-checklist.md): verify the deployed
+automatic seed job, cut and soak test, close privacy/consent gates, rehearse the
+full multi-device journey, promote the fixed candidate to prod, and prove
+rollback before the 2026-08-14 pilot.
+
+The June status sections below are retained as implementation history. They are
+not the current release-status authority.
+
 ## Ordering
 
 | Order | Doc | Priority | Estimate | Dependencies | Notes |
@@ -38,7 +49,7 @@ v1 and need day-to-day sprint tracking alongside the teacher surface.
 | Order | Doc | Priority | Estimate | Dependencies | Notes |
 |---|---|---|---|---|---|
 | 1.1 | [aipla-cloud-bootstrap.md](aipla-cloud-bootstrap.md) | P1-infra | 1.5d | — | Creates the `chat_logs` BigQuery dataset + Log Router sink IAM that 1.2 needs. Doc exists; not built. Can be partially applied (`terraform apply -target`) to land just the dataset + sink ahead of the full module |
-| 1.3 | [env-promotion-dev-test-prod.md](env-promotion-dev-test-prod.md) | P1-infra | 0.5d doc + per-env provision | 1.1 (Terraform module makes a new env "a tfvars file"); deploy CI-gate (landed 2026-06-17) | **Cut test/prod from dev.** Per-env readiness checklist + cut order. test/prod projects exist but are **bare** (Secret Manager not even enabled). Trigger: the 2026-06-17 dev-only demo outage — a `test` tier must exist before the 2026-08-14 pilot. Doc landed 2026-06-17; not built. **Its code-promotion flow (branch-merge rebuild) is superseded by 1.3a.** |
+| 1.3 | [env-promotion-dev-test-prod.md](env-promotion-dev-test-prod.md) | **P0 release gate** | 0.5d doc + per-env provision | 1.1 (Terraform module makes a new env "a tfvars file"); deploy CI-gate (landed 2026-06-17) | **ACTIVE as of 2026-07-24: cut test, then prod, from committed infrastructure.** Test/prod are not yet live. A proven test tier is a blocker for the 2026-08-14 pilot. Its code-promotion flow (branch-merge rebuild) is superseded by 1.3a. |
 | 1.3a | [build-once-artifact-promotion.md](build-once-artifact-promotion.md) | P1-infra | 1d (scripts + CLI landed 2026-06-18; triggers = 1.1 inc-2) | refines 1.3; 1.1 increment-2 (triggers) | **Build-once promotion: tag→test, COPY artifact→prod (no rebuild).** Replaces 1.3's branch-rebuild model — prod runs the exact bytes test verified. Backend is copy-promotable (verified: only the unused `FIREBASE_BUCKET` build-arg is env-specific); frontend rebuilt-from-tag (Next.js `NEXT_PUBLIC_*` compile-time bake) until the runtime-config refactor. Ships `scripts/promote-env.sh`, `cloudbuild.promote.yaml`, `aiplatform deploy` CLI group + Makefile `promote`. Mechanics landed 2026-06-18 (dry-run-verifiable); triggers wire with the test/prod cut. Upstreamable |
 | 1.2 | [chat-log-pipeline.md](implemented/chat-log-pipeline.md) | **P0 KEYSTONE** | 1.5d | 1.1 (dataset + sink IAM) | OTel → BigQuery sink. Durable group-ID-keyed turns + workbench events; BQ-backed `summarize_session`; exact `sim_run_count`. **Everything analytical depends on this.** Doc landed 2026-05-28 |
 | 1.K | [dra-activity-framework.md](dra-activity-framework.md) | P1 | 0.5d standard + 1d YAML/injection | — | Supplies machine-readable DRA maps. On the analytics path **only if** the DRA lens is chosen in R1. Doc exists; not built |
@@ -64,7 +75,8 @@ authorization + frontend chat.
 | Implementation | post-Jutland (2026-05-28 → 2026-06-26 ideally) | Pending |
 | Mid-point review check | 2026-06-26 (Fri) | Gate |
 | Holiday freeze | 2026-06-29 → 07-05 | — |
-| Teacher pilot ready | 2026-08-14 (Fri) | Target |
+| Release candidate in test | 2026-08-07 (Fri) | **Current P0 target** |
+| Teacher pilot ready | 2026-08-14 (Fri) | Target — governed by [pilot readiness](pilot-readiness-checklist.md) |
 
 ## What ships in v1.0.0-pilot
 
@@ -100,7 +112,10 @@ authorization + frontend chat.
 - 1.D KineBot — shipped
 - 1.F session persistence — shipped 2026-06-01
 
-v1.0.0-pilot ships by 2026-08-14 with comfortable margin. As of 2026-06-02, the analytics critical path is fully live (chat turns + workbench events flowing to BigQuery and surfaced in the teacher UI); the remaining gates are R1 (framework pick) + R2/R7 (taxonomy/labels), which are human-time, not engineering-time.
+The 2026-06-02 implementation snapshot had the analytics critical path live.
+As of 2026-07-24, schedule confidence is governed by environment promotion,
+privacy decisions, end-to-end rehearsal, and rollback evidence—not by adding
+more feature breadth. See [pilot readiness](pilot-readiness-checklist.md).
 
 ## What does NOT ship in v1.0.0-pilot
 

@@ -2,6 +2,19 @@
 
 Canonical list of live Cloud Run services, per environment.
 
+## AIPLA release-readiness status (2026-07-24)
+
+| Environment | Status | Release gate |
+|---|---|---|
+| dev | Live | Verify the first deployed `aipla-seed-skills` job and candidate smokes |
+| test | **Not cut** | Provision, deploy the fixed candidate, run golden journeys, soak ≥24h |
+| prod | **Not cut** | Provision only through the committed promotion path; promote after test |
+
+The operational source of truth for changing these states is the
+[v1.0 pilot-readiness checklist](../design/aipla/v1.0.0-pilot/pilot-readiness-checklist.md).
+Add test/prod URLs here only after the services exist; do not pre-fill expected
+URLs.
+
 ## AIPLA — dev (`aipla-dev-2026`, region `europe-north1`)
 
 - **Frontend (public, multi-container):** https://aipla-v01-frontend-wgwhd7mspa-lz.a.run.app
@@ -18,7 +31,9 @@ Canonical list of live Cloud Run services, per environment.
   - **Public, no auth** (matches the public-skills posture). Speaks Streamable HTTP — point a ChatGPT remote connector or Claude Desktop `mcp-remote` here, no tunnel.
   - Offers the public skills as tools **and** the sims as `ui://` MCP Apps (`show_boldkast|kinebot|led_planck`; artefact HTML lazily fetched from the sandbox via `MCP_SANDBOX_URL`).
   - Smoke: `REQUIRE_SIMS=1 ./scripts/smoke-deployed-mcp.sh dev` → initialize + sims listed + `ui://` readable. (Visual render is host-dependent — Claude Desktop is currently blocked by upstream claude-ai-mcp#165; ChatGPT/MCP Inspector render reliably.)
-- Test/prod: not yet cut.
+- **Test/prod: not yet cut as of 2026-07-24.** Their absence is a pilot release
+  blocker tracked in the
+  [pilot-readiness checklist](../design/aipla/v1.0.0-pilot/pilot-readiness-checklist.md).
 
 ---
 
