@@ -1,4 +1,4 @@
-.PHONY: dev dev-local dev-recompile dev-status dev-stop proxy-check logs cloud-logs cloud-errors cloud-build verify-chat-logs smoke-session-persistence smoke-chat-resume smoke-curriculum-content smoke-teacher-cli help cli-install cli-reinstall cli-uninstall cli-doctor cli-selftest-mock cli-selftest-live cli-selftest seed seed-job seed-demo-codes reset-group-state provision-curriculum-rag seed-curriculum backfill-curriculum-content migrate-clear-persona-voice-override docs-linkcheck check-skills sim-build sim-build-check guides guides-publish guide-screens seed-guide-corpus guide-staleness
+.PHONY: dev dev-local dev-recompile dev-status dev-stop proxy-check logs cloud-logs cloud-errors cloud-build verify-chat-logs smoke-session-persistence smoke-chat-resume smoke-curriculum-content smoke-teacher-cli help cli-install cli-reinstall cli-uninstall cli-doctor cli-selftest-mock cli-selftest-live cli-selftest seed seed-job seed-demo-codes force-seed-demo reset-group-state provision-curriculum-rag seed-curriculum backfill-curriculum-content migrate-clear-persona-voice-override docs-linkcheck check-skills sim-build sim-build-check guides guides-publish guide-screens seed-guide-corpus guide-staleness
 
 # Seed SKILL.md templates -> Firestore. Since P1.3 the Cloud Build deploy runs
 # this automatically via the `aipla-seed-skills` Cloud Run job (see
@@ -29,6 +29,17 @@ seed-job:
 #   CODES="aipla-demo-1 aipla-demo-2" make seed-demo-codes ENV=dev
 seed-demo-codes:
 	@scripts/seed-demo-codes.sh $(ENV)
+
+# Force-seed the CURRENT demo activities into every existing teacher's "Demo
+# class" (the onboarding seed no-ops for teachers who already own a class, so
+# growing the demo set never reaches them). Idempotent by title. Dry-run unless
+# APPLY=1; touches only each teacher's Demo class. Run after the demo set grows.
+#   make force-seed-demo ENV=dev            # dry-run (preview)
+#   make force-seed-demo ENV=dev APPLY=1    # write
+#   make force-seed-demo ENV=dev APPLY=1 OWNER=<uid>   # one teacher
+force-seed-demo:
+	@cd backend && GOOGLE_CLOUD_PROJECT=aipla-$(ENV)-2026 uv run python -m scripts.force_seed_demo \
+		$(if $(filter 1,$(APPLY)),--apply,) $(if $(OWNER),--owner $(OWNER),)
 
 # Clean-slate the anonymous-group session state for an env: wipe the
 # group_sessions pointers (always) and chat_sessions mirror (SESSIONS=1),
