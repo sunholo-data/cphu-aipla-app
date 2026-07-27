@@ -12,5 +12,5 @@ email_signin_enabled      = true # test-teacher@example.dk for curriculum seed +
 # Both set after their services' first deploy assigns a *.run.app URL
 # (chicken-egg — see README): frontend_url → sandbox ALLOWED_HOST_ORIGINS;
 # mcp_sandbox_url → NEXT_PUBLIC_MCP_SANDBOX_URL baked into the frontend bundle.
-frontend_url    = ""
-mcp_sandbox_url = ""
+frontend_url    = "https://aipla-v01-frontend-y2bmxayxca-lz.a.run.app" # sandbox ALLOWED_HOST_ORIGINS
+mcp_sandbox_url = "https://aipla-v01-sandbox-y2bmxayxca-lz.a.run.app/sandbox.html" # predicted (Cloud Run shares a per-project URL hash with the frontend)

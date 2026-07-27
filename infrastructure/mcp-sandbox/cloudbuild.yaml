@@ -14,6 +14,10 @@
 
 substitutions:
   _SERVICE_NAME: mcp-sandbox
+  # Immutable image tag. Defaults to ${BRANCH_NAME} (dev branch trigger); the
+  # tag-based sandbox release trigger overrides with ${TAG_NAME}. Mirrors the
+  # root cloudbuild.yaml so tag builds tag images by version, not empty branch.
+  _IMAGE_TAG: '${BRANCH_NAME}'
   # _PROJECT_ID, _REGION, _ARTIFACT_REGISTRY_REPO_URL_CLIENT, _LOGS_BUCKET
   # are mandatory overrides supplied by the trigger config (gcloud builds
   # triggers create --substitutions). Defaults below are sentinel values
@@ -41,7 +45,7 @@ steps:
     args:
       - 'build'
       - '-t'
-      - '${_ARTIFACT_REGISTRY_REPO_URL_CLIENT}/${_SERVICE_NAME}/sandbox:${BRANCH_NAME}'
+      - '${_ARTIFACT_REGISTRY_REPO_URL_CLIENT}/${_SERVICE_NAME}/sandbox:${_IMAGE_TAG}'
       - '.'
 
   # --- Push image ---
@@ -50,7 +54,7 @@ steps:
     waitFor: ['build-mcp-sandbox']
     args:
       - 'push'
-      - '${_ARTIFACT_REGISTRY_REPO_URL_CLIENT}/${_SERVICE_NAME}/sandbox:${BRANCH_NAME}'
+      - '${_ARTIFACT_REGISTRY_REPO_URL_CLIENT}/${_SERVICE_NAME}/sandbox:${_IMAGE_TAG}'
 
   # --- Deploy to Cloud Run (single container, public) ---
   - name: 'gcr.io/google.com/cloudsdktool/cloud-sdk'
@@ -65,7 +69,7 @@ steps:
       - '--platform=managed'
       - '--allow-unauthenticated'           # browser-loaded iframe; allUsers
       - '--max-instances=3'
-      - '--image=${_ARTIFACT_REGISTRY_REPO_URL_CLIENT}/${_SERVICE_NAME}/sandbox:${BRANCH_NAME}'
+      - '--image=${_ARTIFACT_REGISTRY_REPO_URL_CLIENT}/${_SERVICE_NAME}/sandbox:${_IMAGE_TAG}'
       - '--port=8080'
       - '--memory=512Mi'
       - '--cpu=1'

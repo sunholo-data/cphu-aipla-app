@@ -113,8 +113,38 @@ resource "google_cloudbuild_trigger" "test_release" {
   substitutions = local.deploy_substitutions
 }
 
-# TODO (M1 remainder): the mcp-sandbox test trigger (needs the sandbox
-# cloudbuild.yaml to take _IMAGE_TAG the same way) — tracked in the sprint doc.
-# TODO (PROD cut, out of this sprint): `aipla-prod-promote` manual trigger on
-# cloudbuild.promote.yaml + the cross-project artifactregistry.reader grant
-# (1.3a §Security).
+# test: mcp-sandbox release trigger — deploys the aipla-v01-sandbox service
+# (static MCP-App artefact host, separate origin per ADR-013) on the same version
+# tags as the main service. _ALLOWED_HOST_ORIGINS pins the frontend that may embed
+# the iframe (var.frontend_url — set after the first frontend deploy).
+resource "google_cloudbuild_trigger" "test_sandbox_release" {
+  count = var.env == "test" ? 1 : 0
+
+  project         = var.project_id
+  location        = var.region
+  name            = "aipla-test-sandbox-release"
+  description     = "Build + deploy aipla-v01-sandbox on tag push vX.Y.Z (test)."
+  service_account = "projects/${var.project_id}/serviceAccounts/${google_service_account.runtime.email}"
+
+  repository_event_config {
+    repository = google_cloudbuildv2_repository.app.id
+    push {
+      tag = "^v.*$"
+    }
+  }
+
+  filename = "infrastructure/mcp-sandbox/cloudbuild.yaml"
+  substitutions = {
+    _PROJECT_ID                        = var.project_id
+    _SERVICE_NAME                      = "aipla-v01-sandbox"
+    _REGION                            = var.region
+    _ARTIFACT_REGISTRY_REPO_URL_CLIENT = "${var.region}-docker.pkg.dev/${var.project_id}/${var.ar_repo}"
+    _LOGS_BUCKET                       = "gs://${var.project_id}-aipla-v01-logs"
+    _ALLOWED_HOST_ORIGINS              = var.frontend_url
+    _IMAGE_TAG                         = "$${TAG_NAME}"
+  }
+}
+
+# TODO (PROD cut): `aipla-prod-promote` manual trigger on cloudbuild.promote.yaml
+# + the cross-project artifactregistry.reader grant (1.3a §Security), and a
+# prod sandbox trigger — see docs/ops/runbooks/prod-cut.md steps 6 + 10.
