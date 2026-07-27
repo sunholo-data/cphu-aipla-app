@@ -16,6 +16,7 @@ or **flagged** (an inherent manual gate) here — no re-discovery.
 - You are authed as an owner/editor of the project: `gcloud config set account m@sunholo.com`.
 - The tfstate bucket **`gs://aipla-deploy-tfstate`** exists (created for test 2026-07-27, in the `aipla-deploy` project — shared across envs). ✅
 - `terraform`, `uv`, `gcloud` on PATH.
+- **`make cli-install`** — reinstall the `aiplatform` CLI from current source. A stale installed CLI carries old `*-placeholder.a.run.app` URLs (bit the test curriculum seed); the current CLI resolves test/prod URLs live via gcloud. (Scripts that shell to the *installed* CLI — e.g. `seed-curriculum.sh` — otherwise use the stale URL; the `uv run --directory cli` make targets always use source.)
 
 ## Steps
 
