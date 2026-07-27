@@ -73,3 +73,15 @@ variable "frontend_url" {
   description = "This env's deployed frontend URL, used as the sandbox iframe ALLOWED_HOST_ORIGINS. Empty until the first deploy assigns a *.run.app URL — set on the second apply (chicken-egg, see README)."
   default     = ""
 }
+
+variable "mcp_sandbox_url" {
+  type        = string
+  description = "This env's MCP-App sandbox URL (…/sandbox.html), baked into the frontend bundle as NEXT_PUBLIC_MCP_SANDBOX_URL. Empty until the sandbox service is first deployed — set on a later apply (same chicken-egg as frontend_url)."
+  default     = ""
+}
+
+variable "preview_feature_flags" {
+  type        = bool
+  description = "dev-only preview flags: bakes _AUTHORING_COPILOT/_CONCEPT_MAP/_AIPLA_HELP='1' into the deploy trigger. dev=true; test/prod=false (they stay '' until AR/JB's teaching framework lands)."
+  default     = false
+}

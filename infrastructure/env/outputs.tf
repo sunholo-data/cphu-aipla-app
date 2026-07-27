@@ -21,6 +21,16 @@ output "curriculum_rag_secret_id" {
   value = module.curriculum_rag.corpus_name_secret_id
 }
 
+output "firebase_web_app_id" {
+  description = "The Firebase Web App id whose SDK config seeds the FIREBASE_ENV secret."
+  value       = google_firebase_web_app.default.app_id
+}
+
+output "test_release_trigger_id" {
+  description = "The aipla-test-release Cloud Build trigger id (empty unless env=test)."
+  value       = one(google_cloudbuild_trigger.test_release[*].id)
+}
+
 output "post_apply_todo" {
   description = "Steps Terraform can't do — run these after apply (see README)."
   value = [

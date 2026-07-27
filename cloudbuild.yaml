@@ -7,6 +7,11 @@
 
 substitutions:
   _SERVICE_NAME: aipla-v01-frontend
+  # Immutable image tag. Defaults to ${BRANCH_NAME} so branch triggers (dev)
+  # tag images by branch exactly as before (behaviour-preserving). The build-once
+  # release trigger (aipla-test-release, 1.3a) overrides this with ${TAG_NAME} so
+  # images are tagged immutably by the release version (e.g. ui:v1.1.40).
+  _IMAGE_TAG: '${BRANCH_NAME}'
   _REGION: terraform_managed
   _BUILD_FOLDER: .
   _ARTIFACT_REGISTRY_REPO_URL_CLIENT: terraform_managed
@@ -142,7 +147,7 @@ steps:
           --build-arg NEXT_PUBLIC_AUTHORING_COPILOT=${_AUTHORING_COPILOT} \
           --build-arg NEXT_PUBLIC_CONCEPT_MAP=${_CONCEPT_MAP} \
           --build-arg NEXT_PUBLIC_AIPLA_HELP=${_AIPLA_HELP} \
-          -t ${_ARTIFACT_REGISTRY_REPO_URL_CLIENT}/${_SERVICE_NAME}/ui:${BRANCH_NAME} \
+          -t ${_ARTIFACT_REGISTRY_REPO_URL_CLIENT}/${_SERVICE_NAME}/ui:${_IMAGE_TAG} \
           -f frontend/Dockerfile \
           frontend/
 
@@ -160,19 +165,19 @@ steps:
       - '--build-arg'
       - 'GOOGLE_CLOUD_LOCATION=${_REGION}'
       - '-t'
-      - '${_ARTIFACT_REGISTRY_REPO_URL_CLIENT}/${_SERVICE_NAME}/backend:${BRANCH_NAME}'
+      - '${_ARTIFACT_REGISTRY_REPO_URL_CLIENT}/${_SERVICE_NAME}/backend:${_IMAGE_TAG}'
       - '.'
 
   # --- Push images ---
   - name: 'gcr.io/cloud-builders/docker'
     id: push-frontend
     waitFor: ['build-frontend']
-    args: ['push', '${_ARTIFACT_REGISTRY_REPO_URL_CLIENT}/${_SERVICE_NAME}/ui:${BRANCH_NAME}']
+    args: ['push', '${_ARTIFACT_REGISTRY_REPO_URL_CLIENT}/${_SERVICE_NAME}/ui:${_IMAGE_TAG}']
 
   - name: 'gcr.io/cloud-builders/docker'
     id: push-backend
     waitFor: ['build-backend']
-    args: ['push', '${_ARTIFACT_REGISTRY_REPO_URL_CLIENT}/${_SERVICE_NAME}/backend:${BRANCH_NAME}']
+    args: ['push', '${_ARTIFACT_REGISTRY_REPO_URL_CLIENT}/${_SERVICE_NAME}/backend:${_IMAGE_TAG}']
 
   # --- Deploy to Cloud Run (multi-container) ---
   - name: 'gcr.io/google.com/cloudsdktool/cloud-sdk'
@@ -198,7 +203,7 @@ steps:
       - 'name=gcs_config,type=cloud-storage,bucket=${_CONFIG_BUCKET},readonly=true'
       # Frontend (main container)
       - '--container=main'
-      - '--image=${_ARTIFACT_REGISTRY_REPO_URL_CLIENT}/${_SERVICE_NAME}/ui:${BRANCH_NAME}'
+      - '--image=${_ARTIFACT_REGISTRY_REPO_URL_CLIENT}/${_SERVICE_NAME}/ui:${_IMAGE_TAG}'
       - '--port=8080'
       - '--memory=2Gi'
       - '--cpu=1'
@@ -211,7 +216,7 @@ steps:
       - '--set-env-vars=BACKEND_URL=http://127.0.0.1:1956'
       # Backend (sidecar container)
       - '--container=sidecar'
-      - '--image=${_ARTIFACT_REGISTRY_REPO_URL_CLIENT}/${_SERVICE_NAME}/backend:${BRANCH_NAME}'
+      - '--image=${_ARTIFACT_REGISTRY_REPO_URL_CLIENT}/${_SERVICE_NAME}/backend:${_IMAGE_TAG}'
       - '--add-volume-mount'
       - 'volume=gcs_config,mount-path=/gcs_config'
       - '--memory=4Gi'
@@ -382,7 +387,7 @@ steps:
   # ADC — no HTTP, no token mint. The build already deploys the SERVICE as this
   # SA (needs run.admin + actAs on it), so the same identity creates + runs the
   # job with NO new IAM grant. deploy-seed-job.sh re-resolves the freshly-built
-  # backend:${BRANCH_NAME} digest (jobs execute alone runs a stale digest) then
+  # backend:${_IMAGE_TAG} digest (jobs execute alone runs a stale digest) then
   # runs `python -m admin.platform_seed`, which exits non-zero on any failed
   # template — so a bad seed fails the build instead of silently shipping stale
   # skill data.
@@ -394,7 +399,7 @@ steps:
       - '--project=${_PROJECT_ID}'
       - '--region=${_REGION}'
       - '--sa=${_ADMIN_SEED_ALLOWED_SAS}'
-      - '--image=${_ARTIFACT_REGISTRY_REPO_URL_CLIENT}/${_SERVICE_NAME}/backend:${BRANCH_NAME}'
+      - '--image=${_ARTIFACT_REGISTRY_REPO_URL_CLIENT}/${_SERVICE_NAME}/backend:${_IMAGE_TAG}'
       - '--execute'
 
   # History: the deploy-time seed + upsert-demo-codes steps were removed
