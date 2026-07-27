@@ -45,8 +45,12 @@ import {
  * cookies). Read from NEXT_PUBLIC_MCP_SANDBOX_URL at build time; defaults
  * to the local dev port (3457). See docs/design/v6.1.0/mcp-sandbox-separate-origin.md.
  */
+// `||` (not `??`) so an EMPTY string also falls back — an env without a
+// configured sandbox (e.g. test before its sandbox is deployed) sets
+// NEXT_PUBLIC_MCP_SANDBOX_URL="", which `??` would let through into new URL("")
+// and crash the static build. Empty → the localhost default (a valid URL).
 const SANDBOX_PROXY_URL =
-  process.env.NEXT_PUBLIC_MCP_SANDBOX_URL ?? "http://localhost:3457/sandbox.html";
+  process.env.NEXT_PUBLIC_MCP_SANDBOX_URL || "http://localhost:3457/sandbox.html";
 
 interface ToolDef {
   name: string;
