@@ -8,3 +8,4 @@ deploy_branch             = "dev"
 partition_expiration_days = 30
 teacher_mock              = true
 frontend_url              = "https://aipla-v01-frontend-wgwhd7mspa-lz.a.run.app"
+admin_operator_members    = ["user:m@sunholo.com"]

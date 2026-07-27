@@ -30,23 +30,23 @@ SKILL="${SKILL:-problem-set-hints}"
 TTL_DAYS="${TTL_DAYS:-300}"
 
 case "$ENV" in
-  dev)
-    URL="https://aipla-v01-frontend-wgwhd7mspa-lz.a.run.app"
-    SA="aipla-v6@aipla-dev-2026.iam.gserviceaccount.com"
-    ;;
-  test)
-    URL="https://aipla-v01-frontend-test-placeholder.a.run.app"
-    SA="aipla-v6@aipla-test-2026.iam.gserviceaccount.com"
-    ;;
-  prod)
-    URL="https://aipla-v01-frontend-prod-placeholder.a.run.app"
-    SA="aipla-v6@aipla-prod-2026.iam.gserviceaccount.com"
-    ;;
+  dev) PROJECT="aipla-dev-2026" ;;
+  test) PROJECT="aipla-test-2026" ;;
+  prod) PROJECT="aipla-prod-2026" ;;
   *)
     echo "Unknown env '$ENV' (expected: dev|test|prod)" >&2
     exit 2
     ;;
 esac
+SA="aipla-v6@${PROJECT}.iam.gserviceaccount.com"
+REGION="${REGION:-europe-north1}"
+# Derive the live service URL — test/prod URLs are assigned at first deploy, so
+# hardcoding them (the old *-placeholder.a.run.app) drifts. Resolve dynamically.
+URL="$(gcloud run services describe aipla-v01-frontend --region="$REGION" --project="$PROJECT" --format='value(status.url)' 2>/dev/null)"
+if [ -z "$URL" ]; then
+  echo "Could not resolve aipla-v01-frontend URL in ${PROJECT}/${REGION} — is it deployed?" >&2
+  exit 1
+fi
 
 command -v gcloud >/dev/null 2>&1 || { echo "gcloud not on PATH" >&2; exit 2; }
 command -v python3 >/dev/null 2>&1 || { echo "python3 not on PATH" >&2; exit 2; }

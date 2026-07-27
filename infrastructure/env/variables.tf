@@ -85,3 +85,9 @@ variable "preview_feature_flags" {
   description = "dev-only preview flags: bakes _AUTHORING_COPILOT/_CONCEPT_MAP/_AIPLA_HELP='1' into the deploy trigger. dev=true; test/prod=false (they stay '' until AR/JB's teaching framework lands)."
   default     = false
 }
+
+variable "admin_operator_members" {
+  type        = list(string)
+  description = "IAM members (e.g. \"user:m@sunholo.com\") granted serviceAccountTokenCreator on the runtime SA, so an operator can impersonate it to mint ID tokens for the HTTP admin ops (demo-code minting via scripts/seed-demo-codes.sh; HTTP seed). Declarative replacement for the manual gcloud grant dev got in May. Keep minimal — this is human→SA impersonation of a broadly-scoped SA."
+  default     = []
+}

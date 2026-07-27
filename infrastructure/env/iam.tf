@@ -34,3 +34,15 @@ resource "google_project_iam_member" "runtime" {
   role    = each.value
   member  = "serviceAccount:${google_service_account.runtime.email}"
 }
+
+# Operator impersonation: members who may mint ID tokens AS the runtime SA, for
+# the HTTP admin ops (demo-code minting, HTTP seed). Declarative replacement for
+# the manual `gcloud ... add-iam-policy-binding tokenCreator` dev got in May.
+# Keys are the static member strings from the tfvars → known at plan time.
+resource "google_service_account_iam_member" "operator_token_creator" {
+  for_each = toset(var.admin_operator_members)
+
+  service_account_id = google_service_account.runtime.name
+  role               = "roles/iam.serviceAccountTokenCreator"
+  member             = each.value
+}

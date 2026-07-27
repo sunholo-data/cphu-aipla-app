@@ -7,7 +7,7 @@ Canonical list of live Cloud Run services, per environment.
 | Environment | Status | Release gate |
 |---|---|---|
 | dev | Live | Verify the first deployed `aipla-seed-skills` job and candidate smokes |
-| test | **Not cut** | Provision, deploy the fixed candidate, run golden journeys, soak ≥24h |
+| test | **Live (v0.1.0, 2026-07-27)** | Cut from committed Terraform; core smoke + e2e round-trip (join→turn→BigQuery) green. Remaining: sandbox deploy, teacher SSO round-trip, ≥24h soak |
 | prod | **Not cut** | Provision only through the committed promotion path; promote after test |
 
 The operational source of truth for changing these states is the
@@ -31,9 +31,15 @@ URLs.
   - **Public, no auth** (matches the public-skills posture). Speaks Streamable HTTP — point a ChatGPT remote connector or Claude Desktop `mcp-remote` here, no tunnel.
   - Offers the public skills as tools **and** the sims as `ui://` MCP Apps (`show_boldkast|kinebot|led_planck`; artefact HTML lazily fetched from the sandbox via `MCP_SANDBOX_URL`).
   - Smoke: `REQUIRE_SIMS=1 ./scripts/smoke-deployed-mcp.sh dev` → initialize + sims listed + `ui://` readable. (Visual render is host-dependent — Claude Desktop is currently blocked by upstream claude-ai-mcp#165; ChatGPT/MCP Inspector render reliably.)
-- **Test/prod: not yet cut as of 2026-07-24.** Their absence is a pilot release
-  blocker tracked in the
-  [pilot-readiness checklist](../design/aipla/v1.0.0-pilot/pilot-readiness-checklist.md).
+## AIPLA — test (`aipla-test-2026`, region `europe-north1`) — cut 2026-07-27 (v0.1.0)
+
+- **Frontend (public, multi-container):** https://aipla-v01-frontend-y2bmxayxca-lz.a.run.app
+  - Cut entirely from committed Terraform (`infrastructure/env/`, 77 resources); first release tag `v0.1.0`.
+  - Main container `ui:v0.1.0` (Next.js) + sidecar `backend:v0.1.0` (FastAPI+ADK).
+  - Cloud Build trigger: `aipla-test-release` (root `cloudbuild.yaml`, fires on tag `^v.*$`; build-once, CI-gated — 1.3a). Connection: `github-aipla`.
+  - Agent Engine + curriculum RAG corpus in `europe-west1`. Auto-seed job ran green (auth-gap resolved). Demo code `aipla-demo-1` live.
+- **MCP App sandbox:** NOT yet deployed (deferred M1-remainder; sims won't render on test until its `aipla-v01-sandbox` trigger + service land).
+- **prod: not yet cut** — provision through the committed promotion path (tag→test done; `aipla-prod-promote` copy path is the prod-cut step).
 
 ---
 

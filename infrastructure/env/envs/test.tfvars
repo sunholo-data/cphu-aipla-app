@@ -7,6 +7,7 @@ cb_connection = "github-aipla"
 partition_expiration_days = 365
 teacher_mock              = false
 preview_feature_flags     = false # test/prod stay off until AR/JB's framework lands
+admin_operator_members    = ["user:m@sunholo.com"]
 # Both set after their services' first deploy assigns a *.run.app URL
 # (chicken-egg — see README): frontend_url → sandbox ALLOWED_HOST_ORIGINS;
 # mcp_sandbox_url → NEXT_PUBLIC_MCP_SANDBOX_URL baked into the frontend bundle.

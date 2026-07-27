@@ -19,12 +19,12 @@ import httpx
 # Default base URLs per --env. Override via env var AIPLATFORM_API_URL (wins over all)
 # or per-env AIPLATFORM_API_URL_{ENV}.
 # AIPLA backend is served behind the frontend Cloud Run service at /api/proxy
-# (there is no separate backend service). dev URL is stable per Cloud Run
-# service. test/prod are placeholders until those envs are cut.
+# (there is no separate backend service). URLs are stable per Cloud Run service.
+# test cut 2026-07-27 (v0.1.0). prod is still a placeholder until it's cut.
 _DEFAULT_URLS = {
     "local": "http://localhost:1956",
     "dev": "https://aipla-v01-frontend-wgwhd7mspa-lz.a.run.app/api/proxy",
-    "test": "https://aipla-v01-frontend-test-placeholder.a.run.app/api/proxy",
+    "test": "https://aipla-v01-frontend-y2bmxayxca-lz.a.run.app/api/proxy",
     "prod": "https://aipla-v01-frontend-prod-placeholder.a.run.app/api/proxy",
 }
 

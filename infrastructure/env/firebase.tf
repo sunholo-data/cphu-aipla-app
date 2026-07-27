@@ -27,6 +27,24 @@ resource "google_identity_platform_config" "default" {
     anonymous {
       enabled = true
     }
+    # Declared as disabled to MATCH what the provider reads back (it populates
+    # these default sub-blocks server-side); omitting them causes a cosmetic
+    # perma-diff (provider wants to null them every plan). Students use the
+    # anonymous-group JWT, not email/phone — these stay off (ADR-001).
+    email {
+      enabled           = false
+      password_required = false
+    }
+    phone_number {
+      enabled            = false
+      test_phone_numbers = {}
+    }
+  }
+
+  # Also declared-to-match (provider populates it server-side); avoids a
+  # cosmetic perma-diff. AIPLA is single-tenant.
+  multi_tenant {
+    allow_tenants = false
   }
 
   depends_on = [
