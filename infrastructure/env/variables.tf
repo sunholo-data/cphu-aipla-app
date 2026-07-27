@@ -86,6 +86,12 @@ variable "preview_feature_flags" {
   default     = false
 }
 
+variable "email_signin_enabled" {
+  type        = bool
+  description = "Enable Firebase email/password sign-in. dev/test=true (the test-teacher@example.dk convenience account for curriculum seed + teacher-flow testing); prod=false (teachers use UCPH SSO — ADR-001). Students always use the anonymous-group JWT regardless."
+  default     = false
+}
+
 variable "admin_operator_members" {
   type        = list(string)
   description = "IAM members (e.g. \"user:m@sunholo.com\") granted serviceAccountTokenCreator on the runtime SA, so an operator can impersonate it to mint ID tokens for the HTTP admin ops (demo-code minting via scripts/seed-demo-codes.sh; HTTP seed). Declarative replacement for the manual gcloud grant dev got in May. Keep minimal — this is human→SA impersonation of a broadly-scoped SA."

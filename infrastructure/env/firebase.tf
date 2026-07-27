@@ -32,7 +32,7 @@ resource "google_identity_platform_config" "default" {
     # perma-diff (provider wants to null them every plan). Students use the
     # anonymous-group JWT, not email/phone — these stay off (ADR-001).
     email {
-      enabled           = false
+      enabled           = var.email_signin_enabled
       password_required = false
     }
     phone_number {
