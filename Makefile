@@ -1,4 +1,4 @@
-.PHONY: dev dev-local dev-recompile dev-status dev-stop proxy-check logs cloud-logs cloud-errors cloud-build verify-chat-logs smoke-session-persistence smoke-chat-resume smoke-curriculum-content smoke-teacher-cli help cli-install cli-reinstall cli-uninstall cli-doctor cli-selftest-mock cli-selftest-live cli-selftest seed seed-job seed-demo-codes force-seed-demo reset-group-state provision-curriculum-rag seed-curriculum backfill-curriculum-content migrate-clear-persona-voice-override docs-linkcheck check-skills sim-build sim-build-check guides guides-publish guide-screens seed-guide-corpus guide-staleness
+.PHONY: dev dev-local dev-recompile dev-status dev-stop proxy-check logs cloud-logs cloud-errors cloud-build verify-chat-logs smoke-session-persistence smoke-chat-resume smoke-curriculum-content smoke-teacher-cli help cli-install cli-reinstall cli-uninstall cli-doctor cli-selftest-mock cli-selftest-live cli-selftest seed seed-job seed-demo-codes force-seed-demo reset-group-state provision-curriculum-rag provision-agent-engine copy-docparse-secret seed-curriculum backfill-curriculum-content migrate-clear-persona-voice-override docs-linkcheck check-skills sim-build sim-build-check guides guides-publish guide-screens seed-guide-corpus guide-staleness
 
 # Seed SKILL.md templates -> Firestore. Since P1.3 the Cloud Build deploy runs
 # this automatically via the `aipla-seed-skills` Cloud Run job (see
@@ -58,6 +58,18 @@ reset-group-state:
 #   make provision-curriculum-rag ENV=dev
 provision-curriculum-rag:
 	@scripts/provision-curriculum-rag.sh $(ENV)
+
+# Fill AGENT_ENGINE_ID: create the Vertex Agent Engine (europe-west1) + write the
+# secret value. Terraform makes the secret shell; this is the per-env post-apply
+# step (part of cutting a new env — see the prod-cut runbook).
+#   make provision-agent-engine ENV=test
+provision-agent-engine:
+	@scripts/provision-agent-engine.sh $(ENV)
+
+# Fill DOCPARSE_API_KEY on a fresh env by copying the value from one that has it.
+#   make copy-docparse-secret FROM=dev TO=test
+copy-docparse-secret:
+	@scripts/copy-docparse-secret.sh $(FROM) $(TO)
 
 # Seed the SHARED corpus with the cleared Danish stx physics material (1.1.25,
 # A/B/C læreplan + vejledning). Reads the docparse-parsed markdown from the

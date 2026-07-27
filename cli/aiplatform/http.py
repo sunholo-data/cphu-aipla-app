@@ -37,6 +37,26 @@ class APIError(click.ClickException):
     """Raised when the backend returns a non-2xx status."""
 
 
+def _resolve_frontend_url(env: str) -> str | None:
+    """Resolve the live aipla-v01-frontend Cloud Run URL for env via gcloud.
+
+    Kills the placeholder-URL drift class: an env cut after this map was written
+    (prod) resolves its real URL live instead of shipping a stale placeholder.
+    """
+    project = f"aipla-{env}-2026"
+    try:
+        out = subprocess.run(
+            ["gcloud", "run", "services", "describe", "aipla-v01-frontend",
+             "--region", "europe-north1", "--project", project,
+             "--format", "value(status.url)"],
+            capture_output=True, text=True, timeout=30, check=False,
+        )
+        url = out.stdout.strip()
+        return f"{url}/api/proxy" if url.startswith("http") else None
+    except Exception:
+        return None
+
+
 def resolve_base_url(env: str) -> str:
     """Resolve the backend base URL for `env`, honoring env-var overrides."""
     override = os.environ.get("AIPLATFORM_API_URL")
@@ -47,7 +67,21 @@ def resolve_base_url(env: str) -> str:
         return per_env.rstrip("/")
     if env not in _DEFAULT_URLS:
         raise click.UsageError(f"Unknown env '{env}'. Use one of: local, dev, test, prod")
-    return _DEFAULT_URLS[env]
+    default = _DEFAULT_URLS[env]
+    # A "placeholder" default means that env isn't cut into this map yet (test/
+    # prod URLs are assigned at first deploy). Resolve it live via gcloud so we
+    # never ship a stale placeholder again (the dev→test lesson — both this map
+    # and seed-demo-codes drifted). dev/test have real URLs → fast path.
+    if "placeholder" in default:
+        resolved = _resolve_frontend_url(env)
+        if resolved:
+            return resolved
+        raise click.UsageError(
+            f"'{env}' URL is a placeholder and gcloud could not resolve the "
+            f"aipla-v01-frontend service (is it deployed?). Set "
+            f"AIPLATFORM_API_URL_{env.upper()} to override."
+        )
+    return default
 
 
 def get_bearer_token() -> str:
