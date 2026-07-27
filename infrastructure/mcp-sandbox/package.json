@@ -31,6 +31,7 @@
   },
   "overrides": {
     "qs": "^6.15.2",
-    "esbuild": "^0.28.1"
+    "esbuild": "^0.28.1",
+    "body-parser": "^2.3.0"
   }
 }
