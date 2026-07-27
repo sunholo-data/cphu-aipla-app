@@ -100,7 +100,7 @@ Authored against a real `terraform plan` of an enabled `test` project (per 1.3 M
 - **`firebase.tf` (google-beta):** `google_identity_platform_config` (anonymous auth enabled — replaces the REST PATCH in the script), `google_firebase_web_app`, and the `FIREBASE_ENV` secret populated from its SDK config. The Web App is created only to harvest SDK config; document that side-effect purpose.
 - **`cloudbuild.tf`:** `google_cloudbuildv2_connection` (`sunholo-github`) + `google_cloudbuildv2_repository` (`cphu-aipla-app`); `google_cloudbuild_trigger` for the dev deploy, the mcp-sandbox deploy, and — per **1.3a** — the build-once promotion triggers (`aipla-test-release` tag-trigger + `aipla-prod-promote` manual), **not** per-branch rebuild triggers.
 - **The auth-gap fix (1.1):** add `google_service_account_iam_member` granting `aipla-v6@` `roles/iam.serviceAccountTokenCreator` **on itself** (1.1's testable hypothesis for why `generate-id-token` returned empty), plus `google_project_service_identity.cloudbuild` to force-materialise the CB service agent and its `serviceAccountUser` (`actAs`) binding on `aipla-v6@`. The `test` apply is the experiment that confirms/refutes the hypothesis: if the deploy-time `aipla-seed-skills` step runs green with no 403, the binding was the root cause.
-- **Home of the connection/triggers:** per 1.3 M0 + the deploy-project pattern, the CB connection + triggers should ultimately live in `aipla-deploy-2026` and target the env projects. Cutting `test` fresh there is the clean path; migrating dev's existing trigger/connection is a follow-up, not a blocker.
+- **Home of the connection/triggers (DECIDED 2026-07-27): in-env, not centralised.** The CB connection + triggers live in each env project (`aipla-test-2026`, etc.), **reversing** the 1.3-M0 "move to the deploy project" note. AIPLA is one app × three envs (handed to UCPH, possibly migrated off GCP), so the centralise-and-amortise pattern that fits `multivac-deploy-aitana` (many apps behind one deploy plane) does not pay off here; blast-radius isolation (no single SA that deploys to all envs — Axiom 9), per-env self-containment for handover, and off-GCP portability all favour in-env. Only **tfstate** is centralised (in the existing `aipla-deploy` project). The sole deliberate cross-project edge stays the 1.3a promote path (prod build reads test's Artifact Registry, read-only).
 
 ### 3. Portable capability-module boundary (feeds 3.2 Layer 1)
 
@@ -128,6 +128,7 @@ Runtime env (`AIPLA_THINKING_BUDGET`, the model/region block, `VOICE_*`, sandbox
 
 - Move runtime config to a **provider-neutral, per-env source** — Terraform-rendered env from `envs/<env>.tfvars` (and, on the on-prem side, a Helm `values.yaml` consuming the same keys). The `app-runtime` module renders it into the Cloud Run container today and a k8s Deployment tomorrow.
 - This makes prod-hardening a per-env variable set (1.3 Risks: `--min-instances` for pilot cold-start, ingress/auth reconsidering `--allow-unauthenticated`, `AIPLA_THINKING_BUDGET` for prod) rather than an edit to a shared build file.
+- **Frontend runtime config (1.3a "option A") — reviewed + deferred, DECIDED 2026-07-27.** The promotion model (reviewed with M) is confirmed as 1.3a's: branch→dev, **tag→test**, **copy-backend-by-digest + rebuild-frontend-from-tag→prod** (matches the ailang-parse/docparse pattern). The one place AIPLA can't pure-copy is the frontend, because Next.js bakes `NEXT_PUBLIC_*` at build time (1.3a §What's copy-promotable). Making the frontend read config at **runtime** (`/api/config` / `window.__ENV__`) is this same config-extraction principle applied to the frontend, and would make its image env-agnostic → **pure copy-promote, full build-once**. Deferred to its own ~1d sprint (touches `frontend/src/lib/firebase.ts` + the sandbox-URL read); the pilot ships 1.3a option B (rebuild-from-tag). Strongest upstream-template item here.
 
 ### 5. The never-Terraform post-apply layer (name by capability)
 
@@ -135,7 +136,7 @@ Agent Engine (`reasoningEngines`) and the curriculum RAG corpus have no google-p
 
 ### 6. State backend (settled, with one migration caveat)
 
-State lives in `aipla-deploy-2026` / `gs://aipla-deploy-2026-tfstate`, per-env prefix (1.3 M0). Unchanged. **Caveat to record for the on-prem trigger:** GCS state couples the *operator's* toolchain to live GCP creds; a genuine off-GCP migration would move state to a neutral store (UCPH MinIO / local). Not a now-problem — flagged so it is not discovered at cutover (mirrors 3.2 Open Q3).
+State lives in the existing **`aipla-deploy`** project / `gs://aipla-deploy-tfstate`, per-env prefix (1.3 M0; project name corrected 2026-07-27 — `aipla-deploy`, not the earlier-proposed `aipla-deploy-2026`; bucket created 2026-07-27). **Caveat to record for the on-prem trigger:** GCS state couples the *operator's* toolchain to live GCP creds; a genuine off-GCP migration would move state to a neutral store (UCPH MinIO / local). Not a now-problem — flagged so it is not discovered at cutover (mirrors 3.2 Open Q3).
 
 ### CLI Surface
 
@@ -205,7 +206,7 @@ Sequenced so the pilot-blocking path (increment 2 → test cut) lands first; dev
 ## Open Questions
 
 1. **Import dev, or re-create dev fresh?** Import preserves live pilot-prep data (safer, but fiddlier `plan` reconciliation). A fresh re-create is cleaner HCL but throws away dev's seeded state. **Lean: import** — dev holds pilot-prep work we should not lose, and import is the 1.1-scoped path.
-2. **Move the CB connection/triggers to `aipla-deploy-2026` now, or after the pilot?** 1.3 M0 wants them there eventually. **Lean: cut `test`'s triggers there fresh; migrate dev's later** (not a blocker).
+2. ~~**Move the CB connection/triggers to the deploy project?**~~ **RESOLVED 2026-07-27: no — CB stays in-env** (see §2 "Home of the connection/triggers"). Only tfstate is centralised. Reverses the 1.3-M0 intent.
 3. **How far to push module reorganisation before the pilot?** Full capability-module refactor vs. minimal (identity module + mapping table, defer the rest to handover). **Lean: minimal now** (identity module + config extraction + the mapping table, since those are the pilot-critical + handover-load-bearing parts); the fuller refactor is a handover-window task shared with 3.2.
 4. **`prevent_destroy` scope.** Which live dev resources get the lifecycle guard during import (Firestore DB, data buckets, secrets — clearly; the artifact repo, the SA — probably)?
 

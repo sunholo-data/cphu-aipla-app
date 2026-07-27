@@ -130,12 +130,16 @@ Each must exist in the target project **before its first push-deploy**:
 
 ## Milestones
 
-- **M0 — Dedicated deployments project (DECIDED 2026-06-17).** State lives in a
-  dedicated `aipla-deploy-2026` project (usual sunholo pattern — cf.
-  `multivac-deploy-aitana`), not an env project. Create the project (org-level)
-  + a versioned `gs://aipla-deploy-2026-tfstate` bucket. Per the pattern, this
-  project also becomes the eventual home for the Cloud Build connection +
-  triggers (today they sit in `aipla-dev-2026`).
+- **M0 — Dedicated deployments project (DECIDED 2026-06-17; refined 2026-07-27).**
+  State lives in the dedicated **`aipla-deploy`** project (usual sunholo pattern —
+  cf. `multivac-deploy-aitana`), not an env project; versioned bucket
+  `gs://aipla-deploy-tfstate` (created 2026-07-27). **Correction 2026-07-27:** the
+  project is `aipla-deploy` (it already exists), not the earlier-proposed
+  `aipla-deploy-2026`. **Reversal 2026-07-27:** the Cloud Build connection +
+  triggers do **NOT** move to the deploy project — they stay **in-env** (see
+  [terraform-consolidation.md](terraform-consolidation.md) §2: blast-radius
+  isolation + handover self-containment + off-GCP portability beat the many-apps
+  amortisation that fits the other repos).
 - **M1 — Complete the Terraform module.** *(Increment 1 DONE 2026-06-17:
   `infrastructure/env/`, validated — foundation resources + composed modules.)*
   Increment 2: Firebase (google-beta) + Cloud Build connection/triggers,

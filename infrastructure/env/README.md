@@ -53,22 +53,27 @@ installed + COMPLETE in the project/region; Firebase added to the project;
 
 ## State backend
 
-**DECIDED 2026-06-17:** state lives in a **dedicated AIPLA deployments project**
-(the usual sunholo pattern — cf. `multivac-deploy-aitana`, `ailang-multivac-deploy`),
-not in any env project. Proposed name `aipla-deploy-2026`; bucket
-`gs://aipla-deploy-2026-tfstate` (versioning on), per-env prefix.
+**DECIDED 2026-06-17; project name corrected 2026-07-27:** state lives in a
+**dedicated AIPLA deployments project** (the usual sunholo pattern — cf.
+`multivac-deploy-aitana`, `ailang-multivac-deploy`), not in any env project.
+The project is **`aipla-deploy`** (it already exists), not the earlier-proposed
+`aipla-deploy-2026`; bucket `gs://aipla-deploy-tfstate` (versioning on,
+`europe-north1`, created 2026-07-27), per-env prefix.
 
 ```bash
 terraform init \
-  -backend-config="bucket=aipla-deploy-2026-tfstate" \
+  -backend-config="bucket=aipla-deploy-tfstate" \
   -backend-config="prefix=aipla-env/test"
 ```
 
-Per the same pattern, the deployments project should also own the Cloud Build
-**connection + triggers** (which today sit in `aipla-dev-2026`). So increment 2's
-trigger resources target the env projects *from* the deploy project. Migrating
-dev's existing trigger/connection there is a follow-up, not a blocker for cutting
-test fresh.
+**Cloud Build connection + triggers stay IN each env project (DECIDED 2026-07-27),
+NOT in the deploy project** — reversing the earlier "same pattern" note. Rationale:
+AIPLA is one app × three envs handed to UCPH (possibly migrated off GCP), so the
+centralise-and-amortise argument that fits `multivac-deploy-aitana` (many apps) does
+not apply here, while blast-radius isolation (no central SA that can deploy to all
+envs), per-env self-containment for handover, and off-GCP portability all favour
+in-env. Only **tfstate** is centralised (above). The one deliberate cross-project
+edge is the 1.3a promote path (prod build reads test's Artifact Registry, read-only).
 
 **Prereq:** the deploy project + state bucket must exist before the first `init`
 (project creation is org-level — see the env-promotion doc).
