@@ -342,6 +342,7 @@ So the estimate is real, not optimistic:
 
 - [firestore-portability-seam.md](firestore-portability-seam.md) — the Firestore→Postgres seam audit + hardening (Phase-1 slice; re-rates the DB port H→M)
 - [aipla-cloud-bootstrap.md](../v1.0.0-pilot/aipla-cloud-bootstrap.md) — the GCP-side Terraform consolidation (Layer 1)
+- [terraform-consolidation.md](../v1.0.0-pilot/terraform-consolidation.md) — **completes Layer 1** (2026-07-27): folds dev into Terraform (single source of truth), finishes increment 2, and shapes the capability-module boundary so this doc's Layer 2 mirrors it 1:1 (see its §3 GCP↔on-prem mapping table, which realises §6 here)
 - [infra-terraform-lessons.md](../../v6.0.0/implemented/infra-terraform-lessons.md) — Terraform gotchas (provider pin, Agent Engine via SDK)
 - [`infrastructure/modules/`](../../../../infrastructure/modules/) — existing GCP modules
 - Scoping site: [`self-hosting.qmd`](file:///Users/mark/Documents/clients/cph-uni/self-hosting.qmd) (the stub this supersedes for execution detail), [`architecture.qmd`](file:///Users/mark/Documents/clients/cph-uni/architecture.qmd) (ADR-003/005/006/007/010/012/017), [`evaluation.qmd`](file:///Users/mark/Documents/clients/cph-uni/evaluation.qmd) (capability-floor eval — the migration gate), [`timeline.qmd`](file:///Users/mark/Documents/clients/cph-uni/timeline.qmd) (handover fan-out)
