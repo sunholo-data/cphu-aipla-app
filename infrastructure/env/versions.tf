@@ -25,9 +25,15 @@ terraform {
 provider "google" {
   project = var.project_id
   region  = var.region
+  # Route quota/billing for user-ADC calls to the target project. Required by
+  # identitytoolkit (google_identity_platform_config) and Firebase resources,
+  # which otherwise 403 with "requires a quota project" under user ADC. Keeps
+  # the apply reproducible for any operator without a global ADC quota setting.
+  user_project_override = true
 }
 
 provider "google-beta" {
-  project = var.project_id
-  region  = var.region
+  project               = var.project_id
+  region                = var.region
+  user_project_override = true
 }

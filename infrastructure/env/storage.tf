@@ -28,9 +28,13 @@ resource "google_storage_bucket" "admin" {
 }
 
 resource "google_storage_bucket_iam_member" "admin" {
-  for_each = google_storage_bucket.admin
+  # Iterate the STATIC set (not google_storage_bucket.admin) so the for_each keys
+  # are known at plan time — a resource-map for_each has apply-unknown keys on a
+  # fresh project, which breaks `terraform import` (and is the anti-pattern
+  # Terraform's own error warns about).
+  for_each = local.admin_buckets
 
-  bucket = each.value.name
+  bucket = google_storage_bucket.admin[each.key].name
   role   = "roles/storage.admin"
   member = "serviceAccount:${google_service_account.runtime.email}"
 }
