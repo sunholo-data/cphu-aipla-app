@@ -26,7 +26,10 @@ A bare project has **only `serviceusage` enabled**; the GitHub-connection wizard
 rest. Enable them declaratively in one shot:
 ```bash
 cd infrastructure/env
-gcloud services enable serviceusage.googleapis.com --project=aipla-prod-2026
+# serviceusage + cloudresourcemanager BOTH first: google_project_service uses the
+# Cloud Resource Manager API to enable the others. (test had CRM on by default;
+# prod did NOT — projects vary in default-enabled APIs. Found 2026-07-28.)
+gcloud services enable serviceusage.googleapis.com cloudresourcemanager.googleapis.com --project=aipla-prod-2026
 terraform init -reconfigure -backend-config="bucket=aipla-deploy-tfstate" -backend-config="prefix=aipla-env/prod"
 terraform apply -target=google_project_service.apis -var-file=envs/prod.tfvars   # 15 APIs, review then yes
 ```
