@@ -7,7 +7,7 @@ Canonical list of live Cloud Run services, per environment.
 | Environment | Status | Release gate |
 |---|---|---|
 | dev | Live | Verify the first deployed `aipla-seed-skills` job and candidate smokes |
-| test | **Live (v0.1.0, 2026-07-27)** | Cut from committed Terraform; core smoke + e2e round-trip (join→turn→BigQuery) green. Remaining: sandbox deploy, teacher SSO round-trip, ≥24h soak |
+| test | **Live (v0.1.1, 2026-07-27)** | Cut from committed Terraform; **full smoke green** (incl. sandbox), e2e + teacher round-trips + curriculum (A/B/C, cleared) verified. Remaining: ≥24h soak |
 | prod | **Not cut** | Provision only through the committed promotion path; promote after test |
 
 The operational source of truth for changing these states is the
@@ -38,7 +38,8 @@ URLs.
   - Main container `ui:v0.1.0` (Next.js) + sidecar `backend:v0.1.0` (FastAPI+ADK).
   - Cloud Build trigger: `aipla-test-release` (root `cloudbuild.yaml`, fires on tag `^v.*$`; build-once, CI-gated — 1.3a). Connection: `github-aipla`.
   - Agent Engine + curriculum RAG corpus in `europe-west1`. Auto-seed job ran green (auth-gap resolved). Demo code `aipla-demo-1` live.
-- **MCP App sandbox:** NOT yet deployed (deferred M1-remainder; sims won't render on test until its `aipla-v01-sandbox` trigger + service land).
+- **MCP App sandbox (public, separate origin per ADR-013):** https://aipla-v01-sandbox-y2bmxayxca-lz.a.run.app
+  - Deployed v0.1.1 via the `aipla-test-sandbox-release` tag trigger. Hosts `/sandbox.html` (iframe shell) + `/artefacts/<name>/v<version>/` (Boldkast etc.). The frontend bakes this as `NEXT_PUBLIC_MCP_SANDBOX_URL`; smoke green.
 - **prod: not yet cut** — provision through the committed promotion path (tag→test done; `aipla-prod-promote` copy path is the prod-cut step).
 
 ---
