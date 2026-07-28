@@ -8,7 +8,7 @@ Canonical list of live Cloud Run services, per environment.
 |---|---|---|
 | dev | Live | Verify the first deployed `aipla-seed-skills` job and candidate smokes |
 | test | **Live (v0.1.1, 2026-07-27)** | Cut from committed Terraform; **full smoke green** (incl. sandbox), e2e + teacher round-trips + curriculum (A/B/C, cleared) verified. Remaining: ≥24h soak |
-| prod | **Not cut** | Provision only through the committed promotion path; promote after test |
+| prod | **Live (v0.1.1, 2026-07-28)** | Cut from committed Terraform in one clean pass; core smoke green + demo code `aipla-demo-1`. Remaining: sandbox deploy, curriculum (cleared-only) seed, copy-promote steady-state (first cut used tag-build), hardening |
 
 The operational source of truth for changing these states is the
 [v1.0 pilot-readiness checklist](../design/aipla/v1.0.0-pilot/pilot-readiness-checklist.md).
@@ -40,7 +40,12 @@ URLs.
   - Agent Engine + curriculum RAG corpus in `europe-west1`. Auto-seed job ran green (auth-gap resolved). Demo code `aipla-demo-1` live.
 - **MCP App sandbox (public, separate origin per ADR-013):** https://aipla-v01-sandbox-y2bmxayxca-lz.a.run.app
   - Deployed v0.1.1 via the `aipla-test-sandbox-release` tag trigger. Hosts `/sandbox.html` (iframe shell) + `/artefacts/<name>/v<version>/` (Boldkast etc.). The frontend bakes this as `NEXT_PUBLIC_MCP_SANDBOX_URL`; smoke green.
-- **prod: not yet cut** — provision through the committed promotion path (tag→test done; `aipla-prod-promote` copy path is the prod-cut step).
+## AIPLA — prod (`aipla-prod-2026`, region `europe-north1`) — cut 2026-07-28 (v0.1.1)
+
+- **Frontend (public, multi-container):** https://aipla-v01-frontend-6vwz657g3a-lz.a.run.app
+  - Cut from committed Terraform in ONE clean apply (every test-cut fix was already in the shared code — identity config applied first-try). Deploy: `aipla-prod-release` tag trigger (first-cut **tag-build**; copy-promote is the steady-state follow-up — 1.3a). Agent Engine + RAG corpus in `europe-west1`; auto-seed job ran green; demo code `aipla-demo-1` live.
+  - Teachers: **UCPH SSO** (email sign-in disabled; no test-teacher account). Curriculum: corpus provisioned but **not yet seeded** (cleared-only when it is — copyright gate).
+- **MCP App sandbox:** NOT yet deployed on prod (follow-up — add the prod sandbox trigger + predict URL, same recipe as test).
 
 ---
 
