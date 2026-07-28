@@ -7,6 +7,10 @@ deploy_branch             = "prod"
 cb_connection = "github-aipla"
 partition_expiration_days = 365
 teacher_mock              = false
-# Set after the first deploy assigns a *.run.app URL (chicken-egg — see README).
-frontend_url           = ""
+frontend_url           = "https://aipla-v01-frontend-6vwz657g3a-lz.a.run.app"        # sandbox ALLOWED_HOST_ORIGINS
+mcp_sandbox_url        = "https://aipla-v01-sandbox-6vwz657g3a-lz.a.run.app/sandbox.html" # predicted (per-project hash)
 admin_operator_members = ["user:m@sunholo.com"]
+# PILOT PHASE (2026-07-28): email sign-in enabled on prod so a seed-teacher can
+# author + the team can evaluate teacher flows before UCPH SSO is wired. The
+# SSO-only posture (ADR-001) is the handover target — revisit then.
+email_signin_enabled = true

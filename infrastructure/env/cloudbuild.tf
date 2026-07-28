@@ -171,6 +171,34 @@ resource "google_cloudbuild_trigger" "prod_release" {
   substitutions = local.deploy_substitutions
 }
 
+# prod: mcp-sandbox release trigger (parity with test_sandbox_release, env=prod).
+resource "google_cloudbuild_trigger" "prod_sandbox_release" {
+  count = var.env == "prod" ? 1 : 0
+
+  project         = var.project_id
+  location        = var.region
+  name            = "aipla-prod-sandbox-release"
+  description     = "Build + deploy aipla-v01-sandbox on tag push vX.Y.Z (prod)."
+  service_account = "projects/${var.project_id}/serviceAccounts/${google_service_account.runtime.email}"
+
+  repository_event_config {
+    repository = google_cloudbuildv2_repository.app.id
+    push {
+      tag = "^v.*$"
+    }
+  }
+
+  filename = "infrastructure/mcp-sandbox/cloudbuild.yaml"
+  substitutions = {
+    _PROJECT_ID                        = var.project_id
+    _SERVICE_NAME                      = "aipla-v01-sandbox"
+    _REGION                            = var.region
+    _ARTIFACT_REGISTRY_REPO_URL_CLIENT = "${var.region}-docker.pkg.dev/${var.project_id}/${var.ar_repo}"
+    _LOGS_BUCKET                       = "gs://${var.project_id}-aipla-v01-logs"
+    _ALLOWED_HOST_ORIGINS              = var.frontend_url
+    _IMAGE_TAG                         = "$${TAG_NAME}"
+  }
+}
+
 # TODO (steady-state): `aipla-prod-promote` manual trigger on cloudbuild.promote.yaml
-# + cross-project artifactregistry.reader (1.3a §Security); + a prod sandbox
-# trigger — see docs/ops/runbooks/prod-cut.md steps 6 + 10.
+# + cross-project artifactregistry.reader (1.3a §Security) — see prod-cut.md step 7.
