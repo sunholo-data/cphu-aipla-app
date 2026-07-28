@@ -145,6 +145,32 @@ resource "google_cloudbuild_trigger" "test_sandbox_release" {
   }
 }
 
-# TODO (PROD cut): `aipla-prod-promote` manual trigger on cloudbuild.promote.yaml
-# + the cross-project artifactregistry.reader grant (1.3a §Security), and a
-# prod sandbox trigger — see docs/ops/runbooks/prod-cut.md steps 6 + 10.
+# prod: FIRST-CUT deploy trigger — tag → build + deploy, same proven path as
+# test_release (reuses local.deploy_substitutions). NOTE: 1.3a's steady-state for
+# prod is COPY-promote (aipla-prod-promote on cloudbuild.promote.yaml, running the
+# byte-identical tested digest). That pipeline is unvalidated first-run, so the
+# first prod cut uses this reliable tag-build path; switch to copy-promote once
+# validated (runbook step 7), then retire this or keep it as a rebuild fallback.
+resource "google_cloudbuild_trigger" "prod_release" {
+  count = var.env == "prod" ? 1 : 0
+
+  project         = var.project_id
+  location        = var.region
+  name            = "aipla-prod-release"
+  description     = "First-cut prod deploy: tag push vX.Y.Z → build + deploy. Steady-state = copy-promote (1.3a)."
+  service_account = "projects/${var.project_id}/serviceAccounts/${google_service_account.runtime.email}"
+
+  repository_event_config {
+    repository = google_cloudbuildv2_repository.app.id
+    push {
+      tag = "^v.*$"
+    }
+  }
+
+  filename      = "cloudbuild.yaml"
+  substitutions = local.deploy_substitutions
+}
+
+# TODO (steady-state): `aipla-prod-promote` manual trigger on cloudbuild.promote.yaml
+# + cross-project artifactregistry.reader (1.3a §Security); + a prod sandbox
+# trigger — see docs/ops/runbooks/prod-cut.md steps 6 + 10.
