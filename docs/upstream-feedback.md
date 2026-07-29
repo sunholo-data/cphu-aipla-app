@@ -18,9 +18,9 @@ before a template refresh. Each entry below now carries a status blockquote.
 
 | Status | Count | Entries |
 |---|---|---|
-| ✅ Fixed upstream | 28 | 1–14, 19–22, 24–27, 30, 31, 37, 40, 41, 43 |
-| 🟡 Partially fixed | 3 | 15, 18, 45 |
-| ❌ Still open | 12 | 16, 17, 23, 32, 33, 34, 35, 36, 38, 39, 42, 44 |
+| ✅ Fixed upstream | 31 | 1–14, 17, 18, 19–22, 24–27, 30, 31, 32, 37, 40, 41, 43 |
+| 🟡 Partially fixed | 2 | 15, 45 |
+| ❌ Still open | 10 | 16, 23, 33, 34, 35, 36, 38, 39, 42, 44 |
 | ⚪ No action needed | 2 | 28, 29 |
 
 **How the fixed ones got fixed.** Only #1–4, #11, #12 were ever formally
@@ -32,25 +32,23 @@ this log was not being read, so the overlap is coincidence, not process.
 global-counter bug on 2026-07-28 (issue #38, commit `4999307`) and fixed it a
 month after you documented it here.
 
-**The 12 open ones are now the actionable set.** Ranked by what upstream
+**The 10 open ones are now the actionable set.** Ranked by what upstream
 should take first:
 
 1. **#39 stream redaction** — privileged tool results are mirrored to the
    client SSE stream. Generic confidentiality hole; highest severity.
 2. **#16 anon-group Firestore persistence** — the template still ships the
    never-landed TODO, so every fork rediscovers the min-instances workaround.
-3. **#32 `RUN_ERROR` terminal filter** — ~15 LOC + 1 test, already validated
-   on your fork; unblocks any fork with a tool that can raise.
-4. **#36 CI gate on deploy** — red CI still ships upstream too.
-5. **#42 startup project guard** — brand-anchored *and* fail-open. The
+3. **#36 CI gate on deploy** — red CI still ships upstream too.
+4. **#42 startup project guard** — brand-anchored *and* fail-open. The
    2026-07-29 sanitize pass de-brands it in the published template but leaves
    the design flaw.
-6. **#35 Vertex session-ownership test double** — the CI blind spot is the
+5. **#35 Vertex session-ownership test double** — the CI blind spot is the
    valuable half, independent of the migration shim.
-7. **#23, #44** — two small, high-leverage frontend fixes (viewport/flex
+6. **#23, #44** — two small, high-leverage frontend fixes (viewport/flex
    chain; react-markdown remount).
-8. **#38** — artefact host-portability (`content` + `structuredContent`).
-9. **#17, #18, #33, #34, #15** — structural cleanups, lower urgency.
+7. **#38** — artefact host-portability (`content` + `structuredContent`).
+8. **#17, #18, #33, #34, #15** — structural cleanups, lower urgency.
 
 **Note on #33/#34.** Upstream has no teacher/student split, so the symptom
 does not reproduce there. The *shape* of the fix (explicit audience at the
@@ -444,7 +442,7 @@ or the deployed URL with a real group token.
 
 ## 16. Anonymous-group state lives in process memory; the template ships a TODO that never landed
 
-> ❌ **Still open upstream** — triaged 2026-07-29 against `Aitana-Labs/platform` @ `44ebdff`. `backend/auth/group_id_auth.py` still has no Firestore persistence — no `_persist_group` / `anon_groups` collection. Your fix is the one to upstream verbatim; it is the single highest-value item left on this list.
+> ❌ **Still open upstream** — triaged 2026-07-29 against `Aitana-Labs/platform` @ `44ebdff`. `backend/auth/group_id_auth.py` still has no Firestore persistence — no `_persist_group` / `anon_groups` collection. Your fix is the one to upstream verbatim; it is the single highest-value item left on this list. **Note:** upstream's `docs/design/template/SEQUENCE.md` index wrongly lists this as "✅ Shipped in v6.2.0" — it is not; the in-memory dict and the "wiring lands in M2" docstring are both still there. That stale index entry is plausibly why it never got done.
 
 **Where:** `backend/auth/group_id_auth.py` line 25 of the module
 docstring — *"The production InMemoryFirestoreClient / Firestore
@@ -478,7 +476,7 @@ stay serverless instead of replicating the pinning workaround.
 
 ## 17. `/gcs_config` volume mount is wired in Dockerfile + cloudbuild but no Python reads it
 
-> ❌ **Still open upstream** — triaged 2026-07-29 against `Aitana-Labs/platform` @ `44ebdff`. Still mounted and still unread — zero Python reads `_CONFIG_FOLDER` or `/gcs_config`.
+> ✅ **Fixed upstream** — corrected 2026-07-29 (first triaged as OPEN; **triage error**). The dead plumbing was already removed: `backend/Dockerfile`, `cloudbuild.yaml` and `backend/cloudbuild.yaml` contain no `gcs_config` / `_CONFIG_FOLDER` reference at all. The surviving mentions are historical prose in `docs/design/template/`. Shipped 2026-06-05 in `template-dx-hardening.md`.
 
 **Where:** `backend/Dockerfile` (`ENV _CONFIG_FOLDER=/gcs_config`)
 plus `backend/cloudbuild.yaml` and `cloudbuild.yaml`
@@ -508,7 +506,7 @@ is confusing.
 
 ## 18. `frontend/Dockerfile` silently drops any `NEXT_PUBLIC_*` ARG not pre-declared
 
-> 🟡 **Partially fixed upstream** — triaged 2026-07-29 against `Aitana-Labs/platform` @ `44ebdff`. The ARG list grew from ~9 to 35 declared `NEXT_PUBLIC_*` vars, so more survives — but it is still an explicit allowlist with the same silent-drop behaviour. The structural fix (wildcard mechanism, or moving auth-mode into `branding.ts`) is unimplemented.
+> ✅ **Fixed upstream** — corrected 2026-07-29 (first triaged as PARTIAL; **triage error** — the check looked at the Dockerfile's ARG list but not at the build script that feeds it). `get-firebase-config.sh` now diffs the `NEXT_PUBLIC_*` keys in `.env.local` against the Dockerfile's `ARG` declarations and **fails the build loudly** with the missing-ARG list, so a silent drop surfaces at build time instead of as `undefined` at runtime — your exact proposed fix. Plus a 3-step checklist comment in `frontend/Dockerfile`. Shipped 2026-06-05 in `template-dx-hardening.md`.
 
 **Where:** `frontend/Dockerfile` lines 11-31. Hard-coded list of
 `ARG NEXT_PUBLIC_FIREBASE_*` (6 vars) + `ARG NEXT_PUBLIC_ADMIN_EMAIL`
@@ -648,7 +646,7 @@ Ready to upstream as a PR — small surface area, additive field, no breaking ch
 
 ## 23. Chat-page flex column missing `min-h-0` — input footer scrolls below viewport on empty/short chat
 
-> ❌ **Still open upstream** — triaged 2026-07-29 against `Aitana-Labs/platform` @ `44ebdff`. The chat column still has no `min-h-0`, and `app/layout.tsx` still uses `min-h-screen` on `<body>` rather than the `h-screen flex flex-col` + `flex-1 min-h-0` shell you proposed. Both halves of this entry are unfixed.
+> ❌ **Still open upstream** — triaged 2026-07-29 against `Aitana-Labs/platform` @ `44ebdff`. The chat column still has no `min-h-0`, and `app/layout.tsx` still uses `min-h-screen` on `<body>` rather than the `h-screen flex flex-col` + `flex-1 min-h-0` shell you proposed. Both halves of this entry are unfixed. **Note:** upstream's `docs/design/template/SEQUENCE.md` index wrongly lists this as "✅ Fixed in platform (commit `36ee3cd`)" — but `36ee3cd` is *your* commit hash, not a commit in the platform repo. The index copied it across. Same stale-index problem as #16.
 
 **Where:** `frontend/src/app/chat/[...path]/page.tsx` — the inner chat column at line 534 used `<div className="flex min-w-0 flex-1 flex-col">`.
 
@@ -1022,7 +1020,7 @@ This kind of "blank-then-refetch on auth refresh" pattern is also worth a generi
 
 ## 32. `ag_ui_adk` double-emits `RUN_FINISHED` after `RUN_ERROR` on tool exceptions — and the template's SSE wrapper doesn't filter
 
-> ❌ **Still open upstream** — triaged 2026-07-29 against `Aitana-Labs/platform` @ `44ebdff`. No `saw_run_error` tracking in `backend/fast_api_app.py` — `RUN_ERROR` is not enforced as terminal at the SSE boundary. Your ~15 LOC + 1 test is ready to upstream as-is.
+> ✅ **Fixed upstream** — corrected 2026-07-29 (this entry was first triaged as OPEN; that was a **triage error** — the check grepped only `fast_api_app.py`). The invariant is implemented one layer down in `backend/adk/agui.py` (`terminal_event_yielded` + `_TERMINAL_EVENT_TYPES`), which is a better place than the SSE wrapper: it sits at event normalisation, so the prelude and the main loop are the same code path and cannot diverge. It is also **stronger than the proposed fix** — it drops any event type after *either* terminal (RUN_ERROR-after-RUN_FINISHED as well as your reported direction), and logs `agui_terminal_dedup` so upstream-bug frequency stays measurable. Design doc: `docs/design/template/template-agui-terminal-dedup.md`; 10 tests in `backend/tests/unit/test_agui_terminal_dedup.py`.
 
 **Where:** Surfaced 2026-06-06 by a sibling fork (`gde-ap-agent-blqtqfexwa-ew.a.run.app`) whose `lookup_vendor` tool raised mid-run. Browser console:
 
