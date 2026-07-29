@@ -285,6 +285,19 @@ commands.
 - Both. The combination of generic 403 + missing email + non-obvious
   curl flag is the kind of bug that wastes hours.
 
+**Update (2026-07-29) — the paved auto-seed path resolves #13 + #14 (AIPLA `8cc74d6`):**
+the whole token-mint dance exists only because the seed ran as an HTTP call
+*into* the backend from Cloud Build. AIPLA now seeds as a **Cloud Run Job** on
+the backend image, executed as the runtime SA, writing Firestore directly via
+ADC — no ID token, no `include_email`, no HTTP, no allowlist check. Its
+entrypoint (`python -m admin.platform_seed`) calls the *same* `seed()` the HTTP
+handler calls (so the two paths can't drift) and exits non-zero on any failed
+template, so a bad seed reds the build. No new IAM: deploying the service already
+grants `run.admin` + `actAs`. **Upstream:** ship the seed as a job (not an HTTP
+self-call) in the reference `cloudbuild.yaml` — it sidesteps #13 and #14 entirely
+and makes "seed on every deploy" the default rather than a manual post-deploy step
+(the repo's self-described #1 operational footgun).
+
 ## 15. Skill-invoke endpoint path is not discoverable without reading source
 
 **Where:** During M4/M5 of AIPLA v0.1, I (Claude) spent real time
@@ -491,6 +504,20 @@ FirebaseError: [code=permission-denied]: Missing or insufficient permissions.
 - Rewrite Firestore security rules to accept custom JWT tokens (more complex; requires aligning the HS256 signing key with Firebase Auth's verification).
 
 Option (a) is the natural upstream pattern. The template should bundle it into `AnonymousGroupAuthProvider` so downstream forks don't have to rediscover.
+
+**Update (2026-07-29) — the anon-group token has no refresh-on-401 (AIPLA `f91ba83`):**
+an 8th instance of the "template models a Firebase identity; the custom group JWT
+has no equivalent lifecycle" family (#19/#21/#33/#34). The group token had only a
+*proactive* expiry timer — when it missed (laptop sleep / suspended tab) the token
+lapsed with no recovery, every request 401'd, and a background poller
+(`CallTeacherButton`) 401-stormed ~6×/min indefinitely (7 days of dev logs
+saturated by one loop). Fix: a deduped `refreshGroupSession()` + retry-once-after-401
+in `fetchWithAuth`, plus a non-purging read (`frontend/src/lib/{groupTokenClient,
+apiClient,anonymousGroupAuth}.ts`). **Upstream:** the `signInAnonymously()` fix
+proposed above (option a) also solves this by handing the SDK a real identity with
+SDK-managed refresh; failing that, bundle a deduped refresh-on-401 primitive into
+the `AnonymousGroupAuthProvider` the template ships, so forks don't rediscover
+token lifecycle for the anon-group mode.
 
 ## 22. A2UI toolset is appended to every skill regardless of `tools: []` — no opt-out
 
@@ -962,6 +989,22 @@ The contribution this represents for the template: ship the defensive SSE wrappe
 
 **Upstream fix:** `AGUIProvider` should take the auth source as an explicit input (an `audience`/token-getter prop) rather than reaching into one global `useAuth()`. A teacher-surface provider passes the Firebase getter; a student-surface provider passes the group getter; neither relies on a context that's only correct for one role. Pairs with #33's `apiClient` change — the whole app should never infer "who is acting" from a single global auth context that's role-specific.
 
+**Update (2026-07-29) — two of #33/#34's own proposed guards now shipped:**
+- **Backend (AIPLA `7382231`, `63fffd3`):** the teacher gate
+  (`if not user.is_teacher: raise HTTPException(403, ...)`) was copy-pasted
+  byte-for-byte across 4+ route modules (classes / analytics / insights / activity /
+  teacher_bootstrap / curriculum / teacher_prefs) and drifted. Now one
+  `backend/auth/guards.py::assert_teacher(user, detail=...)` that every teacher-only
+  route calls. **Upstream:** ship this canonical guard in the template and document
+  dual-audience endpoints (#33) as a first-class exception rather than a per-site
+  copy-paste judgement.
+- **Frontend (AIPLA `e79874d`):** #33's suggested lint rule now exists — path-scoped
+  `no-restricted-imports` in `frontend/.eslintrc.json` fences teacher-surface dirs
+  against importing `fetchWithAuth` and student-surface dirs against
+  `fetchWithTeacherAuth`, each with a message pointing at the dual-audience escape
+  hatch. **Upstream:** bundle this fence in the template's eslint config so the
+  wrong-token footgun (#19/#21/#33/#34, shipped 4+ times) fails the build in any fork.
+
 ## 35. A uid-scheme migration broke live Agent Engine sessions; test doubles hid it
 
 **Where:** `backend/adk/session.py` (the `get_session_service()` singleton) + the anon-group uid scheme in `backend/auth/group_id_auth.py`. The 2026-06-13 change from a per-join uid (`anon-{code}-{hex}`) to a deterministic per-group uid (`anon-{code}`) was correct for *new* sessions and was paired with `anon_owner_uid_match` so **Firestore queries** match both schemes. But a live **Vertex Agent Engine session is owned by exactly one uid** and ADK's `VertexAiSessionService.get_session` enforces an **exact** owner match (`if response.user_id != user_id: raise ValueError("... does not belong to user")`).
@@ -1013,6 +1056,89 @@ The contribution this represents for the template: ship the defensive SSE wrappe
 **Workaround on AIPLA:** artefacts now emit **both** on every `ui/update-model-context` — a `content` text block (model-facing, *derived from the same label/state* so the two can't semantically diverge) plus `structuredContent` (unchanged, for our programmatic consumer). Additive: our frontend still reads `structuredContent` and ignores `content`, so zero in-app behaviour change (no extra trust card). Verified the model sees interactions in ChatGPT after the change. NOTE this is *not* protocol drift on our part — consuming `structuredContent` programmatically is its intended use; the gap was only the missing `content` for model-facing hosts.
 
 **Upstream fix:** (a) the template's reference artefacts (`frontend/src/_sim-template/` + the `mcp-app-artefact` skill) should emit `content` AND `structuredContent`, single-sourced, **by default**, so every artefact is portable across hosts out of the box. (b) the template's iframe bridge should follow the conformant-host split — prefer `content` for model context, use `structuredContent` for programmatic/structured consumption (and per SEP-1624 "Clients that use `content` MUST still perform `outputSchema` validation against `structuredContent` when present"). (c) Forward to `modelcontextprotocol/ext-apps`: SEP-1624's guidance should be **extended to `ui/update-model-context`**, since hosts currently disagree on which field reaches the model — the under-specification is the root cause here.
+
+**Update (2026-07-29) — host detection must not key on `window.openai` (AIPLA `cf61021`, `321a53a`):**
+a portability sibling to the `content`/`structuredContent` fix. Artefact code that
+branches on `window.openai` (a "not our host" deep-link CTA, or which broadcast API
+to call) is ChatGPT-centric: Copilot injects it only as a compat shim and
+pure-standard MCP-Apps hosts (Claude Desktop, Inspector, Goose, MCPJam) don't inject
+it at all, so a standards-conformant host silently mis-branches. The correct signal
+is self-identification via the open `ui/initialize` handshake → `serverInfo.name`,
+deny-by-default when there's no signal, with `window.openai` treated as just the
+ChatGPT case. Fixed in the shared guest bridge
+(`infrastructure/mcp-sandbox/bridge/aipla-mcp-bridge.js`) + reference artefact
+scaffold. **Upstream:** the reference `_sim-template` / bridge should detect the host
+via the handshake, not the vendor global.
+
+## 39. Server-only tool *results* are mirrored onto the client SSE stream — readable in devtools
+
+**Where:** the AG-UI streaming layer in `backend/fast_api_app.py` (the event iterator) mirrors tool *result* events onto the SSE stream sent to the client. AIPLA's fix is a new `backend/adk/stream_redaction.py`, hooked at `backend/fast_api_app.py:665` (`event_iter = redact_student_stream(event_iter, is_student=bool(user.group_id))`).
+
+**What hurt:** A server-side tool whose *result* is privileged but whose session audience is lower-trust leaks that result to the client. On AIPLA a checkpoint/judging tool returned the teacher's expected answers + rubric; because AG-UI mirrors tool-result events to the SSE stream, any devtools-savvy student could read them. This is a generic confidentiality hole for *any* fork with a privileged server-tool result and a lower-trust audience — nothing in the template marks tool results as not-client-visible. AG-UI result events carry no tool name, so a correct fix must map `TOOL_CALL_START` ids to their results and fail **closed** on an unmatched result.
+
+**Workaround on AIPLA:** a stream-boundary redaction filter that deny-by-defaults platform-tool results for lower-privilege (group-token) sessions, while letting genuine client-render paths (A2UI, MCP-server `ui://`, card-safe tools) pass. AIPLA commit `0b608a0` (STRIP-1).
+
+**Upstream fix:** ship a stream-boundary redaction filter in the reference AG-UI wiring and make "tool results are not automatically client-visible for lower-privilege sessions" a template invariant, not a per-fork rediscovery. The default should be safe: privileged-by-default, opt-in to client-render.
+
+## 40. `platform_seed.py` UPDATE path propagates prompt/avatar but NOT `skillMetadata` (tools/agentTools)
+
+**Where:** `backend/admin/platform_seed.py` — the UPDATE path (`_template_updates`, line 194, called from `skill_config.update_skill(...)` at line 301) vs the CREATE path (line 361, which passes `skillMetadata=parsed["metadata"]`).
+
+**What hurt:** the seed CREATE path sends `skillMetadata`; the UPDATE path did not. Re-seeding a skill whose SKILL.md changed its tool list (e.g. advisory → active) applied the new instructions but kept the old `tools: []`. The deployed agent then built with **no** function tools while the prompt named them → ADK raised `Tool 'create_class' not found` and the model surfaced no output. Classic works-in-tests / breaks-after-a-template-edit divergence, invisible until a skill's tool list actually changes (same failure family as #20, different dropped field).
+
+**Workaround on AIPLA:** `_template_updates` now carries `skillMetadata` (tools + agentTools) so UPDATE matches CREATE. AIPLA commit `c4098c0`.
+
+**Upstream fix:** the UPDATE path must propagate every template-owned field the CREATE path does. Better: derive both paths' field-set from a single "template-owned vs runtime-owned" partition (accessControl is runtime-owned and must NOT be overwritten; skillMetadata IS template-owned) so the two can't drift by omission.
+
+## 41. AG-UI stream token goes stale after ~1h — `onAuthStateChanged` doesn't fire on Firebase's silent ID-token rotation
+
+**Where:** `frontend/src/providers/AGUIProvider.tsx` (token effect, ~lines 172–178) and `frontend/src/lib/firebase.ts:90` (new `subscribeToIdToken` using `onIdTokenChanged`).
+
+**What hurt:** `AGUIProvider` mints the SSE stream bearer once and re-runs its token effect on `onAuthStateChanged`, which does **not** fire on Firebase's ~hourly silent ID-token refresh. Any chat session crossing the 1h expiry sent an expired token → stream POST `401: Token expired` → `RUN_ERROR`, chat dead. Only the long-lived SSE stream broke — per-call `fetchWithTeacherAuth` requests re-mint a fresh token each time, so the failure looked mysteriously stream-specific. Any fork with sessions longer than the token TTL inherits this.
+
+**Workaround on AIPLA:** subscribe to `onIdTokenChanged` (not just `onAuthStateChanged`) and re-mint on rotation; the existing `useMemo([skillId, token, sessionId])` HttpAgent rebuild picks up the fresh bearer. AIPLA commit `d2c59b3`. (Distinct from #31 = provider unmount on refresh, and #34 = no token at all.)
+
+**Upstream fix:** the reference `AGUIProvider` (and any long-lived authenticated stream) should key its token on `onIdTokenChanged`, not `onAuthStateChanged`. Worth a one-line comment in the template: `onAuthStateChanged` fires on sign-in/out only; token *rotation* needs `onIdTokenChanged`.
+
+## 42. Startup project guard hardcodes a brand prefix AND fails open
+
+**Where:** `backend/fast_api_app.py:79–86` (`_expected_prefix`, a `startswith` check that only logs a `STARTUP WARNING`) and `backend/app.py:32` (`_FALLBACK_PROJECT = os.environ.get("PLATFORM_DEFAULT_PROJECT", ...)`).
+
+**What hurt:** the boot-time "is my GCP project sane?" guard checks a hardcoded template-brand prefix (upstream: `aitana-multivac`). On a correctly-configured fork it logs a spurious warning, and on a *genuinely* misconfigured boot it still starts — the guard is **fail-open** and **brand-anchored**, so it warns exactly when it shouldn't and stays quiet when it should fire. The CI fallback default likewise points every fork at the template's project unless overridden. (AIPLA has since re-pointed both at `aipla-` / `aipla-dev-2026`, but the *design* is what's wrong.)
+
+**Workaround on AIPLA:** re-point the prefix + fallback at the AIPLA project (`b3a5dce`). The guard remains warn-only.
+
+**Upstream fix:** derive the expected prefix / fallback from `GOOGLE_CLOUD_PROJECT` / ADC (or an explicit `PLATFORM_DEFAULT_PROJECT` with no brand default), not a baked brand string; and make the guard **fail-loud** (refuse to boot on a clearly-wrong project in non-LOCAL_MODE) or drop it — a warn-on-correct / silent-on-wrong guard is worse than none. Same brand-anchoring class as #2/#3/#11, distinct still-live location.
+
+## 43. Module-scoped test fixture raw-writes `LOCAL_MODE` into `os.environ` and never restores it
+
+**Where:** `backend/tests/api_tests/test_app_assembly.py` — the module-scoped `assembled_app` fixture.
+
+**What hurt:** the fixture set `os.environ["LOCAL_MODE"] = "1"` (and popped genai/Vertex vars) with a raw write and no teardown. Because it's module-scoped, `LOCAL_MODE` leaked into the whole test session, flipping the auth dispatcher to the stub path and silently failing every Firebase-auth test that ran afterward (`test_auth_whoami`, `test_tenant_attribution`). They passed in isolation, so the leak masked itself — the exact fingerprint of a shared-mutable-env test bug. Any fork inherits the leak.
+
+**Workaround on AIPLA:** use a `pytest.MonkeyPatch()` (`setenv`/`delenv`, restored on teardown) instead of a raw `os.environ` write. AIPLA commit `28d6558`.
+
+**Upstream fix:** the reference fixtures should mutate env only through `monkeypatch`/`pytest.MonkeyPatch` (automatic undo), never raw `os.environ`. Worth a template-wide sweep for other raw env mutations in module/session-scoped fixtures.
+
+## 44. `ChatMarkdown` recreates its react-markdown `components` object per render → the whole rendered subtree remounts
+
+**Where:** `frontend/src/components/chat/ChatMarkdown` (+ `ChatMessageList`, `MessageBubble`, `SVGBlock`).
+
+**What hurt:** react-markdown treats each `components` override as a React element *type*, so a fresh `components` object identity per render makes React **remount** (not re-render) the entire rendered markdown subtree. Combined with `MessageBubble`'s `React.memo` being defeated by unstable props (`toolCallsByParent[m.id] ?? []` minting a fresh array each render; an inline-arrow `onChatMessage`), any routine parent re-render tore down and rebuilt every message's DOM. It surfaced as continuous SVG-diagram flicker, but the remount cost is generic and hits any fork rendering chat through this component.
+
+**Workaround on AIPLA:** `useMemo` the `components` object (keyed on real deps), memo `ChatMarkdown`, hoist per-message callbacks to `useCallback`, share a stable empty-array constant. AIPLA commit `7c8d94c`.
+
+**Upstream fix:** stabilise the reference chat renderer's `components` identity and memo boundaries, and carry a template note: **any react-markdown `components` map must have stable identity or it remounts the tree** — an easy, high-cost mistake to copy.
+
+## 45. Inherited analytics sub-tasks hardcode model IDs instead of sourcing the registry
+
+**Where:** `backend/analytics/summarise.py` (`_SUMMARISE_MODEL`), against the model registry accessor added at `backend/config/models.py` (`fast_model()`).
+
+**What hurt:** the session-summary sub-task hardcoded `gemini-2.5-flash`. The template ships a model registry, but inherited sub-tasks bypass it, so a deprecation of that pinned string silently breaks the analytics path with no single place to fix. (Borderline: most of the surrounding diff is AIPLA's own rubric platform; only this inherited sub-task is template-generic.)
+
+**Workaround on AIPLA:** route the summary model through `fast_model()`. AIPLA commit `df26fab`.
+
+**Upstream fix:** inherited sub-task model selection should go through a registry accessor (`fast_model()` / `default_model()`), so a model deprecation is a one-place change rather than a grep-the-codebase hunt.
 
 ## Backlog (likely additions as v0.1 sprint continues)
 
