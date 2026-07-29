@@ -28,11 +28,17 @@ The table above tracks the private source of truth (`44ebdff`). A second pass
 verified all 45 entries against the *public* mirror AIPLA actually forked from,
 now that the v6.19.0 closeout has been published. It agrees on 44/45 — with one
 genuine divergence and one now-ahead item, both noted inline:
-- **#12** is the exception: the public `cloudbuild.yaml` still defaults
-  `_MCP_SANDBOX_URL` to a **live** sandbox URL (not the empty string the private
-  fix carries), so a fork off the public repo still hits it.
+- **#12** was the exception at the `f7ad250` refresh (public still defaulted
+  `_MCP_SANDBOX_URL` to a **live** sandbox URL). **Resolved** at the next refresh
+  (`6dfc55c`, 14:56) — now `''`. Public and private agree.
 - **#15**'s `/list-apps` half is now fixed in public (returns canonical
-  `APP_NAME`), slightly ahead of the private-triage note.
+  `APP_NAME`), slightly ahead of the private-triage note. Residual: the
+  `aitana-adk-testing` skill CLAUDE.md references still isn't shipped upstream.
+- **#45** residual: `app.py` still passes a literal `"gemini-2.5-flash"` to
+  `get_compaction_config` (the registry seam is enforced for agent models only).
+
+Net as of `6dfc55c`: **44/45 fully incorporated**; the only residuals are the
+two minor partials above (#15 skill-not-shipped, #45 one compaction literal).
 
 **How the fixed ones got fixed.** Only #1–4, #11, #12 were ever formally
 ingested (they are the "Source items" line in the platform's
@@ -309,7 +315,9 @@ Either:
 
 > **Fixed upstream** — triaged 2026-07-29 against `Aitana-Labs/platform` @ `44ebdff`. `_MCP_SANDBOX_URL` defaults to empty string, not an Aitana URL.
 >
-> **Public-mirror caveat — reconciled 2026-07-29 against `sunholo-data/ai-protocol-platform` @ `f7ad250`: NOT fixed in the public template.** `cloudbuild.yaml:65` still ships `_MCP_SANDBOX_URL: 'https://mcp-sandbox-66pa3y5xnq-ew.a.run.app'` — a live URL default, not the empty string the private source of truth carries. Since CLAUDE.md records AIPLA as forked from the *public* repo, a fork off the public template still deploys against a foreign sandbox URL unless it overrides. The private fix hasn't propagated to the published template (or the publish step re-injects a URL) — the one entry where private and public genuinely diverge.
+> **Public-mirror caveat — reconciled 2026-07-29 against `sunholo-data/ai-protocol-platform` @ `f7ad250`: NOT fixed in the public template at that point.** `cloudbuild.yaml:65` shipped `_MCP_SANDBOX_URL: 'https://mcp-sandbox-66pa3y5xnq-ew.a.run.app'` — a live URL default, not the empty string the private source of truth carries. Since CLAUDE.md records AIPLA as forked from the *public* repo, a fork off that template deployed against a foreign sandbox URL unless it overrode. This was the one entry where private and public genuinely diverged.
+>
+> **Resolved — re-checked 2026-07-29 against `sunholo-data/ai-protocol-platform` @ `6dfc55c` (14:56 refresh, from private `127c816`): `cloudbuild.yaml:65` is now `_MCP_SANDBOX_URL: ''`.** The private fix has propagated to the published template; public and private now agree.
 
 **Where:** `cloudbuild.yaml` line 27 —
 `_MCP_SANDBOX_URL: 'https://mcp-sandbox-66pa3y5xnq-ew.a.run.app/sandbox.html'`.
