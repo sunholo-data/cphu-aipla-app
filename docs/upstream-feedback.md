@@ -34,11 +34,15 @@ genuine divergence and one now-ahead item, both noted inline:
 - **#15**'s `/list-apps` half is now fixed in public (returns canonical
   `APP_NAME`), slightly ahead of the private-triage note. Residual: the
   `aitana-adk-testing` skill CLAUDE.md references still isn't shipped upstream.
-- **#45** residual: `app.py` still passes a literal `"gemini-2.5-flash"` to
-  `get_compaction_config` (the registry seam is enforced for agent models only).
+- **#45** was a residual (`app.py` compaction literal); **resolved** at `27b80e1`
+  (15:31) — now routed through `gemini_api_name_for(...)`. The registry seam
+  covers the non-agent sub-tasks too.
 
-Net as of `6dfc55c`: **44/45 fully incorporated**; the only residuals are the
-two minor partials above (#15 skill-not-shipped, #45 one compaction literal).
+Net as of `27b80e1` (15:31): **effectively fully incorporated.** The only thing
+still outstanding is #15's cosmetic tail — upstream `CLAUDE.md` still says "load
+the `aitana-adk-testing` skill" (line 307) while that skill deliberately ships
+only in the fork (acknowledged in its own Fork note, line 295). A dangling
+instruction, not a code gap — arguably by-design.
 
 **How the fixed ones got fixed.** Only #1–4, #11, #12 were ever formally
 ingested (they are the "Source items" line in the platform's
@@ -1317,6 +1321,8 @@ via the handshake, not the vendor global.
 ## 45. Inherited analytics sub-tasks hardcode model IDs instead of sourcing the registry
 
 > **Partially fixed upstream** — triaged 2026-07-29 against `Aitana-Labs/platform` @ `44ebdff`. The model registry exists and `resolve_model_chain()` is the enforced seam for agent models (`test_model_call_reliability_guard.py` fails the build on raw calls). Some non-agent sub-tasks still carry literals — `app.py:74` `get_compaction_config("gemini-2.5-flash")`, `tools/structured_extraction.py` (env-overridable). Upstream has no `analytics/summarise.py`.
+>
+> **Resolved — re-checked 2026-07-29 against `sunholo-data/ai-protocol-platform` @ `27b80e1` (15:31 refresh, from private `b3b1644`):** the last literal is gone — `app.py:85` now `get_compaction_config(gemini_api_name_for("gemini-2-5-flash"))`, routing the compaction model through the registry accessor. The registry seam now covers the non-agent sub-tasks too.
 
 **Where:** `backend/analytics/summarise.py` (`_SUMMARISE_MODEL`), against the model registry accessor added at `backend/config/models.py` (`fast_model()`).
 
