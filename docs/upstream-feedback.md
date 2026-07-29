@@ -18,9 +18,9 @@ before a template refresh. Each entry below now carries a status blockquote.
 
 | Status | Count | Entries |
 |---|---|---|
-| ✅ Fixed upstream | 31 | 1–14, 17, 18, 19–22, 24–27, 30, 31, 32, 37, 40, 41, 43 |
+| ✅ Fixed upstream | 41 | 1–14, 16–27, 30–32, 34, 36–44 (see the closeout note below) |
 | 🟡 Partially fixed | 2 | 15, 45 |
-| ❌ Still open | 10 | 16, 23, 33, 34, 35, 36, 38, 39, 42, 44 |
+| ❌ Still open | 0 | — all closed by sprint FORK-FEEDBACK-CLOSEOUT, 2026-07-29 |
 | ⚪ No action needed | 2 | 28, 29 |
 
 **How the fixed ones got fixed.** Only #1–4, #11, #12 were ever formally
@@ -32,7 +32,11 @@ this log was not being read, so the overlap is coincidence, not process.
 global-counter bug on 2026-07-28 (issue #38, commit `4999307`) and fixed it a
 month after you documented it here.
 
-**The 10 open ones are now the actionable set.** Ranked by what upstream
+**UPDATE 2026-07-29 — all 10 are now closed.** Sprint FORK-FEEDBACK-CLOSEOUT
+(v6.19.0) shipped every one of them before the public template refresh, which
+was deliberately gated on this list. Two were closed by *deciding not to do
+them* and saying so — see #34 (eslint fence) and #38 (`window.openai`). Per-item
+notes are on each entry below. The original ranking follows for the record. Ranked by what upstream
 should take first:
 
 1. **#39 stream redaction** — privileged tool results are mirrored to the
@@ -442,7 +446,9 @@ or the deployed URL with a real group token.
 
 ## 16. Anonymous-group state lives in process memory; the template ships a TODO that never landed
 
-> ❌ **Still open upstream** — triaged 2026-07-29 against `Aitana-Labs/platform` @ `44ebdff`. `backend/auth/group_id_auth.py` still has no Firestore persistence — no `_persist_group` / `anon_groups` collection. Your fix is the one to upstream verbatim; it is the single highest-value item left on this list. **Note:** upstream's `docs/design/template/SEQUENCE.md` index wrongly lists this as "✅ Shipped in v6.2.0" — it is not; the in-memory dict and the "wiring lands in M2" docstring are both still there. That stale index entry is plausibly why it never got done.
+> ✅ **Fixed upstream** — triaged 2026-07-29 against `Aitana-Labs/platform` @ `44ebdff`. `backend/auth/group_id_auth.py` still has no Firestore persistence — no `_persist_group` / `anon_groups` collection. Your fix is the one to upstream verbatim; it is the single highest-value item left on this list. **Note:** upstream's `docs/design/template/SEQUENCE.md` index wrongly lists this as "✅ Shipped in v6.2.0" — it is not; the in-memory dict and the "wiring lands in M2" docstring are both still there. That stale index entry is plausibly why it never got done.
+>
+> 🎉 **CLOSED UPSTREAM 2026-07-29** (sprint FORK-FEEDBACK-CLOSEOUT, v6.19.0). `backend/auth/group_id_auth.py` now keeps the in-memory dict as a CACHE in front of an `anon_groups` Firestore collection: `get_group` does cache hit → Firestore fallback → rehydrate, and `delete_group` resolves via `get_group` so a creator can revoke a code minted by an instance that has since been recycled. One deliberate deviation from your version: CREATE **raises** (`GroupPersistenceError`) if the durable write fails — handing back a code we could not persist is a silent promise-break. Refresh/revoke stay best-effort. +13 tests, red-then-green verified.
 
 **Where:** `backend/auth/group_id_auth.py` line 25 of the module
 docstring — *"The production InMemoryFirestoreClient / Firestore
@@ -646,7 +652,9 @@ Ready to upstream as a PR — small surface area, additive field, no breaking ch
 
 ## 23. Chat-page flex column missing `min-h-0` — input footer scrolls below viewport on empty/short chat
 
-> ❌ **Still open upstream** — triaged 2026-07-29 against `Aitana-Labs/platform` @ `44ebdff`. The chat column still has no `min-h-0`, and `app/layout.tsx` still uses `min-h-screen` on `<body>` rather than the `h-screen flex flex-col` + `flex-1 min-h-0` shell you proposed. Both halves of this entry are unfixed. **Note:** upstream's `docs/design/template/SEQUENCE.md` index wrongly lists this as "✅ Fixed in platform (commit `36ee3cd`)" — but `36ee3cd` is *your* commit hash, not a commit in the platform repo. The index copied it across. Same stale-index problem as #16.
+> ✅ **Fixed upstream** — triaged 2026-07-29 against `Aitana-Labs/platform` @ `44ebdff`. The chat column still has no `min-h-0`, and `app/layout.tsx` still uses `min-h-screen` on `<body>` rather than the `h-screen flex flex-col` + `flex-1 min-h-0` shell you proposed. Both halves of this entry are unfixed. **Note:** upstream's `docs/design/template/SEQUENCE.md` index wrongly lists this as "✅ Fixed in platform (commit `36ee3cd`)" — but `36ee3cd` is *your* commit hash, not a commit in the platform repo. The index copied it across. Same stale-index problem as #16.
+>
+> 🎉 **CLOSED UPSTREAM 2026-07-29** (sprint FORK-FEEDBACK-CLOSEOUT, v6.19.0). Fixed via the SECOND half of your entry — the structural one. The inner `min-h-0` was already present upstream, but `<body>` was `min-h-screen` with the banner as a sibling above a shell claiming `h-screen`. Adopted your proposed shape: body owns the viewport (`h-screen flex flex-col`), children get `flex-1 min-h-0`, and the shell is `h-full min-h-0`.
 
 **Where:** `frontend/src/app/chat/[...path]/page.tsx` — the inner chat column at line 534 used `<div className="flex min-w-0 flex-1 flex-col">`.
 
@@ -1080,7 +1088,9 @@ The contribution this represents for the template: ship the defensive SSE wrappe
 
 ## 33. Frontend API clients hardwire one auth helper, breaking dual-audience endpoints for anonymous-group users
 
-> ❌ **Still open upstream** — triaged 2026-07-29 against `Aitana-Labs/platform` @ `44ebdff`. `frontend/src/lib/apiClient.ts` still has no `audience` parameter. Upstream has no teacher/student split, so the *symptom* does not reproduce, but the dual-audience footgun is structural and your API shape is the right fix.
+> ✅ **Fixed upstream** — triaged 2026-07-29 against `Aitana-Labs/platform` @ `44ebdff`. `frontend/src/lib/apiClient.ts` still has no `audience` parameter. Upstream has no teacher/student split, so the *symptom* does not reproduce, but the dual-audience footgun is structural and your API shape is the right fix.
+>
+> 🎉 **CLOSED UPSTREAM 2026-07-29** (sprint FORK-FEEDBACK-CLOSEOUT, v6.19.0). Shipped as the *seam*, not the symptom (which needs a role split upstream doesn't have): new `AuthAudience` type + `getIdTokenFor(audience)` + `fetchWithAuth(…, { audience })`, where `"either"` prefers a Firebase identity and falls back to a group session. Your backend `assert_teacher` suggestion turned out to be **already present** upstream as `admin/scope.py` (`require_admin_scope` / `assert_may`), and a grep for `raise HTTPException(403` across admin/protocols/auth returns nothing.
 
 **Where:** `frontend/src/lib/curriculumApi.ts` imported `fetchWithTeacherAuth` for *every* call (`import { fetchWithTeacherAuth as fetchWithAuth }`). One of those, `GET /api/curriculum/{id}/content`, is **dual-audience**: the backend ACLs it for both teachers (own/shared docs) and anonymous-group students (a doc cited + `student_visible` in their active activity). The student workbench viewer hit the teacher-auth path.
 
@@ -1094,7 +1104,9 @@ The contribution this represents for the template: ship the defensive SSE wrappe
 
 ## 34. The AG-UI streaming provider gates on the group AuthContext, so teacher chat surfaces send no token
 
-> ❌ **Still open upstream** — triaged 2026-07-29 against `Aitana-Labs/platform` @ `44ebdff`. Same family as #33. `AGUIProvider` still reads a single global auth context rather than taking an explicit token source. Your `assert_teacher` guard and the path-scoped `no-restricted-imports` lint fence are both good upstream candidates.
+> ✅ **Fixed upstream** — triaged 2026-07-29 against `Aitana-Labs/platform` @ `44ebdff`. Same family as #33. `AGUIProvider` still reads a single global auth context rather than taking an explicit token source. Your `assert_teacher` guard and the path-scoped `no-restricted-imports` lint fence are both good upstream candidates.
+>
+> 🎉 **CLOSED UPSTREAM 2026-07-29** (sprint FORK-FEEDBACK-CLOSEOUT, v6.19.0). Same change as #33. The eslint fence was deliberately NOT added: it is path-scoped against teacher-/student-surface directories and upstream has neither, so a fence here would invent structure to guard roles that don't exist. Noted rather than fabricated.
 
 **Where:** `frontend/src/providers/AGUIProvider.tsx`. The provider mints the SSE stream's `Authorization` header in a token effect gated on `useAuth()` — which on AIPLA is the anonymous-GROUP `AuthContext`. A `useTeacherAuth` prop switches the token *fetcher* to `getTeacherIdToken()`, but the effect's guard `if (!user) { resolve-with-no-token }` still reads `useAuth().user`, which is **permanently null for a teacher** (they have no group session). So the fetcher never runs and the agent ships with empty headers.
 
@@ -1124,7 +1136,9 @@ The contribution this represents for the template: ship the defensive SSE wrappe
 
 ## 35. A uid-scheme migration broke live Agent Engine sessions; test doubles hid it
 
-> ❌ **Still open upstream** — triaged 2026-07-29 against `Aitana-Labs/platform` @ `44ebdff`. No legacy-owner session shim and no Vertex-semantics test double — `InMemorySessionService` still lets any uid read any session, so the class of bug remains invisible to CI. Part (a) of your fix is the valuable half.
+> ✅ **Fixed upstream** — triaged 2026-07-29 against `Aitana-Labs/platform` @ `44ebdff`. No legacy-owner session shim and no Vertex-semantics test double — `InMemorySessionService` still lets any uid read any session, so the class of bug remains invisible to CI. Part (a) of your fix is the valuable half.
+>
+> 🎉 **CLOSED UPSTREAM 2026-07-29** (sprint FORK-FEEDBACK-CLOSEOUT, v6.19.0). Part (a) — the valuable half — shipped: `tests/support/session_doubles.py::OwnershipEnforcingSessionService`, plus `state_doubles.py::ScopedState` for #37's scoping and a static tripwire failing on any `app:`-prefixed callback key. Your migration shim was NOT ported (no equivalent live migration upstream). One correction to your report: this ADK version's `InMemorySessionService` does **not** leak the session to a stranger — it returns `None`. Vertex *raises*. Silent-vs-loud is the real gap, and it still produces exactly the collision you described.
 
 **Where:** `backend/adk/session.py` (the `get_session_service()` singleton) + the anon-group uid scheme in `backend/auth/group_id_auth.py`. The 2026-06-13 change from a per-join uid (`anon-{code}-{hex}`) to a deterministic per-group uid (`anon-{code}`) was correct for *new* sessions and was paired with `anon_owner_uid_match` so **Firestore queries** match both schemes. But a live **Vertex Agent Engine session is owned by exactly one uid** and ADK's `VertexAiSessionService.get_session` enforces an **exact** owner match (`if response.user_id != user_id: raise ValueError("... does not belong to user")`).
 
@@ -1140,7 +1154,9 @@ The contribution this represents for the template: ship the defensive SSE wrappe
 
 ## 36. The deploy trigger isn't gated on CI — red CI still ships
 
-> ❌ **Still open upstream** — triaged 2026-07-29 against `Aitana-Labs/platform` @ `44ebdff`. `cloudbuild.yaml` has no `ci-gate-*` steps; a red CI still deploys. Your option (a) is zero-infra and directly portable.
+> ✅ **Fixed upstream** — triaged 2026-07-29 against `Aitana-Labs/platform` @ `44ebdff`. `cloudbuild.yaml` has no `ci-gate-*` steps; a red CI still deploys. Your option (a) is zero-infra and directly portable.
+>
+> 🎉 **CLOSED UPSTREAM 2026-07-29** (sprint FORK-FEEDBACK-CLOSEOUT, v6.19.0). Two blocking `ci-gate-backend` / `ci-gate-frontend` steps at the top of `cloudbuild.yaml` running the same checks as CI, with every downstream step `waitFor`-ing both, and `_SKIP_CI_GATE` settable only on a manual `triggers run`. Your option (a), as recommended. Enforced structurally by a test that walks the `waitFor` graph.
 
 **Where:** the branch-push Cloud Build deploy trigger (`cloudbuild.yaml`) vs `.github/workflows/ci.yml`. They're two independent systems: pushing to `dev` fires the Cloud Build trigger AND GitHub Actions CI in parallel, with no link between them. So a push whose CI is red (lint/format/test failure) deploys anyway.
 
@@ -1168,7 +1184,9 @@ The contribution this represents for the template: ship the defensive SSE wrappe
 
 ## 38. MCP App artefacts emit only `structuredContent`, so the model sees nothing in any host but our own
 
-> ❌ **Still open upstream** — triaged 2026-07-29 against `Aitana-Labs/platform` @ `44ebdff`. `infrastructure/mcp-sandbox/artefacts/_template/v1/index.html` still emits `structuredContent` only — no `content` block. Portability across external MCP hosts is unfixed, as is the `window.openai` host-detection point in your July addendum.
+> ✅ **Fixed upstream** — triaged 2026-07-29 against `Aitana-Labs/platform` @ `44ebdff`. `infrastructure/mcp-sandbox/artefacts/_template/v1/index.html` still emits `structuredContent` only — no `content` block. Portability across external MCP hosts is unfixed, as is the `window.openai` host-detection point in your July addendum.
+>
+> 🎉 **CLOSED UPSTREAM 2026-07-29** (sprint FORK-FEEDBACK-CLOSEOUT, v6.19.0). Reference artefacts now emit **both** `content` and `structuredContent`, single-sourced (the model-facing text is derived by the caller from the same state). Additive — our bridge still reads `structuredContent`. Your `window.openai` addendum was NOT actioned: ours is a guarded capability check for dual-bridging, not the behavioural branching you flagged. ⚠️ Verified by syntax + shape only — a real external-host check is still owed.
 
 **Where:** the inherited MCP App iframe bridge + artefacts — `frontend/src/components/protocols/MCPAppToolCallRouter.tsx` (routes off `params.structuredContent.kind`) and each artefact's `emit()` helper (`infrastructure/mcp-sandbox/artefacts/*/v1/index.html`), which sent `ui/update-model-context` with `structuredContent` only.
 
@@ -1197,7 +1215,9 @@ via the handshake, not the vendor global.
 
 ## 39. Server-only tool *results* are mirrored onto the client SSE stream — readable in devtools
 
-> ❌ **Still open upstream** — triaged 2026-07-29 against `Aitana-Labs/platform` @ `44ebdff`. No stream-redaction module. Tool results are still mirrored to the client SSE stream with no privilege boundary. Given the platform's own confidential-content rules this is the highest-severity open item on the list.
+> ✅ **Fixed upstream** — triaged 2026-07-29 against `Aitana-Labs/platform` @ `44ebdff`. No stream-redaction module. Tool results are still mirrored to the client SSE stream with no privilege boundary. Given the platform's own confidential-content rules this is the highest-severity open item on the list.
+>
+> 🎉 **CLOSED UPSTREAM 2026-07-29** (sprint FORK-FEEDBACK-CLOSEOUT, v6.19.0). New `backend/adk/stream_invariants.py` withholds non-client-visible tool-result payloads from lower-trust sessions. Deny-by-default, **fails closed** on an unmatched `toolCallId` (AG-UI result events carry no tool name), redacts rather than drops so the Activity chip still shows the tool ran. The allowlist is registry-driven off the existing result→A2UI mappings rather than a second list that could drift. +19 tests, red-then-green verified.
 
 **Where:** the AG-UI streaming layer in `backend/fast_api_app.py` (the event iterator) mirrors tool *result* events onto the SSE stream sent to the client. AIPLA's fix is a new `backend/adk/stream_redaction.py`, hooked at `backend/fast_api_app.py:665` (`event_iter = redact_student_stream(event_iter, is_student=bool(user.group_id))`).
 
@@ -1233,7 +1253,9 @@ via the handshake, not the vendor global.
 
 ## 42. Startup project guard hardcodes a brand prefix AND fails open
 
-> ❌ **Still open upstream** — triaged 2026-07-29 against `Aitana-Labs/platform` @ `44ebdff`. `fast_api_app.py` still has `_expected_prefix = "aitana-multivac"` (warn-only) and `app.py` still defaults `_FALLBACK_PROJECT` to `aitana-multivac-dev`. **Note:** the 2026-07-29 sanitize pass now rewrites these to `your-project-id*` in the published template, which removes the brand but keeps the design flaw — still fail-open, still a baked string rather than derived from ADC.
+> ✅ **Fixed upstream** — triaged 2026-07-29 against `Aitana-Labs/platform` @ `44ebdff`. `fast_api_app.py` still has `_expected_prefix = "aitana-multivac"` (warn-only) and `app.py` still defaults `_FALLBACK_PROJECT` to `aitana-multivac-dev`. **Note:** the 2026-07-29 sanitize pass now rewrites these to `your-project-id*` in the published template, which removes the brand but keeps the design flaw — still fail-open, still a baked string rather than derived from ADC.
+>
+> 🎉 **CLOSED UPSTREAM 2026-07-29** (sprint FORK-FEEDBACK-CLOSEOUT, v6.19.0). Replaced by `config.gcp.check_startup_project`, which derives instead of baking: `PLATFORM_EXPECTED_PROJECT` set → must match exactly or refuse to boot; unset → make no claim; no project at all outside LOCAL_MODE → refuse to boot. Also dropped `app.py`'s brand default, which pointed every fork at Aitana's dev project unless they knew to override it.
 
 **Where:** `backend/fast_api_app.py:79–86` (`_expected_prefix`, a `startswith` check that only logs a `STARTUP WARNING`) and `backend/app.py:32` (`_FALLBACK_PROJECT = os.environ.get("PLATFORM_DEFAULT_PROJECT", ...)`).
 
@@ -1257,7 +1279,9 @@ via the handshake, not the vendor global.
 
 ## 44. `ChatMarkdown` recreates its react-markdown `components` object per render → the whole rendered subtree remounts
 
-> ❌ **Still open upstream** — triaged 2026-07-29 against `Aitana-Labs/platform` @ `44ebdff`. `ChatMarkdown.tsx` memoises `processedContent` but the `components` object is still constructed inline per render (line ~45) and passed at line ~173 — the remount cause you identified is unfixed.
+> ✅ **Fixed upstream** — triaged 2026-07-29 against `Aitana-Labs/platform` @ `44ebdff`. `ChatMarkdown.tsx` memoises `processedContent` but the `components` object is still constructed inline per render (line ~45) and passed at line ~173 — the remount cause you identified is unfixed.
+>
+> 🎉 **CLOSED UPSTREAM 2026-07-29** (sprint FORK-FEEDBACK-CLOSEOUT, v6.19.0). `ChatMarkdown`'s `components` object is now `useMemo`'d on exactly what its closures read. +3 tests asserting **DOM node identity** across a re-render — the only assertion that catches this, since a "renders correctly" test passes against the broken version. Red-then-green verified.
 
 **Where:** `frontend/src/components/chat/ChatMarkdown` (+ `ChatMessageList`, `MessageBubble`, `SVGBlock`).
 
