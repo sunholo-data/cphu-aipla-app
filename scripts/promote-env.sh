@@ -83,12 +83,23 @@ echo "  backend (COPY)   : ${SRC_BACKEND}"
 echo "                     -> ${DST_BACKEND}   digest=${DIGEST}"
 echo "  frontend (REBUILD from tag, target config) -> ${DST_AR}/ui:${VERSION}"
 echo "  pipeline         : ${PROMOTE_CONFIG} (runs in ${DST_PROJECT}), then smoke ${TO_ENV}"
+echo "  build identity   : aipla-v6@${DST_PROJECT} (needs artifactregistry.reader on ${SRC_PROJECT})"
 echo
+
+# Run as the SAME service account the tag/promote TRIGGER uses. Without this,
+# `gcloud builds submit` falls back to the project default (the Compute Engine
+# default SA), so the script path and the trigger path run as two different
+# identities — and the cross-project artifactregistry.reader grant that lets
+# `copy-backend` read the SOURCE project is attached to the runtime SA only.
+# The result would be a promote that works from the console and 403s from the
+# CLI. One identity, one grant.
+BUILD_SA="projects/${DST_PROJECT}/serviceAccounts/aipla-v6@${DST_PROJECT}.iam.gserviceaccount.com"
 
 SUBMIT_CMD=(gcloud builds submit
   --project="${DST_PROJECT}"
   --region="${REGION}"
   --config="${PROMOTE_CONFIG}"
+  --service-account="${BUILD_SA}"
   "--substitutions=_SOURCE_PROJECT=${SRC_PROJECT},_TARGET_PROJECT=${DST_PROJECT},_VERSION=${VERSION},_REGION=${REGION},_REPO=${REPO},_SERVICE_NAME=${SERVICE}"
   .)
 

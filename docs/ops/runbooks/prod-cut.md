@@ -70,12 +70,30 @@ make copy-docparse-secret FROM=dev TO=prod      # DOCPARSE_API_KEY
 ```
 (Terraform created the secret *shells* + SA accessors; these fill the values.)
 
-### 6. Wire the prod deploy trigger 🔨 (deferred at the test cut — build before deploying prod)
+### 6. Wire the prod deploy trigger ✅ (done 2026-07-30)
 Prod does **not** tag→build like test; it **copy-promotes** the tested artifact
-(1.3a). Still to add to `cloudbuild.tf` (gated `var.env == "prod"`):
-`google_cloudbuild_trigger.prod_promote` (manual, `cloudbuild.promote.yaml`) **+**
-a cross-project `roles/artifactregistry.reader` for the prod build SA on
-`aipla-test-2026` (so it can copy test's backend digest). Then re-apply step 4.
+(1.3a). Landed in `infrastructure/env/`:
+
+* `google_project_iam_member.promote_source_reader` (iam.tf) — cross-project
+  `roles/artifactregistry.reader` for the target's runtime SA on the SOURCE
+  project. The one permission the promote's `copy-backend` step lacked.
+* `google_cloudbuild_trigger.prod_release` — **disabled**. It stayed armed after
+  the first cut, so `v0.1.2` (2026-07-30) deployed test and prod simultaneously,
+  prod running code test had not been verified on. Safe only because nobody was
+  on prod yet; not acceptable past the 2026-08-14 pilot start.
+* `scripts/promote-env.sh` — now passes `--service-account`. Without it,
+  `gcloud builds submit` fell back to the Compute Engine default SA, so the CLI
+  and trigger paths ran as **different identities** and the AR grant above would
+  have covered only one: promote works from the console, 403s from the CLI.
+
+The `aipla-prod-promote` MANUAL trigger the original TODO called for was
+deliberately NOT added — `promote-env.sh` submits `cloudbuild.promote.yaml`
+directly, so promotion works without it; the trigger would only add a console
+button and a second entry point to keep in sync.
+
+`aipla-prod-sandbox-release` stays tag-fired on purpose: static artefact HTML,
+built deterministically from the tag, no tested digest to preserve, and the
+promote pipeline does not carry it.
 
 ### 7. Deploy prod by promotion ✅ (copy backend digest; rebuild frontend from tag)
 ```bash
@@ -121,7 +139,7 @@ make verify-chat-logs GROUP=<code> ENV=prod     # CLI resolves the URL live (fix
 | frontend `new URL("")` crash on empty sandbox URL | `??`→`||` fallback | ✅ |
 | `seed-demo-codes.sh` hardcoded `*-placeholder` URL | derive via `gcloud run services describe` | ✅ |
 | CLI `http.py` hardcoded `*-placeholder` URL | resolve live via gcloud when default is a placeholder | ✅ |
-| prod deploy trigger (copy-promote) | still to build (step 6) | 🔨 |
+| prod deploy trigger (copy-promote) | done 2026-07-30 — AR reader + prod_release disabled + promote-env.sh SA pin | ✅ |
 | sandbox not deployed | still to build (step 10) | 🔨 |
 
 ## Related

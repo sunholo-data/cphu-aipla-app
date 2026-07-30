@@ -89,7 +89,9 @@ terraform apply -var-file=envs/test.tfvars
 # Post-apply (scripted, not TF) — see outputs.tf post_apply_todo:
 #   bootstrap_agent_engine.py · provision-curriculum-rag.sh (cleared content) ·
 #   populate DOCPARSE_API_KEY · make seed ENV=test · mint demo codes
-# Then promote code: git checkout test && git merge --ff-only dev && git push origin test
+# Then promote code: git tag -a vX.Y.Z -m "..." && git push origin vX.Y.Z
+#   (branch-merge promotion is GONE — the test/prod branches were deleted
+#    2026-07-30; a `v*` tag is what fires the test release trigger.)
 #   → the (increment-2) test deploy trigger builds + deploys, gated by ci-gate-*.
 terraform output   # frontend URL → set frontend_url in test.tfvars, re-apply (sandbox origin)
 ```

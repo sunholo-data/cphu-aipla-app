@@ -145,19 +145,29 @@ resource "google_cloudbuild_trigger" "test_sandbox_release" {
   }
 }
 
-# prod: FIRST-CUT deploy trigger — tag → build + deploy, same proven path as
-# test_release (reuses local.deploy_substitutions). NOTE: 1.3a's steady-state for
-# prod is COPY-promote (aipla-prod-promote on cloudbuild.promote.yaml, running the
-# byte-identical tested digest). That pipeline is unvalidated first-run, so the
-# first prod cut uses this reliable tag-build path; switch to copy-promote once
-# validated (runbook step 7), then retire this or keep it as a rebuild fallback.
+# prod: RETIRED rebuild fallback — kept as a resource but DISABLED (2026-07-30).
+#
+# This was the first-cut path: tag → build + deploy, same as test_release. It did
+# its job (prod cut v0.1.1 on 2026-07-28), but leaving it armed meant a `v*` tag
+# deployed test and prod SIMULTANEOUSLY — prod shipping code that test had not
+# yet been verified on. v0.1.2 went out that way on 2026-07-30, safe only
+# because nobody was on prod yet. That stops being acceptable at the 2026-08-14
+# pilot start.
+#
+# Steady state is now COPY-promote (1.3a): `make promote VERSION=<tag>
+# FROM=test TO=prod GO=1` runs cloudbuild.promote.yaml, copying the BYTE-IDENTICAL
+# backend digest that test was verified on rather than rebuilding it. Kept
+# (disabled) rather than deleted so it can be re-enabled as a rebuild fallback if
+# a promote ever needs bypassing — flip `disabled` and re-apply.
 resource "google_cloudbuild_trigger" "prod_release" {
   count = var.env == "prod" ? 1 : 0
+
+  disabled = true
 
   project         = var.project_id
   location        = var.region
   name            = "aipla-prod-release"
-  description     = "First-cut prod deploy: tag push vX.Y.Z → build + deploy. Steady-state = copy-promote (1.3a)."
+  description     = "RETIRED (disabled 2026-07-30): tag-build fallback. Steady state is copy-promote — make promote FROM=test TO=prod."
   service_account = "projects/${var.project_id}/serviceAccounts/${google_service_account.runtime.email}"
 
   repository_event_config {
@@ -200,5 +210,22 @@ resource "google_cloudbuild_trigger" "prod_sandbox_release" {
   }
 }
 
-# TODO (steady-state): `aipla-prod-promote` manual trigger on cloudbuild.promote.yaml
-# + cross-project artifactregistry.reader (1.3a §Security) — see prod-cut.md step 7.
+# Runbook step 6, done 2026-07-30:
+#   * cross-project artifactregistry.reader → google_project_iam_member
+#     .promote_source_reader in iam.tf (the one perm the promote's copy-backend
+#     step lacked).
+#   * prod_release disabled above, so a `v*` tag no longer reaches prod.
+#   * promote-env.sh now pins --service-account to the runtime SA, so the CLI and
+#     trigger paths share one identity and therefore one grant.
+#
+# NOT done, deliberately: the `aipla-prod-promote` MANUAL trigger the original
+# TODO called for. scripts/promote-env.sh submits cloudbuild.promote.yaml
+# directly via `gcloud builds submit`, so the promotion works without it — the
+# trigger would only add a console button, and a second entry point is a second
+# thing to keep in sync. Add it if console-driven promotion is ever wanted.
+#
+# NOTE the asymmetry: `aipla-prod-sandbox-release` (below) is STILL tag-fired.
+# The sandbox is static artefact HTML built deterministically from the tag, with
+# no tested-digest to preserve and no promote pipeline covering it, so gating it
+# would block sandbox updates behind a pipeline that cannot carry them. A bad
+# sandbox deploy degrades sims, not the tutor. Revisit if that risk changes.

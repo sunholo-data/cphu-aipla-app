@@ -46,3 +46,33 @@ resource "google_service_account_iam_member" "operator_token_creator" {
   role               = "roles/iam.serviceAccountTokenCreator"
   member             = each.value
 }
+
+# --- Build-once promotion: cross-project image read (1.3a, runbook step 6) ----
+# The promote pipeline's `copy-backend` step runs IN the target project but
+# reads the tested backend image OUT of the source project's Artifact Registry
+# (`gcloud artifacts docker images describe|copy`). That read is the one
+# permission the target's runtime SA does not already hold, so grant it on the
+# SOURCE project.
+#
+# Both promotion paths run as this SA: the trigger sets `service_account`, and
+# scripts/promote-env.sh passes `--service-account` explicitly (without it,
+# `gcloud builds submit` silently falls back to the Compute Engine default SA
+# and the promote 403s from the CLI while working from the console).
+#
+# Edges mirror promote-env.sh's allow-list: dev->test, test->prod. Applying the
+# TARGET env's workspace creates the binding on the SOURCE project, so the
+# operator needs projectIamAdmin there too.
+locals {
+  promote_source_project = {
+    test = "aipla-dev-2026"
+    prod = "aipla-test-2026"
+  }
+}
+
+resource "google_project_iam_member" "promote_source_reader" {
+  count = contains(keys(local.promote_source_project), var.env) ? 1 : 0
+
+  project = local.promote_source_project[var.env]
+  role    = "roles/artifactregistry.reader"
+  member  = "serviceAccount:${google_service_account.runtime.email}"
+}
