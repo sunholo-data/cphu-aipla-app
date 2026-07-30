@@ -2,13 +2,21 @@
 
 Canonical list of live Cloud Run services, per environment.
 
-## AIPLA release-readiness status (2026-07-24)
+## AIPLA release-readiness status (2026-07-30)
 
 | Environment | Status | Release gate |
 |---|---|---|
-| dev | Live | Verify the first deployed `aipla-seed-skills` job and candidate smokes |
-| test | **Live (v0.1.1, 2026-07-27)** | Cut from committed Terraform; **full smoke green** (incl. sandbox), e2e + teacher round-trips + curriculum (A/B/C, cleared) verified. Remaining: ≥24h soak |
-| prod | **Live (v0.1.1, 2026-07-28)** | **Full parity with test** — full smoke green (incl. sandbox), curriculum A/B/C (cleared) seeded, demo code `aipla-demo-1`. Remaining: copy-promote steady-state (first cut used tag-build), domains, hardening |
+| dev | **Live (v0.1.2, 2026-07-30)** | Auto-seed job verified green; smoke green |
+| test | **Live (v0.1.2, 2026-07-30)** | Cut from committed Terraform; **full smoke green** (incl. sandbox), e2e + teacher round-trips + curriculum (A/B/C, cleared) verified. Remaining: ≥24h soak |
+| prod | **Live (v0.1.2, 2026-07-30)** | **Full parity with test** — full smoke green (incl. sandbox), curriculum A/B/C (cleared) seeded, demo code `aipla-demo-1`. Remaining: **copy-promote steady-state — still on the tag-build path, so a `v*` tag deploys prod WITHOUT a test gate** (runbook step 6); domains; hardening |
+
+> **v0.1.2 (2026-07-30)** — curriculum 1.1.60 shipped to all three envs from one
+> `v0.1.2` tag: `subject` re-based to the broad class, narrowed facets, the ingest
+> capture fix, and an explicit retrieval `top_k`. The nine physics-area shared
+> folders were seeded in dev/test/prod by `make seed-curriculum-folders` (metadata
+> only — creates no documents, so prod's cleared-content gate is untouched).
+> **Note the tag fired test AND prod simultaneously** — both tag triggers are still
+> armed; see the prod row's remaining work.
 
 The operational source of truth for changing these states is the
 [v1.0 pilot-readiness checklist](../design/aipla/v1.0.0-pilot/pilot-readiness-checklist.md).
