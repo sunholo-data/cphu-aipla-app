@@ -63,7 +63,7 @@ material. AIPLA-specific ADRs and progress live in the scoping site.
 | GitHub repo | `Aitana-Labs/platform` | **`sunholo-data/cphu-aipla-app`** |
 | Region | EU (multi) | **`europe-north1` (Finland)** — see ADR-007 |
 | Git push account | `sunholo-voight-kampff` → Aitana-Labs org | `sunholo-voight-kampff` → `sunholo-data` org |
-| Default branch | `dev` (template's `main` deploys to dev env) | **`dev`** is the default and working branch. `test` and `prod` exist for promotion. `main` does not exist (renamed to `dev` on 2026-05-19). |
+| Default branch | `dev` (template's `main` deploys to dev env) | **`dev` is the only branch.** It is the default, the working branch, and the only one that deploys. `main` does not exist (renamed to `dev` on 2026-05-19). `test` / `prod` branches **were deleted on 2026-07-30** — they had sat at the May-2026 bootstrap commit since the fork and were never the promotion mechanism, which made them actively misleading. Promotion is tag-based; see "Environment promotion" below. |
 | Skills | Aitana skill set | Physics-specific (v1: `problem-set-helper-config`, `concept-dialogue-config`, `manage-class`, student problem-set hints, student conceptual exploration) — see `strands.qmd` |
 | Auth | Firebase Auth (student + teacher) | **Anonymous group IDs for students** (ADR-001), UCPH SSO for teachers |
 | Document parsing | Generic | **AILANG Parse** (ADR-004) — 13 deterministic formats, 2 AI |
@@ -190,7 +190,20 @@ Same GCP projects as v5, but v6 runs as **new parallel Cloud Run services** so v
 - **Project IDs**: `aitana-multivac-dev`, `aitana-multivac-test`, `aitana-multivac-production` (unchanged)
 - **v6 Cloud Run services**: `aitana-v6-backend`, `aitana-v6-frontend` (new; live in dev once CI-WIRE lands)
 - **v5 Cloud Run services**: `backend-api`, `frontend` (still running, will be decommissioned after DNS cutover)
-- **Branch deployment (v6)**: `dev` → dev. `test` and `prod` branches will deploy once cut (not yet — dev-only until v6 is proven). Default branch is `dev` (matches v5 convention and terraform's `workspace → branch` mapping).
+- **Branch deployment (v6)**: `dev` → dev. `dev` is the only branch in the repo.
+- **Environment promotion (AIPLA — TAG-based, not branch-based).** All three
+  environments are live, cut from committed Terraform (`infrastructure/env/`):
+  dev, test (v0.1.0, 2026-07-27) and prod (v0.1.1, 2026-07-28). Promotion is
+  **artifact-based**: a `^v.*$` git tag fires `aipla-test-release`, then
+  `make promote VERSION=<tag> FROM=test TO=prod` (`scripts/promote-env.sh`,
+  dry-run by default, `GO=1` to submit) copies the built artifact onward. See
+  [docs/design/aipla/v1.0.0-pilot/build-once-artifact-promotion.md](docs/design/aipla/v1.0.0-pilot/build-once-artifact-promotion.md).
+  There are **no `test` / `prod` branches** — they were deleted on 2026-07-30
+  after sitting at the fork's bootstrap commit for two months and causing a
+  wrong "test/prod were never deployed" conclusion. **Never infer an
+  environment's state from git refs.**
+  **[docs/ops/deployed-urls.md](docs/ops/deployed-urls.md) is the source of truth
+  for what is live in each environment.**
 - **Cloud Build connection**: `github-voight` in `multivac-deploy-aitana/europe-west1` (authorizer `sunholo-voight-kampff`). v5 still uses the older `github` connection.
 - **SA for Cloud Run**: `aitana-v6@{project_id}.iam.gserviceaccount.com`
 - **CI gate**: `.github/workflows/ci.yml` — lint + test-fast on PR and push to `dev`.

@@ -4,7 +4,6 @@
 # parity story is deliberately agreed (it would import/adopt live resources).
 project_id                = "aipla-dev-2026"
 env                       = "dev"
-deploy_branch             = "dev"
 partition_expiration_days = 30
 teacher_mock              = true
 frontend_url              = "https://aipla-v01-frontend-wgwhd7mspa-lz.a.run.app"

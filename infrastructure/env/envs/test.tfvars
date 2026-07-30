@@ -1,6 +1,5 @@
 project_id                = "aipla-test-2026"
 env                       = "test"
-deploy_branch             = "test"
 # The 2nd-gen Cloud Build GitHub connection installed in this project (console
 # OAuth, G1). Named github-aipla on test (dev's is sunholo-github — per-env, fine).
 cb_connection = "github-aipla"

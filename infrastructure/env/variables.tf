@@ -57,11 +57,6 @@ variable "cb_repo_name" {
   default     = "cphu-aipla-app"
 }
 
-variable "deploy_branch" {
-  type        = string
-  description = "Branch this env's deploy trigger fires on (dev|test|prod)."
-}
-
 variable "teacher_mock" {
   type        = bool
   description = "dev-only: bakes NEXT_PUBLIC_TEACHER_MOCK=1 into the deploy trigger so /teacher/* renders without Firebase auth. MUST be false on test/prod (they render the sign-in placeholder)."
