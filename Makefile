@@ -1,4 +1,4 @@
-.PHONY: dev dev-local dev-recompile dev-status dev-stop proxy-check logs cloud-logs cloud-errors cloud-build verify-chat-logs smoke-session-persistence smoke-chat-resume smoke-curriculum-content smoke-teacher-cli help cli-install cli-reinstall cli-uninstall cli-doctor cli-selftest-mock cli-selftest-live cli-selftest seed seed-job seed-demo-codes force-seed-demo reset-group-state provision-curriculum-rag provision-agent-engine copy-docparse-secret seed-curriculum backfill-curriculum-content migrate-clear-persona-voice-override docs-linkcheck check-skills sim-build sim-build-check guides guides-publish guide-screens seed-guide-corpus guide-staleness
+.PHONY: dev dev-local dev-recompile dev-status dev-stop proxy-check logs cloud-logs cloud-errors cloud-build verify-chat-logs smoke-session-persistence smoke-chat-resume smoke-curriculum-content smoke-teacher-cli help cli-install cli-reinstall cli-uninstall cli-doctor cli-selftest-mock cli-selftest-live cli-selftest seed seed-job seed-demo-codes force-seed-demo reset-group-state provision-curriculum-rag provision-agent-engine copy-docparse-secret seed-curriculum backfill-curriculum-content seed-curriculum-folders migrate-clear-persona-voice-override docs-linkcheck check-skills sim-build sim-build-check guides guides-publish guide-screens seed-guide-corpus guide-staleness
 
 # Seed SKILL.md templates -> Firestore. Since P1.3 the Cloud Build deploy runs
 # this automatically via the `aipla-seed-skills` Cloud Run job (see
@@ -89,6 +89,15 @@ seed-curriculum:
 #   make backfill-curriculum-content ENV=dev
 backfill-curriculum-content:
 	@scripts/backfill-curriculum-content.sh $(ENV) $(ARGS)
+
+# 1.1.60 migration: seed the nine Danish stx physics areas as SHARED curriculum
+# folders and relocate docs still carrying a physics area in `subject` (subject
+# is now the BROAD class — Fysik/Matematik/... — and the areas are folders).
+# Idempotent. Docs with no subject are left for the classifier, not guessed.
+#   make seed-curriculum-folders ENV=dev ARGS="--dry-run"
+#   make seed-curriculum-folders ENV=dev
+seed-curriculum-folders:
+	@scripts/seed-curriculum-folders.sh $(ENV) $(ARGS)
 
 # Clear stale per-class voice overrides on classes that already name a persona,
 # so the persona's voice takes effect (fixes "switched persona, avatar changed

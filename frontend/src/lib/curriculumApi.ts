@@ -60,8 +60,16 @@ async function readJson<T>(resp: Response, errMsg: string): Promise<T> {
   });
 }
 
+/** 1.1.60 — the level facet's "no level assigned" bucket, twin of UNFILED.
+ *  Level is optional and no upload path sets it, so this is where most teacher
+ *  documents actually live — it has to be selectable, not just a gap. */
+export const UNLEVELLED = "__unlevelled__";
+
+/** A selectable level: a real stx level, or the "no level" bucket. */
+export type LevelFilter = StxLevel | typeof UNLEVELLED;
+
 export interface BrowseCurriculumParams {
-  level?: StxLevel;
+  level?: LevelFilter;
   topic?: string;
   /** 1.1.58 M1 — AND facet: only docs carrying every tag. */
   tags?: string[];
@@ -112,15 +120,49 @@ export async function browseCurriculum(
   };
 }
 
-/** Distinct facet vocabularies (tags + subjects) across the docs this teacher can
- *  see — populates facet chips (1.1.58 M1/M2). */
+/** One selectable facet option. `label` differs from `value` only for the
+ *  sentinel buckets (`__unfiled__` → "Unfiled", `__unlevelled__` → "No level")
+ *  and for folders, whose value is an opaque id. */
+export interface FacetOption {
+  value: string;
+  label: string;
+  count: number;
+}
+
+/** Every facet's options, each narrowed by the OTHER active facets (1.1.60). */
+export interface CurriculumFacets {
+  subjects: FacetOption[];
+  levels: FacetOption[];
+  folders: FacetOption[];
+  tags: FacetOption[];
+}
+
+/** Facet options + counts across the docs this teacher can see (1.1.58 M1/M2,
+ *  narrowed in 1.1.60).
+ *
+ *  Pass the CURRENT filter selection: each facet is computed over the doc set
+ *  filtered by every facet except itself, so picking a subject narrows the
+ *  folders and levels on offer while leaving the sibling subjects visible. Omit
+ *  the params to get the full unnarrowed vocabulary. */
 export async function listCurriculumFacets(
-  scope?: "shared" | "mine",
-): Promise<{ tags: string[]; subjects: string[] }> {
-  const suffix = scope ? `?scope=${scope}` : "";
+  params: Omit<BrowseCurriculumParams, "limit" | "offset"> = {},
+): Promise<CurriculumFacets> {
+  const qs = new URLSearchParams();
+  if (params.level) qs.set("level", params.level);
+  if (params.topic) qs.set("topic", params.topic);
+  if (params.tags) for (const t of params.tags) qs.append("tags", t);
+  if (params.subject) qs.set("subject", params.subject);
+  if (params.folder) qs.set("folder", params.folder);
+  if (params.scope) qs.set("scope", params.scope);
+  const suffix = qs.toString() ? `?${qs.toString()}` : "";
   const resp = await fetchWithTeacherAuth(`/api/proxy/api/curriculum/facets${suffix}`);
-  const body = await readJson<{ tags: string[]; subjects?: string[] }>(resp, "load curriculum facets");
-  return { tags: body.tags, subjects: body.subjects ?? [] };
+  const body = await readJson<Partial<CurriculumFacets>>(resp, "load curriculum facets");
+  return {
+    subjects: body.subjects ?? [],
+    levels: body.levels ?? [],
+    folders: body.folders ?? [],
+    tags: body.tags ?? [],
+  };
 }
 
 /** A flat curriculum folder (1.1.58 M3), with a live doc count. */
@@ -186,6 +228,14 @@ export interface IngestCurriculumParams {
   level?: StxLevel;
   origin: string;
   topic?: string;
+  /** 1.1.60 — the broad subject (Fysik, Matematik, ...). The backend has taken
+   *  this since 1.1.58 M2, but the upload form never sent it, so EVERY document
+   *  ingested through the UI landed with subject=null and the Subject facet row
+   *  stayed empty. Capturing it here is the fix. */
+  subject?: string;
+  /** 1.1.60 — file the upload straight into a folder, so it doesn't land
+   *  Unfiled and need a second edit. */
+  folderId?: string;
   /** Teacher uploads default to teacher_owned (un-gated). Shared ingestion
    *  is admin-only and requires copyright_status=cleared — not exposed here. */
 }
@@ -209,6 +259,8 @@ export async function ingestCurriculum(
   if (params.level) form.set("level", params.level);
   form.set("origin", params.origin);
   if (params.topic) form.set("topic", params.topic);
+  if (params.subject) form.set("subject", params.subject);
+  if (params.folderId) form.set("folder_id", params.folderId);
   // shared=false, copyright_status=teacher_owned are the backend defaults.
 
   const resp = await fetchWithTeacherAuth(`/api/proxy/api/curriculum/ingest`, {

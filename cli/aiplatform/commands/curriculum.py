@@ -25,6 +25,9 @@ import click
 from aiplatform.http import AIPlatformClient
 
 _LEVELS = ["A", "B", "C"]
+# 1.1.60 — the "no level assigned" bucket, selectable like a real level. Mirrors
+# db.curriculum.UNLEVELLED; most teacher uploads land here.
+_UNLEVELLED = "__unlevelled__"
 
 
 def _client(ctx: click.Context) -> AIPlatformClient:
@@ -42,6 +45,11 @@ def curriculum() -> None:
 @click.option("--origin", required=True, help="Provenance for citation, e.g. 'uvm.dk' or 'Haka Fysik'.")
 @click.option("--title", default=None, help="Display title. Defaults to the filename (sans extension).")
 @click.option("--topic", default=None, help="Topic tag, e.g. 'mechanics'.")
+# 1.1.60 — subject/tags/folder at ingest. Their absence here (and in the web
+# upload form) is why every doc ingested before 1.1.60 has subject=None.
+@click.option("--subject", default=None, help="Broad subject, e.g. 'Fysik' or 'Matematik'.")
+@click.option("--tag", "tags", multiple=True, help="Attach a tag (repeatable).")
+@click.option("--folder", "folder_id", default=None, help="File into a folder by id (same scope as the doc).")
 @click.option("--shared", is_flag=True, default=False, help="Ingest into the SHARED corpus (admin).")
 @click.option(
     "--copyright",
@@ -58,6 +66,9 @@ def ingest_curriculum(
     origin: str,
     title: str | None,
     topic: str | None,
+    subject: str | None,
+    tags: tuple[str, ...],
+    folder_id: str | None,
     shared: bool,
     copyright_status: str | None,
 ) -> None:
@@ -68,6 +79,13 @@ def ingest_curriculum(
     data: dict[str, str] = {"title": title, "level": level, "origin": origin}
     if topic:
         data["topic"] = topic
+    if subject:
+        data["subject"] = subject
+    if tags:
+        # The ingest form takes ONE comma-separated string, not repeated fields.
+        data["tags"] = ",".join(tags)
+    if folder_id:
+        data["folder_id"] = folder_id
     if shared:
         data["shared"] = "true"
     if copyright_status:
@@ -80,7 +98,9 @@ def ingest_curriculum(
 
 
 @curriculum.command("list")
-@click.option("--level", type=click.Choice(_LEVELS), default=None, help="Filter by level.")
+@click.option(
+    "--level", type=click.Choice([*_LEVELS, _UNLEVELLED]), default=None, help="Filter by level (or no level)."
+)
 @click.option("--topic", default=None, help="Free-text search (title + topic + summary + tags).")
 @click.option("--tag", "tags", multiple=True, help="Filter by tag (repeatable — AND).")
 @click.option("--subject", default=None, help="Filter by subject (exact).")
@@ -191,12 +211,42 @@ def tag_curriculum(
 
 
 @curriculum.command("facets")
+@click.option("--level", type=click.Choice([*_LEVELS, _UNLEVELLED]), default=None, help="Narrow counts by level.")
+@click.option("--topic", default=None, help="Narrow counts by free-text search.")
+@click.option("--tag", "tags", multiple=True, help="Narrow counts by tag (repeatable — AND).")
+@click.option("--subject", default=None, help="Narrow counts by subject.")
+@click.option("--folder", "folder_id", default=None, help="Narrow counts by folder id.")
 @click.option("--scope", type=click.Choice(["shared", "mine"]), default=None, help="Limit to shared or your own.")
 @click.pass_context
-def facets_curriculum(ctx: click.Context, scope: str | None) -> None:
-    """List the distinct tags across the docs you can see (facet chips)."""
-    params = {"scope": scope} if scope else None
-    result = _client(ctx).get("/api/curriculum/facets", params=params)
+def facets_curriculum(
+    ctx: click.Context,
+    level: str | None,
+    topic: str | None,
+    tags: tuple[str, ...],
+    subject: str | None,
+    folder_id: str | None,
+    scope: str | None,
+) -> None:
+    """Facet options + counts (subjects / levels / folders / tags).
+
+    Pass filters to see the counts NARROW: each facet is counted against the
+    other active filters, so `--subject Matematik` re-counts folders and levels
+    over maths docs only while leaving every subject option listed.
+    """
+    params: dict[str, object] = {
+        k: v
+        for k, v in (
+            ("level", level),
+            ("topic", topic),
+            ("subject", subject),
+            ("folder", folder_id),
+            ("scope", scope),
+        )
+        if v
+    }
+    if tags:
+        params["tags"] = list(tags)
+    result = _client(ctx).get("/api/curriculum/facets", params=params or None)
     click.echo(_json.dumps(result, indent=2))
 
 

@@ -39,6 +39,14 @@ log = logging.getLogger(__name__)
 
 _CORPUS_ENV = "CURRICULUM_RAG_CORPUS_NAME"
 
+# 1.1.60 — chunks returned per retrieval call. Retrieval is already narrowed to
+# the activity's cited docs (usually 1-3), so this is a per-answer grounding
+# budget rather than a corpus-wide cutoff: enough to cover a multi-part question,
+# small enough that the tutor isn't handed a wall of text to summarise. Override
+# via env when tuning; the ops/eval path (`db.rag_corpus.query_corpus`) takes its
+# own explicit top_k.
+_TOP_K = int(os.getenv("CURRICULUM_RETRIEVAL_TOP_K", "5"))
+
 _GROUNDING_PREAMBLE_TEMPLATE = """\
 
 ## Curriculum grounding
@@ -115,11 +123,19 @@ def build_curriculum_retrieval_tool(materials: list[MaterialRef]) -> object | No
                 rag_file_ids=file_ids,
             )
         ],
+        # 1.1.60 — set the chunk budget EXPLICITLY. This was previously left to
+        # the SDK default, which is invisible here and free to change under us;
+        # the number of chunks the tutor gets per query is a pedagogical knob
+        # (too few → thin grounding, too many → the model drowns), so it belongs
+        # in the codebase. Scoping is still the rag_file_ids allow-list above,
+        # not a metadata filter — see the module docstring.
+        similarity_top_k=_TOP_K,
     )
     log.info(
-        "Curriculum retrieval tool built: corpus=%s files=%d",
+        "Curriculum retrieval tool built: corpus=%s files=%d top_k=%d",
         corpus_name,
         len(file_ids),
+        _TOP_K,
     )
     return tool
 

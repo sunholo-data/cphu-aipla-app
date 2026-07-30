@@ -70,10 +70,26 @@ function page(docs: unknown[], total?: number) {
   return { docs, total: total ?? docs.length, limit: 50, offset: 0 };
 }
 
+/** 1.1.60 — facet options are {value, label, count}. Build them from a terse
+ *  `{value: count}` map so the tests stay readable. `labels` overrides the
+ *  display label for the sentinel buckets and for folders (whose value is an id). */
+function opts(counts: Record<string, number>, labels: Record<string, string> = {}) {
+  return Object.entries(counts).map(([value, count]) => ({
+    value,
+    label: labels[value] ?? value,
+    count,
+  }));
+}
+
+/** A full facets payload; every key defaults to empty. */
+function facets(partial: Partial<Record<"subjects" | "levels" | "folders" | "tags", unknown[]>> = {}) {
+  return { subjects: [], levels: [], folders: [], tags: [], ...partial };
+}
+
 // The facet endpoint fires on mount for every render; default it to empty so
 // existing tests don't need to know about it (a real value is set per-test).
 beforeEach(() => {
-  listCurriculumFacets.mockResolvedValue({ tags: [], subjects: [] });
+  listCurriculumFacets.mockResolvedValue(facets());
   listCurriculumFolders.mockResolvedValue([]);
 });
 afterEach(() => vi.clearAllMocks());
@@ -150,13 +166,11 @@ describe("MaterialsSection", () => {
     expect(chips).toHaveTextContent("Haka Fysik");
   });
 
-  it("filtering by level re-queries with that level", async () => {
+  it("filtering by level re-queries with that level (1.1.60: a chip, not a select)", async () => {
     browseCurriculum.mockResolvedValue(page([]));
+    listCurriculumFacets.mockResolvedValue(facets({ levels: opts({ A: 3, B: 1 }) }));
     render(<MaterialsSection materials={[]} onChange={() => {}} />);
-    await waitFor(() => expect(browseCurriculum).toHaveBeenCalled());
-    fireEvent.change(screen.getByLabelText("Filter by level"), {
-      target: { value: "A" },
-    });
+    fireEvent.click(await screen.findByRole("button", { name: "A (3)" }));
     await waitFor(() =>
       expect(browseCurriculum).toHaveBeenLastCalledWith({
         level: "A",
@@ -170,12 +184,27 @@ describe("MaterialsSection", () => {
     );
   });
 
+  it("the 'No level' chip filters by the unlevelled sentinel (1.1.60)", async () => {
+    // Level is optional and no upload path sets it, so this bucket holds most
+    // teacher uploads — it has to be reachable, not just a gap in the rail.
+    browseCurriculum.mockResolvedValue(page([]));
+    listCurriculumFacets.mockResolvedValue(
+      facets({ levels: opts({ A: 1, __unlevelled__: 7 }, { __unlevelled__: "No level" }) }),
+    );
+    render(<MaterialsSection materials={[]} onChange={() => {}} />);
+    fireEvent.click(await screen.findByRole("button", { name: "No level (7)" }));
+    await waitFor(() =>
+      expect(browseCurriculum).toHaveBeenLastCalledWith(
+        expect.objectContaining({ level: "__unlevelled__", offset: 0 }),
+      ),
+    );
+  });
+
   it("renders tag facet chips and clicking one re-queries with that tag (1.1.58 M1)", async () => {
     browseCurriculum.mockResolvedValue(page([]));
-    listCurriculumFacets.mockResolvedValue({ tags: ["exam", "lab"], subjects: [] });
+    listCurriculumFacets.mockResolvedValue(facets({ tags: opts({ exam: 2, lab: 1 }) }));
     render(<MaterialsSection materials={[]} onChange={() => {}} />);
-    const labChip = await screen.findByRole("button", { name: "lab" });
-    fireEvent.click(labChip);
+    fireEvent.click(await screen.findByRole("button", { name: "lab (1)" }));
     await waitFor(() =>
       expect(browseCurriculum).toHaveBeenLastCalledWith({
         level: undefined,
@@ -191,19 +220,45 @@ describe("MaterialsSection", () => {
 
   it("shows no tag facet row when no docs carry tags", async () => {
     browseCurriculum.mockResolvedValue(page([makeDoc()]));
-    listCurriculumFacets.mockResolvedValue({ tags: [], subjects: [] });
+    listCurriculumFacets.mockResolvedValue(facets());
     render(<MaterialsSection materials={[]} onChange={() => {}} />);
     await screen.findByText("Energi og arbejde");
-    expect(screen.queryByLabelText("Filter by tag")).not.toBeInTheDocument();
+    expect(screen.queryByLabelText("Filter by tags")).not.toBeInTheDocument();
   });
 
   it("renders subject facet chips and clicking one re-queries with that subject (1.1.58 M2)", async () => {
     browseCurriculum.mockResolvedValue(page([]));
-    listCurriculumFacets.mockResolvedValue({ tags: [], subjects: ["Mekanik", "Optik"] });
+    listCurriculumFacets.mockResolvedValue(facets({ subjects: opts({ Fysik: 4, Matematik: 2 }) }));
     render(<MaterialsSection materials={[]} onChange={() => {}} />);
-    fireEvent.click(await screen.findByRole("button", { name: "Mekanik" }));
+    fireEvent.click(await screen.findByRole("button", { name: "Fysik (4)" }));
     await waitFor(() =>
-      expect(browseCurriculum).toHaveBeenLastCalledWith(expect.objectContaining({ subject: "Mekanik", offset: 0 })),
+      expect(browseCurriculum).toHaveBeenLastCalledWith(expect.objectContaining({ subject: "Fysik", offset: 0 })),
+    );
+  });
+
+  it("refetches the facets when the selection changes, so counts stay narrowed (1.1.60)", async () => {
+    browseCurriculum.mockResolvedValue(page([]));
+    listCurriculumFacets.mockResolvedValue(facets({ subjects: opts({ Fysik: 4, Matematik: 2 }) }));
+    render(<MaterialsSection materials={[]} onChange={() => {}} />);
+    fireEvent.click(await screen.findByRole("button", { name: "Matematik (2)" }));
+    // The facets call carries the SAME filter as the browse — otherwise the chips
+    // would describe a different query than the list below them.
+    await waitFor(() =>
+      expect(listCurriculumFacets).toHaveBeenLastCalledWith(
+        expect.objectContaining({ subject: "Matematik" }),
+      ),
+    );
+  });
+
+  it("keeps zero-count options clickable rather than hiding them (1.1.60)", async () => {
+    // Options come from the whole corpus, counts from the narrowed set — so the
+    // rail never reshuffles mid-filter.
+    browseCurriculum.mockResolvedValue(page([]));
+    listCurriculumFacets.mockResolvedValue(facets({ subjects: opts({ Fysik: 0, Matematik: 2 }) }));
+    render(<MaterialsSection materials={[]} onChange={() => {}} />);
+    fireEvent.click(await screen.findByRole("button", { name: "Fysik (0)" }));
+    await waitFor(() =>
+      expect(browseCurriculum).toHaveBeenLastCalledWith(expect.objectContaining({ subject: "Fysik" })),
     );
   });
 
@@ -215,15 +270,15 @@ describe("MaterialsSection", () => {
 
   it("setting a subject inline calls patchCurriculumTags with the subject", async () => {
     browseCurriculum.mockResolvedValue(page([makeDoc({ subject: null })]));
-    patchCurriculumTags.mockResolvedValue(makeDoc({ subject: "Mekanik" }));
+    patchCurriculumTags.mockResolvedValue(makeDoc({ subject: "Fysik" }));
     render(<MaterialsSection materials={[]} onChange={() => {}} />);
     // Open the row editor, then pick a subject.
     fireEvent.click(await screen.findByRole("button", { name: /Add tags for Energi og arbejde/i }));
     fireEvent.change(screen.getByLabelText("Set subject for Energi og arbejde"), {
-      target: { value: "Mekanik" },
+      target: { value: "Fysik" },
     });
     await waitFor(() =>
-      expect(patchCurriculumTags).toHaveBeenCalledWith("d1", { subject: "Mekanik" }),
+      expect(patchCurriculumTags).toHaveBeenCalledWith("d1", { subject: "Fysik" }),
     );
   });
 
@@ -231,6 +286,7 @@ describe("MaterialsSection", () => {
 
   it("renders folder rail chips and filtering by a folder re-queries with its id", async () => {
     browseCurriculum.mockResolvedValue(page([]));
+    listCurriculumFacets.mockResolvedValue(facets({ folders: opts({ f1: 3 }, { f1: "Kapitel 4" }) }));
     listCurriculumFolders.mockResolvedValue([
       { folderId: "f1", name: "Kapitel 4", ownerScope: "shared", docCount: 3 },
     ]);
@@ -243,6 +299,7 @@ describe("MaterialsSection", () => {
 
   it("deleting a folder (confirmed) calls deleteCurriculumFolder and refreshes", async () => {
     browseCurriculum.mockResolvedValue(page([]));
+    listCurriculumFacets.mockResolvedValue(facets({ folders: opts({ f1: 2 }, { f1: "Kapitel 4" }) }));
     listCurriculumFolders.mockResolvedValue([
       { folderId: "f1", name: "Kapitel 4", ownerScope: "shared", docCount: 2 },
     ]);
@@ -254,8 +311,24 @@ describe("MaterialsSection", () => {
     confirmSpy.mockRestore();
   });
 
+  it("the delete confirm quotes the folder's TRUE count, not the narrowed one (1.1.60)", async () => {
+    // The chip shows the count under the current filter; the confirmation must
+    // not undercount what's about to be unfiled just because a chip is selected.
+    browseCurriculum.mockResolvedValue(page([]));
+    listCurriculumFacets.mockResolvedValue(facets({ folders: opts({ f1: 1 }, { f1: "Kapitel 4" }) }));
+    listCurriculumFolders.mockResolvedValue([
+      { folderId: "f1", name: "Kapitel 4", ownerScope: "shared", docCount: 5 },
+    ]);
+    const confirmSpy = vi.spyOn(window, "confirm").mockReturnValue(false);
+    render(<MaterialsSection materials={[]} onChange={() => {}} />);
+    fireEvent.click(await screen.findByRole("button", { name: /Delete folder Kapitel 4/i }));
+    expect(confirmSpy).toHaveBeenCalledWith(expect.stringContaining("5 document(s)"));
+    confirmSpy.mockRestore();
+  });
+
   it("cancelling the delete confirm does NOT call the API", async () => {
     browseCurriculum.mockResolvedValue(page([]));
+    listCurriculumFacets.mockResolvedValue(facets({ folders: opts({ f1: 0 }, { f1: "Kapitel 4" }) }));
     listCurriculumFolders.mockResolvedValue([
       { folderId: "f1", name: "Kapitel 4", ownerScope: "shared", docCount: 0 },
     ]);
@@ -268,8 +341,11 @@ describe("MaterialsSection", () => {
 
   it("the Unfiled chip filters by the unfiled sentinel", async () => {
     browseCurriculum.mockResolvedValue(page([]));
+    listCurriculumFacets.mockResolvedValue(
+      facets({ folders: opts({ __unfiled__: 4 }, { __unfiled__: "Unfiled" }) }),
+    );
     render(<MaterialsSection materials={[]} onChange={() => {}} />);
-    fireEvent.click(await screen.findByRole("button", { name: "Unfiled" }));
+    fireEvent.click(await screen.findByRole("button", { name: "Unfiled (4)" }));
     await waitFor(() =>
       expect(browseCurriculum).toHaveBeenLastCalledWith(expect.objectContaining({ folder: "__unfiled__" })),
     );
@@ -374,6 +450,66 @@ describe("MaterialsSection", () => {
       expect(screen.getByText(/what we extracted — my-notes/i)).toBeInTheDocument(),
     );
     expect(screen.getByText(/Newton's second law/)).toBeInTheDocument();
+  });
+
+  it("an upload inherits the selected subject + folder (1.1.60 capture gap)", async () => {
+    // THE regression guard for this milestone. The backend accepted `subject` at
+    // ingest from 1.1.58 M2, but the upload form never sent it — so every doc
+    // uploaded through the UI landed with subject=null and the Subject facet row
+    // was empty for two weeks. If this assertion is ever relaxed, that returns.
+    browseCurriculum.mockResolvedValue(page([]));
+    listCurriculumFacets.mockResolvedValue(
+      facets({ subjects: opts({ Matematik: 2 }), folders: opts({ f1: 1 }, { f1: "Algebra" }) }),
+    );
+    listCurriculumFolders.mockResolvedValue([
+      { folderId: "f1", name: "Algebra", ownerScope: "shared", docCount: 1 },
+    ]);
+    ingestCurriculum.mockResolvedValue({
+      doc: makeDoc({ docId: "up2", origin: "opgaver.txt", title: "opgaver" }),
+      parsedPreview: "",
+      parsedChars: 0,
+    });
+    fetchCurriculumContent.mockResolvedValue({
+      docId: "up2",
+      title: "opgaver",
+      available: true,
+      text: "",
+      chars: 0,
+    });
+    render(<MaterialsSection materials={[]} onChange={() => {}} />);
+
+    fireEvent.click(await screen.findByRole("button", { name: "Matematik (2)" }));
+    fireEvent.click(await screen.findByRole("button", { name: /Algebra \(1\)/ }));
+    // The teacher is told where it will land before they pick a file.
+    expect(await screen.findByText(/Files into Matematik · Algebra/)).toBeInTheDocument();
+
+    const file = new File(["x"], "opgaver.txt", { type: "text/plain" });
+    fireEvent.change(screen.getByLabelText("Upload document or image"), { target: { files: [file] } });
+
+    await waitFor(() =>
+      expect(ingestCurriculum).toHaveBeenCalledWith(
+        expect.objectContaining({ subject: "Matematik", folderId: "f1" }),
+      ),
+    );
+  });
+
+  it("an upload with no filter selected sends no subject/folder (both stay optional)", async () => {
+    browseCurriculum.mockResolvedValue(page([]));
+    ingestCurriculum.mockResolvedValue({
+      doc: makeDoc({ docId: "up3", origin: "n.txt", title: "n" }),
+      parsedPreview: "",
+      parsedChars: 0,
+    });
+    fetchCurriculumContent.mockResolvedValue({ docId: "up3", title: "n", available: true, text: "", chars: 0 });
+    render(<MaterialsSection materials={[]} onChange={() => {}} />);
+    await waitFor(() => expect(browseCurriculum).toHaveBeenCalled());
+
+    const file = new File(["x"], "n.txt", { type: "text/plain" });
+    fireEvent.change(screen.getByLabelText("Upload document or image"), { target: { files: [file] } });
+
+    await waitFor(() => expect(ingestCurriculum).toHaveBeenCalled());
+    expect(ingestCurriculum.mock.calls[0][0]).toMatchObject({ subject: undefined, folderId: undefined });
+    expect(screen.queryByText(/Files into/)).not.toBeInTheDocument();
   });
 
   it("uploading an image routes to the activity-image endpoint (not curriculum ingest) and cites it (1.1.44)", async () => {
@@ -506,9 +642,9 @@ describe("MaterialsSection", () => {
 
   it("shows an active-filter chip for a selected level and removing it re-queries", async () => {
     browseCurriculum.mockResolvedValue(page([]));
+    listCurriculumFacets.mockResolvedValue(facets({ levels: opts({ A: 1 }) }));
     render(<MaterialsSection materials={[]} onChange={() => {}} />);
-    await waitFor(() => expect(browseCurriculum).toHaveBeenCalled());
-    fireEvent.change(screen.getByLabelText("Filter by level"), { target: { value: "A" } });
+    fireEvent.click(await screen.findByRole("button", { name: "A (1)" }));
 
     const active = await screen.findByLabelText("Active filters");
     expect(within(active).getByText("Level A")).toBeInTheDocument();
@@ -521,11 +657,13 @@ describe("MaterialsSection", () => {
 
   it("Clear all resets every active filter", async () => {
     browseCurriculum.mockResolvedValue(page([]));
-    listCurriculumFacets.mockResolvedValue({ tags: ["lab"], subjects: ["Mekanik"] });
+    listCurriculumFacets.mockResolvedValue(
+      facets({ tags: opts({ lab: 1 }), subjects: opts({ Fysik: 1 }), levels: opts({ B: 1 }) }),
+    );
     render(<MaterialsSection materials={[]} onChange={() => {}} />);
-    fireEvent.change(await screen.findByLabelText("Filter by level"), { target: { value: "B" } });
-    fireEvent.click(await screen.findByRole("button", { name: "lab" }));
-    fireEvent.click(await screen.findByRole("button", { name: "Mekanik" }));
+    fireEvent.click(await screen.findByRole("button", { name: "B (1)" }));
+    fireEvent.click(await screen.findByRole("button", { name: "lab (1)" }));
+    fireEvent.click(await screen.findByRole("button", { name: "Fysik (1)" }));
     // Clear all → next browse has no facets.
     fireEvent.click(await screen.findByRole("button", { name: "Clear all" }));
     await waitFor(() =>
@@ -539,9 +677,10 @@ describe("MaterialsSection", () => {
   it("no-match state offers Clear all when filters are active (never a dead end)", async () => {
     // First load (no filter) returns a doc; after filtering, empty.
     browseCurriculum.mockResolvedValueOnce(page([makeDoc()])).mockResolvedValue(page([]));
+    listCurriculumFacets.mockResolvedValue(facets({ levels: opts({ A: 1 }) }));
     render(<MaterialsSection materials={[]} onChange={() => {}} />);
     await screen.findByText("Energi og arbejde");
-    fireEvent.change(screen.getByLabelText("Filter by level"), { target: { value: "A" } });
+    fireEvent.click(await screen.findByRole("button", { name: "A (1)" }));
     expect(await screen.findByText(/No materials match your filters/i)).toBeInTheDocument();
     fireEvent.click(screen.getByRole("button", { name: /Clear all filters/i }));
     await waitFor(() =>

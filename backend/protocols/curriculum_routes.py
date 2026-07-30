@@ -38,8 +38,7 @@ from db.curriculum import (
     delete_curriculum_content,
     delete_curriculum_doc,
     delete_curriculum_folder,
-    distinct_subjects_for_teacher,
-    distinct_tags_for_teacher,
+    facets_for_teacher,
     get_curriculum_content,
     get_curriculum_doc,
     get_curriculum_folder,
@@ -97,7 +96,10 @@ async def _extract_pdf_text(pdf_bytes: bytes) -> str:
 
 @router.get("")
 async def browse_curriculum(
-    level: StxLevel | None = None,
+    # 1.1.60 — widened from StxLevel to also accept the UNLEVELLED sentinel, so
+    # "No level" is a selectable chip like "Unfiled". Still validated (422 on
+    # anything else) — just against four values instead of three.
+    level: Literal["A", "B", "C", "__unlevelled__"] | None = None,
     topic: str | None = None,
     tags: Annotated[list[str] | None, Query()] = None,  # 1.1.58 M1 — repeatable ?tags=
     subject: str | None = None,  # 1.1.58 M2 — exact-match facet
@@ -129,18 +131,32 @@ async def browse_curriculum(
 
 @router.get("/facets")
 async def curriculum_facets(
+    # 1.1.60 — the facets endpoint now takes the SAME filter params as browse, so
+    # each facet's options can be narrowed by the others (pick Matematik → only
+    # the folders and levels holding maths docs remain, while sibling subjects
+    # stay visible so you can switch without clearing). Every param is optional;
+    # with none supplied this returns the full unnarrowed vocabulary as before.
+    level: Literal["A", "B", "C", "__unlevelled__"] | None = None,
+    topic: str | None = None,
+    tags: Annotated[list[str] | None, Query()] = None,
+    subject: str | None = None,
+    folder: str | None = None,
     scope: Literal["shared", "mine"] | None = None,
     user: User = Depends(get_current_user),  # noqa: B008
 ) -> dict[str, Any]:
-    """Distinct facet vocabularies (tags + subjects) across the docs this teacher
-    can see — populates the facet chips (1.1.58 M1/M2). Computed from the same
-    ACL-scoped set as browse, so it can never surface a value the teacher isn't
-    allowed to see."""
+    """Facet options + counts across the docs this teacher can see (1.1.58 M1/M2,
+    narrowed in 1.1.60). Computed from the same ACL-scoped set as browse, so it
+    can never surface a value the teacher isn't allowed to see.
+
+    Returns ``{subjects, levels, folders, tags}``, each a list of
+    ``{value, label, count}``. This replaced the 1.1.58 flat list of strings; the
+    frontend ships in the same Cloud Run service as this backend, so there is no
+    version-skew window needing the old shape.
+    """
     assert_teacher(user, detail="Curriculum facets are teacher-only.")
-    return {
-        "tags": distinct_tags_for_teacher(user.uid, scope=scope),
-        "subjects": distinct_subjects_for_teacher(user.uid, scope=scope),
-    }
+    return facets_for_teacher(
+        user.uid, level=level, topic=topic, tags=tags, subject=subject, folder_id=folder, scope=scope
+    )
 
 
 @router.get("/folders")
@@ -327,8 +343,12 @@ async def ingest_curriculum(
     topic: Annotated[str | None, Form(max_length=120)] = None,
     # 1.1.58 M1 — optional comma-separated tags, normalised on ingest.
     tags: Annotated[str | None, Form()] = None,
-    # 1.1.58 M2 — optional coarse subject facet.
+    # 1.1.58 M2 — optional broad subject facet.
     subject: Annotated[str | None, Form(max_length=60)] = None,
+    # 1.1.60 — file the upload directly. Without this every upload landed Unfiled
+    # and needed a second PATCH, which is the same capture gap that left `subject`
+    # empty on every doc for two weeks.
+    folder_id: Annotated[str | None, Form()] = None,
     shared: Annotated[bool, Form()] = False,
     copyright_status: Annotated[CopyrightStatus, Form()] = "teacher_owned",
     user: User = Depends(get_current_user),  # noqa: B008
@@ -350,6 +370,18 @@ async def ingest_curriculum(
     filename = file.filename or "upload"
     doc_id = str(uuid.uuid4())
     owner_scope = SHARED_SCOPE if shared else user.uid
+
+    # Resolve the folder BEFORE parsing/uploading — a bad folder should 4xx
+    # cheaply, not after a RAG upload we'd then have to unwind.
+    folder_name: str | None = None
+    if folder_id:
+        folder = get_curriculum_folder(folder_id)
+        if folder is None:
+            raise HTTPException(status_code=404, detail="Folder not found.")
+        # ACL parity with PATCH: a doc can only go in a folder of the SAME scope.
+        if folder.owner_scope != owner_scope:
+            raise HTTPException(status_code=400, detail="Folder and document are in different scopes.")
+        folder_name = folder.name
 
     tmp_dir = tempfile.mkdtemp(prefix="curriculum_ingest_")
     tmp_path = os.path.join(tmp_dir, filename.replace("/", "_").replace("\\", "_"))
@@ -386,6 +418,8 @@ async def ingest_curriculum(
         summary=summary,
         tags=normalize_tags(tags.split(",")) if tags else [],
         subject=normalize_subject(subject),
+        folderId=folder_id or None,
+        folderName=folder_name,
         source="shared" if shared else "teacher_upload",
         ownerScope=owner_scope,
         origin=origin,
@@ -400,9 +434,11 @@ async def ingest_curriculum(
     set_curriculum_content(doc_id, text)
 
     logger.info(
-        "Curriculum doc ingested: %s level=%s shared=%s rag=%s",
+        "Curriculum doc ingested: %s level=%s subject=%s folder=%s shared=%s rag=%s",
         doc_id,
         level,
+        doc.subject,
+        folder_id,
         shared,
         bool(rag_file_name),
     )

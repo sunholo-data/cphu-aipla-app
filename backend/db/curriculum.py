@@ -12,9 +12,10 @@ import logging
 import os
 import time
 from datetime import UTC, datetime
+from typing import Any
 
 from db.firestore import delete_document, get_document, query_documents, set_document
-from db.models.curriculum import SHARED_SCOPE, CurriculumDoc, CurriculumFolder, StxLevel, normalize_tags
+from db.models.curriculum import SHARED_SCOPE, CurriculumDoc, CurriculumFolder, normalize_tags
 
 logger = logging.getLogger(__name__)
 
@@ -23,6 +24,12 @@ _COLLECTION = "curriculum_docs"
 _FOLDER_COLLECTION = "curriculum_folders"
 # Sentinel folder filter value → docs with NO folder ("Unfiled" rail chip).
 UNFILED = "__unfiled__"
+UNFILED_LABEL = "Unfiled"
+# 1.1.60 — the level facet's twin sentinel, for docs with no A/B/C assigned. A
+# sentinel rather than None because it travels as a query-string value
+# (?level=__unlevelled__), the same shape as UNFILED. Most teacher uploads are here.
+UNLEVELLED = "__unlevelled__"
+UNLEVELLED_LABEL = "No level"
 # 1.1.33 M3 — the parsed text, kept SEPARATE from the metadata doc so browse/list
 # queries stay light. Read on demand when a student opens a shared doc.
 _CONTENT_COLLECTION = "curriculum_content"
@@ -116,23 +123,12 @@ def delete_curriculum_content(doc_id: str) -> None:
     delete_document(_CONTENT_COLLECTION, doc_id)
 
 
-def list_curriculum_for_teacher(
-    teacher_uid: str,
-    *,
-    level: StxLevel | None = None,
-    topic: str | None = None,
-    tags: list[str] | None = None,
-    subject: str | None = None,
-    folder_id: str | None = None,
-    scope: str | None = None,
-) -> list[CurriculumDoc]:
-    """ACL-scoped browse for a teacher: ``shared`` + their own docs.
+def _visible_docs(teacher_uid: str, *, scope: str | None = None) -> list[CurriculumDoc]:
+    """The ACL-scoped doc set for a teacher: ``shared`` + their own, unfiltered.
 
-    ``scope`` narrows within that allow-set: ``"shared"`` → only shared,
-    ``"mine"`` → only the teacher's own, ``None`` → both. ``level`` / ``topic`` /
-    ``tags`` / ``subject`` / ``folder_id`` filter the result. ``topic`` is a
-    free-text search; ``tags`` is an AND facet; ``subject`` / ``folder_id`` are
-    exact-match facets. Sorted by (level, title).
+    Split out in 1.1.60 so the facet computation can load the set ONCE and then
+    filter it in memory five different ways (see ``facets_for_teacher``) instead
+    of re-querying Firestore for each facet.
     """
     # 1.1.59 — shared corpus from the read-through cache (0 reads when warm); own
     # docs always live (few, and a just-uploaded doc must show immediately).
@@ -142,9 +138,32 @@ def list_curriculum_for_teacher(
     if scope in (None, "mine"):
         raw_own = query_documents(_COLLECTION, filters=[("ownerScope", "==", teacher_uid)])
         docs += [CurriculumDoc.model_validate(d) for d in raw_own]
+    return docs
 
+
+def _apply_filters(
+    docs: list[CurriculumDoc],
+    *,
+    level: str | None = None,
+    topic: str | None = None,
+    tags: list[str] | None = None,
+    subject: str | None = None,
+    folder_id: str | None = None,
+) -> list[CurriculumDoc]:
+    """Apply the browse facets to an already-ACL-scoped doc list, then sort.
+
+    Pure (no I/O) so the facet computation can call it repeatedly with one facet
+    omitted — that omission is what makes each facet's options narrow to the rest
+    of the selection while keeping its own siblings visible.
+    """
     if level:
-        docs = [d for d in docs if d.level == level]
+        # 1.1.60 — ``UNLEVELLED`` selects docs with NO level, the twin of UNFILED.
+        # Level is optional (1.1.33) and no upload path sets it, so this bucket is
+        # where most teacher documents actually live — it needs to be selectable.
+        if level == UNLEVELLED:
+            docs = [d for d in docs if not d.level]
+        else:
+            docs = [d for d in docs if d.level == level]
     if subject:
         docs = [d for d in docs if d.subject == subject]
     if folder_id:
@@ -177,6 +196,35 @@ def list_curriculum_for_teacher(
     return docs
 
 
+def list_curriculum_for_teacher(
+    teacher_uid: str,
+    *,
+    level: str | None = None,
+    topic: str | None = None,
+    tags: list[str] | None = None,
+    subject: str | None = None,
+    folder_id: str | None = None,
+    scope: str | None = None,
+) -> list[CurriculumDoc]:
+    """ACL-scoped browse for a teacher: ``shared`` + their own docs.
+
+    ``scope`` narrows within that allow-set: ``"shared"`` → only shared,
+    ``"mine"`` → only the teacher's own, ``None`` → both. ``level`` / ``topic`` /
+    ``tags`` / ``subject`` / ``folder_id`` filter the result. ``topic`` is a
+    free-text search; ``tags`` is an AND facet; ``subject`` / ``folder_id`` are
+    exact-match facets. ``level`` is ``"A"``/``"B"``/``"C"`` or ``UNLEVELLED``.
+    Sorted by (level, title).
+    """
+    return _apply_filters(
+        _visible_docs(teacher_uid, scope=scope),
+        level=level,
+        topic=topic,
+        tags=tags,
+        subject=subject,
+        folder_id=folder_id,
+    )
+
+
 def distinct_tags_for_teacher(teacher_uid: str, *, scope: str | None = None) -> list[str]:
     """Distinct, sorted tags across the docs a teacher can see (for facet chips).
 
@@ -192,6 +240,101 @@ def distinct_subjects_for_teacher(teacher_uid: str, *, scope: str | None = None)
     M2) — the facet-chip source, ACL-scoped like the tags variant."""
     docs = list_curriculum_for_teacher(teacher_uid, scope=scope)
     return sorted({d.subject for d in docs if d.subject})
+
+
+def facets_for_teacher(
+    teacher_uid: str,
+    *,
+    level: str | None = None,
+    topic: str | None = None,
+    tags: list[str] | None = None,
+    subject: str | None = None,
+    folder_id: str | None = None,
+    scope: str | None = None,
+) -> dict[str, Any]:
+    """Every facet's options, each COUNTED against the other active facets.
+
+    Two rules, and the split between them is deliberate:
+
+    * **Which options exist** comes from the teacher's whole visible corpus. The
+      rail therefore does not reshuffle as you type — chips never appear or
+      vanish mid-filter, which matters for a control you navigate by muscle
+      memory, and a freshly created (still empty) folder stays visible.
+    * **Each option's count** comes from the set filtered by every facet EXCEPT
+      itself. That is the standard faceted-search semantic: selecting
+      subject=Matematik re-counts the folders and levels against maths docs
+      only, while the sibling *subjects* keep their own counts so the teacher can
+      switch without clearing first.
+
+    So narrowing is communicated by the counts (a zero means "nothing here under
+    the current filter") rather than by hiding options. ``topic`` — the free-text
+    search — is not a facet, so it narrows every count.
+
+    Returns ``{subjects, levels, folders, tags}``, each a list of
+    ``{value, label, count}`` sorted for stable display.
+    """
+    visible = _visible_docs(teacher_uid, scope=scope)
+
+    def others(**omit: Any) -> list[CurriculumDoc]:
+        active: dict[str, Any] = {
+            "level": level,
+            "topic": topic,
+            "tags": tags,
+            "subject": subject,
+            "folder_id": folder_id,
+        }
+        active.update(omit)
+        return _apply_filters(visible, **active)
+
+    def tally(docs: list[CurriculumDoc], key: Any) -> dict[str, int]:
+        counts: dict[str, int] = {}
+        for d in docs:
+            for value in key(d):
+                counts[value] = counts.get(value, 0) + 1
+        return counts
+
+    def of_subject(d: CurriculumDoc) -> list[str]:
+        return [d.subject] if d.subject else []
+
+    def of_level(d: CurriculumDoc) -> list[str]:
+        return [d.level or UNLEVELLED]
+
+    def of_folder(d: CurriculumDoc) -> list[str]:
+        return [d.folder_id or UNFILED]
+
+    def of_tags(d: CurriculumDoc) -> list[str]:
+        return d.tags
+
+    # Vocabulary (stable) vs counts (narrowed) — see the docstring.
+    subject_vocab, subject_counts = tally(visible, of_subject), tally(others(subject=None), of_subject)
+    level_vocab, level_counts = tally(visible, of_level), tally(others(level=None), of_level)
+    folder_vocab, folder_counts = tally(visible, of_folder), tally(others(folder_id=None), of_folder)
+    tag_vocab, tag_counts = tally(visible, of_tags), tally(others(tags=None), of_tags)
+
+    # Folders come from the folder collection, not just from docs: an empty
+    # folder is a real, selectable destination and must stay in the rail (the
+    # seeded subject-area folders start empty). Docs pointing at a folder the
+    # teacher can't resolve (deleted) are dropped rather than shown as a uuid.
+    all_folders = list_curriculum_folders_for_teacher(teacher_uid, scope=scope)
+    folders = [{"value": f.folder_id, "label": f.name, "count": folder_counts.get(f.folder_id, 0)} for f in all_folders]
+    folders.sort(key=lambda f: str(f["label"]).lower())
+    if UNFILED in folder_vocab:
+        # "Unfiled" only exists as a chip when something is actually unfiled, and
+        # it sorts last — it's a residue bucket, not a folder.
+        folders.append({"value": UNFILED, "label": UNFILED_LABEL, "count": folder_counts.get(UNFILED, 0)})
+
+    return {
+        "subjects": [{"value": s, "label": s, "count": subject_counts.get(s, 0)} for s in sorted(subject_vocab)],
+        "levels": [
+            {"value": lv, "label": UNLEVELLED_LABEL if lv == UNLEVELLED else lv, "count": level_counts.get(lv, 0)}
+            # Fixed A/B/C order, then unlevelled last — a level rail should never
+            # reorder itself as counts change.
+            for lv in ("A", "B", "C", UNLEVELLED)
+            if lv in level_vocab
+        ],
+        "folders": folders,
+        "tags": [{"value": t, "label": t, "count": tag_counts.get(t, 0)} for t in sorted(tag_vocab)],
+    }
 
 
 # ---------------------------------------------------------------------------

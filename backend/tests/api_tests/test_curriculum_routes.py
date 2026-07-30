@@ -57,12 +57,21 @@ def _doc(
     )
 
 
-def _wire_store(monkeypatch, shared, mine):
-    """Mock query_documents by ownerScope filter -> shared / teacher's docs."""
+def _wire_store(monkeypatch, shared, mine, folders=()):
+    """Mock query_documents by ownerScope filter -> shared / teacher's docs.
+
+    Collection-AWARE since 1.1.60: the facets endpoint also queries the folder
+    collection, and a fixture that ignored `collection` fed curriculum docs into
+    `CurriculumFolder.model_validate` and blew up. `folders` supplies the folder
+    collection; it defaults to empty.
+    """
 
     def fake_query(collection, filters=None):
         owner = filters[0][2] if filters else None
-        src = shared if owner == "shared" else (mine if owner == TEACHER else [])
+        src = folders if collection == "curriculum_folders" else (shared if owner == "shared" else mine)
+        if owner not in ("shared", TEACHER):
+            return []
+        src = [f for f in src if f.owner_scope == owner] if collection == "curriculum_folders" else src
         return [d.model_dump(by_alias=True, mode="json") for d in src]
 
     monkeypatch.setattr(dbc, "query_documents", fake_query)
@@ -215,11 +224,14 @@ def test_facets_returns_tags_and_subjects(monkeypatch):
     _wire_store(
         monkeypatch,
         shared=[],
-        mine=[_doc("m", "A", TEACHER, tags=["lab"], subject="Mekanik")],
+        mine=[_doc("m", "A", TEACHER, tags=["lab"], subject="Fysik")],
     )
     body = _client().get("/api/curriculum/facets").json()
-    assert body["tags"] == ["lab"]
-    assert body["subjects"] == ["Mekanik"]
+    # 1.1.60 — {value, label, count} objects, not bare strings.
+    assert body["tags"] == [{"value": "lab", "label": "lab", "count": 1}]
+    assert body["subjects"] == [{"value": "Fysik", "label": "Fysik", "count": 1}]
+    assert body["levels"] == [{"value": "A", "label": "A", "count": 1}]
+    assert body["folders"] == [{"value": "__unfiled__", "label": "Unfiled", "count": 1}]
 
 
 def test_browse_subject_facet_param(monkeypatch):
@@ -649,7 +661,12 @@ def test_facets_returns_distinct_tags(monkeypatch):
     )
     resp = _client().get("/api/curriculum/facets")
     assert resp.status_code == 200
-    assert resp.json()["tags"] == ["exam", "lab"]
+    # Counts span the whole ACL-scoped set: "exam" is on both the shared and the
+    # teacher's own doc.
+    assert resp.json()["tags"] == [
+        {"value": "exam", "label": "exam", "count": 2},
+        {"value": "lab", "label": "lab", "count": 1},
+    ]
 
 
 def test_facets_student_forbidden():
@@ -899,3 +916,156 @@ def test_ingest_pdf_routes_through_gemini(monkeypatch):
     )
     assert resp.status_code == 201, resp.text
     assert resp.json()["parsedPreview"].startswith("## Fysik A")
+
+
+# --- 1.1.60: facet narrowing, the unlevelled bucket, ingest capture ---
+
+
+def test_facet_counts_narrow_by_the_other_facets(monkeypatch):
+    """The core 1.1.60 semantic: picking a subject re-counts the OTHER facets
+    against it, while the subject options keep their own unnarrowed counts so the
+    teacher can switch without clearing first."""
+    _wire_store(
+        monkeypatch,
+        shared=[],
+        mine=[
+            _doc("p1", "A", TEACHER, subject="Fysik", folder_id="f-mek"),
+            _doc("p2", "B", TEACHER, subject="Fysik", folder_id="f-mek"),
+            _doc("m1", "A", TEACHER, subject="Matematik", folder_id="f-alg"),
+        ],
+        folders=[_folder("f-mek", TEACHER, "Mekanik"), _folder("f-alg", TEACHER, "Algebra")],
+    )
+
+    body = _client().get("/api/curriculum/facets?subject=Matematik").json()
+
+    # Folders + levels are counted against maths docs only...
+    assert {f["label"]: f["count"] for f in body["folders"]} == {"Algebra": 1, "Mekanik": 0}
+    assert {lv["value"]: lv["count"] for lv in body["levels"]} == {"A": 1, "B": 0}
+    # ...but the subject facet still counts itself unnarrowed, so "Fysik" stays
+    # switchable rather than collapsing to 0.
+    assert {s["value"]: s["count"] for s in body["subjects"]} == {"Fysik": 2, "Matematik": 1}
+
+
+def test_facet_options_are_stable_when_filtered(monkeypatch):
+    """Options come from the whole visible corpus, counts from the narrowed set —
+    so chips never appear/vanish mid-filter, they just go to 0."""
+    _wire_store(
+        monkeypatch,
+        shared=[],
+        mine=[_doc("a", "A", TEACHER, subject="Fysik"), _doc("b", "C", TEACHER, subject="Matematik")],
+        folders=[_folder("f-empty", TEACHER, "Kvantefysik")],
+    )
+
+    unfiltered = _client().get("/api/curriculum/facets").json()
+    filtered = _client().get("/api/curriculum/facets?subject=Fysik").json()
+
+    assert [s["value"] for s in unfiltered["subjects"]] == [s["value"] for s in filtered["subjects"]]
+    assert [lv["value"] for lv in unfiltered["levels"]] == [lv["value"] for lv in filtered["levels"]]
+    # An empty folder stays in the rail — it's a valid destination, and a folder
+    # created a moment ago must not vanish.
+    assert "Kvantefysik" in [f["label"] for f in unfiltered["folders"]]
+    assert {lv["value"]: lv["count"] for lv in filtered["levels"]} == {"A": 1, "C": 0}
+
+
+def test_unlevelled_is_a_selectable_level_bucket(monkeypatch):
+    """Level is optional and no upload path sets it, so "no level" is where most
+    teacher docs live — it must be filterable, not just a gap."""
+    _wire_store(
+        monkeypatch,
+        shared=[],
+        mine=[_doc("a", "A", TEACHER), _doc("b", None, TEACHER), _doc("c", None, TEACHER)],
+    )
+
+    resp = _client().get("/api/curriculum?level=__unlevelled__")
+    assert resp.status_code == 200
+    assert sorted(d["docId"] for d in resp.json()["docs"]) == ["b", "c"]
+
+    levels = {lv["value"]: lv for lv in _client().get("/api/curriculum/facets").json()["levels"]}
+    assert levels["__unlevelled__"]["count"] == 2
+    assert levels["__unlevelled__"]["label"] == "No level"
+
+
+def test_facets_reject_unknown_level(monkeypatch):
+    _wire_store(monkeypatch, shared=[], mine=[])
+    assert _client().get("/api/curriculum/facets?level=Z").status_code == 422
+    assert _client().get("/api/curriculum?level=Z").status_code == 422
+
+
+def _wire_ingest(monkeypatch, saved):
+    """Stub the ingest side effects, capturing the CurriculumDoc that gets saved."""
+    import protocols.curriculum_routes as cr
+
+    async def fake_extract(path, filename):
+        return "Newtons love…"
+
+    async def fake_upload(*a, **k):
+        return "rag/file-1"
+
+    async def fake_summary(text):
+        return ""
+
+    monkeypatch.setattr(cr, "_extract_text", fake_extract)
+    monkeypatch.setattr(cr, "upload_text_as_rag_file", fake_upload)
+    monkeypatch.setattr(cr, "summarise_curriculum_text", fake_summary)
+    monkeypatch.setattr(cr, "create_curriculum_doc", lambda doc: saved.append(doc))
+    monkeypatch.setattr(cr, "set_curriculum_content", lambda d, t: None)
+
+
+def test_ingest_persists_subject_and_folder(monkeypatch):
+    """The 1.1.60 regression guard. The backend accepted `subject` from 1.1.58 M2,
+    but no upload path ever SENT it, so every doc ingested through the UI or CLI
+    landed with subject=None and the Subject facet row stayed empty for two weeks.
+    Assert the field survives the round trip."""
+    saved: list[CurriculumDoc] = []
+    _wire_ingest(monkeypatch, saved)
+    monkeypatch.setattr(
+        "protocols.curriculum_routes.get_curriculum_folder",
+        lambda fid: _folder("f-1", TEACHER, "Mekanik") if fid == "f-1" else None,
+    )
+
+    resp = _client().post(
+        "/api/curriculum/ingest",
+        files={"file": ("noter.txt", b"Newtons love", "text/plain")},
+        data={"title": "Noter", "origin": "teacher", "subject": "  Fysik  ", "folder_id": "f-1"},
+    )
+
+    assert resp.status_code == 201, resp.text
+    assert resp.json()["doc"]["subject"] == "Fysik"  # normalised (trimmed)
+    assert saved[0].subject == "Fysik"
+    assert (saved[0].folder_id, saved[0].folder_name) == ("f-1", "Mekanik")
+
+
+def test_ingest_rejects_a_folder_in_another_scope(monkeypatch):
+    """ACL parity with PATCH: a teacher_owned doc can't be filed into a shared
+    folder. Checked BEFORE the parse/RAG upload so a bad request is cheap."""
+    saved: list[CurriculumDoc] = []
+    _wire_ingest(monkeypatch, saved)
+    monkeypatch.setattr(
+        "protocols.curriculum_routes.get_curriculum_folder",
+        lambda fid: _folder("f-shared", "shared", "Delt"),
+    )
+
+    resp = _client().post(
+        "/api/curriculum/ingest",
+        files={"file": ("noter.txt", b"x", "text/plain")},
+        data={"title": "Noter", "origin": "teacher", "folder_id": "f-shared"},
+    )
+
+    assert resp.status_code == 400
+    assert saved == []
+
+
+def test_ingest_without_subject_still_works(monkeypatch):
+    """Subject stays optional — a teacher is never blocked on categorising."""
+    saved: list[CurriculumDoc] = []
+    _wire_ingest(monkeypatch, saved)
+
+    resp = _client().post(
+        "/api/curriculum/ingest",
+        files={"file": ("noter.txt", b"x", "text/plain")},
+        data={"title": "Noter", "origin": "teacher"},
+    )
+
+    assert resp.status_code == 201, resp.text
+    assert saved[0].subject is None
+    assert saved[0].folder_id is None

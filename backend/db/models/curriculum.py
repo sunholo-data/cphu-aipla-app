@@ -28,12 +28,28 @@ SHARED_SCOPE = "shared"
 MAX_TAGS = 20
 MAX_TAG_LEN = 40
 
-# 1.1.58 M2 — subject is a SOFT vocabulary: these seed the facet chips, but free
-# entry is allowed so a teacher is never blocked on a missing category. Danish stx
-# physics areas. Distinct from `topic` (freeform, fine-grained) — subject is the
-# coarse facet a teacher filters by.
+# 1.1.60 — subject is the BROAD class (school subject), not an area within one.
+# It was Danish stx *physics* areas (Mekanik, Termodynamik, ...) in 1.1.58 M2,
+# which had no home for the maths corpus and left "AIPLA guides" masquerading as
+# a physics area. The within-subject taxonomy now lives in FOLDERS (see
+# PHYSICS_AREAS), which is where a teacher organises; `tags` stays the
+# cross-cutting axis and `topic` the freeform one.
+#
+# Still a SOFT vocabulary: these seed the picker, but free entry is allowed so a
+# teacher is never blocked on a missing category.
 MAX_SUBJECT_LEN = 60
 SUBJECTS = [
+    "Fysik",
+    "Matematik",
+    "Kemi",
+    "AIPLA guides",
+]
+
+# The 1.1.58 subject vocabulary, relocated: these are seeded as SHARED folders by
+# `scripts/seed-curriculum-folders.py` and are what the subject backfill files
+# physics documents into. Kept here (not in the script) so the classifier and the
+# seed share one list.
+PHYSICS_AREAS = [
     "Mekanik",
     "Termodynamik",
     "Elektromagnetisme",
@@ -99,9 +115,12 @@ class CurriculumDoc(BaseModel):
     # (folded into the browse haystack), filterable (AND), and surfaced as facet
     # chips. Always stored canonical (see normalize_tags) — apply it on write.
     tags: list[str] = Field(default_factory=list)
-    # 1.1.58 M2 — a coarse subject area from the soft SUBJECTS vocab (free entry
-    # allowed). The facet a teacher filters by; complements `topic` (freeform).
-    # Optional — legacy/unfiled docs have none.
+    # 1.1.58 M2 / 1.1.60 — the BROAD class from the soft SUBJECTS vocab (Fysik,
+    # Matematik, ... — free entry allowed). The top-level facet a teacher filters
+    # by; the within-subject taxonomy is the FOLDER, and `topic` stays freeform.
+    # Optional — but note NOTHING wrote it before 1.1.60 except the guide seed:
+    # the 1.1.58 M2 frontend never sent it at ingest, so every doc uploaded
+    # through the teacher UI or the CLI has `subject=None` until the backfill runs.
     subject: str | None = Field(default=None, max_length=MAX_SUBJECT_LEN)
     # 1.1.58 M3 — flat folder membership, denormalised (id + name) like
     # ParsedDocument. The folder's ownerScope MUST equal this doc's ownerScope —

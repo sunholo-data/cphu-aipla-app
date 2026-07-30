@@ -6,9 +6,13 @@ import { BookOpen, Check, Eye, EyeOff, FileText, FileUp, Folder, FolderPlus, Ima
 
 import {
   type CurriculumDoc,
+  type CurriculumFacets,
   type CurriculumFolder,
   type DocContent,
+  type FacetOption,
+  type LevelFilter,
   CurriculumApiError,
+  UNLEVELLED,
   browseCurriculum,
   createCurriculumFolder,
   deleteCurriculumFolder,
@@ -19,7 +23,7 @@ import {
   patchCurriculumTags,
 } from "@/lib/curriculumApi";
 import { ActivityImageApiError, deleteActivityImage, uploadActivityImage } from "@/lib/activityImageApi";
-import type { MaterialRef, StxLevel } from "@/lib/teacherApi";
+import type { MaterialRef } from "@/lib/teacherApi";
 
 type ViewState =
   | { kind: "loading" }
@@ -37,11 +41,111 @@ interface Props {
   activityId?: string;
 }
 
-const LEVELS: StxLevel[] = ["A", "B", "C"];
 // 1.1.59 — page size for the paginated browse (server caps at 200).
 const PAGE_SIZE = 50;
 // 1.1.58 M3 — sentinel folder filter → docs with no folder (mirrors backend).
 const UNFILED = "__unfiled__";
+// The empty-string value every single-select facet uses for "no filter".
+const ALL = "";
+
+/**
+ * 1.1.60 — one labelled row of facet chips. Subject, Level, Folder and Tags all
+ * render through this, so every filter in the picker looks and behaves the same;
+ * before this, Level was a `<select>` while the other three were chip rows.
+ *
+ * Chips show a COUNT narrowed by the other active facets, and options are never
+ * hidden when that count hits zero — a rail you navigate by muscle memory must
+ * not reshuffle as you type. A zero-count chip is dimmed but still clickable
+ * (clicking it is how you move the filter to it).
+ */
+function FacetRow({
+  label,
+  icon,
+  options,
+  selected,
+  onSelect,
+  multi = false,
+  allChip = true,
+  renderAction,
+  children,
+}: {
+  label: string;
+  icon?: React.ReactNode;
+  options: FacetOption[];
+  /** A single value, or the selected set when `multi`. */
+  selected: string | string[];
+  onSelect: (value: string) => void;
+  /** Tags are AND-combinable; the rest are single-select. */
+  multi?: boolean;
+  /** Single-select rows get an explicit "All" reset chip. */
+  allChip?: boolean;
+  /** Optional per-chip trailing control (the folder delete button). */
+  renderAction?: (option: FacetOption) => React.ReactNode;
+  /** Optional trailing control for the row (the folder "New" button). */
+  children?: React.ReactNode;
+}) {
+  const isOn = (value: string) =>
+    Array.isArray(selected) ? selected.includes(value) : selected === value;
+  const noneSelected = Array.isArray(selected) ? selected.length === 0 : selected === ALL;
+
+  if (options.length === 0 && !children) return null;
+
+  return (
+    <div className="flex flex-wrap items-center gap-1.5" aria-label={`Filter by ${label.toLowerCase()}`}>
+      <span className="flex items-center gap-1 text-xs font-medium text-muted-foreground">
+        {icon}
+        {label}
+      </span>
+      {allChip && !multi ? (
+        <button
+          type="button"
+          onClick={() => onSelect(ALL)}
+          aria-pressed={noneSelected}
+          className={`rounded-full border px-2 py-0.5 text-xs transition-colors ${
+            noneSelected
+              ? "border-primary bg-primary/10 text-foreground"
+              : "border-border text-muted-foreground hover:bg-muted"
+          }`}
+        >
+          All
+        </button>
+      ) : null}
+      {options.map((o) => {
+        const on = isOn(o.value);
+        const empty = o.count === 0 && !on;
+        const chip = (
+          <button
+            type="button"
+            onClick={() => onSelect(o.value)}
+            aria-pressed={on}
+            className={`rounded-full px-2 py-0.5 text-xs transition-colors ${
+              renderAction ? "" : "border"
+            } ${
+              on
+                ? "border-primary bg-primary/10 text-foreground"
+                : `border-border hover:bg-muted ${empty ? "text-muted-foreground/50" : "text-muted-foreground"}`
+            }`}
+          >
+            {o.label} <span className="tabular-nums opacity-60">({o.count})</span>
+          </button>
+        );
+        if (!renderAction) return <span key={o.value}>{chip}</span>;
+        return (
+          <span
+            key={o.value}
+            className={`inline-flex items-center gap-0.5 rounded-full border pr-1 text-xs transition-colors ${
+              on ? "border-primary bg-primary/10 text-foreground" : "border-border text-muted-foreground"
+            }`}
+          >
+            {chip}
+            {renderAction(o)}
+          </span>
+        );
+      })}
+      {children}
+    </div>
+  );
+}
 
 /** 1.1.58 M4 — a removable active-filter chip. */
 function ActiveChip({ label, onRemove }: { label: string; onRemove: () => void }) {
@@ -54,20 +158,13 @@ function ActiveChip({ label, onRemove }: { label: string; onRemove: () => void }
     </span>
   );
 }
-// 1.1.58 M2 — soft subject vocabulary (mirrors backend SUBJECTS) seeding the
-// per-row subject picker. Free entry isn't offered in the UI picker; the CLI /
-// ingest allow arbitrary values, and any existing value is preserved.
-const SUBJECTS = [
-  "Mekanik",
-  "Termodynamik",
-  "Elektromagnetisme",
-  "Bølger og optik",
-  "Atom- og kernefysik",
-  "Kvantefysik",
-  "Astrofysik",
-  "Relativitet",
-  "Eksperimentel metode",
-];
+// 1.1.60 — subject is the BROAD class (mirrors backend SUBJECTS in
+// db/models/curriculum.py). It used to be the nine Danish stx *physics* areas,
+// which left the maths corpus homeless and "AIPLA guides" posing as a physics
+// area; those areas are now FOLDERS. Free entry isn't offered in this picker —
+// the CLI and ingest accept arbitrary values, and any existing value is
+// preserved by prepending it below.
+const SUBJECTS = ["Fysik", "Matematik", "Kemi", "AIPLA guides"];
 
 /**
  * Materials section for the activity builder (1.1.25 M4).
@@ -85,22 +182,32 @@ export function MaterialsSection({ materials, onChange, activityId }: Props) {
   const [docs, setDocs] = useState<CurriculumDoc[] | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [levelFilter, setLevelFilter] = useState<StxLevel | "">("");
+  // 1.1.60 — level is a chip row like the others, and can select the
+  // "no level assigned" bucket where most teacher uploads actually live.
+  const [levelFilter, setLevelFilter] = useState<LevelFilter | "">("");
   const [topicFilter, setTopicFilter] = useState("");
   // 1.1.59 — debounced search term (the input updates on every keystroke; the
   // browse only fires 250ms after typing settles) + pagination state.
   const [debouncedTopic, setDebouncedTopic] = useState("");
   const [total, setTotal] = useState(0);
   const [loadingMore, setLoadingMore] = useState(false);
-  // 1.1.58 M1 — tag facet: the tags available to click, and the selected subset
-  // (AND). `editTagsFor` holds the docId whose inline tag editor is open.
-  const [facetTags, setFacetTags] = useState<string[]>([]);
+  // 1.1.60 — every facet's options + narrowed counts, from one endpoint.
+  const [facets, setFacets] = useState<CurriculumFacets>({
+    subjects: [],
+    levels: [],
+    folders: [],
+    tags: [],
+  });
+  // 1.1.58 M1 — tags are the one AND-combinable facet. `editTagsFor` holds the
+  // docId whose inline tag editor is open.
   const [selectedTags, setSelectedTags] = useState<string[]>([]);
   const [editTagsFor, setEditTagsFor] = useState<string | null>(null);
   // 1.1.58 M2 — subject facet (single-select).
-  const [facetSubjects, setFacetSubjects] = useState<string[]>([]);
   const [selectedSubject, setSelectedSubject] = useState<string>("");
   // 1.1.58 M3 — folders. `selectedFolder`: "" = all, "__unfiled__" = unfiled, else a folder id.
+  // `folders` is the raw folder list, kept alongside `facets.folders` because the
+  // per-row "move to" dropdown and the delete confirmation need the TRUE doc
+  // count, not the count narrowed by the current filter.
   const [folders, setFolders] = useState<CurriculumFolder[]>([]);
   const [selectedFolder, setSelectedFolder] = useState<string>("");
 
@@ -168,23 +275,24 @@ export function MaterialsSection({ materials, onChange, activityId }: Props) {
     }
   }
 
-  // Populate the facet chips once (and after a tag edit refreshes them).
+  // 1.1.60 — refetch the facets whenever the SELECTION changes, not just once:
+  // the counts are narrowed by the other active facets, so they're only correct
+  // relative to the current filter. Passing browseParams(0) keeps the two calls
+  // in lockstep — the chips can never describe a different query than the list.
   const loadFacets = useCallback(async () => {
     try {
-      const [{ tags, subjects }, folderList] = await Promise.all([
-        listCurriculumFacets(),
+      const [next, folderList] = await Promise.all([
+        listCurriculumFacets(browseParams(0)),
         listCurriculumFolders(),
       ]);
-      setFacetTags(tags);
-      setFacetSubjects(subjects);
+      setFacets(next);
       setFolders(folderList);
     } catch {
       // Facets are additive — a failure just means no chip row, never a blocker.
-      setFacetTags([]);
-      setFacetSubjects([]);
+      setFacets({ subjects: [], levels: [], folders: [], tags: [] });
       setFolders([]);
     }
-  }, []);
+  }, [browseParams]);
 
   // 1.1.58 M4 — active-filter summary + one-shot reset. The search term uses the
   // live `topicFilter` (not the debounced copy) so the chip clears instantly.
@@ -202,7 +310,11 @@ export function MaterialsSection({ materials, onChange, activityId }: Props) {
 
   function folderLabel(id: string): string {
     if (id === UNFILED) return "Unfiled";
-    return folders.find((f) => f.folderId === id)?.name ?? "Folder";
+    return (
+      folders.find((f) => f.folderId === id)?.name ??
+      facets.folders.find((f) => f.value === id)?.label ??
+      "Folder"
+    );
   }
 
   async function newFolder() {
@@ -216,13 +328,19 @@ export function MaterialsSection({ materials, onChange, activityId }: Props) {
     }
   }
 
-  async function removeFolder(f: CurriculumFolder) {
-    if (!window.confirm(`Delete folder “${f.name}”? Its ${f.docCount} document(s) will be unfiled, not deleted.`)) {
+  async function removeFolder(folderId: string) {
+    // Confirm with the folder's TRUE doc count, not the count narrowed by the
+    // current filter — "2 documents will be unfiled" must not undercount because
+    // a subject chip happens to be selected.
+    const f = folders.find((x) => x.folderId === folderId);
+    const name = f?.name ?? folderLabel(folderId);
+    const count = f?.docCount ?? 0;
+    if (!window.confirm(`Delete folder “${name}”? Its ${count} document(s) will be unfiled, not deleted.`)) {
       return;
     }
     try {
-      await deleteCurriculumFolder(f.folderId);
-      if (selectedFolder === f.folderId) setSelectedFolder("");
+      await deleteCurriculumFolder(folderId);
+      if (selectedFolder === folderId) setSelectedFolder("");
       void loadFacets();
       void load(); // a filed doc may now be unfiled — refresh the list
     } catch {
@@ -421,24 +539,9 @@ export function MaterialsSection({ materials, onChange, activityId }: Props) {
         </ul>
       ) : null}
 
-      {/* Filters */}
+      {/* Filters. 1.1.60 — search + upload here; every FACET is a chip row in the
+          strip below, so Level no longer sits apart as a lone <select>. */}
       <div className="flex flex-wrap items-end gap-3">
-        <label className="flex flex-col gap-1 text-xs font-medium">
-          Level
-          <select
-            value={levelFilter}
-            onChange={(e) => setLevelFilter(e.target.value as StxLevel | "")}
-            aria-label="Filter by level"
-            className="rounded border border-border bg-background px-2 py-1.5 text-sm"
-          >
-            <option value="">All</option>
-            {LEVELS.map((l) => (
-              <option key={l} value={l}>
-                {l}
-              </option>
-            ))}
-          </select>
-        </label>
         <label className="flex flex-1 flex-col gap-1 text-xs font-medium">
           Search materials
           <input
@@ -452,6 +555,13 @@ export function MaterialsSection({ materials, onChange, activityId }: Props) {
         </label>
         <UploadButton
           activityId={activityId}
+          // 1.1.60 — an upload inherits whatever you're currently filtered to, so
+          // it lands categorised instead of Unfiled-and-subjectless. This is the
+          // capture gap that left every doc with subject=null: the field existed
+          // on the backend from 1.1.58 M2, but no upload path ever sent it.
+          subject={selectedSubject || undefined}
+          folderId={selectedFolder && selectedFolder !== UNFILED ? selectedFolder : undefined}
+          folderLabel={selectedFolder && selectedFolder !== UNFILED ? folderLabel(selectedFolder) : undefined}
           onUploaded={(doc) => {
             // Add the new doc to the visible list + cite it immediately. Default
             // not student-visible (opt-in, 1.1.33 M2a) — same as toggleCite.
@@ -469,122 +579,61 @@ export function MaterialsSection({ materials, onChange, activityId }: Props) {
         />
       </div>
 
-      {/* Tag facet chips (1.1.58 M1) — click to narrow by tag (AND). Absent when
-          no docs carry tags yet, so the row never shows as an empty affordance. */}
-      {facetTags.length > 0 ? (
-        <div className="flex flex-wrap items-center gap-1.5" aria-label="Filter by tag">
-          <span className="flex items-center gap-1 text-xs font-medium text-muted-foreground">
-            <Tag className="h-3.5 w-3.5" aria-hidden="true" />
-            Tags
-          </span>
-          {facetTags.map((tag) => {
-            const on = selectedTags.includes(tag);
-            return (
-              <button
-                key={tag}
-                type="button"
-                onClick={() => toggleTagFilter(tag)}
-                aria-pressed={on}
-                className={`rounded-full border px-2 py-0.5 text-xs transition-colors ${
-                  on ? "border-primary bg-primary/10 text-foreground" : "border-border text-muted-foreground hover:bg-muted"
-                }`}
-              >
-                {tag}
-              </button>
-            );
-          })}
-          {selectedTags.length > 0 ? (
-            <button
-              type="button"
-              onClick={() => setSelectedTags([])}
-              className="ml-1 text-xs text-muted-foreground underline-offset-2 hover:underline"
-            >
-              Clear tags
-            </button>
-          ) : null}
-        </div>
-      ) : null}
-
-      {/* Subject facet chips (1.1.58 M2) — single-select; absent until docs carry a subject. */}
-      {facetSubjects.length > 0 ? (
-        <div className="flex flex-wrap items-center gap-1.5" aria-label="Filter by subject">
-          <span className="text-xs font-medium text-muted-foreground">Subject</span>
-          {facetSubjects.map((s) => {
-            const on = selectedSubject === s;
-            return (
-              <button
-                key={s}
-                type="button"
-                onClick={() => setSelectedSubject(on ? "" : s)}
-                aria-pressed={on}
-                className={`rounded-full border px-2 py-0.5 text-xs transition-colors ${
-                  on ? "border-primary bg-primary/10 text-foreground" : "border-border text-muted-foreground hover:bg-muted"
-                }`}
-              >
-                {s}
-              </button>
-            );
-          })}
-        </div>
-      ) : null}
-
-      {/* Folder rail (1.1.58 M3) — All / Unfiled / each folder (with count) + New. */}
-      <div className="flex flex-wrap items-center gap-1.5" aria-label="Filter by folder">
-        <span className="flex items-center gap-1 text-xs font-medium text-muted-foreground">
-          <Folder className="h-3.5 w-3.5" aria-hidden="true" />
-          Folders
-        </span>
-        {[
-          { id: "", label: "All" },
-          { id: UNFILED, label: "Unfiled" },
-        ].map((chip) => {
-          const on = selectedFolder === chip.id;
-          return (
-            <button
-              key={chip.id || "all"}
-              type="button"
-              onClick={() => setSelectedFolder(chip.id)}
-              aria-pressed={on}
-              className={`rounded-full border px-2 py-0.5 text-xs transition-colors ${
-                on ? "border-primary bg-primary/10 text-foreground" : "border-border text-muted-foreground hover:bg-muted"
-              }`}
-            >
-              {chip.label}
-            </button>
-          );
-        })}
-        {/* Real folders: filter chip + a delete affordance (docs get unfiled). */}
-        {folders.map((f) => {
-          const on = selectedFolder === f.folderId;
-          return (
-            <span
-              key={f.folderId}
-              className={`inline-flex items-center gap-0.5 rounded-full border pl-2 pr-1 py-0.5 text-xs transition-colors ${
-                on ? "border-primary bg-primary/10 text-foreground" : "border-border text-muted-foreground"
-              }`}
-            >
-              <button type="button" onClick={() => setSelectedFolder(f.folderId)} aria-pressed={on} className="hover:underline">
-                {f.name} ({f.docCount})
-              </button>
+      {/* 1.1.60 — the facet strip. Subject (broad class) → Folder (the taxonomy
+          within it) → Level → Tags, all one chip idiom, all showing counts
+          narrowed by the other active facets. */}
+      <div className="flex flex-col gap-2 rounded border border-border/60 bg-muted/20 p-2.5">
+        <FacetRow
+          label="Subject"
+          icon={<BookOpen className="h-3.5 w-3.5" aria-hidden="true" />}
+          options={facets.subjects}
+          selected={selectedSubject}
+          onSelect={setSelectedSubject}
+        />
+        <FacetRow
+          label="Folders"
+          icon={<Folder className="h-3.5 w-3.5" aria-hidden="true" />}
+          options={facets.folders}
+          selected={selectedFolder}
+          onSelect={setSelectedFolder}
+          // Folders are the only user-created facet, so they carry a delete on
+          // each chip (docs get unfiled, never deleted) and a New at the end.
+          renderAction={(o) =>
+            o.value === UNFILED ? null : (
               <button
                 type="button"
-                aria-label={`Delete folder ${f.name}`}
-                onClick={() => void removeFolder(f)}
+                aria-label={`Delete folder ${o.label}`}
+                onClick={() => void removeFolder(o.value)}
                 className="hover:text-destructive"
               >
                 <X className="h-3 w-3" aria-hidden="true" />
               </button>
-            </span>
-          );
-        })}
-        <button
-          type="button"
-          onClick={() => void newFolder()}
-          className="flex items-center gap-1 rounded-full border border-dashed border-border px-2 py-0.5 text-xs text-muted-foreground hover:bg-muted"
+            )
+          }
         >
-          <FolderPlus className="h-3.5 w-3.5" aria-hidden="true" />
-          New
-        </button>
+          <button
+            type="button"
+            onClick={() => void newFolder()}
+            className="flex items-center gap-1 rounded-full border border-dashed border-border px-2 py-0.5 text-xs text-muted-foreground hover:bg-muted"
+          >
+            <FolderPlus className="h-3.5 w-3.5" aria-hidden="true" />
+            New
+          </button>
+        </FacetRow>
+        <FacetRow
+          label="Level"
+          options={facets.levels}
+          selected={levelFilter}
+          onSelect={(v) => setLevelFilter(v as LevelFilter | "")}
+        />
+        <FacetRow
+          label="Tags"
+          icon={<Tag className="h-3.5 w-3.5" aria-hidden="true" />}
+          options={facets.tags}
+          selected={selectedTags}
+          onSelect={toggleTagFilter}
+          multi
+        />
       </div>
 
       {/* Active-filter chips (1.1.58 M4) — echo every applied filter, each
@@ -593,7 +642,10 @@ export function MaterialsSection({ materials, onChange, activityId }: Props) {
         <div className="flex flex-wrap items-center gap-1.5" aria-label="Active filters">
           <span className="text-xs font-medium text-muted-foreground">Active</span>
           {levelFilter ? (
-            <ActiveChip label={`Level ${levelFilter}`} onRemove={() => setLevelFilter("")} />
+            <ActiveChip
+              label={levelFilter === UNLEVELLED ? "No level" : `Level ${levelFilter}`}
+              onRemove={() => setLevelFilter("")}
+            />
           ) : null}
           {topicFilter.trim() ? (
             <ActiveChip label={`“${topicFilter.trim()}”`} onRemove={() => setTopicFilter("")} />
@@ -906,10 +958,17 @@ const _IMAGE_EXT_RE = /\.(png|jpe?g|webp|gif)$/i;
 
 function UploadButton({
   activityId,
+  subject,
+  folderId,
+  folderLabel,
   onUploaded,
   onImageUploaded,
 }: {
   activityId?: string;
+  /** 1.1.60 — metadata the upload inherits from the current filter selection. */
+  subject?: string;
+  folderId?: string;
+  folderLabel?: string;
   onUploaded: (doc: CurriculumDoc) => void;
   onImageUploaded: (ref: MaterialRef) => void;
 }) {
@@ -942,6 +1001,9 @@ function UploadButton({
         // 1.1.33: uploads are level-less (no forced "B" — the teacher may file
         // it A/B/C later). origin is the filename so the citation is recognisable.
         origin: file.name,
+        // 1.1.60: inherit the current subject/folder selection.
+        subject,
+        folderId,
       });
       // The parent cites it + opens the per-document "what we extracted" viewer
       // (M4/M3) — so the preview is tied to the doc, not a generic panel.
@@ -981,6 +1043,13 @@ function UploadButton({
         className="hidden"
         aria-label="Upload document or image"
       />
+      {/* Say where it will land — inheriting the filter is only a good default if
+          the teacher can see it happening. */}
+      {subject || folderLabel ? (
+        <span className="text-xs text-muted-foreground">
+          Files into {[subject, folderLabel].filter(Boolean).join(" · ")}
+        </span>
+      ) : null}
       {err ? <span className="text-xs text-destructive">{err}</span> : null}
     </div>
   );

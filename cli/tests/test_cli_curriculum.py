@@ -292,3 +292,65 @@ def test_summarize_requires_a_target() -> None:
     result = _run(["summarize"])
     assert result.exit_code != 0
     assert "give --doc-id" in result.output.lower()
+
+
+# --- 1.1.60: subject/tags/folder at ingest, narrowable facets ---
+
+
+@respx.mock
+def test_ingest_sends_subject_tags_and_folder(tmp_path) -> None:
+    """The CLI half of the 1.1.60 capture gap: `subject` was accepted by the
+    backend from 1.1.58 M2 but no ingest path ever sent it, so every doc landed
+    with subject=None."""
+    route = respx.post(f"{BASE}/api/curriculum/ingest").mock(
+        return_value=httpx.Response(201, json={"doc": {}}),
+    )
+    f = tmp_path / "opgaver.txt"
+    f.write_text("Opgaver.")
+
+    result = _run(
+        [
+            "ingest",
+            str(f),
+            "--level",
+            "A",
+            "--origin",
+            "uvm.dk",
+            "--subject",
+            "Matematik",
+            "--tag",
+            "exam",
+            "--tag",
+            "lab",
+            "--folder",
+            "f-1",
+        ]
+    )
+    assert result.exit_code == 0, result.output
+    body = route.calls.last.request.content
+    assert b'name="subject"' in body and b"Matematik" in body
+    # Repeated --tag collapses to ONE comma-separated form field (the ingest
+    # endpoint splits on commas; it does not read repeated fields).
+    assert b'name="tags"' in body and b"exam,lab" in body
+    assert b'name="folder_id"' in body and b"f-1" in body
+
+
+@respx.mock
+def test_facets_passes_filters_through(tmp_path) -> None:
+    route = respx.get(f"{BASE}/api/curriculum/facets").mock(
+        return_value=httpx.Response(200, json={"subjects": [], "levels": [], "folders": [], "tags": []}),
+    )
+    result = _run(["facets", "--subject", "Matematik", "--level", "__unlevelled__", "--tag", "lab"])
+    assert result.exit_code == 0, result.output
+    url = str(route.calls.last.request.url)
+    assert "subject=Matematik" in url
+    assert "level=__unlevelled__" in url
+    assert "tags=lab" in url
+
+
+def test_list_accepts_the_unlevelled_sentinel(tmp_path) -> None:
+    # click.Choice must allow it — it's a real selectable bucket, not a bad value.
+    with respx.mock:
+        respx.get(f"{BASE}/api/curriculum").mock(return_value=httpx.Response(200, json={"docs": []}))
+        result = _run(["list", "--level", "__unlevelled__"])
+    assert result.exit_code == 0, result.output

@@ -1,12 +1,12 @@
 # Curriculum Library — Faceted Browse (folders + tags + subject + search)
 
-**Status**: Implemented (M0–M4 SHIPPED 2026-07-13)
+**Status**: Implemented (M0–M4 SHIPPED 2026-07-13; M5 2026-07-14; M6 subject re-basing 2026-07-30)
 **Priority**: P2 (breadth probe — teacher library ergonomics)
 **Estimated**: ~3–4 days (M0 shipped; M1 ~0.75d · M2 ~0.75d · M3 ~1.5d · M4 ~0.75d)
 **Scope**: Fullstack (backend model + browse filter + ingest; frontend Materials browser; CLI)
 **Dependencies**: [1.1.25 curriculum-library](curriculum-library.md) (`CurriculumDoc`, `curriculum_docs`, `MaterialsSection`, `aiplatform curriculum` CLI, RAG corpus), [1.1.52 copilot-curriculum-selection](copilot-curriculum-selection.md) (the `summary` field + `summarize` backfill this search now leans on)
 **Created**: 2026-07-13
-**Last Updated**: 2026-07-13
+**Last Updated**: 2026-07-30
 **Sequence**: 1.1.58
 
 ## Problem Statement
@@ -157,8 +157,12 @@ All optional / default-empty → **no backfill required**; legacy docs list and
 search unchanged.
 
 **Subject vocabulary** (soft — suggested chips, free entry still allowed so we
-don't block a teacher on a missing category). A module constant, Danish stx
-physics areas, e.g.:
+don't block a teacher on a missing category). A module constant.
+
+> **Superseded by M6 (1.1.60).** The list below was the *within-physics* areas,
+> which had no home for the maths corpus. `SUBJECTS` is now the broad class
+> (Fysik / Matematik / Kemi / AIPLA guides) and these nine areas moved to
+> `PHYSICS_AREAS`, seeded as shared folders. See M6 below.
 
 ```python
 SUBJECTS = [
@@ -366,13 +370,89 @@ each), so the facets are testable without a Firebase token + curl-by-hand.
 - [x] FE: delete × on each folder chip, `window.confirm` ("N docs will be unfiled, not deleted"), refresh on success
 - Closes the create/list-but-no-delete gap found during the M4 deploy verify.
 
+### M6 — Subject re-basing + narrowed facets (1.1.60, 2026-07-30)
+
+Two things M1–M5 got wrong, found when a teacher asked why maths documents
+didn't show up in the Subject filter.
+
+**1. `subject` was write-only in practice.** M2 wired subject into the model,
+the browse filter, the facets endpoint, the PATCH, the CLI `set`, the FE chips
+and the FE per-row dropdown — everything except **the upload form's `FormData`**.
+`IngestCurriculumParams` had no `subject` key, and the CLI `ingest` had no
+`--subject` flag. So the backend happily accepted a field that no ingest path
+ever sent: every document uploaded between 2026-07-13 and 2026-07-30 landed with
+`subject=None`, and the only chip in the facet row came from
+`scripts/seed-guide-corpus.mjs`, which PATCHes `subject: "AIPLA guides"` after
+ingest. The feature looked shipped and had a passing test suite because every
+test exercised the read path.
+
+*Guard:* `test_ingest_persists_subject_and_folder` (backend) and "an upload
+inherits the selected subject + folder" (FE) both assert the field survives the
+round trip. Uploads now also inherit the current subject/folder selection, with
+a "Files into X · Y" hint, so the default path captures metadata instead of
+relying on a second edit.
+
+**2. The subject axis was the wrong altitude.** `SUBJECTS` was the nine Danish
+stx *physics* areas, which left maths documents homeless and had "AIPLA guides"
+posing as a physics area. Re-based:
+
+| | 1.1.58 | 1.1.60 |
+|---|---|---|
+| `subject` | Mekanik, Termodynamik, … | **Fysik, Matematik, Kemi, AIPLA guides** (broad class) |
+| folder | freeform teacher grouping | **the within-subject taxonomy** — the nine areas seeded as shared folders |
+| `tags` | cross-cutting | unchanged — folder is where a doc *lives*, tags are what it *touches* |
+| `level` | a lone `<select>` | a chip row like the rest, plus a selectable **"No level"** bucket |
+
+- [x] `PHYSICS_AREAS` constant + `scripts/seed_curriculum_folders.py` /
+      `make seed-curriculum-folders` — seeds the nine as shared folders and
+      relocates any doc still carrying an area as its subject. Idempotent.
+      Deliberately does *not* guess a subject for the docs that have none.
+- [x] `GET /api/curriculum/facets` takes the same filter params as browse and
+      returns `{subjects, levels, folders, tags}` as `{value, label, count}`.
+      **Options come from the whole visible corpus; counts come from the set
+      filtered by every facet except itself.** So selecting Matematik re-counts
+      folders and levels against maths only, sibling subjects keep their own
+      counts (switch without clearing first), and no chip ever appears or
+      vanishes mid-filter — a rail navigated by muscle memory must not reshuffle.
+      Zero-count chips dim but stay clickable.
+- [x] `UNLEVELLED = "__unlevelled__"` sentinel, twin of `UNFILED`. Level is
+      optional and no upload path sets it, so this bucket holds most teacher
+      uploads and has to be reachable rather than a gap in the rail.
+- [x] `_visible_docs` / `_apply_filters` split so the facet computation loads the
+      ACL-scoped set once and filters it in memory five ways.
+- [x] Shared `FacetRow` component — one chip idiom for all four facets.
+- [x] CLI: `ingest --subject/--tag/--folder`, `facets` takes the filter params,
+      `list`/`facets` accept the unlevelled sentinel.
+
+**Explicitly not done:** folder-as-bulk-selector for activity materials. It was
+scoped, then dropped — attaching a whole folder would let a teacher wire dozens
+of documents into one activity in a click, and an activity's retrieval should
+stay narrow. Folders help a teacher *find* the two or three right docs; they
+never become a bulk attach. The useful half (folder narrowing the material
+picker) is a candidate follow-on.
+
+**Also fixed here:** `build_curriculum_retrieval_tool` passed no
+`RagRetrievalConfig` at all, so the chunk budget was an invisible SDK default.
+Now an explicit `similarity_top_k` (`CURRICULUM_RETRIEVAL_TOP_K`, default 5) —
+a pedagogical knob belongs in the codebase.
+
 ## Migration & Rollout
 
-**Database Migrations:** None required — all new doc fields are optional /
-default-empty. `curriculum_folders` is a new empty collection. No backfill; a
-teacher tags/folders opportunistically. Optional one-off: an
-`aiplatform curriculum suggest-subjects` backfill that runs the cheap classifier
-over existing docs (teacher confirms in bulk) — deferred, not a blocker.
+**Database Migrations:** None required for M1–M5 — all new doc fields are
+optional / default-empty, and `curriculum_folders` is a new empty collection.
+
+**M6 (1.1.60) adds one, and it is not optional if you want the Subject facet to
+be usable:** `make seed-curriculum-folders ENV=<env>` (dry-run first) seeds the
+nine physics areas as shared folders and re-bases any doc whose `subject` is
+still a physics area. Idempotent.
+
+The "no backfill; a teacher tags/folders opportunistically" plan above turned
+out to be the root cause of the empty Subject row — opportunistic tagging never
+happened because *the upload form never offered it*. The deferred
+`aiplatform curriculum suggest-subjects` classifier (cheap pass over each doc's
+existing `summary`, teacher confirms in the picker) is now the **next
+milestone**, not an optional extra: M6 deliberately does not guess a subject
+from titles, so docs ingested before 1.1.60 stay unclassified until it lands.
 
 **Feature Flags:** None. Ships behind the normal `dev` → verify → promote flow.
 Each milestone is independently shippable (M1 tags without M3 folders is useful).
