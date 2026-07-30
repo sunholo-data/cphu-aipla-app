@@ -1332,6 +1332,77 @@ via the handshake, not the vendor global.
 
 **Upstream fix:** inherited sub-task model selection should go through a registry accessor (`fast_model()` / `default_model()`), so a model deprecation is a one-place change rather than a grep-the-codebase hunt.
 
+## 46. `--service-account` on Cloud Build is a TWO-path problem — #7 only fixed triggers
+
+**Where:** the same post-2024 Cloud Build SA change as [#7](#7-new-gcp-projects-post-2024-lack-the-legacy-cloud-build-sa--triggers-must-specify---service-account),
+but on the `gcloud builds submit` path rather than the trigger path.
+
+**What hurt:** #7 is recorded as *fixed upstream* because
+`scripts/bootstrap-gcp-project.sh` materialises the CB service agent and every
+trigger passes `--service-account`. That closes the trigger half only. Any script
+that submits a build directly — a promotion pipeline, a one-off migration build,
+a manual rebuild — hits the identical class of bug from the other side, and the
+symptom is worse because it is *asymmetric*: the work runs fine from the console
+and 403s from the CLI.
+
+Concretely, on AIPLA (2026-07-30, first real run of the env-promotion pipeline):
+
+1. `gcloud builds submit` **without** `--service-account` fell back to the
+   Compute Engine default SA (`<num>-compute@developer.gserviceaccount.com`),
+   while the equivalent trigger ran as the runtime SA. Two identities for one
+   pipeline, so any IAM grant covers exactly one of them. The failure surfaced as
+   `PERMISSION_DENIED` on a *cross-project* Artifact Registry read, which sends
+   you hunting in the cross-project grant — the wrong place entirely.
+2. Adding `--service-account` then produced a **new** failure: `builds submit`
+   uploads a source tarball to the auto-created `<project>_cloudbuild` bucket,
+   and the specified SA must be able to read it back
+   (`storage.objects.get denied on .../<project>_cloudbuild/objects/source/…`).
+   Trigger builds fetch source from the repo connection and never touch that
+   bucket, so this requirement is invisible until you leave the trigger path.
+
+**Workaround on AIPLA:** pin `--service-account` in the submitting script so both
+paths share one identity, and grant that SA `roles/storage.objectViewer` on
+`<project>_cloudbuild` in Terraform. AIPLA commits `d65d07d`, `07d4751`.
+
+**Upstream fix:** extend the #7 gotcha doc to state that `--service-account` is
+required on **both** `builds triggers create` and `builds submit`, that the two
+must name the *same* SA, and that the submit path additionally needs
+`storage.objectViewer` on `<project>_cloudbuild`. If the template ever ships a
+promotion or migration script that calls `builds submit`, it needs this baked in.
+
+## 47. The template has no environment-promotion model — every fork invents one
+
+**Where:** template-wide. `cloudbuild.yaml` deploys per-branch; there is nothing
+describing how a build reaches a second or third environment.
+
+**What hurt:** AIPLA needed dev → test → prod and had to design the whole model:
+which artifact moves, what gets rebuilt, and what the gate is. The
+non-obvious constraint is that **the frontend cannot be copied** — Next.js inlines
+`NEXT_PUBLIC_*` at compile time, so a test-built UI carries test's config into
+prod. So the correct shape is *asymmetric*: copy the backend image by digest,
+rebuild the frontend from the same tag with the target env's config. Every fork
+running >1 environment will rediscover this, and the failure mode if they don't
+is silent — prod serving test's API URLs and Firebase project.
+
+A second, sharper lesson: AIPLA's promote pipeline was **written but never
+executed** (the prod cut used a tag-build path "because copy-promote is
+unvalidated first-run"). Its first real run failed immediately on
+`gcloud artifacts docker images copy` — *a command that does not exist* in any
+SDK version. It had been sitting in a committed, reviewed, documented pipeline
+for six weeks. Two further latent bugs surfaced in the same run (see #46).
+
+**Workaround on AIPLA:** `cloudbuild.promote.yaml` + `scripts/promote-env.sh`
+(`crane copy` by digest + digest-equality assertion + frontend rebuild + smoke),
+gated so a version tag reaches test only and prod requires an explicit
+`make promote`. Design doc: `docs/design/aipla/v1.0.0-pilot/build-once-artifact-promotion.md`.
+
+**Upstream fix:** ship a promotion story in the template — at minimum a
+`docs/gotchas/` note that the frontend is not copyable and why; ideally the
+`cloudbuild.promote.yaml` + wrapper script shape, which is generic (it depends
+only on Artifact Registry + Cloud Run, not on anything AIPLA-specific). Whatever
+ships should be **exercised in CI or at cut time**, not merely committed — the
+`copy` bug proves a promotion pipeline that has never run is not a pipeline.
+
 ## Backlog (likely additions as v0.1 sprint continues)
 
 - M5 may surface IAM bindings the bootstrap script should add

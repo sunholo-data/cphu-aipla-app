@@ -190,6 +190,10 @@ Same GCP projects as v5, but v6 runs as **new parallel Cloud Run services** so v
 - **Project IDs**: `aitana-multivac-dev`, `aitana-multivac-test`, `aitana-multivac-production` (unchanged)
 - **v6 Cloud Run services**: `aitana-v6-backend`, `aitana-v6-frontend` (new; live in dev once CI-WIRE lands)
 - **v5 Cloud Run services**: `backend-api`, `frontend` (still running, will be decommissioned after DNS cutover)
+- **HOW TO DEPLOY → [docs/ops/runbooks/deploy.md](docs/ops/runbooks/deploy.md)**
+  is the runbook for all three environments (dev: push `dev` · test: push a `v*`
+  tag · prod: `make promote`). Read it before deploying anything; the summary
+  below is orientation, not instructions.
 - **Branch deployment (v6)**: `dev` → dev. `dev` is the only branch in the repo.
 - **Environment promotion (AIPLA — TAG-based, not branch-based).** All three
   environments are live, cut from committed Terraform (`infrastructure/env/`):
@@ -259,10 +263,12 @@ fails the build if this list ever names one that doesn't:
 > **Referenced-but-not-present skills.** Earlier drafts of this file named
 > `aiplatform-cli`, `aitana-v6-deploy`, `aitana-template-publish`, and
 > `cloud-run-diagnostics`. **These are not in `.claude/skills/` — do not try to
-> load them.** Their runbooks (CLI debugging + token-mint, dev→test→prod promotion,
-> template publish, Cloud Run diagnostics) are candidates for extraction into
-> `docs/ops/runbooks/` during handover (audit item P4.3). Until then the knowledge
-> lives in the `aiplatform` CLI README (`cli/README.md`) and `cloudbuild*.yaml`.
+> load them.** Their runbooks are being extracted into `docs/ops/runbooks/`
+> (audit item P4.3): **dev→test→prod promotion is DONE —
+> [docs/ops/runbooks/deploy.md](docs/ops/runbooks/deploy.md) (2026-07-30)**.
+> Still unextracted: CLI debugging + token-mint, template publish, Cloud Run
+> diagnostics — that knowledge lives in the `aiplatform` CLI README
+> (`cli/README.md`) and `cloudbuild*.yaml`.
 
 **Cross-project skills** (used everywhere, not Aitana-specific):
 
