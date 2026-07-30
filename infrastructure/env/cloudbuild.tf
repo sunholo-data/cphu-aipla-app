@@ -210,19 +210,66 @@ resource "google_cloudbuild_trigger" "prod_sandbox_release" {
   }
 }
 
-# Runbook step 6, done 2026-07-30:
-#   * cross-project artifactregistry.reader → google_project_iam_member
-#     .promote_source_reader in iam.tf (the one perm the promote's copy-backend
-#     step lacked).
-#   * prod_release disabled above, so a `v*` tag no longer reaches prod.
-#   * promote-env.sh now pins --service-account to the runtime SA, so the CLI and
-#     trigger paths share one identity and therefore one grant.
+# prod: the PROMOTE trigger — how prod is actually deployed.
 #
-# NOT done, deliberately: the `aipla-prod-promote` MANUAL trigger the original
-# TODO called for. scripts/promote-env.sh submits cloudbuild.promote.yaml
-# directly via `gcloud builds submit`, so the promotion works without it — the
-# trigger would only add a console button, and a second entry point is a second
-# thing to keep in sync. Add it if console-driven promotion is ever wanted.
+# Manual (no repository_event_config push block), invoked by
+# scripts/promote-env.sh as:
+#   gcloud builds triggers run aipla-prod-promote --tag=vX.Y.Z \
+#     --substitutions=_VERSION=vX.Y.Z
+#
+# WHY A TRIGGER AND NOT `gcloud builds submit`: `submit` uploads the operator's
+# LOCAL WORKING TREE as the build source, so the frontend prod runs would be
+# built from whatever is checked out on someone's laptop. That is why the
+# earlier script needed a HEAD==tag guard — a seatbelt on a design that should
+# not need one. `triggers run --tag` makes Cloud Build check the repo out AT THE
+# TAG, so the tag is the single source of truth and the laptop leaves the supply
+# chain entirely. This mirrors sunholo-data/docparse `scripts/release.sh promote`
+# (`gcloud builds triggers run promote-to-prod`), which had the mechanism right
+# from the start; AIPLA's design doc reimplemented the promotion MODEL without
+# carrying over the MECHANISM. Corrected 2026-07-30.
+#
+# `git_file_source` + `source_to_build` are what make a manual trigger resolve a
+# revision; `--tag` at run time overrides the ref below.
+resource "google_cloudbuild_trigger" "prod_promote" {
+  count = var.env == "prod" ? 1 : 0
+
+  project         = var.project_id
+  location        = var.region
+  name            = "aipla-prod-promote"
+  description     = "Promote a tested release test→prod: copy backend digest, rebuild frontend from the tag. Run with --tag=vX.Y.Z."
+  service_account = "projects/${var.project_id}/serviceAccounts/${google_service_account.runtime.email}"
+
+  source_to_build {
+    repository = google_cloudbuildv2_repository.app.id
+    ref        = "refs/heads/dev" # overridden per-run by `--tag`
+    repo_type  = "GITHUB"
+  }
+
+  git_file_source {
+    path       = "cloudbuild.promote.yaml"
+    repository = google_cloudbuildv2_repository.app.id
+    revision   = "refs/heads/dev" # overridden per-run by `--tag`
+    repo_type  = "GITHUB"
+  }
+
+  substitutions = {
+    _SOURCE_PROJECT  = local.promote_source_project[var.env]
+    _TARGET_PROJECT  = var.project_id
+    _REGION          = var.region
+    _REPO            = var.ar_repo
+    _SERVICE_NAME    = "aipla-v01-frontend"
+    _MCP_SANDBOX_URL = var.mcp_sandbox_url
+    # _VERSION is deliberately NOT defaulted here — it is passed per run. A
+    # promote without an explicit frozen version is a rebuild, and the
+    # pipeline's guard-version step fails the build if it is empty.
+  }
+}
+
+# Runbook step 6, done 2026-07-30 (see docs/ops/runbooks/prod-cut.md):
+#   * cross-project artifactregistry.reader → google_project_iam_member
+#     .promote_source_reader in iam.tf (the one perm copy-backend lacked).
+#   * prod_release disabled above, so a `v*` tag no longer reaches prod.
+#   * prod_promote (above) — prod's real deploy path, source-from-tag.
 #
 # NOTE the asymmetry: `aipla-prod-sandbox-release` (below) is STILL tag-fired.
 # The sandbox is static artefact HTML built deterministically from the tag, with

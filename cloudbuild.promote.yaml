@@ -5,14 +5,19 @@
 # rebuilding ONLY the frontend from the same tagged source with the target
 # env's config. See docs/design/aipla/v1.0.0-pilot/build-once-artifact-promotion.md.
 #
-# Invoked by scripts/promote-env.sh (gcloud builds submit) or the increment-2
-# `aipla-<env>-promote` manual trigger. NO ci-gate: the artifact is frozen and
-# was gated at the test build.
+# Invoked by `scripts/promote-env.sh` → `gcloud builds triggers run
+# aipla-prod-promote --tag=vX.Y.Z`. Running it as a TRIGGER (not `builds submit`)
+# is the point: Cloud Build checks the repo out AT THE TAG, so the frontend is
+# rebuilt from tagged source rather than from whatever happens to be on the
+# operator's laptop. Same mechanism as sunholo-data/docparse `release.sh promote`.
+# NO ci-gate: the artifact is frozen and was gated at the test build.
 #
-# STATUS: authored v1, validated-not-yet-run (test/prod not provisioned yet —
-# cf. infrastructure/env increment-1). Validate at env-promotion M3 against a
-# real target; the deploy step assumes the target service already exists with
-# its env/secrets set (created at env-cut), so promotion only swaps images.
+# STATUS: VALIDATED 2026-07-30 — v0.1.3 promoted test→prod; prod runs
+# backend@sha256:b3554d99…, byte-identical to test's backend:v0.1.3. The first
+# real run found three latent bugs (see docs/ops/runbooks/prod-cut.md step 6);
+# it had been committed and documented for six weeks without ever executing.
+# The deploy step assumes the target service already exists with its
+# env/secrets set (created at env-cut), so promotion only swaps images.
 
 substitutions:
   _SOURCE_PROJECT: terraform_managed   # e.g. aipla-test-2026 (promote FROM)

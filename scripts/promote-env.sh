@@ -83,25 +83,28 @@ echo "  backend (COPY)   : ${SRC_BACKEND}"
 echo "                     -> ${DST_BACKEND}   digest=${DIGEST}"
 echo "  frontend (REBUILD from tag, target config) -> ${DST_AR}/ui:${VERSION}"
 echo "  pipeline         : ${PROMOTE_CONFIG} (runs in ${DST_PROJECT}), then smoke ${TO_ENV}"
-echo "  build identity   : aipla-v6@${DST_PROJECT} (needs artifactregistry.reader on ${SRC_PROJECT})"
+echo "  build source     : repo @ tag ${VERSION} (NOT your working tree)"
 echo
 
-# Run as the SAME service account the tag/promote TRIGGER uses. Without this,
-# `gcloud builds submit` falls back to the project default (the Compute Engine
-# default SA), so the script path and the trigger path run as two different
-# identities — and the cross-project artifactregistry.reader grant that lets
-# `copy-backend` read the SOURCE project is attached to the runtime SA only.
-# The result would be a promote that works from the console and 403s from the
-# CLI. One identity, one grant.
-BUILD_SA="projects/${DST_PROJECT}/serviceAccounts/aipla-v6@${DST_PROJECT}.iam.gserviceaccount.com"
+# Run the promote TRIGGER, checked out AT THE TAG.
+#
+# This used to be `gcloud builds submit … .`, which uploads the operator's LOCAL
+# WORKING TREE as the build source — so the frontend prod ran was built from
+# whatever happened to be checked out on someone's laptop, and the script needed
+# a HEAD==tag guard to compensate. `triggers run --tag` makes Cloud Build check
+# the repo out at the tag instead: the tag becomes the single source of truth and
+# the laptop leaves the supply chain. Same mechanism as
+# sunholo-data/docparse `scripts/release.sh promote`.
+#
+# The trigger carries _SOURCE_PROJECT/_TARGET_PROJECT/_REGION/_REPO/_SERVICE_NAME
+# and its own service account from Terraform; only _VERSION is per-run.
+TRIGGER="aipla-${TO_ENV}-promote"
 
-SUBMIT_CMD=(gcloud builds submit
+SUBMIT_CMD=(gcloud builds triggers run "${TRIGGER}"
   --project="${DST_PROJECT}"
   --region="${REGION}"
-  --config="${PROMOTE_CONFIG}"
-  --service-account="${BUILD_SA}"
-  "--substitutions=_SOURCE_PROJECT=${SRC_PROJECT},_TARGET_PROJECT=${DST_PROJECT},_VERSION=${VERSION},_REGION=${REGION},_REPO=${REPO},_SERVICE_NAME=${SERVICE}"
-  .)
+  --tag="${VERSION}"
+  "--substitutions=_VERSION=${VERSION}")
 
 if [ "$DRY_RUN" -eq 1 ]; then
   echo "[dry-run] would run:"
@@ -110,13 +113,13 @@ if [ "$DRY_RUN" -eq 1 ]; then
   exit 0
 fi
 
-# Promote the bytes you tagged: refuse if HEAD isn't the version tag.
+# The trigger resolves ${VERSION} against the REMOTE, so that is what must exist.
+# (The old HEAD==tag guard is gone with `builds submit`: the local working tree
+# is no longer the build source, so what is checked out locally is irrelevant.)
+git ls-remote --exit-code --tags origin "refs/tags/${VERSION}" >/dev/null 2>&1 || \
+  die "tag ${VERSION} not found on origin — push it first (git push origin ${VERSION})"
+
 if [ "$ASSUME_YES" -eq 0 ]; then
-  TAG_SHA="$(git rev-parse --verify "${VERSION}^{commit}" 2>/dev/null || echo '')"
-  HEAD_SHA="$(git rev-parse --verify HEAD 2>/dev/null || echo '')"
-  [ -n "$TAG_SHA" ] || die "tag ${VERSION} not found locally (git fetch --tags?)"
-  [ "$TAG_SHA" = "$HEAD_SHA" ] || \
-    die "working tree (${HEAD_SHA:0:8}) is not at ${VERSION} (${TAG_SHA:0:8}). Check out the tag or pass --yes."
   read -r -p "Promote ${VERSION} ${FROM_ENV} -> ${TO_ENV}? [y/N] " ans
   [ "$ans" = "y" ] || [ "$ans" = "Y" ] || die "aborted."
 fi
