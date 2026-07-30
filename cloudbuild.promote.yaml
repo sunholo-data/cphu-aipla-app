@@ -45,20 +45,38 @@ steps:
         echo "Promoting ${_VERSION}: ${_SOURCE_PROJECT} -> ${_TARGET_PROJECT}"
 
   # --- Backend: COPY the tested image by digest (no rebuild) ---
-  - name: 'gcr.io/cloud-builders/gcloud'
+  # NOTE (2026-07-30): this step used `gcloud artifacts docker images copy`,
+  # which does not exist — not in the cloud-builders gcloud, not in SDK 557.
+  # `gcloud artifacts docker images` offers only delete/describe/get-operation/
+  # list/list-vulnerabilities/scan. The pipeline had never been run (the prod cut
+  # used the tag-build path), so the invalid command sat here undetected until
+  # the first real promote.
+  #
+  # Replaced with crane, which copies by DIGEST registry-to-registry without
+  # pulling layers to local disk — the right tool for "same bytes, new home",
+  # and materially faster than docker pull/tag/push for a multi-hundred-MB image.
+  - name: 'gcr.io/go-containerregistry/crane:debug'
     id: 'copy-backend'
     waitFor: ['guard-version']
-    entrypoint: bash
+    entrypoint: sh
     args:
       - '-c'
       - |
-        set -euo pipefail
+        set -eu
         SRC="${_REGION}-docker.pkg.dev/${_SOURCE_PROJECT}/${_REPO}/${_SERVICE_NAME}/backend:${_VERSION}"
         DST="${_REGION}-docker.pkg.dev/${_TARGET_PROJECT}/${_REPO}/${_SERVICE_NAME}/backend:${_VERSION}"
-        DIGEST=$(gcloud artifacts docker images describe "$$SRC" --format='value(image_summary.digest)')
+        # Resolve the source digest FIRST: it is the promotion's identity, and
+        # the deploy step pins the backend by digest, never by tag.
+        DIGEST=$(crane digest "$$SRC")
         echo "Copying tested backend $$SRC ($$DIGEST) -> $$DST"
-        gcloud artifacts docker images copy "$$SRC" "$$DST" --quiet
-        # Record the digest deployed to prod == the digest tested in source.
+        crane copy "$$SRC" "$$DST"
+        # Prove the bytes survived the hop — a copy that silently retagged
+        # something else would otherwise deploy unverified code to prod.
+        DST_DIGEST=$(crane digest "$$DST")
+        if [ "$$DIGEST" != "$$DST_DIGEST" ]; then
+          echo "FATAL: digest changed in transit ($$DIGEST -> $$DST_DIGEST)" >&2
+          exit 1
+        fi
         echo "$$DIGEST" > /workspace/backend_digest
 
   # --- Frontend: REBUILD from the tagged source with TARGET env config ---
