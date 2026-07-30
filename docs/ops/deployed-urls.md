@@ -6,10 +6,19 @@ Canonical list of live Cloud Run services, per environment.
 
 | Environment | Status | Release gate |
 |---|---|---|
-| dev | **Live (v0.1.3 source, 2026-07-30)** | Auto-seed job verified green; smoke green |
-| test | **Live (v0.1.3, 2026-07-30)** | Cut from committed Terraform; **full smoke green** (incl. sandbox), e2e + teacher round-trips + curriculum (A/B/C, cleared) verified. Remaining: ≥24h soak |
-| prod | **Live (v0.1.3, 2026-07-30)** | **Reached by copy-promote, validated end-to-end.** Backend pinned by digest `sha256:b3554d99…` — byte-identical to test's `backend:v0.1.3`. Smoke green (incl. sandbox); curriculum A/B/C (cleared) seeded; demo code `aipla-demo-1`. Remaining: domains, hardening |
+| dev | **Live (v0.1.4 source, 2026-07-30)** | Auto-seed job verified green; smoke green |
+| test | **Live (v0.1.4, 2026-07-30)** | Cut from committed Terraform; **full smoke green** (incl. sandbox), e2e + teacher round-trips + curriculum (A/B/C, cleared) verified. Remaining: ≥24h soak |
+| prod | **Live (v0.1.4, 2026-07-30)** | **Reached by trigger-based copy-promote, validated end-to-end.** Backend pinned by digest `sha256:cef15770…` — byte-identical to test's `backend:v0.1.4`. Smoke green (incl. sandbox); curriculum A/B/C (cleared) seeded; demo code `aipla-demo-1`. Remaining: domains, hardening |
 
+> **v0.1.4 (2026-07-30) — the laptop is out of the release path.** The promote
+> now runs as a Cloud Build **trigger** checked out at the tag
+> (`gcloud builds triggers run aipla-prod-promote --tag=vX.Y.Z`), not
+> `gcloud builds submit .` which uploaded the operator's working tree. Matches
+> `sunholo-data/docparse` `scripts/release.sh promote`, which had this right all
+> along — AIPLA's design doc had reimplemented the promotion *model* without the
+> *mechanism*. Confirmed by promoting from a `dev` checkout: the build used the
+> TAG's code, not the working tree's. No `git checkout <tag>` needed any more.
+>
 > **v0.1.3 (2026-07-30) — prod is now gated.** A `v*` tag reaches **test only**
 > (`aipla-prod-release` disabled). Prod is reached deliberately:
 >

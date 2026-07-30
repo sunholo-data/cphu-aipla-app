@@ -13,7 +13,7 @@ environment see [prod-cut.md](prod-cut.md); this is the routine path.
 |---|---|---|---|
 | **dev** | push to `dev` | `git push origin dev` | Rebuild of both containers from the branch tip |
 | **test** | `v*` git tag | `git tag -a vX.Y.Z -m "…" && git push origin vX.Y.Z` | Rebuild of both containers from the tag |
-| **prod** | manual | `make promote VERSION=vX.Y.Z FROM=test TO=prod GO=1` | **Copies** test's tested backend digest; rebuilds only the frontend |
+| **prod** | manual | `make promote VERSION=vX.Y.Z FROM=test TO=prod GO=1` | **Copies** test's tested backend digest; rebuilds only the frontend, from the tag |
 
 `dev` is the only branch in the repo. There is no `test` or `prod` branch —
 they were deleted 2026-07-30 after two months of sitting at the fork's bootstrap
@@ -86,11 +86,14 @@ Prod is never built from source. It receives the **byte-identical backend image*
 test was verified on, pinned by digest:
 
 ```bash
-git checkout v0.1.4                                        # promote the bytes you tagged
 make promote VERSION=v0.1.4 FROM=test TO=prod              # dry-run plan first
-make promote VERSION=v0.1.4 FROM=test TO=prod GO=1         # submit
-git checkout dev
+make promote VERSION=v0.1.4 FROM=test TO=prod GO=1         # run it
 ```
+
+**Your local checkout is irrelevant** — you do not need to check out the tag.
+`promote-env.sh` runs `gcloud builds triggers run aipla-prod-promote
+--tag=vX.Y.Z`, so Cloud Build checks the repo out AT THE TAG. The only
+requirement is that the tag exists on `origin` (the script verifies this).
 
 `scripts/promote-env.sh` → `cloudbuild.promote.yaml`, running **in the prod
 project**:
@@ -116,12 +119,21 @@ CLOUDSDK_ACTIVE_CONFIG_NAME=sunholo gcloud artifacts docker images describe \
   --format='value(image_summary.digest)'                       # must be the SAME sha256
 ```
 
-### Why the checkout dance
+### Why a trigger and not `gcloud builds submit`
 
-`gcloud builds submit` uploads the **current working tree** as build source, and
-the frontend is rebuilt from it. `promote-env.sh` therefore refuses to run unless
-`HEAD` is at the version tag (override with `--yes` only when you know the
-difference is deploy-config-only). Promote the bytes you tagged.
+`builds submit .` uploads the **operator's local working tree** as the build
+source, so the frontend prod runs would be built from whatever is checked out on
+someone's laptop — and it bit us exactly that way (prod's `ui:v0.1.3` was built
+from `07d4751`, not from the tag). A `HEAD == tag` guard is a seatbelt on a
+design that should not need one.
+
+Running it as a **trigger with `--tag`** makes the tag the single source of
+truth and removes the laptop from the release path. Same mechanism as
+[`sunholo-data/docparse`](https://github.com/sunholo-data/docparse)
+`scripts/release.sh promote`, so both repos promote identically.
+
+The property is easy to confirm: promote a tag that predates a fix you have
+locally, and the build will use the TAG's code, not yours.
 
 ### The sandbox is deliberately NOT gated
 
@@ -183,7 +195,8 @@ in `infrastructure/env/cloudbuild.tf` and re-apply if a promote must be bypassed
 | `gcloud builds list` returns nothing | Cloud Build is regional — pass `--region=europe-north1` |
 | Push succeeded, no new revision | CI gate failed, or it is still building (~15–20 min) |
 | Shipped feature works in tests, deployed app shows old skill data | Seed didn't run — check the `aipla-seed-skills` job |
-| Promote 403s from the CLI but the trigger works | `promote-env.sh` must pass `--service-account`; without it `builds submit` falls back to the Compute Engine default SA (fixed 2026-07-30) |
+| Promote builds code you don't recognise | It uses the REPO AT THE TAG, not your working tree — that is deliberate. Tag a new version to ship local changes |
+| `tag vX.Y.Z not found on origin` | Push the tag: `git push origin vX.Y.Z` |
 | Log timestamps look 2h stale | gcloud prints UTC; Denmark is UTC+2 |
 
 ## Related
