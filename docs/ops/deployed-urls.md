@@ -6,17 +6,38 @@ Canonical list of live Cloud Run services, per environment.
 
 | Environment | Status | Release gate |
 |---|---|---|
-| dev | **Live (v0.1.2, 2026-07-30)** | Auto-seed job verified green; smoke green |
-| test | **Live (v0.1.2, 2026-07-30)** | Cut from committed Terraform; **full smoke green** (incl. sandbox), e2e + teacher round-trips + curriculum (A/B/C, cleared) verified. Remaining: ≥24h soak |
-| prod | **Live (v0.1.2, 2026-07-30)** | **Full parity with test** — full smoke green (incl. sandbox), curriculum A/B/C (cleared) seeded, demo code `aipla-demo-1`. Remaining: **copy-promote steady-state — still on the tag-build path, so a `v*` tag deploys prod WITHOUT a test gate** (runbook step 6); domains; hardening |
+| dev | **Live (v0.1.3 source, 2026-07-30)** | Auto-seed job verified green; smoke green |
+| test | **Live (v0.1.3, 2026-07-30)** | Cut from committed Terraform; **full smoke green** (incl. sandbox), e2e + teacher round-trips + curriculum (A/B/C, cleared) verified. Remaining: ≥24h soak |
+| prod | **Live (v0.1.3, 2026-07-30)** | **Reached by copy-promote, validated end-to-end.** Backend pinned by digest `sha256:b3554d99…` — byte-identical to test's `backend:v0.1.3`. Smoke green (incl. sandbox); curriculum A/B/C (cleared) seeded; demo code `aipla-demo-1`. Remaining: domains, hardening |
 
-> **v0.1.2 (2026-07-30)** — curriculum 1.1.60 shipped to all three envs from one
-> `v0.1.2` tag: `subject` re-based to the broad class, narrowed facets, the ingest
-> capture fix, and an explicit retrieval `top_k`. The nine physics-area shared
-> folders were seeded in dev/test/prod by `make seed-curriculum-folders` (metadata
-> only — creates no documents, so prod's cleared-content gate is untouched).
-> **Note the tag fired test AND prod simultaneously** — both tag triggers are still
-> armed; see the prod row's remaining work.
+> **v0.1.3 (2026-07-30) — prod is now gated.** A `v*` tag reaches **test only**
+> (`aipla-prod-release` disabled). Prod is reached deliberately:
+>
+> ```bash
+> git tag -a vX.Y.Z -m "..." && git push origin vX.Y.Z   # -> test builds
+> make promote VERSION=vX.Y.Z FROM=test TO=prod          # dry-run plan
+> make promote VERSION=vX.Y.Z FROM=test TO=prod GO=1     # copy digest + deploy
+> ```
+>
+> Validated for real, not just configured — three latent bugs surfaced on the
+> pipeline's FIRST execution, all of which would have hit whoever tried it during
+> the pilot:
+> 1. `copy-backend` called `gcloud artifacts docker images copy`, **which does not
+>    exist** in any SDK version. Now `crane copy`, with a post-copy digest
+>    equality assertion.
+> 2. `promote-env.sh` passed no `--service-account`, so the CLI ran as the Compute
+>    Engine default SA while the trigger ran as `aipla-v6@` — two identities, so a
+>    grant to either one leaves the other broken.
+> 3. That SA then needed `storage.objectViewer` on `<project>_cloudbuild` to read
+>    the uploaded source tarball (trigger builds fetch from the repo and never hit
+>    this).
+>
+> **v0.1.2 (2026-07-30)** — curriculum 1.1.60 (subject as broad class, narrowed
+> facets, ingest capture fix, explicit retrieval `top_k`), plus the nine
+> physics-area shared folders seeded in all three envs by
+> `make seed-curriculum-folders` (metadata only — creates no documents, so prod's
+> cleared-content gate is untouched). That tag still fired test AND prod
+> simultaneously; v0.1.3 is what closed that.
 
 The operational source of truth for changing these states is the
 [v1.0 pilot-readiness checklist](../design/aipla/v1.0.0-pilot/pilot-readiness-checklist.md).

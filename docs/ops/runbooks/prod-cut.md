@@ -95,6 +95,24 @@ button and a second entry point to keep in sync.
 built deterministically from the tag, no tested digest to preserve, and the
 promote pipeline does not carry it.
 
+**Validated 2026-07-30** by promoting `v0.1.3` test→prod for real. Prod now runs
+`backend@sha256:b3554d99…`, byte-identical to test's `backend:v0.1.3`, pinned by
+digest. The first execution surfaced three latent bugs — worth knowing, because
+each would have hit whoever ran the first promote under pilot pressure:
+
+1. `copy-backend` called `gcloud artifacts docker images copy`, **a command that
+   does not exist** in any SDK version. Now `crane copy` + a digest-equality
+   assertion after the hop.
+2. `promote-env.sh` passed no `--service-account`, so `gcloud builds submit` ran
+   as the Compute Engine default SA while the trigger ran as `aipla-v6@`. Two
+   identities for one pipeline means a grant to either leaves the other broken.
+3. That SA also needed `storage.objectViewer` on `<project>_cloudbuild` to read
+   its own uploaded source tarball — trigger builds fetch source from the repo
+   connection and never hit this, so it was CLI-promote-only.
+
+Lesson for the remaining 🔨 rows: "configured" and "works" are different claims.
+None of the three was visible by reading the config.
+
 ### 7. Deploy prod by promotion ✅ (copy backend digest; rebuild frontend from tag)
 ```bash
 aiplatform deploy promote --from test --to prod --version vX.Y.Z   # or run the aipla-prod-promote trigger
@@ -139,7 +157,7 @@ make verify-chat-logs GROUP=<code> ENV=prod     # CLI resolves the URL live (fix
 | frontend `new URL("")` crash on empty sandbox URL | `??`→`||` fallback | ✅ |
 | `seed-demo-codes.sh` hardcoded `*-placeholder` URL | derive via `gcloud run services describe` | ✅ |
 | CLI `http.py` hardcoded `*-placeholder` URL | resolve live via gcloud when default is a placeholder | ✅ |
-| prod deploy trigger (copy-promote) | done 2026-07-30 — AR reader + prod_release disabled + promote-env.sh SA pin | ✅ |
+| prod deploy trigger (copy-promote) | done + VALIDATED 2026-07-30 (v0.1.3 promoted test→prod, digests match) | ✅ |
 | sandbox not deployed | still to build (step 10) | 🔨 |
 
 ## Related
