@@ -144,6 +144,51 @@ degrades sims, not the tutor. This asymmetry is a decision, not an oversight.
 
 ---
 
+## Running two versions at once (A/B for research)
+
+AIPLA is a research artifact, so comparing builds — different tutor versions to
+different classes — is a first-class use of the deploy pipeline, not a
+special case. The immutable-artifact model makes it nearly free.
+
+**Serve a second version.** Cloud Run keeps every revision. Give one a tag and
+it gets its own stable URL, with no traffic taken from the live one:
+
+```bash
+CLOUDSDK_ACTIVE_CONFIG_NAME=sunholo gcloud run services update-traffic aipla-v01-frontend \
+  --project=aipla-prod-2026 --region=europe-north1 \
+  --set-tags=armb=<revision-name>          # live traffic is untouched
+# → https://armb---aipla-v01-frontend-<hash>-lz.a.run.app
+```
+
+Hand that URL to the classes in arm B; everyone else keeps the default URL.
+
+**Assignment must be stable — do NOT use a percentage split.** `update-traffic
+--to-revisions=a=50,b=50` splits **randomly per request**, so one student could
+change arm mid-conversation and the data becomes meaningless. Tagged URLs per
+group are stable by construction, which is why they are the recommended route.
+
+**The analysis side is already wired.** Every chat turn and workbench event
+carries `revision` (the arm key) and `app_version`, so BigQuery can segment by
+arm:
+
+```sql
+SELECT revision, COUNT(*) turns, AVG(latency_ms) latency
+FROM `aipla-prod-2026.chat_logs.chat_turns`
+WHERE ts > TIMESTAMP_SUB(CURRENT_TIMESTAMP(), INTERVAL 7 DAY)
+GROUP BY revision
+```
+
+That stamping was added 2026-07-31 and **is not retroactive** — turns logged
+before it carry a null revision and cannot be backfilled. See
+[chat-log-pipeline.md](../../design/aipla/v1.0.0-pilot/implemented/chat-log-pipeline.md#version-stamping--why-revision-is-on-every-row-added-2026-07-31).
+
+**Before running a real experiment**, check the arms do not disagree about
+shared state: both revisions read the same Firestore and the same curriculum
+corpus. Fine when the arms differ in tutor behaviour (prompt, model, persona);
+a problem if they differ in stored data shape.
+
+---
+
 ## Seeding and migrations
 
 **Skill templates seed themselves.** Every deploy ends with the

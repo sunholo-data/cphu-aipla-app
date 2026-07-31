@@ -175,7 +175,13 @@ JB to confirm — if not acceptable, gate the whole row.
 - Keystroke-stream logging — only counts are sent; keystream itself never leaves the browser
 - Per-student trend lines across sessions — year-2 memory work
 - Comparing classes against other classes (ranking) — anti-pedagogical for a research pilot
-- A/B testing of problem prompts based on signals — manual researcher process for now
+- A/B testing of problem prompts based on signals — manual researcher process for now.
+  **Update 2026-07-31: the platform half now exists.** Two builds can serve
+  side by side (tagged Cloud Run revision URLs per class), and every chat turn
+  and workbench event records `revision` so BigQuery can segment by arm — see
+  [deploy.md § Running two versions at once](../../../ops/runbooks/deploy.md#running-two-versions-at-once-ab-for-research).
+  What stays manual is the research design: choosing arms, assigning classes,
+  and interpreting. Note the telemetry is NOT retroactive.
 - Multi-language re-ask (Danish ↔ English semantic comparison) — same-language only in v1
 - Voice-turn composition signal (duration, pause count) — different axis; future doc
 

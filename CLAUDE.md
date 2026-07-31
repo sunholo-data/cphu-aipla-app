@@ -193,7 +193,9 @@ Same GCP projects as v5, but v6 runs as **new parallel Cloud Run services** so v
 - **HOW TO DEPLOY → [docs/ops/runbooks/deploy.md](docs/ops/runbooks/deploy.md)**
   is the runbook for all three environments (dev: push `dev` · test: push a `v*`
   tag · prod: `make promote`). Read it before deploying anything; the summary
-  below is orientation, not instructions.
+  below is orientation, not instructions. It also covers **running two versions
+  side by side for A/B research** — tagged Cloud Run revision URLs per class,
+  with `revision` stamped on every chat-log row as the arm key.
 - **Branch deployment (v6)**: `dev` → dev. `dev` is the only branch in the repo.
 - **Environment promotion (AIPLA — TAG-based, not branch-based).** All three
   environments are live, cut from committed Terraform (`infrastructure/env/`):
