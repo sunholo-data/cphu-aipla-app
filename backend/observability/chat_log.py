@@ -27,6 +27,7 @@ from __future__ import annotations
 
 import json
 import logging
+import os
 from typing import Any
 
 from config.local_mode import is_local_mode
@@ -43,6 +44,35 @@ LOG_ID_RUBRIC_RUN = "aipla_rubric_run"  # RUBRIC-2 M3 — one row per scored (se
 _client: Any = None
 # Cache of log_id -> google.cloud.logging.Logger (or None = "do not emit").
 _clients: dict[str, Any] = {}
+
+
+def _version_fields() -> dict[str, str | None]:
+    """Which build produced this row — the A/B arm key.
+
+    Two identifiers, because they answer different questions:
+
+    ``revision``
+        Cloud Run's ``K_REVISION`` (e.g. ``aipla-v01-frontend-00004-flv``), set
+        automatically on every Cloud Run container — no deploy config needed.
+        This is the **A/B arm key**: Cloud Run traffic tags route to *revisions*,
+        so when two versions serve side by side, the revision is what
+        distinguishes them. Without it, turns from two arms are indistinguishable
+        in BigQuery and the experiment is unanalysable after the fact.
+
+    ``app_version``
+        The release tag (``v0.1.4``), baked in at deploy as ``APP_VERSION``.
+        Human-readable and stable across the revisions a single release produces.
+        ``None`` when unset (e.g. local runs) rather than a fake default — an
+        honest null beats a misleading "dev".
+
+    Cheap to compute (two env reads) and deliberately not cached: a warm process
+    never changes revision, but caching would only save nanoseconds and would
+    make the values untestable.
+    """
+    return {
+        "revision": os.environ.get("K_REVISION") or None,
+        "app_version": os.environ.get("APP_VERSION") or None,
+    }
 
 
 def group_code_from_owner_uid(owner_uid: str | None) -> str | None:
@@ -117,6 +147,7 @@ def emit_chat_turn(
         "token_out": token_out,
         "latency_ms": latency_ms,
         "teacher_focus": teacher_focus,
+        **_version_fields(),
     }
     try:
         gl.log_struct(payload)
@@ -164,6 +195,7 @@ def emit_workbench_event(
         "tool": tool,
         "field": field_str,
         "value": value_str,
+        **_version_fields(),
     }
     try:
         gl.log_struct(payload)

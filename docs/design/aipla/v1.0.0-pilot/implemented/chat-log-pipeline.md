@@ -142,9 +142,35 @@ The emit is fire-and-forget against the Cloud Logging client: a logging failure 
 | `token_out` | INT64 | Output tokens (tutor turns) |
 | `latency_ms` | INT64 | Turn latency (tutor turns) — feeds TTFT monitoring |
 | `teacher_focus` | STRING | The active `ActivityConfig.teaching_goal` for the session (teacher-authored, not student PII) |
+| `revision` | STRING | Cloud Run revision that served the turn (`K_REVISION`). **The A/B arm key** — see below |
+| `app_version` | STRING | Release tag (`APP_VERSION`, e.g. `v0.1.4`); null off Cloud Run |
 | `ts` | TIMESTAMP | Turn time. **Partition key** |
 
-`chat_logs.workbench_events`: `group_id`, `session_id`, `skill_id`, `server`, `tool`, `field`, `value` (STRING), `ts` (TIMESTAMP, partition key).
+`chat_logs.workbench_events`: `group_id`, `session_id`, `skill_id`, `server`, `tool`, `field`, `value` (STRING), `revision`, `app_version`, `ts` (TIMESTAMP, partition key).
+
+#### Version stamping — why `revision` is on every row (added 2026-07-31)
+
+AIPLA is a research artifact, so the corpus has to support comparing versions:
+different tutor builds served to different classes, then analysed per arm.
+Cloud Run can already serve two revisions side by side, and `gcloud run deploy
+--tag` gives each a stable URL that can be handed to specific groups — so the
+*serving* half of an A/B is essentially free.
+
+The *analysis* half was not. Until this change no chat-log row recorded which
+build produced it, so two arms were indistinguishable in BigQuery and any
+experiment would have been unanalysable. Crucially this is **unrecoverable**:
+you cannot backfill which build answered a turn that has already been logged,
+so the field had to exist before the data does, not when the experiment starts.
+
+`revision` (not `app_version`) is the arm key: traffic tags route to *revisions*,
+and one release tag can produce several revisions. Both are emitted as `NULL`
+when unset rather than a plausible default like `"dev"` — a null filters cleanly,
+a fake value silently pollutes an arm.
+
+Still needed before a real experiment: **stable assignment** (Cloud Run traffic
+splitting is random per request, so a student could change arm mid-conversation
+— route group codes to tagged revision URLs instead), and a check that the arms
+do not disagree about shared Firestore/corpus state.
 
 ### BQ-backed `summarize_session`
 

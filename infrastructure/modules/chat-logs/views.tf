@@ -34,7 +34,14 @@ resource "google_bigquery_table" "chat_turns" {
         CAST(jsonPayload.token_in AS INT64)    AS token_in,
         CAST(jsonPayload.token_out AS INT64)   AS token_out,
         CAST(jsonPayload.latency_ms AS INT64)  AS latency_ms,
-        jsonPayload.teacher_focus              AS teacher_focus
+        jsonPayload.teacher_focus              AS teacher_focus,
+        -- Which build produced this turn. `revision` is Cloud Run's K_REVISION
+        -- and is the A/B ARM KEY: traffic tags route to revisions, so when two
+        -- versions serve side by side this is what separates the arms. Without
+        -- it an experiment is unanalysable after the fact — and unrecoverable,
+        -- since you cannot backfill which build answered a past turn.
+        jsonPayload.revision                   AS revision,
+        jsonPayload.app_version                AS app_version
       FROM `${var.project_id}.${var.dataset_id}.${var.turn_table}`
     SQL
   }
@@ -60,7 +67,10 @@ resource "google_bigquery_table" "workbench_events" {
         jsonPayload.server       AS server,
         jsonPayload.tool         AS tool,
         jsonPayload.field        AS field,
-        jsonPayload.value        AS value
+        jsonPayload.value        AS value,
+        -- A/B arm key — see the chat_turns view for why this matters.
+        jsonPayload.revision     AS revision,
+        jsonPayload.app_version  AS app_version
       FROM `${var.project_id}.${var.dataset_id}.${var.event_table}`
     SQL
   }

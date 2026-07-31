@@ -45,8 +45,21 @@ CHAT_TURN_KEYS = {
     "token_out",
     "latency_ms",
     "teacher_focus",
+    # A/B arm key — which build produced the row (see _version_fields).
+    "revision",
+    "app_version",
 }
-WB_EVENT_KEYS = {"group_id", "session_id", "skill_id", "server", "tool", "field", "value"}
+WB_EVENT_KEYS = {
+    "group_id",
+    "session_id",
+    "skill_id",
+    "server",
+    "tool",
+    "field",
+    "value",
+    "revision",
+    "app_version",
+}
 
 # Anything resembling student PII must never appear (ADR-001).
 FORBIDDEN_KEYS = {"email", "name", "student_name", "uid", "owner_uid", "user_id", "ip", "student"}
@@ -356,3 +369,61 @@ def test_emit_voice_cost_never_raises_and_noops():
         chat_log.emit_voice_cost(group_id="g", kind="tts", provider="x", units=1, cost_usd=0.0)
     with patch.object(chat_log, "_get_logger", return_value=None):
         chat_log.emit_voice_cost(group_id="g", kind="tts", provider="x", units=1, cost_usd=0.0)
+
+
+# --- Version stamping (A/B arm key) ---------------------------------------
+#
+# Every research row must record WHICH BUILD produced it. Cloud Run traffic tags
+# route to revisions, so `revision` is what separates two versions serving side
+# by side. This is unrecoverable if missed: you cannot backfill which build
+# answered a turn that has already been logged.
+
+
+def test_chat_turn_records_the_build_that_produced_it(monkeypatch):
+    monkeypatch.setenv("K_REVISION", "aipla-v01-frontend-00004-flv")
+    monkeypatch.setenv("APP_VERSION", "v0.1.4")
+    gl = MagicMock()
+    with patch.object(chat_log, "_get_logger", return_value=gl):
+        chat_log.emit_chat_turn(**TURN_KW)
+    payload = gl.log_struct.call_args.args[0]
+    assert payload["revision"] == "aipla-v01-frontend-00004-flv"
+    assert payload["app_version"] == "v0.1.4"
+
+
+def test_workbench_event_records_the_build_too(monkeypatch):
+    # Workbench interactions are research data as much as chat turns; segmenting
+    # an experiment by arm has to work across both surfaces or the analysis is
+    # split-brained.
+    monkeypatch.setenv("K_REVISION", "rev-2")
+    monkeypatch.setenv("APP_VERSION", "v0.2.0")
+    gl = MagicMock()
+    with patch.object(chat_log, "_get_logger", return_value=gl):
+        chat_log.emit_workbench_event(**WB_KW)
+    payload = gl.log_struct.call_args.args[0]
+    assert (payload["revision"], payload["app_version"]) == ("rev-2", "v0.2.0")
+
+
+def test_version_fields_are_null_not_faked_when_unset(monkeypatch):
+    # Off Cloud Run (local runs, tests) there is no revision. Emit None rather
+    # than a plausible-looking default like "dev": a null is honest and filters
+    # cleanly in BigQuery, whereas a fake value silently pollutes an arm.
+    monkeypatch.delenv("K_REVISION", raising=False)
+    monkeypatch.delenv("APP_VERSION", raising=False)
+    gl = MagicMock()
+    with patch.object(chat_log, "_get_logger", return_value=gl):
+        chat_log.emit_chat_turn(**TURN_KW)
+    payload = gl.log_struct.call_args.args[0]
+    assert payload["revision"] is None
+    assert payload["app_version"] is None
+
+
+def test_empty_env_is_treated_as_unset(monkeypatch):
+    # An unsubstituted Cloud Build variable can land as the empty string; that
+    # must read as "unknown", not as an arm named "".
+    monkeypatch.setenv("K_REVISION", "")
+    monkeypatch.setenv("APP_VERSION", "")
+    gl = MagicMock()
+    with patch.object(chat_log, "_get_logger", return_value=gl):
+        chat_log.emit_chat_turn(**TURN_KW)
+    payload = gl.log_struct.call_args.args[0]
+    assert payload["revision"] is None and payload["app_version"] is None

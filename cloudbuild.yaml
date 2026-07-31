@@ -263,6 +263,11 @@ steps:
       - '--set-secrets=CURRICULUM_RAG_CORPUS_NAME=CURRICULUM_RAG_CORPUS_NAME:latest'
       # Env vars
       - '--set-env-vars=GOOGLE_CLOUD_PROJECT=${_PROJECT_ID}'
+      # Which build this is, recorded on every chat-log row so research data can
+      # be segmented by version (A/B arms). Cloud Run sets K_REVISION itself;
+      # this is the human-readable release tag alongside it. `_IMAGE_TAG` is the
+      # release tag on a tag build and the branch name on a branch build.
+      - '--set-env-vars=APP_VERSION=${_IMAGE_TAG}'
       # AIPLA v0.1: gemini-3.5-flash is GA only on `global` endpoint
       # (Resolved Decision 1 in jutland-demo.md). europe-north1 returns
       # 404 for the model. Switch back to ${_REGION} when europe-north1

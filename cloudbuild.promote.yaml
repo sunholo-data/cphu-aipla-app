@@ -129,7 +129,13 @@ steps:
           --container=main \
           --image=${_REGION}-docker.pkg.dev/${_TARGET_PROJECT}/${_REPO}/${_SERVICE_NAME}/ui:${_VERSION} \
           --container=sidecar \
-          --image=${_REGION}-docker.pkg.dev/${_TARGET_PROJECT}/${_REPO}/${_SERVICE_NAME}/backend@$$DIGEST
+          --image=${_REGION}-docker.pkg.dev/${_TARGET_PROJECT}/${_REPO}/${_SERVICE_NAME}/backend@$$DIGEST \
+          --update-env-vars=APP_VERSION=${_VERSION}
+        # ^ APP_VERSION must be re-stamped on the PROMOTED revision: the backend
+        # image is copied from test, where it was deployed with test's build
+        # value, and a promote that swapped images without this would leave prod
+        # reporting the wrong version on every chat-log row. --update-env-vars
+        # (not --set-env-vars) so the rest of the service's env survives.
 
   # --- Smoke: fail the promotion if the target isn't healthy ---
   - name: 'gcr.io/google.com/cloudsdktool/cloud-sdk'
