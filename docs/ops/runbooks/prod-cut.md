@@ -132,13 +132,20 @@ make seed-demo-codes ENV=prod                   # dynamic URL (fixed) — no pla
 
 ### 9. Verify ✅
 ```bash
-scripts/smoke-deployed.sh prod all              # public 200s + auth 401s (sandbox FAILs until step 10)
+scripts/smoke-deployed.sh prod all              # public 200s + auth 401s (sandbox included — deployed)
 make verify-chat-logs GROUP=<code> ENV=prod     # CLI resolves the URL live (fixed) — join→turn→BigQuery
 ```
 
-### 10. Sandbox + hardening (finish the env)
-- Sandbox: deploy `aipla-v01-sandbox` for prod (its trigger is the deferred M1-remainder — 🔨), then set `mcp_sandbox_url` + `frontend_url` in `prod.tfvars` and re-apply.
-- Prod hardening: reconsider `--allow-unauthenticated`, add `--min-instances` for pilot cold-start, custom domain/DNS.
+### 10. Sandbox ✅ + hardening 🔨 (finish the env)
+- Sandbox: **DONE** — `aipla-v01-sandbox` is live in prod
+  (`https://aipla-v01-sandbox-6vwz657g3a-lz.a.run.app`), deployed by the
+  `aipla-prod-sandbox-release` tag trigger; `mcp_sandbox_url` + `frontend_url`
+  are set in `prod.tfvars` and applied. Smoke green incl.
+  `/artefacts/boldkast/v1/index.html`. (Verified 2026-07-30 — this row had gone
+  stale, claiming still-to-build after it shipped.)
+- Prod hardening 🔨: reconsider `--allow-unauthenticated`, add `--min-instances`
+  for pilot cold-start, custom domain/DNS, and gradual traffic rollout (prod
+  currently takes 100% traffic in one step — see docs/ops/runbooks/deploy.md).
 
 ## The dev→test friction ledger (what this runbook encodes)
 
@@ -158,7 +165,7 @@ make verify-chat-logs GROUP=<code> ENV=prod     # CLI resolves the URL live (fix
 | `seed-demo-codes.sh` hardcoded `*-placeholder` URL | derive via `gcloud run services describe` | ✅ |
 | CLI `http.py` hardcoded `*-placeholder` URL | resolve live via gcloud when default is a placeholder | ✅ |
 | prod deploy trigger (copy-promote) | done + VALIDATED 2026-07-30 (v0.1.3 promoted test→prod, digests match) | ✅ |
-| sandbox not deployed | still to build (step 10) | 🔨 |
+| sandbox not deployed | deployed via `aipla-prod-sandbox-release` tag trigger; smoke green 2026-07-30 | ✅ |
 
 ## Related
 - [terraform-consolidation.md](../../design/aipla/v1.0.0-pilot/terraform-consolidation.md) (1.3b) + [-sprint.md](../../design/aipla/v1.0.0-pilot/terraform-consolidation-sprint.md)
