@@ -31,6 +31,31 @@ output "test_release_trigger_id" {
   value       = one(google_cloudbuild_trigger.test_release[*].id)
 }
 
+output "custom_domain_dns" {
+  description = "The DNS records to send UCPH IT, ready to paste. Both hostnames share the env's IP pair (Host-header split at the LB). Null unless custom_domain is set."
+  value = var.custom_domain == "" ? null : {
+    domains = compact([var.custom_domain, var.sandbox_custom_domain])
+    a       = one(google_compute_global_address.frontend_v4[*].address)
+    aaaa    = one(google_compute_global_address.frontend_v6[*].address)
+    zone_file = join("\n", flatten([
+      for d in compact([var.custom_domain, var.sandbox_custom_domain]) : [
+        "${d}. 300 IN A    ${one(google_compute_global_address.frontend_v4[*].address)}",
+        "${d}. 300 IN AAAA ${one(google_compute_global_address.frontend_v6[*].address)}",
+      ]
+    ]))
+    # Each cert provisions independently — a missing sandbox DNS record must not
+    # hold the frontend hostage. Both must read ACTIVE before flipping
+    # mcp_sandbox_url to the ku.dk sandbox origin.
+    certificate_status_cmd = join(" && ", [
+      for n in compact([
+        one(google_compute_managed_ssl_certificate.frontend[*].name),
+        one(google_compute_managed_ssl_certificate.sandbox[*].name),
+      ]) :
+      "gcloud compute ssl-certificates describe ${n} --global --project=${var.project_id} --format='value(name,managed.status)'"
+    ])
+  }
+}
+
 output "post_apply_todo" {
   description = "Steps Terraform can't do — run these after apply (see README)."
   value = [

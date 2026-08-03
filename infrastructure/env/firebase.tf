@@ -53,6 +53,12 @@ resource "google_identity_platform_config" "default" {
     # https://host/ -> host. Empty before the first deploy assigns a URL
     # (chicken-egg, same as the sandbox vars) — compact() drops it then.
     trimsuffix(replace(var.frontend_url, "https://", ""), "/"),
+    # The ku.dk custom domain (loadbalancer.tf). BOTH origins stay authorized:
+    # the run.app URL is what every smoke script, the promote pipeline and the
+    # deployed-URLs doc still point at, so dropping it to "switch over" would
+    # break teacher sign-in on the very path used to verify a release. Empty on
+    # dev — compact() drops it.
+    var.custom_domain,
   ])
 
   sign_in {

@@ -78,6 +78,33 @@ edge is the 1.3a promote path (prod build reads test's Artifact Registry, read-o
 **Prereq:** the deploy project + state bucket must exist before the first `init`
 (project creation is org-level — see the env-promotion doc).
 
+## How this gets applied (CI, since 2026-08-03)
+
+Applies used to be laptop-only — including the ones that cut test and prod. They
+now run in Cloud Build as `aipla-terraform@<project>` (a separate identity from
+the app's `aipla-v6@`, with enumerated roles — see `terraform-ci.tf`):
+
+| | Trigger | When | Effect |
+|---|---|---|---|
+| Plan | `aipla-<env>-infra-plan` | every push to `dev` touching `infrastructure/env/**` | `fmt -check` + `validate` + `plan`. **Never applies** — also the drift detector this layer never had. |
+| Apply | `aipla-<env>-infra-apply` | manual only | Plans and stops unless the run passes `_CONFIRM=APPLY`. |
+
+```bash
+make tf-plan  ENV=test            # ad hoc; the same plan runs on every push
+make tf-plan  ENV=prod
+make tf-apply ENV=test GO=1       # the only easy way to mutate infra
+```
+
+An apply is never a side effect of pushing code — infra changes to prod stay a
+deliberate act. Pipeline: `cloudbuild.terraform.yaml`.
+
+**`dev` has no triggers, deliberately.** `envs/dev.tfvars` exists only to plan
+against script-provisioned resources for drift-checking; applying it would adopt
+live resources (see Notes below).
+
+**Bootstrap is local, once.** The triggers are themselves Terraform resources,
+so the first apply after this landed had to come from a laptop.
+
 ## Runbook — cut `test`
 
 ```bash

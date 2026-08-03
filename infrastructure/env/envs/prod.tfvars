@@ -1,13 +1,18 @@
-project_id                = "aipla-prod-2026"
-env                       = "prod"
+project_id = "aipla-prod-2026"
+env        = "prod"
 # Pre-declared per the test lesson: the 2nd-gen Cloud Build GitHub connection
 # will be console-OAuth-created in aipla-prod-2026 with THIS name during the prod
 # cut (G1), then `terraform import`ed. Name it github-aipla to match test.
-cb_connection = "github-aipla"
+cb_connection             = "github-aipla"
 partition_expiration_days = 365
 teacher_mock              = false
-frontend_url           = "https://aipla-v01-frontend-6vwz657g3a-lz.a.run.app"        # sandbox ALLOWED_HOST_ORIGINS
-mcp_sandbox_url        = "https://aipla-v01-sandbox-6vwz657g3a-lz.a.run.app/sandbox.html" # predicted (per-project hash)
+frontend_url              = "https://aipla-v01-frontend-6vwz657g3a-lz.a.run.app"             # sandbox ALLOWED_HOST_ORIGINS
+mcp_sandbox_url           = "https://aipla-v01-sandbox-6vwz657g3a-lz.a.run.app/sandbox.html" # predicted (per-project hash)
+# UCPH-granted custom domain (2026-08-03). Set BEFORE UCPH IT creates the DNS
+# records — the apply reserves the static IPs that go IN the request, and the
+# managed cert waits in PROVISIONING until the name resolves. See loadbalancer.tf.
+custom_domain          = "aipla.ku.dk"
+sandbox_custom_domain  = "aipla-sandbox.ku.dk"
 admin_operator_members = ["user:m@sunholo.com"]
 # PILOT PHASE (2026-07-28): email sign-in enabled on prod so a seed-teacher can
 # author + the team can evaluate teacher flows before UCPH SSO is wired. The

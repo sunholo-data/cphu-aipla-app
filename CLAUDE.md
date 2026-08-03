@@ -359,6 +359,8 @@ Any local workflow that requires more than one manual step — setting env vars,
 | Frontend quality check (inner dev loop, no tests) | `cd frontend && npm run quality:check:fast` |
 | **Frontend pre-push CI parity (tests + build)** | `cd frontend && npm run quality:check` |
 | **Backend pre-push CI parity (lint + format + tests)** | `cd backend && make lint && make test-fast` |
+| **Plan the infra layer** (also runs on every push to `dev` touching `infrastructure/env/**`) | `make tf-plan ENV=test\|prod` |
+| **Apply the infra layer** — Cloud Build, as `aipla-terraform@`, not your laptop | `make tf-apply ENV=test\|prod GO=1` |
 | Install the `aiplatform` CLI globally | `make cli-install` |
 | Verify the `aiplatform` CLI works end-to-end | `make cli-selftest` |
 | Scaffold a new sim's frontend wiring | `aiplatform sim scaffold <name>` (uses `frontend/src/_sim-template/`; see `mcp-app-artefact` skill) |

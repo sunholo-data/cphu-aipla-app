@@ -75,6 +75,13 @@ resource "google_service_account_iam_member" "runtime_token_creator_self" {
 # immutably by the release tag (build-once, 1.3a). `$${...}` is TF-escaped so
 # the literal ${TAG_NAME} reaches Cloud Build.
 locals {
+  # Which origins may embed the sandbox iframe. BOTH the run.app URL and the
+  # ku.dk custom domain, for the whole cutover: the sandbox rejects any embedder
+  # not listed here, so a single-valued list would kill every sim (Boldkast,
+  # KineBot, LED-Planck) on whichever origin was left out. serve.ts splits on
+  # ",". Empty entries dropped — dev has no custom_domain.
+  sandbox_allowed_host_origins = join(",", compact([var.frontend_url, local.custom_domain_url]))
+
   deploy_substitutions = {
     _PROJECT_ID                        = var.project_id
     _REGION                            = var.region
@@ -140,7 +147,7 @@ resource "google_cloudbuild_trigger" "test_sandbox_release" {
     _REGION                            = var.region
     _ARTIFACT_REGISTRY_REPO_URL_CLIENT = "${var.region}-docker.pkg.dev/${var.project_id}/${var.ar_repo}"
     _LOGS_BUCKET                       = "gs://${var.project_id}-aipla-v01-logs"
-    _ALLOWED_HOST_ORIGINS              = var.frontend_url
+    _ALLOWED_HOST_ORIGINS              = local.sandbox_allowed_host_origins
     _IMAGE_TAG                         = "$${TAG_NAME}"
   }
 }
@@ -205,7 +212,7 @@ resource "google_cloudbuild_trigger" "prod_sandbox_release" {
     _REGION                            = var.region
     _ARTIFACT_REGISTRY_REPO_URL_CLIENT = "${var.region}-docker.pkg.dev/${var.project_id}/${var.ar_repo}"
     _LOGS_BUCKET                       = "gs://${var.project_id}-aipla-v01-logs"
-    _ALLOWED_HOST_ORIGINS              = var.frontend_url
+    _ALLOWED_HOST_ORIGINS              = local.sandbox_allowed_host_origins
     _IMAGE_TAG                         = "$${TAG_NAME}"
   }
 }

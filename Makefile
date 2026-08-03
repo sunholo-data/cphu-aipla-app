@@ -1,4 +1,4 @@
-.PHONY: dev dev-local dev-recompile dev-status dev-stop proxy-check logs cloud-logs cloud-errors cloud-build verify-chat-logs smoke-session-persistence smoke-chat-resume smoke-curriculum-content smoke-teacher-cli help cli-install cli-reinstall cli-uninstall cli-doctor cli-selftest-mock cli-selftest-live cli-selftest seed seed-job seed-demo-codes force-seed-demo reset-group-state provision-curriculum-rag provision-agent-engine copy-docparse-secret seed-curriculum backfill-curriculum-content seed-curriculum-folders check-auth-config migrate-clear-persona-voice-override docs-linkcheck check-skills sim-build sim-build-check guides guides-publish guide-screens seed-guide-corpus guide-staleness
+.PHONY: tf-plan tf-apply tf-local dev dev-local dev-recompile dev-status dev-stop proxy-check logs cloud-logs cloud-errors cloud-build verify-chat-logs smoke-session-persistence smoke-chat-resume smoke-curriculum-content smoke-teacher-cli help cli-install cli-reinstall cli-uninstall cli-doctor cli-selftest-mock cli-selftest-live cli-selftest seed seed-job seed-demo-codes force-seed-demo reset-group-state provision-curriculum-rag provision-agent-engine copy-docparse-secret seed-curriculum backfill-curriculum-content seed-curriculum-folders check-auth-config migrate-clear-persona-voice-override docs-linkcheck check-skills sim-build sim-build-check guides guides-publish guide-screens seed-guide-corpus guide-staleness
 
 # Seed SKILL.md templates -> Firestore. Since P1.3 the Cloud Build deploy runs
 # this automatically via the `aipla-seed-skills` Cloud Run job (see
@@ -278,6 +278,48 @@ promote:
 	@chmod +x scripts/promote-env.sh
 	@test -n "$(VERSION)" || { echo "VERSION is required (e.g. make promote VERSION=v1.1.40)"; exit 1; }
 	@scripts/promote-env.sh --from $(FROM) --to $(TO) --version $(VERSION) $(if $(GO),,--dry-run)
+
+# --- Terraform (infrastructure/env) ---
+#
+# These drive the Cloud Build triggers, NOT a local terraform binary: the build
+# runs as aipla-terraform@ with the enumerated roles, so an apply does not
+# depend on whose laptop it was launched from. See
+# infrastructure/env/cloudbuild.terraform.yaml.
+#
+# tf-plan is also runnable ad hoc; the same plan runs automatically on every
+# push to dev that touches infrastructure/env/**.
+
+# The ENV guard checks the VALUE, not just presence: `ENV` is a POSIX shell
+# variable that make inherits, so it is frequently already set to `dev` in the
+# ambient environment. A `test -n "$(ENV)"` guard therefore passes on a bare
+# `make tf-apply` and quietly targets dev — the one env the README says must
+# never be applied, because doing so adopts live script-provisioned resources.
+tf-plan:
+	@case "$(ENV)" in test|prod) ;; *) echo "ENV must be test or prod (got '$(ENV)'). dev is plan-only by hand — see infrastructure/env/README.md."; exit 1 ;; esac
+	@gcloud builds triggers run aipla-$(ENV)-infra-plan \
+		--project=aipla-$(ENV)-2026 --region=europe-north1 --branch=dev
+
+# Applies for real. _CONFIRM=APPLY is the confirmation — the trigger plans and
+# stops without it, so this target is the only easy way to mutate infra.
+tf-apply:
+	@case "$(ENV)" in test|prod) ;; *) echo "ENV must be test or prod (got '$(ENV)'). dev is plan-only by hand — see infrastructure/env/README.md."; exit 1 ;; esac
+	@test -n "$(GO)" || { echo "Refusing to apply without GO=1. Run 'make tf-plan ENV=$(ENV)' and read the plan first."; exit 1; }
+	@gcloud builds triggers run aipla-$(ENV)-infra-apply \
+		--project=aipla-$(ENV)-2026 --region=europe-north1 --branch=dev \
+		--substitutions=_CONFIRM=APPLY
+
+# LOCAL terraform — bootstrap and disaster recovery ONLY. Everything routine
+# goes through tf-plan/tf-apply above, which run in Cloud Build with no laptop
+# credential in the path. Use this when there is no CI to run: a fresh env
+# (the triggers are themselves Terraform resources) or an env whose triggers
+# have been destroyed.
+#
+# scripts/tf.sh binds env -> backend prefix -> tfvars from ONE argument, so the
+# init and the var-file cannot disagree. That mismatch is what destroyed prod on
+# 2026-08-03; never hand-run `terraform init`/`apply` in that directory.
+tf-local:
+	@test -n "$(ENV)" || { echo "ENV is required, e.g. make tf-local ENV=prod ACTION=plan"; exit 1; }
+	@./scripts/tf.sh $(ENV) $(or $(ACTION),plan)
 
 # --- CLI lifecycle ---
 

@@ -69,6 +69,26 @@ variable "frontend_url" {
   default     = ""
 }
 
+variable "custom_domain" {
+  type        = string
+  description = "This env's UCPH custom domain, bare hostname (prod: aipla.ku.dk, test: aipla-test.ku.dk). Empty on dev. Setting it builds the global external ALB (loadbalancer.tf) AND adds the name to Firebase authorized_domains + the sandbox's allowed embedders, so both origins work during the run.app -> ku.dk cutover."
+  default     = ""
+  validation {
+    condition     = var.custom_domain == "" || can(regex("^[a-z0-9.-]+$", var.custom_domain))
+    error_message = "custom_domain must be a bare hostname (no scheme, no trailing slash), e.g. aipla.ku.dk."
+  }
+}
+
+variable "sandbox_custom_domain" {
+  type        = string
+  description = "This env's UCPH custom domain for the MCP-App sandbox, bare hostname (prod: aipla-sandbox.ku.dk, test: aipla-test-sandbox.ku.dk). Empty on dev. Rides the frontend's load balancer on the same IP, split by Host header — a distinct hostname is a distinct origin, which is what ADR-013 requires. Requires custom_domain. Setting it does NOT repoint the app at the new sandbox origin: that is mcp_sandbox_url, flipped only once the certificate is ACTIVE."
+  default     = ""
+  validation {
+    condition     = var.sandbox_custom_domain == "" || can(regex("^[a-z0-9.-]+$", var.sandbox_custom_domain))
+    error_message = "sandbox_custom_domain must be a bare hostname (no scheme, no trailing slash), e.g. aipla-sandbox.ku.dk."
+  }
+}
+
 variable "mcp_sandbox_url" {
   type        = string
   description = "This env's MCP-App sandbox URL (…/sandbox.html), baked into the frontend bundle as NEXT_PUBLIC_MCP_SANDBOX_URL. Empty until the sandbox service is first deployed — set on a later apply (same chicken-egg as frontend_url)."

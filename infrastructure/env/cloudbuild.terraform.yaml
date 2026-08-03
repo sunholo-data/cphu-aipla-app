@@ -1,0 +1,89 @@
+# Terraform CI for infrastructure/env — plan on every push, apply only on demand.
+#
+# WHY THIS EXISTS (2026-08-03): the infra layer had NO CI path at all. State was
+# centralised in `aipla-deploy` from the start, but every apply ran from an
+# operator's laptop — including the one that cut test and prod, and the
+# `authorized_domains` fix that same morning. Nothing planned the config on
+# push, so drift between the committed HCL and the live projects was invisible
+# until someone happened to run `terraform plan` locally. UCPH inherits this
+# layer at handover; "you must have the right gcloud ADC on your laptop" is not
+# a handover story.
+#
+# TWO TRIGGERS, ONE FILE (see terraform-ci.tf):
+#   aipla-<env>-infra-plan   push to dev touching infrastructure/env/** — runs
+#                            fmt/validate/plan and STOPS. Read-only.
+#   aipla-<env>-infra-apply  manual, and refuses to do anything unless the
+#                            operator passes _CONFIRM=APPLY. Same guard shape as
+#                            the promote pipeline's explicit _VERSION.
+#
+# An apply is never a side effect of pushing code. Infra changes to prod stay a
+# deliberate human act; what CI buys is that the plan is always visible first.
+
+substitutions:
+  _ENV: 'trigger_must_set' # dev | test | prod — selects envs/<env>.tfvars
+  _PROJECT_ID: 'trigger_must_set' # the env project, for the logs bucket path
+  _STATE_BUCKET: 'aipla-deploy-tfstate' # central tfstate (project aipla-deploy)
+  _TF_VERSION: '1.9.8' # pin: matches required_version >= 1.9 in versions.tf
+  _CONFIRM: '' # 'APPLY' mutates. Anything else = plan only.
+
+steps:
+  # Formatting is a real gate, not a nicety: `terraform fmt` rewrites files, so
+  # an unformatted commit means the next person's apply carries an unrelated
+  # diff. -check exits non-zero rather than rewriting.
+  - id: fmt
+    name: hashicorp/terraform:${_TF_VERSION}
+    dir: infrastructure/env
+    args: ['fmt', '-check', '-recursive', '-diff']
+
+  # Partial backend: bucket + per-env prefix supplied here, matching the README
+  # runbook exactly so a laptop and a build read the SAME state.
+  - id: init
+    name: hashicorp/terraform:${_TF_VERSION}
+    dir: infrastructure/env
+    args:
+      - 'init'
+      - '-input=false'
+      - '-reconfigure'
+      - '-backend-config=bucket=${_STATE_BUCKET}'
+      - '-backend-config=prefix=aipla-env/${_ENV}'
+
+  - id: validate
+    name: hashicorp/terraform:${_TF_VERSION}
+    dir: infrastructure/env
+    args: ['validate']
+
+  # -lock-timeout so a build queued behind a laptop apply waits rather than
+  # failing outright. -out so the apply below executes the plan that was
+  # REVIEWED, not a fresh one computed against state that may have moved.
+  - id: plan
+    name: hashicorp/terraform:${_TF_VERSION}
+    dir: infrastructure/env
+    args:
+      - 'plan'
+      - '-input=false'
+      - '-lock-timeout=5m'
+      - '-var-file=envs/${_ENV}.tfvars'
+      - '-out=tfplan'
+
+  # The gate. Absent _CONFIRM=APPLY this step is a no-op that says so, which is
+  # what every push-triggered build does.
+  - id: apply
+    name: hashicorp/terraform:${_TF_VERSION}
+    dir: infrastructure/env
+    entrypoint: sh
+    args:
+      - -c
+      - |
+        set -e
+        if [ "${_CONFIRM}" != "APPLY" ]; then
+          echo "PLAN ONLY — no changes applied."
+          echo "To apply, run the *-infra-apply trigger with _CONFIRM=APPLY."
+          exit 0
+        fi
+        echo "APPLYING to ${_ENV} (${_PROJECT_ID})"
+        terraform apply -input=false -lock-timeout=5m -auto-approve tfplan
+
+options:
+  logging: GCS_ONLY
+logsBucket: gs://${_PROJECT_ID}-cloudbuild-logs
+timeout: 1800s

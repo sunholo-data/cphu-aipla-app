@@ -22,6 +22,11 @@ locals {
     "identitytoolkit.googleapis.com",
     "firebase.googleapis.com",
     "serviceusage.googleapis.com",
+    # Global external ALB for the ku.dk custom domain (loadbalancer.tf). Enabled
+    # unconditionally rather than gated on custom_domain — enabling an API is
+    # free and idempotent, and gating it would make the first custom-domain
+    # apply a two-pass affair (API enablement does not settle within one apply).
+    "compute.googleapis.com",
   ])
 }
 
