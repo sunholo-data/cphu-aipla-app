@@ -1,4 +1,4 @@
-.PHONY: tf-plan tf-apply tf-local check-iam-posture dev dev-local dev-recompile dev-status dev-stop proxy-check logs cloud-logs cloud-errors cloud-build verify-chat-logs smoke-session-persistence smoke-chat-resume smoke-curriculum-content smoke-teacher-cli help cli-install cli-reinstall cli-uninstall cli-doctor cli-selftest-mock cli-selftest-live cli-selftest seed seed-job seed-demo-codes force-seed-demo reset-group-state provision-curriculum-rag provision-agent-engine copy-docparse-secret seed-curriculum backfill-curriculum-content seed-curriculum-folders check-auth-config migrate-clear-persona-voice-override docs-linkcheck check-skills sim-build sim-build-check guides guides-publish guide-screens seed-guide-corpus guide-staleness
+.PHONY: tf-plan tf-apply tf-local tf-fmt check-iam-posture dev dev-local dev-recompile dev-status dev-stop proxy-check logs cloud-logs cloud-errors cloud-build verify-chat-logs smoke-session-persistence smoke-chat-resume smoke-curriculum-content smoke-teacher-cli help cli-install cli-reinstall cli-uninstall cli-doctor cli-selftest-mock cli-selftest-live cli-selftest seed seed-job seed-demo-codes force-seed-demo reset-group-state provision-curriculum-rag provision-agent-engine copy-docparse-secret seed-curriculum backfill-curriculum-content seed-curriculum-folders check-auth-config migrate-clear-persona-voice-override docs-linkcheck check-skills sim-build sim-build-check guides guides-publish guide-screens seed-guide-corpus guide-staleness
 
 # Seed SKILL.md templates -> Firestore. Since P1.3 the Cloud Build deploy runs
 # this automatically via the `aipla-seed-skills` Cloud Run job (see
@@ -321,6 +321,13 @@ tf-apply:
 # default SA is disabled, break-glass owner exists. Exists because a Terraform
 # resource reported success having done nothing, and `plan` said "No changes"
 # forever afterwards — state cannot be the witness for its own correctness.
+# Exactly the gate the pipeline's first step runs (`fmt -check -recursive`).
+# Exists because plain `terraform fmt` in infrastructure/env does NOT reach
+# envs/*.tfvars — they are a subdirectory — so local formatting can look clean
+# while CI's recursive check fails. That has now cost two red builds.
+tf-fmt:
+	@cd infrastructure/env && terraform fmt -recursive && terraform fmt -check -recursive && echo "FMT OK (matches CI)"
+
 check-iam-posture:
 	@./scripts/check-iam-posture.sh $(ENVS)
 
