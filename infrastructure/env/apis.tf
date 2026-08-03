@@ -19,6 +19,11 @@ locals {
     "logging.googleapis.com",
     "monitoring.googleapis.com",
     "iamcredentials.googleapis.com",
+    # Service-account CRUD: creating the runtime + terraform SAs, and
+    # enumerating/disabling the default ones (iam.tf). It was working
+    # implicitly; making it explicit so nothing depends on an unstated
+    # enablement.
+    "iam.googleapis.com",
     "identitytoolkit.googleapis.com",
     "firebase.googleapis.com",
     "serviceusage.googleapis.com",

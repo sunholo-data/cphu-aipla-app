@@ -110,10 +110,16 @@ resource "google_compute_backend_service" "frontend" {
   # scheme on the forwarding rules or the apply fails with a scheme mismatch.
   load_balancing_scheme = "EXTERNAL_MANAGED"
 
-  # Long enough for an AG-UI SSE stream to run without the LB cutting it off
-  # mid-answer. The default (30s) would truncate any tutor turn that thinks or
-  # calls tools for longer than that — silently, as a dropped stream.
-  timeout_sec = 3600
+  # NO timeout_sec. A backend service fronting a SERVERLESS NEG rejects it
+  # outright ("Timeout sec is not supported for a backend service with
+  # Serverless network endpoint groups", HTTP 400) — tried on 2026-08-03 and
+  # it failed the apply.
+  #
+  # The concern behind the attempt was real but misplaced: an AG-UI SSE stream
+  # must not be severed mid-answer. For serverless NEGs the request timeout is
+  # owned by CLOUD RUN, not the load balancer, so the service's own timeout
+  # (default 300s, set on the Cloud Run service) is the value that governs. If
+  # long tutor turns ever get cut off, raise it there — not here.
 
   backend {
     group = google_compute_region_network_endpoint_group.frontend[0].id
@@ -301,6 +307,17 @@ resource "google_compute_url_map" "frontend_http_redirect" {
 
   project = var.project_id
   name    = "aipla-v01-frontend-http-redirect"
+
+  # This is the ONLY compute resource here with no implicit dependency chaining
+  # it to API enablement — every other one reaches google_project_service.apis
+  # through an address, NEG or backend service. That is precisely why it is the
+  # resource that raced and 403'd with SERVICE_DISABLED on BOTH first applies
+  # (test 15:5x, prod 2026-08-03). Explicit now.
+  #
+  # This orders the create AFTER enablement; it cannot cover Google-side
+  # propagation lag, which is why a first apply in a project that has never had
+  # Compute enabled may still need a second run. That second run is clean.
+  depends_on = [google_project_service.apis]
 
   default_url_redirect {
     https_redirect         = true

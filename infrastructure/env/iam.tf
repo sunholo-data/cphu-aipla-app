@@ -65,6 +65,18 @@ resource "google_project_default_service_accounts" "default" {
   # state Terraform invented. IGNORE_FAILURE because a destroy is not worth
   # failing over an SA that may itself have been removed by then.
   restore_policy = "REVERT_AND_IGNORE_FAILURE"
+
+  # Without this the resource has NO dependencies, so it runs at the very front
+  # of the graph. On prod's 2026-08-03 apply it did exactly that: it was created
+  # (and is in state) while the compute default SA stayed ENABLED, because it
+  # acted before the APIs it needs to enumerate and modify service accounts were
+  # in place. A resource that reports success having done nothing is worse than
+  # one that fails, so pin it behind enablement.
+  #
+  # NOTE: this resource acts only at CREATE time. Because it is already in state
+  # having no-opped, a plain re-apply will not retry it — it must be forced:
+  #   ./scripts/tf.sh prod apply -replace='google_project_default_service_accounts.default[0]'
+  depends_on = [google_project_service.apis]
 }
 
 # Operator impersonation: members who may mint ID tokens AS the runtime SA, for
