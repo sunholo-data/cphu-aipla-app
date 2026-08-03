@@ -3,7 +3,7 @@
 import { type ComponentType, useEffect, useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { BarChart3, BookOpen, ClipboardList, Microscope, PanelLeftClose, PanelLeftOpen, Settings, Users } from "lucide-react";
+import { BarChart3, BookOpen, ClipboardList, Library, Microscope, PanelLeftClose, PanelLeftOpen, Settings, Users } from "lucide-react";
 
 import { cn } from "@/lib/utils";
 import { useIsResearcher } from "@/hooks/useIsResearcher";
@@ -19,10 +19,14 @@ interface Destination {
 }
 
 /**
- * The four teacher destinations. Insights is the home for the analytics
+ * The core teacher destinations. Insights is the home for the analytics
  * surfaces (Overview / Reports), so it stays active across `/insights` and
  * `/reports`. (The standalone `/teacher/analytics` chat was retired in favour
  * of the floating co-pilots, so it's no longer a match prefix.)
+ *
+ * Materials sits next to Activities (1.1.61): the document corpus is the raw
+ * material an activity is assembled from, and until it had its own destination
+ * the only way to reach it was to open an activity builder.
  */
 const DESTINATIONS: Destination[] = [
   { href: "/teacher/classes", label: "Classes", icon: Users, match: ["/teacher/classes"] },
@@ -31,6 +35,12 @@ const DESTINATIONS: Destination[] = [
     label: "Activities",
     icon: ClipboardList,
     match: ["/teacher/activities"],
+  },
+  {
+    href: "/teacher/materials",
+    label: "Materials",
+    icon: Library,
+    match: ["/teacher/materials"],
   },
   {
     href: "/teacher/insights",

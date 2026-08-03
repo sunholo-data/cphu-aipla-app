@@ -39,6 +39,17 @@ interface Props {
    *  have one (edit: route param; new: the resolved concept skill id). When
    *  absent, image upload is disabled with an explanatory message. */
   activityId?: string;
+  /** 1.1.61 — which job this mount is doing.
+   *
+   *  `"cite"` (default) is the activity-builder mount: browse the corpus and
+   *  pick documents for THIS activity, so every row carries a Cite button and
+   *  the cited set renders above the filters.
+   *
+   *  `"library"` is the standalone `/teacher/materials` mount: curate the
+   *  corpus itself — subject, folder, tags, upload — with no activity in scope.
+   *  Citing is meaningless there, so the Cite column and the cited-set header
+   *  are dropped and the organise editor is the primary affordance. */
+  mode?: "cite" | "library";
 }
 
 // 1.1.59 — page size for the paginated browse (server caps at 200).
@@ -167,18 +178,22 @@ function ActiveChip({ label, onRemove }: { label: string; onRemove: () => void }
 const SUBJECTS = ["Fysik", "Matematik", "Kemi", "AIPLA guides"];
 
 /**
- * Materials section for the activity builder (1.1.25 M4).
+ * Materials section (1.1.25 M4). Mounted twice, switched by `mode`:
+ * inside the activity builder (`"cite"`) and as the standalone
+ * `/teacher/materials` library (`"library"`, 1.1.61).
  *
- * Three affordances:
- *   - Browse the A/B/C curriculum library (filter by level + topic)
- *   - Cite a library doc → adds a MaterialRef to the activity
- *   - Upload your own doc → ingests (teacher_owned) then cites it
+ * Affordances:
+ *   - Browse the curriculum library (subject / folder / level / tag facets)
+ *   - Organise a doc — subject, folder, tags (both modes; the library's point)
+ *   - Cite a library doc → adds a MaterialRef to the activity (cite mode only)
+ *   - Upload your own doc → ingests (teacher_owned), and cites it in cite mode
  *
  * The tutor's curriculum-retrieval tool (M3) is scoped to exactly these
  * cited docs — students never see the open corpus. Empty / loading / error
  * states are designed (Axiom 11).
  */
-export function MaterialsSection({ materials, onChange, activityId }: Props) {
+export function MaterialsSection({ materials, onChange, activityId, mode = "cite" }: Props) {
+  const isLibrary = mode === "library";
   const [docs, setDocs] = useState<CurriculumDoc[] | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -419,13 +434,24 @@ export function MaterialsSection({ materials, onChange, activityId }: Props) {
         Materials
       </legend>
       <p className="text-xs text-muted-foreground">
-        Cite curriculum documents so the tutor can ground its answers with a
-        source. The tutor uses every cited document; students only see the ones
-        you mark <span className="font-medium">visible</span>.
+        {isLibrary ? (
+          <>
+            The shared document library. Upload documents, and file them by
+            subject, folder and tag so they are findable when you build an
+            activity. Every teacher sees — and can organise — the shared corpus.
+          </>
+        ) : (
+          <>
+            Cite curriculum documents so the tutor can ground its answers with a
+            source. The tutor uses every cited document; students only see the
+            ones you mark <span className="font-medium">visible</span>.
+          </>
+        )}
       </p>
 
-      {/* Cited materials chips — each with a per-material student-visibility toggle (1.1.33 M2a) */}
-      {materials.length > 0 ? (
+      {/* Cited materials chips — each with a per-material student-visibility toggle (1.1.33 M2a).
+          Library mode has no activity to cite INTO, so this block never renders there. */}
+      {!isLibrary && materials.length > 0 ? (
         <ul className="flex flex-wrap gap-2" aria-label="Cited materials">
           {materials.map((m) => {
             // 1.1.44 — image materials: an icon chip (the tutor sees the image;
@@ -567,7 +593,12 @@ export function MaterialsSection({ materials, onChange, activityId }: Props) {
             // not student-visible (opt-in, 1.1.33 M2a) — same as toggleCite.
             setDocs((prev) => (prev ? [doc, ...prev] : [doc]));
             setTotal((t) => t + 1);
-            onChange([...materials, { docId: doc.docId, origin: doc.origin, studentVisible: false }]);
+            // Library mode has no activity to cite into — the upload just joins
+            // the corpus. Citing there would silently mutate a `materials` array
+            // nobody is saving.
+            if (!isLibrary) {
+              onChange([...materials, { docId: doc.docId, origin: doc.origin, studentVisible: false }]);
+            }
             // Show what was extracted FROM THIS doc immediately (per-document, M4).
             void openContent(doc.docId, doc.title);
           }}
@@ -811,14 +842,22 @@ export function MaterialsSection({ materials, onChange, activityId }: Props) {
                           className="w-28 rounded border border-border bg-background px-1.5 py-0.5 text-[11px]"
                         />
                       ) : null}
+                      {/* The editor behind this button covers subject, folder AND
+                          tags. In the builder it stays labelled by tags (the
+                          incidental edit you make while citing); in the library
+                          filing IS the job, so it reads "Organise". */}
                       <button
                         type="button"
                         aria-label={
                           editTagsFor === doc.docId
-                            ? `Done editing tags for ${doc.title}`
-                            : doc.tags.length === 0
-                              ? `Add tags for ${doc.title}`
-                              : `Edit tags for ${doc.title}`
+                            ? isLibrary
+                              ? `Done organising ${doc.title}`
+                              : `Done editing tags for ${doc.title}`
+                            : isLibrary
+                              ? `Organise ${doc.title}`
+                              : doc.tags.length === 0
+                                ? `Add tags for ${doc.title}`
+                                : `Edit tags for ${doc.title}`
                         }
                         onClick={() => setEditTagsFor((cur) => (cur === doc.docId ? null : doc.docId))}
                         className="inline-flex items-center gap-0.5 rounded px-1 py-0.5 text-[11px] text-muted-foreground hover:text-foreground"
@@ -831,35 +870,39 @@ export function MaterialsSection({ materials, onChange, activityId }: Props) {
                         ) : (
                           <>
                             <Tag className="h-3 w-3" aria-hidden="true" />
-                            {doc.tags.length === 0 ? "Add tags" : "Edit"}
+                            {isLibrary ? "Organise" : doc.tags.length === 0 ? "Add tags" : "Edit"}
                           </>
                         )}
                       </button>
                     </div>
                   </div>
-                  <button
-                    type="button"
-                    onClick={() => toggleCite(doc)}
-                    aria-pressed={cited}
-                    aria-label={cited ? `Remove ${doc.title}` : `Cite ${doc.title}`}
-                    className={`flex shrink-0 items-center gap-1 rounded border px-2 py-1 text-xs font-medium transition-colors ${
-                      cited
-                        ? "border-primary bg-primary/10 text-foreground"
-                        : "border-border hover:bg-muted"
-                    }`}
-                  >
-                    {cited ? (
-                      <>
-                        <Check className="h-3.5 w-3.5" aria-hidden="true" />
-                        Cited
-                      </>
-                    ) : (
-                      <>
-                        <Plus className="h-3.5 w-3.5" aria-hidden="true" />
-                        Cite
-                      </>
-                    )}
-                  </button>
+                  {/* Cite belongs to an activity. The library has none, so the
+                      column is dropped rather than rendered inert. */}
+                  {isLibrary ? null : (
+                    <button
+                      type="button"
+                      onClick={() => toggleCite(doc)}
+                      aria-pressed={cited}
+                      aria-label={cited ? `Remove ${doc.title}` : `Cite ${doc.title}`}
+                      className={`flex shrink-0 items-center gap-1 rounded border px-2 py-1 text-xs font-medium transition-colors ${
+                        cited
+                          ? "border-primary bg-primary/10 text-foreground"
+                          : "border-border hover:bg-muted"
+                      }`}
+                    >
+                      {cited ? (
+                        <>
+                          <Check className="h-3.5 w-3.5" aria-hidden="true" />
+                          Cited
+                        </>
+                      ) : (
+                        <>
+                          <Plus className="h-3.5 w-3.5" aria-hidden="true" />
+                          Cite
+                        </>
+                      )}
+                    </button>
+                  )}
                 </li>
               );
             })}

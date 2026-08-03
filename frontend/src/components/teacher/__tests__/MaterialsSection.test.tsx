@@ -687,4 +687,61 @@ describe("MaterialsSection", () => {
       expect(browseCurriculum).toHaveBeenLastCalledWith(expect.objectContaining({ level: undefined })),
     );
   });
+
+  // 1.1.61 — library mode: the standalone /teacher/materials mount. Curating the
+  // corpus, not citing into an activity.
+  describe("library mode", () => {
+    it("drops Cite (there is no activity to cite into) but keeps the organise editor", async () => {
+      browseCurriculum.mockResolvedValue(page([makeDoc()]));
+      render(<MaterialsSection mode="library" materials={[]} onChange={() => {}} />);
+      await screen.findByText("Energi og arbejde");
+      expect(screen.queryByRole("button", { name: /Cite Energi og arbejde/i })).not.toBeInTheDocument();
+      expect(
+        screen.getByRole("button", { name: /Organise Energi og arbejde/i }),
+      ).toBeInTheDocument();
+    });
+
+    it("files a doc into a folder — the edit the library exists to make", async () => {
+      const doc = makeDoc();
+      browseCurriculum.mockResolvedValue(page([doc]));
+      listCurriculumFolders.mockResolvedValue([
+        { folderId: "f-mek", name: "Mekanik", ownerScope: "shared", createdAt: "2026-07-30T00:00:00Z", docCount: 0 },
+      ]);
+      patchCurriculumTags.mockResolvedValue({ ...doc, folderId: "f-mek", folderName: "Mekanik" });
+      render(<MaterialsSection mode="library" materials={[]} onChange={() => {}} />);
+      fireEvent.click(await screen.findByRole("button", { name: /Organise Energi og arbejde/i }));
+      fireEvent.change(await screen.findByLabelText(/Set folder for Energi og arbejde/i), {
+        target: { value: "f-mek" },
+      });
+      await waitFor(() =>
+        expect(patchCurriculumTags).toHaveBeenCalledWith("d1", { folderId: "f-mek" }),
+      );
+    });
+
+    it("an upload joins the corpus without citing it", async () => {
+      browseCurriculum.mockResolvedValue(page([]));
+      ingestCurriculum.mockResolvedValue({
+        doc: makeDoc({ docId: "up-lib", origin: "nyt.txt", title: "Nyt dokument" }),
+      });
+      fetchCurriculumContent.mockResolvedValue({
+        docId: "up-lib",
+        title: "Nyt dokument",
+        available: true,
+        text: "x",
+        chars: 1,
+      });
+      const onChange = vi.fn();
+      render(<MaterialsSection mode="library" materials={[]} onChange={onChange} />);
+      await waitFor(() => expect(browseCurriculum).toHaveBeenCalled());
+
+      const file = new File(["x"], "nyt.txt", { type: "text/plain" });
+      fireEvent.change(screen.getByLabelText("Upload document or image"), { target: { files: [file] } });
+
+      await waitFor(() => expect(ingestCurriculum).toHaveBeenCalled());
+      // The doc lands in the list and its extraction opens — but nothing is
+      // cited, because there is no activity here to cite into.
+      expect(await screen.findByText("Nyt dokument")).toBeInTheDocument();
+      expect(onChange).not.toHaveBeenCalled();
+    });
+  });
 });

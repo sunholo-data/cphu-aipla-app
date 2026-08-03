@@ -15,13 +15,27 @@ beforeEach(() => {
 });
 
 describe("TeacherNav", () => {
-  it("renders the four core destinations (no Research) for a non-researcher", () => {
+  it("renders the core destinations (no Research) for a non-researcher", () => {
     mockPathname.mockReturnValue("/teacher/classes");
     render(<TeacherNav />);
-    for (const label of ["Classes", "Activities", "Insights", "Settings"]) {
+    for (const label of ["Classes", "Activities", "Materials", "Insights", "Settings"]) {
       expect(screen.getAllByRole("link", { name: new RegExp(label) })).toHaveLength(2);
     }
     expect(screen.queryByRole("link", { name: /Research/ })).not.toBeInTheDocument();
+  });
+
+  // 1.1.61 — Materials is a destination in its own right; before it existed the
+  // only route to the corpus was through an activity builder.
+  it("links Materials to the standalone library and marks it active there", () => {
+    mockPathname.mockReturnValue("/teacher/materials");
+    render(<TeacherNav />);
+    for (const link of screen.getAllByRole("link", { name: /Materials/ })) {
+      expect(link).toHaveAttribute("href", "/teacher/materials");
+      expect(link).toHaveAttribute("aria-current", "page");
+    }
+    for (const link of screen.getAllByRole("link", { name: /Activities/ })) {
+      expect(link).not.toHaveAttribute("aria-current");
+    }
   });
 
   it("adds a Research destination for a researcher", () => {
