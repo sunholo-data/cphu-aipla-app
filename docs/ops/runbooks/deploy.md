@@ -189,6 +189,28 @@ a problem if they differ in stored data shape.
 
 ---
 
+## Cutting a new environment — the auth gate
+
+Deploys and smokes can be fully green while **nobody can log in**: smoke only
+probes anonymous endpoints, so it cannot see a broken sign-in. That is exactly
+how test and prod shipped without working teacher auth until 2026-08-03.
+
+After any new env cut:
+
+```bash
+make check-auth-config ENV=<env>     # or bare, for all three
+```
+
+It asserts the two things sign-in needs: the live Cloud Run URL present in
+Firebase's `authorizedDomains`, and the `google.com` provider enabled.
+
+`authorized_domains` is Terraform-managed (derived from `frontend_url`).
+**Enabling Google is a manual console step** — Firebase console → Authentication
+→ Sign-in method → Google — because it auto-mints a per-project OAuth client
+whose secret Terraform would otherwise have to hold in plaintext state.
+
+---
+
 ## Seeding and migrations
 
 **Skill templates seed themselves.** Every deploy ends with the
@@ -243,6 +265,7 @@ in `infrastructure/env/cloudbuild.tf` and re-apply if a promote must be bypassed
 | Promote builds code you don't recognise | It uses the REPO AT THE TAG, not your working tree — that is deliberate. Tag a new version to ship local changes |
 | `tag vX.Y.Z not found on origin` | Push the tag: `git push origin vX.Y.Z` |
 | Log timestamps look 2h stale | gcloud prints UTC; Denmark is UTC+2 |
+| Teacher can't sign in on a NEW env (`auth/unauthorized-domain`, or no Google button) | Firebase auth config isn't complete — run `make check-auth-config ENV=<env>`. Authorized domains are Terraform-managed; **enabling the Google provider is a manual Firebase-console step** (it mints a per-project OAuth client Terraform can't create) |
 
 ## Related
 

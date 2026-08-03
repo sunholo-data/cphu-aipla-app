@@ -1,4 +1,4 @@
-.PHONY: dev dev-local dev-recompile dev-status dev-stop proxy-check logs cloud-logs cloud-errors cloud-build verify-chat-logs smoke-session-persistence smoke-chat-resume smoke-curriculum-content smoke-teacher-cli help cli-install cli-reinstall cli-uninstall cli-doctor cli-selftest-mock cli-selftest-live cli-selftest seed seed-job seed-demo-codes force-seed-demo reset-group-state provision-curriculum-rag provision-agent-engine copy-docparse-secret seed-curriculum backfill-curriculum-content seed-curriculum-folders migrate-clear-persona-voice-override docs-linkcheck check-skills sim-build sim-build-check guides guides-publish guide-screens seed-guide-corpus guide-staleness
+.PHONY: dev dev-local dev-recompile dev-status dev-stop proxy-check logs cloud-logs cloud-errors cloud-build verify-chat-logs smoke-session-persistence smoke-chat-resume smoke-curriculum-content smoke-teacher-cli help cli-install cli-reinstall cli-uninstall cli-doctor cli-selftest-mock cli-selftest-live cli-selftest seed seed-job seed-demo-codes force-seed-demo reset-group-state provision-curriculum-rag provision-agent-engine copy-docparse-secret seed-curriculum backfill-curriculum-content seed-curriculum-folders check-auth-config migrate-clear-persona-voice-override docs-linkcheck check-skills sim-build sim-build-check guides guides-publish guide-screens seed-guide-corpus guide-staleness
 
 # Seed SKILL.md templates -> Firestore. Since P1.3 the Cloud Build deploy runs
 # this automatically via the `aipla-seed-skills` Cloud Run job (see
@@ -98,6 +98,15 @@ backfill-curriculum-content:
 #   make seed-curriculum-folders ENV=dev
 seed-curriculum-folders:
 	@scripts/seed-curriculum-folders.sh $(ENV) $(ARGS)
+
+# Assert an env's Firebase auth config can actually sign a teacher in
+# (authorized domains + the google.com provider). Catches the 2026-08-03 class
+# of bug: a console-era setting present on dev and missing on the
+# Terraform-cut envs, invisible to every deploy and smoke.
+#   make check-auth-config            # all three envs
+#   make check-auth-config ENV=prod
+check-auth-config:
+	@scripts/check-auth-config.sh $(if $(ENV),$(ENV),)
 
 # Clear stale per-class voice overrides on classes that already name a persona,
 # so the persona's voice takes effect (fixes "switched persona, avatar changed

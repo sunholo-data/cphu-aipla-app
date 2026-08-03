@@ -8,8 +8,17 @@
 #   3. create a Web App + seed FIREBASE_ENV    (google_firebase_web_app + secret)
 #
 # NOTE the student identity model (ADR-001): students use an anonymous GROUP
-# JWT, NOT Firebase identities. Firebase Auth here serves the TEACHER SSO side +
-# the anonymous-auth toggle the frontend SDK bootstrap expects. Do not conflate.
+# JWT, NOT Firebase identities. Firebase Auth here serves the TEACHER SSO side
+# only. Do not conflate.
+#
+# CORRECTION 2026-08-03: this comment used to add "+ the anonymous-auth toggle
+# the frontend SDK bootstrap expects". That is wrong — nothing in the app calls
+# `signInAnonymously()`, and dev has served students for months with Firebase
+# anonymous sign-in OFF while test/prod have it ON. The toggle below is
+# therefore inert; it is kept (harmless, and flipping it off on live envs would
+# be change for its own sake) but it is NOT what makes student auth work.
+# `scripts/check-auth-config.sh` reports the per-env value as INFO so the
+# difference stays visible instead of looking like meaningful drift.
 
 resource "google_firebase_project" "default" {
   provider = google-beta
