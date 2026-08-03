@@ -83,6 +83,63 @@ steps:
         echo "APPLYING to ${_ENV} (${_PROJECT_ID})"
         terraform apply -input=false -lock-timeout=5m -auto-approve tfplan
 
+  # Actions Terraform CANNOT represent, executed here rather than on a laptop.
+  #
+  # Disabling the compute default SA is the case in point: it lives at
+  # <number>-compute@developer.gserviceaccount.com, and google_service_account
+  # can only create <project>.iam.gserviceaccount.com, so no resource can own
+  # it. google_project_default_service_accounts is the purpose-built answer and
+  # is INERT in these projects (reports success, enumerates nothing — see
+  # iam.tf). That left it as a documented manual step, which is exactly how the
+  # 2026-08-03 sign-in outage happened: a setting nobody encoded, absent for two
+  # months, invisible to every green check.
+  #
+  # A step in this pipeline is not a compromise version of automation — it IS
+  # the automation. It runs as aipla-terraform@ (which holds
+  # iam.serviceAccountAdmin), it is idempotent, and it reruns on every apply.
+  - id: harden
+    name: gcr.io/google.com/cloudsdktool/cloud-sdk:slim
+    entrypoint: bash
+    args:
+      - -c
+      - |
+        set -e
+        if [ "${_CONFIRM}" != "APPLY" ]; then
+          echo "PLAN ONLY — skipping hardening actions."
+          exit 0
+        fi
+        NUM="$(gcloud projects describe ${_PROJECT_ID} --format='value(projectNumber)')"
+        SA="$${NUM}-compute@developer.gserviceaccount.com"
+        if gcloud iam service-accounts describe "$${SA}" --project=${_PROJECT_ID} >/dev/null 2>&1; then
+          echo "Disabling $${SA} (idempotent)"
+          gcloud iam service-accounts disable "$${SA}" --project=${_PROJECT_ID}
+        else
+          echo "$${SA} does not exist — nothing to disable."
+        fi
+
+  # Assert the posture against DEPLOYED reality. Terraform state cannot be the
+  # witness for its own correctness — that is the whole lesson of the inert
+  # resource above, where `plan` said "No changes" over a project that had none
+  # of the hardening applied.
+  #
+  # Enforced on apply; advisory on plan, so a plan build reports on the CONFIG
+  # rather than going red over posture nobody has applied yet.
+  - id: verify-posture
+    name: gcr.io/google.com/cloudsdktool/cloud-sdk:slim
+    entrypoint: bash
+    args:
+      - -c
+      - |
+        chmod +x scripts/check-iam-posture.sh
+        if ./scripts/check-iam-posture.sh ${_ENV}; then
+          exit 0
+        fi
+        if [ "${_CONFIRM}" = "APPLY" ]; then
+          echo "Posture check FAILED after an apply — failing the build."
+          exit 1
+        fi
+        echo "Posture drift reported (plan run — not failing the build)."
+
 options:
   logging: GCS_ONLY
 logsBucket: gs://${_PROJECT_ID}-cloudbuild-logs
