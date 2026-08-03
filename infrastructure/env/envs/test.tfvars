@@ -18,3 +18,12 @@ mcp_sandbox_url = "https://aipla-v01-sandbox-y2bmxayxca-lz.a.run.app/sandbox.htm
 # managed cert waits in PROVISIONING until the name resolves. See loadbalancer.tf.
 custom_domain         = "aipla-test.ku.dk"
 sandbox_custom_domain = "aipla-test-sandbox.ku.dk"
+
+# 2026-08-03 hardening. The Compute Engine default SA ships with roles/EDITOR
+# and AIPLA never uses it (Cloud Run runs as aipla-v6@; every trigger sets
+# service_account explicitly). DISABLE is reversible; escalate to DELETE after
+# the pilot if nothing has missed it.
+default_service_accounts_action = "DISABLE"
+# Daily Parquet export of the raw chat-log tables to GCS. On before the pilot
+# starts collecting (2026-08-14) rather than after.
+enable_chat_logs_backup = true

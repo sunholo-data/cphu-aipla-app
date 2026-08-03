@@ -18,3 +18,12 @@ admin_operator_members = ["user:m@sunholo.com"]
 # author + the team can evaluate teacher flows before UCPH SSO is wired. The
 # SSO-only posture (ADR-001) is the handover target — revisit then.
 email_signin_enabled = true
+
+# 2026-08-03 hardening. The Compute Engine default SA ships with roles/EDITOR
+# and AIPLA never uses it (Cloud Run runs as aipla-v6@; every trigger sets
+# service_account explicitly). DISABLE is reversible; escalate to DELETE after
+# the pilot if nothing has missed it.
+default_service_accounts_action = "DISABLE"
+# Daily Parquet export of the raw chat-log tables to GCS. On before the pilot
+# starts collecting (2026-08-14) rather than after.
+enable_chat_logs_backup = true

@@ -94,3 +94,34 @@ variable "event_table" {
   description = "Sink-created raw table for workbench events (derived from the log id `aipla_workbench_event`). Only used when create_views = true."
   default     = "aipla_workbench_event"
 }
+
+# ---- Backup (backup.tf) -----------------------------------------------------
+
+variable "enable_backup" {
+  type        = bool
+  description = <<-EOT
+    Create the daily GCS export of the raw chat-log tables (backup.tf).
+    Safe to enable before any data exists: the scheduled query guards each
+    EXPORT with an INFORMATION_SCHEMA check, so it no-ops until the sink has
+    lazily created the tables. dev leaves this off; test/prod set it true.
+  EOT
+  default     = false
+}
+
+variable "backup_schedule" {
+  type        = string
+  description = "BigQuery Data Transfer schedule for the export. Times are UTC. Default runs well outside Danish teaching hours."
+  default     = "every day 03:00"
+}
+
+variable "backup_nearline_after_days" {
+  type        = number
+  description = "Age at which a backup object moves to NEARLINE. Exports are written once and read only in a restore, so this is nearly pure saving."
+  default     = 90
+}
+
+variable "backup_keep_noncurrent_versions" {
+  type        = number
+  description = "How many superseded generations of a given day's export to retain. Versioning protects against a bad re-run overwriting a good export; this caps the tail. Live objects are never lifecycle-deleted."
+  default     = 3
+}

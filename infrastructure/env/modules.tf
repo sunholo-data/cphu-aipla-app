@@ -10,6 +10,12 @@ module "chat_logs" {
   partition_expiration_days     = var.partition_expiration_days
   backend_service_account_email = google_service_account.runtime.email
 
+  # Daily Parquet export to GCS. Guards research data against the 365-day
+  # partition expiry (AIPLA is year one of three), a bad backfill, and the
+  # handover project transfer — not just the 2026-08-03 destroy, which a
+  # populated dataset would have refused anyway.
+  enable_backup = var.enable_chat_logs_backup
+
   depends_on = [google_project_service.apis]
 }
 

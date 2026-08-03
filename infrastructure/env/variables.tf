@@ -69,6 +69,22 @@ variable "frontend_url" {
   default     = ""
 }
 
+variable "default_service_accounts_action" {
+  type        = string
+  description = "What to do with the project's auto-created default service accounts, chiefly <number>-compute@developer (which ships holding roles/EDITOR and which AIPLA never uses). NONE leaves them alone; DEPRIVILEGE strips their roles; DISABLE makes them unable to authenticate (reversible); DELETE removes them (30-day undelete, then permanent). test/prod use DISABLE."
+  default     = "NONE"
+  validation {
+    condition     = contains(["NONE", "DEPRIVILEGE", "DISABLE", "DELETE"], var.default_service_accounts_action)
+    error_message = "default_service_accounts_action must be one of: NONE, DEPRIVILEGE, DISABLE, DELETE."
+  }
+}
+
+variable "enable_chat_logs_backup" {
+  type        = bool
+  description = "Daily Parquet export of the raw chat-log tables to gs://<project>-chat-logs-backup (modules/chat-logs/backup.tf). Safe to enable before data exists — the scheduled query no-ops until the sink creates the tables. dev off; test/prod on."
+  default     = false
+}
+
 variable "custom_domain" {
   type        = string
   description = "This env's UCPH custom domain, bare hostname (prod: aipla.ku.dk, test: aipla-test.ku.dk). Empty on dev. Setting it builds the global external ALB (loadbalancer.tf) AND adds the name to Firebase authorized_domains + the sandbox's allowed embedders, so both origins work during the run.app -> ku.dk cutover."

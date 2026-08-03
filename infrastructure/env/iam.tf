@@ -35,6 +35,38 @@ resource "google_project_iam_member" "runtime" {
   member  = "serviceAccount:${google_service_account.runtime.email}"
 }
 
+# --- The Compute Engine default service account -------------------------------
+#
+# Every GCP project is created with `<number>-compute@developer.gserviceaccount.com`
+# holding roles/EDITOR — a standing, project-wide write privilege nobody asked
+# for and nothing here uses. Found during the 2026-08-03 IAM audit: on prod it
+# was the single broadest grant in the project, wider than anything Terraform
+# creates.
+#
+# AIPLA does not use it. Cloud Run services run as aipla-v6@; every Cloud Build
+# trigger sets `service_account` explicitly. The one path that ever fell back to
+# it was `gcloud builds submit` without --service-account, and promotion stopped
+# using `builds submit` on 2026-07-30 (see promote_source_reader above).
+#
+# DISABLE, not DELETE: identical in effect — a disabled SA cannot authenticate —
+# but instantly reversible if something undocumented turns out to depend on it,
+# whereas deletion has a 30-day undelete window and then is permanent. If
+# nothing breaks through the pilot, escalating to DELETE is a one-word change.
+#
+# NOTE the ordering consequence: this also applies during prod's recovery apply.
+# That is safe — nothing in the recovery path authenticates as this SA.
+resource "google_project_default_service_accounts" "default" {
+  count = var.default_service_accounts_action == "NONE" ? 0 : 1
+
+  project = var.project_id
+  action  = var.default_service_accounts_action
+
+  # On destroy, put back what we found rather than leaving the project in a
+  # state Terraform invented. IGNORE_FAILURE because a destroy is not worth
+  # failing over an SA that may itself have been removed by then.
+  restore_policy = "REVERT_AND_IGNORE_FAILURE"
+}
+
 # Operator impersonation: members who may mint ID tokens AS the runtime SA, for
 # the HTTP admin ops (demo-code minting, HTTP seed). Declarative replacement for
 # the manual `gcloud ... add-iam-policy-binding tokenCreator` dev got in May.

@@ -27,6 +27,11 @@ locals {
     # free and idempotent, and gating it would make the first custom-domain
     # apply a two-pass affair (API enablement does not settle within one apply).
     "compute.googleapis.com",
+    # Scheduled query behind the daily chat_logs export (modules/chat-logs/
+    # backup.tf). Enabled unconditionally for the same reason as compute:
+    # gating it on the feature flag makes the first enabling apply a two-pass
+    # affair, because API enablement does not settle within one apply.
+    "bigquerydatatransfer.googleapis.com",
   ])
 }
 
