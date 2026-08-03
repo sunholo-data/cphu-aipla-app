@@ -359,6 +359,7 @@ Any local workflow that requires more than one manual step — setting env vars,
 | Frontend quality check (inner dev loop, no tests) | `cd frontend && npm run quality:check:fast` |
 | **Frontend pre-push CI parity (tests + build)** | `cd frontend && npm run quality:check` |
 | **Backend pre-push CI parity (lint + format + tests)** | `cd backend && make lint && make test-fast` |
+| **Verify the IAM posture** — state cannot witness its own correctness | `make check-iam-posture` |
 | **Plan the infra layer** (also runs on every push to `dev` touching `infrastructure/env/**`) | `make tf-plan ENV=test\|prod` |
 | **Apply the infra layer** — Cloud Build, as `aipla-terraform@`, not your laptop | `make tf-apply ENV=test\|prod GO=1` |
 | Install the `aiplatform` CLI globally | `make cli-install` |
@@ -392,6 +393,8 @@ every row to *enforced* — see `docs/design/aipla/v1.1.0-feedback/handover-main
 | **Full-overwrite activity POST** | partial payload silently wipes activity data | send the COMPLETE element+sim payload; `useActivityBuilder.elementPayload()` | **partly enforced** — `useActivityBuilder.test.ts` nets the FE; backend twin is P1.5 |
 | **CLI installs a stale build** | new `aiplatform` commands missing | `make cli-install` bakes in `--no-cache` | **enforced** |
 | **CLAUDE.md names a missing skill** | agent told to load a skill that doesn't exist | `scripts/check-skill-catalogue.sh` | **enforced** (CI `local-mode-safety` job) |
+| **Terraform reports success having done nothing** | state says a hardening is applied; the project disagrees; `plan` says "No changes" forever | `scripts/check-iam-posture.sh` (`make check-iam-posture`) compares DEPLOYED IAM against what the posture requires | **manual** — `google_project_default_service_accounts` did exactly this on 2026-08-03 (`service_accounts = {}`, SA left enabled with `roles/editor`) |
+| **Wrong terraform state for the var-file** | apply compares env A's state to env B's config and destroys everything | `scripts/tf.sh <env> <action>` binds prefix+tfvars from one argument; `terraform_data.env_guard` refuses the plan | **enforced** — cost prod's entire data plane on 2026-08-03 |
 
 Full history + fixes for the dual-auth one: memory `feedback-anonymous-users-are-corner-case`.
 

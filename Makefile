@@ -1,4 +1,4 @@
-.PHONY: tf-plan tf-apply tf-local dev dev-local dev-recompile dev-status dev-stop proxy-check logs cloud-logs cloud-errors cloud-build verify-chat-logs smoke-session-persistence smoke-chat-resume smoke-curriculum-content smoke-teacher-cli help cli-install cli-reinstall cli-uninstall cli-doctor cli-selftest-mock cli-selftest-live cli-selftest seed seed-job seed-demo-codes force-seed-demo reset-group-state provision-curriculum-rag provision-agent-engine copy-docparse-secret seed-curriculum backfill-curriculum-content seed-curriculum-folders check-auth-config migrate-clear-persona-voice-override docs-linkcheck check-skills sim-build sim-build-check guides guides-publish guide-screens seed-guide-corpus guide-staleness
+.PHONY: tf-plan tf-apply tf-local check-iam-posture dev dev-local dev-recompile dev-status dev-stop proxy-check logs cloud-logs cloud-errors cloud-build verify-chat-logs smoke-session-persistence smoke-chat-resume smoke-curriculum-content smoke-teacher-cli help cli-install cli-reinstall cli-uninstall cli-doctor cli-selftest-mock cli-selftest-live cli-selftest seed seed-job seed-demo-codes force-seed-demo reset-group-state provision-curriculum-rag provision-agent-engine copy-docparse-secret seed-curriculum backfill-curriculum-content seed-curriculum-folders check-auth-config migrate-clear-persona-voice-override docs-linkcheck check-skills sim-build sim-build-check guides guides-publish guide-screens seed-guide-corpus guide-staleness
 
 # Seed SKILL.md templates -> Firestore. Since P1.3 the Cloud Build deploy runs
 # this automatically via the `aipla-seed-skills` Cloud Run job (see
@@ -317,6 +317,13 @@ tf-apply:
 # scripts/tf.sh binds env -> backend prefix -> tfvars from ONE argument, so the
 # init and the var-file cannot disagree. That mismatch is what destroyed prod on
 # 2026-08-03; never hand-run `terraform init`/`apply` in that directory.
+# Assert the IAM posture the repo claims: nobody holds roles/editor, the compute
+# default SA is disabled, break-glass owner exists. Exists because a Terraform
+# resource reported success having done nothing, and `plan` said "No changes"
+# forever afterwards — state cannot be the witness for its own correctness.
+check-iam-posture:
+	@./scripts/check-iam-posture.sh $(ENVS)
+
 tf-local:
 	@test -n "$(ENV)" || { echo "ENV is required, e.g. make tf-local ENV=prod ACTION=plan"; exit 1; }
 	@./scripts/tf.sh $(ENV) $(or $(ACTION),plan)

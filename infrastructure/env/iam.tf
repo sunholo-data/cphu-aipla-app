@@ -55,6 +55,40 @@ resource "google_project_iam_member" "runtime" {
 #
 # NOTE the ordering consequence: this also applies during prod's recovery apply.
 # That is safe — nothing in the recovery path authenticates as this SA.
+# WHAT DID NOT WORK, so nobody tries it again: `google_project_default_service_accounts`.
+# It is the purpose-built resource for this and it is INERT in these projects.
+# Applied with action=DISABLE it reported success and recorded
+# `service_accounts = {}` — it enumerated nothing — while the SA stayed enabled
+# and kept roles/editor. Adding depends_on and forcing a -replace did not change
+# the empty map. A resource that succeeds without acting is worse than one that
+# fails: `terraform plan` then reports "No changes" forever and the state
+# asserts a hardening the project does not have.
+#
+# So the privilege is removed directly instead. `google_project_iam_binding` is
+# AUTHORITATIVE for the single role it names: an empty members list means "no
+# principal holds roles/editor on this project", which strips the auto-granted
+# default-SA binding and keeps it stripped — reasserted on every apply rather
+# than being a one-off click.
+#
+# VERIFIED SAFE BEFORE USE (2026-08-03): the compute default SA is the ONLY
+# holder of roles/editor on both test and prod, so this removes exactly it. An
+# authoritative binding is a loaded gun if that ever stops being true — check
+# before adding an env:
+#   gcloud projects get-iam-policy <p> --flatten="bindings[].members" \
+#     --filter="bindings.role=roles/editor" --format="value(bindings.members)"
+#
+# Removing the role leaves the SA existing but powerless. Disabling the account
+# itself is stronger and is asserted separately by scripts/check-iam-posture.sh,
+# because Terraform cannot represent a `developer.gserviceaccount.com` account
+# (google_service_account only creates `<project>.iam.gserviceaccount.com`).
+resource "google_project_iam_binding" "no_editor" {
+  count = var.remove_default_editor ? 1 : 0
+
+  project = var.project_id
+  role    = "roles/editor"
+  members = []
+}
+
 resource "google_project_default_service_accounts" "default" {
   count = var.default_service_accounts_action == "NONE" ? 0 : 1
 

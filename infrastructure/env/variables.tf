@@ -69,6 +69,12 @@ variable "frontend_url" {
   default     = ""
 }
 
+variable "remove_default_editor" {
+  type        = bool
+  description = "Strip roles/editor from the project by declaring an AUTHORITATIVE empty binding for that role (iam.tf). Targets the auto-granted <number>-compute@developer editor grant, which AIPLA never uses and which was the single broadest privilege on prod. ONLY set true where the compute default SA is verified to be the sole editor holder — an authoritative binding removes every other holder too. dev off; test/prod on."
+  default     = false
+}
+
 variable "default_service_accounts_action" {
   type        = string
   description = "What to do with the project's auto-created default service accounts, chiefly <number>-compute@developer (which ships holding roles/EDITOR and which AIPLA never uses). NONE leaves them alone; DEPRIVILEGE strips their roles; DISABLE makes them unable to authenticate (reversible); DELETE removes them (30-day undelete, then permanent). test/prod use DISABLE."

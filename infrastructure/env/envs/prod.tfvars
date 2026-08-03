@@ -24,6 +24,10 @@ email_signin_enabled = true
 # service_account explicitly). DISABLE is reversible; escalate to DELETE after
 # the pilot if nothing has missed it.
 default_service_accounts_action = "DISABLE"
+# Strips the auto-granted roles/editor from <number>-compute@developer. Verified
+# 2026-08-03: that SA is the ONLY editor holder here, so the authoritative empty
+# binding removes exactly it.
+remove_default_editor           = true
 # Daily Parquet export of the raw chat-log tables to GCS. On before the pilot
 # starts collecting (2026-08-14) rather than after.
 enable_chat_logs_backup = true
