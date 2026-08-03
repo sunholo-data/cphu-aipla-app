@@ -23,6 +23,29 @@ resource "google_firebase_project" "default" {
 resource "google_identity_platform_config" "default" {
   project = var.project_id
 
+  # WHICH ORIGINS MAY RUN A SIGN-IN FLOW. Firebase rejects any OAuth
+  # popup/redirect (and email-link) from an origin not listed here with
+  # `auth/unauthorized-domain`.
+  #
+  # This was NOT Terraform-managed before 2026-08-03, so test and prod were cut
+  # with only the two API defaults (`<project>.firebaseapp.com` / `.web.app`) —
+  # neither of which is the URL the app is actually served from. dev worked only
+  # because the imperative bootstrap added its Cloud Run URL by hand, so the gap
+  # was invisible until a real teacher tried to sign in on prod.
+  #
+  # Derived from `frontend_url` rather than hand-listed, so it cannot drift from
+  # the URL the sandbox already pins as ALLOWED_HOST_ORIGINS.
+  authorized_domains = compact([
+    # localhost is a dev convenience and a small prod risk (a local build could
+    # drive a real prod sign-in), so it is deliberately excluded from prod.
+    var.env == "prod" ? "" : "localhost",
+    "${var.project_id}.firebaseapp.com",
+    "${var.project_id}.web.app",
+    # https://host/ -> host. Empty before the first deploy assigns a URL
+    # (chicken-egg, same as the sandbox vars) — compact() drops it then.
+    trimsuffix(replace(var.frontend_url, "https://", ""), "/"),
+  ])
+
   sign_in {
     anonymous {
       enabled = true
@@ -104,3 +127,34 @@ resource "google_secret_manager_secret_iam_member" "firebase_env_accessor" {
   role      = "roles/secretmanager.secretAccessor"
   member    = "serviceAccount:${google_service_account.runtime.email}"
 }
+
+# ---- Google sign-in provider ------------------------------------------------
+# The SECOND half of the 2026-08-03 sign-in outage. `authorized_domains` above
+# says *where* a sign-in may run; this says *that Google is an option at all*.
+# test and prod had NO idp configs (`defaultSupportedIdpConfigs` empty) while dev
+# had `google.com: enabled` — added via the Firebase console during the
+# imperative bootstrap and never encoded here. Fixing only the domains would
+# still have left Google sign-in dead on both envs.
+#
+# MANUAL GATE (same class as the Cloud Build GitHub connection): enabling Google
+# in the Firebase console AUTO-PROVISIONS a per-project OAuth client, and this
+# resource requires that `client_id` + `client_secret`. Terraform cannot mint
+# them. So the flow is console-enable → import, not plan → apply:
+#
+#   1. Firebase console → Authentication → Sign-in method → enable Google
+#      (per env; the OAuth client is auto-created).
+#   2. terraform import google_identity_platform_default_supported_idp_config.google \
+#        projects/<project_id>/defaultSupportedIdpConfigs/google.com
+#   3. Put the client secret in `google_idp_client_secret` (a sensitive var —
+#      pass via -var or TF_VAR_, NEVER commit it to a .tfvars).
+#
+# Left commented until step 1 is done in an env: an apply with empty credentials
+# would fail, and a half-configured provider is worse than an absent one.
+#
+# resource "google_identity_platform_default_supported_idp_config" "google" {
+#   project       = var.project_id
+#   idp_id        = "google.com"
+#   enabled       = true
+#   client_id     = var.google_idp_client_id
+#   client_secret = var.google_idp_client_secret
+# }

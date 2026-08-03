@@ -77,19 +77,16 @@ resource "google_project_iam_member" "promote_source_reader" {
   member  = "serviceAccount:${google_service_account.runtime.email}"
 }
 
-# `gcloud builds submit --service-account=...` (scripts/promote-env.sh) uploads a
-# source tarball to the auto-created `<project>_cloudbuild` bucket, and the BUILD
-# SA must read it back. The TRIGGER path never needs this — triggers fetch source
-# from the repo connection, not GCS — so this gap only appears on the CLI promote,
-# which is exactly the path that had gone un-exercised until 2026-07-30.
+# REMOVED 2026-08-03: `google_storage_bucket_iam_member.promote_source_upload_reader`.
 #
-# The bucket is created by Cloud Build on first submit, not by Terraform; we bind
-# to it by name. objectViewer is enough: the tarball is uploaded by the OPERATOR's
-# credentials, and the SA only reads it.
-resource "google_storage_bucket_iam_member" "promote_source_upload_reader" {
-  count = contains(keys(local.promote_source_project), var.env) ? 1 : 0
-
-  bucket = "${var.project_id}_cloudbuild"
-  role   = "roles/storage.objectViewer"
-  member = "serviceAccount:${google_service_account.runtime.email}"
-}
+# It granted the runtime SA read on `<project>_cloudbuild`, the bucket
+# `gcloud builds submit` uploads its source tarball to. That was necessary while
+# promote-env.sh used `builds submit`; it became dead the same day, when promote
+# switched to `gcloud builds triggers run --tag` (source now comes from the repo,
+# never from GCS).
+#
+# Leaving it in place was not merely untidy — it BROKE `terraform apply` on test:
+# the bucket is created lazily by Cloud Build on first submit, and test has never
+# had one (it deploys by trigger), so the resource 404'd on a bucket that will
+# never exist. A grant whose target is created as a side effect of a code path
+# you have just deleted is a latent apply failure, not leftover config.
