@@ -10,10 +10,25 @@ Idempotent: if an Agent Engine with the target display name already exists, its
 resource ID is printed and no new resource is created.
 
 Usage:
-    export GOOGLE_CLOUD_PROJECT=aitana-multivac-dev
-    export GOOGLE_CLOUD_LOCATION=europe-west1
-    export AGENT_ENGINE_STAGING_BUCKET=gs://dev-aitana-v6-logs  # optional
-    uv run python backend/scripts/bootstrap_agent_engine.py
+    uv run python backend/scripts/bootstrap_agent_engine.py --env prod
+    uv run python backend/scripts/bootstrap_agent_engine.py --env prod --allow-create
+
+WHICH PROJECT (2026-08-03). This script used to take the project from ambient
+GOOGLE_CLOUD_PROJECT with no way to state it and no validation. Run from a shell
+where that pointed at the upstream template's project, it created a live Agent
+Engine in `multivac-internal-dev` — an unrelated project — and reported success.
+Same shape as the terraform state/var-file mismatch the same day: ambient
+context silently deciding WHICH environment you mutate.
+
+So `--env` is the interface: it binds env -> project explicitly, and ambient
+GOOGLE_CLOUD_PROJECT is ignored (a mismatch is reported, not obeyed).
+
+CREATION IS OPT-IN. The default is find-or-fail. AIPLA's engines already exist
+and are not in Terraform state, so the normal task is "tell me the ID of the
+existing one", not "make another". Creating a duplicate session/memory anchor is
+silently destructive: the backend would point at an empty engine and every prior
+session would appear to vanish. Pass --allow-create only when bootstrapping a
+genuinely new environment.
 """
 
 from __future__ import annotations
@@ -23,7 +38,21 @@ import os
 import sys
 
 # Display name used to de-duplicate the Agent Engine across re-runs.
-DEFAULT_DISPLAY_NAME = "aitana-v6"
+#
+# THIS MUST MATCH WHAT IS DEPLOYED. It was "aitana-v6" — the upstream template's
+# name — while every AIPLA engine is "aipla-v01" (prod created 2026-07-28, test
+# 2026-07-27). The idempotency check is a display-name match, so the wrong
+# default did not merely mislabel: it guaranteed a MISS against the real engine
+# and a duplicate on every run.
+DEFAULT_DISPLAY_NAME = "aipla-v01"
+
+# env -> project. The single input that decides what gets mutated, mirroring
+# scripts/tf.sh. Add an env here rather than passing a bare project string.
+ENV_PROJECTS = {
+    "dev": "aipla-dev-2026",
+    "test": "aipla-test-2026",
+    "prod": "aipla-prod-2026",
+}
 
 
 def _log(msg: str) -> None:
@@ -40,12 +69,16 @@ def _numeric_id(resource_name: str) -> str:
     return resource_name.rstrip("/").rsplit("/", 1)[-1] if "/" in resource_name else resource_name
 
 
-def bootstrap(display_name: str, dry_run: bool) -> str:
-    """Create or find the Agent Engine and return its numeric resource ID."""
-    project = os.environ.get("GOOGLE_CLOUD_PROJECT")
+def bootstrap(display_name: str, dry_run: bool, env: str, allow_create: bool) -> str:
+    """Find (or, with allow_create, create) the Agent Engine; return its numeric ID."""
+    project = ENV_PROJECTS[env]
     location = os.environ.get("GOOGLE_CLOUD_LOCATION", "europe-west1")
-    if not project:
-        raise SystemExit("GOOGLE_CLOUD_PROJECT must be set")
+
+    # Ambient GOOGLE_CLOUD_PROJECT is REPORTED, never obeyed. Silently following
+    # it is what put a live Agent Engine in multivac-internal-dev.
+    ambient = os.environ.get("GOOGLE_CLOUD_PROJECT")
+    if ambient and ambient != project:
+        _log(f"NOTE: ignoring ambient GOOGLE_CLOUD_PROJECT={ambient} — --env {env} means {project}")
 
     _log(f"Project:      {project}")
     _log(f"Location:     {location}")
@@ -71,6 +104,17 @@ def bootstrap(display_name: str, dry_run: bool) -> str:
             resource_name = existing.resource_name
             _log(f"Found existing Agent Engine: {resource_name}")
             return _numeric_id(resource_name)
+
+    if not allow_create:
+        raise SystemExit(
+            f"No Agent Engine named '{display_name}' in {project} ({location}), and "
+            f"--allow-create was not passed.\n"
+            f"AIPLA's engines already exist and are not Terraform-managed, so the usual\n"
+            f"task is to READ the existing id, not mint a second one — a duplicate anchor\n"
+            f"points the backend at empty session/memory storage and every prior session\n"
+            f"appears to vanish. If this really is a new environment, re-run with\n"
+            f"--allow-create."
+        )
 
     _log("No existing Agent Engine matched display name — creating new one.")
 
@@ -100,11 +144,22 @@ def bootstrap(display_name: str, dry_run: bool) -> str:
 
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument(
+        "--env",
+        required=True,
+        choices=sorted(ENV_PROJECTS),
+        help="Which AIPLA environment. Binds the project explicitly; ambient GOOGLE_CLOUD_PROJECT is ignored.",
+    )
     parser.add_argument("--display-name", default=DEFAULT_DISPLAY_NAME)
+    parser.add_argument(
+        "--allow-create",
+        action="store_true",
+        help="Permit creating a new Agent Engine if none matches. Default is find-or-fail: a duplicate anchor orphans every existing session.",
+    )
     parser.add_argument("--dry-run", action="store_true", help="Print plan without calling Vertex AI")
     args = parser.parse_args()
 
-    numeric_id = bootstrap(args.display_name, args.dry_run)
+    numeric_id = bootstrap(args.display_name, args.dry_run, args.env, args.allow_create)
     # stdout: numeric ID only — callers pipe into gcloud secrets versions add.
     # ADK's VertexAiSessionService requires the trailing numeric ID, not the
     # full resource name. See _numeric_id() docstring.
