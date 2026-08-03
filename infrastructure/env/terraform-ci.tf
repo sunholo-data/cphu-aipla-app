@@ -41,6 +41,13 @@ locals {
     "roles/storage.admin",                     # storage.tf: buckets + their IAM
     "roles/artifactregistry.admin",            # artifact_registry.tf
     "roles/cloudbuild.builds.editor",          # cloudbuild.tf: the triggers themselves
+    # 2nd-gen connections/repositories are a SEPARATE permission surface from
+    # builds+triggers: builds.editor does not carry cloudbuild.connections.get,
+    # so the first CI plan 403'd merely REFRESHING the github connection.
+    # Found by running the pipeline (build 4804bd0b, 2026-08-03) — which is the
+    # enumerated-roles tradeoff working as intended: a clean permission error in
+    # a build log rather than a silent over-grant.
+    "roles/cloudbuild.connectionAdmin",
   ])
 }
 
@@ -53,12 +60,28 @@ resource "google_project_iam_member" "terraform" {
 }
 
 # State lives in the central aipla-deploy bucket, outside every env project, so
-# this grant crosses a project boundary. objectAdmin (not admin): the runner
-# reads/writes state objects and their locks; it has no business reconfiguring
-# the bucket.
+# this grant crosses a project boundary. objectAdmin is what the runner needs to
+# do its JOB: read/write state objects and their lock.
 resource "google_storage_bucket_iam_member" "terraform_state" {
   bucket = "aipla-deploy-tfstate"
   role   = "roles/storage.objectAdmin"
+  member = "serviceAccount:${google_service_account.terraform.email}"
+}
+
+# ...but MANAGING the grant above is a different permission from using it.
+# Refreshing a bucket IAM member calls storage.buckets.getIamPolicy, which
+# objectAdmin does not carry, so the first CI plan 403'd on its own grant
+# (build 4804bd0b, 2026-08-03). Same class as the logsBucket trap storage.tf
+# documents: the resource works, reading it back does not.
+#
+# This is the sharpest argument for the bootstrap/env split (SEQUENCE 1.1.60).
+# A CI runner that manages its own permissions is circular by construction —
+# it must already hold a right in order to grant itself that right. Under the
+# split this resource belongs to the bootstrap layer and the env layer stops
+# refreshing it, at which point this second binding can go.
+resource "google_storage_bucket_iam_member" "terraform_state_policy_reader" {
+  bucket = "aipla-deploy-tfstate"
+  role   = "roles/storage.admin"
   member = "serviceAccount:${google_service_account.terraform.email}"
 }
 
