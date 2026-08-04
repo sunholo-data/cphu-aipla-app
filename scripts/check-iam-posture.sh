@@ -90,29 +90,44 @@ for ENV in "${ENVS[@]}"; do
     fail=1
   fi
 
-  # 4. The everyday account is not an owner. Enforced since the authoritative
-  #    google_project_iam_binding.owners landed — this is the WALL the rest of
-  #    the 2026-08-03 work only approximates, so it fails rather than informs.
-  if echo "${OWNERS}" | grep -q 'm@sunholo.com'; then
-    echo "  FAIL m@sunholo.com holds roles/owner — apply project_owners (SEQUENCE 1.1.60)"
-    fail=1
-  else
-    echo "  ok   m@sunholo.com is not an owner"
-  fi
-
-  # 5. ...but it must retain what it needs to DRIVE the pipelines. Degrading to
-  #    pure viewer removes cloudbuild.builds.create, which is what
-  #    `gcloud builds triggers run` needs — i.e. it would take away make tf-apply
-  #    and make promote along with the danger. Checked so nobody "tidies up" the
-  #    baseline grants later and silently severs the CI path.
+  # 4/5. The everyday account: not an owner, but still able to DRIVE the
+  #      pipelines it can no longer bypass.
+  #
+  # WHETHER THIS IS ENFORCED DEPENDS ON WHETHER IT HAS BEEN ADOPTED. `project_owners`
+  # is deliberately held back until someone has authenticated as the break-glass
+  # account (see the tfvars), so on an un-adopted env "m@sunholo.com is an owner"
+  # is the intended state, not drift. Failing on it would red every `make
+  # tf-apply` build for a condition nobody is allowed to fix yet — and a check
+  # that cries wolf is a check people learn to skip.
+  #
+  # Adoption is detected from the ground truth: operator_baseline grants an
+  # EXPLICIT roles/viewer, which an owner would never otherwise hold. Its
+  # presence means the degrade was applied, so from then on both halves are hard
+  # requirements.
   OPERATOR_ROLES="$(gcloud projects get-iam-policy "${PROJECT}" \
     --flatten='bindings[].members' --filter='bindings.members:m@sunholo.com' \
     --format='value(bindings.role)' 2>/dev/null)"
-  if echo "${OPERATOR_ROLES}" | grep -q 'roles/cloudbuild.builds.editor'; then
-    echo "  ok   m@sunholo.com can still run build triggers"
+
+  if echo "${OPERATOR_ROLES}" | grep -q 'roles/viewer'; then
+    if echo "${OWNERS}" | grep -q 'm@sunholo.com'; then
+      echo "  FAIL m@sunholo.com holds roles/owner despite the baseline being applied"
+      fail=1
+    else
+      echo "  ok   m@sunholo.com is not an owner"
+    fi
+    # Degrading to PURE viewer removes cloudbuild.builds.create, which is what
+    # `gcloud builds triggers run` needs — it would take away make tf-apply and
+    # make promote along with the danger. Checked so nobody later "tidies up"
+    # the baseline grants and silently severs the CI path.
+    if echo "${OPERATOR_ROLES}" | grep -q 'roles/cloudbuild.builds.editor'; then
+      echo "  ok   m@sunholo.com can still run build triggers"
+    else
+      echo "  FAIL m@sunholo.com lacks roles/cloudbuild.builds.editor — make tf-apply / make promote will 403"
+      fail=1
+    fi
   else
-    echo "  FAIL m@sunholo.com lacks roles/cloudbuild.builds.editor — make tf-apply / make promote will 403"
-    fail=1
+    echo "  INFO ownership degrade not yet adopted — project_owners held back in tfvars"
+    echo "         pending: authenticate as mark.edmondson@ind.ku.dk to prove break-glass"
   fi
 done
 

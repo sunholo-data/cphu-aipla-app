@@ -35,4 +35,15 @@ enable_chat_logs_backup = true
 # shell + the identity agentic tooling runs as) and KEEPS break-glass. Without a
 # parent org, project-level owner is the only escape hatch, so the break-glass
 # entry is load-bearing, not decorative.
-project_owners = ["user:mark.edmondson@ind.ku.dk"]
+# HELD BACK (2026-08-04). The authoritative owner list is written, validated and
+# ready (iam.tf google_project_iam_binding.owners), but applying it degrades
+# m@sunholo.com to viewer + builds.editor -- and that is only safe once someone
+# has actually AUTHENTICATED as the break-glass account. mark.edmondson@ind.ku.dk
+# sits behind UCPH IT processes and has not been exercised. These projects have
+# no parent org, so if break-glass turns out to be unusable after the everyday
+# account is degraded, there is no way back.
+#
+# Uncomment ONLY after a successful:
+#   gcloud auth login mark.edmondson@ind.ku.dk
+#   gcloud projects get-iam-policy <project> --account=mark.edmondson@ind.ku.dk
+# project_owners = ["user:mark.edmondson@ind.ku.dk"]
