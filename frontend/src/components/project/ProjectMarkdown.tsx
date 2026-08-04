@@ -51,6 +51,27 @@ export function ProjectMarkdown({ children }: { children: string }) {
             {items}
           </ol>
         ),
+        blockquote: ({ children: quote }) => (
+          <blockquote className="my-7 border-l-4 border-red-800 bg-muted/50 px-5 py-3 text-foreground">
+            {quote}
+          </blockquote>
+        ),
+        table: ({ children: table }) => (
+          <div className="my-7 overflow-x-auto rounded-lg border border-border">
+            <table className="w-full border-collapse text-left text-sm">{table}</table>
+          </div>
+        ),
+        thead: ({ children: head }) => <thead className="bg-muted text-foreground">{head}</thead>,
+        th: ({ children: cell }) => <th className="border-b border-border px-4 py-3 font-semibold">{cell}</th>,
+        td: ({ children: cell }) => <td className="border-b border-border px-4 py-3 align-top leading-6 text-muted-foreground last:border-b-0">{cell}</td>,
+        img: ({ src = "", alt = "" }) => (
+          // eslint-disable-next-line @next/next/no-img-element
+          <img src={src} alt={alt} className="my-7 max-h-72 w-full rounded-xl border border-border bg-muted/30 object-contain p-4" />
+        ),
+        code: ({ children: code }) => (
+          <code className="rounded bg-muted px-1.5 py-0.5 font-mono text-[0.9em] text-foreground">{code}</code>
+        ),
+        hr: () => <hr className="my-10 border-border" />,
         strong: ({ children: text }) => <strong className="font-semibold text-foreground">{text}</strong>,
         a: ({ href = "", children: label }) => {
           const external = href.startsWith("http");

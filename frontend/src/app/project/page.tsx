@@ -1,6 +1,16 @@
 import Link from "next/link";
 import type { Metadata } from "next";
-import { ArrowRight, BookOpen, FlaskConical, GraduationCap, Microscope } from "lucide-react";
+import {
+  Activity,
+  ArrowRight,
+  BookOpen,
+  FlaskConical,
+  GraduationCap,
+  Layers,
+  Microscope,
+  Network,
+  ShieldCheck,
+} from "lucide-react";
 
 import { AppFooter } from "@/components/AppFooter";
 import { PROJECT_PAGES } from "@/lib/projectContent";
@@ -8,7 +18,11 @@ import { PROJECT_PAGES } from "@/lib/projectContent";
 const PAGE_ICONS = {
   about: GraduationCap,
   research: Microscope,
+  workstreams: Network,
   activities: FlaskConical,
+  evaluation: Activity,
+  platform: Layers,
+  "data-and-hosting": ShieldCheck,
   progress: BookOpen,
 } as const;
 
@@ -59,7 +73,7 @@ export default function ProjectOverviewPage() {
 
         <ul className="mt-10 grid gap-4 sm:grid-cols-2">
           {PROJECT_PAGES.map((page) => {
-            const Icon = PAGE_ICONS[page.slug as keyof typeof PAGE_ICONS];
+            const Icon = PAGE_ICONS[page.slug as keyof typeof PAGE_ICONS] ?? BookOpen;
             return (
               <li key={page.slug}>
                 <Link href={`/project/${page.slug}`} className="group flex h-full flex-col rounded-xl border border-border bg-background p-6 transition hover:-translate-y-0.5 hover:border-red-800/40 hover:shadow-md">

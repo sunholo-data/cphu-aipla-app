@@ -37,9 +37,12 @@ and the cloud tiers: [WORKSHOP.md](WORKSHOP.md).
 - **Execution design** (file paths, wire shapes, acceptance) → this repo,
   [`docs/design/aipla/SEQUENCE.md`](docs/design/aipla/SEQUENCE.md).
 - **Public project information** → the app's native `/project` pages, authored
-  from `frontend/content/project/` (English-first migration in progress).
-- **Legacy product and pedagogical scoping material** → the separate AIPLA
-  Quarto repository until its internal design records are fully consolidated.
+  as reviewed English Markdown in `frontend/content/project/`. Each page has a
+  named owner, status, and next-review date; `npm run check:project-content`
+  checks those fields and internal links before deployment.
+- **Historical product and pedagogical scoping material** → the separate AIPLA
+  Quarto repository. It remains an archive and redirect source during cutover,
+  not the maintained public source of truth.
 - **Working with this repo as an AI agent** → [CLAUDE.md](CLAUDE.md) is the
   authoritative context (identity, gotchas, footguns, ports).
 

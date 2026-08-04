@@ -29,14 +29,17 @@ inside a 3-year research programme.
 
 ### Source of truth for AIPLA design
 
-**The major legacy scoping location is a separate Quarto repository at
-`/Users/mark/Documents/clients/cph-uni`.** Its former public preview is being
-migrated into this app. Public-safe English project copy now lives under
-`frontend/content/project/` and renders at `/project`; detailed product,
-architecture, evaluation, and self-hosting records remain internal working
-material until they are deliberately consolidated.
+**The historical scoping location is a separate Quarto repository at
+`/Users/mark/Documents/clients/cph-uni`.** Its public-safe content has been
+audited and migrated into this app. Maintained English project copy now lives
+under `frontend/content/project/` and renders at `/project`, including nested
+activity case studies. Every Markdown file must include content status, owner,
+reviewed date, review deadline, order, and navigation visibility. Run
+`cd frontend && npm run check:project-content` after editing it.
 
-Use the legacy source for historical AIPLA design; do not publish it wholesale:
+Use the legacy source for historical AIPLA design; do not restore it wholesale
+or treat its volatile schedules, model rankings, API-key demos, and hosting
+claims as current public facts:
 
 | File | What it contains |
 |---|---|

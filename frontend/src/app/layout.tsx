@@ -2,11 +2,12 @@ import type { Metadata } from "next";
 import { EnvironmentBanner } from "@/components/EnvironmentBanner";
 import { LocalModeBanner } from "@/components/LocalModeBanner";
 import { BRANDING } from "@/lib/branding";
+import { PUBLIC_SITE_ORIGIN } from "@/lib/publicSite";
 import { AppProviders } from "@/providers/AppProviders";
 import "./globals.css";
 
 export const metadata: Metadata = {
-  metadataBase: new URL("https://aipla.ku.dk"),
+  metadataBase: new URL(PUBLIC_SITE_ORIGIN),
   title: {
     default: BRANDING.appName,
     template: `%s — ${BRANDING.appName}`,

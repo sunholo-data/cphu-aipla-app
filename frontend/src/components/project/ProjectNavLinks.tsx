@@ -21,7 +21,7 @@ export function ProjectNavLinks({ pages, variant }: ProjectNavLinksProps) {
   }))];
 
   return links.map((link) => {
-    const isActive = pathname === link.href;
+    const isActive = pathname === link.href || (link.href !== "/project" && pathname.startsWith(`${link.href}/`));
     const className = variant === "mobile"
       ? `shrink-0 rounded-full border px-3 py-1.5 text-sm ${
           isActive
