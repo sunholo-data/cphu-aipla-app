@@ -5,9 +5,14 @@ env        = "test"
 cb_connection             = "github-aipla"
 partition_expiration_days = 365
 teacher_mock              = false
-preview_feature_flags     = false # test/prod stay off until AR/JB's framework lands
-admin_operator_members    = ["user:m@sunholo.com"]
-email_signin_enabled      = true # test-teacher@example.dk for curriculum seed + teacher-flow testing
+# 2026-08-04: ON. Was false ("until AR/JB's framework lands"), which quietly made
+# dev the only env with the authoring co-pilot, the concept map, and the "AIPLA
+# Hjælp" help bot. Nobody is on test or prod yet, so the right default while
+# building is that all three envs look the same; deliberate dev-only divergence
+# comes later, when there is a reason and a user to protect from it.
+preview_feature_flags  = true
+admin_operator_members = ["user:m@sunholo.com"]
+email_signin_enabled   = true # test-teacher@example.dk for curriculum seed + teacher-flow testing
 # Both set after their services' first deploy assigns a *.run.app URL
 # (chicken-egg — see README): frontend_url → sandbox ALLOWED_HOST_ORIGINS;
 # mcp_sandbox_url → NEXT_PUBLIC_MCP_SANDBOX_URL baked into the frontend bundle.

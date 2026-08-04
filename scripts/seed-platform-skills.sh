@@ -4,12 +4,17 @@
 # docs/design/aipla/v1.0.0-pilot/aipla-cloud-bootstrap.md §Manual seed
 # runbook so it can be re-run reliably (and from CI eventually).
 #
-# Why: `seed-platform-skills` was removed from cloudbuild.yaml on
-# 2026-05-26 because the SA-token mint inside Cloud Build 403'd; ops
-# runs this manually after any deploy that touches a SKILL.md template.
-# Without it, edits to template frontmatter (tools list, accessControl,
-# avatar, etc.) never propagate to Firestore for already-registered
-# skills, and brand-new templates never register at all.
+# Why: without a seed, edits to template frontmatter (tools list,
+# accessControl, avatar, etc.) never propagate to Firestore for
+# already-registered skills, and brand-new templates never register at
+# all — the "works in tests, deployed app shows old skill data" footgun.
+#
+# THIS IS THE NO-DEPLOY PATH. Since P1.3 (2026-07-23) every deploy seeds
+# automatically via the aipla-seed-skills Cloud Run job
+# (scripts/deploy-seed-job.sh, run from both cloudbuild.yaml and — since
+# 2026-08-04 — cloudbuild.promote.yaml). Use this script when you need a
+# template change live WITHOUT shipping a build. Both paths call the same
+# seed(), so they cannot drift.
 #
 # Pre-reqs
 #   - gcloud installed + authenticated as a user with
@@ -29,28 +34,36 @@
 set -euo pipefail
 
 ENV="${1:-dev}"
+REGION="europe-north1"
+SERVICE="aipla-v01-frontend"
 
 case "$ENV" in
-  dev)
-    URL="https://aipla-v01-frontend-wgwhd7mspa-lz.a.run.app"
-    SA="aipla-v6@aipla-dev-2026.iam.gserviceaccount.com"
-    ;;
-  test)
-    URL="https://aipla-v01-frontend-test-placeholder.a.run.app"
-    SA="aipla-v6@aipla-test-2026.iam.gserviceaccount.com"
-    ;;
-  prod)
-    URL="https://aipla-v01-frontend-prod-placeholder.a.run.app"
-    SA="aipla-v6@aipla-prod-2026.iam.gserviceaccount.com"
-    ;;
+  dev|test|prod) PROJECT="aipla-${ENV}-2026" ;;
   *)
     echo "Unknown env '$ENV' (expected: dev|test|prod)" >&2
     exit 2
     ;;
 esac
 
+SA="aipla-v6@${PROJECT}.iam.gserviceaccount.com"
+
 command -v gcloud  >/dev/null 2>&1 || { echo "gcloud not on PATH" >&2; exit 2; }
 command -v python3 >/dev/null 2>&1 || { echo "python3 not on PATH" >&2; exit 2; }
+
+# Resolve the service URL LIVE rather than hardcoding it, matching
+# scripts/smoke-deployed.sh. Until 2026-08-04 test and prod carried literal
+# `…-{test,prod}-placeholder.a.run.app` strings here — this script had never
+# been run against either env and would have failed at the curl if it were.
+# Hardcoded run.app URLs also rot silently on any service recreate; there is one
+# authority for "where does this env live", and it is the project itself.
+URL="$(gcloud run services describe "$SERVICE" \
+  --project="$PROJECT" --region="$REGION" \
+  --format='value(status.url)' 2>/dev/null || true)"
+if [ -z "$URL" ]; then
+  echo "Could not resolve $SERVICE in $PROJECT/$REGION." >&2
+  echo "  Check: gcloud auth login, and that the env has been deployed." >&2
+  exit 2
+fi
 
 echo "== seed-platform-skills =="
 echo "env: $ENV"

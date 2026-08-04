@@ -191,12 +191,15 @@ jobs:
   seed-reminder:
     # SKILL.md frontmatter (avatar, multimodalInput, persona, tools,
     # accessControl, instructions) does NOT propagate to Firestore for
-    # already-registered skills on deploy — the seed token-mint can't run
-    # inside Cloud Build (403; see cloudbuild.yaml ~L259). Ops runs
-    # scripts/seed-platform-skills.sh manually. This job is the ACTIVE nudge:
-    # it warns, at the moment a template changes on a push to dev, so the seed
-    # doesn't get forgotten (it has been, repeatedly — passive docs weren't
-    # enough). Warning-only: never fails the build.
+    # already-registered skills just because an image shipped — something has
+    # to run the seed.
+    #
+    # Since P1.3 (2026-07-23) that is automatic on deploy via the
+    # aipla-seed-skills Cloud Run job, and since 2026-08-04 on the PROMOTE path
+    # too (prod is reached only by promote, and had not been re-seeded since its
+    # env cut). So this job is now belt-and-braces rather than the only guard:
+    # it still warns the moment a template changes, which covers the case where
+    # a template edit lands without a deploy. Warning-only: never fails the build.
     name: Seed reminder (SKILL.md → Firestore)
     if: github.event_name == 'push'
     runs-on: ubuntu-latest

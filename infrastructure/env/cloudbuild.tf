@@ -82,7 +82,7 @@ locals {
   # ",". Empty entries dropped — dev has no custom_domain.
   sandbox_allowed_host_origins = join(",", compact([var.frontend_url, local.custom_domain_url]))
 
-  deploy_substitutions = {
+  deploy_substitutions = merge({
     _PROJECT_ID                        = var.project_id
     _REGION                            = var.region
     _ARTIFACT_REGISTRY_REPO_URL_CLIENT = "${var.region}-docker.pkg.dev/${var.project_id}/${var.ar_repo}"
@@ -95,13 +95,45 @@ locals {
     # ACTIVE and the app is actually served there — advertising a domain that
     # does not yet resolve would be worse than advertising the old one.
     _MCP_WIDGET_DOMAIN = var.frontend_url
-    # Preview feature flags: dev='1', test/prod='' until AR/JB's framework lands.
+    # NOTE: _TEACHER_MOCK is intentionally omitted (dev-only; test/prod render
+    # the real sign-in). _FIREBASE_TAG uses the cloudbuild.yaml default ("dev").
+  }, local.feature_flag_substitutions)
+
+  # Preview feature flags, baked into the frontend bundle at BUILD time.
+  #
+  # Shared by the deploy triggers AND the promote pipeline. They must be one
+  # value: the promote REBUILDS the frontend, so a flag set only on the deploy
+  # side reaches test and silently never reaches prod. That was the state until
+  # 2026-08-04 — see the substitutions block in cloudbuild.promote.yaml.
+  feature_flag_substitutions = {
     _AUTHORING_COPILOT = var.preview_feature_flags ? "1" : ""
     _CONCEPT_MAP       = var.preview_feature_flags ? "1" : ""
     _AIPLA_HELP        = var.preview_feature_flags ? "1" : ""
-    # NOTE: _TEACHER_MOCK is intentionally omitted (dev-only; test/prod render
-    # the real sign-in). _FIREBASE_TAG uses the cloudbuild.yaml default ("dev").
   }
+
+  # Everything the promote pipeline needs on the TARGET env. Factored out because
+  # there are TWO triggers running the same cloudbuild.promote.yaml — the manual
+  # one (`make promote`) and the tag-queued approval one — and a value added to
+  # only one of them makes prod's config depend on which route shipped it.
+  promote_substitutions = merge({
+    _SOURCE_PROJECT  = local.promote_source_project[var.env]
+    _TARGET_PROJECT  = var.project_id
+    _REGION          = var.region
+    _REPO            = var.ar_repo
+    _SERVICE_NAME    = "aipla-v01-frontend"
+    _MCP_SANDBOX_URL = var.mcp_sandbox_url
+    # Re-stamped on every promoted revision. `gcloud run services update`
+    # preserves env vars, so without this the target keeps the value it was
+    # first deployed with — which for prod was DEV's origin (cloudbuild.yaml
+    # hardcoded it for every env until 2026-08-04). The promote guard fails the
+    # build if this is ever empty.
+    _MCP_WIDGET_DOMAIN = var.frontend_url
+    # The post-promote seed job runs as the runtime SA and writes Firestore via
+    # ADC. Passed explicitly rather than left to deploy-seed-job.sh's
+    # aipla-v6@<project> default, so overriding var.sa_name can't quietly point
+    # the job at a service account that does not exist.
+    _ADMIN_SEED_ALLOWED_SAS = google_service_account.runtime.email
+  }, local.feature_flag_substitutions)
 }
 
 # test: build-once release trigger — fires on an annotated version tag.
@@ -264,23 +296,10 @@ resource "google_cloudbuild_trigger" "prod_promote" {
     repo_type  = "GITHUB"
   }
 
-  substitutions = {
-    _SOURCE_PROJECT  = local.promote_source_project[var.env]
-    _TARGET_PROJECT  = var.project_id
-    _REGION          = var.region
-    _REPO            = var.ar_repo
-    _SERVICE_NAME    = "aipla-v01-frontend"
-    _MCP_SANDBOX_URL = var.mcp_sandbox_url
-    # Re-stamped on every promoted revision. `gcloud run services update`
-    # preserves env vars, so without this the target keeps the value it was
-    # first deployed with — which for prod was DEV's origin (cloudbuild.yaml
-    # hardcoded it for every env until 2026-08-04). The promote guard fails the
-    # build if this is ever empty.
-    _MCP_WIDGET_DOMAIN = var.frontend_url
-    # _VERSION is deliberately NOT defaulted here — it is passed per run. A
-    # promote without an explicit frozen version is a rebuild, and the
-    # pipeline's guard-version step fails the build if it is empty.
-  }
+  # _VERSION is deliberately NOT set here — it is passed per run. A promote
+  # without an explicit frozen version is a rebuild, and the pipeline's
+  # guard-version step fails the build if it is empty.
+  substitutions = local.promote_substitutions
 }
 
 # prod: the SAME promote pipeline, reachable WITHOUT a laptop.
@@ -329,16 +348,7 @@ resource "google_cloudbuild_trigger" "prod_promote_on_tag" {
   }
 
   substitutions = merge(
-    {
-      _SOURCE_PROJECT  = local.promote_source_project[var.env]
-      _TARGET_PROJECT  = var.project_id
-      _REGION          = var.region
-      _REPO            = var.ar_repo
-      _SERVICE_NAME    = "aipla-v01-frontend"
-      _MCP_SANDBOX_URL = var.mcp_sandbox_url
-      # See prod_promote above — must be re-stamped on every promoted revision.
-      _MCP_WIDGET_DOMAIN = var.frontend_url
-    },
+    local.promote_substitutions,
     {
       # Unlike the manual trigger, the version is NOT operator-supplied: it is
       # the tag that fired the build. `$${...}` is TF-escaped so the literal

@@ -6,8 +6,14 @@ env        = "prod"
 cb_connection             = "github-aipla"
 partition_expiration_days = 365
 teacher_mock              = false
-frontend_url              = "https://aipla-v01-frontend-6vwz657g3a-lz.a.run.app"             # sandbox ALLOWED_HOST_ORIGINS
-mcp_sandbox_url           = "https://aipla-v01-sandbox-6vwz657g3a-lz.a.run.app/sandbox.html" # predicted (per-project hash)
+# 2026-08-04: ON, matching test. Previously unset (defaulting false), so prod had
+# no authoring co-pilot, concept map, or "AIPLA Hjælp" help bot. Note this tfvar
+# alone was never sufficient for prod: prod is reached only by the promote
+# pipeline, which until today passed no feature-flag build-args at all — see
+# cloudbuild.promote.yaml. Both halves are needed.
+preview_feature_flags = true
+frontend_url          = "https://aipla-v01-frontend-6vwz657g3a-lz.a.run.app"             # sandbox ALLOWED_HOST_ORIGINS
+mcp_sandbox_url       = "https://aipla-v01-sandbox-6vwz657g3a-lz.a.run.app/sandbox.html" # predicted (per-project hash)
 # UCPH-granted custom domain (2026-08-03). Set BEFORE UCPH IT creates the DNS
 # records — the apply reserves the static IPs that go IN the request, and the
 # managed cert waits in PROVISIONING until the name resolves. See loadbalancer.tf.

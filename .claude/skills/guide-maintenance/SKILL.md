@@ -63,7 +63,7 @@ Run from the repo root. Order matters: capture → publish → (seed).
 | `make guide-screens` | Re-capture screenshots. Logs into **deployed dev** as the test teacher (Playwright) for the teacher guides, and joins with the demo code for the student guide. Writes `docs/guides/assets/*.png`. |
 | `make guides` | Render `.qmd` → PDF + HTML into `docs/guides/_output/`. Needs `quarto` + `xelatex`. |
 | `make guides-publish` | `make guides` + copy HTML/PDF into `frontend/public/guides/` (committed; the app serves them). |
-| `make seed-guide-corpus` | Ingest the guide PDFs into the **shared corpus** (subject "AIPLA guides") + build the onboarding class with teacher/student/researcher tutors. Dogfoods the guides. **Not idempotent** — re-running duplicates; clean up first on an already-seeded env. |
+| `make seed-guide-corpus ENV=dev\|test\|prod` | Ingest the guide PDFs into that env's **shared corpus** (subject "AIPLA guides") + build the onboarding class with teacher/student/researcher tutors. Dogfoods the guides. **Idempotent** since 2026-08-04 — re-running is how you publish an updated guide. |
 
 **Typical "the guides drifted" loop:** `make guide-staleness` → for each flagged
 guide, look at the change → if a real workflow changed, `make guide-screens &&
@@ -116,7 +116,19 @@ the UI actually changed.
 - **Repo weight.** `frontend/public/guides/` holds self-contained HTML (embedded
   screenshots) + PDFs (~2–3 MB per guide). If this grows, move rendered guides to
   GCS or generate at build time rather than committing.
-- **Re-seeding an already-seeded env** duplicates the corpus docs + onboarding
-  class. Delete the prior docs/activities (curriculum + activity DELETE routes)
-  before re-running `make seed-guide-corpus`, or do a targeted add for just the
-  new guide.
+- **Re-seeding is now the update path, not a hazard.** `make seed-guide-corpus`
+  reconciles: guide docs are matched by title within the "AIPLA guides" subject
+  and replaced in place (new doc ingested, then the old one deleted), the class
+  is matched by name, the tutors by title, and a group code is minted only if the
+  class has none. So the loop for a changed guide is `make guides-publish &&
+  make seed-guide-corpus ENV=<env>`. Note docIds churn on every run by design —
+  the tutors are re-pointed at the fresh ids in the same pass.
+- **The corpus + tutors are per-env and NOT seeded by any deploy.** The static
+  `/guides` pages ride the frontend image, so they exist everywhere; the
+  queryable corpus does not. Until 2026-08-04 this script took no env argument
+  and defaulted to dev's hardcoded URL, which is why dev was the only env with
+  the in-product guides. Seed test/prod explicitly after an env cut.
+- **Prod has no seeded test-teacher.** `make seed-guide-corpus ENV=prod` mints
+  its token via `scripts/mint-test-teacher-token.sh prod`, which reads that
+  project's `FIREBASE_ENV` secret for the API key but still needs real
+  credentials — pass `TEACHER_EMAIL` / `TEACHER_PASSWORD`.

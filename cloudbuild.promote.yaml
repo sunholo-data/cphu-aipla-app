@@ -38,6 +38,20 @@ substitutions:
   # No default: the guard below fails the build rather than let a promote stamp
   # a wrong origin onto the target.
   _MCP_WIDGET_DOMAIN: ''
+  # Preview feature flags. These are NEXT_PUBLIC_*, i.e. inlined into the bundle
+  # at BUILD time — and the promote REBUILDS the frontend, so it must pass them
+  # exactly as cloudbuild.yaml does. Until 2026-08-04 it did not: `build-frontend`
+  # below passed only _MCP_SANDBOX_URL, so no value of `preview_feature_flags` in
+  # prod.tfvars could reach prod's bundle. The "AIPLA Hjælp" help co-pilot was
+  # therefore unreachable on prod by ANY route, and flipping the tfvar would have
+  # looked like it worked (test lit up; prod silently didn't).
+  # This is the same rule the deploy step states for env vars, extended to build
+  # args: anything cloudbuild.yaml bakes per-env, the promote path must bake too.
+  _AUTHORING_COPILOT: '1'
+  _CONCEPT_MAP: '1'
+  _AIPLA_HELP: '1'
+  # Runtime SA the post-promote seed job runs as (writes Firestore via ADC).
+  _ADMIN_SEED_ALLOWED_SAS: terraform_managed
 
 tags: ['${_TARGET_PROJECT}', '${_SERVICE_NAME}', 'promote']
 
@@ -145,8 +159,16 @@ steps:
         ARGS=$$(cat /workspace/docker_args)
         docker build $$ARGS \
           --build-arg NEXT_PUBLIC_MCP_SANDBOX_URL=${_MCP_SANDBOX_URL} \
+          --build-arg NEXT_PUBLIC_AUTHORING_COPILOT=${_AUTHORING_COPILOT} \
+          --build-arg NEXT_PUBLIC_CONCEPT_MAP=${_CONCEPT_MAP} \
+          --build-arg NEXT_PUBLIC_AIPLA_HELP=${_AIPLA_HELP} \
           -t ${_REGION}-docker.pkg.dev/${_TARGET_PROJECT}/${_REPO}/${_SERVICE_NAME}/ui:${_VERSION} \
           -f frontend/Dockerfile frontend/
+        # ^ Mirrors cloudbuild.yaml's build-frontend arg-for-arg. Both put $ARGS
+        # (the NEXT_PUBLIC_* lines lifted out of the FIREBASE_ENV secret by
+        # get-firebase-config.sh) FIRST, so an explicit flag here wins on a
+        # duplicate — keep it that way, or the two paths resolve the same flag
+        # differently and prod diverges from test for reasons nobody can see.
 
   - name: 'gcr.io/cloud-builders/docker'
     id: 'push-frontend'
@@ -208,3 +230,33 @@ steps:
           if [ "$${code}" = "401" ]; then echo "OK   $${path} -> 401"; else echo "FAIL $${path} -> $${code} (expected 401)"; fail=1; fi
         done
         exit $${fail}
+
+  # --- Seed: reconcile SKILL.md templates -> Firestore on the TARGET ---
+  # The twin of cloudbuild.yaml's `seed-platform-skills` step, and it was missing
+  # here until 2026-08-04. Consequence: prod is reached ONLY by this pipeline
+  # (aipla-prod-release is disabled), so prod's skill docs had not been
+  # reconciled since its env cut on 2026-07-28 — every SKILL.md edit since then
+  # existed in the image but not in the Firestore the app reads. That is the
+  # repo's documented #1 footgun, "enforced" on the deploy path and wide open on
+  # the promote path.
+  #
+  # Runs the same Cloud Run job, as the same runtime SA, off the backend image
+  # THIS promote just copied into the target (tagged ${_VERSION} by copy-backend)
+  # — so the seed and the running code are the same artifact by construction.
+  # `python -m admin.platform_seed` exits non-zero on any failed template, so a
+  # bad seed fails the promotion.
+  #
+  # After smoke, matching cloudbuild.yaml's ordering: the smoke checks are
+  # liveness, not skill content, and a seed failure should not mask a service
+  # that never came up.
+  - name: 'gcr.io/google.com/cloudsdktool/cloud-sdk'
+    id: 'seed-platform-skills'
+    waitFor: ['smoke']
+    entrypoint: bash
+    args:
+      - 'scripts/deploy-seed-job.sh'
+      - '--project=${_TARGET_PROJECT}'
+      - '--region=${_REGION}'
+      - '--sa=${_ADMIN_SEED_ALLOWED_SAS}'
+      - '--image=${_REGION}-docker.pkg.dev/${_TARGET_PROJECT}/${_REPO}/${_SERVICE_NAME}/backend:${_VERSION}'
+      - '--execute'

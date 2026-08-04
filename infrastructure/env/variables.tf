@@ -139,7 +139,7 @@ variable "mcp_sandbox_url" {
 
 variable "preview_feature_flags" {
   type        = bool
-  description = "dev-only preview flags: bakes _AUTHORING_COPILOT/_CONCEPT_MAP/_AIPLA_HELP='1' into the deploy trigger. dev=true; test/prod=false (they stay '' until AR/JB's teaching framework lands)."
+  description = "Preview flags: bakes _AUTHORING_COPILOT/_CONCEPT_MAP/_AIPLA_HELP='1' into the frontend bundle on BOTH the deploy and promote paths. true on all three envs as of 2026-08-04 — while nobody is on test/prod, they should mirror dev. Set false per-env to hold a feature back deliberately."
   default     = false
 }
 
