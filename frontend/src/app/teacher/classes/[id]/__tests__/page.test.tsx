@@ -104,6 +104,45 @@ describe("/teacher/classes/[id] — class detail", () => {
     expect(screen.getByText("soft-otter-44")).toBeInTheDocument();
   });
 
+  // 2026-08-04: a teacher handed out codes minted on dev and students typed
+  // them into test, where every join 401s. A bare code carries no environment;
+  // a join link does. Both the address and the per-code link are pinned here.
+  describe("join address (environment mix-up)", () => {
+    it("states the address students must join at", async () => {
+      getSpy.mockResolvedValue(makeClassPayload());
+      render(<TeacherClassDetailPage />);
+      await waitFor(() => {
+        expect(
+          screen.getByRole("heading", { name: targetClass.name }),
+        ).toBeInTheDocument();
+      });
+      expect(
+        screen.getByText(`${window.location.origin}/group`),
+      ).toBeInTheDocument();
+    });
+
+    it("copies a join link carrying the origin AND the code", async () => {
+      const writeText = vi.fn().mockResolvedValue(undefined);
+      Object.assign(navigator, { clipboard: { writeText } });
+
+      getSpy.mockResolvedValue(makeClassPayload());
+      render(<TeacherClassDetailPage />);
+      await waitFor(() => {
+        expect(
+          screen.getByRole("heading", { name: targetClass.name }),
+        ).toBeInTheDocument();
+      });
+
+      fireEvent.click(
+        screen.getAllByRole("button", { name: /copy join link/i })[0],
+      );
+
+      expect(writeText).toHaveBeenCalledWith(
+        `${window.location.origin}/group?code=bright-fox-12`,
+      );
+    });
+  });
+
   it("groups voice + language under a 'Class settings' section (P3 consolidation)", async () => {
     getSpy.mockResolvedValue(makeClassPayload());
     render(<TeacherClassDetailPage />);

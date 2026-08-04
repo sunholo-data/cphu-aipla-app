@@ -8,7 +8,9 @@ import { cn } from "@/lib/utils";
 
 export interface SettingsSectionProps {
   title: string;
-  description?: string;
+  /** ReactNode, not string — descriptions carry inline <code>/<strong> (e.g.
+   *  the join address on the class Groups section). */
+  description?: ReactNode;
   /** Optional header-right action (e.g. an "Add" button). */
   action?: ReactNode;
   children: ReactNode;

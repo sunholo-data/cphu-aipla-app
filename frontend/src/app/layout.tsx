@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { EnvironmentBanner } from "@/components/EnvironmentBanner";
 import { LocalModeBanner } from "@/components/LocalModeBanner";
 import { BRANDING } from "@/lib/branding";
 import { AppProviders } from "@/providers/AppProviders";
@@ -21,6 +22,7 @@ export default function RootLayout({
     <html lang="en">
       <body className="font-sans bg-background text-foreground h-screen flex flex-col antialiased">
         <LocalModeBanner />
+        <EnvironmentBanner />
         <div className="flex-1 min-h-0 flex flex-col overflow-auto">
           <AppProviders>{children}</AppProviders>
         </div>

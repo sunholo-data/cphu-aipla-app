@@ -39,6 +39,7 @@ const fetchMock = vi.fn();
 vi.stubGlobal("fetch", fetchMock);
 
 import { AnonymousGroupAuthProvider } from "@/contexts/AnonymousGroupAuthProvider";
+import { resetEnvironmentCache } from "@/lib/environment";
 
 function wrap(node: ReactNode) {
   return <AnonymousGroupAuthProvider>{node}</AnonymousGroupAuthProvider>;
@@ -189,5 +190,104 @@ describe("/group page — typed error rendering", () => {
     expect(
       screen.getByRole("button", { name: /^Tilslut \/ Join$/ }),
     ).not.toBeDisabled();
+  });
+});
+
+// --- Environment mix-up (2026-08-04) -------------------------------------
+// Group codes live in each environment's own Firestore, so a dev code typed
+// into test 401s with the same "code not found" a revoked code gives. A
+// teacher lost two hours to that. Two mitigations are pinned here: the join
+// LINK carries the environment, and the not-found error names the site the
+// student is actually on.
+
+describe("/group page — environment mix-up mitigations", () => {
+  beforeEach(() => {
+    resetEnvironmentCache();
+    window.history.replaceState({}, "", "/group");
+  });
+
+  it("prefills the code from a join link's ?code=", async () => {
+    window.history.replaceState({}, "", "/group?code=Striped-Mouse-49");
+    const Page = await importPage();
+    render(wrap(<Page />));
+
+    await waitFor(() =>
+      // Normalised to lowercase — codes are minted lowercase and the input
+      // is CSS-lowercased, so a copied link with odd casing still matches.
+      expect(screen.getByLabelText(/group code/i)).toHaveValue(
+        "striped-mouse-49",
+      ),
+    );
+  });
+
+  it("leaves the field empty when there is no ?code=", async () => {
+    const Page = await importPage();
+    render(wrap(<Page />));
+
+    expect(screen.getByLabelText(/group code/i)).toHaveValue("");
+  });
+
+  it("names the current site when a code is not found", async () => {
+    fetchMock.mockImplementation((url: string) => {
+      if (String(url).includes("/api/environment")) {
+        return Promise.resolve({
+          ok: true,
+          json: async () => ({
+            env: "test",
+            projectId: "aipla-test-2026",
+            version: "v0.1.5",
+          }),
+        } as Response);
+      }
+      return Promise.resolve({
+        ok: false,
+        status: 401,
+        json: async () => ({ detail: "group not found" }),
+      } as Response);
+    });
+
+    const Page = await importPage();
+    render(wrap(<Page />));
+    fireEvent.change(screen.getByLabelText(/group code/i), {
+      target: { value: "striped-mouse-49" },
+    });
+    await act(async () => {
+      fireEvent.click(screen.getByRole("button", { name: /join/i }));
+    });
+
+    expect(
+      await screen.findByText(/codes only work on the site they were created on/i),
+    ).toBeInTheDocument();
+    expect(screen.getByText(/you are on TEST/i)).toBeInTheDocument();
+  });
+
+  it("omits the site hint when the backend cannot say where we are", async () => {
+    fetchMock.mockImplementation((url: string) => {
+      if (String(url).includes("/api/environment")) {
+        return Promise.reject(new Error("offline"));
+      }
+      return Promise.resolve({
+        ok: false,
+        status: 401,
+        json: async () => ({ detail: "group not found" }),
+      } as Response);
+    });
+
+    const Page = await importPage();
+    render(wrap(<Page />));
+    fireEvent.change(screen.getByLabelText(/group code/i), {
+      target: { value: "striped-mouse-49" },
+    });
+    await act(async () => {
+      fireEvent.click(screen.getByRole("button", { name: /join/i }));
+    });
+
+    // The typed error still shows; the unverifiable half stays quiet.
+    expect(
+      await screen.findByText(/code not found, expired, or revoked/i),
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByText(/codes only work on the site/i),
+    ).not.toBeInTheDocument();
   });
 });

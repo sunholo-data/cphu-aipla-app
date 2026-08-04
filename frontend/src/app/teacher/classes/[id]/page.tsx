@@ -12,6 +12,7 @@ import {
   Download,
   ExternalLink,
   FileText,
+  Link as LinkIcon,
   MessageSquare,
   Plus,
   Settings,
@@ -53,6 +54,9 @@ export default function TeacherClassDetailPage() {
   >("loading");
   const { toast, showToast } = useToast();
   const [minting, setMinting] = useState(false);
+  // Read after mount — the server render has no window, and the value must be
+  // the address THIS teacher is on, not one baked at build time.
+  const [joinOrigin, setJoinOrigin] = useState("");
   const [confirmResetCode, setConfirmResetCode] = useState<string | null>(null);
   const [resetting, setResetting] = useState(false);
   // Insights (4 BigQuery queries) are deferred — load on demand so opening a
@@ -91,6 +95,10 @@ export default function TeacherClassDetailPage() {
   useEffect(() => {
     if (id) void refresh();
   }, [id, refresh]);
+
+  useEffect(() => {
+    setJoinOrigin(window.location.origin);
+  }, []);
 
   // Refresh recent sessions alongside the class. Runs whenever id changes.
   useEffect(() => {
@@ -206,6 +214,16 @@ export default function TeacherClassDetailPage() {
     showToast(`Copied ${code}`, 2500);
   }
 
+  // A bare code doesn't say WHICH AIPLA it belongs to, and the three
+  // deployments differ only by an opaque Cloud Run hostname — a teacher lost
+  // two hours on 2026-08-04 handing out dev codes that students typed into
+  // test, where every join 401s. The link carries the environment with it.
+  function handleCopyJoinLink(code: string) {
+    const link = `${window.location.origin}/group?code=${encodeURIComponent(code)}`;
+    void navigator.clipboard?.writeText(link).catch(() => {});
+    showToast(`Copied join link for ${code}`, 2500);
+  }
+
   async function handleResetSession(code: string) {
     setResetting(true);
     try {
@@ -281,6 +299,17 @@ export default function TeacherClassDetailPage() {
       <LiveClassView classId={cls.classId} />
       <SettingsSection
         title="Groups"
+        description={
+          <>
+            Students join at{" "}
+            <code className="rounded bg-muted px-1 py-0.5 font-mono text-xs">
+              {joinOrigin || "…"}/group
+            </code>
+            . Codes work <strong>only</strong> on this address — a code from
+            another AIPLA site will be rejected. &ldquo;Copy join link&rdquo;
+            hands out the address and the code together.
+          </>
+        }
         action={
           <button
             type="button"
@@ -323,7 +352,17 @@ export default function TeacherClassDetailPage() {
                   <div className="flex items-center gap-1">
                     <button
                       type="button"
+                      onClick={() => handleCopyJoinLink(code)}
+                      title={`${joinOrigin}/group?code=${code} — the address and the code together, so students can't land on the wrong AIPLA site`}
+                      className="flex items-center gap-1 rounded border border-border px-2 py-1 text-xs font-medium hover:bg-accent"
+                    >
+                      <LinkIcon className="h-3.5 w-3.5" aria-hidden="true" />
+                      Copy join link
+                    </button>
+                    <button
+                      type="button"
                       onClick={() => handleCopyCode(code)}
+                      title="Just the code — the student must already be on the right site"
                       className="flex items-center gap-1 rounded border border-border px-2 py-1 text-xs font-medium hover:bg-accent"
                     >
                       <Copy className="h-3.5 w-3.5" aria-hidden="true" />

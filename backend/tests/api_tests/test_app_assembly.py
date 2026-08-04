@@ -156,6 +156,10 @@ AUTH_GUARDED: list[tuple[str, str]] = [
 ANONYMOUS_ROUTES: list[tuple[str, str]] = [
     ("/api/auth/group/join", "POST"),
     ("/api/auth/group/refresh", "POST"),
+    # The frontend's environment banner reads this from the /group join page,
+    # where nobody is signed in. Guarding it would blank the banner on exactly
+    # the surface the dev-code-typed-into-test incident happened on.
+    ("/api/environment", "GET"),
 ]
 
 
@@ -207,6 +211,26 @@ def test_anonymous_routes_stay_unguarded(assembled_app):
         f"{method} {path}" for path, method in ANONYMOUS_ROUTES if _route_has_auth_guard(assembled_app, path, method)
     ]
     assert not wrongly_guarded, f"anonymous endpoints unexpectedly gained an auth guard: {wrongly_guarded}"
+
+
+def test_environment_endpoint_is_public_and_answers(assembled_app):
+    """``/api/environment`` backs the UI's environment banner.
+
+    Public (the join page has no signed-in user) and it must actually return a
+    known env name — a banner that can't name the environment is the state that
+    let dev codes be typed into test for two hours on 2026-08-04.
+    """
+    from fastapi.testclient import TestClient
+
+    from config.environment import KNOWN_ENVIRONMENTS
+
+    method_map = _route_method_map(assembled_app)
+    assert "/api/environment" in method_map
+    assert "GET" in method_map["/api/environment"]
+
+    body = TestClient(assembled_app).get("/api/environment").json()
+    assert body["env"] in KNOWN_ENVIRONMENTS
+    assert set(body) == {"env", "projectId", "version"}
 
 
 def test_health_endpoint_is_public(assembled_app):

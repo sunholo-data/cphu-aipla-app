@@ -21,7 +21,9 @@ import { useEffect, useState } from "react";
 
 import { AppFooter } from "@/components/AppFooter";
 import { useAnonymousGroupAuth } from "@/contexts/AnonymousGroupAuthProvider";
+import { useEnvironment } from "@/hooks/useEnvironment";
 import { isAnonymousGroupAuthMode } from "@/lib/anonymousGroupAuth";
+import { environmentLabel } from "@/lib/environment";
 import { isLocalMode } from "@/lib/localMode";
 
 // LOCAL_MODE convenience: the seeded group code from
@@ -59,6 +61,17 @@ function GroupJoinForm() {
   const { status, error, join } = useAnonymousGroupAuth();
   const router = useRouter();
   const [code, setCode] = useState("");
+
+  // Prefill from `?code=` so the teacher can hand out a whole join LINK
+  // instead of a bare code. The link carries the environment with it, which
+  // a code on a whiteboard cannot — the 2026-08-04 dev-code-on-test incident.
+  // Read from window rather than useSearchParams(): this page is statically
+  // rendered, and useSearchParams() would force a Suspense/CSR bail-out.
+  // Prefill only, never auto-join — the student still presses the button.
+  useEffect(() => {
+    const fromLink = new URLSearchParams(window.location.search).get("code");
+    if (fromLink) setCode(fromLink.trim().toLowerCase());
+  }, []);
 
   useEffect(() => {
     if (status === "joined") {
@@ -202,12 +215,42 @@ function ErrorBlock({
       body = `Couldn't reach the server. ${error.message}`;
   }
   return (
-    <p
-      id="group-error"
-      role="alert"
-      className="text-sm text-destructive"
-    >
-      {body}
+    <div id="group-error" role="alert" className="flex flex-col gap-1.5">
+      <p className="text-sm text-destructive">{body}</p>
+      {error.kind === "unknown_or_revoked" && <WrongSiteHint />}
+    </div>
+  );
+}
+
+/**
+ * The "code not found" answer is indistinguishable, from the student's side,
+ * between a revoked code and a code from a DIFFERENT AIPLA deployment — group
+ * codes live in each environment's own Firestore, and the three sites differ
+ * only by an opaque hostname. That second case cost a teacher two hours on
+ * 2026-08-04, so name the site they are actually on and let them compare.
+ */
+function WrongSiteHint() {
+  const info = useEnvironment();
+  const [host, setHost] = useState("");
+
+  useEffect(() => setHost(window.location.host), []);
+
+  // Nothing to compare against if the backend didn't answer; and LOCAL_MODE
+  // has exactly one site, so there is no mix-up to warn about.
+  if (!info || info.env === "local") return null;
+
+  const where = environmentLabel(info.env).tag;
+
+  return (
+    <p className="rounded border border-border bg-muted px-2 py-1.5 text-xs text-muted-foreground">
+      Koder virker kun på den udgave af siden, de er lavet på. Du er på{" "}
+      <strong>{where}</strong> ({host}). Tjek med din lærer, at det er den
+      rigtige adresse.
+      <br />
+      <span className="opacity-70">
+        (Codes only work on the site they were created on. You are on {where} (
+        {host}). Check the address with your teacher.)
+      </span>
     </p>
   );
 }

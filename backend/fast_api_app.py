@@ -245,6 +245,25 @@ async def local_mode_status():
     }
 
 
+# --- Environment identity (public, no auth required) ---
+# The frontend's EnvironmentBanner reads this to tell the user WHICH
+# deployment they are looking at. Public and unauthenticated on purpose: the
+# student join page (/group) is the surface that most needs it, and no one is
+# signed in there. Nothing secret is exposed — the project id is already
+# visible in the service URL.
+#
+# Resolved per request, never baked at build time: prod runs the same image
+# test built (build-once promotion), so a compiled-in label would be a lie.
+# See backend/config/environment.py.
+
+
+@app.get("/api/environment")
+async def environment():
+    from config.environment import environment_info
+
+    return environment_info()
+
+
 # --- Custom endpoints (beyond ADK's built-in agent routes) ---
 
 import json  # noqa: E402
