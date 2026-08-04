@@ -69,6 +69,48 @@ URLs.
   - **Public, no auth** (matches the public-skills posture). Speaks Streamable HTTP — point a ChatGPT remote connector or Claude Desktop `mcp-remote` here, no tunnel.
   - Offers the public skills as tools **and** the sims as `ui://` MCP Apps (`show_boldkast|kinebot|led_planck`; artefact HTML lazily fetched from the sandbox via `MCP_SANDBOX_URL`).
   - Smoke: `REQUIRE_SIMS=1 ./scripts/smoke-deployed-mcp.sh dev` → initialize + sims listed + `ui://` readable. (Visual render is host-dependent — Claude Desktop is currently blocked by upstream claude-ai-mcp#165; ChatGPT/MCP Inspector render reliably.)
+## Custom domains — `ku.dk` (provisioned 2026-08-03, DNS not yet requested)
+
+UCPH granted four names. Each env has ONE global external Application Load
+Balancer; the app and the sandbox share its IP pair and are split by **Host
+header** (a distinct hostname is a distinct origin, so ADR-013 holds without a
+second address).
+
+| Name | Env | A | AAAA |
+|---|---|---|---|
+| `aipla.ku.dk` | prod | `8.233.216.35` | `2600:1901:0:faa7::` |
+| `aipla-sandbox.ku.dk` | prod | `8.233.216.35` | `2600:1901:0:faa7::` |
+| `aipla-test.ku.dk` | test | `136.68.144.79` | `2600:1901:0:e627::` |
+| `aipla-test-sandbox.ku.dk` | test | `136.68.144.79` | `2600:1901:0:e627::` |
+
+Addresses are reserved and anycast — they do not change. **UCPH IT needs only
+these A/AAAA records: no CNAME, no TXT, no ownership-verification record, and
+nothing at `ku.dk` itself.**
+
+**Why an ALB and not a Cloud Run domain mapping:** a mapping needs Google Search
+Console ownership verification, which for a subdomain means a TXT at the name —
+and a CNAME cannot coexist with a TXT at the same name (RFC 1034). The
+alternative is getting UCPH's root-domain owners into a Search Console property.
+A Google-managed cert on an ALB validates by the name simply *resolving* to the
+LB, so none of that applies.
+
+**Status:** all four certs `PROVISIONING` — correct, and they issue by themselves
+once the records resolve. One cert **per hostname**, deliberately: a managed cert
+stays PROVISIONING until every domain on it validates, so a combined cert would
+let a missing sandbox record hold the frontend hostage.
+
+```bash
+gcloud compute ssl-certificates list --global --project=aipla-prod-2026 \
+  --format="table(name,managed.status)"
+```
+
+**After the certs go ACTIVE**, flip `mcp_sandbox_url` in the env's tfvars to the
+ku.dk sandbox origin and re-apply, then cut a tag / promote — the sandbox reads
+`ALLOWED_HOST_ORIGINS` at *deploy* time, so sims stay blocked on the new origin
+until it redeploys. Firebase `authorized_domains` is a live config change and
+needs no redeploy. Both origins (run.app and ku.dk) are kept authorized
+throughout; dropping run.app would break every smoke script and the promote path.
+
 ## AIPLA — test (`aipla-test-2026`, region `europe-north1`) — cut 2026-07-27 (v0.1.0)
 
 - **Frontend (public, multi-container):** https://aipla-v01-frontend-y2bmxayxca-lz.a.run.app

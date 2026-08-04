@@ -39,6 +39,35 @@ The damage was contained only by luck of timing: prod had no users, because the 
 
 `34edc2b` closed (1) with `state-guard.tf` and `scripts/tf.sh`. This doc closes (2) and (3).
 
+## Progress — 2026-08-04
+
+The incident writeup is [INFRA-1](../../../ops/incidents/infra-1-prod-destroyed-by-varfile-mismatch.md);
+this doc remains the plan for the two structural items it does not close.
+
+**Landed and verified:**
+
+- Terraform CI proven end-to-end on **both** envs (builds `e0b3e75a` test, `e09f7d2a` prod): fmt → init → validate → plan → apply-gate → harden → posture. Running it for real found two missing roles that review had not.
+- `roles/editor` removed via an authoritative empty binding — **test now reports `held by nobody`**, after the purpose-built resource proved inert (`service_accounts = {}`).
+- Non-Terraform-representable hardening moved into the pipeline (`harden` step) rather than left as a documented manual step.
+- `scripts/check-iam-posture.sh` — asserts posture against deployed reality, in CI and locally.
+- Both envs past bootstrap; prod recovered; test applied in one pass.
+
+**Written but NOT applied — blocked, deliberately:**
+
+`project_owners` (the authoritative owner list that degrades `m@sunholo.com`) is
+committed and its break-glass precondition is tested, but **it must not be
+applied until someone has actually authenticated as
+`mark.edmondson@ind.ku.dk`**. That account sits behind UCPH IT processes and its
+usability is unconfirmed. With no parent org, degrading the everyday account
+against an unusable break-glass is unrecoverable.
+
+This is the doc's own "verify the escape hatch" criterion doing its job — the
+gate is working, not stalling. The Terraform precondition prevents *removing*
+break-glass from the list; it cannot tell whether the account behind it works.
+
+**Also still open:** the bootstrap/env split itself, and secret bootstrap, which
+remains the one genuine laptop-side gap in the CI story.
+
 ## Current State (post-`34edc2b`)
 
 | Control | Status |

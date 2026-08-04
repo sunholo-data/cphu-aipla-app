@@ -15,6 +15,27 @@ environment see [prod-cut.md](prod-cut.md); this is the routine path.
 | **test** | `v*` git tag | `git tag -a vX.Y.Z -m "…" && git push origin vX.Y.Z` | Rebuild of both containers from the tag |
 | **prod** | manual | `make promote VERSION=vX.Y.Z FROM=test TO=prod GO=1` | **Copies** test's tested backend digest; rebuilds only the frontend, from the tag |
 
+Those three routes ship **code**. Infrastructure is a fourth, separate route —
+nothing above ever runs Terraform:
+
+| What | Trigger | Command | Applies? |
+|---|---|---|---|
+| **infra plan** | push to `dev` touching `infrastructure/env/**` | automatic | Never. Read-only, and the drift detector this layer went without until 2026-08-03 |
+| **infra apply** | manual | `make tf-apply ENV=test\|prod GO=1` | Yes — the trigger plans and stops unless the run passes `_CONFIRM=APPLY` |
+
+Both run in Cloud Build as `aipla-terraform@<project>`, an identity separate from
+the app's `aipla-v6@`, with enumerated roles. **A deploy never changes
+infrastructure, and a push never applies it** — so pending infra changes sit
+visible in every plan build until someone deliberately applies them. See
+[infrastructure/env/README.md](../../../infrastructure/env/README.md).
+
+`scripts/tf.sh <env> <action>` runs Terraform from a laptop and exists for the
+two cases CI cannot cover: **bootstrap** (the CI triggers are themselves
+Terraform resources, so a fresh env has nothing to run them) and **recovery**.
+Never hand-run `terraform init`/`apply` in that directory — a `-var-file` that
+disagrees with the initialised backend destroyed prod on 2026-08-03
+([INFRA-1](../incidents/infra-1-prod-destroyed-by-varfile-mismatch.md)).
+
 `dev` is the only branch in the repo. There is no `test` or `prod` branch —
 they were deleted 2026-07-30 after two months of sitting at the fork's bootstrap
 commit and causing a wrong "test/prod were never deployed" conclusion. **Never
