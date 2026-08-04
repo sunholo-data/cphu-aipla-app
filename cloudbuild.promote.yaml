@@ -29,6 +29,15 @@ substitutions:
   # Frontend rebuild needs the target env's baked-in config. Terraform-managed
   # per target trigger; defaults keep `gcloud builds submit` sane for testing.
   _MCP_SANDBOX_URL: 'https://aipla-v01-sandbox-wgwhd7mspa-lz.a.run.app/sandbox.html'
+  # The target env's own public origin, advertised to external MCP hosts as the
+  # sims' widget domain. MUST be re-stamped on every promote, like APP_VERSION:
+  # `services update` preserves existing env vars, so prod kept whatever it was
+  # first deployed with — and until 2026-08-04 cloudbuild.yaml hardcoded the DEV
+  # url for every env. Result: prod told ChatGPT to render its sims under dev's
+  # origin, and no promote could ever fix it because no promote set the var.
+  # No default: the guard below fails the build rather than let a promote stamp
+  # a wrong origin onto the target.
+  _MCP_WIDGET_DOMAIN: ''
 
 tags: ['${_TARGET_PROJECT}', '${_SERVICE_NAME}', 'promote']
 
@@ -47,7 +56,14 @@ steps:
       - |
         set -euo pipefail
         if [ -z "${_VERSION}" ]; then echo "FATAL: _VERSION is required"; exit 1; fi
+        # A promote that can't name the target's own origin would stamp an empty
+        # (or another env's) widget domain onto it. Refuse rather than guess —
+        # this is the variable prod was silently wrong on for two months.
+        if [ -z "${_MCP_WIDGET_DOMAIN}" ]; then
+          echo "FATAL: _MCP_WIDGET_DOMAIN is required (terraform sets it from var.frontend_url)"; exit 1
+        fi
         echo "Promoting ${_VERSION}: ${_SOURCE_PROJECT} -> ${_TARGET_PROJECT}"
+        echo "Target widget domain: ${_MCP_WIDGET_DOMAIN}"
 
   # --- Backend: COPY the tested image by digest (no rebuild) ---
   # NOTE (2026-07-30): this step used `gcloud artifacts docker images copy`,
@@ -130,12 +146,20 @@ steps:
           --image=${_REGION}-docker.pkg.dev/${_TARGET_PROJECT}/${_REPO}/${_SERVICE_NAME}/ui:${_VERSION} \
           --container=sidecar \
           --image=${_REGION}-docker.pkg.dev/${_TARGET_PROJECT}/${_REPO}/${_SERVICE_NAME}/backend@$$DIGEST \
-          --update-env-vars=APP_VERSION=${_VERSION}
-        # ^ APP_VERSION must be re-stamped on the PROMOTED revision: the backend
-        # image is copied from test, where it was deployed with test's build
-        # value, and a promote that swapped images without this would leave prod
-        # reporting the wrong version on every chat-log row. --update-env-vars
-        # (not --set-env-vars) so the rest of the service's env survives.
+          --update-env-vars=APP_VERSION=${_VERSION},MCP_WIDGET_DOMAIN=${_MCP_WIDGET_DOMAIN}
+        # ^ Both must be re-stamped on the PROMOTED revision, for the same
+        # reason. APP_VERSION: the backend image is copied from test, where it
+        # was deployed with test's build value, so a promote that swapped images
+        # without this would leave prod reporting the wrong version on every
+        # chat-log row. MCP_WIDGET_DOMAIN: `services update` PRESERVES env vars,
+        # so the target keeps whatever it was first deployed with — prod was
+        # advertising dev's origin to external MCP hosts from its env-cut until
+        # 2026-08-04, and every promote silently carried it forward.
+        # --update-env-vars (not --set-env-vars) so the rest of the env survives.
+        #
+        # Rule of thumb for anything added here later: if cloudbuild.yaml sets it
+        # with --set-env-vars from a per-env substitution, the promote path MUST
+        # re-stamp it too, or prod diverges permanently from its own config.
 
   # --- Smoke: fail the promotion if the target isn't healthy ---
   - name: 'gcr.io/google.com/cloudsdktool/cloud-sdk'

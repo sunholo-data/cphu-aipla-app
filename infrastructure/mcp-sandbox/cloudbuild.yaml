@@ -82,7 +82,11 @@ steps:
       #
       # The value was single-valued when this line was written, so the bug was
       # latent until the day a second origin was added.
-      - '--set-env-vars=^@^ALLOWED_HOST_ORIGINS=${_ALLOWED_HOST_ORIGINS}'
+      # '|' not '@': the delimiter must not occur in the value, and while these
+      # origins are URLs (no '@'), the sibling fix in the root cloudbuild.yaml
+      # used ^@^ against a service-account email and split it in half. Same
+      # delimiter in both places, chosen so it is safe for emails AND URLs.
+      - '--set-env-vars=^|^ALLOWED_HOST_ORIGINS=${_ALLOWED_HOST_ORIGINS}'
 
   # --- Smoke probe ---
   # cloud-sdk image has both gcloud + curl. Resolve the service URL after

@@ -271,6 +271,12 @@ resource "google_cloudbuild_trigger" "prod_promote" {
     _REPO            = var.ar_repo
     _SERVICE_NAME    = "aipla-v01-frontend"
     _MCP_SANDBOX_URL = var.mcp_sandbox_url
+    # Re-stamped on every promoted revision. `gcloud run services update`
+    # preserves env vars, so without this the target keeps the value it was
+    # first deployed with — which for prod was DEV's origin (cloudbuild.yaml
+    # hardcoded it for every env until 2026-08-04). The promote guard fails the
+    # build if this is ever empty.
+    _MCP_WIDGET_DOMAIN = var.frontend_url
     # _VERSION is deliberately NOT defaulted here — it is passed per run. A
     # promote without an explicit frozen version is a rebuild, and the
     # pipeline's guard-version step fails the build if it is empty.

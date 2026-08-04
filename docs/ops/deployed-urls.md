@@ -2,19 +2,26 @@
 
 Canonical list of live Cloud Run services, per environment.
 
-## AIPLA release-readiness status (2026-08-04)
+## AIPLA release-readiness status
 
-> **Do not trust the version numbers in this file — run `make deploy-status`.**
-> This doc is hand-maintained and drifts: on 2026-08-04 it still said v0.1.4 for
-> both envs while test had been on v0.1.5 since 2026-08-03, and prod was
-> restored a release behind as a direct result. `make deploy-status` reads the
-> running services and prints the correct promote command.
+> **Version numbers have been REMOVED from this file — run `make deploy-status`.**
+>
+> ```bash
+> make deploy-status   # reads the running services; prints the drift + promote command
+> ```
+>
+> They were written by hand and drifted twice in a single day (2026-08-04): the
+> file said v0.1.4/v0.1.4 while test was on v0.1.5, which is why prod was
+> restored a release behind; the correction to v0.1.5/v0.1.4 was stale again
+> within hours (test v0.1.6, prod v0.1.5). A number that is wrong more often
+> than right is worse than no number — the durable facts stay here, the
+> perishable ones come from the services themselves.
 
 | Environment | Status |
 |---|---|
-| dev | Live |
-| test | Live, **v0.1.5**, smoke green |
-| prod | Live, **v0.1.4** app + v0.1.5 sandbox, smoke green. Restored 2026-08-04 after [INFRA-1](incidents/infra-1-prod-destroyed-by-varfile-mismatch.md) destroyed all 77 Terraform-managed resources; the Artifact Registry repository went with them, taking both images, which is why the service was unstartable. Recovered by promoting v0.1.4 (the version its revision referenced). **Behind test — promote v0.1.5 to level them.** |
+| dev | Live. Deploys on every push to `dev`. |
+| test | Live, smoke green. Reached by pushing a `v*` tag. |
+| prod | Live, smoke green. Reached only by `make promote`. Restored 2026-08-04 after [INFRA-1](incidents/infra-1-prod-destroyed-by-varfile-mismatch.md) destroyed all 77 Terraform-managed resources; the Artifact Registry repository went with them, taking both images, which is why the service was unstartable. Recovered by promoting the version its revision referenced. **Normally trails test — `make deploy-status` says by how much.** |
 
 > The sandbox is versioned INDEPENDENTLY of the app: `aipla-prod-sandbox-release`
 > is tag-fired while the app reaches prod only by promote, so prod can serve a
