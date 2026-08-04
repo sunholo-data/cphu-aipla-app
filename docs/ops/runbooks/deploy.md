@@ -13,7 +13,13 @@ environment see [prod-cut.md](prod-cut.md); this is the routine path.
 |---|---|---|---|
 | **dev** | push to `dev` | `git push origin dev` | Rebuild of both containers from the branch tip |
 | **test** | `v*` git tag | `git tag -a vX.Y.Z -m "…" && git push origin vX.Y.Z` | Rebuild of both containers from the tag |
-| **prod** | manual | `make promote VERSION=vX.Y.Z FROM=test TO=prod GO=1` | **Copies** test's tested backend digest; rebuilds only the frontend, from the tag |
+| **prod** | manual, **or** a `v*` tag held for approval | `make promote VERSION=vX.Y.Z FROM=test TO=prod GO=1` — or `gcloud builds approve <ID>` / the console **Approve** button | **Copies** test's tested backend digest; rebuilds only the frontend, from the tag |
+
+> **prod has two routes into the same pipeline.** The terminal one is fastest;
+> the approval one means shipping never depends on one working laptop. Neither
+> builds anything locally — `make promote` runs `gcloud builds triggers run`, so
+> Cloud Build does the work from the tag either way. See
+> [Promote — two routes, one pipeline](#promote--two-routes-one-pipeline).
 
 Those three routes ship **code**. Infrastructure is a fourth, separate route —
 nothing above ever runs Terraform:
@@ -122,15 +128,50 @@ correct version reference is not health — prod pointed at a perfectly valid
 `v0.1.4` while returning 500, because the images behind it had been deleted with
 the Artifact Registry repository.
 
-### Promote
+### Promote — two routes, one pipeline
 
 Prod is never built from source. It receives the **byte-identical backend image**
-test was verified on, pinned by digest:
+test was verified on, pinned by digest. Both routes below run the same
+`cloudbuild.promote.yaml` in Cloud Build; they differ only in where the human
+decision is made.
+
+**Route A — from a terminal (the fast one):**
 
 ```bash
 make promote VERSION=vX.Y.Z FROM=test TO=prod              # dry-run plan first
 make promote VERSION=vX.Y.Z FROM=test TO=prod GO=1         # run it
 ```
+
+**Route B — without a laptop.** Pushing a `v*` tag also queues a prod promote on
+the `aipla-prod-promote-on-tag` trigger, **held pending approval**. Nothing
+reaches prod until someone approves it — the same decision `GO=1` encodes, in a
+place reachable from a browser or a phone:
+
+```bash
+# List what is waiting, then release it
+gcloud builds list --project=aipla-prod-2026 --region=europe-north1 \
+  --filter='status=PENDING' --format='table(id,substitutions.TAG_NAME,createTime)'
+gcloud builds approve <BUILD_ID> --project=aipla-prod-2026 --region=europe-north1
+```
+
+or click **Approve** in the Cloud Build console. Cutting a release from the
+GitHub web UI and approving in the console needs no working machine at all.
+
+> Approving needs `cloudbuild.builds.approve` — held today only via
+> `roles/owner` (M). Anyone covering a release needs
+> `roles/cloudbuild.builds.approver` on `aipla-prod-2026`, which is the whole
+> point of the route: it can be granted to a second person without granting
+> them a laptop, a checkout, or gcloud auth to push images.
+
+> **Approve only after `aipla-test-release` for that tag is green.** The tag
+> fires both at once, and the promote COPIES the image test builds. Approving
+> early hits the pipeline's `guard-source-image` step, which fails with
+> "`<project>` has not published `vX.Y.Z` yet" — loud and harmless, nothing is
+> deployed, and you re-run after test finishes.
+
+This is **not** a return to the pre-v0.1.3 behaviour where a tag deployed prod
+outright. A tag only *queues* prod. It also leaves an audit trail the terminal
+route never had: who approved which version, and when.
 
 `GO=1` is the confirmation and passes `--yes`. It used to pass neither
 `--dry-run` nor `--yes`, so the script fell through to an interactive prompt

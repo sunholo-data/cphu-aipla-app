@@ -283,6 +283,71 @@ resource "google_cloudbuild_trigger" "prod_promote" {
   }
 }
 
+# prod: the SAME promote pipeline, reachable WITHOUT a laptop.
+#
+# The trigger above is the fast path — `make promote … GO=1` from a terminal —
+# and it stays unapproved so that path is one step, not two. But it is the ONLY
+# way prod moves, which makes a working laptop a dependency of shipping: on
+# holiday, with a dead machine, or with someone else covering, prod is stuck.
+#
+# This trigger closes that. A `v*` tag creates a prod promote build that PAUSES
+# pending approval (Cloud Build's native gate — the same human decision the
+# `GO=1` flag encodes, moved to a place reachable from a browser or a phone).
+# Approve in the console, or:
+#
+#   gcloud builds approve <BUILD_ID> --project=aipla-prod-2026 --region=europe-north1
+#
+# Deliberately NOT a return to v0.1.2's behaviour, where a tag deployed prod
+# outright: the tag only QUEUES prod, and nothing reaches it unapproved. It also
+# gives an audit trail the laptop path never had — who approved which version,
+# and when.
+#
+# Ordering note: the tag fires this and `aipla-test-release` at the same moment,
+# and the promote COPIES the image test builds. Approving before test is green
+# would find no source image — the pipeline's guard-source-image step fails
+# early and loudly rather than half-promoting. Approve after test goes green.
+resource "google_cloudbuild_trigger" "prod_promote_on_tag" {
+  count = var.env == "prod" ? 1 : 0
+
+  project         = var.project_id
+  location        = var.region
+  name            = "aipla-prod-promote-on-tag"
+  description     = "Tag vX.Y.Z queues a prod promote, held for manual approval. The laptop-free path; aipla-prod-promote is the terminal one."
+  service_account = "projects/${var.project_id}/serviceAccounts/${google_service_account.runtime.email}"
+
+  repository_event_config {
+    repository = google_cloudbuildv2_repository.app.id
+    push {
+      tag = "^v.*$"
+    }
+  }
+
+  filename = "cloudbuild.promote.yaml"
+
+  approval_config {
+    approval_required = true
+  }
+
+  substitutions = merge(
+    {
+      _SOURCE_PROJECT  = local.promote_source_project[var.env]
+      _TARGET_PROJECT  = var.project_id
+      _REGION          = var.region
+      _REPO            = var.ar_repo
+      _SERVICE_NAME    = "aipla-v01-frontend"
+      _MCP_SANDBOX_URL = var.mcp_sandbox_url
+      # See prod_promote above — must be re-stamped on every promoted revision.
+      _MCP_WIDGET_DOMAIN = var.frontend_url
+    },
+    {
+      # Unlike the manual trigger, the version is NOT operator-supplied: it is
+      # the tag that fired the build. `$${...}` is TF-escaped so the literal
+      # ${TAG_NAME} reaches Cloud Build.
+      _VERSION = "$${TAG_NAME}"
+    },
+  )
+}
+
 # Runbook step 6, done 2026-07-30 (see docs/ops/runbooks/prod-cut.md):
 #   * cross-project artifactregistry.reader → google_project_iam_member
 #     .promote_source_reader in iam.tf (the one perm copy-backend lacked).

@@ -76,9 +76,31 @@ steps:
   # Replaced with crane, which copies by DIGEST registry-to-registry without
   # pulling layers to local disk — the right tool for "same bytes, new home",
   # and materially faster than docker pull/tag/push for a multi-hundred-MB image.
+  # --- Guard: the source release must actually exist before anything moves ---
+  # A tag fires `aipla-test-release` and `aipla-prod-promote-on-tag` at the same
+  # instant, and the prod one waits for approval. Approve before test has
+  # finished publishing and the copy below has nothing to copy. Fail here, with
+  # a sentence that says what to do, rather than deep in a crane error.
+  - name: 'gcr.io/go-containerregistry/crane:debug'
+    id: 'guard-source-image'
+    waitFor: ['guard-version']
+    entrypoint: sh
+    args:
+      - '-c'
+      - |
+        set -eu
+        SRC="${_REGION}-docker.pkg.dev/${_SOURCE_PROJECT}/${_REPO}/${_SERVICE_NAME}/backend:${_VERSION}"
+        if ! crane digest "$$SRC" >/dev/null 2>&1; then
+          echo "FATAL: ${_SOURCE_PROJECT} has not published ${_VERSION} yet." >&2
+          echo "  $$SRC does not exist." >&2
+          echo "  Wait for the aipla-test-release build of ${_VERSION} to go green, then re-run." >&2
+          exit 1
+        fi
+        echo "Source release ${_VERSION} present in ${_SOURCE_PROJECT}."
+
   - name: 'gcr.io/go-containerregistry/crane:debug'
     id: 'copy-backend'
-    waitFor: ['guard-version']
+    waitFor: ['guard-source-image']
     entrypoint: sh
     args:
       - '-c'
@@ -105,7 +127,10 @@ steps:
   #  cannot be copied — it is rebuilt from the same immutable tag. See the doc.)
   - name: 'gcr.io/cloud-builders/gcloud'
     id: 'get-firebase-config'
-    waitFor: ['guard-version']
+    # Waits on the SOURCE-IMAGE guard, not just guard-version: no point building
+    # and pushing a prod `ui:vX.Y.Z` for a release whose backend was never
+    # published. The guard is one registry lookup, so the serialisation is free.
+    waitFor: ['guard-source-image']
     entrypoint: 'bash'
     args: ['./get-firebase-config.sh']
     env: ['_PROJECT_ID=${_TARGET_PROJECT}']
