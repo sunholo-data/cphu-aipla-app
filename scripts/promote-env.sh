@@ -120,6 +120,13 @@ git ls-remote --exit-code --tags origin "refs/tags/${VERSION}" >/dev/null 2>&1 |
   die "tag ${VERSION} not found on origin — push it first (git push origin ${VERSION})"
 
 if [ "$ASSUME_YES" -eq 0 ]; then
+  # Without a TTY there is nobody to answer, so `read` returns EOF immediately
+  # and the prompt "aborts" for a reason that has nothing to do with intent.
+  # Say so, instead of letting a caller (make, CI, a pipe) read it as a failed
+  # promotion — which is how it presented while prod was down on 2026-08-04.
+  if [ ! -t 0 ]; then
+    die "no TTY to confirm on. Pass --yes (or use: make promote VERSION=… FROM=… TO=… GO=1)."
+  fi
   read -r -p "Promote ${VERSION} ${FROM_ENV} -> ${TO_ENV}? [y/N] " ans
   [ "$ans" = "y" ] || [ "$ans" = "Y" ] || die "aborted."
 fi

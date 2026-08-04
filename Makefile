@@ -274,10 +274,21 @@ FROM ?= test
 TO ?= prod
 VERSION ?=
 GO ?=
+# GO=1 passes --yes, NOT "no flag at all".
+#
+# It used to pass neither --dry-run nor --yes, so the script fell through to its
+# interactive `read -r -p` confirmation. A make recipe has no TTY, so read hit
+# EOF, the answer was empty, and the script correctly aborted — surfacing as a
+# bare `make: *** [promote] Error 1` with the plan printed above it, which reads
+# exactly like the promotion failed rather than like it was never attempted.
+# Found on 2026-08-04 while restoring prod, i.e. the worst possible moment.
+#
+# GO=1 IS the confirmation, same contract as tf-apply. The belt-and-braces
+# "also type y" was never reachable through make anyway.
 promote:
 	@chmod +x scripts/promote-env.sh
 	@test -n "$(VERSION)" || { echo "VERSION is required (e.g. make promote VERSION=v1.1.40)"; exit 1; }
-	@scripts/promote-env.sh --from $(FROM) --to $(TO) --version $(VERSION) $(if $(GO),,--dry-run)
+	@scripts/promote-env.sh --from $(FROM) --to $(TO) --version $(VERSION) $(if $(GO),--yes,--dry-run)
 
 # --- Terraform (infrastructure/env) ---
 #
