@@ -164,11 +164,18 @@ steps:
           --build-arg NEXT_PUBLIC_AIPLA_HELP=${_AIPLA_HELP} \
           -t ${_REGION}-docker.pkg.dev/${_TARGET_PROJECT}/${_REPO}/${_SERVICE_NAME}/ui:${_VERSION} \
           -f frontend/Dockerfile frontend/
-        # ^ Mirrors cloudbuild.yaml's build-frontend arg-for-arg. Both put $ARGS
-        # (the NEXT_PUBLIC_* lines lifted out of the FIREBASE_ENV secret by
-        # get-firebase-config.sh) FIRST, so an explicit flag here wins on a
-        # duplicate — keep it that way, or the two paths resolve the same flag
-        # differently and prod diverges from test for reasons nobody can see.
+        # ^ Mirrors cloudbuild.yaml's build-frontend arg-for-arg. Both expand the
+        # docker_args file (the NEXT_PUBLIC_* lines lifted out of the FIREBASE_ENV
+        # secret by get-firebase-config.sh) FIRST, so an explicit flag here wins
+        # on a duplicate — keep it that way, or the two paths resolve the same
+        # flag differently and prod diverges from test for reasons nobody can see.
+        #
+        # Do NOT write a single-dollar variable reference anywhere in this block,
+        # comments included: Cloud Build resolves those as substitutions before
+        # bash ever sees the script, and an unknown key fails the whole build with
+        # "key in the template is not a valid built-in substitution". Shell
+        # variables need a doubled dollar. A COMMENT naming the args variable
+        # broke the first v0.1.9 promote attempt this way.
 
   - name: 'gcr.io/cloud-builders/docker'
     id: 'push-frontend'

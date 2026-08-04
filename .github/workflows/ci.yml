@@ -86,6 +86,13 @@ jobs:
           python-version: "3.11"
       - name: Refuse local-mode truthy leaks in cloudbuild / tf / workflows
         run: python3 scripts/check_local_mode_safety.py
+      - name: Cloud Build single-dollar shell refs
+        # Cloud Build resolves $NAME in a step script as a SUBSTITUTION before
+        # bash sees it, so an unknown key kills the build at SUBMIT time —
+        # comments included. The promote pipeline is the only path to prod and
+        # runs rarely, so a bug planted there stays invisible while dev and test
+        # stay green. Cost the first v0.1.9 promote attempt on 2026-08-04.
+        run: pip install pyyaml -q && python3 scripts/check-cloudbuild-substitutions.py
       - name: Skill catalogue in sync with .claude/skills
         run: bash scripts/check-skill-catalogue.sh
       - name: Trust-card footgun gate (workspace elements)

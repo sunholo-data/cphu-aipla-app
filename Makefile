@@ -438,6 +438,9 @@ check-skills: ## Verify CLAUDE.md skill catalogue matches .claude/skills/ (CI-ga
 audit-trust-cards: ## Fail if a workspace element pushes to the tutor without a trust card (CI-gated)
 	@bash scripts/audit-trust-cards.sh
 
+check-cloudbuild: ## Fail on $$-unescaped shell vars in Cloud Build steps (CI-gated)
+	@python3 scripts/check-cloudbuild-substitutions.py
+
 # Inline the canonical MCP App guest bridge into every artefact index.html from
 # the single source of truth (infrastructure/mcp-sandbox/bridge/aipla-mcp-bridge.js).
 # Run after editing the bridge. `sim-build-check` is the CI drift guard.
