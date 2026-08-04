@@ -73,7 +73,16 @@ steps:
       - '--port=8080'
       - '--memory=512Mi'
       - '--cpu=1'
-      - '--set-env-vars=ALLOWED_HOST_ORIGINS=${_ALLOWED_HOST_ORIGINS}'
+      # ^@^ CHANGES THE DELIMITER, and it is required here. By default gcloud
+      # splits --set-env-vars on COMMAS, and ALLOWED_HOST_ORIGINS is itself a
+      # comma-separated list (the run.app origin AND the ku.dk one, so both work
+      # during the domain cutover). Without this, gcloud read the second origin
+      # as a second variable with no '=' and failed the whole deploy with
+      # "Bad syntax for dict arg" — build b61db9d2, 2026-08-04.
+      #
+      # The value was single-valued when this line was written, so the bug was
+      # latent until the day a second origin was added.
+      - '--set-env-vars=^@^ALLOWED_HOST_ORIGINS=${_ALLOWED_HOST_ORIGINS}'
 
   # --- Smoke probe ---
   # cloud-sdk image has both gcloud + curl. Resolve the service URL after
