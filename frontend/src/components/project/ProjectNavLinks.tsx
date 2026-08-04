@@ -15,27 +15,34 @@ type ProjectNavLinksProps = {
 
 export function ProjectNavLinks({ pages, variant }: ProjectNavLinksProps) {
   const pathname = usePathname();
-  const links = [{ href: "/project", title: "Overview" }, ...pages.map((page) => ({
+  const links = [{ href: "/project", title: "Overview", depth: 0 }, ...pages.map((page) => ({
     href: `/project/${page.slug}`,
     title: page.title,
+    depth: page.slug.split("/").length - 1,
   }))];
 
   return links.map((link) => {
-    const isActive = pathname === link.href || (link.href !== "/project" && pathname.startsWith(`${link.href}/`));
+    const isCurrent = pathname === link.href;
+    const containsCurrent = link.href !== "/project" && pathname.startsWith(`${link.href}/`);
     const className = variant === "mobile"
       ? `shrink-0 rounded-full border px-3 py-1.5 text-sm ${
-          isActive
+          isCurrent
             ? "border-red-800 bg-red-800 font-medium text-white"
-            : "border-border bg-background text-muted-foreground hover:text-foreground"
+            : containsCurrent
+              ? "border-red-800/40 bg-red-800/5 font-medium text-foreground"
+              : "border-border bg-background text-muted-foreground hover:text-foreground"
         }`
-      : `block rounded-md px-3 py-2 text-sm ${
-          isActive
+      : `block rounded-md py-2 text-sm ${link.depth ? "ml-3 border-l border-border pl-4 pr-3" : "px-3"} ${
+          isCurrent
             ? "bg-accent font-medium text-foreground"
-            : "text-muted-foreground hover:bg-accent hover:text-foreground"
+            : containsCurrent
+              ? "bg-accent/50 font-medium text-foreground"
+              : "text-muted-foreground hover:bg-accent hover:text-foreground"
         }`;
 
     return (
-      <Link key={link.href} href={link.href} className={className} aria-current={isActive ? "page" : undefined}>
+      <Link key={link.href} href={link.href} className={className} aria-current={isCurrent ? "page" : undefined}>
+        {variant === "mobile" && link.depth ? <span aria-hidden="true">↳ </span> : null}
         {link.title}
       </Link>
     );
