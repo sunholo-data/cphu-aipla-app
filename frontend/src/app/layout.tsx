@@ -6,8 +6,19 @@ import { AppProviders } from "@/providers/AppProviders";
 import "./globals.css";
 
 export const metadata: Metadata = {
-  title: BRANDING.appName,
+  metadataBase: new URL("https://aipla.ku.dk"),
+  title: {
+    default: BRANDING.appName,
+    template: `%s — ${BRANDING.appName}`,
+  },
   description: BRANDING.description,
+  alternates: { canonical: "/" },
+  openGraph: {
+    type: "website",
+    siteName: BRANDING.appName,
+    title: BRANDING.appName,
+    description: BRANDING.description,
+  },
   icons: {
     icon: BRANDING.logo.favicon,
   },

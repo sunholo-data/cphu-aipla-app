@@ -29,11 +29,14 @@ inside a 3-year research programme.
 
 ### Source of truth for AIPLA design
 
-**The major scoping location is a separate Quarto site at
-`/Users/mark/Documents/clients/cph-uni`** (public preview at
-<https://www.sunholo.com/aipla/>, internal-team-only URL).
+**The major legacy scoping location is a separate Quarto repository at
+`/Users/mark/Documents/clients/cph-uni`.** Its former public preview is being
+migrated into this app. Public-safe English project copy now lives under
+`frontend/content/project/` and renders at `/project`; detailed product,
+architecture, evaluation, and self-hosting records remain internal working
+material until they are deliberately consolidated.
 
-All AIPLA design lives there — read it, don't re-derive it here:
+Use the legacy source for historical AIPLA design; do not publish it wholesale:
 
 | File | What it contains |
 |---|---|

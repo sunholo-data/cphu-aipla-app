@@ -32,7 +32,14 @@ export function AppFooter() {
         </span>
       </div>
 
-      <nav className="flex gap-3 text-[10px]">
+      <nav className="flex flex-wrap justify-center gap-3 text-[10px]">
+        <Link
+          href="/project"
+          className="underline-offset-2 hover:text-foreground hover:underline"
+        >
+          About AIPLA
+        </Link>
+        <span aria-hidden="true">·</span>
         <Link
           href="/privacy"
           className="underline-offset-2 hover:text-foreground hover:underline"

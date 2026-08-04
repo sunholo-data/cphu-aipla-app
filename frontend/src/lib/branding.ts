@@ -36,7 +36,7 @@ export const BRANDING = {
    *   detailed crest pixelates. */
   logo: {
     /** Browser tab favicon — square. AIPLA "A" on KU-red. */
-    favicon: "/images/logo/sunholo-logo.svg",
+    favicon: "/images/logo/aipla-mark.svg",
     /** Welcome-screen mark. Official KU coat-of-arms SVG. */
     heroAnimated: "/images/logo/ku-logo.svg",
     /** Chat top-bar header (28px). Official KU coat-of-arms — at this
@@ -52,7 +52,7 @@ export const BRANDING = {
 
   /** Contact / community links. AIPLA repo is private at sunholo-data/cphu-aipla-app. */
   contact: {
-    email: "mark@aitanalabs.com",
+    email: "ind@ind.ku.dk",
     githubRepo: "https://github.com/sunholo-data/cphu-aipla-app",
   },
 } as const;

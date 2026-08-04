@@ -74,6 +74,12 @@ export default async function HomePage() {
             >
               Vejledninger <span className="opacity-70">/ Guides</span>
             </Link>
+            <Link
+              href="/project"
+              className="text-sm text-muted-foreground underline-offset-4 hover:text-foreground hover:underline"
+            >
+              About the AIPLA project
+            </Link>
           </div>
         ) : (
           <SignInButton />

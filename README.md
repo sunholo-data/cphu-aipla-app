@@ -36,8 +36,10 @@ and the cloud tiers: [WORKSHOP.md](WORKSHOP.md).
 
 - **Execution design** (file paths, wire shapes, acceptance) → this repo,
   [`docs/design/aipla/SEQUENCE.md`](docs/design/aipla/SEQUENCE.md).
-- **Product & pedagogical design** (ADRs, strands, timeline) → the AIPLA scoping
-  site (public preview: <https://www.sunholo.com/aipla/>).
+- **Public project information** → the app's native `/project` pages, authored
+  from `frontend/content/project/` (English-first migration in progress).
+- **Legacy product and pedagogical scoping material** → the separate AIPLA
+  Quarto repository until its internal design records are fully consolidated.
 - **Working with this repo as an AI agent** → [CLAUDE.md](CLAUDE.md) is the
   authoritative context (identity, gotchas, footguns, ports).
 
