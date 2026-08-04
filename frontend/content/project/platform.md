@@ -15,6 +15,8 @@ The AIPLA application supports teacher-prepared, group-based physics activities.
 
 This page describes the public conceptual architecture. Detailed service configuration, operational runbooks, security incidents, and access-control implementation remain in the engineering repository.
 
+![Diagram showing a teacher preparing an activity, an anonymous student group using its tutor and workbench, visible sharing between those surfaces, and teacher review](/project-diagrams/activity-model.svg)
+
 ## The activity model
 
 The main hierarchy is:
@@ -98,3 +100,5 @@ The platform uses standard web application components and open interaction proto
 Replaceability is a design goal, not a claim that migration is effortless. Identity, data storage, model hosting, research analytics, and institutional operations each require their own review and transition plan.
 
 For the current public deployment and future hosting direction, see [Data, privacy, and hosting](/project/data-and-hosting).
+
+The product choices behind this structure are recorded on [Project decisions](/project/decisions).

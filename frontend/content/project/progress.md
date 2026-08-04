@@ -1,7 +1,7 @@
 ---
-title: "Project progress"
-description: "A maintained public record of platform development, teacher collaboration, research preparation, and next steps."
-eyebrow: "Current work"
+title: "Build timeline"
+description: "A dated public record of how AIPLA progressed from its first connected physics activity to a teacher-authoring, classroom, and research platform."
+eyebrow: "Follow the build"
 owner: "AIPLA project team"
 reviewed: "2026-08-04"
 reviewBy: "2026-09-04"
@@ -9,117 +9,91 @@ status: "Current"
 order: "80"
 nav: "true"
 ---
-# Project progress
+# Build timeline
 
-AIPLA began its current platform-development and classroom-preparation phase in May 2026. This page provides a maintained public view of the work rather than reproducing the internal sprint plan.
+AIPLA's current platform-development phase began in May 2026. This timeline connects visible releases to the questions and decisions that shaped them. It records shipped capabilities, not every commit, and distinguishes delivery from research validation.
 
-Detailed delivery plans, tentative schedules, individual assignments, infrastructure changes, and unresolved research notes remain in project working material until they are suitable for publication.
+For the reasoning behind the platform's shape, read [Project decisions](/project/decisions). Detailed sprint plans and unresolved working notes remain in the repository until they are suitable for publication.
 
-## May 2026: first connected activity
+## 15–21 May 2026 — the first complete activity
 
-The first development milestone established a complete student path for the Boldkast projectile-motion activity:
+**Shipped:** AIPLA's first end-to-end student path paired a Danish physics tutor with the Boldkast projectile-motion workbench. Students could join with a group code, use rendered equations and diagrams, manipulate the simulation, follow progress steps, and see which workbench actions were shared with the tutor. The layout adapted from a two-column desktop view to chat/workbench tabs on a phone.
 
-- group-based joining;
-- a Danish physics tutor;
-- an interactive simulation in a connected workbench;
-- rendered physics notation and diagrams;
-- structured progress steps; and
-- visible sharing of relevant workbench actions with the tutor.
+**What it established:** the core product is an activity, not a chatbot: a learning goal, teacher-prepared context, tutor behaviour, and a connected workbench designed together.
 
-This provided an early example for discussion with physics teachers and established the paired tutor/workbench pattern used by later activities.
+**Decision:** student groups use anonymous join codes; tutors and workbenches exchange only visible, structured activity state.
 
-## May–June 2026: platform foundation
+## 22–30 May 2026 — from demonstration to a class platform
 
-The next phase broadened the platform beyond a single demonstration. Work included:
+**Shipped:** teacher authentication, classes, activity selection and preview, early teacher dashboards, persistent group sessions, and two additional artefact forms: the LED Planck virtual laboratory and KineBot kinematics environment. Work also began on research-scale chat-log and session reporting pipelines.
 
-- teacher authentication and class management;
-- activity configuration and preview;
-- teacher-supplied curriculum and uploaded material;
-- persistent group sessions;
-- document and image use within activities;
-- summary-first teacher review of sessions;
-- separate teacher and research views;
-- voice and tutor-persona options;
-- reviewed interactive artefacts; and
-- operational telemetry and cost controls.
+**What changed:** Boldkast stopped being a special-case demonstration. Common simulation and workspace patterns could support several physics activities and screen sizes.
 
-The LED Planck and KineBot examples expanded the range of interactive activity forms.
+## 1–13 June 2026 — authoring, evidence, and multimodal work
 
-## June–July 2026: authoring and connected workbenches
+**Shipped:** teacher activity creation, teaching personas and styles, curriculum-library grounding, student image upload, classroom audio capture and transcription paths, teacher analytics, researcher access, cost views, and summary-first session reports. Tutor turns could respond to meaningful simulation events, and voice/read-aloud options broadened how activities could be used.
 
-Development then focused on making the platform usable as a flexible teaching environment rather than a collection of fixed demonstrations.
+**What changed:** teachers could begin configuring the learning experience rather than choosing only from fixed examples. Review also expanded beyond raw chat to include activity context and workbench evidence.
 
-Teacher-facing work added:
+**Decision:** teacher and approved researcher access are separate; review begins with usable summaries while preserving traceable evidence where authorised.
 
-- creation and editing of activities;
-- structured elements such as checklists, tables, charts, calculators, and notes;
-- richer document workbenches;
-- activity templates and preview;
-- sharing and branching of activities with provenance;
-- teacher co-pilots that propose changes for explicit approval; and
-- expanded class and cross-class review views.
+## 14–21 June 2026 — documents and controlled assistance
 
-Student-facing work added richer document use, image-based submissions, shared group-session behaviour, and additional interaction between the workbench and tutor.
+**Shipped:** rich document workbenches, parsed PDF and uploaded-content views, narrative summaries combining available session evidence, and the first teacher co-pilot surfaces.
 
-## Deployment and handover readiness
+**What changed:** activities could be grounded in a teacher's own material and give students a document to inspect alongside the tutor.
 
-Development, test, and production environments are now separate. Releases move through automated tests, smoke checks, and an explicit promotion process.
+**Decision:** teacher-facing AI proposes a change and the teacher applies it. It does not silently edit classes or activities.
 
-The platform documentation includes operational runbooks, environment configuration, security controls, and reproducible seeding of maintained activities. This work supports both pilot reliability and eventual handover or institutional hosting changes.
+## 22–30 June 2026 — reusable activity building blocks
 
-The public project website has now moved into the application repository so that project explanation, platform changes, and releases can be reviewed together.
+**Shipped:** structured elements including tables, charts, calculators, notes, checklists, solution fields, and maintained simulations; activity templates and live preview; image-based solution submission; a reusable simulation catalogue; and a first-class activity library. Teachers could publish, adopt, duplicate, and branch activities with provenance. Research views expanded across classes, and artefacts became portable MCP Apps that can also run in compatible external hosts.
 
-## Collaboration with teachers
+**What changed:** AIPLA became an authoring and sharing environment, not a catalogue of three hand-built lessons.
 
-Teacher feedback has shaped the work from the beginning. Topics raised through early dialogue and review include:
+**Decision:** authoring uses bounded, reviewable elements, while reusable activities retain their origin when another teacher adapts them.
 
-- the balance between hints and direct answers;
-- keeping teachers in control of activity design;
-- supporting multiple representations of physics;
-- making simulations part of a learning sequence rather than an isolated toy;
-- allowing activities without simulations;
-- using teachers' own curriculum and laboratory material;
-- showing what information the tutor receives;
-- supporting shared student devices; and
-- making session review useful without overwhelming teachers with raw transcripts.
+## July 2026 — shared sessions and living classroom tools
 
-Teacher workshops and classroom pilots provide the next evidence for deciding which activity types should be refined further.
+**Shipped:** live group-session synchronisation, presence and turn coordination; a common bridge for maintained interactive artefacts; deeper teacher views of group activity; raised-hand and live-class signals; living concept maps; richer curriculum organisation; English and Danish in-app guidance; researcher onboarding; and teacher/researcher evaluation lenses with versioned evidence. The maintained demonstration set also expanded to cover more activity and experiment patterns.
 
-## Research and evaluation preparation
+**What changed:** the platform moved closer to real classroom coordination. Several students could share one group session while a teacher followed activity across the class.
 
-Alongside platform development, the project is preparing task-specific evaluation of AI capabilities in physics. The work distinguishes text, figures, graphs, experimental evidence, tutor behaviour, and interaction with structured activity state.
+**Release milestone:** development, test, and production environments were cut separately, with automated checks and version stamps supporting controlled promotion.
 
-Early evaluation results remain provisional. Public research claims will be released as dated, reproducible snapshots rather than a continuously edited model ranking. See [Evaluation](/project/evaluation).
+## August 2026 — operational readiness and the project site
 
-## Current platform capabilities
+**Shipped to the active development line:** a dedicated Materials area, clearer environment labelling, authentication and role hardening, automated release-promotion improvements, infrastructure backup and access controls, and custom-domain/load-balancer preparation for University of Copenhagen hosting. The public project documentation moved into the application repository so product, research, and website changes can be reviewed together.
 
-As of the review date on this page, the platform supports:
+**What changed:** the work became easier to operate, hand over, and explain as one maintained system. This in-app site now includes a live Boldkast workbench, an updated platform diagram, this timeline, and a public decision record.
 
-- anonymous group-based student access;
-- teacher-created classes and activities;
-- guided tutors grounded in prepared teaching material;
-- interactive simulations alongside conversation;
-- documents, images, and structured workbench elements;
-- teacher preview, session review, and activity sharing;
-- approved research views; and
-- separate dev, test, and production deployment paths.
+## Current capability snapshot
 
-Availability can differ by environment and activity configuration. A capability listed here is not a claim that it has completed classroom research evaluation.
+As of this page's review date, the active platform line includes:
 
-## Next phase
+- anonymous group-based student access and shared group sessions;
+- teacher-created classes, materials, activities, templates, and preview;
+- guided tutors grounded in selected teaching material;
+- simulations, documents, images, concept maps, and structured workbench elements;
+- teacher co-pilots using explicit propose-and-apply actions;
+- activity sharing, adoption, duplication, and branching with provenance;
+- live-class and session-review views;
+- approved cross-class research and evaluation views; and
+- separate development, test, and production release paths.
 
-Priorities for the next stage include:
+Availability can differ by environment, role, activity configuration, and study phase. “Shipped” means implemented on the active application line; it is not a claim of pedagogical effectiveness or completed classroom evaluation.
 
-- teacher workshops and classroom testing;
-- refinement of authoring and review tools based on actual use;
-- completion of privacy, consent, and institutional hosting arrangements for each study phase;
-- analysis of how students use tutors and workbenches together;
-- validated publication of evaluation methods and results;
-- development of reusable teacher resources; and
-- continued preparation for long-term operation within the University of Copenhagen context.
+## Next checkpoints
 
-## Historical planning material
+The next public updates will follow evidence and operating milestones rather than speculative feature dates:
 
-The legacy project site included a detailed 17-week technical contract plan, internal handover assignments, and date-specific backlog. That material remains preserved in the archived source repository, but it is no longer presented as the current public roadmap.
+- teacher workshops and classroom use;
+- changes made in response to teacher and student experience;
+- dated, reproducible evaluation snapshots;
+- privacy, consent, and institutional-hosting decisions for each study phase;
+- reusable teacher resources and maintained example activities; and
+- the move to the `aipla.ku.dk` domain once DNS and institutional checks are complete.
 
-This page is reviewed monthly during active development. Formal project facts and contact details remain on the [University of Copenhagen AIPLA page](https://www.ind.ku.dk/projekter/artificial-intelligence-in-physics-learning-and-assessment-aipla/).
+The old site's detailed 17-week contract plan is preserved in its source history. It is not presented as the current roadmap because tentative dates, named handover assignments, and internal backlog do not all describe the platform as it exists now.
+
+Formal project facts remain on the [University of Copenhagen AIPLA page](https://www.ind.ku.dk/projekter/artificial-intelligence-in-physics-learning-and-assessment-aipla/).

@@ -2,6 +2,7 @@ import type { ReactNode } from "react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 
+import { ProjectArtefactDemo } from "@/components/project/ProjectArtefactDemo";
 import { slugifyProjectHeading } from "@/lib/projectHeadings";
 
 function childText(children: ReactNode): string {
@@ -64,16 +65,24 @@ export function ProjectMarkdown({ children }: { children: string }) {
         thead: ({ children: head }) => <thead className="bg-muted text-foreground">{head}</thead>,
         th: ({ children: cell }) => <th className="border-b border-border px-4 py-3 font-semibold">{cell}</th>,
         td: ({ children: cell }) => <td className="border-b border-border px-4 py-3 align-top leading-6 text-muted-foreground last:border-b-0">{cell}</td>,
-        img: ({ src = "", alt = "" }) => (
-          // eslint-disable-next-line @next/next/no-img-element
-          <img src={src} alt={alt} className="my-7 max-h-72 w-full rounded-xl border border-border bg-muted/30 object-contain p-4" />
-        ),
+        img: ({ src = "", alt = "" }) => {
+          const projectDiagram = typeof src === "string" && src.includes("/project-diagrams/");
+          return (
+            // eslint-disable-next-line @next/next/no-img-element
+            <img
+              src={src}
+              alt={alt}
+              className={`my-7 w-full rounded-xl border border-border bg-muted/30 object-contain p-4 ${projectDiagram ? "max-h-[34rem]" : "max-h-72"}`}
+            />
+          );
+        },
         code: ({ children: code }) => (
           <code className="rounded bg-muted px-1.5 py-0.5 font-mono text-[0.9em] text-foreground">{code}</code>
         ),
         hr: () => <hr className="my-10 border-border" />,
         strong: ({ children: text }) => <strong className="font-semibold text-foreground">{text}</strong>,
         a: ({ href = "", children: label }) => {
+          if (href === "/project/demo/boldkast") return <ProjectArtefactDemo />;
           const external = href.startsWith("http");
           return (
             <a

@@ -60,6 +60,12 @@ Boldkast can support discussion of:
 
 The simulation does not establish those ideas by itself. Learning depends on the predictions, comparisons, explanations, and teacher framing around it.
 
+## Try the workbench
+
+The embedded demonstration below is the maintained Boldkast artefact used by the application. It runs here without a tutor or class session so visitors can inspect the interactive half of the activity directly.
+
+[Open the interactive demonstration](/project/demo/boldkast)
+
 ## What the case study established
 
 Boldkast demonstrated the reusable activity structure that later examples build on: teacher-prepared context, a reviewed interactive artefact, a tutor with activity-specific instructions, structured sharing between surfaces, and group-based access.

@@ -14,6 +14,7 @@ const required = [
   "nav",
 ];
 const validStatuses = new Set(["Current", "Provisional", "Historical"]);
+const embeddedProjectRoutes = new Set(["demo/boldkast"]);
 const failures = [];
 
 function markdownFiles(directory, prefix = "") {
@@ -97,7 +98,7 @@ for (const page of pages) {
   }
 
   for (const match of body.matchAll(/\]\(\/project\/([^#)]+)(?:#[^)]+)?\)/g)) {
-    if (!slugs.has(match[1])) {
+    if (!slugs.has(match[1]) && !embeddedProjectRoutes.has(match[1])) {
       failures.push(`${relativePath}: broken project link /project/${match[1]}`);
     }
   }

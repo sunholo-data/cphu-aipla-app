@@ -24,4 +24,11 @@ describe("ProjectMarkdown", () => {
     );
     expect(slugifyProjectHeading("Læring før automation")).toBe("laering-for-automation");
   });
+
+  it("renders the project demo marker as a maintained artefact panel", () => {
+    render(<ProjectMarkdown>{`[Open the interactive demonstration](/project/demo/boldkast)`}</ProjectMarkdown>);
+
+    expect(screen.getByText(/interactive demonstration is unavailable/i)).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: /group join page/i })).toHaveAttribute("href", "/group");
+  });
 });
