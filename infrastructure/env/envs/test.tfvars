@@ -31,3 +31,8 @@ remove_default_editor = true
 # Daily Parquet export of the raw chat-log tables to GCS. On before the pilot
 # starts collecting (2026-08-14) rather than after.
 enable_chat_logs_backup = true
+# SEQUENCE 1.1.60: authoritative owner list. Removes m@sunholo.com (the everyday
+# shell + the identity agentic tooling runs as) and KEEPS break-glass. Without a
+# parent org, project-level owner is the only escape hatch, so the break-glass
+# entry is load-bearing, not decorative.
+project_owners = ["user:mark.edmondson@ind.ku.dk"]

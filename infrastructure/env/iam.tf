@@ -89,6 +89,59 @@ resource "google_project_iam_binding" "no_editor" {
   members = []
 }
 
+# --- Who may own this project -------------------------------------------------
+#
+# THE WALL, as opposed to the seatbelts. Everything else added on 2026-08-03 —
+# the state guard, scripts/tf.sh, the CI pipeline — makes the destroy-by-typo
+# harder to repeat by that route. None of it stops a credential that simply has
+# the rights, and m@sunholo.com held roles/owner on all three projects: the
+# everyday shell, and the identity agentic tooling runs as.
+#
+# AUTHORITATIVE for roles/owner. `members` is the complete list of owners, so
+# this both removes the everyday account AND keeps break-glass — in one
+# declaration that is reasserted on every apply, rather than a console click
+# nothing would ever re-check.
+#
+# BREAK-GLASS IS NOT OPTIONAL HERE. These projects have NO parent organisation
+# (`gcloud projects describe` returns no parent), so project-level owner is the
+# only escape hatch: there is no org admin to re-grant from. An empty or wrong
+# members list is unrecoverable. Verified present on both test and prod before
+# writing this, and scripts/check-iam-posture.sh asserts it on every run.
+resource "google_project_iam_binding" "owners" {
+  count = length(var.project_owners) > 0 ? 1 : 0
+
+  project = var.project_id
+  role    = "roles/owner"
+  members = var.project_owners
+
+  lifecycle {
+    precondition {
+      condition     = contains(var.project_owners, "user:mark.edmondson@ind.ku.dk")
+      error_message = "project_owners must retain the break-glass owner (user:mark.edmondson@ind.ku.dk). These projects have no parent org, so removing the last owner cannot be undone."
+    }
+  }
+}
+
+# The everyday account keeps exactly what it needs to DRIVE the pipelines it no
+# longer has the power to bypass:
+#   * viewer            — read any resource, which is most of debugging
+#   * builds.editor     — `gcloud builds triggers run`, i.e. make tf-apply and
+#                         make promote. roles/viewer alone does NOT grant
+#                         cloudbuild.builds.create, so degrading to pure viewer
+#                         would take away the CI path along with the danger.
+# It does NOT get projectIamAdmin: that is self-escalating, and an everyday
+# credential that can re-grant itself owner is not degraded in any real sense.
+resource "google_project_iam_member" "operator_baseline" {
+  for_each = length(var.project_owners) > 0 ? toset([
+    "roles/viewer",
+    "roles/cloudbuild.builds.editor",
+  ]) : toset([])
+
+  project = var.project_id
+  role    = each.value
+  member  = "user:m@sunholo.com"
+}
+
 resource "google_project_default_service_accounts" "default" {
   count = var.default_service_accounts_action == "NONE" ? 0 : 1
 

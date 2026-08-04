@@ -69,6 +69,26 @@ variable "frontend_url" {
   default     = ""
 }
 
+variable "project_owners" {
+  type        = list(string)
+  description = <<-EOT
+    AUTHORITATIVE list of roles/owner holders. Setting it removes every owner not
+    named here — including m@sunholo.com, which is the point (SEQUENCE 1.1.60):
+    the everyday shell, and the identity agentic tooling runs as, should not be
+    able to delete an environment. That account is separately granted
+    viewer + cloudbuild.builds.editor so it can still drive the pipelines.
+
+    MUST retain user:mark.edmondson@ind.ku.dk. These projects have no parent
+    organisation, so project-level owner is the only escape hatch — there is no
+    org admin to re-grant from, and an empty list is unrecoverable. A
+    precondition in iam.tf enforces this.
+
+    Empty (the default) leaves project ownership entirely unmanaged, which is
+    the correct posture for dev.
+  EOT
+  default     = []
+}
+
 variable "remove_default_editor" {
   type        = bool
   description = "Strip roles/editor from the project by declaring an AUTHORITATIVE empty binding for that role (iam.tf). Targets the auto-granted <number>-compute@developer editor grant, which AIPLA never uses and which was the single broadest privilege on prod. ONLY set true where the compute default SA is verified to be the sole editor holder — an authoritative binding removes every other holder too. dev off; test/prod on."

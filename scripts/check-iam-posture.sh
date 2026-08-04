@@ -90,13 +90,29 @@ for ENV in "${ENVS[@]}"; do
     fail=1
   fi
 
-  # 4. The everyday account is not an owner. Aspirational until SEQUENCE 1.1.60
-  #    lands the bootstrap/env split — reported as INFO, not FAIL, so this script
-  #    is usable now and tightens later.
+  # 4. The everyday account is not an owner. Enforced since the authoritative
+  #    google_project_iam_binding.owners landed — this is the WALL the rest of
+  #    the 2026-08-03 work only approximates, so it fails rather than informs.
   if echo "${OWNERS}" | grep -q 'm@sunholo.com'; then
-    echo "  INFO m@sunholo.com still holds roles/owner (target: viewer — SEQUENCE 1.1.60)"
+    echo "  FAIL m@sunholo.com holds roles/owner — apply project_owners (SEQUENCE 1.1.60)"
+    fail=1
   else
     echo "  ok   m@sunholo.com is not an owner"
+  fi
+
+  # 5. ...but it must retain what it needs to DRIVE the pipelines. Degrading to
+  #    pure viewer removes cloudbuild.builds.create, which is what
+  #    `gcloud builds triggers run` needs — i.e. it would take away make tf-apply
+  #    and make promote along with the danger. Checked so nobody "tidies up" the
+  #    baseline grants later and silently severs the CI path.
+  OPERATOR_ROLES="$(gcloud projects get-iam-policy "${PROJECT}" \
+    --flatten='bindings[].members' --filter='bindings.members:m@sunholo.com' \
+    --format='value(bindings.role)' 2>/dev/null)"
+  if echo "${OPERATOR_ROLES}" | grep -q 'roles/cloudbuild.builds.editor'; then
+    echo "  ok   m@sunholo.com can still run build triggers"
+  else
+    echo "  FAIL m@sunholo.com lacks roles/cloudbuild.builds.editor — make tf-apply / make promote will 403"
+    fail=1
   fi
 done
 
