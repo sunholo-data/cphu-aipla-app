@@ -90,6 +90,11 @@ locals {
     _ADMIN_SEED_ALLOWED_SAS            = google_service_account.runtime.email
     _IMAGE_TAG                         = "$${TAG_NAME}"
     _MCP_SANDBOX_URL                   = var.mcp_sandbox_url
+    # This env's own public origin, advertised to external MCP hosts as the
+    # sims' widget domain. Stays on the run.app URL until the ku.dk certs are
+    # ACTIVE and the app is actually served there — advertising a domain that
+    # does not yet resolve would be worse than advertising the old one.
+    _MCP_WIDGET_DOMAIN = var.frontend_url
     # Preview feature flags: dev='1', test/prod='' until AR/JB's framework lands.
     _AUTHORING_COPILOT = var.preview_feature_flags ? "1" : ""
     _CONCEPT_MAP       = var.preview_feature_flags ? "1" : ""

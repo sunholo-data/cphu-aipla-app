@@ -24,6 +24,12 @@ substitutions:
   # Admin seed allowlist — SA emails permitted to call
   # /api/admin/seed-platform-skills. Terraform-managed per env.
   _ADMIN_SEED_ALLOWED_SAS: terraform_managed
+  # This env's own public frontend origin, advertised to external MCP hosts as
+  # the sims' widget domain (backend/protocols/sim_apps.py). Default keeps dev
+  # working without a substitution; test/prod are terraform_managed from
+  # var.frontend_url. It was hardcoded to the dev URL for every env until
+  # 2026-08-04 — prod told ChatGPT to render its sims under dev's origin.
+  _MCP_WIDGET_DOMAIN: 'https://aipla-v01-frontend-wgwhd7mspa-lz.a.run.app'
   # Sprint 1.7 M4: separate-origin sandbox proxy URL for MCP App
   # iframes. Baked into the Next.js bundle at build time
   # (NEXT_PUBLIC_*). Defaults to the dev sandbox URL so this trigger
@@ -340,7 +346,12 @@ steps:
       # is this env's own public frontend origin. Unset => domain omitted (CSP is
       # always declared in code; only the domain is env-gated). Per-env: set the
       # test/prod frontend origin when those are cut.
-      - '--set-env-vars=MCP_WIDGET_DOMAIN=https://aipla-v01-frontend-wgwhd7mspa-lz.a.run.app'
+      # WAS HARDCODED to the dev origin, so test and prod both advertised DEV as
+      # their widget domain — the "set the test/prod frontend origin when those
+      # are cut" note above was never actioned. Now terraform_managed per env
+      # (cloudbuild.tf sets it from var.frontend_url), which also makes the
+      # eventual switch to aipla.ku.dk a one-line tfvars change.
+      - '--set-env-vars=MCP_WIDGET_DOMAIN=${_MCP_WIDGET_DOMAIN}'
 
   # --- Post-deploy smoke: fail the build if any critical endpoint is not 200 ---
   # Per CLAUDE.md: no feature lands with manual-only verification. This step
