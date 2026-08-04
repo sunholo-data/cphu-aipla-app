@@ -2,7 +2,25 @@
 
 Canonical list of live Cloud Run services, per environment.
 
-## AIPLA release-readiness status (2026-07-30)
+## AIPLA release-readiness status (2026-08-04)
+
+> **Do not trust the version numbers in this file — run `make deploy-status`.**
+> This doc is hand-maintained and drifts: on 2026-08-04 it still said v0.1.4 for
+> both envs while test had been on v0.1.5 since 2026-08-03, and prod was
+> restored a release behind as a direct result. `make deploy-status` reads the
+> running services and prints the correct promote command.
+
+| Environment | Status |
+|---|---|
+| dev | Live |
+| test | Live, **v0.1.5**, smoke green |
+| prod | Live, **v0.1.4** app + v0.1.5 sandbox, smoke green. Restored 2026-08-04 after [INFRA-1](incidents/infra-1-prod-destroyed-by-varfile-mismatch.md) destroyed all 77 Terraform-managed resources; the Artifact Registry repository went with them, taking both images, which is why the service was unstartable. Recovered by promoting v0.1.4 (the version its revision referenced). **Behind test — promote v0.1.5 to level them.** |
+
+> The sandbox is versioned INDEPENDENTLY of the app: `aipla-prod-sandbox-release`
+> is tag-fired while the app reaches prod only by promote, so prod can serve a
+> newer sandbox than app. Deliberate — see the note in `infrastructure/env/cloudbuild.tf`.
+
+## Historical status (2026-07-30)
 
 | Environment | Status | Release gate |
 |---|---|---|

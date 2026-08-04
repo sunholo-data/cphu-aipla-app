@@ -1,4 +1,4 @@
-.PHONY: tf-plan tf-apply tf-local tf-fmt check-iam-posture check-domains dev dev-local dev-recompile dev-status dev-stop proxy-check logs cloud-logs cloud-errors cloud-build verify-chat-logs smoke-session-persistence smoke-chat-resume smoke-curriculum-content smoke-teacher-cli help cli-install cli-reinstall cli-uninstall cli-doctor cli-selftest-mock cli-selftest-live cli-selftest seed seed-job seed-demo-codes force-seed-demo reset-group-state provision-curriculum-rag provision-agent-engine copy-docparse-secret seed-curriculum backfill-curriculum-content seed-curriculum-folders check-auth-config migrate-clear-persona-voice-override docs-linkcheck check-skills sim-build sim-build-check guides guides-publish guide-screens seed-guide-corpus guide-staleness
+.PHONY: tf-plan tf-apply tf-local tf-fmt check-iam-posture check-domains deploy-status dev dev-local dev-recompile dev-status dev-stop proxy-check logs cloud-logs cloud-errors cloud-build verify-chat-logs smoke-session-persistence smoke-chat-resume smoke-curriculum-content smoke-teacher-cli help cli-install cli-reinstall cli-uninstall cli-doctor cli-selftest-mock cli-selftest-live cli-selftest seed seed-job seed-demo-codes force-seed-demo reset-group-state provision-curriculum-rag provision-agent-engine copy-docparse-secret seed-curriculum backfill-curriculum-content seed-curriculum-folders check-auth-config migrate-clear-persona-voice-override docs-linkcheck check-skills sim-build sim-build-check guides guides-publish guide-screens seed-guide-corpus guide-staleness
 
 # Seed SKILL.md templates -> Firestore. Since P1.3 the Cloud Build deploy runs
 # this automatically via the `aipla-seed-skills` Cloud Run job (see
@@ -348,6 +348,12 @@ check-iam-posture:
 # works, and every simulation is blocked.
 check-domains:
 	@./scripts/check-custom-domains.sh $(ENVS)
+
+# What is ACTUALLY running where. STEP 0 of any promotion: the version to
+# promote comes from here, never from a doc or a runbook example — both drift,
+# and on 2026-08-04 both said v0.1.4 while test had been on v0.1.5 for a day.
+deploy-status:
+	@./scripts/deploy-status.sh $(ENVS)
 
 tf-local:
 	@test -n "$(ENV)" || { echo "ENV is required, e.g. make tf-local ENV=prod ACTION=plan"; exit 1; }

@@ -103,12 +103,45 @@ simultaneously — prod running code test had never been verified on.
 
 ## prod — promote the tested artifact
 
+### Step 0 — ask which version, never assume it
+
+```bash
+make deploy-status          # what test and prod are ACTUALLY running
+```
+
+**Take the version from here, not from this runbook and not from
+[deployed-urls.md](../deployed-urls.md).** Both drift: on 2026-08-04, restoring
+prod after [INFRA-1](../incidents/infra-1-prod-destroyed-by-varfile-mismatch.md),
+the version was read off the dead revision *and* the doc — both said `v0.1.4`,
+while test had been on `v0.1.5` since the previous day. Prod came back a release
+behind and nothing in the process caught it. The example below is illustrative;
+`make deploy-status` prints the promote command with the real version in it.
+
+`deploy-status` also reports whether each env is actually **serving 200**. A
+correct version reference is not health — prod pointed at a perfectly valid
+`v0.1.4` while returning 500, because the images behind it had been deleted with
+the Artifact Registry repository.
+
+### Promote
+
 Prod is never built from source. It receives the **byte-identical backend image**
 test was verified on, pinned by digest:
 
 ```bash
-make promote VERSION=v0.1.4 FROM=test TO=prod              # dry-run plan first
-make promote VERSION=v0.1.4 FROM=test TO=prod GO=1         # run it
+make promote VERSION=vX.Y.Z FROM=test TO=prod              # dry-run plan first
+make promote VERSION=vX.Y.Z FROM=test TO=prod GO=1         # run it
+```
+
+`GO=1` is the confirmation and passes `--yes`. It used to pass neither
+`--dry-run` nor `--yes`, so the script fell through to an interactive prompt
+that a make recipe has no TTY to answer — printing the whole plan and then
+failing, which looks exactly like a failed promotion. Fixed 2026-08-04.
+
+### Afterwards
+
+```bash
+./scripts/smoke-deployed.sh prod all   # also runs inside the promote build
+make deploy-status                     # confirm test and prod are level
 ```
 
 **Your local checkout is irrelevant** — you do not need to check out the tag.
