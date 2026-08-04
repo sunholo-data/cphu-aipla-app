@@ -87,6 +87,18 @@ Addresses are reserved and anycast — they do not change. **UCPH IT needs only
 these A/AAAA records: no CNAME, no TXT, no ownership-verification record, and
 nothing at `ku.dk` itself.**
 
+**Cost — $18.25/month per environment, ~$36.50/month total.** From the Cloud
+Billing Catalog API (service `E505-1604-58F8`), not a marketing page:
+`Cloud Load Balancer Forwarding Rule Minimum Global` is **$0.025/hour**, and the
+SKU name is the model — it is a FLAT charge covering the first 5 forwarding
+rules, with `…Additional Global` ($0.010/hour) applying only beyond that. Each
+env has 4 rules (IPv4/IPv6 × HTTPS/HTTP-redirect), so both sit inside the flat
+tier. Consequence worth knowing: **dropping the HTTP→HTTPS redirect or IPv6
+would save nothing** — under 5 rules the price is identical. The reserved IPv4
+addresses are free while `IN_USE` (`Static Ip Charge` = $0.000/hour; the
+$0.010–0.011/hour rate applies only to reserved-but-unattached addresses), IPv6
+is free, and data processing (~$0.01/GiB) is cents at pilot volume.
+
 **Why an ALB and not a Cloud Run domain mapping:** a mapping needs Google Search
 Console ownership verification, which for a subdomain means a TXT at the name —
 and a CNAME cannot coexist with a TXT at the same name (RFC 1034). The
