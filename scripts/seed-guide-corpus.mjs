@@ -35,7 +35,13 @@ if (!TOKEN) {
   console.error("GUIDE_TEACHER_TOKEN is required (mint via scripts/mint-test-teacher-token.sh).");
   process.exit(1);
 }
-const OUT = resolve(dirname(fileURLToPath(import.meta.url)), "..", "docs", "guides", "_output");
+// Seed the PUBLISHED PDFs — the exact bytes the /guides page serves — not the
+// gitignored docs/guides/_output render dir. Two reasons: the corpus and the
+// static pages then cannot disagree about what a guide says, and seeding stops
+// depending on a working local quarto+xelatex toolchain (which is what made
+// this un-runnable on a machine without xelatex). Update flow is unchanged:
+// `make guides-publish` re-renders and commits, then seed.
+const OUT = resolve(dirname(fileURLToPath(import.meta.url)), "..", "frontend", "public", "guides");
 const AUTH = { Authorization: `Bearer ${TOKEN}` };
 const JSON_H = { ...AUTH, "Content-Type": "application/json" };
 const SUBJECT = "AIPLA guides";

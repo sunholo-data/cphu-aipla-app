@@ -42,8 +42,16 @@ if [ -z "$BASE_URL" ]; then
   exit 2
 fi
 
-echo "Rendering guides (ensuring PDFs exist)…"
-scripts/render-guides.sh >/dev/null
+# Seeds the PUBLISHED PDFs (frontend/public/guides/, committed) so the corpus
+# always matches what the /guides page serves. Deliberately does NOT render:
+# rendering needs quarto + xelatex, and requiring that toolchain to seed an
+# environment is what kept this a dev-only, one-machine operation.
+GUIDE_DIR="frontend/public/guides"
+if [ ! -d "$GUIDE_DIR" ] || [ -z "$(ls "$GUIDE_DIR"/*.pdf 2>/dev/null)" ]; then
+  echo "No published guide PDFs in $GUIDE_DIR — run 'make guides-publish' first." >&2
+  exit 2
+fi
+echo "Seeding published guides from $GUIDE_DIR ($(ls "$GUIDE_DIR"/*.pdf | wc -l | tr -d ' ') PDFs)."
 
 echo "Minting teacher token for $ENV…"
 TOKEN="$(scripts/mint-test-teacher-token.sh "$ENV" 2>/dev/null | tail -1)"
