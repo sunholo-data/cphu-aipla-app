@@ -1,12 +1,12 @@
 # Activity Library — Faceted Browse (tags, subject, level; inherited from materials)
 
-**Status**: Planned
+**Status**: Implemented (M1–M3 SHIPPED 2026-08-05)
 **Priority**: P2 (teacher library ergonomics — the activity-side twin of 1.1.58)
 **Estimated**: ~2–2.5 days (M1 backend ~1d · M2 frontend ~1d · M3 co-pilot ~0.5d)
 **Scope**: Fullstack (backend model + list filter + facets endpoint; frontend activities + catalogue; co-pilot tools)
 **Dependencies**: [1.1.58 curriculum-faceted-browse](curriculum-faceted-browse.md) (the `tags`/`subject`/`level` vocabulary, `normalize_tags`, the facet-count semantics, `FacetRow`), [1.1.25 curriculum-library](curriculum-library.md) (`MaterialRef`, the `materials` array)
 **Created**: 2026-08-04
-**Last Updated**: 2026-08-04
+**Last Updated**: 2026-08-05
 **Sequence**: 1.1.61
 
 ## Problem Statement
@@ -371,6 +371,41 @@ text; level is a `Literal`.
 - [ ] Materials and Activities present one chip idiom from one component.
 - [ ] `SUBJECTS` exists in exactly one place in the backend and zero places in the frontend.
 - [ ] Saving from the builder cannot wipe facets set elsewhere, and a test says so.
+
+## What changed during implementation
+
+Three deviations, each because building it surfaced something the design missed.
+
+**1. Facet edits got their own endpoint** (`PATCH /api/activities/{id}/facets`),
+not `addTags`/`removeTags` on `ActivityUpsert` as planned. `PATCH
+/api/activities/{id}` is a full replace, and the library row — where a teacher
+actually files an activity — holds only a summary, no elements or materials.
+Filing through the full body would have meant sending an activity the client
+does not have, wiping every element. A facets-only body with `extra="forbid"`
+cannot express that damage; the plan's version could. Tests pin that a facet
+patch preserves elements and that a stray `title` is a 422.
+
+**2. The shared catalogue resolves citations against the SHARED corpus for
+every viewer, including the owner.** The design implied per-viewer resolution,
+and the first test asserted the owner would still see their private document's
+facets there. The implementation disagreed and was right: a catalogue whose
+facet counts differ by viewer makes "why do I see 3 and you see 2?"
+unanswerable. The owner keeps the full picture in their own library.
+
+**3. The CLI got new commands rather than new flags.** The plan said add
+`--tag/--subject/--level` to `aiplatform activity list`, but that command wraps
+the legacy `/api/activity-configs`, a different resource from the
+`/api/activities` this feature is about. Flags there would have filtered the
+wrong collection; repointing it would have changed what existing scripts
+receive. Hence `activity library` and `activity file`.
+
+**Also worth recording:** the response-shape change on `GET /api/activities`
+(bare list → `{activities,total,…}`) broke five production callers. Three build
+lookup maps — the class-detail assignment picker, the classes list resolving
+`activityIds` to titles, and the researcher scan — where the new default
+`limit=50` would have silently truncated and surfaced as titles falling back to
+raw ids. TypeScript caught all five; none would have appeared at runtime until a
+teacher had more than fifty activities.
 
 ## Open Questions
 
