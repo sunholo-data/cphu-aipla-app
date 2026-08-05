@@ -157,6 +157,12 @@ throughout; dropping run.app would break every smoke script and the promote path
   - Agent Engine + curriculum RAG corpus in `europe-west1`. Auto-seed job ran green (auth-gap resolved). Demo code `aipla-demo-1` live.
 - **MCP App sandbox (public, separate origin per ADR-013):** https://aipla-v01-sandbox-y2bmxayxca-lz.a.run.app
   - Deployed v0.1.1 via the `aipla-test-sandbox-release` tag trigger. Hosts `/sandbox.html` (iframe shell) + `/artefacts/<name>/v<version>/` (Boldkast etc.). The frontend bakes this as `NEXT_PUBLIC_MCP_SANDBOX_URL`; smoke green.
+- **2026-08-05 (v0.1.10) — parity with dev.** Preview feature flags are now ON here
+  (`preview_feature_flags = true`): the authoring co-pilot, the concept map, and the
+  floating **"AIPLA Hjælp"** help co-pilot all render. The in-product **guide corpus**
+  (6 docs, subject "AIPLA guides") + the **"AIPLA onboarding"** class with teacher /
+  student / researcher tutors are seeded — `make seed-guide-corpus ENV=test`, idempotent,
+  re-run to publish updated guides. Onboarding group code: `wide-compass-23`.
 ## AIPLA — prod (`aipla-prod-2026`, region `europe-north1`) — cut 2026-07-28 (v0.1.1)
 
 - **Frontend (public, multi-container):** https://aipla-v01-frontend-6vwz657g3a-lz.a.run.app
@@ -164,6 +170,16 @@ throughout; dropping run.app would break every smoke script and the promote path
   - Teachers: email sign-in **enabled (pilot phase)** for a seed-teacher + team eval; UCPH SSO is the handover target (ADR-001). Curriculum: **A/B/C (cleared) seeded**.
 - **MCP App sandbox (public, separate origin per ADR-013):** https://aipla-v01-sandbox-6vwz657g3a-lz.a.run.app
   - Deployed v0.1.1 via `aipla-prod-sandbox-release`. Hosts `/sandbox.html` + `/artefacts/*`; frontend bakes it as `NEXT_PUBLIC_MCP_SANDBOX_URL`; smoke green.
+- **2026-08-05 (v0.1.10) — parity with dev, and two gaps closed.**
+  - Preview flags ON, so the help co-pilot / authoring co-pilot / concept map render here
+    too. This needed BOTH `preview_feature_flags = true` and a fix to
+    `cloudbuild.promote.yaml`, which passed no feature-flag build-args at all — prod is
+    reached only by promote, so no tfvar alone could ever have lit them up.
+  - **The promote pipeline now seeds SKILL.md → Firestore.** It never did, and promote is
+    prod's only path, so prod's skill docs had been frozen at the 2026-07-28 env cut for a
+    week. First run of the new step reconciled them (8 skills, `aipla-help` included).
+  - Guide corpus + "AIPLA onboarding" tutors seeded (`make seed-guide-corpus ENV=prod`).
+    Onboarding group code: `brave-thicket-77`.
 
 ---
 
