@@ -38,6 +38,7 @@ from db.models.activity_config import (
     TableElement,
 )
 from db.models.curriculum import CurriculumDoc
+from db.models.taxonomy import normalize_tags
 
 logger = logging.getLogger(__name__)
 
@@ -575,6 +576,12 @@ def _curriculum_choice(doc: CurriculumDoc) -> dict[str, str]:
         "level": doc.level or "",
         "topic": doc.topic or "",
         "origin": doc.origin,
+        # 1.1.61 — the facets a teacher now files by. Without these the agent is
+        # judging relevance on title + summary alone while the teacher next to it
+        # narrows by subject and tag, and the two disagree about what the library
+        # even contains.
+        "subject": doc.subject or "",
+        "tags": ", ".join(doc.tags),
     }
 
 
@@ -583,6 +590,8 @@ def attach_material(
     activity_id: str = "",
     level: str = "",
     topic: str = "",
+    subject: str = "",
+    tags: str = "",
     tool_context: ToolContext = None,
 ) -> dict[str, Any]:
     """Propose attaching a curriculum reference document to an activity (COPILOT-2).
@@ -601,7 +610,10 @@ def attach_material(
             the available documents to choose from.
         activity_id: the activity being authored (the teacher owns it).
         level: optional A/B/C filter when listing (narrows the available set).
-        topic: optional topic filter when listing.
+        topic: optional free-text search when listing (title, topic, summary, tags).
+        subject: optional subject filter when listing, e.g. "Fysik" (1.1.61).
+        tags: optional comma-separated tags when listing; a document must carry
+            ALL of them (1.1.61).
 
     Returns:
         ``{"ok": True, "proposal": {"kind": "attach_material", "materialKind":
@@ -616,7 +628,14 @@ def attach_material(
     # ACL-scoped to shared + the teacher's OWN docs — resolving the choice from
     # this allow-set (not a bare get_curriculum_doc) stops a teacher attaching
     # another teacher's private doc by guessing its id.
-    available = list_curriculum_for_teacher(uid, level=level or None, topic=topic or None)  # type: ignore[arg-type]
+    tag_list = [t.strip() for t in tags.split(",") if t.strip()] or None
+    available = list_curriculum_for_teacher(
+        uid,
+        level=level or None,  # type: ignore[arg-type]
+        topic=topic or None,
+        subject=subject or None,
+        tags=tag_list,
+    )
     chosen = next((d for d in available if d.doc_id == doc_id), None) if doc_id else None
     if chosen is None:
         return {
@@ -639,5 +658,71 @@ def attach_material(
             "docId": chosen.doc_id,
             "origin": chosen.origin,
             "label": chosen.title,
+        },
+    }
+
+
+def set_activity_facets(
+    activity_id: str = "",
+    subject: str = "",
+    level: str = "",
+    tags: str = "",
+    tool_context: ToolContext = None,
+) -> dict[str, Any]:
+    """Propose how an activity should be FILED — subject, level, tags (1.1.61).
+
+    Owner-scoped + propose-only, like every tool here: returns a suggestion the
+    teacher Applies; never persists.
+
+    Only the teacher's OWN facets are proposable. An activity also INHERITS facets
+    from the curriculum documents it cites, and those are deliberately not
+    settable here — they are a fact about the documents, and the way to change
+    them is to re-file the document or cite a different one. Writing an inherited
+    value back as an own one would freeze a derived value into a stored one,
+    which is precisely what the 1.1.61 design avoids.
+
+    Useful right after authoring: the co-pilot has just composed an activity and
+    knows what it is about, so it can file it in the same breath rather than
+    leaving the teacher to do it later (which, on the document side, is exactly
+    what did not happen — see the 1.1.60 postmortem on empty subjects).
+
+    Args:
+        activity_id: the activity being authored (the teacher owns it).
+        subject: the broad subject, e.g. "Fysik". Empty leaves it unchanged.
+        level: the Danish stx level — "A", "B" or "C". Empty leaves it unchanged.
+        tags: comma-separated freeform tags, e.g. "lab, eksamen".
+
+    Returns:
+        ``{"ok": True, "proposal": {"kind": "set_activity_facets", "subject": ...,
+        "level": ..., "tags": [...], "label": ...}}`` or ``{"ok": False, "error": ...}``.
+    """
+    uid = _caller_uid(tool_context)
+    if not uid:
+        return dict(_DENY)
+
+    subject_value = (subject or "").strip()
+    level_value = (level or "").strip().upper()
+    if level_value and level_value not in {"A", "B", "C"}:
+        return {"ok": False, "error": f"level must be A, B or C (got {level!r})"}
+    # normalize_tags does the trimming, lowercasing and de-duping.
+    tag_list = normalize_tags((tags or "").split(","))
+
+    if not (subject_value or level_value or tag_list):
+        return {"ok": False, "error": "give at least one of subject, level or tags"}
+
+    if not _can_author(activity_id, uid):
+        return dict(_DENY)
+
+    parts = [p for p in (subject_value, level_value, ", ".join(tag_list)) if p]
+    logger.info("authoring: set_activity_facets proposal for activity=%s by uid=%s", activity_id or "(draft)", uid)
+    return {
+        "ok": True,
+        "proposal": {
+            "kind": "set_activity_facets",
+            "activityId": activity_id,
+            "subject": subject_value or None,
+            "level": level_value or None,
+            "tags": tag_list,
+            "label": " · ".join(parts),
         },
     }

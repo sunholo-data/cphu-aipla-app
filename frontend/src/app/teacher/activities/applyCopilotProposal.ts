@@ -42,5 +42,13 @@ export function applyCopilotProposal(p: Proposal, builder: ActivityBuilder): voi
         { kind: "curriculum", docId: p.docId, origin: p.origin, studentVisible: false },
       ]);
     }
+  } else if (p.kind === "set_activity_facets") {
+    // 1.1.61 — file the activity the co-pilot just composed. Own facets only;
+    // an unset field in the proposal leaves the current value alone rather than
+    // clearing it, so applying "add the tag lab" cannot drop a subject the
+    // teacher set by hand.
+    if (p.subject !== null) builder.setSubject(p.subject);
+    if (p.level !== null) builder.setLevel(p.level);
+    if (p.tags.length) builder.setTags(Array.from(new Set([...builder.tags, ...p.tags])));
   }
 }

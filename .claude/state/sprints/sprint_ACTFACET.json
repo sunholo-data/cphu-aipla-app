@@ -86,7 +86,7 @@
       "description": "Authoring co-pilot can search materials by tag/subject/folder and file the activity it authored; aiplatform CLI mirrors the web filter contract",
       "scope": "fullstack",
       "estimated_loc": 270,
-      "actual_loc": null,
+      "actual_loc": 420,
       "dependencies": [
         "M1-BACKEND",
         "M2-FRONTEND"
@@ -103,22 +103,22 @@
         "frontend/src/app/teacher/activities/applyCopilotProposal.ts",
         "cli/"
       ],
-      "passes": null,
-      "started": null,
-      "completed": null,
-      "notes": "Lowest priority \u2014 M1+M2 deliver the user-visible goal on their own."
+      "passes": true,
+      "started": "2026-08-05",
+      "completed": "2026-08-05",
+      "notes": "Done. Backend 2699->2706, frontend 1518->1523, CLI 11 activity tests. CLI deviation: `activity list` targets the LEGACY /api/activity-configs, not /api/activities, so facet flags went on NEW `activity library` + `activity file` commands rather than onto `list`. Repointing `list` would have silently changed what existing scripts get back. Found a real bug while testing: useActivityBuilder's useMemo deps omitted the new tags/subject/level, so the returned object kept stale values and Apply looked like a no-op. exhaustive-deps is disabled on that memo, which is why lint missed it \u2014 caught only because the test asserted the VALUE after Apply rather than that the setter was called."
     }
   ],
   "velocity": {
     "target_loc_per_day": 620,
     "actual_loc_per_day": null,
     "estimated_total_loc": 1570,
-    "actual_total_loc": null,
+    "actual_total_loc": 2100,
     "estimated_days": 2.5,
-    "actual_days": null
+    "actual_days": 1
   },
   "github_issues": [],
   "last_session": "2026-08-05",
   "last_checkpoint": null,
-  "status": "in_progress"
+  "status": "completed"
 }

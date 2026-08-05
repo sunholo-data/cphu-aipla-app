@@ -365,7 +365,14 @@ def test_draft_mode_no_activity_id_proposes_without_owner_check():
 
 
 def _make_curriculum(
-    doc_id: str, *, owner_scope: str | None = None, level: str = "B", topic: str = "energi", summary: str = ""
+    doc_id: str,
+    *,
+    owner_scope: str | None = None,
+    level: str = "B",
+    topic: str = "energi",
+    summary: str = "",
+    subject: str | None = None,
+    tags: list[str] | None = None,
 ) -> str:
     from datetime import UTC, datetime
 
@@ -381,6 +388,8 @@ def _make_curriculum(
             level=level,
             topic=topic,
             summary=summary,
+            subject=subject,
+            tags=tags or [],
             source="shared" if scope == SHARED_SCOPE else "teacher_upload",
             ownerScope=scope,
             origin="uvm.dk",
@@ -586,3 +595,90 @@ def test_propose_concept_map_never_persists(monkeypatch):
         add_nodes=[{"label": "Trigonometri"}], activity_id=aid, tool_context=_tc(TEACHER)
     )
     assert res["ok"] is True
+
+
+# --- set_activity_facets + facet-aware attach_material (1.1.61) ---
+
+
+def test_set_activity_facets_proposes_owner_facets_only():
+    from adk.authoring_tools import set_activity_facets
+
+    aid = _make_activity(TEACHER)
+    res = set_activity_facets(
+        activity_id=aid, subject="Fysik", level="b", tags=" Lab , LAB , eksamen ", tool_context=_tc(TEACHER)
+    )
+    assert res["ok"] is True
+    p = res["proposal"]
+    assert p["kind"] == "set_activity_facets"
+    assert p["subject"] == "Fysik"
+    assert p["level"] == "B"  # case-normalised
+    assert p["tags"] == ["lab", "eksamen"]  # canonical: lowercased + de-duped
+    assert p["label"] == "Fysik · B · lab, eksamen"
+
+
+def test_set_activity_facets_rejects_a_bad_level():
+    from adk.authoring_tools import set_activity_facets
+
+    aid = _make_activity(TEACHER)
+    res = set_activity_facets(activity_id=aid, level="Z", tool_context=_tc(TEACHER))
+    assert res["ok"] is False
+    assert "A, B or C" in res["error"]
+
+
+def test_set_activity_facets_needs_at_least_one_field():
+    from adk.authoring_tools import set_activity_facets
+
+    aid = _make_activity(TEACHER)
+    res = set_activity_facets(activity_id=aid, tool_context=_tc(TEACHER))
+    assert res["ok"] is False
+
+
+def test_set_activity_facets_is_owner_scoped():
+    from adk.authoring_tools import set_activity_facets
+
+    aid = _make_activity(OTHER)
+    res = set_activity_facets(activity_id=aid, subject="Fysik", tool_context=_tc(TEACHER))
+    assert res["ok"] is False
+    assert res["error"] == "activity not found"  # byte-identical to missing — no enumeration
+
+
+def test_set_activity_facets_never_persists():
+    """Propose-only, like every tool here: the activity is untouched until Apply."""
+    from adk.authoring_tools import set_activity_facets
+    from db.activities import get_activity
+
+    aid = _make_activity(TEACHER)
+    set_activity_facets(activity_id=aid, subject="Fysik", tags="lab", tool_context=_tc(TEACHER))
+    stored = get_activity(aid)
+    assert stored is not None
+    assert stored.subject is None and stored.tags == []
+
+
+def test_attach_material_can_narrow_by_subject_and_tags():
+    """1.1.61 — the agent filters the library the same way the teacher now does."""
+    from adk.authoring_tools import attach_material
+
+    _make_curriculum("fys-1", subject="Fysik", tags=["lab"])
+    _make_curriculum("mat-1", subject="Matematik", tags=["lab"])
+    aid = _make_activity(TEACHER)
+
+    res = attach_material(activity_id=aid, subject="Fysik", tool_context=_tc(TEACHER))
+    assert res["ok"] is False  # no docId given → lists what's available
+    assert {d["docId"] for d in res["available"]} == {"fys-1"}
+
+    res2 = attach_material(activity_id=aid, tags="lab", tool_context=_tc(TEACHER))
+    assert {d["docId"] for d in res2["available"]} == {"fys-1", "mat-1"}
+
+    res3 = attach_material(activity_id=aid, tags="lab,missing", tool_context=_tc(TEACHER))
+    assert res3["available"] == []
+
+
+def test_curriculum_choice_exposes_subject_and_tags_to_the_agent():
+    from adk.authoring_tools import attach_material
+
+    _make_curriculum("fys-1", subject="Fysik", tags=["lab", "eksamen"])
+    aid = _make_activity(TEACHER)
+    res = attach_material(activity_id=aid, tool_context=_tc(TEACHER))
+    entry = next(d for d in res["available"] if d["docId"] == "fys-1")
+    assert entry["subject"] == "Fysik"
+    assert entry["tags"] == "lab, eksamen"

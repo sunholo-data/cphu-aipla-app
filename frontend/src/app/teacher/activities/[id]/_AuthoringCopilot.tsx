@@ -70,6 +70,13 @@ export type Proposal =
   | { kind: "set_artefact"; artefactId: string; label: string }
   | { kind: "attach_material"; materialKind: "curriculum"; docId: string; origin: string; label: string }
   | {
+      kind: "set_activity_facets";
+      subject: string | null;
+      level: "A" | "B" | "C" | null;
+      tags: string[];
+      label: string;
+    }
+  | {
       kind: "propose_concept_map";
       diff: ConceptMapDiff;
       /** The server-validated resulting map — used for label lookups in the
@@ -159,6 +166,21 @@ export function parseProposal(tc: ToolCallState): Proposal | null {
             label: typeof p.label === "string" ? p.label : p.docId,
           }
         : null;
+    case "set_activity_facets": {
+      // 1.1.61 — how the activity is FILED (own facets only; inherited ones come
+      // from the cited documents and are never proposable).
+      const level = p.level === "A" || p.level === "B" || p.level === "C" ? p.level : null;
+      const subject = typeof p.subject === "string" && p.subject ? p.subject : null;
+      const tags = Array.isArray(p.tags) ? (p.tags as string[]).filter((t) => typeof t === "string") : [];
+      if (!subject && !level && tags.length === 0) return null;
+      return {
+        kind: "set_activity_facets",
+        subject,
+        level,
+        tags,
+        label: typeof p.label === "string" ? p.label : "arkivering",
+      };
+    }
     case "propose_concept_map": {
       const result = (p.result ?? {}) as Record<string, unknown>;
       if (typeof p.diff !== "object" || p.diff === null || !Array.isArray(result.nodes)) return null;
@@ -232,6 +254,8 @@ const authoringProposalDescriptor: ProposalDescriptor<Proposal> = {
         return `Forslag: ${p.label}`;
       case "set_artefact":
         return "Forslag: brug en simulation";
+      case "set_activity_facets":
+        return "Forslag: arkivering (emne · niveau · tags)";
       case "attach_material":
         return `Forslag: materiale — ${p.label}`;
       case "propose_concept_map":

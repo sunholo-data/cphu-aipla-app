@@ -106,6 +106,16 @@ export interface ActivityBuilder {
   setArtefactId: (v: string | null) => void;
   materials: MaterialRef[];
   setMaterials: (v: MaterialRef[]) => void;
+  /** 1.1.61 — the activity's OWN facets. Held so a save cannot wipe them; the
+   *  setters exist for the authoring co-pilot's `set_activity_facets` Apply,
+   *  which files the activity it just composed. Routine filing happens on the
+   *  library row, not here. */
+  tags: string[];
+  setTags: (v: string[]) => void;
+  subject: string | null;
+  setSubject: (v: string | null) => void;
+  level: StxLevel | null;
+  setLevel: (v: StxLevel | null) => void;
 
   /** How many additive workspace things are configured (sim + each element). */
   workspaceCount: number;
@@ -372,6 +382,12 @@ export function useActivityBuilder(): ActivityBuilder {
       setArtefactId,
       materials,
       setMaterials,
+      tags,
+      setTags,
+      subject,
+      setSubject,
+      level,
+      setLevel,
       workspaceCount,
       applyTemplate,
       hydrate,
@@ -379,7 +395,30 @@ export function useActivityBuilder(): ActivityBuilder {
       toSavePayload,
       isFormValid,
     }),
+    // NOTE: exhaustive-deps is disabled here, so EVERY piece of state above must
+    // be listed by hand. Miss one and the returned object silently keeps a stale
+    // value — the hook looks like it ignored your setter. 1.1.61's tags/subject/
+    // level were missed exactly this way and only surfaced because a test asserted
+    // the value after Apply rather than asserting the setter was called.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [title, teachingGoal, language, workbenchType, checklist, table, chart, calculator, note, solution, document, conceptMap, artefactId, materials],
+    [
+      title,
+      teachingGoal,
+      language,
+      workbenchType,
+      checklist,
+      table,
+      chart,
+      calculator,
+      note,
+      solution,
+      document,
+      conceptMap,
+      artefactId,
+      materials,
+      tags,
+      subject,
+      level,
+    ],
   );
 }
