@@ -128,7 +128,21 @@ the UI actually changed.
   queryable corpus does not. Until 2026-08-04 this script took no env argument
   and defaulted to dev's hardcoded URL, which is why dev was the only env with
   the in-product guides. Seed test/prod explicitly after an env cut.
-- **Prod has no seeded test-teacher.** `make seed-guide-corpus ENV=prod` mints
-  its token via `scripts/mint-test-teacher-token.sh prod`, which reads that
-  project's `FIREBASE_ENV` secret for the API key but still needs real
-  credentials — pass `TEACHER_EMAIL` / `TEACHER_PASSWORD`.
+- **Seeding uses the PUBLISHED PDFs, so publish before you seed.**
+  `seed-guide-corpus` reads `frontend/public/guides/` (committed — the exact bytes
+  `/guides` serves), not the gitignored `docs/guides/_output/`. That keeps the
+  corpus and the static pages from disagreeing, and lets a machine without the
+  LaTeX toolchain seed an env. The wrapper refuses if guide sources are newer
+  than the published PDFs (or uncommitted), comparing COMMIT times — mtimes are
+  meaningless after a clone. Order: `make guides-publish` → commit →
+  `make seed-guide-corpus ENV=<env>`. `STALE_OK=1` overrides.
+- **`quarto` bundles its own LaTeX; `which xelatex` tells you nothing.** TinyTeX
+  lives at `~/Library/TinyTeX/bin/*/xelatex` and is deliberately NOT on `PATH` —
+  quarto finds it itself. On 2026-08-05 a `which xelatex` miss was misread as
+  "this machine can't render"; `scripts/render-guides.sh` in fact works fine. To
+  test the toolchain, run a render, or `quarto check`.
+- **The test-teacher exists on all three envs.** `test-teacher@example.dk` /
+  `aipla-demo-1` authenticated against prod on 2026-08-05, so
+  `make seed-guide-corpus ENV=prod` needs no extra credentials. Override with
+  `TEACHER_EMAIL` / `TEACHER_PASSWORD` if that account is ever removed (it is a
+  convenience account and is a reasonable thing to retire before the pilot).

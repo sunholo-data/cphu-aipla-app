@@ -7,15 +7,17 @@
 #   scripts/seed-guide-corpus.sh test       # = make seed-guide-corpus ENV=test
 #   scripts/seed-guide-corpus.sh prod
 #
-# Renders the guides first (needs the PDFs), mints a teacher token for the
-# target env, resolves that env's frontend URL live, then runs the seeder.
+# Seeds the PUBLISHED PDFs (frontend/public/guides/, committed) — the exact bytes
+# the /guides page serves — so the queryable corpus and the static pages cannot
+# disagree. It does NOT render; `make guides-publish` is the render+commit step,
+# and the staleness check below refuses to seed if you skipped it.
 #
 # Idempotent since 2026-08-04 — re-running reconciles rather than duplicating.
 # Until then this took no env argument at all and the .mjs defaulted to dev's
 # hardcoded URL, which is why the guides only ever existed in dev.
 #
-# Prod note: prod has email sign-in on for the pilot but no seeded test-teacher,
-# so pass TEACHER_EMAIL / TEACHER_PASSWORD for a real prod teacher account.
+# Teacher account: defaults to test-teacher@example.dk, which exists on all three
+# envs (verified on prod 2026-08-05). Override with TEACHER_EMAIL/TEACHER_PASSWORD.
 set -euo pipefail
 
 cd "$(dirname "$0")/.."
@@ -42,15 +44,42 @@ if [ -z "$BASE_URL" ]; then
   exit 2
 fi
 
-# Seeds the PUBLISHED PDFs (frontend/public/guides/, committed) so the corpus
-# always matches what the /guides page serves. Deliberately does NOT render:
-# rendering needs quarto + xelatex, and requiring that toolchain to seed an
-# environment is what kept this a dev-only, one-machine operation.
 GUIDE_DIR="frontend/public/guides"
+SRC_DIR="docs/guides"
 if [ ! -d "$GUIDE_DIR" ] || [ -z "$(ls "$GUIDE_DIR"/*.pdf 2>/dev/null)" ]; then
   echo "No published guide PDFs in $GUIDE_DIR — run 'make guides-publish' first." >&2
   exit 2
 fi
+
+# Staleness gate. Seeding the published PDFs means a .qmd edit that was never
+# published would seed the OLD text — the render step this replaced made that
+# impossible by always rendering first. This restores that guarantee without
+# requiring the LaTeX toolchain on the seeding machine.
+#
+# Compares COMMIT TIMES, not mtimes: a fresh clone stamps every file with the
+# checkout time, so mtime comparison is pure noise on any machine but the one
+# that did the render. Uncommitted .qmd edits count as stale too.
+# STALE_OK=1 to override (e.g. deliberately re-seeding an unchanged corpus).
+if [ -z "${STALE_OK:-}" ] && git rev-parse --git-dir >/dev/null 2>&1; then
+  stale=""
+  if ! git diff --quiet -- "$SRC_DIR" 2>/dev/null || ! git diff --cached --quiet -- "$SRC_DIR" 2>/dev/null; then
+    stale="uncommitted changes under $SRC_DIR/"
+  else
+    src_t="$(git log -1 --format=%ct -- "$SRC_DIR/"*.qmd "$SRC_DIR/assets" "$SRC_DIR/_quarto.yml" 2>/dev/null || echo 0)"
+    pub_t="$(git log -1 --format=%ct -- "$GUIDE_DIR" 2>/dev/null || echo 0)"
+    if [ "${src_t:-0}" -gt "${pub_t:-0}" ] 2>/dev/null; then
+      stale="guide sources were committed after the published PDFs"
+    fi
+  fi
+  if [ -n "$stale" ]; then
+    echo "REFUSING to seed: $stale." >&2
+    echo "  The corpus would carry text that /guides does not serve." >&2
+    echo "  Run 'make guides-publish' (renders + copies into $GUIDE_DIR), commit, then re-run." >&2
+    echo "  Override with STALE_OK=1 if you know the published PDFs are current." >&2
+    exit 2
+  fi
+fi
+
 echo "Seeding published guides from $GUIDE_DIR ($(ls "$GUIDE_DIR"/*.pdf | wc -l | tr -d ' ') PDFs)."
 
 echo "Minting teacher token for $ENV…"
