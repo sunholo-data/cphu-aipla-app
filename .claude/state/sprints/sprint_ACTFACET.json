@@ -1,0 +1,119 @@
+{
+  "sprint_id": "ACTFACET",
+  "created": "2026-08-05T09:15:00Z",
+  "estimated_duration_days": 2.5,
+  "design_doc": "docs/design/aipla/v1.1.0-feedback/activity-faceted-library.md",
+  "sprint_plan": "docs/design/aipla/v1.1.0-feedback/activity-faceted-library-sprint.md",
+  "baseline": {
+    "backend_tests": "2667 passed, 1 skipped, 0 failed",
+    "frontend_tests": "183 files / 1500 tests passed",
+    "frontend_build": "green (41 static pages)",
+    "measured": "2026-08-05, before any ACTFACET change"
+  },
+  "features": [
+    {
+      "id": "M1-BACKEND",
+      "description": "Activity gains tags/subject/level; facets INHERITED at read time from cited materials; list filters + /facets endpoint mirroring 1.1.58 semantics",
+      "scope": "backend",
+      "estimated_loc": 650,
+      "actual_loc": null,
+      "dependencies": [],
+      "acceptance_criteria": [
+        "An activity citing a Fysik document matches ?subject=Fysik with NO activity-level subject set",
+        "Re-tagging the cited document changes what the activity matches, with zero writes to the activity",
+        "Shared catalogue (published=true) inherits only from ownerScope=='shared' docs — a private upload's tags never leak",
+        "Tag filter is AND across multiple tags and case-insensitive",
+        "__unlevelled__ returns activities with neither own nor inherited level",
+        "A deleted cited doc contributes nothing and does not error the list",
+        "/facets counts are narrowed per-facet: picking a subject re-counts tags, sibling subjects keep their counts",
+        "total is the full match count, not the page length",
+        "ActivityUpsert still rejects unknown fields (extra=forbid)",
+        "make lint && make test-fast green with no regression from the 2667 baseline"
+      ],
+      "files_to_create": [
+        "backend/db/models/taxonomy.py",
+        "backend/tests/unit/test_activity_facets.py"
+      ],
+      "files_to_modify": [
+        "backend/db/models/activity.py",
+        "backend/db/models/curriculum.py",
+        "backend/db/activities.py",
+        "backend/protocols/activity_routes.py",
+        "scripts/seed-guide-corpus.mjs"
+      ],
+      "passes": null,
+      "started": null,
+      "completed": null,
+      "notes": "GET /api/activities response shape changes from a bare list to {activities,total,limit,offset} — seed-guide-corpus.mjs reads it as a list and is NOT covered by CI."
+    },
+    {
+      "id": "M2-FRONTEND",
+      "description": "Extract shared FacetRow; search + facet chips + pagination on the activities library and the cross-teacher shared catalogue; per-activity facet editor with visibly-inherited chips",
+      "scope": "frontend",
+      "estimated_loc": 650,
+      "actual_loc": null,
+      "dependencies": ["M1-BACKEND"],
+      "acceptance_criteria": [
+        "Tagging a document in Materials makes the citing activity findable under that tag with no activity edit",
+        "Existing MaterialsSection tests pass UNCHANGED after the FacetRow extraction",
+        "elementPayload() carries tags/subject/level so saving from the builder cannot wipe facets set elsewhere, with a test asserting it",
+        "Inherited chips render visibly distinct (dimmed + paperclip) and are not removable",
+        "Subject options come from GET /facets, not a hardcoded frontend array",
+        "Search is debounced (no fetch per keystroke)",
+        "Empty / loading / no-match states render",
+        "npm run quality:check green with no regression from the 1500 baseline"
+      ],
+      "files_to_create": [
+        "frontend/src/components/teacher/ui/FacetRow.tsx",
+        "frontend/src/components/teacher/ui/__tests__/FacetRow.test.tsx"
+      ],
+      "files_to_modify": [
+        "frontend/src/components/teacher/MaterialsSection.tsx",
+        "frontend/src/app/teacher/activities/page.tsx",
+        "frontend/src/app/teacher/research/activities/page.tsx",
+        "frontend/src/lib/teacherApi.ts",
+        "frontend/src/hooks/useActivityBuilder.ts"
+      ],
+      "passes": null,
+      "started": null,
+      "completed": null,
+      "notes": "The FacetRow extraction must be behaviour-neutral for Materials; treat any diff in its existing tests as a regression, not an expected update."
+    },
+    {
+      "id": "M3-COPILOT-CLI",
+      "description": "Authoring co-pilot can search materials by tag/subject/folder and file the activity it authored; aiplatform CLI mirrors the web filter contract",
+      "scope": "fullstack",
+      "estimated_loc": 270,
+      "actual_loc": null,
+      "dependencies": ["M1-BACKEND", "M2-FRONTEND"],
+      "acceptance_criteria": [
+        "attach_material passes tags/subject/folder through to the curriculum browse",
+        "A set_activity_facets proposal round-trips through applyCopilotProposal (propose-only, nothing applies without Apply)",
+        "aiplatform activity list supports --tag/--subject/--level/-q and activity set writes them",
+        "Backend and frontend quality gates stay green"
+      ],
+      "files_to_create": [],
+      "files_to_modify": [
+        "backend/adk/authoring_tools.py",
+        "frontend/src/app/teacher/activities/applyCopilotProposal.ts",
+        "cli/"
+      ],
+      "passes": null,
+      "started": null,
+      "completed": null,
+      "notes": "Lowest priority — M1+M2 deliver the user-visible goal on their own."
+    }
+  ],
+  "velocity": {
+    "target_loc_per_day": 620,
+    "actual_loc_per_day": null,
+    "estimated_total_loc": 1570,
+    "actual_total_loc": null,
+    "estimated_days": 2.5,
+    "actual_days": null
+  },
+  "github_issues": [],
+  "last_session": null,
+  "last_checkpoint": null,
+  "status": "not_started"
+}
