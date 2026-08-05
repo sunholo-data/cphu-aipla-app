@@ -24,6 +24,9 @@ import {
 } from "@/lib/curriculumApi";
 import { ActivityImageApiError, deleteActivityImage, uploadActivityImage } from "@/lib/activityImageApi";
 import type { MaterialRef } from "@/lib/teacherApi";
+// 1.1.61 — the chip idiom moved out so the activity library shares it verbatim
+// rather than growing a lookalike. Behaviour here is unchanged.
+import { ALL, ActiveChip, FacetRow } from "@/components/teacher/ui/FacetRow";
 
 type ViewState =
   | { kind: "loading" }
@@ -57,118 +60,6 @@ const PAGE_SIZE = 50;
 // 1.1.58 M3 — sentinel folder filter → docs with no folder (mirrors backend).
 const UNFILED = "__unfiled__";
 // The empty-string value every single-select facet uses for "no filter".
-const ALL = "";
-
-/**
- * 1.1.60 — one labelled row of facet chips. Subject, Level, Folder and Tags all
- * render through this, so every filter in the picker looks and behaves the same;
- * before this, Level was a `<select>` while the other three were chip rows.
- *
- * Chips show a COUNT narrowed by the other active facets, and options are never
- * hidden when that count hits zero — a rail you navigate by muscle memory must
- * not reshuffle as you type. A zero-count chip is dimmed but still clickable
- * (clicking it is how you move the filter to it).
- */
-function FacetRow({
-  label,
-  icon,
-  options,
-  selected,
-  onSelect,
-  multi = false,
-  allChip = true,
-  renderAction,
-  children,
-}: {
-  label: string;
-  icon?: React.ReactNode;
-  options: FacetOption[];
-  /** A single value, or the selected set when `multi`. */
-  selected: string | string[];
-  onSelect: (value: string) => void;
-  /** Tags are AND-combinable; the rest are single-select. */
-  multi?: boolean;
-  /** Single-select rows get an explicit "All" reset chip. */
-  allChip?: boolean;
-  /** Optional per-chip trailing control (the folder delete button). */
-  renderAction?: (option: FacetOption) => React.ReactNode;
-  /** Optional trailing control for the row (the folder "New" button). */
-  children?: React.ReactNode;
-}) {
-  const isOn = (value: string) =>
-    Array.isArray(selected) ? selected.includes(value) : selected === value;
-  const noneSelected = Array.isArray(selected) ? selected.length === 0 : selected === ALL;
-
-  if (options.length === 0 && !children) return null;
-
-  return (
-    <div className="flex flex-wrap items-center gap-1.5" aria-label={`Filter by ${label.toLowerCase()}`}>
-      <span className="flex items-center gap-1 text-xs font-medium text-muted-foreground">
-        {icon}
-        {label}
-      </span>
-      {allChip && !multi ? (
-        <button
-          type="button"
-          onClick={() => onSelect(ALL)}
-          aria-pressed={noneSelected}
-          className={`rounded-full border px-2 py-0.5 text-xs transition-colors ${
-            noneSelected
-              ? "border-primary bg-primary/10 text-foreground"
-              : "border-border text-muted-foreground hover:bg-muted"
-          }`}
-        >
-          All
-        </button>
-      ) : null}
-      {options.map((o) => {
-        const on = isOn(o.value);
-        const empty = o.count === 0 && !on;
-        const chip = (
-          <button
-            type="button"
-            onClick={() => onSelect(o.value)}
-            aria-pressed={on}
-            className={`rounded-full px-2 py-0.5 text-xs transition-colors ${
-              renderAction ? "" : "border"
-            } ${
-              on
-                ? "border-primary bg-primary/10 text-foreground"
-                : `border-border hover:bg-muted ${empty ? "text-muted-foreground/50" : "text-muted-foreground"}`
-            }`}
-          >
-            {o.label} <span className="tabular-nums opacity-60">({o.count})</span>
-          </button>
-        );
-        if (!renderAction) return <span key={o.value}>{chip}</span>;
-        return (
-          <span
-            key={o.value}
-            className={`inline-flex items-center gap-0.5 rounded-full border pr-1 text-xs transition-colors ${
-              on ? "border-primary bg-primary/10 text-foreground" : "border-border text-muted-foreground"
-            }`}
-          >
-            {chip}
-            {renderAction(o)}
-          </span>
-        );
-      })}
-      {children}
-    </div>
-  );
-}
-
-/** 1.1.58 M4 — a removable active-filter chip. */
-function ActiveChip({ label, onRemove }: { label: string; onRemove: () => void }) {
-  return (
-    <span className="inline-flex items-center gap-1 rounded-full border border-primary/40 bg-primary/5 px-2 py-0.5 text-xs">
-      {label}
-      <button type="button" aria-label={`Remove filter ${label}`} onClick={onRemove} className="hover:text-foreground">
-        <X className="h-3 w-3" aria-hidden="true" />
-      </button>
-    </span>
-  );
-}
 // 1.1.60 — subject is the BROAD class (mirrors backend SUBJECTS in
 // db/models/curriculum.py). It used to be the nine Danish stx *physics* areas,
 // which left the maths corpus homeless and "AIPLA guides" posing as a physics

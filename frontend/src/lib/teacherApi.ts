@@ -16,6 +16,11 @@
 
 import { fetchWithTeacherAuth as fetchWithAuth } from "@/lib/apiClient";
 import { readJson as sharedReadJson } from "@/lib/apiResponse";
+// TYPE-ONLY, and it must stay that way: curriculumApi imports StxLevel from
+// here, so a value import would close a runtime cycle. Types are erased.
+// The activity library reuses the curriculum facet shapes verbatim rather than
+// declaring twins — one vocabulary, one wire format (1.1.61).
+import type { CurriculumFacets, LevelFilter } from "@/lib/curriculumApi";
 
 export type Language = "da" | "en";
 export type Difficulty = "standard" | "guided";
@@ -58,6 +63,19 @@ export interface ActivityConfigPayload {
   document?: DocumentElement[];
   conceptMap?: ConceptMapElement[];
   materials?: MaterialRef[];
+  /** 1.1.61 — the activity's OWN organising facets, sharing the curriculum
+   *  vocabulary. Set from the library row, never in the builder; the builder
+   *  round-trips them so a full-overwrite save cannot wipe them. */
+  tags?: string[];
+  subject?: string | null;
+  level?: StxLevel | null;
+  /** 1.1.61 — DERIVED, read-only: the facets this activity gets from the
+   *  documents it cites, resolved per-request against the CALLER's visible
+   *  corpus. Present on list responses. Never send these back — they belong to
+   *  the documents, and writing them would freeze a derived value. */
+  inheritedTags?: string[];
+  inheritedSubjects?: string[];
+  inheritedLevels?: string[];
   updatedAt: string;
 }
 
@@ -352,6 +370,11 @@ export interface ActivityUpsertBody {
   document?: DocumentElement[];
   conceptMap?: ConceptMapElement[];
   materials?: MaterialRef[];
+  /** 1.1.61 — carried so a full-overwrite save cannot wipe facets set from the
+   *  library row. `useActivityBuilder.toSavePayload()` always supplies them. */
+  tags?: string[];
+  subject?: string | null;
+  level?: StxLevel | null;
 }
 
 /** The persisted Activity (create/edit responses). Structurally a superset of
@@ -402,22 +425,99 @@ export async function updateActivity(activityId: string, body: ActivityUpsertBod
   return readJson<ActivityPayload>(resp, "update activity");
 }
 
+/** 1.1.61 — the facet filters the activity library and catalogue share with the
+ *  curriculum browse. `level` accepts the `__unlevelled__` sentinel; `tags` is an
+ *  AND facet; `q` is free text over title + goal + own AND inherited tags. */
+export interface ActivityFilterParams {
+  level?: LevelFilter;
+  subject?: string;
+  tags?: string[];
+  q?: string;
+  limit?: number;
+  offset?: number;
+}
+
+/** 1.1.61 — paginated envelope. `total` is the FULL match count (not the page
+ *  length), so the UI can say "X of Y" and know when to stop scrolling. */
+export interface ActivityListPage {
+  activities: ActivityPayload[];
+  total: number;
+  limit: number;
+  offset: number;
+}
+
+function activityFilterQuery(params: ActivityFilterParams = {}): string {
+  const qs = new URLSearchParams();
+  if (params.level) qs.set("level", params.level);
+  if (params.subject) qs.set("subject", params.subject);
+  // Repeatable ?tags=a&tags=b — an AND facet server-side.
+  (params.tags ?? []).forEach((t) => qs.append("tags", t));
+  if (params.q?.trim()) qs.set("q", params.q.trim());
+  if (params.limit != null) qs.set("limit", String(params.limit));
+  if (params.offset != null) qs.set("offset", String(params.offset));
+  return qs.toString();
+}
+
 /** List activities (ALS-1 M1.2). `scope="own"` (default) → the caller's own
  *  library. `scope="all"` → every activity across all teachers, researcher-only
  *  (the backend 403s non-researchers; never a silent fallback). Read-only
  *  observation, mirroring the classes Research view. */
-export async function listActivities(scope: "own" | "all" = "own"): Promise<ActivityPayload[]> {
-  const query = scope === "all" ? "scope=all" : "owner=me";
-  const resp = await fetchWithAuth(`/api/proxy/api/activities?${query}`);
-  return readJson<ActivityPayload[]>(resp, "list activities");
+export async function listActivities(
+  scope: "own" | "all" = "own",
+  params: ActivityFilterParams = {},
+): Promise<ActivityListPage> {
+  const base = scope === "all" ? "scope=all" : "owner=me";
+  const filters = activityFilterQuery(params);
+  const resp = await fetchWithAuth(`/api/proxy/api/activities?${base}${filters ? `&${filters}` : ""}`);
+  return readJson<ActivityListPage>(resp, "list activities");
 }
 
 /** The cross-teacher SHARED catalogue (ALS-SHARE M3.2) — every teacher's
  *  `published` activities, owner-labelled for by-owner grouping. Open to any
  *  teacher; read-only (adopt is the only cross-teacher write). */
-export async function listSharedCatalogue(): Promise<ActivityPayload[]> {
-  const resp = await fetchWithAuth(`/api/proxy/api/activities?published=true`);
-  return readJson<ActivityPayload[]>(resp, "list shared catalogue");
+export async function listSharedCatalogue(params: ActivityFilterParams = {}): Promise<ActivityListPage> {
+  const filters = activityFilterQuery(params);
+  const resp = await fetchWithAuth(`/api/proxy/api/activities?published=true${filters ? `&${filters}` : ""}`);
+  return readJson<ActivityListPage>(resp, "list shared catalogue");
+}
+
+/** 1.1.61 — facet options + narrowed counts for the activity library. Same
+ *  params as the list, so the rail always describes the set being shown. */
+export async function listActivityFacets(
+  opts: { scope?: "own" | "all"; published?: boolean } = {},
+  params: ActivityFilterParams = {},
+): Promise<CurriculumFacets> {
+  const base = opts.published ? "published=true" : opts.scope === "all" ? "scope=all" : "owner=me";
+  const filters = activityFilterQuery(params);
+  const resp = await fetchWithAuth(`/api/proxy/api/activities/facets?${base}${filters ? `&${filters}` : ""}`);
+  return readJson<CurriculumFacets>(resp, "list activity facets");
+}
+
+/** 1.1.61 — set an activity's OWN facets from the library row.
+ *
+ *  A PARTIAL patch, deliberately separate from `updateActivity`: that one is a
+ *  full overwrite, and the library row holds only a summary (no elements, no
+ *  materials). Filing an activity through the full body would send content the
+ *  row does not have and wipe it. The backend body is facets-only with
+ *  `extra=forbid`, so this cannot express that damage even by mistake. */
+export async function patchActivityFacets(
+  activityId: string,
+  patch: {
+    tags?: string[];
+    addTags?: string[];
+    removeTags?: string[];
+    subject?: string | null;
+    level?: StxLevel | null;
+    clearSubject?: boolean;
+    clearLevel?: boolean;
+  },
+): Promise<ActivityPayload> {
+  const resp = await fetchWithAuth(`/api/proxy/api/activities/${encodeURIComponent(activityId)}/facets`, {
+    method: "PATCH",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(patch),
+  });
+  return readJson<ActivityPayload>(resp, "update activity facets");
 }
 
 /** Set an activity's visibility to any of `draft | private | published` in one

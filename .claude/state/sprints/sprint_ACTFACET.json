@@ -51,7 +51,7 @@
       "description": "Extract shared FacetRow; search + facet chips + pagination on the activities library and the cross-teacher shared catalogue; per-activity facet editor with visibly-inherited chips",
       "scope": "frontend",
       "estimated_loc": 650,
-      "actual_loc": null,
+      "actual_loc": 900,
       "dependencies": [
         "M1-BACKEND"
       ],
@@ -76,10 +76,10 @@
         "frontend/src/lib/teacherApi.ts",
         "frontend/src/hooks/useActivityBuilder.ts"
       ],
-      "passes": null,
-      "started": null,
-      "completed": null,
-      "notes": "The FacetRow extraction must be behaviour-neutral for Materials; treat any diff in its existing tests as a regression, not an expected update."
+      "passes": true,
+      "started": "2026-08-05",
+      "completed": "2026-08-05",
+      "notes": "Done. Frontend 183 files/1500 tests -> 184/1518, build green. MaterialsSection tests passed UNCHANGED (41/41) after the FacetRow extraction \u2014 the acceptance criterion for behaviour-neutrality. Unplanned but necessary: GET /api/activities' shape change broke 5 production callers and 4 test files. Three of those callers build LOOKUP maps (class detail picker, classes list title resolution, research scan) where the new default limit=50 would have silently truncated \u2014 they now pass limit:200 explicitly. TypeScript caught every one; nothing was found at runtime. Also fixed an a11y bug the tests surfaced: the tag input and its submit button shared the accessible name 'Add tag'."
     },
     {
       "id": "M3-COPILOT-CLI",

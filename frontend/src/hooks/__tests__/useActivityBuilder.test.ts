@@ -618,7 +618,79 @@ describe("useActivityBuilder — toSavePayload + isFormValid (F5)", () => {
         "language",
         "workbenchType",
         "materials",
+        // 1.1.61 facets — see the anti-wipe test below for why these belong here
+        "tags",
+        "subject",
+        "level",
       ].sort(),
     );
+  });
+});
+
+describe("useActivityBuilder — facets survive a save (1.1.61 anti-wipe)", () => {
+  // The activity POST/PATCH is a FULL OVERWRITE. A teacher files an activity
+  // from the LIBRARY (subject/level/tags on the row), then opens the builder and
+  // saves — if the builder does not carry those three fields, the save clears
+  // what they just set, from a screen that never showed it. That is the same
+  // footgun that already cost the calculator and the table their data.
+  //
+  // Inherited facets are deliberately NOT here: they belong to the cited
+  // documents and are never written back.
+
+  it("hydrate → toSavePayload round-trips tags/subject/level unchanged", () => {
+    const { result } = renderHook(() => useActivityBuilder());
+    act(() =>
+      result.current.hydrate({
+        title: "Filed activity",
+        teachingGoal: "G",
+        tags: ["lab", "exam-prep"],
+        subject: "Fysik",
+        level: "B",
+      } as ActivityConfigPayload),
+    );
+    const payload = result.current.toSavePayload();
+    expect(payload.tags).toEqual(["lab", "exam-prep"]);
+    expect(payload.subject).toBe("Fysik");
+    expect(payload.level).toBe("B");
+  });
+
+  it("an activity with no facets round-trips as empty/null, not undefined", () => {
+    const { result } = renderHook(() => useActivityBuilder());
+    act(() => result.current.hydrate({ title: "T", teachingGoal: "G" } as ActivityConfigPayload));
+    const payload = result.current.toSavePayload();
+    expect(payload.tags).toEqual([]);
+    expect(payload.subject).toBeNull();
+    expect(payload.level).toBeNull();
+  });
+
+  it("does NOT carry inherited facets back into the save payload", () => {
+    const { result } = renderHook(() => useActivityBuilder());
+    act(() =>
+      result.current.hydrate({
+        title: "T",
+        teachingGoal: "G",
+        tags: ["min-egen"],
+        inheritedTags: ["mekanik"],
+        inheritedSubjects: ["Fysik"],
+        inheritedLevels: ["A"],
+      } as ActivityConfigPayload),
+    );
+    const payload = result.current.toSavePayload();
+    expect(payload.tags).toEqual(["min-egen"]);
+    expect(payload).not.toHaveProperty("inheritedTags");
+    // Inheriting Fysik must not silently become an OWN subject on the next save.
+    expect(payload.subject).toBeNull();
+  });
+
+  it("an empty hydrate clears facets like every other field", () => {
+    const { result } = renderHook(() => useActivityBuilder());
+    act(() =>
+      result.current.hydrate({ tags: ["lab"], subject: "Fysik", level: "A" } as ActivityConfigPayload),
+    );
+    act(() => result.current.hydrate({} as ActivityConfigPayload));
+    const payload = result.current.toSavePayload();
+    expect(payload.tags).toEqual([]);
+    expect(payload.subject).toBeNull();
+    expect(payload.level).toBeNull();
   });
 });

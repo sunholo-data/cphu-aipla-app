@@ -31,11 +31,12 @@ describe("ResearchActivitiesPage (1.1.5 cross-teacher research scan)", () => {
   it("renders every teacher's activities read-only, with owner + state + a research banner", async () => {
     const listSpy = vi
       .spyOn(teacherApi, "listActivities")
-      .mockResolvedValue([makeActivity({ ownerLabel: "Alice Hansen", title: "Theirs", visibility: "draft" })]);
+      .mockResolvedValue({ activities: [makeActivity({ ownerLabel: "Alice Hansen", title: "Theirs", visibility: "draft" })], total: [makeActivity({ ownerLabel: "Alice Hansen", title: "Theirs", visibility: "draft" })].length, limit: 200, offset: 0 });
     render(<ResearchActivitiesPage />);
 
     await screen.findByText("Theirs");
-    expect(listSpy).toHaveBeenCalledWith("all");
+    // Scope only — the filter params it also carries are not this test's subject.
+    expect(listSpy).toHaveBeenCalledWith("all", expect.anything());
     expect(screen.getByText(/Research view/i)).toBeInTheDocument();
     // Friendly owner label, all states labelled (private is no longer blank).
     expect(screen.getByTestId("activity-owner")).toHaveTextContent("Owner: Alice Hansen");

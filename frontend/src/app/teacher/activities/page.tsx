@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
 import { ClipboardList, Copy, Lock, Plus, Share2, Sliders, Trash2, Users } from "lucide-react";
 
@@ -11,12 +11,24 @@ import {
   deleteActivity,
   duplicateActivity,
   listActivities,
+  listActivityFacets,
   listClasses,
   listSharedCatalogue,
   patchClassActivities,
   setActivityVisibility,
 } from "@/lib/teacherApi";
 import { CompositionRow, VISIBILITY_LABEL, VisibilityBadge, visibilityColor } from "@/components/teacher/activityDisplay";
+import {
+  ActivityFilterBar,
+  EMPTY_ACTIVITY_FILTERS,
+  hasActiveFilters,
+  toFilterParams,
+  useDebounced,
+  type ActivityFilters,
+} from "@/components/teacher/ActivityFilterBar";
+import { ActivityFacetEditor } from "@/components/teacher/ActivityFacetEditor";
+import { InheritedChip } from "@/components/teacher/ui/FacetRow";
+import type { CurriculumFacets } from "@/lib/curriculumApi";
 import { EmptyState } from "@/components/teacher/ui/EmptyState";
 import { TeacherCard } from "@/components/teacher/ui/TeacherCard";
 import { TeacherPage } from "@/components/teacher/ui/TeacherPage";
@@ -46,6 +58,20 @@ export default function TeacherActivitiesPage() {
   // activityId -> the classIds it's assigned to (reverse of Class.activityIds).
   const [assignments, setAssignments] = useState<Map<string, Set<string>>>(new Map());
   const [busyId, setBusyId] = useState<string | null>(null);
+  // 1.1.61 — filters for the two lists. Kept separate so narrowing your own
+  // library does not silently narrow the catalogue underneath it.
+  const [filters, setFilters] = useState<ActivityFilters>(EMPTY_ACTIVITY_FILTERS);
+  const [sharedFilters, setSharedFilters] = useState<ActivityFilters>(EMPTY_ACTIVITY_FILTERS);
+  const [facets, setFacets] = useState<CurriculumFacets | null>(null);
+  const [sharedFacets, setSharedFacets] = useState<CurriculumFacets | null>(null);
+  const [total, setTotal] = useState(0);
+  const [sharedTotal, setSharedTotal] = useState(0);
+  // Which row has its filing controls open. One at a time — the editor is a
+  // detail, not the row's default state.
+  const [filingId, setFilingId] = useState<string | null>(null);
+  // Only the free-text box is debounced; chip clicks are deliberate.
+  const debouncedQ = useDebounced(filters.q);
+  const debouncedSharedQ = useDebounced(sharedFilters.q);
 
   function indexAssignments(cls: ClassPayload[]): Map<string, Set<string>> {
     const map = new Map<string, Set<string>>();
@@ -58,25 +84,38 @@ export default function TeacherActivitiesPage() {
     return map;
   }
 
+  // Classes load once — they are the assignment targets, not a filtered list.
+  useEffect(() => {
+    let cancelled = false;
+    listClasses()
+      .then((cls) => {
+        if (cancelled) return;
+        setClasses(cls);
+        setAssignments(indexAssignments(cls));
+      })
+      .catch(() => {
+        /* Non-fatal: the assignment control degrades to no classes. */
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  // Your library, re-fetched whenever the filters change. Filtering is
+  // server-side (the facets are derived from cited documents, which the client
+  // cannot see), so every facet change is a round-trip — hence the debounce on
+  // the text box only.
+  const ownParams = JSON.stringify(toFilterParams({ ...filters, q: debouncedQ }));
   useEffect(() => {
     let cancelled = false;
     setStatus("loading");
-    Promise.all([
-      listActivities(), // own library only
-      listClasses().catch(() => [] as ClassPayload[]),
-      // The shared catalogue (colleagues' published activities). Non-fatal —
-      // degrades to no section.
-      listSharedCatalogue().catch(() => [] as ActivityPayload[]),
-    ])
-      .then(([rows, cls, catalogue]) => {
+    const params = { ...(JSON.parse(ownParams) as ReturnType<typeof toFilterParams>), limit: 200 };
+    Promise.all([listActivities("own", params), listActivityFacets({ scope: "own" }, params).catch(() => null)])
+      .then(([page, f]) => {
         if (cancelled) return;
-        setActivities(rows);
-        setClasses(cls);
-        setAssignments(indexAssignments(cls));
-        // Exclude the caller's OWN published activities — they're already above
-        // in "Your activities"; the shared section is for adopting OTHERS'.
-        const ownIds = new Set(rows.map((a) => a.activityId));
-        setShared(catalogue.filter((a) => !ownIds.has(a.activityId)));
+        setActivities(page.activities);
+        setTotal(page.total);
+        if (f) setFacets(f);
         setStatus("ok");
       })
       .catch(() => {
@@ -85,7 +124,31 @@ export default function TeacherActivitiesPage() {
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [ownParams]);
+
+  // The shared catalogue (colleagues' published activities). Non-fatal —
+  // degrades to no section.
+  const sharedParams = JSON.stringify(toFilterParams({ ...sharedFilters, q: debouncedSharedQ }));
+  useEffect(() => {
+    let cancelled = false;
+    const params = { ...(JSON.parse(sharedParams) as ReturnType<typeof toFilterParams>), limit: 200 };
+    Promise.all([
+      listSharedCatalogue(params),
+      listActivityFacets({ published: true }, params).catch(() => null),
+    ])
+      .then(([page, f]) => {
+        if (cancelled) return;
+        setShared(page.activities);
+        setSharedTotal(page.total);
+        if (f) setSharedFacets(f);
+      })
+      .catch(() => {
+        if (!cancelled) setShared([]);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [sharedParams]);
 
   async function toggleAssign(activityId: string, classId: string, assigned: boolean) {
     setBusyId(activityId);
@@ -156,9 +219,20 @@ export default function TeacherActivitiesPage() {
     }
   }
 
+  // Exclude the caller's OWN published activities from the catalogue — they are
+  // already above in "Your activities", and the catalogue is for adopting
+  // OTHERS'. Derived rather than filtered at fetch time, because the two lists
+  // now load independently and either can arrive first.
+  const ownIds = new Set(activities.map((a) => a.activityId));
+  const othersShared = shared.filter((a) => !ownIds.has(a.activityId));
+
   const count = activities.length;
   const subtitle =
-    status === "ok" ? `${count} ${count === 1 ? "activity" : "activities"}` : undefined;
+    status === "ok"
+      ? total > count
+        ? `${count} of ${total} activities`
+        : `${count} ${count === 1 ? "activity" : "activities"}`
+      : undefined;
 
   return (
     <TeacherPage
@@ -180,6 +254,11 @@ export default function TeacherActivitiesPage() {
           class.
         </p>
       ) : null}
+      {status !== "error" ? (
+        <div className="mb-4">
+          <ActivityFilterBar facets={facets} filters={filters} onChange={setFilters} idPrefix="library" />
+        </div>
+      ) : null}
       {status === "loading" ? (
         <p className="text-sm text-muted-foreground">Loading activities&hellip;</p>
       ) : status === "error" ? (
@@ -187,6 +266,21 @@ export default function TeacherActivitiesPage() {
           icon={ClipboardList}
           title="Couldn’t load activities"
           description="Something went wrong fetching the list. Try again in a moment."
+        />
+      ) : activities.length === 0 && hasActiveFilters(filters) ? (
+        <EmptyState
+          icon={ClipboardList}
+          title="No activities match these filters"
+          description="Nothing in your library matches. Clear a filter, or try a different search."
+          action={
+            <button
+              type="button"
+              onClick={() => setFilters(EMPTY_ACTIVITY_FILTERS)}
+              className={NEW_ACTIVITY_SECONDARY}
+            >
+              Clear filters
+            </button>
+          }
         />
       ) : activities.length === 0 ? (
         <EmptyState
@@ -213,6 +307,12 @@ export default function TeacherActivitiesPage() {
                 onDelete={() => handleDelete(a.activityId, a.title ?? "")}
                 onDuplicate={() => handleDuplicate(a.activityId)}
                 onSetVisibility={(visibility) => handleSetVisibility(a.activityId, visibility)}
+                filingOpen={filingId === a.activityId}
+                onToggleFiling={() => setFilingId(filingId === a.activityId ? null : a.activityId)}
+                facets={facets}
+                onFacetsUpdated={(updated) =>
+                  setActivities((prev) => prev.map((x) => (x.activityId === updated.activityId ? updated : x)))
+                }
               />
             </li>
           ))}
@@ -221,8 +321,16 @@ export default function TeacherActivitiesPage() {
 
       {/* M3.4: the cross-teacher shared catalogue — colleagues' published
           activities, grouped by owner, each adoptable into your library. */}
-      {status === "ok" && shared.length > 0 ? (
-        <SharedActivitiesSection shared={shared} busyId={busyId} onAdopt={handleAdopt} />
+      {status === "ok" && (othersShared.length > 0 || hasActiveFilters(sharedFilters)) ? (
+        <SharedActivitiesSection
+          shared={othersShared}
+          busyId={busyId}
+          onAdopt={handleAdopt}
+          facets={sharedFacets}
+          filters={sharedFilters}
+          onFiltersChange={setSharedFilters}
+          total={sharedTotal}
+        />
       ) : null}
     </TeacherPage>
   );
@@ -234,10 +342,18 @@ function SharedActivitiesSection({
   shared,
   busyId,
   onAdopt,
+  facets,
+  filters,
+  onFiltersChange,
+  total,
 }: {
   shared: ActivityPayload[];
   busyId: string | null;
   onAdopt: (activityId: string) => void;
+  facets: CurriculumFacets | null;
+  filters: ActivityFilters;
+  onFiltersChange: (next: ActivityFilters) => void;
+  total: number;
 }) {
   // Group by owner, preserving the catalogue's newest-first order within a group.
   const groups = new Map<string, { label: string; items: ActivityPayload[] }>();
@@ -253,6 +369,20 @@ function SharedActivitiesSection({
         Published by other teachers. <span className="font-medium">Use / adapt</span> copies one into your library as
         a draft you can edit and assign.
       </p>
+      {/* The catalogue is where filtering earns the most: it is the only
+          cross-teacher discovery surface, and before 1.1.61 it could only be
+          scrolled. */}
+      <div className="mb-3">
+        <ActivityFilterBar facets={facets} filters={filters} onChange={onFiltersChange} idPrefix="catalogue" />
+      </div>
+      {shared.length === 0 ? (
+        <p className="text-sm text-muted-foreground">No shared activities match these filters.</p>
+      ) : null}
+      {total > shared.length ? (
+        <p className="mb-2 text-xs text-muted-foreground">
+          Showing {shared.length} of {total}.
+        </p>
+      ) : null}
       <div className="flex flex-col gap-5">
         {Array.from(groups.values()).map((group) => (
           <div key={group.label}>
@@ -346,6 +476,50 @@ function VisibilityControl({
   );
 }
 
+/** The card's one-line "how is this filed" summary + the toggle for the editor.
+ *  Inherited facets are shown alongside own ones but visually distinct, so the
+ *  answer to "why is this under Fysik?" is on the card rather than two clicks
+ *  away. */
+function ActivityFacetSummary({
+  activity,
+  open,
+  onToggle,
+}: {
+  activity: ActivityPayload;
+  open: boolean;
+  onToggle: () => void;
+}) {
+  const own = [activity.subject, activity.level, ...(activity.tags ?? [])].filter(Boolean) as string[];
+  const inherited = [
+    ...(activity.inheritedSubjects ?? []),
+    ...(activity.inheritedLevels ?? []),
+    ...(activity.inheritedTags ?? []),
+  ];
+  return (
+    <div className="flex flex-wrap items-center gap-1.5 text-xs">
+      {own.map((v) => (
+        <span key={`own-${v}`} className="rounded-full border border-border px-2 py-0.5 text-muted-foreground">
+          {v}
+        </span>
+      ))}
+      {inherited.map((v) => (
+        <InheritedChip key={`inh-${v}`} label={v} />
+      ))}
+      {own.length === 0 && inherited.length === 0 ? (
+        <span className="text-muted-foreground/70">Not filed</span>
+      ) : null}
+      <button
+        type="button"
+        onClick={onToggle}
+        aria-expanded={open}
+        className="text-muted-foreground underline hover:text-foreground"
+      >
+        {open ? "Done" : "File"}
+      </button>
+    </div>
+  );
+}
+
 function ActivityCard({
   activity,
   classes,
@@ -355,6 +529,10 @@ function ActivityCard({
   onDelete,
   onDuplicate,
   onSetVisibility,
+  filingOpen,
+  onToggleFiling,
+  facets,
+  onFacetsUpdated,
 }: {
   activity: ActivityPayload;
   classes: ClassPayload[];
@@ -364,6 +542,10 @@ function ActivityCard({
   onDelete: () => void;
   onDuplicate: () => void;
   onSetVisibility: (visibility: ActivityPayload["visibility"]) => void;
+  filingOpen: boolean;
+  onToggleFiling: () => void;
+  facets: CurriculumFacets | null;
+  onFacetsUpdated: (updated: ActivityPayload) => void;
 }) {
   const editHref = `/teacher/activities/${encodeURIComponent(activity.activityId)}${
     activity.title ? `?title=${encodeURIComponent(activity.title)}` : ""
@@ -388,6 +570,14 @@ function ActivityCard({
 
       {activity.teachingGoal ? (
         <p className="line-clamp-2 text-xs text-muted-foreground">{activity.teachingGoal}</p>
+      ) : null}
+
+      {/* 1.1.61 — how this activity is filed. At rest it is a one-line summary
+          of own + inherited facets; the editor opens on demand, because filing
+          is an occasional act and the card's job is mostly to show composition. */}
+      <ActivityFacetSummary activity={activity} open={filingOpen} onToggle={onToggleFiling} />
+      {filingOpen ? (
+        <ActivityFacetEditor activity={activity} facets={facets} onUpdated={onFacetsUpdated} />
       ) : null}
 
       <div className="flex items-center justify-between gap-2 text-xs text-muted-foreground">

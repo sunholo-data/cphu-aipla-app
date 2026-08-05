@@ -164,8 +164,11 @@ export default function TeacherClassesPage() {
   // (researcher-only scope=all) so other teachers' activity titles resolve too;
   // own view pulls the caller's. Non-fatal — falls back to the id.
   useEffect(() => {
-    void listActivities(researchView ? "all" : "own")
-      .then((acts) => setActivityById(new Map(acts.map((a) => [a.activityId, a]))))
+    // 1.1.61: the list is paginated now (default 50). This is a LOOKUP table, not
+    // a browse, so ask for the cap — a silent truncation here shows up as activity
+    // titles mysteriously falling back to raw ids.
+    void listActivities(researchView ? "all" : "own", { limit: 200 })
+      .then((page) => setActivityById(new Map(page.activities.map((a) => [a.activityId, a]))))
       .catch(() => setActivityById(new Map()));
   }, [researchView]);
 

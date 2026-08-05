@@ -111,8 +111,10 @@ export default function TeacherClassDetailPage() {
   // Load the teacher's activity library once on mount. Fire-and-forget — the
   // class itself loads independently; the picker shows an empty state on failure.
   useEffect(() => {
-    void listActivities()
-      .then(setLibraryActivities)
+    // 1.1.61: paginated now — this is the assignment picker's full library, so
+    // request the cap rather than the default page.
+    void listActivities("own", { limit: 200 })
+      .then((page) => setLibraryActivities(page.activities))
       .catch(() => setLibraryActivities([]));
   }, []);
 

@@ -84,7 +84,7 @@ beforeEach(() => {
   listActivitiesSpy = vi.spyOn(teacherApi, "listActivities") as unknown as ListActivitiesMock;
   patchActivitiesSpy = vi.spyOn(teacherApi, "patchClassActivities") as unknown as PatchClassActivitiesMock;
   // Default: empty library. Individual tests override.
-  listActivitiesSpy.mockResolvedValue([]);
+  listActivitiesSpy.mockResolvedValue({ activities: [], total: [].length, limit: 200, offset: 0 });
 });
 
 afterEach(() => {
@@ -200,7 +200,7 @@ describe("/teacher/classes/[id] — class detail", () => {
   describe("activities picker (ALS-1 M1.3)", () => {
     it("renders assigned activities with title + teaching goal", async () => {
       getSpy.mockResolvedValue(makeClassPayload({ activityIds: ["act-pset"] }));
-      listActivitiesSpy.mockResolvedValue([makeActivity()]);
+      listActivitiesSpy.mockResolvedValue({ activities: [makeActivity()], total: [makeActivity()].length, limit: 200, offset: 0 });
 
       render(<TeacherClassDetailPage />);
       await waitFor(() => {
@@ -211,10 +211,13 @@ describe("/teacher/classes/[id] — class detail", () => {
 
     it("'Add activity' opens the picker showing only unassigned library activities", async () => {
       getSpy.mockResolvedValue(makeClassPayload({ activityIds: ["act-pset"] }));
-      listActivitiesSpy.mockResolvedValue([
+      listActivitiesSpy.mockResolvedValue({ activities: [
         makeActivity(),
         makeActivity({ activityId: "act-energy", title: "Energy basics" }),
-      ]);
+      ], total: [
+        makeActivity(),
+        makeActivity({ activityId: "act-energy", title: "Energy basics" }),
+      ].length, limit: 200, offset: 0 });
 
       render(<TeacherClassDetailPage />);
       await waitFor(() => {
@@ -232,7 +235,7 @@ describe("/teacher/classes/[id] — class detail", () => {
 
     it("labels an assigned activity with its title + a class-independent Edit link", async () => {
       getSpy.mockResolvedValue(makeClassPayload({ activityIds: ["act-pset"] }));
-      listActivitiesSpy.mockResolvedValue([makeActivity({ title: "Mechanical Waves" })]);
+      listActivitiesSpy.mockResolvedValue({ activities: [makeActivity({ title: "Mechanical Waves" })], total: [makeActivity({ title: "Mechanical Waves" })].length, limit: 200, offset: 0 });
 
       render(<TeacherClassDetailPage />);
       await waitFor(() => expect(screen.getByText("Mechanical Waves")).toBeInTheDocument());
@@ -247,7 +250,7 @@ describe("/teacher/classes/[id] — class detail", () => {
       getSpy
         .mockResolvedValueOnce(makeClassPayload({ activityIds: [] }))
         .mockResolvedValueOnce(makeClassPayload({ activityIds: ["act-pset"] }));
-      listActivitiesSpy.mockResolvedValue([makeActivity()]);
+      listActivitiesSpy.mockResolvedValue({ activities: [makeActivity()], total: [makeActivity()].length, limit: 200, offset: 0 });
       patchActivitiesSpy.mockResolvedValue(makeClassPayload({ activityIds: ["act-pset"] }));
 
       render(<TeacherClassDetailPage />);
@@ -268,7 +271,7 @@ describe("/teacher/classes/[id] — class detail", () => {
       getSpy
         .mockResolvedValueOnce(makeClassPayload({ activityIds: ["act-pset"] }))
         .mockResolvedValueOnce(makeClassPayload({ activityIds: [] }));
-      listActivitiesSpy.mockResolvedValue([makeActivity()]);
+      listActivitiesSpy.mockResolvedValue({ activities: [makeActivity()], total: [makeActivity()].length, limit: 200, offset: 0 });
       patchActivitiesSpy.mockResolvedValue(makeClassPayload({ activityIds: [] }));
 
       render(<TeacherClassDetailPage />);
@@ -284,7 +287,7 @@ describe("/teacher/classes/[id] — class detail", () => {
 
     it("'Add activity' is disabled when every library activity is already assigned", async () => {
       getSpy.mockResolvedValue(makeClassPayload({ activityIds: ["act-pset"] }));
-      listActivitiesSpy.mockResolvedValue([makeActivity()]); // the only library activity is assigned
+      listActivitiesSpy.mockResolvedValue({ activities: [makeActivity()], total: [makeActivity()].length, limit: 200, offset: 0 }); // the only library activity is assigned
 
       render(<TeacherClassDetailPage />);
       await waitFor(() => {

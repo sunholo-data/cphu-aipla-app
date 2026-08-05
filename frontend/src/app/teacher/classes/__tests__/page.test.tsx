@@ -68,7 +68,7 @@ beforeEach(() => {
     defaultId: null,
     interactionStyles: [],
   });
-  vi.spyOn(teacherApi, "listActivities").mockResolvedValue([]);
+  vi.spyOn(teacherApi, "listActivities").mockResolvedValue({ activities: [], total: [].length, limit: 200, offset: 0 });
   vi.spyOn(costApi, "fetchTeacherSpend").mockResolvedValue({
     currency: "EUR",
     period: "this_month",
@@ -220,7 +220,7 @@ describe("/teacher/classes — dashboard", () => {
       defaultId: "sofie",
       interactionStyles: [],
     });
-    vi.spyOn(teacherApi, "listActivities").mockResolvedValue([
+    vi.spyOn(teacherApi, "listActivities").mockResolvedValue({ activities: [
       {
         activityId: "act-x",
         ownerUid: "teacher-1",
@@ -235,7 +235,22 @@ describe("/teacher/classes — dashboard", () => {
         pairedWorkbench: null,
         updatedAt: "2026-06-16T00:00:00Z",
       },
-    ]);
+    ], total: [
+      {
+        activityId: "act-x",
+        ownerUid: "teacher-1",
+        skillId: "concept-dialogue",
+        visibility: "private",
+        classId: "",
+        teacherUid: "teacher-1",
+        title: "Mechanical Waves",
+        teachingGoal: "g",
+        language: "da",
+        difficulty: "standard",
+        pairedWorkbench: null,
+        updatedAt: "2026-06-16T00:00:00Z",
+      },
+    ].length, limit: 200, offset: 0 });
 
     render(<TeacherClassesPage />);
     await waitFor(() =>

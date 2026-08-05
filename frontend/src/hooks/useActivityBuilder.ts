@@ -2,7 +2,7 @@
 
 import { useMemo, useRef, useState } from "react";
 
-import type { ActivityConfigPayload, Language, MaterialRef, WorkbenchType } from "@/lib/teacherApi";
+import type { ActivityConfigPayload, Language, MaterialRef, StxLevel, WorkbenchType } from "@/lib/teacherApi";
 import { builderToElementDefs } from "@/lib/activityPreview";
 import type { TableEditorValue } from "@/components/teacher/TableEditor";
 import type { ChartEditorValue } from "@/components/teacher/ChartEditor";
@@ -51,6 +51,19 @@ export interface SavePayload extends ElementPayload {
   language: Language;
   workbenchType: WorkbenchType;
   materials: MaterialRef[];
+  /** 1.1.61 — the activity's OWN facets. Carried through the builder purely so
+   *  a save cannot wipe them: a teacher files an activity from the library row
+   *  (a screen that shows subject/level/tags) and then edits it here, on a screen
+   *  that does not. Because the save is a FULL OVERWRITE, omitting these would
+   *  clear them silently. The builder never *edits* them — filing happens in the
+   *  library — it just refuses to lose them.
+   *
+   *  INHERITED facets are deliberately absent: they belong to the cited
+   *  documents, and writing them back would freeze a derived value into a stored
+   *  one, which is the whole thing this design avoids. */
+  tags: string[];
+  subject: string | null;
+  level: StxLevel | null;
 }
 
 export interface ActivityBuilder {
@@ -128,6 +141,10 @@ export function useActivityBuilder(): ActivityBuilder {
   const [conceptMap, setConceptMap] = useState<ConceptMapEditorValue | null>(null);
   const [artefactId, setArtefactId] = useState<string | null>(null);
   const [materials, setMaterials] = useState<MaterialRef[]>([]);
+  // 1.1.61 — held, not edited (see SavePayload). Round-trip only.
+  const [tags, setTags] = useState<string[]>([]);
+  const [subject, setSubject] = useState<string | null>(null);
+  const [level, setLevel] = useState<StxLevel | null>(null);
   const nextKeyRef = useRef(1);
   const nextElementKey = () => nextKeyRef.current++;
 
@@ -211,6 +228,11 @@ export function useActivityBuilder(): ActivityBuilder {
     setWorkbenchType(cfg.workbenchType ?? "none");
     setArtefactId(cfg.artefactId ?? null);
     setMaterials(cfg.materials ?? []);
+    // Own facets only. `inherited*` on the payload is display data derived from
+    // the cited documents and must never round-trip into a write.
+    setTags(cfg.tags ?? []);
+    setSubject(cfg.subject ?? null);
+    setLevel(cfg.level ?? null);
     setChecklist((cfg.checklist ?? []).map((c) => ({ key: nextKeyRef.current++, label: c.label })));
 
     const t = cfg.table?.[0];
@@ -295,6 +317,9 @@ export function useActivityBuilder(): ActivityBuilder {
       workbenchType,
       ...elementPayload(),
       materials,
+      tags,
+      subject,
+      level,
     };
   }
 

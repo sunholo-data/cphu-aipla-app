@@ -30,10 +30,10 @@ export default function ResearchActivitiesPage() {
   useEffect(() => {
     let cancelled = false;
     setStatus("loading");
-    listActivities("all")
-      .then((rows) => {
+    listActivities("all", { limit: 200 })
+      .then((page) => {
         if (cancelled) return;
-        setActivities(rows);
+        setActivities(page.activities);
         setStatus("ok");
       })
       .catch((err: unknown) => {

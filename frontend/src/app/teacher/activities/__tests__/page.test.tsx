@@ -39,7 +39,7 @@ function makeClass(overrides: Partial<ClassPayload> = {}): ClassPayload {
 
 beforeEach(() => {
   vi.restoreAllMocks();
-  vi.spyOn(teacherApi, "listSharedCatalogue").mockResolvedValue([]); // no shared catalogue by default
+  vi.spyOn(teacherApi, "listSharedCatalogue").mockResolvedValue({ activities: [], total: [].length, limit: 200, offset: 0 }); // no shared catalogue by default
 });
 afterEach(() => {
   vi.restoreAllMocks();
@@ -47,7 +47,7 @@ afterEach(() => {
 
 describe("TeacherActivitiesPage (ALS-1 M1.2 library)", () => {
   it("shows an empty state with a New activity link when there are no activities", async () => {
-    vi.spyOn(teacherApi, "listActivities").mockResolvedValue([]);
+    vi.spyOn(teacherApi, "listActivities").mockResolvedValue({ activities: [], total: [].length, limit: 200, offset: 0 });
     vi.spyOn(teacherApi, "listClasses").mockResolvedValue([]);
     render(<TeacherActivitiesPage />);
 
@@ -57,7 +57,7 @@ describe("TeacherActivitiesPage (ALS-1 M1.2 library)", () => {
   });
 
   it("shows the composition (sim + elements + docs) from the payload", async () => {
-    vi.spyOn(teacherApi, "listActivities").mockResolvedValue([
+    vi.spyOn(teacherApi, "listActivities").mockResolvedValue({ activities: [
       makeActivity({
         artefactId: "boldkast",
         workbenchType: "app",
@@ -65,7 +65,15 @@ describe("TeacherActivitiesPage (ALS-1 M1.2 library)", () => {
         note: [{ id: "n", title: "t", body: "x" }] as unknown as ActivityPayload["note"],
         materials: [{ documentId: "d1" }] as unknown as ActivityPayload["materials"],
       }),
-    ]);
+    ], total: [
+      makeActivity({
+        artefactId: "boldkast",
+        workbenchType: "app",
+        checklist: [{ id: "a", label: "a" }, { id: "b", label: "b" }] as ActivityPayload["checklist"],
+        note: [{ id: "n", title: "t", body: "x" }] as unknown as ActivityPayload["note"],
+        materials: [{ documentId: "d1" }] as unknown as ActivityPayload["materials"],
+      }),
+    ].length, limit: 200, offset: 0 });
     vi.spyOn(teacherApi, "listClasses").mockResolvedValue([]);
     render(<TeacherActivitiesPage />);
 
@@ -77,7 +85,7 @@ describe("TeacherActivitiesPage (ALS-1 M1.2 library)", () => {
   });
 
   it("lists an activity with an Edit link (class-independent) + a chip for its assigned class", async () => {
-    vi.spyOn(teacherApi, "listActivities").mockResolvedValue([makeActivity()]);
+    vi.spyOn(teacherApi, "listActivities").mockResolvedValue({ activities: [makeActivity()], total: [makeActivity()].length, limit: 200, offset: 0 });
     vi.spyOn(teacherApi, "listClasses").mockResolvedValue([
       makeClass({ classId: "c-1", name: "Physics A — 7B", activityIds: ["act-energy"] }),
       makeClass({ classId: "c-2", name: "Physics B — 8A", activityIds: [] }),
@@ -98,7 +106,7 @@ describe("TeacherActivitiesPage (ALS-1 M1.2 library)", () => {
   });
 
   it("assigns the activity to another class via its chip toggle", async () => {
-    vi.spyOn(teacherApi, "listActivities").mockResolvedValue([makeActivity()]);
+    vi.spyOn(teacherApi, "listActivities").mockResolvedValue({ activities: [makeActivity()], total: [makeActivity()].length, limit: 200, offset: 0 });
     vi.spyOn(teacherApi, "listClasses").mockResolvedValue([
       makeClass({ classId: "c-1", name: "7B", activityIds: [] }),
       makeClass({ classId: "c-2", name: "8A", activityIds: [] }),
@@ -116,14 +124,18 @@ describe("TeacherActivitiesPage (ALS-1 M1.2 library)", () => {
   });
 
   it("calls listActivities for the OWN library only (no scope=all here)", async () => {
-    const listSpy = vi.spyOn(teacherApi, "listActivities").mockResolvedValue([makeActivity()]);
+    const listSpy = vi.spyOn(teacherApi, "listActivities").mockResolvedValue({ activities: [makeActivity()], total: [makeActivity()].length, limit: 200, offset: 0 });
     vi.spyOn(teacherApi, "listClasses").mockResolvedValue([]);
     render(<TeacherActivitiesPage />);
 
     await screen.findByText("Energy basics");
     // The cross-teacher scan lives on /teacher/research/activities now, so this
     // page never requests scope=all and has no My/All toggle.
-    expect(listSpy).toHaveBeenCalledWith();
+    // Asserts the SCOPE, not the whole call: 1.1.61 added filter params, and
+    // pinning those here would make every future filter change look like a
+    // regression in a test about which scope this page requests.
+    expect(listSpy).toHaveBeenCalledWith("own", expect.anything());
+    expect(listSpy).not.toHaveBeenCalledWith("all", expect.anything());
     expect(screen.queryByRole("button", { name: "All activities" })).not.toBeInTheDocument();
   });
 
@@ -135,7 +147,7 @@ describe("TeacherActivitiesPage (ALS-1 M1.2 library)", () => {
     await waitFor(() => expect(screen.getByText(/Couldn.t load activities/)).toBeInTheDocument());
   });
   it("duplicates an activity into the list as a new draft (M2)", async () => {
-    vi.spyOn(teacherApi, "listActivities").mockResolvedValue([makeActivity()]);
+    vi.spyOn(teacherApi, "listActivities").mockResolvedValue({ activities: [makeActivity()], total: [makeActivity()].length, limit: 200, offset: 0 });
     vi.spyOn(teacherApi, "listClasses").mockResolvedValue([]);
     const dupSpy = vi
       .spyOn(teacherApi, "duplicateActivity")
@@ -148,7 +160,7 @@ describe("TeacherActivitiesPage (ALS-1 M1.2 library)", () => {
     await waitFor(() => expect(screen.getAllByText("Energy basics").length).toBe(2));
   });
   it("toggles an activity's visibility via the status pill (M2)", async () => {
-    vi.spyOn(teacherApi, "listActivities").mockResolvedValue([makeActivity()]); // private
+    vi.spyOn(teacherApi, "listActivities").mockResolvedValue({ activities: [makeActivity()], total: [makeActivity()].length, limit: 200, offset: 0 }); // private
     vi.spyOn(teacherApi, "listClasses").mockResolvedValue([]);
     const setSpy = vi
       .spyOn(teacherApi, "setActivityVisibility")
@@ -164,7 +176,7 @@ describe("TeacherActivitiesPage (ALS-1 M1.2 library)", () => {
   });
 
   it("blocks assignment of a Draft and prompts review & save (not assignable yet)", async () => {
-    vi.spyOn(teacherApi, "listActivities").mockResolvedValue([makeActivity({ visibility: "draft" })]);
+    vi.spyOn(teacherApi, "listActivities").mockResolvedValue({ activities: [makeActivity({ visibility: "draft" })], total: [makeActivity({ visibility: "draft" })].length, limit: 200, offset: 0 });
     vi.spyOn(teacherApi, "listClasses").mockResolvedValue([
       makeClass({ classId: "c-1", name: "7B", activityIds: [] }),
     ]);
@@ -181,11 +193,13 @@ describe("TeacherActivitiesPage (ALS-1 M1.2 library)", () => {
   });
 
   it("shows the Shared activities section and adopts a published activity (M3.4)", async () => {
-    vi.spyOn(teacherApi, "listActivities").mockResolvedValue([]); // own library empty
+    vi.spyOn(teacherApi, "listActivities").mockResolvedValue({ activities: [], total: [].length, limit: 200, offset: 0 }); // own library empty
     vi.spyOn(teacherApi, "listClasses").mockResolvedValue([]);
-    vi.spyOn(teacherApi, "listSharedCatalogue").mockResolvedValue([
+    vi.spyOn(teacherApi, "listSharedCatalogue").mockResolvedValue({ activities: [
       makeActivity({ activityId: "act-pub", ownerUid: "other", ownerLabel: "Bob Jensen", title: "Shared one", visibility: "published" }),
-    ]);
+    ], total: [
+      makeActivity({ activityId: "act-pub", ownerUid: "other", ownerLabel: "Bob Jensen", title: "Shared one", visibility: "published" }),
+    ].length, limit: 200, offset: 0 });
     const adoptSpy = vi
       .spyOn(teacherApi, "adoptActivity")
       .mockResolvedValue(makeActivity({ activityId: "act-mine", title: "Shared one", visibility: "draft" }));
