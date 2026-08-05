@@ -16,20 +16,16 @@ from typing import Any
 
 from db.firestore import delete_document, get_document, query_documents, set_document
 from db.models.curriculum import SHARED_SCOPE, CurriculumDoc, CurriculumFolder, normalize_tags
+from db.models.taxonomy import UNFILED, UNFILED_LABEL, UNLEVELLED, UNLEVELLED_LABEL
 
 logger = logging.getLogger(__name__)
 
 _COLLECTION = "curriculum_docs"
 # 1.1.58 M3 — flat folders, keyed by ownerScope like the docs themselves.
 _FOLDER_COLLECTION = "curriculum_folders"
-# Sentinel folder filter value → docs with NO folder ("Unfiled" rail chip).
-UNFILED = "__unfiled__"
-UNFILED_LABEL = "Unfiled"
-# 1.1.60 — the level facet's twin sentinel, for docs with no A/B/C assigned. A
-# sentinel rather than None because it travels as a query-string value
-# (?level=__unlevelled__), the same shape as UNFILED. Most teacher uploads are here.
-UNLEVELLED = "__unlevelled__"
-UNLEVELLED_LABEL = "No level"
+# 1.1.61 — the sentinels moved to db.models.taxonomy so the activity filter pass
+# can select the same "has no level" bucket by the same name. Imported at the top
+# of this module; re-exported here because callers reach for `db.curriculum.UNFILED`.
 # 1.1.33 M3 — the parsed text, kept SEPARATE from the metadata doc so browse/list
 # queries stay light. Read on demand when a student opens a shared doc.
 _CONTENT_COLLECTION = "curriculum_content"

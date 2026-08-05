@@ -41,6 +41,7 @@ from db.models.activity_config import (
     TableElement,
     WorkbenchType,
 )
+from db.models.taxonomy import MAX_SUBJECT_LEN, StxLevel, normalize_subject, normalize_tags
 
 # draft  — owner-only, not student-facing (the builder's "Save draft"; M3 surfaces it).
 # private — finished, assignable to the owner's classes, students run it. NOT shared.
@@ -97,6 +98,20 @@ class Activity(BaseModel):
     document: list[DocumentElement] = Field(default_factory=list)
     concept_map: list[ConceptMapElement] = Field(default_factory=list, alias="conceptMap")
     materials: list[MaterialRef] = Field(default_factory=list)
+    # 1.1.61 — the teacher's OWN organising facets, sharing the document
+    # vocabulary (db/models/taxonomy.py) so the two libraries compose.
+    #
+    # These hold ONLY what a teacher explicitly set. The facets an activity gets
+    # from the documents it cites are NOT copied here — they are derived at read
+    # time (see `db.activities.inherited_facets_for`) and travel as separate
+    # `inherited*` fields on the API response. That split is the whole design:
+    # a stored copy would need a backfill, would go stale the moment a document
+    # is re-tagged, and would make an override indistinguishable from an
+    # inheritance. It is also exactly the shape of the 1.1.58 M2 bug, where
+    # `subject` sat on the model for two and a half weeks with no write path.
+    tags: list[str] = Field(default_factory=list)
+    subject: str | None = Field(default=None, max_length=MAX_SUBJECT_LEN)
+    level: StxLevel | None = None
     # Sharing envelope. Default ``private`` (not ``draft``): today's builder has no
     # separate publish step, so a created+assigned activity is immediately
     # student-facing — preserving the current "create → live" behaviour. ``draft``
@@ -117,6 +132,19 @@ class Activity(BaseModel):
         ``ActivityConfig``). An explicitly chosen type is never overridden."""
         if self.workbench_type == "none" and self.artefact_id:
             self.workbench_type = "app"
+        return self
+
+    @model_validator(mode="after")
+    def _canonicalise_facets(self) -> Activity:
+        """Normalise tags/subject on the MODEL, not at each call site (1.1.61).
+
+        Every write path (POST, PATCH, the co-pilot, the CLI, a backfill) builds
+        an ``Activity``, so doing it here means none of them can forget and store
+        an uncanonical tag that then fails to match a chip click. The document
+        side normalises per-route; this is the tighter version of that.
+        """
+        self.tags = normalize_tags(self.tags)
+        self.subject = normalize_subject(self.subject)
         return self
 
     @model_validator(mode="after")

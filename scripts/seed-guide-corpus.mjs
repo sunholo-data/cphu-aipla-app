@@ -167,8 +167,14 @@ if (cls) {
 // Upsert a tutor by title. PATCH takes the same full-replace body as POST, so
 // both branches send the COMPLETE activity — a partial PATCH here would wipe
 // the fields it omitted (the repo's full-overwrite footgun).
-const existingActivities = await api("/api/proxy/api/activities", { headers: AUTH });
-const activityIdByTitle = new Map((existingActivities || []).map((a) => [a.title, a.activityId]));
+// 1.1.61 — this endpoint returns {activities,total,limit,offset}; it was a bare
+// list before. Tolerate both so the script works against an env that has not
+// been promoted yet (dev moves first, and this seeds all three).
+const existingActivities = await api("/api/proxy/api/activities?limit=200", { headers: AUTH });
+const activityRows = Array.isArray(existingActivities)
+  ? existingActivities
+  : existingActivities.activities || [];
+const activityIdByTitle = new Map(activityRows.map((a) => [a.title, a.activityId]));
 
 async function upsertTutor(title, teachingGoal, aud) {
   const body = JSON.stringify({

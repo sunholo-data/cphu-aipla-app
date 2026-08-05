@@ -16,12 +16,12 @@
       "description": "Activity gains tags/subject/level; facets INHERITED at read time from cited materials; list filters + /facets endpoint mirroring 1.1.58 semantics",
       "scope": "backend",
       "estimated_loc": 650,
-      "actual_loc": null,
+      "actual_loc": 780,
       "dependencies": [],
       "acceptance_criteria": [
         "An activity citing a Fysik document matches ?subject=Fysik with NO activity-level subject set",
         "Re-tagging the cited document changes what the activity matches, with zero writes to the activity",
-        "Shared catalogue (published=true) inherits only from ownerScope=='shared' docs — a private upload's tags never leak",
+        "Shared catalogue (published=true) inherits only from ownerScope=='shared' docs \u2014 a private upload's tags never leak",
         "Tag filter is AND across multiple tags and case-insensitive",
         "__unlevelled__ returns activities with neither own nor inherited level",
         "A deleted cited doc contributes nothing and does not error the list",
@@ -41,10 +41,10 @@
         "backend/protocols/activity_routes.py",
         "scripts/seed-guide-corpus.mjs"
       ],
-      "passes": null,
-      "started": null,
-      "completed": null,
-      "notes": "GET /api/activities response shape changes from a bare list to {activities,total,limit,offset} — seed-guide-corpus.mjs reads it as a list and is NOT covered by CI."
+      "passes": true,
+      "started": "2026-08-05",
+      "completed": "2026-08-05",
+      "notes": "Done. 32 new tests (16 unit + 16 API); suite 2667 -> 2699. DEVIATION from the plan, for the better: facet edits got their own PATCH /{id}/facets instead of riding the full-replace ActivityUpsert. The library row holds only a summary, so routing a tag edit through the full body would have made the list able to wipe every element \u2014 the full-overwrite footgun in its worst form. extra=forbid on a facets-only body makes that structurally impossible. Also clarified: the shared catalogue resolves citations against the SHARED corpus for EVERY viewer including the owner, so the catalogue looks identical to everyone; the owner keeps full facets in their own library."
     },
     {
       "id": "M2-FRONTEND",
@@ -52,7 +52,9 @@
       "scope": "frontend",
       "estimated_loc": 650,
       "actual_loc": null,
-      "dependencies": ["M1-BACKEND"],
+      "dependencies": [
+        "M1-BACKEND"
+      ],
       "acceptance_criteria": [
         "Tagging a document in Materials makes the citing activity findable under that tag with no activity edit",
         "Existing MaterialsSection tests pass UNCHANGED after the FacetRow extraction",
@@ -85,7 +87,10 @@
       "scope": "fullstack",
       "estimated_loc": 270,
       "actual_loc": null,
-      "dependencies": ["M1-BACKEND", "M2-FRONTEND"],
+      "dependencies": [
+        "M1-BACKEND",
+        "M2-FRONTEND"
+      ],
       "acceptance_criteria": [
         "attach_material passes tags/subject/folder through to the curriculum browse",
         "A set_activity_facets proposal round-trips through applyCopilotProposal (propose-only, nothing applies without Apply)",
@@ -101,7 +106,7 @@
       "passes": null,
       "started": null,
       "completed": null,
-      "notes": "Lowest priority — M1+M2 deliver the user-visible goal on their own."
+      "notes": "Lowest priority \u2014 M1+M2 deliver the user-visible goal on their own."
     }
   ],
   "velocity": {
@@ -113,7 +118,7 @@
     "actual_days": null
   },
   "github_issues": [],
-  "last_session": null,
+  "last_session": "2026-08-05",
   "last_checkpoint": null,
-  "status": "not_started"
+  "status": "in_progress"
 }

@@ -18,10 +18,16 @@ from typing import Any
 
 from db.firestore import get_document, query_documents, set_document, update_document
 from db.models.activity import Activity, mint_activity_id
+from db.models.curriculum import CurriculumDoc
+from db.models.taxonomy import UNLEVELLED, UNLEVELLED_LABEL, normalize_tags
 
 logger = logging.getLogger(__name__)
 
 _COLLECTION = "activities"
+
+# An empty facet set, shared so callers can treat "no materials" and "materials
+# we cannot see" identically without allocating.
+_NO_FACETS: dict[str, set[str]] = {"subjects": set(), "levels": set(), "tags": set()}
 
 
 def _utcnow() -> datetime:
@@ -145,6 +151,182 @@ def list_published_activities() -> list[Activity]:
     return rows
 
 
+# --- Facets: inherited from cited materials (1.1.61) ------------------------
+#
+# An activity's organising facets are mostly NOT stored on the activity. They are
+# derived, on each read, from the curriculum documents it cites. File a document
+# and every activity using it files itself: no backfill, no staleness when a
+# document is re-tagged, and no reconciliation job to drift.
+#
+# The three functions below are PURE — they take the activities and a doc lookup
+# and do no I/O — so the route resolves documents once and the facet pass can
+# call the filter repeatedly with one facet omitted (the narrowed-count trick
+# `db.curriculum.facets_for_teacher` uses).
+
+
+def inherited_facets_for(
+    activities: list[Activity],
+    docs_by_id: dict[str, CurriculumDoc],
+) -> dict[str, dict[str, set[str]]]:
+    """Per activity, the subjects/levels/tags unioned from the documents it cites.
+
+    ``docs_by_id`` MUST be the CALLER's visible documents, never the owner's.
+    That is what stops a published activity leaking the tags of the private
+    upload it cites to another teacher browsing the shared catalogue — the
+    citation resolves to nothing for someone who cannot see the document. The
+    wrong version (resolving against the owner's corpus) is indistinguishable in
+    single-teacher dev data, which is why there is a test for it.
+
+    Note the plurals: a document has one subject and one level, but an activity
+    citing several has a SET of each.
+    """
+    out: dict[str, dict[str, set[str]]] = {}
+    for activity in activities:
+        subjects: set[str] = set()
+        levels: set[str] = set()
+        tags: set[str] = set()
+        for ref in activity.materials:
+            if ref.kind != "curriculum" or not ref.doc_id:
+                continue
+            doc = docs_by_id.get(ref.doc_id)
+            if doc is None:
+                # A dangling docId is the normal result of deleting a document,
+                # or of citing one the caller cannot see. Contribute nothing.
+                continue
+            if doc.subject:
+                subjects.add(doc.subject)
+            if doc.level:
+                levels.add(doc.level)
+            tags.update(doc.tags)
+        out[activity.activity_id] = {"subjects": subjects, "levels": levels, "tags": tags}
+    return out
+
+
+def _facets_of(activity: Activity, inherited: dict[str, dict[str, set[str]]]) -> dict[str, set[str]]:
+    """The activity's effective facets: what the teacher set UNION what it inherits.
+
+    A union, not an override — an activity explicitly marked Matematik that cites
+    a Fysik document is findable under both, because both are true of it.
+    """
+    inh = inherited.get(activity.activity_id, _NO_FACETS)
+    return {
+        "subjects": inh["subjects"] | ({activity.subject} if activity.subject else set()),
+        "levels": inh["levels"] | ({activity.level} if activity.level else set()),
+        "tags": inh["tags"] | set(activity.tags),
+    }
+
+
+def apply_activity_filters(
+    activities: list[Activity],
+    inherited: dict[str, dict[str, set[str]]],
+    *,
+    level: str | None = None,
+    subject: str | None = None,
+    tags: list[str] | None = None,
+    q: str | None = None,
+) -> list[Activity]:
+    """Apply the browse facets to an already-ACL-scoped activity list.
+
+    Pure (no I/O), so ``facets_for_activities`` can call it repeatedly with one
+    facet omitted — that omission is what narrows each facet's counts to the rest
+    of the selection while keeping its siblings countable. Mirrors
+    ``db.curriculum._apply_filters``; keep the two in step.
+    """
+    rows = list(activities)
+    if level:
+        if level == UNLEVELLED:
+            # Neither an own level nor an inherited one — the residue bucket, and
+            # where most activities actually sit until someone files them.
+            rows = [a for a in rows if not _facets_of(a, inherited)["levels"]]
+        else:
+            rows = [a for a in rows if level in _facets_of(a, inherited)["levels"]]
+    if subject:
+        rows = [a for a in rows if subject in _facets_of(a, inherited)["subjects"]]
+    if tags:
+        # AND facet, across BOTH sources: an activity matches only if every
+        # selected tag is either its own or inherited. Normalise the query side so
+        # a chip click and a CLI flag compare identically.
+        want = set(normalize_tags(tags))
+        rows = [a for a in rows if want <= _facets_of(a, inherited)["tags"]]
+    if q:
+        # Free-text: case-insensitive substring across what a teacher would expect
+        # a search box over activities to cover — the title, the teaching goal, and
+        # both tag sources. Element bodies are deliberately NOT searched (see the
+        # design doc's Non-Goals). Multi-word queries AND, so terms narrow.
+        needles = q.lower().split()
+        rows = [
+            a
+            for a in rows
+            if all(
+                term in f"{a.title} {a.teaching_goal} {' '.join(sorted(_facets_of(a, inherited)['tags']))}".lower()
+                for term in needles
+            )
+        ]
+    return rows
+
+
+def facets_for_activities(
+    activities: list[Activity],
+    inherited: dict[str, dict[str, set[str]]],
+    *,
+    level: str | None = None,
+    subject: str | None = None,
+    tags: list[str] | None = None,
+    q: str | None = None,
+) -> dict[str, list[dict[str, Any]]]:
+    """Every facet's options, each COUNTED against the OTHER active facets.
+
+    Same two rules as the curriculum rail, and for the same reasons:
+
+    * **Which options exist** comes from the whole visible set, so the rail never
+      reshuffles as you type — chips do not appear or vanish mid-filter.
+    * **Each option's count** comes from the set filtered by every facet EXCEPT
+      itself, so selecting a subject re-counts tags and levels against it while
+      sibling subjects keep their counts and stay switchable.
+
+    A zero count dims a chip; it never hides it. ``q`` is a search, not a facet,
+    so it narrows every count.
+    """
+
+    def others(**omit: Any) -> list[Activity]:
+        active: dict[str, Any] = {"level": level, "subject": subject, "tags": tags, "q": q}
+        active.update(omit)
+        return apply_activity_filters(activities, inherited, **active)
+
+    def tally(rows: list[Activity], key: str) -> dict[str, int]:
+        counts: dict[str, int] = {}
+        for a in rows:
+            # A set, so an activity citing two Fysik documents counts ONCE for
+            # Fysik — a facet counts activities, not citations.
+            for value in _facets_of(a, inherited)[key]:
+                counts[value] = counts.get(value, 0) + 1
+        return counts
+
+    def level_key(rows: list[Activity]) -> dict[str, int]:
+        counts: dict[str, int] = {}
+        for a in rows:
+            levels = _facets_of(a, inherited)["levels"] or {UNLEVELLED}
+            for value in levels:
+                counts[value] = counts.get(value, 0) + 1
+        return counts
+
+    subject_vocab, subject_counts = tally(activities, "subjects"), tally(others(subject=None), "subjects")
+    tag_vocab, tag_counts = tally(activities, "tags"), tally(others(tags=None), "tags")
+    level_vocab, level_counts = level_key(activities), level_key(others(level=None))
+
+    return {
+        "subjects": [{"value": s, "label": s, "count": subject_counts.get(s, 0)} for s in sorted(subject_vocab)],
+        "levels": [
+            {"value": lv, "label": UNLEVELLED_LABEL if lv == UNLEVELLED else lv, "count": level_counts.get(lv, 0)}
+            # Fixed A/B/C order, unlevelled last — a level rail must not reorder
+            # itself as counts change.
+            for lv in ("A", "B", "C", UNLEVELLED)
+            if lv in level_vocab
+        ],
+        "tags": [{"value": t, "label": t, "count": tag_counts.get(t, 0)} for t in sorted(tag_vocab)],
+    }
+
+
 def soft_delete_activity(activity_id: str) -> None:
     """Soft-delete (sets ``deletedAt``). Idempotent — no-op if already gone.
 
@@ -156,9 +338,12 @@ def soft_delete_activity(activity_id: str) -> None:
 
 
 __all__ = [
+    "apply_activity_filters",
     "copy_activity",
     "create_activity",
+    "facets_for_activities",
     "get_activity",
+    "inherited_facets_for",
     "list_activities_by_owner",
     "list_all_activities",
     "list_published_activities",

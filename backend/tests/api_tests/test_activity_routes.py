@@ -109,7 +109,7 @@ def test_post_assign_to_unowned_class_404s():
 def test_list_owner_scoped():
     _client().post("/api/activities", json={"skillId": "concept", "title": "Mine"})
     _client(OTHER).post("/api/activities", json={"skillId": "concept", "title": "Theirs"})
-    mine = _client().get("/api/activities?owner=me").json()
+    mine = _client().get("/api/activities?owner=me").json()["activities"]
     assert {a["title"] for a in mine} == {"Mine"}
 
 
@@ -118,7 +118,7 @@ def test_scope_all_researcher_sees_every_owner():
     across ALL teachers, not just their own."""
     _client().post("/api/activities", json={"skillId": "concept", "title": "Mine"})
     _client(OTHER).post("/api/activities", json={"skillId": "concept", "title": "Theirs"})
-    rows = _client(researcher=True).get("/api/activities?scope=all").json()
+    rows = _client(researcher=True).get("/api/activities?scope=all").json()["activities"]
     assert {a["title"] for a in rows} == {"Mine", "Theirs"}
 
 
@@ -130,7 +130,7 @@ def test_scope_all_enriches_owner_label(monkeypatch):
         lambda uids: {TEACHER: "Alice Hansen"},
     )
     _client().post("/api/activities", json={"skillId": "concept", "title": "Mine"})
-    rows = _client(researcher=True).get("/api/activities?scope=all").json()
+    rows = _client(researcher=True).get("/api/activities?scope=all").json()["activities"]
     assert rows[0]["ownerLabel"] == "Alice Hansen"
 
 
@@ -139,7 +139,7 @@ def test_scope_all_falls_back_to_uid_when_unresolved(monkeypatch):
     to the uid (no crash, no empty label)."""
     monkeypatch.setattr("protocols.activity_routes.resolve_owner_labels", lambda uids: {})
     _client().post("/api/activities", json={"skillId": "concept", "title": "Mine"})
-    rows = _client(researcher=True).get("/api/activities?scope=all").json()
+    rows = _client(researcher=True).get("/api/activities?scope=all").json()["activities"]
     assert "ownerLabel" not in rows[0]
     assert rows[0]["ownerUid"] == TEACHER
 
@@ -157,7 +157,7 @@ def test_scope_own_still_owner_scoped_for_researcher():
     the cross-owner scan only happens on the explicit scope=all opt-in."""
     _client(researcher=True).post("/api/activities", json={"skillId": "concept", "title": "Mine"})
     _client(OTHER).post("/api/activities", json={"skillId": "concept", "title": "Theirs"})
-    mine = _client(researcher=True).get("/api/activities?owner=me").json()
+    mine = _client(researcher=True).get("/api/activities?owner=me").json()["activities"]
     assert {a["title"] for a in mine} == {"Mine"}
 
 
@@ -275,19 +275,19 @@ class TestSharedCatalogue:
         _client().post("/api/activities", json={"skillId": "c", "title": "Mine-pub", "visibility": "published"})
         _client().post("/api/activities", json={"skillId": "c", "title": "Mine-priv"})  # private (default)
         _client(OTHER).post("/api/activities", json={"skillId": "c", "title": "Theirs-pub", "visibility": "published"})
-        rows = _client().get("/api/activities?published=true").json()
+        rows = _client().get("/api/activities?published=true").json()["activities"]
         assert {r["title"] for r in rows} == {"Mine-pub", "Theirs-pub"}
 
     def test_published_catalogue_open_to_any_teacher_not_researcher_gated(self):
         _client(OTHER).post("/api/activities", json={"skillId": "c", "title": "Pub", "visibility": "published"})
         resp = _client().get("/api/activities?published=true")  # non-researcher
         assert resp.status_code == 200
-        assert {r["title"] for r in resp.json()} == {"Pub"}
+        assert {r["title"] for r in resp.json()["activities"]} == {"Pub"}
 
     def test_published_enriches_owner_label(self, monkeypatch):
         monkeypatch.setattr("protocols.activity_routes.resolve_owner_labels", lambda uids: {OTHER: "Bob Jensen"})
         _client(OTHER).post("/api/activities", json={"skillId": "c", "title": "Pub", "visibility": "published"})
-        rows = _client().get("/api/activities?published=true").json()
+        rows = _client().get("/api/activities?published=true").json()["activities"]
         assert rows[0]["ownerLabel"] == "Bob Jensen"
 
 

@@ -29,9 +29,12 @@ from auth import User, get_current_user
 from auth import assert_teacher as _assert_teacher
 from auth.owner_labels import resolve_owner_labels
 from db.activities import (
+    apply_activity_filters,
     copy_activity,
     create_activity,
+    facets_for_activities,
     get_activity,
+    inherited_facets_for,
     list_activities_by_owner,
     list_all_activities,
     list_published_activities,
@@ -39,6 +42,7 @@ from db.activities import (
     soft_delete_activity,
 )
 from db.classes import add_activities, get_class
+from db.curriculum import list_curriculum_for_teacher
 from db.models.activity import Activity, Visibility
 from db.models.activity_config import (
     CalculatorElement,
@@ -55,8 +59,15 @@ from db.models.activity_config import (
     TableElement,
     WorkbenchType,
 )
+from db.models.curriculum import CurriculumDoc
+from db.models.taxonomy import MAX_SUBJECT_LEN, StxLevel, normalize_tags
 
 log = logging.getLogger(__name__)
+
+# Page size for the activity library. Matches the curriculum browse cap so the
+# two libraries paginate identically.
+_MAX_LIMIT = 200
+_DEFAULT_LIMIT = 50
 
 router = APIRouter(prefix="/api/activities", tags=["activities"])
 
@@ -89,6 +100,14 @@ class ActivityUpsert(BaseModel):
     document: list[DocumentElement] = Field(default_factory=list)
     concept_map: list[ConceptMapElement] = Field(default_factory=list, alias="conceptMap")
     materials: list[MaterialRef] = Field(default_factory=list)
+    # 1.1.61 — the teacher's own facets. Optional, so an existing client that
+    # omits them is unchanged; but note this body is a FULL REPLACE, so a client
+    # that renders these and then omits them on save will clear them. That is the
+    # documented full-overwrite footgun — `useActivityBuilder.elementPayload()`
+    # carries all three, with a test pinning it.
+    tags: list[str] = Field(default_factory=list)
+    subject: str | None = Field(default=None, max_length=MAX_SUBJECT_LEN)
+    level: StxLevel | None = None
     visibility: Visibility = "private"
 
     model_config = ConfigDict(populate_by_name=True, extra="forbid")
@@ -119,8 +138,36 @@ def _load_for_modify(activity_id: str, user: User) -> Activity:
     return activity
 
 
-def _serialize(activity: Activity) -> dict:
-    return activity.model_dump(by_alias=True, mode="json")
+def _serialize(activity: Activity, inherited: dict[str, dict[str, set[str]]] | None = None) -> dict:
+    row = activity.model_dump(by_alias=True, mode="json")
+    if inherited is not None:
+        # 1.1.61 — what this activity gets from the documents it cites, kept
+        # SEPARATE from its own tags/subject/level rather than merged. The client
+        # renders these visibly as inherited (dimmed, paperclip) so "why is this
+        # tagged Mekanik?" is answerable without opening the activity, and so an
+        # override is never mistaken for an inheritance.
+        facets = inherited.get(activity.activity_id, {"subjects": set(), "levels": set(), "tags": set()})
+        row["inheritedSubjects"] = sorted(facets["subjects"])
+        row["inheritedLevels"] = sorted(facets["levels"])
+        row["inheritedTags"] = sorted(facets["tags"])
+    return row
+
+
+def _visible_docs_for(user: User, *, cross_teacher: bool) -> dict[str, CurriculumDoc]:
+    """The documents THIS CALLER can see, keyed by id — the input to inheritance.
+
+    ``cross_teacher`` (the shared catalogue and the researcher scan) restricts to
+    the SHARED corpus. Without that, an activity published by teacher A would
+    advertise the tags of A's private upload to teacher B, who cannot see the
+    document those tags came from. Resolving against the caller rather than the
+    owner is what makes the leak structurally impossible instead of merely
+    unlikely.
+
+    Cheap: the shared corpus is a process-global TTL cache (db.curriculum), so
+    this is the same read the Materials browse already performs.
+    """
+    scope = "shared" if cross_teacher else None
+    return {d.doc_id: d for d in list_curriculum_for_teacher(user.uid, scope=scope)}
 
 
 def _activity_from_body(body: ActivityUpsert, *, owner_uid: str, activity_id: str = "") -> Activity:
@@ -145,6 +192,9 @@ def _activity_from_body(body: ActivityUpsert, *, owner_uid: str, activity_id: st
         document=body.document,
         conceptMap=body.concept_map,
         materials=body.materials,
+        tags=body.tags,
+        subject=body.subject,
+        level=body.level,
         visibility=body.visibility,
     )
 
@@ -171,14 +221,16 @@ async def post_activity(
     return _serialize(activity)
 
 
-def _serialize_with_owner_labels(activities: list[Activity]) -> list[dict]:
+def _serialize_with_owner_labels(
+    activities: list[Activity], inherited: dict[str, dict[str, set[str]]] | None = None
+) -> list[dict]:
     """Serialize + enrich each row with a friendly ``ownerLabel`` (display name /
     email) so cross-owner views don't show raw Firebase uids. Best-effort:
     unresolved owners carry no label and the client falls back to the uid."""
     labels = resolve_owner_labels({a.owner_uid for a in activities})
     rows: list[dict] = []
     for a in activities:
-        row = _serialize(a)
+        row = _serialize(a, inherited)
         label = labels.get(a.owner_uid)
         if label:
             row["ownerLabel"] = label
@@ -186,14 +238,74 @@ def _serialize_with_owner_labels(activities: list[Activity]) -> list[dict]:
     return rows
 
 
+def _select_activities(
+    user: User,
+    *,
+    owner: str,
+    scope: str,
+    published: bool,
+) -> tuple[list[Activity], bool]:
+    """Resolve which activity set this request is about, applying the ACL gates.
+
+    Returns ``(activities, cross_teacher)``. ``cross_teacher`` drives the
+    inheritance scope: cross-teacher views resolve citations against the SHARED
+    corpus only. Shared by the list and facets endpoints so the two can never
+    disagree about who may see what.
+    """
+    _assert_teacher(user)
+    if published:
+        log.info("activities shared catalogue (published=true) uid=%s", user.uid)
+        return list_published_activities(), True
+    if scope == "all":
+        if not user.is_researcher:
+            raise HTTPException(status_code=403, detail="researcher access required")
+        log.info("activities research view (scope=all) uid=%s", user.uid)
+        return list_all_activities(), True
+    if owner != "me":
+        raise HTTPException(status_code=400, detail="only owner=me, scope=all, or published=true are supported")
+    return list_activities_by_owner(user.uid), False
+
+
+@router.get("/facets")
+async def activity_facets(
+    owner: str = Query(default="me"),
+    scope: str = Query(default="own"),
+    published: bool = Query(default=False),
+    level: Literal["A", "B", "C", "__unlevelled__"] | None = None,
+    subject: str | None = None,
+    tags: list[str] | None = Query(default=None),  # noqa: B008
+    q: str | None = None,
+    user: User = Depends(get_current_user),  # noqa: B008
+) -> dict:
+    """Facet options + narrowed counts for the activity library (1.1.61).
+
+    Twin of ``GET /api/curriculum/facets``, same semantics: options come from the
+    whole visible set, counts from the set filtered by every facet except the one
+    being counted.
+
+    MUST stay declared above ``/{activity_id}`` — FastAPI matches in order, and
+    below it this route would be swallowed as an activity called "facets".
+    """
+    activities, cross_teacher = _select_activities(user, owner=owner, scope=scope, published=published)
+    inherited = inherited_facets_for(activities, _visible_docs_for(user, cross_teacher=cross_teacher))
+    return facets_for_activities(activities, inherited, level=level, subject=subject, tags=tags, q=q)
+
+
 @router.get("")
 async def list_my_activities(
     owner: str = Query(default="me"),
     scope: str = Query(default="own"),
     published: bool = Query(default=False),
+    # 1.1.61 — the same facet params the curriculum browse takes.
+    level: Literal["A", "B", "C", "__unlevelled__"] | None = None,
+    subject: str | None = None,
+    tags: list[str] | None = Query(default=None),  # noqa: B008
+    q: str | None = None,
+    limit: int = Query(default=_DEFAULT_LIMIT, ge=1, le=_MAX_LIMIT),
+    offset: int = Query(default=0, ge=0),
     user: User = Depends(get_current_user),  # noqa: B008
-) -> list[dict]:
-    """List activities.
+) -> dict:
+    """List activities, filtered and paginated.
 
     - ``scope=own`` (default, ``?owner=me``): the caller's own library.
     - ``?published=true``: the cross-teacher **shared catalogue** — every
@@ -205,19 +317,17 @@ async def list_my_activities(
       Non-researchers get 403 even via a URL-hack, never a silent fallback.
 
     ``published`` and ``scope=all`` are deliberately different gates.
+
+    1.1.61 changed the response from a bare list to
+    ``{activities, total, limit, offset}`` — ``total`` is the full match count so
+    the client can show "X of Y", and the list is a page of it.
     """
-    _assert_teacher(user)
-    if published:
-        log.info("activities shared catalogue (published=true) uid=%s", user.uid)
-        return _serialize_with_owner_labels(list_published_activities())
-    if scope == "all":
-        if not user.is_researcher:
-            raise HTTPException(status_code=403, detail="researcher access required")
-        log.info("activities research view (scope=all) uid=%s", user.uid)
-        return _serialize_with_owner_labels(list_all_activities())
-    if owner != "me":
-        raise HTTPException(status_code=400, detail="only owner=me, scope=all, or published=true are supported")
-    return [_serialize(a) for a in list_activities_by_owner(user.uid)]
+    activities, cross_teacher = _select_activities(user, owner=owner, scope=scope, published=published)
+    inherited = inherited_facets_for(activities, _visible_docs_for(user, cross_teacher=cross_teacher))
+    matched = apply_activity_filters(activities, inherited, level=level, subject=subject, tags=tags, q=q)
+    page = matched[offset : offset + limit]
+    rows = _serialize_with_owner_labels(page, inherited) if cross_teacher else [_serialize(a, inherited) for a in page]
+    return {"activities": rows, "total": len(matched), "limit": limit, "offset": offset}
 
 
 @router.get("/{activity_id}")
@@ -274,6 +384,68 @@ async def patch_activity(
             "visibility": preserved_visibility,
         }
     )
+    return _serialize(save_activity(updated))
+
+
+class _FacetPatch(BaseModel):
+    """Partial facet edit — deliberately NOT the full ``ActivityUpsert`` (1.1.61).
+
+    The library row is where a teacher files an activity, and that row holds only
+    a summary: no elements, no materials. Routing this through the full-replace
+    PATCH would mean the client sends an activity body it does not have, and a
+    tag edit from the list would silently wipe every element. That is the
+    documented full-overwrite footgun, and the fix here is to not offer the gun —
+    this endpoint can only touch the three facet fields.
+
+    Mirrors ``_DocPatch`` on the curriculum side, including the add/remove pair so
+    a chip toggle is one request and cannot clobber a concurrent edit's tags.
+    """
+
+    tags: list[str] | None = None
+    add_tags: list[str] | None = Field(default=None, alias="addTags")
+    remove_tags: list[str] | None = Field(default=None, alias="removeTags")
+    subject: str | None = Field(default=None, max_length=MAX_SUBJECT_LEN)
+    level: StxLevel | None = None
+    # Explicit clears — `null` is indistinguishable from "not sent" in JSON, so a
+    # teacher un-setting a subject needs a way to say so.
+    clear_subject: bool = Field(default=False, alias="clearSubject")
+    clear_level: bool = Field(default=False, alias="clearLevel")
+
+    model_config = ConfigDict(populate_by_name=True, extra="forbid")
+
+
+@router.patch("/{activity_id}/facets")
+async def patch_activity_facets(
+    body: _FacetPatch,
+    activity_id: str = Path(...),
+    user: User = Depends(get_current_user),  # noqa: B008
+) -> dict:
+    """Set/clear an activity's OWN tags, subject and level (1.1.61).
+
+    Only ever touches those three fields — see ``_FacetPatch``. Inherited facets
+    are not editable here (or anywhere): they belong to the cited documents, and
+    the way to change them is to re-file the document, or cite a different one.
+    """
+    _assert_teacher(user)
+    existing = _load_for_modify(activity_id, user)
+
+    tags = list(existing.tags) if body.tags is None else list(body.tags)
+    if body.add_tags:
+        tags += list(body.add_tags)
+    if body.remove_tags:
+        drop = set(normalize_tags(body.remove_tags))
+        tags = [t for t in normalize_tags(tags) if t not in drop]
+
+    subject = existing.subject if body.subject is None else body.subject
+    if body.clear_subject:
+        subject = None
+    level = existing.level if body.level is None else body.level
+    if body.clear_level:
+        level = None
+
+    # Activity's validator canonicalises tags/subject on construction.
+    updated = existing.model_copy(update={"tags": tags, "subject": subject, "level": level})
+    updated = Activity.model_validate(updated.model_dump(by_alias=True, mode="json"))
     return _serialize(save_activity(updated))
 
 

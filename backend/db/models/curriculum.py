@@ -10,87 +10,55 @@ gate); the shared corpus is a later slice.
 
 from __future__ import annotations
 
-from collections.abc import Iterable
 from datetime import datetime
 from typing import Literal
 
 from pydantic import BaseModel, ConfigDict, Field
 
-StxLevel = Literal["A", "B", "C"]
+# 1.1.61 — the organising vocabulary now lives in `taxonomy`, because activities
+# carry it too and a copy on each side would drift. Re-exported here so every
+# existing `from db.models.curriculum import normalize_tags, SUBJECTS, ...`
+# keeps working; taxonomy is the source, this is a shim.
+from db.models.taxonomy import (
+    MAX_SUBJECT_LEN,
+    MAX_TAG_LEN,
+    MAX_TAGS,
+    PHYSICS_AREAS,
+    SUBJECTS,
+    UNFILED,
+    UNFILED_LABEL,
+    UNLEVELLED,
+    UNLEVELLED_LABEL,
+    StxLevel,
+    normalize_subject,
+    normalize_tags,
+)
+
 CurriculumSource = Literal["shared", "teacher_upload"]
 CopyrightStatus = Literal["cleared", "teacher_owned", "pending"]
 
 # Sentinel owner_scope for the shared corpus (vs a teacher uid / class tag).
 SHARED_SCOPE = "shared"
 
-# 1.1.58 M1 — tag validation. Tags are freeform teacher labels; we keep the store
-# in ONE canonical form so filter/facet/search never have to case-fold at read.
-MAX_TAGS = 20
-MAX_TAG_LEN = 40
-
-# 1.1.60 — subject is the BROAD class (school subject), not an area within one.
-# It was Danish stx *physics* areas (Mekanik, Termodynamik, ...) in 1.1.58 M2,
-# which had no home for the maths corpus and left "AIPLA guides" masquerading as
-# a physics area. The within-subject taxonomy now lives in FOLDERS (see
-# PHYSICS_AREAS), which is where a teacher organises; `tags` stays the
-# cross-cutting axis and `topic` the freeform one.
-#
-# Still a SOFT vocabulary: these seed the picker, but free entry is allowed so a
-# teacher is never blocked on a missing category.
-MAX_SUBJECT_LEN = 60
-SUBJECTS = [
-    "Fysik",
-    "Matematik",
-    "Kemi",
-    "AIPLA guides",
+__all__ = [
+    "MAX_SUBJECT_LEN",
+    "MAX_TAGS",
+    "MAX_TAG_LEN",
+    "PHYSICS_AREAS",
+    "SHARED_SCOPE",
+    "SUBJECTS",
+    "UNFILED",
+    "UNFILED_LABEL",
+    "UNLEVELLED",
+    "UNLEVELLED_LABEL",
+    "CopyrightStatus",
+    "CurriculumDoc",
+    "CurriculumFolder",
+    "CurriculumSource",
+    "StxLevel",
+    "normalize_subject",
+    "normalize_tags",
 ]
-
-# The 1.1.58 subject vocabulary, relocated: these are seeded as SHARED folders by
-# `scripts/seed-curriculum-folders.py` and are what the subject backfill files
-# physics documents into. Kept here (not in the script) so the classifier and the
-# seed share one list.
-PHYSICS_AREAS = [
-    "Mekanik",
-    "Termodynamik",
-    "Elektromagnetisme",
-    "Bølger og optik",
-    "Atom- og kernefysik",
-    "Kvantefysik",
-    "Astrofysik",
-    "Relativitet",
-    "Eksperimentel metode",
-]
-
-
-def normalize_subject(subject: str | None) -> str | None:
-    """Trim a subject to ``MAX_SUBJECT_LEN``; empty/whitespace → None. Case is
-    PRESERVED (unlike tags) — subjects are display-cased vocabulary terms."""
-    if subject is None:
-        return None
-    s = subject.strip()[:MAX_SUBJECT_LEN].strip()
-    return s or None
-
-
-def normalize_tags(tags: Iterable[str] | None) -> list[str]:
-    """Canonicalise a tag list: lowercase, trim, drop empties, de-dupe (order-
-    preserving), truncate each to ``MAX_TAG_LEN`` and the list to ``MAX_TAGS``.
-
-    Applied on EVERY write path (ingest, PATCH) so the stored form is canonical
-    and downstream filter/facet/search can compare with plain equality/substring.
-    """
-    if not tags:
-        return []
-    seen: set[str] = set()
-    out: list[str] = []
-    for raw in tags:
-        t = (raw or "").strip().lower()[:MAX_TAG_LEN].strip()
-        if not t or t in seen:
-            continue
-        seen.add(t)
-        out.append(t)
-        if len(out) >= MAX_TAGS:
-            break
-    return out
 
 
 class CurriculumDoc(BaseModel):
