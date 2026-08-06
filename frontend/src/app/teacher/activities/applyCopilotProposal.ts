@@ -39,7 +39,10 @@ export function applyCopilotProposal(p: Proposal, builder: ActivityBuilder): voi
     if (!exists) {
       builder.setMaterials([
         ...builder.materials,
-        { kind: "curriculum", docId: p.docId, origin: p.origin, studentVisible: false },
+        // 1.1.63 M1 — cache the title so the tutor cites by it. Falls back to
+        // the proposal's display label for older proposals that predate the
+        // dedicated field.
+        { kind: "curriculum", docId: p.docId, origin: p.origin, title: p.title ?? p.label, studentVisible: false },
       ]);
     }
   } else if (p.kind === "set_activity_facets") {

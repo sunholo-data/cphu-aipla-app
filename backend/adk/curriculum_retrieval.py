@@ -47,15 +47,35 @@ _CORPUS_ENV = "CURRICULUM_RAG_CORPUS_NAME"
 # own explicit top_k.
 _TOP_K = int(os.getenv("CURRICULUM_RETRIEVAL_TOP_K", "5"))
 
+# 1.1.63 M1 — the citation-voice contract.
+#
+# The previous version of this template instructed the tutor to 'Always
+# attribute your answer: start with "According to [source name]..."'. Aswin's
+# 2026-08-06 trial feedback — "the chat always starts with According to
+# mathematicus.dk…" — was our own instruction quoted back at us; the model was
+# complying exactly. Three things were wrong with it: it fired on EVERY turn
+# (including turns that retrieved nothing), it dictated the SENTENCE-INITIAL
+# position (the most intrusive one available), and it named sources by DOMAIN,
+# which is meaningless to a 16-year-old and reads as a URL rather than a source.
+#
+# The replacement states WHEN to attribute and HOW, rather than handing the
+# model its opening words. Attribution is reduced, never removed — Axiom 2
+# (EARNED TRUST) requires a student to always be able to trace a claim, so the
+# final line keeps that guarantee explicit.
 _GROUNDING_PREAMBLE_TEMPLATE = """\
 
 ## Curriculum grounding
-This activity cites the following curriculum sources:
+Curriculum material for this activity:
 {origin_list}
 
-When answering physics questions, prefer content from these sources over your \
-general knowledge. Always attribute your answer: start with \
-"According to [source name]..." or "From [source name]:...".
+Prefer these sources over your general knowledge for physics content.
+
+Name a source when it carries the answer — a specific number, definition, \
+formula or claim the student could not otherwise check — and name it by its \
+TITLE, mid-sentence or after the point, in your own voice. Do not open a reply \
+with an attribution. Do not cite on turns that use no retrieved content. Never \
+cite by domain or filename. If the student asks where something came from, say \
+precisely.
 If the `curriculum_retrieve` tool returns no relevant content, say so \
 explicitly — do not invent curriculum content.
 """
@@ -115,7 +135,9 @@ def build_curriculum_retrieval_tool(materials: list[MaterialRef]) -> object | No
         description=(
             "Retrieve curriculum content from the documents cited for this activity. "
             "Use this when the student asks a physics question that may be covered by "
-            "the cited curriculum material. Always cite the source in your answer."
+            "the cited curriculum material. When the retrieved content carries the "
+            "answer, name its title in your reply — see the curriculum grounding "
+            "instructions for how."
         ),
         rag_resources=[
             rag.RagResource(
@@ -152,11 +174,34 @@ def build_curriculum_grounding_preamble(materials: list[MaterialRef]) -> str:
     if not materials:
         return ""
 
-    origins = [m.origin for m in materials if m.origin]
-    if not origins:
-        # Materials cited but without origin labels — still inject basic preamble.
+    labels = [_source_label(m) for m in materials]
+    labels = [label for label in labels if label]
+    if not labels:
+        # Materials cited but with neither title nor origin cached — still
+        # inject the basic preamble.
         origin_list = "- (curriculum documents)"
     else:
-        origin_list = "\n".join(f"- {o}" for o in origins)
+        origin_list = "\n".join(f"- {label}" for label in labels)
 
     return _GROUNDING_PREAMBLE_TEMPLATE.format(origin_list=origin_list)
+
+
+def _source_label(material: MaterialRef) -> str:
+    """Render one cited source as ``"Title" (provenance)``.
+
+    Title leads because that is what the tutor is told to cite by, and what a
+    student can actually look up. ``origin`` trails in parentheses as
+    provenance ("uvm.dk", "Haka Fysik").
+
+    Falls back to bare ``origin`` when no title is cached — every activity
+    cited before 1.1.63 M1 is in that shape, and must keep naming its source
+    exactly as it does today rather than silently losing attribution.
+    """
+    title = (material.title or "").strip()
+    origin = (material.origin or "").strip()
+
+    if title and origin:
+        return f'"{title}" ({origin})'
+    if title:
+        return f'"{title}"'
+    return origin

@@ -657,6 +657,12 @@ def attach_material(
             "materialKind": "curriculum",
             "docId": chosen.doc_id,
             "origin": chosen.origin,
+            # 1.1.63 M1 — the title rides the proposal so the applier can cache
+            # it on the MaterialRef. ``label`` is the same string but is the
+            # co-pilot's DISPLAY text; keeping them separate means a future
+            # change to how proposals are labelled cannot silently break the
+            # tutor's citations.
+            "title": chosen.title,
             "label": chosen.title,
         },
     }

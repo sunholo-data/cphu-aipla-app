@@ -22,7 +22,7 @@
       "description": "Rewrite the curriculum grounding preamble so the tutor stops opening every reply with 'According to <domain>'. Cite by TITLE, mid-sentence, only when the retrieved content carries the answer. Attribution is kept (Axiom 2); the ritual is dropped.",
       "scope": "backend",
       "estimated_loc": 80,
-      "actual_loc": null,
+      "actual_loc": 302,
       "dependencies": [],
       "acceptance_criteria": [
         "No tutor reply opens with 'According to <domain>' or 'From <domain>'",
@@ -35,12 +35,20 @@
       "files_to_create": [],
       "files_to_modify": [
         "backend/adk/curriculum_retrieval.py",
-        "backend/tests/unit/test_curriculum_retrieval.py"
+        "backend/db/models/activity_config.py",
+        "backend/adk/authoring_tools.py",
+        "backend/tests/unit/test_curriculum_retrieval.py",
+        "frontend/src/lib/teacherApi.ts",
+        "frontend/src/components/teacher/MaterialsSection.tsx",
+        "frontend/src/components/teacher/__tests__/MaterialsSection.test.tsx",
+        "frontend/src/app/teacher/activities/applyCopilotProposal.ts",
+        "frontend/src/app/teacher/activities/[id]/_AuthoringCopilot.tsx",
+        "frontend/src/app/teacher/activities/__tests__/applyCopilotProposal.test.ts"
       ],
-      "passes": null,
-      "started": null,
-      "completed": null,
-      "notes": "Isolated file, zero conflict with M2. Highest visible-annoyance-per-hour fix in the sprint - do it first."
+      "passes": true,
+      "started": "2026-08-06",
+      "completed": "2026-08-06",
+      "notes": "SCOPE CORRECTION found during TDD. The design doc said the preamble should emit the human title with the domain parenthesised - but MaterialRef had NO title field. It cached only `origin`, which CurriculumDoc documents as PROVENANCE ('uvm.dk', 'Haka Fysik', a teacher name). That is the actual root cause of Aswin's complaint: a title was never available for the tutor to cite, so a domain was the only thing it could name. Added MaterialRef.title (optional, defaults '') cached at citation time alongside origin, and wired ALL FOUR attach paths: MaterialsSection cite + upload-then-cite, applyCopilotProposal, and the backend attach_material proposal. Wiring the write paths was the point - `subject` (1.1.58) and `language` (1.1.63 M2) both shipped as model fields no write path set. Three guard tests assert the title reaches the MaterialRef and the save payload. Backend 2715 passed (+9), frontend 1526 passed (+3). Grew ~80 LOC over the 0.25d estimate; still inside the day."
     },
     {
       "id": "M2-ELEMENT-MANIFEST-AND-LANGUAGE",
@@ -82,7 +90,9 @@
       "scope": "fullstack",
       "estimated_loc": 380,
       "actual_loc": null,
-      "dependencies": ["M2-ELEMENT-MANIFEST-AND-LANGUAGE"],
+      "dependencies": [
+        "M2-ELEMENT-MANIFEST-AND-LANGUAGE"
+      ],
       "acceptance_criteria": [
         "list_checklist and mark_checklist_item registered only when cfg.checklist is non-empty",
         "A checklist item ticks from conversation with a visible HumanToolUseCard showing the evidence",
@@ -115,7 +125,9 @@
       "scope": "backend",
       "estimated_loc": 90,
       "actual_loc": null,
-      "dependencies": ["M2-ELEMENT-MANIFEST-AND-LANGUAGE"],
+      "dependencies": [
+        "M2-ELEMENT-MANIFEST-AND-LANGUAGE"
+      ],
       "acceptance_criteria": [
         "The ILO precedence block is emitted BEFORE the curriculum sources preamble in the composed instruction",
         "Test asserts the relative order of the two blocks",
@@ -177,7 +189,10 @@
       "scope": "fullstack",
       "estimated_loc": 260,
       "actual_loc": null,
-      "dependencies": ["M2-ELEMENT-MANIFEST-AND-LANGUAGE", "M5-MULTI-CHART"],
+      "dependencies": [
+        "M2-ELEMENT-MANIFEST-AND-LANGUAGE",
+        "M5-MULTI-CHART"
+      ],
       "acceptance_criteria": [
         "add_element accepts chart axis params; the authoring skill's element docs gain the axis vocabulary",
         "aiplatform activity add-chart works end-to-end",
@@ -238,7 +253,7 @@
   ],
   "post_sprint": "The workbench-element-builder skill gains a THIRD rule: an element must be described to the tutor at prompt time, not only pushed on interaction. It currently encodes push + trust card, which is why this class of bug shipped four times.",
   "github_issues": [],
-  "last_session": null,
-  "last_checkpoint": null,
-  "status": "not_started"
+  "last_session": "2026-08-06T12:22:11Z",
+  "last_checkpoint": "M1-CITATION-VOICE",
+  "status": "in_progress"
 }

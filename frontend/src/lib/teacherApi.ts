@@ -165,8 +165,15 @@ export interface MaterialRef {
   kind?: "curriculum" | "image";
   /** Curriculum doc id. Empty string for image materials. */
   docId: string;
-  /** Source label (curriculum). Empty string for image materials. */
+  /** Provenance (curriculum): "uvm.dk", "Haka Fysik", a teacher name. Empty
+   *  string for image materials. NOT a title — see `title` below. */
   origin: string;
+  /** 1.1.63 M1 — the doc's human title, cached at citation time alongside
+   *  `origin`. The tutor cites BY TITLE; `origin` trails as provenance.
+   *  Optional: materials cited before 1.1.63 have none and fall back to
+   *  `origin`, which is exactly the old behaviour. Every attach site must set
+   *  it, or it silently stays empty forever. */
+  title?: string;
   /** Image fields (1.1.44) — set when kind === "image". The bytes live in the
    *  activity artifact slot; materialId + mimeType identify them. */
   materialId?: string;

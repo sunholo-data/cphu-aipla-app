@@ -283,7 +283,7 @@ export function MaterialsSection({ materials, onChange, activityId, mode = "cite
     } else {
       // Default not student-visible (opt-in, 1.1.33 M2a) — the teacher reveals
       // it deliberately. Grounding uses it either way.
-      onChange([...materials, { docId: doc.docId, origin: doc.origin, studentVisible: false }]);
+      onChange([...materials, { docId: doc.docId, origin: doc.origin, title: doc.title, studentVisible: false }]);
     }
   }
 
@@ -488,7 +488,7 @@ export function MaterialsSection({ materials, onChange, activityId, mode = "cite
             // the corpus. Citing there would silently mutate a `materials` array
             // nobody is saving.
             if (!isLibrary) {
-              onChange([...materials, { docId: doc.docId, origin: doc.origin, studentVisible: false }]);
+              onChange([...materials, { docId: doc.docId, origin: doc.origin, title: doc.title, studentVisible: false }]);
             }
             // Show what was extracted FROM THIS doc immediately (per-document, M4).
             void openContent(doc.docId, doc.title);

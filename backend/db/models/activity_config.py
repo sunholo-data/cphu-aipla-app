@@ -61,6 +61,17 @@ class MaterialRef(BaseModel):
     # curriculum
     doc_id: str = Field(default="", alias="docId", max_length=200)
     origin: str = Field(default="", alias="origin", max_length=200)
+    # 1.1.63 M1 — the doc's human title, cached at citation time alongside
+    # ``origin`` (same reason: the grounding preamble must name sources without
+    # an extra Firestore read per session start).
+    #
+    # ``origin`` is PROVENANCE — "uvm.dk", "Haka Fysik", a teacher name (see the
+    # field comment on ``CurriculumDoc.origin``). It was the only label cached
+    # here, which is exactly why the tutor cited domains at students: a title
+    # was never available for it to name. Optional and defaulted so every
+    # activity cited before 1.1.63 keeps working — those fall back to ``origin``,
+    # i.e. today's behaviour, with no backfill.
+    title: str = Field(default="", alias="title", max_length=300)
     # image (1.1.44)
     material_id: str = Field(default="", alias="materialId", max_length=64)
     mime_type: str = Field(default="", alias="mimeType", max_length=40)

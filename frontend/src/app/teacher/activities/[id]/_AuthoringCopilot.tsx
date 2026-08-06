@@ -68,7 +68,16 @@ export type Proposal =
       label: string;
     }
   | { kind: "set_artefact"; artefactId: string; label: string }
-  | { kind: "attach_material"; materialKind: "curriculum"; docId: string; origin: string; label: string }
+  | {
+      kind: "attach_material";
+      materialKind: "curriculum";
+      docId: string;
+      origin: string;
+      /** 1.1.63 M1 — the doc's title, cached onto the MaterialRef so the tutor
+       *  cites by title rather than by domain. Optional for older proposals. */
+      title?: string;
+      label: string;
+    }
   | {
       kind: "set_activity_facets";
       subject: string | null;

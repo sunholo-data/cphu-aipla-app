@@ -121,8 +121,13 @@ describe("MaterialsSection", () => {
     const onChange = vi.fn();
     render(<MaterialsSection materials={[]} onChange={onChange} />);
     fireEvent.click(await screen.findByRole("button", { name: /Cite Energi og arbejde/i }));
+    // 1.1.63 M1 — the TITLE is cached here alongside the origin. `origin` is
+    // provenance ("uvm.dk"), and while it was the only label cached at citation
+    // time the tutor had nothing but a domain to cite at students. This
+    // assertion is the guard: an attach path that stops setting `title`
+    // silently reverts the citation voice.
     expect(onChange).toHaveBeenCalledWith([
-      { docId: "d1", origin: "uvm.dk", studentVisible: false },
+      { docId: "d1", origin: "uvm.dk", title: "Energi og arbejde", studentVisible: false },
     ]);
   });
 
@@ -441,7 +446,11 @@ describe("MaterialsSection", () => {
     expect(ingestCurriculum.mock.calls[0][0]).not.toHaveProperty("level");
     await waitFor(() =>
       expect(onChange).toHaveBeenCalledWith([
-        { docId: "up1", origin: "my-notes.txt", studentVisible: false },
+        // 1.1.63 M1 — an uploaded doc caches its title too. Note origin here is
+        // the FILENAME (uploads set origin = file.name), which is the clearest
+        // case for why the tutor must cite by title: "According to
+        // my-notes.txt" is not a source a student can act on.
+        { docId: "up1", origin: "my-notes.txt", title: "my-notes", studentVisible: false },
       ]),
     );
     // M4/M3 — the viewer opens for THIS doc (per-document), fetching its content.
