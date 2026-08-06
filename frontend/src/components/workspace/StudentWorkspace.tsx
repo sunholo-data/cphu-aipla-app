@@ -10,7 +10,7 @@ import { WorkbenchTabs } from "./WorkbenchTabs";
 import { WorkspaceElements } from "./elementRenderers";
 import type { CalculatorElementDef } from "./WorkbenchCalculator";
 import type { ChartElementDef } from "./WorkbenchChart";
-import type { ChecklistItem } from "./ProgressChecklist";
+import type { ChecklistItem, ChecklistItemState } from "./ProgressChecklist";
 import type { NoteElementDef } from "./WorkbenchNote";
 import type { TableElementDef } from "./WorkbenchTable";
 import type { SolutionElementDef } from "./SolutionElementMount";
@@ -40,8 +40,12 @@ interface StudentWorkspaceProps {
   onDocumentActiveChange?: (docId: string | null) => void;
   materials: ActivityMaterial[];
   images?: ComponentProps<typeof DocumentsPanel>["images"];
-  /** DocumentsPanel scopes content fetches by activity; defaults to skillId. */
+  /** DocumentsPanel scopes content fetches by activity; defaults to skillId.
+   *  Also keys the per-group checklist tick store (1.1.62 M3). */
   activityId?: string;
+  /** 1.1.62 M3 — per-group checklist tick state, refetched at turn end so an
+   *  AI tick appears without a reload. Absent in the builder preview. */
+  checklistItemStates?: Record<string, ChecklistItemState>;
   /** Whose token reads document content: the student (group token, ACL-gated by
    *  the real activity) or the teacher (Firebase token) for the builder preview,
    *  where there is no real activity to ACL against. Default student. */
@@ -82,6 +86,7 @@ export function StudentWorkspace({
   document,
   conceptMap,
   conceptMapNodeStates,
+  checklistItemStates,
   onDocumentActiveChange,
   materials,
   images = [],
@@ -136,6 +141,7 @@ export function StudentWorkspace({
   const elementsSurface = (
     <WorkspaceElements
       skillId={skillId}
+      activityId={activityId ?? skillId}
       sessionId={sessionId}
       checklist={checklist}
       table={table}
@@ -146,6 +152,7 @@ export function StudentWorkspace({
       document={document}
       conceptMap={conceptMap}
       conceptMapNodeStates={conceptMapNodeStates}
+      checklistItemStates={checklistItemStates}
       onDocumentActiveChange={onDocumentActiveChange}
       documentViewerRole={documentViewerRole}
     />

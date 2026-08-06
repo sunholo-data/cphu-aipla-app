@@ -63,7 +63,7 @@ import { A2UISurfaceMount } from "@/components/protocols/A2UISurfaceMount";
 import { DocumentPanel } from "@/components/document/DocumentPanel";
 import { LatencyHUD } from "@/components/dev/LatencyHUD";
 import { WorkspaceShell } from "@/components/workspace/WorkspaceShell";
-import { type ChecklistItem } from "@/components/workspace/ProgressChecklist";
+import { type ChecklistItem, type ChecklistItemState } from "@/components/workspace/ProgressChecklist";
 import { type TableElementDef } from "@/components/workspace/WorkbenchTable";
 import { type ChartElementDef } from "@/components/workspace/WorkbenchChart";
 import { type CalculatorElementDef } from "@/components/workspace/WorkbenchCalculator";
@@ -434,6 +434,10 @@ function ChatShell({
   // at turn end via the API (NOT onSnapshot — group JWTs aren't Firebase
   // identities, so client-SDK listeners are denied).
   const [conceptNodeStates, setConceptNodeStates] = useState<Record<string, ConceptNodeStatus>>({});
+  // 1.1.62 M3 — per-group checklist (ILO) tick state. Refetched at turn end
+  // like the concept map above, so a step the TUTOR just marked appears
+  // without a reload.
+  const [checklistItemStates, setChecklistItemStates] = useState<Record<string, ChecklistItemState>>({});
   // Persona (1.1.12) resolved for this activity — the bot bubbles show its
   // avatar + name. Optional; null leaves the default brand byline.
   const [activePersona, setActivePersona] = useState<PersonaSummary | null>(null);
@@ -536,6 +540,28 @@ function ChatShell({
       alive = false;
     };
   }, [isLoading, activeConceptMap.length, activityId]);
+
+  // 1.1.62 M3 — checklist tick state for THIS group. Same shape as the concept
+  // light-up above: fetch when the activity has a checklist, refetch at every
+  // turn end so an AI tick lands without a reload. Group-token read
+  // (fetchWithAuth), gated on anonymous-group mode — a teacher preview has no
+  // group and correctly falls back to the component's local state.
+  useEffect(() => {
+    if (isLoading || activeChecklist.length === 0 || !isAnonymousGroupAuthMode()) return;
+    let alive = true;
+    fetchWithAuth(`/api/proxy/api/activities/${encodeURIComponent(activityId)}/checklist-progress`)
+      .then((r) => (r.ok ? r.json() : null))
+      .then((data) => {
+        if (!alive || !data?.itemStates) return;
+        setChecklistItemStates(data.itemStates as Record<string, ChecklistItemState>);
+      })
+      .catch(() => {
+        /* progressive enhancement — the checklist still renders and still ticks */
+      });
+    return () => {
+      alive = false;
+    };
+  }, [isLoading, activeChecklist.length, activityId]);
   const searchParams = useSearchParams();
   const router = useRouter();
   const [draft, setDraft] = useState("");
@@ -1344,6 +1370,7 @@ function ChatShell({
                 document={activeDocument}
                 conceptMap={activeConceptMap}
                 conceptMapNodeStates={conceptNodeStates}
+                checklistItemStates={checklistItemStates}
                 onDocumentActiveChange={handleWorkbenchActiveDoc}
                 materials={activeMaterials}
                 images={uploadedImages}

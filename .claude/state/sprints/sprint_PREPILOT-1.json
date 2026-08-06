@@ -91,7 +91,7 @@
       "description": "The ILO half. Give the tutor tools to tick teacher-authored checklist items from conversation, with mandatory evidence and a visible 'shared with the AI' trust card. Aswin's 'automatic ILO check' becomes a real feature rather than a missing one.",
       "scope": "fullstack",
       "estimated_loc": 380,
-      "actual_loc": null,
+      "actual_loc": 1120,
       "dependencies": [
         "M2-ELEMENT-MANIFEST-AND-LANGUAGE"
       ],
@@ -108,18 +108,26 @@
       "files_to_create": [
         "backend/adk/checklist_tools.py",
         "backend/db/checklist_progress.py",
-        "backend/tests/unit/test_checklist_tools.py"
+        "backend/protocols/checklist_progress_routes.py",
+        "backend/tests/unit/test_checklist_tools.py",
+        "backend/tests/api_tests/test_checklist_progress_routes.py",
+        "frontend/src/components/chat/ChecklistMarkCard.tsx",
+        "frontend/src/components/chat/__tests__/ChecklistMarkCard.test.tsx"
       ],
       "files_to_modify": [
         "backend/adk/agent.py",
-        "frontend/src/components/chat/HumanToolUseCard.tsx",
+        "backend/fast_api_app.py",
         "frontend/src/components/workspace/ProgressChecklist.tsx",
+        "frontend/src/components/workspace/elementRenderers.tsx",
+        "frontend/src/components/workspace/StudentWorkspace.tsx",
+        "frontend/src/components/chat/MessageBubble.tsx",
+        "frontend/src/app/chat/[...path]/page.tsx",
         "frontend/src/components/workspace/__tests__/ProgressChecklist.test.tsx"
       ],
-      "passes": null,
-      "started": null,
-      "completed": null,
-      "notes": "The trust card ships IN this milestone, not as a follow-up. This exact half has been dropped twice already (calculator, table)."
+      "passes": true,
+      "started": "2026-08-06",
+      "completed": "2026-08-06",
+      "notes": "SCOPE CHANGE approved by M mid-milestone, twice. (1) 'The AI helps auto-grade' - ProgressChecklist carried the OPPOSITE written principle ('student-driven, not auto-graded; the agent does NOT decide what's done'). M superseded it following Aswin's ask; the docstring and the student-facing footer text were rewritten rather than left contradicting the code. The student override survives and is the thing that keeps it honest: every AI mark carries one sentence of evidence, renders as a ChecklistMarkCard in chat, and tapping the step flips provenance to 'student'. (2) ONE STORE. Student ticks lived in sessionStorage keyed by skill - per BROWSER - which was already wrong under 1.1.53 (primary classroom shape = one group across separate devices): three group members had three private checklists that died with the tab. Adding AI ticks in group scope alongside would have made the split visible and worse. Both now round-trip checklist_progress/{group}:{activity}. sessionStorage remains ONLY as the builder-preview fallback (no group to record against). Est 380 LOC -> actual ~1120 because of this. Group id is captured in the tool closure from the VERIFIED JWT claim; a test asserts group_id is not in the tool signature at all. Teacher preview gets no tools and 403 on write rather than inventing a group. Gotcha: the API test 401'd on every case because auth.get_current_user is a DIFFERENT object from auth.firebase_auth.get_current_user - override the one the route imports. Backend 2772 passed (+27). Frontend 1541 passed (+15). Lint clean, audit-trust-cards green."
     },
     {
       "id": "M4-ILO-PRECEDENCE",
@@ -255,7 +263,7 @@
   ],
   "post_sprint": "The workbench-element-builder skill gains a THIRD rule: an element must be described to the tutor at prompt time, not only pushed on interaction. It currently encodes push + trust card, which is why this class of bug shipped four times.",
   "github_issues": [],
-  "last_session": "2026-08-06T14:49:59Z",
-  "last_checkpoint": "M2-ELEMENT-MANIFEST-AND-LANGUAGE",
+  "last_session": "2026-08-06T15:44:21Z",
+  "last_checkpoint": "M3-CHECKLIST-TICK-TOOLS",
   "status": "in_progress"
 }

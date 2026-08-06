@@ -4,7 +4,7 @@ import { Fragment, type ReactNode } from "react";
 
 import { ELEMENT_KINDS, isWorkspaceElement, type ElementKind } from "@/lib/activityElements";
 
-import { ProgressChecklist, type ChecklistItem } from "./ProgressChecklist";
+import { ProgressChecklist, type ChecklistItem, type ChecklistItemState } from "./ProgressChecklist";
 import { WorkbenchCalculator, type CalculatorElementDef } from "./WorkbenchCalculator";
 import { WorkbenchChart, type ChartElementDef } from "./WorkbenchChart";
 import { WorkbenchNote, type NoteElementDef } from "./WorkbenchNote";
@@ -40,6 +40,8 @@ import type { ConceptNodeStatus } from "./ConceptMapGraph";
 export interface ElementRenderContext {
   skillId: string;
   sessionId?: string | null;
+  /** 1.1.62 M3 — the activity the per-group checklist store is keyed by. */
+  activityId?: string;
   checklist: ChecklistItem[];
   table: TableElementDef[];
   chart: ChartElementDef[];
@@ -51,6 +53,10 @@ export interface ElementRenderContext {
   /** Checkpoint light-up (CONCEPT-1 M3): node id → status for THIS group,
    *  refetched by the chat page at turn end. Absent = all not_yet (preview). */
   conceptMapNodeStates?: Record<string, ConceptNodeStatus>;
+  /** 1.1.62 M3 — per-group checklist tick state, fetched by the chat page and
+   *  refetched at turn end so a tick the TUTOR just made appears without a
+   *  reload. Absent in the builder preview (no group). */
+  checklistItemStates?: Record<string, ChecklistItemState>;
   /** Active uploaded-file → tutor document_ids (the document element's hook;
    *  threaded from the chat page). */
   onDocumentActiveChange?: (docId: string | null) => void;
@@ -74,7 +80,13 @@ export const elementRenderers: Record<ElementKind, (ctx: ElementRenderContext) =
     ctx.checklist.length > 0 ? (
       <div className="space-y-3 p-4">
         <h2 className="text-sm font-semibold text-foreground">Fremgang</h2>
-        <ProgressChecklist skillId={ctx.skillId} items={ctx.checklist} sessionId={ctx.sessionId} />
+        <ProgressChecklist
+          skillId={ctx.skillId}
+          activityId={ctx.activityId}
+          items={ctx.checklist}
+          sessionId={ctx.sessionId}
+          itemStates={ctx.checklistItemStates}
+        />
       </div>
     ) : null,
   table: (ctx) =>

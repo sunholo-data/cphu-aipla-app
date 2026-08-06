@@ -25,6 +25,7 @@ import { useAutoReadAloud } from "@/hooks/useAutoReadAloud";
 import { useVoiceConfig } from "@/hooks/useVoiceConfig";
 import { useVoiceLang } from "@/hooks/useVoiceLang";
 import { ToolCallChip } from "@/components/chat/ToolCallChip";
+import { ChecklistMarkCard, parseChecklistMarkResult } from "@/components/chat/ChecklistMarkCard";
 import { CheckpointCard, parseCheckpointResult } from "@/components/chat/CheckpointCard";
 import { useSurfaceRegistry } from "@/providers/SurfaceRegistry";
 import type { SkillMessage, ToolCallState } from "@/hooks/useSkillAgent";
@@ -328,10 +329,23 @@ export const MessageBubble = React.memo(function MessageBubble({
                 const result = parseCheckpointResult(tc.resultContent);
                 return result ? <CheckpointCard key={tc.id} result={result} /> : null;
               })}
+            {/* 1.1.62 M3 — a successful mark_checklist_item renders as a
+                visible card (which step, done/undone, and the tutor's reason).
+                The student must SEE every mark the AI makes. */}
+            {nonA2uiCalls
+              .filter((tc) => tc.name === "mark_checklist_item")
+              .map((tc) => {
+                const result = parseChecklistMarkResult(tc.resultContent);
+                return result ? <ChecklistMarkCard key={tc.id} result={result} /> : null;
+              })}
             {nonA2uiCalls.length > 0 && (
               <div className="flex flex-wrap gap-1.5 pt-1">
                 {nonA2uiCalls
-                  .filter((tc) => !(tc.name === "record_checkpoint" && parseCheckpointResult(tc.resultContent)))
+                  .filter(
+                    (tc) =>
+                      !(tc.name === "record_checkpoint" && parseCheckpointResult(tc.resultContent)) &&
+                      !(tc.name === "mark_checklist_item" && parseChecklistMarkResult(tc.resultContent)),
+                  )
                   .map((tc) => (
                     <ToolCallChip key={tc.id} toolCall={tc} />
                   ))}

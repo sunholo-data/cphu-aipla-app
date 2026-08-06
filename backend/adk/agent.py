@@ -55,6 +55,7 @@ from adk.callbacks import (
     make_permission_enforcer,
     make_session_tracker,
 )
+from adk.checklist_tools import build_checklist_tools
 from adk.checkpoint_tools import build_checkpoint_tools
 from adk.curriculum_retrieval import (
     build_curriculum_grounding_preamble,
@@ -445,6 +446,10 @@ def create_agent(
     # No-op (empty list) unless the activity has a map AND the caller is an
     # anonymous-group student.
     tools.extend(build_checkpoint_tools(_active_cfg, user))
+    # 1.1.62 M3 — chat-native checklist (ILO) tools, same construction and same
+    # guarantees: group comes from the VERIFIED claim, never a model parameter.
+    # No-op unless the activity has a checklist AND the caller is a student.
+    tools.extend(build_checklist_tools(_active_cfg, user))
     # MULTI-SURFACE-A2UI M1 — read the skill's `tool_configs.a2ui` block so
     # the toolset emits `surface_id`/`update_mode` siblings alongside
     # `validated_a2ui_json`. Defaults (no a2ui block) preserve pre-M1

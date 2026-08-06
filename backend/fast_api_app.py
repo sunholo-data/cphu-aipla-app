@@ -285,6 +285,7 @@ from protocols.activity_image_routes import router as activity_image_router  # n
 from protocols.activity_routes import router as activity_router  # noqa: E402
 from protocols.analytics_routes import router as analytics_router  # noqa: E402
 from protocols.artefact_routes import router as artefact_router  # noqa: E402
+from protocols.checklist_progress_routes import router as checklist_progress_router  # noqa: E402
 from protocols.classes_routes import router as classes_router  # noqa: E402
 from protocols.concept_progress_routes import router as concept_progress_router  # noqa: E402
 from protocols.curriculum_routes import router as curriculum_router  # noqa: E402
@@ -332,6 +333,7 @@ app.include_router(activity_config_router)
 app.include_router(activity_router)
 app.include_router(activity_image_router)
 app.include_router(concept_progress_router)
+app.include_router(checklist_progress_router)
 app.include_router(research_lens_router)
 app.include_router(teacher_prefs_router)
 app.include_router(personas_router)
