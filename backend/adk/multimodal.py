@@ -12,9 +12,10 @@ agent-instantiation time — but ONLY for skills that opt in. It mirrors
 ``adk.interaction_style.inject_interaction_style_preamble``:
 
   - Centralising the units-loop / no-solve / privacy guidance keeps it DRY and
-    out of every SKILL.md body (which is capped at 10,000 chars — the
-    problem-set-hints tutor already sits right under the cap, so an inline
-    block there would overflow it).
+    out of every SKILL.md body. This was originally forced by the 10,000-char
+    body cap (problem-set-hints sat at 9,876 of it, so an inline block would
+    have overflowed). The cap is 25,000 since 2026-08-06 — centralising is now
+    a DRY choice, not a workaround.
   - Skills with ``multimodal_input=False`` are byte-for-byte unchanged
     (passthrough), so non-multimodal tutors are unaffected.
 """

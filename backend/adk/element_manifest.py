@@ -43,11 +43,11 @@ from db.models.activity_config import ELEMENT_REGISTRY, ActivityConfig, ElementS
 
 log = logging.getLogger(__name__)
 
-# The composed ``{teacher_focus}`` is substituted INTO a skill's instructions,
-# which ``SkillConfig`` validates at 10,000 characters. That budget is already
-# shared by the sim tutor_block, the solution prompt, the concept map and the
-# teaching goal (itself up to 2,000). 2,000 leaves the manifest a real voice
-# without letting a 50-item checklist crowd out everything else.
+# The manifest's share of ``teacher_focus._TOTAL_FOCUS_CAP`` — the attention and
+# per-turn cost budget for per-activity content. That budget is already shared by
+# the sim tutor_block, the solution prompt, the concept map and the teaching goal
+# (itself up to 2,000). 2,000 leaves the manifest a real voice without letting a
+# 50-item checklist crowd out everything else.
 MANIFEST_CHAR_CAP = 2000
 
 _HEADER = (

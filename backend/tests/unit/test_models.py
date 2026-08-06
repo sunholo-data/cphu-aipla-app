@@ -4,7 +4,7 @@ import pytest
 from pydantic import ValidationError
 
 from config.models import default_model
-from db.models import AccessControl, SkillConfig, SkillMetadata
+from db.models import MAX_INSTRUCTIONS_CHARS, AccessControl, SkillConfig, SkillMetadata
 
 _D = "A test skill."  # Valid default description for tests
 
@@ -98,13 +98,26 @@ def test_description_too_long():
 
 
 def test_instructions_max_length():
-    skill = SkillConfig(name="test", description=_D, instructions="x" * 10_000)
-    assert len(skill.instructions) == 10_000
+    skill = SkillConfig(name="test", description=_D, instructions="x" * MAX_INSTRUCTIONS_CHARS)
+    assert len(skill.instructions) == MAX_INSTRUCTIONS_CHARS
 
 
 def test_instructions_too_long():
     with pytest.raises(ValidationError):
-        SkillConfig(name="test", description=_D, instructions="x" * 10_001)
+        SkillConfig(name="test", description=_D, instructions="x" * (MAX_INSTRUCTIONS_CHARS + 1))
+
+
+def test_instructions_cap_leaves_real_templates_room_to_breathe():
+    """The cap must be a safety rail, not a design constraint (2026-08-06).
+
+    At 10,000 chars ``problem-set-hints`` sat at 9,876 — 99%, 124 to spare —
+    and skill authors were shortening physics pedagogy to fit a number with no
+    external cause. ``adk/agent.py`` still carries a workaround forced by it.
+
+    This asserts the headroom is real, so the next person to hit the ceiling
+    finds a deliberate number rather than an accident.
+    """
+    assert MAX_INSTRUCTIONS_CHARS >= 20_000
 
 
 # === Tags validation ===

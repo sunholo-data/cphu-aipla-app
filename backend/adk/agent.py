@@ -691,8 +691,11 @@ def create_agent(
                             # the SKILL.md body. Innermost so it sits closest
                             # to the body it extends; passthrough when
                             # multimodal_input is False. Centralised rather
-                            # than inlined per-SKILL.md because the body is
-                            # capped at 10k chars (problem-set-hints is at it).
+                            # than inlined per-SKILL.md — originally forced by
+                            # the 10k body cap (problem-set-hints sat at 9,876
+                            # of it). The cap is 25k since 2026-08-06, so this
+                            # is now a DRY choice rather than a workaround:
+                            # one place to edit the units-loop guidance.
                             inject_image_input_preamble(
                                 # 1.1.25 M3: when the activity has cited materials,
                                 # append a grounding preamble (cite origin, prefer

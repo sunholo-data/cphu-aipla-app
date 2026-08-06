@@ -23,6 +23,32 @@ from db.models.buckets import BucketConfig, BucketFolderConfig
 _NAME_PATTERN = re.compile(r"^[a-z0-9]([a-z0-9-]*[a-z0-9])?$")
 _CONSECUTIVE_HYPHENS = re.compile(r"--")
 
+# Max length of a skill's authored ``instructions`` body — the markdown under
+# the SKILL.md frontmatter, as stored in Firestore.
+#
+# **Scope.** This bounds the AUTHORED TEMPLATE at SkillConfig construction, i.e.
+# at seed time. It does NOT bound the prompt the model actually receives: the
+# runtime instruction is composed in ``adk/agent.py`` (``compose_instruction_providers``)
+# by stacking the image-input guidance, the interaction-style preamble, the
+# opening/reactive guidance and ``{teacher_focus}`` onto this body — as a plain
+# string that never re-enters this validator. Per-activity content is bounded
+# separately in ``adk/teacher_focus.py``.
+#
+# **Raised 10,000 -> 25,000 on 2026-08-06.** 10k was becoming a design
+# constraint rather than a safety rail: ``problem-set-hints`` sat at 9,876
+# chars (99%, 124 to spare), and agent.py already carries a workaround forced
+# by it ("Centralised rather than inlined per-SKILL.md because the body is
+# capped at 10k chars"). Skill authors were shortening physics pedagogy to fit
+# a number with no external cause.
+#
+# 25k is comfortable against every real limit: a Firestore document is capped
+# at 1 MiB (25 KB is ~2.4% of it), and 25k chars is ~6k tokens against a
+# 1M-token context. The genuine costs are that instructions ride EVERY turn
+# (input tokens, mitigated by prompt caching) and that long system prompts
+# dilute instruction-following — which is a reason to keep templates tight by
+# review, not by an arbitrary ceiling.
+MAX_INSTRUCTIONS_CHARS = 25_000
+
 # Slug: 3-60 chars, kebab-case, no leading/trailing hyphens.
 _SLUG_PATTERN = re.compile(r"^[a-z0-9][a-z0-9-]{1,58}[a-z0-9]$")
 # Words that would shadow Next.js routes or have reserved meaning in URLs.
@@ -216,8 +242,8 @@ class SkillConfig(BaseModel):
     @field_validator("instructions")
     @classmethod
     def _validate_instructions(cls, v: str) -> str:
-        if len(v) > 10_000:
-            raise ValueError("instructions must be at most 10,000 characters")
+        if len(v) > MAX_INSTRUCTIONS_CHARS:
+            raise ValueError(f"instructions must be at most {MAX_INSTRUCTIONS_CHARS:,} characters")
         return v
 
     @field_validator("slug")

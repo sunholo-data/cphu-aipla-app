@@ -41,18 +41,24 @@ _LANGUAGE_NAMES = {"da": "Danish", "en": "English"}
 
 # --- Prompt budget (1.1.62 M2) -------------------------------------------
 #
-# The composed focus is substituted into a skill's ``instructions``, which
-# ``SkillConfig`` validates at 10,000 characters. Crossing that does not fail
-# loudly at request time — it fails the ``platform_seed`` re-read after a
-# partial write, i.e. at DEPLOY time, on whichever activity happens to be
-# largest. See memory ``feedback-skill-instructions-10k-cap``.
+# This is an ATTENTION AND COST budget, not a validation limit.
 #
-# Two blocks here were unbounded before 1.1.62 and are the real overflow risk,
-# not the element manifest that surfaced them: a 30-node concept map composes
-# ~3,500 chars, and the solution task allows 2,000 on its own. Stacked with a
+# ``SkillConfig`` validates the AUTHORED template body (``MAX_INSTRUCTIONS_CHARS``,
+# raised to 25,000 on 2026-08-06) at seed time. The composed focus is a different
+# thing: ``adk/agent.py`` stacks it onto that body as a plain string via
+# ``compose_instruction_providers`` and never re-validates, so nothing upstream
+# bounds what per-activity content adds to the prompt. These caps are it.
+#
+# Why bound it at all: the composed instruction rides EVERY turn (input cost),
+# and long system prompts dilute instruction-following — the tutor that has just
+# been told about a data table should not lose that among 11,000 characters.
+#
+# Two blocks here were unbounded before 1.1.62 and are the real risk, not the
+# element manifest that surfaced them: a 30-node concept map composes ~3,500
+# chars, and the solution task allows 2,000 on its own. Stacked with a
 # 2,000-char teaching goal and the 2,000-char manifest, a maximal activity
-# composed ~11,000 chars — over the cap before the skill template's own text
-# was even added. Each variable-length contributor is now bounded.
+# composed ~11,000 chars of per-activity text alone. Each variable-length
+# contributor is now bounded.
 _CONCEPT_MAP_CAP = 1500
 _SOLUTION_TASK_CAP = 500
 # Belt and braces: if the sum still exceeds this, something new went unbounded.
@@ -246,10 +252,10 @@ def compose_teacher_focus(cfg: ActivityConfig | None) -> str:
     per activity purely because the goal differs. Graceful: each block is optional
     and a de-catalogued / block-less artefact is skipped.
 
-    **Budget.** The result is substituted into a skill's ``instructions``, which
-    ``SkillConfig`` validates at 10,000 characters. Every block here shares that
-    budget; the element manifest is self-capping at
-    ``element_manifest.MANIFEST_CHAR_CAP``. See
+    **Budget.** Every block here shares ``_TOTAL_FOCUS_CAP`` — an attention and
+    per-turn cost budget for per-activity content, independent of the authored
+    template's own ``MAX_INSTRUCTIONS_CHARS`` limit. The element manifest is
+    self-capping at ``element_manifest.MANIFEST_CHAR_CAP``. See
     ``test_composed_focus_stays_under_the_skillconfig_instruction_cap``.
     """
     goal = (cfg.teaching_goal if cfg else "").strip()

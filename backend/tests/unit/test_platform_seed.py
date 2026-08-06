@@ -399,3 +399,34 @@ def test_main_refuses_to_run_under_local_mode(monkeypatch):
     with patch("admin.platform_seed.seed") as mock_seed:
         assert main([]) == 2
     mock_seed.assert_not_called()
+
+
+def test_real_skill_templates_fit_the_instructions_cap():
+    """Every shipped SKILL.md body must fit ``MAX_INSTRUCTIONS_CHARS``.
+
+    Crossing it fails ``platform_seed`` — which runs as the last step of BOTH
+    Cloud Build pipelines and exits non-zero on any failed template. So a too-long
+    template does not fail in review or in tests-you-remembered-to-run; it reds
+    the deploy.
+
+    Reports the headroom on failure. When ``problem-set-hints`` hit 99% of the
+    old 10,000-char cap, nothing said so — it surfaced as a workaround comment
+    in ``adk/agent.py`` explaining why guidance had to be centralised rather
+    than inlined. A number you can see coming is worth more than one you hit.
+    """
+    from pathlib import Path
+
+    from admin.platform_seed import _parse_template
+    from db.models import MAX_INSTRUCTIONS_CHARS
+
+    root = Path(__file__).resolve().parents[2] / "skills" / "templates"
+    templates = sorted(root.glob("*/SKILL.md"))
+    assert templates, f"no SKILL.md templates found under {root}"
+
+    oversized = []
+    for path in templates:
+        body = _parse_template(path).get("instructions") or ""
+        if len(body) > MAX_INSTRUCTIONS_CHARS:
+            oversized.append(f"{path.parent.name}: {len(body):,} chars (cap {MAX_INSTRUCTIONS_CHARS:,})")
+
+    assert not oversized, "SKILL.md bodies over the instructions cap:\n  " + "\n  ".join(oversized)
