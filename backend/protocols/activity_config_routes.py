@@ -21,7 +21,8 @@ import secrets
 from fastapi import APIRouter, Depends, HTTPException, Path, Query
 from pydantic import BaseModel, ConfigDict, Field
 
-from adk.teacher_focus import resolve_active_config
+from adk.element_manifest import describe_elements
+from adk.teacher_focus import compose_teacher_focus, resolve_active_config
 from artefacts.loader import is_known_artefact, load_artefact
 from auth import User, get_current_user
 from db.activity_configs import (
@@ -32,6 +33,7 @@ from db.activity_configs import (
 )
 from db.classes import get_class_for_group
 from db.models.activity_config import (
+    ELEMENT_REGISTRY,
     ActivityConfig,
     CalculatorElement,
     ChartElement,
@@ -299,6 +301,42 @@ async def get_my_activity_config(
     if cfg is None:
         raise HTTPException(status_code=404, detail="activity config not found")
     return _serialize(cfg)
+
+
+@router.get("/resolved-focus/{class_id}/{activity_id}")
+async def get_resolved_focus(
+    class_id: str = Path(...),
+    activity_id: str = Path(...),
+    user: User = Depends(get_current_user),  # noqa: B008
+) -> dict:
+    """Show exactly what the tutor is told about this activity (1.1.62 M1).
+
+    The element-blindness bug was invisible for six weeks precisely because
+    **nothing rendered the composed prompt**. Every individual surface passed
+    its own tests: the elements rendered, pushed on change, and carded. Nobody
+    could see that the tutor's system prompt never mentioned them.
+
+    Owner-scoped: a teacher can only resolve their own activity's focus.
+    """
+    cfg = get_activity_config(teacher_uid=user.uid, class_id=class_id, activity_id=activity_id)
+    if cfg is None:
+        raise HTTPException(status_code=404, detail="activity config not found")
+
+    element_counts = {
+        kind: len(getattr(cfg, spec.field, None) or [])
+        for kind, spec in ELEMENT_REGISTRY.items()
+        if getattr(cfg, spec.field, None)
+    }
+    focus = compose_teacher_focus(cfg)
+    return {
+        "activityId": activity_id,
+        "classId": class_id,
+        "language": cfg.language,
+        "elementCounts": element_counts,
+        "manifest": describe_elements(cfg),
+        "resolvedFocus": focus,
+        "focusChars": len(focus),
+    }
 
 
 @router.get("/{teacher_uid}/{class_id}/{activity_id}")

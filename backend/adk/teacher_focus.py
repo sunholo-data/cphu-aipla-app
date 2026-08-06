@@ -22,6 +22,7 @@ import re
 from collections.abc import Iterable
 from datetime import UTC, datetime
 
+from adk.element_manifest import describe_elements
 from artefacts.loader import load_artefact
 from db.activities import get_activity
 from db.activity_configs import get_activity_config
@@ -31,6 +32,52 @@ from db.models.activity_config import ActivityConfig
 log = logging.getLogger(__name__)
 
 _PLACEHOLDER = "{teacher_focus}"
+
+# 1.1.63 M2 — the platform's default activity language. The language directive
+# is emitted only when an activity differs from this, so Danish activities
+# compose byte-identically to how they did before 1.1.63.
+_DEFAULT_LANGUAGE = "da"
+_LANGUAGE_NAMES = {"da": "Danish", "en": "English"}
+
+# --- Prompt budget (1.1.62 M2) -------------------------------------------
+#
+# The composed focus is substituted into a skill's ``instructions``, which
+# ``SkillConfig`` validates at 10,000 characters. Crossing that does not fail
+# loudly at request time — it fails the ``platform_seed`` re-read after a
+# partial write, i.e. at DEPLOY time, on whichever activity happens to be
+# largest. See memory ``feedback-skill-instructions-10k-cap``.
+#
+# Two blocks here were unbounded before 1.1.62 and are the real overflow risk,
+# not the element manifest that surfaced them: a 30-node concept map composes
+# ~3,500 chars, and the solution task allows 2,000 on its own. Stacked with a
+# 2,000-char teaching goal and the 2,000-char manifest, a maximal activity
+# composed ~11,000 chars — over the cap before the skill template's own text
+# was even added. Each variable-length contributor is now bounded.
+_CONCEPT_MAP_CAP = 1500
+_SOLUTION_TASK_CAP = 500
+# Belt and braces: if the sum still exceeds this, something new went unbounded.
+_TOTAL_FOCUS_CAP = 8000
+
+
+def _clip(text: str, limit: int) -> str:
+    """Truncate on a word boundary with a visible marker."""
+    if len(text) <= limit:
+        return text
+    return text[:limit].rsplit(" ", 1)[0] + " …(truncated)"
+
+
+def _fit_lines(lines: list[str], budget: int) -> tuple[list[str], int]:
+    """Take as many whole lines as fit; report how many were dropped."""
+    kept: list[str] = []
+    used = 0
+    for i, line in enumerate(lines):
+        cost = len(line) + 1
+        if used + cost > budget:
+            return kept, len(lines) - i
+        kept.append(line)
+        used += cost
+    return kept, 0
+
 
 # LOCAL_MODE constants. Kept in sync with backend/db/local_fixture.py
 # WORKSHOP_USER_UID and the seeded demo-class id below. Imported
@@ -173,24 +220,61 @@ SOLUTION_FEEDBACK_PROMPT = (
     "formula fits the situation, whether the result is physically plausible.\n"
     "- If the photo is unreadable or cut off, say so kindly and ask for a "
     "clearer picture.\n"
-    "- 3-5 sentences, ending with a question. Match the student's language."
+    # 1.1.63 M2: "Match the student's language" was removed here. It was a
+    # per-turn heuristic buried in the SOLUTION-ONLY block, and it now conflicts
+    # with the activity's explicit `language` setting — an English activity
+    # whose student wrote Danish would get contradictory instructions, one of
+    # which is the teacher's actual configuration. Language is owned by the
+    # directive at the top of compose_teacher_focus; where no directive is
+    # emitted the model infers, which is what this line achieved anyway.
+    "- 3-5 sentences, ending with a question."
 )
 
 
 def compose_teacher_focus(cfg: ActivityConfig | None) -> str:
-    """Compose the ``{teacher_focus}`` substitution (1.1.41 M2 + 1.1.45 M4).
+    """Compose the ``{teacher_focus}`` substitution (1.1.41 M2 + 1.1.45 M4 + 1.1.62/63 M2).
 
-    Stacks, in order: the hosted sim artefact's intrinsic ``tutor_block`` (what
-    the sim IS + what its events MEAN, when the activity references a sim); the
-    **solution feedback prompt** + the teacher's solution task (when the activity
-    has a solution-editor element — 1.1.45 M4); and the per-activity
-    ``teaching_goal``. The artefact block is the **same** for every activity using
-    that sim (AR-authored catalogue); the goal is **per-activity** — so the same
-    sim tutors differently per activity purely because the goal differs. Graceful:
-    each block is optional and a de-catalogued / block-less artefact is skipped.
+    Stacks, in order: the **activity language directive** (1.1.63 M2 — first, so
+    it frames everything after it); the hosted sim artefact's intrinsic
+    ``tutor_block`` (what the sim IS + what its events MEAN, when the activity
+    references a sim); the **element manifest** (1.1.62 M1 — what the student has
+    in front of them on the workbench); the **solution feedback prompt** + the
+    teacher's solution task (when the activity has a solution-editor element —
+    1.1.45 M4); the concept map; and the per-activity ``teaching_goal``. The
+    artefact block is the **same** for every activity using that sim (AR-authored
+    catalogue); the goal is **per-activity** — so the same sim tutors differently
+    per activity purely because the goal differs. Graceful: each block is optional
+    and a de-catalogued / block-less artefact is skipped.
+
+    **Budget.** The result is substituted into a skill's ``instructions``, which
+    ``SkillConfig`` validates at 10,000 characters. Every block here shares that
+    budget; the element manifest is self-capping at
+    ``element_manifest.MANIFEST_CHAR_CAP``. See
+    ``test_composed_focus_stays_under_the_skillconfig_instruction_cap``.
     """
     goal = (cfg.teaching_goal if cfg else "").strip()
     blocks: list[str] = []
+
+    # 1.1.63 M2 — the activity language. `ActivityConfig.language` was read into
+    # the config at `_activity_to_config` and then used NOWHERE: a written-only
+    # field. So the tutor's language was whatever the model inferred, biased by
+    # Danish skill templates and Danish curriculum docs, and Aswin's English
+    # activity spoke Danish.
+    #
+    # Emitted only when the activity's language differs from the platform
+    # default. `Language` is Literal["da","en"] defaulting to "da", so it is
+    # never unset — emitting unconditionally would rewrite the prompt of every
+    # existing activity days before the pilot, for no behaviour change on the
+    # Danish ones. See test_default_language_emits_no_directive for the residual
+    # gap this accepts.
+    if cfg is not None and cfg.language and cfg.language != _DEFAULT_LANGUAGE:
+        name = _LANGUAGE_NAMES.get(cfg.language, cfg.language)
+        blocks.append(
+            f"Speak {name} with the student, in every turn, including your first. "
+            f"Curriculum material may be in another language — read it in whatever "
+            f"language it is written and answer in {name}. Physics terms and units "
+            f"keep their conventional form."
+        )
 
     if cfg is not None and cfg.artefact_id:
         artefact = load_artefact(cfg.artefact_id)
@@ -198,11 +282,19 @@ def compose_teacher_focus(cfg: ActivityConfig | None) -> str:
         if block:
             blocks.append(block)
 
+    # 1.1.62 M1 — what the student actually has in front of them. Placed after
+    # the sim block (which explains the artefact) and before the goal (which
+    # explains the point), so the tutor reads: what this is, what tools are
+    # here, what we're trying to achieve.
+    manifest = describe_elements(cfg)
+    if manifest:
+        blocks.append(manifest)
+
     if cfg is not None and cfg.solution:
         blocks.append(SOLUTION_FEEDBACK_PROMPT)
         task = (cfg.solution[0].prompt or "").strip()
         if task:
-            blocks.append(f"The task the student is solving: {task}")
+            blocks.append(f"The task the student is solving: {_clip(task, _SOLUTION_TASK_CAP)}")
 
     # CONCEPT-1 M3 — the living concept map: give the tutor the node structure
     # + the chat-native checkpoint contract. Node STATUSES are deliberately not
@@ -216,10 +308,13 @@ def compose_teacher_focus(cfg: ActivityConfig | None) -> str:
             dep = f" (builds on: {', '.join(prereqs)})" if prereqs else ""
             q = f" [{len(n.check_questions)} check questions]" if n.check_questions else ""
             lines.append(f"- {n.id}: {n.label}{dep}{q}")
+        node_lines, dropped_nodes = _fit_lines(lines, _CONCEPT_MAP_CAP)
+        if dropped_nodes:
+            node_lines.append(f"(+{dropped_nodes} more concepts)")
         blocks.append(
             "This activity has a concept map — the concepts the student should demonstrate, in "
             "prerequisite order:\n"
-            + "\n".join(lines)
+            + "\n".join(node_lines)
             + "\n\nWhen a concept looks nearly understood (or at a wrap-up), offer a short checkpoint: "
             "call run_checkpoint(node_id) to get its check questions, ask them ONE AT A TIME in your "
             "own voice in the conversation (never as a form), judge the answers, then call "
@@ -230,7 +325,23 @@ def compose_teacher_focus(cfg: ActivityConfig | None) -> str:
     if goal:
         blocks.append(goal)
 
-    return "\n\n".join(blocks)
+    focus = "\n\n".join(blocks)
+
+    # Belt and braces. Every variable-length block above is individually
+    # bounded, so reaching here means a NEW unbounded contributor was added.
+    # Log loudly rather than silently shipping an instruction set that will
+    # fail the seed on deploy.
+    if len(focus) > _TOTAL_FOCUS_CAP:
+        log.warning(
+            "compose_teacher_focus: %d chars exceeds the %d budget (activity=%s) — "
+            "clipping. A new unbounded block was likely added; bound it at source.",
+            len(focus),
+            _TOTAL_FOCUS_CAP,
+            cfg.activity_id if cfg else "-",
+        )
+        focus = _clip(focus, _TOTAL_FOCUS_CAP)
+
+    return focus
 
 
 def inject_teacher_focus(

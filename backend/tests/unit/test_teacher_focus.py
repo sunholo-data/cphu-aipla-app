@@ -269,3 +269,221 @@ def test_no_solution_element_omits_the_feedback_prompt() -> None:
     focus = compose_teacher_focus(cfg)
     assert SOLUTION_FEEDBACK_PROMPT not in focus
     assert focus == "Just a goal"
+
+
+# ---------------------------------------------------------------------------
+# 1.1.62 M1 — the element manifest is stacked into the focus
+# 1.1.63 M2 — the activity language directive
+#
+# Both edit compose_teacher_focus and both care about ORDERING, which is why
+# they are one milestone rather than two.
+# ---------------------------------------------------------------------------
+
+
+def _cfg(**kwargs):
+    from datetime import UTC, datetime
+
+    from db.models.activity_config import ActivityConfig
+
+    base = {
+        "activityId": "a",
+        "classId": "c",
+        "teacherUid": "t",
+        "updatedAt": datetime.now(UTC),
+    }
+    base.update(kwargs)
+    return ActivityConfig(**base)
+
+
+def _sample_table():
+    from db.models.activity_config import TableColumn, TableElement
+
+    return TableElement(
+        id="t1",
+        title="Faldforsøg",
+        columns=[
+            TableColumn(id="h", label="højde", unit="m", kind="number"),
+            TableColumn(id="t", label="tid", unit="s", kind="number"),
+        ],
+        rows=5,
+    )
+
+
+def test_authored_elements_reach_the_composed_focus() -> None:
+    """The whole point of 1.1.62.
+
+    Before this, a tutor in an activity with a data table had no evidence in its
+    system prompt that the table existed.
+    """
+    from adk.teacher_focus import compose_teacher_focus
+
+    focus = compose_teacher_focus(_cfg(table=[_sample_table()], teachingGoal="Measure g"))
+    assert "Faldforsøg" in focus
+    assert "Measure g" in focus
+
+
+def test_language_directive_is_emitted_first() -> None:
+    """Language frames everything after it, so it leads the composition."""
+    from adk.teacher_focus import compose_teacher_focus
+
+    focus = compose_teacher_focus(_cfg(language="en", table=[_sample_table()], teachingGoal="Measure g"))
+    assert "English" in focus
+    assert focus.index("English") < focus.index("Faldforsøg")
+    assert focus.index("English") < focus.index("Measure g")
+
+
+def test_language_directive_separates_reading_from_speaking() -> None:
+    """The A-level curriculum is Danish and stays Danish.
+
+    An English-language activity must still GROUND in it. Conflating "speak
+    English" with "the material is English" would break grounding for every
+    English activity — so the directive says so explicitly.
+    """
+    from adk.teacher_focus import compose_teacher_focus
+
+    focus = compose_teacher_focus(_cfg(language="en")).lower()
+    assert "another language" in focus or "whatever language" in focus
+
+
+def test_default_language_emits_no_directive() -> None:
+    """``Language`` is ``Literal["da", "en"]`` defaulting to ``"da"`` — it is
+    never unset, so "emit whenever it is set" would change the prompt of EVERY
+    existing activity eight days before the pilot.
+
+    The directive is emitted only when the activity's language differs from the
+    platform default, so a Danish activity composes byte-identically to before.
+    Two existing tests assert ``focus == "<the goal>"`` exactly; that contract
+    holds.
+
+    Residual gap, accepted deliberately: a Danish activity whose student writes
+    in English still gets an English tutor by inference, because nothing states
+    Danish explicitly. Fixing that means emitting for both languages and
+    re-baselining every activity's prompt — a post-pilot change, not a
+    pre-pilot one.
+    """
+    from adk.teacher_focus import compose_teacher_focus
+
+    assert compose_teacher_focus(_cfg(language="da", teachingGoal="Mål g")) == "Mål g"
+
+
+def test_composed_focus_stays_under_the_skillconfig_instruction_cap() -> None:
+    """**Write this test first.** (Sprint plan, M2 risk.)
+
+    ``SkillConfig.instructions`` is validated at 10,000 characters
+    (db/models/__init__.py). ``{teacher_focus}`` already stacked a sim
+    tutor_block + solution prompt + concept map + goal; the element manifest is
+    a FIFTH block. A maximal activity must not push the composed instruction
+    past the cap — crossing it silently fails the seed re-read after a partial
+    write, which is a deployment failure, not a test failure.
+    """
+    from adk.teacher_focus import compose_teacher_focus
+    from db.models.activity_config import (
+        CalcInput,
+        CalculatorElement,
+        ChartElement,
+        ChecklistItem,
+        ConceptEdge,
+        ConceptMapElement,
+        ConceptNode,
+        DocumentElement,
+        NoteElement,
+        SolutionElement,
+    )
+
+    maximal = _cfg(
+        language="en",
+        artefactId="boldkast",
+        teachingGoal="G" * 2000,  # the model's max_length for teaching_goal
+        checklist=[ChecklistItem(id=f"i{n}", label="L" * 200) for n in range(50)],
+        table=[_sample_table() for _ in range(5)],
+        chart=[ChartElement(id=f"c{n}", title="T" * 120) for n in range(5)],
+        calculator=[
+            CalculatorElement(
+                id=f"calc{n}",
+                title="T" * 120,
+                formula="a + b",
+                inputs=[CalcInput(id="a", label="A" * 80), CalcInput(id="b", label="B" * 80)],
+            )
+            for n in range(5)
+        ],
+        note=[NoteElement(id=f"n{n}", title="T" * 120, body="B" * 4000) for n in range(5)],
+        solution=[SolutionElement(id="s", prompt="P" * 2000)],
+        document=[DocumentElement(id="d", prompt="P" * 2000)],
+        conceptMap=[
+            ConceptMapElement(
+                id="cm",
+                title="Map",
+                nodes=[ConceptNode(id=f"n{n}", label="L" * 80) for n in range(30)],
+                edges=[ConceptEdge(**{"from": f"n{n}", "to": f"n{n + 1}"}) for n in range(29)],
+            )
+        ],
+    )
+
+    focus = compose_teacher_focus(maximal)
+
+    # The skill template itself needs room too — the focus is SUBSTITUTED INTO
+    # instructions, it is not the whole of them. Leave a working margin.
+    assert len(focus) < 8000, f"composed focus is {len(focus)} chars — too close to the 10k instruction cap"
+
+
+def test_maximal_config_still_names_its_elements() -> None:
+    """A cap that silently swallows the whole manifest would pass the cap test
+    while defeating the feature. Truncation must be item-wise."""
+    from adk.teacher_focus import compose_teacher_focus
+    from db.models.activity_config import ChecklistItem
+
+    focus = compose_teacher_focus(_cfg(checklist=[ChecklistItem(id=f"i{n}", label=f"Step {n}") for n in range(50)]))
+    assert "Step 0" in focus
+
+
+def test_concept_map_block_is_bounded() -> None:
+    """Pre-existing overflow, surfaced by the cap test above (1.1.62 M2).
+
+    A 30-node concept map composed ~3,500 characters with no bound. Stacked
+    with a 2,000-char teaching goal and a 2,000-char solution task, a maximal
+    activity blew the 10k SkillConfig instruction cap **before** the element
+    manifest existed. It never showed up because nobody had authored a maximal
+    activity — and when it did show up it would have failed at SEED time, not
+    at request time.
+    """
+    from adk.teacher_focus import _CONCEPT_MAP_CAP, compose_teacher_focus
+    from db.models.activity_config import ConceptEdge, ConceptMapElement, ConceptNode
+
+    cfg = _cfg(
+        conceptMap=[
+            ConceptMapElement(
+                id="cm",
+                title="Map",
+                nodes=[ConceptNode(id=f"n{n}", label="L" * 80) for n in range(30)],
+                edges=[ConceptEdge(**{"from": f"n{n}", "to": f"n{n + 1}"}) for n in range(29)],
+            )
+        ]
+    )
+    focus = compose_teacher_focus(cfg)
+    assert "more concepts)" in focus
+    # The checkpoint contract must survive truncation — dropping it would leave
+    # the tutor a concept list with no instruction to check anything off.
+    assert "run_checkpoint" in focus
+    assert "n0" in focus  # truncation is node-wise, from the end
+    assert len(focus) < _CONCEPT_MAP_CAP + 1500
+
+
+def test_solution_task_is_bounded() -> None:
+    """The other unbounded contributor: a 2,000-char solution prompt."""
+    from adk.teacher_focus import SOLUTION_FEEDBACK_PROMPT, compose_teacher_focus
+    from db.models.activity_config import SolutionElement
+
+    focus = compose_teacher_focus(_cfg(solution=[SolutionElement(id="s", prompt="P" * 2000)]))
+    assert "truncated" in focus
+    assert SOLUTION_FEEDBACK_PROMPT in focus  # the coaching contract is not what gets cut
+    assert len(focus) < 2500
+
+
+def test_chat_only_activity_composes_exactly_as_before() -> None:
+    """No elements, default language: the composition is untouched by 1.1.62/63.
+
+    This is the no-regression guarantee for every existing chat-only activity.
+    """
+    from adk.teacher_focus import compose_teacher_focus
+
+    assert compose_teacher_focus(_cfg(teachingGoal="Just a goal")) == "Just a goal"

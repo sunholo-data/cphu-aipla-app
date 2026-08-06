@@ -442,3 +442,62 @@ def test_post_with_unknown_artefact_is_400(client):
     )
     assert resp.status_code == 400
     assert "unknown artefact" in resp.text
+
+
+# --- GET /resolved-focus (1.1.62 M1) ---------------------------------------
+#
+# The debugging affordance the element-blindness bug argues for: nothing
+# rendered the composed prompt, so nobody could see the tutor was never told
+# the elements existed.
+
+
+def test_resolved_focus_shows_the_element_manifest(client):
+    client.post(
+        "/api/activity-configs",
+        json=_sample_body(
+            table=[
+                {
+                    "id": "t1",
+                    "title": "Faldforsøg",
+                    "columns": [
+                        {"id": "h", "label": "højde", "unit": "m", "kind": "number"},
+                        {"id": "t", "label": "tid", "unit": "s", "kind": "number"},
+                    ],
+                    "rows": 5,
+                }
+            ],
+            checklist=[{"id": "a", "label": "Mål faldtiden"}],
+        ),
+    )
+    resp = client.get("/api/activity-configs/resolved-focus/7b-physics-a-2026/boldkast")
+    assert resp.status_code == 200
+    body = resp.json()
+
+    assert body["elementCounts"] == {"checklist": 1, "table": 1}
+    assert "Faldforsøg" in body["manifest"]
+    assert "Mål faldtiden" in body["manifest"]
+    # The manifest is part of what the tutor actually receives, not a preview
+    # computed down a separate path.
+    assert body["manifest"] in body["resolvedFocus"]
+    assert body["focusChars"] == len(body["resolvedFocus"])
+
+
+def test_resolved_focus_reports_no_elements_honestly(client):
+    client.post("/api/activity-configs", json=_sample_body())
+    body = client.get("/api/activity-configs/resolved-focus/7b-physics-a-2026/boldkast").json()
+    assert body["elementCounts"] == {}
+    assert body["manifest"] == ""
+
+
+def test_resolved_focus_is_owner_scoped(client):
+    """A teacher resolves only their OWN activity — the focus can carry the
+    teaching goal and solution task, which are not another teacher's to read."""
+    resp = client.get("/api/activity-configs/resolved-focus/7b-physics-a-2026/never-created")
+    assert resp.status_code == 404
+
+
+def test_resolved_focus_surfaces_the_language_directive(client):
+    client.post("/api/activity-configs", json=_sample_body(language="en"))
+    body = client.get("/api/activity-configs/resolved-focus/7b-physics-a-2026/boldkast").json()
+    assert body["language"] == "en"
+    assert "English" in body["resolvedFocus"]

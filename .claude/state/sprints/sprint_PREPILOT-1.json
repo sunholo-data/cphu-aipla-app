@@ -55,7 +55,7 @@
       "description": "Tell the tutor what workbench elements exist BEFORE the student touches them (registry-driven manifest block), and make ActivityConfig.language actually drive the tutor's language. Both edit compose_teacher_focus and both care about block ordering, so they are ONE milestone.",
       "scope": "backend",
       "estimated_loc": 420,
-      "actual_loc": null,
+      "actual_loc": 760,
       "dependencies": [],
       "acceptance_criteria": [
         "With a table + chart + checklist authored and ZERO student interaction, the tutor's opening turn names the table",
@@ -77,12 +77,14 @@
       "files_to_modify": [
         "backend/adk/teacher_focus.py",
         "backend/tests/unit/test_teacher_focus.py",
+        "backend/protocols/activity_config_routes.py",
+        "backend/tests/api_tests/test_activity_config_routes.py",
         "cli/aiplatform/commands/activity.py"
       ],
-      "passes": null,
-      "started": null,
-      "completed": null,
-      "notes": "HIGHEST RISK in the sprint: the 10k SkillConfig instruction cap. This adds a fifth block to a prompt already carrying sim tutorBlock + solution + concept map + goal. Cap test written first, with a maximal config."
+      "passes": true,
+      "started": "2026-08-06",
+      "completed": "2026-08-06",
+      "notes": "The cap test (written first, per the plan) FOUND A PRE-EXISTING BUG. A maximal activity composed 10,962 chars against a 10,000-char SkillConfig.instructions cap - and the element manifest was only 2,000 of that. Two blocks were already unbounded before this milestone: the concept-map block (30 nodes = ~3,512 chars) and the solution task (2,000). Stacked with a 2,000-char teaching goal it was already over the cap BEFORE the manifest existed. It had never fired because nobody had authored a maximal activity, and when it did it would have failed at SEED time (platform_seed re-read after partial write), not at request time. Bounded all three: _CONCEPT_MAP_CAP=1500 (node-wise, keeps the run_checkpoint contract), _SOLUTION_TASK_CAP=500, manifest 2000, plus a _TOTAL_FOCUS_CAP=8000 belt-and-braces that logs loudly. Two regression tests pin it. DESIGN CHANGE vs the doc: the language directive is emitted only when the activity language differs from the 'da' default. Language is Literal['da','en'] defaulting to 'da', so it is never unset - emitting unconditionally would have rewritten every existing activity's prompt 8 days before the pilot, and broken two existing tests that assert focus == goal exactly. Residual gap accepted and documented: a Danish activity whose student writes English still gets an English tutor by inference. Post-pilot fix. Also removed 'Match the student's language' from SOLUTION_FEEDBACK_PROMPT - it conflicted with the explicit setting. CLI needed a backend endpoint: GET /api/activity-configs/resolved-focus/{class}/{activity}, owner-scoped, returns manifest + resolvedFocus + focusChars + elementCounts. Backend 2743 passed (+28). Frontend 1526 unchanged. Lint clean."
     },
     {
       "id": "M3-CHECKLIST-TICK-TOOLS",
@@ -253,7 +255,7 @@
   ],
   "post_sprint": "The workbench-element-builder skill gains a THIRD rule: an element must be described to the tutor at prompt time, not only pushed on interaction. It currently encodes push + trust card, which is why this class of bug shipped four times.",
   "github_issues": [],
-  "last_session": "2026-08-06T12:22:11Z",
-  "last_checkpoint": "M1-CITATION-VOICE",
+  "last_session": "2026-08-06T14:49:59Z",
+  "last_checkpoint": "M2-ELEMENT-MANIFEST-AND-LANGUAGE",
   "status": "in_progress"
 }

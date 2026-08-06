@@ -79,6 +79,40 @@ def list_activities(ctx: click.Context, class_id: str | None) -> None:
     click.echo(_json.dumps(result, indent=2))
 
 
+@activity.command("manifest")
+@click.argument("activity_id")
+@click.option("--class", "class_id", required=True, help="The class the activity config belongs to.")
+@click.option("--full", is_flag=True, help="Print the whole resolved focus, not just the element manifest.")
+@click.pass_context
+def activity_manifest(ctx: click.Context, activity_id: str, class_id: str, full: bool) -> None:
+    """Show what the TUTOR is told about this activity (1.1.62 M1).
+
+    The element-blindness bug survived six weeks because nothing rendered the
+    composed prompt — every element rendered, pushed and carded correctly, while
+    the tutor's system prompt never mentioned any of them. This is the command
+    that makes that visible.
+    """
+    result = _client(ctx).get(f"/api/activity-configs/resolved-focus/{class_id}/{activity_id}")
+
+    counts = result.get("elementCounts") or {}
+    click.echo(f"activity : {result.get('activityId')}")
+    click.echo(f"language : {result.get('language')}")
+    click.echo(f"elements : {', '.join(f'{k}={v}' for k, v in counts.items()) if counts else '(none authored)'}")
+    click.echo(f"focus    : {result.get('focusChars')} chars")
+    click.echo("")
+
+    if full:
+        click.echo(result.get("resolvedFocus") or "(empty)")
+        return
+
+    manifest = result.get("manifest") or ""
+    if manifest:
+        click.echo(manifest)
+    else:
+        click.echo("(no element manifest — this activity has no workbench elements)")
+        click.echo("The tutor will not mention any workbench tools. Use --full to see the whole focus.")
+
+
 _LEVELS = ["A", "B", "C"]
 _UNLEVELLED = "__unlevelled__"
 
