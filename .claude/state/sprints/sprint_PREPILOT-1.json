@@ -1,0 +1,244 @@
+{
+  "sprint_id": "PREPILOT-1",
+  "created": "2026-08-06T11:59:56Z",
+  "estimated_duration_days": 5,
+  "hard_deadline": "2026-08-13 (in PROD; teacher pilot starts 2026-08-14)",
+  "design_doc": "docs/design/aipla/v1.1.0-feedback/workbench-element-awareness.md",
+  "design_docs": [
+    "docs/design/aipla/v1.1.0-feedback/workbench-element-awareness.md",
+    "docs/design/aipla/v1.1.0-feedback/tutor-register-citation-and-language.md",
+    "docs/design/aipla/v1.1.0-feedback/multi-chart-variable-selection.md"
+  ],
+  "sprint_plan": "docs/design/aipla/v1.1.0-feedback/prepilot-tutor-awareness-sprint.md",
+  "baseline": {
+    "verified": "2026-08-06",
+    "backend_test_fast": "GREEN - 2706 passed, 1 skipped, 17 deselected",
+    "frontend_quality_check_fast": "GREEN",
+    "note": "Suite is fully green. Any red during this sprint is YOURS, not the pre-existing OTEL isolation issue."
+  },
+  "features": [
+    {
+      "id": "M1-CITATION-VOICE",
+      "description": "Rewrite the curriculum grounding preamble so the tutor stops opening every reply with 'According to <domain>'. Cite by TITLE, mid-sentence, only when the retrieved content carries the answer. Attribution is kept (Axiom 2); the ritual is dropped.",
+      "scope": "backend",
+      "estimated_loc": 80,
+      "actual_loc": null,
+      "dependencies": [],
+      "acceptance_criteria": [
+        "No tutor reply opens with 'According to <domain>' or 'From <domain>'",
+        "The line-118 twin ('Always cite the source in your answer') is rewritten too, not just the line-53 preamble",
+        "_build_source_preamble emits the human title first with the domain parenthesised; filename fallback unchanged when no title exists",
+        "A load-bearing retrieved claim is still attributed, by title, in natural position",
+        "Asking 'where did that come from?' still yields a specific source",
+        "backend make test-fast stays green"
+      ],
+      "files_to_create": [],
+      "files_to_modify": [
+        "backend/adk/curriculum_retrieval.py",
+        "backend/tests/unit/test_curriculum_retrieval.py"
+      ],
+      "passes": null,
+      "started": null,
+      "completed": null,
+      "notes": "Isolated file, zero conflict with M2. Highest visible-annoyance-per-hour fix in the sprint - do it first."
+    },
+    {
+      "id": "M2-ELEMENT-MANIFEST-AND-LANGUAGE",
+      "description": "Tell the tutor what workbench elements exist BEFORE the student touches them (registry-driven manifest block), and make ActivityConfig.language actually drive the tutor's language. Both edit compose_teacher_focus and both care about block ordering, so they are ONE milestone.",
+      "scope": "backend",
+      "estimated_loc": 420,
+      "actual_loc": null,
+      "dependencies": [],
+      "acceptance_criteria": [
+        "With a table + chart + checklist authored and ZERO student interaction, the tutor's opening turn names the table",
+        "describe_elements() iterates ELEMENT_REGISTRY with per-kind describers and a generic fallback - a new element kind is visible BY DEFAULT",
+        "Registry-completeness test: every ELEMENT_REGISTRY kind produces non-empty manifest text for a populated config (this is the test that would have caught the original bug)",
+        "Manifest hard-capped at 2000 chars with item-wise truncation and a '(+N more)' suffix",
+        "Composed focus stays under the 10k SkillConfig instruction cap with a MAXIMAL config (50 checklist items + 5 tables + sim tutorBlock + solution + concept map) - write this test FIRST",
+        "language: 'en' produces an English tutor from turn one, deterministically",
+        "An English activity still grounds correctly in Danish curriculum material (reading != speaking)",
+        "The teacher_focus.py:176 'Match the student's language' heuristic is narrowed to apply only when cfg.language is unset, or removed",
+        "Chart describer names the axes (uses 1.1.64's optional fields; harmless before M5)",
+        "inject_teacher_focus log line carries per-kind element counts",
+        "aiplatform activity manifest <id> prints exactly what the tutor is told"
+      ],
+      "files_to_create": [
+        "backend/adk/element_manifest.py",
+        "backend/tests/unit/test_element_manifest.py"
+      ],
+      "files_to_modify": [
+        "backend/adk/teacher_focus.py",
+        "backend/tests/unit/test_teacher_focus.py",
+        "cli/aiplatform/commands/activity.py"
+      ],
+      "passes": null,
+      "started": null,
+      "completed": null,
+      "notes": "HIGHEST RISK in the sprint: the 10k SkillConfig instruction cap. This adds a fifth block to a prompt already carrying sim tutorBlock + solution + concept map + goal. Cap test written first, with a maximal config."
+    },
+    {
+      "id": "M3-CHECKLIST-TICK-TOOLS",
+      "description": "The ILO half. Give the tutor tools to tick teacher-authored checklist items from conversation, with mandatory evidence and a visible 'shared with the AI' trust card. Aswin's 'automatic ILO check' becomes a real feature rather than a missing one.",
+      "scope": "fullstack",
+      "estimated_loc": 380,
+      "actual_loc": null,
+      "dependencies": ["M2-ELEMENT-MANIFEST-AND-LANGUAGE"],
+      "acceptance_criteria": [
+        "list_checklist and mark_checklist_item registered only when cfg.checklist is non-empty",
+        "A checklist item ticks from conversation with a visible HumanToolUseCard showing the evidence",
+        "mark_checklist_item REJECTS a tick with an empty evidence_summary at the tool boundary",
+        "Tick state is per-GROUP (reuses the concept_progress store shape, not a third store) and survives reload and a new session id",
+        "Group is keyed off the VERIFIED JWT claim, never a tool argument - one group cannot tick another group's checklist",
+        "Never reads User.email (empty string for anonymous-group students)",
+        "ProgressChecklist visually distinguishes AI-ticked from student-ticked; the student can untick an AI tick",
+        "make audit-trust-cards passes"
+      ],
+      "files_to_create": [
+        "backend/adk/checklist_tools.py",
+        "backend/db/checklist_progress.py",
+        "backend/tests/unit/test_checklist_tools.py"
+      ],
+      "files_to_modify": [
+        "backend/adk/agent.py",
+        "frontend/src/components/chat/HumanToolUseCard.tsx",
+        "frontend/src/components/workspace/ProgressChecklist.tsx",
+        "frontend/src/components/workspace/__tests__/ProgressChecklist.test.tsx"
+      ],
+      "passes": null,
+      "started": null,
+      "completed": null,
+      "notes": "The trust card ships IN this milestone, not as a follow-up. This exact half has been dropped twice already (calculator, table)."
+    },
+    {
+      "id": "M4-ILO-PRECEDENCE",
+      "description": "State the teacher's checklist as the activity's objectives and the curriculum as reference material for reaching them, ordered before the curriculum sources preamble. Directly answers 'the chat forces students to achieve goals from the curriculum only, not with my ILOs'.",
+      "scope": "backend",
+      "estimated_loc": 90,
+      "actual_loc": null,
+      "dependencies": ["M2-ELEMENT-MANIFEST-AND-LANGUAGE"],
+      "acceptance_criteria": [
+        "The ILO precedence block is emitted BEFORE the curriculum sources preamble in the composed instruction",
+        "Test asserts the relative order of the two blocks",
+        "A teacher-authored ILO is preferred over a conflicting curriculum objective",
+        "The curriculum preamble is not weakened - grounding still works"
+      ],
+      "files_to_create": [],
+      "files_to_modify": [
+        "backend/adk/teacher_focus.py",
+        "backend/tests/unit/test_teacher_focus.py"
+      ],
+      "passes": null,
+      "started": null,
+      "completed": null,
+      "notes": "CUT LINE #2 if the sprint slips. M2 already puts the ILOs in the prompt, which is most of the win."
+    },
+    {
+      "id": "M5-MULTI-CHART",
+      "description": "Several charts per activity, each plotting explicitly chosen table columns. Backend already allows max_items=5 and the renderer already takes an array; the editor is a hardcoded singleton and ChartElement has no axis fields, so five charts today is the same graph drawn five ways.",
+      "scope": "fullstack",
+      "estimated_loc": 420,
+      "actual_loc": null,
+      "dependencies": [],
+      "acceptance_criteria": [
+        "Optional tableId / xColumn / yColumn on ChartElement - OPTIONAL, so no backfill and existing charts render identically",
+        "resolveChartBinding() implements the 3-step ladder: bound -> auto-bind WITH A VISIBLE NOTE -> empty state",
+        "A renamed or deleted column degrades loudly (visible note), never silently plots the wrong variables",
+        "ChartEditor is a list editor capped at 5, with Add disabled AND A REASON at the cap",
+        "Only numeric columns (TableColumn.kind == 'number') are offered on either axis",
+        "Two charts on different variable pairs both update as the student fills the table",
+        "Axis labels carry units",
+        "TableEditor warns before deleting a column a chart references",
+        "ActivityPreview renders all charts",
+        "elementPayload() multi-chart round-trip test passes (full-overwrite wipe guard)",
+        "A chart referencing a non-existent table_id is rejected at WRITE time, but a chart whose column was deleted after saving still LOADS"
+      ],
+      "files_to_create": [
+        "frontend/src/lib/resolveChartBinding.ts",
+        "frontend/src/lib/__tests__/resolveChartBinding.test.ts"
+      ],
+      "files_to_modify": [
+        "backend/db/models/activity_config.py",
+        "backend/protocols/activity_config_routes.py",
+        "backend/tests/unit/test_activity_elements.py",
+        "frontend/src/components/teacher/ChartEditor.tsx",
+        "frontend/src/components/teacher/TableEditor.tsx",
+        "frontend/src/components/workspace/WorkbenchChart.tsx",
+        "frontend/src/components/teacher/ActivityPreview.tsx",
+        "frontend/src/hooks/__tests__/useActivityBuilder.test.ts"
+      ],
+      "passes": null,
+      "started": null,
+      "completed": null,
+      "notes": "Fully independent of M1-M4 - the natural parallel milestone or pickup-when-blocked work. CUT LINE #3: the only item with no pilot-blocking consequence."
+    },
+    {
+      "id": "M6-COPILOT-CLI-EVALS",
+      "description": "The 'is it actually done' milestone: the authoring co-pilot can propose charts with named axes, the CLI can build one, and ADK evals gate the four behaviours this sprint claims.",
+      "scope": "fullstack",
+      "estimated_loc": 260,
+      "actual_loc": null,
+      "dependencies": ["M2-ELEMENT-MANIFEST-AND-LANGUAGE", "M5-MULTI-CHART"],
+      "acceptance_criteria": [
+        "add_element accepts chart axis params; the authoring skill's element docs gain the axis vocabulary",
+        "aiplatform activity add-chart works end-to-end",
+        "Eval: elements authored + no interaction -> the opening turn names the table",
+        "Eval: a checklist item ticks after the student describes doing it",
+        "Eval: an authored ILO is preferred over a conflicting curriculum objective",
+        "Eval: an English activity grounds in a Danish source and answers in English",
+        "Eval: across 10 turns, NO reply opens with an attribution, and at least one turn attributes a specific retrieved claim"
+      ],
+      "files_to_create": [],
+      "files_to_modify": [
+        "backend/adk/authoring_tools.py",
+        "backend/skills/templates/activity-authoring-assistant/SKILL.md",
+        "cli/aiplatform/commands/activity.py",
+        "backend/tests/eval/"
+      ],
+      "passes": null,
+      "started": null,
+      "completed": null,
+      "notes": "CUT LINE #1: keep the co-pilot/CLI bits, defer the evalset. Costs confidence, not function. NOTE: editing the authoring SKILL.md means a seed is required - make seed ENV=<env>."
+    }
+  ],
+  "velocity": {
+    "target_loc_per_day": 400,
+    "actual_loc_per_day": null,
+    "estimated_total_loc": 1650,
+    "actual_total_loc": null,
+    "estimated_days": 5,
+    "actual_days": null,
+    "basis": "ACTFACET (1.1.61), the closest comparable: 3 milestones, ~2-2.5d design estimate, delivered in ONE day 2026-08-05, 35 files +2803/-309. Scheduled against design-doc estimates; velocity upside treated as buffer, not spent in advance."
+  },
+  "cut_line": [
+    "1. M6 evals (keep co-pilot/CLI, defer the evalset)",
+    "2. M4 ILO precedence",
+    "3. M5 multi-chart",
+    "M1, M2 and M3 are NOT cuttable - without them the sprint has not addressed the complaint it exists for."
+  ],
+  "quality_gates": {
+    "per_milestone": "cd backend && make lint && make test-fast; cd frontend && npm run quality:check:fast",
+    "before_tag": "cd frontend && npm run quality:check (FULL, not :fast); make audit-trust-cards; make check-cloudbuild; make security-check",
+    "after_promote": "./scripts/smoke-deployed.sh prod all; real join-code round trip"
+  },
+  "deploy_plan": {
+    "note": "The deploy path is the real deadline, not the code. dev is already 8 commits ahead of v0.1.10.",
+    "wed_2026_08_12": "tag v0.1.11 -> fires aipla-test-release",
+    "thu_2026_08_13": "make promote VERSION=v0.1.11 FROM=test TO=prod GO=1; seed; verify on prod with a real join code",
+    "fri_2026_08_14": "PILOT STARTS - no deploys",
+    "watch": [
+      "Any new env var or build-arg needs a cloudbuild.promote.yaml twin - missing twins have bitten three separate ways",
+      "Prompt wording in a SKILL.md needs make seed ENV=<env> per env; wording in Python ships with the deploy",
+      "make check-cloudbuild before pushing any pipeline edit - a COMMENT naming a shell var broke the first v0.1.9 promote"
+    ]
+  },
+  "out_of_scope": [
+    "1.1.63 M3 student-UI i18n (2-3d, next-intl + CI guard) - Aswin gets an English tutor now, English buttons later",
+    "1.1.65 rubric surfacing, 1.1.66 pedagogical frameworks, 1.1.67/68 scoping docs",
+    "Ground-truth checking of table values (1.1.24), multi-series charts, cross-table charts, new element kinds"
+  ],
+  "post_sprint": "The workbench-element-builder skill gains a THIRD rule: an element must be described to the tutor at prompt time, not only pushed on interaction. It currently encodes push + trust card, which is why this class of bug shipped four times.",
+  "github_issues": [],
+  "last_session": null,
+  "last_checkpoint": null,
+  "status": "not_started"
+}
