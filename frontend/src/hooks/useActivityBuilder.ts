@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useRef, useState } from "react";
+import { useCallback, useMemo, useRef, useState } from "react";
 
 import type { ActivityConfigPayload, Language, MaterialRef, StxLevel, WorkbenchType } from "@/lib/teacherApi";
 import { builderToElementDefs } from "@/lib/activityPreview";
@@ -88,8 +88,8 @@ export interface ActivityBuilder {
 
   table: TableEditorValue | null;
   setTable: (v: TableEditorValue | null) => void;
-  chart: ChartEditorValue | null;
-  setChart: (v: ChartEditorValue | null) => void;
+  chart: ChartEditorValue[];
+  setChart: (v: ChartEditorValue[]) => void;
   calculator: CalculatorEditorValue | null;
   setCalculator: (v: CalculatorEditorValue | null) => void;
   note: NoteEditorValue | null;
@@ -143,7 +143,40 @@ export function useActivityBuilder(): ActivityBuilder {
   // `key` is a stable client id for React; the persisted id is positional.
   const [checklist, setChecklist] = useState<ChecklistRow[]>([]);
   const [table, setTable] = useState<TableEditorValue | null>(null);
-  const [chart, setChart] = useState<ChartEditorValue | null>(null);
+  const [chart, setChart] = useState<ChartEditorValue[]>([]);
+
+  // 1.1.64 — column ids are minted POSITIONALLY (`col-{n}` over the
+  // label-bearing columns, see `tableDefs`), so deleting a column SHIFTS every
+  // later id. A chart bound to `col-3` would then silently plot what used to be
+  // `col-4` — and the render-side fallback cannot catch it, because the id
+  // still resolves. That is the one genuinely bad outcome this feature can
+  // produce, so it is closed here rather than at render: when the numeric
+  // column set changes shape, any binding that no longer names the SAME column
+  // label is cleared, dropping that chart back to auto-bind (which renders with
+  // a visible note).
+  const setTableReconciling = useCallback(
+    (next: TableEditorValue | null) => {
+      setTable((prev) => {
+        const labelFor = (t: TableEditorValue | null, mintedId: string | null | undefined) => {
+          if (!t || !mintedId) return null;
+          const cols = t.columns.filter((c) => c.label.trim());
+          const idx = Number(String(mintedId).replace("col-", "")) - 1;
+          return cols[idx]?.label.trim() ?? null;
+        };
+        const prevValue = typeof prev === "function" ? prev : prev;
+        setChart((cs) =>
+          cs.map((c) => {
+            const keepX = labelFor(prevValue, c.xColumn) === labelFor(next, c.xColumn);
+            const keepY = labelFor(prevValue, c.yColumn) === labelFor(next, c.yColumn);
+            if (keepX && keepY) return c;
+            return { ...c, xColumn: keepX ? c.xColumn : null, yColumn: keepY ? c.yColumn : null };
+          }),
+        );
+        return next;
+      });
+    },
+    [],
+  );
   const [calculator, setCalculator] = useState<CalculatorEditorValue | null>(null);
   const [note, setNote] = useState<NoteEditorValue | null>(null);
   const [solution, setSolution] = useState<SolutionEditorValue | null>(null);
@@ -186,7 +219,7 @@ export function useActivityBuilder(): ActivityBuilder {
           }
         : null,
     );
-    setChart(t.chart ? { title: t.chart.title, chartKind: t.chart.chartKind } : null);
+    setChart(t.chart ? [{ id: "chart-1", title: t.chart.title, chartKind: t.chart.chartKind }] : []);
     setCalculator(
       t.calculator
         ? {
@@ -261,8 +294,19 @@ export function useActivityBuilder(): ActivityBuilder {
         : null,
     );
 
-    const ch = cfg.chart?.[0];
-    setChart(ch ? { title: ch.title ?? "", chartKind: ch.chartKind } : null);
+    // 1.1.64 — load EVERY chart, not just the first. Reading only [0] here
+    // while the payload round-trips the whole array is exactly how a save
+    // silently drops the others (the full-overwrite footgun).
+    setChart(
+      (cfg.chart ?? []).map((ch, idx) => ({
+        id: ch.id || `chart-${idx + 1}`,
+        title: ch.title ?? "",
+        chartKind: ch.chartKind,
+        tableId: ch.tableId ?? null,
+        xColumn: ch.xColumn ?? null,
+        yColumn: ch.yColumn ?? null,
+      })),
+    );
 
     const calc = cfg.calculator?.[0];
     setCalculator(
@@ -341,7 +385,7 @@ export function useActivityBuilder(): ActivityBuilder {
     (artefactId ? 1 : 0) +
     (checklist.length > 0 ? 1 : 0) +
     (table ? 1 : 0) +
-    (chart ? 1 : 0) +
+    chart.length +
     (calculator ? 1 : 0) +
     (note ? 1 : 0) +
     (solution ? 1 : 0) +
@@ -364,7 +408,7 @@ export function useActivityBuilder(): ActivityBuilder {
       removeChecklistItem,
       setChecklistLabel,
       table,
-      setTable,
+      setTable: setTableReconciling,
       chart,
       setChart,
       calculator,

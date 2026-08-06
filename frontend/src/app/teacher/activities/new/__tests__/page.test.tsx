@@ -238,13 +238,15 @@ describe("/teacher/activities/new — concept activity builder", () => {
     render(<NewActivityPage />);
     fireEvent.change(await screen.findByLabelText(/activity name/i), { target: { value: "Lab" } });
     fireEvent.change(screen.getByLabelText(/lesson prompt/i), { target: { value: "Plot." } });
-    fireEvent.click(screen.getByRole("button", { name: /add chart/i }));
-    fireEvent.change(screen.getByLabelText(/chart type/i), { target: { value: "line" } });
+    // 1.1.64 — the chart editor is a list; Danish labels, and axis pickers only
+    // appear once a table has two numeric columns (none here).
+    fireEvent.click(screen.getByRole("button", { name: /tilføj graf/i }));
+    fireEvent.change(screen.getByLabelText(/graftype for graf 1/i), { target: { value: "line" } });
     fireEvent.click(screen.getByRole("button", { name: /create activity/i }));
 
     await waitFor(() => expect(createActivityMock).toHaveBeenCalledTimes(1));
     expect(createActivityMock.mock.calls[0][0].chart).toEqual([
-      { id: "chart-1", title: "", chartKind: "line" },
+      { id: "chart-1", title: "", chartKind: "line", tableId: null, xColumn: null, yColumn: null },
     ]);
   });
 

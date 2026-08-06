@@ -177,14 +177,7 @@ export function ActivityBuilderBody({
 
           <TableEditor value={b.table} onChange={b.setTable} />
 
-          <ChartEditor
-            value={b.chart}
-            onChange={b.setChart}
-            hasTable={
-              !!b.table &&
-              b.table.columns.filter((c) => c.kind === "number" && c.label.trim()).length >= 2
-            }
-          />
+          <ChartEditor value={b.chart} onChange={b.setChart} table={b.table} />
 
           <CalculatorEditor value={b.calculator} onChange={b.setCalculator} />
 

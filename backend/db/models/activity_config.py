@@ -142,17 +142,34 @@ ChartKind = Literal["scatter", "line", "bar"]
 
 
 class ChartElement(BaseModel):
-    """A chart that plots the activity's data table (1.1.38 M2).
+    """A chart plotting columns of the activity's data table (1.1.38 M2, extended 1.1.64).
 
-    v1.1 auto-binds to the activity's data table and plots its first two
-    numeric columns (x, y) — deterministic, zero LLM. Per-column selection and
-    teacher-supplied static series are future extensions; keeping it auto-bound
-    avoids fragile column-id coupling between the chart and table at author time.
+    1.1.38 auto-bound to the first table's first two numeric columns —
+    deterministic, zero LLM, and correct while an activity had exactly one
+    chart. Aswin, 2026-08-06: *"I think option to add more than one chart would
+    be great. Because in the experiment dataset, students can draw multiple
+    graphs with different variables."* Several charts of the same two columns is
+    the same graph drawn several ways, so multiplicity needs axis selection to
+    mean anything.
+
+    ``table_id`` / ``x_column`` / ``y_column`` are **optional**. Unset falls back
+    to the 1.1.38 auto-bind, so every chart authored before this renders
+    unchanged with no backfill — the right trade a week before the pilot.
+
+    The original comment feared "fragile column-id coupling between the chart
+    and table at author time". That risk is real and answered at the RENDER
+    boundary rather than by avoiding the coupling: a dangling reference falls
+    back to auto-bind **with a visible note** (see ``resolveChartBinding`` on the
+    frontend). Silently plotting the wrong variables is the only genuinely bad
+    outcome here, and it is the one that cannot happen.
     """
 
     id: str = Field(min_length=1, max_length=64)
     title: str = Field(default="", max_length=120)
     chart_kind: ChartKind = Field(default="scatter", alias="chartKind")
+    table_id: str | None = Field(default=None, alias="tableId", max_length=64)
+    x_column: str | None = Field(default=None, alias="xColumn", max_length=64)
+    y_column: str | None = Field(default=None, alias="yColumn", max_length=64)
 
     model_config = ConfigDict(populate_by_name=True)
 

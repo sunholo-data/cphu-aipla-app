@@ -78,20 +78,26 @@ vi.mock("@/components/teacher/TableEditor", () => ({
   }),
 }));
 vi.mock("@/components/teacher/ChartEditor", () => ({
-  // ChartEditor additionally receives `hasTable`; echo it for the derived-state test.
+  // ChartEditor additionally receives the `table` (1.1.64 — it needs the
+  // columns for the axis pickers); echo its numeric column count.
   ChartEditor: ({
     value,
     onChange,
-    hasTable,
+    table,
   }: {
-    value: unknown;
+    // 1.1.64 — charts are a LIST, and the editor takes the table itself (it
+    // needs the columns for the axis pickers) rather than a hasTable boolean.
+    value: { title: string }[];
     onChange: (v: unknown) => void;
-    hasTable: boolean;
+    table: { columns: { label: string; kind: string }[] } | null;
   }) => (
     <div data-testid="chart-editor">
-      <span data-testid="chart-state">{value ? "on" : "off"}</span>
-      <span data-testid="chart-hasTable">{String(hasTable)}</span>
-      <button type="button" onClick={() => onChange({ title: "G", chartKind: "line" })}>
+      <span data-testid="chart-state">{value?.length ? "on" : "off"}</span>
+      <span data-testid="chart-count">{value?.length ?? 0}</span>
+      <span data-testid="chart-numeric-columns">
+        {String((table?.columns ?? []).filter((c) => c.kind === "number" && c.label.trim()).length)}
+      </span>
+      <button type="button" onClick={() => onChange([...(value ?? []), { title: "G", chartKind: "line" }])}>
         mock-enable-chart
       </button>
     </div>
@@ -274,14 +280,23 @@ describe("ActivityBuilderBody — element editors render and wire to the builder
     expect(screen.getByTestId("sim-value")).toHaveTextContent("none");
   });
 
-  it("ChartEditor.hasTable is false until the table has >=2 numeric labelled columns", async () => {
+  it("ChartEditor gets the table so it can offer axis pickers (1.1.64)", async () => {
     const user = userEvent.setup();
     setup();
-    // No table → hasTable false.
-    expect(screen.getByTestId("chart-hasTable")).toHaveTextContent("false");
-    // The table stub enables a table with ONE numeric column → still false.
+    // No table → no numeric columns to plot.
+    expect(screen.getByTestId("chart-numeric-columns")).toHaveTextContent("0");
+    // The table stub enables a table with ONE numeric column — still not enough
+    // for an x/y pair, which is what the editor explains to the teacher.
     await user.click(screen.getByRole("button", { name: "mock-enable-table" }));
-    expect(screen.getByTestId("chart-hasTable")).toHaveTextContent("false");
+    expect(screen.getByTestId("chart-numeric-columns")).toHaveTextContent("1");
+  });
+
+  it("adding a second chart keeps the first (1.1.64)", async () => {
+    const user = userEvent.setup();
+    setup();
+    await user.click(screen.getByRole("button", { name: "mock-enable-chart" }));
+    await user.click(screen.getByRole("button", { name: "mock-enable-chart" }));
+    expect(screen.getByTestId("chart-count")).toHaveTextContent("2");
   });
 });
 

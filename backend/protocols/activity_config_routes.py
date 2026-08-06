@@ -128,6 +128,33 @@ def _assert_known_artefact(artefact_id: str | None) -> None:
         raise HTTPException(status_code=400, detail=f"unknown artefact: {artefact_id}")
 
 
+def _assert_chart_bindings(body: ActivityConfigUpsert) -> None:
+    """Reject a chart bound to a table or column that does not exist (1.1.64).
+
+    Validated at WRITE time, where we can still tell the teacher. A chart whose
+    column is deleted AFTERWARDS must still LOAD — that degrades at render with
+    a visible note (``resolveChartBinding``), because refusing to load an
+    activity over a stale chart reference would brick the whole lesson.
+    """
+    tables = {t.id: t for t in body.table}
+    for chart in body.chart:
+        if chart.table_id and chart.table_id not in tables:
+            raise HTTPException(
+                status_code=400,
+                detail=f"chart {chart.id!r} references unknown table {chart.table_id!r}",
+            )
+        table = tables.get(chart.table_id) if chart.table_id else None
+        if table is None:
+            continue
+        numeric = {c.id for c in table.columns if (c.kind or "number") == "number"}
+        for axis, col in (("xColumn", chart.x_column), ("yColumn", chart.y_column)):
+            if col and col not in numeric:
+                raise HTTPException(
+                    status_code=400,
+                    detail=(f"chart {chart.id!r} {axis} {col!r} is not a numeric column of table {table.id!r}"),
+                )
+
+
 def _resolve_artefact(artefact_id: str | None) -> dict | None:
     """Resolve an activity's artefact reference to its public catalogue view
     (no ``tutorBlock``), or None if unset / de-catalogued."""
@@ -150,6 +177,7 @@ async def post_activity_config(
     from-scratch teacher-authored activity).
     """
     _assert_known_artefact(body.artefact_id)
+    _assert_chart_bindings(body)
     activity_id = body.activity_id or _mint_activity_id()
     # Day-0 overwrite guard (ALS-1 M0.5-guard). Today the create page sends the
     # shared concept-dialogue skill id for every concept activity, so a second
@@ -381,6 +409,7 @@ async def patch_activity_config(
             detail="body class_id/activity_id does not match URL",
         )
     _assert_known_artefact(body.artefact_id)
+    _assert_chart_bindings(body)
     cfg = upsert_activity_config(
         teacher_uid=teacher_uid,
         class_id=class_id,

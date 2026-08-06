@@ -37,12 +37,20 @@ export interface TableElement {
   rows: number;
 }
 
-/** A chart plotting the activity's data table (1.1.38 M2). Auto-binds to the
- *  first data table's first two numeric columns. */
+/** A chart plotting columns of the activity's data table (1.1.38 M2, extended
+ *  1.1.64). `tableId`/`xColumn`/`yColumn` are OPTIONAL: unset auto-binds to the
+ *  first table's first two numeric columns (the 1.1.38 behaviour, so charts
+ *  authored before 1.1.64 render unchanged with no backfill). Set them to plot
+ *  a specific variable pair — which is what makes several charts on one
+ *  activity worth having. Resolution + the dangling-reference fallback live in
+ *  `lib/resolveChartBinding`. */
 export interface ChartElement {
   id: string;
   title?: string;
   chartKind: "scatter" | "line" | "bar";
+  tableId?: string | null;
+  xColumn?: string | null;
+  yColumn?: string | null;
 }
 
 /** A named variable a calculator formula references (1.1.38 M3). */

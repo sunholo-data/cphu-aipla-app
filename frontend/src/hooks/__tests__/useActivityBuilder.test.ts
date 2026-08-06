@@ -46,7 +46,7 @@ describe("useActivityBuilder — initial state", () => {
     expect(b.workbenchType).toBe("none");
     expect(b.checklist).toEqual([]);
     expect(b.table).toBeNull();
-    expect(b.chart).toBeNull();
+    expect(b.chart).toEqual([]);
     expect(b.calculator).toBeNull();
     expect(b.note).toBeNull();
     expect(b.solution).toBeNull();
@@ -150,7 +150,7 @@ describe("useActivityBuilder — element add / clear transitions", () => {
 
     act(() => {
       result.current.setTable(fullTable());
-      result.current.setChart({ title: "Graph", chartKind: "line" });
+      result.current.setChart([{ id: "chart-1", title: "Graph", chartKind: "line" }]);
       result.current.setCalculator(fullCalculator());
       result.current.setNote({ title: "Hint", body: "Remember the system" });
       result.current.setSolution({ prompt: "Write your solution" });
@@ -158,7 +158,7 @@ describe("useActivityBuilder — element add / clear transitions", () => {
     });
 
     expect(result.current.table).not.toBeNull();
-    expect(result.current.chart).not.toBeNull();
+    expect(result.current.chart).toHaveLength(1);
     expect(result.current.calculator).not.toBeNull();
     expect(result.current.note).not.toBeNull();
     expect(result.current.solution).not.toBeNull();
@@ -166,7 +166,7 @@ describe("useActivityBuilder — element add / clear transitions", () => {
 
     act(() => {
       result.current.setTable(null);
-      result.current.setChart(null);
+      result.current.setChart([]);
       result.current.setCalculator(null);
       result.current.setNote(null);
       result.current.setSolution(null);
@@ -174,7 +174,7 @@ describe("useActivityBuilder — element add / clear transitions", () => {
     });
 
     expect(result.current.table).toBeNull();
-    expect(result.current.chart).toBeNull();
+    expect(result.current.chart).toEqual([]);
     expect(result.current.calculator).toBeNull();
     expect(result.current.note).toBeNull();
     expect(result.current.solution).toBeNull();
@@ -194,7 +194,7 @@ describe("useActivityBuilder — element add / clear transitions", () => {
       result.current.setArtefactId("boldkast"); // +1
       result.current.addChecklistItem(); // +1
       result.current.setTable(fullTable()); // +1
-      result.current.setChart({ title: "G", chartKind: "line" }); // +1
+      result.current.setChart([{ id: "chart-1", title: "G", chartKind: "line" }]); // +1
       result.current.setCalculator(fullCalculator()); // +1
       result.current.setNote({ title: "N", body: "body" }); // +1
       result.current.setSolution({ prompt: "p" }); // +1
@@ -217,7 +217,7 @@ describe("useActivityBuilder — elementPayload() emits the COMPLETE set (anti-d
       result.current.setArtefactId("boldkast");
       result.current.addChecklistItems(["Identify the system", "Apply conservation"]);
       result.current.setTable(fullTable());
-      result.current.setChart({ title: "v-t graph", chartKind: "line" });
+      result.current.setChart([{ id: "chart-1", title: "v-t graph", chartKind: "line" }]);
       result.current.setCalculator(fullCalculator());
       result.current.setNote({ title: "Reference", body: "E = mc^2" });
       result.current.setSolution({ prompt: "Explain your reasoning" });
@@ -268,7 +268,9 @@ describe("useActivityBuilder — elementPayload() emits the COMPLETE set (anti-d
         ],
       },
     ]);
-    expect(p.chart).toEqual([{ id: "chart-1", title: "v-t graph", chartKind: "line" }]);
+    expect(p.chart).toEqual([
+      { id: "chart-1", title: "v-t graph", chartKind: "line", tableId: null, xColumn: null, yColumn: null },
+    ]);
     expect(p.calculator).toEqual([
       {
         id: "calc-1",
@@ -287,7 +289,7 @@ describe("useActivityBuilder — elementPayload() emits the COMPLETE set (anti-d
 
   it("removing one element does not disturb the others in the payload", () => {
     const result = buildAll();
-    act(() => result.current.setChart(null));
+    act(() => result.current.setChart([]));
     const p = result.current.elementPayload();
     // Only the chart is gone; everything else still ships.
     expect(p.chart).toEqual([]);
@@ -355,7 +357,7 @@ describe("useActivityBuilder — applyTemplate", () => {
     expect(b.checklist.map((c) => c.label)).toEqual(["Set up", "Measure", "Conclude"]);
     expect(b.table?.title).toBe("Run data");
     expect(b.table?.columns.map((c) => c.label)).toEqual(["Height", "Speed"]);
-    expect(b.chart).toEqual({ title: "h-v graph", chartKind: "scatter" });
+    expect(b.chart).toEqual([{ id: "chart-1", title: "h-v graph", chartKind: "scatter" }]);
     expect(b.calculator?.formula).toBe("0.5 * m * v^2");
     expect(b.calculator?.inputs.map((i) => i.id)).toEqual(["m", "v"]);
     expect(b.note).toEqual({ title: "Reminder", body: "Energy is conserved" });
@@ -430,7 +432,7 @@ describe("useActivityBuilder — applyTemplate", () => {
     });
     act(() => result.current.applyTemplate(SPARSE));
     expect(result.current.table).toBeNull();
-    expect(result.current.chart).toBeNull();
+    expect(result.current.chart).toEqual([]);
     expect(result.current.calculator).toBeNull();
     expect(result.current.note).toBeNull();
     expect(result.current.solution).toBeNull();
@@ -500,7 +502,10 @@ describe("useActivityBuilder — hydrate (load an existing activity)", () => {
     expect(b.checklist.map((c) => c.label)).toEqual(["Step one", "Step two"]);
     expect(b.table?.title).toBe("Saved table");
     expect(b.table?.columns.map((c) => c.label)).toEqual(["Tid", "Pos"]);
-    expect(b.chart).toEqual({ title: "Saved chart", chartKind: "scatter" });
+    // 1.1.64 — hydrate loads EVERY chart, with its axis binding.
+    expect(b.chart).toEqual([
+      { id: "chart-1", title: "Saved chart", chartKind: "scatter", tableId: null, xColumn: null, yColumn: null },
+    ]);
     expect(b.calculator?.formula).toBe("s / t");
     expect(b.calculator?.inputs.map((i) => i.id)).toEqual(["s", "t"]);
     expect(b.note).toEqual({ title: "Saved note", body: "body text" });
@@ -545,7 +550,7 @@ describe("useActivityBuilder — hydrate (load an existing activity)", () => {
     expect(b.materials).toEqual([]);
     expect(b.checklist).toEqual([]);
     expect(b.table).toBeNull();
-    expect(b.chart).toBeNull();
+    expect(b.chart).toEqual([]);
     expect(b.calculator).toBeNull();
     expect(b.note).toBeNull();
     expect(b.solution).toBeNull();
@@ -692,5 +697,94 @@ describe("useActivityBuilder — facets survive a save (1.1.61 anti-wipe)", () =
     expect(payload.tags).toEqual([]);
     expect(payload.subject).toBeNull();
     expect(payload.level).toBeNull();
+  });
+});
+
+/**
+ * 1.1.64 — several charts must survive a save.
+ *
+ * The activity POST is a FULL OVERWRITE (memory
+ * `reference-activity-config-full-overwrite`): a payload missing a chart wipes
+ * it. Making charts a list re-opens that footgun in a new place — hydrate
+ * reading only `chart[0]` while the payload writes the whole array would
+ * silently delete every chart but the first on the next save.
+ */
+describe("useActivityBuilder — multi-chart round-trip (1.1.64)", () => {
+  it("elementPayload() emits EVERY chart, with its axis binding", () => {
+    const { result } = renderHook(() => useActivityBuilder());
+    act(() =>
+      result.current.setChart([
+        { id: "chart-1", title: "h mod t", chartKind: "scatter", tableId: "table-1", xColumn: "col-2", yColumn: "col-1" },
+        { id: "chart-2", title: "v mod t", chartKind: "line", tableId: "table-1", xColumn: "col-2", yColumn: "col-3" },
+      ]),
+    );
+    const p = result.current.elementPayload();
+    expect(p.chart).toHaveLength(2);
+    expect(p.chart[1]).toMatchObject({ title: "v mod t", xColumn: "col-2", yColumn: "col-3" });
+  });
+
+  it("hydrate → elementPayload round-trips several charts unchanged", () => {
+    const { result } = renderHook(() => useActivityBuilder());
+    act(() =>
+      result.current.hydrate({
+        activityId: "act-1",
+        classId: "cls-1",
+        teacherUid: "uid-1",
+        title: "T",
+        teachingGoal: "G",
+        language: "da",
+        difficulty: "standard",
+        workbenchType: "none",
+        chart: [
+          { id: "chart-1", title: "A", chartKind: "scatter", tableId: "table-1", xColumn: "col-1", yColumn: "col-2" },
+          { id: "chart-2", title: "B", chartKind: "bar", tableId: "table-1", xColumn: "col-1", yColumn: "col-3" },
+        ],
+      } as never),
+    );
+    expect(result.current.chart).toHaveLength(2);
+    const p = result.current.elementPayload();
+    expect(p.chart.map((c) => c.title)).toEqual(["A", "B"]);
+    expect(p.chart.map((c) => c.yColumn)).toEqual(["col-2", "col-3"]);
+  });
+});
+
+/**
+ * 1.1.64 — the positional-id hazard.
+ *
+ * Column ids are minted POSITIONALLY (`col-{n}` over the label-bearing
+ * columns, see `tableDefs`). Deleting a column therefore SHIFTS every later
+ * id, so a chart bound to `col-3` would silently start plotting what used to
+ * be `col-4`. The render-side fallback cannot catch that — the id still
+ * resolves — which makes it the one genuinely bad outcome this feature can
+ * produce. `setTable` reconciles instead: a binding whose column label changed
+ * under it is cleared, dropping the chart back to auto-bind (which renders
+ * with a visible note).
+ */
+describe("useActivityBuilder — chart bindings survive table edits (1.1.64)", () => {
+  const table = (labels: string[]) => ({
+    title: "T",
+    rows: 5,
+    columns: labels.map((label, i) => ({ key: i + 1, label, unit: "", kind: "number" as const })),
+  });
+
+  it("keeps bindings when an unrelated column is renamed after them", () => {
+    const { result } = renderHook(() => useActivityBuilder());
+    act(() => result.current.setTable(table(["h", "t", "v"])));
+    act(() => result.current.setChart([{ id: "c1", title: "", chartKind: "scatter", xColumn: "col-1", yColumn: "col-2" }]));
+    // Rename the THIRD column — col-1 and col-2 still mean h and t.
+    act(() => result.current.setTable(table(["h", "t", "hastighed"])));
+    expect(result.current.chart[0]).toMatchObject({ xColumn: "col-1", yColumn: "col-2" });
+  });
+
+  it("CLEARS a binding whose column was deleted, rather than shifting it onto another variable", () => {
+    const { result } = renderHook(() => useActivityBuilder());
+    act(() => result.current.setTable(table(["h", "t", "v"])));
+    act(() => result.current.setChart([{ id: "c1", title: "", chartKind: "scatter", xColumn: "col-1", yColumn: "col-3" }]));
+    // Delete the FIRST column: what was col-3 ("v") becomes col-2. Left alone,
+    // yColumn "col-3" would now point at nothing and xColumn "col-1" would
+    // silently mean "t" instead of "h".
+    act(() => result.current.setTable(table(["t", "v"])));
+    expect(result.current.chart[0].xColumn).toBeNull();
+    expect(result.current.chart[0].yColumn).toBeNull();
   });
 });

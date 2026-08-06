@@ -5,7 +5,7 @@ import { builderToElementDefs, hasAnyElement, type BuilderElements } from "@/lib
 const EMPTY: BuilderElements = {
   checklist: [],
   table: null,
-  chart: null,
+  chart: [],
   calculator: null,
   note: null,
   solution: null,
@@ -92,8 +92,22 @@ describe("builderToElementDefs", () => {
   });
 
   it("converts a chart", () => {
-    const d = builderToElementDefs({ ...EMPTY, chart: { title: "G", chartKind: "line" } });
-    expect(d.chart).toEqual([{ id: "chart-1", title: "G", chartKind: "line" }]);
+    const d = builderToElementDefs({ ...EMPTY, chart: [{ title: "G", chartKind: "line" }] });
+    expect(d.chart).toEqual([
+      { id: "chart-1", title: "G", chartKind: "line", tableId: null, xColumn: null, yColumn: null },
+    ]);
+  });
+
+  it("converts SEVERAL charts, keeping each one's axis binding (1.1.64)", () => {
+    const d = builderToElementDefs({
+      ...EMPTY,
+      chart: [
+        { title: "A", chartKind: "line", tableId: "table-1", xColumn: "col-1", yColumn: "col-2" },
+        { title: "B", chartKind: "bar", tableId: "table-1", xColumn: "col-1", yColumn: "col-3" },
+      ],
+    });
+    expect(d.chart).toHaveLength(2);
+    expect(d.chart.map((c) => c.yColumn)).toEqual(["col-2", "col-3"]);
   });
 
   it("converts a calculator, dropping inputs with an invalid variable id", () => {

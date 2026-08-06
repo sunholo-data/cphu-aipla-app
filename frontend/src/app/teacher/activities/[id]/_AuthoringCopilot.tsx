@@ -58,7 +58,18 @@ export type Proposal =
       rows: number;
       label: string;
     }
-  | { kind: "add_element"; elementKind: "chart"; title: string; chartKind: "scatter" | "line" | "bar"; label: string }
+  | {
+      kind: "add_element";
+      elementKind: "chart";
+      title: string;
+      chartKind: "scatter" | "line" | "bar";
+      /** 1.1.64 — optional axis binding, so the co-pilot can propose "velocity
+       *  against time" rather than only "a chart". Column ids are the minted
+       *  `col-{n}` of the activity's table. */
+      xColumn?: string | null;
+      yColumn?: string | null;
+      label: string;
+    }
   | {
       kind: "add_element";
       elementKind: "calculator";
@@ -146,6 +157,9 @@ export function parseProposal(tc: ToolCallState): Proposal | null {
           elementKind: "chart",
           title: typeof spec.title === "string" ? spec.title : "",
           chartKind: spec.chartKind as "scatter" | "line" | "bar",
+          // 1.1.64 — optional; absent on proposals from before axis binding.
+          xColumn: typeof spec.xColumn === "string" ? spec.xColumn : null,
+          yColumn: typeof spec.yColumn === "string" ? spec.yColumn : null,
           label,
         };
       }

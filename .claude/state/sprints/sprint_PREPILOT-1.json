@@ -162,7 +162,7 @@
       "description": "Several charts per activity, each plotting explicitly chosen table columns. Backend already allows max_items=5 and the renderer already takes an array; the editor is a hardcoded singleton and ChartElement has no axis fields, so five charts today is the same graph drawn five ways.",
       "scope": "fullstack",
       "estimated_loc": 420,
-      "actual_loc": null,
+      "actual_loc": 980,
       "dependencies": [],
       "acceptance_criteria": [
         "Optional tableId / xColumn / yColumn on ChartElement - OPTIONAL, so no backfill and existing charts render identically",
@@ -191,10 +191,10 @@
         "frontend/src/components/teacher/ActivityPreview.tsx",
         "frontend/src/hooks/__tests__/useActivityBuilder.test.ts"
       ],
-      "passes": null,
-      "started": null,
-      "completed": null,
-      "notes": "Fully independent of M1-M4 - the natural parallel milestone or pickup-when-blocked work. CUT LINE #3: the only item with no pilot-blocking consequence."
+      "passes": true,
+      "started": "2026-08-06",
+      "completed": "2026-08-06",
+      "notes": "Backend already allowed max_items=5 and WorkbenchChart already took an array - but it computed ONE shared plot from tables[0] and handed it to every chart, so 'more than one chart' was the same graph drawn several times. Axis fields are the actual feature. FOUND MID-BUILD: column ids are minted POSITIONALLY (col-{n} over label-bearing columns, tableDefs). Deleting a column SHIFTS every later id, so a chart bound to col-3 would silently start plotting what used to be col-4 - and the render-side fallback CANNOT catch it because the id still resolves. That is the one genuinely bad outcome the feature can produce. Closed in useActivityBuilder.setTable, which reconciles: a binding whose column LABEL changed under it is cleared, dropping the chart to auto-bind (which renders a visible note). Two tests pin it. Fallback ladder (resolveChartBinding): bound -> auto-bind WITH a visible note -> empty state. Property test: any resolution that is not what was asked for must carry a note. Optional fields, so no backfill; existing charts render identically. Write-time validation rejects an unknown table or a text column on an axis; a column deleted AFTER saving still loads (refusing to load would brick the lesson). 13 pre-existing tests updated for the singleton->list API; added a multi-chart elementPayload round-trip against the full-overwrite wipe, and made the co-pilot APPEND rather than replace. Backend 2783 passed (+5). Frontend 1564 passed (+23)."
     },
     {
       "id": "M6-COPILOT-CLI-EVALS",
@@ -266,7 +266,7 @@
   ],
   "post_sprint": "The workbench-element-builder skill gains a THIRD rule: an element must be described to the tutor at prompt time, not only pushed on interaction. It currently encodes push + trust card, which is why this class of bug shipped four times.",
   "github_issues": [],
-  "last_session": "2026-08-06T15:51:58Z",
-  "last_checkpoint": "M4-ILO-PRECEDENCE",
+  "last_session": "2026-08-06T16:15:22Z",
+  "last_checkpoint": "M5-MULTI-CHART",
   "status": "in_progress"
 }

@@ -334,7 +334,8 @@ describe("AuthoringCopilot — structured elements table/chart/calculator (COPIL
 
   it("parses chart (kind) + calculator (formula + inputs)", () => {
     expect(parseProposal(tc({ resultContent: CHART }))).toEqual({
-      kind: "add_element", elementKind: "chart", title: "v-t", chartKind: "line", label: "Graf (line)",
+      kind: "add_element", elementKind: "chart", title: "v-t", chartKind: "line",
+      xColumn: null, yColumn: null, label: "Graf (line)",
     });
     expect(parseProposal(tc({ resultContent: CALC }))).toEqual({
       kind: "add_element", elementKind: "calculator", title: "Fart", formula: "s / t",

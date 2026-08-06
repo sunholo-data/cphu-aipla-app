@@ -32,7 +32,7 @@ import { type BuilderElements } from "@/lib/activityPreview";
 const EMPTY: BuilderElements = {
   checklist: [],
   table: null,
-  chart: null,
+  chart: [],
   calculator: null,
   note: null,
   solution: null,

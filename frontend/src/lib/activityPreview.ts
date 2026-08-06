@@ -29,7 +29,7 @@ export interface BuilderChecklistItem {
 export interface BuilderElements {
   checklist: BuilderChecklistItem[];
   table: TableEditorValue | null;
-  chart: ChartEditorValue | null;
+  chart: ChartEditorValue[];
   calculator: CalculatorEditorValue | null;
   note: NoteEditorValue | null;
   solution: SolutionEditorValue | null;
@@ -114,7 +114,17 @@ export function builderToElementDefs(s: BuilderElements): ActivityElementDefs {
       .filter(Boolean)
       .map((label, idx) => ({ id: `step-${idx + 1}`, label })),
     table: tableDefs(s.table),
-    chart: s.chart ? [{ id: "chart-1", title: s.chart.title.trim(), chartKind: s.chart.chartKind }] : [],
+    // 1.1.64 — several charts, each with its own (optional) axis binding. An
+    // unbound chart keeps the 1.1.38 auto-bind, so nothing authored before this
+    // changes shape.
+    chart: (s.chart ?? []).map((c, idx) => ({
+      id: c.id || `chart-${idx + 1}`,
+      title: c.title.trim(),
+      chartKind: c.chartKind,
+      tableId: c.tableId ?? null,
+      xColumn: c.xColumn ?? null,
+      yColumn: c.yColumn ?? null,
+    })),
     calculator: calculatorDefs(s.calculator),
     note: s.note && s.note.body.trim() ? [{ id: "note-1", title: s.note.title.trim(), body: s.note.body.trim() }] : [],
     // The solution editor needs no content to be valid — the student writes; a

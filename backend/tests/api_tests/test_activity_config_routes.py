@@ -501,3 +501,76 @@ def test_resolved_focus_surfaces_the_language_directive(client):
     body = client.get("/api/activity-configs/resolved-focus/7b-physics-a-2026/boldkast").json()
     assert body["language"] == "en"
     assert "English" in body["resolvedFocus"]
+
+
+# --- chart axis binding (1.1.64) -------------------------------------------
+
+
+def _table_body(**overrides):
+    body = _sample_body(
+        table=[
+            {
+                "id": "t1",
+                "title": "Faldforsøg",
+                "columns": [
+                    {"id": "h", "label": "højde", "unit": "m", "kind": "number"},
+                    {"id": "t", "label": "tid", "unit": "s", "kind": "number"},
+                    {"id": "note", "label": "noter", "kind": "text"},
+                ],
+                "rows": 5,
+            }
+        ],
+    )
+    body.update(overrides)
+    return body
+
+
+def test_chart_with_valid_axis_binding_saves(client):
+    resp = client.post(
+        "/api/activity-configs",
+        json=_table_body(chart=[{"id": "c1", "title": "h mod t", "tableId": "t1", "xColumn": "t", "yColumn": "h"}]),
+    )
+    assert resp.status_code == 201
+    assert resp.json()["chart"][0]["xColumn"] == "t"
+
+
+def test_several_charts_on_different_variable_pairs(client):
+    """Aswin's actual ask: multiple graphs with DIFFERENT variables."""
+    resp = client.post(
+        "/api/activity-configs",
+        json=_table_body(
+            chart=[
+                {"id": "c1", "tableId": "t1", "xColumn": "t", "yColumn": "h", "chartKind": "scatter"},
+                {"id": "c2", "tableId": "t1", "xColumn": "h", "yColumn": "t", "chartKind": "line"},
+            ]
+        ),
+    )
+    assert resp.status_code == 201
+    assert len(resp.json()["chart"]) == 2
+
+
+def test_chart_referencing_an_unknown_table_is_rejected_at_write_time(client):
+    resp = client.post(
+        "/api/activity-configs",
+        json=_table_body(chart=[{"id": "c1", "tableId": "nope", "xColumn": "t", "yColumn": "h"}]),
+    )
+    assert resp.status_code == 400
+    assert "unknown table" in resp.json()["detail"]
+
+
+def test_chart_axis_on_a_text_column_is_rejected(client):
+    """A text column on an axis is not a plot."""
+    resp = client.post(
+        "/api/activity-configs",
+        json=_table_body(chart=[{"id": "c1", "tableId": "t1", "xColumn": "note", "yColumn": "h"}]),
+    )
+    assert resp.status_code == 400
+    assert "numeric" in resp.json()["detail"]
+
+
+def test_unbound_chart_still_saves_unchanged(client):
+    """No backfill: a chart authored before 1.1.64 has no axis fields and must
+    keep working exactly as it did."""
+    resp = client.post("/api/activity-configs", json=_table_body(chart=[{"id": "c1", "title": "Graf"}]))
+    assert resp.status_code == 201
+    assert resp.json()["chart"][0]["tableId"] is None

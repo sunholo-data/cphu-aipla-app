@@ -5,6 +5,8 @@ import { useEffect, useMemo, useState } from "react";
 import { TABLE_CHANGE_EVENT, tableStorageKey, type TableElementDef } from "./WorkbenchTable";
 import type { ChartElement } from "@/lib/elementTypes";
 
+import { axisLabel, resolveChartBinding, type ResolvedChartBinding } from "@/lib/resolveChartBinding";
+
 /** Canonical ChartElement re-exported under the render-side name. */
 export type ChartElementDef = ChartElement;
 
@@ -27,10 +29,8 @@ interface Plotted {
   points: Point[];
 }
 
-function readPlot(skillId: string, table: TableElementDef): Plotted | null {
-  const numeric = table.columns.filter((c) => (c.kind ?? "number") === "number");
-  if (numeric.length < 2) return null;
-  const [xc, yc] = numeric;
+function readPlot(skillId: string, binding: ResolvedChartBinding): Plotted {
+  const { table, x: xc, y: yc } = binding;
   let values: Record<string, string> = {};
   if (typeof window !== "undefined") {
     try {
@@ -45,8 +45,7 @@ function readPlot(skillId: string, table: TableElementDef): Plotted | null {
     const y = parseFloat(values[`${table.id}::${r}::${yc.id}`] ?? "");
     if (Number.isFinite(x) && Number.isFinite(y)) points.push({ x, y });
   }
-  const label = (c: { label: string; unit?: string }) => (c.unit ? `${c.label} (${c.unit})` : c.label);
-  return { xLabel: label(xc), yLabel: label(yc), points };
+  return { xLabel: axisLabel(xc), yLabel: axisLabel(yc), points };
 }
 
 const W = 300;
@@ -128,7 +127,7 @@ function ChartSvg({ kind, plot }: { kind: ChartElementDef["chartKind"]; plot: Pl
  */
 export function WorkbenchChart({ skillId, charts, tables }: WorkbenchChartProps) {
   const [tick, setTick] = useState(0);
-  const table = tables[0] ?? null;
+  const hasTable = tables.length > 0;
 
   useEffect(() => {
     const onChange = (e: Event) => {
@@ -139,16 +138,23 @@ export function WorkbenchChart({ skillId, charts, tables }: WorkbenchChartProps)
     return () => window.removeEventListener(TABLE_CHANGE_EVENT, onChange);
   }, [skillId]);
 
-  // Recomputed whenever the table edits tick over.
-  const plot = useMemo(
-    () => (table ? readPlot(skillId, table) : null),
+  // 1.1.64 — resolved PER CHART, so several charts can plot different variable
+  // pairs off the same table. Previously one shared plot was computed from
+  // tables[0] and handed to every chart, which made "more than one chart" the
+  // same graph drawn several ways.
+  const resolved = useMemo(
+    () => charts.map((chart) => ({ chart, binding: resolveChartBinding(chart, tables) })),
+    [charts, tables],
+  );
+  const plots = useMemo(
+    () => resolved.map(({ binding }) => (binding ? readPlot(skillId, binding) : null)),
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [skillId, table, tick],
+    [resolved, skillId, tick],
   );
 
   return (
     <div className="space-y-4 p-4">
-      {charts.map((chart) => (
+      {resolved.map(({ chart, binding }, i) => (
         <section
           key={chart.id}
           className="rounded-lg border border-border bg-card p-4 text-sm"
@@ -159,11 +165,16 @@ export function WorkbenchChart({ skillId, charts, tables }: WorkbenchChartProps)
               {chart.title}
             </h3>
           )}
-          {plot && plot.points.length > 0 ? (
-            <ChartSvg kind={chart.chartKind} plot={plot} />
+          {binding?.note && (
+            <p className="mb-2 rounded border border-amber-200 bg-amber-50/60 px-2 py-1 text-[10px] text-amber-900">
+              {binding.note}
+            </p>
+          )}
+          {plots[i] && plots[i]!.points.length > 0 ? (
+            <ChartSvg kind={chart.chartKind} plot={plots[i]!} />
           ) : (
             <p className="py-6 text-center text-xs text-muted-foreground">
-              {table
+              {hasTable
                 ? "Udfyld datatabellen for at se grafen."
                 : "Denne graf kræver en datatabel med to talkolonner."}
             </p>

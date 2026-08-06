@@ -19,7 +19,21 @@ export function applyCopilotProposal(p: Proposal, builder: ActivityBuilder): voi
     else if (p.elementKind === "document") builder.setDocument({ prompt: p.prompt });
     else if (p.elementKind === "table")
       builder.setTable({ title: p.title, columns: p.columns.map((c, i) => ({ key: i + 1, ...c })), rows: p.rows });
-    else if (p.elementKind === "chart") builder.setChart({ title: p.title, chartKind: p.chartKind });
+    // 1.1.64 — charts are a list. APPEND rather than replace, so proposing a
+    // second chart does not silently delete the first (the same full-overwrite
+    // shape as the activity POST).
+    else if (p.elementKind === "chart")
+      builder.setChart([
+        ...builder.chart,
+        {
+          id: `chart-${builder.chart.length + 1}`,
+          title: p.title,
+          chartKind: p.chartKind,
+          xColumn: p.xColumn ?? null,
+          yColumn: p.yColumn ?? null,
+          tableId: p.xColumn || p.yColumn ? "table-1" : null,
+        },
+      ]);
     else if (p.elementKind === "calculator")
       builder.setCalculator({
         title: p.title,
