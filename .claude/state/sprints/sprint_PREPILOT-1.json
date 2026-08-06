@@ -201,7 +201,7 @@
       "description": "The 'is it actually done' milestone: the authoring co-pilot can propose charts with named axes, the CLI can build one, and ADK evals gate the four behaviours this sprint claims.",
       "scope": "fullstack",
       "estimated_loc": 260,
-      "actual_loc": null,
+      "actual_loc": 430,
       "dependencies": [
         "M2-ELEMENT-MANIFEST-AND-LANGUAGE",
         "M5-MULTI-CHART"
@@ -222,10 +222,10 @@
         "cli/aiplatform/commands/activity.py",
         "backend/tests/eval/"
       ],
-      "passes": null,
-      "started": null,
-      "completed": null,
-      "notes": "CUT LINE #1: keep the co-pilot/CLI bits, defer the evalset. Costs confidence, not function. NOTE: editing the authoring SKILL.md means a seed is required - make seed ENV=<env>."
+      "passes": true,
+      "started": "2026-08-06",
+      "completed": "2026-08-06",
+      "notes": "add_element gained x_column/y_column - note the spec builder has its OWN signature, so adding params to add_element alone silently produced ok:False (the param was unbound inside _build_element_spec and the exception was swallowed). Caught by an existing test. The Apply label names the axes so the proposal card is legible before applying. aiplatform activity add-chart READS the current config and re-sends the COMPLETE element set with the chart appended - the activity POST is a full overwrite, so sending the chart alone would wipe every other element. EVALS SPLIT IN TWO, deliberately. The sprint's acceptance criteria are behavioural ('the opening turn names the table'), which needs a live model: those are 5 cases in tests/eval/evalsets/prepilot_tutor_awareness.evalset.json, run under `make eval` with GCP credentials, NOT in CI. That would have left the whole sprint ungated on every ordinary push, so tests/unit/test_prompt_contract.py pins the deterministic half - whether the right instructions reach the prompt AT ALL. A model can decline an instruction it was given; it cannot follow one that was never composed, and 'never composed' is exactly the failure that hid element blindness for six weeks. 11 tests, runs in CI. It also documents that the checklist appears TWICE on purpose (manifest + precedence restatement) - the late one is the load-bearing occurrence. SEED REQUIRED: activity-authoring-assistant/SKILL.md changed. Backend 2796 passed (+13). Frontend 1564 unchanged. Lint clean."
     }
   ],
   "velocity": {
@@ -266,7 +266,7 @@
   ],
   "post_sprint": "The workbench-element-builder skill gains a THIRD rule: an element must be described to the tutor at prompt time, not only pushed on interaction. It currently encodes push + trust card, which is why this class of bug shipped four times.",
   "github_issues": [],
-  "last_session": "2026-08-06T16:15:22Z",
-  "last_checkpoint": "M5-MULTI-CHART",
-  "status": "in_progress"
+  "last_session": "2026-08-06T16:23:13Z",
+  "last_checkpoint": "M6-COPILOT-CLI-EVALS",
+  "status": "complete"
 }

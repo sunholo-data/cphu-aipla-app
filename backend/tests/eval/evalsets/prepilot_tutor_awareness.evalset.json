@@ -1,0 +1,87 @@
+{
+  "eval_set_id": "prepilot_tutor_awareness",
+  "name": "PREPILOT-1 — the tutor sees what the teacher authored",
+  "description": "Behavioural gate for 1.1.62 / 1.1.63 / 1.1.64, from Aswin's 2026-08-06 trial feedback. These cases need a live model: run with `make eval` (GCP credentials required); they are NOT part of `make test-fast`. The deterministic half — that the right instructions reach the prompt at all — is pinned by tests/unit/test_prompt_contract.py, which does run in CI.",
+  "eval_cases": [
+    {
+      "eval_id": "names_the_workbench_tools_unprompted",
+      "description": "1.1.62 M1. Aswin's exact reproduction: elements authored, ZERO interaction with them, one neutral opening message. Before the element manifest the tutor had no evidence in its prompt that the table existed, so it could not invite the student to use it.",
+      "conversation": [
+        {
+          "user_content": {
+            "parts": [{ "text": "Hej, hvad skal jeg lave?" }]
+          }
+        }
+      ],
+      "session_input": {
+        "app_name": "aipla",
+        "user_id": "eval_student",
+        "state": {}
+      }
+    },
+    {
+      "eval_id": "marks_a_checklist_step_from_evidence",
+      "description": "1.1.62 M3. The student describes doing the measurement; the tutor should call mark_checklist_item with a concrete evidence sentence — not on the bare claim 'done'.",
+      "conversation": [
+        {
+          "user_content": {
+            "parts": [{ "text": "Vi målte faldtiden tre gange fra 1,5 meter og fik 0,55, 0,54 og 0,56 sekunder." }]
+          }
+        }
+      ],
+      "session_input": {
+        "app_name": "aipla",
+        "user_id": "eval_student",
+        "state": {}
+      }
+    },
+    {
+      "eval_id": "prefers_the_teachers_ilo_over_the_curriculum",
+      "description": "1.1.62 M3b. Aswin: 'The chat force students to achieve goals from the curriculum only, not with my ILOs.' The activity's checklist and the cited curriculum point in different directions; the authored outcome must win while the curriculum still grounds the physics.",
+      "conversation": [
+        {
+          "user_content": {
+            "parts": [{ "text": "Hvad skal jeg fokusere på i den her opgave?" }]
+          }
+        }
+      ],
+      "session_input": {
+        "app_name": "aipla",
+        "user_id": "eval_student",
+        "state": {}
+      }
+    },
+    {
+      "eval_id": "english_activity_grounds_in_danish_material",
+      "description": "1.1.63 M2. The activity language is English and the curriculum is Danish. Reading and speaking are different things: the tutor must answer in English while still grounding in the Danish source. Conflating them would break grounding for every English activity.",
+      "conversation": [
+        {
+          "user_content": {
+            "parts": [{ "text": "What does the syllabus say about projectile motion?" }]
+          }
+        }
+      ],
+      "session_input": {
+        "app_name": "aipla",
+        "user_id": "eval_student",
+        "state": {}
+      }
+    },
+    {
+      "eval_id": "cites_without_opening_every_reply_with_a_domain",
+      "description": "1.1.63 M1. Aswin: 'the chat always starts with According to mathematicus.dk'. Ten turns: no reply may OPEN with an attribution, and at least one turn must still attribute a specific retrieved claim — attribution is reduced, not removed.",
+      "conversation": [
+        { "user_content": { "parts": [{ "text": "Hvad er kastebevægelse?" }] } },
+        { "user_content": { "parts": [{ "text": "Hvorfor er den vandrette fart konstant?" }] } },
+        { "user_content": { "parts": [{ "text": "Og hvad med den lodrette?" }] } },
+        { "user_content": { "parts": [{ "text": "Hvilken vinkel giver den længste kastelængde?" }] } },
+        { "user_content": { "parts": [{ "text": "Hvor har du det fra?" }] } }
+      ],
+      "session_input": {
+        "app_name": "aipla",
+        "user_id": "eval_student",
+        "state": {}
+      }
+    }
+  ]
+}

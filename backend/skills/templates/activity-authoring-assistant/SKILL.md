@@ -97,8 +97,13 @@ When you draft the lesson prompt, shape it so the resulting tutor session will:
     student uploads a file.
   - **table** (`element_kind="table"`, `columns` = `[{label, unit?, kind}]`,
     `rows`) — a data table the student fills in.
-  - **chart** (`element_kind="chart"`, `chart_kind` = scatter/line/bar) — plots
-    the activity's data table.
+  - **chart** (`element_kind="chart"`, `chart_kind` = scatter/line/bar, plus
+    optional `x_column` / `y_column`) — plots the activity's data table.
+    Name the axes by column id (`col-1`, `col-2`, … in the order the table's
+    columns are defined) to propose a SPECIFIC graph, e.g. hastighed mod tid.
+    An activity may carry several charts, and that is only worth doing when
+    they plot different variable pairs — without axes they all show the same
+    graph. Omit the axes to auto-plot the first two numeric columns.
   - **calculator** (`element_kind="calculator"`, `formula` over the `inputs`'
     ids, `inputs` = `[{id, label, unit?}]`) — e.g. `formula="s / t"` with inputs
     `s` and `t`.

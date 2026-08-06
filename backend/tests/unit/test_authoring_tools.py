@@ -682,3 +682,42 @@ def test_curriculum_choice_exposes_subject_and_tags_to_the_agent():
     entry = next(d for d in res["available"] if d["docId"] == "fys-1")
     assert entry["subject"] == "Fysik"
     assert entry["tags"] == "lab, eksamen"
+
+
+# --- chart axis binding (1.1.64) -------------------------------------------
+
+
+def test_add_element_chart_carries_axis_binding():
+    """The co-pilot can propose a SPECIFIC graph, not just "a chart".
+
+    Without axes several charts are the same graph drawn several ways, which is
+    not what Aswin asked for.
+    """
+    from adk.authoring_tools import add_element
+
+    aid = _make_activity(TEACHER)
+    res = add_element(
+        element_kind="chart",
+        chart_kind="line",
+        title="hastighed mod tid",
+        x_column="col-2",
+        y_column="col-3",
+        activity_id=aid,
+        tool_context=_tc(TEACHER),
+    )
+    assert res["ok"] is True
+    assert res["proposal"]["spec"]["xColumn"] == "col-2"
+    assert res["proposal"]["spec"]["yColumn"] == "col-3"
+    # The label names the axes so the Apply card is legible before applying.
+    assert "col-2" in res["proposal"]["label"]
+
+
+def test_add_element_chart_without_axes_still_proposes():
+    """Unbound stays valid — it auto-plots, exactly as before 1.1.64."""
+    from adk.authoring_tools import add_element
+
+    aid = _make_activity(TEACHER)
+    res = add_element(element_kind="chart", chart_kind="bar", activity_id=aid, tool_context=_tc(TEACHER))
+    assert res["ok"] is True
+    assert res["proposal"]["spec"]["xColumn"] is None
+    assert res["proposal"]["spec"]["yColumn"] is None

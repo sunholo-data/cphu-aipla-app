@@ -159,6 +159,8 @@ def add_element(
     columns: list[dict[str, Any]] | None = None,
     rows: int = 5,
     chart_kind: str = "scatter",
+    x_column: str | None = None,
+    y_column: str | None = None,
     formula: str | None = None,
     inputs: list[dict[str, Any]] | None = None,
     tool_context: ToolContext = None,
@@ -181,7 +183,14 @@ def add_element(
         title: optional title for note / table / chart / calculator.
         columns: table columns — each ``{"label", "unit"?, "kind": "number"|"text"}``.
         rows: number of table rows (1-50).
-        chart_kind: ``scatter`` | ``line`` | ``bar`` (the chart auto-plots the table).
+        chart_kind: ``scatter`` | ``line`` | ``bar``.
+        x_column: which table column the chart's X axis plots, as the column id
+            (``col-1``, ``col-2``, … in the order the table's columns are
+            defined). Omit to auto-plot the first two numeric columns.
+        y_column: the column id for the Y axis. Pair with ``x_column`` to
+            propose a specific graph, e.g. velocity against time — that is what
+            makes several charts on one activity worth having, rather than the
+            same graph drawn several ways.
         formula: calculator expression over the input ids (e.g. ``"s / t"``).
         inputs: calculator inputs — each ``{"id", "label", "unit"?}``; the
             ``id`` is the variable name used in ``formula``.
@@ -208,6 +217,8 @@ def add_element(
         columns=columns,
         rows=rows,
         chart_kind=chart_kind,
+        x_column=x_column,
+        y_column=y_column,
         formula=formula,
         inputs=inputs,
     )
@@ -247,6 +258,8 @@ def _build_element_spec(
     columns: list[dict[str, Any]] | None = None,
     rows: int = 5,
     chart_kind: str = "scatter",
+    x_column: str | None = None,
+    y_column: str | None = None,
     formula: str | None = None,
     inputs: list[dict[str, Any]] | None = None,
 ) -> tuple[dict[str, Any] | None, str]:
@@ -301,10 +314,28 @@ def _build_element_spec(
 
     if element_kind == "chart":
         try:
-            model = ChartElement(id="chart-1", title=clean_title, chartKind=chart_kind)
+            model = ChartElement(
+                id="chart-1",
+                title=clean_title,
+                chartKind=chart_kind,
+                # 1.1.64 — an axis binding makes the proposal a SPECIFIC graph.
+                # tableId is filled in by the applier, which knows the activity's
+                # minted table id; the co-pilot only names columns.
+                xColumn=(x_column or None),
+                yColumn=(y_column or None),
+            )
         except Exception:
             return None, f"invalid chart kind {chart_kind!r} (use scatter, line or bar)"
-        return {"title": model.title, "chartKind": model.chart_kind}, f"Graf ({model.chart_kind})"
+        axes = f" ({model.x_column} mod {model.y_column})" if model.x_column and model.y_column else ""
+        return (
+            {
+                "title": model.title,
+                "chartKind": model.chart_kind,
+                "xColumn": model.x_column,
+                "yColumn": model.y_column,
+            },
+            f"Graf ({model.chart_kind}){axes}",
+        )
 
     # calculator
     if not formula or not inputs:
