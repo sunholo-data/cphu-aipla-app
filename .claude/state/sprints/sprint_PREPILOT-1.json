@@ -134,7 +134,7 @@
       "description": "State the teacher's checklist as the activity's objectives and the curriculum as reference material for reaching them, ordered before the curriculum sources preamble. Directly answers 'the chat forces students to achieve goals from the curriculum only, not with my ILOs'.",
       "scope": "backend",
       "estimated_loc": 90,
-      "actual_loc": null,
+      "actual_loc": 190,
       "dependencies": [
         "M2-ELEMENT-MANIFEST-AND-LANGUAGE"
       ],
@@ -147,12 +147,15 @@
       "files_to_create": [],
       "files_to_modify": [
         "backend/adk/teacher_focus.py",
+        "backend/adk/agent.py",
+        "backend/protocols/activity_config_routes.py",
+        "cli/aiplatform/commands/activity.py",
         "backend/tests/unit/test_teacher_focus.py"
       ],
-      "passes": null,
-      "started": null,
-      "completed": null,
-      "notes": "CUT LINE #2 if the sprint slips. M2 already puts the ILOs in the prompt, which is most of the win."
+      "passes": true,
+      "started": "2026-08-06",
+      "completed": "2026-08-06",
+      "notes": "THE DESIGN DOC HAD THE FIX BACKWARDS. It said 'emit the ILO block BEFORE the curriculum sources preamble'. Reading the real composition: the instruction is SKILL.md body (with {teacher_focus} substituted INSIDE it) + curriculum preamble appended after + image/style/opening/reactive. So the teacher's goals were ALREADY before the curriculum preamble - and this codebase's convention is 'later instruction wins' (stated explicitly on inject_interaction_style_preamble, which appends precisely so it can override the SKILL.md Socratic rule). First is the WEAK position. The curriculum preamble held the last word, which IS the mechanism behind Aswin's complaint, and doing what the doc said would have been a no-op. Fixed by stating precedence EXPLICITLY in the late position: build_ilo_precedence_block() is appended AFTER the curriculum preamble in agent.py and says the outcomes are the objectives while curriculum is reference for reaching them. Grounding is deliberately not weakened - a test asserts the block contains no 'ignore'/'do not use'. Bounded at 1200 chars like every other variable-length contributor. test_ilo_precedence_lands_AFTER_the_curriculum_preamble pins the order; if it inverts, the curriculum regains the last word and the complaint returns. Also surfaced iloPrecedence on GET /resolved-focus + `aiplatform activity manifest --full` - a prompt layer the debug command cannot render is the exact gap that hid the element blindness for six weeks. Backend 2778 passed (+6). Lint clean."
     },
     {
       "id": "M5-MULTI-CHART",
@@ -263,7 +266,7 @@
   ],
   "post_sprint": "The workbench-element-builder skill gains a THIRD rule: an element must be described to the tutor at prompt time, not only pushed on interaction. It currently encodes push + trust card, which is why this class of bug shipped four times.",
   "github_issues": [],
-  "last_session": "2026-08-06T15:44:21Z",
-  "last_checkpoint": "M3-CHECKLIST-TICK-TOOLS",
+  "last_session": "2026-08-06T15:51:58Z",
+  "last_checkpoint": "M4-ILO-PRECEDENCE",
   "status": "in_progress"
 }

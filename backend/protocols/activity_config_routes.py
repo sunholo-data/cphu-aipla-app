@@ -22,7 +22,7 @@ from fastapi import APIRouter, Depends, HTTPException, Path, Query
 from pydantic import BaseModel, ConfigDict, Field
 
 from adk.element_manifest import describe_elements
-from adk.teacher_focus import compose_teacher_focus, resolve_active_config
+from adk.teacher_focus import build_ilo_precedence_block, compose_teacher_focus, resolve_active_config
 from artefacts.loader import is_known_artefact, load_artefact
 from auth import User, get_current_user
 from db.activity_configs import (
@@ -328,6 +328,11 @@ async def get_resolved_focus(
         if getattr(cfg, spec.field, None)
     }
     focus = compose_teacher_focus(cfg)
+    # 1.1.62 M3b — appended in agent.py AFTER the curriculum preamble, so it is
+    # not part of compose_teacher_focus. Surfaced here anyway: a prompt layer
+    # this endpoint cannot render is a prompt layer nobody can debug, which is
+    # the exact gap that hid the element blindness for six weeks.
+    ilo_block = build_ilo_precedence_block(cfg)
     return {
         "activityId": activity_id,
         "classId": class_id,
@@ -336,6 +341,7 @@ async def get_resolved_focus(
         "manifest": describe_elements(cfg),
         "resolvedFocus": focus,
         "focusChars": len(focus),
+        "iloPrecedence": ilo_block,
     }
 
 

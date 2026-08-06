@@ -487,3 +487,88 @@ def test_chat_only_activity_composes_exactly_as_before() -> None:
     from adk.teacher_focus import compose_teacher_focus
 
     assert compose_teacher_focus(_cfg(teachingGoal="Just a goal")) == "Just a goal"
+
+
+# ---------------------------------------------------------------------------
+# 1.1.62 M3b — ILO precedence over the curriculum preamble
+#
+# Aswin, 2026-08-06: "The chat force students to achieve goals from the
+# curriculum only, not with my ILOs."
+#
+# The mechanism, found while implementing: the composed instruction is
+#
+#     SKILL.md body (with {teacher_focus} substituted INSIDE it)
+#       + curriculum grounding preamble        <- appended after the body
+#       + image guidance / style / opening / reactive
+#
+# so the teacher's goals were ALREADY before the curriculum preamble — and this
+# codebase's convention is "later instruction wins" (see the comment on
+# inject_interaction_style_preamble). Being first is the WEAK position. The
+# design doc's "emit the ILO block before the curriculum preamble" would have
+# been a no-op; precedence has to be stated explicitly, in the late position.
+# ---------------------------------------------------------------------------
+
+
+def test_ilo_precedence_block_is_empty_without_a_checklist() -> None:
+    from adk.teacher_focus import build_ilo_precedence_block
+
+    assert build_ilo_precedence_block(_cfg(teachingGoal="Just a goal")) == ""
+    assert build_ilo_precedence_block(None) == ""
+
+
+def test_ilo_precedence_block_names_the_teacher_outcomes() -> None:
+    from adk.teacher_focus import build_ilo_precedence_block
+    from db.models.activity_config import ChecklistItem
+
+    block = build_ilo_precedence_block(_cfg(checklist=[ChecklistItem(id="a", label="Mål faldtiden tre gange")]))
+    assert "Mål faldtiden tre gange" in block
+
+
+def test_ilo_precedence_block_subordinates_curriculum_to_the_teachers_outcomes() -> None:
+    """The block must say which one wins, not merely mention both."""
+    from adk.teacher_focus import build_ilo_precedence_block
+    from db.models.activity_config import ChecklistItem
+
+    block = build_ilo_precedence_block(_cfg(checklist=[ChecklistItem(id="a", label="Step")])).lower()
+    assert "curriculum" in block
+    assert "reference" in block or "not a competing" in block
+
+
+def test_ilo_precedence_lands_AFTER_the_curriculum_preamble() -> None:
+    """The whole point. Composed the way agent.py composes it.
+
+    If this ever inverts, the curriculum preamble regains the last word and
+    Aswin's complaint comes straight back.
+    """
+    from adk.curriculum_retrieval import build_curriculum_grounding_preamble
+    from adk.teacher_focus import build_ilo_precedence_block
+    from db.models.activity_config import ChecklistItem, MaterialRef
+
+    cfg = _cfg(
+        checklist=[ChecklistItem(id="a", label="Mål faldtiden")],
+        materials=[MaterialRef(docId="d1", origin="uvm.dk", title="Fysik B læreplan")],
+    )
+    composed = "BODY" + build_curriculum_grounding_preamble(cfg.materials) + build_ilo_precedence_block(cfg)
+    assert composed.index("Fysik B læreplan") < composed.index("Mål faldtiden")
+
+
+def test_ilo_precedence_block_is_bounded() -> None:
+    """50 items x 200 chars is 10k on its own — this rides the same shared
+    prompt budget as everything else."""
+    from adk.teacher_focus import build_ilo_precedence_block
+    from db.models.activity_config import ChecklistItem
+
+    block = build_ilo_precedence_block(_cfg(checklist=[ChecklistItem(id=f"i{n}", label="L" * 200) for n in range(50)]))
+    assert len(block) < 2000
+    assert "more)" in block
+
+
+def test_ilo_precedence_does_not_weaken_grounding() -> None:
+    """Curriculum grounding must survive — an English activity still has to
+    ground in Danish material. The block reframes priority, not sourcing."""
+    from adk.teacher_focus import build_ilo_precedence_block
+    from db.models.activity_config import ChecklistItem
+
+    block = build_ilo_precedence_block(_cfg(checklist=[ChecklistItem(id="a", label="Step")])).lower()
+    assert "ignore" not in block
+    assert "do not use" not in block

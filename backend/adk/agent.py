@@ -74,7 +74,7 @@ from adk.multimodal import inject_image_input_preamble
 from adk.proactive_greet import inject_opening_guidance
 from adk.proactive_reactive import inject_reactive_guidance
 from adk.proactive_telemetry import tag_proactive_span_from_callback_context
-from adk.teacher_focus import inject_teacher_focus, resolve_active_config
+from adk.teacher_focus import build_ilo_precedence_block, inject_teacher_focus, resolve_active_config
 from adk.tools import resolve_mcp_tools, resolve_tools
 from auth.access_context import AccessContext
 from auth.firebase_auth import User
@@ -707,7 +707,18 @@ def create_agent(
                                 # curriculum content, "no source" on miss). Pure
                                 # function; uses MaterialRef.origin cached at
                                 # citation time — no extra Firestore read.
-                                skill_config.instructions + build_curriculum_grounding_preamble(_materials),
+                                # 1.1.62 M3b: the teacher's ILOs land AFTER the
+                                # curriculum preamble, deliberately. The
+                                # convention here is "later instruction wins"
+                                # (see inject_interaction_style_preamble), and
+                                # {teacher_focus} substitutes INSIDE the body —
+                                # i.e. already before this preamble, which is the
+                                # weak position. That is the mechanism behind
+                                # "the chat forces curriculum goals, not my ILOs":
+                                # the curriculum preamble held the last word.
+                                skill_config.instructions
+                                + build_curriculum_grounding_preamble(_materials)
+                                + build_ilo_precedence_block(_active_cfg),
                                 skill_config.multimodal_input,
                             ),
                             _activity_id,

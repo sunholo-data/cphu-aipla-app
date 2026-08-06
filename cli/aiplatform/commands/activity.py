@@ -103,6 +103,9 @@ def activity_manifest(ctx: click.Context, activity_id: str, class_id: str, full:
 
     if full:
         click.echo(result.get("resolvedFocus") or "(empty)")
+        ilo = result.get("iloPrecedence")
+        if ilo:
+            click.echo(ilo)
         return
 
     manifest = result.get("manifest") or ""

@@ -61,6 +61,9 @@ _LANGUAGE_NAMES = {"da": "Danish", "en": "English"}
 # contributor is now bounded.
 _CONCEPT_MAP_CAP = 1500
 _SOLUTION_TASK_CAP = 500
+# The ILO precedence block (M3b) restates the checklist in the late, "last word"
+# position. Bounded like every other variable-length contributor.
+_ILO_BLOCK_CAP = 1200
 # Belt and braces: if the sum still exceeds this, something new went unbounded.
 _TOTAL_FOCUS_CAP = 8000
 
@@ -350,6 +353,53 @@ def compose_teacher_focus(cfg: ActivityConfig | None) -> str:
     return focus
 
 
+def build_ilo_precedence_block(cfg: ActivityConfig | None) -> str:
+    """State that the teacher's checklist outranks the curriculum (1.1.62 M3b).
+
+    Aswin, 2026-08-06: *"The chat force students to achieve goals from the
+    curriculum only, not with my ILOs."*
+
+    **Why this is a separate block rather than an ordering change.** The composed
+    instruction is::
+
+        SKILL.md body (with {teacher_focus} substituted INSIDE it)
+          + curriculum grounding preamble       <- appended after the body
+          + image guidance / style / opening / reactive
+
+    so the teacher's goals were already *before* the curriculum preamble. But the
+    convention in this codebase is **later instruction wins** (see
+    ``inject_interaction_style_preamble``, which appends precisely so it can
+    override the SKILL.md Socratic rule). First is therefore the WEAK position,
+    and the curriculum preamble held the last word — which is exactly the
+    behaviour Aswin reported. Simply "emitting the ILOs earlier" would have been
+    a no-op.
+
+    So this block is **appended after the curriculum preamble** in ``agent.py``
+    and states the relationship explicitly instead of relying on position.
+
+    Grounding is deliberately NOT weakened: the curriculum stays the source of
+    truth for physics content, it just stops being the source of *objectives*.
+    Returns "" when the activity has no checklist.
+    """
+    if cfg is None or not cfg.checklist:
+        return ""
+
+    lines = [f"- {item.label}" for item in cfg.checklist]
+    kept, dropped = _fit_lines(lines, _ILO_BLOCK_CAP)
+    if dropped:
+        kept.append(f"(+{dropped} more)")
+
+    return (
+        "\n\n## The teacher's learning outcomes for this activity\n"
+        + "\n".join(kept)
+        + "\n\nThese are what the student is working toward — the teacher set them for this "
+        "activity. Curriculum material you retrieve is reference for reaching these outcomes, "
+        "not a competing set of goals: keep using it for the physics, and keep citing it, but "
+        "steer the session by the outcomes above. Where a curriculum objective and an outcome "
+        "above point in different directions, follow the outcome above."
+    )
+
+
 def inject_teacher_focus(
     instructions: str,
     activity_id: str,
@@ -395,6 +445,7 @@ def inject_teacher_focus(
 __all__ = [
     "LOCAL_MODE_DEMO_CLASS_ID",
     "SOLUTION_FEEDBACK_PROMPT",
+    "build_ilo_precedence_block",
     "class_id_from_group_tags",
     "compose_teacher_focus",
     "inject_teacher_focus",
