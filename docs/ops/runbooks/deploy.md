@@ -148,14 +148,70 @@ reaches prod until someone approves it — the same decision `GO=1` encodes, in 
 place reachable from a browser or a phone:
 
 ```bash
-# List what is waiting, then release it
+# 1. List what is waiting. CHECK THE TAG — see the stale-approval warning below.
 gcloud builds list --project=aipla-prod-2026 --region=europe-north1 \
   --filter='status=PENDING' --format='table(id,substitutions.TAG_NAME,createTime)'
-gcloud builds approve <BUILD_ID> --project=aipla-prod-2026 --region=europe-north1
+
+# 2. Release it. Note: `alpha`, and `--location` (NOT `--region`).
+gcloud alpha builds approve <BUILD_ID> \
+  --location=europe-north1 --project=aipla-prod-2026
 ```
 
 or click **Approve** in the Cloud Build console. Cutting a release from the
 GitHub web UI and approving in the console needs no working machine at all.
+
+> **Why that exact incantation** (corrected 2026-08-07 — the command documented
+> here until then did not run). `approve` is not in the GA track, and the two
+> obvious fallbacks both fail in ways that look like different problems:
+>
+> | Command | Result |
+> |---|---|
+> | `gcloud builds approve … --region=…` | "available in one or more alternate release tracks" |
+> | `gcloud beta builds approve … --region=…` | `unrecognized arguments: --region` |
+> | `gcloud beta builds approve …` (no region) | `NOT_FOUND` — it looked in `global`; our builds are regional |
+> | `gcloud alpha builds approve … --location=…` | **works** |
+>
+> The `NOT_FOUND` is the trap: it reads as "wrong build id" when it is actually
+> "right id, wrong location". Confirmed on SDK 557.0.0. Note `builds list` DOES
+> take `--region` while `alpha builds approve` takes `--location` — same
+> concept, different flag, on adjacent commands.
+>
+> If the alpha track is unavailable, the REST call underneath it works with any
+> gcloud that can mint a token:
+>
+> ```bash
+> curl -s -X POST -H "Authorization: Bearer $(gcloud auth print-access-token)" \
+>   -H "Content-Type: application/json" \
+>   -d '{"approvalResult":{"decision":"APPROVED","comment":"vX.Y.Z"}}' \
+>   "https://cloudbuild.googleapis.com/v1/projects/aipla-prod-2026/locations/europe-north1/builds/<BUILD_ID>:approve"
+> ```
+
+> **Stale approvals are a silent rollback.** A queued promote does **not**
+> expire, and it is pinned to the tag it was created for. Every tag you have
+> ever pushed leaves one sitting in the queue forever unless it is approved or
+> rejected — on 2026-08-07 the prod queue still held pending builds for `v0.1.9`
+> and `v0.1.10` from 2026-08-04, three days after prod had moved to `v0.1.11`.
+>
+> **Approving one of those would deploy the OLDER version over prod**, quietly,
+> through a UI button whose whole purpose is to look safe. Always read the
+> `TAG_NAME` column before approving, and reject what you have superseded.
+>
+> Rejecting is the console button, or REST — **not** gcloud. `alpha builds
+> reject` has no `--location` at all (unlike `alpha builds approve`, which does),
+> so it can only ever see `global` builds and answers `NOT_FOUND` for every
+> regional one. Verified on SDK 557.0.0:
+>
+> ```bash
+> curl -s -X POST -H "Authorization: Bearer $(gcloud auth print-access-token)" \
+>   -H "Content-Type: application/json" \
+>   -d '{"approvalResult":{"decision":"REJECTED","comment":"superseded by vX.Y.Z"}}' \
+>   "https://cloudbuild.googleapis.com/v1/projects/aipla-prod-2026/locations/europe-north1/builds/<BUILD_ID>:approve"
+> ```
+>
+> (Yes — `:approve` is the endpoint for both; the `decision` field is what
+> differs.)
+>
+> Rejecting a superseded build is part of finishing a release, not housekeeping.
 
 > Approving needs `cloudbuild.builds.approve` — held today only via
 > `roles/owner` (M). Anyone covering a release needs
