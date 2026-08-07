@@ -1,13 +1,14 @@
 # Workbench element awareness — the tutor is told what the student has in front of them
 
-**Status:** Design (OPEN) — **P0, pre-pilot.** Written 2026-08-06 from Aswin's 2026-08-06 trial feedback.
+**Status:** **SHIPPED 2026-08-06** (sprint PREPILOT-1, M1–M4) — dev + test `v0.1.11`. Written 2026-08-06 from Aswin's 2026-08-06 trial feedback and built the same day.
+**What changed during implementation:** (1) The **cap test found a pre-existing overflow** — the concept-map block (~3,500 chars on 30 nodes) and the solution task (2,000) were already unbounded, so a maximal activity composed ~11,000 characters *before* the element manifest existed. All three are now bounded. (2) The doc framed the 10k limit as a validation failure at seed time; it is not. ``SkillConfig`` validates the **authored template body**, while the runtime prompt is composed as a plain string in ``agent.py`` and never re-validated — so the caps here are an **attention and per-turn cost budget**, not a validator. The template cap was separately raised to 25,000. (3) M3's per-group tick store grew well past its estimate — see below. (4) **M3b inverted the doc's fix**: see [the precedence note](#m3b-the-doc-had-this-backwards).
 **Priority:** **P0** — three of Aswin's eight trial complaints are this one bug. The pilot starts **2026-08-14**; a teacher who authors a table, a chart and a checklist and finds the tutor never mentions them concludes the elements are decorative.
 **Estimated:** ~2–3d (M1 manifest block ~0.75d · M2 checklist tick tool + trust card ~1d · M3 ILO precedence ~0.5d · M4 eval ~0.5d)
 **Scope:** Backend-heavy — [`backend/adk/teacher_focus.py`](../../../../backend/adk/teacher_focus.py) (`compose_teacher_focus`), a new `mark_checklist_item` tool pair beside [`backend/adk/checkpoint_tools.py`](../../../../backend/adk/checkpoint_tools.py), per-group checklist state, and one frontend trust card. No new element types, no new authoring surface.
 **Dependencies:** [1.1.38 activity-elements-palette](activity-elements-palette.md) (**SHIPPED** M0–M4 — the registry this reads); [living-concept-map](living-concept-map.md) (**IN BUILD** — `run_checkpoint`/`record_checkpoint` is the exact precedent this copies for the checklist); the `workbench-element-builder` skill (dual-surface + trust-card recipe); [1.1.41 unified-sim-rendering](unified-sim-rendering.md) (the `tutor_block` stacking `compose_teacher_focus` already does)
 **Source:** Aswin, 2026-08-06 — *"I designed a class where the students need to fill out the tables of the experiments in the workbench, upload images, and drawing graph but they do not connect to the chat. The chat never asked me to work on those tools."* + *"How can I activate the automatic ILOs check in the workbench?"* + *"The chat force students to achieve goals from the curriculum only, not with my ILOs."*
 **Created:** 2026-08-06 (M)
-**Last Updated:** 2026-08-06 (M)
+**Last Updated:** 2026-08-07 (M) — shipped-state recorded
 
 ## Problem Statement
 
@@ -350,6 +351,38 @@ and the group claim, never `User.email`.
 3. **Should an AI tick be provisional until the student confirms?** Axiom 2
    argues yes; the friction argues no. Proposed: tick immediately, card it,
    allow untick — matching `record_checkpoint`'s shipped posture.
+
+## M3b — the doc had this backwards
+
+The plan above said to emit the ILO block **before** the curriculum sources
+preamble. Reading the real composition during implementation showed that would
+have been a no-op:
+
+```
+SKILL.md body (with {teacher_focus} substituted INSIDE it)
+  + curriculum grounding preamble      <- appended after the body
+  + image guidance / style / opening / reactive
+```
+
+The teacher's goals were **already** before the curriculum preamble. And the
+convention in this codebase is **later instruction wins** — stated outright on
+``inject_interaction_style_preamble``, which appends precisely so it can
+override the SKILL.md Socratic rule. First is therefore the *weak* position, and
+the curriculum preamble held the last word. That is the mechanism behind the
+complaint, not a missing block.
+
+The shipped fix states precedence **explicitly, in the late position**:
+``build_ilo_precedence_block()`` is appended *after* the curriculum preamble and
+says the outcomes are what the session steers by, with curriculum as reference
+for reaching them. Grounding is not weakened — a test asserts the block contains
+no "ignore" / "do not use", and
+``test_ilo_precedence_lands_AFTER_the_curriculum_preamble`` pins the order.
+
+Consequence worth knowing: the checklist now appears **twice** in the composed
+prompt, deliberately — described in the element manifest, then restated in the
+precedence block. Only the late occurrence carries priority, so a future tidy-up
+that de-duplicates them must keep the *second* one.
+``test_the_checklist_is_stated_twice_on_purpose`` guards it.
 
 ## Related Documents
 

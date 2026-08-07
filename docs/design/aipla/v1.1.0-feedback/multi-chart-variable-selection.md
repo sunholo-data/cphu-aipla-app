@@ -1,13 +1,14 @@
 # Multi-chart with explicit variable selection
 
-**Status:** Design (OPEN) — **P1, pre-pilot.** Written 2026-08-06 from Aswin's 2026-08-06 trial feedback.
+**Status:** **SHIPPED 2026-08-06** (sprint PREPILOT-1, M5 + M6) — dev + test `v0.1.11`. Written 2026-08-06 from Aswin's 2026-08-06 trial feedback and built the same day.
+**What changed during implementation:** the doc's fallback ladder is necessary but **was not sufficient**. Column ids are minted **positionally** (``col-{n}`` over the label-bearing columns), so deleting a column *shifts* every later id — a chart bound to ``col-3`` would silently begin plotting what used to be ``col-4``, and the render-side ladder cannot detect that because the id still resolves. Silently plotting the wrong variables is the one outcome the doc set out to make impossible, so it is closed at the source instead: ``useActivityBuilder.setTable`` reconciles, clearing any binding whose column **label** changed under it, which drops that chart to auto-bind and renders the visible note. Two tests pin it.
 **Priority:** **P1** — smallest of the pre-pilot set and the one with a real experiment behind it. Aswin has a dataset where students plot several variable pairs; today they can plot exactly one, and cannot choose which.
 **Estimated:** ~1d (M1 model + axis binding ~0.4d · M2 editor + preview ~0.5d · M3 co-pilot ~0.15d)
 **Scope:** Fullstack, narrow — `ChartElement` gains axis fields, [`ChartEditor`](../../../../frontend/src/components/teacher/ChartEditor.tsx) becomes a list editor, `WorkbenchChart` honours explicit binding, and the authoring co-pilot's `add_element` learns the new shape.
 **Dependencies:** [1.1.38 activity-elements-palette](activity-elements-palette.md) (**SHIPPED** M2 — the chart element this extends); the `workbench-element-builder` skill (the co-pilot-proposability rule M3 satisfies); [workbench-element-awareness](workbench-element-awareness.md) (1.1.62 — the chart describer must name the axes this adds)
 **Source:** Aswin, 2026-08-06 — *"I think option to add more than one chart would be great. Because in the experiment dataset, students can draw multiple graphs with different variables."* M's reply: *"Cool can add."*
 **Created:** 2026-08-06 (M)
-**Last Updated:** 2026-08-06 (M)
+**Last Updated:** 2026-08-07 (M) — shipped-state recorded
 
 ## Problem Statement
 

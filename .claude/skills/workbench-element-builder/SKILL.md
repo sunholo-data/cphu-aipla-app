@@ -10,7 +10,12 @@ Shipping one and dropping the other is the single most-repeated bug on this axis
 (the calculator and the data table both shipped with the push but no card). This
 skill exists so that never happens silently again.
 
-## The one rule: sharing with the tutor is TWO wirings
+## The one rule: sharing with the tutor is THREE wirings
+
+Two of these are about what happens when a student *interacts*. The third is
+about what the tutor knows **before anyone touches anything**, and it was added
+on 2026-08-07 after 1.1.62 found that six element kinds had been invisible to
+the tutor for six weeks — while passing every check in this skill.
 
 When a student **interacts** with an element (enters data, computes, writes,
 selects), both of these are required:
@@ -24,11 +29,36 @@ selects), both of these are required:
    pending→confirmed card in the chat so the student can **see** their work
    reached the tutor.
 
+And regardless of interaction:
+
+3. **PROMPT-TIME PRESENCE (existence → AI).** The element must be described in
+   `backend/adk/element_manifest.py` so the tutor knows it is there *before* the
+   student touches it. Add a `_DESCRIBERS` entry for the new kind — name the
+   element and say what the student does with it, never its current values (the
+   manifest is composed once per session and would go stale; values arrive live
+   over #1).
+
 The data flows with only #1, so the gap passes unit tests (which mock both
 hooks) and demos — but leaves the student blind. #2 is the half that keeps
 getting dropped. Why it matters: the chat card is the student's *evidence* that
 the silent workspace and the conversation are connected; without it the element
 feels inert even when it's working.
+
+**Why #3 exists.** 1.1.38 shipped four element kinds — table, chart, calculator,
+note — each correctly wired for #1 and #2, each independently verified. But
+`compose_teacher_focus` described only sims, solutions and concept maps, so the
+tutor's system prompt contained no evidence any of them existed. The only
+element→tutor path was #1, which fires **on interaction**, so the tutor could
+not invite a student to use a tool it had never been told about. Aswin,
+2026-08-06: *"The chat never asked me to work on those tools."*
+
+`describe_elements()` iterates `ELEMENT_REGISTRY` with a generic fallback, so a
+new kind is visible **by default** — but a generic one-liner is a nudge, not a
+description. Write a real describer.
+
+**The guard:** `test_every_registered_element_kind_is_described` fails when a
+registered kind produces no manifest text. If you add an element and that test
+goes red, this is the rule you missed.
 
 ## Decision rule — does this element need a card, and what kind?
 

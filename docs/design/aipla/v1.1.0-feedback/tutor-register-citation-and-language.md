@@ -1,13 +1,14 @@
 # Tutor register — citation voice and activity language
 
-**Status:** Design (OPEN) — **P0, pre-pilot.** Written 2026-08-06 from Aswin's 2026-08-06 trial feedback.
+**Status:** **M1 + M2 SHIPPED 2026-08-06** (sprint PREPILOT-1) — dev + test `v0.1.11`. **M3 (student-UI i18n) DEFERRED**, as the doc itself recommended: an English activity gets an English *tutor* and Danish *buttons*.
+**What changed during implementation:** (1) M1 was not only a prompt string — ``MaterialRef`` had **no title field at all**, caching only ``origin``, which ``CurriculumDoc`` documents as *provenance* ("uvm.dk", a teacher name). A title was never available for the tutor to cite, so the prompt rewrite alone would have instructed it to cite by something it did not have. ``title`` is now cached at citation time and all four attach paths set it. (2) M2 emits the language directive **only when the activity differs from the ``da`` default**. ``Language`` is ``Literal["da","en"]`` defaulting to ``"da"``, so emitting unconditionally would have rewritten every existing activity's prompt days before the pilot for no behaviour change on the Danish ones. Residual gap accepted and documented in test: a Danish activity whose student writes English still gets an English tutor by inference.
 **Priority:** **P0** — both halves are things a teacher notices in the first minute. M1 is a prompt string and lands in an afternoon; M2/M3 are the real work.
 **Estimated:** M1 citation voice ~0.25d · M2 tutor language ~0.5d · M3 student UI locale ~2–3d (the long pole; it is an i18n project, not a fix)
 **Scope:** M1/M2 backend — [`backend/adk/curriculum_retrieval.py`](../../../../backend/adk/curriculum_retrieval.py) + [`backend/adk/teacher_focus.py`](../../../../backend/adk/teacher_focus.py). M3 frontend — a locale layer over the student-facing components, currently hardcoded Danish.
 **Dependencies:** [1.1.25 curriculum-library](curriculum-library.md) (**SHIPPED** — the retrieval path whose preamble M1 rewrites); [1.1.38 activity-elements-palette](activity-elements-palette.md) (**SHIPPED** — the student components M3 must localise); [workbench-element-awareness](workbench-element-awareness.md) (1.1.62 — shares the `compose_teacher_focus` edit surface; land that first or resolve the conflict)
 **Source:** Aswin, 2026-08-06 — *"The chat keeps referring to the documents title when generating text which always start with According to mathematicus.dk…, or According to uvm.dk…"* (+ his follow-up: *"it does not sound natural if the text keeps referring the sources"*) and *"When using English in the setup, the language is still in Danish in students' interface."*
 **Created:** 2026-08-06 (M)
-**Last Updated:** 2026-08-06 (M)
+**Last Updated:** 2026-08-07 (M) — shipped-state recorded (M3 deferred)
 
 ## Problem Statement
 

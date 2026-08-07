@@ -5,6 +5,15 @@ on:
     branches: [dev, test, prod]
   push:
     branches: [dev]
+  # Manual re-run, on any ref. Added 2026-08-07 after a GitHub Actions outage
+  # on 2026-08-06 swallowed the push event for 9dfb9e5 entirely: no run was
+  # ever created, and with only `push` and `pull_request` triggers there was no
+  # way to ask for one. That commit could not be CI-verified at all without
+  # pushing an unrelated commit on top of it.
+  #
+  # An outage should not be able to leave a commit permanently unverifiable —
+  # least of all the last commit before a release tag.
+  workflow_dispatch:
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
