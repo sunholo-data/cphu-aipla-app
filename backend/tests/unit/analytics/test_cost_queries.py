@@ -284,3 +284,66 @@ def test_cohort_spend_folds_voice() -> None:
     assert result["total_eur"] == pytest.approx(0.46)
     assert {c["cohort"]: c["eur"] for c in result["by_cohort"]}["dk"] == pytest.approx(0.46)
     assert {k["kind"]: k["eur"] for k in result["by_voice_kind"]}["tts"] == pytest.approx(0.46)
+
+
+# --- voice VOLUME, so a zero cost is distinguishable from no usage ---------
+#
+# Both dashboard surfaces gated the voice line on `voice_eur > 0`. That hid a
+# real bug for weeks: gcp_gemini carries ~100% of read-aloud traffic and had no
+# rate, so it priced to zero, so the line never rendered — and a missing row
+# reads as "no voice used", not as "voice we failed to price".
+
+_VOICE_COLS_WITH_UNITS = {"kind", "group_id", "cost_usd", "units"}
+
+
+def test_voice_spend_sums_units_alongside_cost() -> None:
+    with (
+        patch.object(cost_queries, "jsonpayload_columns", return_value=_VOICE_COLS_WITH_UNITS),
+        patch.object(cost_queries, "run_query") as mock_q,
+    ):
+        mock_q.return_value = [{"kind": "tts", "group_id": "g-1", "cost_usd": 0.0, "units": 45_000}]
+        rows = cost_queries.voice_spend(["g-1"], NOW, NOW)
+        assert "jsonPayload.units" in mock_q.call_args.args[0]
+        assert rows == [{"kind": "tts", "group_id": "g-1", "cost_usd": 0.0, "units": 45_000}]
+
+
+def test_voice_spend_tolerates_rows_written_before_the_units_column() -> None:
+    """Schema-tolerant like the rest of this module: the BQ table gains columns
+    as the payload grows, and a dashboard that 500s on old rows is worse than
+    one that reports zero volume for them."""
+    with (
+        patch.object(cost_queries, "jsonpayload_columns", return_value=_VOICE_COLS),
+        patch.object(cost_queries, "run_query") as mock_q,
+    ):
+        mock_q.return_value = [{"kind": "tts", "group_id": "g-1", "cost_usd": 0.02, "units": 0}]
+        sql = mock_q.call_args.args[0] if mock_q.call_args else ""
+        rows = cost_queries.voice_spend(["g-1"], NOW, NOW)
+        assert "jsonPayload.units" not in sql
+        assert rows[0]["units"] == 0
+
+
+def test_fold_voice_reports_volume_even_at_zero_cost() -> None:
+    """**The regression.** Voice that priced to zero must still be visible."""
+    folded = cost_queries._fold_voice([{"kind": "tts", "group_id": "g-1", "cost_usd": 0.0, "units": 45_000}])
+    assert folded["voice_eur"] == 0.0
+    assert folded["voice_units"] == 45_000
+    assert folded["by_voice_kind"][0]["units"] == 45_000
+
+
+def test_fold_voice_totals_units_across_kinds() -> None:
+    folded = cost_queries._fold_voice(
+        [
+            {"kind": "tts", "group_id": "g-1", "cost_usd": 0.02, "units": 45_000},
+            {"kind": "stt", "group_id": "g-1", "cost_usd": 0.10, "units": 12_000},
+        ]
+    )
+    assert folded["voice_units"] == 57_000
+    assert {v["kind"]: v["units"] for v in folded["by_voice_kind"]} == {"tts": 45_000, "stt": 12_000}
+
+
+def test_no_voice_reports_no_volume() -> None:
+    """The other half of the distinction — the line must still hide when voice
+    genuinely was not used."""
+    folded = cost_queries._fold_voice([])
+    assert folded["voice_units"] == 0
+    assert folded["voice_eur"] == 0.0

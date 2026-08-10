@@ -133,19 +133,35 @@ def voice_spend(group_codes: list[str], since: datetime, until: datetime) -> lis
     if "cost_usd" not in cols or "group_id" not in cols:
         return []
     kind_sel = "jsonPayload.kind" if "kind" in cols else "CAST(NULL AS STRING)"
+    # ``units`` is characters for TTS and milliseconds for STT. Summing it
+    # alongside cost is what lets the dashboard tell "this class used no voice"
+    # from "this class used voice we priced at zero" — a distinction that was
+    # invisible for the whole time gcp_gemini went unpriced, because a hidden
+    # row and a zero row look identical. Schema-tolerant like the rest: rows
+    # written before this column existed simply sum to 0.
+    units_sel = "SUM(CAST(jsonPayload.units AS INT64))" if "units" in cols else "0"
     group_by = "jsonPayload.group_id" + (", jsonPayload.kind" if "kind" in cols else "")
     sql = f"""
         SELECT
           {kind_sel} AS kind,
           jsonPayload.group_id AS group_id,
-          SUM(CAST(jsonPayload.cost_usd AS FLOAT64)) AS cost_usd
+          SUM(CAST(jsonPayload.cost_usd AS FLOAT64)) AS cost_usd,
+          {units_sel} AS units
         FROM {table_ref(VOICE_COST_TABLE)}
         WHERE jsonPayload.group_id IN UNNEST(@group_codes)
           AND timestamp BETWEEN @since AND @until
         GROUP BY {group_by}
     """.strip()
     rows = run_query(sql, params={"group_codes": list(group_codes), "since": since, "until": until})
-    return [{"kind": r["kind"], "group_id": r["group_id"], "cost_usd": float(r["cost_usd"] or 0.0)} for r in rows]
+    return [
+        {
+            "kind": r["kind"],
+            "group_id": r["group_id"],
+            "cost_usd": float(r["cost_usd"] or 0.0),
+            "units": int(r["units"] or 0),
+        }
+        for r in rows
+    ]
 
 
 def _safe_voice_spend(group_codes: list[str], since: datetime, until: datetime) -> list[dict[str, Any]]:
@@ -160,17 +176,32 @@ def _safe_voice_spend(group_codes: list[str], since: datetime, until: datetime) 
 
 
 def _fold_voice(rows: list[dict[str, Any]]) -> dict[str, Any]:
-    """Price voice rows (USD) into EUR: total + by-kind (stt/tts) breakdown."""
+    """Price voice rows (USD) into EUR: total + by-kind (stt/tts) breakdown.
+
+    ``voice_units`` rides alongside the money so the UI can render a voice line
+    whenever voice was USED, rather than only when it cost something. Browser
+    TTS is genuinely free, and a mispriced tier reads as free — both are
+    "someone pressed play", and both were previously indistinguishable from
+    "nobody did".
+    """
     by_kind: dict[str, float] = {}
+    units_by_kind: dict[str, int] = {}
     total = 0.0
+    total_units = 0
     for r in rows:
+        kind = r["kind"] or "unknown"
         eur = usd_to_eur(r["cost_usd"])
         total += eur
-        by_kind[r["kind"] or "unknown"] = by_kind.get(r["kind"] or "unknown", 0.0) + eur
+        by_kind[kind] = by_kind.get(kind, 0.0) + eur
+        units = int(r.get("units") or 0)
+        total_units += units
+        units_by_kind[kind] = units_by_kind.get(kind, 0) + units
     return {
         "voice_eur": round(total, 4),
+        "voice_units": total_units,
         "by_voice_kind": [
-            {"kind": k, "eur": round(v, 4)} for k, v in sorted(by_kind.items(), key=lambda kv: kv[1], reverse=True)
+            {"kind": k, "eur": round(v, 4), "units": units_by_kind.get(k, 0)}
+            for k, v in sorted(by_kind.items(), key=lambda kv: kv[1], reverse=True)
         ],
     }
 
@@ -219,6 +250,7 @@ def class_spend(class_id: str, period: Period, *, now: datetime | None = None) -
     # total = LLM token cost + voice (STT/TTS); breakdowns stay LLM, voice is
     # its own line. Combine BEFORE projecting so the projection includes voice.
     folded["voice_eur"] = voice["voice_eur"]
+    folded["voice_units"] = voice["voice_units"]
     folded["by_voice_kind"] = voice["by_voice_kind"]
     folded["total_eur"] = round(folded["total_eur"] + voice["voice_eur"], 4)
     folded["class_id"] = class_id
@@ -251,9 +283,11 @@ def classes_spend(
             per_class[cid] = per_class.get(cid, 0.0) + c
     # Voice cost (STT/TTS) folded in — total + per-class, same group→class map.
     voice_total = 0.0
+    voice_units = 0
     for vr in _safe_voice_spend(codes, since, until):
         eur = usd_to_eur(vr["cost_usd"])
         voice_total += eur
+        voice_units += int(vr.get("units") or 0)
         cid = code_to_class.get(vr["group_id"])
         if cid is not None:
             per_class[cid] = per_class.get(cid, 0.0) + eur
@@ -262,6 +296,7 @@ def classes_spend(
         "period": period,
         "total_eur": round(total + voice_total, 4),
         "voice_eur": round(voice_total, 4),
+        "voice_units": voice_units,
         "per_class": [{"class_id": cid, "eur": round(v, 4)} for cid, v in per_class.items()],
     }
 
@@ -282,6 +317,7 @@ def cohort_spend(period: Period, *, now: datetime | None = None) -> dict[str, An
     by_cohort: dict[str, float] = {}
     by_model: dict[str, float] = {}
     by_voice_kind: dict[str, float] = {}
+    voice_units_by_kind: dict[str, int] = {}
     per_class: dict[str, dict[str, Any]] = {}
     total = 0.0
 
@@ -304,13 +340,18 @@ def cohort_spend(period: Period, *, now: datetime | None = None) -> dict[str, An
 
     # Voice cost (STT/TTS) folded across the same dimensions.
     voice_total = 0.0
+    voice_units = 0
     for vr in _safe_voice_spend(codes, since, until):
         cls = code_to_class.get(vr["group_id"])
+        kind = vr["kind"] or "unknown"
         eur = usd_to_eur(vr["cost_usd"])
         total += eur
         voice_total += eur
+        units = int(vr.get("units") or 0)
+        voice_units += units
+        voice_units_by_kind[kind] = voice_units_by_kind.get(kind, 0) + units
         by_cohort[_cohort_of(cls)] = by_cohort.get(_cohort_of(cls), 0.0) + eur
-        by_voice_kind[vr["kind"] or "unknown"] = by_voice_kind.get(vr["kind"] or "unknown", 0.0) + eur
+        by_voice_kind[kind] = by_voice_kind.get(kind, 0.0) + eur
         if cls is not None:
             _class_slot(cls)["eur"] += eur
 
@@ -319,6 +360,7 @@ def cohort_spend(period: Period, *, now: datetime | None = None) -> dict[str, An
         "period": period,
         "total_eur": round(total, 4),
         "voice_eur": round(voice_total, 4),
+        "voice_units": voice_units,
         "by_cohort": [
             {"cohort": k, "eur": round(v, 4)} for k, v in sorted(by_cohort.items(), key=lambda kv: kv[1], reverse=True)
         ],
@@ -326,7 +368,7 @@ def cohort_spend(period: Period, *, now: datetime | None = None) -> dict[str, An
             {"model": k, "eur": round(v, 4)} for k, v in sorted(by_model.items(), key=lambda kv: kv[1], reverse=True)
         ],
         "by_voice_kind": [
-            {"kind": k, "eur": round(v, 4)}
+            {"kind": k, "eur": round(v, 4), "units": voice_units_by_kind.get(k, 0)}
             for k, v in sorted(by_voice_kind.items(), key=lambda kv: kv[1], reverse=True)
         ],
         "per_class": [

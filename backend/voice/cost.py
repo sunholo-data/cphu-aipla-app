@@ -2,7 +2,10 @@
 
 Numbers are USD per million characters (TTS) or per minute (STT). Cross-
 checked against https://cloud.google.com/text-to-speech/pricing and
-https://cloud.google.com/speech-to-text/pricing on 2026-06-03.
+https://cloud.google.com/speech-to-text/pricing on 2026-06-03; the Gemini-TTS
+rate was derived from https://ai.google.dev/gemini-api/docs/pricing on
+2026-08-10 (see the derivation block below — it is the one rate we compute
+rather than quote, because that tier bills audio tokens, not characters).
 
 These are *estimates* for the analytics dashboard, not invoiced billing.
 The dashboard sums them per-day to give M and JB a "how much voice cost
@@ -17,8 +20,60 @@ but is NOT the dashboard's source — spans don't land in BigQuery.
 """
 
 import logging
+import os
 
 log = logging.getLogger(__name__)
+
+# --- Gemini-TTS: the tier we actually run ---------------------------------
+#
+# Every shipped persona sets ``ttsProvider: gcp_gemini`` and
+# ``DEFAULT_PERSONA_ID`` guarantees a persona resolves for every session, so
+# this is effectively 100% of read-aloud traffic. It logged **$0.00** from the
+# day personas shipped, because it is the one tier that is NOT billed per
+# character and so had no row in the table below. On a spend chart a zero is
+# indistinguishable from cheap, which is why nobody noticed.
+#
+# Gemini bills audio **output tokens**, so the per-character figure is derived,
+# not quoted. Three factors, each stated so the derivation can be redone when
+# any one of them moves:
+#
+#   1. ``_GEMINI_TTS_USD_PER_M_AUDIO_TOKENS`` — $10.00/M audio output tokens
+#      for gemini-2.5-flash-tts (Gemini API price list, checked 2026-08-10).
+#      The pro tier is $20.00; we run flash (``VOICE_GEMINI_TTS_MODEL``).
+#   2. ``_GEMINI_AUDIO_TOKENS_PER_SECOND`` — 25 tokens per second of audio,
+#      per the same price list's audio-model note.
+#   3. ``_TTS_CHARS_PER_SECOND`` — the shakiest of the three, and the only one
+#      that is ours rather than Google's: how much text a natural TTS pace gets
+#      through per second. ~150 wpm at ~6 chars/word incl. spaces.
+#
+# That lands at ~$16.7/M characters — between Neural2 ($16) and Chirp3-HD
+# ($30), which is the right neighbourhood for a premium tier and a useful
+# sanity check on the arithmetic.
+#
+# **Reconcile against the invoice.** Factor 3 is an estimate, so this figure
+# will be off by whatever the real speaking pace is. ``VOICE_GEMINI_TTS_USD_PER_M_CHARS``
+# overrides it from the environment, so a correction from a real GCP bill
+# ships as a Cloud Run env var, not a deploy — the same escape hatch
+# ``AIPLA_THINKING_BUDGET`` uses.
+_GEMINI_TTS_USD_PER_M_AUDIO_TOKENS = 10.0
+_GEMINI_AUDIO_TOKENS_PER_SECOND = 25.0
+_TTS_CHARS_PER_SECOND = 15.0
+
+
+def _gemini_tts_usd_per_million_chars() -> float:
+    override = os.getenv("VOICE_GEMINI_TTS_USD_PER_M_CHARS", "").strip()
+    if override:
+        try:
+            return float(override)
+        except ValueError:
+            log.warning(
+                "VOICE_GEMINI_TTS_USD_PER_M_CHARS=%r is not a number — using the derived rate",
+                override,
+            )
+    usd_per_audio_second = (_GEMINI_AUDIO_TOKENS_PER_SECOND / 1_000_000.0) * _GEMINI_TTS_USD_PER_M_AUDIO_TOKENS
+    seconds_per_million_chars = 1_000_000.0 / _TTS_CHARS_PER_SECOND
+    return usd_per_audio_second * seconds_per_million_chars
+
 
 # USD per million characters synthesized.
 _TTS_USD_PER_MILLION_CHARS = {
@@ -27,26 +82,20 @@ _TTS_USD_PER_MILLION_CHARS = {
     "gcp_neural2": 16.0,
     "gcp_chirp3hd": 30.0,
     "gcp_studio": 160.0,  # not shipped but listed for completeness
+    # Derived, not quoted — see the block above. Read at import so the env
+    # override applies per process, like every other runtime knob here.
+    "gcp_gemini": _gemini_tts_usd_per_million_chars(),
     "browser": 0.0,  # no cost — local synth
     "null": 0.0,
 }
 
-# Providers with NO per-character rate, recorded as a positive decision rather
-# than left to fall through the unknown-provider branch below.
-#
-# ``gcp_gemini`` (gemini-2.5-flash-tts) is the one that matters, and it is the
-# one the platform actually runs: every shipped persona sets
-# ``ttsProvider: gcp_gemini``, and ``DEFAULT_PERSONA_ID`` guarantees a persona
-# resolves for every session — so **effectively 100% of read-aloud traffic has
-# been logging $0.00** since personas landed. It is not a per-character tier
-# (Gemini bills audio OUTPUT TOKENS), so it does not fit this table's shape and
-# a made-up per-million-chars figure would be worse than a known gap.
-#
-# TODO(voice-cost): give it a real estimator — chars -> audio seconds -> output
-# tokens -> the current Gemini audio-output rate — and check that rate against
-# the live price list rather than inferring it. Until then the dashboard
-# under-reports voice spend, which matters from the 2026-08-14 pilot on.
-_TTS_UNPRICED: frozenset[str] = frozenset({"gcp_gemini"})
+# Providers with no per-character rate, recorded as a positive decision rather
+# than left to fall through the unknown-provider branch below. Empty today:
+# ``gcp_gemini`` was the only member and is now priced. Kept because the guard
+# test needs somewhere to put a deliberate omission, and the next tier that
+# bills by something other than characters should land here rather than
+# silently at zero.
+_TTS_UNPRICED: frozenset[str] = frozenset()
 
 # USD per second of audio transcribed. Gemini is the only STT engine (RAQ-1,
 # 2026-06-16 — Cloud STT removed); the model is config-driven (config/models.yaml

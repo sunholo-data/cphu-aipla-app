@@ -21,6 +21,7 @@ import {
   type SpendPeriod,
   fetchCostInsights,
   formatEur,
+  usedVoice,
 } from "@/lib/costApi";
 
 const PERIOD_LABEL: Record<SpendPeriod, string> = {
@@ -115,7 +116,7 @@ export default function TeacherCostInsightsPage() {
             headLabel="Model"
             rows={payload.by_model.map((m) => ({ label: m.model, eur: m.eur }))}
           />
-          {payload.voice_eur > 0 ? (
+          {usedVoice(payload) ? (
             <SpendTable
               title="By voice (STT/TTS)"
               headLabel="Kind"

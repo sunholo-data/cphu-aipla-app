@@ -7,6 +7,7 @@ import {
   type SpendPeriod,
   fetchClassSpend,
   formatEur,
+  usedVoice,
 } from "@/lib/costApi";
 
 const PERIODS: { value: SpendPeriod; label: string }[] = [
@@ -86,7 +87,7 @@ export function BudgetPanel({ classId }: { classId: string }) {
             ) : null}
           </div>
 
-          {data.voice_eur > 0 ? (
+          {usedVoice(data) ? (
             <p className="text-xs text-muted-foreground" data-testid="voice-cost-line">
               Includes voice {formatEur(data.voice_eur)}
               {data.by_voice_kind.length > 0

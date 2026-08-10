@@ -27,6 +27,12 @@ export interface ModelSpend extends SpendBucket {
 /** Voice (STT/TTS) spend by kind — 1.1.9 voice-cost integration. */
 export interface VoiceKindSpend extends SpendBucket {
   kind: string;
+  /** Provenance volume: characters synthesized (TTS) or milliseconds
+   *  transcribed (STT). Present so the UI can show that voice was USED even
+   *  when it priced to zero — a free tier and a mispriced one are both
+   *  "someone pressed play", and both used to be indistinguishable from
+   *  "nobody did". Older payloads omit it. */
+  units?: number;
 }
 
 export interface ClassSpendPayload {
@@ -42,6 +48,9 @@ export interface ClassSpendPayload {
   by_model: ModelSpend[];
   /** Voice (STT/TTS) cost, EUR — included in total_eur. */
   voice_eur: number;
+  /** Total voice volume (TTS characters + STT milliseconds). Non-zero whenever
+   *  voice was used at all, regardless of what it cost. */
+  voice_units?: number;
   by_voice_kind: VoiceKindSpend[];
 }
 
@@ -63,7 +72,28 @@ export interface CostInsightsPayload {
   per_class: PerClassSpend[];
   /** Voice (STT/TTS) cost, EUR — included in total_eur. */
   voice_eur: number;
+  /** Total voice volume (TTS characters + STT milliseconds). Non-zero whenever
+   *  voice was used at all, regardless of what it cost. */
+  voice_units?: number;
   by_voice_kind: VoiceKindSpend[];
+}
+
+/** Was voice used at all this period, regardless of what it cost?
+ *
+ *  Gating the voice line on `voice_eur > 0` hid a real bug for weeks: the
+ *  Gemini tier that carries ~100% of read-aloud traffic had no rate, so it
+ *  priced to zero, so the line never rendered — and a missing row reads as
+ *  "no voice used", not as "voice we failed to price". Keying on usage makes
+ *  the zero visible and therefore fixable. Falls back to cost for payloads
+ *  from a backend that predates `voice_units`. */
+export function usedVoice(payload: {
+  voice_eur: number;
+  voice_units?: number;
+  by_voice_kind: VoiceKindSpend[];
+}): boolean {
+  if ((payload.voice_units ?? 0) > 0) return true;
+  if (payload.by_voice_kind.some((v) => (v.units ?? 0) > 0)) return true;
+  return payload.voice_eur > 0;
 }
 
 async function readJson<T>(resp: Response, what: string): Promise<T> {

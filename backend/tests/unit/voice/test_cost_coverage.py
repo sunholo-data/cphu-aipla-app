@@ -53,8 +53,36 @@ def test_the_unpriced_set_is_not_a_dumping_ground():
     assert len(_TTS_UNPRICED) < len(_TTS_USD_PER_MILLION_CHARS)
 
 
-def test_gemini_is_the_known_gap():
-    """Pins the current state so removing the TODO requires deleting this
-    assertion — i.e. noticing it."""
-    assert "gcp_gemini" in _TTS_UNPRICED
-    assert "gcp_gemini" not in _TTS_USD_PER_MILLION_CHARS
+def test_the_tier_we_actually_run_is_priced():
+    """gcp_gemini carries ~100% of read-aloud traffic. It logging $0.00 is the
+    bug this file exists for."""
+    from voice.cost import tts_cost_usd
+
+    assert "gcp_gemini" in _TTS_USD_PER_MILLION_CHARS
+    assert tts_cost_usd("gcp_gemini", 1_000_000) > 0
+
+
+def test_the_gemini_rate_is_in_a_plausible_range():
+    """Derived from three factors, one of which (speaking pace) is ours rather
+    than Google's — so the arithmetic deserves a sanity check. A premium tier
+    should land between Neural2 and Chirp3-HD; landing outside that means a
+    factor moved by an order of magnitude, which is a typo, not a price change.
+    """
+    rate = _TTS_USD_PER_MILLION_CHARS["gcp_gemini"]
+    assert _TTS_USD_PER_MILLION_CHARS["gcp_neural2"] <= rate <= _TTS_USD_PER_MILLION_CHARS["gcp_chirp3hd"]
+
+
+def test_the_rate_can_be_corrected_from_the_environment(monkeypatch):
+    """The speaking-pace factor is an estimate, so this WILL be off by some
+    margin against a real invoice. Correcting it must not need a deploy."""
+    from voice.cost import _gemini_tts_usd_per_million_chars
+
+    monkeypatch.setenv("VOICE_GEMINI_TTS_USD_PER_M_CHARS", "21.5")
+    assert _gemini_tts_usd_per_million_chars() == 21.5
+
+
+def test_a_garbage_override_falls_back_to_the_derived_rate(monkeypatch):
+    from voice.cost import _gemini_tts_usd_per_million_chars
+
+    monkeypatch.setenv("VOICE_GEMINI_TTS_USD_PER_M_CHARS", "not-a-number")
+    assert _gemini_tts_usd_per_million_chars() > 0
