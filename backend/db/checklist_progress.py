@@ -100,4 +100,32 @@ def record_item_state(
     return states
 
 
-__all__ = ["TickedBy", "get_item_states", "record_item_state"]
+def clear_progress_for_group(group_id: str, activity_id: str | None = None) -> int:
+    """Clear a group's checklist progress. Returns how many docs were removed.
+
+    PILOT-1 M0 (2026-08-10). Called from the teacher's [Reset session]: "reset"
+    means start over, so the ticks go with the conversation. Leaving them was
+    the root cause of Aswin's 2026-08-10 report — a wiped conversation and
+    surviving marks put the tutor in a state where it skipped a lesson it could
+    not see the student complete.
+
+    ``activity_id`` scopes it to one activity; omitted, clears every activity's
+    progress for the group (matching ``archive_session_for_group``'s reset-all).
+    """
+    from db.firestore import delete_document, query_documents
+
+    if activity_id is not None:
+        if get_document(_COLLECTION, _doc_id(group_id, activity_id)) is None:
+            return 0
+        delete_document(_COLLECTION, _doc_id(group_id, activity_id))
+        return 1
+
+    docs = query_documents(collection=_COLLECTION, filters=[("groupId", "==", group_id)])
+    for d in docs:
+        doc_id = d.get("__id")
+        if doc_id:
+            delete_document(_COLLECTION, doc_id)
+    return len(docs)
+
+
+__all__ = ["TickedBy", "clear_progress_for_group", "get_item_states", "record_item_state"]

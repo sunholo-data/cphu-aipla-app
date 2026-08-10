@@ -229,3 +229,68 @@ def test_state_summary_names_done_items_for_the_tutor():
 
 def test_state_summary_is_empty_for_a_teacher():
     assert checklist_state_summary(_cfg(), _teacher()) == ""
+
+
+# ---------------------------------------------------------------------------
+# PILOT-1 M0 — reset clears PROGRESS, not just the conversation
+#
+# Root cause of Aswin's 2026-08-10 report. A reset wiped the conversation and
+# the group-session pointer and left the ticks behind, ORPHANED: he rejoined,
+# got a fresh session, and the tutor found four marks from a conversation that
+# no longer existed and skipped the lesson.
+#
+# Every per-group progress store added so far was invisible to the reset meant
+# to clear it — concept_progress (CONCEPT-1) and checklist_progress (1.1.62 M3).
+# ---------------------------------------------------------------------------
+
+
+def test_clear_progress_removes_a_groups_ticks():
+    from db.checklist_progress import clear_progress_for_group
+
+    _tools()["mark_checklist_item"]("a", True, "did it")
+    assert get_item_states(GROUP, ACTIVITY)["a"]["done"] is True
+
+    assert clear_progress_for_group(GROUP, ACTIVITY) == 1
+    assert get_item_states(GROUP, ACTIVITY) == {}
+
+
+def test_clear_progress_does_not_touch_another_group():
+    from db.checklist_progress import clear_progress_for_group
+
+    _tools(user=_student(GROUP))["mark_checklist_item"]("a", True, "did it")
+    _tools(user=_student(OTHER_GROUP))["mark_checklist_item"]("a", True, "did it")
+
+    clear_progress_for_group(GROUP, ACTIVITY)
+    assert get_item_states(OTHER_GROUP, ACTIVITY)["a"]["done"] is True
+
+
+def test_clear_progress_without_activity_clears_every_activity():
+    from db.checklist_progress import clear_progress_for_group, record_item_state
+
+    record_item_state(GROUP, "act-one", "a", done=True, by="student")
+    record_item_state(GROUP, "act-two", "b", done=True, by="student")
+
+    assert clear_progress_for_group(GROUP) == 2
+    assert get_item_states(GROUP, "act-one") == {}
+    assert get_item_states(GROUP, "act-two") == {}
+
+
+def test_clear_progress_is_idempotent():
+    from db.checklist_progress import clear_progress_for_group
+
+    assert clear_progress_for_group(GROUP, ACTIVITY) == 0
+
+
+def test_every_per_group_progress_store_is_in_the_reset_script():
+    """**The guard.** A progress store the reset cannot see will orphan.
+
+    If you add a new per-group progress collection, add it to
+    ``_TEACHING_COLLECTIONS`` on the same day — not the week after a teacher
+    reports the symptom. Both existing stores failed this until 2026-08-10.
+    """
+    from db.checklist_progress import _COLLECTION as CHECKLIST_COLLECTION
+    from db.concept_progress import _COLLECTION as CONCEPT_COLLECTION
+    from scripts.reset_teaching_data import _TEACHING_COLLECTIONS
+
+    for coll in (CHECKLIST_COLLECTION, CONCEPT_COLLECTION):
+        assert coll in _TEACHING_COLLECTIONS, f"{coll} survives reset_teaching_data — it will orphan"

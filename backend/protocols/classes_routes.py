@@ -30,6 +30,7 @@ from auth import User, get_current_user
 from auth import assert_teacher as _assert_teacher
 from auth.owner_labels import resolve_owner_labels
 from db.activities import get_activity
+from db.checklist_progress import clear_progress_for_group as clear_checklist_progress
 from db.classes import (
     add_activities,
     add_lessons,
@@ -44,6 +45,7 @@ from db.classes import (
     revoke_group_code,
     update_class,
 )
+from db.concept_progress import clear_progress_for_group as clear_concept_progress
 from db.firestore import get_document, set_document
 from db.group_sessions import archive_session_for_group
 from db.models.class_ import Class
@@ -452,12 +454,22 @@ async def reset_group_session(
     if code not in cls.group_codes:
         raise HTTPException(status_code=404, detail="group code not found")
     archive_session_for_group(code)
+    # PILOT-1 M0 (2026-08-10) — "reset" means start over, so the group's PROGRESS
+    # goes with the conversation. Leaving it was the root cause of Aswin's
+    # 2026-08-10 report: a wiped conversation plus surviving marks put the tutor
+    # in a state where it skipped a lesson it could not see the student do.
+    # Both stores clear together — clearing one reproduces the bug in the other.
+    cleared_checklist = clear_checklist_progress(code)
+    cleared_concepts = clear_concept_progress(code)
     _tag_span(class_id, user.uid)
     log.info(
-        "classes_route: reset session for code=%s class=%s teacher=%s",
+        "classes_route: reset session for code=%s class=%s teacher=%s "
+        "(cleared %d checklist + %d concept progress docs)",
         code,
         class_id,
         user.uid,
+        cleared_checklist,
+        cleared_concepts,
     )
 
 

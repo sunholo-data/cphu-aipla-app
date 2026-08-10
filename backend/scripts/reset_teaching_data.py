@@ -49,6 +49,19 @@ _TEACHING_COLLECTIONS = [
     "group_sessions",
     "chat_sessions",
     "documents",
+    # PILOT-1 M0 (2026-08-10) — the PER-GROUP PROGRESS stores. Both were absent
+    # here, and that is the root cause of Aswin's 2026-08-10 report: a reset
+    # wiped the conversation and the group-session pointer and left the ticks
+    # behind, ORPHANED. He rejoined, got a fresh session (the pointer was gone),
+    # and the tutor found four marks from a conversation that no longer existed
+    # anywhere — so it skipped the lesson it could not see him complete.
+    #
+    # Every per-group progress store added so far was invisible to this reset:
+    # concept_progress (CONCEPT-1) and checklist_progress (1.1.62 M3). A new one
+    # belongs in this list on the day it is created, not the week after a
+    # teacher reports the symptom.
+    "concept_progress",
+    "checklist_progress",
 ]
 
 # Projects this destructive script is allowed to touch. DEV ONLY.

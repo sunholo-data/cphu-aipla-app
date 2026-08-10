@@ -6,6 +6,33 @@
   "sprint_plan": "docs/design/aipla/v1.1.0-feedback/pilot-week-tutor-fidelity-sprint.md",
   "features": [
     {
+      "id": "M0-RESET-CLEARS-PROGRESS",
+      "description": "Add checklist_progress + concept_progress to reset_teaching_data, and make the teacher [Reset session] clear them too. THE ACTUAL ROOT CAUSE of Aswin's #4.",
+      "scope": "backend",
+      "estimated_loc": 120,
+      "actual_loc": 210,
+      "dependencies": [],
+      "acceptance_criteria": [
+        "Both progress collections are in _TEACHING_COLLECTIONS",
+        "Teacher [Reset session] clears the group's checklist AND concept progress",
+        "Clearing one group does not touch another",
+        "Clearing without an activity_id clears every activity for the group",
+        "Idempotent (0 when nothing to clear)",
+        "A guard test fails if a per-group progress store is missing from the reset script"
+      ],
+      "files_to_modify": [
+        "backend/scripts/reset_teaching_data.py",
+        "backend/db/checklist_progress.py",
+        "backend/db/concept_progress.py",
+        "backend/protocols/classes_routes.py",
+        "backend/tests/unit/test_checklist_tools.py"
+      ],
+      "passes": true,
+      "started": "2026-08-10",
+      "completed": "2026-08-10",
+      "notes": "ADDED MID-SPRINT after investigating 1.1.70's Open Question 1 BEFORE building its mitigations. The check paid for itself: AGENT_ENGINE_ID is set in dev+prod so sessions really do persist in Vertex, and the group pointer is first-wins with a 30-day TTL, so a normal rejoin resumes. Nothing was expiring. The real cause is that reset_teaching_data clears nine collections and NEITHER progress store is among them - so a dev reset wiped the conversation and the group-session pointer and left the ticks ORPHANED. Aswin rejoined, got a fresh session (pointer gone), and the tutor found four marks from a conversation that no longer existed. checklist_progress is mine from last week; concept_progress (CONCEPT-1) had the same gap and predates me - every per-group store we have added was invisible to the reset. M's call: [Reset session] clears progress too ('reset means start over'). CONSEQUENCE FOR THE SPRINT: M3/M4 drop from the floor to the cut line - they now cover only the LEGITIMATE divergences (teacher reset, TTL expiry), not the reported bug. Backend 2801 passed (+5). Lint clean."
+    },
+    {
       "id": "M1-ELEMENT-FILL-STATE",
       "description": "Per-turn fill-state block over mcp_app_context, registry-driven. Server-side synthesis of EMPTY for authored-but-untouched elements so 'unknown' and 'empty' stop collapsing.",
       "scope": "backend",
@@ -142,9 +169,9 @@
     "basis": "PREPILOT-1 delivered 6 milestones / ~3650 LOC in one day, but every milestone overran its estimate (M3 380->1120). Scheduled on doc estimates."
   },
   "github_issues": [],
-  "last_session": null,
-  "last_checkpoint": null,
-  "status": "not_started",
+  "last_session": "2026-08-10T09:45:53Z",
+  "last_checkpoint": "M0-RESET-CLEARS-PROGRESS",
+  "status": "in_progress",
   "hard_deadline": "2026-08-13 in PROD; teacher pilot 2026-08-14",
   "design_docs": [
     "docs/design/aipla/v1.1.0-feedback/tutor-sees-element-state.md",
@@ -160,9 +187,10 @@
   },
   "cut_line": [
     "1. M4 student continuity line",
-    "2. M6 voice",
-    "3. M5 opening",
-    "M1, M2, M3 NOT cuttable \u2014 assessment-integrity bugs in the week teachers start trusting the output"
+    "2. M3 inherited-progress labelling (demoted: M0 fixes the reported bug; M3 now covers legitimate divergence only)",
+    "3. M6 voice",
+    "4. M5 opening",
+    "M0, M1 and M2 are NOT cuttable"
   ],
   "source": "Aswin 2026-08-10. Two items are regressions from PREPILOT-1 sharing one root: 1.1.62 taught the tutor what EXISTS and stopped there."
 }

@@ -81,4 +81,28 @@ def record_checkpoint_state(
     return states
 
 
-__all__ = ["NodeStatus", "get_node_states", "record_checkpoint_state"]
+def clear_progress_for_group(group_id: str, activity_id: str | None = None) -> int:
+    """Clear a group's concept-map checkpoints. Returns how many docs went.
+
+    PILOT-1 M0 (2026-08-10) — the sibling of
+    ``db.checklist_progress.clear_progress_for_group``. Both stores must clear
+    together on a teacher reset; clearing one and not the other reproduces the
+    same orphaned-progress state in a different element.
+    """
+    from db.firestore import delete_document, query_documents
+
+    if activity_id is not None:
+        if get_document(_COLLECTION, _doc_id(group_id, activity_id)) is None:
+            return 0
+        delete_document(_COLLECTION, _doc_id(group_id, activity_id))
+        return 1
+
+    docs = query_documents(collection=_COLLECTION, filters=[("groupId", "==", group_id)])
+    for d in docs:
+        doc_id = d.get("__id")
+        if doc_id:
+            delete_document(_COLLECTION, doc_id)
+    return len(docs)
+
+
+__all__ = ["NodeStatus", "clear_progress_for_group", "get_node_states", "record_checkpoint_state"]
