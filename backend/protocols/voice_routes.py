@@ -52,7 +52,7 @@ from skills.skill_config import get_skill
 from voice import get_stt, get_tts
 from voice.cache import CacheKey, TTSCache
 from voice.cost import stt_cost_usd, tts_cost_usd
-from voice.voices import SUPPORTED_LANGS, default_voice_for_lang, get_voices_for_lang, lang_matches
+from voice.voices import SUPPORTED_LANGS, get_voices_for_lang, lang_matches, matching_voice_for_lang
 
 logger = logging.getLogger(__name__)
 _tracer = trace.get_tracer(__name__)
@@ -307,7 +307,13 @@ def _apply_activity_language(rv: ResolvedVoice, activity_language: str | None) -
     # A LOCALE-BOUND voice must be swapped. ``da-DK-Wavenet-A`` cannot say
     # English, and Cloud TTS 400s outright on a lang/voice mismatch — so
     # correcting the language alone would turn a wrong accent into no audio.
-    swap = default_voice_for_lang(activity_language)
+    #
+    # The substitute keeps the teacher's TIER, and for Chirp3-HD (whose roster
+    # is shared across locales) the same CHARACTER: someone who paid for
+    # Chirp3-HD Kore should get Chirp3-HD Kore in English, not the cheapest
+    # natural voice we happen to stock. Opening an English activity is not a
+    # decision to downgrade.
+    swap = matching_voice_for_lang(activity_language, rv.voice)
     if swap is None:
         # An activity language with no curated voices: state the language and
         # drop the mismatched name, so the provider picks its own default for

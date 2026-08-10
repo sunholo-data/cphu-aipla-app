@@ -164,3 +164,57 @@ def test_locale_bound_detection(voice, locale_bound):
     from protocols.voice_routes import _is_locale_bound_voice
 
     assert _is_locale_bound_voice(voice) is locale_bound
+
+
+# --- the swap must not silently downgrade the teacher's choice ------------
+
+
+def test_a_chirp3hd_voice_stays_chirp3hd_and_keeps_its_character():
+    """A teacher who picked Chirp3-HD paid ~7x the WaveNet rate for a better
+    voice, and one who picked Kore picked Kore. Opening an English activity is
+    a language decision, not a licence to undo either.
+
+    Chirp3-HD's roster is shared across locales — ``da-DK-Chirp3-HD-Kore`` and
+    ``en-US-Chirp3-HD-Kore`` are the same character — so the substitute is
+    exact, not approximate."""
+    rv = ResolvedVoice(provider="gcp_chirp3hd", voice="da-DK-Chirp3-HD-Kore", lang="da")
+    out = _apply_activity_language(rv, "en")
+    assert out.voice == "en-US-Chirp3-HD-Kore"
+    assert out.provider == "gcp_chirp3hd"
+
+
+def test_a_wavenet_voice_stays_wavenet():
+    out = _apply_activity_language(_wavenet_da(), "en")
+    assert out.provider == "gcp_wavenet"
+    assert "Wavenet" in (out.voice or "")
+
+
+def test_a_wavenet_letter_is_not_carried_across_languages():
+    """``da-DK-Wavenet-A`` is Anna and ``en-US-Wavenet-A`` is Adam — the
+    trailing letter is a locale-specific slot, not a character. Carrying it
+    over would change the voice's gender while pretending to preserve it."""
+    from voice.voices import matching_voice_for_lang
+
+    # da Wavenet-D is Dorthe (F); en Wavenet-D is Daniel (M). Matching on the
+    # letter would silently swap gender, so the letter must be ignored.
+    picked = matching_voice_for_lang("en", "da-DK-Wavenet-D")
+    assert picked is not None
+    assert picked["tier"] == "WaveNet"
+
+
+def test_a_tier_with_no_voice_in_the_target_language_falls_back_safely():
+    """Neural2 coverage is thin — Danish has one voice, and a future language
+    may have none. Falling back beats returning nothing."""
+    from voice.voices import matching_voice_for_lang
+
+    picked = matching_voice_for_lang("en", "da-DK-Neural2-F")
+    assert picked is not None
+    assert picked["name"].startswith("en-")
+
+
+def test_an_unknown_voice_name_falls_back_to_the_safe_tier():
+    from voice.voices import matching_voice_for_lang
+
+    picked = matching_voice_for_lang("en", "some-custom-voice-nobody-curated")
+    assert picked is not None
+    assert picked["tier"] == "WaveNet"

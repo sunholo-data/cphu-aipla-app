@@ -16,6 +16,10 @@ and folds into per-class/cohort spend (converted USD→EUR). The
 but is NOT the dashboard's source — spans don't land in BigQuery.
 """
 
+import logging
+
+log = logging.getLogger(__name__)
+
 # USD per million characters synthesized.
 _TTS_USD_PER_MILLION_CHARS = {
     "gcp_standard": 4.0,
@@ -26,6 +30,23 @@ _TTS_USD_PER_MILLION_CHARS = {
     "browser": 0.0,  # no cost — local synth
     "null": 0.0,
 }
+
+# Providers with NO per-character rate, recorded as a positive decision rather
+# than left to fall through the unknown-provider branch below.
+#
+# ``gcp_gemini`` (gemini-2.5-flash-tts) is the one that matters, and it is the
+# one the platform actually runs: every shipped persona sets
+# ``ttsProvider: gcp_gemini``, and ``DEFAULT_PERSONA_ID`` guarantees a persona
+# resolves for every session — so **effectively 100% of read-aloud traffic has
+# been logging $0.00** since personas landed. It is not a per-character tier
+# (Gemini bills audio OUTPUT TOKENS), so it does not fit this table's shape and
+# a made-up per-million-chars figure would be worse than a known gap.
+#
+# TODO(voice-cost): give it a real estimator — chars -> audio seconds -> output
+# tokens -> the current Gemini audio-output rate — and check that rate against
+# the live price list rather than inferring it. Until then the dashboard
+# under-reports voice spend, which matters from the 2026-08-14 pilot on.
+_TTS_UNPRICED: frozenset[str] = frozenset({"gcp_gemini"})
 
 # USD per second of audio transcribed. Gemini is the only STT engine (RAQ-1,
 # 2026-06-16 — Cloud STT removed); the model is config-driven (config/models.yaml
@@ -42,12 +63,22 @@ _STT_USD_PER_SECOND = {
 def tts_cost_usd(provider_name: str, chars: int) -> float:
     """Estimated USD for synthesizing `chars` characters via `provider_name`.
 
-    Unknown providers return 0.0 (no estimate). They still emit a span;
-    the dashboard will surface them as "unknown provider, no cost
-    estimate" so we notice and update the table.
+    Unpriced and unknown providers both return 0.0. The difference is that an
+    UNKNOWN one now logs a warning: "the dashboard will surface it so we
+    notice" was the original plan and it did not work — ``gcp_gemini`` went
+    unpriced from the day personas shipped while carrying all of the traffic,
+    because a zero is indistinguishable from cheap on a chart.
     """
+    if provider_name in _TTS_UNPRICED:
+        return 0.0
     rate = _TTS_USD_PER_MILLION_CHARS.get(provider_name)
     if rate is None:
+        log.warning(
+            "tts_cost_usd: no rate for provider %r — logging $0.00 for %d chars. "
+            "Add it to _TTS_USD_PER_MILLION_CHARS, or to _TTS_UNPRICED with a reason.",
+            provider_name,
+            chars,
+        )
         return 0.0
     return (chars / 1_000_000.0) * rate
 
