@@ -97,7 +97,7 @@
       "passes": null,
       "started": null,
       "completed": null,
-      "notes": "Both summaries were written, exported, unit-tested and never wired \u2014 shipped in the sprint that criticised ActivityConfig.language for exactly this."
+      "notes": "RESTORED to the floor 2026-08-10, after being demoted an hour earlier. The demotion was right about Aswin's case and WRONG about prod. Three routes reach the orphaned-progress state: (a) reset_teaching_data \u2014 DEV ONLY, hard _DEV_PROJECTS allowlist refuses any other project, so Aswin's exact trigger cannot happen in test/prod; (b) teacher [Reset session] \u2014 reachable in prod, a normal classroom action, FIXED by M0; (c) group-code TTL expiry \u2014 _archive_expired_session archives the session and does NOT touch progress, STILL OPEN and reachable in prod (default TTL 30d, so plausible within a pilot running from 2026-08-14). M3 is now the ONLY fix for route (c), and clearing progress there would be WRONG: a teacher pressing Reset states an intent ('start over'); a code expiring is administrative and nobody asked for anything. Wiping a class's earned assessment evidence because a TTL lapsed would be worse than the bug it prevents, with no undo. So (c) is handled by LABELLING inherited progress, not by deleting it. Both summaries were written, exported, unit-tested and never wired \u2014 shipped in the sprint that criticised ActivityConfig.language for exactly this."
     },
     {
       "id": "M4-STUDENT-CONTINUITY",
@@ -169,7 +169,7 @@
     "basis": "PREPILOT-1 delivered 6 milestones / ~3650 LOC in one day, but every milestone overran its estimate (M3 380->1120). Scheduled on doc estimates."
   },
   "github_issues": [],
-  "last_session": "2026-08-10T09:45:53Z",
+  "last_session": "2026-08-10T11:46:14Z",
   "last_checkpoint": "M0-RESET-CLEARS-PROGRESS",
   "status": "in_progress",
   "hard_deadline": "2026-08-13 in PROD; teacher pilot 2026-08-14",
@@ -186,11 +186,17 @@
     "envs": "dev/test/prod all v0.1.11"
   },
   "cut_line": [
-    "1. M4 student continuity line",
-    "2. M3 inherited-progress labelling (demoted: M0 fixes the reported bug; M3 now covers legitimate divergence only)",
-    "3. M6 voice",
-    "4. M5 opening",
-    "M0, M1 and M2 are NOT cuttable"
+    "1. M4 student continuity line \u2014 the ONLY cut. M3 fixes the tutor's behaviour, which is the complaint; the UI line is polish.",
+    "M0/M1/M2/M3 are NOT cuttable. M5/M6 are small and user-visible; drop them before M3 if it comes to it."
   ],
-  "source": "Aswin 2026-08-10. Two items are regressions from PREPILOT-1 sharing one root: 1.1.62 taught the tutor what EXISTS and stopped there."
+  "source": "Aswin 2026-08-10. Two items are regressions from PREPILOT-1 sharing one root: 1.1.62 taught the tutor what EXISTS and stopped there.",
+  "revised_order": [
+    "M0 (DONE)",
+    "M1-ELEMENT-FILL-STATE",
+    "M2-MARKS-NEED-EVIDENCE",
+    "M3-INHERITED-PROGRESS",
+    "M5-OPENING-KNOWS-LESSON",
+    "M6-VOICE-FOLLOWS-LANGUAGE",
+    "M4-STUDENT-CONTINUITY (cut)"
+  ]
 }

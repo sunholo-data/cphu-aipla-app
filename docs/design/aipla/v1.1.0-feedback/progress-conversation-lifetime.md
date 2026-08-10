@@ -7,7 +7,7 @@
 **Dependencies:** [1.1.62 workbench-element-awareness](workbench-element-awareness.md) (**SHIPPED** M3 — the per-group store whose lifetime this is about); [1.1.53 group-shared-session-sync](group-shared-session-sync.md) (**SHIPPED** — the group/session model); [tutor-sees-element-state](tutor-sees-element-state.md) (1.1.69 — the sibling)
 **Source:** Aswin, 2026-08-10 — *"I was chatting with Jonas which I think it was more than 10 chats. I stopped for a while and then previous chats were removed. I then started again with the same code, but then Jonas only asked me one question and I answered it correctly. He then said already marked the learning goals, then it goes on like that."*
 **Created:** 2026-08-10 (M)
-**Last Updated:** 2026-08-10 (M)
+**Last Updated:** 2026-08-10 (M) — Open Question 1 answered; M0 (reset) split out and shipped, M1 re-justified
 
 ## Problem Statement
 
@@ -165,12 +165,36 @@ someone read Firestore by hand; that is not a diagnostic path.
 
 ## Open Questions
 
-1. **Why did the history disappear at all?** Aswin attributes it to development
-   churn and that fits the dates, but if sessions can silently lose history
-   during the *pilot* this is a much larger problem than its symptom. **Worth
-   confirming before the doc is scoped** — the answer might make M1/M2
-   mitigations of something that should simply not happen. Check session TTL and
-   the ADK session service's retention on the deployed dev config.
+1. ~~**Why did the history disappear at all?**~~ **ANSWERED 2026-08-10, before
+   building the mitigations — and it changed the plan.**
+
+   Everything suspected was fine: `AGENT_ENGINE_ID` is set in dev *and* prod, so
+   sessions genuinely persist in Vertex Agent Engine; the group→session pointer
+   is **first-wins with a 30-day TTL**, so an ordinary rejoin resumes. Nothing
+   was expiring.
+
+   The cause was that **`reset_teaching_data` clears nine collections and
+   neither progress store was among them**. A dev reset wiped the conversation
+   and the group pointer and left the ticks orphaned. Fixed in PILOT-1 M0, with
+   a guard test asserting membership for both stores.
+
+   **Which environments can reach this state?**
+
+   | Route | Reachable in prod? | Status |
+   |---|---|---|
+   | `reset_teaching_data` script | **No** — hard `_DEV_PROJECTS` allowlist refuses any other project | dev only; fixed anyway |
+   | Teacher **[Reset session]** | **Yes** — a normal classroom action on a button | fixed in M0: reset now clears progress |
+   | Group-code **TTL expiry** | **Yes** — `_archive_expired_session` archives the session and does **not** touch progress | **still open — this is what M1 below is for** |
+
+   So Aswin's exact trigger is impossible outside dev, but the *state* was
+   reachable in prod two ways. One is fixed; the expiry route is not, and
+   **deliberately should not be fixed by clearing**. A teacher pressing Reset
+   states an intent ("start over"); a code expiring is administrative and nobody
+   asked for anything — wiping a class's earned assessment evidence because a
+   TTL lapsed would be worse than the bug it prevents, with no undo.
+
+   **That is why M1 stays in scope.** It is now the *only* fix for the one
+   prod-reachable route left, rather than a nicety on top of M0.
 2. **Should inherited marks decay?** A tick from three weeks ago is weaker
    evidence than one from this morning. Age is in the store already. Probably a
    tone hint ("marked a while ago — worth a quick check") rather than expiry.

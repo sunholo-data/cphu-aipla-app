@@ -5,6 +5,11 @@
 **Created:** 2026-08-10 (M)
 **Context:** **Teacher pilot starts 2026-08-14 — four days.** All three environments are on `v0.1.11`.
 
+> **Status 2026-08-10: M0 shipped (`db904ca`), M1 next.** M0 was added
+> mid-sprint after checking 1.1.70's open question *before* building its
+> mitigations — see "What M0 changed" below. Milestone order is now
+> **M0 (done) → M1 → M2 → M3 → M5 → M6**, with M4 the only cut.
+
 ## Summary
 
 Aswin's 2026-08-10 feedback, all five items. Two of them are regressions from
@@ -100,15 +105,39 @@ wrong reintroduces staleness the manifest deliberately avoided.
 | **Wed 8-13** | M6, full gates, tag `v0.1.12` → test, promote to prod |
 | **Thu 8-14** | **PILOT.** No deploys. |
 
+### What M0 changed (added 2026-08-10)
+
+Checking *why* the history vanished, before building mitigations for it, found
+the real cause: **`reset_teaching_data` cleared nine collections and neither
+per-group progress store was among them.** Everything else was working —
+`AGENT_ENGINE_ID` is set in dev and prod so sessions persist in Vertex, and the
+group pointer is first-wins with a 30-day TTL, so an ordinary rejoin resumes.
+
+Three routes reach the orphaned state, and they do **not** all behave the same:
+
+| Route | Prod? | Status |
+|---|---|---|
+| `reset_teaching_data` script | **No** — hard `_DEV_PROJECTS` allowlist | Aswin's trigger; dev only; fixed anyway |
+| Teacher **[Reset session]** | **Yes**, a normal classroom action | **fixed in M0** — reset now clears progress |
+| Group-code **TTL expiry** | **Yes** (30d default) | **open — M3 is the fix** |
+
+M3 was briefly demoted on the grounds that M0 fixed the reported bug. That was
+right about Aswin's case and wrong about prod: expiry still reaches the same
+state, and **clearing progress there would be the wrong fix**. A teacher pressing
+Reset states an intent; a code expiring is administrative. Wiping a class's
+earned assessment evidence because a TTL lapsed is worse than the bug it
+prevents, and there is no undo. So expiry is handled by *labelling* inherited
+progress — which is M3.
+
 ### The cut line
 
-Drop in this order and say so:
+1. **M4** student continuity line — the only cut. M3 fixes the tutor's
+   behaviour, which is the actual complaint; the UI line is polish.
 
-1. **M4** student continuity line — M3 fixes the tutor's behaviour, which is the actual complaint; the UI line is the polish
-2. **M6** voice — irritating, not blocking; nobody is graded on number pronunciation
-3. **M5** opening — visible but cosmetic
-
-**M1, M2 and M3 are not cuttable.** M1+M2 stop the tutor certifying work it cannot see; M3 stops it skipping a lesson. Those are assessment-integrity bugs in a week when teachers start trusting the output.
+**M0, M1, M2 and M3 are not cuttable.** M1+M2 stop the tutor certifying work it
+cannot see; M3 is the only remaining fix for the one prod-reachable route to the
+progress bug. Those are assessment-integrity issues in the week teachers start
+trusting the output. M5/M6 are small and user-visible — drop them before M3.
 
 ## Risks
 
