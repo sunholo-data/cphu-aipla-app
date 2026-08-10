@@ -87,6 +87,13 @@ def make_before_agent(
     """
 
     def _callback(callback_context: Any) -> None:
+        # COMPACTION-LATENCY M1 — demote this turn's pre-request compaction
+        # trigger to emergency-only so routine compaction runs post-invocation
+        # (while the student reads) instead of inside TTFT. Fail-open.
+        from adk.callbacks.compaction import _demote_pre_request_compaction
+
+        _demote_pre_request_compaction(callback_context)
+
         span = trace.get_current_span()
         span.set_attribute("skill_id", skill_id)
         state = callback_context.state if hasattr(callback_context, "state") else None

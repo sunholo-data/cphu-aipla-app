@@ -12,6 +12,8 @@ Submodules:
   document     — document loading into artifacts + LLM request injection
   session      — session index creation + turn counter maintenance
   large_output — oversized tool-response offloading to ADK artifacts
+  compaction   — pre-request compaction demotion (keeps routine compaction
+                 out of TTFT; wired into make_before_agent)
 """
 
 from adk.callbacks.activity_images import (
@@ -19,6 +21,7 @@ from adk.callbacks.activity_images import (
     make_activity_image_injector,
     make_activity_image_loader,
 )
+from adk.callbacks.compaction import _demote_pre_request_compaction
 from adk.callbacks.document import (
     _STATE_DOC_LOAD_ERROR,
     _STATE_DOCS_LOADED,
@@ -47,6 +50,7 @@ __all__ = [
     "_STATE_TURN_COUNT",
     "_TURN_FLUSH_INTERVAL",
     "_after_agent",
+    "_demote_pre_request_compaction",
     "_derive_access_control",
     "_handle_large_output",
     "_try_generate_title",
