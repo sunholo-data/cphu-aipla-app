@@ -572,3 +572,187 @@ def test_ilo_precedence_does_not_weaken_grounding() -> None:
     block = build_ilo_precedence_block(_cfg(checklist=[ChecklistItem(id="a", label="Step")])).lower()
     assert "ignore" not in block
     assert "do not use" not in block
+
+
+# --- PILOT-1 M1: the per-TURN prompt budget ------------------------------
+#
+# WRITE THIS TEST FIRST. (Sprint plan, M1 risk row.)
+#
+# ``_TOTAL_FOCUS_CAP`` bounds ``compose_teacher_focus`` only — the blocks
+# substituted into the SKILL.md body ONCE per agent build. PILOT-1 adds two
+# blocks that are NOT in that sum:
+#
+#   * the element fill-state block (1.1.69 M1), appended by a per-turn
+#     InstructionProvider, and
+#   * the inherited-progress block (1.1.70 M1), composed at agent build.
+#
+# Neither passes through ``compose_teacher_focus``, so neither is covered by
+# the existing cap test — they would ride entirely outside the budget and the
+# only symptom would be a diluted tutor. This test sums what a maximal
+# activity actually sends per turn and holds the whole thing to one number.
+
+
+def _maximal_cfg():
+    """The largest activity the model permits — every element at max_items,
+    every bounded string at its max_length."""
+    from db.models.activity_config import (
+        CalcInput,
+        CalculatorElement,
+        ChartElement,
+        ChecklistItem,
+        ConceptEdge,
+        ConceptMapElement,
+        ConceptNode,
+        DocumentElement,
+        NoteElement,
+        SolutionElement,
+        TableColumn,
+        TableElement,
+    )
+
+    return _cfg(
+        language="en",
+        artefactId="boldkast",
+        teachingGoal="G" * 2000,
+        checklist=[ChecklistItem(id=f"i{n}", label="L" * 200) for n in range(50)],
+        table=[
+            TableElement(
+                id=f"tbl{n}",
+                title="T" * 80,
+                columns=[TableColumn(id=f"c{c}", label="C" * 80, unit="m/s") for c in range(6)],
+                rows=20,
+            )
+            for n in range(5)
+        ],
+        chart=[ChartElement(id=f"c{n}", title="T" * 120) for n in range(5)],
+        calculator=[
+            CalculatorElement(
+                id=f"calc{n}",
+                title="T" * 120,
+                formula="a + b",
+                inputs=[CalcInput(id="a", label="A" * 80), CalcInput(id="b", label="B" * 80)],
+            )
+            for n in range(5)
+        ],
+        note=[NoteElement(id=f"n{n}", title="T" * 120, body="B" * 4000) for n in range(5)],
+        solution=[SolutionElement(id="s", prompt="P" * 2000)],
+        document=[DocumentElement(id="d", prompt="P" * 2000)],
+        conceptMap=[
+            ConceptMapElement(
+                id="cm",
+                title="Map",
+                nodes=[ConceptNode(id=f"n{n}", label="L" * 80) for n in range(30)],
+                edges=[ConceptEdge(**{"from": f"n{n}", "to": f"n{n + 1}"}) for n in range(29)],
+            )
+        ],
+    )
+
+
+def test_element_state_block_is_bounded() -> None:
+    """Five 20x6 tables plus five calculators is 600 cells of state. The block
+    must bound itself at source rather than relying on the total below."""
+    from adk.element_state import ELEMENT_STATE_CHAR_CAP, describe_element_state
+
+    block = describe_element_state(_maximal_cfg(), {})
+    assert block, "a maximal activity with no pushed state must still report EMPTY"
+    assert len(block) <= ELEMENT_STATE_CHAR_CAP
+
+
+def test_inherited_progress_block_is_bounded() -> None:
+    """50 checklist items x (200-char label + 500-char evidence) is 35k on its
+    own. Same treatment as every other variable-length contributor."""
+    from adk.checklist_tools import INHERITED_PROGRESS_CAP, checklist_state_summary
+    from auth.firebase_auth import User
+    from db.checklist_progress import record_item_state
+
+    cfg = _maximal_cfg()
+    for n in range(50):
+        record_item_state(
+            "grp-budget",
+            cfg.activity_id,
+            f"i{n}",
+            done=True,
+            by="ai",
+            evidence_summary="E" * 500,
+        )
+    user = User(uid="u", email="", domain="", group_id="grp-budget")
+    block = checklist_state_summary(cfg, user)
+    assert block
+    assert len(block) <= INHERITED_PROGRESS_CAP
+
+
+def test_checkpoint_summary_block_is_bounded() -> None:
+    """The twin. A 30-node map is the model's maximum."""
+    from adk.checkpoint_tools import CHECKPOINT_SUMMARY_CAP, checkpoint_state_summary
+    from auth.firebase_auth import User
+    from db.concept_progress import record_checkpoint_state
+
+    cfg = _maximal_cfg()
+    for n in range(30):
+        record_checkpoint_state("grp-ckpt", cfg.activity_id, f"n{n}", "demonstrated", "E" * 500)
+    block = checkpoint_state_summary(cfg, User(uid="u", email="", domain="", group_id="grp-ckpt"))
+    assert block
+    assert len(block) <= CHECKPOINT_SUMMARY_CAP
+
+
+# The per-turn per-activity content budget. NOT a validation limit — an
+# attention and input-cost one, for the same reason ``_TOTAL_FOCUS_CAP`` is:
+# every character here rides EVERY turn, and a tutor that has just been told a
+# table is empty must not lose that among ten thousand other characters.
+#
+# 8,000 of it is ``_TOTAL_FOCUS_CAP``; the rest is the ILO block plus the three
+# blocks PILOT-1 adds, each individually capped in its own module. Raising this
+# number is a DECISION about how much of the model's attention per-activity
+# content may take, and should be made here, deliberately, with the individual
+# caps adjusted to match — not absorbed silently by a block that grew.
+_PER_TURN_ACTIVITY_BUDGET = 13_000
+
+
+def test_per_turn_prompt_stays_within_budget() -> None:
+    """The sum is what the model actually reads.
+
+    Five contributors shared ``_TOTAL_FOCUS_CAP`` before this sprint; PILOT-1
+    makes it eight, and three of the eight are outside that cap by
+    construction — they are appended to the composed instruction rather than
+    substituted into ``{teacher_focus}``. Nothing else would have noticed.
+    """
+    from adk.element_state import describe_element_state
+    from adk.progress_context import compose_progress_context
+    from adk.teacher_focus import build_ilo_precedence_block, compose_teacher_focus
+    from auth.firebase_auth import User
+    from db.checklist_progress import record_item_state
+    from db.concept_progress import record_checkpoint_state
+
+    cfg = _maximal_cfg()
+    user = User(uid="u", email="", domain="", group_id="grp-total")
+    for n in range(50):
+        record_item_state("grp-total", cfg.activity_id, f"i{n}", done=True, by="ai", evidence_summary="E" * 500)
+    for n in range(30):
+        record_checkpoint_state("grp-total", cfg.activity_id, f"n{n}", "demonstrated", "E" * 500)
+
+    per_turn = "\n\n".join(
+        [
+            compose_teacher_focus(cfg),
+            build_ilo_precedence_block(cfg),
+            describe_element_state(cfg, {}),
+            compose_progress_context(cfg, user),
+        ]
+    )
+
+    # The authored SKILL.md body is validated separately at 25,000 characters
+    # and is NOT counted here — this is the per-activity content stacked onto it.
+    assert len(per_turn) <= _PER_TURN_ACTIVITY_BUDGET, (
+        f"per-turn per-activity content is {len(per_turn)} chars against a "
+        f"{_PER_TURN_ACTIVITY_BUDGET} budget — bound the new block at source, or raise the budget "
+        "deliberately and say why"
+    )
+
+
+def test_a_first_ever_session_pays_nothing_for_the_progress_blocks() -> None:
+    """Graceful degradation is also a budget property: the common case is a
+    group with no recorded progress, and it must compose byte-identically to
+    before 1.1.70."""
+    from adk.progress_context import compose_progress_context
+    from auth.firebase_auth import User
+
+    assert compose_progress_context(_maximal_cfg(), User(uid="u", email="", domain="", group_id="brand-new")) == ""

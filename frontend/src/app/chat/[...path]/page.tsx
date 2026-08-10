@@ -1190,6 +1190,9 @@ function ChatShell({
               so it no longer claims a horizontal row above the transcript. */}
           <ChatMessageList
             messages={messages}
+            // 1.1.63 M4 — the read-aloud voice resolves from THIS activity's
+            // language and persona, not the skill's. Distinct ids since ALS-1 M0.
+            activityId={activityId}
             // initialMessages are the persisted history fetched by
             // useSessionMessages(sessionId). They're only relevant when the
             // user RESUMED an existing session — in that case the live

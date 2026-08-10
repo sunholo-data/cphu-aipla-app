@@ -1,6 +1,6 @@
 # Progress outlives the conversation that earned it
 
-**Status:** Design (OPEN) — **P0.** Written 2026-08-10 from Aswin's 2026-08-10 report. A consequence of a deliberate decision in [1.1.62 M3](workbench-element-awareness.md).
+**Status:** **SHIPPED** (M0 + M1, 2026-08-10, sprint PILOT-1; M2/M3 cut) — was Design (OPEN), P0. Written 2026-08-10 from Aswin's 2026-08-10 report. A consequence of a deliberate decision in [1.1.62 M3](workbench-element-awareness.md).
 **Priority:** **P0** — it makes the tutor look broken at exactly the moment a student returns, and the teacher pilot starts 2026-08-14. Cheap to mitigate; the wrong mitigation (make progress ephemeral) would undo a correct decision.
 **Estimated:** ~1–1.5d (M1 tutor knows progress is inherited ~0.5d · M2 student-visible continuity ~0.5d · M3 rejoin telemetry ~0.25d)
 **Scope:** Backend — wire the already-written-and-never-wired `checklist_state_summary` into the agent, with provenance ("earned in an earlier session"); a prompt contract for what to do on inherited progress. Frontend — a short "picking up where you left off" line. No store change.
@@ -115,6 +115,29 @@ Three things that block the reported behaviour: the tutor knows the work
 happened **elsewhere**; it is told to **continue from the first outstanding
 step** rather than wrap up; and it is given permission to **revisit**, so an
 inherited mark cannot railroad a student who has actually forgotten.
+
+> **Correction, 2026-08-10, made while building M1.** The wording above —
+> *"which you did not witness"* — rests on the block being composed **once per
+> session**. It is not. `create_agent_with_thinking` is called from
+> `skills.skill_processor.process_skill_request` on **every request**, so
+> "agent-build time" *is* per-turn. (The Axiom-1 row below says "one extra
+> state read at agent build" on the same mistaken premise; it is one read per
+> turn, paid only by an activity that has a checklist or a map, for a group
+> student.)
+>
+> Asserting non-witness would therefore be a **falsehood from turn two
+> onward**, about marks the tutor made itself and can see in its own
+> conversation. As shipped, the block states what the store actually knows —
+> who marked each step, when, with what evidence — and asks the model to
+> compare that against the conversation it is in. Every behaviour wanted here
+> survives; only the unprovable claim is gone. See
+> `adk/progress_context.py` and
+> `test_the_contract_does_not_assert_the_tutor_failed_to_witness_it`.
+>
+> The two summaries also share **one** contract paragraph rather than carrying
+> a near-identical one each: as two blocks they cost ~450 characters of a
+> budget already shared seven ways to state the same instruction twice, for the
+> model to reconcile.
 
 `checkpoint_state_summary()` gets the same treatment — same bug, same fix, and
 leaving one wired and one dead is how this recurs.

@@ -284,6 +284,40 @@ Scope (~0.5d):
 > rule files exist for units and symbols; digits are the TTS voice's job. A
 > text-level workaround would fight the voice on every locale added later.
 
+**Shipped 2026-08-10 (PILOT-1 M6), with three corrections to the scope above.**
+
+1. **It is not a frontend change.** The resolution belongs in
+   `protocols/voice_routes.py::resolve_voice` — the documented single source of
+   truth for *both* `GET /config` (what the frontend asks for, and where the
+   pronunciation ruleset's language comes from) and `POST /synthesize` (which
+   re-resolves server-side). Fixing the frontend chain alone would have left
+   those two disagreeing, which is the exact drift `ResolvedVoice` exists to
+   prevent.
+2. **A pre-existing bug had to be fixed first, or this one could not fire.**
+   `resolve_voice` resolved the activity by **skill id**, but ALS-1 M0 made the
+   activity a distinct `act-…` id — so the activity's **persona** has silently
+   not reached the voice since that re-key, and the language fix would have
+   been dead on arrival for exactly the activities it targets. `activity_id` is
+   now threaded through `/config`, `/synthesize`, `useVoiceConfig` (including
+   its cache key, so two activities in one class cannot share a voice) and the
+   chat page.
+3. **The swap must be provider-aware.** Point 2 of the scope above —
+   *"prefer a voice in the activity's language"* — is right for locale-bound
+   Cloud TTS names (`da-DK-Wavenet-A`, which Cloud TTS 400s on outright given a
+   mismatched language) and **wrong** for the tier every shipped persona
+   actually uses. All five personas are `gcp_gemini` with **bare** voice names
+   (`Puck`, `Aoede`) for which `GcpTTS.synthesize` treats the caller's language
+   as authoritative. Substituting a WaveNet voice there would have dropped
+   every persona out of Gemini-TTS *and* discarded their `voicePrompt` Style
+   Instructions, which non-Gemini tiers reject — the voice would speak English
+   and stop being the character. Multilingual voices are **retuned**; only
+   locale-bound names are swapped.
+
+The activity's language wins only when **explicitly** non-default, read through
+the same `DEFAULT_ACTIVITY_LANGUAGE` constant as the M2 text directive: the
+field is `Literal["da","en"]` defaulting to `"da"`, so the default cannot be
+read as a choice, and one constant means the voice and the text cannot drift.
+
 ## Migration & Rollout
 
 M1/M2 are prompt changes — no schema, no backfill, live on next session.

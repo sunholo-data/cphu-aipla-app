@@ -5,10 +5,18 @@
 **Created:** 2026-08-10 (M)
 **Context:** **Teacher pilot starts 2026-08-14 — four days.** All three environments are on `v0.1.11`.
 
-> **Status 2026-08-10: M0 shipped (`db904ca`), M1 next.** M0 was added
-> mid-sprint after checking 1.1.70's open question *before* building its
-> mitigations — see "What M0 changed" below. Milestone order is now
-> **M0 (done) → M1 → M2 → M3 → M5 → M6**, with M4 the only cut.
+> **Status 2026-08-10: M0, M1, M2, M3, M5 and M6 all shipped. M4 stays cut.**
+> Backend `make test-fast` 2905 passed (2801 at M0), frontend 1567 / 188 files,
+> both lints clean, production build compiles.
+>
+> **Before this reaches a student: `make seed ENV=dev|test|prod`.** M5 changed
+> four `SKILL.md` `openingTemplate`s, and a deploy alone leaves the old ones
+> live — the works-in-tests-but-not-deployed footgun. Nothing is browser-verified
+> yet; Aswin is the verification path.
+>
+> See "What the docs got wrong" below — checking each doc's own open questions
+> before building against them changed the implementation in all four cases,
+> twice into work the doc did not describe at all.
 
 ## Summary
 
@@ -139,6 +147,22 @@ cannot see; M3 is the only remaining fix for the one prod-reachable route to the
 progress bug. Those are assessment-integrity issues in the week teachers start
 trusting the output. M5/M6 are small and user-visible — drop them before M3.
 
+### What the docs got wrong (2026-08-10)
+
+Four for four, and none of them cosmetic. Recorded here and in each doc.
+
+| Doc | Its premise | What was true |
+|---|---|---|
+| **1.1.69** OQ2 | solution + document have "almost certainly" the same gap | **No.** A solution rides a multimodal chat *turn*; a document rides the artifact loader. Neither writes `mcp_app_context`, so synthesising `EMPTY` would be **false** the moment a student submits — the conflation inverted. Explicit `NoFillChannel` instead. |
+| **1.1.70** M1 | the block is composed once per session, so it can assert *"you did not witness this"* | **`create_agent_with_thinking` runs per REQUEST.** Build time *is* per-turn, so that sentence would be a falsehood from turn two about the tutor's own marks. Block now states the store's facts and lets the model check its own conversation. |
+| **1.1.72** OQ1 | templates "may now conflict" with the new block | **Three of four hardcoded the language.** The opening block is appended *after* the language directive and later instruction wins — so the templates silently beat the teacher's English setting on the one turn with nothing to infer from. The Python change alone would have failed M5's own acceptance criterion, invisibly. |
+| **1.1.63** M4 | frontend, ~0.5d | **Mostly backend.** The resolver is `resolve_voice`, shared by `/config` and `/synthesize`. It also had a live bug: it resolved the activity by *skill* id, so since ALS-1 M0 the activity **persona** has not reached the voice either. And the swap must be provider-aware — every shipped persona is Gemini-tier with a bare voice name, and substituting a WaveNet voice would have dropped all five out of Gemini-TTS and discarded their Style Instructions. |
+
+The budget test the plan insisted on writing first also earned its keep on the
+first run: 13,175 characters against a 13,000 ceiling with **every individual
+block inside its own cap**. The excess was duplication — two near-identical
+contract paragraphs — now one shared contract.
+
 ## Risks
 
 | Risk | Mitigation |
@@ -158,6 +182,22 @@ trusting the output. M5/M6 are small and user-visible — drop them before M3.
 
 ## Post-sprint
 
-The `workbench-element-builder` skill gains a **fourth** rule if M1 lands: an
-element must report its fill state, not only its existence. Three of the four
-rules in that skill now exist because the same class of bug shipped twice.
+The `workbench-element-builder` skill gains a **fourth** rule now that M1 has
+landed: an element must report its fill state, not only its existence — and if
+it has no observable fill channel it must say so positively
+(`NoFillChannel(reason=…)`), because a fabricated `EMPTY` is worse than
+silence. Three of the four rules in that skill now exist because the same class
+of bug shipped twice.
+
+Also outstanding:
+
+- **Seed all three environments** (`make seed ENV=…`) — M5's template edits.
+- **Browser verification** of every milestone; none of PREPILOT-1 or PILOT-1
+  has been driven in a real browser.
+- **1.1.71 multi-table** stays deferred; M1's table reader matches a snapshot
+  by `tableId` and reports every *other* authored table `EMPTY`, which is right
+  far more often than not (a student working a second table has by definition
+  touched it) but is a direct consequence of the shared `table.state` key that
+  1.1.71 exists to fix.
+- **`security-audit`** still red on one transitive dep (`h2` 4.3.0 → 4.4.1),
+  owned elsewhere.

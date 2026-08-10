@@ -42,6 +42,8 @@ interface ChatMessageListProps {
   isLoading: boolean;
   error: StreamError | null;
   skillId: string;
+  /** Activity whose language + persona the read-aloud voice follows (1.1.63 M4). */
+  activityId?: string | null;
   /** Optional human-readable skill label used as the bubble byline
    * (e.g. "Problem-set hints (Boldkast)"). When omitted, MessageBubble
    * falls back to `skillId` itself. 1.1.11 — added so the chat page
@@ -103,6 +105,7 @@ export function ChatMessageList({
   isLoading,
   error,
   skillId,
+  activityId = null,
   skillDisplayName,
   persona,
   userInitial,
@@ -250,6 +253,7 @@ export function ChatMessageList({
                   <MessageBubble
                     message={m}
                     skillId={skillId}
+                    activityId={activityId}
                     persona={persona}
                     userInitial={userInitial}
                     userDisplayName={userDisplayName}
@@ -294,6 +298,7 @@ export function ChatMessageList({
               <MessageBubble
                 message={m}
                 skillId={skillId}
+                activityId={activityId}
                 skillDisplayName={skillDisplayName}
                 persona={persona}
                 userInitial={userInitial}

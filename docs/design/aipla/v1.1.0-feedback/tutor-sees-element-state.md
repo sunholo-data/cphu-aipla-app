@@ -1,6 +1,6 @@
 # The tutor sees element STATE, not just existence
 
-**Status:** Design (OPEN) — **P0.** Written 2026-08-10 from Aswin's 2026-08-10 feedback. Direct follow-on to [1.1.62](workbench-element-awareness.md), and a consequence of a decision made there.
+**Status:** **SHIPPED** (M1+M2+M3, 2026-08-10, sprint PILOT-1) — was Design (OPEN), P0. Written 2026-08-10 from Aswin's 2026-08-10 feedback. Direct follow-on to [1.1.62](workbench-element-awareness.md), and a consequence of a decision made there.
 **Priority:** **P0** — the pilot is live-adjacent (teacher pilot 2026-08-14). A tutor that marks a learning outcome on a student's unverifiable *"done"* is worse than one that never marks: it produces confident, wrong assessment data, and 1.1.62 M3 just made marking automatic.
 **Estimated:** ~1.5–2d (M1 element-state block ~0.75d · M2 empty-state signal at session start ~0.5d · M3 tool-side verification ~0.5d)
 **Scope:** Backend — a state block beside [`adk/element_manifest.py`](../../../../backend/adk/element_manifest.py), read from the same `mcp_app_context` the iframe-context push already writes; a session-start reconcile so untouched elements report *empty* rather than *absent*; and a check in `mark_checklist_item` for steps that name a fillable element.
@@ -180,10 +180,35 @@ existing activities benefit with no re-authoring. Settle before M3.
 ## Open Questions
 
 1. **Step↔element association** — (a)/(b)/(c) above. Blocks M3, not M1/M2.
-2. **Does the same gap apply to the solution editor and document upload?**
-   Almost certainly — both are "student produces something" surfaces with the
-   same interaction-triggered push. Worth confirming and covering in M1 rather
-   than fixing twice.
+2. ~~**Does the same gap apply to the solution editor and document upload?**~~
+   **ANSWERED 2026-08-10 during M1, and the guess was wrong.** Neither has the
+   same gap, and covering them the same way would have created a *worse* bug
+   than the one being fixed.
+
+   Checked against the frontend rather than assumed: a solution is submitted
+   as a **multimodal chat turn** (`SolutionElementMount` →
+   `onProactiveTrigger(SOLUTION_SUBMIT_TEXT, attachments)`), and an uploaded
+   document reaches the tutor through the **artifact loader/injector** and
+   `document_ids`. Neither writes `mcp_app_context` at all. The tutor sees both
+   *in the conversation*, which is a different observation channel, not a
+   missing one.
+
+   So synthesising `EMPTY` for them would be **false the moment a student
+   submits** — the unknown/empty conflation this document exists to remove,
+   inverted. They carry an explicit `NoFillChannel(reason=…)` instead.
+
+   The same reasoning excluded the **checklist**: its authority is the
+   `checklist_progress` store (read fresh by `list_checklist()` and by
+   [1.1.70](progress-conversation-lifetime.md) M1's block), and
+   `mcp_app_context.progress.state` is a client *mirror* of it that would
+   contradict the store on the first AI tick landing before the client
+   re-pushes.
+
+   Consequence for the module's design: unlike the element **manifest**, whose
+   safe default for an undescribed kind is a *generic line* (too-vague beats
+   invisible), the safe default here is **silence** — and so the registry test
+   demands a positive decision, a reader or a documented exclusion, for every
+   registered kind.
 3. **Should an empty element suppress the tutor's *own* wrap-up?** A tutor
    offering to summarise while three tables are empty is the same error one
    level up. Probably yes; needs AR/JB input on tone.

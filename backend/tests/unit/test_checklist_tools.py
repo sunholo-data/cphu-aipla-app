@@ -160,12 +160,24 @@ def test_group_is_captured_from_the_verified_identity_not_a_parameter():
 
     If it were, a prompt-injected student could tick another group's checklist.
     The closure captures it from the verified JWT claim.
+
+    ``tool_context`` (1.1.69 M3) is injected by ADK and excluded from the
+    function declaration the model sees, so it is not a widening of the
+    model-settable surface — but it IS the mechanism by which the tool reads
+    session state, so the assertion below names it explicitly rather than
+    matching loosely.
     """
     import inspect
 
+    from google.adk.tools import ToolContext
+
     params = inspect.signature(_tools()["mark_checklist_item"]).parameters
     assert "group_id" not in params
-    assert set(params) == {"item_id", "done", "evidence_summary"}
+    assert "activity_id" not in params
+    # ``from __future__ import annotations`` makes these string annotations —
+    # ADK matches on the same name, so assert the name it matches on.
+    assert params["tool_context"].annotation in ("ToolContext", ToolContext)
+    assert set(params) - {"tool_context"} == {"item_id", "done", "evidence_summary"}
 
 
 def test_one_groups_ticks_do_not_reach_another():
@@ -224,7 +236,9 @@ def test_state_summary_is_empty_before_anything_is_ticked():
 def test_state_summary_names_done_items_for_the_tutor():
     _tools()["mark_checklist_item"]("a", True, "did it")
     summary = checklist_state_summary(_cfg(), _student())
-    assert "a" in summary
+    # 1.1.70 M1: the teacher's LABEL, not the bare item id the old one-line
+    # form emitted.
+    assert "Mål faldtiden" in summary
 
 
 def test_state_summary_is_empty_for_a_teacher():
@@ -294,3 +308,206 @@ def test_every_per_group_progress_store_is_in_the_reset_script():
 
     for coll in (CHECKLIST_COLLECTION, CONCEPT_COLLECTION):
         assert coll in _TEACHING_COLLECTIONS, f"{coll} survives reset_teaching_data — it will orphan"
+
+
+# ---------------------------------------------------------------------------
+# Marks require verifiable evidence (1.1.69 M3 / PILOT-1 M2)
+#
+# The tool's own docstring says "tick it when you have seen the substance".
+# For a step whose substance is a data table that was UNFOLLOWABLE — nothing
+# ever showed the model the table's contents — so it marked on the student's
+# word and wrote an authoritative evidence sentence a teacher then reads.
+#
+# The check FAILS OPEN everywhere it is not certain. Half these tests are of
+# the fail-open half, on purpose: a refusal the student cannot act on is worse
+# than the bug it replaces.
+# ---------------------------------------------------------------------------
+
+
+def _table_cfg(items, tables):
+    from db.models.activity_config import ActivityConfig
+
+    return ActivityConfig(
+        activityId=ACTIVITY,
+        classId="c1",
+        teacherUid="t1",
+        checklist=[ChecklistItem(id=i, label=lbl) for i, lbl in items],
+        table=tables,
+        updatedAt=datetime.now(UTC),
+    )
+
+
+def _table(id_="t1", title="Faldforsøg", rows=5):
+    from db.models.activity_config import TableColumn, TableElement
+
+    return TableElement(
+        id=id_,
+        title=title,
+        columns=[TableColumn(id="h", label="højde", unit="m"), TableColumn(id="t", label="tid", unit="s")],
+        rows=rows,
+    )
+
+
+class _Ctx:
+    """ADK injects a ToolContext; the tool reads only ``.state`` off it."""
+
+    def __init__(self, state: dict | None = None):
+        self.state = state or {}
+
+
+def _table_state(table_id="t1", filled=0):
+    return {"mcp_app_context.table.state": {"structuredContent": {"tableId": table_id, "filledCells": filled}}}
+
+
+def test_done_on_an_empty_table_produces_no_mark():
+    """**Aswin's exact case.** The step names the table, the table is empty,
+    the student says done. Nothing is recorded and the model is told why."""
+    cfg = _table_cfg([("a", "Udfyld tabellen Faldforsøg med dine målinger")], [_table()])
+    out = _tools(cfg=cfg)["mark_checklist_item"]("a", True, "Eleven siger de er færdige", _Ctx())
+
+    assert out["ok"] is False
+    assert "Faldforsøg" in out["error"]
+    assert "0 of 10" in out["error"]
+    assert get_item_states(GROUP, ACTIVITY) == {}
+
+
+def test_the_refusal_tells_the_model_what_to_do_instead():
+    """A bare refusal leaves the model to guess, and it guesses by retrying."""
+    cfg = _table_cfg([("a", "Udfyld tabellen Faldforsøg")], [_table()])
+    err = _tools(cfg=cfg)["mark_checklist_item"]("a", True, "done", _Ctx())["error"].lower()
+    assert "ask them to fill it in" in err
+    assert "say-so" in err
+
+
+def test_a_mark_still_succeeds_once_the_table_has_data():
+    cfg = _table_cfg([("a", "Udfyld tabellen Faldforsøg")], [_table()])
+    out = _tools(cfg=cfg)["mark_checklist_item"]("a", True, "målte tre gange", _Ctx(_table_state(filled=6)))
+    assert out["ok"] is True
+    assert get_item_states(GROUP, ACTIVITY)["a"]["done"] is True
+
+
+def test_the_step_is_matched_by_the_kind_noun_when_there_is_one_table():
+    """ "Udfyld tabellen" can only mean the single table on the activity."""
+    cfg = _table_cfg([("a", "Udfyld tabellen")], [_table()])
+    assert _tools(cfg=cfg)["mark_checklist_item"]("a", True, "done", _Ctx())["ok"] is False
+
+
+# --- fail-open: everything uncertain marks exactly as before ---------------
+
+
+def test_an_unrelated_step_is_not_refused():
+    """The step is about a calculation on paper; the table is beside the point.
+    A refusal here would block work the tutor legitimately witnessed."""
+    cfg = _table_cfg([("a", "Forklar hvorfor accelerationen er konstant")], [_table()])
+    assert _tools(cfg=cfg)["mark_checklist_item"]("a", True, "forklarede det korrekt", _Ctx())["ok"] is True
+
+
+def test_a_step_naming_another_table_does_not_refuse_on_this_one():
+    cfg = _table_cfg(
+        [("a", "Udfyld tabellen Energiforsøg")], [_table(title="Faldforsøg"), _table("t2", "Energiforsøg")]
+    )
+    # "Energiforsøg" is empty too — so this SHOULD refuse, naming the right one.
+    err = _tools(cfg=cfg)["mark_checklist_item"]("a", True, "done", _Ctx())["error"]
+    assert "Energiforsøg" in err
+    assert "Faldforsøg" not in err
+
+
+def test_ambiguous_kind_reference_with_two_tables_fails_open():
+    """ "Udfyld tabellen" with two tables names neither — allow the mark."""
+    cfg = _table_cfg([("a", "Udfyld tabellen")], [_table(), _table("t2", "Anden")])
+    assert _tools(cfg=cfg)["mark_checklist_item"]("a", True, "done", _Ctx())["ok"] is True
+
+
+def test_no_tool_context_fails_open():
+    """Nothing that reads session state may become a hard dependency of
+    marking. If ADK stops injecting the context, marks keep working."""
+    cfg = _table_cfg([("a", "Udfyld tabellen Faldforsøg")], [_table()])
+    assert _tools(cfg=cfg)["mark_checklist_item"]("a", True, "done")["ok"] is True
+
+
+def test_an_activity_with_no_elements_is_unaffected():
+    assert _tools()["mark_checklist_item"]("a", True, "did it", _Ctx())["ok"] is True
+
+
+def test_unmarking_is_never_refused():
+    """A tutor correcting its own wrong tick must always be able to, and an
+    empty table is exactly the situation where it needs to."""
+    cfg = _table_cfg([("a", "Udfyld tabellen Faldforsøg")], [_table()])
+    record_item_state(GROUP, ACTIVITY, "a", done=True, by="ai", evidence_summary="premature")
+    out = _tools(cfg=cfg)["mark_checklist_item"]("a", False, "tabellen er faktisk tom", _Ctx())
+    assert out["ok"] is True
+    assert get_item_states(GROUP, ACTIVITY)["a"]["done"] is False
+
+
+# ---------------------------------------------------------------------------
+# Inherited progress (1.1.70 M1 / PILOT-1 M3)
+#
+# Aswin, 2026-08-10: *"I stopped for a while and then previous chats were
+# removed. I then started again with the same code, but then Jonas only asked
+# me one question ... He then said already marked the learning goals."*
+#
+# Nothing malfunctioned to produce that. ``checklist_progress`` is keyed by
+# (group, activity) and never by session — deliberately, because a group works
+# across devices. The gap is that inherited progress and progress the tutor
+# just watched happen read identically.
+# ---------------------------------------------------------------------------
+
+
+def test_the_block_carries_provenance_and_evidence():
+    """A student can ask what was marked and why, and get the recorded answer."""
+    _tools()["mark_checklist_item"]("a", True, "målte faldtiden tre gange og fik 0,45 s")
+    summary = checklist_state_summary(_cfg(), _student())
+    assert "by you (the AI)" in summary
+    assert "0,45 s" in summary
+
+
+def test_a_student_mark_is_attributed_to_the_student():
+    record_item_state(GROUP, ACTIVITY, "a", done=True, by="student")
+    assert "by the student" in checklist_state_summary(_cfg(), _student())
+
+
+def test_the_block_dates_each_mark():
+    """Age is the fact that separates this morning's work from three weeks
+    ago's, and it is already in the store."""
+    from datetime import datetime as _dt
+
+    _tools()["mark_checklist_item"]("a", True, "did it")
+    assert f" on {_dt.now(UTC).date().isoformat()}" in checklist_state_summary(_cfg(), _student())
+
+
+def test_it_points_at_the_first_outstanding_step_not_the_end():
+    """The reported behaviour was a wrap-up after one question. This is the
+    instruction that blocks it."""
+    _tools()["mark_checklist_item"]("a", True, "did it")
+    summary = checklist_state_summary(_cfg(), _student())
+    assert 'Continue from "Beregn gennemsnittet"' in summary
+    assert "first step that is NOT done" in summary
+
+
+def test_all_steps_done_does_not_declare_the_activity_over():
+    tools = _tools()
+    tools["mark_checklist_item"]("a", True, "did it")
+    tools["mark_checklist_item"]("b", True, "did it")
+    summary = checklist_state_summary(_cfg(), _student())
+    assert "check the student agrees" in summary
+
+
+def test_no_progress_composes_exactly_as_before():
+    assert checklist_state_summary(_cfg(), _student()) == ""
+
+
+def test_a_teacher_preview_gets_no_progress_block():
+    record_item_state(GROUP, ACTIVITY, "a", done=True, by="ai", evidence_summary="x")
+    assert checklist_state_summary(_cfg(), _teacher()) == ""
+
+
+def test_only_this_groups_progress_is_reported():
+    record_item_state(OTHER_GROUP, ACTIVITY, "a", done=True, by="ai", evidence_summary="other group")
+    assert checklist_state_summary(_cfg(), _student(GROUP)) == ""
+
+
+def test_state_recorded_for_a_step_the_teacher_has_since_deleted_is_ignored():
+    """A teacher editing the checklist must not leave the tutor reading marks
+    against steps that no longer exist."""
+    record_item_state(GROUP, ACTIVITY, "deleted-step", done=True, by="ai", evidence_summary="gone")
+    assert checklist_state_summary(_cfg(), _student()) == ""

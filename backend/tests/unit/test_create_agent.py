@@ -473,3 +473,259 @@ def test_absent_activity_id_falls_back_to_skill_id():
     with patch("adk.agent.inject_teacher_focus", side_effect=_capture):
         create_agent(_skill(skill_id="concept-skill-uuid"), _user())
     assert captured["activity_id"] == "concept-skill-uuid"
+
+
+# --- PILOT-1: the per-activity blocks are actually WIRED ------------------
+#
+# ``checklist_state_summary`` and ``checkpoint_state_summary`` were written,
+# exported and unit-tested in 1.1.62 / CONCEPT-1 — and never wired into the
+# agent, so the tutor only ever learned about progress by asking. The unit
+# tests passed the whole time. These tests assert the composition, not the
+# function, so a block that stops reaching the model fails here.
+
+
+@pytest.fixture
+def _activity_env(monkeypatch):
+    """LOCAL_MODE with a clean Firestore stub, so ``resolve_active_config``
+    resolves the workshop (teacher, class) tuple the factory falls back to."""
+    from db import firestore as fs_module
+
+    monkeypatch.setenv("LOCAL_MODE", "1")
+    fs_module._reset_client_for_testing()
+    yield
+    fs_module._reset_client_for_testing()
+
+
+def _seed_activity(activity_id: str, **kwargs):
+    from adk.teacher_focus import LOCAL_MODE_DEMO_CLASS_ID
+    from db.activity_configs import upsert_activity_config
+    from db.local_fixture import WORKSHOP_USER_UID
+
+    kwargs.setdefault("teaching_goal", "Mål faldtiden og beregn g.")
+    return upsert_activity_config(
+        teacher_uid=WORKSHOP_USER_UID,
+        class_id=LOCAL_MODE_DEMO_CLASS_ID,
+        activity_id=activity_id,
+        **kwargs,
+    )
+
+
+def _student(group_id: str = "sweet-bison-13") -> User:
+    """An anonymous-group student: no email, no domain, a synthetic uid."""
+    return User(
+        uid=f"group-{group_id}",
+        email="",
+        domain="",
+        group_id=group_id,
+        auth_mode="anonymous_group_id",
+    )
+
+
+def test_element_state_block_reaches_the_model_on_turn_one(_activity_env):
+    """**Aswin's case, end to end (1.1.69).**
+
+    An authored table the student has never touched. No ``mcp_app_context``
+    entry exists, so before this sprint the composed instruction said nothing
+    about the table's contents and "done" could not be challenged.
+    """
+    import asyncio
+    from unittest.mock import MagicMock
+
+    from db.models.activity_config import TableColumn, TableElement
+
+    skill_id = "22222222-2222-2222-2222-222222222222"
+    _seed_activity(
+        skill_id,
+        table=[
+            TableElement(
+                id="t1",
+                title="Faldforsøg",
+                columns=[TableColumn(id="h", label="højde", unit="m"), TableColumn(id="t", label="tid", unit="s")],
+                rows=5,
+            )
+        ],
+    )
+
+    agent = create_agent(_skill(skill_id=skill_id), _student())
+    ctx = MagicMock()
+    ctx.state = {}
+    resolved = asyncio.run(agent.instruction(ctx))
+
+    assert "Workbench state right now" in resolved
+    assert "EMPTY" in resolved
+    assert "0 of 10 cells filled" in resolved
+
+
+def test_element_state_block_tracks_state_within_the_session(_activity_env):
+    """The staleness guard at the composition level: the SAME agent must report
+    a different fill state once the student enters data. A build-time string
+    would report EMPTY for the rest of the session."""
+    import asyncio
+    from unittest.mock import MagicMock
+
+    from db.models.activity_config import TableColumn, TableElement
+
+    skill_id = "33333333-3333-3333-3333-333333333333"
+    _seed_activity(
+        skill_id,
+        table=[TableElement(id="t1", title="Faldforsøg", columns=[TableColumn(id="h", label="h")], rows=3)],
+    )
+    agent = create_agent(_skill(skill_id=skill_id), _student())
+
+    empty_ctx = MagicMock()
+    empty_ctx.state = {}
+    filled_ctx = MagicMock()
+    filled_ctx.state = {
+        "mcp_app_context.table.state": {"structuredContent": {"tableId": "t1", "filledCells": 3}},
+    }
+
+    assert "EMPTY" in asyncio.run(agent.instruction(empty_ctx))
+    assert "COMPLETE" in asyncio.run(agent.instruction(filled_ctx))
+
+
+def test_no_activity_composes_exactly_as_before(_activity_env):
+    """Graceful degradation: a skill with no saved activity must not gain a
+    single character."""
+    import asyncio
+    from unittest.mock import MagicMock
+
+    agent = create_agent(_skill(), _student())
+    ctx = MagicMock()
+    ctx.state = {}
+    assert asyncio.run(agent.instruction(ctx)) == "Do the thing."
+
+
+def test_inherited_checklist_progress_reaches_the_model(_activity_env):
+    """**Aswin's case, end to end (1.1.70).**
+
+    Ticks recorded under one session; build the agent for a NEW session, same
+    group; the composed instruction must carry them, labelled.
+    """
+    import asyncio
+    from unittest.mock import MagicMock
+
+    from db.checklist_progress import record_item_state
+    from db.models.activity_config import ChecklistItem
+
+    skill_id = "44444444-4444-4444-4444-444444444444"
+    _seed_activity(
+        skill_id,
+        checklist=[
+            ChecklistItem(id="a", label="Mål bølgelængden"),
+            ChecklistItem(id="b", label="Beregn frekvensen"),
+        ],
+    )
+    # Session A's work. The conversation that earned it is gone.
+    record_item_state("sweet-bison-13", skill_id, "a", done=True, by="ai", evidence_summary="målte 3/2 bølgelængder")
+
+    # Session B: a brand-new agent for the same group.
+    agent = create_agent(_skill(skill_id=skill_id), _student("sweet-bison-13"))
+    ctx = MagicMock()
+    ctx.state = {}
+    resolved = asyncio.run(agent.instruction(ctx))
+
+    assert "Checklist progress already recorded for this group" in resolved
+    assert "målte 3/2 bølgelængder" in resolved
+    assert "NOT to this conversation" in resolved
+    assert 'Continue from "Beregn frekvensen"' in resolved
+
+
+def test_inherited_checkpoint_progress_reaches_the_model(_activity_env):
+    """The twin. ``checkpoint_state_summary`` was dead in exactly the same way,
+    and wiring one while leaving the other is how this recurs."""
+    import asyncio
+    from unittest.mock import MagicMock
+
+    from db.concept_progress import record_checkpoint_state
+    from db.models.activity_config import ConceptMapElement, ConceptNode
+
+    skill_id = "55555555-5555-5555-5555-555555555555"
+    cfg = _seed_activity(skill_id)
+    # concept_map has no upsert_activity_config parameter — write it directly,
+    # which is what the authoring route does.
+    from db.activity_configs import _COLLECTION, _to_firestore
+    from db.firestore import set_document
+    from db.models.activity_config import ActivityConfig
+
+    cfg.concept_map = [
+        ConceptMapElement(
+            id="cm",
+            title="Bølger",
+            nodes=[ConceptNode(id="vektorer", label="Vektorer"), ConceptNode(id="bolger", label="Bølger")],
+        )
+    ]
+    set_document(
+        _COLLECTION,
+        ActivityConfig.doc_id(cfg.teacher_uid, cfg.class_id, skill_id),
+        _to_firestore(cfg),
+    )
+    record_checkpoint_state("sweet-bison-13", skill_id, "vektorer", "demonstrated", "dekomponerede uden hjælp")
+
+    agent = create_agent(_skill(skill_id=skill_id), _student("sweet-bison-13"))
+    ctx = MagicMock()
+    ctx.state = {}
+    resolved = asyncio.run(agent.instruction(ctx))
+
+    assert "Concept checkpoints already recorded for this group" in resolved
+    assert "Vektorer" in resolved
+
+
+def test_a_group_with_no_progress_gains_nothing(_activity_env):
+    """Graceful degradation, and the guard against paying for a block nobody
+    needs: a first-ever session composes byte-identically to before 1.1.70."""
+    import asyncio
+    from unittest.mock import MagicMock
+
+    from db.models.activity_config import ChecklistItem
+
+    skill_id = "66666666-6666-6666-6666-666666666666"
+    _seed_activity(skill_id, checklist=[ChecklistItem(id="a", label="Mål bølgelængden")])
+
+    agent = create_agent(_skill(skill_id=skill_id), _student("fresh-group-1"))
+    ctx = MagicMock()
+    ctx.state = {}
+    resolved = asyncio.run(agent.instruction(ctx))
+
+    assert "already recorded for this group" not in resolved
+
+
+def test_no_progress_summary_is_left_defined_but_unwired():
+    """**The guard that would have caught 1.1.62 / CONCEPT-1.**
+
+    Both summaries were written, exported and unit-tested — and never reached
+    the agent, so the tutor only ever learned about progress by asking. Their
+    unit tests passed the whole time; nothing asserted the composition.
+
+    Two links have to hold, and this asserts both by name: every
+    ``*_state_summary`` the ``adk`` package exports is called by the designated
+    composer (``adk.progress_context``), and that composer is called by the
+    agent factory. A new per-group store that adds a summary and forgets to
+    wire it fails here.
+    """
+    import importlib
+    import inspect
+    import pkgutil
+
+    import adk
+
+    composer = importlib.import_module("adk.progress_context")
+    composer_src = inspect.getsource(composer)
+    factory_src = inspect.getsource(importlib.import_module("adk.agent"))
+
+    assert "compose_progress_context(" in factory_src, (
+        "adk.progress_context is not called by the agent factory — every summary below is dead "
+        "code again regardless of what this test finds."
+    )
+
+    unwired = [
+        f"adk.{mod.name}.{name}"
+        for mod in pkgutil.iter_modules(adk.__path__)
+        for name in getattr(importlib.import_module(f"adk.{mod.name}"), "__all__", [])
+        if name.endswith("_state_summary") and f"{name}," not in composer_src and f"{name})" not in composer_src
+    ]
+
+    assert not unwired, (
+        f"state summaries defined but never composed: {sorted(unwired)}. Ambient progress context "
+        "only works if it reaches the instruction — add it to compose_progress_context in "
+        "adk/progress_context.py."
+    )

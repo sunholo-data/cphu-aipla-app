@@ -25,11 +25,19 @@ from typing import Any
 
 from google.adk.tools import FunctionTool
 
+from adk.prompt_budget import fit_lines, short_date
 from auth.firebase_auth import User
 from db.concept_progress import get_node_states, record_checkpoint_state
 from db.models.activity_config import ActivityConfig, ConceptMapElement
 
 logger = logging.getLogger(__name__)
+
+# This block's share of the per-turn prompt budget. A 30-node map with labels
+# is the model's maximum; bounded here like every other variable-length
+# contributor (teacher_focus._CONCEPT_MAP_CAP is the same idea for the map's
+# own structural block).
+CHECKPOINT_SUMMARY_CAP = 800
+_CHECKPOINT_BODY_CAP = 700
 
 
 def _node_list(cmap: ConceptMapElement) -> list[dict[str, str]]:
@@ -131,16 +139,47 @@ def build_checkpoint_tools(cfg: ActivityConfig | None, user: User) -> list[Funct
 
 
 def checkpoint_state_summary(cfg: ActivityConfig | None, user: User) -> str:
-    """A compact per-session status line for the tutor's context — which
-    concepts are already demonstrated/partial for this group. Empty when there
-    is nothing to say (no map, no group, or no recorded state yet)."""
+    """The group's recorded concept checkpoints, as ambient context (1.1.70 M1).
+
+    Dead in exactly the same way as ``checklist_state_summary`` — written,
+    exported, unit-tested, never wired — and fixed the same way, deliberately.
+    Wiring one and leaving the other is how this class of bug recurs: the
+    concept store has the identical (group, activity) key, the identical
+    survives-a-new-session lifetime, and therefore the identical failure where
+    the tutor treats a checkpoint it never saw as one it just ran.
+
+    Node ids are replaced with the teacher's LABELS here. The old one-line form
+    (``vektorer=demonstrated``) named ids the model has to cross-reference
+    against the concept-map block to say anything useful about.
+
+    Returns "" when nothing is recorded, so an activity with no checkpoints
+    composes exactly as it did before this was wired.
+    """
     if cfg is None or not cfg.concept_map or not user.group_id:
         return ""
     states = get_node_states(user.group_id, cfg.activity_id)
     if not states:
         return ""
-    parts = [f"{nid}={s.get('status')}" for nid, s in sorted(states.items())]
-    return "Current checkpoint state for this group: " + ", ".join(parts)
+
+    cmap = cfg.concept_map[0]
+    labels = {n.id: n.label for n in cmap.nodes}
+    lines: list[str] = []
+    for node in cmap.nodes:
+        s = states.get(node.id) or {}
+        status = s.get("status")
+        if not status:
+            continue
+        when = short_date(s.get("updatedAt"))
+        lines.append(f'- "{labels.get(node.id, node.id)}": {status}{when}')
+
+    if not lines:
+        return ""
+
+    kept, dropped = fit_lines(lines, _CHECKPOINT_BODY_CAP)
+    if dropped:
+        kept.append(f"(+{dropped} more concepts)")
+
+    return "## Concept checkpoints already recorded for this group\n" + "\n".join(kept)
 
 
-__all__ = ["build_checkpoint_tools", "checkpoint_state_summary"]
+__all__ = ["CHECKPOINT_SUMMARY_CAP", "build_checkpoint_tools", "checkpoint_state_summary"]

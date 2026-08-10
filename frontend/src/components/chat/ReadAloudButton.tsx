@@ -47,6 +47,10 @@ interface ReadAloudButtonProps {
   /** Optional skill id passed through to the synthesize endpoint so
    * server-side cost spans tag the right skill. */
   skillId?: string;
+  /** Optional activity id (1.1.63 M4). /synthesize re-resolves the voice
+   * server-side, so it needs the same activity /config was asked about —
+   * otherwise the advertised voice and the spoken one disagree. */
+  activityId?: string | null;
   /** Optional className to control sizing / colour from the parent. */
   className?: string;
   /** 1.1.11 auto-read: when true, the button auto-fires once on mount.
@@ -178,6 +182,7 @@ export function ReadAloudButton({
   provider = "browser",
   voice = null,
   skillId,
+  activityId = null,
   className,
   autoSpeakOnMount = false,
 }: ReadAloudButtonProps) {
@@ -333,6 +338,7 @@ export function ReadAloudButton({
           lang: detectedLang,
           voice,
           skillId,
+          activityId,
         }),
         signal: controller.signal,
       });

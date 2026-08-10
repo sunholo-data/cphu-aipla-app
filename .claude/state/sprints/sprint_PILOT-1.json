@@ -37,7 +37,7 @@
       "description": "Per-turn fill-state block over mcp_app_context, registry-driven. Server-side synthesis of EMPTY for authored-but-untouched elements so 'unknown' and 'empty' stop collapsing.",
       "scope": "backend",
       "estimated_loc": 320,
-      "actual_loc": null,
+      "actual_loc": 560,
       "dependencies": [],
       "acceptance_criteria": [
         "An authored, untouched table reports EMPTY in turn one's context",
@@ -47,19 +47,27 @@
         "Composed-prompt budget test EXTENDED FIRST, before the block is written",
         "Registry-completeness: every element kind has a fill reader where it has a describer"
       ],
-      "files_to_create": [],
-      "files_to_modify": [],
-      "passes": null,
-      "started": null,
-      "completed": null,
-      "notes": "Budget risk: two new per-turn blocks on a budget already shared five ways (_TOTAL_FOCUS_CAP=8000). PREPILOT-1's cap test found a pre-existing overflow; extend it before adding."
+      "files_to_create": [
+        "backend/adk/element_state.py",
+        "backend/adk/prompt_budget.py",
+        "backend/tests/unit/test_element_state.py"
+      ],
+      "files_to_modify": [
+        "backend/adk/agent.py",
+        "backend/tests/unit/test_teacher_focus.py",
+        "backend/tests/unit/test_create_agent.py"
+      ],
+      "passes": true,
+      "started": "2026-08-10",
+      "completed": "2026-08-10",
+      "notes": "Budget test written FIRST, as the plan required, and it EARNED ITS KEEP: the first full composition came to 13,175 chars against the 13,000 ceiling even though every individual block was inside its own cap. Cause was real duplication - the checklist and checkpoint blocks each carried a near-identical contract paragraph (~450 chars of the same instruction twice, for the model to reconcile). Merged into one shared contract in adk/progress_context.py; now 12,213 + contract. The budget test now asserts against a DECLARED, commented constant (_PER_TURN_ACTIVITY_BUDGET) rather than an arbitrary number, so raising it is a visible decision. DOC PREMISE CORRECTED - 1.1.69 Open Question 2 guessed 'almost certainly' that solution + document have the same gap. They do NOT: a solution is submitted as a multimodal chat TURN (SolutionElementMount -> onProactiveTrigger) and an uploaded document rides the artifact loader/injector, so the tutor sees both in the conversation and neither writes mcp_app_context. Synthesising EMPTY for them would be FALSE the moment a student submits - the unknown/empty conflation inverted. They get an explicit NoFillChannel(reason=...) instead. Checklist likewise excluded: its authority is the Firestore store, and a third client-mirrored view would contradict it after the first AI tick. Registry test asserts every kind carries a POSITIVE decision (reader or documented exclusion) - note the default here is SILENCE, the opposite of the manifest's generic line, because a fabricated EMPTY is worse than saying nothing."
     },
     {
       "id": "M2-MARKS-NEED-EVIDENCE",
       "description": "mark_checklist_item refuses when the step's associated element is demonstrably empty. Closes the loop where the tool's own instruction ('do not tick just because the student says done') was unfollowable.",
       "scope": "backend",
       "estimated_loc": 180,
-      "actual_loc": null,
+      "actual_loc": 240,
       "dependencies": [
         "M1-ELEMENT-FILL-STATE"
       ],
@@ -71,18 +79,22 @@
         "FAILS OPEN: no confident association -> allow the mark (a false refusal is worse than the status quo)"
       ],
       "files_to_create": [],
-      "files_to_modify": [],
-      "passes": null,
-      "started": null,
-      "completed": null,
-      "notes": "This is the assessment-integrity half. A confidently-wrong mark becomes teacher-facing data."
+      "files_to_modify": [
+        "backend/adk/element_state.py",
+        "backend/adk/checklist_tools.py",
+        "backend/tests/unit/test_checklist_tools.py"
+      ],
+      "passes": true,
+      "started": "2026-08-10",
+      "completed": "2026-08-10",
+      "notes": "Reads session state via ADK's tool_context injection (the adk/tools.py:46 precedent), so group_id and activity_id stay out of the model-settable surface - the existing security test was tightened rather than loosened to prove it. Association is label-based, option (a): the step names the element, OR the step names the KIND and the activity has exactly one of that kind ('Udfyld tabellen'). The calculator gets NO kind-noun rule on purpose - 'beregn' is the ordinary Danish verb for 'calculate', so 'Beregn gennemsnittet' is a TASK, and matching it would refuse marks for work done on paper. Fails open everywhere else, and never blocks UN-marking: a tutor correcting its own premature tick must always be able to. Refusals log (Axiom 8) - a counterfactual is otherwise invisible."
     },
     {
       "id": "M3-INHERITED-PROGRESS",
       "description": "Wire checklist_state_summary AND checkpoint_state_summary \u2014 both currently dead code \u2014 with provenance and a continue-from-first-outstanding contract.",
       "scope": "backend",
       "estimated_loc": 200,
-      "actual_loc": null,
+      "actual_loc": 430,
       "dependencies": [],
       "acceptance_criteria": [
         "A fresh session with prior ticks contains an inherited-progress block",
@@ -92,12 +104,19 @@
         "A test FAILS if either summary is defined-but-unwired",
         "No progress -> empty string -> composes exactly as today"
       ],
-      "files_to_create": [],
-      "files_to_modify": [],
-      "passes": null,
-      "started": null,
-      "completed": null,
-      "notes": "RESTORED to the floor 2026-08-10, after being demoted an hour earlier. The demotion was right about Aswin's case and WRONG about prod. Three routes reach the orphaned-progress state: (a) reset_teaching_data \u2014 DEV ONLY, hard _DEV_PROJECTS allowlist refuses any other project, so Aswin's exact trigger cannot happen in test/prod; (b) teacher [Reset session] \u2014 reachable in prod, a normal classroom action, FIXED by M0; (c) group-code TTL expiry \u2014 _archive_expired_session archives the session and does NOT touch progress, STILL OPEN and reachable in prod (default TTL 30d, so plausible within a pilot running from 2026-08-14). M3 is now the ONLY fix for route (c), and clearing progress there would be WRONG: a teacher pressing Reset states an intent ('start over'); a code expiring is administrative and nobody asked for anything. Wiping a class's earned assessment evidence because a TTL lapsed would be worse than the bug it prevents, with no undo. So (c) is handled by LABELLING inherited progress, not by deleting it. Both summaries were written, exported, unit-tested and never wired \u2014 shipped in the sprint that criticised ActivityConfig.language for exactly this."
+      "files_to_create": [
+        "backend/adk/progress_context.py",
+        "backend/tests/unit/test_progress_context.py"
+      ],
+      "files_to_modify": [
+        "backend/adk/checklist_tools.py",
+        "backend/adk/checkpoint_tools.py",
+        "backend/adk/agent.py"
+      ],
+      "passes": true,
+      "started": "2026-08-10",
+      "completed": "2026-08-10",
+      "notes": "DOC PREMISE CORRECTED, and it was load-bearing. 1.1.70's draft wording was 'progress from an EARLIER session, which you did not witness', on the premise that the block is composed once at agent build. It is not: create_agent_with_thinking is called from skills.skill_processor.process_skill_request on EVERY REQUEST, so agent-build time IS per-turn. That wording would have been a falsehood from turn two onward - about marks the tutor made itself, which it can see in its own conversation. The block now states what the store actually knows (who marked it, when, with what evidence) and asks the model to compare against the conversation it is in. Every behaviour the doc wanted survives: the record is not a memory, continue from the first OUTSTANDING step, do not re-test, a mark is not a verdict. A test pins the difference so the stronger claim cannot be reinstated without re-reading why. The unwired-guard asserts BOTH links: every adk *_state_summary is called by the designated composer, and the composer is called by the factory."
     },
     {
       "id": "M4-STUDENT-CONTINUITY",
@@ -125,7 +144,7 @@
       "description": "Pass the resolved ActivityConfig into inject_opening_guidance so the greet turn names the lesson.",
       "scope": "backend",
       "estimated_loc": 140,
-      "actual_loc": null,
+      "actual_loc": 300,
       "dependencies": [],
       "acceptance_criteria": [
         "A wave activity opens by naming waves",
@@ -135,18 +154,27 @@
         "Bounded; does not duplicate what {teacher_focus} already carries"
       ],
       "files_to_create": [],
-      "files_to_modify": [],
-      "passes": null,
-      "started": null,
-      "completed": null,
-      "notes": "Pure parameter-passing \u2014 _active_cfg is already resolved in the same function. May touch opening_template in a SKILL.md -> SEED REQUIRED."
+      "files_to_modify": [
+        "backend/adk/proactive_greet.py",
+        "backend/adk/agent.py",
+        "backend/skills/templates/concept-dialogue/SKILL.md",
+        "backend/skills/templates/problem-set-hints/SKILL.md",
+        "backend/skills/templates/kinebot-kinematics-tutor/SKILL.md",
+        "backend/skills/templates/led-planck-tutor/SKILL.md",
+        "backend/tests/unit/test_proactive_greet.py",
+        "backend/tests/unit/skills/test_proactive_event_reactive_config.py"
+      ],
+      "passes": true,
+      "started": "2026-08-10",
+      "completed": "2026-08-10",
+      "notes": "SEED REQUIRED (make seed ENV=<env>, all three envs) - four SKILL.md openingTemplates changed. 1.1.72's Open Question 1 ('do the templates need re-authoring?') is ANSWERED YES, and not for the reason the doc expected. THREE of the four hardcoded the language ('Greet them briefly in Danish', 'Hils kort paa dansk'). The opening block is APPENDED AFTER the body that carries the 1.1.63 M2 language directive, and this codebase's convention is that later instruction wins - so those templates silently overrode the teacher's English setting on the ONE turn with no student message to infer from. The M5 acceptance criterion 'an English activity opens in English' would have failed with the Python change alone. Templates now defer to the directive, and a parametrised guard test fails on any future 'in Danish' / 'paa dansk'. concept-dialogue also carried Aswin's reported sentence nearly verbatim ('ask what concept they would like to explore') - now conditioned on no activity being described."
     },
     {
       "id": "M6-VOICE-FOLLOWS-LANGUAGE",
       "description": "Read-aloud voice resolves from activity.language, not the class persona alone.",
-      "scope": "frontend",
+      "scope": "fullstack",
       "estimated_loc": 150,
-      "actual_loc": null,
+      "actual_loc": 420,
       "dependencies": [],
       "acceptance_criteria": [
         "An English activity under a Danish persona reads with an English voice",
@@ -154,12 +182,24 @@
         "Pronunciation rule set follows the same resolved language",
         "Persona voice still wins when the languages agree"
       ],
-      "files_to_create": [],
-      "files_to_modify": [],
-      "passes": null,
-      "started": null,
-      "completed": null,
-      "notes": "The persona's THIRD resolution path drifting from the other two (memory reference-persona-three-resolution-paths). Do NOT fix by translating digits in the text \u2014 that is the TTS voice's job."
+      "files_to_create": [
+        "backend/tests/unit/voice/test_activity_language_voice.py",
+        "frontend/src/hooks/__tests__/useVoiceConfig.activity.test.ts"
+      ],
+      "files_to_modify": [
+        "backend/protocols/voice_routes.py",
+        "backend/voice/voices.py",
+        "backend/adk/teacher_focus.py",
+        "frontend/src/hooks/useVoiceConfig.ts",
+        "frontend/src/components/chat/MessageBubble.tsx",
+        "frontend/src/components/chat/ChatMessageList.tsx",
+        "frontend/src/components/chat/ReadAloudButton.tsx",
+        "frontend/src/app/chat/[...path]/page.tsx"
+      ],
+      "passes": true,
+      "started": "2026-08-10",
+      "completed": "2026-08-10",
+      "notes": "SCOPE CORRECTION: planned as frontend-only, is actually mostly BACKEND. The resolution lives in protocols/voice_routes.py::resolve_voice, the documented single source of truth for BOTH /config (what the frontend asks for, and where the pronunciation ruleset's lang comes from) and /synthesize (which re-resolves server-side). A frontend-only fix would have left those two disagreeing - exactly the drift ResolvedVoice was created to prevent. TWO further findings. (1) PRE-EXISTING BUG, now fixed: resolve_voice called resolve_active_config(SKILL_id), but ALS-1 M0 made the activity a distinct act- id - so the activity's PERSONA has silently not reached the voice since the re-key, and the language fix would have been dead on arrival. activity_id is now threaded through /config, /synthesize, useVoiceConfig (incl. its cache key) and the chat page. (2) The swap must be PROVIDER-AWARE: all five shipped personas are gcp_gemini with BARE voice names (Puck, Aoede) for which GcpTTS treats the caller's lang as authoritative. Substituting an en-US-Wavenet-* there would have dropped every persona from Gemini-TTS to WaveNet and discarded their voicePrompt Style Instructions, which non-Gemini tiers reject. Multilingual voices are RETUNED (lang only); only locale-bound names (da-DK-Wavenet-A, which Cloud TTS 400s on a lang mismatch) are swapped. Activity language wins only when EXPLICITLY non-default, from the same DEFAULT_ACTIVITY_LANGUAGE constant the text directive uses, so the two cannot drift."
     }
   ],
   "velocity": {
@@ -169,8 +209,8 @@
     "basis": "PREPILOT-1 delivered 6 milestones / ~3650 LOC in one day, but every milestone overran its estimate (M3 380->1120). Scheduled on doc estimates."
   },
   "github_issues": [],
-  "last_session": "2026-08-10T11:46:14Z",
-  "last_checkpoint": "M0-RESET-CLEARS-PROGRESS",
+  "last_session": "2026-08-10T14:40:00Z",
+  "last_checkpoint": "M6-VOICE-FOLLOWS-LANGUAGE",
   "status": "in_progress",
   "hard_deadline": "2026-08-13 in PROD; teacher pilot 2026-08-14",
   "design_docs": [
@@ -198,5 +238,16 @@
     "M5-OPENING-KNOWS-LESSON",
     "M6-VOICE-FOLLOWS-LANGUAGE",
     "M4-STUDENT-CONTINUITY (cut)"
-  ]
+  ],
+  "gates_2026_08_10": {
+    "backend_lint": "clean (ruff check + format)",
+    "backend_test_fast": "GREEN - 2905 passed, 1 skipped (baseline after M0 was 2801)",
+    "frontend_quality_check": "GREEN - 1567 passed / 188 files, build compiles",
+    "outstanding": [
+      "SEED REQUIRED before this reaches students: make seed ENV=dev|test|prod (four openingTemplates changed in M5)",
+      "Nothing verified in a browser - Aswin is the verification path",
+      "security-audit still red on h2 4.3.0 -> 4.4.1, owned elsewhere",
+      "M4 remains cut"
+    ]
+  }
 }

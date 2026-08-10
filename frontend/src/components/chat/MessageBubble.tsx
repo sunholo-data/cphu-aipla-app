@@ -72,6 +72,11 @@ interface MessageBubbleProps {
    * to `"da"` because the LOCAL_MODE demo skill (problem-set-hints)
    * is Danish stx. Has no effect on non-assistant turns. */
   ttsLang?: string;
+  /** The activity whose language + persona the read-aloud voice must follow
+   *  (1.1.63 M4). Distinct from `skillId` since ALS-1 M0, so the voice config
+   *  has to be asked for by activity or it resolves nothing for any modern
+   *  activity. Omitted -> skill-only resolution, i.e. previous behaviour. */
+  activityId?: string | null;
   /** Auto-read (1.1.11): when auto-read is ON, ONLY the message the parent
    *  designates as the latest assistant turn self-speaks on mount — never the
    *  whole restored history at once. The parent (ChatMessageList) sets this
@@ -165,13 +170,14 @@ export const MessageBubble = React.memo(function MessageBubble({
   onChatMessage,
   sessionId,
   ttsLang = "da",
+  activityId = null,
   autoSpeakAllowed = false,
 }: MessageBubbleProps) {
   // 1.1.11 — pick up the voice provider config for this skill so the
   // read-aloud button can route through Cloud TTS when configured (vs
   // the browser-native default). Cached per-skill across the page
   // session in useVoiceConfig.
-  const voiceConfig = useVoiceConfig(skillId);
+  const voiceConfig = useVoiceConfig(skillId, activityId);
   // 1.1.11 auto-read: when ON, every assistant message auto-speaks.
   // We only trigger for assistant role; user/system bubbles never
   // self-speak. Gated on `!voiceConfig.loading` so the first message
@@ -184,7 +190,12 @@ export const MessageBubble = React.memo(function MessageBubble({
   // once on load (the regression chat-history restore exposed).
   const autoSpeak = autoSpeakAllowed && autoReadEnabled && !voiceConfig.loading;
   // 1.1.11 follow-up — resolution order changed 2026-06-04:
-  //   skill/class committed lang > student preference > ttsLang prop
+  //   activity/skill/class committed lang > student preference > ttsLang prop
+  // 1.1.63 M4 — `voiceConfig.tts.language` now also carries the ACTIVITY's
+  // language, resolved server-side in `resolve_voice` so /config and
+  // /synthesize cannot disagree. Same argument as the class case below, one
+  // level more specific: an English activity's text read by a Danish voice
+  // pronounces the numbers in Danish (Aswin, 2026-08-10).
   // When the skill (or class) has declared a language (e.g. KineBot
   // says English, Boldkast says Danish), that wins over student
   // preference because the tutor's *text* is in that language and
@@ -272,6 +283,7 @@ export const MessageBubble = React.memo(function MessageBubble({
                 provider={voiceConfig.tts.provider}
                 voice={voiceConfig.tts.voice}
                 skillId={skillId}
+                activityId={activityId}
                 autoSpeakOnMount={autoSpeak}
               />
             ) : null}

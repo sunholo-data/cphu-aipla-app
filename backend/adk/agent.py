@@ -61,6 +61,7 @@ from adk.curriculum_retrieval import (
     build_curriculum_grounding_preamble,
     build_curriculum_retrieval_tool,
 )
+from adk.element_state import make_element_state_wrapper
 from adk.iframe_context import wrap_with_iframe_context
 from adk.instruction_provider_chain import compose_instruction_providers
 from adk.interaction_style import inject_interaction_style_preamble
@@ -74,6 +75,7 @@ from adk.multimodal import inject_image_input_preamble
 from adk.proactive_greet import inject_opening_guidance
 from adk.proactive_reactive import inject_reactive_guidance
 from adk.proactive_telemetry import tag_proactive_span_from_callback_context
+from adk.progress_context import compose_progress_context
 from adk.teacher_focus import build_ilo_precedence_block, inject_teacher_focus, resolve_active_config
 from adk.tools import resolve_mcp_tools, resolve_tools
 from auth.access_context import AccessContext
@@ -718,7 +720,26 @@ def create_agent(
                                 # the curriculum preamble held the last word.
                                 skill_config.instructions
                                 + build_curriculum_grounding_preamble(_materials)
-                                + build_ilo_precedence_block(_active_cfg),
+                                + build_ilo_precedence_block(_active_cfg)
+                                # 1.1.70 M1 — what this GROUP has already been
+                                # recorded as doing. Both summaries were
+                                # written, exported and unit-tested in 1.1.62 /
+                                # CONCEPT-1 and never wired, so the tutor only
+                                # ever learned about progress by ASKING, and
+                                # what came back could not be told apart from
+                                # work it had watched happen. That is the
+                                # "Jonas forgot everything, then claimed to
+                                # remember" report.
+                                #
+                                # They land AFTER the ILO block on the same
+                                # "later instruction wins" convention: the ILOs
+                                # say what the outcomes are, these say where
+                                # the group has got to, and the second has to
+                                # be able to redirect the first away from a
+                                # wrap-up. Empty string when the group has no
+                                # recorded progress, so an untouched activity
+                                # composes byte-identically to before.
+                                + compose_progress_context(_active_cfg, user),
                                 skill_config.multimodal_input,
                             ),
                             _activity_id,
@@ -726,6 +747,14 @@ def create_agent(
                         ),
                         proactive_greet=skill_config.proactive_greet,
                         opening_template=skill_config.opening_template,
+                        # 1.1.72 — the greet turn is the ONE turn generated
+                        # with no conversational context, and it was composed
+                        # without the activity. So the tutor opened by asking
+                        # what the student would like to explore, for an
+                        # activity whose topic the teacher had set. The config
+                        # is resolved a dozen lines above; this is the whole
+                        # fix. None (no saved activity) composes as before.
+                        cfg=_active_cfg,
                     ),
                     proactive_event_reactive=skill_config.proactive_event_reactive,
                     reactive_template=skill_config.reactive_template,
@@ -736,6 +765,21 @@ def create_agent(
                 group_tags=user.group_tags,
             ),
             wrap_with_iframe_context,
+            # 1.1.69 M1+M2 — the server's own reading of what the student has
+            # actually FILLED IN, composed per TURN from the same session state
+            # the iframe-context block above dumps raw.
+            #
+            # It lands AFTER that block deliberately, on this file's "later
+            # instruction wins" convention: the raw JSON is evidence, this is
+            # the reading of it, and the reading has to carry the counts for the
+            # elements that pushed NOTHING. That is the whole fix — an untouched
+            # table writes no state at all, so it was previously invisible in a
+            # way indistinguishable from having no table.
+            #
+            # It must stay a wrapper here rather than a string composed above:
+            # fill-state changes mid-session, and the element MANIFEST omits
+            # values precisely because it is built once.
+            make_element_state_wrapper(_active_cfg),
             wrap_with_a2ui_surface_context,
         ),
         description=skill_config.description,

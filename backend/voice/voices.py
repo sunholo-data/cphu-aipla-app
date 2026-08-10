@@ -249,3 +249,40 @@ def get_voices_for_lang(lang: str) -> list[VoiceEntry]:
     dropdown gracefully shows "no voices" rather than 500-ing.
     """
     return CURATED_VOICES.get(lang, [])
+
+
+# The tier we substitute in when a voice has to be swapped for language reasons
+# (1.1.63 M4). WaveNet is the platform default tier — natural enough for a
+# tutor, and at $4/M chars it does not change anyone's cost profile behind
+# their back the way silently upgrading to Chirp3HD would.
+_SWAP_TIER = "WaveNet"
+
+
+def default_voice_for_lang(lang: str) -> VoiceEntry | None:
+    """A sensible curated voice to speak ``lang`` with, or None if unknown.
+
+    Used when the resolved persona's voice is in the wrong language for the
+    activity: a persona is a character, not a language choice, and number
+    pronunciation is decided by the VOICE, not the text — a Danish WaveNet
+    reading English prose says the digits in Danish (Aswin, 2026-08-10).
+
+    Prefers the platform's default tier and falls back to the first curated
+    entry, so a language added with only Standard voices still resolves.
+    """
+    entries = CURATED_VOICES.get(lang, [])
+    if not entries:
+        return None
+    return next((e for e in entries if e["tier"] == _SWAP_TIER), entries[0])
+
+
+def lang_matches(a: str | None, b: str | None) -> bool:
+    """Do two BCP-47 tags name the same language?
+
+    Voice languages appear both as short tags (``"da"``, from personas and the
+    frontend picker) and as full locales (``"da-DK"``, from Cloud TTS voice
+    names). Comparing them raw is how "the languages agree" silently became
+    "they are different strings".
+    """
+    if not a or not b:
+        return False
+    return a.split("-", 1)[0].lower() == b.split("-", 1)[0].lower()

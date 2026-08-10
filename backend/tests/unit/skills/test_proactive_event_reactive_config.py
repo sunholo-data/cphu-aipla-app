@@ -203,3 +203,42 @@ def test_int_fields_round_trip_for_representative_values(tmp_path: Path, heartbe
 
     assert parsed["proactiveHeartbeatSeconds"] == heartbeat_value
     assert parsed["proactiveMaxPerSession"] == max_value
+
+
+@pytest.mark.parametrize(
+    "skill_name",
+    [
+        "problem-set-hints",
+        "concept-dialogue",
+        "led-planck-tutor",
+        "kinebot-kinematics-tutor",
+    ],
+)
+def test_no_opening_template_hardcodes_a_language(skill_name: str) -> None:
+    """An ``openingTemplate`` must not name the language to speak (1.1.72 / 1.1.63 M2).
+
+    ``ActivityConfig.language`` is emitted as a directive at the top of
+    ``compose_teacher_focus``, which is substituted INTO the SKILL.md body. The
+    opening block is *appended after* that body — and this codebase's
+    convention is that **later instruction wins** (see
+    ``inject_interaction_style_preamble``, which appends precisely so it can
+    override the SKILL.md Socratic rule).
+
+    So a template saying *"Greet them briefly in Danish"* beat the teacher's
+    English activity setting, on the one turn with no student message for the
+    model to infer from. Three of the four templates said exactly that until
+    2026-08-10. Templates now defer to the directive; this stops a well-meaning
+    edit from re-hardcoding it.
+    """
+    template_path = Path(__file__).resolve().parents[3] / "skills" / "templates" / skill_name / "SKILL.md"
+    parsed = _parse_template(template_path)
+    opening = (parsed.get("openingTemplate") or "").lower()
+    if not opening:
+        pytest.skip(f"{skill_name} has no openingTemplate")
+
+    for banned in ("in danish", "in english", "på dansk", "på engelsk"):
+        assert banned not in opening, (
+            f"{skill_name}'s openingTemplate hardcodes a language ({banned!r}). The activity's "
+            "language directive is composed BEFORE this block, and later instruction wins — so "
+            "this silently overrides the teacher's setting. Defer to it instead."
+        )

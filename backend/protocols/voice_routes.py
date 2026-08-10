@@ -28,14 +28,15 @@ See design doc voice-provider-abstraction.md §API Changes.
 from __future__ import annotations
 
 import logging
-from dataclasses import dataclass
+import re
+from dataclasses import dataclass, replace
 from typing import Any
 
 from fastapi import APIRouter, Depends, File, Form, HTTPException, Response, UploadFile
 from opentelemetry import trace
 from pydantic import BaseModel, ConfigDict, Field
 
-from adk.teacher_focus import resolve_active_config
+from adk.teacher_focus import DEFAULT_ACTIVITY_LANGUAGE, resolve_active_config
 from auth import User, get_current_user
 from db.classes import (
     get_class,
@@ -51,7 +52,7 @@ from skills.skill_config import get_skill
 from voice import get_stt, get_tts
 from voice.cache import CacheKey, TTSCache
 from voice.cost import stt_cost_usd, tts_cost_usd
-from voice.voices import SUPPORTED_LANGS, get_voices_for_lang
+from voice.voices import SUPPORTED_LANGS, default_voice_for_lang, get_voices_for_lang, lang_matches
 
 logger = logging.getLogger(__name__)
 _tracer = trace.get_tracer(__name__)
@@ -130,7 +131,12 @@ class ResolvedVoice:
     prompt: str | None = None
 
 
-def resolve_voice(user: User, skill_id: str | None, skill: object | None) -> ResolvedVoice:
+def resolve_voice(
+    user: User,
+    skill_id: str | None,
+    skill: object | None,
+    activity_id: str | None = None,
+) -> ResolvedVoice:
     """Resolve the effective voice for this (user, skill) — the single source
     of truth for the voice chain.
 
@@ -150,6 +156,13 @@ def resolve_voice(user: User, skill_id: str | None, skill: object | None) -> Res
          the platform default voice rather than going silent).
       4. Skill author's ``SkillConfig.voice`` (voice name + language only).
 
+    Then, above all four: the **activity's language** (1.1.63 M4). Whichever
+    tier won the voice NAME, an activity that explicitly sets a language gets a
+    voice that speaks it — number pronunciation is decided by the voice, not the
+    text, so a Danish WaveNet reading English prose says the digits in Danish. A
+    persona is a character, not a language choice; its Style Instructions
+    survive the swap. See ``_apply_activity_language``.
+
     The env/registry default is applied later by ``get_tts`` when ``provider``
     is still None. The voice direction (Style Instructions) always comes from the
     resolved persona, regardless of which voice-name tier won.
@@ -158,10 +171,21 @@ def resolve_voice(user: User, skill_id: str | None, skill: object | None) -> Res
     class_voice = cls.voice if cls is not None else None
 
     activity_persona = None
+    activity_language = None
     class_persona = cls.persona if cls is not None else None
-    if skill_id:
-        cfg = resolve_active_config(skill_id, group_tags=user.group_tags)
+    # ALS-1 M0 made the activity a first-class id (``act-…``) distinct from the
+    # skill id, and this resolver was never told. It read the activity config
+    # keyed by SKILL id, which for any modern activity falls through to the
+    # legacy composite lookup and resolves nothing — so the activity's persona
+    # has silently not reached the voice since the re-key, and the activity's
+    # language (1.1.63 M4) would have been dead on arrival for exactly the
+    # activities it targets. ``activity_id or skill_id`` keeps every legacy
+    # caller on today's behaviour.
+    config_id = activity_id or skill_id
+    if config_id:
+        cfg = resolve_active_config(config_id, group_tags=user.group_tags)
         activity_persona = cfg.persona if cfg is not None else None
+        activity_language = _explicit_activity_language(cfg)
     # An explicit persona id (activity or class) makes the persona authoritative;
     # absent one we fall back to the global default (which must NOT override the
     # advanced voice panel — that's the no-identity escape hatch).
@@ -196,7 +220,115 @@ def resolve_voice(user: User, skill_id: str | None, skill: object | None) -> Res
         if sv is not None:
             rv.voice = rv.voice or getattr(sv, "tts_voice", None)
             rv.lang = rv.lang or getattr(sv, "language", None)
-    return rv
+    # 5. The activity's language outranks all of the above (1.1.63 M4).
+    return _apply_activity_language(rv, activity_language)
+
+
+def _explicit_activity_language(cfg: object | None) -> str | None:
+    """The activity's language, but ONLY when the teacher explicitly set one.
+
+    ``ActivityConfig.language`` is ``Literal["da","en"]`` defaulting to ``"da"``
+    — it is never unset, so it cannot be read as "the teacher chose Danish".
+    Treating the default as a choice would let every activity authored before
+    1.1.63 override a class that deliberately committed to English (KineBot
+    does), days before a pilot, for no behaviour anyone asked for.
+
+    This is the same discipline ``compose_teacher_focus`` applies to the *text*
+    language directive, and deliberately so: the voice must follow the language
+    the tutor is actually speaking, and the tutor only speaks a guaranteed
+    language when a directive was emitted. ``DEFAULT_ACTIVITY_LANGUAGE`` is imported
+    from there rather than restated, so the two cannot drift apart.
+    """
+    lang = getattr(cfg, "language", None) if cfg is not None else None
+    return lang if lang and lang != DEFAULT_ACTIVITY_LANGUAGE else None
+
+
+# Cloud TTS names its locale-bound voices ``<lang>-<REGION>-<Tier>-<Letter>``
+# (``da-DK-Wavenet-A``); Gemini-TTS voices are bare names (``Puck``). The prefix
+# is therefore the discriminator for "can this voice speak another language?"
+# — and it is one ``GcpTTS.synthesize`` already relies on, deriving the language
+# from the voice for every tier except Gemini.
+_LOCALE_BOUND_VOICE = re.compile(r"^[a-z]{2,3}-[A-Z]{2}-")
+
+
+def _is_locale_bound_voice(voice: str | None) -> bool:
+    """Is this voice tied to one language by its name?
+
+    ``None`` (no voice chosen yet) counts as NOT locale-bound: there is nothing
+    to swap, and the provider will pick its own default for whatever language
+    we end up asking for.
+    """
+    return bool(voice) and bool(_LOCALE_BOUND_VOICE.match(voice or ""))
+
+
+def _apply_activity_language(rv: ResolvedVoice, activity_language: str | None) -> ResolvedVoice:
+    """Make the resolved voice speak the activity's language.
+
+    Aswin, 2026-08-10: *"I play the voice to read the text, but when reading the
+    text in English, numbers are still pronounced in Danish."*
+
+    The symptom is precise and the cause is a mismatched PAIR, not a broken
+    rule: number pronunciation is decided by the voice, not the text, so a
+    ``da-DK-Wavenet-A`` reading English prose says the digits in Danish. This is
+    the persona's third resolution path drifting from the other two (memory
+    ``reference-persona-three-resolution-paths``) — 1.1.63 M2 taught the *tutor*
+    about ``activity.language`` and the voice kept resolving from the persona.
+
+    Setting ``lang`` alone would not have fixed it: the voice NAME is what Cloud
+    TTS honours, so the name has to be swapped too. A persona is a character,
+    not a language choice.
+
+    Both callers benefit: ``GET /config`` (what the frontend asks for, and the
+    lang the pronunciation ruleset is picked from) and ``POST /synthesize``
+    (which re-resolves server-side). Fixing it here rather than in the frontend
+    chain is what keeps those two from disagreeing.
+    """
+    if not activity_language or lang_matches(rv.lang, activity_language):
+        return rv
+
+    # A MULTILINGUAL voice needs no swap — only the language corrected.
+    #
+    # This is the common case and getting it wrong would be a regression, not a
+    # missed fix: every shipped persona uses the Gemini tier, whose voices are
+    # bare names ("Puck", "Aoede") for which ``GcpTTS.synthesize`` treats the
+    # caller's lang as authoritative. Substituting an ``en-US-Wavenet-*`` there
+    # would drop all five personas from Gemini-TTS to WaveNet AND silently
+    # discard their ``voicePrompt`` Style Instructions, which non-Gemini tiers
+    # reject. The voice would speak English and stop being the character.
+    if not _is_locale_bound_voice(rv.voice):
+        logger.info(
+            "voice: activity language %r retunes multilingual voice %r from %s",
+            activity_language,
+            rv.voice,
+            rv.lang,
+        )
+        return replace(rv, lang=activity_language)
+
+    # A LOCALE-BOUND voice must be swapped. ``da-DK-Wavenet-A`` cannot say
+    # English, and Cloud TTS 400s outright on a lang/voice mismatch — so
+    # correcting the language alone would turn a wrong accent into no audio.
+    swap = default_voice_for_lang(activity_language)
+    if swap is None:
+        # An activity language with no curated voices: state the language and
+        # drop the mismatched name, so the provider picks its own default for
+        # that language rather than confidently speaking the wrong one.
+        logger.warning(
+            "voice: activity language %r has no curated voices — clearing the voice name",
+            activity_language,
+        )
+        return replace(rv, lang=activity_language, voice=None)
+
+    logger.info(
+        "voice: activity language %r overrides voice %r (%s) -> %s",
+        activity_language,
+        rv.voice,
+        rv.lang,
+        swap["name"],
+    )
+    # The persona's voice PROMPT (Style Instructions) is deliberately kept: it
+    # directs tone ("warm, encouraging"), which survives a language change, and
+    # dropping it would flatten the persona for the sake of its accent.
+    return replace(rv, provider=swap["provider"], voice=swap["name"], lang=activity_language)
 
 
 def _tts_for(provider_override: str | None, skill: object | None):
@@ -216,6 +348,10 @@ class SynthesizeRequest(BaseModel):
     lang: str = Field(min_length=1, max_length=16)
     voice: str | None = Field(default=None, max_length=64)
     skill_id: str | None = Field(default=None, alias="skillId", max_length=128)
+    # 1.1.63 M4 — the activity whose language/persona the voice must follow.
+    # Distinct from skill_id since ALS-1 M0; omitted by legacy callers, which
+    # then behave exactly as before.
+    activity_id: str | None = Field(default=None, alias="activityId", max_length=128)
     auto_read: bool = Field(default=False, alias="autoRead")
     """Tag the OTel span so the cost dashboard can split auto-read vs
     click-to-read cost. Pure telemetry; doesn't change synthesis."""
@@ -234,6 +370,7 @@ class ConfigResponse(BaseModel):
 @router.get("/config")
 async def get_config(
     skill_id: str | None = None,
+    activity_id: str | None = None,
     user: User = Depends(get_current_user),  # noqa: B008
 ) -> dict[str, Any]:
     """Return the voice config the frontend should use for `skill_id`.
@@ -257,7 +394,7 @@ async def get_config(
     # ONE resolver — shared with /synthesize so the spoken voice can never drift
     # from what we advertise here. A persona is a full bundle (incl. the global
     # default), so picking any persona sets the voice too.
-    rv = resolve_voice(user, skill_id, skill)
+    rv = resolve_voice(user, skill_id, skill, activity_id=activity_id)
     resolved_voice = rv.voice
     resolved_lang = rv.lang
 
@@ -439,7 +576,7 @@ async def synthesize(
     # changed with the persona but the spoken voice did not": synthesize used
     # to ignore the persona entirely and fall back to the env default provider,
     # so the persona's voice never sounded. Now both endpoints agree.
-    rv = resolve_voice(user, body.skill_id, skill)
+    rv = resolve_voice(user, body.skill_id, skill, activity_id=body.activity_id)
     provider = _tts_for(rv.provider, skill)
     # The frontend sends the voice it got from /config; trust it, but fall back
     # to the resolver's voice if absent so a direct API caller still gets the

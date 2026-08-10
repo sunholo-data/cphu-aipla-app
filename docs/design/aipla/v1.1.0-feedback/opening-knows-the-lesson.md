@@ -1,6 +1,6 @@
 # The opening greeting knows what the lesson is about
 
-**Status:** Design (OPEN) — **P1, small.** Written 2026-08-10 from Aswin's 2026-08-10 feedback.
+**Status:** **SHIPPED** (2026-08-10, sprint PILOT-1) — was Design (OPEN), P1. Written 2026-08-10 from Aswin's 2026-08-10 feedback.
 **Priority:** **P1** — smallest fix in the batch and the highest first-impression-per-hour. It is the *first thing* every student sees, and it currently announces that the tutor has no idea what today is about.
 **Estimated:** ~0.4d (M1 pass the activity context in ~0.25d · M2 eval + no-activity fallback ~0.15d)
 **Scope:** Backend only — [`adk/proactive_greet.py`](../../../../backend/adk/proactive_greet.py) `inject_opening_guidance` takes the resolved `ActivityConfig`; the opening template gains the lesson's topic. No frontend, no schema.
@@ -155,10 +155,29 @@ to fall back to Danish by default.
 
 ## Open Questions
 
-1. **Does the seeded `opening_template` need re-authoring per skill?** The
-   templates were written assuming no activity context; some may now conflict
-   with the new block. Requires a **seed** after editing (the
-   works-in-tests-but-not-deployed footgun).
+1. ~~**Does the seeded `opening_template` need re-authoring per skill?**~~
+   **ANSWERED 2026-08-10: yes — and for a second reason the question did not
+   anticipate, which the Python change alone would not have fixed.**
+
+   The expected conflict was real: `concept-dialogue` carried Aswin's reported
+   sentence nearly verbatim (*"Otherwise ask what concept they would like to
+   explore"*), and `kinebot` offered a choice of topic.
+
+   The unanticipated one is worse. **Three of the four templates hardcoded the
+   language** — *"Greet them briefly in Danish"*, *"Hils kort på dansk"*. The
+   opening block is **appended after** the SKILL.md body that carries the
+   [1.1.63 M2](tutor-register-citation-and-language.md) language directive, and
+   this codebase's convention is that **later instruction wins** (see
+   `inject_interaction_style_preamble`, which appends precisely so it can
+   override the SKILL.md rule). So the templates silently beat the teacher's
+   English setting, on the one turn with no student message to infer from —
+   i.e. the success criterion *"an English activity opens in English"* would
+   have failed with the code change alone, and failed invisibly.
+
+   Templates now defer to the directive, and
+   `test_no_opening_template_hardcodes_a_language` fails on any future
+   *"in Danish"* / *"på dansk"*. **All four changed → `make seed ENV=<env>` per
+   environment.**
 2. **Should the greeting mention inherited progress?** It overlaps
    [1.1.70 M2](progress-conversation-lifetime.md). Proposed: 1.1.70 owns the
    continuity line; this doc owns the topic. If both fire, the opening says the

@@ -29,13 +29,32 @@ from __future__ import annotations
 import logging
 from typing import Any
 
-from google.adk.tools import FunctionTool
+from google.adk.tools import FunctionTool, ToolContext
 
+from adk.element_state import find_empty_element_for_step, refusal_for
+from adk.prompt_budget import clip, fit_lines, short_date
 from auth.firebase_auth import User
 from db.checklist_progress import get_item_states, record_item_state
 from db.models.activity_config import ActivityConfig
 
 logger = logging.getLogger(__name__)
+
+# The inherited-progress block's share of the per-turn prompt budget. 50 items
+# x (200-char label + 500-char evidence) is 35,000 characters unbounded, which
+# is four times the whole focus cap — this is the largest single variable-length
+# contributor PILOT-1 adds. See test_inherited_progress_block_is_bounded.
+INHERITED_PROGRESS_CAP = 1200
+# Evidence sentences are the reason the block is worth having (the student can
+# ask what was marked and why) but a 500-char one is not "one sentence".
+_EVIDENCE_CLIP = 140
+# Labels are stated in full by the ILO precedence block and the element
+# manifest; a 200-char one does not need a third full airing here.
+_LABEL_CLIP = 90
+# Leave room for the header and the next-step line, both of which must survive
+# truncation — a list of marks with no instruction about what to do with them
+# is the failure this block exists to fix. The shared contract paragraph lives
+# in adk/progress_context.py and is NOT counted against this cap.
+_INHERITED_BODY_CAP = 900
 
 
 def build_checklist_tools(cfg: ActivityConfig | None, user: User) -> list[FunctionTool]:
@@ -80,7 +99,12 @@ def build_checklist_tools(cfg: ActivityConfig | None, user: User) -> list[Functi
             ],
         }
 
-    def mark_checklist_item(item_id: str, done: bool, evidence_summary: str) -> dict[str, Any]:
+    def mark_checklist_item(
+        item_id: str,
+        done: bool,
+        evidence_summary: str,
+        tool_context: ToolContext = None,
+    ) -> dict[str, Any]:
         """Mark one checklist step done (or not) from what the student has shown.
 
         Use this when the conversation gives you real evidence that a step is
@@ -117,6 +141,40 @@ def build_checklist_tools(cfg: ActivityConfig | None, user: User) -> list[Functi
                 "items": _item_list(),
             }
 
+        # 1.1.69 M3 — the docstring above says "tick it when you have seen the
+        # substance", and for a step whose substance lives in a data table that
+        # instruction was UNFOLLOWABLE: nothing ever showed the model the
+        # table's contents. It marked on the student's word, wrote an
+        # authoritative-sounding evidence sentence, and that became the
+        # assessment data a teacher reads.
+        #
+        # So the tool now checks what the prompt block reports. Scope is
+        # deliberately narrow — only a step CONFIDENTLY associated with an
+        # element we can positively see is empty, and only when marking done.
+        # Un-marking is never blocked: a tutor correcting itself must always be
+        # able to. Everything uncertain falls through and marks as before.
+        if done and tool_context is not None:
+            try:
+                empty = find_empty_element_for_step(cfg, item.label, dict(tool_context.state or {}))
+            except Exception:  # pragma: no cover — a check must never break a mark
+                logger.exception("checklist: element-state check failed for item=%s — allowing the mark", item_id)
+                empty = None
+            if empty is not None:
+                # Axiom 8: a refusal is a counterfactual and therefore invisible
+                # unless it is logged. This line is how we find out whether the
+                # inference fires at all, and on what.
+                logger.info(
+                    "checklist: REFUSED mark of %s for group=%s activity=%s — %s %r is empty (%d/%d)",
+                    item_id,
+                    group_id,
+                    activity_id,
+                    empty.kind,
+                    empty.title,
+                    empty.filled,
+                    empty.total,
+                )
+                return {"ok": False, "error": refusal_for(empty), "items": _item_list()}
+
         states = record_item_state(
             group_id,
             activity_id,
@@ -145,20 +203,77 @@ def build_checklist_tools(cfg: ActivityConfig | None, user: User) -> list[Functi
 
 
 def checklist_state_summary(cfg: ActivityConfig | None, user: User) -> str:
-    """A compact per-session status line for the tutor's context — which steps
-    this group has already done. Empty when there is nothing to say.
+    """The group's recorded checklist progress, as ambient context (1.1.70 M1).
 
-    Statuses are deliberately NOT baked into the composed instruction (which is
-    built once per session and would go stale); this is read at agent-build time
-    and the tools return fresh state on every call.
+    **This function shipped in 1.1.62, was exported, was unit-tested — and was
+    never wired into the agent.** So the tutor only ever learned about progress
+    by *asking* (``list_checklist``), and what came back was a flat list of
+    ticks with no indication of where they came from. Aswin, 2026-08-10: a long
+    productive session, the chat history goes away, the student rejoins on the
+    same group code, and the tutor finds four of five steps done and wraps up
+    after one question. *"Jonas forgot everything, then claimed to remember."*
+
+    Nothing malfunctioned to produce that. ``checklist_progress`` is keyed by
+    (group, activity) and never by session — deliberately, because a group works
+    across devices and progress that died with a tab would be the worse bug. The
+    gap is that inherited progress and progress the tutor just watched happen
+    read *identically*.
+
+    **What this block says, and what it deliberately does not.** The draft
+    wording in 1.1.70 asserted "you did not witness this work". That assertion
+    is only safe if the block is composed once per session — and it is not:
+    ``create_agent_with_thinking`` is called from ``process_skill_request`` on
+    **every request**, so a build-time block is a per-turn block. Telling the
+    tutor it did not witness a mark it made itself two turns ago would be a
+    falsehood it can check against its own conversation.
+
+    So the block states the *facts the store actually holds* — who marked each
+    step and when — plus the contract, and lets the model do the comparison
+    against the conversation it can see. Every behaviour the doc wanted is still
+    stated outright: the record is not a memory, continue from the first
+    outstanding step, and a mark may be revisited.
+
+    Returns "" when there is nothing recorded, so an activity with no progress
+    composes exactly as it did before this was wired.
     """
     if cfg is None or not cfg.checklist or not user.group_id:
         return ""
     states = get_item_states(user.group_id, cfg.activity_id)
-    done = [item_id for item_id, s in sorted(states.items()) if s.get("done")]
-    if not done:
+    if not states:
         return ""
-    return "Checklist steps this group has already completed: " + ", ".join(done)
+
+    done_lines: list[str] = []
+    outstanding: list[str] = []
+    for item in cfg.checklist:
+        s = states.get(item.id) or {}
+        if not s.get("done"):
+            outstanding.append(item.label)
+            continue
+        who = "by you (the AI)" if s.get("by") == "ai" else "by the student"
+        when = short_date(s.get("updatedAt"))
+        evidence = (s.get("evidence") or "").strip()
+        line = f'- "{clip(item.label, _LABEL_CLIP)}" — marked {who}{when}'
+        if evidence:
+            line += f": {clip(evidence, _EVIDENCE_CLIP)}"
+        done_lines.append(line)
+
+    if not done_lines:
+        return ""
+
+    kept, dropped = fit_lines(done_lines, _INHERITED_BODY_CAP)
+    if dropped:
+        kept.append(f"(+{dropped} more marked steps)")
+
+    # Naming the next step is checklist-specific and the single most useful
+    # sentence in the block: the reported behaviour was a wrap-up after one
+    # question, and this is what redirects it.
+    next_step = (
+        f'Continue from "{clip(outstanding[0], _LABEL_CLIP)}" — the first step that is NOT done.'
+        if outstanding
+        else "Every step is marked. Before treating the activity as finished, check the student agrees."
+    )
+
+    return "## Checklist progress already recorded for this group\n" + "\n".join(kept) + "\n\n" + next_step
 
 
-__all__ = ["build_checklist_tools", "checklist_state_summary"]
+__all__ = ["INHERITED_PROGRESS_CAP", "build_checklist_tools", "checklist_state_summary"]

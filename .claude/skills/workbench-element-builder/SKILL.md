@@ -10,12 +10,14 @@ Shipping one and dropping the other is the single most-repeated bug on this axis
 (the calculator and the data table both shipped with the push but no card). This
 skill exists so that never happens silently again.
 
-## The one rule: sharing with the tutor is THREE wirings
+## The one rule: sharing with the tutor is FOUR wirings
 
-Two of these are about what happens when a student *interacts*. The third is
-about what the tutor knows **before anyone touches anything**, and it was added
-on 2026-08-07 after 1.1.62 found that six element kinds had been invisible to
-the tutor for six weeks — while passing every check in this skill.
+Two of these are about what happens when a student *interacts*. The third and
+fourth are about what the tutor knows **before anyone touches anything** — #3
+added 2026-08-07 after 1.1.62 found six element kinds invisible to the tutor
+for six weeks, #4 added 2026-08-10 after 1.1.69 found that fixing #3 had taught
+the tutor what *exists* and stopped there. Both were found by a teacher, not by
+a test, and both passed every check in this skill at the time.
 
 When a student **interacts** with an element (enters data, computes, writes,
 selects), both of these are required:
@@ -59,6 +61,39 @@ description. Write a real describer.
 **The guard:** `test_every_registered_element_kind_is_described` fails when a
 registered kind produces no manifest text. If you add an element and that test
 goes red, this is the rule you missed.
+
+4. **FILL STATE (emptiness → AI).** The element must make a **positive
+   declaration** in `backend/adk/element_state.py`: either a reader that counts
+   what the student has entered, or `NoFillChannel(reason=…)` saying why it
+   cannot.
+
+**Why #4 exists.** #1 fires **on interaction**. A student who never touches the
+table writes no `mcp_app_context.table.state` at all — so the tutor did not
+observe an *empty* table, it observed **nothing**, which is indistinguishable
+from *there is no table*. Aswin, 2026-08-10: *"When it told me to fill out and I
+said 'done' without filling out the data, it did not recognize the data
+empty and continued chatting."* And since 1.1.62 M3 the tutor **marks the
+teacher's ILOs**, so the result was a confident, wrong mark with an
+authoritative-sounding evidence sentence that a teacher then reads.
+
+The state block synthesises `EMPTY` server-side for any authored element with a
+reader and no pushed state, and `mark_checklist_item` refuses a mark on a step
+confidently associated with a demonstrably empty element.
+
+**The default here is the OPPOSITE of #3, and the difference is load-bearing.**
+The manifest falls back to a generic line, because too-vague beats invisible.
+Fill state falls back to **silence**, because a fabricated `EMPTY` re-creates the
+exact unknown/empty conflation the block exists to remove. A solution editor and
+a document upload have **no** `mcp_app_context` channel — the work arrives as a
+chat turn and as an artifact — so reporting them `EMPTY` would be *false* the
+moment a student submits. They carry a documented exclusion, not a reader.
+
+Ask, for a new kind: *can I observe emptiness, or only fail to observe
+fullness?* If the second, exclude it and say why.
+
+**The guard:** `test_every_element_kind_declares_a_fill_reader` fails when a
+registered kind is in neither camp. Silence must be a decision, not an
+oversight.
 
 ## Decision rule — does this element need a card, and what kind?
 

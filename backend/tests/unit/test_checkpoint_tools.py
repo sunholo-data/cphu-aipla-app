@@ -136,7 +136,11 @@ def test_record_checkpoint_merges_per_node():
 def test_checkpoint_state_summary_reads_the_group_state():
     assert checkpoint_state_summary(_cfg(), _student()) == ""  # nothing recorded yet
     record_checkpoint_state(GROUP, "act-1", "vektorer", "demonstrated", "ok")
-    assert "vektorer=demonstrated" in checkpoint_state_summary(_cfg(), _student())
+    summary = checkpoint_state_summary(_cfg(), _student())
+    assert "demonstrated" in summary
+    # 1.1.70 M1: the teacher's LABEL, not the raw node id the old one-line form
+    # emitted — an id the model has to cross-reference to say anything useful.
+    assert "Vektorer" in summary or "vektorer" in summary
 
 
 def test_compose_teacher_focus_includes_the_map_and_the_contract():

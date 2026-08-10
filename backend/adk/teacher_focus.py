@@ -36,7 +36,14 @@ _PLACEHOLDER = "{teacher_focus}"
 # 1.1.63 M2 — the platform's default activity language. The language directive
 # is emitted only when an activity differs from this, so Danish activities
 # compose byte-identically to how they did before 1.1.63.
-_DEFAULT_LANGUAGE = "da"
+#
+# Public (1.1.63 M4): the read-aloud voice resolver applies the SAME
+# "explicitly set, not merely defaulted" rule, because the voice must follow the
+# language the tutor is actually speaking — and the tutor only speaks a
+# guaranteed language when a directive was emitted here. Two copies of this
+# constant would let the text and the voice drift apart on the next language
+# added. See protocols/voice_routes.py::_explicit_activity_language.
+DEFAULT_ACTIVITY_LANGUAGE = "da"
 _LANGUAGE_NAMES = {"da": "Danish", "en": "English"}
 
 # --- Prompt budget (1.1.62 M2) -------------------------------------------
@@ -276,7 +283,7 @@ def compose_teacher_focus(cfg: ActivityConfig | None) -> str:
     # existing activity days before the pilot, for no behaviour change on the
     # Danish ones. See test_default_language_emits_no_directive for the residual
     # gap this accepts.
-    if cfg is not None and cfg.language and cfg.language != _DEFAULT_LANGUAGE:
+    if cfg is not None and cfg.language and cfg.language != DEFAULT_ACTIVITY_LANGUAGE:
         name = _LANGUAGE_NAMES.get(cfg.language, cfg.language)
         blocks.append(
             f"Speak {name} with the student, in every turn, including your first. "
@@ -443,6 +450,7 @@ def inject_teacher_focus(
 
 
 __all__ = [
+    "DEFAULT_ACTIVITY_LANGUAGE",
     "LOCAL_MODE_DEMO_CLASS_ID",
     "SOLUTION_FEEDBACK_PROMPT",
     "build_ilo_precedence_block",

@@ -63,13 +63,23 @@ const DEFAULT_CONFIG: VoiceConfig = {
   loading: false,
 };
 
-// Module-level cache. Keyed by skillId (or "_default_" for no-skill
-// configs). Lives for the page session, refreshed on tab focus so
+// Module-level cache. Keyed by skillId + activityId (or "_default_" for
+// no-skill configs). Lives for the page session, refreshed on tab focus so
 // teacher updates land within a tab-switch (not just a hard reload).
+//
+// 1.1.63 M4: activityId is part of the key, not just the query. Two activities
+// in one class can differ in language and persona, and a skill-only key would
+// serve the first one's voice to the second.
 const _cache = new Map<string, Omit<VoiceConfig, "loading">>();
 
-export function useVoiceConfig(skillId: string | null): VoiceConfig {
-  const cacheKey = skillId ?? "_default_";
+export function useVoiceConfig(
+  skillId: string | null,
+  /** The activity whose language + persona the voice must follow (1.1.63 M4).
+   *  Distinct from skillId since ALS-1 M0. Omitted -> skill-only resolution,
+   *  i.e. exactly the previous behaviour. */
+  activityId?: string | null,
+): VoiceConfig {
+  const cacheKey = `${skillId ?? "_default_"}::${activityId ?? ""}`;
   const cached = _cache.get(cacheKey);
 
   const [config, setConfig] = useState<Omit<VoiceConfig, "loading">>(
@@ -80,8 +90,12 @@ export function useVoiceConfig(skillId: string | null): VoiceConfig {
   // Shared fetch routine — used for the initial mount AND for the
   // on-focus refetch so teacher class-voice updates land quickly.
   const fetchConfig = useCallback(async (signal: { cancelled: boolean }) => {
-    const url = skillId
-      ? `/api/proxy/api/voice/config?skill_id=${encodeURIComponent(skillId)}`
+    const params = new URLSearchParams();
+    if (skillId) params.set("skill_id", skillId);
+    if (activityId) params.set("activity_id", activityId);
+    const qs = params.toString();
+    const url = qs
+      ? `/api/proxy/api/voice/config?${qs}`
       : `/api/proxy/api/voice/config`;
     try {
       const res = await fetchWithAuth(url);
@@ -101,7 +115,7 @@ export function useVoiceConfig(skillId: string | null): VoiceConfig {
     } catch {
       if (!signal.cancelled) setLoading(false);
     }
-  }, [skillId, cacheKey]);
+  }, [skillId, activityId, cacheKey]);
 
   useEffect(() => {
     const signal = { cancelled: false };
