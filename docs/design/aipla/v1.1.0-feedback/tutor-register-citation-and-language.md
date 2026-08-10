@@ -1,6 +1,6 @@
 # Tutor register — citation voice and activity language
 
-**Status:** **M1 + M2 SHIPPED 2026-08-06** (sprint PREPILOT-1) — dev + test `v0.1.11`. **M3 (student-UI i18n) DEFERRED**, as the doc itself recommended: an English activity gets an English *tutor* and Danish *buttons*.
+**Status:** **M1 + M2 SHIPPED 2026-08-06** (sprint PREPILOT-1) — dev/test/prod `v0.1.11`. **M3 (student-UI i18n) DEFERRED**, as the doc itself recommended: an English activity gets an English *tutor* and Danish *buttons*. **M4 (read-aloud voice) ADDED 2026-08-10 (OPEN)** — Aswin found the third surface in the same family: English text read by a Danish voice pronounces numbers in Danish.
 **What changed during implementation:** (1) M1 was not only a prompt string — ``MaterialRef`` had **no title field at all**, caching only ``origin``, which ``CurriculumDoc`` documents as *provenance* ("uvm.dk", a teacher name). A title was never available for the tutor to cite, so the prompt rewrite alone would have instructed it to cite by something it did not have. ``title`` is now cached at citation time and all four attach paths set it. (2) M2 emits the language directive **only when the activity differs from the ``da`` default**. ``Language`` is ``Literal["da","en"]`` defaulting to ``"da"``, so emitting unconditionally would have rewritten every existing activity's prompt days before the pilot for no behaviour change on the Danish ones. Residual gap accepted and documented in test: a Danish activity whose student writes English still gets an English tutor by inference.
 **Priority:** **P0** — both halves are things a teacher notices in the first minute. M1 is a prompt string and lands in an afternoon; M2/M3 are the real work.
 **Estimated:** M1 citation voice ~0.25d · M2 tutor language ~0.5d · M3 student UI locale ~2–3d (the long pole; it is an i18n project, not a fix)
@@ -8,7 +8,7 @@
 **Dependencies:** [1.1.25 curriculum-library](curriculum-library.md) (**SHIPPED** — the retrieval path whose preamble M1 rewrites); [1.1.38 activity-elements-palette](activity-elements-palette.md) (**SHIPPED** — the student components M3 must localise); [workbench-element-awareness](workbench-element-awareness.md) (1.1.62 — shares the `compose_teacher_focus` edit surface; land that first or resolve the conflict)
 **Source:** Aswin, 2026-08-06 — *"The chat keeps referring to the documents title when generating text which always start with According to mathematicus.dk…, or According to uvm.dk…"* (+ his follow-up: *"it does not sound natural if the text keeps referring the sources"*) and *"When using English in the setup, the language is still in Danish in students' interface."*
 **Created:** 2026-08-06 (M)
-**Last Updated:** 2026-08-07 (M) — shipped-state recorded (M3 deferred)
+**Last Updated:** 2026-08-10 (M) — M4 added from Aswin's 2026-08-10 feedback
 
 ## Problem Statement
 
@@ -250,6 +250,39 @@ because nothing rendered the composed prompt; one command covers both docs.
 - CI guard: fail on a literal Danish string added to a student-surface component
   (an eslint rule or a `check:i18n` script in the same PR — without it the
   extraction decays within a month, exactly as the mock-data guard was needed)
+
+### M4 — Read-aloud voice follows the activity language (added 2026-08-10)
+
+Aswin, 2026-08-10: *"I play the voice to read the text, but when reading the
+text in English, numbers are still pronounced in Danish."*
+
+**The third surface in the same family.** M2 fixed the tutor's words, M3 covers
+the UI chrome — and the *voice* was missed. `ReadAloudButton` takes a `lang`
+(defaulting to `"en"`) **and** a provider `voiceName` such as
+`da-DK-Wavenet-A`. Number pronunciation is decided by the **voice**, not by the
+text: a Danish Wavenet reading English prose says the digits in Danish. So the
+symptom is precise and the cause is a mismatched pair, not a broken rule.
+
+This is the persona's third resolution path drifting from the other two — the
+failure mode recorded in memory `reference-persona-three-resolution-paths`
+(avatar / voice / teaching-style resolve separately and can diverge). 1.1.63 M2
+taught the *tutor* about `activity.language`; the voice still resolves from the
+class persona alone.
+
+Scope (~0.5d):
+
+1. Resolve the read-aloud voice from `activity.language` first, falling back to
+   the class persona's voice only when the languages agree.
+2. When they disagree, prefer a voice in the **activity's** language — a persona
+   is a character, not a language choice, and the text is what must be legible.
+3. Pick the pronunciation rule set (`units.da.ts` and siblings) from the same
+   resolved language, so units track the voice rather than a separate default.
+4. Test: an English activity under a Danish class persona reads with an English
+   voice and English number pronunciation.
+
+> **Do not "fix" this by translating numbers in the text.** The pronunciation
+> rule files exist for units and symbols; digits are the TTS voice's job. A
+> text-level workaround would fight the voice on every locale added later.
 
 ## Migration & Rollout
 

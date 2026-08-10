@@ -1,0 +1,168 @@
+{
+  "sprint_id": "PILOT-1",
+  "created": "2026-08-10T09:36:51Z",
+  "estimated_duration_days": 3,
+  "design_doc": "docs/design/aipla/v1.1.0-feedback/tutor-sees-element-state.md",
+  "sprint_plan": "docs/design/aipla/v1.1.0-feedback/pilot-week-tutor-fidelity-sprint.md",
+  "features": [
+    {
+      "id": "M1-ELEMENT-FILL-STATE",
+      "description": "Per-turn fill-state block over mcp_app_context, registry-driven. Server-side synthesis of EMPTY for authored-but-untouched elements so 'unknown' and 'empty' stop collapsing.",
+      "scope": "backend",
+      "estimated_loc": 320,
+      "actual_loc": null,
+      "dependencies": [],
+      "acceptance_criteria": [
+        "An authored, untouched table reports EMPTY in turn one's context",
+        "An absent element reports nothing \u2014 unknown and empty never conflated",
+        "Partial reports correct counts",
+        "It is a per-TURN instruction provider, not a build-time string (fill-state changes mid-session)",
+        "Composed-prompt budget test EXTENDED FIRST, before the block is written",
+        "Registry-completeness: every element kind has a fill reader where it has a describer"
+      ],
+      "files_to_create": [],
+      "files_to_modify": [],
+      "passes": null,
+      "started": null,
+      "completed": null,
+      "notes": "Budget risk: two new per-turn blocks on a budget already shared five ways (_TOTAL_FOCUS_CAP=8000). PREPILOT-1's cap test found a pre-existing overflow; extend it before adding."
+    },
+    {
+      "id": "M2-MARKS-NEED-EVIDENCE",
+      "description": "mark_checklist_item refuses when the step's associated element is demonstrably empty. Closes the loop where the tool's own instruction ('do not tick just because the student says done') was unfollowable.",
+      "scope": "backend",
+      "estimated_loc": 180,
+      "actual_loc": null,
+      "dependencies": [
+        "M1-ELEMENT-FILL-STATE"
+      ],
+      "acceptance_criteria": [
+        "'Done' on an empty table produces NO mark",
+        "A mark still succeeds when the element has data",
+        "Refusal carries a correctable reason the model can act on",
+        "Step-element association inferred from the step label; explicit elementId deferred",
+        "FAILS OPEN: no confident association -> allow the mark (a false refusal is worse than the status quo)"
+      ],
+      "files_to_create": [],
+      "files_to_modify": [],
+      "passes": null,
+      "started": null,
+      "completed": null,
+      "notes": "This is the assessment-integrity half. A confidently-wrong mark becomes teacher-facing data."
+    },
+    {
+      "id": "M3-INHERITED-PROGRESS",
+      "description": "Wire checklist_state_summary AND checkpoint_state_summary \u2014 both currently dead code \u2014 with provenance and a continue-from-first-outstanding contract.",
+      "scope": "backend",
+      "estimated_loc": 200,
+      "actual_loc": null,
+      "dependencies": [],
+      "acceptance_criteria": [
+        "A fresh session with prior ticks contains an inherited-progress block",
+        "The tutor does not claim to have witnessed inherited work",
+        "It continues from the first OUTSTANDING step rather than wrapping up",
+        "It may revisit a marked step if the student seems unsure",
+        "A test FAILS if either summary is defined-but-unwired",
+        "No progress -> empty string -> composes exactly as today"
+      ],
+      "files_to_create": [],
+      "files_to_modify": [],
+      "passes": null,
+      "started": null,
+      "completed": null,
+      "notes": "Both summaries were written, exported, unit-tested and never wired \u2014 shipped in the sprint that criticised ActivityConfig.language for exactly this."
+    },
+    {
+      "id": "M4-STUDENT-CONTINUITY",
+      "description": "Student-visible 'picking up where you left off' line plus rejoin telemetry.",
+      "scope": "fullstack",
+      "estimated_loc": 160,
+      "actual_loc": null,
+      "dependencies": [
+        "M3-INHERITED-PROGRESS"
+      ],
+      "acceptance_criteria": [
+        "The line renders only when prior progress exists",
+        "It explains why the chat is empty but the ticks are not",
+        "Rejoin-with-inherited-progress is greppable in logs"
+      ],
+      "files_to_create": [],
+      "files_to_modify": [],
+      "passes": null,
+      "started": null,
+      "completed": null,
+      "notes": "CUT LINE #1. M3 fixes the behaviour, which is the actual complaint."
+    },
+    {
+      "id": "M5-OPENING-KNOWS-LESSON",
+      "description": "Pass the resolved ActivityConfig into inject_opening_guidance so the greet turn names the lesson.",
+      "scope": "backend",
+      "estimated_loc": 140,
+      "actual_loc": null,
+      "dependencies": [],
+      "acceptance_criteria": [
+        "A wave activity opens by naming waves",
+        "It does not ask the student to choose a topic when one is authored",
+        "An English activity opens in English (composed after the 1.1.63 M2 directive)",
+        "No activity -> today's greeting, byte-identical",
+        "Bounded; does not duplicate what {teacher_focus} already carries"
+      ],
+      "files_to_create": [],
+      "files_to_modify": [],
+      "passes": null,
+      "started": null,
+      "completed": null,
+      "notes": "Pure parameter-passing \u2014 _active_cfg is already resolved in the same function. May touch opening_template in a SKILL.md -> SEED REQUIRED."
+    },
+    {
+      "id": "M6-VOICE-FOLLOWS-LANGUAGE",
+      "description": "Read-aloud voice resolves from activity.language, not the class persona alone.",
+      "scope": "frontend",
+      "estimated_loc": 150,
+      "actual_loc": null,
+      "dependencies": [],
+      "acceptance_criteria": [
+        "An English activity under a Danish persona reads with an English voice",
+        "Numbers are pronounced in the activity's language",
+        "Pronunciation rule set follows the same resolved language",
+        "Persona voice still wins when the languages agree"
+      ],
+      "files_to_create": [],
+      "files_to_modify": [],
+      "passes": null,
+      "started": null,
+      "completed": null,
+      "notes": "The persona's THIRD resolution path drifting from the other two (memory reference-persona-three-resolution-paths). Do NOT fix by translating digits in the text \u2014 that is the TTS voice's job."
+    }
+  ],
+  "velocity": {
+    "target_loc_per_day": 400,
+    "estimated_total_loc": 1150,
+    "estimated_days": 3,
+    "basis": "PREPILOT-1 delivered 6 milestones / ~3650 LOC in one day, but every milestone overran its estimate (M3 380->1120). Scheduled on doc estimates."
+  },
+  "github_issues": [],
+  "last_session": null,
+  "last_checkpoint": null,
+  "status": "not_started",
+  "hard_deadline": "2026-08-13 in PROD; teacher pilot 2026-08-14",
+  "design_docs": [
+    "docs/design/aipla/v1.1.0-feedback/tutor-sees-element-state.md",
+    "docs/design/aipla/v1.1.0-feedback/progress-conversation-lifetime.md",
+    "docs/design/aipla/v1.1.0-feedback/opening-knows-the-lesson.md",
+    "docs/design/aipla/v1.1.0-feedback/tutor-register-citation-and-language.md"
+  ],
+  "baseline": {
+    "verified": "2026-08-10",
+    "backend": "GREEN 2796 passed",
+    "frontend": "GREEN 1564 passed",
+    "envs": "dev/test/prod all v0.1.11"
+  },
+  "cut_line": [
+    "1. M4 student continuity line",
+    "2. M6 voice",
+    "3. M5 opening",
+    "M1, M2, M3 NOT cuttable \u2014 assessment-integrity bugs in the week teachers start trusting the output"
+  ],
+  "source": "Aswin 2026-08-10. Two items are regressions from PREPILOT-1 sharing one root: 1.1.62 taught the tutor what EXISTS and stopped there."
+}
