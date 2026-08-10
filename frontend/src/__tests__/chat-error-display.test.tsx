@@ -19,6 +19,8 @@ function makeReturn(overrides: Partial<UseSkillAgentReturn>): UseSkillAgentRetur
     stageLabel: null,
     sendMessage: mockSendMessage,
     isLoading: false,
+    tidyingUp: false,
+    compactions: [],
     error: null,
     clearError: mockClearError,
     stop: mockStop,

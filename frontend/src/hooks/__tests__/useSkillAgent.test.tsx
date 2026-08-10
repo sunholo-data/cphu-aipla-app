@@ -131,6 +131,7 @@ describe("useSkillAgent — core", () => {
     const { result } = renderHook(() => useSkillAgent());
     expect(Object.keys(result.current).sort()).toEqual([
       "clearError",
+      "compactions",
       "error",
       "isLoading",
       "isThinking",
@@ -140,6 +141,7 @@ describe("useSkillAgent — core", () => {
       "stageLabel",
       "stop",
       "thinkingContent",
+      "tidyingUp",
       "toolCalls",
     ]);
   });
@@ -342,6 +344,81 @@ describe("useSkillAgent — STAGE_PROGRESS perceived snappiness", () => {
       await result.current.sendMessage("next turn");
     });
     expect(result.current.stageLabel).toBeNull();
+  });
+});
+
+// Compaction visibility (ported from upstream COMPACTION-WIRE M4 +
+// COMPACTION-LATENCY M2). COMPACTION_STARTED means the answer is complete and
+// only history housekeeping remains — release the composer and say why.
+// HISTORY_COMPACTED is the persistent per-conversation marker that earlier
+// turns were summarised away.
+describe("useSkillAgent — compaction events", () => {
+  it("starts with no compactions and not tidying up", () => {
+    const { result } = renderHook(() => useSkillAgent());
+    expect(result.current.tidyingUp).toBe(false);
+    expect(result.current.compactions).toEqual([]);
+  });
+
+  it("COMPACTION_STARTED releases the composer and sets tidyingUp", async () => {
+    const { result } = renderHook(() => useSkillAgent());
+    act(() => {
+      fake.emitRunStart();
+    });
+    await waitFor(() => expect(result.current.isLoading).toBe(true));
+
+    act(() => {
+      fake.emitCustomEvent("COMPACTION_STARTED", { events_to_compact: 12 });
+    });
+    await waitFor(() => {
+      expect(result.current.isLoading).toBe(false);
+      expect(result.current.tidyingUp).toBe(true);
+      expect(result.current.stageLabel).toBeNull();
+    });
+  });
+
+  it("HISTORY_COMPACTED records metadata and clears tidyingUp", async () => {
+    const { result } = renderHook(() => useSkillAgent());
+    act(() => {
+      fake.emitCustomEvent("COMPACTION_STARTED", { events_to_compact: 12 });
+      fake.emitCustomEvent("HISTORY_COMPACTED", { events_compacted: 12, summary_chars: 900 });
+    });
+    await waitFor(() => {
+      expect(result.current.tidyingUp).toBe(false);
+      expect(result.current.compactions).toHaveLength(1);
+      expect(result.current.compactions[0]).toMatchObject({ eventsCompacted: 12, summaryChars: 900 });
+    });
+  });
+
+  it("run finalize clears tidyingUp even when HISTORY_COMPACTED never arrives", async () => {
+    // 4 of 18 upstream turns emitted COMPACTION_STARTED but the summariser
+    // returned nothing — the notice must not stick forever.
+    const { result } = renderHook(() => useSkillAgent());
+    act(() => {
+      fake.emitCustomEvent("COMPACTION_STARTED", { events_to_compact: 3 });
+    });
+    await waitFor(() => expect(result.current.tidyingUp).toBe(true));
+    act(() => {
+      fake.emitRunFinal();
+    });
+    await waitFor(() => expect(result.current.tidyingUp).toBe(false));
+  });
+
+  it("resets compaction markers when the agent identity changes (new conversation)", async () => {
+    const { result, rerender } = renderHook(() => useSkillAgent());
+    act(() => {
+      fake.emitCustomEvent("HISTORY_COMPACTED", { events_compacted: 5, summary_chars: 400 });
+    });
+    await waitFor(() => expect(result.current.compactions).toHaveLength(1));
+
+    // Simulate AGUIProvider rebuilding the agent for a new thread. A stale
+    // "History summarised" marker on a fresh chat implies context was lost
+    // when none was.
+    currentAgent = new FakeAgent();
+    rerender();
+    await waitFor(() => {
+      expect(result.current.compactions).toEqual([]);
+      expect(result.current.tidyingUp).toBe(false);
+    });
   });
 });
 

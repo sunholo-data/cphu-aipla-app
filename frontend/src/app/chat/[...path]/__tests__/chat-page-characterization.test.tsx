@@ -146,6 +146,8 @@ function makeAgentReturn(
     stageLabel: null,
     sendMessage: mockSendMessage,
     isLoading: false,
+    tidyingUp: false,
+    compactions: [],
     error: null,
     clearError: vi.fn(),
     stop: vi.fn(),

@@ -375,6 +375,8 @@ function ChatShell({
     stageLabel,
     sendMessage,
     isLoading,
+    tidyingUp,
+    compactions,
     error,
     clearError,
     stop,
@@ -1263,6 +1265,25 @@ function ChatShell({
             )}
             {voiceNotice && (
               <p className="mb-2 text-xs text-muted-foreground">{voiceNotice}</p>
+            )}
+            {tidyingUp ? (
+              // COMPACTION-LATENCY M2 — the answer is done; only history
+              // housekeeping remains, so the composer is already re-enabled.
+              // Saying so beats silently getting out of the way.
+              <p className="mb-2 flex items-center gap-2 text-xs text-muted-foreground">
+                <Loader2 className="h-3 w-3 animate-spin" aria-hidden />
+                Tidying up the conversation history — you can keep typing.
+              </p>
+            ) : (
+              compactions.length > 0 && (
+                // The student still sees the full transcript above, but the
+                // tutor now works from a summary of the older turns. Without
+                // this line a degraded answer is indistinguishable from a
+                // good one.
+                <p className="mb-2 text-xs text-muted-foreground">
+                  {`Earlier conversation summarised (${compactions[compactions.length - 1].eventsCompacted} entries condensed) so the tutor can keep the whole session in mind.`}
+                </p>
+              )
             )}
             {groupTurnInFlight ? (
               <p className="mb-2 flex items-center gap-2 text-xs text-muted-foreground">

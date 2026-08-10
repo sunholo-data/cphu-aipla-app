@@ -72,6 +72,17 @@ export interface StreamError {
   retryAfterSeconds?: number;
 }
 
+/** A `HISTORY_COMPACTED` CUSTOM event: earlier turns were summarised away so
+ * the conversation stays within the model's context limit. METADATA ONLY —
+ * the backend never puts summary text on the wire, because a summary derives
+ * from student conversation content. */
+export interface CompactionNoticeItem {
+  id: string;
+  ts: number;
+  eventsCompacted: number;
+  summaryChars: number;
+}
+
 export interface ToolCallState {
   id: string;
   name: string;
@@ -110,6 +121,15 @@ export interface UseSkillAgentReturn {
     },
   ) => Promise<void>;
   isLoading: boolean;
+  /** COMPACTION-LATENCY M2 — a compaction is running AFTER the answer
+   * finished. The turn's output is complete; only housekeeping remains, so
+   * the composer is re-enabled and this drives a quiet notice instead of the
+   * typing indicator. */
+  tidyingUp: boolean;
+  /** History compactions this conversation. Compaction silently rewrites what
+   * the tutor can remember — the student keeps seeing the full transcript
+   * while the model sees a summary — so it must be visible. */
+  compactions: CompactionNoticeItem[];
   error: StreamError | null;
   clearError: () => void;
   stop: () => void;
@@ -245,6 +265,9 @@ export function useSkillAgent(options?: { _hangTimeoutMs?: number; activityId?: 
   const [runStarted, setRunStarted] = useState(false);
   const [error, setError] = useState<StreamError | null>(null);
   const [stageLabel, setStageLabel] = useState<string | null>(null);
+  const [tidyingUp, setTidyingUp] = useState(false);
+  const [compactions, setCompactions] = useState<CompactionNoticeItem[]>([]);
+  const compactionSeqRef = useRef(0);
 
   const clearError = useCallback(() => setError(null), []);
 
@@ -275,6 +298,14 @@ export function useSkillAgent(options?: { _hangTimeoutMs?: number; activityId?: 
     // chats — exactly Bugs A, B, and C from chat-history-deep-fixes.md.
     const agentChanged = lastAgentRef.current !== agent;
     lastAgentRef.current = agent;
+
+    // Compaction markers are per-conversation. Without this reset, a new chat
+    // would show "History summarised" from the PREVIOUS thread — worse than no
+    // marker: it implies context was lost when none was.
+    if (agentChanged) {
+      setCompactions([]);
+      setTidyingUp(false);
+    }
 
     const sync = (allowReset = false) => {
       const next = agent.messages
@@ -337,6 +368,41 @@ export function useSkillAgent(options?: { _hangTimeoutMs?: number; activityId?: 
         }
         if (event.name === "LATENCY_REPORT" && event.value && typeof event.value === "object") {
           recordServerReport(event.value as Record<string, unknown>);
+          return;
+        }
+        // COMPACTION_STARTED — the answer is COMPLETE and a history compaction
+        // is now running. Upstream measured ~37s median (max 47s) during which
+        // the answer was already fully rendered while the composer sat disabled
+        // and the typing indicator spun. Release the student here: the run has
+        // not finished, but their turn has.
+        //
+        // HISTORY_COMPACTED can't do this job — it fires when summarisation
+        // RETURNS, i.e. tens of seconds later, at roughly the same moment as
+        // RUN_FINISHED.
+        if (event.name === "COMPACTION_STARTED") {
+          setIsLoading(false);
+          setStageLabel(null);
+          setTidyingUp(true);
+          return;
+        }
+        // HISTORY_COMPACTED — earlier turns were summarised away to stay
+        // within the context limit. Surfaced because the student still sees
+        // the FULL transcript while the tutor now sees a summary; without a
+        // marker a degraded answer is indistinguishable from a good one.
+        if (event.name === "HISTORY_COMPACTED") {
+          const v = (event.value ?? {}) as { events_compacted?: unknown; summary_chars?: unknown };
+          compactionSeqRef.current += 1;
+          setCompactions((prev) => [
+            ...prev,
+            {
+              id: `compaction-${compactionSeqRef.current}`,
+              ts: Date.now(),
+              eventsCompacted: typeof v.events_compacted === "number" ? v.events_compacted : 0,
+              summaryChars: typeof v.summary_chars === "number" ? v.summary_chars : 0,
+            },
+          ]);
+          setTidyingUp(false);
+          return;
         }
       },
       onTextMessageStartEvent: ({ event }: { event: { messageId?: string } }) => {
@@ -374,6 +440,7 @@ export function useSkillAgent(options?: { _hangTimeoutMs?: number; activityId?: 
         setIsLoading(false);
         setRunStarted(false);
         setStageLabel(null);
+        setTidyingUp(false);
         // Resolve any still-running tool calls as success on clean finish
         setToolCalls((prev) =>
           prev.map((tc) => tc.status === "running" ? { ...tc, status: "success" } : tc),
@@ -387,6 +454,7 @@ export function useSkillAgent(options?: { _hangTimeoutMs?: number; activityId?: 
         setIsLoading(false);
         setRunStarted(false);
         setStageLabel(null);
+        setTidyingUp(false);
         setToolCalls((prev) =>
           prev.map((tc) => tc.status === "running" ? { ...tc, status: "error" } : tc),
         );
@@ -478,6 +546,7 @@ export function useSkillAgent(options?: { _hangTimeoutMs?: number; activityId?: 
       clearError();
       setRunStarted(false);
       setStageLabel(null);
+      setTidyingUp(false);
       runFailedRef.current = false;
       // 1.1.11 follow-up — when the student takes action (typing AND
       // sending), stop any in-flight auto-read. The previous assistant
@@ -563,6 +632,8 @@ export function useSkillAgent(options?: { _hangTimeoutMs?: number; activityId?: 
     stageLabel,
     sendMessage,
     isLoading,
+    tidyingUp,
+    compactions,
     error,
     clearError,
     stop,
