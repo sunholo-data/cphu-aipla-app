@@ -75,6 +75,14 @@ def mount_skill_endpoint(
         artifact_service=artifact_service or get_artifact_service(),
         use_in_memory_services=True,
         use_thread_id_as_session_id=True,
+        # ag_ui_adk's cleanup sweep DELETES tracked sessions idle longer than
+        # session_timeout_seconds (default 1200s) — permanent with Vertex as
+        # the store. See build_agui_adk_agent in adk/agui.py for the full
+        # story; the knobs must match on every ADKAgent construction site
+        # because SessionManager is a process-wide singleton and the FIRST
+        # construction wins.
+        delete_session_on_cleanup=False,
+        session_timeout_seconds=86400,
     )
 
     add_adk_fastapi_endpoint(
