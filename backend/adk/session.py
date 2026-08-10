@@ -34,38 +34,250 @@ from config.gcp import require_gcp_project
 
 logger = logging.getLogger(__name__)
 
-# Model-aware compaction intervals. See backend/config/models.yaml for the
-# full model registry. EventsCompactionConfig lives on App, not Agent or Runner.
+# Model-aware compaction config. See backend/config/models.yaml for the full
+# model registry. EventsCompactionConfig lives on App, not Agent or Runner.
 #
-# 1M context (Gemini 3.x, GPT-5.4) → compact every 10 turns
-# 200K-400K context (Claude, other GPT-5.x) -> compact every 5 turns
+# COMPACTION IS LOSSY AND INVISIBLE — read this before tuning the numbers.
+# When a compaction fires, ADK materialises a summary event and *filters the
+# raw events out of the request sent to the model*
+# (`flows/llm_flows/contents.py::_process_compaction_events`). The raw events
+# stay in the session store, so the UI transcript and the Firestore mirror
+# still show every turn — but the model can no longer see them, and has no way
+# to reach back for them. A student watching a full transcript reasonably
+# assumes the tutor sees it too.
+#
+# TWO TRIGGERS, AND THEY ARE NOT INTERCHANGEABLE (verified on google-adk 1.31.1):
+#
+#   token_threshold      — fires on real context pressure. Checked pre-request by
+#                          `CompactionRequestProcessor`
+#                          (flows/llm_flows/compaction.py) off
+#                          `invocation_context.events_compaction_config`, and
+#                          again post-invocation inside
+#                          `_run_compaction_for_sliding_window` off
+#                          `app.events_compaction_config`. This is the trigger we
+#                          want doing the work.
+#   compaction_interval  — fires on a raw count of user turns, blind to their
+#                          size. Checked post-invocation by the Runner
+#                          (runners.py:622).
+#
+# Turn count is the wrong trigger on a 1M-token model: ten short clarifying
+# turns might be 8K tokens, and discarding them buys nothing while losing
+# exactly the detail the student spent those turns establishing. So the token
+# threshold is the primary mechanism and the interval is a backstop, set high
+# enough that it only catches pathological sessions.
+#
+# Thresholds are ~25% of the usable window: early enough that one large turn
+# can't blow the context, late enough that a normal lesson never compacts.
+#
+# `event_retention_size` is REQUIRED whenever `token_threshold` is set (ADK's
+# model validator rejects one without the other): when token compaction fires,
+# the last N *raw events* survive uncompacted. Events, NOT turns — one turn is
+# several events (user message, tool call, tool response, model reply).
 #
 # NOTE: gpt-5.4 must come before gpt-5 so the more-specific prefix wins.
 _COMPACTION_CONFIGS = {
-    "gemini-": EventsCompactionConfig(compaction_interval=10, overlap_size=3),
-    "gpt-5.4": EventsCompactionConfig(compaction_interval=10, overlap_size=3),
-    "claude-": EventsCompactionConfig(compaction_interval=5, overlap_size=2),
-    "gpt-5": EventsCompactionConfig(compaction_interval=5, overlap_size=2),
+    # 1M context (Gemini 3.x, GPT-5.4)
+    "gemini-": EventsCompactionConfig(
+        compaction_interval=40, overlap_size=5, token_threshold=250_000, event_retention_size=60
+    ),
+    "gpt-5.4": EventsCompactionConfig(
+        compaction_interval=40, overlap_size=5, token_threshold=250_000, event_retention_size=60
+    ),
+    # 200K-400K context (Claude, other GPT-5.x)
+    "claude-": EventsCompactionConfig(
+        compaction_interval=20, overlap_size=4, token_threshold=120_000, event_retention_size=40
+    ),
+    "gpt-5": EventsCompactionConfig(
+        compaction_interval=20, overlap_size=4, token_threshold=120_000, event_retention_size=40
+    ),
 }
-_DEFAULT_COMPACTION = EventsCompactionConfig(compaction_interval=5, overlap_size=2)
+# Unknown model → assume the SMALLEST window. Compacting too eagerly degrades an
+# answer; overflowing the context fails the turn outright.
+_DEFAULT_COMPACTION = EventsCompactionConfig(
+    compaction_interval=20, overlap_size=4, token_threshold=120_000, event_retention_size=40
+)
+
+# Ops override for the token trigger, so a threshold can be tuned (or compaction
+# exercised deliberately in a debugging session) without a redeploy. Applies to
+# every family — it is an escape hatch, not a second tuning surface.
+_TOKEN_THRESHOLD_ENV = "COMPACTION_TOKEN_THRESHOLD"
+
+# COMPACTION-LATENCY M1 (ported from upstream) — how much higher the
+# PRE-REQUEST trigger sits than the routine one. Upstream measured the cost of
+# in-request compaction (2026-08-06, 18 real turns): TTFT +13.6s, tail +28.2s,
+# and every compacting turn compacted TWICE (both ADK paths fired). The two
+# paths read DIFFERENT config objects, which is the whole trick: raise the
+# threshold on the per-invocation copy and the pre-request path stops firing,
+# while the App-level config keeps the post-invocation path doing the routine
+# work at the end of the turn, while the student reads.
+#
+# The pre-request path is NOT disabled — it is the safety net that stops a turn
+# exceeding the model's context window, and a failed turn is worse than a slow
+# one. DERIVED FROM THE MODEL'S REAL WINDOW, not a multiple of the routine
+# threshold: a relative threshold moves with the routine one, so a big enough
+# conversation crosses both and the fix defeats itself (upstream measured
+# exactly that with `routine * 3`).
+_EMERGENCY_WINDOW_FRACTION = 0.8
+
+# Fallback when the model isn't in the registry. Assumes the smallest window we
+# ship — an emergency threshold that is too LOW merely compacts in-request
+# sooner; too HIGH risks a failed turn.
+_FALLBACK_CONTEXT_WINDOW = 200_000
+
+# Built once, shared by every config copy. The summarizer is stateless and
+# resolving a model is not free, so rebuilding it per call would put a registry
+# lookup on a path that runs for every agent construction.
+_summarizer_singleton = None
+_summarizer_built = False
+
+
+def _compaction_summarizer():
+    """The explicit summarizer (see adk/compaction_summarizer.py).
+
+    Lazy + memoised, including a memoised None: if the model can't be resolved
+    we must not retry the lookup on every call, and ADK falls back to its own
+    default summarizer (which drops tool results but still works).
+    """
+    global _summarizer_singleton, _summarizer_built
+    if not _summarizer_built:
+        from adk.compaction_summarizer import build_compaction_summarizer
+
+        _summarizer_singleton = build_compaction_summarizer()
+        _summarizer_built = True
+    return _summarizer_singleton
 
 
 def get_compaction_config(model_id: str) -> EventsCompactionConfig:
     """Return model-appropriate EventsCompactionConfig.
 
-    Longer context windows (Gemini) compact less often; shorter ones compact more.
-    Config is set on App, not on individual Agents.
+    Larger context windows get a higher token threshold and a higher turn-count
+    backstop. An unrecognised model gets the SMALLEST window's config, because
+    compacting too eagerly costs answer quality while overflowing the context
+    fails the turn outright.
+
+    ``COMPACTION_TOKEN_THRESHOLD`` overrides the token trigger for every family.
 
     Args:
-        model_id: The model identifier string (e.g. "gemini-2.5-flash", "claude-sonnet-4-6").
+        model_id: The model identifier string (e.g. "gemini-3.5-flash-lite",
+            "claude-sonnet-4-6"). Matched by prefix against the model family.
 
     Returns:
-        EventsCompactionConfig tuned for the model's context window size.
+        EventsCompactionConfig tuned for the model's context window size. Always
+        a FRESH copy carrying an explicit summarizer — see below.
     """
-    for prefix, config in _COMPACTION_CONFIGS.items():
+    config = _DEFAULT_COMPACTION
+    for prefix, candidate in _COMPACTION_CONFIGS.items():
         if model_id.startswith(prefix):
-            return config
-    return _DEFAULT_COMPACTION
+            config = candidate
+            break
+
+    # Never hand out the module-level singleton. ADK's
+    # `_ensure_compaction_summarizer` MUTATES the config in place
+    # (`config.summarizer = LlmEventSummarizer(llm=agent.canonical_model)`), so
+    # returning the shared object would let the first skill that compacts pin
+    # its own model as the summarizer for every skill afterwards. Setting
+    # `summarizer` ourselves also makes that ADK branch return early, so the
+    # copy is belt-and-braces — but the copy is what makes it SAFE if the
+    # summarizer ever fails to build and comes back None.
+    config = config.model_copy(update={"summarizer": _compaction_summarizer()})
+
+    override = os.environ.get(_TOKEN_THRESHOLD_ENV)
+    if override:
+        try:
+            threshold = int(override)
+        except ValueError:
+            # Never let a typo'd env var silently restore turn-count compaction —
+            # that failure would be invisible and would look like a model bug.
+            logger.warning(
+                "%s=%r is not an integer; ignoring and using the %s default (%s).",
+                _TOKEN_THRESHOLD_ENV,
+                override,
+                model_id,
+                config.token_threshold,
+            )
+        else:
+            if threshold <= 0:
+                logger.warning(
+                    "%s=%d must be > 0 (ADK rejects it); ignoring.",
+                    _TOKEN_THRESHOLD_ENV,
+                    threshold,
+                )
+            else:
+                logger.info(
+                    "%s=%d overriding the %s default (%s).",
+                    _TOKEN_THRESHOLD_ENV,
+                    threshold,
+                    model_id,
+                    config.token_threshold,
+                )
+                return config.model_copy(update={"token_threshold": threshold})
+    return config
+
+
+def context_window_for(model_id: str) -> int:
+    """The model's real context window, from the registry.
+
+    Accepts either a registry id (``gemini-3-6-flash``) or a raw API name
+    (``gemini-3.6-flash``) — the latter is the form a running agent actually
+    carries (``agent.model.model``), so without that match every production
+    lookup would silently take the fallback and quietly halve the emergency
+    line. Falls back to the smallest window we ship when the model isn't
+    registered; erring small is the safe direction (a low emergency threshold
+    just compacts in-request sooner, while a high one risks a failed turn).
+    """
+    if not model_id:
+        return _FALLBACK_CONTEXT_WINDOW
+    try:
+        from config.models import load_models_config
+
+        for candidate in load_models_config().models:
+            if model_id in (candidate.id, candidate.api_name) and candidate.context_window:
+                return int(candidate.context_window)
+    except Exception as exc:
+        logger.debug("context window lookup failed for %r (%s); using fallback", model_id, exc)
+    return _FALLBACK_CONTEXT_WINDOW
+
+
+def emergency_compaction_config(config: EventsCompactionConfig, model_id: str = "") -> EventsCompactionConfig:
+    """The same config with the token trigger raised to emergency-only.
+
+    Applied to the PER-INVOCATION copy so the pre-request processor stops doing
+    routine work. The App-level config is untouched, so post-invocation
+    compaction — which runs at the end of a turn, while the student reads —
+    still keeps the conversation in budget.
+
+    The emergency threshold is an ABSOLUTE line derived from the model's context
+    window, NOT a multiple of the routine threshold — a relative threshold rises
+    with the routine one, so a large conversation crosses both and the
+    pre-request path fires anyway. Emergency has to mean "this turn is about to
+    overflow", not "somewhat more than usual".
+
+    Never LOWERS the threshold — on a small-window model the derived value can
+    land under the routine one, and lowering it would make the pre-request path
+    fire *more* eagerly, the exact opposite of the point.
+
+    Returns a COPY. Mutating the input would defeat the whole thing: these
+    configs are shared, and ADK itself mutates ``summarizer`` in place.
+    """
+    if config.token_threshold is None:
+        # No token trigger to demote (a config relying on the turn-count
+        # backstop alone). Leave it exactly as it is.
+        return config
+    emergency = int(context_window_for(model_id) * _EMERGENCY_WINDOW_FRACTION)
+    if emergency <= config.token_threshold:
+        # No demotion possible. Legitimate on a genuinely small-window model,
+        # but it ALSO happens when `model_id` couldn't be resolved and we fell
+        # back to the smallest window — in which case the latency fix silently
+        # does nothing. Log it, so a no-op is observable rather than assumed.
+        logger.info(
+            "compaction: no pre-request demotion for model=%r "
+            "(emergency line %d <= routine %d) — routine compaction may still land in TTFT",
+            model_id or "<unknown>",
+            emergency,
+            config.token_threshold,
+        )
+        return config
+    return config.model_copy(update={"token_threshold": emergency})
 
 
 def _normalize_agent_engine_id(value: str) -> str:

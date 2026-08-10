@@ -238,6 +238,21 @@ class LatencyTracker:
         self._pending_stage_events = []
         return events
 
+    def emit_reliability_event(self, name: str, value: dict) -> None:
+        """Enqueue a product-signal CUSTOM event (COMPACTION_STARTED,
+        HISTORY_COMPACTED, …).
+
+        Intentionally NOT gated by ``AITANA_TTFT_MODE`` — degradation
+        signaling is a product feature (degraded states must be
+        user-visible), not instrumentation. Rides the same pending queue
+        ``stream_agui_events`` drains. Fail-open; payloads carry counts and
+        timestamps only — never conversation content.
+        """
+        try:
+            self._pending_stage_events.append(CustomEvent(type=EventType.CUSTOM, name=name, value=value))
+        except Exception as exc:
+            logger.warning("emit_reliability_event enqueue failed (suppressed): %s", exc)
+
     def report_payload(self) -> dict[str, Any]:
         """Snapshot of all marks + metadata. Used by both ``emit_log()``
         and the optional LATENCY_REPORT AG-UI event."""
@@ -319,6 +334,11 @@ class _NullLatencyTracker(LatencyTracker):
 
     def drain_stage_events(self):
         return []
+
+    def emit_reliability_event(self, name: str, value: dict) -> None:
+        # No-op: the null tracker is a process-wide singleton and nothing
+        # ever drains its queue — appending would leak events forever.
+        return
 
     def build_latency_report_event(self):
         return None

@@ -96,20 +96,21 @@ defaults:
 
 platform_default: "gemini-3-5-flash-lite"
 
-# ─── Compaction context windows ───────────────────────────────────────────
-# EventsCompactionConfig on App (not Agent/Runner).
-# Larger context = compact less often.
-# See backend/adk/session.py get_compaction_config().
-
+# ─── Compaction ───────────────────────────────────────────────────────────
+# EventsCompactionConfig on App (not Agent/Runner). DOCUMENTATION ONLY —
+# the authoritative table is _COMPACTION_CONFIGS in backend/adk/session.py
+# (this block is not read by code; per-model context_window above IS read,
+# by context_window_for()).
+#
+# Primary trigger: token_threshold (~25% of the usable window) — fires on
+# real context pressure. compaction_interval is a turn-count BACKSTOP only.
+# COMPACTION_TOKEN_THRESHOLD env var overrides the token trigger per deploy.
 compaction:
-  large_context:   # ≥ 1M tokens: compact every 10 turns, overlap 3
-    models: ["gemini-", "gpt-5.4"]
-    interval: 10
-    overlap: 3
-  small_context:   # 200K–400K tokens: compact every 5 turns, overlap 2
-    models: ["claude-", "gpt-5"]
-    interval: 5
-    overlap: 2
-  default:
-    interval: 5
-    overlap: 2
+  large_context:   # ≥ 1M tokens (gemini-, gpt-5.4)
+    token_threshold: 250000
+    event_retention_size: 60
+    interval_backstop: 40
+  small_context:   # 200K–400K tokens (claude-, gpt-5) — also the default
+    token_threshold: 120000
+    event_retention_size: 40
+    interval_backstop: 20

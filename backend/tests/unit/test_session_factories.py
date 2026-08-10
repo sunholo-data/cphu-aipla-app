@@ -104,36 +104,57 @@ class TestGetServiceUris:
 
 
 class TestGetCompactionConfig:
-    def test_gemini_3_flash_gets_long_interval(self):
-        cfg = session_mod.get_compaction_config("gemini-3-flash-preview")
-        assert cfg.compaction_interval == 10
-        assert cfg.overlap_size == 3
+    """Config VALUES only. Whether the config is actually WIRED into the chat
+    Runner is asserted by test_compaction_reaches_chat_runner.py — this class
+    was green for months while the config reached nothing, so never read a
+    pass here as "compaction works"."""
 
-    def test_gemini_3_1_pro_gets_long_interval(self):
-        cfg = session_mod.get_compaction_config("gemini-3.1-pro-preview")
-        assert cfg.compaction_interval == 10
+    def test_gemini_gets_large_window_thresholds(self):
+        cfg = session_mod.get_compaction_config("gemini-3.6-flash")
+        assert cfg.token_threshold == 250_000
+        assert cfg.event_retention_size == 60
+        assert cfg.compaction_interval == 40
 
-    def test_gpt_5_4_gets_long_interval(self):
+    def test_gpt_5_4_gets_large_window_thresholds(self):
         # GPT-5.4 has a 1M context window — same tier as Gemini
         cfg = session_mod.get_compaction_config("gpt-5.4")
-        assert cfg.compaction_interval == 10
-        assert cfg.overlap_size == 3
+        assert cfg.token_threshold == 250_000
 
-    def test_claude_gets_short_interval(self):
+    def test_claude_gets_small_window_thresholds(self):
         cfg = session_mod.get_compaction_config("claude-sonnet-4-6")
-        assert cfg.compaction_interval == 5
-        assert cfg.overlap_size == 2
+        assert cfg.token_threshold == 120_000
+        assert cfg.event_retention_size == 40
+        assert cfg.compaction_interval == 20
 
-    def test_claude_opus_gets_short_interval(self):
-        cfg = session_mod.get_compaction_config("claude-opus-4-7")
-        assert cfg.compaction_interval == 5
-
-    def test_gpt_5_1_gets_short_interval(self):
-        # GPT-5.1 has 400K context — shorter interval
+    def test_gpt_5_1_gets_small_window_thresholds(self):
         cfg = session_mod.get_compaction_config("gpt-5.1-chat-latest")
-        assert cfg.compaction_interval == 5
+        assert cfg.token_threshold == 120_000
 
-    def test_unknown_model_gets_safe_default(self):
+    def test_unknown_model_gets_smallest_window_config(self):
+        # Compacting too eagerly degrades an answer; overflowing fails the turn.
         cfg = session_mod.get_compaction_config("unknown-future-model")
-        assert cfg.compaction_interval == 5
-        assert cfg.overlap_size == 2
+        assert cfg.token_threshold == 120_000
+        assert cfg.event_retention_size == 40
+
+    def test_both_triggers_are_always_armed(self):
+        # A token_threshold without event_retention_size is rejected by ADK's
+        # validator; an interval-only config is the pre-2026-08 turn-count
+        # behaviour. Every family must arm both.
+        for model in ("gemini-3.6-flash", "gpt-5.4", "claude-sonnet-4-6", "gpt-5.1", "mystery"):
+            cfg = session_mod.get_compaction_config(model)
+            assert cfg.token_threshold and cfg.event_retention_size and cfg.compaction_interval
+
+    def test_env_override_changes_the_token_threshold(self, monkeypatch):
+        monkeypatch.setenv("COMPACTION_TOKEN_THRESHOLD", "3000")
+        cfg = session_mod.get_compaction_config("gemini-3.6-flash")
+        assert cfg.token_threshold == 3000
+        # The rest of the config is untouched.
+        assert cfg.event_retention_size == 60
+
+    def test_garbage_env_override_is_ignored(self, monkeypatch):
+        monkeypatch.setenv("COMPACTION_TOKEN_THRESHOLD", "not-a-number")
+        assert session_mod.get_compaction_config("gemini-3.6-flash").token_threshold == 250_000
+
+    def test_non_positive_env_override_is_ignored(self, monkeypatch):
+        monkeypatch.setenv("COMPACTION_TOKEN_THRESHOLD", "0")
+        assert session_mod.get_compaction_config("gemini-3.6-flash").token_threshold == 250_000

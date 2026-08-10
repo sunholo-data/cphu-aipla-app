@@ -97,6 +97,21 @@ def fast_model() -> str:
     return entry.api_name if entry else default_model()
 
 
+def smart_model() -> str:
+    """API name of the ``smart``-tier Google model — for sub-tasks that are
+    harder than the average chat turn (currently the compaction summarizer,
+    where a paraphrased-away specific is unrecoverable).
+
+    Registry-sourced like ``fast_model()``: returns the ``smart``-tier Google
+    entry when one exists, else falls back to ``default_model()``. Google-tier
+    only because these sub-tasks run inside the Vertex serving path with ADC —
+    no cross-provider key requirements.
+    """
+    cfg = load_models_config()
+    entry = next((m for m in cfg.models if m.provider == "google" and m.tier == "smart"), None)
+    return entry.api_name if entry else default_model()
+
+
 def model_api_names() -> set[str]:
     """Every curated model's api_name — the allow-list for "is this a model we
     support". Use to validate a caller-chosen model instead of hardcoding."""
