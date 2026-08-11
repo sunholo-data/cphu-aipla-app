@@ -8,7 +8,7 @@
  * M9 wiring nudged the file from 816 → 819.
  */
 
-import { downloadCsv, downloadJson } from "@/lib/download";
+import { downloadCsv, downloadJson, slugify } from "@/lib/download";
 import {
   type ClassPayload,
   type SessionRow,
@@ -27,14 +27,6 @@ export const EXPORT_SESSION_LIMIT = 100;
 export type SessionBundle =
   | { row: SessionRow; report: SessionSummaryPayload; error: null }
   | { row: SessionRow; report: null; error: string };
-
-export function slugify(s: string): string {
-  return s
-    .toLowerCase()
-    .replace(/[^a-z0-9]+/g, "-")
-    .replace(/^-+|-+$/g, "")
-    .slice(0, 40);
-}
 
 /** Fetch the full per-session reports for every row in `sessions`,
  *  in parallel. Sessions without a groupCode are skipped — the report

@@ -2,7 +2,9 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { getStroke } from "perfect-freehand";
-import { Check, Eraser, PenLine, RotateCcw, Trash2, Type } from "lucide-react";
+import { Check, Download, Eraser, PenLine, RotateCcw, Trash2, Type } from "lucide-react";
+
+import { triggerDownload } from "@/lib/download";
 
 /**
  * SolutionWhiteboard (1.1.48 M2, JB-2) — the PRIMARY solution surface: the
@@ -15,7 +17,11 @@ import { Check, Eraser, PenLine, RotateCcw, Trash2, Type } from "lucide-react";
  *
  * Item-list model (strokes + text), not direct-to-bitmap, so undo is a pop +
  * redraw. Canvas rendering needs a browser — unit tests cover the toolbar +
- * wiring.
+ * wiring (with `getContext`/`toBlob` stubbed, since jsdom has no canvas).
+ *
+ * 1.1.73 M3 adds **"Hent tegning"** and stops clearing the board on send, so a
+ * drawing is something the student keeps and revises rather than something that
+ * only ever existed as a chat attachment.
  */
 type StrokePoint = [number, number, number]; // x, y, pressure
 interface Stroke {
@@ -123,10 +129,14 @@ export function SolutionWhiteboard({ onAdd }: { onAdd: (file: File) => void }) {
     if (done) setItems((arr) => [...arr, done]);
   };
 
-  const add = () => {
+  /** Composite the board onto white so it reads as ink-on-paper rather than
+   *  transparency, and hand the PNG to `sink`. Shared by "Tilføj tegning"
+   *  (stage it for the tutor) and "Hent tegning" (download it) — one
+   *  compositing path, so the file the student keeps is byte-identical to the
+   *  one the tutor sees. */
+  const composite = (sink: (blob: Blob) => void) => {
     const c = canvasRef.current;
     if (!c) return;
-    // Composite onto white so the tutor sees ink-on-paper, not transparency.
     const out = document.createElement("canvas");
     out.width = c.width;
     out.height = c.height;
@@ -136,11 +146,22 @@ export function SolutionWhiteboard({ onAdd }: { onAdd: (file: File) => void }) {
     octx.fillRect(0, 0, out.width, out.height);
     octx.drawImage(c, 0, 0);
     out.toBlob((blob) => {
-      if (!blob) return;
-      onAdd(new File([blob], `tegning-${Date.now()}.png`, { type: "image/png" }));
-      setItems([]); // staged → clear the board for the next page
+      if (blob) sink(blob);
     }, "image/png");
   };
+
+  const stamp = () => new Date().toISOString().slice(0, 10);
+
+  // Stage the drawing for the tutor. The board is NOT cleared (1.1.73 M3): it
+  // used to be, on the assumption the student was drawing page 2 next — but
+  // that silently destroyed the far more common case, revising the diagram you
+  // just sent. "Ryd" is one click away when clearing IS what they want.
+  const add = () => composite((blob) => onAdd(new File([blob], `tegning-${Date.now()}.png`, { type: "image/png" })));
+
+  // Download the drawing (1.1.73 M3). Before this, a drawing existed only as a
+  // chat attachment: the student could not keep it, and after a reload it was
+  // not recoverable at all (restored history carries no image bytes).
+  const download = () => composite((blob) => triggerDownload(blob, `tegning-${stamp()}.png`));
 
   const hasInk = items.length > 0;
 
@@ -196,7 +217,15 @@ export function SolutionWhiteboard({ onAdd }: { onAdd: (file: File) => void }) {
         className="h-64 w-full touch-none rounded border border-border bg-white"
       />
 
-      <div className="flex items-center justify-end">
+      <div className="flex flex-wrap items-center justify-end gap-2">
+        <button
+          type="button"
+          onClick={download}
+          disabled={!hasInk}
+          className="inline-flex items-center gap-1.5 rounded-md border border-border px-3 py-1.5 text-sm text-foreground hover:bg-muted disabled:opacity-50"
+        >
+          <Download className="h-4 w-4" aria-hidden="true" /> Hent tegning
+        </button>
         <button
           type="button"
           onClick={add}

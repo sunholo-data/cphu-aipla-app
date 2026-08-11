@@ -1,10 +1,18 @@
-/** Client-side file download helpers for teacher report exports.
+/** Client-side file download helpers.
  *
- *  Both helpers build a Blob in memory, create a temporary object URL,
- *  click a synthesized anchor, then revoke the URL. No backend round-trip.
+ *  Every helper builds a Blob in memory, creates a temporary object URL,
+ *  clicks a synthesized anchor, then revokes the URL. No backend round-trip —
+ *  which is also why there is no server-side file-generation surface to secure.
+ *
+ *  Started as teacher report exports (CSV/JSON); `triggerDownload` and
+ *  `slugify` are now shared with the STUDENT surfaces (1.1.73 — the writing
+ *  element's txt/md/rtf export and the whiteboard's PNG). `slugify` used to
+ *  live in `app/teacher/classes/[id]/_exportHelpers.ts`; it moved here so a
+ *  student component never has to import a teacher route module (the eslint
+ *  surface fence in `.eslintrc.json` would be right to object).
  */
 
-function triggerDownload(blob: Blob, filename: string): void {
+export function triggerDownload(blob: Blob, filename: string): void {
   const url = URL.createObjectURL(blob);
   const a = document.createElement("a");
   a.href = url;
@@ -14,6 +22,20 @@ function triggerDownload(blob: Blob, filename: string): void {
   document.body.removeChild(a);
   // Revoke on next tick so the browser has time to start the download.
   setTimeout(() => URL.revokeObjectURL(url), 0);
+}
+
+/** Filename-safe stem from a human title. ASCII-lowercase, non-alphanumerics
+ *  collapsed to `-`, trimmed, capped at 40 chars. Danish `æøå` are not in
+ *  `a-z`, so they collapse to separators — deliberate: this is a filename, and
+ *  a transliteration table is a different (and lossier) decision than a stem
+ *  that is guaranteed portable across the filesystems a student's phone,
+ *  laptop and school Windows box present. */
+export function slugify(s: string): string {
+  return s
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "")
+    .slice(0, 40);
 }
 
 /** Escape a single CSV cell per RFC 4180: wrap in quotes if the value
