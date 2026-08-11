@@ -68,6 +68,7 @@ import { type TableElementDef } from "@/components/workspace/WorkbenchTable";
 import { type ChartElementDef } from "@/components/workspace/WorkbenchChart";
 import { type CalculatorElementDef } from "@/components/workspace/WorkbenchCalculator";
 import { type NoteElementDef } from "@/components/workspace/WorkbenchNote";
+import { type WritingElementDef } from "@/components/workspace/WorkbenchWriting";
 import { type ActivityArtefact } from "@/components/workspace/GenericArtefactFrame";
 import { StudentWorkspace } from "@/components/workspace/StudentWorkspace";
 import type { SolutionElementDef } from "@/components/workspace/SolutionElementMount";
@@ -418,6 +419,8 @@ function ChatShell({
   const [activeCalculator, setActiveCalculator] = useState<CalculatorElementDef[]>([]);
   // 1.1.38 M4 — teacher-authored instructions / reference notes (Markdown).
   const [activeNote, setActiveNote] = useState<NoteElementDef[]>([]);
+  // 1.1.73 — the student's own writing surfaces (prose they keep + export).
+  const [activeWriting, setActiveWriting] = useState<WritingElementDef[]>([]);
   // 1.1.45 M4 — the rich-text solution editor element (JB-2 "din løsning").
   const [activeSolution, setActiveSolution] = useState<SolutionElementDef[]>([]);
   // 1.1.41 M1 — the vetted sim artefact this activity hosts (resolved from the
@@ -452,6 +455,7 @@ function ChatShell({
       activeChart.length > 0 ||
       activeCalculator.length > 0 ||
       activeNote.length > 0 ||
+      activeWriting.length > 0 ||
       activeSolution.length > 0 ||
       activeDocument.length > 0 ||
       activeConceptMap.length > 0 ||
@@ -482,6 +486,7 @@ function ChatShell({
       setActiveChart([]);
       setActiveCalculator([]);
       setActiveNote([]);
+      setActiveWriting([]);
       setActiveSolution([]);
       setActiveDocument([]);
       setActiveConceptMap([]);
@@ -504,6 +509,7 @@ function ChatShell({
         if (Array.isArray(data.chart)) setActiveChart(data.chart as ChartElementDef[]);
         if (Array.isArray(data.calculator)) setActiveCalculator(data.calculator as CalculatorElementDef[]);
         if (Array.isArray(data.note)) setActiveNote(data.note as NoteElementDef[]);
+        if (Array.isArray(data.writing)) setActiveWriting(data.writing as WritingElementDef[]);
         if (Array.isArray(data.solution)) setActiveSolution(data.solution as SolutionElementDef[]);
         if (Array.isArray(data.document)) setActiveDocument(data.document as DocumentElementDef[]);
         if (Array.isArray(data.conceptMap)) setActiveConceptMap(data.conceptMap as ConceptMapElementDef[]);
@@ -1390,6 +1396,7 @@ function ChatShell({
                 chart={activeChart}
                 calculator={activeCalculator}
                 note={activeNote}
+                writing={activeWriting}
                 solution={activeSolution}
                 document={activeDocument}
                 conceptMap={activeConceptMap}

@@ -24,6 +24,9 @@ vi.mock("../SolutionElementMount", () => ({
 vi.mock("../DocumentElementMount", () => ({
   DocumentElementMount: () => <div data-testid="document" />,
 }));
+vi.mock("../WorkbenchWriting", () => ({
+  WorkbenchWriting: () => <div data-testid="writing" />,
+}));
 
 import { WorkspaceElements } from "../elementRenderers";
 
@@ -34,7 +37,18 @@ const CALC = [{ id: "calc1", formula: "s", inputs: [{ id: "s", label: "S" }] }];
 const NOTE = [{ id: "n1", body: "hej" }];
 const SOLUTION = [{ id: "sol1", prompt: "Solve it" }];
 const DOCUMENT = [{ id: "doc1", prompt: "Upload" }];
-const EMPTY = { checklist: [], table: [], chart: [], calculator: [], note: [], solution: [], document: [], conceptMap: [] };
+const WRITING = [{ id: "w1", title: "Konklusion" }];
+const EMPTY = {
+  checklist: [],
+  table: [],
+  chart: [],
+  calculator: [],
+  note: [],
+  writing: [],
+  solution: [],
+  document: [],
+  conceptMap: [],
+};
 
 describe("WorkspaceElements dispatch (1.1.38 M1–M4)", () => {
   it("renders nothing when no workspace element is present", () => {
@@ -68,6 +82,14 @@ describe("WorkspaceElements dispatch (1.1.38 M1–M4)", () => {
     expect(screen.getByTestId("note")).toBeInTheDocument();
   });
 
+  it("renders the writing surface when present (1.1.73)", () => {
+    render(<WorkspaceElements skillId="s" {...EMPTY} writing={WRITING} />);
+    expect(screen.getByTestId("writing")).toBeInTheDocument();
+    // The note is a DIFFERENT element — the whole reason this one exists is
+    // that "Note" read as "notebook" to a teacher (JB, 2026-08-11).
+    expect(screen.queryByTestId("note")).not.toBeInTheDocument();
+  });
+
   it("renders the solution editor when present (1.1.45 M4)", () => {
     render(<WorkspaceElements skillId="s" {...EMPTY} solution={SOLUTION} />);
     expect(screen.getByTestId("solution")).toBeInTheDocument();
@@ -87,12 +109,13 @@ describe("WorkspaceElements dispatch (1.1.38 M1–M4)", () => {
         chart={CHART}
         calculator={CALC}
         note={NOTE}
+        writing={WRITING}
         solution={SOLUTION}
         document={DOCUMENT}
         conceptMap={[]}
       />,
     );
-    for (const id of ["checklist", "table", "chart", "calculator", "note", "solution", "document"]) {
+    for (const id of ["checklist", "table", "chart", "calculator", "note", "writing", "solution", "document"]) {
       expect(screen.getByTestId(id)).toBeInTheDocument();
     }
   });

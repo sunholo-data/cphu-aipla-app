@@ -77,6 +77,24 @@ export interface NoteElement {
   body: string;
 }
 
+/** A student writing surface (1.1.73, JB 2026-08-11). The teacher authors the
+ *  prompt + bounds; the student's TEXT is per-group state (`writing_progress`),
+ *  not stored on the config.
+ *
+ *  Not a `NoteElement` (teacher text the student reads) and not a
+ *  `SolutionElement` (physics working, drawn or photographed — 1.1.48 removed
+ *  the typed version because students do not type LaTeX). This is prose, which
+ *  is the thing a 16-year-old types fluently. It gets no maths input for that
+ *  reason. `minWords` is a target shown to the student, never a save gate. */
+export interface WritingElement {
+  id: string;
+  title?: string;
+  prompt?: string;
+  placeholder?: string;
+  minWords?: number;
+  maxChars?: number;
+}
+
 /** A solution element (1.1.45 M4 → image-based 1.1.48, JB-2). The teacher authors
  *  the `prompt`; the student DRAWS their solution (or uploads a photo). The
  *  student's work is session state, not persisted on the config. */

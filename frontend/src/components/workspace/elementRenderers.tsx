@@ -8,6 +8,7 @@ import { ProgressChecklist, type ChecklistItem, type ChecklistItemState } from "
 import { WorkbenchCalculator, type CalculatorElementDef } from "./WorkbenchCalculator";
 import { WorkbenchChart, type ChartElementDef } from "./WorkbenchChart";
 import { WorkbenchNote, type NoteElementDef } from "./WorkbenchNote";
+import { WorkbenchWriting, type WritingElementDef } from "./WorkbenchWriting";
 import { WorkbenchTable, type TableElementDef } from "./WorkbenchTable";
 import { SolutionElementMount, type SolutionElementDef } from "./SolutionElementMount";
 import { DocumentElementMount, type DocumentElementDef } from "./DocumentElementMount";
@@ -47,6 +48,7 @@ export interface ElementRenderContext {
   chart: ChartElementDef[];
   calculator: CalculatorElementDef[];
   note: NoteElementDef[];
+  writing: WritingElementDef[];
   solution: SolutionElementDef[];
   document: DocumentElementDef[];
   conceptMap: ConceptMapElementDef[];
@@ -103,6 +105,15 @@ export const elementRenderers: Record<ElementKind, (ctx: ElementRenderContext) =
     ) : null,
   note: (ctx) =>
     ctx.note.length > 0 ? <WorkbenchNote skillId={ctx.skillId} notes={ctx.note} /> : null,
+  writing: (ctx) =>
+    ctx.writing.length > 0 ? (
+      <WorkbenchWriting
+        skillId={ctx.skillId}
+        activityId={ctx.activityId}
+        sessionId={ctx.sessionId}
+        writing={ctx.writing}
+      />
+    ) : null,
   solution: (ctx) =>
     ctx.solution.length > 0 ? <SolutionElementMount solution={ctx.solution} /> : null,
   document: (ctx) =>

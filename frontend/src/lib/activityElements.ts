@@ -5,7 +5,7 @@
 //
 // The *platform element* layer is the composable set a teacher layers on top of
 // any workbench type — checklist + data table + chart + calculator + note (the
-// 1.1.38 v1.1 set). Adding an element = a kind here + a backend spec + a
+// 1.1.38 v1.1 set) + the student's writing surface (1.1.73). Adding an element = a kind here + a backend spec + a
 // renderer + an editor. The recipe is in
 // docs/design/aipla/v1.1.0-feedback/activity-elements-palette.md.
 //
@@ -19,6 +19,7 @@ export type ElementKind =
   | "chart"
   | "calculator"
   | "note"
+  | "writing"
   | "solution"
   | "document"
   | "conceptMap";
@@ -39,7 +40,13 @@ export const ELEMENT_REGISTRY: Record<ElementKind, ElementDescriptor> = {
   table: { kind: "table", label: "Datatabel", render: "workspace", maxItems: 5 },
   chart: { kind: "chart", label: "Graf", render: "workspace", maxItems: 5 },
   calculator: { kind: "calculator", label: "Beregner", render: "workspace", maxItems: 5 },
-  note: { kind: "note", label: "Note", render: "workspace", maxItems: 5 },
+  // "Note" was a misleading label: a teacher reads it as *notebook* and expects
+  // somewhere the student writes (JB did, 2026-08-11). The KIND is wire-stable —
+  // only the label changed.
+  note: { kind: "note", label: "Instruktion / reference", render: "workspace", maxItems: 5 },
+  // The student's own writing surface (1.1.73). Not a singleton: a lab report
+  // wanting both a method and a conclusion box is the obvious first ask.
+  writing: { kind: "writing", label: "Skrivefelt", render: "workspace", maxItems: 3 },
   // One rich-text solution editor per activity (1.1.45 M4, JB-2 "din løsning").
   solution: { kind: "solution", label: "Din løsning", render: "workspace", maxItems: 1 },
   // Document-upload surface (1.1.48 — reconciled from workbench_type="document").

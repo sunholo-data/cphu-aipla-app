@@ -12,6 +12,7 @@ import type { CalculatorElementDef } from "./WorkbenchCalculator";
 import type { ChartElementDef } from "./WorkbenchChart";
 import type { ChecklistItem, ChecklistItemState } from "./ProgressChecklist";
 import type { NoteElementDef } from "./WorkbenchNote";
+import type { WritingElementDef } from "./WorkbenchWriting";
 import type { TableElementDef } from "./WorkbenchTable";
 import type { SolutionElementDef } from "./SolutionElementMount";
 import type { DocumentElementDef } from "./DocumentElementMount";
@@ -31,6 +32,7 @@ interface StudentWorkspaceProps {
   chart: ChartElementDef[];
   calculator: CalculatorElementDef[];
   note: NoteElementDef[];
+  writing: WritingElementDef[];
   solution: SolutionElementDef[];
   document: DocumentElementDef[];
   conceptMap: ConceptMapElementDef[];
@@ -82,6 +84,7 @@ export function StudentWorkspace({
   chart,
   calculator,
   note,
+  writing,
   solution,
   document,
   conceptMap,
@@ -132,6 +135,7 @@ export function StudentWorkspace({
     chart.length > 0 ||
     calculator.length > 0 ||
     note.length > 0 ||
+    writing.length > 0 ||
     solution.length > 0 ||
     document.length > 0 ||
     conceptMap.length > 0;
@@ -148,6 +152,7 @@ export function StudentWorkspace({
       chart={chart}
       calculator={calculator}
       note={note}
+      writing={writing}
       solution={solution}
       document={document}
       conceptMap={conceptMap}
