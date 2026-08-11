@@ -1,11 +1,13 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
-import { MessageSquareText } from "lucide-react";
+import { Download, MessageSquareText } from "lucide-react";
 
 import { useHumanToolEvents } from "@/hooks/useHumanToolEvents";
 import { useSimSnapshotPush } from "@/hooks/useSimSnapshotPush";
 import { useOptionalProactiveSimOptsRef } from "@/contexts/ProactiveSimContext";
+import { readStoredGroupSession } from "@/lib/anonymousGroupAuth";
+import { exportWriting, type ExportFormat } from "@/lib/exportDocument";
 import { fetchWriting, saveWriting } from "@/lib/writingApi";
 import type { WritingElement } from "@/lib/elementTypes";
 
@@ -89,8 +91,19 @@ interface WorkbenchWritingProps {
   /** Active chat session; when set, the text is pushed to the tutor so it can
    *  comment without the student pasting anything into the chat. */
   sessionId?: string | null;
+  /** Shown in the exported file's provenance header, so a downloaded document
+   *  says which lesson it came from. Falls back to the element's own title. */
+  activityTitle?: string;
   writing: WritingElementDef[];
 }
+
+/** Offered download formats. `.docx` is deliberately absent — see the header of
+ *  `lib/exportDocument.ts` and human gate 1 in the design doc. */
+const EXPORT_FORMATS: { value: ExportFormat; label: string }[] = [
+  { value: "rtf", label: "Word / Docs (.rtf)" },
+  { value: "txt", label: "Tekst (.txt)" },
+  { value: "md", label: "Markdown (.md)" },
+];
 
 /**
  * WorkbenchWriting — the student's own writing surface (1.1.73).
@@ -115,7 +128,13 @@ interface WorkbenchWritingProps {
  * per writing burst). Reading is continuous; COMMENTING is on request, via the
  * feedback button, so the tutor does not interrupt a half-written sentence.
  */
-export function WorkbenchWriting({ skillId, activityId, sessionId = null, writing }: WorkbenchWritingProps) {
+export function WorkbenchWriting({
+  skillId,
+  activityId,
+  sessionId = null,
+  activityTitle,
+  writing,
+}: WorkbenchWritingProps) {
   const storeId = activityId ?? skillId;
   const storageKey = writingStorageKey(storeId);
   const [values, setValues] = useState<Record<string, string>>({});
@@ -284,6 +303,24 @@ export function WorkbenchWriting({ skillId, activityId, sessionId = null, writin
     );
   };
 
+  /** Download the text as a file the student keeps. Entirely client-side — the
+   *  words are already here, so there is no round-trip and no second copy of
+   *  the student's work stored anywhere. */
+  const download = (w: WritingElementDef, format: ExportFormat) => {
+    const text = values[w.id] ?? "";
+    if (!text.trim()) return;
+    exportWriting(
+      {
+        title: w.title ?? "",
+        activityTitle: activityTitle ?? w.title ?? "",
+        groupCode: readStoredGroupSession()?.group_code ?? "",
+        text,
+        date: new Date().toISOString().slice(0, 10),
+      },
+      format,
+    );
+  };
+
   return (
     <div className="space-y-4 p-4">
       {writing.map((w) => {
@@ -334,14 +371,40 @@ export function WorkbenchWriting({ skillId, activityId, sessionId = null, writin
                   {state === "error" ? "Ikke gemt — prøver igen" : null}
                 </span>
               </span>
-              <button
-                type="button"
-                onClick={() => askForFeedback(w)}
-                disabled={words === 0}
-                className="inline-flex items-center gap-1.5 rounded-md border border-border px-2 py-1 text-xs text-foreground hover:bg-muted disabled:opacity-50"
-              >
-                <MessageSquareText className="h-3.5 w-3.5" aria-hidden="true" /> Bed om feedback
-              </button>
+              <span className="flex items-center gap-1.5">
+                {/* A select, not three buttons: downloading is a secondary
+                    action and three of them is clutter in a ~700px pane. */}
+                <label className="inline-flex items-center gap-1.5">
+                  <Download className="h-3.5 w-3.5" aria-hidden="true" />
+                  <span className="sr-only">{`Hent ${w.title || "teksten"} som fil`}</span>
+                  <select
+                    aria-label={`Hent ${w.title || "teksten"} som fil`}
+                    value=""
+                    disabled={words === 0}
+                    onChange={(e) => {
+                      const format = e.target.value as ExportFormat;
+                      if (format) download(w, format);
+                      e.target.value = "";
+                    }}
+                    className="rounded-md border border-border bg-background px-2 py-1 text-xs text-foreground disabled:opacity-50"
+                  >
+                    <option value="">Hent som…</option>
+                    {EXPORT_FORMATS.map((f) => (
+                      <option key={f.value} value={f.value}>
+                        {f.label}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+                <button
+                  type="button"
+                  onClick={() => askForFeedback(w)}
+                  disabled={words === 0}
+                  className="inline-flex items-center gap-1.5 rounded-md border border-border px-2 py-1 text-xs text-foreground hover:bg-muted disabled:opacity-50"
+                >
+                  <MessageSquareText className="h-3.5 w-3.5" aria-hidden="true" /> Bed om feedback
+                </button>
+              </span>
             </div>
           </section>
         );

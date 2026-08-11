@@ -275,6 +275,37 @@ describe("WorkbenchWriting", () => {
     expect((screen.getByRole("button", { name: /bed om feedback/i }) as HTMLButtonElement).disabled).toBe(true);
   });
 
+  it("downloads the text as a file the student keeps (1.1.73 M2)", async () => {
+    const click = vi.spyOn(HTMLAnchorElement.prototype, "click").mockImplementation(() => {});
+    URL.createObjectURL = vi.fn(() => "blob:stub");
+    URL.revokeObjectURL = vi.fn();
+    await renderLoaded({ sessionId: "sess-1", activityTitle: "Bølger og resonans" });
+    await type("Vi konkluderer at bølgelængden er konstant.");
+
+    fireEvent.change(screen.getByLabelText(/hent konklusion som fil/i), { target: { value: "rtf" } });
+
+    expect(click).toHaveBeenCalledTimes(1);
+    // Downloading is entirely client-side — no save, no push, no tutor turn.
+    expect(calls().saves).toHaveLength(0);
+    expect(onProactiveTrigger).not.toHaveBeenCalled();
+    click.mockRestore();
+  });
+
+  it("cannot download an empty document", async () => {
+    await renderLoaded({ sessionId: "sess-1" });
+    expect((screen.getByLabelText(/hent konklusion som fil/i) as HTMLSelectElement).disabled).toBe(true);
+  });
+
+  it("offers rtf, txt and md — and not a fabricated .docx", async () => {
+    // OOXML needs a ZIP writer; HTML-under-a-.doc-extension is a fabricated
+    // format for a file a student hands to a teacher. See human gate 1.
+    await renderLoaded();
+    const options = Array.from((screen.getByLabelText(/hent konklusion som fil/i) as HTMLSelectElement).options).map(
+      (o) => o.value,
+    );
+    expect(options).toEqual(["", "rtf", "txt", "md"]);
+  });
+
   it("keeps several writing surfaces independent", async () => {
     const two: WritingElementDef[] = [
       { id: "writing-1", title: "Metode" },

@@ -33,6 +33,8 @@ interface StudentWorkspaceProps {
   calculator: CalculatorElementDef[];
   note: NoteElementDef[];
   writing: WritingElementDef[];
+  /** Activity title — stamped into a downloaded writing export. */
+  activityTitle?: string;
   solution: SolutionElementDef[];
   document: DocumentElementDef[];
   conceptMap: ConceptMapElementDef[];
@@ -85,6 +87,7 @@ export function StudentWorkspace({
   calculator,
   note,
   writing,
+  activityTitle,
   solution,
   document,
   conceptMap,
@@ -153,6 +156,7 @@ export function StudentWorkspace({
       calculator={calculator}
       note={note}
       writing={writing}
+      activityTitle={activityTitle}
       solution={solution}
       document={document}
       conceptMap={conceptMap}

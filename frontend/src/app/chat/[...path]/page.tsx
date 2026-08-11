@@ -421,6 +421,9 @@ function ChatShell({
   const [activeNote, setActiveNote] = useState<NoteElementDef[]>([]);
   // 1.1.73 — the student's own writing surfaces (prose they keep + export).
   const [activeWriting, setActiveWriting] = useState<WritingElementDef[]>([]);
+  // The activity's title, stamped into a downloaded writing export so a file
+  // that reaches a teacher says which lesson it came from.
+  const [activeTitle, setActiveTitle] = useState<string>("");
   // 1.1.45 M4 — the rich-text solution editor element (JB-2 "din løsning").
   const [activeSolution, setActiveSolution] = useState<SolutionElementDef[]>([]);
   // 1.1.41 M1 — the vetted sim artefact this activity hosts (resolved from the
@@ -487,6 +490,7 @@ function ChatShell({
       setActiveCalculator([]);
       setActiveNote([]);
       setActiveWriting([]);
+      setActiveTitle("");
       setActiveSolution([]);
       setActiveDocument([]);
       setActiveConceptMap([]);
@@ -510,6 +514,7 @@ function ChatShell({
         if (Array.isArray(data.calculator)) setActiveCalculator(data.calculator as CalculatorElementDef[]);
         if (Array.isArray(data.note)) setActiveNote(data.note as NoteElementDef[]);
         if (Array.isArray(data.writing)) setActiveWriting(data.writing as WritingElementDef[]);
+        if (typeof data.title === "string") setActiveTitle(data.title);
         if (Array.isArray(data.solution)) setActiveSolution(data.solution as SolutionElementDef[]);
         if (Array.isArray(data.document)) setActiveDocument(data.document as DocumentElementDef[]);
         if (Array.isArray(data.conceptMap)) setActiveConceptMap(data.conceptMap as ConceptMapElementDef[]);
@@ -1397,6 +1402,7 @@ function ChatShell({
                 calculator={activeCalculator}
                 note={activeNote}
                 writing={activeWriting}
+                activityTitle={activeTitle}
                 solution={activeSolution}
                 document={activeDocument}
                 conceptMap={activeConceptMap}

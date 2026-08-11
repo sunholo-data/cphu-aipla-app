@@ -49,6 +49,8 @@ export interface ElementRenderContext {
   calculator: CalculatorElementDef[];
   note: NoteElementDef[];
   writing: WritingElementDef[];
+  /** Activity title, stamped into the writing element's exported file. */
+  activityTitle?: string;
   solution: SolutionElementDef[];
   document: DocumentElementDef[];
   conceptMap: ConceptMapElementDef[];
@@ -111,6 +113,7 @@ export const elementRenderers: Record<ElementKind, (ctx: ElementRenderContext) =
         skillId={ctx.skillId}
         activityId={ctx.activityId}
         sessionId={ctx.sessionId}
+        activityTitle={ctx.activityTitle}
         writing={ctx.writing}
       />
     ) : null,

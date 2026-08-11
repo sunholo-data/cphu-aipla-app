@@ -24,15 +24,23 @@ export function triggerDownload(blob: Blob, filename: string): void {
   setTimeout(() => URL.revokeObjectURL(url), 0);
 }
 
-/** Filename-safe stem from a human title. ASCII-lowercase, non-alphanumerics
- *  collapsed to `-`, trimmed, capped at 40 chars. Danish `æøå` are not in
- *  `a-z`, so they collapse to separators — deliberate: this is a filename, and
- *  a transliteration table is a different (and lossier) decision than a stem
- *  that is guaranteed portable across the filesystems a student's phone,
- *  laptop and school Windows box present. */
+/** Filename-safe stem from a human title: ASCII-lowercase, non-alphanumerics
+ *  collapsed to `-`, trimmed, capped at 40 chars.
+ *
+ *  **Danish transliterates rather than collapsing** (`æ`→`ae`, `ø`→`o`, `å`→`a`,
+ *  then NFKD-strip the remaining accents). Without it, "Bølger og resonans"
+ *  becomes `b-lger-og-resonans` — which is what a Danish student would find in
+ *  their downloads folder, for a product whose users write Danish. Matches
+ *  `slugifyProjectHeading` (`lib/projectHeadings.ts`), which already made this
+ *  call for the project site's anchors. */
 export function slugify(s: string): string {
   return s
     .toLowerCase()
+    .replace(/æ/g, "ae")
+    .replace(/ø/g, "o")
+    .replace(/å/g, "a")
+    .normalize("NFKD")
+    .replace(/[\u0300-\u036f]/g, "")
     .replace(/[^a-z0-9]+/g, "-")
     .replace(/^-+|-+$/g, "")
     .slice(0, 40);
