@@ -94,7 +94,23 @@ URLs.
   - **Public, no auth** (matches the public-skills posture). Speaks Streamable HTTP — point a ChatGPT remote connector or Claude Desktop `mcp-remote` here, no tunnel.
   - Offers the public skills as tools **and** the sims as `ui://` MCP Apps (`show_boldkast|kinebot|led_planck`; artefact HTML lazily fetched from the sandbox via `MCP_SANDBOX_URL`).
   - Smoke: `REQUIRE_SIMS=1 ./scripts/smoke-deployed-mcp.sh dev` → initialize + sims listed + `ui://` readable. (Visual render is host-dependent — Claude Desktop is currently blocked by upstream claude-ai-mcp#165; ChatGPT/MCP Inspector render reliably.)
-## Custom domains — `ku.dk` (provisioned 2026-08-03, DNS not yet requested)
+## Custom domains — `ku.dk` (provisioned 2026-08-03, **app names LIVE 2026-08-11**)
+
+**The app is live on its ku.dk names.** Use these as the addresses to give
+teachers; the `run.app` URLs stay valid and are still what every smoke script
+and the promote path use.
+
+| | Address | Certificate |
+|---|---|---|
+| **prod** | **https://aipla.ku.dk** | ACTIVE 2026-08-11 17:46 UTC, renews 2026-11-09 |
+| **test** | **https://aipla-test.ku.dk** | ACTIVE 2026-08-11 15:17 UTC, renews 2026-11-09 |
+| prod sandbox | `aipla-sandbox.ku.dk` | **not delegated — with UCPH IT** |
+| test sandbox | `aipla-test-sandbox.ku.dk` | **not delegated — with UCPH IT** |
+
+The two sandbox names are not blocking: the frontend serves sims from the
+`run.app` sandbox origin, which is a distinct origin and satisfies ADR-013 on
+its own. Both envs' deployed `ALLOWED_HOST_ORIGINS` already list the ku.dk app
+origin, so nothing needed redeploying when the names came up.
 
 UCPH granted four names. Each env has ONE global external Application Load
 Balancer; the app and the sandbox share its IP pair and are split by **Host
@@ -131,22 +147,65 @@ alternative is getting UCPH's root-domain owners into a Search Console property.
 A Google-managed cert on an ALB validates by the name simply *resolving* to the
 LB, so none of that applies.
 
-**Status:** all four certs `PROVISIONING` — correct, and they issue by themselves
-once the records resolve. One cert **per hostname**, deliberately: a managed cert
-stays PROVISIONING until every domain on it validates, so a combined cert would
-let a missing sandbox record hold the frontend hostage.
+**One cert per hostname, deliberately** — a managed cert stays PROVISIONING until
+every domain on it validates, so a combined cert would let a missing sandbox
+record hold the frontend hostage. That paid off exactly as designed on
+2026-08-11: the two sandbox names are still undelegated, and the app names went
+ACTIVE regardless.
+
+### What went wrong 2026-08-03 → 08-11, and the diagnostic that found it
+
+UCPH IT created the records on 2026-08-10 with correct IPs, and they still did
+not work: the certs sat at `FAILED_NOT_VISIBLE` for eight days. The delegations
+were **missing from the `ku.dk` parent zone**, so the parent served a signed
+NSEC proof that the names did not exist while ns1/ns2 answered A queries for
+them from the child zones. Strict validators (Google — hence Google's cert
+prober) call that forged and refuse; lenient ones (UCPH's own resolver,
+Cloudflare) return the record. That asymmetry is why UCPH could not reproduce
+it and closed two tickets.
+
+**The one query that settles it, needing no third-party tool:**
+
+```bash
+dig @ns1.ku.dk +norec science.ku.dk DS   # NOERROR  — name exists, no DS: correct insecure delegation
+dig @ns1.ku.dk +norec aipla.ku.dk   DS   # NXDOMAIN — name absent from the parent's signed data
+```
+
+NXDOMAIN does not mean "no DS" — that is NOERROR. It means the name does not
+exist. Note `science.ku.dk` is itself unsigned and works fine, so "sign the
+child zone" is never the fix; the delegation must be inside `ku.dk`'s
+signatures. Once UCPH added the delegations, certs issued in 2.5–5 hours with
+no action, no deploy and no config change on our side.
+
+**This will not self-heal for the remaining two names.** Re-signing only signs
+what is in the zone, and the sandbox delegations are absent from it — so the
+2026-08-20 signature expiry will come and go without fixing them. They need
+UCPH IT to create the delegations.
+
+`make check-domains` encodes all of the above, including telling "record
+missing" apart from "record present but DNSSEC-bogus", and refusing to render a
+verdict when it cannot read the project.
 
 ```bash
 gcloud compute ssl-certificates list --global --project=aipla-prod-2026 \
   --format="table(name,managed.status)"
 ```
 
-**After the certs go ACTIVE**, flip `mcp_sandbox_url` in the env's tfvars to the
-ku.dk sandbox origin and re-apply, then cut a tag / promote — the sandbox reads
-`ALLOWED_HOST_ORIGINS` at *deploy* time, so sims stay blocked on the new origin
-until it redeploys. Firebase `authorized_domains` is a live config change and
-needs no redeploy. Both origins (run.app and ku.dk) are kept authorized
-throughout; dropping run.app would break every smoke script and the promote path.
+**Still outstanding, once the two sandbox names are delegated:** flip
+`mcp_sandbox_url` in the env's tfvars to the ku.dk sandbox origin and re-apply,
+then cut a tag / promote — the sandbox reads `ALLOWED_HOST_ORIGINS` at *deploy*
+time, so sims would stay blocked on a newly-added origin until it redeploys.
+Firebase `authorized_domains` is a live config change and needs no redeploy.
+Both origins (run.app and ku.dk) are kept authorized throughout; dropping
+run.app would break every smoke script and the promote path.
+
+**Also outstanding:** `MCP_WIDGET_DOMAIN` is still the `run.app` frontend origin
+in both envs (`cloudbuild.tf`: `_MCP_WIDGET_DOMAIN = var.frontend_url`). It was
+deliberately held there until the ku.dk names actually served, which they now
+do. It only declares a widget domain to *external* MCP hosts (ChatGPT rendering
+the sims) and has no in-app effect, so it is safe to leave. When it is changed
+it needs the `cloudbuild.promote.yaml` twin as well, or it will never reach
+prod — see the footgun table in CLAUDE.md.
 
 ## AIPLA — test (`aipla-test-2026`, region `europe-north1`) — cut 2026-07-27 (v0.1.0)
 
