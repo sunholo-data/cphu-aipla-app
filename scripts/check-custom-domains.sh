@@ -107,10 +107,41 @@ for ENV in "${ENVS[@]}"; do
             | awk '/RRSIG/ {print $9; exit}')"
   [ -n "${KU_INC}" ] && echo "  info ku.dk signature window ${KU_INC} -> ${KU_EXP} (fixed dates; does NOT move on every re-sign)"
 
+  # PREFLIGHT: can we read this project at all? Every gcloud check below fails
+  # OPEN — an expired credential or a switched active account returns nothing,
+  # and step 4 then prints "sandbox does NOT accept ... sims will be blocked".
+  # On 2026-08-11 that fired purely because the active account had changed to
+  # one with no access to the AIPLA projects, which is a worse failure than the
+  # one step 4 exists to catch: it sends you chasing a config bug that is not
+  # there. Same rule as the DNS step above — never let "could not check"
+  # masquerade as "checked, and it is wrong".
+  # NOTE: exit status is NOT a usable signal here. gcloud returns 0 on a
+  # permission failure of this kind, printing only "WARNING: Some requests did
+  # not succeed" to stderr — so a status check passes while the output is empty.
+  # Test the output and stderr instead. An env reaching this line always has
+  # certificates (they are created with the LB whenever custom_domain is set),
+  # so empty output means we could not read, not that there is nothing there.
+  PRE_ERRF="$(mktemp)"
+  PRE_OUT="$(gcloud compute ssl-certificates list --global --project="${PROJECT}" \
+               --format='value(name)' 2>"${PRE_ERRF}")"
+  PRE_ERR="$(cat "${PRE_ERRF}")"; rm -f "${PRE_ERRF}"
+  if [ -z "${PRE_OUT}" ] || echo "${PRE_ERR}" \
+       | grep -qiE 'permission|denied|reauth|auth token|credential|not found'; then
+    GCLOUD_OK=0
+    echo "  ???? cannot read ${PROJECT} via gcloud — checks below SKIPPED, not a verdict"
+    [ -n "${PRE_ERR}" ] && echo "         ${PRE_ERR%%$'\n'*}"
+    echo "         usually an expired or wrong active account. Check with:"
+    echo "           gcloud auth list"
+    echo "           gcloud auth login          # or: gcloud config set account <you>"
+    pending=1
+  else
+    GCLOUD_OK=1
+  fi
+
   # 2. Certificates. These need no action — they issue once the names resolve
   #    here. One per hostname deliberately, so a missing sandbox record cannot
   #    hold the frontend's certificate hostage.
-  while read -r CERT STATUS; do
+  [ "${GCLOUD_OK}" = 1 ] && while read -r CERT STATUS; do
     [ -z "${CERT}" ] && continue
     case "${STATUS}" in
       ACTIVE) echo "  ok   cert ${CERT} ACTIVE" ;;
@@ -143,10 +174,14 @@ for ENV in "${ENVS[@]}"; do
   #    the origin the app will actually be served from. This is a property of
   #    the running revision, not of Terraform state — which is the entire point,
   #    since Terraform can be perfectly up to date while the service is not.
-  ORIGINS="$(gcloud run services describe aipla-v01-sandbox --region=europe-north1 \
-    --project="${PROJECT}" --format='value(spec.template.spec.containers[0].env)' 2>/dev/null \
+  ORIGINS=""
+  [ "${GCLOUD_OK}" = 1 ] && ORIGINS="$(gcloud run services describe aipla-v01-sandbox \
+    --region=europe-north1 --project="${PROJECT}" \
+    --format='value(spec.template.spec.containers[0].env)' 2>/dev/null \
     | tr ';' '\n' | grep -A0 'ALLOWED_HOST_ORIGINS' || true)"
-  if echo "${ORIGINS}" | grep -q "https://${APP}"; then
+  if [ "${GCLOUD_OK}" != 1 ]; then
+    : # already reported by the preflight; do not invent a verdict
+  elif echo "${ORIGINS}" | grep -q "https://${APP}"; then
     echo "  ok   sandbox accepts https://${APP} as an embedder"
   else
     echo "  FAIL sandbox does NOT accept https://${APP} — sims will be blocked."
