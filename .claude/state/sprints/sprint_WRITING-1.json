@@ -1,0 +1,164 @@
+{
+  "sprint_id": "WRITING-1",
+  "created": "2026-08-11T19:11:29Z",
+  "estimated_duration_days": 2.7,
+  "design_doc": "docs/design/aipla/v1.1.0-feedback/student-writing-element.md",
+  "sprint_plan": "docs/design/aipla/v1.1.0-feedback/student-writing-element-sprint.md",
+  "features": [
+    {
+      "id": "M3",
+      "description": "Diagram download + stop wiping the whiteboard on send",
+      "scope": "frontend",
+      "estimated_loc": 90,
+      "actual_loc": null,
+      "dependencies": [],
+      "acceptance_criteria": [
+        "\"Hent tegning\" triggers a .png download; disabled on an empty board",
+        "\"Tilfoej tegning\" stages the image and the ink stays on the board",
+        "slugify lifted to lib/download.ts; _exportHelpers.ts re-imports it and still compiles"
+      ],
+      "files_to_create": [],
+      "files_to_modify": [
+        "frontend/src/components/workspace/SolutionWhiteboard.tsx",
+        "frontend/src/lib/download.ts",
+        "frontend/src/app/teacher/classes/[id]/_exportHelpers.ts",
+        "frontend/src/components/workspace/__tests__/SolutionWhiteboard.test.tsx"
+      ],
+      "passes": null,
+      "started": null,
+      "completed": null,
+      "notes": "Independent of everything else; ships first."
+    },
+    {
+      "id": "M0",
+      "description": "WritingElement model, all three activity stores + both adapters, per-group writing_progress store, dual-audience routes",
+      "scope": "backend",
+      "estimated_loc": 420,
+      "actual_loc": null,
+      "dependencies": [],
+      "acceptance_criteria": [
+        "POST an activity with a writing element then GET returns it (round-trip through BOTH adapters)",
+        "test_every_element_field_is_present_on_all_activity_models green",
+        "writing_progress store: upsert, revision increments, >maxChars rejected, group A cannot read group B",
+        "Dual-auth: student reads own group, owner teacher reads all groups, teacher PUT rejected, non-owner 404"
+      ],
+      "files_to_create": [
+        "backend/db/writing_progress.py",
+        "backend/protocols/writing_progress_routes.py",
+        "backend/tests/unit/test_writing_progress.py"
+      ],
+      "files_to_modify": [
+        "backend/db/models/activity_config.py",
+        "backend/db/models/activity.py",
+        "backend/protocols/activity_routes.py",
+        "backend/fast_api_app.py"
+      ],
+      "passes": null,
+      "started": null,
+      "completed": null,
+      "notes": "Recipe step 1b is the failure mode here — the 1.1.48 document regression was a missed adapter, and the model test does not catch it."
+    },
+    {
+      "id": "M1",
+      "description": "WorkbenchWriting renderer + autosave + all four tutor wirings (push, debounced trust card, manifest describer, fill-state reader)",
+      "scope": "fullstack",
+      "estimated_loc": 560,
+      "actual_loc": null,
+      "dependencies": ["M0"],
+      "acceptance_criteria": [
+        "Typing produces one debounced PUT, one writing.commit push, and exactly ONE trust card per burst",
+        "sessionId arrival pushes writing.sync with NO card",
+        "Push snapshot tail-truncates at WRITING_PUSH_CHAR_CAP with truncated:true",
+        "Feedback button sends the FULL text as a turn and dispatches no card",
+        "test_every_registered_element_kind_is_described passes with a real describer, not the generic fallback",
+        "test_every_element_kind_declares_a_fill_reader passes; untouched reports EMPTY, typed reports the word count",
+        "make audit-trust-cards green"
+      ],
+      "files_to_create": [
+        "frontend/src/components/workspace/WorkbenchWriting.tsx",
+        "frontend/src/lib/writingApi.ts",
+        "frontend/src/components/workspace/__tests__/WorkbenchWriting.test.tsx"
+      ],
+      "files_to_modify": [
+        "frontend/src/lib/elementTypes.ts",
+        "frontend/src/lib/activityElements.ts",
+        "frontend/src/components/workspace/elementRenderers.tsx",
+        "frontend/src/components/workspace/StudentWorkspace.tsx",
+        "backend/adk/element_manifest.py",
+        "backend/adk/element_state.py"
+      ],
+      "passes": null,
+      "started": null,
+      "completed": null,
+      "notes": "Snapshot is calculator-shaped (one array, matched by id), NOT table-shaped — recon finding 1. ElementFill total = min_words or 1 — recon finding 2."
+    },
+    {
+      "id": "M2",
+      "description": "Export the student's text as txt / md / rtf, client-side, zero new deps",
+      "scope": "frontend",
+      "estimated_loc": 260,
+      "actual_loc": null,
+      "dependencies": ["M1"],
+      "acceptance_criteria": [
+        "All three formats download with the right extension and MIME type",
+        "Danish characters survive the RTF \\uNNN? escape (table-driven test)",
+        "Every export carries the provenance header (activity, group, date)",
+        "Hand-check: the .rtf opens with headings intact in Word, Pages, Google Docs, LibreOffice"
+      ],
+      "files_to_create": [
+        "frontend/src/lib/exportDocument.ts",
+        "frontend/src/lib/__tests__/exportDocument.test.ts"
+      ],
+      "files_to_modify": [
+        "frontend/src/components/workspace/WorkbenchWriting.tsx"
+      ],
+      "passes": null,
+      "started": null,
+      "completed": null,
+      "notes": ".docx deliberately deferred — needs a ZIP writer; the HTML-with-.doc-extension trick fabricates a format. JB human gate 1."
+    },
+    {
+      "id": "M4",
+      "description": "Authoring surfaces — builder editor, co-pilot add_element both sides, CLI parity, palette rename",
+      "scope": "fullstack",
+      "estimated_loc": 480,
+      "actual_loc": null,
+      "dependencies": ["M0"],
+      "acceptance_criteria": [
+        "A teacher adds a writing element in the builder; save then reload and it is still there",
+        "add_element(kind=\"writing\") parses, previews, and Applies onto builder state",
+        "aiplatform activity can set and read a writing element",
+        "The palette no longer offers two things a teacher could read as \"notebook\" (note relabelled)"
+      ],
+      "files_to_create": [
+        "frontend/src/components/teacher/WritingEditor.tsx"
+      ],
+      "files_to_modify": [
+        "frontend/src/components/teacher/ActivityBuilderBody.tsx",
+        "frontend/src/hooks/useActivityBuilder.ts",
+        "frontend/src/lib/activityPreview.ts",
+        "frontend/src/lib/teacherApi.ts",
+        "frontend/src/app/teacher/activities/[id]/_AuthoringCopilot.tsx",
+        "frontend/src/app/teacher/activities/[id]/page.tsx",
+        "backend/adk/authoring_tools.py",
+        "cli/"
+      ],
+      "passes": null,
+      "started": null,
+      "completed": null,
+      "notes": "useActivityBuilder's dep array is hand-maintained — a missed entry silently keeps a stale value (1.1.61 lost tags exactly that way). Test the VALUE after Apply, not the setter call."
+    }
+  ],
+  "velocity": {
+    "target_loc_per_day": 700,
+    "actual_loc_per_day": null,
+    "estimated_total_loc": 1810,
+    "actual_total_loc": null,
+    "estimated_days": 2.7,
+    "actual_days": null
+  },
+  "github_issues": [],
+  "last_session": null,
+  "last_checkpoint": null,
+  "status": "not_started"
+}
