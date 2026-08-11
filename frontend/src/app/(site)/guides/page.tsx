@@ -1,6 +1,8 @@
 import type { Metadata } from "next";
-import Link from "next/link";
-import { ArrowLeft, BookOpen, FileText, GraduationCap, Microscope, Users } from "lucide-react";
+import { BookOpen, FileText, GraduationCap, Microscope, Users } from "lucide-react";
+
+import { PageContainer } from "@/components/site/PageContainer";
+import { SiteHeader } from "@/components/site/SiteHeader";
 
 export const metadata: Metadata = {
   title: "Guides — AIPLA",
@@ -124,14 +126,10 @@ function GuideCard({ g }: { g: Guide }) {
 
 export default function GuidesPage() {
   return (
-    <main className="mx-auto max-w-3xl px-4 py-10">
-      <Link
-        href="/"
-        className="mb-6 inline-flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground"
-      >
-        <ArrowLeft className="h-4 w-4" aria-hidden="true" /> Home
-      </Link>
-
+    <>
+      <SiteHeader />
+      <PageContainer>
+      <main>
       <h1 className="text-2xl font-semibold sm:text-3xl">AIPLA guides</h1>
       <p className="mt-2 max-w-2xl text-muted-foreground">
         Short, task-focused how-to guides. Open one in your browser, or download
@@ -182,6 +180,8 @@ export default function GuidesPage() {
           ))}
         </ul>
       </section>
-    </main>
+      </main>
+      </PageContainer>
+    </>
   );
 }

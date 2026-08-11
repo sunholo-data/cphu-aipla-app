@@ -5,7 +5,7 @@ import { usePathname } from "next/navigation";
 import { useState, type ReactNode } from "react";
 import { FlaskConical, HelpCircle, LogOut } from "lucide-react";
 
-import { AppFooter } from "@/components/AppFooter";
+import { SiteFooter } from "@/components/site/SiteFooter";
 import { TeacherNav } from "@/components/teacher/ui/TeacherNav";
 import { BRANDING } from "@/lib/branding";
 import { cn } from "@/lib/utils";
@@ -118,7 +118,11 @@ export function TeacherClientShell({ children }: { children: ReactNode }) {
               </div>
             ) : null}
             <div
-              className="flex h-7 w-7 items-center justify-center rounded-full bg-primary/10 text-[11px] font-semibold text-primary"
+              // `text-foreground` rather than `text-primary`: brand-coloured
+              // TEXT on a low-alpha tint cannot clear WCAG AA on the dark
+              // background at any brand lightness that also works as a button
+              // fill. The tint carries the brand; the glyph stays legible.
+              className="flex h-7 w-7 items-center justify-center rounded-full bg-primary/10 text-[11px] font-semibold text-foreground"
               aria-label={`Signed in as ${displayName}`}
               title={displayName}
             >
@@ -141,9 +145,7 @@ export function TeacherClientShell({ children }: { children: ReactNode }) {
         {/* pb-24 on mobile clears the fixed bottom nav bar; reset at md. */}
         <div className="flex min-w-0 flex-1 flex-col md:pl-6">
           <main className="flex-1 py-6 pb-24 sm:py-8 md:pb-8">{children}</main>
-          <div className="flex justify-center pb-24 md:pb-6">
-            <AppFooter />
-          </div>
+          <SiteFooter />
         </div>
       </div>
       {/* Help co-pilot — opened from the header "Hjælp" button, closed by

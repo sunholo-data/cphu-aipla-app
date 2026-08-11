@@ -27,9 +27,9 @@ export function ProjectNavLinks({ pages, variant }: ProjectNavLinksProps) {
     const className = variant === "mobile"
       ? `shrink-0 rounded-full border px-3 py-1.5 text-sm ${
           isCurrent
-            ? "border-red-800 bg-red-800 font-medium text-white"
+            ? "border-brand bg-brand font-medium text-white"
             : containsCurrent
-              ? "border-red-800/40 bg-red-800/5 font-medium text-foreground"
+              ? "border-brand-line bg-brand-tint font-medium text-foreground"
               : "border-border bg-background text-muted-foreground hover:text-foreground"
         }`
       : `block rounded-md py-2 text-sm ${link.depth ? "ml-3 border-l border-border pl-4 pr-3" : "px-3"} ${

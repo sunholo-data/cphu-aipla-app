@@ -7,7 +7,7 @@ vi.mock("@/hooks/useTeacherAuth", () => ({
 }));
 vi.mock("@/lib/firebase", () => ({ signOut: vi.fn() }));
 vi.mock("@/lib/localMode", () => ({ isLocalMode: () => false }));
-vi.mock("@/components/AppFooter", () => ({ AppFooter: () => <footer>footer</footer> }));
+vi.mock("@/components/site/SiteFooter", () => ({ SiteFooter: () => <footer>footer</footer> }));
 
 import { TeacherClientShell } from "@/app/teacher/_TeacherClientShell";
 import * as researcherHook from "@/hooks/useIsResearcher";

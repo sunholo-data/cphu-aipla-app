@@ -53,7 +53,7 @@ export function ProjectMarkdown({ children }: { children: string }) {
           </ol>
         ),
         blockquote: ({ children: quote }) => (
-          <blockquote className="my-7 border-l-4 border-red-800 bg-muted/50 px-5 py-3 text-foreground">
+          <blockquote className="my-7 border-l-4 border-brand bg-muted/50 px-5 py-3 text-foreground">
             {quote}
           </blockquote>
         ),
@@ -87,7 +87,7 @@ export function ProjectMarkdown({ children }: { children: string }) {
           return (
             <a
               href={href}
-              className="font-medium text-red-800 underline decoration-red-800/30 underline-offset-4 hover:decoration-red-800"
+              className="font-medium text-brand underline decoration-brand/30 underline-offset-4 hover:decoration-brand"
               {...(external ? { target: "_blank", rel: "noopener noreferrer" } : {})}
             >
               {label}

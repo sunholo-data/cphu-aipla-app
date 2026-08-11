@@ -18,4 +18,10 @@ mkdir -p "$DEST"
 cp docs/guides/_output/*.html "$DEST"/
 cp docs/guides/_output/*.pdf "$DEST"/
 
+# Quarto output has zero links back into the app, so a guide opened from
+# /guides is a dead end. Add a nav band, then assert every file got one — a
+# re-render that silently dropped it would restore the dead end.
+scripts/inject-guide-nav.py "$DEST"
+scripts/inject-guide-nav.py --check "$DEST"
+
 echo "Published $(ls "$DEST"/*.html | wc -l | tr -d ' ') guides to $DEST/"

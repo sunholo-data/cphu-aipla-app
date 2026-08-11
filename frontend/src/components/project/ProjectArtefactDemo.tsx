@@ -15,7 +15,7 @@ export function ProjectArtefactDemo() {
     return (
       <span className="my-7 block rounded-xl border border-border bg-muted/40 p-5 text-sm text-muted-foreground">
         The interactive demonstration is unavailable in this environment. The maintained
-        activity remains accessible through the <a href="/group" className="font-medium text-red-800 underline">group join page</a>.
+        activity remains accessible through the <a href="/group" className="font-medium text-brand underline">group join page</a>.
       </span>
     );
   }

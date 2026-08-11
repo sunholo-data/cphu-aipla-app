@@ -441,6 +441,19 @@ audit-trust-cards: ## Fail if a workspace element pushes to the tutor without a 
 check-cloudbuild: ## Fail on $$-unescaped shell vars in Cloud Build steps (CI-gated)
 	@python3 scripts/check-cloudbuild-substitutions.py
 
+# Brand-drift gate (1.1.74). The app shipped TWO brand primaries for months:
+# --primary was the inherited Sunholo orange while /project hardcoded KU red in
+# 24 red-* utilities, so the homepage CTA and /project's CTA were different
+# colours under the same KU coat-of-arms. Literals are what let them drift.
+check-brand-literals: ## Fail if a brand surface hardcodes a red-* utility instead of the brand token (CI-gated)
+	@bash scripts/check-brand-literals.sh
+
+# Guide dead-end gate (1.1.74). Published Quarto HTML has zero links back into
+# the app, so a guide opened from /guides used to be a one-way trip out of the
+# product. publish-guides.sh injects a nav band; this asserts it survived.
+check-guide-nav: ## Fail if a published guide has no nav band back into the app (CI-gated)
+	@scripts/inject-guide-nav.py --check frontend/public/guides
+
 # Inline the canonical MCP App guest bridge into every artefact index.html from
 # the single source of truth (infrastructure/mcp-sandbox/bridge/aipla-mcp-bridge.js).
 # Run after editing the bridge. `sim-build-check` is the CI drift guard.
@@ -483,6 +496,8 @@ help:
 	@echo "make audit-trust-cards  — trust-card footgun gate: fail if a workspace element pushes to the tutor without a card (CI-gated)"
 	@echo "make seed-job           — P1.3: seed SKILL.md->Firestore via the aipla-seed-skills Cloud Run job (ENV=dev; same path Cloud Build runs post-deploy)"
 	@echo "make check-skills       — verify CLAUDE.md skill catalogue matches .claude/skills/ (CI-gated)"
+	@echo "make check-brand-literals — brand-drift gate: fail if a brand surface hardcodes red-* instead of the KU-red token (CI-gated)"
+	@echo "make check-guide-nav    — fail if a published guide has no nav band back into the app (CI-gated)"
 	@echo
 	@echo "make sim-build          — inline the canonical MCP App guest bridge into every artefact (edit bridge/aipla-mcp-bridge.js, then run this)"
 	@echo "make sim-build-check    — CI drift guard: fail if any artefact's inlined bridge != the canonical source"

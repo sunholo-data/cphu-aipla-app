@@ -2,17 +2,43 @@
 @tailwind components;
 @tailwind utilities;
 
+/*
+ * Brand colour — KU red.
+ *
+ * `--primary` used to be `24 95% 53%`, the inherited Sunholo/Aitana orange,
+ * which no AIPLA decision ever selected. Meanwhile /project hardcoded KU red
+ * in 40 `red-700/800/900/950` utilities, so the app shipped two brand
+ * primaries: the homepage CTA was orange and /project's was KU red, both
+ * directly beneath the same KU coat-of-arms.
+ *
+ * The value of record is `#901A1E` = `hsl(358 69% 33%)`, taken from this
+ * repo's own `public/images/logo/aipla-mark.svg`, which `lib/branding.ts`
+ * describes as "KU red on a rounded white tile". designguide.ku.dk publishes
+ * its palette only as downloadable PDF/swatch files, so the in-repo mark is
+ * the best authoritative source available. (Tailwind's `red-800` `#991b1b`,
+ * used previously, is close but is not KU's.)
+ *
+ * DARK MODE IS DELIBERATELY DIFFERENT. KU red scores 8.9:1 against white —
+ * excellent for a white-on-red button in light mode — but only ~2.2:1 against
+ * the dark background, which fails WCAG AA. Dark mode therefore lightens the
+ * brand to 45%, holding 5.4:1 white-on-red. Both are asserted in
+ * `src/app/__tests__/brand-contrast.test.ts`; do not hand-tune either value
+ * without re-running it.
+ */
 @layer base {
   :root {
+    --brand: 358 69% 33%;
+    --brand-foreground: 0 0% 100%;
+
     --background: 0 0% 100%;
     --foreground: 222.2 47.4% 11.2%;
     --muted: 210 40% 96.1%;
     --muted-foreground: 215.4 16.3% 46.9%;
     --border: 214.3 31.8% 91.4%;
     --input: 214.3 31.8% 91.4%;
-    --ring: 24 95% 53%;
-    --primary: 24 95% 53%;
-    --primary-foreground: 0 0% 100%;
+    --ring: var(--brand);
+    --primary: var(--brand);
+    --primary-foreground: var(--brand-foreground);
     --secondary: 210 40% 96.1%;
     --secondary-foreground: 222.2 47.4% 11.2%;
     --accent: 210 40% 96.1%;
@@ -23,15 +49,19 @@
   }
 
   .dark {
+    /* Lightened KU red — see the contrast note above. */
+    --brand: 358 69% 45%;
+    --brand-foreground: 0 0% 100%;
+
     --background: 222.2 84% 4.9%;
     --foreground: 210 40% 98%;
     --muted: 217.2 32.6% 17.5%;
     --muted-foreground: 215 20.2% 65.1%;
     --border: 217.2 32.6% 17.5%;
     --input: 217.2 32.6% 17.5%;
-    --ring: 24 95% 53%;
-    --primary: 24 95% 53%;
-    --primary-foreground: 0 0% 100%;
+    --ring: var(--brand);
+    --primary: var(--brand);
+    --primary-foreground: var(--brand-foreground);
     --secondary: 217.2 32.6% 17.5%;
     --secondary-foreground: 210 40% 98%;
     --accent: 217.2 32.6% 17.5%;

@@ -1,4 +1,3 @@
-import { AppFooter } from "@/components/AppFooter";
 import { BackendHealthBadge } from "@/components/BackendHealthBadge";
 import { SignInButton } from "@/components/SignInButton";
 import { skillHref } from "@/components/navigation/skillHref";
@@ -27,6 +26,14 @@ async function getMarketplaceSkills(): Promise<SkillSummary[]> {
   }
 }
 
+/**
+ * The footer (attribution, legal links, the KU ecosystem, and the
+ * platform-engineering credit) is rendered structurally by
+ * `app/(site)/layout.tsx` — it is no longer mounted per page.
+ *
+ * No `SiteHeader` here: this IS the landing, and its CTA stack already
+ * carries the Guides / About links a header would duplicate.
+ */
 export default async function HomePage() {
   // In anonymous-group-id mode, the home page is a single-CTA landing that
   // routes students to /group. Showing the marketplace shelf with
@@ -37,7 +44,7 @@ export default async function HomePage() {
   const skills = isAnonymousGroupMode ? [] : await getMarketplaceSkills();
 
   return (
-    <main className="flex min-h-screen flex-col items-center justify-center p-8">
+    <main className="flex flex-col items-center justify-center px-8 py-16 sm:py-24">
       <div className="flex flex-col items-center gap-6 max-w-2xl text-center">
         {/* eslint-disable-next-line @next/next/no-img-element */}
         <img
@@ -111,12 +118,6 @@ export default async function HomePage() {
           </div>
         )}
       </div>
-
-      {/* Slim app-wide footer with attribution + legal placeholder links.
-          Full third-party attribution (was inline here) moved to
-          /credits. v1's DPIA sign-off fills /privacy and /terms;
-          v0.1 ships placeholder pages so the links go somewhere. */}
-      <AppFooter />
     </main>
   );
 }

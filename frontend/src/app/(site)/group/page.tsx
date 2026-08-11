@@ -19,7 +19,6 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 
-import { AppFooter } from "@/components/AppFooter";
 import { useAnonymousGroupAuth } from "@/contexts/AnonymousGroupAuthProvider";
 import { useEnvironment } from "@/hooks/useEnvironment";
 import { isAnonymousGroupAuthMode } from "@/lib/anonymousGroupAuth";
@@ -188,8 +187,6 @@ function GroupJoinForm() {
         </Link>
         <span className="opacity-70"> / Are you a teacher? Sign in here.</span>
       </p>
-
-      <AppFooter />
     </main>
   );
 }

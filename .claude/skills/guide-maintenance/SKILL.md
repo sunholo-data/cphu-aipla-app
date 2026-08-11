@@ -62,7 +62,8 @@ Run from the repo root. Order matters: capture → publish → (seed).
 | `make guide-staleness` | **Start here.** Flags guides whose documented UI changed after the guide. Heuristic — a prompt to look. |
 | `make guide-screens` | Re-capture screenshots. Logs into **deployed dev** as the test teacher (Playwright) for the teacher guides, and joins with the demo code for the student guide. Writes `docs/guides/assets/*.png`. |
 | `make guides` | Render `.qmd` → PDF + HTML into `docs/guides/_output/`. Needs `quarto` + `xelatex`. |
-| `make guides-publish` | `make guides` + copy HTML/PDF into `frontend/public/guides/` (committed; the app serves them). |
+| `make guides-publish` | `make guides` + copy HTML/PDF into `frontend/public/guides/` (committed; the app serves them). **Also injects the nav band** — see below. |
+| `make check-guide-nav` | Assert every published HTML carries the nav band. Runs in CI; `guides-publish` runs it too. |
 | `make seed-guide-corpus ENV=dev\|test\|prod` | Ingest the guide PDFs into that env's **shared corpus** (subject "AIPLA guides") + build the onboarding class with teacher/student/researcher tutors. Dogfoods the guides. **Idempotent** since 2026-08-04 — re-running is how you publish an updated guide. |
 
 **Typical "the guides drifted" loop:** `make guide-staleness` → for each flagged
@@ -70,6 +71,22 @@ guide, look at the change → if a real workflow changed, `make guide-screens &&
 make guides-publish`, then commit the refreshed `assets/` + `public/guides/`. The
 committed PNGs mean the guides render without a capture run; re-capture only when
 the UI actually changed.
+
+### The nav band (1.1.74) — do not strip it
+
+Quarto emits self-contained HTML with **zero** links back into the app, so a
+guide opened from `/guides` used to be a dead end: unrelated typography, no
+AIPLA mark, no way back — on the first surface a new teacher is pointed at.
+
+`publish-guides.sh` therefore runs `scripts/inject-guide-nav.py`, which inserts
+a KU-red band (`id="aipla-guide-nav"`) right after `<body>` linking to `/`,
+`/guides`, and `/project`. It is inline-styled with absolute `aipla.ku.dk`
+hrefs on purpose: the guides do not load the app's stylesheet, and people
+download and mail these files around, where a relative link would break.
+
+Injection is idempotent, and `--check` fails the publish (and CI) if any file
+lost its band. **A re-render alone will drop it** — Quarto overwrites the HTML —
+which is exactly why publishing re-injects rather than assuming.
 
 ## Adding a new guide
 

@@ -13,6 +13,8 @@ import path from "node:path";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 
+import { PageContainer } from "@/components/site/PageContainer";
+import { SiteHeader } from "@/components/site/SiteHeader";
 import { BRANDING } from "@/lib/branding";
 
 export const metadata = {
@@ -35,10 +37,15 @@ async function loadWorkshopMd(): Promise<string> {
 export default async function WorkshopPage() {
   const md = await loadWorkshopMd();
   return (
-    <main className="max-w-3xl mx-auto px-6 py-12">
-      <article className="prose prose-slate dark:prose-invert max-w-none prose-headings:scroll-mt-20">
-        <ReactMarkdown remarkPlugins={[remarkGfm]}>{md}</ReactMarkdown>
-      </article>
-    </main>
+    <>
+      <SiteHeader />
+      <PageContainer>
+        <main>
+          <article className="prose prose-slate dark:prose-invert max-w-none prose-headings:scroll-mt-20">
+            <ReactMarkdown remarkPlugins={[remarkGfm]}>{md}</ReactMarkdown>
+          </article>
+        </main>
+      </PageContainer>
+    </>
   );
 }

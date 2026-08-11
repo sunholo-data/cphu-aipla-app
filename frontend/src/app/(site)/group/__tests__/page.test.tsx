@@ -53,7 +53,7 @@ beforeEach(() => {
 });
 
 async function importPage() {
-  const mod = await import("@/app/group/page");
+  const mod = await import("@/app/(site)/group/page");
   return mod.default;
 }
 

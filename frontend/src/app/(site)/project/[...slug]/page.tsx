@@ -3,7 +3,6 @@ import Link from "next/link";
 import { ArrowLeft, ArrowRight } from "lucide-react";
 import { notFound } from "next/navigation";
 
-import { AppFooter } from "@/components/AppFooter";
 import { ProjectMarkdown } from "@/components/project/ProjectMarkdown";
 import { getProjectPage, getProjectSiblings, PROJECT_ALL_PAGES } from "@/lib/projectContent";
 
@@ -46,11 +45,11 @@ export default async function ProjectPageRoute({ params }: ProjectPageProps) {
       <div className="mx-auto grid max-w-5xl gap-12 xl:grid-cols-[minmax(0,1fr)_220px]">
         <article className="min-w-0">
           {parent ? (
-            <Link href={`/project/${parent.slug}`} className="mb-4 inline-flex items-center gap-2 text-sm font-medium text-red-800 hover:underline">
+            <Link href={`/project/${parent.slug}`} className="mb-4 inline-flex items-center gap-2 text-sm font-medium text-brand hover:underline">
               <ArrowLeft className="h-4 w-4" aria-hidden="true" /> {parent.title}
             </Link>
           ) : null}
-          <p className="mb-4 text-sm font-semibold uppercase tracking-[0.16em] text-red-800">{page.eyebrow}</p>
+          <p className="mb-4 text-sm font-semibold uppercase tracking-[0.16em] text-brand">{page.eyebrow}</p>
           <ProjectMarkdown>{page.body}</ProjectMarkdown>
 
           <dl className="mt-12 grid gap-4 rounded-lg border border-border bg-muted/40 p-5 text-sm sm:grid-cols-3">
@@ -70,19 +69,18 @@ export default async function ProjectPageRoute({ params }: ProjectPageProps) {
 
           <nav aria-label="Previous and next project pages" className="mt-10 grid gap-3 border-t border-border pt-8 sm:grid-cols-2">
             {previous ? (
-              <Link href={`/project/${previous.slug}`} className="group rounded-lg border border-border p-4 hover:border-red-800/40">
+              <Link href={`/project/${previous.slug}`} className="group rounded-lg border border-border p-4 hover:border-brand-line">
                 <span className="flex items-center gap-2 text-xs font-medium uppercase tracking-wide text-muted-foreground"><ArrowLeft className="h-3.5 w-3.5" /> Previous</span>
                 <span className="mt-2 block font-semibold text-foreground">{previous.title}</span>
               </Link>
             ) : <span />}
             {next ? (
-              <Link href={`/project/${next.slug}`} className="group rounded-lg border border-border p-4 text-right hover:border-red-800/40">
+              <Link href={`/project/${next.slug}`} className="group rounded-lg border border-border p-4 text-right hover:border-brand-line">
                 <span className="flex items-center justify-end gap-2 text-xs font-medium uppercase tracking-wide text-muted-foreground">Next <ArrowRight className="h-3.5 w-3.5" /></span>
                 <span className="mt-2 block font-semibold text-foreground">{next.title}</span>
               </Link>
             ) : null}
           </nav>
-          <AppFooter />
         </article>
 
         <aside className="hidden xl:block">

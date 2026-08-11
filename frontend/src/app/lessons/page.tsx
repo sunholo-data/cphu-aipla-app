@@ -23,6 +23,8 @@ import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useState } from "react";
 import { BookOpen, RefreshCw } from "lucide-react";
 
+import { SiteFooter } from "@/components/site/SiteFooter";
+
 import { skillHref } from "@/components/navigation/skillHref";
 import { useAnonymousGroupAuth } from "@/contexts/AnonymousGroupAuthProvider";
 import { fetchWithAuth } from "@/lib/apiClient";
@@ -160,6 +162,7 @@ function AnonGroupLessonsPage() {
           </section>
         )}
       </main>
+      <SiteFooter />
     </>
   );
 }
@@ -236,6 +239,7 @@ function UniversalLessonsPage({
   }, [groupAuthStatus, refresh]);
 
   return (
+    <>
     <main className="mx-auto flex max-w-5xl flex-col gap-6 p-4 sm:p-6">
       <header className="flex flex-col gap-1">
         <h1 className="text-xl font-semibold sm:text-2xl">Aktiviteter / Activities</h1>
@@ -270,6 +274,8 @@ function UniversalLessonsPage({
         </section>
       ) : null}
     </main>
+    <SiteFooter />
+    </>
   );
 }
 

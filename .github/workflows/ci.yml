@@ -111,6 +111,19 @@ jobs:
         # real turn / read-only). Shipped-then-fixed for the calculator + table;
         # this makes a dropped card fail the build instead of a human's memory.
         run: bash scripts/audit-trust-cards.sh
+      - name: Brand-drift gate (no hardcoded red-* on brand surfaces)
+        # 1.1.74: the app shipped two brand primaries for months — --primary was
+        # the inherited Sunholo orange while /project hardcoded KU red, so the
+        # homepage CTA and /project's CTA were different colours under the same
+        # KU coat-of-arms. Semantic reds (error, recording) are allowlisted with
+        # reasons in the script.
+        run: bash scripts/check-brand-literals.sh
+      - name: Published guides link back into the app
+        # 1.1.74: Quarto's self-contained HTML has zero in-app links, so a guide
+        # opened from /guides was a dead end — and it is the first surface a new
+        # teacher is pointed at. publish-guides.sh injects the band; this
+        # asserts a re-render did not drop it.
+        run: scripts/inject-guide-nav.py --check frontend/public/guides
 
   frontend:
     name: Frontend (lint + typecheck + test)

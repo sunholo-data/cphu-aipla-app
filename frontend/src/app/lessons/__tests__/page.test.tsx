@@ -143,8 +143,9 @@ describe("/lessons — student lesson picker", () => {
       expect(screen.getByRole("heading", { name: "With Image" })).toBeInTheDocument();
     });
     // The cover image is decorative (alt="" + aria-hidden) so it's out
-    // of the a11y tree — query by tag.
-    const img = container.querySelector("img");
+    // of the a11y tree — query by tag. Scoped to <main>: the page also
+    // renders SiteFooter, whose KU mark is an <img> too.
+    const img = container.querySelector("main img");
     expect(img).not.toBeNull();
     expect(img).toHaveAttribute("src", "/lesson-images/problem-set-hints.svg");
   });
@@ -157,8 +158,9 @@ describe("/lessons — student lesson picker", () => {
     await waitFor(() => {
       expect(screen.getByRole("heading", { name: "No Image" })).toBeInTheDocument();
     });
-    // No <img> rendered; the fallback uses an inline lucide icon.
-    expect(container.querySelector("img")).toBeNull();
+    // No cover <img>; the fallback uses an inline lucide icon. Scoped to
+    // <main> so SiteFooter's KU mark doesn't count as a cover.
+    expect(container.querySelector("main img")).toBeNull();
   });
 
   it("renders the empty state when zero skills are accessible", async () => {
