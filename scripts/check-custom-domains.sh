@@ -94,12 +94,18 @@ for ENV in "${ENVS[@]}"; do
     fi
   done
 
-  # Has the parent been re-signed since the names were added? All RRSIGs in
-  # ku.dk share one window, so the inception date is the whole story: while it
-  # predates the delegation, nothing downstream can work.
+  # Zone context. NOTE: do NOT read the inception date as "has it been
+  # re-signed?" — on 2026-08-11 UCPH re-signed ku.dk with the NSEC chain
+  # regenerated (aipla.ku.dk and aipla-test.ku.dk went from NXDOMAIN to NOERROR
+  # on the parent DS query) while the inception stayed at 20260730000000,
+  # because their signer uses a fixed validity window rather than stamping each
+  # run. The per-name parent-DS verdict above is the signal that actually
+  # tracks reality; this is background only.
   KU_INC="$(dig +cd +dnssec ku.dk SOA +noall +answer 2>/dev/null \
             | awk '/RRSIG/ {print $10; exit}')"
-  [ -n "${KU_INC}" ] && echo "  info ku.dk signatures issued ${KU_INC} (re-sign updates this)"
+  KU_EXP="$(dig +cd +dnssec ku.dk SOA +noall +answer 2>/dev/null \
+            | awk '/RRSIG/ {print $9; exit}')"
+  [ -n "${KU_INC}" ] && echo "  info ku.dk signature window ${KU_INC} -> ${KU_EXP} (fixed dates; does NOT move on every re-sign)"
 
   # 2. Certificates. These need no action — they issue once the names resolve
   #    here. One per hostname deliberately, so a missing sandbox record cannot
