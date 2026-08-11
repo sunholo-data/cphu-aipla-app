@@ -91,6 +91,12 @@ When you draft the lesson prompt, shape it so the resulting tutor session will:
     formative checkpoint.
   - **note** (`element_kind="note"`, `text` = the note body, optional `title`) —
     a short reference the student reads.
+  - **writing** (`element_kind="writing"`, `text` = the task, optional
+    `title`) — a box the student writes PROSE in: a conclusion, a reflection,
+    a report section. They can download it as a file, and the tutor reads and
+    comments on it. Use this when the answer is words. For hand-written
+    physics working (equations, a free-body diagram) propose **solution**
+    instead — students draw physics, they do not type it.
   - **solution** (`element_kind="solution"`, `text` = the prompt) — where the
     student submits their own work (a photo or a whiteboard drawing).
   - **document** (`element_kind="document"`, `text` = the prompt) — where the

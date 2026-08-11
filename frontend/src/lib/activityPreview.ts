@@ -18,6 +18,8 @@ import type { NoteElementDef } from "@/components/workspace/WorkbenchNote";
 import type { SolutionElementDef } from "@/components/workspace/SolutionElementMount";
 import type { DocumentElementDef } from "@/components/workspace/DocumentElementMount";
 import type { TableElementDef } from "@/components/workspace/WorkbenchTable";
+import type { WritingElementDef } from "@/components/workspace/WorkbenchWriting";
+import type { WritingEditorRow } from "@/components/teacher/WritingEditor";
 import { splitFormula } from "@/lib/safeFormula";
 
 export interface BuilderChecklistItem {
@@ -32,6 +34,7 @@ export interface BuilderElements {
   chart: ChartEditorValue[];
   calculator: CalculatorEditorValue | null;
   note: NoteEditorValue | null;
+  writing: WritingEditorRow[];
   solution: SolutionEditorValue | null;
   document: DocumentEditorValue | null;
   conceptMap: ConceptMapEditorValue | null;
@@ -44,6 +47,7 @@ export interface ActivityElementDefs {
   chart: ChartElementDef[];
   calculator: CalculatorElementDef[];
   note: NoteElementDef[];
+  writing: WritingElementDef[];
   solution: SolutionElementDef[];
   document: DocumentElementDef[];
   conceptMap: ConceptMapElementDef[];
@@ -127,6 +131,16 @@ export function builderToElementDefs(s: BuilderElements): ActivityElementDefs {
     })),
     calculator: calculatorDefs(s.calculator),
     note: s.note && s.note.body.trim() ? [{ id: "note-1", title: s.note.title.trim(), body: s.note.body.trim() }] : [],
+    // Ids are PRESERVED when present: student text is keyed by element id, so
+    // re-minting positionally on every save would orphan a group's writing (the
+    // hazard 1.1.71 documents for tables). Only a brand-new row is minted, and
+    // from its stable client key rather than its position.
+    writing: (s.writing ?? []).map((w) => ({
+      id: w.id || `writing-${w.key}`,
+      title: w.title.trim(),
+      prompt: w.prompt.trim(),
+      minWords: w.minWords || 0,
+    })),
     // The solution editor needs no content to be valid — the student writes; a
     // present (enabled) element ships with its (optional) teacher prompt.
     solution: s.solution ? [{ id: "solution-1", prompt: s.solution.prompt.trim() }] : [],
@@ -145,6 +159,7 @@ export function hasAnyElement(defs: ActivityElementDefs): boolean {
     defs.chart.length > 0 ||
     defs.calculator.length > 0 ||
     defs.note.length > 0 ||
+    defs.writing.length > 0 ||
     defs.solution.length > 0 ||
     defs.document.length > 0 ||
     defs.conceptMap.length > 0

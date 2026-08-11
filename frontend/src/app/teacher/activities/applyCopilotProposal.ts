@@ -15,6 +15,15 @@ export function applyCopilotProposal(p: Proposal, builder: ActivityBuilder): voi
   } else if (p.kind === "add_element") {
     if (p.elementKind === "checklist") builder.addChecklistItems(p.items);
     else if (p.elementKind === "note") builder.setNote({ title: p.title, body: p.body });
+    // 1.1.73 — writing fields are a LIST (cap 3). APPEND, like charts: a
+    // teacher asking for a conclusion box after a method box must not silently
+    // lose the first one. `id: ""` marks it as unsaved so the payload builder
+    // mints a stable id from the client key rather than a positional one.
+    else if (p.elementKind === "writing")
+      builder.setWriting([
+        ...builder.writing,
+        { key: builder.nextElementKey(), id: "", title: p.title, prompt: p.prompt, minWords: p.minWords },
+      ]);
     else if (p.elementKind === "solution") builder.setSolution({ prompt: p.prompt });
     else if (p.elementKind === "document") builder.setDocument({ prompt: p.prompt });
     else if (p.elementKind === "table")

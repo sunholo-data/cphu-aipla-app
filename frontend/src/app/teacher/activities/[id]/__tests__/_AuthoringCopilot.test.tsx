@@ -274,6 +274,45 @@ const DOCUMENT = JSON.stringify({
   proposal: { kind: "add_element", element_kind: "document", spec: { prompt: "Upload din opgave." }, label: "Dokument-upload" },
 });
 
+const WRITING = JSON.stringify({
+  ok: true,
+  proposal: {
+    kind: "add_element",
+    element_kind: "writing",
+    spec: { title: "Konklusion", prompt: "Skriv jeres konklusion.", minWords: 150 },
+    label: "Skrivefelt: Konklusion",
+  },
+});
+
+describe("AuthoringCopilot — writing element (1.1.73)", () => {
+  it("parses + Apply routes a writing proposal", async () => {
+    const expected = {
+      kind: "add_element",
+      elementKind: "writing",
+      title: "Konklusion",
+      prompt: "Skriv jeres konklusion.",
+      minWords: 150,
+      label: "Skrivefelt: Konklusion",
+    };
+    expect(parseProposal(tc({ resultContent: WRITING }))).toEqual(expected);
+
+    const onApply = vi.fn();
+    mockHook.toolCalls = [tc({ resultContent: WRITING })];
+    render(<AuthoringCopilot activityId="act-1" onApplyProposal={onApply} />);
+    await screen.findByTestId("proposal-writing");
+    fireEvent.click(screen.getByRole("button", { name: /anvend/i }));
+    expect(onApply).toHaveBeenCalledWith(expected);
+  });
+
+  it("previews the task and the word target the teacher is agreeing to", async () => {
+    mockHook.toolCalls = [tc({ resultContent: WRITING })];
+    render(<AuthoringCopilot activityId="act-1" onApplyProposal={vi.fn()} />);
+    const card = await screen.findByTestId("proposal-writing");
+    expect(card).toHaveTextContent("Skriv jeres konklusion.");
+    expect(card).toHaveTextContent("150 ord");
+  });
+});
+
 describe("AuthoringCopilot — note/solution/document elements (COPILOT-2 M3)", () => {
   it("parses + Apply routes a note proposal", async () => {
     expect(parseProposal(tc({ resultContent: NOTE }))).toEqual({

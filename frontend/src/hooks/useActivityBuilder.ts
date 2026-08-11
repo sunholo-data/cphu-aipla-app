@@ -9,6 +9,7 @@ import type { ChartEditorValue } from "@/components/teacher/ChartEditor";
 import type { CalculatorEditorValue } from "@/components/teacher/CalculatorEditor";
 import type { ConceptMapEditorValue } from "@/components/teacher/ConceptMapEditor";
 import type { NoteEditorValue } from "@/components/teacher/NoteEditor";
+import type { WritingEditorRow } from "@/components/teacher/WritingEditor";
 import type { SolutionEditorValue } from "@/components/teacher/SolutionEditor";
 import type { DocumentEditorValue } from "@/components/teacher/DocumentEditor";
 import type { ActivityTemplate } from "@/lib/activityTemplates";
@@ -36,6 +37,7 @@ export interface ElementPayload {
   chart: ReturnType<typeof builderToElementDefs>["chart"];
   calculator: ReturnType<typeof builderToElementDefs>["calculator"];
   note: ReturnType<typeof builderToElementDefs>["note"];
+  writing: ReturnType<typeof builderToElementDefs>["writing"];
   solution: ReturnType<typeof builderToElementDefs>["solution"];
   document: ReturnType<typeof builderToElementDefs>["document"];
   conceptMap: ReturnType<typeof builderToElementDefs>["conceptMap"];
@@ -94,6 +96,8 @@ export interface ActivityBuilder {
   setCalculator: (v: CalculatorEditorValue | null) => void;
   note: NoteEditorValue | null;
   setNote: (v: NoteEditorValue | null) => void;
+  writing: WritingEditorRow[];
+  setWriting: (v: WritingEditorRow[]) => void;
   solution: SolutionEditorValue | null;
   setSolution: (v: SolutionEditorValue | null) => void;
   document: DocumentEditorValue | null;
@@ -179,6 +183,7 @@ export function useActivityBuilder(): ActivityBuilder {
   );
   const [calculator, setCalculator] = useState<CalculatorEditorValue | null>(null);
   const [note, setNote] = useState<NoteEditorValue | null>(null);
+  const [writing, setWriting] = useState<WritingEditorRow[]>([]);
   const [solution, setSolution] = useState<SolutionEditorValue | null>(null);
   const [document, setDocument] = useState<DocumentEditorValue | null>(null);
   const [conceptMap, setConceptMap] = useState<ConceptMapEditorValue | null>(null);
@@ -235,6 +240,9 @@ export function useActivityBuilder(): ActivityBuilder {
         : null,
     );
     setNote(t.note ? { title: t.note.title, body: t.note.body } : null);
+    // No starter template authors a writing field yet; clear it so applying a
+    // template is a full reset rather than a partial one.
+    setWriting([]);
     setSolution(t.solution ? { prompt: t.solution.prompt } : null);
     setDocument(t.document ? { prompt: t.document.prompt } : null);
     setConceptMap(
@@ -327,6 +335,17 @@ export function useActivityBuilder(): ActivityBuilder {
     const n = cfg.note?.[0];
     setNote(n ? { title: n.title ?? "", body: n.body } : null);
 
+    setWriting(
+      (cfg.writing ?? []).map((w) => ({
+        key: nextKeyRef.current++,
+        // Preserve the SAVED id — the group's text is keyed by it.
+        id: w.id,
+        title: w.title ?? "",
+        prompt: w.prompt ?? "",
+        minWords: w.minWords ?? 0,
+      })),
+    );
+
     const sol = cfg.solution?.[0];
     setSolution(sol ? { prompt: sol.prompt ?? "" } : null);
 
@@ -359,7 +378,7 @@ export function useActivityBuilder(): ActivityBuilder {
   function elementPayload(): ElementPayload {
     return {
       artefactId,
-      ...builderToElementDefs({ checklist, table, chart, calculator, note, solution, document, conceptMap }),
+      ...builderToElementDefs({ checklist, table, chart, calculator, note, writing, solution, document, conceptMap }),
     };
   }
 
@@ -388,6 +407,7 @@ export function useActivityBuilder(): ActivityBuilder {
     chart.length +
     (calculator ? 1 : 0) +
     (note ? 1 : 0) +
+    writing.length +
     (solution ? 1 : 0) +
     (document ? 1 : 0) +
     (conceptMap ? 1 : 0);
@@ -415,6 +435,8 @@ export function useActivityBuilder(): ActivityBuilder {
       setCalculator,
       note,
       setNote,
+      writing,
+      setWriting,
       solution,
       setSolution,
       document,
@@ -455,6 +477,7 @@ export function useActivityBuilder(): ActivityBuilder {
       chart,
       calculator,
       note,
+      writing,
       solution,
       document,
       conceptMap,

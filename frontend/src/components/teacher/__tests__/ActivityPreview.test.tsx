@@ -35,6 +35,7 @@ const EMPTY: BuilderElements = {
   chart: [],
   calculator: null,
   note: null,
+  writing: [],
   solution: null,
   document: null,
   conceptMap: null,

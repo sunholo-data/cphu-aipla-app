@@ -167,10 +167,7 @@ function PreviewBody({
         chart={defs.chart}
         calculator={defs.calculator}
         note={defs.note}
-        // 1.1.73: the writing element has no builder editor until M4, so the
-        // preview has nothing to show for it yet — there is no way to author one
-        // from this screen. Wired to `defs.writing` when M4 lands.
-        writing={[]}
+        writing={defs.writing}
         solution={defs.solution}
         document={defs.document}
         conceptMap={defs.conceptMap}

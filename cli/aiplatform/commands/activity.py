@@ -116,6 +116,50 @@ def activity_manifest(ctx: click.Context, activity_id: str, class_id: str, full:
         click.echo("The tutor will not mention any workbench tools. Use --full to see the whole focus.")
 
 
+#: Every element field on ``ActivityConfig``. The activity POST is a FULL
+#: OVERWRITE, so a command that changes one element must re-send ALL of them —
+#: and this list is the thing that goes stale. ``conceptMap`` was already
+#: missing from the hand-built ``add-chart`` payload, which meant adding a chart
+#: from the CLI silently deleted the activity's concept map. Adding a kind to
+#: ``ELEMENT_REGISTRY`` means adding it here too.
+_ELEMENT_FIELDS = (
+    "checklist",
+    "table",
+    "chart",
+    "calculator",
+    "note",
+    "writing",
+    "solution",
+    "document",
+    "conceptMap",
+)
+
+
+def _full_payload(cfg: dict, activity_id: str, class_id: str, **overrides: object) -> dict:
+    """The COMPLETE activity payload, with `overrides` replacing single fields.
+
+    One place assembles it, because the failure mode of getting it wrong is
+    silent data loss rather than an error: the fields you forget are simply
+    gone from the saved activity.
+    """
+    payload: dict = {
+        "activityId": activity_id,
+        "classId": class_id,
+        "title": cfg.get("title", ""),
+        "teachingGoal": cfg.get("teachingGoal", ""),
+        "language": cfg.get("language", "da"),
+        "difficulty": cfg.get("difficulty", "standard"),
+        "interactionStyle": cfg.get("interactionStyle", "socratic"),
+        "workbenchType": cfg.get("workbenchType", "none"),
+        "artefactId": cfg.get("artefactId"),
+        "materials": cfg.get("materials") or [],
+    }
+    for field in _ELEMENT_FIELDS:
+        payload[field] = cfg.get(field) or []
+    payload.update(overrides)
+    return payload
+
+
 @activity.command("add-chart")
 @click.argument("activity_id")
 @click.option("--class", "class_id", required=True, help="The class the activity config belongs to.")
@@ -162,29 +206,51 @@ def add_chart(
         }
     )
 
-    # The COMPLETE payload — every element field, not just the one we changed.
-    payload = {
-        "activityId": activity_id,
-        "classId": class_id,
-        "title": cfg.get("title", ""),
-        "teachingGoal": cfg.get("teachingGoal", ""),
-        "language": cfg.get("language", "da"),
-        "difficulty": cfg.get("difficulty", "standard"),
-        "interactionStyle": cfg.get("interactionStyle", "socratic"),
-        "workbenchType": cfg.get("workbenchType", "none"),
-        "artefactId": cfg.get("artefactId"),
-        "checklist": cfg.get("checklist") or [],
-        "table": cfg.get("table") or [],
-        "chart": charts,
-        "calculator": cfg.get("calculator") or [],
-        "note": cfg.get("note") or [],
-        "solution": cfg.get("solution") or [],
-        "document": cfg.get("document") or [],
-        "materials": cfg.get("materials") or [],
-    }
-    result = client.post("/api/activity-configs", json=payload)
+    result = client.post("/api/activity-configs", json=_full_payload(cfg, activity_id, class_id, chart=charts))
     click.echo(f"chart added — activity now has {len(result.get('chart') or [])} chart(s)")
     click.echo(_json.dumps(result.get("chart"), indent=2))
+
+
+@activity.command("add-writing")
+@click.argument("activity_id")
+@click.option("--class", "class_id", required=True, help="The class the activity config belongs to.")
+@click.option("--title", default="", help="The field's title, e.g. Konklusion.")
+@click.option("--prompt", default="", help="The task shown above the box.")
+@click.option("--min-words", type=int, default=0, show_default=True, help="Word target (0 = none).")
+@click.pass_context
+def add_writing(
+    ctx: click.Context,
+    activity_id: str,
+    class_id: str,
+    title: str,
+    prompt: str,
+    min_words: int,
+) -> None:
+    """Add a student writing field to an activity (1.1.73).
+
+    A box the student writes PROSE in — a conclusion, a reflection — which they
+    can download as a file and the tutor can read and comment on. For
+    hand-written physics working, the ``solution`` element is the right surface.
+
+    The activity POST is a FULL OVERWRITE, so this reads the current config and
+    re-sends the COMPLETE element set with the new field appended.
+    """
+    client = _client(ctx)
+    cfg = client.get(f"/api/activity-configs/mine/{class_id}/{activity_id}")
+
+    fields = list(cfg.get("writing") or [])
+    fields.append(
+        {
+            "id": f"writing-{len(fields) + 1}",
+            "title": title,
+            "prompt": prompt,
+            "minWords": min_words,
+        }
+    )
+
+    result = client.post("/api/activity-configs", json=_full_payload(cfg, activity_id, class_id, writing=fields))
+    click.echo(f"writing field added — activity now has {len(result.get('writing') or [])} field(s)")
+    click.echo(_json.dumps(result.get("writing"), indent=2))
 
 
 _LEVELS = ["A", "B", "C"]

@@ -49,6 +49,7 @@ export type Proposal =
   | { kind: "set_lesson_prompt"; value: string }
   | { kind: "add_element"; elementKind: "checklist"; items: string[]; label: string }
   | { kind: "add_element"; elementKind: "note"; title: string; body: string; label: string }
+  | { kind: "add_element"; elementKind: "writing"; title: string; prompt: string; minWords: number; label: string }
   | { kind: "add_element"; elementKind: "solution" | "document"; prompt: string; label: string }
   | {
       kind: "add_element";
@@ -137,6 +138,16 @@ export function parseProposal(tc: ToolCallState): Proposal | null {
       }
       if (ek === "note" && typeof spec.body === "string") {
         return { kind: "add_element", elementKind: "note", title: typeof spec.title === "string" ? spec.title : "", body: spec.body, label };
+      }
+      if (ek === "writing" && typeof spec.prompt === "string") {
+        return {
+          kind: "add_element",
+          elementKind: "writing",
+          title: typeof spec.title === "string" ? spec.title : "",
+          prompt: spec.prompt,
+          minWords: typeof spec.minWords === "number" ? spec.minWords : 0,
+          label,
+        };
       }
       if ((ek === "solution" || ek === "document") && typeof spec.prompt === "string") {
         return { kind: "add_element", elementKind: ek, prompt: spec.prompt, label };
@@ -235,6 +246,16 @@ function AddElementBody({ proposal }: { proposal: Extract<Proposal, { kind: "add
         <div data-testid="proposal-note">
           {proposal.title ? <p className="font-medium">{proposal.title}</p> : null}
           <p className="whitespace-pre-wrap text-sm">{proposal.body}</p>
+        </div>
+      );
+    case "writing":
+      return (
+        <div data-testid="proposal-writing">
+          {proposal.title ? <p className="font-medium">{proposal.title}</p> : null}
+          <p className="whitespace-pre-wrap text-sm">{proposal.prompt}</p>
+          {proposal.minWords > 0 ? (
+            <p className="text-xs text-slate-500">Mål: {proposal.minWords} ord</p>
+          ) : null}
         </div>
       );
     case "solution":

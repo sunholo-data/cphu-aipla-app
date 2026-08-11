@@ -59,6 +59,9 @@ export interface ActivityConfigPayload {
   chart?: ChartElement[];
   calculator?: CalculatorElement[];
   note?: NoteElement[];
+  /** Student writing surfaces (1.1.73) — the teacher's prompt + bounds; the
+   *  student's text lives in the per-group writing_progress store. */
+  writing?: WritingElement[];
   solution?: SolutionElement[];
   document?: DocumentElement[];
   conceptMap?: ConceptMapElement[];
@@ -122,6 +125,7 @@ import type {
   SolutionElement,
   TableColumn,
   TableElement,
+  WritingElement,
 } from "./elementTypes";
 
 export type {
@@ -135,6 +139,7 @@ export type {
   SolutionElement,
   TableColumn,
   TableElement,
+  WritingElement,
 };
 
 /** A catalogued sim artefact a teacher can attach to an activity (1.1.41) — the
@@ -220,6 +225,9 @@ export interface ActivityConfigUpsert {
   calculator?: CalculatorElement[];
   /** Teacher-authored instructions / reference notes (1.1.38 M4). */
   note?: NoteElement[];
+  /** Student writing surfaces (1.1.73) — the teacher's prompt + bounds; the
+   *  student's text lives in the per-group writing_progress store. */
+  writing?: WritingElement[];
   solution?: SolutionElement[];
   document?: DocumentElement[];
   conceptMap?: ConceptMapElement[];
@@ -373,6 +381,9 @@ export interface ActivityUpsertBody {
   chart?: ChartElement[];
   calculator?: CalculatorElement[];
   note?: NoteElement[];
+  /** Student writing surfaces (1.1.73) — the teacher's prompt + bounds; the
+   *  student's text lives in the per-group writing_progress store. */
+  writing?: WritingElement[];
   solution?: SolutionElement[];
   document?: DocumentElement[];
   conceptMap?: ConceptMapElement[];

@@ -252,7 +252,7 @@ def test_add_element_text_kinds_require_text():
     from adk.authoring_tools import add_element
 
     aid = _make_activity(TEACHER)
-    for kind in ("note", "solution", "document"):
+    for kind in ("note", "solution", "document", "writing"):
         assert add_element(element_kind=kind, text="  ", activity_id=aid, tool_context=_tc(TEACHER))["ok"] is False, (
             kind
         )
@@ -263,6 +263,55 @@ def test_add_element_text_kinds_owner_scoped():
 
     aid = _make_activity(TEACHER)
     assert add_element(element_kind="note", text="x", activity_id=aid, tool_context=_tc(OTHER))["ok"] is False
+
+
+# --- 1.1.73: add_element writing ---
+
+
+def test_add_element_writing_owner_gets_a_proposal():
+    from adk.authoring_tools import add_element
+
+    aid = _make_activity(TEACHER)
+    res = add_element(
+        element_kind="writing",
+        text="Skriv jeres konklusion — hvad viser målingerne?",
+        title="Konklusion",
+        activity_id=aid,
+        tool_context=_tc(TEACHER),
+    )
+    assert res["ok"] is True
+    assert res["proposal"]["element_kind"] == "writing"
+    # Shaped for the FE editor row, so Apply is direct.
+    assert res["proposal"]["spec"] == {
+        "title": "Konklusion",
+        "prompt": "Skriv jeres konklusion — hvad viser målingerne?",
+        "minWords": 0,
+    }
+    assert "Konklusion" in res["proposal"]["label"]
+
+
+def test_add_element_writing_validates_by_constructing_the_model():
+    """Bounds come free from WritingElement, so an Applied element cannot 422."""
+    from adk.authoring_tools import add_element
+
+    aid = _make_activity(TEACHER)
+    res = add_element(
+        element_kind="writing",
+        text="x" * 5000,  # over the 2000-char prompt bound
+        activity_id=aid,
+        tool_context=_tc(TEACHER),
+    )
+    # Clipped to the bound rather than rejected — the teacher still gets a
+    # usable proposal, and the element is valid by construction.
+    assert res["ok"] is True
+    assert len(res["proposal"]["spec"]["prompt"]) == 2000
+
+
+def test_add_element_writing_owner_scoped():
+    from adk.authoring_tools import add_element
+
+    aid = _make_activity(TEACHER)
+    assert add_element(element_kind="writing", text="x", activity_id=aid, tool_context=_tc(OTHER))["ok"] is False
 
 
 # --- COPILOT-2 M4: structured elements — table / chart / calculator ---

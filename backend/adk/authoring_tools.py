@@ -36,6 +36,7 @@ from db.models.activity_config import (
     ConceptMapElement,
     TableColumn,
     TableElement,
+    WritingElement,
 )
 from db.models.curriculum import CurriculumDoc
 from db.models.taxonomy import normalize_tags
@@ -79,14 +80,15 @@ MAX_GOAL_LEN = 2000
 # kinds — the teacher writes a note body / solution prompt / document prompt; the
 # student does the drawing/upload at runtime. table / chart / calculator carry
 # richer structured specs and remain a follow-on.
-_TEXT_ELEMENT_KINDS = {"note", "solution", "document"}
+_TEXT_ELEMENT_KINDS = {"note", "solution", "document", "writing"}
 _STRUCTURED_ELEMENT_KINDS = {"table", "chart", "calculator"}
 _SUPPORTED_ELEMENT_KINDS = {"checklist"} | _TEXT_ELEMENT_KINDS | _STRUCTURED_ELEMENT_KINDS
 # Caps mirror the element models (activity_config.py) so an Applied element never 422s.
 MAX_CHECKLIST_ITEMS = ELEMENT_REGISTRY["checklist"].max_items
 MAX_NOTE_TITLE = 120
 MAX_NOTE_BODY = 4000
-MAX_PROMPT_LEN = 2000  # solution / document prompt
+MAX_PROMPT_LEN = 2000  # solution / document / writing prompt
+MAX_WRITING_TITLE = 120
 
 # Byte-identical denial for missing AND not-owned, so the tool can't be used to
 # enumerate other teachers' activities (mirrors activity_routes._load_for_modify).
@@ -173,14 +175,15 @@ def add_element(
 
     Args:
         element_kind: the palette element kind. Use the matching inputs:
-            ``checklist`` → ``items``; ``note``/``solution``/``document`` → ``text``
-            (+ ``title`` for a note); ``table`` → ``columns`` (+ ``rows``);
+            ``checklist`` → ``items``; ``note``/``solution``/``document``/
+            ``writing`` → ``text`` (+ ``title`` for a note or a writing field);
+            ``table`` → ``columns`` (+ ``rows``);
             ``chart`` → ``chart_kind``; ``calculator`` → ``formula`` + ``inputs``.
         activity_id: the activity being authored (the teacher owns it).
         items: checklist step labels.
         text: a note's body, or the prompt above the student's solution
-            (drawing/photo) / document-upload surface.
-        title: optional title for note / table / chart / calculator.
+            (drawing/photo) / document-upload / writing surface.
+        title: optional title for note / writing / table / chart / calculator.
         columns: table columns — each ``{"label", "unit"?, "kind": "number"|"text"}``.
         rows: number of table rows (1-50).
         chart_kind: ``scatter`` | ``line`` | ``bar``.
@@ -280,6 +283,17 @@ def _build_element_spec(
         if element_kind == "note":
             clean_title = (title or "").strip()[:MAX_NOTE_TITLE]
             return {"title": clean_title, "body": body[:MAX_NOTE_BODY]}, f"Note: {clean_title or body[:30]}"
+        if element_kind == "writing":
+            # Validate by constructing the model, like the structured kinds —
+            # free bounds checks, and an Applied element that cannot 422.
+            clean_title = (title or "").strip()[:MAX_WRITING_TITLE]
+            try:
+                model = WritingElement(id="writing-1", title=clean_title, prompt=body[:MAX_PROMPT_LEN])
+            except Exception as e:
+                return None, f"invalid writing field: {_first_error(e)}"
+            # Shaped for the FE editor row (WritingEditorRow), so Apply is direct.
+            spec = {"title": model.title, "prompt": model.prompt, "minWords": model.min_words}
+            return spec, f"Skrivefelt: {model.title or model.prompt[:30]}"
         label = "Løsningsfelt (elevens løsning)" if element_kind == "solution" else "Dokument-upload (elevens fil)"
         return {"prompt": body[:MAX_PROMPT_LEN]}, label
 

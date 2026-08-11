@@ -154,3 +154,82 @@ describe("applyCopilotProposal — attach_material caches the title (1.1.63 M1)"
     expect(payload.materials?.[0]).toMatchObject({ title: "Fysik B læreplan" });
   });
 });
+
+describe("applyCopilotProposal — writing element (1.1.73)", () => {
+  it("APPENDS rather than replacing, so a second field does not delete the first", () => {
+    // Charts learned this the hard way; writing fields carry student text keyed
+    // by element id, so a silent replace would orphan a group's work.
+    //
+    // This asserts the VALUE after Apply, not that the setter was called — the
+    // hook's dep array is hand-maintained, and 1.1.61 lost `tags` to a missing
+    // entry that a setter-was-called assertion would have passed straight over.
+    const { result } = renderHook(() => useActivityBuilder());
+
+    act(() =>
+      applyCopilotProposal(
+        {
+          kind: "add_element",
+          elementKind: "writing",
+          title: "Metode",
+          prompt: "Beskriv metoden.",
+          minWords: 0,
+          label: "x",
+        },
+        result.current,
+      ),
+    );
+    act(() =>
+      applyCopilotProposal(
+        {
+          kind: "add_element",
+          elementKind: "writing",
+          title: "Konklusion",
+          prompt: "Skriv konklusionen.",
+          minWords: 150,
+          label: "y",
+        },
+        result.current,
+      ),
+    );
+
+    expect(result.current.writing.map((w) => w.title)).toEqual(["Metode", "Konklusion"]);
+    expect(result.current.writing[1].minWords).toBe(150);
+    // Unsaved rows carry no id — the payload builder mints a stable one from
+    // the client key rather than from the row's position.
+    expect(result.current.writing.every((w) => w.id === "")).toBe(true);
+    expect(new Set(result.current.writing.map((w) => w.key)).size).toBe(2);
+  });
+
+  it("reaches the save payload, and a saved id survives a round-trip", () => {
+    // Recipe step 5's other half: an element that Applies onto builder state
+    // but never reaches `elementPayload()` is invisible the moment you save.
+    const { result } = renderHook(() => useActivityBuilder());
+    act(() =>
+      applyCopilotProposal(
+        {
+          kind: "add_element",
+          elementKind: "writing",
+          title: "Konklusion",
+          prompt: "Skriv konklusionen.",
+          minWords: 150,
+          label: "y",
+        },
+        result.current,
+      ),
+    );
+
+    const payload = result.current.elementPayload();
+    expect(payload.writing).toHaveLength(1);
+    expect(payload.writing[0].title).toBe("Konklusion");
+    expect(payload.writing[0].id).toBeTruthy();
+
+    // Hydrating a SAVED activity must keep its id — the group's text is keyed
+    // by it, so re-minting would orphan their work.
+    act(() =>
+      result.current.hydrate({
+        writing: [{ id: "writing-keepme", title: "Konklusion", prompt: "p", minWords: 0 }],
+      } as ActivityConfigPayload),
+    );
+    expect(result.current.elementPayload().writing[0].id).toBe("writing-keepme");
+  });
+});

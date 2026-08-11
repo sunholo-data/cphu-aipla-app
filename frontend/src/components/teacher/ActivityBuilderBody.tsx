@@ -11,6 +11,7 @@ import { ConceptMapEditor } from "@/components/teacher/ConceptMapEditor";
 import { DocumentEditor } from "@/components/teacher/DocumentEditor";
 import { MaterialsSection } from "@/components/teacher/MaterialsSection";
 import { NoteEditor } from "@/components/teacher/NoteEditor";
+import { WritingEditor } from "@/components/teacher/WritingEditor";
 import { SimPicker } from "@/components/teacher/SimPicker";
 import { SolutionEditor } from "@/components/teacher/SolutionEditor";
 import { TableEditor } from "@/components/teacher/TableEditor";
@@ -182,6 +183,7 @@ export function ActivityBuilderBody({
           <CalculatorEditor value={b.calculator} onChange={b.setCalculator} />
 
           <NoteEditor value={b.note} onChange={b.setNote} />
+          <WritingEditor value={b.writing} onChange={b.setWriting} nextKey={b.nextElementKey} />
 
           <SolutionEditor value={b.solution} onChange={b.setSolution} />
 
@@ -213,6 +215,7 @@ export function ActivityBuilderBody({
             chart: b.chart,
             calculator: b.calculator,
             note: b.note,
+            writing: b.writing,
             solution: b.solution,
             document: b.document,
             conceptMap: b.conceptMap,
