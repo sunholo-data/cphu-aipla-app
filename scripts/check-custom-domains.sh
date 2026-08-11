@@ -48,18 +48,58 @@ for ENV in "${ENVS[@]}"; do
   echo "== ${ENV} (${PROJECT})"
 
   # 1. DNS — the thing UCPH IT control, and the gate on everything below.
+  #
+  # THREE STATES, NOT TWO. A plain `dig` returns nothing both when the record
+  # was never created AND when it exists but fails DNSSEC validation. On
+  # 2026-08-10 that ambiguity cost a day: UCPH IT had created all four records
+  # correctly, with the right IPs, but ku.dk had not been re-signed since
+  # 2026-07-30. So the parent zone served a signed NSEC proof that the names did
+  # NOT exist, while ns1/ns2 simultaneously answered A queries for them.
+  # Validating resolvers call that forged and refuse (Google — and therefore
+  # Google's certificate prober, which is why the certs sat at
+  # FAILED_NOT_VISIBLE); lenient ones return the record (UCPH's own resolver,
+  # Cloudflare), which is why IT could not reproduce it and closed the ticket.
+  #
+  # So query TWICE — once with +cd to see whether the DATA exists, once normally
+  # to see whether it VALIDATES — and name the difference instead of collapsing
+  # both into "not yet". The parent-side DS query is the tiebreaker and is the
+  # one piece of evidence that needs no third-party tool:
+  #
+  #   dig @ns1.ku.dk +norec science.ku.dk DS   -> NOERROR  (exists, no DS: fine)
+  #   dig @ns1.ku.dk +norec aipla.ku.dk   DS   -> NXDOMAIN (not in signed data)
   for NAME in "${APP}" "${SANDBOX}"; do
+    # +cd = checking disabled: the raw data, whatever its DNSSEC status.
+    RAW="$(dig +cd +short "${NAME}" A 2>/dev/null | grep -E '^[0-9]' | head -1)"
+    # No +cd: what a validating resolver is willing to hand a user.
     GOT="$(dig +short "${NAME}" A 2>/dev/null | grep -E '^[0-9]' | head -1)"
-    if [ -z "${GOT}" ]; then
-      echo "  .... ${NAME} does not resolve yet (waiting on UCPH IT)"
+
+    if [ -z "${RAW}" ]; then
+      echo "  .... ${NAME} has no record at all (waiting on UCPH IT to create it)"
       pending=1
-    elif [ "${GOT}" = "${EXPECT_V4}" ]; then
+    elif [ "${RAW}" != "${EXPECT_V4}" ]; then
+      echo "  FAIL ${NAME} -> ${RAW}, expected ${EXPECT_V4}"
+      fail=1
+    elif [ -n "${GOT}" ]; then
       echo "  ok   ${NAME} -> ${GOT}"
     else
-      echo "  FAIL ${NAME} -> ${GOT}, expected ${EXPECT_V4}"
-      fail=1
+      # The record is right but validating resolvers refuse it. Report the
+      # parent's own verdict so the next person does not have to re-derive it.
+      DS_STATUS="$(dig +time=5 +tries=1 @ns1.ku.dk +norec "${NAME}" DS 2>/dev/null \
+                   | grep -oE 'status: [A-Z]+' | head -1 | awk '{print $2}')"
+      echo "  .... ${NAME} -> ${RAW} but FAILS DNSSEC validation (ku.dk not re-signed)"
+      echo "         record is CORRECT; the delegation is not inside ku.dk's signatures."
+      echo "         ns1.ku.dk says '${NAME} DS' -> ${DS_STATUS:-unknown} (NXDOMAIN = not in signed data)"
+      echo "         Certificates cannot issue until this clears. UCPH IT must re-sign ku.dk."
+      pending=1
     fi
   done
+
+  # Has the parent been re-signed since the names were added? All RRSIGs in
+  # ku.dk share one window, so the inception date is the whole story: while it
+  # predates the delegation, nothing downstream can work.
+  KU_INC="$(dig +cd +dnssec ku.dk SOA +noall +answer 2>/dev/null \
+            | awk '/RRSIG/ {print $10; exit}')"
+  [ -n "${KU_INC}" ] && echo "  info ku.dk signatures issued ${KU_INC} (re-sign updates this)"
 
   # 2. Certificates. These need no action — they issue once the names resolve
   #    here. One per hostname deliberately, so a missing sandbox record cannot
