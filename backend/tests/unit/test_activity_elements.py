@@ -25,6 +25,7 @@ from db.models.activity_config import (
     SolutionElement,
     TableColumn,
     TableElement,
+    WritingElement,
 )
 
 
@@ -309,3 +310,54 @@ def test_migration_does_not_clobber_an_explicit_document_element() -> None:
     )
     assert cfg.workbench_type == "none"
     assert [d.id for d in cfg.document] == ["d-keep"]
+
+
+# --- writing element (1.1.73) ---------------------------------------------
+
+
+def test_writing_is_a_registered_workspace_element() -> None:
+    spec = ELEMENT_REGISTRY["writing"]
+    assert spec.field == "writing"
+    assert spec.render == "workspace"
+    # NOT a singleton, deliberately: a lab report wanting both a "method" and a
+    # "conclusion" box is the obvious first ask, and 1.1.71 is the second time a
+    # positional singleton had to be un-picked at the cost of re-minting ids that
+    # student data is keyed by.
+    assert spec.max_items == 3
+
+
+def test_writing_within_cap_roundtrips() -> None:
+    cfg = _config(
+        writing=[
+            WritingElement(id="writing-1", title="Konklusion", prompt="Skriv din konklusion", minWords=150),
+            WritingElement(id="writing-2", title="Metode"),
+        ]
+    )
+    assert [w.id for w in cfg.writing] == ["writing-1", "writing-2"]
+    assert cfg.writing[0].min_words == 150
+    # The default bound is the store's ceiling, so an element authored with no
+    # explicit cap still cannot be used to write an unbounded document.
+    assert cfg.writing[1].max_chars == 20000
+
+
+def test_writing_over_cap_is_rejected() -> None:
+    cap = ELEMENT_REGISTRY["writing"].max_items
+    with pytest.raises(ValidationError):
+        _config(writing=[WritingElement(id=f"w{i}") for i in range(cap + 1)])
+
+
+def test_writing_bounds_are_enforced() -> None:
+    with pytest.raises(ValidationError):
+        WritingElement(id="w1", maxChars=999999)
+    with pytest.raises(ValidationError):
+        WritingElement(id="w1", minWords=-1)
+    with pytest.raises(ValidationError):
+        WritingElement(id="w1", title="x" * 200)
+
+
+def test_writing_needs_no_authoring_to_be_valid() -> None:
+    """A teacher who adds the element and types nothing still gets a usable box —
+    the prompt is the empty state, not a required field."""
+    w = WritingElement(id="writing-1")
+    assert w.prompt == ""
+    assert w.min_words == 0

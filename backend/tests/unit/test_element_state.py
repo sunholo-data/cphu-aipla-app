@@ -30,6 +30,7 @@ from db.models.activity_config import (
     SolutionElement,
     TableColumn,
     TableElement,
+    WritingElement,
 )
 
 
@@ -375,3 +376,81 @@ def test_an_empty_step_label_never_associates() -> None:
     from adk.element_state import find_empty_element_for_step
 
     assert find_empty_element_for_step(_cfg(table=[_table()]), "   ", {}) is None
+
+
+# --- writing surface (1.1.73) ---------------------------------------------
+
+
+def _writing(id_: str = "w1", title: str = "Konklusion", target: int = 0) -> WritingElement:
+    return WritingElement(id=id_, title=title, minWords=target)
+
+
+def _writing_state(*docs: dict) -> dict:
+    """The calculator-shaped snapshot: EVERY writing element in one array."""
+    return _pushed("writing", {"docs": list(docs)})
+
+
+def test_an_untouched_writing_surface_reports_empty_not_silence() -> None:
+    """The whole point of the module, applied to the element where "I've written
+    it" is the most tempting untrue claim a student can make."""
+    block = describe_element_state(_cfg(writing=[_writing()]), {})
+    assert "EMPTY" in block
+    assert "written nothing" in block
+
+
+def test_a_written_surface_reports_its_word_count() -> None:
+    block = describe_element_state(
+        _cfg(writing=[_writing()]),
+        _writing_state({"id": "w1", "title": "Konklusion", "words": 142}),
+    )
+    assert "142 words written" in block
+    # "EMPTY" also appears in the block's standing footer, so assert on the
+    # element's own line rather than the whole block.
+    assert 'Writing surface "Konklusion": EMPTY' not in block
+
+
+def test_an_untargeted_surface_is_never_unknown() -> None:
+    """`total <= 0` renders UNKNOWN ("nothing authored to fill in"), which would
+    stop the M3 refusal firing. An untargeted surface carries a nominal total of
+    1, so zero words is demonstrably EMPTY — and the line never says "0 of 1"."""
+    block = describe_element_state(_cfg(writing=[_writing(target=0)]), {})
+    assert "UNKNOWN" not in block
+    assert "0 of 1" not in block
+
+
+def test_a_word_target_is_reported_alongside_the_count() -> None:
+    block = describe_element_state(
+        _cfg(writing=[_writing(target=150)]),
+        _writing_state({"id": "w1", "words": 60}),
+    )
+    assert "60 words written" in block
+    assert "target 150" in block
+    assert "PARTIAL" in block
+
+
+def test_several_writing_surfaces_are_matched_by_id() -> None:
+    """Unlike the table (one snapshot key, the 1.1.71 defect), writing pushes
+    every element in one array — so a second surface is not falsely EMPTY just
+    because the student is working in the first."""
+    cfg = _cfg(writing=[_writing("w1", "Metode"), _writing("w2", "Konklusion")])
+    block = describe_element_state(
+        cfg,
+        _writing_state({"id": "w1", "words": 80}, {"id": "w2", "words": 12}),
+    )
+    assert "80 words written" in block
+    assert "12 words written" in block
+
+
+def test_an_unpushed_surface_among_pushed_ones_is_truly_empty() -> None:
+    cfg = _cfg(writing=[_writing("w1", "Metode"), _writing("w2", "Konklusion")])
+    block = describe_element_state(cfg, _writing_state({"id": "w1", "words": 80}))
+    assert 'Writing surface "Konklusion": EMPTY' in block
+
+
+def test_writing_declares_a_fill_reader_not_an_exclusion() -> None:
+    """Unlike solution/document — whose work arrives as a chat turn, so a
+    synthesised EMPTY would be false the moment a student submits — writing has
+    a real observable channel, so it must be read rather than excluded."""
+    from adk.element_state import _READERS
+
+    assert not isinstance(_READERS["writing"], NoFillChannel)

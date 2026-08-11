@@ -222,6 +222,38 @@ class NoteElement(BaseModel):
     model_config = ConfigDict(populate_by_name=True)
 
 
+class WritingElement(BaseModel):
+    """A student writing surface (1.1.73, JB 2026-08-11).
+
+    The teacher authors the ``prompt`` and the bounds; the STUDENT's text is not
+    stored here — it lives in ``db/writing_progress.py``, group-keyed, like every
+    other piece of per-group student state.
+
+    Distinct from ``NoteElement`` in exactly the way JB's email says it should
+    be: a note is teacher-authored reference text the student *reads*, this is a
+    box the student *writes in*, keeps, and exports.
+
+    Also distinct from ``SolutionElement``: that one is for **physics working**
+    (a drawing or a photo, submitted as a multimodal turn — 1.1.48 removed the
+    typed editor because students do not type LaTeX). This is for **prose** — a
+    conclusion, a reflection, an argument — which is exactly the thing a
+    16-year-old types fluently. It gets no maths input for that reason; a
+    formula button here would re-create the surface 1.1.48 deleted.
+
+    ``min_words`` is a TARGET shown to the student, never a gate: blocking a
+    save on a word count is a usability -1 for no pedagogical gain.
+    """
+
+    id: str = Field(min_length=1, max_length=64)
+    title: str = Field(default="", max_length=120)
+    prompt: str = Field(default="", max_length=2000)
+    placeholder: str = Field(default="", max_length=200)
+    min_words: int = Field(default=0, ge=0, le=2000, alias="minWords")
+    max_chars: int = Field(default=20000, ge=200, le=20000, alias="maxChars")
+
+    model_config = ConfigDict(populate_by_name=True)
+
+
 class SolutionElement(BaseModel):
     """A teacher-authored rich-text solution-editor element (1.1.45 M4, JB-2).
 
@@ -410,8 +442,11 @@ WorkbenchType = Literal["app", "drawing", "sensor", "video", "notebook", "docume
 #
 # v1.1 ships the ``checklist`` (M0) + ``table`` (M1) + ``chart`` (M2) +
 # ``calculator`` (M3) + ``note`` (M4 — the teacher-authored instructions /
-# reference element). ``quiz`` (inline, A2UI) joins when 1.1.19 M2 builds it.
-ElementKind = Literal["checklist", "table", "chart", "calculator", "note", "solution", "document", "conceptMap"]
+# reference element) + ``writing`` (1.1.73 — the student's own prose).
+# ``quiz`` (inline, A2UI) joins when 1.1.19 M2 builds it.
+ElementKind = Literal[
+    "checklist", "table", "chart", "calculator", "note", "writing", "solution", "document", "conceptMap"
+]
 ElementRender = Literal["workspace", "inline"]
 
 
@@ -440,6 +475,12 @@ ELEMENT_REGISTRY: dict[ElementKind, ElementSpec] = {
     "chart": ElementSpec(kind="chart", field="chart", max_items=5, render="workspace"),
     "calculator": ElementSpec(kind="calculator", field="calculator", max_items=5, render="workspace"),
     "note": ElementSpec(kind="note", field="note", max_items=5, render="workspace"),
+    # Student writing surfaces (1.1.73). NOT a singleton, and the renderer takes
+    # an array from day one: a lab report wanting both a "method" and a
+    # "conclusion" box is the obvious first request, and 1.1.71 is the second
+    # time a positional singleton has had to be un-picked at the cost of
+    # re-minting ids that student data is keyed by.
+    "writing": ElementSpec(kind="writing", field="writing", max_items=3, render="workspace"),
     # One rich-text solution editor per activity (JB-2 "din løsning"); the
     # student's writing is session state, not config — so the cap is on the
     # number of editor surfaces, which is 1.
@@ -493,6 +534,9 @@ class ActivityConfig(BaseModel):
     calculator: list[CalculatorElement] = Field(default_factory=list)
     # Teacher-authored instructions / reference notes (1.1.38 M4), Markdown body.
     note: list[NoteElement] = Field(default_factory=list)
+    # Student writing surfaces (1.1.73). The teacher authors the prompt + bounds;
+    # the student's TEXT lives in db/writing_progress.py, group-keyed.
+    writing: list[WritingElement] = Field(default_factory=list)
     # Rich-text solution editor (1.1.45 M4, JB-2). Teacher authors the prompt;
     # the student's writing is session state (iframe-context), not stored here.
     solution: list[SolutionElement] = Field(default_factory=list)
@@ -585,4 +629,5 @@ __all__ = [
     "TableColumn",
     "TableElement",
     "WorkbenchType",
+    "WritingElement",
 ]

@@ -111,6 +111,37 @@ def _describe_note(items: list, spec: ElementSpec) -> list[str]:
     return [f'Note "{getattr(n, "title", "") or "untitled"}" — reference text the student can read.' for n in items]
 
 
+def _describe_writing(items: list, spec: ElementSpec) -> list[str]:
+    """The student's own writing surface (1.1.73).
+
+    Two things this line has to do beyond naming the element. First, tell the
+    tutor the text arrives continuously, so it does not ask the student to paste
+    their work into the chat. Second — and this is the Axiom 2 guarantee
+    expressed where it actually binds — forbid ghost-writing. Offering to "fix
+    it up for you" is the single most natural thing for a helpful model to do
+    here, and it turns a student's work into the model's work, which is the
+    thing a Danish gymnasium teacher will be judged on. The tutor has no write
+    path into the document by construction; this says so in words as well.
+    """
+    lines = []
+    for w in items:
+        title = getattr(w, "title", "") or "untitled"
+        prompt = (getattr(w, "prompt", "") or "").strip()
+        target = int(getattr(w, "min_words", 0) or 0)
+        head = f'Writing surface "{title}" — the student writes their own text here'
+        if prompt:
+            head += f". Task: {prompt}"
+        if target:
+            head += f" (target {target} words)"
+        lines.append(head + ".")
+    lines.append(
+        "You receive their writing as they work. Comment on it, ask about it, and point at what is "
+        "missing — but never rewrite it for them and never write into their document; your feedback "
+        "belongs in this conversation. They may also ask you to look at it explicitly."
+    )
+    return lines
+
+
 def _describe_solution(items: list, spec: ElementSpec) -> list[str]:
     lines = []
     for sol in items:
@@ -164,6 +195,7 @@ _DESCRIBERS: dict[str, Callable[[list, ElementSpec], list[str]]] = {
     "chart": _describe_chart,
     "calculator": _describe_calculator,
     "note": _describe_note,
+    "writing": _describe_writing,
     "solution": _describe_solution,
     "document": _describe_document,
     "conceptMap": _describe_concept_map,

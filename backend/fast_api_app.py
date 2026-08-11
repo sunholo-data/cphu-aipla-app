@@ -307,6 +307,7 @@ from protocols.sessions_route import router as sessions_router  # noqa: E402
 from protocols.teacher_bootstrap_routes import router as teacher_bootstrap_router  # noqa: E402
 from protocols.teacher_prefs_routes import router as teacher_prefs_router  # noqa: E402
 from protocols.voice_routes import router as voice_router  # noqa: E402
+from protocols.writing_progress_routes import router as writing_progress_router  # noqa: E402
 from skills.routes import router as skills_router  # noqa: E402
 from skills.skill_processor import SkillNotFoundError, TurnLockedError, process_skill_request  # noqa: E402
 from tools.documents.routes import router as doc_folders_router  # noqa: E402
@@ -334,6 +335,7 @@ app.include_router(activity_router)
 app.include_router(activity_image_router)
 app.include_router(concept_progress_router)
 app.include_router(checklist_progress_router)
+app.include_router(writing_progress_router)
 app.include_router(research_lens_router)
 app.include_router(teacher_prefs_router)
 app.include_router(personas_router)

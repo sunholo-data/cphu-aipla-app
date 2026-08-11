@@ -141,6 +141,7 @@ def _activity_to_config(activity: Activity, *, class_id: str) -> ActivityConfig:
         chart=activity.chart,
         calculator=activity.calculator,
         note=activity.note,
+        writing=activity.writing,
         solution=activity.solution,
         document=activity.document,
         conceptMap=activity.concept_map,

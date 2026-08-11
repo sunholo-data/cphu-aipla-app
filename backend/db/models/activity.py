@@ -40,6 +40,7 @@ from db.models.activity_config import (
     SolutionElement,
     TableElement,
     WorkbenchType,
+    WritingElement,
 )
 from db.models.taxonomy import MAX_SUBJECT_LEN, StxLevel, normalize_subject, normalize_tags
 
@@ -94,6 +95,7 @@ class Activity(BaseModel):
     chart: list[ChartElement] = Field(default_factory=list)
     calculator: list[CalculatorElement] = Field(default_factory=list)
     note: list[NoteElement] = Field(default_factory=list)
+    writing: list[WritingElement] = Field(default_factory=list)
     solution: list[SolutionElement] = Field(default_factory=list)
     document: list[DocumentElement] = Field(default_factory=list)
     concept_map: list[ConceptMapElement] = Field(default_factory=list, alias="conceptMap")

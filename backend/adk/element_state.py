@@ -266,12 +266,62 @@ def _read_calculator(items: list, spec: ElementSpec, state: dict[str, Any]) -> l
     return fills
 
 
+def _read_writing(items: list, spec: ElementSpec, state: dict[str, Any]) -> list[ElementFill]:
+    """One reading per authored writing surface: how much the student has written.
+
+    ``WritingSnapshot`` (frontend ``WorkbenchWriting.tsx``) is deliberately
+    shaped like ``CalcSnapshot`` and NOT like ``TableSnapshot``: every writing
+    element on the activity is pushed in ONE array under ``writing.state``, each
+    matched by its own id, so a missing entry is a true EMPTY. The table's
+    one-snapshot-per-key shape is the defect 1.1.71 exists to fix, and the cap
+    here is 3 from day one — copying it would have shipped the same bug twice.
+
+    **The total is a word target, not a capacity.** An element with no
+    ``min_words`` has no natural denominator, and ``total <= 0`` renders UNKNOWN
+    ("nothing authored to fill in") — which would mean the M3 refusal never
+    fires on precisely the element where "I've written it" is the most tempting
+    untrue claim. So an untargeted surface gets a nominal total of 1: zero words
+    is then demonstrably EMPTY, and any writing at all reads COMPLETE. ``_line``
+    formats writing separately so the prose never says "0 of 1 words".
+
+    A student returning in a NEW session has no push yet — the client's
+    ``writing.sync`` catch-up fires on session bootstrap and self-heals it on the
+    first turn, the same way the table does.
+    """
+    snap = _entry(state, "writing")
+    by_id: dict[str, dict[str, Any]] = {}
+    if snap is not None:
+        for d in snap.get("docs") or []:
+            if isinstance(d, dict) and d.get("id"):
+                by_id[str(d["id"])] = d
+    fills = []
+    for w in items:
+        target = int(getattr(w, "min_words", 0) or 0)
+        pushed = by_id.get(str(getattr(w, "id", "")))
+        words = 0
+        if pushed is not None:
+            raw = pushed.get("words")
+            words = raw if isinstance(raw, int) else 0
+        fills.append(
+            ElementFill(
+                kind="writing",
+                element_id=str(getattr(w, "id", "")),
+                title=getattr(w, "title", "") or "untitled",
+                filled=words,
+                total=target or 1,
+                detail=f"target {target} words" if target else "",
+            )
+        )
+    return fills
+
+
 # Every kind in ``ELEMENT_REGISTRY`` must appear here: a reader, or an explicit
 # NoFillChannel saying why silence is correct for it. See the module docstring
 # for how each of these was checked against the frontend.
 _READERS: dict[str, Callable[[list, ElementSpec, dict[str, Any]], list[ElementFill]] | NoFillChannel] = {
     "table": _read_table,
     "calculator": _read_calculator,
+    "writing": _read_writing,
     "checklist": NoFillChannel(
         reason=(
             "authoritative state is the checklist_progress store, surfaced by list_checklist() "
@@ -327,12 +377,24 @@ def read_element_fills(cfg: ActivityConfig | None, state: dict[str, Any] | None)
     return fills
 
 
-_NOUNS = {"table": "Data table", "calculator": "Calculator"}
+_NOUNS = {"table": "Data table", "calculator": "Calculator", "writing": "Writing surface"}
 _UNITS = {"table": "cells filled", "calculator": "inputs entered"}
 
 
 def _line(fill: ElementFill) -> str:
     noun = _NOUNS.get(fill.kind, fill.kind)
+    if fill.kind == "writing":
+        # Writing counts words against a TARGET, not cells against a capacity,
+        # and an untargeted surface carries a nominal total of 1 (see
+        # _read_writing). Rendering it through the generic "N of M" would print
+        # "0 of 1 words", which is technically true and useless. The status word
+        # is unchanged, so the M3 refusal reads this line the same way.
+        if fill.filled <= 0:
+            return f'{noun} "{fill.title}": EMPTY — the student has written nothing'
+        body = f"{fill.filled} words written"
+        if fill.detail:
+            body += f" ({fill.detail})"
+        return f'{noun} "{fill.title}": {fill.status} — {body}'
     if fill.total <= 0:
         return f'{noun} "{fill.title}": UNKNOWN — nothing authored to fill in'
     body = f"{fill.filled} of {fill.total} {_UNITS.get(fill.kind, 'filled')}"

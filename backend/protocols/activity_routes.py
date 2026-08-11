@@ -58,6 +58,7 @@ from db.models.activity_config import (
     SolutionElement,
     TableElement,
     WorkbenchType,
+    WritingElement,
 )
 from db.models.curriculum import CurriculumDoc
 from db.models.taxonomy import MAX_SUBJECT_LEN, StxLevel, normalize_tags
@@ -96,6 +97,7 @@ class ActivityUpsert(BaseModel):
     chart: list[ChartElement] = Field(default_factory=list)
     calculator: list[CalculatorElement] = Field(default_factory=list)
     note: list[NoteElement] = Field(default_factory=list)
+    writing: list[WritingElement] = Field(default_factory=list)
     solution: list[SolutionElement] = Field(default_factory=list)
     document: list[DocumentElement] = Field(default_factory=list)
     concept_map: list[ConceptMapElement] = Field(default_factory=list, alias="conceptMap")
@@ -188,6 +190,7 @@ def _activity_from_body(body: ActivityUpsert, *, owner_uid: str, activity_id: st
         chart=body.chart,
         calculator=body.calculator,
         note=body.note,
+        writing=body.writing,
         solution=body.solution,
         document=body.document,
         conceptMap=body.concept_map,

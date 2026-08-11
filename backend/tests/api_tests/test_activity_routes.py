@@ -91,6 +91,53 @@ def test_post_accepts_document_and_solution_elements():
     assert got["solution"][0]["id"] == "solution-1"
 
 
+def test_post_accepts_writing_elements():
+    """Same regression shape as the one above, for 1.1.73's writing element.
+
+    Recipe step 1b is three models and TWO adapters; the model test catches a
+    missing field but nothing auto-checks the adapters, so the POST→GET
+    round-trip is written before the frontend exists. Several elements, because
+    the cap is 3 and a method box overwriting a conclusion box would be exactly
+    the silent-data-loss failure 1.1.71 documents.
+    """
+    c = _client()
+    body = {
+        "skillId": "concept",
+        "title": "Rapport",
+        "writing": [
+            {"id": "writing-1", "title": "Metode", "prompt": "Beskriv jeres metode"},
+            {"id": "writing-2", "title": "Konklusion", "minWords": 150, "maxChars": 5000},
+        ],
+    }
+    resp = c.post("/api/activities", json=body)
+    assert resp.status_code == 201, resp.text
+
+    got = c.get(f"/api/activities/{resp.json()['activityId']}").json()
+    assert [w["id"] for w in got["writing"]] == ["writing-1", "writing-2"]
+    assert got["writing"][0]["prompt"] == "Beskriv jeres metode"
+    assert got["writing"][1]["minWords"] == 150
+
+
+def test_writing_element_survives_the_activity_to_config_adapter():
+    """The other half of recipe 1b. An element that creates fine but is dropped
+    by ``_activity_to_config`` renders nothing for the student — how the
+    ``document`` element shipped broken in 1.1.48."""
+    from adk.teacher_focus import _activity_to_config
+    from db.models.activity import Activity
+    from db.models.activity_config import WritingElement
+
+    activity = Activity(
+        activityId="act-1",
+        skillId="concept",
+        ownerUid=TEACHER,
+        title="Rapport",
+        writing=[WritingElement(id="writing-1", title="Konklusion", prompt="Skriv din konklusion")],
+    )
+    cfg = _activity_to_config(activity, class_id="c1")
+    assert [w.id for w in cfg.writing] == ["writing-1"]
+    assert cfg.writing[0].prompt == "Skriv din konklusion"
+
+
 def test_post_with_class_auto_assigns():
     _make_class("c1")
     c = _client()

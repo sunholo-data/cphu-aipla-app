@@ -37,6 +37,7 @@ from db.models.activity_config import (
     SolutionElement,
     TableColumn,
     TableElement,
+    WritingElement,
 )
 
 
@@ -176,6 +177,7 @@ def _populated_element(kind: str):
         "chart": ChartElement(id="ch", title="A chart"),
         "calculator": CalculatorElement(id="c", title="Calc", formula="a", inputs=[CalcInput(id="a", label="A")]),
         "note": NoteElement(id="n", title="A note", body="body"),
+        "writing": WritingElement(id="w", title="Konklusion", prompt="Skriv din konklusion"),
         "solution": SolutionElement(id="s", prompt="Solve it"),
         "document": DocumentElement(id="d", prompt="Upload it"),
         "conceptMap": ConceptMapElement(id="cm", title="Map", nodes=[ConceptNode(id="n1", label="Vectors")]),
@@ -235,3 +237,37 @@ def test_truncation_keeps_the_behavioural_instruction():
     cfg = _cfg(checklist=[ChecklistItem(id=f"i{n}", label="L" * 200) for n in range(50)])
     manifest = describe_elements(cfg).lower()
     assert "invite" in manifest or "bring" in manifest
+
+
+# ---------------------------------------------------------------------------
+# Writing surface (1.1.73)
+# ---------------------------------------------------------------------------
+
+
+def test_writing_surface_is_named_with_its_task():
+    manifest = describe_elements(
+        _cfg(writing=[WritingElement(id="w", title="Konklusion", prompt="Skriv jeres konklusion", minWords=150)])
+    )
+    assert "Konklusion" in manifest
+    assert "Skriv jeres konklusion" in manifest
+    assert "150" in manifest
+
+
+def test_writing_surface_forbids_ghost_writing():
+    """The Axiom 2 guarantee, expressed where it binds.
+
+    Offering to "fix it up for you" is the most natural thing for a helpful
+    model to do with a half-written essay, and it turns the student's work into
+    the model's. The tutor has no write path into the document by construction;
+    this says so in words too, because the model will otherwise offer.
+    """
+    manifest = describe_elements(_cfg(writing=[WritingElement(id="w", title="Konklusion")])).lower()
+    assert "never rewrite it for them" in manifest
+    assert "belongs in this conversation" in manifest
+
+
+def test_writing_surface_says_the_text_arrives_continuously():
+    """Otherwise the tutor asks the student to paste their work into the chat —
+    which is exactly the copy-paste this element exists to remove."""
+    manifest = describe_elements(_cfg(writing=[WritingElement(id="w", title="Konklusion")])).lower()
+    assert "as they work" in manifest
