@@ -85,6 +85,59 @@ class SpendNotAuthorisedError(Exception):
         self.billing_identity = billing_identity
 
 
+async def _stream_recorded_demo_turn(
+    *,
+    user: User,
+    session_id: str | None,
+    activity_id: str | None,
+) -> AsyncGenerator[dict, None]:
+    """Replay one recorded assistant turn for a visitor (ACCESS-1 M2).
+
+    Turn index comes from how many assistant messages the session already
+    holds, so a visitor walks forward through the recording as they type. Past
+    the end of the recording — or on an activity with no recording — the replay
+    source emits an honest card plus the access nudge, never a fabricated
+    answer.
+    """
+    from onboarding.demo_transcripts import get_transcript
+    from skills.replay_source import stream_recorded_demo
+
+    transcript = get_transcript(activity_id or "")
+    turn_index = _recorded_turns_so_far(session_id)
+
+    async for event in stream_recorded_demo(
+        transcript=transcript,
+        turn_index=turn_index,
+        thread_id=session_id or uuid.uuid4().hex,
+        include_preamble=turn_index == 0,
+    ):
+        yield event
+
+
+#: In-process count of replayed turns per session. Deliberately NOT persisted:
+#: a recorded demo is a browsing experience, not state worth a Firestore write,
+#: and losing the position on a container recycle costs a visitor a repeated
+#: preamble at worst.
+_replay_progress: dict[str, int] = {}
+
+
+def _recorded_turns_so_far(session_id: str | None) -> int:
+    """How many recorded turns this session has already played, then increment."""
+    key = session_id or "anonymous"
+    seen = _replay_progress.get(key, 0)
+    _replay_progress[key] = seen + 1
+    # Bound the memo so a long-lived container cannot accumulate sessions
+    # without limit. 5k visitors' positions is a few hundred KB.
+    if len(_replay_progress) > 5000:
+        _replay_progress.clear()
+    return seen
+
+
+def reset_replay_progress() -> None:
+    """Test helper — clears the per-session replay position."""
+    _replay_progress.clear()
+
+
 def _message_text(message: str | list[dict[str, Any]]) -> str:
     """Flatten a turn's message content to plain text for the thinking router
     and logs. A multimodal turn (1.1.7) is an AG-UI ``InputContent[]`` list;
@@ -109,6 +162,7 @@ async def process_skill_request(
     resumed_session: bool = False,
     a2ui_surface_state: dict[str, Any] | None = None,
     activity_id: str | None = None,
+    allow_recorded_demo: bool = False,
 ) -> AsyncGenerator[dict, None]:
     """Public entry — wrap one skill turn with the group turn-lock (1.1.53 M0).
 
@@ -126,7 +180,7 @@ async def process_skill_request(
         SkillNotFoundError: when the skill is missing or not readable.
         TurnLockedError: when the group already has a turn in flight.
     """
-    # ACCESS-1 M1: the spend gate, before anything expensive and before the
+    # ACCESS-1 M1/M2: the spend gate, before anything expensive and before the
     # turn lock (no point serialising a turn we are about to refuse). This is
     # the single chokepoint for ALL four agent entry points — the AG-UI stream,
     # /greet, proactive-event-check, and the MCP/channel invokers — so a new
@@ -134,13 +188,30 @@ async def process_skill_request(
     authority = resolve_spend_authority(user)
     if not authority.can_spend:
         logger.info(
-            "skill.spend_denied skill=%s uid=%s tier=%s reason=%s",
+            "skill.spend_denied skill=%s uid=%s tier=%s reason=%s replay=%s",
             skill_id,
             user.uid,
             authority.tier,
             authority.reason,
+            allow_recorded_demo,
         )
-        raise SpendNotAuthorisedError(authority.tier, authority.reason, authority.billing_identity)
+        if not allow_recorded_demo:
+            # Callers that cannot render a conversation (proactive checks, MCP,
+            # channels) get the refusal to handle as they see fit.
+            raise SpendNotAuthorisedError(authority.tier, authority.reason, authority.billing_identity)
+
+        # M2: a visitor on a chat surface watches a RECORDING instead of being
+        # refused. Same AG-UI event shape, no model behind it — see
+        # skills/replay_source.py for why this is a second event source rather
+        # than a second transport, and for the honesty properties that make
+        # canned content acceptable here at all.
+        async for event in _stream_recorded_demo_turn(
+            user=user,
+            session_id=session_id,
+            activity_id=activity_id,
+        ):
+            yield event
+        return
 
     group_id = user.group_id or None
     lock_token: str | None = None

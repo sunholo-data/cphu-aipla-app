@@ -686,6 +686,10 @@ async def stream_skill(
         resumed_session=extracted_resumed,
         a2ui_surface_state=extracted_surface_state,
         activity_id=_extract_activity_id(body),
+        # ACCESS-1 M2: this is a chat surface, so a visitor watches a RECORDED
+        # session rather than getting a 402. The 402 path below still fires for
+        # anything the replay cannot serve.
+        allow_recorded_demo=True,
     )
     # STRIP-1 (Axiom 10): server-only tool results (the checkpoint judging
     # rubric, document contents) never reach a STUDENT client's SSE frames.

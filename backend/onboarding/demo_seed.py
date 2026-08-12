@@ -528,11 +528,23 @@ def seed_demo_for_teacher(owner_uid: str, *, access_tier: str = DEFAULT_ACCESS_T
         return None
 
     concept_skill = _concept_skill_id()
-    activity_ids = [create_activity(a).activity_id for a in _demo_activities(owner_uid, concept_skill)]
+    activities = _demo_activities(owner_uid, concept_skill)
+    activity_ids = [create_activity(a).activity_id for a in activities]
 
     demo_class = Class.create_for_teacher(owner_uid=owner_uid, name=DEMO_CLASS_NAME)
     create_class(demo_class)
     add_activities(demo_class.class_id, activity_ids)
+
+    # ACCESS-1 M2: seed the recorded session a visitor replays instead of a
+    # live tutor. Non-fatal — an activity with no recording degrades honestly
+    # ("no demonstration recorded yet" + the access nudge), never into a
+    # fabricated turn.
+    try:
+        from onboarding.demo_transcripts import seed_demo_transcripts
+
+        seed_demo_transcripts(dict(zip((a.title for a in activities), activity_ids, strict=True)))
+    except Exception:
+        log.warning("demo_seed: could not seed demo transcripts for teacher=%s", owner_uid, exc_info=True)
 
     codes = mint_group_codes_under_class(demo_class.class_id, count=1) if can_spend(access_tier) else []
 
