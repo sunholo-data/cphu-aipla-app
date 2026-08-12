@@ -48,13 +48,44 @@ log = logging.getLogger("grandfather_access")
 DEFAULT_EXPIRES_AT = "2026-09-15T00:00:00+00:00"
 
 
-def _distinct_owner_uids() -> list[str]:
-    """Every uid that owns at least one class."""
+def _owner_class_counts() -> dict[str, int]:
+    """Every uid that owns at least one class -> how many they own.
+
+    The count is what makes a row verifiable at a glance: one class named
+    "Demo class" is probably a stray sign-in, five named after real cohorts is a
+    teacher you must not turn into a visitor.
+    """
     from db.firestore import query_documents
 
-    docs = query_documents("classes", limit=5000)
-    owners = {str(d.get("ownerUid")) for d in docs if d.get("ownerUid")}
-    return sorted(owners)
+    counts: dict[str, int] = {}
+    for doc in query_documents("classes", limit=5000):
+        owner = doc.get("ownerUid")
+        if owner:
+            counts[str(owner)] = counts.get(str(owner), 0) + 1
+    return counts
+
+
+def _class_names_for(owner_uid: str) -> list[str]:
+    """The class names this owner has, for the verification listing."""
+    from db.firestore import query_documents
+
+    docs = query_documents("classes", filters=[("ownerUid", "==", owner_uid)], limit=50)
+    return [str(d.get("name") or "(unnamed)") for d in docs]
+
+
+def _ensure_firebase() -> None:
+    """Initialise firebase-admin once, from ADC.
+
+    Needed because ``_email_for_uid`` calls ``fb_auth.get_user`` — the script
+    runs outside the FastAPI app, which is where ``initialize_app()`` normally
+    happens.
+    """
+    import firebase_admin
+
+    try:
+        firebase_admin.get_app()
+    except ValueError:
+        firebase_admin.initialize_app()
 
 
 def _email_for_uid(uid: str) -> str | None:
@@ -93,13 +124,20 @@ def main(argv: list[str] | None = None) -> int:
     )
     args = parser.parse_args(argv)
 
+    from config.gcp import require_gcp_project
     from db.teacher_access import get_grant, grant_access
+
+    project = require_gcp_project()
+    _ensure_firebase()
+    log.info("Project: %s", project)
+    log.info("")
 
     cap = args.cap
     expires_at = None if args.expires == "never" else args.expires
     note = f"grandfathered at ACCESS-1 rollout {datetime.now(UTC).date().isoformat()}"
 
-    owners = _distinct_owner_uids()
+    class_counts = _owner_class_counts()
+    owners = sorted(class_counts)
     log.info("Found %d distinct class owner(s).", len(owners))
     if not owners:
         log.info("Nothing to grandfather.")
@@ -118,6 +156,13 @@ def main(argv: list[str] | None = None) -> int:
             already.append(email)
             continue
         would_grant.append((uid, email))
+
+    log.info("")
+    log.info("%-38s %-7s %s", "EMAIL", "CLASSES", "CLASS NAMES")
+    for uid, email in would_grant:
+        names = _class_names_for(uid)
+        log.info("%-38s %-7d %s", email, class_counts.get(uid, 0), ", ".join(names[:4]))
+    log.info("")
 
     for uid, email in would_grant:
         if args.apply:
