@@ -569,11 +569,28 @@ All five milestones landed in one session. Backend 3090 tests + lint; frontend
 
 ### Deliberately not done
 
-- **`spend_guard` call sites.** The seam, the enforcer and the tests exist; the
-  ~13 direct-`genai`/RAG/voice call sites are not yet wired to it. Until they
-  are, the cap covers the agent loop and Ring 0 covers the rest.
-- **Ring 3 teacher attribution.** Teacher turns are still logged nowhere
-  (`chat_log.py:78`), so the co-pilot remains invisible to the cost dashboard.
+- **`spend_guard` call sites — the largest remaining gap, sized 2026-08-12.**
+  The seam, the enforcer and the tests exist; the call sites do not.
+
+  | Path | Gated? | Metered? | Why not wired yet |
+  |---|---|---|---|
+  | **Compaction summariser** | no | no | **The sharpest one.** Student-triggered, auto-fires on long sessions, uses the expensive `smart_model()` tier. A process-wide singleton on the session service with **no access to the current user**, so metering it needs a contextvar carrying the billing identity through the request — copy the `observability/timing.py` tracker pattern. |
+  | PDF AI extraction, title generation | no | no | Same shape: no current user in scope. |
+  | Vertex RAG ingest / query | **yes** (`assert_can_spend`) | no | Admission only. A pilot teacher's RAG queries do not count against their cap. |
+  | Cloud TTS / STT | **yes** | no | Same — student-reachable, admission-gated, unmetered. |
+
+  The cap therefore covers the **agent loop**, which is the bulk of spend, with
+  Ring 0 under everything else. Roughly half a day to close, and worth doing
+  before real classes lean on the numbers: a cap that silently omits a
+  student-triggered call on the expensive tier is not the number it appears
+  to be.
+- ~~**Ring 3 teacher attribution.**~~ **DONE 2026-08-12** (`350ece1`) — prompted
+  by M taking a live co-pilot turn and asking what it cost, when nothing could
+  answer. Teacher turns now emit under `teacher:{uid}`, the same billing key the
+  enforcer meters on, **without their transcripts** (a teacher's chat can quote
+  a student's work, so content would be a student-PII surface by the back door).
+  `analytics.cost_queries.teacher_own_spend` is the read side, and
+  `record_llm_cost` is finally called.
 - **The `gemini-2.5-flash` rate divergence** (2x between the two tables) is
   recorded in a comment, not resolved — picking one silently would make both
   tables agree while both being wrong.
