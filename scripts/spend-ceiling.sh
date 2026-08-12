@@ -29,10 +29,25 @@ ENV="${1:-}"
 shift || true
 
 APPLY=0
-# Per base model, per day. Sized as a generous multiple of expected pilot load:
-# a 30-student class at pilot intensity is O(10^5) input tokens/day, so 50M is
-# ~100x headroom. It exists to bound abuse and runaway loops, not to shape
-# normal use — if this ever fires in ordinary teaching, raise it.
+# Per base model, per day.
+#
+# WHAT 50M COSTS, so the number is a decision and not a vibe (rates from
+# backend/observability/llm_metrics.py, USD per 1M input tokens):
+#   gemini-3.5-flash-lite  $0.30  ->  50M/day =  $15/day
+#   gemini-3.6-flash       $1.50  ->  50M/day =  $75/day
+# Both models saturated is ~$90/day, ~$2,700/month, INPUT ONLY — this metric
+# does not cap output tokens, which bill 8-5x higher per token.
+#
+# HOW MUCH HEADROOM THAT REALLY IS (corrected 2026-08-12; the first version of
+# this comment said "~100x" and was wrong by an order of magnitude):
+# one 30-student class at ~20 turns each and ~5-10k input tokens per turn
+# (system prompt + history + RAG chunks) is ~3-6M input tokens/day. So 50M is
+# roughly 8-15 busy classes on one model — real headroom for the pilot, but NOT
+# so much that it could never be reached. Revisit once `class_spend` has a
+# month of real data.
+#
+# It exists to bound abuse and runaway loops, not to shape normal use — if this
+# fires during ordinary teaching, raise it rather than leaving lessons broken.
 CEILING="${AIPLA_DAILY_TOKEN_CEILING:-50000000}"
 
 while [[ $# -gt 0 ]]; do
