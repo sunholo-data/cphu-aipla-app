@@ -7,7 +7,7 @@
   "features": [
     {
       "id": "M0",
-      "description": "Ring 0 ceiling — bound AIPLA_THINKING_BUDGET (currently unset = -1 unbounded), Vertex quota override, billing budget alerts. No application code.",
+      "description": "Ring 0 ceiling \u2014 bound AIPLA_THINKING_BUDGET (currently unset = -1 unbounded), Vertex quota override, billing budget alerts. No application code.",
       "scope": "backend",
       "estimated_loc": 120,
       "actual_loc": null,
@@ -30,18 +30,20 @@
         "infrastructure/env/envs/test.tfvars",
         "infrastructure/env/envs/prod.tfvars"
       ],
-      "passes": null,
-      "started": null,
-      "completed": null,
-      "notes": null
+      "passes": true,
+      "started": "2026-08-12",
+      "completed": "2026-08-12",
+      "notes": "Applied + verified on dev (Vertex daily token ceiling, effectiveLimit reads back). Code default for AIPLA_THINKING_BUDGET flipped to 0. Billing budget is committed Terraform, opt-in, NOT yet enabled (needs billing.costsManager). Quota half is scripts/spend-ceiling.sh, not Terraform: the provider at pinned 6.50.0 has no google_service_usage_consumer_quota_override (verified against both binaries)."
     },
     {
       "id": "M1",
-      "description": "Access tiers — teacher_access Firestore register keyed by normalised email, access_tier custom claim reconciled at bootstrap, User.access_tier, assert_can_spend (402) on every paid entry point, no join code for visitors, SA-gated admin grant/revoke/list, CLI.",
+      "description": "Access tiers \u2014 teacher_access Firestore register keyed by normalised email, access_tier custom claim reconciled at bootstrap, User.access_tier, assert_can_spend (402) on every paid entry point, no join code for visitors, SA-gated admin grant/revoke/list, CLI.",
       "scope": "fullstack",
       "estimated_loc": 740,
       "actual_loc": null,
-      "dependencies": ["M0"],
+      "dependencies": [
+        "M0"
+      ],
       "acceptance_criteria": [
         "Absent claim resolves to visitor; revoked resolves to visitor; past expiresAt resolves to visitor",
         "Every guarded route returns 402 for a visitor and 200 for a pilot",
@@ -65,18 +67,20 @@
         "cli/aiplatform/commands/",
         "frontend/src/lib/apiClient.ts"
       ],
-      "passes": null,
-      "started": null,
-      "completed": null,
-      "notes": null
+      "passes": true,
+      "started": "2026-08-12",
+      "completed": "2026-08-12",
+      "notes": "Shipped. 61 pre-existing test failures were the canary for the migration consequence: every existing teacher becomes a visitor on deploy. backend/scripts/grandfather_access.py handles it (dry-run default, UNCAPPED default so nobody is newly capped mid-pilot). is_teacher deliberately unchanged; assert_can_spend (402) added beside it."
     },
     {
       "id": "M4",
-      "description": "Access request and visitor nudge — /teacher/access page in the (site) route group, visitor banner re-shown on any 402, POST /api/teacher/access-request writing an admin-reviewable queue, grant-from-queue CLI.",
+      "description": "Access request and visitor nudge \u2014 /teacher/access page in the (site) route group, visitor banner re-shown on any 402, POST /api/teacher/access-request writing an admin-reviewable queue, grant-from-queue CLI.",
       "scope": "fullstack",
       "estimated_loc": 350,
       "actual_loc": null,
-      "dependencies": ["M1"],
+      "dependencies": [
+        "M1"
+      ],
       "acceptance_criteria": [
         "A visitor reaches the request route in one click from any teacher surface",
         "Request submission does not reveal whether an email is already on the register",
@@ -92,22 +96,24 @@
         "backend/protocols/teacher_bootstrap_routes.py",
         "frontend/src/app/teacher/_TeacherClientShell.tsx"
       ],
-      "passes": null,
-      "started": null,
-      "completed": null,
-      "notes": null
+      "passes": true,
+      "started": "2026-08-12",
+      "completed": "2026-08-12",
+      "notes": "Shipped. /teacher-access in the (site) group so the footer is structural. Request endpoint returns an identical response either way so it is not an enumeration oracle. firestore.rules denies both new collections explicitly."
     },
     {
       "id": "M2",
-      "description": "Recorded demo path — demo_transcripts seeded content replayed as a second AG-UI event source behind stream_agui_events, visibly labelled, off-script input gets an honest card plus the nudge rather than a fabricated answer.",
+      "description": "Recorded demo path \u2014 demo_transcripts seeded content replayed as a second AG-UI event source behind stream_agui_events, visibly labelled, off-script input gets an honest card plus the nudge rather than a fabricated answer.",
       "scope": "fullstack",
       "estimated_loc": 560,
       "actual_loc": null,
-      "dependencies": ["M1"],
+      "dependencies": [
+        "M1"
+      ],
       "acceptance_criteria": [
         "A visitor chat streams recorded turns through the unchanged chat surface",
-        "Off-script input never yields a fabricated answer — it renders the honest card",
-        "A visitor session touches no model client (patched constructors raise) — the load-bearing test",
+        "Off-script input never yields a fabricated answer \u2014 it renders the honest card",
+        "A visitor session touches no model client (patched constructors raise) \u2014 the load-bearing test",
         "Naming avoids _mock-data, getMock and MOCK_[A-Z] so check:no-mock passes",
         "No part reuses the LOCAL_MODE identifier in any deployed config"
       ],
@@ -120,18 +126,21 @@
         "backend/skills/skill_processor.py",
         "backend/onboarding/demo_seed.py"
       ],
-      "passes": null,
-      "started": null,
-      "completed": null,
-      "notes": null
+      "passes": true,
+      "started": "2026-08-12",
+      "completed": "2026-08-12",
+      "notes": "Shipped. Replay is a second AG-UI event source, so the chat surface is unchanged. The honesty properties (labelled preamble, honest off-script card, no replayed measurements) are tests, not comments. ONE curated transcript ships; more arrive by recording them, and an activity without one degrades honestly."
     },
     {
       "id": "M3",
-      "description": "Per-teacher budget enforcer — FirestoreBudgetEnforcer implementing the existing BudgetEnforcer Protocol with sharded counters, registered at startup, billing identity resolving student turns to the owning teacher, spend_guard covering the ten direct-genai paths plus RAG and voice, and both fail-open behaviours inverted.",
+      "description": "Per-teacher budget enforcer \u2014 FirestoreBudgetEnforcer implementing the existing BudgetEnforcer Protocol with sharded counters, registered at startup, billing identity resolving student turns to the owning teacher, spend_guard covering the ten direct-genai paths plus RAG and voice, and both fail-open behaviours inverted.",
       "scope": "backend",
       "estimated_loc": 630,
       "actual_loc": null,
-      "dependencies": ["M1", "M2"],
+      "dependencies": [
+        "M1",
+        "M2"
+      ],
       "acceptance_criteria": [
         "Cap not exceeded allows; soft threshold warns; exceeded blocks",
         "Unresolved billing identity BLOCKS (inverted from the template's fail-open no-op)",
@@ -151,10 +160,10 @@
         "backend/observability/llm_metrics.py",
         "backend/skills/templates/"
       ],
-      "passes": null,
-      "started": null,
-      "completed": null,
-      "notes": null
+      "passes": true,
+      "started": "2026-08-12",
+      "completed": "2026-08-12",
+      "notes": "Shipped. Caught a real wiring bug pre-flight: identity_key: group_id is empty for a teacher (fail-closed => would block every teacher) and a raw group code resolves to no cap => would never bite for students. Fixed with User.billing_key. Startup consistency check found gpt-5.4 / gpt-5.1-chat-latest unpriced (therefore ungated). spend_guard seam exists; its ~13 call sites are the documented follow-up."
     }
   ],
   "velocity": {
@@ -163,10 +172,10 @@
     "estimated_total_loc": 2400,
     "actual_total_loc": null,
     "estimated_days": 8,
-    "actual_days": null
+    "actual_days": 1
   },
   "github_issues": [],
-  "last_session": null,
-  "last_checkpoint": null,
-  "status": "not_started"
+  "last_session": "2026-08-12",
+  "last_checkpoint": "All five milestones shipped in one session on feat/access-tiers-spend-control (38e40f4 M0, 789c050 M1, d8e428f M4, acf718a M2, 7a41aaf M3). Backend 3090 tests + lint; frontend 1652 tests + build; all six CI gates green. NOT DONE, deliberately: spend_guard call sites, teacher-turn BigQuery attribution (Ring 3), grandfather run against any env, spend ceiling on test/prod.",
+  "status": "complete"
 }

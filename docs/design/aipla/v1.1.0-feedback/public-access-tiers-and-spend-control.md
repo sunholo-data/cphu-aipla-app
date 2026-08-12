@@ -1,6 +1,6 @@
 # Public access tiers and spend control — gating `aipla.ku.dk` before publicity
 
-**Status:** Proposed (2026-08-12) — **blocks publicising `aipla.ku.dk`**
+**Status:** **SHIPPED 2026-08-12** (ACCESS-1, all five milestones) — see [Outcome](#outcome--shipped-2026-08-12-access-1). Rollout steps remain before this reaches an env with real users.
 **Last Updated:** 2026-08-12
 **Priority:** **P0** — the domain has been live since 2026-08-11 17:46 UTC ([deployed-urls.md](../../../ops/deployed-urls.md#custom-domains--kudk-provisioned-2026-08-03-app-names-live-2026-08-11)); the exposure is already real, only unadvertised
 **Estimated:** ~6–7.5d total, phased — M0 ~0.5d (no app code) · M1 ~2d · M2 ~2.5d · M3 ~2d · M4 ~0.75d
@@ -516,3 +516,88 @@ This is the test that lets us publicise the domain. It must patch **both** the A
 - [teacher-permission-model.md](../v1.0.0-pilot/implemented/teacher-permission-model.md) — 1.A, the ownership/tag-namespace model the tier sits beside
 - [docs/ops/deployed-urls.md](../../../ops/deployed-urls.md) — the `ku.dk` custom-domain state that makes this urgent
 - ADR-001 (anonymous group auth) in the scoping site — why students have no identity, and therefore why the join code is the fan-out vector
+
+---
+
+## Outcome — shipped 2026-08-12 (ACCESS-1)
+
+All five milestones landed in one session. Backend 3090 tests + lint; frontend
+1652 tests + build; all six CI gates green.
+
+| Milestone | Commit | State |
+|---|---|---|
+| M0 ceiling | `38e40f4` | Quota **applied + verified on dev**; test/prod are one `APPLY=1` away |
+| M1 access tiers | `789c050` | Shipped |
+| M4 nudge | `d8e428f` | Shipped |
+| M2 recorded demo | `acf718a` | Shipped |
+| M3 enforcer | `7a41aaf` | Shipped; call sites for the non-ADK guard are a follow-up |
+
+### What the build changed about the design
+
+- **`AIPLA_THINKING_BUDGET` was never actually open.** The design said unbounded;
+  all three deployed envs already set `=0`. The *code* default was `-1`, which
+  meant every Cloud Run job, script and local process ran the most expensive
+  setting. Fixed there instead.
+- **The Vertex quota override is a script, not Terraform.**
+  `google_service_usage_consumer_quota_override` does not exist in the google or
+  google-beta provider at the pinned 6.50.0 — verified against both binaries.
+  `scripts/spend-ceiling.sh` applies **and reads back**, because an override with
+  a wrong `base_model` dimension applies to nothing and still exits 0.
+- **`identity_key: group_id` would have been a live bug.** Empty for a teacher
+  (and the callback now fails closed → every teacher blocked), and a raw group
+  code resolves to no cap → never bites for students either. `User.billing_key`
+  fixes both.
+- **The startup rate-card check earned itself immediately**: `gpt-5.4` and
+  `gpt-5.1-chat-latest` were in `models.yaml` with no price, i.e. both uncharged
+  and ungated.
+- **61 test failures were the migration canary.** Every existing teacher becomes
+  a visitor on the M1 deploy. `backend/scripts/grandfather_access.py` handles it,
+  **uncapped by default** — newly capping people mid-pilot could cut a lesson off.
+
+### Before this reaches an environment with real users
+
+1. `cd backend && uv run python -m scripts.grandfather_access` (dry run), then `--apply`.
+   **Same change window as the deploy**, or every existing teacher is a visitor.
+2. `make spend-ceiling ENV=test APPLY=1` and the same for prod.
+3. Re-seed so the `tool_configs.budget` blocks reach Firestore (automatic on deploy).
+4. Grant the real pilot cohort: `aiplatform users grant-access <email> --cap N`.
+
+### Deliberately not done
+
+- **`spend_guard` call sites.** The seam, the enforcer and the tests exist; the
+  ~13 direct-`genai`/RAG/voice call sites are not yet wired to it. Until they
+  are, the cap covers the agent loop and Ring 0 covers the rest.
+- **Ring 3 teacher attribution.** Teacher turns are still logged nowhere
+  (`chat_log.py:78`), so the co-pilot remains invisible to the cost dashboard.
+- **The `gemini-2.5-flash` rate divergence** (2x between the two tables) is
+  recorded in a comment, not resolved — picking one silently would make both
+  tables agree while both being wrong.
+
+### Open — raised by M 2026-08-12: should researchers configure budgets?
+
+**Today: no.** The register is SA-allowlisted only (`aiplatform users
+grant-access`, via an impersonated service-account token). The `role:researcher`
+claim grants cross-class **read**; it confers nothing on the register.
+
+That was deliberate — but the workflow objection is real: JB and AR are the
+people who would actually know a new teacher should be admitted, and routing
+every invite through M is a bottleneck.
+
+The recommendation is **not** to extend the researcher claim to cover it.
+`researcher` currently means "may read across classes for research purposes";
+making it also mean "may commit money" is a privilege escalation by conflation,
+and the two roles genuinely differ — a research collaborator analysing
+transcripts is not necessarily someone who should be able to raise a spend cap.
+
+Suggested shape for a follow-up row, in increasing order of commitment:
+
+1. **Read-only register + queue view for researchers** (~0.5d). They can see who
+   is waiting and who is granted, and ping M. Low risk, removes most of the
+   friction, requires no new role.
+2. **A distinct `programme-admin` claim** that may grant/revoke *within a bounded
+   cap*, with raising a cap above that bound and revoking still SA-only (~1.5d).
+   Keeps "commit money" a separate, auditable capability from "read research
+   data".
+3. Full in-product register administration (~2.5d). Not recommended before
+   handover — an admin UI is a durable surface, and this register's shape is
+   likely to change when UCPH SSO lands.
