@@ -99,11 +99,16 @@ URLs.
 Access tiers and spend control ([1.1.75](../design/aipla/v1.1.0-feedback/public-access-tiers-and-spend-control.md))
 are **deployed to dev and test**, and **not to prod**.
 
-| Env | Code | `teacher_access` register | Vertex daily token ceiling |
-|---|---|---|---|
-| dev | live (branch tip) | **EMPTY — every teacher is a visitor** | applied + verified (50M/day/base model) |
-| test | live (`v0.1.15`) | **EMPTY — every teacher is a visitor** | not applied |
-| prod | **not deployed** | n/a | not applied |
+| Env | Code | `teacher_access` register | Budget-gated skills | Vertex daily token ceiling |
+|---|---|---|---|---|
+| dev | live (branch tip) | **EMPTY — every teacher is a visitor** | 4 of 8 | applied + verified (50M/day/base model) |
+| test | `v0.1.15` | **EMPTY — every teacher is a visitor** | 4 of 8 | **not applied** |
+| prod | `v0.1.15` (promoted 2026-08-12) | **EMPTY — every teacher is a visitor** | 4 of 8 | **not applied** |
+
+All three verified 2026-08-12: the four student-facing tutors carry
+`skillMetadata.toolConfigs.budget.identity_key = billing_key`, so the cap
+applies once a teacher has one. The register being empty means nobody has one
+yet — and, more to the point, nobody has a live tutor.
 
 **An empty register means no live tutor for anyone on that env.** Teachers can
 sign in and explore; the tutor replays a recorded session. That is the intended
