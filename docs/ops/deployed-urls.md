@@ -101,9 +101,15 @@ are **deployed to dev and test**, and **not to prod**.
 
 | Env | Code | `teacher_access` register | Budget-gated skills | Vertex daily token ceiling |
 |---|---|---|---|---|
-| dev | live (branch tip) | **EMPTY — every teacher is a visitor** | 4 of 8 | applied + verified (50M/day/base model) |
-| test | `v0.1.15` | **EMPTY — every teacher is a visitor** | 4 of 8 | **not applied** |
-| prod | `v0.1.15` (promoted 2026-08-12) | **EMPTY — every teacher is a visitor** | 4 of 8 | **not applied** |
+| dev | live (branch tip) | **EMPTY — every teacher is a visitor** | 4 of 8 | applied + verified |
+| test | `v0.1.15` | **EMPTY — every teacher is a visitor** | 4 of 8 | applied + verified |
+| prod | `v0.1.15` (promoted 2026-08-12) | **EMPTY — every teacher is a visitor** | 4 of 8 | applied + verified |
+
+Ceiling is **50M input tokens / day / base model** on `gemini-3.5-flash-lite`
+and `gemini-3.6-flash`, applied 2026-08-12 and read back on all three
+(`make check-spend-ceiling ENV=<env>`). Before that, test and prod had
+Google's default of `-1` — i.e. **no ceiling at all**. Input tokens only;
+output is not capped by this metric.
 
 All three verified 2026-08-12: the four student-facing tutors carry
 `skillMetadata.toolConfigs.budget.identity_key = billing_key`, so the cap

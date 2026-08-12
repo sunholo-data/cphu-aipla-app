@@ -564,4 +564,13 @@ gate on that yet.
 hold. Set `spend_ceiling_enabled = true` + `billing_account_id` per env once
 granted.
 
+**Applied to test and prod 2026-08-12** (M approved after the cost was priced):
+same metric, same unit, same 50M value, both read back `effectiveLimit=50000000`.
+Operations `quf.p33-702255698790-cd53743a…` / `…-dc63e7e2…` (test) and
+`quf.p33-300514327263-3c1a0fe5…` / `…-dc63a697…` (prod).
+
+**What it was before:** Google's default on this metric is `-1` on BOTH the
+daily and per-minute limits — i.e. test and prod had *no* Vertex token
+ceiling of any kind until this was applied. Ring 0 did not exist there.
+
 ### Captured in script? ✅ yes — `scripts/spend-ceiling.sh` (apply + verify), `make spend-ceiling` / `make check-spend-ceiling`.
