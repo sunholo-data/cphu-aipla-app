@@ -25,6 +25,21 @@ metadata:
     - group_report
     - summarise_chat_excerpts
   toolConfigs:
+    # ACCESS-1: meter this skill against the teacher's monthly cap.
+    #
+    # Added 2026-08-12 after a live turn proved the gap. The four STUDENT tutors
+    # were gated first because that is where the fan-out is — thirty students on
+    # one join code. The teacher skills were left exempt on the reasoning that
+    # one person typing is negligible volume. That reasoning does not survive
+    # the facts: the co-pilot is the most TOOL-HEAVY skill in the product, and
+    # manage-class delegates into analytics-chat, so one teacher turn can fan
+    # out into a second agent's model calls. Plausibly dearer per turn than a
+    # student's, and until now the only one nobody could see.
+    #
+    # `billing_key` already resolves to `teacher:{uid}` for a Firebase identity,
+    # so this needs no new code — only the block.
+    budget:
+      identity_key: billing_key
     # A2UI OFF: analytics-chat is read-only — it answers in chat (text +
     # tables) and emits no proposals, so there is no declarative UI to render.
     a2ui:

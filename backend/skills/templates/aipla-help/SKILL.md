@@ -18,6 +18,21 @@ metadata:
   model: gemini-3.5-flash-lite
   tools: []
   toolConfigs:
+    # ACCESS-1: DELIBERATELY exempt, declared rather than omitted.
+    #
+    # aipla-help is the escape hatch — it is what a teacher asks when something
+    # is wrong, including "why can't I use the tutor any more?". Refusing help
+    # to someone who has just hit their cap is the moment they most need it, so
+    # this one skill is not metered.
+    #
+    # `exempt: true` rather than leaving the block out: an omitted block is
+    # exempt too, but silently, and indistinguishable from someone forgetting.
+    # This states the decision so it can be reviewed. It is the cheapest skill
+    # in the set (short answers, few tools), so the exposure is small and
+    # bounded by Ring 0 like everything else.
+    budget:
+      identity_key: billing_key
+      exempt: true
     a2ui:
       enabled: false
 initialMessage: |

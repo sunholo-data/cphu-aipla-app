@@ -337,27 +337,76 @@ async def test_an_orphan_group_code_is_uncapped_not_crashing(store):
     assert decision.action == "allow"
 
 
-def test_the_student_skill_templates_actually_opt_in():
-    """A skill with no `budget:` block is exempt BY ABSENCE — so the cap
-    silently would not apply. These four are the paths a whole class runs
-    through; if one loses its block, the cap stops covering that tutor."""
+def _template_budget_configs():
+    """Every SKILL.md template -> its parsed BudgetConfig (or None)."""
     from pathlib import Path
 
     import yaml
 
     from adk.budget_config import BudgetConfig
 
-    for name in ["problem-set-hints", "concept-dialogue", "kinebot-kinematics-tutor", "led-planck-tutor"]:
-        path = Path(__file__).resolve().parents[2] / "skills" / "templates" / name / "SKILL.md"
+    root = Path(__file__).resolve().parents[2] / "skills" / "templates"
+    out = {}
+    for path in sorted(root.glob("*/SKILL.md")):
         data = yaml.safe_load(path.read_text().split("---")[1])
         tool_configs = (data.get("metadata") or {}).get("toolConfigs") or data.get("toolConfigs")
-        config = BudgetConfig.from_tool_configs(tool_configs)
-        assert config is not None, f"{name} lost its budget block — the cap no longer covers it"
-        assert config.identity_key == "billing_key", (
-            f"{name} must meter on billing_key: `group_id` is empty for a teacher and the "
-            "callback fails closed, so it would block every teacher who opened this tutor"
-        )
-        assert config.exempt is False
+        out[path.parent.name] = BudgetConfig.from_tool_configs(tool_configs)
+    return out
+
+
+def test_no_skill_is_exempt_BY_ACCIDENT():
+    """The guard that stops this recurring.
+
+    A skill with no `budget:` block is exempt by ABSENCE — silently, and
+    indistinguishably from someone forgetting. That is exactly what happened:
+    the four student tutors were gated and the four teacher skills were not, so
+    a real co-pilot turn on 2026-08-12 spent money that no cap saw and no log
+    recorded.
+
+    Every template must now DECLARE its position. Opting out is fine; opting out
+    by omission is not.
+    """
+    missing = [name for name, config in _template_budget_configs().items() if config is None]
+    assert not missing, (
+        f"{missing} have no `budget:` block, so they are exempt by absence. "
+        "Add `budget: {identity_key: billing_key}` to meter it, or "
+        "`{identity_key: billing_key, exempt: true}` with a comment saying why not."
+    )
+
+
+def test_every_gated_skill_meters_on_billing_key():
+    """`group_id` is empty for a teacher and the callback fails closed, so a
+    skill metered on it would block every teacher who opened it."""
+    for name, config in _template_budget_configs().items():
+        assert config is not None
+        assert config.identity_key == "billing_key", f"{name} must meter on billing_key, not {config.identity_key!r}"
+
+
+def test_the_student_tutors_are_gated_not_exempt():
+    """These are the paths a whole class runs through — the fan-out the cap
+    exists for. An exemption here would be a hole, not a decision."""
+    configs = _template_budget_configs()
+    for name in ["problem-set-hints", "concept-dialogue", "kinebot-kinematics-tutor", "led-planck-tutor"]:
+        assert configs[name] is not None and configs[name].exempt is False, f"{name} must be gated"
+
+
+def test_the_teacher_skills_are_gated_too():
+    """Added after a live turn proved the gap: the co-pilot is the most
+    tool-heavy skill in the product, and manage-class delegates into
+    analytics-chat, so one teacher turn can fan out into a second agent's
+    model calls."""
+    configs = _template_budget_configs()
+    for name in ["manage-class", "activity-authoring-assistant", "analytics-chat"]:
+        assert configs[name] is not None and configs[name].exempt is False, f"{name} must be gated"
+
+
+def test_only_the_help_skill_is_deliberately_exempt():
+    """aipla-help is the escape hatch — what a teacher asks when something is
+    wrong, including "why can't I use the tutor?". Refusing help to someone who
+    just hit their cap is the moment they most need it. Any OTHER exemption
+    should be argued for here first."""
+    exempt = {name for name, c in _template_budget_configs().items() if c and c.exempt}
+    assert exempt == {"aipla-help"}, f"unexpected exemptions: {exempt - {'aipla-help'}}"
 
 
 # --- 0 blocks; only the explicit sentinel passes ----------------------------
