@@ -4,7 +4,7 @@ import type { Language } from "@/lib/teacherApi";
 // activities a teacher picks and then adapts, so the builder is never a blank
 // form. Between them they exercise the whole shipped feature surface: all three
 // sims (Boldkast / KineBot / LED-Planck), the element palette (checklist / table
-// / chart / calculator / note / solution / document) and the tutor shapes
+// / chart / calculator / note / writing / solution / document) and the tutor shapes
 // (Socratic dialogue, measurement lab, problem feedback). Pure data: the builder
 // (`useActivityBuilder.applyTemplate`) converts these into its editor state.
 //
@@ -41,6 +41,14 @@ export interface TemplateNote {
 export interface TemplateSolution {
   /** Teacher prompt shown above the student's rich-text solution editor. */
   prompt: string;
+}
+
+export interface TemplateWriting {
+  title: string;
+  /** The task shown above the box. */
+  prompt: string;
+  /** Word target shown to the student; never a save gate. */
+  minWords?: number;
 }
 
 export interface TemplateConceptQuestion {
@@ -85,6 +93,11 @@ export interface ActivityTemplate {
   /** Optional document-upload element (1.1.48, JB-1) — the prompt above the
    *  student's upload surface. */
   document?: TemplateSolution;
+  /** Optional student writing surfaces (1.1.73). A LIST, not a single slot:
+   *  the cap is 3 and a lab report wanting both a method and a conclusion box
+   *  is the obvious first ask. `chart` is singular here and 1.1.64/1.1.71 had
+   *  to un-pick exactly that; not making it a third time. */
+  writing?: TemplateWriting[];
   /** Optional living concept map (living-concept-map M0) — a prerequisite DAG
    *  over the activity's concepts + per-node chat-native check questions the
    *  tutor runs as checkpoints. */
@@ -243,6 +256,18 @@ export const ACTIVITY_TEMPLATES: ActivityTemplate[] = [
       rows: 6,
     },
     chart: { title: "Kraft mod forlængelse", chartKind: "scatter" },
+    // 1.1.73 — the lab arc used to stop at the graph. The conclusion is where
+    // the physics actually happens, and the tutor can see BOTH the table the
+    // student filled and the text they wrote about it.
+    writing: [
+      {
+        title: "Konklusion",
+        prompt:
+          "Skriv jeres konklusion: Er kraften proportional med forlængelsen? Hvad viser hældningen, " +
+          "og hvad er fjederkonstanten k for jeres fjeder? Nævn mindst én kilde til usikkerhed.",
+        minWords: 100,
+      },
+    ],
     note: {
       title: "Hookes lov",
       body:
@@ -534,6 +559,44 @@ export const ACTIVITY_TEMPLATES: ActivityTemplate[] = [
       body:
         "Skriv din løsning på papir med alle udregninger, og tag et tydeligt billede.\n\n" +
         "Tutoren giver feedback på din fremgangsmåde — ikke bare facit.",
+    },
+  },
+  {
+    // 1.1.73 (JB, 2026-08-11) — the writing surface, as its own starter so the
+    // picker demos all THREE student-submission shapes: prose (here), drawn
+    // physics ("Din løsning"), and an uploaded file ("Dokumentfeedback").
+    id: "written-conclusion",
+    name: "Skriftlig konklusion",
+    summary: "Eleven skriver en tekst, henter den som fil — tutoren kommenterer undervejs.",
+    language: "da",
+    title: "Skriftlig konklusion",
+    teachingGoal:
+      "Hjælp eleven med at skrive en bedre fysikfaglig tekst. Du kan se, hvad eleven skriver, mens de " +
+      "skriver. Kommentér på strukturen og fysikken: bruges fagbegreberne rigtigt, følger konklusionen " +
+      "af data, er usikkerheder nævnt? **Skriv aldrig teksten for eleven** og omskriv den ikke — peg på, " +
+      "hvad der mangler, og stil et spørgsmål, så eleven selv kan rette det. Ros først noget, der " +
+      "fungerer. Vent med at kommentere, til eleven spørger.",
+    checklist: [
+      "Skriv et udkast",
+      "Bed tutoren om feedback",
+      "Ret det vigtigste og hent teksten som fil",
+    ],
+    writing: [
+      {
+        title: "Din tekst",
+        prompt:
+          "Skriv din tekst her. Du kan hente den som fil, når du er færdig — og du kan bede tutoren " +
+          "om feedback undervejs.",
+        minWords: 150,
+      },
+    ],
+    note: {
+      title: "Sådan skriver du en god konklusion",
+      body:
+        "1. **Hvad undersøgte I?** Én sætning.\n" +
+        "2. **Hvad viser data?** Henvis til jeres målinger eller graf.\n" +
+        "3. **Hvad betyder det fysisk?** Brug fagbegreberne.\n" +
+        "4. **Usikkerhed:** Hvad kunne have påvirket resultatet?",
     },
   },
   {

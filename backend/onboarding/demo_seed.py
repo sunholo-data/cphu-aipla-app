@@ -39,6 +39,7 @@ from db.models.activity_config import (
     SolutionElement,
     TableColumn,
     TableElement,
+    WritingElement,
 )
 from db.models.class_ import Class
 
@@ -65,8 +66,8 @@ def _demo_activities(owner_uid: str, concept_skill: str) -> list[Activity]:
     artefact via ``artefactId`` (resolved to the sim's tutor at student-
     instantiation time; sets ``workbench_type=app``). Between them they cover all
     three sims (Boldkast / KineBot / LED-Planck), the element palette (checklist /
-    table / chart / calculator / note / solution / document) and a living concept
-    map. Kept deliberately curated (not every picker template) so a walk-in demo
+    table / chart / calculator / note / writing / solution / document) and a living
+    concept map. Kept deliberately curated (not every picker template) so a walk-in demo
     stays focused; the full starter set lives in the teacher's template picker
     (``frontend/src/lib/activityTemplates.ts``)."""
     welcome = Activity(
@@ -320,6 +321,22 @@ def _demo_activities(owner_uid: str, concept_skill: str) -> list[Activity]:
             ChecklistItem(id="opstil", label="Opstil fjederen og vælg et referencepunkt"),
             ChecklistItem(id="maal", label="Mål forlængelsen for mindst 5 forskellige kræfter"),
             ChecklistItem(id="aflaes", label="Aflæs fjederkonstanten fra grafen"),
+            ChecklistItem(id="konkluder", label="Skriv jeres konklusion og hent den som fil"),
+        ],
+        # 1.1.73 — the lab arc used to stop at the graph. The conclusion is where
+        # the physics happens, and it is the one element the tutor can comment on
+        # while reading BOTH the table the student filled and the text about it.
+        writing=[
+            WritingElement(
+                id="konklusion",
+                title="Konklusion",
+                prompt=(
+                    "Skriv jeres konklusion: Er kraften proportional med forlængelsen? Hvad viser "
+                    "hældningen, og hvad er fjederkonstanten k for jeres fjeder? Nævn mindst én "
+                    "kilde til usikkerhed."
+                ),
+                min_words=100,
+            )
         ],
         table=[
             TableElement(

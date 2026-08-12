@@ -240,9 +240,19 @@ export function useActivityBuilder(): ActivityBuilder {
         : null,
     );
     setNote(t.note ? { title: t.note.title, body: t.note.body } : null);
-    // No starter template authors a writing field yet; clear it so applying a
-    // template is a full reset rather than a partial one.
-    setWriting([]);
+    // `id: ""` marks each row unsaved, so `elementPayload()` mints a stable id
+    // from the client key rather than the row's position — the same path the
+    // co-pilot's Apply takes, and the reason deleting a row cannot silently
+    // re-point another one's student text (1.1.71).
+    setWriting(
+      (t.writing ?? []).map((w) => ({
+        key: nextKeyRef.current++,
+        id: "",
+        title: w.title,
+        prompt: w.prompt,
+        minWords: w.minWords ?? 0,
+      })),
+    );
     setSolution(t.solution ? { prompt: t.solution.prompt } : null);
     setDocument(t.document ? { prompt: t.document.prompt } : null);
     setConceptMap(

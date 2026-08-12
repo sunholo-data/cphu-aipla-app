@@ -356,6 +356,7 @@ describe("useActivityBuilder — applyTemplate", () => {
     note: { title: "Reminder", body: "Energy is conserved" },
     solution: { prompt: "Explain conservation" },
     document: { prompt: "Upload your plot" },
+  writing: [{ title: "Conclusion", prompt: "What does the data show?", minWords: 120 }],
     artefactId: "boldkast",
   } as ActivityTemplate;
 
@@ -375,6 +376,14 @@ describe("useActivityBuilder — applyTemplate", () => {
     expect(b.note).toEqual({ title: "Reminder", body: "Energy is conserved" });
     expect(b.solution).toEqual({ prompt: "Explain conservation" });
     expect(b.document).toEqual({ prompt: "Upload your plot" });
+    // 1.1.73 — applyTemplate used to hardcode `setWriting([])`, so a template
+    // carrying a writing field would have silently dropped it.
+    expect(b.writing.map((w) => ({ title: w.title, minWords: w.minWords }))).toEqual([
+      { title: "Conclusion", minWords: 120 },
+    ]);
+    // Unsaved rows carry no id — elementPayload mints one from the stable client
+    // key rather than the row's position (1.1.71).
+    expect(b.writing[0].id).toBe("");
     expect(b.artefactId).toBe("boldkast");
     // applyTemplate always forces workbenchType back to "none".
     expect(b.workbenchType).toBe("none");

@@ -55,6 +55,30 @@ describe("ACTIVITY_TEMPLATES", () => {
     expect(t?.solution?.prompt).toBeTruthy();
   });
 
+  it("ships a written-conclusion template with a writing element (1.1.73)", () => {
+    // The picker must demo all THREE student-submission shapes: prose,
+    // drawn physics, and an uploaded file.
+    const t = ACTIVITY_TEMPLATES.find((x) => x.id === "written-conclusion");
+    expect(t?.writing?.[0]?.prompt).toBeTruthy();
+    // Never a maths surface — that is what "Din løsning" is for (1.1.48).
+    expect(t?.solution).toBeUndefined();
+  });
+
+  it("its teaching goal forbids the tutor writing the text for the student", () => {
+    // The Axiom 2 rule, stated where the teacher can read and edit it — a
+    // helpful model will otherwise offer to "fix it up for you".
+    const t = ACTIVITY_TEMPLATES.find((x) => x.id === "written-conclusion")!;
+    expect(t.teachingGoal.toLowerCase()).toContain("aldrig teksten for eleven");
+  });
+
+  it("the bench labs give the student somewhere to write the conclusion", () => {
+    // A lab that stops at the graph never asks what the data MEANS. Hookes lov
+    // is the demo case; the test pins that the arc is complete.
+    const t = ACTIVITY_TEMPLATES.find((x) => x.id === "measurement-lab")!;
+    expect(t.table, "the conclusion is only interesting alongside data").toBeDefined();
+    expect(t.writing?.[0]?.title).toBe("Konklusion");
+  });
+
   it("ships a document-feedback template with a document element (1.1.48)", () => {
     const t = ACTIVITY_TEMPLATES.find((x) => x.id === "document-feedback");
     // Reconciled from the workbench mode to a composable document element.
