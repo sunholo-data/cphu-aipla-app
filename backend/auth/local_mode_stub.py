@@ -25,6 +25,7 @@ import os
 from fastapi import HTTPException, Request
 
 from auth.access_context import build_access_context
+from auth.access_tiers import TIER_PILOT
 from auth.firebase_auth import User
 
 logger = logging.getLogger(__name__)
@@ -49,6 +50,15 @@ def build_workshop_user() -> User:
     Set `LOCAL_MODE_RESEARCHER=1` to also mark the workshop user as a
     researcher (sprint 1.1.5) — lets a dev exercise the cross-class
     Research view without a real Firebase custom claim.
+
+    Marked `access_tier="pilot"` (ACCESS-1 M1) so LOCAL_MODE keeps working
+    end-to-end without an entry in the `teacher_access` register — the
+    register lives in Firestore and LOCAL_MODE's is in-memory and empty.
+    This is safe by the same assert that guards everything else here:
+    `assert_safe_local_mode()` hard-fails if LOCAL_MODE is ever set on a
+    real deployment (`config/local_mode.py`), so this tier cannot leak to
+    a served environment. It is also why the LOCAL_MODE flag name is
+    regex-banned from every deployed config.
     """
     is_researcher = os.environ.get("LOCAL_MODE_RESEARCHER") == "1"
     return User(
@@ -58,6 +68,7 @@ def build_workshop_user() -> User:
         group_tags=WORKSHOP_USER_GROUP_TAGS,
         is_teacher=True,
         is_researcher=is_researcher,
+        access_tier=TIER_PILOT,
     )
 
 

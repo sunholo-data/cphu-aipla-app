@@ -31,6 +31,7 @@ from adk.agui import build_agui_adk_agent, stream_agui_events
 from adk.session import get_session_service
 from auth.access_context import AccessContext
 from auth.firebase_auth import User
+from auth.spend_authority import resolve_spend_authority
 from budget import BudgetExceededError
 from db.group_sessions import acquire_turn_lock, bump_turn_revision, release_turn_lock
 from skills.skill_config import get_skill
@@ -62,6 +63,26 @@ class TurnLockedError(Exception):
     def __init__(self, group_id: str) -> None:
         super().__init__(f"Turn already in flight for group: {group_id!r}")
         self.group_id = group_id
+
+
+class SpendNotAuthorisedError(Exception):
+    """Raised when the caller's access tier does not authorise a live model turn
+    (ACCESS-1 M1).
+
+    Distinct from ``TurnLockedError`` (wait and retry) and ``SkillNotFoundError``
+    (you cannot see this): this one means "you can see it, you may not pay for
+    it". The streaming route collapses it into HTTP 402 so the frontend renders
+    the access nudge rather than an error.
+
+    Carries ``billing_identity`` so the caller can name the paying party in logs
+    without re-resolving it.
+    """
+
+    def __init__(self, tier: str, reason: str, billing_identity: str | None = None) -> None:
+        super().__init__(f"Spend not authorised for tier {tier!r} ({reason})")
+        self.tier = tier
+        self.reason = reason
+        self.billing_identity = billing_identity
 
 
 def _message_text(message: str | list[dict[str, Any]]) -> str:
@@ -105,6 +126,22 @@ async def process_skill_request(
         SkillNotFoundError: when the skill is missing or not readable.
         TurnLockedError: when the group already has a turn in flight.
     """
+    # ACCESS-1 M1: the spend gate, before anything expensive and before the
+    # turn lock (no point serialising a turn we are about to refuse). This is
+    # the single chokepoint for ALL four agent entry points — the AG-UI stream,
+    # /greet, proactive-event-check, and the MCP/channel invokers — so a new
+    # entry point inherits the gate by construction rather than by remembering.
+    authority = resolve_spend_authority(user)
+    if not authority.can_spend:
+        logger.info(
+            "skill.spend_denied skill=%s uid=%s tier=%s reason=%s",
+            skill_id,
+            user.uid,
+            authority.tier,
+            authority.reason,
+        )
+        raise SpendNotAuthorisedError(authority.tier, authority.reason, authority.billing_identity)
+
     group_id = user.group_id or None
     lock_token: str | None = None
     if group_id:

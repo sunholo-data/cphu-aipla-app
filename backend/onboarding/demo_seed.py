@@ -16,6 +16,7 @@ from __future__ import annotations
 
 import logging
 
+from auth.access_tiers import DEFAULT_ACCESS_TIER, can_spend
 from db.activities import create_activity
 from db.classes import (
     add_activities,
@@ -506,11 +507,22 @@ def _demo_activities(owner_uid: str, concept_skill: str) -> list[Activity]:
     return [welcome, boldkast, kinebot, planck, hooke, pendul, solution, document, find_error]
 
 
-def seed_demo_for_teacher(owner_uid: str) -> dict | None:
+def seed_demo_for_teacher(owner_uid: str, *, access_tier: str = DEFAULT_ACCESS_TIER) -> dict | None:
     """Idempotently seed the teacher's onboarding demo.
 
     Returns a summary dict, or ``None`` when nothing was seeded (the teacher
     already owns at least one class — so this never runs over existing work).
+
+    ``access_tier`` (ACCESS-1 M1) decides ONE thing: whether a student join code
+    is minted. Everything else — the activities, the Demo class — is seeded
+    identically for a visitor, because exploring them is the point of letting an
+    uninvited person sign in at all.
+
+    The join code is the exception because it is the fan-out vector. Anonymous
+    group students carry no identity (ADR-001), so a code handed to an uninvited
+    account is an unbounded number of unidentified sessions against our Vertex
+    project, from one signup and one shared link. A visitor's Demo class simply
+    has no code; the class page says so and links to the access request.
     """
     if list_classes_for_owner(owner_uid):
         return None
@@ -521,14 +533,16 @@ def seed_demo_for_teacher(owner_uid: str) -> dict | None:
     demo_class = Class.create_for_teacher(owner_uid=owner_uid, name=DEMO_CLASS_NAME)
     create_class(demo_class)
     add_activities(demo_class.class_id, activity_ids)
-    codes = mint_group_codes_under_class(demo_class.class_id, count=1)
+
+    codes = mint_group_codes_under_class(demo_class.class_id, count=1) if can_spend(access_tier) else []
 
     log.info(
-        "demo_seed: seeded teacher=%s class=%s activities=%d code=%s",
+        "demo_seed: seeded teacher=%s tier=%s class=%s activities=%d code=%s",
         owner_uid,
+        access_tier,
         demo_class.class_id,
         len(activity_ids),
-        codes[0] if codes else "-",
+        codes[0] if codes else "-(visitor: no join code)",
     )
     return {
         "classId": demo_class.class_id,

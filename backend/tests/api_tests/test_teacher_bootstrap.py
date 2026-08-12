@@ -39,7 +39,7 @@ def _client(uid: str = TEACHER, *, is_teacher: bool = True) -> TestClient:
 
 
 def test_seed_creates_demo_class_with_activities():
-    result = seed_demo_for_teacher(TEACHER)
+    result = seed_demo_for_teacher(TEACHER, access_tier="pilot")
     assert result is not None
     assert result["className"] == "Demo class"
     # The curated demo set (all element models validate + assign) — stays in sync
@@ -57,8 +57,8 @@ def test_seed_creates_demo_class_with_activities():
 
 
 def test_seed_is_a_no_op_when_teacher_already_has_a_class():
-    seed_demo_for_teacher(TEACHER)
-    second = seed_demo_for_teacher(TEACHER)  # already has the demo class
+    seed_demo_for_teacher(TEACHER, access_tier="pilot")
+    second = seed_demo_for_teacher(TEACHER, access_tier="pilot")  # already has the demo class
     assert second is None
     assert len(list_classes_for_owner(TEACHER)) == 1  # not duplicated
 
@@ -76,3 +76,30 @@ def test_bootstrap_seeds_then_is_idempotent():
 def test_bootstrap_forbidden_for_non_teacher():
     resp = _client(uid="anon-x", is_teacher=False).post("/api/teacher/bootstrap")
     assert resp.status_code == 403
+
+
+# --- ACCESS-1 M1: the join code is tier-gated, everything else is not --------
+
+
+def test_visitor_gets_the_demo_but_no_join_code():
+    """The single most important line of the whole feature.
+
+    A visitor gets the full curated demo — that is what they signed in to
+    explore. What they do NOT get is a student join code, because anonymous
+    group students carry no identity (ADR-001): one uninvited signup plus one
+    shared link is an unbounded number of unidentified sessions against our
+    Vertex project.
+    """
+    result = seed_demo_for_teacher("visitor-uid", access_tier="visitor")
+    assert result is not None
+    assert result["className"] == "Demo class"
+    assert len(result["activityIds"]) == len(_demo_activities("visitor-uid", "skill-x"))
+    assert result["joinCode"] is None
+
+
+def test_seed_defaults_to_visitor_when_no_tier_is_passed():
+    """Default-deny by absence: a caller that forgets to pass a tier gets the
+    safe one, not the spending one."""
+    result = seed_demo_for_teacher("defaulted-uid")
+    assert result is not None
+    assert result["joinCode"] is None

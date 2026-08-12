@@ -309,7 +309,12 @@ from protocols.teacher_prefs_routes import router as teacher_prefs_router  # noq
 from protocols.voice_routes import router as voice_router  # noqa: E402
 from protocols.writing_progress_routes import router as writing_progress_router  # noqa: E402
 from skills.routes import router as skills_router  # noqa: E402
-from skills.skill_processor import SkillNotFoundError, TurnLockedError, process_skill_request  # noqa: E402
+from skills.skill_processor import (  # noqa: E402
+    SkillNotFoundError,
+    SpendNotAuthorisedError,
+    TurnLockedError,
+    process_skill_request,
+)
 from tools.documents.routes import router as doc_folders_router  # noqa: E402
 from tools.documents.upload import router as documents_router  # noqa: E402
 from tools.media_utils import router as media_router  # noqa: E402
@@ -703,6 +708,16 @@ async def stream_skill(
         raise HTTPException(
             status_code=409,
             detail={"error": "turn_in_progress", "group_id": exc.group_id},
+        ) from exc
+    except SpendNotAuthorisedError as exc:
+        # ACCESS-1 M1 — the caller may SEE this skill but may not pay for it.
+        # 402 (not 403) because the frontend renders it as a "request access"
+        # nudge, and a distinct status keeps that apart from a real denial
+        # without anyone string-matching a message.
+        reset_current_tracker(_tracker_token)
+        raise HTTPException(
+            status_code=402,
+            detail={"error": "spend_not_authorised", "tier": exc.tier},
         ) from exc
     except StopAsyncIteration:
         first_event = None

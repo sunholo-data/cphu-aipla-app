@@ -39,7 +39,7 @@ def app():
     app.include_router(router)
 
     async def _override(request: Request) -> User:
-        u = User(uid=STUDENT_UID, email="")
+        u = User(uid=STUDENT_UID, email="", access_tier="pilot")  # ACCESS-1 M1: TTS/STT are paid
         request.state.access = build_access_context(u)
         return u
 

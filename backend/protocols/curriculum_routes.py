@@ -31,7 +31,7 @@ from pydantic import BaseModel, ConfigDict, Field
 
 from adk.teacher_focus import resolve_active_config
 from auth import User, get_current_user
-from auth.guards import assert_teacher
+from auth.guards import assert_can_spend, assert_teacher
 from db.curriculum import (
     create_curriculum_doc,
     create_curriculum_folder,
@@ -360,6 +360,8 @@ async def ingest_curriculum(
     refuses ``pending`` to prevent accidental clearance-bypass.
     """
     assert_teacher(user, detail="Curriculum ingest is teacher-only.")
+    # ACCESS-1 M1: ingestion runs Vertex RAG embedding — a paid call.
+    assert_can_spend(user, detail="Uploading curriculum to the tutor is available to programme participants.")
 
     if shared and copyright_status != "cleared":
         raise HTTPException(
@@ -480,6 +482,8 @@ async def summarize_curriculum(
     summarise). Returns the doc ids updated + skipped.
     """
     assert_teacher(user, detail="Curriculum summarize is teacher-only.")
+    # ACCESS-1 M1: summarisation is a live model call.
+    assert_can_spend(user, detail="Curriculum summaries are available to programme participants.")
 
     if body.doc_id:
         doc = get_curriculum_doc(body.doc_id)
@@ -629,6 +633,8 @@ async def query_curriculum(
     gracefully to an empty result + a note when no corpus / no ingested docs.
     """
     assert_teacher(user, detail="Curriculum query is teacher-only.")
+    # ACCESS-1 M1: retrieval_query bills per query against the RAG corpus.
+    assert_can_spend(user, detail="Curriculum search is available to programme participants.")
 
     docs = list_curriculum_for_teacher(user.uid, level=body.level, topic=body.topic, scope=body.scope)
     ingested = [d for d in docs if d.doc_artifact_id]

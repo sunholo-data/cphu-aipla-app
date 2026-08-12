@@ -563,6 +563,23 @@ async def update_class_persona_route(
     return {"ok": True}
 
 
+def _assert_voice_spend(user: User, detail: str) -> None:
+    """402 unless the paying party for this caller may spend.
+
+    Voice is one of the few paid surfaces an anonymous-group STUDENT can reach
+    directly, so the caller's own ``access_tier`` is the wrong thing to read —
+    a student always carries the default. ``resolve_spend_authority`` walks
+    group -> class -> owning teacher and answers on their behalf.
+    """
+    from fastapi import HTTPException
+
+    from auth.spend_authority import resolve_spend_authority
+
+    authority = resolve_spend_authority(user)
+    if not authority.can_spend:
+        raise HTTPException(status_code=402, detail=detail)
+
+
 @router.post("/tts/synthesize")
 async def synthesize(
     body: SynthesizeRequest,
@@ -575,7 +592,12 @@ async def synthesize(
       - 200 JSON {"provider": "browser"} when config selects browser —
         the frontend then uses Web Speech locally.
       - 503 on provider failure.
+      - 402 when the caller's access tier does not authorise paid work.
     """
+    # ACCESS-1 M1: Cloud TTS bills per character. Student-reachable, so this is
+    # gated on the OWNING TEACHER's tier (resolve_spend_authority), not the
+    # student's own — a student in an invited teacher's class may hear speech.
+    _assert_voice_spend(user, "Read-aloud is available to programme participants.")
     skill = get_skill(body.skill_id) if body.skill_id else None
     # Resolve the voice through the SAME chain as /config (persona = full
     # bundle, incl. the global default). This is the fix for "the avatar/name
@@ -709,6 +731,8 @@ async def transcribe(
     ``disabled``). A ``disabled``/``null`` provider returns 503 so the client
     falls back to typing.
     """
+    # ACCESS-1 M1: STT bills per second of audio. Same teacher-resolved gate.
+    _assert_voice_spend(user, "Dictation is available to programme participants.")
     skill = get_skill(skill_id) if skill_id else None
     provider = get_stt(skill)
     if provider.name in ("disabled", "null"):

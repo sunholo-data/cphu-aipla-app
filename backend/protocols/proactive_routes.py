@@ -42,7 +42,12 @@ from db.chat_sessions import (
     increment_proactive_turn_count_no_stamp,
 )
 from skills.skill_config import get_skill
-from skills.skill_processor import SkillNotFoundError, TurnLockedError, process_skill_request
+from skills.skill_processor import (
+    SkillNotFoundError,
+    SpendNotAuthorisedError,
+    TurnLockedError,
+    process_skill_request,
+)
 
 log = logging.getLogger(__name__)
 
@@ -211,6 +216,14 @@ async def post_session_greet(
         # is a welcome, not a response — dropping it when the group is already
         # talking to the tutor is correct, not a failure).
         log.info("greet skipped: group turn in flight session=%s", session_id)
+        return _serialize(GreetResponse(skipped=True, text="", sessionId=session_id))
+    except SpendNotAuthorisedError as exc:
+        # ACCESS-1 M1 — a proactive greet is the one turn the student did not
+        # ask for, so an unauthorised one is SKIPPED silently rather than
+        # surfaced as a 402. Raising here would open a visitor's session with an
+        # error card before they have typed anything, which is a worse first
+        # impression than simply not greeting.
+        log.info("greet skipped: spend not authorised (tier=%s) session=%s", exc.tier, session_id)
         return _serialize(GreetResponse(skipped=True, text="", sessionId=session_id))
 
     text = "".join(assistant_parts).strip()

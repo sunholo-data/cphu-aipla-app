@@ -306,3 +306,169 @@ def mint_demo_group(body: MintDemoGroupRequest, request: Request) -> dict[str, A
         "title": record.title,
         "created": True,
     }
+
+
+# ─── Access register (ACCESS-1 M1) ───────────────────────────────────────────
+#
+# The register that decides who may spend money. SA-allowlisted like every other
+# route in this module — there is deliberately no in-product admin UI, because
+# the only route from visitor to pilot should be a human granting it.
+
+
+class AccessGrantRequest(BaseModel):
+    """Invite one named person. Email, not uid: the whole point is to authorise
+    someone BEFORE they have ever signed in."""
+
+    email: str
+    tier: str = "pilot"
+    monthly_cap_usd: float | None = None
+    expires_at: str | None = None
+    note: str = ""
+
+
+class AccessRevokeRequest(BaseModel):
+    email: str
+
+
+def _sync_access_claim(email: str, tier: str) -> str | None:
+    """Push the register's answer into the Firebase custom claim, if we can.
+
+    Returns the uid whose claim was updated, or ``None`` when the person has
+    never signed in (no Firebase user yet). That is the normal case for a fresh
+    invite and is NOT an error: ``POST /api/teacher/bootstrap`` reconciles the
+    claim on their first app load.
+
+    Merges rather than replaces — ``set_custom_user_claims`` overwrites the whole
+    blob, so a naive write here would silently un-researcher a researcher.
+    """
+    try:
+        fb_user = fb_auth.get_user_by_email(email)
+    except fb_auth.UserNotFoundError:
+        return None
+    except Exception:
+        logger.warning("admin.access: could not look up %s in Firebase", email, exc_info=True)
+        return None
+
+    claims = dict(fb_user.custom_claims or {})
+    claims["accessTier"] = tier
+    fb_auth.set_custom_user_claims(fb_user.uid, claims)
+    return fb_user.uid
+
+
+@router.post(
+    "/access/grant",
+    responses={403: {"description": "Caller is not in ADMIN_SEED_ALLOWED_SAS"}},
+)
+def access_grant(body: AccessGrantRequest, request: Request) -> dict[str, Any]:
+    """Add (or re-add) an email to the access register.
+
+    Idempotent, and doubles as un-revoke. The claim is pushed immediately when
+    the person already has a Firebase account; otherwise their first app load
+    picks it up.
+    """
+    from db.teacher_access import DEFAULT_MONTHLY_CAP_USD, grant_access
+    from db.teacher_access import normalise_email as _norm
+
+    caller_email = _assert_caller_is_service_account(request)
+    try:
+        grant = grant_access(
+            body.email,
+            tier=body.tier,  # type: ignore[arg-type]
+            monthly_cap_usd=(body.monthly_cap_usd if body.monthly_cap_usd is not None else DEFAULT_MONTHLY_CAP_USD),
+            granted_by=caller_email,
+            expires_at=body.expires_at,
+            note=body.note,
+        )
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+    uid = _sync_access_claim(_norm(body.email), grant.tier)
+    _invalidate_spend_cache()
+    logger.info("admin.access_grant: email=%s tier=%s by=%s uid=%s", grant.email, grant.tier, caller_email, uid or "-")
+    return {
+        "email": grant.email,
+        "tier": grant.tier,
+        "monthlyCapUsd": grant.monthly_cap_usd,
+        "expiresAt": grant.expires_at,
+        "claimSyncedUid": uid,
+        "note": grant.note,
+    }
+
+
+@router.post(
+    "/access/revoke",
+    responses={
+        403: {"description": "Caller is not in ADMIN_SEED_ALLOWED_SAS"},
+        404: {"description": "Email is not on the register"},
+    },
+)
+def access_revoke(body: AccessRevokeRequest, request: Request) -> dict[str, Any]:
+    """Revoke spend authority and drop outstanding sessions immediately.
+
+    The custom claim can be up to an hour stale, so revoking the register row
+    alone would leave a revoked teacher spending for the rest of the token's
+    life. ``revoke_refresh_tokens`` closes that window: the next token refresh
+    fails and the client must re-authenticate, picking up the visitor claim.
+    """
+    from db.teacher_access import normalise_email as _norm
+    from db.teacher_access import revoke_access
+
+    caller_email = _assert_caller_is_service_account(request)
+    email = _norm(body.email)
+    if not revoke_access(email, revoked_by=caller_email):
+        raise HTTPException(status_code=404, detail=f"{email} is not on the access register")
+
+    uid = _sync_access_claim(email, "visitor")
+    if uid:
+        try:
+            fb_auth.revoke_refresh_tokens(uid)
+        except Exception:
+            logger.warning("admin.access_revoke: could not revoke refresh tokens for uid=%s", uid, exc_info=True)
+    _invalidate_spend_cache()
+    logger.info("admin.access_revoke: email=%s by=%s uid=%s", email, caller_email, uid or "-")
+    return {"email": email, "tier": "visitor", "revoked": True, "claimSyncedUid": uid}
+
+
+@router.get(
+    "/access/list",
+    responses={403: {"description": "Caller is not in ADMIN_SEED_ALLOWED_SAS"}},
+)
+def access_list(request: Request, include_revoked: bool = False) -> dict[str, Any]:
+    """Everyone on the register, newest grant first."""
+    from db.teacher_access import list_grants
+
+    _assert_caller_is_service_account(request)
+    grants = list_grants(include_revoked=include_revoked)
+    return {
+        "count": len(grants),
+        "grants": [
+            {
+                "email": g.email,
+                "tier": g.tier,
+                "monthlyCapUsd": g.monthly_cap_usd,
+                "grantedBy": g.granted_by,
+                "grantedAt": g.granted_at,
+                "expiresAt": g.expires_at,
+                "active": g.is_active,
+                "revoked": g.revoked,
+                "uid": g.uid,
+                "note": g.note,
+            }
+            for g in grants
+        ],
+    }
+
+
+def _invalidate_spend_cache() -> None:
+    """Drop the in-process spend-authority memo after a register write.
+
+    Only clears THIS container's cache — other Cloud Run instances keep theirs
+    until the TTL expires (60s). That bound is the reason revoke also kills
+    refresh tokens rather than relying on this.
+    """
+    try:
+        from auth.spend_authority import clear_cache
+
+        clear_cache()
+    except Exception:
+        logger.debug("admin.access: spend-authority cache clear failed", exc_info=True)

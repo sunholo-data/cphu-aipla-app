@@ -62,7 +62,12 @@ def _make_skill(skill_id: str = "ttft-skill") -> SkillConfig:
 
 
 def _make_user() -> User:
-    return User(uid="caller-uid", email="caller@aitanalabs.com", domain="aitanalabs.com")
+    return User(
+        uid="caller-uid",
+        email="caller@aitanalabs.com",
+        domain="aitanalabs.com",
+        access_tier="pilot",  # ACCESS-1 M1 — see test_access_tier_gate.py for the gate itself
+    )
 
 
 async def _fake_event_stream(input_data) -> AsyncGenerator:

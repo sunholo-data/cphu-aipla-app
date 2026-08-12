@@ -85,7 +85,7 @@ def _client(group_id=None):
         u = (
             User(uid=TEACHER, email="t@x.dk", group_id=group_id)
             if group_id
-            else User(uid=TEACHER, email="t@x.dk", is_teacher=True)
+            else User(uid=TEACHER, email="t@x.dk", is_teacher=True, access_tier="pilot")
         )
         request.state.access = build_access_context(u)
         return u

@@ -22,7 +22,13 @@ TEACHER_UID = "teacher-42"
 
 
 def _teacher_user(group_id: str = "") -> User:
-    return User(uid=TEACHER_UID, email="t@school.dk", group_id=group_id, is_teacher=not group_id)
+    return User(
+        uid=TEACHER_UID,
+        email="t@school.dk",
+        group_id=group_id,
+        is_teacher=not group_id,
+        access_tier="pilot",  # ACCESS-1 M1: RAG ingest is a paid embedding call
+    )
 
 
 def _client(group_id: str = "") -> TestClient:

@@ -72,7 +72,15 @@ def _make_skill(
 
 
 def _make_user() -> User:
-    return User(uid="caller-uid", email="caller@aitanalabs.com", domain="aitanalabs.com")
+    return User(
+        uid="caller-uid",
+        email="caller@aitanalabs.com",
+        domain="aitanalabs.com",
+        # ACCESS-1 M1: a live model turn needs a spend-authorised tier. These
+        # tests exercise streaming, not admission — admission has its own file
+        # (tests/api_tests/test_access_tier_gate.py).
+        access_tier="pilot",
+    )
 
 
 def _make_group_user() -> User:
