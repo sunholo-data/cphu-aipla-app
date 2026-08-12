@@ -158,9 +158,11 @@ GOOGLE_CLOUD_PROJECT=aipla-$ENV-2026 uv run python -m scripts.grandfather_access
 GOOGLE_CLOUD_PROJECT=aipla-$ENV-2026 uv run python -m scripts.grandfather_access --apply
 ```
 
-Uncapped by default — newly capping people already teaching could cut a lesson
-off mid-session. Set real caps per teacher afterwards, once you have watched
-usage.
+Capped at the register default ($25/month each). **Not uncapped** — the concern
+that capping people already teaching could cut a lesson off is real, but the
+enforcer warns at 80% before it blocks and raising a cap is one command, whereas
+a limit nobody set is invisible until the bill arrives. Adjust per teacher once
+you have watched usage; `--uncapped` exists if you truly need it, and warns.
 
 ---
 

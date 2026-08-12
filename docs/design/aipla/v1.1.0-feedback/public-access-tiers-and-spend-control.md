@@ -552,7 +552,12 @@ All five milestones landed in one session. Backend 3090 tests + lint; frontend
   and ungated.
 - **61 test failures were the migration canary.** Every existing teacher becomes
   a visitor on the M1 deploy. `backend/scripts/grandfather_access.py` handles it,
-  **uncapped by default** — newly capping people mid-pilot could cut a lesson off.
+  capped at the register default. It shipped **uncapped by default** and that was
+  **corrected the same day** (M: *"we need a default that is not uncapped"*) — with a
+  shared project ceiling and no per-teacher cap, one runaway class starves the whole
+  programme, which is a worse failure than one teacher being told they hit their limit.
+  `cap = 0` also stopped meaning "uncapped": that is the value an empty field or a failed
+  parse coerces to, so uncapped is now an explicit `-1.0` sentinel.
 
 ### Before this reaches an environment with real users
 

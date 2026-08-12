@@ -81,7 +81,7 @@ doing before 2026-08-14 rather than discovering it during the pilot.
 
 | | |
 |---|---|
-| Cap | **Uncapped** initially. Newly capping people already teaching could cut a lesson off mid-session. Real caps get set per teacher once usage is observed: `aiplatform users grant-access <email> --cap N`. |
+| Cap | **$25/month by default** (revised 2026-08-12 — the original proposal was uncapped, which was wrong: an uncapped teacher is bounded only by the SHARED project quota and can starve every other teacher on it). The enforcer warns at 80% before blocking and raising a cap is one command, so start here and adjust once usage is observed. The two already-granted accounts (M, JB) are at $100/month. |
 | Expiry | **2026-09-15**, the contract boundary. So the failure mode of forgetting to clean up is *access lapses*, not *access persists*. Extending is one command. |
 | Revocation | Immediate — also kills outstanding sessions, so it does not wait on a token refresh. |
 
