@@ -2,10 +2,10 @@
 
 **Status:** Proposed (2026-08-12)
 **Priority:** **P1** — the bus-factor half is arguably P0; the pilot starts 2026-08-14 and one person can currently admit a teacher
-**Estimated:** ~3d — M1 read-only view ~0.5d · M2 the claim + bounded writes ~1.5d · M3 programme-wide daily budget ~1d
+**Estimated:** ~3.5d — M1 read-only view ~0.5d · M2 the claim + bounded writes + cap editing ~2d · M3 programme-wide daily budget ~1d
 **Scope:** Fullstack — a new `/api/programme/*` router, a `programmeAdmin` custom claim, a `/teacher/programme` surface, CLI
 **Dependencies:** [1.1.75 public-access-tiers-and-spend-control](public-access-tiers-and-spend-control.md) (SHIPPED — the register this administers); [1.1.5 researcher-role](researcher-role.md) (SHIPPED — the claim pattern, and the role this deliberately does *not* extend); RUBRIC-1 M3 `_LensConfigPanel` (SHIPPED — the precedent for a claim-gated config-write surface inside the teacher app)
-**Source:** M, 2026-08-12 — *"so can a researcher role easily upgrade a teacher?"*
+**Source:** M, 2026-08-12 — *"so can a researcher role easily upgrade a teacher?"*, then, after granting the first two accounts by CLI, *"this is definitely something we need to be able to administer in the app"*
 
 ---
 
@@ -158,6 +158,50 @@ an over-generous cap is money already gone by the time anyone notices.
 **No privilege propagation.** A programme admin cannot mint the claim they hold.
 That is the classic escalation and the one hard "no" in the table; only the SA
 path mints it.
+
+### Caps are the daily job, not a side effect of granting
+
+**Source:** M, 2026-08-12 — *"this is definitely something we need to be able to
+administer in the app"*, on setting per-teacher caps.
+
+Confirmed by using it. Admitting a teacher happens once; **setting and adjusting
+their cap happens continuously**, and today it is a CLI command that requires
+impersonating a service account. That is the wrong ergonomics for the operation
+performed most often.
+
+Two things follow for the panel, and the second is what makes it useful:
+
+**1. A cap is editable in place.** `grant_access` is already idempotent and
+preserves the audit trail, so "change the cap" is the same call as "grant" — no
+new endpoint, no new store. The panel needs a field, not a mechanism.
+
+**2. The cap sits NEXT TO THE SPEND IT BOUNDS.** A register showing caps without
+usage makes you set numbers blind, which is exactly how we arrived at "uncapped"
+on 2026-08-12 and revisited it an hour later. Each row shows spend-this-period
+against the cap:
+
+```
+EMAIL                  TIER    SPENT / CAP        STATE
+jbruun@ind.ku.dk       pilot   $12.40 / $100      ok
+anna@ku.dk             pilot   $84.10 / $100      warn (>80%)
+someone@ku.dk          pilot   $0.00  / —         UNCAPPED
+```
+
+The numbers already exist: the enforcer's sharded counters
+(`teacher_spend/{uid}|{period}|{shard}`) hold the period total, and
+`analytics/cost_queries.py` holds the reconciled truth. The panel reads the
+former for immediacy and links to the cost dashboard for the latter.
+
+**`—` for uncapped must read as an ALARM, not a blank.** `cap = 0` disables the
+per-teacher gate entirely — verified 2026-08-12: a turn projected at $999,999
+returns `allow`. So an uncapped row is not "no limit configured yet", it is
+"this account is bounded only by the shared project ceiling, and can starve
+every other teacher on it". An empty cell would be the interface lying by
+omission.
+
+**Bounded like every other delegated write:** a programme admin may set a cap up
+to `PROGRAMME_ADMIN_MAX_CAP_USD`, and may **not** set `0` — removing a limit
+entirely stays an SA-path decision.
 
 ### The bounds
 
@@ -336,6 +380,8 @@ The half that removes the visibility problem without granting anything.
 - [ ] `grantedVia` on the register + surfaced in the listing (~40 LOC)
 - [ ] `aiplatform users grant-programme-admin <uid>` / `revoke-…` — SA-gated, the only way to mint it (~80 LOC)
 - [ ] Grant/revoke UI on the same panel, shown only to a programme admin (~150 LOC)
+- [ ] **Editable cap per row, with spend-this-period beside it** and an explicit
+      UNCAPPED alarm state; a programme admin may not set `0` (~120 LOC)
 - [ ] Tests below
 
 ### M3 — programme-wide daily budget (~1d)
