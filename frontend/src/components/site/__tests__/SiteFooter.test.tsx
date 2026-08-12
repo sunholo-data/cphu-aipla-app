@@ -21,8 +21,13 @@ describe("SiteFooter", () => {
       `a[href="${ENGINEERING_CREDIT.href}"]`,
     );
     expect(credit).not.toBeNull();
-    expect(credit?.textContent).toContain(ENGINEERING_CREDIT.label);
-    expect(screen.getByText(/AI platform engineering by/)).toBeTruthy();
+
+    // The ANCHOR TEXT is the capability, not the company name — a link
+    // reading "Sunholo" says nothing about where it goes. The name follows
+    // as plain text, outside the <a>.
+    expect(credit?.textContent).toContain("AI platform engineering");
+    expect(credit?.textContent).not.toContain("Sunholo");
+    expect(screen.getByText(/by Sunholo/)).toBeTruthy();
   });
 
   it("names the host institution and the funder", () => {

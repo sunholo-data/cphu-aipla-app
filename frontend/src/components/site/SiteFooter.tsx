@@ -135,18 +135,18 @@ export function SiteFooter() {
             {HOST_ATTRIBUTION.funder}, {HOST_ATTRIBUTION.period}.
           </p>
           <p className="mt-1.5">
-            {ENGINEERING_CREDIT.prefix}{" "}
             <a
               href={ENGINEERING_CREDIT.href}
               className={`font-medium ${linkClass}`}
               {...outboundLinkProps()}
             >
-              {ENGINEERING_CREDIT.label}
+              {ENGINEERING_CREDIT.anchor}
               <span aria-hidden="true" className="ml-1 opacity-60">
                 ↗
               </span>
               <span className="sr-only"> (opens in a new tab)</span>
-            </a>
+            </a>{" "}
+            {ENGINEERING_CREDIT.suffix}
           </p>
         </div>
       </div>

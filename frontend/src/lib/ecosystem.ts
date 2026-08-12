@@ -56,11 +56,20 @@ export const KU_ECOSYSTEM: readonly EcosystemLink[] = [
   },
 ] as const;
 
-/** Who built and runs the AI platform underneath AIPLA. */
+/**
+ * Who built and runs the AI platform underneath AIPLA.
+ *
+ * `anchor` is the LINK TEXT and is deliberately the capability rather than the
+ * company name: a link reading "Sunholo" tells a reader nothing about where it
+ * goes, whereas "AI platform engineering" describes the destination. The name
+ * still appears, as plain text after the link.
+ */
 export const ENGINEERING_CREDIT = {
   href: "https://www.sunholo.com",
-  label: "Sunholo",
-  prefix: "AI platform engineering by",
+  /** Anchor text — what the <a> element says. */
+  anchor: "AI platform engineering",
+  /** Plain text following the link. */
+  suffix: "by Sunholo",
 } as const;
 
 /** Institutional attribution shown above the credit line. */
