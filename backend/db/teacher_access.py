@@ -43,7 +43,24 @@ _COLLECTION = "teacher_access"
 #: Default monthly cap (USD) stamped on a grant that does not name one.
 #: Deliberately low — raising it is one CLI call, and an under-provisioned
 #: teacher complains, whereas an over-provisioned one does not.
+#:
+#: THERE IS NO UNCAPPED DEFAULT, on any path (M, 2026-08-12: "we need a default
+#: that is not uncapped"). The grandfather script used to default to uncapped,
+#: reasoning that capping people already teaching could cut off a lesson; the
+#: better answer is a real default plus the enforcer's warn-at-80%, because a
+#: cap you can raise in one command beats a limit nobody set.
 DEFAULT_MONTHLY_CAP_USD = 25.0
+
+#: The ONLY value meaning "no per-teacher limit". Negative and explicit, because
+#: uncapped must be something you ask for, never something you fall into.
+#:
+#: It used to be 0 — which is what an empty form field, a dropped key and a
+#: failed parse all coerce to. A sentinel you can reach by accident is not a
+#: sentinel, it is a trapdoor: `cap = 0` disabled the gate outright, so a turn
+#: projected at $999,999 returned `allow`. Now 0 means what it says — zero
+#: budget, block — which is independently useful: suspend a teacher's spend
+#: without revoking their grant, their classes or their join codes.
+UNCAPPED = -1.0
 
 
 def normalise_email(email: str) -> str:
@@ -87,6 +104,11 @@ class AccessGrant:
         return not _is_expired(self.expires_at)
 
     @property
+    def is_uncapped(self) -> bool:
+        """True only for the explicit sentinel. 0 is a ZERO cap, not no cap."""
+        return self.monthly_cap_usd == UNCAPPED
+
+    @property
     def effective_tier(self) -> AccessTier:
         """The tier to actually apply: the granted one, or visitor if inactive."""
         return self.tier if self.is_active else DEFAULT_ACCESS_TIER
@@ -109,10 +131,19 @@ class AccessGrant:
     def from_doc(cls, doc: dict[str, Any]) -> AccessGrant:
         raw_tier = str(doc.get("tier") or DEFAULT_ACCESS_TIER)
         tier: AccessTier = raw_tier if raw_tier in VALID_ACCESS_TIERS else DEFAULT_ACCESS_TIER  # type: ignore[assignment]
-        try:
-            cap = float(doc.get("monthlyCapUsd", DEFAULT_MONTHLY_CAP_USD))
-        except (TypeError, ValueError):
-            cap = DEFAULT_MONTHLY_CAP_USD
+        raw_cap = doc.get("monthlyCapUsd")
+        if raw_cap is None:
+            cap = DEFAULT_MONTHLY_CAP_USD  # absent -> the default, never uncapped
+        else:
+            try:
+                cap = float(raw_cap)
+            except (TypeError, ValueError):
+                logger.warning(
+                    "teacher_access: unparseable monthlyCapUsd=%r for %s; using the default",
+                    raw_cap,
+                    doc.get("email"),
+                )
+                cap = DEFAULT_MONTHLY_CAP_USD
         return cls(
             email=normalise_email(str(doc.get("email") or "")),
             tier=tier,
@@ -184,8 +215,12 @@ def grant_access(
         raise ValueError("email is required")
     if tier not in VALID_ACCESS_TIERS:
         raise ValueError(f"tier must be one of {sorted(VALID_ACCESS_TIERS)}; got {tier!r}")
-    if monthly_cap_usd < 0:
-        raise ValueError("monthly_cap_usd must be >= 0")
+    if monthly_cap_usd < 0 and monthly_cap_usd != UNCAPPED:
+        raise ValueError(f"monthly_cap_usd must be >= 0, or exactly {UNCAPPED} for uncapped")
+    if monthly_cap_usd == UNCAPPED:
+        # Loud on purpose: an uncapped teacher is bounded only by the SHARED
+        # project quota, so they can starve every other teacher on it.
+        logger.warning("teacher_access.grant UNCAPPED email=%s by=%s", key, granted_by or "?")
 
     existing = get_grant(key)
     grant = AccessGrant(
@@ -272,6 +307,7 @@ def stamp_uid(email: str, uid: str) -> None:
 __all__ = [
     "DEFAULT_ACCESS_TIER",
     "DEFAULT_MONTHLY_CAP_USD",
+    "UNCAPPED",
     "VALID_ACCESS_TIERS",
     "AccessGrant",
     "AccessTier",

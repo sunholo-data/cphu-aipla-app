@@ -107,14 +107,19 @@ def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     parser.add_argument("--apply", action="store_true", help="write the grants (default: dry run)")
     parser.add_argument(
+        "--uncapped",
+        action="store_true",
+        help="Grandfather with NO per-teacher limit. Explicit on purpose; prints a warning.",
+    )
+    parser.add_argument(
         "--cap",
         type=float,
-        default=0.0,
+        default=None,
         help=(
-            "monthly cap in USD. DEFAULT 0 = UNCAPPED, deliberately: these are people already "
-            "teaching with the platform, and newly capping them mid-pilot could cut a lesson off. "
-            "New invites get the register default instead. Set a real cap per teacher once you "
-            "have observed their usage (`aiplatform users grant-access <email> --cap N`)."
+            "monthly cap in USD. Defaults to the register default, NOT uncapped — an uncapped "
+            "teacher is bounded only by the SHARED project quota and can starve every other "
+            "teacher on it. The enforcer warns at 80%% before it blocks, and raising a cap is "
+            "one command, so start here and adjust once you have watched real usage."
         ),
     )
     parser.add_argument(
@@ -125,14 +130,20 @@ def main(argv: list[str] | None = None) -> int:
     args = parser.parse_args(argv)
 
     from config.gcp import require_gcp_project
-    from db.teacher_access import get_grant, grant_access
+    from db.teacher_access import DEFAULT_MONTHLY_CAP_USD, UNCAPPED, get_grant, grant_access
 
     project = require_gcp_project()
     _ensure_firebase()
     log.info("Project: %s", project)
     log.info("")
 
-    cap = args.cap
+    # No uncapped default, anywhere (M, 2026-08-12). Uncapped is opt-in only.
+    if args.uncapped:
+        cap = UNCAPPED
+    elif args.cap is not None:
+        cap = args.cap
+    else:
+        cap = DEFAULT_MONTHLY_CAP_USD
     expires_at = None if args.expires == "never" else args.expires
     note = f"grandfathered at ACCESS-1 rollout {datetime.now(UTC).date().isoformat()}"
 
@@ -188,16 +199,24 @@ def main(argv: list[str] | None = None) -> int:
         "%s %d grant(s) at cap=%s; %d already registered; %d unresolved.",
         "Wrote" if args.apply else "Would write",
         len(would_grant),
-        "UNCAPPED" if cap <= 0 else f"${cap:.2f}/month",
+        "UNCAPPED" if cap == UNCAPPED else f"${cap:.2f}/month",
         len(already),
         len(unresolved),
     )
-    if cap <= 0 and would_grant:
+    if cap == UNCAPPED and would_grant:
+        log.warning("")
+        log.warning(
+            "These grants are UNCAPPED. They are bounded only by the SHARED project quota, "
+            "so one runaway class can starve every other teacher. Set real caps as soon as "
+            "you can: aiplatform users grant-access <email> --cap N"
+        )
+    elif would_grant:
         log.info("")
         log.info(
-            "Grandfathered teachers are UNCAPPED. That is the safe default for people "
-            "already teaching, not the end state — set real caps once you have observed "
-            "usage: aiplatform users grant-access <email> --cap N"
+            "Capped at $%.2f/month each. The enforcer warns at 80%% before it blocks, and "
+            "raising a cap is one command — so start here and adjust once you have watched "
+            "real usage.",
+            cap,
         )
     if not args.apply:
         log.info("Dry run — re-run with --apply to write.")

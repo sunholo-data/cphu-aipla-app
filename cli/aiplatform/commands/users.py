@@ -78,7 +78,24 @@ def revoke_researcher(ctx: click.Context, uid: str) -> None:
 
 @users.command("grant-access")
 @click.argument("email")
-@click.option("--cap", type=float, default=None, help="Monthly cap in USD (default: the backend's default).")
+@click.option(
+    "--cap",
+    type=float,
+    default=None,
+    help=(
+        "Monthly cap in USD. Omit for the register default — NEVER uncapped. "
+        "0 means a ZERO cap (spend suspended, grant intact), not 'no limit'. "
+        "Use --uncapped to remove the limit entirely."
+    ),
+)
+@click.option(
+    "--uncapped",
+    is_flag=True,
+    help=(
+        "Remove the per-teacher limit entirely. Explicit on purpose: an uncapped teacher is "
+        "bounded only by the SHARED project quota and can starve every other teacher on it."
+    ),
+)
 @click.option(
     "--expires",
     default=None,
@@ -94,6 +111,7 @@ def grant_access(
     ctx: click.Context,
     email: str,
     cap: float | None,
+    uncapped: bool,
     expires: str | None,
     note: str,
     tier: str,
@@ -112,7 +130,9 @@ def grant_access(
     invited, so a typo fails visibly instead.
     """
     body: dict = {"email": email, "tier": tier, "note": note}
-    if cap is not None:
+    if uncapped:
+        body["monthly_cap_usd"] = -1.0  # db.teacher_access.UNCAPPED
+    elif cap is not None:
         body["monthly_cap_usd"] = cap
     if expires:
         body["expires_at"] = expires

@@ -111,7 +111,12 @@ aiplatform --env $ENV users grant-access anna@ku.dk \
 
 - **`--expires`**: default to the contract boundary (2026-09-15) so forgetting to
   clean up means access *lapses* rather than *persists*.
-- **`--cap`**: monthly USD. Omit for the register default; `0` is uncapped.
+- **`--cap`**: monthly USD. **Omit for the register default ($25) — there is no
+  uncapped default on any path.** `0` means a ZERO cap (spend suspended, grant
+  and classes and join codes all intact) — a useful state, and *not* "no limit".
+  Removing the limit entirely takes an explicit `--uncapped`, which warns,
+  because an uncapped teacher is bounded only by the shared project quota and
+  can starve every other teacher on it.
 - **`--note`**: not optional in spirit. "Why is this person on the register" is
   the thing nobody remembers in six weeks.
 - Idempotent, and doubles as un-revoke.

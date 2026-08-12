@@ -249,3 +249,66 @@ def test_can_spend_helper():
     assert can_spend(TIER_PILOT) is True
     assert can_spend(TIER_VISITOR) is False
     assert can_spend("") is False
+
+
+# --- No uncapped default, anywhere (M, 2026-08-12) --------------------------
+
+
+def test_a_grant_that_names_no_cap_gets_the_default_not_uncapped():
+    """The headline rule. Every path that creates a grant without naming a cap
+    lands on a real number."""
+    from db.teacher_access import DEFAULT_MONTHLY_CAP_USD
+
+    grant_access("anna@ku.dk")
+    grant = get_grant("anna@ku.dk")
+    assert grant is not None
+    assert grant.monthly_cap_usd == DEFAULT_MONTHLY_CAP_USD
+    assert grant.is_uncapped is False
+
+
+def test_a_row_with_no_cap_field_reads_as_the_default(_in_memory_firestore):
+    """A dropped key must not silently disable the gate."""
+    from db.teacher_access import DEFAULT_MONTHLY_CAP_USD
+
+    _in_memory_firestore["teacher_access/legacy@ku.dk"] = {"email": "legacy@ku.dk", "tier": "pilot"}
+    grant = get_grant("legacy@ku.dk")
+    assert grant is not None
+    assert grant.monthly_cap_usd == DEFAULT_MONTHLY_CAP_USD
+    assert grant.is_uncapped is False
+
+
+def test_an_unparseable_cap_reads_as_the_default(_in_memory_firestore):
+    from db.teacher_access import DEFAULT_MONTHLY_CAP_USD
+
+    _in_memory_firestore["teacher_access/odd@ku.dk"] = {
+        "email": "odd@ku.dk",
+        "tier": "pilot",
+        "monthlyCapUsd": "lots",
+    }
+    grant = get_grant("odd@ku.dk")
+    assert grant is not None and grant.monthly_cap_usd == DEFAULT_MONTHLY_CAP_USD
+
+
+def test_zero_is_a_ZERO_cap_not_uncapped():
+    """0 used to mean 'no limit' — which is what an empty form field, a dropped
+    key and a failed parse all coerce to. A sentinel you can reach by accident
+    is a trapdoor, not a sentinel. It now means what it says."""
+    grant_access("anna@ku.dk", monthly_cap_usd=0.0)
+    grant = get_grant("anna@ku.dk")
+    assert grant is not None
+    assert grant.monthly_cap_usd == 0.0
+    assert grant.is_uncapped is False
+
+
+def test_uncapped_requires_the_explicit_sentinel():
+    from db.teacher_access import UNCAPPED
+
+    grant_access("anna@ku.dk", monthly_cap_usd=UNCAPPED)
+    grant = get_grant("anna@ku.dk")
+    assert grant is not None and grant.is_uncapped is True
+
+
+def test_an_arbitrary_negative_cap_is_rejected():
+    """Only the exact sentinel earns uncapped; -5 is a typo, not an intention."""
+    with pytest.raises(ValueError, match="must be >= 0"):
+        grant_access("anna@ku.dk", monthly_cap_usd=-5.0)

@@ -92,6 +92,20 @@ class FirestoreBudgetEnforcer:
 
         self._held[(request.invocation_id, request.identity_value)] = request.projected_cost_usd
 
+        if cap <= 0:
+            # A deliberate ZERO cap: spend suspended, grant/classes/codes intact.
+            # Must be checked BEFORE the generic over-cap branch so the student
+            # gets "paused", not "you have used your whole monthly budget" —
+            # they have used nothing. Also guards the ratio below from /0.
+            logger.warning("budget.zero_cap identity=%s skill=%s", request.identity_value, request.skill_id)
+            return BudgetDecision(
+                action="block",
+                remaining_usd=0.0,
+                period_end=None,
+                message="AI usage is paused for this class. Contact the AIPLA team to resume it.",
+                retry_after_seconds=None,
+            )
+
         if projected >= cap:
             logger.warning(
                 "budget.block identity=%s spent=%.4f cap=%.2f skill=%s",
@@ -220,8 +234,11 @@ class FirestoreBudgetEnforcer:
             return None
         if not docs:
             return None
-        cap = AccessGrant.from_doc(docs[0]).monthly_cap_usd
-        return cap if cap > 0 else None
+        grant = AccessGrant.from_doc(docs[0])
+        # `None` here means "do not enforce a per-teacher cap", and ONLY the
+        # explicit UNCAPPED sentinel earns it. A 0 cap is a real cap of zero —
+        # spend suspended without revoking the grant — and must block, not pass.
+        return None if grant.is_uncapped else grant.monthly_cap_usd
 
     def _read_total(self, identity_value: str, period: str) -> float:
         """Sum the shards for this identity+period, through a short-lived cache."""

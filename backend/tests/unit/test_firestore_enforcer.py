@@ -136,9 +136,11 @@ async def test_blocks_at_the_cap(store):
 
 @pytest.mark.asyncio
 async def test_an_uncapped_identity_is_allowed_but_logged(store, caplog):
-    """A pilot teacher with no cap is a deliberate state (a handful are watched
-    directly). Allowed — but never silently."""
-    _register(store, uid="t1", cap=0.0)
+    """A pilot teacher with no cap is a deliberate state. Allowed — but never
+    silently, and only via the explicit sentinel (0 now BLOCKS; see below)."""
+    from db.teacher_access import UNCAPPED
+
+    _register(store, uid="t1", cap=UNCAPPED)
     with caplog.at_level("INFO", logger="budget.firestore"):
         decision = await FirestoreBudgetEnforcer().consult(_consult())
     assert decision.action == "allow"
@@ -356,3 +358,41 @@ def test_the_student_skill_templates_actually_opt_in():
             "callback fails closed, so it would block every teacher who opened this tutor"
         )
         assert config.exempt is False
+
+
+# --- 0 blocks; only the explicit sentinel passes ----------------------------
+
+
+@pytest.mark.asyncio
+async def test_a_zero_cap_BLOCKS_rather_than_passing(store):
+    """The inversion that matters. `cap = 0` used to mean "no limit" — so a
+    dropped field or a failed parse silently disabled the gate. It now means
+    zero budget, which is also a useful state: suspend a teacher's spend
+    without revoking their grant, their classes or their join codes."""
+    _register(store, uid="t1", cap=0.0)
+    decision = await FirestoreBudgetEnforcer().consult(_consult(cost=0.001))
+    assert decision.action == "block"
+    assert decision.remaining_usd == 0.0
+    # The student reading this is mid-lesson; it must say what happened.
+    assert "paused" in (decision.message or "").lower()
+
+
+@pytest.mark.asyncio
+async def test_only_the_explicit_sentinel_is_uncapped(store):
+    from db.teacher_access import UNCAPPED
+
+    _register(store, uid="t1", cap=UNCAPPED)
+    decision = await FirestoreBudgetEnforcer().consult(_consult(cost=999_999.0))
+    assert decision.action == "allow"
+    assert decision.remaining_usd is None
+
+
+@pytest.mark.asyncio
+async def test_a_row_missing_its_cap_field_is_capped_at_the_default(store):
+    """Defence in depth against the same trapdoor, one layer down: a row with no
+    monthlyCapUsd must not read as unlimited at the enforcer either."""
+    from db.teacher_access import DEFAULT_MONTHLY_CAP_USD
+
+    store["teacher_access/t@ku.dk"] = {"email": "t@ku.dk", "tier": "pilot", "uid": "t1", "revoked": False}
+    decision = await FirestoreBudgetEnforcer().consult(_consult(cost=DEFAULT_MONTHLY_CAP_USD + 1))
+    assert decision.action == "block"
