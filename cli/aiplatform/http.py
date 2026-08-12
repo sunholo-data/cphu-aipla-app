@@ -20,12 +20,16 @@ import httpx
 # or per-env AIPLATFORM_API_URL_{ENV}.
 # AIPLA backend is served behind the frontend Cloud Run service at /api/proxy
 # (there is no separate backend service). URLs are stable per Cloud Run service.
-# test cut 2026-07-27 (v0.1.0). prod is still a placeholder until it's cut.
+# test cut 2026-07-27 (v0.1.0); prod cut 2026-07-28 and its real URL recorded
+# here 2026-08-12 (it had stayed a placeholder for two weeks, and the gcloud
+# fallback below only rescues it when gcloud happens to be pointed at the right
+# configuration — which it usually is not, since AIPLA needs
+# CLOUDSDK_ACTIVE_CONFIG_NAME=sunholo).
 _DEFAULT_URLS = {
     "local": "http://localhost:1956",
     "dev": "https://aipla-v01-frontend-wgwhd7mspa-lz.a.run.app/api/proxy",
     "test": "https://aipla-v01-frontend-y2bmxayxca-lz.a.run.app/api/proxy",
-    "prod": "https://aipla-v01-frontend-prod-placeholder.a.run.app/api/proxy",
+    "prod": "https://aipla-v01-frontend-6vwz657g3a-lz.a.run.app/api/proxy",
 }
 
 
@@ -45,11 +49,31 @@ def _resolve_frontend_url(env: str) -> str | None:
     """
     project = f"aipla-{env}-2026"
     try:
+        # CLOUDSDK_ACTIVE_CONFIG_NAME=sunholo: the default gcloud config points at
+        # the TEMPLATE's project, where every AIPLA call is PERMISSION_DENIED —
+        # the single most common time-waster in this repo (ops runbook, first
+        # line). Inherit the caller's value if they set one, else force it.
+        env_vars = {**os.environ}
+        env_vars.setdefault("CLOUDSDK_ACTIVE_CONFIG_NAME", "sunholo")
         out = subprocess.run(
-            ["gcloud", "run", "services", "describe", "aipla-v01-frontend",
-             "--region", "europe-north1", "--project", project,
-             "--format", "value(status.url)"],
-            capture_output=True, text=True, timeout=30, check=False,
+            [
+                "gcloud",
+                "run",
+                "services",
+                "describe",
+                "aipla-v01-frontend",
+                "--region",
+                "europe-north1",
+                "--project",
+                project,
+                "--format",
+                "value(status.url)",
+            ],
+            capture_output=True,
+            text=True,
+            timeout=30,
+            check=False,
+            env=env_vars,
         )
         url = out.stdout.strip()
         return f"{url}/api/proxy" if url.startswith("http") else None

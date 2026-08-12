@@ -196,6 +196,11 @@ Same GCP projects as v5, but v6 runs as **new parallel Cloud Run services** so v
 - **Project IDs**: `aitana-multivac-dev`, `aitana-multivac-test`, `aitana-multivac-production` (unchanged)
 - **v6 Cloud Run services**: `aitana-v6-backend`, `aitana-v6-frontend` (new; live in dev once CI-WIRE lands)
 - **v5 Cloud Run services**: `backend-api`, `frontend` (still running, will be decommissioned after DNS cutover)
+- **WHO MAY SPEND → [docs/ops/runbooks/access-requests.md](docs/ops/runbooks/access-requests.md)**
+  — the access register (visitor/pilot), where `/teacher-access` requests land, and how to
+  review and grant them. **An empty register means every account on that env is a visitor**,
+  including established teachers — so a fresh deploy needs `scripts/grandfather_access.py`
+  in the SAME change window.
 - **HOW TO DEPLOY → [docs/ops/runbooks/deploy.md](docs/ops/runbooks/deploy.md)**
   is the runbook for all three environments (dev: push `dev` · test: push a `v*`
   tag · prod: `make promote`). Read it before deploying anything; the summary
