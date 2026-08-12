@@ -97,42 +97,30 @@ URLs.
 ## ACCESS-1 rollout state (2026-08-12)
 
 Access tiers and spend control ([1.1.75](../design/aipla/v1.1.0-feedback/public-access-tiers-and-spend-control.md))
-are **deployed to dev and test**, and **not to prod**.
+are **live on all three environments at `v0.1.16`**.
 
-| Env | Code | `teacher_access` register | Budget-gated skills | Vertex daily token ceiling |
+| Env | Code | Register | Skills declaring a budget position | Vertex daily token ceiling |
 |---|---|---|---|---|
-| dev | live (branch tip) | **EMPTY — every teacher is a visitor** | 4 of 8 | applied + verified |
-| test | `v0.1.15` | **EMPTY — every teacher is a visitor** | 4 of 8 | applied + verified |
-| prod | `v0.1.15` (promoted 2026-08-12) | **EMPTY — every teacher is a visitor** | 4 of 8 | applied + verified |
+| dev | branch tip | M + JB @ $100/mo | 8 of 8 | applied + verified |
+| test | `v0.1.16` | M + JB @ $100/mo | 8 of 8 | applied + verified |
+| prod | `v0.1.16` | M + JB @ $100/mo | 8 of 8 | applied + verified |
 
-Ceiling is **50M input tokens / day / base model** on `gemini-3.5-flash-lite`
-and `gemini-3.6-flash`, applied 2026-08-12 and read back on all three
-(`make check-spend-ceiling ENV=<env>`). Before that, test and prod had
-Google's default of `-1` — i.e. **no ceiling at all**. Input tokens only;
-output is not capped by this metric.
+Ceiling is **50M input tokens/day/base model** on `gemini-3.5-flash-lite` and
+`gemini-3.6-flash` — roughly $15/day and $75/day respectively at list price,
+**input only** (the metric does not cap output). Re-verify any time with
+`make check-spend-ceiling ENV=<env>`; it reads the deployed quota back rather
+than trusting state.
 
-All three verified 2026-08-12: the four student-facing tutors carry
-`skillMetadata.toolConfigs.budget.identity_key = billing_key`, so the cap
-applies once a teacher has one. The register being empty means nobody has one
-yet — and, more to the point, nobody has a live tutor.
+**Everyone not on the register is a `visitor`:** they can sign in and explore
+the whole product, the tutor replays a recorded session, and they get no live
+model and no student join codes. Grant with
+[the access-requests runbook](runbooks/access-requests.md); roster and sign-off
+in [access-register-signoff-2026-08-12.md](access-register-signoff-2026-08-12.md).
 
-**An empty register means no live tutor for anyone on that env.** Teachers can
-sign in and explore; the tutor replays a recorded session. That is the intended
-posture, but dev and test are consequently not representative for anyone
-testing the live tutor until the register is populated.
-
-To populate, per env — roster and sign-off in
-[access-register-signoff-2026-08-12.md](access-register-signoff-2026-08-12.md):
-
-```bash
-cd backend && GOOGLE_CLOUD_PROJECT=<project> uv run python -m scripts.grandfather_access          # dry run
-cd backend && GOOGLE_CLOUD_PROJECT=<project> uv run python -m scripts.grandfather_access --apply
-make spend-ceiling ENV=<env> APPLY=1        # the Vertex ceiling; verify-only without APPLY
-```
-
-**Prod is the one that bites.** `jbruun@ind.ku.dk` owns 5 real named classes
-there and the pilot starts 2026-08-14 — the grandfather must run in the SAME
-change window as the prod deploy, not after it.
+**Known gap, sized:** the compaction summariser, PDF extraction and title
+generation are neither gated nor metered; Vertex RAG and Cloud TTS/STT are
+gated but unmetered. The cap covers the agent loop; Ring 0 covers the rest.
+See the design doc's "Deliberately not done" table.
 
 ---
 
