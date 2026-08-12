@@ -195,6 +195,41 @@ if not is_local_mode():
     except ValueError:
         # Already initialised — safe to ignore.
         pass
+
+    # ACCESS-1 M3: register the per-teacher budget enforcer.
+    #
+    # The ADK before/after callback pair at `adk/agent.py` has been calling
+    # into this seam since template Sprint 2.12 — it just short-circuited to
+    # no-ops because nothing was ever registered. This is the line that turns
+    # the whole existing mechanism on.
+    #
+    # NOT in LOCAL_MODE: the register lives in Firestore, LOCAL_MODE's is
+    # in-memory and empty, so every local turn would resolve to "no cap" noise.
+    try:
+        from budget.firestore_enforcer import register_default_enforcer
+
+        register_default_enforcer()
+    except Exception:  # pragma: no cover - startup must never be fatal here
+        logging.getLogger(__name__).warning("could not register the budget enforcer", exc_info=True)
+
+    # Fail-closed pricing (ACCESS-1 M3): a model in the registry with no entry
+    # in the rate card would be BOTH uncharged and ungated. Caught at boot, in
+    # the logs, rather than at bill time. A warning and not a hard exit — the
+    # Vertex quota ceiling is still underneath, and refusing to start a healthy
+    # service over a missing price row is the wrong trade.
+    try:
+        from config.models import model_api_names
+        from observability.llm_metrics import is_priced
+
+        unpriced = [name for name in model_api_names() if not is_priced(name)]
+        if unpriced:
+            logging.getLogger(__name__).warning(
+                "budget: %d model(s) have no rate-card entry and would be ungated: %s",
+                len(unpriced),
+                ", ".join(sorted(unpriced)),
+            )
+    except Exception:  # pragma: no cover
+        pass
 else:
     # Seed the in-memory Firestore with workshop fixture so the demo skills
     # are visible the moment the user opens the chat UI. Idempotent.

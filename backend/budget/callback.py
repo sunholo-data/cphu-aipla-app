@@ -26,6 +26,7 @@ from adk.budget_config import BudgetConfig
 from auth.firebase_auth import User
 from budget.enforcer import (
     BudgetConsultation,
+    BudgetDecision,
     BudgetEnforcer,
     BudgetExceededError,
 )
@@ -66,15 +67,24 @@ def make_budget_callbacks(
 
     identity_value = _extract_identity(user, budget_config.identity_key)
     if not identity_value:
-        logger.warning(
-            "budget.identity_unresolved",
-            extra={
-                "skill_id": skill_id,
-                "identity_key": budget_config.identity_key,
-                "user_uid": user.uid,
-            },
+        # ACCESS-1 M3 INVERTS THE TEMPLATE'S DEFAULT HERE.
+        #
+        # Upstream this returned no-op callbacks, reasoning that a fork which
+        # misconfigures `identity_key` should not silently deny everyone. That
+        # is right for a trusted-tenant B2B product. It is wrong on a public
+        # domain, where "we could not work out who is paying" must mean "do not
+        # spend", not "spend freely".
+        #
+        # The operational risk it introduces (a misconfiguration denying real
+        # teachers) is answered by making it LOUD rather than by making it
+        # permissive — hence ERROR, not WARNING.
+        logger.error(
+            "budget.identity_unresolved — BLOCKING (fail-closed). skill=%s identity_key=%s uid=%s",
+            skill_id,
+            budget_config.identity_key,
+            user.uid,
         )
-        return _no_op_callbacks()
+        return _deny_callbacks(budget_config.identity_key)
 
     # Closure-shared lookup so the after callback can find the
     # consultation the before callback stashed. Keyed by invocation_id.
@@ -113,6 +123,32 @@ def make_budget_callbacks(
 
 
 # ─── No-op fallback ──────────────────────────────────────────────────────────
+
+
+def _deny_callbacks(identity_key: str) -> tuple[Any, Any]:
+    """Callbacks that refuse every model call (ACCESS-1 M3, fail-closed).
+
+    Used when the paying identity cannot be resolved. Raises the same
+    ``BudgetExceededError`` a real cap breach raises, so the AG-UI translator
+    and the frontend need no new case.
+    """
+
+    async def _deny_before(callback_context: Any, llm_request: Any) -> None:
+        raise BudgetExceededError(
+            BudgetDecision(
+                action="block",
+                remaining_usd=None,
+                period_end=None,
+                message=("The tutor is unavailable for this account right now. Please contact the AIPLA team."),
+                retry_after_seconds=None,
+            )
+        )
+
+    async def _deny_after(callback_context: Any, llm_response: Any) -> None:
+        return None
+
+    logger.debug("budget: deny callbacks installed (identity_key=%s)", identity_key)
+    return _deny_before, _deny_after
 
 
 def _no_op_callbacks() -> tuple[Any, Any]:

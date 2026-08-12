@@ -53,6 +53,24 @@ metadata:
   model: gemini-3.6-flash
   tools: []
   toolConfigs:
+    # ACCESS-1 M3: opt this skill into the per-teacher monthly cap.
+    #
+    # `identity_key: billing_key` is what the ADK callback reads off `User`
+    # and hands to the enforcer. It is a group code for a student and
+    # `teacher:{uid}` for a teacher; the enforcer maps the former onward
+    # (group -> class -> owning teacher), so a class's turns land on the
+    # teacher's budget rather than being metered per anonymous student (which
+    # ADR-001 makes impossible anyway).
+    #
+    # NOT `group_id`: that is empty for a teacher, and the callback now fails
+    # CLOSED on an empty identity — so it would block every teacher who opened
+    # a student tutor to try it.
+    #
+    # Skills WITHOUT this block are exempt by absence. A teacher with no cap on
+    # the register is still allowed and logged; the cap only bites once someone
+    # sets one.
+    budget:
+      identity_key: billing_key
     a2ui:
       enabled: false
     defaults:

@@ -102,6 +102,27 @@ class User(BaseModel):
     is_researcher: bool = False
     access_tier: str = DEFAULT_ACCESS_TIER
 
+    @property
+    def billing_key(self) -> str:
+        """Who to meter this caller against — the ADK budget callback's
+        ``identity_key`` (ACCESS-1 M3).
+
+        Pure and I/O-free, because it is read on the hot path before every
+        model call:
+
+          * anonymous-group student -> the group code. The enforcer maps it
+            onward (group -> class -> owning teacher), because that resolution
+            needs Firestore and this must not.
+          * Firebase identity -> ``teacher:{uid}``, already in final form.
+
+        Never empty for a real caller, which matters: the callback now FAILS
+        CLOSED on an unresolvable identity, so a key that returned "" for
+        teachers would block every teacher instead of metering them.
+        """
+        if self.group_id:
+            return self.group_id
+        return f"teacher:{self.uid}" if self.uid else ""
+
 
 def _extract_domain(email: str) -> str:
     """Return the part of `email` after `@`, or `""` if there is no `@`."""

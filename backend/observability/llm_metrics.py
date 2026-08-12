@@ -40,15 +40,56 @@ _COST_PER_1M: dict[str, tuple[float, float]] = {
     "claude-haiku": (0.25, 1.25),
     "claude-opus": (15.00, 75.00),
     # OpenAI (via LiteLlm)
+    # gpt-5.x added 2026-08-12 (ACCESS-1 M3). They were in config/models.yaml
+    # but NOT here, so `estimate_cost` returned 0.0 for them — an unpriced model
+    # is both uncharged AND ungated, which is a hole rather than a default.
+    # Values ported from `analytics/rate_card.py` (EUR/1k -> USD/1M at the same
+    # ~1:1 the rest of that table assumes) rather than invented, so the two
+    # tables agree on these rows by construction.
+    "gpt-5.4": (1.10, 8.80),
+    "gpt-5.1": (1.10, 8.80),
+    "gpt-5": (1.10, 8.80),
     "gpt-4o": (2.50, 10.00),
     "gpt-4o-mini": (0.15, 0.60),
 }
 
+# KNOWN DIVERGENCE (recorded 2026-08-12, not resolved here):
+# this table prices `gemini-2.5-flash` at 0.15/0.60 per 1M, while
+# `analytics/rate_card.py` prices it at 0.0003/0.0012 per 1k = 0.30/1.20 per 1M
+# — a factor of two. Neither table cites a source for that row, and it is not on
+# the student path (the platform default is gemini-3.5-flash-lite, which the two
+# tables DO agree on). Left as-is rather than guessed at: picking one silently
+# would make the dashboards and the enforcer agree while both being wrong.
+# The startup assertion in fast_api_app.py catches MISSING rows; nothing yet
+# catches DISAGREEING ones. That is the natural next guard.
 
-def estimate_cost(model: str, input_tokens: int, output_tokens: int) -> float:
+
+class UnpricedModelError(ValueError):
+    """Raised when a model has no entry in the pricing table (ACCESS-1 M3).
+
+    Carries the model id so the caller can name it in a log line without
+    re-parsing a message.
+    """
+
+    def __init__(self, model: str) -> None:
+        self.model = model
+        super().__init__(
+            f"No pricing entry for model {model!r}. Add it to _COST_PER_1M — an "
+            "unpriced model would otherwise be both uncharged and ungated."
+        )
+
+
+def estimate_cost(model: str, input_tokens: int, output_tokens: int, *, strict: bool = False) -> float:
     """Estimate cost in USD for a model call.
 
-    Returns 0.0 for unknown models — we don't want to block on missing pricing.
+    ``strict=False`` (the default, and every pre-ACCESS-1 caller) keeps the
+    original behaviour: unknown model -> 0.0, so a missing price never blocks a
+    metrics emit.
+
+    ``strict=True`` raises ``UnpricedModelError`` instead. The budget enforcer
+    uses it, because on a public domain "unknown model" must not mean "free and
+    therefore ungated" — that combination is a hole, not a graceful default.
+    Fail-closed is the correct direction when the question is money.
     """
     # Normalize model name: strip version suffixes, provider prefixes
     key = model.lower()
@@ -56,7 +97,16 @@ def estimate_cost(model: str, input_tokens: int, output_tokens: int) -> float:
         if known in key:
             input_rate, output_rate = _COST_PER_1M[known]
             return (input_tokens * input_rate + output_tokens * output_rate) / 1_000_000
+    if strict:
+        raise UnpricedModelError(model)
     return 0.0
+
+
+def is_priced(model: str) -> bool:
+    """Whether ``model`` has a pricing entry. Used by the startup consistency
+    assertion so an unpriced model is caught at boot, not at bill time."""
+    key = model.lower()
+    return any(known in key for known in _COST_PER_1M)
 
 
 def record_llm_cost(model: str, input_tokens: int, output_tokens: int) -> None:

@@ -297,8 +297,19 @@ async def test_record_reconciles_with_actual_cost():
 
 
 @pytest.mark.asyncio
-async def test_identity_unresolved_logs_warn_and_skips(caplog):
-    """identity_key='group_id' but User.group_id is empty → skip with WARN log."""
+async def test_identity_unresolved_blocks_and_logs_error(caplog):
+    """identity_key='group_id' but User.group_id is empty → BLOCK with an ERROR.
+
+    ACCESS-1 M3 INVERTED THIS. Upstream, an unresolvable identity returned no-op
+    callbacks — the reasoning being that a fork which misconfigures
+    `identity_key` should not silently deny everyone. That is right for a
+    trusted-tenant B2B product and wrong for AIPLA, which serves a public
+    domain: "we could not work out who is paying" has to mean "do not spend".
+
+    The operational risk of the inversion (a misconfiguration denying real
+    teachers) is answered by making it LOUD — ERROR, not WARNING — rather than
+    by making it permissive.
+    """
 
     consult_calls = []
 
@@ -321,10 +332,12 @@ async def test_identity_unresolved_logs_warn_and_skips(caplog):
         skill_id="physics-tutor",
         budget_config=BudgetConfig(identity_key="group_id"),
     )
-    with caplog.at_level(logging.WARNING, logger="budget"):
+    with caplog.at_level(logging.ERROR, logger="budget"), pytest.raises(BudgetExceededError):
         await before(_make_ctx(), _make_request())
-    assert consult_calls == [], "consult must be skipped when identity is unresolved"
+
+    assert consult_calls == [], "the enforcer is not consulted — there is nobody to charge"
     assert any("identity_unresolved" in rec.message for rec in caplog.records)
+    assert any(rec.levelname == "ERROR" for rec in caplog.records), "a silent deny would be worse than the old no-op"
 
 
 @pytest.mark.asyncio

@@ -75,7 +75,17 @@ def _email_for_uid(uid: str) -> str | None:
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     parser.add_argument("--apply", action="store_true", help="write the grants (default: dry run)")
-    parser.add_argument("--cap", type=float, default=None, help="monthly cap in USD (default: the register default)")
+    parser.add_argument(
+        "--cap",
+        type=float,
+        default=0.0,
+        help=(
+            "monthly cap in USD. DEFAULT 0 = UNCAPPED, deliberately: these are people already "
+            "teaching with the platform, and newly capping them mid-pilot could cut a lesson off. "
+            "New invites get the register default instead. Set a real cap per teacher once you "
+            "have observed their usage (`aiplatform users grant-access <email> --cap N`)."
+        ),
+    )
     parser.add_argument(
         "--expires",
         default=DEFAULT_EXPIRES_AT,
@@ -83,9 +93,9 @@ def main(argv: list[str] | None = None) -> int:
     )
     args = parser.parse_args(argv)
 
-    from db.teacher_access import DEFAULT_MONTHLY_CAP_USD, get_grant, grant_access
+    from db.teacher_access import get_grant, grant_access
 
-    cap = args.cap if args.cap is not None else DEFAULT_MONTHLY_CAP_USD
+    cap = args.cap
     expires_at = None if args.expires == "never" else args.expires
     note = f"grandfathered at ACCESS-1 rollout {datetime.now(UTC).date().isoformat()}"
 
@@ -130,12 +140,20 @@ def main(argv: list[str] | None = None) -> int:
 
     log.info("")
     log.info(
-        "%s %d grant(s); %d already registered; %d unresolved.",
+        "%s %d grant(s) at cap=%s; %d already registered; %d unresolved.",
         "Wrote" if args.apply else "Would write",
         len(would_grant),
+        "UNCAPPED" if cap <= 0 else f"${cap:.2f}/month",
         len(already),
         len(unresolved),
     )
+    if cap <= 0 and would_grant:
+        log.info("")
+        log.info(
+            "Grandfathered teachers are UNCAPPED. That is the safe default for people "
+            "already teaching, not the end state — set real caps once you have observed "
+            "usage: aiplatform users grant-access <email> --cap N"
+        )
     if not args.apply:
         log.info("Dry run — re-run with --apply to write.")
     if unresolved:
