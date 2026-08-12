@@ -80,8 +80,29 @@ def _emit_new_turns(
         from observability.chat_log import emit_chat_turn, group_code_from_owner_uid
 
         group_code = group_id or group_code_from_owner_uid(owner_uid)
+
+        # ACCESS-1 Ring 3 (2026-08-12). This used to `return` here, so every
+        # TEACHER turn was dropped — the co-pilot, analytics-chat and
+        # manage-class, i.e. the most tool-heavy skills in the product, produced
+        # no token telemetry at all and were invisible to the cost dashboard.
+        # Found the honest way: M took a live co-pilot turn and asked what it
+        # cost, and nothing could answer.
+        #
+        # Teacher turns are now emitted under the SAME billing key the budget
+        # enforcer meters on (`teacher:{uid}`), so spend reconciles across the
+        # two systems instead of each seeing half.
+        #
+        # WITHOUT CONTENT. That is the ADR-001 line, and it is not a compromise:
+        # the cost question needs model + token counts, never the transcript.
+        # A teacher's chat can quote a student's work (analytics-chat exists to
+        # discuss it), so logging teacher content would add a student-PII
+        # surface by the back door — which is precisely what the original
+        # `return` was protecting against, over-broadly.
+        log_content = bool(group_code)
         if not group_code:
-            return  # teacher / workshop session — not student research data
+            if not owner_uid:
+                return
+            group_code = f"teacher:{owner_uid}"
 
         events = list(getattr(session, "events", None) or [])
         if not events:
@@ -133,11 +154,25 @@ def _emit_new_turns(
                 skill_id=skill_id,
                 turn_index=idx,
                 role=role,
-                content=text,
+                # Student turns carry the transcript (that IS the research
+                # data); teacher turns carry only its length, which answers
+                # "was this a long context?" without quoting anyone.
+                content=text if log_content else "",
                 model=turn_model if role == "tutor" else None,
                 token_in=token_in,
                 token_out=token_out,
             )
+
+            # 1.1.9 cost metrics. `record_llm_cost` has been implemented and
+            # uncalled since it was written; wiring it here means the OTEL
+            # counters see the same turns BigQuery does.
+            if role == "tutor" and turn_model and (token_in or token_out):
+                try:
+                    from observability.llm_metrics import record_llm_cost
+
+                    record_llm_cost(turn_model, int(token_in or 0), int(token_out or 0))
+                except Exception:
+                    pass
     except Exception as exc:
         logger.warning("chat-log emit failed (suppressed): %s", exc)
 

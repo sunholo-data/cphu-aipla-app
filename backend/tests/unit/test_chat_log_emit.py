@@ -262,14 +262,29 @@ def test_after_agent_falls_back_to_latest_event_invocation_id():
     assert [c.kwargs["turn_index"] for c in mock_emit.call_args_list] == [1, 2]
 
 
-def test_after_agent_skips_non_anon_owner():
+def test_after_agent_emits_non_anon_owner_WITHOUT_content():
+    """CONTRACT CHANGED 2026-08-12 (ACCESS-1 Ring 3).
+
+    This used to assert `call_count == 0` — a non-anonymous owner (teacher,
+    workshop stub) was dropped entirely. That protected student PII, but far too
+    broadly: it also threw away the token counts, so the co-pilot,
+    analytics-chat and manage-class produced NO cost telemetry at all and the
+    most tool-heavy skills in the product were invisible to every spend view.
+
+    The turn is now emitted under the billing identity the budget enforcer
+    meters on, with the transcript stripped. Visible spend, no new PII surface.
+    """
     from adk.callbacks import make_after_agent_response
 
     ctx = _FakeCtx(_FakeSession([_FakeEvent("user", "hello")]), {})
     mock_emit = MagicMock()
     with patch.object(chat_log, "emit_chat_turn", mock_emit):
         make_after_agent_response("workshop-user", "boldkast")(ctx)
-    assert mock_emit.call_count == 0
+
+    assert mock_emit.call_count == 1
+    kwargs = mock_emit.call_args_list[0].kwargs
+    assert kwargs["group_id"] == "teacher:workshop-user"
+    assert kwargs["content"] == "", "a non-student transcript must never be logged"
 
 
 def test_after_agent_no_chatlog_without_owner_skill():

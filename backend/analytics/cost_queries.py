@@ -259,6 +259,30 @@ def class_spend(class_id: str, period: Period, *, now: datetime | None = None) -
     return folded
 
 
+def teacher_own_spend(uid: str, period: Period, *, now: datetime | None = None) -> dict[str, Any]:
+    """Spend on a teacher's OWN turns — co-pilot, analytics-chat, manage-class.
+
+    Distinct from ``class_spend``, and not a subset of it. `class_spend`
+    resolves a class to its student join codes; a teacher's own chat belongs to
+    no class, so it appears in neither `class_spend` nor `classes_spend`.
+
+    Until ACCESS-1 Ring 3 (2026-08-12) these turns were not logged AT ALL — the
+    session callback dropped every non-anonymous owner, so the most tool-heavy
+    skills in the product were invisible to every cost view. They now emit under
+    the same billing key the budget enforcer meters on (`teacher:{uid}`), which
+    is what this reads.
+
+    Content is not logged for these turns (ADR-001); only model + token counts,
+    which is all a cost view needs.
+    """
+    since, until = period_bounds(period, now=now)
+    folded = _fold(_safe_spend_rows([f"teacher:{uid}"], since, until))
+    folded["uid"] = uid
+    folded["period"] = period
+    folded["projected_eur"] = project_month_eur(folded["total_eur"], now=now) if period == "this_month" else None
+    return folded
+
+
 def classes_spend(
     class_id_to_codes: dict[str, list[str]], period: Period, *, now: datetime | None = None
 ) -> dict[str, Any]:
