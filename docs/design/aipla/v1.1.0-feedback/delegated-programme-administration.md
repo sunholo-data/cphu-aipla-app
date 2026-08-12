@@ -2,7 +2,7 @@
 
 **Status:** Proposed (2026-08-12)
 **Priority:** **P1** — the bus-factor half is arguably P0; the pilot starts 2026-08-14 and one person can currently admit a teacher
-**Estimated:** ~2d — M1 read-only view ~0.5d · M2 the claim + bounded writes ~1.5d
+**Estimated:** ~3d — M1 read-only view ~0.5d · M2 the claim + bounded writes ~1.5d · M3 programme-wide daily budget ~1d
 **Scope:** Fullstack — a new `/api/programme/*` router, a `programmeAdmin` custom claim, a `/teacher/programme` surface, CLI
 **Dependencies:** [1.1.75 public-access-tiers-and-spend-control](public-access-tiers-and-spend-control.md) (SHIPPED — the register this administers); [1.1.5 researcher-role](researcher-role.md) (SHIPPED — the claim pattern, and the role this deliberately does *not* extend); RUBRIC-1 M3 `_LensConfigPanel` (SHIPPED — the precedent for a claim-gated config-write surface inside the teacher app)
 **Source:** M, 2026-08-12 — *"so can a researcher role easily upgrade a teacher?"*
@@ -237,6 +237,68 @@ JB opens /teacher/programme
 
 ---
 
+### M3's knob — a programme-wide daily budget, NOT the GCP quota
+
+**Source:** M, 2026-08-12 — *"this would be good as another setting a researcher
+can set in their configuration"*, about the Vertex daily token ceiling.
+
+Right instinct, and the obvious implementation would quietly destroy the thing
+it is aiming at.
+
+**Why not expose the GCP quota itself.** The Vertex consumer quota override
+(`scripts/spend-ceiling.sh`, 50M input tokens/day/base model, live on all three
+envs since 2026-08-12) is Ring 0 *precisely because the application cannot
+change it*. It holds when the register is wrong, when the enforcer has a bug,
+when a new spend path forgets its guard. Putting it behind an in-product
+setting means granting the runtime SA `serviceusage.serviceUsageAdmin` — after
+which the app can raise its own ceiling, and Ring 0 becomes just another
+application-level control with extra steps and a broader IAM surface. A ceiling
+the app can lift is not a ceiling.
+
+**So: a second knob, one layer down.**
+
+```
+GCP Vertex quota          immutable from the app   ops-only, scripts/spend-ceiling.sh
+   └─ programme daily budget   researcher-settable   NEW — this milestone
+        └─ per-teacher monthly cap   1.1.75 M3, already shipped
+```
+
+It also fills a real gap rather than duplicating anything. Today's caps are
+**per teacher, per month**. Nothing answers *"what did the whole programme spend
+today?"* or stops a bad Tuesday across every class at once — which is exactly the
+shape of the risk a shared research budget carries, and exactly what a researcher
+watching the pilot would want their hand on.
+
+```
+programme_budget/{env}
+{
+  "dailyTokenBudget":  20000000,     # input tokens/day across ALL teachers
+  "action":            "warn" | "block",
+  "updatedBy":         "jbruun@ind.ku.dk",
+  "updatedAt":         "..."
+}
+```
+
+- Enforced in `FirestoreBudgetEnforcer.consult` as a second check beside the
+  per-teacher cap, on the same sharded-counter mechanism — a programme-wide
+  period key rather than a per-identity one. No new gate.
+- **Bounded by the GCP ceiling it sits under.** The UI refuses a value above the
+  deployed quota and says why; setting a *higher* number than Ring 0 would read
+  as raising the ceiling while doing nothing, which is the worst kind of control.
+- `action: "warn"` first. A programme-wide block is a very large blast radius for
+  a knob someone is still calibrating, and warn-only for the first month tells
+  you where the real numbers are without risking a class mid-lesson.
+- Settable by a **programme admin**; **visible** to a researcher — same split as
+  the register, same surface, same reasoning.
+
+**Estimated:** ~1d on top of M2 (store + enforcer check ~0.5d · panel + the
+bounded-by-Ring-0 validation ~0.5d).
+
+**Open:** what is the right default? Unset (no programme budget) is the honest
+starting state — the per-teacher caps and Ring 0 already bound things, and
+inventing a number before `class_spend` has a month of pilot data would be a
+guess wearing a suit.
+
 ## Axiom Alignment
 
 | # | Axiom | Score | Notes |
@@ -276,8 +338,17 @@ The half that removes the visibility problem without granting anything.
 - [ ] Grant/revoke UI on the same panel, shown only to a programme admin (~150 LOC)
 - [ ] Tests below
 
+### M3 — programme-wide daily budget (~1d)
+
+- [ ] `programme_budget/{env}` store + GET/PUT on `/api/programme/budget` (~80 LOC)
+- [ ] Second check in `FirestoreBudgetEnforcer.consult`, programme-wide period key (~80 LOC)
+- [ ] Panel control, refusing any value above the deployed Vertex quota (~120 LOC)
+- [ ] Tests: warn at threshold; block only when `action: "block"`; a value above
+      the GCP ceiling is rejected with the ceiling named
+
 **Sequencing:** M1 is independently useful and independently safe — it grants
 read to people who already have far broader read. Ship it first even if M2 slips.
+M3 depends on M2 for the write path but only on M1 for the read.
 
 ---
 
