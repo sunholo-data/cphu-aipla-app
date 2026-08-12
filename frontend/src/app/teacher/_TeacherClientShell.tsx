@@ -7,6 +7,7 @@ import { FlaskConical, HelpCircle, LogOut } from "lucide-react";
 
 import { SiteFooter } from "@/components/site/SiteFooter";
 import { TeacherNav } from "@/components/teacher/ui/TeacherNav";
+import { VisitorAccessBanner } from "@/components/teacher/VisitorAccessBanner";
 import { BRANDING } from "@/lib/branding";
 import { cn } from "@/lib/utils";
 import { isLocalMode } from "@/lib/localMode";
@@ -68,6 +69,9 @@ export function TeacherClientShell({ children }: { children: ReactNode }) {
 
   return (
     <div className="flex min-h-screen flex-col">
+      {/* ACCESS-1 M4: renders nothing for a pilot teacher; above the header so
+          it is the first thing a visitor reads, and never covers the nav. */}
+      <VisitorAccessBanner />
       <header className="sticky top-0 z-10 border-b border-border bg-background/90 backdrop-blur">
         <div className={cn("mx-auto flex items-center justify-between gap-3 px-4 py-3 sm:px-6", containerMax)}>
           <Link

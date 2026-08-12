@@ -20,8 +20,14 @@ interface TeacherAuthState {
  * Side-effect: redirects to /teacher/sign-in when no user is present
  * after the initial auth check, unless LOCAL_MODE is active (where the
  * workshop stub satisfies the teacher gate without real Firebase).
+ *
+ * Pass `{ redirectOnSignedOut: false }` on a PUBLIC page that merely wants to
+ * know whether someone is signed in — /teacher-access reads the identity to
+ * decide between "sign in first" and the request form, and bouncing a curious
+ * visitor to sign-in there would defeat the point of the page (ACCESS-1 M4).
  */
-export function useTeacherAuth(): TeacherAuthState {
+export function useTeacherAuth(options: { redirectOnSignedOut?: boolean } = {}): TeacherAuthState {
+  const { redirectOnSignedOut = true } = options;
   const router = useRouter();
   const [user, setUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
@@ -34,11 +40,12 @@ export function useTeacherAuth(): TeacherAuthState {
   }, []);
 
   useEffect(() => {
+    if (!redirectOnSignedOut) return;
     if (loading) return;
     if (user) return;
     if (isLocalMode()) return;
     router.replace("/teacher/sign-in");
-  }, [user, loading, router]);
+  }, [user, loading, router, redirectOnSignedOut]);
 
   // LOCAL_MODE: synthesise a teacher identity so the dashboard renders
   // without a Firebase project configured.

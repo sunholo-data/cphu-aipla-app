@@ -275,5 +275,30 @@ service cloud.firestore {
     match /bot_state/{stateId} {
       allow read, write: if isAdmin();
     }
+
+    // ==========================================
+    // Access register + requests  (ACCESS-1 M1/M4)
+    // ==========================================
+    // `teacher_access/{email}` decides who may spend money; `access_requests/
+    // {uid}` is the queue of people asking to. Both are written ONLY by the
+    // SA-allowlisted `/api/admin/*` routes through the Admin SDK, which bypasses
+    // these rules entirely.
+    //
+    // Denied to clients EXPLICITLY rather than by omission. The collections
+    // would already be unreachable by not appearing here, but "the security of
+    // the spend gate rests on nobody adding a rule" is not a property worth
+    // relying on — and `access_requests` additionally holds a name, email and
+    // institution for people who may never be granted anything.
+    //
+    // Retention for access_requests is 90 days after a decision
+    // (`db/access_requests.py:RETENTION_DAYS`), named on the privacy page.
+
+    match /teacher_access/{email} {
+      allow read, write: if false;
+    }
+
+    match /access_requests/{uid} {
+      allow read, write: if false;
+    }
   }
 }

@@ -569,7 +569,37 @@ export interface TeacherBootstrapResult {
   classId?: string;
   className?: string;
   activityIds?: string[];
+  /** Null for a visitor — the join code is the one thing the seed withholds
+   *  (ACCESS-1 M1: an anonymous-group code is the student fan-out vector). */
   joinCode?: string | null;
+  /** The caller's spend tier, reconciled from the `teacher_access` register. */
+  accessTier?: "visitor" | "pilot";
+  /** True when the register disagreed with the token's claim and the claim was
+   *  just corrected — the client must force-refresh its ID token before the new
+   *  tier takes effect anywhere else. */
+  tierChanged?: boolean;
+}
+
+export interface AccessRequestBody {
+  name?: string;
+  institution?: string;
+  message?: string;
+}
+
+/** Ask to join the programme (ACCESS-1 M4). Always reports success — the
+ *  response is deliberately identical whether or not the caller is already on
+ *  the register, so this cannot be used to enumerate it. */
+export async function requestProgrammeAccess(body: AccessRequestBody): Promise<void> {
+  const resp = await fetchWithAuth(`/api/proxy/api/teacher/access-request`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      name: body.name ?? "",
+      institution: body.institution ?? "",
+      message: body.message ?? "",
+    }),
+  });
+  if (!resp.ok) throw new Error("Could not send your request. Please try again.");
 }
 
 /** Seed the teacher's onboarding demo (a Demo class + example activities) on

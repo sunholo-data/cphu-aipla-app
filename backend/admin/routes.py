@@ -384,6 +384,15 @@ def access_grant(body: AccessGrantRequest, request: Request) -> dict[str, Any]:
 
     uid = _sync_access_claim(_norm(body.email), grant.tier)
     _invalidate_spend_cache()
+    # Close the loop: if this person asked, mark their request granted so the
+    # queue drains as grants are issued rather than needing separate upkeep.
+    if uid:
+        try:
+            from db.access_requests import mark_decided
+
+            mark_decided(uid, status="granted", decided_by=caller_email)
+        except Exception:
+            logger.debug("admin.access_grant: could not close the access request", exc_info=True)
     logger.info("admin.access_grant: email=%s tier=%s by=%s uid=%s", grant.email, grant.tier, caller_email, uid or "-")
     return {
         "email": grant.email,
@@ -472,3 +481,34 @@ def _invalidate_spend_cache() -> None:
         clear_cache()
     except Exception:
         logger.debug("admin.access: spend-authority cache clear failed", exc_info=True)
+
+
+@router.get(
+    "/access/requests",
+    responses={403: {"description": "Caller is not in ADMIN_SEED_ALLOWED_SAS"}},
+)
+def access_requests(request: Request, status: str = "pending") -> dict[str, Any]:
+    """The queue of people asking to join the programme (ACCESS-1 M4).
+
+    ``status=all`` returns every state; otherwise pending/granted/declined.
+    """
+    from db.access_requests import list_access_requests
+
+    _assert_caller_is_service_account(request)
+    wanted = None if status == "all" else status
+    requests = list_access_requests(status=wanted)  # type: ignore[arg-type]
+    return {
+        "count": len(requests),
+        "requests": [
+            {
+                "uid": r.uid,
+                "email": r.email,
+                "name": r.name,
+                "institution": r.institution,
+                "message": r.message,
+                "status": r.status,
+                "requestedAt": r.requested_at,
+            }
+            for r in requests
+        ],
+    }

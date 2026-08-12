@@ -25,6 +25,7 @@ import logging
 
 from fastapi import APIRouter, Depends
 from firebase_admin import auth as fb_auth
+from pydantic import BaseModel, Field
 
 from auth import User, assert_teacher, get_current_user
 from auth.access_tiers import DEFAULT_ACCESS_TIER
@@ -114,3 +115,51 @@ async def bootstrap(user: User = Depends(get_current_user)) -> dict:  # noqa: B0
         "tierChanged": tier_changed,
         **(result or {}),
     }
+
+
+# ─── Access requests (ACCESS-1 M4) ────────────────────────────────────────────
+
+
+class AccessRequestBody(BaseModel):
+    """What a visitor tells us when they ask to join the programme."""
+
+    name: str = Field(default="", max_length=200)
+    institution: str = Field(default="", max_length=200)
+    message: str = Field(default="", max_length=2000)
+
+    model_config = {"extra": "forbid"}
+
+
+@router.post("/access-request")
+async def access_request(
+    body: AccessRequestBody,
+    user: User = Depends(get_current_user),  # noqa: B008
+) -> dict:
+    """Record a visitor's request to join the programme.
+
+    Authenticated — they are signed in already, so this adds no unauthenticated
+    write surface. Keyed by uid so re-submitting updates rather than piling up.
+
+    Deliberately returns the SAME response whether or not the caller is already
+    on the register: telling an anonymous submitter "you're already approved" or
+    "you're not" would make this an enumeration oracle for the register.
+    """
+    assert_teacher(user)
+
+    from db.access_requests import upsert_access_request
+
+    try:
+        upsert_access_request(
+            uid=user.uid,
+            email=user.email,
+            name=body.name,
+            institution=body.institution,
+            message=body.message,
+        )
+    except Exception:
+        log.warning("access_request: could not record request for uid=%s", user.uid, exc_info=True)
+        # Still report success: the person did their part, and a storage blip is
+        # ours to fix. They have no other route to retry that would help.
+
+    log.info("access_request: recorded uid=%s institution=%r", user.uid, body.institution[:60])
+    return {"received": True}

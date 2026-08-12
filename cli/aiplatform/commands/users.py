@@ -164,3 +164,40 @@ def list_access(ctx: click.Context, include_revoked: bool, as_json: bool) -> Non
             f"{g.get('note', '')}"
         )
     click.echo(f"\n{result.get('count', len(grants))} row(s).")
+
+
+@users.command("list-requests")
+@click.option(
+    "--status",
+    default="pending",
+    type=click.Choice(["pending", "granted", "declined", "all"]),
+    help="Which requests to show.",
+)
+@click.option("--json", "as_json", is_flag=True, help="Raw JSON instead of the table.")
+@click.pass_context
+def list_requests(ctx: click.Context, status: str, as_json: bool) -> None:
+    """People who have asked to join the programme (ACCESS-1 M4).
+
+    Grant from this queue with `grant-access <email>` — a successful grant marks
+    the matching request granted, so the queue drains as you work it.
+    """
+    result = _client(ctx).get("/api/admin/access/requests", params={"status": status})
+    if as_json:
+        click.echo(_json.dumps(result, indent=2))
+        return
+
+    requests = result.get("requests", [])
+    if not requests:
+        click.echo(f"No {status} access requests.")
+        return
+
+    for r in requests:
+        click.echo(f"\n{r.get('email', '?')}  [{r.get('status', '?')}]  {r.get('requestedAt', '')}")
+        if r.get("name"):
+            click.echo(f"  name:        {r['name']}")
+        if r.get("institution"):
+            click.echo(f"  institution: {r['institution']}")
+        if r.get("message"):
+            click.echo(f"  message:     {r['message']}")
+        click.echo(f"  grant with:  aiplatform --env <env> users grant-access {r.get('email', '')}")
+    click.echo(f"\n{result.get('count', len(requests))} request(s).")
