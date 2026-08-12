@@ -94,6 +94,37 @@ URLs.
   - **Public, no auth** (matches the public-skills posture). Speaks Streamable HTTP — point a ChatGPT remote connector or Claude Desktop `mcp-remote` here, no tunnel.
   - Offers the public skills as tools **and** the sims as `ui://` MCP Apps (`show_boldkast|kinebot|led_planck`; artefact HTML lazily fetched from the sandbox via `MCP_SANDBOX_URL`).
   - Smoke: `REQUIRE_SIMS=1 ./scripts/smoke-deployed-mcp.sh dev` → initialize + sims listed + `ui://` readable. (Visual render is host-dependent — Claude Desktop is currently blocked by upstream claude-ai-mcp#165; ChatGPT/MCP Inspector render reliably.)
+## ACCESS-1 rollout state (2026-08-12)
+
+Access tiers and spend control ([1.1.75](../design/aipla/v1.1.0-feedback/public-access-tiers-and-spend-control.md))
+are **deployed to dev and test**, and **not to prod**.
+
+| Env | Code | `teacher_access` register | Vertex daily token ceiling |
+|---|---|---|---|
+| dev | live (branch tip) | **EMPTY — every teacher is a visitor** | applied + verified (50M/day/base model) |
+| test | live (`v0.1.15`) | **EMPTY — every teacher is a visitor** | not applied |
+| prod | **not deployed** | n/a | not applied |
+
+**An empty register means no live tutor for anyone on that env.** Teachers can
+sign in and explore; the tutor replays a recorded session. That is the intended
+posture, but dev and test are consequently not representative for anyone
+testing the live tutor until the register is populated.
+
+To populate, per env — roster and sign-off in
+[access-register-signoff-2026-08-12.md](access-register-signoff-2026-08-12.md):
+
+```bash
+cd backend && GOOGLE_CLOUD_PROJECT=<project> uv run python -m scripts.grandfather_access          # dry run
+cd backend && GOOGLE_CLOUD_PROJECT=<project> uv run python -m scripts.grandfather_access --apply
+make spend-ceiling ENV=<env> APPLY=1        # the Vertex ceiling; verify-only without APPLY
+```
+
+**Prod is the one that bites.** `jbruun@ind.ku.dk` owns 5 real named classes
+there and the pilot starts 2026-08-14 — the grandfather must run in the SAME
+change window as the prod deploy, not after it.
+
+---
+
 ## Custom domains — `ku.dk` (provisioned 2026-08-03, **app names LIVE 2026-08-11**)
 
 **The app is live on its ku.dk names.** Use these as the addresses to give
