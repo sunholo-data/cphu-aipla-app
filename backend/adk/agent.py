@@ -168,9 +168,14 @@ def _should_think(message: str) -> bool:
 
 
 #: Env var that overrides the default Gemini thinking budget (Tier A).
-#: Unset/blank → -1 (Gemini's unbounded dynamic thinking, the historical
-#: default). See ``_resolve_thinking_budget``.
+#: Unset/blank → 0 (thinking off). Set it to -1 to opt IN to Gemini's
+#: unbounded dynamic thinking. See ``_resolve_thinking_budget``.
 THINKING_BUDGET_ENV = "AIPLA_THINKING_BUDGET"
+
+#: Fallback when ``AIPLA_THINKING_BUDGET`` is absent or unparseable.
+#: ``0`` (thinking off), NOT ``-1`` (unbounded) — see the rationale in
+#: ``_resolve_thinking_budget``.
+DEFAULT_THINKING_BUDGET = 0
 
 
 def _resolve_thinking_budget() -> int:
@@ -185,29 +190,40 @@ def _resolve_thinking_budget() -> int:
       * ``N>0`` — cap thinking to ~N tokens: bounded latency, some reasoning.
 
     Read from ``AIPLA_THINKING_BUDGET`` so an environment can trade latency
-    against depth WITHOUT a code change or re-seed — dev can run a low/zero
-    budget for snappy demos while prod stays dynamic. Defaults to ``-1``
-    (unchanged behaviour) when unset or non-integer.
+    against depth WITHOUT a code change or re-seed.
+
+    **Defaults to 0 (thinking off), not -1 (unbounded)** — changed 2026-08-12
+    by ACCESS-1 M0. All three deployed environments already set ``=0`` via
+    ``cloudbuild.yaml``, so this changes no deployed behaviour; what it changes
+    is the behaviour of everything that *isn't* that pipeline. Cloud Run jobs,
+    scripts, tests and local processes inherit no env var, and were therefore
+    silently running the most expensive setting the knob has. Unbounded thinking
+    is a thing you should have to ask for, on a public domain especially.
 
     This is the simplest dynamic knob; per-skill and per-turn (difficulty-
     routed) budgets are the natural next steps — see the design note.
     """
     raw = os.environ.get(THINKING_BUDGET_ENV)
     if raw is None or raw.strip() == "":
-        return -1
+        return DEFAULT_THINKING_BUDGET
     try:
         return int(raw)
     except ValueError:
-        logger.warning("%s=%r is not an integer; falling back to -1 (dynamic)", THINKING_BUDGET_ENV, raw)
-        return -1
+        logger.warning(
+            "%s=%r is not an integer; falling back to %d (thinking off)",
+            THINKING_BUDGET_ENV,
+            raw,
+            DEFAULT_THINKING_BUDGET,
+        )
+        return DEFAULT_THINKING_BUDGET
 
 
 def _planner_for(skill_config: SkillConfig) -> BuiltInPlanner | None:
     """Return a BuiltInPlanner for Gemini skills with no thinking_model.
 
     - Gemini + no thinking_model: `BuiltInPlanner` with the budget from
-      `_resolve_thinking_budget()` (default -1 = Gemini 2.5 dynamic thinking;
-      override via `AIPLA_THINKING_BUDGET` to bound first-token latency).
+      `_resolve_thinking_budget()` (default 0 = thinking off; set
+      `AIPLA_THINKING_BUDGET=-1` to opt in to unbounded dynamic thinking).
     - Claude / OpenAI: BuiltInPlanner is Gemini-specific; return None.
     - thinking_model set: routing happens in Python via _HeuristicRouter;
       the single-agent case doesn't apply, so return None here.

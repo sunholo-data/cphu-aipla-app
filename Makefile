@@ -1,4 +1,4 @@
-.PHONY: tf-plan tf-apply tf-local tf-fmt check-iam-posture check-domains deploy-status dev dev-local dev-recompile dev-status dev-stop proxy-check logs cloud-logs cloud-errors cloud-build verify-chat-logs smoke-session-persistence smoke-chat-resume smoke-curriculum-content smoke-teacher-cli help cli-install cli-reinstall cli-uninstall cli-doctor cli-selftest-mock cli-selftest-live cli-selftest seed seed-job seed-demo-codes force-seed-demo reset-group-state provision-curriculum-rag provision-agent-engine copy-docparse-secret seed-curriculum backfill-curriculum-content seed-curriculum-folders check-auth-config migrate-clear-persona-voice-override docs-linkcheck check-skills sim-build sim-build-check guides guides-publish guide-screens seed-guide-corpus guide-staleness
+.PHONY: tf-plan tf-apply tf-local tf-fmt check-iam-posture check-spend-ceiling spend-ceiling check-domains deploy-status dev dev-local dev-recompile dev-status dev-stop proxy-check logs cloud-logs cloud-errors cloud-build verify-chat-logs smoke-session-persistence smoke-chat-resume smoke-curriculum-content smoke-teacher-cli help cli-install cli-reinstall cli-uninstall cli-doctor cli-selftest-mock cli-selftest-live cli-selftest seed seed-job seed-demo-codes force-seed-demo reset-group-state provision-curriculum-rag provision-agent-engine copy-docparse-secret seed-curriculum backfill-curriculum-content seed-curriculum-folders check-auth-config migrate-clear-persona-voice-override docs-linkcheck check-skills sim-build sim-build-check guides guides-publish guide-screens seed-guide-corpus guide-staleness
 
 # Seed SKILL.md templates -> Firestore. Since P1.3 the Cloud Build deploy runs
 # this automatically via the `aipla-seed-skills` Cloud Run job (see
@@ -343,6 +343,20 @@ tf-fmt:
 
 check-iam-posture:
 	@./scripts/check-iam-posture.sh $(ENVS)
+
+# Ring 0 of ACCESS-1: the Vertex daily input-token ceiling — the control that
+# actually STOPS spend (the billing budget in infrastructure/env/spend_ceiling.tf
+# only reports it). Verify-only by default; APPLY=1 to write the override.
+#
+# It always reads the DEPLOYED quota back, because a quota override whose
+# base_model dimension does not match a real model applies to nothing and still
+# exits 0 — the same "reports success having done nothing" class of bug that
+# cost the prod data plane on 2026-08-03.
+check-spend-ceiling:
+	@./scripts/spend-ceiling.sh $(or $(ENV),dev)
+
+spend-ceiling:
+	@./scripts/spend-ceiling.sh $(or $(ENV),dev) $(if $(filter 1,$(APPLY)),--apply,)
 
 # Is the ku.dk cutover actually complete? Most of the chain comes up by itself
 # once UCPH IT create the records. The sandbox's ALLOWED_HOST_ORIGINS does NOT —

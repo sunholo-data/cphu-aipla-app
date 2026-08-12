@@ -1,8 +1,9 @@
 """Unit tests for the three-tier thinking strategy (AGENT-FACTORY M2).
 
 Tier 1 — Gemini skills with no `thinking_model`: a single LlmAgent with
-  `BuiltInPlanner(ThinkingConfig(thinking_budget=-1))` (Gemini 2.5 dynamic
-  thinking — the model decides whether and how much to reason).
+  `BuiltInPlanner(ThinkingConfig(thinking_budget=...))`, resolved from
+  `AIPLA_THINKING_BUDGET`. Since ACCESS-1 M0 the fallback is `0` (thinking
+  off); `-1` (Gemini's unbounded dynamic thinking) is opt-in.
 
 Tier 2 — Claude / OpenAI skills with no `thinking_model`: a single LlmAgent
   with no planner (these providers don't support BuiltInPlanner).
@@ -68,9 +69,16 @@ def test_planner_for_claude_returns_none():
 # --- AIPLA_THINKING_BUDGET env knob (latency vs depth, no re-seed) ---
 
 
-def test_thinking_budget_defaults_to_dynamic_when_unset(monkeypatch):
+def test_thinking_budget_defaults_to_off_when_unset(monkeypatch):
+    """ACCESS-1 M0: the fallback is 0 (off), NOT -1 (unbounded dynamic).
+
+    All three deployed envs set ``=0`` in cloudbuild, so this changes no
+    deployed behaviour. What it protects is everything that does NOT inherit
+    that pipeline's env — Cloud Run jobs, scripts, tests, local processes —
+    which were silently running the most expensive setting the knob has.
+    """
     monkeypatch.delenv(THINKING_BUDGET_ENV, raising=False)
-    assert _resolve_thinking_budget() == -1
+    assert _resolve_thinking_budget() == 0
 
 
 def test_thinking_budget_reads_integer_env_override(monkeypatch):
@@ -80,11 +88,18 @@ def test_thinking_budget_reads_integer_env_override(monkeypatch):
     assert _resolve_thinking_budget() == 512
 
 
-def test_thinking_budget_invalid_or_blank_falls_back_to_dynamic(monkeypatch):
+def test_thinking_budget_unbounded_is_opt_in(monkeypatch):
+    """-1 (unbounded dynamic thinking) is still reachable — but only by asking."""
+    monkeypatch.setenv(THINKING_BUDGET_ENV, "-1")
+    assert _resolve_thinking_budget() == -1
+
+
+def test_thinking_budget_invalid_or_blank_falls_back_to_off(monkeypatch):
+    """A typo must not buy unbounded thinking."""
     monkeypatch.setenv(THINKING_BUDGET_ENV, "lots")
-    assert _resolve_thinking_budget() == -1
+    assert _resolve_thinking_budget() == 0
     monkeypatch.setenv(THINKING_BUDGET_ENV, "")
-    assert _resolve_thinking_budget() == -1
+    assert _resolve_thinking_budget() == 0
 
 
 def test_planner_applies_env_thinking_budget(monkeypatch):
@@ -96,11 +111,12 @@ def test_planner_applies_env_thinking_budget(monkeypatch):
     assert planner.thinking_config.thinking_budget == 0
 
 
-def test_planner_default_budget_is_dynamic(monkeypatch):
+def test_planner_default_budget_is_off(monkeypatch):
+    """No env var => the planner gets 0, so an un-configured process is cheap."""
     monkeypatch.delenv(THINKING_BUDGET_ENV, raising=False)
     planner = _planner_for(_skill(model="gemini-2.5-flash"))
     assert isinstance(planner, BuiltInPlanner)
-    assert planner.thinking_config.thinking_budget == -1
+    assert planner.thinking_config.thinking_budget == 0
 
 
 def test_planner_for_openai_returns_none():

@@ -154,3 +154,37 @@ variable "admin_operator_members" {
   description = "IAM members (e.g. \"user:m@sunholo.com\") granted serviceAccountTokenCreator on the runtime SA, so an operator can impersonate it to mint ID tokens for the HTTP admin ops (demo-code minting via scripts/seed-demo-codes.sh; HTTP seed). Declarative replacement for the manual gcloud grant dev got in May. Keep minimal — this is human→SA impersonation of a broadly-scoped SA."
   default     = []
 }
+
+# --- Ring 0 spend ceiling (ACCESS-1 M0) --------------------------------------
+# See spend_ceiling.tf for the why, the IAM these need, and the mandatory
+# post-apply verification step.
+
+variable "spend_ceiling_enabled" {
+  type        = bool
+  description = "Create the Vertex daily-token quota override + billing budget. OFF by default because both need IAM above what aipla-terraform@ holds (serviceusage.quotaAdmin on the project; billing.costsManager on the billing account). Turning this on without those grants reds the apply. After enabling, run scripts/check-spend-ceiling.sh <env> — a quota override with a wrong base_model dimension applies to nothing and still reports success."
+  default     = false
+}
+
+variable "daily_input_token_ceiling" {
+  type        = number
+  description = "Per-base-model daily input-token ceiling on Vertex generate_content. A hard stop, not a budget: sized as a generous multiple of expected pilot load so it is only ever hit by abuse or a runaway loop. 50M/day/model is roughly 100x a 30-student class at pilot intensity."
+  default     = 50000000
+}
+
+variable "billing_account_id" {
+  type        = string
+  description = "Billing account for the budget alert, e.g. \"01A211-266D3F-D96890\". Empty disables the budget (the quota override still applies). Needs roles/billing.costsManager for aipla-terraform@ at the billing-account level."
+  default     = ""
+}
+
+variable "monthly_budget_eur" {
+  type        = number
+  description = "Monthly budget in EUR that the 50/90/100% alerts fire against. Alerts do not stop spend — daily_input_token_ceiling does. This is how you find out."
+  default     = 200
+}
+
+variable "spend_alert_emails" {
+  type        = list(string)
+  description = "Email addresses notified on budget thresholds. Empty means IAM billing admins only."
+  default     = []
+}

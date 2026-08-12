@@ -1,0 +1,172 @@
+{
+  "sprint_id": "ACCESS-1",
+  "created": "2026-08-12T05:53:00Z",
+  "estimated_duration_days": 8,
+  "design_doc": "docs/design/aipla/v1.1.0-feedback/public-access-tiers-and-spend-control.md",
+  "sprint_plan": "docs/design/aipla/v1.1.0-feedback/public-access-tiers-and-spend-control-sprint.md",
+  "features": [
+    {
+      "id": "M0",
+      "description": "Ring 0 ceiling — bound AIPLA_THINKING_BUDGET (currently unset = -1 unbounded), Vertex quota override, billing budget alerts. No application code.",
+      "scope": "backend",
+      "estimated_loc": 120,
+      "actual_loc": null,
+      "dependencies": [],
+      "acceptance_criteria": [
+        "AIPLA_THINKING_BUDGET is set per env in BOTH cloudbuild.yaml and cloudbuild.promote.yaml",
+        "make check-cloudbuild passes",
+        "google_service_usage_consumer_quota_override on aiplatform.googleapis.com exists per env in infrastructure/env/",
+        "google_billing_budget with 50/90/100 percent thresholds exists",
+        "Ceiling numbers recorded in an ops runbook"
+      ],
+      "files_to_create": [
+        "infrastructure/env/spend_ceiling.tf"
+      ],
+      "files_to_modify": [
+        "cloudbuild.yaml",
+        "cloudbuild.promote.yaml",
+        "infrastructure/env/variables.tf",
+        "infrastructure/env/envs/dev.tfvars",
+        "infrastructure/env/envs/test.tfvars",
+        "infrastructure/env/envs/prod.tfvars"
+      ],
+      "passes": null,
+      "started": null,
+      "completed": null,
+      "notes": null
+    },
+    {
+      "id": "M1",
+      "description": "Access tiers — teacher_access Firestore register keyed by normalised email, access_tier custom claim reconciled at bootstrap, User.access_tier, assert_can_spend (402) on every paid entry point, no join code for visitors, SA-gated admin grant/revoke/list, CLI.",
+      "scope": "fullstack",
+      "estimated_loc": 740,
+      "actual_loc": null,
+      "dependencies": ["M0"],
+      "acceptance_criteria": [
+        "Absent claim resolves to visitor; revoked resolves to visitor; past expiresAt resolves to visitor",
+        "Every guarded route returns 402 for a visitor and 200 for a pilot",
+        "A visitor's bootstrap seeds activities and a Demo class but mints NO join code",
+        "Email normalisation: Anna@KU.dk matches anna@ku.dk; anna+test@ku.dk does NOT match anna@ku.dk",
+        "is_teacher semantics are unchanged and all existing assert_teacher tests still pass",
+        "Revoke calls revoke_refresh_tokens so outstanding sessions drop immediately"
+      ],
+      "files_to_create": [
+        "backend/db/teacher_access.py",
+        "backend/tests/unit/test_teacher_access.py",
+        "backend/tests/api_tests/test_access_tier_gate.py"
+      ],
+      "files_to_modify": [
+        "backend/auth/firebase_auth.py",
+        "backend/auth/guards.py",
+        "backend/admin/routes.py",
+        "backend/onboarding/demo_seed.py",
+        "backend/protocols/teacher_bootstrap_routes.py",
+        "backend/skills/skill_processor.py",
+        "cli/aiplatform/commands/",
+        "frontend/src/lib/apiClient.ts"
+      ],
+      "passes": null,
+      "started": null,
+      "completed": null,
+      "notes": null
+    },
+    {
+      "id": "M4",
+      "description": "Access request and visitor nudge — /teacher/access page in the (site) route group, visitor banner re-shown on any 402, POST /api/teacher/access-request writing an admin-reviewable queue, grant-from-queue CLI.",
+      "scope": "fullstack",
+      "estimated_loc": 350,
+      "actual_loc": null,
+      "dependencies": ["M1"],
+      "acceptance_criteria": [
+        "A visitor reaches the request route in one click from any teacher surface",
+        "Request submission does not reveal whether an email is already on the register",
+        "The new public page lives in the (site) route group so SiteFooter is structural",
+        "make check-brand-literals passes and the route-chrome coverage test passes",
+        "aiplatform access requests lists pending requests and grant marks them granted"
+      ],
+      "files_to_create": [
+        "frontend/src/app/(site)/teacher-access/page.tsx",
+        "backend/db/access_requests.py"
+      ],
+      "files_to_modify": [
+        "backend/protocols/teacher_bootstrap_routes.py",
+        "frontend/src/app/teacher/_TeacherClientShell.tsx"
+      ],
+      "passes": null,
+      "started": null,
+      "completed": null,
+      "notes": null
+    },
+    {
+      "id": "M2",
+      "description": "Recorded demo path — demo_transcripts seeded content replayed as a second AG-UI event source behind stream_agui_events, visibly labelled, off-script input gets an honest card plus the nudge rather than a fabricated answer.",
+      "scope": "fullstack",
+      "estimated_loc": 560,
+      "actual_loc": null,
+      "dependencies": ["M1"],
+      "acceptance_criteria": [
+        "A visitor chat streams recorded turns through the unchanged chat surface",
+        "Off-script input never yields a fabricated answer — it renders the honest card",
+        "A visitor session touches no model client (patched constructors raise) — the load-bearing test",
+        "Naming avoids _mock-data, getMock and MOCK_[A-Z] so check:no-mock passes",
+        "No part reuses the LOCAL_MODE identifier in any deployed config"
+      ],
+      "files_to_create": [
+        "backend/onboarding/demo_transcripts.py",
+        "backend/skills/replay_source.py",
+        "backend/tests/integration/test_visitor_zero_spend.py"
+      ],
+      "files_to_modify": [
+        "backend/skills/skill_processor.py",
+        "backend/onboarding/demo_seed.py"
+      ],
+      "passes": null,
+      "started": null,
+      "completed": null,
+      "notes": null
+    },
+    {
+      "id": "M3",
+      "description": "Per-teacher budget enforcer — FirestoreBudgetEnforcer implementing the existing BudgetEnforcer Protocol with sharded counters, registered at startup, billing identity resolving student turns to the owning teacher, spend_guard covering the ten direct-genai paths plus RAG and voice, and both fail-open behaviours inverted.",
+      "scope": "backend",
+      "estimated_loc": 630,
+      "actual_loc": null,
+      "dependencies": ["M1", "M2"],
+      "acceptance_criteria": [
+        "Cap not exceeded allows; soft threshold warns; exceeded blocks",
+        "Unresolved billing identity BLOCKS (inverted from the template's fail-open no-op)",
+        "Unknown model raises rather than being priced at zero and therefore ungated",
+        "A student's turn resolves group to class to owning teacher uid",
+        "Concurrent shard writes sum correctly",
+        "Startup assertion fires if models.yaml gains a model absent from the rate card"
+      ],
+      "files_to_create": [
+        "backend/budget/firestore_enforcer.py",
+        "backend/budget/spend_guard.py",
+        "backend/tests/unit/test_firestore_enforcer.py"
+      ],
+      "files_to_modify": [
+        "backend/fast_api_app.py",
+        "backend/budget/callback.py",
+        "backend/observability/llm_metrics.py",
+        "backend/skills/templates/"
+      ],
+      "passes": null,
+      "started": null,
+      "completed": null,
+      "notes": null
+    }
+  ],
+  "velocity": {
+    "target_loc_per_day": 320,
+    "actual_loc_per_day": null,
+    "estimated_total_loc": 2400,
+    "actual_total_loc": null,
+    "estimated_days": 8,
+    "actual_days": null
+  },
+  "github_issues": [],
+  "last_session": null,
+  "last_checkpoint": null,
+  "status": "not_started"
+}

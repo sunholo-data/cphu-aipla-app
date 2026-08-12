@@ -504,3 +504,64 @@ resource "google_storage_bucket_iam_member" "research_audio_runtime_sa" {
 ```
 
 ### Captured in script? ✅ yes — `ensure_research_audio_bucket()`. The Terraform recipe above is the test/prod equivalent.
+
+---
+
+### Decision 16 — Vertex daily input-token quota override is the Ring 0 spend ceiling (ACCESS-1 M0)
+
+**Applied to dev 2026-08-12. NOT yet applied to test/prod.**
+
+Publicising `aipla.ku.dk` means any Google account can reach the app, so the
+project needs a ceiling that no application bug can exceed. That is a Service
+Usage consumer quota override, not a billing budget — a budget alerts, a quota
+stops.
+
+**What was written to `aipla-dev-2026`:**
+
+| Field | Value |
+|---|---|
+| service | `aiplatform.googleapis.com` |
+| metric | `…/global_generate_content_input_tokens_per_minute_per_base_model` |
+| unit | `1/d/{project}/{base_model}` (the **daily** limit, not per-minute) |
+| dimensions | `base_model=gemini-3.5-flash-lite`, `base_model=gemini-3.6-flash` |
+| override value | `50000000` input tokens / day / base model |
+
+Verified by read-back: `effectiveLimit=50000000` on both. Operations
+`quf.p33-784116621297-a0d60bfb…` and `…-b4266079…`.
+
+**Why the daily unit.** The same metric also carries a per-minute limit. A
+per-minute cap throttles a spike but still permits unbounded spend across a day,
+which is the actual shape of the risk here — one leaked anonymous-group join
+code and many patient sessions, not a burst.
+
+**Why `global_*` and not the regional metric.** The backend runs with
+`GOOGLE_CLOUD_LOCATION=global` (`cloudbuild.yaml`), so the regional metric is
+not the one being consumed.
+
+**Why not Terraform.** `google_service_usage_consumer_quota_override` does not
+exist in the `google` or `google-beta` provider at the pinned 6.50.0 — verified
+against both provider binaries, not assumed. Bumping the provider for every
+resource in `infrastructure/env/` to obtain one resource was the worse trade.
+Re-home it into `infrastructure/env/spend_ceiling.tf` if the provider grows it.
+
+**Recipe (test/prod):** `make spend-ceiling ENV=test APPLY=1`
+(`scripts/spend-ceiling.sh`). It is idempotent, so re-running is a no-op.
+
+**The script always reads the deployed quota back**, and `make
+check-spend-ceiling ENV=<env>` is the verify-only half. This is deliberate: a
+quota override whose `base_model` dimension does not match a real model applies
+to **nothing** and still exits 0 — the same "reports success having done
+nothing" class of bug that cost the prod data plane on 2026-08-03 and that
+`check-iam-posture.sh` exists to catch for IAM.
+
+**Follow-on:** a model added to `backend/config/models.yaml` is **unlimited**
+until it is added to `BASE_MODELS` in `scripts/spend-ceiling.sh`. There is no
+gate on that yet.
+
+**Sibling (Terraform, opt-in, not yet enabled):** `google_billing_budget` in
+`infrastructure/env/spend_ceiling.tf` — needs `roles/billing.costsManager` on
+`billingAccounts/01A211-266D3F-D96890` for `aipla-terraform@`, which it does not
+hold. Set `spend_ceiling_enabled = true` + `billing_account_id` per env once
+granted.
+
+### Captured in script? ✅ yes — `scripts/spend-ceiling.sh` (apply + verify), `make spend-ceiling` / `make check-spend-ceiling`.
