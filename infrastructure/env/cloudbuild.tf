@@ -304,34 +304,43 @@ resource "google_cloudbuild_trigger" "prod_promote" {
 
 # prod: the SAME promote pipeline, reachable WITHOUT a laptop.
 #
-# The trigger above is the fast path — `make promote … GO=1` from a terminal —
-# and it stays unapproved so that path is one step, not two. But it is the ONLY
-# way prod moves, which makes a working laptop a dependency of shipping: on
-# holiday, with a dead machine, or with someone else covering, prod is stuck.
+# RETIRED — disabled 2026-08-13. Kept, not deleted, like `prod_release` above:
+# flip `disabled` and re-apply to bring the laptop-free route back.
 #
-# This trigger closes that. A `v*` tag creates a prod promote build that PAUSES
-# pending approval (Cloud Build's native gate — the same human decision the
-# `GO=1` flag encodes, moved to a place reachable from a browser or a phone).
-# Approve in the console, or:
+# WHAT IT WAS FOR. The terminal trigger above is the fast path — `make promote …
+# GO=1` — but it was the ONLY way prod moved, which made a working laptop a
+# dependency of shipping: on holiday, with a dead machine, or with someone else
+# covering, prod was stuck. This trigger closed that by having a `v*` tag create
+# a prod promote build PAUSED pending approval, in a place reachable from a
+# browser or a phone.
 #
-#   gcloud builds approve <BUILD_ID> --project=aipla-prod-2026 --region=europe-north1
+# WHY IT IS OFF. The queue it creates never drains by itself. A queued promote
+# does not expire and stays pinned to the tag that created it, so EVERY tag ever
+# pushed left one behind — and approving a stale one deploys that OLDER version
+# over prod, through a button whose entire visual language says "safe". By
+# 2026-08-13 the queue held five (v0.1.13–v0.1.17); on 2026-08-07 it held
+# v0.1.9 and v0.1.10 three days after prod had moved to v0.1.11. Nothing in the
+# release process swept it, so the hazard grew once per release and the
+# mitigation was "remember to reject them", which is not a mitigation.
 #
-# Deliberately NOT a return to v0.1.2's behaviour, where a tag deployed prod
-# outright: the tag only QUEUES prod, and nothing reaches it unapproved. It also
-# gives an audit trail the laptop path never had — who approved which version,
-# and when.
+# The cost of turning it off is real and accepted: shipping to prod now requires
+# a machine that can run `make promote`. That is a smaller, more visible failure
+# (nobody can ship) than the one it replaces (someone ships backwards without
+# noticing). Re-enable when the queue is swept automatically, or when the cover
+# story needs it — and if you do, sweep it as the last step of every release.
 #
-# Ordering note: the tag fires this and `aipla-test-release` at the same moment,
-# and the promote COPIES the image test builds. Approving before test is green
-# would find no source image — the pipeline's guard-source-image step fails
-# early and loudly rather than half-promoting. Approve after test goes green.
+# Note this does NOT re-arm tag→prod deploys: `prod_release` above stays
+# disabled too. With both off, a `v*` tag reaches test only, and prod moves
+# solely by an explicit `make promote`.
 resource "google_cloudbuild_trigger" "prod_promote_on_tag" {
   count = var.env == "prod" ? 1 : 0
+
+  disabled = true
 
   project         = var.project_id
   location        = var.region
   name            = "aipla-prod-promote-on-tag"
-  description     = "Tag vX.Y.Z queues a prod promote, held for manual approval. The laptop-free path; aipla-prod-promote is the terminal one."
+  description     = "RETIRED (disabled 2026-08-13): laptop-free promote route. Its approval queue never drained and stale entries silently rolled prod back. Steady state is the terminal route — make promote FROM=test TO=prod GO=1."
   service_account = "projects/${var.project_id}/serviceAccounts/${google_service_account.runtime.email}"
 
   repository_event_config {
