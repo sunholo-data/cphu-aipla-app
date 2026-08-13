@@ -102,7 +102,26 @@ function AnonymousGroupAuthAdapter({ children }: { children: ReactNode }) {
     <AuthContext.Provider
       value={{
         user,
-        loading: false,
+        // `loading` MUST track hydration, not be hardcoded false (2026-08-13).
+        //
+        // The group session lives in sessionStorage and is read back in a mount
+        // effect, so on the very first render `user` is null even for a student
+        // who is perfectly signed in. Reporting `loading: false` there told
+        // every consumer "auth has settled, and there is nobody" — and the chat
+        // page's `if (!loading && !user) router.replace("/")` believed it and
+        // redirected before hydration could land.
+        //
+        // In-app navigation hid this completely: the provider is already
+        // mounted, so `user` is populated and nothing redirects. Only a COLD
+        // load or a reload of a /chat URL hit it — which on a phone is the
+        // common case, not the edge one. iOS evicts backgrounded tabs and
+        // reloads them on return, and backgrounding is exactly what taking a
+        // photo of your work does. The student came back to the home page with
+        // their session intact and no explanation.
+        //
+        // Costs one "Loading…" frame on first paint. That is the correct
+        // trade: the alternative is asserting a fact we have not checked yet.
+        loading: !group.hydrated,
         getIdToken: async () => group.token,
         // No interactive sign-in — the /group page handles join.
         signIn: async () => {},

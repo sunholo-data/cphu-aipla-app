@@ -71,6 +71,15 @@ export interface GroupAuthUser {
 
 export interface AnonymousGroupAuthContextValue {
   status: GroupAuthStatus;
+  /** False until the mount effect has looked in sessionStorage; true forever
+   *  after, whether or not a session was found.
+   *
+   *  Load-bearing, not informational. `status: "idle"` cannot answer "is there
+   *  a session?" because it means BOTH "not looked yet" and "looked, nothing
+   *  there" — and a consumer that treats the first as the second concludes the
+   *  student is signed out and acts on it. See the note on `loading` in
+   *  `AuthContext`'s AnonymousGroupAuthAdapter for the bug that caused. */
+  hydrated: boolean;
   user: GroupAuthUser | null;
   token: string | null;
   expiresAt: number | null;
@@ -139,6 +148,9 @@ export function AnonymousGroupAuthProvider({ children }: { children: ReactNode }
   const [status, setStatus] = useState<GroupAuthStatus>("idle");
   const [session, setSession] = useState<PersistedGroupSession | null>(null);
   const [error, setError] = useState<GroupAuthError | null>(null);
+  // False for the first render (server AND client, so no hydration mismatch);
+  // true once the effect below has run. See the `hydrated` doc comment.
+  const [hydrated, setHydrated] = useState(false);
   // Guards against overlapping refreshes (timer + visibilitychange can both
   // fire near expiry).
   const refreshingRef = useRef(false);
@@ -151,6 +163,10 @@ export function AnonymousGroupAuthProvider({ children }: { children: ReactNode }
       setSession(stored);
       setStatus("joined");
     }
+    // Unconditional: "we looked" is the fact consumers need, and it is just as
+    // true when the drawer was empty. Setting it only in the `stored` branch
+    // would leave a genuinely-signed-out student permanently "still loading".
+    setHydrated(true);
   }, []);
 
   // Stay in sync with refreshes initiated OUTSIDE React — the lib layer
@@ -293,6 +309,7 @@ export function AnonymousGroupAuthProvider({ children }: { children: ReactNode }
 
   const value: AnonymousGroupAuthContextValue = {
     status,
+    hydrated,
     user: session ? userFromSession(session) : null,
     token: session?.token ?? null,
     expiresAt: session?.expires_at ?? null,
