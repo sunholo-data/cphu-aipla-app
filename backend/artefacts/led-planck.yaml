@@ -10,6 +10,15 @@ levels:
   - A
   - B
 language: da
+# MOBILE-1 (2026-08-13): the lab bench is laid out at fixed coordinates
+# (#psu at left:20px … #chip_blue at left:510px, #bench min-height:660px) with
+# zero media queries, so below ~720px the breadboard and the LED tray sit off
+# the right edge. Measured: #breadboard reaches 539px on a 390px viewport.
+# Dragging uses pointer events and works fine on touch — there is simply
+# nowhere to put the equipment. iPad portrait (810px) is comfortable.
+# Rescaling the bench is possible but is a rework of the artefact; labelling it
+# is the honest cheap answer, and matches "some lessons are device-limited".
+minViewportPx: 720
 eventVocabulary:
   - set-led
   - measure

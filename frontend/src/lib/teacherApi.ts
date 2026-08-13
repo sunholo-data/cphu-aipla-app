@@ -155,6 +155,11 @@ export interface ArtefactSummary {
   /** Optional preview image (path/URL). Unset → the UI draws an icon/monogram
    *  tile so the sim is still identifiable at a glance. */
   thumbnail?: string | null;
+  /** MOBILE-1 — narrowest viewport (CSS px) at which this sim is fully usable;
+   *  unset means "works everywhere". Artefact-intrinsic, from the backend
+   *  catalogue. The teacher picker surfaces it so a phone-class activity is not
+   *  built around a sim the class cannot open. */
+  minViewportPx?: number | null;
   status: string;
 }
 

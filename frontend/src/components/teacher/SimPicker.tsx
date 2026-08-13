@@ -1,6 +1,6 @@
 "use client";
 
-import { FlaskConical, X } from "lucide-react";
+import { FlaskConical, TabletSmartphone, X } from "lucide-react";
 import { useEffect, useState } from "react";
 
 import { listArtefacts, type ArtefactSummary } from "@/lib/teacherApi";
@@ -85,6 +85,14 @@ export function SimPicker({ value, onChange }: SimPickerProps) {
               <span className="flex min-w-0 flex-col gap-0.5">
                 <span className="text-sm font-medium text-slate-800">{a.displayName}</span>
                 <span className="text-xs text-slate-500">{a.description}</span>
+                {/* MOBILE-1 — device requirement at the point of CHOOSING, not
+                    at the point a class of thirty phones fails to open it. */}
+                {a.minViewportPx ? (
+                  <span className="mt-0.5 inline-flex w-fit items-center gap-1 rounded border border-amber-300 bg-amber-50 px-1.5 py-0.5 text-[11px] font-medium text-amber-900">
+                    <TabletSmartphone className="h-3 w-3" aria-hidden="true" />
+                    {a.minViewportPx >= 720 ? "Tablet or laptop" : "Cramped on a phone"}
+                  </span>
+                ) : null}
               </span>
             </button>
           ))}

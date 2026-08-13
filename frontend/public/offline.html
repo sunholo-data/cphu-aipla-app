@@ -1,0 +1,64 @@
+<!doctype html>
+<html lang="da">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Ingen forbindelse — AIPLA</title>
+    <!--
+      Served by the service worker when a navigation fails and nothing matching
+      is cached. Deliberately standalone: no JS, no fonts, no chunks — every one
+      of those is a request that would also fail offline, and a broken offline
+      page is worse than a browser error because it looks like OUR bug.
+
+      Says what is true (the phone lost signal), what is safe (nothing typed is
+      lost), and what to do. Danish first, English under, matching /group.
+    -->
+    <style>
+      :root { color-scheme: light dark; }
+      body {
+        margin: 0; min-height: 100dvh;
+        display: flex; align-items: center; justify-content: center;
+        padding: 1.5rem;
+        font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif;
+        background: #fff; color: #0f172a;
+        line-height: 1.5;
+      }
+      @media (prefers-color-scheme: dark) {
+        body { background: #0b1120; color: #e2e8f0; }
+        .card { border-color: #1e293b; }
+        .en { color: #94a3b8; }
+      }
+      .card { max-width: 26rem; border: 1px solid #e2e8f0; border-radius: 12px; padding: 1.5rem; }
+      .mark {
+        width: 48px; height: 48px; border-radius: 10px; background: #901a1e;
+        color: #fff; display: grid; place-items: center;
+        font-weight: 800; font-size: 26px; margin-bottom: 1rem;
+      }
+      h1 { font-size: 1.15rem; margin: 0 0 .5rem; }
+      p { margin: 0 0 .75rem; }
+      .en { color: #64748b; font-size: .9rem; }
+      button {
+        font: inherit; font-weight: 600; cursor: pointer;
+        background: #901a1e; color: #fff; border: 0;
+        border-radius: 8px; padding: .7rem 1.1rem; min-height: 44px; width: 100%;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="card">
+      <div class="mark" aria-hidden="true">A</div>
+      <h1>Ingen forbindelse</h1>
+      <p>
+        Din telefon har mistet forbindelsen. Det, du har skrevet, er ikke gået
+        tabt — gå tilbage, når du har signal igen.
+      </p>
+      <p class="en">
+        Your phone lost its connection. Nothing you typed is lost — come back
+        when you have signal again.
+      </p>
+      <button type="button" onclick="location.reload()">
+        Prøv igen / Try again
+      </button>
+    </div>
+  </body>
+</html>

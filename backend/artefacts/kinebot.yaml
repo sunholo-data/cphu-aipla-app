@@ -9,6 +9,11 @@ levels:
   - B
   - C
 language: en
+# MOBILE-1 (2026-08-13): usable on a phone but degraded — the motion scene is
+# wider than 390px so the far end of the ruler clips, and the mode tabs need a
+# horizontal scroll. Controls, sliders and readouts all lay out correctly, so
+# this is a "you will be scrolling" warning, not a "do not bother".
+minViewportPx: 480
 eventVocabulary:
   - play
   - step

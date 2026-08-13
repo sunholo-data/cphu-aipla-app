@@ -9,6 +9,10 @@ levels:
   - B
   - C
 language: da
+# MOBILE-1 (2026-08-13): deliberately no minViewportPx. Boldkast is the one
+# artefact written mobile-first — single-column by default with `min-width`
+# media queries adding columns as room appears — and it audits clean at 390px.
+# It is the reference for what a phone-ready sim looks like.
 eventVocabulary:
   - play
   - pause

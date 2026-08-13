@@ -39,6 +39,22 @@ const nextConfig = {
     return [
       { source: '/personas/:path*', headers: avatarCache },
       { source: '/lesson-images/:path*', headers: avatarCache },
+      // MOBILE-1 — the service worker must never be served from cache. A stale
+      // sw.js is self-perpetuating: the old worker keeps answering, so the new
+      // one is never fetched, and the bug outlives every deploy until someone
+      // clears site data by hand. Next serves /public with `private, max-age=0`
+      // which would probably be enough; saying it explicitly costs nothing and
+      // removes the "probably".
+      {
+        source: '/sw.js',
+        headers: [
+          { key: 'Cache-Control', value: 'no-cache, no-store, must-revalidate' },
+          // Lets the worker claim the whole origin even though the script is
+          // served from /public. Harmless at the root; load-bearing if the
+          // script ever moves under a path.
+          { key: 'Service-Worker-Allowed', value: '/' },
+        ],
+      },
     ]
   },
 }

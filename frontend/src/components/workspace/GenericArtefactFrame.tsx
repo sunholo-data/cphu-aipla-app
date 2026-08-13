@@ -30,6 +30,10 @@ export interface ActivityArtefact {
   topics?: string[];
   levels?: string[];
   language?: string;
+  /** MOBILE-1 — narrowest viewport (CSS px) at which this sim is fully usable.
+   *  Undefined means "works everywhere". Set from the backend artefact
+   *  catalogue (`backend/artefacts/*.yaml`), never per activity. */
+  minViewportPx?: number | null;
   status?: string;
 }
 

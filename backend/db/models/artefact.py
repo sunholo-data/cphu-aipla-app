@@ -43,6 +43,20 @@ class ArtefactMeta(BaseModel):
     # identify the sim at a glance). Unset → the frontend draws an icon/monogram
     # tile. Supply a screenshot here per sim as they're produced.
     thumbnail: str | None = Field(default=None, max_length=300)
+    # MOBILE-1 (2026-08-13). Narrowest viewport, in CSS px, at which this
+    # artefact is FULLY usable. Unset means "works everywhere", which is the
+    # honest default only for artefacts actually built mobile-first.
+    #
+    # This is artefact-INTRINSIC — a property of how the sim was drawn, not of
+    # any activity that hosts it — which is why it lives here and not on the
+    # activity config. LED-Planck lays its bench out at fixed coordinates
+    # (#breadboard reaches 539px) with no media queries, so on a 390px phone
+    # half the equipment is off-screen; touch works fine, there is simply
+    # nowhere to put it.
+    #
+    # The point is to TELL the student, not to hide the activity: a labelled
+    # "open this on a tablet" beats a sim that silently renders half a circuit.
+    min_viewport_px: int | None = Field(default=None, alias="minViewportPx", ge=320, le=2000)
     status: ArtefactStatus = "live"
 
     model_config = ConfigDict(populate_by_name=True)
@@ -65,6 +79,7 @@ class ArtefactMeta(BaseModel):
             "language": self.language,
             "artefactPath": self.artefact_path,
             "thumbnail": self.thumbnail,
+            "minViewportPx": self.min_viewport_px,
             "status": self.status,
         }
 

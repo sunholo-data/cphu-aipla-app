@@ -239,6 +239,10 @@ function simToArtefact(s: ArtefactSummary): ActivityArtefact {
     topics: s.topics,
     levels: s.levels,
     language: s.language,
+    // MOBILE-1 — carried through so the builder PREVIEW shows the same
+    // "needs a wider screen" notice the student would get. The preview
+    // existing to stop preview/live drift is the whole reason it is here.
+    minViewportPx: s.minViewportPx,
     status: s.status,
   };
 }
