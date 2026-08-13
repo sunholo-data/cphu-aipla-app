@@ -86,6 +86,45 @@ describe("ACTIVITY_TEMPLATES", () => {
   });
 });
 
+describe("kepler-chalk-orbit template (MOBILE-1) — the outdoor, mobile-first starter", () => {
+  const t = ACTIVITY_TEMPLATES.find((x) => x.id === "kepler-chalk-orbit")!;
+
+  it("exists and is built only from phone-viable elements", () => {
+    expect(t).toBeDefined();
+    // A sim would defeat the point: the three shipped artefacts are the
+    // desktop-bound half of the palette (LED-Planck's fixed-coordinate bench
+    // needs ~720px). Outdoors, the schoolyard IS the simulation.
+    expect(t.artefactId, "an outdoor template must not host a sim iframe").toBeUndefined();
+    // Two columns, not five — a wide table is unreadable on a 390px phone.
+    expect(t.table?.columns).toHaveLength(2);
+    expect(t.calculator?.inputs).toHaveLength(2);
+  });
+
+  it("makes the camera the primary measurement instrument", () => {
+    // The chalk construction cannot be typed in; it is photographed. This is
+    // the element that made the hidden-on-mobile camera button (ImageComposer
+    // `hidden sm:inline-flex`) a blocker rather than a cosmetic bug.
+    expect(t.solution?.prompt).toBeTruthy();
+    expect(t.checklist.some((c) => c.toLowerCase().includes("billede"))).toBe(true);
+  });
+
+  it("gives the tutor the check values but tells it not to hand them over", () => {
+    // Mars' real orbit: a = 1.52 AU, r between 1.38 and 1.67 AU. Without these
+    // the tutor cannot tell a bad protractor reading from an elliptical orbit.
+    expect(t.teachingGoal).toContain("1,52");
+    expect(t.teachingGoal).toContain("1,38");
+    expect(t.teachingGoal).toContain("1,67");
+    expect(t.teachingGoal.toLowerCase()).toContain("afslør ikke facit");
+  });
+
+  it("carries the field procedure in the note, so it works with no signal", () => {
+    // Groups are outdoors on a shared phone. If the method is not in the
+    // activity itself, a dropped connection ends the lesson.
+    expect(t.note?.body).toContain("687");
+    expect(t.note?.body.toLowerCase()).toContain("1 au");
+  });
+});
+
 describe("agent-design template (RUBRIC-1 M2 / 1.1.57)", () => {
   const t = ACTIVITY_TEMPLATES.find((x) => x.id === "agent-design")!;
 

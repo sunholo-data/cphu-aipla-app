@@ -538,6 +538,111 @@ export const ACTIVITY_TEMPLATES: ActivityTemplate[] = [
     },
   },
   {
+    // MOBILE-1 (2026-08-13) — the first deliberately MOBILE-FIRST, OUTDOOR
+    // template. Every other starter assumes a desk: a sim iframe, a wide table,
+    // a chart. This one assumes a phone shared by three students standing on
+    // asphalt, and is built only from elements that survive a 390px viewport:
+    // checklist (the field procedure), a two-column table, one scatter chart,
+    // a one-input-pair calculator, and the SOLUTION element — a photo of the
+    // chalk construction, which is the actual measurement instrument here.
+    //
+    // Deliberately NO `artefactId`. The three shipped sims are the desktop-bound
+    // half of the palette (LED-Planck's fixed-coordinate bench is unusable below
+    // ~720px); the schoolyard IS the simulation. This is also the template that
+    // exercises the camera path end to end, which is why it lands alongside the
+    // ImageComposer fix.
+    //
+    // Lineage: Jesper's embodied-learning lesson in
+    // docs/design/forks/playground-tutor/v0.1.0/scope.md — groups of three on one
+    // phone, chalk diagrams on asphalt, sight lines meeting at an intersection.
+    //
+    // CONTENT NOTE (same posture as the other starters — AR/JB review before
+    // classroom use): the METHOD and the Mars constants below are standard and
+    // checkable (sidereal period 687 d; a = 1,52 AU; r ranges 1,38–1,67 AU).
+    // The per-pair OBSERVATION DATES AND ANGLES are NOT baked in — the teacher
+    // hands those out (Materials / paper worksheet), because they must come from
+    // a real ephemeris and inventing plausible ones would have every group
+    // construct a wrong orbit and never find out.
+    id: "kepler-chalk-orbit",
+    name: "Mars' bane med kridt i skolegården",
+    summary: "Udendørs, mobil-først: konstruér Mars' bane med kridt og snor, fotografér den, aflæs afstanden.",
+    language: "da",
+    title: "Mars' bane — kridt i skolegården",
+    teachingGoal:
+      "Eleverne står udenfor med en telefon, kridt og en snor, og konstruerer Mars' bane med Keplers " +
+      "metode: Solen i centrum, Jordens bane som en cirkel, og to sigtelinjer fra to jordpositioner, " +
+      "der er 687 dage fra hinanden (ét Mars-år, så Mars står samme sted begge gange). Skæringspunktet " +
+      "er ét punkt på Mars' bane. Læreren udleverer observationsdatoer og vinkler. " +
+      "Din rolle: hjælp dem med METODEN og med at tolke deres egne målinger — konstruér ikke banen for " +
+      "dem og afslør ikke facit. Når de har 4–5 punkter, så spørg, om afstanden Sol–Mars er den samme " +
+      "hele vejen rundt; det er pointen, at den ikke er. " +
+      "Til din egen kontrol (sig det ikke direkte): Mars' middelafstand er ca. 1,52 AU, og afstanden " +
+      "varierer mellem ca. 1,38 AU og ca. 1,67 AU. Ligger en gruppes punkt langt uden for det, er det " +
+      "næsten altid en vinkel målt fra den forkerte nulretning — spørg til det i stedet for at rette det. " +
+      "Eleverne arbejder på én delt telefon: hold svarene korte, og bed om et foto, når du er i tvivl om, " +
+      "hvad de har tegnet.",
+    checklist: [
+      "Tegn Solen og Jordens bane med kridt og snor — notér radius i meter",
+      "Afsæt de to jordpositioner for det første målepar",
+      "Stræk snoren i de to sigteretninger og markér skæringspunktet",
+      "Mål afstanden Sol–Mars med snoren og omregn til AU",
+      "Gentag for mindst 4 målepar",
+      "Tag et billede af hele konstruktionen og send det til tutoren",
+    ],
+    table: {
+      title: "Punkter på Mars' bane",
+      columns: [
+        { label: "Mars' retning fra Solen", unit: "°", kind: "number" },
+        { label: "Afstand Sol–Mars", unit: "AU", kind: "number" },
+      ],
+      rows: 6,
+    },
+    // r mod θ: a circular orbit is a flat line, an ellipse is a wave. The whole
+    // conclusion is visible in the shape of this one plot.
+    chart: { title: "Afstand mod retning", chartKind: "scatter" },
+    calculator: {
+      title: "Fra kridt-meter til AU",
+      // The conversion they repeat at every single point: the chalk circle they
+      // drew for Earth's orbit IS 1 AU, so any length divided by that radius is
+      // already in astronomical units. No scale factor to remember, no ruler.
+      formula: "r / R",
+      inputs: [
+        { id: "r", label: "Sol–Mars målt med snor", unit: "m" },
+        { id: "R", label: "Jordbanens radius (kridt)", unit: "m" },
+      ],
+    },
+    solution: {
+      prompt:
+        "Tag et billede af jeres kridttegning — hele cirklen, sigtelinjerne og de punkter, I har " +
+        "markeret. Skriv kort, hvilket målepar billedet viser.",
+    },
+    writing: [
+      {
+        title: "Konklusion",
+        prompt:
+          "Er afstanden fra Solen til Mars den samme hele vejen rundt? Hvad siger jeres punkter om " +
+          "banens form? Skriv jeres største og mindste målte afstand, og nævn mindst én grund til, at " +
+          "målingerne kan være upræcise, når man tegner med kridt udendørs.",
+        minWords: 80,
+      },
+    ],
+    note: {
+      title: "Sådan gør I",
+      body:
+        "**Idéen:** Mars bruger 687 dage om ét omløb. To observationer med præcis 687 dages mellemrum " +
+        "viser derfor Mars *samme sted* i sin bane — men set fra to forskellige steder på Jordens bane. " +
+        "De to sigtelinjer skærer hinanden dér, hvor Mars er.\n\n" +
+        "**Skala:** Tegn Jordens bane som en cirkel med kridt og snor. Den radius, I vælger, **er 1 AU**. " +
+        "Vælg mindst 1,5 m, så der er plads til Mars uden for cirklen.\n\n" +
+        "1. Sæt et kridtkryds i midten — det er Solen. Bind snoren og tegn cirklen.\n" +
+        "2. Markér 0° på cirklen, og afsæt de to jordpositioner fra lærerens skema.\n" +
+        "3. Stræk snoren fra hver jordposition i den opgivne sigteretning. Hvor de to linjer mødes, er Mars.\n" +
+        "4. Mål med snoren fra Solen ud til krydset, og divider med jeres cirkelradius — så har I afstanden i AU.\n" +
+        "5. Mål også, hvilken retning Mars ligger i set fra Solen, og skriv begge tal i tabellen.\n\n" +
+        "**Tip:** Skriv målepar-nummeret ved hvert kryds med kridt, så I kan se på fotoet, hvad der er hvad.",
+    },
+  },
+  {
     // 1.1.45 M4 → image-based 1.1.48 M1 (JB-2): the student photographs their
     // own pen-and-paper solution and the tutor gives Socratic feedback on it.
     id: "solution-writing",

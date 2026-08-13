@@ -65,6 +65,13 @@ interface UploadButtonsProps {
  * INSIDE the composer form to the left of the text input. Both drive hidden
  * file inputs. The camera input sets `capture` so mobile opens the rear camera
  * directly; on desktop it falls back to a normal file picker.
+ *
+ * MOBILE-1 (2026-08-13): the camera button used to carry `hidden sm:inline-flex`,
+ * which hid it below 640px — i.e. on every phone in portrait, the only devices
+ * where `capture="environment"` does anything at all. A student photographing a
+ * chalk diagram on the asphalt is the whole point of this button, so it is now
+ * visible at every width. Both mount points inherit the fix: this composer and
+ * `SolutionElementMount` ("upload a photo of your handwritten solution").
  */
 export function ImageUploadButtons({ onFiles, disabled, full }: UploadButtonsProps) {
   const fileRef = useRef<HTMLInputElement>(null);
@@ -82,8 +89,12 @@ export function ImageUploadButtons({ onFiles, disabled, full }: UploadButtonsPro
     e.target.value = "";
   };
 
+  // 44px is the Apple HIG minimum touch target; the composer is used outdoors
+  // with cold/wet fingers on a phone shared by three students. Desktop reverts
+  // to the compact icon button so the composer row stays tight.
   const btn = cn(
-    "rounded-md border px-2 py-2 text-muted-foreground hover:text-foreground",
+    "flex min-h-[44px] min-w-[44px] items-center justify-center rounded-md border",
+    "text-muted-foreground hover:text-foreground sm:min-h-0 sm:min-w-0 sm:px-2 sm:py-2",
     inert && "cursor-not-allowed opacity-40 hover:text-muted-foreground",
   );
 
@@ -121,7 +132,7 @@ export function ImageUploadButtons({ onFiles, disabled, full }: UploadButtonsPro
         disabled={inert}
         aria-label="Take photo"
         title={full ? "Maximum images reached" : "Take photo"}
-        className={cn(btn, "hidden sm:inline-flex")}
+        className={btn}
       >
         <Camera className="h-4 w-4" />
       </button>

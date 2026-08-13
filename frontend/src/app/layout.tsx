@@ -32,7 +32,12 @@ export default function RootLayout({
 }) {
   return (
     <html lang="en">
-      <body className="font-sans bg-background text-foreground h-screen flex flex-col antialiased">
+      {/* h-dvh, not h-screen: `100vh` on iOS Safari / Chrome Android is the
+          LARGE viewport (URL bar collapsed), so a `100vh` body is taller than
+          what the student can actually see and the pinned chat composer sits
+          below the fold until the toolbar retracts. `100dvh` tracks the live
+          viewport. Desktop is unaffected — the two units are equal there. */}
+      <body className="font-sans bg-background text-foreground h-dvh flex flex-col antialiased">
         <LocalModeBanner />
         <EnvironmentBanner />
         <div className="flex-1 min-h-0 flex flex-col overflow-auto">

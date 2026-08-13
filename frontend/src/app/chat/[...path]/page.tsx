@@ -1337,11 +1337,18 @@ function ChatShell({
                 onNotice={setVoiceNotice}
               />
               {isAnonymousGroupAuthMode() && <CallTeacherButton disabled={inputDisabled} />}
+              {/* text-base (16px) below sm is load-bearing, not styling: iOS
+                  Safari force-zooms the page on focus for ANY input under 16px
+                  and never zooms back, which wrecks the pinned-composer layout
+                  for the rest of the lesson. min-w-0 lets the input actually
+                  shrink — flex items default to min-width:auto, and an <input>
+                  resolves that to its intrinsic ~20-character width, which on a
+                  390px phone pushes Send off the row. */}
               <input
                 value={draft}
                 onChange={(e) => setDraft(e.target.value)}
                 placeholder="Message…"
-                className="flex-1 rounded-md border px-3 py-2 text-sm"
+                className="min-w-0 flex-1 rounded-md border px-3 py-2 text-base sm:text-sm"
                 disabled={inputDisabled}
               />
               {isLoading ? (
