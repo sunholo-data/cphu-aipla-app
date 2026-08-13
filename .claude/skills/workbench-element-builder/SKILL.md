@@ -95,6 +95,49 @@ fullness?* If the second, exclude it and say why.
 registered kind is in neither camp. Silence must be a decision, not an
 oversight.
 
+## Before any of that: can the student's browser even SEE the element?
+
+The four wirings below are about what the **tutor** knows. There is a prior
+question that has now been answered wrong twice, and both times the element was
+stored perfectly and simply never arrived:
+
+**`writing` (1.1.73) and `conceptMap` (CONCEPT-1)** were both saved correctly by
+every teacher, rendered correctly by a client that was ready for them, and
+invisible to every student — because the student read endpoint,
+`GET /api/activity-configs/active/{id}`, hand-enumerated its element fields in a
+dict literal and neither kind was in it. Jesper, 2026-08-13: *"I can choose it in
+the Activity builder … but it doesn't appear when I log in as a student group."*
+
+Check both carrier paths:
+
+- **`protocols/activity_config_routes.py`** — the `/active` response. Now
+  registry-driven (`_element_block`), so a new kind is carried automatically.
+  **Guard:** `test_active_surfaces_every_registered_element_kind`.
+- **`db/activity_configs.py::upsert_activity_config`** — one keyword per kind;
+  it silently dropped both. **Guards:**
+  `test_every_element_kind_is_accepted_by_the_legacy_upsert` plus a round-trip
+  test, because accepting a keyword is not the same as storing it.
+
+**The pattern behind every element bug this project has shipped:** somewhere
+SPELLS OUT the element fields instead of iterating the registry — a Pydantic
+model, a function signature, a response dict, a CLI payload — and goes stale in
+silence. The frontend has never had this bug: `ElementRenderContext` is a
+`Record<ElementKind, …>` and the compiler refuses a missing key. Dict literals
+and keyword arguments have no such conscience.
+
+**So the rule: iterate `ELEMENT_REGISTRY` where you can; where you genuinely
+cannot, write the test that iterates it for you.** An enumeration may be written
+by hand. It may never be left unchecked.
+
+Quick self-check before calling a new element done:
+
+```bash
+cd backend && uv run pytest -q -k "element_kind or element_field or registered_element"
+```
+
+That selects every registry-completeness guard at once — models, adapters,
+manifest describer, fill reader, the student read path, and the legacy upsert.
+
 ## Decision rule — does this element need a card, and what kind?
 
 Pick by the **shape of the interaction**, not the element name:

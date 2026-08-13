@@ -137,6 +137,10 @@ class DocumentElement(BaseModel):
 
 1. Add `ElementKind` value + a Pydantic `<Name>Element` model with a `kind` discriminator + bounded fields (the registry rejects unbounded text/lists).
 1b. **⚠ Thread the `list[<Name>Element]` field through ALL THREE activity stores — the ALS-1 split doubled the surface.** It's not enough to add it to `ActivityConfig`: also add it to the class-independent `Activity` model (`db/models/activity.py`) and the `ActivityUpsert` request body (`protocols/activity_routes.py`, `extra="forbid"`), and **map it in BOTH adapters** (`_activity_from_body` and `_activity_to_config`). Miss the `ActivityUpsert` field → the builder's `<field>: []` 422s with `extra_forbidden`; miss `_activity_to_config` → it creates fine but the student never sees the element. `test_every_element_field_is_present_on_all_activity_models` fails loudly on a missing **model** field, but the **adapter mappings aren't auto-checked** — add a POST→GET round-trip test (the 1.1.48 `document` regression was exactly this gap).
+1c. **⚠ Thread it through the two paths that CARRY the element, not just the ones that STORE it.** Storing an element correctly and never showing it to a student is a silent failure, and it has now happened twice — `writing` (1.1.73) and `conceptMap` (CONCEPT-1) were both saved correctly by every teacher and invisible to every student for weeks. Jesper, 2026-08-13: *"I can choose it in the Activity builder … but it doesn't appear when I log in as a student group."* Two places:
+    - **The student read endpoint** — `GET /api/activity-configs/active/{id}` (`protocols/activity_config_routes.py`). It is now **registry-driven** (`_element_block`) so a new kind is carried by construction; `test_active_surfaces_every_registered_element_kind` fails if that ever regresses to a hand-written dict.
+    - **The legacy per-class upsert** — `db/activity_configs.py::upsert_activity_config` takes one keyword per kind and dropped both of the above. Guarded by `test_every_element_kind_is_accepted_by_the_legacy_upsert` **and** a round-trip test, because accepting a keyword is not the same as storing it.
+
 2. Register `ELEMENT_REGISTRY["<kind>"] = ElementSpec(model=..., max=..., render="workspace"|"inline")`.
 3. Add a frontend renderer `elementRenderers["<kind>"]` (a workspace pane component) + the TS type mirror in `teacherApi.ts`.
 4. **⚠ If a student INTERACTS with the element** (enters data, computes, writes, selects): the renderer MUST pass `sessionId`, and the component MUST push its state to the tutor via `useSimSnapshotPush(sessionId, "<kind>")` (commit-on-blur/change + catch-up-on-`sessionId`, like `WorkbenchTable`/`WorkbenchCalculator`/`SolutionElementMount`). The state lands in `mcp_app_context.<kind>.state`, which `wrap_with_iframe_context` injects into **every** agent's prompt — this is **NOT** MCP-app-specific. **Skip this and the AI never sees what the student did** (it was missed for the calculator until 1.1.45). Read-only elements (note) don't push. Use a `<kind>.commit`-style event name so it's *passive* context (no unprompted tutor reply); only fire a turn deliberately (the solution editor's "submit" does, via `onProactiveTrigger`).
@@ -152,6 +156,16 @@ class DocumentElement(BaseModel):
     - Skip only for elements that are **not** teacher-authored (none today). The pattern is mechanical — each kind mirrors an existing one (`set_lesson_prompt` for owner-scoping; the text vs structured branches for the spec).
 6. Add OTel span emission for the element's primary interaction.
 7. Tests: round-trip + validation + render empty/loading/error + (if it ingests student input) the tutor-state push **and the trust-card dispatch** (mock `useHumanToolEvents`, assert one card with a labelled value; for a debounced card use fake timers) + the deterministic-check path + **the co-pilot `add_element` proposal + Apply (step 5b)**.
+
+> **Why this recipe keeps growing a step.** Every element bug so far has been the
+> same shape: a place that **spells out** the element fields by hand — a Pydantic
+> model, a function signature, a response dict, a payload builder — and was never
+> updated. The frontend has never had this bug, because `ElementRenderContext` is
+> a `Record<ElementKind, …>` and the compiler refuses a missing key. The backend's
+> equivalents are dict literals and keyword arguments, which have no such
+> conscience. So the rule is: **iterate `ELEMENT_REGISTRY` where you can, and
+> where you genuinely cannot, add a test that iterates it for you.** An
+> enumeration may be written by hand; it may never be left unchecked.
 
 This recipe, written down and exercised four times in this doc, **is** the breadth multiplier — it is the artefact a future teammate (or the [authoring assistant](activity-authoring-assistant.md)) follows.
 

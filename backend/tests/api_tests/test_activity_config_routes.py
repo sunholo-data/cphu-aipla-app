@@ -574,3 +574,60 @@ def test_unbound_chart_still_saves_unchanged(client):
     resp = client.post("/api/activity-configs", json=_table_body(chart=[{"id": "c1", "title": "Graf"}]))
     assert resp.status_code == 201
     assert resp.json()["chart"][0]["tableId"] is None
+
+
+# --- The guard: every registered element kind reaches the student ------------
+
+
+def test_active_surfaces_every_registered_element_kind(client):
+    """**The guard.** The student-facing `/active` response must carry EVERY
+    element kind in the registry — the last hop between an authored element and
+    a student seeing it.
+
+    This is the gap `writing` (1.1.73) and `conceptMap` (CONCEPT-1) both fell
+    through, and they fell through it for the same reason: the response
+    hand-enumerated its element fields as a dict literal, so a kind that nobody
+    remembered to add was saved correctly, rendered correctly by the client, and
+    invisible to every student. Jesper, 2026-08-13: *"I can choose it in the
+    Activity builder ... but it doesn't appear when I log in as a student
+    group."*
+
+    The frontend never had this bug because `ElementRenderContext` is a
+    `Record<ElementKind, …>` and the compiler refuses a missing key. A dict
+    literal has no such conscience, so this test is it.
+    """
+    from db.models.activity_config import ELEMENT_REGISTRY, ActivityConfig
+
+    student = _group_client({"class:t-1:cls-x"})
+    body = student.get("/api/activity-configs/active/no-such-activity").json()
+
+    for spec in ELEMENT_REGISTRY.values():
+        key = ActivityConfig.model_fields[spec.field].alias or spec.field
+        assert key in body, (
+            f"element kind {spec.kind!r} is missing from the student /active response — "
+            f"a teacher can author it and no student will ever see it"
+        )
+
+
+def test_active_carries_an_authored_writing_element_through_to_the_student(client):
+    """The regression, end to end: authored -> stored -> student read.
+
+    Storage was never the problem (13 activities on dev held a correct `writing`
+    element while every student saw nothing), so the assertion that matters is
+    the one on the far side of the endpoint.
+    """
+    from db.activity_configs import upsert_activity_config
+
+    upsert_activity_config(
+        teacher_uid="t-77",
+        class_id="cls-7",
+        activity_id="act-writing",
+        teaching_goal="g",
+        writing=[{"id": "w1", "title": "Konklusion", "prompt": "Skriv jeres konklusion", "minWords": 100}],  # type: ignore[list-item]
+    )
+
+    student = _group_client({"class:t-77:cls-7"})
+    body = student.get("/api/activity-configs/active/act-writing").json()
+
+    assert [w["title"] for w in body["writing"]] == ["Konklusion"]
+    assert body["writing"][0]["minWords"] == 100

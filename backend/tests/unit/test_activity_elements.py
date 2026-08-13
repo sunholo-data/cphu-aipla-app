@@ -361,3 +361,56 @@ def test_writing_needs_no_authoring_to_be_valid() -> None:
     w = WritingElement(id="writing-1")
     assert w.prompt == ""
     assert w.min_words == 0
+
+
+# --- Every hand-enumeration of the element set, machine-checked --------------
+#
+# The registry exists so "which element kinds exist" has ONE source. But several
+# places still SPELL OUT the element fields — a Pydantic model, a function
+# signature, a response dict — and a spelled-out list goes stale in silence.
+# `writing` (1.1.73) and `conceptMap` (CONCEPT-1) were both saved correctly and
+# both invisible to students because ONE such list was never updated.
+#
+# The rule these tests encode: an element field may be enumerated by hand, but
+# never unchecked.
+
+
+def test_every_element_kind_is_accepted_by_the_legacy_upsert() -> None:
+    """`upsert_activity_config` takes one keyword per element kind.
+
+    It was missing BOTH `writing` and `concept_map`, so the legacy per-class
+    path silently dropped them on save.
+    """
+    import inspect
+
+    from db.activity_configs import upsert_activity_config
+
+    params = set(inspect.signature(upsert_activity_config).parameters)
+    for spec in ELEMENT_REGISTRY.values():
+        assert spec.field in params, (
+            f"upsert_activity_config cannot accept element kind {spec.kind!r} "
+            f"(expected a {spec.field!r} keyword) — it will be dropped on save"
+        )
+
+
+def test_every_element_kind_survives_the_legacy_upsert_round_trip(monkeypatch) -> None:
+    """Accepting the keyword is not the same as storing it."""
+    from db import firestore as fs_module
+    from db.activity_configs import get_activity_config, upsert_activity_config
+
+    monkeypatch.setenv("LOCAL_MODE", "1")
+    fs_module._reset_client_for_testing()
+    try:
+        cfg = upsert_activity_config(
+            teacher_uid="t",
+            class_id="c",
+            activity_id="a",
+            teaching_goal="g",
+            writing=[WritingElement(id="w1", title="Konklusion")],
+        )
+        assert [w.id for w in cfg.writing] == ["w1"]
+        stored = get_activity_config(teacher_uid="t", class_id="c", activity_id="a")
+        assert stored is not None
+        assert [w.id for w in stored.writing] == ["w1"], "accepted, then dropped on the way to Firestore"
+    finally:
+        fs_module._reset_client_for_testing()

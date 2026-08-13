@@ -17,6 +17,7 @@ from __future__ import annotations
 
 import logging
 import secrets
+from typing import Any
 
 from fastapi import APIRouter, Depends, HTTPException, Path, Query
 from pydantic import BaseModel, ConfigDict, Field
@@ -237,6 +238,32 @@ async def list_my_activity_configs(
     return [_serialize(c) for c in cfgs]
 
 
+def _element_block(cfg: ActivityConfig | None) -> dict[str, Any]:
+    """Every registered element kind, keyed by its WIRE name.
+
+    Registry-driven, and that is the whole point. This response used to
+    hand-enumerate the element fields, and a hand-written enumeration goes stale
+    silently: `writing` (1.1.73) and `conceptMap` (CONCEPT-1) were both saved
+    correctly, both rendered correctly by the client, and both invisible to every
+    student, because neither was ever added to the dict literal here.
+
+    The frontend half of the same contract never had this bug, because
+    `ElementRenderContext` is a `Record<ElementKind, …>` and the compiler refuses
+    a missing key. This is the server-side equivalent: iterate the registry, and
+    a new element kind is carried by construction.
+
+    Keys use the model's ALIAS (`concept_map` -> `conceptMap`), which is what the
+    client reads.
+    """
+    block: dict[str, Any] = {}
+    for spec in ELEMENT_REGISTRY.values():
+        field = ActivityConfig.model_fields[spec.field]
+        key = field.alias or spec.field
+        items = getattr(cfg, spec.field, None) or [] if cfg is not None else []
+        block[key] = [i.model_dump(by_alias=True) for i in items]
+    return block
+
+
 @router.get("/active/{activity_id}")
 async def get_active_activity_config(
     activity_id: str = Path(...),
@@ -263,13 +290,7 @@ async def get_active_activity_config(
         return {
             "activityId": activity_id,
             "title": "",
-            "checklist": [],
-            "table": [],
-            "chart": [],
-            "calculator": [],
-            "note": [],
-            "solution": [],
-            "document": [],
+            **_element_block(None),
             "artefact": None,
             "workbenchType": "none",
             "persona": persona_block,
@@ -298,13 +319,7 @@ async def get_active_activity_config(
     return {
         "activityId": activity_id,
         "title": cfg.title,
-        "checklist": [item.model_dump() for item in cfg.checklist],
-        "table": [t.model_dump(by_alias=True) for t in cfg.table],
-        "chart": [c.model_dump(by_alias=True) for c in cfg.chart],
-        "calculator": [c.model_dump(by_alias=True) for c in cfg.calculator],
-        "note": [n.model_dump(by_alias=True) for n in cfg.note],
-        "solution": [s.model_dump(by_alias=True) for s in cfg.solution],
-        "document": [d.model_dump(by_alias=True) for d in cfg.document],
+        **_element_block(cfg),
         # The resolved artefact (public view — never the tutorBlock) so the
         # student workspace has the render path; None if unset or de-catalogued
         # (graceful degradation — the activity stays chat + elements).
