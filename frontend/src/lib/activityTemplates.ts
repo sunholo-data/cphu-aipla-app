@@ -556,37 +556,58 @@ export const ACTIVITY_TEMPLATES: ActivityTemplate[] = [
     // docs/design/forks/playground-tutor/v0.1.0/scope.md — groups of three on one
     // phone, chalk diagrams on asphalt, sight lines meeting at an intersection.
     //
-    // CONTENT NOTE (same posture as the other starters — AR/JB review before
-    // classroom use): the METHOD and the Mars constants below are standard and
-    // checkable (sidereal period 687 d; a = 1,52 AU; r ranges 1,38–1,67 AU).
-    // The per-pair OBSERVATION DATES AND ANGLES are NOT baked in — the teacher
-    // hands those out (Materials / paper worksheet), because they must come from
-    // a real ephemeris and inventing plausible ones would have every group
-    // construct a wrong orbit and never find out.
+    // THE DATA IS TYCHO'S OWN (2026-08-13). Five pairs of Brahe's naked-eye
+    // observations from 1585/1587, the set Kepler worked from — dates are
+    // JULIAN, as recorded in Denmark, which kept that calendar until 1700.
+    //
+    // Verified, not trusted, before shipping (see the test beside this file,
+    // which re-derives the orbit from these very numbers and fails if an angle
+    // is ever edited):
+    //   * every gap is 686–687 days — one Mars sidereal period, so Mars is at
+    //     the same point in its orbit both times, which is the entire trick;
+    //   * Earth's longitude advances 316–317° across each gap, exactly what
+    //     687 days of Earth's own motion gives (687 x 0,9856 = 677 = 317 mod 360);
+    //   * triangulating them yields Sun–Mars distances of 1,380–1,688 AU
+    //     against Mars' true 1,381–1,666. Naked-eye data, to about 1–2%.
+    // The sight lines cross at 47–63°, so the intersections are robust rather
+    // than the near-parallel case where a degree of chalk error explodes.
+    //
+    // Known sampling limitation, deliberately left in and handled in the tutor
+    // goal: the five points sit at roughly 45°, 149°, 158°, 185° and 330°, so
+    // three cluster near aphelion. That is enough to demolish "the orbit is a
+    // circle" (1,38 against 1,69 is unmissable) but not enough to fit an
+    // ellipse properly. Kepler had many more pairs.
+    //
+    // Physics/Danish review by AR/JB still applies, as with every starter.
     id: "kepler-chalk-orbit",
     name: "Mars' bane med kridt i skolegården",
     summary: "Udendørs, mobil-først: konstruér Mars' bane med kridt og snor, fotografér den, aflæs afstanden.",
     language: "da",
     title: "Mars' bane — kridt i skolegården",
     teachingGoal:
-      "Eleverne står udenfor med en telefon, kridt og en snor, og konstruerer Mars' bane med Keplers " +
-      "metode: Solen i centrum, Jordens bane som en cirkel, og to sigtelinjer fra to jordpositioner, " +
-      "der er 687 dage fra hinanden (ét Mars-år, så Mars står samme sted begge gange). Skæringspunktet " +
-      "er ét punkt på Mars' bane. Læreren udleverer observationsdatoer og vinkler. " +
+      "Eleverne står udenfor med en telefon, kridt og en snor og konstruerer Mars' bane med Keplers " +
+      "metode ud fra Tycho Brahes egne observationer fra 1585 og 1587. Solen i centrum, Jordens bane " +
+      "som en cirkel, og to sigtelinjer fra to jordpositioner, der er 687 dage fra hinanden (ét Mars-år, " +
+      "så Mars står samme sted i sin bane begge gange). Skæringspunktet er ét punkt på Mars' bane. " +
       "Din rolle: hjælp dem med METODEN og med at tolke deres egne målinger — konstruér ikke banen for " +
       "dem og afslør ikke facit. Når de har 4–5 punkter, så spørg, om afstanden Sol–Mars er den samme " +
       "hele vejen rundt; det er pointen, at den ikke er. " +
       "Til din egen kontrol (sig det ikke direkte): Mars' middelafstand er ca. 1,52 AU, og afstanden " +
-      "varierer mellem ca. 1,38 AU og ca. 1,67 AU. Ligger en gruppes punkt langt uden for det, er det " +
-      "næsten altid en vinkel målt fra den forkerte nulretning — spørg til det i stedet for at rette det. " +
-      "Eleverne arbejder på én delt telefon: hold svarene korte, og bed om et foto, når du er i tvivl om, " +
-      "hvad de har tegnet.",
+      "varierer mellem ca. 1,38 AU og ca. 1,67 AU. Med Tychos tal bør målepar 2 give ca. 1,38 AU " +
+      "(nær perihel) og målepar 1 og 5 ca. 1,68 AU (nær aphel) — netop den forskel, der afliver cirklen. " +
+      "Ligger et punkt langt uden for 1,3–1,7, er det næsten altid en vinkel afsat fra den forkerte " +
+      "nulretning, eller de to sigtelinjer byttet om; spørg til det i stedet for at rette det. " +
+      "Bemærk, at tre af de fem punkter ligger tæt på hinanden nær aphel: eleverne kan altså vise, at " +
+      "banen IKKE er en cirkel, men de har for få punkter til at bestemme ellipsens form. Hvis de " +
+      "spørger, så sig det ligeud — Kepler brugte mange flere målepar end fem. " +
+      "Eleverne arbejder på én delt telefon: hold svarene korte, og bed om et foto, når du er i tvivl " +
+      "om, hvad de har tegnet.",
     checklist: [
       "Tegn Solen og Jordens bane med kridt og snor — notér radius i meter",
-      "Afsæt de to jordpositioner for det første målepar",
+      "Markér 0° på cirklen, og afsæt de to jordpositioner for målepar 1",
       "Stræk snoren i de to sigteretninger og markér skæringspunktet",
       "Mål afstanden Sol–Mars med snoren og omregn til AU",
-      "Gentag for mindst 4 målepar",
+      "Gentag for alle fem målepar i skemaet",
       "Tag et billede af hele konstruktionen og send det til tutoren",
     ],
     table: {
@@ -633,13 +654,25 @@ export const ACTIVITY_TEMPLATES: ActivityTemplate[] = [
         "viser derfor Mars *samme sted* i sin bane — men set fra to forskellige steder på Jordens bane. " +
         "De to sigtelinjer skærer hinanden dér, hvor Mars er.\n\n" +
         "**Skala:** Tegn Jordens bane som en cirkel med kridt og snor. Den radius, I vælger, **er 1 AU**. " +
-        "Vælg mindst 1,5 m, så der er plads til Mars uden for cirklen.\n\n" +
+        "Vælg mindst 1,5 m — så fylder hele tegningen ca. 5 m, for Mars ligger uden for cirklen.\n\n" +
         "1. Sæt et kridtkryds i midten — det er Solen. Bind snoren og tegn cirklen.\n" +
-        "2. Markér 0° på cirklen, og afsæt de to jordpositioner fra lærerens skema.\n" +
-        "3. Stræk snoren fra hver jordposition i den opgivne sigteretning. Hvor de to linjer mødes, er Mars.\n" +
-        "4. Mål med snoren fra Solen ud til krydset, og divider med jeres cirkelradius — så har I afstanden i AU.\n" +
-        "5. Mål også, hvilken retning Mars ligger i set fra Solen, og skriv begge tal i tabellen.\n\n" +
-        "**Tip:** Skriv målepar-nummeret ved hvert kryds med kridt, så I kan se på fotoet, hvad der er hvad.",
+        "2. Markér 0° på cirklen. Alle vinkler i skemaet måles herfra, mod uret.\n" +
+        "3. Afsæt de **to jordpositioner** for jeres målepar (kolonne *Jorden*).\n" +
+        "4. Stræk snoren fra hver jordposition i retningen fra kolonnen *Mars set fra Jorden*. " +
+        "Hvor de to linjer krydser, står Mars.\n" +
+        "5. Mål fra Solen ud til krydset og divider med jeres cirkelradius — det er afstanden i AU.\n" +
+        "6. Mål også retningen fra Solen ud til krydset, og skriv begge tal i tabellen.\n\n" +
+        "**Tychos observationer** (Brahes egne tal — de samme, Kepler regnede på). " +
+        "Datoerne er efter den gamle julianske kalender, som man brugte i Danmark dengang:\n\n" +
+        "| Målepar | Datoer | Jorden | Mars set fra Jorden |\n" +
+        "|---|---|---|---|\n" +
+        "| 1 | 17. feb 1585 / 5. jan 1587 | 159° og 115° | 135° og 182° |\n" +
+        "| 2 | 19. sep 1585 / 6. aug 1587 | 6° og 323° | 284° og 347° |\n" +
+        "| 3 | 7. dec 1585 / 25. okt 1587 | 86° og 42° | 3° og 50° |\n" +
+        "| 4 | 28. mar 1585 / 12. feb 1587 | 197° og 154° | 168° og 219° |\n" +
+        "| 5 | 10. mar 1585 / 26. jan 1587 | 180° og 136° | 132° og 185° |\n\n" +
+        "**Tip:** Skriv målepar-nummeret ved hvert kryds med kridt, så I kan se på fotoet, hvad der er hvad. " +
+        "Tjek altid, at der er ca. 687 dage mellem de to datoer — det er hele pointen.",
     },
   },
   {
