@@ -94,6 +94,45 @@ URLs.
   - **Public, no auth** (matches the public-skills posture). Speaks Streamable HTTP — point a ChatGPT remote connector or Claude Desktop `mcp-remote` here, no tunnel.
   - Offers the public skills as tools **and** the sims as `ui://` MCP Apps (`show_boldkast|kinebot|led_planck`; artefact HTML lazily fetched from the sandbox via `MCP_SANDBOX_URL`).
   - Smoke: `REQUIRE_SIMS=1 ./scripts/smoke-deployed-mcp.sh dev` → initialize + sims listed + `ui://` readable. (Visual render is host-dependent — Claude Desktop is currently blocked by upstream claude-ai-mcp#165; ChatGPT/MCP Inspector render reliably.)
+## MOBILE-1 rollout state (2026-08-13)
+
+The phone/tablet fixes from the 2026-08-13 mobile audit are **live on all three
+environments at `v0.1.17`**. Verified per environment by driving a real iPhone-13
+viewport (390pt) against the deployed URL, not by inspecting source:
+
+| Env | Version | Public surfaces at 390pt | Composer input | Camera button |
+|---|---|---|---|---|
+| dev | branch tip | 6/6 (dvh + no overflow) | **16px** (was 14) | old class literal absent from bundle; new 44px target present |
+| test | `v0.1.17` | 6/6 | not exercised — see below | same build as dev |
+| prod | `v0.1.17` | 6/6 | not exercised — see below | same build as dev |
+
+**What each fix was.** The camera button carried `hidden sm:inline-flex`, so it
+was invisible below 640px — every phone in portrait, and the only devices where
+`capture="environment"` does anything at all. `<body>` used `h-screen`; `100vh`
+is the LARGE viewport on browsers with a collapsing URL bar, so the pinned chat
+composer sat below the fold until the toolbar retracted (now `h-dvh`). The
+composer input was 14px, which iOS force-zooms on focus and never zooms back.
+
+**Coverage gap, deliberate.** The chat surface itself was only exercised on
+**dev**: test and prod both join fine with `aipla-demo-1` but render an empty
+`/lessons`, so there is no activity to open. Prod having no seeded activities is
+the cleared-content gate working as intended; test's is a rehearsal-readiness
+gap worth closing before the pilot. The shell-level checks (dvh, overflow, join)
+did run on all three.
+
+**Not fixed, known.** LED-Planck is unusable below ~720px — a fixed-coordinate
+bench (`#breadboard` reaches 539px on a 390pt phone, zero media queries). Touch
+works; the equipment is off-screen. iPad portrait is fine. Whether to label it
+iPad-only or rescale it is still an open product call. KineBot's scene clips on a
+phone (usable, degraded). Boldkast is fully mobile-first. There is no PWA
+manifest or service worker, so no add-to-home-screen and no offline queue — the
+gap that matters most for outdoor lessons on school wifi.
+
+**Not a defect, corrected.** Safe-area insets are not currently needed: without
+`viewport-fit=cover` the browser already insets the layout viewport, so
+`env(safe-area-inset-*)` resolves to 0 and nothing sits under the home
+indicator. It becomes load-bearing only if a PWA manifest lands.
+
 ## ACCESS-1 rollout state (2026-08-12)
 
 Access tiers and spend control ([1.1.75](../design/aipla/v1.1.0-feedback/public-access-tiers-and-spend-control.md))
