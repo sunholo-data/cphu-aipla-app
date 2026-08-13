@@ -46,11 +46,14 @@ openingTemplate: |
 metadata:
   author: aipla
   version: "0.1.0"
-  # Vertex AI Gemini 3.5 Flash (router-overridable per ADR-008; Sonnet
-  # 4.6 cross-provider fallback per ADR-003). No workbench / sim — this
-  # is a chat-only concept tutor, so no mcp servers and no iframe
+  # "smart" tier alias (resolved via config/models.yaml at load time, see
+  # SkillMetadata._resolve_model_tier_alias) — the reasoning-heavy concept
+  # dialogue runs the registry's current advanced Google model, currently
+  # gemini-3.7-flash. Router-overridable per ADR-008; Sonnet 4.6 is the
+  # documented cross-provider fallback per ADR-003. No workbench / sim —
+  # this is a chat-only concept tutor, so no mcp servers and no iframe
   # context are wired.
-  model: gemini-3.6-flash
+  model: smart
   tools: []
   toolConfigs:
     # ACCESS-1 M3: opt this skill into the per-teacher monthly cap.

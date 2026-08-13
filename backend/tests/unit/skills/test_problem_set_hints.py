@@ -30,11 +30,25 @@ def test_skill_name(skill):
     assert skill.frontmatter.name == "problem-set-hints"
 
 
-def test_skill_uses_the_advanced_gemini_tier(skill):
-    """Model upgrade 2026-07: the reasoning-heavy hint tutor runs on the advanced
-    Gemini tier (gemini-3.6-flash). Everyday/high-volume skills use the lite default
-    (gemini-3.5-flash-lite); this one is deliberately on the more-capable model."""
-    assert skill.frontmatter.metadata["model"] == "gemini-3.6-flash"
+def test_skill_uses_the_smart_tier_alias(skill):
+    """The reasoning-heavy hint tutor opts into the registry's "smart" tier by
+    alias (2026-08-13) rather than a literal model id, so it follows whatever
+    the registry currently picks (see db.models.SkillMetadata) instead of
+    freezing on a model that gets superseded (e.g. gemini-3.6-flash ->
+    gemini-3.7-flash). Everyday/high-volume skills use the "default" tier
+    (gemini-3.5-flash-lite); this one is deliberately on the more-capable one."""
+    assert skill.frontmatter.metadata["model"] == "smart"
+
+
+def test_smart_alias_resolves_to_the_live_registry_smart_model():
+    """The raw frontmatter says "smart"; SkillMetadata is what actually resolves
+    it, at validation time, to the registry's current smart-tier api_name."""
+    from config.models import smart_model
+    from db.models import SkillMetadata
+
+    resolved = SkillMetadata(model="smart")
+    assert resolved.model == smart_model()
+    assert resolved.model != "smart"
 
 
 def test_skill_aipla_author(skill):

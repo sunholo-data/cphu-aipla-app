@@ -39,7 +39,8 @@ MODEL_RATE_CARD: dict[str, Rate] = {
     # Gemini 3.x rates confirmed 2026-07-22 (Vertex list price, USD per 1k).
     # Historical ids retained below for costing past BigQuery rows.
     "gemini-3.5-flash-lite": Rate(0.0003, 0.0025),  # platform default ($0.30 / $2.50 per 1M)
-    "gemini-3.6-flash": Rate(0.0015, 0.0075),  # advanced tier ($1.50 / $7.50 per 1M)
+    "gemini-3.7-flash": Rate(0.00075, 0.00375),  # smart tier ($0.75 / $3.75 per 1M, intro pricing thru end of 2026)
+    "gemini-3.6-flash": Rate(0.0015, 0.0075),  # superseded smart tier; still priced for pinned/historical rows
     "gemini-2.5-flash": Rate(0.0003, 0.0012),
     "gemini-3-flash": Rate(0.0003, 0.0012),
     "gemini-3.5-flash": Rate(0.00035, 0.0014),

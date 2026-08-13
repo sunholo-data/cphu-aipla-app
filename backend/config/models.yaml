@@ -1,5 +1,5 @@
 # Aitana v6 Model Registry
-# Last updated: 2026-04-22
+# Last updated: 2026-08-13
 #
 # Canonical model IDs for the three supported providers.
 # Used by: skill creation UI, agent factory, compaction config.
@@ -26,13 +26,21 @@ models:
     max_output_tokens: 65_536
     description: "Gemini 3.5 Flash-Lite — platform default; cheapest/fastest, 1M context (the tutor + skills + analytics sub-tasks run this). Replaces gemini-2.5-flash and the former gemini-3.5-flash default."
 
+  gemini-3-7-flash:
+    api_name: "gemini-3.7-flash"
+    provider: google
+    tier: smart
+    context_window: 1_000_000
+    max_output_tokens: 65_536
+    description: "Gemini 3.7 Flash (released 2026-08-13) — algorithmic refinement of 3.6 Flash, not a new pretraining run. Stronger coding/debugging, document-heavy knowledge work, and web dev; half the price of 3.6 Flash at introductory pricing through end of 2026. Listed first so smart_model() picks it over 3.6 Flash."
+
   gemini-3-6-flash:
     api_name: "gemini-3.6-flash"
     provider: google
     tier: smart
     context_window: 1_000_000
     max_output_tokens: 65_536
-    description: "Gemini 3.6 Flash — the more-advanced Gemini tier for complex tasks (replaces gemini-3.1-pro as the advanced option)."
+    description: "Gemini 3.6 Flash — superseded by gemini-3.7-flash as the auto-selected smart tier (2026-08-13). Kept registered because problem-set-hints pins this model id explicitly; do not remove without repointing that skill."
 
   # ─── Anthropic Claude ─────────────────────────────────────────────────────
   # 200K context window standard; 1M available in beta for Opus 4.7.

@@ -31,7 +31,8 @@ _COST_PER_1M: dict[str, tuple[float, float]] = {
     # Gemini 3.x rates confirmed 2026-07-22 (Vertex list price). Substring match:
     # keep the more specific "-lite" key ahead of any "gemini-3.5-flash".
     "gemini-3.5-flash-lite": (0.30, 2.50),  # platform default
-    "gemini-3.6-flash": (1.50, 7.50),  # advanced tier
+    "gemini-3.7-flash": (0.75, 3.75),  # smart tier (intro pricing thru end of 2026)
+    "gemini-3.6-flash": (1.50, 7.50),  # superseded smart tier, still pinned by problem-set-hints
     "gemini-2.5-flash": (0.15, 0.60),
     "gemini-2.5-pro": (1.25, 10.00),
     "gemini-2.0-flash": (0.10, 0.40),

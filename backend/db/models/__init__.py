@@ -15,9 +15,17 @@ import uuid
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
-from config.models import default_model
+from config.models import default_model, fast_model, smart_model
 from db.models.access import AccessControl, AccessType
 from db.models.buckets import BucketConfig, BucketFolderConfig
+
+# SKILL.md may set `model` to one of these tier names instead of a literal
+# model id, so a registry swap (config/models.yaml) reaches every skill that
+# opted into a tier without editing each SKILL.md. Resolved at validation
+# time — every SkillConfig read (skill_config._from_firestore) re-resolves
+# against the live registry, so a tier-aliased skill follows the registry's
+# current pick for that tier rather than freezing at seed time.
+_MODEL_TIER_ALIASES = {"default": default_model, "smart": smart_model, "fast": fast_model}
 
 # Agent Skills spec: lowercase kebab-case, no leading/trailing/consecutive hyphens
 _NAME_PATTERN = re.compile(r"^[a-z0-9]([a-z0-9-]*[a-z0-9])?$")
@@ -65,6 +73,13 @@ class SkillMetadata(BaseModel):
     version: str = "1.0"
     model: str = Field(default_factory=default_model)
     thinking_model: str | None = Field(default=None, alias="thinkingModel")
+
+    @field_validator("model", mode="after")
+    @classmethod
+    def _resolve_model_tier_alias(cls, v: str) -> str:
+        resolver = _MODEL_TIER_ALIASES.get(v)
+        return resolver() if resolver else v
+
     tools: list[str] = []
     tool_configs: dict = Field(default_factory=dict, alias="toolConfigs")
     sub_skills: list[str] = Field(default_factory=list, alias="subSkills")

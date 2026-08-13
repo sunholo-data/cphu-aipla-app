@@ -97,13 +97,15 @@ problemStatement: |
 metadata:
   author: aipla
   version: "0.1.0"
-  # Vertex AI Gemini 3.5 Flash (GA 2026-05-19, verified 2026-05-20 on
-  # global endpoint). europe-north1 not yet GA; project-level data-
+  # "smart" tier alias (resolved via config/models.yaml at load time, see
+  # SkillMetadata._resolve_model_tier_alias) — the reasoning-heavy hint
+  # tutor runs the registry's current advanced Google model, currently
+  # gemini-3.7-flash. europe-north1 not yet GA; project-level data-
   # residency policy deferred per Resolved Decision 1 in
   # docs/design/aipla/v0.1.0-jutland/jutland-demo.md.
   # Router-overridable per ADR-008. Sonnet 4.6 is the documented
   # cross-provider fallback (ADR-003).
-  model: gemini-3.6-flash
+  model: smart
   tools: []
   toolConfigs:
     # ACCESS-1 M3: opt this skill into the per-teacher monthly cap.
