@@ -1,0 +1,22 @@
+<!--
+  Source of truth for every PWA / home-screen icon. Regenerate the PNGs with
+  `make pwa-icons` (scripts/generate-pwa-icons.sh) — do not hand-edit them.
+
+  FULL-BLEED AND SQUARE ON PURPOSE. Every platform applies its own mask:
+  iOS rounds `apple-touch-icon` itself, and Android crops maskable icons to a
+  launcher-chosen shape. Supplying pre-rounded corners means supplying
+  TRANSPARENT ones, and an apple-touch-icon with transparency is composited
+  against black or silently dropped in favour of a page screenshot — which is
+  exactly the "no icon on my home screen" bug this file was written to fix
+  (2026-08-14).
+
+  The glyph sits inside the inner ~80% so it survives Android's maskable crop.
+  `aipla-mark.svg` next to this file keeps its rounded corners and stays the
+  browser-tab favicon, where transparency is correct.
+-->
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" width="64" height="64">
+  <rect width="64" height="64" fill="#901a1e"/>
+  <text x="32" y="41" text-anchor="middle"
+        font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif"
+        font-weight="800" font-size="28" fill="#ffffff" letter-spacing="-1">A</text>
+</svg>

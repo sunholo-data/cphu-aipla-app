@@ -462,6 +462,17 @@ check-cloudbuild: ## Fail on $$-unescaped shell vars in Cloud Build steps (CI-ga
 check-brand-literals: ## Fail if a brand surface hardcodes a red-* utility instead of the brand token (CI-gated)
 	@bash scripts/check-brand-literals.sh
 
+# Home-screen icon gate (2026-08-14). The PWA shipped in v0.1.18 with icons cut
+# from the ROUNDED aipla-mark.svg, so their corners were transparent. iOS rounds
+# apple-touch-icon itself and, given transparency, shows a blank tile — reported
+# from a real iPhone the morning after. Nothing in lint/typecheck/tests can see
+# inside a PNG, so this reads the corner pixels.
+check-pwa-icons: ## Fail if a home-screen icon has transparent corners (CI-gated)
+	@node scripts/check-pwa-icons.mjs
+
+pwa-icons: ## Regenerate the PWA icon PNGs from the single SVG source
+	@bash scripts/generate-pwa-icons.sh
+
 # Guide dead-end gate (1.1.74). Published Quarto HTML has zero links back into
 # the app, so a guide opened from /guides used to be a one-way trip out of the
 # product. publish-guides.sh injects a nav band; this asserts it survived.

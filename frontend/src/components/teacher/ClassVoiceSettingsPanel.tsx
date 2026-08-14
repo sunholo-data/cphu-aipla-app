@@ -3,33 +3,34 @@
 /**
  * 1.1.11 — Voice settings panel for the teacher's class-detail page.
  *
- * Picks per-class read-aloud language + voice. Saves to
- * `classes/<class_id>.voice` via PUT /api/voice/class/{id}/settings.
+ * Two capability toggles (voice input, recording), plus a one-way escape hatch
+ * for classes carrying a legacy per-class voice override.
  *
- * Resolution order (server-side):
- *   student localStorage > THIS PANEL > skill default > env
+ * 2026-08-14 — the custom language/voice PICKER was removed to keep the class
+ * screen simple. The tutor's voice comes from its persona, which is already
+ * where a teacher chooses how the tutor sounds; a second, lower-level override
+ * on a different screen only gave two answers to one question.
  *
- * Voices come from the curated /api/voice/voices catalogue (covers
- * Standard, WaveNet, Neural2, Chirp3 HD — all four price tiers so
- * the teacher can A/B quality vs cost). Voice list filters to the
- * currently-selected language.
+ * Server-side resolution order is unchanged:
+ *   student localStorage > per-class override > skill default > env
+ *
+ * The per-class slot still EXISTS in that chain, which is exactly why removing
+ * the picker is not the whole job: an override saved before today keeps winning
+ * over the persona, invisibly. Hence the clear-only affordance below. Once no
+ * class carries one, it never renders.
  */
 
-import { useEffect, useMemo, useState } from "react";
+import { useState } from "react";
 import type { ReactNode } from "react";
 import { useToast } from "@/hooks/useToast";
-import { CircleDot, Loader2, Mic, Save, ShieldCheck, X } from "lucide-react";
+import { CircleDot, Loader2, Mic, ShieldCheck, X } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 
 import {
   type ClassVoiceSettingsPayload,
-  type VoiceListEntry,
-  type VoiceListResponse,
-  fetchVoiceList,
   setClassCapabilities,
   setClassVoiceSettings,
 } from "@/lib/teacherApi";
-import { AdvancedDisclosure } from "@/components/teacher/ui";
 import { cn } from "@/lib/utils";
 
 interface Props {
@@ -41,11 +42,6 @@ interface Props {
   onSaved: () => void;
 }
 
-const LANG_LABEL: Record<string, string> = {
-  da: "Dansk (da-DK)",
-  en: "English (en-US)",
-};
-
 export function ClassVoiceSettingsPanel({
   classId,
   initial,
@@ -53,14 +49,14 @@ export function ClassVoiceSettingsPanel({
   initialRecording = false,
   onSaved,
 }: Props) {
-  const [language, setLanguage] = useState<string>(initial?.language ?? "");
-  const [voice, setVoice] = useState<string>(initial?.voice ?? "");
-  const [voicesByLang, setVoicesByLang] = useState<VoiceListResponse | null>(
-    null,
-  );
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const { toast, showToast } = useToast();
+  // Local, so the notice disappears the moment the clear succeeds rather than
+  // waiting for the parent's refetch to land.
+  const [cleared, setCleared] = useState(false);
+  const hasVoiceOverride =
+    !cleared && Boolean(initial?.language || initial?.voice || initial?.provider);
 
   // VOICE-IN-REC M4 — the two plain capability toggles. Optimistic + save on
   // change (no extra Save button — the point is fewer steps, not more).
@@ -91,59 +87,6 @@ export function ClassVoiceSettingsPanel({
     }
   }
 
-  useEffect(() => {
-    let cancelled = false;
-    fetchVoiceList()
-      .then((data) => {
-        if (!cancelled) setVoicesByLang(data);
-      })
-      .catch((err) => {
-        if (!cancelled) {
-          setError(err instanceof Error ? err.message : "failed to load voices");
-        }
-      });
-    return () => {
-      cancelled = true;
-    };
-  }, []);
-
-  // When language changes, clear the voice if it doesn't belong to the
-  // new lang's catalogue. Avoids invalid (lang, voice) pairs on save.
-  useEffect(() => {
-    if (!voicesByLang || !language) return;
-    const ok = voicesByLang.voices[language]?.some((v) => v.name === voice);
-    if (!ok) setVoice("");
-  }, [language, voicesByLang, voice]);
-
-  const availableVoices: VoiceListEntry[] = useMemo(() => {
-    if (!voicesByLang || !language) return [];
-    return voicesByLang.voices[language] ?? [];
-  }, [voicesByLang, language]);
-
-  const selectedVoiceEntry = useMemo(
-    () => availableVoices.find((v) => v.name === voice),
-    [availableVoices, voice],
-  );
-
-  async function handleSave() {
-    setSaving(true);
-    setError(null);
-    try {
-      const body: ClassVoiceSettingsPayload = {
-        language: language || null,
-        voice: voice || null,
-        provider: selectedVoiceEntry?.provider ?? null,
-      };
-      await setClassVoiceSettings(classId, body);
-      showToast("Voice settings saved", 2500);
-      onSaved();
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "failed to save");
-    } finally {
-      setSaving(false);
-    }
-  }
-
   async function handleClear() {
     setSaving(true);
     setError(null);
@@ -153,9 +96,8 @@ export function ClassVoiceSettingsPanel({
         voice: null,
         provider: null,
       });
-      setLanguage("");
-      setVoice("");
-      showToast("Reverted to skill defaults", 2500);
+      setCleared(true);
+      showToast("Now using the persona's voice", 2500);
       onSaved();
     } catch (err) {
       setError(err instanceof Error ? err.message : "failed to clear");
@@ -175,7 +117,7 @@ export function ClassVoiceSettingsPanel({
         </h2>
         <p className="text-xs text-muted-foreground">
           The tutor speaks in its persona&rsquo;s voice. These two switches set
-          what students can do in this class; advanced voice tuning is below.
+          what students can do in this class.
         </p>
       </header>
 
@@ -226,81 +168,52 @@ export function ClassVoiceSettingsPanel({
         </p>
       ) : null}
 
-      {/* M4 — the raw tier/voice picker is now ADVANCED (default collapsed).
-          Personas are the primary way to choose a voice; this is the override. */}
-      <AdvancedDisclosure label="Custom voice (advanced)">
-      <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
-        <label className="flex flex-col gap-1 text-sm">
-          <span className="font-medium">Language</span>
-          <select
-            value={language}
-            onChange={(e) => setLanguage(e.target.value)}
-            className="rounded border border-border bg-background px-2 py-1.5"
-          >
-            <option value="">— skill default —</option>
-            {voicesByLang?.languages.map((l) => (
-              <option key={l} value={l}>
-                {LANG_LABEL[l] ?? l}
-              </option>
-            ))}
-          </select>
-        </label>
+      {/* 2026-08-14 — the custom language/voice picker was REMOVED to keep the
+          class screen simple. The tutor's voice comes from its persona, which
+          is where a teacher already chooses how the tutor sounds; a second,
+          lower-level override on a different screen only created two answers to
+          one question. Note the server resolution order this sat in:
+          student localStorage > per-class override > skill default > env.
 
-        <label className="flex flex-col gap-1 text-sm">
-          <span className="font-medium">Voice</span>
-          <select
-            value={voice}
-            onChange={(e) => setVoice(e.target.value)}
-            disabled={!language || availableVoices.length === 0}
-            className="rounded border border-border bg-background px-2 py-1.5 disabled:cursor-not-allowed disabled:opacity-50"
-          >
-            <option value="">— first available for tier —</option>
-            {availableVoices.map((v) => (
-              <option key={v.name} value={v.name}>
-                {v.label}
-                {v.gender === "F" ? " ♀" : v.gender === "M" ? " ♂" : ""}
-              </option>
-            ))}
-          </select>
-        </label>
+          What is deliberately NOT removed: the escape hatch below. Deleting the
+          picker does not delete overrides teachers already saved, and those
+          keep winning over the persona — silently, with nothing on screen to
+          explain why one class sounds different. So a class that HAS an
+          override still says so, and can still clear it. Once the register is
+          empty this block never renders again.
 
-        {selectedVoiceEntry ? (
-          <p className="md:col-span-2 text-xs text-muted-foreground">
-            Tier: <strong className="font-medium">{selectedVoiceEntry.tier}</strong>{" "}
-            ({selectedVoiceEntry.provider}) — Cloud TTS pricing applies per
-            character. WaveNet = $4/M chars (cheap + natural); Neural2 =
-            $16/M; Chirp3 HD = $30/M.
+          The PUT endpoint and `setClassVoiceSettings` stay: this button is the
+          only caller now, and re-adding a picker later needs no backend work. */}
+      {hasVoiceOverride ? (
+        <div className="flex flex-col gap-2 rounded border border-dashed border-border bg-muted/30 p-3">
+          <p className="text-xs text-muted-foreground">
+            This class has an older <strong className="font-medium">custom voice</strong>{" "}
+            saved
+            {initial?.voice ? (
+              <>
+                {" "}
+                (<code className="rounded bg-muted px-1">{initial.voice}</code>)
+              </>
+            ) : null}
+            , which overrides the persona&rsquo;s own voice. Per-class voice
+            overrides are no longer editable here — clear it to let the persona
+            decide.
           </p>
-        ) : null}
-
-        <div className="flex flex-wrap items-center gap-2 md:col-span-2">
           <button
             type="button"
-            onClick={handleSave}
+            onClick={handleClear}
             disabled={saving}
-            className="inline-flex items-center gap-1.5 rounded bg-primary px-3 py-1.5 text-sm font-medium text-primary-foreground hover:bg-primary/90 disabled:cursor-not-allowed disabled:opacity-50"
+            className="inline-flex w-fit items-center gap-1.5 rounded border border-border px-3 py-1.5 text-sm hover:bg-accent disabled:cursor-not-allowed disabled:opacity-50"
           >
             {saving ? (
               <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />
             ) : (
-              <Save className="h-4 w-4" aria-hidden="true" />
-            )}
-            Save voice settings
-          </button>
-          {(initial?.language || initial?.voice || initial?.provider) ? (
-            <button
-              type="button"
-              onClick={handleClear}
-              disabled={saving}
-              className="inline-flex items-center gap-1.5 rounded border border-border px-3 py-1.5 text-sm hover:bg-accent disabled:cursor-not-allowed disabled:opacity-50"
-            >
               <X className="h-4 w-4" aria-hidden="true" />
-              Revert to skill default
-            </button>
-          ) : null}
+            )}
+            Use the persona&rsquo;s voice
+          </button>
         </div>
-      </div>
-      </AdvancedDisclosure>
+      ) : null}
     </section>
   );
 }

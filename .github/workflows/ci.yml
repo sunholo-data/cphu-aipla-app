@@ -118,6 +118,13 @@ jobs:
         # KU coat-of-arms. Semantic reds (error, recording) are allowlisted with
         # reasons in the script.
         run: bash scripts/check-brand-literals.sh
+      - name: Home-screen icons are opaque
+        # 2026-08-14: the PWA shipped with apple-touch-icon cut from the ROUNDED
+        # mark, so its corners were rgba(0,0,0,0). iOS applies its own rounding
+        # and, given transparency, renders a blank tile — found only when a real
+        # iPhone added it to the home screen. Nothing else in CI can see inside
+        # a PNG. Regenerate with `make pwa-icons`.
+        run: node scripts/check-pwa-icons.mjs
       - name: Published guides link back into the app
         # 1.1.74: Quarto's self-contained HTML has zero in-app links, so a guide
         # opened from /guides was a dead end — and it is the first surface a new
