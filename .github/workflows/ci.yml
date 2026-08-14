@@ -102,6 +102,16 @@ jobs:
         # runs rarely, so a bug planted there stays invisible while dev and test
         # stay green. Cost the first v0.1.9 promote attempt on 2026-08-04.
         run: pip install pyyaml -q && python3 scripts/check-cloudbuild-substitutions.py
+      - name: Student routes use the auth dispatcher, not Firebase-only
+        # 2026-08-14 (v0.1.20): writing/checklist/concept per-group progress all
+        # imported `auth.firebase_auth.get_current_user` (Firebase ONLY), so
+        # every anonymous-group student token 401'd — unrecoverably, since the
+        # token was never the problem. Student writing autosave failed on prod
+        # for every group; the text lived only in a tab-scoped buffer and died
+        # with the tab. Unit tests could not see it: they override the same
+        # symbol the route imports, so they pass in lockstep with the bug.
+        run: bash scripts/check-auth-dispatcher.sh
+
       - name: Skill catalogue in sync with .claude/skills
         run: bash scripts/check-skill-catalogue.sh
       - name: Trust-card footgun gate (workspace elements)

@@ -466,6 +466,9 @@ check-skills: ## Verify CLAUDE.md skill catalogue matches .claude/skills/ (CI-ga
 audit-trust-cards: ## Fail if a workspace element pushes to the tutor without a trust card (CI-gated)
 	@bash scripts/audit-trust-cards.sh
 
+check-auth-dispatcher: ## Fail if a student-facing route uses the Firebase-only get_current_user (CI-gated)
+	@bash scripts/check-auth-dispatcher.sh
+
 check-cloudbuild: ## Fail on $$-unescaped shell vars in Cloud Build steps (CI-gated)
 	@python3 scripts/check-cloudbuild-substitutions.py
 
