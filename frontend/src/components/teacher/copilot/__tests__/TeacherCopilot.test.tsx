@@ -115,6 +115,17 @@ describe("TeacherCopilot (shared shell)", () => {
     expect(input.value).toBe("");
   });
 
+  it("omits the help link by default", () => {
+    render(<TeacherCopilot {...config()} />);
+    expect(screen.queryByRole("link")).not.toBeInTheDocument();
+  });
+
+  it("shows a persistent help link when the surface configures one, even with no messages yet", () => {
+    render(<TeacherCopilot {...config()} helpLink={{ href: "mailto:x@y.dk?subject=hi", label: "Report a bug" }} />);
+    const link = screen.getByRole("link", { name: "Report a bug" });
+    expect(link).toHaveAttribute("href", "mailto:x@y.dk?subject=hi");
+  });
+
   it("renders a proposal card; Apply commits the proposal (propose-only)", () => {
     const onApply = vi.fn();
     hook = { ...defaultHook, toolCalls: withTool() };

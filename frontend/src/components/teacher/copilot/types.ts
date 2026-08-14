@@ -100,4 +100,9 @@ export interface TeacherCopilotConfig<P> {
   /** Corner the panel sits in — "left" keeps a help co-pilot clear of the
    *  work co-pilots (bottom-right). Default "right". */
   align?: "left" | "right";
+  /** Persistent small link shown above the input (e.g. "Report a bug",
+   *  mailto:…) — visible from the moment the panel opens, not just inside a
+   *  reply, so it doesn't depend on the conversation having started. Omit for
+   *  surfaces with nothing to link (the default). */
+  helpLink?: { href: string; label: string };
 }

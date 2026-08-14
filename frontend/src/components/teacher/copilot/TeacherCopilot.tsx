@@ -178,7 +178,18 @@ function CopilotChat<P>({ config, threadId }: { config: TeacherCopilotConfig<P>;
         </div>
       ) : null}
 
-      <form onSubmit={onSubmit} className="flex items-stretch gap-2 border-t border-border p-2">
+      {config.helpLink ? (
+        <div className="border-t border-border px-3 py-1.5 text-center">
+          <a href={config.helpLink.href} className="text-xs text-muted-foreground underline hover:text-foreground">
+            {config.helpLink.label}
+          </a>
+        </div>
+      ) : null}
+
+      <form
+        onSubmit={onSubmit}
+        className={`flex items-stretch gap-2 p-2 ${config.helpLink ? "" : "border-t border-border"}`}
+      >
         <input
           type="text"
           aria-label={config.inputAriaLabel ?? config.placeholder}
