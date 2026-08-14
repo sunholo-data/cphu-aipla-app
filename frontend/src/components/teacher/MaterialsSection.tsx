@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import * as Dialog from "@radix-ui/react-dialog";
-import { BookOpen, Check, Eye, EyeOff, FileText, FileUp, Folder, FolderPlus, Image as ImageIcon, Loader2, Plus, Tag, X } from "lucide-react";
+import { BookOpen, Check, Eye, EyeOff, FileText, FileUp, Folder, FolderPlus, Image as ImageIcon, Loader2, Plus, Tag, Trash2, X } from "lucide-react";
 
 import {
   type CurriculumDoc,
@@ -15,6 +15,7 @@ import {
   UNLEVELLED,
   browseCurriculum,
   createCurriculumFolder,
+  deleteCurriculumDoc,
   deleteCurriculumFolder,
   fetchCurriculumContent,
   ingestCurriculum,
@@ -23,6 +24,7 @@ import {
   patchCurriculumTags,
 } from "@/lib/curriculumApi";
 import { ActivityImageApiError, deleteActivityImage, uploadActivityImage } from "@/lib/activityImageApi";
+import { useIsResearcher } from "@/hooks/useIsResearcher";
 import type { MaterialRef } from "@/lib/teacherApi";
 // 1.1.61 — the chip idiom moved out so the activity library shares it verbatim
 // rather than growing a lookalike. Behaviour here is unchanged.
@@ -85,6 +87,10 @@ const SUBJECTS = ["Fysik", "Matematik", "Kemi", "AIPLA guides"];
  */
 export function MaterialsSection({ materials, onChange, activityId, mode = "cite" }: Props) {
   const isLibrary = mode === "library";
+  // Gates the "share to the shared library" upload option (curriculum-library.md
+  // recommendation, enforced 2026-08-14): only researchers may add to the
+  // institutional shared corpus, so an ordinary teacher never sees the checkbox.
+  const isResearcher = useIsResearcher();
   const [docs, setDocs] = useState<CurriculumDoc[] | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -251,6 +257,35 @@ export function MaterialsSection({ materials, onChange, activityId, mode = "cite
       void load(); // a filed doc may now be unfiled — refresh the list
     } catch {
       // Non-fatal.
+    }
+  }
+
+  // M6 — delete a doc from the library. Mirrors the backend ACL: every doc a
+  // teacher can browse (their own uploads + the shared corpus) is one they're
+  // also allowed to delete, so no separate permission check is needed here —
+  // deleting a shared doc removes it for every teacher, which the confirm spells out.
+  async function removeDoc(doc: CurriculumDoc) {
+    const scopeWarning =
+      doc.source === "shared"
+        ? "This is in the SHARED library — every teacher using it will lose access."
+        : "This removes it from your library.";
+    if (!window.confirm(`Delete “${doc.title}”? ${scopeWarning}`)) {
+      return;
+    }
+    try {
+      await deleteCurriculumDoc(doc.docId);
+      setDocs((prev) => (prev ? prev.filter((d) => d.docId !== doc.docId) : prev));
+      setTotal((t) => Math.max(0, t - 1));
+      if (citedIds.has(doc.docId)) {
+        onChange(materials.filter((m) => m.docId !== doc.docId));
+      }
+      if (viewDoc?.docId === doc.docId) {
+        setViewDoc(null);
+        setView(null);
+      }
+      void loadFacets();
+    } catch {
+      // Non-fatal: the row stays put and the teacher can retry.
     }
   }
 
@@ -472,6 +507,7 @@ export function MaterialsSection({ materials, onChange, activityId, mode = "cite
         </label>
         <UploadButton
           activityId={activityId}
+          isResearcher={isResearcher}
           // 1.1.60 — an upload inherits whatever you're currently filtered to, so
           // it lands categorised instead of Unfiled-and-subjectless. This is the
           // capture gap that left every doc with subject=null: the field existed
@@ -767,33 +803,44 @@ export function MaterialsSection({ materials, onChange, activityId, mode = "cite
                       </button>
                     </div>
                   </div>
-                  {/* Cite belongs to an activity. The library has none, so the
-                      column is dropped rather than rendered inert. */}
-                  {isLibrary ? null : (
+                  <div className="flex shrink-0 items-center gap-1.5">
+                    {/* Cite belongs to an activity. The library has none, so the
+                        column is dropped rather than rendered inert. */}
+                    {isLibrary ? null : (
+                      <button
+                        type="button"
+                        onClick={() => toggleCite(doc)}
+                        aria-pressed={cited}
+                        aria-label={cited ? `Remove ${doc.title}` : `Cite ${doc.title}`}
+                        className={`flex items-center gap-1 rounded border px-2 py-1 text-xs font-medium transition-colors ${
+                          cited
+                            ? "border-primary bg-primary/10 text-foreground"
+                            : "border-border hover:bg-muted"
+                        }`}
+                      >
+                        {cited ? (
+                          <>
+                            <Check className="h-3.5 w-3.5" aria-hidden="true" />
+                            Cited
+                          </>
+                        ) : (
+                          <>
+                            <Plus className="h-3.5 w-3.5" aria-hidden="true" />
+                            Cite
+                          </>
+                        )}
+                      </button>
+                    )}
                     <button
                       type="button"
-                      onClick={() => toggleCite(doc)}
-                      aria-pressed={cited}
-                      aria-label={cited ? `Remove ${doc.title}` : `Cite ${doc.title}`}
-                      className={`flex shrink-0 items-center gap-1 rounded border px-2 py-1 text-xs font-medium transition-colors ${
-                        cited
-                          ? "border-primary bg-primary/10 text-foreground"
-                          : "border-border hover:bg-muted"
-                      }`}
+                      aria-label={`Delete ${doc.title}`}
+                      title="Delete from the library"
+                      onClick={() => void removeDoc(doc)}
+                      className="rounded p-1.5 text-muted-foreground hover:bg-destructive/10 hover:text-destructive"
                     >
-                      {cited ? (
-                        <>
-                          <Check className="h-3.5 w-3.5" aria-hidden="true" />
-                          Cited
-                        </>
-                      ) : (
-                        <>
-                          <Plus className="h-3.5 w-3.5" aria-hidden="true" />
-                          Cite
-                        </>
-                      )}
+                      <Trash2 className="h-3.5 w-3.5" aria-hidden="true" />
                     </button>
-                  )}
+                  </div>
                 </li>
               );
             })}
@@ -892,6 +939,7 @@ const _IMAGE_EXT_RE = /\.(png|jpe?g|webp|gif)$/i;
 
 function UploadButton({
   activityId,
+  isResearcher,
   subject,
   folderId,
   folderLabel,
@@ -899,6 +947,10 @@ function UploadButton({
   onImageUploaded,
 }: {
   activityId?: string;
+  /** Only researchers get the "share to the shared library" checkbox — the
+   *  backend 403s a non-researcher's shared=true anyway, so this just keeps
+   *  the control from appearing where it can't work. */
+  isResearcher: boolean;
   /** 1.1.60 — metadata the upload inherits from the current filter selection. */
   subject?: string;
   folderId?: string;
@@ -909,6 +961,9 @@ function UploadButton({
   const inputRef = useRef<HTMLInputElement>(null);
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);
+  // Reset after every upload (success or failure) — sharing is a deliberate,
+  // per-file choice, never a sticky default a researcher could forget is on.
+  const [shareToLibrary, setShareToLibrary] = useState(false);
 
   async function handleFile(ev: React.ChangeEvent<HTMLInputElement>) {
     const file = ev.target.files?.[0];
@@ -938,6 +993,7 @@ function UploadButton({
         // 1.1.60: inherit the current subject/folder selection.
         subject,
         folderId,
+        shared: (isResearcher && shareToLibrary) || undefined,
       });
       // The parent cites it + opens the per-document "what we extracted" viewer
       // (M4/M3) — so the preview is tied to the doc, not a generic panel.
@@ -951,6 +1007,7 @@ function UploadButton({
       }
     } finally {
       setBusy(false);
+      setShareToLibrary(false);
     }
   }
 
@@ -977,6 +1034,19 @@ function UploadButton({
         className="hidden"
         aria-label="Upload document or image"
       />
+      {/* Researcher-only: mark the next upload as cleared for the shared
+          library instead of your own private one. Backend-enforced (403 for
+          anyone else) — this checkbox only ever appears where it will work. */}
+      {isResearcher ? (
+        <label className="flex items-center gap-1.5 text-xs text-muted-foreground">
+          <input
+            type="checkbox"
+            checked={shareToLibrary}
+            onChange={(e) => setShareToLibrary(e.target.checked)}
+          />
+          Share to the shared library (asserts copyright clearance)
+        </label>
+      ) : null}
       {/* Say where it will land — inheriting the filter is only a good default if
           the teacher can see it happening. */}
       {subject || folderLabel ? (

@@ -8,7 +8,7 @@ vi.mock("@/lib/apiClient", () => ({
   fetchWithTeacherAuth: (...a: unknown[]) => fetchWithTeacherAuth(...a),
 }));
 
-import { browseCurriculum, fetchCurriculumContent } from "@/lib/curriculumApi";
+import { browseCurriculum, deleteCurriculumDoc, fetchCurriculumContent } from "@/lib/curriculumApi";
 
 function jsonResponse(body: unknown, status = 200): Response {
   return new Response(JSON.stringify(body), {
@@ -51,5 +51,28 @@ describe("curriculumApi auth selection", () => {
 
     expect(fetchWithTeacherAuth).toHaveBeenCalledTimes(1);
     expect(fetchWithAuth).not.toHaveBeenCalled();
+  });
+});
+
+describe("deleteCurriculumDoc (M6)", () => {
+  it("DELETEs with the teacher token", async () => {
+    fetchWithTeacherAuth.mockResolvedValue(new Response(null, { status: 204 }));
+    await deleteCurriculumDoc("d1");
+
+    expect(fetchWithTeacherAuth).toHaveBeenCalledWith(
+      "/api/proxy/api/curriculum/d1",
+      expect.objectContaining({ method: "DELETE" }),
+    );
+    expect(fetchWithAuth).not.toHaveBeenCalled();
+  });
+
+  it("tolerates 404 (already gone) without throwing", async () => {
+    fetchWithTeacherAuth.mockResolvedValue(new Response(null, { status: 404 }));
+    await expect(deleteCurriculumDoc("d1")).resolves.toBeUndefined();
+  });
+
+  it("throws on a real failure (e.g. 403 — not your doc)", async () => {
+    fetchWithTeacherAuth.mockResolvedValue(new Response(null, { status: 403 }));
+    await expect(deleteCurriculumDoc("d1")).rejects.toThrow();
   });
 });

@@ -31,7 +31,7 @@ from pydantic import BaseModel, ConfigDict, Field
 
 from adk.teacher_focus import resolve_active_config
 from auth import User, get_current_user
-from auth.guards import assert_can_spend, assert_teacher
+from auth.guards import assert_can_spend, assert_researcher, assert_teacher
 from db.curriculum import (
     create_curriculum_doc,
     create_curriculum_folder,
@@ -356,18 +356,23 @@ async def ingest_curriculum(
     """Ingest a curriculum document into the library and ADK RAG corpus.
 
     Teacher uploads are always ``copyright_status=teacher_owned`` (un-gated).
-    Shared corpus ingestion requires ``copyright_status=cleared`` — the endpoint
-    refuses ``pending`` to prevent accidental clearance-bypass.
+    Shared corpus ingestion is **researcher-only** (design-doc recommendation,
+    curriculum-library.md, finally enforced 2026-08-14 — the field existed
+    un-gated since this endpoint shipped) and requires
+    ``copyright_status=cleared`` — the endpoint refuses ``pending`` to prevent
+    accidental clearance-bypass.
     """
     assert_teacher(user, detail="Curriculum ingest is teacher-only.")
     # ACCESS-1 M1: ingestion runs Vertex RAG embedding — a paid call.
     assert_can_spend(user, detail="Uploading curriculum to the tutor is available to programme participants.")
 
-    if shared and copyright_status != "cleared":
-        raise HTTPException(
-            status_code=422,
-            detail="Shared corpus ingestion requires copyright_status=cleared.",
-        )
+    if shared:
+        assert_researcher(user, detail="Sharing a document to the shared library requires the researcher role.")
+        if copyright_status != "cleared":
+            raise HTTPException(
+                status_code=422,
+                detail="Shared corpus ingestion requires copyright_status=cleared.",
+            )
 
     filename = file.filename or "upload"
     doc_id = str(uuid.uuid4())
@@ -530,11 +535,12 @@ async def delete_curriculum(
 ) -> None:
     """Delete a curriculum doc — its RAG file, parsed content, and metadata.
 
-    Teacher-only. A teacher may delete their OWN uploads or any **shared**-corpus
-    doc — symmetric with ingest (any teacher can add a cleared shared doc), and
-    the shared corpus is institutional + teacher-curated. Deleting another
-    teacher's private upload is denied (403). RAG-file removal is best-effort:
-    the Firestore metadata is the source of truth for what's visible, so an
+    Teacher-only. A teacher may always delete their OWN uploads. Deleting a
+    **shared**-corpus doc is researcher-only — symmetric with ingest (adding to
+    the shared corpus is also researcher-only), since it's institutional +
+    curated, not any one teacher's to remove. Deleting another teacher's
+    private upload is denied (403). RAG-file removal is best-effort: the
+    Firestore metadata is the source of truth for what's visible, so an
     orphaned RagFile is harmless. Idempotent-ish: a missing doc returns 404.
     """
     assert_teacher(user, detail="Curriculum delete is teacher-only.")
@@ -543,8 +549,10 @@ async def delete_curriculum(
     if doc is None:
         raise HTTPException(status_code=404, detail="Document not found.")
 
-    if doc.owner_scope not in (SHARED_SCOPE, user.uid):
-        raise HTTPException(status_code=403, detail="You can only delete your own or shared docs.")
+    if doc.owner_scope == SHARED_SCOPE:
+        assert_researcher(user, detail="Removing a document from the shared library requires the researcher role.")
+    elif doc.owner_scope != user.uid:
+        raise HTTPException(status_code=403, detail="You can only delete your own uploads.")
 
     if doc.doc_artifact_id:
         await delete_rag_file(doc.doc_artifact_id)

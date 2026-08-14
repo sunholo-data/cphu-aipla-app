@@ -77,7 +77,7 @@ def _wire_store(monkeypatch, shared, mine, folders=()):
     monkeypatch.setattr(dbc, "query_documents", fake_query)
 
 
-def _client(group_id=None):
+def _client(group_id=None, is_researcher=False):
     app = FastAPI()
     app.include_router(router)
 
@@ -85,7 +85,13 @@ def _client(group_id=None):
         u = (
             User(uid=TEACHER, email="t@x.dk", group_id=group_id)
             if group_id
-            else User(uid=TEACHER, email="t@x.dk", is_teacher=True, access_tier="pilot")
+            else User(
+                uid=TEACHER,
+                email="t@x.dk",
+                is_teacher=True,
+                access_tier="pilot",
+                is_researcher=is_researcher,
+            )
         )
         request.state.access = build_access_context(u)
         return u
@@ -788,11 +794,22 @@ def _wire_delete(monkeypatch, doc):
 
 
 def test_delete_shared_doc_removes_rag_content_metadata(monkeypatch):
+    # Deleting a SHARED doc is researcher-only, symmetric with ingest.
     doc = _doc("s1", "B", "shared", source="shared").model_copy(update={"doc_artifact_id": "rag/file-1"})
     calls = _wire_delete(monkeypatch, doc)
-    resp = _client().delete("/api/curriculum/s1")
+    resp = _client(is_researcher=True).delete("/api/curriculum/s1")
     assert resp.status_code == 204, resp.text
     assert calls == {"rag": ["rag/file-1"], "content": ["s1"], "doc": ["s1"]}
+
+
+def test_delete_shared_doc_non_researcher_forbidden(monkeypatch):
+    # An ordinary teacher may not remove an institutional shared-corpus doc.
+    doc = _doc("s1", "B", "shared", source="shared")
+    calls = _wire_delete(monkeypatch, doc)
+    resp = _client().delete("/api/curriculum/s1")
+    assert resp.status_code == 403
+    assert "researcher" in resp.json()["detail"].lower()
+    assert calls == {"rag": [], "content": [], "doc": []}
 
 
 def test_delete_own_doc_skips_rag_when_no_artifact(monkeypatch):

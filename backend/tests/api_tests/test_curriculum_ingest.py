@@ -21,22 +21,23 @@ from tools.documents.ailang_parse import ParseOutcome
 TEACHER_UID = "teacher-42"
 
 
-def _teacher_user(group_id: str = "") -> User:
+def _teacher_user(group_id: str = "", is_researcher: bool = False) -> User:
     return User(
         uid=TEACHER_UID,
         email="t@school.dk",
         group_id=group_id,
         is_teacher=not group_id,
         access_tier="pilot",  # ACCESS-1 M1: RAG ingest is a paid embedding call
+        is_researcher=is_researcher,
     )
 
 
-def _client(group_id: str = "") -> TestClient:
+def _client(group_id: str = "", is_researcher: bool = False) -> TestClient:
     app = FastAPI()
     app.include_router(routes.router)
 
     async def _override(request: Request) -> User:
-        u = _teacher_user(group_id)
+        u = _teacher_user(group_id, is_researcher=is_researcher)
         request.state.access = build_access_context(u)
         return u
 
@@ -76,13 +77,31 @@ def test_ingest_student_forbidden():
 
 
 # ---------------------------------------------------------------------------
-# Copyright gate
+# Researcher + copyright gates
 # ---------------------------------------------------------------------------
 
 
-def test_ingest_shared_pending_copyright_rejected():
-    """Shared ingestion with copyright_status=pending is refused."""
+def test_ingest_shared_non_researcher_forbidden():
+    """A non-researcher teacher cannot add to the shared corpus, even cleared
+    (curriculum-library.md recommendation, enforced 2026-08-14)."""
     resp = _client().post(
+        "/api/curriculum/ingest",
+        files={"file": ("notes.txt", io.BytesIO(b"content"), "text/plain")},
+        data={
+            "title": "Shared Doc",
+            "level": "A",
+            "origin": "uvm.dk",
+            "shared": "true",
+            "copyright_status": "cleared",
+        },
+    )
+    assert resp.status_code == 403
+    assert "researcher" in resp.json()["detail"].lower()
+
+
+def test_ingest_shared_pending_copyright_rejected():
+    """Shared ingestion with copyright_status=pending is refused, even for a researcher."""
+    resp = _client(is_researcher=True).post(
         "/api/curriculum/ingest",
         files={"file": ("notes.txt", io.BytesIO(b"content"), "text/plain")},
         data={
@@ -172,7 +191,8 @@ def test_ingest_with_rag_corpus():
 
 
 def test_ingest_shared_cleared_ok():
-    """Shared ingestion with cleared copyright is accepted; owner_scope == 'shared'."""
+    """Shared ingestion by a researcher with cleared copyright is accepted;
+    owner_scope == 'shared'."""
     resp_data: dict = {}
 
     def _capture(doc):
@@ -182,7 +202,7 @@ def test_ingest_shared_cleared_ok():
         patch.object(routes, "create_curriculum_doc", side_effect=_capture),
         patch.object(routes, "upload_text_as_rag_file", new_callable=AsyncMock, return_value=None),
     ):
-        resp = _client().post(
+        resp = _client(is_researcher=True).post(
             "/api/curriculum/ingest",
             files={"file": ("uvm.txt", io.BytesIO(b"Laereplansindhold A-niveau."), "text/plain")},
             data={

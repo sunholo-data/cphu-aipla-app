@@ -8,6 +8,7 @@ const listCurriculumFacets = vi.fn();
 const listCurriculumFolders = vi.fn();
 const createCurriculumFolder = vi.fn();
 const deleteCurriculumFolder = vi.fn();
+const deleteCurriculumDoc = vi.fn();
 const patchCurriculumTags = vi.fn();
 const uploadActivityImage = vi.fn();
 const deleteActivityImage = vi.fn();
@@ -25,6 +26,7 @@ vi.mock("@/lib/curriculumApi", async () => {
     listCurriculumFolders: (...a: unknown[]) => listCurriculumFolders(...a),
     createCurriculumFolder: (...a: unknown[]) => createCurriculumFolder(...a),
     deleteCurriculumFolder: (...a: unknown[]) => deleteCurriculumFolder(...a),
+    deleteCurriculumDoc: (...a: unknown[]) => deleteCurriculumDoc(...a),
     patchCurriculumTags: (...a: unknown[]) => patchCurriculumTags(...a),
   };
 });
@@ -39,6 +41,10 @@ vi.mock("@/lib/activityImageApi", async () => {
     deleteActivityImage: (...a: unknown[]) => deleteActivityImage(...a),
   };
 });
+
+// Controllable researcher claim — drives the "share to shared library" upload option.
+const { researcherRef } = vi.hoisted(() => ({ researcherRef: { current: false } }));
+vi.mock("@/hooks/useIsResearcher", () => ({ useIsResearcher: () => researcherRef.current }));
 
 import { CurriculumApiError } from "@/lib/curriculumApi";
 import { MaterialsSection } from "../MaterialsSection";
@@ -91,6 +97,7 @@ function facets(partial: Partial<Record<"subjects" | "levels" | "folders" | "tag
 beforeEach(() => {
   listCurriculumFacets.mockResolvedValue(facets());
   listCurriculumFolders.mockResolvedValue([]);
+  researcherRef.current = false;
 });
 afterEach(() => vi.clearAllMocks());
 
@@ -344,6 +351,64 @@ describe("MaterialsSection", () => {
     confirmSpy.mockRestore();
   });
 
+  // --- M6: deleting a document ---
+
+  it("deleting a doc (confirmed) calls deleteCurriculumDoc and removes it from the list", async () => {
+    browseCurriculum.mockResolvedValue(page([makeDoc({ ownerScope: "teacher-1", source: "teacher_upload" })]));
+    deleteCurriculumDoc.mockResolvedValue(undefined);
+    const confirmSpy = vi.spyOn(window, "confirm").mockReturnValue(true);
+    render(<MaterialsSection materials={[]} onChange={() => {}} />);
+    fireEvent.click(await screen.findByRole("button", { name: "Delete Energi og arbejde" }));
+    await waitFor(() => expect(deleteCurriculumDoc).toHaveBeenCalledWith("d1"));
+    await waitFor(() => expect(screen.queryByText("Energi og arbejde")).not.toBeInTheDocument());
+    confirmSpy.mockRestore();
+  });
+
+  it("cancelling the delete confirm does NOT call the API or remove the row", async () => {
+    browseCurriculum.mockResolvedValue(page([makeDoc()]));
+    const confirmSpy = vi.spyOn(window, "confirm").mockReturnValue(false);
+    render(<MaterialsSection materials={[]} onChange={() => {}} />);
+    fireEvent.click(await screen.findByRole("button", { name: "Delete Energi og arbejde" }));
+    expect(deleteCurriculumDoc).not.toHaveBeenCalled();
+    expect(screen.getByText("Energi og arbejde")).toBeInTheDocument();
+    confirmSpy.mockRestore();
+  });
+
+  it("the delete confirm warns when the doc is in the shared library", async () => {
+    browseCurriculum.mockResolvedValue(page([makeDoc({ source: "shared" })]));
+    const confirmSpy = vi.spyOn(window, "confirm").mockReturnValue(false);
+    render(<MaterialsSection materials={[]} onChange={() => {}} />);
+    fireEvent.click(await screen.findByRole("button", { name: "Delete Energi og arbejde" }));
+    expect(confirmSpy).toHaveBeenCalledWith(expect.stringContaining("SHARED library"));
+    confirmSpy.mockRestore();
+  });
+
+  it("deleting a cited doc also un-cites it", async () => {
+    browseCurriculum.mockResolvedValue(page([makeDoc()]));
+    deleteCurriculumDoc.mockResolvedValue(undefined);
+    const confirmSpy = vi.spyOn(window, "confirm").mockReturnValue(true);
+    const onChange = vi.fn();
+    render(
+      <MaterialsSection
+        materials={[{ docId: "d1", origin: "uvm.dk", title: "Energi og arbejde" }]}
+        onChange={onChange}
+      />,
+    );
+    fireEvent.click(await screen.findByRole("button", { name: "Delete Energi og arbejde" }));
+    await waitFor(() => expect(onChange).toHaveBeenCalledWith([]));
+    confirmSpy.mockRestore();
+  });
+
+  it("deleting is available in library mode too (no Cite column there)", async () => {
+    browseCurriculum.mockResolvedValue(page([makeDoc()]));
+    deleteCurriculumDoc.mockResolvedValue(undefined);
+    const confirmSpy = vi.spyOn(window, "confirm").mockReturnValue(true);
+    render(<MaterialsSection mode="library" materials={[]} onChange={() => {}} />);
+    fireEvent.click(await screen.findByRole("button", { name: "Delete Energi og arbejde" }));
+    await waitFor(() => expect(deleteCurriculumDoc).toHaveBeenCalledWith("d1"));
+    confirmSpy.mockRestore();
+  });
+
   it("the Unfiled chip filters by the unfiled sentinel", async () => {
     browseCurriculum.mockResolvedValue(page([]));
     listCurriculumFacets.mockResolvedValue(
@@ -519,6 +584,65 @@ describe("MaterialsSection", () => {
     await waitFor(() => expect(ingestCurriculum).toHaveBeenCalled());
     expect(ingestCurriculum.mock.calls[0][0]).toMatchObject({ subject: undefined, folderId: undefined });
     expect(screen.queryByText(/Files into/)).not.toBeInTheDocument();
+  });
+
+  // --- share-to-library upload option (researcher-only) ---
+
+  it("a non-researcher never sees the share-to-library checkbox, and shared is never sent", async () => {
+    browseCurriculum.mockResolvedValue(page([]));
+    ingestCurriculum.mockResolvedValue({
+      doc: makeDoc({ docId: "up4", origin: "n.txt", title: "n" }),
+      parsedPreview: "",
+      parsedChars: 0,
+    });
+    fetchCurriculumContent.mockResolvedValue({ docId: "up4", title: "n", available: true, text: "", chars: 0 });
+    render(<MaterialsSection materials={[]} onChange={() => {}} />);
+    expect(screen.queryByText(/Share to the shared library/i)).not.toBeInTheDocument();
+
+    const file = new File(["x"], "n.txt", { type: "text/plain" });
+    fireEvent.change(screen.getByLabelText("Upload document or image"), { target: { files: [file] } });
+    await waitFor(() => expect(ingestCurriculum).toHaveBeenCalled());
+    expect(ingestCurriculum.mock.calls[0][0]).toMatchObject({ shared: undefined });
+  });
+
+  it("a researcher can check share-to-library, and ingest is called with shared=true", async () => {
+    researcherRef.current = true;
+    browseCurriculum.mockResolvedValue(page([]));
+    ingestCurriculum.mockResolvedValue({
+      doc: makeDoc({ docId: "up5", origin: "n.txt", title: "n", source: "shared", ownerScope: "shared" }),
+      parsedPreview: "",
+      parsedChars: 0,
+    });
+    fetchCurriculumContent.mockResolvedValue({ docId: "up5", title: "n", available: true, text: "", chars: 0 });
+    render(<MaterialsSection materials={[]} onChange={() => {}} />);
+
+    fireEvent.click(await screen.findByLabelText(/Share to the shared library/i));
+    const file = new File(["x"], "n.txt", { type: "text/plain" });
+    fireEvent.change(screen.getByLabelText("Upload document or image"), { target: { files: [file] } });
+
+    await waitFor(() =>
+      expect(ingestCurriculum).toHaveBeenCalledWith(expect.objectContaining({ shared: true })),
+    );
+  });
+
+  it("the share checkbox resets after an upload, so sharing is per-file not sticky", async () => {
+    researcherRef.current = true;
+    browseCurriculum.mockResolvedValue(page([]));
+    ingestCurriculum.mockResolvedValue({
+      doc: makeDoc({ docId: "up6", origin: "n.txt", title: "n" }),
+      parsedPreview: "",
+      parsedChars: 0,
+    });
+    fetchCurriculumContent.mockResolvedValue({ docId: "up6", title: "n", available: true, text: "", chars: 0 });
+    render(<MaterialsSection materials={[]} onChange={() => {}} />);
+
+    const checkbox = await screen.findByLabelText(/Share to the shared library/i);
+    fireEvent.click(checkbox);
+    expect(checkbox).toBeChecked();
+    const file = new File(["x"], "n.txt", { type: "text/plain" });
+    fireEvent.change(screen.getByLabelText("Upload document or image"), { target: { files: [file] } });
+    await waitFor(() => expect(ingestCurriculum).toHaveBeenCalled());
+    await waitFor(() => expect(checkbox).not.toBeChecked());
   });
 
   it("uploading an image routes to the activity-image endpoint (not curriculum ingest) and cites it (1.1.44)", async () => {

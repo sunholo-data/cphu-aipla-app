@@ -51,6 +51,19 @@ def assert_teacher(user: User, detail: str = "teacher access required") -> None:
         raise HTTPException(status_code=403, detail=detail)
 
 
+def assert_researcher(user: User, detail: str = "researcher role required") -> None:
+    """Reject callers without the ``role:researcher`` claim (403).
+
+    The claim is a Firebase custom claim layered on top of teacher identity
+    (see ``firebase_auth.py``), granted by a platform admin via
+    ``POST /api/admin/grant-researcher``. Every researcher is a teacher, but
+    not every teacher is a researcher — callers should ``assert_teacher``
+    first if they need that distinction reported separately.
+    """
+    if not user.is_researcher:
+        raise HTTPException(status_code=403, detail=detail)
+
+
 def assert_can_spend(user: User, detail: str = _DEFAULT_SPEND_DETAIL) -> None:
     """Reject callers whose access tier does not authorise paid work (402).
 

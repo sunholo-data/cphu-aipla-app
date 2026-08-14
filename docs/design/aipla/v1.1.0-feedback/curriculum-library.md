@@ -189,7 +189,7 @@ Backlink: [local-dev-cli](../../v6.1.0/local-dev-cli.md).
 
 ## Open questions
 
-- **Q1 — shared-corpus curation:** who is the editor of `source="shared"` (admin/researcher role 1.1.5)? Recommend `role:researcher`/admin-only writes to shared; teachers write only their own scope.
+- ~~**Q1 — shared-corpus curation:**~~ **Resolved 2026-08-14.** The recommendation shipped: `POST /api/curriculum/ingest` and `DELETE /api/curriculum/{id}` both require `role:researcher` (`auth.guards.assert_researcher`) whenever `shared`/the doc's `ownerScope` is `SHARED_SCOPE`; ordinary teachers still write/delete their own scope freely. The frontend "Share to the shared library" checkbox in `MaterialsSection.tsx` only renders for `useIsResearcher()`.
 - **Q2 — retrieval granularity for students:** whole-doc vs chunk-level allow-list when scoping to an activity's `materials`? Recommend doc-level allow-list, chunk-level ranking within.
 - **Q3 — overlap with [student-multimodal-upload.md](student-multimodal-upload.md):** a teacher upload here vs a student image upload there share the AILANG Parse path but differ in retention (curriculum is **retained + indexed**; student images are **not**). Keep the two retention postures explicit and separate.
 - **Q4 — embeddings model + EU residency:** confirm the ADK RAG / Vertex embedding model runs in-region (ADR-005/007).

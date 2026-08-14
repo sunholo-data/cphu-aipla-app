@@ -236,8 +236,11 @@ export interface IngestCurriculumParams {
   /** 1.1.60 — file the upload straight into a folder, so it doesn't land
    *  Unfiled and need a second edit. */
   folderId?: string;
-  /** Teacher uploads default to teacher_owned (un-gated). Shared ingestion
-   *  is admin-only and requires copyright_status=cleared — not exposed here. */
+  /** Share this upload into the shared corpus instead of your own private
+   *  library. Backend-gated to the researcher role (403 otherwise) — the
+   *  caller should check `useIsResearcher()` before ever offering this.
+   *  Omit for a normal private (teacher_owned) upload. */
+  shared?: boolean;
 }
 
 /** The ingest result. 1.1.33 M4 — `parsedPreview` is what AILANG Parse
@@ -262,6 +265,13 @@ export async function ingestCurriculum(
   if (params.subject) form.set("subject", params.subject);
   if (params.folderId) form.set("folder_id", params.folderId);
   // shared=false, copyright_status=teacher_owned are the backend defaults.
+  // Checking "share" is the researcher's clearance assertion — the backend
+  // refuses shared=true with anything but copyright_status=cleared, so there's
+  // no separate clearance picker to expose here.
+  if (params.shared) {
+    form.set("shared", "true");
+    form.set("copyright_status", "cleared");
+  }
 
   const resp = await fetchWithTeacherAuth(`/api/proxy/api/curriculum/ingest`, {
     method: "POST",
@@ -277,6 +287,19 @@ export async function ingestCurriculum(
     parsedPreview: body.parsedPreview ?? "",
     parsedChars: body.parsedChars ?? 0,
   };
+}
+
+/** Delete a curriculum doc — your own upload or any shared-corpus doc (M6).
+ *  Removes the RAG file, parsed content, and metadata. Tolerates 404 (already
+ *  gone) so a doubled click or a stale row never surfaces an error. */
+export async function deleteCurriculumDoc(docId: string): Promise<void> {
+  const resp = await fetchWithTeacherAuth(
+    `/api/proxy/api/curriculum/${encodeURIComponent(docId)}`,
+    { method: "DELETE" },
+  );
+  if (!resp.ok && resp.status !== 404) {
+    throw new CurriculumApiError("Couldn't delete this document.", resp.status);
+  }
 }
 
 /** A doc's parsed content for display (1.1.33 M3). `available` is false when no
