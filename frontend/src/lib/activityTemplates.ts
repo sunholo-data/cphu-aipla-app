@@ -595,8 +595,12 @@ export const ACTIVITY_TEMPLATES: ActivityTemplate[] = [
       "Til din egen kontrol (sig det ikke direkte): Mars' middelafstand er ca. 1,52 AU, og afstanden " +
       "varierer mellem ca. 1,38 AU og ca. 1,67 AU. Med Tychos tal bør målepar 2 give ca. 1,38 AU " +
       "(nær perihel) og målepar 1 og 5 ca. 1,68 AU (nær aphel) — netop den forskel, der afliver cirklen. " +
-      "Ligger et punkt langt uden for 1,3–1,7, er det næsten altid en vinkel afsat fra den forkerte " +
-      "nulretning, eller de to sigtelinjer byttet om; spørg til det i stedet for at rette det. " +
+      "Ligger et punkt langt uden for 1,3–1,7, så er den HYPPIGSTE fejl denne: sigtelinjen fra Jorden " +
+      "er afsat med vinkelmålerens 0° pegende mod Solen i stedet for parallelt med gruppens egen " +
+      "0°-streg. Alle vinkler i skemaet måles fra den SAMME faste retning, uanset hvor på cirklen man " +
+      "står — flytter man vinkelmåleren ud til Jorden, skal 0° stadig vende samme vej. Næst-hyppigste: " +
+      "de to sigtelinjer byttet om, eller vinkler afsat med uret. Spørg til det i stedet for at rette " +
+      "det — bed dem tjekke ét målepar, de allerede har, mod de andre. " +
       "Bemærk, at tre af de fem punkter ligger tæt på hinanden nær aphel: eleverne kan altså vise, at " +
       "banen IKKE er en cirkel, men de har for få punkter til at bestemme ellipsens form. Hvis de " +
       "spørger, så sig det ligeud — Kepler brugte mange flere målepar end fem. " +
@@ -604,8 +608,8 @@ export const ACTIVITY_TEMPLATES: ActivityTemplate[] = [
       "om, hvad de har tegnet.",
     checklist: [
       "Tegn Solen og Jordens bane med kridt og snor — notér radius i meter",
-      "Markér 0° på cirklen, og afsæt de to jordpositioner for målepar 1",
-      "Stræk snoren i de to sigteretninger og markér skæringspunktet",
+      "Tegn 0°-stregen ud fra Solen, og afsæt de to jordpositioner for målepar 1",
+      "Stræk snoren i de to sigteretninger (0° parallelt med jeres 0°-streg) og markér krydset",
       "Mål afstanden Sol–Mars med snoren og omregn til AU",
       "Gentag for alle fem målepar i skemaet",
       "Tag et billede af hele konstruktionen og send det til tutoren",
@@ -653,13 +657,21 @@ export const ACTIVITY_TEMPLATES: ActivityTemplate[] = [
         "**Idéen:** Mars bruger 687 dage om ét omløb. To observationer med præcis 687 dages mellemrum " +
         "viser derfor Mars *samme sted* i sin bane — men set fra to forskellige steder på Jordens bane. " +
         "De to sigtelinjer skærer hinanden dér, hvor Mars er.\n\n" +
+        "**I skal bruge:** kridt, et snorstykke på mindst 3 m, en stor vinkelmåler (print den " +
+        "på A3 — telefonens kompas peger mod MAGNETISK nord og duer ikke her), og ca. **5 × 5 m " +
+        "fri asfalt** per gruppe.\n\n" +
         "**Skala:** Tegn Jordens bane som en cirkel med kridt og snor. Den radius, I vælger, **er 1 AU**. " +
-        "Vælg mindst 1,5 m — så fylder hele tegningen ca. 5 m, for Mars ligger uden for cirklen.\n\n" +
+        "Vælg ca. 1,5 m — Mars ligger uden for cirklen, helt ude i ca. 1,7 gange radius, så hele " +
+        "tegningen fylder omkring 5 m på tværs.\n\n" +
         "1. Sæt et kridtkryds i midten — det er Solen. Bind snoren og tegn cirklen.\n" +
-        "2. Markér 0° på cirklen. Alle vinkler i skemaet måles herfra, mod uret.\n" +
-        "3. Afsæt de **to jordpositioner** for jeres målepar (kolonne *Jorden*).\n" +
-        "4. Stræk snoren fra hver jordposition i retningen fra kolonnen *Mars set fra Jorden*. " +
-        "Hvor de to linjer krydser, står Mars.\n" +
+        "2. Vælg en retning ud fra Solen som **0°** og tegn den streg helt ud. Alle vinkler i " +
+        "skemaet måles fra den streg, **mod uret**. Læg vinkelmåleren med midten på Solen.\n" +
+        "3. Afsæt de **to jordpositioner** for jeres målepar (kolonne *Jorden*): mål vinklen ud fra " +
+        "Solen, og sæt krydset dér hvor stregen rammer cirklen.\n" +
+        "4. Sigtelinjerne måles fra **Jorden**, ikke fra Solen: flyt vinkelmåleren ud til " +
+        "jordpositionen, og læg 0°-retningen **parallel med jeres 0°-streg** (brug snoren til at " +
+        "holde den parallel). Stræk så snoren i retningen fra kolonnen *Mars set fra Jorden*. " +
+        "Hvor de to sigtelinjer krydser, står Mars.\n" +
         "5. Mål fra Solen ud til krydset og divider med jeres cirkelradius — det er afstanden i AU.\n" +
         "6. Mål også retningen fra Solen ud til krydset, og skriv begge tal i tabellen.\n\n" +
         "**Tychos observationer** (Brahes egne tal — de samme, Kepler regnede på). " +

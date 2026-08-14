@@ -1,4 +1,4 @@
-.PHONY: tf-plan tf-apply tf-local tf-fmt check-iam-posture check-spend-ceiling spend-ceiling check-domains deploy-status dev dev-local dev-recompile dev-status dev-stop proxy-check logs cloud-logs cloud-errors cloud-build verify-chat-logs smoke-session-persistence smoke-chat-resume smoke-curriculum-content smoke-teacher-cli help cli-install cli-reinstall cli-uninstall cli-doctor cli-selftest-mock cli-selftest-live cli-selftest seed seed-job seed-demo-codes force-seed-demo reset-group-state provision-curriculum-rag provision-agent-engine copy-docparse-secret seed-curriculum backfill-curriculum-content seed-curriculum-folders check-auth-config migrate-clear-persona-voice-override docs-linkcheck check-skills sim-build sim-build-check guides guides-publish guide-screens seed-guide-corpus guide-staleness
+.PHONY: tf-plan tf-apply tf-local tf-fmt check-iam-posture check-spend-ceiling spend-ceiling check-domains deploy-status dev dev-local dev-recompile dev-status dev-stop proxy-check logs cloud-logs cloud-errors cloud-build verify-chat-logs smoke-session-persistence smoke-chat-resume smoke-curriculum-content smoke-teacher-cli help cli-install cli-reinstall cli-uninstall cli-doctor cli-selftest-mock cli-selftest-live cli-selftest seed seed-job seed-demo-codes force-seed-demo bind-demo-code reset-group-state provision-curriculum-rag provision-agent-engine copy-docparse-secret seed-curriculum backfill-curriculum-content seed-curriculum-folders check-auth-config migrate-clear-persona-voice-override docs-linkcheck check-skills sim-build sim-build-check guides guides-publish guide-screens seed-guide-corpus guide-staleness
 
 # Seed SKILL.md templates -> Firestore. Since P1.3 the Cloud Build deploy runs
 # this automatically via the `aipla-seed-skills` Cloud Run job (see
@@ -40,6 +40,20 @@ seed-demo-codes:
 force-seed-demo:
 	@cd backend && GOOGLE_CLOUD_PROJECT=aipla-$(ENV)-2026 uv run python -m scripts.force_seed_demo \
 		$(if $(filter 1,$(APPLY)),--apply,) $(if $(OWNER),--owner $(OWNER),)
+
+# Bind the shared demo student code to a Demo class so /lessons isn't empty.
+# `seed-demo-codes` mints a code bound to a SKILL; /lessons renders
+# my-activities, which resolves through anon_groups/<code>.classId. A code with
+# no classId joins fine and then shows nothing — which is what test and prod
+# looked like on 2026-08-14 while dev worked, so the student journey could only
+# be rehearsed on dev. Run AFTER seed-demo-codes + force-seed-demo.
+# NOTE aipla-demo-1 is a PUBLIC code: the script only accepts a class named
+# exactly "Demo class", so it can never be pointed at a real pilot class.
+#   make bind-demo-code ENV=test            # dry-run (preview)
+#   make bind-demo-code ENV=test APPLY=1    # write
+bind-demo-code:
+	@cd backend && GOOGLE_CLOUD_PROJECT=aipla-$(ENV)-2026 uv run python -m scripts.bind_demo_code_to_class \
+		$(if $(filter 1,$(APPLY)),--apply,) $(if $(CODE),--code $(CODE),)
 
 # Clean-slate the anonymous-group session state for an env: wipe the
 # group_sessions pointers (always) and chat_sessions mirror (SESSIONS=1),
