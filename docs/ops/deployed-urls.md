@@ -94,6 +94,54 @@ URLs.
   - **Public, no auth** (matches the public-skills posture). Speaks Streamable HTTP — point a ChatGPT remote connector or Claude Desktop `mcp-remote` here, no tunnel.
   - Offers the public skills as tools **and** the sims as `ui://` MCP Apps (`show_boldkast|kinebot|led_planck`; artefact HTML lazily fetched from the sandbox via `MCP_SANDBOX_URL`).
   - Smoke: `REQUIRE_SIMS=1 ./scripts/smoke-deployed-mcp.sh dev` → initialize + sims listed + `ui://` readable. (Visual render is host-dependent — Claude Desktop is currently blocked by upstream claude-ai-mcp#165; ChatGPT/MCP Inspector render reliably.)
+## MOBILE-2 rollout state (2026-08-14) — PWA, device floors, reload fix
+
+Live on all three environments at **`v0.1.18`**. Supersedes the MOBILE-1 section
+below, which stays for the history of what each fix was.
+
+| Env | Version | Shell at 390pt | PWA assets | Chat surface |
+|---|---|---|---|---|
+| dev | branch tip | 14/14 | manifest + sw + offline 200 | verified: in-app, reload AND cold load all stay on /chat |
+| test | `v0.1.18` | 7/8 | 200, `sw.js` `no-store` | not exercised — no activities on the class |
+| prod | `v0.1.18` | 7/8 | 200 | not exercised — no activities on the class |
+
+**The reload fix is the one that mattered.** A student with a valid group
+session who reloaded or cold-loaded a `/chat` URL was dumped on the home page.
+The group adapter reported `loading: false` while the session was still
+hydrating from sessionStorage, so `if (!loading && !user) router.replace("/")`
+fired first. In-app navigation never hit it (provider already mounted), which is
+why it survived — clicking through is what a developer does. On a phone it was
+the common case: iOS evicts backgrounded tabs, and backgrounding is exactly what
+taking a photo of your work does, so the camera workflow was the likeliest way
+to trigger it. Fixed via a `hydrated` flag on the provider.
+
+**PWA.** `display: standalone`, KU-red theme, maskable icon, offline shell. The
+worker never caches `/api/**` (per-group, authenticated — a cached response
+served to the next group on a shared phone is a data leak, and a cached 401 is
+an unrecoverable logged-out) nor SSE. It does NOT queue chat turns; that needs
+the AG-UI turn lock handled properly and is a follow-on.
+
+**Device floors.** `minViewportPx` on the artefact catalogue — LED-Planck 720,
+KineBot 480, Boldkast unset. Student gets "kræver en større skærm, you can still
+chat"; teacher sees it in the sim picker when choosing.
+
+**Same coverage gap as MOBILE-1, unchanged:** the chat surface is only
+exercisable on **dev**. test and prod both join fine with `aipla-demo-1` and then
+render an empty `/lessons`. Prod's emptiness is the cleared-content gate working
+as intended; test's is a rehearsal-readiness gap still worth closing before the
+2026-08-14 pilot.
+
+**Release-shape change, verified on its first run.** `aipla-prod-promote-on-tag`
+is retired (see `infrastructure/env/cloudbuild.tf`), so the `v0.1.18` tag reached
+test only and queued NO prod approval — the stale-approval hazard that had built
+up to five entries by 2026-08-13 cannot recur. Prod moved solely by an explicit
+`make promote`, which now requires a working machine; that is the accepted trade.
+
+**Still open.** No offline chat-turn queue. LED-Planck is labelled rather than
+rescaled. The Kepler chalk activity needs a way to lay off angles on asphalt, ~5
+m of clear ground per group, and AR/JB physics + Danish review before a class
+runs it.
+
 ## MOBILE-1 rollout state (2026-08-13)
 
 The phone/tablet fixes from the 2026-08-13 mobile audit are **live on all three
