@@ -11,13 +11,12 @@ import pytest
 from fastapi import FastAPI, Request
 from fastapi.testclient import TestClient
 
+# Import the SAME symbol the route depends on — `auth.get_current_user` (the
+# token-shape dispatcher, which accepts BOTH Firebase and anonymous-group JWTs)
+# is a different object from `auth.firebase_auth.get_current_user` (Firebase
+# only). Overriding the wrong one silently leaves the real dependency in place.
+from auth import User, get_current_user
 from auth.access_context import build_access_context
-
-# Import the SAME symbol the route depends on — `auth.get_current_user` is a
-# different object from `auth.firebase_auth.get_current_user`, and overriding
-# the wrong one silently leaves the real dependency in place (every request
-# 401s). Matches test_concept_progress_routes.py.
-from auth.firebase_auth import User, get_current_user
 from db import firestore as fs_module
 from protocols.checklist_progress_routes import router
 

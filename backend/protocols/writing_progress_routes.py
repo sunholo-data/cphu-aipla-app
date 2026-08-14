@@ -24,7 +24,7 @@ from typing import Any
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel, Field
 
-from auth.firebase_auth import User, get_current_user
+from auth import User, get_current_user
 from db.activities import get_activity
 from db.firestore import query_documents
 from db.writing_progress import MAX_TEXT_CHARS, get_docs, record_doc

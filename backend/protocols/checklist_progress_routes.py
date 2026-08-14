@@ -22,7 +22,7 @@ from typing import Any
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel, Field
 
-from auth.firebase_auth import User, get_current_user
+from auth import User, get_current_user
 from db.activities import get_activity
 from db.checklist_progress import get_item_states, record_item_state
 from db.firestore import query_documents

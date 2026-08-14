@@ -48,9 +48,13 @@ from auth.group_id_auth import AnonymousGroupAuth, create_group, join_group
 from db import firestore as fs_module
 from protocols.activity_config_routes import router as activity_config_router
 from protocols.activity_routes import router as activity_router
+from protocols.checklist_progress_routes import router as checklist_progress_router
 from protocols.classes_routes import router as classes_router
+from protocols.concept_progress_routes import router as concept_progress_router
+from protocols.writing_progress_routes import router as writing_progress_router
 
 TEACHER_UID = "teacher-creator"
+ACTIVITY = "act-boelger"
 
 
 @pytest.fixture(autouse=True)
@@ -79,6 +83,9 @@ def app() -> FastAPI:
     app.include_router(classes_router)
     app.include_router(activity_router)
     app.include_router(activity_config_router)
+    app.include_router(writing_progress_router)
+    app.include_router(checklist_progress_router)
+    app.include_router(concept_progress_router)
     return app
 
 
@@ -165,6 +172,46 @@ def test_student_endpoint_accepts_the_same_real_group_token(client):
     # Unbound group → empty config shape (not a 4xx).
     assert body["activityId"] == "act-some-activity"
     assert body["checklist"] == []
+
+
+@pytest.mark.parametrize(
+    "method,path",
+    [
+        ("GET", f"/api/activities/{ACTIVITY}/writing"),
+        ("GET", f"/api/activities/{ACTIVITY}/checklist-progress"),
+        ("GET", f"/api/activities/{ACTIVITY}/concept-progress"),
+    ],
+)
+def test_student_progress_reads_accept_a_real_group_token(client, method, path):
+    """The per-group progress reads accept a REAL student token.
+
+    All three depended on ``auth.firebase_auth.get_current_user`` (Firebase
+    ONLY) instead of the ``auth.get_current_user`` dispatcher, so every group
+    JWT died at ``verify_id_token`` — a 401 no student could recover from. Their
+    own unit tests overrode the Firebase symbol, so they stayed green while prod
+    401'd; only a real token through the real dispatcher witnesses this.
+    """
+    resp = client.request(method, path, headers=_auth_headers(_mint_real_group_token()))
+    assert resp.status_code == 200, resp.text
+
+
+def test_student_writing_save_accepts_a_real_group_token(client):
+    """The WRITE half too — this is the one that surfaced as lost student work.
+
+    A 401 here means the autosave never lands, leaving the text in a tab-scoped
+    sessionStorage buffer that dies with the tab.
+    """
+    token = _mint_real_group_token()
+    save = client.put(
+        f"/api/activities/{ACTIVITY}/writing",
+        json={"elementId": "writing-1", "text": "Forsk skal komme før Forklar."},
+        headers=_auth_headers(token),
+    )
+    assert save.status_code == 200, save.text
+
+    read = client.get(f"/api/activities/{ACTIVITY}/writing", headers=_auth_headers(token))
+    assert read.status_code == 200, read.text
+    assert read.json()["docs"]["writing-1"]["text"] == "Forsk skal komme før Forklar."
 
 
 def test_rejection_is_role_based_not_token_invalid(client):

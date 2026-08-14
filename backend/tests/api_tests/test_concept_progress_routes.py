@@ -11,8 +11,8 @@ import pytest
 from fastapi import FastAPI, Request
 from fastapi.testclient import TestClient
 
+from auth import User, get_current_user
 from auth.access_context import build_access_context
-from auth.firebase_auth import User, get_current_user
 from db import firestore as fs_module
 from db.activities import create_activity
 from db.concept_progress import record_checkpoint_state
