@@ -245,7 +245,7 @@ function NewActivityForm() {
           (renders null when NEXT_PUBLIC_AUTHORING_COPILOT !== "1"). No activity_id
           yet — it proposes into the draft (the Save is owner-scoped). */}
       {classesState.status === "ready" ? (
-        <AuthoringCopilot activityId="" onApplyProposal={(p) => applyCopilotProposal(p, builder)} />
+        <AuthoringCopilot activityId="" draft={builder.toSavePayload()} onApplyProposal={(p) => applyCopilotProposal(p, builder)} />
       ) : null}
     </div>
   );

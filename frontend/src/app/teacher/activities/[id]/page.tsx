@@ -290,7 +290,11 @@ export default function TeacherActivityConfigPage() {
               when NEXT_PUBLIC_AUTHORING_COPILOT !== "1", so the builder is
               unaffected). The Apply router maps each proposal kind to a builder
               setter (M0: lesson prompt; M1/M2 add element + sim). */}
-          <AuthoringCopilot activityId={activityId} onApplyProposal={(p) => applyCopilotProposal(p, builder)} />
+          <AuthoringCopilot
+            activityId={activityId}
+            draft={builder.toSavePayload()}
+            onApplyProposal={(p) => applyCopilotProposal(p, builder)}
+          />
         </section>
       ) : null}
 

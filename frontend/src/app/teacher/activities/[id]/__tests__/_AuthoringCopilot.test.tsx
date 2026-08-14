@@ -2,6 +2,33 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { fireEvent, render, screen } from "@testing-library/react";
 
 import type { ToolCallState, UseSkillAgentReturn } from "@/hooks/useSkillAgent";
+import type { SavePayload } from "@/hooks/useActivityBuilder";
+
+/** A minimal-but-valid SavePayload, overridable per test. Mirrors what
+ *  `useActivityBuilder().toSavePayload()` returns. */
+function savePayload(over: Partial<SavePayload> = {}): SavePayload {
+  return {
+    title: "",
+    teachingGoal: "",
+    language: "da",
+    workbenchType: "none",
+    artefactId: null,
+    checklist: [],
+    table: [],
+    chart: [],
+    calculator: [],
+    note: [],
+    writing: [],
+    solution: [],
+    document: [],
+    conceptMap: [],
+    materials: [],
+    tags: [],
+    subject: null,
+    level: null,
+    ...over,
+  };
+}
 
 // Capture AGUIProvider props so we can assert the auth corner (useTeacherAuth).
 let aguiProps: Record<string, unknown> | null = null;
@@ -151,6 +178,51 @@ describe("AuthoringCopilot — auth corner + panel", () => {
     fireEvent.change(screen.getByLabelText(/beskriv hvad du vil undervise/i), { target: { value: "energi" } });
     fireEvent.submit(screen.getByRole("button", { name: /send/i }).closest("form")!);
     expect(sendMessage).toHaveBeenCalledWith("energi");
+  });
+
+  it("carries the current draft as hidden context (COPILOT: the co-pilot used to be blind to it)", async () => {
+    const draft = savePayload({
+      title: "Kepler's chalk orbit",
+      teachingGoal: "Konstruér Mars' bane fra Tychos observationer.",
+      checklist: [{ id: "c1", label: "Tegn Solen og Jordens bane" }],
+    });
+    render(<AuthoringCopilot activityId="act-42" draft={draft} onApplyProposal={vi.fn()} />);
+    await screen.findByTestId("authoring-copilot");
+    fireEvent.change(screen.getByLabelText(/beskriv hvad du vil undervise/i), {
+      target: { value: "oversæt til engelsk" },
+    });
+    fireEvent.submit(screen.getByRole("button", { name: /send/i }).closest("form")!);
+
+    expect(sendMessage).toHaveBeenCalledTimes(1);
+    const sent = sendMessage.mock.calls[0][0] as string;
+    expect(sent).toContain("[activity_id=act-42] ");
+    expect(sent).toContain("[[activity_draft]]");
+    expect(sent).toContain("Kepler's chalk orbit");
+    expect(sent).toContain("Tegn Solen og Jordens bane");
+    expect(sent.endsWith("oversæt til engelsk")).toBe(true);
+  });
+
+  it("omits the draft block for an empty builder (no content worth sending)", async () => {
+    render(<AuthoringCopilot activityId="act-1" draft={savePayload()} onApplyProposal={vi.fn()} />);
+    await screen.findByTestId("authoring-copilot");
+    fireEvent.change(screen.getByLabelText(/beskriv hvad du vil undervise/i), { target: { value: "energi" } });
+    fireEvent.submit(screen.getByRole("button", { name: /send/i }).closest("form")!);
+    expect(sendMessage).toHaveBeenCalledWith("[activity_id=act-1] energi");
+  });
+
+  it("hides the draft context block from the rendered user bubble, even with a unit label containing ']'", async () => {
+    mockHook.messages = [
+      {
+        id: "u1",
+        role: "user",
+        content:
+          '[activity_id=act-1] [[activity_draft]]{"note":{"body":"hastighed [m/s]"}}[[/activity_draft]]\noversæt til engelsk',
+      },
+    ];
+    render(<AuthoringCopilot activityId="act-1" onApplyProposal={vi.fn()} />);
+    const bubble = await screen.findByText("oversæt til engelsk");
+    expect(bubble).toBeInTheDocument();
+    expect(screen.queryByText(/activity_draft/)).not.toBeInTheDocument();
   });
 
   it("floats and can be minimized to a pill, then restored", async () => {

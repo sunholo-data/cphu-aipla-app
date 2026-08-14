@@ -34,10 +34,55 @@ import { TeacherCopilot } from "@/components/teacher/copilot";
 import type { CopilotLabels, ProposalDescriptor, TeacherCopilotConfig } from "@/components/teacher/copilot";
 import { useTeacherFeature } from "@/hooks/useTeacherFeature";
 import type { ToolCallState } from "@/hooks/useSkillAgent";
+import type { SavePayload } from "@/hooks/useActivityBuilder";
 
 import type { ConceptMapDiff } from "../applyConceptMapDiff";
 
 const SKILL_NAME = "activity-authoring-assistant";
+
+// Machine-readable context, not chat prose — delimiters chosen so stripping it
+// back out of the rendered user bubble never depends on matching brackets (unit
+// labels like "[m/s]" show up inside real draft content, e.g. table/calculator
+// units, so a naive "up to the next ]" strip would truncate early).
+const DRAFT_CONTEXT_OPEN = "[[activity_draft]]";
+const DRAFT_CONTEXT_CLOSE = "[[/activity_draft]]";
+
+/** The current builder draft, trimmed to non-empty fields only — sent as
+ *  hidden context so the co-pilot can see what's already in the activity
+ *  (title, elements, …) even before it's saved. Same shape as the save
+ *  payload, so what the agent sees never drifts from what Save would persist. */
+function nonEmptyDraft(draft: SavePayload): Partial<SavePayload> | null {
+  const out: Partial<SavePayload> = {};
+  if (draft.title) out.title = draft.title;
+  if (draft.teachingGoal) out.teachingGoal = draft.teachingGoal;
+  if (draft.artefactId) out.artefactId = draft.artefactId;
+  if (draft.checklist.length) out.checklist = draft.checklist;
+  if (draft.table.length) out.table = draft.table;
+  if (draft.chart.length) out.chart = draft.chart;
+  if (draft.calculator.length) out.calculator = draft.calculator;
+  if (draft.note.length) out.note = draft.note;
+  if (draft.writing.length) out.writing = draft.writing;
+  if (draft.solution.length) out.solution = draft.solution;
+  if (draft.document.length) out.document = draft.document;
+  if (draft.conceptMap.length) out.conceptMap = draft.conceptMap;
+  if (draft.materials.length) out.materials = draft.materials;
+  if (draft.tags.length) out.tags = draft.tags;
+  if (draft.subject) out.subject = draft.subject;
+  if (draft.level) out.level = draft.level;
+  // language always has a default ("da") — only worth sending alongside real
+  // content, never as the sole signal that the builder "has a draft".
+  if (Object.keys(out).length === 0) return null;
+  out.language = draft.language;
+  return out;
+}
+
+/** Wrap the draft as a hidden context block, or "" when there's nothing worth
+ *  sending (a blank builder — the co-pilot's opening question is still right). */
+function draftContextBlock(draft: SavePayload | undefined): string {
+  if (!draft) return "";
+  const trimmed = nonEmptyDraft(draft);
+  return trimmed ? `${DRAFT_CONTEXT_OPEN}${JSON.stringify(trimmed)}${DRAFT_CONTEXT_CLOSE}\n` : "";
+}
 
 
 /**
@@ -110,6 +155,12 @@ export type ApplyProposal = (proposal: Proposal) => void;
 
 interface AuthoringCopilotProps {
   activityId: string;
+  /** The builder's current draft (`useActivityBuilder().toSavePayload()`) —
+   *  sent as hidden context so the co-pilot knows what the activity already
+   *  contains, on `/new` (nothing persisted yet) just as much as on an
+   *  existing activity. Optional so tests that don't care about it keep
+   *  working; omitting it just means the co-pilot starts blind, as before. */
+  draft?: SavePayload;
   /** Apply router — maps a proposal to the right builder mutation. */
   onApplyProposal: ApplyProposal;
 }
@@ -369,10 +420,20 @@ const DANISH_LABELS: Partial<CopilotLabels> = {
   editAriaLabel: "Rediger forslag",
 };
 
-/** Hide the `[activity_id=…] ` prefix from the rendered user bubble. */
+/** Hide the `[activity_id=…] ` prefix and the `[[activity_draft]]…[[/activity_draft]]`
+ *  context block from the rendered user bubble — both are for the agent's eyes,
+ *  not the teacher's. The draft block is stripped by its closing tag rather than
+ *  a bracket-count regex, since the JSON inside can itself contain "]" (unit
+ *  labels like "m/s]" in table/calculator fields). */
 function stripActivityPrefix(content: string): string {
-  const m = content.match(/^\[activity_id=[^\]]+\]\s*/);
-  return m ? content.slice(m[0].length) : content;
+  let rest = content;
+  const idMatch = rest.match(/^\[activity_id=[^\]]+\]\s*/);
+  if (idMatch) rest = rest.slice(idMatch[0].length);
+  if (rest.startsWith(DRAFT_CONTEXT_OPEN)) {
+    const closeIdx = rest.indexOf(DRAFT_CONTEXT_CLOSE);
+    if (closeIdx !== -1) rest = rest.slice(closeIdx + DRAFT_CONTEXT_CLOSE.length).replace(/^\s+/, "");
+  }
+  return rest;
 }
 
 /**
@@ -382,7 +443,7 @@ function stripActivityPrefix(content: string): string {
  * this supplies the authoring skill, the Danish strings, the `activity_id`
  * scope prefix, the proposal parser + descriptor, and the Apply router.
  */
-export function AuthoringCopilot({ activityId, onApplyProposal }: AuthoringCopilotProps) {
+export function AuthoringCopilot({ activityId, draft, onApplyProposal }: AuthoringCopilotProps) {
   // 1.1.58 tri-state: '1' (dev) unchanged; 'beta' follows the teacher's
   // settings opt-in; ''/unset renders nothing. Read inline (Next inlines
   // NEXT_PUBLIC_* at build; tests mutate process.env at runtime). The hook
@@ -402,7 +463,12 @@ export function AuthoringCopilot({ activityId, onApplyProposal }: AuthoringCopil
     minimizeLabel: "Skjul medbygger",
     // activity_id rides the message prefix (the analytics-chat contract) when
     // editing an existing activity; on /new (no id yet) it's a draft — omit it.
-    scopePrefix: activityId ? `[activity_id=${activityId}] ` : "",
+    // The draft context block rides alongside it (COPILOT: the co-pilot used to
+    // be blind to the builder's current content, even mid-edit — the teacher
+    // had to redescribe it in chat every time). Rebuilt on every render, so it's
+    // always the LATEST draft as of the moment "Send" is clicked, not a stale
+    // snapshot from when the panel first mounted.
+    scopePrefix: `${activityId ? `[activity_id=${activityId}] ` : ""}${draftContextBlock(draft)}`,
     stripPrefix: stripActivityPrefix,
     // Per-activity resume — a new benefit the migration grants (each activity's
     // co-pilot conversation is its own thread).
