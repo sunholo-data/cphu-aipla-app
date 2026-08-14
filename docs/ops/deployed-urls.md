@@ -211,7 +211,7 @@ See the design doc's "Deliberately not done" table.
 
 ---
 
-## Custom domains — `ku.dk` (provisioned 2026-08-03, **app names LIVE 2026-08-11**)
+## Custom domains — `ku.dk` (provisioned 2026-08-03, **all four LIVE 2026-08-12**)
 
 **The app is live on its ku.dk names.** Use these as the addresses to give
 teachers; the `run.app` URLs stay valid and are still what every smoke script
@@ -221,13 +221,21 @@ and the promote path use.
 |---|---|---|
 | **prod** | **https://aipla.ku.dk** | ACTIVE 2026-08-11 17:46 UTC, renews 2026-11-09 |
 | **test** | **https://aipla-test.ku.dk** | ACTIVE 2026-08-11 15:17 UTC, renews 2026-11-09 |
-| prod sandbox | `aipla-sandbox.ku.dk` | **not delegated — with UCPH IT** |
-| test sandbox | `aipla-test-sandbox.ku.dk` | **not delegated — with UCPH IT** |
+| prod sandbox | https://aipla-sandbox.ku.dk | ACTIVE 2026-08-12 14:45 UTC, renews 2026-11-10 |
+| test sandbox | https://aipla-test-sandbox.ku.dk | ACTIVE 2026-08-12 16:25 UTC, renews 2026-11-10 |
 
-The two sandbox names are not blocking: the frontend serves sims from the
-`run.app` sandbox origin, which is a distinct origin and satisfies ADR-013 on
-its own. Both envs' deployed `ALLOWED_HOST_ORIGINS` already list the ku.dk app
-origin, so nothing needed redeploying when the names came up.
+`make check-domains` reports `custom domains: OK` as of 2026-08-14. The
+host-header split is verified over real HTTPS — same IP, different `Host`,
+different backend: `aipla.ku.dk` returns `<title>AIPLA</title>` and
+`aipla-sandbox.ku.dk` returns `<title>Aitana MCP Sandbox</title>`.
+
+**Nothing points at the ku.dk sandbox names yet, and that is fine.** Both envs
+still deploy `MCP_SANDBOX_URL` as the `run.app` sandbox origin, which is a
+distinct origin and satisfies ADR-013 on its own — so sims work either way. The
+ku.dk sandbox names are live and unused until the flip below is done.
+
+`ALLOWED_HOST_ORIGINS` already listed the ku.dk *app* origin before the names
+came up, so nothing needed redeploying when they did.
 
 UCPH granted four names. Each env has ONE global external Application Load
 Balancer; the app and the sandbox share its IP pair and are split by **Host
@@ -308,21 +316,27 @@ gcloud compute ssl-certificates list --global --project=aipla-prod-2026 \
   --format="table(name,managed.status)"
 ```
 
-**Still outstanding, once the two sandbox names are delegated:** flip
-`mcp_sandbox_url` in the env's tfvars to the ku.dk sandbox origin and re-apply,
-then cut a tag / promote — the sandbox reads `ALLOWED_HOST_ORIGINS` at *deploy*
-time, so sims would stay blocked on a newly-added origin until it redeploys.
-Firebase `authorized_domains` is a live config change and needs no redeploy.
-Both origins (run.app and ku.dk) are kept authorized throughout; dropping
-run.app would break every smoke script and the promote path.
+### Two optional flips — both UNBLOCKED since 2026-08-12, neither urgent
 
-**Also outstanding:** `MCP_WIDGET_DOMAIN` is still the `run.app` frontend origin
-in both envs (`cloudbuild.tf`: `_MCP_WIDGET_DOMAIN = var.frontend_url`). It was
-deliberately held there until the ku.dk names actually served, which they now
-do. It only declares a widget domain to *external* MCP hosts (ChatGPT rendering
-the sims) and has no in-app effect, so it is safe to leave. When it is changed
-it needs the `cloudbuild.promote.yaml` twin as well, or it will never reach
-prod — see the footgun table in CLAUDE.md.
+Deliberately NOT done before the 2026-08-14 pilot: each needs a tfvars change,
+an apply, and a tag plus promote, which is real deploy risk for a change no
+teacher can perceive. Sims work correctly on the current origin.
+
+1. **`mcp_sandbox_url` → the ku.dk sandbox origin.** Flip in the env's tfvars,
+   re-apply, then cut a tag / promote. The sandbox reads `ALLOWED_HOST_ORIGINS`
+   at *deploy* time, so sims would be blocked on a newly-pointed-at origin until
+   it redeploys — do the apply and the redeploy together. Firebase
+   `authorized_domains` is live config and needs no redeploy. Keep BOTH origins
+   (run.app and ku.dk) authorized; dropping run.app breaks every smoke script
+   and the promote path.
+
+2. **`MCP_WIDGET_DOMAIN` → `https://aipla.ku.dk`.** Currently the `run.app`
+   frontend origin (`cloudbuild.tf`: `_MCP_WIDGET_DOMAIN = var.frontend_url`),
+   held there until the ku.dk names actually served, which they now do. Declares
+   a widget domain to *external* MCP hosts (ChatGPT rendering the sims); no
+   in-app effect, so it is safe to leave indefinitely. Needs the
+   `cloudbuild.promote.yaml` twin or it will never reach prod — see the footgun
+   table in CLAUDE.md.
 
 ## AIPLA — test (`aipla-test-2026`, region `europe-north1`) — cut 2026-07-27 (v0.1.0)
 
