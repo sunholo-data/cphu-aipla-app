@@ -94,6 +94,47 @@ URLs.
   - **Public, no auth** (matches the public-skills posture). Speaks Streamable HTTP — point a ChatGPT remote connector or Claude Desktop `mcp-remote` here, no tunnel.
   - Offers the public skills as tools **and** the sims as `ui://` MCP Apps (`show_boldkast|kinebot|led_planck`; artefact HTML lazily fetched from the sandbox via `MCP_SANDBOX_URL`).
   - Smoke: `REQUIRE_SIMS=1 ./scripts/smoke-deployed-mcp.sh dev` → initialize + sims listed + `ui://` readable. (Visual render is host-dependent — Claude Desktop is currently blocked by upstream claude-ai-mcp#165; ChatGPT/MCP Inspector render reliably.)
+## v0.1.19 rollout state (2026-08-14)
+
+Live on all three environments. **Mobile check 9/9 on dev, test AND prod** — the
+first release where the student journey is exercisable end to end on every
+environment.
+
+| Env | Version | Mobile @ 390pt | Home-screen icon |
+|---|---|---|---|
+| dev | branch tip | 9/9 | corners opaque |
+| test | `v0.1.19` | 9/9 | corners opaque |
+| prod | `v0.1.19` | 9/9 | corners opaque |
+
+**The icon fix.** v0.1.18's PWA icons were cut from the ROUNDED `aipla-mark.svg`,
+so their corners were `rgba(0,0,0,0)`. iOS rounds `apple-touch-icon` itself and,
+given transparency, renders a blank tile — found only when a real iPhone added it
+to the home screen, because nothing in lint, typecheck or the test suite can see
+inside a PNG. Now generated full-bleed opaque from a committed source
+(`aipla-icon-src.svg`) via `make pwa-icons`, gated by `make check-pwa-icons`
+which decodes the corner pixels. **iOS caches home-screen icons: delete and
+re-add the shortcut to see the change.**
+
+**`/lessons` is no longer empty on test and prod** — the gap flagged in the
+MOBILE-1 and MOBILE-2 sections is closed. Neither env was missing content; both
+had Demo classes with nine activities that were unreachable, because
+`seed-demo-codes.sh` mints via an admin endpoint that sets only `skillIds` while
+`/lessons` resolves through `anon_groups/<code>.classId`. Bound with the new
+`make bind-demo-code ENV=<env> APPLY=1`. That is a Firestore write, not code, so
+it is NOT carried by a tag — a clean-slate wipe (`reset-group-state … GROUPS=1`)
+requires re-running it alongside `seed-demo-codes` and `force-seed-demo`.
+
+`aipla-demo-1` is a PUBLIC code, so the script only accepts a non-revoked class
+named exactly "Demo class" with at least one activity. Prod's class list includes
+real pilot classes; pointing the code at one would need a script edit, not a
+mistyped id.
+
+**Also in this release:** teacher bug reporting from AIPLA Hjælp (behind
+`_AIPLA_HELP`, confirmed passed as a build-arg on the promote), the authoring
+co-pilot seeing the current draft, the class screen's custom-voice picker removed
+in favour of the persona (legacy overrides still surfaced with a one-click
+clear), and the Kepler chalk activity's field method.
+
 ## MOBILE-2 rollout state (2026-08-14) — PWA, device floors, reload fix
 
 Live on all three environments at **`v0.1.18`**. Supersedes the MOBILE-1 section
