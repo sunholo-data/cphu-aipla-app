@@ -63,25 +63,26 @@ go. Every error message also carries a raw code in brackets like
 `(auth/invalid-credential)` — **get that in a screenshot**, it turns a long
 diagnosis into a short one.
 
-### The most likely cause, by far: wrong address
+### The most likely cause: wrong address
 
 Access is granted to **one exact email address**. There is no fuzzy matching — no
-dot-folding, no plus-addresses. If a teacher signs in with a different address
-than the one on the register, they get in but see the **recorded demo tutor**
-instead of a live one, and no error at all.
+dot-folding, no plus-addresses. If a teacher signs in with an address that is not
+on the register, they get in but see the **recorded demo tutor** instead of a live
+one, and no error at all.
 
-Three teachers are known to have used a personal address before, and are granted
-on their **school** address:
+Three teachers had used a personal Google address with us before while being
+granted on their school address. **Both addresses are now granted for all three**,
+so either works and there is nothing to chase:
 
-| Granted on | Has previously used |
-|---|---|
-| `lu@o365.favrskov-gym.dk` (Peter Lundøer) | `peterlundoeer@gmail.com` |
-| `op@o365.favrskov-gym.dk` (Sara Øvad Nicolaisen) | `sara.oevad@gmail.com` |
-| `mn@sctknud-gym.dk` (Morten Bjørnskov Nielsen) | `morten.bjoernskov.nielsen@gmail.com` |
+| Teacher | School address | Personal address |
+|---|---|---|
+| Peter Lundøer | `lu@o365.favrskov-gym.dk` | `peterlundoeer@gmail.com` |
+| Sara Øvad Nicolaisen | `op@o365.favrskov-gym.dk` | `sara.oevad@gmail.com` |
+| Morten Bjørnskov Nielsen | `mn@sctknud-gym.dk` | `morten.bjoernskov.nielsen@gmail.com` |
 
-**Worth asking these three in advance which address they will use.** If they use
-the personal one, they need a second grant on it — one command, but only M can
-run it, so catching it before Friday matters.
+For these three, **the Gmail address is the easier path**: a Gmail address always
+has a Google identity, so "Sign in with Google" works immediately and no password
+is needed at all. Point them at that if the school address gives them trouble.
 
 ### Symptom → cause
 
@@ -95,10 +96,23 @@ run it, so catching it before Friday matters.
 
 ### What cannot be fixed in the room
 
-Creating a login for a teacher who has none, and granting access to a new
-address. Both need M. Collect the details and carry on — a teacher can still
-explore the whole app as a visitor with the recorded tutor, so nobody is stranded
-with nothing to do.
+Creating a login for a teacher who has none, and granting access to an address
+nobody anticipated. Both need M, who is away.
+
+This should not come up: all 11 teachers are on the register with logins
+pre-created, and the three likely alternate addresses are granted too. If it does
+come up anyway, collect the details and carry on — a teacher can still explore the
+whole app as a visitor with the recorded tutor, so nobody is stranded with nothing
+to do, and M can fix it on Monday.
+
+> Deliberately **not** solved by giving JB or Aswin admin rights. The only
+> mechanism available today (`admin_operator_members`) also hands over
+> `prune-platform-skills` and `reset-skill-access`, which can destroy the skill
+> catalogue — see
+> [1.1.76 delegated-programme-administration](../design/aipla/v1.1.0-feedback/delegated-programme-administration.md).
+> The bounded `programmeAdmin` claim in that doc is the real fix and is still
+> worth building; pre-creating everything was the cheaper way to make Friday not
+> need it.
 
 ---
 
@@ -128,11 +142,13 @@ account exists.
 
 ## Checklist before Friday
 
+- [x] All 11 teachers on the prod register, capped, expiring 2027-09-15
+- [x] The three alternate Gmail addresses granted too, so either address works
 - [ ] `v0.1.23` promoted to prod (carries the password login and the reset flow)
-- [ ] Logins pre-created on prod for all 11 teachers
-- [ ] Peter, Sara Ø. and Morten B. asked which address they will use
+- [ ] Logins pre-created on prod for all 11 teachers + the 3 aliases
 - [ ] One teacher has actually completed the email + reset path end to end —
-      a real inbox is the only test of whether Firebase mail gets through
+      **a real inbox is the only test of whether Firebase mail gets through**, and
+      it is the single thing on this list most likely to fail quietly
 - [ ] JB and Aswin have skimmed the symptom table above
 
 ## Runbooks
