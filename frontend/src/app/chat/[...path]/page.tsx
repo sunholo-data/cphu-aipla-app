@@ -1383,7 +1383,9 @@ function ChatShell({
             by config — a registered sim block (dispatched by slug) OR, for a
             no-sim concept activity, the teacher-authored checklist. The gate
             (showWorkspace) is config-driven; no per-element shell duplication.
-            Adding a non-sim element (quiz, A2UI) composes here from config. */}
+            Adding a non-sim element composes here from config — the next one is
+            the questionSet element (1.1.78), a workspace renderer like the rest;
+            A2UI stays off (see question-set-element.md, Standards compliance). */}
         {showWorkspace && (
           <WorkspaceShell
             hideOnMobile={mobileTab !== "workspace"}

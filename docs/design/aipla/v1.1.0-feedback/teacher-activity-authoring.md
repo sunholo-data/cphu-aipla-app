@@ -293,7 +293,7 @@ Ordered so **M0 is independently valuable and lands before the 2026-06-29 freeze
 |---|---|---|---|---|
 | **M0** | **No-workbench concept activity, end-to-end.** `workbench_type` + CRUD `POST/PUT` + teacher builder (name, lang, difficulty, lesson prompt) + `aiplatform activity new/list`. Teacher creates a chat-only Socratic activity, mints a code, student joins. | **~1.5d** | none | **pre-freeze** |
 | M1 | **Teacher-authored checklist.** Generalize `ProgressChecklist` to `checklist`; builder checklist editor. | ~1d | none | post-freeze |
-| M2 | **Quiz (declarative MCQ).** Quiz models + `GET` strip + `grade` endpoint + A2UI render/feedback + builder quiz editor. | ~2d | **JB/AR on quiz format** | post-freeze |
+| M2 | ~~**Quiz (declarative MCQ).**~~ **RE-HOMED 2026-08-17 → [question-set-element.md](question-set-element.md) (1.1.78).** Designed here 2026-06-08, never built: it waited on "JB/AR on quiz format", and so did the *widget*, which that decision does not gate. It ships as the `questionSet` **workspace element** (not an inline A2UI card — see 1.1.78 *Standards compliance* for why A2UI was rejected), with the `QuizOption` model below reused as-is and the answer-key strip made **registry-driven** (`ElementSpec.redact`) rather than a hand-written branch. **Do not build this row.** | — | — | superseded |
 | M3 | **Branching + materials.** `duplicate` endpoint + `--from`; attach existing parsed docs as `materials`. | ~1d | none | post-freeze |
 | M4 | **Drawing / notebook workbench types** (1.J Type 2 / 5). | ~2–3d | which type first (JB/AR) | pilot-iteration |
 | M5 | **Observability + engagement wiring.** Quiz/checklist events → BQ; co-design with engagement-signals. | ~1d | aligns 1.1.17 | pilot-iteration |

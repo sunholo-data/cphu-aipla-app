@@ -14,7 +14,9 @@ import type { Language } from "@/lib/teacherApi";
 //
 // Not carried by templates (by design): the concept-map element (applyTemplate
 // resets it to null — it is showcased instead via the seeded demo class,
-// `backend/onboarding/demo_seed.py`). Quiz is not a shipped workspace element.
+// `backend/onboarding/demo_seed.py`). The questionSet element (ratings /
+// multiple choice / free text, 1.1.78) is designed but not yet shipped —
+// add a template once its M0 lands.
 
 export interface TemplateTable {
   title: string;

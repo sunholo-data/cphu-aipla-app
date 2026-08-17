@@ -1,7 +1,36 @@
 # End-of-session exit ticket
 
-**Status:** Planned (P1); **blocked on JB/AR providing the question set**
-**Last Updated:** 2026-06-03
+> ## SUPERSEDED 2026-08-17 by [question-set-element.md](question-set-element.md) (1.1.78)
+>
+> **Do not build from this doc.** The exit ticket is no longer its own modal,
+> endpoint, session fields, and BigQuery table — it is the **`questionSet`
+> element at `placement: "session_end"`**, sharing one question schema with the
+> teacher-authorable workspace element. 1.1.78 M3 is this doc's delivery.
+>
+> **Why it was superseded rather than built:** this doc waited 2.5 months on a
+> question set, and so never built the *widget* — which the question set does not
+> gate. Three other designs (1.1.19 M2 quiz, 1.1.57 M3 four-format quiz, and this)
+> were each blocked on their own content decision while all three were missing the
+> same substrate. 1.1.78 separates mechanism from content and ships the mechanism.
+>
+> **What survives intact, and is preserved verbatim in 1.1.78:** the two triggers
+> (teacher ends session / student clicks Done); tab-close explicitly out of scope;
+> the three distinct states `never answered` / `skipped` / `submitted`; skip always
+> allowed; named radio buttons, no emoji (`feedback-no-emoticons`); the per-skill
+> `SKILL.md` default question block; consent gating of `responses`; the ~4-question
+> bound. **The gate is unchanged and still Aswin's** — it now gates *what the
+> platform asks*, not *whether the platform can ask*.
+>
+> **What is dropped as redundant:** `POST /api/sessions/{id}/exit-ticket` (becomes
+> the shared questions write), the `exit_ticket_*` session-doc fields (become rows
+> in `question_responses`), and the bespoke `exit_tickets` BQ table + Terraform
+> (becomes one `emit_question_response` on the existing sink).
+>
+> Read below for the question design, the UX reasoning, and the risk analysis —
+> all still current. Read 1.1.78 for what gets built.
+
+**Status:** **SUPERSEDED** by [question-set-element.md](question-set-element.md) (2026-08-17). Was: Planned (P1), blocked on the question set.
+**Last Updated:** 2026-08-17 (superseded; body below unchanged from 2026-06-03)
 **Priority:** P1 — structured self-assessment + research data capture at session end
 **Estimated:** ~1d
 **Scope:** Frontend (modal at session-end); backend (Firestore + BQ persistence); teacher / researcher visibility

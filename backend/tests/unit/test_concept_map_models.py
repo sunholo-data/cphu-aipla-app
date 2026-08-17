@@ -62,7 +62,7 @@ def test_minimal_map_roundtrips_with_camelcase_aliases() -> None:
     assert again.edges[0].from_ == "vektorer"
 
 
-def test_check_question_reuses_quiz_item_shape_plus_expected_answer() -> None:
+def test_check_question_is_prompt_plus_expected_answer_and_carries_no_options() -> None:
     q = CheckQuestion(
         id="q1",
         prompt="Hvordan dekomponeres en vektor på 30°?",
@@ -71,8 +71,12 @@ def test_check_question_reuses_quiz_item_shape_plus_expected_answer() -> None:
     )
     node = _node("vektorer", check_questions=[q])
     assert node.check_questions[0].expected_answer.startswith("vx")
-    # options are OPTIONAL (chat-native delivery — tutor asks in its own voice)
-    assert q.options == []
+    # Delivery is chat-native: the tutor asks in its own voice and judges free
+    # text, which is what lets it follow up on a wrong answer. An `options` list
+    # existed here 2026-07-10 → 2026-08-17 with no producer and no consumer and
+    # was deleted; clickable multiple choice is the questionSet element (1.1.78).
+    # Asserting ABSENCE, not emptiness — an empty list would let it creep back.
+    assert "options" not in CheckQuestion.model_fields
 
 
 # --- validators ---

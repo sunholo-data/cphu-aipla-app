@@ -288,12 +288,17 @@ class DocumentElement(BaseModel):
 
 
 class QuizOption(BaseModel):
-    """One answer option of a check question (the 1.1.19 ``QuizItem`` shape).
+    """One answer option of a multiple-choice question (the 1.1.19 ``QuizItem`` shape).
 
-    ``correct`` never reaches a *student-facing payload* in the 1.1.19 form-quiz
-    design (Axiom 10). In the chat-native checkpoint flow the whole question set
-    travels only to the MODEL via the ``run_checkpoint`` tool result — see the
-    Axiom-10 note on ``CheckQuestion``.
+    ``correct`` is the ANSWER KEY and must never reach a student-facing payload
+    (Axiom 10). The redaction is registry-driven — ``ElementSpec.redact`` strips
+    it in ``_element_block`` — rather than hand-written per route; see
+    ``docs/design/aipla/v1.1.0-feedback/question-set-element.md``.
+
+    This model sat unused from 1.1.19 (2026-06-08) until the question-set element
+    (1.1.78) gave it the home it was designed for. Its former holder,
+    ``CheckQuestion.options``, was deleted in the same change: it had no producer
+    and no consumer, and chat-native checkpoints judge free text instead.
     """
 
     id: str = Field(min_length=1, max_length=64)
@@ -306,33 +311,31 @@ class QuizOption(BaseModel):
 class CheckQuestion(BaseModel):
     """A node-bound check question for a chat-native checkpoint (living-concept-map).
 
-    Reuses the 1.1.19 ``QuizItem`` shape (prompt / options / explanation) plus an
-    ``expected_answer`` the tutor judges free-text answers against. ``options``
-    are OPTIONAL — the general principle (M, 2026-07-10) is that student
-    assessment is chat-native: the tutor asks in its own voice, so most check
-    questions are just prompt + expected answer. A non-empty ``options`` list
-    needs 2-6 entries (the 1.1.19 bound).
+    Prompt + an ``expected_answer`` the tutor judges free-text answers against.
+    The general principle (M, 2026-07-10) is that this kind of assessment is
+    chat-native: the tutor asks in its own voice, so a check question is a prompt
+    and what a good answer looks like — never a set of options to click.
 
-    Axiom-10 note: ``expected_answer`` (and any ``correct`` flags) are judging
-    material for the MODEL, delivered via the ``run_checkpoint`` tool result —
-    they ride the session stream, which a determined student could inspect.
-    Accepted for the formative dev demo; strip tool-result payloads from
-    student-visible frames before pilot (tracked in concept-map-sprint.md risks).
+    An ``options`` field existed here from 2026-07-10 to 2026-08-17 and was
+    deleted: nothing ever wrote it (``ConceptMapEditor`` authors prompt +
+    expected answer; ``_questions_wire`` drops it) and nothing ever read it
+    (``checkpoint_tools`` passes only prompt / expectedAnswer / explanation). A
+    multiple-choice question is now the ``questionSet`` element (1.1.78), which
+    is a form on purpose — see question-set-element.md for why the two coexist.
+
+    Axiom-10 note: ``expected_answer`` is judging material for the MODEL,
+    delivered via the ``run_checkpoint`` tool result — it rides the session
+    stream, which a determined student could inspect. Accepted for the formative
+    dev demo; strip tool-result payloads from student-visible frames before pilot
+    (tracked in concept-map-sprint.md risks).
     """
 
     id: str = Field(min_length=1, max_length=64)
     prompt: str = Field(min_length=1, max_length=500)
-    options: list[QuizOption] = Field(default_factory=list, max_length=6)
     expected_answer: str = Field(default="", alias="expectedAnswer", max_length=1000)
     explanation: str = Field(default="", max_length=1000)
 
     model_config = ConfigDict(populate_by_name=True)
-
-    @model_validator(mode="after")
-    def _options_bound(self) -> CheckQuestion:
-        if self.options and len(self.options) < 2:
-            raise ValueError("options, when given, need at least 2 entries (1.1.19 QuizItem bound)")
-        return self
 
 
 class ConceptNode(BaseModel):
@@ -443,7 +446,10 @@ WorkbenchType = Literal["app", "drawing", "sensor", "video", "notebook", "docume
 # v1.1 ships the ``checklist`` (M0) + ``table`` (M1) + ``chart`` (M2) +
 # ``calculator`` (M3) + ``note`` (M4 — the teacher-authored instructions /
 # reference element) + ``writing`` (1.1.73 — the student's own prose).
-# ``quiz`` (inline, A2UI) joins when 1.1.19 M2 builds it.
+# ``questionSet`` (1.1.78 — ratings, multiple choice, free text; graded when the
+# teacher marks a correct option) is designed and joins at its M0. It supersedes
+# the ``quiz`` kind 1.1.19 M2 reserved and never built: see
+# docs/design/aipla/v1.1.0-feedback/question-set-element.md.
 ElementKind = Literal[
     "checklist", "table", "chart", "calculator", "note", "writing", "solution", "document", "conceptMap"
 ]

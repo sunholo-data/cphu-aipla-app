@@ -111,12 +111,16 @@ export interface DocumentElement {
 }
 
 /** A node-bound check question for a chat-native checkpoint (living-concept-map).
- *  The tutor asks it IN CONVERSATION (`options` optional); `expectedAnswer` is
- *  the judging rubric. Mirrors the backend `CheckQuestion`. */
+ *  The tutor asks it IN CONVERSATION; `expectedAnswer` is the judging rubric.
+ *  Mirrors the backend `CheckQuestion`.
+ *
+ *  An `options` field lived here until 2026-08-17 and was deleted with its
+ *  backend twin — nothing ever wrote or read it. Clickable multiple choice is
+ *  the `questionSet` element (1.1.78), which is a form on purpose; this one
+ *  stays free-text so the tutor can follow up on a wrong answer. */
 export interface ConceptCheckQuestion {
   id: string;
   prompt: string;
-  options?: { id: string; label: string; correct?: boolean }[];
   expectedAnswer?: string;
   explanation?: string;
 }

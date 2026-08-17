@@ -291,7 +291,7 @@ Free-form rubric authoring (create/edit a `rubric_defs` version) is CLI + file f
 | **R2·M4** | **Retroactive backfill.** `aiplatform rubric backfill <group-code>` scores every past session for the group (LIMIT-less BQ enumeration) into `rubric_runs`, queryable in BQ. | ~0.75d | none (offline) |
 | **M1** | **Anchor packs** for 2–3 live activities (Boldkast, KineBot, one TAA-authored). Judge-vs-anchor agreement reported. | ~2–3 ped-days | AR/JB authoring |
 | **M2** | **SAAR agent-design activity** — template + SAAR seed rubric (testing-experiment rows, Tables X/XI few-shot). | ~2d | none (new activity type; teacher opt-in) |
-| **M3** | **Four-format quiz template in TAA M2** — co-pilot format generation + mapped-distractor authoring + ≥2-format mastery rule. | +1d on TAA M2 | TAA M2 (JB/AR teaching framework) |
+| **M3** | **Four-format quiz template** — co-pilot format generation + mapped-distractor authoring + ≥2-format mastery rule. **Dependency re-pointed 2026-08-17:** TAA M2 was never built and is retired; the delivery surface is now [question-set-element.md](question-set-element.md) (1.1.78) M2. AR to confirm the four formats map onto `QuestionKind` (rating / single_choice / multi_choice / free_text) or need a fifth. | +1d on 1.1.78 M2 | 1.1.78 M2 (JB/AR teaching framework) |
 | **M4** | **Misconception index pipeline** — extraction pass over the corpus → per-skill `misconceptions.yaml` provisioning. | ~2d | none (corpus archived) |
 | **M5** | **Teacher-facing surfacing** of Lens C/D profiles in the 2.5 report panels (and only there). | ~1d | **R1** + 2.5 R5/R6 |
 

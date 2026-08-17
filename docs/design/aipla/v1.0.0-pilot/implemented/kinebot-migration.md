@@ -1,6 +1,35 @@
 # KineBot kinematics tutor — third physics skill + canonical external-artefact migration runbook
 
-**Status**: Implemented
+**Status**: Implemented — **except the quiz half, which was stripped. See the correction below.**
+
+> ## Correction 2026-08-17 — the quiz half of this doc was never wired
+>
+> This doc records a pre-generated quiz bank, `kinebot.quiz-attempt` events,
+> `quizProgress` snapshot state, and a correct-answer trust card as **implemented**.
+> They are not. A 2026-08-17 audit found:
+>
+> - The artefact ships **sim only** — [index.html:86](../../../../../infrastructure/mcp-sandbox/artefacts/kinebot/v1/index.html#L86)
+>   says so in its own header comment ("CONTENT — SIM ONLY. Quiz + graph + topic
+>   nav + formulas + notes" stripped), corroborated by
+>   [unified-sim-rendering.md:74](../../v1.1.0-feedback/unified-sim-rendering.md#L74).
+> - The `fetch('./quizzes/<topic>.json')` this doc specifies at line ~127 was
+>   never written.
+> - No `kinebot.quiz-attempt` handler exists in `KineBotFrame`, the snapshot
+>   push, or the trust-card dispatch. Grep returns this doc and the skill file only.
+>
+> **The 11 DK-vetted quiz banks (11 topics, ~30 questions each) were deleted from
+> the tree on 2026-08-17** — they had no loader and read as shipped content.
+> They remain in git history and are recoverable:
+> `git log --diff-filter=D -- 'infrastructure/mcp-sandbox/artefacts/kinebot/v1/quizzes/*'`
+> then `git show <sha>^:<path>`. They are worth recovering as seed content when
+> [question-set-element.md](../../v1.1.0-feedback/question-set-element.md) (1.1.78)
+> M2 lands — that element is the platform-side home for a quiz, per this project's
+> standing rule that quizzes are AIPLA's job and not the artefact's
+> ([expanded-workbench-types.md:30](../expanded-workbench-types.md#L30)).
+>
+> Everything else in this doc — the 7 sims, the strip/wire runbook, the
+> postMessage event shapes for `topic-change` / `sim-run` / `graph-change` — is
+> accurate and shipped.
 **Priority**: P1 (v1 critical-path; third of three physics skills; canonical AIPLA onboarding runbook for external artefacts)
 **Estimated**: 2–3 days
 **Scope**: Fullstack — artefact (strip direct API calls + wire postMessage, ~1707 LOC source), backend (skill template + tool config), frontend (`KineBotFrame` host wrapper)

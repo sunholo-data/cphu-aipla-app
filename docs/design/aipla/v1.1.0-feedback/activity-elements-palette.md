@@ -33,7 +33,7 @@ The element layer is currently **three special-cased fields**:
 # backend/db/models/activity_config.py (today)
 checklist: list[ChecklistItem]      # SHIPPED — ProgressChecklist.tsx
 materials: list[MaterialRef]        # SHIPPED — DocumentsPanel.tsx (1.1.25)
-# quiz: list[QuizItem]              # DESIGNED, not built (1.1.19 M2)
+# quiz: list[QuizItem]              # DESIGNED 2026-06-08, never built — now 1.1.78 `questionSet`
 ```
 
 Every new element under that model is a new field + a new render branch + a new editor + a new validator, re-derived each time. That is exactly the "each feature ships its own slice and stops at its own boundary" pattern called out in [documents-workbench-surface.md](documents-workbench-surface.md#L21). The fix is to make the element layer a **registry** once, so the marginal cost of element N is a small, mechanical entry — the same move [teacher-ui-consolidation.md](teacher-ui-consolidation.md) (1.1.26) made for teacher config panels, applied to activity elements.
@@ -52,7 +52,7 @@ Every new element under that model is a new field + a new render branch + a new 
 
 **Non-goals (explicit):**
 
-- The **quiz** element — already owned by [teacher-activity-authoring.md](teacher-activity-authoring.md) M2 (this doc *re-homes* it onto the registry but does not re-design the quiz itself).
+- The **quiz** element — was owned by [teacher-activity-authoring.md](teacher-activity-authoring.md) M2. **Neither doc built it** (2026-08-17 audit); it is now [question-set-element.md](question-set-element.md) (1.1.78), the tenth entry on this registry and the first to carry a secret — which is why it adds `ElementSpec.redact`.
 - Authoring *new sims / lab artefacts* (tier-3, [teacher-artefact-authoring.md](../post-pilot/teacher-artefact-authoring.md), Year-2). Elements are **declarative and platform-rendered**; raw-HTML/JS authoring stays out.
 - A fully free-form **`elements[]` composition array** with arbitrary ordering / multiple-of-a-kind / drag-reorder. v1.1 ships elements as additive *typed slots* (lowest migration risk); the array generalisation is the post-pilot evolution this registry makes cheap (see *The `elements[]` array — post-pilot evolution*).
 - The **AI assembly** of elements — that is [activity-authoring-assistant.md](activity-authoring-assistant.md) (1.1.39).
@@ -92,6 +92,8 @@ Reframe the element layer from special-cased fields to a **registered element ki
 ```python
 # backend/db/models/activity_config.py (extension)
 
+# Illustrative (2026-06-17). The shipped literal is in backend/db/models/
+# activity_config.py — `quiz` was never built; 1.1.78 adds `questionSet` instead.
 ElementKind = Literal["checklist", "quiz", "table", "chart", "calculator", "document"]
 
 class ChecklistElement(BaseModel):      # re-homes the shipped checklist
@@ -192,7 +194,7 @@ The platform elements populate the **workspace pane** (the ~700px surface that t
 | chart | workspace pane | A2UI/React (SVG/canvas) | plots a table or a teacher series; deterministic |
 | calculator | workspace pane | A2UI/React | formula or scientific; server-evaluated formula |
 | document | workspace pane / Documents tab | reuse 1.1.33 + ADR-013 preview | inline placement vs aggregated tab |
-| quiz | **inline chat** | A2UI card (1.1.19 M2) | not re-designed here |
+| ~~quiz~~ → **questionSet** | **workspace pane** | React (1.1.78) | **Corrected 2026-08-17.** The `quiz` kind was never built and its inline-A2UI render was reconsidered: A2UI is off on every skill and gives no server-side seam to hide an answer key. It ships as [question-set-element.md](question-set-element.md) — a workspace element covering ratings, multiple choice, and free text, graded when the teacher marks a correct option |
 
 **Open question (Q1 — composition with a sim):** when `workbench_type="app"` (a sim owns the pane), how do platform elements coexist — tabs (`Sim | Table | Documents`), or a stacked secondary panel? Today the dispatch is one-or-the-other ([workspaceContent.ts](../../../../frontend/src/app/chat/[...path]/workspaceContent.ts)). The 1.1.33 Documents-tab direction (tabs in the workbench) is the natural answer; confirm before M1 so the table element lands into the right shell.
 

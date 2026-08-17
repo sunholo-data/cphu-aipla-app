@@ -1,0 +1,48 @@
+# notes 17thAugust 2026
+
+Danish acccent
+used to train teachers
+
+give researchers the option to make custom personas
+
+researchers dockuments shudl be private
+
+simulations run on workbench where you construct arguments stephen toulmin approach to argumentation
+  - claim
+  - data
+  - warrant - theory part
+  - qualifiers
+  - rebuttals
+make it into a puzzle
+concept map connection
+crtiical thinking in experiments paper
+
+geogebra - example of calcuator suite
+
+teachers need agency to create applications
+make stuff for the workbench
+teachers learn how to vibe code in physics
+teacher need to be conpentent and be able to verify and check results.  know what good looks like
+
+hammering the voice button needs to debounce
+
+if all students in a groupId- press record on audio - debounce
+
+switch to all engine / all danish 
+
+copilot calss management for creatin g codes etc, its confsuing it switches to analytics codes.
+
+creating lots of groupid codes is much easier with copilot
+
+class copilot - learning framework
+
+tutors teaching styles ia personas
+lessonprompt should be top priority
+
+where are example classess
+
+for creation of vibe coded apps single pane of glass is preferable or import via published urls
+
+get emails from teachers
+
+components survey - quiz with likert scale 1-10  

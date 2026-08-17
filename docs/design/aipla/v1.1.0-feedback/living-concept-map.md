@@ -108,11 +108,15 @@ The M2 check-off is **formative and passive** — inferred from whatever the stu
 - **General principle (M, 2026-07-10):** student-facing assessment interactions are chat-native. The tutor
   asks the check question(s) in conversation; the student answers in conversation. The map element never
   becomes a quiz UI for students — it stays read-only orientation.
-- **Authoring.** `ConceptNode` gains optional `check_questions` — reusing the `QuizItem` shape already
-  designed in [teacher-activity-authoring.md](teacher-activity-authoring.md) (1.1.19 M2), bound to a
-  `node_id`. Co-authored like the map itself: the co-pilot proposes check questions per node from the cited
-  curriculum; teacher edits/approves. (This *re-homes the quiz's delivery* into chat for this flow; the 1.1.19
-  form-quiz element remains its own thing.)
+- **Authoring.** `ConceptNode` gains optional `check_questions` — a prompt plus an `expected_answer` the
+  tutor judges free text against, bound to a `node_id`. Co-authored like the map itself: the co-pilot
+  proposes check questions per node from the cited curriculum; teacher edits/approves. (This *re-homes the
+  quiz's delivery* into chat for this flow; the form quiz remains its own thing — **as of 2026-08-17 that is
+  [question-set-element.md](question-set-element.md) (1.1.78), not the never-built 1.1.19 M2**.)
+  > **Correction 2026-08-17.** `CheckQuestion` originally carried an optional `options` list borrowed from
+  > the `QuizItem` shape. Nothing ever wrote it and nothing ever read it, so it was deleted along with its
+  > frontend mirror. Clickable multiple choice is 1.1.78; check questions stay free-text, which is what
+  > lets the tutor follow up on a wrong answer rather than just marking it.
 - **Trigger.** Tutor-led at a natural moment (node looks `partial`, or end-of-activity wrap-up), or
   teacher-requested ("run the checkpoint"). The tutor tool `run_checkpoint(node_id)` injects the node's
   check questions into the conversation; the tutor asks them one at a time, in its own voice.

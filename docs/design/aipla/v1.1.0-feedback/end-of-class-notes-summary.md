@@ -56,7 +56,7 @@ This is **formative, not summative** (the explicit 9 June focus): the output is 
 
 - **Upload + model call:** identical to [student-multimodal-upload.md](student-multimodal-upload.md) — multipart turn → Vertex Gemini multimodal `Part.from_image`. This doc adds **no** new upload mechanism.
 - **Goal set:** the activity's `dra_map` / learning-goal field from [dra-activity-framework.md](../v1.0.0-pilot/dra-activity-framework.md) (1.K) and the `checklist` from [teacher-activity-authoring.md](teacher-activity-authoring.md) (1.1.19) supply the machine-readable goals. If 1.K's `dra_map` is not yet populated for an activity, fall back to the activity `checklist` items as the goal list.
-- **Render:** A2UI summary card inline in chat (same component family as the session-report and quiz-feedback cards).
+- **Render:** A2UI summary card inline in chat (same component family as the session-report card). **Correction 2026-08-17:** this line previously also named "quiz-feedback cards" as an existing family — no such component exists or has ever existed. Question feedback ships as part of [question-set-element.md](question-set-element.md) (1.1.78) M2, as a workspace element rather than an A2UI card; A2UI remains disabled on every skill.
 
 ## Design
 
