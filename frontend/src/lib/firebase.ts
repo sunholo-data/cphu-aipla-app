@@ -1,6 +1,8 @@
 import { type FirebaseApp, getApps, initializeApp } from "firebase/app";
 import {
+  applyActionCode,
   type Auth,
+  confirmPasswordReset,
   getAuth,
   getIdTokenResult,
   GoogleAuthProvider,
@@ -12,6 +14,7 @@ import {
   signInWithRedirect,
   signOut as fbSignOut,
   type User,
+  verifyPasswordResetCode,
 } from "firebase/auth";
 import { type Firestore, getFirestore } from "firebase/firestore";
 import {
@@ -173,6 +176,44 @@ export async function sendPasswordReset(email: string): Promise<void> {
     if (code === "auth/user-not-found" || code === "auth/invalid-email") return;
     throw err;
   }
+}
+
+/**
+ * Validate a password-reset `oobCode` and return the address it belongs to.
+ *
+ * Used by the custom action handler at `/auth/action`. Showing the teacher
+ * WHICH account they are about to set a password for matters: several pilot
+ * teachers have two granted addresses (school and personal), so "which one is
+ * this link for" is a real question rather than a formality.
+ *
+ * Throws `auth/invalid-action-code` or `auth/expired-action-code` — the caller
+ * must turn both into something actionable, because a teacher who followed a
+ * stale link has no idea what either means.
+ */
+export async function verifyResetCode(oobCode: string): Promise<string> {
+  const auth = getFirebaseAuth();
+  if (!auth) throw new Error("firebase not configured");
+  return verifyPasswordResetCode(auth, oobCode);
+}
+
+/** Set the new password for a validated reset `oobCode`. */
+export async function confirmResetPassword(oobCode: string, newPassword: string): Promise<void> {
+  const auth = getFirebaseAuth();
+  if (!auth) throw new Error("firebase not configured");
+  await confirmPasswordReset(auth, oobCode, newPassword);
+}
+
+/**
+ * Apply a non-reset email action code (verifyEmail, recoverEmail).
+ *
+ * We do not send these today, but the Firebase `callbackUri` is ONE setting for
+ * every action type — pointing it at our handler routes all of them here. An
+ * unhandled mode would render a blank page on a link the platform itself sent.
+ */
+export async function applyEmailActionCode(oobCode: string): Promise<void> {
+  const auth = getFirebaseAuth();
+  if (!auth) throw new Error("firebase not configured");
+  await applyActionCode(auth, oobCode);
 }
 
 /**
