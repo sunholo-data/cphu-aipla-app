@@ -22,6 +22,7 @@ export default function TeacherSignInPage() {
   async function handleGoogle() {
     setBusy(true);
     setError(null);
+    setNotice(null);
     try {
       await signInWithGoogle();
       router.replace("/teacher/classes");
@@ -30,15 +31,25 @@ export default function TeacherSignInPage() {
         await signInWithGoogleRedirect();
         // redirect flow navigates away — no router.replace needed
       } catch (err) {
-        setError(err instanceof Error ? err.message : "Sign-in failed. Please try again.");
+        // The commonest cause is not a broken popup: it is a school with no
+        // Google identity at all, where Google sign-in can never succeed. Say
+        // so, and name the door that does work.
+        setError(
+          "Could not sign in with Google. If your school does not use Google accounts, " +
+            "use “Sign in with email” below instead — you may need a password set up first. " +
+            `(${describeRawError(err)})`,
+        );
         setBusy(false);
       }
     }
   }
 
   /**
-   * Same confirmation whether or not the address has an account — otherwise
-   * this form answers "is this teacher registered?" for anyone who asks.
+   * Never confirms whether the address has an account — that would turn this
+   * form into a way to ask who is registered. But it must never dead-end
+   * either: a first-time teacher whose account was never created would
+   * otherwise wait forever for an email that is not coming. So the message
+   * stays non-committal AND always says what to do when nothing arrives.
    */
   async function handleReset() {
     setBusy(true);
@@ -47,11 +58,16 @@ export default function TeacherSignInPage() {
     try {
       await sendPasswordReset(email);
       setNotice(
-        `If ${email} has an account, a password-reset link is on its way. ` +
-          "Check your spam folder — it comes from a firebaseapp.com address.",
+        `If ${email} has an account, a password-reset link is on its way — ` +
+          "it comes from a firebaseapp.com address, so check your spam folder. " +
+          "If nothing arrives within a few minutes, your account may not be set up yet: " +
+          "contact one of the people below and they can create it for you.",
       );
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Could not send the reset email.");
+      setError(
+        `Could not send the reset email (${describeRawError(err)}). ` +
+          "Try again in a minute, or contact one of the people below.",
+      );
     }
     setBusy(false);
   }
@@ -65,17 +81,7 @@ export default function TeacherSignInPage() {
       await signInWithEmail(email, password);
       router.replace("/teacher/classes");
     } catch (err) {
-      const msg = err instanceof Error ? err.message : "Sign-in failed.";
-      // Surface friendly messages for common Firebase error codes.
-      if (msg.includes("invalid-credential") || msg.includes("wrong-password") || msg.includes("user-not-found")) {
-        setError("Incorrect email or password.");
-      } else if (msg.includes("too-many-requests")) {
-        setError("Too many attempts. Try again later.");
-      } else if (msg.includes("operation-not-allowed") || msg.includes("OPERATION_NOT_ALLOWED") || msg.includes("PASSWORD_LOGIN_DISABLED")) {
-        setError("Email/password sign-in is not enabled. Ask your administrator to enable it in the Firebase Console.");
-      } else {
-        setError(msg);
-      }
+      setError(describeSignInError(err));
       setBusy(false);
     }
   }
@@ -179,7 +185,84 @@ export default function TeacherSignInPage() {
           {notice}
         </p>
       ) : null}
+
+      <SignInHelp />
     </main>
+  );
+}
+
+/**
+ * The raw Firebase code, kept visible in every message.
+ *
+ * A teacher will not know what `auth/invalid-credential` means, but the person
+ * they forward the screenshot to does — and a message that hides it turns a
+ * ten-second diagnosis into a conversation. Shown in parentheses after the
+ * human-readable half, never instead of it.
+ */
+function describeRawError(err: unknown): string {
+  const code = (err as { code?: string })?.code;
+  if (typeof code === "string" && code) return code;
+  if (err instanceof Error && err.message) return err.message;
+  return "unknown error";
+}
+
+/**
+ * Every branch ends with something the teacher can DO. The first-time case —
+ * no account yet — is the one that used to dead-end as "Incorrect email or
+ * password", which reads as "I typed it wrong" when the truth is "nobody has
+ * created your login".
+ */
+function describeSignInError(err: unknown): string {
+  const raw = describeRawError(err);
+  if (/invalid-credential|wrong-password|user-not-found|INVALID_LOGIN/i.test(raw)) {
+    return (
+      "That email and password did not work. If you have not set a password yet, " +
+      "use “Forgot your password?” below to set one. If no email arrives, your login " +
+      `may not exist yet — contact one of the people below. (${raw})`
+    );
+  }
+  if (/too-many-requests/i.test(raw)) {
+    return `Too many attempts. Wait a few minutes before trying again. (${raw})`;
+  }
+  if (/operation-not-allowed|OPERATION_NOT_ALLOWED|PASSWORD_LOGIN_DISABLED/i.test(raw)) {
+    // Was "ask your administrator to enable it in the Firebase Console" — a
+    // sentence written for a developer and shown to a physics teacher.
+    return (
+      "Email sign-in is not available on this site. Please use “Sign in with Google”, " +
+      `or contact one of the people below. (${raw})`
+    );
+  }
+  if (/network-request-failed/i.test(raw)) {
+    return `Could not reach the sign-in service — check your internet connection. (${raw})`;
+  }
+  return `Sign-in failed. Please contact one of the people below. (${raw})`;
+}
+
+/**
+ * Always rendered, not only after a failure. A teacher who cannot get in has by
+ * definition no route to in-app help, so the escape hatch has to be on the page
+ * they are already stuck on, before anything goes wrong.
+ */
+function SignInHelp() {
+  return (
+    <div className="w-full border-t border-border pt-4 text-left">
+      <p className="text-xs font-medium">Trouble signing in?</p>
+      <p className="mt-1 text-xs text-muted-foreground">
+        First time here? Try <strong>Sign in with Google</strong> first. If your school does
+        not use Google accounts, use <strong>Sign in with email</strong> — you may need a
+        password set up for you first. These people can help:
+      </p>
+      <ul className="mt-2 space-y-1">
+        {BRANDING.pilotSupport.contacts.map((c) => (
+          <li key={c.email} className="text-xs">
+            <span className="text-muted-foreground">{c.name} — </span>
+            <a className="underline" href={`mailto:${c.email}`}>
+              {c.email}
+            </a>
+          </li>
+        ))}
+      </ul>
+    </div>
   );
 }
 

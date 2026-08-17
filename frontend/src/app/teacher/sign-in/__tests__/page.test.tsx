@@ -22,6 +22,7 @@ vi.mock("next/navigation", () => ({
 
 import * as firebase from "@/lib/firebase";
 import TeacherSignInPage from "@/app/teacher/sign-in/page";
+import { BRANDING } from "@/lib/branding";
 
 describe("TeacherSignInPage", () => {
   beforeEach(() => {
@@ -122,6 +123,102 @@ describe("TeacherSignInPage", () => {
       });
       fireEvent.click(screen.getByRole("button", { name: /forgot your password/i }));
       await waitFor(() => expect(screen.getByRole("alert")).toBeDefined());
+    });
+
+    it("tells them what to do when no email arrives, so the wait is not a dead end", async () => {
+      vi.mocked(firebase.sendPasswordReset).mockResolvedValueOnce(undefined);
+      openEmailForm();
+      fireEvent.change(screen.getByLabelText(/email/i), {
+        target: { value: "never-created@vhim-gym.dk" },
+      });
+      fireEvent.click(screen.getByRole("button", { name: /forgot your password/i }));
+      const status = await screen.findByRole("status");
+      // The first-timer whose account was never created must not just wait.
+      expect(status.textContent).toMatch(/nothing arrives/i);
+      expect(status.textContent).toMatch(/may not be set up/i);
+    });
+  });
+
+  /**
+   * No silent failures: a teacher who cannot get in has no route to in-app help,
+   * so every dead end has to name a human ON this page.
+   */
+  describe("no dead ends", () => {
+    it("names the support contacts before anything has gone wrong", () => {
+      render(<TeacherSignInPage />);
+      expect(screen.getByText(/trouble signing in/i)).toBeDefined();
+      // The two people in the room on pilot day, then M as escalation.
+      expect(screen.getByRole("link", { name: /jbruun@ind\.ku\.dk/i })).toBeDefined();
+      expect(screen.getByRole("link", { name: /aswin\.rangkuti@ind\.ku\.dk/i })).toBeDefined();
+      expect(screen.getByRole("link", { name: /mark\.edmondson@ind\.ku\.dk/i })).toBeDefined();
+    });
+
+    it("renders every contact as a mailto so a stuck teacher can just click", () => {
+      render(<TeacherSignInPage />);
+      for (const c of BRANDING.pilotSupport.contacts) {
+        const link = screen.getByRole("link", { name: new RegExp(c.email.replace(/\./g, "\\."), "i") });
+        expect(link.getAttribute("href")).toBe(`mailto:${c.email}`);
+      }
+    });
+
+    it("tells a first-time teacher their login may not exist, not just 'wrong password'", async () => {
+      vi.mocked(firebase.signInWithEmail).mockRejectedValueOnce(
+        Object.assign(new Error("bad"), { code: "auth/invalid-credential" }),
+      );
+      render(<TeacherSignInPage />);
+      fireEvent.click(screen.getByRole("button", { name: /sign in with email/i }));
+      fireEvent.change(screen.getByLabelText(/email/i), { target: { value: "mn@sctknud-gym.dk" } });
+      fireEvent.change(screen.getByLabelText(/password/i), { target: { value: "guess" } });
+      fireEvent.click(screen.getByRole("button", { name: /^sign in$/i }));
+
+      const alert = await screen.findByRole("alert");
+      expect(alert.textContent).toMatch(/may not exist yet/i);
+      expect(alert.textContent).toMatch(/forgot your password/i);
+      // The raw code stays visible for whoever receives the screenshot.
+      expect(alert.textContent).toMatch(/auth\/invalid-credential/);
+    });
+
+    it("points a non-Google school at the email door when Google fails", async () => {
+      vi.mocked(firebase.signInWithGoogle).mockRejectedValueOnce(new Error("popup-blocked"));
+      vi.mocked(firebase.signInWithGoogleRedirect).mockRejectedValueOnce(
+        Object.assign(new Error("nope"), { code: "auth/operation-not-supported" }),
+      );
+      render(<TeacherSignInPage />);
+      fireEvent.click(screen.getByRole("button", { name: /sign in with google/i }));
+      const alert = await screen.findByRole("alert");
+      expect(alert.textContent).toMatch(/does not use Google/i);
+      expect(alert.textContent).toMatch(/sign in with email/i);
+      expect(alert.textContent).toMatch(/auth\/operation-not-supported/);
+    });
+
+    it("does not show a Firebase Console instruction to a teacher", async () => {
+      vi.mocked(firebase.signInWithEmail).mockRejectedValueOnce(
+        Object.assign(new Error("bad"), { code: "auth/operation-not-allowed" }),
+      );
+      render(<TeacherSignInPage />);
+      fireEvent.click(screen.getByRole("button", { name: /sign in with email/i }));
+      fireEvent.change(screen.getByLabelText(/email/i), { target: { value: "a@b.dk" } });
+      fireEvent.change(screen.getByLabelText(/password/i), { target: { value: "x" } });
+      fireEvent.click(screen.getByRole("button", { name: /^sign in$/i }));
+
+      const alert = await screen.findByRole("alert");
+      expect(alert.textContent).not.toMatch(/firebase console/i);
+      expect(alert.textContent).toMatch(/contact one of the people below/i);
+    });
+
+    it("keeps the raw code on an unrecognised failure instead of swallowing it", async () => {
+      vi.mocked(firebase.signInWithEmail).mockRejectedValueOnce(
+        Object.assign(new Error("boom"), { code: "auth/internal-error" }),
+      );
+      render(<TeacherSignInPage />);
+      fireEvent.click(screen.getByRole("button", { name: /sign in with email/i }));
+      fireEvent.change(screen.getByLabelText(/email/i), { target: { value: "a@b.dk" } });
+      fireEvent.change(screen.getByLabelText(/password/i), { target: { value: "x" } });
+      fireEvent.click(screen.getByRole("button", { name: /^sign in$/i }));
+
+      const alert = await screen.findByRole("alert");
+      expect(alert.textContent).toMatch(/auth\/internal-error/);
+      expect(alert.textContent).toMatch(/contact one of the people below/i);
     });
   });
 });

@@ -55,6 +55,27 @@ export const BRANDING = {
     email: "ind@ind.ku.dk",
     githubRepo: "https://github.com/sunholo-data/cphu-aipla-app",
   },
+
+  /**
+   * Named humans a teacher can reach when they cannot get in at all.
+   *
+   * Deliberately NOT `contact.email` (`ind@ind.ku.dk`): a first-time teacher
+   * locked out ten minutes before a lesson needs the two people actually running
+   * the pilot session, not a departmental inbox. Sign-in dead ends are the one
+   * place where "ask someone" has to name someone.
+   */
+  pilotSupport: {
+    /**
+     * KU addresses, and the two people IN THE ROOM first. M is listed last on
+     * purpose: he is the escalation, not the first call, and was away for the
+     * first pilot session (2026-08-21).
+     */
+    contacts: [
+      { name: "Jesper Bruun", email: "jbruun@ind.ku.dk" },
+      { name: "Aswin Rangkuti", email: "aswin.rangkuti@ind.ku.dk" },
+      { name: "Mark Edmondson", email: "mark.edmondson@ind.ku.dk" },
+    ],
+  },
 } as const;
 
 export type Branding = typeof BRANDING;
