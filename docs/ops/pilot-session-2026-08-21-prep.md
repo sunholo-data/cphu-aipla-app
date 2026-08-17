@@ -144,12 +144,23 @@ account exists.
 
 - [x] All 11 teachers on the prod register, capped, expiring 2027-09-15
 - [x] The three alternate Gmail addresses granted too, so either address works
-- [ ] `v0.1.23` promoted to prod (carries the password login and the reset flow)
-- [ ] Logins pre-created on prod for all 11 teachers + the 3 aliases
-- [ ] One teacher has actually completed the email + reset path end to end —
-      **a real inbox is the only test of whether Firebase mail gets through**, and
-      it is the single thing on this list most likely to fail quietly
+- [x] `v0.1.23` on prod — password login, self-serve reset, no-dead-end errors.
+      Verified in the DEPLOYED bundle, not the source
+- [x] Logins pre-created on prod for all 11 teachers. Ten hold a password
+      provider; `lb@toerring-gym.dk` already had a Google account and was left
+      alone, so Lone signs in with Google
+- [x] The support addresses on the sign-in page receive mail — confirmed by M,
+      2026-08-17, for `mark.edmondson@ind.ku.dk` and `aswin.rangkuti@ind.ku.dk`
+- [ ] **One teacher has completed the email + reset path in a real inbox.**
+      The only remaining unknown, and the one most likely to fail quietly: if
+      Firebase mail does not reach Danish school domains, all ten password
+      logins are unusable. Nothing in CI or a smoke test can see this
 - [ ] JB and Aswin have skimmed the symptom table above
+
+> **Not cleared by the above:** `prod.tfvars` records `mark.edmondson@ind.ku.dk`
+> as break-glass GCP owner "not exercised". That is about authenticating to
+> Google Cloud, which is a different capability from receiving mail — confirming
+> the mailbox says nothing about it. Still worth exercising before handover.
 
 ## Runbooks
 
