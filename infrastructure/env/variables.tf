@@ -145,7 +145,7 @@ variable "preview_feature_flags" {
 
 variable "email_signin_enabled" {
   type        = bool
-  description = "Enable Firebase email/password sign-in. dev/test=true (the test-teacher@example.dk convenience account for curriculum seed + teacher-flow testing); prod=false (teachers use UCPH SSO — ADR-001). Students always use the anonymous-group JWT regardless."
+  description = "Enable Firebase email/password sign-in. TRUE on all three envs. dev/test for the test-teacher@example.dk convenience account; PROD because pilot teachers at schools with no Google identity have no other door — several Danish gymnasium domains are Microsoft tenants, so 'Sign in with Google' can never return their address (see docs/ops/runbooks/access-requests.md section 6, and `users invite-password`). This description previously read 'prod=false (teachers use UCPH SSO — ADR-001)', which was already untrue in prod.tfvars; setting it false would lock those teachers out entirely. Students always use the anonymous-group JWT regardless."
   default     = false
 }
 
