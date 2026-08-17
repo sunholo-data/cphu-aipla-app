@@ -8,6 +8,7 @@ exist to support Cloud Build deploy hooks and ops runbooks.
 from __future__ import annotations
 
 import logging
+import secrets
 from typing import Any
 
 from fastapi import APIRouter, HTTPException, Request
@@ -465,6 +466,119 @@ def access_list(request: Request, include_revoked: bool = False) -> dict[str, An
             }
             for g in grants
         ],
+    }
+
+
+class PasswordInviteRequest(BaseModel):
+    """Body for ``POST /api/admin/access/password-invite``.
+
+    For teachers whose institution has no Google identity (e.g. a Microsoft 365
+    tenant), so "Sign in with Google" can never return their address.
+    """
+
+    email: str
+    display_name: str | None = None
+    continue_url: str | None = None
+
+
+@router.post(
+    "/access/password-invite",
+    responses={
+        403: {"description": "Caller is not in ADMIN_SEED_ALLOWED_SAS"},
+        404: {"description": "Email has no active grant on the access register"},
+    },
+)
+def access_password_invite(body: PasswordInviteRequest, request: Request) -> dict[str, Any]:
+    """Mint an email/password account and return a link for them to SET the password.
+
+    The reason this exists: sign-in is Google, but some pilot schools run a
+    Microsoft tenant, so Google can never return their institutional address.
+    Email/password sign-in is enabled and the app has a form for it
+    (``/teacher/sign-in``), but there is no signup, no forgot-password and no
+    change-password UI anywhere — so without this there is no way for such a
+    teacher to obtain a credential at all.
+
+    **No password is ever returned, logged, or transmitted.** The account is
+    created with a throwaway random secret that nobody ever learns, and the
+    caller gets a Firebase-hosted reset link to forward; the teacher chooses
+    their own password on Google's page. Handing out a password you then have to
+    send over some channel is the thing this endpoint exists to avoid.
+
+    Gated on the access register: minting a credential is only allowed for an
+    address someone already invited, so a typo cannot conjure an account for an
+    address nobody vetted. Grant first, then invite.
+
+    Idempotent, and doubles as "they lost the link" — these links are
+    short-lived, so re-run it when the teacher is actually ready rather than
+    minting one in advance. On an account that already exists (including a
+    Google-only one) no user is created; the link then lets them ADD a password
+    to the identity they already have, which is why ``providers`` is reported
+    back: it says what you are about to change.
+    """
+    from db.teacher_access import get_grant
+    from db.teacher_access import normalise_email as _norm
+
+    caller_email = _assert_caller_is_service_account(request)
+    email = _norm(body.email)
+    if not email:
+        raise HTTPException(status_code=400, detail="email is required")
+
+    grant = get_grant(email)
+    if grant is None or not grant.is_active:
+        raise HTTPException(
+            status_code=404,
+            detail=(
+                f"{email} has no active grant on the access register. "
+                f"Run `users grant-access {email}` first — a credential is only "
+                "minted for an address that was already invited."
+            ),
+        )
+
+    created = False
+    try:
+        fb_user = fb_auth.get_user_by_email(email)
+    except fb_auth.UserNotFoundError:
+        fb_user = fb_auth.create_user(
+            email=email,
+            # Never surfaced anywhere. The reset link is the only way in, so this
+            # value is unguessable and then deliberately forgotten.
+            password=secrets.token_urlsafe(32),
+            display_name=body.display_name or None,
+            email_verified=False,
+        )
+        created = True
+
+    providers = sorted({p.provider_id for p in (fb_user.provider_data or [])})
+
+    settings = None
+    if body.continue_url:
+        # Lands them back on the sign-in form after they set a password. The
+        # domain must be in Firebase's authorizedDomains or this raises.
+        settings = fb_auth.ActionCodeSettings(url=body.continue_url)
+    try:
+        link = fb_auth.generate_password_reset_link(email, action_code_settings=settings)
+    except Exception as exc:
+        raise HTTPException(status_code=502, detail=f"could not generate a password reset link: {exc}") from exc
+
+    # A freshly created uid has no claim yet, and bootstrap would only fix that
+    # on first load — which is AFTER they need the tier to do anything useful.
+    uid = _sync_access_claim(email, grant.tier)
+    logger.info(
+        "admin.access_password_invite: email=%s uid=%s created=%s providers=%s by=%s",
+        email,
+        fb_user.uid,
+        created,
+        ",".join(providers) or "-",
+        caller_email,
+    )
+    return {
+        "email": email,
+        "uid": fb_user.uid,
+        "created": created,
+        "providers": providers,
+        "tier": grant.tier,
+        "claimSyncedUid": uid,
+        "resetLink": link,
     }
 
 

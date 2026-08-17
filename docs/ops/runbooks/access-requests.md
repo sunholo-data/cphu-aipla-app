@@ -129,6 +129,50 @@ way in under an address nobody invited, so a typo fails visibly instead.
 **Takes effect on their next app load** (`/api/teacher/bootstrap` reconciles the
 claim and forces a token refresh). Tell them to reload.
 
+## 6. When Google sign-in cannot work for them
+
+Sign-in is **Google**. Some pilot schools run a **Microsoft 365 tenant**
+(`lu@o365.favrskov-gym.dk` and `op@o365.favrskov-gym.dk` are the known pair), so
+Google can never return their institutional address and the grant sits there
+matching nobody.
+
+Email/password sign-in **is** enabled on prod and the form exists at
+`/teacher/sign-in`. What does not exist is any way for them to get a password:
+no signup, no forgot-password, no change-password UI. So:
+
+```bash
+aiplatform --env $ENV users invite-password lu@o365.favrskov-gym.dk \
+  --name "Peter L" \
+  --continue-url https://aipla.ku.dk/teacher/sign-in
+```
+
+Prints a Firebase-hosted link. **Send them the link, not a password** — the
+account is created with a random secret nobody ever learns, and they choose their
+own on Google's page. There is deliberately no way to make this command tell you
+a password (`test_password_invite_creates_user_and_never_returns_the_password`).
+
+- **Requires an active grant first.** Minting a credential for an address nobody
+  invited is refused with a 404 naming the `grant-access` command to run. A typo
+  cannot conjure an account.
+- **The links are short-lived.** Mint one when the teacher is actually ready,
+  not in advance. Re-running is idempotent and is also the fix for "it expired".
+- **On an account that already exists** (including a Google-only one) nothing is
+  created; the link then *adds* a password to the identity they already have.
+  The output names the existing providers so you can see what you are changing.
+- **`--continue-url` must be a Firebase authorized domain.** On prod that is
+  `aipla.ku.dk` and the Cloud Run URL; on dev, `localhost` and the dev URL.
+
+> **Before reaching for this, have them try Google sign-in once.** A Google
+> account can exist on any address, not just Gmail, and plenty of Danish
+> gymnasiums do federate. The `o365.` subdomain is suggestive, not proof.
+
+**Diagnosing "I was granted but still see the demo tutor":** check *which address
+they signed in with* before anything else. A grant on an address they don't use
+looks identical from the outside to a stale claim needing a reload — and
+`list-access` looks perfectly healthy in both cases. Two of these teachers used
+personal Gmail addresses on dev while the official school list gives their
+institutional ones.
+
 ## Revoke
 
 ```bash
@@ -174,7 +218,9 @@ you have watched usage; `--uncapped` exists if you truly need it, and warns.
 | `404` with a page of HTML in it | The base URL is missing `/api/proxy`. The backend is a sidecar behind the frontend service, not a service of its own |
 | `'prod' URL is a placeholder and gcloud could not resolve...` | gcloud is on the wrong configuration. `CLOUDSDK_ACTIVE_CONFIG_NAME=sunholo` |
 | `no such command 'list-requests'` | **A stale CLI install.** `make cli-install` — it bakes in `--no-cache`, which is exactly why this failure mode exists |
-| Teacher still sees the recorded demo after a grant | They have not reloaded. The claim lands on the next `/api/teacher/bootstrap` |
+| Teacher still sees the recorded demo after a grant | They have not reloaded (the claim lands on the next `/api/teacher/bootstrap`) — **or** they signed in with a different address than the one granted. Check the address before assuming the reload |
+| `404 ... has no active grant on the access register` from `invite-password` | Working as designed — `grant-access` that email first |
+| Teacher's school is Microsoft-only, so Google sign-in cannot return their address | [Section 6](#6-when-google-sign-in-cannot-work-for-them) — `users invite-password` |
 
 ---
 

@@ -13,6 +13,7 @@ from unittest.mock import patch
 import pytest
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
+from firebase_admin import auth as fb_auth
 
 from admin.platform_seed import SeedSummary
 from admin.routes import router
@@ -210,3 +211,153 @@ def test_revoke_researcher_is_noop_for_non_researcher(client, allow_env):
         )
     assert resp.status_code == 200
     mock_set.assert_called_once_with("u1", {"groupTags": ["beta"]})
+
+
+# ─── access/password-invite ───────────────────────────────────────────────────
+#
+# For pilot teachers at schools with no Google identity. The properties worth
+# nailing down: no password ever leaves the process, and a credential is only
+# minted for someone already on the access register.
+
+_INVITE_URL = "/api/admin/access/password-invite"
+_RESET_LINK = "https://aipla-prod-2026.firebaseapp.com/__/auth/action?mode=resetPassword&oobCode=stub"
+
+
+def _fake_grant(*, tier: str = "pilot", active: bool = True):
+    return type("G", (), {"tier": tier, "is_active": active})()
+
+
+def _fake_fb_user(uid: str = "new-uid", providers: tuple[str, ...] = ()):
+    return type(
+        "U",
+        (),
+        {"uid": uid, "provider_data": [type("P", (), {"provider_id": p})() for p in providers]},
+    )()
+
+
+def test_password_invite_requires_allowlisted_sa(client, allow_env):
+    resp = client.post(_INVITE_URL, json={"email": "lu@o365.favrskov-gym.dk"})
+    assert resp.status_code == 403
+
+
+def test_password_invite_404s_and_creates_nothing_without_a_grant(client, allow_env):
+    """The gate that matters: a typo must not conjure an account.
+
+    Asserting the 404 alone would pass even if the user were created first and
+    the check ran after, so this pins `create_user` at zero calls.
+    """
+    with (
+        patch("admin.auth.id_token.verify_oauth2_token") as mock_verify,
+        patch("db.teacher_access.get_grant", return_value=None),
+        patch("admin.routes.fb_auth.create_user") as mock_create,
+        patch("admin.routes.fb_auth.generate_password_reset_link") as mock_link,
+    ):
+        mock_verify.return_value = {"email": _ALLOWED_SA, "email_verified": True}
+        resp = client.post(
+            _INVITE_URL,
+            json={"email": "stranger@example.dk"},
+            headers={"Authorization": "Bearer stub-id-token"},
+        )
+    assert resp.status_code == 404
+    assert "grant-access" in resp.json()["detail"]
+    mock_create.assert_not_called()
+    mock_link.assert_not_called()
+
+
+def test_password_invite_404s_on_a_revoked_grant(client, allow_env):
+    with (
+        patch("admin.auth.id_token.verify_oauth2_token") as mock_verify,
+        patch("db.teacher_access.get_grant", return_value=_fake_grant(active=False)),
+        patch("admin.routes.fb_auth.create_user") as mock_create,
+    ):
+        mock_verify.return_value = {"email": _ALLOWED_SA, "email_verified": True}
+        resp = client.post(
+            _INVITE_URL,
+            json={"email": "revoked@example.dk"},
+            headers={"Authorization": "Bearer stub-id-token"},
+        )
+    assert resp.status_code == 404
+    mock_create.assert_not_called()
+
+
+def test_password_invite_creates_user_and_never_returns_the_password(client, allow_env):
+    """The security property: the random secret must not reach the caller.
+
+    A future refactor that helpfully echoed the generated password back — so the
+    operator could 'just send it to them' — would defeat the entire point of the
+    reset-link flow. This test fails if it ever does.
+    """
+    with (
+        patch("admin.auth.id_token.verify_oauth2_token") as mock_verify,
+        patch("db.teacher_access.get_grant", return_value=_fake_grant()),
+        patch("admin.routes.fb_auth.get_user_by_email", side_effect=fb_auth.UserNotFoundError("nope")),
+        patch("admin.routes.fb_auth.create_user", return_value=_fake_fb_user()) as mock_create,
+        patch("admin.routes.fb_auth.generate_password_reset_link", return_value=_RESET_LINK),
+        patch("admin.routes._sync_access_claim", return_value="new-uid") as mock_sync,
+    ):
+        mock_verify.return_value = {"email": _ALLOWED_SA, "email_verified": True}
+        resp = client.post(
+            _INVITE_URL,
+            json={"email": "LU@o365.favrskov-gym.dk", "display_name": "Peter L"},
+            headers={"Authorization": "Bearer stub-id-token"},
+        )
+
+    assert resp.status_code == 200, resp.text
+    payload = resp.json()
+    assert payload["created"] is True
+    assert payload["email"] == "lu@o365.favrskov-gym.dk", "email must be normalised before use"
+    assert payload["resetLink"] == _RESET_LINK
+
+    generated = mock_create.call_args.kwargs["password"]
+    assert generated, "a password must be set, or the account has no credential at all"
+    assert generated not in resp.text, "the generated password must never reach the caller"
+    assert not any(isinstance(v, str) and generated in v for v in payload.values())
+
+    # The new uid needs its tier now, not on some later bootstrap.
+    mock_sync.assert_called_once_with("lu@o365.favrskov-gym.dk", "pilot")
+
+
+def test_password_invite_reuses_an_existing_account(client, allow_env):
+    """Re-running for someone who already signed in must not create a second
+    account — it mints a fresh link and reports what identity it is touching."""
+    existing = _fake_fb_user(uid="google-uid", providers=("google.com",))
+    with (
+        patch("admin.auth.id_token.verify_oauth2_token") as mock_verify,
+        patch("db.teacher_access.get_grant", return_value=_fake_grant()),
+        patch("admin.routes.fb_auth.get_user_by_email", return_value=existing),
+        patch("admin.routes.fb_auth.create_user") as mock_create,
+        patch("admin.routes.fb_auth.generate_password_reset_link", return_value=_RESET_LINK),
+        patch("admin.routes._sync_access_claim", return_value="google-uid"),
+    ):
+        mock_verify.return_value = {"email": _ALLOWED_SA, "email_verified": True}
+        resp = client.post(
+            _INVITE_URL,
+            json={"email": "lb@toerring-gym.dk"},
+            headers={"Authorization": "Bearer stub-id-token"},
+        )
+    assert resp.status_code == 200, resp.text
+    payload = resp.json()
+    mock_create.assert_not_called()
+    assert payload["created"] is False
+    assert payload["uid"] == "google-uid"
+    assert payload["providers"] == ["google.com"]
+
+
+def test_password_invite_passes_continue_url_through(client, allow_env):
+    with (
+        patch("admin.auth.id_token.verify_oauth2_token") as mock_verify,
+        patch("db.teacher_access.get_grant", return_value=_fake_grant()),
+        patch("admin.routes.fb_auth.get_user_by_email", return_value=_fake_fb_user()),
+        patch("admin.routes.fb_auth.ActionCodeSettings") as mock_settings,
+        patch("admin.routes.fb_auth.generate_password_reset_link", return_value=_RESET_LINK) as mock_link,
+        patch("admin.routes._sync_access_claim", return_value="new-uid"),
+    ):
+        mock_verify.return_value = {"email": _ALLOWED_SA, "email_verified": True}
+        resp = client.post(
+            _INVITE_URL,
+            json={"email": "lb@toerring-gym.dk", "continue_url": "https://aipla.ku.dk/teacher/sign-in"},
+            headers={"Authorization": "Bearer stub-id-token"},
+        )
+    assert resp.status_code == 200, resp.text
+    mock_settings.assert_called_once_with(url="https://aipla.ku.dk/teacher/sign-in")
+    assert mock_link.call_args.kwargs["action_code_settings"] is mock_settings.return_value

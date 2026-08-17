@@ -186,6 +186,55 @@ def list_access(ctx: click.Context, include_revoked: bool, as_json: bool) -> Non
     click.echo(f"\n{result.get('count', len(grants))} row(s).")
 
 
+@users.command("invite-password")
+@click.argument("email")
+@click.option("--name", "display_name", default=None, help="Display name for a newly created account.")
+@click.option(
+    "--continue-url",
+    default=None,
+    help=(
+        "Where to land them after they set a password, e.g. "
+        "https://aipla.ku.dk/teacher/sign-in. Must be a Firebase authorized domain."
+    ),
+)
+@click.pass_context
+def invite_password(ctx: click.Context, email: str, display_name: str | None, continue_url: str | None) -> None:
+    """Mint an email/password login for EMAIL and print a link for them to set it.
+
+    For teachers whose school has no Google identity (a Microsoft 365 tenant, say),
+    where "Sign in with Google" can never return their institutional address.
+
+    Send them the LINK. No password is generated for you to pass on, because a
+    password you have to send over some channel is the problem this avoids — the
+    account is created with a random secret nobody ever learns, and they choose
+    their own on Firebase's page.
+
+    Requires an active register grant first (`grant-access <email>`): minting a
+    credential for an address nobody invited is not a thing this should enable.
+
+    Re-run it freely — idempotent, and the way to handle "the link expired".
+    These links are short-lived, so mint one when the teacher is ready to use it
+    rather than in advance.
+    """
+    body: dict = {"email": email}
+    if display_name:
+        body["display_name"] = display_name
+    if continue_url:
+        body["continue_url"] = continue_url
+    result = _client(ctx).post("/api/admin/access/password-invite", json=body)
+
+    link = result.get("resetLink", "")
+    created = result.get("created")
+    providers = result.get("providers") or []
+    click.echo(f"\n{result.get('email', email)}  uid={result.get('uid', '?')}  tier={result.get('tier', '?')}")
+    click.echo(f"  account:   {'CREATED' if created else 'already existed'}")
+    click.echo(f"  providers: {', '.join(providers) if providers else '(none yet)'}")
+    if not created and "password" not in " ".join(providers):
+        click.echo("  note:      this link ADDS a password to an identity they already sign in with.")
+    click.echo("\nSend them this link (it expires — re-run this command for a fresh one):\n")
+    click.echo(f"  {link}\n")
+
+
 @users.command("list-requests")
 @click.option(
     "--status",
