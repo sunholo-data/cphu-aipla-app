@@ -200,8 +200,8 @@ steps:
           --image=${_REGION}-docker.pkg.dev/${_TARGET_PROJECT}/${_REPO}/${_SERVICE_NAME}/ui:${_VERSION} \
           --container=sidecar \
           --image=${_REGION}-docker.pkg.dev/${_TARGET_PROJECT}/${_REPO}/${_SERVICE_NAME}/backend@$$DIGEST \
-          --update-env-vars=APP_VERSION=${_VERSION},MCP_WIDGET_DOMAIN=${_MCP_WIDGET_DOMAIN}
-        # ^ Both must be re-stamped on the PROMOTED revision, for the same
+          --update-env-vars=APP_VERSION=${_VERSION},MCP_WIDGET_DOMAIN=${_MCP_WIDGET_DOMAIN},MCP_SANDBOX_URL=${_MCP_SANDBOX_URL}
+        # ^ All three must be re-stamped on the PROMOTED revision, for the same
         # reason. APP_VERSION: the backend image is copied from test, where it
         # was deployed with test's build value, so a promote that swapped images
         # without this would leave prod reporting the wrong version on every
@@ -214,6 +214,16 @@ steps:
         # Rule of thumb for anything added here later: if cloudbuild.yaml sets it
         # with --set-env-vars from a per-env substitution, the promote path MUST
         # re-stamp it too, or prod diverges permanently from its own config.
+        #
+        # MCP_SANDBOX_URL added 2026-08-17, and it is the rule above biting the
+        # file that states it. cloudbuild.yaml:353 has set this from the same
+        # substitution all along; the promote passed _MCP_SANDBOX_URL only as a
+        # frontend --build-arg. So moving prod to the ku.dk sandbox origin updated
+        # the BUNDLE and left the SIDECAR on the run.app origin — the backend
+        # serves artefact HTML from it for `ui://` resources
+        # (backend/protocols/sim_apps.py), so external MCP hosts kept being
+        # pointed at the old origin. Both origins serve identical bytes, which is
+        # exactly why this could have sat unnoticed indefinitely.
 
   # --- Smoke: fail the promotion if the target isn't healthy ---
   - name: 'gcr.io/google.com/cloudsdktool/cloud-sdk'
