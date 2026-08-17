@@ -12,7 +12,7 @@ teacher_mock              = false
 # pipeline, which until today passed no feature-flag build-args at all — see
 # cloudbuild.promote.yaml. Both halves are needed.
 preview_feature_flags = true
-frontend_url = "https://aipla-v01-frontend-6vwz657g3a-lz.a.run.app" # sandbox ALLOWED_HOST_ORIGINS
+frontend_url          = "https://aipla-v01-frontend-6vwz657g3a-lz.a.run.app" # sandbox ALLOWED_HOST_ORIGINS
 # 2026-08-17: moved from the run.app sandbox origin to the ku.dk one, following
 # test (which moved 2026-08-17 in f9d9610). Verified before the change:
 # aipla-sandbox.ku.dk/sandbox.html serves 200 and is byte-identical to prod's
