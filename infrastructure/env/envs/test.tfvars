@@ -16,8 +16,15 @@ email_signin_enabled   = true # test-teacher@example.dk for curriculum seed + te
 # Both set after their services' first deploy assigns a *.run.app URL
 # (chicken-egg — see README): frontend_url → sandbox ALLOWED_HOST_ORIGINS;
 # mcp_sandbox_url → NEXT_PUBLIC_MCP_SANDBOX_URL baked into the frontend bundle.
-frontend_url    = "https://aipla-v01-frontend-y2bmxayxca-lz.a.run.app"             # sandbox ALLOWED_HOST_ORIGINS
-mcp_sandbox_url = "https://aipla-v01-sandbox-y2bmxayxca-lz.a.run.app/sandbox.html" # predicted (Cloud Run shares a per-project URL hash with the frontend)
+frontend_url = "https://aipla-v01-frontend-y2bmxayxca-lz.a.run.app" # sandbox ALLOWED_HOST_ORIGINS
+# 2026-08-17: moved from the run.app sandbox origin to the ku.dk one, now that
+# aipla-test-sandbox.ku.dk resolves and its certificate is ACTIVE (2026-08-12).
+# NOT a runtime setting — this is baked into the frontend bundle as a build-arg
+# (cloudbuild.yaml `--build-arg NEXT_PUBLIC_MCP_SANDBOX_URL`) and only reaches
+# the backend sidecar as an env var, so changing it needs a REBUILD, not a
+# redeploy: apply, then cut a tag. Prod holds the run.app origin until this has
+# been exercised in a browser here — sims work on either, so there is no rush.
+mcp_sandbox_url = "https://aipla-test-sandbox.ku.dk/sandbox.html"
 # UCPH-granted custom domain (2026-08-03). Set BEFORE UCPH IT creates the DNS
 # records — the apply reserves the static IPs that go IN the request, and the
 # managed cert waits in PROVISIONING until the name resolves. See loadbalancer.tf.
