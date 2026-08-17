@@ -6,6 +6,7 @@ import {
   GoogleAuthProvider,
   onAuthStateChanged,
   onIdTokenChanged,
+  sendPasswordResetEmail,
   signInWithEmailAndPassword,
   signInWithPopup,
   signInWithRedirect,
@@ -147,6 +148,31 @@ export async function signInWithEmail(email: string, password: string): Promise<
   const auth = getFirebaseAuth();
   if (!auth) throw new Error("firebase not configured");
   await signInWithEmailAndPassword(auth, email, password);
+}
+
+/**
+ * Send a password-reset email so a teacher can recover their own password.
+ *
+ * Teachers at schools with no Google identity sign in with email/password
+ * (their account is minted by `aiplatform users invite-password`). Without this
+ * they had no way back in after forgetting it — an admin had to mint a fresh
+ * link, which is not a thing anyone should have to wait on mid-lesson.
+ *
+ * Deliberately resolves even when the address has no account: the caller shows
+ * the same message either way, so this cannot be used to ask "does this teacher
+ * have an account?". Firebase's own email-enumeration protection does the same,
+ * but the guarantee should not depend on a console setting.
+ */
+export async function sendPasswordReset(email: string): Promise<void> {
+  const auth = getFirebaseAuth();
+  if (!auth) throw new Error("firebase not configured");
+  try {
+    await sendPasswordResetEmail(auth, email);
+  } catch (err) {
+    const code = (err as { code?: string })?.code ?? "";
+    if (code === "auth/user-not-found" || code === "auth/invalid-email") return;
+    throw err;
+  }
 }
 
 /**

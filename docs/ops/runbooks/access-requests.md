@@ -137,8 +137,8 @@ Google can never return their institutional address and the grant sits there
 matching nobody.
 
 Email/password sign-in **is** enabled on prod and the form exists at
-`/teacher/sign-in`. What does not exist is any way for them to get a password:
-no signup, no forgot-password, no change-password UI. So:
+`/teacher/sign-in`. What does not exist is **self-service signup** — so the
+first credential has to be minted for them:
 
 ```bash
 aiplatform --env $ENV users invite-password lu@o365.favrskov-gym.dk \
@@ -165,6 +165,19 @@ a password (`test_password_invite_creates_user_and_never_returns_the_password`).
 > **Before reaching for this, have them try Google sign-in once.** A Google
 > account can exist on any address, not just Gmail, and plenty of Danish
 > gymnasiums do federate. The `o365.` subdomain is suggestive, not proof.
+> **MX records are only suggestive too**: `ind.ku.dk` is a Microsoft tenant and
+> `jbruun@ind.ku.dk` signs in with Google perfectly well. Mail routing says
+> nothing about which identities exist.
+
+**After the first credential they are self-service.** `/teacher/sign-in` has a
+**"Forgot your password?"** link that needs only the email — so it works from the
+state a person who forgot their password is actually in. Point a teacher at that
+rather than minting a fresh link for them.
+
+It shows the same confirmation whether or not the address has an account, on
+purpose: anything else turns the sign-in form into a way to ask who is
+registered. So "they got no email" is **not** evidence the account is missing —
+check the address they used, and their spam folder.
 
 **Diagnosing "I was granted but still see the demo tutor":** check *which address
 they signed in with* before anything else. A grant on an address they don't use

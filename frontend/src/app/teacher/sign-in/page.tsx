@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import {
+  sendPasswordReset,
   signInWithEmail,
   signInWithGoogle,
   signInWithGoogleRedirect,
@@ -16,6 +17,7 @@ export default function TeacherSignInPage() {
   const [password, setPassword] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [notice, setNotice] = useState<string | null>(null);
 
   async function handleGoogle() {
     setBusy(true);
@@ -34,10 +36,31 @@ export default function TeacherSignInPage() {
     }
   }
 
+  /**
+   * Same confirmation whether or not the address has an account — otherwise
+   * this form answers "is this teacher registered?" for anyone who asks.
+   */
+  async function handleReset() {
+    setBusy(true);
+    setError(null);
+    setNotice(null);
+    try {
+      await sendPasswordReset(email);
+      setNotice(
+        `If ${email} has an account, a password-reset link is on its way. ` +
+          "Check your spam folder — it comes from a firebaseapp.com address.",
+      );
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Could not send the reset email.");
+    }
+    setBusy(false);
+  }
+
   async function handleEmail(ev: React.FormEvent) {
     ev.preventDefault();
     setBusy(true);
     setError(null);
+    setNotice(null);
     try {
       await signInWithEmail(email, password);
       router.replace("/teacher/classes");
@@ -124,9 +147,19 @@ export default function TeacherSignInPage() {
           >
             {busy ? "Signing in…" : "Sign in"}
           </button>
+          {/* Needs only the email, so it stays enabled while the password box is
+              empty — which is exactly the state someone who forgot it is in. */}
           <button
             type="button"
-            onClick={() => { setMode("choose"); setError(null); }}
+            onClick={() => void handleReset()}
+            disabled={busy || !email}
+            className="text-xs text-muted-foreground underline disabled:opacity-60"
+          >
+            Forgot your password?
+          </button>
+          <button
+            type="button"
+            onClick={() => { setMode("choose"); setError(null); setNotice(null); }}
             disabled={busy}
             className="text-xs text-muted-foreground underline"
           >
@@ -138,6 +171,12 @@ export default function TeacherSignInPage() {
       {error ? (
         <p role="alert" className="text-sm text-destructive">
           {error}
+        </p>
+      ) : null}
+
+      {notice ? (
+        <p role="status" className="text-sm text-muted-foreground">
+          {notice}
         </p>
       ) : null}
     </main>
