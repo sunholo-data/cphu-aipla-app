@@ -12,8 +12,23 @@ teacher_mock              = false
 # pipeline, which until today passed no feature-flag build-args at all — see
 # cloudbuild.promote.yaml. Both halves are needed.
 preview_feature_flags = true
-frontend_url          = "https://aipla-v01-frontend-6vwz657g3a-lz.a.run.app"             # sandbox ALLOWED_HOST_ORIGINS
-mcp_sandbox_url       = "https://aipla-v01-sandbox-6vwz657g3a-lz.a.run.app/sandbox.html" # predicted (per-project hash)
+frontend_url = "https://aipla-v01-frontend-6vwz657g3a-lz.a.run.app" # sandbox ALLOWED_HOST_ORIGINS
+# 2026-08-17: moved from the run.app sandbox origin to the ku.dk one, following
+# test (which moved 2026-08-17 in f9d9610). Verified before the change:
+# aipla-sandbox.ku.dk/sandbox.html serves 200 and is byte-identical to prod's
+# run.app sandbox, so the domain mapping points at THIS project's service, and
+# test's differs — these are not a shared origin.
+#
+# ADR-013 holds either way: the sandbox stays a DISTINCT origin from the app
+# (aipla-sandbox.ku.dk vs aipla.ku.dk are different hosts, so the iframe is still
+# cross-origin and the sandbox+CSP isolation is unchanged). This only makes the
+# origin match the app's own domain instead of a run.app address.
+#
+# NOT a runtime setting: it is baked into the frontend bundle as a build-arg
+# (NEXT_PUBLIC_MCP_SANDBOX_URL), so it needs a frontend REBUILD to take effect —
+# apply, then re-run the promote for the release tag. A redeploy of the existing
+# image silently keeps the old origin.
+mcp_sandbox_url = "https://aipla-sandbox.ku.dk/sandbox.html"
 # UCPH-granted custom domain (2026-08-03). Set BEFORE UCPH IT creates the DNS
 # records — the apply reserves the static IPs that go IN the request, and the
 # managed cert waits in PROVISIONING until the name resolves. See loadbalancer.tf.
