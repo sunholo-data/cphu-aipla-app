@@ -36,6 +36,9 @@ export function TeacherClientShell({ children }: { children: ReactNode }) {
   // (flag-gated), so it never floats over the page's own co-pilot.
   const helpEnabled = useTeacherFeature("aiplaHelp", process.env.NEXT_PUBLIC_AIPLA_HELP);
   const [helpOpen, setHelpOpen] = useState(false);
+  // Google avatar URLs can fail (revoked photo, hotlink refusal). Fall back to
+  // the initials rather than leaving a broken image in the header.
+  const [avatarFailed, setAvatarFailed] = useState(false);
   // The activity builder (new + edit) is an app-like surface — like the student
   // chat it wants the full width for its two-column config + live preview. The
   // list/insight/settings pages stay capped for comfortable reading lengths.
@@ -58,8 +61,17 @@ export function TeacherClientShell({ children }: { children: ReactNode }) {
   // Render children bare (no header) so the sign-in page itself is visible.
   if (!user && !isLocalMode()) return <>{children}</>;
 
-  const displayName =
-    (user as { displayName?: string | null } | null)?.displayName ?? "Teacher";
+  const account = user as
+    | { displayName?: string | null; email?: string | null; photoURL?: string | null }
+    | null;
+  const displayName = account?.displayName ?? "Teacher";
+  const photoURL = account?.photoURL ?? null;
+  // The EMAIL leads, because it is the only part of the identity that is unique
+  // per account. Two accounts belonging to the same person share a display name
+  // and therefore share their initials — which is exactly how a session in the
+  // wrong account goes unnoticed (2026-08-18: a whole prod investigation ran on
+  // the wrong one). The name is the fallback, not the headline.
+  const accountLabel = account?.email || displayName;
   const initials = displayName
     .split(" ")
     .map((w: string) => w[0] ?? "")
@@ -121,16 +133,42 @@ export function TeacherClientShell({ children }: { children: ReactNode }) {
                 <span>Researcher</span>
               </div>
             ) : null}
-            <div
-              // `text-foreground` rather than `text-primary`: brand-coloured
-              // TEXT on a low-alpha tint cannot clear WCAG AA on the dark
-              // background at any brand lightness that also works as a button
-              // fill. The tint carries the brand; the glyph stays legible.
-              className="flex h-7 w-7 items-center justify-center rounded-full bg-primary/10 text-[11px] font-semibold text-foreground"
-              aria-label={`Signed in as ${displayName}`}
-              title={displayName}
-            >
-              {initials}
+            <div className="flex min-w-0 items-center gap-2" title={accountLabel}>
+              {photoURL && !avatarFailed ? (
+                /* The Google account photo. Decorative (alt="") — the email
+                   beside it is the accessible identity. `no-referrer` because
+                   lh3.googleusercontent.com refuses some cross-origin
+                   referrers and answers 403. */
+                /* eslint-disable-next-line @next/next/no-img-element */
+                <img
+                  src={photoURL}
+                  alt=""
+                  referrerPolicy="no-referrer"
+                  onError={() => setAvatarFailed(true)}
+                  className="h-7 w-7 shrink-0 rounded-full object-cover"
+                />
+              ) : (
+                <div
+                  // `text-foreground` rather than `text-primary`: brand-coloured
+                  // TEXT on a low-alpha tint cannot clear WCAG AA on the dark
+                  // background at any brand lightness that also works as a button
+                  // fill. The tint carries the brand; the glyph stays legible.
+                  aria-hidden="true"
+                  className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-primary/10 text-[11px] font-semibold text-foreground"
+                >
+                  {initials}
+                </div>
+              )}
+              {/* Announced at every width; shown from md up, where the header
+                  has room for it. The wrapper's `title` carries the full string
+                  when the truncation bites. */}
+              <span className="sr-only">Signed in as {accountLabel}</span>
+              <span
+                aria-hidden="true"
+                className="hidden max-w-[14rem] truncate text-[11px] text-muted-foreground md:block"
+              >
+                {accountLabel}
+              </span>
             </div>
             <button
               type="button"
