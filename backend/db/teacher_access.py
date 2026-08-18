@@ -188,6 +188,75 @@ def get_grant(email: str) -> AccessGrant | None:
     return AccessGrant.from_doc(doc)
 
 
+def _email_for_uid(uid: str) -> str | None:
+    """Firebase uid -> the address it signed in with, or ``None``.
+
+    Imported lazily and failure-tolerant on purpose: LOCAL_MODE and the unit
+    suites have no initialised Firebase app, and this is a fallback path — an
+    unresolvable uid must read as "not on the register", never as an error.
+    """
+    try:
+        from firebase_admin import auth as fb_auth
+
+        return normalise_email(fb_auth.get_user(uid).email or "") or None
+    except Exception:
+        logger.debug("teacher_access: no Firebase email for uid=%s", uid, exc_info=True)
+        return None
+
+
+def grant_for_uid(uid: str) -> AccessGrant | None:
+    """The register row behind a Firebase ``uid``, or ``None`` if not invited.
+
+    THE REGISTER IS KEYED BY EMAIL — that is what lets someone be invited before
+    they have ever signed in. But everything that gates MONEY arrives holding a
+    uid instead: a teacher's own turn carries `teacher:{uid}`, and a student's
+    resolves group -> class -> ownerUid. This is the join between the two, and
+    it is deliberately belt-and-braces:
+
+      1. Query the denormalised ``uid`` field. One indexed read; the common path.
+      2. On a miss, resolve uid -> email through Firebase and read the row by its
+         PRIMARY KEY — then stamp the uid, so step 1 wins from then on.
+
+    Step 2 is not defensive padding. On 2026-08-18, 17 of 18 prod rows had a null
+    ``uid``: it was stamped only on a tier CHANGE, and a teacher granted while
+    already signed in never changes tier — so the rows that were stamped were
+    exactly the ones nobody was using. Both money gates read "no row" as "no cap",
+    and the entire per-teacher ceiling was inert with nothing in the logs saying
+    so. A denormalised field written on one path and read on the critical one is
+    a latent outage; this makes the miss self-healing instead of silent.
+    """
+    if not uid:
+        return None
+
+    try:
+        docs = query_documents(_COLLECTION, filters=[("uid", "==", uid)], limit=1)
+    except Exception:
+        logger.warning("teacher_access: uid index lookup failed for uid=%s", uid, exc_info=True)
+        docs = []
+    if docs:
+        return AccessGrant.from_doc(docs[0])
+
+    email = _email_for_uid(uid)
+    if not email:
+        return None
+    grant = get_grant(email)
+    if grant is None:
+        return None
+
+    # Self-heal, so this costs one Firebase call ONCE per teacher rather than
+    # once per turn. Loud, because a hit here means the eager stamp did not run.
+    logger.warning(
+        "teacher_access: uid=%s was not indexed; resolved via email=%s and stamped",
+        uid,
+        email,
+    )
+    try:
+        stamp_uid(email, uid)
+    except Exception:
+        logger.warning("teacher_access: could not stamp uid=%s onto %s", uid, email, exc_info=True)
+    return grant
+
+
 def resolve_tier(email: str) -> AccessTier:
     """The tier ``email`` should currently carry. Absent/revoked/expired ⇒ visitor."""
     grant = get_grant(email)
@@ -313,6 +382,7 @@ __all__ = [
     "AccessTier",
     "get_grant",
     "grant_access",
+    "grant_for_uid",
     "list_grants",
     "normalise_email",
     "resolve_tier",

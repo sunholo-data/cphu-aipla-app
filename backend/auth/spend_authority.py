@@ -120,19 +120,18 @@ def _tier_for_uid(uid: str) -> AccessTier | None:
         return cached or None  # type: ignore[return-value]
 
     try:
-        from db.firestore import query_documents
-        from db.teacher_access import AccessGrant
+        from db.teacher_access import grant_for_uid
 
-        docs = query_documents("teacher_access", filters=[("uid", "==", uid)], limit=1)
+        grant = grant_for_uid(uid)
     except Exception:
         logger.warning("spend_authority: register lookup failed for uid=%s", uid, exc_info=True)
         return None
 
-    if not docs:
+    if grant is None:
         _cache_put(f"uid_tier:{uid}", "")
         return None
 
-    tier = AccessGrant.from_doc(docs[0]).effective_tier
+    tier = grant.effective_tier
     _cache_put(f"uid_tier:{uid}", tier)
     return tier
 

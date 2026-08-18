@@ -62,6 +62,16 @@ def _reconcile_access_tier(user: User) -> tuple[str, bool]:
         log.warning("bootstrap: teacher_access read failed for uid=%s; keeping claimed tier", user.uid)
         return user.access_tier or DEFAULT_ACCESS_TIER, False
 
+    # BEFORE the early return, not after it. This used to sit at the bottom of
+    # the function, so it only ran when the tier actually CHANGED — and a teacher
+    # granted while already signed in gets their claim pushed by the admin route,
+    # so their tier never drifts and their uid was never recorded. The money
+    # gates join on that uid. No-ops once set.
+    try:
+        stamp_uid(user.email, user.uid)
+    except Exception:
+        log.warning("bootstrap: could not stamp uid on the register for uid=%s", user.uid)
+
     if effective == user.access_tier:
         return effective, False
 
@@ -82,10 +92,6 @@ def _reconcile_access_tier(user: User) -> tuple[str, bool]:
         user.access_tier or "(none)",
         effective,
     )
-    try:
-        stamp_uid(user.email, user.uid)
-    except Exception:
-        log.warning("bootstrap: could not stamp uid on the register for uid=%s", user.uid)
     return effective, True
 
 

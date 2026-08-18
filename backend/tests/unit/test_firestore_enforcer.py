@@ -42,11 +42,18 @@ def store(monkeypatch):
         return rows[:limit] if limit else rows
 
     import db.firestore as fs
+    import db.teacher_access as ta
 
     monkeypatch.setattr(fs, "get_document", _get)
     monkeypatch.setattr(fs, "set_document", _set)
     monkeypatch.setattr(fs, "increment_field", _increment)
     monkeypatch.setattr(fs, "query_documents", _query)
+    # The register module binds its Firestore helpers at import time, so
+    # patching `db.firestore` alone leaves the real client behind
+    # `grant_for_uid` — the very function the cap lookup now depends on.
+    monkeypatch.setattr(ta, "get_document", _get)
+    monkeypatch.setattr(ta, "set_document", _set)
+    monkeypatch.setattr(ta, "query_documents", _query)
     return data
 
 
@@ -445,3 +452,91 @@ async def test_a_row_missing_its_cap_field_is_capped_at_the_default(store):
     store["teacher_access/t@ku.dk"] = {"email": "t@ku.dk", "tier": "pilot", "uid": "t1", "revoked": False}
     decision = await FirestoreBudgetEnforcer().consult(_consult(cost=DEFAULT_MONTHLY_CAP_USD + 1))
     assert decision.action == "block"
+
+
+# --- Metering lands on the PAYER, not the caller (2026-08-18) ----------------
+
+
+@pytest.mark.asyncio
+async def test_two_classes_of_one_teacher_share_a_single_budget(store):
+    """The bug this file shipped: the cap was resolved through the owning
+    teacher, but the running total was read and written under the raw
+    `identity_value` — a GROUP CODE for a student. So each class got its own
+    private copy of the teacher's whole monthly cap, and the real ceiling was
+    (number of classes + 1) times what anyone configured.
+
+    Only a SECOND group code can see it; the existing single-code test cannot.
+    """
+    _register(store, uid="t1", cap=10.0)
+    store["anon_groups/CLASS-A"] = {"classId": "c1"}
+    store["anon_groups/CLASS-B"] = {"classId": "c2"}
+    store["classes/c1"] = {"ownerUid": "t1"}
+    store["classes/c2"] = {"ownerUid": "t1"}
+
+    enforcer = FirestoreBudgetEnforcer()
+
+    # Class A burns almost the whole cap.
+    await enforcer.record(_consult(identity="CLASS-A"), actual_cost_usd=9.99)
+
+    # Class B must inherit that spend — same teacher, same budget.
+    decision = await enforcer.consult(_consult(identity="CLASS-B", cost=0.01, invocation="inv-2"))
+    assert decision.action == "block", "a second class must not get a fresh copy of the cap"
+
+
+@pytest.mark.asyncio
+async def test_a_teachers_own_turns_share_the_budget_with_their_students(store):
+    """The co-pilot and the classroom are one bill. `billing_identity` promises
+    exactly this, and metering under the group code broke it."""
+    _register(store, uid="t1", cap=10.0)
+    store["anon_groups/CLASS-A"] = {"classId": "c1"}
+    store["classes/c1"] = {"ownerUid": "t1"}
+
+    enforcer = FirestoreBudgetEnforcer()
+    await enforcer.record(_consult(identity="CLASS-A"), actual_cost_usd=9.99)
+
+    decision = await enforcer.consult(_consult(identity="teacher:t1", cost=0.01, invocation="inv-2"))
+    assert decision.action == "block"
+
+
+@pytest.mark.asyncio
+async def test_spend_is_recorded_under_the_paying_teacher(store):
+    """The shard key is the payer, per the design's `teacher_spend/{uid}/...`."""
+    _register(store, uid="t1", cap=10.0)
+    store["anon_groups/CLASS-A"] = {"classId": "c1"}
+    store["classes/c1"] = {"ownerUid": "t1"}
+
+    await FirestoreBudgetEnforcer().record(_consult(identity="CLASS-A"), actual_cost_usd=1.0)
+
+    written = [k for k in store if k.startswith("teacher_spend/")]
+    assert written, "nothing was recorded"
+    assert all(k.startswith("teacher_spend/teacher:t1|") for k in written), written
+
+
+@pytest.mark.asyncio
+async def test_an_unstamped_register_row_still_yields_its_cap(store, monkeypatch):
+    """The outage of 2026-08-18: 17 of 18 prod rows had a null `uid`, the cap
+    lookup joined on that field, and every teacher silently became uncapped.
+    The email fallback in `grant_for_uid` has to carry it."""
+    import db.teacher_access as ta
+
+    store["teacher_access/t@ku.dk"] = {
+        "email": "t@ku.dk",
+        "tier": "pilot",
+        "uid": None,  # never stamped
+        "monthlyCapUsd": 10.0,
+        "revoked": False,
+    }
+    monkeypatch.setattr(ta, "_email_for_uid", lambda uid: "t@ku.dk" if uid == "t1" else None)
+
+    enforcer = FirestoreBudgetEnforcer()
+    store["teacher_spend/teacher:t1|" + _period_key() + "|0"] = {
+        "identity": "teacher:t1",
+        "period": _period_key(),
+        "shard": 0,
+        "spentMicroUsd": 9_900_000,
+    }
+    decision = await enforcer.consult(_consult(identity="teacher:t1", cost=0.5))
+    assert decision.action == "block", "a null uid must not read as 'no cap'"
+
+    # ...and it self-heals, so the fallback is paid once, not once per turn.
+    assert store["teacher_access/t@ku.dk"]["uid"] == "t1"

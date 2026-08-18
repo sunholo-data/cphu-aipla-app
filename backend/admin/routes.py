@@ -353,6 +353,19 @@ def _sync_access_claim(email: str, tier: str) -> str | None:
     claims = dict(fb_user.custom_claims or {})
     claims["accessTier"] = tier
     fb_auth.set_custom_user_claims(fb_user.uid, claims)
+
+    # Stamp the uid onto the register HERE, where we have just resolved it. The
+    # spend gates join register-to-caller by uid, and this is the one moment an
+    # email and a uid are both in hand. Leaving it to the bootstrap route's
+    # tier-drift branch meant it never ran for anyone granted while already
+    # signed in — see `db.teacher_access.grant_for_uid`.
+    try:
+        from db.teacher_access import stamp_uid
+
+        stamp_uid(email, fb_user.uid)
+    except Exception:
+        logger.warning("admin.access: could not stamp uid for %s", email, exc_info=True)
+
     return fb_user.uid
 
 

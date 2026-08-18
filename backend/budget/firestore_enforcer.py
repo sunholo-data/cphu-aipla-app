@@ -51,6 +51,10 @@ _TOTAL_CACHE_SECONDS = 10.0
 #: Fraction of the cap that flips allow -> warn.
 SOFT_THRESHOLD = 0.8
 
+#: How long a group -> owning-teacher resolution is trusted. Mirrors the TTL in
+#: ``auth.spend_authority``; a class changes owner approximately never.
+_PAYER_CACHE_SECONDS = 60.0
+
 
 def _period_key(now: datetime | None = None) -> str:
     """Monthly buckets, UTC. Matches the cost dashboard's period grain."""
@@ -71,26 +75,34 @@ class FirestoreBudgetEnforcer:
         self._total_cache: dict[tuple[str, str], tuple[float, float]] = {}
         # {(invocation_id, identity): projected_usd} so record() can reconcile.
         self._held: dict[tuple[str, str], float] = {}
+        # {identity: (payer_uid | None, monotonic_expiry)} — the group -> owner walk.
+        self._payer_cache: dict[str, tuple[str | None, float]] = {}
 
     # --- Protocol ------------------------------------------------------------
 
     async def consult(self, request: BudgetConsultation) -> BudgetDecision:
+        meter_key = self._billing_key(request.identity_value)
         cap = self._cap_for(request.identity_value)
         if cap is None:
             # No cap configured for this identity. Allow, but say so loudly:
             # an uncapped pilot teacher is a deliberate state (M is watching a
             # handful of them) and a silent one would be a hole.
-            logger.info("budget.no_cap identity=%s skill=%s", request.identity_value, request.skill_id)
+            logger.info(
+                "budget.no_cap identity=%s billed_to=%s skill=%s",
+                request.identity_value,
+                meter_key,
+                request.skill_id,
+            )
             return BudgetDecision(
                 action="allow", remaining_usd=None, period_end=None, message=None, retry_after_seconds=None
             )
 
         period = _period_key()
-        spent = self._read_total(request.identity_value, period)
+        spent = self._read_total(meter_key, period)
         projected = spent + request.projected_cost_usd
         remaining = max(0.0, cap - spent)
 
-        self._held[(request.invocation_id, request.identity_value)] = request.projected_cost_usd
+        self._held[(request.invocation_id, meter_key)] = request.projected_cost_usd
 
         if cap <= 0:
             # A deliberate ZERO cap: spend suspended, grant/classes/codes intact.
@@ -149,13 +161,14 @@ class FirestoreBudgetEnforcer:
         burst of concurrent turns can each see a pre-burst total — bounded, and
         the documented overshoot.
         """
-        self._held.pop((request.invocation_id, request.identity_value), None)
+        meter_key = self._billing_key(request.identity_value)
+        self._held.pop((request.invocation_id, meter_key), None)
         if actual_cost_usd <= 0:
             return
 
         period = _period_key()
         shard = random.randint(0, SHARD_COUNT - 1)
-        doc_id = f"{request.identity_value}|{period}|{shard}"
+        doc_id = f"{meter_key}|{period}|{shard}"
         try:
             from db.firestore import increment_field, set_document
 
@@ -167,7 +180,7 @@ class FirestoreBudgetEnforcer:
                     _SPEND_COLLECTION,
                     doc_id,
                     {
-                        "identity": request.identity_value,
+                        "identity": meter_key,
                         "period": period,
                         "shard": shard,
                         "spentMicroUsd": int(actual_cost_usd * 1_000_000),
@@ -181,9 +194,28 @@ class FirestoreBudgetEnforcer:
             return
 
         # Invalidate the cached total so the next consult sees this spend.
-        self._total_cache.pop((request.identity_value, period), None)
+        self._total_cache.pop((meter_key, period), None)
 
     # --- Internals -----------------------------------------------------------
+
+    def _billing_key(self, identity_value: str) -> str:
+        """The key spend is METERED under — always the payer, never the caller.
+
+        `consult` already resolved the CAP through the owning teacher, but the
+        running total was read and written under the raw ``identity_value``. For
+        a student that is their group code, so a teacher with three classes got
+        three independent buckets each measured against their whole monthly cap,
+        and their own co-pilot turns a fourth. The ceiling was silently N times
+        what anyone configured — the exact failure the group -> owner indirection
+        exists to prevent, and what the design specifies as
+        ``teacher_spend/{uid}/periods/{YYYY-MM}``.
+
+        Falls back to the raw value when no payer resolves, so that read and
+        write always agree on one key. An orphan is uncapped either way
+        (``_cap_for`` returns ``None``), so nothing reads what this records.
+        """
+        uid = self._paying_uid(identity_value)
+        return f"teacher:{uid}" if uid else identity_value
 
     def _paying_uid(self, identity_value: str) -> str | None:
         """Normalise an ``identity_value`` to the uid that pays for it.
@@ -202,18 +234,32 @@ class FirestoreBudgetEnforcer:
         """
         if identity_value.startswith("teacher:"):
             return identity_value.split(":", 1)[1] or None
+
+        # Memoised: this walk is now on both the consult and the record path, and
+        # a group's owner changes approximately never. The TTL is the bound on a
+        # re-parented class reaching the meter.
+        import time
+
+        cached = self._payer_cache.get(identity_value)
+        if cached is not None and cached[1] > time.monotonic():
+            return cached[0]
+
         try:
             from db.firestore import get_document
 
             group_doc = get_document("anon_groups", identity_value) or {}
             class_id = group_doc.get("classId")
             if not class_id:
+                self._payer_cache[identity_value] = (None, time.monotonic() + _PAYER_CACHE_SECONDS)
                 return None
             class_doc = get_document("classes", str(class_id)) or {}
-            return str(class_doc.get("ownerUid") or "") or None
+            owner = str(class_doc.get("ownerUid") or "") or None
         except Exception:
             logger.warning("budget.payer_lookup_failed identity=%s", identity_value, exc_info=True)
             return None
+
+        self._payer_cache[identity_value] = (owner, time.monotonic() + _PAYER_CACHE_SECONDS)
+        return owner
 
     def _cap_for(self, identity_value: str) -> float | None:
         """The monthly cap for whoever pays for ``identity_value``.
@@ -225,16 +271,14 @@ class FirestoreBudgetEnforcer:
         if not uid:
             return None
         try:
-            from db.firestore import query_documents
-            from db.teacher_access import AccessGrant
+            from db.teacher_access import grant_for_uid
 
-            docs = query_documents("teacher_access", filters=[("uid", "==", uid)], limit=1)
+            grant = grant_for_uid(uid)
         except Exception:
             logger.warning("budget.cap_lookup_failed identity=%s", identity_value, exc_info=True)
             return None
-        if not docs:
+        if grant is None:
             return None
-        grant = AccessGrant.from_doc(docs[0])
         # `None` here means "do not enforce a per-teacher cap", and ONLY the
         # explicit UNCAPPED sentinel earns it. A 0 cap is a real cap of zero —
         # spend suspended without revoking the grant — and must block, not pass.

@@ -40,9 +40,16 @@ def store(monkeypatch):
         return rows[:limit] if limit else rows
 
     import db.firestore as fs
+    import db.teacher_access as ta
 
     monkeypatch.setattr(fs, "get_document", _get)
     monkeypatch.setattr(fs, "query_documents", _query)
+    # The register module binds its Firestore helpers at import time, so
+    # patching `db.firestore` alone leaves the real client behind
+    # `grant_for_uid` — the very function this gate now depends on.
+    monkeypatch.setattr(ta, "get_document", _get)
+    monkeypatch.setattr(ta, "query_documents", _query)
+    monkeypatch.setattr(ta, "set_document", lambda c, d, p, merge=False: data.__setitem__(f"{c}/{d}", dict(p)))
     return data
 
 
@@ -201,3 +208,34 @@ def test_firestore_failure_does_not_raise(monkeypatch):
 
 def test_module_exports_are_stable():
     assert set(spend_authority.__all__) == {"SpendAuthority", "clear_cache", "resolve_spend_authority"}
+
+
+# --- The uid join, and why it must not be the only one (2026-08-18) ----------
+
+
+def test_a_students_teacher_is_found_even_on_an_unstamped_row(store, monkeypatch):
+    """The register is keyed by EMAIL; this gate arrives holding a uid. On
+    2026-08-18 the denormalised `uid` field was null on 17 of 18 prod rows, the
+    join found nothing, and every student fell through the
+    `student_owner_not_registered` fail-open onto a live model.
+
+    A revoked teacher's students kept spending for the same reason, which is the
+    property that actually matters here.
+    """
+    import db.teacher_access as ta
+
+    store["anon_groups/PHYS-7K2N"] = {"classId": "c1"}
+    store["classes/c1"] = {"ownerUid": "t1"}
+    store["teacher_access/anna@ku.dk"] = {
+        "email": "anna@ku.dk",
+        "tier": TIER_PILOT,
+        "uid": None,  # never stamped
+        "revoked": True,  # ...and revoked
+        "monthlyCapUsd": 25.0,
+    }
+    monkeypatch.setattr(ta, "_email_for_uid", lambda uid: "anna@ku.dk" if uid == "t1" else None)
+    clear_cache()
+
+    authority = resolve_spend_authority(_student("PHYS-7K2N"))
+    assert authority.can_spend is False, "a revoked teacher's students must not spend"
+    assert authority.reason == "student_owner_tier", "the owner WAS resolvable; do not fail open"
