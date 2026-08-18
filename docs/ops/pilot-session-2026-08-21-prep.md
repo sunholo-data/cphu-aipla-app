@@ -51,8 +51,15 @@ pre-created it) but **has no password they know**, so:
 4. Firebase emails them a link; they choose their own password
 5. Sign in with that password
 
-**The email comes from a `firebaseapp.com` address and Danish school filters
-often bin it.** Tell them to check spam *before* concluding it did not arrive.
+**Expect the email in the spam folder.** It comes from
+`aipla@aipla-prod-2026.firebaseapp.com`, and a real test send on 2026-08-17 landed
+in spam on a permissive personal domain — school filters will be stricter. Treat
+this as the expected path, not a caveat: tell teachers to look in spam *first*.
+
+> Being fixed the week of 2026-08-24, deliberately not before Friday: sending
+> from a verified `aipla.ku.dk` domain needs DNS records from UCPH IT and up to
+> 48 hours to verify. See
+> [email-deliverability-followup.md](email-deliverability-followup.md).
 
 ---
 
@@ -144,8 +151,11 @@ account exists.
 
 - [x] All 11 teachers on the prod register, capped, expiring 2027-09-15
 - [x] The three alternate Gmail addresses granted too, so either address works
-- [x] `v0.1.23` on prod — password login, self-serve reset, no-dead-end errors.
-      Verified in the DEPLOYED bundle, not the source
+- [x] `v0.1.24` on prod — password login, self-serve reset, no-dead-end errors,
+      and the `/auth/action` handler. Verified in the DEPLOYED bundle, not the
+      source. The handler is live but NOT yet switched on: pointing Firebase at
+      it is gated behind domain verification — see
+      [email-deliverability-followup.md](email-deliverability-followup.md)
 - [x] Logins pre-created on prod for all 11 teachers. Ten hold a password
       provider; `lb@toerring-gym.dk` already had a Google account and was left
       alone, so Lone signs in with Google
