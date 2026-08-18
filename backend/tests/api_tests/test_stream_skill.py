@@ -197,11 +197,29 @@ def test_stream_skill_passes_resumed_session_flag_into_state(client):
     assert captured["state"].get("app:resumed_session") is True
 
 
+def _authorised_to_spend():
+    """Patch the spend gate open for tests that are about something else.
+
+    ACCESS-1 puts the spend gate IN FRONT of the turn lock on purpose — there is
+    no point serialising a turn you are about to refuse. So a test whose subject
+    is the lock has to get past the gate first, and since 2026-08-18 a student
+    whose owning teacher is not on the register no longer does: they are served
+    the recorded demo, 200, and never reach the lock at all.
+    """
+    from auth.spend_authority import SpendAuthority
+
+    return patch(
+        "skills.skill_processor.resolve_spend_authority",
+        return_value=SpendAuthority(tier="pilot", billing_identity="teacher:t1", reason="test"),
+    )
+
+
 def test_stream_skill_returns_409_when_group_turn_in_flight(group_client):
     """1.1.53 M0 — a second group member sending while a turn is in flight gets a
     clean 409 (turn_in_progress) *before* the SSE opens, not a racing parallel run."""
     skill = _make_skill(skill_id="test-skill-id", access_type="public")
     with (
+        _authorised_to_spend(),
         patch("skills.skill_processor.get_skill", return_value=skill),
         patch("skills.skill_processor.acquire_turn_lock", return_value=False) as acq,
     ):
@@ -231,6 +249,7 @@ def test_stream_skill_releases_turn_lock_after_stream(group_client):
         seen["released_token"] = token
 
     with (
+        _authorised_to_spend(),
         patch("skills.skill_processor.get_skill", return_value=skill),
         patch("skills.skill_processor.acquire_turn_lock", side_effect=_acquire),
         patch("skills.skill_processor.release_turn_lock", side_effect=_release),

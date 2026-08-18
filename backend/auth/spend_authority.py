@@ -76,6 +76,10 @@ def clear_cache() -> None:
     _cache.clear()
 
 
+class _OwnerLookupUnavailable(Exception):
+    """The group -> owner walk could not be READ. See ``RegisterUnavailable``."""
+
+
 def _owner_uid_for_group(group_id: str) -> str | None:
     """Resolve an anonymous-group code to the uid of the class's owning teacher.
 
@@ -98,7 +102,7 @@ def _owner_uid_for_group(group_id: str) -> str | None:
         owner_uid = str(class_doc.get("ownerUid") or "")
     except Exception:
         logger.warning("spend_authority: could not resolve owner for group=%s", group_id, exc_info=True)
-        return None
+        raise _OwnerLookupUnavailable(group_id) from None
 
     _cache_put(f"group_owner:{group_id}", owner_uid)
     return owner_uid or None
@@ -119,13 +123,15 @@ def _tier_for_uid(uid: str) -> AccessTier | None:
     if cached is not None:
         return cached or None  # type: ignore[return-value]
 
-    try:
-        from db.teacher_access import grant_for_uid
+    from db.teacher_access import RegisterUnavailable, grant_for_uid
 
+    try:
         grant = grant_for_uid(uid)
+    except RegisterUnavailable:
+        raise
     except Exception:
         logger.warning("spend_authority: register lookup failed for uid=%s", uid, exc_info=True)
-        return None
+        raise RegisterUnavailable(uid) from None
 
     if grant is None:
         _cache_put(f"uid_tier:{uid}", "")
@@ -148,39 +154,60 @@ def resolve_spend_authority(user: User) -> SpendAuthority:
         )
 
     # --- Anonymous-group student: their teacher's authority -------------------
-    owner_uid = _owner_uid_for_group(user.group_id)
-    if not owner_uid:
-        # Unresolvable owner. FAIL OPEN in M1, deliberately and narrowly:
-        #
-        # A visitor is never issued a join code (see onboarding/demo_seed.py), so
-        # a student holding a working code belongs to a teacher who WAS invited,
-        # or to a legacy class minted before this register existed. Blocking here
-        # would break live lessons for those legacy classes while closing no hole
-        # that the "no codes for visitors" rule leaves open.
-        #
-        # The resolvable-but-not-pilot case below does NOT fail open — that is
-        # the revoked-teacher path, and it must bite.
-        #
-        # M3 tightens this to fail-closed once the enforcer gives us a cap to
-        # degrade toward rather than a hard refusal.
-        logger.warning(
-            "spend_authority: group=%s has no resolvable owning teacher; allowing (M1 fail-open)",
+    #
+    # THE ONLY THING THAT STILL FAILS OPEN IS "WE GOT NO ANSWER".
+    #
+    # Until 2026-08-18 both branches below granted pilot, on the M1 reasoning
+    # that a visitor is never issued a join code, so a working code must belong
+    # to someone who was invited. That held right up until the uid join silently
+    # stopped resolving anyone (see `db.teacher_access.grant_for_uid`) — at which
+    # point EVERY student took the not-registered branch and the leniency meant
+    # for a handful of legacy classes covered the entire programme, including a
+    # visitor's class that spent for four days.
+    #
+    # A lenient branch is only as narrow as the thing that decides you land in
+    # it. So: a resolved answer is now obeyed whatever it says, and leniency is
+    # reserved for the case where the database did not answer at all — where
+    # refusing would end a live lesson over a transient read, and where Ring 0's
+    # quota is still underneath.
+    try:
+        owner_uid = _owner_uid_for_group(user.group_id)
+    except _OwnerLookupUnavailable:
+        logger.error(
+            "spend_authority: COULD NOT READ the owner for group=%s; allowing this turn",
             user.group_id,
         )
-        return SpendAuthority(tier=TIER_PILOT, billing_identity=None, reason="student_owner_unresolved")
+        return SpendAuthority(tier=TIER_PILOT, billing_identity=None, reason="owner_lookup_unavailable")
 
-    owner_tier = _tier_for_uid(owner_uid)
+    if not owner_uid:
+        # Read it, and there is no class behind this code — deleted, or a code
+        # that never had one. Nobody is paying, so nobody may spend.
+        logger.warning(
+            "spend_authority: group=%s resolves to no owning teacher; refusing",
+            user.group_id,
+        )
+        return SpendAuthority(tier=DEFAULT_ACCESS_TIER, billing_identity=None, reason="student_owner_unresolved")
+
+    try:
+        owner_tier = _tier_for_uid(owner_uid)
+    except Exception:  # RegisterUnavailable, re-raised by _tier_for_uid
+        logger.error(
+            "spend_authority: COULD NOT READ the register for owner uid=%s; allowing this turn (group=%s)",
+            owner_uid,
+            user.group_id,
+        )
+        return SpendAuthority(tier=TIER_PILOT, billing_identity=f"teacher:{owner_uid}", reason="register_unavailable")
+
     if owner_tier is None:
-        # Owner exists but is not on the register at all: a teacher account
-        # created before ACCESS-1 shipped. Same reasoning as above — their
-        # existing classes keep working until someone grants or revokes them.
-        logger.info(
-            "spend_authority: owner uid=%s not on the register; allowing legacy class (group=%s)",
+        # Read the register; this owner is not on it. They have no authority to
+        # spend, so neither do the students holding their code.
+        logger.warning(
+            "spend_authority: owner uid=%s is not on the register; refusing (group=%s)",
             owner_uid,
             user.group_id,
         )
         return SpendAuthority(
-            tier=TIER_PILOT,
+            tier=DEFAULT_ACCESS_TIER,
             billing_identity=f"teacher:{owner_uid}",
             reason="student_owner_not_registered",
         )

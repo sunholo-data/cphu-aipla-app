@@ -124,29 +124,34 @@ def test_student_of_a_visitor_teacher_cannot_spend(store):
     assert resolve_spend_authority(_student("PHYS-7K2N")).can_spend is False
 
 
-# --- The two deliberate fail-open cases, and why they are narrow -------------
+# --- An ANSWER is obeyed; only the absence of one is lenient (2026-08-18) ----
+#
+# Both cases below used to grant pilot, on the M1 reasoning that a visitor is
+# never issued a join code. That leniency was only ever as narrow as the lookup
+# that decided you landed in it — and when the uid join silently stopped
+# resolving anyone, every student in the programme landed in the second one.
 
 
-def test_unresolvable_group_fails_open_in_m1(store):
-    """No classId on the group: a pre-ACCESS-1 code. Allowed, because a VISITOR
-    is never issued a code at all (demo_seed), so a working code belongs to a
-    teacher who was invited or predates the register. Blocking would break
-    legacy lessons while closing no hole."""
+def test_a_code_with_no_class_behind_it_cannot_spend(store):
+    """Read it, and nobody owns this code. Nobody is paying, so nobody spends."""
     store["anon_groups/OLD-CODE"] = {}
     authority = resolve_spend_authority(_student("OLD-CODE"))
-    assert authority.can_spend is True
+    assert authority.can_spend is False
     assert authority.reason == "student_owner_unresolved"
     assert authority.billing_identity is None
 
 
-def test_owner_absent_from_the_register_fails_open(store):
-    """A teacher account created before ACCESS-1 shipped. Their classes keep
-    working until someone explicitly grants or revokes them."""
-    _wire_class(store, code="PHYS-7K2N", class_id="c1", owner_uid="t-legacy")
+def test_students_of_an_unregistered_owner_cannot_spend(store):
+    """The one that was actually costing money: `m@sunholo.com` held no grant
+    and no accessTier claim, yet its class served live tutor turns for four
+    days because this branch granted pilot to an owner the register had never
+    heard of."""
+    _wire_class(store, code="PHYS-7K2N", class_id="c1", owner_uid="t-unregistered")
     authority = resolve_spend_authority(_student("PHYS-7K2N"))
-    assert authority.can_spend is True
+    assert authority.can_spend is False
     assert authority.reason == "student_owner_not_registered"
-    assert authority.billing_identity == "teacher:t-legacy"
+    # Still named, so the refusal is attributable in the logs.
+    assert authority.billing_identity == "teacher:t-unregistered"
 
 
 def test_registered_but_not_pilot_does_NOT_fail_open(store):
@@ -203,7 +208,30 @@ def test_firestore_failure_does_not_raise(monkeypatch):
 
     monkeypatch.setattr(fs, "get_document", boom)
     authority = resolve_spend_authority(_student("PHYS-7K2N"))
-    assert authority.reason == "student_owner_unresolved"
+    assert authority.can_spend is True, "a transient read must not end a live lesson"
+    assert authority.reason == "owner_lookup_unavailable", (
+        "and it must be DISTINGUISHABLE from a resolved 'nobody there', which now refuses"
+    )
+
+
+def test_an_unreadable_register_still_allows_the_turn(store, monkeypatch):
+    """The other half of the same rule. The owner resolves fine; it is the
+    REGISTER that cannot be read. Refusing here would take every lesson in the
+    programme down with one Firestore blip, so this stays lenient — while a
+    register that answers 'not invited' does not."""
+    import db.teacher_access as ta
+
+    _wire_class(store, code="PHYS-7K2N", class_id="c1", owner_uid="t1")
+
+    def boom(*_a, **_k):
+        raise RuntimeError("firestore down")
+
+    monkeypatch.setattr(ta, "query_documents", boom)
+    monkeypatch.setattr(ta, "_email_for_uid", lambda uid: None)
+
+    authority = resolve_spend_authority(_student("PHYS-7K2N"))
+    assert authority.can_spend is True
+    assert authority.reason == "register_unavailable"
 
 
 def test_module_exports_are_stable():

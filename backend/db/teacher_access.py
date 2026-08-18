@@ -63,6 +63,16 @@ DEFAULT_MONTHLY_CAP_USD = 25.0
 UNCAPPED = -1.0
 
 
+class RegisterUnavailable(Exception):
+    """The register could not be READ — distinct from "read it, nobody there".
+
+    The two must never share a return value. A gate that treats them alike either
+    blocks every lesson during a Firestore blip, or grants spend to anyone the
+    moment the database hiccups. Callers decide which way to lean per gate; this
+    exception is what lets them.
+    """
+
+
 def normalise_email(email: str) -> str:
     """Lower-case and strip. Nothing else — deliberately.
 
@@ -228,16 +238,24 @@ def grant_for_uid(uid: str) -> AccessGrant | None:
     if not uid:
         return None
 
+    index_failed = False
     try:
         docs = query_documents(_COLLECTION, filters=[("uid", "==", uid)], limit=1)
     except Exception:
         logger.warning("teacher_access: uid index lookup failed for uid=%s", uid, exc_info=True)
+        index_failed = True
         docs = []
     if docs:
         return AccessGrant.from_doc(docs[0])
 
     email = _email_for_uid(uid)
     if not email:
+        if index_failed:
+            # We never got an answer, from either route. Saying "not on the
+            # register" here would be inventing one, and a caller that fails
+            # closed would refuse a lesson over a transient read.
+            raise RegisterUnavailable(f"could not read the register for uid={uid}")
+        # The index answered and answered empty: genuinely not invited.
         return None
     grant = get_grant(email)
     if grant is None:
@@ -380,6 +398,7 @@ __all__ = [
     "VALID_ACCESS_TIERS",
     "AccessGrant",
     "AccessTier",
+    "RegisterUnavailable",
     "get_grant",
     "grant_access",
     "grant_for_uid",
