@@ -281,6 +281,23 @@ action, not a code change.
 1. **Does Erase include BigQuery research turns?** GDPR Art. 17 points one way, the study protocol the other. **JB decides**; M2 records the answer rather than assuming it.
 2. **What is the actual retention period for documents?** Nothing is written down for any store except the BigQuery partition TTL. "Until the study ends" needs a date, and the DPIA needs it anyway.
 3. **Should teachers be able to erase their own uploads in bulk?** Today's owner-only ACL means teacher documents have exactly the same gap as student ones, and the same non-answer.
+
+5. **Document VISIBILITY, as distinct from erasure.** M's 17 Aug notes:
+   *"researchers dockuments shudl be private"*. `parsed_documents` has no
+   visibility model at all — only `userId`, checked for exact equality on read
+   and delete. There is no "private / shared with my class / shared with the
+   programme" axis, so a researcher's working documents sit in the same
+   undifferentiated store as a student's homework photo, distinguished only by
+   who uploaded them.
+
+   Folded into this doc rather than given its own because it is the same store
+   and the same missing model: erasure asks *who may destroy this*, visibility
+   asks *who may see it*, and both currently answer "whoever owns the uid".
+   Deciding them together avoids bolting a second ACL onto the first. It is
+   **not** in this doc's milestones — it needs its own scoping once the erasure
+   shape is settled, and it should be checked against the curriculum library's
+   existing sharing model (which DOES have researcher-gated visibility) rather
+   than inventing a third one.
 4. **Is the standalone recordings-erasure endpoint reachable from any UI?** It exists and nothing in the backend calls it; if no teacher surface exposes it, audio erasure is currently a curl-only operation.
 
 ## Related Documents
