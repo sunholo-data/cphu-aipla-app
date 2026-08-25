@@ -135,6 +135,6 @@
   },
   "github_issues": [],
   "last_session": "2026-08-25T16:05:00Z",
-  "last_checkpoint": "all five milestones green; backend 3186 pass, frontend 1720 pass; deploy pending",
+  "last_checkpoint": "SHIPPED to dev, test (v0.1.28) and prod (v0.1.28) on 2026-08-25. Verified on each with real anonymous-group tokens: upload 200 + object in GCS, writing push 204, unknown serverId still 403. Full smoke green on all three; deploy-status reports test and prod level. Open Question 1 closed (the 4 teacher 500s were the same A2 cause, GCS 403 on the upstream bucket). Open: Provisioned Throughput decision (DSQ has no raisable QPM); error-string i18n filed as a recorded split.",
   "status": "completed"
 }

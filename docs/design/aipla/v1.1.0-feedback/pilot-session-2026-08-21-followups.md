@@ -342,7 +342,26 @@ still `403` — deny-by-default intact.
    severity, when a handled error is suspected. And "no traceback" is a signal in
    itself: it distinguishes a deliberate `HTTPException` from an unhandled crash.
 2. **Should `writing` be an element or an artefact?** It is being treated as a workspace element here, consistent with table/calculator. If the writing surface is heading toward artefact-like behaviour, the allowlist entry is still correct but the parity gate should cover both catalogues.
-3. **What quota ceiling does the pilot actually need?** 22 groups produced three bursts. The pilot runs to 2026-09-15 with more classes; the headroom question should be answered with a number, not a raise-and-see.
+3. ~~**What quota ceiling does the pilot actually need?**~~
+   **PARTLY ANSWERED 2026-08-25 — the question has no engineering answer.** Vertex
+   serves Gemini 2.x here under **Dynamic Shared Quota**: capacity is best-effort
+   from a shared pool and there is no per-project requests-per-minute limit to
+   raise, so a 429 is an expected operating condition rather than a
+   misconfiguration. The only lever that guarantees capacity is **Provisioned
+   Throughput**, which is a purchasing decision for M, not a config change. The
+   client-side absorption (`adk/quota_retry.py`) ships regardless and is the
+   right fix either way. **Open:** whether to buy Provisioned Throughput before
+   the pilot scales past 22 groups.
+
+4. **Backend error strings are English; the new quota message is Danish.**
+   Decided 2026-08-25 to keep the split and record it rather than resolve it.
+   `QUOTA_EXHAUSTED` is the only upstream error a **student** meets in normal
+   running, so it is written for a Danish classroom; its neighbours
+   (`VERTEX_AUTH_FAILED` tells you to re-run `gcloud auth application-default`)
+   are developer-facing and stay English. The frontend's `classifyRunError`
+   fallbacks are also English. A real message catalogue keyed by error code is
+   the proper fix and would have to decide what those frontend fallbacks do —
+   worth doing when a second student-facing error appears, not before.
 
 ## Related Documents
 
