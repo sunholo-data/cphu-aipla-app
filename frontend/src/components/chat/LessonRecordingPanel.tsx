@@ -39,6 +39,8 @@ interface Props {
  */
 export function LessonRecordingPanel({ lang, disabled, onRecordingChange, onNotice }: Props) {
   const segRef = useRef<SegmentedRecorder | null>(null);
+  // True between a Record press and start() settling — see `start` below.
+  const startingRef = useRef<boolean>(false);
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const [recording, setRecording] = useState(false);
   const [busy, setBusy] = useState(false);
@@ -90,14 +92,29 @@ export function LessonRecordingPanel({ lang, disabled, onRecordingChange, onNoti
   );
 
   const start = useCallback(async () => {
+    // `Stop` is guarded by `busy`; `start` was not, and `recording` only flips
+    // true AFTER `await segRef.current.start()` resolves. Every press landing in
+    // that window therefore built ANOTHER SegmentedRecorder and overwrote
+    // segRef — orphaning the previous one, which had already started and which
+    // nothing referenced any more, so it captured and uploaded segments for the
+    // rest of the lesson with no way to stop it. A ref, not state, because the
+    // check has to be synchronous within the same press.
+    if (startingRef.current || segRef.current) return;
+    startingRef.current = true;
     onNotice?.(null);
     try {
-      segRef.current = new SegmentedRecorder((r, seq) => void uploadSegment(r, seq));
-      await segRef.current.start();
+      const recorder = new SegmentedRecorder((r, seq) => void uploadSegment(r, seq));
+      await recorder.start();
+      // Publish only once start() has actually succeeded — a recorder that
+      // threw must not be left in segRef, or Stop would try to stop a
+      // recorder that never ran and `start` would refuse forever after.
+      segRef.current = recorder;
       setRecording(true);
       onRecordingChange?.(true);
     } catch {
       onNotice?.("Microphone unavailable — recording couldn't start.");
+    } finally {
+      startingRef.current = false;
     }
   }, [onNotice, onRecordingChange, uploadSegment]);
 

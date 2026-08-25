@@ -10,6 +10,11 @@ const fetchMock = vi.fn();
 vi.mock("@/lib/apiClient", () => ({ fetchWithAuth: (...a: unknown[]) => fetchMock(...a) }));
 
 // SegmentedRecorder stub: stop() flushes one segment via onSegment (triggers upload).
+// Counts how many recorders actually START. A second successful start means
+// the first is orphaned — still capturing and still uploading, with nothing
+// holding a reference that could ever stop it.
+const recordersStarted = { n: 0 };
+
 vi.mock("@/lib/audioCapture", () => ({
   isAudioCaptureSupported: () => true,
   SegmentedRecorder: class {
@@ -17,7 +22,12 @@ vi.mock("@/lib/audioCapture", () => ({
     constructor(onSegment: (r: unknown, seq: number) => void) {
       this.onSegment = onSegment;
     }
-    start = vi.fn().mockResolvedValue(undefined);
+    start = vi.fn(async () => {
+      recordersStarted.n += 1;
+      // getUserMedia + MediaRecorder.start() are not instantaneous; that gap is
+      // exactly where the extra presses land.
+      await new Promise((r) => setTimeout(r, 0));
+    });
     stop = vi.fn(async () => {
       this.onSegment(
         { blob: new Blob(["a"], { type: "audio/wav" }), mimeType: "audio/wav", durationMs: 1000 },
@@ -87,4 +97,30 @@ describe("LessonRecordingPanel", () => {
     await waitFor(() => expect(onRecordingChange).toHaveBeenCalledWith(false));
   });
 
+});
+
+describe("LessonRecordingPanel — record-button hammering", () => {
+  // M's 17 Aug notes: "if all students in a groupId press record on audio -
+  // debounce". This is the single-device half. Stop is guarded by `busy`;
+  // `start` never sets it, so each press builds ANOTHER SegmentedRecorder and
+  // overwrites segRef, orphaning the previous one. The orphan was already
+  // started and nothing references it any more, so it keeps capturing and
+  // uploading segments for the rest of the lesson.
+  //
+  // The cross-DEVICE half — three students in one group each starting their own
+  // recording — is server-side coordination and is NOT fixed here.
+  it("starts exactly one recorder however many times Record is pressed", async () => {
+    recordersStarted.n = 0;
+    fetchMyTranscript.mockResolvedValue(null);
+    render(<LessonRecordingPanel {...base} />);
+
+    const rec = await screen.findByRole("button", { name: /record/i });
+    fireEvent.click(rec);
+    fireEvent.click(rec);
+    fireEvent.click(rec);
+    fireEvent.click(rec);
+
+    await waitFor(() => expect(recordersStarted.n).toBeGreaterThan(0));
+    expect(recordersStarted.n).toBe(1);
+  });
 });

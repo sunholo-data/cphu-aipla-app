@@ -176,6 +176,12 @@ function detectLangForSpeech(text: string, fallback: string): string {
   return fallback;
 }
 
+/** Minimum gap between two STARTS. Presses closer than this are a drum roll,
+ *  not two decisions. Applies to starting only — stopping is always immediate,
+ *  because a person pressing again to silence it must be obeyed at once and
+ *  stopping costs nothing. */
+const MIN_START_INTERVAL_MS = 300;
+
 export function ReadAloudButton({
   text,
   lang = "en",
@@ -202,6 +208,17 @@ export function ReadAloudButton({
   // the cancel landed before audioRef was populated, so stopAll() had
   // nothing to stop; the fetch resolved later and Audio.play() ran.
   const fetchAbortRef = useRef<AbortController | null>(null);
+  // 2026-08-25 (M's 17 Aug notes: "hammering the voice button needs to
+  // debounce"). `isSpeaking` CANNOT guard the Cloud TTS path: it is only set
+  // true after `await fetchWithAuth(...)` resolves, so every click landing in
+  // that window reads it as false and fires another synthesize POST. Cloud TTS
+  // is billed per synthesis and metered into `aipla_voice_cost`, so a student
+  // drumming the button spends real money and then hears the line several
+  // times over. A ref, not state: the guard has to be readable synchronously
+  // within the same click, and a state update is not.
+  const synthesizeInFlightRef = useRef<boolean>(false);
+  // Timestamp of the last accepted START — see MIN_START_INTERVAL_MS.
+  const lastStartAtRef = useRef<number>(0);
 
   // Always cancel any in-flight utterance / audio when the component
   // unmounts — otherwise navigating away mid-speech leaves the OS still
@@ -313,6 +330,7 @@ export function ReadAloudButton({
       fetchAbortRef.current = null;
     }
     utteranceRef.current = null;
+    synthesizeInFlightRef.current = false;
     setIsSpeaking(false);
   }
 
@@ -324,9 +342,6 @@ export function ReadAloudButton({
     // sounds hilarious + broken. Detection overrides the caller's lang
     // when the text is clearly Danish.
     const detectedLang = detectLangForSpeech(cleanText, lang);
-    // M-A7 diagnostic — temporary.
-    // eslint-disable-next-line no-console
-    console.log("[ReadAloudButton] speakViaGCP() POST", { passedLang: lang, detectedLang, voice });
     const controller = new AbortController();
     fetchAbortRef.current = controller;
     try {
@@ -341,13 +356,6 @@ export function ReadAloudButton({
           activityId,
         }),
         signal: controller.signal,
-      });
-      // eslint-disable-next-line no-console
-      console.log("[ReadAloudButton] synthesize response", {
-        status: res.status,
-        contentType: res.headers.get("content-type"),
-        provider: res.headers.get("x-voice-provider"),
-        cacheHit: res.headers.get("x-voice-cache-hit"),
       });
       if (!res.ok) throw new Error(`synthesize ${res.status}`);
       // If stopAll fired during the fetch, controller.signal.aborted is
@@ -402,19 +410,28 @@ export function ReadAloudButton({
       if (fetchAbortRef.current === controller) {
         fetchAbortRef.current = null;
       }
+      synthesizeInFlightRef.current = false;
     }
   }
 
   function handleClick() {
-    // M-A7 diagnostic — temporary; helps us tell from DevTools whether
-    // the click is reaching this handler at all and which branch fires.
-    // Remove once Cloud TTS path is verified end-to-end in dev.
-    // eslint-disable-next-line no-console
-    console.log("[ReadAloudButton] click", { provider, voice, lang, useGCP, isSpeaking });
-    if (isSpeaking) {
+    // A synthesize already in flight counts as "speaking" for this click: a
+    // second press means stop, exactly as it does once audio is playing.
+    // STOPPING IS NEVER DEBOUNCED — a person pressing again to shut it up must
+    // be obeyed immediately, and stopping costs nothing.
+    if (isSpeaking || synthesizeInFlightRef.current) {
       stopAll();
       return;
     }
+    // Only STARTING is rate-limited, because only starting is expensive. This
+    // is a play/stop toggle, so a drum roll alternates start/stop/start/stop
+    // and every other press would buy another billed synthesis; the in-flight
+    // ref alone took eight presses down to four, not one.
+    const now = Date.now();
+    if (now - lastStartAtRef.current < MIN_START_INTERVAL_MS) {
+      return;
+    }
+    lastStartAtRef.current = now;
     // Barge-in: cancel any other ReadAloudButton currently speaking
     // before we start, so two bubbles can't overlap. Each instance's
     // voice.cancel listener does the actual stop work; we just fire the
@@ -425,6 +442,7 @@ export function ReadAloudButton({
       window.dispatchEvent(new CustomEvent("aipla:voice.cancel"));
     }
     if (useGCP) {
+      synthesizeInFlightRef.current = true;
       void speakViaGCP();
       return;
     }
