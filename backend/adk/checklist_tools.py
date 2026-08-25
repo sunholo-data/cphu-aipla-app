@@ -57,6 +57,32 @@ _LABEL_CLIP = 90
 _INHERITED_BODY_CAP = 900
 
 
+def _read_state(tool_context) -> dict:
+    """Read an ADK ``ToolContext``'s session state as a plain dict.
+
+    ``dict(tool_context.state)`` looks obviously correct and is not. ADK's
+    ``State`` implements ``__getitem__``/``__setitem__``/``__contains__``/
+    ``get``/``update``/``setdefault``/``to_dict`` — but no ``keys()`` and no
+    ``__iter__``, so ``dict()`` cannot use the mapping protocol. It falls
+    through to the sequence protocol, asks for ``state[0]`` and raises
+    ``KeyError: 0`` on every call.
+
+    Because the caller catches broadly and fails open, that raised silently: the
+    mark still landed, so nothing looked broken, while the empty-element check
+    this function feeds never executed once. It was found in the 2026-08-21
+    pilot logs, 14 occurrences, after the feature had shipped.
+
+    A plain dict is still accepted so any non-ADK caller keeps working.
+    """
+    state = getattr(tool_context, "state", None)
+    if state is None:
+        return {}
+    to_dict = getattr(state, "to_dict", None)
+    if callable(to_dict):
+        return to_dict()
+    return dict(state)
+
+
 def build_checklist_tools(cfg: ActivityConfig | None, user: User) -> list[FunctionTool]:
     """The session's checklist tools — empty when they don't apply.
 
@@ -155,9 +181,13 @@ def build_checklist_tools(cfg: ActivityConfig | None, user: User) -> list[Functi
         # able to. Everything uncertain falls through and marks as before.
         if done and tool_context is not None:
             try:
-                empty = find_empty_element_for_step(cfg, item.label, dict(tool_context.state or {}))
+                empty = find_empty_element_for_step(cfg, item.label, _read_state(tool_context))
             except Exception:  # pragma: no cover — a check must never break a mark
-                logger.exception("checklist: element-state check failed for item=%s — allowing the mark", item_id)
+                logger.exception(
+                    "checklist: element-state check FAILED OPEN for item=%s — the mark was allowed "
+                    "WITHOUT the empty-element check running",
+                    item_id,
+                )
                 empty = None
             if empty is not None:
                 # Axiom 8: a refusal is a counterfactual and therefore invisible

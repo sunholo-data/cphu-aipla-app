@@ -531,4 +531,21 @@ def _translate_client_error(exc: ClientError) -> tuple[str, str]:
             "Production: confirm the service account has roles/aiplatform.user.",
             "VERTEX_AUTH_FAILED",
         )
+    if status == 429 or "RESOURCE_EXHAUSTED" in raw:
+        # The one upstream error a STUDENT meets in normal running. Vertex serves
+        # this project's Gemini models under Dynamic Shared Quota, so a burst is
+        # an expected operating condition, not a misconfiguration — and there is
+        # no per-project QPM to raise. `adk/quota_retry.py` absorbs the ones that
+        # arrive before the first token; this message is for a burst that outlasts
+        # the retries.
+        #
+        # Danish, unlike its neighbours here, and deliberately: the branches above
+        # are dev-facing (an ADC drift a developer fixes), while this one renders
+        # in a Danish classroom on a student's screen. The generic branch used to
+        # hand them "Upstream API error (429): {'error': {'code': 429 ...}}".
+        # Proper i18n for backend error strings is not solved — see 1.1.79.
+        return (
+            "Vejlederen er lige nu overbelastet. Prøv igen om et øjeblik.",
+            "QUOTA_EXHAUSTED",
+        )
     return (f"Upstream API error ({status or '?'}): {raw}", "UPSTREAM_API_ERROR")

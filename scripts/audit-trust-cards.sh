@@ -7,6 +7,16 @@
 #
 # Usage: make audit-trust-cards   (= scripts/audit-trust-cards.sh)
 # Wired into CI as a blocking gate (ci.yml → local-mode-safety job, P1.4).
+#
+# SIBLING GATE — a workspace element is registered on THREE surfaces, and this
+# script only checks two of them (push + card, both frontend). The third is the
+# backend allowlist `_WORKSPACE_ELEMENT_SERVERS`, which decides whether the push
+# is accepted at all; `writing` was missing from it from the day it shipped, so
+# it passed this audit green (it pushes AND cards) while every push 403'd and
+# the tutor saw nothing. That half lives in
+# `backend/tests/unit/test_element_server_parity.py`, deliberately as a pytest
+# so it can import the real frozenset instead of regex-parsing Python. If you
+# are adding an element, you need all three.
 set -euo pipefail
 
 ROOT="$(git rev-parse --show-toplevel)"

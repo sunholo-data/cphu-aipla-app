@@ -461,7 +461,7 @@ class TestArtefactCatalogueBypass:
     @patch("protocols.iframe_context_routes.get_session_service")
     @patch("protocols.iframe_context_routes.skill_config")
     @patch("protocols.iframe_context_routes.get_session_index")
-    @pytest.mark.parametrize("server", ["progress", "table", "calculator", "chart"])
+    @pytest.mark.parametrize("server", ["progress", "table", "calculator", "chart", "writing"])
     def test_first_party_workspace_element_writes_on_skill_with_no_mcp_config(
         self, mock_get_index, mock_skill_module, mock_get_svc, server
     ):

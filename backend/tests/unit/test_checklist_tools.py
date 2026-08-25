@@ -26,6 +26,7 @@ from __future__ import annotations
 from datetime import UTC, datetime
 
 import pytest
+from google.adk.sessions.state import State
 
 from adk.checklist_tools import build_checklist_tools, checklist_state_summary
 from auth.firebase_auth import User
@@ -349,10 +350,25 @@ def _table(id_="t1", title="Faldforsøg", rows=5):
 
 
 class _Ctx:
-    """ADK injects a ToolContext; the tool reads only ``.state`` off it."""
+    """ADK injects a ToolContext; the tool reads only ``.state`` off it.
+
+    ``.state`` is a REAL ``google.adk.sessions.state.State``, not a plain dict.
+    That distinction is the whole point of this double. ADK's ``State`` has
+    ``__getitem__``/``__setitem__``/``__contains__``/``get``/``update``/
+    ``setdefault``/``to_dict`` but **no** ``keys()`` and **no** ``__iter__``, so
+    ``dict(state)`` does not copy it — it falls through to the sequence protocol,
+    asks for ``state[0]`` and raises ``KeyError: 0``.
+
+    This double used to be a plain dict, which made ``dict(...)`` work perfectly
+    in tests while failing on every single call in production. The empty-element
+    guard below therefore never ran once in the 2026-08-21 pilot, including in
+    the case the test at the bottom of this file calls "Aswin's exact case" —
+    green in CI, not working in the room. A double that cannot reproduce the
+    failure is not a double.
+    """
 
     def __init__(self, state: dict | None = None):
-        self.state = state or {}
+        self.state = State(value=dict(state or {}), delta={})
 
 
 def _table_state(table_id="t1", filled=0):

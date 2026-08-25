@@ -1009,3 +1009,69 @@ def test_stream_skill_agui_wire_format_emits_only_valid_types(client):
     events = [json.loads(line[len("data:") :].strip()) for line in frames]
     unknown = [e.get("type") for e in events if e.get("type") not in _VALID_AGUI_TYPES]
     assert unknown == [], f"Unknown AG-UI event types from HttpAgent request: {unknown}"
+
+
+class TestQuotaExhaustedIsNotShownRawToStudents:
+    """A 429 is the one upstream error a STUDENT meets in normal operation.
+
+    Vertex serves this project's Gemini models under Dynamic Shared Quota, so
+    bursts are expected rather than a misconfiguration — three of them hit the
+    2026-08-21 pilot. `_ResourceExhaustedError` subclasses `ClientError`, so it
+    was already caught, but it fell to the generic branch and rendered as
+    "Upstream API error (429): <raw exception>" — a developer's stack detail
+    shown to a fifteen-year-old, leaking internals and suggesting nothing useful.
+
+    `adk/quota_retry.py` absorbs the retryable ones before the first token; this
+    is what the student sees when a burst outlasts the retries.
+    """
+
+    def _exc(self, status: int, raw: str):
+        from google.genai.errors import ClientError
+
+        exc = ClientError.__new__(ClientError)
+        exc.code = status
+        exc.message = raw
+        exc.status = "RESOURCE_EXHAUSTED" if status == 429 else "UNKNOWN"
+        exc.details = None
+        exc.response = None
+        return exc
+
+    def test_a_429_gets_its_own_code_not_the_generic_one(self):
+        from skills.skill_processor import _translate_client_error
+
+        _message, code = _translate_client_error(self._exc(429, "Resource exhausted. Please try again later."))
+
+        assert code == "QUOTA_EXHAUSTED"
+
+    def test_the_message_is_student_facing_danish_and_leaks_no_internals(self):
+        from skills.skill_processor import _translate_client_error
+
+        raw = "429 RESOURCE_EXHAUSTED. {'error': {'code': 429, 'message': 'Resource exhausted...'}}"
+        message, _code = _translate_client_error(self._exc(429, raw))
+
+        assert "RESOURCE_EXHAUSTED" not in message
+        assert "429" not in message
+        assert "Upstream API error" not in message
+        # Danish, because the student reads it — see the module note on i18n.
+        assert "prøv igen" in message.lower()
+
+    def test_it_says_to_retry_because_the_next_attempt_usually_works(self):
+        from skills.skill_processor import _translate_client_error
+
+        message, _ = _translate_client_error(self._exc(429, "quota"))
+
+        assert len(message) < 200, "a student-facing line, not a paragraph"
+
+    def test_other_client_errors_are_unchanged(self):
+        from skills.skill_processor import _translate_client_error
+
+        _message, code = _translate_client_error(self._exc(400, "bad request"))
+
+        assert code == "UPSTREAM_API_ERROR"
+
+    def test_the_auth_branch_still_wins_for_401(self):
+        from skills.skill_processor import _translate_client_error
+
+        _message, code = _translate_client_error(self._exc(401, "CREDENTIALS_MISSING"))
+
+        assert code == "VERTEX_AUTH_FAILED"

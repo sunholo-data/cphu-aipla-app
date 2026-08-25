@@ -59,24 +59,57 @@ def _reset_client_for_testing() -> None:
     _client = None
 
 
+def _require_path(collection: str, doc_id: str) -> None:
+    """Refuse a blank collection or document id before it reaches Firestore.
+
+    A blank id builds the path ``.../documents/<collection>/`` with a trailing
+    slash, which Firestore rejects as ``InvalidArgument: 400 Document name``
+    from inside gRPC — an error that reads like a service fault and says
+    nothing about which caller passed the empty string.
+
+    This has cost real sessions twice. ``auth/permissions.py`` fixed it locally
+    on 2026-05-20 (see the comment there); ``db/clients.py`` hit the identical
+    bug three months later and took every document upload down for the whole
+    2026-08-21 teacher pilot, because an anonymous-group student has
+    ``domain == ""`` (ADR-001). Guarding at the shared helper is what stops the
+    third instance.
+
+    Raises ``ValueError`` rather than returning ``None``: a blank id is a
+    programming error, and returning "not found" would make it indistinguishable
+    from a legitimate miss.
+    """
+    if not collection or not collection.strip():
+        raise ValueError(f"Firestore collection must not be blank (doc_id={doc_id!r})")
+    if not doc_id or not doc_id.strip():
+        raise ValueError(
+            f"Firestore doc_id must not be blank for collection {collection!r} — "
+            "an empty key is usually an unguarded user.email/user.domain on an "
+            "anonymous-group user (ADR-001)"
+        )
+
+
 def get_document(collection: str, doc_id: str) -> dict[str, Any] | None:
     """Get a single document by ID. Returns None if not found."""
+    _require_path(collection, doc_id)
     doc = get_client().collection(collection).document(doc_id).get()
     return doc.to_dict() if doc.exists else None
 
 
 def set_document(collection: str, doc_id: str, data: dict[str, Any], merge: bool = False) -> None:
     """Set (create or overwrite) a document."""
+    _require_path(collection, doc_id)
     get_client().collection(collection).document(doc_id).set(data, merge=merge)
 
 
 def update_document(collection: str, doc_id: str, data: dict[str, Any]) -> None:
     """Update specific fields on an existing document."""
+    _require_path(collection, doc_id)
     get_client().collection(collection).document(doc_id).update(data)
 
 
 def delete_document(collection: str, doc_id: str) -> None:
     """Delete a document by ID."""
+    _require_path(collection, doc_id)
     get_client().collection(collection).document(doc_id).delete()
 
 

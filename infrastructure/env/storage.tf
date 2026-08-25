@@ -57,3 +57,33 @@ resource "google_storage_bucket_iam_member" "research_audio" {
   role   = "roles/storage.objectAdmin"
   member = "serviceAccount:${google_service_account.runtime.email}"
 }
+
+# Student + teacher document uploads (the workbench Documents tab and the
+# "Dokumentfeedback" activity flow). objectAdmin, not admin: the upload path
+# reads and writes objects and never needs buckets.get.
+#
+# Added 2026-08-25. There was no documents bucket on ANY environment before
+# this, and DOCUMENTS_BUCKET was unset everywhere, so the backend fell through
+# to a hardcoded "aitana-documents-bucket" belonging to the upstream Aitana
+# project. Every document upload in the 2026-08-21 teacher pilot returned 500.
+# The name must match the DOCUMENTS_BUCKET value in cloudbuild.yaml AND
+# cloudbuild.promote.yaml — prod is reached only by promote.
+resource "google_storage_bucket" "documents" {
+  name                        = "${var.project_id}-documents"
+  project                     = var.project_id
+  location                    = var.region
+  uniform_bucket_level_access = true
+  force_destroy               = false
+
+  # No lifecycle auto-expiry: a student's uploaded work is part of the activity
+  # record for the study, on the same footing as research_audio above. Erasure
+  # is the explicit delete route, not a TTL.
+
+  depends_on = [google_project_service.apis]
+}
+
+resource "google_storage_bucket_iam_member" "documents" {
+  bucket = google_storage_bucket.documents.name
+  role   = "roles/storage.objectAdmin"
+  member = "serviceAccount:${google_service_account.runtime.email}"
+}

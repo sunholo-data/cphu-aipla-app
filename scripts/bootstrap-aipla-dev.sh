@@ -636,6 +636,37 @@ ensure_research_audio_bucket() {
   log "  ✓ aipla-v6@ has roles/storage.objectAdmin on gs://${bucket}"
 }
 
+ensure_documents_bucket() {
+  # Student + teacher document uploads (workbench Documents tab, the
+  # "Dokumentfeedback" activity flow). objectAdmin, not admin: the upload path
+  # reads and writes objects and never needs buckets.get.
+  #
+  # Added 2026-08-25. No AIPLA environment had a documents bucket at all, and
+  # DOCUMENTS_BUCKET was set on none of them, so the backend fell through to a
+  # hardcoded "aitana-documents-bucket" in the UPSTREAM Aitana project which
+  # this SA cannot reach — every upload in the 2026-08-21 teacher pilot 500'd.
+  # dev is script-provisioned (never terraform-applied), so dev's copy lives
+  # here while test/prod come from infrastructure/env/storage.tf. The name must
+  # match DOCUMENTS_BUCKET in cloudbuild.yaml.
+  #
+  # No lifecycle auto-expiry, for the same reason as research-audio above: a
+  # student's uploaded work is part of the activity record for the study.
+  local bucket="${PROJECT}-documents"
+  log "Ensuring documents bucket gs://${bucket}..."
+  if gsutil ls "gs://${bucket}" &>/dev/null; then
+    log "  already exists"
+  else
+    gsutil mb -p "$PROJECT" -l "$REGION" -b on "gs://${bucket}" >/dev/null
+    log "  ✓ created (EU ${REGION}, uniform bucket-level access)"
+  fi
+  gcloud storage buckets add-iam-policy-binding "gs://${bucket}" \
+    --member="serviceAccount:${SA_EMAIL}" \
+    --role="roles/storage.objectAdmin" \
+    --project="$PROJECT" \
+    --quiet >/dev/null
+  log "  ✓ aipla-v6@ has roles/storage.objectAdmin on gs://${bucket}"
+}
+
 ensure_runtime_buckets() {
   # Buckets referenced by cloudbuild.yaml after the M2 inherited-name strip:
   #   - {PROJECT}-cloudbuild-logs   (cloudbuild.yaml logsBucket)
@@ -680,6 +711,7 @@ main() {
   ensure_config_bucket
   ensure_runtime_buckets
   ensure_research_audio_bucket
+  ensure_documents_bucket
   ensure_firebase_web_app_and_secret
   ensure_group_auth_signing_secret
   ensure_docparse_api_key_secret

@@ -1,0 +1,140 @@
+{
+  "sprint_id": "PILOT-FIX-0821",
+  "created": "2026-08-25T15:16:05Z",
+  "estimated_duration_days": 2,
+  "design_doc": "docs/design/aipla/v1.1.0-feedback/pilot-session-2026-08-21-followups.md",
+  "sprint_plan": "docs/design/aipla/v1.1.0-feedback/pilot-session-2026-08-21-followups-sprint.md",
+  "features": [
+    {
+      "id": "M1-EMPTY-DOMAIN-GUARD",
+      "description": "A1 \u2014 guard the empty domain in resolve_documents_bucket, and make blank Firestore collection/doc_id raise ValueError at the call site instead of an opaque gRPC InvalidArgument 400",
+      "scope": "backend",
+      "estimated_loc": 95,
+      "actual_loc": null,
+      "dependencies": [],
+      "acceptance_criteria": [
+        "resolve_documents_bucket with domain=\"\" and email=\"\" returns the configured bucket and issues NO Firestore call (asserted via mock)",
+        "get_document, set_document, update_document and delete_document each raise ValueError naming the collection when collection or doc_id is blank",
+        "Full backend fast suite green; any other latent blank-id caller surfaced by the guard is fixed or explicitly recorded in the sprint notes"
+      ],
+      "files_to_create": [
+        "backend/tests/unit/test_firestore_blank_ids.py"
+      ],
+      "files_to_modify": [
+        "backend/db/clients.py",
+        "backend/db/firestore.py",
+        "backend/tests/unit/test_clients.py"
+      ],
+      "passes": true,
+      "started": "2026-08-25T16:05:00Z",
+      "completed": "2026-08-25T16:05:00Z",
+      "notes": "Done. Guard in resolve_documents_bucket + _require_path() raising ValueError in all four db/firestore.py helpers. The blank-id sweep across 75 call sites surfaced NO other latent caller \u2014 full suite green first run. 14 new tests."
+    },
+    {
+      "id": "M2-DOCUMENTS-BUCKET",
+      "description": "A2 \u2014 create a real documents bucket per environment, set DOCUMENTS_BUCKET on both the deploy AND promote paths, and delete the hardcoded upstream-Aitana fallback",
+      "scope": "backend",
+      "estimated_loc": 55,
+      "actual_loc": null,
+      "dependencies": [
+        "M1-EMPTY-DOMAIN-GUARD"
+      ],
+      "acceptance_criteria": [
+        "google_storage_bucket.documents exists in infrastructure/env/storage.tf with objectAdmin for the runtime SA, mirroring research_audio",
+        "DOCUMENTS_BUCKET is set via --set-env-vars in cloudbuild.yaml AND via --update-env-vars in cloudbuild.promote.yaml (the twin, without which prod never receives it)",
+        "The hardcoded \"aitana-documents-bucket\" default appears nowhere in the codebase; absent config fails loudly",
+        "make check-cloudbuild passes",
+        "make tf-plan reviewed for test and prod; no apply from the laptop"
+      ],
+      "files_to_create": [],
+      "files_to_modify": [
+        "infrastructure/env/storage.tf",
+        "cloudbuild.yaml",
+        "cloudbuild.promote.yaml",
+        "backend/db/clients.py",
+        "backend/tests/unit/test_clients.py"
+      ],
+      "passes": true,
+      "started": "2026-08-25T16:05:00Z",
+      "completed": "2026-08-25T16:05:00Z",
+      "notes": "Done in code; NOT yet provisioned. Confirmed no documents bucket exists on dev, test OR prod \u2014 upload has never worked on any AIPLA env. Bucket added to infrastructure/env/storage.tf (test/prod) AND scripts/bootstrap-aipla-dev.sh (dev is script-provisioned, never tf-applied \u2014 would have been missed). DOCUMENTS_BUCKET set in cloudbuild.yaml + the promote twin. Hardcoded aitana-documents-bucket removed; absent config now raises. terraform fmt+validate and make check-cloudbuild green. APPLY IS STILL PENDING \u2014 see sprint report."
+    },
+    {
+      "id": "M3-WRITING-ALLOWLIST",
+      "description": "B \u2014 add \"writing\" to _WORKSPACE_ELEMENT_SERVERS and add an FE-to-BE element-parity gate so no future element can ship registered on only one side",
+      "scope": "fullstack",
+      "estimated_loc": 95,
+      "actual_loc": null,
+      "dependencies": [],
+      "acceptance_criteria": [
+        "POST /api/sessions/{id}/iframe-context with serverId \"writing\" returns 204",
+        "A parity test asserts every frontend element server id is present in _WORKSPACE_ELEMENT_SERVERS, and FAILS when an entry is temporarily removed (verify by doing it)",
+        "make audit-trust-cards green"
+      ],
+      "files_to_create": [],
+      "files_to_modify": [
+        "backend/protocols/iframe_context_routes.py",
+        "scripts/audit-trust-cards.sh",
+        "backend/tests/api_tests/test_iframe_context_routes.py",
+        "frontend/src/components/workspace/__tests__/WorkbenchWriting.test.tsx"
+      ],
+      "passes": true,
+      "started": "2026-08-25T16:05:00Z",
+      "completed": "2026-08-25T16:05:00Z",
+      "notes": "Done. 'writing' added. Parity gate is a pytest (tests/unit/test_element_server_parity.py) that scans frontend source and imports the real frozenset, rather than a bash duplicate \u2014 audit-trust-cards.sh cross-references it instead of re-implementing. Gate proven to bite: removing the entry fails 2 tests. Scan also found 'chart' allowlisted but never pushed (harmless, one-directional gate)."
+    },
+    {
+      "id": "M4-CHECKLIST-STATE",
+      "description": "C \u2014 replace dict(tool_context.state) with State.to_dict(), and re-back the _Ctx test double with the real ADK State so the suite can see this class of bug",
+      "scope": "backend",
+      "estimated_loc": 40,
+      "actual_loc": null,
+      "dependencies": [],
+      "acceptance_criteria": [
+        "test_done_on_an_empty_table_produces_no_mark (\"Aswin's exact case\") passes against a REAL google.adk.sessions.state.State, not a plain dict",
+        "Every pre-existing checklist test still passes against the real-State double; any that does not was relying on dict permissiveness and is fixed, not deleted",
+        "Marking still succeeds when the check itself raises (fail-open preserved), and the swallowed exception logs at error with a greppable message"
+      ],
+      "files_to_create": [],
+      "files_to_modify": [
+        "backend/adk/checklist_tools.py",
+        "backend/tests/unit/test_checklist_tools.py"
+      ],
+      "passes": true,
+      "started": "2026-08-25T16:05:00Z",
+      "completed": "2026-08-25T16:05:00Z",
+      "notes": "Done. _read_state() helper using State.to_dict(); _Ctx double re-backed with the real ADK State. Re-backing the double made 4 pre-existing guard tests FAIL (the bug, reproduced in-suite) including the one labelled 'Aswin's exact case'; all 43 pass after the fix. Fail-open preserved, now logs at error with a greppable FAILED OPEN message."
+    },
+    {
+      "id": "M5-QUOTA-BACKOFF",
+      "description": "D \u2014 bounded retry with jittered backoff on Gemini _ResourceExhaustedError, an honest Danish message on exhaustion, and a written-down quota ceiling for the rest of the pilot",
+      "scope": "backend",
+      "estimated_loc": 90,
+      "actual_loc": null,
+      "dependencies": [],
+      "acceptance_criteria": [
+        "A simulated 429 burst results in a completed turn rather than a terminated stream",
+        "Retry exhaustion produces a user-visible Danish message, not a stalled stream",
+        "The actual prod Gemini/Vertex quota and the ceiling needed for the remaining pilot are recorded as numbers in the design doc"
+      ],
+      "files_to_create": [],
+      "files_to_modify": [],
+      "passes": true,
+      "started": "2026-08-25T16:05:00Z",
+      "completed": "2026-08-25T16:05:00Z",
+      "notes": "Done, larger than planned. Two findings changed the design: (1) Vertex Gemini 2.x here runs under Dynamic Shared Quota \u2014 there is NO per-project QPM to raise, so the ceiling question has no engineering answer, only Provisioned Throughput (a purchasing decision for M). (2) ADK wraps its whole streaming loop in one try, so a 429 can arrive mid-stream; a blind retry would duplicate visible text. Retry therefore fires ONLY before the first token. Also found _ResourceExhaustedError IS a ClientError, so it was already caught \u2014 but fell to the generic branch and showed students 'Upstream API error (429): {raw}'. Added a typed QUOTA_EXHAUSTED code with Danish text. 17 new tests."
+    }
+  ],
+  "velocity": {
+    "target_loc_per_day": 190,
+    "actual_loc_per_day": null,
+    "estimated_total_loc": 375,
+    "actual_total_loc": null,
+    "estimated_days": 2,
+    "actual_days": 1
+  },
+  "github_issues": [],
+  "last_session": "2026-08-25T16:05:00Z",
+  "last_checkpoint": "all five milestones green; backend 3186 pass, frontend 1720 pass; deploy pending",
+  "status": "completed"
+}

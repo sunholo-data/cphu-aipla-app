@@ -102,7 +102,19 @@ _STATE_KEY_NAMESPACE = "mcp_app_context"
 # context, independent of which skill the activity runs. Without this a checklist
 # or table on a concept-dialogue activity (whose skill declares no mcp.servers)
 # would 403 and the tutor would never see the student's progress.
-_WORKSPACE_ELEMENT_SERVERS = frozenset({"progress", "table", "calculator", "chart"})
+# First-party workspace elements: OUR OWN UI, trusted like a catalogued artefact,
+# so they may write agent context on a skill that declares no MCP servers.
+#
+# This set is one half of a two-sided registration — the other half is the
+# frontend's `useSimSnapshotPush(sessionId, "<id>")` call. `writing` was missing
+# here from the day the element shipped, so every autosave 403'd and the student's
+# text never reached the tutor, silently: the "delt med vejlederen" card still
+# appeared, because the card is dispatched client-side. Found in the 2026-08-21
+# pilot logs. `tests/unit/test_element_server_parity.py` now reads the frontend
+# source and fails if the two halves ever diverge again.
+#
+# An entry nothing currently pushes (`chart`) is harmless and deliberate.
+_WORKSPACE_ELEMENT_SERVERS = frozenset({"progress", "table", "calculator", "chart", "writing"})
 
 
 class IframeContextRequest(BaseModel):

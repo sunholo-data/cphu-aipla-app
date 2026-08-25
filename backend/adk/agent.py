@@ -76,6 +76,7 @@ from adk.proactive_greet import inject_opening_guidance
 from adk.proactive_reactive import inject_reactive_guidance
 from adk.proactive_telemetry import tag_proactive_span_from_callback_context
 from adk.progress_context import compose_progress_context
+from adk.quota_retry import retry_on_quota_exhaustion
 from adk.teacher_focus import build_ilo_precedence_block, inject_teacher_focus, resolve_active_config
 from adk.tools import resolve_mcp_tools, resolve_tools
 from auth.access_context import AccessContext
@@ -102,12 +103,36 @@ def resolve_model(model_id: str) -> Gemini | Claude | LiteLlm:
         ValueError: If the model_id does not match a known provider prefix.
     """
     if model_id.startswith("gemini-"):
-        return Gemini(model=model_id)
+        return _QuotaTolerantGemini(model=model_id)
     if model_id.startswith("claude-"):
         return Claude(model=model_id)
     if model_id.startswith("gpt-") or model_id.startswith("o3"):
         return LiteLlm(model=f"openai/{model_id}")
     raise ValueError(f"Unsupported model: {model_id!r}")
+
+
+class _QuotaTolerantGemini(Gemini):
+    """``Gemini``, but a 429 before the first token retries instead of ending the turn.
+
+    Vertex serves Gemini 2.x here under Dynamic Shared Quota — there is no
+    per-project QPM to raise, so 429s are an expected operating condition rather
+    than a misconfiguration, and the client is the only place they can be
+    absorbed. Three bursts ended real student turns mid-sentence in the
+    2026-08-21 pilot.
+
+    The retry is narrow by construction: `retry_on_quota_exhaustion` re-runs the
+    call ONLY when nothing has been yielded yet, because ADK wraps its whole
+    streaming loop in one `try` and a mid-stream retry would emit a second copy
+    of text the student can already read. See `adk/quota_retry.py`.
+    """
+
+    async def generate_content_async(self, llm_request, stream: bool = False):
+        def _attempt():
+            # A fresh generator per attempt — a consumed one has nothing to replay.
+            return super(_QuotaTolerantGemini, self).generate_content_async(llm_request, stream)
+
+        async for response in retry_on_quota_exhaustion(_attempt):
+            yield response
 
 
 # --- Name sanitisation ---
