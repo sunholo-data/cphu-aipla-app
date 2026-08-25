@@ -263,6 +263,48 @@ by the existing post-deploy gate rather than a new tool.
 - **No data migration.** Nothing here changes a stored shape.
 - **Rollback:** all four are small and independently revertable; the bucket is additive and safe to leave in place.
 
+### Infrastructure before application — the ordering that is not automatic
+
+**No application pipeline runs Terraform.** `cloudbuild.yaml` and
+`cloudbuild.promote.yaml` contain zero terraform steps, and the terraform
+pipeline gates its own apply: absent `_CONFIRM=APPLY`,
+[cloudbuild.terraform.yaml](../../../../infrastructure/env/cloudbuild.terraform.yaml)
+prints `PLAN ONLY — no changes applied` and exits 0. Every push-triggered infra
+build is a plan.
+
+So a `v*` tag deploys an app that *reads* `DOCUMENTS_BUCKET` to an environment
+that may have no bucket behind it. Apply the infrastructure first:
+
+```bash
+make tf-apply ENV=test GO=1                             # bucket exists first
+git tag -a vX.Y.Z -m "..." && git push origin vX.Y.Z    # then the app
+make tf-apply ENV=prod GO=1
+make promote VERSION=vX.Y.Z FROM=test TO=prod GO=1
+```
+
+Read the plan at apply time rather than trusting a number from earlier — "2 to
+add" was true on 2026-08-25 and says nothing about a later state.
+
+**dev cannot use this path at all.** `make tf-apply` hard-refuses `ENV=dev`
+(dev is script-provisioned; applying would adopt live script-created
+resources), which is why the bucket also lives in
+[`scripts/bootstrap-aipla-dev.sh`](../../../../scripts/bootstrap-aipla-dev.sh).
+A Terraform-only change would have fixed test and prod and left dev quietly
+broken — the environment where the fix gets exercised first.
+
+### What actually happened (2026-08-25)
+
+| Env | Bucket | App |
+|---|---|---|
+| dev | `bootstrap-aipla-dev.sh` | push to `dev` (`2111e22`) |
+| test | `make tf-apply ENV=test GO=1` — 2 added, 0 destroyed | tag `v0.1.28` |
+| prod | `make tf-apply ENV=prod GO=1` — 2 added, 0 destroyed | `make promote VERSION=v0.1.28` |
+
+Verified on deployed dev with a real `aipla-demo-1` group token, not a mock:
+student upload `200` with the object present in GCS, `writing` push `204` with
+`iframe_context: write … server=writing` in the logs, and an unknown `serverId`
+still `403` — deny-by-default intact.
+
 ## Success Criteria
 
 - [ ] A student and a teacher can each upload a document on prod and see it in the workbench.
@@ -276,7 +318,29 @@ by the existing post-deploy gate rather than a new tool.
 
 ## Open Questions
 
-1. **The four teacher-side upload 500s** (11:23:27, 12:18:41, 12:18:54, 12:19:52 UTC) produced **no backend traceback**, unlike the 19 student ones. Most likely the Next.js proxy layer rather than the backend — possibly a body-size limit — but this is **unverified**. Worth pinning down during A, since it may be a fifth defect rather than a symptom of A2.
+1. ~~**The four teacher-side upload 500s** produced no backend traceback — possibly the Next.js proxy, possibly a fifth defect.~~
+   **ANSWERED 2026-08-25 — not a fifth defect, the same A2 root cause.** All four
+   logged `GCS upload failed … 403 POST …/b/aitana-documents-bucket/o`:
+
+   ```
+   12:19:52  aflevering.pdf
+   12:18:54  Instrument og lydanalyser.docx
+   12:18:41  Instrument og lydanalyser.docx
+   11:23:27  dokument_1_elevbesvarelse_test_1.docx
+   ```
+
+   A teacher HAS a real domain, so they passed the Firestore lookup that stopped
+   students at A1 and reached the GCS write — where the hardcoded upstream bucket
+   refused them. `upload.py` raises an explicit `HTTPException(500)` there, and an
+   `HTTPException` carries no traceback, which is why the 500 looked sourceless.
+   **So A2 fixes all 23 uploads, not 19**, and the proxy is not implicated (its
+   own error path returns 502, not 500).
+
+   Two method notes worth keeping. The `log.error` line WAS written, but Cloud Run
+   left it at DEFAULT severity — the `ERROR:` is only text inside `textPayload` —
+   so a `severity>=WARNING` filter misses it entirely. Search log TEXT, not
+   severity, when a handled error is suspected. And "no traceback" is a signal in
+   itself: it distinguishes a deliberate `HTTPException` from an unhandled crash.
 2. **Should `writing` be an element or an artefact?** It is being treated as a workspace element here, consistent with table/calculator. If the writing surface is heading toward artefact-like behaviour, the allowlist entry is still correct but the parity gate should cover both catalogues.
 3. **What quota ceiling does the pilot actually need?** 22 groups produced three bursts. The pilot runs to 2026-09-15 with more classes; the headroom question should be answered with a number, not a raise-and-see.
 

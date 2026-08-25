@@ -46,6 +46,9 @@ esac
 
 FRONTEND_SVC="aipla-v01-frontend"
 SANDBOX_SVC="aipla-v01-sandbox"
+# Public demo join code, used by the upload round-trip to mint a real
+# anonymous-group token. Override for an env whose demo code differs.
+SMOKE_GROUP_CODE="${SMOKE_GROUP_CODE:-aipla-demo-1}"
 
 echo "== Env: $ENV  Project: $PROJECT  Region: $REGION =="
 
@@ -108,6 +111,75 @@ smoke_app() {
   return $fail
 }
 
+# Document upload round-trip — the one path the 2026-08-21 pilot proved was
+# unexercised. Every upload that day returned 500, on two independent causes
+# (an ADR-001 empty domain reaching Firestore as `clients/`, and a
+# DOCUMENTS_BUCKET that was set on no environment so the backend resolved a
+# bucket in the UPSTREAM Aitana project). Both were invisible to every check
+# that existed, because nothing here ever uploaded anything.
+#
+# It runs as a REAL anonymous-group student — mint a token from the public demo
+# code, POST a file, assert 200. That exercises the exact caller that broke:
+# email="", domain="", synthetic uid.
+#
+# Fixed filename on purpose: the upload path de-duplicates by
+# (userId, folderId, originalFilename) and GCS overwrites at the same path, so
+# repeated smoke runs keep ONE object rather than accumulating litter.
+#
+# A demo code that has lapsed (TTL, clean-slate wipe) must NOT read as success
+# and must NOT red the deploy either — a lapsed code is an unrelated fact about
+# Firestore, not a broken upload path. So: no token => SKIP, loudly. A token we
+# DID get, followed by a failed upload => FAIL. Never let "could not check"
+# render as "checked and fine".
+smoke_upload() {
+  echo ""
+  echo "-- document upload round-trip (real anonymous-group student) --"
+  local url; url=$(resolve_url "$FRONTEND_SVC")
+  if [[ -z "$url" ]]; then
+    echo "FAIL could not resolve URL for ${FRONTEND_SVC} (not deployed in ${ENV}?)"
+    return 1
+  fi
+
+  local code token
+  code=$(curl -sS -o "$BODY" -w '%{http_code}' --max-time 20 \
+    -X POST "${url}/api/proxy/api/auth/group/join" \
+    -H 'Content-Type: application/json' \
+    -d "{\"group_id\":\"${SMOKE_GROUP_CODE}\"}" 2>/dev/null) || code=000
+  if [[ "$code" != "200" ]]; then
+    echo "SKIP upload check — could not join '${SMOKE_GROUP_CODE}' (HTTP ${code})."
+    echo "     NOT a pass. The demo code may have lapsed; re-run 'make seed-demo-codes ENV=${ENV}'."
+    SMOKE_SKIPPED="${SMOKE_SKIPPED:-} upload"
+    return 0
+  fi
+  token=$(python3 -c 'import json,sys; print(json.load(open(sys.argv[1])).get("token",""))' "$BODY" 2>/dev/null || true)
+  if [[ -z "$token" ]]; then
+    echo "SKIP upload check — join returned 200 but carried no token. NOT a pass."
+    SMOKE_SKIPPED="${SMOKE_SKIPPED:-} upload"
+    return 0
+  fi
+
+  local tmp; tmp=$(mktemp -t aipla-smoke-XXXXXX)
+  printf 'AIPLA smoke check. Faldforsoeg: 0,45 s over 1,0 m.\n' > "$tmp"
+  local fail=0
+  if probe POST "${url}/api/proxy/api/documents/upload" 200 \
+      "/api/proxy/api/documents/upload (student)" \
+      -H "Authorization: Bearer ${token}" \
+      -F "file=@${tmp};filename=aipla-smoke-check.txt"; then
+    # A 200 with no storagePath would mean the record was written and the bytes
+    # were not — exactly the half-success the GCS 403 produced for teachers.
+    if grep -q '"storagePath"' "$BODY"; then
+      echo "OK   upload landed in GCS (storagePath present)"
+    else
+      echo "FAIL upload returned 200 but no storagePath — bytes may not have been written"
+      fail=1
+    fi
+  else
+    fail=1
+  fi
+  rm -f "$tmp"
+  return $fail
+}
+
 # The MCP App artefact host (separate origin per ADR-013).
 smoke_sandbox() {
   echo ""
@@ -166,17 +238,25 @@ print("\n".join(sorted(set(out))))
 
 overall=0
 case "$TARGET" in
-  all)                       smoke_app || overall=1; smoke_sandbox || overall=1; smoke_channels || overall=1 ;;
-  app|frontend|backend)      smoke_app || overall=1 ;;
+  all)                       smoke_app || overall=1; smoke_upload || overall=1; smoke_sandbox || overall=1; smoke_channels || overall=1 ;;
+  app|frontend|backend)      smoke_app || overall=1; smoke_upload || overall=1 ;;
   sandbox|sidecars)          smoke_sandbox || overall=1 ;;
   channels)                  smoke_channels || overall=1 ;;
-  *) echo "Unknown target: $TARGET (use all|app|frontend|backend|sandbox|sidecars|channels)"; exit 2 ;;
+  upload)                    smoke_upload || overall=1 ;;
+  *) echo "Unknown target: $TARGET (use all|app|frontend|backend|sandbox|sidecars|channels|upload)"; exit 2 ;;
 esac
 
 echo ""
-if [[ $overall -eq 0 ]]; then
-  echo "== All smoke checks passed =="
-else
+if [[ $overall -ne 0 ]]; then
   echo "== Smoke checks FAILED =="
   exit 1
+fi
+# A skipped check is not a passed check. Saying "all passed" when something was
+# never exercised is the same class of lie `deploy-status.sh` was rewritten to
+# stop telling — the reassuring answer is the one a non-answer produces.
+if [[ -n "${SMOKE_SKIPPED:-}" ]]; then
+  echo "== Smoke checks passed, but SKIPPED:${SMOKE_SKIPPED} =="
+  echo "   Nothing failed. Something was not checked at all — see SKIP above."
+else
+  echo "== All smoke checks passed =="
 fi
