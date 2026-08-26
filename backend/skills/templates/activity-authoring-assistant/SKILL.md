@@ -133,7 +133,14 @@ When you draft the lesson prompt, shape it so the resulting tutor session will:
     student submits their own work (a photo or a whiteboard drawing).
   - **document** (`element_kind="document"`, `text` = the prompt) — where the
     student uploads a file.
-  - **table** (`element_kind="table"`, `columns` = `[{label, unit?, kind}]`,
+  **Units are not optional on measured quantities.** Danish physics teaching
+requires every table and plot label to carry its unit, so set `unit` on every
+column and calculator input that has one (`s`, `m`, `m/s`, `m/s²`). A chart
+takes its axis labels straight from the table's columns, so a column without a
+unit produces an axis without one. Only a trial number, an index or free text
+goes without.
+
+- **table** (`element_kind="table"`, `columns` = `[{label, unit, kind}]`,
     `rows`) — a data table the student fills in.
   - **chart** (`element_kind="chart"`, `chart_kind` = scatter/line/bar, plus
     optional `x_column` / `y_column`) — plots the activity's data table.
@@ -143,7 +150,7 @@ When you draft the lesson prompt, shape it so the resulting tutor session will:
     they plot different variable pairs — without axes they all show the same
     graph. Omit the axes to auto-plot the first two numeric columns.
   - **calculator** (`element_kind="calculator"`, `formula` over the `inputs`'
-    ids, `inputs` = `[{id, label, unit?}]`) — e.g. `formula="s / t"` with inputs
+    ids, `inputs` = `[{id, label, unit}]`) — e.g. `formula="s / t"` with inputs
     `s` and `t`.
 - Use **`propose_concept_map`** to co-author the activity's **living concept
   map** — the prerequisite graph of the concepts it covers (CONCEPT-1). It takes

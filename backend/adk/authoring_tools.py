@@ -184,7 +184,12 @@ def add_element(
         text: a note's body, or the prompt above the student's solution
             (drawing/photo) / document-upload / writing surface.
         title: optional title for note / writing / table / chart / calculator.
-        columns: table columns — each ``{"label", "unit"?, "kind": "number"|"text"}``.
+        columns: table columns — each ``{"label", "unit", "kind": "number"|"text"}``.
+            **Always give ``unit`` for a measured quantity** ("s", "m", "m/s",
+            "m/s^2"). Danish physics teaching requires every table and plot
+            label to carry its unit, and a chart takes its axis labels straight
+            from these columns — so a column with no unit produces an axis with
+            no unit. Only a trial number, an index, or free text goes without.
         rows: number of table rows (1-50).
         chart_kind: ``scatter`` | ``line`` | ``bar``.
         x_column: which table column the chart's X axis plots, as the column id
@@ -195,8 +200,10 @@ def add_element(
             makes several charts on one activity worth having, rather than the
             same graph drawn several ways.
         formula: calculator expression over the input ids (e.g. ``"s / t"``).
-        inputs: calculator inputs — each ``{"id", "label", "unit"?}``; the
-            ``id`` is the variable name used in ``formula``.
+        inputs: calculator inputs — each ``{"id", "label", "unit"}``; the
+            ``id`` is the variable name used in ``formula``. Give ``unit``
+            whenever the input is a physical quantity, for the same reason as
+            table columns.
 
     Returns:
         ``{"ok": True, "proposal": {"kind": "add_element", "element_kind": ...,
