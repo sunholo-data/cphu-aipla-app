@@ -278,7 +278,31 @@ action, not a code change.
 
 ## Open Questions
 
-1. **Does Erase include BigQuery research turns?** GDPR Art. 17 points one way, the study protocol the other. **JB decides**; M2 records the answer rather than assuming it.
+1. **Does Erase include BigQuery research turns — and the Parquet exports behind them?**
+   GDPR Art. 17 points one way, the study protocol the other. **JB decides**; M2
+   records the answer rather than assuming it.
+
+   **Verified 2026-08-26, and it is harder than "delete the BigQuery rows".** A
+   group's chat turns exist in **two** places:
+
+   - `chat_logs.aipla_chat_turn` — partition expiry **365 days** on test/prod, 30 on dev. Real automatic deletion.
+   - `gs://<project>-chat-logs-backup/<YYYYMMDD>/*.parquet` — a **daily Parquet export** of the raw tables, enabled by `enable_chat_logs_backup`. Its lifecycle moves objects to NEARLINE after 90 days and deletes only **noncurrent** generations; `backup.tf` states it plainly: *"Only NONCURRENT generations — live objects are never deleted by lifecycle."*
+
+   So the 365-day figure is a **BigQuery-table** retention, not a data retention.
+   The turns themselves persist indefinitely in Parquet. Prod holds 15 daily
+   exports today (from 2026-08-12), so this is live, not theoretical.
+
+   That breaks the registry model for this one store. Every other eraser deletes
+   rows or objects belonging to one group; a Parquet export is a **bulk,
+   date-partitioned file containing every group's turns for that day**, so
+   erasing one group means rewriting the file, not deleting it. Options, none
+   free: rewrite the affected exports on erasure; hold exports in a form that is
+   per-group partitioned; accept that Erase covers the live stores and state the
+   backup's retention explicitly in the privacy notice instead.
+
+   **This must be decided before the DPIA is signed**, because "we delete a
+   group's data on request" is not currently true of the backups and the DPIA
+   will say something about it either way.
 2. **What is the actual retention period for documents?** Nothing is written down for any store except the BigQuery partition TTL. "Until the study ends" needs a date, and the DPIA needs it anyway.
 3. **Should teachers be able to erase their own uploads in bulk?** Today's owner-only ACL means teacher documents have exactly the same gap as student ones, and the same non-answer.
 
