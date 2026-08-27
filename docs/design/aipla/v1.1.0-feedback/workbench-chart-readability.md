@@ -1,6 +1,6 @@
 # Workbench chart readability — a plot you can read a number off
 
-**Status**: Planned — **1.1.84**
+**Status**: **M1 SHIPPED 2026-08-27** (ticks, numbers, gridlines, nice domain) — M2 and M3 open. **1.1.84**
 **Priority**: **P1** — the most-repeated complaint in the 2026-08-21 teacher feedback: four of 28 items (4, 5, 6, 7), from at least two independent teachers
 **Estimated**: ~1.5d for M1+M2 · M3 (regression) ~1–1.5d and gated on decision D2
 **Scope**: Frontend — [`WorkbenchChart.tsx`](../../../../frontend/src/components/workspace/WorkbenchChart.tsx), [`resolveChartBinding.ts`](../../../../frontend/src/lib/resolveChartBinding.ts), and the workspace panel that hosts them
@@ -76,10 +76,21 @@ straight) **impossible**. The student can see a shape and nothing else.
 
 ### M1 — ticks, numbers, gridlines, and a domain a human would choose
 
+> **SHIPPED 2026-08-27.** `buildAxis` / `formatTick` in `resolveChartBinding.ts`,
+> drawn by `WorkbenchChart`. 22 tests. Two things the build changed from this
+> plan, both recorded in the sections below: the decimal-places rule, and what
+> the old fixed padding actually clipped.
+
 A `niceTicks(min, max, target = 5)` helper in `resolveChartBinding.ts` (pure, unit-testable,
 no component involvement): expand `[min, max]` outward to a "nice" interval whose step is
 1, 2, 2.5 or 5 × 10ⁿ, and return the tick values. This is the standard extended-Wilkinson shape
 and is ~30 lines.
+
+**One correction from building it.** Decimal places must be derived from the step
+itself, not from its magnitude: `-log10(0.25)` is 0.602, so a magnitude rule rounds to one
+decimal and labels a 0.25 step `"0,3"` — a tick carrying a value it is not drawn at, which is
+worse than no label at all. The 2.5-per-decade step exists to be used, so the formatter has to
+be able to write it. Caught by a unit test, not by eye.
 
 The component then draws, per axis: a short tick mark, the tick value formatted to the data's
 significant figures, and a faint gridline (`stroke-border/40`). Danish decimal formatting — the
@@ -92,8 +103,11 @@ The domain changes from `[min(data), max(data)]` to the nice interval. This subs
 the axis at 2.1, so the origin — the thing a physics student is looking for — is off the plot. A
 nice domain that includes 0 when the data is close to it is what the teacher is describing.
 
-Padding must grow with the tick labels: `PAD_L = 36` was chosen for a rotated label alone and will
-clip a y tick reading `1200`. Measure from the formatted tick strings.
+Padding must grow with the tick labels. `PAD_L = 36` was chosen for a rotated label alone; it fits
+roughly six characters, so `9000` is fine and a signed small decimal like `-0,0008` is not. The
+margin is narrow enough that adding ticks against a fixed padding would introduce a **new** defect
+— a number the student can see part of — while fixing item 4. Derive it from the formatted tick
+strings.
 
 ### M2 — the plot fills its space
 
@@ -124,7 +138,7 @@ reintroduces exactly the defect item 18 raised.
   tick list — the degenerate cases are where a hand-rolled scale goes wrong silently.
 - `WorkbenchChart` renders a `<text>` per tick and the count matches `niceTicks`.
 - Tick labels use `,` as the decimal separator under the Danish locale.
-- Left padding grows for a wide y tick label (render with a 4-digit domain, assert no clipping).
+- Left padding grows for a wide y tick label. Assert the label's LEFT EDGE (anchor is `end`) stays inside the viewBox, using a domain that produces a signed small decimal — a 4-digit domain fits the old fixed padding and would prove nothing.
 - Existing chart tests continue to pass unchanged.
 
 **Manual, on deployed dev**

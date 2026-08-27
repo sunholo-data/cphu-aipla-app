@@ -68,3 +68,113 @@ export function resolveChartBinding(
 export function axisLabel(c: TableColumn): string {
   return c.unit ? `${c.label} (${c.unit})` : c.label;
 }
+
+/** A plot axis: the domain actually drawn, and the values to label on it.
+ *
+ *  `min`/`max` are the NICE domain, which is wider than the data — a dataset
+ *  running 2.1–9.8 gets an axis 0–10, so the origin is on the plot. Teachers,
+ *  21 Aug: *"We wish the starting point was visible in the window from the
+ *  beginning"*. */
+export interface Axis {
+  min: number;
+  max: number;
+  ticks: number[];
+}
+
+/** Steps a person would choose, per decade. 2.5 earns its place: without it a
+ *  0–1 range steps 0.2 (six ticks) or 0.5 (three), and neither reads as well as
+ *  0.25 on a quarter-scale quantity. */
+const _NICE_STEPS = [1, 2, 2.5, 5, 10];
+
+/** A "nice" step at or above `rough` — 1, 2, 2.5 or 5 times a power of ten. */
+function niceStep(rough: number): number {
+  if (!Number.isFinite(rough) || rough <= 0) return 1;
+  const decade = Math.pow(10, Math.floor(Math.log10(rough)));
+  const scaled = rough / decade;
+  const step = _NICE_STEPS.find((s) => scaled <= s + 1e-9) ?? 10;
+  return step * decade;
+}
+
+/**
+ * Build an axis over `[dataMin, dataMax]` with roughly `target` labelled ticks.
+ *
+ * Every degenerate case a student's half-filled table produces has to yield a
+ * drawable axis, because the alternative is an axis that renders as a single
+ * line with one label on it and no indication anything is wrong:
+ *
+ *  - **One point**, or every value identical — there is no range to divide, so
+ *    centre a unit-wide window on the value.
+ *  - **Non-finite input** (an empty cell parsed to NaN reaching us anyway) —
+ *    fall back to 0–1 rather than propagating NaN into the SVG path, where it
+ *    silently drops the whole series.
+ *
+ * `includeZero` extends the domain to the origin when the data comes close to
+ * it. Physics-C plots are overwhelmingly proportionality checks, where a
+ * gradient read against a hidden origin is the wrong reading.
+ */
+export function buildAxis(
+  dataMin: number,
+  dataMax: number,
+  target = 5,
+  { includeZero = false }: { includeZero?: boolean } = {},
+): Axis {
+  let lo = dataMin;
+  let hi = dataMax;
+
+  if (!Number.isFinite(lo) || !Number.isFinite(hi)) {
+    lo = 0;
+    hi = 1;
+  }
+  if (lo > hi) [lo, hi] = [hi, lo];
+  if (includeZero) {
+    lo = Math.min(lo, 0);
+    hi = Math.max(hi, 0);
+  }
+  if (lo === hi) {
+    // A single reading still deserves a readable axis around itself.
+    const pad = Math.abs(lo) > 0 ? Math.abs(lo) * 0.5 : 0.5;
+    lo -= pad;
+    hi += pad;
+  }
+
+  const step = niceStep((hi - lo) / Math.max(1, target));
+  const min = Math.floor(lo / step) * step;
+  const max = Math.ceil(hi / step) * step;
+
+  const ticks: number[] = [];
+  // Accumulate by multiplication, not by repeated addition: 0.1 added ten times
+  // is 0.9999999999999999, which formats as "1" but breaks an equality check.
+  const count = Math.round((max - min) / step);
+  for (let i = 0; i <= count; i++) ticks.push(min + i * step);
+
+  return { min, max, ticks };
+}
+
+/**
+ * Format a tick for a Danish classroom: comma decimal separator, and no more
+ * precision than the step carries.
+ *
+ * The tutors are instructed to write `0,25` rather than `0.25`; an axis
+ * disagreeing with the tutor about what a number looks like is the same
+ * inconsistency the 21 Aug feedback objected to in item 18.
+ */
+export function formatTick(value: number, step: number): string {
+  // -0 renders as "-0", which is never what a student should read.
+  const v = Object.is(value, -0) ? 0 : value;
+  return v.toFixed(decimalsFor(step)).replace(".", ",");
+}
+
+/** Decimal places needed to write `step` exactly.
+ *
+ *  Derived from the step itself rather than its magnitude. `-log10(0.25)` is
+ *  0.602, so a magnitude rule rounds to one decimal and renders a 0.25 step as
+ *  "0,3" — a tick labelled with a value it is not drawn at, which is worse than
+ *  no label. The 2.5-per-decade step exists precisely to be used, so the
+ *  formatter has to be able to write it. */
+function decimalsFor(step: number): number {
+  if (!Number.isFinite(step) || step <= 0) return 0;
+  for (let d = 0; d <= 6; d++) {
+    if (Math.abs(Number(step.toFixed(d)) - step) < step * 1e-9) return d;
+  }
+  return 6;
+}
