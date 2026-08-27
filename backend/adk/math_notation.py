@@ -33,6 +33,11 @@ which is the footgun that produced three of the four defects in the 2026-08-21
 session. Applying it to every skill is what makes coverage provable. The cost is
 ~1,000 chars against a 25,000-char instructions cap.
 
+**Reaches production by DEPLOY, not by seed.** ``platform_seed`` globs only
+``skills/templates/*/SKILL.md``; this file is read from disk at agent-build time
+and cached for the process lifetime. A seed run will not pick up an edit here,
+and neither will a running container — it needs a new image.
+
 Deliberately an instruction, not a filter over model output. A post-hoc
 ``*`` → ``\cdot`` rewrite would corrupt a literal asterisk in a code block or a
 footnote marker, and it cannot supply the missing *unit* at all. Tests guard the
