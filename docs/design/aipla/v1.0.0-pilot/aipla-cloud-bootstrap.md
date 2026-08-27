@@ -165,7 +165,7 @@ Build the Terraform module when **all three** are true:
 1. **Hosted Terraform state or local backend?** Local backend with `.tfstate` checked into a private bucket is the simplest. Hosted (Terraform Cloud / Spacelift) is overkill for a 4-month contract.
 2. **How much of the test/prod cut is "do nothing"?** A well-shaped module makes test/prod cuts mostly free; an underspecified one makes them painful. Time-box the module at 1.5d — if it spills, drop scope (Secrets module last, BigQuery module last).
 3. **Where do existing-env imports happen?** Dev is half-bootstrapped from the script; we need `terraform import` calls for each existing resource. Estimated ~1h of import-mapping per resource type; total 4-6h. Worth doing once before the test/prod cut.
-4. **Who maintains the module long-term?** The 4-month contract ends 2026-09-15. Either UCPH ops takes over (likely) or AIPLA's open-source upstream absorbs it (unlikely, since AIPLA-specific). Hand-off plan is part of `handover-package.md` (SEQUENCE 3.1).
+4. **Who maintains the module long-term?** *(Updated 2026-08-27.)* The original 4-month contract ended 2026-09-15, but the engagement runs to at least April 2027 at 2.5 days/week, so this is **no longer urgent — and no longer someone else's problem by default**. Three candidates now: M continues to maintain it in-window; UCPH ops takes over; or it becomes part of whatever KU's central AI platform standardises on (see [ku-ai-office-alignment.md](../v2.0.0-handover/ku-ai-office-alignment.md)). Hand-off plan is part of `handover-package.md` (SEQUENCE 3.1).
 
 ## Out of scope
 

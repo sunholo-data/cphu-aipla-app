@@ -105,12 +105,18 @@ through onboarding once. Five classes named after real cohorts is a teacher.
 ```bash
 aiplatform --env $ENV users grant-access anna@ku.dk \
   --cap 25 \
-  --expires 2026-09-15T00:00:00Z \
+  --expires 2027-09-15T00:00:00Z \
   --note "Pilot cohort A, Niels Bohr Institute"
 ```
 
-- **`--expires`**: default to the contract boundary (2026-09-15) so forgetting to
-  clean up means access *lapses* rather than *persists*.
+- **`--expires`**: default to the **engagement** boundary so forgetting to clean
+  up means access *lapses* rather than *persists*. That boundary is now
+  **2027-09-15** (end of the 2026/27 Danish school year), not the original
+  2026-09-15 contract date — the extension awarded 2026-08 runs to at least
+  April 2027. The prod register was re-stamped on 2026-08-17; `--expires`
+  defaults and `grandfather_access.py` followed on 2026-08-27. **If you find a
+  row still stamped 2026-09-15, it is a stale contract-boundary default, not a
+  deliberate short grant — re-stamp it.**
 - **`--cap`**: monthly USD. **Omit for the register default ($25) — there is no
   uncapped default on any path.** `0` means a ZERO cap (spend suspended, grant
   and classes and join codes all intact) — a useful state, and *not* "no limit".

@@ -144,7 +144,7 @@ The everyday credential — the one in the shell where mistakes happen, and the 
 ## Open Questions
 
 1. **Should dev join this model?** dev is script-provisioned and plan-only, so it has no apply path to protect. Leaving `m@sunholo.com` as owner on dev preserves the fast local loop. Provisionally: yes, leave dev alone.
-2. **Does UCPH inherit break-glass?** At handover (2026-09-15) `mark.edmondson@ind.ku.dk` is the natural owner, but the sunholo account disappears. The handover checklist needs an explicit IAM transfer step, or UCPH inherits an environment whose only privileged identity belongs to someone who has left the project.
+2. **Does UCPH inherit break-glass?** *(Updated 2026-08-27 — deadline moved, question unchanged.)* `mark.edmondson@ind.ku.dk` is the natural owner and the sunholo account eventually disappears. The forcing date is **no longer 2026-09-15**: the engagement runs to at least April 2027. That removes the September scramble but **not** the risk — an environment whose only privileged identity belongs to a part-time contractor is a bus-factor-of-one for as long as it lasts. The handover checklist still needs an explicit IAM transfer step; it can now be done deliberately rather than in the last fortnight.
 3. **Is `chat_logs` worth a backup?** It was destroyed and is unrecoverable. Empty at the time, but from 2026-08-14 it holds the research data the entire programme exists to collect. A scheduled BigQuery export is cheap insurance and is not currently configured.
 
 ## Postscript — what this cost

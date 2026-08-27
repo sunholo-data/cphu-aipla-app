@@ -100,8 +100,10 @@ def revoke_researcher(ctx: click.Context, uid: str) -> None:
     "--expires",
     default=None,
     help=(
-        "ISO-8601 expiry, e.g. 2026-09-15T00:00:00Z. Recommended: the contract "
-        "boundary, so forgetting to clean up means access LAPSES rather than persists."
+        "ISO-8601 expiry, e.g. 2027-09-15T00:00:00Z. Recommended: the engagement "
+        "boundary, so forgetting to clean up means access LAPSES rather than persists. "
+        "Currently 2027-09-15 (end of the 2026/27 school year, inside the extension "
+        "running to at least April 2027) — NOT the original 2026-09-15 contract date."
     ),
 )
 @click.option("--note", default="", help="Why this person was invited (shown in `list-access`).")

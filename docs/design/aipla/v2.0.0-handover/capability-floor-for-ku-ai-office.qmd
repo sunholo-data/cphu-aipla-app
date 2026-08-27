@@ -1,0 +1,270 @@
+---
+title: "Which AI model is good enough for which task"
+subtitle: "Measured evidence from Danish upper-secondary physics — a note for the KU AI office"
+author: "AIPLA project team, Center for Digital Education"
+date: "2026-08-27"
+format:
+  pdf:
+    toc: true
+    number-sections: false
+    geometry: margin=1in
+    colorlinks: true
+  html:
+    toc: true
+    number-sections: false
+    embed-resources: true
+  docx:
+    toc: true
+    number-sections: false
+---
+
+::: callout-note
+## Why you are receiving this
+
+KU is standing up a university-wide AI platform on which staff and students will
+choose a model appropriate to the task, and has said it intends to look at what
+that means for the university's energy footprint. Both decisions need the same
+underlying number: **how good does a model have to be before it is good enough
+for a given task, and what is the smallest model that clears that bar?**
+
+AIPLA has been measuring exactly that for one subject since spring 2026. This
+note sets out what we found, what it cost to find out, and where the method
+transfers to other faculties. The physics numbers will not generalise. **The
+method, and three of the findings, probably will.**
+:::
+
+## 1. The question
+
+Most public discussion of model choice runs on leaderboards: model X scores 94%
+on some benchmark, model Y scores 72%, therefore use X. For an institution
+deciding what to host and what to route where, that framing is close to useless,
+for two reasons.
+
+First, the benchmarks measure the wrong thing. They are built to separate
+frontier models at the top of their range — graduate-level science, competition
+mathematics — and most real university tasks are nowhere near that hard.
+Summarising a reading, checking a citation format, or helping a first-year
+student through a mechanics problem does not need a model that can do graduate
+chemistry.
+
+Second, a leaderboard has no notion of *enough*. The useful question is not
+"which model is best" but **"what is the cheapest, smallest, most locally
+hostable model that is still good enough for this particular task?"** We call
+that the **capability floor** for a task, and it is the number that determines
+what you buy, what you host, what you route to the cloud, and what your energy
+bill looks like.
+
+## 2. What we measured
+
+**The task.** Solving subquestions from Danish stx *Fysik A* written exams,
+graded against the official ministry answer keys. This is a real task with a
+real, defensible ground truth — not a proxy.
+
+**The panel.** Eleven models on the text task and nine on the figure-reading
+task, spanning four deployment tiers:
+
+| Tier | Where it runs | Data leaves the building? |
+|---|---|---|
+| 1 | Commercial API (EU regions) | Yes — the prompt does |
+| 2 | Multi-GPU server or small cluster, self-hosted | No |
+| 3 | Single GPU or a well-specified workstation, self-hosted | No |
+| 4 | Laptop, tablet or phone | No |
+
+**The method.** Each model answers into an enforced `{value, unit}` schema with
+an explicit "I don't know" option, so a text-only model *declines* a question
+that needs a graph rather than inventing a reading. Grading is a deterministic
+value-and-unit comparison against the key, plus a language-model judge for the
+cases where a numeric compare is insufficient. Every model was run **five
+times**; we report means and standard deviations.
+
+**The threshold.** We set the bar at **80%** — below that, a tutoring system
+produces enough confident errors to be a liability rather than a help. The bar
+is a judgement, and a different task class deserves a different one. Setting it
+explicitly is the point.
+
+## 3. What we found
+
+### Text: solving exam problems
+
+Means over five runs, 33 text-solvable subquestions from the 2023–24 gold sets:
+
+| Model | Tier | Score (mean ± sd) | Clears 80% |
+|---|---|---|---|
+| Claude (sonnet / opus / haiku) | 1 — cloud API | 93–96 ± ≤2 | yes |
+| gemini-3.5-flash | 1 — cloud API | 95 ± 2 | yes |
+| **deepseek-v4-flash** (open) | **2 — multi-GPU, self-hosted** | **91 ± 2** | **yes** |
+| **qwen3-32b** (open) | **3 — single GPU, self-hosted** | **88 ± 6** | **yes** |
+| gemini-2.5-flash | 1 — cloud API | 87 ± 3 | yes |
+| **qwen3-8b** (open) | **4 — laptop-class** | **83 ± 3** | **yes, borderline** |
+| qwen3-next-80b-a3b (open) | 2 | 75 ± 6 | no |
+| gemini-2.5-flash-lite | 1 — cloud API | 73 ± 4 | no |
+| qwen3-30b-a3b (open) | 3 | 68 ± 9 | no |
+| mistral-small-24b (open) | 3 | 67 ± 6 | no |
+| gemma-3-27b (open) | 3 | 64 ± 3 | no |
+
+### Figures: reading graphs and diagrams
+
+The questions a text-only model has to decline. Means over five runs, 8 items,
+vision-capable models only:
+
+| Model | Tier | Score (mean ± sd) | Clears 80% |
+|---|---|---|---|
+| gemini-3.5-flash | 1 — cloud API | 98 ± 5 | yes |
+| **qwen3-vl-235b-a22b** (open) | **2 — multi-GPU, self-hosted** | **95 ± 6** | **yes** |
+| gemini-2.5-flash | 1 — cloud API | 93 ± 6 | yes |
+| **qwen3-vl-32b** (open) | **3 — single GPU, self-hosted** | **88 ± 0** | **yes** |
+| glm-4.6v (open) | 3 | 83 ± 6 | yes |
+| gpt-5-mini | 1 — cloud API | 75 ± 0 | no |
+| qwen3-vl-8b (open) | 4 — laptop-class | 63 ± 8 | no |
+| gemma-3-27b (open, general-purpose) | 3 | 60 ± 18 | no |
+| gemini-2.5-flash-lite | 1 — cloud API | 40 ± 9 | no |
+
+### The combined picture
+
+A real deployment must handle both kinds of question, so **a tier is only as
+capable as its weaker modality:**
+
+| Tier | Text | Figures | Tier capability | Clears 80% |
+|---|---|---|---|---|
+| 1 — cloud API | 93–96 | 98 | **93** | yes |
+| 2 — multi-GPU, self-hosted | 91 | 95 | **91** | yes |
+| 3 — single GPU, self-hosted | 88 | 88 | **88** | yes |
+| 4 — laptop / phone | 83 | 63 | **63** | no — vision-limited |
+
+## 4. Three findings that may matter beyond physics
+
+### Finding 1 — for this task class, self-hosting is already viable
+
+All three server-class tiers clear the bar on both modalities. A **single GPU**
+running open-weight models scores 88 on both text and figures — comfortably
+useful, with no data leaving the building and no per-query cost. This is not a
+projection about 2027; it is a measurement from July 2026.
+
+The corollary matters as much: **the cloud frontier is not required for this
+task.** Well-posed upper-secondary physics is not frontier-hard. Where a task
+turns out not to be frontier-hard, paying frontier prices for it is a choice,
+not a necessity — and the only way to know which tasks those are is to measure
+them.
+
+The remaining gap is on-device, and it is **figure-reading, not physics**. A
+laptop-class model already solves the text at the threshold (83); its
+vision counterpart trails at 63. That gap is bounded by device memory rather
+than by model quality, so it will close on hardware refresh cycles rather than
+on model releases.
+
+### Finding 2 — a self-hosted tier needs two models, not one
+
+This is the most immediately actionable finding for a model catalogue. The
+strongest open text models are **architecturally text-only** — they cannot
+accept an image at all. The strongest open vision-language models *can* do text,
+but score **12 to 36 points worse** than the text specialist at the same tier,
+every one of them falling below the threshold. Multimodal training trades away
+reasoning quality.
+
+**So a self-hosted tier serves a text model *and* a vision-language model behind
+one endpoint, routed by whether the question carries a figure.** Provisioning
+for one model per tier will under-serve one modality or the other, and which one
+fails will not be obvious from a leaderboard.
+
+Note also that a *general-purpose* open model given an image performs badly and
+erratically (60 ± 18, with hard failures) where a dedicated vision-language
+model of the same size is stable at 88 ± 0. "Our model handles images" and "our
+model handles images well" are different claims.
+
+### Finding 3 — published benchmarks will mis-rank your candidates
+
+We tried to shortcut this work by using public benchmark scores, and it did not
+survive contact with measurement. Three specific failures, each of which would
+have led to a wrong procurement decision:
+
+- **Some widely-cited figures do not exist.** Scores we found repeated across
+  technical blogs for one major open model turned out to have no basis in its
+  technical report, and appeared in mutually inconsistent versions across
+  sources. We removed them.
+- **Vendor self-reported scores implied implausible generational jumps** — up to
+  42 points over the previous generation's independently verified figure — and
+  had no independent confirmation. On our own task, the models concerned landed
+  far below their published claims.
+- **Even honest benchmarks rank the cheap candidates wrongly.** Our scores
+  correlate with the closest public benchmark at roughly r = 0.73 — enough to
+  confirm we are measuring the same underlying capability, not enough to
+  substitute for measurement. The clearest case: the model with the *lowest*
+  public benchmark score of all the open models scored **83** on our task,
+  because the public benchmark is graduate-level and our task is not. A
+  benchmark-based shortlist would have eliminated the cheapest viable
+  self-hosting candidate.
+
+The general form of this: **public benchmarks are calibrated for the top of the
+range, and most institutional tasks are not at the top of the range.** For any
+task where the choice actually matters, a small task-specific evaluation beats a
+large general one.
+
+There is a methodological point attached. Our first version of this table used
+single runs. Repeating each model five times moved individual scores by up to 15
+points and reshuffled the middle of the field, and **open-weight models are
+markedly noisier than commercial ones**. Any single-run comparison at this
+resolution — including most of what is published in blog posts — should be
+treated as unreliable.
+
+## 5. What this does and does not say about energy
+
+We have measured capability, not energy. But capability per tier is the
+*precondition* for an energy policy, because it converts a values question into
+an engineering one.
+
+Once you know that a task class clears its bar on a single self-hosted GPU, then
+routing that task to a frontier cloud model is a measurable, avoidable cost —
+and the argument for right-sizing stops being an appeal to restraint and becomes
+a straightforward efficiency claim. Once you know that a task genuinely needs
+the frontier, you can pay for it without apology.
+
+What this note supports, then, is a defensible position of the form: *for these
+task classes we use the smallest tier that clears the bar, and here is the
+evidence for where that bar sits.* What it does not supply is the energy
+measurement itself. That would need per-query energy figures for the deployed
+hardware, which we would be glad to help scope.
+
+## 6. Limitations — please read before citing
+
+- **Provisional.** Five runs per model, 33 text items and 8 figure items. The
+  rank order and the "tiers 1–3 clear the bar" conclusion are robust to the
+  noise. Individual gaps of less than one standard deviation are not. Read the
+  bands, not the ranks — especially on the figure axis, where a single item is
+  worth 12.5 points.
+- **Machine-graded, not yet human-audited.** A physics teacher's calibration
+  sample against a subset of items is the next step and would also pin down how
+  much of the variance is the grader's own.
+- **One task class, one subject, one country's curriculum.** Physics exam
+  problems have unusually clean ground truth. Essay feedback, literature
+  synthesis, or code review would each need their own threshold and their own
+  items, and would very likely place the floor at a different tier.
+- **Models move.** This is a July 2026 snapshot. The evaluation is versioned and
+  re-runnable precisely because the answer has a shelf life of months.
+
+## 7. What we can offer
+
+The evaluation is a versioned dataset plus a runner, built to be re-run as new
+models release, and it is not physics-specific in its machinery — only in its
+items.
+
+- **The current results and the runner**, for KU's own model-catalogue work.
+- **Help defining a capability floor for another faculty's task classes.** The
+  expensive part is not the software; it is deciding what "good enough" means
+  for a given task and assembling thirty or so items with defensible ground
+  truth. That is roughly a week of a domain expert's attention per task class,
+  and it is the sort of concrete, bounded piece of work the AI-labs appear
+  designed to support.
+- **A walkthrough** with whoever is deciding the model catalogue.
+
+AIPLA's technical lead is engaged with the project to at least April 2027 and
+based at the Center for Digital Education. The underlying evaluation is a
+research instrument intended to outlive the current work.
+
+::: callout-tip
+## The single sentence
+
+If KU is going to serve models centrally and route tasks to the smallest
+adequate one, then somebody has to decide what "adequate" means for each kind of
+task — and that decision is measurable, cheap to measure, and wrong if taken
+from a leaderboard.
+:::

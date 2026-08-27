@@ -13,14 +13,24 @@
 
 ## AIPLA versions
 
-The 4-month contract has three product-version anchors. These are AIPLA's
-own versions, **not** related to the template's `v6.x.x` versions.
+The original 4-month contract has three product-version anchors. These are
+AIPLA's own versions, **not** related to the template's `v6.x.x` versions.
+
+> **The engagement did not end at v2.0.0-handover.** An extension awarded
+> 2026-08 runs to **at least April 2027 at 2.5 days/week**, inside AIPLA's
+> 3-year research programme. So 2026-09-15 is a **handover milestone**, not the
+> finish line: the handover package is delivered on that date *and its author
+> is still present afterwards*. Anything below that reads "outside the contract
+> window", "after M has left", or "P2/UCPH must take this over" was written
+> against the old boundary — re-read it before letting it foreclose scope.
+> See also the KU-wide AI push starting 2026-09-01
+> ([ku-ai-office-alignment.md](v2.0.0-handover/ku-ai-office-alignment.md)).
 
 | Version | Anchor date | Audience | Skill commitment |
 |---|---|---|---|
 | **v0.1.0-jutland** | 2026-05-27 (Wed) | JB + Aswin demo to ~2–3 Jutland stx teachers | Single physics-tutor skill, group-ID join, deployed dev URL |
 | **v1.0.0-pilot** | 2026-08-14 (Fri) | Danish teacher pilot — 10 teachers + K | 5 skills + curated sim library + teacher config + multimodal + BigQuery logs + per-class budgets enforced + **teacher monitoring & analysis (session rubric)** |
-| **v2.0.0-handover** | 2026-09-15 (Mon) | Final handover — co-owners run AIPLA after contract | v1 + runbooks + eval automation + DPIA + scoping-note Strand C delivered |
+| **v2.0.0-handover** | 2026-09-15 (Mon) | Handover milestone — co-owners can run AIPLA; M continues to at least 2027-04 | v1 + runbooks + eval automation + DPIA + scoping-note Strand C delivered |
 
 ## Current execution priority — pilot readiness (2026-07-24)
 
@@ -196,6 +206,7 @@ have explicit decision criteria for "when would we actually build this."
 | # | Doc (planned) | Why |
 |---|---|---|
 | 3.1 | `handover-package.md` | Index of all runbooks, deep-dive sessions, sign-offs. Per the handover-fan-out table in [timeline.qmd](file:///Users/mark/Documents/clients/cph-uni/timeline.qmd), each artefact has a named co-owner. This doc is the manifest. |
+| 3.4 | [aipla/v2.0.0-handover/ku-ai-office-alignment.md](v2.0.0-handover/ku-ai-office-alignment.md) | **P1, time-boxed — opened 2026-08-27.** KU committed 110M DKK / 3 years to AI from 2026-09-01 (first vice-rector for AI, AI office, taskforce, AI-labs) and KU IT is already building internal local-model infrastructure. M's extension to ≥2027-04 overlaps its entire formation phase. Decides whether AIPLA is a **tenant** of the KU platform, a **template** for it, or **parallel**. Perishable, not urgent: a new office's architecture is decided in its first months. Companion outward-facing note: [capability-floor-for-ku-ai-office.qmd](v2.0.0-handover/capability-floor-for-ku-ai-office.qmd). |
 | 3.2 | [aipla/v2.0.0-handover/self-hosting-and-terraform-handover.md](v2.0.0-handover/self-hosting-and-terraform-handover.md) | **P0 — opened 2026-06-17 on UCPH IT request.** The UCPH on-prem/hybrid **resource list**: accurate component inventory (corrects the out-of-date `self-hosting.qmd` stub — Firestore + Vertex RAG + Agent Engine, not the assumed Postgres), hybrid topologies, ADR-003-tier model sizing on real GPU hardware, and a portable two-layer Terraform deliverable (GCP modules + on-prem reference stack, shared variables). The costable half of the handover package. Workstream: [v2.0.0-handover/SEQUENCE.md](v2.0.0-handover/SEQUENCE.md). |
 
 ---
@@ -246,7 +257,8 @@ v0.1.0-jutland (1d) ──► 0.2 boldkast-mcp-app (1.5d, buffer-week over-deliv
                               2.1 strand-b-student-creator           2.2 strand-c-scoping-plan
                                           │                                     │
                                           └─────────────► 3.1 handover ◄────────┘
-                                                            (final: 2026-09-15)
+                                              (handover milestone: 2026-09-15;
+                                               engagement continues to ≥2027-04)
 ```
 
 ## Teacher monitoring + analysis critical path (committed v1 — promoted 2026-05-28)
@@ -314,4 +326,9 @@ the value above, surface to the user before continuing.
 - **2026-06-29 → 07-05** — Holiday freeze week 27. No new merges.
 - **2026-07-06 → 08-14** — v1 build (1.6–1.13). Strand B and C scoping kickoff.
 - **2026-08-14** — Teacher pilot starts.
-- **2026-09-15** — Final handover.
+- **2026-09-15** — Handover milestone. **Not the end of the engagement.**
+- **2026-09-01** — KU's 3-year, 110M DKK AI push begins; first vice-rector for
+  AI takes office. See [ku-ai-office-alignment.md](v2.0.0-handover/ku-ai-office-alignment.md).
+- **2026-09 → ≥2027-04** — Extension, 2.5 days/week. Multi-month workstreams
+  (UCPH on-prem migration, alignment with KU's central AI platform) are in scope
+  here, not carry-over.

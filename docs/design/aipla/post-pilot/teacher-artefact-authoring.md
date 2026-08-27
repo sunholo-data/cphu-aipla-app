@@ -1,7 +1,7 @@
 # Teacher artefact authoring — code-level editing with AI assist
 
 **Status:** Roadmap signal — **not committed to build**. Aspirational stub for feedback + Year-2 planning.
-**Target:** v2 / Year-2 — explicitly **outside** the current 4-month contract window (2026-05-15 → 2026-09-15).
+**Target:** v2 / Year-2. *(Written as "explicitly outside the 4-month contract window (2026-05-15 → 2026-09-15)". Revised 2026-08-27: the engagement now runs to at least April 2027 at 2.5 days/week, so **Year-2 is no longer synonymous with somebody-else's-problem**. This is now a scheduling question, not a scope-boundary one — re-rank it against the other post-pilot items on merit.)*
 **Audience:** AIPLA contract leadership; Year-2 / Year-3 research-programme owners.
 **Scope question:** *"Can a teacher fix a rendering bug in Boldkast or build a new sim themselves, without us writing every line?"*
 **Created:** 2026-05-25

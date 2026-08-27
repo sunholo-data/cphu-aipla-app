@@ -1,7 +1,7 @@
 # Teacher artefact parameters — bounded knobs without code
 
 **Status:** Roadmap signal — **not committed to build**. Stub for feedback collection from M / JB / AR.
-**Target:** v1.1 (post-pilot iteration), tentatively 2026-09-15 → end of contract or Year-2 carry-over.
+**Target:** v1.1 (post-pilot iteration), tentatively 2026-09-15 onward. *(Revised 2026-08-27: "end of contract" was 2026-09-15 when this was written; the engagement now runs to at least April 2027 at 2.5 days/week, so this is in-window rather than a Year-2 carry-over.)*
 **Audience:** AIPLA contract leadership + the 2026-08-14 pilot teacher cohort.
 **Scope question:** *"Can teachers tune Boldkast / LED Planck / future artefacts without us writing new code each time?"*
 **Created:** 2026-05-25
@@ -96,7 +96,7 @@ Build this if **any two of three** are true after the 2026-08-14 pilot starts:
 
 1. **Pilot feedback shows teachers want it.** Specifically: teachers asking *"can I change X"* about a knob that's plausibly schema-shaped (not a code-level fix).
 2. **The teaching-goal lever isn't sufficient.** Sessions where teaching goal is well-set but the artefact still doesn't fit the lesson — those imply parameter-shaped configurability is the gap.
-3. **AIPLA team capacity allows** before 2026-09-15 handover. If the pilot consumes the team, v1.1 slides to Year-2.
+3. **AIPLA team capacity allows.** *(Was "before 2026-09-15 handover"; revised 2026-08-27 — capacity is now 2.5 days/week to at least April 2027, so the constraint is competing priorities, not a cliff.)* If the pilot consumes the team, v1.1 slides.
 
 Skip this if **either**:
 - **Code-level editing wins outright** as the path forward (v2 jumps to T3 directly; parameters become a special case of code editing).

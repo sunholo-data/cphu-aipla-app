@@ -6,10 +6,10 @@
 
 <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes">
 
-<meta name="author" content="AIPLA project team">
+<meta name="author" content="AIPLA project team, Center for Digital Education">
 <meta name="dcterms.date" content="2026-08-27">
 
-<title>AIPLA — Internal Hosting Requirements</title>
+<title>Which AI model is good enough for which task</title>
 <style>
 code{white-space: pre-wrap;}
 span.smallcaps{font-variant: small-caps;}
@@ -2145,37 +2145,32 @@ vertical-align: -.125em;
     <h2 id="toc-title">Table of contents</h2>
    
   <ul>
-  <li><a href="#purpose" id="toc-purpose" class="nav-link active" data-scroll-target="#purpose">1. Purpose</a></li>
-  <li><a href="#what-the-application-is-in-brief" id="toc-what-the-application-is-in-brief" class="nav-link" data-scroll-target="#what-the-application-is-in-brief">2. What the application is (in brief)</a></li>
-  <li><a href="#data-residency-and-privacy-why-hosting-at-ucph-is-attractive" id="toc-data-residency-and-privacy-why-hosting-at-ucph-is-attractive" class="nav-link" data-scroll-target="#data-residency-and-privacy-why-hosting-at-ucph-is-attractive">3. Data residency and privacy (why hosting at UCPH is attractive)</a></li>
-  <li><a href="#hosting-options" id="toc-hosting-options" class="nav-link" data-scroll-target="#hosting-options">4. Hosting options</a></li>
-  <li><a href="#b.-relationship-to-the-ku-wide-ai-platform" id="toc-b.-relationship-to-the-ku-wide-ai-platform" class="nav-link" data-scroll-target="#b.-relationship-to-the-ku-wide-ai-platform">4b. Relationship to the KU-wide AI platform</a>
+  <li><a href="#the-question" id="toc-the-question" class="nav-link active" data-scroll-target="#the-question">1. The question</a></li>
+  <li><a href="#what-we-measured" id="toc-what-we-measured" class="nav-link" data-scroll-target="#what-we-measured">2. What we measured</a></li>
+  <li><a href="#what-we-found" id="toc-what-we-found" class="nav-link" data-scroll-target="#what-we-found">3. What we found</a>
   <ul class="collapse">
-  <li><a href="#option-1-aipla-as-a-tenant" id="toc-option-1-aipla-as-a-tenant" class="nav-link" data-scroll-target="#option-1-aipla-as-a-tenant">Option 1 — AIPLA as a tenant</a></li>
-  <li><a href="#option-2-aipla-as-a-template-for-the-ku-platform" id="toc-option-2-aipla-as-a-template-for-the-ku-platform" class="nav-link" data-scroll-target="#option-2-aipla-as-a-template-for-the-ku-platform">Option 2 — AIPLA as a template for the KU platform</a></li>
-  <li><a href="#option-3-parallel-systems" id="toc-option-3-parallel-systems" class="nav-link" data-scroll-target="#option-3-parallel-systems">Option 3 — parallel systems</a></li>
-  <li><a href="#what-we-suggest" id="toc-what-we-suggest" class="nav-link" data-scroll-target="#what-we-suggest">What we suggest</a></li>
+  <li><a href="#text-solving-exam-problems" id="toc-text-solving-exam-problems" class="nav-link" data-scroll-target="#text-solving-exam-problems">Text: solving exam problems</a></li>
+  <li><a href="#figures-reading-graphs-and-diagrams" id="toc-figures-reading-graphs-and-diagrams" class="nav-link" data-scroll-target="#figures-reading-graphs-and-diagrams">Figures: reading graphs and diagrams</a></li>
+  <li><a href="#the-combined-picture" id="toc-the-combined-picture" class="nav-link" data-scroll-target="#the-combined-picture">The combined picture</a></li>
   </ul></li>
-  <li><a href="#resource-list-what-ucph-would-provide" id="toc-resource-list-what-ucph-would-provide" class="nav-link" data-scroll-target="#resource-list-what-ucph-would-provide">5. Resource list (what UCPH would provide)</a></li>
-  <li><a href="#ai-models-and-gpu-sizing-the-main-open-decision" id="toc-ai-models-and-gpu-sizing-the-main-open-decision" class="nav-link" data-scroll-target="#ai-models-and-gpu-sizing-the-main-open-decision">6. AI models and GPU sizing (the main open decision)</a>
+  <li><a href="#three-findings-that-may-matter-beyond-physics" id="toc-three-findings-that-may-matter-beyond-physics" class="nav-link" data-scroll-target="#three-findings-that-may-matter-beyond-physics">4. Three findings that may matter beyond physics</a>
   <ul class="collapse">
-  <li><a href="#responsiveness-and-capacity" id="toc-responsiveness-and-capacity" class="nav-link" data-scroll-target="#responsiveness-and-capacity">Responsiveness and capacity</a></li>
+  <li><a href="#finding-1-for-this-task-class-self-hosting-is-already-viable" id="toc-finding-1-for-this-task-class-self-hosting-is-already-viable" class="nav-link" data-scroll-target="#finding-1-for-this-task-class-self-hosting-is-already-viable">Finding 1 — for this task class, self-hosting is already viable</a></li>
+  <li><a href="#finding-2-a-self-hosted-tier-needs-two-models-not-one" id="toc-finding-2-a-self-hosted-tier-needs-two-models-not-one" class="nav-link" data-scroll-target="#finding-2-a-self-hosted-tier-needs-two-models-not-one">Finding 2 — a self-hosted tier needs two models, not one</a></li>
+  <li><a href="#finding-3-published-benchmarks-will-mis-rank-your-candidates" id="toc-finding-3-published-benchmarks-will-mis-rank-your-candidates" class="nav-link" data-scroll-target="#finding-3-published-benchmarks-will-mis-rank-your-candidates">Finding 3 — published benchmarks will mis-rank your candidates</a></li>
   </ul></li>
-  <li><a href="#questions-for-ucph-it" id="toc-questions-for-ucph-it" class="nav-link" data-scroll-target="#questions-for-ucph-it">7. Questions for UCPH IT</a>
-  <ul class="collapse">
-  <li><a href="#a.-about-the-ku-platform-new-see-section-4b" id="toc-a.-about-the-ku-platform-new-see-section-4b" class="nav-link" data-scroll-target="#a.-about-the-ku-platform-new-see-section-4b">A. About the KU platform (new — see section 4b)</a></li>
-  <li><a href="#b.-about-hosting-aipla-itself" id="toc-b.-about-hosting-aipla-itself" class="nav-link" data-scroll-target="#b.-about-hosting-aipla-itself">B. About hosting AIPLA itself</a></li>
-  </ul></li>
-  <li><a href="#what-we-can-contribute" id="toc-what-we-can-contribute" class="nav-link" data-scroll-target="#what-we-can-contribute">8. What we can contribute</a></li>
+  <li><a href="#what-this-does-and-does-not-say-about-energy" id="toc-what-this-does-and-does-not-say-about-energy" class="nav-link" data-scroll-target="#what-this-does-and-does-not-say-about-energy">5. What this does and does not say about energy</a></li>
+  <li><a href="#limitations-please-read-before-citing" id="toc-limitations-please-read-before-citing" class="nav-link" data-scroll-target="#limitations-please-read-before-citing">6. Limitations — please read before citing</a></li>
+  <li><a href="#what-we-can-offer" id="toc-what-we-can-offer" class="nav-link" data-scroll-target="#what-we-can-offer">7. What we can offer</a></li>
   </ul>
-<div class="quarto-alternate-formats"><h2>Other Formats</h2><ul><li><a href="ucph-it-hosting-requirements.pdf"><i class="bi bi-file-pdf"></i>PDF</a></li><li><a href="ucph-it-hosting-requirements.docx"><i class="bi bi-file-word"></i>MS Word</a></li></ul></div></nav>
+<div class="quarto-alternate-formats"><h2>Other Formats</h2><ul><li><a href="capability-floor-for-ku-ai-office.pdf"><i class="bi bi-file-pdf"></i>PDF</a></li><li><a href="capability-floor-for-ku-ai-office.docx"><i class="bi bi-file-word"></i>MS Word</a></li></ul></div></nav>
 </div>
 <main class="content" id="quarto-document-content">
 
 <header id="title-block-header" class="quarto-title-block default">
 <div class="quarto-title">
-<h1 class="title">AIPLA — Internal Hosting Requirements</h1>
-<p class="subtitle lead">Resources and questions for University of Copenhagen IT</p>
+<h1 class="title">Which AI model is good enough for which task</h1>
+<p class="subtitle lead">Measured evidence from Danish upper-secondary physics — a note for the KU AI office</p>
 </div>
 
 
@@ -2185,7 +2180,7 @@ vertical-align: -.125em;
     <div>
     <div class="quarto-title-meta-heading">Author</div>
     <div class="quarto-title-meta-contents">
-             <p>AIPLA project team </p>
+             <p>AIPLA project team, Center for Digital Education </p>
           </div>
   </div>
     
@@ -2210,395 +2205,336 @@ vertical-align: -.125em;
 <i class="callout-icon"></i>
 </div>
 <div class="callout-title-container flex-fill">
-Draft for review — revised August 2026
+Why you are receiving this
 </div>
 </div>
 <div class="callout-body-container callout-body">
-<p>Prepared for the University of Copenhagen IT department. Alongside it we provide infrastructure-as-code (Terraform) and operational runbooks so your team can stand the system up against the resources below, or use them as a costing reference for your own deployment.</p>
-<p><strong>What changed in this revision.</strong> The first version (June 2026) asked one question: <em>can you host this?</em> Since then, two things have altered the picture. KU has committed <strong>110 million DKK over three years from 1 September 2026</strong> to integrating AI across research, teaching and administration, with a new AI office, a cross-faculty taskforce, AI-labs and a significant strengthening of KU IT — and KU IT is already building internal infrastructure with locally hosted models, aiming at a KU-wide AI platform where staff and students sign in with their KU credentials and choose a model appropriate to the task. Separately, AIPLA’s technical lead is engaged with the project to at least April 2027, so this document is no longer a farewell handover; it is the opening of a working conversation.</p>
-<p>That changes the question. <strong>Section 4b</strong> is new and is the part we would most like your response to: it sets out three possible relationships between AIPLA and the platform KU IT is building — AIPLA as a <em>tenant</em> of it, AIPLA as a <em>template</em> for it, or the two built in parallel. We have a view, but it is yours to decide.</p>
+<p>KU is standing up a university-wide AI platform on which staff and students will choose a model appropriate to the task, and has said it intends to look at what that means for the university’s energy footprint. Both decisions need the same underlying number: <strong>how good does a model have to be before it is good enough for a given task, and what is the smallest model that clears that bar?</strong></p>
+<p>AIPLA has been measuring exactly that for one subject since spring 2026. This note sets out what we found, what it cost to find out, and where the method transfers to other faculties. The physics numbers will not generalise. <strong>The method, and three of the findings, probably will.</strong></p>
 </div>
 </div>
-<section id="purpose" class="level2">
-<h2 class="anchored" data-anchor-id="purpose">1. Purpose</h2>
-<p>AIPLA (AI in Physics Learning and Assessment) is a three-year research programme at the Center for Digital Education studying how generative AI can be used in upper-secondary (stx) physics teaching and assessment. Its software platform has been running since May 2026, has been in live use with Danish gymnasium teachers since August 2026, and currently runs on Google Cloud in the EU (Finland region).</p>
-<p>This document has two purposes:</p>
-<ol type="1">
-<li><strong>To specify what the application needs to run inside University of Copenhagen infrastructure</strong> — fully on-premises or hybrid — so your team can assess feasibility and estimate effort. Sections 2–3 and 5–6.</li>
-<li><strong>To open a decision about the relationship between AIPLA and the KU-wide AI platform KU IT is now building.</strong> Section 4b. These are two efforts pointed at overlapping problems, and the cheapest outcome for both is almost certainly not to build them twice.</li>
-</ol>
-<p>It ends with a short set of questions we need answered to firm up either plan.</p>
-<p>The application is built on portable, open standards — Linux containers, PostgreSQL, S3-compatible object storage, OpenID Connect single sign-on, and open-source model inference. Migrating it is therefore a matter of providing equivalent infrastructure, <strong>not</strong> rewriting the software.</p>
+<section id="the-question" class="level2">
+<h2 class="anchored" data-anchor-id="the-question">1. The question</h2>
+<p>Most public discussion of model choice runs on leaderboards: model X scores 94% on some benchmark, model Y scores 72%, therefore use X. For an institution deciding what to host and what to route where, that framing is close to useless, for two reasons.</p>
+<p>First, the benchmarks measure the wrong thing. They are built to separate frontier models at the top of their range — graduate-level science, competition mathematics — and most real university tasks are nowhere near that hard. Summarising a reading, checking a citation format, or helping a first-year student through a mechanics problem does not need a model that can do graduate chemistry.</p>
+<p>Second, a leaderboard has no notion of <em>enough</em>. The useful question is not “which model is best” but <strong>“what is the cheapest, smallest, most locally hostable model that is still good enough for this particular task?”</strong> We call that the <strong>capability floor</strong> for a task, and it is the number that determines what you buy, what you host, what you route to the cloud, and what your energy bill looks like.</p>
 </section>
-<section id="what-the-application-is-in-brief" class="level2">
-<h2 class="anchored" data-anchor-id="what-the-application-is-in-brief">2. What the application is (in brief)</h2>
+<section id="what-we-measured" class="level2">
+<h2 class="anchored" data-anchor-id="what-we-measured">2. What we measured</h2>
+<p><strong>The task.</strong> Solving subquestions from Danish stx <em>Fysik A</em> written exams, graded against the official ministry answer keys. This is a real task with a real, defensible ground truth — not a proxy.</p>
+<p><strong>The panel.</strong> Eleven models on the text task and nine on the figure-reading task, spanning four deployment tiers:</p>
 <table class="caption-top table">
-<colgroup>
-<col style="width: 33%">
-<col style="width: 33%">
-<col style="width: 33%">
-</colgroup>
-<thead>
-<tr class="header">
-<th>Component</th>
-<th>What it does</th>
-<th>Standard technology</th>
-</tr>
-</thead>
-<tbody>
-<tr class="odd">
-<td>Web application</td>
-<td>Student chat interface + teacher dashboard</td>
-<td>Linux containers (Next.js + Python)</td>
-</tr>
-<tr class="even">
-<td>Database</td>
-<td>Application data + document-search index</td>
-<td>PostgreSQL (with the <code>pgvector</code> extension)</td>
-</tr>
-<tr class="odd">
-<td>Object storage</td>
-<td>Uploaded documents, optional lesson audio, caches</td>
-<td>S3-compatible (e.g. MinIO) or NFS</td>
-</tr>
-<tr class="even">
-<td>AI model inference</td>
-<td>The language models behind the tutor</td>
-<td>Open-weight models served on GPUs (or cloud API)</td>
-</tr>
-<tr class="odd">
-<td>Authentication</td>
-<td>Teacher sign-in; anonymous student join</td>
-<td>Institutional SSO (OIDC/SAML) + anonymous codes</td>
-</tr>
-<tr class="even">
-<td>Observability</td>
-<td>Logs, metrics, traces (kept internal)</td>
-<td>OpenTelemetry → Grafana/Prometheus or ELK</td>
-</tr>
-</tbody>
-</table>
-<p>The web application and database are modest in size; the <strong>GPU for model inference is the main new hardware consideration</strong>, and is covered in sections 5–6.</p>
-</section>
-<section id="data-residency-and-privacy-why-hosting-at-ucph-is-attractive" class="level2">
-<h2 class="anchored" data-anchor-id="data-residency-and-privacy-why-hosting-at-ucph-is-attractive">3. Data residency and privacy (why hosting at UCPH is attractive)</h2>
-<p>This is likely the strongest reason to host internally:</p>
-<ul>
-<li><strong>No personally identifying student data is collected — by design.</strong> Students join a lesson by entering an anonymous group code on a shared device. The system stores nothing that identifies an individual student: no names, no emails, no device identifiers. The “personal data” category is empty by construction, which substantially simplifies data-protection review.</li>
-<li><strong>Teachers</strong> sign in with institutional credentials (single sign-on).</li>
-<li><strong>Today</strong> all data is held in the EU (Google Cloud, Finland). <strong>Hosting at UCPH</strong> would place all data — including any optional, consent-gated lesson recordings — entirely on university infrastructure: the strongest possible data-sovereignty posture.</li>
-</ul>
-</section>
-<section id="hosting-options" class="level2">
-<h2 class="anchored" data-anchor-id="hosting-options">4. Hosting options</h2>
-<p>There is a spectrum between today’s full-cloud setup and a fully on-premises deployment. UCPH does not have to choose the extreme.</p>
-<table class="caption-top table">
-<colgroup>
-<col style="width: 20%">
-<col style="width: 20%">
-<col style="width: 20%">
-<col style="width: 20%">
-<col style="width: 20%">
-</colgroup>
-<thead>
-<tr class="header">
-<th></th>
-<th>A. Full cloud (today)</th>
-<th>B. Inference on-prem</th>
-<th>C. App + data on-prem <em>(recommended)</em></th>
-<th>D. Fully on-prem</th>
-</tr>
-</thead>
-<tbody>
-<tr class="odd">
-<td>AI models</td>
-<td>Cloud API</td>
-<td>UCPH GPUs serve most; cloud for overflow</td>
-<td>UCPH GPUs serve most; cloud API only for the hardest tasks</td>
-<td>All on UCPH GPUs</td>
-</tr>
-<tr class="even">
-<td>App + database + storage</td>
-<td>Cloud (EU)</td>
-<td>Cloud (EU)</td>
-<td><strong>UCPH</strong></td>
-<td>UCPH</td>
-</tr>
-<tr class="odd">
-<td>Student data leaves UCPH?</td>
-<td>Stays in EU cloud</td>
-<td>Stays in EU cloud</td>
-<td><strong>No</strong> (except a few model prompts)</td>
-<td><strong>No</strong></td>
-</tr>
-<tr class="even">
-<td>GPU hardware needed</td>
-<td>None</td>
-<td>High</td>
-<td>Medium (single high-end GPU)</td>
-<td>High (GPU cluster)</td>
-</tr>
-<tr class="odd">
-<td>Effort</td>
-<td>—</td>
-<td>Low–medium</td>
-<td>Medium</td>
-<td>High</td>
-</tr>
-</tbody>
-</table>
-<p><strong>Our recommendation is C</strong>: the application and all student data live at UCPH, while a small set of the most demanding AI tasks may still use an EU cloud model API until on-premises models are proven equal. <strong>B</strong> is a sensible stepping stone if GPUs arrive before the rest of the migration. <strong>D</strong> is the end state once a GPU cluster is in place.</p>
-</section>
-<section id="b.-relationship-to-the-ku-wide-ai-platform" class="level2">
-<h2 class="anchored" data-anchor-id="b.-relationship-to-the-ku-wide-ai-platform">4b. Relationship to the KU-wide AI platform</h2>
-<p>Section 4 asks <em>where AIPLA’s data and models sit</em>. This section asks a different question: <strong>what relationship should AIPLA have to the general AI platform KU IT is building?</strong></p>
-<p>We understand that KU IT is standing up internal infrastructure with locally hosted models, with the goal of a platform where staff and students sign in with their KU credentials and select a model suited to the task at hand. AIPLA already does a version of this for one discipline. There are three ways those two facts can be resolved, and the choice is KU’s.</p>
-<section id="option-1-aipla-as-a-tenant" class="level3">
-<h3 class="anchored" data-anchor-id="option-1-aipla-as-a-tenant">Option 1 — AIPLA as a tenant</h3>
-<p>AIPLA keeps its own application layer and consumes the KU platform for the two things that are genuinely institutional: <strong>model inference</strong> and <strong>teacher sign-on</strong>.</p>
-<ul>
-<li><strong>What KU provides:</strong> an inference endpoint (an OpenAI-compatible HTTP API is the common denominator, and is what both vLLM and Ollama serve), and an OIDC client registration.</li>
-<li><strong>What changes in AIPLA:</strong> the model router gains one more provider entry; teacher authentication points at the KU identity provider. Both are configuration-scale changes rather than rewrites — the router already dispatches across three provider families — and the student path needs nothing from KU at all, since students are anonymous by design.</li>
-<li><strong>Effort:</strong> low. Days rather than weeks.</li>
-<li><strong>What it does not solve:</strong> the two systems still duplicate everything above the model call — spend governance, logging, document handling, and the per-subject configuration surface.</li>
-</ul>
-<p>This is the sensible first step whatever else is decided, and we would like to do it regardless of the answer to the rest of this section.</p>
-</section>
-<section id="option-2-aipla-as-a-template-for-the-ku-platform" class="level3">
-<h3 class="anchored" data-anchor-id="option-2-aipla-as-a-template-for-the-ku-platform">Option 2 — AIPLA as a template for the KU platform</h3>
-<p>The KU platform takes AIPLA’s application layer as its starting point, and AIPLA becomes the physics instance of it rather than a separate system.</p>
-<p>This is worth considering for one specific reason: <strong>AIPLA is already a fork of a general-purpose platform, not a bespoke physics application.</strong> It was built by forking a domain-neutral template and adding a physics configuration layer on top. The separation between “the platform” and “one subject’s use of it” is not a retrospective claim — it is how the code is organised, and the existence of the fork is evidence that it separates cleanly.</p>
-<p>Concretely, the following already exist and are in live use. They are the parts a general institutional platform needs, rather than the parts specific to physics:</p>
-<table class="caption-top table">
-<colgroup>
-<col style="width: 50%">
-<col style="width: 50%">
-</colgroup>
-<thead>
-<tr class="header">
-<th>Capability</th>
-<th>State today</th>
-</tr>
-</thead>
-<tbody>
-<tr class="odd">
-<td><strong>Model routing across providers</strong></td>
-<td>Dispatches across Gemini (Vertex), Claude (Vertex), and any OpenAI-compatible endpoint. Which model serves which task is a configuration field, not code.</td>
-</tr>
-<tr class="even">
-<td><strong>Per-task, per-user spend governance</strong></td>
-<td>A register of who may spend, monthly caps in real currency, tiers, expiry dates, and per-task cost multipliers. Enforced at request time rather than reconciled after the fact. This is usually the hardest part of an institutional AI platform to retrofit.</td>
-</tr>
-<tr class="odd">
-<td><strong>Two identity modes</strong></td>
-<td>Institutional single sign-on for staff, plus a fully anonymous join path for people who must not be identified. Most platforms have only the first.</td>
-</tr>
-<tr class="even">
-<td><strong>Configuration by subject, not by code</strong></td>
-<td>Each use case is a plain-text configuration document — instructions, tools, model tier, budget policy — versioned in a repository and deployed automatically. A department can author one without a developer.</td>
-</tr>
-<tr class="odd">
-<td><strong>Document handling</strong></td>
-<td>Parsing across 13 deterministic formats plus AI extraction, and retrieval-augmented search over an institutional document corpus with per-corpus access control.</td>
-</tr>
-<tr class="even">
-<td><strong>Interactive content</strong></td>
-<td>Sandboxed browser applications (simulations, interactive exercises) inside an enforced security envelope — content-security policy, iframe sandboxing, size limits, no external network access.</td>
-</tr>
-<tr class="odd">
-<td><strong>Observability and research data</strong></td>
-<td>OpenTelemetry traces, structured logs, and an anonymised interaction log in a queryable analytics store — designed for research use from the start rather than added afterwards.</td>
-</tr>
-<tr class="even">
-<td><strong>Open protocols</strong></td>
-<td>Speaks MCP, A2A, AG-UI and A2UI, so it interoperates with tools built elsewhere instead of requiring everything to be built inside it.</td>
-</tr>
-<tr class="odd">
-<td><strong>Infrastructure as code</strong></td>
-<td>Terraform across three environments with artefact-based promotion, plus a local mode that runs the entire system with no cloud dependency.</td>
-</tr>
-</tbody>
-</table>
-<p>There is also a governance argument, which we raise tentatively because it is not ours to make. If the intention is that <strong>each subject works out for itself what AI means for its teaching</strong>, then a platform whose unit of configuration is <em>a subject’s own plain-text document</em> is the technical expression of that policy, where a platform that centralises those decisions is not. AIPLA is a worked example of one subject doing exactly this, with a live teacher pilot behind it.</p>
-<p><strong>What we would say against this option, plainly:</strong></p>
-<ul>
-<li><strong>Scale is unproven.</strong> AIPLA is sized and tested for roughly ten teachers and their classes. Nothing in the architecture forbids institutional scale, but nothing in its history demonstrates it either. A KU-wide platform is a different engineering problem and we would not want that difference glossed over.</li>
-<li><strong>It carries migration debt.</strong> Three components were chosen for speed of delivery and are specific to the current cloud: the application database, the retrieval store, and the session store. Our internal migration notes cost this honestly. That debt is tolerable in a research prototype and less tolerable in a platform other people build on.</li>
-<li><strong>It is a research prototype, not a supported product.</strong> It has one principal developer. Adopting it means either resourcing it as a platform or accepting that constraint knowingly.</li>
-<li><strong>We have an interest.</strong> The same person maintains AIPLA and the template it derives from. We are not a neutral party recommending ourselves, and this section should be weighed accordingly. The licensing and ownership position of the underlying template would need to be settled before anyone built on it.</li>
-</ul>
-</section>
-<section id="option-3-parallel-systems" class="level3">
-<h3 class="anchored" data-anchor-id="option-3-parallel-systems">Option 3 — parallel systems</h3>
-<p>KU builds its platform; AIPLA continues as it is. This is a legitimate choice. It is the lowest-coordination path, and it may simply be that KU IT’s requirements, procurement position, or existing commitments make the other options moot.</p>
-<p>Its cost is duplication in the layers that are institutional rather than disciplinary: spend governance, logging, document handling, single sign-on, and the guidance that has to be written for each of them. If this is the direction, we would like to know early, because it changes what is worth building on the AIPLA side.</p>
-</section>
-<section id="what-we-suggest" class="level3">
-<h3 class="anchored" data-anchor-id="what-we-suggest">What we suggest</h3>
-<p><strong>Option 1 in the near term, and a conversation about Option 2.</strong> The tenancy work is small, useful under every scenario, and would give both sides a concrete integration to learn from before any larger decision is taken. Whether AIPLA is also a useful starting point for the wider platform is a question we would rather explore with your team than assert.</p>
-</section>
-</section>
-<section id="resource-list-what-ucph-would-provide" class="level2">
-<h2 class="anchored" data-anchor-id="resource-list-what-ucph-would-provide">5. Resource list (what UCPH would provide)</h2>
-<p>Quantities depend on the hosting option chosen (section 4). Figures are for pilot scale (roughly 10 teachers and their classes) and are order-of-magnitude for planning.</p>
-<p><strong>Compute (application — modest):</strong></p>
-<ul>
-<li>Container hosting: a Kubernetes namespace <strong>or</strong> 1–2 virtual machines running Docker. Approximately <strong>4 vCPU / 8 GB RAM total</strong> for the web app, backend, and a small document-parsing service.</li>
-<li>A container image registry and a CI runner for builds.</li>
-</ul>
-<p><strong>GPU (AI model inference — the main hardware decision; see section 6):</strong></p>
-<ul>
-<li><strong>Option C (recommended):</strong> one high-end GPU (e.g. <strong>NVIDIA H100 80 GB</strong>) for the main model — comfortably runs a current single-GPU open-weight model such as Qwen 3.6 (27–35B)<a href="#fn1" class="footnote-ref" id="fnref1" role="doc-noteref"><sup>1</sup></a> — plus one smaller GPU (e.g. <strong>L4 / A10, 24 GB</strong>) for text-search embeddings and speech-to-text.</li>
-<li><strong>Option D (full sovereignty):</strong> a cluster of <strong>≈8 × H200</strong> to serve a frontier-class open-weight model (e.g. GLM 5.2, ~744B parameters, at FP8 — roughly 1.1 TB aggregate VRAM)<a href="#fn2" class="footnote-ref" id="fnref2" role="doc-noteref"><sup>2</sup></a>, plus the smaller embeddings / speech GPU.</li>
-<li>Inference is served with standard open-source software (vLLM or Ollama).</li>
-</ul>
-<p><strong>Database:</strong></p>
-<ul>
-<li><strong>PostgreSQL 15+ with the <code>pgvector</code> extension</strong> — serves application data, document-search vectors, session state, and analytics. Managed Postgres if available; otherwise a standard (ideally highly-available) instance.</li>
-</ul>
-<p><strong>Object storage:</strong></p>
-<ul>
-<li><strong>S3-compatible storage (e.g. MinIO) or NFS</strong> — uploaded documents, optional lesson recordings, caches. Tens of GB at pilot scale; audio dominates if recording is enabled.</li>
-</ul>
-<p><strong>Identity:</strong></p>
-<ul>
-<li><strong>Teacher single sign-on</strong> from the UCPH identity provider (OpenID Connect or SAML). Students require <strong>no</strong> identity provider (anonymous codes only).</li>
-</ul>
-<p><strong>Supporting services:</strong></p>
-<ul>
-<li>A secrets store (e.g. HashiCorp Vault or Kubernetes secrets).</li>
-<li>A logging / metrics stack (Grafana + Prometheus / Loki, or ELK).</li>
-<li>Ingress with TLS certificates; a policy decision on whether any external model API calls are permitted (relevant only for hybrid options B / C).</li>
-</ul>
-</section>
-<section id="ai-models-and-gpu-sizing-the-main-open-decision" class="level2">
-<h2 class="anchored" data-anchor-id="ai-models-and-gpu-sizing-the-main-open-decision">6. AI models and GPU sizing (the main open decision)</h2>
-<p>During the pilot the application uses top-tier commercial models for quality. For self-hosting, these are replaced by <strong>open-weight models</strong> run on UCPH GPUs. The model choice is being validated by an ongoing capability evaluation against real physics-tutoring tasks; the <strong>hardware to provision depends on which hosting option (section 4) UCPH chooses</strong>:</p>
-<table class="caption-top table">
-<colgroup>
-<col style="width: 25%">
-<col style="width: 25%">
-<col style="width: 25%">
-<col style="width: 25%">
-</colgroup>
 <thead>
 <tr class="header">
 <th>Tier</th>
-<th>Example open-weight model</th>
-<th>Hardware</th>
-<th>Suitable for</th>
+<th>Where it runs</th>
+<th>Data leaves the building?</th>
 </tr>
 </thead>
 <tbody>
 <tr class="odd">
-<td>Single GPU (Option C floor)</td>
-<td><strong>Qwen 3.6</strong> (27B dense, or 35B-A3B MoE)</td>
-<td>1 × H100 / A100 80 GB (runs at 4-bit on a 24 GB GPU)</td>
-<td>Tutor chat, document tasks; the realistic starting point</td>
+<td>1</td>
+<td>Commercial API (EU regions)</td>
+<td>Yes — the prompt does</td>
 </tr>
 <tr class="even">
-<td>GPU cluster (Option D)</td>
-<td><strong>GLM 5.2</strong> (~744B params / 39B active MoE, 1M context, MIT-licensed — currently the strongest open-weight model)</td>
-<td>≈8 × H200 at FP8 (~1.1 TB aggregate VRAM); BF16 needs more</td>
-<td>All tasks including the hardest reasoning; whole-institution scale</td>
+<td>2</td>
+<td>Multi-GPU server or small cluster, self-hosted</td>
+<td>No</td>
 </tr>
 <tr class="odd">
-<td>Supporting GPU</td>
-<td>Embeddings + speech-to-text (Whisper)</td>
-<td>1 × 24 GB GPU (or CPU for embeddings)</td>
-<td>Document search + voice</td>
+<td>3</td>
+<td>Single GPU or a well-specified workstation, self-hosted</td>
+<td>No</td>
+</tr>
+<tr class="even">
+<td>4</td>
+<td>Laptop, tablet or phone</td>
+<td>No</td>
 </tr>
 </tbody>
 </table>
-<p>We are happy to walk your team through the evaluation results and recommend a specific configuration once your GPU availability is known.</p>
-<section id="responsiveness-and-capacity" class="level3">
-<h3 class="anchored" data-anchor-id="responsiveness-and-capacity">Responsiveness and capacity</h3>
-<p>Two figures matter, and they answer different questions:</p>
-<ul>
-<li><strong>Per-student streaming speed</strong> — how fast a single reply appears. Human reading is roughly 5–10 tokens per second, so anything above ~20–30 tokens per second per student already feels immediate. Both recommended setups exceed this comfortably for an individual user.</li>
-<li><strong>Aggregate throughput</strong> — the total tokens per second served across <em>all</em> students at once (the serving software batches requests continuously). This is the capacity figure.</li>
-</ul>
-<p>Recent published benchmarks put a single H100 serving a Qwen-3-class model at roughly <strong>2,000+ tokens/second aggregate</strong><a href="#fn3" class="footnote-ref" id="fnref3" role="doc-noteref"><sup>3</sup></a>, and an 8 × H200 cluster serving GLM 5.2 at about <strong>1,200 tokens/second</strong><a href="#fn4" class="footnote-ref" id="fnref4" role="doc-noteref"><sup>4</sup></a> (with speculative decoding). In practice that means a single H100 comfortably serves a full classroom concurrently, while each student’s reply still streams faster than they can read.</p>
+<p><strong>The method.</strong> Each model answers into an enforced <code>{value, unit}</code> schema with an explicit “I don’t know” option, so a text-only model <em>declines</em> a question that needs a graph rather than inventing a reading. Grading is a deterministic value-and-unit comparison against the key, plus a language-model judge for the cases where a numeric compare is insufficient. Every model was run <strong>five times</strong>; we report means and standard deviations.</p>
+<p><strong>The threshold.</strong> We set the bar at <strong>80%</strong> — below that, a tutoring system produces enough confident errors to be a liability rather than a help. The bar is a judgement, and a different task class deserves a different one. Setting it explicitly is the point.</p>
+</section>
+<section id="what-we-found" class="level2">
+<h2 class="anchored" data-anchor-id="what-we-found">3. What we found</h2>
+<section id="text-solving-exam-problems" class="level3">
+<h3 class="anchored" data-anchor-id="text-solving-exam-problems">Text: solving exam problems</h3>
+<p>Means over five runs, 33 text-solvable subquestions from the 2023–24 gold sets:</p>
 <table class="caption-top table">
 <colgroup>
-<col style="width: 33%">
-<col style="width: 33%">
-<col style="width: 33%">
+<col style="width: 25%">
+<col style="width: 25%">
+<col style="width: 25%">
+<col style="width: 25%">
 </colgroup>
 <thead>
 <tr class="header">
-<th>Setup</th>
-<th>Aggregate throughput</th>
-<th>Per-student feel</th>
+<th>Model</th>
+<th>Tier</th>
+<th>Score (mean ± sd)</th>
+<th>Clears 80%</th>
 </tr>
 </thead>
 <tbody>
 <tr class="odd">
-<td>Option C — Qwen 3.6 on 1 × H100</td>
-<td>~2,000+ tokens/s</td>
-<td>tens of tokens/s (well above reading speed)</td>
+<td>Claude (sonnet / opus / haiku)</td>
+<td>1 — cloud API</td>
+<td>93–96 ± ≤2</td>
+<td>yes</td>
 </tr>
 <tr class="even">
-<td>Option D — GLM 5.2 on 8 × H200 (FP8)</td>
-<td>~1,200 tokens/s</td>
-<td>~30–60 tokens/s</td>
+<td>gemini-3.5-flash</td>
+<td>1 — cloud API</td>
+<td>95 ± 2</td>
+<td>yes</td>
+</tr>
+<tr class="odd">
+<td><strong>deepseek-v4-flash</strong> (open)</td>
+<td><strong>2 — multi-GPU, self-hosted</strong></td>
+<td><strong>91 ± 2</strong></td>
+<td><strong>yes</strong></td>
+</tr>
+<tr class="even">
+<td><strong>qwen3-32b</strong> (open)</td>
+<td><strong>3 — single GPU, self-hosted</strong></td>
+<td><strong>88 ± 6</strong></td>
+<td><strong>yes</strong></td>
+</tr>
+<tr class="odd">
+<td>gemini-2.5-flash</td>
+<td>1 — cloud API</td>
+<td>87 ± 3</td>
+<td>yes</td>
+</tr>
+<tr class="even">
+<td><strong>qwen3-8b</strong> (open)</td>
+<td><strong>4 — laptop-class</strong></td>
+<td><strong>83 ± 3</strong></td>
+<td><strong>yes, borderline</strong></td>
+</tr>
+<tr class="odd">
+<td>qwen3-next-80b-a3b (open)</td>
+<td>2</td>
+<td>75 ± 6</td>
+<td>no</td>
+</tr>
+<tr class="even">
+<td>gemini-2.5-flash-lite</td>
+<td>1 — cloud API</td>
+<td>73 ± 4</td>
+<td>no</td>
+</tr>
+<tr class="odd">
+<td>qwen3-30b-a3b (open)</td>
+<td>3</td>
+<td>68 ± 9</td>
+<td>no</td>
+</tr>
+<tr class="even">
+<td>mistral-small-24b (open)</td>
+<td>3</td>
+<td>67 ± 6</td>
+<td>no</td>
+</tr>
+<tr class="odd">
+<td>gemma-3-27b (open)</td>
+<td>3</td>
+<td>64 ± 3</td>
+<td>no</td>
 </tr>
 </tbody>
 </table>
-<p><strong>Making responses faster (no extra hardware).</strong> The largest gains for a tutoring workload come from software, not silicon:</p>
+</section>
+<section id="figures-reading-graphs-and-diagrams" class="level3">
+<h3 class="anchored" data-anchor-id="figures-reading-graphs-and-diagrams">Figures: reading graphs and diagrams</h3>
+<p>The questions a text-only model has to decline. Means over five runs, 8 items, vision-capable models only:</p>
+<table class="caption-top table">
+<colgroup>
+<col style="width: 25%">
+<col style="width: 25%">
+<col style="width: 25%">
+<col style="width: 25%">
+</colgroup>
+<thead>
+<tr class="header">
+<th>Model</th>
+<th>Tier</th>
+<th>Score (mean ± sd)</th>
+<th>Clears 80%</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td>gemini-3.5-flash</td>
+<td>1 — cloud API</td>
+<td>98 ± 5</td>
+<td>yes</td>
+</tr>
+<tr class="even">
+<td><strong>qwen3-vl-235b-a22b</strong> (open)</td>
+<td><strong>2 — multi-GPU, self-hosted</strong></td>
+<td><strong>95 ± 6</strong></td>
+<td><strong>yes</strong></td>
+</tr>
+<tr class="odd">
+<td>gemini-2.5-flash</td>
+<td>1 — cloud API</td>
+<td>93 ± 6</td>
+<td>yes</td>
+</tr>
+<tr class="even">
+<td><strong>qwen3-vl-32b</strong> (open)</td>
+<td><strong>3 — single GPU, self-hosted</strong></td>
+<td><strong>88 ± 0</strong></td>
+<td><strong>yes</strong></td>
+</tr>
+<tr class="odd">
+<td>glm-4.6v (open)</td>
+<td>3</td>
+<td>83 ± 6</td>
+<td>yes</td>
+</tr>
+<tr class="even">
+<td>gpt-5-mini</td>
+<td>1 — cloud API</td>
+<td>75 ± 0</td>
+<td>no</td>
+</tr>
+<tr class="odd">
+<td>qwen3-vl-8b (open)</td>
+<td>4 — laptop-class</td>
+<td>63 ± 8</td>
+<td>no</td>
+</tr>
+<tr class="even">
+<td>gemma-3-27b (open, general-purpose)</td>
+<td>3</td>
+<td>60 ± 18</td>
+<td>no</td>
+</tr>
+<tr class="odd">
+<td>gemini-2.5-flash-lite</td>
+<td>1 — cloud API</td>
+<td>40 ± 9</td>
+<td>no</td>
+</tr>
+</tbody>
+</table>
+</section>
+<section id="the-combined-picture" class="level3">
+<h3 class="anchored" data-anchor-id="the-combined-picture">The combined picture</h3>
+<p>A real deployment must handle both kinds of question, so <strong>a tier is only as capable as its weaker modality:</strong></p>
+<table class="caption-top table">
+<thead>
+<tr class="header">
+<th>Tier</th>
+<th>Text</th>
+<th>Figures</th>
+<th>Tier capability</th>
+<th>Clears 80%</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td>1 — cloud API</td>
+<td>93–96</td>
+<td>98</td>
+<td><strong>93</strong></td>
+<td>yes</td>
+</tr>
+<tr class="even">
+<td>2 — multi-GPU, self-hosted</td>
+<td>91</td>
+<td>95</td>
+<td><strong>91</strong></td>
+<td>yes</td>
+</tr>
+<tr class="odd">
+<td>3 — single GPU, self-hosted</td>
+<td>88</td>
+<td>88</td>
+<td><strong>88</strong></td>
+<td>yes</td>
+</tr>
+<tr class="even">
+<td>4 — laptop / phone</td>
+<td>83</td>
+<td>63</td>
+<td><strong>63</strong></td>
+<td>no — vision-limited</td>
+</tr>
+</tbody>
+</table>
+</section>
+</section>
+<section id="three-findings-that-may-matter-beyond-physics" class="level2">
+<h2 class="anchored" data-anchor-id="three-findings-that-may-matter-beyond-physics">4. Three findings that may matter beyond physics</h2>
+<section id="finding-1-for-this-task-class-self-hosting-is-already-viable" class="level3">
+<h3 class="anchored" data-anchor-id="finding-1-for-this-task-class-self-hosting-is-already-viable">Finding 1 — for this task class, self-hosting is already viable</h3>
+<p>All three server-class tiers clear the bar on both modalities. A <strong>single GPU</strong> running open-weight models scores 88 on both text and figures — comfortably useful, with no data leaving the building and no per-query cost. This is not a projection about 2027; it is a measurement from July 2026.</p>
+<p>The corollary matters as much: <strong>the cloud frontier is not required for this task.</strong> Well-posed upper-secondary physics is not frontier-hard. Where a task turns out not to be frontier-hard, paying frontier prices for it is a choice, not a necessity — and the only way to know which tasks those are is to measure them.</p>
+<p>The remaining gap is on-device, and it is <strong>figure-reading, not physics</strong>. A laptop-class model already solves the text at the threshold (83); its vision counterpart trails at 63. That gap is bounded by device memory rather than by model quality, so it will close on hardware refresh cycles rather than on model releases.</p>
+</section>
+<section id="finding-2-a-self-hosted-tier-needs-two-models-not-one" class="level3">
+<h3 class="anchored" data-anchor-id="finding-2-a-self-hosted-tier-needs-two-models-not-one">Finding 2 — a self-hosted tier needs two models, not one</h3>
+<p>This is the most immediately actionable finding for a model catalogue. The strongest open text models are <strong>architecturally text-only</strong> — they cannot accept an image at all. The strongest open vision-language models <em>can</em> do text, but score <strong>12 to 36 points worse</strong> than the text specialist at the same tier, every one of them falling below the threshold. Multimodal training trades away reasoning quality.</p>
+<p><strong>So a self-hosted tier serves a text model <em>and</em> a vision-language model behind one endpoint, routed by whether the question carries a figure.</strong> Provisioning for one model per tier will under-serve one modality or the other, and which one fails will not be obvious from a leaderboard.</p>
+<p>Note also that a <em>general-purpose</em> open model given an image performs badly and erratically (60 ± 18, with hard failures) where a dedicated vision-language model of the same size is stable at 88 ± 0. “Our model handles images” and “our model handles images well” are different claims.</p>
+</section>
+<section id="finding-3-published-benchmarks-will-mis-rank-your-candidates" class="level3">
+<h3 class="anchored" data-anchor-id="finding-3-published-benchmarks-will-mis-rank-your-candidates">Finding 3 — published benchmarks will mis-rank your candidates</h3>
+<p>We tried to shortcut this work by using public benchmark scores, and it did not survive contact with measurement. Three specific failures, each of which would have led to a wrong procurement decision:</p>
 <ul>
-<li><strong>Tiered model routing</strong> — most tutoring turns are handled by the smaller, faster model (Qwen 3.6), reserving the large model for genuinely hard reasoning. The typical reply is then both faster and cheaper.</li>
-<li><strong>Prefix caching</strong> — the tutor’s fixed instructions and lesson context are identical every turn, so they are processed once and cached, sharply reducing the time to the first word of a reply.</li>
-<li><strong>Speculative decoding</strong> (e.g. EAGLE) — 1.5–3× faster reply streaming; the GLM 5.2 figure above already uses it.</li>
-<li><strong>FP8 precision</strong> — already assumed in the sizing above.</li>
+<li><strong>Some widely-cited figures do not exist.</strong> Scores we found repeated across technical blogs for one major open model turned out to have no basis in its technical report, and appeared in mutually inconsistent versions across sources. We removed them.</li>
+<li><strong>Vendor self-reported scores implied implausible generational jumps</strong> — up to 42 points over the previous generation’s independently verified figure — and had no independent confirmation. On our own task, the models concerned landed far below their published claims.</li>
+<li><strong>Even honest benchmarks rank the cheap candidates wrongly.</strong> Our scores correlate with the closest public benchmark at roughly r = 0.73 — enough to confirm we are measuring the same underlying capability, not enough to substitute for measurement. The clearest case: the model with the <em>lowest</em> public benchmark score of all the open models scored <strong>83</strong> on our task, because the public benchmark is graduate-level and our task is not. A benchmark-based shortlist would have eliminated the cheapest viable self-hosting candidate.</li>
 </ul>
-<p>Newer or additional hardware (e.g. B200) raises both numbers further, but is only needed if concurrency or large-model latency must improve beyond the above.</p>
+<p>The general form of this: <strong>public benchmarks are calibrated for the top of the range, and most institutional tasks are not at the top of the range.</strong> For any task where the choice actually matters, a small task-specific evaluation beats a large general one.</p>
+<p>There is a methodological point attached. Our first version of this table used single runs. Repeating each model five times moved individual scores by up to 15 points and reshuffled the middle of the field, and <strong>open-weight models are markedly noisier than commercial ones</strong>. Any single-run comparison at this resolution — including most of what is published in blog posts — should be treated as unreliable.</p>
 </section>
 </section>
-<section id="questions-for-ucph-it" class="level2">
-<h2 class="anchored" data-anchor-id="questions-for-ucph-it">7. Questions for UCPH IT</h2>
-<p>The June 2026 version of this document asked whether you could host AIPLA. Since you are already building internal model infrastructure, the useful questions have changed. <strong>Group A is the one we would most like answered</strong>; group B remains relevant if AIPLA is hosted separately from the KU platform.</p>
-<section id="a.-about-the-ku-platform-new-see-section-4b" class="level3">
-<h3 class="anchored" data-anchor-id="a.-about-the-ku-platform-new-see-section-4b">A. About the KU platform (new — see section 4b)</h3>
-<ol type="1">
-<li><strong>Inference access.</strong> Will the KU platform expose model inference to other university applications, or only to end users through its own interface? If the former, over what interface — an OpenAI-compatible HTTP API, or something else? What would AIPLA need to do to be admitted as a consumer?</li>
-<li><strong>Model catalogue.</strong> Which open-weight models are you planning to serve, at what sizes, and on what hardware? We have measured several candidates against real Danish stx physics tasks and are happy to share the results, which may be useful to you independently of AIPLA (section 8).</li>
-<li><strong>Single sign-on.</strong> Which protocol does the UCPH identity provider support for application integration — OpenID Connect or SAML? Can AIPLA register as a client, and what is the process?</li>
-<li><strong>Platform scope.</strong> How far up the stack does the KU platform intend to go? Model access and sign-on only, or also spend governance, document corpora, logging, and per-department configuration? This determines whether AIPLA is a tenant, a template, or a parallel system (section 4b), and it is the single answer that most changes what we build next.</li>
-<li><strong>Timing.</strong> When do you expect inference and sign-on to be available to other applications, even in a limited form? We would rather integrate early against something incomplete than late against something finished.</li>
-</ol>
+<section id="what-this-does-and-does-not-say-about-energy" class="level2">
+<h2 class="anchored" data-anchor-id="what-this-does-and-does-not-say-about-energy">5. What this does and does not say about energy</h2>
+<p>We have measured capability, not energy. But capability per tier is the <em>precondition</em> for an energy policy, because it converts a values question into an engineering one.</p>
+<p>Once you know that a task class clears its bar on a single self-hosted GPU, then routing that task to a frontier cloud model is a measurable, avoidable cost — and the argument for right-sizing stops being an appeal to restraint and becomes a straightforward efficiency claim. Once you know that a task genuinely needs the frontier, you can pay for it without apology.</p>
+<p>What this note supports, then, is a defensible position of the form: <em>for these task classes we use the smallest tier that clears the bar, and here is the evidence for where that bar sits.</em> What it does not supply is the energy measurement itself. That would need per-query energy figures for the deployed hardware, which we would be glad to help scope.</p>
 </section>
-<section id="b.-about-hosting-aipla-itself" class="level3">
-<h3 class="anchored" data-anchor-id="b.-about-hosting-aipla-itself">B. About hosting AIPLA itself</h3>
-<ol start="6" type="1">
-<li><strong>GPU hosting.</strong> Do you have, or can you provision, GPU hosting for model inference — a single high-end GPU (Option C) or a cluster (Option D)? What specification, and on what timeline? If the KU platform’s GPUs serve this need, questions 6 and 1 are the same question.</li>
-<li><strong>Containers and database.</strong> Do you offer Kubernetes or VM hosting, and a managed <strong>PostgreSQL</strong> (ideally with the <code>pgvector</code> extension)? Is S3-compatible object storage available?</li>
-<li><strong>Data-protection precedent.</strong> Is there an existing pattern for student-facing services that has already cleared your data-protection review, which we could align with rather than starting from scratch?</li>
-<li><strong>External connectivity (hybrid only).</strong> For a hybrid setup, is it acceptable for the application to call an <strong>EU-hosted</strong> commercial model API for a small set of the hardest tasks (sending only the prompt, no student identity), or must the deployment be fully self-contained?</li>
-</ol>
-</section>
-</section>
-<section id="what-we-can-contribute" class="level2">
-<h2 class="anchored" data-anchor-id="what-we-can-contribute">8. What we can contribute</h2>
+<section id="limitations-please-read-before-citing" class="level2">
+<h2 class="anchored" data-anchor-id="limitations-please-read-before-citing">6. Limitations — please read before citing</h2>
 <ul>
-<li>This requirements document and the accompanying migration notes.</li>
-<li><strong>Infrastructure-as-code (Terraform)</strong> plus operational runbooks, so your team can stand the system up against the resources above — or read them as a costing reference for your own deployment.</li>
-<li><strong>A capability evaluation of open-weight models on real Danish upper-secondary physics tasks</strong>, refreshed as new models release. As of July 2026 it measures eleven models on exam problem-solving and nine on figure-reading, in five runs each, against published ministry answer keys. Two findings look relevant to the KU model catalogue independently of AIPLA: a single-GPU open model already clears our usefulness threshold on both text and figures, and <strong>no single open model does both well</strong> — a self-hosted tier needs a text model and a vision-language model, routed by whether the question carries a figure. This is also the evidence base for right-sizing model choice per task, which bears directly on both cost and energy use. A standalone summary is available.</li>
-<li>A walkthrough session with your team to answer questions and agree the target configuration.</li>
+<li><strong>Provisional.</strong> Five runs per model, 33 text items and 8 figure items. The rank order and the “tiers 1–3 clear the bar” conclusion are robust to the noise. Individual gaps of less than one standard deviation are not. Read the bands, not the ranks — especially on the figure axis, where a single item is worth 12.5 points.</li>
+<li><strong>Machine-graded, not yet human-audited.</strong> A physics teacher’s calibration sample against a subset of items is the next step and would also pin down how much of the variance is the grader’s own.</li>
+<li><strong>One task class, one subject, one country’s curriculum.</strong> Physics exam problems have unusually clean ground truth. Essay feedback, literature synthesis, or code review would each need their own threshold and their own items, and would very likely place the floor at a different tier.</li>
+<li><strong>Models move.</strong> This is a July 2026 snapshot. The evaluation is versioned and re-runnable precisely because the answer has a shelf life of months.</li>
 </ul>
-<p><strong>We are not on a deadline for this.</strong> AIPLA’s technical lead is engaged with the project to at least April 2027, and the system continues to run on EU cloud with no disruption in the meantime. Integration or migration can proceed at whatever pace suits your own build. What we would most like in the near term is a conversation about section 4b, early enough to be useful to both sides.</p>
+</section>
+<section id="what-we-can-offer" class="level2">
+<h2 class="anchored" data-anchor-id="what-we-can-offer">7. What we can offer</h2>
+<p>The evaluation is a versioned dataset plus a runner, built to be re-run as new models release, and it is not physics-specific in its machinery — only in its items.</p>
+<ul>
+<li><strong>The current results and the runner</strong>, for KU’s own model-catalogue work.</li>
+<li><strong>Help defining a capability floor for another faculty’s task classes.</strong> The expensive part is not the software; it is deciding what “good enough” means for a given task and assembling thirty or so items with defensible ground truth. That is roughly a week of a domain expert’s attention per task class, and it is the sort of concrete, bounded piece of work the AI-labs appear designed to support.</li>
+<li><strong>A walkthrough</strong> with whoever is deciding the model catalogue.</li>
+</ul>
+<p>AIPLA’s technical lead is engaged with the project to at least April 2027 and based at the Center for Digital Education. The underlying evaluation is a research instrument intended to outlive the current work.</p>
+<div class="callout callout-style-default callout-tip callout-titled">
+<div class="callout-header d-flex align-content-center">
+<div class="callout-icon-container">
+<i class="callout-icon"></i>
+</div>
+<div class="callout-title-container flex-fill">
+The single sentence
+</div>
+</div>
+<div class="callout-body-container callout-body">
+<p>If KU is going to serve models centrally and route tasks to the smallest adequate one, then somebody has to decide what “adequate” means for each kind of task — and that decision is measurable, cheap to measure, and wrong if taken from a leaderboard.</p>
+</div>
+</div>
 </section>
 
-
-<div id="quarto-appendix" class="default"><section id="footnotes" class="footnotes footnotes-end-of-document" role="doc-endnotes"><h2 class="anchored quarto-appendix-heading">Footnotes</h2>
-
-<ol>
-<li id="fn1"><p>Qwen 3.6 sizes and VRAM (27B dense and 35B-A3B MoE; ~17–21 GB at 4-bit, fits a single 24 GB GPU): <em>Qwen 3.6 VRAM &amp; Hardware Requirements</em>, Will It Run AI (2026) — <a href="https://willitrunai.com/blog/qwen-3-6-vram-requirements" class="uri">https://willitrunai.com/blog/qwen-3-6-vram-requirements</a>; <em>Qwen3.6 35B-A3B: Specifications and GPU VRAM</em>, apxml — <a href="https://apxml.com/models/qwen36-35b-a3b" class="uri">https://apxml.com/models/qwen36-35b-a3b</a>.<a href="#fnref1" class="footnote-back" role="doc-backlink">↩︎</a></p></li>
-<li id="fn2"><p>GLM 5.2 architecture and VRAM (~744B total / 39B active MoE, 1M-token context, MIT-licensed; ~744 GB at FP8, fits one 8 × H200 node): <em>GLM-5.2 vLLM recipe</em> — <a href="https://recipes.vllm.ai/zai-org/GLM-5.2" class="uri">https://recipes.vllm.ai/zai-org/GLM-5.2</a>; <em>Self-Host GLM 5.2: Hardware, vLLM Setup, and Cost</em>, ofox.ai (2026) — <a href="https://ofox.ai/blog/glm-5-2-self-host-vllm-hardware-cost-2026/" class="uri">https://ofox.ai/blog/glm-5-2-self-host-vllm-hardware-cost-2026/</a>; <em>GLM-5.2 1M context on a single 8×H200 node</em>, Phala — <a href="https://phala.com/posts/glm-5-2-1m-context-8xh200" class="uri">https://phala.com/posts/glm-5-2-1m-context-8xh200</a>.<a href="#fnref2" class="footnote-back" role="doc-backlink">↩︎</a></p></li>
-<li id="fn3"><p>Qwen-3-class throughput on a single H100 (~2,352 tokens/s aggregate via vLLM): <em>Optimizing Qwen3-32B Throughput on NVIDIA H100</em>, GPUStack — <a href="https://docs.gpustack.ai/2.0/performance-lab/qwen3-32b/h100/" class="uri">https://docs.gpustack.ai/2.0/performance-lab/qwen3-32b/h100/</a>; day-one cost/throughput comparison for Qwen3.6-27B: <em>Qwen3.6-27B bakeoff</em>, LLMKube — <a href="https://llmkube.com/blog/qwen3-6-27b-bakeoff" class="uri">https://llmkube.com/blog/qwen3-6-27b-bakeoff</a>.<a href="#fnref3" class="footnote-back" role="doc-backlink">↩︎</a></p></li>
-<li id="fn4"><p>GLM 5.2 throughput on 8 × H200 (~1,215 tokens/s sustained output, FP8, SGLang + EAGLE speculative decoding; ~1,370 tokens/s on 8 × B200): <em>GLM-5-FP8 Inference Benchmark: 8×B200 vs 8×H200</em> — <a href="https://gist.github.com/BenHamm/dcd09f595fef141567a39582f502cef4" class="uri">https://gist.github.com/BenHamm/dcd09f595fef141567a39582f502cef4</a>.<a href="#fnref4" class="footnote-back" role="doc-backlink">↩︎</a></p></li>
-</ol>
-</section></div></main>
+</main>
 <!-- /main column -->
 <script id="quarto-html-after-body" type="application/javascript">
   window.document.addEventListener("DOMContentLoaded", function (event) {

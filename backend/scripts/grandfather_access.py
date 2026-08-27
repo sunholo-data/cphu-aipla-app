@@ -27,7 +27,7 @@ WHAT IT DOES
 USAGE
     cd backend && uv run python -m scripts.grandfather_access            # dry run
     cd backend && uv run python -m scripts.grandfather_access --apply
-    ... --cap 50 --expires 2026-09-15T00:00:00Z
+    ... --cap 50 --expires 2027-09-15T00:00:00Z
 
     Dry run by default, matching backend/scripts/setup_demo.py.
 """
@@ -42,10 +42,16 @@ from datetime import UTC, datetime
 logging.basicConfig(level=logging.INFO, format="%(message)s")
 log = logging.getLogger("grandfather_access")
 
-#: Default expiry stamped on a grandfathered grant. The contract ends
-#: 2026-09-15; an access register that outlives the engagement is a liability,
-#: so the failure mode of forgetting to clean up is "access lapses".
-DEFAULT_EXPIRES_AT = "2026-09-15T00:00:00+00:00"
+#: Default expiry stamped on a grandfathered grant. An access register that
+#: outlives the engagement is a liability, so the failure mode of forgetting to
+#: clean up is "access lapses".
+#:
+#: This tracks the ENGAGEMENT, not the original 4-month contract. The extension
+#: awarded 2026-08 runs to at least April 2027, and the prod register was
+#: re-stamped to 2027-09-15 on 2026-08-17 (end of the 2026/27 Danish school
+#: year) — so that is the boundary. It was 2026-09-15 until 2026-08-27, which
+#: would have lapsed every grandfathered pilot teacher mid-September.
+DEFAULT_EXPIRES_AT = "2027-09-15T00:00:00+00:00"
 
 
 def _owner_class_counts() -> dict[str, int]:

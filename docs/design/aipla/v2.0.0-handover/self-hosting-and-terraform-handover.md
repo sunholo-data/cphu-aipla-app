@@ -6,7 +6,7 @@
 **Scope**: Infra + handover — component inventory, hybrid topologies, model-sizing, a portable Terraform deliverable, and a costable resource list for UCPH IT.
 **Dependencies**: ADR-003 (four model tiers), ADR-005 (chat-log storage / data residency), ADR-006 (GCP EU for the prototype), ADR-007 (`europe-north1`), ADR-010 + ADR-017 (RAG store: managed Vertex now, pgvector is the on-prem target), ADR-012 (AILANG ecosystem). Builds on [aipla-cloud-bootstrap.md](../v1.0.0-pilot/aipla-cloud-bootstrap.md) (the GCP-side Terraform consolidation) and the [`infrastructure/modules/`](../../../../infrastructure/modules/) set. Supersedes the execution detail of the scoping site's [`self-hosting.qmd`](file:///Users/mark/Documents/clients/cph-uni/self-hosting.qmd) stub (which is now out of date against what v0.1/v1 actually deployed — see "Correcting the self-hosting.qmd stub" below).
 **Created**: 2026-06-17
-**Last Updated**: 2026-06-17
+**Last Updated**: 2026-08-27 (framing revised — see *What changed*)
 
 ---
 
@@ -16,7 +16,7 @@ UCPH internal IT met with us on **2026-06-17** and asked for a concrete list of 
 
 1. **The deployed reality has diverged from the stub.** `self-hosting.qmd` was written when the *lean* was Cloud SQL Postgres + pgvector and "prefer not to use Firestore" (ADR-005). What actually shipped in v0.1/v1 is **Firestore** (application DB), **Vertex AI RAG Engine** (curriculum RAG, not pgvector — ADR-017 records this), and **Vertex AI Agent Engine** (session + memory persistence — not in the stub at all). The stub's migration table is therefore an inaccurate basis for an IT estimate. UCPH needs the *real* component list.
 
-2. **The contracted handover deliverable is specifically a costable estimate.** Per the scoping site [`timeline.qmd`](file:///Users/mark/Documents/clients/cph-uni/timeline.qmd), the Week-17 definition of done includes "UCPH self-host migration notes complete enough for IT to estimate effort," with **P2 (when hired) + UCPH IT co-owning** the cloud-infra artefact from a Week-6 runbook v0. IT cannot estimate against a stub.
+2. **The contracted handover deliverable is specifically a costable estimate.** *(Framing updated 2026-08-27 — see "What changed" below; the estimate is still owed, but it is no longer the ceiling.)* Per the scoping site [`timeline.qmd`](file:///Users/mark/Documents/clients/cph-uni/timeline.qmd), the Week-17 definition of done includes "UCPH self-host migration notes complete enough for IT to estimate effort," with **P2 (when hired) + UCPH IT co-owning** the cloud-infra artefact from a Week-6 runbook v0. IT cannot estimate against a stub.
 
 **Current State:**
 - Self-hosting guidance is split between an out-of-date scoping stub and ADR-003's tier strategy; neither maps the *actual* deployed GCP surface to UCPH equivalents.
@@ -30,6 +30,42 @@ UCPH internal IT met with us on **2026-06-17** and asked for a concrete list of 
 
 ---
 
+## What changed (2026-08-27)
+
+This doc was written on 2026-06-17 against two assumptions that no longer hold.
+Both loosened the *same* constraint, so the revision points one way: **the
+ceiling on this workstream was the calendar and the counterparty, and both moved.**
+
+| Written assuming | Actually true from 2026-08-27 |
+|---|---|
+| The engagement ends **2026-09-15**, so the deliverable can only be *notes someone else acts on* | Extension awarded 2026-08 runs to **at least April 2027 at 2.5 days/week**. The author of the notes is present while they are acted on. |
+| UCPH IT is a **passive counterparty** who might, someday, provision hosting | KU is spending **110M DKK over three years from 2026-09-01**, has appointed a first **vice-rector for AI**, and **KU IT is already building internal local-model infrastructure** with a planned KU-wide AI platform (log in with KU credentials, pick a model per task). |
+| The local-readiness gate is **distant** | It is **met** for stx physics. The July-2026 capability-floor snapshot puts Tiers 1–3 over the ≥80% floor on text *and* figures. |
+
+Three consequences, in order of how much they change the work:
+
+1. **The question to UCPH IT changes from "can you host this" to "can AIPLA be a
+   tenant of what you are building — and should your platform be built from
+   AIPLA?"** The component inventory below is still exactly right; its *purpose*
+   shifts from a costing input to an interop specification. Restated for the
+   external audience in
+   [ucph-it-hosting-requirements.qmd](ucph-it-hosting-requirements.qmd) §4b.
+2. **"Do not execute the migration" is no longer a safe default** (see Non-Goals).
+   The tenancy half is plausibly in-window.
+3. **The capability-floor eval is now an institutional asset, not just a routing
+   input.** KU has to size and right-size a model catalogue and has said it has
+   no answer yet on the climate footprint. Extracted for that audience as
+   [capability-floor-for-ku-ai-office.qmd](capability-floor-for-ku-ai-office.qmd).
+
+Nothing in the technical inventory (§1–§7) is invalidated by this. The migration
+debt called out honestly in §1 — Firestore, Vertex RAG Engine, Agent Engine —
+is unchanged, and matters *more* under a template pitch than under a tenancy
+pitch, because a platform others build on cannot carry a GCP-shaped seam quietly.
+
+See [ku-ai-office-alignment.md](ku-ai-office-alignment.md) for the positioning
+decision this feeds.
+
+
 ## Goals
 
 **Primary Goal:** Produce (a) an accurate component-by-component inventory of the live AIPLA stack mapped to self-hosted equivalents, (b) a hybrid-topology decision framework, (c) model-sizing options tied to ADR-003's tiers and real GPU hardware, and (d) a portable-Terraform deliverable strategy — such that UCPH IT can cost an on-prem or hybrid deployment, and a successor can `terraform apply` (or read as scoping) the result.
@@ -42,7 +78,7 @@ UCPH internal IT met with us on **2026-06-17** and asked for a concrete list of 
 - The five (now refined) outstanding questions for UCPH IT are explicit and answerable.
 
 **Non-Goals:**
-- Actually executing the migration. This doc is the scoping + deliverable; the migration only triggers when ADR-003's local-readiness threshold and UCPH IT availability both land (see "When to trigger" in `self-hosting.qmd`).
+- ~~Actually executing the migration.~~ **Under review as of 2026-08-27.** This was a safe non-goal when the engagement ended 2026-09-15 and both trigger conditions looked distant. Neither still holds: the local-readiness threshold is **already met** for stx physics (Tiers 1–3 clear the ≥80% floor on text *and* figures — July-2026 snapshot), KU IT is **actively building** internal local-model infrastructure under the 110M DKK AI push, and the engagement now runs to at least April 2027 at 2.5 days/week. Executing the *tenancy* half — teacher SSO onto KU OIDC, inference pointed at KU-hosted models, app and data staying where they are — is a plausible in-window deliverable. Keep the *full* on-prem cutover (Postgres, object storage, RAG store) as the non-goal until KU IT confirms what they can host. See [ku-ai-office-alignment.md](ku-ai-office-alignment.md).
 - Picking the final on-prem models blind. Final selection is **eval-driven** (capability-floor eval per task class) — this doc sizes the *candidates*, the eval picks the winners.
 - Re-deriving AIPLA product/pedagogical rationale — that lives in the scoping site ADRs; cited here, not restated.
 - Productionising LOCAL_MODE as the on-prem runtime (LOCAL_MODE proves the seams exist; production on-prem fills them with real backends, not in-memory stubs).

@@ -1,7 +1,7 @@
 # A safe, powerful substrate for student/teacher-authored physics simulations (tldraw investigation → engine/scene architecture)
 
 **Status:** Investigation / roadmap signal — **not committed to build**. Started as a tldraw wiring question; converged on the real goal (below).
-**Target:** The trusted-engine substrate (§3″) is v1.1-buildable; the AI/GUI authoring layer is **v2 / Year-2** — outside the current contract window (2026-05-15 → 2026-09-15).
+**Target:** The trusted-engine substrate (§3″) is v1.1-buildable; the AI/GUI authoring layer is **v2 / Year-2**. *(Written as "outside the current contract window (2026-05-15 → 2026-09-15)". Revised 2026-08-27: the engagement runs to at least April 2027 at 2.5 days/week, so the authoring layer is reachable in-window if it earns the slot — re-rank on merit, not on the calendar.)*
 **Audience:** M (architecture), JB/AR (pedagogy), Year-2 planning.
 **Scope question (as it evolved over 2026-07-20):**
 1. *"tldraw looks like a route for students to make their own physics apps via prompts — MCP App, embedded, or what?"* → §1–§7.
