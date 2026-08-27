@@ -111,3 +111,67 @@ describe("useImageAttachments", () => {
     urls.forEach((u) => expect(revoked).toContain(u));
   });
 });
+
+describe("handlePaste — 1.1.85 M2", () => {
+  const pasteEvent = (files: File[]) => {
+    const preventDefault = vi.fn();
+    const e = {
+      preventDefault,
+      clipboardData: {
+        files: files as unknown as FileList,
+        items: [] as unknown as DataTransferItemList,
+      },
+    } as unknown as React.ClipboardEvent;
+    return { e, preventDefault };
+  };
+
+  it("stages a pasted screenshot", async () => {
+    const { result } = renderHook(() => useImageAttachments());
+    const { e } = pasteEvent([img("screenshot.png")]);
+    act(() => result.current.handlePaste(e));
+    await waitFor(() => expect(result.current.count).toBe(1));
+    expect(result.current.attachments).toHaveLength(1);
+  });
+
+  it("leaves a text-only paste completely alone", async () => {
+    // The important one. Swallowing an ordinary text paste in the composer
+    // would be a worse bug than the one M2 fixes, and a far more common action.
+    const { result } = renderHook(() => useImageAttachments());
+    const { e, preventDefault } = pasteEvent([]);
+    act(() => result.current.handlePaste(e));
+    expect(preventDefault).not.toHaveBeenCalled();
+    expect(result.current.count).toBe(0);
+  });
+
+  it("preventDefaults only when it actually took an image", async () => {
+    const { result } = renderHook(() => useImageAttachments());
+    const { e, preventDefault } = pasteEvent([img("a.png")]);
+    act(() => result.current.handlePaste(e));
+    expect(preventDefault).toHaveBeenCalledTimes(1);
+    await waitFor(() => expect(result.current.count).toBe(1));
+  });
+
+  it("screens a pasted image for people, exactly as a picked one is", async () => {
+    // The guardrail must not be reachable-around by a new entry point — that
+    // is the second-registration-site footgun 1.1.85 calls out for M3.
+    vi.mocked(screenImageForPerson).mockResolvedValueOnce({
+      blocked: true,
+      degraded: false,
+      faceCount: 1,
+      message: "Someone is in this photo.",
+    });
+    const { result } = renderHook(() => useImageAttachments());
+    const { e } = pasteEvent([img("me.png")]);
+    act(() => result.current.handlePaste(e));
+    await waitFor(() => expect(result.current.notice).toBeTruthy());
+    expect(result.current.count).toBe(0);
+  });
+
+  it("respects the per-turn cap", async () => {
+    const { result } = renderHook(() => useImageAttachments());
+    const { e } = pasteEvent(Array.from({ length: MAX_IMAGES + 2 }, (_, i) => img(`p${i}.png`)));
+    act(() => result.current.handlePaste(e));
+    await waitFor(() => expect(result.current.count).toBe(MAX_IMAGES));
+    expect(result.current.notice).toMatch(new RegExp(String(MAX_IMAGES)));
+  });
+});

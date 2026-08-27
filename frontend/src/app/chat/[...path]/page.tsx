@@ -1347,6 +1347,13 @@ function ChatShell({
               <input
                 value={draft}
                 onChange={(e) => setDraft(e.target.value)}
+                // 1.1.85 M2 — paste a screenshot straight into the conversation.
+                // Scoped to the composer rather than a document listener: a
+                // global handler would fight text paste inside the writing
+                // element and the table, both of which are on this page.
+                // Gated on the same flag as the upload buttons, so a skill
+                // that cannot take images does not silently swallow a paste.
+                onPaste={skillMultimodalInput && !inputDisabled ? images.handlePaste : undefined}
                 placeholder="Message…"
                 className="min-w-0 flex-1 rounded-md border px-3 py-2 text-base sm:text-sm"
                 disabled={inputDisabled}

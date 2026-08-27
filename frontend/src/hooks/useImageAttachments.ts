@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 
+import { imageFilesFromClipboard } from "@/lib/clipboardImages";
 import { resizeImageFile, type EncodedImage } from "@/lib/imageResize";
 import { screenImageForPerson } from "@/lib/personGuardrail";
 
@@ -25,6 +26,9 @@ export interface UseImageAttachments {
   /** base64 EncodedImage[] for sendMessage opts.attachments. */
   attachments: EncodedImage[];
   addFiles: (files: FileList | File[] | null) => Promise<void>;
+  /** Stage any images on a paste. Call from `onPaste`; a text-only paste is
+   *  left entirely alone so ordinary paste still works. */
+  handlePaste: (e: ClipboardEvent | React.ClipboardEvent) => void;
   remove: (id: string) => void;
   clear: () => void;
 }
@@ -97,6 +101,26 @@ export function useImageAttachments(): UseImageAttachments {
     setNotice(null);
   }, []);
 
+  /**
+   * Paste handler (1.1.85 M2). Stages any images on the clipboard.
+   *
+   * `preventDefault` fires ONLY when an image was found. A text-only paste must
+   * fall through untouched — swallowing it would break ordinary paste in the
+   * composer, which is a far more common action than pasting a screenshot, and
+   * would be a worse bug than the one being fixed.
+   */
+  const handlePaste = useCallback(
+    (e: ClipboardEvent | React.ClipboardEvent) => {
+      const images = imageFilesFromClipboard(
+        (e as ClipboardEvent).clipboardData ?? (e as React.ClipboardEvent).clipboardData,
+      );
+      if (images.length === 0) return;
+      e.preventDefault();
+      void addFiles(images);
+    },
+    [addFiles],
+  );
+
   // Release any outstanding object URLs if the composer unmounts mid-compose.
   useEffect(
     () => () => {
@@ -111,6 +135,7 @@ export function useImageAttachments(): UseImageAttachments {
     count: staged.length,
     attachments: staged.map((s) => s.encoded),
     addFiles,
+    handlePaste,
     remove,
     clear,
   };

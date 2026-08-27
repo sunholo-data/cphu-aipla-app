@@ -1,6 +1,6 @@
 # One place to hand something in — upload consolidation and clipboard paste
 
-**Status**: Planned — **1.1.85**
+**Status**: **M2 SHIPPED 2026-08-27** (clipboard paste) — M1 and M3 open. **1.1.85**
 **Priority**: **P1** — items 8 and 15 from 2026-08-21, and the likely resolution of item 2. Upload is how a student shows the tutor their work; there are currently three doors and the obvious one rejects screenshots
 **Estimated**: ~1d for M1+M2 · M3 (one field) ~1–1.5d
 **Scope**: Frontend — [`StudentDocumentWorkbench.tsx`](../../../../frontend/src/components/workspace/StudentDocumentWorkbench.tsx), [`ImageComposer.tsx`](../../../../frontend/src/components/chat/ImageComposer.tsx), [`SolutionWhiteboard.tsx`](../../../../frontend/src/components/workspace/SolutionWhiteboard.tsx); backend only if the document store must accept image MIME types
@@ -109,9 +109,35 @@ guardrail precondition in view, since it creates a second way for an image to en
 
 ### M2 — paste
 
-A paste handler on the workspace surface reading `event.clipboardData.files`, staging any image
-through the same code path a picked file uses. Kept deliberately narrow: paste over the workspace,
-not a global document listener that would fight text paste inside the writing element and the table.
+> **SHIPPED 2026-08-27.** `lib/clipboardImages.ts` + `useImageAttachments.handlePaste`, wired to the
+> chat composer input. 19 tests.
+
+A paste handler reading the clipboard payload and staging any image through the same code path a
+picked file uses — so the person guardrail, the four-image cap and the object-URL cleanup all apply
+unchanged, and a test asserts a pasted image is screened exactly as a picked one is. Scoped to the
+**composer input**, not a document listener that would fight text paste inside the writing element
+and the table, both of which are on the same page.
+
+Two details the build settled:
+
+- **Read `items` as well as `files`.** They are not interchangeable — `files` is the modern path,
+  and Safari has historically exposed a pasted screenshot only through `items`. Reading one alone
+  works on Chrome and silently does nothing elsewhere, which from the student's side is
+  indistinguishable from the feature not existing. Deduplicated, because a screenshot can appear in
+  both and would otherwise take two of the four slots.
+- **`preventDefault` fires only when an image was actually found.** Swallowing an ordinary text
+  paste in the composer would be a worse bug than the one being fixed, and a far more common
+  action. Mutation-tested.
+
+**Not wired to the solution element**, which uses the same hook. It has no text input, so a paste
+would need either a focusable container or a scoped document listener — more design than M2 needs,
+and the surface the teacher described was the chat ("directly in the tutor chat"). `handlePaste`
+lives on the hook rather than in the page precisely so that surface can adopt it in one line when
+someone asks for it.
+
+It targets the **chat composer**, which also answers open question 2 for now: until M1 lands, the
+documents surface cannot accept an image at all, so the composer is the only coherent destination.
+Revisit when M1 makes the durable path available.
 
 ### M3 — one field
 
@@ -140,7 +166,7 @@ teacher-feature flag idiom so a bad routing decision does not take the documents
 ## Success Criteria
 
 - [ ] A screenshot is visible in the documents picker without selecting "All files".
-- [ ] Ctrl+V with a screenshot on the clipboard stages it in the workspace.
+- [x] Ctrl+V with a screenshot on the clipboard stages it in the chat composer. **(M2, 2026-08-27)**
 - [ ] Every supported type uploads successfully as an anonymous-group student on prod.
 - [ ] The no-person guardrail runs on every image path, verified by a test that would fail if a caller skipped it.
 - [ ] Item 2 is reproduced and either closed by this work or split out as its own defect.
@@ -151,11 +177,13 @@ teacher-feature flag idiom so a bad routing decision does not take the documents
    deliberately.** `_ALLOWED_EXTENSIONS` in `backend/tools/documents/upload.py` lists 13 document
    extensions and no image type; the route 400s the rest. The frontend `accept` list mirrors it
    honestly. M1 is therefore a routing change, not an attribute edit — see Design.
-2. **Should a pasted screenshot land in the documents tab or the chat composer?** They mean different
-   things — a document is durable and per-group; a chat attachment is per-turn. The teacher's own
-   description ("start by uploading a screenshot of the task, chat, then upload their solution")
-   suggests the task screenshot is durable context and the solution is a turn. Possibly both, chosen
-   at paste time, which risks a modal in the middle of a paste.
+2. **Should a pasted screenshot land in the documents tab or the chat composer?** **Answered for
+   now by sequencing** — M2 shipped to the composer because the documents surface cannot accept an
+   image until M1. The question is still live for after M1: a document is durable and per-group, a
+   chat attachment is per-turn, and the teacher's own description ("start by uploading a screenshot
+   of the task, chat, then upload their solution") suggests the task screenshot is durable context
+   while the solution is a turn. Possibly both, chosen at paste time — which risks a modal in the
+   middle of a paste, so it needs a better idea than that before it is built.
 3. **Does the whiteboard survive consolidation?** It authors rather than accepts, so it is untouched
    here — but a student who cannot tell the two apart is the confusion item 8 reported.
 
