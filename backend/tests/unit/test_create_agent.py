@@ -17,6 +17,7 @@ from a2ui.adk.send_a2ui_to_client_toolset import SendA2uiToClientToolset
 from google.adk.agents import LlmAgent
 
 from adk.agent import _safe_agent_name, create_agent
+from adk.math_notation import build_math_notation_block
 from auth.firebase_auth import User
 from db.models import SkillConfig, SkillMetadata
 
@@ -94,7 +95,10 @@ def test_create_agent_returns_llmagent_with_expected_name_and_instruction():
     # gets closed by pytest-asyncio fixtures in other tests, leading to
     # "no current event loop" failures that depend on suite ordering.
     resolved = asyncio.run(agent.instruction(fake_ctx))
-    assert resolved == "Do the thing."
+    # Plus the unconditional maths-notation block (teacher feedback 2026-08-21
+    # items 17 + 18) — house style, applied to every skill by design, so it is
+    # part of the baseline rather than something a test opts into.
+    assert resolved == "Do the thing." + build_math_notation_block()
 
 
 def test_create_agent_instruction_appends_iframe_context_when_state_has_it():
@@ -584,15 +588,22 @@ def test_element_state_block_tracks_state_within_the_session(_activity_env):
 
 
 def test_no_activity_composes_exactly_as_before(_activity_env):
-    """Graceful degradation: a skill with no saved activity must not gain a
-    single character."""
+    """Graceful degradation: a skill with no saved activity gains nothing
+    ACTIVITY-SHAPED.
+
+    The assertion was exact equality with the bare body until 2026-08-27, when
+    the maths-notation block became an unconditional part of every prompt. The
+    guard's point is unchanged and is the reason it stays exact rather than
+    becoming a substring check: with no activity, the curriculum-grounding,
+    ILO-precedence and progress-context blocks must each contribute the empty
+    string, and any one of them leaking in still fails here."""
     import asyncio
     from unittest.mock import MagicMock
 
     agent = create_agent(_skill(), _student())
     ctx = MagicMock()
     ctx.state = {}
-    assert asyncio.run(agent.instruction(ctx)) == "Do the thing."
+    assert asyncio.run(agent.instruction(ctx)) == "Do the thing." + build_math_notation_block()
 
 
 def test_inherited_checklist_progress_reaches_the_model(_activity_env):

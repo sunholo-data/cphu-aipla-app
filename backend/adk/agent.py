@@ -65,6 +65,7 @@ from adk.element_state import make_element_state_wrapper
 from adk.iframe_context import wrap_with_iframe_context
 from adk.instruction_provider_chain import compose_instruction_providers
 from adk.interaction_style import inject_interaction_style_preamble
+from adk.math_notation import build_math_notation_block
 from adk.mcp_observability import (
     compose_after_tool_callbacks,
     compose_before_tool_callbacks,
@@ -780,7 +781,19 @@ def create_agent(
                                 # wrap-up. Empty string when the group has no
                                 # recorded progress, so an untouched activity
                                 # composes byte-identically to before.
-                                + compose_progress_context(_active_cfg, user),
+                                + compose_progress_context(_active_cfg, user)
+                                # Teacher feedback 2026-08-21 items 17 + 18 —
+                                # "we do not like asterisks used as
+                                # multiplication signs" and "it doesn't work
+                                # that it says position = 0,2*tid". How the
+                                # platform writes maths is a house style, so
+                                # this is UNCONDITIONAL: no skill flag to
+                                # forget, and coverage is provable rather than
+                                # assumed. Last in the chain on the file's
+                                # "later instruction wins" convention — it is a
+                                # formatting rule and must not be overridden by
+                                # a body that predates it.
+                                + build_math_notation_block(),
                                 skill_config.multimodal_input,
                             ),
                             _activity_id,

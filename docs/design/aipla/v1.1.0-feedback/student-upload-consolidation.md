@@ -56,7 +56,7 @@ front of the tutor by one gesture, without knowing which kind of file it is.
 
 **Success Metrics:**
 - A screenshot can be pasted from the clipboard into the workspace with no intermediate file.
-- The documents surface's picker shows images without switching to "All files".
+- The documents surface accepts and displays an image, and its picker shows images without switching to "All files".
 - One field accepts every supported type and routes it correctly by MIME.
 
 **Non-Goals:**
@@ -89,12 +89,23 @@ footgun that produced three of the four defects in the same session.
 
 ## Design
 
-### M1 — let the picker show images (the one-line half of item 15)
+### M1 — let the picker show images
 
-Add the image MIME types to `StudentDocumentWorkbench`'s `accept`. Confirm first that the document
-upload endpoint and the parse path accept them — AILANG Parse returns `None` for images by design,
-so an image document must route to the image path rather than the parse path. If that routing does
-not exist, M1 is the routing, not the attribute.
+**Not a one-line change — checked 2026-08-27, and the frontend is not the offender.**
+[`_ALLOWED_EXTENSIONS`](../../../../backend/tools/documents/upload.py#L36) carries the same 13
+document extensions and no image types, and the upload route 400s anything else. The frontend
+`accept` list is an *honest mirror* of that, and widening it alone would turn a clear OS-picker
+filter into a server rejection — a worse failure than today's.
+
+The refusal is also deliberate, not an oversight. `upload.py` says so at the parse step: *"Images
+aren't accepted at upload — they go through the solution element as pixels, not the parse route."*
+AILANG Parse returns `None` for images by design, so an image has no blocks and nothing for the
+document viewer to render.
+
+So M1 is a **routing** change on both sides: an image uploaded to the documents surface is stored
+and displayed as an image, and skips the parse path entirely rather than being parsed to nothing.
+That is a small feature, not an attribute edit. Re-estimated at ~0.5d, and it must land with M3's
+guardrail precondition in view, since it creates a second way for an image to enter the system.
 
 ### M2 — paste
 
@@ -136,8 +147,10 @@ teacher-feature flag idiom so a bad routing decision does not take the documents
 
 ## Open Questions
 
-1. **Does the document store accept image MIME types today?** Determines whether M1 is one line or a
-   routing change. Answer before estimating.
+1. ~~**Does the document store accept image MIME types today?**~~ **ANSWERED 2026-08-27 — no, and
+   deliberately.** `_ALLOWED_EXTENSIONS` in `backend/tools/documents/upload.py` lists 13 document
+   extensions and no image type; the route 400s the rest. The frontend `accept` list mirrors it
+   honestly. M1 is therefore a routing change, not an attribute edit — see Design.
 2. **Should a pasted screenshot land in the documents tab or the chat composer?** They mean different
    things — a document is durable and per-group; a chat attachment is per-turn. The teacher's own
    description ("start by uploading a screenshot of the task, chat, then upload their solution")
