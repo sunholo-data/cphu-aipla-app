@@ -22,6 +22,8 @@ from pathlib import Path
 
 import pytest
 
+from db.models import MAX_INSTRUCTIONS_CHARS
+
 _SKILL = Path(__file__).resolve().parents[2] / "skills" / "templates" / "manage-class" / "SKILL.md"
 
 
@@ -63,8 +65,11 @@ def test_list_my_classes_is_still_documented_as_returning_codes(instructions: st
 
 
 def test_instructions_stay_under_the_seed_cap(instructions: str):
-    # SkillConfig caps the instructions body at 10,000 chars; crossing it makes
-    # platform_seed fail its re-read AFTER a partial write.
-    assert len(instructions) < 10_000, (
-        f"manage-class SKILL.md is {len(instructions)} chars — over the 10,000 cap. Trim before adding more."
+    # SkillConfig caps the instructions body; crossing it makes platform_seed
+    # fail its re-read AFTER a partial write. Read the limit from the constant —
+    # this was hardcoded to 10,000 until 2026-08-27, three weeks after the cap
+    # was raised, so it refused bodies the model accepts.
+    assert len(instructions) < MAX_INSTRUCTIONS_CHARS, (
+        f"manage-class SKILL.md is {len(instructions)} chars — over the "
+        f"{MAX_INSTRUCTIONS_CHARS} cap. Trim before adding more."
     )

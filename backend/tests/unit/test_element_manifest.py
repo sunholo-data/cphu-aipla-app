@@ -213,7 +213,8 @@ def test_unknown_element_kind_falls_back_to_a_generic_description(monkeypatch):
 
 
 # ---------------------------------------------------------------------------
-# Bounds — the 10k SkillConfig instruction cap is real
+# Bounds — the SkillConfig instruction cap is real (10,000 when this was written,
+# 25,000 since 2026-08-06; the manifest bound is its own budget either way)
 # ---------------------------------------------------------------------------
 
 

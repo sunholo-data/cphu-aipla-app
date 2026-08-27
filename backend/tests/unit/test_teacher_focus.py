@@ -369,8 +369,9 @@ def test_default_language_emits_no_directive() -> None:
 def test_composed_focus_stays_under_the_skillconfig_instruction_cap() -> None:
     """**Write this test first.** (Sprint plan, M2 risk.)
 
-    ``SkillConfig.instructions`` is validated at 10,000 characters
-    (db/models/__init__.py). ``{teacher_focus}`` already stacked a sim
+    ``SkillConfig.instructions`` is validated at ``MAX_INSTRUCTIONS_CHARS``
+    (db/models/__init__.py) — 10,000 when this test was written, 25,000 since
+    2026-08-06. ``{teacher_focus}`` already stacked a sim
     tutor_block + solution prompt + concept map + goal; the element manifest is
     a FIFTH block. A maximal activity must not push the composed instruction
     past the cap — crossing it silently fails the seed re-read after a partial
@@ -423,7 +424,15 @@ def test_composed_focus_stays_under_the_skillconfig_instruction_cap() -> None:
 
     # The skill template itself needs room too — the focus is SUBSTITUTED INTO
     # instructions, it is not the whole of them. Leave a working margin.
-    assert len(focus) < 8000, f"composed focus is {len(focus)} chars — too close to the 10k instruction cap"
+    # 8,000 is _TOTAL_FOCUS_CAP, a deliberate bound on how much ONE activity's
+    # focus may contribute — not a derivative of the instructions cap, so it did
+    # not move when that went 10,000 -> 25,000 on 2026-08-06. Kept: a single
+    # activity composing 8,000+ chars of focus is a problem regardless of how
+    # much room the model would tolerate.
+    assert len(focus) < 8000, (
+        f"composed focus is {len(focus)} chars — over the 8,000 working margin "
+        "(_TOTAL_FOCUS_CAP), which is independent of the instructions cap"
+    )
 
 
 def test_maximal_config_still_names_its_elements() -> None:
@@ -441,8 +450,8 @@ def test_concept_map_block_is_bounded() -> None:
 
     A 30-node concept map composed ~3,500 characters with no bound. Stacked
     with a 2,000-char teaching goal and a 2,000-char solution task, a maximal
-    activity blew the 10k SkillConfig instruction cap **before** the element
-    manifest existed. It never showed up because nobody had authored a maximal
+    activity blew the SkillConfig instruction cap — 10,000 at the time, raised
+    to 25,000 on 2026-08-06 — **before** the element manifest existed. It never showed up because nobody had authored a maximal
     activity — and when it did show up it would have failed at SEED time, not
     at request time.
     """

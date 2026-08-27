@@ -17,7 +17,7 @@ from pathlib import Path
 import pytest
 
 from admin.platform_seed import _parse_template
-from db.models import SkillConfig
+from db.models import MAX_INSTRUCTIONS_CHARS, SkillConfig
 
 _BASE_FRONTMATTER = """\
 ---
@@ -124,11 +124,16 @@ def test_skillconfig_defaults_match_parser_defaults() -> None:
         "problem-set-hints",
         "led-planck-tutor",
         "kinebot-kinematics-tutor",
+        # 2026-08-27: concept-dialogue was missing from this list, so the one
+        # student tutor with no cap guard was the one nothing stopped growing.
+        "concept-dialogue",
+        "activity-authoring-assistant",
     ],
 )
-def test_real_skill_templates_instructions_under_10k_limit(skill_name: str) -> None:
-    """SkillConfig._validate_instructions caps the body at 10,000 chars
-    (Pydantic field_validator). Pushing a template body past this cap
+def test_real_skill_templates_instructions_under_limit(skill_name: str) -> None:
+    """SkillConfig._validate_instructions caps the body at
+    MAX_INSTRUCTIONS_CHARS (Pydantic field_validator). Pushing a template
+    body past this cap
     silently fails the platform_seed update_skill step at re-read
     validation — the WRITE succeeds and the Firestore doc carries the
     new content, but every later list_marketplace / get_skill call
@@ -139,15 +144,22 @@ def test_real_skill_templates_instructions_under_10k_limit(skill_name: str) -> N
     failed but the write had partially applied).
 
     This test catches a body-over-limit at template-edit time, BEFORE
-    the seed runs. Cheaper than waiting for the Cloud Run logs."""
+    the seed runs. Cheaper than waiting for the Cloud Run logs.
+
+    Reads the limit from the constant rather than restating it. It was
+    hardcoded to 10,000 and asserted "last raised never" in its own failure
+    message, but MAX_INSTRUCTIONS_CHARS went to 25,000 on 2026-08-06 — so the
+    guard was 15,000 chars stricter than the thing it guards, and said so in a
+    message that would have sent the next reader to trim a body that was
+    nowhere near the real cap."""
     template_path = Path(__file__).resolve().parents[3] / "skills" / "templates" / skill_name / "SKILL.md"
     assert template_path.exists()
     parsed = _parse_template(template_path)
     instructions_len = len(parsed["instructions"])
-    assert instructions_len <= 10_000, (
+    assert instructions_len <= MAX_INSTRUCTIONS_CHARS, (
         f"{skill_name} SKILL.md instructions body is {instructions_len} chars — "
-        "exceeds the 10,000 char limit enforced by SkillConfig._validate_instructions. "
-        "Trim the body or raise the limit (last raised never; default since v0.1)."
+        f"exceeds the {MAX_INSTRUCTIONS_CHARS} char limit enforced by "
+        "SkillConfig._validate_instructions. Trim the body or raise the limit."
     )
 
 

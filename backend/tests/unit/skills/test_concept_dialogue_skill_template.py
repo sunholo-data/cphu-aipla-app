@@ -12,11 +12,15 @@ from __future__ import annotations
 from pathlib import Path
 
 from admin.platform_seed import _parse_template
+from db.models import MAX_INSTRUCTIONS_CHARS
 
 TEMPLATE_PATH = Path(__file__).resolve().parents[3] / "skills" / "templates" / "concept-dialogue" / "SKILL.md"
 
-# Pydantic SkillConfig instructions cap (see feedback_skill_instructions_10k_cap).
-_INSTRUCTIONS_LIMIT = 10_000
+# Pydantic SkillConfig instructions cap. Read from the constant, not restated:
+# this was hardcoded to 10_000 until 2026-08-27, three weeks after the real cap
+# went to 25,000 — a guard stricter than the thing it guards sends the next
+# reader off to trim a body that was never near the limit.
+_INSTRUCTIONS_LIMIT = MAX_INSTRUCTIONS_CHARS
 
 
 def test_template_parses() -> None:
@@ -47,7 +51,7 @@ def test_is_chat_only_no_workbench_wiring() -> None:
     assert "mcp" not in tool_configs
 
 
-def test_instructions_under_10k_limit() -> None:
+def test_instructions_under_seed_cap() -> None:
     body = _parse_template(TEMPLATE_PATH)["instructions"]
     assert len(body) < _INSTRUCTIONS_LIMIT, f"instructions are {len(body)} chars (limit {_INSTRUCTIONS_LIMIT})"
 
