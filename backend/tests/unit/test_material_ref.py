@@ -1,9 +1,11 @@
-"""MaterialRef (1.1.44) — curriculum/image discriminator + per-kind validator.
+"""MaterialRef (1.1.44, 1.1.87) — kind discriminator + per-kind validator.
 
-The activity ``materials`` list now carries two kinds of resource: the original
-curriculum/RAG docs (``kind="curriculum"``) and teacher-attached images the tutor
-sees multimodally (``kind="image"``). Legacy rows have no ``kind`` and must
-deserialize as curriculum.
+The activity ``materials`` list carries three kinds of resource: curriculum/RAG
+docs (``kind="curriculum"``), teacher-attached images the tutor sees multimodally
+(``kind="image"``), and — since 1.1.87 — the task the student is working on
+(``kind="context"``), the same document as a curriculum one but inlined every turn
+instead of retrieved. Legacy rows have no ``kind`` and must deserialize as
+curriculum.
 """
 
 from __future__ import annotations
@@ -53,3 +55,32 @@ def test_curriculum_requires_doc_id():
 def test_image_requires_material_id():
     with pytest.raises(ValidationError):
         MaterialRef.model_validate({"kind": "image", "mimeType": "image/png"})
+
+
+# ---------------------------------------------------------------------------
+# 1.1.87 — kind="context"
+# ---------------------------------------------------------------------------
+
+
+def test_context_material_roundtrips_via_alias():
+    m = MaterialRef.model_validate(
+        {"kind": "context", "docId": "doc-task", "origin": "teacher", "title": "Exam 2019 set 2"}
+    )
+    assert m.kind == "context"
+    assert m.doc_id == "doc-task"
+    assert m.title == "Exam 2019 set 2"
+    dumped = m.model_dump(by_alias=True)
+    assert dumped["kind"] == "context"
+    assert dumped["docId"] == "doc-task"
+
+
+def test_context_requires_doc_id():
+    """A context material is a curriculum DOC attached differently — it is
+    addressed by doc_id, never by an image material_id."""
+    with pytest.raises(ValidationError):
+        MaterialRef.model_validate({"kind": "context", "origin": "teacher"})
+
+
+def test_unknown_kind_is_rejected():
+    with pytest.raises(ValidationError):
+        MaterialRef.model_validate({"kind": "task", "docId": "doc-1"})

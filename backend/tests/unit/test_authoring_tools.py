@@ -464,6 +464,41 @@ def test_attach_material_owner_gets_a_curriculum_proposal():
     assert res["proposal"]["label"] == "Doc energi-b"
 
 
+def test_attach_material_in_context_proposes_a_context_material():
+    # 1.1.87 — the co-pilot is the OTHER authoring surface. If the toggle exists
+    # only in the materials picker, a teacher who builds the whole activity by
+    # talking to the co-pilot cannot reach it, and their exam paper is cited as
+    # reference exactly as it was on 21 August.
+    from adk.authoring_tools import attach_material
+
+    did = _make_curriculum("eksamen-2019")
+    aid = _make_activity(TEACHER)
+    res = attach_material(doc_id=did, activity_id=aid, in_context=True, tool_context=_tc(TEACHER))
+    assert res["ok"] is True
+    assert res["proposal"]["materialKind"] == "context"
+    assert res["proposal"]["docId"] == did
+
+
+def test_attach_material_defaults_to_reference():
+    """Reference stays the default — the cheaper mechanism, and right for a textbook."""
+    from adk.authoring_tools import attach_material
+
+    did = _make_curriculum("energi-b")
+    aid = _make_activity(TEACHER)
+    res = attach_material(doc_id=did, activity_id=aid, tool_context=_tc(TEACHER))
+    assert res["proposal"]["materialKind"] == "curriculum"
+
+
+def test_attach_material_in_context_still_enforces_the_acl():
+    """in_context must not be a way around the allow-set."""
+    from adk.authoring_tools import attach_material
+
+    did = _make_curriculum("privat", owner_scope=OTHER)
+    aid = _make_activity(TEACHER)
+    res = attach_material(doc_id=did, activity_id=aid, in_context=True, tool_context=_tc(TEACHER))
+    assert res["ok"] is False
+
+
 def test_attach_material_empty_or_unknown_id_lists_available():
     # Self-correcting like set_artefact: no/unknown id returns the docs the
     # teacher may attach so the agent retries with a valid docId.

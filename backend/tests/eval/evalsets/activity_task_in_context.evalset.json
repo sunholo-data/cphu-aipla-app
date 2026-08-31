@@ -1,0 +1,71 @@
+{
+  "eval_set_id": "activity_task_in_context",
+  "name": "1.1.87 — the tutor HAS the task, and it is the right one",
+  "description": "Behavioural gate for 1.1.87 (activity-task-materials-in-context), from item 1 of the 2026-08-21 teacher feedback. A teacher built a lesson on 'students work past Physics A exam questions with the tutor', cited the papers as materials, and the tutor asked students to paste the task in — then discussed a DIFFERENT paper's Question 5. The deterministic half (the text reaches llm_request.contents at all) is pinned by tests/tool_tests/test_activity_document_callbacks.py, which runs in CI. THIS half is the model-behaviour claim and only an eval can hold it: run with `make eval EVALSET=tests/eval/evalsets/activity_task_in_context.evalset.json` (GCP credentials required); NOT part of make test-fast. Setup required before running: an activity with TWO context materials, each an exam paper containing a question numbered 5, cited as kind=\"context\".",
+  "eval_cases": [
+    {
+      "eval_id": "answers_from_the_task_without_being_told_it_exists",
+      "description": "The reported failure, first half: the tutor 'still asked students to upload the assignment text'. One opening message, no mention of a file. The tutor must engage with the task it was given and must NOT ask the student to paste or upload it.",
+      "conversation": [
+        {
+          "user_content": {
+            "parts": [{ "text": "Hej, jeg er gået i gang med opgaven. Hvad går den ud på?" }]
+          }
+        }
+      ],
+      "session_input": {
+        "app_name": "aipla",
+        "user_id": "eval_student",
+        "state": {}
+      }
+    },
+    {
+      "eval_id": "right_papers_question_five",
+      "description": "The reported failure, second half, and the load-bearing case: 'it talking about a completely different Question 5 when made aware it had the file'. Two papers are in context, each with a Question 5. Asked about Question 5 of the NAMED paper, the tutor must discuss that paper's question — the failure this reproduces is confident wrongness the student cannot detect.",
+      "conversation": [
+        {
+          "user_content": {
+            "parts": [{ "text": "Kan du hjælpe mig med opgave 5 i sættet fra maj 2019?" }]
+          }
+        }
+      ],
+      "session_input": {
+        "app_name": "aipla",
+        "user_id": "eval_student",
+        "state": {}
+      }
+    },
+    {
+      "eval_id": "disambiguates_an_unqualified_question_number",
+      "description": "Open question 1 of the design doc, in behavioural form. With several papers in context, a bare 'question 5' is genuinely ambiguous. The tutor must ASK WHICH — picking one silently is how the original bug reads to a student. This is the case that says whether M3 (task selection) is needed or whether asking is enough.",
+      "conversation": [
+        {
+          "user_content": {
+            "parts": [{ "text": "Hvordan løser jeg opgave 5?" }]
+          }
+        }
+      ],
+      "session_input": {
+        "app_name": "aipla",
+        "user_id": "eval_student",
+        "state": {}
+      }
+    },
+    {
+      "eval_id": "says_so_when_the_task_is_truncated",
+      "description": "The Axiom 4 bound, behaviourally. An over-cap material is inlined head-plus-tail with the middle marked missing. Asked about something in the omitted middle, the tutor must say it cannot see that part rather than answering from the half it has — the same class of confident wrongness, reintroduced by the fix if the flag is ignored.",
+      "conversation": [
+        {
+          "user_content": {
+            "parts": [{ "text": "Hvad står der i opgave 12?" }]
+          }
+        }
+      ],
+      "session_input": {
+        "app_name": "aipla",
+        "user_id": "eval_student",
+        "state": {}
+      }
+    }
+  ]
+}

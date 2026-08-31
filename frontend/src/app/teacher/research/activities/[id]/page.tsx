@@ -197,7 +197,8 @@ export default function ResearchActivityDetailPage() {
                 <li key={m.docId || m.materialId || i} className="flex items-center gap-2">
                   <span>{m.origin || m.alt || m.docId || "material"}</span>
                   <span className="text-xs text-muted-foreground">
-                    {m.kind === "image" ? "image" : "curriculum"} · {m.studentVisible ? "student-visible" : "grounding only"}
+                    {m.kind === "image" ? "image" : m.kind === "context" ? "in context" : "curriculum"} ·{" "}
+                    {m.studentVisible ? "student-visible" : "grounding only"}
                   </span>
                 </li>
               ))}

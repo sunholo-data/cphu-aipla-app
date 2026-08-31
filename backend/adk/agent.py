@@ -46,6 +46,8 @@ from adk.a2ui_surface_context import wrap_with_a2ui_surface_context
 from adk.artifact_tools import retrieve_artifact
 from adk.callbacks import (
     _handle_large_output,
+    make_activity_document_injector,
+    make_activity_document_loader,
     make_activity_image_injector,
     make_activity_image_loader,
     make_after_agent_response,
@@ -566,6 +568,13 @@ def create_agent(
     # already-resolved _active_cfg (no extra Firestore read).
     _activity_image_loader = make_activity_image_loader(_active_cfg)
     _activity_image_injector = make_activity_image_injector(_active_cfg)
+    # 1.1.87 — the third twin: a teacher's TASK material (kind="context"). Same
+    # shape as the image pair, text instead of an image Part, sourced from the
+    # doc's already-stored parsed content rather than a durable artifact slot.
+    # This is what stops the tutor asking students to paste in a task it was
+    # given, and stops it answering from a different paper's Question 5.
+    _activity_doc_loader = make_activity_document_loader(_active_cfg)
+    _activity_doc_injector = make_activity_document_injector(_active_cfg)
 
     async def _composed_before_agent(callback_context: object) -> None:
         # TTFT mark: ADK has finished its runner setup and is now invoking
@@ -591,6 +600,8 @@ def create_agent(
         await _document_loader(callback_context)
         # 1.1.44 — copy the activity's image materials into this session (idempotent).
         await _activity_image_loader(callback_context)
+        # 1.1.87 — same, for the activity's context (task) materials.
+        await _activity_doc_loader(callback_context)
 
         # TTFT: mark the end of the synchronous before-agent chain. Show
         # a user-facing "Reading documents…" label only when the loader
@@ -643,6 +654,9 @@ def create_agent(
         # 1.1.44 — inline the activity's teacher-attached images as image Parts
         # (after docs, before the budget gate so the projection sees them).
         await _activity_image_injector(callback_context, llm_request)
+        # 1.1.87 — inline the activity's task materials as text, same placement and
+        # for the same reason: the budget projection must see what we added.
+        await _activity_doc_injector(callback_context, llm_request)
         # 1.1.7 images need no injector: they arrive as native AG-UI
         # ImageInputContent parts that ag_ui_adk turns into ADK Parts in the
         # user event, so they're already in llm_request.contents (and replayed

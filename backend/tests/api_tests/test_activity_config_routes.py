@@ -160,6 +160,38 @@ def test_material_student_visible_round_trips(client):
     assert mats["doc-hidden"]["studentVisible"] is False
 
 
+def test_context_material_kind_round_trips(client):
+    # 1.1.87: the reference/context choice is what the teacher makes in the
+    # materials picker, so it has to survive the wire. If `kind` were dropped
+    # here the toggle would appear to work and silently do nothing — which is
+    # the exact shape of the bug it exists to fix.
+    body = _sample_body(
+        materials=[
+            {"kind": "context", "docId": "doc-task", "origin": "teacher", "title": "Exam 2019"},
+            {"docId": "doc-ref", "origin": "uvm.dk"},
+        ]
+    )
+    assert client.post("/api/activity-configs", json=body).status_code in (200, 201)
+    resp = client.get(f"/api/activity-configs/{TEACHER_UID}/7b-physics-a-2026/boldkast")
+    assert resp.status_code == 200
+    mats = {m["docId"]: m for m in resp.json()["materials"]}
+    assert mats["doc-task"]["kind"] == "context"
+    assert mats["doc-ref"]["kind"] == "curriculum"
+
+
+def test_patch_flips_a_material_between_reference_and_context(client):
+    client.post(
+        "/api/activity-configs",
+        json=_sample_body(materials=[{"docId": "d1", "origin": "o"}]),
+    )
+    resp = client.patch(
+        f"/api/activity-configs/{TEACHER_UID}/7b-physics-a-2026/boldkast",
+        json=_sample_body(materials=[{"kind": "context", "docId": "d1", "origin": "o"}]),
+    )
+    assert resp.status_code == 200
+    assert resp.json()["materials"][0]["kind"] == "context"
+
+
 def test_patch_updates_material_student_visible(client):
     # Flipping visibility via PATCH round-trips too.
     client.post(

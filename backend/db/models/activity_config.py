@@ -50,14 +50,27 @@ class MaterialRef(BaseModel):
       a session-start loader copies it into the student session and an injector
       inlines it as an image Part. ``alt`` is a short label shown to the tutor.
 
+    ``kind="context"`` (1.1.87) — the SAME ``CurriculumDoc`` as ``curriculum``, cited
+      by ``doc_id``, but reaching the tutor by the image mechanism rather than the
+      retrieval one: its stored parsed text (``curriculum_content/{doc_id}``, 1.1.33 M3)
+      is copied into the student session and inlined on every turn
+      (``adk/callbacks/activity_documents.py``). Use it for **the task the student is
+      working on** — an exam question, a worksheet — where the tutor must simply HAVE
+      the text. ``curriculum`` stays right for a reference corpus the tutor consults.
+
+      This exists because a teacher's exam papers were cited as ``curriculum``, so the
+      tutor had to *elect* to call retrieval, and similarity search across three papers
+      each containing a "Question 5" discussed the wrong one — confidently, with nothing
+      in any log. See docs/design/aipla/v1.1.0-feedback/activity-task-materials-in-context.md.
+
     ``student_visible`` (1.1.33 M2a): the teacher decides, per material, whether it is
     shown to students in the Documents workbench surface. Default **false** (opt-in).
     This governs ONLY the student-facing surface — RAG grounding always uses every
-    cited curriculum material, and the tutor always sees every image material,
-    regardless of visibility.
+    cited curriculum material, and the tutor always sees every image and context
+    material, regardless of visibility.
     """
 
-    kind: Literal["curriculum", "image"] = "curriculum"
+    kind: Literal["curriculum", "image", "context"] = "curriculum"
     # curriculum
     doc_id: str = Field(default="", alias="docId", max_length=200)
     origin: str = Field(default="", alias="origin", max_length=200)
@@ -83,8 +96,8 @@ class MaterialRef(BaseModel):
 
     @model_validator(mode="after")
     def _require_id_for_kind(self) -> MaterialRef:
-        if self.kind == "curriculum" and not self.doc_id:
-            raise ValueError("curriculum material requires docId")
+        if self.kind in ("curriculum", "context") and not self.doc_id:
+            raise ValueError(f"{self.kind} material requires docId")
         if self.kind == "image" and not self.material_id:
             raise ValueError("image material requires materialId")
         return self

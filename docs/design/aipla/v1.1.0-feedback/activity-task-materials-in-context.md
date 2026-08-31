@@ -1,6 +1,6 @@
 # The task the student is working on — a material the tutor HAS, not one it may look up
 
-**Status**: Planned — **1.1.87**
+**Status**: **M1 + M2 SHIPPED 2026-08-31** — M3 open (needs the teacher's answer first, see below). **1.1.87**
 **Priority**: **P0** — the single highest-cost item in the 2026-08-21 teacher feedback. A whole lesson was built on this and it did not work, silently
 **Estimated**: ~1–1.5d (M1 the third twin ~0.6d · M2 the authoring control ~0.3d · M3 task selection ~0.4d)
 **Scope**: Backend — a third `MaterialRef.kind`, a durable slot write on teacher upload, a loader/injector twin in `adk/callbacks/`, and the `agent.py` wiring; frontend — one authoring control in the materials picker
@@ -121,6 +121,31 @@ Then `make_activity_document_loader` / `make_activity_document_injector`, twins 
 inlining text through `make_document_injector`'s existing formatting. Wire in `agent.py` beside the
 image callbacks.
 
+> **AS BUILT (2026-08-31) — no second store, and no upload.** The paragraph above assumes a context
+> material needs its own bytes written somewhere. It does not. **1.1.33 M3 already persists every
+> curriculum doc's parsed text** at `curriculum_content/{doc_id}`
+> (`db.curriculum.set_curriculum_content`, written by `ingest_curriculum`, read today by the "what
+> we extracted" viewer). So a context material is the **same uploaded document** as a curriculum
+> one, addressed by `doc_id` and reaching the tutor by a different mechanism — which is also what
+> M2 describes, a toggle on a material the teacher has already attached. Nothing is re-uploaded,
+> re-parsed, or duplicated, and rollback is a toggle.
+>
+> The key-scheme warning still lands, differently: `doc_id` is the document's identity everywhere
+> in the system, so save and load cannot diverge the way the 1.1.44 key did. The loader→session
+> artifact hop is kept exactly as written, for the Axiom 8 reason 1.1.44 gives — the task shows up
+> in the ADK web UI and to `adk eval` as `activity-doc:{doc_id}.json`, so "did the tutor have the
+> paper?" is answerable after the fact.
+>
+> Shipped: `adk/callbacks/activity_documents.py` (loader + injector, `CONTEXT_CHAR_CAP = 24_000`
+> head-plus-tail with the truncation DECLARED to the tutor), wired in `adk/agent.py` beside the
+> image pair; `MaterialRef.kind` widened; `db/activities.py` facet inheritance generalised so a
+> context material still contributes its doc's subject/level/tags. `build_curriculum_retrieval_tool`
+> and `build_curriculum_grounding_preamble` needed no change — both already filter to
+> `kind == "curriculum"`, so a context material is excluded from RAG for free. Tested in
+> `tests/tool_tests/test_activity_document_callbacks.py` (14), `tests/unit/test_material_ref.py`,
+> `tests/unit/test_curriculum_retrieval.py` (the two-kinds-must-not-merge cases) and
+> `tests/api_tests/test_activity_config_routes.py` (the wire).
+
 ### M2 — the teacher chooses, and can see the choice
 
 In the materials picker, a material is attached either as **reference** (RAG, "the tutor can look
@@ -129,6 +154,21 @@ Default stays reference — it is the cheaper mechanism and the right one for a 
 
 This is the half that makes the failure impossible to repeat *silently*: today a teacher has no way
 to know which mechanism their upload got, because there is only one and it is invisible.
+
+> **AS BUILT (2026-08-31).** Each cited chip in `MaterialsSection` carries a
+> **Reference ⟷ In context** control next to the existing visibility toggle, with the consequence
+> in its tooltip ("the tutor always has this text… costs prompt space on every turn" vs "the tutor
+> can look this up when relevant"). Reference stays the default. The section's explanatory line now
+> names both mechanisms, so the choice is visible before a teacher goes looking for it.
+>
+> **Plus a third authoring surface the doc did not account for: the co-pilot.** Teachers now build
+> activities by talking to the authoring assistant, and `attach_material` hardcoded
+> `materialKind: "curriculum"` — so a teacher who authored conversationally could not reach the new
+> mechanism at all, and their exam paper would be cited as reference exactly as on 21 August. It
+> takes `in_context: bool` now, and the SKILL.md tells it when to set it ("students work these exam
+> questions" is a task, not a reference). Same footgun the `workbench-element-builder` skill exists
+> to prevent, in the materials half rather than the elements half. **SKILL.md change → seeded on
+> deploy** by the `aipla-seed-skills` job.
 
 ### M3 — which task
 
@@ -166,17 +206,24 @@ the unit tests prove the bytes arrive, and arriving was never the part in doubt.
 
 ## Success Criteria
 
-- [ ] A context material reaches the tutor on the first turn with no student action.
-- [ ] The eval passes: two papers, right Question 5.
-- [ ] A curriculum material still goes to RAG and is not injected.
-- [ ] The teacher can see which mechanism a material uses before students arrive.
-- [ ] Over-cap materials are truncated visibly rather than silently.
-- [ ] The teacher who reported item 1 rebuilds the exam activity and it works.
+- [x] A context material reaches the tutor on the first turn with no student action.
+- [ ] The eval passes: two papers, right Question 5. — evalset written
+      (`tests/eval/evalsets/activity_task_in_context.evalset.json`); **needs a live run against a
+      seeded two-paper activity**, which is the remaining verification.
+- [x] A curriculum material still goes to RAG and is not injected.
+- [x] The teacher can see which mechanism a material uses before students arrive.
+- [x] Over-cap materials are truncated visibly rather than silently.
+- [ ] The teacher who reported item 1 rebuilds the exam activity and it works. — the real gate,
+      and it needs the teacher.
 
 ## Open Questions
 
 1. **What is the cap, and per material or per activity?** A three-paper activity at 20 pages each is
    not injectable at any sane budget, which is what makes M3 load-bearing rather than a nicety.
+   *Answered provisionally as built: **per material**, 24,000 chars (`CONTEXT_CHAR_CAP`). Per
+   material is the honest unit because the truncation notice is per document — a per-activity budget
+   would have to decide which paper to cut, which is M3's question wearing a different hat. Revisit
+   once a real activity's materials are measured.*
 2. **Does `kind="image"` fold into `kind="context"`?** They are the same idea with different Parts.
    Merging is cleaner; it also touches shipped 1.1.44 code for no user-visible gain. Recommendation:
    leave 1.1.44 alone and revisit if a third kind appears.

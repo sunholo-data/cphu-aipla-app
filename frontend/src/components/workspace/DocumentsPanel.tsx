@@ -21,7 +21,7 @@ import { MarkdownBody } from "./MarkdownBody";
  *  1.1.44: `kind="image"` materials carry `materialId`/`alt` instead of `docId`
  *  and render as an image (the tutor sees it too). */
 export interface ActivityMaterial {
-  kind?: "curriculum" | "image";
+  kind?: "curriculum" | "image" | "context";
   docId: string;
   origin: string;
   studentVisible: boolean;
@@ -29,6 +29,10 @@ export interface ActivityMaterial {
   mimeType?: string;
   alt?: string;
 }
+
+// 1.1.87 — `kind: "context"` is a curriculum doc attached so the tutor always has
+// it. Student-side this panel treats it exactly like a curriculum material: it is
+// the same document, and `studentVisible` still decides whether it appears here.
 
 /** Display label for a material (image → alt; curriculum → origin/docId). */
 function materialLabel(m: ActivityMaterial): string {

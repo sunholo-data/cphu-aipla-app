@@ -156,6 +156,80 @@ describe("MaterialsSection", () => {
     ]);
   });
 
+  // 1.1.87 — reference ⟷ context. The half that makes the 21-August failure
+  // impossible to repeat SILENTLY: before this, a teacher had no way to know
+  // which mechanism their upload got, because there was only one and it was
+  // invisible.
+  it("a cited material defaults to Reference (the cheaper mechanism)", async () => {
+    browseCurriculum.mockResolvedValue(page([]));
+    render(
+      <MaterialsSection
+        materials={[{ docId: "d1", origin: "Haka Fysik" }]}
+        onChange={() => {}}
+      />,
+    );
+    const chips = await screen.findByLabelText("Cited materials");
+    expect(chips).toHaveTextContent("Reference");
+    expect(chips).not.toHaveTextContent("In context");
+  });
+
+  it("flipping a material to In context sets kind=context (1.1.87)", async () => {
+    browseCurriculum.mockResolvedValue(page([]));
+    const onChange = vi.fn();
+    render(
+      <MaterialsSection
+        materials={[{ docId: "d1", origin: "Haka Fysik", studentVisible: false }]}
+        onChange={onChange}
+      />,
+    );
+    fireEvent.click(
+      await screen.findByRole("button", { name: /Always give Haka Fysik to the tutor/i }),
+    );
+    expect(onChange).toHaveBeenCalledWith([
+      { docId: "d1", origin: "Haka Fysik", studentVisible: false, kind: "context" },
+    ]);
+  });
+
+  it("flipping a context material back makes it a curriculum material again", async () => {
+    browseCurriculum.mockResolvedValue(page([]));
+    const onChange = vi.fn();
+    render(
+      <MaterialsSection
+        materials={[{ docId: "d1", origin: "Haka Fysik", kind: "context" }]}
+        onChange={onChange}
+      />,
+    );
+    const chips = await screen.findByLabelText("Cited materials");
+    expect(chips).toHaveTextContent("In context");
+    fireEvent.click(
+      await screen.findByRole("button", { name: /Stop always giving Haka Fysik to the tutor/i }),
+    );
+    expect(onChange).toHaveBeenCalledWith([
+      { docId: "d1", origin: "Haka Fysik", kind: "curriculum" },
+    ]);
+  });
+
+  it("the context toggle leaves image materials alone", async () => {
+    browseCurriculum.mockResolvedValue(page([]));
+    const onChange = vi.fn();
+    render(
+      <MaterialsSection
+        materials={[
+          { docId: "", origin: "", kind: "image", materialId: "img-1", alt: "diagram" },
+          { docId: "d1", origin: "Haka Fysik" },
+        ]}
+        onChange={onChange}
+        activityId="act-1"
+      />,
+    );
+    fireEvent.click(
+      await screen.findByRole("button", { name: /Always give Haka Fysik to the tutor/i }),
+    );
+    const next = onChange.mock.calls[0][0];
+    expect(next[0]).toEqual({ docId: "", origin: "", kind: "image", materialId: "img-1", alt: "diagram" });
+    expect(next[1].kind).toBe("context");
+  });
+
   it("un-citing an already-cited doc removes it", async () => {
     browseCurriculum.mockResolvedValue(page([makeDoc()]));
     const cited: MaterialRef[] = [{ docId: "d1", origin: "uvm.dk" }];

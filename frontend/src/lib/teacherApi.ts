@@ -171,8 +171,13 @@ export type StxLevel = "A" | "B" | "C";
  *  grounding preamble can name the source without an extra read. */
 export interface MaterialRef {
   /** 1.1.44 — "curriculum" (a RAG doc, the default/legacy) or "image" (a teacher
-   *  image the tutor SEES multimodally). Absent ⇒ curriculum. */
-  kind?: "curriculum" | "image";
+   *  image the tutor SEES multimodally). Absent ⇒ curriculum.
+   *
+   *  1.1.87 — "context": the SAME doc as "curriculum" (cited by `docId`), but
+   *  inlined into every turn instead of retrieved. For the task the student is
+   *  working on — an exam question, a worksheet — where the tutor must simply
+   *  HAVE the text rather than choose to look it up. */
+  kind?: "curriculum" | "image" | "context";
   /** Curriculum doc id. Empty string for image materials. */
   docId: string;
   /** Provenance (curriculum): "uvm.dk", "Haka Fysik", a teacher name. Empty

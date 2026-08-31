@@ -10,12 +10,19 @@ Callbacks wired into every skill by ``adk.agent.create_agent``:
 Submodules:
   permission   — tool permission enforcement + OTEL span annotation
   document     — document loading into artifacts + LLM request injection
+  activity_documents — a teacher's TASK material (kind="context") into artifacts
+                 + every-turn injection (1.1.87)
   session      — session index creation + turn counter maintenance
   large_output — oversized tool-response offloading to ADK artifacts
   compaction   — pre-request compaction demotion (keeps routine compaction
                  out of TTFT; wired into make_before_agent)
 """
 
+from adk.callbacks.activity_documents import (
+    _STATE_DOCS_IN_CONTEXT,
+    make_activity_document_injector,
+    make_activity_document_loader,
+)
 from adk.callbacks.activity_images import (
     _STATE_IMAGES_LOADED,
     make_activity_image_injector,
@@ -42,6 +49,7 @@ from adk.callbacks.session import (
 )
 
 __all__ = [
+    "_STATE_DOCS_IN_CONTEXT",
     "_STATE_DOCS_LOADED",
     "_STATE_DOC_LOAD_ERROR",
     "_STATE_IMAGES_LOADED",
@@ -54,6 +62,8 @@ __all__ = [
     "_derive_access_control",
     "_handle_large_output",
     "_try_generate_title",
+    "make_activity_document_injector",
+    "make_activity_document_loader",
     "make_activity_image_injector",
     "make_activity_image_loader",
     "make_after_agent_response",

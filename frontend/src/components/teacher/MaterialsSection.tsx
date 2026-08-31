@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import * as Dialog from "@radix-ui/react-dialog";
-import { BookOpen, Check, Eye, EyeOff, FileText, FileUp, Folder, FolderPlus, Image as ImageIcon, Loader2, Plus, Tag, Trash2, X } from "lucide-react";
+import { BookOpen, Check, Eye, EyeOff, FileText, FileUp, Folder, FolderPlus, Image as ImageIcon, Loader2, Pin, Plus, Search, Tag, Trash2, X } from "lucide-react";
 
 import {
   type CurriculumDoc,
@@ -322,6 +322,22 @@ export function MaterialsSection({ materials, onChange, activityId, mode = "cite
     }
   }
 
+  /** 1.1.87 — reference (RAG, the tutor CAN look it up) ⟷ context (inlined every
+   *  turn, the tutor HAS it). The same document either way; only the mechanism
+   *  changes. Reference stays the default because it is the cheaper one and the
+   *  right one for a textbook — but a teacher who attaches the task their students
+   *  are working on needs the other, and until now had no way to ask for it or to
+   *  see which one they had got. */
+  function toggleInContext(docId: string) {
+    onChange(
+      materials.map((m) =>
+        m.docId === docId && m.kind !== "image"
+          ? { ...m, kind: m.kind === "context" ? "curriculum" : "context" }
+          : m,
+      ),
+    );
+  }
+
   function toggleStudentVisible(docId: string) {
     onChange(
       materials.map((m) =>
@@ -369,8 +385,14 @@ export function MaterialsSection({ materials, onChange, activityId, mode = "cite
         ) : (
           <>
             Cite curriculum documents so the tutor can ground its answers with a
-            source. The tutor uses every cited document; students only see the
-            ones you mark <span className="font-medium">visible</span>.
+            source. Each cited document is either{" "}
+            <span className="font-medium">Reference</span> — the tutor looks it up
+            when relevant, right for a textbook — or{" "}
+            <span className="font-medium">In context</span>, where the tutor is
+            given the full text on every turn. Use In context for the task your
+            students are working on, so the tutor never has to search for it or
+            ask them to paste it in. Students only see the documents you mark{" "}
+            <span className="font-medium">visible</span>.
           </>
         )}
       </p>
@@ -437,8 +459,9 @@ export function MaterialsSection({ materials, onChange, activityId, mode = "cite
                 </li>
               );
             }
-            const label = m.origin || m.docId;
+            const label = m.title || m.origin || m.docId;
             const visible = Boolean(m.studentVisible);
+            const inContext = m.kind === "context";
             return (
               <li
                 key={m.docId}
@@ -451,6 +474,33 @@ export function MaterialsSection({ materials, onChange, activityId, mode = "cite
                   className="font-medium underline-offset-2 hover:underline"
                 >
                   {label}
+                </button>
+                <button
+                  type="button"
+                  aria-pressed={inContext}
+                  aria-label={
+                    inContext
+                      ? `Stop always giving ${label} to the tutor`
+                      : `Always give ${label} to the tutor`
+                  }
+                  title={
+                    inContext
+                      ? "The tutor always has this text — use it for the task students are working on. Costs prompt space on every turn."
+                      : "The tutor can look this up when relevant — the right choice for reference material."
+                  }
+                  onClick={() => toggleInContext(m.docId)}
+                  className={
+                    inContext
+                      ? "flex items-center gap-1 rounded px-1 text-primary hover:text-primary/80"
+                      : "flex items-center gap-1 rounded px-1 text-muted-foreground hover:text-foreground"
+                  }
+                >
+                  {inContext ? (
+                    <Pin className="h-3.5 w-3.5" aria-hidden="true" />
+                  ) : (
+                    <Search className="h-3.5 w-3.5" aria-hidden="true" />
+                  )}
+                  <span>{inContext ? "In context" : "Reference"}</span>
                 </button>
                 <button
                   type="button"

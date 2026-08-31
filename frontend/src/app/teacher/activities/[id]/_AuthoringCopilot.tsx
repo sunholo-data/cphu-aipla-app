@@ -127,7 +127,9 @@ export type Proposal =
   | { kind: "set_artefact"; artefactId: string; label: string }
   | {
       kind: "attach_material";
-      materialKind: "curriculum";
+      /** 1.1.87 — "curriculum" (RAG, the tutor can look it up) or "context" (the
+       *  tutor is given the full text every turn: the task students work on). */
+      materialKind: "curriculum" | "context";
       docId: string;
       origin: string;
       /** 1.1.63 M1 — the doc's title, cached onto the MaterialRef so the tutor
@@ -242,12 +244,15 @@ export function parseProposal(tc: ToolCallState): Proposal | null {
         ? { kind: "set_artefact", artefactId: p.artefactId, label: typeof p.label === "string" ? p.label : p.artefactId }
         : null;
     case "attach_material":
-      return p.materialKind === "curriculum" && typeof p.docId === "string" && p.docId
+      return (p.materialKind === "curriculum" || p.materialKind === "context") &&
+        typeof p.docId === "string" &&
+        p.docId
         ? {
             kind: "attach_material",
-            materialKind: "curriculum",
+            materialKind: p.materialKind,
             docId: p.docId,
             origin: typeof p.origin === "string" ? p.origin : "",
+            title: typeof p.title === "string" ? p.title : undefined,
             label: typeof p.label === "string" ? p.label : p.docId,
           }
         : null;
@@ -352,7 +357,9 @@ const authoringProposalDescriptor: ProposalDescriptor<Proposal> = {
       case "set_activity_facets":
         return "Forslag: arkivering (emne · niveau · tags)";
       case "attach_material":
-        return `Forslag: materiale — ${p.label}`;
+        return p.materialKind === "context"
+          ? `Forslag: opgavemateriale (altid i konteksten) — ${p.label}`
+          : `Forslag: materiale — ${p.label}`;
       case "propose_concept_map":
         return `Forslag: begrebskort — ${p.label}`;
     }
@@ -373,6 +380,9 @@ const authoringProposalDescriptor: ProposalDescriptor<Proposal> = {
         <p className="text-sm" data-testid="proposal-material">
           {p.label}
           {p.origin ? ` · ${p.origin}` : ""}
+          {p.materialKind === "context"
+            ? " · tutoren får hele teksten i hver tur"
+            : " · tutoren kan slå den op"}
         </p>
       );
     }

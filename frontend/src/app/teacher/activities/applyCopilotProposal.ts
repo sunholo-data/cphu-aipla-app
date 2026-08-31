@@ -56,16 +56,28 @@ export function applyCopilotProposal(p: Proposal, builder: ActivityBuilder): voi
     // unsaved teacher edits) — it never replaces it wholesale.
     builder.setConceptMap(applyConceptMapDiff(builder.conceptMap, p.diff, builder.nextElementKey));
   } else if (p.kind === "attach_material") {
-    // Append a curriculum reference the tutor grounds on (RAG). Dedup by docId so
-    // re-applying the same proposal doesn't stack duplicates.
-    const exists = builder.materials.some((m) => m.docId === p.docId && (m.kind ?? "curriculum") === "curriculum");
-    if (!exists) {
+    // Append the cited document — as RAG reference, or (1.1.87) as context the
+    // tutor is given every turn. Dedup by docId so re-applying the same proposal
+    // doesn't stack duplicates; a docId already cited under the OTHER mechanism
+    // has its kind updated rather than being appended twice, because the two are
+    // a choice about one document, not two separate citations.
+    const kind = p.materialKind === "context" ? "context" : "curriculum";
+    const existing = builder.materials.find((m) => m.docId === p.docId && (m.kind ?? "curriculum") !== "image");
+    if (existing) {
+      if ((existing.kind ?? "curriculum") !== kind) {
+        builder.setMaterials(
+          builder.materials.map((m) =>
+            m.docId === p.docId && (m.kind ?? "curriculum") !== "image" ? { ...m, kind } : m,
+          ),
+        );
+      }
+    } else {
       builder.setMaterials([
         ...builder.materials,
         // 1.1.63 M1 — cache the title so the tutor cites by it. Falls back to
         // the proposal's display label for older proposals that predate the
         // dedicated field.
-        { kind: "curriculum", docId: p.docId, origin: p.origin, title: p.title ?? p.label, studentVisible: false },
+        { kind, docId: p.docId, origin: p.origin, title: p.title ?? p.label, studentVisible: false },
       ]);
     }
   } else if (p.kind === "set_activity_facets") {

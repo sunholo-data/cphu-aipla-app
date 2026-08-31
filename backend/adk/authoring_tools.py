@@ -644,9 +644,10 @@ def attach_material(
     topic: str = "",
     subject: str = "",
     tags: str = "",
+    in_context: bool = False,
     tool_context: ToolContext = None,
 ) -> dict[str, Any]:
-    """Propose attaching a curriculum reference document to an activity (COPILOT-2).
+    """Propose attaching a curriculum document to an activity (COPILOT-2, 1.1.87).
 
     Owner-scoped (the activity) + propose-only: returns a proposal the teacher
     Applies; never persists. The document is resolved against the teacher's
@@ -654,8 +655,18 @@ def attach_material(
     teacher can only attach a doc they may actually cite. An empty/unknown
     ``doc_id`` returns the available documents (optionally narrowed by ``level`` /
     ``topic``) so the agent can pick a valid one, exactly like ``set_artefact``.
-    Applying it appends a ``curriculum`` material the tutor grounds its answers on
-    (RAG retrieval).
+
+    Two mechanisms, chosen by ``in_context`` (1.1.87):
+
+    * ``in_context=False`` (default) appends a ``curriculum`` material — the tutor
+      grounds its answers on it via RAG retrieval, and must elect to look it up.
+      Right for reference material: a textbook chapter, a syllabus.
+    * ``in_context=True`` appends a ``context`` material — the full text is given to
+      the tutor on every turn. Right for THE TASK the students are working on: an
+      exam question, a worksheet, a problem set. Use this whenever the teacher
+      describes the document as the assignment/task/exercise the students will
+      work through, because a retrieved task is one the tutor may miss or confuse
+      with a similar-looking question in another document.
 
     Args:
         doc_id: a curriculum document id from the teacher's library. Empty → list
@@ -666,10 +677,14 @@ def attach_material(
         subject: optional subject filter when listing, e.g. "Fysik" (1.1.61).
         tags: optional comma-separated tags when listing; a document must carry
             ALL of them (1.1.61).
+        in_context: True when this document IS the task the students work on, so
+            the tutor is given its full text every turn instead of retrieving it
+            (1.1.87). Default False (reference/RAG).
 
     Returns:
         ``{"ok": True, "proposal": {"kind": "attach_material", "materialKind":
-        "curriculum", "docId": ..., "origin": ..., "label": ...}}`` on success, or
+        "curriculum" | "context", "docId": ..., "origin": ..., "label": ...}}`` on
+        success, or
         ``{"ok": False, "error": ..., "available": [...]}`` listing the documents
         the teacher may attach.
     """
@@ -700,13 +715,17 @@ def attach_material(
         return dict(_DENY)
 
     logger.info(
-        "authoring: attach_material(%s) proposal for activity=%s by uid=%s", doc_id, activity_id or "(draft)", uid
+        "authoring: attach_material(%s, in_context=%s) proposal for activity=%s by uid=%s",
+        doc_id,
+        in_context,
+        activity_id or "(draft)",
+        uid,
     )
     return {
         "ok": True,
         "proposal": {
             "kind": "attach_material",
-            "materialKind": "curriculum",
+            "materialKind": "context" if in_context else "curriculum",
             "docId": chosen.doc_id,
             "origin": chosen.origin,
             # 1.1.63 M1 — the title rides the proposal so the applier can cache

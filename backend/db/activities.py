@@ -186,7 +186,11 @@ def inherited_facets_for(
         levels: set[str] = set()
         tags: set[str] = set()
         for ref in activity.materials:
-            if ref.kind != "curriculum" or not ref.doc_id:
+            # 1.1.87: any doc-backed material inherits facets — a task attached
+            # as `context` is the same CurriculumDoc as one attached as
+            # `curriculum`, so it carries the same subject/level/tags. Only
+            # `image` materials have no document behind them.
+            if ref.kind == "image" or not ref.doc_id:
                 continue
             doc = docs_by_id.get(ref.doc_id)
             if doc is None:

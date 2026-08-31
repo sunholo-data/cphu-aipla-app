@@ -274,3 +274,42 @@ def test_retrieval_tool_description_does_not_demand_always_cite(monkeypatch):
 
     assert tool is not None
     assert "always cite" not in tool.description.lower()
+
+
+# ---------------------------------------------------------------------------
+# 1.1.87 — a context material is NOT a retrieval material
+# ---------------------------------------------------------------------------
+#
+# The two mechanisms must not merge. A `kind="context"` material is inlined every
+# turn by adk/callbacks/activity_documents.py; putting it in the RAG tool as well
+# would hand the model a second, chunked copy of a document it already has in
+# full — which is exactly how it came to discuss a different paper's Question 5.
+
+
+def test_context_material_is_excluded_from_retrieval(monkeypatch):
+    monkeypatch.setenv("CURRICULUM_RAG_CORPUS_NAME", "projects/p/locations/eu/ragCorpora/42")
+    ctx_only = [MaterialRef(kind="context", docId="doc-task", origin="teacher")]
+    with patch.object(cr, "get_curriculum_doc") as get_doc:
+        assert cr.build_curriculum_retrieval_tool(ctx_only) is None
+        get_doc.assert_not_called()
+
+
+def test_context_material_is_excluded_from_grounding_preamble():
+    preamble = cr.build_curriculum_grounding_preamble(
+        [MaterialRef(kind="context", docId="doc-task", origin="teacher", title="Exam 2019")]
+    )
+    assert preamble == ""
+
+
+def test_mixed_materials_keep_only_the_curriculum_one_in_retrieval(monkeypatch):
+    monkeypatch.setenv("CURRICULUM_RAG_CORPUS_NAME", "projects/p/locations/eu/ragCorpora/42")
+    materials = [
+        MaterialRef(kind="context", docId="doc-task", origin="teacher"),
+        MaterialRef(docId="doc-ref", origin="uvm.dk"),
+    ]
+    with patch.object(cr, "get_curriculum_doc") as get_doc:
+        get_doc.return_value = _doc("doc-ref", "projects/p/locations/eu/ragCorpora/42/ragFiles/10")
+        with patch.object(cr, "VertexAiRagRetrieval") as tool_cls:
+            cr.build_curriculum_retrieval_tool(materials)
+    get_doc.assert_called_once_with("doc-ref")
+    assert tool_cls.called
