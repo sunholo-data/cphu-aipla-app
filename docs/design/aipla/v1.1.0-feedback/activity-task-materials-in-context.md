@@ -207,14 +207,45 @@ the unit tests prove the bytes arrive, and arriving was never the part in doubt.
 ## Success Criteria
 
 - [x] A context material reaches the tutor on the first turn with no student action.
-- [ ] The eval passes: two papers, right Question 5. — evalset written
-      (`tests/eval/evalsets/activity_task_in_context.evalset.json`); **needs a live run against a
-      seeded two-paper activity**, which is the remaining verification.
+- [x] The eval passes: two papers, right Question 5. — **RUN AND PASSING 2026-08-31**, against
+      Gemini on `aipla-dev-2026`, via `tests/eval/test_activity_task_in_context_smoke.py`
+      (`@pytest.mark.slow`, no Firestore seeding needed). **Verified against the pre-1.1.87
+      baseline**: citing the same two papers as `kind="curriculum"`, the tutor replied *"I'm having
+      a little trouble accessing the uploaded May 2019 exam paper right now. Could you type out or
+      describe what question 5 asks"* — the teacher's report word for word. The JSON evalset stays
+      as the `adk eval` artifact for the deployed path.
 - [x] A curriculum material still goes to RAG and is not injected.
 - [x] The teacher can see which mechanism a material uses before students arrive.
 - [x] Over-cap materials are truncated visibly rather than silently.
 - [ ] The teacher who reported item 1 rebuilds the exam activity and it works. — the real gate,
       and it needs the teacher.
+
+## What the eval could not settle, and two harness defects it exposed
+
+**The smoke test does not isolate the injector.** Disabling `_activity_doc_injector` alone still
+passes, because the LOADER has by then written the task to a session artifact and ADK's
+`load_artifacts_tool` lets the model fetch it. That is precisely the path
+`make_document_injector`'s docstring says not to depend on — the model *elects* to call it, and
+sometimes calls it with empty `artifact_names` and then reports no document was provided. So the
+loader makes the task **reachable** (the eval proves that) and the injector makes it **certain**
+(only `tests/tool_tests/test_activity_document_callbacks.py` proves that). Worth stating because a
+future reader will otherwise take a green eval as evidence the injector is wired.
+
+**Two pre-existing defects found while getting the eval to run** — neither is 1.1.87's, both are
+filed here because this is where they surfaced:
+
+1. **`tests/eval/test_verbosity_smoke.py` has been dead.** It fails before reaching its assertions
+   with `ValueError: Artifact service is not initialized` — the `Runner` is built without an
+   `artifact_service` and `load_artifacts_tool` now requires one. It was written as the behavioural
+   confirmation for 1.1.1 (the verbosity constraint) and confirms nothing today. One-line fix; not
+   taken here because the assertion may then fail on its own merits and that is a separate question.
+2. **Any live-model test needs three harness escapes.** `tests/conftest.py` stubs
+   `google.auth.default` and the Firestore client session-wide — correct for the 3,200 tests that
+   must never touch the network, fatal for the few that must. A live test therefore has to restore
+   real credentials, supply an artifact service, and bypass `can_use_tool` (which resolves an
+   anonymous student through a `tool_permissions/*` wildcard doc the stub cannot serve). All three
+   are local fixtures in the new file, documented in place. They belong in a shared
+   `tests/eval/conftest.py`; that is a small follow-up, not this change.
 
 ## Open Questions
 
