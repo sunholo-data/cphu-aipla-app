@@ -511,6 +511,33 @@ stay serverless instead of replicating the pinning workaround.
 
 > **Fixed upstream** — corrected 2026-07-29 (first triaged as OPEN; **triage error**). The dead plumbing was already removed: `backend/Dockerfile`, `cloudbuild.yaml` and `backend/cloudbuild.yaml` contain no `gcs_config` / `_CONFIG_FOLDER` reference at all. The surviving mentions are historical prose in `docs/design/template/`. Shipped 2026-06-05 in `template-dx-hardening.md`.
 
+> **CLOSED IN THE FORK 2026-08-31 — and the delay cost prod ~8 hours.** Upstream
+> fixed this on **2026-06-05**. AIPLA forked on **2026-05-19** and never pulled
+> it, so the fork carried the dead mount for **12 further weeks**, until
+> 2026-08-28/29, when the gcsfuse mount failed and prod could not start a single
+> instance for ~8 hours (33 consecutive `Application failed to run: volume (type:
+> gcs, name: gcs_config): mount operation failed`). Note the mount is on the
+> *sidecar* and took the whole instance — frontend included — down with it.
+>
+> **This is the clearest argument yet for the ADR-002 update cadence.** The bug
+> was found, reported, fixed upstream and shipped, and the fork was still bitten
+> by it, because "pull from upstream periodically" has no trigger and no owner.
+> Pin `.template-fork-target` and diff it on a schedule; an upstream fix that a
+> fork never pulls is worth nothing. Worth a sweep for the *other* fixes shipped
+> in `template-dx-hardening.md` (2026-06-05) that AIPLA may equally not have.
+>
+> Fork-side resolution: volume, mount and `_CONFIG_FOLDER` removed from
+> `cloudbuild.yaml` + `backend/Dockerfile` and stripped from all three running
+> services (removing them from the pipelines is not enough — `run deploy` and
+> `services update` both preserve volumes they are not told to drop).
+> `backend/cloudbuild.yaml` was **deleted outright** rather than fixed: no
+> trigger references it, the `aitana-v6-backend` service it deploys exists in no
+> AIPLA project, and across 401 builds in 90 days `_SERVICE_NAME` is only ever
+> `aipla-v01-frontend`/`aipla-v01-sandbox`. **That deletion is deliberate fork
+> divergence** — the template still needs the file for its standalone-backend
+> topology — and will conflict on the next upstream pull; take the deletion.
+> Decision: [gcs-config-volume-decision.md](design/aipla/v1.1.0-feedback/gcs-config-volume-decision.md).
+
 **Where:** `backend/Dockerfile` (`ENV _CONFIG_FOLDER=/gcs_config`)
 plus `backend/cloudbuild.yaml` and `cloudbuild.yaml`
 (`--add-volume name=gcs_config,type=cloud-storage,...readonly=true`

@@ -22,7 +22,9 @@ ENV GOOGLE_CLOUD_PROJECT=${GOOGLE_CLOUD_PROJECT}
 ENV GOOGLE_CLOUD_LOCATION=${GOOGLE_CLOUD_LOCATION}
 ENV GOOGLE_GENAI_USE_VERTEXAI=true
 ENV GOOGLE_CLOUD_LOGGING=1
-ENV _CONFIG_FOLDER=/gcs_config
+# NO _CONFIG_FOLDER. It pointed at the gcsfuse /gcs_config mount for Sunholo's
+# ConfigManager, which v6 does not use — nothing in backend/ reads either the
+# variable or the path. Removed with the mount (see cloudbuild.yaml).
 ENV COMMIT_SHA=${COMMIT_SHA}
 
 RUN uv sync --frozen --no-install-project

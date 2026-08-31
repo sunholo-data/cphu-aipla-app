@@ -550,3 +550,37 @@ deployment does not silently succeed with a broken sidecar.
   [incidents/fe-bringup-1-proxy-404.md](incidents/fe-bringup-1-proxy-404.md).
   The smoke step above exists specifically to make this class of bug fail
   loud on the next deploy instead of after-the-fact.
+
+- **PILOT-UPLOAD-500** (2026-08-21, prod) — every student document upload 500'd
+  during the busiest teaching session to date (335 turns, 22 groups, 35
+  sessions). `resolve_documents_bucket()` looked up `clients/{domain}` in
+  Firestore, and an anonymous-group student has `domain == ""`, so the read went
+  to `clients/` → `400 Document name "…/documents/clients/" has invalid trailing
+  "/"` → 500. 19 occurrences. The repo's documented #1 footgun (ADR-001 identity
+  corner case) in a surface nobody had checked. Guard landed in `2111e22`
+  (v0.1.28, 2026-08-25), live in prod from v0.1.30; zero recurrences since
+  08-25. **Now netted rather than merely patched:** `smoke-deployed.sh` drives a
+  real group-token upload round-trip on every environment, so the next instance
+  fails the build.
+
+- **GCSFUSE-STARTUP** (2026-08-28 20:00 → 08-29 03:54 UTC, prod) — prod could
+  not start instances for ~8 hours. 33 consecutive startup failures:
+  `terminated: Application failed to run: volume (type: gcs, name: gcs_config):
+  mount operation failed`. It landed overnight in a zero-traffic window and
+  self-resolved, so no session was hit. **Root cause was not the transient — it
+  was that the mount existed at all.** The sidecar mounted
+  `gs://<project>-config` read-only at `/gcs_config` for Sunholo's
+  `ConfigManager` (`_CONFIG_FOLDER`), inherited wholesale at the fork's initial
+  commit `160c9fe`. v6 stripped Sunholo: nothing in `backend/` has ever read the
+  variable or the path, and all three config buckets are empty. A container that
+  needs no config was fatally dependent on gcsfuse being reachable. Volume and
+  `_CONFIG_FOLDER` removed from `cloudbuild.yaml`, `backend/cloudbuild.yaml` and
+  `backend/Dockerfile`, and stripped from the three running services (removing
+  it from the pipelines is NOT enough — both `gcloud run deploy` and `services
+  update` preserve volumes they are not explicitly told to drop, and the promote
+  path never set it in the first place, so prod's copy was inherited from its
+  env cut). **Cleared on all three environments 2026-08-31** — prod on revision
+  `aipla-v01-frontend-00030-652`, smoke green including the real-student upload
+  round-trip. Decision + the four-way evidence that the standalone
+  `backend/cloudbuild.yaml` was dead:
+  [gcs-config-volume-decision.md](../design/aipla/v1.1.0-feedback/gcs-config-volume-decision.md).

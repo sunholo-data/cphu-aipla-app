@@ -17,6 +17,12 @@ substitutions:
   _ARTIFACT_REGISTRY_REPO_URL_CLIENT: terraform_managed
   _PROJECT_ID: terraform_managed
   _FIREBASE_BUCKET: '${_PROJECT_ID}.firebasestorage.app'
+  # Unused since the gcs_config volume was removed (see the deploy step), but
+  # KEEP THE DECLARATION: terraform still passes _CONFIG_BUCKET as a trigger
+  # substitution, and Cloud Build rejects a build whose trigger passes a key the
+  # template does not declare. Drop this line only in the same change that
+  # removes it from deploy_substitutions in infrastructure/env/cloudbuild.tf,
+  # terraform applied FIRST.
   _CONFIG_BUCKET: terraform_managed
   # Firebase helper image is built by v5's trigger-dev-firebase and tagged per-env
   # (dev/test/prod), not per-branch. AIPLA dev branch -> dev env; test/prod triggers override.
@@ -205,8 +211,15 @@ steps:
       # GROUP_AUTH_SIGNING_SECRET, etc.). Without this Cloud Run falls
       # back to compute-default, which we deliberately don't grant.
       - '--service-account=${_ADMIN_SEED_ALLOWED_SAS}'
-      - '--add-volume'
-      - 'name=gcs_config,type=cloud-storage,bucket=${_CONFIG_BUCKET},readonly=true'
+      # NO gcsfuse config volume. The inherited template mounted
+      # gs://${_CONFIG_BUCKET} at /gcs_config for Sunholo's ConfigManager
+      # (`_CONFIG_FOLDER`); v6 stripped Sunholo, so nothing has read it since
+      # the fork's initial commit and all three buckets are empty. It bought
+      # nothing and cost prod ~8h of unstartable instances on 2026-08-28/29
+      # ("Application failed to run: volume (type: gcs, name: gcs_config):
+      # mount operation failed", 33 consecutive startup failures) — a gcsfuse
+      # transient that a container needing no config was still fatally
+      # dependent on. Do not re-add a volume the code does not read.
       # Frontend (main container)
       - '--container=main'
       - '--image=${_ARTIFACT_REGISTRY_REPO_URL_CLIENT}/${_SERVICE_NAME}/ui:${_IMAGE_TAG}'
@@ -223,8 +236,6 @@ steps:
       # Backend (sidecar container)
       - '--container=sidecar'
       - '--image=${_ARTIFACT_REGISTRY_REPO_URL_CLIENT}/${_SERVICE_NAME}/backend:${_IMAGE_TAG}'
-      - '--add-volume-mount'
-      - 'volume=gcs_config,mount-path=/gcs_config'
       - '--memory=4Gi'
       - '--cpu=2'
       # Without an explicit startup probe, Cloud Run marks the sidecar healthy
