@@ -52,7 +52,9 @@ fails on a kind that appears as neither.
 certainly [the same gap]"* and is wrong):
 
 * ``table``, ``calculator`` — yes. Both push ``mcp_app_context.{kind}.state``
-  through ``useSimSnapshotPush`` with a shape carrying the filled counts.
+  through ``useSimSnapshotPush`` with a shape carrying the filled counts. Both
+  are ARRAY-shaped (every element of that kind in one push, matched by id) —
+  the table joined them at 1.1.88 M2; before that all tables shared one slot.
 * ``checklist`` — has state, but its authority is the Firestore store
   (``db/checklist_progress.py``), read fresh by ``list_checklist()`` and by the
   inherited-progress block (1.1.70 M1). The ``mcp_app_context.progress.state``
@@ -188,25 +190,50 @@ def _entry(state: dict[str, Any], server: str, tool: str = _DEFAULT_TOOL) -> dic
     return raw
 
 
+def _grids_by_id(snap: dict[str, Any] | None) -> dict[str, dict[str, Any]]:
+    """Every pushed table grid, keyed by ``tableId``.
+
+    Accepts BOTH shapes, on purpose:
+
+    * ``{"tables": [ {...}, {...} ]}`` — the shape since 1.1.88 M2, matching the
+      calculator and writing elements ("EVERY element in one array, matched by
+      id"). Every authored table reports its own fill.
+    * ``{"tableId": ..., "filledCells": ..., "data": [...]}`` — the single-slot
+      shape before it. Every table shared one ``table.state`` key, so any table
+      the student was not currently editing reported EMPTY. Sessions that were
+      live at deploy time still hold this in their state and must keep reading
+      correctly rather than going blank mid-lesson; a new push replaces it.
+    """
+    if not isinstance(snap, dict):
+        return {}
+    tables = snap.get("tables")
+    if isinstance(tables, list):
+        return {str(g.get("tableId") or ""): g for g in tables if isinstance(g, dict)}
+    if snap.get("tableId") is not None:
+        return {str(snap.get("tableId") or ""): snap}
+    return {}
+
+
 def _read_table(items: list, spec: ElementSpec, state: dict[str, Any]) -> list[ElementFill]:
     """One reading per authored table: filled cells against the authored capacity.
 
-    ``TableSnapshot`` (frontend ``WorkbenchTable.tsx``) carries ``tableId``,
-    ``filledCells`` and the ``data`` grid. Only ONE table's snapshot can be live
-    at a time — every table pushes to the same ``table.state`` key, which is the
-    stable-id problem 1.1.71 exists to fix. Until then a snapshot is matched by
-    ``tableId`` and any *other* authored table reports EMPTY, which is right far
-    more often than it is wrong: a student working a second table has by
-    definition touched it, so its snapshot is the live one.
+    Each grid (frontend ``WorkbenchTable.tsx``) carries ``tableId``,
+    ``filledCells`` and the ``data`` grid, and since 1.1.88 M2 they arrive as an
+    ARRAY covering every table on the activity — so a second table is no longer
+    reported EMPTY merely because the student is editing the first. That was the
+    stable-id problem 1.1.71 named, and it is fixed here rather than deferred:
+    the shared slot was session state, never stored student data, so there was no
+    migration behind it.
     """
-    snap = _entry(state, "table")
+    grids = _grids_by_id(_entry(state, "table"))
     fills = []
     for tbl in items:
         columns = getattr(tbl, "columns", []) or []
         total = int(getattr(tbl, "rows", 0) or 0) * len(columns)
         filled = 0
-        if snap is not None and str(snap.get("tableId") or "") == str(getattr(tbl, "id", "")):
-            raw = snap.get("filledCells")
+        grid = grids.get(str(getattr(tbl, "id", "")))
+        if grid is not None:
+            raw = grid.get("filledCells")
             if isinstance(raw, int):
                 filled = raw
             else:
@@ -214,7 +241,7 @@ def _read_table(items: list, spec: ElementSpec, state: dict[str, Any]) -> list[E
                 # about its own contents even when the count field is missing.
                 filled = sum(
                     1
-                    for row in (snap.get("data") or [])
+                    for row in (grid.get("data") or [])
                     if isinstance(row, dict)
                     for v in row.values()
                     if str(v).strip()

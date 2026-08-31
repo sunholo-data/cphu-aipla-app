@@ -62,6 +62,8 @@ _TEACHING_COLLECTIONS = [
     # teacher reports the symptom.
     "concept_progress",
     "checklist_progress",
+    # 1.1.88 — the group's data-table readings (fourth per-group store).
+    "table_progress",
 ]
 
 # Projects this destructive script is allowed to touch. DEV ONLY.

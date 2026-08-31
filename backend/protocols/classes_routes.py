@@ -49,6 +49,7 @@ from db.concept_progress import clear_progress_for_group as clear_concept_progre
 from db.firestore import get_document, set_document
 from db.group_sessions import archive_session_for_group
 from db.models.class_ import Class
+from db.table_progress import clear_progress_for_group as clear_table_progress
 from skills import skill_config
 
 log = logging.getLogger(__name__)
@@ -461,15 +462,22 @@ async def reset_group_session(
     # Both stores clear together — clearing one reproduces the bug in the other.
     cleared_checklist = clear_checklist_progress(code)
     cleared_concepts = clear_concept_progress(code)
+    # 1.1.88 — the table is the fourth per-group store and clears with the other
+    # two, for the same reason: a grid of readings belongs to the activity run
+    # that produced it, and one left behind is a table the next lesson inherits
+    # without anyone having entered it. (writing_progress deliberately does NOT
+    # clear — a student's prose is their own work, not a marker of a lesson.)
+    cleared_tables = clear_table_progress(code)
     _tag_span(class_id, user.uid)
     log.info(
         "classes_route: reset session for code=%s class=%s teacher=%s "
-        "(cleared %d checklist + %d concept progress docs)",
+        "(cleared %d checklist + %d concept + %d table progress docs)",
         code,
         class_id,
         user.uid,
         cleared_checklist,
         cleared_concepts,
+        cleared_tables,
     )
 
 

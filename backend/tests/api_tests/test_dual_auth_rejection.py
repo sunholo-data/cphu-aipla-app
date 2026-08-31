@@ -51,6 +51,7 @@ from protocols.activity_routes import router as activity_router
 from protocols.checklist_progress_routes import router as checklist_progress_router
 from protocols.classes_routes import router as classes_router
 from protocols.concept_progress_routes import router as concept_progress_router
+from protocols.table_progress_routes import router as table_progress_router
 from protocols.writing_progress_routes import router as writing_progress_router
 
 TEACHER_UID = "teacher-creator"
@@ -86,6 +87,7 @@ def app() -> FastAPI:
     app.include_router(writing_progress_router)
     app.include_router(checklist_progress_router)
     app.include_router(concept_progress_router)
+    app.include_router(table_progress_router)
     return app
 
 
@@ -109,6 +111,26 @@ def _mint_real_group_token() -> str:
     )
     result = join_group(record.group_id, client_ip="203.0.113.7")
     return result.token
+
+
+def _mint_two_tokens_in_one_group() -> tuple[str, str]:
+    """Two REAL tokens joined to the SAME group — two students on two phones.
+
+    ``_mint_real_group_token`` creates a fresh group per call, which is right for
+    every other test here and wrong for this one: two tokens from it are two
+    different classes and would pass a "no clobber" assertion by never sharing
+    anything. One ``create_group``, two ``join_group`` calls is what a group
+    actually is.
+    """
+    record = create_group(
+        title="T3 class",
+        skill_ids=["concept-dialogue"],
+        creator_uid=TEACHER_UID,
+    )
+    return (
+        join_group(record.group_id, client_ip="203.0.113.7").token,
+        join_group(record.group_id, client_ip="203.0.113.8").token,
+    )
 
 
 def _auth_headers(token: str) -> dict[str, str]:
@@ -180,6 +202,10 @@ def test_student_endpoint_accepts_the_same_real_group_token(client):
         ("GET", f"/api/activities/{ACTIVITY}/writing"),
         ("GET", f"/api/activities/{ACTIVITY}/checklist-progress"),
         ("GET", f"/api/activities/{ACTIVITY}/concept-progress"),
+        # 1.1.88 — the fourth per-group store. Added on the day it was written,
+        # because all three above shipped this 401 first and each one's own unit
+        # tests stayed green through it.
+        ("GET", f"/api/activities/{ACTIVITY}/table"),
     ],
 )
 def test_student_progress_reads_accept_a_real_group_token(client, method, path):
@@ -212,6 +238,76 @@ def test_student_writing_save_accepts_a_real_group_token(client):
     read = client.get(f"/api/activities/{ACTIVITY}/writing", headers=_auth_headers(token))
     assert read.status_code == 200, read.text
     assert read.json()["docs"]["writing-1"]["text"] == "Forsk skal komme før Forklar."
+
+
+def test_student_table_save_accepts_a_real_group_token(client):
+    """The table WRITE half (1.1.88) — the same test the writing element needed.
+
+    A 401 here means a reading never reaches the group: it stays in the
+    tab-scoped sessionStorage buffer, which is precisely the pre-1.1.88 defect
+    wearing the fix's clothes. Two saves from ONE token also pin the merge — the
+    second cell must not replace the first.
+    """
+    token = _mint_real_group_token()
+    first = client.put(
+        f"/api/activities/{ACTIVITY}/table",
+        json={"cells": {"t1::0::tid": "0,55"}},
+        headers=_auth_headers(token),
+    )
+    assert first.status_code == 200, first.text
+
+    second = client.put(
+        f"/api/activities/{ACTIVITY}/table",
+        json={"cells": {"t1::1::tid": "0,54"}},
+        headers=_auth_headers(token),
+    )
+    assert second.status_code == 200, second.text
+    # The merged grid comes back, not an echo of what was just sent — that is
+    # what lets the client render the whole group's readings and push them on.
+    assert second.json()["cells"] == {"t1::0::tid": "0,55", "t1::1::tid": "0,54"}
+    assert second.json()["revision"] > first.json()["revision"]
+
+    read = client.get(f"/api/activities/{ACTIVITY}/table", headers=_auth_headers(token))
+    assert read.status_code == 200, read.text
+    assert read.json()["cells"]["t1::0::tid"] == "0,55"
+
+
+def test_two_group_members_do_not_clobber_each_other(client):
+    """The reported defect, end to end: two devices, one group, one table.
+
+    Two DIFFERENT tokens minted into the SAME group — which is what two students
+    on two phones actually are — filling different rows. Both readings must
+    survive, and each client must be handed the other's. A single-token test
+    cannot see this: it is the same failure shape as metering spend under the
+    caller instead of the payer, which only a test with two group codes caught.
+    """
+    a, b = _mint_two_tokens_in_one_group()
+
+    client.put(
+        f"/api/activities/{ACTIVITY}/table",
+        json={"cells": {"t1::0::tid": "0,55"}},
+        headers=_auth_headers(a),
+    )
+    resp_b = client.put(
+        f"/api/activities/{ACTIVITY}/table",
+        json={"cells": {"t1::1::tid": "0,54"}},
+        headers=_auth_headers(b),
+    )
+
+    assert resp_b.status_code == 200, resp_b.text
+    # B's save returns A's reading too — the moment the second student first
+    # sees the first student's data.
+    assert resp_b.json()["cells"] == {"t1::0::tid": "0,55", "t1::1::tid": "0,54"}
+
+    # And A, reading back, has B's.
+    read_a = client.get(f"/api/activities/{ACTIVITY}/table", headers=_auth_headers(a))
+    assert read_a.json()["cells"]["t1::1::tid"] == "0,54"
+
+    # A DIFFERENT group sees none of it — sharing is within the group, which is
+    # the same boundary every sibling store draws.
+    other = _mint_real_group_token()
+    read_other = client.get(f"/api/activities/{ACTIVITY}/table", headers=_auth_headers(other))
+    assert read_other.json()["cells"] == {}
 
 
 def test_rejection_is_role_based_not_token_invalid(client):

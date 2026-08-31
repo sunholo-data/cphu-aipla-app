@@ -1,6 +1,6 @@
 # The data table is the group's, not the tab's — `table_progress`, the fourth per-group store
 
-**Status**: Planned — **1.1.88**
+**Status**: **M1 + M2 SHIPPED 2026-08-31** — M3 (live convergence) OPEN, and smaller than the doc assumed for a reason recorded below. **1.1.88**
 **Priority**: **P0** — silent data loss in the canonical physics-lab shape. Reported from a real lesson
 **Estimated**: ~1–1.5d (M1 the store ~0.6d · M2 the snapshot key ~0.4d · M3 live convergence ~0.5d)
 **Scope**: Backend — a new `db/table_progress.py` + routes, and the `element_state` table reader; frontend — `WorkbenchTable` stops using `sessionStorage`
@@ -116,10 +116,38 @@ one array, matched by id"*). The tutor then reads the whole group's grid for eac
 Do this **once**, covering both collisions, over data keyed `${table}::${row}::${col}` — the
 migration 1.1.71 was deferred for is the same migration, and doing it twice is the outcome to avoid.
 
+> **AS BUILT (2026-08-31) — there was no migration, and 1.1.71's deferral rested on this.**
+> `mcp_app_context.table.state` is **ADK session state**, written by
+> `protocols/iframe_context_routes.py` through `append_event(state_delta)` and overwritten by every
+> push. It is per-chat-session and ephemeral. It has never held the `${table}::${row}::${col}` keys —
+> those are the *client's* value map, and they are unchanged by this work (the new store uses them
+> verbatim as its cell keys, which is why nothing had to move).
+>
+> So M2 is a payload-shape change to an ephemeral channel: one snapshot → `{"tables": [...]}`, plus a
+> reader that accepts both so sessions live at deploy time keep working. It took under an hour and
+> carries no data risk. **The premise 1.1.71 was deferred on — "id-migration risk four days from a
+> pilot" — does not hold**, and its key half is now done. What remains of 1.1.71 is the BUILDER
+> (multiple table elements per activity, chart→table binding, co-pilot coverage); the render side
+> already iterated an array and the reader now does too.
+
 **M3 — convergence.** Reuse 1.1.53's revision-bump-and-refetch idiom rather than inventing a
 transport; the group session already carries a revision. Last-write-wins **per cell** rather than
 per grid, so two students filling different rows never clobber each other — which is the shape a
 lab actually has.
+
+> **AS BUILT (2026-08-31) — PARTIAL, and the remaining half needs a decision.** Per-cell
+> last-write-wins is done, in the store. What ships is convergence **on mount and on every save**:
+> the PUT returns the whole merged grid and the client adopts it, so each student sees their
+> partner's readings the next time either of them enters a cell. In a lab where both are taking
+> readings that is continuous convergence.
+>
+> What is NOT there: a student who types nothing sees nothing new until they reload. The doc assumed
+> `useGroupPulse`'s revision could carry this, and it cannot — **that revision bumps when a TURN
+> commits, not when a cell is saved**, so a partner entering data would not move it. Live convergence
+> therefore needs one of: polling `GET /{activity}/table` on the workbench, or adding a table
+> revision to the pulse payload. The second is better (one poller, not one per element) and is a
+> small change to `/api/auth/group/pulse`; neither is written. Not folded in blind, because "add
+> another poll to every student's workbench" is a cost decision, not a detail.
 
 **Conflict policy, stated rather than assumed.** Two students typing the same cell is rare and
 must still be defined: last write wins, the losing value is not silently discarded but shown to its
@@ -162,13 +190,21 @@ smaller version of it inside the fix would be the obvious failure.
 
 ## Success Criteria
 
-- [ ] Two devices in one group see the same grid.
-- [ ] The tutor's table state contains both students' cells.
-- [ ] A closed tab loses nothing.
-- [ ] Two tables report separately (1.1.71 satisfied by the same key change).
-- [ ] A real group token through the real dispatcher passes — not a `dependency_overrides` mock.
-- [ ] Reset-session and group erasure both cover the new store.
-- [ ] The reporting students repeat the lesson and both see each other's readings.
+- [x] Two devices in one group see the same grid. — on mount and on each save; see M3 for the
+      passive case, which is open.
+- [x] The tutor's table state contains both students' cells. The client pushes the grid the store
+      returned, so the push is the group's, not this tab's.
+- [x] A closed tab loses nothing.
+- [x] Two tables report separately (1.1.71 satisfied by the same key change).
+- [x] A real group token through the real dispatcher passes — not a `dependency_overrides` mock.
+      `test_dual_auth_rejection.py` covers the read, the write, and **two tokens in ONE group**,
+      which is the only shape that can witness the clobber (one token cannot).
+- [x] Reset-session clears the new store (`classes_routes`) and `scripts/reset_teaching_data.py`
+      lists it — added the day it was written, as that script's own comment asks.
+      **Group ERASURE is [1.1.80](group-erasure-cascade.md)'s registry and is still open**; this
+      store must be registered there when it lands.
+- [ ] The reporting students repeat the lesson and both see each other's readings. — the real gate,
+      and it needs the classroom.
 
 ## Open Questions
 

@@ -139,13 +139,67 @@ def test_raw_structured_content_shape_is_accepted() -> None:
 
 
 def test_snapshot_for_a_different_table_does_not_fill_this_one() -> None:
-    """Every table pushes to the same ``table.state`` key (the stable-id problem
-    1.1.71 defers). A snapshot must only ever satisfy the table it names."""
+    """A snapshot must only ever satisfy the table it names.
+
+    (Written when every table shared one ``table.state`` key — 1.1.88 M2 made
+    the push an array, and the legacy single-snapshot shape below is still
+    accepted for sessions that were live at deploy time.)"""
     state = _pushed("table", {"tableId": "t2", "filledCells": 10})
     block = describe_element_state(_cfg(table=[_table("t1"), _table("t2", title="Anden")]), state)
     lines = {ln.split(":")[0]: ln for ln in block.splitlines() if ln.startswith("Data table")}
     assert "EMPTY" in lines['Data table "Faldforsøg"']
     assert "COMPLETE" in lines['Data table "Anden"']
+
+
+# --- 1.1.88 M2 / 1.1.71: the array shape ----------------------------------
+
+
+def test_two_tables_report_separately_from_one_array_push() -> None:
+    """**The 1.1.71 defect.** A student filling table one used to make table two
+    report EMPTY, because both shared a single ``table.state`` slot and only the
+    last-pushed grid was there. Both are in one push now, matched by id."""
+    state = _pushed(
+        "table",
+        {
+            "tables": [
+                {"tableId": "t1", "filledCells": 10},
+                {"tableId": "t2", "filledCells": 3},
+            ]
+        },
+    )
+    block = describe_element_state(_cfg(table=[_table("t1"), _table("t2", title="Anden")]), state)
+    lines = {ln.split(":")[0]: ln for ln in block.splitlines() if ln.startswith("Data table")}
+    assert "COMPLETE" in lines['Data table "Faldforsøg"']
+    assert "3 of 10 cells filled" in lines['Data table "Anden"']
+
+
+def test_array_push_still_reports_an_untouched_table_as_empty() -> None:
+    """The array must not accidentally launder a missing table into UNKNOWN —
+    an authored table absent from the push is EMPTY, which is the whole point of
+    this module."""
+    state = _pushed("table", {"tables": [{"tableId": "t1", "filledCells": 4}]})
+    block = describe_element_state(_cfg(table=[_table("t1"), _table("t2", title="Anden")]), state)
+    lines = {ln.split(":")[0]: ln for ln in block.splitlines() if ln.startswith("Data table")}
+    assert "4 of 10 cells filled" in lines['Data table "Faldforsøg"']
+    assert "EMPTY" in lines['Data table "Anden"']
+
+
+def test_array_push_counts_the_grid_when_the_count_is_missing() -> None:
+    state = _pushed("table", {"tables": [{"tableId": "t1", "data": [{"h": "1.0", "t": "0.45"}]}]})
+    assert "2 of 10 cells filled" in describe_element_state(_cfg(table=[_table()]), state)
+
+
+def test_legacy_single_snapshot_still_reads_after_the_migration() -> None:
+    """A session that was mid-lesson when M2 deployed holds the OLD shape in its
+    state. It must keep reading rather than going blank — a student does not
+    care that we changed a payload between their turns."""
+    state = _pushed("table", {"tableId": "t1", "filledCells": 7})
+    assert "7 of 10 cells filled" in describe_element_state(_cfg(table=[_table()]), state)
+
+
+def test_empty_array_push_is_empty_not_unknown() -> None:
+    state = _pushed("table", {"tables": []})
+    assert "EMPTY" in describe_element_state(_cfg(table=[_table()]), state)
 
 
 # --- Calculator -----------------------------------------------------------

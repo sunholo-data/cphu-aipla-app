@@ -95,7 +95,12 @@ export const elementRenderers: Record<ElementKind, (ctx: ElementRenderContext) =
     ) : null,
   table: (ctx) =>
     ctx.table.length > 0 ? (
-      <WorkbenchTable skillId={ctx.skillId} tables={ctx.table} sessionId={ctx.sessionId} />
+      <WorkbenchTable
+        skillId={ctx.skillId}
+        activityId={ctx.activityId}
+        tables={ctx.table}
+        sessionId={ctx.sessionId}
+      />
     ) : null,
   chart: (ctx) =>
     ctx.chart.length > 0 ? (

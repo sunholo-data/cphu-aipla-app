@@ -1,6 +1,16 @@
 # Several data tables per activity
 
 **Status:** Design (OPEN) — **P1.** Written 2026-08-10 from Aswin's 2026-08-10 feedback.
+**Update 2026-08-31 — the KEY half is DONE, and the deferral premise was wrong.** This doc was
+deferred during pilot week for "id-migration risk", and [1.1.88](group-shared-table.md) was told to
+land the key change jointly to avoid migrating twice. On inspection there was no migration to do:
+`mcp_app_context.table.state` is ADK **session state** (`append_event(state_delta)`), ephemeral and
+overwritten on every push — it never held the `${table}::${row}::${col}` cell keys, which are the
+client's own value map and are unchanged. 1.1.88 M2 changed the payload to `{"tables": [...]}` (the
+calculator/writing shape) with the reader accepting both, in under an hour. **Two tables now report
+separately to the tutor.** What remains here is the BUILDER half — several table elements per
+activity, chart→table binding, co-pilot coverage — which is real work but carries none of the risk
+this was deferred for.
 **Priority:** **P1** — a real physics-lab shape ("sometimes we need multiple tables"), and the last singleton in the element builder. Not pilot-blocking: one table plus several charts covers most activities.
 **Estimated:** ~1–1.5d (M1 builder list + conversion ~0.6d · M2 chart→table binding becomes real ~0.4d · M3 co-pilot + CLI ~0.25d)
 **Scope:** Frontend-heavy — `TableEditor` becomes a list editor and `useActivityBuilder.table` becomes an array; `tableDefs` mints stable ids; `ChartEditor`'s hardcoded `TABLE_ID` becomes a picker. Backend already allows five.
