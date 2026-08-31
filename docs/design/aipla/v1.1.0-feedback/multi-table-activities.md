@@ -1,6 +1,6 @@
 # Several data tables per activity
 
-**Status:** Design (OPEN) — **P1.** Written 2026-08-10 from Aswin's 2026-08-10 feedback.
+**Status:** **SHIPPED 2026-08-31** (M1+M2+M3). Written 2026-08-10 from Aswin's 2026-08-10 feedback.
 **Update 2026-08-31 — the KEY half is DONE, and the deferral premise was wrong.** This doc was
 deferred during pilot week for "id-migration risk", and [1.1.88](group-shared-table.md) was told to
 land the key change jointly to avoid migrating twice. On inspection there was no migration to do:
@@ -169,13 +169,56 @@ table 'Faldforsøg': EMPTY"* is useless when there are three.
 
 ## Success Criteria
 
-- [ ] Up to 5 tables per activity, each independently authored
-- [ ] Charts pick which table they plot; picker hidden when there is only one
-- [ ] Deleting a table never re-points another chart's data
-- [ ] Existing activities load with their saved ids preserved and save unchanged
-- [ ] `elementPayload()` round-trips every table
-- [ ] Manifest and fill-state name each table distinctly
-- [ ] `TABLE_ID` constant is gone
+- [x] Up to 5 tables per activity, each independently authored — Add disabled at the cap **with the
+      reason stated**, in the button title and as text.
+- [x] Charts pick which table they plot; picker hidden when there is only one.
+- [x] Deleting a table never re-points another chart's data — the regression test the doc asked for.
+- [x] Existing activities load with their saved ids preserved and save unchanged.
+- [x] `elementPayload()` round-trips every table.
+- [x] Manifest and fill-state name each table distinctly (untitled → `untitled (1..3)`; a unique
+      title is left exactly as the teacher wrote it).
+- [x] `TABLE_ID` constant is gone.
+
+## As built (2026-08-31)
+
+**Recommendation (1) was taken**: ids are minted at creation from a stable key and preserved on
+load, so nothing re-mints and no backfill was needed.
+
+**A collision this doc did not anticipate, which preserve-on-load creates and positional minting
+could not.** A table whose saved columns are `col-1, col-3` (one was deleted in an earlier session)
+hydrates to keys 1 and 2 — so the next column added takes key 3 and would mint `col-3`, which
+already exists on that table. New ids therefore mint as `-k{key}`: `col-k3` is never equal to
+`col-{integer}`, whatever the counter does, so the two namespaces are provably disjoint. Tested.
+
+**Open Question 1 answered: the two paths coexist, and the reconcile is now id-aware.** Relying on
+`Number("k3")` being `NaN` would have worked by accident. Instead a binding whose id is still
+present in the new column set is correct by construction and left alone; only legacy positional ids
+fall through to label matching. Both 1.1.64 reconcile tests pass unchanged — that is the evidence.
+
+**Open Question 2 answered:** the picker shows only when there is more than one table, and
+re-pointing a chart **clears its axes**. Carrying old column ids to a new table could resolve
+against a same-positioned column and silently plot the wrong variable — the exact failure class this
+doc exists to remove.
+
+**Two bugs the change introduced and the tests caught**, both the same shape — an empty array is
+truthy:
+- `workspaceCount` did `(table ? 1 : 0)`, so every activity would have counted a table it did not
+  have. It now counts `table.length`.
+- Three test mocks did `value ? "on" : "off"`. Fixed in the shared stub rather than at the call
+  sites, so the next list-valued editor cannot reintroduce it.
+
+**A behaviour change larger than the doc described.** `tableDefs` minted `col-{n}` over the
+*label-bearing* columns, so an **unlabelled** column renumbered every labelled one after it — `Pos`
+was `col-2` because the empty column between them did not count. It is now `col-k3`, from its own
+key. The hazard was not only deletion; it was any edit that changed which columns survive the filter.
+
+**One duplication removed:** `ChartEditor` and `activityPreview` were both minting ids. Two minters
+that must agree forever is the same bug class this change removes, so there is now one exported
+pair (`mintedTableId` / `mintedColumnId`).
+
+**Not done, and out of scope as the doc says:** cross-table charts, per-table permissions, computed
+columns. Open Question 3 (whether five tables render legibly on the student surface) is unverified —
+the render path already took an array, but nobody has looked at five at ~700px.
 
 ## Open Questions
 

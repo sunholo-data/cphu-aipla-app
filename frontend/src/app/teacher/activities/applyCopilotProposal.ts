@@ -26,8 +26,21 @@ export function applyCopilotProposal(p: Proposal, builder: ActivityBuilder): voi
       ]);
     else if (p.elementKind === "solution") builder.setSolution({ prompt: p.prompt });
     else if (p.elementKind === "document") builder.setDocument({ prompt: p.prompt });
+    // 1.1.71 — tables are a LIST (cap 5). APPEND, like charts and writing: a
+    // teacher asking for a second table ("sometimes we need multiple tables in
+    // physics lab") must not silently lose the first. Keys come from the
+    // builder's one counter, never a local index — two counters eventually mint
+    // the same element id.
     else if (p.elementKind === "table")
-      builder.setTable({ title: p.title, columns: p.columns.map((c, i) => ({ key: i + 1, ...c })), rows: p.rows });
+      builder.setTable([
+        ...builder.table,
+        {
+          key: builder.nextElementKey(),
+          title: p.title,
+          columns: p.columns.map((c) => ({ key: builder.nextElementKey(), ...c })),
+          rows: p.rows,
+        },
+      ]);
     // 1.1.64 — charts are a list. APPEND rather than replace, so proposing a
     // second chart does not silently delete the first (the same full-overwrite
     // shape as the activity POST).

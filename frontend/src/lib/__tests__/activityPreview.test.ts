@@ -4,7 +4,7 @@ import { builderToElementDefs, hasAnyElement, type BuilderElements } from "@/lib
 
 const EMPTY: BuilderElements = {
   checklist: [],
-  table: null,
+  table: [],
   chart: [],
   calculator: null,
   note: null,
@@ -59,36 +59,73 @@ describe("builderToElementDefs", () => {
     expect(hasAnyElement(d)).toBe(true);
   });
 
-  it("converts a table, dropping unlabelled columns and assigning column ids", () => {
+  it("converts a table, dropping unlabelled columns and minting ids from stable keys", () => {
     const d = builderToElementDefs({
       ...EMPTY,
-      table: {
-        title: "M",
-        rows: 4,
-        columns: [
-          { key: 1, label: "Tid", unit: "s", kind: "number" },
-          { key: 2, label: "", unit: "", kind: "number" },
-          { key: 3, label: "Pos", unit: "m", kind: "number" },
-        ],
-      },
+      table: [
+        {
+          key: 9,
+          title: "M",
+          rows: 4,
+          columns: [
+            { key: 1, label: "Tid", unit: "s", kind: "number" },
+            { key: 2, label: "", unit: "", kind: "number" },
+            { key: 3, label: "Pos", unit: "m", kind: "number" },
+          ],
+        },
+      ],
     });
+    // 1.1.71 — "Pos" is `col-k3`, from ITS OWN key, not `col-2` from its
+    // position among the survivors. That is the whole change: the unlabelled
+    // column between them used to renumber it, and a chart bound to the old id
+    // would then have plotted a different variable.
     expect(d.table).toEqual([
       {
-        id: "table-1",
+        id: "table-k9",
         title: "M",
         rows: 4,
         columns: [
-          { id: "col-1", label: "Tid", unit: "s", kind: "number" },
-          { id: "col-2", label: "Pos", unit: "m", kind: "number" },
+          { id: "col-k1", label: "Tid", unit: "s", kind: "number" },
+          { id: "col-k3", label: "Pos", unit: "m", kind: "number" },
         ],
       },
     ]);
   });
 
+  it("preserves a SAVED id instead of minting a new one", () => {
+    // Existing activities must never re-mint: student cells are keyed
+    // `${table.id}::${row}::${col.id}` and saved charts hold the old strings.
+    const d = builderToElementDefs({
+      ...EMPTY,
+      table: [
+        {
+          key: 9,
+          id: "table-1",
+          title: "M",
+          rows: 4,
+          columns: [{ key: 1, id: "col-1", label: "Tid", unit: "s", kind: "number" }],
+        },
+      ],
+    });
+    expect(d.table[0].id).toBe("table-1");
+    expect(d.table[0].columns[0].id).toBe("col-1");
+  });
+
+  it("converts EVERY table, not just the first", () => {
+    const d = builderToElementDefs({
+      ...EMPTY,
+      table: [
+        { key: 1, title: "A", rows: 2, columns: [{ key: 11, label: "h", unit: "", kind: "number" }] },
+        { key: 2, title: "B", rows: 3, columns: [{ key: 22, label: "v", unit: "", kind: "number" }] },
+      ],
+    });
+    expect(d.table.map((t) => t.title)).toEqual(["A", "B"]);
+  });
+
   it("drops a table with no labelled columns", () => {
     const d = builderToElementDefs({
       ...EMPTY,
-      table: { title: "", rows: 3, columns: [{ key: 1, label: "", unit: "", kind: "number" }] },
+      table: [{ key: 1, title: "", rows: 3, columns: [{ key: 2, label: "", unit: "", kind: "number" }] }],
     });
     expect(d.table).toEqual([]);
   });

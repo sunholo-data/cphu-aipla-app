@@ -176,9 +176,9 @@ export function ActivityBuilderBody({
             )}
           </div>
 
-          <TableEditor value={b.table} onChange={b.setTable} />
+          <TableEditor value={b.table} onChange={b.setTable} nextKey={b.nextElementKey} />
 
-          <ChartEditor value={b.chart} onChange={b.setChart} table={b.table} />
+          <ChartEditor value={b.chart} onChange={b.setChart} tables={b.table} />
 
           <CalculatorEditor value={b.calculator} onChange={b.setCalculator} />
 

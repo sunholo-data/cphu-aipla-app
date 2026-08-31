@@ -3,6 +3,7 @@
 import { LineChart, Plus, X } from "lucide-react";
 
 import type { TableEditorValue } from "@/components/teacher/TableEditor";
+import { mintedColumnId, mintedTableId } from "@/lib/activityPreview";
 
 export type ChartKind = "scatter" | "line" | "bar";
 
@@ -21,9 +22,10 @@ export interface ChartEditorValue {
 interface ChartEditorProps {
   value: ChartEditorValue[];
   onChange: (value: ChartEditorValue[]) => void;
-  /** The activity's data table — charts plot it, and its numeric columns are
-   *  what the axis pickers offer. Null when the activity has no table yet. */
-  table: TableEditorValue | null;
+  /** The activity's data tables (1.1.71) — a chart plots ONE of them, and that
+   *  table's numeric columns are what its axis pickers offer. Empty when the
+   *  activity has no table yet. */
+  tables: TableEditorValue[];
 }
 
 const CHART_KINDS: { value: ChartKind; label: string }[] = [
@@ -36,8 +38,21 @@ const CHART_KINDS: { value: ChartKind; label: string }[] = [
  *  explain itself rather than silently refusing an Add. */
 const MAX_CHARTS = 5;
 
-/** The builder authors ONE table, minted as `table-1` by `tableDefs`. */
-const TABLE_ID = "table-1";
+/** Resolve which table a chart plots.
+ *
+ *  1.1.71 deleted the `const TABLE_ID = "table-1"` this used to be. Every chart
+ *  was bound to that constant, so `ChartElement.tableId` — shipped as a real
+ *  field by 1.1.64 precisely so this could mean something — was decorative.
+ *
+ *  An unset or dangling `tableId` falls back to the FIRST table rather than
+ *  refusing to render: the same graceful-degradation ladder `resolveChartBinding`
+ *  already implements at render time, and it keeps every chart authored before
+ *  this working untouched. */
+function tableFor(tables: TableEditorValue[], tableId: string | null | undefined): TableEditorValue | null {
+  if (tables.length === 0) return null;
+  if (!tableId) return tables[0];
+  return tables.find((t) => mintedTableId(t) === tableId) ?? tables[0];
+}
 
 /**
  * ChartEditor — the teacher-builder editor for an activity's charts
@@ -56,8 +71,18 @@ const TABLE_ID = "table-1";
  * Only NUMERIC columns are offered on either axis: a text column on an axis is
  * not a plot.
  */
-export function ChartEditor({ value, onChange, table }: ChartEditorProps) {
+export function ChartEditor({ value, onChange, tables }: ChartEditorProps) {
   const charts = value ?? [];
+  const allTables = tables ?? [];
+  // The picker only appears when there is something to pick (1.1.71 open
+  // question 2): one table should not grow a dropdown that can only say one
+  // thing.
+  const showTablePicker = allTables.length > 1;
+  const numericOf = (t: TableEditorValue | null) =>
+    (t?.columns ?? [])
+      .filter((c) => c.label.trim())
+      .map((c) => ({ ...c, mintedId: mintedColumnId(c) }))
+      .filter((c) => (c.kind ?? "number") === "number");
   // Column ids are minted POSITIONALLY at conversion (`col-{n}` over the
   // label-bearing columns — see `tableDefs` in lib/activityPreview). The axis
   // pickers must therefore speak the same minted ids, and deleting a column
@@ -66,10 +91,11 @@ export function ChartEditor({ value, onChange, table }: ChartEditorProps) {
   // resolves). ActivityBuilderBody guards it: deleting a referenced column asks
   // first and clears the affected bindings, so the chart falls back to
   // auto-bind with a visible note instead of quietly plotting the wrong thing.
-  const numericColumns = (table?.columns ?? [])
-    .filter((c) => c.label.trim())
-    .map((c, idx) => ({ ...c, mintedId: `col-${idx + 1}` }))
-    .filter((c) => (c.kind ?? "number") === "number");
+  // The DEFAULT table's columns — what a newly added chart binds to. Per-chart
+  // resolution happens in the map below, because each chart may plot a
+  // different table now.
+  const defaultTable = allTables[0] ?? null;
+  const numericColumns = numericOf(defaultTable);
   const canPlot = numericColumns.length >= 2;
   const atCap = charts.length >= MAX_CHARTS;
 
@@ -83,7 +109,7 @@ export function ChartEditor({ value, onChange, table }: ChartEditorProps) {
         id: `chart-${charts.length + 1}`,
         title: "",
         chartKind: "scatter",
-        tableId: table ? TABLE_ID : null,
+        tableId: defaultTable ? mintedTableId(defaultTable) : null,
         // Default to the first two numeric columns — the same pair auto-bind
         // would have chosen, so adding a chart and changing nothing behaves
         // exactly as it did before this editor grew axis pickers.
@@ -121,7 +147,14 @@ export function ChartEditor({ value, onChange, table }: ChartEditorProps) {
         </p>
       )}
 
-      {charts.map((chart, idx) => (
+      {charts.map((chart, idx) => {
+        // 1.1.71 — each chart resolves ITS OWN table. Before this every chart
+        // was bound to a `table-1` constant, so the field said which table it
+        // plotted and was always right by accident.
+        const boundTable = tableFor(allTables, chart.tableId);
+        const cols = numericOf(boundTable);
+        const chartCanPlot = cols.length >= 2;
+        return (
         <div key={chart.id ?? idx} className="flex flex-col gap-2 rounded-lg border border-slate-200 p-3">
           <div className="flex items-center gap-2">
             <input
@@ -154,17 +187,53 @@ export function ChartEditor({ value, onChange, table }: ChartEditorProps) {
             </button>
           </div>
 
-          {canPlot ? (
+          {showTablePicker && (
+            <label className="flex items-center gap-1 text-xs">
+              <span className="text-slate-500">Tabel</span>
+              <select
+                value={boundTable ? mintedTableId(boundTable) : ""}
+                onChange={(e) => {
+                  // Re-point the chart AND clear the axes: the old column ids
+                  // belong to the old table and would either dangle or, worse,
+                  // collide with a same-named column on the new one. Clearing
+                  // drops the chart to auto-bind, which renders with a visible
+                  // note — never a silent wrong plot.
+                  const nextTable = tableFor(allTables, e.target.value);
+                  const nextCols = numericOf(nextTable);
+                  update(idx, {
+                    tableId: e.target.value || null,
+                    xColumn: nextCols[0]?.mintedId ?? null,
+                    yColumn: nextCols[1]?.mintedId ?? null,
+                  });
+                }}
+                aria-label={`Tabel for graf ${idx + 1}`}
+                className="rounded border border-slate-300 px-2 py-1"
+              >
+                {allTables.map((t, i) => (
+                  <option key={mintedTableId(t)} value={mintedTableId(t)}>
+                    {t.title.trim() || `Tabel ${i + 1}`}
+                  </option>
+                ))}
+              </select>
+            </label>
+          )}
+
+          {chartCanPlot ? (
             <div className="flex flex-wrap items-center gap-2 text-xs">
               <label className="flex items-center gap-1">
                 <span className="text-slate-500">X</span>
                 <select
                   value={chart.xColumn ?? ""}
-                  onChange={(e) => update(idx, { xColumn: e.target.value || null, tableId: TABLE_ID })}
+                  onChange={(e) =>
+                    update(idx, {
+                      xColumn: e.target.value || null,
+                      tableId: boundTable ? mintedTableId(boundTable) : null,
+                    })
+                  }
                   aria-label={`X-akse for graf ${idx + 1}`}
                   className="rounded border border-slate-300 px-2 py-1"
                 >
-                  {numericColumns.map((c) => (
+                  {cols.map((c) => (
                     <option key={c.mintedId} value={c.mintedId}>
                       {c.unit ? `${c.label} (${c.unit})` : c.label}
                     </option>
@@ -175,11 +244,16 @@ export function ChartEditor({ value, onChange, table }: ChartEditorProps) {
                 <span className="text-slate-500">Y</span>
                 <select
                   value={chart.yColumn ?? ""}
-                  onChange={(e) => update(idx, { yColumn: e.target.value || null, tableId: TABLE_ID })}
+                  onChange={(e) =>
+                    update(idx, {
+                      yColumn: e.target.value || null,
+                      tableId: boundTable ? mintedTableId(boundTable) : null,
+                    })
+                  }
                   aria-label={`Y-akse for graf ${idx + 1}`}
                   className="rounded border border-slate-300 px-2 py-1"
                 >
-                  {numericColumns.map((c) => (
+                  {cols.map((c) => (
                     <option key={c.mintedId} value={c.mintedId}>
                       {c.unit ? `${c.label} (${c.unit})` : c.label}
                     </option>
@@ -193,7 +267,8 @@ export function ChartEditor({ value, onChange, table }: ChartEditorProps) {
             </p>
           )}
         </div>
-      ))}
+        );
+      })}
     </div>
   );
 }

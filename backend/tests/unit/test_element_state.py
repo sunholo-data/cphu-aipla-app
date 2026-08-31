@@ -202,6 +202,37 @@ def test_empty_array_push_is_empty_not_unknown() -> None:
     assert "EMPTY" in describe_element_state(_cfg(table=[_table()]), state)
 
 
+# --- 1.1.71: several tables must be distinguishable -----------------------
+
+
+def test_untitled_tables_are_disambiguated_by_position() -> None:
+    """Three untitled tables used to produce three identical lines — the tutor
+    could not say which one it meant, and neither could the student."""
+    cfg = _cfg(table=[_table("t1", title=""), _table("t2", title=""), _table("t3", title="")])
+    block = describe_element_state(cfg, {})
+    assert 'Data table "untitled (1)"' in block
+    assert 'Data table "untitled (2)"' in block
+    assert 'Data table "untitled (3)"' in block
+
+
+def test_duplicate_titles_are_disambiguated_too() -> None:
+    """Two tables a teacher genuinely named the same thing."""
+    cfg = _cfg(table=[_table("t1", title="Forsøg"), _table("t2", title="Forsøg")])
+    block = describe_element_state(cfg, {})
+    assert 'Data table "Forsøg (1)"' in block
+    assert 'Data table "Forsøg (2)"' in block
+
+
+def test_a_unique_title_is_left_exactly_as_the_teacher_wrote_it() -> None:
+    """No suffix when there is nothing to disambiguate — the teacher's own words
+    reach the tutor untouched, which is what they will hear quoted back."""
+    cfg = _cfg(table=[_table("t1", title="Faldforsøg"), _table("t2", title="Kast")])
+    block = describe_element_state(cfg, {})
+    assert 'Data table "Faldforsøg"' in block
+    assert 'Data table "Kast"' in block
+    assert "(1)" not in block
+
+
 # --- Calculator -----------------------------------------------------------
 
 

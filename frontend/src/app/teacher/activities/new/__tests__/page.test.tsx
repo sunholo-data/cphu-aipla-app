@@ -199,7 +199,7 @@ describe("/teacher/activities/new — concept activity builder", () => {
     expect(createActivityMock.mock.calls[0][0].checklist).toEqual([]);
   });
 
-  it("sends a teacher-authored data table with positional column ids", async () => {
+  it("sends a teacher-authored data table with stable, key-minted ids", async () => {
     listClassesMock.mockResolvedValue(ONE_CLASS);
     render(<NewActivityPage />);
     fireEvent.change(await screen.findByLabelText(/activity name/i), { target: { value: "Lab" } });
@@ -211,11 +211,17 @@ describe("/teacher/activities/new — concept activity builder", () => {
     fireEvent.click(screen.getByRole("button", { name: /create activity/i }));
 
     await waitFor(() => expect(createActivityMock).toHaveBeenCalledTimes(1));
+    // 1.1.71 — ids are minted from the element's stable key, not its position,
+    // so deleting a table or column renames nothing. The exact counter value is
+    // an implementation detail; what matters is the shape and the `-k`
+    // namespace, which cannot collide with a preserved legacy `col-{n}`.
     expect(createActivityMock.mock.calls[0][0].table).toEqual([
       {
-        id: "table-1",
+        id: expect.stringMatching(/^table-k\d+$/),
         title: "",
-        columns: [{ id: "col-1", label: "Tid", unit: "s", kind: "number" }],
+        columns: [
+          { id: expect.stringMatching(/^col-k\d+$/), label: "Tid", unit: "s", kind: "number" },
+        ],
         rows: 5,
       },
     ]);

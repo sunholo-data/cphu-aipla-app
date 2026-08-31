@@ -15,6 +15,7 @@ import type { ActivityTemplate } from "@/lib/activityTemplates";
 // A fully-populated TableEditorValue with two numeric columns.
 function fullTable() {
   return {
+    key: 1000,
     title: "Measurements",
     rows: 5,
     columns: [
@@ -45,7 +46,7 @@ describe("useActivityBuilder — initial state", () => {
     expect(b.language).toBe("da");
     expect(b.workbenchType).toBe("none");
     expect(b.checklist).toEqual([]);
-    expect(b.table).toBeNull();
+    expect(b.table).toEqual([]);
     expect(b.chart).toEqual([]);
     expect(b.calculator).toBeNull();
     expect(b.note).toBeNull();
@@ -150,7 +151,7 @@ describe("useActivityBuilder — element add / clear transitions", () => {
     const { result } = renderHook(() => useActivityBuilder());
 
     act(() => {
-      result.current.setTable(fullTable());
+      result.current.setTable([fullTable()]);
       result.current.setChart([{ id: "chart-1", title: "Graph", chartKind: "line" }]);
       result.current.setCalculator(fullCalculator());
       result.current.setNote({ title: "Hint", body: "Remember the system" });
@@ -166,7 +167,7 @@ describe("useActivityBuilder — element add / clear transitions", () => {
     expect(result.current.document).not.toBeNull();
 
     act(() => {
-      result.current.setTable(null);
+      result.current.setTable([]);
       result.current.setChart([]);
       result.current.setCalculator(null);
       result.current.setNote(null);
@@ -174,7 +175,7 @@ describe("useActivityBuilder — element add / clear transitions", () => {
       result.current.setDocument(null);
     });
 
-    expect(result.current.table).toBeNull();
+    expect(result.current.table).toEqual([]);
     expect(result.current.chart).toEqual([]);
     expect(result.current.calculator).toBeNull();
     expect(result.current.note).toBeNull();
@@ -194,7 +195,7 @@ describe("useActivityBuilder — element add / clear transitions", () => {
     act(() => {
       result.current.setArtefactId("boldkast"); // +1
       result.current.addChecklistItem(); // +1
-      result.current.setTable(fullTable()); // +1
+      result.current.setTable([fullTable()]); // +1
       result.current.setChart([{ id: "chart-1", title: "G", chartKind: "line" }]); // +1
       result.current.setCalculator(fullCalculator()); // +1
       result.current.setNote({ title: "N", body: "body" }); // +1
@@ -217,7 +218,7 @@ describe("useActivityBuilder — elementPayload() emits the COMPLETE set (anti-d
     act(() => {
       result.current.setArtefactId("boldkast");
       result.current.addChecklistItems(["Identify the system", "Apply conservation"]);
-      result.current.setTable(fullTable());
+      result.current.setTable([fullTable()]);
       result.current.setChart([{ id: "chart-1", title: "v-t graph", chartKind: "line" }]);
       result.current.setCalculator(fullCalculator());
       result.current.setNote({ title: "Reference", body: "E = mc^2" });
@@ -269,14 +270,18 @@ describe("useActivityBuilder — elementPayload() emits the COMPLETE set (anti-d
       { id: "step-1", label: "Identify the system" },
       { id: "step-2", label: "Apply conservation" },
     ]);
+    // 1.1.71 — ids are minted from the element's STABLE key (`-k{key}`), not
+    // its position, so deleting anything renames nothing. The `k` also keeps the
+    // new namespace provably disjoint from the legacy positional `col-{n}`,
+    // which preserved ids still use.
     expect(p.table).toEqual([
       {
-        id: "table-1",
+        id: "table-k1000",
         title: "Measurements",
         rows: 5,
         columns: [
-          { id: "col-1", label: "Time", unit: "s", kind: "number" },
-          { id: "col-2", label: "Position", unit: "m", kind: "number" },
+          { id: "col-k1", label: "Time", unit: "s", kind: "number" },
+          { id: "col-k2", label: "Position", unit: "m", kind: "number" },
         ],
       },
     ]);
@@ -368,8 +373,8 @@ describe("useActivityBuilder — applyTemplate", () => {
     expect(b.teachingGoal).toBe("Discover energy conservation");
     expect(b.language).toBe("en");
     expect(b.checklist.map((c) => c.label)).toEqual(["Set up", "Measure", "Conclude"]);
-    expect(b.table?.title).toBe("Run data");
-    expect(b.table?.columns.map((c) => c.label)).toEqual(["Height", "Speed"]);
+    expect(b.table[0]?.title).toBe("Run data");
+    expect(b.table[0]?.columns.map((c) => c.label)).toEqual(["Height", "Speed"]);
     expect(b.chart).toEqual([{ id: "chart-1", title: "h-v graph", chartKind: "scatter" }]);
     expect(b.calculator?.formula).toBe("0.5 * m * v^2");
     expect(b.calculator?.inputs.map((i) => i.id)).toEqual(["m", "v"]);
@@ -448,11 +453,11 @@ describe("useActivityBuilder — applyTemplate", () => {
     const { result } = renderHook(() => useActivityBuilder());
     // Pre-populate, then apply a sparse template: the absent fields must clear.
     act(() => {
-      result.current.setTable(fullTable());
+      result.current.setTable([fullTable()]);
       result.current.setArtefactId("boldkast");
     });
     act(() => result.current.applyTemplate(SPARSE));
-    expect(result.current.table).toBeNull();
+    expect(result.current.table).toEqual([]);
     expect(result.current.chart).toEqual([]);
     expect(result.current.calculator).toBeNull();
     expect(result.current.note).toBeNull();
@@ -521,8 +526,8 @@ describe("useActivityBuilder — hydrate (load an existing activity)", () => {
     act(() => result.current.hydrate(SAVED));
     const b = result.current;
     expect(b.checklist.map((c) => c.label)).toEqual(["Step one", "Step two"]);
-    expect(b.table?.title).toBe("Saved table");
-    expect(b.table?.columns.map((c) => c.label)).toEqual(["Tid", "Pos"]);
+    expect(b.table[0]?.title).toBe("Saved table");
+    expect(b.table[0]?.columns.map((c) => c.label)).toEqual(["Tid", "Pos"]);
     // 1.1.64 — hydrate loads EVERY chart, with its axis binding.
     expect(b.chart).toEqual([
       { id: "chart-1", title: "Saved chart", chartKind: "scatter", tableId: null, xColumn: null, yColumn: null },
@@ -556,7 +561,7 @@ describe("useActivityBuilder — hydrate (load an existing activity)", () => {
     // First populate, then hydrate({}) like the create page's "Create another".
     act(() => {
       result.current.setTitle("dirty");
-      result.current.setTable(fullTable());
+      result.current.setTable([fullTable()]);
       result.current.setArtefactId("boldkast");
       result.current.addChecklistItem();
     });
@@ -570,7 +575,7 @@ describe("useActivityBuilder — hydrate (load an existing activity)", () => {
     expect(b.artefactId).toBeNull();
     expect(b.materials).toEqual([]);
     expect(b.checklist).toEqual([]);
-    expect(b.table).toBeNull();
+    expect(b.table).toEqual([]);
     expect(b.chart).toEqual([]);
     expect(b.calculator).toBeNull();
     expect(b.note).toBeNull();
@@ -601,7 +606,7 @@ describe("useActivityBuilder — toSavePayload + isFormValid (F5)", () => {
       result.current.setTeachingGoal("  Understand g  ");
       result.current.setLanguage("en");
       result.current.setArtefactId("boldkast");
-      result.current.setTable(fullTable());
+      result.current.setTable([fullTable()]);
       result.current.setCalculator(fullCalculator());
       result.current.addChecklistItems(["Step one"]);
     });
@@ -783,11 +788,17 @@ describe("useActivityBuilder — multi-chart round-trip (1.1.64)", () => {
  * with a visible note).
  */
 describe("useActivityBuilder — chart bindings survive table edits (1.1.64)", () => {
-  const table = (labels: string[]) => ({
-    title: "T",
-    rows: 5,
-    columns: labels.map((label, i) => ({ key: i + 1, label, unit: "", kind: "number" as const })),
-  });
+  // Legacy shape ON PURPOSE: no `id` on the table or its columns, which is what
+  // an activity authored before 1.1.71 hydrates to. Those still carry positional
+  // bindings, so the label reconcile must keep working for them.
+  const table = (labels: string[]) => [
+    {
+      key: 900,
+      title: "T",
+      rows: 5,
+      columns: labels.map((label, i) => ({ key: i + 1, label, unit: "", kind: "number" as const })),
+    },
+  ];
 
   it("keeps bindings when an unrelated column is renamed after them", () => {
     const { result } = renderHook(() => useActivityBuilder());
@@ -810,3 +821,124 @@ describe("useActivityBuilder — chart bindings survive table edits (1.1.64)", (
     expect(result.current.chart[0].yColumn).toBeNull();
   });
 });
+
+/**
+ * 1.1.71 — several tables, and the id hazard one level up.
+ *
+ * Ids used to be minted POSITIONALLY on every save, so deleting the first of
+ * three tables renamed the second from `table-2` to `table-1` and every chart
+ * bound to the old `table-1` silently started plotting a different table's data.
+ * The 1.1.64 reconcile is column-level and cannot see that.
+ *
+ * The fix is to remove the cause rather than add a second reconcile: ids are
+ * minted at creation from a stable key and preserved on load, so nothing an
+ * author does renames anything.
+ */
+describe("useActivityBuilder — several tables (1.1.71)", () => {
+  const t = (key: number, title: string, labels: string[]) => ({
+    key,
+    title,
+    rows: 5,
+    columns: labels.map((label, i) => ({ key: key * 100 + i, label, unit: "", kind: "number" as const })),
+  });
+
+  it("elementPayload() emits EVERY table, not just the first", () => {
+    // The full-overwrite footgun: emitting only [0] here would silently delete
+    // the rest on the next save. It has already bitten subject, language and
+    // charts.
+    const { result } = renderHook(() => useActivityBuilder());
+    act(() => result.current.setTable([t(1, "Fald", ["h", "t"]), t(2, "Kast", ["v", "l"])]));
+    const p = result.current.elementPayload();
+    expect(p.table.map((x) => x.title)).toEqual(["Fald", "Kast"]);
+    expect(p.table.map((x) => x.id)).toEqual(["table-k1", "table-k2"]);
+  });
+
+  it("THE REGRESSION: deleting the first table does not re-point a chart bound to the second", () => {
+    const { result } = renderHook(() => useActivityBuilder());
+    act(() => result.current.setTable([t(1, "Fald", ["h", "t"]), t(2, "Kast", ["v", "l"])]));
+    act(() =>
+      result.current.setChart([
+        { id: "c1", title: "", chartKind: "scatter", tableId: "table-k2", xColumn: "col-k200", yColumn: "col-k201" },
+      ]),
+    );
+
+    // Delete the FIRST table. Under positional minting "Kast" would be re-minted
+    // from table-2 to table-1 and this chart would now plot "Fald".
+    act(() => result.current.setTable([t(2, "Kast", ["v", "l"])]));
+
+    const p = result.current.elementPayload();
+    expect(p.table.map((x) => x.id)).toEqual(["table-k2"]);
+    expect(result.current.chart[0].tableId).toBe("table-k2");
+    expect(result.current.chart[0].xColumn).toBe("col-k200");
+    expect(result.current.chart[0].yColumn).toBe("col-k201");
+  });
+
+  it("hydrate reads every table and PRESERVES its saved ids", () => {
+    // Preserving ids is what keeps existing activities working: re-minting them
+    // would orphan every saved chart binding and every in-flight student cell,
+    // which are keyed `${table.id}::${row}::${col.id}`.
+    const { result } = renderHook(() => useActivityBuilder());
+    act(() =>
+      result.current.hydrate({
+        title: "x",
+        teachingGoal: "y",
+        table: [
+          { id: "table-1", title: "Gammel", rows: 4, columns: [{ id: "col-1", label: "h", unit: "m", kind: "number" }] },
+          { id: "table-2", title: "Anden", rows: 3, columns: [{ id: "col-1", label: "v", unit: "m/s", kind: "number" }] },
+        ],
+      } as never),
+    );
+    expect(result.current.table).toHaveLength(2);
+    const p = result.current.elementPayload();
+    expect(p.table.map((x) => x.id)).toEqual(["table-1", "table-2"]);
+    expect(p.table[0].columns[0].id).toBe("col-1");
+  });
+
+  it("a NEW column on a loaded table cannot collide with a preserved id", () => {
+    // The hazard preserve-ids-on-load creates and positional minting could not:
+    // saved ids col-1 and col-3 (one was deleted in an earlier session) hydrate
+    // to keys 1 and 2, so a third column added now would positionally mint
+    // `col-3` — which already exists. The `-k` namespace makes that impossible.
+    const { result } = renderHook(() => useActivityBuilder());
+    act(() =>
+      result.current.hydrate({
+        title: "x",
+        teachingGoal: "y",
+        table: [
+          {
+            id: "table-1",
+            title: "T",
+            rows: 5,
+            columns: [
+              { id: "col-1", label: "a", unit: "", kind: "number" },
+              { id: "col-3", label: "b", unit: "", kind: "number" },
+            ],
+          },
+        ],
+      } as never),
+    );
+    act(() =>
+      result.current.setTable([
+        {
+          ...result.current.table[0],
+          columns: [
+            ...result.current.table[0].columns,
+            { key: result.current.nextElementKey(), label: "c", unit: "", kind: "number" as const },
+          ],
+        },
+      ]),
+    );
+    const ids = result.current.elementPayload().table[0].columns.map((c) => c.id);
+    expect(ids).toHaveLength(3);
+    expect(new Set(ids).size).toBe(3); // no duplicates
+    expect(ids.slice(0, 2)).toEqual(["col-1", "col-3"]);
+  });
+
+  it("counts each table in workspaceCount, and an empty list as none", () => {
+    const { result } = renderHook(() => useActivityBuilder());
+    expect(result.current.workspaceCount).toBe(0);
+    act(() => result.current.setTable([t(1, "A", ["h"]), t(2, "B", ["v"])]));
+    expect(result.current.workspaceCount).toBe(2);
+  });
+});
+

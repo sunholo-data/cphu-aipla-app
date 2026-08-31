@@ -8,7 +8,7 @@ import type { CalculatorEditorValue } from "@/components/teacher/CalculatorEdito
 import type { ChartEditorValue } from "@/components/teacher/ChartEditor";
 import type { ConceptMapEditorValue } from "@/components/teacher/ConceptMapEditor";
 import type { NoteEditorValue } from "@/components/teacher/NoteEditor";
-import type { TableEditorValue } from "@/components/teacher/TableEditor";
+import type { TableEditorColumn, TableEditorValue } from "@/components/teacher/TableEditor";
 import type { SolutionEditorValue } from "@/components/teacher/SolutionEditor";
 import type { DocumentEditorValue } from "@/components/teacher/DocumentEditor";
 import type { CalculatorElementDef } from "@/components/workspace/WorkbenchCalculator";
@@ -30,7 +30,7 @@ export interface BuilderChecklistItem {
 /** The element-bearing slice of the activity builder's state. */
 export interface BuilderElements {
   checklist: BuilderChecklistItem[];
-  table: TableEditorValue | null;
+  table: TableEditorValue[];
   chart: ChartEditorValue[];
   calculator: CalculatorEditorValue | null;
   note: NoteEditorValue | null;
@@ -55,15 +55,63 @@ export interface ActivityElementDefs {
 
 const VAR_ID_RE = /^[A-Za-z_][A-Za-z0-9_]*$/;
 
-/** Drop columns without a label; drop the whole table if none survive.
- *  Positional column ids assigned here (the labels are the identity). */
-function tableDefs(table: TableEditorValue | null): TableElementDef[] {
-  if (!table) return [];
-  const columns = table.columns
-    .filter((c) => c.label.trim())
-    .map((c, idx) => ({ id: `col-${idx + 1}`, label: c.label.trim(), unit: c.unit.trim(), kind: c.kind }));
-  if (columns.length === 0) return [];
-  return [{ id: "table-1", title: table.title.trim(), columns, rows: table.rows }];
+/** Mint a NEW element id in a namespace that cannot collide with the legacy
+ *  positional one (1.1.71).
+ *
+ *  Ids used to be minted positionally on every save — `table-1`, `col-{n}` over
+ *  the label-bearing columns — so deleting anything renamed everything after it
+ *  and silently re-pointed charts. Ids are now assigned at creation and
+ *  preserved on load. That raises a collision the positional scheme could not
+ *  have: a table whose saved columns are `col-1, col-3` (one was deleted in an
+ *  earlier session) hydrates to keys 1 and 2, and the next column added takes
+ *  key 3 — minting `col-3`, which already exists on that table.
+ *
+ *  `k` before the key makes the two namespaces provably disjoint: `col-k3` is
+ *  never equal to `col-{integer}`, whatever the counter does. */
+function mintId(prefix: string, key: number): string {
+  return `${prefix}-k${key}`;
+}
+
+/** The id a table WILL carry once saved — its preserved one, or the one
+ *  `tableDefs` will mint. Exported because the CHART editor has to bind against
+ *  the same ids the payload builder writes; two independent minters would agree
+ *  today and drift the first time either changed, which is the failure mode this
+ *  whole change exists to remove. */
+export function mintedTableId(table: TableEditorValue): string {
+  return table.id || mintId("table", table.key);
+}
+
+/** The id a column WILL carry once saved. Minted from the column's stable key,
+ *  never its position. */
+export function mintedColumnId(col: TableEditorColumn): string {
+  return col.id || mintId("col", col.key);
+}
+
+/** Drop columns without a label; drop any table where none survive.
+ *
+ *  Ids are PRESERVED when the element came from a saved activity and minted only
+ *  when it did not — see `mintId`. Nothing is recomputed from position, so
+ *  deleting a table or a column renames nothing and no chart binding moves. */
+function tableDefs(tables: TableEditorValue[]): TableElementDef[] {
+  const out: TableElementDef[] = [];
+  for (const table of tables) {
+    const columns = table.columns
+      .filter((c) => c.label.trim())
+      .map((c) => ({
+        id: mintedColumnId(c),
+        label: c.label.trim(),
+        unit: c.unit.trim(),
+        kind: c.kind,
+      }));
+    if (columns.length === 0) continue;
+    out.push({
+      id: mintedTableId(table),
+      title: table.title.trim(),
+      columns,
+      rows: table.rows,
+    });
+  }
+  return out;
 }
 
 /** Keep inputs with a valid variable name + label; drop the calculator if it

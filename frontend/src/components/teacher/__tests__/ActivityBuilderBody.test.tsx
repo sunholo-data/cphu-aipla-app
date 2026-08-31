@@ -42,11 +42,11 @@ vi.mock("@/components/teacher/ActivityPreview", () => ({
   ActivityPreview: (props: {
     artefactId: string | null;
     activityId?: string;
-    state: { checklist: { label: string }[]; table: unknown };
+    state: { checklist: { label: string }[]; table: unknown[] };
   }) => (
     <div data-testid="activity-preview">
       preview|artefact:{props.artefactId ?? "none"}|activityId:{props.activityId ?? ""}|checklist:
-      {props.state.checklist.length}|table:{props.state.table ? "yes" : "no"}
+      {props.state.checklist.length}|table:{props.state.table?.length ? "yes" : "no"}
     </div>
   ),
 }));
@@ -54,14 +54,18 @@ vi.mock("@/components/teacher/ActivityPreview", () => ({
 // --- Each element editor: a stub that shows its enabled/disabled state and a
 //     toggle, so we can assert "which editor shows for which element" and that
 //     the body wires the editor's onChange to the right builder setter. --------
-function editorStub(name: string, enabledValue: unknown) {
+function editorStub(name: string, enabledValue: unknown, clearedValue: unknown = null) {
+  // `on` must not be a bare truthiness check: an empty ARRAY is truthy, so a
+  // list-valued editor would read as "on" with nothing in it (the same trap that
+  // put a phantom table in workspaceCount).
+  const isOn = (v: unknown) => (Array.isArray(v) ? v.length > 0 : Boolean(v));
   const Stub = ({ value, onChange }: { value: unknown; onChange: (v: unknown) => void }) => (
     <div data-testid={`${name}-editor`}>
-      <span data-testid={`${name}-state`}>{value ? "on" : "off"}</span>
+      <span data-testid={`${name}-state`}>{isOn(value) ? "on" : "off"}</span>
       <button type="button" onClick={() => onChange(enabledValue)}>
         mock-enable-{name}
       </button>
-      <button type="button" onClick={() => onChange(null)}>
+      <button type="button" onClick={() => onChange(clearedValue)}>
         mock-clear-{name}
       </button>
     </div>
@@ -70,12 +74,22 @@ function editorStub(name: string, enabledValue: unknown) {
   return Stub;
 }
 
+// 1.1.71 — tables are a LIST. The stub emits one, and "clear" is an empty
+// array rather than null: `setTable` reconciles over the array and a null would
+// throw on the next render.
 vi.mock("@/components/teacher/TableEditor", () => ({
-  TableEditor: editorStub("table", {
-    title: "T",
-    rows: 3,
-    columns: [{ key: 1, label: "Tid", unit: "s", kind: "number" }],
-  }),
+  TableEditor: editorStub(
+    "table",
+    [
+      {
+        key: 1,
+        title: "T",
+        rows: 3,
+        columns: [{ key: 2, label: "Tid", unit: "s", kind: "number" }],
+      },
+    ],
+    [],
+  ),
 }));
 vi.mock("@/components/teacher/ChartEditor", () => ({
   // ChartEditor additionally receives the `table` (1.1.64 — it needs the
@@ -83,19 +97,20 @@ vi.mock("@/components/teacher/ChartEditor", () => ({
   ChartEditor: ({
     value,
     onChange,
-    table,
+    tables,
   }: {
-    // 1.1.64 — charts are a LIST, and the editor takes the table itself (it
-    // needs the columns for the axis pickers) rather than a hasTable boolean.
+    // 1.1.64 — charts are a LIST, and the editor takes the tables themselves
+    // (it needs the columns for the axis pickers) rather than a hasTable
+    // boolean. 1.1.71 — plural: a chart picks WHICH table it plots.
     value: { title: string }[];
     onChange: (v: unknown) => void;
-    table: { columns: { label: string; kind: string }[] } | null;
+    tables: { columns: { label: string; kind: string }[] }[];
   }) => (
     <div data-testid="chart-editor">
       <span data-testid="chart-state">{value?.length ? "on" : "off"}</span>
       <span data-testid="chart-count">{value?.length ?? 0}</span>
       <span data-testid="chart-numeric-columns">
-        {String((table?.columns ?? []).filter((c) => c.kind === "number" && c.label.trim()).length)}
+        {String((tables?.[0]?.columns ?? []).filter((c) => c.kind === "number" && c.label.trim()).length)}
       </span>
       <button type="button" onClick={() => onChange([...(value ?? []), { title: "G", chartKind: "line" }])}>
         mock-enable-chart

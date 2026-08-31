@@ -226,8 +226,22 @@ def _read_table(items: list, spec: ElementSpec, state: dict[str, Any]) -> list[E
     migration behind it.
     """
     grids = _grids_by_id(_entry(state, "table"))
+    # 1.1.71 — with several tables authored, the title is the only thing that
+    # tells them apart in the tutor's block, and an untitled one falls back to
+    # "untitled". Three of those produce three identical lines
+    # (`Data table "untitled": EMPTY`), which is worse than useless: the tutor
+    # cannot say which table it means and neither can the student reading its
+    # reply. Disambiguate by position when a title is missing or shared.
+    raw_titles = [(getattr(t, "title", "") or "").strip() for t in items]
+    seen: dict[str, int] = {}
+    for t in raw_titles:
+        seen[t] = seen.get(t, 0) + 1
+    titles = [
+        t if (t and seen[t] == 1) else (f"{t} ({i + 1})" if t else f"untitled ({i + 1})")
+        for i, t in enumerate(raw_titles)
+    ]
     fills = []
-    for tbl in items:
+    for idx, tbl in enumerate(items):
         columns = getattr(tbl, "columns", []) or []
         total = int(getattr(tbl, "rows", 0) or 0) * len(columns)
         filled = 0
@@ -250,7 +264,7 @@ def _read_table(items: list, spec: ElementSpec, state: dict[str, Any]) -> list[E
             ElementFill(
                 kind="table",
                 element_id=str(getattr(tbl, "id", "")),
-                title=getattr(tbl, "title", "") or "untitled",
+                title=titles[idx],
                 filled=filled,
                 total=total,
             )

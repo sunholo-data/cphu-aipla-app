@@ -88,8 +88,8 @@ export interface ActivityBuilder {
   removeChecklistItem: (key: number) => void;
   setChecklistLabel: (key: number, label: string) => void;
 
-  table: TableEditorValue | null;
-  setTable: (v: TableEditorValue | null) => void;
+  table: TableEditorValue[];
+  setTable: (v: TableEditorValue[]) => void;
   chart: ChartEditorValue[];
   setChart: (v: ChartEditorValue[]) => void;
   calculator: CalculatorEditorValue | null;
@@ -146,32 +146,53 @@ export function useActivityBuilder(): ActivityBuilder {
   const [workbenchType, setWorkbenchType] = useState<WorkbenchType>("none");
   // `key` is a stable client id for React; the persisted id is positional.
   const [checklist, setChecklist] = useState<ChecklistRow[]>([]);
-  const [table, setTable] = useState<TableEditorValue | null>(null);
+  const [table, setTable] = useState<TableEditorValue[]>([]);
   const [chart, setChart] = useState<ChartEditorValue[]>([]);
 
-  // 1.1.64 — column ids are minted POSITIONALLY (`col-{n}` over the
-  // label-bearing columns, see `tableDefs`), so deleting a column SHIFTS every
-  // later id. A chart bound to `col-3` would then silently plot what used to be
-  // `col-4` — and the render-side fallback cannot catch it, because the id
-  // still resolves. That is the one genuinely bad outcome this feature can
-  // produce, so it is closed here rather than at render: when the numeric
-  // column set changes shape, any binding that no longer names the SAME column
-  // label is cleared, dropping that chart back to auto-bind (which renders with
-  // a visible note).
+  // 1.1.64 — column ids USED to be minted positionally (`col-{n}` over the
+  // label-bearing columns), so deleting a column SHIFTED every later id and a
+  // chart bound to `col-3` would silently plot what used to be `col-4`. The
+  // render-side fallback cannot catch that, because the id still resolves. This
+  // reconcile closed it by clearing any binding that no longer named the SAME
+  // column label.
+  //
+  // 1.1.71 removed the CAUSE: ids are minted at creation (`col-k{key}`) and
+  // preserved on load, so nothing renames when anything is deleted. The
+  // reconcile stays for activities authored BEFORE that, whose columns still
+  // carry positional ids — but it must now be id-aware, or it would start
+  // clearing perfectly valid stable bindings. A binding whose id is still
+  // present in the new column set is correct by construction and is left alone;
+  // only the legacy positional case falls through to label matching.
   const setTableReconciling = useCallback(
-    (next: TableEditorValue | null) => {
+    (next: TableEditorValue[]) => {
       setTable((prev) => {
-        const labelFor = (t: TableEditorValue | null, mintedId: string | null | undefined) => {
-          if (!t || !mintedId) return null;
+        const allColumnIds = (tables: TableEditorValue[]) => {
+          const ids = new Set<string>();
+          for (const t of tables) for (const c of t.columns) if (c.id) ids.add(c.id);
+          return ids;
+        };
+        const nextIds = allColumnIds(next);
+
+        // Positional label lookup, scoped to the table the binding names — the
+        // pre-1.1.71 behaviour, unchanged for the activities that need it.
+        const labelFor = (tables: TableEditorValue[], tableId: string | null | undefined, mintedId: string | null | undefined) => {
+          if (!mintedId) return null;
+          const t = tables.find((x) => x.id === tableId) ?? tables[0];
+          if (!t) return null;
           const cols = t.columns.filter((c) => c.label.trim());
           const idx = Number(String(mintedId).replace("col-", "")) - 1;
+          if (!Number.isInteger(idx) || idx < 0) return null;
           return cols[idx]?.label.trim() ?? null;
         };
-        const prevValue = typeof prev === "function" ? prev : prev;
+
         setChart((cs) =>
           cs.map((c) => {
-            const keepX = labelFor(prevValue, c.xColumn) === labelFor(next, c.xColumn);
-            const keepY = labelFor(prevValue, c.yColumn) === labelFor(next, c.yColumn);
+            // Stable ids: still present ⇒ still correct. Nothing to reconcile.
+            const stableX = c.xColumn ? nextIds.has(c.xColumn) : true;
+            const stableY = c.yColumn ? nextIds.has(c.yColumn) : true;
+            if (stableX && stableY) return c;
+            const keepX = stableX || labelFor(prev, c.tableId, c.xColumn) === labelFor(next, c.tableId, c.xColumn);
+            const keepY = stableY || labelFor(prev, c.tableId, c.yColumn) === labelFor(next, c.tableId, c.yColumn);
             if (keepX && keepY) return c;
             return { ...c, xColumn: keepX ? c.xColumn : null, yColumn: keepY ? c.yColumn : null };
           }),
@@ -212,17 +233,20 @@ export function useActivityBuilder(): ActivityBuilder {
     setChecklist(t.checklist.map((label) => ({ key: nextKeyRef.current++, label })));
     setTable(
       t.table
-        ? {
-            title: t.table.title,
-            columns: t.table.columns.map((c) => ({
+        ? [
+            {
               key: nextKeyRef.current++,
-              label: c.label,
-              unit: c.unit ?? "",
-              kind: c.kind,
-            })),
-            rows: t.table.rows,
-          }
-        : null,
+              title: t.table.title,
+              columns: t.table.columns.map((c) => ({
+                key: nextKeyRef.current++,
+                label: c.label,
+                unit: c.unit ?? "",
+                kind: c.kind,
+              })),
+              rows: t.table.rows,
+            },
+          ]
+        : [],
     );
     setChart(t.chart ? [{ id: "chart-1", title: t.chart.title, chartKind: t.chart.chartKind }] : []);
     setCalculator(
@@ -296,20 +320,26 @@ export function useActivityBuilder(): ActivityBuilder {
     setLevel(cfg.level ?? null);
     setChecklist((cfg.checklist ?? []).map((c) => ({ key: nextKeyRef.current++, label: c.label })));
 
-    const t = cfg.table?.[0];
+    // 1.1.71 — load EVERY table, not just the first, and PRESERVE the saved
+    // ids. Reading only [0] here while the payload round-trips the whole array
+    // is exactly how a save silently drops the rest (the full-overwrite
+    // footgun, which has now bitten subject, language and charts). Carrying the
+    // ids across is what makes deleting a table safe: nothing is re-minted, so
+    // no chart binding moves.
     setTable(
-      t
-        ? {
-            title: t.title ?? "",
-            columns: t.columns.map((c) => ({
-              key: nextKeyRef.current++,
-              label: c.label,
-              unit: c.unit ?? "",
-              kind: c.kind ?? "number",
-            })),
-            rows: t.rows,
-          }
-        : null,
+      (cfg.table ?? []).map((t) => ({
+        key: nextKeyRef.current++,
+        id: t.id,
+        title: t.title ?? "",
+        columns: t.columns.map((c) => ({
+          key: nextKeyRef.current++,
+          id: c.id,
+          label: c.label,
+          unit: c.unit ?? "",
+          kind: c.kind ?? "number",
+        })),
+        rows: t.rows,
+      })),
     );
 
     // 1.1.64 — load EVERY chart, not just the first. Reading only [0] here
@@ -413,7 +443,11 @@ export function useActivityBuilder(): ActivityBuilder {
   const workspaceCount =
     (artefactId ? 1 : 0) +
     (checklist.length > 0 ? 1 : 0) +
-    (table ? 1 : 0) +
+    // 1.1.71 — tables are a LIST and each is its own workspace element, so this
+    // counts them like charts. Note `table ? 1 : 0` would be WRONG twice over
+    // now: an empty array is truthy, so every activity would count one table it
+    // does not have.
+    table.length +
     chart.length +
     (calculator ? 1 : 0) +
     (note ? 1 : 0) +
