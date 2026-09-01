@@ -66,9 +66,9 @@ Searched (Agent Skills spec, A2UI, MCP, ADK) for a persona / character / agent-i
 - **A2A agent cards** — agent metadata for discovery; persona-adjacent but oriented at agent-to-agent rather than user-facing tutor identity
 - **Cloud TTS voice list** — voice names (`da-DK-Chirp3-HD-Aoede`) exist as canonical IDs but carry no persona semantics
 
-Per [feedback_search_protocols_first](file:///Users/mark/.claude/projects/-Users-mark-dev-sunholo-cphu-aipla-app/memory/feedback_search_protocols_first.md): the honest call is to keep the `Persona` model **thin** — just a bundle of existing primitives (avatar URL, voice ID, language tag, display strings). No new protocol invented. The persona definition YAML follows the existing SKILL.md frontmatter convention. Avatars use standard web image formats (PNG, SVG, WebP).
+Per feedback_search_protocols_first (`feedback_search_protocols_first.md` — agent-memory note, on M's machine): the honest call is to keep the `Persona` model **thin** — just a bundle of existing primitives (avatar URL, voice ID, language tag, display strings). No new protocol invented. The persona definition YAML follows the existing SKILL.md frontmatter convention. Avatars use standard web image formats (PNG, SVG, WebP).
 
-BCP-47 language tags throughout (matches 1.1.11). Per [feedback_no_emoticons](file:///Users/mark/.claude/projects/-Users-mark-dev-sunholo-cphu-aipla-app/memory/feedback_no_emoticons.md): persona display copy uses words ("Aoede speaking"), never emoji. The 🎙 in the status pill stays as a lucide icon (`Mic2`) per the existing v1.1.11 convention.
+BCP-47 language tags throughout (matches 1.1.11). Per feedback_no_emoticons (`feedback_no_emoticons.md` — agent-memory note, on M's machine): persona display copy uses words ("Aoede speaking"), never emoji. The 🎙 in the status pill stays as a lucide icon (`Mic2`) per the existing v1.1.11 convention.
 
 ## Design
 
@@ -454,9 +454,9 @@ Suggested milestone breakdown (concrete sprint plan via sprint-planner skill at 
 - **Parent:** [voice-provider-abstraction.md](implemented/voice-provider-abstraction.md) (1.1.11) — Persona is the UX layer over its `SkillVoiceConfig` + `ClassVoiceSettings` primitives. Shipped 2026-06-04.
 - ADR-003 (four-tier model selection) — personas inherit the tier swap pattern transparently
 - ADR-005 (data residency) — persona avatars served from the frontend's public dir; no new data egress
-- [feedback_search_protocols_first](file:///Users/mark/.claude/projects/-Users-mark-dev-sunholo-cphu-aipla-app/memory/feedback_search_protocols_first.md) — cited in Standards check (no persona protocol exists)
-- [feedback_no_emoticons](file:///Users/mark/.claude/projects/-Users-mark-dev-sunholo-cphu-aipla-app/memory/feedback_no_emoticons.md) — persona display copy uses words, lucide icons for UI affordances
-- [feedback_no_prs_commit_to_dev](file:///Users/mark/.claude/projects/-Users-mark-dev-sunholo-cphu-aipla-app/memory/feedback_no_prs_commit_to_dev.md) — execution commits directly to dev
+- feedback_search_protocols_first (`feedback_search_protocols_first.md` — agent-memory note, on M's machine) — cited in Standards check (no persona protocol exists)
+- feedback_no_emoticons (`feedback_no_emoticons.md` — agent-memory note, on M's machine) — persona display copy uses words, lucide icons for UI affordances
+- feedback_no_prs_commit_to_dev (`feedback_no_prs_commit_to_dev.md` — agent-memory note, on M's machine) — execution commits directly to dev
 - [teacher-ui.md](../v1.0.0-pilot/implemented/teacher-ui.md) (1.G) — persona picker lives next to existing Voice section on class-detail page
 - [researcher-role.md](researcher-role.md) (1.1.5) — `role:researcher` accounts get `?debug=voice` for free without the query param (future)
 - [cost-dashboard.md](cost-dashboard.md) (1.1.9) — `voice.persona_id` span attr feeds this dashboard

@@ -19,7 +19,7 @@ Three things landed together at today's feedback session:
 
 1. **Read-aloud quality is OS-dependent and choppy.** The shipped `window.speechSynthesis` button works, but on macOS the default Danish voice "Sara" stalls mid-utterance on long sentences. Voice quality varies by browser/OS combo with no way to control or test it from the platform. Flagged 2026-05-26 internal demo; reinforced today.
 2. **No dictation surface.** Students can only type. "Lesson ease" calls for a microphone button so a student on a tablet can speak a problem-set hint request or describe a concept aloud instead of typing — important for accessibility, mobile typing speed, and the small fraction of students with reading-output asymmetries.
-3. **Architecture risk.** Any single-vendor choice today locks the pilot into one cloud. The [self-hosting trajectory](file:///Users/mark/Documents/clients/cph-uni/self-hosting.qmd) means voice — like LLMs (ADR-003) — must be swap-shaped from day one: cloud API → server-local → on-device → on-prem GPU cluster. Hardcoding `texttospeech_v1.TextToSpeechClient()` calls into a route handler is the wrong shape.
+3. **Architecture risk.** Any single-vendor choice today locks the pilot into one cloud. The [self-hosting trajectory](https://www.sunholo.com/aipla/self-hosting.html) means voice — like LLMs (ADR-003) — must be swap-shaped from day one: cloud API → server-local → on-device → on-prem GPU cluster. Hardcoding `texttospeech_v1.TextToSpeechClient()` calls into a route handler is the wrong shape.
 
 The shipped browser-native path was the right v1 call (free, no backend, no network) and stays as one provider implementation. This doc adds the next two tiers (Cloud APIs + abstraction) without ripping it out.
 
@@ -66,7 +66,7 @@ Searched for an established cross-provider voice protocol; **none exists at a us
 - Web Speech API (W3C) is a *browser-side* standard, not a server provider interface — used as one provider implementation, not as the abstraction
 - MCP, AG-UI, A2UI don't define voice provider interfaces (those are higher-level transports)
 
-Per [feedback_search_protocols_first](file:///Users/mark/.claude/projects/-Users-mark-dev-sunholo-cphu-aipla-app/memory/feedback_search_protocols_first.md) the honest call is: write the thinnest possible Protocol and move on. The interface is three methods total (`synthesize`, `transcribe`, `describe`), with provider-specific config passed through an opaque `extras: dict`. BCP-47 language tags (`"da"`, `"en"`) throughout — that's the standard that does apply here.
+Per feedback_search_protocols_first (`feedback_search_protocols_first.md` — agent-memory note, on M's machine) the honest call is: write the thinnest possible Protocol and move on. The interface is three methods total (`synthesize`, `transcribe`, `describe`), with provider-specific config passed through an opaque `extras: dict`. BCP-47 language tags (`"da"`, `"en"`) throughout — that's the standard that does apply here.
 
 ## Design
 
@@ -402,9 +402,9 @@ The TTS half (M1–M5) ships independently and can land before M6 starts — it'
 - [cost-dashboard.md](../cost-dashboard.md) (1.1.9) — voice spans feed this dashboard
 - [teacher-ui.md](../../v1.0.0-pilot/implemented/teacher-ui.md) (1.G) — per-class voice toggle lives here
 - [proactive-sim-reactive-tutor.md](proactive-sim-reactive-tutor.md) (1.1.2) — reactive turns inherit read-aloud automatically
-- ADR-003 (four-tier model selection) in [architecture.qmd](file:///Users/mark/Documents/clients/cph-uni/strand-a-pedagogical-bot/architecture.qmd) — voice mirrors this pattern
+- ADR-003 (four-tier model selection) in `strand-a-pedagogical-bot/architecture.qmd` (private scoping-site file, not published) — voice mirrors this pattern
 - ADR-005 (data residency) — providers in `europe-north1` / EU
-- [self-hosting.qmd](file:///Users/mark/Documents/clients/cph-uni/self-hosting.qmd) — UCPH GPU cluster Whisper path is the long-term destination
-- [feedback_search_protocols_first](file:///Users/mark/.claude/projects/-Users-mark-dev-sunholo-cphu-aipla-app/memory/feedback_search_protocols_first.md) — cited in Standards check
-- [feedback_no_emoticons](file:///Users/mark/.claude/projects/-Users-mark-dev-sunholo-cphu-aipla-app/memory/feedback_no_emoticons.md) — lucide-react `Mic`/`MicOff`/`Volume2`/`VolumeX` icons throughout
+- [self-hosting.qmd](https://www.sunholo.com/aipla/self-hosting.html) — UCPH GPU cluster Whisper path is the long-term destination
+- feedback_search_protocols_first (`feedback_search_protocols_first.md` — agent-memory note, on M's machine) — cited in Standards check
+- feedback_no_emoticons (`feedback_no_emoticons.md` — agent-memory note, on M's machine) — lucide-react `Mic`/`MicOff`/`Volume2`/`VolumeX` icons throughout
 - [local-dev-cli](../../../v6.1.0/local-dev-cli.md) — CLI command surface

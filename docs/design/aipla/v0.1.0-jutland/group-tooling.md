@@ -330,5 +330,5 @@ $ aiplatform group new --env dev --skill problem-set-hints --title jutland
 - [docs/design/aipla/SEQUENCE.md](../SEQUENCE.md) — overall AIPLA build sequence; this doc sits in the v0.1.0-jutland "stretch" track
 - [docs/design/aipla/v0.1.0-jutland/jutland-demo.md](jutland-demo.md) — the v0.1 design that this tooling supports
 - [docs/upstream-feedback.md](../../../upstream-feedback.md) — entries #14 (include_email=true), #19/20/21 (anonymous-group corner cases) — same area
-- Scoping site [architecture.qmd ADR-001](file:///Users/mark/Documents/clients/cph-uni/architecture.qmd#adr-001-student-identity-no-auth-anonymous-group-ids) — the anonymous-group design this tooling implements ops for
+- Scoping site [architecture.qmd ADR-001](https://www.sunholo.com/aipla/architecture.html#adr-001-student-identity-no-auth-anonymous-group-ids) — the anonymous-group design this tooling implements ops for
 - v1 path: [SEQUENCE.md Phase 1.7](../SEQUENCE.md) `class-and-group-management.md` — when teacher UI ships, the CLI becomes a developer/ops-only fallback while teachers use the GUI

@@ -33,7 +33,7 @@ artifacts the judge scores); [teacher-activity-authoring](teacher-activity-autho
 milestone consumes the four-format template); [1.K DRA maps](../v1.0.0-pilot/dra-activity-framework.md)
 (sibling vocabulary); **R1** for teacher-facing vocabulary only.
 **Source brief:** AR's 29-June competencies email, audited in the scoping site —
-[`notes/2026-07-10-aswin-competency-sources-audit.md`](file:///Users/mark/Documents/clients/cph-uni/notes/2026-07-10-aswin-competency-sources-audit.md).
+`notes/2026-07-10-aswin-competency-sources-audit.md` (private scoping-site file, not published).
 Primary sources archived (CC-BY PDFs + extractions) in scoping-site
 `sources/aswin-competencies-2026-06-29/`.
 
@@ -345,7 +345,7 @@ Free-form rubric authoring (create/edit a `rubric_defs` version) is CLI + file f
 - [living-concept-map.md](living-concept-map.md) — consumer of the ≥2-format mastery rule
 - [1.K dra-activity-framework.md](../v1.0.0-pilot/dra-activity-framework.md) — sibling vocabulary
   (representation coverage; Kohl's four formats are the item-level counterpart)
-- Scoping-site audit: [`notes/2026-07-10-aswin-competency-sources-audit.md`](file:///Users/mark/Documents/clients/cph-uni/notes/2026-07-10-aswin-competency-sources-audit.md)
+- Scoping-site audit: `notes/2026-07-10-aswin-competency-sources-audit.md` (private scoping-site file, not published)
 
 ## Sources
 

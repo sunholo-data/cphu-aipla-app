@@ -42,7 +42,7 @@
 **Estimated:** ~1d
 **Scope:** Mostly a BigQuery query + display; no new instrumentation (token counts already in BQ via OTel)
 **Dependencies:** [chat-log-pipeline.md](../v1.0.0-pilot/implemented/chat-log-pipeline.md) (1.2 shipped — token counts already in BQ); per-class budget enforcer (already in tree per parent SEQUENCE row 1.12)
-**Source brief:** [`june-03-feedback-sprint-brief.md` §9](file:///Users/mark/Documents/clients/cph-uni/strand-a-pedagogical-bot/prototypes/june-03-feedback-sprint-brief.md)
+**Source brief:** [`june-03-feedback-sprint-brief.md` §9](../_scoping-snapshot/prototypes/june-03-feedback-sprint-brief.md)
 
 ## Relationship to existing planned doc
 

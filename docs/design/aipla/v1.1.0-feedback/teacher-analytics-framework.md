@@ -6,7 +6,7 @@
 **Estimated:** shell + raised-hand panel + deterministic signals ~1.5–2d (un-gated); the LLM summary layer ~1–2d **after R1** locks the rubric vocabulary.
 **Scope:** Fullstack — a teacher live class view (`frontend/src/app/teacher/classes/[id]/...`) + a class-level live roll-up (`backend/analytics/`) + the existing class poll. Reuses 1.1.26 teacher primitives.
 **Dependencies:** [chat-log-pipeline.md](../v1.0.0-pilot/implemented/chat-log-pipeline.md) (1.2 — the BQ turn stream, shipped); [call-teacher.md](call-teacher.md) (1.1.29 — the raised-hand signal this surface hosts); [teacher-ui-consolidation.md](teacher-ui-consolidation.md) (1.1.26 — nav + primitives, shipped); [session-report-summary-primary.md](session-report-summary-primary.md) (1.1.4 — the `reports/narrative.py` summary generator this reuses); **R1 framework decision** (see *Gating*). ADR-001 (group-level only).
-**Source brief:** [`notes/2026-06-15-teacher-feedback.md`](file:///Users/mark/Documents/clients/cph-uni/notes/2026-06-15-teacher-feedback.md) "Real-time class summary every ~5 min" + [june-15-feedback.md](june-15-feedback.md)
+**Source brief:** `notes/2026-06-15-teacher-feedback.md` (private scoping-site file, not published) "Real-time class summary every ~5 min" + [june-15-feedback.md](june-15-feedback.md)
 
 > **Live, not post-hoc — and that's the distinction from 2.5.** [session-analytics-rubric.md](../post-pilot/session-analytics-rubric.md)
 > (row 2.5) is the **post-session** analysis layer — it explicitly scopes *out* real-time

@@ -469,7 +469,7 @@ single source, wrap the "never Terraform" tail into one `scripts/post-apply-env.
 env should be `terraform apply` + one documented post-apply command.
 
 **P4.2 — Publish a scoping-site snapshot into the repo for handover.** *(M, Med)*
-AIPLA design docs cite ADRs 001–015 via `file:///Users/mark/Documents/...` links
+AIPLA design docs cite ADRs 001–015 via ``...` (local path on M's machine)` links
 that **only resolve on M's laptop.** For handover, publish a frozen snapshot (or
 PDF export) of the scoping site's *public* files into
 `docs/design/aipla/_scoping-snapshot/` and replace the `file:///` links with the

@@ -19,7 +19,7 @@ The sprint is named for both docs because the milestones are tightly intertwined
 
 ## Workflow note — direct-to-dev, no PRs
 
-Per [feedback-aipla-git-workflow](file:///Users/voightkampff/.claude/projects/-Users-voightkampff-dev-sunholo-data-cphu-aipla-app/memory/feedback_aipla_git_workflow.md): commits land **direct on `dev`**. No PR for the `dev` branch. The `feature/analytics-chat-and-insights` branch is the executor's scratch space across milestones; FF-merge to `dev` as each milestone gate passes. Promotion to `test` and `prod` happens later via PRs.
+Per feedback-aipla-git-workflow — `feedback_aipla_git_workflow.md` (agent-memory note, not a project file): commits land **direct on `dev`**. No PR for the `dev` branch. The `feature/analytics-chat-and-insights` branch is the executor's scratch space across milestones; FF-merge to `dev` as each milestone gate passes. Promotion to `test` and `prod` happens later via PRs.
 
 ## Velocity context
 
@@ -165,7 +165,7 @@ Each milestone closes when its gate is green. **Do not proceed to the next miles
 
 - [ ] All ten milestones green
 - [ ] Backend `make lint && make test-fast` green (CI parity)
-- [ ] Frontend `npm run quality:check` green (CI parity, not the fast variant — per the [feedback_pre_push_ci_parity](file:///Users/voightkampff/.claude/projects/-Users-voightkampff-dev-sunholo-data-cphu-aipla-app/memory/feedback_pre_push_ci_parity.md) memory)
+- [ ] Frontend `npm run quality:check` green (CI parity, not the fast variant — per the feedback_pre_push_ci_parity — `feedback_pre_push_ci_parity.md` (agent-memory note, not a project file) memory)
 - [ ] No emoji introduced anywhere (per `feedback_no_emoticons` memory)
 - [ ] No new `aiplatform_chat_turn`-level migration applied (the resolution-at-query-time path holds)
 - [ ] Recharts bundle delta on student route < 2 KB (re-measured after M9)

@@ -69,7 +69,7 @@ This is the "incremental special-casing" anti-pattern from the design-doc skill.
 - BoldkastSimFrame consumes the hook and is **shorter** than today (the auth/filter logic moves out).
 - A second MCP App can be written without copy-pasting BoldkastSimFrame — concretely, the [boldkast-mcp-app.md](boldkast-mcp-app.md) "Why hand-coded HTML" rationale applies to the iframe contents, but the host wrapper around the iframe is a 30-line component using the hook.
 - The hook has unit tests covering: legitimate event passes, wrong-source event rejected, payload-shape mismatch rejected, listener cleaned up on unmount.
-- ADR-013's "Consequences" section in [architecture.qmd](file:///Users/mark/Documents/clients/cph-uni/architecture.qmd#adr-013-artefact-safety-content-review-pipeline-for-generated-html) gains a sub-bullet documenting "Authentication: window-identity not origin" with a one-line rationale.
+- ADR-013's "Consequences" section in [architecture.qmd](https://www.sunholo.com/aipla/architecture.html#adr-013-artefact-safety-content-review-pipeline-for-generated-html) gains a sub-bullet documenting "Authentication: window-identity not origin" with a one-line rationale.
 - A new entry in [followups.md](followups.md) for the browser-loop smoke (deferred — see Out of Scope).
 
 **Non-Goals:**
@@ -256,6 +256,6 @@ None — pure frontend refactor. The existing `aiplatform sessions iframe-contex
 - [boldkast-mcp-app.md](boldkast-mcp-app.md) — first artefact, the one this was caught against
 - [human-tool-use-cards.md](human-tool-use-cards.md) — sibling sprint where the bug was discovered live
 - [human-tool-use-cards-sprint.md](human-tool-use-cards-sprint.md) — sprint plan, M3 manual verification step is what surfaced this
-- [ADR-013](file:///Users/mark/Documents/clients/cph-uni/architecture.qmd#adr-013-artefact-safety-content-review-pipeline-for-generated-html) — sandbox + CSP decision this design completes
+- [ADR-013](https://www.sunholo.com/aipla/architecture.html#adr-013-artefact-safety-content-review-pipeline-for-generated-html) — sandbox + CSP decision this design completes
 - [agent-protocols skill](../../../../.claude/skills/agent-protocols/SKILL.md) — should reference this design when adding a "host-side message listener" recipe
 - Memory: [feedback-self-testable-loops](../../../../../.claude/projects/-Users-mark-dev-sunholo-cphu-aipla-app/memory/feedback_self_testable_loops.md) — the live-testing principle that surfaced this bug

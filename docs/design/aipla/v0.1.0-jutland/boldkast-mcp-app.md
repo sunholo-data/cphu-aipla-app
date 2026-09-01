@@ -12,7 +12,7 @@
 
 v0.1 ships a chat tutor for **Opgave 1 — Boldkast** (projectile motion, v₀ = 15 m/s @ 40°, g = 9.82 m/s²) that scaffolds students through sub-steps without giving the answer ([problem-set-hints SKILL.md](../../../../backend/skills/templates/problem-set-hints/SKILL.md)). The chat-only form factor works but leaves a clear over-deliver lever on the table for the Jutland visit:
 
-- The Boldkast problem is fundamentally **spatial and dynamic** — a ball flying through the air, decomposed into x(t) and y(t). Pure text scaffolding asks the student to hold the geometry in their head while reasoning about the algebra. AR's existing GenAI trials (form factor referenced in [ADR-013](file:///Users/mark/Documents/clients/cph-uni/architecture.qmd#adr-013-artefact-safety-content-review-pipeline-for-generated-html)) demonstrate the lift from a small interactive visualization next to the tutor.
+- The Boldkast problem is fundamentally **spatial and dynamic** — a ball flying through the air, decomposed into x(t) and y(t). Pure text scaffolding asks the student to hold the geometry in their head while reasoning about the algebra. AR's existing GenAI trials (form factor referenced in [ADR-013](https://www.sunholo.com/aipla/architecture.html#adr-013-artefact-safety-content-review-pipeline-for-generated-html)) demonstrate the lift from a small interactive visualization next to the tutor.
 - v1 ships the **full artefact-review pipeline** for *bot-generated* HTML ([SEQUENCE.md §1.11](SEQUENCE.md)). That's deliberately deferred; this doc carves out a v0.1-shaped slice that uses the **library-bypass path** ADR-013 already authorises: *hand-curated* artefacts skip the runtime review pipeline because they've been reviewed once at commit time.
 - The buffer week (2026-05-20 → 2026-05-27) is now available. The chat path is stable, the deploy pipeline is green, branding + layout are demo-ready. Marginal effort to ship a single curated sim is small; the demo lift is large.
 
@@ -75,8 +75,8 @@ Scored per [docs/product-axioms.md](../../../product-axioms.md).
 | Concern | Standard adopted | How |
 |---|---|---|
 | In-chat artefact embedding | [MCP Apps](https://modelcontextprotocol.io/) sandbox iframe pattern | Reuses `mcp-sandbox` origin + iframe contract; same as `mcp-ext-apps-map` |
-| Surface composition | [A2UI `surfaceId`](https://a2ui.org/) ([ADR-015](file:///Users/mark/Documents/clients/cph-uni/architecture.qmd#adr-015-unified-multi-surface-ui-ai-directs-the-layout)) | Sim mounts in `surfaceId: workspace`; chat is `surfaceId: chat` |
-| Artefact safety | [ADR-013](file:///Users/mark/Documents/clients/cph-uni/architecture.qmd#adr-013-artefact-safety-content-review-pipeline-for-generated-html) library-bypass path | Hand-curated artefact, reviewed at commit time + AR sign-off; runtime review pipeline deferred to v1 §1.11 |
+| Surface composition | [A2UI `surfaceId`](https://a2ui.org/) ([ADR-015](https://www.sunholo.com/aipla/architecture.html#adr-015-unified-multi-surface-ui-ai-directs-the-layout)) | Sim mounts in `surfaceId: workspace`; chat is `surfaceId: chat` |
+| Artefact safety | [ADR-013](https://www.sunholo.com/aipla/architecture.html#adr-013-artefact-safety-content-review-pipeline-for-generated-html) library-bypass path | Hand-curated artefact, reviewed at commit time + AR sign-off; runtime review pipeline deferred to v1 §1.11 |
 | Iframe sandbox | HTML5 sandbox attribute + CSP | `sandbox="allow-scripts"`, no `allow-same-origin`; CSP `default-src 'none'; script-src 'unsafe-inline'; style-src 'unsafe-inline'`. Identical to ADR-013's spec |
 | Animation | Vanilla `requestAnimationFrame` | No 3rd-party libs in the sim — keeps size under 200 KB and removes supply-chain risk |
 | Telemetry | OpenTelemetry span via the existing iframe → host `postMessage` → backend bridge | `boldkast.sim.open`, `boldkast.sim.play`, `boldkast.sim.show_value` (per-marker) |
@@ -282,8 +282,8 @@ No backend route additions.
 - [jutland-demo.md](jutland-demo.md) — v0.1 design doc
 - [SEQUENCE.md](SEQUENCE.md) — build order; §1.11 is the v1 review-pipeline doc this groundwork-shapes
 - [group-tooling.md](group-tooling.md) — companion v0.1 over-deliver track
-- [ADR-013](file:///Users/mark/Documents/clients/cph-uni/architecture.qmd#adr-013-artefact-safety-content-review-pipeline-for-generated-html) — artefact safety; library-bypass path
-- [ADR-015](file:///Users/mark/Documents/clients/cph-uni/architecture.qmd#adr-015-unified-multi-surface-ui-ai-directs-the-layout) — multi-surface UI; `workspace` surface
+- [ADR-013](https://www.sunholo.com/aipla/architecture.html#adr-013-artefact-safety-content-review-pipeline-for-generated-html) — artefact safety; library-bypass path
+- [ADR-015](https://www.sunholo.com/aipla/architecture.html#adr-015-unified-multi-surface-ui-ai-directs-the-layout) — multi-surface UI; `workspace` surface
 - [local-dev-cli.md](../../v6.1.0/local-dev-cli.md) — the `aiplatform` CLI affordance pattern (template doc — applies unchanged)
 - [problem-set-hints/SKILL.md](../../../../backend/skills/templates/problem-set-hints/SKILL.md) — the chat tutor this sim complements
 - AR's GenAI projectile trials — referenced by ADR-013; private to scoping site (`notes/2026-05-18-aswin-trials-analysis.md`)

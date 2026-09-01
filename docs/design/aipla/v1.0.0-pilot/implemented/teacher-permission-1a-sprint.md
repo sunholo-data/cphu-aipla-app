@@ -40,7 +40,7 @@ Replace the LOCAL_MODE teacher stub from 1.G-Ph2 with the real teacher permissio
 
 ## Workflow note — direct-to-dev, no PRs
 
-Per [feedback-aipla-git-workflow](file:///Users/voightkampff/.claude/projects/-Users-voightkampff-dev-sunholo-data-cphu-aipla-app/memory/feedback_aipla_git_workflow.md): for AIPLA, commits land **direct on `dev`**. No PR for the `dev` branch. The `feature/teacher-permission-model` branch is the executor's scratch space across milestones; rebase or fast-forward merge to `dev` as each milestone gate passes. Promotion to `test` and `prod` happen later via PRs (those branches are the gates).
+Per feedback-aipla-git-workflow — `feedback_aipla_git_workflow.md` (agent-memory note, not a project file): for AIPLA, commits land **direct on `dev`**. No PR for the `dev` branch. The `feature/teacher-permission-model` branch is the executor's scratch space across milestones; rebase or fast-forward merge to `dev` as each milestone gate passes. Promotion to `test` and `prod` happen later via PRs (those branches are the gates).
 
 ## Velocity context
 
@@ -247,7 +247,7 @@ Pattern: mirror [backend/db/chat_sessions.py](../../../../backend/db/chat_sessio
 - [ ] `cd frontend && npm run quality:check` — green (lint + typecheck + tests + build)
 - [ ] `make cli-selftest` — green
 - [ ] Smoke script `scripts/smoke-v1-permission-model.sh` exits 0
-- [ ] No emoji in any file changed (per [feedback-no-emoticons](file:///Users/voightkampff/.claude/projects/-Users-voightkampff-dev-sunholo-data-cphu-aipla-app/memory/feedback_no_emoticons.md))
+- [ ] No emoji in any file changed (per feedback-no-emoticons — `feedback_no_emoticons.md` (agent-memory note, not a project file))
 - [ ] Sprint branch `feature/teacher-permission-model` either rebased onto current `dev` and fast-forward merged, OR all milestone commits cherry-picked direct to `dev` — **no PR**
 - [ ] `git diff dev~10..dev -- backend/auth/access_context.py` shows zero changes (axiom 9 promise: the 5-type evaluator is untouched)
 - [ ] Manual on deployed dev URL: teacher Google OAuth → create class → mint code → anon-student joins → sees only that class's lessons
@@ -308,7 +308,7 @@ When invoked, the executor should:
 1. Create branch `feature/teacher-permission-model` off the current `dev` HEAD
 2. Run M1 → M10 sequentially (default) or per-wave (if invoked with parallel mode)
 3. After each milestone, run the milestone-specific quality gate before moving on
-4. At M10, rebase/FF-merge the branch onto `dev` — **no PR for `dev`** (per [feedback-aipla-git-workflow](file:///Users/voightkampff/.claude/projects/-Users-voightkampff-dev-sunholo-data-cphu-aipla-app/memory/feedback_aipla_git_workflow.md))
+4. At M10, rebase/FF-merge the branch onto `dev` — **no PR for `dev`** (per feedback-aipla-git-workflow — `feedback_aipla_git_workflow.md` (agent-memory note, not a project file))
 5. Push to `origin/dev`; Cloud Build deploys automatically
 
 ## Out of scope (do NOT start)

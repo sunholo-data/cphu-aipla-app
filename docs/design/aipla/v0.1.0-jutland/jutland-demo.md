@@ -4,17 +4,17 @@
 **Priority**: P0 (High) — single hardest deadline in the contract
 **Estimated**: 1 day (Wed 2026-05-20, with M0 cloud-bootstrap spillover risk to Thu morning)
 **Scope**: Fullstack + infra
-**Dependencies**: None inside this repo; soft dep on AR providing one problem set (fallback: projectile motion from [examples.qmd](file:///Users/mark/Documents/clients/cph-uni/examples.qmd))
+**Dependencies**: None inside this repo; soft dep on AR providing one problem set (fallback: projectile motion from [examples.qmd](https://www.sunholo.com/aipla/examples.html))
 **Created**: 2026-05-19
 **Last Updated**: 2026-05-19
 
 ## Problem Statement
 
-Per [timeline.qmd](file:///Users/mark/Documents/clients/cph-uni/timeline.qmd), JB and Aswin visit Jutland on **2026-05-27–29** to show 2–3 Danish stx physics teachers what AIPLA will be. They need a **deployed URL** they can open on a teacher's phone or laptop and demonstrate the core AIPLA loop: a student group joins anonymously, asks for help on a physics problem, and gets pedagogical scaffolding — not a solution.
+Per [timeline.qmd](https://www.sunholo.com/aipla/timeline.html), JB and Aswin visit Jutland on **2026-05-27–29** to show 2–3 Danish stx physics teachers what AIPLA will be. They need a **deployed URL** they can open on a teacher's phone or laptop and demonstrate the core AIPLA loop: a student group joins anonymously, asks for help on a physics problem, and gets pedagogical scaffolding — not a solution.
 
 **Current State:**
 - Repo was forked from `sunholo-data/ai-protocol-platform` today (2026-05-19, commit `160c9fe`).
-- Upstream already ships group-ID auth ([backend/auth/group_id_auth.py](../../../../backend/auth/group_id_auth.py)), the BudgetEnforcer Protocol ([backend/budget/enforcer.py](../../../../backend/budget/enforcer.py)), AG-UI streaming, ADK + skills framework, the tenant-span OTel hook, and the artefact-review pipeline — see [timeline.qmd](file:///Users/mark/Documents/clients/cph-uni/timeline.qmd) "Upstream group-ID auth landed 2026-05-19".
+- Upstream already ships group-ID auth ([backend/auth/group_id_auth.py](../../../../backend/auth/group_id_auth.py)), the BudgetEnforcer Protocol ([backend/budget/enforcer.py](../../../../backend/budget/enforcer.py)), AG-UI streaming, ADK + skills framework, the tenant-span OTel hook, and the artefact-review pipeline — see [timeline.qmd](https://www.sunholo.com/aipla/timeline.html) "Upstream group-ID auth landed 2026-05-19".
 - The AIPLA GCP project (`aipla-dev-2026`) does not yet exist. No deployed URL.
 - No physics skill exists in [backend/skills/templates/](../../../../backend/skills/templates/) — the 7 existing templates (general-assistant, code-assistant, data-extractor, document-analyst, web-researcher, workspace-demo, workspace-demo-interactive) are platform-generic.
 - Branding is still "Aitana Platform v6" everywhere — not appropriate for a UCPH-hosted demo.
@@ -74,7 +74,7 @@ Scored per [docs/product-axioms.md](../../../product-axioms.md). The axioms are 
 | Streaming to UI | [AG-UI protocol](https://ag-ui.com/) | Inherited from template's `ag-ui-adk` adapter |
 | Tool integration | n/a in v0.1 | No tools wired this sprint; RAG/code-exec land later |
 | UI rendering | Plain AG-UI text events; no A2UI components in v0.1 | A2UI hint cards are a v1 polish |
-| Auth | [ADR-001](file:///Users/mark/Documents/clients/cph-uni/architecture.qmd#adr-001-student-identity-no-auth-anonymous-group-ids) anonymous group IDs (no auth standard exists for "deliberately no identity") | Inherited template provider |
+| Auth | [ADR-001](https://www.sunholo.com/aipla/architecture.html#adr-001-student-identity-no-auth-anonymous-group-ids) anonymous group IDs (no auth standard exists for "deliberately no identity") | Inherited template provider |
 | Document parsing | n/a in v0.1 (no uploads) | AILANG Parse (ADR-004) wires up in 1.10 |
 | Observability | OpenTelemetry → Cloud Trace + Cloud Logging | Template default; AIPLA pins region in 1.1 cloud-bootstrap |
 
@@ -109,7 +109,7 @@ Three loosely-coupled pieces ship in parallel: a **physics skill** (backend), an
 1. **Never offer a full solution.** If the student asks "what's the answer", redirect to the next sub-step.
 2. **Decompose the problem** into 3–5 sub-steps before offering any specific hint.
 3. **Ask what the student has already tried** before giving guidance.
-4. **Use Danish stx vocabulary** where the seeded problem uses Danish terms; English fallback for AR-trial alignment with [examples.qmd](file:///Users/mark/Documents/clients/cph-uni/examples.qmd).
+4. **Use Danish stx vocabulary** where the seeded problem uses Danish terms; English fallback for AR-trial alignment with [examples.qmd](https://www.sunholo.com/aipla/examples.html).
 5. **Cite the seeded problem set** when referencing givens (the only "RAG citation" v0.1 needs since the corpus is one document).
 
 **No new endpoints.** The skill mounts via the existing template skill-loading machinery.
@@ -135,7 +135,7 @@ Open URL → "Indtast din gruppekode" form (group-ID entry, no PII) →
 
 ### Infra Changes (M0 — the cloud bootstrap)
 
-**New GCP project:** `aipla-dev-2026` in `europe-north1` (Finland) per [ADR-007](file:///Users/mark/Documents/clients/cph-uni/architecture.qmd#adr-007-cloud-region).
+**New GCP project:** `aipla-dev-2026` in `europe-north1` (Finland) per [ADR-007](https://www.sunholo.com/aipla/architecture.html#adr-007-cloud-region).
 
 **Resources to provision:**
 - Firebase project + Auth (anonymous + email/password for future teacher SSO).
@@ -201,7 +201,7 @@ Six milestones (M0–M5). The sprint plan (companion `jutland-demo-sprint.md`, w
 
 ### M1 — `problem-set-hints` skill (parallel A) (~2–3h, ~150 LOC)
 - [ ] Create `backend/skills/templates/problem-set-hints/SKILL.md` (Agent Skills spec, model = `gemini-3.5-flash`, provider = Vertex AI global; no `thinkingConfig` override — leave at provider default)
-- [ ] Write `resources/seed-problem.md` (use AR's projectile-motion problem from [examples.qmd](file:///Users/mark/Documents/clients/cph-uni/examples.qmd) as fallback; see Open Question 2)
+- [ ] Write `resources/seed-problem.md` (use AR's projectile-motion problem from [examples.qmd](https://www.sunholo.com/aipla/examples.html) as fallback; see Open Question 2)
 - [ ] Write `resources/scaffold-rubric.md` (5 markers; referenced from SKILL.md instructions)
 - [ ] Write system prompt embodying the 5 principles in Backend Changes
 - [ ] Pytest unit: `backend/tests/unit/skills/test_problem_set_hints.py` — verify the SKILL.md loads via `load_skill_from_dir()` and produces an `LlmAgent` with the expected model
@@ -267,7 +267,7 @@ Six milestones (M0–M5). The sprint plan (companion `jutland-demo-sprint.md`, w
 
 ## Security Considerations
 
-- **No PII collected.** Anonymous group ID is the only identifier ([ADR-001](file:///Users/mark/Documents/clients/cph-uni/architecture.qmd#adr-001-student-identity-no-auth-anonymous-group-ids)).
+- **No PII collected.** Anonymous group ID is the only identifier ([ADR-001](https://www.sunholo.com/aipla/architecture.html#adr-001-student-identity-no-auth-anonymous-group-ids)).
 - **EU residency.** All AIPLA-controlled resources in `europe-north1`. Backend refuses to boot if `AIPLA_REGION` is unset or non-EU. **Vertex AI `gemini-3.5-flash` caveat:** the model is GA on the `global` endpoint only as of 2026-05-19; europe-north1 regional availability is pending Google's typical 1–4-week rollout. The originally-planned **Vertex AI Data Residency policy** on `aipla-dev-2026` (which would have pinned global-endpoint storage and processing to EU) is **deferred at M's direction 2026-05-20** until the impact on other projects in the `sunholo.com` org is assessed. For v0.1: the Jutland audience is the internal team plus 2–3 teachers in a room, no PII is collectable by construction (ADR-001), and the model itself is the only path the data takes outside the project edge — so this is recoverable. **Must re-evaluate before v1.0.0-pilot:** at that point either (a) europe-north1 is GA and we swap the endpoint URL, (b) the data-residency policy is set, or (c) UCPH data-protection signs off on the residual gap.
 - **Egress audit.** **Zero egress outside Google Cloud** for student-facing data. Model calls go to Vertex AI (in-project), traces and logs stay in Cloud Trace + Cloud Logging (in-project). Trust boundary is the GCP project edge per Axiom 9 — stronger story than the previous Anthropic-direct design because there is no third-party API at all in the request path.
 - **Input validation.** Student messages bounded at 4KB per request (template default). Group IDs validated against Firestore-minted set; client cannot inject arbitrary IDs.
@@ -307,7 +307,7 @@ Six milestones (M0–M5). The sprint plan (companion `jutland-demo-sprint.md`, w
 
 ## Open Questions
 
-1. **Seeded problem set source.** Use AR's projectile-motion problem from [examples.qmd](file:///Users/mark/Documents/clients/cph-uni/examples.qmd) as the v0.1 seed? Or ask AR for a fresh one (turnaround risk vs. authenticity gain)? **Recommend: use the projectile-motion example for v0.1**, ask AR for fresh content during the buffer week.
+1. **Seeded problem set source.** Use AR's projectile-motion problem from [examples.qmd](https://www.sunholo.com/aipla/examples.html) as the v0.1 seed? Or ask AR for a fresh one (turnaround risk vs. authenticity gain)? **Recommend: use the projectile-motion example for v0.1**, ask AR for fresh content during the buffer week.
 2. **AIPLA wordmark / logo.** Do we have a brand asset, or ship with a plain text wordmark for v0.1? **Recommend plain text wordmark** unless M has an SVG ready.
 3. **When does europe-north1 light up for `gemini-3.5-flash`?** Probe weekly; switch the model config from `global` to `europe-north1` the day it returns 200. The model ID itself stays the same; only the Vertex AI endpoint URL changes.
 
@@ -317,7 +317,7 @@ Six milestones (M0–M5). The sprint plan (companion `jutland-demo-sprint.md`, w
 - [docs/product-axioms.md](../../../product-axioms.md) — axiom set scored above (template-inherited; AIPLA-aligned)
 - [docs/design/v6.1.0/local-dev-cli.md](../../v6.1.0/local-dev-cli.md) — `aipla` CLI design (inherited as `aitana`; rebranded)
 - Scoping site (external, design source-of-truth):
-  - [architecture.qmd](file:///Users/mark/Documents/clients/cph-uni/architecture.qmd) — ADRs 001 (anonymous group IDs), 002 (template adoption), 003 (model tiers), 006 (GCP EU), 007 (europe-north1), 008 (model router), 015 (multi-surface UI — v0.1 uses chat surface only)
-  - [strands.qmd](file:///Users/mark/Documents/clients/cph-uni/strands.qmd) — v0.1 skill commitment: "Problem-set hints (v0.1 Jutland demo + v1)"
-  - [timeline.qmd](file:///Users/mark/Documents/clients/cph-uni/timeline.qmd) — phase 0.5 "Jutland demo (v0.1)"
-  - [examples.qmd](file:///Users/mark/Documents/clients/cph-uni/examples.qmd) — AR's projectile-motion example, fallback seed problem set
+  - [architecture.qmd](https://www.sunholo.com/aipla/architecture.html) — ADRs 001 (anonymous group IDs), 002 (template adoption), 003 (model tiers), 006 (GCP EU), 007 (europe-north1), 008 (model router), 015 (multi-surface UI — v0.1 uses chat surface only)
+  - [strands.qmd](https://www.sunholo.com/aipla/strands.html) — v0.1 skill commitment: "Problem-set hints (v0.1 Jutland demo + v1)"
+  - [timeline.qmd](https://www.sunholo.com/aipla/timeline.html) — phase 0.5 "Jutland demo (v0.1)"
+  - [examples.qmd](https://www.sunholo.com/aipla/examples.html) — AR's projectile-motion example, fallback seed problem set

@@ -6,7 +6,7 @@
 **Estimated:** ~0.5-1d combined (mostly frontend; the backend parameter already exists)
 **Scope:** Backend route param pass-through + validation; frontend form field on group-code creation + class-detail display; CLI flag for parity
 **Dependencies:** [group-code-school-year-ttl.md](implemented/group-code-school-year-ttl.md) (rename + archival shipped); [teacher-permission-model.md](../v1.0.0-pilot/implemented/teacher-permission-model.md) (1.A shipped — the group-code creation flow lives in the teacher UI surface)
-**Source brief:** [`june-03-feedback-sprint-brief.md` §6](file:///Users/mark/Documents/clients/cph-uni/strand-a-pedagogical-bot/prototypes/june-03-feedback-sprint-brief.md) (the teacher / student ask for school-year-lived codes is preserved; the *delivery mechanism* moves from platform default to per-code teacher choice)
+**Source brief:** [`june-03-feedback-sprint-brief.md` §6](../_scoping-snapshot/prototypes/june-03-feedback-sprint-brief.md) (the teacher / student ask for school-year-lived codes is preserved; the *delivery mechanism* moves from platform default to per-code teacher choice)
 
 ## Problem
 

@@ -1,6 +1,6 @@
 # v1.1.0-feedback Build Sequence
 
-**Source briefs:** [`june-03-feedback-sprint-brief.md`](file:///Users/mark/Documents/clients/cph-uni/strand-a-pedagogical-bot/prototypes/june-03-feedback-sprint-brief.md) — 3 June 2026 teacher check-in · [`june-09-feedback-sprint-brief.md`](file:///Users/mark/Documents/clients/cph-uni/strand-a-pedagogical-bot/prototypes/june-09-feedback-sprint-brief.md) — 9 June 2026 teacher check-in (rows 1.1.20–1.1.25)
+**Source briefs:** [`june-03-feedback-sprint-brief.md`](../_scoping-snapshot/prototypes/june-03-feedback-sprint-brief.md) — 3 June 2026 teacher check-in · [`june-09-feedback-sprint-brief.md`](../_scoping-snapshot/prototypes/june-09-feedback-sprint-brief.md) — 9 June 2026 teacher check-in (rows 1.1.20–1.1.25)
 **Target window:** post-v1.0 / pilot-iteration (2026-06-04 → pilot start 2026-08-14, with continued iteration through 2026-09-15 handover)
 **Parent roadmap:** [../SEQUENCE.md](../SEQUENCE.md)
 
@@ -56,7 +56,7 @@ Brief priority is preserved; cross-cutting / blocking-dep ordering is noted in t
 
 ### 9 June teacher check-in batch (added 2026-06-09)
 
-Source: [`june-09-feedback-sprint-brief.md`](file:///Users/mark/Documents/clients/cph-uni/strand-a-pedagogical-bot/prototypes/june-09-feedback-sprint-brief.md) + [`notes/2026-06-09-curriculum-content-uses.md`](file:///Users/mark/Documents/clients/cph-uni/notes/2026-06-09-curriculum-content-uses.md). Part 1 (§1–3) extends shipped/in-flight work; Part 2 (§A–C) are new design docs; Part 2 §D (friction/timing analytics) is **R1-gated** (analytics-framework decision due before the 29 June freeze) and is **not** a new app row — it folds into [`teacher-analytics-framework`](../post-pilot/session-analytics-rubric.md) / 2.5 once R1 lands. **The one urgent new date is 1.1.23 (bidirectional voice, 2026-06-23).**
+Source: [`june-09-feedback-sprint-brief.md`](../_scoping-snapshot/prototypes/june-09-feedback-sprint-brief.md) + `notes/2026-06-09-curriculum-content-uses.md` (private scoping-site file, not published). Part 1 (§1–3) extends shipped/in-flight work; Part 2 (§A–C) are new design docs; Part 2 §D (friction/timing analytics) is **R1-gated** (analytics-framework decision due before the 29 June freeze) and is **not** a new app row — it folds into [`teacher-analytics-framework`](../post-pilot/session-analytics-rubric.md) / 2.5 once R1 lands. **The one urgent new date is 1.1.23 (bidirectional voice, 2026-06-23).**
 
 > **Prioritisation lens — breadth over depth (9 June meeting; memory `aipla-breadth-over-depth`).** Year 1 favours **coverage of the interface possibility-space over depth/polish on any single feature** — many thin probes, not a few deep builds. Read the batch through it: 1.1.20 personas, 1.1.22 notes-summary, 1.1.23 voice modes, 1.1.24 offline-lab are each **new-interface probes** (good for breadth); **1.1.25 curriculum-library is the breadth *multiplier*** — it drops the marginal cost of every new activity (grounding + rubric + level-calibration for free). Two curriculum uses are **pulled forward** because they *operationalise* the strategy: **auto-drafted rubrics (#4)** keep each probe measurable, and the **coverage/gap map (#6)** says where to probe next (these live in 1.1.19 M7/M8, sourced from 1.1.25).
 
@@ -72,7 +72,7 @@ Source: [`june-09-feedback-sprint-brief.md`](file:///Users/mark/Documents/client
 
 ### 15 June teacher check-in batch (added 2026-06-15)
 
-Source: [`notes/2026-06-15-teacher-feedback.md`](file:///Users/mark/Documents/clients/cph-uni/notes/2026-06-15-teacher-feedback.md) + the repo-side map [june-15-feedback.md](june-15-feedback.md). **15 June was mostly downstream of the 9 June framing — most of it *amends* docs already on the roadmap rather than opening new ones.** Two genuinely-new build rows (1.1.29 call-teacher, 1.1.30 mobile-perf) + one R1-gated doc (1.1.31 live teacher dashboard); the rest folds into in-flight docs or is already shipped. Lands ~10 days before the mid-point review (26 June), with a **demo on 16 June** and the **23 June voice** target still the one hard pre-freeze date. **No scope explosion — on track.**
+Source: `notes/2026-06-15-teacher-feedback.md` (private scoping-site file, not published) + the repo-side map [june-15-feedback.md](june-15-feedback.md). **15 June was mostly downstream of the 9 June framing — most of it *amends* docs already on the roadmap rather than opening new ones.** Two genuinely-new build rows (1.1.29 call-teacher, 1.1.30 mobile-perf) + one R1-gated doc (1.1.31 live teacher dashboard); the rest folds into in-flight docs or is already shipped. Lands ~10 days before the mid-point review (26 June), with a **demo on 16 June** and the **23 June voice** target still the one hard pre-freeze date. **No scope explosion — on track.**
 
 | Order | Doc | Priority | Estimate | Dependencies / Gate | Notes |
 |---|---|---|---|---|---|
@@ -182,7 +182,7 @@ mutation round-trip is the only widget→host channel that reaches our server).
 
 Source: AR's 29-June email (competencies frameworks for teacher evaluation of GAI-assisted
 student work + a Drive corpus of students'-difficulties literature), audited in the scoping
-site — [`notes/2026-07-10-aswin-competency-sources-audit.md`](file:///Users/mark/Documents/clients/cph-uni/notes/2026-07-10-aswin-competency-sources-audit.md).
+site — `notes/2026-07-10-aswin-competency-sources-audit.md` (private scoping-site file, not published).
 **This is AR's input to R1**: published, validated rubrics for scoring student *work* (MAPS
 problem-solving, SAAR inquiry) — a lens family orthogonal to the ICAP+FCI vs CPS+DRA choice,
 composing with either. Plus the Kohl four-format quiz template (a TAA M2 input) and a

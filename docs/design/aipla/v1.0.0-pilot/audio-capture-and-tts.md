@@ -5,7 +5,7 @@
 **Estimated**: ~0.5 day TTS + ~2 days audio capture (sequential; TTS can ship independently)
 **Scope**: Frontend (TTS button + audio-capture UI); backend (audio upload route + Cloud Storage bucket + Firestore metadata); ops (`gs://aipla-research-audio/` bucket + IAM); **gates** (JB sign-off on consent + institutional approval — five questions in the brief)
 **Dependencies**: v0.1 shipped. TTS depends on nothing else. **Audio capture depends on JB sign-off + on [teacher-permission-model.md](teacher-permission-model.md) (1.A) for the consent-flag association** (audio recordings tagged with group_id, but consent-flow shape is teacher-controlled at the class level).
-**Pedagogical / privacy source-of-truth:** [`audio-capture.md`](file:///Users/mark/Documents/clients/cph-uni/strand-a-pedagogical-bot/prototypes/audio-capture.md) in the scoping site
+**Pedagogical / privacy source-of-truth:** [`audio-capture.md`](../_scoping-snapshot/prototypes/audio-capture.md) in the scoping site
 **Created**: 2026-05-25
 **Last Updated**: 2026-06-11
 
@@ -49,7 +49,7 @@ The brief is explicit: *"Do not ship audio capture until JB has signed off on al
 
 ## Goals
 
-**Primary Goal (TTS part):** Every tutor message in the chat surface has a `🔊 Read aloud` icon button (placed next to timestamp, lucide-react `Volume2` icon — no emoji per [feedback-no-emoticons](file:///Users/mark/.claude/projects/-Users-mark-dev-sunholo-cphu-aipla-app/memory/feedback_no_emoticons.md)) that triggers `window.speechSynthesis.speak()` with the activity language. User can stop mid-utterance by clicking the button again.
+**Primary Goal (TTS part):** Every tutor message in the chat surface has a `🔊 Read aloud` icon button (placed next to timestamp, lucide-react `Volume2` icon — no emoji per feedback-no-emoticons (`feedback_no_emoticons.md` — agent-memory note, on M's machine)) that triggers `window.speechSynthesis.speak()` with the activity language. User can stop mid-utterance by clicking the button again.
 
 **Primary Goal (audio capture part):** After ~30s of activity, students see an opt-in prompt asking permission to record group discussion for research. On consent → `getUserMedia({audio: true})` → MediaRecorder collects 10s chunks → upload to `gs://aipla-research-audio/{group_id}/{activity_id}/{timestamp}.webm`. Persistent `■ Stop recording` button always visible once recording starts. Student-initiated stop = partial upload tagged `stopped_early: true`. **All gated behind JB sign-off + per-class teacher-opt-in toggle (set in 1.G teacher-ui).**
 
@@ -362,10 +362,10 @@ The TTS button as shipped today calls `speechSynthesis.speak()` with three value
 
 ## Related Documents
 
-- **Source of truth + privacy gates:** [`audio-capture.md`](file:///Users/mark/Documents/clients/cph-uni/strand-a-pedagogical-bot/prototypes/audio-capture.md)
+- **Source of truth + privacy gates:** [`audio-capture.md`](../_scoping-snapshot/prototypes/audio-capture.md)
 - [SEQUENCE.md](SEQUENCE.md) row 1.H
 - [teacher-ui.md](teacher-ui.md) (1.G) — per-class opt-in toggle lives here
 - [teacher-permission-model.md](teacher-permission-model.md) (1.A) — class-level consent tagging
 - ADR-001 (anonymous group IDs — no PII), ADR-005 (data residency)
-- [feedback-no-emoticons](file:///Users/mark/.claude/projects/-Users-mark-dev-sunholo-cphu-aipla-app/memory/feedback_no_emoticons.md) — lucide-react `Volume2` icon, not emoji
+- feedback-no-emoticons (`feedback_no_emoticons.md` — agent-memory note, on M's machine) — lucide-react `Volume2` icon, not emoji
 - v1.13 pilot-readiness-checklist (DPIA scaffold) — audio capture DPIA section ships from here

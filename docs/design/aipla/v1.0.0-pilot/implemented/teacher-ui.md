@@ -7,7 +7,7 @@
 **Cloud agent ready**: this doc + the SEQUENCE update commit lands on `dev`; a cloud agent can branch from `dev` and start Phase 1 immediately
 **Scope**: Fullstack — frontend (5 new screens, 4 routes under `/teacher/*`), backend (activity-config CRUD, session-report aggregator, analytics-chat skill template), CLI (extend `aiplatform` for ops parity)
 **Dependencies**: [teacher-permission-model.md](teacher-permission-model.md) (1.A — provides Firebase teacher auth + `Class` entity + Group → Class binding). **1.A is the structural prerequisite — this doc consumes the teacher-auth path 1.A introduces and adds the surfaces on top.** Soft dep on [session-persistence.md](session-persistence.md) (1.F) for "reset session" + accurate "last-active" timestamps; soft dep on [lesson-picker.md](lesson-picker.md) (1.B) for the activity-library browse pattern.
-**Pedagogical source-of-truth:** [`teacher-ui-brief.md`](file:///Users/mark/Documents/clients/cph-uni/strand-a-pedagogical-bot/prototypes/teacher-ui-brief.md) in the scoping site
+**Pedagogical source-of-truth:** [`teacher-ui-brief.md`](../../_scoping-snapshot/prototypes/teacher-ui-brief.md) in the scoping site
 **Created**: 2026-05-25
 **Last Updated**: 2026-05-25
 
@@ -35,7 +35,7 @@ The 2026-05-25 meeting committed to a Wed 3 June teacher demo. Teachers in that 
 **Impact:**
 
 - **Demo blocker** for Wed 3 June if not built.
-- v1.0.0-pilot's teacher commitment per [strands.qmd](file:///Users/mark/Documents/clients/cph-uni/strands.qmd) ("5 skills + curated sim library + teacher config + ...") goes un-delivered without the config surface.
+- v1.0.0-pilot's teacher commitment per [strands.qmd](https://www.sunholo.com/aipla/strands.html) ("5 skills + curated sim library + teacher config + ...") goes un-delivered without the config surface.
 - Per-group accountability and pedagogical iteration (teachers refining their teaching goal based on what students did) becomes impossible without reports.
 - "AIPLA = a platform teachers run, not an end-user app" framing requires teachers to feel ownership of their classes inside the platform.
 
@@ -72,7 +72,7 @@ M asked for **"teacher UI or at least a mockup ASAP"** to give JB / AR something
 - [ ] "+ New group" interaction works (fake code appears in toast)
 - [ ] Activity config "Save" round-trips visually (toast appears, value stays in textarea)
 - [ ] Reports screen shows realistic-looking session data
-- [ ] `npm run quality:check` green; no emoji per [feedback-no-emoticons](file:///Users/mark/.claude/projects/-Users-mark-dev-sunholo-cphu-aipla-app/memory/feedback_no_emoticons.md)
+- [ ] `npm run quality:check` green; no emoji per feedback-no-emoticons (`feedback_no_emoticons.md` — agent-memory note, on M's machine)
 - [ ] M + JB visual sign-off on the mockup before Phase 2 starts
 
 ### Phase 2 — Wired to real backend, LOCAL_MODE teacher auth (~2-2.5d)
@@ -394,7 +394,7 @@ Standard mix: pytest (backend), vitest (frontend), CLI tests, manual end-to-end.
 | 1.1 | Create `frontend/src/app/teacher/` route group + `layout.tsx` with LOCAL_MODE / `NEXT_PUBLIC_TEACHER_MOCK=1` bypass | `frontend/src/app/teacher/layout.tsx` | 0.1 d |
 | 1.2 | Build five page components with hardcoded data | `frontend/src/app/teacher/classes/page.tsx`, `classes/[id]/page.tsx`, `activities/[id]/page.tsx`, `reports/groups/[groupId]/page.tsx`, `analytics/page.tsx` | 0.3-0.5 d |
 | 1.3 | Hardcoded fixture data file (single source for the mock screens) | `frontend/src/app/teacher/_mock-data.ts` | 0.1 d |
-| 1.4 | Lucide-react icons, Tailwind styling, mobile + desktop responsive (per [feedback-no-emoticons](file:///Users/mark/.claude/projects/-Users-mark-dev-sunholo-cphu-aipla-app/memory/feedback_no_emoticons.md) — no emoji) | (across the above) | (inline) |
+| 1.4 | Lucide-react icons, Tailwind styling, mobile + desktop responsive (per feedback-no-emoticons (`feedback_no_emoticons.md` — agent-memory note, on M's machine) — no emoji) | (across the above) | (inline) |
 | 1.5 | "+ New group" toast interaction + "Save configuration" toast interaction (purely cosmetic, no backend) | (inline) | 0.05 d |
 | 1.6 | Basic vitest smoke per screen (renders without crashing) | `frontend/src/app/teacher/**/__tests__/*.test.tsx` | 0.15 d |
 | 1.7 | Manual verification + M+JB visual sign-off | — | 0.1 d |
@@ -496,8 +496,8 @@ A cloud agent picking up Phase 1 from a branch off `dev` should:
 
 1. Branch: `git checkout -b feature/teacher-ui-mockup origin/dev`
 2. Read this doc end-to-end, with particular attention to the **Phased delivery** section and the **Phase 1: Static mockup** acceptance gates above
-3. Read the source-of-truth brief: [`teacher-ui-brief.md`](file:///Users/mark/Documents/clients/cph-uni/strand-a-pedagogical-bot/prototypes/teacher-ui-brief.md) in the scoping site — has the ASCII wireframes for all five screens
-4. Read [feedback-no-emoticons](file:///Users/mark/.claude/projects/-Users-mark-dev-sunholo-cphu-aipla-app/memory/feedback_no_emoticons.md) — lucide-react icons, no emoji anywhere
+3. Read the source-of-truth brief: [`teacher-ui-brief.md`](../../_scoping-snapshot/prototypes/teacher-ui-brief.md) in the scoping site — has the ASCII wireframes for all five screens
+4. Read feedback-no-emoticons (`feedback_no_emoticons.md` — agent-memory note, on M's machine) — lucide-react icons, no emoji anywhere
 5. Implement Phase 1 step-by-step against the "Implementation Plan — Phase 1" table above
 6. Open a PR against `dev` when Phase 1 acceptance gates are met
 7. DO NOT start Phase 2 — that needs a separate PR after Phase 1 M+JB sign-off
@@ -585,11 +585,11 @@ rule when the pilot signals that 30s latency is a usability problem.
 
 ## Related Documents
 
-- **Source of truth:** [`teacher-ui-brief.md`](file:///Users/mark/Documents/clients/cph-uni/strand-a-pedagogical-bot/prototypes/teacher-ui-brief.md)
+- **Source of truth:** [`teacher-ui-brief.md`](../../_scoping-snapshot/prototypes/teacher-ui-brief.md)
 - [SEQUENCE.md](SEQUENCE.md) row 1.G
 - [teacher-permission-model.md](teacher-permission-model.md) (1.A) — structural prerequisite (auth + Class entity)
 - [session-persistence.md](session-persistence.md) (1.F) — provides reset-session + last-active timestamps
 - [lesson-picker.md](lesson-picker.md) (1.B) — student-side counterpart for browsing activities
 - [audio-capture-and-tts.md](audio-capture-and-tts.md) (1.H) — adds audio-data dimension to reports
 - ADR-001 (group ID anonymity), ADR-005 (chat log storage), ADR-014 (per-group/per-class budget)
-- [strands.qmd](file:///Users/mark/Documents/clients/cph-uni/strands.qmd) — v1 teacher commitment
+- [strands.qmd](https://www.sunholo.com/aipla/strands.html) — v1 teacher commitment

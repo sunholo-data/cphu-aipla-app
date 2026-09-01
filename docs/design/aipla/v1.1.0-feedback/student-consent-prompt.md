@@ -6,7 +6,7 @@
 **Estimated:** ~0.5d frontend + ~0.5d backend
 **Scope:** Frontend (modal/banner before first tutor message); backend (session-doc field + BigQuery write gating); teacher report (badge)
 **Dependencies:** None engineering-side. **Gated on JB sign-off** on the consent prompt wording (same institutional-approval gate as [audio-capture-and-tts.md](../v1.0.0-pilot/audio-capture-and-tts.md))
-**Source brief:** [`june-03-feedback-sprint-brief.md` §3](file:///Users/mark/Documents/clients/cph-uni/strand-a-pedagogical-bot/prototypes/june-03-feedback-sprint-brief.md)
+**Source brief:** [`june-03-feedback-sprint-brief.md` §3](../_scoping-snapshot/prototypes/june-03-feedback-sprint-brief.md)
 
 ## Problem
 
@@ -156,8 +156,8 @@ This table is allowed to record `declined` sessions because it stores only the *
 
 ## Related
 
-- ADR-001 (anonymous group auth — unchanged by this doc) — in the [scoping site](file:///Users/mark/Documents/clients/cph-uni/architecture.qmd)
-- ADR-005 (chat log storage) — in the [scoping site](file:///Users/mark/Documents/clients/cph-uni/architecture.qmd)
+- ADR-001 (anonymous group auth — unchanged by this doc) — in the [scoping site](https://www.sunholo.com/aipla/architecture.html)
+- ADR-005 (chat log storage) — in the [scoping site](https://www.sunholo.com/aipla/architecture.html)
 - [chat-log-pipeline.md](../v1.0.0-pilot/implemented/chat-log-pipeline.md) — the BQ sink this doc gates
 - [audio-capture-and-tts.md](../v1.0.0-pilot/audio-capture-and-tts.md) — sister consent flow; same JB approval gate pattern
 - [researcher-role.md](researcher-role.md) — the surface that exposes coverage metrics

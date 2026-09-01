@@ -35,7 +35,7 @@
 **Estimated:** ~1d
 **Scope:** Frontend (modal at session-end); backend (Firestore + BQ persistence); teacher / researcher visibility
 **Dependencies:** [chat-log-pipeline.md](../v1.0.0-pilot/implemented/chat-log-pipeline.md) (1.2 shipped — BQ schema additions land here); JB/AR providing the question set + Danish/English translations
-**Source brief:** [`june-03-feedback-sprint-brief.md` §8](file:///Users/mark/Documents/clients/cph-uni/strand-a-pedagogical-bot/prototypes/june-03-feedback-sprint-brief.md)
+**Source brief:** [`june-03-feedback-sprint-brief.md` §8](../_scoping-snapshot/prototypes/june-03-feedback-sprint-brief.md)
 
 > **29 June (M) — parked, with new input for when it's revisited.** Decision: **park until Aswin delivers** — no roadmap move; this row stays *blocked*. Two changes to fold in when it's unparked: (1) the gating **question set owner is now Aswin (over summer)**, not JB/AR; (2) the framing gains an **affective** axis ("do students *feel* they're learning more / that it's more accessible") and a **longitudinal** axis — repeated before/after measurements *across the year*, explicitly **fatigue-aware** (many questions over a year risks response fatigue), beyond today's per-session one-shot. The longitudinal axis is a real design expansion (cross-session question scheduling) to scope when Aswin's set lands. Source: [june-29-feedback.md](june-29-feedback.md).
 
@@ -80,7 +80,7 @@ Modal — focus-trapped, single screen, scrollable on mobile:
 └────────────────────────────────────────────────────────┘
 ```
 
-**Wording note:** brief uses emoji rating (😕 😐 🙂 😄). Per [feedback-no-emoticons](file:///Users/mark/.claude/projects/-Users-mark-dev-sunholo-cphu-aipla-app/memory/feedback_no_emoticons.md), the v1.1 build replaces emoji with named radio buttons / lucide icons. The semantics survive; the UI register stays academic-research-adjacent.
+**Wording note:** brief uses emoji rating (😕 😐 🙂 😄). Per feedback-no-emoticons (`feedback_no_emoticons.md` — agent-memory note, on M's machine), the v1.1 build replaces emoji with named radio buttons / lucide icons. The semantics survive; the UI register stays academic-research-adjacent.
 
 **Behaviour:**
 - Skip is always allowed — no forced response

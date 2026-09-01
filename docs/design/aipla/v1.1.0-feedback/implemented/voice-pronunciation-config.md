@@ -54,9 +54,9 @@ The right shape was always YAML — `cc8507f` was the right scope for the bug-fi
 
 ## Standards check
 
-YAML 1.2 + JSON Schema are well-established standards; no custom format invented. The `{ pattern, replacement }` shape mirrors `sed` substitution — every engineer recognizes it instantly. Per [feedback_search_protocols_first](file:///Users/mark/.claude/projects/-Users-mark-dev-sunholo-cphu-aipla-app/memory/feedback_search_protocols_first.md): searched W3C SSML (per-utterance markup, not a build-time config standard) and the broader speech-synthesis ecosystem; no protocol exists for "TTS pronunciation override config catalogue." The honest call is "thin YAML, schema-validated, no new protocol invented." JSON Schema validation uses `ajv` (already on the Next.js dependency tree via other tooling — confirm at implementation time; if not present, vendor a tiny inline validator).
+YAML 1.2 + JSON Schema are well-established standards; no custom format invented. The `{ pattern, replacement }` shape mirrors `sed` substitution — every engineer recognizes it instantly. Per feedback_search_protocols_first (`feedback_search_protocols_first.md` — agent-memory note, on M's machine): searched W3C SSML (per-utterance markup, not a build-time config standard) and the broader speech-synthesis ecosystem; no protocol exists for "TTS pronunciation override config catalogue." The honest call is "thin YAML, schema-validated, no new protocol invented." JSON Schema validation uses `ajv` (already on the Next.js dependency tree via other tooling — confirm at implementation time; if not present, vendor a tiny inline validator).
 
-No emoji in the YAML files per [feedback_no_emoticons](file:///Users/mark/.claude/projects/-Users-mark-dev-sunholo-cphu-aipla-app/memory/feedback_no_emoticons.md). Comments in YAML stay terse and English (the language of source-code review at AIPLA).
+No emoji in the YAML files per feedback_no_emoticons (`feedback_no_emoticons.md` — agent-memory note, on M's machine). Comments in YAML stay terse and English (the language of source-code review at AIPLA).
 
 ## Design
 
@@ -397,8 +397,8 @@ Suggested milestone breakdown (concrete sprint plan via sprint-planner skill at 
 
 - **Parent infrastructure:** [voice-provider-abstraction.md](voice-provider-abstraction.md) (1.1.11) — shipped 2026-06-04. The Cloud TTS path that consumes the rules
 - **Sibling polish:** [voice-personas.md](../voice-personas.md) (1.1.12) — both 1.1.12 and 1.1.14 are P2 polish over 1.1.11; can ship in parallel; no cross-dependencies
-- [feedback_search_protocols_first](file:///Users/mark/.claude/projects/-Users-mark-dev-sunholo-cphu-aipla-app/memory/feedback_search_protocols_first.md) — cited in Standards check (no protocol exists at this layer)
-- [feedback_no_emoticons](file:///Users/mark/.claude/projects/-Users-mark-dev-sunholo-cphu-aipla-app/memory/feedback_no_emoticons.md) — YAML stays plain text; no emoji in rule replacements (we already substitute emoji *out* of message text)
-- [feedback_no_prs_commit_to_dev](file:///Users/mark/.claude/projects/-Users-mark-dev-sunholo-cphu-aipla-app/memory/feedback_no_prs_commit_to_dev.md) — execution commits directly to dev; the runbook adopts the same workflow
+- feedback_search_protocols_first (`feedback_search_protocols_first.md` — agent-memory note, on M's machine) — cited in Standards check (no protocol exists at this layer)
+- feedback_no_emoticons (`feedback_no_emoticons.md` — agent-memory note, on M's machine) — YAML stays plain text; no emoji in rule replacements (we already substitute emoji *out* of message text)
+- feedback_no_prs_commit_to_dev (`feedback_no_prs_commit_to_dev.md` — agent-memory note, on M's machine) — execution commits directly to dev; the runbook adopts the same workflow
 - [local-dev-cli.md](../../../v6.1.0/local-dev-cli.md) — CLI command surface
 - Origin commit: `cc8507f` (2026-06-04) — `feat(voice): spell out physics units + math symbols before TTS` — the inline list this doc extracts

@@ -125,7 +125,7 @@ Pattern mirrors `backend/adk/teacher_focus.py:inject_teacher_focus()`. No-op whe
 
 - [ ] `cd backend && make lint && make test-fast` — green; pre-existing failing tests excluded
 - [ ] `cd frontend && npm run quality:check` — green (lint + typecheck + tests + build)
-- [ ] No emoji introduced (per [feedback-no-emoticons](file:///Users/voightkampff/.claude/projects/-Users-voightkampff-dev-sunholo-data-cphu-aipla-app/memory/feedback_no_emoticons.md))
+- [ ] No emoji introduced (per feedback-no-emoticons — `feedback_no_emoticons.md` (agent-memory note, not a project file))
 
 ### M8 — PR + deploy (~0.1d)
 

@@ -135,7 +135,7 @@ Matches `aiplatform --help` verbatim as of sprint close:
 
 Auth: the `AitanaClient` reads a bearer token from `$AITANA_ID_TOKEN`, falling back to `gcloud auth print-identity-token`. The `--env` flag (default `local`) resolves the backend URL via `AITANA_API_URL` / `AITANA_API_URL_<ENV>`.
 
-**Bulk** (port from v5 — [`/Users/mark/dev/aitana-labs/frontend/aitana/`](file:///Users/mark/dev/aitana-labs/frontend/aitana/))
+**Bulk** (port from v5 — `/Users/mark/dev/aitana-labs/frontend/aitana/` (`aitana` — local path on M's machine))
 - `aiplatform bulk inspect <skill_id>` — port of v5 `aiplatform inspect`. Show available tools, configs, permissions for a skill.
 - `aiplatform bulk extract <skill_id> <gs://bucket/...>` — port of v5 `batch-extract`. Same flag surface (`--prompt`, `--schema-name`, `--max-files`, `--batch-size`, `--file-pattern`, `--output-dir`).
 - `aiplatform bulk process files <skill_id>` — port of v5 `process files`.
@@ -371,5 +371,5 @@ services:
 - [auth-and-permissions.md](auth-and-permissions.md) — `developer` custom claim that gates `skill push` and `deploy`
 - [mcp-app-integrations.md](mcp-app-integrations.md) — wires `aiplatform mcp list/probe/call` into the registry
 - [cloud-infrastructure.md](cloud-infrastructure.md) — the Cloud Build trigger that `aiplatform deploy` wraps
-- v5 source: [`/Users/mark/dev/aitana-labs/frontend/aitana/`](file:///Users/mark/dev/aitana-labs/frontend/aitana/) — port target
+- v5 source: `/Users/mark/dev/aitana-labs/frontend/aitana/` (`aitana` — local path on M's machine) — port target
 - **Track 2 follow-up:** an `agent-cli.md` design doc is planned (post-v6.0.0) for an interactive ADK-Runner-driven REPL with Rich/prompt-toolkit. That is *not* this doc — this doc is the boring dev tool. The agent-CLI doc will also cover [ADK code execution executors](#related-documents) (`ContainerCodeExecutor` etc.) as a path for letting agents shell out to `aiplatform` itself.

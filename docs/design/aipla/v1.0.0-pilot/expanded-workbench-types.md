@@ -5,7 +5,7 @@
 **Estimated**: Type 2 (drawing board): 2–3d; Type 5 (lab notebook): 1d; Types 3+4 need scoping
 **Scope**: Frontend (new iframe wrappers / components per type), activity config extension, skill config schema change
 **Dependencies**: [lesson-picker.md](lesson-picker.md); [teacher-ui.md](teacher-ui.md) Phase 2 (activity config screen); Types 3+4 require privacy review and sensor-permission investigation; [jitt-dk-artefacts.md](jitt-dk-artefacts.md) for the jitt.dk apps that use Types 3 + 4
-**Pedagogical source-of-truth:** [`workbench-types.md`](file:///Users/mark/Documents/clients/cph-uni/strand-a-pedagogical-bot/prototypes/workbench-types.md) in the scoping site — full type definitions, event shapes, and the jitt.dk integration checklist. JB framing: *"The workbench might include other stuff than apps: Like a drawing board or things related to doing experiments or…"*
+**Pedagogical source-of-truth:** [`workbench-types.md`](../_scoping-snapshot/prototypes/workbench-types.md) in the scoping site — full type definitions, event shapes, and the jitt.dk integration checklist. JB framing: *"The workbench might include other stuff than apps: Like a drawing board or things related to doing experiments or…"*
 **Created**: 2026-05-27
 **Last Updated**: 2026-05-27
 

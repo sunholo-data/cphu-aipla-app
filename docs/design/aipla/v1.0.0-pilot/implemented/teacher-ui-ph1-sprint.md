@@ -20,7 +20,7 @@ This unblocks 1.G's critical path off 1.A and de-risks the Wed 3 June teacher de
 - 5 routes under `/teacher/*` rendering hardcoded data
 - `LOCAL_MODE` OR `NEXT_PUBLIC_TEACHER_MOCK=1` route-guard bypass (no Firebase)
 - Mobile + desktop responsive (Tailwind)
-- lucide-react icons throughout — **no emoji** (per [feedback-no-emoticons](file:///Users/mark/.claude/projects/-Users-mark-dev-sunholo-cphu-aipla-app/memory/feedback_no_emoticons.md))
+- lucide-react icons throughout — **no emoji** (per feedback-no-emoticons (`feedback_no_emoticons.md` — agent-memory note, on M's machine))
 - Cosmetic toast interactions for "+ New group" and "Save configuration"
 - Vitest smoke per screen (renders without crash)
 - `npm run quality:check` green

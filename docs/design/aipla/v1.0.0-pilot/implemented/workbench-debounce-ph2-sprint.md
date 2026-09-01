@@ -29,7 +29,7 @@ Hold artefact slider changes locally and only flush to the host when the student
 
 ## Workflow
 
-Per [feedback-aipla-git-workflow](file:///Users/voightkampff/.claude/projects/-Users-voightkampff-dev-sunholo-data-cphu-aipla-app/memory/feedback_aipla_git_workflow.md): commits land direct on `dev`. Branch is for atomic milestone tracking; final merge is FF, no PR. `test`/`prod` gates still PR-based.
+Per feedback-aipla-git-workflow — `feedback_aipla_git_workflow.md` (agent-memory note, not a project file): commits land direct on `dev`. Branch is for atomic milestone tracking; final merge is FF, no PR. `test`/`prod` gates still PR-based.
 
 ## Milestones
 

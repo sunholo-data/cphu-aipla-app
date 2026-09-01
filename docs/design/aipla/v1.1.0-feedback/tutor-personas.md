@@ -6,7 +6,7 @@
 **Estimated:** ~1d (config field + prompt variants + composer + builder picker). Prompt content gated on **AR sign-off** per preset.
 **Scope:** Fullstack — `ActivityConfig`/`SkillConfig` field + InstructionProvider preamble composer (backend) + activity-builder picker (frontend). Stretch: student-facing in-session switcher.
 **Dependencies:** [tutor-verbosity-fix.md](implemented/tutor-verbosity-fix.md) (1.1.1 — the Socratic preset *is* the verbosity-constrained block this doc generalizes); [teacher-activity-authoring.md](teacher-activity-authoring.md) (1.1.19 — the `persona`/style field rides the same activity-config surface); [teacher-ui.md](../v1.0.0-pilot/implemented/teacher-ui.md) (1.G — builder host)
-**Source brief:** [`june-09-feedback-sprint-brief.md` §3](file:///Users/mark/Documents/clients/cph-uni/strand-a-pedagogical-bot/prototypes/june-09-feedback-sprint-brief.md)
+**Source brief:** [`june-09-feedback-sprint-brief.md` §3](../_scoping-snapshot/prototypes/june-09-feedback-sprint-brief.md)
 
 ## Problem
 

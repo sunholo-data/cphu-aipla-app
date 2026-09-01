@@ -34,7 +34,7 @@
 **Estimated**: 2–3 days
 **Scope**: Fullstack — artefact (strip direct API calls + wire postMessage, ~1707 LOC source), backend (skill template + tool config), frontend (`KineBotFrame` host wrapper)
 **Dependencies**: v0.1 shipped; [mcp-app-iframe-spec-compliance.md](implemented/mcp-app-iframe-spec-compliance.md) merged; [lesson-picker.md](lesson-picker.md) shipped; [led-planck-skill.md](led-planck-skill.md) shipped (establishes the artefact-pipeline pattern as N=2 before this becomes the runbook); ADR-013 pipeline scan
-**Pedagogical source-of-truth + migration brief:** [`kinebot-migration-brief.md`](file:///Users/mark/Documents/clients/cph-uni/strand-a-pedagogical-bot/prototypes/kinebot-migration-brief.md) in the scoping site — full audit/strip/wire/extract/package/pair/test workflow, the original artefact's behaviour catalogue (7 sims + graph plotter + quiz + chat + formula ref), skill config sketch, postMessage event shapes, pre-beta deploy checklist. **The brief is the design for the lesson's pedagogy and the migration audit; this doc is the execution layer that turns the brief into shippable code + establishes the runbook for future external-artefact onboarding.**
+**Pedagogical source-of-truth + migration brief:** [`kinebot-migration-brief.md`](../../_scoping-snapshot/prototypes/kinebot-migration-brief.md) in the scoping site — full audit/strip/wire/extract/package/pair/test workflow, the original artefact's behaviour catalogue (7 sims + graph plotter + quiz + chat + formula ref), skill config sketch, postMessage event shapes, pre-beta deploy checklist. **The brief is the design for the lesson's pedagogy and the migration audit; this doc is the execution layer that turns the brief into shippable code + establishes the runbook for future external-artefact onboarding.**
 **Created**: 2026-05-24
 **Last Updated**: 2026-05-27
 
@@ -427,7 +427,7 @@ aiplatform artefact audit infrastructure/mcp-sandbox/artefacts/kinebot/v1/index.
 
 ## Related Documents
 
-- **Source of truth (pedagogy + migration brief):** [`kinebot-migration-brief.md`](file:///Users/mark/Documents/clients/cph-uni/strand-a-pedagogical-bot/prototypes/kinebot-migration-brief.md) in scoping site
+- **Source of truth (pedagogy + migration brief):** [`kinebot-migration-brief.md`](../../_scoping-snapshot/prototypes/kinebot-migration-brief.md) in scoping site
 - [SEQUENCE.md](SEQUENCE.md) row 1.D
 - [led-planck-skill.md](led-planck-skill.md) — 1.C; establishes the second-artefact-through-the-pipeline pattern this builds on
 - [teacher-permission-model.md](teacher-permission-model.md) — 1.A; KineBot becomes assignable to a teacher's class once this lands
@@ -435,8 +435,8 @@ aiplatform artefact audit infrastructure/mcp-sandbox/artefacts/kinebot/v1/index.
 - [boldkast-mcp-app.md](../v0.1.0-jutland/boldkast-mcp-app.md) — first artefact, the reference pattern
 - [implemented/mcp-app-iframe-spec-compliance.md](implemented/mcp-app-iframe-spec-compliance.md) — the spec-compliant artefact path this uses
 - [.claude/skills/mcp-app-artefact/SKILL.md](../../../../.claude/skills/mcp-app-artefact/SKILL.md) — the AIPLA artefact-onboarding recipe; **this sprint adds the external-artefact migration runbook section**
-- [ADR-013](file:///Users/mark/Documents/clients/cph-uni/architecture.qmd#adr-013-artefact-safety-content-review-pipeline-for-generated-html) — artefact safety / sandbox / CSP
-- [ADR-014](file:///Users/mark/Documents/clients/cph-uni/architecture.qmd#adr-014-per-group-per-class-budget-enforcement) — budget enforcement, the rule the original KineBot violated
+- [ADR-013](https://www.sunholo.com/aipla/architecture.html#adr-013-artefact-safety-content-review-pipeline-for-generated-html) — artefact safety / sandbox / CSP
+- [ADR-014](https://www.sunholo.com/aipla/architecture.html#adr-014-per-group-per-class-budget-enforcement) — budget enforcement, the rule the original KineBot violated
 
 ---
 

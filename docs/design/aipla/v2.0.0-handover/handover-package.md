@@ -5,16 +5,21 @@
 **Owner**: M. Several rows are owned by JB or by KU and are marked as such — those need a *chase*, not a build
 **Scope**: Documentation and inventory only. Touches no runtime code
 **Created**: 2026-09-01
-**Source**: the Week-17 "definition of done" in the scoping site [`timeline.qmd`](file:///Users/mark/Documents/clients/cph-uni/timeline.qmd), the top-level [SEQUENCE.md](../SEQUENCE.md) v2.0.0 row, and the P4 items of [handover-maintainability-audit.md](../v1.1.0-feedback/handover-maintainability-audit.md)
+**Source**: the Week-17 "definition of done" in the scoping site [`timeline.qmd`](https://www.sunholo.com/aipla/timeline.html), the top-level [SEQUENCE.md](../SEQUENCE.md) v2.0.0 row, and the P4 items of [handover-maintainability-audit.md](../v1.1.0-feedback/handover-maintainability-audit.md)
 
-> **2026-09-15 is a milestone, not the finish line.** The engagement was extended
-> in August to at least **April 2027 at 2.5 days/week**
-> ([ku-ai-office-alignment.md](ku-ai-office-alignment.md)). The package is
-> delivered *with its author still in the room*. That changes what "handover"
-> has to mean: the bar is no longer "a successor can survive without M", it is
-> **"a co-owner can operate this artefact today, with M available to ask"**.
-> Anything below that reads as farewell-note framing was written against the old
-> boundary.
+> **2026-09-15 is a milestone, not the finish line** — but that does not lower
+> the bar as much as it first appears. The engagement was extended in August to
+> at least **April 2027 at 2.5 days/week**
+> ([ku-ai-office-alignment.md](ku-ai-office-alignment.md)), so the package is
+> delivered with its author still reachable.
+>
+> **The exception is the one that matters.** The scoping site's
+> `outputs/handover/README.md` names the two inheritors: **AR** (co-PI, present
+> now) and **AD**, who *"starts ~1 Oct; **no in-person overlap with M**, so these
+> documents carry the handover."* For AR the bar really is "can operate it with M
+> available to ask". For AD it is the original, harder one: **the documents are
+> the handover, and they are what AD will have instead of M.** Every runbook
+> below whose named reader is AD should be written to that standard.
 
 ## Bottom line
 
@@ -29,7 +34,7 @@ from git refs.
 What is missing falls into four buckets, and only one of them is engineering:
 
 1. **Two laptop-bound dependencies.** 63 design docs cite ADRs through
-   `file:///Users/mark/Documents/...` links that resolve on exactly one machine,
+   ``...` (local path on M's machine)` links that resolve on exactly one machine,
    and `firestore.rules:25` hardcodes a single person's email as the only admin.
    Both are small. Both make the package undeliverable *as written* to anyone
    else. → P4.2, P4.4.
@@ -42,10 +47,11 @@ What is missing falls into four buckets, and only one of them is engineering:
    site**. It may well exist in email or a KU system. This needs a *question to
    JB*, asked now, because it has the longest turnaround of anything on the list.
 4. **The criterion with the least evidence is the human one.** "All artefacts
-   have a named co-owner who has demonstrated they can operate them." The fan-out
-   table's inheritors are partly stale — **P2 was never hired** (every doc still
-   says "P2, when hired"), while student helpers who were not in the original
-   table now exist. See §Co-owners.
+   have a named co-owner who has demonstrated they can operate them." The
+   `timeline.qmd` fan-out table is stale in both directions: the "P2 (when
+   hired)" it still names has resolved into **AD, starting ~1 Oct**, and student
+   helpers who appear in no row now exist. Nothing records a *demonstration* by
+   anyone. See §Co-owners.
 
 ## The bar — Week-17 definition of done
 
@@ -67,26 +73,52 @@ Plus the two the top-level SEQUENCE names that `timeline.qmd` does not spell out
 
 | # | Criterion | Verdict | Evidence |
 |---|---|---|---|
-| 8 | Runbooks | ⚠️ **Partly** — 3 of 5 named topics covered, none under their promised names | See §Runbooks |
+| 8 | Runbooks | ⚠️ **Outlined, unwritten** — all 5 exist in the scoping site's `outputs/handover/`, all 5 are stubs | See §Runbooks |
 | 9 | Eval automation | ⚠️ **Partly** | `make eval`, 4 evalsets, `eval_config.json`, an authoring rubric judge and two smoke evals under `backend/tests/eval/`. **Nothing runs them in CI** — `.github/workflows/ci.yml` has no eval job. So the eval exists and is runnable by hand; it is not automated |
 | 10 | DPIA / consent | ❌ **No artefact here** — JB-owned | Nothing matching `*dpia*` in this repo or `~/dev/sunholo-data/aipla/`. `timeline.qmd` risk marker: *"GDPR / consent forms — JB owns these but they gate any teacher-facing deployment. Confirm by early August at latest."* That confirmation is not recorded anywhere I can see. **Ask JB.** |
 
 ## Runbooks
 
-`timeline.qmd` promised five task-oriented runbooks *"written for successors, not
-for posterity"*. Three exist under other names; two do not exist.
+**Correction to the first draft of this doc.** I originally recorded two of the
+five promised runbooks as missing, having looked only in this repo. They are not
+here — they are in the **scoping site**, under `outputs/handover/`, and there
+are five of them, started 2026-07-10 with a stated target of *"complete before
+the contract ends 2026-09-15"*.
 
-| Promised runbook | State | Where it actually lives |
+**All five exist. All five are stubs.** Each is a one-page outline: a named
+reader, a "Status: stub — fill from the execution repo" line, and a "To cover"
+list. None has content.
+
+| Runbook (scoping site `outputs/handover/`) | Reader | State |
 |---|---|---|
-| "How to onboard a new teacher / class" | ✅ **Covered, well** | [docs/ops/runbooks/access-requests.md](../../../ops/runbooks/access-requests.md) for the access half, plus **four teacher guides in EN + DA** under `docs/guides/` (`t1` set up a class · `t2` first activity · `t3` curriculum materials · `t4` author with the co-pilot) and a student guide (`s1`) — these are better than a runbook and are in-product |
-| "What to do when X breaks" | ⚠️ **Partial** | [deploy.md](../../../ops/runbooks/deploy.md) + [prod-cut.md](../../../ops/runbooks/prod-cut.md) cover deploy/promote/rollback; two written incident post-mortems under `docs/ops/incidents/`. **No general triage runbook.** The Cloud Run diagnostics knowledge is still only in `cli/README.md` and agent skills (P4.3) |
-| "How to add a new bot configuration" | ⚠️ **Partial** | The mechanism is documented for agents (`SKILL.md` templates + seed) and partly for teachers (`t4` guide), but there is no human runbook for adding a *skill*. `docs/ops/platform-skills.md` is the closest |
-| "How to run the capability-floor eval and update the report" | ❌ **Missing** | The eval runs (`make eval`); the report exists; **the join between them is undocumented.** This is the runbook AR most needs — it is their named artefact in the fan-out table |
-| "How to add a new model to the routing layer" | ❌ **Missing** | The registry exists (`config/models.py`, `default_model()` / `fast_model()`), single-sourced by P2 work on 2026-07-22. Nobody has written down the steps |
+| `runbook-add-bot-configuration.md` | AR | stub — 18 lines of outline |
+| `runbook-onboard-teacher-class.md` | AR + AD | stub — 19 lines |
+| `runbook-capability-floor-eval.md` | AR | stub — 17 lines; its own note says it was *"blocked on the eval dataset + runner existing"* |
+| `runbook-add-model-routing.md` | AD | stub — 17 lines |
+| `runbook-incident-playbook.md` | AD (AR first responder in teaching hours) | stub — 18 lines |
 
-**Assessment:** the two missing ones are exactly the two owned by people who are
-*not* M — AR (eval) and whoever inherits infra (models). That is the wrong two to
-be missing, and both are short.
+This is a **better** position than "two missing" in structure and a **worse** one
+in substance: the outlines are good, the readers are named, and every one of them
+says *"fill from the execution repo"* — which is the repo this doc is in. The
+material exists; the writing has not happened.
+
+### What already covers part of this, in this repo
+
+Not all of the ground is bare. Where a runbook's subject is already documented
+here, the writing job is assembly, not authorship:
+
+| Promised runbook | Existing material to draw on |
+|---|---|
+| Onboard a teacher / class | [runbooks/access-requests.md](../../../ops/runbooks/access-requests.md), plus **four teacher guides in EN + DA** under `docs/guides/` (`t1` class · `t2` first activity · `t3` materials · `t4` co-pilot) and the student guide `s1`. In-product and screenshot-backed |
+| What to do when X breaks | [deploy.md](../../../ops/runbooks/deploy.md), [prod-cut.md](../../../ops/runbooks/prod-cut.md), two written post-mortems in `docs/ops/incidents/`, and the `aipla-security-checkup` skill. **No general triage runbook** — the Cloud Run diagnostics knowledge is still only in `cli/README.md` and agent skills (P4.3) |
+| Add a bot configuration | `docs/ops/platform-skills.md` + the `SKILL.md` template/seed path |
+| Add a model to the routing layer | The registry is already single-sourced — `config/models.py`, `default_model()` / `fast_model()` (P2 work, 2026-07-22). Nobody has written the steps down |
+| Run the capability-floor eval | `make eval`, 4 evalsets, `eval_config.json`, `backend/tests/eval/`. The scoping site's `strand-c-scoping/stx-bench/` holds the AILANG benchmark harness. **The join between running it and updating the report is the undocumented part** |
+
+**New, and added by this pass:** [runbooks/admin-identity.md](../../../ops/runbooks/admin-identity.md)
+— who is a platform admin and how to change it. Written because P4.4 made admin
+a grantable claim, and a security-rules change nobody knows how to exercise is
+not an improvement.
 
 ## Strand C — the one real writing job
 
@@ -96,7 +128,7 @@ zero** — each of the three questions has shipped or designed prior art:
 
 | Question | Prior art already in hand |
 |---|---|
-| **C1 — beyond LLMs** (VLMs, world models) | The capability-floor work already ran a **VL model tier** and produced a finding that generalises: *a self-host tier needs a text model **and** a VL model*. → [capability-floor-for-ku-ai-office.qmd](capability-floor-for-ku-ai-office.qmd). Largely answerable by extraction |
+| **C1 — beyond LLMs** (VLMs, world models) | The capability-floor work already ran a **VL model tier** and produced a finding that generalises: *a self-host tier needs a text model **and** a VL model*. → [capability-floor-for-ku-ai-office.qmd](capability-floor-for-ku-ai-office.qmd). Behind it sits **`strand-c-scoping/stx-bench/`** in the scoping site — a benchmark harness written in AILANG against Danish stx Fysik A exam problems, calibration-then-tier-descent. Largely answerable by extraction |
 | **C2 — beyond chat** (voice, branching, concept-map, the Plaud-like recorder) | The Plaud-like prototype **was built and hit real classroom scale**, and its failure mode is documented: [research-audio-capture-quality.md](../v1.1.0-feedback/research-audio-capture-quality.md) (*"near-unusable transcripts at the first real classroom scale"*). Voice shipped (TTS, personas, pronunciation config). Concept-map interface shipped (CONCEPT-1). This is the strongest-evidenced of the three and the only one with a *negative* result worth reporting honestly |
 | **C3 — student models** (concept network vs reference model) | [living-concept-map.md](../v1.1.0-feedback/living-concept-map.md) — **shipped to dev** (element, graph view, co-pilot proposals, in-session checkpoints, per-group `concept_progress`). The uncommitted extension is designed: [knowledge-graph-and-student-matching.md](../post-pilot/knowledge-graph-and-student-matching.md). The open item the doc itself names is the honest one: **LLM-judge calibration is the long pole**, not the extraction |
 
@@ -111,21 +143,26 @@ valuable single thing in it.
 Criterion 5 requires a named co-owner *who has demonstrated they can operate*
 each artefact. The `timeline.qmd` fan-out table is now partly stale:
 
-| Artefact | Table says | Actual, 2026-09-01 |
+| Artefact | `timeline.qmd` says | Actual, 2026-09-01 |
 |---|---|---|
-| Capability-floor eval | AR (domain) + student helper (ops) | AR engaged. **The runbook AR would need does not exist** (see §Runbooks) |
-| Pedagogical rubrics / LLM-judge prompts | AR | Rubrics shipped (1.1.57, rubric-1/rubric-2 sprints). Demonstration not recorded |
-| Production architecture (Strand A) | DS + P2, ZL day-to-day | **P2 was never hired** — every doc still reads "P2 (when hired)" |
-| Cloud infra / GCP | P2 + UCPH IT | Same gap. UCPH IT is now a *live* counterparty via the KU AI office (from 2026-09-01), which is a better position than the table assumed |
-| Day-to-day operations | Student helpers + P2 | **Student helpers now exist and are not in the table** — the 2026-08-25 notes introduce Sophie (coordinating), Aswin (teacher side), Atul (student side) |
+| Capability-floor eval | AR (domain) + student helper (ops) | AR engaged. **AR's runbook is a stub**, and its own status line says it was blocked on a runner that now exists |
+| Pedagogical rubrics / LLM-judge prompts | AR | Rubrics shipped (1.1.57, rubric-1/rubric-2 sprints). No demonstration recorded |
+| Production architecture (Strand A) | DS + **P2**, ZL day-to-day | **"P2 (when hired)" has resolved: AD starts ~1 Oct.** Every doc in this repo still says "when hired" |
+| Cloud infra / GCP | **P2** + UCPH IT | Same — AD. And UCPH IT is now a *live, funded* counterparty via the KU AI office (from 2026-09-01), a better position than the table assumed |
+| Day-to-day operations | Student helpers + P2 | **Student helpers exist and appear in no row** — the 2026-08-25 notes introduce Sophie (coordinating), Aswin (teacher side), Atul (student side) |
 | Strand B | ZL, with DS | Not verified here |
 | Strand C note | JB (audience), AR (input) | Note not written |
 
-**The honest read:** the inheritor picture improved in a way the table never
-recorded — a hired-P2-shaped hole was partly filled by student helpers and by the
-KU AI office becoming real and funded. **The table should be rewritten against
-who actually exists before the final session, not read as-is.** Two rows
-(architecture, cloud infra) currently name a person who does not exist.
+**The honest read:** the inheritor picture is *better* than the table records —
+the P2-shaped hole is being filled by AD, student helpers arrived, and the KU AI
+office became real and funded. But **no row anywhere records someone other than
+M actually operating an artefact**, which is what criterion 5 asks for. Naming an
+inheritor is not the same as demonstrating one.
+
+**And the AD row changes the writing standard**, not just the names. AD arrives
+after M's presence stops being continuous and never overlaps in person. The two
+runbooks whose named reader is AD — model routing and the incident playbook —
+are the ones that must survive with no author to ask.
 
 ## Gaps, owners, dates
 
@@ -134,14 +171,13 @@ Ordered by lead time, not by size. The top two are chases, not builds.
 | # | Gap | Owner | Action | Lead time |
 |---|---|---|---|---|
 | 1 | **DPIA / consent artefact** | **JB** | Ask now whether it exists and where. If it does, link it from this doc. If it does not, it gates nothing retroactively but must be named as a known open item at handover | **Longest — ask today** |
-| 2 | **Final handover session** | M + JB | Book it. Attendees per the *corrected* co-owner table, not the stale one | Needs calendars ≥1wk out |
+| 2 | **Final handover session** | M + JB | Book it. Attendees per the *corrected* co-owner table, not `timeline.qmd`'s | Needs calendars ≥1wk out |
 | 3 | **Strand C scoping note** | M | Write as findings, from the prior art above | Due 2026-09-09 · ~1–1.5d |
-| 4 | **P4.2 — scoping snapshot + link rewrite** | M | 63 docs cite `file:///Users/mark/...`. Snapshot **public files only** | ~0.5d · *doing now* |
-| 5 | **P4.4 — admin identity out of `firestore.rules`** | M | Hardcoded `mark@aitanalabs.com` → Firebase custom claim | ~1h · *doing now* |
-| 6 | **Runbook: run the capability-floor eval + update the report** | M, for AR | Short; joins two things that both already work | ~0.5d |
-| 7 | **Runbook: add a model to the routing layer** | M | Registry is already single-sourced; write the steps | ~0.5h |
-| 8 | **Eval in CI** | M | Optional for the milestone. `make eval` is real and runnable; automation is the stated word, and a nightly job would satisfy it | ~0.5d, defer if crowded |
-| 9 | **Rewrite the co-owner fan-out table** | M + JB | Against who exists. Feeds directly into #2 | ~1h |
+| 4 | **Fill the five runbook stubs** | M | Each says *"fill from the execution repo"* — this repo. Prioritise AD's two (model routing, incident playbook): AD has no author to ask | ~2–3d for all five |
+| 5 | **Rewrite the co-owner fan-out table** | M + JB | Against who exists: AD rather than "P2 when hired", plus the student helpers. Feeds #2 | ~1h |
+| 6 | **Eval in CI** | M | Optional for the milestone. `make eval` is real and runnable by hand; "automation" is the stated word, and a nightly job would satisfy it | ~0.5d, defer if crowded |
+| — | ~~P4.2 — scoping-site links~~ | M | **DONE 2026-09-01.** 138 links rewritten, snapshot pinned to `c361ca0`, `make check-local-path-links` guards it in CI | — |
+| — | ~~P4.4 — admin identity~~ | M | **DONE 2026-09-01.** `admin:true` claim, `users grant-admin`, and a [runbook](../../../ops/runbooks/admin-identity.md). *Removing the email fallback is still open — checklist in the runbook* | — |
 
 ## What this package deliberately does not include
 

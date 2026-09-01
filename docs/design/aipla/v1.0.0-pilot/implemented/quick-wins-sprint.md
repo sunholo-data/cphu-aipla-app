@@ -94,7 +94,7 @@ If we ever want voice-in-voice-out tutoring, that lands as a separate sprint aft
 - [ ] Each tutor message has a small Volume2 button right of the timestamp
 - [ ] Click reads the message aloud in Danish (for problem-set-hints)
 - [ ] No regression in MessageBubble layout / vitest tests
-- [ ] No emoji introduced (per [feedback-no-emoticons](file:///Users/voightkampff/.claude/projects/-Users-voightkampff-dev-sunholo-data-cphu-aipla-app/memory/feedback_no_emoticons.md))
+- [ ] No emoji introduced (per feedback-no-emoticons — `feedback_no_emoticons.md` (agent-memory note, not a project file))
 
 ### M5 — Quality gates (~0.05d)
 

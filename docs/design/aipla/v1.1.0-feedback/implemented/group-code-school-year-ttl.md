@@ -6,7 +6,7 @@
 **Estimated:** ~2h (this doc's scope after rescope)
 **Scope:** Backend constant rename + small archive-on-expiry helper; no UI change in this sprint
 **Dependencies:** [session-persistence.md](../../v1.0.0-pilot/implemented/session-persistence.md) (1.F shipped)
-**Source brief:** [`june-03-feedback-sprint-brief.md` §6](file:///Users/mark/Documents/clients/cph-uni/strand-a-pedagogical-bot/prototypes/june-03-feedback-sprint-brief.md) (the underlying ask is preserved; the *implementation path* changed from "raise platform default" to "let teacher opt in per code")
+**Source brief:** [`june-03-feedback-sprint-brief.md` §6](../../_scoping-snapshot/prototypes/june-03-feedback-sprint-brief.md) (the underlying ask is preserved; the *implementation path* changed from "raise platform default" to "let teacher opt in per code")
 
 ## What changed mid-sprint
 

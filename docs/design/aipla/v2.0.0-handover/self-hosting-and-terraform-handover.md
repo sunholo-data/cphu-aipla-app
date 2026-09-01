@@ -4,7 +4,7 @@
 **Priority**: P0 — UCPH IT has formally requested the resource list (internal IT meeting 2026-06-17). This is the long-pole half of the final handover package and gates UCPH's own infrastructure planning/budgeting cycle.
 **Estimated**: Doc + portability-seam audit ~2d; reference on-prem Terraform/Helm stack ~3–4d (phased — see Implementation Plan). The *contracted* minimum (migration notes good enough for IT to cost) is the ~2d audit.
 **Scope**: Infra + handover — component inventory, hybrid topologies, model-sizing, a portable Terraform deliverable, and a costable resource list for UCPH IT.
-**Dependencies**: ADR-003 (four model tiers), ADR-005 (chat-log storage / data residency), ADR-006 (GCP EU for the prototype), ADR-007 (`europe-north1`), ADR-010 + ADR-017 (RAG store: managed Vertex now, pgvector is the on-prem target), ADR-012 (AILANG ecosystem). Builds on [aipla-cloud-bootstrap.md](../v1.0.0-pilot/aipla-cloud-bootstrap.md) (the GCP-side Terraform consolidation) and the [`infrastructure/modules/`](../../../../infrastructure/modules/) set. Supersedes the execution detail of the scoping site's [`self-hosting.qmd`](file:///Users/mark/Documents/clients/cph-uni/self-hosting.qmd) stub (which is now out of date against what v0.1/v1 actually deployed — see "Correcting the self-hosting.qmd stub" below).
+**Dependencies**: ADR-003 (four model tiers), ADR-005 (chat-log storage / data residency), ADR-006 (GCP EU for the prototype), ADR-007 (`europe-north1`), ADR-010 + ADR-017 (RAG store: managed Vertex now, pgvector is the on-prem target), ADR-012 (AILANG ecosystem). Builds on [aipla-cloud-bootstrap.md](../v1.0.0-pilot/aipla-cloud-bootstrap.md) (the GCP-side Terraform consolidation) and the [`infrastructure/modules/`](../../../../infrastructure/modules/) set. Supersedes the execution detail of the scoping site's [`self-hosting.qmd`](https://www.sunholo.com/aipla/self-hosting.html) stub (which is now out of date against what v0.1/v1 actually deployed — see "Correcting the self-hosting.qmd stub" below).
 **Created**: 2026-06-17
 **Last Updated**: 2026-08-27 (framing revised — see *What changed*)
 
@@ -12,16 +12,16 @@
 
 ## Problem Statement
 
-UCPH internal IT met with us on **2026-06-17** and asked for a concrete list of what they would need to host AIPLA inside the university. The scoping site has long carried a [`self-hosting.qmd`](file:///Users/mark/Documents/clients/cph-uni/self-hosting.qmd) stub and ADR-003's four-tier model strategy, but two things are now true that the stub does not capture:
+UCPH internal IT met with us on **2026-06-17** and asked for a concrete list of what they would need to host AIPLA inside the university. The scoping site has long carried a [`self-hosting.qmd`](https://www.sunholo.com/aipla/self-hosting.html) stub and ADR-003's four-tier model strategy, but two things are now true that the stub does not capture:
 
 1. **The deployed reality has diverged from the stub.** `self-hosting.qmd` was written when the *lean* was Cloud SQL Postgres + pgvector and "prefer not to use Firestore" (ADR-005). What actually shipped in v0.1/v1 is **Firestore** (application DB), **Vertex AI RAG Engine** (curriculum RAG, not pgvector — ADR-017 records this), and **Vertex AI Agent Engine** (session + memory persistence — not in the stub at all). The stub's migration table is therefore an inaccurate basis for an IT estimate. UCPH needs the *real* component list.
 
-2. **The contracted handover deliverable is specifically a costable estimate.** *(Framing updated 2026-08-27 — see "What changed" below; the estimate is still owed, but it is no longer the ceiling.)* Per the scoping site [`timeline.qmd`](file:///Users/mark/Documents/clients/cph-uni/timeline.qmd), the Week-17 definition of done includes "UCPH self-host migration notes complete enough for IT to estimate effort," with **P2 (when hired) + UCPH IT co-owning** the cloud-infra artefact from a Week-6 runbook v0. IT cannot estimate against a stub.
+2. **The contracted handover deliverable is specifically a costable estimate.** *(Framing updated 2026-08-27 — see "What changed" below; the estimate is still owed, but it is no longer the ceiling.)* Per the scoping site [`timeline.qmd`](https://www.sunholo.com/aipla/timeline.html), the Week-17 definition of done includes "UCPH self-host migration notes complete enough for IT to estimate effort," with **P2 (when hired) + UCPH IT co-owning** the cloud-infra artefact from a Week-6 runbook v0. IT cannot estimate against a stub.
 
 **Current State:**
 - Self-hosting guidance is split between an out-of-date scoping stub and ADR-003's tier strategy; neither maps the *actual* deployed GCP surface to UCPH equivalents.
 - The team has kept a GCP deployment script ([`scripts/bootstrap-aipla-dev.sh`](../../../../scripts/bootstrap-aipla-dev.sh)) + modular Terraform ([`infrastructure/modules/`](../../../../infrastructure/modules/)) precisely so a migration target exists — but it targets GCP only. There is no on-prem/hybrid reference.
-- Model selection is "use top-of-line cloud" (`gemini-3.5-flash` default, Sonnet 4.6 fallback). No documented open-weight equivalents sized to real hardware, and no link from the [capability-floor eval](file:///Users/mark/Documents/clients/cph-uni/evaluation.qmd) to a hardware spec.
+- Model selection is "use top-of-line cloud" (`gemini-3.5-flash` default, Sonnet 4.6 fallback). No documented open-weight equivalents sized to real hardware, and no link from the [capability-floor eval](https://www.sunholo.com/aipla/evaluation.html) to a hardware spec.
 
 **Impact:**
 - **UCPH IT (blocked):** cannot scope hardware, budget, or governance without the real list. This is the immediate ask.
@@ -193,7 +193,7 @@ The scoping site stub must be refreshed; this execution doc is the accurate inve
 
 ## 3. Model sizing — what UCPH would host (the open question)
 
-Current production is "top-of-line cloud": `gemini-3.5-flash` (default) with Claude Sonnet 4.6 as cross-provider fallback, and Opus 4.7 / GPT-5.x available in the registry. The on-prem question is: *which open-weight models, on what hardware, clear the bar per task class?* ADR-003 already frames this as four tiers; this section sizes the candidates. **Final selection is eval-driven** — the [capability-floor eval](file:///Users/mark/Documents/clients/cph-uni/evaluation.qmd) decides per task class; these are the hardware envelopes to provision *for*.
+Current production is "top-of-line cloud": `gemini-3.5-flash` (default) with Claude Sonnet 4.6 as cross-provider fallback, and Opus 4.7 / GPT-5.x available in the registry. The on-prem question is: *which open-weight models, on what hardware, clear the bar per task class?* ADR-003 already frames this as four tiers; this section sizes the candidates. **Final selection is eval-driven** — the [capability-floor eval](https://www.sunholo.com/aipla/evaluation.html) decides per task class; these are the hardware envelopes to provision *for*.
 
 ### 3a. Per-task demand → candidate models
 
@@ -381,5 +381,5 @@ So the estimate is real, not optimistic:
 - [terraform-consolidation.md](../v1.0.0-pilot/terraform-consolidation.md) — **completes Layer 1** (2026-07-27): folds dev into Terraform (single source of truth), finishes increment 2, and shapes the capability-module boundary so this doc's Layer 2 mirrors it 1:1 (see its §3 GCP↔on-prem mapping table, which realises §6 here)
 - [infra-terraform-lessons.md](../../v6.0.0/implemented/infra-terraform-lessons.md) — Terraform gotchas (provider pin, Agent Engine via SDK)
 - [`infrastructure/modules/`](../../../../infrastructure/modules/) — existing GCP modules
-- Scoping site: [`self-hosting.qmd`](file:///Users/mark/Documents/clients/cph-uni/self-hosting.qmd) (the stub this supersedes for execution detail), [`architecture.qmd`](file:///Users/mark/Documents/clients/cph-uni/architecture.qmd) (ADR-003/005/006/007/010/012/017), [`evaluation.qmd`](file:///Users/mark/Documents/clients/cph-uni/evaluation.qmd) (capability-floor eval — the migration gate), [`timeline.qmd`](file:///Users/mark/Documents/clients/cph-uni/timeline.qmd) (handover fan-out)
+- Scoping site: [`self-hosting.qmd`](https://www.sunholo.com/aipla/self-hosting.html) (the stub this supersedes for execution detail), [`architecture.qmd`](https://www.sunholo.com/aipla/architecture.html) (ADR-003/005/006/007/010/012/017), [`evaluation.qmd`](https://www.sunholo.com/aipla/evaluation.html) (capability-floor eval — the migration gate), [`timeline.qmd`](https://www.sunholo.com/aipla/timeline.html) (handover fan-out)
 - [SEQUENCE.md](./SEQUENCE.md) (this workstream) and [../SEQUENCE.md](../SEQUENCE.md) Phase 3 row 3.2

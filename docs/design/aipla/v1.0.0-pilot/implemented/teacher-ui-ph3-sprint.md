@@ -37,7 +37,7 @@ This is the sprint that 1.A explicitly does NOT do — 1.A produced the backend;
 
 ## Workflow
 
-Direct-to-dev per [feedback-aipla-git-workflow](file:///Users/voightkampff/.claude/projects/-Users-voightkampff-dev-sunholo-data-cphu-aipla-app/memory/feedback_aipla_git_workflow.md). Branch `feature/teacher-ui-ph3` is the executor scratch space; FF-merge to `dev`. Test/prod gates still PR-based.
+Direct-to-dev per feedback-aipla-git-workflow — `feedback_aipla_git_workflow.md` (agent-memory note, not a project file). Branch `feature/teacher-ui-ph3` is the executor scratch space; FF-merge to `dev`. Test/prod gates still PR-based.
 
 ## Milestones
 

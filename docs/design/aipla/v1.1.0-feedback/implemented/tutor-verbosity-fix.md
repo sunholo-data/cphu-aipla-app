@@ -6,7 +6,7 @@
 **Estimated:** ~2h
 **Scope:** Backend skill templates only — system-prompt delta. No code changes
 **Dependencies:** None. AR sign-off on the rewritten preamble before merge
-**Source brief:** [`june-03-feedback-sprint-brief.md` §1](file:///Users/mark/Documents/clients/cph-uni/strand-a-pedagogical-bot/prototypes/june-03-feedback-sprint-brief.md)
+**Source brief:** [`june-03-feedback-sprint-brief.md` §1](../../_scoping-snapshot/prototypes/june-03-feedback-sprint-brief.md)
 
 ## Problem
 

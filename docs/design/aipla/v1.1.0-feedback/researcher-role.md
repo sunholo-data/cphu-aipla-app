@@ -20,7 +20,7 @@
 **Estimated:** ~1d
 **Scope:** Firebase Auth (custom claim); backend endpoint guards; CLI flag; teacher UI "Research view" toggle
 **Dependencies:** [teacher-permission-model.md](../v1.0.0-pilot/implemented/teacher-permission-model.md) (1.A shipped)
-**Source brief:** [`june-03-feedback-sprint-brief.md` §5](file:///Users/mark/Documents/clients/cph-uni/strand-a-pedagogical-bot/prototypes/june-03-feedback-sprint-brief.md)
+**Source brief:** [`june-03-feedback-sprint-brief.md` §5](../_scoping-snapshot/prototypes/june-03-feedback-sprint-brief.md)
 
 ## Problem
 

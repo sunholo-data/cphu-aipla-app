@@ -6,7 +6,7 @@
 **Estimated:** ~3–4d (new data-entry workbench surface + ground-truth checking layer + error-flagging chat behaviour), after the design questions below are resolved. **Not sprintable until this doc settles the ground-truth model.**
 **Scope:** Fullstack — a data-entry workbench surface (extends [expanded-workbench-types.md](../v1.0.0-pilot/expanded-workbench-types.md) Type 5 lab-notebook) + a per-experiment **expected-values / ground-truth** definition + tutor error-flagging behaviour + activity-config authoring of the experiment spec.
 **Dependencies:** [expanded-workbench-types.md](../v1.0.0-pilot/expanded-workbench-types.md) (1.J — Type 5 `lab-notebook` is the surface this specializes); [teacher-activity-authoring.md](teacher-activity-authoring.md) (1.1.19 — the experiment is a teacher-authored activity; `notebook` workbench type is its M4); [curriculum-library.md](curriculum-library.md) (the Haka/matematikfysik-style PDFs become referenceable materials); ADR-013 (artefact safety — the notebook is a native React component, not an iframe, so the ADR-013 iframe gates do not apply); a `lab-troubleshoot`-style skill prompt
-**Source brief:** [`june-09-feedback-sprint-brief.md` §B](file:///Users/mark/Documents/clients/cph-uni/strand-a-pedagogical-bot/prototypes/june-09-feedback-sprint-brief.md)
+**Source brief:** [`june-09-feedback-sprint-brief.md` §B](../_scoping-snapshot/prototypes/june-09-feedback-sprint-brief.md)
 
 ## Problem
 

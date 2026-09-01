@@ -3,7 +3,7 @@
 **Sprint ID:** `PROACTIVE-SIM-REACTIVE`
 **Design doc:** [proactive-sim-reactive-tutor.md](proactive-sim-reactive-tutor.md)
 **Architecture (decided 2026-06-03):** **Path B** — FE-initiated AG-UI run via synthetic sentinel. Backend owns the gate decision; frontend kicks off the actual agent run via the existing `/api/chat/{skill_id}` AG-UI endpoint so the proactive turn rides the established protocol stack (same SSE stream, same streaming animation, same telemetry path, same Firestore mirror) as every normal turn. Phase A's `PROACTIVE_GREET_TRIGGER = "[session_start]"` establishes the synthetic-sentinel pattern this reuses.
-**Branch:** work on `dev` directly per [feedback-no-prs-commit-to-dev](file:///Users/mark/.claude/projects/-Users-mark-dev-sunholo-cphu-aipla-app/memory/feedback_no_prs_commit_to_dev.md). Commit per milestone locally; `git push origin dev` at sprint end after M10 quality gates pass.
+**Branch:** work on `dev` directly per feedback-no-prs-commit-to-dev (`feedback_no_prs_commit_to_dev.md` — agent-memory note, on M's machine). Commit per milestone locally; `git push origin dev` at sprint end after M10 quality gates pass.
 **Estimate:** ~1d wall clock (~7-8h actual work)
 **Created:** 2026-06-03
 
@@ -297,7 +297,7 @@ Create `docs/design/aipla/v1.1.0-feedback/proactive-greet-refactor-to-path-b.md`
 
 ## Quality gates (recap)
 
-Per [feedback-pre-push-ci-parity](file:///Users/mark/.claude/projects/-Users-mark-dev-sunholo-cphu-aipla-app/memory/feedback_pre_push_ci_parity.md):
+Per feedback-pre-push-ci-parity (`feedback_pre_push_ci_parity.md` — agent-memory note, on M's machine):
 
 ```bash
 # After each backend-touching milestone:
@@ -347,6 +347,6 @@ cd frontend && npm run quality:check
 - `backend/protocols/proactive_routes.py` — Phase A endpoint (this sprint extends with a sibling endpoint)
 - `backend/adk/proactive_greet.py` — Phase A injection helper (this sprint mirrors with `proactive_reactive.py`)
 - `backend/protocols/iframe_context_routes.py` — the workbench-event POST handler the FE calls before the new gate check
-- [feedback-no-prs-commit-to-dev](file:///Users/mark/.claude/projects/-Users-mark-dev-sunholo-cphu-aipla-app/memory/feedback_no_prs_commit_to_dev.md) — workflow rule applied to this sprint
-- [feedback-search-protocols-first](file:///Users/mark/.claude/projects/-Users-mark-dev-sunholo-cphu-aipla-app/memory/feedback_search_protocols_first.md) — the principle that drove the Path A → Path B redesign
-- [feedback-self-testable-loops](file:///Users/mark/.claude/projects/-Users-mark-dev-sunholo-cphu-aipla-app/memory/feedback_self_testable_loops.md) — every milestone has self-runnable tests; M8's manual LOCAL_MODE check is the final human-eye, not the only check
+- feedback-no-prs-commit-to-dev (`feedback_no_prs_commit_to_dev.md` — agent-memory note, on M's machine) — workflow rule applied to this sprint
+- feedback-search-protocols-first (`feedback_search_protocols_first.md` — agent-memory note, on M's machine) — the principle that drove the Path A → Path B redesign
+- feedback-self-testable-loops (`feedback_self_testable_loops.md` — agent-memory note, on M's machine) — every milestone has self-runnable tests; M8's manual LOCAL_MODE check is the final human-eye, not the only check

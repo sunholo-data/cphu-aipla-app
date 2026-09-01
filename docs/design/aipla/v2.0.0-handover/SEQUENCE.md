@@ -8,9 +8,9 @@
 > top-level [SEQUENCE.md](../SEQUENCE.md), v2.0.0-handover = v1 + runbooks + eval
 > automation + DPIA + Strand C scoping note + **the self-host migration package**.
 > Architecture/strategy lives in the scoping site
-> ([architecture.qmd](file:///Users/mark/Documents/clients/cph-uni/architecture.qmd),
-> [self-hosting.qmd](file:///Users/mark/Documents/clients/cph-uni/self-hosting.qmd),
-> [timeline.qmd](file:///Users/mark/Documents/clients/cph-uni/timeline.qmd)); this is execution.
+> ([architecture.qmd](https://www.sunholo.com/aipla/architecture.html),
+> [self-hosting.qmd](https://www.sunholo.com/aipla/self-hosting.html),
+> [timeline.qmd](https://www.sunholo.com/aipla/timeline.html)); this is execution.
 
 ## Ordering
 
@@ -33,7 +33,7 @@
 ## Dependencies
 
 - Builds on **1.1** [aipla-cloud-bootstrap.md](../v1.0.0-pilot/aipla-cloud-bootstrap.md) (GCP Terraform consolidation = Layer 1).
-- Migration **trigger** is eval-gated: the capability-floor eval ([evaluation.qmd](file:///Users/mark/Documents/clients/cph-uni/evaluation.qmd)) clearing ~70–80% local-readiness per task class **and** UCPH IT confirming hosting (`self-hosting.qmd` "when to trigger"). **Both gates now look likely to land inside the engagement.** The eval gate is *already met* for stx physics — the July-2026 snapshot puts Tiers 1–3 over the ≥80% floor on both text and figures ([capability-floor-for-ku-ai-office.qmd](capability-floor-for-ku-ai-office.qmd)). The hosting gate is moving: KU IT is building internal local-model infrastructure as part of the 110M DKK AI push from 2026-09-01. So "produces the scoping, does not execute the cutover" is **no longer a safe default assumption** — re-decide it deliberately at the first AI-office contact.
+- Migration **trigger** is eval-gated: the capability-floor eval ([evaluation.qmd](https://www.sunholo.com/aipla/evaluation.html)) clearing ~70–80% local-readiness per task class **and** UCPH IT confirming hosting (`self-hosting.qmd` "when to trigger"). **Both gates now look likely to land inside the engagement.** The eval gate is *already met* for stx physics — the July-2026 snapshot puts Tiers 1–3 over the ≥80% floor on both text and figures ([capability-floor-for-ku-ai-office.qmd](capability-floor-for-ku-ai-office.qmd)). The hosting gate is moving: KU IT is building internal local-model infrastructure as part of the 110M DKK AI push from 2026-09-01. So "produces the scoping, does not execute the cutover" is **no longer a safe default assumption** — re-decide it deliberately at the first AI-office contact.
 - Co-owned with **P2 (when hired) + UCPH IT** from a Week-6 runbook v0 (timeline.qmd handover fan-out).
 
 ## Timeline anchors

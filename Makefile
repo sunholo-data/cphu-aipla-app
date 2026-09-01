@@ -472,6 +472,14 @@ check-auth-dispatcher: ## Fail if a student-facing route uses the Firebase-only 
 check-cloudbuild: ## Fail on $$-unescaped shell vars in Cloud Build steps (CI-gated)
 	@python3 scripts/check-cloudbuild-substitutions.py
 
+# Laptop-bound documentation links (P4.2). Design docs cited the scoping site,
+# agent memory and two other local trees through file:///Users/<someone>/...
+# paths — 138 of them, each a dead link for anyone but its author. Fixed
+# 2026-09-01; this stops it coming back. See CLAUDE.md "How to cite the scoping
+# site from a doc in this repo".
+check-local-path-links: ## Fail if a doc links to a file:///Users/ path (CI-gated)
+	@bash scripts/check-local-path-links.sh
+
 # Brand-drift gate (1.1.74). The app shipped TWO brand primaries for months:
 # --primary was the inherited Sunholo orange while /project hardcoded KU red in
 # 24 red-* utilities, so the homepage CTA and /project's CTA were different
@@ -539,6 +547,7 @@ help:
 	@echo "make seed-job           — P1.3: seed SKILL.md->Firestore via the aipla-seed-skills Cloud Run job (ENV=dev; same path Cloud Build runs post-deploy)"
 	@echo "make check-skills       — verify CLAUDE.md skill catalogue matches .claude/skills/ (CI-gated)"
 	@echo "make check-brand-literals — brand-drift gate: fail if a brand surface hardcodes red-* instead of the KU-red token (CI-gated)"
+	@echo "make check-local-path-links — fail if a doc links to a file:///Users/ path that resolves on one machine only (CI-gated)"
 	@echo "make check-guide-nav    — fail if a published guide has no nav band back into the app (CI-gated)"
 	@echo
 	@echo "make sim-build          — inline the canonical MCP App guest bridge into every artefact (edit bridge/aipla-mcp-bridge.js, then run this)"

@@ -2,7 +2,7 @@
 
 **Sprint ID:** `CHAT-LOG-PIPELINE-1.2`
 **Design doc:** [chat-log-pipeline.md](chat-log-pipeline.md) (SEQUENCE 1.2)
-**Branch:** direct-to-dev (per [feedback-aipla-git-workflow](file:///Users/voightkampff/.claude/projects/-Users-voightkampff-dev-sunholo-data-cphu-aipla-app/memory/feedback_aipla_git_workflow.md))
+**Branch:** direct-to-dev (per feedback-aipla-git-workflow — `feedback_aipla_git_workflow.md` (agent-memory note, not a project file))
 **Base commit:** `6a2f102` (dev HEAD)
 **Estimate:** ~1.3 days (infra preconditions already live)
 **Created:** 2026-05-29

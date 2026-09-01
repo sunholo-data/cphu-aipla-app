@@ -5,7 +5,7 @@
 **Estimated**: 1–2 days per artefact; 5 artefacts = 5–8 days total across v1.1
 **Scope**: Artefact only (HTML + postMessage wiring). No backend or frontend changes for each app — they slot into the existing `StaticArtefactFrame` + sandbox infrastructure.
 **Dependencies**: [lesson-picker.md](lesson-picker.md) shipped; [boldkast-mcp-app.md](../v0.1.0-jutland/boldkast-mcp-app.md) and [led-planck-skill.md](led-planck-skill.md) as reference implementations (N=2 spec-compliant artefacts before expanding); ADR-013 pipeline scan tooling in place
-**Pedagogical source-of-truth:** [`notes/2026-05-26-JB-feedback-jutland.md`](file:///Users/mark/Documents/clients/cph-uni/notes/2026-05-26-JB-feedback-jutland.md) — JB noted "We can use them freely if we want to." Teacher at the Jutland visit confirmed these are free to use. The [`workbench-types.md`](file:///Users/mark/Documents/clients/cph-uni/strand-a-pedagogical-bot/prototypes/workbench-types.md) brief in the scoping site documents the per-app integration checklist and priority order.
+**Pedagogical source-of-truth:** `notes/2026-05-26-JB-feedback-jutland.md` (private scoping-site file, not published) — JB noted "We can use them freely if we want to." Teacher at the Jutland visit confirmed these are free to use. The [`workbench-types.md`](../_scoping-snapshot/prototypes/workbench-types.md) brief in the scoping site documents the per-app integration checklist and priority order.
 **Created**: 2026-05-27
 **Last Updated**: 2026-05-27
 

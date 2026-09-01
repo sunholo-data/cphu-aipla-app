@@ -29,8 +29,9 @@ inside a 3-year research programme.
 
 ### Source of truth for AIPLA design
 
-**The historical scoping location is a separate Quarto repository at
-`/Users/mark/Documents/clients/cph-uni`.** Its public-safe content has been
+**The scoping site is a separate Quarto repository, `sunholo-data/aipla`**
+(published at <https://www.sunholo.com/aipla/>; checked out on this machine at
+`~/dev/sunholo-data/aipla`). Its public-safe content has been
 audited and migrated into this app. Maintained English project copy now lives
 under `frontend/content/project/` and renders at `/project`, including nested
 activity case studies. Every Markdown file must include content status, owner,
@@ -55,6 +56,21 @@ The scoping site has private dirs (`briefs/`, `notes/`, `admin/`,
 copy from them into this repo. People are referred to by **initials**
 (M, JB, AR, DS, ZL, P2, K) in the scoping site for light anonymisation —
 keep that convention in commits and PR descriptions here too.
+
+**How to cite the scoping site from a doc in this repo (P4.2, 2026-09-01).**
+Never with a `file://` path. 138 citations used to resolve on one laptop only,
+which made every ADR reference a dead link for anyone else — including AD, who
+starts ~1 Oct with no in-person overlap with M.
+
+| Citing | Use |
+|---|---|
+| One of the 10 **rendered pages** (`index`, `about`, `strands`, `examples`, `timeline`, `architecture`, `evaluation`, `self-hosting`, `led-planck`, `kinebot`) | `https://www.sunholo.com/aipla/<page>.html#anchor` |
+| A **prototype brief** (`strand-a-pedagogical-bot/prototypes/*.md`, tracked but not rendered) | the pinned snapshot: [`docs/design/aipla/_scoping-snapshot/prototypes/`](docs/design/aipla/_scoping-snapshot/) |
+| Anything in `briefs/`, `notes/`, `admin/`, `sources/` | **no link** — name the file as plain text and mark it private |
+
+`scripts/check-local-path-links.sh` (`make check-local-path-links`) fails the
+build on any reintroduced ``` (local path — not in this repo)`, so this cannot
+silently regress.
 
 **This repo is execution.** Don't write new AIPLA design docs in this
 repo's `docs/`; that directory still holds the template's own design

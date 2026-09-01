@@ -180,4 +180,4 @@ Build the Terraform module when **all three** are true:
 - [scripts/bootstrap-aipla-dev.NOTES.md](../../../../scripts/bootstrap-aipla-dev.NOTES.md) — every side-effect / IAM binding / gotcha that the module must reproduce
 - [backend/admin/auth.py](../../../../backend/admin/auth.py) — the endpoint that gates seed + mint behind SA-signed ID tokens (the auth gap surfaces here)
 - ADR-006, ADR-007 in the scoping site — regional pinning + Cloud Build connection model
-- [feedback-check-existing-patterns-first](file:///Users/voightkampff/.claude/projects/-Users-voightkampff-dev-sunholo-data-cphu-aipla-app/memory/feedback_check_existing_patterns_first.md) — memory entry capturing the lesson learned today
+- feedback-check-existing-patterns-first — `feedback_check_existing_patterns_first.md` (agent-memory note, not a project file) — memory entry capturing the lesson learned today

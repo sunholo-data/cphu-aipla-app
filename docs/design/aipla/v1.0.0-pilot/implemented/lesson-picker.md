@@ -243,8 +243,8 @@ The existing endpoint returns `SkillSummary[]` per [backend/skills/routes.py](..
 
 - [SEQUENCE.md](SEQUENCE.md) — row 1.B
 - [teacher-permission-model.md](teacher-permission-model.md) — 1.A, the model that produces per-class lesson lists this picker renders
-- [`led-planck-skill-brief.md`](file:///Users/mark/Documents/clients/cph-uni/strand-a-pedagogical-bot/prototypes/led-planck-skill-brief.md) — 1.C source-of-truth brief in scoping site
-- [`kinebot-migration-brief.md`](file:///Users/mark/Documents/clients/cph-uni/strand-a-pedagogical-bot/prototypes/kinebot-migration-brief.md) — 1.D source-of-truth brief in scoping site
+- [`led-planck-skill-brief.md`](../../_scoping-snapshot/prototypes/led-planck-skill-brief.md) — 1.C source-of-truth brief in scoping site
+- [`kinebot-migration-brief.md`](../../_scoping-snapshot/prototypes/kinebot-migration-brief.md) — 1.D source-of-truth brief in scoping site
 - [backend/skills/routes.py](../../../../backend/skills/routes.py) — the API this consumes (untouched by this design)
 - [backend/auth/access_context.py](../../../../backend/auth/access_context.py) — the access filter that runs server-side
 

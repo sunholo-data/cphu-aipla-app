@@ -3,7 +3,7 @@
 **Sprint ID:** `SIM-ERGONOMICS`
 **Design doc:** [sim-onboarding-ergonomics.md](sim-onboarding-ergonomics.md)
 **Parent sprint (just shipped):** [implemented/proactive-sim-reactive-tutor-sprint.md](implemented/proactive-sim-reactive-tutor-sprint.md)
-**Branch:** work on `dev` directly per [feedback-no-prs-commit-to-dev](file:///Users/mark/.claude/projects/-Users-mark-dev-sunholo-cphu-aipla-app/memory/feedback_no_prs_commit_to_dev.md). Commit per milestone; `git push origin dev` at sprint end after M8 quality gates pass.
+**Branch:** work on `dev` directly per feedback-no-prs-commit-to-dev (`feedback_no_prs_commit_to_dev.md` — agent-memory note, on M's machine). Commit per milestone; `git push origin dev` at sprint end after M8 quality gates pass.
 **Estimate:** ~0.75d (~6h actual; ~1d wall clock with quality gates)
 **Created:** 2026-06-04
 **Scope:** Frontend only — no backend changes
@@ -263,14 +263,14 @@ git push origin dev
 
 ## Quality gates (recap)
 
-Per [feedback-pre-push-ci-parity](file:///Users/mark/.claude/projects/-Users-mark-dev-sunholo-cphu-aipla-app/memory/feedback_pre_push_ci_parity.md): the FAST variants miss build errors. Use the FULL variants before push.
+Per feedback-pre-push-ci-parity (`feedback_pre_push_ci_parity.md` — agent-memory note, on M's machine): the FAST variants miss build errors. Use the FULL variants before push.
 
 - `cd frontend && npm run quality:check` — lint + typecheck + tests + build
 - Backend untouched this sprint — verify with `git diff origin/dev -- backend/`
 
 ## No emoji
 
-Per [feedback-no-emoticons](file:///Users/mark/.claude/projects/-Users-mark-dev-sunholo-cphu-aipla-app/memory/feedback_no_emoticons.md): no emoji in commits, code, docs, or prompts. Lucide-react icons in UI only.
+Per feedback-no-emoticons (`feedback_no_emoticons.md` — agent-memory note, on M's machine): no emoji in commits, code, docs, or prompts. Lucide-react icons in UI only.
 
 ## Out of scope (recap from design doc)
 

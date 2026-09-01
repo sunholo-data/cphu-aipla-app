@@ -66,7 +66,7 @@ M0 (cloud bootstrap, sequential)
 | GCP project provisioning hits org-policy block | Fall back to deploying on Multivac dev; document in `notes/`; spin up Terraform for `aipla-dev-2026` in 1.1 |
 | Vertex AI `gemini-3.5-flash` thinking-budget makes TTFT unacceptable | Set `thinkingConfig.thinkingBudget: 0` and redeploy (10-min round-trip); or switch model to `claude-sonnet-4-6` via Anthropic API (router fallback per ADR-008); LOCAL_MODE on JB's laptop as ultimate fallback |
 | europe-north1 lights up for `gemini-3.5-flash` between now and pilot | Swap endpoint URL `global → europe-north1` in router config; no model-ID change. Probe weekly. |
-| AR can't deliver fresh problem set before demo | Use projectile-motion example from [examples.qmd](file:///Users/mark/Documents/clients/cph-uni/examples.qmd) |
+| AR can't deliver fresh problem set before demo | Use projectile-motion example from [examples.qmd](https://www.sunholo.com/aipla/examples.html) |
 | Demo URL bandwidth-throttled on UCPH/Jutland school WiFi | Cloud Run min-instances=1 for the buffer week; pre-warm sessions; LOCAL_MODE fallback |
 | Sonnet response gives a full solution despite scaffolding prompt | Buffer week is exactly for catching this with AR; smoke test asserts no-solution markers |
 

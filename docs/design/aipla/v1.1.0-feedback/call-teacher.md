@@ -6,7 +6,7 @@
 **Estimated:** **~1d** for the minimal raised-hand version (student button + group-scoped signal + teacher list). Full live-dashboard integration follows [teacher-analytics-framework.md](teacher-analytics-framework.md).
 **Scope:** Fullstack — new student chat-composer control (`frontend/src/components/chat/`) + a group-scoped signal write (`backend/db/`) + a teacher-side "raised hand" surface on the existing class poll (`frontend/src/app/teacher/classes/`). No new protocol, no LLM call.
 **Dependencies:** [teacher-ui-consolidation.md](teacher-ui-consolidation.md) (1.1.26 — teacher nav/primitives, shipped); the 30s class-recent-sessions poll (shipped — see *Transport*); ADR-001 (anonymous group IDs — the signal is **per-group**, never per-student); ADR-015 (unified multi-surface UI). Pairs with [teacher-analytics-framework.md](teacher-analytics-framework.md) (1.1.31) — the live dashboard hosts both the rolling summary and incoming calls.
-**Source brief:** [`notes/2026-06-15-teacher-feedback.md`](file:///Users/mark/Documents/clients/cph-uni/notes/2026-06-15-teacher-feedback.md) "Genuinely new → Call teacher button" + [june-15-feedback.md](june-15-feedback.md) (repo map)
+**Source brief:** `notes/2026-06-15-teacher-feedback.md` (private scoping-site file, not published) "Genuinely new → Call teacher button" + [june-15-feedback.md](june-15-feedback.md) (repo map)
 
 > **Phased so the button never blocks on the dashboard.** The minimal version (this doc, M0+M1)
 > ships a **standalone raised-hand list** on the teacher class view. The full integration — the

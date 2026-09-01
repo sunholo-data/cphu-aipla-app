@@ -8,7 +8,7 @@
 - [local-dev-cli.md](local-dev-cli.md) — `aiplatform` CLI must exist before any of these options are useful
 - [mcp-app-integrations.md](mcp-app-integrations.md) — pattern for integrating external tooling that this doc inherits
 - [auth-and-permissions.md](auth-and-permissions.md) — auth context propagation
-- AILANG Cloud reference: [`/Users/mark/dev/sunholo/ailang-multivac/internal-docs/architecture.md`](file:///Users/mark/dev/sunholo/ailang-multivac/internal-docs/architecture.md)
+- AILANG Cloud reference: `/Users/mark/dev/sunholo/ailang-multivac/internal-docs/architecture.md` (`architecture.md` — local path on M's machine)
 **Created**: 2026-04-11
 **Last Updated**: 2026-04-11
 
@@ -72,7 +72,7 @@ Score each axiom per [Product Axioms](../../product-axioms.md). Net score must b
 
 **Conflict Justifications:** None.
 
-**Standards compliance check:** No new protocols. The decision is between existing runtimes. The selected option (see §Recommendation) reuses AILANG Cloud's existing REST + Pub/Sub message protocol, which is already documented in [`/Users/mark/dev/sunholo/ailang-multivac/internal-docs/messaging-integration.md`](file:///Users/mark/dev/sunholo/ailang-multivac/internal-docs/messaging-integration.md).
+**Standards compliance check:** No new protocols. The decision is between existing runtimes. The selected option (see §Recommendation) reuses AILANG Cloud's existing REST + Pub/Sub message protocol, which is already documented in `/Users/mark/dev/sunholo/ailang-multivac/internal-docs/messaging-integration.md` (`messaging-integration.md` — local path on M's machine).
 
 ## Design
 
@@ -452,8 +452,8 @@ This doc deliberately **does not** ship implementation. The plan is staged:
 - [agent-factory.md](agent-factory.md) — the v6 ADK agent factory (relevant if the future user-facing path picks Option A)
 - [docs/talks/ai-ui-protocol-stack.md](../../talks/ai-ui-protocol-stack.md) — the workshop narrative; "Aitana operates Aitana via Aitana" is a credible Phase 3 demo if a use case materializes
 - **External (AILANG Cloud — sibling system, Sunholo-operated):**
-  - [`/Users/mark/dev/sunholo/ailang-multivac/internal-docs/architecture.md`](file:///Users/mark/dev/sunholo/ailang-multivac/internal-docs/architecture.md)
-  - [`/Users/mark/dev/sunholo/ailang-multivac/internal-docs/messaging-integration.md`](file:///Users/mark/dev/sunholo/ailang-multivac/internal-docs/messaging-integration.md)
+  - `/Users/mark/dev/sunholo/ailang-multivac/internal-docs/architecture.md` (`architecture.md` — local path on M's machine)
+  - `/Users/mark/dev/sunholo/ailang-multivac/internal-docs/messaging-integration.md` (`messaging-integration.md` — local path on M's machine)
   - `github.com/sunholo-data/ailang` (coordinator + executor source)
   - `github.com/sunholo-data/ailang_bootstrap` (skill plugin)
   - `github.com/sunholo-data/ailang-multivac` (Terraform + Cloud Build)

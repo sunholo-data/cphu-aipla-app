@@ -3,7 +3,7 @@
 **Sprint ID:** `VOICE-PROVIDER`
 **Design doc:** [voice-provider-abstraction.md](voice-provider-abstraction.md)
 **Parent doc:** [audio-capture-and-tts.md](../../v1.0.0-pilot/audio-capture-and-tts.md) (v1.0 Part 1 shipped browser-native; this supersedes the v2 polish notes)
-**Branch:** work on `dev` directly per [feedback-no-prs-commit-to-dev](file:///Users/mark/.claude/projects/-Users-mark-dev-sunholo-cphu-aipla-app/memory/feedback_no_prs_commit_to_dev.md). Commit per milestone locally; `git push origin dev` at end of each phase after that phase's quality gates pass.
+**Branch:** work on `dev` directly per feedback-no-prs-commit-to-dev (`feedback_no_prs_commit_to_dev.md` — agent-memory note, on M's machine). Commit per milestone locally; `git push origin dev` at end of each phase after that phase's quality gates pass.
 **Estimate:** ~3.5-4d wall clock split into two phases:
 - **Phase A (TTS + read-aloud upgrade + auto-read toggle):** ~1.75d — ships independently to dev, fixes today's choppy-Sara feedback immediately, picks up proactive turns (1.1.2) for free
 - **Phase B (STT + dictation + teacher toggle):** ~1.5-2d — depends on Phase A's Protocol + registry infrastructure
@@ -62,7 +62,7 @@ No worktrees / sub-agents — sequential single-track, like PROACTIVE-SIM-REACTI
 
 ## Pre-conditions (M0 — must complete before M-A1)
 
-These are **ops tasks**, not engineering, but they block GCP-touching milestones. Run them first. Per [feedback-record-side-effects](file:///Users/mark/.claude/projects/-Users-mark-dev-sunholo-cphu-aipla-app/memory/feedback_record_side_effects.md): every API enable / IAM grant / bucket creation gets logged in `docs/ops/` so it can be Terraformed for test/prod.
+These are **ops tasks**, not engineering, but they block GCP-touching milestones. Run them first. Per feedback-record-side-effects (`feedback_record_side_effects.md` — agent-memory note, on M's machine): every API enable / IAM grant / bucket creation gets logged in `docs/ops/` so it can be Terraformed for test/prod.
 
 - [ ] **M0a — Enable APIs in `aipla-dev-2026`:**
   ```
@@ -257,7 +257,7 @@ These are **ops tasks**, not engineering, but they block GCP-touching milestones
 - `useVoiceConfig` caches per skillId, refetches on skillId change
 
 **Gates:**
-- `cd frontend && npm run quality:check` (the FULL variant per [feedback-pre-push-ci-parity](file:///Users/mark/.claude/projects/-Users-mark-dev-sunholo-cphu-aipla-app/memory/feedback_pre_push_ci_parity.md), not `quality:check:fast`)
+- `cd frontend && npm run quality:check` (the FULL variant per feedback-pre-push-ci-parity (`feedback_pre_push_ci_parity.md` — agent-memory note, on M's machine), not `quality:check:fast`)
 
 **Commit:** `feat(frontend): ReadAloudButton Cloud TTS path + useVoiceConfig hook (M-A7 sprint VOICE-PROVIDER)`
 
@@ -535,7 +535,7 @@ Mirroring the design doc's Success Criteria. Each line is a hard gate before spr
 - [ ] `make lint` + `make test-fast` + `npm run quality:check` all green
 - [ ] Phase B pushed to `dev`
 
-**Side-effects ledger (per [feedback-record-side-effects](file:///Users/mark/.claude/projects/-Users-mark-dev-sunholo-cphu-aipla-app/memory/feedback_record_side_effects.md)):**
+**Side-effects ledger (per feedback-record-side-effects (`feedback_record_side_effects.md` — agent-memory note, on M's machine)):**
 
 - [ ] `texttospeech.googleapis.com` enable recorded in `docs/ops/gcp-side-effects.md`
 - [ ] `speech.googleapis.com` enable recorded

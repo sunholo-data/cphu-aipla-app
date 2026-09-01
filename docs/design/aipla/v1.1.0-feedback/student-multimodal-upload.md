@@ -6,7 +6,7 @@
 **Estimated:** ~2d (base) + **~1d (no-person guardrail) + ~2h (units-loop prompt)** from the 9 June additions
 **Scope:** Fullstack — frontend upload button + thumbnail; backend multimodal message handling + Gemini Vertex call with image; **a person/face guardrail hook in the upload path**; skill prompts for handling image input + the units loop
 **Dependencies:** ADR-008 (Gemini multimodal via AILANG Parse — ready); **JB confirm on image-retention posture** (brief states images sent to Gemini but not retained in BQ; needs explicit JB sign-off); **M (GDPR) confirm on the guardrail detection approach** (Gemini vision pre-check vs on-device — different data postures)
-**Source brief:** [`june-03-feedback-sprint-brief.md` §7](file:///Users/mark/Documents/clients/cph-uni/strand-a-pedagogical-bot/prototypes/june-03-feedback-sprint-brief.md) + [`june-09-feedback-sprint-brief.md` §1](file:///Users/mark/Documents/clients/cph-uni/strand-a-pedagogical-bot/prototypes/june-09-feedback-sprint-brief.md) (guardrail + units loop)
+**Source brief:** [`june-03-feedback-sprint-brief.md` §7](../_scoping-snapshot/prototypes/june-03-feedback-sprint-brief.md) + [`june-09-feedback-sprint-brief.md` §1](../_scoping-snapshot/prototypes/june-09-feedback-sprint-brief.md) (guardrail + units loop)
 
 ## Relationship to existing planned doc
 

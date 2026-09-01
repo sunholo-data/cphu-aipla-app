@@ -5,7 +5,7 @@
 **Estimated**: 0.5d to embed in design conventions; 1d for YAML schema + InstructionProvider injection; ongoing AR + JB per-activity authoring effort
 **Scope**: Design standard (affects all activity docs + tutor system prompts); minor backend (skill config YAML schema); minor frontend (InstructionProvider context)
 **Dependencies**: [led-planck-skill.md](led-planck-skill.md) and [kinebot-migration.md](kinebot-migration.md) as the first activities to carry a DRA map; [session-analytics-rubric.md](../post-pilot/session-analytics-rubric.md) for the downstream analytics use
-**Pedagogical source-of-truth:** [`notes/2026-05-26-representational-competence-framework.md`](file:///Users/mark/Documents/clients/cph-uni/notes/2026-05-26-representational-competence-framework.md) — the Linder et al. 2024 paper summary (DOI: 10.1103/PhysRevPhysEducRes.20.010103). JB is a co-author. Full paper at UCPH library.
+**Pedagogical source-of-truth:** `notes/2026-05-26-representational-competence-framework.md` (private scoping-site file, not published) — the Linder et al. 2024 paper summary (DOI: 10.1103/PhysRevPhysEducRes.20.010103). JB is a co-author. Full paper at UCPH library.
 **Created**: 2026-05-27
 **Last Updated**: 2026-05-27
 

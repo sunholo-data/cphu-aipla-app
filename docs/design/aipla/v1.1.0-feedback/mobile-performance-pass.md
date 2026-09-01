@@ -6,7 +6,7 @@
 **Estimated:** ~1d profile + a per-bottleneck fix proposal; targeted fixes scoped after the profiling note.
 **Scope:** Frontend-led — `frontend/` bundle/loading + workbench iframe mount + chat first-render; light backend touch only if TTFT is implicated. Plus the perf tooling that doesn't exist yet (bundle analysis, web-vitals).
 **Dependencies:** none to start profiling. Couples to [bidirectional-voice-brief.md](bidirectional-voice-brief.md) (1.1.23) — mobile is the worst case for the voice latency budget; measure both on the same device.
-**Source brief:** [`notes/2026-06-15-teacher-feedback.md`](file:///Users/mark/Documents/clients/cph-uni/notes/2026-06-15-teacher-feedback.md) "Mobile performance" + [june-15-feedback.md](june-15-feedback.md)
+**Source brief:** `notes/2026-06-15-teacher-feedback.md` (private scoping-site file, not published) "Mobile performance" + [june-15-feedback.md](june-15-feedback.md)
 
 > **Investigation-first, by design.** This is not "ship mobile fixes" — it's "find the top-3 mobile
 > bottlenecks on a representative device, then propose a fix for each". We commit to fixes *after*

@@ -6,7 +6,7 @@
 **Estimated:** ~3–4d (A/B/C taxonomy + ingestion + ADK RAG corpus + ACL + authoring picker). **No separate vector-DB build** — ADK RAG (Vertex AI RAG Engine) is managed, so this is no longer gated on standing up pgvector.
 **Scope:** Fullstack — ADK RAG corpus + A/B/C taxonomy + ingestion via AILANG Parse + the ADK RAG retrieval tool (ACL-scoped) + class/level ACL + a "cite materials" picker in the activity builder + tutor grounding hook.
 **Dependencies:** **ADK RAG (Vertex AI RAG Engine, managed) is the v1 retrieval backend — no pgvector spend now.** The retrieval layer is **swap-shaped**: pgvector on Multivac ([1.3 `rag-pgvector-setup.md`](../SEQUENCE.md)) becomes the **Year-2 local/on-prem variant** (per `self-hosting.qmd`), not a v1 prerequisite. ADR-004 (AILANG Parse — deterministic ingestion of the 13 formats); ADR-010 (RAG); [teacher-activity-authoring.md](teacher-activity-authoring.md) (1.1.19 — `materials` references resolve into this library); [student-multimodal-upload.md](student-multimodal-upload.md) (1.1.7 — teacher uploads reuse the same retention posture)
-**Source brief:** [`june-09-feedback-sprint-brief.md` §A](file:///Users/mark/Documents/clients/cph-uni/strand-a-pedagogical-bot/prototypes/june-09-feedback-sprint-brief.md)
+**Source brief:** [`june-09-feedback-sprint-brief.md` §A](../_scoping-snapshot/prototypes/june-09-feedback-sprint-brief.md)
 
 > **Split out from teacher-activity-authoring (1.1.19) deliberately.** The 9 June brief folds the curriculum library *and* the equipment co-design into "design doc A (teacher-activity-authoring)." This doc takes the **library** half — a genuine standalone subsystem (storage, taxonomy, ingestion, ACL, retrieval) consumed by authoring *and* by runtime tutor grounding. The **co-design** half (AI proposes the missing workbench element around a teacher's equipment) stays a milestone in [teacher-activity-authoring.md](teacher-activity-authoring.md), because it is an authoring interaction, not a corpus. Two focused docs beat one sprawling one.
 
@@ -34,7 +34,7 @@ The 3 June brief already flagged "teacher activity creation from scratch" as nee
 - Ingestion is **deterministic** (AILANG Parse, zero LLM tokens) for the 13 supported formats.
 
 **Non-goals:**
-- The Strand-C **2010 national-exam archive** — that is copyright/IP + GDPR-gated and lives in Strand C scoping ([Part 3 of the brief](file:///Users/mark/Documents/clients/cph-uni/strand-a-pedagogical-bot/prototypes/june-09-feedback-sprint-brief.md)); **not** ingested here until cleared.
+- The Strand-C **2010 national-exam archive** — that is copyright/IP + GDPR-gated and lives in Strand C scoping ([Part 3 of the brief](../_scoping-snapshot/prototypes/june-09-feedback-sprint-brief.md)); **not** ingested here until cleared.
 - The graph-DB / concept-extraction layer (Strand C, deferred per parent SEQUENCE 1.3 exclusion).
 - AI-generated curriculum content — the library holds **human-authored, provenance-bearing** material only.
 - The equipment co-design interaction (stays in [1.1.19](teacher-activity-authoring.md)).

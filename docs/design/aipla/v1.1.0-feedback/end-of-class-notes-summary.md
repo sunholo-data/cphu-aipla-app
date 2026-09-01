@@ -6,7 +6,7 @@
 **Estimated:** ~1d **on top of** [student-multimodal-upload.md](student-multimodal-upload.md) (1.1.7) and [exit-ticket.md](exit-ticket.md) (1.1.8) — it composes their surfaces, it does not re-build them.
 **Scope:** Fullstack — reuses the 1.1.7 multimodal upload path; adds a session-end "summarise my notes" entry point in the 1.1.8 exit-ticket / session-end flow + a goal-referenced summary prompt + summary persistence.
 **Dependencies:** [student-multimodal-upload.md](student-multimodal-upload.md) (1.1.7 — the upload + Gemini-multimodal path; **must land first**); [exit-ticket.md](exit-ticket.md) (1.1.8 — session-end surface this hangs off); [dra-activity-framework.md](../v1.0.0-pilot/dra-activity-framework.md) (1.K — the activity's machine-readable learning goals / DRA map the summary measures against); image-upload guardrail from [student-multimodal-upload.md](student-multimodal-upload.md) §Guardrail (no-person-in-frame)
-**Source brief:** [`june-09-feedback-sprint-brief.md` §2](file:///Users/mark/Documents/clients/cph-uni/strand-a-pedagogical-bot/prototypes/june-09-feedback-sprint-brief.md)
+**Source brief:** [`june-09-feedback-sprint-brief.md` §2](../_scoping-snapshot/prototypes/june-09-feedback-sprint-brief.md)
 
 ## Problem
 

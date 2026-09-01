@@ -121,6 +121,14 @@ jobs:
         # real turn / read-only). Shipped-then-fixed for the calculator + table;
         # this makes a dropped card fail the build instead of a human's memory.
         run: bash scripts/audit-trust-cards.sh
+      - name: No laptop-bound documentation links
+        # P4.2: 138 citations in docs/ were file:///Users/<someone>/... — the
+        # scoping site, agent-memory notes, and two other local trees. Dead for
+        # everyone but their author, which for a project whose handover runs
+        # through its documentation is a handover blocker. AD starts ~1 Oct with
+        # no in-person overlap, so the docs ARE the handover.
+        run: bash scripts/check-local-path-links.sh
+
       - name: Brand-drift gate (no hardcoded red-* on brand surfaces)
         # 1.1.74: the app shipped two brand primaries for months — --primary was
         # the inherited Sunholo orange while /project hardcoded KU red, so the

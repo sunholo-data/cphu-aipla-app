@@ -17,7 +17,7 @@ The pieces are all *adjacent* in the current code but **not connected**:
 - `AccessControl` already supports a `tagged` access type via `User.group_tags ∩ AccessControl.tags` (5 access types: `private`, `public`, `domain`, `specific`, `tagged`). The docstring at [backend/db/models/access.py:12](../../../../backend/db/models/access.py#L12) calls `tagged` "the B2B team-sharing primitive" — exactly what we need.
 - `AnonymousGroupAuthProvider` mints group JWTs but always sets `group_tags=frozenset()` ([backend/auth/group_id_auth.py:175](../../../../backend/auth/group_id_auth.py#L175)). Groups have no tags → tag-based skill access is unreachable from the student side.
 - Firebase Auth is wired ([frontend/src/lib/firebase.ts](../../../../frontend/src/lib/firebase.ts) — `signInWithRedirect` + `GoogleAuthProvider` exist) but no teacher route uses it; the home page just routes anon-group users straight to `/group`.
-- The scoping site ([architecture.qmd ADR-001](file:///Users/mark/Documents/clients/cph-uni/architecture.qmd#adr-001-student-identity-no-auth-anonymous-group-ids) and [strands.qmd](file:///Users/mark/Documents/clients/cph-uni/strands.qmd) `manage-class` row) decided teachers get UCPH SSO *or* Firebase federated; the v1 scope commits to `manage-class` as a teacher skill. The auth-mechanism choice is the "open question for JB" still flagged in the ADR.
+- The scoping site ([architecture.qmd ADR-001](https://www.sunholo.com/aipla/architecture.html#adr-001-student-identity-no-auth-anonymous-group-ids) and [strands.qmd](https://www.sunholo.com/aipla/strands.html) `manage-class` row) decided teachers get UCPH SSO *or* Firebase federated; the v1 scope commits to `manage-class` as a teacher skill. The auth-mechanism choice is the "open question for JB" still flagged in the ADR.
 
 **Current State:**
 - No `Class` entity in Firestore. Group codes ([anon_groups collection](../../../../backend/auth/group_id_auth.py)) exist standalone with no parent. Teachers can't see their own classes because there's no concept of one.
@@ -369,8 +369,8 @@ Steps 1, 2, 3, 4, 7 are new endpoints. Step 5 is a teacher physical act. Step 6 
 
 - [../SEQUENCE.md](../SEQUENCE.md) — top-level AIPLA roadmap; this doc consolidates the originally-separate rows 1.6 (`teacher-auth-ucph-sso.md`) and 1.7 (`class-and-group-management.md`)
 - [./SEQUENCE.md](SEQUENCE.md) — v1.0.0-pilot version-local sequence
-- [ADR-001](file:///Users/mark/Documents/clients/cph-uni/architecture.qmd#adr-001-student-identity-no-auth-anonymous-group-ids) — anonymous group IDs (this doc's parent decision)
-- [strands.qmd](file:///Users/mark/Documents/clients/cph-uni/strands.qmd) — `manage-class` skill row in the v1 catalogue
+- [ADR-001](https://www.sunholo.com/aipla/architecture.html#adr-001-student-identity-no-auth-anonymous-group-ids) — anonymous group IDs (this doc's parent decision)
+- [strands.qmd](https://www.sunholo.com/aipla/strands.html) — `manage-class` skill row in the v1 catalogue
 - [backend/db/models/access.py](../../../../backend/db/models/access.py) — 5-type AccessControl model (untouched by this design)
 - [backend/auth/group_id_auth.py](../../../../backend/auth/group_id_auth.py) — anon-group JWT minting (modified: now carries class_id + group_tags)
 - [v0.1.0-jutland/group-tooling.md](../v0.1.0-jutland/group-tooling.md) — `aiplatform groups` CLI v0.1; the `aiplatform class` family extends this pattern

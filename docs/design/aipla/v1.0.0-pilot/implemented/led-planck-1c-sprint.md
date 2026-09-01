@@ -2,7 +2,7 @@
 
 **Sprint ID:** `LED-PLANCK-1C`
 **Design doc:** [led-planck-skill.md](led-planck-skill.md) — refreshed 2026-05-27 (`70f32f7`)
-**Pedagogical brief:** [led-planck-skill-brief.md](file:///Users/voightkampff/dev/sunholo-data/aipla/strand-a-pedagogical-bot/prototypes/led-planck-skill-brief.md)
+**Pedagogical brief:** [led-planck-skill-brief.md](../../_scoping-snapshot/prototypes/led-planck-skill-brief.md)
 **Branch:** `feature/led-planck-skill` (executor scratch; FF-merge to `dev` per AIPLA workflow)
 **Base commit:** `70f32f7` (dev HEAD as of 2026-05-27)
 **Promotion path:** `dev` → `test` (PR-gated) → `prod` (PR-gated). **No PR for `dev`.**

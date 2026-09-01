@@ -13,7 +13,7 @@
 | Peer pressure of friends who use AI raises standards | Research observation | Pilot research angle. No app task. |
 | Computationally grounded theory as a comparison to network | Research method | Strand C scoping (analysis method). → scoping. |
 | Teachers not using AI in teaching, only as a faster Google; teacher used it to research the subject | Research / adoption observation | Distribution/adoption signal → JB. No app task. |
-| When a student is assessed it needs to be individual | Assessment tension | In tension with the anonymous-group model ([ADR-001](file:///Users/mark/Documents/clients/cph-uni/architecture.qmd)); assessment/Strand-C scoping. → scoping. |
+| When a student is assessed it needs to be individual | Assessment tension | In tension with the anonymous-group model ([ADR-001](https://www.sunholo.com/aipla/architecture.html)); assessment/Strand-C scoping. → scoping. |
 | Students choosing personas to teach | Mostly shipped | Personas **SHIPPED** but **teacher-set per class** (`ClassPersonaPanel` = "the ONE identity choice"). Student-selection is a deliberate non-goal today. |
 | www.myphysicslab.com | Sim source | Artefact candidate (same lane as jitt.dk / PhET). Track for the vetted artefact library. |
 | Noah Finkelstein — prompts to create physics simulations | Reference | `physics-sim-builder` prompt reference; research. |

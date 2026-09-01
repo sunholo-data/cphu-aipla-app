@@ -38,7 +38,7 @@
 **Estimated:** ~0.5d frontend + ~1h prompt update + ~0.5d backend (summary structure)
 **Scope:** Frontend (collapse-by-default transcript + download); backend (summary-generation prompt update); session-report rendering
 **Dependencies:** [teacher-insights-dashboard.md](../v1.0.0-pilot/implemented/teacher-insights-dashboard.md) (shipped); [chat-log-pipeline.md](../v1.0.0-pilot/implemented/chat-log-pipeline.md) (shipped)
-**Source brief:** [`june-03-feedback-sprint-brief.md` §4](file:///Users/mark/Documents/clients/cph-uni/strand-a-pedagogical-bot/prototypes/june-03-feedback-sprint-brief.md)
+**Source brief:** [`june-03-feedback-sprint-brief.md` §4](../_scoping-snapshot/prototypes/june-03-feedback-sprint-brief.md)
 
 ## Problem
 
@@ -164,7 +164,7 @@ The summarize call regenerates if `summary_based_on_turn_count < current_turns_c
 - [ ] Summary prompt produces all 4-5 sections in the documented order
 - [ ] Sim-parameters section is *grounded in actual workbench events* — a session with no Boldkast runs does not produce hallucinated angle/velocity values
 - [ ] Summary is cached on the session doc; opening the report a second time hits the cache (no LLM call) when turn count is unchanged
-- [ ] No emoji in summary or UI (per [feedback-no-emoticons](file:///Users/mark/.claude/projects/-Users-mark-dev-sunholo-cphu-aipla-app/memory/feedback_no_emoticons.md))
+- [ ] No emoji in summary or UI (per feedback-no-emoticons (`feedback_no_emoticons.md` — agent-memory note, on M's machine))
 - [ ] `npm run quality:check` + `make lint` + `make test-fast` green
 - [ ] Manual: open three real (or seeded) session reports of varying length; summary reads well; transcript is one click away
 

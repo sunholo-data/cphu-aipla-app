@@ -5,7 +5,7 @@
 **Estimated**: ~1.5–2 days
 **Scope**: Backend (Firestore session-store doc + resume routes + chat-history restore from session state), frontend (resume banner + workbench-state restore hook), artefact-side (handle `aipla:restore` on mount — required for all current + future artefacts)
 **Dependencies**: v0.1 shipped; ADR-001 (group ID lifecycle); the existing `ChatSessionIndex` bootstrap (session bootstrap endpoint shipped 2026-05-21, [implemented/](implemented/))
-**Pedagogical source-of-truth:** [`session-persistence.md`](file:///Users/mark/Documents/clients/cph-uni/strand-a-pedagogical-bot/prototypes/session-persistence.md) in the scoping site
+**Pedagogical source-of-truth:** [`session-persistence.md`](../../_scoping-snapshot/prototypes/session-persistence.md) in the scoping site
 **Created**: 2026-05-25
 **Last Updated**: 2026-06-02
 
@@ -253,11 +253,11 @@ If the group code is revoked (teacher action / ADR-001 TTL), `sessions/{group_id
 
 ## Related Documents
 
-- **Source of truth:** [`session-persistence.md`](file:///Users/mark/Documents/clients/cph-uni/strand-a-pedagogical-bot/prototypes/session-persistence.md)
+- **Source of truth:** [`session-persistence.md`](../../_scoping-snapshot/prototypes/session-persistence.md)
 - [SEQUENCE.md](SEQUENCE.md) row 1.F
 - [teacher-ui.md](teacher-ui.md) (1.G) — provides the reset button surface
 - [teacher-permission-model.md](teacher-permission-model.md) (1.A) — group/class auth that this builds on
-- [`led-planck-skill-brief.md`](file:///Users/mark/Documents/clients/cph-uni/strand-a-pedagogical-bot/prototypes/led-planck-skill-brief.md), [`kinebot-migration-brief.md`](file:///Users/mark/Documents/clients/cph-uni/strand-a-pedagogical-bot/prototypes/kinebot-migration-brief.md) — both will need `aipla:restore` handlers added per the artefact contract
+- [`led-planck-skill-brief.md`](../../_scoping-snapshot/prototypes/led-planck-skill-brief.md), [`kinebot-migration-brief.md`](../../_scoping-snapshot/prototypes/kinebot-migration-brief.md) — both will need `aipla:restore` handlers added per the artefact contract
 - ADR-001 (group ID lifecycle), ADR-005 (chat log storage)
 
 ---

@@ -6,7 +6,7 @@
 **Estimated:** ~1d
 **Scope:** Fullstack — backend session-event loop + new endpoint + skill-config fields + frontend workbench-event wiring
 **Dependencies:** [proactive-tutor.md](../../v1.0.0-pilot/proactive-tutor.md) Phase A (shipped); workbench-event stream from MCPAPP-SPEC + [workbench-state-debounce.md](../../v1.0.0-pilot/implemented/workbench-state-debounce.md) (shipped)
-**Source brief:** [`june-03-feedback-sprint-brief.md` §2](file:///Users/mark/Documents/clients/cph-uni/strand-a-pedagogical-bot/prototypes/june-03-feedback-sprint-brief.md)
+**Source brief:** [`june-03-feedback-sprint-brief.md` §2](../../_scoping-snapshot/prototypes/june-03-feedback-sprint-brief.md)
 
 ## Relationship to existing proactive-tutor doc
 

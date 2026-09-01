@@ -5,7 +5,7 @@
 **Estimated**: ~0.5 day
 **Scope**: Frontend (BoldkastSimFrame + StaticArtefactFrame + future LED Planck / KineBot wrappers) + artefact-side debounce in the Boldkast HTML
 **Dependencies**: v0.1 shipped; sprint MCPAPP-SPEC merged (partial overlap — see "Delta vs current state" below)
-**Pedagogical source-of-truth:** [`workbench-state-debounce.md`](file:///Users/mark/Documents/clients/cph-uni/strand-a-pedagogical-bot/prototypes/workbench-state-debounce.md) in the scoping site
+**Pedagogical source-of-truth:** [`workbench-state-debounce.md`](../../_scoping-snapshot/prototypes/workbench-state-debounce.md) in the scoping site
 **Created**: 2026-05-25
 **Last Updated**: 2026-06-02
 
@@ -274,7 +274,7 @@ This sprint touches the MCP App artefact (`boldkast/v1/index.html`), the host fr
 
 ## Related Documents
 
-- **Source of truth:** [`workbench-state-debounce.md`](file:///Users/mark/Documents/clients/cph-uni/strand-a-pedagogical-bot/prototypes/workbench-state-debounce.md)
+- **Source of truth:** [`workbench-state-debounce.md`](../../_scoping-snapshot/prototypes/workbench-state-debounce.md)
 - [SEQUENCE.md](SEQUENCE.md) row 1.E
 - [boldkast-mcp-app.md](../v0.1.0-jutland/boldkast-mcp-app.md), [implemented/mcp-app-iframe-spec-compliance.md](implemented/mcp-app-iframe-spec-compliance.md) — current state this builds on
 - [led-planck-skill.md](led-planck-skill.md), [kinebot-migration.md](kinebot-migration.md) — pick up the convention from the start

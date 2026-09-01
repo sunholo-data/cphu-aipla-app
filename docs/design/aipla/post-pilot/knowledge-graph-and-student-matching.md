@@ -3,7 +3,7 @@
 **Status:** **Design / vision (NOT committed)** — Year-2 / post-pilot. Execution-layer design; the *pedagogical & research* framing lives in the scoping site's **Strand C** (don't re-derive it here).
 **Last Updated:** 2026-06-30
 **Origin:** Excitement at the **29 June** research session ([../v1.1.0-feedback/june-29-feedback.md](../v1.1.0-feedback/june-29-feedback.md)) — "the AI helps build a network graph of required topics, helps build it, monitors what students learn, and we record it over time" + "match students by what their group-IDs look like — who'd most benefit from meeting in person." Extends the **23 June** C3 thread ("standard map of knowledge; AI generates the learning map / a student model").
-**Strand:** **C** (research instrumentation + student models). This doc is the *execution sketch*; the model choice, validity, and research questions are Strand C in [`strands.qmd`](file:///Users/mark/Documents/clients/cph-uni/strands.qmd) + [`evaluation.qmd`](file:///Users/mark/Documents/clients/cph-uni/evaluation.qmd).
+**Strand:** **C** (research instrumentation + student models). This doc is the *execution sketch*; the model choice, validity, and research questions are Strand C in [`strands.qmd`](https://www.sunholo.com/aipla/strands.html) + [`evaluation.qmd`](https://www.sunholo.com/aipla/evaluation.html).
 **Gated on:** pilot data flowing (chat-log pipeline + DRA tagging producing longitudinal signal); JB/AR Strand-C scoping of the knowledge model; the analytics rubric ([session-analytics-rubric.md](session-analytics-rubric.md), 2.5) + DRA framework ([1.K dra-activity-framework](../v1.0.0-pilot/dra-activity-framework.md)). **Not before the pilot.**
 
 > **Why this doc exists.** The 29-June idea is genuinely three capabilities riding one substrate (a per-group **student model**). Capturing the architecture now keeps the v1 pilot choices (what we log, how the DRA tags map to concepts, the group-ID keying) from painting Year-2 into a corner — the same "design now so we don't foreclose it" rationale as the live-dashboard R1 gate. **It is a vision + architecture sketch, not a build spec**; nothing here is committed, and the breadth-over-depth steer says we do NOT build this during the contract unless the pilot demands it. The research *why* (which knowledge model, does matching help, social-network evolution) is **Strand C** and stays in the scoping site.
@@ -95,7 +95,7 @@ cross-group matching (3) remain Year-2.
 no cross-group anything). It has grown from "an element" to "a small formative-assessment instrument," so
 weigh it as a feature, not a widget. Pull it forward (and at what depth — list-only author + manual check, vs
 graph + AI check-off), or keep it parked here? Counterweight: the activity-element palette is already rich,
-and the [UX-coherence gate](file:///Users/mark/.claude/projects/-Users-mark-dev-sunholo-cphu-aipla-app/memory/project_ux_coherence_gate.md)
+and the UX-coherence gate (`project_ux_coherence_gate.md` — agent-memory note, on M's machine)
 says nothing new earns its place until the current surfaces are coherent and a teacher would actually reach
 for it.
 
@@ -166,4 +166,4 @@ exit tickets (1.1.8) ──────────────┘    (tag → c
 - [../v1.1.0-feedback/exit-ticket.md](../v1.1.0-feedback/exit-ticket.md) (1.1.8) — self-report signal into the mastery vector.
 - [../v1.1.0-feedback/curriculum-library.md](../v1.1.0-feedback/curriculum-library.md) (1.1.25) — corpus the graph-builder reads.
 - [SEQUENCE 1.3](../SEQUENCE.md) — the deferred Strand-C graph DB (the scale path).
-- Scoping site **Strand C** ([`strands.qmd`](file:///Users/mark/Documents/clients/cph-uni/strands.qmd)) — the pedagogical/research source of truth (C3 student models, the resources framework, the social-network research design).
+- Scoping site **Strand C** ([`strands.qmd`](https://www.sunholo.com/aipla/strands.html)) — the pedagogical/research source of truth (C3 student models, the resources framework, the social-network research design).

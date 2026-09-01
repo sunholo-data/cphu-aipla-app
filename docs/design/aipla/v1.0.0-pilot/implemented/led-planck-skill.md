@@ -5,14 +5,14 @@
 **Estimated**: ~2 days
 **Scope**: Fullstack — backend (skill template + tools opt-out config + cover image), frontend (`LedPlanckLabFrame` host wrapper + lesson cover), artefact (postMessage wiring on AR's existing HTML, commit-on-submit per 1.E-Ph2)
 **Dependencies**: v0.1 shipped; [implemented/mcp-app-iframe-spec-compliance.md](implemented/mcp-app-iframe-spec-compliance.md) merged (sandbox-proxy + `StaticArtefactFrame` ready); [lesson-picker.md](lesson-picker.md) shipped (so students can find it); [workbench-state-debounce.md](workbench-state-debounce.md) §Phase 2 (commit-on-submit convention this skill adopts from day one); ADR-013 pipeline scan; [boldkast-mcp-app.md](../v0.1.0-jutland/boldkast-mcp-app.md) as reference implementation
-**Pedagogical source-of-truth:** [`led-planck-skill-brief.md`](file:///Users/voightkampff/dev/sunholo-data/aipla/strand-a-pedagogical-bot/prototypes/led-planck-skill-brief.md) in the scoping site (M's machine: `~/Documents/clients/cph-uni/strand-a-pedagogical-bot/prototypes/led-planck-skill-brief.md`) — full Danish Socratic tutor prompt, skill config YAML, postMessage event shapes, deploy checklist, accuracy notes. **The brief is the design for the lesson's pedagogy and tutor behaviour; this doc is the execution layer that turns the brief into shippable code in `cphu-aipla-app`.**
-**Lab source HTML:** `/Users/voightkampff/dev/sunholo-data/aipla/assets/examples/led-planck-virtual-lab.html` on this machine (40 KB, self-contained, zero external fetches). Forks see M's machine at `~/Documents/clients/cph-uni/sources/leds_planck_virtual_lab.html` — translate per [reference-scoping-site-path](file:///Users/voightkampff/.claude/projects/-Users-voightkampff-dev-sunholo-data-cphu-aipla-app/memory/reference_scoping_site_path.md) memory.
+**Pedagogical source-of-truth:** [`led-planck-skill-brief.md`](../../_scoping-snapshot/prototypes/led-planck-skill-brief.md) in the scoping site (M's machine: `~/Documents/clients/cph-uni/strand-a-pedagogical-bot/prototypes/led-planck-skill-brief.md`) — full Danish Socratic tutor prompt, skill config YAML, postMessage event shapes, deploy checklist, accuracy notes. **The brief is the design for the lesson's pedagogy and tutor behaviour; this doc is the execution layer that turns the brief into shippable code in `cphu-aipla-app`.**
+**Lab source HTML:** `/Users/voightkampff/dev/sunholo-data/aipla/assets/examples/led-planck-virtual-lab.html` on this machine (40 KB, self-contained, zero external fetches). Forks see M's machine at `~/Documents/clients/cph-uni/sources/leds_planck_virtual_lab.html` — translate per reference-scoping-site-path — `reference_scoping_site_path.md` (agent-memory note, not a project file) memory.
 **Created**: 2026-05-24
 **Last Updated**: 2026-05-27
 
 ## Problem Statement
 
-v0.1 ships one student-facing physics skill (`problem-set-hints` / Boldkast). Per [strands.qmd](file:///Users/mark/Documents/clients/cph-uni/strands.qmd) line 144, v1 commits to "two student-facing chat skills" — the second is the LED Planck virtual lab tutor. The pedagogical work is done (AR built the lab HTML; the brief documents the tutor prompt + lesson structure). What's missing is the **technical execution**:
+v0.1 ships one student-facing physics skill (`problem-set-hints` / Boldkast). Per [strands.qmd](https://www.sunholo.com/aipla/strands.html) line 144, v1 commits to "two student-facing chat skills" — the second is the LED Planck virtual lab tutor. The pedagogical work is done (AR built the lab HTML; the brief documents the tutor prompt + lesson structure). What's missing is the **technical execution**:
 
 - Where does the artefact HTML live in `cphu-aipla-app`?
 - Which existing patterns does it follow (Boldkast / StaticArtefactFrame / mcp-app-artefact skill)?
@@ -49,7 +49,7 @@ The brief answers the **pedagogical** "what" (Socratic prompt, three teaching ph
 - `aiplatform sessions iframe-context <session_id>` dumps the `mcp_app_context.led-planck.state` payload showing the same shape as `mcp_app_context.boldkast.state` (proves the spec-compliant path is form-factor-agnostic).
 - ADR-013 pipeline scan passes: no `fetch(`, no `XMLHttpRequest`, no external `<script src>`, total artefact size < 200 KB.
 - All existing AIPLA tests still pass (`make test-fast` + `npm run test:run`); LED Planck-specific tests add 8–10 vitest cases for the host wrapper + 2 sandbox-side tests for the artefact serving.
-- Danish tutor prompt (verbatim from the brief, ~60 lines) loads into Firestore via `platform_seed.py` without char-cap issues (10K limit per [feedback-pre-push-ci-parity](file:///Users/mark/.claude/projects/-Users-mark-dev-sunholo-cphu-aipla-app/memory/feedback_pre_push_ci_parity.md) memory).
+- Danish tutor prompt (verbatim from the brief, ~60 lines) loads into Firestore via `platform_seed.py` without char-cap issues (10K limit per feedback-pre-push-ci-parity (`feedback_pre_push_ci_parity.md` — agent-memory note, on M's machine) memory).
 
 **Non-Goals:**
 - Generating the lab artefact via AI (`physics-lab-builder` skill — Year-2 per strands.qmd).
@@ -240,7 +240,7 @@ The "no card on incorrect placement" choice mirrors Boldkast's "no card on un-re
 
 ## Testing Strategy
 
-Following the [feedback-self-testable-loops](file:///Users/mark/.claude/projects/-Users-mark-dev-sunholo-cphu-aipla-app/memory/feedback_self_testable_loops.md) principle — write tests Claude can run without M clicking around.
+Following the feedback-self-testable-loops (`feedback_self_testable_loops.md` — agent-memory note, on M's machine) principle — write tests Claude can run without M clicking around.
 
 **Frontend (vitest):**
 
@@ -326,7 +326,7 @@ wc -c infrastructure/mcp-sandbox/artefacts/led-planck/v1/index.html
 
 ## Related Documents
 
-- **Source of truth (pedagogy + tutor prompt):** [`led-planck-skill-brief.md`](file:///Users/voightkampff/dev/sunholo-data/aipla/strand-a-pedagogical-bot/prototypes/led-planck-skill-brief.md) on this machine (M's machine: `~/Documents/clients/cph-uni/strand-a-pedagogical-bot/prototypes/led-planck-skill-brief.md`) — see [reference-scoping-site-path](file:///Users/voightkampff/.claude/projects/-Users-voightkampff-dev-sunholo-data-cphu-aipla-app/memory/reference_scoping_site_path.md) memory
+- **Source of truth (pedagogy + tutor prompt):** [`led-planck-skill-brief.md`](../../_scoping-snapshot/prototypes/led-planck-skill-brief.md) on this machine (M's machine: `~/Documents/clients/cph-uni/strand-a-pedagogical-bot/prototypes/led-planck-skill-brief.md`) — see reference-scoping-site-path — `reference_scoping_site_path.md` (agent-memory note, not a project file) memory
 - [SEQUENCE.md](SEQUENCE.md) row 1.C
 - [teacher-permission-model.md](teacher-permission-model.md) — 1.A; LED Planck becomes assignable to classes once this lands (already shipped 2026-05-26)
 - [lesson-picker.md](lesson-picker.md) — 1.B; how students discover this lesson (already shipped 2026-05-26)
