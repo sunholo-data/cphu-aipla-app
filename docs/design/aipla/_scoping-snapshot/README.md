@@ -13,7 +13,7 @@ The scoping site has two kinds of public content, and they get two different tre
 
 | Kind | Treatment | Reason |
 |---|---|---|
-| The **10 rendered `.qmd` pages** (`index`, `about`, `strands`, `examples`, `timeline`, `architecture`, `evaluation`, `self-hosting`, `led-planck`, `kinebot`) | **Linked to the public site**, `https://www.sunholo.com/aipla/<page>.html` | They are published, actively maintained, and carry the ADRs. A copy here would go stale the first time an ADR is amended — and `CLAUDE.md` explicitly warns against restoring the scoping site wholesale into this repo |
+| The **10 rendered `.qmd` pages** (`index`, `about`, `strands`, `examples`, `timeline`, `architecture`, `evaluation`, `self-hosting`, `led-planck`, `kinebot`) | **Linked to the public site**, now `https://aipla.ku.dk/project/...` (see `CLAUDE.md` "How to cite the scoping site" for the per-page mapping; the old `sunholo.com/aipla` URLs still serve the retiring Quarto site until cutover completes) | They are published, actively maintained, and carry the ADRs. A copy here would go stale the first time an ADR is amended — and `CLAUDE.md` explicitly warns against restoring the scoping site wholesale into this repo |
 | The **prototype briefs** under `strand-a-pedagogical-bot/prototypes/` | **Snapshotted here**, in `prototypes/` | They are git-tracked but **not** in the Quarto render whitelist, so they have no public URL. A snapshot is the only way to reach them |
 | The **private dirs** (`briefs/`, `notes/`, `admin/`, `sources/`) | **Not copied, and never should be** | Gitignored in the scoping repo — they hold real names, raw correspondence and contract details. Citations to them have been converted to unlinked plain text naming the file |
 

@@ -9,7 +9,7 @@ of it is inherited-template history. Read this before browsing.
 |---|---|
 | **The AIPLA build sequence / roadmap** (what's shipped, what's next) | [`aipla/SEQUENCE.md`](aipla/SEQUENCE.md) |
 | A specific AIPLA feature's execution design (paths, wire shapes, acceptance) | `aipla/<version>/` — `v0.1.0-jutland`, `v1.0.0-pilot`, `v1.1.0-feedback`, `v2.0.0-handover`, `post-pilot` |
-| **Product / pedagogical design** (ADRs 001–015, strands, timeline, evaluation) | the **AIPLA scoping site** (public preview <https://www.sunholo.com/aipla/>) — *not in this repo* |
+| **Product / pedagogical design** (ADRs 001–015, strands, timeline, evaluation) | the **AIPLA scoping site** (public site <https://aipla.ku.dk/project>) — *not in this repo* |
 | Maintainability & handover plan | [`aipla/v1.1.0-feedback/handover-maintainability-audit.md`](aipla/v1.1.0-feedback/handover-maintainability-audit.md) + its `-sprint.md` |
 
 **The split, in one line:** *execution* design (how it's built in this repo) lives

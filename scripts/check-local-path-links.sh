@@ -18,7 +18,7 @@ cd "$(dirname "$0")/.."
 PATTERN='file:///Users/'
 
 # The snapshot README explains the migration and quotes the old form.
-hits=$(grep -rn --include='*.md' "$PATTERN" docs/ 2>/dev/null \
+hits=$(grep -rn --include='*.md' "$PATTERN" docs 2>/dev/null \
   | grep -v '^docs/design/aipla/_scoping-snapshot/README.md:' \
   || true)
 
@@ -28,7 +28,7 @@ if [[ -n "$hits" ]]; then
   echo "$hits"
   echo
   echo "These are dead for everyone but their author. Instead:"
-  echo "  * a rendered scoping page -> https://www.sunholo.com/aipla/<page>.html"
+  echo "  * a rendered scoping page -> https://aipla.ku.dk/project/<path>"
   echo "  * a prototype brief       -> docs/design/aipla/_scoping-snapshot/prototypes/"
   echo "  * anything private        -> no link; name the file as plain text"
   echo

@@ -44,13 +44,22 @@ inside a 3-year research programme.
 ### Source of truth for AIPLA design
 
 **The scoping site is a separate Quarto repository, `sunholo-data/aipla`**
-(published at <https://www.sunholo.com/aipla/>; checked out on this machine at
-`~/dev/sunholo-data/aipla`). Its public-safe content has been
-audited and migrated into this app. Maintained English project copy now lives
-under `frontend/content/project/` and renders at `/project`, including nested
+(checked out on this machine at `~/dev/sunholo-data/aipla`; on this laptop it is
+still at the pre-move path `~/Documents/clients/cph-uni` — reconcile before
+trusting either). Its public-safe content has been audited and migrated into
+this app. Maintained English project copy now lives under
+`frontend/content/project/` and renders at `/project`, including nested
 activity case studies. Every Markdown file must include content status, owner,
 reviewed date, review deadline, order, and navigation visibility. Run
 `cd frontend && npm run check:project-content` after editing it.
+
+**The Quarto site itself was retired 2026-09-01** (`sunholo-data/aipla`
+commit `92133d9`, still unpushed as of this note). `https://www.sunholo.com/aipla/`
+now redirects page-for-page to **`https://aipla.ku.dk/project`** — that domain,
+not sunholo.com, is the current public site. See
+[docs/ops/project-site-cutover.md](docs/ops/project-site-cutover.md) for the
+cutover sequencing (the redirect only goes live after production acceptance;
+until then the old Quarto site stays up).
 
 Use the legacy source for historical AIPLA design; do not restore it wholesale
 or treat its volatile schedules, model rankings, API-key demos, and hosting
@@ -78,9 +87,24 @@ starts ~1 Oct with no in-person overlap with M.
 
 | Citing | Use |
 |---|---|
-| One of the 10 **rendered pages** (`index`, `about`, `strands`, `examples`, `timeline`, `architecture`, `evaluation`, `self-hosting`, `led-planck`, `kinebot`) | `https://www.sunholo.com/aipla/<page>.html#anchor` |
+| `index.qmd` | `https://aipla.ku.dk/project` |
+| `about.qmd` | `https://aipla.ku.dk/project/about` |
+| `strands.qmd` | `https://aipla.ku.dk/project/workstreams` |
+| `examples.qmd` | `https://aipla.ku.dk/project/activities` |
+| `timeline.qmd` | `https://aipla.ku.dk/project/progress` |
+| `architecture.qmd` (ADRs) | `https://aipla.ku.dk/project/platform` — anchors (`#adr-NNN-...`) are **not** guaranteed to survive the migration; verify before citing one |
+| `evaluation.qmd` | `https://aipla.ku.dk/project/evaluation` |
+| `self-hosting.qmd` | `https://aipla.ku.dk/project/data-and-hosting` |
+| `led-planck.qmd` | `https://aipla.ku.dk/project/activities/led-planck` |
+| `kinebot.qmd` | `https://aipla.ku.dk/project/activities/kinebot` |
 | A **prototype brief** (`strand-a-pedagogical-bot/prototypes/*.md`, tracked but not rendered) | the pinned snapshot: [`docs/design/aipla/_scoping-snapshot/prototypes/`](docs/design/aipla/_scoping-snapshot/) |
 | Anything in `briefs/`, `notes/`, `admin/`, `sources/` | **no link** — name the file as plain text and mark it private |
+
+The old `https://www.sunholo.com/aipla/<page>.html` form still serves the
+original Quarto pages today — the redirect is built but not yet enabled (gated
+on production acceptance, per the cutover doc above). Cite the new domain
+directly regardless; it is the one that will still resolve once the cutover
+completes.
 
 `scripts/check-local-path-links.sh` (`make check-local-path-links`) fails the
 build on any reintroduced ``` (local path — not in this repo)`, so this cannot
