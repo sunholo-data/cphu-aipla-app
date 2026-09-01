@@ -21,8 +21,24 @@ service cloud.firestore {
       return isAuthenticated() && request.auth.token.email != null;
     }
 
+    // Platform admin.
+    //
+    // The `admin: true` Firebase CUSTOM CLAIM is the source of truth, granted
+    // per-identity with `aiplatform --env <env> users grant-admin <uid>` (the
+    // same SA-allowlisted `/api/admin/*` path as the researcher claim). See
+    // docs/ops/runbooks/admin-identity.md.
+    //
+    // The email literal is a TRANSITIONAL FALLBACK, not a second source of
+    // truth. It exists so that deploying these rules could not lock out the
+    // one admin who existed before any claim had been granted. **Delete it**
+    // once grant-admin has been run on dev, test and prod — a person's address
+    // baked into security rules is a handover landmine (P4.4), and it is the
+    // reason this function was rewritten.
     function isAdmin() {
-      return isIdentified() && request.auth.token.email == 'mark@aitanalabs.com';
+      return isIdentified() && (
+        request.auth.token.admin == true ||
+        request.auth.token.email == 'mark@aitanalabs.com'
+      );
     }
 
     // Generic 5-type access-control evaluator.

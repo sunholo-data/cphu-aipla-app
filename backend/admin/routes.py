@@ -99,22 +99,45 @@ class ResearcherClaimRequest(BaseModel):
     uid: str
 
 
-def _set_researcher_claim(uid: str, *, granted: bool) -> dict:
-    """Merge (grant) or strip (revoke) the ``role:researcher`` custom
-    claim WITHOUT clobbering other claims (e.g. ``groupTags``).
+def _set_claim(uid: str, key: str, value: Any, *, granted: bool) -> dict:
+    """Merge (grant) or strip (revoke) ONE custom claim without
+    clobbering the others (e.g. ``groupTags``, or a role held alongside
+    an admin bit).
 
     set_custom_user_claims OVERWRITES the entire claim set, so we read
     the existing claims first and merge. Returns the resulting claim dict.
+
+    Revoke strips the key only when it currently holds ``value`` — "only
+    strip the claim we own". That is what keeps ``revoke-researcher``
+    from deleting some future non-researcher role, and it generalises
+    unchanged to the admin bit.
     """
     existing = fb_auth.get_user(uid).custom_claims or {}
     new_claims = dict(existing)
     if granted:
-        new_claims["role"] = "researcher"
-    elif new_claims.get("role") == "researcher":
-        # Only strip the key we own; leave any future non-researcher role.
-        del new_claims["role"]
+        new_claims[key] = value
+    elif new_claims.get(key) == value:
+        del new_claims[key]
     fb_auth.set_custom_user_claims(uid, new_claims or None)
     return new_claims
+
+
+def _set_researcher_claim(uid: str, *, granted: bool) -> dict:
+    """Grant/revoke ``role:researcher`` (sprint 1.1.5)."""
+    return _set_claim(uid, "role", "researcher", granted=granted)
+
+
+def _set_admin_claim(uid: str, *, granted: bool) -> dict:
+    """Grant/revoke ``admin:true`` — the claim `firestore.rules::isAdmin`
+    reads (P4.4).
+
+    This is the platform-admin bit for DIRECT client-SDK Firestore access,
+    and it is a different gate from the one protecting these endpoints:
+    ``/api/admin/*`` is guarded by the service-account allowlist, so a
+    person holding this claim cannot use it to reach this route. Granting
+    it is deliberately a two-key operation.
+    """
+    return _set_claim(uid, "admin", True, granted=granted)
 
 
 @router.post(
@@ -161,6 +184,68 @@ def revoke_researcher(body: ResearcherClaimRequest, request: Request) -> dict[st
         raise HTTPException(status_code=404, detail=f"No Firebase user with uid {body.uid}") from exc
     logger.info("admin.revoke_researcher: uid=%s by %s", body.uid, caller_email)
     return {"uid": body.uid, "role": None, "claims": claims}
+
+
+class AdminClaimRequest(BaseModel):
+    """Body for grant/revoke-admin (P4.4).
+
+    ``uid`` is the Firebase Auth UID of the target user. The claim takes
+    effect on that user's NEXT ID-token refresh (~1h), which matters more
+    here than for the researcher claim: until the token refreshes,
+    `firestore.rules` still sees the old claim set.
+    """
+
+    uid: str
+
+
+@router.post(
+    "/grant-admin",
+    responses={
+        403: {"description": "Caller is not in ADMIN_SEED_ALLOWED_SAS"},
+        404: {"description": "No Firebase user with that uid"},
+    },
+)
+def grant_admin(body: AdminClaimRequest, request: Request) -> dict[str, Any]:
+    """Grant the ``admin:true`` custom claim to a Firebase user.
+
+    This is what `firestore.rules::isAdmin` reads. Before P4.4 that
+    function compared against one hardcoded email address, so "who is an
+    admin" was a source-code edit and a rules deploy, and exactly one
+    person could ever be one.
+
+    Idempotent — re-granting re-asserts the claim and preserves other
+    claims (a user can be both researcher and admin).
+    """
+    caller_email = _assert_caller_is_service_account(request)
+    try:
+        claims = _set_admin_claim(body.uid, granted=True)
+    except fb_auth.UserNotFoundError as exc:
+        raise HTTPException(status_code=404, detail=f"No Firebase user with uid {body.uid}") from exc
+    logger.info("admin.grant_admin: uid=%s by %s", body.uid, caller_email)
+    return {"uid": body.uid, "admin": True, "claims": claims}
+
+
+@router.post(
+    "/revoke-admin",
+    responses={
+        403: {"description": "Caller is not in ADMIN_SEED_ALLOWED_SAS"},
+        404: {"description": "No Firebase user with that uid"},
+    },
+)
+def revoke_admin(body: AdminClaimRequest, request: Request) -> dict[str, Any]:
+    """Remove the ``admin:true`` custom claim from a Firebase user.
+
+    Admin-only. Idempotent, and preserves other claims — revoking admin
+    from a researcher leaves them a researcher. Takes effect on the
+    user's next token refresh.
+    """
+    caller_email = _assert_caller_is_service_account(request)
+    try:
+        claims = _set_admin_claim(body.uid, granted=False)
+    except fb_auth.UserNotFoundError as exc:
+        raise HTTPException(status_code=404, detail=f"No Firebase user with uid {body.uid}") from exc
+    logger.info("admin.revoke_admin: uid=%s by %s", body.uid, caller_email)
+    return {"uid": body.uid, "admin": False, "claims": claims}
 
 
 class PrunePlatformSkillsRequest(BaseModel):

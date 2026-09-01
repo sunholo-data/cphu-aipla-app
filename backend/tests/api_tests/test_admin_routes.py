@@ -361,3 +361,91 @@ def test_password_invite_passes_continue_url_through(client, allow_env):
     assert resp.status_code == 200, resp.text
     mock_settings.assert_called_once_with(url="https://aipla.ku.dk/teacher/sign-in")
     assert mock_link.call_args.kwargs["action_code_settings"] is mock_settings.return_value
+
+
+# --- Platform-admin claim (P4.4) -------------------------------------------
+#
+# `firestore.rules::isAdmin` read one hardcoded email address until P4.4. These
+# net the claim that replaced it, and specifically the property that made the
+# generalised `_set_claim` safe to share with the researcher verbs: grant and
+# revoke each touch exactly one key.
+
+
+def test_grant_admin_requires_allowlisted_sa(client, allow_env):
+    resp = client.post("/api/admin/grant-admin", json={"uid": "u1"})
+    assert resp.status_code == 403
+
+
+def test_grant_admin_merges_claim_preserving_role(client, allow_env):
+    """A researcher promoted to admin stays a researcher."""
+    fake_user = type("U", (), {"custom_claims": {"role": "researcher"}})()
+    with (
+        patch("admin.auth.id_token.verify_oauth2_token") as mock_verify,
+        patch("admin.routes.fb_auth.get_user", return_value=fake_user) as mock_get,
+        patch("admin.routes.fb_auth.set_custom_user_claims") as mock_set,
+    ):
+        mock_verify.return_value = {"email": _ALLOWED_SA, "email_verified": True}
+        resp = client.post(
+            "/api/admin/grant-admin",
+            json={"uid": "u1"},
+            headers={"Authorization": "Bearer stub-id-token"},
+        )
+    assert resp.status_code == 200, resp.text
+    mock_get.assert_called_once_with("u1")
+    mock_set.assert_called_once_with("u1", {"role": "researcher", "admin": True})
+    assert resp.json()["admin"] is True
+
+
+def test_revoke_admin_strips_only_the_admin_bit(client, allow_env):
+    """Revoking admin from a researcher leaves them a researcher."""
+    fake_user = type("U", (), {"custom_claims": {"role": "researcher", "admin": True}})()
+    with (
+        patch("admin.auth.id_token.verify_oauth2_token") as mock_verify,
+        patch("admin.routes.fb_auth.get_user", return_value=fake_user),
+        patch("admin.routes.fb_auth.set_custom_user_claims") as mock_set,
+    ):
+        mock_verify.return_value = {"email": _ALLOWED_SA, "email_verified": True}
+        resp = client.post(
+            "/api/admin/revoke-admin",
+            json={"uid": "u1"},
+            headers={"Authorization": "Bearer stub-id-token"},
+        )
+    assert resp.status_code == 200, resp.text
+    mock_set.assert_called_once_with("u1", {"role": "researcher"})
+    assert resp.json()["admin"] is False
+
+
+def test_revoke_admin_is_noop_for_non_admin(client, allow_env):
+    fake_user = type("U", (), {"custom_claims": {"groupTags": ["beta"]}})()
+    with (
+        patch("admin.auth.id_token.verify_oauth2_token") as mock_verify,
+        patch("admin.routes.fb_auth.get_user", return_value=fake_user),
+        patch("admin.routes.fb_auth.set_custom_user_claims") as mock_set,
+    ):
+        mock_verify.return_value = {"email": _ALLOWED_SA, "email_verified": True}
+        resp = client.post(
+            "/api/admin/revoke-admin",
+            json={"uid": "u1"},
+            headers={"Authorization": "Bearer stub-id-token"},
+        )
+    assert resp.status_code == 200
+    mock_set.assert_called_once_with("u1", {"groupTags": ["beta"]})
+
+
+def test_admin_and_researcher_claims_are_independent(client, allow_env):
+    """Granting admin must not disturb groupTags, and revoking the researcher
+    role must not disturb the admin bit — the two verbs share `_set_claim`."""
+    fake_user = type("U", (), {"custom_claims": {"groupTags": ["beta"], "role": "researcher", "admin": True}})()
+    with (
+        patch("admin.auth.id_token.verify_oauth2_token") as mock_verify,
+        patch("admin.routes.fb_auth.get_user", return_value=fake_user),
+        patch("admin.routes.fb_auth.set_custom_user_claims") as mock_set,
+    ):
+        mock_verify.return_value = {"email": _ALLOWED_SA, "email_verified": True}
+        resp = client.post(
+            "/api/admin/revoke-researcher",
+            json={"uid": "u1"},
+            headers={"Authorization": "Bearer stub-id-token"},
+        )
+    assert resp.status_code == 200
+    mock_set.assert_called_once_with("u1", {"groupTags": ["beta"], "admin": True})

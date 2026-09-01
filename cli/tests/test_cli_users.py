@@ -116,3 +116,27 @@ def test_invite_password_warns_when_adding_to_an_existing_google_identity() -> N
     assert "already existed" in result.output
     assert "google.com" in result.output
     assert "ADDS a password" in result.output
+
+
+@respx.mock
+def test_grant_admin_posts_uid() -> None:
+    route = respx.post(f"{BASE}/api/admin/grant-admin").mock(
+        return_value=httpx.Response(200, json={"uid": "u-1", "admin": True})
+    )
+    runner = CliRunner()
+    result = runner.invoke(main, ["--env", "local", "users", "grant-admin", "u-1"])
+    assert result.exit_code == 0, result.output
+    assert route.called
+    assert json.loads(route.calls.last.request.content) == {"uid": "u-1"}
+
+
+@respx.mock
+def test_revoke_admin_posts_uid() -> None:
+    route = respx.post(f"{BASE}/api/admin/revoke-admin").mock(
+        return_value=httpx.Response(200, json={"uid": "u-1", "admin": False})
+    )
+    runner = CliRunner()
+    result = runner.invoke(main, ["--env", "local", "users", "revoke-admin", "u-1"])
+    assert result.exit_code == 0, result.output
+    assert route.called
+    assert json.loads(route.calls.last.request.content) == {"uid": "u-1"}

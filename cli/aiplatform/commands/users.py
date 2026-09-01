@@ -1,12 +1,13 @@
 """`aiplatform users` — role + access-register admin.
 
-Two things live here, both behind the same SA-allowlisted `/api/admin/*` gate:
+Three things live here, all behind the same SA-allowlisted `/api/admin/*` gate:
 
   * the researcher claim (sprint 1.1.5) — cross-class READ access;
-  * the access register (ACCESS-1 M1) — who may SPEND money.
+  * the access register (ACCESS-1 M1) — who may SPEND money;
+  * the platform-admin claim (P4.4) — what `firestore.rules::isAdmin` reads.
 
-They are independent: a researcher is not automatically a pilot, and a pilot is
-not automatically a researcher.
+They are independent: a researcher is not automatically a pilot, a pilot is not
+automatically a researcher, and neither is automatically an admin.
 
 `grant-researcher` / `revoke-researcher` set the Firebase custom claim
 `{"role": "researcher"}` on a target user via the SA-allowlisted admin
@@ -41,7 +42,7 @@ def _client(ctx: click.Context) -> AIPlatformClient:
 
 @click.group()
 def users() -> None:
-    """Manage user roles (researcher claim) and the access register."""
+    """Manage user roles (researcher + admin claims) and the access register."""
 
 
 @users.command("grant-researcher")
@@ -62,6 +63,45 @@ def grant_researcher(ctx: click.Context, uid: str) -> None:
 def revoke_researcher(ctx: click.Context, uid: str) -> None:
     """Revoke the researcher claim from the Firebase user UID."""
     result = _client(ctx).post("/api/admin/revoke-researcher", json={"uid": uid})
+    click.echo(_json.dumps(result, indent=2))
+
+
+# ─── Platform admin claim (P4.4) ─────────────────────────────────────────────
+#
+# `firestore.rules::isAdmin` used to compare against one hardcoded email
+# address, so admin was one named person and changing that meant editing
+# security rules. It now reads the `admin:true` custom claim these two verbs
+# set. Grant it on EVERY environment (dev, test, prod) — Firebase identities
+# and their claims are per-project.
+
+
+@users.command("grant-admin")
+@click.argument("uid")
+@click.pass_context
+def grant_admin(ctx: click.Context, uid: str) -> None:
+    """Grant the platform-admin claim to the Firebase user UID.
+
+    This is what `firestore.rules::isAdmin` reads — direct client-SDK
+    Firestore access to platform-owned collections. It does NOT grant access
+    to `/api/admin/*`, which stays behind the service-account allowlist.
+
+    Takes effect on the user's next ID-token refresh (~1h); sign out and in
+    to force it.
+    """
+    result = _client(ctx).post("/api/admin/grant-admin", json={"uid": uid})
+    click.echo(_json.dumps(result, indent=2))
+
+
+@users.command("revoke-admin")
+@click.argument("uid")
+@click.pass_context
+def revoke_admin(ctx: click.Context, uid: str) -> None:
+    """Revoke the platform-admin claim from the Firebase user UID.
+
+    Preserves other claims — revoking admin from a researcher leaves them a
+    researcher.
+    """
+    result = _client(ctx).post("/api/admin/revoke-admin", json={"uid": uid})
     click.echo(_json.dumps(result, indent=2))
 
 
