@@ -95,6 +95,19 @@ properly:
 three.** The fallback is the thing standing between a mistake here and nobody
 being able to administer prod.
 
+> ⚠️ **BLOCKED FOR PROD as of 2026-09-01 — `firestore.rules` cannot currently
+> reach prod at all.** `cloudbuild.yaml` deploys rules
+> (`firebase deploy --only firestore:rules,firestore:indexes`); **`cloudbuild.promote.yaml`
+> has no such step**, and prod is reached only by promote. Verified against the
+> live rulesets: dev and test were updated 2026-08-31, **prod's ruleset dates
+> from 2026-07-30**.
+>
+> So the claim-reading `isAdmin()` is live on dev and test and is *not* live on
+> prod, and no rules edit will be until the promote pipeline gains a rules step
+> (or someone deploys prod's rules by hand). Until then, prod admin still works
+> **only** through the email fallback — which is another reason not to delete it
+> yet. See the footgun table in `CLAUDE.md`.
+
 ## If you have locked yourself out
 
 The `/api/admin/*` endpoints are gated by the **service account**, not by the

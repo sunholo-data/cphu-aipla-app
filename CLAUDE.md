@@ -14,18 +14,32 @@
 ## AIPLA Fork Context
 
 This repo is **`sunholo-data/cphu-aipla-app`** — the execution fork for AIPLA
-(AI in Physics Learning and Assessment), a 4-month technical-infrastructure
-contract for the University of Copenhagen Center for Digital Education,
+(AI in Physics Learning and Assessment), the technical-infrastructure
+engagement for the University of Copenhagen Center for Digital Education,
 inside a 3-year research programme.
 
 - **Forked from upstream template:** 2026-05-19 (initial commit `160c9fe`).
-- **Contract window:** 2026-05-15 → 2026-09-15 (~17 weeks).
-- **First hard gate:** **Jutland v0.1 demo on Wed 2026-05-27.** Minimum chat
-  URL + one physics-tutor skill + anonymous group-ID join.
-- **Mid-point review:** Fri 2026-06-26 (week 6), *before* the M+JB holiday
-  freeze week 27 (2026-06-29 → 07-05).
-- **Teacher pilot starts:** 2026-08-14.
-- **Final handover:** 2026-09-15.
+- **Engagement window:** 2026-05-15 → **at least 2027-04-30**. The original
+  4-month contract (2026-05-15 → 09-15, ~17 weeks) was **extended** — the
+  extension runs 2026-09-01 → 2027-04-30 (35 weeks) at **2.5 days/week**,
+  ~75 realistic working days, roughly HALF the weekly rate of the contract
+  window that preceded it. Plan: [docs/design/aipla/v2.1.0-extension/plan-2026-09-to-2027-04.md](docs/design/aipla/v2.1.0-extension/plan-2026-09-to-2027-04.md).
+- **2026-09-15 is a CHECKPOINT, not the end.** It is the v2.0.0 handover
+  milestone with a contracted bar that should be met — but it is two weeks of
+  the plan, not its purpose. **Do not describe it as a final handover.**
+  Documents written before August 2026 inherit the old boundary and are stale
+  in that respect; the retrospective is
+  [docs/design/aipla/retrospective-2026-05-to-09.md](docs/design/aipla/retrospective-2026-05-to-09.md).
+- **AD is a colleague, not a successor.** AD starts ~2026-10-01 and M is
+  present to at least April 2027 — **~6 months of overlap**, so onboarding is
+  by pairing, not by farewell package. Any doc claiming "no overlap with M, so
+  these documents carry the handover" is false in its load-bearing half.
+- **Strategic remit for the extension:** the **discipline layer, not the
+  shell** — activity authoring, the sims/artefact surface, curriculum RAG on
+  cleared material, rubric-scored logs as assessment evidence. Capacity affords
+  ~two substantial workstreams plus maintenance, not five.
+- Historical gates (all passed): Jutland v0.1 demo 2026-05-27 · mid-point
+  review 2026-06-26 · teacher pilot start 2026-08-14.
 
 ### Source of truth for AIPLA design
 
@@ -431,7 +445,7 @@ every row to *enforced* — see `docs/design/aipla/v1.1.0-feedback/handover-main
 | **Brand colour hardcoded instead of tokenised** | two brand primaries in one app | use `bg-brand`/`text-brand`/`primary` (KU red `#901A1E`), never a `red-*` literal on a brand surface | **enforced** (1.1.74) — `scripts/check-brand-literals.sh` (`make check-brand-literals`). `--primary` was the inherited Sunholo **orange** while `/project` hardcoded KU red, so the homepage CTA and `/project`'s CTA were different colours under the same KU coat-of-arms. Semantic reds (error, recording) are allowlisted by name + reason. Dark mode carries a **lightened** brand because KU red scores only ~2.2:1 on the dark background — `brand-contrast.test.ts` asserts both modes |
 | **Terraform reports success having done nothing** | state says a hardening is applied; the project disagrees; `plan` says "No changes" forever | `scripts/check-iam-posture.sh` (`make check-iam-posture`) compares DEPLOYED IAM against what the posture requires | **manual** — `google_project_default_service_accounts` did exactly this on 2026-08-03 (`service_accounts = {}`, SA left enabled with `roles/editor`) |
 | **A checker answers when it could not read its subject** | `make deploy-status` reports "test and prod are level" having read nothing — the *reassuring* answer is the one a broken read produces | never let a read failure fall into the same bucket as a real value; `deploy-status.sh` classifies "Cannot find service" (→ `(not deployed)`) apart from auth/permission (→ `(CANNOT READ)`, no verdict, exit 1), and prints the account it used | **enforced for `deploy-status`** (2026-08-13) — `2>/dev/null` turned PERMISSION_DENIED into an empty image string → `(not deployed)` on all three envs, and two of those compare EQUAL. Under the wrong gcloud account it declared parity it had not checked, in the script written *because* the promote step must not trust an unverified number. Audit any other `2>/dev/null` before trusting its verdict. **Second instance, 2026-08-18:** the spend gate could not tell "this group has no owner" from "Firestore did not answer", so neither could fail closed without the other taking every lesson down on a blip. `auth.spend_authority` now raises on unreadable and refuses only on a real answer |
-| **Anything per-env in `cloudbuild.yaml` needs a `cloudbuild.promote.yaml` twin** | a per-env value corrected on the deploy path never reaches prod — prod is reached only by `make promote` | promote re-stamps per-env **env vars** (`APP_VERSION`, `MCP_WIDGET_DOMAIN`, guarded non-empty) **and** passes per-env **build-args** (`_AIPLA_HELP`, `_AUTHORING_COPILOT`, `_CONCEPT_MAP`) — both halves matter, and it runs the seed job | **partly enforced** — the guard covers today's values; a new `--set-env-vars` or `--build-arg` in `cloudbuild.yaml` without a promote twin re-opens it. Bitten three ways: `MCP_WIDGET_DOMAIN` sat on DEV's origin in prod until 2026-08-04; the feature flags were never passed at all, so no tfvar could light up prod; and the seed step was missing entirely |
+| **Anything per-env in `cloudbuild.yaml` needs a `cloudbuild.promote.yaml` twin** | a per-env value corrected on the deploy path never reaches prod — prod is reached only by `make promote`. **Fourth instance, found 2026-09-01: `firestore.rules` itself.** `cloudbuild.yaml` runs `firebase deploy --only firestore:rules,firestore:indexes`; promote runs nothing of the kind, so **security rules cannot reach prod by any pipeline**. Live rulesets confirm it — dev and test 2026-08-31, prod **2026-07-30**. No known exposure (Firestore default-denies and both undelivered changes are hardening: ACCESS-1 M4's explicit deny on `teacher_access`/`access_requests`, and P4.4's claim-based `isAdmin`), but a rules change that actually granted or restricted something would drift silently | promote re-stamps per-env **env vars** (`APP_VERSION`, `MCP_WIDGET_DOMAIN`, guarded non-empty) **and** passes per-env **build-args** (`_AIPLA_HELP`, `_AUTHORING_COPILOT`, `_CONCEPT_MAP`) — both halves matter, and it runs the seed job | **partly enforced** — the guard covers today's values; a new `--set-env-vars` or `--build-arg` in `cloudbuild.yaml` without a promote twin re-opens it. Bitten three ways: `MCP_WIDGET_DOMAIN` sat on DEV's origin in prod until 2026-08-04; the feature flags were never passed at all, so no tfvar could light up prod; and the seed step was missing entirely |
 | **A money gate joins on a denormalised field** | every teacher reads as UNCAPPED and every student's owner reads as "not on the register" — and both silently mean ALLOW. `users list-access` looks perfectly correct; only the `uid` column is null | one join, `db.teacher_access.grant_for_uid`, which falls back from the uid index to the register's email primary key and stamps on the way through; `scripts/backfill_register_uids.py` fills existing rows | **partly enforced** (2026-08-18) — 17 of 18 prod rows had `uid: null` because it was written only on a tier CHANGE, and a teacher granted while already signed in never changes tier, so the rows that got stamped were exactly the ones nobody used. The cap had never bound for anyone: 30 days of logs, zero `budget.block`. Regression tests net both halves; nothing stops a NEW gate re-deriving its own `("uid", "==", …)` query. **Spend was also metered under the CALLER** (a group code) while the cap was resolved through the payer, so a teacher got one full cap per class — only a test with TWO group codes can see that |
 | **A startup dependency on something no code reads** | instances fail to start on an infra blip, for a resource the app never touches. Prod was unstartable ~8h on 2026-08-28/29 on `volume (type: gcs, name: gcs_config): mount operation failed` | before adding a volume/mount/secret to a deploy step, grep that something reads it; `_CONFIG_FOLDER=/gcs_config` was inherited from Sunholo v5 at the fork's initial commit and read by nothing for three months, over three EMPTY buckets | **manual** — removing it from the pipelines is only half: `gcloud run deploy` AND `services update` both preserve volumes they are not told to drop, so a live service keeps one long after the YAML forgets it. Prod never had it in `cloudbuild.promote.yaml` at all and carried it anyway, inherited from its env cut |
 | **Wrong terraform state for the var-file** | apply compares env A's state to env B's config and destroys everything | `scripts/tf.sh <env> <action>` binds prefix+tfvars from one argument; `terraform_data.env_guard` refuses the plan | **enforced** — cost prod's entire data plane on 2026-08-03 |
