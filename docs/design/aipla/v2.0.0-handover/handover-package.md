@@ -13,13 +13,21 @@
 > ([ku-ai-office-alignment.md](ku-ai-office-alignment.md)), so the package is
 > delivered with its author still reachable.
 >
-> **The exception is the one that matters.** The scoping site's
+> **On AD — a correction, 2026-09-01.** The scoping site's
 > `outputs/handover/README.md` names the two inheritors: **AR** (co-PI, present
-> now) and **AD**, who *"starts ~1 Oct; **no in-person overlap with M**, so these
-> documents carry the handover."* For AR the bar really is "can operate it with M
-> available to ask". For AD it is the original, harder one: **the documents are
-> the handover, and they are what AD will have instead of M.** Every runbook
-> below whose named reader is AD should be written to that standard.
+> now) and **AD**, who *"starts ~1 Oct; no in-person overlap with M, so these
+> documents carry the handover."*
+>
+> That sentence was written against the old boundary and its load-bearing half is
+> **no longer true**. AD starts ~1 Oct; M is present to at least April 2027. That
+> is **~6 months of overlap**. In-person contact may still be nil, but "the
+> documents are all AD gets" is not the constraint any more.
+>
+> The consequence is practical, and it changes what to do rather than only how to
+> feel about it: **AD's two runbooks (model routing, incident playbook) are better
+> written *with* AD in October, against real questions, than guessed at in
+> September.** See [the extension plan](../v2.1.0-extension/plan-2026-09-to-2027-04.md),
+> workstreams A′ and B.
 
 ## Bottom line
 
@@ -159,10 +167,11 @@ office became real and funded. But **no row anywhere records someone other than
 M actually operating an artefact**, which is what criterion 5 asks for. Naming an
 inheritor is not the same as demonstrating one.
 
-**And the AD row changes the writing standard**, not just the names. AD arrives
-after M's presence stops being continuous and never overlaps in person. The two
-runbooks whose named reader is AD — model routing and the incident playbook —
-are the ones that must survive with no author to ask.
+**And the AD row changes what to schedule**, not just the names. Under the
+extension AD overlaps M by ~6 months (see the header correction), so the two
+runbooks whose reader is AD — model routing and the incident playbook — stop
+being documents that must survive with no author to ask, and become the natural
+by-product of onboarding AD in October.
 
 ## Gaps, owners, dates
 
@@ -173,7 +182,7 @@ Ordered by lead time, not by size. The top two are chases, not builds.
 | 1 | **DPIA / consent artefact** | **JB** | Ask now whether it exists and where. If it does, link it from this doc. If it does not, it gates nothing retroactively but must be named as a known open item at handover | **Longest — ask today** |
 | 2 | **Final handover session** | M + JB | Book it. Attendees per the *corrected* co-owner table, not `timeline.qmd`'s | Needs calendars ≥1wk out |
 | 3 | **Strand C scoping note** | M | Write as findings, from the prior art above | Due 2026-09-09 · ~1–1.5d |
-| 4 | **Fill the five runbook stubs** | M | Each says *"fill from the execution repo"* — this repo. Prioritise AD's two (model routing, incident playbook): AD has no author to ask | ~2–3d for all five |
+| 4 | **Fill the runbook stubs** | M | Each says *"fill from the execution repo"* — this repo. **Recommend: write the three AR-facing ones now (mostly assembly), and write AD's two *with* AD in October.** See [extension plan](../v2.1.0-extension/plan-2026-09-to-2027-04.md) A′ | ~1.5d now, 2 with AD |
 | 5 | **Rewrite the co-owner fan-out table** | M + JB | Against who exists: AD rather than "P2 when hired", plus the student helpers. Feeds #2 | ~1h |
 | 6 | **Eval in CI** | M | Optional for the milestone. `make eval` is real and runnable by hand; "automation" is the stated word, and a nightly job would satisfy it | ~0.5d, defer if crowded |
 | — | ~~P4.2 — scoping-site links~~ | M | **DONE 2026-09-01.** 138 links rewritten, snapshot pinned to `c361ca0`, `make check-local-path-links` guards it in CI | — |

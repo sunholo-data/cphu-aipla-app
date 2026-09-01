@@ -31,26 +31,31 @@ AIPLA's own versions, **not** related to the template's `v6.x.x` versions.
 | **v0.1.0-jutland** | 2026-05-27 (Wed) | JB + Aswin demo to ~2–3 Jutland stx teachers | Single physics-tutor skill, group-ID join, deployed dev URL |
 | **v1.0.0-pilot** | 2026-08-14 (Fri) | Danish teacher pilot — 10 teachers + K | 5 skills + curated sim library + teacher config + multimodal + BigQuery logs + per-class budgets enforced + **teacher monitoring & analysis (session rubric)** |
 | **v2.0.0-handover** | 2026-09-15 (Mon) | Handover milestone — co-owners can run AIPLA; M continues to at least 2027-04 | v1 + runbooks + eval automation + DPIA + scoping-note Strand C delivered |
+| **v2.1.0-extension** | 2027-04-30 (boundary) | The extension: M at 2.5 days/week, AD from ~2026-10-01, AR throughout | The **discipline layer** — not the shell. See [the plan](v2.1.0-extension/plan-2026-09-to-2027-04.md) |
 
-## Current execution priority — pilot readiness (2026-07-24)
+## Current execution priority — the extension (2026-09-01)
 
-The product has enough breadth for the 2026-08-14 teacher pilot. The active
-critical path is now **release readiness**, not further feature expansion.
-AIPLA dev is live, but test/prod are not yet cut, and the automatic Firestore
-seed job shipped 2026-07-23 still needs its first deployed verification.
+**Superseded: "pilot readiness (2026-07-24)".** That block described a pilot that
+has since happened (2026-08-21, 12 teachers, 334 turns) and environments that are
+now all live and level at `v0.1.32`.
 
-Until a fixed release candidate is healthy in test:
+Two documents carry the current picture:
 
-1. verify dev deployment + automatic seeding;
-2. provision test from committed infrastructure and run the full smoke suite;
-3. close or explicitly disable privacy-gated capture paths;
-4. rehearse the teacher → two-student → analytics golden journeys;
-5. promote the tested candidate to prod and rehearse rollback.
+- **[retrospective-2026-05-to-09.md](retrospective-2026-05-to-09.md)** — what the
+  contracted window actually produced, what went wrong, and the five lessons.
+  Read this before planning anything.
+- **[v2.1.0-extension/plan-2026-09-to-2027-04.md](v2.1.0-extension/plan-2026-09-to-2027-04.md)**
+  — the plan to April 2027. **~75 working days, roughly half the weekly rate of
+  the window that precedes it.**
 
-The evidence-based source of truth is
-[v1.0.0-pilot/pilot-readiness-checklist.md](v1.0.0-pilot/pilot-readiness-checklist.md).
-Older per-feature counts below are historical snapshots, not the current
-go/no-go signal.
+The priority order there is: close the 09-15 milestone (~5d) → onboard AD from
+~1 Oct (~8d, highest leverage) → teacher-feedback residue (~10d) → **the
+discipline layer (~25d, the strategic bet)** — with institutional alignment and
+silent-failure hardening running alongside, and ~25% deliberately unallocated.
+
+> **2026-09-15 is a checkpoint inside that plan, not its end.** Per-feature
+> counts and "still to do" lists further down this file are historical snapshots
+> from the contract window, not the current queue.
 
 ## Phase 0 — Jutland demo (v0.1.0)
 
