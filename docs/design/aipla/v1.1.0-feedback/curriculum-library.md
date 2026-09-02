@@ -1,6 +1,6 @@
 # Curriculum library — referenceable A/B/C curriculum corpus for authoring + grounding
 
-**Status:** Planned (P1, design-doc stage) — **un-gated by the ADK-RAG decision** (2026-06-09); no longer waits on pgvector infra
+**Status:** ✅ **SHIPPED** (M1–M5) — `adk/curriculum_retrieval.py` (`VertexAiRagRetrieval`), the curriculum CLI + query endpoint, faceted browse. Independently confirmed shipped in the 2026-06-28 code-verified roadmap. Originally — **un-gated by the ADK-RAG decision** (2026-06-09); no longer waits on pgvector infra
 **Last Updated:** 2026-06-09 (retrieval backend → ADK RAG; pgvector deferred to Year-2 local variant)
 **Priority:** **P1 — breadth multiplier** (9 June check-in). Teachers want a **referenceable library of common curriculum PDFs, organised by stx level (A / B / C)**, sourced from shared Danish curriculum material (uvm.dk) plus their own uploads, that they can cite when authoring activities — and that the tutor can ground answers in.
 **Estimated:** ~3–4d (A/B/C taxonomy + ingestion + ADK RAG corpus + ACL + authoring picker). **No separate vector-DB build** — ADK RAG (Vertex AI RAG Engine) is managed, so this is no longer gated on standing up pgvector.

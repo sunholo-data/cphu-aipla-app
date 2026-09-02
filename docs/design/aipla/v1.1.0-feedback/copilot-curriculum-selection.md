@@ -1,6 +1,6 @@
 # How the authoring co-pilot knows what's in the curriculum library
 
-**Status:** DESIGN. **Phase 1** (a per-doc summary field) is build-ready; **Phase 2**
+**Status:** ⚠️ **Phase 1 SHIPPED** (`feat(curriculum): catalogue summary field for co-pilot + teacher doc selection (1.1.52 Phase 1)`); Phase 2 open. Originally: DESIGN. **Phase 1** (a per-doc summary field) is build-ready; **Phase 2**
 (corpus-wide semantic search + peek/read) is **sequenced for later** — build Phase 1
 first, reach for Phase 2 only when the library outgrows it.
 **Last Updated:** 2026-06-30.

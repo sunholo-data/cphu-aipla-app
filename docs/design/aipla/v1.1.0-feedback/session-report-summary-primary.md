@@ -1,6 +1,6 @@
 # Session report — narrative summary as the primary display
 
-**Status:** Planned (P1)
+**Status:** ✅ **SHIPPED** — `feat(session-report): 1.1.4 — AI narrative summary-first + collapsible transcript`; `backend/reports/narrative.py` serves it. Independently confirmed shipped in the 2026-06-28 code-verified roadmap.
 **Last Updated:** 2026-06-13
 
 > ## Implementation reconciliation (2026-06-13) — grounded against current code

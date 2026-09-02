@@ -1,6 +1,6 @@
 # Pilot-session follow-ups — 2026-08-21
 
-**Status**: Planned
+**Status**: ✅ **SHIPPED to all three environments** — the four silent defects fixed (`fix(pilot): … (1.1.79)`), confirmed by `docs(1.1.79): shipped to all three environments, and what stays open`.
 **Priority**: P0
 **Estimated**: ~2d
 **Scope**: Backend + infrastructure (one frontend-parity test)

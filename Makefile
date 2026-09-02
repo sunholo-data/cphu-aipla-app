@@ -480,6 +480,14 @@ check-cloudbuild: ## Fail on $$-unescaped shell vars in Cloud Build steps (CI-ga
 check-local-path-links: ## Fail if a doc links to a file:///Users/ path (CI-gated)
 	@bash scripts/check-local-path-links.sh
 
+# Status-header drift (2026-09-02 sweep). A doc saying "Planned" for something
+# that shipped is an invitation to rebuild it, and the header is what a newcomer
+# or an agent reads first. The sweep found 14 of 94 numbered docs stale (~15%).
+# ADVISORY — prints, never fails; the signal has real false positives (numbering
+# collisions: 1.1.14 and 1.1.60 are each used twice).
+check-doc-status: ## Advisory: design docs claiming 'not shipped' that have shipping commits
+	@bash scripts/check-doc-status-drift.sh
+
 # Brand-drift gate (1.1.74). The app shipped TWO brand primaries for months:
 # --primary was the inherited Sunholo orange while /project hardcoded KU red in
 # 24 red-* utilities, so the homepage CTA and /project's CTA were different
@@ -548,6 +556,7 @@ help:
 	@echo "make check-skills       — verify CLAUDE.md skill catalogue matches .claude/skills/ (CI-gated)"
 	@echo "make check-brand-literals — brand-drift gate: fail if a brand surface hardcodes red-* instead of the KU-red token (CI-gated)"
 	@echo "make check-local-path-links — fail if a doc links to a file:///Users/ path that resolves on one machine only (CI-gated)"
+	@echo "make check-doc-status — advisory: design docs whose Status header disagrees with the commit history"
 	@echo "make check-guide-nav    — fail if a published guide has no nav band back into the app (CI-gated)"
 	@echo
 	@echo "make sim-build          — inline the canonical MCP App guest bridge into every artefact (edit bridge/aipla-mcp-bridge.js, then run this)"

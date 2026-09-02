@@ -1,6 +1,9 @@
 # infra-privilege-separation — the laptop stops being able to destroy an environment
 
 **Status**: Planned — written the day a single mistyped command destroyed prod (2026-08-03). Supersedes the "apply from a laptop" operating model assumed by [aipla-cloud-bootstrap.md](../v1.0.0-pilot/aipla-cloud-bootstrap.md) and the runbook in `infrastructure/env/README.md`.
+
+> ⚠️ **Numbering collision (found by the 2026-09-02 Status sweep).** The number **1.1.60** is used by *two* different items: this doc, per the v1.1 SEQUENCE, and a curriculum change shipped as `feat(curriculum): 1.1.60 — subject as broad class, narrowed facets, ingest capture` (`6be6181`). **This is the second known collision** after the 1.1.14 one already noted in the SEQUENCE. Nothing here shipped under that commit — do not read it as progress on this doc.
+
 **Priority**: **P0** — the pilot starts 2026-08-14. Today an operator typo can delete prod's data plane while teachers are on it; that risk is only acceptable while prod is empty, which it stops being in 11 days.
 **Estimated**: ~0.5d for the state split + import dance; ~1h for the IAM change. Sequenced strictly after prod recovery.
 **Scope**: Who may mutate test/prod infrastructure, and by what path. Covers the bootstrap/env state split, the `aipla-terraform@` identity, and the IAM posture of the human accounts. Does **not** cover application deploys (already CI-only via tag/promote — see [build-once-artifact-promotion.md](../v1.0.0-pilot/build-once-artifact-promotion.md)).

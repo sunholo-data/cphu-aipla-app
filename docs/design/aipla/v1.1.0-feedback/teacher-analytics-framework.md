@@ -1,6 +1,6 @@
 # Live teacher dashboard — rolling 5-min class summary + incoming calls
 
-**Status:** **R1-GATED.** Designed now; **do not instrument the summary content before the R1 framework decision** (ICAP+FCI vs CPS+DRA / the DRA-map sign-off, due before the 2026-06-29 freeze). The *shell* + the call-teacher surface + deterministic signals are **not** gated.
+**Status:** ⚠️ **M0 + M1 SHIPPED; the LLM summary layer remains R1-GATED.** The live class view, deterministic per-group signals and raised-hand composition all ship — see [live-teacher-dashboard-sprint](live-teacher-dashboard-sprint.md). What is still gated is the *summary content*. **[1.1.99](live-class-work-wall.md) supersedes the view itself.** Originally: **R1-GATED.** Designed now; **do not instrument the summary content before the R1 framework decision** (ICAP+FCI vs CPS+DRA / the DRA-map sign-off, due before the 2026-06-29 freeze). The *shell* + the call-teacher surface + deterministic signals are **not** gated.
 **Last Updated:** 2026-06-15
 **Priority:** **P1 (post-R1).** Teachers want a rolling class-level summary *during* the lesson [M, 15 June] — "stressed" = emphasised, not "it stresses teachers". This is the live teacher dashboard, and the surface the [call-teacher](call-teacher.md) raised hand lands on.
 **Estimated:** shell + raised-hand panel + deterministic signals ~1.5–2d (un-gated); the LLM summary layer ~1–2d **after R1** locks the rubric vocabulary.

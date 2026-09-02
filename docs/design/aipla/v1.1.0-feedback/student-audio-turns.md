@@ -1,6 +1,6 @@
 # Student audio turns — voice as a native multimodal message (replaces dictation)
 
-**Status:** Planned — **consent CLEARED** (signed paper waivers for the demos/pilot, same posture as the lesson recording); **replaces** the broken dictation (1.1.11); framework-native path confirmed — ready to build
+**Status:** ⚠️ **PARTLY SHIPPED** — the send path landed (`feat(chat): 1.1.37 — audio attachments become native AudioInputContent`); verify the remaining milestones against code before treating the rest as open. Originally: Planned — **consent CLEARED** (signed paper waivers for the demos/pilot, same posture as the lesson recording); **replaces** the broken dictation (1.1.11); framework-native path confirmed — ready to build
 **Priority:** P1 — the dictation button is in the UI now and doesn't work; this replaces it
 **Estimated:** ~2–2.5d — FE audio composer (mirror 1.1.7 ImageComposer) ~1d; BE transcribe-for-display/log + dictation removal ~0.7d; tests + verify ~0.5d
 **Scope:** Frontend (composer: record → attach audio part → send; bubble renders audio + transcript; remove the dictation-fills-textbox path); backend (parallel transcription for the chat-turn log + bubble; retire `POST /api/voice/stt/transcribe`)

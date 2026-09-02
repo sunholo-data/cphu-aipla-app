@@ -191,10 +191,52 @@ an invitation to rebuild it. `tutor-personas` is the sharpest case: reading it a
 "Planned" would mean rebuilding a shipped primitive, and reading it as "Shipped"
 would mean assuming a bundle that does not exist.
 
-**Recommended follow-up (not done here):** a sweep of every `Status:` header in
-`docs/design/aipla/**` against code. Mechanical, and on this sample size it will
-find more. Worth doing before AD starts in October — a newcomer inherits these
-headers as fact.
+### The sweep — done 2026-09-02
+
+Ran it. **94 numbered docs resolved from the SEQUENCE tables; 14 headers were
+wrong (~15%).** Method: the repo stamps the item number in commit subjects, so a
+doc claiming not-shipped whose number appears in a `feat(`/`fix(` subject is a
+candidate — then each was verified against code, because a stamped commit can
+mean one milestone rather than a whole doc.
+
+**Corrected — said not shipped, had shipped:**
+
+| # | Doc | Was | Evidence |
+|---|---|---|---|
+| 1.1.4 | session-report-summary-primary | "Planned (P1)" | `reports/narrative.py`; also in the 06-28 code-verified roadmap |
+| 1.1.5 | researcher-role | "Planned (P1)" | the claim, `assert_can_read_class`, `useIsResearcher` |
+| 1.1.25 | curriculum-library | "Planned, design-doc stage" | `adk/curriculum_retrieval.py`, CLI + query endpoint |
+| 1.1.34 | human-tool-use-card-persistence | "Planned" | M1 + M2 commits, `useHumanToolEvents.ts` |
+| **1.1.51** | **researcher-analytics-rollout** | "Planned (P1)" | cross-class analytics + `/teacher/research`. ⚠️ **Directly relevant to the 09-01 researcher-view ask** — this is the shipped baseline it builds on |
+| 1.1.79 | pilot-session-2026-08-21-followups | "Planned" | shipped to all three envs |
+| 1.1.29 | call-teacher | "Planned, build-ready" | `list_raised_for_class`; **M confirms it works in the student UI** |
+| 1.1.9 | cost-dashboard | "Planned (P1)" | `/teacher/insights/cost` serves |
+
+**Corrected — partly shipped, header said neither:**
+
+| # | Doc | Reality |
+|---|---|---|
+| 1.1.12 | tutor-personas | `interaction_style` primitive ships; the **persona bundle does not** |
+| 1.1.31 | teacher-analytics-framework | M0 + M1 ship; only the **LLM summary layer** is R1-gated |
+| 1.1.52 | copilot-curriculum-selection | **Phase 1 shipped**; Phase 2 open |
+| 1.1.55 | external-host-research-capture | marked **DEFERRED** while a first slice shipped |
+| 1.1.37 | student-audio-turns | send path shipped; rest unverified |
+
+**And a numbering collision.** **1.1.60** names *both* `infra-privilege-separation`
+(per SEQUENCE) and a shipped curriculum change (`6be6181`). **Second known
+collision** after the 1.1.14 one the SEQUENCE already notes. Recorded in the doc
+so the commit is not misread as progress.
+
+**Guard added:** `scripts/check-doc-status-drift.sh` (`make check-doc-status`).
+**Advisory, not CI-gated** — the signal has real false positives (it currently
+flags exactly the 1.1.60 collision, correctly), and a check that cries wolf
+teaches people to ignore it. It is a periodic sweep, not a gate.
+
+**The most valuable single correction is 1.1.51.** The meeting concluded that
+researchers cannot see student activity and that a feature was needed. The
+cross-class analytics rollout had *already shipped* and its doc said "Planned" —
+so the header actively supported a wrong conclusion in a meeting. That is the
+cost of this class of staleness, stated concretely.
 
 ## Still to verify
 

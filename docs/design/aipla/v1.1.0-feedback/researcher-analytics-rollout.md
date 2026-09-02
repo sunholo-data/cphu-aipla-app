@@ -1,6 +1,6 @@
 # Researcher analytics rollout — finish the cross-class read bypass
 
-**Status:** Planned (P1) — completion of [researcher-role.md](researcher-role.md) (1.1.5)
+**Status:** ✅ **SHIPPED** — `feat(insights): [1.1.51] researchers get cross-class analytics — drill-downs, overview, transcripts`, plus the `/teacher/research` surface. ⚠️ **Relevant to the 2026-09-01 researcher-view ask** — this is the shipped baseline that request builds on. Originally — completion of [researcher-role.md](researcher-role.md) (1.1.5)
 **Last Updated:** 2026-06-26
 **Priority:** P1 — JB/AR/M carry the `role:researcher` claim specifically to see
 cross-class engagement, not just cross-class *lists*. Today the claim opens the

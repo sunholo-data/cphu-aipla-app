@@ -1,6 +1,6 @@
 # Persist & restore MCP-app interaction events in chat history
 
-**Status**: Planned
+**Status**: ✅ **SHIPPED** (M1 + M2) — MCP-app interaction cards surface on `/messages` and restore on reload; `useHumanToolEvents.ts`.
 **Priority**: P2 (Medium) — transcript fidelity; demo-coherence, not pilot-blocking
 **Estimated**: ~1.5–2 days
 **Scope**: Fullstack (small backend read change + label threading; frontend restore wiring)

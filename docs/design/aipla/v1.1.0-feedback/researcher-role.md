@@ -1,6 +1,6 @@
 # Researcher role — new permission tier above teacher
 
-**Status:** Planned (P1)
+**Status:** ✅ **SHIPPED** — the `role:researcher` custom claim, `analytics.auth.assert_can_read_class` cross-class read bypass (span-tagged `auth.researcher_bypass`), `useIsResearcher` + the header badge.
 **Last Updated:** 2026-06-13
 
 > ## Implementation reconciliation (2026-06-13) — grounded against current code
