@@ -1,6 +1,6 @@
 # Tutor interaction personas — per-activity teaching-style presets
 
-**Status:** Planned (P1)
+**Status:** ⚠️ **PARTLY SHIPPED — read carefully.** The **`interaction_style` primitive SHIPS** (`adk/interaction_style.py`, 1.1.20; preambles `socratic` / `concise` / `rigorous` / `warm`, injected at agent-instantiation, `socratic` a passthrough). The **persona bundle (style + voice + avatar + name) does NOT exist in code** — only a comment in `agent.py` refers to it. *(Header corrected 2026-09-02: "Planned (P1)" was true of the bundle and false of the primitive, which is the worst kind of stale. The full picture and the way forward are [1.1.91](researcher-configurable-tutors.md).)*
 **Last Updated:** 2026-06-09
 **Priority:** **P1** — direct ask from the 9 June teacher check-in. Resolves the apparent conflict between "be Socratic, end every turn with a question" (1.1.1) and the teacher request for a terse, directive "just try this" voice. The interaction style is a **teacher choice per activity**, not a platform-wide law.
 **Estimated:** ~1d (config field + prompt variants + composer + builder picker). Prompt content gated on **AR sign-off** per preset.

@@ -170,6 +170,32 @@ teachers.
 **Plus: un-defer [1.1.78](question-set-element.md)** (~4–5d). Not new — it was
 gated on having a student date, and item 3 supplies one.
 
+## Stale `Status:` headers — a pattern, not three coincidences
+
+Three design-doc headers were found wrong **in the same triage**, each in a way
+that would mislead someone deciding what to build:
+
+| Doc | Said | Actually |
+|---|---|---|
+| [cost-dashboard.md](cost-dashboard.md) | "Planned (P1)" | `/teacher/insights/cost` **ships** |
+| [call-teacher.md](call-teacher.md) | "Planned (P1, build-ready)" | Raised hand **ships**, confirmed working in the student UI by M |
+| [tutor-personas.md](tutor-personas.md) | "Planned (P1)" | **The worst kind:** the `interaction_style` primitive **ships**; the persona *bundle* does not. True of half, false of half |
+
+**All three corrected 2026-09-02**, each with a note saying what it used to claim.
+
+**Why this matters more than tidiness.** The retrospective's rule was *"verify
+'done' against git + code, never the sprint JSON."* It now extends to the doc
+header — which is worse, because a header is what a newcomer or an agent reads
+*first* and trusts *most*. A doc that says "Planned" for something that ships is
+an invitation to rebuild it. `tutor-personas` is the sharpest case: reading it as
+"Planned" would mean rebuilding a shipped primitive, and reading it as "Shipped"
+would mean assuming a bundle that does not exist.
+
+**Recommended follow-up (not done here):** a sweep of every `Status:` header in
+`docs/design/aipla/**` against code. Mechanical, and on this sample size it will
+find more. Worth doing before AD starts in October — a newcomer inherits these
+headers as fact.
+
 ## Still to verify
 
 Three claims in this triage rest on checks that were not completed:

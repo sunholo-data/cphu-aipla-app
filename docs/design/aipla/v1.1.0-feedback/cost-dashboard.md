@@ -1,6 +1,6 @@
 # Cost dashboard — teacher + researcher spend visibility
 
-**Status:** Planned (P1); **supersedes the originally-planned 1.12** `budget-dashboard.md`
+**Status:** ✅ **SHIPPED** (teacher surface) — `/teacher/insights/cost` exists and serves. **Supersedes the originally-planned 1.12** `budget-dashboard.md`. *(Header corrected 2026-09-02: it read "Planned (P1)" while the page shipped. Energy units and a student-facing view are the open extension → [1.1.94](session-resource-transparency.md).)*
 **Last Updated:** 2026-06-13
 
 > ## Implementation reconciliation (2026-06-13) — grounded against current code

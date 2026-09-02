@@ -1,6 +1,6 @@
 # Call teacher — student escalates to a human, mid-session
 
-**Status:** Planned (P1, build-ready) — minimal raised-hand slice has **no human gate**
+**Status:** ✅ **SHIPPED** — confirmed working in the student UI by M, 2026-09-02. `db/group_signals.list_raised_for_class`, `GET /api/classes/{id}/signals`, and the raised-hand rows composed into the live class payload. *(Header corrected 2026-09-02: it read "Planned (P1, build-ready)" long after the mechanism shipped — one of three stale headers found during the 1 September triage.)*
 **Last Updated:** 2026-06-15
 **Priority:** **P1** — genuinely new v1.1 ask, confirmed near-term [M, 15 June]. Small, demo-friendly, and the first concrete piece of the live teacher surface.
 **Estimated:** **~1d** for the minimal raised-hand version (student button + group-scoped signal + teacher list). Full live-dashboard integration follows [teacher-analytics-framework.md](teacher-analytics-framework.md).
