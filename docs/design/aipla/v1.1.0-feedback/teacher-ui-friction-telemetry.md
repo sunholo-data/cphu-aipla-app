@@ -86,19 +86,32 @@ standing up a platform. **At 12 teachers, self-hosting PostHog is
 disproportionate** — it is heavy ops during a capacity-constrained window, in a
 project whose incident history is infrastructure.
 
-**3. Session replay — the honest answer is "high value, and not yet".** It is the
-single best tool for this problem: you stop guessing and watch. But on **teacher**
-surfaces a replay captures class rosters, group join codes, activity content,
-uploaded materials, and — on the reports pages — **student session transcripts**.
-So a tool bought to study teacher UX would incidentally record student data, on a
-platform whose data agreement is [not yet in place](meeting-2026-09-01-triage.md).
-Masking exists in every replay tool and is exactly the control that gets
-misconfigured.
+**3. Session replay — high value, and the objection is narrower than it first
+looks.**
 
-**If replay is wanted, it should be a deliberate decision after the agreement
-lands**, self-hosted (OpenReplay or PostHog) in `europe-north1`, default-mask
-everything and opt in per element, with teachers explicitly told. Not a tool
-install.
+*Corrected 2026-09-02.* An earlier draft of this section argued that replay on
+teacher surfaces would capture class rosters, join codes and student transcripts,
+and treated that as disqualifying. **That was over-cautious and the premise
+was wrong for this product.** Student transcripts are shown to teachers by design
+— it is what the reports surface is *for* — and they are shown to researchers by
+design too. A replay of a teacher's screen records things that teacher is already
+authorised to see. It does not create a new class of access.
+
+The real objections are smaller and different:
+
+- **A hosted tool adds a processor**, mid-negotiation on an agreement that is
+  already the project's binding constraint. This is the strongest argument, and
+  it is about vendors, not about replay.
+- **It records a professional at work.** The consent question is about
+  *teachers*, not students — and it is the same conversation as M0's, only
+  sharper, because a replay is qualitatively more intimate than an event count.
+- **Retention.** A replay corpus is a durable store of classroom sessions with a
+  retention policy someone has to own.
+
+**So: worth doing, self-hosted (OpenReplay or PostHog) in `europe-north1`, with
+teachers told — and worth doing *after* M-1 and M0**, because those are cheaper
+and may localise the problem well enough that replay is confirmation rather than
+discovery.
 
 ### Why not a hosted vendor at all, for now
 
