@@ -24,11 +24,26 @@ though its design doc still says "Planned", which is its own small lesson. It
 reports **USD**, aggregated **per class over a period**. Neither the unit nor the
 grain answers *"what did this session use?"*.
 
-**Students have nothing at all**, and they are the interesting audience. The
-transcript gives the purpose the dictated notes lost — it is framed as **AI
-literacy**, not as cost control, which changes the design: the goal is that a
-student understands what running a model consumes, so the number is a *teaching
-object*, not a budget warning. This is also a **physics course**. Joules, watts and kilowatt-hours are not a sustainability
+**Students have nothing at all**, and they are the interesting audience.
+
+**The energy number serves two purposes at once, and the design has to hold
+both.** The transcript frames it as **AI literacy** — a student should understand
+what running a model consumes — so it is a *teaching object*. But it is also
+**budget**: the same figure, in the same units, is what tells a teacher and an
+administrator what a class costs to run, and energy is the unit an institution
+increasingly reports in. One measurement, three readings:
+
+| Audience | Reading | Unit |
+|---|---|---|
+| Student | AI literacy — what did this conversation consume? | kJ, framed as a comparison |
+| Teacher | Budget — what does a lesson, a class, a term cost? | kWh **and** the existing USD |
+| Researcher | Efficiency per arm — a smarter tutor that scores no better but costs 3× | kWh per session, in 1.1.92's matrix |
+
+That dual purpose is why the conversion belongs in **one** place rather than
+being a student-facing garnish: the teacher-facing budget view and the student
+readout must never be able to disagree about the same session.
+
+This is also a **physics course**. Joules, watts and kilowatt-hours are not a sustainability
 garnish here — they are **the unit of the subject being taught**. A tutor that can
 tell a student the conversation they just had used *X* kJ is doing something no
 generic chat product has any reason to do, and it converts an invisible externality
@@ -74,8 +89,11 @@ decision, not a lookup.**
 conversation used about X kJ — roughly a Y-watt bulb for Z minutes."* Framed as
 information, never as a scold, and never as a reason not to ask a question.
 
-**Teacher**: per-session and per-class energy alongside the existing USD, on the
-shipped dashboard.
+**Teacher**: per-session and per-class energy alongside the existing USD on the
+shipped dashboard — the **budget** reading. Energy and money are the same
+underlying number; showing both lets a teacher answer "can I afford to run this
+with four classes?" and an administrator answer the sustainability question,
+without a second pipeline.
 
 **Researcher**: per-arm energy in 1.1.92's matrix — a smarter tutor that scores no
 better but costs three times the energy is a finding.
