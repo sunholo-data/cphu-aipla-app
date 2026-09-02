@@ -1,133 +1,200 @@
-# Tutors as research instruments — pedagogical frameworks a researcher can configure
+# Tutors as research instruments — theory-grounded, co-piloted, authored by researchers *and* teachers
 
-**Status**: **Design (OPEN)** — **1.1.91**
-**Priority**: **P1** — the mechanism is un-gated, and it opens the human gate `adk/authoring_framework.py` has been carrying since COPILOT-1
-**Estimated**: ~3–4d (M0 persona bundle ~1d · M1 researcher override store ~1d · M2 authoring workflow + preview ~1d · M3 framework library ~0.5d)
-**Scope**: Backend — a persona bundle resolving to the shipped `interaction_style` primitive, plus a Firestore override store for framework prompts; frontend — a researcher-facing persona editor with preview
-**Dependencies**: [1.1.20 interaction-style](tutor-personas.md) (**SHIPPED** — `adk/interaction_style.py`, the primitive this bundles); `adk/authoring_framework.py` (**M0 static SHIPPED**; the M2 researcher override store this builds is named there as not-yet-built); [1.1.47](prompt-transparency-and-config.md) (the transparency/config direction); [1.1.5 researcher-role](researcher-role.md) (**SHIPPED** — the role that gates this)
+**Status**: **Design (OPEN)** — **1.1.91**. *Rewritten 2026-09-02 after review: the first draft had a preview but no co-pilot, was researcher-only, and gave researchers no sight of what teachers build. All three were the point.*
+**Priority**: **P1** — the mechanism is un-gated, it opens the human gate `adk/authoring_framework.py` has carried since COPILOT-1, and it is the prerequisite for [1.1.92](session-benchmark-tutor-activity.md) having any arms to compare
+**Estimated**: ~6–8d phased (M0 tutor object ~1d · M1 store + two tiers ~1.5d · M2 **tutor co-pilot** ~2d · M3 preview/compare ~1d · M4 researcher cross-view ~1d · M5 seeded library ~0.5d)
+**Scope**: Backend — a `Tutor` object carrying its theory, a Firestore store with two authoring tiers, co-pilot proposal tools, and a `scope=all` read for researchers; frontend — a tutor editor on the **shipped** co-pilot shell, preview/compare, and a researcher catalogue
+**Dependencies**: [1.1.20 interaction-style](tutor-personas.md) (**SHIPPED** — `adk/interaction_style.py`, the injection primitive this bundles); `adk/authoring_framework.py` (**M0 shipped; its docstring names the missing store**); `components/teacher/copilot/` + `adk/authoring_tools.py` (**SHIPPED** — the shell and propose→Apply tool pattern this reuses); [1.1.5 researcher-role](researcher-role.md) (**SHIPPED**); **ALS-SHARE** (**SHIPPED** — the sharing/provenance model this copies)
 **Created**: 2026-09-02
-**Source**: [notes-2026-09-01.md](../../../notes-2026-09-01.md) — *"ESRU is another tutor… make this configurable for researchers"*, *"have a good workflow for creating tutor personas, with simulations and previews"*
+**Source**: [notes-2026-09-01.md](../../../notes-2026-09-01.md) + the tutor discussion the notes under-captured
 
 ## Problem Statement
 
-> We have prompts for uploaded docs, activity prompt, and a tutor persona — and
-> then we have **tutors** (authentic questions, student discipline etc.) —
-> Jesper/Aswin to supply these. Then we can **A/B performance of tutors**.
->
-> **ESRU** is another tutor (inquiry-based science education) — make this
-> **configurable for researchers**.
->
-> Have a good workflow for **creating tutor personas, with simulations and
-> previews**.
+**A tutor is currently a file in git, and the people who own the pedagogy cannot
+write files in git.**
 
-**The pedagogy is currently in git, and the people who own it cannot write git.**
+There are eight of them — `backend/skills/templates/*/SKILL.md` — each carrying a
+name, avatar, voice, opening message and prompt body. Adding a ninth, or changing
+how any of them teaches, is an edit, a commit, a deploy and a seed. So the answer
+to *"can we try a tutor built on self-determination theory?"* is currently
+**"open a ticket with M."**
 
-`adk/authoring_framework.py` says so in its own docstring, and it is worth
-quoting because it is the clearest statement of the gap anywhere in the repo:
+### The configurable layer that exists is tone, not theory
 
-> *What is NOT here yet (later sprints): the researcher Firestore override store
-> (1.1.50 M2 …). Until then the framework is the seeded SKILL.md, swappable by
-> `make seed`.*
->
+This is the sharp version of *"current tutors are placeholders really."*
+`interaction_style` (1.1.20) ships and works, and its four options are:
+
+```
+concise.md    rigorous.md    socratic.md    warm.md
+```
+
+Those are **adjectives describing a voice.** They are not pedagogical
+frameworks. Nothing anywhere in the system can express:
+
+> This tutor operationalises **self-determination theory**. It supports
+> *autonomy* by offering the student a choice of route; *competence* by pitching
+> the next question just past what they have shown; *relatedness* by referring to
+> the group's shared work. It is expected to increase persistence, and here is
+> the source that claims so.
+
+That gap is why the notes list ESRU, SDT and Dysthe as *"another tutor"* — those
+are theories, and the system has no slot for a theory. And
+`adk/authoring_framework.py` says the quiet part itself:
+
 > ***Human gate:** the prompt + rubric below are a placeholder.*
 
-So a researcher wanting to try ESRU, or a self-determination-theory framing, or
-Dysthe's dialogic model, must ask M to edit a `SKILL.md`, commit it, deploy, and
-seed. **That is not a research instrument; it is a feature request queue.** And
-it is why an A/B of tutors has never run: the cost of creating the second arm is
-a deploy.
+### Three separate holes, and the first draft of this doc only filled one
 
-### What ships, and what does not
-
-| | State |
+| Hole | State |
 |---|---|
-| `adk/interaction_style.py` (1.1.20) | **Ships.** Per-activity teaching-voice preamble, injected at agent-instantiation. `socratic` is a passthrough |
-| The **persona bundle** (1.1.12) — style + voice + avatar + name | **Does not exist in code.** One comment in `agent.py` says a persona *"resolves down to this"*; nothing implements it. The `tutor-personas.md` header still reads "Planned" and is, for once, accurate |
-| `adk/authoring_framework.py` M0 | **Ships**, static, placeholder prompt, human gate open |
-| The researcher override store | **Not built** — named as 1.1.50 M2 |
-| `revision`-stamped chat logs | **Ships** — the A/B arm key already exists |
+| Researchers cannot author tutors | The store `authoring_framework.py` names as missing |
+| **There is no help in authoring one** — the ask was a co-pilot *"similar to"* the activity one, not a text box | Not designed. The shell, the propose→Apply model and the tool pattern all ship and are unused for this |
+| **Teachers cannot make custom tutors either**, and **researchers cannot see what teachers make** | Not designed. The first draft made this researcher-only, which removes the most interesting research data in the system |
+
+**Why the third matters most.** *"What do teachers actually build when you give
+them the tool?"* is a better research question than *"does SDT beat Socratic?"*,
+and it is free — it falls out of letting teachers author and letting researchers
+look. The platform already has this exact shape for **classes** (`scope=all` for
+researchers) and for **activities** (ALS-SHARE: publish, adopt, provenance). This
+is the third instance, and it should not be invented afresh.
 
 ## Design
 
-### M0 — The persona bundle
+### M0 — A tutor is an object that carries its theory
 
-Make real the thing `agent.py` already refers to. A persona is a named bundle:
+Not a prompt string. The theory is structured data because **a researcher has to
+defend it** — in the [Applied AI overview](../../../notes-2026-09-01.md#publication),
+and to a teacher asking why this tutor behaves as it does.
 
 ```
-Persona
-  name, description
-  framework          # esru | sdt | dialogic | socratic | custom
-  interaction_style  # resolves to the SHIPPED primitive
-  voice, avatar      # optional, existing TTS config
-  prompt_override    # optional, from the M1 store
+Tutor
+  name, displayName, avatar, voice          # what SKILL.md already carries
+  framework:
+    id                                      # sdt | esru | dialogic | socratic | custom
+    label, summary
+    provenance                              # citation(s) + who vouched for it
+    constructs: [                           # what the theory operates on
+      { name: "autonomy",
+        behaviours: ["offer a choice of route", …],   # observable, promptable
+        evaluation_hint: "…" }               # feeds 1.1.92's rubric adapters
+    ]
+  prompt                                     # generated FROM the above, then editable
+  interaction_style                          # resolves to the SHIPPED primitive
+  lineage: { parent_tutor_id, kind }         # variant-of, as ALS-SHARE does
+  status: draft | ready | in-use
 ```
 
-It resolves down to `interaction_style`, which stays the primitive. Nothing about
-the existing injection seam changes — this is a layer above it, exactly as the
-comment in `agent.py` anticipated.
+Two properties earn their keep. **`constructs → behaviours` is what makes the
+prompt reviewable** — a reader can check the prompt against the theory instead of
+taking it on faith. And **`evaluation_hint` is the seam to 1.1.92**: a tutor that
+claims to support autonomy states how you would know, at design time, rather than
+having a rubric retro-fitted to it later.
 
-### M1 — The researcher override store
+### M1 — One store, two authoring tiers
 
-The store `authoring_framework.py` names as missing: framework prompts in
-Firestore, editable by a **researcher** (`role:researcher`, shipped in 1.1.5),
-versioned, with the seeded `SKILL.md` as the fallback when no override exists.
+| | **Researcher** | **Teacher** |
+|---|---|---|
+| Author a framework from scratch (theory, constructs, provenance) | ✅ | ❌ |
+| Create a **variant** of an existing tutor (adjust behaviours, prompt, voice, opening) | ✅ | ✅ |
+| Scope | Publishable to all | Own classes, publishable to colleagues |
+| See **everyone's** tutors, incl. teacher-authored | ✅ (M4) | Own + published |
 
-**This is the item that opens the human gate**, and it is the one with real
-leverage: after it, a new pedagogical framing is a form, not a deploy.
+**Teachers get variants, not blank frameworks** — deliberately, and not as a
+permissions grudge. A tutor with a theory field and no theory in it is worse than
+no theory field: it makes an unfounded claim look founded. A teacher who wants
+"SDT but warmer, and it should stop giving away the answer" gets exactly that,
+with lineage back to the researched parent — **and the delta is itself the
+research finding.**
 
-Reuses the ACL shape already established: researchers read across classes and now
-write framework config; teachers select from what exists; students see none of it.
+Lineage means you can ask: *SDT as designed vs SDT as thirty teachers actually
+adapted it.* That is a paper.
 
-### M2 — Authoring workflow with preview
+### M2 — The tutor co-pilot *(the piece the first draft missed)*
 
-*"A good workflow for creating tutor personas, with simulations and previews."*
+Same floating shell as the activity co-pilot (`components/teacher/copilot/`),
+same **propose → Apply / Edit / Dismiss**, same tool-call shape as
+`adk/authoring_tools.py`. Nothing new is invented; a fourth co-pilot mount joins
+class management, analytics and activity authoring.
 
-The preview is the load-bearing half. A researcher editing a prompt must see
-what it does **before** it reaches a student:
+New proposal tools:
 
-- a scratch conversation against the draft persona, on a chosen activity
-- side-by-side against the current persona, since the research question is nearly
-  always comparative
-- **no student data** — the preview runs on the researcher's own turns
+| Tool | What it proposes |
+|---|---|
+| `set_framework` | From *"I want a tutor grounded in self-determination theory"* — the framework, its constructs, and a provenance stub for the human to confirm |
+| `set_construct_behaviours` | Concrete, promptable behaviours per construct — the step researchers find tedious and models are good at |
+| `draft_tutor_prompt` | The prompt **generated from the constructs**, so it is traceable to the theory rather than free-written |
+| `suggest_evaluation` | How you would tell whether it worked → 1.1.92 |
+| `critique_tutor` | The inverse, and the most valuable for a researcher: *"your prompt claims to support autonomy but never offers a choice"* |
 
-### M3 — A starter framework library
+⚠️ **The co-pilot must not invent citations.** It proposes a framework *shape* and
+leaves provenance for a human to supply or confirm. A model confabulating a
+reference into a research instrument that ends up in a journal paper is the worst
+failure available here, and it is a **hard requirement, not a caution** — see
+Testing.
 
-Ship the frameworks named in the meeting as seeded, editable starting points:
+### M3 — Preview and comparison
+
+The load-bearing half of *"simulations and previews"*: a scratch conversation
+against the draft tutor on a chosen activity, **side by side against another
+tutor**, because the question is nearly always comparative. Runs on the author's
+own turns — **no student data**, and nothing written to the chat log as student
+turns.
+
+### M4 — Researchers see what teachers build
+
+The `scope=all` pattern already shipped for classes, applied to tutors: a
+researcher-facing catalogue of every tutor including teacher-authored variants,
+with lineage, usage counts, and a link into 1.1.92's scores.
+
+Access is **read-only and logged**, exactly as class reads are
+(`auth.researcher_bypass` on the span). Teachers should be told this is visible —
+it is their professional work, and the trust-card principle applies to teachers
+as much as to students.
+
+### M5 — Seeded library
+
 **ESRU**, **SDT**, **dialogic/Dysthe**, plus *authentic questions* and *student
-discipline* as described by JB/Aswin.
+discipline* as JB and Aswin describe them. Ships the slots; the content is theirs.
 
-⚠️ **The content is not ours.** Each needs its framing written or approved by
-JB/AR, and the names ESRU/Dysthe are phonetic transcriptions from the notes with
-confidence recorded, **not verified citations**. M3 ships the slots; the text is
-gated on the people who own the pedagogy. **M0–M2 are not gated on M3** — that
-separation is deliberate and is the 1.1.78 lesson.
+⚠️ Names are phonetic transcriptions from the notes with confidence recorded —
+**not verified citations** (see [Terms I inferred](../../../notes-2026-09-01.md#terms-i-inferred)).
+**M0–M4 are not gated on M5.** That separation is the 1.1.78 lesson and it is the
+whole reason this doc can start now.
 
 ## Milestones
 
 | M | What | Est | Gate |
 |---|---|---|---|
-| M0 | Persona bundle resolving to `interaction_style` | ~1d | None |
-| M1 | Researcher-editable framework store + versioning | ~1d | None |
-| M2 | Persona editor with comparative preview | ~1d | None |
-| M3 | Seeded framework library (ESRU, SDT, dialogic, …) | ~0.5d | **Content from JB/AR** |
+| M0 | `Tutor` object with framework/constructs/lineage | ~1d | None |
+| M1 | Store + researcher/teacher tiers + variants | ~1.5d | None |
+| M2 | **Tutor co-pilot** on the shipped shell | ~2d | None |
+| M3 | Preview + side-by-side comparison | ~1d | None |
+| M4 | Researcher cross-view over teacher-authored tutors | ~1d | Tell teachers first |
+| M5 | Seeded framework library | ~0.5d | **JB / AR content** |
 
 ## Testing
 
-- An activity with no persona behaves byte-identically (passthrough, as `socratic` does today)
-- A persona resolves to exactly the `interaction_style` preamble the primitive already injects
-- An override in Firestore beats the seeded `SKILL.md`; absent override falls back cleanly
-- A **teacher** cannot write framework config; a **researcher** can; a **student** sees neither
-- Preview turns are not written to the chat log as student data
+- An activity with no tutor override behaves byte-identically (passthrough, as `socratic` does today)
+- A tutor resolves to exactly the `interaction_style` preamble the primitive already injects
+- A **teacher** cannot create a bare framework; **can** create a variant; a **student** sees neither
+- A variant records lineage to its parent, and the parent's later edits do **not** silently mutate it
+- **`set_framework` never emits a provenance string the human did not supply** — asserted directly, because a fabricated citation is the failure that matters most here
+- Preview turns are never written as student data
+- A researcher read of a teacher's tutor tags the span, as class reads do
 
 ## Open questions
 
-1. **Persona per activity, per class, or per skill?** The meeting implies
-   per-activity ("preferred activities for which tutor"), which 1.1.92 needs to
-   compare arms. Probably activity-level with a class default.
-2. **Does a persona override a skill's `SKILL.md` voice, or compose with it?**
-   1.1.20 chose *countermand* for non-Socratic styles. Consistency says countermand.
-3. **Versioning granularity** — is an edited framework a new version (so old
-   sessions stay attributable) or in-place? **1.1.92 needs the former**, or arms
-   become unattributable retroactively.
-4. Are ESRU / Dysthe the right names for what JB and Aswin mean? See
-   [Terms I inferred](../../../notes-2026-09-01.md#terms-i-inferred).
+1. **Do the eight existing `SKILL.md` tutors migrate into this model, or coexist?**
+   Coexistence means two ways to define a tutor — the half-adoption pattern the
+   handover audit calls the worst outcome. Leaning migrate, after M1.
+2. **Does a teacher's variant need approval before students see it?** A governance
+   question, not a technical one. Interacts with [1.1.95](safe-to-publish-vetting.md),
+   which is the same question for activities.
+3. **Tutor per activity, per class, or both?** 1.1.92 needs it recorded per
+   session whatever the answer.
+4. **Versioning.** [1.1.92](session-benchmark-tutor-activity.md) needs an edited
+   tutor to be a *new version*, or earlier sessions become unattributable.
+5. **Are ESRU / Dysthe the right names** for what JB and Aswin mean?
+6. **Does a theory-grounded tutor need a "why am I like this?" surface for
+   students?** Fits [prompt-transparency-and-config](prompt-transparency-and-config.md),
+   and is a strong differentiator for the paper.
