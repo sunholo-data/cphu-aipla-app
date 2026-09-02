@@ -83,6 +83,39 @@ Designed to be **scanned, not read**. The teacher's question is *"which of these
 eight looks wrong?"*, and the answer should arrive in about two seconds from
 across a classroom.
 
+### M0b — What is on a table card, in priority order
+
+M, 2026-09-02, confirming the content model: *"student requesting help — that
+could be in the UI as well? And latest activity, chats etc is fine, and progress
+through the workbench is fine."*
+
+So the card is a **stack with a deliberate visual hierarchy**, because a teacher
+scanning a room needs the urgent thing to win:
+
+| Priority | What | Source | State |
+|---|---|---|---|
+| **1** | 🖐 **Raised hand** — a student explicitly asking for a human | `db/group_signals.list_raised_for_class` → `GET /{class_id}/signals` | **Ships** (1.1.29). Already class-scoped and teacher-readable |
+| **2** | **The work** — table, chart, writing miniature | the four `*_progress` stores | **Ships** (1.1.88 + siblings) |
+| **3** | **Workbench progress** — checklist / concept coverage | `checklist_progress`, `concept_progress` | **Ships** |
+| **4** | **Latest activity** — last turn excerpt, last action, time since | the BQ turn stream + `compute_group_signals` | **Ships** |
+| **5** | **Devices live** — small annotation | 1.1.53 M3 `activeDevices` | Ships, but **needs the teacher-side read** (M6) |
+
+**Everything on this list already exists.** The card is an assembly problem, not
+a data problem — which is the second time this doc has reached that conclusion.
+
+**The raised hand should not be a badge.** It is the only signal in the stack
+that is a *person deliberately asking*, as opposed to something we inferred from
+telemetry. Everything else is us guessing at need; this is need, stated. So the
+**table itself** changes state — unmissable from across a room, and it should
+survive being the only thing a teacher notices in a busy minute. It also has an
+implicit ordering claim: a raised hand outranks a stuck heuristic every time,
+because one of them is evidence and the other is a hypothesis.
+
+⚠️ **`call-teacher.md` still reads "Planned" while the mechanism ships** — the
+third stale `Status:` header found in this batch, after `cost-dashboard` and
+`tutor-personas`. Worth a sweep at some point; the retrospective's rule about
+verifying against code keeps earning its keep.
+
 ### M1 — Compare one element across all groups *(probably the most valuable screen)*
 
 Pick an element, see it **for every group at once**: eight graphs in a grid,
@@ -100,11 +133,17 @@ Clicking a card opens the **existing per-group report**, which
 cadences"* — live while the group is active, frozen after. **This doc is the front
 door to that, not a replacement for it.** No new drill-down surface.
 
-### M3 — Signals become an overlay, not the content
+### M3 — The inferred signals become an annotation
 
-Keep the raised hand (1.1.29 — a student explicitly asking is the highest-priority
-signal there is) and keep active/idle/stuck as a **badge on the card**. They stop
-being the view and become a hint on top of the work.
+The raised hand is promoted to a first-class card state (M0b). What is left —
+active/idle, turn count, the "stuck" heuristic — becomes **small type at the foot
+of the card**. They stop being the view and become a hint on top of the work.
+
+Keeping them is worth it (turn count and time-since are genuinely useful at a
+glance) but **the "stuck" flag should be reviewed once the wall exists**. Its
+whole purpose was to compensate for a teacher who could not see the work. With
+the work visible, a heuristic that fires on turn cadence may do more harm than
+good — it is confidently wrong exactly when a group is quiet and careful.
 
 ### M4 — Live transport
 
@@ -185,6 +224,7 @@ activity, that is the moment this became the other thing.
 | M | What | Est | Gate |
 |---|---|---|---|
 | M0 | Work wall — per-group artefact miniatures | ~2d | None |
+| **M0b** | **Card anatomy: raised hand first-class, work, progress, latest activity** | **~0.5d** | M0 |
 | M1 | Compare one element across all groups | ~1.5d | M0 |
 | M2 | Card → existing per-group report | ~0.5d | M0 |
 | M3 | Signals + raised hand as card overlay | ~0.5d | M0 |
@@ -200,6 +240,8 @@ activity, that is the moment this became the other thing.
 - Live updates arrive without a manual refresh; a dropped listener reconnects
 - **A read failure renders as "cannot read", never as an empty card** — an empty card means "this group has done nothing", which is the reassuring-wrong-answer failure this project keeps shipping
 - Chat-only activities (no workbench elements) degrade to a transcript excerpt rather than an empty grid
+- A raised hand is visible from across a room and cannot be obscured by any other card state
+- Lowering a hand clears the state promptly — a stale raised hand is worse than none
 - A group with 3 live devices and no work renders differently from a group with 0 devices — the two must never collapse to one state
 - Presence decay is bounded and shown; a brief network drop does not empty a table
 - The room layout survives a reload and is per class, not per teacher-device
