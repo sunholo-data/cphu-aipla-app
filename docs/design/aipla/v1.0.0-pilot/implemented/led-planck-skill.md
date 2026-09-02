@@ -12,7 +12,7 @@
 
 ## Problem Statement
 
-v0.1 ships one student-facing physics skill (`problem-set-hints` / Boldkast). Per [strands.qmd](https://www.sunholo.com/aipla/strands.html) line 144, v1 commits to "two student-facing chat skills" — the second is the LED Planck virtual lab tutor. The pedagogical work is done (AR built the lab HTML; the brief documents the tutor prompt + lesson structure). What's missing is the **technical execution**:
+v0.1 ships one student-facing physics skill (`problem-set-hints` / Boldkast). Per [strands.qmd](https://aipla.ku.dk/project/workstreams) line 144, v1 commits to "two student-facing chat skills" — the second is the LED Planck virtual lab tutor. The pedagogical work is done (AR built the lab HTML; the brief documents the tutor prompt + lesson structure). What's missing is the **technical execution**:
 
 - Where does the artefact HTML live in `cphu-aipla-app`?
 - Which existing patterns does it follow (Boldkast / StaticArtefactFrame / mcp-app-artefact skill)?

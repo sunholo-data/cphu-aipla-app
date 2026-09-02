@@ -5,10 +5,10 @@
 > This is the **execution** layer. Architecture and strategy
 > (ADRs 001–015, strand definitions, capability-floor eval framework)
 > live in the **scoping site** at `~/Documents/clients/cph-uni`
-> ([architecture.qmd](https://www.sunholo.com/aipla/architecture.html),
-> [strands.qmd](https://www.sunholo.com/aipla/strands.html),
-> [timeline.qmd](https://www.sunholo.com/aipla/timeline.html),
-> [evaluation.qmd](https://www.sunholo.com/aipla/evaluation.html)).
+> ([architecture.qmd](_scoping-snapshot/architecture.qmd),
+> [strands.qmd](https://aipla.ku.dk/project/workstreams),
+> [timeline.qmd](https://aipla.ku.dk/project/progress),
+> [evaluation.qmd](https://aipla.ku.dk/project/evaluation)).
 > Cite ADRs from this repo's design docs — do not restate them.
 
 ## AIPLA versions
@@ -80,7 +80,7 @@ silent-failure hardening running alongside, and ~25% deliberately unallocated.
 Once `aipla-dev-2026` is live and v0.1 is demoed, the docs below sequence
 the build between **2026-05-28 (post-Jutland)** and **2026-08-14 (pilot
 start)**. Order roughly follows the [scoping site
-timeline](https://www.sunholo.com/aipla/timeline.html) and
+timeline](https://aipla.ku.dk/project/progress) and
 respects the **mid-point review (2026-06-26)** + **holiday freeze
 (2026-06-29 → 07-05)** gates.
 
@@ -210,7 +210,7 @@ have explicit decision criteria for "when would we actually build this."
 
 | # | Doc (planned) | Why |
 |---|---|---|
-| 3.1 | `handover-package.md` | Index of all runbooks, deep-dive sessions, sign-offs. Per the handover-fan-out table in [timeline.qmd](https://www.sunholo.com/aipla/timeline.html), each artefact has a named co-owner. This doc is the manifest. |
+| 3.1 | `handover-package.md` | Index of all runbooks, deep-dive sessions, sign-offs. Per the handover-fan-out table in [timeline.qmd](https://aipla.ku.dk/project/progress), each artefact has a named co-owner. This doc is the manifest. |
 | 3.4 | [aipla/v2.0.0-handover/ku-ai-office-alignment.md](v2.0.0-handover/ku-ai-office-alignment.md) | **P1, time-boxed — opened 2026-08-27.** KU committed 110M DKK / 3 years to AI from 2026-09-01 (first vice-rector for AI, AI office, taskforce, AI-labs) and KU IT is already building internal local-model infrastructure. M's extension to ≥2027-04 overlaps its entire formation phase. Decides whether AIPLA is a **tenant** of the KU platform, a **template** for it, or **parallel**. Perishable, not urgent: a new office's architecture is decided in its first months. Companion outward-facing note: [capability-floor-for-ku-ai-office.qmd](v2.0.0-handover/capability-floor-for-ku-ai-office.qmd). |
 | 3.2 | [aipla/v2.0.0-handover/self-hosting-and-terraform-handover.md](v2.0.0-handover/self-hosting-and-terraform-handover.md) | **P0 — opened 2026-06-17 on UCPH IT request.** The UCPH on-prem/hybrid **resource list**: accurate component inventory (corrects the out-of-date `self-hosting.qmd` stub — Firestore + Vertex RAG + Agent Engine, not the assumed Postgres), hybrid topologies, ADR-003-tier model sizing on real GPU hardware, and a portable two-layer Terraform deliverable (GCP modules + on-prem reference stack, shared variables). The costable half of the handover package. Workstream: [v2.0.0-handover/SEQUENCE.md](v2.0.0-handover/SEQUENCE.md). |
 

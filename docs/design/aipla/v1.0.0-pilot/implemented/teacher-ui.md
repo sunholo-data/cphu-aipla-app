@@ -35,7 +35,7 @@ The 2026-05-25 meeting committed to a Wed 3 June teacher demo. Teachers in that 
 **Impact:**
 
 - **Demo blocker** for Wed 3 June if not built.
-- v1.0.0-pilot's teacher commitment per [strands.qmd](https://www.sunholo.com/aipla/strands.html) ("5 skills + curated sim library + teacher config + ...") goes un-delivered without the config surface.
+- v1.0.0-pilot's teacher commitment per [strands.qmd](https://aipla.ku.dk/project/workstreams) ("5 skills + curated sim library + teacher config + ...") goes un-delivered without the config surface.
 - Per-group accountability and pedagogical iteration (teachers refining their teaching goal based on what students did) becomes impossible without reports.
 - "AIPLA = a platform teachers run, not an end-user app" framing requires teachers to feel ownership of their classes inside the platform.
 
@@ -592,4 +592,4 @@ rule when the pilot signals that 30s latency is a usability problem.
 - [lesson-picker.md](lesson-picker.md) (1.B) — student-side counterpart for browsing activities
 - [audio-capture-and-tts.md](audio-capture-and-tts.md) (1.H) — adds audio-data dimension to reports
 - ADR-001 (group ID anonymity), ADR-005 (chat log storage), ADR-014 (per-group/per-class budget)
-- [strands.qmd](https://www.sunholo.com/aipla/strands.html) — v1 teacher commitment
+- [strands.qmd](https://aipla.ku.dk/project/workstreams) — v1 teacher commitment

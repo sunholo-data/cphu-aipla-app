@@ -92,7 +92,7 @@ starts ~1 Oct with no in-person overlap with M.
 | `strands.qmd` | `https://aipla.ku.dk/project/workstreams` |
 | `examples.qmd` | `https://aipla.ku.dk/project/activities` |
 | `timeline.qmd` | `https://aipla.ku.dk/project/progress` |
-| `architecture.qmd` (ADRs) | `https://aipla.ku.dk/project/platform` — anchors (`#adr-NNN-...`) are **not** guaranteed to survive the migration; verify before citing one |
+| `architecture.qmd` (**ADRs**) | ⚠️ **The snapshot, not the public site:** [`docs/design/aipla/_scoping-snapshot/architecture.qmd`](docs/design/aipla/_scoping-snapshot/architecture.qmd)`#adr-NNN-…`. Verified 2026-09-02: the anchors did not survive, and neither did the **numbering** — `/project` is a deliberately unnumbered narrative (`decisions.md`) with **no `ADR` string anywhere in `frontend/content/project/`**. For the public *narrative* of a decision, cite `https://aipla.ku.dk/project/decisions`; for **ADR-NNN by number**, cite the snapshot |
 | `evaluation.qmd` | `https://aipla.ku.dk/project/evaluation` |
 | `self-hosting.qmd` | `https://aipla.ku.dk/project/data-and-hosting` |
 | `led-planck.qmd` | `https://aipla.ku.dk/project/activities/led-planck` |

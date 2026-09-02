@@ -243,4 +243,4 @@ Carried from the design doc:
 - [Sprint 2.11 design doc](../design/v6.2.0/anonymous-group-id-auth.md) — full threat model + axiom alignment.
 - [Sprint 2.12 budget-enforcement](../design/v6.2.0/budget-enforcement.md) — uses `User.group_id` from sprint 2.11 as the budget identity key.
 - [Sprint 2.14 tenant-id-span-attribute](../design/v6.2.0/tenant-id-span-attribute.md) — drops `tenant.group_id` on every OTel span so per-cohort research data lands cleanly.
-- [AIPLA ADR-001](https://www.sunholo.com/aipla/architecture.html#adr-001-student-identity-no-auth-anonymous-group-ids) — the originating request.
+- [AIPLA ADR-001](../design/aipla/_scoping-snapshot/architecture.qmd#adr-001-student-identity-no-auth-anonymous-group-ids) — the originating request.

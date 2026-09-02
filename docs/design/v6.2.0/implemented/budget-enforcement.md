@@ -5,7 +5,7 @@
 **Estimated**: ~1.5 days (interface + ADK callback + reference impl + tests + docs)
 **Scope**: Backend — new `BudgetEnforcer` Protocol + ADK before/after_model callbacks + in-memory reference impl + Pydantic config on `SkillMetadata` for per-skill multipliers.
 **Dependencies**: `backend/observability/llm_metrics.py` (existing — provides the per-call cost numbers).
-**Surfaced by**: AIPLA fork [ADR-014 — per-group, per-class budget enforcement](https://www.sunholo.com/aipla/architecture.html#adr-014-per-group-per-class-budget-enforcement). Generalises across every commercial fork.
+**Surfaced by**: AIPLA fork [ADR-014 — per-group, per-class budget enforcement](../../aipla/_scoping-snapshot/architecture.qmd#adr-014-per-group-per-class-budget-enforcement). Generalises across every commercial fork.
 **Created**: 2026-05-19
 
 ---
@@ -21,7 +21,7 @@ The platform does NOT **gate** on that meter. There is no mechanism to:
 - Charge different skills different rates against the same pool.
 - Refuse the next turn when a budget is exceeded.
 
-Every commercial fork will hit this. AIPLA is the first concrete consumer asking, with a specific shape ([ADR-014](https://www.sunholo.com/aipla/architecture.html#adr-014-per-group-per-class-budget-enforcement)):
+Every commercial fork will hit this. AIPLA is the first concrete consumer asking, with a specific shape ([ADR-014](../../aipla/_scoping-snapshot/architecture.qmd#adr-014-per-group-per-class-budget-enforcement)):
 
 | Tier | Identity | Limit | Skill multiplier? |
 |---|---|---|---|
@@ -344,7 +344,7 @@ Existing `useSkillAgent.onRunFailed` already classifies errors. Add a `budget_ex
 
 ## Related Documents
 
-- [AIPLA ADR-014](https://www.sunholo.com/aipla/architecture.html#adr-014-per-group-per-class-budget-enforcement) — the request.
+- [AIPLA ADR-014](../../aipla/_scoping-snapshot/architecture.qmd#adr-014-per-group-per-class-budget-enforcement) — the request.
 - [backend/observability/llm_metrics.py](../../../../backend/observability/llm_metrics.py) — existing meter; budget enforcer consults the same pricing table.
 - [anonymous-group-id-auth.md](anonymous-group-id-auth.md) — sprint 2.11 (shipped 2026-05-19); provides the `group_id` identity that AIPLA's enforcer impl will key on.
 - [tenant-id-span-attribute.md](../tenant-id-span-attribute.md) — sprint 2.14; budget consultations land in OTel with full attribution.

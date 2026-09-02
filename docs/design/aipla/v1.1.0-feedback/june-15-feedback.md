@@ -3,7 +3,7 @@
 **Status:** Triage / index — the execution-repo companion to the scoping-site note
 **Last Updated:** 2026-06-15
 **Source (product truth):** `notes/2026-06-15-teacher-feedback.md` (private scoping-site file, not published) (processed) + `sources/feedback-2026-06-15.md` (private scoping-site file, not published) (raw; the `## 15th Jan` header is a stale template line — the file is 15 June). Raw scratch copy alongside this doc: `feedback-2026-01-15.md` (relocated from the repo root, 2026-07-22).
-**Companion docs:** [`strands.qmd`](https://www.sunholo.com/aipla/strands.html) · [`architecture.qmd`](https://www.sunholo.com/aipla/architecture.html) (ADR-016 researcher tier) · the 9 June batch (this extends it)
+**Companion docs:** [`strands.qmd`](https://aipla.ku.dk/project/workstreams) · [`architecture.qmd`](../_scoping-snapshot/architecture.qmd) (ADR-016 researcher tier) · the 9 June batch (this extends it)
 
 > **Why this file exists.** The scoping site holds the pedagogical/product truth; this repo holds
 > the *execution* layer (file paths, wire shapes, ADR alignment, acceptance gates). 15 June was

@@ -5,7 +5,7 @@
 **Estimated**: ~2 days (auth provider + rate-limit + token shape + tests + docs)
 **Scope**: Backend auth — new module alongside `firebase_auth.py` + `local_mode_stub.py`. Frontend already issues the bearer token via `fetchWithAuth`; only the chooser logic changes.
 **Dependencies**: None — sits alongside existing auth modes.
-**Surfaced by**: AIPLA fork [ADR-001 — student identity, no auth, anonymous group IDs](https://www.sunholo.com/aipla/architecture.html#adr-001-student-identity-no-auth-anonymous-group-ids).
+**Surfaced by**: AIPLA fork [ADR-001 — student identity, no auth, anonymous group IDs](../../aipla/_scoping-snapshot/architecture.qmd#adr-001-student-identity-no-auth-anonymous-group-ids).
 **Created**: 2026-05-19
 
 ---
@@ -333,7 +333,7 @@ Content-Type: application/json
 
 ## Related Documents
 
-- [AIPLA ADR-001](https://www.sunholo.com/aipla/architecture.html#adr-001-student-identity-no-auth-anonymous-group-ids) — the request that surfaced this.
+- [AIPLA ADR-001](../../aipla/_scoping-snapshot/architecture.qmd#adr-001-student-identity-no-auth-anonymous-group-ids) — the request that surfaced this.
 - [backend/auth/local_mode_stub.py](../../../../backend/auth/local_mode_stub.py) — closest existing pattern; this design parallels its structure.
 - [budget-enforcement.md](../budget-enforcement.md) — sprint 2.12, depends on this for the per-cohort identity in budget keys.
 - [tenant-id-span-attribute.md](../tenant-id-span-attribute.md) — sprint 2.14, the `group_id` lands on every span via that hook.

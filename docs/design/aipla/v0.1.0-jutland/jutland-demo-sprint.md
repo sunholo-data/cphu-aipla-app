@@ -23,7 +23,7 @@ What we don't need to build:
 - **Group-ID auth (ADR-001):** [backend/auth/group_id_auth.py](../../../../backend/auth/group_id_auth.py), [group_routes.py](../../../../backend/auth/group_routes.py), [group_rate_limit.py](../../../../backend/auth/group_rate_limit.py)
 - **Frontend group-ID join:** [frontend/src/app/group/page.tsx](../../../../frontend/src/app/group/page.tsx), [AnonymousGroupAuthProvider.tsx](../../../../frontend/src/contexts/AnonymousGroupAuthProvider.tsx) (has tests already)
 - **BudgetEnforcer Protocol (ADR-014):** [backend/budget/enforcer.py](../../../../backend/budget/enforcer.py), [in_memory_enforcer.py](../../../../backend/budget/in_memory_enforcer.py), [callback.py](../../../../backend/budget/callback.py)
-- **Tenant-span OTel hook:** landed upstream 2026-05-19 per [timeline.qmd](https://www.sunholo.com/aipla/timeline.html) — group_id will stamp on every model-call span automatically.
+- **Tenant-span OTel hook:** landed upstream 2026-05-19 per [timeline.qmd](https://aipla.ku.dk/project/progress) — group_id will stamp on every model-call span automatically.
 - **ADK skill-loading + AG-UI streaming + multi-provider router:** all generic in the template.
 - **Cloud Build pipeline:** [cloudbuild.yaml](../../../../cloudbuild.yaml) with Terraform-managed substitutions — needs AIPLA project-ID substitution but no logic change.
 
@@ -285,7 +285,7 @@ aipla smoke jutland --url $DEPLOYED_URL
 - `aipla-dev-2026` GCP project (✅ created 2026-05-18, owner `m@sunholo.com`)
 - `sunholo-voight-kampff` has push on `sunholo-data/cphu-aipla-app` (✅ granted 2026-05-19)
 - Vertex AI `gemini-3.5-flash` callable via ADC (✅ verified 2026-05-20 on `global` endpoint)
-- AR's projectile-motion problem from [examples.qmd](https://www.sunholo.com/aipla/examples.html) (soft — proceed regardless; AR has the option of supplying a fresh problem during buffer week)
+- AR's projectile-motion problem from [examples.qmd](https://aipla.ku.dk/project/activities) (soft — proceed regardless; AR has the option of supplying a fresh problem during buffer week)
 
 ## Open Questions
 - Carried over from the design doc, items 1 + 2 (problem-set source, wordmark) **resolved to fallback choices** to avoid blocking M1/M2: projectile-motion example and plain text wordmark respectively. If M wants different choices, surface at start of Day 1.

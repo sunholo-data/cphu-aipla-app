@@ -219,4 +219,4 @@ Sequenced so the pilot-blocking path (increment 2 → test cut) lands first; dev
 - [firestore-portability-seam.md](../v2.0.0-handover/firestore-portability-seam.md) — 3.3, the seam-audit pattern the remaining capability seams follow
 - [`infrastructure/env/`](../../../../infrastructure/env/) + [`infrastructure/modules/`](../../../../infrastructure/modules/) — the Terraform root + modules
 - [`scripts/bootstrap-aipla-dev.sh`](../../../../scripts/bootstrap-aipla-dev.sh) + [`scripts/bootstrap-aipla-dev.NOTES.md`](../../../../scripts/bootstrap-aipla-dev.NOTES.md) — the imperative inventory being retired
-- Scoping site: [`self-hosting.qmd`](https://www.sunholo.com/aipla/self-hosting.html) (product why/when-to-migrate), ADR-006/007 (regional pinning)
+- Scoping site: [`self-hosting.qmd`](https://aipla.ku.dk/project/data-and-hosting) (product why/when-to-migrate), ADR-006/007 (regional pinning)
