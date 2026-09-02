@@ -1,12 +1,12 @@
-# The class view shows the work, not a status light — a visual live wall
+# The class view is a room — groups at tables, their work on them, their devices live
 
 **Status**: **Design (OPEN)** — **1.1.99**
 **Priority**: **P1** — the most-repeated teacher ask across three separate feedback rounds, and its enabler landed 2026-08-31. Needs **only teachers**, so it is un-gated by either legal blocker
 **Estimated**: ~4–6d (M0 work wall ~2d · M1 compare-one-element ~1.5d · M2 drill-in wiring ~0.5d · M3 signals as overlay ~0.5d · M4 live transport ~1d)
 **Scope**: Frontend-heavy — a new class view rendering per-group artefact miniatures; backend — a class-scoped read across the four per-group stores; transport for live updates
-**Dependencies**: **[1.1.88 group-shared-table](group-shared-table.md) (SHIPPED 2026-08-31 — this is what makes the doc possible at all, see below)**; `db/{table,writing,checklist,concept}_progress.py` (**all four shipped**); [1.1.31 teacher-analytics-framework](teacher-analytics-framework.md) (**M0/M1 shipped** — the signals this demotes); [live-group-drilldown](live-group-drilldown.md) (**1.1.31 M2** — the per-group report this becomes a front door to); [1.1.29 call-teacher](call-teacher.md) (raised hands)
+**Dependencies**: **[1.1.53 group-shared-session-sync](group-shared-session-sync.md) M3 (SHIPPED — `touch_presence` / `activeDevices`, the device-presence signal M6 surfaces)**; **[1.1.88 group-shared-table](group-shared-table.md) (SHIPPED 2026-08-31 — this is what makes the doc possible at all, see below)**; `db/{table,writing,checklist,concept}_progress.py` (**all four shipped**); [1.1.31 teacher-analytics-framework](teacher-analytics-framework.md) (**M0/M1 shipped** — the signals this demotes); [live-group-drilldown](live-group-drilldown.md) (**1.1.31 M2** — the per-group report this becomes a front door to); [1.1.29 call-teacher](call-teacher.md) (raised hands)
 **Created**: 2026-09-02
-**Source**: M, 2026-09-02 — *"the teacher actually requests being able to see what students do a lot better. I think we need a totally new UI for the class view that is more visual based to show student work in real time"*
+**Source**: M, 2026-09-02 — *"the teacher actually requests being able to see what students do a lot better. I think we need a totally new UI for the class view that is more visual based to show student work in real time"* and *"the view should look a bit like a classroom with groups around tables… they can see different devices are live and around tables via our multi-session detection"*
 
 ## Problem Statement
 
@@ -121,6 +121,65 @@ express owner/researcher access); or extend the existing class poll if listener
 fan-out at 30 groups proves costly. **Measure before choosing** — 30 groups × 4
 collections is the number to check.
 
+### M5 — The room, not a grid
+
+**The layout should look like the classroom.** A teacher does not think *"group
+7"*; they think *"the pair by the window"*, *"the table by the door"*. A uniform
+grid forces them to translate between a screen and a room they are standing in,
+every time they look.
+
+So: group cards are **tables on a floor plan**, and the teacher **arranges them
+once to match their actual room** — drag a table, save, persisted per class.
+After that the screen and the room are the same shape, and a card lighting up
+maps directly onto somewhere to walk.
+
+This is a small feature with an outsized effect on the thing being asked for:
+*"see what students do a lot better"* is partly a **navigation** problem, and
+spatial memory is the cheapest navigation there is.
+
+### M6 — Devices live at each table
+
+**The presence signal already exists and ships**, and it is currently invisible
+to the person who most needs it. [1.1.53](group-shared-session-sync.md) M3 gives
+each tab an ephemeral device token, heartbeats it ~2.5s via `/api/auth/group/pulse`,
+and returns `activeDevices` — *"how many devices are on this (group, activity)
+right now"* — through `touch_presence` / `read_group_pulse`.
+
+⚠️ **But `/pulse` is keyed by `user.group_id`** — *"a student reads only their own
+group's pulse; no cross-group leak"*. So **a teacher cannot read presence across
+their class at all.** The instrumentation is done; the teacher-side read is
+missing. That is the whole of M6: a class-scoped presence read, not new tracking.
+
+On a table card that becomes: **three devices lit = three students working;
+one = probably several heads round one screen; none = nobody has joined yet.**
+
+It also makes the "stuck" heuristic largely redundant, which is the point. *Three
+devices live and an empty table after ten minutes* is a completely different
+situation from *no devices at all*, and today both render as one grey dot.
+
+**Two honesty requirements:**
+
+- **Presence decays, and the decay window must be visible.** A closed tab stops
+  heartbeating; a card must not flip to "nobody here" faster than a student can
+  cross the room. State the TTL in the UI rather than implying certainty.
+- **It counts devices, never people.** ADR-001 holds: the card says *"3 devices"*,
+  never *"Anna, Ben, Chris"*. There is no per-student identity to show and there
+  should not be.
+
+### ⚠️ The risk this design introduces, and how to hold it
+
+A room-shaped view with live presence is **one design decision away from a
+surveillance dashboard.** *"Table 4 has one device"* is a fact; read as a
+productivity metric it becomes *"two students are slacking"*, which is August
+feedback item 21 (students already said the monitoring felt like too much) served
+back with better graphics.
+
+The discipline: **the work is the content and presence is context.** A card's
+dominant element is what the group has *made* — their table, their graph. Device
+count is a small annotation. No leaderboards, no per-table time-on-task, no
+ranking, no "engagement score" per table. If a future version sorts tables by
+activity, that is the moment this became the other thing.
+
 ## Milestones
 
 | M | What | Est | Gate |
@@ -130,6 +189,8 @@ collections is the number to check.
 | M2 | Card → existing per-group report | ~0.5d | M0 |
 | M3 | Signals + raised hand as card overlay | ~0.5d | M0 |
 | M4 | `onSnapshot` live transport (vs poll) | ~1d | Measure fan-out |
+| **M5** | **Room layout — drag tables, persisted per class** | ~1.5d | M0 |
+| **M6** | **Class-scoped presence read + device dots on each table** | ~0.5d | M0; needs the teacher-side pulse read |
 
 ## Testing
 
@@ -139,6 +200,10 @@ collections is the number to check.
 - Live updates arrive without a manual refresh; a dropped listener reconnects
 - **A read failure renders as "cannot read", never as an empty card** — an empty card means "this group has done nothing", which is the reassuring-wrong-answer failure this project keeps shipping
 - Chat-only activities (no workbench elements) degrade to a transcript excerpt rather than an empty grid
+- A group with 3 live devices and no work renders differently from a group with 0 devices — the two must never collapse to one state
+- Presence decay is bounded and shown; a brief network drop does not empty a table
+- The room layout survives a reload and is per class, not per teacher-device
+- No surface ranks, scores or sorts tables by activity level
 
 ## Open questions
 
@@ -159,3 +224,14 @@ collections is the number to check.
 5. **How does it interact with [1.1.90](bounded-tutoring-answer-trees.md)?** If an
    activity has a concept map and answer trees, per-group *position in the tree*
    may be the single most legible thing on the card.
+6. **Is the room per class or per activity?** `activeDevices` is scoped to
+   `(group, activity)`, so a class running two activities at once has two
+   presence truths. The room is probably per class with an activity filter —
+   confirm against how teachers actually run a lesson.
+7. **Who draws the room first?** Dragging tables is a setup cost on a surface
+   whose whole point is saving time. A sensible default arrangement that a
+   teacher *may* rearrange is likely better than an empty canvas.
+8. **Does the room want a projector mode after all?** Open question 2 says
+   teacher-only — but a *room* view showing each table's own work back to the
+   class is a different and possibly good thing. Still a separate decision, not a
+   default.

@@ -165,7 +165,7 @@ teachers.
 | **1.1.96** | [teacher-ui-friction-telemetry.md](teacher-ui-friction-telemetry.md) | **P1** | ~2–3d | None — needs only teachers |
 | **1.1.97** | [in-system-code-authoring.md](in-system-code-authoring.md) | **P2** | ~4–5d | Scope decision: who writes code, and where it runs |
 | **1.1.98** | [teaching-prompt-standardisation.md](teaching-prompt-standardisation.md) | **P1** | ~2–3d | Prompt *structure* from JB/AR |
-| **1.1.99** | [live-class-work-wall.md](live-class-work-wall.md) | **P1** | ~4–6d | None — needs only teachers |
+| **1.1.99** | [live-class-work-wall.md](live-class-work-wall.md) | **P1** | ~6–8d | None — needs only teachers |
 
 **Plus: un-defer [1.1.78](question-set-element.md)** (~4–5d). Not new — it was
 gated on having a student date, and item 3 supplies one.
