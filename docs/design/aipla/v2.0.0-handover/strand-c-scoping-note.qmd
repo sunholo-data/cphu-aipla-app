@@ -1,0 +1,304 @@
+---
+title: "Beyond LLMs, beyond chat, and modelling what a student understands"
+subtitle: "Strand C scoping note — AIPLA, September 2026"
+author: "AIPLA project team, Center for Digital Education"
+date: "2026-09-02"
+format:
+  pdf:
+    toc: true
+    number-sections: false
+    geometry: margin=1in
+    colorlinks: true
+  html:
+    toc: true
+    number-sections: false
+    embed-resources: true
+  docx:
+    toc: true
+    number-sections: false
+---
+
+::: callout-note
+## What this is, and why it is not the note that was commissioned
+
+Strand C was scoped as an **investigation**: three open questions that go beyond
+what the contract builds, answered in a 5–10 page note recommending which
+directions are worth pursuing, with rough effort estimates.
+
+It has turned out differently, and better. **All three directions were partly
+built during the contract** — not as a plan, but because each turned out to be
+on the path to something the pilot needed. So this reports **what happened when
+we tried them**, rather than what we expect might happen.
+
+That includes one clear **negative result** (§C2), which is the most useful thing
+in the note, and one finding that a decision made for privacy reasons has
+**capped** what a whole research direction can measure (§C3).
+:::
+
+## The three questions
+
+From the project's Strand C definition:
+
+- **C1 — Beyond LLMs.** Are there model classes better than, or supplementary to,
+  LLMs for some of the project's tasks? What is available, what is GDPR-tractable,
+  what would it cost to host, and where does each class shine or fail for
+  upper-secondary physics?
+- **C2 — Beyond chat.** Chat is the default interface but probably not the right
+  one for every physics task. Voice, branching, concept-map interfaces all have a
+  case. One concrete option to investigate: a Plaud-like setup that records a
+  student group's discussion, transcribes it, and has AI analyse it.
+- **C3 — Student models.** Can an AI maintain and update a model of a student's
+  understanding over a topic — as a network of concepts and relations — and
+  compare it to a reference model of the same topic?
+
+## C1 — Beyond LLMs
+
+### What we did
+
+We built a benchmark harness (`stx-bench`) that measures model performance
+against **Danish stx Fysik A written-exam problems**, calibrated against official
+answer keys first and then used for tier descent — working down a model panel to
+find where capability falls away, overall and per physics topic. Text and figure
+tasks were measured separately.
+
+The detailed results are in the companion note *"Which AI model is good enough
+for which task"* (2026-08-27).
+
+::: callout-warning
+### A constraint on this section
+
+The exam corpus is drawn from **Prøvebanken**, and legal approval for its use is
+**pending with the Ministry of Education**. We hold model-performance results
+against that corpus and have decided **not to publish them** until approval is
+granted. This note therefore states conclusions at a level the approval does not
+gate, and the underlying numbers stay internal for now.
+:::
+
+### What we found
+
+**1. For this task class, self-hosting is already viable.** The July 2026
+snapshot puts several open-weight tiers over the practical floor on both text and
+figures. The migration trigger the project defined — an eval gate plus a hosting
+gate — is **met on the eval side** for stx physics.
+
+**2. A self-hosted tier needs two models, not one.** This is the finding with the
+most consequence for anyone planning a model catalogue. Text competence and
+figure competence do not arrive together: a model that solves the written problem
+cannot necessarily read the graph attached to it. **Any serious self-host plan
+needs a text model *and* a vision-language model**, and budgeting for one is the
+common mistake.
+
+**3. Published benchmarks mis-rank the cheap candidates.** Ranking by public
+leaderboard would have chosen differently from ranking by measured performance on
+this task. For a subject-specific decision, the subject-specific measurement is
+not optional.
+
+### Does this answer "beyond LLMs"?
+
+**Partly, and the honest answer includes what we did not do.**
+
+- **Vision-language models** were the obvious candidate and are now *inside* the
+  system rather than beside it — not an alternative to the LLM but a **required
+  second tier**. That is the answer to the question as asked.
+- **Embodied and world-model classes** were named in the original scoping and
+  **were not investigated**. Saying so plainly is better than a paragraph of
+  speculation. Nothing in the pilot created a reason to, and nothing we saw
+  suggests they are near-term for written physics tasks.
+
+### Recommendation for C1
+
+**Pursue as maintenance, not as a workstream.** The instrument exists; the
+valuable thing is now **re-running it** as models release — quarterly is the
+natural cadence, and it is the input to both the model catalogue and the
+self-hosting decision.
+
+**Effort:** ~0.5–1 day per re-run once the runbook exists (that runbook is
+outstanding and is on the handover list). **Do not** open an embodied/world-model
+investigation this year.
+
+## C2 — Beyond chat
+
+This is the section with a real result, and it is a negative one.
+
+### The Plaud-like prototype was built, and it failed at classroom scale
+
+The concrete option named in the scoping — record a group's discussion,
+transcribe, analyse — was built and run for the first time at genuine classroom
+scale on **16 June 2026**.
+
+**It did not work.** The capture pipeline was healthy, the service was up, the
+data flowed, and the transcripts were **largely unusable**: roughly 40% of
+segments empty or garbled.
+
+### The diagnosis, which is the transferable part
+
+The failure was **not in capture** — it was in **transcription**, and
+specifically in **Danish–English code-switching**. Danish physics teaching mixes
+English technical vocabulary freely; the speech service, configured for Danish,
+returned empty or garbage on English-dominant audio.
+
+Re-running the *same audio* through two configurations:
+
+| Configuration | Usable output |
+|---|---|
+| Cloud STT v1 `latest_long`, Danish only *(what was in production)* | **360 characters** — gibberish; the demo failure reproduced |
+| A general multimodal model prompted to transcribe verbatim, keeping each phrase in its own language | **8,251 characters** of clean Danish |
+
+**A general-purpose multimodal model beat a purpose-built speech service by more
+than twenty times on usable output**, on the same recording, for this bilingual
+classroom case. The fix has since shipped.
+
+### Two findings worth carrying
+
+**1. For bilingual classroom audio, the general model beat the specialist
+service.** That is directly relevant to C1's question about model classes, and it
+is the opposite of the intuition that a purpose-built service wins on its own
+task.
+
+**2. The failure was silent, and that is the pattern.** Every dashboard was
+green. The service reported success. The data arrived. Only the *content* was
+worthless — and nobody would have known without opening a transcript and reading
+it. This is the same failure class the project has met repeatedly, and the
+lesson generalises past physics: **a pipeline that reports success is not
+evidence that it produced anything usable.**
+
+### "Beyond chat" turned out to be the default, not the experiment
+
+The broader C2 question has been answered by building. The product is now mostly
+**not** a chat window:
+
+- an interactive **workbench** — data tables, plots, calculators, checklists,
+  written answers, image and freehand submission — whose state the tutor can see;
+- **simulations** as first-class objects the tutor reacts to;
+- a **concept-map** interface (see C3);
+- **voice** output, with configurable styles.
+
+The teaching value did not come from a better chat interface. It came from the
+tutor being able to **see what the students did** — the table they filled, the
+simulation they ran — rather than only what they typed.
+
+### Recommendation for C2
+
+**The interface question is answered; treat it as settled.** The remaining C2
+work is narrow and specific: the research-audio pipeline is **fixed but not yet
+re-validated at classroom scale**. It should be re-run at the next real session
+before anyone relies on it as research data.
+
+**Effort:** ~0.5 day to validate at the next session. The Plaud-like *analysis*
+layer on top of good transcripts is unstarted and is a reasonable Year-2 item
+(~3–5 days), but it is worth nothing until transcript quality is confirmed in a
+real room a second time.
+
+## C3 — Student models
+
+The most speculative of the three, the one the team was most excited about, and
+the one where the finding is genuinely unexpected.
+
+### The representation half works, and is running
+
+A **concept map** is now a first-class part of an activity, shipped to the
+development environment:
+
+- a teacher authors a **prerequisite graph** of concepts for the activity, or has
+  the authoring co-pilot propose one;
+- students see their own progress across it;
+- the tutor runs **in-conversation checkpoints** and records which concepts a
+  group has demonstrated;
+- the map **lights up** as understanding is evidenced, stored per group.
+
+So the core C3 mechanic — *maintain a structured model of understanding, updated
+from free-form dialogue, against a reference map for the topic* — **is not
+speculative any more. It runs.** LLMs did change the arithmetic of building
+these models, as the scoping hoped: the extraction is the cheap part.
+
+### The blocker is calibration, and it is a research problem
+
+The design work names it plainly: **the evaluation is the long pole**, not the
+extraction.
+
+The system can say a group has demonstrated understanding of a concept. **Nobody
+has yet measured whether it is right.** Doing that means human raters scoring a
+sample against the AI's judgement, an agreement measure, and a decision about
+what agreement is good enough to show a teacher. Until then the map is a
+*plausible* picture of understanding, and the distance between plausible and
+validated is the entire research contribution.
+
+### The finding nobody planned: privacy has capped the granularity
+
+**A decision taken for data-protection reasons has bounded what C3 can measure,
+and this deserves to be stated as a result rather than discovered later.**
+
+AIPLA's foundational decision is that the **group, not the student, is the unit**:
+students join anonymously by group code, and no personal identity is collected.
+That is what makes the platform defensible in a school, and it is not in question.
+
+But C3 asks about **a student's** understanding. What the system can actually
+maintain is a **group's** understanding. For a pair or trio at one table those are
+close; they are not the same, and the difference is exactly where the interesting
+questions live — who in the group is carrying the reasoning, who is quiet, who
+diverges from the reference model.
+
+Reaching per-student granularity is **not a feature** — it is a revision of the
+foundational anonymity decision, with consent and governance consequences. It is
+scoped as an open question in its own right.
+
+**So C3 has to be understood as a group-level instrument unless and until that
+decision is deliberately revisited.** That is a real constraint on the research
+value, and it is the honest headline of this section.
+
+### Recommendation for C3
+
+**Pursue, and invest the effort in calibration rather than in features.** This is
+the direction with genuine novelty, and it is closer to working than expected —
+which makes the temptation to add capability before validating the capability
+that exists the main risk.
+
+Concretely, in order:
+
+1. **Calibrate the existing check-off.** Human raters, a sample, an agreement
+   number, published alongside any teacher-facing use. *~2–3 days engineering plus
+   researcher rating time.*
+2. **Teacher coverage view** — what the class as a whole has and has not
+   evidenced. *~1–1.5 days.* Only after (1).
+3. **Decide the group-vs-student question explicitly**, as a governance question
+   with the data-protection owners, not as a backlog item. *Discussion, not
+   engineering.*
+4. **Cross-group comparison** — how a class converges or diverges from the
+   reference map — is the natural research instrument and should wait for (1).
+   *Year-2.*
+
+## Summary of recommendations
+
+| Direction | Verdict | Next step | Effort |
+|---|---|---|---|
+| **C1 — beyond LLMs** | **Answered.** VLMs are a required second tier, not an alternative class. Embodied/world models: not now | Re-run the eval quarterly | ~0.5–1d per run |
+| **C2 — beyond chat** | **Answered by building.** The value came from the tutor seeing student work, not from a better chat window | Re-validate research audio at the next real session | ~0.5d, then Year-2 for analysis |
+| **C3 — student models** | **Pursue.** Representation works; validation does not exist yet | Calibrate the check-off against human raters | ~2–3d + rating time |
+
+**If only one thing is done from this note, it should be the C3 calibration.** It
+is the only item that converts something the project has already built into
+something it can defend as a finding.
+
+## Limitations
+
+- **The C1 numbers are withheld** pending Prøvebanken approval; conclusions here
+  are stated at a level that approval does not gate.
+- **C2's negative result comes from one session** (16 June). The diagnosis was
+  reproduced on the same audio under two configurations, which is strong for the
+  *cause* and weak for the *prevalence*.
+- **C3's mechanic is running in the development environment**, not in classrooms
+  at scale. "It works" means "it does the thing", not "it does the thing well" —
+  which is the calibration gap this note recommends closing.
+- **Embodied and world-model classes were not investigated.** They remain open,
+  not dismissed.
+- Broader classroom trials are **pending a data-processing agreement**, currently
+  targeted for late 2026, which bounds how much more evidence any of these three
+  directions can accumulate this year.
+
+## The single sentence
+
+Two of the three directions were answered by building them — the useful model
+class was a vision-language tier rather than a new paradigm, and the value beyond
+chat came from the tutor seeing student work rather than from a better
+conversation — while the third, modelling what students understand, now runs and
+needs validating rather than extending.
