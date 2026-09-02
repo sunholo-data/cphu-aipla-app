@@ -2,7 +2,7 @@
 
 **Status**: **Design (OPEN)** — **1.1.91**. *Rewritten 2026-09-02 after review: the first draft had a preview but no co-pilot, was researcher-only, and gave researchers no sight of what teachers build. All three were the point.*
 **Priority**: **P1** — the mechanism is un-gated, it opens the human gate `adk/authoring_framework.py` has carried since COPILOT-1, and it is the prerequisite for [1.1.92](session-benchmark-tutor-activity.md) having any arms to compare
-**Estimated**: ~6–8d phased (M0 tutor object ~1d · M1 store + two tiers ~1.5d · M2 **tutor co-pilot** ~2d · M3 preview/compare ~1d · M4 researcher cross-view ~1d · M5 seeded library ~0.5d)
+**Estimated**: ~6.5–8.5d phased (M0 tutor object ~1d · M1 store + two tiers ~1.5d · M2 **tutor co-pilot** ~2d · M3 preview/compare ~1d · M4 researcher cross-view ~1d · M5 seeded library ~0.5d)
 **Scope**: Backend — a `Tutor` object carrying its theory, a Firestore store with two authoring tiers, co-pilot proposal tools, and a `scope=all` read for researchers; frontend — a tutor editor on the **shipped** co-pilot shell, preview/compare, and a researcher catalogue
 **Dependencies**: [1.1.20 interaction-style](tutor-personas.md) (**SHIPPED** — `adk/interaction_style.py`, the injection primitive this bundles); `adk/authoring_framework.py` (**M0 shipped; its docstring names the missing store**); `components/teacher/copilot/` + `adk/authoring_tools.py` (**SHIPPED** — the shell and propose→Apply tool pattern this reuses); [1.1.5 researcher-role](researcher-role.md) (**SHIPPED**); **ALS-SHARE** (**SHIPPED** — the sharing/provenance model this copies)
 **Created**: 2026-09-02
@@ -153,8 +153,31 @@ as much as to students.
 
 ### M5 — Seeded library
 
-**ESRU**, **SDT**, **dialogic/Dysthe**, plus *authentic questions* and *student
-discipline* as JB and Aswin describe them. Ships the slots; the content is theirs.
+**ESRU**, **SDT**, **dialogic/Dysthe** (*"authentic questions"*), **IBSE**, and a
+**"Bob Evans"** persona — the transcript's list, which is longer than the
+dictated notes captured. Ships the slots; the content is JB's and Aswin's.
+
+⚠️ **They are not a flat list.** The transcript sets a structure the first draft
+of this doc missed: **Embodied Cognition is the umbrella theory**, with SDT
+incorporated inside it to inform motivation and well-being, grounded in
+literature per curriculum level. JB is starting this work; Aswin is gathering the
+literature. So `framework` (M0) needs a **parent** — a persona is an
+operationalisation *of* something, not a peer of it — and the field should be
+shaped with JB before M5 rather than after.
+
+### M6 — The clash gatekeeper
+
+Flagged in the transcript, and explicitly *"discussed but not designed"*: an
+activity authored as Socratic, run under a non-Socratic persona, produces a tutor
+fighting itself. The mechanism already half-exists — `interaction_style`'s
+non-Socratic preambles **countermand** the SKILL.md rule, which is precisely the
+collision, done deliberately.
+
+So the gatekeeper is a **compatibility check at assignment time**, not a runtime
+guard: when a tutor is attached to an activity, warn where the activity's style
+and the tutor's prescribed behaviours contradict. Advisory — a researcher may
+*want* the clash, and measuring it is a legitimate experiment ([1.1.92](session-benchmark-tutor-activity.md)).
+~0.5d.
 
 ⚠️ Names are phonetic transcriptions from the notes with confidence recorded —
 **not verified citations** (see [Terms I inferred](../../../notes-2026-09-01.md#terms-i-inferred)).
@@ -170,7 +193,8 @@ whole reason this doc can start now.
 | M2 | **Tutor co-pilot** on the shipped shell | ~2d | None |
 | M3 | Preview + side-by-side comparison | ~1d | None |
 | M4 | Researcher cross-view over teacher-authored tutors | ~1d | Tell teachers first |
-| M5 | Seeded framework library | ~0.5d | **JB / AR content** |
+| M5 | Seeded framework library (ESRU, SDT, dialogic, IBSE, "Bob Evans") | ~0.5d | **JB / AR content + the umbrella structure** |
+| M6 | Persona × activity clash gatekeeper (advisory) | ~0.5d | M0 |
 
 ## Testing
 

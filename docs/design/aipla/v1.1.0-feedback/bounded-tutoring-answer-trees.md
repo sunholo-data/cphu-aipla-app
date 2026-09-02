@@ -4,7 +4,7 @@
 **Priority**: **P1** — the most-repeated theme of the 2026-09-01 meeting, and the first item that treats *tutor tangents* as a design problem rather than a prompt-tuning one
 **Estimated**: ~5–7d phased (M0 map-bounded context ~1d · M1 question budget ~0.75d · M2 answer-tree schema + authoring ~2d · M3 navigation at runtime ~1.5d · M4 conditional retrieval ~1d · M5 co-pilot drafting ~0.75d)
 **Scope**: Fullstack — `ActivityConfig` gains an answer-tree structure; `adk/` gains a navigator and a bounding preamble; the activity builder gains a tree editor; the authoring co-pilot gains a drafting tool
-**Dependencies**: [1.1.65 living-concept-map](living-concept-map.md) (**shipped to dev** — the map element, graph view, `run_checkpoint`/`record_checkpoint`, per-group `concept_progress`); [1.1.20 interaction-style](tutor-personas.md) (**shipped** — `adk/interaction_style.py`, the preamble-injection seam this reuses); `adk/curriculum_retrieval.py` (**shipped** — the retrieval this makes conditional); [1.1.38 activity-elements-palette](activity-elements-palette.md) (the authoring registry)
+**Dependencies**: [1.1.98 teaching-prompt-standardisation](teaching-prompt-standardisation.md) (**the sibling — M4 here and M1 there are the same offload problem reached from two directions; build them together**); [1.1.65 living-concept-map](living-concept-map.md) (**shipped to dev** — the map element, graph view, `run_checkpoint`/`record_checkpoint`, per-group `concept_progress`); [1.1.20 interaction-style](tutor-personas.md) (**shipped** — `adk/interaction_style.py`, the preamble-injection seam this reuses); `adk/curriculum_retrieval.py` (**shipped** — the retrieval this makes conditional); [1.1.38 activity-elements-palette](activity-elements-palette.md) (the authoring registry)
 **Created**: 2026-09-02
 **Source**: [notes-2026-09-01.md](../../../notes-2026-09-01.md) — five separate remarks that turn out to be one piece of work
 
@@ -63,6 +63,14 @@ briefly and steer back.*
 This reuses the 1.1.87 lesson directly. A material the tutor **has** beats a
 material it **may look up**, and the same is true of the map: the map must be
 *in the prompt*, not behind a tool call.
+
+⚠️ **"Bounded" does not mean "rigid" — the transcript is explicit**: the maps
+*"guide the AI dialogue toward desired outcomes **while allowing for limited
+deviation**."* A tutor that refuses every off-map remark is a worse tutor, and a
+student's tangent is often the teachable moment. The preamble must therefore
+license brief excursions and require a return, not forbid departure — which is
+why the counter-test in Testing (an on-map tangent is *not* suppressed) is a
+first-class requirement rather than a nicety.
 
 ### 2. A question budget (M1)
 

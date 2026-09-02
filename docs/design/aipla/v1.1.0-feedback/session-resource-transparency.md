@@ -24,8 +24,11 @@ though its design doc still says "Planned", which is its own small lesson. It
 reports **USD**, aggregated **per class over a period**. Neither the unit nor the
 grain answers *"what did this session use?"*.
 
-**Students have nothing at all**, and they are the interesting audience. This is a
-**physics course**. Joules, watts and kilowatt-hours are not a sustainability
+**Students have nothing at all**, and they are the interesting audience. The
+transcript gives the purpose the dictated notes lost — it is framed as **AI
+literacy**, not as cost control, which changes the design: the goal is that a
+student understands what running a model consumes, so the number is a *teaching
+object*, not a budget warning. This is also a **physics course**. Joules, watts and kilowatt-hours are not a sustainability
 garnish here — they are **the unit of the subject being taught**. A tutor that can
 tell a student the conversation they just had used *X* kJ is doing something no
 generic chat product has any reason to do, and it converts an invisible externality
