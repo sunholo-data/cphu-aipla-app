@@ -1,8 +1,8 @@
 # The UI is hard and we cannot see where — friction telemetry for teacher surfaces
 
-**Status**: **Design (OPEN)** — **1.1.96**
+**Status**: **Design (OPEN)** — **1.1.96**. **M-1 SHIPPED 2026-09-02** (sprint [ERRVIS-1](client-error-reporting-sprint.md)); M0–M2 remain open
 **Priority**: **P1** — a usability problem reported by the people who have *already adopted* the tool, and we have no instrumentation to locate it. Un-gated by any legal blocker, which makes it one of the few P1s that can run during the compliance wait
-**Estimated**: ~2.5–3.5d (M-1 client errors ~0.5d · M0 friction events ~1d · M1 the funnel view ~0.75d · M2 first fixes ~1d, sized after the data)
+**Estimated**: ~2.5–3.5d (M-1 client errors ~0.5d — **done** · M0 friction events ~1d · M1 the funnel view ~0.75d · M2 first fixes ~1d, sized after the data)
 **Scope**: Frontend — a small, privacy-preserving interaction-event emitter on teacher surfaces; backend — an events sink alongside the shipped chat-log pipeline; a researcher/M-facing funnel view
 **Dependencies**: `useDocInteractionReporting.ts` (**SHIPPED** — the nearest existing pattern); the chat-log/BigQuery pipeline (**SHIPPED** — the sink shape to copy); [1.1.9 cost-dashboard](cost-dashboard.md) (**SHIPPED** — where an ops-facing view already lives)
 **Created**: 2026-09-02
@@ -38,12 +38,19 @@ Both legal gates (Google agreement, Prøvebanken) block work involving
 system under whatever basis the pilot ran on. It is one of the few P1s that is
 not waiting on JB, and it produces the evidence the *next* round of UI work needs.
 
-## First finding, before any design: **we have no client error visibility at all**
+## First finding, before any design: **we had no client error visibility at all**
 
-Checked 2026-09-02. `frontend/package.json` has **no** error-reporting dependency
+*Resolved 2026-09-02 by M-1 — see "M-1 as built" below.*
+
+Checked 2026-09-02. `frontend/package.json` had **no** error-reporting dependency
 — no Sentry, no PostHog, nothing — and the only `ErrorBoundary` in the codebase
-is `MarkdownErrorBoundary`, scoped to markdown rendering. There is no global
-error boundary, no `window.onerror`, no `unhandledrejection` handler.
+was `MarkdownErrorBoundary`, scoped to markdown rendering. There was no global
+error boundary, no `window.onerror`, no `unhandledrejection` handler —
+**and no `error.tsx` or `global-error.tsx` anywhere under `src/app/`**, which the
+first draft of this doc missed. So a render throw did not merely go unreported:
+it showed Next's bare built-in *"Application error: a client-side exception has
+occurred"*, with no recovery affordance and no reference the teacher could quote
+back to us.
 
 **So a JavaScript exception in a teacher's browser is invisible to us.** The
 backend has OTel → Cloud Trace/Logging/BigQuery and is well instrumented; the
@@ -167,10 +174,58 @@ the instrumentation exists to replace.**
 
 | M | What | Est | Gate |
 |---|---|---|---|
-| **M-1** | **Client error reporting** — global boundary + `window.onerror` + `unhandledrejection` → our backend → Cloud Logging | **~0.5d** | **None. Do this first** |
+| **M-1** | **Client error reporting** — global boundary + `window.onerror` + `unhandledrejection` → our backend → Cloud Logging | **~0.5d** | **None. Do this first** — **SHIPPED 2026-09-02** |
 | M0 | Friction-event emitter + sink, teacher surfaces only | ~1d | Tell teachers |
 | M1 | Funnel + retry-hotspot view | ~0.75d | None |
 | M2 | Act on findings | ~1d placeholder | **M1 data** |
+
+## M-1 as built (2026-09-02)
+
+Sprint: [client-error-reporting-sprint.md](client-error-reporting-sprint.md) (`ERRVIS-1`).
+
+| Piece | Where |
+|---|---|
+| Sink | `backend/observability/client_error.py` → Cloud Logging id **`aipla_client_error`** |
+| Endpoint | `POST /api/client-errors` — `backend/protocols/client_error_routes.py` |
+| Reporter | `frontend/src/lib/clientErrorReporting.ts` |
+| Window listeners | `frontend/src/components/GlobalErrorReporter.tsx`, mounted in the root layout |
+| React boundaries | `frontend/src/app/error.tsx` (route) + `frontend/src/app/global-error.tsx` (root layout) |
+
+**How to read them.** An observability feature nobody can query is not shipped:
+
+```bash
+gcloud logging read 'logName:"aipla_client_error"' \
+  --project=aipla-dev-2026 --limit=50 --format=json
+```
+
+Each row carries `kind` · `role` · `message` · `stack` · `path` · `surface` ·
+`user_agent` · `revision` · `app_version`. Rank the noisiest surfaces with
+`jsonPayload.surface`, and use `revision` to tell "this release broke it" from
+"this has always been broken".
+
+**Three decisions worth knowing about before M0 builds on this:**
+
+1. **The endpoint takes no auth, deliberately.** An error reporter behind a token
+   cannot report a throw during auth bootstrap, a crash on a public page, or a
+   failure of the token mint itself — the errors we most need. It is rate-limited
+   per IP (30 / 5 min) and hard-capped instead, and the reporter self-limits to
+   10 reports per page load with fingerprint dedupe.
+2. **It carries no identity at all** — no uid, no email, no group code; the body
+   has no field for one, and a test asserts extra keys are dropped. Only a
+   three-valued `role` hint. **This is what makes M-1 gate-free where M0 is
+   not.** The moment M-1 grows a uid it inherits M0's "tell teachers" decision,
+   and that should be written down in the same change.
+3. **`aipla_client_error` is deliberately NOT in the chat-logs BigQuery sink
+   filter**, which is an allowlist. Errors land in Cloud Logging and stop there.
+   Routing them onward is a later, deliberate decision — a unit test asserts the
+   absence so it cannot happen by accident.
+
+Two findings amended the design during the build. The missing `error.tsx` (above)
+— so M-1 also gives the teacher a page that says something and offers a retry.
+And the **version stamp is free**: the backend runs as a sidecar *inside* the
+frontend container, so the server's `K_REVISION` / `APP_VERSION` describe the
+same build that served the broken JS. The client neither reports nor can
+misreport its own version.
 
 ## Testing
 
@@ -188,7 +243,10 @@ the instrumentation exists to replace.**
 2. **Does this need to wait for the data agreement?** It is teacher, not student,
    data — but it is still personal data of an identifiable professional. **Ask
    rather than assume**; the assumption is the failure mode this project keeps
-   hitting.
+   hitting. *Narrowed 2026-09-02:* the question now applies to **M0 only**. M-1
+   shipped carrying no identity — no uid, no email, no group code — so there is
+   nothing in it to consent to, and it did not need the answer. M0's
+   pseudonymous-uid events still do.
 3. **Is "the UI is difficult" one problem or many?** Possibly the builder, the
    materials picker and the class page are three unrelated complaints wearing one
    sentence. M1 should be able to tell them apart.

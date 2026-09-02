@@ -108,6 +108,17 @@ smoke_app() {
   probe GET "${url}/api/proxy/api/buckets"     "401|403" "/api/proxy/api/buckets (anon)"   || fail=1
   probe GET "${url}/api/proxy/api/media/pdf-info?url=https://storage.googleapis.com/test/test.pdf" \
         "401|403" "/api/proxy/api/media/pdf-info (anon)" || fail=1
+  # 1.1.96 M-1 — the client-error sink is deliberately UNauthenticated, so a
+  # 401 here would be a bug, and a 404 would mean the route never mounted.
+  #
+  # Probed with a DELIBERATELY INVALID body, expecting 422. A valid POST would
+  # succeed and write a synthetic row into `aipla_client_error` on every deploy
+  # — a check that pollutes the signal it exists to protect. 422 proves the
+  # whole chain (Next catch-all proxy -> sidecar -> router -> validation)
+  # without logging anything.
+  probe POST "${url}/api/proxy/api/client-errors" 422 \
+        "/api/proxy/api/client-errors (mounted, unauthenticated)" \
+        -H "Content-Type: application/json" --data-binary 'not json' || fail=1
   return $fail
 }
 
