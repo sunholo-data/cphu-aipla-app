@@ -264,4 +264,4 @@ The same tenant identity threads through all four — a single Cloud Trace query
 - [Sprint 2.11 anonymous-group-id-auth howto](anonymous-group-id-auth.md) — provides the `group_id` identity that lands as `tenant.group_id`.
 - [Sprint 2.12 budget-enforcement howto](budget-enforcement.md) — consumes the same identity for budget consultations; correlates with span attribution via shared `group_id`.
 - [Sprint 2.13 artefact-review-hooks howto](artefact-review-hooks.md) — third sibling sprint; audit logs share the `tenant.group_id` attribution.
-- [AIPLA ADR-005](https://www.sunholo.com/aipla/architecture.html#adr-005-chat-log-storage) — the request that surfaced this.
+- [AIPLA ADR-005](../design/aipla/_scoping-snapshot/architecture.qmd#adr-005-chat-log-storage) — the request that surfaced this.

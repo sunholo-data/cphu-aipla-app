@@ -1,0 +1,771 @@
+---
+title: "Architecture decisions"
+subtitle: "ADRs for Strand A — pedagogical bot infrastructure"
+---
+
+Working document. ADR-style: context → options → decision → consequences. The **Sign-off** column tracks handover ownership — every decision needs a second signature before it's settled.
+
+Order is rough priority: privacy and platform foundation first, infrastructure and mechanics after, AILANG disclosure last.
+
+## Overview
+
+A short non-technical pass over the architecture before the implementation details. The diagrams below are what JB and AR will want to walk teachers through; the ADRs and the technical system view below them are the engineering detail underneath.
+
+### What students and teachers see — an **activity**
+
+An *activity* is what a student group works through. It's two pieces designed together, not separately:
+
+```{mermaid}
+flowchart LR
+    Tutor["💬 <b>Tutor</b><br/>System prompt + behaviour<br/>(e.g. Socratic projectile-motion tutor,<br/>never gives the answer)"]
+    Artefact["🧪 <b>Workbench artefact</b><br/>Interactive piece on the right side<br/>(simulator, dataset, sandbox, ...)"]
+    Activity["📚 <b>Activity</b><br/>What a student group works through<br/>(chat + workbench together)"]
+
+    Tutor --> Activity
+    Artefact --> Activity
+
+    style Tutor fill:#fff8f8,stroke:#901a1e
+    style Artefact fill:#fff8f8,stroke:#901a1e
+    style Activity fill:#f5f5f5,stroke:#333,stroke-width:2px
+```
+
+The tutor and the workbench reference each other. The tutor's prompt names specific elements of the workbench ("the blue arrow", "the v_x graph"); the workbench narrates the student's actions back into the chat ("Adjusted v₀ to 17.5 m/s ✓"). Designed together they form a coherent learning experience; bolted together loosely they don't.
+
+> **Terminology bridge.** In engineering language, a tutor is a *skill* and a workbench is an *MCP App*. The rest of this page uses those terms. They mean the same thing as *tutor* and *workbench*.
+
+### Who has access to what — the **teacher → class → group → activity** hierarchy
+
+```{mermaid}
+flowchart LR
+    Teacher["👤 Teacher\nUCPH login"]
+
+    subgraph Classes["Classes"]
+        ClassA["7B Physics A"]
+        ClassB["8A Physics A"]
+    end
+
+    subgraph Groups["Groups (anonymous)"]
+        Group1["bold-kazoo-87"]
+        Group2["ruby-petal-72"]
+        Group3["fluffy-goose-56"]
+    end
+
+    subgraph Activities["Activities"]
+        L1["Boldkast\nprojectile motion"]
+        L2["Pendul\nharmonic motion"]
+        L3["..."]
+    end
+
+    Teacher --> Classes
+    Classes --> Groups
+    Groups --> Activities
+
+    style Teacher fill:#fff8f8,stroke:#901a1e
+    style Classes fill:#f5f5f5,stroke:#333
+    style Groups fill:#f5f5f5,stroke:#333
+    style Activities fill:#f5f5f5,stroke:#333
+```
+
+- **Teacher** logs in with UCPH credentials. Owns one or more classes.
+- **Class** is the teacher's roster unit (e.g. "Class 7B Physics A"). Has one or more groups.
+- **Group** is what students actually join — a *short, dictation-friendly code* (`bold-kazoo-87`) the teacher hands out. Three students sharing a phone is the default unit, matching what AR observed in the school visit. Groups are **anonymous**: no names, no emails, no PII (see [ADR-001](#adr-001-student-identity-no-auth-anonymous-group-ids)).
+- **Activity** is what each group can access — a paired tutor + workbench artefact. The teacher decides which activities each class can use. An activity can be reused across classes; a class can have many activities available at once.
+
+### How the pieces fit together — composable, not monolithic
+
+```{mermaid}
+flowchart TB
+    subgraph Frontends["Front ends — any number"]
+        Web["Student web app<br/>(today)"]
+        CLI["aiplatform CLI<br/>(today)"]
+        Future["Future fronts:<br/>Telegram, mobile app,<br/>standalone MCP App, ..."]
+    end
+
+    Backend["<b>Backend</b><br/>Activities (skills) · Teacher / class / group auth<br/>Model router · Chat logs · Budget caps · Telemetry"]
+
+    subgraph Plugins["Plugins — any number"]
+        Workbenches["🧪 Workbench artefacts<br/>(MCP Apps: simulators,<br/>data viewers, sandboxes)"]
+        Tools["🛠 Backend tools<br/>(MCP servers: RAG retrieval,<br/>code execution, document parse)"]
+    end
+
+    LLMs["🧠 AI providers<br/>Claude · Gemini · self-hosted Ollama"]
+
+    Web --> Backend
+    CLI --> Backend
+    Future --> Backend
+    Backend --> Workbenches
+    Backend --> Tools
+    Backend --> LLMs
+
+    style Backend fill:#fff8f8,stroke:#901a1e,stroke-width:2px
+    style Frontends fill:#f0f4f8,stroke:#3a5a7a
+    style Plugins fill:#f0f4f8,stroke:#3a5a7a
+    style LLMs fill:#f5f5f5,stroke:#333
+```
+
+Three things this picture says:
+
+1. **The backend is one stable surface.** Activities, auth, model routing, chat logs, budget caps and telemetry all live there. The same backend serves today's student web app, today's CLI (`aiplatform smoke jutland`), and any future front end — Telegram, an institutional mobile app, anything that speaks the same protocols.
+2. **Front ends are interchangeable.** The student web app is just one consumer. A teacher could in principle interact via CLI; future classroom installations could use a touch-screen kiosk app or a Telegram channel; the activities and the data don't change.
+3. **Plugins extend the backend without modifying it.** Workbench artefacts (interactive widgets like the Boldkast simulator) and backend tools (RAG search, code execution, document parsing) each plug in through standardised protocols. **A workbench can be used inside an activity, paired with a tutor — *or* it can be opened standalone** (a teacher could embed the Boldkast simulator alone, no tutor, on a different page or in a different app). The pieces compose.
+
+**Why this composability matters for AIPLA:** activities that teachers and AR build today become reusable beyond AIPLA. The Boldkast activity works on AIPLA's web app, in the CLI, and would work in any future front end. The same workbench artefact could be embedded in a textbook publisher's app, or shared with another physics-education project, without rewriting it. The architecture intentionally does not lock anything into a single product surface.
+
+---
+
+## Platform foundation
+
+AIPLA sits on two open layers from the `sunholo-data` ecosystem, with the AIPLA-specific configuration on top:
+
+- **[AI Protocol Platform](https://github.com/sunholo-data/ai-protocol-platform)** — open-source template (Apache 2.0) for the **application layer**: AG-UI streaming, A2UI declarative rendering, MCP tool integration, A2A agent discovery, ADK orchestration, multi-provider model routing, OpenTelemetry observability, `LOCAL_MODE` workshop path. Cloud-agnostic — runs on GCP, AWS, Azure, or on-premises. Used inside the Aitana assistant product among others.
+- **Multivac** — Sunholo's wider AI platform, providing the **infrastructure layer**: managed model access (Vertex AI Gemini, Ollama hosting), Postgres + pgvector, Cloud Storage, identity, telemetry sinks. AIPLA's prototype runs on Multivac in an EU region; the [self-hosting](self-hosting.qmd) migration target is replacing Multivac with UCPH equivalents while keeping the template layer intact.
+
+AIPLA-specific work is the configuration *on top* of both: physics skill packs, the [capability-floor router](evaluation.qmd) wiring, anonymous group IDs ([ADR-001](#adr-001-student-identity-no-auth-anonymous-group-ids)), and EU-region constraints. AIPLA's repo lives at [`sunholo-data/cphu-aipla-app`](https://github.com/sunholo-data/cphu-aipla-app), instantiated from the `ai-protocol-platform` template on 2026-05-19. See [ADR-002](#adr-002-strand-a-built-on-the-ai-protocol-platform) for the template adoption rationale and scope discipline.
+
+::: {.callout-note appearance="simple"}
+**Disclosure — M's own open-source tooling.** Several building blocks below are M's own work: the AI Protocol Platform template ([ADR-002](#adr-002-strand-a-built-on-the-ai-protocol-platform)), AILANG Parse ([ADR-004](#adr-004-document-parsing-via-ailang-parse)), and the wider AILANG ecosystem ([ADR-012](#adr-012-ailang-ecosystem-in-aipla-utilities-not-runtime)). The same disclosure applies to each and is named explicitly for JB: all are Apache 2.0, public, and multi-purpose (built for a class of projects, not AIPLA-specific); AIPLA depends on none of them as a *runtime* — successors maintain a standard Python stack, and each component is individually swappable. Named here so the lineage is visible rather than implicit. Where an ADR below touches one of these, it states only what's specific to that choice.
+:::
+
+## System view
+
+```{mermaid}
+flowchart LR
+    User["Student group · Teacher<br/>(student: anonymous group ID, no auth<br/>teacher: UCPH SSO for admin)"]
+    OnDevice["On-device model<br/>Apple Intelligence · Gemini Nano · WebLLM<br/>tier 4 — gold-standard privacy"]
+
+    subgraph Platform["Application — AI Protocol Platform template"]
+        direction LR
+        Front["Frontend<br/>Next.js + AG-UI"]
+        Back["Backend<br/>FastAPI + Google ADK"]
+        Router["Model router<br/>capability-floor driven"]
+    end
+
+    subgraph Multivac["Infrastructure — Multivac (EU region)"]
+        direction TB
+        FS[("Firestore<br/>app DB · identity mirror")]
+        BQ[("BigQuery<br/>chat logs · telemetry")]
+        RAG[("Vertex AI RAG Engine<br/>curriculum corpus")]
+        Storage[("Cloud Storage<br/>uploads · chat-doc artifacts")]
+        Claude["Anthropic Claude<br/>tier 1 — cloud-agnostic text"]
+        Gemini["Google Gemini<br/>tier 2 — EU multimodal"]
+        Ollama["Self-hosted Ollama<br/>tier 3 — case-by-case per task"]
+    end
+
+    User --> Front
+    Front -.tier 4 routes here.-> OnDevice
+    Front --> Back
+    Back --> FS
+    Back --> BQ
+    Back --> RAG
+    Back --> Storage
+    Back --> Router
+    Router --> Claude
+    Router --> Gemini
+    Router --> Ollama
+
+    style User fill:#fff,stroke:#666
+    style OnDevice fill:#fff,stroke:#2d7d3a,stroke-width:2px,stroke-dasharray:5
+    style Platform fill:#fff8f8,stroke:#901a1e,stroke-width:2px
+    style Multivac fill:#f0f4f8,stroke:#3a5a7a,stroke-width:2px
+    style Router fill:#f5f5f5,stroke:#333,stroke-width:2px
+```
+
+Pink: the template (application layer). Blue: Multivac (infrastructure layer). [Self-hosting](self-hosting.qmd) migration target is to replace the Multivac layer with UCPH equivalents while keeping the template unchanged.
+
+## Core vs extensions
+
+The template provides a **fixed core** of capabilities. Everything else AIPLA adds is a **swappable extension** that plugs in through one of three protocols: **MCP** (tools and data), **MCP Apps** (interactive UI surfaces in sandboxed iframes), or **A2UI** (declarative UI components rendered inline in chat).
+
+This separation matters for three reasons: successors can add new plugins without touching template internals (handover), extensions can be released individually as Apache-2.0 community-contributable modules (open-source default), and the [ADR-002 scope-discipline table](#adr-002-strand-a-built-on-the-ai-protocol-platform) defines what ships in AIPLA v1 vs. later.
+
+| Layer | Protocol | What it is | Examples for AIPLA | AIPLA v1 |
+|---|---|---|---|---|
+| Application core | (template, fixed) | AG-UI streaming, ADK orchestration, skills framework, model router, auth/session, log capture, telemetry | n/a — provided | ✅ Adopted as-is |
+| Model providers | (template adapter) | Cloud + local model backends | Claude, Gemini, Ollama, on-device — see [ADR-003](#adr-003-llm-provider-mix-4-tiers-ai-api-server-server-local-on-device) | ✅ All four tiers |
+| Skills (app configuration) | (template) | Teacher-configurable bot setups | Physics tutors per topic, problem-set helpers, lab assistants | ✅ Multiple per topic |
+| Data + computation tools | **MCP server** | Anything that fetches data, runs computation, or wraps an external service | RAG retrieval ([ADR-017](#adr-017-document-ingestion-two-pipelines-parse-to-text-before-rag)), code execution sandbox, document parse via AILANG Parse ([ADR-004](#adr-004-document-parsing-via-ailang-parse)), domain search | ✅ Vertex AI RAG Engine · code sandbox · AILANG Parse · 🟡 graph DB (stretch — for C3) |
+| Interactive UI extensions | **MCP Apps** | Sandboxed iframes with their own state and UI | GeoGebra widget, Tracker / sensor-data viewer, concept-map editor for [student models (C3)](strands.qmd#c3-student-models), simulation workbench (Strand B) | 🟡 concept-map editor (C3 stretch) · Strand-B target |
+| Declarative UI extensions | **A2UI** | Backend-emitted structured UI elements rendered inline in chat | Problem-hint cards · LaTeX/KaTeX formula blocks · structured feedback panels · teacher-config forms | ✅ Hint cards · LaTeX · feedback panels |
+
+**Why this matters for the student-model stretch (Strand C3).** The most speculative item maps cleanly onto this architecture: a **graph database via MCP** for storing per-student concept networks, plus a **concept-map editor as an MCP App** for both teacher reference-model authoring and student-facing formative-feedback display. Both pieces are swappable, both follow open protocols, and both could be released as standalone Apache-2.0 extensions other physics-education projects can reuse.
+
+## Index
+
+| # | Decision | Status | Sign-off |
+|---|---|---|---|
+| 001 | Student identity: no auth, anonymous group IDs | Decided | M, JB ✓ (2026-05-18) |
+| 002 | Strand A built on the AI Protocol Platform | Decided | M, JB ✓ (2026-05-18) |
+| 003 | LLM provider mix (Claude · Gemini · Ollama · on-device) | Decided | M |
+| 004 | Document parsing via AILANG Parse | Decided | M |
+| 005 | Chat log storage | Decided (pending consent details) | M |
+| 006 | Cloud provider for prototype: GCP EU via Multivac | Decided | M, JB ✓ (2026-05-18) |
+| 007 | Cloud region: europe-north1 (Finland) | Decided | M, [JB / UCPH IT TBC] |
+| 008 | Model abstraction / routing layer | Decided (via template) | M |
+| 009 | Backend stack | Decided (via template) | M |
+| 010 | RAG store | Narrowed for v1 by ADR-017 → Vertex AI RAG Engine; pgvector = self-host target | M |
+| 011 | Multimodal input handling | Decided · via AILANG Parse (swappable backends) | M |
+| 012 | AILANG ecosystem in AIPLA (utilities, not runtime) | Decided | M, [JB to be informed] |
+| 013 | Artefact safety / content-review pipeline | Decided | M |
+| 014 | Per-group / per-class budget enforcement | Decided | M |
+| 015 | Unified multi-surface UI — AI directs the layout | Decided · revised 2026-06 (dedicated teacher routes) | M |
+| 016 | Researcher role: permission tier above teacher | Accepted (2026-06-15) | M |
+| 017 | Document ingestion: two pipelines, parse-to-text before RAG | Accepted (2026-06-16) | M |
+
+---
+
+## ADR-001 — Student identity: no auth, anonymous group IDs
+
+**Context.** The brief is explicit that students should not need accounts. The strongest privacy posture for a research project deploying in Danish schools is to collect **no student identity data at all** — not pseudonyms, not first names, not device identifiers, nothing.
+
+The brief also notes the typical configuration: one shared phone per three students. The natural unit of analysis is therefore the **group**, not the individual student. Research outcomes are interpreted at the group / class level, not per-student.
+
+**Decision.** **No student authentication.** Students join sessions by entering a **system-assigned anonymous group ID** (e.g., `grp-7B-3`, or a short opaque token). The teacher generates group IDs when setting up an activity; each group enters its ID on the shared device to join. Chat logs key on group ID. Nothing personally identifying about any student is captured anywhere in the system.
+
+**Teacher auth** is separate and minimal: required only for admin functions (creating a class session, generating group IDs, uploading lesson materials, viewing their own class data). Use **UCPH institutional SSO** where available (Firebase Auth federated with UCPH IDP). Teachers are existing institutional users; this is the cheapest GDPR posture for the teacher side.
+
+**Researcher auth** is a third tier above teacher, confirmed in the 3 June teacher check-in. Researchers (JB, AR, M) need cross-class, cross-teacher access to all sessions and raw BigQuery — they cannot be modelled as teachers with extra permissions, because they need to see data from *all* teachers' classes. The researcher role is a separate Firebase custom claim; it bypasses the class-level tag namespace that scopes teachers to their own cohorts. Needs an ADR update to the 1.A teacher permission sprint.
+
+**Why this works.**
+
+- **Privacy by design (GDPR Article 25), enforced by construction** — the system is *architecturally incapable* of collecting student personal data, rather than relying on operational discipline to anonymise after the fact. UCPH data-protection review becomes substantially simpler because the personal-data category is empty by design.
+- **Data minimisation (GDPR Article 5)** — only the strictly necessary group-level signals are processed. There is no "we might need it later" data hoarded.
+- **No identity-map maintenance** — researchers don't need a translation layer between pseudonyms and real students; there is no real-student data to translate.
+- **Friction-free onboarding** — students don't sign up, don't enter emails, don't reset passwords. Open the URL, enter the group ID, start working.
+- **Matches the actual classroom configuration** — one phone, three students, group is the natural unit anyway.
+
+**Trade-offs.**
+
+- Cannot follow *individual* students across sessions or topics. Research is per-group, not per-student. This is a deliberate constraint, not a bug; brief frames research at the classroom level.
+- Group IDs can persist across sessions for longitudinal per-group analysis without ever becoming identifying.
+
+**Consequences for [ADR-005](#adr-005-chat-log-storage).** Anonymisation collapses to a non-issue: there is no PII to anonymise. The "separate identity map that researchers cannot access casually" from the earlier draft is removed — the map doesn't exist.
+
+**Open question for JB.** Confirm teacher-auth mechanism (UCPH SSO, Firebase federated, or other) and the granularity of group IDs (per-class only, or finer for small-group work within a class).
+
+**Student in-session consent prompt (v1.1).** Students in the 3 June check-in expressed they didn't want conversations logged. The mitigation keeps anonymous group codes (no change to this ADR) but adds an opt-in prompt shown at session start: *"This session may be recorded for educational research. Do you consent? Yes / No."* If No, the session runs normally but chat turns are not written to BigQuery. The `consent_given` flag is stored at the session level; researcher dashboards note coverage gaps. **Gated on JB sign-off** — same institutional approval gate as audio capture. A well-designed narrative summary (rather than verbatim transcript) further reduces the privacy profile and is the preferred research artefact regardless of consent mode.
+
+---
+
+## ADR-002 — Strand A built on the AI Protocol Platform
+
+**Context.** Building Strand A's pedagogical bot infrastructure from scratch within the four-month contract is feasible but tight: GDPR-grade auth, multi-provider model routing, log capture with anonymisation, multimodal upload handling, teacher-facing skill configuration, and the supporting telemetry are each multi-week tracks. The [AI Protocol Platform](https://github.com/sunholo-data/ai-protocol-platform) (Apache 2.0, public repo on the `sunholo-data` org) is an open-source template that already solves most of these. It is cloud-agnostic (GCP, AWS, Azure, on-prem) and designed by M to serve a class of projects including AIPLA — already used inside Sunholo's wider Multivac AI platform offering and in the Aitana assistant product.
+
+**What the template provides off the shelf:**
+
+- **Protocols** — AG-UI streaming, A2UI declarative rendering, MCP tool integration, A2A agent discovery
+- **Orchestration** — Google ADK with sessions, memory, artifacts, evaluation
+- **Multi-provider model routing** — Gemini, Claude, OpenAI through one interface
+- **Observability** — OpenTelemetry → Cloud Trace + Cloud Logging + BigQuery, all internal-trust-boundary
+- **`LOCAL_MODE`** — clone-to-working-chat-UI in under 30 minutes, no cloud credentials required. Critical for postdoc-2 onboarding and for any teacher dialogue session where we want a portable demo.
+- **Skills wizard** — non-developer skill creation, matching the brief's "teacher bot configuration" requirement
+- **LaTeX rendering** — already supported via the ailang-parse integration (relevant for physics formulae output)
+
+**Options considered.**
+
+- Build Strand A bot infrastructure from scratch in Python/FastAPI on Cloud Run (originally implied by [ADR-006](#adr-006-cloud-provider-for-prototype-gcp-eu-via-multivac))
+- Adopt LangChain or a similar open-source framework as the base
+- Adopt the AI Protocol Platform template as the foundation and add AIPLA-specific configuration on top
+
+**Decision.** Adopt the AI Protocol Platform template. AIPLA work is the configuration, skill packs, EU-region pinning, anonymous group join (ADR-001), and self-host migration path on top of an already-mature template.
+
+**Scope discipline.** The template has more surface area than AIPLA needs in four months. The risk is that *because* features exist, we feel obliged to use them. Explicit opt-in list for AIPLA v1:
+
+| Feature | AIPLA v1 | Notes |
+|---|---|---|
+| Web frontend + AG-UI streaming | ✅ Use | Core teacher/student UI |
+| Skills wizard + skill configuration | ✅ Use | Matches brief requirement directly |
+| Multi-provider model routing | ✅ Use | Wired to capability-floor eval |
+| LOCAL_MODE | ✅ Use | Postdoc-2 onboarding, portable demos |
+| Anonymised chat-log capture | ✅ Use | Core research data requirement |
+| LaTeX rendering | ✅ Use | Physics formula output |
+| A2UI declarative components | ✅ Use | Problem-set hint cards, LaTeX formula blocks, structured feedback, teacher-config forms |
+| MCP tool integration | ✅ Use | Code-exec sandbox, document parsing, artefact rendering, RAG retrieval |
+| MCP Apps (sandboxed iframes) | ✅ Use | **Hosts teacher-generated interactive artefacts** (HTML simulations, problem workbenches) in chat. Gated by [ADR-013](#adr-013-artefact-safety-content-review-pipeline) safety pipeline. Pattern based on AR's existing GenAI trials. |
+| A2A agent discovery | ❌ Skip v1 | Useful long-term, not required for the pilot |
+| Telegram / Email / WhatsApp channels | ❌ Skip v1 | Available; not needed for STX teacher pilot |
+| Vertex AI Search | ❌ Skip v1 | Vertex AI RAG Engine ([ADR-017](#adr-017-document-ingestion-two-pipelines-parse-to-text-before-rag)) covers v1 RAG; the Search product isn't needed |
+| Real-time collaboration features | ❌ Skip v1 | Out of brief scope |
+
+**Disclosure.** The template is M's own work — see the [disclosure note](#platform-foundation) above. The one template-specific point: AILANG is *not* required to use it (the platform uses AILANG internally for LaTeX parsing and capability benchmarks, but supports plain Python stacks), so adopting the template doesn't pull in any AILANG runtime dependency.
+
+**Consequences.**
+
+- **Build-time saving.** ~6 of the 9 Strand A build weeks are absorbed by the template. Frees time for physics-specific extensions, the eval, and the teacher pilot.
+- **UCPH self-host implications.** A few template defaults (Firestore, Firebase Auth for non-LOCAL_MODE) need explicit UCPH equivalents in the [self-hosting](self-hosting.qmd) page; the IT conversation must be informed by actual dependencies, not a generic GCP stack.
+- **Handover surface.** Successors learn the template via its own docs and `LOCAL_MODE` — no cloud credentials required to come up to speed.
+- **Update cadence.** Template tracks its own roadmap. Needs explicit version-pinning and upstream-tracking in the handover package.
+
+---
+
+## ADR-003 — LLM provider mix (4 tiers: AI API / Server / Server-local / On-device)
+
+**Context.** AIPLA needs strong text reasoning for problem-set hints, strong multimodal for worksheet photos, EU data residency for student-facing use, and a credible path to self-hosted models for the [UCPH on-prem](self-hosting.qmd) migration target. No single tier gives the best answer across all of these — the strategy is to **route per task class** via the [capability-floor eval](evaluation.qmd).
+
+**Decision.** Four tiers, distinguished by where the model runs and what hardware is required:
+
+| Tier | Where it runs | Hardware needed | Example models | Why this tier exists |
+|---|---|---|---|---|
+| 1 — **AI API** | Cloud-hosted service | None on our side — API call | Claude Opus 4.7 (cloud-agnostic via Anthropic / Bedrock / Vertex); Gemini 2.5 / 3.1 Pro (Vertex AI, EU regions); GPT-5.5 | Highest current capability; fastest path to working prototype; EU residency available |
+| 2 — **Self-hosted server** | UCPH GPU cluster (or equivalent) | 4–8× H100 / H200 / B200 (~280–800+ GB VRAM total, NVLink) | DeepSeek V4 Pro (1.6T MoE, 49B active); DeepSeek V4 Flash (284B MoE, 13B active); future large open-weight | Open-weight at near-frontier capability — DeepSeek V4 Pro is at ~90% on GPQA Diamond. Full institutional data sovereignty; zero API spend. |
+| 3 — **Server-local** | Single workstation or small server (M's 128 GB Mac during proto, or a single H100/A100) | ~30–60 GB unified memory or single high-end GPU | Qwen 3.5 27B; Gemma 4 31B; Phi-4 14B; smaller DeepSeek distills | Mid-size open-weight that fits without cluster hardware. Good for development, demos, smaller departmental deployments, and `LOCAL_MODE` portability. |
+| 4 — **On-device** | Student device (phone, tablet, laptop) | iPhone 15 Pro+, Pixel 8+, Samsung S24+, modern laptop with NPU | Apple Intelligence (~3B); Gemini Nano (3.25 B); WebLLM browser models; small Phi / Gemma variants | Gold-standard privacy — data never leaves the device. Also enables offline use (playground, poor-WiFi labs). Constrained to lighter tasks: summarisation, formatting, light Q&A. |
+
+Concrete model selection per task is driven by capability-floor eval results — see [Evaluation](evaluation.qmd).
+
+**v0.1 active model (2026-05-20):** `gemini-3.5-flash` on Vertex AI global endpoint (GA 2026-05-19). **Cross-provider fallback documented:** Claude Sonnet 4.6. Router-overridable per ADR-008. Choice is provisional — calibrate against the capability-floor eval once it's running on AIPLA tasks.
+
+**Consequences.**
+
+- The [router](#adr-008-model-abstraction-routing-layer) handles all four tiers behind one interface; on-device adds a thin client-side adapter.
+- **Claude cloud-agnosticism is the GCP hedge** — moving off GCP would change only auth endpoints, not providers. Gemini stays Vertex-EU for multimodal.
+- Tiers 2 and 3 are both Ollama-runnable open-weight; the distinction is **GPU cluster (Tier 2: DeepSeek V4 Pro class) vs single workstation (Tier 3: Qwen / Gemma 4 class)**.
+- Migration trajectory: as the eval's local-readiness fraction rises per task class, traffic shifts from Tier 1 toward Tiers 2–4. Router falls back tier 4 → 3 → 2 → 1 when a higher-privacy tier is unavailable.
+
+---
+
+## ADR-004 — Document parsing via AILANG Parse
+
+**Context.** AIPLA bots ingest a mix of teacher and student documents: lesson plans (DOCX), worksheets, sensor exports (CSV/XLSX), email threads (EML), slides (PPTX), lab reports (PDF), photos (PNG/JPG). Passing every upload to a multimodal LLM is wasteful in tokens, slow, and weaker on privacy than necessary.
+
+**What [AILANG Parse](https://github.com/sunholo-data/ailang-parse) (Apache 2.0) provides.**
+
+```{mermaid}
+flowchart LR
+    Upload[Uploaded document]
+    Parse{AILANG Parse}
+    Det["Deterministic XML parse<br/>13 formats · zero LLM tokens<br/>DOCX · PPTX · XLSX · ODT · ODP · ODS<br/>HTML · MD · CSV · EPUB · EML · MBOX · TEX"]
+    AI["AI multimodal extraction<br/>2 formats · routed via model router<br/>PDF · images"]
+    Out["Structured blocks<br/>+ markdown"]
+
+    Upload --> Parse
+    Parse --> Det
+    Parse --> AI
+    Det --> Out
+    AI --> Out
+
+    style Det fill:#e8f5e9,stroke:#2d7d3a
+    style AI fill:#fce7e8,stroke:#901a1e
+    style Parse fill:#f5f5f5,stroke:#333,stroke-width:2px
+```
+
+The deterministic path is load-bearing for privacy: a Word doc or Excel sheet is parsed from its XML directly — **the content never reaches an LLM**. That covers most formats in Danish stx physics teaching (lesson materials, problem sets, lab data, email).
+
+The AI path is only invoked for genuinely image-shaped content (scanned PDFs, hand-drawn diagrams) and routes through the same capability-floor-driven model router as chat tasks.
+
+**Decision.** Document upload pipeline routes through AILANG Parse first. Office and structured formats take the deterministic path. PDF and image extraction routes through the template's model router; the capability-floor eval determines which model handles which kind of PDF/image task.
+
+**Why this is a strong GDPR move.**
+
+| Format | What gets parsed | Where the content goes |
+|---|---|---|
+| DOCX, PPTX, XLSX, ODT, ODP, ODS | Lesson plans, slides, worksheets, exports | Local parsing — no external call |
+| CSV, EML, MBOX, HTML, MD, TEX, EPUB | Tabular data, email, structured text | Local parsing — no external call |
+| PDF, JPG, PNG | Scans, hand-drawn diagrams, screenshots | Multimodal LLM via model router (EU region; local Ollama future) |
+
+For a UCPH data-protection review, "13 of 15 supported formats never leave the trust boundary" is a stronger story than any single-vendor multimodal approach.
+
+**Disclosure.** AILANG Parse is M's own work ([disclosure note](#platform-foundation)) — a standalone Apache 2.0 library with Python, JS, and Go SDKs, chosen for its deterministic-XML privacy properties, not its origin.
+
+**Consequences.**
+
+- **Cost & latency.** Substantially fewer LLM tokens on ingest; deterministic parsing is sub-second vs. multi-second multimodal calls.
+- **UCPH self-host friendliness.** AILANG Parse runs anywhere — CLI, Python SDK, or local service. No cloud dependency.
+- **Calibration tracking.** Extraction quality is part of the capability-floor benchmark (T5 worksheet OCR, T6 tabular data) — exactly what the eval is designed for.
+
+---
+
+## ADR-005 — Chat log storage
+
+**Context.** Researcher access to chat logs is a core brief requirement. With [ADR-001](#adr-001-student-identity-no-auth-anonymous-group-ids) eliminating student authentication entirely, the anonymisation question largely collapses: there is no student PII to anonymise.
+
+This is the **privacy-by-design** (GDPR Article 25) commitment made concrete. The relevant regulatory frameworks are:
+
+- **GDPR** — general personal-data processing (Article 25 privacy by design, Article 5 data minimisation, Article 35 DPIA for educational contexts involving minors)
+- **ePrivacy Directive** — electronic communications specifically; chat logs fall within its scope independently of GDPR. ePrivacy obligations sit alongside GDPR, not inside it.
+
+**Decision.** Log every chat interaction, keyed by anonymous group ID, into a researcher-accessible BigQuery dataset via the template's OpenTelemetry sink (per [Multivac](#platform-foundation)'s OBSERVABLE-BY-DEFAULT axiom). Retention period and access scope follow the consent form (JB owns).
+
+**What gets stored:**
+
+- Full prompt and response content (group ID is the only "identifier")
+- Timestamps, skill / topic context, model used (the latter feeds the [capability-floor eval](evaluation.qmd))
+- Any uploaded resources by reference (content sits in Cloud Storage, EU-region)
+
+**Observability instrumentation (as of v0.1+ build):** the OTel pipeline is now wired at the following points, all keyed on anonymous group ID:
+
+| Signal | What it captures | Used for |
+|--------|-----------------|---------|
+| Group-join span | Group code, activity, timestamp | Session boundary; feeds teacher dashboard "active now" |
+| Chat turn span | Role, turn index, model, latency | Research log; capability-floor eval input |
+| Workbench state write | `mcp_app_context.{skill}.{field}`, value, timestamp | Session report sim-run aggregates; teacher analytics |
+| Progress checklist tick | Step index, timestamp | Teacher dashboard; maps to DRA coverage in v1.2 |
+| Proactive greet span | Whether greet fired, latency | Tutor responsiveness monitoring |
+
+All spans go to Cloud Trace (real-time) + BigQuery (research-scale query). No span contains PII — group ID is the only identifier, per ADR-001.
+
+**What does not get stored:**
+
+- Real names, email addresses, UCPH IDs, device identifiers — none of these enter the system per ADR-001
+- Any data linking a group ID back to specific students
+
+**Pending.** Consent form drives final retention period and the scope of researcher access; the working assumption above can be tightened or extended once the consent text is settled.
+
+**DPIA recommendation.** Even though personal data is out of scope by design, an educational research project involving minors benefits from a brief **Data Protection Impact Assessment** (GDPR Article 35). The DPIA documents *why* personal-data processing was avoided architecturally and is useful evidence for both UCPH data-protection review and external scrutiny (Ministry, parents). M has prior privacy-by-design and ePrivacy work in Danish digital contexts and can draft the DPIA scaffold; JB and UCPH data-protection sign off.
+
+---
+
+## ADR-006 — Cloud provider for prototype: GCP EU via Multivac
+
+**Context.** JB's brief requires EU-hosted, GDPR-compliant infrastructure with no PII leakage to US providers where avoidable, holding up to UCPH data-protection review. Mid-July prototype deadline (~9 weeks) constrains us toward a managed stack.
+
+**Options considered.**
+
+- GCP EU regions (Vertex AI, Cloud Run, Firestore) — full stack from one vendor with EU residency
+- AWS EU (Bedrock + Lambda) — comparable but Bedrock's Claude routing has US-control concerns
+- Azure EU — workable but M less familiar
+- Mistral La Plateforme + EU-hosted backend (Scaleway / Hetzner) — most EU-native but more pieces to assemble
+- Pure self-host (UCPH server) — only viable if UCPH IT responds with a usable timeline
+
+**Decision.** GCP EU for prototype, deployed via **Multivac** (Sunholo's AI platform — see [Platform foundation](#platform-foundation)). Vertex AI in europe-north1 (Finland) or europe-west3 (Frankfurt) — pick one in [ADR-007](#adr-007-cloud-region). Single-vendor EU-resident stack: cleanest DPA story for UCPH review.
+
+**Consequences.**
+
+- Multivac provides managed access to Vertex AI, Ollama hosting, Postgres, and Cloud Storage. AIPLA's infrastructure surface is Multivac's surface in the prototype.
+- UCPH self-host migration becomes the dual track — see [Self-hosting](self-hosting.qmd). The application layer (template) is portable; the infrastructure layer (Multivac) is what gets swapped for UCPH equivalents.
+- Cost is API-billed, not infrastructure-capex; tracked per-task via the capability-floor [evaluation](evaluation.qmd)
+- M has Vertex AI familiarity (AILANG uses it) — reduces ramp time
+
+---
+
+## ADR-007 — Cloud region
+
+**Context.** GCP offers several EU regions; the relevant question is which best fits a Danish research project with student data and a sustainability-conscious institution.
+
+**Options shortlist.**
+
+| Region | Jurisdiction | Power source | Notes |
+|---|---|---|---|
+| **europe-north1** (Finland) | EU · Nordic | 100% renewable (Hamina datacenter) | Strongest carbon-neutrality story; Nordic regional alignment; Vertex AI Gemini available |
+| **europe-west3** (Frankfurt) | EU · Germany | Mixed | Most-used EU region; first to get new GCP features; broadest service availability |
+| europe-west1 (Belgium) | EU | Mixed | Equivalent to Frankfurt on services; less differentiated |
+| europe-west4 (Netherlands) | EU | Mixed | Similar to Belgium |
+
+**Decision.** **europe-north1 (Finland)** as primary — Nordic alignment (a cleaner political story for UCPH review and parent/teacher communication than Germany), 100% renewable power at the Hamina datacenter, and Copenhagen latency comparable to Frankfurt. **europe-west3 (Frankfurt)** is the fallback if a Vertex AI feature AIPLA needs lands there but not in europe-north1 during the contract — a regional config change, no architectural impact.
+
+**v0.1 reality (2026-05-20).** **Gemini 3.5 Flash is not GA in europe-north1** at the time of the Jutland deploy. v0.1 uses **Vertex AI `global` endpoint** with a **project-level Data Residency policy** pinning storage and processing to the EU. Same compliance posture; region-config refinement deferred until europe-north1 reaches GA for the chosen model. Cloud Run service itself remains in europe-north1.
+
+**Pending.** Confirm with JB / UCPH IT that this composition (global endpoint + EU Data Residency policy) is acceptable. If UCPH data-protection requires strict regional pinning at the endpoint level, fall back to europe-west3 with whichever Gemini variant is GA there.
+
+---
+
+## ADR-008 — Model abstraction / routing layer
+
+**Context.** Brief implies and the 2026-05-15 conversation confirmed: provider should be a config swap, not a code change. Capability-floor eval determines which model is routed for which task class.
+
+**Decision.** Use the **AI Protocol Platform template's built-in model router**, which already abstracts across Claude, Gemini, OpenAI, and Ollama behind one interface. Adoption follows from [ADR-002](#adr-002-strand-a-built-on-the-ai-protocol-platform). The capability-floor eval matrix drives per-task routing config; the [four-tier model mix in ADR-003](#adr-003-llm-provider-mix-4-tiers-ai-api-server-server-local-on-device) defines the destinations.
+
+**Consequences.** Provider swap is a config change, not a code change. The on-device tier (tier 4) needs a thin client-side adapter that the router can fall through to, since on-device dispatch is browser-side. AILANG-Parse-related ML calls run through this same router for their AI path (PDFs and images — see [ADR-004](#adr-004-document-parsing-via-ailang-parse)).
+
+---
+
+## ADR-009 — Backend stack
+
+**Decision.** Determined by [ADR-002 (adopting the AI Protocol Platform template)](#adr-002-strand-a-built-on-the-ai-protocol-platform): **Python 3.11+ / FastAPI / Google ADK**, packaged via `uv`, deployed as a Cloud Run service on Multivac in the prototype phase.
+
+**Why this stack:**
+
+- **FastAPI** — the template's HTTP/SSE surface; AG-UI streaming, structured tool calls, and OpenAPI generation come standard
+- **Google ADK** — agent orchestration (sessions, memory, artifacts, eval); aligns with [ADR-011](#adr-011-multimodal-input-handling) for multimodal handling via Gemini and with the model router in [ADR-008](#adr-008-model-abstraction-routing-layer)
+- **`uv`** — fast Python package management; reproducible builds for handover
+- **Cloud Run** — containerised, EU-region available, autoscaling; portable to UCPH Kubernetes per the [self-hosting](self-hosting.qmd) migration
+
+**Consequences.** Successors operate the same stack the template documents — Multivac and Aitana use it, so the operational patterns are well-trodden. AIPLA's contribution is the physics-specific skills and MCP extensions on top, not the backend plumbing itself.
+
+---
+
+## ADR-010 — RAG store
+
+**Status.** Narrowed for v1 by [ADR-017](#adr-017-document-ingestion-two-pipelines-parse-to-text-before-rag): v1 text RAG ships on **Vertex AI RAG Engine** (RagManagedDb), not pgvector. The pgvector lean below stands as the **self-host / UCPH-migration target** and the likely store for the C3 concept-graph stretch. Read this ADR for the option analysis; ADR-017 for what v1 actually runs.
+
+**Context.** Two retrieval needs, with different shapes:
+
+1. **Text RAG** (priority) — teachers upload curriculum extracts, problem sets, lab guides. Bots retrieve at query time. Vector similarity over chunked documents. Must be EU-resident.
+2. **Concept-network storage** (stretch — for the [student-models work in C3](strands.qmd#c3-student-models)) — per-student concept graphs of nodes and relations, compared to a reference model. Graph traversal, topology comparison.
+
+**Options.**
+
+| Option | Text RAG fit | Concept-graph fit | Notes |
+|---|---|---|---|
+| Vertex AI Vector Search | Good | Poor | Managed, EU-region, expensive at low volume |
+| ChromaDB on Cloud Run | Good | Poor | Simple, cheap; vector-only |
+| **pgvector on Postgres** | Good | Partial | Relational + vectors in one place; concept graphs via edge tables work but are awkward |
+| **Neo4j / Memgraph (graph DB)** | Poor | Excellent | Native graph traversal; usable via MCP server |
+| **Dual store** — pgvector for text + graph DB for C3 | Best | Best | More moving parts; concept-graph layer only activates if C3 stretch is pursued |
+
+**Lean.** **pgvector on Postgres for v1 text RAG** (metadata, ACLs, and vectors in one place; cleanly migratable to UCPH-hosted Postgres). For the C3 concept-network stretch, add a **graph DB** (Neo4j AuraDB EU, Memgraph, or pgvector edge tables) as a *second* MCP server — deferred until the [C3 scoping note](strands.qmd#c3-student-models) recommends investment. Both surfaces are MCP servers, so either can be swapped or added without template changes, and UCPH self-host equivalents exist for both (Postgres+pgvector, Memgraph) on managed VMs.
+
+**Pending.** Confirm teacher-upload volume estimates with JB before final scale sizing. Graph-DB decision waits on C3 scoping investment recommendation.
+
+---
+
+## ADR-011 — Multimodal input handling
+
+**Context.** Students and teachers upload a mix of formats: photos of hand-drawn free-body diagrams (JPG/PNG), screenshots of Tracker output (PNG), worksheet scans (PDF), CSV / Excel exports from sensors, lesson plans (DOCX/PPTX), email threads (EML). Each of these has different optimal handling — and from a privacy standpoint, the goal is to send as little to a remote model as possible.
+
+**Decision.** **All uploads route through AILANG Parse first** (see [ADR-004](#adr-004-document-parsing-via-ailang-parse)). AILANG Parse selects the right backend per format:
+
+| Format type | Backend | Where the content goes |
+|---|---|---|
+| DOCX, PPTX, XLSX, ODT, ODP, ODS, CSV, EML, HTML, MD, TEX, EPUB | Deterministic XML parser | **Local** — content never reaches an LLM |
+| PDF, JPG, PNG | AI backend (currently cloud multimodal) | Cloud LLM via the [model router](#adr-008-model-abstraction-routing-layer) — tier 2 (Gemini EU) or tier 1 (Claude) |
+
+The AI-backend layer is **swappable**: AILANG Parse currently calls cloud multimodal models, but on its roadmap are local OCR models. Local OCR currently underperforms cloud multimodal on physics-shaped content (hand-drawn diagrams, equations) — once it closes the gap, the swap is a config change and the capability-floor eval captures when that's worth doing.
+
+**Code execution** (geometry / arithmetic checks, CSV computation, simulation snippets) is **separate from input handling** and plugs in as an [MCP server extension](#core-vs-extensions). Likely candidates: Cloud Run Jobs sandbox, or a containerised Python/JS sandbox MCP server. The student-facing bot calls the code-exec MCP server as a tool, not as part of upload processing.
+
+**Consequences.**
+
+- The privacy story is concrete: 13 of 15 supported upload formats are extracted locally with no LLM involvement. Only image-shaped content goes to a model.
+- The AI backend for image extraction is the same as the chat-routing AI — one router, one telemetry surface, one billing surface.
+- Migration path is clear: when local OCR matures (AILANG Parse roadmap), the image-extraction path shifts from cloud to local without touching application code.
+- Code execution is intentionally a separate extension; we can ship multimodal upload handling in v1 and add code-exec when needed without re-architecting either.
+
+---
+
+## ADR-012 — AILANG ecosystem in AIPLA (utilities, not runtime)
+
+**Context.** AILANG is M's research language for AI applications (Apache 2.0, `sunholo-data/ailang`). It has its own runtime, routing, and model integrations. The question for AIPLA is whether the production stack uses AILANG as the runtime, uses AILANG-built tools as components, or both.
+
+**Decision.** AIPLA's production runtime is the **AI Protocol Platform template's Python + Google ADK stack** — not AILANG. AIPLA does, however, use specific AILANG-built tools as standalone components, all open-source and individually swappable:
+
+| AILANG-built tool | Role in AIPLA | How it integrates |
+|---|---|---|
+| **AILANG Parse** | Document parsing — see [ADR-004](#adr-004-document-parsing-via-ailang-parse) | MCP server. Used for its deterministic-XML-parsing privacy properties, not because of its origin. |
+| **AILANG capability benchmarks** | Reference data for the [capability-floor eval](evaluation.qmd) starting model panel | Eval methodology is independent of AILANG; benchmarks are a published starting reference. |
+| Future utilities | Additional MCP servers as appropriate | Each plugs in independently; no AILANG fluency required to maintain the runtime. |
+
+**Disclosure.** Beyond the general [disclosure note](#platform-foundation), the distinction that matters here: AIPLA does **not** depend on AILANG-the-runtime — only on AILANG-*built utilities* that ship as standalone open-source libraries with non-AILANG SDKs. Successors maintain AIPLA in Python; choosing these utilities is no different in principle from choosing any other open-source tool.
+
+**Consequences.**
+
+- Successors maintain AIPLA in Python — no AILANG fluency required.
+- Each AILANG-built MCP server is swappable (AILANG Parse could be replaced by Docling or MarkItDown, though none currently match its deterministic-XML privacy).
+- The eval framework is AIPLA's own; AILANG's benchmarks are a starting reference, not a dependency.
+
+---
+
+## ADR-013 — Artefact safety: content-review pipeline for generated HTML
+
+**Context.** AIPLA bots generate two kinds of artefacts that get rendered in front of students:
+
+1. **Static illustrations** (SVG, PNG) — embedded inline via [A2UI](#core-vs-extensions)
+2. **Interactive HTML simulations** — embedded via [MCP Apps](#core-vs-extensions) in sandboxed iframes (form factor anchored on AR's existing GenAI trials)
+
+Generated HTML is untrusted by default — the model can be prompted, accidentally or intentionally, into emitting external `<script src=…>`, `fetch()` calls, or unsafe DOM. A naive "model outputs HTML → iframe renders it" pipeline fails the GDPR/safety bar AIPLA must hold.
+
+**Decision.** All generated artefacts pass through a **server-side review pipeline** before they reach the student-facing iframe. Pipeline runs as an MCP server (`physics-artefact-render`, swappable).
+
+| Check | What it catches |
+|---|---|
+| HTML parse + tag allow-list | No `<script src=…>`; only inline scripts permitted |
+| Static analysis on inline JS | No `fetch(`, `XMLHttpRequest`, `WebSocket`, `eval`, no external URLs in string literals |
+| Subresource scanning | No `<img src="http*://...">`, no external CSS/font imports |
+| Size limits | Max ~200 KB per artefact; oversized payloads rejected |
+| Headless render preview | Confirms the artefact actually displays without runtime errors |
+
+**Iframe-side defence in depth:**
+
+- `sandbox="allow-scripts"` only — explicitly **no** `allow-same-origin`, `allow-top-navigation`, `allow-popups`
+- Content Security Policy: `default-src 'none'; script-src 'unsafe-inline'; style-src 'unsafe-inline'`
+- All AI communication via `postMessage` to the parent frame, never directly from iframe to a model API
+- Resource limits: max DOM size, runtime budget before iframe gets killed
+
+**Library bypass.** The [vetted artefact library](strands.qmd#skills-planned-for-v1) (GitHub-hosted for portability) holds teacher-reviewed starting points. Artefacts pulled from the library skip the pipeline once they've been approved into it.
+
+**Consequences.**
+
+- ~1–2s added latency between bot output and student-visible render. Acceptable.
+- Teacher-preview-before-publish becomes a UX requirement, not optional.
+- The pipeline is one MCP server — successors can extend the rules without touching the backend.
+- **v1 scope:** the pipeline ships when AI-generated artefacts ship. **v1 uses a hand-curated sim library** (built with AR), so the pipeline isn't on the August critical path. It's architectural groundwork for Year-2 when teachers generate artefacts interactively.
+
+---
+
+## ADR-014 — Per-group / per-class budget enforcement
+
+**Context.** The brief requires central billing (no per-user keys, no per-user Anthropic accounts). That solves *who pays*; it doesn't solve *how much each cohort can spend*. Without per-group / per-class budgets, one class running heavy multimodal queries could drain the project's monthly cap and block others. AIPLA's centralised API-key model (no user-provided keys per [ADR-013](#adr-013-artefact-safety-content-review-pipeline)) is itself a security feature — but only if AIPLA can also bound the spend it enables.
+
+**Decision.** Budgets enforced at the [model router](#adr-008-model-abstraction-routing-layer) at two levels, with skill-specific multipliers:
+
+| Scope | Default budget (placeholder — calibrate post-eval) | Behaviour |
+|---|---|---|
+| Per group ID (anonymous, per [ADR-001](#adr-001-student-identity-no-auth-anonymous-group-ids)) | ~€2 / week | Soft warning at 80%; hard block at 100% |
+| Per class | ~€50 / month | Same — applies across all groups in the class |
+| Per skill (multiplier) | Image gen ≈ 5×, multimodal ≈ 3×, text ≈ 1× | Multiplies the group/class counter per request |
+
+Counters derive from the OpenTelemetry usage stream already in [ADR-005](#adr-005-chat-log-storage) — no separate counter store needed for v1. Teacher dashboard exposes current usage and time-to-reset; admin can raise/lower limits per class.
+
+**Consequences.**
+
+- Predictable cost per cohort. JB can tell teachers "your class gets X € / month" with confidence.
+- One badly-prompted skill or runaway loop in one class doesn't drain another's budget.
+- The numbers above are placeholders; real usage data from the eval calibrates them post-Jutland.
+- JB's GCP billing alert (1000 DKK / month) remains the outermost ceiling — these per-cohort caps sit inside it.
+- **Selling point for UCPH data-protection:** no PII to API providers, no per-user keys, predictable spend, no surprise bills.
+- **Platform support landed 2026-05-19** (Sprint 2.12). `backend/budget/enforcer.py` ships a `BudgetEnforcer` Protocol; the platform consults it before every LLM call and records realised cost afterwards. Per-skill opt-in via `tool_configs.budget` — `identity_key`, `cost_multiplier`, `exempt`. Block → AG-UI `RUN_ERROR` + `BudgetBanner` UI. AIPLA configures rather than builds.
+- **v1 scope:** **per-class enforcement** plus skill multipliers (now available in the platform with no extra work). Two-level (per-class + per-group) enforcement is a thin custom enforcer over the same Protocol if needed; defer unless evidence calls for it.
+
+---
+
+## ADR-015 — Unified multi-surface UI: AI directs the layout
+
+**Status.** Revised (late June 2026). The unified, AI-directed-surface model holds for the **student** experience — chat plus a `workspace` workbench, one activity surface. For **teachers**, the "no `/teacher` routes" stance below was deliberately dropped: dedicated `/teacher/*` routes (classes, activities, analytics) shipped and proved clearer to build and use than routing teacher tasks through AI-directed surfaces. They are also where the teacher **co-working co-pilots** now sit — a floating AI panel that *proposes* changes on the teacher's own page (see [Timeline → Current status](timeline.qmd#current-status)). It remains one Next.js app and one deploy. The original decision is kept below for its rationale; this note records where reality diverged, and why we kept the divergence.
+
+**Context.** Teachers and students have different needs from AIPLA — teachers configure skills, review artefacts, monitor budgets; students engage with tutors and consume artefacts. The reflex is to build a separate teacher dashboard alongside the student chat. Both that reflex *and* the opposite reflex ("just stuff everything inline in a scrolling chat") are wrong:
+
+- Separate apps doubles the v1 surface area
+- Chat-as-prime-driver makes dashboards scroll away into history; teachers lose context
+
+**Decision.** Use **a single UI app composed of multiple named surfaces**. The AI directs which surface each output goes to. Chat is one surface among several — a conversational signal channel, not the primary UX driver.
+
+A2UI's [`surfaceId` mechanism](https://a2ui.org/) is built for this: a surface is *"a canvas for components (dialog, sidebar, main view)"* with its own component tree and data model. The agent targets a surface by name; updates flow there independently of other surfaces.
+
+**AIPLA surface layout (v1):**
+
+| Surface | Role | Typical occupants |
+|---|---|---|
+| `chat` | Conversational channel | User input, agent text responses, transient acknowledgements |
+| `workspace` | Primary work area — current active view | Live dashboards (`class-status`), open artefact (`physics-sim-builder` MCP App), search results |
+| `sidebar` | Persistent context | Current class, current group, quick-switch, available skills |
+| `modal` | Blocking focused task | Artefact-approval review, confirm-class-deletion, login |
+
+**Mapping skills to surfaces:**
+
+| Teacher task | Skill | Target surface |
+|---|---|---|
+| See current class usage + budget | `class-status` | `workspace` (live A2UI dashboard) |
+| Generate a physics simulation | `physics-sim-builder` | `workspace` (MCP App) |
+| Review and publish pending artefacts | `review-artefacts` | `modal` (focus on approval) |
+| Create class / generate group IDs | `manage-class` | `workspace` |
+| Search anonymised chat logs | `chat-log-search` | `workspace` |
+| Configure a problem-set helper bot | `problem-set-helper-config` | `workspace` |
+| Switch between classes | (sidebar component) | `sidebar` |
+
+**Why this works:**
+
+- **One UI app to maintain.** One Next.js app, one auth path, one deploy target — teachers and students share it. *(Revised — see Status: teachers do have dedicated `/teacher/*` routes inside that single app; it's still one deploy, just not one undifferentiated surface.)*
+- **Dashboards don't scroll away.** A teacher's `class-status` lives in `workspace` and updates live; the chat conversation continues in `chat` without burying it.
+- **Aligns with the [AI Protocol Platform template](#platform-foundation) philosophy** — skills emit rich UI via A2UI / MCP Apps. Multi-surface is what A2UI was designed for.
+- **Auth-driven role filtering.** UCPH SSO sessions get teacher-role skills; anonymous group-ID sessions (per [ADR-001](#adr-001-student-identity-no-auth-anonymous-group-ids)) get student-role skills. The skill registry filters by role and the AI picks the appropriate target surface per skill.
+- **Mobile-friendly.** Renderer collapses surfaces sensibly on small screens (workspace foregrounded, chat as a tab); A2UI doesn't care about layout — that's the renderer's job.
+
+**Consequences.**
+
+- Significant v1 scope reduction: one auth path, one UI deploy, one set of components to test.
+- The agent must learn to pick the right surface per skill — surface choice is part of skill metadata, defaulted in the skill template, overridable by the agent if context demands (e.g., a small ack goes to `chat`, the full result goes to `workspace`).
+- Renderer (frontend) must support the four surfaces and route components from A2UI's `surfaceId` to the right region. The AI Protocol Platform template's reference frontend already ships multi-surface support (`A2UISurfaceMount`, `SurfaceRegistry`) — verified 2026-05-19.
+- Mobile renderer collapses surfaces gracefully.
+- **v1 scope:** **chat-primary with a `workspace` surface for embedded sims.** Full four-surface layout (`sidebar`, `modal`) is Year-2; the architecture supports it but v1 doesn't need it shipped. Over-deliver if time permits.
+
+---
+
+## ADR-016 — Researcher role: permission tier above teacher
+
+**Status:** Accepted (15 June 2026) — addition to the role model in [ADR-015](#adr-015-unified-multi-surface-ui-ai-directs-the-layout).
+
+**Context.** The role filtering in [ADR-015](#adr-015-unified-multi-surface-ui-ai-directs-the-layout) models two roles: anonymous student (group-ID) and authenticated teacher (UCPH SSO). A teacher sees *their own* classes' logs and sessions. But the brief's research purpose needs **cross-class, cross-teacher** access to all sessions and the raw BigQuery dataset — JB, AR, and M analysing data across the whole pilot, not one classroom. This surfaced in the 3 June check-in and again on 9 and 15 June; it has been carried as "needs an ADR addition" each time. This ADR closes it.
+
+**Decision.** Add a **researcher** role as a tier above teacher in the same SSO-driven role filter. Researcher is a superset of teacher scope:
+
+| Role | Auth | Scope |
+|---|---|---|
+| Student | Anonymous group ID ([ADR-001](#adr-001-student-identity-no-auth-anonymous-group-ids)) | Own group's session only |
+| Teacher | UCPH SSO | Own classes: their groups, activities, session reports, logs |
+| **Researcher** | UCPH SSO + researcher grant | **All** classes and teachers: every session, all session reports, and direct read on the raw BigQuery dataset |
+
+- Researcher is an **explicit grant** on top of an SSO identity (an allowlist of UCPH accounts maintained by an admin), not an automatic property of any teacher account.
+- The skill registry's role filter ([ADR-015](#adr-015-unified-multi-surface-ui-ai-directs-the-layout)) gains the researcher tier; researcher sessions get teacher-role skills **without the own-class scope filter**, plus raw-log access.
+- **No PII consequence.** Because students are anonymous group IDs with no identity map ([ADR-001](#adr-001-student-identity-no-auth-anonymous-group-ids)), cross-teacher access does not expose student PII — there is none. The `consent_given` flag from the [ADR-005 in-session consent prompt](#adr-005-chat-log-storage) still governs whether a session's turns were logged at all; researcher dashboards note coverage gaps.
+
+**Consequences.**
+
+- One new role value and an admin-managed allowlist; no new auth path (rides UCPH SSO).
+- Raw BigQuery access for researchers is already the `aiplatform logs` CLI path; this ADR makes the in-app researcher surface match it.
+- Retention and access scope follow the consent form JB owns ([ADR-005](#adr-005-chat-log-storage)).
+
+---
+
+## ADR-017 — Document ingestion: two pipelines, parse-to-text before RAG
+
+**Status:** Accepted (16 June 2026) — records what v0.1 actually built for document handling, and reconciles the text-RAG store choice with [ADR-010](#adr-010-rag-store).
+
+**Context.** "Where does an uploaded document go, and who parses it?" had drifted from the ADRs by v0.1. Two questions needed pinning down: (1) a document can land in **two different stores** depending on how it arrives, and the distinction was implicit; (2) [ADR-010](#adr-010-rag-store) leaned **pgvector** for text RAG, but the curriculum library shipped on **Vertex AI RAG Engine** — an unrecorded change.
+
+**Decision — two pipelines, by arrival path.**
+
+| | Chat-uploaded document (student/teacher drops a file mid-conversation) | Curriculum-library document (teacher uploads to the shared/own library) |
+|---|---|---|
+| Store | **ADK ArtifactService** (`doc:{id}.json`) | **Vertex AI RAG Engine** corpus (RagManagedDb) |
+| How the model sees it | whole document loaded into context for that session | chunked, retrieved on demand via the ADK `VertexAiRagRetrieval` tool, scoped to the activity's cited docs |
+| Lifetime / scope | one session | reusable across activities; ACL-scoped (shared vs teacher-own) |
+| Use when | "read this with me right now" | "ground the tutor in curriculum it can cite" |
+
+Rule of thumb: **transient, whole-document, single-session → artifact; durable, retrievable, citable → RAG.** Both honour [ADR-004](#adr-004-document-parsing-via-ailang-parse) (AILANG Parse first) and [ADR-011](#adr-011-multimodal-input-handling).
+
+**Decision — parse to text *before* RAG, rather than letting RAG parse the raw file.** Vertex AI RAG Engine can ingest raw PDF / DOCX / PPTX / HTML / MD and parse them itself (default parser, plus a Document AI Layout Parser and OCR/LLM parsers — verified against Google's RAG-Engine docs, June 2026). We deliberately **don't** use that: ingest runs AILANG Parse (deterministic formats) or the Gemini OCR fallback (PDF/images), then uploads the resulting **`.txt`** to the corpus, which only chunks + embeds it.
+
+**Why pre-parse wins here:** one parse feeds **three** consumers — the RAG corpus, the in-app **content viewer** (a teacher/student reads the doc), and the teacher's **parse-review** ("is this what got extracted?"). If RAG parsed the raw file we'd have no text for the latter two without reading chunks back out. There is **no double-parse** (a `.txt` is never re-parsed) and a single Gemini OCR implementation, shared by both pipelines (`tools/documents/ai_extract.py`).
+
+**Reconciliation with [ADR-010](#adr-010-rag-store).** For **v1 text RAG the store is Vertex AI RAG Engine (RagManagedDb), not pgvector.** Rationale: ADK ships a first-class `VertexAiRagRetrieval` tool, so retrieval is a built-in tool with zero custom-server code and zero ops surface; the corpus is EU-region (the corpus's own region drives the SDK endpoint, per `db/rag_corpus.py`); and graceful degradation is clean (no corpus → no grounding, tutor still answers). pgvector remains the documented **self-host / UCPH-migration target** ([self-hosting](self-hosting.qmd)) and the likely store for the C3 concept-graph stretch; this ADR narrows ADR-010's v1 text-RAG lean to the managed option, it does not reopen the graph-DB question.
+
+**Consequences.**
+
+- **Self-host gap to track.** Vertex RAG Engine is GCP-managed; the UCPH on-prem path needs a pgvector-equivalent behind the same retrieval-tool interface. Logged in [self-hosting](self-hosting.qmd) — the retrieval call is one tool, so the swap is bounded.
+- **PDF AI path bypasses the model router.** The Gemini OCR fallback calls Vertex GenAI directly rather than routing through [ADR-008](#adr-008-model-abstraction-routing-layer); acceptable for v1 (one provider, one region) but a known shortcut to fold back into the router when the local-OCR swap from [ADR-011](#adr-011-multimodal-input-handling) is taken.
+- **Chat-upload PDFs are now first-class.** They previously stored zero blocks (`pending_ai_extraction`); they now extract via the shared fallback → markdown → AILANG Parse's markdown→blocks path, so a PDF dropped in chat is actually readable by the tutor.
+- **Content predating the viewer needs a one-time backfill.** Docs seeded before the viewer existed are in RAG but have no stored display text; `make backfill-curriculum-content` repopulates it (idempotent).
+
+---
+
+## Implementation patterns
+
+Operational patterns that follow from the decisions above — how the surfaces behave in practice, not decisions in their own right.
+
+### Live updates without new chat messages
+
+Both [A2UI](https://a2ui.org/) and [MCP Apps](https://modelcontextprotocol.io/extensions/apps/overview) support **server-pushed updates to existing rendered components** — and updates flow to the target surface independently of the chat surface.
+
+- **A2UI** binds data values to component paths. The agent emits a `dataModelUpdate` event (e.g., `surfaceId: "workspace"`, path `/class/budget_used = 42`) and only the affected component patches ([Agentic UI write-up](https://dev.to/tahmidbintaslim/agentic-ui-a2ui-ag-ui-build-uis-your-agent-can-update-in-real-time-274n))
+- **MCP Apps** receive `ui/toolResult` messages over `postMessage` whenever the host's tool data changes ([MCP Apps spec](https://blog.modelcontextprotocol.io/posts/2026-01-26-mcp-apps/))
+
+Practical pattern for AIPLA — which skills benefit from live updates vs one-shot:
+
+| Pattern | Skills | Why |
+|---|---|---|
+| **Live-update on `workspace`** (data-bound, server pushes patches) | `class-status`, `review-artefacts`, `chat-log-search` | Background state changes as students use the system — teacher shouldn't have to refresh |
+| **One-shot on `workspace`** (generate → render → publish) | `physics-sim-builder`, `illustration-builder`, `manage-class`, `misconception-pair` | Single user action completes a discrete task |
+
+For live-update skills the rendered component **stays in `workspace`** and continues receiving patches; the `chat` surface continues underneath without burying it. The teacher's view of class status is always at hand, not scrolled away.
+
+### Workbench → chat narration: "human tool-use cards"
+
+The inverse of dashboard live-updates: when a student manipulates a workbench artefact, the action is narrated back into chat so the tutor can reference it. The pattern that landed in [v0.1 production](examples.qmd#v01-in-production-what-students-see) is **human tool-use cards** — a sandboxed iframe MCP App emits `postMessage` events on slider-end and preset-change; the host renders each as an inline chat card (*"Justerede v₀ til 17.5 m/s ✓"*); the agent's prompt references those cards plus current iframe state. The harness is host-side and standard, so any future MCP-App artefact gets it for free (sandbox auth via `e.source`, slider debouncing built in). The workbench is no longer silent to the chat — the tutor's Socratic prompts reference what the student actually did, not just questions asked in the abstract. See the [Examples page](examples.qmd#v01-in-production-what-students-see) for this in action.
+
+### Architectural principle: the artefact is the sim, not the lesson {#artefact-is-the-sim}
+
+Established during the LED Planck integration (2026-05-27). The initial attempt wrapped the full standalone lab — checklist, data table, Planck calculator, error display, instructions — inside the workbench iframe. This was wrong.
+
+**The rule:** a workbench artefact contains the **interactive simulation element only**. Everything else belongs to the platform:
+
+| What | Where |
+|------|-------|
+| Interactive simulation / virtual lab core | Workbench artefact (sandboxed iframe) |
+| Instructions and task framing | Tutor system prompt |
+| Data recording and results | Lab notebook workbench type (v1.1) or tutor-guided freeform |
+| AI hints and Socratic questions | Tutor |
+| Adaptive quizzes | Tutor |
+| Self-assessment checklist | Platform progress component |
+
+This is the **Boldkast model**: the Boldkast artefact is the physics simulator only — sliders, trajectory canvas, readouts. The tutor is the lesson. When onboarding an external teaching tool (jitt.dk apps, KineBot, new lab HTML), extract the sim core and strip the rest; the tutor prompt replaces what was stripped.
+
+The rule holds for all five workbench types (App, Drawing board, Experiment tool, Video analysis, Lab notebook). The artefact produces state the tutor can read; the tutor makes the pedagogical use of that state.

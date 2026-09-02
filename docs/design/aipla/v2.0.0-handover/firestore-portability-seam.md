@@ -140,4 +140,4 @@ No rollout — internal refactor, behaviour-preserving in production (data locat
 
 - [self-hosting-and-terraform-handover.md](self-hosting-and-terraform-handover.md) — parent workstream; §1b/§7 carry the corrected M rating and the "defer + harden" recommendation.
 - [SEQUENCE.md](SEQUENCE.md) (this workstream) — Phase-1 portability-seam audit, partly delivered by this doc.
-- Scoping site: [self-hosting.qmd](https://www.sunholo.com/aipla/self-hosting.html), ADR-010/017 (pgvector target).
+- Scoping site: [self-hosting.qmd](https://aipla.ku.dk/project/data-and-hosting), ADR-010/017 (pgvector target).

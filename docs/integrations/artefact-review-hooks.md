@@ -326,4 +326,4 @@ The old hand-rolled UX (custom error component? generic 500?) is replaced by `Ar
 - [Sprint 2.13 design doc](../design/v6.2.0/implemented/artefact-render-hook.md) — full Protocol contract, axiom alignment, security considerations.
 - [mcp-app-integrations](../design/v6.1.0/implemented/mcp-app-integrations.md) — the sandbox + render pipeline this extends.
 - [Sprint 2.12 budget-enforcement howto](budget-enforcement.md) — sibling AIPLA-extension sprint with a similar Protocol shape.
-- [AIPLA ADR-013](https://www.sunholo.com/aipla/architecture.html#adr-013-artefact-safety-content-review-pipeline) — the request that surfaced this.
+- [AIPLA ADR-013](../design/aipla/_scoping-snapshot/architecture.qmd#adr-013-artefact-safety-content-review-pipeline) — the request that surfaced this.

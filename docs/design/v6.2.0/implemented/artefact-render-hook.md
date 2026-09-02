@@ -5,7 +5,7 @@
 **Estimated**: ~0.5 day (Protocol + plug point in router + permissive default + tests + docs)
 **Scope**: Frontend hook in `MCPAppToolCallRouter` + small backend Protocol for forks that want server-side review. No new endpoint.
 **Dependencies**: Existing MCP-app rendering (sprint 1.7 + 1.25). The sandbox proxy already enforces origin + CSP boundaries; this adds a CONTENT review layer ABOVE that.
-**Surfaced by**: AIPLA fork [ADR-013 — artefact safety / content review pipeline](https://www.sunholo.com/aipla/architecture.html#adr-013-artefact-safety-content-review-pipeline).
+**Surfaced by**: AIPLA fork [ADR-013 — artefact safety / content review pipeline](../../aipla/_scoping-snapshot/architecture.qmd#adr-013-artefact-safety-content-review-pipeline).
 **Created**: 2026-05-19
 
 ---
@@ -271,6 +271,6 @@ This is OPTIONAL — forks pick where they run. Recommended: server-side for hig
 
 ## Related Documents
 
-- [AIPLA ADR-013](https://www.sunholo.com/aipla/architecture.html#adr-013-artefact-safety-content-review-pipeline) — the request.
+- [AIPLA ADR-013](../../aipla/_scoping-snapshot/architecture.qmd#adr-013-artefact-safety-content-review-pipeline) — the request.
 - [mcp-app-integrations](../../v6.1.0/implemented/mcp-app-integrations.md) — the sandbox + render pipeline this extends.
 - [mcp-app-update-model-context.md](../../v6.1.0/implemented/mcp-app-update-model-context.md) — sibling MCP-app feature, similar gate pattern (allow_context_writes opt-in).

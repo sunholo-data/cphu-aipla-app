@@ -274,7 +274,7 @@ Two CLI commands worth scoping AFTER this design lands (filed as followups, not 
 - [boldkast-mcp-app.md](boldkast-mcp-app.md) — the artefact being migrated
 - [human-tool-use-cards.md](human-tool-use-cards.md) — UX layer above the wire; unchanged by this design
 - [MCP Apps spec vendored snapshot](../../../../.claude/skills/agent-protocols/references/mcp-apps-spec-2026-01-26.md) — the canonical reference; lines 411–487 (Communication Protocol + Sandbox proxy) and §Standard MCP Messages are the load-bearing sections
-- [ADR-013](https://www.sunholo.com/aipla/architecture.html#adr-013-artefact-safety-content-review-pipeline-for-generated-html) — sandbox + CSP decision; the spec path completes ADR-013's promise rather than working around it
+- [ADR-013](../../_scoping-snapshot/architecture.qmd#adr-013-artefact-safety-content-review-pipeline-for-generated-html) — sandbox + CSP decision; the spec path completes ADR-013's promise rather than working around it
 - Memory: [feedback-search-protocols-first](../../../../../.claude/projects/-Users-mark-dev-sunholo-cphu-aipla-app/memory/feedback_search_protocols_first.md) — the lesson that motivated this doc
 - Upstream feedback [#28](../../../upstream-feedback.md), [#30](../../../upstream-feedback.md) — reframed to align with this design's understanding
 

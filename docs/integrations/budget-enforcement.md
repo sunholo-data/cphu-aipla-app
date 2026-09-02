@@ -341,4 +341,4 @@ Combined with sprint 2.14 (`tenant.uid`/`tenant.group_id` on every OTel span), y
 - [Sprint 2.11 anonymous-group-id-auth howto](anonymous-group-id-auth.md) — provides the `group_id` identity AIPLA's enforcer will key on.
 - [Sprint 2.14 tenant-id-span-attribute](../design/v6.2.0/tenant-id-span-attribute.md) — lands `tenant.uid` / `tenant.group_id` on every OTel span. Pairs cleanly: every `consult` log line gets the same identity attribution.
 - [backend/observability/llm_metrics.py](../../backend/observability/llm_metrics.py) — the per-model pricing table the in-memory enforcer reuses for cost projection.
-- [AIPLA ADR-014](https://www.sunholo.com/aipla/architecture.html#adr-014-per-group-per-class-budget-enforcement) — the request that surfaced this.
+- [AIPLA ADR-014](../design/aipla/_scoping-snapshot/architecture.qmd#adr-014-per-group-per-class-budget-enforcement) — the request that surfaced this.

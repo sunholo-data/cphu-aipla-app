@@ -5,7 +5,7 @@
 **Estimated**: ~0.5 day (contextvar + OTel span processor + skill_processor wire + tests + docs)
 **Scope**: Backend — one new `tenant_context` contextvar, one OTel `SpanProcessor` that stamps every span, one extension point for forks to add MORE attributes.
 **Dependencies**: Existing OTel setup (`backend/observability/telemetry.py`).
-**Surfaced by**: AIPLA fork [ADR-005 — chat-log storage / per-cohort attribution](https://www.sunholo.com/aipla/architecture.html#adr-005-chat-log-storage). Broader uses: any multi-tenant fork wants per-tenant filtering on traces / logs.
+**Surfaced by**: AIPLA fork [ADR-005 — chat-log storage / per-cohort attribution](../../aipla/_scoping-snapshot/architecture.qmd#adr-005-chat-log-storage). Broader uses: any multi-tenant fork wants per-tenant filtering on traces / logs.
 **Created**: 2026-05-19
 
 ---
@@ -296,7 +296,7 @@ register_tenant_enricher(class_id_enricher)
 
 ## Related Documents
 
-- [AIPLA ADR-005](https://www.sunholo.com/aipla/architecture.html#adr-005-chat-log-storage) — the request.
+- [AIPLA ADR-005](../../aipla/_scoping-snapshot/architecture.qmd#adr-005-chat-log-storage) — the request.
 - [anonymous-group-id-auth.md](anonymous-group-id-auth.md) — sprint 2.11 (shipped 2026-05-19); the `group_id` this depends on for AIPLA's case.
 - [budget-enforcement.md](budget-enforcement.md) — sprint 2.12; consumes the same tenant identity as gate keys.
 - [backend/observability/telemetry.py](../../../../backend/observability/telemetry.py) — existing OTel setup; this extends it via the documented SpanProcessor interface.

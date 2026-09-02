@@ -241,6 +241,6 @@ Following the [feedback-self-testable-loops](../../../../../.claude/projects/-Us
 - [pedagogical-context-sprint.md](pedagogical-context-sprint.md) — the iframe-context endpoint + InstructionProvider this depends on
 - [mcp-app-update-model-context.md](../../v6.1.0/mcp-app-update-model-context.md) — upstream design for the iframe-context endpoint (the seven-gate auth model)
 - [local-dev-cli.md](../../v6.1.0/local-dev-cli.md) — `aiplatform` CLI conventions for the new `sessions iframe-context` subcommand
-- [ADR-013](https://www.sunholo.com/aipla/architecture.html#adr-013-artefact-safety-content-review-pipeline-for-generated-html) — sandbox iframe constraints (cards are host-side so unaffected, but the events they reflect come from sandboxed surfaces)
-- [ADR-015](https://www.sunholo.com/aipla/architecture.html#adr-015-unified-multi-surface-ui-ai-directs-the-layout) — multi-surface UI; cards are the `chat`-surface mirror of `workspace`-surface actions
+- [ADR-013](../_scoping-snapshot/architecture.qmd#adr-013-artefact-safety-content-review-pipeline-for-generated-html) — sandbox iframe constraints (cards are host-side so unaffected, but the events they reflect come from sandboxed surfaces)
+- [ADR-015](../_scoping-snapshot/architecture.qmd#adr-015-unified-multi-surface-ui-ai-directs-the-layout) — multi-surface UI; cards are the `chat`-surface mirror of `workspace`-surface actions
 - Memory: [feedback-self-testable-loops](../../../../../.claude/projects/-Users-mark-dev-sunholo-cphu-aipla-app/memory/feedback_self_testable_loops.md) — why this doc has a backend pytest first, manual verification last

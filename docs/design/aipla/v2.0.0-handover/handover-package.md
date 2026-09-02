@@ -5,7 +5,7 @@
 **Owner**: M. Several rows are owned by JB or by KU and are marked as such — those need a *chase*, not a build
 **Scope**: Documentation and inventory only. Touches no runtime code
 **Created**: 2026-09-01
-**Source**: the Week-17 "definition of done" in the scoping site [`timeline.qmd`](https://www.sunholo.com/aipla/timeline.html), the top-level [SEQUENCE.md](../SEQUENCE.md) v2.0.0 row, and the P4 items of [handover-maintainability-audit.md](../v1.1.0-feedback/handover-maintainability-audit.md)
+**Source**: the Week-17 "definition of done" in the scoping site [`timeline.qmd`](https://aipla.ku.dk/project/progress), the top-level [SEQUENCE.md](../SEQUENCE.md) v2.0.0 row, and the P4 items of [handover-maintainability-audit.md](../v1.1.0-feedback/handover-maintainability-audit.md)
 
 > **2026-09-15 is a milestone, not the finish line** — but that does not lower
 > the bar as much as it first appears. The engagement was extended in August to
