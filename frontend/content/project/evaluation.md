@@ -3,8 +3,8 @@ title: "Evaluation"
 description: "How AIPLA evaluates task-specific AI capability and pedagogical use without treating rankings as permanent."
 eyebrow: "Evidence and limitations"
 owner: "AIPLA research team"
-reviewed: "2026-08-04"
-reviewBy: "2026-09-04"
+reviewed: "2026-09-03"
+reviewBy: "2026-12-03"
 status: "Provisional"
 order: "50"
 nav: "true"
@@ -95,8 +95,12 @@ Tutor evaluation can therefore examine whether it:
 
 Classroom evidence is still required to understand how those behaviours are experienced and used by students.
 
-## Current publication status
+## Published snapshots
 
-The evaluation framework and early project-specific runs are under development. Detailed scores from the legacy working site are not reproduced here because model availability and several interpretations are time-sensitive, and the results require a stable research snapshot before broader publication.
+Results are published as **dated snapshots** rather than as a running leaderboard, so that an older result stays readable as historical evidence instead of silently becoming a claim about the current market.
 
-Validated snapshots, datasets, and related publications will be linked from this page when ready. Until then, claims about current model suitability should be treated as provisional engineering evidence rather than project findings.
+- **[Capability floor: July 2026 snapshot](/project/evaluation/capability-floor)** — eleven models on text and nine on figure-reading, measured against Danish stx *Fysik A* exam tasks and separated by deployment tier. Reports where the 80% threshold is cleared, why a self-hosted tier needs two models rather than one, and why public benchmarks mis-rank the cheapest viable candidates.
+
+The exam items underlying that snapshot are used under the research-organisation exception for text and data mining in section 11 c of the Danish Copyright Act. Aggregate results are published; the items and answer keys are not reproduced or redistributed. The rights position is set out in full on the snapshot page.
+
+Evaluation of tutor behaviour and the classroom evidence that must accompany it are still in development, and no snapshot of either is published yet. Claims about tutor quality should be treated as provisional engineering evidence rather than project findings.

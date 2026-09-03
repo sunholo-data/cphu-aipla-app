@@ -64,14 +64,22 @@ tasks were measured separately.
 The detailed results are in the companion note *"Which AI model is good enough
 for which task"* (2026-08-27).
 
-::: callout-warning
-### A constraint on this section
+::: callout-note
+### The rights position on this section — resolved 2026-09-03
 
-The exam corpus is drawn from **Prøvebanken**, and legal approval for its use is
-**pending with the Ministry of Education**. We hold model-performance results
-against that corpus and have decided **not to publish them** until approval is
-granted. This note therefore states conclusions at a level the approval does not
-gate, and the underlying numbers stay internal for now.
+The exam corpus is drawn from **Prøvebanken**, whose material carries an express
+reservation against text and data mining (ophavsretsloven § 11 b). The Ministry
+of Education's agency for education and quality confirmed in writing, September
+2026, that **§ 11 c** — the research-organisation exception implementing DSM
+Art. 3 — permits the use notwithstanding that reservation, KU being a research
+organisation, **conditional on no language model developed from the material
+being placed on the market**. AIPLA trains nothing and the corpus is quarantined
+from the platform, so the condition does not bind the evaluation.
+
+**The numbers are therefore published**, at
+[/project/evaluation/capability-floor](https://aipla.ku.dk/project/evaluation/capability-floor).
+Aggregate results only: exam items and answer keys are not reproduced or
+redistributed, and the item set is not published as a dataset.
 :::
 
 ### What we found
@@ -281,8 +289,10 @@ something it can defend as a finding.
 
 ## Limitations
 
-- **The C1 numbers are withheld** pending Prøvebanken approval; conclusions here
-  are stated at a level that approval does not gate.
+- **The C1 numbers are provisional, not withheld.** The Prøvebanken rights
+  question resolved on 2026-09-03 and the results are public; what remains
+  provisional is the evidence itself — five runs per model, 33 text and 8 figure
+  items, machine-graded without a human calibration sample.
 - **C2's negative result comes from one session** (16 June). The diagnosis was
   reproduced on the same audio under two configurations, which is strong for the
   *cause* and weak for the *prevalence*.
