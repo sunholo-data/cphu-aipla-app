@@ -3,9 +3,10 @@
 import { type ComponentType, useEffect, useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { BarChart3, BookOpen, ClipboardList, Library, Microscope, PanelLeftClose, PanelLeftOpen, Settings, Users } from "lucide-react";
+import { BarChart3, BookOpen, ClipboardList, Library, Microscope, PanelLeftClose, PanelLeftOpen, Settings, ShieldCheck, Users } from "lucide-react";
 
 import { cn } from "@/lib/utils";
+import { useIsProgrammeAdmin } from "@/hooks/useIsProgrammeAdmin";
 import { useIsResearcher } from "@/hooks/useIsResearcher";
 
 const COLLAPSE_KEY = "teacher-nav-collapsed";
@@ -64,6 +65,23 @@ const RESEARCH_DESTINATION: Destination = {
   match: ["/teacher/research"],
 };
 
+/**
+ * Delegated-administration destination (PROGADMIN-1 — 1.1.76): the access
+ * register and the request queue. Shown to a researcher (read-only) OR a
+ * programme admin (read + write) — the union, because the two claims share one
+ * surface at different privilege levels.
+ *
+ * NOT nested under /teacher/research: a programme admin is not necessarily a
+ * researcher, and filing an admin surface under "research" would make the
+ * naming lie about who it is for.
+ */
+const PROGRAMME_DESTINATION: Destination = {
+  href: "/teacher/programme",
+  label: "Programme",
+  icon: ShieldCheck,
+  match: ["/teacher/programme"],
+};
+
 function isActive(pathname: string, match: string[]): boolean {
   return match.some((m) => pathname === m || pathname.startsWith(`${m}/`));
 }
@@ -79,7 +97,12 @@ export function TeacherNav() {
   const pathname = usePathname() ?? "";
   // Researchers get one extra destination (the cross-teacher Research scan).
   const isResearcher = useIsResearcher();
-  const destinations = isResearcher ? [...DESTINATIONS, RESEARCH_DESTINATION] : DESTINATIONS;
+  const isProgrammeAdmin = useIsProgrammeAdmin();
+  const destinations = [
+    ...DESTINATIONS,
+    ...(isResearcher ? [RESEARCH_DESTINATION] : []),
+    ...(isResearcher || isProgrammeAdmin ? [PROGRAMME_DESTINATION] : []),
+  ];
   // Collapse the desktop rail to an icon strip to give app-like surfaces (the
   // activity builder) more room. Persisted so it stays across navigation +
   // refresh. Default expanded (server render); synced from storage on mount.

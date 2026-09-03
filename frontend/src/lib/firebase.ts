@@ -255,6 +255,31 @@ export async function getIsResearcher(): Promise<boolean> {
   return result.claims.role === "researcher";
 }
 
+/**
+ * Whether the current teacher carries the `programmeAdmin` custom claim
+ * (PROGADMIN-1 — 1.1.76): may admit a teacher to the access register and set
+ * their cap, bounded in amount and audience.
+ *
+ * A SEPARATE claim key from `role:researcher`, not another value of it — a
+ * researcher reads the register, a programme admin writes it, and the two
+ * questions have different answer sets. Compared strictly against `true` so a
+ * stray truthy value in the claim blob cannot confer spend authority.
+ *
+ * The client gate is convenience only: every bound is re-checked server-side,
+ * and `/api/programme/*` 404s a caller without the claim regardless of what
+ * this returns.
+ */
+export async function getIsProgrammeAdmin(): Promise<boolean> {
+  if (isLocalMode()) {
+    const raw = (process.env.NEXT_PUBLIC_LOCAL_MODE_PROGRAMME_ADMIN ?? "").trim().toLowerCase();
+    return raw === "1" || raw === "true" || raw === "yes" || raw === "on";
+  }
+  const auth = getFirebaseAuth();
+  if (!auth?.currentUser) return false;
+  const result = await getIdTokenResult(auth.currentUser);
+  return result.claims.programmeAdmin === true;
+}
+
 export function getFirestoreDb(): Firestore | null {
   const app = getFirebaseApp();
   if (!app) return null;

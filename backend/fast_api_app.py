@@ -333,6 +333,7 @@ from protocols.mcp_server import mcp as mcp_server  # noqa: E402
 from protocols.models_route import router as models_router  # noqa: E402
 from protocols.personas_routes import router as personas_router  # noqa: E402
 from protocols.proactive_routes import router as proactive_router  # noqa: E402
+from protocols.programme_routes import router as programme_router  # noqa: E402
 from protocols.recording_routes import router as recording_router  # noqa: E402
 from protocols.reports_routes import router as reports_router  # noqa: E402
 from protocols.research_lens_routes import router as research_lens_router  # noqa: E402
@@ -379,6 +380,7 @@ app.include_router(checklist_progress_router)
 app.include_router(table_progress_router)
 app.include_router(writing_progress_router)
 app.include_router(research_lens_router)
+app.include_router(programme_router)
 app.include_router(teacher_prefs_router)
 app.include_router(personas_router)
 app.include_router(artefact_router)

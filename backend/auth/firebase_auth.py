@@ -69,6 +69,24 @@ class User(BaseModel):
     cross-class read access via `assert_can_read_class`. The claim is in
     a signed JWT so the client cannot forge it; absent claim → False.
 
+    `is_programme_admin` (PROGADMIN-1 — 1.1.76) is the DELEGATED
+    ADMINISTRATION bit: "may commit money on the programme's behalf",
+    bounded in amount and audience. It comes from the Firebase custom
+    claim `{"programmeAdmin": true}`, minted ONLY by the
+    service-account-gated `POST /api/admin/grant-programme-admin` — a
+    programme admin cannot mint the claim they hold, which is the one
+    hard "no" in this design (privilege propagation).
+
+    It is a SEPARATE KEY from `role`, not another value of it. `role` is
+    single-valued, so making them alternatives would force a researcher
+    to choose between reading research data and admitting a teacher.
+    Reading transcripts across classes and committing money are
+    different questions about a person; today the same few people want
+    both, which is exactly when conflating them feels harmless.
+
+    Compared strictly against `True` so a stray truthy string in the
+    claim blob cannot grant spend authority.
+
     `access_tier` (ACCESS-1 M1) governs SPEND and FAN-OUT, and nothing
     else. It is deliberately NOT folded into `is_teacher`: that boolean
     means "this is a Firebase identity, not an anonymous-group student"
@@ -100,6 +118,7 @@ class User(BaseModel):
     group_id: str = ""
     is_teacher: bool = False
     is_researcher: bool = False
+    is_programme_admin: bool = False
     access_tier: str = DEFAULT_ACCESS_TIER
 
     @property
@@ -156,6 +175,7 @@ def _user_from_decoded_token(decoded: dict[str, Any]) -> User:
         group_tags=group_tags,
         is_teacher=True,
         is_researcher=is_researcher,
+        is_programme_admin=decoded.get("programmeAdmin") is True,
         access_tier=_access_tier_from_claim(decoded),
     )
 

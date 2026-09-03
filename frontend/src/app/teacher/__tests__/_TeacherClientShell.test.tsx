@@ -10,7 +10,13 @@ const authState = vi.hoisted(() => ({
 vi.mock("@/hooks/useTeacherAuth", () => ({
   useTeacherAuth: () => ({ user: authState.user, loading: false }),
 }));
-vi.mock("@/lib/firebase", () => ({ signOut: vi.fn() }));
+// `getIsProgrammeAdmin` is reached through TeacherNav's useIsProgrammeAdmin
+// (1.1.76). Resolves false: this suite is about the shell, not the claim.
+vi.mock("@/lib/firebase", () => ({
+  signOut: vi.fn(),
+  getIsProgrammeAdmin: () => Promise.resolve(false),
+  subscribeToAuthState: () => () => {},
+}));
 vi.mock("@/lib/localMode", () => ({ isLocalMode: () => false }));
 vi.mock("@/components/site/SiteFooter", () => ({ SiteFooter: () => <footer>footer</footer> }));
 

@@ -61,6 +61,10 @@ def build_workshop_user() -> User:
     regex-banned from every deployed config.
     """
     is_researcher = os.environ.get("LOCAL_MODE_RESEARCHER") == "1"
+    # Opt-in like the researcher bit above, and for the same reason: the
+    # delegated-admin surface (1.1.76) should be reachable in LOCAL_MODE for
+    # development, but not be the default identity every local run carries.
+    is_programme_admin = os.environ.get("LOCAL_MODE_PROGRAMME_ADMIN") == "1"
     return User(
         uid=WORKSHOP_USER_UID,
         email=WORKSHOP_USER_EMAIL,
@@ -68,6 +72,7 @@ def build_workshop_user() -> User:
         group_tags=WORKSHOP_USER_GROUP_TAGS,
         is_teacher=True,
         is_researcher=is_researcher,
+        is_programme_admin=is_programme_admin,
         access_tier=TIER_PILOT,
     )
 

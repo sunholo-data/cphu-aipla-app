@@ -12,6 +12,9 @@ reaching for either:
                         anonymous-group student?"  Gates NAVIGATION.
     assert_can_spend  — "may this identity cause a paid API call or hand out
                         a student join code?"      Gates MONEY and FAN-OUT.
+    assert_programme_admin
+                      — "may this identity decide who ELSE may spend?"
+                        Gates DELEGATED ADMINISTRATION (1.1.76).
 
 A visitor passes the first and fails the second, on purpose. That is the whole
 shape of ACCESS-1: a stranger who signs in at aipla.ku.dk should be able to walk
@@ -62,6 +65,27 @@ def assert_researcher(user: User, detail: str = "researcher role required") -> N
     """
     if not user.is_researcher:
         raise HTTPException(status_code=403, detail=detail)
+
+
+def assert_programme_admin(user: User) -> None:
+    """Reject callers without the ``programmeAdmin`` claim — with **404**.
+
+    404, not 403, and deliberately: an administrative surface should not confirm
+    its own existence to a caller who may not use it. Same choice as
+    ``research_lens_routes``, same reasoning.
+
+    This gate says nothing about ``role:researcher``. A researcher READS the
+    register; a programme admin WRITES it. Conflating them is exactly the design
+    error 1.1.76 exists to avoid, so a researcher calling a write route lands
+    here and gets the same 404 a stranger does.
+
+    The claim is minted ONLY by the service-account-gated
+    ``POST /api/admin/grant-programme-admin``. A programme admin cannot mint the
+    claim they hold — the classic privilege escalation, and the one hard "no" in
+    this design.
+    """
+    if not user.is_programme_admin:
+        raise HTTPException(status_code=404, detail="not found")
 
 
 def assert_can_spend(user: User, detail: str = _DEFAULT_SPEND_DETAIL) -> None:

@@ -17,6 +17,7 @@ from pydantic import BaseModel
 
 from admin import platform_seed
 from admin.auth import _assert_caller_is_service_account
+from auth.access_sync import invalidate_spend_cache, sync_access_claim
 from auth.group_id_auth import DEFAULT_GROUP_CODE_TTL_DAYS, create_group, upsert_group
 from skills.skill_config import list_skills
 
@@ -125,6 +126,24 @@ def _set_claim(uid: str, key: str, value: Any, *, granted: bool) -> dict:
 def _set_researcher_claim(uid: str, *, granted: bool) -> dict:
     """Grant/revoke ``role:researcher`` (sprint 1.1.5)."""
     return _set_claim(uid, "role", "researcher", granted=granted)
+
+
+def _set_programme_admin_claim(uid: str, *, granted: bool) -> dict:
+    """Grant/revoke ``programmeAdmin:true`` — the delegated register-write
+    capability (PROGADMIN-1 — 1.1.76).
+
+    THIS IS THE ONLY PLACE THE CLAIM IS MINTED, and it lives behind the
+    service-account gate on purpose. ``/api/programme/*`` — the surface the
+    claim unlocks — has no route that reaches this function. A programme admin
+    who could mint their own claim would be an unbounded admin; that is the
+    classic escalation, and it is closed here by construction rather than by a
+    check.
+
+    Separate from ``admin:true`` (P4.4) and from ``role:researcher`` (1.1.5):
+    three different questions about a person, three independent keys, merged
+    rather than overwritten by ``_set_claim``.
+    """
+    return _set_claim(uid, "programmeAdmin", True, granted=granted)
 
 
 def _set_admin_claim(uid: str, *, granted: bool) -> dict:
@@ -246,6 +265,64 @@ def revoke_admin(body: AdminClaimRequest, request: Request) -> dict[str, Any]:
         raise HTTPException(status_code=404, detail=f"No Firebase user with uid {body.uid}") from exc
     logger.info("admin.revoke_admin: uid=%s by %s", body.uid, caller_email)
     return {"uid": body.uid, "admin": False, "claims": claims}
+
+
+class ProgrammeAdminClaimRequest(BaseModel):
+    """Body for grant/revoke-programme-admin (1.1.76).
+
+    ``uid`` is the Firebase Auth UID of the target user. Takes effect on their
+    next ID-token refresh, so a freshly granted admin must reload.
+    """
+
+    uid: str
+
+
+@router.post(
+    "/grant-programme-admin",
+    responses={
+        403: {"description": "Caller is not in ADMIN_SEED_ALLOWED_SAS"},
+        404: {"description": "No Firebase user with that uid"},
+    },
+)
+def grant_programme_admin(body: ProgrammeAdminClaimRequest, request: Request) -> dict[str, Any]:
+    """Grant ``programmeAdmin:true`` — "may admit a teacher to the register".
+
+    The bus-factor fix. Before 1.1.76, admitting a teacher required
+    impersonating the runtime service account, and on prod exactly one human
+    held ``serviceAccountTokenCreator`` on it.
+
+    Idempotent, and preserves other claims — granting this to a researcher
+    leaves them a researcher.
+    """
+    caller_email = _assert_caller_is_service_account(request)
+    try:
+        claims = _set_programme_admin_claim(body.uid, granted=True)
+    except fb_auth.UserNotFoundError as exc:
+        raise HTTPException(status_code=404, detail=f"No Firebase user with uid {body.uid}") from exc
+    logger.info("admin.grant_programme_admin: uid=%s by %s", body.uid, caller_email)
+    return {"uid": body.uid, "programmeAdmin": True, "claims": claims}
+
+
+@router.post(
+    "/revoke-programme-admin",
+    responses={
+        403: {"description": "Caller is not in ADMIN_SEED_ALLOWED_SAS"},
+        404: {"description": "No Firebase user with that uid"},
+    },
+)
+def revoke_programme_admin(body: ProgrammeAdminClaimRequest, request: Request) -> dict[str, Any]:
+    """Remove ``programmeAdmin:true``. Idempotent; preserves other claims.
+
+    Takes effect on the user's next token refresh — so revocation is not
+    instant. For an urgent revocation, revoke their refresh tokens too.
+    """
+    caller_email = _assert_caller_is_service_account(request)
+    try:
+        claims = _set_programme_admin_claim(body.uid, granted=False)
+    except fb_auth.UserNotFoundError as exc:
+        raise HTTPException(status_code=404, detail=f"No Firebase user with uid {body.uid}") from exc
+    logger.info("admin.revoke_programme_admin: uid=%s by %s", body.uid, caller_email)
+    return {"uid": body.uid, "programmeAdmin": False, "claims": claims}
 
 
 class PrunePlatformSkillsRequest(BaseModel):
@@ -417,41 +494,13 @@ class AccessRevokeRequest(BaseModel):
 
 
 def _sync_access_claim(email: str, tier: str) -> str | None:
-    """Push the register's answer into the Firebase custom claim, if we can.
+    """Thin alias for the shared effect (``auth.access_sync``).
 
-    Returns the uid whose claim was updated, or ``None`` when the person has
-    never signed in (no Firebase user yet). That is the normal case for a fresh
-    invite and is NOT an error: ``POST /api/teacher/bootstrap`` reconciles the
-    claim on their first app load.
-
-    Merges rather than replaces — ``set_custom_user_claims`` overwrites the whole
-    blob, so a naive write here would silently un-researcher a researcher.
+    Both doors onto the register must run the SAME post-write effects; only the
+    GUARD differs. Kept as a local name so the call sites in this module read
+    unchanged.
     """
-    try:
-        fb_user = fb_auth.get_user_by_email(email)
-    except fb_auth.UserNotFoundError:
-        return None
-    except Exception:
-        logger.warning("admin.access: could not look up %s in Firebase", email, exc_info=True)
-        return None
-
-    claims = dict(fb_user.custom_claims or {})
-    claims["accessTier"] = tier
-    fb_auth.set_custom_user_claims(fb_user.uid, claims)
-
-    # Stamp the uid onto the register HERE, where we have just resolved it. The
-    # spend gates join register-to-caller by uid, and this is the one moment an
-    # email and a uid are both in hand. Leaving it to the bootstrap route's
-    # tier-drift branch meant it never ran for anyone granted while already
-    # signed in — see `db.teacher_access.grant_for_uid`.
-    try:
-        from db.teacher_access import stamp_uid
-
-        stamp_uid(email, fb_user.uid)
-    except Exception:
-        logger.warning("admin.access: could not stamp uid for %s", email, exc_info=True)
-
-    return fb_user.uid
+    return sync_access_claim(email, tier)
 
 
 @router.post(
@@ -681,18 +730,8 @@ def access_password_invite(body: PasswordInviteRequest, request: Request) -> dic
 
 
 def _invalidate_spend_cache() -> None:
-    """Drop the in-process spend-authority memo after a register write.
-
-    Only clears THIS container's cache — other Cloud Run instances keep theirs
-    until the TTL expires (60s). That bound is the reason revoke also kills
-    refresh tokens rather than relying on this.
-    """
-    try:
-        from auth.spend_authority import clear_cache
-
-        clear_cache()
-    except Exception:
-        logger.debug("admin.access: spend-authority cache clear failed", exc_info=True)
+    """Thin alias for the shared effect (``auth.access_sync``)."""
+    invalidate_spend_cache()
 
 
 @router.get(

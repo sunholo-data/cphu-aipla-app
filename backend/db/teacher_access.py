@@ -51,6 +51,11 @@ _COLLECTION = "teacher_access"
 #: cap you can raise in one command beats a limit nobody set.
 DEFAULT_MONTHLY_CAP_USD = 25.0
 
+#: Which door a register write came through (1.1.76). Stamped on every grant so
+#: an unbounded SA grant and a bounded delegated one stay distinguishable.
+GRANTED_VIA_SERVICE_ACCOUNT = "service-account"
+GRANTED_VIA_PROGRAMME_ADMIN = "programme-admin"
+
 #: The ONLY value meaning "no per-teacher limit". Negative and explicit, because
 #: uncapped must be something you ask for, never something you fall into.
 #:
@@ -92,6 +97,13 @@ class AccessGrant:
     tier: AccessTier
     monthly_cap_usd: float
     granted_by: str = ""
+    #: WHICH DOOR this grant came through — "service-account" (the unbounded
+    #: SA path) or "programme-admin" (the bounded delegated path, 1.1.76).
+    #: Without it a delegated grant and an SA grant are indistinguishable after
+    #: the fact, and "how did this account get access?" — the first question
+    #: anyone reviewing a spend surprise asks — becomes unanswerable.
+    #: Empty means a row written before PROGADMIN-1; treat as service-account.
+    granted_via: str = ""
     granted_at: str = ""
     expires_at: str | None = None
     note: str = ""
@@ -129,6 +141,7 @@ class AccessGrant:
             "tier": self.tier,
             "monthlyCapUsd": self.monthly_cap_usd,
             "grantedBy": self.granted_by,
+            "grantedVia": self.granted_via,
             "grantedAt": self.granted_at,
             "expiresAt": self.expires_at,
             "note": self.note,
@@ -159,6 +172,7 @@ class AccessGrant:
             tier=tier,
             monthly_cap_usd=cap,
             granted_by=str(doc.get("grantedBy") or ""),
+            granted_via=str(doc.get("grantedVia") or ""),
             granted_at=str(doc.get("grantedAt") or ""),
             expires_at=doc.get("expiresAt"),
             note=str(doc.get("note") or ""),
@@ -289,6 +303,7 @@ def grant_access(
     tier: AccessTier = "pilot",
     monthly_cap_usd: float = DEFAULT_MONTHLY_CAP_USD,
     granted_by: str = "",
+    granted_via: str = GRANTED_VIA_SERVICE_ACCOUNT,
     expires_at: str | None = None,
     note: str = "",
 ) -> AccessGrant:
@@ -315,6 +330,7 @@ def grant_access(
         tier=tier,
         monthly_cap_usd=float(monthly_cap_usd),
         granted_by=granted_by,
+        granted_via=granted_via,
         granted_at=datetime.now(UTC).isoformat(),
         expires_at=expires_at,
         note=note,
@@ -324,11 +340,12 @@ def grant_access(
     )
     set_document(_COLLECTION, key, grant.to_doc(), merge=False)
     logger.info(
-        "teacher_access.grant email=%s tier=%s cap=%.2f by=%s expires=%s",
+        "teacher_access.grant email=%s tier=%s cap=%.2f by=%s via=%s expires=%s",
         key,
         tier,
         monthly_cap_usd,
         granted_by or "?",
+        granted_via or "?",
         expires_at or "never",
     )
     return grant

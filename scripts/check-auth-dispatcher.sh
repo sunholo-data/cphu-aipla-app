@@ -34,6 +34,7 @@ ROUTES_DIR="$ROOT/backend/protocols"
 ALLOWLIST="
 teacher_prefs_routes.py:teacher-only — a group JWT has no teacher account to hold defaults
 research_lens_routes.py:researcher-only — R1-quarantined, denies non-researchers
+programme_routes.py:researcher/programme-admin only — delegated admin of the access register (1.1.76)
 "
 
 fail=0
