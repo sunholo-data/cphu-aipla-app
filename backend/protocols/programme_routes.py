@@ -84,10 +84,19 @@ async def programme_access_list(
     Reuses ``db.teacher_access.list_grants`` rather than reimplementing the
     register: one store, two doors.
     """
+    from budget.firestore_enforcer import read_period_spend_usd
     from db.teacher_access import list_grants
 
     _assert_programme_reader(user)
     grants = list_grants(include_revoked=include_revoked)
+    # The cap sits NEXT TO THE SPEND IT BOUNDS. A register showing caps without
+    # usage makes you set numbers blind — which is how this register arrived at
+    # "uncapped" on 2026-08-12 and revisited it an hour later.
+    #
+    # `None` (not 0.0) when the total cannot be read: "spent nothing" and
+    # "Firestore did not answer" are different facts, and the reassuring one
+    # must not be what a broken read produces.
+    spend = {g.email: (read_period_spend_usd(g.uid) if g.uid else None) for g in grants}
     return {
         "count": len(grants),
         "canWrite": bool(getattr(user, "is_programme_admin", False)),
@@ -104,6 +113,7 @@ async def programme_access_list(
                 "revoked": g.revoked,
                 "uid": g.uid,
                 "note": g.note,
+                "spentThisPeriodUsd": spend.get(g.email),
             }
             for g in grants
         ],

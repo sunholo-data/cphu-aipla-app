@@ -42,7 +42,8 @@ def _client(ctx: click.Context) -> AIPlatformClient:
 
 @click.group()
 def users() -> None:
-    """Manage user roles (researcher + admin claims) and the access register."""
+    """Manage user roles (researcher, platform-admin, programme-admin claims)
+    and the access register."""
 
 
 @users.command("grant-researcher")
@@ -102,6 +103,53 @@ def revoke_admin(ctx: click.Context, uid: str) -> None:
     researcher.
     """
     result = _client(ctx).post("/api/admin/revoke-admin", json={"uid": uid})
+    click.echo(_json.dumps(result, indent=2))
+
+
+# ─── Delegated programme administration (PROGADMIN-1 — 1.1.76) ───────────────
+#
+# THE ONLY WAY TO MINT `programmeAdmin`, and it is behind the service-account
+# allowlist on purpose. A programme admin who could mint the claim they hold
+# would be an unbounded admin — the classic escalation, closed by construction:
+# `/api/programme/*`, the surface the claim unlocks, has no route that reaches
+# these endpoints.
+#
+# What the claim buys: admitting a teacher to the register and setting their
+# cap, IN THE APP at /teacher/programme, bounded in amount
+# (PROGRAMME_ADMIN_MAX_CAP_USD) and audience (PROGRAMME_ADMIN_EMAIL_DOMAINS).
+# Anything outside those bounds still needs the service-account path below.
+#
+# Per environment, like every other claim — Firebase identities are per-project.
+
+
+@users.command("grant-programme-admin")
+@click.argument("uid")
+@click.pass_context
+def grant_programme_admin(ctx: click.Context, uid: str) -> None:
+    """Grant the programme-admin claim to the Firebase user UID.
+
+    Lets them admit teachers to the access register from inside the app,
+    without a service-account impersonation. Before 1.1.76 exactly one human
+    could do that on prod.
+
+    Idempotent, and preserves other claims — granting this to a researcher
+    leaves them a researcher. Takes effect on their next ID-token refresh
+    (~1h), so tell them to reload.
+    """
+    result = _client(ctx).post("/api/admin/grant-programme-admin", json={"uid": uid})
+    click.echo(_json.dumps(result, indent=2))
+
+
+@users.command("revoke-programme-admin")
+@click.argument("uid")
+@click.pass_context
+def revoke_programme_admin(ctx: click.Context, uid: str) -> None:
+    """Revoke the programme-admin claim from the Firebase user UID.
+
+    Takes effect on their next token refresh, so revocation is NOT instant.
+    For an urgent revocation, revoke their refresh tokens too.
+    """
+    result = _client(ctx).post("/api/admin/revoke-programme-admin", json={"uid": uid})
     click.echo(_json.dumps(result, indent=2))
 
 

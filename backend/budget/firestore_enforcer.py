@@ -326,3 +326,37 @@ def register_default_enforcer() -> None:
 
 
 __all__ = ["SHARD_COUNT", "SOFT_THRESHOLD", "FirestoreBudgetEnforcer", "register_default_enforcer"]
+
+
+def read_period_spend_usd(uid: str, *, now: datetime | None = None) -> float | None:
+    """Spend so far this period for one PAYING teacher, in USD.
+
+    For the delegated-admin panel (1.1.76), which shows each cap next to the
+    spend it bounds. A register listing caps without usage makes you set numbers
+    blind, which is exactly how the register arrived at "uncapped" on
+    2026-08-12 and revisited it an hour later.
+
+    Reads the same sharded counters the enforcer meters into, under the same
+    ``teacher:{uid}`` payer key — so the number shown is the number the cap is
+    actually compared against, not a parallel estimate that can disagree with it.
+
+    Returns ``None`` when the total cannot be read. That is deliberately NOT
+    0.0: "this teacher has spent nothing" and "Firestore did not answer" are
+    different facts, and the reassuring one must not be what a broken read
+    produces. The caller renders the difference.
+    """
+    if not uid:
+        return None
+    period = _period_key(now)
+    try:
+        from db.firestore import query_documents
+
+        docs = query_documents(
+            _SPEND_COLLECTION,
+            filters=[("identity", "==", f"teacher:{uid}"), ("period", "==", period)],
+            limit=SHARD_COUNT,
+        )
+    except Exception:
+        logger.warning("budget.period_spend_read_failed uid=%s", uid, exc_info=True)
+        return None
+    return sum(float(d.get("spentMicroUsd", 0)) for d in docs) / 1_000_000

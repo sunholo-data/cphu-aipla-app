@@ -20,6 +20,7 @@ import { useCallback, useEffect, useState } from "react";
 import { ArrowLeft } from "lucide-react";
 
 import { TeacherPage } from "@/components/teacher/ui/TeacherPage";
+import { GrantForm } from "@/app/teacher/programme/_GrantForm";
 import { useIsProgrammeAdmin } from "@/hooks/useIsProgrammeAdmin";
 import { useIsResearcher } from "@/hooks/useIsResearcher";
 import {
@@ -28,8 +29,17 @@ import {
   fetchAccessRequests,
   fetchRegister,
   formatCap,
+  formatSpend,
+  grantAccess,
   isUncapped,
+  revokeAccess,
+  spendState,
 } from "@/lib/programmeApi";
+
+/** Mirrors the server default (`PROGRAMME_ADMIN_MAX_CAP_USD`). A convenience
+ *  for the input's `max`; the server re-checks and names the real bound if this
+ *  ever drifts from the deployed value. */
+const DELEGATED_CAP_CEILING = 50;
 
 type Tab = "register" | "requests";
 
@@ -51,7 +61,146 @@ function GrantedViaBadge({ via }: { via: string }) {
   );
 }
 
-function RegisterTable({ rows }: { rows: RegisterRow[] }) {
+function SpendBadge({ row }: { row: RegisterRow }) {
+  const state = spendState(row);
+  // "unreadable" is its own state and must never be dressed as $0.00 — the
+  // reassuring answer is exactly what a broken read produces.
+  const tone =
+    state === "over"
+      ? "text-destructive font-semibold"
+      : state === "warn"
+        ? "text-amber-700 dark:text-amber-400"
+        : state === "unknown"
+          ? "text-muted-foreground italic"
+          : "text-muted-foreground";
+  return (
+    <div className={`text-[11px] ${tone}`} title="Spend so far this period, against the cap">
+      {formatSpend(row)} this period
+    </div>
+  );
+}
+
+function CapEditor({ row, onSaved }: { row: RegisterRow; onSaved: () => void }) {
+  const [value, setValue] = useState(String(row.monthlyCapUsd));
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const dirty = Number(value) !== row.monthlyCapUsd;
+
+  const save = async () => {
+    setBusy(true);
+    setError(null);
+    try {
+      // "Change the cap" is the same idempotent call as "grant" — the panel
+      // needs a field, not a mechanism. Re-send the note so it is preserved.
+      await grantAccess({
+        email: row.email,
+        tier: row.tier,
+        monthlyCapUsd: Number(value),
+        expiresAt: row.expiresAt ?? undefined,
+        note: row.note,
+      });
+      onSaved();
+    } catch (e) {
+      setError(e instanceof Error ? e.message : String(e));
+      setValue(String(row.monthlyCapUsd));
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  return (
+    <div className="flex flex-col gap-1">
+      <div className="flex items-center gap-1">
+        <span aria-hidden="true">$</span>
+        <input
+          type="number"
+          min={1}
+          max={DELEGATED_CAP_CEILING}
+          step={1}
+          value={value}
+          disabled={busy}
+          aria-label={`Monthly cap for ${row.email}`}
+          onChange={(e) => setValue(e.target.value)}
+          className="w-20 rounded border border-border bg-background px-1.5 py-0.5 text-sm"
+        />
+        {dirty ? (
+          <button
+            type="button"
+            onClick={save}
+            disabled={busy}
+            className="rounded border border-border px-1.5 py-0.5 text-[11px] hover:bg-accent disabled:opacity-50"
+          >
+            {busy ? "…" : "Save"}
+          </button>
+        ) : null}
+      </div>
+      {error ? (
+        <span role="alert" className="text-[11px] text-destructive">
+          {error}
+        </span>
+      ) : null}
+    </div>
+  );
+}
+
+function RevokeButton({ row, onRevoked }: { row: RegisterRow; onRevoked: () => void }) {
+  const [confirming, setConfirming] = useState(false);
+  const [busy, setBusy] = useState(false);
+
+  // Two-step rather than a browser confirm(): a modal dialog blocks the page,
+  // and revoke is reversible (grant doubles as un-revoke) so it does not need
+  // the heavier ceremony.
+  if (!confirming) {
+    return (
+      <button
+        type="button"
+        onClick={() => setConfirming(true)}
+        className="rounded border border-border px-1.5 py-0.5 text-[11px] text-muted-foreground hover:bg-accent"
+      >
+        Revoke
+      </button>
+    );
+  }
+  return (
+    <span className="flex items-center gap-1">
+      <button
+        type="button"
+        disabled={busy}
+        onClick={async () => {
+          setBusy(true);
+          try {
+            await revokeAccess(row.email);
+            onRevoked();
+          } finally {
+            setBusy(false);
+            setConfirming(false);
+          }
+        }}
+        className="rounded border border-destructive px-1.5 py-0.5 text-[11px] text-destructive hover:bg-destructive/10 disabled:opacity-50"
+      >
+        {busy ? "…" : "Confirm"}
+      </button>
+      <button
+        type="button"
+        onClick={() => setConfirming(false)}
+        className="text-[11px] text-muted-foreground hover:underline"
+      >
+        Cancel
+      </button>
+    </span>
+  );
+}
+
+function RegisterTable({
+  rows,
+  canWrite,
+  onChanged,
+}: {
+  rows: RegisterRow[];
+  canWrite: boolean;
+  onChanged: () => void;
+}) {
   if (rows.length === 0) {
     return (
       <p className="rounded border border-border bg-muted/40 p-4 text-sm text-muted-foreground">
@@ -72,6 +221,7 @@ function RegisterTable({ rows }: { rows: RegisterRow[] }) {
             <th className="py-2 pr-3 font-medium">Expires</th>
             <th className="py-2 pr-3 font-medium">Granted by</th>
             <th className="py-2 pr-3 font-medium">Note</th>
+            {canWrite ? <th className="py-2 pr-3 font-medium">Actions</th> : null}
           </tr>
         </thead>
         <tbody>
@@ -98,9 +248,14 @@ function RegisterTable({ rows }: { rows: RegisterRow[] }) {
                   >
                     UNCAPPED
                   </span>
+                ) : canWrite ? (
+                  <CapEditor row={row} onSaved={onChanged} />
                 ) : (
                   formatCap(row)
                 )}
+                {/* The cap next to the spend it bounds. Setting caps blind is
+                    how this register arrived at "uncapped" once already. */}
+                <SpendBadge row={row} />
               </td>
               <td className="py-2 pr-3 text-muted-foreground">{row.expiresAt ?? "never"}</td>
               <td className="py-2 pr-3 text-muted-foreground">
@@ -108,6 +263,11 @@ function RegisterTable({ rows }: { rows: RegisterRow[] }) {
                 <GrantedViaBadge via={row.grantedVia} />
               </td>
               <td className="py-2 pr-3 text-muted-foreground">{row.note || "—"}</td>
+              {canWrite ? (
+                <td className="py-2 pr-3">
+                  {row.active ? <RevokeButton row={row} onRevoked={onChanged} /> : null}
+                </td>
+              ) : null}
             </tr>
           ))}
         </tbody>
@@ -243,6 +403,10 @@ export default function TeacherProgrammePage() {
             publicity, or when someone says they asked.
           </p>
 
+          {isProgrammeAdmin && tab === "register" ? (
+            <GrantForm maxCapUsd={DELEGATED_CAP_CEILING} onGranted={load} />
+          ) : null}
+
           {error ? (
             <div role="alert" className="rounded border border-destructive bg-destructive/10 p-3 text-sm text-destructive">
               {error}
@@ -250,7 +414,7 @@ export default function TeacherProgrammePage() {
           ) : loading ? (
             <p className="text-sm text-muted-foreground">Loading…</p>
           ) : tab === "register" ? (
-            <RegisterTable rows={register ?? []} />
+            <RegisterTable rows={register ?? []} canWrite={isProgrammeAdmin} onChanged={load} />
           ) : (
             <RequestsTable rows={requests ?? []} />
           )}

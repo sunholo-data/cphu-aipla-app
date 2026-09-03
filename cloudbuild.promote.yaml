@@ -52,6 +52,13 @@ substitutions:
   _AIPLA_HELP: '1'
   # Runtime SA the post-promote seed job runs as (writes Firestore via ADC).
   _ADMIN_SEED_ALLOWED_SAS: terraform_managed
+  # PROGADMIN-1 (1.1.76) — the delegated-admin bounds twin. `services update`
+  # PRESERVES env vars, so without re-stamping, prod would keep whatever it was
+  # first deployed with and no tfvar could ever change its ceiling. Added in the
+  # SAME commit as the cloudbuild.yaml half, deliberately: this is the fifth
+  # instance of that rule and the first one not discovered in production.
+  _PROGRAMME_ADMIN_MAX_CAP_USD: '50'
+  _PROGRAMME_ADMIN_EMAIL_DOMAINS: ''
 
 tags: ['${_TARGET_PROJECT}', '${_SERVICE_NAME}', 'promote']
 
@@ -200,7 +207,7 @@ steps:
           --image=${_REGION}-docker.pkg.dev/${_TARGET_PROJECT}/${_REPO}/${_SERVICE_NAME}/ui:${_VERSION} \
           --container=sidecar \
           --image=${_REGION}-docker.pkg.dev/${_TARGET_PROJECT}/${_REPO}/${_SERVICE_NAME}/backend@$$DIGEST \
-          --update-env-vars=APP_VERSION=${_VERSION},MCP_WIDGET_DOMAIN=${_MCP_WIDGET_DOMAIN},MCP_SANDBOX_URL=${_MCP_SANDBOX_URL},DOCUMENTS_BUCKET=${_TARGET_PROJECT}-documents
+          --update-env-vars=^|^APP_VERSION=${_VERSION}|MCP_WIDGET_DOMAIN=${_MCP_WIDGET_DOMAIN}|MCP_SANDBOX_URL=${_MCP_SANDBOX_URL}|DOCUMENTS_BUCKET=${_TARGET_PROJECT}-documents|PROGRAMME_ADMIN_MAX_CAP_USD=${_PROGRAMME_ADMIN_MAX_CAP_USD}|PROGRAMME_ADMIN_EMAIL_DOMAINS=${_PROGRAMME_ADMIN_EMAIL_DOMAINS}
         # ^ All four must be re-stamped on the PROMOTED revision, for the same
         # reason. APP_VERSION: the backend image is copied from test, where it
         # was deployed with test's build value, so a promote that swapped images

@@ -32,6 +32,9 @@ export interface RegisterRow {
   revoked: boolean;
   uid: string | null;
   note: string;
+  /** Spend so far this period, USD. `null` means the total could NOT be read —
+   *  which is a different fact from zero, and must not render as "$0.00". */
+  spentThisPeriodUsd: number | null;
 }
 
 export interface RegisterPayload {
@@ -70,6 +73,55 @@ export async function fetchAccessRequests(status = "pending"): Promise<RequestsP
     `/api/proxy/api/programme/access/requests?status=${encodeURIComponent(status)}`,
   );
   return readJson<RequestsPayload>(res, "Could not load the access-request queue");
+}
+
+export interface GrantInput {
+  email: string;
+  tier?: string;
+  monthlyCapUsd?: number;
+  expiresAt?: string;
+  note?: string;
+}
+
+/** Admit a teacher, or re-set their cap — the same call, because
+ *  `grant_access` is idempotent and preserves the audit trail.
+ *
+ *  Every bound is re-checked server-side; a 403 here carries the bound in its
+ *  message, so surface the message rather than a generic failure. */
+export async function grantAccess(input: GrantInput): Promise<RegisterRow> {
+  const res = await fetchWithTeacherAuth("/api/proxy/api/programme/access/grant", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(input),
+  });
+  return readJson<RegisterRow>(res, "Could not grant access");
+}
+
+export async function revokeAccess(email: string): Promise<{ email: string; revoked: boolean }> {
+  const res = await fetchWithTeacherAuth("/api/proxy/api/programme/access/revoke", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ email }),
+  });
+  return readJson<{ email: string; revoked: boolean }>(res, "Could not revoke access");
+}
+
+/** How a row's spend reads against its cap. `unknown` is its own state: a
+ *  failed read must never render as the reassuring answer. */
+export type SpendState = "unknown" | "ok" | "warn" | "over";
+
+export function spendState(row: RegisterRow): SpendState {
+  if (row.spentThisPeriodUsd === null || row.spentThisPeriodUsd === undefined) return "unknown";
+  if (isUncapped(row) || row.monthlyCapUsd <= 0) return "ok";
+  const ratio = row.spentThisPeriodUsd / row.monthlyCapUsd;
+  if (ratio >= 1) return "over";
+  if (ratio >= 0.8) return "warn";
+  return "ok";
+}
+
+export function formatSpend(row: RegisterRow): string {
+  if (row.spentThisPeriodUsd === null || row.spentThisPeriodUsd === undefined) return "unreadable";
+  return `$${row.spentThisPeriodUsd.toFixed(2)}`;
 }
 
 /** `—` for an uncapped row must read as an ALARM, not a blank.

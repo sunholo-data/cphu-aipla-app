@@ -30,6 +30,20 @@ substitutions:
   # Admin seed allowlist — SA emails permitted to call
   # /api/admin/seed-platform-skills. Terraform-managed per env.
   _ADMIN_SEED_ALLOWED_SAS: terraform_managed
+  # PROGADMIN-1 (1.1.76) — bounds on the DELEGATED register-write path. These
+  # constrain `/api/programme/*` only; the service-account door stays unbounded.
+  # Per-env so prod can be tighter than dev.
+  #
+  # HAS A cloudbuild.promote.yaml TWIN, and it is load-bearing: prod is reached
+  # only by `make promote`, and an unset ceiling reads as "no ceiling" — this
+  # failure direction is OPEN. Backend defaults ($50, unrestricted) mean a
+  # missing var is bounded rather than unbounded, but it would not be the
+  # env's OWN bound.
+  _PROGRAMME_ADMIN_MAX_CAP_USD: '50'
+  # Empty = unrestricted, by decision (2026-09-03), not oversight: ~20 of 24
+  # live prod register rows are Danish gymnasium domains or deliberate Gmail
+  # aliases, so a ku.dk allowlist would refuse almost every real teacher.
+  _PROGRAMME_ADMIN_EMAIL_DOMAINS: ''
   # This env's own public frontend origin, advertised to external MCP hosts as
   # the sims' widget domain (backend/protocols/sim_apps.py). Default keeps dev
   # working without a substitution; test/prod are terraform_managed from
@@ -311,6 +325,14 @@ steps:
       # value rather than guessing, so this line is load-bearing.
       # Has a cloudbuild.promote.yaml twin — prod is reached ONLY by promote.
       - '--set-env-vars=DOCUMENTS_BUCKET=${_PROJECT_ID}-documents'
+      # PROGADMIN-1 (1.1.76) — delegated-admin bounds. Has a
+      # cloudbuild.promote.yaml twin; see the substitution comments above.
+      # ^|^ delimiter on the domain list: the backend parses it as a
+      # comma-separated LIST, and gcloud would otherwise split --set-env-vars on
+      # those same commas. Same shape as ADMIN_SEED_ALLOWED_SAS below, for the
+      # same reason.
+      - '--set-env-vars=PROGRAMME_ADMIN_MAX_CAP_USD=${_PROGRAMME_ADMIN_MAX_CAP_USD}'
+      - '--set-env-vars=^|^PROGRAMME_ADMIN_EMAIL_DOMAINS=${_PROGRAMME_ADMIN_EMAIL_DOMAINS}'
       # v6 observability
       - '--set-env-vars=GOOGLE_CLOUD_AGENT_ENGINE_ENABLE_TELEMETRY=true'
       - '--set-env-vars=OTEL_INSTRUMENTATION_GENAI_CAPTURE_MESSAGE_CONTENT=true'

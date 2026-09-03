@@ -7,7 +7,7 @@
  *  - uncapped row   -> an ALARM, never a blank cell
  */
 
-import { render, screen, waitFor } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import TeacherProgrammePage from "@/app/teacher/programme/page";
@@ -24,6 +24,8 @@ vi.mock("next/link", () => ({
 
 const fetchRegister = vi.fn();
 const fetchAccessRequests = vi.fn();
+const grantAccess = vi.fn();
+const revokeAccess = vi.fn();
 
 vi.mock("@/lib/programmeApi", async () => {
   const actual = await vi.importActual<typeof import("@/lib/programmeApi")>("@/lib/programmeApi");
@@ -31,6 +33,8 @@ vi.mock("@/lib/programmeApi", async () => {
     ...actual,
     fetchRegister: (...a: unknown[]) => fetchRegister(...a),
     fetchAccessRequests: (...a: unknown[]) => fetchAccessRequests(...a),
+    grantAccess: (...a: unknown[]) => grantAccess(...a),
+    revokeAccess: (...a: unknown[]) => revokeAccess(...a),
   };
 });
 
@@ -55,6 +59,7 @@ const REGISTER: RegisterPayload = {
       revoked: false,
       uid: "u1",
       note: "Teacher pilot",
+      spentThisPeriodUsd: 12.4,
     },
     {
       email: "risky@ku.dk",
@@ -68,6 +73,7 @@ const REGISTER: RegisterPayload = {
       revoked: false,
       uid: "u2",
       note: "",
+      spentThisPeriodUsd: null,
     },
   ],
 };
@@ -91,6 +97,8 @@ const REQUESTS: RequestsPayload = {
 beforeEach(() => {
   fetchRegister.mockReset().mockResolvedValue(REGISTER);
   fetchAccessRequests.mockReset().mockResolvedValue(REQUESTS);
+  grantAccess.mockReset().mockResolvedValue(REGISTER.grants[0]);
+  revokeAccess.mockReset().mockResolvedValue({ email: "lb@toerring-gym.dk", revoked: true });
   isResearcher = false;
   isProgrammeAdmin = false;
 });
@@ -153,5 +161,110 @@ describe("the read-only half", () => {
     render(<TeacherProgrammePage />);
     await screen.findByText("lb@toerring-gym.dk");
     expect(screen.queryByText(/read-only/i)).not.toBeInTheDocument();
+  });
+});
+
+
+describe("the write half (M2)", () => {
+  it("gives a researcher no grant form, no cap input and no revoke button", async () => {
+    isResearcher = true;
+    render(<TeacherProgrammePage />);
+    await screen.findByText("lb@toerring-gym.dk");
+    // The read-only view IS the write view minus the buttons — so the absence
+    // of every control is the assertion, not an incidental detail.
+    expect(screen.queryByRole("button", { name: /grant access/i })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /revoke/i })).not.toBeInTheDocument();
+    expect(screen.queryByLabelText(/monthly cap for/i)).not.toBeInTheDocument();
+  });
+
+  it("gives a programme admin the grant form and the controls", async () => {
+    isProgrammeAdmin = true;
+    render(<TeacherProgrammePage />);
+    await screen.findByText("lb@toerring-gym.dk");
+    expect(screen.getByRole("button", { name: /grant access/i })).toBeInTheDocument();
+    expect(screen.getByLabelText("Monthly cap for lb@toerring-gym.dk")).toBeInTheDocument();
+    expect(screen.getAllByRole("button", { name: /^revoke$/i }).length).toBeGreaterThan(0);
+  });
+
+  it("caps the grant form's input at the delegated ceiling", async () => {
+    isProgrammeAdmin = true;
+    render(<TeacherProgrammePage />);
+    await screen.findByText("lb@toerring-gym.dk");
+    // The <label> wraps a helper span too, so match on a fragment.
+    const capInput = screen.getByLabelText(/Cap \(USD \/ month\)/i) as HTMLInputElement;
+    expect(capInput.max).toBe("50");
+  });
+
+  it("requires a note on the grant form", async () => {
+    isProgrammeAdmin = true;
+    render(<TeacherProgrammePage />);
+    await screen.findByText("lb@toerring-gym.dk");
+    // "Why is this person on the register" is the thing nobody remembers in
+    // six weeks, so the field is required rather than encouraged.
+    const note = screen.getByLabelText(/why \(required\)/i) as HTMLInputElement;
+    expect(note.required).toBe(true);
+  });
+
+  it("saves a changed cap through the idempotent grant call", async () => {
+    isProgrammeAdmin = true;
+    render(<TeacherProgrammePage />);
+    await screen.findByText("lb@toerring-gym.dk");
+    const capInput = screen.getByLabelText("Monthly cap for lb@toerring-gym.dk");
+    fireEvent.change(capInput, { target: { value: "40" } });
+    fireEvent.click(screen.getByRole("button", { name: /save/i }));
+    await waitFor(() => expect(grantAccess).toHaveBeenCalled());
+    // The note must ride along, or editing a cap would silently erase the
+    // reason the row exists.
+    expect(grantAccess.mock.calls[0][0]).toMatchObject({
+      email: "lb@toerring-gym.dk",
+      monthlyCapUsd: 40,
+      note: "Teacher pilot",
+    });
+  });
+
+  it("does not offer Save until the cap actually changes", async () => {
+    isProgrammeAdmin = true;
+    render(<TeacherProgrammePage />);
+    await screen.findByText("lb@toerring-gym.dk");
+    expect(screen.queryByRole("button", { name: /save/i })).not.toBeInTheDocument();
+  });
+
+  it("takes two clicks to revoke", async () => {
+    isProgrammeAdmin = true;
+    render(<TeacherProgrammePage />);
+    await screen.findByText("lb@toerring-gym.dk");
+    fireEvent.click(screen.getAllByRole("button", { name: /^revoke$/i })[0]);
+    expect(revokeAccess).not.toHaveBeenCalled();
+    fireEvent.click(screen.getByRole("button", { name: /confirm/i }));
+    await waitFor(() => expect(revokeAccess).toHaveBeenCalledWith("lb@toerring-gym.dk"));
+  });
+
+  it("surfaces the server's named bound when a grant is refused", async () => {
+    isProgrammeAdmin = true;
+    grantAccess.mockRejectedValue(new Error("$5000.00/month exceeds the delegated ceiling of $50.00."));
+    render(<TeacherProgrammePage />);
+    await screen.findByText("lb@toerring-gym.dk");
+    const capInput = screen.getByLabelText("Monthly cap for lb@toerring-gym.dk");
+    fireEvent.change(capInput, { target: { value: "40" } });
+    fireEvent.click(screen.getByRole("button", { name: /save/i }));
+    // The person is expected to work within the bound, so the bound must reach
+    // them rather than a generic failure.
+    expect(await screen.findByText(/exceeds the delegated ceiling of \$50/i)).toBeInTheDocument();
+  });
+});
+
+describe("spend beside the cap", () => {
+  it("shows spend this period next to the cap it bounds", async () => {
+    isResearcher = true;
+    render(<TeacherProgrammePage />);
+    expect(await screen.findByText(/\$12\.40 this period/)).toBeInTheDocument();
+  });
+
+  it("renders an unreadable total as unreadable, never as $0.00", async () => {
+    isResearcher = true;
+    render(<TeacherProgrammePage />);
+    // A failed read must not produce the reassuring answer.
+    expect(await screen.findByText(/unreadable this period/)).toBeInTheDocument();
+    expect(screen.queryByText(/\$0\.00 this period/)).not.toBeInTheDocument();
   });
 });
