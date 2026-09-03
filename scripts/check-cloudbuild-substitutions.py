@@ -68,6 +68,45 @@ DEFAULT_FILES = [
 SINGLE_DOLLAR = re.compile(r"(?<!\$)\$([A-Za-z_][A-Za-z0-9_]*)")
 
 
+#: A gcloud custom-delimiter prefix (`^|^`, `^@^`, …) sitting in a BASH step.
+#: Only meaningful on a flag value; only safe when the whole argument is quoted,
+#: because the delimiter character is very often a shell metacharacter.
+DELIM_FLAG = re.compile(r"(--[a-z-]+=)\^(.)\^")
+
+
+def _shell_delimiter_problems(path: Path, step_id: str, script: str) -> list[str]:
+    """Flag an UNQUOTED `^x^` custom delimiter inside a bash step.
+
+    `cloudbuild.yaml` passes each gcloud flag as its own YAML list item, which
+    never reaches a shell, so `--set-env-vars=^|^A=1|B=2` is fine there. A bash
+    step is different: `|` is a pipe, `&` backgrounds, `;` separates. Unquoted,
+    bash tears the flag apart and gcloud receives `--set-env-vars=^`, failing
+    with "Bad syntax for dict arg: [^]".
+
+    Cost of not having this: the first v0.1.33 prod promote (build 5055df14,
+    2026-09-03) died at `deploy` — AFTER copying the backend image and pushing
+    the frontend, so it failed halfway through a release rather than at submit.
+    """
+    problems: list[str] = []
+    for raw_line in script.splitlines():
+        match = DELIM_FLAG.search(raw_line)
+        if not match:
+            continue
+        delimiter = match.group(2)
+        if delimiter.isalnum():
+            continue  # not a shell metacharacter; harmless bare
+        # Quoted anywhere on the line is good enough — the flag is one argument.
+        before = raw_line[: match.start()]
+        if '"' in before or "'" in before:
+            continue
+        problems.append(
+            f"{path}: step '{step_id}': unquoted custom delimiter '^{delimiter}^' in a bash step.\n"
+            f"    Wrap the whole flag in double quotes: \"{match.group(1)}^{delimiter}^...\"\n"
+            f"    {raw_line.strip()}"
+        )
+    return problems
+
+
 def check(path: Path) -> list[str]:
     doc = yaml.safe_load(path.read_text(encoding="utf-8"))
     if not doc or "steps" not in doc:
@@ -76,9 +115,12 @@ def check(path: Path) -> list[str]:
     problems: list[str] = []
     for index, step in enumerate(doc["steps"]):
         step_id = step.get("id", f"step[{index}]")
+        is_shell_step = str(step.get("entrypoint", "")).endswith(("bash", "sh"))
         for arg in step.get("args") or []:
             if not isinstance(arg, str):
                 continue
+            if is_shell_step:
+                problems.extend(_shell_delimiter_problems(path, step_id, arg))
             for match in SINGLE_DOLLAR.finditer(arg):
                 name = match.group(1)
                 if name in allowed:
@@ -104,10 +146,13 @@ def main(argv: list[str]) -> int:
         problems.extend(check(path))
 
     if problems:
-        print("Cloud Build: single-dollar variable reference(s) found.\n")
+        print("Cloud Build: problem(s) found in step scripts.\n")
         print(
-            "Cloud Build resolves these as SUBSTITUTIONS before bash runs, so an\n"
-            "unknown key fails the build at submit time — comments included.\n"
+            "Two failure modes, both of which reach a HALF-FINISHED release:\n"
+            "  $NAME   — Cloud Build resolves it as a SUBSTITUTION before bash runs,\n"
+            "            so an unknown key fails at submit time, comments included.\n"
+            "  ^x^     — an unquoted gcloud custom delimiter in a bash step; the\n"
+            "            shell eats the metacharacter and gcloud sees a bare '^'.\n"
         )
         for p in problems:
             print(f"  {p}")

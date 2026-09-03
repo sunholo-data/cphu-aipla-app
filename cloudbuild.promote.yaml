@@ -207,8 +207,21 @@ steps:
           --image=${_REGION}-docker.pkg.dev/${_TARGET_PROJECT}/${_REPO}/${_SERVICE_NAME}/ui:${_VERSION} \
           --container=sidecar \
           --image=${_REGION}-docker.pkg.dev/${_TARGET_PROJECT}/${_REPO}/${_SERVICE_NAME}/backend@$$DIGEST \
-          --update-env-vars=^|^APP_VERSION=${_VERSION}|MCP_WIDGET_DOMAIN=${_MCP_WIDGET_DOMAIN}|MCP_SANDBOX_URL=${_MCP_SANDBOX_URL}|DOCUMENTS_BUCKET=${_TARGET_PROJECT}-documents|PROGRAMME_ADMIN_MAX_CAP_USD=${_PROGRAMME_ADMIN_MAX_CAP_USD}|PROGRAMME_ADMIN_EMAIL_DOMAINS=${_PROGRAMME_ADMIN_EMAIL_DOMAINS}
-        # ^ All four must be re-stamped on the PROMOTED revision, for the same
+          "--update-env-vars=^|^APP_VERSION=${_VERSION}|MCP_WIDGET_DOMAIN=${_MCP_WIDGET_DOMAIN}|MCP_SANDBOX_URL=${_MCP_SANDBOX_URL}|DOCUMENTS_BUCKET=${_TARGET_PROJECT}-documents|PROGRAMME_ADMIN_MAX_CAP_USD=${_PROGRAMME_ADMIN_MAX_CAP_USD}|PROGRAMME_ADMIN_EMAIL_DOMAINS=${_PROGRAMME_ADMIN_EMAIL_DOMAINS}"
+        # ^ THE QUOTES ARE LOAD-BEARING. This step is a BASH SCRIPT, unlike
+        # cloudbuild.yaml's deploy step where every flag is its own quoted YAML
+        # list item and never reaches a shell. The `^|^` custom-delimiter form
+        # is required because the backend parses PROGRAMME_ADMIN_EMAIL_DOMAINS
+        # as a comma-separated list and gcloud splits --update-env-vars on those
+        # same commas — but `|` is ALSO a shell pipe. Unquoted, bash tears the
+        # flag into a pipeline and gcloud sees `--update-env-vars=^`, failing
+        # with "Bad syntax for dict arg: [^]". That is exactly how the first
+        # v0.1.33 promote died (build 5055df14, 2026-09-03), after `deploy` had
+        # already copied the backend and pushed the frontend.
+        # `scripts/check-cloudbuild-substitutions.py` now fails the build on an
+        # unquoted `^x^` inside a bash step.
+        #
+        # All six must be re-stamped on the PROMOTED revision, for the same
         # reason. APP_VERSION: the backend image is copied from test, where it
         # was deployed with test's build value, so a promote that swapped images
         # without this would leave prod reporting the wrong version on every
