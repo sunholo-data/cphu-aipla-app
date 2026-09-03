@@ -1,6 +1,6 @@
 # Delegated programme administration — who else can admit a teacher
 
-**Status:** Proposed (2026-08-12)
+**Status:** **SHIPPED** (M1+M2+M3, 2026-09-03) — sprint: [delegated-programme-administration-sprint.md](delegated-programme-administration-sprint.md). Three of the four open questions below were decided at sprint-plan time and M3 diverges from this doc in two places; the sprint doc is authoritative on both.
 **Priority:** **P1** — the bus-factor half is arguably P0; the pilot starts 2026-08-14 and one person can currently admit a teacher
 **Estimated:** ~3.5d — M1 read-only view ~0.5d · M2 the claim + bounded writes + cap editing ~2d · M3 programme-wide daily budget ~1d
 **Scope:** Fullstack — a new `/api/programme/*` router, a `programmeAdmin` custom claim, a `/teacher/programme` surface, CLI
@@ -442,8 +442,11 @@ The tests that matter here are all refusals.
 - **What is the right cap bound?** $50 is a guess. Answerable once `class_spend`
   has a month of pilot data; low and raisable is the safe direction.
 - **Should a programme admin be able to grant a longer expiry than the contract
-  boundary?** Suggest no — the delegated path caps expiry at `2026-09-15` too,
-  so delegation cannot outlive the engagement.
+  boundary?** Suggest no — the delegated path caps expiry at the engagement
+  boundary too, so delegation cannot outlive the engagement.
+  **DECIDED 2026-09-03: yes, capped — at `2027-09-15`, not the `2026-09-15`
+  written here.** That was the ORIGINAL contract date; this doc predates the
+  extension, and the prod register was re-stamped to 2027-09-15 on 2026-08-17.
 - **Who gets the claim on day one?** JB certainly. AR probably. Worth deciding
   alongside the [access-register sign-off](../../../ops/access-register-signoff-2026-08-12.md).
 

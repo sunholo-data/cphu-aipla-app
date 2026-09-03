@@ -4,9 +4,25 @@
 
 Design: [1.1.75 public-access-tiers-and-spend-control](../../design/aipla/v1.1.0-feedback/public-access-tiers-and-spend-control.md)
 
-> **Every command here needs `CLOUDSDK_ACTIVE_CONFIG_NAME=sunholo`.** The default
-> gcloud config points at the *template's* project and every AIPLA call returns
+> **Every command here needs a gcloud config whose account is `m@sunholo.com`
+> and an explicit `--project=aipla-<env>-2026`.** The default config points at
+> the *template's* project, so an AIPLA call without `--project` returns
 > `PERMISSION_DENIED`. Same first line as [deploy.md](deploy.md), same reason.
+>
+> ⚠️ This runbook used to say `CLOUDSDK_ACTIVE_CONFIG_NAME=sunholo`. **There is
+> no `sunholo` config on M's laptop** (2026-09-03: the configs are `aitana` and
+> `default`, both already on `m@sunholo.com`), so that prefix silently created
+> an empty config and made every command here fail for a reason the runbook did
+> not explain. Set `--project` explicitly instead.
+
+> **THERE IS NOW AN IN-APP ROUTE — prefer it.** Since 1.1.76 (shipped
+> 2026-09-03) a **programme admin** grants, revokes and re-caps from
+> **`/teacher/programme`**, with no service-account impersonation at all, and a
+> **researcher** sees the same register and queue read-only. Everything below is
+> the **unbounded** service-account path: still the only way to grant above the
+> delegated ceiling, to set a zero or uncapped grant, or to mint the
+> `programmeAdmin` claim itself. See
+> [1.1.76](../../design/aipla/v1.1.0-feedback/delegated-programme-administration.md).
 
 ---
 
@@ -66,9 +82,21 @@ export AIPLATFORM_ID_TOKEN=$(CLOUDSDK_ACTIVE_CONFIG_NAME=sunholo \
 claim and the admin gate 403s with nothing useful in the message.
 
 Only members of `admin_operator_members` (see `infrastructure/env/envs/*.tfvars`)
-can impersonate that SA. As of 2026-08-12 that is `m@sunholo.com` alone — see
-[1.1.76](../../design/aipla/v1.1.0-feedback/delegated-programme-administration.md)
-for the plan to widen it safely.
+can impersonate that SA. As of 2026-08-12 that is `m@sunholo.com` alone, and
+1.1.76 deliberately did **not** widen it — it added a second, narrower door
+beside it rather than more keys to this one.
+
+## 2b. Grant someone the in-app route (do this once per person)
+
+```bash
+aiplatform --env $ENV users grant-programme-admin <firebase-uid>
+```
+
+Then they use `/teacher/programme` and never touch this runbook again. Bounded:
+they may grant `pilot` up to `PROGRAMME_ADMIN_MAX_CAP_USD` (default $50), may
+not set a zero or uncapped grant, may not grant past the engagement boundary,
+and **cannot mint this claim for anyone including themselves**. Takes effect on
+their next token refresh, so tell them to reload.
 
 ---
 
