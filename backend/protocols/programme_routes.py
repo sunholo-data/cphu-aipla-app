@@ -327,3 +327,76 @@ async def programme_access_revoke(
     invalidate_spend_cache()
     log.info("programme.access_revoke email=%s by=%s uid=%s", email, user.email or user.uid, uid or "-")
     return {"email": email, "tier": "visitor", "revoked": True, "claimSyncedUid": uid}
+
+
+# ─── Programme-wide daily budget (M3) ────────────────────────────────────────
+#
+# Settable by a programme admin; VISIBLE to a researcher — same split as the
+# register, same reasoning. See `db.programme_budget` for why this is USD rather
+# than tokens, and why its ceiling is env-configured rather than read live from
+# the Vertex quota.
+
+
+class ProgrammeBudgetBody(BaseModel):
+    """Set or clear the programme-wide daily budget.
+
+    ``dailyBudgetUsd: null`` clears it — back to unset, which is the honest
+    default while ``class_spend`` still lacks a month of pilot data.
+    """
+
+    daily_budget_usd: float | None = Field(default=None, alias="dailyBudgetUsd")
+    action: str = "warn"
+
+    model_config = ConfigDict(populate_by_name=True)
+
+
+@router.get("/budget")
+async def programme_budget_get(
+    user: User = Depends(get_current_user),  # noqa: B008
+) -> dict[str, Any]:
+    """The configured programme-wide daily budget, plus today's spend."""
+    from budget.firestore_enforcer import PROGRAMME_METER_KEY, _day_key, read_identity_total_usd
+    from db.programme_budget import get_programme_budget, max_daily_budget_usd
+
+    _assert_programme_reader(user)
+    budget = get_programme_budget()
+    return {
+        "dailyBudgetUsd": budget.daily_budget_usd if budget else None,
+        "action": budget.action if budget else "warn",
+        "updatedBy": budget.updated_by if budget else "",
+        "updatedAt": budget.updated_at if budget else "",
+        "spentTodayUsd": read_identity_total_usd(PROGRAMME_METER_KEY, _day_key()),
+        "ceilingUsd": max_daily_budget_usd(),
+        "canWrite": bool(getattr(user, "is_programme_admin", False)),
+    }
+
+
+@router.put("/budget")
+async def programme_budget_put(
+    body: ProgrammeBudgetBody,
+    user: User = Depends(get_current_user),  # noqa: B008
+) -> dict[str, Any]:
+    """Set or clear the programme-wide daily budget.
+
+    Bounded by the ceiling it sits under: a value above that would read as
+    raising the ceiling while doing nothing, which is the worst kind of control.
+    """
+    from db.programme_budget import clear_programme_budget, set_programme_budget
+
+    assert_programme_admin(user)
+    actor = user.email or user.uid
+
+    if body.daily_budget_usd is None:
+        clear_programme_budget(updated_by=actor)
+        return {"dailyBudgetUsd": None, "action": "warn", "updatedBy": actor}
+
+    try:
+        budget = set_programme_budget(daily_budget_usd=body.daily_budget_usd, action=body.action, updated_by=actor)
+    except ValueError as exc:
+        raise HTTPException(status_code=403, detail=str(exc)) from exc
+    return {
+        "dailyBudgetUsd": budget.daily_budget_usd,
+        "action": budget.action,
+        "updatedBy": budget.updated_by,
+        "updatedAt": budget.updated_at,
+    }

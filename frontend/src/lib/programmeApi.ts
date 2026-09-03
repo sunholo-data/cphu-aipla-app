@@ -106,6 +106,39 @@ export async function revokeAccess(email: string): Promise<{ email: string; revo
   return readJson<{ email: string; revoked: boolean }>(res, "Could not revoke access");
 }
 
+export interface ProgrammeBudgetPayload {
+  /** `null` = unset, which is the honest default while there is no pilot data
+   *  to pick a number from. The per-teacher caps and the GCP quota already
+   *  bound things without it. */
+  dailyBudgetUsd: number | null;
+  action: "warn" | "block";
+  updatedBy: string;
+  updatedAt: string;
+  /** `null` when the total could not be read — never dressed as zero. */
+  spentTodayUsd: number | null;
+  /** The ceiling this budget sits under. A value above it would read as
+   *  raising that ceiling while doing nothing. */
+  ceilingUsd: number;
+  canWrite: boolean;
+}
+
+export async function fetchProgrammeBudget(): Promise<ProgrammeBudgetPayload> {
+  const res = await fetchWithTeacherAuth("/api/proxy/api/programme/budget");
+  return readJson<ProgrammeBudgetPayload>(res, "Could not load the programme budget");
+}
+
+export async function setProgrammeBudget(
+  dailyBudgetUsd: number | null,
+  action: "warn" | "block" = "warn",
+): Promise<ProgrammeBudgetPayload> {
+  const res = await fetchWithTeacherAuth("/api/proxy/api/programme/budget", {
+    method: "PUT",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ dailyBudgetUsd, action }),
+  });
+  return readJson<ProgrammeBudgetPayload>(res, "Could not set the programme budget");
+}
+
 /** How a row's spend reads against its cap. `unknown` is its own state: a
  *  failed read must never render as the reassuring answer. */
 export type SpendState = "unknown" | "ok" | "warn" | "over";

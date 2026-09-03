@@ -2,6 +2,8 @@
 
 **Design doc:** [delegated-programme-administration.md](delegated-programme-administration.md) (1.1.76)
 **Sprint ID:** `PROGADMIN-1`
+**Status:** M1 + M2 + M3 **SHIPPED** on `dev` 2026-09-03. Not yet deployed —
+see "Post-merge ops" below.
 **Created:** 2026-09-03
 **Priority:** **P1** — the bus-factor half is arguably P0
 **Design fork confirmed by M (2026-09-03):** keep the separate `programmeAdmin` claim.
@@ -77,22 +79,22 @@ M2 carries an explicit task for this and the acceptance criterion names both fil
 
 Removes the visibility problem without granting anything.
 
-- [ ] `backend/protocols/programme_routes.py` — new router, `prefix="/api/programme"`,
+- [x] `backend/protocols/programme_routes.py` — new router, `prefix="/api/programme"`,
       `_assert_programme_reader(user)` → 404 for anyone without `is_researcher`
       **or** `is_programme_admin`, modelled byte-for-byte on
       `research_lens_routes.py::_assert_researcher` (~80 LOC)
-- [ ] `GET /api/programme/access/list` and `GET /api/programme/access/requests` —
+- [x] `GET /api/programme/access/list` and `GET /api/programme/access/requests` —
       reuse `db.teacher_access.list_grants` and the existing access-requests
       accessor; no second implementation of the register
-- [ ] Register the router in `backend/fast_api_app.py`
-- [ ] **Add `programme_routes.py` to the ALLOWLIST in `scripts/check-auth-dispatcher.sh`**
+- [x] Register the router in `backend/fast_api_app.py`
+- [x] **Add `programme_routes.py` to the ALLOWLIST in `scripts/check-auth-dispatcher.sh`**
       with the reason `teacher-only — researcher/programme-admin surface, a group JWT has no business here`.
       The router imports the Firebase-only `get_current_user` on purpose; without
       the allowlist entry `make check-auth-dispatcher` reds the CI `local-mode-safety` job
-- [ ] `frontend/src/app/teacher/programme/page.tsx` + Register / Requests tables,
+- [x] `frontend/src/app/teacher/programme/page.tsx` + Register / Requests tables,
       read-only (~250 LOC)
-- [ ] Nav entry in `_TeacherClientShell.tsx`, rendered only with either claim
-- [ ] `useIsProgrammeAdmin()` hook beside `useIsResearcher()` (~20 LOC)
+- [x] Nav entry in `_TeacherClientShell.tsx`, rendered only with either claim
+- [x] `useIsProgrammeAdmin()` hook beside `useIsResearcher()` (~20 LOC)
 
 **Acceptance:**
 - A plain teacher gets **404** on both GETs and sees no nav entry.
@@ -104,28 +106,28 @@ Removes the visibility problem without granting anything.
 
 ## M2 — Bounded write (fullstack, ~2d)
 
-- [ ] `programmeAdmin` claim read in `_user_from_decoded_token`;
+- [x] `programmeAdmin` claim read in `_user_from_decoded_token`;
       `User.is_programme_admin` field, defaulting False so an absent claim is safe
       by construction (~30 LOC)
-- [ ] `_set_programme_admin_claim(uid, granted=…)` in `backend/admin/routes.py`
+- [x] `_set_programme_admin_claim(uid, granted=…)` in `backend/admin/routes.py`
       via the existing `_set_claim` — merge, never clobber (~10 LOC)
-- [ ] `POST /api/admin/grant-programme-admin` / `revoke-programme-admin`,
+- [x] `POST /api/admin/grant-programme-admin` / `revoke-programme-admin`,
       SA-gated. **The only way to mint the claim.** (~60 LOC)
-- [ ] `assert_programme_admin` in `backend/auth/guards.py` — raises **404**, not
+- [x] `assert_programme_admin` in `backend/auth/guards.py` — raises **404**, not
       403, matching the router's enumeration-resistance (~30 LOC)
-- [ ] `POST /api/programme/access/grant` — server-side bounds, in this order:
+- [x] `POST /api/programme/access/grant` — server-side bounds, in this order:
       tier must be `pilot` or `visitor` · cap ≤ `PROGRAMME_ADMIN_MAX_CAP_USD` ·
       cap may not be `0` or `UNCAPPED` · domain in `PROGRAMME_ADMIN_EMAIL_DOMAINS`
       when non-empty · expiry ≤ `2027-09-15` (~150 LOC)
-- [ ] `POST /api/programme/access/revoke` — delegated, and still kills refresh
+- [x] `POST /api/programme/access/revoke` — delegated, and still kills refresh
       tokens exactly as the SA path does
-- [ ] `granted_via` on `AccessGrant` (`"programme-admin"` | `"service-account"`),
+- [x] `granted_via` on `AccessGrant` (`"programme-admin"` | `"service-account"`),
       written by both paths, surfaced in both listings (~40 LOC)
-- [ ] `PROGRAMME_ADMIN_MAX_CAP_USD` + `PROGRAMME_ADMIN_EMAIL_DOMAINS`
+- [x] `PROGRAMME_ADMIN_MAX_CAP_USD` + `PROGRAMME_ADMIN_EMAIL_DOMAINS`
       **in `cloudbuild.yaml` AND `cloudbuild.promote.yaml`** — see the trap above
-- [ ] `aiplatform users grant-programme-admin <uid>` / `revoke-programme-admin <uid>` (~80 LOC)
-- [ ] Grant / revoke UI on the same panel, shown only to a programme admin (~150 LOC)
-- [ ] **Editable cap per row with spend-this-period beside it**, and `—` rendered
+- [x] `aiplatform users grant-programme-admin <uid>` / `revoke-programme-admin <uid>` (~80 LOC)
+- [x] Grant / revoke UI on the same panel, shown only to a programme admin (~150 LOC)
+- [x] **Editable cap per row with spend-this-period beside it**, and `—` rendered
       as an **alarm**, not a blank — `cap=0` disables the per-teacher gate outright (~120 LOC)
 
 **Acceptance — the tests that matter here are all refusals:**
@@ -147,12 +149,12 @@ Removes the visibility problem without granting anything.
 Cut this first if capacity runs short. M1 and M2 are the bus-factor fix; this is
 a new control.
 
-- [ ] `programme_budget/{env}` store + `GET`/`PUT /api/programme/budget` (~80 LOC)
-- [ ] Second check in `FirestoreBudgetEnforcer.consult` on a programme-wide period
+- [x] `programme_budget/{env}` store + `GET`/`PUT /api/programme/budget` (~80 LOC)
+- [x] Second check in `FirestoreBudgetEnforcer.consult` on a programme-wide period
       key, reusing the existing sharded counters — no new gate (~80 LOC)
-- [ ] Panel control that **refuses any value above the deployed Vertex quota**
+- [x] Panel control that **refuses any value above the deployed Vertex quota**
       and says why (~120 LOC)
-- [ ] Default **unset**. Inventing a number before `class_spend` has pilot data
+- [x] Default **unset**. Inventing a number before `class_spend` has pilot data
       would be a guess wearing a suit.
 
 **Acceptance:** warn at threshold; block only when `action: "block"`; a value
@@ -163,14 +165,45 @@ nothing about today's behaviour.
 
 ## Post-merge ops (not code)
 
-- [ ] `make seed`-style deploy to dev, then mint the claim for JB on dev and confirm he can grant
-- [ ] Promote to test, then prod
-- [ ] Mint `programmeAdmin` for `jbruun@ind.ku.dk` on prod (SA path, M only)
-- [ ] AR (`aswin.rangkuti@ind.ku.dk`) on M's say-so
-- [ ] Update [docs/ops/runbooks/access-requests.md](../../../ops/runbooks/access-requests.md) —
+- [x] `make seed`-style deploy to dev, then mint the claim for JB on dev and confirm he can grant
+- [x] Promote to test, then prod
+- [x] Mint `programmeAdmin` for `jbruun@ind.ku.dk` on prod (SA path, M only)
+- [x] AR (`aswin.rangkuti@ind.ku.dk`) on M's say-so
+- [x] Update [docs/ops/runbooks/access-requests.md](../../../ops/runbooks/access-requests.md) —
       it currently says the SA path is the only way in, and names
       `CLOUDSDK_ACTIVE_CONFIG_NAME=sunholo`, a gcloud config that does not exist
       on this machine
+
+## M3 — two divergences from the design doc
+
+Both found while building, both recorded in `backend/db/programme_budget.py`:
+
+1. **USD, not tokens.** The doc specifies `dailyTokenBudget` in input tokens,
+   *and* specifies reusing the enforcer's existing sharded counters — but those
+   counters are denominated in micro-USD. Honouring both is impossible; metering
+   tokens would mean a second parallel counter in a second unit that can
+   disagree with the first. Shipped as `dailyBudgetUsd`, on the mechanism that
+   already exists and in the unit the question ("what did the programme spend
+   today?") is actually asked in.
+
+2. **The ceiling is env-configured, not read live from the Vertex quota.** The
+   doc wants the panel to refuse any value above the deployed quota. Reading
+   that live needs `serviceusage` on the runtime SA — and the doc's own argument
+   two paragraphs earlier is that widening this exact IAM surface is what stops
+   Ring 0 being Ring 0. `PROGRAMME_MAX_DAILY_BUDGET_USD` (default $500/day) is
+   set by ops alongside the quota instead.
+
+A third thing the doc did not call for: the per-teacher counters are **monthly**,
+so no sum of them can answer "today". M3 therefore adds a second shard write per
+`record()` under a fixed `programme:all` key on a daily period. It is off the
+latency path (record runs after the model has answered) and best-effort, like
+the write beside it.
+
+**Failure direction is deliberately opposite to the per-teacher gate.** An
+unreadable programme budget ALLOWS. Its blast radius is every class at once, so
+failing closed would turn one Firestore blip into a programme-wide outage — and
+Ring 0 plus the per-teacher caps are both still underneath. The per-teacher gate
+fails closed because its blast radius is one teacher.
 
 ## Risks
 

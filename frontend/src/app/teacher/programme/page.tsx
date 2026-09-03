@@ -20,6 +20,7 @@ import { useCallback, useEffect, useState } from "react";
 import { ArrowLeft } from "lucide-react";
 
 import { TeacherPage } from "@/components/teacher/ui/TeacherPage";
+import { BudgetPanel } from "@/app/teacher/programme/_BudgetPanel";
 import { GrantForm } from "@/app/teacher/programme/_GrantForm";
 import { useIsProgrammeAdmin } from "@/hooks/useIsProgrammeAdmin";
 import { useIsResearcher } from "@/hooks/useIsResearcher";
@@ -402,6 +403,8 @@ export default function TeacherProgrammePage() {
             Nobody is notified when someone asks for access. Check this queue after any round of
             publicity, or when someone says they asked.
           </p>
+
+          {tab === "register" ? <BudgetPanel canWrite={isProgrammeAdmin} /> : null}
 
           {isProgrammeAdmin && tab === "register" ? (
             <GrantForm maxCapUsd={DELEGATED_CAP_CEILING} onGranted={load} />

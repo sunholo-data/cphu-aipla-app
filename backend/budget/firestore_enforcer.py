@@ -62,6 +62,22 @@ def _period_key(now: datetime | None = None) -> str:
     return f"{stamp.year:04d}-{stamp.month:02d}"
 
 
+#: The identity every turn is ALSO metered under, for the programme-wide daily
+#: budget (M3 — 1.1.76). Not a real caller: a fixed key so one sum answers
+#: "what did the whole programme spend today?".
+#:
+#: It cannot collide with a real meter key — those are `teacher:{uid}` or a
+#: group code, and neither can contain a colon-prefixed literal this shape.
+PROGRAMME_METER_KEY = "programme:all"
+
+
+def _day_key(now: datetime | None = None) -> str:
+    """Daily buckets, UTC. The programme budget's grain — a month is far too
+    coarse to stop a bad Tuesday."""
+    stamp = now or datetime.now(UTC)
+    return f"{stamp.year:04d}-{stamp.month:02d}-{stamp.day:02d}"
+
+
 class FirestoreBudgetEnforcer:
     """Meters spend per billing identity against that teacher's monthly cap.
 
@@ -103,6 +119,14 @@ class FirestoreBudgetEnforcer:
         remaining = max(0.0, cap - spent)
 
         self._held[(request.invocation_id, meter_key)] = request.projected_cost_usd
+
+        # Programme-wide daily budget (M3), checked BEFORE the per-teacher
+        # branches: it is the wider blast radius, and a programme already over
+        # budget should say so rather than reporting a class's own healthy
+        # percentage. Unset (the default) short-circuits to None.
+        programme = self._consult_programme_budget()
+        if programme is not None:
+            return programme
 
         if cap <= 0:
             # A deliberate ZERO cap: spend suspended, grant/classes/codes intact.
@@ -196,7 +220,90 @@ class FirestoreBudgetEnforcer:
         # Invalidate the cached total so the next consult sees this spend.
         self._total_cache.pop((meter_key, period), None)
 
+        # ALSO meter into the programme-wide daily bucket (M3). A second write,
+        # off the latency path (record runs after the model already answered),
+        # and the only way to have a daily grain at all — the per-teacher
+        # counters are monthly, so no sum of them can answer "today".
+        #
+        # Best-effort exactly like the write above: losing this is a metering
+        # gap in a WARN-first control, never a reason to fail a served turn.
+        day = _day_key()
+        prog_doc_id = f"{PROGRAMME_METER_KEY}|{day}|{shard}"
+        try:
+            from db.firestore import increment_field, set_document
+
+            try:
+                increment_field(_SPEND_COLLECTION, prog_doc_id, "spentMicroUsd", int(actual_cost_usd * 1_000_000))
+            except Exception:
+                set_document(
+                    _SPEND_COLLECTION,
+                    prog_doc_id,
+                    {
+                        "identity": PROGRAMME_METER_KEY,
+                        "period": day,
+                        "shard": shard,
+                        "spentMicroUsd": int(actual_cost_usd * 1_000_000),
+                    },
+                    merge=True,
+                )
+            self._total_cache.pop((PROGRAMME_METER_KEY, day), None)
+        except Exception:
+            logger.warning("budget.programme_record_failed", exc_info=True)
+
     # --- Internals -----------------------------------------------------------
+
+    def _consult_programme_budget(self) -> BudgetDecision | None:
+        """The programme-wide daily check. ``None`` means "nothing to say".
+
+        Returns a decision ONLY when a budget is configured and today's total
+        has reached it. Everything else — no budget set, under budget, an
+        unreadable total — falls through to the per-teacher cap, which is the
+        gate that has always been there.
+
+        A read failure deliberately does NOT block. This control's blast radius
+        is every class at once, so failing closed here would turn one Firestore
+        blip into a programme-wide outage — and Ring 0 plus the per-teacher caps
+        are both still underneath. That is the opposite choice from the
+        per-teacher spend gate, and the difference is the blast radius.
+        """
+        try:
+            from db.programme_budget import get_programme_budget
+
+            budget = get_programme_budget()
+        except Exception:
+            logger.warning("budget.programme_budget_unreadable", exc_info=True)
+            return None
+        if budget is None:
+            return None
+
+        day = _day_key()
+        spent_today = self._read_total(PROGRAMME_METER_KEY, day)
+        if spent_today < budget.daily_budget_usd:
+            return None
+
+        if not budget.blocks:
+            # warn-only is the default and the first month's setting: it tells
+            # you where the real numbers are without risking a class mid-lesson.
+            logger.warning("budget.programme_over_warn spent=%.4f budget=%.2f", spent_today, budget.daily_budget_usd)
+            return BudgetDecision(
+                action="warn",
+                remaining_usd=0.0,
+                period_end=None,
+                message="The programme has reached its daily AI budget.",
+                retry_after_seconds=None,
+            )
+
+        logger.warning("budget.programme_over_block spent=%.4f budget=%.2f", spent_today, budget.daily_budget_usd)
+        return BudgetDecision(
+            action="block",
+            remaining_usd=0.0,
+            period_end=None,
+            message=(
+                "The AIPLA programme has reached its daily AI budget. The tutor will "
+                "resume tomorrow, or contact the AIPLA team."
+            ),
+            retry_after_seconds=None,
+        )
 
     def _billing_key(self, identity_value: str) -> str:
         """The key spend is METERED under — always the payer, never the caller.
@@ -326,6 +433,28 @@ def register_default_enforcer() -> None:
 
 
 __all__ = ["SHARD_COUNT", "SOFT_THRESHOLD", "FirestoreBudgetEnforcer", "register_default_enforcer"]
+
+
+def read_identity_total_usd(identity: str, period: str) -> float | None:
+    """Sum the shards for one identity+period. ``None`` when unreadable.
+
+    Public twin of the enforcer's private ``_read_total``, for surfaces that
+    report spend rather than gate on it. ``None`` rather than 0.0 for the same
+    reason as ``read_period_spend_usd``: a failed read must not render as the
+    reassuring answer.
+    """
+    try:
+        from db.firestore import query_documents
+
+        docs = query_documents(
+            _SPEND_COLLECTION,
+            filters=[("identity", "==", identity), ("period", "==", period)],
+            limit=SHARD_COUNT,
+        )
+    except Exception:
+        logger.warning("budget.identity_total_read_failed identity=%s period=%s", identity, period, exc_info=True)
+        return None
+    return sum(float(d.get("spentMicroUsd", 0)) for d in docs) / 1_000_000
 
 
 def read_period_spend_usd(uid: str, *, now: datetime | None = None) -> float | None:

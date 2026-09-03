@@ -352,3 +352,66 @@ def test_the_service_account_router_never_reads_the_programme_admin_claim():
     src = Path(__file__).resolve().parents[2] / "admin" / "routes.py"
     body = src.read_text()
     assert "is_programme_admin" not in body, "the SA router must gate on the allowlist, never on the delegated claim"
+
+
+# ─── M3: the programme-wide daily budget ─────────────────────────────────────
+
+
+def test_budget_reads_unset_by_default():
+    """Unset is the honest starting state — the per-teacher caps and Ring 0
+    already bound things."""
+    body = _client(RESEARCHER).get("/api/programme/budget").json()
+    assert body["dailyBudgetUsd"] is None
+
+
+def test_a_plain_teacher_cannot_read_or_write_the_budget():
+    c = _client(TEACHER)
+    assert c.get("/api/programme/budget").status_code == 404
+    assert c.put("/api/programme/budget", json={"dailyBudgetUsd": 20}).status_code == 404
+
+
+def test_a_researcher_sees_the_budget_but_cannot_set_it():
+    """Same split as the register: visible to a researcher, settable by a
+    programme admin."""
+    c = _client(RESEARCHER)
+    assert c.get("/api/programme/budget").status_code == 200
+    assert c.put("/api/programme/budget", json={"dailyBudgetUsd": 20}).status_code == 404
+
+
+def test_a_programme_admin_sets_and_clears_the_budget():
+    c = _client(PROG_ADMIN)
+    assert c.put("/api/programme/budget", json={"dailyBudgetUsd": 20}).json()["dailyBudgetUsd"] == 20
+    assert c.get("/api/programme/budget").json()["dailyBudgetUsd"] == 20
+    assert c.put("/api/programme/budget", json={"dailyBudgetUsd": None}).json()["dailyBudgetUsd"] is None
+    assert c.get("/api/programme/budget").json()["dailyBudgetUsd"] is None
+
+
+def test_a_budget_above_the_ceiling_is_refused_and_names_it(monkeypatch):
+    """A number above the ceiling it sits under would read as raising that
+    ceiling while doing nothing."""
+    monkeypatch.setenv("PROGRAMME_MAX_DAILY_BUDGET_USD", "100")
+    res = _client(PROG_ADMIN).put("/api/programme/budget", json={"dailyBudgetUsd": 100000})
+    assert res.status_code == 403
+    assert "100" in res.json()["detail"]
+
+
+def test_the_default_action_is_warn_not_block():
+    """A programme-wide block is a very large blast radius for a knob someone is
+    still calibrating."""
+    assert _client(PROG_ADMIN).put("/api/programme/budget", json={"dailyBudgetUsd": 20}).json()["action"] == "warn"
+
+
+def test_an_unknown_action_is_refused():
+    res = _client(PROG_ADMIN).put("/api/programme/budget", json={"dailyBudgetUsd": 20, "action": "explode"})
+    assert res.status_code == 403
+
+
+def test_a_zero_or_negative_budget_reads_as_unset_not_as_a_shutdown():
+    """Typing 0 must not take the whole programme down on the first turn of the
+    day — nobody means that by it."""
+    from db.programme_budget import ProgrammeBudget
+
+    assert ProgrammeBudget.from_doc({"dailyBudgetUsd": 0}) is None
+    assert ProgrammeBudget.from_doc({"dailyBudgetUsd": -5}) is None
+    assert ProgrammeBudget.from_doc({"dailyBudgetUsd": "nonsense"}) is None
+    assert ProgrammeBudget.from_doc({}) is None

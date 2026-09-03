@@ -14,7 +14,12 @@ from typing import ClassVar
 import pytest
 
 from budget.enforcer import BudgetConsultation, BudgetEnforcer
-from budget.firestore_enforcer import SHARD_COUNT, FirestoreBudgetEnforcer, _period_key
+from budget.firestore_enforcer import (
+    PROGRAMME_METER_KEY,
+    SHARD_COUNT,
+    FirestoreBudgetEnforcer,
+    _period_key,
+)
 
 
 @pytest.fixture
@@ -181,7 +186,10 @@ async def test_record_accumulates_across_shards(store):
         await enforcer.record(_consult(cost=0.1, invocation=f"inv-{i}"), actual_cost_usd=0.1)
 
     period = _period_key()
-    rows = [v for k, v in store.items() if k.startswith("teacher_spend/")]
+    # Exclude the programme-wide daily bucket (M3) — every turn is metered
+    # there as well, on a DAILY key. This assertion is about the per-teacher
+    # monthly total.
+    rows = [v for k, v in store.items() if k.startswith("teacher_spend/") and v.get("identity") != PROGRAMME_METER_KEY]
     assert rows, "record must write something"
     total = sum(r.get("spentMicroUsd", 0) for r in rows) / 1_000_000
     assert total == pytest.approx(2.0), "twenty $0.10 turns is $2.00, however it was sharded"
@@ -507,7 +515,11 @@ async def test_spend_is_recorded_under_the_paying_teacher(store):
 
     await FirestoreBudgetEnforcer().record(_consult(identity="CLASS-A"), actual_cost_usd=1.0)
 
-    written = [k for k in store if k.startswith("teacher_spend/")]
+    # The programme-wide daily bucket (M3) is written alongside and is not
+    # keyed by payer — it is one fixed key for the whole programme.
+    written = [
+        k for k, v in store.items() if k.startswith("teacher_spend/") and v.get("identity") != PROGRAMME_METER_KEY
+    ]
     assert written, "nothing was recorded"
     assert all(k.startswith("teacher_spend/teacher:t1|") for k in written), written
 
@@ -540,3 +552,101 @@ async def test_an_unstamped_register_row_still_yields_its_cap(store, monkeypatch
 
     # ...and it self-heals, so the fallback is paid once, not once per turn.
     assert store["teacher_access/t@ku.dk"]["uid"] == "t1"
+
+
+# --- The programme-wide daily budget (PROGADMIN-1 M3 — 1.1.76) ---------------
+#
+# A second knob one layer down from the immutable GCP quota. It answers "what
+# did the WHOLE programme spend today?", which no per-teacher monthly cap can.
+
+
+def _set_budget(store, *, daily: float, action: str = "warn") -> None:
+    store["programme_budget/current"] = {"dailyBudgetUsd": daily, "action": action}
+
+
+@pytest.mark.asyncio
+async def test_no_programme_budget_changes_nothing(store):
+    """Unset is the default and must be indistinguishable from before M3."""
+    _register(store, uid="t1", cap=25.0)
+    decision = await FirestoreBudgetEnforcer().consult(_consult(cost=0.01))
+    assert decision.action == "allow"
+
+
+@pytest.mark.asyncio
+async def test_record_meters_into_the_programme_daily_bucket(store):
+    """The per-teacher counters are MONTHLY, so no sum of them can answer
+    'today'. The daily bucket is the only thing that can."""
+    from budget.firestore_enforcer import PROGRAMME_METER_KEY, _day_key, read_identity_total_usd
+
+    _register(store, uid="t1", cap=25.0)
+    enforcer = FirestoreBudgetEnforcer()
+    await enforcer.consult(_consult(cost=1.0))
+    await enforcer.record(_consult(cost=1.0), 2.5)
+
+    assert read_identity_total_usd(PROGRAMME_METER_KEY, _day_key()) == pytest.approx(2.5)
+
+
+@pytest.mark.asyncio
+async def test_warns_when_the_programme_is_over_budget(store):
+    _register(store, uid="t1", cap=25.0)
+    _set_budget(store, daily=1.0, action="warn")
+    enforcer = FirestoreBudgetEnforcer()
+    await enforcer.record(_consult(cost=1.0), 2.0)  # today's programme spend = $2
+
+    decision = await enforcer.consult(_consult(cost=0.01))
+    assert decision.action == "warn"
+    assert "programme" in (decision.message or "").lower()
+
+
+@pytest.mark.asyncio
+async def test_warn_only_never_blocks(store):
+    """warn-only is the first month's setting: it tells you where the real
+    numbers are without risking a class mid-lesson."""
+    _register(store, uid="t1", cap=25.0)
+    _set_budget(store, daily=0.5, action="warn")
+    enforcer = FirestoreBudgetEnforcer()
+    await enforcer.record(_consult(cost=1.0), 100.0)
+
+    assert (await enforcer.consult(_consult(cost=0.01))).action == "warn"
+
+
+@pytest.mark.asyncio
+async def test_blocks_only_when_action_is_block(store):
+    _register(store, uid="t1", cap=25.0)
+    _set_budget(store, daily=1.0, action="block")
+    enforcer = FirestoreBudgetEnforcer()
+    await enforcer.record(_consult(cost=1.0), 2.0)
+
+    decision = await enforcer.consult(_consult(cost=0.01))
+    assert decision.action == "block"
+
+
+@pytest.mark.asyncio
+async def test_under_the_programme_budget_falls_through_to_the_per_teacher_cap(store):
+    """The programme check must not shadow the gate that has always been
+    there."""
+    _register(store, uid="t1", cap=25.0)
+    _set_budget(store, daily=1000.0, action="block")
+    enforcer = FirestoreBudgetEnforcer()
+    await enforcer.record(_consult(cost=1.0), 30.0)  # over the TEACHER cap, under the programme's
+
+    decision = await enforcer.consult(_consult(cost=0.01))
+    assert decision.action == "block"
+    assert "class" in (decision.message or "").lower(), "should be the per-teacher message, not the programme one"
+
+
+@pytest.mark.asyncio
+async def test_an_unreadable_programme_budget_does_not_block(store, monkeypatch):
+    """The opposite failure direction from the per-teacher gate, and the
+    difference is blast radius: one Firestore blip must not take every class
+    down at once. Ring 0 and the per-teacher caps are still underneath."""
+    import db.programme_budget as pb
+
+    def _boom():
+        raise RuntimeError("firestore is having a moment")
+
+    monkeypatch.setattr(pb, "get_programme_budget", _boom)
+    _register(store, uid="t1", cap=25.0)
+
+    decision = await FirestoreBudgetEnforcer().consult(_consult(cost=0.01))
+    assert decision.action == "allow"
