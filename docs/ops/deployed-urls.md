@@ -411,6 +411,18 @@ teacher can perceive. Sims work correctly on the current origin.
     week. First run of the new step reconciled them (8 skills, `aipla-help` included).
   - Guide corpus + "AIPLA onboarding" tutors seeded (`make seed-guide-corpus ENV=prod`).
     Onboarding group code: `brave-thicket-77`.
+- **2026-09-04 (v0.1.35) — PROGADMIN-1 confirmed live on prod, plus a promote-pipeline
+  near-miss.** The first v0.1.33 promote (1.1.76, the delegated `/teacher/programme`
+  admin UI) failed mid-deploy on an unquoted `^|^` env-var flag in
+  `cloudbuild.promote.yaml`'s bash deploy step — backend image copied, frontend
+  pushed, but `services update` never ran, so **prod stayed on v0.1.32 and served
+  200 throughout** (see `595e3e8`). Fixed and re-tagged as v0.1.34, which promoted
+  clean. v0.1.35 (same day) adds email-based lookup to
+  `grant-researcher`/`grant-admin`/`grant-programme-admin` (previously UID-only,
+  with no lookup path anywhere in the codebase) and used it to grant
+  `m@sunholo.com` `programmeAdmin` on prod alongside the existing `jbruun@ind.ku.dk`
+  grant. Verified via `make deploy-status`: dev/test/prod all serving 200,
+  test and prod level at v0.1.35.
 
 ---
 
