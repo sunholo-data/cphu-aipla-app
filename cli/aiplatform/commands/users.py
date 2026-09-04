@@ -21,10 +21,14 @@ impersonated SA token, e.g.:
     AIPLATFORM_ID_TOKEN=$(gcloud auth print-identity-token \\
         --impersonate-service-account=<seed-sa> \\
         --audiences=<backend-url> --include-email) \\
-        aiplatform --env dev users grant-researcher <uid>
+        aiplatform --env dev users grant-researcher <uid-or-email>
 
 (The `--include-email` flag matters — without it the SA token has no
 email claim and the admin gate 403s.)
+
+Every claim-grant verb below (`grant-researcher`, `grant-admin`,
+`grant-programme-admin` and their revoke twins) takes either a Firebase UID
+or an email address — no separate lookup step needed.
 """
 
 from __future__ import annotations
@@ -47,23 +51,23 @@ def users() -> None:
 
 
 @users.command("grant-researcher")
-@click.argument("uid")
+@click.argument("uid_or_email")
 @click.pass_context
-def grant_researcher(ctx: click.Context, uid: str) -> None:
-    """Grant the researcher claim to the Firebase user UID.
+def grant_researcher(ctx: click.Context, uid_or_email: str) -> None:
+    """Grant the researcher claim to a Firebase user (UID or email).
 
     Takes effect on the user's next ID-token refresh (~1h).
     """
-    result = _client(ctx).post("/api/admin/grant-researcher", json={"uid": uid})
+    result = _client(ctx).post("/api/admin/grant-researcher", json={"uid": uid_or_email})
     click.echo(_json.dumps(result, indent=2))
 
 
 @users.command("revoke-researcher")
-@click.argument("uid")
+@click.argument("uid_or_email")
 @click.pass_context
-def revoke_researcher(ctx: click.Context, uid: str) -> None:
-    """Revoke the researcher claim from the Firebase user UID."""
-    result = _client(ctx).post("/api/admin/revoke-researcher", json={"uid": uid})
+def revoke_researcher(ctx: click.Context, uid_or_email: str) -> None:
+    """Revoke the researcher claim from a Firebase user (UID or email)."""
+    result = _client(ctx).post("/api/admin/revoke-researcher", json={"uid": uid_or_email})
     click.echo(_json.dumps(result, indent=2))
 
 
@@ -77,10 +81,10 @@ def revoke_researcher(ctx: click.Context, uid: str) -> None:
 
 
 @users.command("grant-admin")
-@click.argument("uid")
+@click.argument("uid_or_email")
 @click.pass_context
-def grant_admin(ctx: click.Context, uid: str) -> None:
-    """Grant the platform-admin claim to the Firebase user UID.
+def grant_admin(ctx: click.Context, uid_or_email: str) -> None:
+    """Grant the platform-admin claim to a Firebase user (UID or email).
 
     This is what `firestore.rules::isAdmin` reads — direct client-SDK
     Firestore access to platform-owned collections. It does NOT grant access
@@ -89,20 +93,20 @@ def grant_admin(ctx: click.Context, uid: str) -> None:
     Takes effect on the user's next ID-token refresh (~1h); sign out and in
     to force it.
     """
-    result = _client(ctx).post("/api/admin/grant-admin", json={"uid": uid})
+    result = _client(ctx).post("/api/admin/grant-admin", json={"uid": uid_or_email})
     click.echo(_json.dumps(result, indent=2))
 
 
 @users.command("revoke-admin")
-@click.argument("uid")
+@click.argument("uid_or_email")
 @click.pass_context
-def revoke_admin(ctx: click.Context, uid: str) -> None:
-    """Revoke the platform-admin claim from the Firebase user UID.
+def revoke_admin(ctx: click.Context, uid_or_email: str) -> None:
+    """Revoke the platform-admin claim from a Firebase user (UID or email).
 
     Preserves other claims — revoking admin from a researcher leaves them a
     researcher.
     """
-    result = _client(ctx).post("/api/admin/revoke-admin", json={"uid": uid})
+    result = _client(ctx).post("/api/admin/revoke-admin", json={"uid": uid_or_email})
     click.echo(_json.dumps(result, indent=2))
 
 
@@ -123,10 +127,10 @@ def revoke_admin(ctx: click.Context, uid: str) -> None:
 
 
 @users.command("grant-programme-admin")
-@click.argument("uid")
+@click.argument("uid_or_email")
 @click.pass_context
-def grant_programme_admin(ctx: click.Context, uid: str) -> None:
-    """Grant the programme-admin claim to the Firebase user UID.
+def grant_programme_admin(ctx: click.Context, uid_or_email: str) -> None:
+    """Grant the programme-admin claim to a Firebase user (UID or email).
 
     Lets them admit teachers to the access register from inside the app,
     without a service-account impersonation. Before 1.1.76 exactly one human
@@ -136,20 +140,20 @@ def grant_programme_admin(ctx: click.Context, uid: str) -> None:
     leaves them a researcher. Takes effect on their next ID-token refresh
     (~1h), so tell them to reload.
     """
-    result = _client(ctx).post("/api/admin/grant-programme-admin", json={"uid": uid})
+    result = _client(ctx).post("/api/admin/grant-programme-admin", json={"uid": uid_or_email})
     click.echo(_json.dumps(result, indent=2))
 
 
 @users.command("revoke-programme-admin")
-@click.argument("uid")
+@click.argument("uid_or_email")
 @click.pass_context
-def revoke_programme_admin(ctx: click.Context, uid: str) -> None:
-    """Revoke the programme-admin claim from the Firebase user UID.
+def revoke_programme_admin(ctx: click.Context, uid_or_email: str) -> None:
+    """Revoke the programme-admin claim from a Firebase user (UID or email).
 
     Takes effect on their next token refresh, so revocation is NOT instant.
     For an urgent revocation, revoke their refresh tokens too.
     """
-    result = _client(ctx).post("/api/admin/revoke-programme-admin", json={"uid": uid})
+    result = _client(ctx).post("/api/admin/revoke-programme-admin", json={"uid": uid_or_email})
     click.echo(_json.dumps(result, indent=2))
 
 

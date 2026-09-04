@@ -92,12 +92,28 @@ def reset_skill_access(body: ResetSkillAccessRequest, request: Request) -> dict[
 class ResearcherClaimRequest(BaseModel):
     """Body for grant/revoke-researcher (sprint 1.1.5).
 
-    ``uid`` is the Firebase Auth UID of the target user. The claim takes
+    ``uid`` is the Firebase Auth UID of the target user, OR their email
+    address (resolved to a UID via ``_resolve_uid``). The claim takes
     effect on that user's NEXT ID-token refresh (Firebase caches the
     current token until it expires, ~1h).
     """
 
     uid: str
+
+
+def _resolve_uid(uid_or_email: str) -> str:
+    """Accept either a Firebase UID or an email address.
+
+    Every claim-grant verb below used to take a raw UID only, which meant
+    granting someone required already knowing their UID — no lookup existed
+    anywhere in this codebase, so in practice that meant a Firebase Console
+    trip or a one-off script. An email always contains "@"; a UID never does.
+    Raises ``fb_auth.UserNotFoundError`` (same as an unknown UID) if the
+    address has no Firebase account.
+    """
+    if "@" in uid_or_email:
+        return fb_auth.get_user_by_email(uid_or_email).uid
+    return uid_or_email
 
 
 def _set_claim(uid: str, key: str, value: Any, *, granted: bool) -> dict:
@@ -176,11 +192,12 @@ def grant_researcher(body: ResearcherClaimRequest, request: Request) -> dict[str
     """
     caller_email = _assert_caller_is_service_account(request)
     try:
-        claims = _set_researcher_claim(body.uid, granted=True)
+        uid = _resolve_uid(body.uid)
+        claims = _set_researcher_claim(uid, granted=True)
     except fb_auth.UserNotFoundError as exc:
-        raise HTTPException(status_code=404, detail=f"No Firebase user with uid {body.uid}") from exc
-    logger.info("admin.grant_researcher: uid=%s by %s", body.uid, caller_email)
-    return {"uid": body.uid, "role": "researcher", "claims": claims}
+        raise HTTPException(status_code=404, detail=f"No Firebase user with uid or email {body.uid}") from exc
+    logger.info("admin.grant_researcher: uid=%s by %s", uid, caller_email)
+    return {"uid": uid, "role": "researcher", "claims": claims}
 
 
 @router.post(
@@ -198,17 +215,19 @@ def revoke_researcher(body: ResearcherClaimRequest, request: Request) -> dict[st
     """
     caller_email = _assert_caller_is_service_account(request)
     try:
-        claims = _set_researcher_claim(body.uid, granted=False)
+        uid = _resolve_uid(body.uid)
+        claims = _set_researcher_claim(uid, granted=False)
     except fb_auth.UserNotFoundError as exc:
-        raise HTTPException(status_code=404, detail=f"No Firebase user with uid {body.uid}") from exc
-    logger.info("admin.revoke_researcher: uid=%s by %s", body.uid, caller_email)
-    return {"uid": body.uid, "role": None, "claims": claims}
+        raise HTTPException(status_code=404, detail=f"No Firebase user with uid or email {body.uid}") from exc
+    logger.info("admin.revoke_researcher: uid=%s by %s", uid, caller_email)
+    return {"uid": uid, "role": None, "claims": claims}
 
 
 class AdminClaimRequest(BaseModel):
     """Body for grant/revoke-admin (P4.4).
 
-    ``uid`` is the Firebase Auth UID of the target user. The claim takes
+    ``uid`` is the Firebase Auth UID of the target user, OR their email
+    address (resolved to a UID via ``_resolve_uid``). The claim takes
     effect on that user's NEXT ID-token refresh (~1h), which matters more
     here than for the researcher claim: until the token refreshes,
     `firestore.rules` still sees the old claim set.
@@ -237,11 +256,12 @@ def grant_admin(body: AdminClaimRequest, request: Request) -> dict[str, Any]:
     """
     caller_email = _assert_caller_is_service_account(request)
     try:
-        claims = _set_admin_claim(body.uid, granted=True)
+        uid = _resolve_uid(body.uid)
+        claims = _set_admin_claim(uid, granted=True)
     except fb_auth.UserNotFoundError as exc:
-        raise HTTPException(status_code=404, detail=f"No Firebase user with uid {body.uid}") from exc
-    logger.info("admin.grant_admin: uid=%s by %s", body.uid, caller_email)
-    return {"uid": body.uid, "admin": True, "claims": claims}
+        raise HTTPException(status_code=404, detail=f"No Firebase user with uid or email {body.uid}") from exc
+    logger.info("admin.grant_admin: uid=%s by %s", uid, caller_email)
+    return {"uid": uid, "admin": True, "claims": claims}
 
 
 @router.post(
@@ -260,17 +280,19 @@ def revoke_admin(body: AdminClaimRequest, request: Request) -> dict[str, Any]:
     """
     caller_email = _assert_caller_is_service_account(request)
     try:
-        claims = _set_admin_claim(body.uid, granted=False)
+        uid = _resolve_uid(body.uid)
+        claims = _set_admin_claim(uid, granted=False)
     except fb_auth.UserNotFoundError as exc:
-        raise HTTPException(status_code=404, detail=f"No Firebase user with uid {body.uid}") from exc
-    logger.info("admin.revoke_admin: uid=%s by %s", body.uid, caller_email)
-    return {"uid": body.uid, "admin": False, "claims": claims}
+        raise HTTPException(status_code=404, detail=f"No Firebase user with uid or email {body.uid}") from exc
+    logger.info("admin.revoke_admin: uid=%s by %s", uid, caller_email)
+    return {"uid": uid, "admin": False, "claims": claims}
 
 
 class ProgrammeAdminClaimRequest(BaseModel):
     """Body for grant/revoke-programme-admin (1.1.76).
 
-    ``uid`` is the Firebase Auth UID of the target user. Takes effect on their
+    ``uid`` is the Firebase Auth UID of the target user, OR their email
+    address (resolved to a UID via ``_resolve_uid``). Takes effect on their
     next ID-token refresh, so a freshly granted admin must reload.
     """
 
@@ -296,11 +318,12 @@ def grant_programme_admin(body: ProgrammeAdminClaimRequest, request: Request) ->
     """
     caller_email = _assert_caller_is_service_account(request)
     try:
-        claims = _set_programme_admin_claim(body.uid, granted=True)
+        uid = _resolve_uid(body.uid)
+        claims = _set_programme_admin_claim(uid, granted=True)
     except fb_auth.UserNotFoundError as exc:
-        raise HTTPException(status_code=404, detail=f"No Firebase user with uid {body.uid}") from exc
-    logger.info("admin.grant_programme_admin: uid=%s by %s", body.uid, caller_email)
-    return {"uid": body.uid, "programmeAdmin": True, "claims": claims}
+        raise HTTPException(status_code=404, detail=f"No Firebase user with uid or email {body.uid}") from exc
+    logger.info("admin.grant_programme_admin: uid=%s by %s", uid, caller_email)
+    return {"uid": uid, "programmeAdmin": True, "claims": claims}
 
 
 @router.post(
@@ -318,11 +341,12 @@ def revoke_programme_admin(body: ProgrammeAdminClaimRequest, request: Request) -
     """
     caller_email = _assert_caller_is_service_account(request)
     try:
-        claims = _set_programme_admin_claim(body.uid, granted=False)
+        uid = _resolve_uid(body.uid)
+        claims = _set_programme_admin_claim(uid, granted=False)
     except fb_auth.UserNotFoundError as exc:
-        raise HTTPException(status_code=404, detail=f"No Firebase user with uid {body.uid}") from exc
-    logger.info("admin.revoke_programme_admin: uid=%s by %s", body.uid, caller_email)
-    return {"uid": body.uid, "programmeAdmin": False, "claims": claims}
+        raise HTTPException(status_code=404, detail=f"No Firebase user with uid or email {body.uid}") from exc
+    logger.info("admin.revoke_programme_admin: uid=%s by %s", uid, caller_email)
+    return {"uid": uid, "programmeAdmin": False, "claims": claims}
 
 
 class PrunePlatformSkillsRequest(BaseModel):

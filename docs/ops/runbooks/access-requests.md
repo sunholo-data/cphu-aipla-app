@@ -89,8 +89,13 @@ beside it rather than more keys to this one.
 ## 2b. Grant someone the in-app route (do this once per person)
 
 ```bash
-aiplatform --env $ENV users grant-programme-admin <firebase-uid>
+aiplatform --env $ENV users grant-programme-admin <uid-or-email>
 ```
+
+Takes either their Firebase UID or their email address — an email is resolved
+to a UID via `fb_auth.get_user_by_email` on the way in, so there is no separate
+lookup step (Firebase Console or otherwise) before this command. Same for
+`grant-researcher` / `grant-admin` and their revoke twins.
 
 Then they use `/teacher/programme` and never touch this runbook again. Bounded:
 they may grant `pilot` up to `PROGRAMME_ADMIN_MAX_CAP_USD` (default $50), may

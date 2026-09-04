@@ -449,3 +449,138 @@ def test_admin_and_researcher_claims_are_independent(client, allow_env):
         )
     assert resp.status_code == 200
     mock_set.assert_called_once_with("u1", {"groupTags": ["beta"], "admin": True})
+
+
+# ─── uid-or-email resolution (`_resolve_uid`) ────────────────────────────────
+#
+# Every claim-grant verb used to take a raw UID only, so granting someone
+# required already knowing their UID out-of-band. An email (contains "@") is
+# now resolved via fb_auth.get_user_by_email before the claim is touched.
+
+
+def test_grant_researcher_accepts_email_and_resolves_to_uid(client, allow_env):
+    fake_by_email = type("U", (), {"uid": "resolved-uid-1"})()
+    fake_user = type("U", (), {"custom_claims": {}})()
+    with (
+        patch("admin.auth.id_token.verify_oauth2_token") as mock_verify,
+        patch("admin.routes.fb_auth.get_user_by_email", return_value=fake_by_email) as mock_by_email,
+        patch("admin.routes.fb_auth.get_user", return_value=fake_user) as mock_get,
+        patch("admin.routes.fb_auth.set_custom_user_claims") as mock_set,
+    ):
+        mock_verify.return_value = {"email": _ALLOWED_SA, "email_verified": True}
+        resp = client.post(
+            "/api/admin/grant-researcher",
+            json={"uid": "jb@ind.ku.dk"},
+            headers={"Authorization": "Bearer stub-id-token"},
+        )
+    assert resp.status_code == 200, resp.text
+    mock_by_email.assert_called_once_with("jb@ind.ku.dk")
+    mock_get.assert_called_once_with("resolved-uid-1")
+    mock_set.assert_called_once_with("resolved-uid-1", {"role": "researcher"})
+    assert resp.json()["uid"] == "resolved-uid-1"
+
+
+def test_grant_researcher_404s_on_unknown_email(client, allow_env):
+    with (
+        patch("admin.auth.id_token.verify_oauth2_token") as mock_verify,
+        patch("admin.routes.fb_auth.get_user_by_email", side_effect=fb_auth.UserNotFoundError("nope")),
+    ):
+        mock_verify.return_value = {"email": _ALLOWED_SA, "email_verified": True}
+        resp = client.post(
+            "/api/admin/grant-researcher",
+            json={"uid": "nobody@ind.ku.dk"},
+            headers={"Authorization": "Bearer stub-id-token"},
+        )
+    assert resp.status_code == 404
+    assert "nobody@ind.ku.dk" in resp.json()["detail"]
+
+
+def test_grant_admin_accepts_email_and_resolves_to_uid(client, allow_env):
+    fake_by_email = type("U", (), {"uid": "resolved-uid-2"})()
+    fake_user = type("U", (), {"custom_claims": {}})()
+    with (
+        patch("admin.auth.id_token.verify_oauth2_token") as mock_verify,
+        patch("admin.routes.fb_auth.get_user_by_email", return_value=fake_by_email) as mock_by_email,
+        patch("admin.routes.fb_auth.get_user", return_value=fake_user),
+        patch("admin.routes.fb_auth.set_custom_user_claims") as mock_set,
+    ):
+        mock_verify.return_value = {"email": _ALLOWED_SA, "email_verified": True}
+        resp = client.post(
+            "/api/admin/grant-admin",
+            json={"uid": "m@sunholo.com"},
+            headers={"Authorization": "Bearer stub-id-token"},
+        )
+    assert resp.status_code == 200, resp.text
+    mock_by_email.assert_called_once_with("m@sunholo.com")
+    mock_set.assert_called_once_with("resolved-uid-2", {"admin": True})
+    assert resp.json()["uid"] == "resolved-uid-2"
+
+
+# ─── programme-admin claim (PROGADMIN-1 — 1.1.76) ────────────────────────────
+#
+# No direct endpoint coverage existed before this — only an unrelated router
+# test asserting these paths were absent from the SA-only route list.
+
+
+def test_grant_programme_admin_requires_allowlisted_sa(client, allow_env):
+    resp = client.post("/api/admin/grant-programme-admin", json={"uid": "u1"})
+    assert resp.status_code == 403
+
+
+def test_grant_programme_admin_merges_claim_preserving_role(client, allow_env):
+    """A researcher granted programme-admin stays a researcher."""
+    fake_user = type("U", (), {"custom_claims": {"role": "researcher"}})()
+    with (
+        patch("admin.auth.id_token.verify_oauth2_token") as mock_verify,
+        patch("admin.routes.fb_auth.get_user", return_value=fake_user) as mock_get,
+        patch("admin.routes.fb_auth.set_custom_user_claims") as mock_set,
+    ):
+        mock_verify.return_value = {"email": _ALLOWED_SA, "email_verified": True}
+        resp = client.post(
+            "/api/admin/grant-programme-admin",
+            json={"uid": "u1"},
+            headers={"Authorization": "Bearer stub-id-token"},
+        )
+    assert resp.status_code == 200, resp.text
+    mock_get.assert_called_once_with("u1")
+    mock_set.assert_called_once_with("u1", {"role": "researcher", "programmeAdmin": True})
+    assert resp.json()["programmeAdmin"] is True
+
+
+def test_revoke_programme_admin_strips_only_the_bit(client, allow_env):
+    fake_user = type("U", (), {"custom_claims": {"role": "researcher", "programmeAdmin": True}})()
+    with (
+        patch("admin.auth.id_token.verify_oauth2_token") as mock_verify,
+        patch("admin.routes.fb_auth.get_user", return_value=fake_user),
+        patch("admin.routes.fb_auth.set_custom_user_claims") as mock_set,
+    ):
+        mock_verify.return_value = {"email": _ALLOWED_SA, "email_verified": True}
+        resp = client.post(
+            "/api/admin/revoke-programme-admin",
+            json={"uid": "u1"},
+            headers={"Authorization": "Bearer stub-id-token"},
+        )
+    assert resp.status_code == 200, resp.text
+    mock_set.assert_called_once_with("u1", {"role": "researcher"})
+    assert resp.json()["programmeAdmin"] is False
+
+
+def test_grant_programme_admin_accepts_email_and_resolves_to_uid(client, allow_env):
+    fake_by_email = type("U", (), {"uid": "resolved-uid-3"})()
+    fake_user = type("U", (), {"custom_claims": {}})()
+    with (
+        patch("admin.auth.id_token.verify_oauth2_token") as mock_verify,
+        patch("admin.routes.fb_auth.get_user_by_email", return_value=fake_by_email) as mock_by_email,
+        patch("admin.routes.fb_auth.get_user", return_value=fake_user),
+        patch("admin.routes.fb_auth.set_custom_user_claims") as mock_set,
+    ):
+        mock_verify.return_value = {"email": _ALLOWED_SA, "email_verified": True}
+        resp = client.post(
+            "/api/admin/grant-programme-admin",
+            json={"uid": "jbruun@ind.ku.dk"},
+            headers={"Authorization": "Bearer stub-id-token"},
+        )
+    assert resp.status_code == 200, resp.text
+    mock_by_email.assert_called_once_with("jbruun@ind.ku.dk")
+    mock_set.assert_called_once_with("resolved-uid-3", {"programmeAdmin": True})
+    assert resp.json()["uid"] == "resolved-uid-3"
