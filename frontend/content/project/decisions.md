@@ -3,8 +3,8 @@ title: "Project decisions"
 description: "A public record of the product and research-infrastructure choices that shape AIPLA, with their rationale and practical consequences."
 eyebrow: "Why the platform works this way"
 owner: "AIPLA project team"
-reviewed: "2026-08-04"
-reviewBy: "2026-09-04"
+reviewed: "2026-09-07"
+reviewBy: "2026-10-07"
 status: "Current"
 order: "75"
 nav: "true"
@@ -78,6 +78,22 @@ This page records the decisions that materially affect the public experience. It
 **Why:** research-facing software needs a reproducible account of what participants used, while classroom deployments need controlled changes and a recovery path.
 
 **Consequence:** feature availability may differ between environments. Public capability descriptions identify what has shipped but do not imply that every feature has completed classroom evaluation.
+
+## September 2026: the public project site is part of the application
+
+**Decision:** the project's public pages are maintained in the application repository and served from the authoritative `aipla.ku.dk` domain, replacing the separate website used during the earlier phase.
+
+**Why:** a project website that lives apart from the product drifts from it. Keeping the public explanation next to the code means a change to the platform and the change to how it is described can be reviewed together, and the pages inherit the same review, accessibility, and deployment checks as the rest of the application.
+
+**Consequence:** each public page carries an owner, a status, and a review date, and a page whose review has lapsed fails the build rather than quietly ageing. The former site remains reachable until its redirects are enabled, so older external links may still resolve to the previous address.
+
+## September 2026: programme-level administration and usage limits
+
+**Decision:** administrative roles for operating the service are separated from teaching roles, and the programme can set a daily usage limit that warns before it restricts.
+
+**Why:** granting access and managing the cost of AI services are operational responsibilities, not teaching ones, and they should not be bundled into a teacher account. A limit that stops a class mid-lesson without warning is worse than one that signals first.
+
+**Consequence:** access grants and programme-level limits are held by named project staff. Usage limits are a budgeting control and are not a research or data-governance measure, which remain separate.
 
 ## Hosting direction
 

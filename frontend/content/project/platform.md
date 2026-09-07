@@ -3,8 +3,8 @@ title: "Platform"
 description: "A public explanation of AIPLA's activity model, connected surfaces, roles, and technical principles."
 eyebrow: "How the application works"
 owner: "AIPLA technical team"
-reviewed: "2026-08-04"
-reviewBy: "2026-09-04"
+reviewed: "2026-09-07"
+reviewBy: "2026-10-07"
 status: "Current"
 order: "60"
 nav: "true"
@@ -73,11 +73,12 @@ AI assistance may propose an activity or edit, but the teacher reviews and appli
 
 ## Roles and access
 
-The platform distinguishes student group access, teacher access, and approved research access.
+The platform distinguishes student group access, teacher access, approved research access, and a small amount of service administration.
 
 - **Student groups** enter only the activity associated with their code.
 - **Teachers** manage their classes, activities, materials, and relevant session views.
 - **Researchers** use a separately authorised role for approved cross-class analysis.
+- **Administrators** operate the service rather than teach with it: granting the roles above and setting programme-level usage limits. The role is held by named project staff.
 
 The existence of a technical role does not itself authorise a research use. Study approval, participant information, and data-governance requirements still apply.
 

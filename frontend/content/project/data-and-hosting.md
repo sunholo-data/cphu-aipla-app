@@ -3,8 +3,8 @@ title: "Data, privacy, and hosting"
 description: "The project's public data-protection principles, present hosting posture, and institutional transition direction."
 eyebrow: "Responsible operation"
 owner: "AIPLA project team"
-reviewed: "2026-08-04"
-reviewBy: "2026-09-04"
+reviewed: "2026-09-07"
+reviewBy: "2026-10-07"
 status: "Provisional"
 order: "70"
 nav: "true"
@@ -23,7 +23,7 @@ Different material has different sensitivity. A parameter changed in a simulatio
 
 ## Teacher and researcher access
 
-Teachers authenticate to manage classes, activities, materials, and the session information available to them. Research access is a distinct permission level intended for approved project work.
+Teachers authenticate to manage classes, activities, materials, and the session information available to them. Research access is a distinct permission level intended for approved project work. A small number of administrative roles exist for operating the service itself — granting access and setting programme-level usage limits — and are held by named project staff rather than being a general capability.
 
 Technical access control is only one layer. Researchers must also follow the applicable study protocol, institutional approvals, retention rules, and participant information.
 
@@ -45,7 +45,7 @@ The application currently operates in separate development, test, and production
 
 Public project pages contain no student research data. Access-controlled application features and research data paths are governed separately.
 
-The project is preparing the authoritative `aipla.ku.dk` domain. Until its DNS and managed certificates are fully active, environment-specific service addresses remain part of technical operation rather than the intended public identity.
+These public pages are served at the authoritative `aipla.ku.dk` domain, which is now the project's public identity. Environment-specific service addresses remain part of technical operation rather than something to cite or share. The project's former website stays reachable until its redirects are enabled, so older external links may still resolve to the previous address.
 
 ## Institutional hosting direction
 

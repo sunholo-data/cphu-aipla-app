@@ -3,8 +3,8 @@ title: "Build timeline"
 description: "A dated public record of how AIPLA progressed from its first connected physics activity to a teacher-authoring, classroom, and research platform."
 eyebrow: "Follow the build"
 owner: "AIPLA project team"
-reviewed: "2026-08-04"
-reviewBy: "2026-09-04"
+reviewed: "2026-09-07"
+reviewBy: "2026-10-07"
 status: "Current"
 order: "80"
 nav: "true"
@@ -67,6 +67,12 @@ For the reasoning behind the platform's shape, read [Project decisions](/project
 
 **What changed:** the work became easier to operate, hand over, and explain as one maintained system. This in-app site now includes a live Boldkast workbench, an updated platform diagram, this timeline, and a public decision record.
 
+## September 2026 — the public site moves to its own domain
+
+**Shipped to the active development line:** the public project pages moved into the application and are now served at the authoritative `aipla.ku.dk` domain, with editorial metadata and review deadlines enforced automatically. Administrative roles were separated from teaching roles, and a programme-level daily usage limit was added that warns before it restricts.
+
+**What changed:** the project's public explanation and its software are now one maintained artefact, reviewed and deployed together. The project's former website stays reachable until its redirects are enabled.
+
 ## Current capability snapshot
 
 As of this page's review date, the active platform line includes:
@@ -91,8 +97,7 @@ The next public updates will follow evidence and operating milestones rather tha
 - changes made in response to teacher and student experience;
 - dated, reproducible evaluation snapshots;
 - privacy, consent, and institutional-hosting decisions for each study phase;
-- reusable teacher resources and maintained example activities; and
-- the move to the `aipla.ku.dk` domain once DNS and institutional checks are complete.
+- reusable teacher resources and maintained example activities.
 
 The old site's detailed 17-week contract plan is preserved in its source history. It is not presented as the current roadmap because tentative dates, named handover assignments, and internal backlog do not all describe the platform as it exists now.
 
