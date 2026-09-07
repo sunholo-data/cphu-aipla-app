@@ -43,10 +43,18 @@ inside a 3-year research programme.
 
 ### Source of truth for AIPLA design
 
-**The scoping site is a separate Quarto repository, `sunholo-data/aipla`**
-(checked out on this machine at `~/dev/sunholo-data/aipla`; on this laptop it is
-still at the pre-move path `~/Documents/clients/cph-uni` — reconcile before
-trusting either). Its public-safe content has been audited and migrated into
+**The scoping site was a separate Quarto repository, `sunholo-data/aipla`**,
+checked out at `~/dev/sunholo-data/aipla`. **Verified 2026-09-07:** the
+pre-move path `~/Documents/clients/cph-uni` no longer exists, so that
+reconcile-before-trusting note is discharged — there is one checkout.
+
+⚠️ **That repo is READ-ONLY to the bot account.** `sunholo-voight-kampff` is an
+org member with `push: false` on `sunholo-data/aipla` and admin on
+`sunholo-data/cphu-aipla-app`. This is why that clone sat 30 commits behind with
+two June commits stranded since 2026-06-05: they could never be pushed. **Do not
+plan work that ends in a push there.** New work belongs in this repo.
+
+Its public-safe content has been audited and migrated into
 this app. Maintained English project copy now lives under
 `frontend/content/project/` and renders at `/project`, including nested
 activity case studies. Every Markdown file must include content status, owner,
@@ -54,9 +62,16 @@ reviewed date, review deadline, order, and navigation visibility. Run
 `cd frontend && npm run check:project-content` after editing it.
 
 **The Quarto site itself was retired 2026-09-01** (`sunholo-data/aipla`
-commit `92133d9`, still unpushed as of this note). `https://www.sunholo.com/aipla/`
-now redirects page-for-page to **`https://aipla.ku.dk/project`** — that domain,
-not sunholo.com, is the current public site. See
+commit `92133d9` — **pushed**; it is `origin/main` there, contrary to the earlier
+"still unpushed" note). **`https://aipla.ku.dk/project` is live** and is the
+current public site — verified 2026-09-07: HTTP 200, no `X-Robots-Tag`,
+`robots.txt` allows crawling, sitemap published.
+
+⚠️ **The redirect is NOT live yet.** `https://www.sunholo.com/aipla/` still
+returns 200 and serves the original Quarto pages — it does **not** redirect. The
+redirect package is built but gated on production acceptance. So both sites are
+currently live and indexable, which is the one state worth not sitting in for
+long. Cite `aipla.ku.dk` regardless; it is the URL that survives the cutover. See
 [docs/ops/project-site-cutover.md](docs/ops/project-site-cutover.md) for the
 cutover sequencing (the redirect only goes live after production acceptance;
 until then the old Quarto site stays up).
@@ -110,9 +125,21 @@ completes.
 build on any reintroduced ``` (local path — not in this repo)`, so this cannot
 silently regress.
 
-**This repo is execution.** Don't write new AIPLA design docs in this
-repo's `docs/`; that directory still holds the template's own design
-material. AIPLA-specific ADRs and progress live in the scoping site.
+**Everything consolidates in THIS repo now** (2026-09-07). The older instruction
+here — *"don't write new AIPLA design docs in this repo's `docs/`; AIPLA-specific
+ADRs and progress live in the scoping site"* — was written while the scoping site
+was live and is **no longer correct**. The site is retired and the bot cannot
+push there, so pointing new work at it sends the writer to a dead end.
+
+- **New AIPLA design docs** → `docs/design/aipla/<version>/` (that tree is
+  already the real home: `v1.1.0-feedback`, `v2.0.0-handover`, `v2.1.0-extension`).
+  `docs/design/v6.*` is still the inherited template's own material — don't mix.
+- **Historical ADRs by number** → the pinned snapshot
+  [`docs/design/aipla/_scoping-snapshot/architecture.qmd`](docs/design/aipla/_scoping-snapshot/architecture.qmd).
+- **The capability-floor benchmark harness** (`stx-bench`, AILANG) →
+  **[`research/stx-bench/`](research/stx-bench/)**, migrated out of the scoping
+  repo on 2026-09-07. `./preflight-local.sh` then `./run-local-gpu.sh`. The exam
+  corpus is **never committed** (Prøvebanken, §11 c — see the harness README).
 
 ### How AIPLA diverges from the template's defaults
 
@@ -478,10 +505,21 @@ Full history + fixes for the dual-auth one: memory `feedback-anonymous-users-are
 
 ## Git Policy
 
-- Push with `sunholo-voight-kampff` account (now an `Aitana-Labs` org member)
-- GitHub org: `Aitana-Labs` (transferred from `sunholo-data` on 2026-04-14)
-- Repo: `Aitana-Labs/platform`
-- Never force-push to dev/test/prod
+> ⚠️ The three lines that used to sit here (`Aitana-Labs` org, `Aitana-Labs/platform`)
+> were inherited from the template and were never right for AIPLA. Corrected
+> 2026-09-07 against the live GitHub permissions.
+
+- Push with the `sunholo-voight-kampff` account
+- GitHub org: **`sunholo-data`**. Repo: **`sunholo-data/cphu-aipla-app`**
+- **Access, verified 2026-09-07:** the account is an org *member* (not owner),
+  with **admin on `cphu-aipla-app`** and **pull-only on `sunholo-data/aipla`**
+  (the retired scoping repo). A push there fails with 403 — that is a permission
+  boundary, not a broken credential, and there is no second account or working
+  SSH key on this machine to fall back to
+- `dev` is the only branch; commit straight to it, no PRs for dev work.
+  Promotion is **tag-based**, not branch-based — `test`/`prod` branches do not
+  exist (deleted 2026-07-30). See "Environment promotion" above
+- Never force-push to `dev`
 - Commit messages: conventional commits (`feat:`, `fix:`, `docs:`)
 
 ## Common Mistakes

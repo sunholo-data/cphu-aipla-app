@@ -24,6 +24,71 @@ Built against **AILANG v0.29.2**. Verified API surface, not assumed.
 | Stage 2 — full corpus runner | **Pending** — trial.ail over items.jsonl question_text; gated (spend + question_text + VERIFY.md) |
 | Stage 3 — provisional keys | Gated on Stage 1 passing |
 
+## What the corpus is — the files you must bring
+
+**Nothing here is committed.** The exam text and keys are Prøvebanken material used
+under the §11 c research exception; `.gitignore` blocks every path below. They live
+on university-controlled infrastructure, which since 2026-09-07 includes this host.
+
+`./preflight-local.sh` checks all of this and names what is missing.
+
+### Minimum for the TEXT benchmark — one file
+
+| File | Notes |
+|---|---|
+| `runs/stage0/items.jsonl` | **The only required input.** One record per subquestion: `item_id`, `set`, `subq`, `topics[]`, `question_text`, `raw_key`, `runnable`, `expected{value,unit,tolerance_rel}`. The runner reads nothing else |
+| `runs/stage0/recovered.jsonl` | *Optional.* Human-curated final answers for items Stage-0 flagged needs-review. Absent = those items stay excluded |
+
+If you can bring `items.jsonl` itself, the raw corpus can stay where it is — the
+catalogue, answer keys and docparse output are only needed to *build* it.
+
+### Additionally for the FIGURE benchmark
+
+| File | Notes |
+|---|---|
+| `runs/stage0/figures.jsonl` | `item_id` -> `[local image paths]`. ⚠️ **Hand-curated — no `.ail` writes it.** It cannot be regenerated; it must be brought |
+| the image files themselves | At the paths `figures.jsonl` names. Read via `readFileBytes` -> base64 -> `ImagePart` |
+
+### Only if REBUILDING `items.jsonl` from raw sources
+
+Set `STX_SOURCE_DIR` (it overrides the `/Users/mark/...` defaults baked into
+`stage0.ail`, `items.ail`, `extract_questions.ail`):
+
+| File | Under |
+|---|---|
+| `stx-exam-catalogue.yaml` | `$STX_SOURCE_DIR/` — problem titles, topics, modality |
+| `key-1stx-2023.json`, `key-1stx-2024.json`, `key-2stx-2023.json`, `key-2stx-2024.json` | `$STX_SOURCE_DIR/answer-keys/` |
+| `1stx231/`, `1stx241/`, `2stx231/`, `2stx241/` each holding `index.html.md` | `runs/docparse/` — docparse markdown of each paper, figure descriptions inline |
+
+```bash
+export STX_SOURCE_DIR=/path/to/aswin-july
+ailang run --caps IO,FS,Env    --entry main benchmark/stage0.ail
+ailang run --caps IO,FS,AI,Env --entry main benchmark/extract_questions.ail  # spends AI budget
+ailang run --caps IO,FS,Env    --entry main benchmark/items.ail
+```
+
+`extract_questions.ail` is the only rebuild step that calls a model: it slices each
+paper's markdown into per-subquestion `question_text`, writing
+`runs/questions/questions-<short>.jsonl`, which `items.ail` then joins to the keys.
+
+## Local-GPU runs
+
+```bash
+./preflight-local.sh     # what is missing, and whether the GPU is contended
+./run-local-gpu.sh       # 5 runs per enabled .local_gpu_panel model
+./run-local-gpu.sh 1     # 1 run, quick shake-out
+```
+
+Two things to know before comparing a local number to a July number:
+
+- **Local verdicts are deterministic-only, so a local score is a LOWER BOUND.**
+  AILANG's `callJsonResult` returns empty on Ollama (reproduce with
+  `benchmark/smokejson.ail`), so `runmodel_local.ail` uses the `step` + FACIT path
+  and the LLM-judge fallback does not run. A right answer in an odd unit grades
+  `incorrect` here where the cloud path would rescue it.
+- **Accuracy survives GPU contention; throughput does not.** Preflight warns when
+  other model clients are running and when a model is mid-eviction.
+
 ## Run it
 
 ```bash
