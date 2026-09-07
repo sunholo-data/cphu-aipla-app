@@ -1,0 +1,112 @@
+module benchmark/mockrun
+
+-- MOCK multi-model result generator (NO AI, NO real model performance).
+-- Produces runs/stage2/results.jsonl in the exact shape the real Stage-2 runner
+-- will emit, so the report (benchmark/matrix.ail) can be built and validated
+-- cost-free. Verdicts are a deterministic Guttman-style pattern: each item gets a
+-- synthetic difficulty, each mock tier a synthetic skill, correct iff skill >=
+-- difficulty. This creates realistic tier descent + divergence to exercise the
+-- report — it says NOTHING about real models.
+--
+-- Run: ailang run --caps IO,FS --entry main benchmark/mockrun.ail
+--   (run benchmark/items.ail first to produce items.jsonl)
+
+import std/fs (readFile, writeFile, mkdirAll)
+import std/json (decode, getString, getBool, getArray, asString, Json)
+import std/option (Option, Some, None, getOrElse)
+import std/result (Ok, Err)
+import std/list (map, filter, length)
+import std/string (trim, split, length as strLen)
+
+type Item = { item_id: string, set: string, subq: string, topics: [string] }
+type Tier = { name: string, skill: int }
+
+-- Four synthetic tiers. Top ceilings the set; each lower tier solves fewer.
+pure func tiers() -> [Tier] =
+  [ { name: "mock-pro",   skill: 95 },
+    { name: "mock-flash", skill: 80 },
+    { name: "mock-2p5",   skill: 68 },
+    { name: "mock-lite",  skill: 52 } ]
+
+pure func modI(a: int, b: int) -> int = a - (a / b) * b
+
+-- Synthetic item difficulty in [35, 89], spread deterministically by index.
+pure func difficulty(i: int) -> int = 35 + modI(i * 13, 55)
+
+pure func verdictFor(skill: int, i: int) -> string =
+  if skill >= difficulty(i) then "correct" else "incorrect"
+
+-- ---- load runnable items (item_id/set/subq/topics only) --------------------
+
+pure func parseTopics(arr: [Json]) -> [string] =
+  filter(\s. strLen(s) > 0, map(\j. getOrElse(asString(j), ""), arr))
+
+pure func rowToItem(j: Json) -> Option[Item] =
+  if getOrElse(getBool(j, "runnable"), false) then
+    Some({
+      item_id: getOrElse(getString(j, "item_id"), "?"),
+      set: getOrElse(getString(j, "set"), ""),
+      subq: getOrElse(getString(j, "subq"), ""),
+      topics: parseTopics(getOrElse(getArray(j, "topics"), []))
+    })
+  else None
+
+pure func collectItems(lines: [string]) -> [Item] =
+  match lines {
+    [] => [],
+    l :: rest =>
+      if trim(l) == "" then collectItems(rest)
+      else
+        match decode(l) {
+          Ok(j)  => match rowToItem(j) { Some(it) => it :: collectItems(rest), None => collectItems(rest) },
+          Err(_) => collectItems(rest)
+        }
+  }
+
+func loadItems(path: string) -> [Item] ! {FS} {
+  let raw = readFile(path);
+  collectItems(split(raw, "\n"))
+}
+
+-- ---- render one line per (item, tier) --------------------------------------
+
+pure func quoteJoin(xs: [string]) -> string =
+  match xs {
+    [] => "",
+    x :: rest =>
+      match rest {
+        [] => "\"${x}\"",
+        _  => "\"${x}\",${quoteJoin(rest)}"
+      }
+  }
+
+pure func lineFor(it: Item, i: int, t: Tier) -> string {
+  let verdict = verdictFor(t.skill, i);
+  let outTok = 20 + modI(i, 15);
+  "{\"item_id\":\"${it.item_id}\",\"set\":\"${it.set}\",\"subq\":\"${it.subq}\",\"topics\":[${quoteJoin(it.topics)}],\"model\":\"${t.name}\",\"verdict\":\"${verdict}\",\"in_tokens\":60,\"out_tokens\":${show(outTok)}}"
+}
+
+pure func renderTiers(it: Item, i: int, ts: [Tier]) -> string =
+  match ts {
+    [] => "",
+    t :: rest => "${lineFor(it, i, t)}\n${renderTiers(it, i, rest)}"
+  }
+
+pure func renderItems(items: [Item], i: int) -> string =
+  match items {
+    [] => "",
+    it :: rest => "${renderTiers(it, i, tiers())}${renderItems(rest, i + 1)}"
+  }
+
+export func main() -> () ! {IO, FS} {
+  let items = loadItems("runs/stage0/items.jsonl");
+  let n = length(items);
+  let m = length(tiers());
+  println("MOCK Stage-2 result generator (SYNTHETIC verdicts — not real models)");
+  if n == 0 then println("  no items (run benchmark/items.ail first)")
+  else {
+    mkdirAll("runs/stage2");
+    writeFile("runs/stage2/results.jsonl", renderItems(items, 0));
+    println("wrote runs/stage2/results.jsonl : ${show(n)} items x ${show(m)} mock tiers = ${show(n * m)} rows")
+  }
+}

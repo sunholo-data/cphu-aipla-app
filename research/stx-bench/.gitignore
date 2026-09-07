@@ -1,0 +1,14 @@
+# AILANG compile cache (build artifact)
+.ailang/
+**/.ailang/
+
+# Copyright/privacy: exam problem text and key text NEVER leave the machine
+# except inside model API calls. Nothing derived from sources/ is committed.
+catalogue.json
+items.jsonl
+runs/
+*.key.json
+# Belt-and-braces: never let a stray copy of the private inputs in here.
+sources/
+extracted-text/
+answer-keys/

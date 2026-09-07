@@ -1,0 +1,95 @@
+module benchmark/stage0
+
+-- Stage 0 runner (key half). Reads the four gold answer-key JSON files, runs the
+-- deterministic extractor over every subquestion, and reports coverage plus the
+-- real dry-run self-test: each Numeric key fed back as its own answer MUST grade
+-- "correct" (acceptance item 4, over the actual keys rather than synthetic data).
+--
+-- Catalogue fields (item_id/topics/flags) are added once std/yaml lands upstream;
+-- this pass proves the JSON-key -> Expected -> grader path end to end.
+--
+-- Run: ailang run --caps IO,FS --entry main benchmark/stage0.ail
+
+import benchmark/keyparse (KeyValue, Numeric, Symbolic, NeedsReview, extractKey)
+import benchmark/grader (Expected, gradeNumeric, verdictLabel)
+import std/fs (readFile)
+import std/json (decode, asArray, getString, Json)
+import std/option (getOrElse)
+import std/result (Result, Ok, Err)
+import std/list (length)
+import std/env (getEnvOr)
+
+type Counts = { numeric: int, dryok: int, symbolic: int, review: int }
+
+pure func addCounts(a: Counts, b: Counts) -> Counts =
+  { numeric:  a.numeric  + b.numeric,
+    dryok:    a.dryok    + b.dryok,
+    symbolic: a.symbolic + b.symbolic,
+    review:   a.review   + b.review }
+
+func printCounts(c: Counts) -> () ! {IO} {
+  let parsed = c.numeric;
+  println("   numeric parsed : ${show(parsed)}   (dry-run correct: ${show(c.dryok)}/${show(parsed)})");
+  println("   symbolic       : ${show(c.symbolic)}");
+  println("   needs review   : ${show(c.review)}")
+}
+
+func scanOne(setShort: string, it: Json, acc: Counts) -> Counts ! {IO} {
+  let subq = getOrElse(getString(it, "subq"), "?");
+  let answer = getOrElse(getString(it, "answer"), "");
+  match extractKey(answer) {
+    Numeric(v, u) => {
+      let dry = verdictLabel(gradeNumeric({ value: v, unit: u, tolerance_rel: 0.05 }, v, u));
+      let ok = dry == "correct";
+      let flag = if ok then "ok" else "DRY-FAIL";
+      println("   ${setShort}-${subq}  NUMERIC  ${show(v)} ${u}   [${flag}]");
+      { numeric: acc.numeric + 1, dryok: acc.dryok + (if ok then 1 else 0),
+        symbolic: acc.symbolic, review: acc.review }
+    },
+    Symbolic => {
+      println("   ${setShort}-${subq}  SYMBOLIC (reaction/prose)");
+      { numeric: acc.numeric, dryok: acc.dryok, symbolic: acc.symbolic + 1, review: acc.review }
+    },
+    NeedsReview(r) => {
+      println("   ${setShort}-${subq}  REVIEW: ${r}");
+      { numeric: acc.numeric, dryok: acc.dryok, symbolic: acc.symbolic, review: acc.review + 1 }
+    }
+  }
+}
+
+func scanItems(setShort: string, items: [Json], acc: Counts) -> Counts ! {IO} {
+  match items {
+    [] => acc,
+    it :: rest => scanItems(setShort, rest, scanOne(setShort, it, acc))
+  }
+}
+
+func processFile(setShort: string, path: string) -> Counts ! {IO, FS} {
+  let zero = { numeric: 0, dryok: 0, symbolic: 0, review: 0 };
+  let raw = readFile(path);
+  match decode(raw) {
+    Err(e) => { println("   DECODE ERROR ${setShort}: ${e}"); zero },
+    Ok(j)  =>
+      match asArray(j) {
+        None        => { println("   NOT AN ARRAY ${setShort}"); zero },
+        Some(items) => {
+          println("-- ${setShort} (${show(length(items))} subq) --");
+          scanItems(setShort, items, zero)
+        }
+      }
+  }
+}
+
+export func main() -> () ! {IO, FS, Env} {
+  let root = getEnvOr("STX_SOURCE_DIR", "/Users/mark/Documents/clients/cph-uni/sources/aswin-july");
+  let base = "${root}/answer-keys";
+  println("STX Stage-0 key extraction (deterministic, no AI)");
+  println("");
+  let c1 = processFile("1stx231", "${base}/key-1stx-2023.json");
+  let c2 = processFile("1stx241", "${base}/key-1stx-2024.json");
+  let c3 = processFile("2stx231", "${base}/key-2stx-2023.json");
+  let c4 = processFile("2stx241", "${base}/key-2stx-2024.json");
+  println("");
+  println("== TOTAL (60 subquestions) ==");
+  printCounts(addCounts(addCounts(c1, c2), addCounts(c3, c4)))
+}

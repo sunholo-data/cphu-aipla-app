@@ -1,0 +1,178 @@
+module benchmark/matrix
+
+-- Stage-2 report: reads a MULTI-model results.jsonl (item_id, set, model,
+-- verdict, topics, in_tokens, out_tokens) and prints the tier-descent view:
+--   1. per-model overall accuracy + token cost
+--   2. per-topic x per-model matrix
+--   3. divergence list — items the top tier gets right and a lower tier gets
+--      wrong, shown as a per-tier +/- pattern
+--
+-- Works on real or mock results. Run benchmark/mockrun.ail for a synthetic set.
+-- Run: ailang run --caps IO,FS --entry main benchmark/matrix.ail
+
+import std/fs (readFile)
+import std/json (decode, getString, getNumber, getArray, asString, Json)
+import std/option (getOrElse)
+import std/result (Ok, Err)
+import std/list (length, map, filter, any)
+import std/string (trim, split, length as strLen)
+
+type ResultRec = {
+  item_id: string, set: string, model: string,
+  verdict: string, topics: [string], tokens: float
+}
+
+pure func parseTopics(arr: [Json]) -> [string] =
+  filter(\s. strLen(s) > 0, map(\j. getOrElse(asString(j), ""), arr))
+
+pure func rowToRes(j: Json) -> ResultRec =
+  { item_id: getOrElse(getString(j, "item_id"), "?"),
+    set: getOrElse(getString(j, "set"), ""),
+    model: getOrElse(getString(j, "model"), "?"),
+    verdict: getOrElse(getString(j, "verdict"), ""),
+    topics: parseTopics(getOrElse(getArray(j, "topics"), [])),
+    tokens: getOrElse(getNumber(j, "in_tokens"), 0.0) + getOrElse(getNumber(j, "out_tokens"), 0.0) }
+
+pure func collectRes(lines: [string]) -> [ResultRec] =
+  match lines {
+    [] => [],
+    l :: rest =>
+      if trim(l) == "" then collectRes(rest)
+      else
+        match decode(l) {
+          Ok(j)  => rowToRes(j) :: collectRes(rest),
+          Err(_) => collectRes(rest)
+        }
+  }
+
+func loadResults(path: string) -> [ResultRec] ! {FS} {
+  let raw = readFile(path);
+  collectRes(split(raw, "\n"))
+}
+
+-- ---- helpers ---------------------------------------------------------------
+
+pure func member(x: string, xs: [string]) -> bool = any(\y. y == x, xs)
+
+pure func uniqAcc(xs: [string], seen: [string]) -> [string] =
+  match xs {
+    [] => seen,
+    h :: t => if member(h, seen) then uniqAcc(t, seen) else uniqAcc(t, seen ++ [h])
+  }
+
+pure func unique(xs: [string]) -> [string] = uniqAcc(xs, [])
+
+pure func acc(correct: int, total: int) -> string =
+  if total == 0 then "0/0" else "${show(correct)}/${show(total)} (${show(correct * 100 / total)}%)"
+
+pure func sumTokens(recs: [ResultRec]) -> float =
+  match recs {
+    [] => 0.0,
+    r :: rest => r.tokens + sumTokens(rest)
+  }
+
+pure func isCorrect(r: ResultRec) -> bool = r.verdict == "correct"
+
+-- verdict of one (item, model) cell, "?" if absent
+pure func cell(recs: [ResultRec], item: string, model: string) -> string =
+  match filter(\r. r.item_id == item && r.model == model, recs) {
+    []     => "?",
+    r :: _ => r.verdict
+  }
+
+pure func mark(v: string) -> string = if v == "correct" then "+" else "-"
+
+pure func allSame(recs: [ResultRec], item: string, models: [string], first: string) -> bool =
+  match models {
+    [] => true,
+    m :: rest => if cell(recs, item, m) == first then allSame(recs, item, rest, first) else false
+  }
+
+-- ---- printing --------------------------------------------------------------
+
+func printModels(recs: [ResultRec], models: [string]) -> () ! {IO} =
+  match models {
+    [] => (),
+    m :: rest => {
+      let cor = length(filter(\r. r.model == m && r.verdict == "correct", recs));
+      let inc = length(filter(\r. r.model == m && r.verdict == "incorrect", recs));
+      let ab = length(filter(\r. r.model == m && r.verdict == "abstain", recs));
+      println("  ${m}   ${acc(cor, cor + inc)} solved   abstain=${show(ab)}   (${show(cor)}✓ ${show(inc)}✗ ${show(ab)}∅)");
+      printModels(recs, rest)
+    }
+  }
+
+pure func topicCols(recs: [ResultRec], t: string, models: [string]) -> string =
+  match models {
+    [] => "",
+    m :: rest => {
+      let tot = length(filter(\r. r.model == m && member(t, r.topics), recs));
+      let cor = length(filter(\r. r.model == m && member(t, r.topics) && isCorrect(r), recs));
+      "  ${m}=${show(cor)}/${show(tot)}${topicCols(recs, t, rest)}"
+    }
+  }
+
+func printTopics(recs: [ResultRec], topics: [string], models: [string]) -> () ! {IO} =
+  match topics {
+    [] => (),
+    t :: rest => {
+      println("  ${t}${topicCols(recs, t, models)}");
+      printTopics(recs, rest, models)
+    }
+  }
+
+pure func patternFor(recs: [ResultRec], item: string, models: [string]) -> string =
+  match models {
+    [] => "",
+    m :: rest => "${m}:${mark(cell(recs, item, m))} ${patternFor(recs, item, rest)}"
+  }
+
+-- divergent = top tier correct AND not all tiers agree
+func printDivergence(recs: [ResultRec], items: [string], models: [string], top: string) -> () ! {IO} =
+  match items {
+    [] => (),
+    item :: rest => {
+      let topOk = cell(recs, item, top) == "correct";
+      let same = allSame(recs, item, models, cell(recs, item, top));
+      if topOk && (if same then false else true) then {
+        let topics = match filter(\r. r.item_id == item, recs) { [] => [], r :: _ => r.topics };
+        println("  ${item}  [${topicList(topics)}]  ${patternFor(recs, item, models)}")
+      } else ();
+      printDivergence(recs, rest, models, top)
+    }
+  }
+
+pure func topicList(xs: [string]) -> string =
+  match xs {
+    [] => "",
+    x :: rest => match rest { [] => x, _ => "${x},${topicList(rest)}" }
+  }
+
+export func main() -> () ! {IO, FS} {
+  let recs = loadResults("runs/stage2/results.jsonl");
+  let n = length(recs);
+  println("STX Stage-2 tier-descent report");
+  println("source: runs/stage2/results.jsonl");
+  println("");
+  if n == 0 then println("no results (run benchmark/mockrun.ail or the live Stage-2 runner first)")
+  else {
+    let models = unique(map(\r. r.model, recs));
+    let topics = unique(concatTopics(map(\r. r.topics, recs)));
+    let top = match models { [] => "", m :: _ => m };
+    println("per model (overall + token cost):");
+    printModels(recs, models);
+    println("");
+    println("per topic x model:");
+    printTopics(recs, topics, models);
+    println("");
+    println("divergence (top tier '${top}' correct, a lower tier wrong):");
+    printDivergence(recs, unique(map(\r. r.item_id, recs)), models, top)
+  }
+}
+
+-- flatten [[string]] -> [string]
+pure func concatTopics(xss: [[string]]) -> [string] =
+  match xss {
+    [] => [],
+    xs :: rest => xs ++ concatTopics(rest)
+  }

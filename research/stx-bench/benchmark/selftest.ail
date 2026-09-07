@@ -1,0 +1,83 @@
+module benchmark/selftest
+
+-- Grader self-test (no AI, no cost). Exercises the pure grading core against a
+-- table of synthetic Expected records — including the "key fed back as its own
+-- answer -> Correct" invariant that Stage 0's dry-run (--models none) will later
+-- run over the real official keys. This is the grader half of acceptance item 4.
+--
+-- Run:  ailang run --caps IO --entry main benchmark/selftest.ail
+
+import benchmark/grader (Expected, gradeNumeric, verdictLabel)
+import std/list (map, filter, length)
+
+type Case = {
+  name: string,
+  exp: Expected,
+  aval: float,
+  aunit: string,
+  want: string
+}
+
+pure func runCase(c: Case) -> bool =
+  verdictLabel(gradeNumeric(c.exp, c.aval, c.aunit)) == c.want
+
+func printResults(rs: [{name: string, ok: bool}]) -> () ! {IO} {
+  match rs {
+    [] => (),
+    r :: rest => {
+      let mark = if r.ok then "ok  " else "FAIL";
+      println("  [${mark}] ${r.name}");
+      printResults(rest)
+    }
+  }
+}
+
+export func main() -> () ! {IO} {
+  let cases = [
+    -- key fed back as its own answer, exact -> Correct (the dry-run invariant)
+    { name: "key-as-answer exact (59 m/s)",
+      exp: { value: 59.0, unit: "m/s", tolerance_rel: 0.05 },
+      aval: 59.0, aunit: "m/s", want: "correct" },
+    -- within default 5% tolerance -> Correct
+    { name: "within tolerance (18.4 vs 18 kJ)",
+      exp: { value: 18.0, unit: "kJ", tolerance_rel: 0.05 },
+      aval: 18.4, aunit: "kJ", want: "correct" },
+    -- outside tolerance -> Incorrect
+    { name: "outside tolerance (0.34 vs 0.301 m)",
+      exp: { value: 0.301, unit: "m", tolerance_rel: 0.05 },
+      aval: 0.34, aunit: "m", want: "incorrect" },
+    -- SI-prefix normalisation: 1.93 kN == 1930 N -> Correct
+    { name: "prefix normalise (1.93 kN vs 1930 N)",
+      exp: { value: 1930.0, unit: "N", tolerance_rel: 0.05 },
+      aval: 1.93, aunit: "kN", want: "correct" },
+    -- compound-unit conversion: 84 km/h == 23.33 m/s -> Correct
+    { name: "km/h -> m/s (84 km/h vs 23.33 m/s)",
+      exp: { value: 23.33, unit: "m/s", tolerance_rel: 0.05 },
+      aval: 84.0, aunit: "km/h", want: "correct" },
+    -- time conversion: 24.6 min == 1476 s, key 1475 s -> within tol Correct
+    { name: "min -> s (24.6 min vs 1475 s)",
+      exp: { value: 1475.0, unit: "s", tolerance_rel: 0.05 },
+      aval: 24.6, aunit: "min", want: "correct" },
+    -- wrong unit that DOES convert but value is off -> Incorrect
+    { name: "converts but wrong value (100 km/h vs 23.33 m/s)",
+      exp: { value: 23.33, unit: "m/s", tolerance_rel: 0.05 },
+      aval: 100.0, aunit: "km/h", want: "incorrect" },
+    -- unit outside the table and not identical -> Ambiguous (escalate to judge)
+    { name: "unknown incomparable unit -> ambiguous",
+      exp: { value: 5.0, unit: "widgets", tolerance_rel: 0.05 },
+      aval: 5.0, aunit: "sprockets", want: "ambiguous" },
+    -- unknown BUT identical unit strings still compare directly -> Correct
+    { name: "unknown identical unit compares (5 vs 5 widgets)",
+      exp: { value: 5.0, unit: "widgets", tolerance_rel: 0.05 },
+      aval: 5.0, aunit: "widgets", want: "correct" }
+  ];
+  let results = map(\c. { name: c.name, ok: runCase(c) }, cases);
+  println("STX grader self-test");
+  printResults(results);
+  let passed = length(filter(\r. r.ok, results));
+  let total = length(cases);
+  println("");
+  println("SELFTEST: ${show(passed)}/${show(total)} passed");
+  if passed == total then println("RESULT: PASS")
+  else println("RESULT: FAIL")
+}

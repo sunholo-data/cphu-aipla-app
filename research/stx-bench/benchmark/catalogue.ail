@@ -1,0 +1,101 @@
+module benchmark/catalogue
+
+-- Catalogue ingestion (Stage 0). Reads the YAML corpus catalogue via std/yaml
+-- and exposes per-problem metadata (title, topics, modality) so the item
+-- builder can attach topics/flags to each answer-key subquestion.
+--
+-- Topics live at the PROBLEM level in the catalogue and are inherited by every
+-- subquestion of that problem; `subquestions` is a count, so we join a key's
+-- subq id ("4b") to its problem via the leading number (4).
+--
+-- Unblocked by std/yaml (shipped 2026-07-14).
+
+import std/yaml (decode)
+import std/fs (readFile)
+import std/json (getString, getNumber, getArray, asString, Json)
+import std/option (Option, Some, None, getOrElse)
+import std/result (Ok, Err)
+import std/list (map, filter, any)
+import std/string (length, charAt, substring, contains, stringToFloat)
+
+export type ProblemMeta = {
+  no: int,
+  title: string,
+  topics: [string],
+  modality: [string]
+}
+
+-- ---- subq "4b" -> problem number 4 -----------------------------------------
+
+pure func isDig(c: string) -> bool = contains("0123456789", c)
+
+pure func leadNum(s: string, i: int) -> int =
+  if i >= length(s) then i
+  else if isDig(charAt(s, i)) then leadNum(s, i + 1)
+  else i
+
+export pure func subqProblemNo(subq: string) -> int {
+  let e = leadNum(subq, 0);
+  if e == 0 then 0
+  else
+    match stringToFloat(substring(subq, 0, e)) {
+      Some(f) => _float_to_int(f),
+      None    => 0
+    }
+}
+
+-- ---- JSON helpers ----------------------------------------------------------
+
+pure func getArrayOr(j: Json, key: string) -> [Json] =
+  getOrElse(getArray(j, key), [])
+
+pure func jsonStrList(arr: [Json]) -> [string] =
+  filter(\s. length(s) > 0, map(\j. getOrElse(asString(j), ""), arr))
+
+pure func problemFromJson(p: Json) -> ProblemMeta =
+  { no: _float_to_int(getOrElse(getNumber(p, "no"), 0.0)),
+    title: getOrElse(getString(p, "title"), ""),
+    topics: jsonStrList(getArrayOr(p, "topics")),
+    modality: jsonStrList(getArrayOr(p, "modality")) }
+
+pure func findUnit(units: [Json], setId: string) -> Option[Json] =
+  match units {
+    [] => None,
+    u :: rest =>
+      if getOrElse(getString(u, "id"), "") == setId then Some(u)
+      else findUnit(rest, setId)
+  }
+
+-- Load the problem metadata for one exam set from the catalogue file.
+export func loadProblems(catPath: string, setId: string) -> [ProblemMeta] ! {FS} {
+  let raw = readFile(catPath);
+  match decode(raw) {
+    Err(_) => [],
+    Ok(j)  =>
+      match getArray(j, "units") {
+        None        => [],
+        Some(units) =>
+          match findUnit(units, setId) {
+            None    => [],
+            Some(u) => map(problemFromJson, getArrayOr(u, "problems"))
+          }
+      }
+  }
+}
+
+-- ---- lookups ---------------------------------------------------------------
+
+export pure func findProblem(problems: [ProblemMeta], no: int) -> Option[ProblemMeta] =
+  match problems {
+    [] => None,
+    p :: rest => if p.no == no then Some(p) else findProblem(rest, no)
+  }
+
+pure func hasMod(mods: [string], m: string) -> bool = any(\x. x == m, mods)
+
+-- Map a problem's modality to an item flag: media bilag -> excluded from the
+-- runnable set; image bilag -> graph-reading (wider tolerance). "" = plain.
+export pure func flagFor(mods: [string]) -> string =
+  if hasMod(mods, "video-data") || hasMod(mods, "spreadsheet-data") then "bilag-dependent"
+  else if hasMod(mods, "image-bilag") then "graph-reading"
+  else ""

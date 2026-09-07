@@ -1,0 +1,180 @@
+module benchmark/items
+
+-- Stage 0 item builder (full). Joins each official-key subquestion to its
+-- catalogue problem (title/topics/modality) and emits one items.jsonl record per
+-- subquestion, with kind/flags/tolerance decided deterministically:
+--   * modality video-data/spreadsheet-data -> flag "bilag-dependent", kind
+--     "skipped" (kept in the file, excluded from the runnable set — count visible)
+--   * modality image-bilag                 -> kind "graph-reading", tol 0.10
+--   * numeric key                           -> kind "numeric", tol 0.05
+--   * reaction/prose                        -> kind "symbolic" (LLM-judged)
+--   * unparseable                           -> kind "needs-review" (named, not guessed)
+--
+-- Run: ailang run --caps IO,FS --entry main benchmark/items.ail
+
+import benchmark/keyparse (KeyValue, Numeric, Symbolic, NeedsReview, extractKey)
+import benchmark/catalogue (ProblemMeta, loadProblems, findProblem, subqProblemNo, flagFor)
+import std/fs (readFile, writeFile, mkdirAll, fileExists)
+import std/json (decode, encode, asArray, getString, Json, JString, JNumber, JBool, JArray, JObject, JNull)
+import std/option (Option, Some, None, getOrElse)
+import std/result (Ok, Err)
+import std/list (map, filter, length)
+import std/string (split, trim)
+import std/env (getEnvOr)
+
+type ItemRec = { json: Json, kind: string, runnable: bool }
+
+type Classified = {
+  kind: string, runnable: bool, tol: float,
+  value: float, unit: string, hasVal: bool,
+  flags: [string], note: string
+}
+
+pure func classify(flag: string, kv: KeyValue) -> Classified =
+  if flag == "bilag-dependent" then
+    match kv {
+      Numeric(v, u)  => ({ kind: "skipped", runnable: false, tol: 0.0, value: v, unit: u, hasVal: true,  flags: ["bilag-dependent"], note: "requires bilag (mp4/xlsx)" }),
+      _              => ({ kind: "skipped", runnable: false, tol: 0.0, value: 0.0, unit: "", hasVal: false, flags: ["bilag-dependent"], note: "requires bilag (mp4/xlsx)" })
+    }
+  else
+    match kv {
+      Numeric(v, u) =>
+        if flag == "graph-reading"
+          then ({ kind: "graph-reading", runnable: true, tol: 0.10, value: v, unit: u, hasVal: true, flags: ["graph-reading"], note: "one accepted reading" })
+          else ({ kind: "numeric",       runnable: true, tol: 0.05, value: v, unit: u, hasVal: true, flags: [],               note: "" }),
+      Symbolic       => ({ kind: "symbolic",     runnable: false, tol: 0.0, value: 0.0, unit: "", hasVal: false, flags: [], note: "reaction/prose; LLM-judged" }),
+      NeedsReview(r) => ({ kind: "needs-review", runnable: false, tol: 0.0, value: 0.0, unit: "", hasVal: false, flags: [], note: r })
+    }
+
+pure func expectedJson(c: Classified) -> Json =
+  if c.hasVal then
+    JObject([
+      { key: "kind", value: JString(c.kind) },
+      { key: "value", value: JNumber(c.value) },
+      { key: "unit", value: JString(c.unit) },
+      { key: "tolerance_rel", value: JNumber(c.tol) }
+    ])
+  else JNull
+
+-- Borderline items held out of scoring pending AR/JB review (VERIFY.md §1):
+-- inline-graph reads at tight tolerance + image-bilag graph-reading. Kept in the
+-- file (count visible), flagged, but runnable=false.
+pure func isHeld(itemId: string) -> bool =
+  itemId == "1stx231-3a" || itemId == "1stx241-3a" || itemId == "1stx241-3b" ||
+  itemId == "2stx231-3a" || itemId == "2stx231-3b" ||
+  itemId == "1stx241-5a" || itemId == "2stx231-5a" || itemId == "2stx231-5b"
+
+-- ---- question_text join (from the docparse-extracted cache) ---------------
+
+type QRec = { subq: string, question_text: string }
+
+pure func collectQ(lines: [string]) -> [QRec] =
+  match lines {
+    [] => [],
+    l :: rest =>
+      if trim(l) == "" then collectQ(rest)
+      else
+        match decode(l) {
+          Ok(j)  => {
+            let q = { subq: getOrElse(getString(j, "subq"), "?"), question_text: getOrElse(getString(j, "question_text"), "") };
+            q :: collectQ(rest)
+          },
+          Err(_) => collectQ(rest)
+        }
+  }
+
+func loadQuestions(short: string) -> [QRec] ! {FS} {
+  if fileExists("runs/questions/questions-${short}.jsonl") then collectQ(split(readFile("runs/questions/questions-${short}.jsonl"), "\n"))
+  else []
+}
+
+pure func qFor(qs: [QRec], subq: string) -> string =
+  match qs {
+    [] => "",
+    q :: rest => if q.subq == subq then q.question_text else qFor(rest, subq)
+  }
+
+pure func buildOne(setShort: string, setId: string, problems: [ProblemMeta], qs: [QRec], keyItem: Json) -> ItemRec {
+  let subq = getOrElse(getString(keyItem, "subq"), "?");
+  let answer = getOrElse(getString(keyItem, "answer"), "");
+  let itemId = "${setShort}-${subq}";
+  let no = subqProblemNo(subq);
+  let meta = findProblem(problems, no);
+  let title = match meta { Some(m) => m.title, None => "" };
+  let topics = match meta { Some(m) => m.topics, None => [] };
+  let mods = match meta { Some(m) => m.modality, None => [] };
+  let c0 = classify(flagFor(mods), extractKey(answer));
+  let c = if isHeld(itemId)
+    then ({ kind: "borderline-hold", runnable: false, tol: 0.0, value: c0.value, unit: c0.unit, hasVal: c0.hasVal, flags: ["borderline-hold"], note: "held for AR/JB review (graph-reading/inline-graph)" })
+    else c0;
+  let j = JObject([
+    { key: "item_id", value: JString(itemId) },
+    { key: "set", value: JString(setId) },
+    { key: "problem_no", value: JNumber(_int_to_float(no)) },
+    { key: "subq", value: JString(subq) },
+    { key: "title", value: JString(title) },
+    { key: "topics", value: JArray(map(\t. JString(t), topics)) },
+    { key: "question_text", value: JString(qFor(qs, subq)) },
+    { key: "kind", value: JString(c.kind) },
+    { key: "runnable", value: JBool(c.runnable) },
+    { key: "flags", value: JArray(map(\f. JString(f), c.flags)) },
+    { key: "expected", value: expectedJson(c) },
+    { key: "raw_key", value: JString(answer) },
+    { key: "note", value: JString(c.note) },
+    { key: "source", value: JString("official-key") }
+  ]);
+  { json: j, kind: c.kind, runnable: c.runnable }
+}
+
+func buildSet(setShort: string, setId: string, keyPath: string, catPath: string) -> [ItemRec] ! {FS} {
+  let problems = loadProblems(catPath, setId);
+  let qs = loadQuestions(setShort);
+  let raw = readFile(keyPath);
+  match decode(raw) {
+    Err(_) => [],
+    Ok(j)  =>
+      match asArray(j) {
+        None          => [],
+        Some(keyItems) => map(\ki. buildOne(setShort, setId, problems, qs, ki), keyItems)
+      }
+  }
+}
+
+pure func renderJsonl(recs: [ItemRec]) -> string =
+  match recs {
+    [] => "",
+    r :: rest => "${encode(r.json)}\n${renderJsonl(rest)}"
+  }
+
+pure func countKind(recs: [ItemRec], k: string) -> int =
+  length(filter(\r. r.kind == k, recs))
+
+pure func countRunnable(recs: [ItemRec]) -> int =
+  length(filter(\r. r.runnable, recs))
+
+export func main() -> () ! {IO, FS, Env} {
+  let root = getEnvOr("STX_SOURCE_DIR", "/Users/mark/Documents/clients/cph-uni/sources/aswin-july");
+  let base = "${root}/answer-keys";
+  let cat = "${root}/stx-exam-catalogue.yaml";
+  let all =
+    buildSet("1stx231", "1stx231-fysa-17052023", "${base}/key-1stx-2023.json", cat) ++
+    buildSet("1stx241", "1stx241-fys-a-27052024", "${base}/key-1stx-2024.json", cat) ++
+    buildSet("2stx231", "2stx231-fys-a-26052023", "${base}/key-2stx-2023.json", cat) ++
+    buildSet("2stx241", "2stx241-fys-a-03062024", "${base}/key-2stx-2024.json", cat);
+  let n = length(all);
+  let nRun = countRunnable(all);
+  let nNum = countKind(all, "numeric");
+  let nGraph = countKind(all, "graph-reading");
+  let nSkip = countKind(all, "skipped");
+  let nSym = countKind(all, "symbolic");
+  let nRev = countKind(all, "needs-review");
+  mkdirAll("runs/stage0");
+  writeFile("runs/stage0/items.jsonl", renderJsonl(all));
+  println("STX Stage-0 item builder (catalogue + keys -> items.jsonl)");
+  println("total subquestions : ${show(n)}");
+  println("  runnable         : ${show(nRun)}  (numeric ${show(nNum)} + graph-reading ${show(nGraph)})");
+  println("  bilag-skipped    : ${show(nSkip)}");
+  println("  symbolic         : ${show(nSym)}");
+  println("  needs-review     : ${show(nRev)}");
+  println("wrote runs/stage0/items.jsonl (${show(n)} records, gitignored)")
+}

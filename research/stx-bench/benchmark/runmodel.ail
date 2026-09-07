@@ -1,0 +1,183 @@
+module benchmark/runmodel
+
+-- Full-corpus runner for ONE model (the tier-descent unit — a driver loops it per
+-- panel model, one `ailang run --ai <id>` each, aggregating stdout).
+--
+-- STRUCTURED OUTPUT grading (replaces the fragile FACIT-line + regex path):
+--   1. solve via callJsonResult with a {working, value, unit} schema — the
+--      provider returns `value` as a real number (no 10^n / superscript parsing)
+--      and a clean `unit`.
+--   2. deterministic grade: gradeNumeric(expected, value, unit).
+--   3. if not deterministically correct -> LLM judge vs the official raw_key
+--      (handles units outside the table + genuine method differences).
+--
+-- NOTE: callJsonResult returns no token counts, so in/out tokens are 0 and the
+-- token budget can't count here (the run is bounded by item count, 33). Restoring
+-- telemetry + token-budget needs the step-with-tool variant — a follow-up.
+--
+--   TRIAL_MODEL=<stamp> ailang run --ai <id> --caps IO,FS,AI,Env --entry main benchmark/runmodel.ail
+
+import benchmark/grader (Expected, gradeNumeric, verdictLabel)
+import benchmark/solver (answerSchema, solveInput, judgeInput, judgeSchema)
+import std/ai (AIError, callJsonResult)
+import std/clock (sleep)
+import std/fs (readFile, readFileResult)
+import std/env (getEnvOr)
+import std/json (decode, getString, getBool, getNumber, getArray, getObject, asString, Json)
+import std/option (Option, Some, None, getOrElse)
+import std/result (Result, Ok, Err)
+import std/string (trim, split, length as strLen)
+import std/list (map, filter)
+
+type Item = {
+  item_id: string, set: string, subq: string, topics: [string],
+  question: string, raw_key: string, expected: Expected
+}
+
+-- ---- load runnable items ---------------------------------------------------
+
+pure func parseTopics(arr: [Json]) -> [string] =
+  filter(\s. strLen(s) > 0, map(\j. getOrElse(asString(j), ""), arr))
+
+-- Recovered-key overrides (runs/stage0/recovered.jsonl): human-curated final
+-- answers for items the deterministic Stage-0 extractor flagged needs-review.
+-- An item whose id appears here is forced runnable with this expected value.
+type Recovered = { item_id: string, value: float, unit: string }
+
+-- Only numeric recoveries belong in the text runner; graph-reading recoveries
+-- (e.g. an angle read off a figure) are handled by the vision runner.
+pure func recRows(lines: [string]) -> [Recovered] =
+  match lines {
+    [] => [],
+    l :: rest =>
+      if trim(l) == "" then recRows(rest)
+      else match decode(l) {
+        Ok(j)  =>
+          if getOrElse(getString(j, "kind"), "numeric") == "numeric" then
+            ({ item_id: getOrElse(getString(j, "item_id"), "?"),
+               value: getOrElse(getNumber(j, "value"), 0.0),
+               unit: getOrElse(getString(j, "unit"), "") }) :: recRows(rest)
+          else recRows(rest),
+        Err(_) => recRows(rest)
+      }
+  }
+
+-- Graceful: a missing override file just means no recoveries (empty list).
+func loadRecovered(path: string) -> [Recovered] ! {FS} =
+  match readFileResult(path) {
+    Ok(raw) => recRows(split(raw, "\n")),
+    Err(_)  => []
+  }
+
+pure func recoveredFor(id: string, recs: [Recovered]) -> Option[(float, string)] =
+  match recs {
+    [] => None,
+    r :: rest => if r.item_id == id then Some((r.value, r.unit)) else recoveredFor(id, rest)
+  }
+
+pure func buildItem(j: Json, v: float, u: string, tol: float) -> Item =
+  {
+    item_id: getOrElse(getString(j, "item_id"), "?"),
+    set: getOrElse(getString(j, "set"), ""),
+    subq: getOrElse(getString(j, "subq"), ""),
+    topics: parseTopics(getOrElse(getArray(j, "topics"), [])),
+    question: getOrElse(getString(j, "question_text"), ""),
+    raw_key: getOrElse(getString(j, "raw_key"), ""),
+    expected: { value: v, unit: u, tolerance_rel: tol }
+  }
+
+pure func rowToItem(j: Json, recs: [Recovered]) -> Option[Item] =
+  match recoveredFor(getOrElse(getString(j, "item_id"), "?"), recs) {
+    Some((v, u)) => Some(buildItem(j, v, u, 0.05)),
+    None =>
+      if getOrElse(getBool(j, "runnable"), false) then
+        match getObject(j, "expected") {
+          Some(exp) => Some(buildItem(j,
+            getOrElse(getNumber(exp, "value"), 0.0),
+            getOrElse(getString(exp, "unit"), ""),
+            getOrElse(getNumber(exp, "tolerance_rel"), 0.05))),
+          None => None
+        }
+      else None
+  }
+
+pure func collectItems(lines: [string], recs: [Recovered]) -> [Item] =
+  match lines {
+    [] => [],
+    l :: rest =>
+      if trim(l) == "" then collectItems(rest, recs)
+      else
+        match decode(l) {
+          Ok(j)  => match rowToItem(j, recs) { Some(it) => it :: collectItems(rest, recs), None => collectItems(rest, recs) },
+          Err(_) => collectItems(rest, recs)
+        }
+  }
+
+func loadItems(path: string, recs: [Recovered]) -> [Item] ! {FS} {
+  let raw = readFile(path);
+  collectItems(split(raw, "\n"), recs)
+}
+
+-- ---- solve + grade ---------------------------------------------------------
+
+-- Retry a schema-enforced call on retryable errors (rate limits, transient 5xx)
+-- with linear backoff (2s, 4s, 6s). Non-retryable errors surface immediately.
+func callRetry(input: string, schema: string, attempt: int) -> Result[string, AIError] ! {AI, Clock} {
+  match callJsonResult(input, schema) {
+    Ok(r)  => Ok(r),
+    Err(e) =>
+      if e.retryable && attempt < 4 then {
+        sleep(2000 * attempt);
+        callRetry(input, schema, attempt + 1)
+      } else Err(e)
+  }
+}
+
+func solve(q: string) -> Result[string, AIError] ! {AI, Clock} =
+  callRetry(solveInput(q), answerSchema(), 1)
+
+func judgeVerdict(modelAnswer: string, rawKey: string) -> string ! {AI, Clock} =
+  match callRetry(judgeInput(modelAnswer, rawKey), judgeSchema(), 1) {
+    Ok(js) => match decode(js) { Ok(j) => getOrElse(getString(j, "verdict"), "ambiguous"), Err(_) => "ambiguous" },
+    Err(_) => "ambiguous"
+  }
+
+func gradeItem(it: Item, answerJson: string) -> string ! {AI, Clock} {
+  match decode(answerJson) {
+    Ok(j) =>
+      if getOrElse(getBool(j, "can_solve"), true) then {
+        let v = getOrElse(getNumber(j, "value"), 0.0);
+        let u = getOrElse(getString(j, "unit"), "");
+        let det = verdictLabel(gradeNumeric(it.expected, v, u));
+        if det == "correct" then "correct" else judgeVerdict(answerJson, it.raw_key)
+      } else "abstain",
+    Err(_) => "ambiguous"
+  }
+}
+
+pure func quoteJoin(xs: [string]) -> string =
+  match xs {
+    [] => "",
+    x :: rest => match rest { [] => "\"${x}\"", _ => "\"${x}\",${quoteJoin(rest)}" }
+  }
+
+pure func line(it: Item, model: string, verdict: string) -> string =
+  "{\"item_id\":\"${it.item_id}\",\"set\":\"${it.set}\",\"subq\":\"${it.subq}\",\"topics\":[${quoteJoin(it.topics)}],\"model\":\"${model}\",\"verdict\":\"${verdict}\",\"in_tokens\":0,\"out_tokens\":0}"
+
+func run(model: string, items: [Item]) -> () ! {AI, IO, Clock} {
+  match items {
+    [] => (),
+    it :: rest => {
+      match solve(it.question) {
+        Ok(js) => { let verdict = gradeItem(it, js); println(line(it, model, verdict)) },
+        Err(e) => println(line(it, model, "error"))
+      };
+      run(model, rest)
+    }
+  }
+}
+
+export func main() -> () ! {AI, IO, FS, Env, Clock} {
+  let recs = loadRecovered("runs/stage0/recovered.jsonl");
+  run(getEnvOr("TRIAL_MODEL", "unknown"), loadItems("runs/stage0/items.jsonl", recs))
+}

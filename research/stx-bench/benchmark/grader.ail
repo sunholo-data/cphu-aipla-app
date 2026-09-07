@@ -1,0 +1,167 @@
+module benchmark/grader
+
+-- Pure grading core for the STX Fysik-A exam benchmark harness.
+--
+-- No effects (`! {}`): given an Expected answer (from the official key, parsed
+-- deterministically in Stage 0) and a model's parsed (value, unit), decide
+-- Correct / Incorrect / Ambiguous with SI-prefix-aware unit normalisation and
+-- a relative tolerance.
+--
+-- Two forward-looking reasons this module is effect-free and contracted, per
+-- stx-benchmark-ailang-kickoff.md:
+--   (a) contracts are Z3-checkable via `ailang verify` — a provably-legal
+--       grader is a strong claim for a research instrument;
+--   (b) the interpreter compiles to WASM, so this exact module can later run
+--       client-side in the AIPLA app as a zero-token answer checker.
+-- Keep ALL FS/AI/IO in the harness shell; nothing effectful belongs here.
+
+import std/string (trim)
+import std/option (Option, Some, None)
+
+-- The three legal verdicts. Deterministic grading yields Correct/Incorrect;
+-- Ambiguous means "escalate to the LLM judge" (unit not in the table, or a
+-- non-numeric answer kind handled upstream).
+export type Verdict = Correct | Incorrect | Ambiguous
+
+-- One graded expectation, produced by Stage 0 from the official answer key.
+export type Expected = {
+  value: float,
+  unit: string,
+  tolerance_rel: float
+}
+
+-- Float absolute value. Self-contained (no std/math typeclass) so the whole
+-- numeric path is inspectable for verification.
+export pure func fabs(x: float) -> float =
+  if x < 0.0 then 0.0 - x else x
+
+-- Every Verdict value is legal by construction; used as the `ensures`
+-- postcondition below so Z3 proves grading never yields anything else.
+export pure func isLegalVerdict(v: Verdict) -> bool =
+  match v {
+    Correct => true,
+    Incorrect => true,
+    Ambiguous => true
+  }
+
+export pure func verdictLabel(v: Verdict) -> string =
+  match v {
+    Correct => "correct",
+    Incorrect => "incorrect",
+    Ambiguous => "ambiguous"
+  }
+
+-- Relative-tolerance test: |expected - answer| <= tolRel * |expected|.
+-- tolRel must be positive (marking convention: 1-2 significant-figure
+-- differences must not flip the grade; default 0.05, wider for graph reading).
+export func withinTol(expected: float, answer: float, tolRel: float) -> bool ! {}
+requires { tolRel > 0.0 }
+{
+  let diff = fabs(expected - answer);
+  let allow = tolRel * fabs(expected);
+  diff <= allow
+}
+
+-- Canonicalise a unit string to (factor-to-base, base-unit). Covers the units
+-- that actually occur in the 2023-2024 gold keys plus common SI prefixes.
+-- Unknown units return None -> the comparison escalates to Ambiguous rather
+-- than guessing (design rule: manual-review, not a guess).
+export pure func unitCanon(unit: string) -> Option[(float, string)] =
+  match trim(unit) {
+    -- energy
+    "J"    => Some((1.0, "J")),
+    "kJ"   => Some((1000.0, "J")),
+    "MJ"   => Some((1000000.0, "J")),
+    "GJ"   => Some((1000000000.0, "J")),
+    -- power
+    "W"    => Some((1.0, "W")),
+    "kW"   => Some((1000.0, "W")),
+    "MW"   => Some((1000000.0, "W")),
+    "GW"   => Some((1000000000.0, "W")),
+    "mW"   => Some((0.001, "W")),
+    "nW"   => Some((0.000000001, "W")),
+    -- force
+    "N"    => Some((1.0, "N")),
+    "kN"   => Some((1000.0, "N")),
+    -- length
+    "m"    => Some((1.0, "m")),
+    "km"   => Some((1000.0, "m")),
+    "cm"   => Some((0.01, "m")),
+    "mm"   => Some((0.001, "m")),
+    "um"   => Some((0.000001, "m")),
+    "nm"   => Some((0.000000001, "m")),
+    -- time
+    "s"    => Some((1.0, "s")),
+    "min"  => Some((60.0, "s")),
+    "h"    => Some((3600.0, "s")),
+    "ms"   => Some((0.001, "s")),
+    "us"   => Some((0.000001, "s")),
+    -- speed
+    "m/s"  => Some((1.0, "m/s")),
+    "km/h" => Some((0.277777778, "m/s")),
+    -- area
+    "m^2"  => Some((1.0, "m^2")),
+    "cm^2" => Some((0.0001, "m^2")),
+    "mm^2" => Some((0.000001, "m^2")),
+    -- electrical
+    "V"    => Some((1.0, "V")),
+    "A"    => Some((1.0, "A")),
+    "mA"   => Some((0.001, "A")),
+    "uA"   => Some((0.000001, "A")),
+    -- magnetic flux density
+    "T"    => Some((1.0, "T")),
+    "mT"   => Some((0.001, "T")),
+    "uT"   => Some((0.000001, "T")),
+    -- pressure
+    "Pa"   => Some((1.0, "Pa")),
+    "kPa"  => Some((1000.0, "Pa")),
+    "MPa"  => Some((1000000.0, "Pa")),
+    -- energy (particle)
+    "eV"   => Some((1.0, "eV")),
+    "keV"  => Some((1000.0, "eV")),
+    "MeV"  => Some((1000000.0, "eV")),
+    -- activity, frequency, angle
+    "Bq"   => Some((1.0, "Bq")),
+    "Hz"   => Some((1.0, "Hz")),
+    "kHz"  => Some((1000.0, "Hz")),
+    "deg"  => Some((1.0, "deg")),
+    -- mass
+    "kg"   => Some((1.0, "kg")),
+    "g"    => Some((0.001, "kg")),
+    "mg"   => Some((0.000001, "kg")),
+    "ug"   => Some((0.000000001, "kg")),
+    "t"    => Some((1000.0, "kg")),
+    "u"    => Some((1.0, "u")),
+    -- astronomical distance (base Mpc)
+    "pc"   => Some((0.000001, "Mpc")),
+    "kpc"  => Some((0.001, "Mpc")),
+    "Mpc"  => Some((1.0, "Mpc")),
+    "ly"   => Some((0.0000003066, "Mpc")),
+    "Mly"  => Some((0.3066, "Mpc")),
+    _      => None
+  }
+
+-- Express `value` (given in fromUnit) in toUnit. Identical unit strings compare
+-- directly even when the unit is outside the table; otherwise both sides must
+-- canonicalise to the same base. Anything else -> None (escalate).
+export pure func convertTo(value: float, fromUnit: string, toUnit: string) -> Option[float] =
+  if trim(fromUnit) == trim(toUnit) then Some(value)
+  else
+    match (unitCanon(fromUnit), unitCanon(toUnit)) {
+      (Some((fFrom, bFrom)), Some((fTo, bTo))) =>
+        if bFrom == bTo then Some(value * fFrom / fTo) else None,
+      (_, _) => None
+    }
+
+-- The deterministic grading layer. Converts the model's answer into the key's
+-- unit, then applies relative tolerance. Non-comparable units -> Ambiguous.
+-- Postcondition proved by Z3: the result is always a legal verdict.
+export func gradeNumeric(exp: Expected, ansValue: float, ansUnit: string) -> Verdict ! {}
+requires { exp.tolerance_rel > 0.0 }
+ensures  { isLegalVerdict(result) }
+{
+  match convertTo(ansValue, ansUnit, exp.unit) {
+    Some(v) => if withinTol(exp.value, v, exp.tolerance_rel) then Correct else Incorrect,
+    None    => Ambiguous
+  }
+}

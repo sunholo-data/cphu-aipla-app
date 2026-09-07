@@ -1,0 +1,207 @@
+module benchmark/runmodel_vision
+
+-- Vision full-corpus runner for ONE model over the HELD graph-reading items.
+--
+-- These 8 borderline-hold items were excluded from the text panel because the
+-- answer needs a value read off a graph/figure in the problem statement, which
+-- the text-only path cannot see. std/ai v0.30.0 added image INPUT, so here we
+-- attach the problem's figure(s) and let a vision-capable model read them.
+--
+-- Path (deliberately NOT callJsonResult — that has no image channel; and the
+-- one-call vision+schema variant is not shipping):
+--   1. readFileBytes(figure) -> base64  (FS; already base64-encoded)
+--   2. ImagePart{source, mime} attached to the user Message.images
+--   3. step(model, msgs, []) -> assistant text (JSON asked for in the prompt)
+--   4. fence-tolerant extract -> decode -> gradeNumeric -> LLM judge fallback
+--
+-- Held items carry tolerance_rel=0 (never scored); graph reading gets the wider
+-- 0.10 tolerance here, matching items.ail's graph-reading branch.
+--
+--   TRIAL_MODEL=<stamp> ailang run --ai <id> --caps IO,FS,AI,Env \
+--     --entry main benchmark/runmodel_vision.ail
+
+import benchmark/grader (Expected, gradeNumeric, verdictLabel)
+import benchmark/solver (solveVisionInput, judgeInput, judgeSchema)
+import std/ai (AIError, ImagePart, Message, StepResult, step, callJsonResult)
+import std/clock (sleep)
+import std/fs (readFile, readFileBytes)
+import std/env (getEnvOr)
+import std/json (decode, getString, getBool, getNumber, getArray, getObject, asString, Json)
+import std/option (Option, Some, None, getOrElse)
+import std/result (Result, Ok, Err)
+import std/string (trim, split, replace, find, substring, length as strLen, endsWith)
+import std/list (map, filter, length)
+
+type VItem = {
+  item_id: string, set: string, subq: string, topics: [string],
+  question: string, raw_key: string, expected: Expected, figures: [string]
+}
+
+-- ---- figures manifest (item_id -> [local paths]) ---------------------------
+
+type FigRow = { item_id: string, figures: [string] }
+
+pure func parseStrs(arr: [Json]) -> [string] =
+  filter(\s. strLen(s) > 0, map(\j. getOrElse(asString(j), ""), arr))
+
+pure func figRows(lines: [string]) -> [FigRow] =
+  match lines {
+    [] => [],
+    l :: rest =>
+      if trim(l) == "" then figRows(rest)
+      else match decode(l) {
+        Ok(j)  => ({ item_id: getOrElse(getString(j, "item_id"), "?"),
+                     figures: parseStrs(getOrElse(getArray(j, "figures"), [])) }) :: figRows(rest),
+        Err(_) => figRows(rest)
+      }
+  }
+
+func loadFigRows(path: string) -> [FigRow] ! {FS} = figRows(split(readFile(path), "\n"))
+
+pure func figuresFor(id: string, rows: [FigRow]) -> [string] =
+  match rows {
+    [] => [],
+    r :: rest => if r.item_id == id then r.figures else figuresFor(id, rest)
+  }
+
+-- ---- held items (kind == "borderline-hold"), tolerance forced to 0.10 ------
+
+pure func parseTopics(arr: [Json]) -> [string] = parseStrs(arr)
+
+pure func rowToHeld(j: Json, figs: [FigRow]) -> Option[VItem] =
+  if getOrElse(getString(j, "kind"), "") == "borderline-hold" then
+    match getObject(j, "expected") {
+      Some(exp) => {
+        let id = getOrElse(getString(j, "item_id"), "?");
+        Some({
+          item_id: id,
+          set: getOrElse(getString(j, "set"), ""),
+          subq: getOrElse(getString(j, "subq"), ""),
+          topics: parseTopics(getOrElse(getArray(j, "topics"), [])),
+          question: getOrElse(getString(j, "question_text"), ""),
+          raw_key: getOrElse(getString(j, "raw_key"), ""),
+          expected: {
+            value: getOrElse(getNumber(exp, "value"), 0.0),
+            unit: getOrElse(getString(exp, "unit"), ""),
+            tolerance_rel: 0.10
+          },
+          figures: figuresFor(id, figs)
+        })
+      },
+      None => None
+    }
+  else None
+
+pure func collectHeld(lines: [string], figs: [FigRow]) -> [VItem] =
+  match lines {
+    [] => [],
+    l :: rest =>
+      if trim(l) == "" then collectHeld(rest, figs)
+      else match decode(l) {
+        Ok(j)  => match rowToHeld(j, figs) { Some(it) => it :: collectHeld(rest, figs), None => collectHeld(rest, figs) },
+        Err(_) => collectHeld(rest, figs)
+      }
+  }
+
+func loadHeld(itemsPath: string, figs: [FigRow]) -> [VItem] ! {FS} =
+  collectHeld(split(readFile(itemsPath), "\n"), figs)
+
+-- ---- image attachment ------------------------------------------------------
+
+pure func mimeOf(path: string) -> string =
+  if endsWith(path, ".png") then "image/png" else "image/jpeg"
+
+-- readFileBytes returns the file as a base64 string (Ok) — exactly ImagePart.source.
+func toImagePart(path: string) -> Option[ImagePart] ! {FS} =
+  match readFileBytes(path) {
+    Ok(b64) => Some({ source: b64, mime: mimeOf(path) }),
+    Err(_)  => None
+  }
+
+func loadImages(paths: [string]) -> [ImagePart] ! {FS} =
+  match paths {
+    [] => [],
+    p :: rest =>
+      match toImagePart(p) {
+        Some(img) => img :: loadImages(rest),
+        None      => loadImages(rest)
+      }
+  }
+
+-- ---- JSON extraction from a possibly fence-wrapped assistant reply ----------
+
+-- Strip ```json / ``` fences, then take from the first '{' to the end. Trailing
+-- prose after the object is rare given the prompt; decode failure -> ambiguous.
+pure func extractJson(s: string) -> string {
+  let noFence = trim(replace(replace(replace(s, "```json", ""), "```JSON", ""), "```", ""));
+  let i = find(noFence, "{");
+  if i < 0 then noFence else substring(noFence, i, strLen(noFence))
+}
+
+-- ---- solve (vision) + grade ------------------------------------------------
+
+pure func visionMsgs(q: string, imgs: [ImagePart]) -> [Message] = [
+  { role: "user", content: solveVisionInput(q), tool_calls: [], tool_call_id: "", images: imgs }
+]
+
+func solveVision(model: string, q: string, imgs: [ImagePart], attempt: int) -> Result[string, AIError] ! {AI, Clock} {
+  match step(model, visionMsgs(q, imgs), []) {
+    Ok(r)  => Ok(r.message.content),
+    Err(e) =>
+      if e.retryable && attempt < 4 then { sleep(2000 * attempt); solveVision(model, q, imgs, attempt + 1) }
+      else Err(e)
+  }
+}
+
+func judgeVerdict(modelAnswer: string, rawKey: string, attempt: int) -> string ! {AI, Clock} {
+  match callJsonResult(judgeInput(modelAnswer, rawKey), judgeSchema()) {
+    Ok(js) => match decode(js) { Ok(j) => getOrElse(getString(j, "verdict"), "ambiguous"), Err(_) => "ambiguous" },
+    Err(e) => if e.retryable && attempt < 4 then { sleep(2000 * attempt); judgeVerdict(modelAnswer, rawKey, attempt + 1) } else "ambiguous"
+  }
+}
+
+func gradeItem(it: VItem, answerText: string) -> string ! {AI, Clock} {
+  let clean = extractJson(answerText);
+  match decode(clean) {
+    Ok(j) =>
+      if getOrElse(getBool(j, "can_solve"), true) then {
+        let v = getOrElse(getNumber(j, "value"), 0.0);
+        let u = getOrElse(getString(j, "unit"), "");
+        let det = verdictLabel(gradeNumeric(it.expected, v, u));
+        if det == "correct" then "correct" else judgeVerdict(clean, it.raw_key, 1)
+      } else "abstain",
+    Err(_) => "ambiguous"
+  }
+}
+
+pure func quoteJoin(xs: [string]) -> string =
+  match xs {
+    [] => "",
+    x :: rest => match rest { [] => "\"${x}\"", _ => "\"${x}\",${quoteJoin(rest)}" }
+  }
+
+pure func line(it: VItem, model: string, verdict: string, nfig: int) -> string =
+  "{\"item_id\":\"${it.item_id}\",\"set\":\"${it.set}\",\"subq\":\"${it.subq}\",\"topics\":[${quoteJoin(it.topics)}],\"model\":\"${model}\",\"verdict\":\"${verdict}\",\"figures\":${show(nfig)},\"in_tokens\":0,\"out_tokens\":0}"
+
+func run(model: string, items: [VItem]) -> () ! {AI, IO, FS, Clock} {
+  match items {
+    [] => (),
+    it :: rest => {
+      let imgs = loadImages(it.figures);
+      match imgs {
+        [] => println(line(it, model, "no-figure", 0)),
+        _  => match solveVision(model, it.question, imgs, 1) {
+          Ok(txt) => { let verdict = gradeItem(it, txt); println(line(it, model, verdict, length(imgs))) },
+          Err(e)  => println(line(it, model, "error", length(imgs)))
+        }
+      };
+      run(model, rest)
+    }
+  }
+}
+
+export func main() -> () ! {AI, IO, FS, Env, Clock} {
+  let figs = loadFigRows("runs/stage0/figures.jsonl");
+  let items = loadHeld("runs/stage0/items.jsonl", figs);
+  run(getEnvOr("TRIAL_MODEL", "unknown"), items)
+}

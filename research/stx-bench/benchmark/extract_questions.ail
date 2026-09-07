@@ -1,0 +1,93 @@
+module benchmark/extract_questions
+
+-- Question-text extractor (Stage 0, one-time curation -> cache). For each gold
+-- paper, calls the AI with a schema-enforced structured output to pull each
+-- subquestion's clean problem text out of the noisy extracted-text file, grounded
+-- in the KNOWN subq ids (from the answer key) so it can't invent subquestions.
+--
+-- Chunked ONE CALL PER PROBLEM (2-3 subqs each) — a single all-subqs call
+-- truncates on the response-token cap. Output is JSONL (one subq per line),
+-- appended per problem, so there is no cross-call merge.
+--
+-- Output: runs/questions/questions-<short>.jsonl — the pre-cache. Reviewed by M,
+-- frozen, then joined by items.ail. This AI runs ONCE (curation), never in the
+-- scored path, so the benchmark stays reproducible.
+--
+--   ailang run --ai gemini-2.5-flash --caps IO,FS,AI --entry main benchmark/extract_questions.ail
+
+import benchmark/catalogue (subqProblemNo)
+import std/ai (callJsonResult)
+import std/fs (readFile, writeFile, appendFile, mkdirAll)
+import std/json (decode, asArray, getArray, getString, encode, Json)
+import std/option (getOrElse)
+import std/result (Result, Ok, Err)
+import std/list (map, filter, any)
+import std/string (join)
+import std/env (getEnvOr)
+
+type SetSpec = { short: string, keyPath: string, textPath: string }
+
+pure func schema() -> string =
+  "{\"type\":\"object\",\"properties\":{\"items\":{\"type\":\"array\",\"items\":{\"type\":\"object\",\"properties\":{\"subq\":{\"type\":\"string\"},\"question_text\":{\"type\":\"string\"}},\"required\":[\"subq\",\"question_text\"]}}},\"required\":[\"items\"]}"
+
+pure func prompt(subqList: string, paperText: string) -> string =
+  "Du udtrækker eksamensopgavetekst fra et dansk stx Fysik A-prøvesæt til et benchmark. Nedenfor er prøvesættet som ren markdown fra docparse — inkl. figur-/grafbeskrivelser i teksten. For HVER af disse delspørgsmål: ${subqList} — returnér question_text = opgavens fælles optakt (kontekst, opgivne størrelser med enheder) PLUS netop dette delspørgsmåls konkrete opgave, på dansk. Hvor et delspørgsmål kræver aflæsning af en graf/figur, MEDTAG den relevante figurbeskrivelse fra teksten, så opgaven kan løses uden billedet. Normalisér delte eksponenter (fx '10' linjeskift '3' -> '10^(3)'). Opfind ikke delspørgsmål; kun de anførte. Returnér {items:[{subq, question_text}]}.\n\nPRØVESÆT (docparse markdown):\n${paperText}"
+
+pure func memberI(x: int, xs: [int]) -> bool = any(\y. y == x, xs)
+pure func uniqIAcc(xs: [int], seen: [int]) -> [int] =
+  match xs { [] => seen, h :: t => if memberI(h, seen) then uniqIAcc(t, seen) else uniqIAcc(t, seen ++ [h]) }
+pure func problemNos(ids: [string]) -> [int] = uniqIAcc(map(subqProblemNo, ids), [])
+pure func subqsFor(ids: [string], no: int) -> [string] = filter(\id. subqProblemNo(id) == no, ids)
+
+func subqIds(keyPath: string) -> [string] ! {FS} {
+  let raw = readFile(keyPath);
+  match decode(raw) {
+    Ok(j)  => match asArray(j) { Some(items) => map(\it. getOrElse(getString(it, "subq"), "?"), items), None => [] },
+    Err(_) => []
+  }
+}
+
+func appendItems(outPath: string, items: [Json]) -> () ! {FS} {
+  match items {
+    [] => (),
+    it :: rest => { appendFile(outPath, "${encode(it)}\n"); appendItems(outPath, rest) }
+  }
+}
+
+func processProblem(short: string, outPath: string, text: string, subqs: [string]) -> () ! {AI, FS, IO} {
+  match callJsonResult(prompt(join(", ", subqs), text), schema()) {
+    Ok(jsonStr) =>
+      match decode(jsonStr) {
+        Ok(j)  => match getArray(j, "items") { Some(items) => appendItems(outPath, items), None => println("  ${short}: no items array") },
+        Err(_) => println("  ${short}: unparseable response for ${join(",", subqs)}")
+      },
+    Err(e) => println("  ${short}: EXTRACT ERROR ${e.code} for ${join(",", subqs)}")
+  }
+}
+
+func perProblem(short: string, outPath: string, text: string, ids: [string], nos: [int]) -> () ! {AI, FS, IO} {
+  match nos {
+    [] => (),
+    n :: rest => { processProblem(short, outPath, text, subqsFor(ids, n)); perProblem(short, outPath, text, ids, rest) }
+  }
+}
+
+func processSet(s: SetSpec) -> () ! {AI, FS, IO} {
+  let ids = subqIds(s.keyPath);
+  let text = readFile(s.textPath);
+  let outPath = "runs/questions/questions-${s.short}.jsonl";
+  writeFile(outPath, "");
+  perProblem(s.short, outPath, text, ids, problemNos(ids));
+  println("wrote ${outPath}")
+}
+
+export func main() -> () ! {AI, FS, IO, Env} {
+  let root = getEnvOr("STX_SOURCE_DIR", "/Users/mark/Documents/clients/cph-uni/sources/aswin-july");
+  let base = root;
+  mkdirAll("runs/questions");
+  println("Question-text extraction — one call per problem (one-time curation -> cache)");
+  processSet({ short: "1stx231", keyPath: "${base}/answer-keys/key-1stx-2023.json", textPath: "runs/docparse/1stx231/index.html.md" });
+  processSet({ short: "1stx241", keyPath: "${base}/answer-keys/key-1stx-2024.json", textPath: "runs/docparse/1stx241/index.html.md" });
+  processSet({ short: "2stx231", keyPath: "${base}/answer-keys/key-2stx-2023.json", textPath: "runs/docparse/2stx231/index.html.md" });
+  processSet({ short: "2stx241", keyPath: "${base}/answer-keys/key-2stx-2024.json", textPath: "runs/docparse/2stx241/index.html.md" })
+}

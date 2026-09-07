@@ -1,0 +1,165 @@
+module benchmark/keyparse
+
+-- Stage 0 key extractor (deterministic, no AI). Given the official key's answer
+-- text for one subquestion, pull the final "= <value> <unit>" result into a
+-- typed KeyValue. Anything it can't confidently parse becomes NeedsReview - a
+-- guess is never emitted (kickoff Stage-0 rule: manual-review, not a guess).
+--
+-- Reaction schemes (arrow notation) are flagged Symbolic for LLM judging /
+-- hand-repair; the nuclide notation in the keys is flattened and must not be
+-- parsed here.
+--
+-- Pure module (no effects). The effectful runner (read files, tally, write
+-- items.jsonl) lives in benchmark/stage0.ail.
+
+import std/string (length, charAt, substring, split, find, replace, trim, contains, stringToFloat)
+import std/option (Option, Some, None)
+import std/math (pow)
+
+-- The three Stage-0 outcomes for one key answer.
+export type KeyValue =
+    Numeric(float, string)   -- parsed value + cleaned unit
+  | Symbolic                 -- reaction scheme / prose -> judge or hand-repair
+  | NeedsReview(string)      -- couldn't parse; human-readable reason
+
+pure func isNumChar(c: string) -> bool =
+  contains("0123456789", c) || c == "," || c == "."
+
+-- Index where the numeric run starting at i ends.
+pure func scanNum(s: string, i: int) -> int =
+  if i >= length(s) then i
+  else if isNumChar(charAt(s, i)) then scanNum(s, i + 1)
+  else i
+
+-- Parse a numeric token with a Danish decimal comma (or a dot) into a float.
+pure func parseDecimal(tok: string) -> Option[float] =
+  stringToFloat(replace(trim(tok), ",", "."))
+
+-- Normalise a unit token: drop the OMML parenthesis wrappers ("(m)/(s)" ->
+-- "m/s") and map the Danish spelled-out units the keys occasionally use.
+pure func cleanUnit(u: string) -> string {
+  let noParen = replace(replace(u, "(", ""), ")", "");
+  let t = trim(noParen);
+  match t {
+    "sekunder" => "s",
+    "minutter" => "min",
+    "meter"    => "m",
+    _          => t
+  }
+}
+
+-- Drop trailing multiplication separators / spaces left on a mantissa before
+-- the "10^(...)" cluster (e.g. "3,00⋅" -> "3,00").
+pure func stripTrailingSep(s: string) -> string {
+  let n = length(s);
+  if n == 0 then s
+  else {
+    let last = charAt(s, n - 1);
+    if (last == "⋅") || (last == "·") || (last == "*") || (last == " ")
+      then stripTrailingSep(substring(s, 0, n - 1))
+      else s
+  }
+}
+
+-- Parse scientific-notation segments: "<mant>⋅10^(<exp>)<unit>".
+pure func parseSci(seg: string) -> Option[(float, string)] {
+  let p = find(seg, "10^(");
+  if p < 0 then None
+  else {
+    let mant = stripTrailingSep(substring(seg, 0, p));
+    let afterHat = substring(seg, p + 4, length(seg));
+    let close = find(afterHat, ")");
+    if close < 0 then None
+    else {
+      let expTok = substring(afterHat, 0, close);
+      let unitRaw = substring(afterHat, close + 1, length(afterHat));
+      match (parseDecimal(mant), parseDecimal(expTok)) {
+        (Some(m), Some(x)) => Some((m * pow(10.0, x), cleanUnit(unitRaw))),
+        (_, _)             => None
+      }
+    }
+  }
+}
+
+-- Parse a plain "<value><unit>" segment (value = leading numeric run).
+pure func numPrefix(seg: string) -> Option[(float, string)] {
+  let s = trim(seg);
+  let n = length(s);
+  if n == 0 then None
+  else {
+    let signed = (charAt(s, 0) == "-") || (charAt(s, 0) == "+");
+    let start = if signed then 1 else 0;
+    let e = scanNum(s, start);
+    if e == start then None
+    else
+      match parseDecimal(substring(s, 0, e)) {
+        Some(v) => Some((v, cleanUnit(trim(substring(s, e, n))))),
+        None    => None
+      }
+  }
+}
+
+-- Fold to the last non-empty (trimmed) element; used for both "last line" and
+-- "last =-delimited segment".
+pure func lastNonEmpty(xs: [string], acc: string) -> string =
+  match xs {
+    [] => acc,
+    h :: t => if trim(h) == "" then lastNonEmpty(t, acc) else lastNonEmpty(t, h)
+  }
+
+-- The final result segment: unify ≈ / ~ with =, then take the last =-piece.
+pure func finalSegment(line: string) -> string =
+  lastNonEmpty(split(replace(replace(line, "≈", "="), "~", "="), "="), "")
+
+pure func classify(v: float, u: string) -> KeyValue =
+  if trim(u) == "" then NeedsReview("missing unit") else Numeric(v, u)
+
+-- Substring after a marker (or the whole line if the marker is absent).
+pure func afterMarker(line: string, m: string) -> string {
+  let p = find(line, m);
+  if p < 0 then line else substring(line, p + length(m), length(line))
+}
+
+-- The last line containing "FACIT" (the answer-format contract line).
+pure func lastFacitLine(xs: [string], acc: string) -> string =
+  match xs {
+    [] => acc,
+    h :: t => if contains(h, "FACIT") then lastFacitLine(t, h) else lastFacitLine(t, acc)
+  }
+
+-- Parse a model solver response: pull the value+unit off its `FACIT:` line.
+-- Same numeric machinery as the key extractor, so solver answers and official
+-- keys are parsed identically (deterministic grading layer 1).
+export pure func extractFacit(response: string) -> KeyValue {
+  let line = lastFacitLine(split(response, "\n"), "");
+  if trim(line) == "" then NeedsReview("no FACIT line in response")
+  else {
+    let seg = finalSegment(afterMarker(line, "FACIT:"));
+    match parseSci(seg) {
+      Some((v, u)) => classify(v, u),
+      None =>
+        match numPrefix(seg) {
+          Some((v, u)) => classify(v, u),
+          None         => NeedsReview("FACIT line unparseable")
+        }
+    }
+  }
+}
+
+-- Top-level: extract a KeyValue from one key answer string.
+export pure func extractKey(answer: string) -> KeyValue {
+  let line = lastNonEmpty(split(answer, "\n"), "");
+  if contains(line, "→") then Symbolic
+  else if contains(line, " og ") then NeedsReview("multiple values on final line")
+  else {
+    let seg = finalSegment(line);
+    match parseSci(seg) {
+      Some((v, u)) => classify(v, u),
+      None =>
+        match numPrefix(seg) {
+          Some((v, u)) => classify(v, u),
+          None         => NeedsReview("no numeric value in final segment")
+        }
+    }
+  }
+}

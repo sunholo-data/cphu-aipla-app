@@ -1,0 +1,62 @@
+module benchmark/smoke
+
+-- Live AI plumbing smoke test — 2 self-contained physics probes with known
+-- answers (no exam corpus / question_text needed). Exercises the full live path:
+-- solver prompt -> std/ai.step -> FACIT parse -> grader -> token telemetry.
+--
+-- Free wiring check:  ailang run --ai-stub --caps IO,AI --entry main benchmark/smoke.ail
+-- Real (spends ~cents): ailang run --ai gemini-2-5-flash --caps IO,AI --entry main benchmark/smoke.ail
+
+import benchmark/keyparse (Numeric, Symbolic, NeedsReview, extractFacit)
+import benchmark/grader (Expected, gradeNumeric, verdictLabel)
+import benchmark/solver (systemPrompt, userMessage)
+import std/ai (Message, StepResult, AIError, step)
+import std/result (Result, Ok, Err)
+
+type Probe = { name: string, question: string, expected: Expected }
+
+func solve(q: string) -> Result[StepResult, AIError] ! {AI} {
+  let msgs = [
+    { role: "system", content: systemPrompt(), tool_calls: [], tool_call_id: "", images: [] },
+    { role: "user",   content: userMessage(q), tool_calls: [], tool_call_id: "", images: [] }
+  ];
+  step("", msgs, [])
+}
+
+func runProbe(p: Probe) -> () ! {AI, IO} {
+  println("--- ${p.name} ---");
+  match solve(p.question) {
+    Err(e) => println("  AI ERROR: ${e.code} — ${e.message} (retryable=${show(e.retryable)})"),
+    Ok(r)  => {
+      println("  model answer:");
+      println("${r.message.content}");
+      match extractFacit(r.message.content) {
+        Numeric(v, u)  => {
+          let verdict = verdictLabel(gradeNumeric(p.expected, v, u));
+          println("  parsed FACIT : ${show(v)} ${u}");
+          println("  expected     : ${show(p.expected.value)} ${p.expected.unit}");
+          println("  VERDICT      : ${verdict}")
+        },
+        Symbolic       => println("  FACIT: symbolic (unexpected here)"),
+        NeedsReview(x) => println("  FACIT parse failed: ${x}")
+      };
+      println("  tokens: in=${show(r.input_tokens)} out=${show(r.output_tokens)} cache_read=${show(r.cache_read_input_tokens)} finish=${r.finish_reason}")
+    }
+  };
+  println("")
+}
+
+export func main() -> () ! {AI, IO} {
+  println("STX AI smoke — 2 self-contained probes (model = --ai handler)");
+  println("");
+  runProbe({
+    name: "Newton F = m*a",
+    question: "En genstand med massen m = 2,0 kg har accelerationen a = 3,0 m/s^2. Beregn den resulterende kraft F.",
+    expected: { value: 6.0, unit: "N", tolerance_rel: 0.05 }
+  });
+  runProbe({
+    name: "Kinetisk energi",
+    question: "Beregn den kinetiske energi for en genstand med masse m = 4,0 kg og fart v = 5,0 m/s.",
+    expected: { value: 50.0, unit: "J", tolerance_rel: 0.05 }
+  })
+}

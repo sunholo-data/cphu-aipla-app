@@ -1,0 +1,157 @@
+module benchmark/stage1
+
+-- Stage 1 harness shell.
+--
+-- `main` (--caps IO,FS) is a COST-FREE DRY RUN: it loads the runnable items from
+-- runs/stage0/items.jsonl (topic-aware, per-item tolerance), synthesises a
+-- perfect `FACIT:` line from each key value, and drives the full deterministic
+-- pipeline (FACIT parse -> grader -> verdict -> results.jsonl with topics). Every
+-- item must grade `correct`. Run benchmark/items.ail first to produce items.jsonl.
+--
+-- `solveLive` / `judgeAnswer` (--caps IO,FS,AI,Env, and `--ai <model>`) are the
+-- REAL model primitives. A full live run is gated (VERIFY.md); see benchmark/smoke.ail
+-- for a minimal live plumbing check.
+--
+-- Dry run: ailang run --caps IO,FS --entry main benchmark/stage1.ail
+
+import benchmark/keyparse (KeyValue, Numeric, Symbolic, NeedsReview, extractFacit)
+import benchmark/grader (Verdict, Correct, Incorrect, Ambiguous, Expected, gradeNumeric, verdictLabel)
+import benchmark/solver (systemPrompt, userMessage, judgeSchema, judgeInput)
+import std/ai (Message, StepResult, AIError, CacheBreakpoint, stepWithCache, callJsonResult)
+import std/fs (readFile, writeFile, mkdirAll)
+import std/json (decode, getString, getBool, getNumber, getArray, getObject, asString, Json)
+import std/option (Option, Some, None, getOrElse)
+import std/result (Result, Ok, Err)
+import std/list (length, map, filter)
+import std/string (trim, split, length as strLen)
+
+type RunItem = {
+  item_id: string,
+  set: string,
+  subq: string,
+  topics: [string],
+  expected: Expected
+}
+
+-- ---- item loading (runnable items from items.jsonl) ------------------------
+
+pure func parseTopics(arr: [Json]) -> [string] =
+  filter(\s. strLen(s) > 0, map(\j. getOrElse(asString(j), ""), arr))
+
+pure func rowToItem(j: Json) -> Option[RunItem] =
+  if getOrElse(getBool(j, "runnable"), false) then
+    match getObject(j, "expected") {
+      Some(exp) =>
+        Some({
+          item_id: getOrElse(getString(j, "item_id"), "?"),
+          set: getOrElse(getString(j, "set"), ""),
+          subq: getOrElse(getString(j, "subq"), ""),
+          topics: parseTopics(getOrElse(getArray(j, "topics"), [])),
+          expected: {
+            value: getOrElse(getNumber(exp, "value"), 0.0),
+            unit: getOrElse(getString(exp, "unit"), ""),
+            tolerance_rel: getOrElse(getNumber(exp, "tolerance_rel"), 0.05)
+          }
+        }),
+      None => None
+    }
+  else None
+
+pure func collectItems(lines: [string]) -> [RunItem] =
+  match lines {
+    [] => [],
+    l :: rest =>
+      if trim(l) == "" then collectItems(rest)
+      else
+        match decode(l) {
+          Ok(j)  => match rowToItem(j) { Some(it) => it :: collectItems(rest), None => collectItems(rest) },
+          Err(_) => collectItems(rest)
+        }
+  }
+
+func loadItems(path: string) -> [RunItem] ! {FS} {
+  let raw = readFile(path);
+  collectItems(split(raw, "\n"))
+}
+
+-- ---- deterministic grading (shared by dry run and the live path) -----------
+
+pure func dryResponse(it: RunItem) -> string =
+  "FACIT: ${show(it.expected.value)} ${it.expected.unit}"
+
+pure func gradeResponse(it: RunItem, response: string) -> Verdict =
+  match extractFacit(response) {
+    Numeric(v, u)  => gradeNumeric(it.expected, v, u),
+    Symbolic       => Ambiguous,
+    NeedsReview(_) => Ambiguous
+  }
+
+-- ---- results.jsonl (item_id, set, subq, topics, verdict, model) -------------
+
+pure func quoteJoin(xs: [string]) -> string =
+  match xs {
+    [] => "",
+    x :: rest =>
+      match rest {
+        []     => "\"${x}\"",
+        _      => "\"${x}\",${quoteJoin(rest)}"
+      }
+  }
+
+pure func resultLine(it: RunItem) -> string {
+  let verdict = verdictLabel(gradeResponse(it, dryResponse(it)));
+  "{\"item_id\":\"${it.item_id}\",\"set\":\"${it.set}\",\"subq\":\"${it.subq}\",\"topics\":[${quoteJoin(it.topics)}],\"verdict\":\"${verdict}\",\"model\":\"dryrun\"}"
+}
+
+pure func renderResults(items: [RunItem]) -> string =
+  match items {
+    [] => "",
+    it :: rest => "${resultLine(it)}\n${renderResults(rest)}"
+  }
+
+pure func countCorrect(items: [RunItem]) -> int =
+  match items {
+    [] => 0,
+    it :: rest => {
+      let inc = if verdictLabel(gradeResponse(it, dryResponse(it))) == "correct" then 1 else 0;
+      inc + countCorrect(rest)
+    }
+  }
+
+pure func manifestJson(n: int, correct: int) -> string =
+  "{\"run_id\":\"dryrun\",\"mode\":\"dryrun\",\"ailang_version\":\"0.29.2\",\"item_count\":${show(n)},\"dryrun_correct\":${show(correct)},\"source\":\"runs/stage0/items.jsonl\",\"note\":\"timestamp + prompt/item hashes stamped at real-run time\"}"
+
+-- ---- dry run entrypoint (no AI, no cost) -----------------------------------
+
+export func main() -> () ! {IO, FS} {
+  let items = loadItems("runs/stage0/items.jsonl");
+  let n = length(items);
+  let correct = countCorrect(items);
+  println("STX Stage-1 solver shell — DRY RUN (no AI, no cost)");
+  println("runnable items from items.jsonl : ${show(n)}");
+  if n == 0 then println("  (empty — run: ailang run --caps IO,FS --entry main benchmark/items.ail first)")
+  else {
+    mkdirAll("runs/dryrun");
+    writeFile("runs/dryrun/results.jsonl", renderResults(items));
+    writeFile("runs/dryrun/manifest.json", manifestJson(n, correct));
+    println("pipeline graded correct         : ${show(correct)}/${show(n)}");
+    println("wrote runs/dryrun/results.jsonl + manifest.json");
+    if correct == n then println("RESULT: PASS (Stage-1 pipeline verified on ${show(n)} topic-aware items)")
+    else println("RESULT: FAIL — ${show(n - correct)} item(s) did not self-grade correct")
+  }
+}
+
+-- ---- live model primitives -------------------------------------------------
+
+-- One solver turn for a panel model (model="" uses the --ai handler model).
+func solveLive(model: string, questionText: string) -> Result[StepResult, AIError] ! {AI} {
+  let msgs = [
+    { role: "system", content: systemPrompt(), tool_calls: [], tool_call_id: "", images: [] },
+    { role: "user",   content: userMessage(questionText), tool_calls: [], tool_call_id: "", images: [] }
+  ];
+  let breakpoints = [{ position: "system", ttl: "ephemeral" }];
+  stepWithCache(model, msgs, [], breakpoints)
+}
+
+func judgeAnswer(modelAnswer: string, rawKey: string) -> Result[string, AIError] ! {AI} =
+  callJsonResult(judgeInput(modelAnswer, rawKey), judgeSchema())

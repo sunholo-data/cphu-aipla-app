@@ -1,0 +1,200 @@
+{
+  "_note": "Model panel lives in config, NOT code (kickoff Stage 2). ids are the exact strings passed to --ai / step(); provider is inferred from the id (see _provider_routing).",
+  "_deployment": "Scoring data comes from CLOUD APIs (Gemini/Claude/GPT frontier tiers) + OPENROUTER (to audit the smaller / open-weights models) — expected to be sufficient to score, NO local GPU needed. Running selected models on the server's GPU cluster (Ollama) is a FUTURE step decided from the scores. The dev laptop authors + runs cheap cloud plumbing smoke; the full corpus scoring run can execute from laptop or server against cloud+OR APIs (M, 2026-07-15).",
+  "_provider_routing": "AILANG GuessProvider infers the provider from the model-id: gemini-* -> Vertex (ADC); claude-* -> Anthropic direct (ANTHROPIC_API_KEY); gpt-*/o1/o3/codex -> OpenAI direct (OPENAI_API_KEY); ollama/<model> -> Ollama GPU via OLLAMA_HOST (no key); vendor/model or openrouter:<model> -> OpenRouter (OPENROUTER_API_KEY). Per-call step(model) needs the provider API name (dots), not the friendly --ai name. Canonical tier-descent execution: ONE `ailang run --ai <id>` per model (provider auto-selected), append to a shared results.jsonl.",
+  "top_tier": "claude-opus-4-8",
+  "_panel_selected": "M, 2026-07-15: opus / sonnet / haiku (Anthropic direct) + gemma4 & deepseek-flash (OpenRouter). Final panel is M's call; swap ids in the driver and it just works.",
+  "panel": [
+    {
+      "id": "claude-opus-4-8",
+      "tier": "frontier-top",
+      "route": "anthropic-direct",
+      "enabled": true
+    },
+    {
+      "id": "claude-sonnet-5",
+      "tier": "frontier-sonnet5",
+      "route": "anthropic-direct",
+      "enabled": true
+    },
+    {
+      "id": "claude-sonnet-4-6",
+      "tier": "frontier-mid",
+      "route": "anthropic-direct",
+      "enabled": true
+    },
+    {
+      "id": "claude-haiku-4-5",
+      "tier": "frontier-low",
+      "route": "anthropic-direct",
+      "enabled": true
+    },
+    {
+      "id": "google/gemma-4-26b-a4b-it",
+      "tier": "open-gemma4",
+      "route": "openrouter",
+      "enabled": false
+    },
+    {
+      "id": "deepseek/deepseek-v4-flash",
+      "tier": "open-deepseek",
+      "route": "openrouter",
+      "enabled": false
+    }
+  ],
+  "other_options": [
+    {
+      "id": "gemini-2.5-flash / -pro / gemini-3-*",
+      "route": "vertex",
+      "_note": "verified live; add if wanted"
+    },
+    {
+      "id": "gpt-5-mini",
+      "route": "openai",
+      "_note": "reasoning; high token cost"
+    },
+    {
+      "id": "google/gemma-4-26b-a4b-it:free",
+      "route": "openrouter",
+      "_note": "free OR variant of gemma4 (rate-limited)"
+    }
+  ],
+  "local_gpu_future": [
+    {
+      "id": "ollama/<server-model>",
+      "provider": "ollama",
+      "enabled": false,
+      "_note": "SUPERSEDED 2026-09-07 by .local_gpu_panel + run-local-gpu.sh, now that the host is university property and the corpus may sit here. Kept for the July rationale: OpenRouter was judged sufficient to SCORE, with local runs a later step decided from the scores."
+    }
+  ],
+  "grading": {
+    "default_tolerance_rel": 0.05,
+    "graph_reading_tolerance_rel": 0.1
+  },
+  "budget": {
+    "_note": "TWO LAYERS (confirmed with AILANG core 2026-07-15). (1) --routing-max-price = a per-token RATE ceiling, OpenRouter-only provider filter (now honest: filters providers, errors loudly on bad values, rejects on direct providers) — NOT a spend halt. (2) RUNNER-SIDE per-model TOKEN cap = the actual spend halt: runmodel.ail accumulates in+out tokens and stops THIS model at BUDGET_TOKENS, keeping partial results. The driver passes both per model. Reasoning models use ~6x tokens/item (gpt-5-mini 2370 vs gemini 391 live) — give them a higher cap.",
+    "per_model_token_cap_default": 150000,
+    "per_model_token_cap_overrides": {
+      "claude-opus-4-8": 250000,
+      "gpt-5-mini": 500000
+    },
+    "openrouter_max_price_per_mtok_usd": 2.0,
+    "halt_on_budget_exhausted": true,
+    "est_full_run": "~33 runnable x 5 models x 1 solve = ~165 calls; single-digit dollars"
+  },
+  "cache": {
+    "system_prompt_breakpoint": true,
+    "_correction": "stepWithCache {position:system, ttl:ephemeral} is a NO-OP on Gemini + Ollama (v0.18.4): only Anthropic (direct or via OpenRouter) populates cache_read_input_tokens. Do NOT model cache savings on the Gemini/Ollama tiers."
+  },
+  "openrouter_audit": [
+    {
+      "_note": "Open-weights audit via OpenRouter (current models, no Llama). Sizes tagged for uni self-hosting realism. Slugs verified against openrouter.ai/models 2026-07-15."
+    },
+    {
+      "id": "qwen/qwen3-8b",
+      "size": "8B",
+      "tier": "small",
+      "route": "openrouter",
+      "enabled": true
+    },
+    {
+      "id": "mistralai/mistral-small-3.2-24b-instruct",
+      "size": "24B",
+      "tier": "mid",
+      "route": "openrouter",
+      "enabled": true
+    },
+    {
+      "id": "google/gemma-3-27b-it",
+      "size": "27B",
+      "tier": "mid",
+      "route": "openrouter",
+      "enabled": true
+    },
+    {
+      "id": "qwen/qwen3-32b",
+      "size": "32B",
+      "tier": "upper",
+      "route": "openrouter",
+      "enabled": true
+    },
+    {
+      "id": "qwen/qwen3-30b-a3b-instruct-2507",
+      "size": "30B-A3B",
+      "tier": "moe-eff",
+      "route": "openrouter",
+      "enabled": true
+    },
+    {
+      "id": "qwen/qwen3-next-80b-a3b-instruct",
+      "size": "80B-A3B",
+      "tier": "moe-top",
+      "route": "openrouter",
+      "enabled": true
+    },
+    {
+      "id": "deepseek/deepseek-v4-flash",
+      "size": "moe",
+      "tier": "moe",
+      "route": "openrouter",
+      "enabled": true
+    }
+  ],
+  "app_gemini": [
+    {
+      "_note": "The app-repo AIPLA production stack (Vertex/ADC). Directly decision-relevant."
+    },
+    {
+      "id": "gemini-3-5-flash",
+      "tier": "app-top",
+      "route": "vertex",
+      "enabled": true
+    },
+    {
+      "id": "gemini-2-5-flash",
+      "tier": "app-mid",
+      "route": "vertex",
+      "enabled": true
+    },
+    {
+      "id": "gemini-2.5-flash-lite",
+      "tier": "app-lite",
+      "route": "vertex",
+      "enabled": true,
+      "_note": "GA lite; gemini-3.1-flash-lite-preview 404s on this Vertex project"
+    }
+  ],
+  "local_gpu_panel": [
+    {
+      "_note": "LOCAL-GPU panel (Ollama). Ids are EXACT `ollama list` names. Sizes are what the M4 Max/128GB host can hold. Verified-pulled entries are enabled; the rest need `ollama pull <id>` and a tag confirmation first — do not assume a tag exists because the model does. Scores from this panel are DETERMINISTIC-ONLY (no LLM judge, see runmodel_local.ail) and are a LOWER BOUND vs the July cloud numbers."
+    },
+    {
+      "id": "qwen3.8:27b-mxfp8",
+      "label": "qwen3.8-27b-local",
+      "tier": "3-single-gpu",
+      "enabled": true,
+      "_note": "Verified present + answering on this host 2026-09-07 (smoke.ail 2/2 path). Multimodal per OpenRouter's listing of the same family — the natural test of whether ONE model now covers text AND figures, which July said needed two."
+    },
+    {
+      "id": "qwen3-32b",
+      "label": "qwen3-32b-local",
+      "tier": "3-single-gpu",
+      "enabled": false,
+      "_note": "July tier-3 TEXT winner (88). Confirm the ollama tag before enabling."
+    },
+    {
+      "id": "qwen3-vl:32b",
+      "label": "qwen3-vl-32b-local",
+      "tier": "3-single-gpu-vision",
+      "enabled": false,
+      "_note": "July tier-3 VISION winner (88). Confirm the ollama tag before enabling."
+    },
+    {
+      "id": "gemma3:27b",
+      "label": "gemma3-27b-local",
+      "tier": "3-single-gpu",
+      "enabled": false,
+      "_note": "July control: general-purpose model given images scored 60 +/- 18. Useful as a negative control."
+    }
+  ]
+}

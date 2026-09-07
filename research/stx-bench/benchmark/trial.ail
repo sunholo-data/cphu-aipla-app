@@ -1,0 +1,75 @@
+module benchmark/trial
+
+-- Cross-provider trial runner. Runs the self-contained probes against the model
+-- bound by --ai (via step("")), and emits ONE results.jsonl line per probe to
+-- stdout, stamped with the model name from the TRIAL_MODEL env var. A shell
+-- driver invokes this once per provider (--ai gemini… / claude… / gpt… /
+-- vendor/model via OpenRouter) and concatenates the lines — the "one run per
+-- model" tier-descent pattern, spanning providers.
+--
+--   TRIAL_MODEL=<stamp> ailang run --ai <id> --caps IO,AI,Env --entry main benchmark/trial.ail
+--
+-- Prints only JSON lines (grep '^{'); no other stdout chatter from this module.
+
+import benchmark/keyparse (Numeric, Symbolic, NeedsReview, extractFacit)
+import benchmark/grader (Expected, gradeNumeric, verdictLabel)
+import benchmark/solver (systemPrompt, userMessage)
+import std/ai (Message, StepResult, AIError, step)
+import std/env (getEnvOr)
+import std/result (Result, Ok, Err)
+
+type Probe = {
+  item_id: string, set: string, subq: string, topics: [string],
+  question: string, expected: Expected
+}
+
+pure func probes() -> [Probe] =
+  [ { item_id: "demo-F", set: "demo", subq: "1", topics: ["mechanics-forces"],
+      question: "En genstand med massen m = 2,0 kg har accelerationen a = 3,0 m/s^2. Beregn den resulterende kraft F.",
+      expected: { value: 6.0, unit: "N", tolerance_rel: 0.05 } },
+    { item_id: "demo-Ek", set: "demo", subq: "2", topics: ["energy"],
+      question: "Beregn den kinetiske energi for en genstand med masse m = 4,0 kg og fart v = 5,0 m/s.",
+      expected: { value: 50.0, unit: "J", tolerance_rel: 0.05 } } ]
+
+func solve(q: string) -> Result[StepResult, AIError] ! {AI} {
+  let msgs = [
+    { role: "system", content: systemPrompt(), tool_calls: [], tool_call_id: "", images: [] },
+    { role: "user",   content: userMessage(q), tool_calls: [], tool_call_id: "", images: [] }
+  ];
+  step("", msgs, [])
+}
+
+pure func quoteJoin(xs: [string]) -> string =
+  match xs {
+    [] => "",
+    x :: rest => match rest { [] => "\"${x}\"", _ => "\"${x}\",${quoteJoin(rest)}" }
+  }
+
+pure func line(p: Probe, model: string, verdict: string, inTok: int, outTok: int) -> string =
+  "{\"item_id\":\"${p.item_id}\",\"set\":\"${p.set}\",\"subq\":\"${p.subq}\",\"topics\":[${quoteJoin(p.topics)}],\"model\":\"${model}\",\"verdict\":\"${verdict}\",\"in_tokens\":${show(inTok)},\"out_tokens\":${show(outTok)}}"
+
+func runProbe(model: string, p: Probe) -> () ! {AI, IO} {
+  match solve(p.question) {
+    Err(e)  => println(line(p, model, "error", 0, 0)),
+    Ok(r)   => {
+      let verdict =
+        match extractFacit(r.message.content) {
+          Numeric(v, u)  => verdictLabel(gradeNumeric(p.expected, v, u)),
+          Symbolic       => "ambiguous",
+          NeedsReview(_) => "ambiguous"
+        };
+      println(line(p, model, verdict, r.input_tokens, r.output_tokens))
+    }
+  }
+}
+
+func runAll(model: string, ps: [Probe]) -> () ! {AI, IO} {
+  match ps {
+    [] => (),
+    p :: rest => { runProbe(model, p); runAll(model, rest) }
+  }
+}
+
+export func main() -> () ! {AI, IO, Env} {
+  runAll(getEnvOr("TRIAL_MODEL", "unknown"), probes())
+}

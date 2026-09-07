@@ -1,0 +1,176 @@
+module benchmark/runmodel_local
+
+-- LOCAL-GPU full-corpus runner for ONE model. Same items, same grader, same
+-- output shape as runmodel.ail, so score.ail / matrix.ail consume it unchanged.
+--
+-- WHY THIS EXISTS (measured 2026-09-07, AILANG v0.35.1, Ollama 0.33.2):
+--   runmodel.ail grades via `callJsonResult` (schema-enforced structured output).
+--   That call returns an EMPTY string on the Ollama provider — verified with
+--   benchmark/smokejson.ail, which DECODE-FAILs on ollama/* while the identical
+--   schema works when posted straight to Ollama's /api/chat `format` field. So
+--   it is an AILANG provider gap, not an Ollama or model limitation.
+--   `step` DOES work on Ollama (benchmark/smoke.ail: 2/2 graded correct), so the
+--   local runner uses the older step + FACIT-line path, which is proven on this
+--   provider.
+--
+-- GRADING DIFFERENCE — read before comparing to the July cloud numbers:
+--   runmodel.ail falls back to an LLM judge when the deterministic compare is
+--   not `correct`. That fallback also needs callJsonResult, so it is NOT run
+--   here. Verdicts are deterministic-only, which makes a local score a LOWER
+--   BOUND: a right answer in an unusual unit or a genuine method difference
+--   grades `incorrect` here where the cloud path would rescue it. Do not put a
+--   local number in the same column as a July number without saying so.
+--
+--   TRIAL_MODEL=<stamp> ailang run --ai ollama/<model> \
+--     --caps IO,FS,AI,Env,Clock --entry main benchmark/runmodel_local.ail
+
+import benchmark/grader (Expected, gradeNumeric, verdictLabel)
+import benchmark/keyparse (Numeric, Symbolic, NeedsReview, extractFacit)
+import benchmark/solver (systemPrompt, userMessage)
+import std/ai (Message, StepResult, AIError, step)
+import std/clock (sleep)
+import std/env (getEnvOr)
+import std/fs (readFile, readFileResult)
+import std/json (decode, getString, getBool, getNumber, getArray, getObject, asString, Json)
+import std/list (map, filter)
+import std/option (Option, Some, None, getOrElse)
+import std/result (Result, Ok, Err)
+import std/string (trim, split, length as strLen)
+
+type Item = {
+  item_id: string, set: string, subq: string, topics: [string],
+  question: string, raw_key: string, expected: Expected
+}
+
+-- ---- load runnable items (identical contract to runmodel.ail) --------------
+
+pure func parseTopics(arr: [Json]) -> [string] =
+  filter(\s. strLen(s) > 0, map(\j. getOrElse(asString(j), ""), arr))
+
+type Recovered = { item_id: string, value: float, unit: string }
+
+pure func recRows(lines: [string]) -> [Recovered] =
+  match lines {
+    [] => [],
+    l :: rest =>
+      if trim(l) == "" then recRows(rest)
+      else match decode(l) {
+        Ok(j)  =>
+          if getOrElse(getString(j, "kind"), "numeric") == "numeric" then
+            ({ item_id: getOrElse(getString(j, "item_id"), "?"),
+               value: getOrElse(getNumber(j, "value"), 0.0),
+               unit: getOrElse(getString(j, "unit"), "") }) :: recRows(rest)
+          else recRows(rest),
+        Err(_) => recRows(rest)
+      }
+  }
+
+func loadRecovered(path: string) -> [Recovered] ! {FS} =
+  match readFileResult(path) {
+    Ok(raw) => recRows(split(raw, "\n")),
+    Err(_)  => []
+  }
+
+pure func recoveredFor(id: string, recs: [Recovered]) -> Option[(float, string)] =
+  match recs {
+    [] => None,
+    r :: rest => if r.item_id == id then Some((r.value, r.unit)) else recoveredFor(id, rest)
+  }
+
+pure func buildItem(j: Json, v: float, u: string, tol: float) -> Item =
+  {
+    item_id: getOrElse(getString(j, "item_id"), "?"),
+    set: getOrElse(getString(j, "set"), ""),
+    subq: getOrElse(getString(j, "subq"), ""),
+    topics: parseTopics(getOrElse(getArray(j, "topics"), [])),
+    question: getOrElse(getString(j, "question_text"), ""),
+    raw_key: getOrElse(getString(j, "raw_key"), ""),
+    expected: { value: v, unit: u, tolerance_rel: tol }
+  }
+
+pure func rowToItem(j: Json, recs: [Recovered]) -> Option[Item] =
+  match recoveredFor(getOrElse(getString(j, "item_id"), "?"), recs) {
+    Some((v, u)) => Some(buildItem(j, v, u, 0.05)),
+    None =>
+      if getOrElse(getBool(j, "runnable"), false) then
+        match getObject(j, "expected") {
+          Some(exp) => Some(buildItem(j,
+            getOrElse(getNumber(exp, "value"), 0.0),
+            getOrElse(getString(exp, "unit"), ""),
+            getOrElse(getNumber(exp, "tolerance_rel"), 0.05))),
+          None => None
+        }
+      else None
+  }
+
+pure func collectItems(lines: [string], recs: [Recovered]) -> [Item] =
+  match lines {
+    [] => [],
+    l :: rest =>
+      if trim(l) == "" then collectItems(rest, recs)
+      else
+        match decode(l) {
+          Ok(j)  => match rowToItem(j, recs) { Some(it) => it :: collectItems(rest, recs), None => collectItems(rest, recs) },
+          Err(_) => collectItems(rest, recs)
+        }
+  }
+
+func loadItems(path: string, recs: [Recovered]) -> [Item] ! {FS} {
+  let raw = readFile(path);
+  collectItems(split(raw, "\n"), recs)
+}
+
+-- ---- solve (step + FACIT — the Ollama-proven path) -------------------------
+
+func solveStep(q: string) -> Result[StepResult, AIError] ! {AI} {
+  let msgs = [
+    { role: "system", content: systemPrompt(), tool_calls: [], tool_call_id: "", images: [] },
+    { role: "user",   content: userMessage(q), tool_calls: [], tool_call_id: "", images: [] }
+  ];
+  step("", msgs, [])
+}
+
+func solveRetry(q: string, attempt: int) -> Result[StepResult, AIError] ! {AI, Clock} {
+  match solveStep(q) {
+    Ok(r)  => Ok(r),
+    Err(e) =>
+      if e.retryable && attempt < 4 then { sleep(2000 * attempt); solveRetry(q, attempt + 1) }
+      else Err(e)
+  }
+}
+
+-- Deterministic only. An unparseable FACIT line is `ambiguous`, never a guess,
+-- and is reported separately by score.ail rather than counted correct.
+pure func gradeFacit(it: Item, content: string) -> string =
+  match extractFacit(content) {
+    Numeric(v, u) => verdictLabel(gradeNumeric(it.expected, v, u)),
+    Symbolic      => "ambiguous",
+    NeedsReview(_) => "ambiguous"
+  }
+
+pure func quoteJoin(xs: [string]) -> string =
+  match xs {
+    [] => "",
+    x :: rest => match rest { [] => "\"${x}\"", _ => "\"${x}\",${quoteJoin(rest)}" }
+  }
+
+pure func line(it: Item, model: string, verdict: string, ins: int, outs: int) -> string =
+  "{\"item_id\":\"${it.item_id}\",\"set\":\"${it.set}\",\"subq\":\"${it.subq}\",\"topics\":[${quoteJoin(it.topics)}],\"model\":\"${model}\",\"verdict\":\"${verdict}\",\"in_tokens\":${show(ins)},\"out_tokens\":${show(outs)}}"
+
+func run(model: string, items: [Item]) -> () ! {AI, IO, Clock} {
+  match items {
+    [] => (),
+    it :: rest => {
+      match solveRetry(it.question, 1) {
+        Ok(r)  => println(line(it, model, gradeFacit(it, r.message.content), r.input_tokens, r.output_tokens)),
+        Err(e) => println(line(it, model, "error", 0, 0))
+      };
+      run(model, rest)
+    }
+  }
+}
+
+export func main() -> () ! {AI, IO, FS, Env, Clock} {
+  let recs = loadRecovered("runs/stage0/recovered.jsonl");
+  run(getEnvOr("TRIAL_MODEL", "unknown"), loadItems("runs/stage0/items.jsonl", recs))
+}

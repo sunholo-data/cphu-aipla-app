@@ -1,0 +1,116 @@
+module benchmark/score
+
+-- Scoring / report layer. Reads a results.jsonl (item_id, set, topics, verdict,
+-- model) and prints accuracy overall / per-set / per-topic. This is the concrete
+-- form of the scoring decision (accuracy vs key is primary; see README
+-- §Scoring methodology). Divergence + per-model matrix activate in Stage 2 once
+-- >1 model is present.
+--
+-- Run: ailang run --caps IO,FS --entry main benchmark/score.ail
+--   (defaults to runs/dryrun/results.jsonl)
+
+import std/fs (readFile)
+import std/json (decode, getString, getArray, asString, Json)
+import std/option (Option, Some, None, getOrElse)
+import std/result (Ok, Err)
+import std/list (length, map, filter, any)
+import std/string (trim, split, length as strLen)
+
+type ResultRec = { set: string, verdict: string, topics: [string] }
+type TopicHit = { topic: string, ok: bool }
+
+pure func parseTopics(arr: [Json]) -> [string] =
+  filter(\s. strLen(s) > 0, map(\j. getOrElse(asString(j), ""), arr))
+
+pure func rowToRes(j: Json) -> ResultRec =
+  { set: getOrElse(getString(j, "set"), ""),
+    verdict: getOrElse(getString(j, "verdict"), ""),
+    topics: parseTopics(getOrElse(getArray(j, "topics"), [])) }
+
+pure func collectRes(lines: [string]) -> [ResultRec] =
+  match lines {
+    [] => [],
+    l :: rest =>
+      if trim(l) == "" then collectRes(rest)
+      else
+        match decode(l) {
+          Ok(j)  => rowToRes(j) :: collectRes(rest),
+          Err(_) => collectRes(rest)
+        }
+  }
+
+func loadResults(path: string) -> [ResultRec] ! {FS} {
+  let raw = readFile(path);
+  collectRes(split(raw, "\n"))
+}
+
+-- ---- helpers ---------------------------------------------------------------
+
+pure func isCorrect(r: ResultRec) -> bool = r.verdict == "correct"
+
+pure func member(x: string, xs: [string]) -> bool = any(\y. y == x, xs)
+
+pure func uniqAcc(xs: [string], seen: [string]) -> [string] =
+  match xs {
+    [] => seen,
+    h :: t => if member(h, seen) then uniqAcc(t, seen) else uniqAcc(t, seen ++ [h])
+  }
+
+pure func unique(xs: [string]) -> [string] = uniqAcc(xs, [])
+
+-- "c/t (p%)" with a whole-number percentage (integer division * 100).
+pure func acc(correct: int, total: int) -> string =
+  if total == 0 then "0/0"
+  else "${show(correct)}/${show(total)} (${show(correct * 100 / total)}%)"
+
+pure func topicHits(recs: [ResultRec]) -> [TopicHit] =
+  match recs {
+    [] => [],
+    r :: rest => map(\t. { topic: t, ok: isCorrect(r) }, r.topics) ++ topicHits(rest)
+  }
+
+-- ---- printing --------------------------------------------------------------
+
+func printSets(recs: [ResultRec], sets: [string]) -> () ! {IO} =
+  match sets {
+    [] => (),
+    s :: rest => {
+      let tot = length(filter(\r. r.set == s, recs));
+      let cor = length(filter(\r. r.set == s && isCorrect(r), recs));
+      println("  ${s}  ${acc(cor, tot)}");
+      printSets(recs, rest)
+    }
+  }
+
+func printTopics(hits: [TopicHit], topics: [string]) -> () ! {IO} =
+  match topics {
+    [] => (),
+    t :: rest => {
+      let tot = length(filter(\h. h.topic == t, hits));
+      let cor = length(filter(\h. h.topic == t && h.ok, hits));
+      println("  ${t}  ${acc(cor, tot)}");
+      printTopics(hits, rest)
+    }
+  }
+
+export func main() -> () ! {IO, FS} {
+  let recs = loadResults("runs/dryrun/results.jsonl");
+  let n = length(recs);
+  println("STX benchmark score report");
+  println("source: runs/dryrun/results.jsonl");
+  println("");
+  if n == 0 then println("no results (run benchmark/stage1.ail first)")
+  else {
+    let cor = length(filter(isCorrect, recs));
+    println("OVERALL: ${acc(cor, n)}");
+    println("");
+    println("per set:");
+    printSets(recs, unique(map(\r. r.set, recs)));
+    println("");
+    println("per topic:");
+    let hits = topicHits(recs);
+    printTopics(hits, unique(map(\h. h.topic, hits)));
+    println("");
+    println("(divergence + per-model matrix: Stage 2, needs >1 model)")
+  }
+}

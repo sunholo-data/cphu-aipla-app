@@ -1,0 +1,83 @@
+module benchmark/diag
+
+-- Diagnose the "incorrect" items: solve (structured), show model value/unit vs
+-- expected vs the official key vs the judge's reason.
+-- Run: ailang run --ai claude-opus-4-8 --caps IO,FS,AI --entry main benchmark/diag.ail
+
+import benchmark/grader (Expected, gradeNumeric, verdictLabel)
+import benchmark/solver (answerSchema, solveInput, judgeInput, judgeSchema)
+import std/ai (AIError, callJsonResult)
+import std/fs (readFile)
+import std/json (decode, getString, getBool, getNumber, getObject, asString, Json)
+import std/option (Option, Some, None, getOrElse)
+import std/result (Result, Ok, Err)
+import std/string (trim, split, substring, length as strLen)
+import std/list (any)
+
+type Item = { item_id: string, question: string, raw_key: string, ev: float, eu: string }
+
+pure func wanted(id: string) -> bool =
+  any(\x. x == id, ["1stx231-1b", "1stx231-4b", "1stx241-6b", "2stx231-1b", "2stx231-4b", "2stx241-3c", "2stx241-6b"])
+
+pure func rowToItem(j: Json) -> Option[Item] =
+  if getOrElse(getBool(j, "runnable"), false) then
+    match getObject(j, "expected") {
+      Some(exp) => {
+        let id = getOrElse(getString(j, "item_id"), "?");
+        if wanted(id) then
+          Some({ item_id: id, question: getOrElse(getString(j, "question_text"), ""),
+                 raw_key: getOrElse(getString(j, "raw_key"), ""),
+                 ev: getOrElse(getNumber(exp, "value"), 0.0), eu: getOrElse(getString(exp, "unit"), "") })
+        else None
+      },
+      None => None
+    }
+  else None
+
+pure func collect(lines: [string]) -> [Item] =
+  match lines {
+    [] => [],
+    l :: rest =>
+      if trim(l) == "" then collect(rest)
+      else match decode(l) { Ok(j) => match rowToItem(j) { Some(it) => it :: collect(rest), None => collect(rest) }, Err(_) => collect(rest) }
+  }
+
+pure func clip(s: string, n: int) -> string = if strLen(s) > n then substring(s, 0, n) else s
+
+func diagOne(it: Item) -> () ! {AI, IO} {
+  println("===== ${it.item_id}  expected ${show(it.ev)} ${it.eu} =====");
+  match callJsonResult(solveInput(it.question), answerSchema()) {
+    Err(e) => println("  solve error ${e.code}"),
+    Ok(js) =>
+      match decode(js) {
+        Err(_) => println("  bad json"),
+        Ok(j)  => {
+          let mv = getOrElse(getNumber(j, "value"), 0.0);
+          let mu = getOrElse(getString(j, "unit"), "");
+          let det = verdictLabel(gradeNumeric({ value: it.ev, unit: it.eu, tolerance_rel: 0.05 }, mv, mu));
+          println("  model: ${show(mv)} ${mu}   deterministic: ${det}");
+          println("  key:   ${clip(it.raw_key, 160)}");
+          match callJsonResult(judgeInput(js, it.raw_key), judgeSchema()) {
+            Ok(jr) => match decode(jr) {
+              Ok(jrj) => {
+                let jv = getOrElse(getString(jrj, "verdict"), "?");
+                let jreason = clip(getOrElse(getString(jrj, "reason"), ""), 220);
+                println("  judge: ${jv} — ${jreason}")
+              },
+              Err(_) => println("  judge: bad json")
+            },
+            Err(_) => println("  judge: error")
+          }
+        }
+      }
+  };
+  println("")
+}
+
+func runAll(its: [Item]) -> () ! {AI, IO} {
+  match its { [] => (), it :: rest => { diagOne(it); runAll(rest) } }
+}
+
+export func main() -> () ! {AI, IO, FS} {
+  runAll(collect(split(readFile("runs/stage0/items.jsonl"), "\n")))
+}

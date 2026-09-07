@@ -1,0 +1,63 @@
+module benchmark/smokejson
+
+-- Structured-output smoke test — exercises the SAME path runmodel.ail uses
+-- (callJsonResult + answerSchema + gradeNumeric) on 2 self-contained probes.
+-- No exam corpus / items.jsonl needed, so it is the right pre-flight for a new
+-- provider (notably Ollama, where JSON-schema support is the open question:
+-- smoke.ail only proves `step`, which is a different code path).
+--
+--   ailang run --ai ollama/<model> --caps IO,AI,Clock --entry main benchmark/smokejson.ail
+
+import benchmark/grader (Expected, gradeNumeric, verdictLabel)
+import benchmark/solver (answerSchema, solveInput)
+import std/ai (AIError, callJsonResult)
+import std/clock (sleep)
+import std/json (decode, getString, getBool, getNumber)
+import std/option (getOrElse)
+import std/result (Result, Ok, Err)
+
+type Probe = { name: string, question: string, expected: Expected }
+
+func callRetry(input: string, schema: string, attempt: int) -> Result[string, AIError] ! {AI, Clock} {
+  match callJsonResult(input, schema) {
+    Ok(r)  => Ok(r),
+    Err(e) =>
+      if e.retryable && attempt < 4 then {
+        sleep(2000 * attempt);
+        callRetry(input, schema, attempt + 1)
+      } else Err(e)
+  }
+}
+
+func runProbe(p: Probe) -> () ! {AI, IO, Clock} {
+  println("--- ${p.name} ---");
+  match callRetry(solveInput(p.question), answerSchema(), 1) {
+    Err(e) => println("  AI ERROR: ${e.code} - ${e.message} (retryable=${show(e.retryable)})"),
+    Ok(js) =>
+      match decode(js) {
+        Err(_) => println("  DECODE FAILED - provider did not return valid JSON: ${js}"),
+        Ok(j)  =>
+          if getOrElse(getBool(j, "can_solve"), true) then {
+            let v = getOrElse(getNumber(j, "value"), 0.0);
+            let u = getOrElse(getString(j, "unit"), "");
+            println("  parsed  : ${show(v)} ${u}");
+            println("  expected: ${show(p.expected.value)} ${p.expected.unit}");
+            println("  VERDICT : ${verdictLabel(gradeNumeric(p.expected, v, u))}")
+          } else println("  VERDICT : abstain (can_solve=false)")
+      }
+  }
+}
+
+export func main() -> () ! {AI, IO, Clock} {
+  println("STRUCTURED-OUTPUT smoke (callJsonResult - the runmodel.ail path)");
+  runProbe({
+    name: "kinetic energy",
+    question: "En genstand med massen 4,0 kg bevaeger sig med farten 5,0 m/s. Beregn den kinetiske energi.",
+    expected: { value: 50.0, unit: "J", tolerance_rel: 0.05 }
+  });
+  runProbe({
+    name: "ohms law",
+    question: "En resistor paa 220 ohm har en spaending paa 12 V over sig. Beregn stroemmen gennem resistoren.",
+    expected: { value: 0.0545, unit: "A", tolerance_rel: 0.05 }
+  })
+}

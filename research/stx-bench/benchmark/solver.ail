@@ -1,0 +1,45 @@
+module benchmark/solver
+
+-- Solver + judge prompts for the STX Fysik-A benchmark. Pure (no AI effect
+-- here — the harness shell in stage1.ail does the calling). Solver prompt is
+-- Danish (the student role); the judge prompt is English with Danish quotes
+-- inline, per the kickoff.
+
+-- System prompt: the student role + the answer-format contract. The contract
+-- (final line `FACIT: <value> <unit>`) is what the deterministic grader keys on.
+export pure func systemPrompt() -> string =
+  "Du er en dygtig gymnasieelev til skriftlig eksamen i Fysik A (stx). Løs delspørgsmålet med korrekt fysik. Vis metoden: opskriv og isolér formlen før du indsætter tal, og før enheder med i beregningen. Du må bruge standardværdier fra Databogen. Brug ikke værktøjer eller internet. Afslut ALTID med en linje for sig selv på formen:\nFACIT: <værdi> <enhed>\nmed passende antal betydende cifre (typisk 2). Skriv kun ét facit."
+
+-- The user message is the (cleaned) subquestion text plus a final reinforcement
+-- of the answer-format contract. Models weight the last message heavily, and the
+-- smoke test showed the system-prompt instruction alone was not reliably followed
+-- (the model wrote the result in prose instead of a FACIT line).
+export pure func userMessage(questionText: string) -> string =
+  "${questionText}\n\nAfslut dit svar med præcis denne linje og intet efter den:\nFACIT: <værdi> <enhed>"
+
+-- STRUCTURED-OUTPUT solve (replaces the fragile FACIT-line + regex path). The
+-- provider enforces this schema, so `value` arrives as a real number (no
+-- superscript / 10^n parsing) and `unit` as a clean string.
+export pure func answerSchema() -> string =
+  "{\"type\":\"object\",\"properties\":{\"working\":{\"type\":\"string\"},\"can_solve\":{\"type\":\"boolean\"},\"value\":{\"type\":\"number\"},\"unit\":{\"type\":\"string\"}},\"required\":[\"working\",\"can_solve\",\"value\",\"unit\"]}"
+
+export pure func solveInput(questionText: string) -> string =
+  "Du er en dygtig gymnasieelev til skriftlig eksamen i Fysik A (stx). Løs delspørgsmålet med korrekt fysik. Vis din fulde udregning i feltet 'working'.\n\nGÆT ALDRIG. Hvis du ikke med sikkerhed kan bestemme facit ud fra den givne TEKST — fx fordi opgaven kræver aflæsning af en graf, figur eller et bilag, som du ikke har adgang til — så sæt can_solve=false, forklar hvorfor i 'working', og sæt value=0 og unit=\"\". Sæt kun can_solve=true når facit følger sikkert af teksten; angiv da 'value' (ét tal) og 'unit' (enheden), fx value=59 unit=\"m/s\" eller value=2.71e-14 unit=\"N\". Du må bruge standardværdier fra Databogen. Brug ikke værktøjer eller internet.\n\nDELSPØRGSMÅL:\n${questionText}"
+
+-- VISION solve prompt: the figure(s) are attached as image(s) on the Message,
+-- so — unlike solveInput — the model is told to READ the graph from the image
+-- rather than abstain. step() does not enforce a schema, so the JSON shape is
+-- demanded in the prompt and parsed (fence-tolerant) by the runner.
+export pure func solveVisionInput(questionText: string) -> string =
+  "Du er en dygtig gymnasieelev til skriftlig eksamen i Fysik A (stx). Løs delspørgsmålet med korrekt fysik og vis din fulde udregning i feltet 'working'. De nødvendige figurer/grafer er VEDHÆFTET som billede(r) — aflæs de relevante værdier direkte fra billedet. Svar UDELUKKENDE med gyldig JSON på præcis denne form og intet andet (ingen markdown, ingen kodeblok, ingen tekst udenom):\n{\"working\": string, \"can_solve\": boolean, \"value\": number, \"unit\": string}\nSæt can_solve=true og angiv value (ét tal) og unit (enheden), når du kan bestemme facit ved at aflæse billedet og regne, fx value=6.6 unit=\"mA\". Kun hvis billedet er ulæseligt eller utilstrækkeligt: sæt can_solve=false, value=0, unit=\"\". Du må bruge standardværdier fra Databogen. Brug ikke værktøjer eller internet.\n\nDELSPØRGSMÅL:\n${questionText}"
+
+-- JSON schema (as a string) for the LLM judge's structured verdict. Used with
+-- std/ai.callJsonResult so the provider enforces the shape.
+export pure func judgeSchema() -> string =
+  "{\"type\":\"object\",\"properties\":{\"verdict\":{\"type\":\"string\",\"enum\":[\"correct\",\"incorrect\",\"ambiguous\"]},\"reason\":{\"type\":\"string\"}},\"required\":[\"verdict\",\"reason\"]}"
+
+-- Judge input: only invoked when deterministic parsing fails or the item is
+-- non-numeric. Judges the final RESULT against the official key; method
+-- differences are fine, unit errors are wrong.
+export pure func judgeInput(modelAnswer: string, rawKey: string) -> string =
+  "You are grading a Danish stx Fysik A exam answer against the official key. Judge only the final result, not the method: different correct methods are fine, but a wrong unit is wrong. Return JSON {verdict, reason}.\n\nMODEL ANSWER:\n${modelAnswer}\n\nOFFICIAL KEY:\n${rawKey}"
