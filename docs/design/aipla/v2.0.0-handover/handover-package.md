@@ -1,6 +1,6 @@
 # The handover package — what is owed on 2026-09-15, and what exists
 
-**Status**: **OPEN — inventory taken 2026-09-01**, 14 days before the milestone. This doc is item **3.1** in the [v2.0.0-handover SEQUENCE](SEQUENCE.md), previously "Planned" with no content.
+**Status**: **OPEN — inventory taken 2026-09-01, co-owner section rewritten 2026-09-07**, 8 days before the milestone. This doc is item **3.1** in the [v2.0.0-handover SEQUENCE](SEQUENCE.md), previously "Planned" with no content.
 **Priority**: **P0 for the milestone** — it is the index the package is read through, and taking it is what surfaces the gaps early enough to act on
 **Owner**: M. Several rows are owned by JB or by KU and are marked as such — those need a *chase*, not a build
 **Scope**: Documentation and inventory only. Touches no runtime code
@@ -149,29 +149,88 @@ valuable single thing in it.
 ## Co-owners — the criterion with the least evidence
 
 Criterion 5 requires a named co-owner *who has demonstrated they can operate*
-each artefact. The `timeline.qmd` fan-out table is now partly stale:
+each artefact. The `timeline.qmd` fan-out table is stale in both directions —
+and one row was stale in a way that matters more than the others.
 
-| Artefact | `timeline.qmd` says | Actual, 2026-09-01 |
+### The correction that changes the attendee list
+
+**AR is the co-PI, not a student helper.** The 2026-09-01 inventory read the
+terse 08-25 note —
+
+```
+Sophie introducing - student helpers
+Aswin is more teacher side
+Atul is more student side
+```
+
+— as introducing *three student helpers*. It does not. `AR` is
+`aswin.rangkuti@ind.ku.dk`, co-PI, already granted programme-admin on M's
+say-so ([delegated-programme-administration-sprint.md](../v1.1.0-feedback/delegated-programme-administration-sprint.md)),
+and the person supplying the rubric literature in the 09-01 transcript. The
+lines describe *which side of the product each person covers*, not a roster of
+helpers. Reading it the other way files the co-PI under "day-to-day operations"
+in the table that becomes the handover-session invite list.
+
+**Still unconfirmed, and a question for 09-09:** whether Sophie is coordinating
+staff or a helper, and whether AT is the only student helper. The note is too
+terse to settle it and no other source names them. Confirm in the room rather
+than guess — this table is the invite list.
+
+### What the old table got wrong
+
+| Artefact | `timeline.qmd` says | Actual, 2026-09-07 |
 |---|---|---|
 | Capability-floor eval | AR (domain) + student helper (ops) | AR engaged. **AR's runbook is a stub**, and its own status line says it was blocked on a runner that now exists |
 | Pedagogical rubrics / LLM-judge prompts | AR | Rubrics shipped (1.1.57, rubric-1/rubric-2 sprints). No demonstration recorded |
 | Production architecture (Strand A) | DS + **P2**, ZL day-to-day | **"P2 (when hired)" has resolved: AD starts ~1 Oct.** Every doc in this repo still says "when hired" |
 | Cloud infra / GCP | **P2** + UCPH IT | Same — AD. And UCPH IT is now a *live, funded* counterparty via the KU AI office (from 2026-09-01), a better position than the table assumed |
-| Day-to-day operations | Student helpers + P2 | **Student helpers exist and appear in no row** — the 2026-08-25 notes introduce Sophie (coordinating), Aswin (teacher side), Atul (student side) |
+| Day-to-day operations | Student helpers + P2 | Helpers exist and appear in no row — but see the correction above: **AR is not one of them** |
 | Strand B | ZL, with DS | Not verified here |
-| Strand C note | JB (audience), AR (input) | Note not written |
+| Strand C note | JB (audience), AR (input) | **Drafted 2026-09-03**, six days early. Awaiting a read from JB/AR |
 
-**The honest read:** the inheritor picture is *better* than the table records —
-the P2-shaped hole is being filled by AD, student helpers arrived, and the KU AI
-office became real and funded. But **no row anywhere records someone other than
-M actually operating an artefact**, which is what criterion 5 asks for. Naming an
-inheritor is not the same as demonstrating one.
+### The rewritten fan-out
+
+Replaces the `timeline.qmd` table, which is retired along with the rest of the
+Quarto site (2026-09-01) and was never migrated to `/project`. This is now its
+only live home.
+
+**The column that changed is the last one.** The original ended in *First
+touchpoint* — a plan, written in week 1, when a plan was the right thing to
+have. Criterion 5 does not ask for a plan; it asks whether someone has
+*demonstrated* they can operate the artefact. So the column is now evidence,
+and it is mostly empty on purpose. An honest empty column is what makes the
+remaining work visible.
+
+| Artefact | Primary co-owner | Second | Demonstrated? | Next touchpoint |
+|---|---|---|---|---|
+| Capability-floor eval (dataset + runner) | AR (domain) | student helper (ops) | ❌ Runbook still a stub. Its blocker — "the runner existing" — is now resolved | Fill the runbook (this week); AR runs one eval end-to-end |
+| Pedagogical rubrics / LLM-judge prompts | AR | — | ⚠️ Partly. Rubrics shipped; AR is supplying literature + a two-rubric paper (09-01 transcript). No *operation* recorded | Rubric session; record it as the demonstration |
+| Production architecture (Strand A) | DS + **AD** | ZL (day-to-day) | ❌ AD has not started | ADR walkthrough, Oct (workstream B) |
+| Cloud infra / GCP | **AD** | UCPH IT (self-host migration) | ❌ | **AD runs a real promote with M watching** — not by reading [deploy.md](../../../ops/runbooks/deploy.md). Oct |
+| Day-to-day operations | student helper(s) | AD | ❌ Roster unconfirmed — see above | Onboarding session once the roster is settled |
+| Strand B (simulation/game) | ZL | DS | ❓ Not verified from this repo | Ask at 09-09 |
+| Strand C note | JB (audience) | AR (input) | ✅ Drafted 09-03 | JB/AR read; decide the Prøvebanken citation question |
+
+**Handover-session attendees**, corrected from `timeline.qmd`'s "P2 + AR + DS +
+ZL": **JB + AR + DS + ZL**, plus **AD if the date falls after ~1 Oct**, plus the
+student helper(s) once named. AD is the substantive change — the original list
+predates the hire resolving.
+
+### The honest read
+
+The inheritor picture is *better* than the table recorded — the P2-shaped hole
+is being filled by AD, helpers arrived, and the KU AI office became real and
+funded. But **no row records someone other than M actually operating an
+artefact**, which is exactly what criterion 5 asks for. Naming an inheritor is
+not the same as demonstrating one, and the rewritten table now says so per row
+rather than in a footnote.
 
 **And the AD row changes what to schedule**, not just the names. Under the
 extension AD overlaps M by ~6 months (see the header correction), so the two
 runbooks whose reader is AD — model routing and the incident playbook — stop
 being documents that must survive with no author to ask, and become the natural
-by-product of onboarding AD in October.
+by-product of onboarding AD in October. Three of the five ❌ rows above close as
+a side-effect of workstream B rather than needing their own slot.
 
 ## Gaps, owners, dates
 
@@ -181,9 +240,9 @@ Ordered by lead time, not by size. The top two are chases, not builds.
 |---|---|---|---|---|
 | 1 | **DPIA / consent artefact** | **JB** | Ask now whether it exists and where. If it does, link it from this doc. If it does not, it gates nothing retroactively but must be named as a known open item at handover | **Longest — ask today** |
 | 2 | **Final handover session** | M + JB | Book it. Attendees per the *corrected* co-owner table, not `timeline.qmd`'s | Needs calendars ≥1wk out |
-| 3 | ~~Strand C scoping note~~ | M | **DRAFTED 2026-09-02.** Remaining: a read from JB/AR, and a decision on whether the C1 section can cite numbers (Prøvebanken) | — |
+| 3 | ~~Strand C scoping note~~ | M | **DRAFTED 2026-09-03.** Remaining: a read from JB/AR, and a decision on whether the C1 section can cite numbers (Prøvebanken) | — |
 | 4 | **Fill the runbook stubs** | M | Each says *"fill from the execution repo"* — this repo. **Recommend: write the three AR-facing ones now (mostly assembly), and write AD's two *with* AD in October.** See [extension plan](../v2.1.0-extension/plan-2026-09-to-2027-04.md) A′ | ~1.5d now, 2 with AD |
-| 5 | **Rewrite the co-owner fan-out table** | M + JB | Against who exists: AD rather than "P2 when hired", plus the student helpers. Feeds #2 | ~1h |
+| 5 | ~~Rewrite the co-owner fan-out table~~ | M + JB | **DONE 2026-09-07** — [rewritten above](#the-rewritten-fan-out), now evidence-bearing rather than plan-bearing. Two things came out of it: **AR was mis-filed as a student helper** (he is the co-PI), and the corrected attendee list for #2 is **JB + AR + DS + ZL**, plus AD if the date falls after ~1 Oct. *Residual:* confirm the student-helper roster with JB at 09-09 | — |
 | 6 | **Eval in CI** | M | Optional for the milestone. `make eval` is real and runnable by hand; "automation" is the stated word, and a nightly job would satisfy it | ~0.5d, defer if crowded |
 | — | ~~P4.2 — scoping-site links~~ | M | **DONE 2026-09-01.** 138 links rewritten, snapshot pinned to `c361ca0`, `make check-local-path-links` guards it in CI | — |
 | — | ~~P4.4 — admin identity~~ | M | **DONE 2026-09-01.** `admin:true` claim, `users grant-admin`, and a [runbook](../../../ops/runbooks/admin-identity.md). *Removing the email fallback is still open — checklist in the runbook* | — |
