@@ -27,9 +27,19 @@
 # cannot read its subject must say so, not answer anyway.
 #
 # Read-only. Run before any promotion.
+#
+# Deployment-agnostic seams. Defaults are this deployment's; a fork overrides
+# them (env, or a sourced deploy.env) rather than editing the logic — the
+# read-failure classification below is the portable part, the names are not.
+#   PROJECT_FOR    printf template taking the env name  → GCP project id
+#   SERVICE_APP    the Cloud Run service carrying ui + backend
+#   SERVICE_EXTRA  an optional second service (empty to skip)
 set -uo pipefail
 
-REGION="europe-north1"
+REGION="${REGION:-europe-north1}"
+PROJECT_FOR="${PROJECT_FOR:-aipla-%s-2026}"
+SERVICE_APP="${SERVICE_APP:-aipla-v01-frontend}"
+SERVICE_EXTRA="${SERVICE_EXTRA:-aipla-v01-sandbox}"
 declare -a ENVS=("$@")
 [ $# -eq 0 ] && ENVS=(dev test prod)
 
@@ -88,13 +98,13 @@ echo
 
 for ENV in "${ENVS[@]}"; do
   case "${ENV}" in
-    dev|test|prod) PROJECT="aipla-${ENV}-2026" ;;
+    dev|test|prod) PROJECT="$(printf "${PROJECT_FOR}" "${ENV}")" ;;
     *) echo "Unknown env: ${ENV}" >&2; exit 2 ;;
   esac
 
   echo "== ${ENV} (${PROJECT})"
 
-  IMAGES="$(describe_service "${PROJECT}" aipla-v01-frontend \
+  IMAGES="$(describe_service "${PROJECT}" "${SERVICE_APP}" \
             'value(spec.template.spec.containers[].image)')"
   case $? in
     0) UIV="$(version_of "$(printf '%s' "${IMAGES}" | tr ';' '\n' | grep '/ui'      | head -1)")"
@@ -104,7 +114,7 @@ for ENV in "${ENVS[@]}"; do
        printf "   %-9s %s\n" "!!" "$(cat "${ERRFILE}")" ;;
   esac
 
-  SB="$(describe_service "${PROJECT}" aipla-v01-sandbox \
+  SB="$(describe_service "${PROJECT}" "${SERVICE_EXTRA}" \
         'value(spec.template.spec.containers[].image)')"
   case $? in
     0) SBV="$(version_of "$(printf '%s' "${SB}" | tr ';' '\n' | grep '/sandbox' | head -1)")" ;;
@@ -122,7 +132,7 @@ for ENV in "${ENVS[@]}"; do
   # Serving or not. A version number is not health — prod sat on a perfectly
   # correct v0.1.4 reference while returning 500, because the images behind it
   # had been deleted.
-  URL="$(describe_service "${PROJECT}" aipla-v01-frontend 'value(status.url)')"
+  URL="$(describe_service "${PROJECT}" "${SERVICE_APP}" 'value(status.url)')"
   URL_RC=$?
   if [ ${URL_RC} -eq 0 ] && [ -n "${URL}" ]; then
     CODE="$(curl -s -o /dev/null -w '%{http_code}' --max-time 45 "${URL}/" 2>/dev/null)"
@@ -138,7 +148,7 @@ done
 if [ ${READ_FAILED} -ne 0 ]; then
   echo
   echo "NO VERDICT — at least one environment could not be read, so parity is unknown."
-  echo "  Usual cause: the active gcloud account has no access to the AIPLA projects,"
+  echo "  Usual cause: the active gcloud account has no access to these projects,"
   echo "  or its credentials need refreshing:"
   echo "    gcloud auth login                       # re-auth"
   echo "    gcloud config set account <account>     # or: CLOUDSDK_CORE_ACCOUNT=<account> make deploy-status"

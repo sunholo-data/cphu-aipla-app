@@ -12,16 +12,28 @@
 # appears in a feat/fix subject is worth a human look. ADVISORY — prints and
 # exits 0, because the signal has real false positives (numbering collisions:
 # 1.1.14 and 1.1.60 are both known to be used twice).
+#
+# Deployment-agnostic: DESIGN_ROOT is the tree to scan and ITEM_RE is the
+# numbering scheme its SEQUENCE.md tables use. The defaults are this
+# deployment's (docs/design/aipla, 1.1.NN); a fork with v6.X.Y numbering sets
+# ITEM_RE='[0-9]+\.[0-9]+\.[0-9]+' and DESIGN_ROOT=docs/design.
 set -uo pipefail
 cd "$(dirname "$0")/.."
 
+DESIGN_ROOT="${DESIGN_ROOT:-docs/design/aipla}"
+ITEM_RE="${ITEM_RE:-1\.1\.[0-9]{1,3}}"
+export DESIGN_ROOT ITEM_RE
+
 python3 - <<'PY'
-import pathlib, re, subprocess
+import os, pathlib, re, subprocess
+
+DESIGN_ROOT = os.environ.get("DESIGN_ROOT", "docs/design/aipla")
+ITEM_RE = os.environ.get("ITEM_RE", r"1\.1\.[0-9]{1,3}")
 
 mapping = {}
-for seq in pathlib.Path("docs/design/aipla").rglob("SEQUENCE.md"):
+for seq in pathlib.Path(DESIGN_ROOT).rglob("SEQUENCE.md"):
     for line in seq.read_text(errors="ignore").splitlines():
-        m = re.match(r"\|\s*(1\.1\.\d{1,3})\s*\|\s*\[[^\]]+\]\(([^)#]+\.md)\)", line.strip())
+        m = re.match(rf"\|\s*({ITEM_RE})\s*\|\s*\[[^\]]+\]\(([^)#]+\.md)\)", line.strip())
         if m:
             p = (seq.parent / m.group(2)).resolve()
             if p.exists():
