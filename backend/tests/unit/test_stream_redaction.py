@@ -154,3 +154,55 @@ async def test_start_without_a_name_is_redacted_for_students():
     events = [_start("c11", ""), _result("c11", SECRET)]
     out = await _collect(redact_student_stream(_agen(events), is_student=True))
     assert out[1]["content"] == REDACTED_CONTENT
+
+
+# --- the declaration must survive ADK's task topology ---------------------
+#
+# The real risk in 1.1.101 is not the policy, it is the plumbing: the toolset
+# resolves inside ADK's own tasks/threads while the filter runs in the request
+# coroutine. A contextvar ASSIGNED in a child does not propagate back to the
+# parent — which is exactly why the declaration is a MUTABLE SET held in a
+# contextvar rather than a value reassigned per call. These tests pin that
+# reasoning, because the deployed smoke cannot reach it: no dev skill sets
+# mcpServers, so there is no MCP tool to declare in that environment.
+
+
+@pytest.mark.asyncio
+async def test_declaration_from_a_child_task_is_visible_to_the_parent_filter():
+    import asyncio
+
+    async def resolve_toolset():  # stands in for TaggedMcpToolset.get_tools
+        declare_renderable_tools(["late_declared_tool"])
+
+    await asyncio.create_task(resolve_toolset())
+
+    ui = json.dumps({"resource": "ui://late/panel"})
+    events = [_start("t1", "late_declared_tool"), _result("t1", ui)]
+    out = await _collect(redact_student_stream(_agen(events), is_student=True))
+    assert out[1]["content"] == ui
+
+
+@pytest.mark.asyncio
+async def test_declaration_from_a_worker_thread_is_visible_to_the_parent_filter():
+    import asyncio
+
+    def resolve_in_thread():  # ADK sync tool paths land here
+        declare_renderable_tools(["thread_declared_tool"])
+
+    await asyncio.to_thread(resolve_in_thread)
+
+    ui = json.dumps({"resource": "ui://thread/panel"})
+    events = [_start("t2", "thread_declared_tool"), _result("t2", ui)]
+    out = await _collect(redact_student_stream(_agen(events), is_student=True))
+    assert out[1]["content"] == ui
+
+
+@pytest.mark.asyncio
+async def test_a_declaration_does_not_leak_into_a_different_request_scope():
+    """Two concurrent requests must not see each other's declarations —
+    otherwise one student's registered sim would un-redact another's tools."""
+    declare_renderable_tools(["request_a_tool"])
+    assert should_redact_tool("request_a_tool") is False
+
+    begin_renderable_declaration()  # a second request opens its own scope
+    assert should_redact_tool("request_a_tool") is True

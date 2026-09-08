@@ -1,6 +1,6 @@
 # A tool result is privileged until something says otherwise
 
-**Status**: **M0+M1+M2 SHIPPED 2026-09-08** (unit-verified; **one deployed check outstanding — see Verification**) — **1.1.101**
+**Status**: **M0+M1+M2 SHIPPED 2026-09-08.** Mechanism unit-proven across task/thread boundaries; the deployed smoke is **unreachable on dev** and the reason is recorded below — **1.1.101**
 **Priority**: **P1** — small, and it closes a default that grows more wrong with every teacher-authored artefact. Needs only the existing deployment
 **Estimated**: ~1–1.5d (M0 invert the default ~0.5d · M1 declare the render-safe set ~0.5d · M2 the empty-name edge + tests ~0.25d)
 **Scope**: Backend — `adk/stream_redaction.py` inverted from a name registry to a declared property; the MCP render path given an explicit declaration instead of an implicit pass
@@ -148,18 +148,48 @@ suite 3325 passing):
 - a declared MCP tool renders; an **iframe-shaped but undeclared** tool does not
 - teacher streams unchanged
 
-**Not proven, and it must be before this is trusted in a classroom.** The
-declaration crosses an async boundary: `TaggedMcpToolset.get_tools` runs inside
-ADK's flow, while the redaction filter runs in the request coroutine. The design
-handles this deliberately — a *mutable set* held in a contextvar, because a
-contextvar **assigned** in a child task does not propagate back to the parent,
-whereas mutating one shared object does. That reasoning is sound and the unit
-tests exercise the set, but they do not exercise ADK's actual task/thread
-topology.
+**The mechanism at risk is now directly tested** (added 2026-09-08 after the
+deployed check turned out to be unreachable — see below):
 
-**So: run `make smoke-deployed-mcp` (or open a Boldkast / LED Planck / KineBot
-activity as a student on deployed dev) and confirm the iframe still renders,
-before this reaches test or prod.** If the declaration does not survive that
-boundary, the failure is safe-but-visible — the sim stops rendering rather than
-leaking — which is the right direction to fail, and the fix is to hoist the
-declaration to agent-build time rather than toolset-resolve time.
+- a declaration made inside a **child asyncio task** is visible to the parent's
+  filter
+- a declaration made inside a **worker thread** (`asyncio.to_thread`, where ADK's
+  sync tool paths land) is visible to the parent's filter
+- a second request's scope does **not** see the first's declarations — otherwise
+  one student's registered sim would un-redact another session's tools
+
+That is the whole reason the declaration is a *mutable set* held in a contextvar
+rather than a value reassigned per call: a contextvar **assigned** in a child
+does not propagate back to the parent, whereas mutating one shared object does.
+12 tests in the module; fast suite green.
+
+## Why the deployed smoke could not be run — and what would exercise it
+
+The doc originally gated test/prod on `make smoke-deployed-mcp` or opening a sim
+as a student on dev. **Neither reaches this code, for two structural reasons
+found while trying:**
+
+1. **No dev skill sets `mcpServers`.** Every skill on dev builds a single agent
+   with no MCP round-trips (measured under [1.1.102](agent-build-cache.md)), so
+   there is no MCP tool to declare in that environment. The sims reach students
+   through the **static-artefact** path (`aipla-v01-sandbox` iframes +
+   `useSimSnapshotPush`), not through tool results — `MCPAppToolCallRouter` reads
+   `resultContent`, but its `mcpServerIds` come from skill metadata that is empty
+   here. So the sim surface is **not affected by this change at all** on dev.
+2. **`aipla-demo-1` is a visitor-tier code that replays a recorded session.** A
+   real student turn against it returns the recorded-demonstration banner and
+   never runs the agent — no tool events of any kind. (This also explains why
+   `smoke-chat-resume.sh` fails on that group: it asserts prior history before
+   driving a turn, and the mirror row is a genuine `turnCount: 0`.)
+   `scripts/smoke-deployed-mcp.sh` exercises the *external-host* MCP endpoint
+   (the ChatGPT / Claude Desktop transport), which is a different surface.
+
+**Residual risk, stated plainly:** no skill configured with a real MCP server has
+run through this code in a deployed environment, because no such skill exists
+yet. The mechanism is unit-proven across the boundaries that were the actual
+concern, and the failure direction is safe (an undeclared tool is redacted — the
+sim stops rendering rather than leaking).
+
+**What would exercise it:** the first skill that sets `mcpServers` — e.g. the
+`ext-apps-map` server used by the `/dev/mcp-apps` fixtures. **Whoever configures
+that skill should watch its first student turn**, and this row is the reason why.
