@@ -206,3 +206,15 @@ async def test_a_declaration_does_not_leak_into_a_different_request_scope():
 
     begin_renderable_declaration()  # a second request opens its own scope
     assert should_redact_tool("request_a_tool") is True
+
+
+def test_every_tool_the_client_renders_by_name_is_allow_listed():
+    """The regression that nearly shipped: `mark_checklist_item` is parsed by
+    ChecklistMarkCard but sits outside TOOL_REGISTRY, so the OLD rule passed it
+    as an 'unknown name'. Inverting the default silently redacted it and the
+    card would have stopped rendering.
+
+    Keep this list in step with the frontend's `tc.name === "..."` consumers —
+    scripts/check-stream-render-allowlist.sh enforces it mechanically."""
+    for name in ("record_checkpoint", "mark_checklist_item"):
+        assert should_redact_tool(name) is False, f"{name} is rendered by the client"

@@ -121,6 +121,16 @@ jobs:
         # real turn / read-only). Shipped-then-fixed for the calculator + table;
         # this makes a dropped card fail the build instead of a human's memory.
         run: bash scripts/audit-trust-cards.sh
+      - name: Client-rendered tool results are allow-listed in the SSE filter
+        # 1.1.101: the student stream redacts a tool result unless the tool is
+        # declared renderable — an unrecognised tool is the one nobody
+        # reviewed. That default is right, but it means anything the client
+        # parses BY NAME must be allow-listed or its card silently stops
+        # rendering: no error, no log line, the student just stops seeing their
+        # checklist marks. mark_checklist_item was missed in the first pass and
+        # caught by hand on the way to prod. The next card will be added by
+        # someone who has never read stream_redaction.py.
+        run: bash scripts/check-stream-render-allowlist.sh
       - name: No laptop-bound documentation links
         # P4.2: 138 citations in docs/ were file:///Users/<someone>/... — the
         # scoping site, agent-memory notes, and two other local trees. Dead for

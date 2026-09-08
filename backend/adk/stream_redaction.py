@@ -94,6 +94,19 @@ _CLIENT_RENDER_TOOLS = frozenset(
         "record_checkpoint",
         # A2UI renderer — the result IS the UI payload.
         "send_a2ui_json_to_client",
+        # ChecklistMarkCard (1.1.62 M3) — card-safe by construction: item
+        # label, done flag, one line of evidence. The tool's own docstring is
+        # explicit that this is student-facing: "The student sees every mark
+        # you make, with your reason, and can undo it."
+        #
+        # Missed in the first pass of 1.1.101 and caught before prod. It is
+        # neither in TOOL_REGISTRY nor was it allow-listed, so under the OLD
+        # registry rule it passed as an "unknown name" — the same accident that
+        # let every teacher-authored tool through. Inverting the default turned
+        # that accident into a silent regression: the card would simply have
+        # stopped rendering. Anything the client parses by name must be listed
+        # HERE; scripts/check-stream-render-allowlist.sh now enforces that.
+        "mark_checklist_item",
     }
 )
 
