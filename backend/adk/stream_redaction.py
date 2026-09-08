@@ -6,15 +6,30 @@ teacher's expected answers in ``run_checkpoint``, document contents, judging
 guidance) is readable by a student who opens devtools. This filter closes that
 at the SSE boundary for ANONYMOUS-GROUP sessions:
 
-- **Redacted (default for platform tools):** every ``TOOL_REGISTRY`` tool plus
-  the per-session checkpoint reader — their results are server/model-only. The
-  event still flows (the ``ToolCallChip`` keeps its ✓) but ``content`` is
-  replaced with a sentinel.
-- **Allowed (the client genuinely renders these):** ``record_checkpoint``
-  (already card-safe — label/status/evidence only, no rubric),
-  ``send_a2ui_json_to_client`` (the A2UI renderer), and any name NOT in the
-  platform registry — i.e. MCP-server tools, whose results carry the
-  ``ui://`` references the MCP-app iframe path renders (UI-by-reference).
+**The invariant (1.1.101, 2026-09-08): a tool result is privileged until
+something DECLARES it renderable.** Redaction is no longer decided by registry
+membership — an unrecognised tool name is redacted, because an unrecognised tool
+is precisely the one nobody has reviewed.
+
+- **Redacted (the default for everything):** every tool not named below and not
+  declared at run time. The event still flows (the ``ToolCallChip`` keeps its ✓)
+  but ``content`` is replaced with a sentinel.
+- **Allowed — statically:** ``record_checkpoint`` (card-safe by construction:
+  label/status/evidence, never the rubric) and ``send_a2ui_json_to_client``
+  (the result IS the UI payload).
+- **Allowed — declared at run time:** MCP-server tools, whose results carry the
+  ``ui://`` references the MCP-app iframe path renders (UI-by-reference). These
+  announce themselves through :func:`declare_renderable_tools` as the toolset
+  resolves, so a *registered* server's tools render and a name from anywhere
+  else does not.
+
+Why the default was inverted. The previous rule redacted platform-registry
+tools and let every unknown name through, on the reasoning that unknown ==
+MCP == render path. That was safe while every MCP tool was hand-written by one
+person who knew the rule, and it stops being safe the moment teachers author
+artefacts (teacher-authored-workbench-apps / sim-catalogue-admin): a teacher
+tool returning a worked solution reached the student stream by default, with
+nothing that would catch it.
 - **Teacher streams are untouched** — the co-pilot's proposal cards ARE tool
   results.
 
@@ -33,8 +48,39 @@ from __future__ import annotations
 import json
 import logging
 from collections.abc import AsyncIterator
+from contextvars import ContextVar
 
 logger = logging.getLogger(__name__)
+
+#: Per-request set of tool names declared client-renderable (MCP-server tools).
+#: A *mutable* set held in a contextvar, deliberately: the toolset resolves
+#: inside child tasks of the request, and a contextvar assigned there would not
+#: propagate back up to the stream filter. Mutating one shared object does.
+#: Unset (the default) means "nothing declared" — i.e. fully closed.
+_declared_renderable: ContextVar[set[str] | None] = ContextVar("declared_renderable_tools", default=None)
+
+
+def begin_renderable_declaration() -> set[str]:
+    """Open a per-request declaration scope and return the shared set.
+
+    Call once at the top of a request, before the stream is consumed.
+    """
+    declared: set[str] = set()
+    _declared_renderable.set(declared)
+    return declared
+
+
+def declare_renderable_tools(names: list[str] | set[str]) -> None:
+    """Declare tool names whose results the client legitimately renders.
+
+    No-op outside a request scope, which keeps the default closed: a caller
+    that forgets to open a scope gets redaction, not leakage.
+    """
+    declared = _declared_renderable.get()
+    if declared is None:
+        return
+    declared.update(n for n in names if n)
+
 
 #: What a redacted result reads as client-side (kept JSON so any parser that
 #: does reach it degrades cleanly instead of throwing).
@@ -52,24 +98,22 @@ _CLIENT_RENDER_TOOLS = frozenset(
 )
 
 
-def _platform_tool_names() -> frozenset[str]:
-    """Every registry tool + the per-session checkpoint tools — the set whose
-    results are server/model-only unless explicitly allow-listed."""
-    from adk.tools import TOOL_REGISTRY
-
-    return frozenset(TOOL_REGISTRY) | {"run_checkpoint", "record_checkpoint"}
-
-
 def should_redact_tool(tool_name: str) -> bool:
     """True when this tool's result must not reach a student client.
 
-    Platform tools are redacted by default (deny-by-default, Axiom 9); the
-    small allow-list above passes; unknown names are MCP-server tools — the
-    interactive-iframe render path — and pass through.
+    Deny by default (Axiom 9). A result is redacted unless the tool is
+    statically client-renderable or was declared renderable for this request.
+    An empty or missing name is redacted — it is the least-known case, not the
+    most-trusted one.
     """
+    if not tool_name:
+        return True
     if tool_name in _CLIENT_RENDER_TOOLS:
         return False
-    return tool_name in _platform_tool_names()
+    declared = _declared_renderable.get()
+    if declared is not None and tool_name in declared:
+        return False
+    return True
 
 
 async def redact_student_stream(
@@ -93,7 +137,10 @@ async def redact_student_stream(
             if call_id:
                 names_by_call_id[call_id] = event.get("toolCallName") or ""
         elif etype == "TOOL_CALL_RESULT":
-            # Fail CLOSED: an unmatched result (start never seen) is redacted.
+            # Fail CLOSED. Two distinct unknowns, both redacted: the START was
+            # never seen (``None``), or it arrived without a name (``""``).
+            # The second used to slip through — ``should_redact_tool("")`` was
+            # False under the registry rule — despite this comment.
             name = names_by_call_id.get(event.get("toolCallId") or "")
             if name is None or should_redact_tool(name):
                 event = {**event, "content": REDACTED_CONTENT}
@@ -101,4 +148,10 @@ async def redact_student_stream(
         yield event
 
 
-__all__ = ["REDACTED_CONTENT", "redact_student_stream", "should_redact_tool"]
+__all__ = [
+    "REDACTED_CONTENT",
+    "begin_renderable_declaration",
+    "declare_renderable_tools",
+    "redact_student_stream",
+    "should_redact_tool",
+]

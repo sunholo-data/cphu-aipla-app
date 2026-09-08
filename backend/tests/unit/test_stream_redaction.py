@@ -6,6 +6,11 @@ rubric TO THE MODEL — the client has no business seeing it. Tool results the
 client genuinely renders (the CheckpointCard's `record_checkpoint`, A2UI, MCP
 app tools) pass through, and TEACHER streams are byte-identical (the co-pilot
 proposal cards depend on their tool results).
+
+1.1.101 inverted the decision rule: a result is privileged until something
+DECLARES it renderable. So the MCP case below now asserts the declaration, not
+the absence of registry membership — and the property test is the one that keeps
+holding when somebody adds a tool and never reads this file.
 """
 
 from __future__ import annotations
@@ -14,7 +19,21 @@ import json
 
 import pytest
 
-from adk.stream_redaction import REDACTED_CONTENT, redact_student_stream, should_redact_tool
+from adk.stream_redaction import (
+    REDACTED_CONTENT,
+    begin_renderable_declaration,
+    declare_renderable_tools,
+    redact_student_stream,
+    should_redact_tool,
+)
+
+
+@pytest.fixture(autouse=True)
+def _fresh_declaration_scope():
+    """Each test gets its own declaration scope, so one test's declarations
+    cannot make another's assertion pass."""
+    begin_renderable_declaration()
+    yield
 
 
 async def _agen(events):
@@ -49,8 +68,31 @@ def test_platform_tools_are_redacted_but_client_render_tools_are_not():
     # client-render paths
     assert should_redact_tool("record_checkpoint") is False
     assert should_redact_tool("send_a2ui_json_to_client") is False
-    # unknown names = MCP server tools (the iframe UI-by-reference path)
+    # 1.1.101: an UNDECLARED name is redacted, whatever it is called. This is
+    # the inversion — it used to pass because it was not in the registry.
+    assert should_redact_tool("boldkast_show_value") is True
+    # ...and passes once the toolset declares it.
+    declare_renderable_tools(["boldkast_show_value"])
     assert should_redact_tool("boldkast_show_value") is False
+
+
+def test_an_undeclared_tool_name_is_redacted_whatever_it_is_called():
+    """The PROPERTY, not the list. A tool added later, by someone who never
+    reads this module, must not reach a student stream by default."""
+    for name in (
+        "teacher_authored_marking_scheme",
+        "totally_new_tool",
+        "get_answers",
+        "",
+    ):
+        assert should_redact_tool(name) is True, name
+
+
+def test_empty_tool_name_is_redacted():
+    """A TOOL_CALL_START carrying no name stored "" and should_redact_tool("")
+    was False under the registry rule, so the result passed through despite the
+    filter's own "fail CLOSED" comment. Verified and fixed 2026-09-08."""
+    assert should_redact_tool("") is True
 
 
 # --- the stream filter ---
@@ -89,8 +131,26 @@ async def test_unknown_call_id_defaults_to_redacted_for_students():
 
 
 @pytest.mark.asyncio
-async def test_mcp_app_tool_results_pass_through_for_students():
+async def test_declared_mcp_app_tool_results_pass_through_for_students():
     ui = json.dumps({"resource": "ui://boldkast/panel"})
+    declare_renderable_tools(["boldkast_show_value"])  # what TaggedMcpToolset does
     events = [_start("c9", "boldkast_show_value"), _result("c9", ui)]
     out = await _collect(redact_student_stream(_agen(events), is_student=True))
     assert out[1]["content"] == ui
+
+
+@pytest.mark.asyncio
+async def test_undeclared_iframe_shaped_tool_is_redacted_for_students():
+    """Looking like an MCP tool is not a credential. Without a declaration —
+    e.g. a teacher-authored artefact nobody registered — it is redacted."""
+    ui = json.dumps({"resource": "ui://teacher-thing/panel"})
+    events = [_start("c10", "teacher_authored_tool"), _result("c10", ui)]
+    out = await _collect(redact_student_stream(_agen(events), is_student=True))
+    assert out[1]["content"] == REDACTED_CONTENT
+
+
+@pytest.mark.asyncio
+async def test_start_without_a_name_is_redacted_for_students():
+    events = [_start("c11", ""), _result("c11", SECRET)]
+    out = await _collect(redact_student_stream(_agen(events), is_student=True))
+    assert out[1]["content"] == REDACTED_CONTENT

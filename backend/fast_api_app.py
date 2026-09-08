@@ -14,7 +14,7 @@ from fastapi import FastAPI
 from google.adk.cli.fast_api import get_fast_api_app
 
 from adk.session import get_artifact_service, get_artifact_service_uri, get_memory_service_uri, get_session_service_uri
-from adk.stream_redaction import redact_student_stream
+from adk.stream_redaction import begin_renderable_declaration, redact_student_stream
 from config.gcp import resolve_gcp_credentials, resolve_gcp_project
 from config.local_mode import (
     assert_safe_local_mode,
@@ -730,9 +730,12 @@ async def stream_skill(
         # anything the replay cannot serve.
         allow_recorded_demo=True,
     )
-    # STRIP-1 (Axiom 10): server-only tool results (the checkpoint judging
-    # rubric, document contents) never reach a STUDENT client's SSE frames.
+    # STRIP-1 (Axiom 10) / 1.1.101: a tool result is privileged until something
+    # declares it renderable. Open the declaration scope BEFORE the stream is
+    # consumed — MCP toolsets add their names to it as they resolve, and an
+    # empty scope means everything is redacted, which is the safe direction.
     # Teacher streams pass through untouched (co-pilot cards ARE tool results).
+    begin_renderable_declaration()
     event_iter = redact_student_stream(event_iter, is_student=bool(user.group_id))
     try:
         # Surface SkillNotFoundError *before* returning the StreamingResponse so

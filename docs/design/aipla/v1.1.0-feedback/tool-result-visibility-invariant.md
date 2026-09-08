@@ -1,6 +1,6 @@
 # A tool result is privileged until something says otherwise
 
-**Status**: **Design (OPEN)** — **1.1.101**
+**Status**: **M0+M1+M2 SHIPPED 2026-09-08** (unit-verified; **one deployed check outstanding — see Verification**) — **1.1.101**
 **Priority**: **P1** — small, and it closes a default that grows more wrong with every teacher-authored artefact. Needs only the existing deployment
 **Estimated**: ~1–1.5d (M0 invert the default ~0.5d · M1 declare the render-safe set ~0.5d · M2 the empty-name edge + tests ~0.25d)
 **Scope**: Backend — `adk/stream_redaction.py` inverted from a name registry to a declared property; the MCP render path given an explicit declaration instead of an implicit pass
@@ -133,3 +133,33 @@ forgets this file — which is the whole point.
 - A teacher-authored artefact that has not been declared renderable is redacted
   — the default a new author gets is the safe one.
 - Teacher streams are byte-identical to today.
+
+
+## Verification — what is proven, and the one thing that is not
+
+**Proven by tests** (`tests/unit/test_stream_redaction.py`, 9 passing; full fast
+suite 3325 passing):
+
+- an undeclared name is redacted *whatever it is called* — asserted as a
+  property over several invented names, so it keeps holding when someone adds a
+  tool and never reads that module
+- `should_redact_tool("")` is now `True`; a `TOOL_CALL_START` with no name
+  redacts its result
+- a declared MCP tool renders; an **iframe-shaped but undeclared** tool does not
+- teacher streams unchanged
+
+**Not proven, and it must be before this is trusted in a classroom.** The
+declaration crosses an async boundary: `TaggedMcpToolset.get_tools` runs inside
+ADK's flow, while the redaction filter runs in the request coroutine. The design
+handles this deliberately — a *mutable set* held in a contextvar, because a
+contextvar **assigned** in a child task does not propagate back to the parent,
+whereas mutating one shared object does. That reasoning is sound and the unit
+tests exercise the set, but they do not exercise ADK's actual task/thread
+topology.
+
+**So: run `make smoke-deployed-mcp` (or open a Boldkast / LED Planck / KineBot
+activity as a student on deployed dev) and confirm the iframe still renders,
+before this reaches test or prod.** If the declaration does not survive that
+boundary, the failure is safe-but-visible — the sim stops rendering rather than
+leaking — which is the right direction to fail, and the fix is to hoist the
+declaration to agent-build time rather than toolset-resolve time.

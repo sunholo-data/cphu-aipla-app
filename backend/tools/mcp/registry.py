@@ -44,6 +44,7 @@ from google.adk.tools.mcp_tool.mcp_session_manager import (
 )
 from google.adk.tools.mcp_tool.mcp_toolset import McpToolset
 
+from adk.stream_redaction import declare_renderable_tools
 from db.firestore import get_document
 
 log = logging.getLogger(__name__)
@@ -89,6 +90,15 @@ class TaggedMcpToolset(McpToolset):
                 setattr(tool, SERVER_ID_ATTR, self._aitana_server_id)
             except Exception as exc:  # pragma: no cover - defensive
                 log.debug("mcp_registry: failed to tag tool %r with server_id: %s", tool, exc)
+        # 1.1.101: results from a REGISTERED MCP server carry the ``ui://``
+        # references the iframe path renders, so they are the one category that
+        # is legitimately client-visible. Declaring here — as the toolset
+        # resolves — is what keeps the SSE default closed: a tool name that
+        # never came from a registered server is never declared, and is redacted.
+        try:
+            declare_renderable_tools([getattr(t, "name", "") for t in tools])
+        except Exception as exc:  # pragma: no cover - defensive
+            log.debug("mcp_registry: failed to declare renderable tools: %s", exc)
         return tools
 
 
