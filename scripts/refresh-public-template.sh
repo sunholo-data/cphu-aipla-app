@@ -31,6 +31,22 @@ set -euo pipefail
 REPO_ROOT="$(git rev-parse --show-toplevel)"
 cd "$REPO_ROOT"
 
+# INHERITED, AND WRONG FOR THIS REPO (guard added 2026-09-08).
+#
+# This script belongs to the repo that PUBLISHES the public template. AIPLA is a
+# FORK of that template, not its publisher: running this here would force-push
+# four months of KU-specific work over sunholo-data/ai-protocol-platform and
+# destroy its history. Its sibling, sanitize-for-template.sh, already refuses on
+# this same file; this one had no such guard and would have gone through.
+#
+# To send improvements UP from this fork, use scripts/port-up.sh (make port-up).
+if [ -f "$REPO_ROOT/.template-fork-target" ]; then
+  echo "ERROR: this repo is a FORK of the public template, not its publisher." >&2
+  echo "       Refusing to force-push this tree over the template." >&2
+  echo "       To port improvements upstream: make port-up" >&2
+  exit 2
+fi
+
 DRY=0
 if [ "${1:-}" = "--dry-run" ] || [ "${1:-}" = "-n" ]; then
   DRY=1

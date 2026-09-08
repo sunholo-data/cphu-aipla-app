@@ -167,13 +167,78 @@ but URLs and IDs need AIPLA equivalents. The generic skills
 `adk-scaffold`, `design-doc-creator`, `sprint-planner` / `sprint-executor` /
 `sprint-evaluator`) work as-is.
 
-### Upstream tracking
+### Upstream tracking — wired 2026-09-08
 
-The template is M's own work and has its own roadmap. Pull from upstream
-periodically; AIPLA-specific divergence accumulates in this repo's config,
-skills, and deployment files. Pin a known-good upstream SHA in
-`.template-fork-target` once a release-worthy state is reached (per
-ADR-002 "update cadence" consequence).
+The template is M's own work and has its own roadmap. **Until 2026-09-08 this
+fork had no route back to it**: the porting tooling was built upstream in sprint
+TEMPLATE-INVERT on 2026-08-17, three months *after* AIPLA forked, so it never
+arrived here. Four months of guards — each written because a bug shipped once —
+existed only in this repo, and the next engagement would have forked a template
+with none of them. That is now connected.
+
+```
+  sunholo-data/platform-source        SOURCE OF TRUTH  ← port up to HERE
+        │
+        ├── publish (force-push) ──> sunholo-data/ai-protocol-platform  (PUBLIC template)
+        │                                    │
+        │                                    └── fork, 2026-05-19 ──> THIS REPO
+        └── merge down ─────────────> Aitana-Labs/platform + commercial forks
+```
+
+⚠️ **Port to `platform-source`, never to `ai-protocol-platform`.** The public
+template is *generated* by force-pushing a fresh single-commit history, so a PR
+opened against it is destroyed by the next refresh. The bot has **admin on
+`platform-source`** and push on the public template (verified 2026-09-08) — this
+is not the read-only dead end `sunholo-data/aipla` was.
+
+| Task | Command |
+|---|---|
+| **Before pushing:** which of my changed paths are platform code? | `make check-upstream-routing RANGE=origin/dev..HEAD` |
+| Full divergence report against the template | `make upstream-reconcile` |
+| Port improvements up (dry run) | `make port-up RANGE=<range>` |
+| Port improvements up (push + open PR) | `make port-up RANGE=<range> GO=1` |
+| Port a hand-curated list (**preferred**) | `PATHS=<file> scripts/port-up.sh '' GO=1` |
+
+`scripts/check-upstream-routing.sh` is the single source of truth for "is this
+template content", and `port-up.sh` consumes it via `PATHS_ONLY=1` — never
+re-derive the classification. It sorts changed paths into four buckets: **A**
+template candidate (shared with upstream, we changed it, no AIPLA markers) ·
+**B** AIPLA-owned · **C** new here and marker-free (*often this fork's best
+contribution, and always a judgement call*) · **D** upstream's own work.
+
+**Three things about this fork make it differ from the upstream script of the
+same name**, and they are the reasons not to "simplify" it back:
+
+1. **There is no merge base.** This repo's root (`160c9fe`) is a squashed
+   "Initial commit" of the public template and shares no ancestor with
+   `platform-source` (genesis `d731c40`). `git merge-base` returns nothing.
+   `FORK_BASE` in `.template-fork-target` stands in for it — which is what it is
+   in substance. **A merge-down is therefore not available**; porting is
+   per-path copy, which is history-agnostic and works.
+2. **The inherited sanitizer cannot be the classifier.** Upstream derives
+   "template content" by asking whether a file survives its sanitizer. Here,
+   `scripts/sanitize-for-template.sh` and `refresh-public-template.sh` are
+   inherited from the *publisher* and describe this repo as the thing that
+   generates the public template. It isn't. `refresh-public-template.sh` would
+   have force-pushed this tree over the public template; **a guard was added
+   2026-09-08** so it refuses in a fork, matching the guard its sibling already had.
+3. **The marker screen is deliberately over-broad.** Any diff naming `aipla`,
+   `ku.dk`, KU red, Boldkast/LED-Planck/KineBot, Danish or physics is classed
+   AIPLA-owned. A false "customer-owned" costs one manual override; a false
+   "template" puts a KU string in someone else's repo. Several genuinely generic
+   guards (`check-brand-literals.sh`, `check-iam-posture.sh`, `deploy-status.sh`,
+   `tf.sh`, `security-check.sh`) screen into B because they *name* AIPLA — the
+   mechanism is portable, the literals are not, so each needs a de-KU-ing edit
+   before it can go up. That is authoring, not copying.
+
+**Pin discipline:** `.template-fork-target` now records `UPSTREAM_REPO`,
+`FORK_BASE` and the last-reconciled `UPSTREAM_PINNED` SHA (it previously held the
+literal placeholder `FORK_TARGET`, flagged in the handover audit and never
+filled). Update `UPSTREAM_PINNED` when you port up.
+
+**Reconcile as of 2026-09-08** (`upstream/main` @ `b322f55d`): 93 bucket-A paths,
+435 bucket-C, 897 AIPLA-owned, 423 upstream-only. Ported and outstanding items
+are tracked in [docs/upstream-feedback.md](docs/upstream-feedback.md).
 
 ---
 

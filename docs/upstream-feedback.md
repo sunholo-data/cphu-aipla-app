@@ -1,9 +1,16 @@
-# Upstream feedback for `sunholo-data/ai-protocol-platform`
+# Upstream feedback for `sunholo-data/platform-source`
 
 Friction points found while forking this template into AIPLA. Each entry
 notes what hurt, how we worked around it, and what the upstream fix
-would look like. Intended to be opened as issues / PRs against the
-public template repo at the end of the v0.1 sprint.
+would look like.
+
+> ⚠️ **Destination corrected 2026-09-08.** This file said its entries were for
+> `sunholo-data/ai-protocol-platform`. That is the PUBLIC template, and it is
+> *generated* by force-pushing a fresh single-commit history — a PR opened
+> against it is destroyed by the next refresh. Fixes belong in
+> **`sunholo-data/platform-source`**, the source of truth, and reach the public
+> template from there. See CLAUDE.md "Upstream tracking" and
+> `.template-fork-target`.
 
 > Maintained continuously through every milestone. New entries get
 > appended; resolved entries get a `~~strikethrough~~` and a note.
@@ -1430,6 +1437,83 @@ only on Artifact Registry + Cloud Run, not on anything AIPLA-specific). Whatever
 ships should be **exercised in CI or at cut time**, not merely committed — the
 `copy` bug proves a promotion pipeline that has never run is not a pipeline.
 
+## 48. A fork has no route back — the porting tooling postdates every fork that needs it
+
+**Where:** template-wide. `scripts/port-up.sh`, `scripts/upstream-merge.sh` and
+`scripts/check-upstream-routing.sh` were built upstream in sprint TEMPLATE-INVERT
+on **2026-08-17**. AIPLA forked on **2026-05-19**.
+
+**What hurt:** for four months this fork had no mechanism, and no instruction,
+for sending anything back. The template ships the *publisher's* tooling instead —
+`sanitize-for-template.sh` and `refresh-public-template.sh`, both of which
+describe the repo they sit in as the thing that GENERATES the public template.
+In a fork that is not merely useless, it is dangerous: `refresh-public-template.sh`
+force-pushes the current tree over `ai-protocol-platform`, and unlike its sibling
+it had **no fork guard**, so it would have run. (Guarded downstream 2026-09-08.)
+
+The cost is not hypothetical. Every guard in this repo was written because a bug
+shipped once — `check-auth-dispatcher.sh` (student 401s on a route importing the
+Firebase-only `get_current_user`), `check-cloudbuild-substitutions.py` (a
+*comment* naming a shell variable killed a prod promote), `audit-trust-cards.sh`,
+`check-skill-catalogue.sh`, the `deploy-status.sh` read-failure classification.
+None of them reached the template. **The next fork inherits the bugs and not the
+guards** — which is the whole failure mode the template exists to prevent.
+
+**A second, structural problem:** the classifier cannot be ported as-is. Upstream
+derives "is this template content" by running its sanitizer and asking whether a
+file survives. That works between sibling deployments of one lineage. It does not
+work for a hard fork, which needs three facts, not one: does the path exist
+upstream, did *we* change it since forking, and does the change name the customer.
+Fact two needs a merge base and **there isn't one** — this repo's root is a
+squashed "Initial commit" of the template and shares no ancestor with
+`platform-source`, so `git merge-base` returns nothing and merge-down is
+unavailable in either direction.
+
+**Workaround on AIPLA (2026-09-08):** `scripts/check-upstream-routing.sh`
+rewritten around the fork-shaped derivation (four buckets, an explicit
+`FORK_BASE` standing in for the absent merge base, and an over-broad
+customer-marker screen), `scripts/port-up.sh` adapted to per-path copy against
+`platform-source`, `.template-fork-target` turned from the literal placeholder
+`FORK_TARGET` into real fork metadata, `make check-upstream-routing` /
+`upstream-reconcile` / `port-up`, and a fork guard on
+`refresh-public-template.sh`.
+
+**Upstream fix:** ship the fork-shaped variant *in the template*, since that is
+the copy every fork receives — the sanitizer-based derivation only ever works in
+the one repo that has a sanitizer. Concretely: a `FORK_BASE`-bearing
+`.template-fork-target` written at fork time, a `check-upstream-routing.sh` that
+falls back to `FORK_BASE` when `git merge-base` is empty, a customer-marker
+screen the fork populates with its own names, and a fork guard on every publisher
+script. Also state the destination: a fork's PR belongs to `platform-source`, and
+nothing in the public template says so.
+
+## 49. The guards a fork writes are template content, and nothing collects them
+
+**Where:** `scripts/`, `.github/workflows/ci.yml`.
+
+**What hurt:** the reconcile in #48 found **93 shared paths this fork changed with
+no customer markers, and 435 marker-free files that exist here and not upstream**.
+Buried in that is a set of guards that are pure platform code and would have
+saved upstream and every sibling fork the same incidents:
+
+| Guard | Catches | Portable as-is? |
+|---|---|---|
+| `check-auth-dispatcher.sh` | a student-facing route importing the Firebase-only `get_current_user` — every anonymous-group user 401s, and the route's own tests pass in lockstep with the bug | ✅ |
+| `check-cloudbuild-substitutions.py` | single-`$` shell vars in a Cloud Build step; Cloud Build resolves them as substitutions before bash runs, so even a *comment* breaks the submit | ✅ |
+| `check-skill-catalogue.sh` | `CLAUDE.md` naming an agent skill that does not exist | ✅ |
+| `audit-trust-cards.sh` | a workspace element that pushes state to the model without showing the user a card | ✅ |
+| `check-doc-links.py` | relative doc links whose target does not exist | ✅ |
+| `audit-residuals.sh` | leftover brand references — a *fork-preparation* tool, so arguably the most template-shaped item here | ✅ |
+| `deploy-status.sh` | a checker that answers when it could not read its subject (`2>/dev/null` turned PERMISSION_DENIED into "not deployed", and two of those compare EQUAL) | ⚠️ names AIPLA |
+| `check-iam-posture.sh` | Terraform reporting success having done nothing | ⚠️ names AIPLA |
+| `tf.sh` | applying env A's state against env B's tfvars — cost this fork its entire prod data plane once | ⚠️ names AIPLA |
+| `check-brand-literals.sh` | two brand primaries in one app | ⚠️ names the brand |
+
+**Upstream fix:** take the six portable ones directly. For the four marked ⚠️ the
+*mechanism* is generic and only the literals are local, so the template should
+carry them parameterised — which is also the honest reason they had not gone up
+by accident: porting them is authoring, not copying.
+
 ## Backlog (likely additions as v0.1 sprint continues)
 
 - M5 may surface IAM bindings the bootstrap script should add
@@ -1440,5 +1524,7 @@ ships should be **exercised in CI or at cut time**, not merely committed — the
   templates auto-magically (so far it seeds a workshop user but the
   skill-seed path is unclear).
 
-When the v0.1 sprint closes, this file is the source for an
-issue / PR series against `sunholo-data/ai-protocol-platform`.
+This file is the source for an issue / PR series against
+`sunholo-data/platform-source` (not the public template — see the note at the
+top). Since 2026-09-08 the code half no longer needs to go by hand: `make
+port-up` copies classified paths up and opens the PR.
