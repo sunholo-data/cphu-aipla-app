@@ -79,13 +79,22 @@ our own deployment, which is the argument for doing this read properly.
   elsewhere and is not yet identified. **Probably the same report as
   [1.1.96](../v1.1.0-feedback/teacher-ui-friction-telemetry.md)'s "the UI is
   difficult"** — worth its own doc, scoped to where the six seconds goes.
-- **Our per-stage latency marks do not reach the logs.**
+- **Our per-stage latency marks do not reach the logs.** ✅ **FIXED 2026-09-08.**
   `LatencyTracker.emit_log` passes them as `extra={"json_fields": ...}`, but
   every prod row is a flat `textPayload` carrying only `skill`, `ttft_ms`,
   `total_ms`, `mode`. So `agent_factory_done_ms` is not queryable, and the M0
   number had to be measured locally rather than read from 358 real turns already
   recorded. An instrument that looks like it is recording and is not — the
   repo's own recurring theme, one layer down.
+  **`emit_log` now writes a single JSON line to stdout, which Cloud Run parses
+  into `jsonPayload`**, so every stage mark is queryable. Kept local to
+  `timing.py` deliberately: OTEL owns the root handler and the global logging
+  config has its own incident history. **And the test that should have caught
+  this asserted `json_fields` on the LogRecord** — the mechanism the code used,
+  not the outcome it existed for — so it passed for months while the formatter
+  dropped every field. Re-pointed at the emitted line. Same lockstep shape as a
+  route test that `dependency_overrides` the wrong auth symbol.
+  ⏳ **Data starts accumulating from the next dev deploy; prod needs a promote.**
 
 ## What to deliberately leave
 

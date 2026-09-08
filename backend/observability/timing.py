@@ -26,8 +26,10 @@ tree, which is exactly the lifetime of one chat turn.
 
 from __future__ import annotations
 
+import json
 import logging
 import os
+import sys
 import time
 from contextvars import ContextVar
 from typing import Any
@@ -74,6 +76,15 @@ STAGE_SESSION_INDEX_DONE = "session_index_done"
 # entry. The existing before_agent_done → before_model_done gap
 # already measures that cost; an extra mark would be redundant.
 # Verified by reading google.adk.flows.llm_flows.base_llm_flow source.
+#: Emit the ttft line as a single JSON object on stdout so Cloud Run lands the
+#: per-stage marks in ``jsonPayload`` (queryable) instead of a flat
+#: ``textPayload`` string. On by default wherever Cloud Run sets ``K_SERVICE``;
+#: force either way with ``TTFT_STRUCTURED_LOG=1|0``. Off locally so ``make dev``
+#: keeps a readable console line.
+_STRUCTURED_LOG = (os.environ.get("TTFT_STRUCTURED_LOG") or "").strip().lower() in {"1", "true", "yes"} or (
+    os.environ.get("TTFT_STRUCTURED_LOG") is None and bool(os.environ.get("K_SERVICE"))
+)
+
 STAGE_AGENT_FACTORY_DONE = "agent_factory_done"
 STAGE_RUNNER_SETUP_DONE = "runner_setup_done"
 STAGE_BEFORE_AGENT_DONE = "before_agent_done"
@@ -300,17 +311,45 @@ class LatencyTracker:
             payload["event"] = "ttft"
             # Total response time = current elapsed since t0.
             payload["total_response_ms"] = round((time.perf_counter() - self._t0) * 1000.0, 2)
-            # ``extra`` becomes ``jsonPayload`` in Cloud Logging — the
-            # message string is just for human readability in the local
-            # dev console.
-            logger.info(
-                "ttft skill=%s ttft_ms=%s total_ms=%s mode=%s",
-                self._skill_id,
-                payload.get(f"{STAGE_FIRST_MODEL_TOKEN}_ms", "n/a"),
-                payload["total_response_ms"],
-                TTFT_MODE,
-                extra={"json_fields": payload},
+
+            summary = (
+                f"ttft skill={self._skill_id} "
+                f"ttft_ms={payload.get(f'{STAGE_FIRST_MODEL_TOKEN}_ms', 'n/a')} "
+                f"total_ms={payload['total_response_ms']} mode={TTFT_MODE}"
             )
+
+            # THE PER-STAGE MARKS ONLY SURVIVE IF THIS LINE IS JSON.
+            #
+            # This used to be logger.info(..., extra={"json_fields": payload})
+            # with a comment asserting "``extra`` becomes ``jsonPayload`` in
+            # Cloud Logging". It does not — that is true only under a Google
+            # Cloud Logging handler, and this app configures a plain text
+            # formatter (fast_api_app.py, deliberately: OTEL owns the root
+            # handler and basicConfig(force=True) breaks pytest capture). So
+            # every stage mark was dropped at the formatter and 30 days of prod
+            # rows carried only skill/ttft_ms/total_ms/mode as textPayload.
+            # Found 2026-09-08 while trying to attribute a 6.1s median TTFT from
+            # 358 recorded turns, and finding the breakdown was not there.
+            #
+            # Cloud Run parses a single-line JSON object on stdout into
+            # jsonPayload, honouring ``severity`` and ``message``. Writing it
+            # directly keeps this fix local: no global logging change, so the
+            # 2026-06-23 "zero INFO lines reached Cloud Logging" incident
+            # cannot recur through this path.
+            if _STRUCTURED_LOG:
+                try:
+                    sys.stdout.write(
+                        json.dumps(
+                            {**payload, "severity": "INFO", "message": summary},
+                            default=str,
+                        )
+                        + "\n"
+                    )
+                    sys.stdout.flush()
+                except Exception:  # pragma: no cover - never break a turn to log it
+                    logger.info(summary)
+            else:
+                logger.info(summary)
         except Exception as exc:
             logger.warning("LatencyTracker.emit_log() failed (suppressed): %s", exc)
 

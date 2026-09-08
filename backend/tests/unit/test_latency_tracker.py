@@ -15,6 +15,7 @@ also matches reality more closely than a reload would.
 
 from __future__ import annotations
 
+import json
 import logging
 
 import pytest
@@ -196,10 +197,16 @@ def test_optimization_m1_stage_constants_exposed():
     assert timing.STAGE_RUNNER_SETUP_DONE == "runner_setup_done"
 
 
-def test_optimization_m1_marks_appear_in_log_line(monkeypatch, caplog):
-    """When the agent_factory_done and runner_setup_done marks fire,
-    they must show up as <name>_ms keys in the structured ttft log line
-    so the operator can attribute the 5.7s gap from the baseline."""
+def test_optimization_m1_marks_appear_in_log_line(monkeypatch, capsys):
+    """When the agent_factory_done and runner_setup_done marks fire, they must
+    show up as <name>_ms keys in the EMITTED line.
+
+    This test used to assert ``json_fields`` on the LogRecord and passed for
+    months while the marks never reached Cloud Logging at all — the record
+    carried them and the text formatter dropped them. Asserting the mechanism
+    the code happens to use, rather than the outcome it exists for, is the same
+    lockstep failure as a route test that dependency_overrides the wrong auth
+    symbol. It now asserts the emitted JSON line."""
     _set_mode(monkeypatch, "full")
     tracker = timing.LatencyTracker(skill_id="s1", session_id="t1", user_id="u1")
     tracker.mark(timing.STAGE_REQUEST_RECEIVED)
@@ -209,13 +216,11 @@ def test_optimization_m1_marks_appear_in_log_line(monkeypatch, caplog):
     tracker.mark(timing.STAGE_BEFORE_AGENT_DONE)
     tracker.mark(timing.STAGE_BEFORE_MODEL_DONE)
 
-    caplog.clear()
-    with caplog.at_level(logging.INFO, logger="observability.timing"):
-        tracker.emit_log()
-    records = [r for r in caplog.records if "ttft" in r.getMessage()]
-    assert records, "expected one ttft log line"
-    payload = getattr(records[0], "json_fields", None)
-    assert payload, "ttft log line must carry json_fields"
+    monkeypatch.setattr(timing, "_STRUCTURED_LOG", True)
+    tracker.emit_log()
+    out = capsys.readouterr().out.strip().splitlines()
+    assert out, "expected one ttft log line"
+    payload = json.loads(out[-1])
     for key in (
         "request_received_ms",
         "session_index_done_ms",
@@ -237,3 +242,61 @@ def test_optimization_m1_marks_silent_in_off_mode(monkeypatch):
     payload = tracker.report_payload()
     assert "agent_factory_done_ms" not in payload
     assert "runner_setup_done_ms" not in payload
+
+
+# --- the marks must actually reach Cloud Logging as queryable fields -------
+#
+# emit_log used to pass the per-stage marks as extra={"json_fields": payload},
+# with a comment asserting that becomes jsonPayload. It does not — that holds
+# only under a Google Cloud Logging handler, and this app configures a plain
+# text formatter on purpose (OTEL owns the root handler). So every stage mark
+# was dropped at the formatter, and 30 days of prod rows carried only
+# skill/ttft_ms/total_ms/mode. Found 2026-09-08 when 358 recorded turns could
+# not answer "where does the 6.1s median TTFT go".
+
+
+def _emit_and_capture(monkeypatch, capsys, *, structured: bool):
+    monkeypatch.setattr(timing, "_STRUCTURED_LOG", structured)
+    monkeypatch.setattr(timing, "_ENABLED", True)
+    tracker = timing.LatencyTracker(skill_id="s1", session_id="sess1", user_id="u1")
+    tracker.mark(timing.STAGE_SESSION_INDEX_DONE)
+    tracker.mark(timing.STAGE_AGENT_FACTORY_DONE)
+    tracker.mark(timing.STAGE_BEFORE_AGENT_DONE)
+    tracker.emit_log()
+    return capsys.readouterr().out
+
+
+def test_structured_emit_puts_every_stage_mark_at_the_top_level(monkeypatch, capsys):
+    """The whole point: agent_factory_done_ms must be QUERYABLE, not embedded
+    in a message string."""
+    out = _emit_and_capture(monkeypatch, capsys, structured=True)
+    row = json.loads(out.strip().splitlines()[-1])
+
+    for stage in (
+        timing.STAGE_SESSION_INDEX_DONE,
+        timing.STAGE_AGENT_FACTORY_DONE,
+        timing.STAGE_BEFORE_AGENT_DONE,
+    ):
+        assert f"{stage}_ms" in row, f"{stage} would not be queryable in Cloud Logging"
+
+    # Cloud Run's parser needs these two to treat the line as a log entry
+    # rather than an opaque string.
+    assert row["severity"] == "INFO"
+    assert row["message"].startswith("ttft skill=")
+    assert row["event"] == "ttft"
+    assert row["skill_id"] == "s1"
+
+
+def test_unstructured_emit_stays_human_readable_for_local_dev(monkeypatch, capsys):
+    """`make dev` should keep a console line, not a JSON blob."""
+    out = _emit_and_capture(monkeypatch, capsys, structured=False)
+    assert "{" not in out  # nothing JSON-shaped on stdout
+
+
+def test_structured_emit_is_still_idempotent(monkeypatch, capsys):
+    monkeypatch.setattr(timing, "_STRUCTURED_LOG", True)
+    monkeypatch.setattr(timing, "_ENABLED", True)
+    tracker = timing.LatencyTracker(skill_id="s1", session_id="sess1", user_id="u1")
+    tracker.emit_log()
+    tracker.emit_log()
+    assert len(capsys.readouterr().out.strip().splitlines()) == 1
