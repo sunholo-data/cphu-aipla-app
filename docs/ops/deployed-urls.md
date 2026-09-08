@@ -423,6 +423,46 @@ teacher can perceive. Sims work correctly on the current origin.
   `m@sunholo.com` `programmeAdmin` on prod alongside the existing `jbruun@ind.ku.dk`
   grant. Verified via `make deploy-status`: dev/test/prod all serving 200,
   test and prod level at v0.1.35.
+- **2026-09-08 (v0.1.37) — the TTFT marks reach Cloud Logging at last, plus the
+  tool-result visibility invariant. v0.1.36 was cut and deliberately NOT
+  promoted.** Two things shipped and one was caught between test and prod.
+
+  **The observability fix is the point of the release.** `emit_log` passed the
+  per-stage latency marks as `extra={"json_fields": ...}`, which only becomes
+  `jsonPayload` under a Google Cloud Logging handler — and this app configures a
+  plain text formatter on purpose (OTEL owns the root handler). So every stage
+  mark was dropped at the formatter: 30 days of prod carried only
+  `skill`/`ttft_ms`/`total_ms`/`mode` as `textPayload`, and
+  `agent_factory_done_ms` — added in April specifically to attribute an
+  unexplained 5.7s gap — was never queryable at all. `emit_log` now writes one
+  JSON line to stdout, which Cloud Run parses into `jsonPayload`. **Verified on
+  test before promoting:** `jsonPayload.event="ttft"` rows now exist with
+  queryable stage fields, where the same query over 30 days of dev returned zero.
+
+  **Why v0.1.36 was abandoned.** It carried 1.1.101 (the SSE filter now redacts a
+  tool result unless something declares it renderable) with a regression:
+  `mark_checklist_item` is parsed by `ChecklistMarkCard` and sits outside
+  `TOOL_REGISTRY`, so the OLD rule passed it as an "unknown name" — the same
+  loophole 1.1.101 set out to close. Inverting the default redacted it, so the
+  card would have stopped rendering with **no error and no log line**: the
+  student simply stops seeing their checklist marks while the tutor still claims
+  to have made them. Found by asking which student-facing tools sit outside the
+  registry, not by any test. v0.1.37 allow-lists it (card-safe by construction)
+  and adds `scripts/check-stream-render-allowlist.sh` to CI so the next card
+  cannot repeat it.
+
+  **The generalisable lesson, now a CLAUDE.md footgun row:** inverting a default
+  is not a local change. It converts every pre-existing accidental pass into a
+  silent denial, and the accidents are by definition the cases nobody wrote down.
+
+  Verified: `make deploy-status` — test and prod level at v0.1.37, all three
+  serving 200; `smoke-deployed.sh prod all` green including a real
+  anonymous-group student upload round-trip.
+
+  **Known limitation:** `aipla-demo-1` is a visitor-tier recorded-demo code on
+  dev AND test, so neither can drive a real tutor turn. The student-facing half
+  of 1.1.101 is proven by unit tests (including across ADK's task/thread
+  boundaries) rather than by a deployed student session.
 
 ---
 
