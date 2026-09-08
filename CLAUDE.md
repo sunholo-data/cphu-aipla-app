@@ -240,6 +240,41 @@ filled). Update `UPSTREAM_PINNED` when you port up.
 435 bucket-C, 897 AIPLA-owned, 423 upstream-only. Ported and outstanding items
 are tracked in [docs/upstream-feedback.md](docs/upstream-feedback.md).
 
+**First port: 2026-09-08**, [platform-source#6](https://github.com/sunholo-data/platform-source/pull/6)
+— six guards (`check-auth-dispatcher`, `check-cloudbuild-substitutions`,
+`check-skill-catalogue`, `audit-trust-cards`, `check-doc-links`,
+`audit-residuals`), upstream suite green with no AIPLA content present.
+
+#### The down direction is INSPIRATION, not a merge — decided 2026-09-08
+
+Do not plan work that ends in pulling the template down wholesale. Upstream has
+**725 files this repo does not**, plus **423 shared files it changed that we
+never touched**, and there is no merge base — `git merge` here means
+`--allow-unrelated-histories` across ~1,900 files. That is not a sync, it is a
+rewrite.
+
+**So: read upstream for ideas, port down deliberately per-file, never merge.**
+When something upstream is worth having, copy that file and adapt it like any
+other dependency — with review, not with git.
+
+What is actually worth mining, verified absent here rather than reinvented
+under another name: `backend/adk/resilient_llm.py` · `resilient_session.py` ·
+`model_errors.py` · `stream_invariants.py` · `agent_cache.py` ·
+`compaction_second_pass.py` · `elicitation.py`, and a much larger
+`backend/admin/` (audit, tenants, scope, platform config, tool permissions).
+
+The first four are the **silent-failure family**, which makes them a candidate
+*inside* workstream F of the
+[extension plan](docs/design/aipla/v2.1.0-extension/plan-2026-09-to-2027-04.md)
+rather than a separate sync project — F currently budgets ~5 days to write that
+class of guard from scratch, and adapting may be cheaper than writing. Decide in
+October with AD, who can share the review.
+
+**And when the next engagement forks: fork from `platform-source`, not from
+AIPLA.** This repo is ~900 files of KU-specific content deep. The corollary is
+the reason the port above happened when it did — anything this fork wants the
+next one to inherit has to reach upstream *before* that fork is cut.
+
 ---
 
 > The rest of this file is **inherited from the template** and describes

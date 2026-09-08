@@ -1509,6 +1509,12 @@ saved upstream and every sibling fork the same incidents:
 | `tf.sh` | applying env A's state against env B's tfvars — cost this fork its entire prod data plane once | ⚠️ names AIPLA |
 | `check-brand-literals.sh` | two brand primaries in one app | ⚠️ names the brand |
 
+> **Ported 2026-09-08** — the six portable guards went up as
+> [platform-source#6](https://github.com/sunholo-data/platform-source/pull/6),
+> via `PATHS=<list> scripts/port-up.sh '' GO=1`. The upstream backend suite
+> passed with them applied and no AIPLA content present (3364 passed, 42
+> skipped). The four marked ⚠️ remain open.
+
 **Upstream fix:** take the six portable ones directly. For the four marked ⚠️ the
 *mechanism* is generic and only the literals are local, so the template should
 carry them parameterised — which is also the honest reason they had not gone up
