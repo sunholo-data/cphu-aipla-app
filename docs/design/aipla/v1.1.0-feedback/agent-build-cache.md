@@ -1,6 +1,6 @@
 # We rebuild the whole agent on every turn, and we already measure it
 
-**Status**: **Design (OPEN)** — **1.1.102**
+**Status**: **CLOSED 2026-09-08 — M0 measured; do not build M1/M2.** The cache would save ~2–4% of a turn. M0 found something much larger, recorded below — **1.1.102**
 **Priority**: **P2** — cheap, un-gated, and the most concrete answer we have to "the product feels slow". Below 1.1.100/1.1.101 because it costs latency, not correctness
 **Estimated**: ~1–2d (M0 measure from the mark we already emit ~0.25d · M1 the cache + key ~0.75d · M2 invalidation correctness ~0.5d)
 **Scope**: Backend — a TTL+LRU cache in front of `create_agent_with_thinking`, keyed on everything that changes the built agent
@@ -107,3 +107,77 @@ A hit-rate metric is worth emitting but is not the acceptance criterion; a
 - Two activities on one skill never share a cache entry — tested.
 - `agent_factory_done` on a warm instance drops materially, measured the same
   way as the baseline so the two numbers are comparable.
+
+
+---
+
+# M0 result — measured 2026-09-08, and it closes this doc
+
+**The doc said M0 gates the rest: *"If the warm cost is small, M1 is not worth
+0.75d and this doc should be closed with the number written into it."* It is
+small. Closing it.**
+
+## What the factory actually costs
+
+Timed against real dev Firestore with the real `create_agent_with_thinking`,
+six consecutive builds per skill (`/tmp` harness, not committed — reproduce with
+`get_skill(id)` + a loop):
+
+| Skill | Tools | Cold first build | Warm median |
+|---|---|---|---|
+| `manage-class` | 7 + 1 agentTool | 434 ms | **246 ms** |
+| `analytics-chat` | 7 | 250 ms | **117 ms** |
+| `activity-authoring-assistant` | 5 | 264 ms | **113 ms** |
+| `concept-dialogue` | 0 | 419 ms | **193 ms** |
+
+Against a **prod median TTFT of 6,121 ms** (below), the worst case is **~4% of a
+turn** and the typical case ~2%. A local machine is faster than a Cloud Run
+instance, so treat these as a floor — but not a 20× floor.
+
+## Why the premise did not hold here
+
+The doc reasoned from upstream's ~1.4s, which came from rebuilding **MCP
+toolsets at a Firestore read per server**, and from the two-agent thinking path.
+Neither occurs in this deployment:
+
+**No skill on dev uses `mcpServers`, and no skill uses a `thinkingModel`.**
+Every one builds a single agent with no MCP round-trips. The two things that
+made the build expensive upstream are exactly the two things AIPLA does not do.
+
+That is worth keeping in view rather than deleting: if sim activities later move
+to dynamic MCP servers (rather than the current static-artefact path), or a
+skill takes a `thinkingModel`, the cost returns and this doc becomes live again.
+**Re-open it if either appears** — the design above is still the right one.
+
+## What M0 found instead, and it is much bigger
+
+Prod, 30 days, 358 turns (`textPayload:"ttft"`, `aipla-v01-frontend`):
+
+| | median | p95 | max |
+|---|---|---|---|
+| **TTFT** | **6,121 ms** | **53,808 ms** | 176,950 ms |
+| total | 8,514 ms | 58,036 ms | 300,025 ms |
+
+**The platform's stated bar is *first token <1s without tools*. Prod's median is
+six times that, and its p95 is nearly a minute.** Whatever is wrong, the agent
+factory is ~2–4% of it — which is the useful half of this result: it rules out a
+plausible-sounding suspect cheaply, and points the next look elsewhere.
+
+This belongs with [1.1.96 teacher-ui-friction-telemetry](teacher-ui-friction-telemetry.md).
+"The UI is difficult" and "a median six seconds to first token, sometimes a
+minute" are quite possibly the same report. **Recommend a follow-on doc scoped
+to where the 6 s actually goes** rather than extending this one.
+
+## A gap this exposed in our own instrumentation
+
+`LatencyTracker.emit_log` passes the per-stage marks as
+`extra={"json_fields": payload}`, intending structured Cloud Logging fields. **They
+do not land** — every prod row is a flat `textPayload` string carrying only
+`skill`, `ttft_ms`, `total_ms`, `mode`. So `agent_factory_done_ms` and every
+other stage is **not queryable in logs at all**, which is why this measurement
+had to be taken locally rather than from the 358 real turns already recorded.
+
+The marks do reach OTel span attributes (`aitana.ttft.*`), so Cloud Trace should
+have them — but the log path was written to answer exactly this question and
+silently does not. Small fix, and squarely the repo's own recurring theme: a
+checker (here, an instrument) that appears to be recording and is not.

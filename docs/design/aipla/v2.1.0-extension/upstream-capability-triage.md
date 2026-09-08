@@ -1,6 +1,6 @@
 # What the template built that we didn't — triage against our design record
 
-**Status**: **Triage (reference)** — not a deliverable; the input to three new design docs
+**Status**: **Triage (reference)** — not a deliverable; the input to three new design docs. **1.1.101 shipped and 1.1.102 closed on measurement, both 2026-09-08**
 **Created**: 2026-09-08
 **Source**: the first reconcile against `sunholo-data/platform-source` (`upstream/main` @ `b322f55d`), made possible by the porting pipe wired the same day — see CLAUDE.md "Upstream tracking"
 **Reader**: M now; AD from October, as the map of what we deliberately did not take
@@ -61,12 +61,31 @@ is likely cheaper than writing, and it comes with upstream's tests.
 |---|---|---|
 | [1.1.100 model-and-session-reliability](../v1.1.0-feedback/model-and-session-reliability.md) | A dropped session is not a degraded lesson, it is a **lost transcript** — and transcripts are the assessment evidence the whole discipline-layer strategy rests on | ~3–4d |
 | [1.1.101 tool-result-visibility-invariant](../v1.1.0-feedback/tool-result-visibility-invariant.md) | STRIP-1 fails **open** for any tool name it does not recognise, and teacher-authored MCP tools are exactly that | ~1–1.5d |
-| [1.1.102 agent-build-cache](../v1.1.0-feedback/agent-build-cache.md) | We rebuild the agent on every turn and already measure it. Teachers report the product is slow; this is the cheapest honest answer | ~1–2d |
+| ~~[1.1.102 agent-build-cache](../v1.1.0-feedback/agent-build-cache.md)~~ | **CLOSED 2026-09-08 by its own M0 gate.** Warm build is 113–246 ms against a prod median TTFT of 6,121 ms — ~2–4% of a turn. The premise did not transfer: upstream's cost came from MCP toolsets and the two-agent thinking path, and **no AIPLA skill uses either**. Cheaply ruled out a plausible suspect | ~0.25d spent |
 
 All three need **only the existing deployment** — no students, no classroom, no
 Google data agreement, no Prøvebanken approval. That is the property that makes
 them schedulable *now*, in the wait the extension plan is explicitly about
 spending well.
+
+## Two things the first implementation pass turned up
+
+Neither came from upstream; both came from checking upstream's premises against
+our own deployment, which is the argument for doing this read properly.
+
+- **Prod TTFT is far off the stated bar.** 358 turns over 30 days: median
+  **6,121 ms**, p95 **53,808 ms**, max 177 s, against a platform bar of *first
+  token <1s without tools*. The agent factory is 2–4% of that, so the cause is
+  elsewhere and is not yet identified. **Probably the same report as
+  [1.1.96](../v1.1.0-feedback/teacher-ui-friction-telemetry.md)'s "the UI is
+  difficult"** — worth its own doc, scoped to where the six seconds goes.
+- **Our per-stage latency marks do not reach the logs.**
+  `LatencyTracker.emit_log` passes them as `extra={"json_fields": ...}`, but
+  every prod row is a flat `textPayload` carrying only `skill`, `ttft_ms`,
+  `total_ms`, `mode`. So `agent_factory_done_ms` is not queryable, and the M0
+  number had to be measured locally rather than read from 358 real turns already
+  recorded. An instrument that looks like it is recording and is not — the
+  repo's own recurring theme, one layer down.
 
 ## What to deliberately leave
 
