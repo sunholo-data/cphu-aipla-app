@@ -1,8 +1,13 @@
 # Follow-up — password-reset email deliverability
 
-**Status:** Deferred to the week of **2026-08-24**. Explicitly NOT before the
-first pilot session (Fri 2026-08-21) — domain verification takes up to 48 hours
-and depends on UCPH IT, so Friday runs without it.
+**Status:** **Still open, 2026-09-09.** Deferred to the week of 2026-08-24 to
+clear the first pilot session (Fri 2026-08-21); that week passed with nothing
+sent. Re-raised independently at the 2026-09-01 meeting (items 27 + 34 of
+[meeting-2026-09-01-triage.md](../design/aipla/v1.1.0-feedback/meeting-2026-09-01-triage.md),
+*"email login banned — IT must add DNS records; M may initiate"*). Verified
+2026-09-09 via `dig`: `aipla.ku.dk` still carries only the original
+`v=spf1 -all` and neither DKIM CNAME exists, so nothing below has been applied.
+**Nothing here has been sent to UCPH IT yet.**
 
 **Owner:** M. **Raised:** 2026-08-17/18, from a real send.
 
