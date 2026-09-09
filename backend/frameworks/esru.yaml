@@ -14,9 +14,14 @@
 # that merely sound pedagogical would defeat that, so invented ones were removed
 # in favour of the paper's own moves.
 #
-# Two corrections came out of the verification — see the sprint plan:
-#   1. The four-move reading is confirmed; the README's three-move gloss is wrong.
-#   2. The README's citation conflates two different papers. Both are below.
+# Verified twice: first against the publisher record, then (2026-09-09) against
+# the PDF itself once the corpus arrived on this machine.
+#   1. Four moves confirmed verbatim from the abstract; the three-move gloss is wrong.
+#   2. The year is an online-vs-issue artefact, not a wrong paper — see below.
+#   3. ⚠️ INCOMPLETE: the paper's model is TWO-dimensional (moves x inquiry
+#      dimension) and only the moves are modelled here. The epistemic/conceptual
+#      split applies to ELICITING only, by the paper's own scoping. Table 2 lists
+#      ~30 coded strategies; the behaviours below are a subset. See the README.
 id: esru
 label: ESRU — informal formative assessment cycle
 layer: tp_cycle
@@ -49,10 +54,13 @@ provenance:
       doi:10.1080/10627197.2006.9652991
     vouchedBy: M
     note: >
-      The companion paper. ⚠️ docs/literature/tp-framework/README.md cited "2006
-      … (J Res Sci Teach)", which conflates the two: the 2006 paper is in
-      Educational Assessment, and JRST is the 2007 one. Both are real; the
-      README's single row was a chimera of the two. README corrected.
+      A real companion paper, listed for completeness — but NOT in the AIPLA
+      corpus and not the source of anything here. Recorded to close off a wrong
+      turn: the README's original "Ruiz-Primo 2006 … (J Res Sci Teach)" was read
+      as conflating this paper with the 2007 one. Reading the actual PDF showed
+      otherwise — JRST 44(1) was published ONLINE on 8 December 2006 and in the
+      2007 issue, and Wiley named the file with the online year. One paper, two
+      defensible years. The 2007 citation above is the one to use.
   - citation: >
       Duschl, R. A. & Gitomer, D. H. (1997). Strategies and challenges to
       changing the focus of assessment and instruction in science classrooms.

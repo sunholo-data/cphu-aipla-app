@@ -58,7 +58,10 @@ class Provenance(BaseModel):
     # Initials of the human who confirmed this citation (repo convention: M, JB,
     # AR, DS, ZL, P2, K). Never a model.
     vouched_by: str = Field(min_length=1, max_length=40, alias="vouchedBy")
-    note: str | None = Field(default=None, max_length=400)
+    # 800, not 400: a provenance note carries the edition/venue caveats and the
+    # record of a correction ("this looked like two papers, it is one") — the
+    # exact material a later reader needs and 400 chars could not hold.
+    note: str | None = Field(default=None, max_length=800)
 
     model_config = ConfigDict(populate_by_name=True, extra="forbid")
 
