@@ -31,7 +31,7 @@ from typing import Any
 
 from google.adk.tools import FunctionTool, ToolContext
 
-from adk.element_state import find_empty_element_for_step, refusal_for
+from adk.element_state import find_empty_element_for_step, read_table_cells, refusal_for
 from adk.prompt_budget import clip, fit_lines, short_date
 from auth.firebase_auth import User
 from db.checklist_progress import get_item_states, record_item_state
@@ -181,7 +181,17 @@ def build_checklist_tools(cfg: ActivityConfig | None, user: User) -> list[Functi
         # able to. Everything uncertain falls through and marks as before.
         if done and tool_context is not None:
             try:
-                empty = find_empty_element_for_step(cfg, item.label, _read_state(tool_context))
+                # Read the SAME table source the prompt block reads. If this
+                # kept reading the client mirror while the block read the store,
+                # the tutor would see the student's readings and then refuse to
+                # mark the step for not having entered them — a contradiction
+                # the student cannot act on and cannot see the cause of.
+                empty = find_empty_element_for_step(
+                    cfg,
+                    item.label,
+                    _read_state(tool_context),
+                    table_cells=read_table_cells(group_id, activity_id),
+                )
             except Exception:  # pragma: no cover — a check must never break a mark
                 logger.exception(
                     "checklist: element-state check FAILED OPEN for item=%s — the mark was allowed "

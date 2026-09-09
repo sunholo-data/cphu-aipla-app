@@ -527,3 +527,49 @@ def test_state_recorded_for_a_step_the_teacher_has_since_deleted_is_ignored():
     against steps that no longer exist."""
     record_item_state(GROUP, ACTIVITY, "deleted-step", done=True, by="ai", evidence_summary="gone")
     assert checklist_state_summary(_cfg(), _student()) == ""
+
+
+# ---------------------------------------------------------------------------
+# The refusal reads the same table source the prompt block reads
+# ---------------------------------------------------------------------------
+
+
+def test_a_mark_is_allowed_when_the_STORE_has_the_readings():
+    """The contradiction this closes: the tutor sees the student's readings in
+    its prompt block (read from ``table_progress``) and then refuses to mark the
+    step for not having entered them (read from the client's pushed mirror).
+
+    The mirror is empty here — the student filled the grid in an earlier session,
+    or has not opened the workbench tab this one, so no push has landed. Before
+    2026-09-09 that refused the mark, and the student had no way to see why.
+    """
+    from db.table_progress import record_cells
+
+    record_cells(GROUP, ACTIVITY, {"t1::0::h": "1,50", "t1::0::t": "0,55"})
+    cfg = _table_cfg([("a", "Udfyld tabellen Faldforsøg")], [_table()])
+
+    out = _tools(cfg=cfg)["mark_checklist_item"]("a", True, "aflæste 1,50 m og 0,55 s", _Ctx())
+
+    assert out["ok"] is True
+    assert get_item_states(GROUP, ACTIVITY)["a"]["done"] is True
+
+
+def test_a_mark_is_still_refused_when_the_table_is_genuinely_empty():
+    """The store answering "nothing here" is a real EMPTY, and must still refuse
+    — otherwise the fix above would have removed the 1.1.69 M3 guard entirely."""
+    cfg = _table_cfg([("a", "Udfyld tabellen Faldforsøg")], [_table()])
+
+    out = _tools(cfg=cfg)["mark_checklist_item"]("a", True, "siger den er udfyldt", _Ctx())
+
+    assert out["ok"] is False
+    assert get_item_states(GROUP, ACTIVITY) == {}
+
+
+def test_another_groups_readings_do_not_unlock_this_groups_mark():
+    """The store is group-keyed and the refusal must be too."""
+    from db.table_progress import record_cells
+
+    record_cells(OTHER_GROUP, ACTIVITY, {"t1::0::h": "1,50"})
+    cfg = _table_cfg([("a", "Udfyld tabellen Faldforsøg")], [_table()])
+
+    assert _tools(cfg=cfg)["mark_checklist_item"]("a", True, "done", _Ctx())["ok"] is False

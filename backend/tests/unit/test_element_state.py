@@ -329,7 +329,41 @@ def test_block_is_bounded_item_wise() -> None:
     # The instruction must survive truncation — counts with no instruction is
     # the feature silently failing on exactly the largest activities.
     assert "do not mark the step done" in block
-    assert "more)" in block
+    # Every element still gets its line: the maximum authorable activity is 5
+    # tables + 5 calculators + 3 writing surfaces, and their COUNTS fit the cap
+    # by construction. Values are what yields when the budget runs out.
+    assert block.count("Data table") == 5
+    assert block.count("Calculator") == 5
+
+
+def test_values_yield_before_counts_do() -> None:
+    """The two losses are not interchangeable, so they do not share a budget.
+
+    Losing a line loses that element's EMPTY — the signal ``_FOOTER`` and
+    ``mark_checklist_item`` act on. Losing its values loses detail. Five full
+    20-row tables cannot all show their readings; every one must still show how
+    full it is, and the block must SAY that values were dropped rather than let
+    the tutor quote readings that are not there.
+    """
+    cfg = _cfg(
+        table=[_table(f"t{n}", title=f"Tabel {n}", rows=20) for n in range(5)],
+        calculator=[_calc(f"c{n}", title=f"Beregner {n}") for n in range(5)],
+        writing=[_writing(f"w{n}", f"Tekst {n}") for n in range(3)],
+    )
+    cells = {f"t{n}::{r}::h": f"{r}.{n}" for n in range(5) for r in range(20)}
+    cells.update({f"t{n}::{r}::t": f"{r}.5" for n in range(5) for r in range(20)})
+
+    block = describe_element_state(cfg, {}, table_cells=cells)
+
+    assert len(block) <= ELEMENT_STATE_CHAR_CAP
+    # Every element of the maximum authorable activity still states how full it is.
+    assert block.count("Data table") == 5
+    assert block.count("Calculator") == 5
+    assert block.count("Writing surface") == 3
+    for n in range(5):
+        assert f'"Tabel {n}": COMPLETE — 40 of 40 cells filled' in block
+    # …and the readings that did not fit are declared, not silently dropped.
+    assert "counts only" in block
 
 
 def test_a_reader_that_raises_does_not_break_the_turn() -> None:
@@ -539,3 +573,112 @@ def test_writing_declares_a_fill_reader_not_an_exclusion() -> None:
     from adk.element_state import _READERS
 
     assert not isinstance(_READERS["writing"], NoFillChannel)
+
+
+# --- The table reads the group STORE, not the client's pushed mirror ------
+#
+# 1.1.88 made ``table_progress`` the source of truth for the student's grid and
+# migrated the client onto it, but left this module reading
+# ``mcp_app_context.table.state``. These net the three ways that showed up in
+# the 2026-09-09 pilot logs. See the module docstring.
+
+
+def test_store_values_reach_the_tutor_not_just_counts() -> None:
+    """A count cannot be quoted back. "Your third trial gives 91 cm" can."""
+    block = describe_element_state(
+        _cfg(table=[_table(title="Slip A")]),
+        {},
+        table_cells={"t1::0::h": "1,50", "t1::0::t": "0,55"},
+    )
+    assert 'Data table "Slip A": PARTIAL — 2 of 10 cells filled' in block
+    # Column LABELS and units, and 1-based rows — the grid the student is
+    # looking at, not the ids it is keyed by.
+    assert "row 1: højde (m)=1,50, tid (s)=0,55" in block
+
+
+def test_store_answers_when_the_client_never_pushed() -> None:
+    """The unopened-tab case. ``WorkbenchTable``'s catch-up push needs the
+    component MOUNTED, so a student who works in one session and returns to a
+    fresh one — or never opens the workbench tab — left the mirror empty. An
+    empty mirror rendered EMPTY, which ``_FOOTER`` tells the tutor to act on and
+    ``mark_checklist_item`` refuses against."""
+    cfg = _cfg(table=[_table()])
+    assert 'Data table "Faldforsøg": EMPTY' in describe_element_state(cfg, {})
+
+    block = describe_element_state(cfg, {}, table_cells={"t1::0::h": "1,50"})
+    assert 'Data table "Faldforsøg": EMPTY' not in block
+    assert "1 of 10 cells filled" in block
+
+
+def test_store_beats_a_stale_mirror() -> None:
+    """The commit race. A cell pushes on blur, so a student who types a reading
+    into chat before tabbing out got a turn built from the state BEFORE the
+    entry. The store is written by the same commit and read fresh per turn."""
+    stale = _pushed("table", {"tables": [{"tableId": "t1", "data": [{"h": "1,50"}], "filledCells": 1}]})
+    block = describe_element_state(
+        _cfg(table=[_table()]),
+        stale,
+        table_cells={"t1::0::h": "1,50", "t1::1::h": "1,80", "t1::1::t": "0,60"},
+    )
+    assert "3 of 10 cells filled" in block
+    assert "row 2: højde (m)=1,80" in block
+
+
+def test_an_unreadable_store_falls_back_to_the_mirror() -> None:
+    """``None`` (could not read) and ``{}`` (read, nothing there) must not
+    collapse — the reassuring answer is the one a broken read produces, and here
+    the reassuring answer is a false EMPTY carrying an instruction to act on it.
+    """
+    mirror = _pushed("table", {"tables": [{"tableId": "t1", "data": [{"h": "1,50", "t": "0,55"}]}]})
+    unreadable = describe_element_state(_cfg(table=[_table()]), mirror, table_cells=None)
+    assert "2 of 10 cells filled" in unreadable
+
+    empty_store = describe_element_state(_cfg(table=[_table()]), mirror, table_cells={})
+    assert "2 of 10 cells filled" in empty_store
+
+
+def test_a_cleared_cell_is_not_resurrected_from_the_mirror() -> None:
+    """``record_cells`` DELETES a cleared cell rather than storing "". So a store
+    holding anything for a table holds ALL of it, and a stale mirror value must
+    not be unioned back in — a student deleting a wrong reading has to be able
+    to un-share it."""
+    mirror = _pushed("table", {"tables": [{"tableId": "t1", "data": [{"h": "9,99", "t": "0,55"}]}]})
+    block = describe_element_state(_cfg(table=[_table()]), mirror, table_cells={"t1::0::t": "0,55"})
+    assert "1 of 10 cells filled" in block
+    assert "9,99" not in block
+
+
+def test_store_cells_are_matched_per_table() -> None:
+    """Two tables, one store. A cell belongs to exactly one of them."""
+    block = describe_element_state(
+        _cfg(table=[_table("t1", title="Slip A"), _table("t2", title="Slip B")]),
+        {},
+        table_cells={"t1::0::h": "1,50", "t2::0::h": "1,80", "t2::1::h": "1,85"},
+    )
+    assert 'Data table "Slip A": PARTIAL — 1 of 10' in block
+    assert 'Data table "Slip B": PARTIAL — 2 of 10' in block
+
+
+def test_malformed_store_keys_are_skipped_not_guessed() -> None:
+    """A mis-keyed cell counted into the wrong table is a wrong number in a
+    prompt, which is worse than one missing cell."""
+    block = describe_element_state(
+        _cfg(table=[_table()]),
+        {},
+        table_cells={"t1::0::h": "1,50", "t1::nope::t": "x", "garbage": "y", "t1::1": "z"},
+    )
+    assert "1 of 10 cells filled" in block
+
+
+def test_values_never_reach_the_refusal_path() -> None:
+    """``find_empty_element_for_step`` reads counts only. What a student wrote
+    must not become an input to whether their step gets marked."""
+    from adk.element_state import find_empty_element_for_step, read_element_fills
+
+    cfg = _cfg(table=[_table(title="Faldforsøg")])
+    (fill,) = read_element_fills(cfg, {}, table_cells={"t1::0::h": "1,50"})
+    assert fill.values  # the prompt block gets them
+    assert not fill.is_demonstrably_empty
+    assert find_empty_element_for_step(cfg, "Udfyld tabellen", {}, table_cells={"t1::0::h": "1,50"}) is None
+    # …and with nothing stored, the refusal still fires.
+    assert find_empty_element_for_step(cfg, "Udfyld tabellen", {}, table_cells={}) is not None

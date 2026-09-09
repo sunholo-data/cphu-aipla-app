@@ -51,10 +51,34 @@ fails on a kind that appears as neither.
 2026-08-10, answering the design doc's Open Question 2 — whose guess was *"almost
 certainly [the same gap]"* and is wrong):
 
-* ``table``, ``calculator`` — yes. Both push ``mcp_app_context.{kind}.state``
-  through ``useSimSnapshotPush`` with a shape carrying the filled counts. Both
-  are ARRAY-shaped (every element of that kind in one push, matched by id) —
-  the table joined them at 1.1.88 M2; before that all tables shared one slot.
+* ``table`` — yes, and since 2026-09-09 it is read from the DURABLE GROUP STORE
+  (``db/table_progress.py``), not from the client's pushed mirror. 1.1.88 made
+  that store the source of truth for the student's grid and migrated the client
+  onto it, but left this reader on ``mcp_app_context.table.state`` — so the
+  tutor's view of the table was still whatever some browser had last POSTed.
+  Three ways that showed up in the 2026-09-09 pilot logs, all now closed:
+
+  - **The commit race.** A cell pushes on blur. A student who types a reading
+    into chat before tabbing out gets a tutor turn built from the state *before*
+    the entry — visible in ``busy-garden-11`` on 7 Sep, where the tutor asked
+    for values it already had ~13 s later.
+  - **The unopened tab.** The catch-up push in ``WorkbenchTable`` fires on
+    ``sessionId`` arrival, so it needs the component MOUNTED. A student who
+    never opens the workbench tab this session leaves the mirror empty, and an
+    empty mirror renders ``EMPTY`` — a false negative the ``_FOOTER`` then tells
+    the tutor to act on, and which ``mark_checklist_item`` refuses against.
+  - **No values, ever.** The mirror carried them but this block never did; only
+    the raw ``iframe_context`` dump did, and only when a push had landed.
+
+  The store is read fresh per turn, so none of the three depends on client
+  timing any more. The mirror stays as the FALLBACK for a table the store has
+  nothing for — pre-1.1.88 sessions, and any store read that fails — because
+  over-reporting emptiness is the one error mode this module must not have.
+* ``calculator`` — yes, still the pushed mirror: it has no server-side store to
+  read (its inputs are session state, not group state). ``CalcSnapshot`` is
+  ARRAY-shaped (every calculator in one push, matched by id), so a missing
+  entry is a true EMPTY. It inherits the commit race the table no longer has;
+  giving it a store is the same shape of work as 1.1.88 was for the table.
 * ``checklist`` — has state, but its authority is the Firestore store
   (``db/checklist_progress.py``), read fresh by ``list_checklist()`` and by the
   inherited-progress block (1.1.70 M1). The ``mcp_app_context.progress.state``
@@ -92,12 +116,20 @@ from db.models.activity_config import ELEMENT_REGISTRY, ActivityConfig, ElementS
 
 log = logging.getLogger(__name__)
 
-# This block's share of the per-turn prompt budget. Smaller than the manifest's
-# 2,000 because it is strictly *narrower*: the manifest carries column labels,
-# units and task prompts, while a state line is a title and two numbers. Five
-# tables and five calculators — the model's maximum — compose ~600 chars.
-# See test_element_state_block_is_bounded.
-ELEMENT_STATE_CHAR_CAP = 1200
+# This block's share of the per-turn prompt budget. It was 1,200 while a state
+# line was "a title and two numbers"; table lines now carry the student's actual
+# READINGS, which is the whole point of reading the store rather than a count of
+# it — a tutor that knows 5 of 25 cells are full still cannot say "your third
+# trial gives 91 cm". Five tables at the per-table preview cap below is the
+# worst case and lands under this. See test_element_state_block_is_bounded.
+ELEMENT_STATE_CHAR_CAP = 3000
+
+# Per-table ceiling on the rendered values. A 50-row x 8-column table is 400
+# cells and would eat the whole block on its own, starving every other element's
+# line — ``_fit`` drops WHOLE lines, so one unbounded line is one element
+# silently taking the budget from all the others. Truncation is per-row and
+# announced ("+N more rows"), never silent.
+TABLE_VALUES_CHAR_CAP = 400
 
 # The namespace the iframe-context route writes under. Must match
 # ``adk/iframe_context.py::_NAMESPACE_PREFIX``; anchored separately here so a
@@ -150,6 +182,12 @@ class ElementFill:
     # fact beyond its counts (a calculator's computed result). Never load-bearing
     # for the refusal in M3 — that reads counts only.
     detail: str = ""
+    # The student's actual entered values, already formatted and capped by the
+    # reader that produced them. Separate from ``detail`` so the refusal path
+    # keeps reading counts ONLY: what a student wrote must never become an input
+    # to whether their step gets marked, or the tutor is grading content through
+    # a mechanism built to check presence.
+    values: str = ""
 
     @property
     def status(self) -> str:
@@ -170,6 +208,27 @@ class ElementFill:
         the teacher's typo.
         """
         return self.total > 0 and self.filled <= 0
+
+
+@dataclass(frozen=True)
+class FillSources:
+    """Everything a reader may consult for one turn.
+
+    ``state`` is the per-session client MIRROR (the ``mcp_app_context.*`` keys a
+    browser POSTs). ``table_cells`` is the durable GROUP STORE
+    (``table_progress/{group}:{activity}``), read fresh every turn and keyed
+    ``{table_id}::{row}::{col_id}``.
+
+    ``None`` and ``{}`` mean different things and the distinction is the whole
+    safety property: ``None`` is "the store could not be consulted" (no group, a
+    failed read) and falls back to the mirror; ``{}`` is "the store answered,
+    nothing is entered" and is a real EMPTY. Collapsing them is the shape of the
+    2026-08-13 ``deploy-status`` bug, where a read failure and a real value
+    landed in the same bucket and the reassuring answer won.
+    """
+
+    state: dict[str, Any]
+    table_cells: dict[str, str] | None = None
 
 
 def _entry(state: dict[str, Any], server: str, tool: str = _DEFAULT_TOOL) -> dict[str, Any] | None:
@@ -214,10 +273,97 @@ def _grids_by_id(snap: dict[str, Any] | None) -> dict[str, dict[str, Any]]:
     return {}
 
 
-def _read_table(items: list, spec: ElementSpec, state: dict[str, Any]) -> list[ElementFill]:
-    """One reading per authored table: filled cells against the authored capacity.
+def _cells_from_grid(grid: dict[str, Any] | None) -> dict[tuple[int, str], str]:
+    """The client mirror's grid as ``{(row, col_id): value}``, blanks dropped."""
+    out: dict[tuple[int, str], str] = {}
+    if not isinstance(grid, dict):
+        return out
+    for r, row in enumerate(grid.get("data") or []):
+        if not isinstance(row, dict):
+            continue
+        for col_id, value in row.items():
+            text = str(value).strip()
+            if text:
+                out[(r, str(col_id))] = text
+    return out
 
-    Each grid (frontend ``WorkbenchTable.tsx``) carries ``tableId``,
+
+def _cells_from_store(cells: dict[str, str] | None, table_id: str) -> dict[tuple[int, str], str]:
+    """One table's slice of the group store, keyed the same as the mirror.
+
+    Store keys are ``{table_id}::{row}::{col_id}`` — the addressing the client
+    has always used, unchanged by 1.1.88. A key that does not parse is skipped
+    rather than guessed at: a mis-keyed cell counted into the wrong table is a
+    wrong number in a prompt, which is worse than one missing cell.
+    """
+    out: dict[tuple[int, str], str] = {}
+    if not cells or not table_id:
+        return out
+    prefix = f"{table_id}::"
+    for key, value in cells.items():
+        if not key.startswith(prefix):
+            continue
+        row_s, sep, col_id = key[len(prefix) :].partition("::")
+        if not sep or not col_id:
+            continue
+        try:
+            row = int(row_s)
+        except ValueError:
+            continue
+        text = str(value).strip()
+        if text:
+            out[(row, col_id)] = text
+    return out
+
+
+def _format_table_values(
+    cells: dict[tuple[int, str], str],
+    columns: list,
+) -> str:
+    """The entered readings as prose the tutor can quote back, row by row.
+
+    Column LABELS and units, not ids: ``Forsøg 1=92 cm`` is quotable to a student
+    and ``col-k3=92`` is not. Rows are 1-based here for the same reason — the
+    student is looking at a grid whose first row is row 1.
+    """
+    if not cells:
+        return ""
+    labels = {
+        str(getattr(c, "id", "")): (
+            f"{getattr(c, 'label', '') or getattr(c, 'id', '')}"
+            + (f" ({getattr(c, 'unit', '')})" if getattr(c, "unit", "") else "")
+        )
+        for c in columns
+    }
+    order = {str(getattr(c, "id", "")): i for i, c in enumerate(columns)}
+    by_row: dict[int, list[tuple[int, str, str]]] = {}
+    for (row, col_id), value in cells.items():
+        by_row.setdefault(row, []).append((order.get(col_id, 99), labels.get(col_id, col_id), value))
+
+    rendered: list[str] = []
+    used = 0
+    for row in sorted(by_row):
+        pairs = ", ".join(f"{label}={value}" for _, label, value in sorted(by_row[row]))
+        line = f"row {row + 1}: {pairs}"
+        if used + len(line) + 2 > TABLE_VALUES_CHAR_CAP:
+            return "; ".join([*rendered, f"+{len(by_row) - len(rendered)} more rows"])
+        rendered.append(line)
+        used += len(line) + 2
+    return "; ".join(rendered)
+
+
+def _read_table(items: list, spec: ElementSpec, src: FillSources) -> list[ElementFill]:
+    """One reading per authored table: what the group has entered, and how much.
+
+    **Reads the durable group store, falls back to the client mirror.** See the
+    module docstring for the three failures the mirror-only read produced. The
+    store is authoritative when it holds anything for this table — ``record_cells``
+    DELETES a cleared cell rather than storing ``""``, so "the store has cells for
+    this table" and "these are all of them" are the same statement. When it holds
+    nothing, the mirror still answers: a live pre-1.1.88 session, or a store read
+    that failed, must not read as EMPTY.
+
+    Each mirror grid (frontend ``WorkbenchTable.tsx``) carries ``tableId``,
     ``filledCells`` and the ``data`` grid, and since 1.1.88 M2 they arrive as an
     ARRAY covering every table on the activity — so a second table is no longer
     reported EMPTY merely because the student is editing the first. That was the
@@ -225,6 +371,7 @@ def _read_table(items: list, spec: ElementSpec, state: dict[str, Any]) -> list[E
     the shared slot was session state, never stored student data, so there was no
     migration behind it.
     """
+    state = src.state
     grids = _grids_by_id(_entry(state, "table"))
     # 1.1.71 — with several tables authored, the title is the only thing that
     # tells them apart in the tutor's block, and an untitled one falls back to
@@ -242,44 +389,44 @@ def _read_table(items: list, spec: ElementSpec, state: dict[str, Any]) -> list[E
     ]
     fills = []
     for idx, tbl in enumerate(items):
+        table_id = str(getattr(tbl, "id", ""))
         columns = getattr(tbl, "columns", []) or []
         total = int(getattr(tbl, "rows", 0) or 0) * len(columns)
-        filled = 0
-        grid = grids.get(str(getattr(tbl, "id", "")))
-        if grid is not None:
-            raw = grid.get("filledCells")
+
+        stored = _cells_from_store(src.table_cells, table_id)
+        cells = stored or _cells_from_grid(grids.get(table_id))
+        filled = len(cells)
+
+        # The mirror's own ``filledCells`` is the client's count of the same
+        # grid. Trust it only when we are reading the mirror AND could not count
+        # the grid ourselves (a snapshot carrying the count but not the data),
+        # never over a store answer.
+        if not stored and not cells:
+            raw = (grids.get(table_id) or {}).get("filledCells")
             if isinstance(raw, int):
                 filled = raw
-            else:
-                # Fall back to counting the grid — the snapshot is authoritative
-                # about its own contents even when the count field is missing.
-                filled = sum(
-                    1
-                    for row in (grid.get("data") or [])
-                    if isinstance(row, dict)
-                    for v in row.values()
-                    if str(v).strip()
-                )
+
         fills.append(
             ElementFill(
                 kind="table",
-                element_id=str(getattr(tbl, "id", "")),
+                element_id=table_id,
                 title=titles[idx],
                 filled=filled,
                 total=total,
+                values=_format_table_values(cells, columns),
             )
         )
     return fills
 
 
-def _read_calculator(items: list, spec: ElementSpec, state: dict[str, Any]) -> list[ElementFill]:
+def _read_calculator(items: list, spec: ElementSpec, src: FillSources) -> list[ElementFill]:
     """One reading per authored calculator: how many inputs the student entered.
 
     ``CalcSnapshot`` (frontend ``WorkbenchCalculator.tsx``) pushes EVERY
     calculator on the activity in one array, so — unlike the table — each is
     matched by its own id and a missing entry is a true EMPTY.
     """
-    snap = _entry(state, "calculator")
+    snap = _entry(src.state, "calculator")
     by_id: dict[str, dict[str, Any]] = {}
     if snap is not None:
         for c in snap.get("calculators") or []:
@@ -307,7 +454,7 @@ def _read_calculator(items: list, spec: ElementSpec, state: dict[str, Any]) -> l
     return fills
 
 
-def _read_writing(items: list, spec: ElementSpec, state: dict[str, Any]) -> list[ElementFill]:
+def _read_writing(items: list, spec: ElementSpec, src: FillSources) -> list[ElementFill]:
     """One reading per authored writing surface: how much the student has written.
 
     ``WritingSnapshot`` (frontend ``WorkbenchWriting.tsx``) is deliberately
@@ -329,7 +476,7 @@ def _read_writing(items: list, spec: ElementSpec, state: dict[str, Any]) -> list
     ``writing.sync`` catch-up fires on session bootstrap and self-heals it on the
     first turn, the same way the table does.
     """
-    snap = _entry(state, "writing")
+    snap = _entry(src.state, "writing")
     by_id: dict[str, dict[str, Any]] = {}
     if snap is not None:
         for d in snap.get("docs") or []:
@@ -359,7 +506,7 @@ def _read_writing(items: list, spec: ElementSpec, state: dict[str, Any]) -> list
 # Every kind in ``ELEMENT_REGISTRY`` must appear here: a reader, or an explicit
 # NoFillChannel saying why silence is correct for it. See the module docstring
 # for how each of these was checked against the frontend.
-_READERS: dict[str, Callable[[list, ElementSpec, dict[str, Any]], list[ElementFill]] | NoFillChannel] = {
+_READERS: dict[str, Callable[[list, ElementSpec, FillSources], list[ElementFill]] | NoFillChannel] = {
     "table": _read_table,
     "calculator": _read_calculator,
     "writing": _read_writing,
@@ -389,16 +536,27 @@ _READERS: dict[str, Callable[[list, ElementSpec, dict[str, Any]], list[ElementFi
 }
 
 
-def read_element_fills(cfg: ActivityConfig | None, state: dict[str, Any] | None) -> list[ElementFill]:
+def read_element_fills(
+    cfg: ActivityConfig | None,
+    state: dict[str, Any] | None,
+    *,
+    table_cells: dict[str, str] | None = None,
+) -> list[ElementFill]:
     """Every authored element with an observable fill channel, with its counts.
 
     The shared primitive: ``describe_element_state`` formats these for the
     prompt and ``mark_checklist_item`` refuses against them.
+
+    ``table_cells`` is the group's durable table store. Both callers must pass
+    it or they disagree about the same table: the prompt block would report the
+    stored readings while the refusal read an empty mirror and blocked the mark
+    for work the student had done. Defaulting it to ``None`` keeps every
+    existing test honest — they exercise the mirror path, which is still live.
     """
     if cfg is None:
         return []
 
-    state = state or {}
+    src = FillSources(state=state or {}, table_cells=table_cells)
     fills: list[ElementFill] = []
 
     for kind, spec in ELEMENT_REGISTRY.items():
@@ -411,18 +569,20 @@ def read_element_fills(cfg: ActivityConfig | None, state: dict[str, Any] | None)
             # see the module docstring; the registry test is what catches it.
             continue
         try:
-            fills.extend(reader(items, spec, state))
+            fills.extend(reader(items, spec, src))
         except Exception:  # pragma: no cover — a reader must never break a turn
             log.exception("element fill reader failed for kind=%s — omitting its state", kind)
 
     return fills
 
 
+_VALUES_OMITTED = "element(s) above show counts only — their entries did not fit this block"
+
 _NOUNS = {"table": "Data table", "calculator": "Calculator", "writing": "Writing surface"}
 _UNITS = {"table": "cells filled", "calculator": "inputs entered"}
 
 
-def _line(fill: ElementFill) -> str:
+def _line(fill: ElementFill, *, with_values: bool = True) -> str:
     noun = _NOUNS.get(fill.kind, fill.kind)
     if fill.kind == "writing":
         # Writing counts words against a TARGET, not cells against a capacity,
@@ -441,10 +601,20 @@ def _line(fill: ElementFill) -> str:
     body = f"{fill.filled} of {fill.total} {_UNITS.get(fill.kind, 'filled')}"
     if fill.detail:
         body += f", {fill.detail}"
+    # The readings themselves, when the reader could produce them. Last, and
+    # after the counts, so a truncated line still ends having said how full the
+    # element is — the half the refusal and the footer both depend on.
+    if with_values and fill.values:
+        body += f" — {fill.values}"
     return f'{noun} "{fill.title}": {fill.status} — {body}'
 
 
-def describe_element_state(cfg: ActivityConfig | None, state: dict[str, Any] | None) -> str:
+def describe_element_state(
+    cfg: ActivityConfig | None,
+    state: dict[str, Any] | None,
+    *,
+    table_cells: dict[str, str] | None = None,
+) -> str:
     """Compose the per-turn fill-state block.
 
     Args:
@@ -458,13 +628,45 @@ def describe_element_state(cfg: ActivityConfig | None, state: dict[str, Any] | N
         The block, or ``""`` when the activity authors no element with an
         observable fill channel.
     """
-    lines = [_line(f) for f in read_element_fills(cfg, state)]
-    if not lines:
+    fills = read_element_fills(cfg, state, table_cells=table_cells)
+    if not fills:
         return ""
 
-    body, dropped = _fit(lines, budget=ELEMENT_STATE_CHAR_CAP - len(_HEADER) - len(_FOOTER) - 4)
+    budget = ELEMENT_STATE_CHAR_CAP - len(_HEADER) - len(_FOOTER) - 4
+    # Reserve room for the omission notice so adding it can never be what pushes
+    # the block over the cap. Charged only when there are values to omit.
+    if any(f.values for f in fills):
+        budget -= len(_VALUES_OMITTED) + 8
+
+    # Pass 1 — the COUNTS for every element, before any element gets its values.
+    # Item-wise like the manifest. Dropping an element's line entirely loses its
+    # EMPTY, which is the signal ``_FOOTER`` and ``mark_checklist_item`` act on;
+    # dropping its values loses detail the tutor would like. Those are not the
+    # same loss, so they are not competing for the same bytes: one long table's
+    # readings must never cost another table its line.
+    body, dropped = _fit([_line(f, with_values=False) for f in fills], budget=budget)
+    used = sum(len(line) + 1 for line in body)
+
+    # Pass 2 — spend what is left upgrading lines to carry the actual readings,
+    # in authored order.
+    omitted = 0
+    for i, fill in enumerate(fills[: len(body)]):
+        if not fill.values:
+            continue
+        rich = _line(fill)
+        extra = len(rich) - len(body[i])
+        if used + extra > budget:
+            omitted += 1
+            continue
+        body[i] = rich
+        used += extra
+
     if dropped:
         body.append(f"(+{dropped} more)")
+    if omitted:
+        # Said out loud: a tutor that quotes "your readings" from a line whose
+        # values were silently dropped would be inventing them.
+        body.append(f"({omitted} {_VALUES_OMITTED})")
 
     return "\n".join([_HEADER, *body, "", _FOOTER])
 
@@ -521,6 +723,8 @@ def find_empty_element_for_step(
     cfg: ActivityConfig | None,
     step_label: str,
     state: dict[str, Any] | None,
+    *,
+    table_cells: dict[str, str] | None = None,
 ) -> ElementFill | None:
     """The element a step is about, when it is confidently associated AND empty.
 
@@ -528,7 +732,7 @@ def find_empty_element_for_step(
     no association, an element that has data, or one whose capacity we cannot
     read.
     """
-    fills = read_element_fills(cfg, state)
+    fills = read_element_fills(cfg, state, table_cells=table_cells)
     if not fills:
         return None
 
@@ -575,14 +779,50 @@ def refusal_for(fill: ElementFill) -> str:
     )
 
 
+def read_table_cells(group_id: str | None, activity_id: str | None) -> dict[str, str] | None:
+    """The group's stored table cells, or ``None`` when the store cannot answer.
+
+    The ``None``-vs-``{}`` distinction is load-bearing — see ``FillSources``. A
+    missing group or activity id, or a Firestore read that raises, must NOT read
+    as "the table is empty": that is the false EMPTY the store was wired in to
+    remove, and it would arrive with the ``_FOOTER``'s instruction to act on it.
+
+    Imported lazily so ``element_state`` stays importable without a Firestore
+    client — the pure formatting half of this module is unit-tested that way.
+    """
+    if not group_id or not activity_id:
+        return None
+    try:
+        from db.table_progress import get_cells
+
+        return get_cells(group_id, activity_id)
+    except Exception:
+        log.exception(
+            "table store unreadable for group=%s activity=%s — falling back to the client "
+            "mirror rather than reporting the table EMPTY",
+            group_id,
+            activity_id,
+        )
+        return None
+
+
 def make_element_state_wrapper(
     cfg: ActivityConfig | None,
+    *,
+    group_id: str | None = None,
+    activity_id: str | None = None,
 ) -> Callable[[str | Callable[[ReadonlyContext], Awaitable[str]]], Callable[[ReadonlyContext], Awaitable[str]]]:
     """An ``InstructionProvider`` wrapper for ``compose_instruction_providers``.
 
     Captures the resolved activity (fixed for the session) and reads the session
     state fresh on every turn — the whole point of being a provider rather than
-    a build-time string.
+    a build-time string. Since 2026-09-09 it also re-reads the group's TABLE
+    STORE per turn, for the same reason: a value the student entered eight
+    seconds ago has to be in this turn's prompt, not the next one's.
+
+    ``group_id``/``activity_id`` default to ``None`` so a caller that has no
+    group (local mode, tests) degrades to the mirror-only behaviour rather than
+    to a table that reads empty.
 
     Returns a wrapper accepting either a base string or an upstream provider, so
     it chains beside ``wrap_with_iframe_context`` without re-ordering anything.
@@ -593,7 +833,11 @@ def make_element_state_wrapper(
     ) -> Callable[[ReadonlyContext], Awaitable[str]]:
         async def _provider(ctx: ReadonlyContext) -> str:
             base_text = await base(ctx) if callable(base) else base
-            block = describe_element_state(cfg, dict(ctx.state) if ctx.state else {})
+            block = describe_element_state(
+                cfg,
+                dict(ctx.state) if ctx.state else {},
+                table_cells=read_table_cells(group_id, activity_id),
+            )
             if not block:
                 return base_text
             return f"{base_text.rstrip()}\n\n{block}"
@@ -605,11 +849,14 @@ def make_element_state_wrapper(
 
 __all__ = [
     "ELEMENT_STATE_CHAR_CAP",
+    "TABLE_VALUES_CHAR_CAP",
     "ElementFill",
+    "FillSources",
     "NoFillChannel",
     "describe_element_state",
     "find_empty_element_for_step",
     "make_element_state_wrapper",
     "read_element_fills",
+    "read_table_cells",
     "refusal_for",
 ]

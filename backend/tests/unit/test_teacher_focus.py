@@ -714,7 +714,20 @@ def test_checkpoint_summary_block_is_bounded() -> None:
 # number is a DECISION about how much of the model's attention per-activity
 # content may take, and should be made here, deliberately, with the individual
 # caps adjusted to match — not absorbed silently by a block that grew.
-_PER_TURN_ACTIVITY_BUDGET = 13_000
+#
+# **Raised 13,000 -> 14,800 on 2026-09-09, deliberately.** The element-state
+# block's own cap went 1,200 -> 3,000 when the data table started carrying the
+# student's actual READINGS rather than a count of them (the tutor was reading a
+# client mirror and could not quote back a value the student had entered). This
+# budget moves by exactly that 1,800: the element block is the only contributor
+# that changed, and its new cap is the whole of the increase.
+#
+# It buys the thing the per-turn content exists for. "Data table: PARTIAL — 5 of
+# 25 cells filled" cannot be acted on; "row 1: Forsøg 1 (cm)=92, Gennemsnit
+# (cm)=90.33" can. The attention argument above cuts the same way it always did
+# — which is why the block spends its budget on counts FIRST and values second,
+# so the "a table is empty" signal can never be what gets squeezed out.
+_PER_TURN_ACTIVITY_BUDGET = 14_800
 
 
 def test_per_turn_prompt_stays_within_budget() -> None:
@@ -739,11 +752,20 @@ def test_per_turn_prompt_stays_within_budget() -> None:
     for n in range(30):
         record_checkpoint_state("grp-total", cfg.activity_id, f"n{n}", "demonstrated", "E" * 500)
 
+    # Table cells for every authored table, so the element block is measured at
+    # its real maximum. Passing ``{}`` here measured a block with no values in
+    # it — which stopped being the worst case the moment the table started
+    # rendering the student's readings, and would have let the largest version
+    # of the block grow unbudgeted.
+    table_cells = {
+        f"{t.id}::{row}::{col.id}": "123,45" for t in cfg.table for row in range(t.rows) for col in t.columns
+    }
+
     per_turn = "\n\n".join(
         [
             compose_teacher_focus(cfg),
             build_ilo_precedence_block(cfg),
-            describe_element_state(cfg, {}),
+            describe_element_state(cfg, {}, table_cells=table_cells),
             compose_progress_context(cfg, user),
         ]
     )

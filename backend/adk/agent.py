@@ -847,7 +847,15 @@ def create_agent(
             # It must stay a wrapper here rather than a string composed above:
             # fill-state changes mid-session, and the element MANIFEST omits
             # values precisely because it is built once.
-            make_element_state_wrapper(_active_cfg),
+            # group_id + activity_id so the wrapper can read the group's TABLE
+            # STORE per turn instead of the client's pushed mirror. Without them
+            # it silently degrades to mirror-only, which is the bug, so they are
+            # passed here rather than left to a default.
+            make_element_state_wrapper(
+                _active_cfg,
+                group_id=user.group_id,
+                activity_id=_activity_id,
+            ),
             wrap_with_a2ui_surface_context,
         ),
         description=skill_config.description,
