@@ -82,6 +82,7 @@ from adk.progress_context import compose_progress_context
 from adk.quota_retry import retry_on_quota_exhaustion
 from adk.teacher_focus import build_ilo_precedence_block, inject_teacher_focus, resolve_active_config
 from adk.tools import resolve_mcp_tools, resolve_tools
+from adk.tutor_framework import inject_framework_preamble
 from auth.access_context import AccessContext
 from auth.firebase_auth import User
 from db.models import SkillConfig
@@ -740,75 +741,95 @@ def create_agent(
             inject_teacher_focus(
                 inject_reactive_guidance(
                     inject_opening_guidance(
-                        # Phase 1.1.20: append the activity's interaction-style
-                        # override preamble (concise/rigorous/warm) to the base
-                        # instructions. `socratic` (default) is a passthrough,
-                        # so existing tutors are unchanged. Innermost so the
-                        # override sits right after the SKILL.md body it
-                        # countermands. A persona (1.1.12) resolves down to this
-                        # interaction_style.
-                        inject_interaction_style_preamble(
-                            # Phase 1.1.7: when the skill opts into image
-                            # upload, append the shared image-input guidance
-                            # (units-loop / no-solve / privacy) right after
-                            # the SKILL.md body. Innermost so it sits closest
-                            # to the body it extends; passthrough when
-                            # multimodal_input is False. Centralised rather
-                            # than inlined per-SKILL.md — originally forced by
-                            # the 10k body cap (problem-set-hints sat at 9,876
-                            # of it). The cap is 25k since 2026-08-06, so this
-                            # is now a DRY choice rather than a workaround:
-                            # one place to edit the units-loop guidance.
-                            inject_image_input_preamble(
-                                # 1.1.25 M3: when the activity has cited materials,
-                                # append a grounding preamble (cite origin, prefer
-                                # curriculum content, "no source" on miss). Pure
-                                # function; uses MaterialRef.origin cached at
-                                # citation time — no extra Firestore read.
-                                # 1.1.62 M3b: the teacher's ILOs land AFTER the
-                                # curriculum preamble, deliberately. The
-                                # convention here is "later instruction wins"
-                                # (see inject_interaction_style_preamble), and
-                                # {teacher_focus} substitutes INSIDE the body —
-                                # i.e. already before this preamble, which is the
-                                # weak position. That is the mechanism behind
-                                # "the chat forces curriculum goals, not my ILOs":
-                                # the curriculum preamble held the last word.
-                                skill_config.instructions
-                                + build_curriculum_grounding_preamble(_materials)
-                                + build_ilo_precedence_block(_active_cfg)
-                                # 1.1.70 M1 — what this GROUP has already been
-                                # recorded as doing. Both summaries were
-                                # written, exported and unit-tested in 1.1.62 /
-                                # CONCEPT-1 and never wired, so the tutor only
-                                # ever learned about progress by ASKING, and
-                                # what came back could not be told apart from
-                                # work it had watched happen. That is the
-                                # "Jonas forgot everything, then claimed to
-                                # remember" report.
-                                #
-                                # They land AFTER the ILO block on the same
-                                # "later instruction wins" convention: the ILOs
-                                # say what the outcomes are, these say where
-                                # the group has got to, and the second has to
-                                # be able to redirect the first away from a
-                                # wrap-up. Empty string when the group has no
-                                # recorded progress, so an untouched activity
-                                # composes byte-identically to before.
-                                + compose_progress_context(_active_cfg, user)
-                                # Teacher feedback 2026-08-21 items 17 + 18 —
-                                # "we do not like asterisks used as
-                                # multiplication signs" and "it doesn't work
-                                # that it says position = 0,2*tid". How the
-                                # platform writes maths is a house style, so
-                                # this is UNCONDITIONAL: no skill flag to
-                                # forget, and coverage is provable rather than
-                                # assumed. Last in the chain on the file's
-                                # "later instruction wins" convention — it is a
-                                # formatting rule and must not be overridden by
-                                # a body that predates it.
-                                + build_math_notation_block(),
-                                skill_config.multimodal_input,
+                        # 1.1.91 M1: the activity's TEACHING FRAMEWORK (e.g.
+                        # ESRU) — how the tutor teaches, rendered from the
+                        # framework's constructs and editable by a researcher
+                        # in-app. Passthrough when no `framework_id` is set, so
+                        # every existing activity composes byte-identically.
+                        #
+                        # It wraps the interaction-style call deliberately: on
+                        # the "later instruction wins" convention this chain
+                        # runs on, that puts the PEDAGOGY after (above) the
+                        # VOICE preset. `concise` says "no follow-up question"
+                        # and ESRU's Elicit says "ask for an explanation"; a
+                        # framework a researcher chose should win over a tone
+                        # preset. That clash is the design doc's M6 gatekeeper
+                        # (advisory, at assignment time) — the runtime
+                        # precedence is decided here rather than left to
+                        # whichever nesting order happened to get written.
+                        inject_framework_preamble(
+                            # Phase 1.1.20: append the activity's interaction-style
+                            # override preamble (concise/rigorous/warm) to the base
+                            # instructions. `socratic` (default) is a passthrough,
+                            # so existing tutors are unchanged. Innermost so the
+                            # override sits right after the SKILL.md body it
+                            # countermands. A persona (1.1.12) resolves down to this
+                            # interaction_style.
+                            inject_interaction_style_preamble(
+                                # Phase 1.1.7: when the skill opts into image
+                                # upload, append the shared image-input guidance
+                                # (units-loop / no-solve / privacy) right after
+                                # the SKILL.md body. Innermost so it sits closest
+                                # to the body it extends; passthrough when
+                                # multimodal_input is False. Centralised rather
+                                # than inlined per-SKILL.md — originally forced by
+                                # the 10k body cap (problem-set-hints sat at 9,876
+                                # of it). The cap is 25k since 2026-08-06, so this
+                                # is now a DRY choice rather than a workaround:
+                                # one place to edit the units-loop guidance.
+                                inject_image_input_preamble(
+                                    # 1.1.25 M3: when the activity has cited materials,
+                                    # append a grounding preamble (cite origin, prefer
+                                    # curriculum content, "no source" on miss). Pure
+                                    # function; uses MaterialRef.origin cached at
+                                    # citation time — no extra Firestore read.
+                                    # 1.1.62 M3b: the teacher's ILOs land AFTER the
+                                    # curriculum preamble, deliberately. The
+                                    # convention here is "later instruction wins"
+                                    # (see inject_interaction_style_preamble), and
+                                    # {teacher_focus} substitutes INSIDE the body —
+                                    # i.e. already before this preamble, which is the
+                                    # weak position. That is the mechanism behind
+                                    # "the chat forces curriculum goals, not my ILOs":
+                                    # the curriculum preamble held the last word.
+                                    skill_config.instructions
+                                    + build_curriculum_grounding_preamble(_materials)
+                                    + build_ilo_precedence_block(_active_cfg)
+                                    # 1.1.70 M1 — what this GROUP has already been
+                                    # recorded as doing. Both summaries were
+                                    # written, exported and unit-tested in 1.1.62 /
+                                    # CONCEPT-1 and never wired, so the tutor only
+                                    # ever learned about progress by ASKING, and
+                                    # what came back could not be told apart from
+                                    # work it had watched happen. That is the
+                                    # "Jonas forgot everything, then claimed to
+                                    # remember" report.
+                                    #
+                                    # They land AFTER the ILO block on the same
+                                    # "later instruction wins" convention: the ILOs
+                                    # say what the outcomes are, these say where
+                                    # the group has got to, and the second has to
+                                    # be able to redirect the first away from a
+                                    # wrap-up. Empty string when the group has no
+                                    # recorded progress, so an untouched activity
+                                    # composes byte-identically to before.
+                                    + compose_progress_context(_active_cfg, user)
+                                    # Teacher feedback 2026-08-21 items 17 + 18 —
+                                    # "we do not like asterisks used as
+                                    # multiplication signs" and "it doesn't work
+                                    # that it says position = 0,2*tid". How the
+                                    # platform writes maths is a house style, so
+                                    # this is UNCONDITIONAL: no skill flag to
+                                    # forget, and coverage is provable rather than
+                                    # assumed. Last in the chain on the file's
+                                    # "later instruction wins" convention — it is a
+                                    # formatting rule and must not be overridden by
+                                    # a body that predates it.
+                                    + build_math_notation_block(),
+                                    skill_config.multimodal_input,
+                                ),
+                                _activity_id,
+                                group_tags=user.group_tags,
                             ),
                             _activity_id,
                             group_tags=user.group_tags,

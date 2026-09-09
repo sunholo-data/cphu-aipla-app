@@ -534,6 +534,13 @@ class ActivityConfig(BaseModel):
     # provenance + drives the student-facing avatar/name display; the tied
     # configs (interaction_style above) are set from it at author time.
     persona: str | None = Field(default=None, max_length=64)
+    # Teaching framework (1.1.91): the pedagogy this activity's tutor runs on
+    # (``backend/frameworks/*.yaml``, e.g. ``esru``). ORTHOGONAL to
+    # ``interaction_style`` above: the framework is HOW the tutor teaches (its
+    # moves within a turn), the style is how it SOUNDS. Default ``None`` is a
+    # passthrough — nothing is injected and the tutor composes exactly as it did
+    # before the framework layer existed. See ``adk/tutor_framework.py``.
+    framework_id: str | None = Field(default=None, alias="frameworkId", max_length=64)
     paired_workbench: str | None = Field(default=None, alias="pairedWorkbench")
     workbench_type: WorkbenchType = Field(default="none", alias="workbenchType")
     source_activity_id: str | None = Field(default=None, alias="sourceActivityId")

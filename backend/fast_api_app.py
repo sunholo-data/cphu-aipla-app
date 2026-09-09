@@ -324,6 +324,7 @@ from protocols.checklist_progress_routes import router as checklist_progress_rou
 from protocols.classes_routes import router as classes_router  # noqa: E402
 from protocols.concept_progress_routes import router as concept_progress_router  # noqa: E402
 from protocols.curriculum_routes import router as curriculum_router  # noqa: E402
+from protocols.frameworks_routes import router as frameworks_router  # noqa: E402
 from protocols.iframe_context_routes import router as iframe_context_router  # noqa: E402
 from protocols.insights_routes import router as insights_router  # noqa: E402
 from protocols.internal_routes import router as internal_router  # noqa: E402
@@ -383,6 +384,7 @@ app.include_router(research_lens_router)
 app.include_router(programme_router)
 app.include_router(teacher_prefs_router)
 app.include_router(personas_router)
+app.include_router(frameworks_router)
 app.include_router(artefact_router)
 app.include_router(classes_router)
 app.include_router(teacher_bootstrap_router)
