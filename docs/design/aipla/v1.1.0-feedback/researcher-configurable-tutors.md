@@ -1,6 +1,6 @@
 # Tutors as research instruments — theory-grounded, co-piloted, authored by researchers *and* teachers
 
-**Status**: **Design (OPEN)** — **1.1.91**. *Rewritten 2026-09-02 after review: the first draft had a preview but no co-pilot, was researcher-only, and gave researchers no sight of what teachers build. All three were the point.*
+**Status**: **Design (OPEN)** — **1.1.91**. *Rewritten 2026-09-02 after review: the first draft had a preview but no co-pilot, was researcher-only, and gave researchers no sight of what teachers build. All three were the point.* **⭐ CHOSEN 2026-09-09 as the extension's workstream D** (*"go on doing tutors now"* — decision D7, [09-09 triage](meeting-2026-09-09-triage.md)), and M5 revised: the seven TP frameworks and their primary literature are on disk.
 **Priority**: **P1** — the mechanism is un-gated, it opens the human gate `adk/authoring_framework.py` has carried since COPILOT-1, and it is the prerequisite for [1.1.92](session-benchmark-tutor-activity.md) having any arms to compare
 **Estimated**: ~6.5–8.5d phased (M0 tutor object ~1d · M1 store + two tiers ~1.5d · M2 **tutor co-pilot** ~2d · M3 preview/compare ~1d · M4 researcher cross-view ~1d · M5 seeded library ~0.5d)
 **Scope**: Backend — a `Tutor` object carrying its theory, a Firestore store with two authoring tiers, co-pilot proposal tools, and a `scope=all` read for researchers; frontend — a tutor editor on the **shipped** co-pilot shell, preview/compare, and a researcher catalogue
@@ -140,6 +140,17 @@ tutor**, because the question is nearly always comparative. Runs on the author's
 own turns — **no student data**, and nothing written to the chat log as student
 turns.
 
+**A second audience, added 2026-09-09: teachers, studying how a tutor teaches.**
+From the 09-09 meeting — *"teachers can use the tutors as teaching training to
+see the different ways we teach."* Every tutor doc in this repo assumes the
+tutor's user is a student; this one is a professional comparing seven
+operationalised pedagogies by talking to them. **It needs almost no new build** —
+it is M3 pointed at a person rather than at a configuration screen — but it does
+change what M3 is *for*, and therefore what it should look like: a comparison a
+teacher reads, not a diff an author checks. It also makes the seven-tutor library
+valuable **before a single student uses it**, which matters a great deal while
+both legal gates are shut.
+
 ### M4 — Researchers see what teachers build
 
 The `scope=all` pattern already shipped for classes, applied to tutors: a
@@ -153,9 +164,63 @@ as much as to students.
 
 ### M5 — Seeded library
 
-**ESRU**, **SDT**, **dialogic/Dysthe** (*"authentic questions"*), **IBSE**, and a
-**"Bob Evans"** persona — the transcript's list, which is longer than the
-dictated notes captured. Ships the slots; the content is JB's and Aswin's.
+**⭐ REVISED 2026-09-09 — the library now has a known size, a source, and its
+primary literature on disk.** The 9 September meeting delivered Aswin's "TP
+Framework" Drive folder with the instruction ***"a tutor for each of these
+folders"***. That is **seven**, not the open-ended list below, and each arrives
+with the paper it operationalises:
+
+| Framework | Primary source | On disk |
+|---|---|---|
+| **5E learning cycle** | Tanner 2017, *Order Matters* | ✅ |
+| **Accountable Talk** | Institute for Learning, AT Sourcebook | ✅ |
+| **Authentic Dialogue** | **Dysthe 1996, *The Multivoiced Classroom*** | ✅ |
+| **Claim–Evidence–Reasoning (CER)** | *Inquiry and Scientific Explanation* chapter | ✅ |
+| **ESRU** — elicit / student response / recognise / use | **Ruiz-Primo & Furtak 2006**, J Res Sci Teach | ✅ |
+| **POE** — predict, observe, explain | ERIC ED420715 | ✅ |
+| **Toulmin argumentation** | Erduran, Simon & Osborne 2004 | ✅ |
+
+Citation table: [`docs/literature/tp-framework/README.md`](../../../literature/tp-framework/README.md).
+The PDFs and their parsed full text are **gitignored** — the repo is public and
+these are copyrighted journal articles. Do not publish them into
+`frontend/content/` or quote them at length into a `SKILL.md`.
+
+**Two of these were unverified guesses seven days ago.** The 1 September triage
+carried ESRU at *medium confidence* and Dysthe with *"no idea what the intended
+action is"*. Both now have a paper and a verb. Recorded because the ⚠️ below
+still applies to everything **not** in this table.
+
+**SDT sits on a different layer and the object must be able to say so.** The
+literature README puts SDT and embodied cognition in the **conceptual
+framework** — the research/theoretical perspective — and explicitly *not* in the
+teaching-practice cycle. So a "SDT tutor" (asked for again on 09-09, from
+material Aswin sent) and an "ESRU tutor" are not siblings: one describes what
+motivates a learner, the other describes a move a teacher makes in a dialogue.
+M0's `framework` field needs the **parent** already flagged below *and* a
+**layer**, or the library will flatten a distinction its own sources take care
+to draw.
+
+**And the definitional gap is now on the record.** *"What is a Socratic bot
+actually? Definition"* — asked directly in the 09-09 meeting, and it is the
+sharpest available statement of this doc's premise. The product **already ships
+`socratic`**, as one of four tone adjectives, as the **default**, and — from
+`adk/interaction_style.py` — as a **passthrough that injects nothing at all**.
+So AIPLA claims to teach Socratically, cannot say what that means, and
+implements it as an absence. Answering the question is AR's and JB's;
+**making the answer expressible, and checkable against the tutor's behaviour, is
+M0.**
+
+Ships the slots; the content is JB's and Aswin's.
+
+#### The example conversations — ask for them explicitly
+
+The meeting noted that the framework folders *"have examples of conversations"*.
+**They were not in the copied Drive folder and they are the more valuable half.**
+Worked dialogues annotated in a framework's own terms are the one thing
+[1.1.92](session-benchmark-tutor-activity.md) M3 has no source of: ground truth.
+Without it, calibration is an LLM judging an LLM, which is precisely the
+*"models rate highly"* failure the 1 September transcript raised. → **action on
+Aswin.**
 
 ⚠️ **They are not a flat list.** The transcript sets a structure the first draft
 of this doc missed: **Embodied Cognition is the umbrella theory**, with SDT
@@ -193,7 +258,7 @@ whole reason this doc can start now.
 | M2 | **Tutor co-pilot** on the shipped shell | ~2d | None |
 | M3 | Preview + side-by-side comparison | ~1d | None |
 | M4 | Researcher cross-view over teacher-authored tutors | ~1d | Tell teachers first |
-| M5 | Seeded framework library (ESRU, SDT, dialogic, IBSE, "Bob Evans") | ~0.5d | **JB / AR content + the umbrella structure** |
+| M5 | Seeded framework library — **seven TP frameworks, literature on disk** (5E, Accountable Talk, Dysthe, CER, ESRU, POE, Toulmin) + SDT on the conceptual layer | ~1d (**re-estimated 2026-09-09** — seven is a known size, not a slot) | **JB / AR content + the umbrella structure**; the *example conversations* are an action on Aswin |
 | M6 | Persona × activity clash gatekeeper (advisory) | ~0.5d | M0 |
 
 ## Testing

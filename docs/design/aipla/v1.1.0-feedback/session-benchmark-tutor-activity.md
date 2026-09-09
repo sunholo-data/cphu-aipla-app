@@ -99,6 +99,29 @@ teacher, agreement between the LLM judge and a human rater on a sample must be
 measured and published alongside the scores. Until then the matrix is a
 **researcher** surface only.
 
+**A candidate ground truth appeared 2026-09-09, and it is worth chasing.** The
+09-09 meeting noted that the TP-framework folders *"have examples of
+conversations"* — worked dialogues annotated in each framework's own terms. That
+is precisely what calibration has never had: **human-authored exemplars of what
+good looks like, per framework, from the literature rather than from us.**
+Ruiz-Primo's ESRU paper is itself a coding study of real classroom dialogue, and
+the *Transforming Assessment* code set raised in the same meeting (table 5.6 —
+⚠️ **unverified**) is the same shape again.
+
+Two consequences:
+
+- **The M3 gate softens from "AR's rating time" to "AR's rating time *plus* a
+  seed corpus"**, which is a materially easier ask: rating against published
+  exemplars is a smaller and more defensible job than inventing the standard.
+- **The examples were not in the copied Drive folder.** They are an explicit
+  action on Aswin, recorded in [1.1.91](researcher-configurable-tutors.md) M5.
+  Until they arrive, M3's gate is unchanged.
+
+⚠️ **Do not let this soften the rule it exists to enforce.** Exemplars from the
+literature calibrate a judge; they do not make one trustworthy. Agreement with a
+human rater still has to be measured and published beside every score, and the
+matrix stays researcher-only until it is.
+
 ## Milestones
 
 | M | What | Est | Gate |
@@ -106,7 +129,7 @@ measured and published alongside the scores. Until then the matrix is a
 | M0 | Scoring harness + evidence + arm recording | ~1.5d | None |
 | M1 | Rubric adapters (≥2 shipped rubrics) | ~0.75d | None for the mechanism |
 | M2 | Tutor × activity matrix, researcher-only | ~1d | Needs 1.1.91 arms to be interesting |
-| M3 | Judge calibration against human raters | ~0.75d | **AR** — human rating time |
+| M3 | Judge calibration against human raters | ~0.75d | **AR** — human rating time; **seed corpus from the TP-framework example conversations (action on Aswin, 2026-09-09)** |
 
 ## Testing
 

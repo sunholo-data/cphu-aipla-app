@@ -282,6 +282,65 @@ and ships), so these dispositions were checked against code.
 | 1.1.101 | [tool-result-visibility-invariant.md](tool-result-visibility-invariant.md) | **P1 — M0+M1+M2 SHIPPED 2026-09-08** (mechanism unit-proven; deployed smoke unreachable on dev — no skill sets `mcpServers`) | ~1–1.5d (M0 invert default ~0.5d · M1 declare render-safe ~0.5d · M2 empty-name edge ~0.25d) | `adk/stream_redaction.py` (**shipped** STRIP-1 2026-07-11 — plumbing stays, decision rule inverts); [shared-mcp-app-bridge](shared-mcp-app-bridge.md) (**shipped**); [teacher-authored-workbench-apps](teacher-authored-workbench-apps.md), [sim-catalogue-admin](sim-catalogue-admin.md) | **From the [upstream capability triage](../v2.1.0-extension/upstream-capability-triage.md).** Upstream's `stream_invariants.py` credits *"AIPLA #39"* — they fixed our reported bug and we never collected it. STRIP-1 redacts by **registry membership**, so an unknown tool name passes through; that was safe while every MCP tool was hand-written and stops being safe the moment teachers author artefacts. Also fixes a narrower verified bug: a `TOOL_CALL_START` with an empty `toolCallName` stores `""`, and `should_redact_tool('')` is `False` — so the result passes despite the code's "fail CLOSED" comment |
 | 1.1.102 | [agent-build-cache.md](agent-build-cache.md) | **CLOSED 2026-09-08 — M0 measured, do not build** | ~1–2d (M0 measure ~0.25d · M1 cache+key ~0.75d · M2 invalidation ~0.5d) | `observability/timing.py` `STAGE_AGENT_FACTORY_DONE` (**shipped**, TTFT-OPTIMIZATION M1 2026-04-28 — the measurement already exists); `adk/agent.py:867` | **From the [upstream capability triage](../v2.1.0-extension/upstream-capability-triage.md).** `create_agent_with_thinking` runs every turn with no cache, rebuilding the model chain, all tools and every MCP toolset (a Firestore read per server) — **twice** when a `thinking_model` is set. The build is a pure function of `(skill, user, access, activity_id)`. **M0 is arithmetic on logs we already collect and gates the rest**: if warm cost is small, close the doc with the number in it. The backend half of [mobile-performance-pass](mobile-performance-pass.md), which defers backend work by design |
 
+### 9 September 2026 meeting — 1.1.103–1.1.105
+
+**Triage:** [meeting-2026-09-09-triage.md](meeting-2026-09-09-triage.md) · notes: [notes-2026-09-09.md](../../../notes-2026-09-09.md) · decisions **D5–D8**.
+
+A working meeting, not a direction-setting one — and it still produced the
+largest planning decision of the extension. **D7 chose workstream D three months
+early**: *"go on doing tutors now"*, i.e. [1.1.91](researcher-configurable-tutors.md)
++ [1.1.92](session-benchmark-tutor-activity.md), recorded in the
+[extension plan](../v2.1.0-extension/plan-2026-09-to-2027-04.md) rather than left
+to disagree with it quietly.
+
+**The content arrived the same morning.** Seven teaching-practice frameworks with
+their primary literature are now at [`docs/literature/tp-framework/`](../../../literature/tp-framework/README.md)
+(citation table tracked; the copyrighted PDFs gitignored, since this repo is
+public). That **confirms two citations the 1 September triage could only guess
+at** — ESRU is Ruiz-Primo & Furtak 2006, Dysthe is the 1996 *Multivoiced
+Classroom* — and it gives 1.1.91 M5 a known size: **seven**, not an open list.
+
+**Three defect reports, and each landed differently**, which is the useful part:
+one was **fixed the same afternoon** (`ae2fcb3`, the table the tutor could not
+see), one is a **suspected regression on a fix that shipped a month ago**
+([opening-knows-the-lesson](opening-knows-the-lesson.md), against the identical
+complaint from the same reporter), and one turned out to be **the design,
+reported as a bug** — which is 1.1.103 below.
+
+| Order | Doc | Priority | Estimate | Dependencies / Gate | Notes |
+|---|---|---|---|---|---|
+| 1.1.103 | [cross-activity-conversation-continuity.md](cross-activity-conversation-continuity.md) | **P1 — OPEN (design) 2026-09-09** | ~2–3d (M0 digest ~1d · M1 tutor injection ~0.5d · M2 student-visible continuity ~0.5d · M3 teacher toggle ~0.5d) | `db/group_sessions.py` (**shipped** — the per-`(group, activity)` key this deliberately does NOT change); [progress-conversation-lifetime](progress-conversation-lifetime.md) (**shipped** — the same problem one level down, and the pattern copied); the four per-group stores (**all shipped**); [1.1.98](teaching-prompt-standardisation.md) (the budget it lives inside). **Un-gated** | **New 2026-09-09 (M), from the [09-09 triage](meeting-2026-09-09-triage.md) items 3 + 10; decision D5.** A bug report and a feature request that are **the same sentence read from both ends**: *"no chat history persisted — busy-garden-11 with 4 activities"* and *"add a feature to let chat history across activities be shared"*. `_doc_key` is `{group_id}:{activity_id}`, so four activities is four intact conversations that cannot see each other — the report is the design happening to a person. **D5: carry a DIGEST, do not merge the sessions.** Merging was rejected on three ascending grounds: it reverses ALS-1 on ground built for the opposite case (including the first-wins guard that closed a real clobber bug); it **destroys attribution**, and [1.1.92](session-benchmark-tutor-activity.md) grades *tutor × activity* — a transcript spanning four activities occupies no cell in the matrix D7 just committed 25 days to; and `MAX_INSTRUCTIONS_CHARS = 25_000` re-sent every turn cannot hold four activities of transcript. **M2 is the half that actually closes the report** — a student who thought their history was lost gets, without it, a tutor that mysteriously knows things, which is a different confusion rather than less of one. M3's off switch is not politeness: POE's whole first phase is ruined by a tutor that already knows what this group concluded, and POE is one of the seven frameworks about to become tutors. ⚠️ **The per-activity explanation is a HYPOTHESIS until someone reads the four `group_sessions/busy-garden-11:*` docs** — the same group's logs produced three real defects this week, and "working as designed" is exactly the conclusion a second bug would hide behind |
+| 1.1.104 | [simulation-import-pipeline.md](simulation-import-pipeline.md) | **P2 — OPEN (design) 2026-09-09** | ~3–4d (M0 mechanical gate ~1d · M1 submit + review queue ~1.5d · M2 promote ~0.5d · M3 provenance ~0.5d) | [`mcp-app-artefact` skill](../../../../.claude/skills/mcp-app-artefact/SKILL.md) (the path + gates, **in use**); [1.1.41 teacher-sim-resources](teacher-sim-resources.md) (**shipped** — artefact/activity decoupling + `ArtefactMeta`); [sim-catalogue-admin](sim-catalogue-admin.md) (the tier **below**); [2.4 teacher-artefact-authoring](../post-pilot/teacher-artefact-authoring.md) (the tier **above**); ADR-013. **Un-gated** | **New 2026-09-09 (M), from the [09-09 triage](meeting-2026-09-09-triage.md) item 4; decision D6.** Aswin built a working kettle simulation on claude.ai and **there is no way to get it into the product**. The three artefact tiers on paper have a hole in the middle: `sim-catalogue-admin` edits metadata for code that is *already deployed*, 2.4 writes code *from nothing*, and the case that keeps happening is neither — **a physicist has working HTML and wants it served**. The evidence the git path does not work is in the same meeting: a researcher was directed to GitHub *and handed a repo zip* to get his own materials out. **D6: a REVIEWED PIPELINE, not an upload button** — the ADR-013 gates run mechanically, a human approves, and the output is byte-identical to what a PR produces today (no second serving path, which is what keeps this 3–4d rather than a new security surface). **M0 is the piece worth shipping alone**: `aiplatform sim check` turns today's hand-review into something a contributor can run before asking. The gate it will catch most is *no external fetches* — a chat-authored file reaches for a CDN by habit, **the CSP blocks it silently at runtime**, and the sim simply fails to work in front of a class with no error anyone sees. ⚠️ **M0 checks safe-to-serve, never physics-is-right** — [1.1.81](teacher-authored-workbench-apps.md)'s harder requirement stands (*"a wrong simulation shown confidently to a class is worse than none"*), and the review surface must say so rather than implying a green checklist means correct |
+| 1.1.105 | [tutor-turn-taking-and-closure.md](tutor-turn-taking-and-closure.md) | **P2 — OPEN (design) 2026-09-09** | ~1–1.5d (M0 closing exception ~0.5d · M1 recognising the end ~0.5d · M2 eval ~0.5d) | [1.1.20](tutor-personas.md) / `adk/interaction_style.py` (**shipped** — the seam); [1.1.91](researcher-configurable-tutors.md) (this is one *observable behaviour* of the kind its M0 must express — **build this first, cite it there**); [1.1.90](bounded-tutoring-answer-trees.md) (the question *budget*, the other end of the same axis). **Un-gated** | **New 2026-09-09 (M), from the [09-09 triage](meeting-2026-09-09-triage.md) item 12.** *"Sophia persona keeps talking even when the conversation is over."* **The tutor is instructed never to stop, and it obeys**: `socratic.md` — the DEFAULT style — says *"Every response must end with a question"*, unconditionally, and the same rule is written inline in four tutor `SKILL.md` files. There is no exception for "the work is finished" or "the student said goodbye". **Two details reshape the fix.** First, **no `sophia` string exists anywhere in the repo** — it is a teacher-authored persona name, so this is a prompt-contract gap on *every* tutor, not one file's bug. Second, from `adk/interaction_style.py`, **`socratic` is a PASSTHROUGH that injects nothing**: the platform's default pedagogy is the *absence* of a preamble, and the rule causing this is duplicated four times. The three overriding styles each countermand it (*"do not end with a follow-up question"*) — so the codebase already knows the rule needs countermanding and has done so **three times, per activity, in advance**. What it cannot do is countermand it **per moment**, which is the only thing that helps: ask in the middle, stop at the end, inside one activity and one style. That phase-scoped shape is exactly what [1.1.91](researcher-configurable-tutors.md) M0 must represent, which makes this **the cheapest possible first instance of it**. ⚠️ Default to CONTINUING — a tutor that decides too eagerly it is done ends a lesson early and the student cannot argue. M2's counter-test (two items outstanding → still asks) is the case that matters |
+
+**Also from the 9 September meeting, not new docs:**
+
+- **[1.1.82 argumentation-element-toulmin](argumentation-element-toulmin.md) —
+  RE-RANK, do not redesign.** *"The student can make a claim, the warrant is
+  given, data is found via the experiment sim"* is its **second independent
+  request** (the first was M's own 17 August notes), and its primary source —
+  Erduran, Simon & Osborne 2004 — is now one of the seven TP frameworks on disk.
+  Two independent requests is the bar 1.1.71 was un-deferred on.
+- **⚠️ The greeting regression (item 11) — investigate, do not design.**
+  [opening-knows-the-lesson](opening-knows-the-lesson.md) is marked SHIPPED
+  2026-08-10 against this exact complaint from this exact reporter. Either the
+  test or the deployment is lying. Whatever the cause, the fix ships with an eval.
+- **Per-seat cost analysis — ~0.5d, no code.** Everything needed ships (per-turn
+  telemetry, `/teacher/insights/cost`, the 1.1.76 M3 programme budget). What is
+  missing is the arithmetic: a per-student-per-term forecast against the
+  100,000 DKK figure. ⚠️ **Whether that figure is a budget, a cap, a grant or a
+  forecast is not stated** and changes what to do with it.
+- **D8: no design doc** for student-authored activities. It is a *third* audience
+  on top of the two [1.1.97](in-system-code-authoring.md) already cannot choose
+  between, and it runs into ADR-001 — an anonymous group has no identity to own
+  an authored artefact with. Same ADR-001 individual-mode revision as August
+  items 24 + 27; answer it once, not three times.
+- **Dates.** Aswin presents 6 Oct · "Daniel" 5 Oct (⚠️ **unresolved whether that
+  is AD**) · **JB away 7–15 Oct, colliding with AD's first fortnight** ·
+  **teacher review pencilled 25/27 Nov or 2/4 Dec** — the date
+  [1.1.78](question-set-element.md) was gated on, and a *teacher* date, so
+  neither legal gate touches it. **Pencilled is not booked.**
+
 **Also from this meeting, not new docs:**
 
 - **[1.1.78 question-set-element](question-set-element.md) — UN-DEFER.** It was
