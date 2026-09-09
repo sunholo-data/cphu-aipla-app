@@ -2,7 +2,7 @@
 
 **Status**: **Design (OPEN)** — **1.1.91**. *Rewritten 2026-09-02 after review: the first draft had a preview but no co-pilot, was researcher-only, and gave researchers no sight of what teachers build. All three were the point.* **⭐ CHOSEN 2026-09-09 as the extension's workstream D** (*"go on doing tutors now"* — decision D7, [09-09 triage](meeting-2026-09-09-triage.md)), and M5 revised: the seven TP frameworks and their primary literature are on disk.
 **Priority**: **P1** — the mechanism is un-gated, it opens the human gate `adk/authoring_framework.py` has carried since COPILOT-1, and it is the prerequisite for [1.1.92](session-benchmark-tutor-activity.md) having any arms to compare
-**Estimated**: ~6.5–8.5d phased (M0 tutor object ~1d · M1 store + two tiers ~1.5d · M2 **tutor co-pilot** ~2d · M3 preview/compare ~1d · M4 researcher cross-view ~1d · M5 seeded library ~0.5d)
+**Estimated**: **~8.5–11d phased** (M0 tutor object ~1d · **M7 migrate the existing tutors ~1–1.5d** · M1 store + two tiers ~1.5d · M2 **tutor co-pilot** ~2d · M3 preview/compare ~1d · M4 researcher cross-view ~1d · M5 seeded library ~1d · M6 clash gatekeeper ~0.5d) — *revised 2026-09-09: M5 re-sized to seven frameworks, M7 added by the migrate decision*
 **Scope**: Backend — a `Tutor` object carrying its theory, a Firestore store with two authoring tiers, co-pilot proposal tools, and a `scope=all` read for researchers; frontend — a tutor editor on the **shipped** co-pilot shell, preview/compare, and a researcher catalogue
 **Dependencies**: [1.1.20 interaction-style](tutor-personas.md) (**SHIPPED** — `adk/interaction_style.py`, the injection primitive this bundles); `adk/authoring_framework.py` (**M0 shipped; its docstring names the missing store**); `components/teacher/copilot/` + `adk/authoring_tools.py` (**SHIPPED** — the shell and propose→Apply tool pattern this reuses); [1.1.5 researcher-role](researcher-role.md) (**SHIPPED**); **ALS-SHARE** (**SHIPPED** — the sharing/provenance model this copies)
 **Created**: 2026-09-02
@@ -151,6 +151,14 @@ teacher reads, not a diff an author checks. It also makes the seven-tutor librar
 valuable **before a single student uses it**, which matters a great deal while
 both legal gates are shut.
 
+**And M3's transcript is the input to the training loop.** M, 2026-09-09:
+*"we can use that then for teacher training."*
+[1.1.107 framework-fit-profile](framework-fit-profile.md) M4 reads a preview
+conversation back through all seven framework lenses, so a teacher talks to the
+ESRU tutor and is shown what it actually did, in each tradition's own terms.
+**No student data, no consent question, no legal gate** — which makes it the one
+teacher-facing use of the tutor library available today.
+
 ### M4 — Researchers see what teachers build
 
 The `scope=all` pattern already shipped for classes, applied to tutors: a
@@ -230,6 +238,53 @@ literature. So `framework` (M0) needs a **parent** — a persona is an
 operationalisation *of* something, not a peer of it — and the field should be
 shaped with JB before M5 rather than after.
 
+### M7 — Migrate the eight `SKILL.md` tutors *(decided 2026-09-09: migrate, do not coexist)*
+
+**Open question 1 is answered: the eight existing tutors move into the model.**
+Coexistence was the alternative and it is the half-adoption pattern the handover
+audit names as the worst outcome — two ways to define a tutor means every later
+feature (the co-pilot, the clash gatekeeper, versioning, the
+[1.1.92](session-benchmark-tutor-activity.md) arm,
+[1.1.107](framework-fit-profile.md)'s fidelity check) has to be built twice or
+silently work for only half the tutors.
+
+**The migration is also the honest test of M0's schema.** If the eight real
+tutors do not fit the `Tutor` object, the object is wrong — better to discover
+that against `led-planck-tutor` than against a researcher's first SDT draft.
+
+Sequencing, and it matters:
+
+1. **M0 first, then migrate, then M1's store.** Migrating into a schema that has
+   not survived contact with the existing eight is how the schema acquires a
+   permanent workaround.
+2. **`SKILL.md` stays the seed source, not a second definition.** The existing
+   deploy-time seed (`platform_seed`, `make seed`) already reads
+   `skills/templates/*/SKILL.md` into Firestore. The migration extends that path
+   to emit `Tutor` objects — **one pipeline, not two** — so a git-authored tutor
+   and a researcher-authored tutor land in the same store and are the same kind
+   of thing thereafter.
+3. **A migrated tutor's `framework` is honestly empty.** None of the four
+   operationalises a named theory, and back-filling one would be the exact
+   failure M1 refuses for teachers: *a theory field with no theory in it makes an
+   unfounded claim look founded.* They migrate as `framework: null`, which is
+   also a finding — it is the baseline arm [1.1.107](framework-fit-profile.md)
+   measures the framework tutors *against*.
+
+⚠️ **Only half of the eight are tutors.** `manage-class`, `analytics-chat`,
+`activity-authoring-assistant` and `aipla-help` are **teacher tools** riding the
+same `SKILL.md` mechanism. **Migrate the four student-facing tutors only** —
+`concept-dialogue`, `kinebot-kinematics-tutor`, `led-planck-tutor`,
+`problem-set-hints`; the other four keep the plain skill path. Getting this wrong
+would put a class-management assistant in a tutor catalogue and, worse, into the
+1.1.92 matrix as an arm.
+
+**Regression bar: byte-identical behaviour.** A migrated tutor must resolve to
+the same prompt it produces today — the same standard `interaction_style` holds
+for `socratic` passthrough. This is a refactor with a schema attached, and it
+should be provable as one.
+
+~1–1.5d.
+
 ### M6 — The clash gatekeeper
 
 Flagged in the transcript, and explicitly *"discussed but not designed"*: an
@@ -260,6 +315,7 @@ whole reason this doc can start now.
 | M4 | Researcher cross-view over teacher-authored tutors | ~1d | Tell teachers first |
 | M5 | Seeded framework library — **seven TP frameworks, literature on disk** (5E, Accountable Talk, Dysthe, CER, ESRU, POE, Toulmin) + SDT on the conceptual layer | ~1d (**re-estimated 2026-09-09** — seven is a known size, not a slot) | **JB / AR content + the umbrella structure**; the *example conversations* are an action on Aswin |
 | M6 | Persona × activity clash gatekeeper (advisory) | ~0.5d | M0 |
+| **M7** | **Migrate the 4 student-facing `SKILL.md` tutors** into the store, `framework: null`, byte-identical output | **~1–1.5d** | **M0 (schema must survive them first)** |
 
 ## Testing
 
@@ -273,9 +329,9 @@ whole reason this doc can start now.
 
 ## Open questions
 
-1. **Do the eight existing `SKILL.md` tutors migrate into this model, or coexist?**
-   Coexistence means two ways to define a tutor — the half-adoption pattern the
-   handover audit calls the worst outcome. Leaning migrate, after M1.
+1. ~~Do the eight existing `SKILL.md` tutors migrate, or coexist?~~
+   **ANSWERED 2026-09-09 (M): MIGRATE** — the four student-facing ones, after M0
+   and before M1's store. → **[M7](#m7--migrate-the-eight-skillmd-tutors-decided-2026-09-09-migrate-do-not-coexist)**
 2. **Does a teacher's variant need approval before students see it?** A governance
    question, not a technical one. Interacts with [1.1.95](safe-to-publish-vetting.md),
    which is the same question for activities.
