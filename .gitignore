@@ -83,3 +83,9 @@ backend/aitana_platform/
 *.tfstate
 *.tfstate.*
 demo-captures/
+
+# Copyrighted literature — private working references (repo is public on
+# GitHub). Keep the citation README.md tracked; never the PDFs or their
+# full-text parsed extracts. See docs/literature/tp-framework/README.md.
+docs/literature/**/*.pdf
+docs/literature/**/parsed/
