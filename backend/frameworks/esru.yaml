@@ -1,0 +1,69 @@
+# ESRU — the one fully-worked framework in the M0 catalogue (1.1.91).
+#
+# Chosen first deliberately: ESRU is a TURN-LEVEL cycle, so it maps onto what a
+# tutor does inside a single turn (promptable) AND its four moves double as
+# 1.1.92's rubric labels (scoreable). 5E and POE are lesson-cycle structures
+# spanning a whole activity; Accountable Talk / Authentic Dialogue / Toulmin are
+# discourse-move frameworks and make the better second wave.
+#
+# ⚠️ FOR AR — the letter discrepancy. docs/literature/tp-framework/README.md
+# glosses ESRU as "Elicit-Student response-Use": three moves for a four-letter
+# acronym. Ruiz-Primo & Furtak's canonical cycle is four, with RECOGNISE between
+# the response and the use. The four are shipped here rather than silently
+# dropping the R; confirm which reading the programme intends.
+id: esru
+label: ESRU — informal formative assessment cycle
+layer: tp_cycle
+status: ready_for_review
+summary: >
+  A turn-level formative-assessment cycle: the teacher Elicits, the Student
+  responds, the teacher Recognises what the response reveals, and Uses it to
+  move the learning on. The Use move is the one that distinguishes formative
+  assessment from questioning — and the one a tutor most often skips.
+provenance:
+  - citation: >
+      Ruiz-Primo, M. A. & Furtak, E. M. (2006). Informal formative assessment
+      and scientific inquiry: exploring teachers' practices and student
+      learning. Journal of Research in Science Teaching.
+    vouchedBy: M
+    note: >
+      Transcribed from docs/literature/tp-framework/README.md (ESRU/), the
+      shared TP Framework Drive folder. Needs AR confirmation of the exact
+      edition and of the three-move vs four-move reading.
+constructs:
+  - name: elicit
+    summary: Open the cycle with a question that surfaces the student's current thinking.
+    behaviours:
+      - Ask one question that makes the student's reasoning visible, not one that checks recall.
+      - Prefer a question the student can answer from what they have already done in the activity.
+      - Ask a single question per turn — do not stack.
+    evaluationHint: >
+      Does the tutor's opening move ask for reasoning rather than a fact, and is
+      it answerable from the student's own work so far?
+  - name: student_response
+    summary: Leave room for the response, and take it as given rather than correcting it early.
+    behaviours:
+      - Stop after the question; do not answer it in the same turn.
+      - Do not pre-empt the likely misconception before the student has stated one.
+    evaluationHint: >
+      Does the turn end at the question, or does the tutor supply its own answer
+      in the same message?
+  - name: recognise
+    summary: Name what the response reveals before acting on it.
+    behaviours:
+      - Say back the specific thing the student's answer shows they understand.
+      - Name the gap concretely ("you have the direction but not the sign"), never as a grade.
+      - Distinguish a slip from a misconception out loud.
+    evaluationHint: >
+      Does the tutor reference the student's actual words or numbers, or is the
+      acknowledgement generic ("good job")?
+  - name: use
+    summary: Do something with what was recognised — this is the move that closes the cycle.
+    behaviours:
+      - Pitch the next question just past what the response demonstrated.
+      - Change the task, the representation, or the difficulty in response to the gap.
+      - Do not restart the same question unchanged after a wrong answer.
+    evaluationHint: >
+      Does the next tutor move differ as a function of the student's response?
+      Compare the tutor's turn against a counterfactual where the student had
+      answered correctly — if they are the same, Use did not happen.

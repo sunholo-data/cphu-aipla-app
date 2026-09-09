@@ -1,0 +1,19 @@
+# Slot only — the framework exists in the catalogue, the pedagogy does not yet.
+# AR/JB own the constructs and behaviours (the authoring_framework.py precedent:
+# ship the structure, mark the content as owed). Second-wave candidate for
+# 1.1.91 M5; ESRU is the worked example this sprint.
+id: authentic-dialogue
+label: Authentic Dialogue (dialogic teaching)
+layer: tp_cycle
+status: placeholder
+summary: >
+  Part of the TP-cycle working set. Constructs and observable behaviours are
+  not yet drafted.
+provenance:
+  - citation: >
+      Dysthe, O. (1996). The Multivoiced Classroom
+    vouchedBy: M
+    note: >
+      Transcribed from docs/literature/tp-framework/README.md ( Interactions of Writing and Classroom Discourse.:Authentic Dialouge/ (Drive folder name carries the source typo)).
+      Needs AR confirmation.
+constructs: []
