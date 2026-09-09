@@ -6,42 +6,79 @@
 # spanning a whole activity; Accountable Talk / Authentic Dialogue / Toulmin are
 # discourse-move frameworks and make the better second wave.
 #
-# ⚠️ FOR AR — the letter discrepancy. docs/literature/tp-framework/README.md
-# glosses ESRU as "Elicit-Student response-Use": three moves for a four-letter
-# acronym. Ruiz-Primo & Furtak's canonical cycle is four, with RECOGNISE between
-# the response and the use. The four are shipped here rather than silently
-# dropping the R; confirm which reading the programme intends.
+# ── Verified against the primary literature 2026-09-09 ────────────────────────
+# Every behaviour below is traceable to Ruiz-Primo & Furtak's own operational
+# definitions (the formal/informal table, 2007 p. 60) or to the ESRU-vs-IRE/F
+# contrast they draw. That traceability IS the design: 1.1.91 makes a generated
+# prompt reviewable by letting a reader check it against the theory. Behaviours
+# that merely sound pedagogical would defeat that, so invented ones were removed
+# in favour of the paper's own moves.
+#
+# Two corrections came out of the verification — see the sprint plan:
+#   1. The four-move reading is confirmed; the README's three-move gloss is wrong.
+#   2. The README's citation conflates two different papers. Both are below.
 id: esru
 label: ESRU — informal formative assessment cycle
 layer: tp_cycle
 status: ready_for_review
 summary: >
-  A turn-level formative-assessment cycle: the teacher Elicits, the Student
-  responds, the teacher Recognises what the response reveals, and Uses it to
-  move the learning on. The Use move is the one that distinguishes formative
-  assessment from questioning — and the one a tutor most often skips.
+  A turn-level assessment conversation: the teacher Elicits, the Student
+  responds, the teacher Recognises the response against accepted scientific
+  ideas, and Uses it in the ongoing narrative. Ruiz-Primo & Furtak found most
+  teachers run INCOMPLETE cycles, and that it is the final step — Use — that
+  learning gains depend on. So Use is the move a tutor most often skips and the
+  one worth measuring. ESRU is explicitly contrasted with IRE/F (Initiation,
+  Response, Evaluation/Feedback): the difference is that the teacher does
+  something with the response rather than judging it.
 provenance:
   - citation: >
-      Ruiz-Primo, M. A. & Furtak, E. M. (2006). Informal formative assessment
-      and scientific inquiry: exploring teachers' practices and student
-      learning. Journal of Research in Science Teaching.
+      Ruiz-Primo, M. A. & Furtak, E. M. (2007). Exploring teachers' informal
+      formative assessment practices and students' understanding in the context
+      of scientific inquiry. Journal of Research in Science Teaching, 44(1),
+      57–84. doi:10.1002/tea.20163
     vouchedBy: M
     note: >
-      Transcribed from docs/literature/tp-framework/README.md (ESRU/), the
-      shared TP Framework Drive folder. Needs AR confirmation of the exact
-      edition and of the three-move vs four-move reading.
+      PRIMARY source for ESRU as used here — it names the cycle, sets out the
+      four parts, and reports the Use finding. Verified 2026-09-09 against the
+      publisher record (CU Boulder Experts) and STEM Teaching Tool #16, which
+      brief is entirely about this paper.
+  - citation: >
+      Ruiz-Primo, M. A. & Furtak, E. M. (2006). Informal Formative Assessment
+      and Scientific Inquiry: Exploring Teachers' Practices and Student
+      Learning. Educational Assessment, 11(3–4), 237–263.
+      doi:10.1080/10627197.2006.9652991
+    vouchedBy: M
+    note: >
+      The companion paper. ⚠️ docs/literature/tp-framework/README.md cited "2006
+      … (J Res Sci Teach)", which conflates the two: the 2006 paper is in
+      Educational Assessment, and JRST is the 2007 one. Both are real; the
+      README's single row was a chimera of the two. README corrected.
+  - citation: >
+      Duschl, R. A. & Gitomer, D. H. (1997). Strategies and challenges to
+      changing the focus of assessment and instruction in science classrooms.
+      Educational Assessment, 4, 37–73.
+    vouchedBy: M
+    note: >
+      Lineage, not decoration — ESRU is Ruiz-Primo & Furtak's operationalisation
+      of Duschl & Gitomer's "assessment conversation". Recorded because 1.1.91
+      asks a framework to be defensible, and the antecedent is part of that.
 constructs:
   - name: elicit
-    summary: Open the cycle with a question that surfaces the student's current thinking.
+    summary: >
+      "Teacher brings out or develops information in the form of a verbal
+      response from students" (2007, p. 60).
     behaviours:
-      - Ask one question that makes the student's reasoning visible, not one that checks recall.
-      - Prefer a question the student can answer from what they have already done in the activity.
-      - Ask a single question per turn — do not stack.
+      - Ask the student to formulate an explanation, or to provide evidence for one — the paper's own two examples of eliciting.
+      - Ask a question the student can answer from the work they have already done in this activity.
+      - Ask one question per turn; do not stack.
     evaluationHint: >
-      Does the tutor's opening move ask for reasoning rather than a fact, and is
-      it answerable from the student's own work so far?
+      Does the opening move ask the student to explain or to give evidence, or
+      does it merely check a fact? A recall check is an Initiation in the IRE/F
+      sense, not an Elicit.
   - name: student_response
-    summary: Leave room for the response, and take it as given rather than correcting it early.
+    summary: >
+      The student's turn. The tutor's job is to leave room for it — the cycle
+      cannot proceed on a response the student never gave.
     behaviours:
       - Stop after the question; do not answer it in the same turn.
       - Do not pre-empt the likely misconception before the student has stated one.
@@ -49,21 +86,29 @@ constructs:
       Does the turn end at the question, or does the tutor supply its own answer
       in the same message?
   - name: recognise
-    summary: Name what the response reveals before acting on it.
+    summary: >
+      "Teacher reacts on the fly by recognizing students' responses and
+      comparing them to accepted scientific ideas" (2007, p. 60). The paper's
+      worked example is repeating or revoicing the student's response.
     behaviours:
-      - Say back the specific thing the student's answer shows they understand.
-      - Name the gap concretely ("you have the direction but not the sign"), never as a grade.
-      - Distinguish a slip from a misconception out loud.
+      - Repeat or revoice the student's own words back to them — the paper's example move.
+      - Compare what they said against the accepted scientific idea, and say where it sits relative to it.
+      - Name a gap concretely ("you have the direction but not the sign"), not as a verdict — a bare judgement is the E of IRE/F, which ESRU is defined against.
     evaluationHint: >
-      Does the tutor reference the student's actual words or numbers, or is the
-      acknowledgement generic ("good job")?
+      Does the tutor quote or revoice the student's actual words and relate them
+      to the target idea? A generic "good job" is Evaluation, not Recognition.
   - name: use
-    summary: Do something with what was recognised — this is the move that closes the cycle.
+    summary: >
+      "Teacher immediately makes use of information from the students during the
+      course of the ongoing classroom narrative" (2007, p. 60). The step the
+      learning gains depend on, and the one most often missing.
     behaviours:
-      - Pitch the next question just past what the response demonstrated.
-      - Change the task, the representation, or the difficulty in response to the gap.
-      - Do not restart the same question unchanged after a wrong answer.
+      - Ask the student to elaborate on the response they just gave.
+      - Make the learning goal explicit at the point the response shows it is not yet in view.
+      - Promote argumentation — ask them to justify the claim, or to weigh it against an alternative.
+      - Do not re-ask the same question unchanged after a wrong answer; that closes the cycle without using it.
     evaluationHint: >
-      Does the next tutor move differ as a function of the student's response?
-      Compare the tutor's turn against a counterfactual where the student had
-      answered correctly — if they are the same, Use did not happen.
+      The counterfactual test: would this tutor turn have been different if the
+      student had answered correctly? If not, Use did not happen and the cycle
+      is incomplete — the specific failure Ruiz-Primo & Furtak found to be
+      common and to cost learning gains.

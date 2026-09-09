@@ -39,10 +39,12 @@ def test_esru_is_the_worked_framework():
     esru = load_framework("esru")
     assert esru is not None
     assert esru.status == "ready_for_review"
-    # Four moves, not three: the README glosses ESRU as "Elicit-Student
-    # response-Use" but the acronym has four letters and Ruiz-Primo's cycle has
-    # four moves. Flagged for AR in the YAML; asserted here so a silent drop of
-    # the R is a test failure rather than a quiet re-interpretation.
+    # Four moves, not three. VERIFIED 2026-09-09 against Ruiz-Primo & Furtak
+    # (2007) JRST 44(1) 57-84: "Teacher Elicits Response / Student Responds /
+    # Teacher Recognizes Student Response / Teacher Uses Student Response".
+    # The literature README originally glossed ESRU as three moves; Recognise is
+    # a distinct step (revoicing + comparing to accepted scientific ideas), not
+    # a sub-step of Use. Pinned so it cannot be quietly re-interpreted.
     assert [c.name for c in esru.constructs] == [
         "elicit",
         "student_response",
@@ -53,6 +55,46 @@ def test_esru_is_the_worked_framework():
         assert c.behaviours, f"construct {c.name} has no observable behaviours"
         assert c.evaluation_hint, f"construct {c.name} has no 1.1.92 evaluation seam"
     assert len(esru.behaviour_lines()) == sum(len(c.behaviours) for c in esru.constructs)
+
+
+def test_esru_cites_the_2007_jrst_paper_not_the_conflated_row():
+    """The literature README originally cited "Ruiz-Primo 2006 … (J Res Sci
+    Teach)" — a chimera of two real papers: the 2006 one is in *Educational
+    Assessment*, and JRST is the 2007 one. ESRU-as-used-here comes from the 2007
+    paper, so the primary citation must name it. Pinned because a citation in a
+    research instrument that ends up in a journal paper is the failure 1.1.91
+    cares most about, and this one was already wrong once."""
+    esru = load_framework("esru")
+    assert esru is not None
+    primary = esru.provenance[0].citation
+    assert "2007" in primary
+    assert "Journal of Research in Science Teaching" in primary
+    assert "10.1002/tea.20163" in primary
+
+    joined = " ".join(p.citation for p in esru.provenance)
+    # The companion paper must be attributed to its OWN venue, not JRST.
+    # Assert on the DOI rather than the page range: it is unambiguous, and it
+    # is what actually distinguishes the two papers.
+    assert "Educational Assessment" in joined
+    assert "10.1080/10627197.2006.9652991" in joined
+    # ESRU operationalises Duschl & Gitomer's "assessment conversation" — the
+    # antecedent is part of what makes the framework defensible.
+    assert "Duschl" in joined
+
+
+def test_esru_use_construct_carries_the_finding_that_makes_it_worth_scoring():
+    """Ruiz-Primo & Furtak found teachers ran INCOMPLETE cycles and that the
+    final step (Use) was what learning gains depended on. That is why Use gets a
+    counterfactual evaluation hint rather than a presence check."""
+    esru = load_framework("esru")
+    assert esru is not None
+    use = next(c for c in esru.constructs if c.name == "use")
+    assert use.evaluation_hint is not None
+    assert "different" in use.evaluation_hint.lower()
+    # The IRE/F contrast is the operative distinction: a tutor that judges an
+    # answer rather than acting on it has degenerated to Initiation-Response-
+    # Evaluation/Feedback, which is the failure mode 1.1.92 should catch.
+    assert "IRE/F" in esru.summary or any("IRE/F" in (c.evaluation_hint or "") for c in esru.constructs)
 
 
 def test_the_other_six_are_slots_not_claims():

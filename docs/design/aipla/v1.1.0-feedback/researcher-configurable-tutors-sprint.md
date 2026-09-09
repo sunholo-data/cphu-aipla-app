@@ -66,10 +66,37 @@ promptable and directly scoreable by 1.1.92 — the same labels are the rubric. 
 Accountable Talk / Authentic Dialogue / Toulmin are discourse-move frameworks and make the
 better second wave (Authentic Dialogue as the deliberate contrast to ESRU).
 
-⚠️ **ESRU letter discrepancy, for AR.** The README glosses ESRU as *"Elicit–Student
-response–Use"* — three moves for a four-letter acronym. Ruiz-Primo & Furtak's canonical cycle
-is four: **E**licit, **S**tudent response, **R**ecognise, **U**se. This sprint ships the four
-and flags it rather than silently dropping the R.
+**7. ESRU verified against the primary literature (2026-09-09) — three findings.** The
+sprint's first cut transcribed the README faithfully and flagged a suspected letter
+discrepancy. Verification settled it and turned up two more, so the framework was rewritten
+rather than merely annotated. The PDFs are **not in this checkout** — they are gitignored, so
+`9cd81b56` tracked the README and nothing else — so this was checked against the publisher
+record (Taylor & Francis, CU Boulder Experts, ERIC EJ742530) and STEM Teaching Tool #16, a
+research brief written entirely about the 2007 paper.
+
+| | Finding |
+|---|---|
+| ✅ **Four moves, confirmed** | Ruiz-Primo & Furtak name four parts — Teacher **E**licits Response · **S**tudent Responds · Teacher **R**ecognises Student Response · Teacher **U**ses Student Response. Recognise is a distinct move (revoice + compare to accepted scientific ideas), not a sub-step of Use. The README's three-move gloss was wrong; the sprint's four are right |
+| ❌ **The citation was a chimera** | The README cited *"Ruiz-Primo 2006 … (J Res Sci Teach)"*, which fuses **two real papers**: the 2006 is in ***Educational Assessment*** 11(3–4) 237–263, and ***JRST*** 44(1) 57–84 is the **2007**. ESRU-as-used-here is the **2007** paper. Both now cited, plus **Duschl & Gitomer (1997)**, whose *"assessment conversation"* ESRU operationalises — lineage the README did not record |
+| ❌ **Some behaviours were mine, not the paper's** | The first cut's `use` behaviours ("pitch the next question just past what the response demonstrated") are ZPD/SDT language, not ESRU. Replaced with the paper's own operational examples (p. 60): *elaborate · make the learning goal explicit · promote argumentation*. `recognise` gained the defining half it was missing — *comparing the response to accepted scientific ideas* |
+
+**Why the third one mattered most.** The whole premise of 1.1.91 is that
+`constructs → behaviours` makes a generated prompt **reviewable** — a reader checks the
+prompt against the theory instead of taking it on faith. Behaviours that merely sound
+pedagogical defeat exactly that, and they are the hardest kind of error to see later because
+they read well. Every behaviour now traces to the source.
+
+**Two findings from the paper now shape the framework**, and both are worth more than the
+citation fix: teachers ran **incomplete cycles**, and it was the **final step (Use)** that
+learning gains depended on. So `use` gets a *counterfactual* evaluation hint — *would this
+turn have differed had the student answered correctly?* — rather than a presence check. And
+ESRU is explicitly contrasted with **IRE/F** (Initiation–Response–Evaluation/Feedback): a
+tutor that **judges** an answer rather than acting on it has degenerated to IRE/F. That is a
+far sharper thing for 1.1.92 to score than "was the tutor Socratic".
+
+⚠️ **Only ESRU was verified.** The other six citations remain as transcribed from Drive
+folder names, unchecked. Given one of seven was already a conflation, the rest should not be
+assumed clean.
 
 ## Milestones
 
@@ -116,4 +143,5 @@ and flags it rather than silently dropping the R.
 1. **Q3 — tutor per activity, per class, or both?** Not needed for M0; needed before M1's store. 1.1.92 needs it stamped per session either way.
 2. **Q1 — migrate the four SKILL.md tutors or coexist?** After M1.
 3. **`layer` vs the doc's umbrella `parent`** — scoping decision 2, for JB.
-4. **ESRU's R** — for AR.
+4. ~~**ESRU's R** — for AR.~~ **Resolved 2026-09-09** by verification against the 2007 JRST paper: four moves, Recognise is distinct. See scoping decision 7.
+5. **The other six citations are unverified**, and one of seven was already wrong. Worth an hour before M5 seeds any of them — or worth AR/Aswin confirming, since they own the corpus.
