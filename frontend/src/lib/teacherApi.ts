@@ -1121,3 +1121,56 @@ export async function ackClassSignal(classId: string, groupId: string): Promise<
   );
   if (!resp.ok) throw new Error(`ack failed (${resp.status})`);
 }
+
+
+/* ── Teaching frameworks (1.1.91 M1) ─────────────────────────────────────────
+ *  Researcher-only. Every route 403s a non-researcher, so a forbidden response
+ *  is an access state to render, never a silent empty list.
+ *
+ *  `instruction` is what the tutor receives NOW; `defaultInstruction` is what it
+ *  would receive with no override. Both always travel so the editor can show an
+ *  edit as a delta from the generated theory rather than as an opaque prompt.  */
+
+export interface TeachingFrameworkPayload {
+  id: string;
+  label: string;
+  summary: string;
+  layer: "tp_cycle" | "conceptual";
+  status: "placeholder" | "ready_for_review" | "ready";
+  constructs: { name: string; summary?: string | null; behaviours: string[] }[];
+  provenance: { citation: string; vouchedBy: string; note?: string | null }[];
+  instruction: string;
+  defaultInstruction: string;
+  isOverridden: boolean;
+  overriddenBy?: string | null;
+  overriddenAt?: string | null;
+  overrideVersion?: number | null;
+}
+
+/** The framework catalogue with each entry's live + generated instruction. */
+export async function listTeachingFrameworks(): Promise<TeachingFrameworkPayload[]> {
+  const resp = await fetchWithAuth("/api/proxy/api/research/frameworks");
+  const body = await readJson<{ frameworks: TeachingFrameworkPayload[] }>(resp, "list teaching frameworks");
+  return body.frameworks;
+}
+
+/** Save a researcher-edited instruction. Returns the framework as it now stands. */
+export async function saveFrameworkInstruction(
+  frameworkId: string,
+  instruction: string,
+): Promise<TeachingFrameworkPayload> {
+  const resp = await fetchWithAuth(`/api/proxy/api/research/frameworks/${encodeURIComponent(frameworkId)}/instruction`, {
+    method: "PUT",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ instruction }),
+  });
+  return readJson<TeachingFrameworkPayload>(resp, "save framework instruction");
+}
+
+/** Drop the override and go back to the instruction generated from the theory. */
+export async function revertFrameworkInstruction(frameworkId: string): Promise<TeachingFrameworkPayload> {
+  const resp = await fetchWithAuth(`/api/proxy/api/research/frameworks/${encodeURIComponent(frameworkId)}/instruction`, {
+    method: "DELETE",
+  });
+  return readJson<TeachingFrameworkPayload>(resp, "revert framework instruction");
+}

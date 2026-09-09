@@ -62,7 +62,23 @@ const RESEARCH_DESTINATION: Destination = {
   href: "/teacher/research/activities",
   label: "Research",
   icon: Microscope,
-  match: ["/teacher/research"],
+  // Narrowed from "/teacher/research" when Frameworks joined the area (1.1.91):
+  // the broader prefix highlighted BOTH entries on the frameworks page.
+  match: ["/teacher/research/activities"],
+};
+
+/**
+ * Researcher-only destination (1.1.91 M1): the teaching frameworks a tutor runs
+ * on, and the instruction each one gives it. A sibling of the research scan
+ * rather than a tab inside it — "what the tutor is told to do" is a different
+ * question from "what have teachers built", and the pedagogy is the thing a
+ * researcher owns outright.
+ */
+const FRAMEWORKS_DESTINATION: Destination = {
+  href: "/teacher/research/frameworks",
+  label: "Frameworks",
+  icon: BookOpen,
+  match: ["/teacher/research/frameworks"],
 };
 
 /**
@@ -100,7 +116,7 @@ export function TeacherNav() {
   const isProgrammeAdmin = useIsProgrammeAdmin();
   const destinations = [
     ...DESTINATIONS,
-    ...(isResearcher ? [RESEARCH_DESTINATION] : []),
+    ...(isResearcher ? [RESEARCH_DESTINATION, FRAMEWORKS_DESTINATION] : []),
     ...(isResearcher || isProgrammeAdmin ? [PROGRAMME_DESTINATION] : []),
   ];
   // Collapse the desktop rail to an icon strip to give app-like surfaces (the
