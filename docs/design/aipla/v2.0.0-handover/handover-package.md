@@ -186,7 +186,7 @@ than guess — this table is the invite list.
 | Cloud infra / GCP | **P2** + UCPH IT | Same — AD. And UCPH IT is now a *live, funded* counterparty via the KU AI office (from 2026-09-01), a better position than the table assumed |
 | Day-to-day operations | Student helpers + P2 | Helpers exist and appear in no row — but see the correction above: **AR is not one of them** |
 | Strand B | ZL, with DS | Not verified here |
-| Strand C note | JB (audience), AR (input) | **Drafted 2026-09-03**, six days early. Awaiting a read from JB/AR |
+| Strand C note | JB (audience), AR (input) | **Drafted 2026-09-02**, seven days early. Awaiting a read from JB/AR |
 
 ### The rewritten fan-out
 
@@ -209,7 +209,7 @@ remaining work visible.
 | Cloud infra / GCP | **AD** | UCPH IT (self-host migration) | ❌ | **AD runs a real promote with M watching** — not by reading [deploy.md](../../../ops/runbooks/deploy.md). Oct |
 | Day-to-day operations | student helper(s) | AD | ❌ Roster unconfirmed — see above | Onboarding session once the roster is settled |
 | Strand B (simulation/game) | ZL | DS | ❓ Not verified from this repo | Ask at 09-09 |
-| Strand C note | JB (audience) | AR (input) | ✅ Drafted 09-03 | JB/AR read; decide the Prøvebanken citation question |
+| Strand C note | JB (audience) | AR (input) | ✅ Drafted 09-02 | JB/AR read; decide the Prøvebanken citation question |
 
 **Handover-session attendees**, corrected from `timeline.qmd`'s "P2 + AR + DS +
 ZL": **JB + AR + DS + ZL**, plus **AD if the date falls after ~1 Oct**, plus the
@@ -240,7 +240,7 @@ Ordered by lead time, not by size. The top two are chases, not builds.
 |---|---|---|---|---|
 | 1 | **DPIA / consent artefact** | **JB** | Ask now whether it exists and where. If it does, link it from this doc. If it does not, it gates nothing retroactively but must be named as a known open item at handover | **Longest — ask today** |
 | 2 | **Final handover session** | M + JB | Book it. Attendees per the *corrected* co-owner table, not `timeline.qmd`'s | Needs calendars ≥1wk out |
-| 3 | ~~Strand C scoping note~~ | M | **DRAFTED 2026-09-03.** Remaining: a read from JB/AR, and a decision on whether the C1 section can cite numbers (Prøvebanken) | — |
+| 3 | ~~Strand C scoping note~~ | M | **DRAFTED 2026-09-02.** Remaining: a read from JB/AR, and a decision on whether the C1 section can cite numbers (Prøvebanken) | — |
 | 4 | **Fill the runbook stubs** | M | Each says *"fill from the execution repo"* — this repo. **Recommend: write the three AR-facing ones now (mostly assembly), and write AD's two *with* AD in October.** See [extension plan](../v2.1.0-extension/plan-2026-09-to-2027-04.md) A′ | ~1.5d now, 2 with AD |
 | 5 | ~~Rewrite the co-owner fan-out table~~ | M + JB | **DONE 2026-09-07** — [rewritten above](#the-rewritten-fan-out), now evidence-bearing rather than plan-bearing. Two things came out of it: **AR was mis-filed as a student helper** (he is the co-PI), and the corrected attendee list for #2 is **JB + AR + DS + ZL**, plus AD if the date falls after ~1 Oct. *Residual:* confirm the student-helper roster with JB at 09-09 | — |
 | 6 | **Eval in CI** | M | Optional for the milestone. `make eval` is real and runnable by hand; "automation" is the stated word, and a nightly job would satisfy it | ~0.5d, defer if crowded |

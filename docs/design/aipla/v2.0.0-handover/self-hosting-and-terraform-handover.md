@@ -1,12 +1,12 @@
 # self-hosting-and-terraform-handover — UCPH on-prem resource list + portable Terraform
 
-**Status**: Planned — opens the v2.0.0-handover workstream (SEQUENCE row 3.2)
+**Status**: **Contracted bar met** — Phase 0 (this doc + [ucph-it-hosting-requirements.qmd](ucph-it-hosting-requirements.qmd), 2026-08-27) and Phase 1's Firestore slice ([firestore-portability-seam.md](firestore-portability-seam.md), 2026-06-17) are done; that is what [handover-package.md](handover-package.md) criterion 6 scores as met. Phase 1's remaining seams (session-service / RAG / auth / GCS) and Phase 2 (reference Terraform/Helm) are **not started** — always stretch, not the contracted bar.
 **Priority**: P0 — UCPH IT has formally requested the resource list (internal IT meeting 2026-06-17). This is the long-pole half of the final handover package and gates UCPH's own infrastructure planning/budgeting cycle.
 **Estimated**: Doc + portability-seam audit ~2d; reference on-prem Terraform/Helm stack ~3–4d (phased — see Implementation Plan). The *contracted* minimum (migration notes good enough for IT to cost) is the ~2d audit.
 **Scope**: Infra + handover — component inventory, hybrid topologies, model-sizing, a portable Terraform deliverable, and a costable resource list for UCPH IT.
 **Dependencies**: ADR-003 (four model tiers), ADR-005 (chat-log storage / data residency), ADR-006 (GCP EU for the prototype), ADR-007 (`europe-north1`), ADR-010 + ADR-017 (RAG store: managed Vertex now, pgvector is the on-prem target), ADR-012 (AILANG ecosystem). Builds on [aipla-cloud-bootstrap.md](../v1.0.0-pilot/aipla-cloud-bootstrap.md) (the GCP-side Terraform consolidation) and the [`infrastructure/modules/`](../../../../infrastructure/modules/) set. Supersedes the execution detail of the scoping site's [`self-hosting.qmd`](https://aipla.ku.dk/project/data-and-hosting) stub (which is now out of date against what v0.1/v1 actually deployed — see "Correcting the self-hosting.qmd stub" below).
 **Created**: 2026-06-17
-**Last Updated**: 2026-08-27 (framing revised — see *What changed*)
+**Last Updated**: 2026-09-09 (status corrected — this doc still read "Planned" after Phase 0 + the Firestore slice had already met the contracted bar; framing last revised 2026-08-27, see *What changed* below)
 
 ---
 
