@@ -22,6 +22,16 @@ from db.models.teaching_framework import TeachingFramework
 
 _HEADER = "## Teaching framework: {label}"
 
+# Rendered order for dimension groupings. Epistemic first, deliberately: it is
+# the "how do you know" axis, it dominates the strongest teaching in the source's
+# own data, and a model given the conceptual list first tends to stay there.
+_DIMENSION_ORDER = ("epistemic", "conceptual")
+
+_DIMENSION_HEADINGS = {
+    "epistemic": "Questions about how the student knows (evidence, data, method):",
+    "conceptual": "Questions about what the student knows (definitions, relations between concepts):",
+}
+
 _PREFACE = (
     "Run this conversation as the teaching framework below describes. "
     "Work through its moves in order within a turn where the conversation allows it; "
@@ -51,7 +61,29 @@ def build_framework_instruction(framework: TeachingFramework | None) -> str:
         block = [f"### {title}"]
         if construct.summary:
             block.append(" ".join(s.strip() for s in construct.summary.split()))
-        block.extend(f"- {b}" for b in construct.behaviours)
+
+        # Behaviours group by inquiry dimension where the theory tags them. Only
+        # eliciting carries dimensions in ESRU, by the source's own scoping, so
+        # every other construct falls straight through to a flat list — the
+        # sub-headings appear exactly where the theory says they mean something.
+        tagged = [b for b in construct.behaviours if b.dimension]
+        untagged = [b for b in construct.behaviours if not b.dimension]
+        block.extend(f"- {b.text}" for b in untagged)
+        for dimension in _DIMENSION_ORDER:
+            in_dim = [b for b in tagged if b.dimension == dimension]
+            if not in_dim:
+                continue
+            block.append(_DIMENSION_HEADINGS[dimension])
+            block.extend(f"- {b.text}" for b in in_dim)
+
+        # The counter-indicative codes. Last in the block so they read as the
+        # constraint on everything above, and phrased as a heading rather than
+        # folded into the list — a tutor that skims must not read an anti-pattern
+        # as an instruction.
+        if construct.avoid:
+            block.append("Avoid:")
+            block.extend(f"- {a}" for a in construct.avoid)
+
         blocks.append("\n".join(block))
 
     if not blocks:

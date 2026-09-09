@@ -24,7 +24,7 @@ from __future__ import annotations
 
 from typing import Literal
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 # Which stack a framework belongs to. The 2026-09-08 literature set
 # (``docs/literature/tp-framework/README.md``) keeps these deliberately APART:
@@ -42,6 +42,21 @@ FrameworkLayer = Literal["tp_cycle", "conceptual"]
 # ``ready_for_review`` — constructs drafted, awaiting AR sign-off.
 # ``ready`` — signed off; safe to generate tutor prompts from.
 FrameworkStatus = Literal["placeholder", "ready_for_review", "ready"]
+
+# The domains of scientific inquiry a teaching move can operate in. From
+# Ruiz-Primo & Furtak (2007), who take them from Duschl: *epistemic frameworks*
+# (how we know — evidence, predictions, data, the quality of a claim) and
+# *conceptual structures* (what we know — definitions, relations between
+# concepts). A third domain, *social processes*, they treat as inherent to any
+# assessment conversation and do not code separately, so it is not modelled.
+#
+# ⚠️ Scope, and the paper is explicit about it: the dimensions distinguish
+# **eliciting** strategies ONLY — "recognizing and using strategies (actions
+# taken by the teacher) can be used as a reaction to any type of initial question
+# and student response". So this tags a BEHAVIOUR, not a construct, and on most
+# constructs every behaviour will leave it None. That asymmetry is the theory's,
+# not an oversight.
+InquiryDimension = Literal["epistemic", "conceptual"]
 
 
 class Provenance(BaseModel):
@@ -66,6 +81,26 @@ class Provenance(BaseModel):
     model_config = ConfigDict(populate_by_name=True, extra="forbid")
 
 
+class Behaviour(BaseModel):
+    """One observable, promptable teaching move, optionally tagged by inquiry
+    dimension.
+
+    Accepts a bare string in YAML (``- Ask for an explanation.``) as well as the
+    tagged form, so a framework whose theory has no dimension axis stays simple
+    to author.
+    """
+
+    text: str = Field(min_length=1, max_length=400)
+    dimension: InquiryDimension | None = None
+
+    model_config = ConfigDict(populate_by_name=True, extra="forbid")
+
+    @model_validator(mode="before")
+    @classmethod
+    def _accept_bare_string(cls, value):
+        return {"text": value} if isinstance(value, str) else value
+
+
 class Construct(BaseModel):
     """One thing the theory operates on, and what it looks like in a tutor turn.
 
@@ -76,7 +111,14 @@ class Construct(BaseModel):
 
     name: str = Field(min_length=1, max_length=80)
     summary: str | None = Field(default=None, max_length=400)
-    behaviours: list[str] = Field(default_factory=list, max_length=12)
+    behaviours: list[Behaviour] = Field(default_factory=list, max_length=24)
+    # Coded strategies the source treats as COUNTER-indicative — the moves that
+    # mark the degeneration this framework is defined against. Ruiz-Primo &
+    # Furtak's appendix codes these explicitly (evaluative "Yes! Good!",
+    # yes/no questions, questions with no chance to answer, interrupting), and
+    # they are exactly the moves an LLM tutor reaches for by default. Naming
+    # them is worth more to a tutor prompt than another positive example.
+    avoid: list[str] = Field(default_factory=list, max_length=12)
     # How you would tell whether it worked -> 1.1.92's rubric adapters.
     evaluation_hint: str | None = Field(default=None, alias="evaluationHint", max_length=400)
 
@@ -105,13 +147,23 @@ class TeachingFramework(BaseModel):
     def behaviour_lines(self) -> list[str]:
         """Every construct's behaviours, flattened — the raw material a generated
         tutor prompt is built from (1.1.91 M2 ``draft_tutor_prompt``)."""
-        return [b for c in self.constructs for b in c.behaviours]
+        return [b.text for c in self.constructs for b in c.behaviours]
+
+    def behaviours_in(self, dimension: InquiryDimension) -> list[str]:
+        """Behaviours tagged with one inquiry dimension.
+
+        The seam 1.1.92 scores against: "did this tutor elicit epistemically or
+        conceptually?" is a real research question, and Ruiz-Primo & Furtak's own
+        Table 4 answers it per teacher."""
+        return [b.text for c in self.constructs for b in c.behaviours if b.dimension == dimension]
 
 
 __all__ = [
+    "Behaviour",
     "Construct",
     "FrameworkLayer",
     "FrameworkStatus",
+    "InquiryDimension",
     "Provenance",
     "TeachingFramework",
 ]

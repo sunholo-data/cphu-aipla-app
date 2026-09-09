@@ -1,40 +1,47 @@
-# ESRU — the one fully-worked framework in the M0 catalogue (1.1.91).
+# ESRU — the worked framework in the AIPLA catalogue (1.1.91).
 #
-# Chosen first deliberately: ESRU is a TURN-LEVEL cycle, so it maps onto what a
-# tutor does inside a single turn (promptable) AND its four moves double as
-# 1.1.92's rubric labels (scoreable). 5E and POE are lesson-cycle structures
-# spanning a whole activity; Accountable Talk / Authentic Dialogue / Toulmin are
-# discourse-move frameworks and make the better second wave.
+# ── Grounded in the source itself, 2026-09-09 ────────────────────────────────
+# Every behaviour and every `avoid` line below is one of Ruiz-Primo & Furtak's
+# OWN coded strategies, taken from the paper's Appendix ("a complete list of the
+# strategies used to code teachers' questions and actions") and Table 2, with
+# their wording preserved as closely as a tutor instruction allows. Nothing here
+# is inferred pedagogy. That traceability is the point of 1.1.91: the tutor's
+# prompt is derived from the theory, so a reader — AR, JB, a reviewer — can hold
+# one against the other and check it.
 #
-# ── Verified against the primary literature 2026-09-09 ────────────────────────
-# Every behaviour below is traceable to Ruiz-Primo & Furtak's own operational
-# definitions (the formal/informal table, 2007 p. 60) or to the ESRU-vs-IRE/F
-# contrast they draw. That traceability IS the design: 1.1.91 makes a generated
-# prompt reviewable by letting a reader check it against the theory. Behaviours
-# that merely sound pedagogical would defeat that, so invented ones were removed
-# in favour of the paper's own moves.
+# Two structural facts from the paper that a flat move-list cannot express:
 #
-# Verified twice: first against the publisher record, then (2026-09-09) against
-# the PDF itself once the corpus arrived on this machine.
-#   1. Four moves confirmed verbatim from the abstract; the three-move gloss is wrong.
-#   2. The year is an online-vs-issue artefact, not a wrong paper — see below.
-#   3. ⚠️ INCOMPLETE: the paper's model is TWO-dimensional (moves x inquiry
-#      dimension) and only the moves are modelled here. The epistemic/conceptual
-#      split applies to ELICITING only, by the paper's own scoping. Table 2 lists
-#      ~30 coded strategies; the behaviours below are a subset. See the README.
+#   1. The model is TWO-DIMENSIONAL. The four moves cross the domains of
+#      scientific inquiry: *epistemic frameworks* (how we know) and *conceptual
+#      structures* (what we know). Behaviours carry `dimension` for this.
+#
+#   2. The dimensions apply to ELICITING ONLY, and the paper says so outright:
+#      "the dimensions of scientific inquiry are used only to distinguish the
+#      strategies used in the eliciting phase ... whereas recognizing and using
+#      strategies (actions taken by the teacher) can be used as a reaction to any
+#      type of initial question and student response." So only `elicit`'s
+#      behaviours are tagged. The asymmetry is the theory's.
+#
+# `avoid` carries the appendix's COUNTER-indicative codes — evaluative
+# "Yes! Good!", yes/no questions, questions with no room to answer, interrupting.
+# These are what separate ESRU from IRE/F, and they are precisely the moves an
+# LLM tutor reaches for by default, so naming them earns more than another
+# positive example would.
 id: esru
 label: ESRU — informal formative assessment cycle
 layer: tp_cycle
 status: ready_for_review
 summary: >
-  A turn-level assessment conversation: the teacher Elicits, the Student
-  responds, the teacher Recognises the response against accepted scientific
-  ideas, and Uses it in the ongoing narrative. Ruiz-Primo & Furtak found most
-  teachers run INCOMPLETE cycles, and that it is the final step — Use — that
-  learning gains depend on. So Use is the move a tutor most often skips and the
-  one worth measuring. ESRU is explicitly contrasted with IRE/F (Initiation,
-  Response, Evaluation/Feedback): the difference is that the teacher does
-  something with the response rather than judging it.
+  A turn-level assessment conversation: the teacher Elicits a question, the
+  Student responds, the teacher Recognises the student's response, and Uses the
+  information collected to support student learning. Ruiz-Primo & Furtak found
+  most cycles run INCOMPLETE — one teacher logged 77 elicit-and-recognise
+  sequences against a single completed cycle — and the teacher who most often
+  completed them had the highest-scoring students. Use is therefore the move
+  that carries the learning, and the one most often skipped. ESRU is defined
+  against IRE/F (Initiation–Response–Evaluation/Feedback), whose "inauthentic
+  questions" the teacher already knows the answer to produce procedural rather
+  than authentic engagement.
 provenance:
   - citation: >
       Ruiz-Primo, M. A. & Furtak, E. M. (2007). Exploring teachers' informal
@@ -43,10 +50,20 @@ provenance:
       57–84. doi:10.1002/tea.20163
     vouchedBy: M
     note: >
-      PRIMARY source for ESRU as used here — it names the cycle, sets out the
-      four parts, and reports the Use finding. Verified 2026-09-09 against the
-      publisher record (CU Boulder Experts) and STEM Teaching Tool #16, which
-      brief is entirely about this paper.
+      PRIMARY source, read in full 2026-09-09 from the PDF in
+      docs/literature/tp-framework/ESRU/. Behaviours below come from the
+      Appendix coding scheme and Table 2; the incomplete-cycle finding from
+      Table 4. Note the paper carries two defensible years — published online
+      8 December 2006, issued in the 2007 volume — which is why the Wiley
+      filename says 2006. Cite 2007.
+  - citation: >
+      Duschl, R. A. (2003). Assessment of inquiry. In J. M. Atkin & J. E. Coffey
+      (Eds.), Everyday assessment in the science classroom (pp. 41–59). NSTA Press.
+    vouchedBy: M
+    note: >
+      Source of the inquiry DIMENSIONS (epistemic frameworks, conceptual
+      structures, social processes) that Ruiz-Primo & Furtak cross with the ESRU
+      moves. Cited in the paper's own model section; not held in the corpus.
   - citation: >
       Ruiz-Primo, M. A. & Furtak, E. M. (2006). Informal Formative Assessment
       and Scientific Inquiry: Exploring Teachers' Practices and Student
@@ -54,69 +71,118 @@ provenance:
       doi:10.1080/10627197.2006.9652991
     vouchedBy: M
     note: >
-      A real companion paper, listed for completeness — but NOT in the AIPLA
-      corpus and not the source of anything here. Recorded to close off a wrong
-      turn: the README's original "Ruiz-Primo 2006 … (J Res Sci Teach)" was read
-      as conflating this paper with the 2007 one. Reading the actual PDF showed
-      otherwise — JRST 44(1) was published ONLINE on 8 December 2006 and in the
-      2007 issue, and Wiley named the file with the online year. One paper, two
-      defensible years. The 2007 citation above is the one to use.
-  - citation: >
-      Duschl, R. A. & Gitomer, D. H. (1997). Strategies and challenges to
-      changing the focus of assessment and instruction in science classrooms.
-      Educational Assessment, 4, 37–73.
-    vouchedBy: M
-    note: >
-      Lineage, not decoration — ESRU is Ruiz-Primo & Furtak's operationalisation
-      of Duschl & Gitomer's "assessment conversation". Recorded because 1.1.91
-      asks a framework to be defensible, and the antecedent is part of that.
+      A real companion paper, listed for completeness — NOT in the AIPLA corpus
+      and not a source for anything here. Recorded to close off a wrong turn:
+      the catalogue's original "Ruiz-Primo 2006 … (J Res Sci Teach)" was read as
+      conflating this paper with the 2007 one. The PDF shows otherwise — that is
+      one paper with an online-vs-issue year, not two.
 constructs:
   - name: elicit
     summary: >
       "Teacher brings out or develops information in the form of a verbal
-      response from students" (2007, p. 60).
+      response from students." The dimensions apply HERE and only here: an
+      epistemic question asks how the student knows, a conceptual one asks what
+      they know. In the paper's inquiry classrooms, epistemic eliciting
+      dominated the teaching that produced the highest-scoring students.
     behaviours:
-      - Ask the student to formulate an explanation, or to provide evidence for one — the paper's own two examples of eliciting.
-      - Ask a question the student can answer from the work they have already done in this activity.
-      - Ask one question per turn; do not stack.
+      - text: Ask the student to share their observations.
+        dimension: epistemic
+      - text: Ask the student for a prediction or a hypothesis.
+        dimension: epistemic
+      - text: Ask the student for their explanation.
+        dimension: epistemic
+      - text: Ask the student to provide evidence and examples for a claim.
+        dimension: epistemic
+      - text: Ask the student to interpret data, results or a graph.
+        dimension: epistemic
+      - text: Ask the student to relate the evidence they collected to an explanation.
+        dimension: epistemic
+      - text: Ask the student to evaluate the quality of the evidence behind a claim.
+        dimension: epistemic
+      - text: Ask the student to compare or contrast observations, data or procedures.
+        dimension: epistemic
+      - text: Ask the student to suggest a hypothetical procedure or experimental plan.
+        dimension: epistemic
+      - text: Ask the student to compare or contrast another person's ideas with their own.
+        dimension: epistemic
+      - text: Ask the student to use and apply a procedure they already know.
+        dimension: epistemic
+      - text: Ask the student to define a concept ("what is mass?").
+        dimension: conceptual
+      - text: Ask the student to use, apply or compare concepts ("what is the difference between mass and volume?").
+        dimension: conceptual
+      - text: Ask the student to compare their definition with someone else's.
+        dimension: conceptual
+      - text: Ask the student to relate the work to an experience outside the classroom.
+        dimension: conceptual
+    avoid:
+      - Asking a yes/no or fill-in-the-blank question, or one whose expected answer is already suggested.
+      - Asking a rhetorical or "repaired" question — one you answer yourself, or follow immediately with another question, leaving no room to respond.
     evaluationHint: >
-      Does the opening move ask the student to explain or to give evidence, or
-      does it merely check a fact? A recall check is an Initiation in the IRE/F
-      sense, not an Elicit.
+      Two things. Does the opening move ask the student to reason, or does it
+      check a fact — a recall check is an IRE/F Initiation, not an Elicit. And
+      which dimension is it in? Epistemic and conceptual eliciting are both
+      legitimate, but a tutor that only ever asks for definitions is doing
+      conceptual work exclusively, which Table 4 shows is not what the
+      strongest teaching looked like.
   - name: student_response
     summary: >
-      The student's turn. The tutor's job is to leave room for it — the cycle
-      cannot proceed on a response the student never gave.
+      The student's turn. The tutor's whole job here is to leave room for it —
+      the cycle cannot proceed on a response the student never gave.
     behaviours:
-      - Stop after the question; do not answer it in the same turn.
+      - Stop after the question and wait; allow a noticeable pause before saying anything more.
       - Do not pre-empt the likely misconception before the student has stated one.
+    avoid:
+      - Answering your own question in the same turn.
+      - Cutting the student off, or deconstructing and re-explaining the question before they have had a chance to answer it.
     evaluationHint: >
       Does the turn end at the question, or does the tutor supply its own answer
-      in the same message?
+      in the same message? This is the wait-time code, and it is the one a model
+      violates most easily because a longer message feels more helpful.
   - name: recognise
     summary: >
       "Teacher reacts on the fly by recognizing students' responses and
-      comparing them to accepted scientific ideas" (2007, p. 60). The paper's
-      worked example is repeating or revoicing the student's response.
+      comparing it to accepted scientific ideas." Recognition is not judgement:
+      the paper codes evaluative feedback separately, and as the marker of the
+      pattern ESRU is defined against.
     behaviours:
-      - Repeat or revoice the student's own words back to them — the paper's example move.
-      - Compare what they said against the accepted scientific idea, and say where it sits relative to it.
-      - Name a gap concretely ("you have the direction but not the sign"), not as a verdict — a bare judgement is the E of IRE/F, which ESRU is defined against.
+      - Repeat or paraphrase the student's words closely, without adding meaning.
+      - Revoice the student's words — build their contribution into the conversation, or toss it back reworded to check you have grasped their meaning.
+      - Summarise what the student said and acknowledge the contribution.
+      - Clarify or elaborate on the student's statement to make it clearer.
+      - Capture or display the student's response so it is visible to work from.
+      - Openly compare or contrast the different responses the student has given.
+    avoid:
+      - Giving an evaluative response — "Yes!", "Good!", "Correct" — or correcting by simply restating the right word.
     evaluationHint: >
-      Does the tutor quote or revoice the student's actual words and relate them
-      to the target idea? A generic "good job" is Evaluation, not Recognition.
+      Does the tutor quote, revoice or build on the student's ACTUAL words and
+      relate them to the target idea? A bare "good job" is the appendix's
+      evaluative-response code, which is Evaluation in the IRE/F sense, not
+      Recognition — and it is the single most likely default for an LLM.
   - name: use
     summary: >
-      "Teacher immediately makes use of information from the students during the
-      course of the ongoing classroom narrative" (2007, p. 60). The step the
-      learning gains depend on, and the one most often missing.
+      "Teacher immediately makes use of the information from the students during
+      the course of the ongoing classroom narrative." The step the learning
+      gains depend on, and the one most often missing — in the paper's data one
+      teacher completed the cycle once in 78 opportunities.
     behaviours:
-      - Ask the student to elaborate on the response they just gave.
-      - Make the learning goal explicit at the point the response shows it is not yet in view.
-      - Promote argumentation — ask them to justify the claim, or to weigh it against an alternative.
-      - Do not re-ask the same question unchanged after a wrong answer; that closes the cycle without using it.
+      - Ask the student to elaborate on the response they just gave — why, how.
+      - Help the student relate the evidence they have to the explanation they are proposing.
+      - Give descriptive feedback — say what their response actually did, or state explicitly how it could be improved.
+      - Promote making sense — "is this what you expected?", "is there anything that does not fit?", "does your hypothesis match what you know?".
+      - Compare or contrast their response with an alternative explanation, and discuss the difference.
+      - Promote argument and debate about the competing ideas rather than settling it yourself.
+      - Help the student reach a considered consensus between the ideas on the table.
+      - Make the learning goal explicit at the point their response shows it is not in view.
+      - Connect what they have just said to something they learned earlier.
+      - Refer explicitly to the nature of science — what scientists actually do, why only one variable changes.
+      - Connect the topic to a real-world application.
+      - Encourage the student to explore an idea of their own that came out of the response.
+    avoid:
+      - Re-asking the same question unchanged after a wrong answer — that abandons the cycle rather than completing it.
+      - Moving straight to the next topic once the student has answered.
     evaluationHint: >
       The counterfactual test: would this tutor turn have been different if the
       student had answered correctly? If not, Use did not happen and the cycle
-      is incomplete — the specific failure Ruiz-Primo & Furtak found to be
-      common and to cost learning gains.
+      is incomplete — the exact failure Ruiz-Primo & Furtak found to be the norm
+      (77 ESR against 1 ESRU for their weakest case) and to cost learning gains.

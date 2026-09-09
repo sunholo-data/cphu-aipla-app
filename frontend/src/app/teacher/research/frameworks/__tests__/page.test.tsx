@@ -15,7 +15,14 @@ function esru(overrides: Partial<TeachingFrameworkPayload> = {}): TeachingFramew
     summary: "A turn-level assessment conversation.",
     layer: "tp_cycle",
     status: "ready_for_review",
-    constructs: [{ name: "elicit", summary: null, behaviours: ["Ask for an explanation."] }],
+    constructs: [
+      {
+        name: "elicit",
+        summary: null,
+        behaviours: [{ text: "Ask for an explanation.", dimension: "epistemic" }],
+        avoid: ["Asking a yes/no question."],
+      },
+    ],
     provenance: [{ citation: "Ruiz-Primo & Furtak (2007). JRST 44(1).", vouchedBy: "M", note: null }],
     instruction: GENERATED,
     defaultInstruction: GENERATED,

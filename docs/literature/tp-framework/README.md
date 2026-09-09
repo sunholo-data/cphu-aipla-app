@@ -58,7 +58,7 @@ Wiley named the file with the online one. Cite it as **2007, JRST 44(1),
 **not in this corpus** and was never what the row meant. The citation correction
 stands; that explanation of it was wrong.)*
 
-**3. ESRU is two-dimensional, and the eliciting axis is the one we missed.** The
+**3. ESRU is two-dimensional — now modelled.** The
 model crosses the four moves with the domains of scientific inquiry — *epistemic
 frameworks* and *conceptual structures* (a third, *social processes*, the authors
 treat as inherent to any assessment conversation and do not code separately).
@@ -70,9 +70,19 @@ Critically, the paper scopes the split:
 
 So **Elicit** splits epistemic ("what is your evidence?", predictions,
 interpreting data, evaluating evidence quality) versus conceptual ("define
-density", compare concepts); **Recognise** and **Use** do not. Table 2 lists ~30
-coded strategies across the three teacher moves, and Table 4 counts ES / ESR /
-ESRU cycles per dimension per teacher.
+density", compare concepts); **Recognise** and **Use** do not.
+
+`esru.yaml` now carries both axes: behaviours have an optional `dimension`, set
+only under eliciting, and the counts match Table 2 exactly — **11 epistemic, 4
+conceptual**. All 35 behaviours come from the **Appendix** ("a complete list of
+the strategies used to code teachers' questions and actions") rather than from
+the summary table, so the tutor prompt is the paper's own coding scheme.
+
+The Appendix also codes **counter-indicative** strategies, which turned out to be
+the most valuable thing in it: evaluative responses (*"Yes! Good!"*), yes/no and
+fill-in-the-blank questions, "repaired" questions that leave no room to answer,
+and interrupting. These are what separate ESRU from IRE/F **and** they are an
+LLM tutor's defaults, so each construct carries an `avoid` list.
 
 **4. The finding that makes Use worth scoring.** Table 4: Rob logged **77 ESR and
 1 ESRU** in the epistemic dimension — he elicited and recognised constantly and

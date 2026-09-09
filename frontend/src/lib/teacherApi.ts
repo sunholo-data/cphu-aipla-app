@@ -1137,7 +1137,17 @@ export interface TeachingFrameworkPayload {
   summary: string;
   layer: "tp_cycle" | "conceptual";
   status: "placeholder" | "ready_for_review" | "ready";
-  constructs: { name: string; summary?: string | null; behaviours: string[] }[];
+  constructs: {
+    name: string;
+    summary?: string | null;
+    /** `dimension` is set only where the theory tags the move — in ESRU that is
+     *  eliciting alone (epistemic = how the student knows, conceptual = what
+     *  they know). Every other construct leaves it null. */
+    behaviours: { text: string; dimension?: "epistemic" | "conceptual" | null }[];
+    /** Counter-indicative moves the source codes explicitly — what separates the
+     *  framework from the pattern it is defined against. */
+    avoid: string[];
+  }[];
   provenance: { citation: string; vouchedBy: string; note?: string | null }[];
   instruction: string;
   defaultInstruction: string;

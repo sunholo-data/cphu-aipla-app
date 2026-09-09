@@ -135,3 +135,72 @@ def test_unknown_and_unset_framework_ids_degrade_to_none():
 def test_construct_rejects_unknown_fields():
     with pytest.raises(ValidationError):
         Construct(name="autonomy", behavior="typo'd field")  # type: ignore[call-arg]
+
+
+# ── the two-dimensional model (added 2026-09-09 after reading the PDF) ───────
+
+
+def test_esru_crosses_moves_with_inquiry_dimensions():
+    """The source's model is 4 moves x 2 coded inquiry dimensions. Table 2 lists
+    11 epistemic and 4 conceptual eliciting strategies; both counts are pinned so
+    a future edit cannot quietly collapse the second axis."""
+    esru = load_framework("esru")
+    assert esru is not None
+    assert len(esru.behaviours_in("epistemic")) == 11
+    assert len(esru.behaviours_in("conceptual")) == 4
+
+
+def test_dimensions_tag_eliciting_only():
+    """Ruiz-Primo & Furtak scope this explicitly: "the dimensions of scientific
+    inquiry are used only to distinguish the strategies used in the eliciting
+    phase ... whereas recognizing and using strategies ... can be used as a
+    reaction to any type of initial question". Tagging recognise/use would be a
+    misreading, so it is a test failure."""
+    esru = load_framework("esru")
+    assert esru is not None
+    for construct in esru.constructs:
+        tagged = [b for b in construct.behaviours if b.dimension]
+        if construct.name == "elicit":
+            assert len(tagged) == len(construct.behaviours)
+        else:
+            assert tagged == [], f"{construct.name} must not carry inquiry dimensions"
+
+
+def test_every_move_names_what_to_avoid():
+    """The appendix codes counter-indicative strategies (evaluative "Yes! Good!",
+    yes/no questions, interrupting) and they are what separates ESRU from IRE/F.
+    They are also an LLM's defaults, so every move must name at least one."""
+    esru = load_framework("esru")
+    assert esru is not None
+    for construct in esru.constructs:
+        assert construct.avoid, f"{construct.name} names nothing to avoid"
+
+
+def test_the_ire_f_evaluative_default_is_named_explicitly():
+    """The single likeliest LLM failure: answering with praise instead of
+    recognising. It must appear as an anti-pattern, not be left implicit."""
+    esru = load_framework("esru")
+    assert esru is not None
+    recognise = next(c for c in esru.constructs if c.name == "recognise")
+    joined = " ".join(recognise.avoid).lower()
+    assert "good" in joined and "evaluative" in joined
+
+
+def test_behaviours_accept_bare_strings_and_tagged_forms():
+    """A framework with no dimension axis stays simple to author in YAML."""
+    esru = load_framework("esru")
+    assert esru is not None
+    student = next(c for c in esru.constructs if c.name == "student_response")
+    assert all(b.dimension is None for b in student.behaviours)
+    assert student.behaviours[0].text.startswith("Stop after the question")
+
+
+def test_render_groups_by_dimension_and_ends_each_move_with_its_avoid_list():
+    from frameworks.instruction import build_framework_instruction
+
+    out = build_framework_instruction(load_framework("esru"))
+    assert "Questions about how the student knows" in out
+    assert "Questions about what the student knows" in out
+    assert "Avoid:" in out
+    # The dimension headings must appear ONLY under eliciting.
+    assert out.count("Questions about how the student knows") == 1
