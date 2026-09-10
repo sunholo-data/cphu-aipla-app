@@ -78,6 +78,12 @@ def _serialize(t: Tutor) -> dict:
         "frameworkName": plain_framework_name(t.framework_id),
         "frameworkSummary": (" ".join(fw.summary.split()) if fw and fw.summary else None),
         "isVariant": t.is_variant,
+        # 1.1.91 M7 — migrated from a SKILL.md. Present in the catalogue so
+        # there is ONE definition of a tutor and so 1.1.92 / 1.1.107 can address
+        # them as baseline arms, but NOT an identity a class picks: choosing
+        # "KineBot" for a class whose activity runs concept-dialogue is
+        # incoherent. The picker filters on this.
+        "isSkillBound": t.is_skill_bound,
     }
 
 
@@ -126,8 +132,13 @@ def _validate_refs(tutor_id: str, persona_id: str | None, framework_id: str | No
 async def list_tutors_route(user: User = Depends(get_current_user)) -> dict:  # noqa: B008
     """The pickable catalogue: base tutors first, then variants."""
     assert_teacher(user)
+    catalogue = list_tutor_catalogue()
     return {
-        "tutors": [_serialize(t) for t in list_tutor_catalogue()],
+        # Identity tutors only — what a class can actually be given. The
+        # skill-bound four are addressable via /api/tutors/{id} and live in
+        # `skillBoundTutors` for research use.
+        "tutors": [_serialize(t) for t in catalogue if not t.is_skill_bound],
+        "skillBoundTutors": [_serialize(t) for t in catalogue if t.is_skill_bound],
         # The picker needs these to offer "create a variant" without a second
         # round trip, and to render a framework chooser.
         "frameworks": [

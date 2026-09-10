@@ -1,5 +1,11 @@
 ---
 name: problem-set-hints
+# 1.1.91 M7 — a STUDENT-FACING tutor, migrated into the Tutor store by
+# the seed pipeline. The four teacher tools on this same mechanism
+# (manage-class, analytics-chat, activity-authoring-assistant,
+# aipla-help) must NOT carry this: a class-management assistant in a
+# tutor catalogue would become an arm in the 1.1.92 matrix.
+isTutor: true
 displayName: Problem-set hints (Boldkast)
 avatar: /lesson-images/problem-set-hints.svg
 multimodalInput: true  # 1.1.7 — students can attach a photo of their working

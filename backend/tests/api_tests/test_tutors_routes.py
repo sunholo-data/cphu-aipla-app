@@ -142,3 +142,66 @@ def test_deleting_an_authored_tutor_falls_back_to_the_yaml_base():
     assert _client(TEACHER).get("/api/tutors/sofie").json()["displayName"] == "Sofie (overridden)"
     c.delete("/api/research/tutors/sofie")
     assert _client(TEACHER).get("/api/tutors/sofie").json()["displayName"].startswith("Sofie —")
+
+
+# ── M7: the migrated SKILL.md tutors ─────────────────────────────────────────
+
+
+def _seed_tutors():
+    from admin.platform_seed import seed
+
+    return seed().tutors_synced
+
+
+def test_only_the_four_student_facing_skills_become_tutors():
+    """manage-class, analytics-chat, activity-authoring-assistant and
+    aipla-help are TEACHER TOOLS on the same SKILL.md mechanism. Migrating one
+    would put a class-management assistant in the tutor catalogue and, worse,
+    into the 1.1.92 matrix as an arm."""
+    assert set(_seed_tutors()) == {
+        "concept-dialogue",
+        "kinebot-kinematics-tutor",
+        "led-planck-tutor",
+        "problem-set-hints",
+    }
+
+
+def test_migrated_tutors_carry_no_framework():
+    """None of the four operationalises a named theory. Back-filling one would
+    make an unfounded claim look founded — and null IS the finding: they are the
+    baseline the framework tutors are measured against (1.1.107)."""
+    _seed_tutors()
+    body = _client(TEACHER).get("/api/tutors").json()
+    assert body["skillBoundTutors"], "the migrated four should be addressable"
+    for t in body["skillBoundTutors"]:
+        assert t["frameworkId"] is None
+        assert t["interactionStyle"] == "socratic", "socratic is the passthrough — no prompt change"
+        assert t["skillName"] == t["id"]
+
+
+def test_skill_bound_tutors_are_not_offered_as_a_class_identity():
+    """Choosing "KineBot" for a class whose activity runs concept-dialogue is
+    incoherent, so they are excluded from the pickable list — but still
+    reachable by id."""
+    _seed_tutors()
+    body = _client(TEACHER).get("/api/tutors").json()
+    assert all(not t["isSkillBound"] for t in body["tutors"])
+    assert {t["id"] for t in body["tutors"]} == {"astrid", "frida", "henrik", "jonas", "mikkel", "sofie"}
+    assert _client(TEACHER).get("/api/tutors/kinebot-kinematics-tutor").status_code == 200
+
+
+def test_reseeding_is_idempotent_and_does_not_revert_a_human_edit():
+    """The seed owns the git baseline; it must not silently undo a researcher's
+    change on the next deploy."""
+    from db.tutors import get_authored_tutor, save_tutor
+
+    _seed_tutors()
+    edited = get_authored_tutor("led-planck-tutor")
+    assert edited is not None
+    save_tutor(edited.model_copy(update={"display_name": "Edited by a human"}), updated_by="r-1")
+
+    _seed_tutors()
+    after = get_authored_tutor("led-planck-tutor")
+    assert after is not None and after.display_name == "Edited by a human"
+    # An untouched one still tracks the template.
+    assert get_authored_tutor("concept-dialogue").display_name.startswith("Begrebsdialog")
