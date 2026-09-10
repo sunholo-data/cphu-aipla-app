@@ -131,6 +131,15 @@ ADRs and progress live in the scoping site"* — was written while the scoping s
 was live and is **no longer correct**. The site is retired and the bot cannot
 push there, so pointing new work at it sends the writer to a dead end.
 
+- **The tutor layer (1.1.91)** — a tutor is now an object carrying its teaching
+  theory as structured data, editable by researchers in-app and published at
+  `/project/tutors`. **Start at
+  [docs/design/aipla/v1.1.0-feedback/tutors-handover-2026-09-10.md](docs/design/aipla/v1.1.0-feedback/tutors-handover-2026-09-10.md)**
+  — it carries the map, the passthrough guarantee that must not break, and the
+  five things to read before changing anything. ⚠️ `docs/design/aipla/tutors/*.md`
+  and `frontend/content/project/tutors/*.md` are **generated** from
+  `backend/frameworks/*.yaml` (`make tutor-docs`; `make check-tutor-docs` is
+  CI-gated) — never hand-edit them.
 - **New AIPLA design docs** → `docs/design/aipla/<version>/` (that tree is
   already the real home: `v1.1.0-feedback`, `v2.0.0-handover`, `v2.1.0-extension`).
   `docs/design/v6.*` is still the inherited template's own material — don't mix.

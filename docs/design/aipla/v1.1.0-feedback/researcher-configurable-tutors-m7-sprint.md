@@ -38,42 +38,59 @@ the same rule that keeps five frameworks as empty slots.
 
 ### M1 — Tutor catalogue + store
 **Scope:** backend · ~1d
-- [ ] `backend/tutors/*.yaml` + `loader.py`, mirroring `personas/` and `frameworks/` — one base tutor per shipped persona, `framework_id: null`
-- [ ] `db/tutors.py` — Firestore store for authored tutors and variants, layered over the YAML defaults exactly as `framework_overrides` layers over framework YAML
-- [ ] `create_variant(parent_id, …)` — records lineage, bumps version, never mutates the parent
+- [x] `backend/tutors/*.yaml` + `loader.py`, mirroring `personas/` and `frameworks/` — one base tutor per shipped persona, `framework_id: null`
+- [x] `db/tutors.py` — Firestore store for authored tutors and variants, layered over the YAML defaults exactly as `framework_overrides` layers over framework YAML
+- [x] `create_variant(parent_id, …)` — records lineage, bumps version, never mutates the parent
 
 **Acceptance:** the catalogue loads; a variant records its parent; a parent edit does not alter an existing variant.
 
 ### M2 — One resolution path
 **Scope:** backend · ~0.75d
-- [ ] `tutor_id` on `ActivityConfig` (alias `tutorId`)
-- [ ] `adk/tutor_resolution.py` — resolve tutor → (persona, framework, interaction_style); the tutor's values win, and each falls back to today's independent field when no tutor is set
-- [ ] `inject_framework_preamble` + the persona/voice chain both read through it — one join, not two
+- [x] `tutor_id` on `ActivityConfig` (alias `tutorId`)
+- [x] `adk/tutor_resolution.py` — resolve tutor → (persona, framework, interaction_style); the tutor's values win, and each falls back to today's independent field when no tutor is set
+- [x] `inject_framework_preamble` + the persona/voice chain both read through it — one join, not two
 
 **Acceptance:** no `tutor_id` ⇒ byte-identical composition; a tutor with a framework injects it; a tutor's persona drives avatar and voice.
 
 ### M3 — API
 **Scope:** backend · ~0.5d
-- [ ] `GET /api/tutors` — teacher-visible catalogue with resolved persona + framework summary
-- [ ] `POST /api/research/tutors` / `PUT` — researcher-authored tutors and variants (`assert_researcher`)
-- [ ] `tutor_id` accepted on the activity-config write path
+- [x] `GET /api/tutors` — teacher-visible catalogue with resolved persona + framework summary
+- [x] `POST /api/research/tutors` / `PUT` — researcher-authored tutors and variants (`assert_researcher`)
+- [x] `tutor_id` accepted on the activity-config write path
 
 ### M4 — The teacher picker
 **Scope:** frontend · ~0.75d
-- [ ] `TutorPicker` — card list reusing `ClassPersonaPanel`'s visual language: avatar, name, and a plain-language second line ("warm · question-and-use cycle")
-- [ ] Frameworks appear under **plain-language names**, never bare acronyms — "Question-and-use cycle (ESRU)"
-- [ ] "What is this tutor told to do?" disclosure showing the real composed instruction
-- [ ] Mounted in the activity builder; the persona + style controls fold into it
+- [x] `TutorPicker` — card list reusing `ClassPersonaPanel`'s visual language: avatar, name, and a plain-language second line ("warm · question-and-use cycle")
+- [x] Frameworks appear under **plain-language names**, never bare acronyms — "Question-and-use cycle (ESRU)"
+- [x] "What is this tutor told to do?" disclosure showing the real composed instruction
+- [x] Mounted in the activity builder; the persona + style controls fold into it
 
 ### M5 — Variants for researchers
 **Scope:** fullstack · ~0.5d
-- [ ] "Create a variant" from the tutor picker and from `/teacher/research/frameworks`
-- [ ] Variant editor: name, persona, framework, style, with lineage shown
+- [x] "Create a variant" from the tutor picker and from `/teacher/research/frameworks`
+- [x] Variant editor: name, persona, framework, style, with lineage shown
 
 ### M6 — Migrate the four SKILL.md tutors (M7 in the design doc)
 **Scope:** backend · ~0.75d
-- [ ] `concept-dialogue`, `kinebot-kinematics-tutor`, `led-planck-tutor`, `problem-set-hints` become base tutors
-- [ ] The other four templates (`manage-class`, `analytics-chat`, `activity-authoring-assistant`, `aipla-help`) are teacher tools and are **not** tutors — they stay as they are
+- [x] `concept-dialogue`, `kinebot-kinematics-tutor`, `led-planck-tutor`, `problem-set-hints` become base tutors
+- [x] The other four templates (`manage-class`, `analytics-chat`, `activity-authoring-assistant`, `aipla-help`) are teacher tools and are **not** tutors — they stay as they are
+
+## What changed during execution — recorded
+
+1. **The picker is CLASS-level, not in the activity builder.** The chosen mockup put it in the
+   activity form; 1.1.32 Q4 had already put identity in class settings, and
+   `InheritedPersona`'s docstring records why — *"a duplicate per-activity picker (the old
+   co-equal grid was problem 4 of teacher-ux-refinement.md)"*. Building it as drawn would have
+   re-created a known UX problem. `ActivityConfig.tutor_id` exists as the override, unsurfaced.
+2. **It REPLACED the persona panel; it did not join it.** The first cut mounted both and called
+   the persona panel "the finer control". That was two lists of the same six identities, was
+   reported from production, and was fixed in `d05500d2`. `ClassPersonaPanel` is deleted; the
+   "How teaching styles are enforced" transparency was extracted and kept.
+3. **`Tutor.skill_name` was added** — the schema gap M7 exists to find. See the design doc.
+4. **Two bugs of one shape.** Firestore's `__id` broke `extra="forbid"` validation so authored
+   tutors silently vanished from the catalogue, and a bare `except Exception` swallowed it.
+   Malformed rows now log with their id. Worth remembering: this is the reassuring-wrong-answer
+   footgun, written by someone who had documented it in the deploy runbook the same day.
 
 ## Out of scope
 - Preview / side-by-side comparison (design doc M3) and the researcher cross-view (M4).
@@ -81,7 +98,7 @@ the same rule that keeps five frameworks as empty slots.
 - Retiring `ActivityConfig.persona` / `interaction_style`. They stay as the fallback path; removing them is a later cleanup once no activity uses them.
 
 ## Success criteria
-- [ ] A teacher makes ONE choice and gets avatar + voice + tone + pedagogy.
-- [ ] An activity with no tutor behaves exactly as before this sprint.
-- [ ] Frameworks are never shown to a teacher as a bare acronym.
-- [ ] A researcher can create a variant with lineage without touching git.
+- [x] A teacher makes ONE choice and gets avatar + voice + tone + pedagogy.
+- [x] An activity with no tutor behaves exactly as before this sprint.
+- [x] Frameworks are never shown to a teacher as a bare acronym.
+- [x] A researcher can create a variant with lineage without touching git.
