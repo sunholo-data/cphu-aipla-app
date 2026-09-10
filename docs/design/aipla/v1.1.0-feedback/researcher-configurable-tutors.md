@@ -1,8 +1,8 @@
 # Tutors as research instruments — theory-grounded, co-piloted, authored by researchers *and* teachers
 
-**Status**: **Design (OPEN)** — **1.1.91**. *Rewritten 2026-09-02 after review: the first draft had a preview but no co-pilot, was researcher-only, and gave researchers no sight of what teachers build. All three were the point.*
+**Status**: **Design (OPEN)** — **1.1.91**. *Rewritten 2026-09-02 after review: the first draft had a preview but no co-pilot, was researcher-only, and gave researchers no sight of what teachers build. All three were the point.* **⭐ CHOSEN 2026-09-09 as the extension's workstream D** (*"go on doing tutors now"* — decision D7, [09-09 triage](meeting-2026-09-09-triage.md)), and M5 revised: the seven TP frameworks and their primary literature are on disk.
 **Priority**: **P1** — the mechanism is un-gated, it opens the human gate `adk/authoring_framework.py` has carried since COPILOT-1, and it is the prerequisite for [1.1.92](session-benchmark-tutor-activity.md) having any arms to compare
-**Estimated**: ~6.5–8.5d phased (M0 tutor object ~1d · M1 store + two tiers ~1.5d · M2 **tutor co-pilot** ~2d · M3 preview/compare ~1d · M4 researcher cross-view ~1d · M5 seeded library ~0.5d)
+**Estimated**: **~8.5–11d phased** (M0 tutor object ~1d · **M7 migrate the existing tutors ~1–1.5d** · M1 store + two tiers ~1.5d · M2 **tutor co-pilot** ~2d · M3 preview/compare ~1d · M4 researcher cross-view ~1d · M5 seeded library ~1d · M6 clash gatekeeper ~0.5d) — *revised 2026-09-09: M5 re-sized to seven frameworks, M7 added by the migrate decision*
 **Scope**: Backend — a `Tutor` object carrying its theory, a Firestore store with two authoring tiers, co-pilot proposal tools, and a `scope=all` read for researchers; frontend — a tutor editor on the **shipped** co-pilot shell, preview/compare, and a researcher catalogue
 **Dependencies**: [1.1.20 interaction-style](tutor-personas.md) (**SHIPPED** — `adk/interaction_style.py`, the injection primitive this bundles); `adk/authoring_framework.py` (**M0 shipped; its docstring names the missing store**); `components/teacher/copilot/` + `adk/authoring_tools.py` (**SHIPPED** — the shell and propose→Apply tool pattern this reuses); [1.1.5 researcher-role](researcher-role.md) (**SHIPPED**); **ALS-SHARE** (**SHIPPED** — the sharing/provenance model this copies)
 **Created**: 2026-09-02
@@ -140,6 +140,25 @@ tutor**, because the question is nearly always comparative. Runs on the author's
 own turns — **no student data**, and nothing written to the chat log as student
 turns.
 
+**A second audience, added 2026-09-09: teachers, studying how a tutor teaches.**
+From the 09-09 meeting — *"teachers can use the tutors as teaching training to
+see the different ways we teach."* Every tutor doc in this repo assumes the
+tutor's user is a student; this one is a professional comparing seven
+operationalised pedagogies by talking to them. **It needs almost no new build** —
+it is M3 pointed at a person rather than at a configuration screen — but it does
+change what M3 is *for*, and therefore what it should look like: a comparison a
+teacher reads, not a diff an author checks. It also makes the seven-tutor library
+valuable **before a single student uses it**, which matters a great deal while
+both legal gates are shut.
+
+**And M3's transcript is the input to the training loop.** M, 2026-09-09:
+*"we can use that then for teacher training."*
+[1.1.107 framework-fit-profile](framework-fit-profile.md) M4 reads a preview
+conversation back through all seven framework lenses, so a teacher talks to the
+ESRU tutor and is shown what it actually did, in each tradition's own terms.
+**No student data, no consent question, no legal gate** — which makes it the one
+teacher-facing use of the tutor library available today.
+
 ### M4 — Researchers see what teachers build
 
 The `scope=all` pattern already shipped for classes, applied to tutors: a
@@ -153,9 +172,63 @@ as much as to students.
 
 ### M5 — Seeded library
 
-**ESRU**, **SDT**, **dialogic/Dysthe** (*"authentic questions"*), **IBSE**, and a
-**"Bob Evans"** persona — the transcript's list, which is longer than the
-dictated notes captured. Ships the slots; the content is JB's and Aswin's.
+**⭐ REVISED 2026-09-09 — the library now has a known size, a source, and its
+primary literature on disk.** The 9 September meeting delivered Aswin's "TP
+Framework" Drive folder with the instruction ***"a tutor for each of these
+folders"***. That is **seven**, not the open-ended list below, and each arrives
+with the paper it operationalises:
+
+| Framework | Primary source | On disk |
+|---|---|---|
+| **5E learning cycle** | Tanner 2017, *Order Matters* | ✅ |
+| **Accountable Talk** | Institute for Learning, AT Sourcebook | ✅ |
+| **Authentic Dialogue** | **Dysthe 1996, *The Multivoiced Classroom*** | ✅ |
+| **Claim–Evidence–Reasoning (CER)** | *Inquiry and Scientific Explanation* chapter | ✅ |
+| **ESRU** — elicit / student response / recognise / use | **Ruiz-Primo & Furtak 2006**, J Res Sci Teach | ✅ |
+| **POE** — predict, observe, explain | ERIC ED420715 | ✅ |
+| **Toulmin argumentation** | Erduran, Simon & Osborne 2004 | ✅ |
+
+Citation table: [`docs/literature/tp-framework/README.md`](../../../literature/tp-framework/README.md).
+The PDFs and their parsed full text are **gitignored** — the repo is public and
+these are copyrighted journal articles. Do not publish them into
+`frontend/content/` or quote them at length into a `SKILL.md`.
+
+**Two of these were unverified guesses seven days ago.** The 1 September triage
+carried ESRU at *medium confidence* and Dysthe with *"no idea what the intended
+action is"*. Both now have a paper and a verb. Recorded because the ⚠️ below
+still applies to everything **not** in this table.
+
+**SDT sits on a different layer and the object must be able to say so.** The
+literature README puts SDT and embodied cognition in the **conceptual
+framework** — the research/theoretical perspective — and explicitly *not* in the
+teaching-practice cycle. So a "SDT tutor" (asked for again on 09-09, from
+material Aswin sent) and an "ESRU tutor" are not siblings: one describes what
+motivates a learner, the other describes a move a teacher makes in a dialogue.
+M0's `framework` field needs the **parent** already flagged below *and* a
+**layer**, or the library will flatten a distinction its own sources take care
+to draw.
+
+**And the definitional gap is now on the record.** *"What is a Socratic bot
+actually? Definition"* — asked directly in the 09-09 meeting, and it is the
+sharpest available statement of this doc's premise. The product **already ships
+`socratic`**, as one of four tone adjectives, as the **default**, and — from
+`adk/interaction_style.py` — as a **passthrough that injects nothing at all**.
+So AIPLA claims to teach Socratically, cannot say what that means, and
+implements it as an absence. Answering the question is AR's and JB's;
+**making the answer expressible, and checkable against the tutor's behaviour, is
+M0.**
+
+Ships the slots; the content is JB's and Aswin's.
+
+#### The example conversations — ask for them explicitly
+
+The meeting noted that the framework folders *"have examples of conversations"*.
+**They were not in the copied Drive folder and they are the more valuable half.**
+Worked dialogues annotated in a framework's own terms are the one thing
+[1.1.92](session-benchmark-tutor-activity.md) M3 has no source of: ground truth.
+Without it, calibration is an LLM judging an LLM, which is precisely the
+*"models rate highly"* failure the 1 September transcript raised. → **action on
+Aswin.**
 
 ⚠️ **They are not a flat list.** The transcript sets a structure the first draft
 of this doc missed: **Embodied Cognition is the umbrella theory**, with SDT
@@ -164,6 +237,53 @@ literature per curriculum level. JB is starting this work; Aswin is gathering th
 literature. So `framework` (M0) needs a **parent** — a persona is an
 operationalisation *of* something, not a peer of it — and the field should be
 shaped with JB before M5 rather than after.
+
+### M7 — Migrate the eight `SKILL.md` tutors *(decided 2026-09-09: migrate, do not coexist)*
+
+**Open question 1 is answered: the eight existing tutors move into the model.**
+Coexistence was the alternative and it is the half-adoption pattern the handover
+audit names as the worst outcome — two ways to define a tutor means every later
+feature (the co-pilot, the clash gatekeeper, versioning, the
+[1.1.92](session-benchmark-tutor-activity.md) arm,
+[1.1.107](framework-fit-profile.md)'s fidelity check) has to be built twice or
+silently work for only half the tutors.
+
+**The migration is also the honest test of M0's schema.** If the eight real
+tutors do not fit the `Tutor` object, the object is wrong — better to discover
+that against `led-planck-tutor` than against a researcher's first SDT draft.
+
+Sequencing, and it matters:
+
+1. **M0 first, then migrate, then M1's store.** Migrating into a schema that has
+   not survived contact with the existing eight is how the schema acquires a
+   permanent workaround.
+2. **`SKILL.md` stays the seed source, not a second definition.** The existing
+   deploy-time seed (`platform_seed`, `make seed`) already reads
+   `skills/templates/*/SKILL.md` into Firestore. The migration extends that path
+   to emit `Tutor` objects — **one pipeline, not two** — so a git-authored tutor
+   and a researcher-authored tutor land in the same store and are the same kind
+   of thing thereafter.
+3. **A migrated tutor's `framework` is honestly empty.** None of the four
+   operationalises a named theory, and back-filling one would be the exact
+   failure M1 refuses for teachers: *a theory field with no theory in it makes an
+   unfounded claim look founded.* They migrate as `framework: null`, which is
+   also a finding — it is the baseline arm [1.1.107](framework-fit-profile.md)
+   measures the framework tutors *against*.
+
+⚠️ **Only half of the eight are tutors.** `manage-class`, `analytics-chat`,
+`activity-authoring-assistant` and `aipla-help` are **teacher tools** riding the
+same `SKILL.md` mechanism. **Migrate the four student-facing tutors only** —
+`concept-dialogue`, `kinebot-kinematics-tutor`, `led-planck-tutor`,
+`problem-set-hints`; the other four keep the plain skill path. Getting this wrong
+would put a class-management assistant in a tutor catalogue and, worse, into the
+1.1.92 matrix as an arm.
+
+**Regression bar: byte-identical behaviour.** A migrated tutor must resolve to
+the same prompt it produces today — the same standard `interaction_style` holds
+for `socratic` passthrough. This is a refactor with a schema attached, and it
+should be provable as one.
+
+~1–1.5d.
 
 ### M6 — The clash gatekeeper
 
@@ -193,8 +313,9 @@ whole reason this doc can start now.
 | M2 | **Tutor co-pilot** on the shipped shell | ~2d | None |
 | M3 | Preview + side-by-side comparison | ~1d | None |
 | M4 | Researcher cross-view over teacher-authored tutors | ~1d | Tell teachers first |
-| M5 | Seeded framework library (ESRU, SDT, dialogic, IBSE, "Bob Evans") | ~0.5d | **JB / AR content + the umbrella structure** |
+| M5 | Seeded framework library — **seven TP frameworks, literature on disk** (5E, Accountable Talk, Dysthe, CER, ESRU, POE, Toulmin) + SDT on the conceptual layer | ~1d (**re-estimated 2026-09-09** — seven is a known size, not a slot) | **JB / AR content + the umbrella structure**; the *example conversations* are an action on Aswin |
 | M6 | Persona × activity clash gatekeeper (advisory) | ~0.5d | M0 |
+| **M7** | **Migrate the 4 student-facing `SKILL.md` tutors** into the store, `framework: null`, byte-identical output | **~1–1.5d** | **M0 (schema must survive them first)** |
 
 ## Testing
 
@@ -208,9 +329,9 @@ whole reason this doc can start now.
 
 ## Open questions
 
-1. **Do the eight existing `SKILL.md` tutors migrate into this model, or coexist?**
-   Coexistence means two ways to define a tutor — the half-adoption pattern the
-   handover audit calls the worst outcome. Leaning migrate, after M1.
+1. ~~Do the eight existing `SKILL.md` tutors migrate, or coexist?~~
+   **ANSWERED 2026-09-09 (M): MIGRATE** — the four student-facing ones, after M0
+   and before M1's store. → **[M7](#m7--migrate-the-eight-skillmd-tutors-decided-2026-09-09-migrate-do-not-coexist)**
 2. **Does a teacher's variant need approval before students see it?** A governance
    question, not a technical one. Interacts with [1.1.95](safe-to-publish-vetting.md),
    which is the same question for activities.

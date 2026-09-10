@@ -1,12 +1,12 @@
 # Argumentation element — Toulmin structure in the workbench
 
-**Status**: Planned
+**Status**: Planned — **second independent request 2026-09-09**, now with its primary source on disk. Not redesigned; **re-ranked**
 **Priority**: P1
 **Estimated**: ~3–4d (an element, not a platform change)
 **Scope**: Fullstack — a workbench element + tutor wiring + authoring
 **Dependencies**: [1.1.38 activity-elements-palette](activity-elements-palette.md) (the element registry + add-element recipe), [1.1.79](pilot-session-2026-08-21-followups.md) (the element↔backend parity gate this must pass)
 **Created**: 2026-08-25
-**Last Updated**: 2026-08-25
+**Last Updated**: **2026-09-09** — second request + citation
 
 ## Problem Statement
 
@@ -121,3 +121,35 @@ rubric per slot is close to how argumentation is marked in practice.
 - [tutor-sees-element-state.md](tutor-sees-element-state.md) — the structural-signal wiring
 - [concept-map-sprint.md](concept-map-sprint.md) — the warrant↔concept link
 - `docs/notes-2026-08-17.md` — the source ask
+
+## Second request — 2026-09-09
+
+**Asked again, independently, and this time with the mechanism named.** From the
+[09-09 meeting](../../../notes-2026-09-09.md):
+
+> *"In the platform the student can make a claim, the warrant is given, data is
+> found via the experiment sim."*
+
+Three things this adds to the 25 August design, none of which change it:
+
+- **A citation, and the paper is on disk.** Erduran, Simon & Osborne 2004,
+  *TAPping into argumentation*, Science Education — one of the seven
+  teaching-practice frameworks in
+  [`docs/literature/tp-framework/`](../../../literature/tp-framework/README.md).
+  So the element and a **Toulmin tutor** ([1.1.91](researcher-configurable-tutors.md)
+  M5) are now the same literature read twice: one as a workbench surface, one as
+  a dialogue method. They should be designed together, and the element is the
+  cheaper half.
+- **A named data source.** *"Data is found via the experiment sim"* answers a
+  question the original doc left implicit — where the `data` slot gets filled
+  from. The sim's element state already reaches the tutor, so a data slot
+  populated from a sim run is a join between two shipped mechanisms rather than
+  a new one.
+- **A second independent requester.** The 25 August version came from M's own 17
+  August notes. This one came from the meeting, unprompted. Two independent
+  requests is the bar [1.1.71](multi-table-activities.md) was un-deferred on.
+
+**Nothing here changes the design.** It changes the ranking, and it removes the
+*"AR/JB own the pedagogy"* gate for the **slot vocabulary specifically** — the
+Erduran paper supplies it. Danish terminology and per-age required slots are
+still theirs.
