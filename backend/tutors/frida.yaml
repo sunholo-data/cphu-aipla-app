@@ -1,0 +1,24 @@
+# Base tutor for the Frida persona (1.1.91 M1 / M7).
+#
+# ⚠️ `frameworkId` is null on EVERY base tutor, and that is the safety property
+# of this catalogue, not an omission. Selecting a base tutor composes
+# byte-identically to how the persona behaved before tutors existed, so no
+# activity changes when a teacher first picks one.
+#
+# Pairing a persona with a teaching framework is a PEDAGOGICAL CLAIM ("Sofie
+# teaches with ESRU"), and this catalogue does not get to make claims nobody
+# signed off — the same rule that keeps five of the seven frameworks as empty
+# slots. Frameworks arrive through a VARIANT that a researcher deliberately
+# created, with lineage back to the base.
+id: frida
+displayName: Frida — Gymnasielærer
+summary: >
+  Warm mentor — encourages and scaffolds for lower-confidence students.
+personaId: frida
+frameworkId: null
+interactionStyle: warm
+status: ready
+authorRole: researcher
+promptProvenance: authored
+lineage:
+  kind: original
