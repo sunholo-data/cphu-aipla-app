@@ -72,10 +72,19 @@ conflict at runtime, **pedagogy outranks tone** — decided in `adk/agent.py`, n
 
 ## State: shipped vs open
 
-**Shipped and in production (v0.1.40):** the `Tutor` object; the store with variants and
-lineage; one resolution path; the tutor API; the class-level picker; the researcher framework
-editor; the M7 migration; generated internal + public docs with a drift guard; ESRU and
-Authentic Dialogue.
+**Shipped and in production as `v0.1.40`:** the `Tutor` object; the store with variants and
+lineage; one resolution path; the tutor API; the class-level picker; generated internal +
+public docs with a drift guard; ESRU and Authentic Dialogue.
+
+**Shipped on `dev`, released as `v0.1.41` (2026-09-10):** the researcher framework editor and
+fork flow (M5, `5ef38383`); the M7 migration of the four student-facing `SKILL.md` tutors
+(`935c89a1`); the two-lists fix (`d05500d2`).
+
+> ⚠️ **Correction.** The first draft of this document listed the researcher editor and the M7
+> migration as in production at `v0.1.40`. They are not — both commits land **after** that tag,
+> which points at `b17b4e1b`. The consequence is not cosmetic: cutting `v0.1.41` ships two
+> features and a Firestore migration, not one cosmetic fix. **Read `make deploy-status` for
+> what is live; never infer it from the commit list.**
 
 **Open** — see [TUTOR-4 plan](researcher-configurable-tutors-m2-sprint.md), ~4.75–5.25d:
 
@@ -87,12 +96,21 @@ Authentic Dialogue.
 | **No tutor co-pilot** | ~2d | The ask was a co-pilot, not a text box. `critique_tutor` first |
 | Five frameworks unwritten | ~0.5d each | Citations verified; content is a read-the-PDF task |
 
-## ⚠️ One thing is not deployed
+## ⚠️ Releasing `v0.1.41` — what it actually carries
 
-**`d05500d2` (the two-lists fix) is on `dev` and NOT in production.** Prod is `v0.1.40`, which
-still shows both the tutor picker and the old persona panel on the manage-class page — the
-confusion reported on 2026-09-10. **Cut `v0.1.41` and promote it first**; it is a visible
-regression sitting in front of teachers.
+Prod sat at `v0.1.40` showing **both** the tutor picker and the old persona panel on the
+manage-class page — the confusion reported on 2026-09-10. `d05500d2` fixes it, but it sits on
+top of M5 and M7 and a promote tag must be an ancestor of `dev`, so **there is no way to ship
+the cosmetic fix alone** short of reverting two features. `v0.1.41` therefore carries:
+
+| Ships | Blast radius |
+|---|---|
+| `d05500d2` two-lists fix | Visual only, manage-class page |
+| `5ef38383` M5 researcher fork | New researcher-only surface; `assert_researcher` on every route |
+| `935c89a1` M7 tutor migration | **Writes prod Firestore.** Rides the promote seed job — `cloudbuild.promote.yaml` `seed-platform-skills` → `admin/platform_seed.py` → `sync_tutor_for_template`. It skips any tutor a human has edited |
+
+The passthrough guarantee still holds throughout: a class or activity with no tutor composes
+byte-identically to before.
 
 ```
 git push origin dev                       # confirm it lands, ON ITS OWN
@@ -101,6 +119,15 @@ git merge-base --is-ancestor v0.1.41 origin/dev && echo on-branch
 make promote VERSION=v0.1.41 FROM=test TO=prod        # dry run
 make promote VERSION=v0.1.41 FROM=test TO=prod GO=1
 ```
+
+## CI is red on `dev`, and it is not this work
+
+The `Security audit (deps)` job has been failing on every `dev` run through this sprint —
+including `b17b4e1b`, the commit **prod itself was cut from**. Backend, frontend, LOCAL_MODE
+safety and sim bridge are green. So "wait for CI green before promoting" is not a gate that is
+currently available, and treating the red as a tutor regression will send you hunting for a bug
+that is not there. Triage it as its own piece of work via the `aipla-security-checkup` skill;
+policy of record is [security-monitoring-pipeline.md](implemented/security-monitoring-pipeline.md).
 
 ## Deploy traps found the hard way this week — now in the runbook
 
