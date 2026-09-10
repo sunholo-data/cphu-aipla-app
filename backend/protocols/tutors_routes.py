@@ -55,14 +55,40 @@ _PLAIN_NAME = {
 }
 
 
+def _same_words(a: str, b: str) -> bool:
+    """Two names that differ only by case, spacing or punctuation."""
+    # Explicit escapes: the en/em dashes are the point of this table, and a
+    # literal one here trips RUF001 (ambiguous-unicode) on the lint gate.
+    strip = str.maketrans("", "", " -\u2013\u2014_().,")
+    return a.translate(strip).casefold() == b.translate(strip).casefold()
+
+
 def plain_framework_name(framework_id: str | None) -> str | None:
-    """ "Question-and-use cycle (ESRU)" — never a bare acronym."""
+    """ "Question-and-use cycle (ESRU)" — never a bare acronym, never a stutter.
+
+    Labels are not uniform: some carry an em-dash subtitle ("ESRU — informal
+    formative assessment cycle") and some carry their own acronym in brackets
+    ("Claim-Evidence-Reasoning (CER)"). Wrapping the plain name around the
+    second kind unmodified produced "Claim, evidence, reasoning
+    (Claim-Evidence-Reasoning (CER))", and where the two said the same thing it
+    produced "Accountable talk (Accountable Talk)".
+
+    This was invisible until 2026-09-10 because those five frameworks were
+    placeholders, and a placeholder is never offered in the picker.
+    """
     fw = load_framework(framework_id)
     if fw is None:
         return None
     plain = _PLAIN_NAME.get(fw.id)
     acronym = fw.label.split("—")[0].strip()
-    return f"{plain} ({acronym})" if plain else acronym
+    # A label already carrying its own acronym contributes only the acronym.
+    bracketed = re.search(r"\(([^()]+)\)\s*$", acronym)
+    if bracketed:
+        acronym = bracketed.group(1).strip()
+    if not plain:
+        return acronym
+    # Where the plain name and the label say the same thing, say it once.
+    return plain if _same_words(plain, acronym) else f"{plain} ({acronym})"
 
 
 def _serialize(t: Tutor) -> dict:

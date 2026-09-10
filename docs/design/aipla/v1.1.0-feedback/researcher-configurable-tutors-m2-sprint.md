@@ -11,7 +11,7 @@ land on solid ground:
 4. **There is no help authoring one** (M2) — the ask was a co-pilot, not a text box.
 
 **Duration:** ~4.75–5.25 days · **Scope:** Fullstack · **Design doc:** [1.1.91](researcher-configurable-tutors.md) M1b · M1c · M4 · M2
-**State it builds on:** M0, M1a, M5 (2 of 7), M7 all shipped and in production.
+**State it builds on:** M0, M1a, M5 (**7 of 7** since 2026-09-10), M7 all shipped and in production.
 
 ## The sequencing argument, because it is the whole plan
 

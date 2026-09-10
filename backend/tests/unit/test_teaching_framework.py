@@ -97,9 +97,22 @@ def test_esru_use_construct_carries_the_finding_that_makes_it_worth_scoring():
     assert "IRE/F" in esru.summary or any("IRE/F" in (c.evaluation_hint or "") for c in esru.constructs)
 
 
-#: Frameworks whose teaching moves have been extracted from their source. Grows
+#: Frameworks whose teaching moves have been extracted from their source. Grew
 #: one at a time, each by reading the paper — never by inference from a title.
-WORKED = {"esru", "authentic-dialogue"}
+#: As of 2026-09-10 this is the WHOLE catalogue: the five second-wave frameworks
+#: were drafted from the parsed PDFs in docs/literature/tp-framework/, so there
+#: is no placeholder left to test against. The tests below that need a
+#: placeholder now build a synthetic one rather than borrowing a real id, which
+#: is what made them break when the catalogue filled up.
+WORKED = {
+    "esru",
+    "authentic-dialogue",
+    "5e",
+    "accountable-talk",
+    "cer",
+    "poe",
+    "toulmin",
+}
 
 
 def test_status_and_content_always_agree():

@@ -10,7 +10,7 @@ A tutor used to be a file in git, and the people who own the pedagogy cannot wri
 git. It is now an object with a **theory attached as structured data** — framework →
 constructs → observable behaviours, each traceable to a published paper — which a researcher
 can edit in the running app, a teacher can pick in one click, and anyone at all can read on
-the public website. Two of seven teaching frameworks are written. The mechanism is complete
+the public website. All seven teaching frameworks are now written. The mechanism is complete
 and in production; the library and the authoring tools are not.
 
 ## ⚠️ Read these five things before changing anything
@@ -20,8 +20,11 @@ and in production; the library and the authoring tools are not.
    existed. Every base tutor carries `framework_id: null` for the same reason. Several tests
    assert it. If you break it, every existing classroom changes at once.
 2. **No base tutor is paired with a framework, deliberately.** "Sofie teaches with ESRU" is a
-   pedagogical claim, and the catalogue does not make claims nobody signed off — the same rule
-   that keeps five frameworks as empty slots. Frameworks arrive through a **variant**.
+   pedagogical claim, and the catalogue does not make claims nobody signed off. Frameworks
+   arrive through a **variant**. ⚠️ This rule used to be illustrated by the five empty
+   framework slots; those were filled on 2026-09-10 and the rule is unchanged. All seven are
+   `ready_for_review`, so asserting one on a base tutor still claims a sign-off AR/JB have
+   not given.
 3. **`docs/design/aipla/tutors/*.md` and `frontend/content/project/tutors/*.md` are
    GENERATED.** Edit `backend/frameworks/*.yaml` and run `make tutor-docs`. `make
    check-tutor-docs` is CI-gated and will fail your build if you hand-edit them.
@@ -94,7 +97,7 @@ fork flow (M5, `5ef38383`); the M7 migration of the four student-facing `SKILL.m
 | **Researchers cannot see teacher-made tutors** | ~0.75d | Build WITH the above — neither is worth much alone |
 | **Construct editing is text-only** | ~1d | A researcher edits rendered text, breaking the theory trace |
 | **No tutor co-pilot** | ~2d | The ask was a co-pilot, not a text box. `critique_tutor` first |
-| Five frameworks unwritten | ~0.5d each | Citations verified; content is a read-the-PDF task |
+| ~~Five frameworks unwritten~~ | ~~0.5d each~~ | ✅ **Done 2026-09-10** — 5E, CER, POE, Toulmin, Accountable Talk drafted from the parsed PDFs. Awaiting AR/JB sign-off to move `ready_for_review` → `ready` |
 
 ## ⚠️ Releasing `v0.1.41` — what it actually carries
 

@@ -7,9 +7,15 @@
 #
 # Pairing a persona with a teaching framework is a PEDAGOGICAL CLAIM ("Sofie
 # teaches with ESRU"), and this catalogue does not get to make claims nobody
-# signed off — the same rule that keeps five of the seven frameworks as empty
-# slots. Frameworks arrive through a VARIANT that a researcher deliberately
+# signed off. Frameworks arrive through a VARIANT that a researcher deliberately
 # created, with lineage back to the base.
+#
+# ⚠️ Updated 2026-09-10: all seven frameworks now carry drafted constructs, so
+# the empty slots this rule used to be illustrated by are gone. The rule is NOT
+# gone with them. Every framework is `ready_for_review` — drafted from its source
+# and awaiting AR/JB sign-off — and a base tutor asserting one would still be
+# making a claim on their behalf. The passthrough guarantee above is the reason
+# that matters in code; the sign-off is the reason it matters to the project.
 id: sofie
 displayName: Sofie — Allround fysiklærer
 summary: >

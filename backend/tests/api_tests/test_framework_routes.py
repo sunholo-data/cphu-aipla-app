@@ -62,10 +62,22 @@ def test_catalogue_lists_all_seven_with_instructions():
         assert move in esru["instruction"]
 
 
-def test_placeholder_frameworks_render_no_instruction():
+def test_placeholder_frameworks_render_no_instruction(monkeypatch):
     """A framework with no drafted constructs must say nothing rather than
-    manufacture a plausible-looking one."""
-    body = _client(RESEARCHER).get("/api/research/frameworks/poe").json()
+    manufacture a plausible-looking one.
+
+    Synthetic, not a real id: the catalogue has had no placeholder since
+    2026-09-10, and pointing this at `poe` meant it silently started asserting
+    that a WRITTEN framework renders nothing the moment poe was drafted.
+    """
+    from db.models.teaching_framework import TeachingFramework
+
+    empty = TeachingFramework(id="slot-only", label="Slot only", status="placeholder")
+    monkeypatch.setattr(
+        "protocols.frameworks_routes.load_framework",
+        lambda fid: empty if fid == "slot-only" else None,
+    )
+    body = _client(RESEARCHER).get("/api/research/frameworks/slot-only").json()
     assert body["status"] == "placeholder"
     assert body["instruction"] == ""
 

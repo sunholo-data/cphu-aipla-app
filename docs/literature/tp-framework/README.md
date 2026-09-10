@@ -100,5 +100,54 @@ questions"* whose answer the teacher already knows, producing *"procedural rathe
 than authentic engagement"* (Nystrand & Gamoran). That is the failure mode a
 tutor falls into by default.
 
-⚠️ **Only ESRU has been read.** The other six PDFs are present and parsed but
-their citations remain as transcribed from the Drive folder names.
+## All seven have now been read — 2026-09-10
+
+The note that stood here (*"Only ESRU has been read"*) is discharged. Every
+framework in the working set now carries constructs and observable behaviours
+drafted from its own source, and `backend/frameworks/*.yaml` has **no
+placeholders left**. Each YAML opens with a grounding comment naming which part
+of its paper the behaviours came from.
+
+| Framework | Constructs are | Read from |
+|---|---|---|
+| `esru` | the four moves of the cycle | Appendix coding scheme + Table 2; finding from Table 4 |
+| `authentic-dialogue` | Dysthe's dialogic constructs | Dysthe (1996) |
+| `cer` | the chapter's **five named instructional strategies** | strategy prose + printed classroom transcripts; scoring from its Appendix B rubric |
+| `5e` | the **five phases**, in Bybee's order | Tanner's block quotes of Bybee et al. (2006) + her "Potential 5E Strategy" sections |
+| `poe` | **predict / observe / explain** | the POE task items the paper prints verbatim + the instructional-strategy sections |
+| `toulmin` | the **six TAP components** | Toulmin's definitions as Erduran et al. quote them; scoring from their Table 1 |
+| `accountable-talk` | the **three accountabilities** | the sourcebook's named moves with its own exemplar phrasings |
+
+**Status is `ready_for_review`, not `ready`, on all seven.** Constructs are
+drafted and traceable; AR/JB own the sign-off. Nothing here was marked as
+signed off by a model.
+
+### Three fit notes that are pedagogical judgements, not code
+
+1. **Accountable Talk assumes a group.** Accountability to the learning
+   community is built from moves that presuppose other students in the room
+   ("Who can repeat what he said?"). A 1:1 tutor has no community. The YAML
+   points those moves at the student's own earlier turns and at real classmates
+   in group activities, and refuses to have the tutor invent classmates — but
+   **whether that construct is measurable at all in 1:1, or whether the
+   framework should only ever be assigned to group activities, is for AR/JB.**
+2. **5E is a session arc, not a turn-level cycle.** Its unit is a lesson and its
+   whole claim is about ordering, so a tutor holding it tracks where in an arc
+   the conversation is. ESRU, by contrast, resolves within a single exchange.
+   The catalogue should not treat the two as the same shape.
+3. **Wait time does not survive the medium.** In a classroom it is silence; in a
+   chat the student answers when they answer. It is carried as tutor restraint
+   — do not answer your own question, do not front-load the reasoning — rather
+   than as a timing instruction.
+
+### Secondary citations
+
+Several YAMLs record sources they did not read directly — Bybee et al. (2006),
+Atkin & Karplus (1962), NRC (1999), White & Gunstone (1992), Toulmin (1958),
+Rowe (1986), Resnick & Nelson-Le Gall (1997). Each is marked in its `note` as
+read from the primary's citation and reference list and **not held in this
+corpus**, following the precedent `esru.yaml` set with Duschl (2003). They are
+recorded because they are where a construct actually originates. ⚠️ They carry
+`vouchedBy: M` on that basis — if that is too strong a claim for a source read
+only at one remove, the convention needs changing in `esru.yaml` too, since it
+is the same one.

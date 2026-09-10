@@ -1,6 +1,6 @@
 # Tutors as research instruments — theory-grounded, co-piloted, authored by researchers *and* teachers
 
-**Status**: **PARTLY SHIPPED — 1.1.91.** M0, M1 (store + researcher tier), M5 (2 of 7 frameworks) and M7 are **shipped**: M0 and M1a reached production in `v0.1.40`; M5 and M7 in `v0.1.41`. M2 (co-pilot), M3 (preview/compare), M4 (researcher cross-view), **M1's teacher tier**, and structural construct editing are **OPEN**. Per-milestone state in the table below — read it before planning anything here.
+**Status**: **PARTLY SHIPPED — 1.1.91.** M0, M1 (store + researcher tier), M5 (**7 of 7 frameworks**, all drafted from source 2026-09-10) and M7 are **shipped**: M0 and M1a reached production in `v0.1.40`; M5 and M7 in `v0.1.41`. M2 (co-pilot), M3 (preview/compare), M4 (researcher cross-view), **M1's teacher tier**, and structural construct editing are **OPEN**. Per-milestone state in the table below — read it before planning anything here.
 **Priority**: **P1** — the mechanism is un-gated, and it is the prerequisite for [1.1.92](session-benchmark-tutor-activity.md) having arms to compare
 **Remaining**: **~5.5–6.5d** (teacher tier + M4 cross-view ~1.5d · structural construct editing ~1d · M2 co-pilot ~2d · M3 preview ~1d · M6 clash gatekeeper ~0.5d) — down from ~8.5–11d
 **Shipped so far**: ~5d across TUTOR-1/2/3 (2026-09-09 → 09-10)
@@ -341,7 +341,7 @@ whole reason this doc can start now.
 | M3 | Preview + side-by-side comparison | ~1d | **❌ OPEN** |
 | M4 | Researcher cross-view over teacher-authored tutors | ~1d | **❌ OPEN.** Moot until M1b — there is nothing for a researcher to look at. **Gate: tell teachers first** |
 | **M1c** | **Structural construct editing** — edit behaviours, regenerate the instruction | **~1d** | **❌ OPEN.** Today a researcher edits the RENDERED text, which breaks the trace back to the theory; only the side-by-side default keeps it honest |
-| M5 | Seeded framework library — seven TP frameworks | ~1d | **🟡 2 of 7.** ESRU + Authentic Dialogue written from their PDFs. **All seven citations verified from source 2026-09-10 — five were wrong.** Five slots carry a correct citation and no content, and cannot be selected anywhere |
+| M5 | Seeded framework library — seven TP frameworks | ~1d | **✅ 7 of 7 (2026-09-10).** ESRU + Authentic Dialogue first; then 5E, CER, POE, Toulmin and Accountable Talk drafted from the parsed PDFs. **All seven citations verified from source — five were wrong.** No placeholders remain, so every framework is selectable. ⚠️ All are `ready_for_review`, NOT `ready`: constructs are drafted and traceable, AR/JB own the sign-off |
 | M6 | Persona × activity clash gatekeeper (advisory) | ~0.5d | **❌ OPEN**, and **smaller than written**: a tutor now owns both style and framework, so the commonest clash is gone by construction |
 | **M7** | Migrate the 4 student-facing `SKILL.md` tutors | ~1–1.5d | **✅ SHIPPED** (TUTOR-3). One pipeline — the deploy seed emits the `Tutor` from the same parsed `SKILL.md` |
 

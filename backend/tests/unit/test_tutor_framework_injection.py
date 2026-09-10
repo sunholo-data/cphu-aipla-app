@@ -68,8 +68,23 @@ def test_unknown_framework_id_is_a_passthrough(monkeypatch):
 
 def test_placeholder_framework_is_a_passthrough(monkeypatch):
     """A framework with no drafted constructs has nothing to tell a tutor, and
-    inventing something would be the unfounded claim 1.1.91 warns about."""
-    _patch_config(monkeypatch, _cfg("poe"))
+    inventing something would be the unfounded claim 1.1.91 warns about.
+
+    The placeholder is built here rather than borrowed from the catalogue. Every
+    shipped framework has drafted constructs since 2026-09-10, so naming a real
+    id made this test assert the opposite of what it says the moment that one
+    was written — which is exactly what happened to `poe`.
+    """
+    from db.models.teaching_framework import TeachingFramework
+
+    empty = TeachingFramework(id="slot-only", label="Slot only", status="placeholder")
+    assert empty.is_placeholder and empty.constructs == []
+    monkeypatch.setattr(
+        "db.framework_overrides.load_framework",
+        lambda fid: empty if fid == "slot-only" else None,
+    )
+    monkeypatch.setattr("db.framework_overrides.get_framework_override", lambda fid: None)
+    _patch_config(monkeypatch, _cfg("slot-only"))
     assert inject_framework_preamble(BASE, "act-1") == BASE
 
 

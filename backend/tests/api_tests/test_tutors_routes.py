@@ -75,9 +75,17 @@ def test_frameworks_are_never_offered_as_a_bare_acronym():
     assert esru["name"] == "Question-and-use cycle (ESRU)"
     dysthe = next(f for f in body["frameworks"] if f["id"] == "authentic-dialogue")
     assert dysthe["name"].startswith("Open dialogue (")
-    # The five unwritten ones are flagged so the picker can grey them out
-    # rather than offering a framework that would do nothing.
-    assert sum(1 for f in body["frameworks"] if f["isPlaceholder"]) == 5
+    # Every framework in the catalogue has been drafted from its source since
+    # 2026-09-10, so nothing is greyed out any more. The flag still has to be
+    # SERVED — the picker greys out on it, and a future slot would need it.
+    assert all("isPlaceholder" in f for f in body["frameworks"])
+    assert sum(1 for f in body["frameworks"] if f["isPlaceholder"]) == 0
+    # The real point of this test, applied to all seven rather than the two that
+    # happened to be written when it was authored: nothing is offered to a
+    # teacher as a bare acronym, and nothing says its own name twice.
+    for f in body["frameworks"]:
+        assert f["name"] and f["name"] != f["id"].upper(), f
+        assert f["name"].count("(") <= 1, f"{f['id']} nests brackets: {f['name']}"
 
 
 def test_researcher_creates_a_variant_that_carries_persona_and_framework():
