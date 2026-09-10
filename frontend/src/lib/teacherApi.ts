@@ -49,6 +49,8 @@ export interface ActivityConfigPayload {
   difficulty: Difficulty;
   interactionStyle?: InteractionStyle;
   persona?: string | null;
+  /** 1.1.91 M1 — the bundled tutor choice; supersedes `persona` when set. */
+  tutorId?: string | null;
   pairedWorkbench: string | null;
   workbenchType?: WorkbenchType;
   /** The vetted sim artefact this activity hosts (1.1.41). The GET serialises
@@ -739,6 +741,9 @@ export interface ClassPayload {
   groupCodes: string[];
   voice?: ClassVoiceSettingsPayload | null;
   persona?: string | null;
+  /** 1.1.91 M1 — the class's bundled tutor (persona + framework + style).
+   *  Supersedes `persona` at resolution time; null keeps the pre-tutor path. */
+  tutorId?: string | null;
   voiceInputEnabled?: boolean;
   recordingEnabled?: boolean;
   revoked: boolean;
@@ -1137,7 +1142,21 @@ export interface TeachingFrameworkPayload {
   summary: string;
   layer: "tp_cycle" | "conceptual";
   status: "placeholder" | "ready_for_review" | "ready";
-  constructs: { name: string; summary?: string | null; behaviours: string[] }[];
+  constructs: {
+    name: string;
+    summary?: string | null;
+    /** `dimension` is set only where the theory tags the move — in ESRU that is
+     *  eliciting alone (epistemic = how the student knows, conceptual = what
+     *  they know). Every other construct leaves it null. */
+    behaviours: { text: string; dimension?: "epistemic" | "conceptual" | null }[];
+    /** Counter-indicative moves the source codes explicitly — what separates the
+     *  framework from the pattern it is defined against. */
+    avoid: string[];
+    /** How you would tell whether the construct worked — the seam 1.1.92's
+     *  rubric adapters read. Served all along; typed here since TUTOR-4, because
+     *  the structural editor is the first surface that lets anyone edit it. */
+    evaluationHint?: string | null;
+  }[];
   provenance: { citation: string; vouchedBy: string; note?: string | null }[];
   instruction: string;
   defaultInstruction: string;
@@ -1145,6 +1164,29 @@ export interface TeachingFrameworkPayload {
   overriddenBy?: string | null;
   overriddenAt?: string | null;
   overrideVersion?: number | null;
+  /** Which editor produced the current override — `"structured"` means the
+   *  constructs were edited and the instruction regenerated from them;
+   *  `"text"` means the rendered instruction was hand-written. Null when there
+   *  is no override. The UI reopens on whichever the researcher last used. */
+  overrideMode?: "text" | "structured" | null;
+  /** The git versions, so the structural editor can show a truthful revert. */
+  defaultConstructs: TeachingFrameworkPayload["constructs"];
+  defaultProvenance: TeachingFrameworkPayload["provenance"];
+  defaultSummary: string;
+}
+
+/** The editable body of a framework — what the structural editor sends back.
+ *
+ *  ⚠️ `vouchedBy` is REQUIRED and must be non-empty. The backend model gives it
+ *  no default, so an unvouched citation is unconstructable there; keeping it
+ *  required here means the UI cannot build a request that would 422. This is
+ *  the never-invent-a-citation rule, and it has to still hold when the M2
+ *  co-pilot is what fills these fields in.
+ */
+export interface FrameworkStructure {
+  summary: string;
+  constructs: TeachingFrameworkPayload["constructs"];
+  provenance: TeachingFrameworkPayload["provenance"];
 }
 
 /** The framework catalogue with each entry's live + generated instruction. */
@@ -1173,4 +1215,145 @@ export async function revertFrameworkInstruction(frameworkId: string): Promise<T
     method: "DELETE",
   });
   return readJson<TeachingFrameworkPayload>(resp, "revert framework instruction");
+}
+
+/** Save an edited framework STRUCTURE — constructs, behaviours, citations.
+ *
+ *  Distinct from `saveFrameworkInstruction` on purpose. Editing the rendered
+ *  text can say anything; editing the structure means the instruction is still
+ *  generated from constructs that each trace to a source, which is what keeps a
+ *  researcher's edit reviewable.
+ */
+export async function saveFrameworkStructure(
+  frameworkId: string,
+  structure: FrameworkStructure,
+): Promise<TeachingFrameworkPayload> {
+  const resp = await fetchWithAuth(`/api/proxy/api/research/frameworks/${encodeURIComponent(frameworkId)}/structure`, {
+    method: "PUT",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(structure),
+  });
+  return readJson<TeachingFrameworkPayload>(resp, "save framework structure");
+}
+
+/** Render an edit without saving it — the structural editor's live preview.
+ *
+ *  Server-side because the generator is deterministic Python. A client-side
+ *  approximation would drift from what the tutor is actually told, which is the
+ *  precise failure this layer exists to prevent.
+ */
+export async function previewFrameworkStructure(
+  frameworkId: string,
+  structure: FrameworkStructure,
+): Promise<{ instruction: string; defaultInstruction: string }> {
+  const resp = await fetchWithAuth(
+    `/api/proxy/api/research/frameworks/${encodeURIComponent(frameworkId)}/structure/preview`,
+    {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(structure),
+    },
+  );
+  return readJson<{ instruction: string; defaultInstruction: string }>(resp, "preview framework structure");
+}
+
+
+/* ── Tutors (1.1.91 M1) ──────────────────────────────────────────────────────
+ *  ONE choice carrying avatar, voice, tone and pedagogy. Chosen at CLASS level
+ *  (the 1.1.32 Q4 decision — a duplicate per-activity picker was problem 4 of
+ *  the teacher-UX refinement), and every activity inherits it.
+ *
+ *  `frameworkName` arrives already in plain language ("Question-and-use cycle
+ *  (ESRU)"). Never re-derive it in the UI: a teacher should not have to know
+ *  what an acronym stands for, and the mapping belongs in one place.          */
+
+export interface TutorPayload {
+  id: string;
+  displayName: string;
+  summary?: string | null;
+  personaId?: string | null;
+  frameworkId?: string | null;
+  interactionStyle: "socratic" | "concise" | "rigorous" | "warm";
+  status: "draft" | "ready" | "in-use";
+  version: number;
+  isVariant: boolean;
+  isSkillBound?: boolean;
+  skillName?: string | null;
+  lineage: { kind: "original" | "variant-of"; parentTutorId?: string | null };
+  persona: { id: string; name: string; title?: string | null; avatar: string } | null;
+  frameworkName: string | null;
+  frameworkSummary: string | null;
+}
+
+export interface TutorCatalogue {
+  /** Identity tutors — what a class can be given. */
+  tutors: TutorPayload[];
+  /** 1.1.91 M7 — tutors migrated from a SKILL.md. Addressable and usable as
+   *  research arms, but not a class identity choice, so not in the picker. */
+  skillBoundTutors?: TutorPayload[];
+  frameworks: { id: string; name: string; summary: string; isPlaceholder: boolean }[];
+}
+
+/** Every pickable tutor, bases before variants, plus the framework list. */
+export async function fetchTutorCatalogue(): Promise<TutorCatalogue> {
+  const resp = await fetchWithAuth("/api/proxy/api/tutors");
+  return readJson<TutorCatalogue>(resp, "list tutors");
+}
+
+/** Give a tutor — including a default one — a teaching approach.
+ *
+ *  Base tutors ship carrying no framework because "Sofie teaches with ESRU" is
+ *  a pedagogical claim, and the catalogue does not make claims nobody signed
+ *  off. This is where a named researcher makes that claim, in the app, with
+ *  their uid recorded against it. The git catalogue stays untouched.
+ *
+ *  Pass `null` to record "teaches with no framework" — which is NOT the same as
+ *  `clearTutorFramework`, and can override a framework the tutor itself carries.
+ */
+export async function setTutorFramework(
+  tutorId: string,
+  frameworkId: string | null,
+): Promise<{ tutor: TutorPayload }> {
+  const resp = await fetchWithAuth(`/api/proxy/api/research/tutors/${encodeURIComponent(tutorId)}/framework`, {
+    method: "PUT",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ frameworkId }),
+  });
+  return readJson<{ tutor: TutorPayload }>(resp, "assign tutor framework");
+}
+
+/** Remove the assignment, restoring whatever the tutor itself declares. */
+export async function clearTutorFramework(tutorId: string): Promise<{ tutor: TutorPayload }> {
+  const resp = await fetchWithAuth(`/api/proxy/api/research/tutors/${encodeURIComponent(tutorId)}/framework`, {
+    method: "DELETE",
+  });
+  return readJson<{ tutor: TutorPayload }>(resp, "clear tutor framework");
+}
+
+/** Set the class's tutor. `null` clears it back to the pre-tutor persona path. */
+export async function setClassTutor(classId: string, tutorId: string | null): Promise<void> {
+  const resp = await fetchWithAuth(`/api/proxy/api/tutors/class/${encodeURIComponent(classId)}`, {
+    method: "PUT",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ tutorId }),
+  });
+  await readJson<unknown>(resp, "set class tutor");
+}
+
+/** Researcher-only: fork a tutor, keeping lineage to the parent. */
+export async function createTutorVariant(input: {
+  parentId: string;
+  id: string;
+  displayName: string;
+  frameworkId?: string | null;
+  personaId?: string | null;
+  interactionStyle?: TutorPayload["interactionStyle"] | null;
+  summary?: string | null;
+}): Promise<TutorPayload> {
+  const resp = await fetchWithAuth("/api/proxy/api/research/tutors/variant", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(input),
+  });
+  return readJson<TutorPayload>(resp, "create tutor variant");
 }

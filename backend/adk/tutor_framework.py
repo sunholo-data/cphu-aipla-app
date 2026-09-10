@@ -42,17 +42,21 @@ def resolve_framework_id(
     the class level applies to activities that never saved a config — the drift
     ``inject_interaction_style_preamble`` documents having been bitten by.
     """
+    from adk.tutor_resolution import resolve_teaching
+
     cfg = resolve_active_config(activity_id, group_tags=group_tags)
-    if cfg is not None and cfg.framework_id:
-        return cfg.framework_id
-
+    # 1.1.91 M1: the activity's TUTOR decides first — one bundled choice
+    # carrying persona + framework + style — and only then the individual
+    # framework_id field that pre-tutor activities use.
     class_id = cfg.class_id if cfg is not None else class_id_from_group_tags(group_tags)
-    if not class_id:
-        return None
-    from db.classes import get_class
+    cls = None
+    if class_id:
+        from db.classes import get_class
 
-    cls = get_class(class_id)
-    return getattr(cls, "framework_id", None) if cls is not None else None
+        cls = get_class(class_id)
+
+    resolution = resolve_teaching(cfg, class_tutor_id=getattr(cls, "tutor_id", None))
+    return resolution.framework_id
 
 
 def inject_framework_preamble(

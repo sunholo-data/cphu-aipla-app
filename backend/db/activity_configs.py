@@ -60,6 +60,9 @@ def upsert_activity_config(
     difficulty: Difficulty = "standard",
     interaction_style: InteractionStyle = "socratic",
     persona: str | None = None,
+    # 1.1.91 M1: the bundled tutor choice. When set it supersedes persona +
+    # interaction_style + framework_id at resolution time (adk/tutor_resolution).
+    tutor_id: str | None = None,
     paired_workbench: str | None = None,
     workbench_type: WorkbenchType = "none",
     artefact_id: str | None = None,
@@ -90,6 +93,7 @@ def upsert_activity_config(
         difficulty=difficulty,
         interactionStyle=interaction_style,
         persona=persona,
+        tutorId=tutor_id,
         pairedWorkbench=paired_workbench,
         workbenchType=workbench_type,
         artefactId=artefact_id,

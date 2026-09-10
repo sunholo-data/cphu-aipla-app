@@ -79,6 +79,23 @@ class Tutor(BaseModel):
     # References into the shipped catalogues. Both optional and both None-safe:
     # a tutor with neither is valid and behaves exactly as today (Axiom 5).
     persona_id: str | None = Field(default=None, alias="personaId", max_length=64)
+    # M7: the SKILL.md this tutor IS, for the four student-facing tutors
+    # migrated out of git (`concept-dialogue`, `kinebot-kinematics-tutor`,
+    # `led-planck-tutor`, `problem-set-hints`).
+    #
+    # This field is the gap the migration was designed to find. Those four carry
+    # their OWN displayName, avatar and voice in frontmatter — they are not
+    # personas and never were — so a tutor's identity can come from either a
+    # persona or a skill, and the object has to say which. Discovering that
+    # against led-planck-tutor is exactly why M7 runs before the store fills up.
+    #
+    # A skill-bound tutor is NOT an identity a class picks (choosing "KineBot"
+    # for a class whose activity runs concept-dialogue is incoherent). It exists
+    # so there is ONE definition of a tutor, and so the four are addressable as
+    # baseline arms by 1.1.92 and 1.1.107 — with `framework_id` honestly null,
+    # which is itself the finding: they are what the framework tutors are
+    # measured against.
+    skill_name: str | None = Field(default=None, alias="skillName", max_length=64)
     framework_id: str | None = Field(default=None, alias="frameworkId", max_length=64)
     interaction_style: InteractionStyle = Field(default="socratic", alias="interactionStyle")
 
@@ -101,6 +118,12 @@ class Tutor(BaseModel):
     updated_at: datetime | None = Field(default=None, alias="updatedAt")
 
     model_config = ConfigDict(populate_by_name=True, extra="forbid")
+
+    @property
+    def is_skill_bound(self) -> bool:
+        """True for a tutor migrated from a SKILL.md — a research arm, not a
+        class-level identity choice."""
+        return self.skill_name is not None
 
     @property
     def is_variant(self) -> bool:

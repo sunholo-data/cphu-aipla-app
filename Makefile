@@ -495,6 +495,13 @@ check-doc-status: ## Advisory: design docs claiming 'not shipped' that have ship
 check-brand-literals: ## Fail if a brand surface hardcodes a red-* utility instead of the brand token (CI-gated)
 	@bash scripts/check-brand-literals.sh
 
+.PHONY: tutor-docs check-tutor-docs
+tutor-docs: ## Regenerate the per-tutor design docs + public /project/tutors pages from backend/frameworks/*.yaml
+	@cd backend && uv run python scripts/generate_tutor_docs.py
+
+check-tutor-docs: ## Fail if the tutor docs have drifted from the framework YAML (CI-gated)
+	@cd backend && uv run python scripts/generate_tutor_docs.py --check
+
 # Home-screen icon gate (2026-08-14). The PWA shipped in v0.1.18 with icons cut
 # from the ROUNDED aipla-mark.svg, so their corners were transparent. iOS rounds
 # apple-touch-icon itself and, given transparency, shows a blank tile — reported

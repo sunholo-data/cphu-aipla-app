@@ -1,19 +1,182 @@
-# Slot only — the framework exists in the catalogue, the pedagogy does not yet.
-# AR/JB own the constructs and behaviours (the authoring_framework.py precedent:
-# ship the structure, mark the content as owed). Second-wave candidate for
-# 1.1.91 M5; ESRU is the worked example this sprint.
+# 5E — the learning-cycle framework (1.1.91 M5, second wave).
+#
+# ── Grounded in the source itself, 2026-09-10 ────────────────────────────────
+# The five constructs are the five phases, in Bybee's order, and each `summary`
+# paraphrases the phase description Tanner quotes verbatim from Bybee et al.
+# (2006). Behaviours come from Tanner's own "Potential 5E Strategy" sections and
+# the phase prose; `avoid` lines are the failure modes she names outright.
+#
+# ⚠️ This framework is a DIFFERENT SHAPE from ESRU and the catalogue should not
+# flatten them together. ESRU is a turn-level cycle — one question, one response,
+# one recognition, one use. 5E is a SESSION ARC: its unit is a lesson, and its
+# whole claim is about the order those phases occur in. A tutor holding this
+# framework is therefore tracking where in an arc the conversation currently is,
+# not selecting a move for this turn in isolation. Tanner is explicit that the
+# arc need not be completed in one sitting ("Design class sessions to have at
+# least two components of the 5E model, even if you can't hit all five").
+#
+# The paper's thesis is an ORDERING claim, and one edge carries it: Exploration
+# BEFORE Explanation. "Allow for Exploration time before you begin new
+# Explanation" is the corrective the article exists to make, and reversing it is
+# the default an LLM tutor falls into, since answering immediately reads as
+# helpful. It is in `avoid` under both phases for that reason.
+#
+# No `dimension` tags: the epistemic/conceptual axis belongs to Ruiz-Primo &
+# Furtak by way of Duschl, not to this framework.
 id: 5e
 label: 5E Model — learning cycle
 layer: tp_cycle
-status: placeholder
+status: ready_for_review
 summary: >
-  Part of the TP-cycle working set. Constructs and observable behaviours are
-  not yet drafted.
+  A lesson has an optimal order: Engage, Explore, Explain, Elaborate, Evaluate.
+  The model rests on a conceptual-change view of learning — a learner must first
+  become aware of and dissatisfied with their prior ideas before new ones can
+  land — so exploration has to come before explanation, and Tanner's central
+  corrective is that instructors routinely invert this and explain first. The
+  two phases most often dropped are Engagement, which is skipped despite costing
+  minutes, and Elaboration, which gets left for students to do alone outside
+  class and then shows up as poor performance on applied exam questions.
 provenance:
   - citation: >
-      Tanner, K. D. (2017). Order Matters
+      Tanner, K. D. (2010). Order Matters: Using the 5E Model to Align Teaching
+      with How People Learn. CBE—Life Sciences Education, 9(3), 159–164.
+      doi:10.1187/cbe.10-06-0082
     vouchedBy: M
     note: >
-      Transcribed from docs/literature/tp-framework/README.md ( Using the 5E Model to Align Teaching with How People Learn. Journal of College Science Teaching.:5E Model/).
-      Needs AR confirmation.
-constructs: []
+      PRIMARY source, read in full 2026-09-10 from the parsed article in
+      docs/literature/tp-framework/. ⚠️ The catalogue originally said "Tanner
+      2017 … (J Coll Sci Teach)" — both the year and the journal were wrong,
+      taken from the filename. The article's own front matter reads
+      "CBE—Life Sciences Education Vol. 9, 159–164, Fall 2010".
+  - citation: >
+      Bybee, R. W., Taylor, J. A., Gardner, A., Van Scotter, P., Carlson Powell,
+      J., Westbrook, A. & Landes, N. (2006). The BSCS 5E Instructional Model:
+      Origins and Effectiveness. Colorado Springs: BSCS.
+    vouchedBy: M
+    note: >
+      ORIGIN of the model and of the five phase descriptions. Tanner block-quotes
+      it for each phase and those quotes are what the construct summaries below
+      paraphrase. Read from Tanner's citations and reference list, not from the
+      report itself — it is not held in the AIPLA corpus.
+  - citation: >
+      Atkin, J. M. & Karplus, R. (1962). Discovery or invention? The Science
+      Teacher, 29(5), 45–51.
+    vouchedBy: M
+    note: >
+      The three-part learning cycle (exploration, term introduction, concept
+      application) that Bybee's team called the 5E model a "direct descendant"
+      of. Recorded because it is where the exploration-before-explanation
+      ordering originates. Read from Tanner's reference list; not in the corpus.
+  - citation: >
+      National Research Council (1999). How People Learn: Brain, Mind,
+      Experience, and School. Washington, DC: National Academy Press.
+    vouchedBy: M
+    note: >
+      The learning-science synthesis Tanner grounds the model in, and the source
+      of the passage she quotes on structuring activities so students "explore,
+      explain, extend, and evaluate their progress". Read from Tanner; not in
+      the corpus.
+constructs:
+  - name: engage
+    summary: >
+      Access prior knowledge and create the want. Bybee: short activities that
+      "promote curiosity and elicit prior knowledge", making connections between
+      past and present learning and exposing prior conceptions. Tanner notes
+      instructors often skip this phase, and that it can take as little as two
+      to five minutes.
+    behaviours:
+      - Ask what the student already knows about the topic before introducing anything.
+      - Open with something surprising or discrepant that relates to the concept coming up.
+      - Put a challenge statement built on a common misconception to the student and ask them to judge it.
+      - Ask a preassessment question whose purpose is to surface their thinking, not to be marked.
+      - Make the relevance explicit — answer "why do I need to know this?" before they ask it.
+      - Connect the topic to something in their own experience or to a current story.
+    avoid:
+      - Opening with the explanation, so there is nothing for prior conceptions to be exposed against.
+      - Treating engagement as unnecessary because the student is assumed to be already interested.
+    evaluationHint: >
+      Did the student state a prior idea — right or wrong — before any new
+      information arrived? If the first substantive content in the conversation
+      came from the tutor, Engage did not happen.
+  - name: explore
+    summary: >
+      A common base of experience in which "current concepts (particularly
+      misconceptions), processes, and skills are identified and conceptual
+      change is facilitated". Tanner frames this as the student's metacognitive
+      opportunity — the point at which they find out what they do not
+      understand and can articulate a question.
+    behaviours:
+      - Give the student a problem to grapple with before supplying any method for it.
+      - Ask for a prediction about what will happen, and hold them to committing to one.
+      - Let confusion and conflicting ideas stand long enough for the student to notice them.
+      - Ask what they do and do not understand about the topic so far.
+      - Ask them to articulate the question they now have.
+      - Ask what the muddiest or most confusing point is.
+    avoid:
+      - Introducing new terms or information during this phase.
+      - Resolving the conflict for the student as soon as it appears.
+      - Moving on before they have identified a gap of their own.
+    evaluationHint: >
+      Does the student leave this phase holding a question they did not have at
+      the start? The phase's function is to create the need for the explanation,
+      so a student with no question is not primed for one.
+  - name: explain
+    summary: >
+      Focus attention on one aspect of what was engaged and explored, and let
+      the concept be named. Bybee gives this phase to both parties: "Learners
+      explain their understanding of the concept" and an explanation from the
+      teacher "may guide them toward a deeper understanding". This is where
+      terms legitimately enter.
+    behaviours:
+      - Ask the student to explain their own understanding first, in their words.
+      - Introduce the formal term only once the student has met the idea it names.
+      - Answer the specific confusion that came out of exploration, rather than the general topic.
+      - Take up the questions raised during exploration by name.
+      - Keep the explanation short and tied to what the student just did.
+    avoid:
+      - Explaining before the student has explored — the ordering error this framework exists to correct.
+      - Introducing the vocabulary first and the phenomenon afterwards.
+      - Explaining at length when the student has already explained it adequately themselves.
+    evaluationHint: >
+      Two things. Did exploration precede this, and did the explanation answer a
+      question the student had actually formed? An explanation delivered into no
+      question is the lecture-first pattern the article is written against.
+  - name: elaborate
+    summary: >
+      "Teachers challenge and extend students' conceptual understanding and
+      skills" by applying the idea in a new context. Tanner's diagnosis: this
+      phase is "so often left to students to figure out outside of class", and
+      that is why applied exam questions go badly.
+    behaviours:
+      - Give a new problem in a different context that needs the same concept.
+      - Return to the opening engage or explore problem and ask them to answer it now.
+      - Ask them to design the next step of an investigation.
+      - Pose the harder, applied question in advance of any assessment rather than saving it for one.
+      - Ask them to revise an earlier idea of theirs in light of what they now know.
+    avoid:
+      - Ending at the explanation and leaving application for the student to do alone.
+      - Only ever re-asking the original question in its original form.
+    evaluationHint: >
+      Did the student apply the concept to a situation that was not the one it
+      was taught on? Restating the explanation in new words is not elaboration.
+  - name: evaluate
+    summary: >
+      Students assess their own understanding and the teacher gets evidence of
+      it. Tanner's emphasis is on frequency over formality — "Collect some form
+      of Evaluation evidence every class session" — and on a specific hazard:
+      grading everything "discourages students from revealing confusions and
+      questions, which is essential for their learning".
+    behaviours:
+      - Ask the student to say what they now understand and what is still unclear.
+      - Use something small and low-stakes rather than waiting for a formal test.
+      - Ask them to judge their own confidence in the answer they gave.
+      - Take their stated confusion as useful information and say so.
+      - Use what the evaluation reveals to decide what comes next.
+    avoid:
+      - Treating every response as something to be marked right or wrong, which teaches the student to hide confusion.
+      - Leaving all assessment until an end-point, when it is too late to act on.
+    evaluationHint: >
+      Does the student volunteer what they still do not understand? That only
+      happens where revealing it has not been penalised, so a conversation in
+      which the student never admits confusion is evidence about the tutor's
+      evaluative stance, not about the student.

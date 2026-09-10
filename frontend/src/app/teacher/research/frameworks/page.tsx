@@ -4,16 +4,31 @@ import { useEffect, useState } from "react";
 import { BookOpen, RotateCcw, ShieldAlert } from "lucide-react";
 
 import {
+  type FrameworkStructure,
   type TeachingFrameworkPayload,
   listTeachingFrameworks,
   revertFrameworkInstruction,
   saveFrameworkInstruction,
+  saveFrameworkStructure,
 } from "@/lib/teacherApi";
 import { EmptyState } from "@/components/teacher/ui/EmptyState";
 import { TeacherCard } from "@/components/teacher/ui/TeacherCard";
 import { TeacherPage } from "@/components/teacher/ui/TeacherPage";
+import { FrameworkStructureEditor } from "@/components/teacher/research/FrameworkStructureEditor";
+import { TutorApproachPanel } from "@/components/teacher/research/TutorApproachPanel";
 
 type Status = "loading" | "ok" | "forbidden" | "error";
+
+/** Which editor is open on a framework.
+ *
+ *  `structure` edits the theory and regenerates the instruction from it;
+ *  `text` edits the rendered instruction directly. Both are kept because they
+ *  answer different needs — but they are alternatives, not layers, and saving
+ *  one drops the other server-side. The card opens on whichever the researcher
+ *  last used (`overrideMode`), defaulting to the structural one, because that is
+ *  the edit that keeps the prompt traceable to its sources.
+ */
+type EditorMode = "structure" | "text";
 
 /**
  * Teaching frameworks (1.1.91 M1) — researcher-only.
@@ -36,6 +51,7 @@ export default function ResearchFrameworksPage() {
   const [status, setStatus] = useState<Status>("loading");
   const [frameworks, setFrameworks] = useState<TeachingFrameworkPayload[]>([]);
   const [openId, setOpenId] = useState<string | null>(null);
+  const [mode, setMode] = useState<EditorMode>("structure");
   const [draft, setDraft] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -61,10 +77,24 @@ export default function ResearchFrameworksPage() {
   const replace = (updated: TeachingFrameworkPayload) =>
     setFrameworks((rows) => rows.map((r) => (r.id === updated.id ? updated : r)));
 
-  const open = (fw: TeachingFrameworkPayload) => {
+  const open = (fw: TeachingFrameworkPayload, next?: EditorMode) => {
     setOpenId(fw.id);
+    setMode(next ?? (fw.overrideMode === "text" ? "text" : "structure"));
     setDraft(fw.instruction);
     setError(null);
+  };
+
+  const saveStructure = async (fw: TeachingFrameworkPayload, structure: FrameworkStructure) => {
+    setBusy(true);
+    setError(null);
+    try {
+      replace(await saveFrameworkStructure(fw.id, structure));
+      setOpenId(null);
+    } catch {
+      setError("Could not save. Your edit is still here — try again.");
+    } finally {
+      setBusy(false);
+    }
   };
 
   const save = async (fw: TeachingFrameworkPayload) => {
@@ -117,6 +147,15 @@ export default function ResearchFrameworksPage() {
         />
       ) : (
         <div className="space-y-4">
+          <TutorApproachPanel
+            frameworks={frameworks.map((f) => ({
+              id: f.id,
+              // The teacher-facing plain name lives on /api/tutors; here the
+              // label is what we have, and a researcher knows the theory names.
+              name: f.label,
+              isPlaceholder: f.status === "placeholder",
+            }))}
+          />
           {frameworks.map((fw) => {
             const isOpen = openId === fw.id;
             const editable = fw.status !== "placeholder";
@@ -139,7 +178,8 @@ export default function ResearchFrameworksPage() {
                           generated to claim — it gets neither badge. */}
                       {!editable ? null : fw.isOverridden ? (
                         <span className="rounded bg-brand/10 px-2 py-0.5 text-brand">
-                          Edited{fw.overrideVersion ? ` · v${fw.overrideVersion}` : ""}
+                          {fw.overrideMode === "text" ? "Wording edited" : "Approach edited"}
+                          {fw.overrideVersion ? ` · v${fw.overrideVersion}` : ""}
                         </span>
                       ) : (
                         <span className="rounded bg-muted px-2 py-0.5 text-muted-foreground">
@@ -149,18 +189,43 @@ export default function ResearchFrameworksPage() {
                     </div>
                   </div>
                   {editable ? (
-                    <button
-                      type="button"
-                      onClick={() => (isOpen ? setOpenId(null) : open(fw))}
-                      className="shrink-0 rounded border px-3 py-1.5 text-sm hover:bg-muted"
-                    >
-                      {isOpen ? "Close" : "Edit instruction"}
-                    </button>
+                    <div className="flex shrink-0 gap-2">
+                      <button
+                        type="button"
+                        onClick={() => (isOpen && mode === "structure" ? setOpenId(null) : open(fw, "structure"))}
+                        className="rounded border px-3 py-1.5 text-sm hover:bg-muted"
+                      >
+                        {isOpen && mode === "structure" ? "Close" : "Edit teaching approach"}
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => (isOpen && mode === "text" ? setOpenId(null) : open(fw, "text"))}
+                        className="rounded border px-3 py-1.5 text-sm hover:bg-muted"
+                      >
+                        {isOpen && mode === "text" ? "Close" : "Edit wording"}
+                      </button>
+                    </div>
                   ) : null}
                 </div>
 
-                {isOpen ? (
+                {isOpen && mode === "structure" ? (
+                  <FrameworkStructureEditor
+                    framework={fw}
+                    busy={busy}
+                    error={error}
+                    onCancel={() => setOpenId(null)}
+                    onSave={(structure) => void saveStructure(fw, structure)}
+                  />
+                ) : null}
+
+                {isOpen && mode === "text" ? (
                   <div className="mt-4 space-y-4 border-t pt-4">
+                    <p className="text-xs text-muted-foreground">
+                      Editing the wording directly replaces what is generated from the theory. The
+                      tutor will say what you write here, and the link back to the constructs and
+                      sources is not kept — use “Edit teaching approach” to change what it teaches
+                      and keep that link.
+                    </p>
                     <div>
                       <label
                         htmlFor={`instruction-${fw.id}`}

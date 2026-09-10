@@ -46,6 +46,10 @@ class SeedSummary:
     created: int = 0
     updated: int = 0
     skipped: int = 0
+    #: 1.1.91 M7 — ids of the student-facing tutors synced into the Tutor store
+    #: on this run. One pipeline: the same SKILL.md that seeds the skill also
+    #: defines the tutor, so the two can never disagree.
+    tutors_synced: list[str] = field(default_factory=list)
     failed: list[str] = field(default_factory=list)
     tool_permissions_wildcard_seeded: bool = False
 
@@ -54,6 +58,7 @@ class SeedSummary:
             "created": self.created,
             "updated": self.updated,
             "skipped": self.skipped,
+            "tutors_synced": self.tutors_synced,
             "failed": self.failed,
             "tool_permissions_wildcard_seeded": self.tool_permissions_wildcard_seeded,
         }
@@ -139,6 +144,12 @@ def _parse_template(skill_md: Path) -> dict[str, Any]:
         "displayName": (front.get("displayName") or "").strip(),
         "initialMessage": (front.get("initialMessage") or "").strip(),
         "problemStatement": (front.get("problemStatement") or "").strip(),
+        # 1.1.91 M7 — declares this template as a STUDENT-FACING tutor, so the
+        # seed also emits a Tutor object for it. Declared in the SKILL.md rather
+        # than held as a list in code: a hardcoded list drifts, and getting it
+        # wrong puts a teacher tool into the tutor catalogue and the 1.1.92
+        # matrix. Absent/false on the four teacher tools.
+        "isTutor": bool(front.get("isTutor") or False),
         # 1.B follow-up (2026-05-26) — optional cover image for the
         # lesson picker + chat-tab thumbnail. URL string (relative path
         # served from frontend/public, or a full https:// URL). Empty
@@ -289,6 +300,19 @@ def seed(templates_root: Path | None = None) -> SeedSummary:
             logger.warning("platform_seed: failed to parse %s: %s", skill_md, e)
             summary.failed.append(child.name)
             continue
+
+        # 1.1.91 M7 — the SAME parsed template also defines a Tutor when it
+        # declares `isTutor`. Deliberately non-fatal and outside the skill
+        # branches: a tutor-store hiccup must not stop the skill itself
+        # seeding, which is what actually serves students.
+        try:
+            from admin.tutor_migration import sync_tutor_for_template
+
+            synced = sync_tutor_for_template(parsed)
+            if synced:
+                summary.tutors_synced.append(synced)
+        except Exception as e:
+            logger.warning("platform_seed: tutor sync failed for %s: %s", parsed["name"], e)
 
         existing_skill_id = existing_by_name.get(parsed["name"])
         if existing_skill_id is not None:

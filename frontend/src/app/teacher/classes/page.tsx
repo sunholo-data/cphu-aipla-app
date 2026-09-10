@@ -856,7 +856,7 @@ function NewClassForm({
         description: description.trim() || null,
       });
       // 1.1.58 — apply the account's default persona at CREATE time (the
-      // ClassPersonaPanel stays the per-class override). Best-effort: a
+      // the class tutor picker stays the per-class override). Best-effort: a
       // failure here must never fail the create.
       try {
         const prefs = (await (

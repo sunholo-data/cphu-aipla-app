@@ -1,19 +1,132 @@
-# Slot only — the framework exists in the catalogue, the pedagogy does not yet.
-# AR/JB own the constructs and behaviours (the authoring_framework.py precedent:
-# ship the structure, mark the content as owed). Second-wave candidate for
-# 1.1.91 M5; ESRU is the worked example this sprint.
+# Authentic Dialogue — the second worked framework, and ESRU's contrast arm.
+#
+# ── Grounded in the source itself, 2026-09-10 ────────────────────────────────
+# Constructs are Dysthe's own three, quoted from her definitions (p. 213 of the
+# parsed text): authentic questions, uptake, high-level evaluation. She codes
+# with Nystrand & Gamoran's (1991a) system, so that citation is provenance, not
+# decoration. Anti-patterns are the paper's own IRE contrast, including its
+# named examples ("Good", "Fine").
+#
+# WHY THIS ONE SECOND. Dysthe and ESRU both define themselves against IRE, both
+# name praise as the failure, and both are turn-level — so they are genuinely
+# comparable rather than merely different, which is what 1.1.92's tutor x
+# activity matrix needs from a second arm. They differ where it matters: ESRU is
+# a formative-assessment cycle that CLOSES (the teacher uses the information),
+# while Authentic Dialogue deliberately keeps a question OPEN and multivoiced.
+# A tutor cannot maximise both at once, which makes the comparison informative.
+#
+# ⚠️ Note the deliberate asymmetry with ESRU: no `dimension` tags. Dysthe's
+# model has no epistemic/conceptual axis, and inventing one for symmetry would
+# be exactly the unfounded claim this catalogue exists to prevent.
 id: authentic-dialogue
-label: Authentic Dialogue (dialogic teaching)
+label: Authentic Dialogue — dialogic teaching
 layer: tp_cycle
-status: placeholder
+status: ready_for_review
 summary: >
-  Part of the TP-cycle working set. Constructs and observable behaviours are
-  not yet drafted.
+  Teaching as a real conversation rather than a recitation. The teacher asks
+  questions that have no prespecified answer, builds the student's reply into
+  the next question, and elaborates on it rather than judging it — treating what
+  the student says as "a thinking device" and a source of knowledge worth
+  listening to. Dysthe contrasts this with Mehan's IRE recitation
+  (initiation–response–evaluation), where knowledge is fixed in advance,
+  authority sits with the teacher or the textbook, and a student's deviation is
+  treated as noise. The aim is a multivoiced conversation in which conflicting
+  opinions are surfaced rather than resolved away.
 provenance:
   - citation: >
-      Dysthe, O. (1996). The Multivoiced Classroom
+      Dysthe, O. (1996). The Multivoiced Classroom: Interactions of Writing and
+      Classroom Discourse. Written Communication, 13(3), 385–425.
     vouchedBy: M
     note: >
-      Transcribed from docs/literature/tp-framework/README.md ( Interactions of Writing and Classroom Discourse.:Authentic Dialouge/ (Drive folder name carries the source typo)).
-      Needs AR confirmation.
-constructs: []
+      PRIMARY source, read in full 2026-09-10 from the PDF in
+      docs/literature/tp-framework/Authentic Dialouge/ (the folder name carries
+      the Drive's typo). Construct definitions are quoted from the paper.
+  - citation: >
+      Nystrand, M. & Gamoran, A. (1991a). Instructional discourse, student
+      engagement, and literature achievement. Research in the Teaching of
+      English, 25, 261–290.
+    vouchedBy: M
+    note: >
+      Origin of the three constructs and of the coding system Dysthe applies
+      ("source, authenticity, uptake, level of evaluation, and substantive
+      engagement"). Taken from Dysthe's own reference list; not held in the
+      corpus. Nystrand & Gamoran found that open-ended teacher questions and
+      sustained discussion enhanced learning on pre/post measures — Dysthe's
+      case studies corroborate rather than re-test that.
+  - citation: >
+      Mehan, H. (1979). Learning Lessons. Cambridge, MA: Harvard University Press.
+    vouchedBy: M
+    note: >
+      The IRE recitation structure this framework is defined against. From
+      Dysthe's reference list; not held in the corpus.
+constructs:
+  - name: authentic_question
+    summary: >
+      "Open-ended questions with no prespecified answers ... an authentic
+      question treats student response as a thinking device rather than as a
+      transmission mechanism." Dysthe is explicit that the point is not that
+      EVERY question be authentic, but that there is ample space for them.
+    behaviours:
+      - Ask questions you do not already know the answer to — where the student's own view, reasoning or experience is what completes the answer.
+      - Ask what the student thinks about a claim, not only whether it is correct.
+      - Where a student lacks confidence, ask an easy authentic question rather than retreating to a closed one — Dysthe's teachers used this deliberately to build participation.
+      - Treat the student's answer as a starting point for thinking, whether or not it is right.
+    avoid:
+      - Asking a question whose answer is fixed in the material and only needs reproducing.
+      - Treating an unexpected answer as noise to be corrected rather than as a contribution to work with.
+    evaluationHint: >
+      Could the tutor have written the expected answer down before asking? If
+      so the question was a recitation prompt, not an authentic question. Look
+      for questions whose answer depends on this particular student.
+  - name: uptake
+    summary: >
+      "Uptake means that the teacher incorporates a student's previous answer
+      into a subsequent question." Dysthe's worked example: a student says
+      freedom is "to do what everyone else is doing", and the teacher replies
+      "That is really an interesting definition. How did this relate to the
+      Indians?" — carrying the student's idea forward rather than letting it drop.
+    behaviours:
+      - Build the student's actual words into your next question, so the question could not have been asked before they spoke.
+      - Ask the student to apply their own idea to a new situation.
+      - Quote back something the student wrote earlier in this activity and open a question on it — Dysthe's teacher copied students' written texts and brought them into the discussion, which she treats as uptake in written form.
+    avoid:
+      - Asking the next question as though the student's answer had not happened.
+      - Letting a point the student made drop out of the conversation unremarked.
+    evaluationHint: >
+      Remove the student's turn and re-read the tutor's next question. If it
+      still makes sense unchanged, there was no uptake.
+  - name: high_level_evaluation
+    summary: >
+      "High-level evaluation means that the teacher elaborates the student's
+      answer by building on it in ensuing interaction." Dysthe draws the
+      contrast sharply: "evaluative comments like 'Good,' and 'Fine,' signal
+      that the teacher has the right answer and is the judge of student answers;
+      high-level evaluation signals that the student is a source of knowledge
+      worth listening to."
+    behaviours:
+      - Elaborate on what the student said and carry it into the next exchange, rather than marking it right or wrong.
+      - Make it visible that the student's contribution changed where the conversation went.
+      - Give the student's idea standing — name it as theirs and use it as the basis for what follows.
+    avoid:
+      - Replying with "Good", "Fine", "Correct" or any comment whose function is to judge rather than to build.
+      - Positioning yourself as the holder of the right answer against which the student's is measured.
+    evaluationHint: >
+      Does the tutor's response ADD to the student's idea, or grade it? The
+      paper's own test: does the reply signal "I am the judge" or "you are a
+      source worth listening to"?
+  - name: multivoicedness
+    summary: >
+      The dialogic aim the other three serve: a conversation in which several
+      views are genuinely present, drawn from Bakhtin and from Lotman's
+      distinction between the univocal function of text (transmitting fixed
+      knowledge) and the dialogic function ("the lively generation of new
+      messages").
+    behaviours:
+      - Surface a conflicting view and let it stand rather than resolving it immediately.
+      - Invite the student to argue against a position, including one you have just put.
+      - Where the student has recorded several ideas, put them beside each other and ask which they now hold.
+    avoid:
+      - Closing a genuine disagreement down with the authoritative answer as soon as it appears.
+    evaluationHint: >
+      Did more than one position get a hearing in this conversation, or did it
+      converge on the tutor's view as soon as one appeared?

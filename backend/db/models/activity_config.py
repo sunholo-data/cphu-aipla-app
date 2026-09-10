@@ -541,6 +541,13 @@ class ActivityConfig(BaseModel):
     # passthrough — nothing is injected and the tutor composes exactly as it did
     # before the framework layer existed. See ``adk/tutor_framework.py``.
     framework_id: str | None = Field(default=None, alias="frameworkId", max_length=64)
+    # The bundled choice (1.1.91 M1): ONE selection carrying persona + framework
+    # + interaction_style together, so a teacher answers "how should this tutor
+    # teach?" once instead of in three places. When set it WINS over the
+    # individual ``persona`` / ``interaction_style`` / ``framework_id`` fields
+    # above, which stay as the fallback path for every activity authored before
+    # tutors existed. See ``adk/tutor_resolution.py``.
+    tutor_id: str | None = Field(default=None, alias="tutorId", max_length=64)
     paired_workbench: str | None = Field(default=None, alias="pairedWorkbench")
     workbench_type: WorkbenchType = Field(default="none", alias="workbenchType")
     source_activity_id: str | None = Field(default=None, alias="sourceActivityId")

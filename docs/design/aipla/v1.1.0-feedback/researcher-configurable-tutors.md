@@ -1,12 +1,38 @@
 # Tutors as research instruments — theory-grounded, co-piloted, authored by researchers *and* teachers
 
-**Status**: **Design (OPEN)** — **1.1.91**. *Rewritten 2026-09-02 after review: the first draft had a preview but no co-pilot, was researcher-only, and gave researchers no sight of what teachers build. All three were the point.* **⭐ CHOSEN 2026-09-09 as the extension's workstream D** (*"go on doing tutors now"* — decision D7, [09-09 triage](meeting-2026-09-09-triage.md)), and M5 revised: the seven TP frameworks and their primary literature are on disk.
-**Priority**: **P1** — the mechanism is un-gated, it opens the human gate `adk/authoring_framework.py` has carried since COPILOT-1, and it is the prerequisite for [1.1.92](session-benchmark-tutor-activity.md) having any arms to compare
-**Estimated**: **~8.5–11d phased** (M0 tutor object ~1d · **M7 migrate the existing tutors ~1–1.5d** · M1 store + two tiers ~1.5d · M2 **tutor co-pilot** ~2d · M3 preview/compare ~1d · M4 researcher cross-view ~1d · M5 seeded library ~1d · M6 clash gatekeeper ~0.5d) — *revised 2026-09-09: M5 re-sized to seven frameworks, M7 added by the migrate decision*
+**Status**: **PARTLY SHIPPED — 1.1.91.** M0, M1 (store + researcher tier), M5 (**7 of 7 frameworks**, all drafted from source 2026-09-10) and M7 are **shipped**: M0 and M1a reached production in `v0.1.40`; M5 and M7 in `v0.1.41`. M2 (co-pilot), M3 (preview/compare), M4 (researcher cross-view), **M1's teacher tier**, and structural construct editing are **OPEN**. Per-milestone state in the table below — read it before planning anything here.
+**Priority**: **P1** — the mechanism is un-gated, and it is the prerequisite for [1.1.92](session-benchmark-tutor-activity.md) having arms to compare
+**Remaining**: **~5.5–6.5d** (teacher tier + M4 cross-view ~1.5d · structural construct editing ~1d · M2 co-pilot ~2d · M3 preview ~1d · M6 clash gatekeeper ~0.5d) — down from ~8.5–11d
+**Shipped so far**: ~5d across TUTOR-1/2/3 (2026-09-09 → 09-10)
 **Scope**: Backend — a `Tutor` object carrying its theory, a Firestore store with two authoring tiers, co-pilot proposal tools, and a `scope=all` read for researchers; frontend — a tutor editor on the **shipped** co-pilot shell, preview/compare, and a researcher catalogue
-**Dependencies**: [1.1.20 interaction-style](tutor-personas.md) (**SHIPPED** — `adk/interaction_style.py`, the injection primitive this bundles); `adk/authoring_framework.py` (**M0 shipped; its docstring names the missing store**); `components/teacher/copilot/` + `adk/authoring_tools.py` (**SHIPPED** — the shell and propose→Apply tool pattern this reuses); [1.1.5 researcher-role](researcher-role.md) (**SHIPPED**); **ALS-SHARE** (**SHIPPED** — the sharing/provenance model this copies)
-**Created**: 2026-09-02
+**Dependencies**: [1.1.20 interaction-style](tutor-personas.md) (**SHIPPED** — the injection primitive this bundles); `adk/authoring_framework.py` (**M0 shipped**); `components/teacher/copilot/` + `adk/authoring_tools.py` (**SHIPPED** — the shell and propose→Apply tool pattern M2 reuses); [1.1.5 researcher-role](researcher-role.md) (**SHIPPED**); **ALS-SHARE** (**SHIPPED** — the sharing/provenance model copied)
+**Created**: 2026-09-02 · **Implementation started**: 2026-09-09
 **Source**: [notes-2026-09-01.md](../../../notes-2026-09-01.md) + the tutor discussion the notes under-captured
+
+## Implementation record
+
+| Sprint | What shipped | Commits |
+|---|---|---|
+| **TUTOR-1** ([plan](researcher-configurable-tutors-sprint.md)) | M0 — `Tutor` + `TeachingFramework` + `Provenance`, YAML catalogue, ESRU worked | `7939cd85`, `25fae3eb`, `535780a2`, `54e90e73` |
+| **TUTOR-2** ([plan](researcher-configurable-tutors-m1-sprint.md)) | Framework → instruction renderer, researcher override store, injection into the live turn, `/teacher/research/frameworks` | `ec63d1e3` |
+| — | Authentic Dialogue (Dysthe) as the second worked framework | `328e9e33` |
+| — | Generated design doc + public `/project/tutors` page per framework, with a drift guard | `05cf835d` |
+| **TUTOR-3** ([plan](researcher-configurable-tutors-m7-sprint.md)) | M1 store + variants, one resolution path, tutor API, the class tutor picker, variant dialog, **M7 migration** | `8c5b2380`, `b17b4e1b`, `5ef38383`, `935c89a1`, `d05500d2` |
+
+**Three decisions taken during implementation that this document did not anticipate:**
+
+1. **One tutor choice, not a third control** (2026-09-10, M). A framework was going to be a
+   third picker beside persona and teaching style. It is instead bundled into the `Tutor`, and
+   the tutor **replaced** the persona picker rather than joining it — showing both was two
+   lists of the same six identities, reported from production and fixed in `d05500d2`.
+2. **The picker is CLASS-level, not per-activity.** 1.1.32 Q4 already put identity in class
+   settings, and `InheritedPersona` records why: a duplicate per-activity picker was problem 4
+   of the teacher-UX refinement. `ActivityConfig.tutor_id` exists as the per-activity override
+   and is deliberately not surfaced.
+3. **`Tutor.skill_name` — the schema gap M7 was designed to find.** The four migrated tutors
+   carry their own displayName, avatar and voice; they were never personas. Identity can come
+   from a persona *or* a skill, so the object has to say which. Skill-bound tutors are research
+   arms, not class identity choices, and are excluded from the picker.
 
 ## Problem Statement
 
@@ -308,14 +334,16 @@ whole reason this doc can start now.
 
 | M | What | Est | Gate |
 |---|---|---|---|
-| M0 | `Tutor` object with framework/constructs/lineage | ~1d | None |
-| M1 | Store + researcher/teacher tiers + variants | ~1.5d | None |
-| M2 | **Tutor co-pilot** on the shipped shell | ~2d | None |
-| M3 | Preview + side-by-side comparison | ~1d | None |
-| M4 | Researcher cross-view over teacher-authored tutors | ~1d | Tell teachers first |
-| M5 | Seeded framework library — **seven TP frameworks, literature on disk** (5E, Accountable Talk, Dysthe, CER, ESRU, POE, Toulmin) + SDT on the conceptual layer | ~1d (**re-estimated 2026-09-09** — seven is a known size, not a slot) | **JB / AR content + the umbrella structure**; the *example conversations* are an action on Aswin |
-| M6 | Persona × activity clash gatekeeper (advisory) | ~0.5d | M0 |
-| **M7** | **Migrate the 4 student-facing `SKILL.md` tutors** into the store, `framework: null`, byte-identical output | **~1–1.5d** | **M0 (schema must survive them first)** |
+| M0 | `Tutor` object with framework/constructs/lineage | ~1d | **✅ SHIPPED** (TUTOR-1) |
+| **M1a** | **Store + variants + resolution + API + class picker** | ~2.5d | **✅ SHIPPED** (TUTOR-3) |
+| **M1b** | **Teacher tier — teachers author variants of researched tutors** | **~0.75–1d** | **❌ OPEN.** Every authoring route is `assert_researcher` today; `Tutor.author_role` exists and is unused for teachers. **Build with M4 — neither is worth much alone** |
+| M2 | **Tutor co-pilot** on the shipped shell | ~2d | **❌ OPEN.** Lands best on M1b + M1c rather than on a text box |
+| M3 | Preview + side-by-side comparison | ~1d | **❌ OPEN** |
+| M4 | Researcher cross-view over teacher-authored tutors | ~1d | **❌ OPEN.** Moot until M1b — there is nothing for a researcher to look at. **Gate: tell teachers first** |
+| **M1c** | **Structural construct editing** — edit behaviours, regenerate the instruction | **~1d** | **❌ OPEN.** Today a researcher edits the RENDERED text, which breaks the trace back to the theory; only the side-by-side default keeps it honest |
+| M5 | Seeded framework library — seven TP frameworks | ~1d | **✅ 7 of 7 (2026-09-10).** ESRU + Authentic Dialogue first; then 5E, CER, POE, Toulmin and Accountable Talk drafted from the parsed PDFs. **All seven citations verified from source — five were wrong.** No placeholders remain, so every framework is selectable. ⚠️ All are `ready_for_review`, NOT `ready`: constructs are drafted and traceable, AR/JB own the sign-off |
+| M6 | Persona × activity clash gatekeeper (advisory) | ~0.5d | **❌ OPEN**, and **smaller than written**: a tutor now owns both style and framework, so the commonest clash is gone by construction |
+| **M7** | Migrate the 4 student-facing `SKILL.md` tutors | ~1–1.5d | **✅ SHIPPED** (TUTOR-3). One pipeline — the deploy seed emits the `Tutor` from the same parsed `SKILL.md` |
 
 ## Testing
 
@@ -335,9 +363,14 @@ whole reason this doc can start now.
 2. **Does a teacher's variant need approval before students see it?** A governance
    question, not a technical one. Interacts with [1.1.95](safe-to-publish-vetting.md),
    which is the same question for activities.
-3. **Tutor per activity, per class, or both?** 1.1.92 needs it recorded per
-   session whatever the answer.
-4. **Versioning.** [1.1.92](session-benchmark-tutor-activity.md) needs an edited
+3. ~~**Tutor per activity, per class, or both?**~~ **ANSWERED by implementation
+   (2026-09-10): BOTH, class-level in the UI.** `Class.tutor_id` is what a teacher
+   picks; `ActivityConfig.tutor_id` exists as an override and is not surfaced
+   (the "Phase B" `InheritedPersona` anticipates). Resolution order is activity
+   tutor > class tutor > the pre-tutor fields > default.
+4. ~~**Versioning.**~~ **ANSWERED in M0:** `Tutor.version` ships and increments on
+   every authored write; `save_tutor` bumps it, `create_variant` starts at 1.
+   Original text follows. [1.1.92](session-benchmark-tutor-activity.md) needs an edited
    tutor to be a *new version*, or earlier sessions become unattributable.
 5. **Are ESRU / Dysthe the right names** for what JB and Aswin mean?
 6. **Does a theory-grounded tutor need a "why am I like this?" surface for

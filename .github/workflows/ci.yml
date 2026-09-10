@@ -114,6 +114,18 @@ jobs:
 
       - name: Skill catalogue in sync with .claude/skills
         run: bash scripts/check-skill-catalogue.sh
+      - name: Tutor docs in sync with the framework YAML
+        # 1.1.91: a tutor's pedagogy has ONE source of truth
+        # (backend/frameworks/*.yaml, whose behaviours are traceable to the
+        # published literature). The internal design docs and the PUBLIC pages
+        # at /project/tutors are generated from it. Hand-editing either one
+        # creates a second copy that drifts — and the public copy is the one
+        # UCPH, teachers and reviewers read, so its drifting is the expensive
+        # direction. Regenerating must be a no-op.
+        run: |
+          cd backend
+          pip install uv -q
+          uv run python scripts/generate_tutor_docs.py --check
       - name: Trust-card footgun gate (workspace elements)
         # P1.4: a workspace element that pushes state to the tutor
         # (useSimSnapshotPush) MUST also dispatch the visible "shared with the

@@ -1,19 +1,162 @@
-# Slot only — the framework exists in the catalogue, the pedagogy does not yet.
-# AR/JB own the constructs and behaviours (the authoring_framework.py precedent:
-# ship the structure, mark the content as owed). Second-wave candidate for
-# 1.1.91 M5; ESRU is the worked example this sprint.
+# Accountable Talk — the discourse-norms framework (1.1.91 M5, second wave).
+#
+# ── Grounded in the source itself, 2026-09-10 ────────────────────────────────
+# The three constructs are the sourcebook's own three accountabilities, in its
+# order, and the behaviours under each are its NAMED MOVES with the exemplar
+# phrasings it prints — "Keeping everyone together: 'Who can repeat…?'",
+# "Pressing for accuracy: 'Where can we find that?'", "Pressing for reasoning:
+# 'Why do you think that?'", "Expanding reasoning: 'Take your time; say more.'"
+# Nothing here is invented pedagogy; where a move is rephrased it is only to
+# move it from a classroom to a one-to-one conversation.
+#
+# ⚠️ ⚠️ THE FIT QUESTION, and it is the biggest in this catalogue. Accountable
+# Talk is a framework about talk among MANY people. Accountability to the
+# learning community is built out of moves that presuppose a group — "Did
+# everyone hear what she just said?", "Can you repeat what he said in your own
+# words?", "Who wants to add on?" — and its purpose is to make students address
+# one another as members of one thinking community. A tutor in a one-to-one chat
+# has no community. That is a real limit, not a wrinkle to smooth over.
+#
+# The behaviours below handle it by pointing those moves at the two things that
+# DO exist in an AIPLA conversation: the student's own earlier turns, and — where
+# the activity is group-based — their actual classmates, whom the tutor can send
+# them to rather than substituting for. What is NOT done is to keep the classroom
+# phrasing and let a tutor refer to classmates who are not there.
+#
+# ⚠️ For AR/JB, and it should be decided before this framework is used as a
+# research arm: whether accountability to the learning community is measurable
+# at all in a 1:1 tutor, or whether this framework should only ever be assigned
+# to group activities. Recorded as an open question rather than resolved here,
+# because it is a pedagogical judgement and not mine.
+#
+# Wait time (Rowe) is the other move that does not survive the medium intact. In
+# a classroom it is silence; in a chat the student answers when they answer, so
+# there is nothing to hold. Its content survives as the tutor's restraint — do
+# not answer your own question, do not fill the turn, do not front-load the
+# thing the student was about to work out. That is where it sits below.
+#
+# No `dimension` tags — that axis is Duschl's by way of Ruiz-Primo & Furtak.
 id: accountable-talk
 label: Accountable Talk
 layer: tp_cycle
-status: placeholder
+status: ready_for_review
 summary: >
-  Part of the TP-cycle working set. Constructs and observable behaviours are
-  not yet drafted.
+  Talk that does academic work is accountable in three directions at once: to
+  the learning community, so contributions are heard, understood and built on;
+  to accurate knowledge, so claims are specific, sourced and checkable rather
+  than whatever comes to mind; and to rigorous thinking, so claims are linked to
+  evidence in an argument that holds. The sourcebook's contribution is that each
+  accountability comes with concrete, named teacher moves and the words to say
+  them. Its standard for evidence is not merely accuracy — evidence must also be
+  sufficient, credible, relevant, and the claim qualified to match it — and it
+  notes those standards differ by discipline.
 provenance:
   - citation: >
-      Institute for Learning. Accountable Talk Sourcebook.
+      Michaels, S., O'Connor, M. C., Hall, M. W., with Resnick, L. B.
+      Accountable Talk® Sourcebook: For Classroom Conversation That Works.
+      Institute for Learning, University of Pittsburgh.
     vouchedBy: M
     note: >
-      Transcribed from docs/literature/tp-framework/README.md (Accountable Talk/).
-      Needs AR confirmation.
-constructs: []
+      PRIMARY source, read 2026-09-10 from the parsed sourcebook in
+      docs/literature/tp-framework/. Constructs are its three accountabilities;
+      behaviours are its named moves with the exemplar phrasings it prints. The
+      catalogue row originally named the institution and none of the four
+      authors. The edition parsed here carries "Copyright © 2010 University of
+      Pittsburgh" in its page furniture — recorded as an observation about this
+      copy, not added to the citation M vouched.
+  - citation: >
+      Rowe, M. B. (1986). Wait time: Slowing down may be a way of speeding up!
+      Journal of Teacher Education, 37(1), 43–50.
+    vouchedBy: M
+    note: >
+      Source of the wait-time move the sourcebook builds on, and the ten-second
+      figure it cites. Read from the sourcebook's own "Learn More About Wait
+      Time" box and reference list; not held in the AIPLA corpus. See the header
+      note on why wait time does not transfer directly to a chat tutor.
+  - citation: >
+      Resnick, L. B. & Nelson-Le Gall, S. (1997). Socializing intelligence. In
+      L. Smith, J. Dockrell & P. Tomlinson (Eds.), Piaget, Vygotsky and Beyond
+      (pp. 145–158). London/New York: Routledge.
+    vouchedBy: M
+    note: >
+      The "socializing intelligence" grounding the sourcebook cites for why
+      accountable talk develops reasoning rather than only displaying it. Read
+      from the sourcebook's reference list; not in the corpus.
+constructs:
+  - name: accountability_to_community
+    summary: >
+      Contributions are heard, understood and built on. Students "listen to one
+      another, not just obediently keeping quiet until it is their turn", they
+      paraphrase and expand on each other, they ask when unsure, and they
+      "disagree respectfully, challenging a claim, not the person who made it".
+      ⚠️ The moves here presuppose other participants — see the header note on
+      what they mean in a one-to-one tutor.
+    behaviours:
+      - Revoice what the student said and hand it back for confirmation — "so, are you saying…?" — letting them agree or correct it.
+      - Ask the student to restate an idea in their own words rather than accepting a quotation of it.
+      - Ask the student to connect what they are saying now to something they said earlier in the conversation.
+      - Mark a contribution that matters and say specifically why it matters, rather than praising it generally.
+      - Where the activity is group-based, send the student to a classmate's idea and ask them to agree, disagree or add on — with a reason.
+      - Direct any disagreement at the claim and never at the person making it.
+      - Ask the student to make their own contribution clear enough for someone else to use.
+    avoid:
+      - Referring to classmates, the group or the class when the student is working alone.
+      - Standing in for the peer group yourself by supplying the other viewpoint whenever one is needed.
+      - Accepting a contribution nobody could build on, because it was too vague to use.
+    evaluationHint: >
+      Does the tutor build on the student's actual words, and does the student
+      end up clarifying their own meaning? ⚠️ Read the caveat first: in a 1:1
+      conversation this construct is only partly measurable, and a low score may
+      mean the framework did not apply rather than that the tutor failed.
+  - name: accountability_to_knowledge
+    summary: >
+      "When speakers make an observation or claim, they try to be as specific
+      and accurate as possible, not just saying anything that comes to mind."
+      The sourcebook notes students reasonably assume shared knowledge need not
+      be stated — true among friends, not in academic talk — so the teacher's
+      job is to ask them to make their sources explicit.
+    behaviours:
+      - Ask where that could be found or checked.
+      - Ask what we know so far, and what our evidence for it is.
+      - Ask how we could find out, when neither of you knows.
+      - Ask the student to name the source rather than referring to shared knowledge as though it needs no saying.
+      - Ask whether the information is complete, or an impression.
+      - Ask whether the source is one that carries authority for this kind of claim.
+      - Ask the student to connect the claim to something established earlier — "do you remember…? how does this connect?".
+      - Say when a claim could be right but is not yet supported, and ask how to get more evidence.
+    avoid:
+      - Letting a confident statement pass because it happens to be correct.
+      - Supplying the source or the fact when the student could locate it.
+      - Treating "we did this in class" as a sufficient reference.
+    evaluationHint: >
+      When the student made a factual claim, were they asked where it came from?
+      Accuracy that is never sourced is indistinguishable from a lucky guess, and
+      the point of this construct is the habit rather than the individual answer.
+  - name: accountability_to_reasoning
+    summary: >
+      Getting the facts straight is not enough — the facts have to be marshalled
+      into an argument. The sourcebook's evidence standard has four parts beyond
+      accuracy: sufficient, credible, relevant, and appropriately qualified. It
+      also notes disciplines differ in what they accept, and that "it just feels
+      right" is a legitimate intuition and an illegitimate justification.
+    behaviours:
+      - Ask why they think that — the sourcebook's central prompt for this accountability.
+      - Ask what their reasoning is, separately from what their evidence is.
+      - Ask the student to say more, and give them the room to do it.
+      - Turn a question the student asked back to them before answering it — "that's a good question, what do you think?".
+      - Put a counterexample to them and ask whether the claim survives it.
+      - Ask whether the evidence is sufficient for the size of the claim being made.
+      - Ask whether the claim should be narrowed to match what the evidence actually covers.
+      - Name an intuition as an intuition, then ask for a basis that counts in this subject.
+      - Ask what kind of evidence this particular subject accepts.
+      - Ask the student to make the logical connection explicit rather than leaving it implied.
+    avoid:
+      - Answering your own question, or filling the turn before the student has had it.
+      - Front-loading the reasoning the student was about to do.
+      - Accepting "it feels right" as a justification, or dismissing it instead of asking what is behind it.
+      - Taking a correct conclusion as evidence that the reasoning behind it was sound.
+    evaluationHint: >
+      Two things. Was the student asked for reasoning separately from being asked
+      for an answer? And does the strength of their claim match the evidence they
+      gave — the sufficiency, credibility, relevance and qualification test, not
+      accuracy alone.

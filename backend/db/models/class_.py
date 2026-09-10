@@ -93,6 +93,14 @@ class Class(BaseModel):
     """Per-class default persona (avatar + name + voice + teaching style). The
     one identity choice — resolution is: activity persona > THIS class persona >
     global default. None means the class falls back to the global default."""
+    tutor_id: str | None = Field(default=None, alias="tutorId", max_length=64)
+    """1.1.91 M1 — the per-class TUTOR: one choice carrying persona + teaching
+    framework + interaction style together. Supersedes ``persona`` above when
+    set; ``persona`` remains for every class configured before tutors existed,
+    so an unset ``tutor_id`` resolves exactly as it always did. This is the
+    class-level home the 1.1.32 Q4 decision established for identity — a
+    duplicate per-activity picker was problem 4 of teacher-ux-refinement.md, so
+    the activity builder shows the inherited tutor read-only."""
     cohort: str | None = Field(default=None, max_length=64)
     """1.1.9 — optional cohort tag (e.g. ``dk`` vs ``in-beta``) used to group
     spend in the researcher cost view. None ⇒ "uncategorised". Set via the
