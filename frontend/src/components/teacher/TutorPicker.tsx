@@ -3,8 +3,10 @@
 import { useEffect, useState } from "react";
 import { BookOpen, Check, Info } from "lucide-react";
 
-import { type TutorPayload, fetchTutorCatalogue, setClassTutor } from "@/lib/teacherApi";
+import { type TutorCatalogue, type TutorPayload, fetchTutorCatalogue, setClassTutor } from "@/lib/teacherApi";
 import { INTERACTION_STYLE_HELP, INTERACTION_STYLE_LABEL } from "@/lib/personaDisplay";
+import { TutorVariantDialog } from "@/components/teacher/TutorVariantDialog";
+import { useIsResearcher } from "@/hooks/useIsResearcher";
 
 /**
  * The one tutor choice for a class (1.1.91 M1).
@@ -35,7 +37,10 @@ export function TutorPicker({
   selectedTutorId: string | null;
   onChange?: (tutorId: string | null) => void;
 }) {
+  const isResearcher = useIsResearcher();
   const [tutors, setTutors] = useState<TutorPayload[]>([]);
+  const [frameworks, setFrameworks] = useState<TutorCatalogue["frameworks"]>([]);
+  const [variantOf, setVariantOf] = useState<TutorPayload | null>(null);
   const [state, setState] = useState<"loading" | "ready" | "error">("loading");
   const [saving, setSaving] = useState<string | null>(null);
   const [selected, setSelected] = useState<string | null>(selectedTutorId);
@@ -49,6 +54,7 @@ export function TutorPicker({
       .then((cat) => {
         if (cancelled) return;
         setTutors(cat.tutors);
+        setFrameworks(cat.frameworks);
         setState("ready");
       })
       .catch(() => !cancelled && setState("error"));
@@ -106,6 +112,42 @@ export function TutorPicker({
       </ul>
 
       {error ? <p className="text-sm text-destructive">{error}</p> : null}
+
+      {/* Researcher-only (1.1.91 M5). A teacher picks from the library; a
+          researcher extends it — the two-tier authoring model, where a teacher
+          gets variants of researched tutors rather than blank frameworks. */}
+      {isResearcher ? (
+        variantOf ? (
+          <TutorVariantDialog
+            parent={variantOf}
+            frameworks={frameworks}
+            onCancel={() => setVariantOf(null)}
+            onCreated={(v) => {
+              setTutors((list) => [...list, v]);
+              setVariantOf(null);
+            }}
+          />
+        ) : (
+          <details className="rounded border bg-muted/20 p-2">
+            <summary className="cursor-pointer text-xs text-muted-foreground">
+              Researcher: create a variant of a tutor
+            </summary>
+            <ul className="mt-2 flex flex-wrap gap-1.5">
+              {tutors.map((t) => (
+                <li key={t.id}>
+                  <button
+                    type="button"
+                    onClick={() => setVariantOf(t)}
+                    className="rounded border px-2 py-1 text-xs hover:bg-accent"
+                  >
+                    {t.displayName}
+                  </button>
+                </li>
+              ))}
+            </ul>
+          </details>
+        )
+      ) : null}
 
       {selected === null ? (
         <p className="flex items-start gap-1.5 text-xs text-muted-foreground">
