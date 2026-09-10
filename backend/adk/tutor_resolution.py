@@ -47,14 +47,23 @@ class TeachingResolution:
 def resolve_teaching(
     cfg: ActivityConfig | None,
     *,
+    class_tutor_id: str | None = None,
     class_persona_id: str | None = None,
     class_style: InteractionStyle | None = None,
 ) -> TeachingResolution:
-    """Resolve the tutor bundle, falling back to the pre-tutor field path."""
-    if cfg is not None and cfg.tutor_id:
-        from db.tutors import resolve_tutor
+    """Resolve the tutor bundle, falling back to the pre-tutor field path.
 
-        tutor = resolve_tutor(cfg.tutor_id)
+    Order: the activity's tutor > the CLASS's tutor > the activity's individual
+    fields > the class persona > the default. The class layer is where identity
+    lives by the 1.1.32 Q4 decision, so in practice the class tutor is the one
+    that resolves and the activity override is the escape hatch.
+    """
+    from db.tutors import resolve_tutor
+
+    for candidate, layer in ((cfg.tutor_id if cfg else None, "activity"), (class_tutor_id, "class")):
+        if not candidate:
+            continue
+        tutor = resolve_tutor(candidate)
         if tutor is not None:
             return TeachingResolution(
                 tutor=tutor,
@@ -62,15 +71,11 @@ def resolve_teaching(
                 framework_id=tutor.framework_id,
                 interaction_style=tutor.interaction_style,
             )
-        # An unknown id degrades to the old path rather than raising or
-        # silently teaching differently (Axiom 5). Logged, because a teacher
-        # picked something and it did not take effect.
         log.warning(
-            "resolve_teaching: unknown tutor_id=%s on activity=%s — falling back to fields",
-            cfg.tutor_id,
-            cfg.activity_id,
+            "resolve_teaching: unknown %s tutor_id=%s — falling back",
+            layer,
+            candidate,
         )
-
     return TeachingResolution(
         tutor=None,
         persona_id=(cfg.persona if cfg else None) or class_persona_id,

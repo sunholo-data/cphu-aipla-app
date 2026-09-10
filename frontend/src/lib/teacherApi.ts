@@ -49,6 +49,8 @@ export interface ActivityConfigPayload {
   difficulty: Difficulty;
   interactionStyle?: InteractionStyle;
   persona?: string | null;
+  /** 1.1.91 M1 — the bundled tutor choice; supersedes `persona` when set. */
+  tutorId?: string | null;
   pairedWorkbench: string | null;
   workbenchType?: WorkbenchType;
   /** The vetted sim artefact this activity hosts (1.1.41). The GET serialises
@@ -739,6 +741,9 @@ export interface ClassPayload {
   groupCodes: string[];
   voice?: ClassVoiceSettingsPayload | null;
   persona?: string | null;
+  /** 1.1.91 M1 — the class's bundled tutor (persona + framework + style).
+   *  Supersedes `persona` at resolution time; null keeps the pre-tutor path. */
+  tutorId?: string | null;
   voiceInputEnabled?: boolean;
   recordingEnabled?: boolean;
   revoked: boolean;
@@ -1183,4 +1188,69 @@ export async function revertFrameworkInstruction(frameworkId: string): Promise<T
     method: "DELETE",
   });
   return readJson<TeachingFrameworkPayload>(resp, "revert framework instruction");
+}
+
+
+/* ── Tutors (1.1.91 M1) ──────────────────────────────────────────────────────
+ *  ONE choice carrying avatar, voice, tone and pedagogy. Chosen at CLASS level
+ *  (the 1.1.32 Q4 decision — a duplicate per-activity picker was problem 4 of
+ *  the teacher-UX refinement), and every activity inherits it.
+ *
+ *  `frameworkName` arrives already in plain language ("Question-and-use cycle
+ *  (ESRU)"). Never re-derive it in the UI: a teacher should not have to know
+ *  what an acronym stands for, and the mapping belongs in one place.          */
+
+export interface TutorPayload {
+  id: string;
+  displayName: string;
+  summary?: string | null;
+  personaId?: string | null;
+  frameworkId?: string | null;
+  interactionStyle: "socratic" | "concise" | "rigorous" | "warm";
+  status: "draft" | "ready" | "in-use";
+  version: number;
+  isVariant: boolean;
+  lineage: { kind: "original" | "variant-of"; parentTutorId?: string | null };
+  persona: { id: string; name: string; title?: string | null; avatar: string } | null;
+  frameworkName: string | null;
+  frameworkSummary: string | null;
+}
+
+export interface TutorCatalogue {
+  tutors: TutorPayload[];
+  frameworks: { id: string; name: string; summary: string; isPlaceholder: boolean }[];
+}
+
+/** Every pickable tutor, bases before variants, plus the framework list. */
+export async function fetchTutorCatalogue(): Promise<TutorCatalogue> {
+  const resp = await fetchWithAuth("/api/proxy/api/tutors");
+  return readJson<TutorCatalogue>(resp, "list tutors");
+}
+
+/** Set the class's tutor. `null` clears it back to the pre-tutor persona path. */
+export async function setClassTutor(classId: string, tutorId: string | null): Promise<void> {
+  const resp = await fetchWithAuth(`/api/proxy/api/tutors/class/${encodeURIComponent(classId)}`, {
+    method: "PUT",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ tutorId }),
+  });
+  await readJson<unknown>(resp, "set class tutor");
+}
+
+/** Researcher-only: fork a tutor, keeping lineage to the parent. */
+export async function createTutorVariant(input: {
+  parentId: string;
+  id: string;
+  displayName: string;
+  frameworkId?: string | null;
+  personaId?: string | null;
+  interactionStyle?: TutorPayload["interactionStyle"] | null;
+  summary?: string | null;
+}): Promise<TutorPayload> {
+  const resp = await fetchWithAuth("/api/proxy/api/research/tutors/variant", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(input),
+  });
+  return readJson<TutorPayload>(resp, "create tutor variant");
 }

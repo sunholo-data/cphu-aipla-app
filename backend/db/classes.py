@@ -198,6 +198,19 @@ def get_class_for_group(group_id: str | None) -> Class | None:
         return None
 
 
+def update_class_tutor(class_id: str, tutor_id: str | None) -> None:
+    """Set (or clear, with None) the per-class tutor (1.1.91 M1).
+
+    Clears any per-class voice override for exactly the reason
+    ``update_class_persona`` does: a tutor carries a complete identity, and a
+    stale override speaking over its voice is the bug that produced that rule.
+    """
+    patch: dict = {"tutorId": tutor_id, "updatedAt": _utcnow().isoformat()}
+    if tutor_id:
+        patch["voiceSettings"] = None
+    update_document(_COLLECTION, class_id, patch)
+
+
 def update_class_persona(class_id: str, persona_id: str | None) -> None:
     """Set (or clear, with None) the per-class default persona.
 

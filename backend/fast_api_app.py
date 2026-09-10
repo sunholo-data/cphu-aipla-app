@@ -344,6 +344,7 @@ from protocols.sessions_route import router as sessions_router  # noqa: E402
 from protocols.table_progress_routes import router as table_progress_router  # noqa: E402
 from protocols.teacher_bootstrap_routes import router as teacher_bootstrap_router  # noqa: E402
 from protocols.teacher_prefs_routes import router as teacher_prefs_router  # noqa: E402
+from protocols.tutors_routes import router as tutors_router  # noqa: E402
 from protocols.voice_routes import router as voice_router  # noqa: E402
 from protocols.writing_progress_routes import router as writing_progress_router  # noqa: E402
 from skills.routes import router as skills_router  # noqa: E402
@@ -385,6 +386,7 @@ app.include_router(programme_router)
 app.include_router(teacher_prefs_router)
 app.include_router(personas_router)
 app.include_router(frameworks_router)
+app.include_router(tutors_router)
 app.include_router(artefact_router)
 app.include_router(classes_router)
 app.include_router(teacher_bootstrap_router)
