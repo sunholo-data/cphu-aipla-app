@@ -33,7 +33,6 @@ import {
 import { ClassInsightsPanel } from "@/components/teacher/insights/ClassInsightsPanel";
 import { BudgetPanel } from "@/components/teacher/BudgetPanel";
 import { ClassVoiceSettingsPanel } from "@/components/teacher/ClassVoiceSettingsPanel";
-import { ClassPersonaPanel } from "@/components/teacher/ClassPersonaPanel";
 import { TutorPicker } from "@/components/teacher/TutorPicker";
 import { SettingsSection } from "@/components/teacher/ui/SettingsSection";
 import { SettingsMap } from "@/components/teacher/SettingsMap";
@@ -424,23 +423,23 @@ export default function TeacherClassDetailPage() {
         description="The tutor, its voice, and what students can do — for this class."
       >
         <div className="flex flex-col gap-6">
-          {/* 1.1.91 M1 — ONE choice: name, picture, voice, tone and teaching
-              approach together. The persona panel below stays as the finer
-              control (and as the path for every class configured before tutors
-              existed); a chosen tutor supersedes it at resolution time. */}
+          {/* 1.1.91 — ONE tutor choice: name, picture, voice, tone and
+              teaching approach together. This REPLACES the separate persona
+              picker; showing both was two lists of the same thing.
+
+              Existing classes carry `persona` and no `tutorId`, and the base
+              tutor ids are the persona ids, so falling back to `persona` shows
+              their current identity as already selected rather than as
+              unconfigured. Choosing anything writes `tutorId`, which supersedes
+              `persona` at resolution time. */}
           <div>
             <h3 className="mb-2 text-sm font-medium">Tutor</h3>
             <TutorPicker
               classId={cls.classId}
-              selectedTutorId={cls.tutorId ?? null}
+              selectedTutorId={cls.tutorId ?? cls.persona ?? null}
               onChange={refresh}
             />
           </div>
-          <ClassPersonaPanel
-            classId={cls.classId}
-            initialPersona={cls.persona ?? null}
-            onSaved={refresh}
-          />
           <ClassVoiceSettingsPanel
             classId={cls.classId}
             initial={cls.voice ?? null}

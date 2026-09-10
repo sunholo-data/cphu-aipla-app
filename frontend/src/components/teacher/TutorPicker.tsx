@@ -3,8 +3,16 @@
 import { useEffect, useState } from "react";
 import { BookOpen, Check, Info } from "lucide-react";
 
-import { type TutorCatalogue, type TutorPayload, fetchTutorCatalogue, setClassTutor } from "@/lib/teacherApi";
+import {
+  type InteractionStyleSpec,
+  type TutorCatalogue,
+  type TutorPayload,
+  fetchPersonaCatalogue,
+  fetchTutorCatalogue,
+  setClassTutor,
+} from "@/lib/teacherApi";
 import { INTERACTION_STYLE_HELP, INTERACTION_STYLE_LABEL } from "@/lib/personaDisplay";
+import { TeachingStyleDisclosure } from "@/components/teacher/TeachingStyleDisclosure";
 import { TutorVariantDialog } from "@/components/teacher/TutorVariantDialog";
 import { useIsResearcher } from "@/hooks/useIsResearcher";
 
@@ -41,6 +49,7 @@ export function TutorPicker({
   const [tutors, setTutors] = useState<TutorPayload[]>([]);
   const [frameworks, setFrameworks] = useState<TutorCatalogue["frameworks"]>([]);
   const [variantOf, setVariantOf] = useState<TutorPayload | null>(null);
+  const [styles, setStyles] = useState<InteractionStyleSpec[]>([]);
   const [state, setState] = useState<"loading" | "ready" | "error">("loading");
   const [saving, setSaving] = useState<string | null>(null);
   const [selected, setSelected] = useState<string | null>(selectedTutorId);
@@ -58,6 +67,14 @@ export function TutorPicker({
         setState("ready");
       })
       .catch(() => !cancelled && setState("error"));
+    // The "how teaching styles are enforced" transparency (1.1.32) reads the
+    // REAL preamble text from the backend, so it can never drift from what is
+    // actually injected. Carried over when the tutor picker replaced the
+    // persona panel — a teacher losing sight of what the tutor is told would
+    // have been a real regression, not just a moved control.
+    fetchPersonaCatalogue()
+      .then((cat) => !cancelled && setStyles(cat.interactionStyles ?? []))
+      .catch(() => undefined);
     return () => {
       cancelled = true;
     };
@@ -112,6 +129,8 @@ export function TutorPicker({
       </ul>
 
       {error ? <p className="text-sm text-destructive">{error}</p> : null}
+
+      {styles.length > 0 ? <TeachingStyleDisclosure styles={styles} /> : null}
 
       {/* Researcher-only (1.1.91 M5). A teacher picks from the library; a
           researcher extends it — the two-tier authoring model, where a teacher

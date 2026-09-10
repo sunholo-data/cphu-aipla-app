@@ -1210,6 +1210,8 @@ export interface TutorPayload {
   status: "draft" | "ready" | "in-use";
   version: number;
   isVariant: boolean;
+  isSkillBound?: boolean;
+  skillName?: string | null;
   lineage: { kind: "original" | "variant-of"; parentTutorId?: string | null };
   persona: { id: string; name: string; title?: string | null; avatar: string } | null;
   frameworkName: string | null;
@@ -1217,7 +1219,11 @@ export interface TutorPayload {
 }
 
 export interface TutorCatalogue {
+  /** Identity tutors — what a class can be given. */
   tutors: TutorPayload[];
+  /** 1.1.91 M7 — tutors migrated from a SKILL.md. Addressable and usable as
+   *  research arms, but not a class identity choice, so not in the picker. */
+  skillBoundTutors?: TutorPayload[];
   frameworks: { id: string; name: string; summary: string; isPlaceholder: boolean }[];
 }
 

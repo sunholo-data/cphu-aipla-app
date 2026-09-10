@@ -40,6 +40,13 @@ function mockCatalogue(tutors: TutorPayload[]) {
     tutors,
     frameworks: [{ id: "esru", name: "Question-and-use cycle (ESRU)", summary: "", isPlaceholder: false }],
   });
+  vi.spyOn(teacherApi, "fetchPersonaCatalogue").mockResolvedValue({
+    personas: [],
+    defaultId: "sofie",
+    interactionStyles: [
+      { id: "warm", prompt: "## Interaction style: warm\nBe encouraging.", injected: true },
+    ],
+  });
 }
 
 beforeEach(() => vi.restoreAllMocks());
@@ -106,6 +113,14 @@ describe("TutorPicker (1.1.91 M1 — one choice)", () => {
     await screen.findByText(/Nothing has changed/i);
     // The original selection is restored, not left showing a lie.
     expect(screen.getByRole("button", { name: /Sofie — Allround/ })).toHaveAttribute("aria-pressed", "true");
+  });
+
+  it("keeps the teaching-style transparency the persona panel used to carry", async () => {
+    // Replacing the old panel must not lose sight of what the tutor is TOLD —
+    // that would be a regression, not just a moved control.
+    mockCatalogue([tutor()]);
+    render(<TutorPicker classId="c-1" selectedTutorId={null} />);
+    await screen.findByText(/How teaching styles are enforced/i);
   });
 
   it("says plainly when no tutor is chosen", async () => {

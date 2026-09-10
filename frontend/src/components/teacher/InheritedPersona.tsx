@@ -7,6 +7,7 @@ import { Settings2, UserRound } from "lucide-react";
 import {
   type PersonaPayload,
   fetchPersonaCatalogue,
+  fetchTutorCatalogue,
   getClass,
 } from "@/lib/teacherApi";
 import { INTERACTION_STYLE_LABEL } from "@/lib/personaDisplay";
@@ -26,6 +27,11 @@ import { INTERACTION_STYLE_LABEL } from "@/lib/personaDisplay";
  */
 export function InheritedPersona({ classId }: { classId: string }) {
   const [persona, setPersona] = useState<PersonaPayload | null>(null);
+  // 1.1.91 — when the class has a TUTOR, its teaching approach is part of the
+  // identity the activity inherits. Showing only the persona name here while a
+  // framework-bearing tutor was actually teaching would be the same split the
+  // bundling exists to close, just moved to the activity form.
+  const [approach, setApproach] = useState<string | null>(null);
   const [state, setState] = useState<"loading" | "resolved" | "default">(
     "loading",
   );
@@ -37,10 +43,16 @@ export function InheritedPersona({ classId }: { classId: string }) {
     }
     let alive = true;
     setState("loading");
-    Promise.all([fetchPersonaCatalogue(), getClass(classId)])
-      .then(([cat, cls]) => {
+    Promise.all([fetchPersonaCatalogue(), getClass(classId), fetchTutorCatalogue().catch(() => null)])
+      .then(([cat, cls, tutorCat]) => {
         if (!alive) return;
-        const id = cls.persona ?? cat.defaultId;
+        const tutor = cls.tutorId
+          ? ([...(tutorCat?.tutors ?? []), ...(tutorCat?.skillBoundTutors ?? [])].find(
+              (t) => t.id === cls.tutorId,
+            ) ?? null)
+          : null;
+        setApproach(tutor?.frameworkName ?? null);
+        const id = tutor?.personaId ?? cls.persona ?? cat.defaultId;
         const resolved = id
           ? (cat.personas.find((p) => p.id === id) ?? null)
           : null;
@@ -72,6 +84,9 @@ export function InheritedPersona({ classId }: { classId: string }) {
               <p className="truncate text-sm font-medium text-slate-800">
                 {persona.name}
               </p>
+              {approach ? (
+                <p className="truncate text-xs text-slate-500">Teaches with: {approach}</p>
+              ) : null}
               <p className="truncate text-xs text-slate-500">
                 {persona.title ? `${persona.title} · ` : ""}
                 {INTERACTION_STYLE_LABEL[persona.interactionStyle]} style
