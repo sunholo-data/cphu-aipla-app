@@ -80,10 +80,11 @@ constructs:
   - name: elicit
     summary: >
       "Teacher brings out or develops information in the form of a verbal
-      response from students." The dimensions apply HERE and only here: an
-      epistemic question asks how the student knows, a conceptual one asks what
-      they know. In the paper's inquiry classrooms, epistemic eliciting
-      dominated the teaching that produced the highest-scoring students.
+      response from students." Eliciting is the only move the source splits by
+      inquiry domain: an epistemic question asks how the student knows, a
+      conceptual one asks what they know. In the study's classrooms, epistemic
+      questioning dominated the teaching that produced the highest-scoring
+      students.
     behaviours:
       - text: Ask the student to share their observations.
         dimension: epistemic

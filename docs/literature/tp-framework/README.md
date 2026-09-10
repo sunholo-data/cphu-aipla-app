@@ -8,15 +8,19 @@ https://drive.google.com/drive/folders/1s-dALtgQtGTOMzP6Hl4pvbNbIlwcDTF3
 Folder names mirror the Drive source (including its typos — "Dialouge",
 "Clam") so files stay 1:1 traceable with the Drive.
 
-| Folder | Framework | File |
+⚠️ **Citations below were re-read from the PDFs on 2026-09-10 and several were
+wrong.** The originals were transcribed from Drive folder and file names, which
+carry publisher filename artefacts. What changed is noted per row.
+
+| Folder | Framework | Citation (verified from the PDF) |
 |---|---|---|
-| `5E Model/` | 5E learning cycle | Tanner 2017, *Order Matters* (J Coll Sci Teach) |
-| `Accountable Talk/` | Accountable Talk | Institute for Learning AT Sourcebook |
-| `Authentic Dialouge/` | Authentic Dialogue | Dysthe 1996, *The Multivoiced Classroom* |
-| `Clam Evidence Reasoning (CER)/` | Claim–Evidence–Reasoning | *Inquiry and Scientific Explanation* chapter |
+| `5E Model/` | 5E learning cycle | Tanner, K. D. (**2010**). *Order Matters: Using the 5E Model to Align Teaching with How People Learn.* **CBE—Life Sciences Education**, 9(3), 159–164. ⚠️ was "2017 (J Coll Sci Teach)" — **both year and journal wrong** |
+| `Accountable Talk/` | Accountable Talk | Michaels, S., O'Connor, M. C., Hall, M. W., with Resnick, L. B. *Accountable Talk® Sourcebook: For Classroom Conversation That Works.* Institute for Learning, University of Pittsburgh. ⚠️ authors were missing |
+| `Authentic Dialouge/` | Authentic Dialogue | Dysthe, O. (1996). *The Multivoiced Classroom: Interactions of Writing and Classroom Discourse.* **Written Communication, 13(3), 385–425.** ⚠️ journal, volume and pages were missing |
+| `Clam Evidence Reasoning (CER)/` | Claim–Evidence–Reasoning | McNeill, K. L. & Krajcik, J. (2008). *Inquiry and scientific explanations: Helping students use evidence and reasoning.* In Luft, Bell & Gess-Newsome (Eds.), *Science as Inquiry in the Secondary Setting*, NSTA Press. ⚠️ authors and containing book were missing |
 | `ESRU/` | ESRU (Elicit–Student response–**Recognise**–Use) | Ruiz-Primo & Furtak, **JRST 44(1) 57–84 (2007)** ([see below](#esru--read-from-the-pdf-2026-09-09)) |
-| `Predict Observe Explain/` | POE (≈ ECR) | ERIC ED420715 |
-| `Toulmin's Argument/` | Toulmin Argumentation Model | Erduran, Simon & Osborne 2004, *TAPping into argumentation* (Science Education) |
+| `Predict Observe Explain/` | POE (≈ ECR) | Liew, C.-W. & Treagust, D. F. (1998). *The Effectiveness of Predict-Observe-Explain Tasks…* AERA, San Diego. ERIC ED420715. ⚠️ was the accession number alone |
+| `Toulmin's Argument/` | Toulmin Argumentation Model | Erduran, S., Simon, S. & Osborne, J. (2004). *TAPping into argumentation…* **Science Education, 88(6), 915–933.** ⚠️ volume and pages were missing |
 
 Working set for the cycle method: 5E, Accountable Talk, Authentic Dialogue,
 CER, ESRU, POE, Toulmin. SDT and embodied cognition were deferred to the

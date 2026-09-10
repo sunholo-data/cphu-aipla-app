@@ -6,6 +6,23 @@ environment see [prod-cut.md](prod-cut.md); this is the routine path.
 > **Every `gcloud` command here needs `CLOUDSDK_ACTIVE_CONFIG_NAME=sunholo`.**
 > The default config points at the *template's* Aitana project and every AIPLA
 > call returns `PERMISSION_DENIED`. This is the single most common time-waster.
+>
+> ⚠️ **That config does not exist on every machine** (verified 2026-09-09: the
+> studio box has only `aitana` and `default`). Setting the variable to a config
+> that is absent prints `Could not open the configuration file` and then fails
+> with *"You do not currently have an active account selected"* — which reads
+> like an auth problem and is not. **Check `gcloud config configurations list`
+> first**; where `sunholo` is missing, drop the variable and pass
+> `--project=aipla-<env>-2026` explicitly on every call. That is what the
+> project ID is for, and it is immune to whichever config happens to be active.
+
+> ⚠️ **Cloud Build here is REGIONAL — always pass `--region=europe-north1`**
+> (ADR-007). A bare `gcloud builds list --project=aipla-dev-2026` queries
+> `global`, finds nothing, and prints **`Listed 0 items.` with exit code 0** —
+> indistinguishable from "no builds have run". This is the
+> reassuring-wrong-answer shape in CLAUDE.md's footgun table, and it cost time
+> on 2026-09-09 mid-deploy. `--region=global` is also silently empty; there is
+> no warning that you asked the wrong queue.
 
 ## The three routes at a glance
 
@@ -87,8 +104,30 @@ cd frontend && npm run quality:check      # NOT quality:check:fast — that skip
 ## test — push a version tag
 
 ```bash
+git push origin dev                                      # FIRST, and on its own
 git tag -a v0.1.4 -m "what changed" && git push origin v0.1.4
 ```
+
+> ⚠️ **Never chain the branch push and the tag push in one command.** On
+> 2026-09-09 a `git push origin dev && git tag … && git push origin <tag>` had
+> its *branch* push rejected (the remote had moved on — concurrent work from
+> another machine) while the **tag push went through regardless**. The result was
+> a `v*` tag pointing at a commit that was not on `dev`, which fired a test build
+> and — see the sandbox warning below — deployed prod's sandbox from an
+> off-branch commit.
+>
+> **Because prod promotes FROM THE TAG, a tag that is not on `dev` is a route to
+> shipping unreviewed code to production.** Push the branch, confirm it landed,
+> then tag. Before any promote, verify:
+>
+> ```bash
+> git merge-base --is-ancestor v0.1.4 origin/dev && echo "on-branch, safe to promote"
+> ```
+>
+> To recover from one: cancel the builds
+> (`gcloud builds cancel <ID> --project=… --region=europe-north1`), delete the
+> tag locally and on the remote (`git push --delete origin v0.1.4`), reconcile
+> the branch, and re-tag on the merged tip.
 
 Fires **`aipla-test-release`** (frontend+backend) and **`aipla-test-sandbox-release`**
 (the MCP-app artefact host), both matching `^v.*$`. Same CI gate as dev.
@@ -101,9 +140,23 @@ CLOUDSDK_ACTIVE_CONFIG_NAME=sunholo gcloud builds list \
 CLOUDSDK_ACTIVE_CONFIG_NAME=sunholo ./scripts/smoke-deployed.sh test all
 ```
 
-**The same tag does NOT deploy prod.** `aipla-prod-release` is disabled (see
-below). Before 2026-07-30 it was armed and a tag hit test and prod
+**The same tag does NOT deploy the prod APP.** `aipla-prod-release` is disabled
+(see below). Before 2026-07-30 it was armed and a tag hit test and prod
 simultaneously — prod running code test had never been verified on.
+
+> ⚠️ **But it DOES deploy the prod SANDBOX, immediately and with no approval.**
+> `aipla-prod-sandbox-release` matches `^v.*$` in `aipla-prod-2026` and is
+> **not** gated. Discovered 2026-09-09, when an off-branch `v0.1.39` tag put
+> prod's sandbox on that commit while the prod app was still on `v0.1.37`.
+>
+> So the accurate statement is **not** "a tag only reaches test" — it is "a tag
+> reaches test, and reaches prod's MCP-app artefact host". Harmless when the tag
+> touches nothing under `infrastructure/mcp-sandbox/`; a production deploy of
+> unreviewed artefact code when it does.
+>
+> `make deploy-status` prints the sandbox version per env alongside ui/backend,
+> so a sandbox that has run ahead of the app is visible there — expect it after
+> any tag, and treat sandbox ahead of ui as normal rather than as drift to fix.
 
 ---
 
