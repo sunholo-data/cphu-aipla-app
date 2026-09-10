@@ -66,24 +66,70 @@ def list_authored_tutors() -> list[Tutor]:
     return sorted(out, key=lambda t: t.id)
 
 
+def _with_assignment(tutor: Tutor | None) -> Tutor | None:
+    """Apply the researcher's framework assignment, if there is one.
+
+    Layered on TOP of both the authored tutor and the YAML base, deliberately:
+    an assignment must work for the four ``SKILL.md`` tutors as well as the six
+    persona ones, and writing it into the tutor document would make
+    ``admin.tutor_migration`` skip that tutor forever after. See
+    ``db/tutor_assignments.py`` for the whole reason this is a separate store.
+
+    ⚠️ Tests the ROW, not the framework id. A row with ``frameworkId: None`` is a
+    researcher saying "no framework", which has to be able to clear one the
+    tutor carries.
+    """
+    if tutor is None:
+        return None
+    from db.tutor_assignments import get_assignment
+
+    row = get_assignment(tutor.id)
+    if row is None:
+        return tutor
+    assigned = row.get("frameworkId")
+    if assigned == tutor.framework_id:
+        return tutor
+    return tutor.model_copy(update={"framework_id": assigned})
+
+
 def resolve_tutor(tutor_id: str | None) -> Tutor | None:
-    """The tutor by id: an authored one if it exists, else the YAML base.
+    """The tutor by id: an authored one if it exists, else the YAML base, with
+    any researcher framework assignment applied over the top.
 
     Authored wins so a researcher can supersede a base tutor without a deploy;
     None for an unknown id, because an unknown tutor must degrade to "no tutor"
     rather than raise on the agent path (Axiom 5).
+
+    ⚠️ The passthrough guarantee is unaffected. It is about a class or activity
+    with NO tutor selected, which never reaches this function — an assignment
+    can only change a tutor somebody deliberately picked.
     """
     if not tutor_id:
         return None
-    return get_authored_tutor(tutor_id) or load_base_tutor(tutor_id)
+    return _with_assignment(get_authored_tutor(tutor_id) or load_base_tutor(tutor_id))
 
 
 def list_tutor_catalogue() -> list[Tutor]:
     """Every selectable tutor — bases plus authored, authored shadowing a base
-    of the same id. This is what a teacher's picker shows."""
+    of the same id, with researcher framework assignments applied.
+
+    Assignments are applied here as well as in ``resolve_tutor`` so the teacher's
+    picker shows the same teaching approach the tutor will actually run with. A
+    catalogue that disagreed with the resolver would be the "two lists" bug in a
+    different costume.
+    """
+    from db.tutor_assignments import list_assignments
+
     authored = {t.id: t for t in list_authored_tutors()}
     merged = {t.id: t for t in load_base_tutors()} | authored
-    return sorted(merged.values(), key=lambda t: (t.is_variant, t.display_name.lower()))
+    assigned = list_assignments()
+    out = [
+        t.model_copy(update={"framework_id": assigned[t.id]})
+        if t.id in assigned and assigned[t.id] != t.framework_id
+        else t
+        for t in merged.values()
+    ]
+    return sorted(out, key=lambda t: (t.is_variant, t.display_name.lower()))
 
 
 def save_tutor(tutor: Tutor, *, updated_by: str) -> Tutor:

@@ -213,3 +213,112 @@ def test_reseeding_is_idempotent_and_does_not_revert_a_human_edit():
     assert after is not None and after.display_name == "Edited by a human"
     # An untouched one still tracks the template.
     assert get_authored_tutor("concept-dialogue").display_name.startswith("Begrebsdialog")
+
+
+# ── researcher assigns a teaching approach to a tutor (TUTOR-4) ──────────────
+#
+# Base tutors ship with frameworkId: null because "Sofie teaches with ESRU" is a
+# pedagogical claim and the catalogue does not make claims nobody signed off.
+# Assignment is where a named researcher makes that claim, in the app, on the
+# record — so the YAML stays null and the claim lives with its author.
+
+
+def test_researcher_assigns_a_framework_to_a_default_tutor():
+    c = _client(RESEARCHER)
+    before = c.get("/api/tutors/sofie").json()
+    assert before["frameworkId"] is None, "a base tutor must ship with no framework"
+
+    r = c.put("/api/research/tutors/sofie/framework", json={"frameworkId": "esru"})
+    assert r.status_code == 200, r.text
+    assert r.json()["tutor"]["frameworkId"] == "esru"
+    assert r.json()["assignment"]["updatedBy"] == "r-1", "provenance is not optional"
+
+    # It reaches the resolver, so it is what actually teaches.
+    from db.tutors import resolve_tutor
+
+    assert resolve_tutor("sofie").framework_id == "esru"
+    # …and the teacher's picker agrees with the resolver.
+    listed = next(t for t in c.get("/api/tutors").json()["tutors"] if t["id"] == "sofie")
+    assert listed["frameworkId"] == "esru"
+
+
+def test_clearing_the_assignment_restores_the_catalogue_default():
+    c = _client(RESEARCHER)
+    c.put("/api/research/tutors/astrid/framework", json={"frameworkId": "cer"})
+    assert c.get("/api/tutors/astrid").json()["frameworkId"] == "cer"
+
+    assert c.delete("/api/research/tutors/astrid/framework").status_code == 200
+    assert c.get("/api/tutors/astrid").json()["frameworkId"] is None
+
+
+def test_an_explicit_none_is_not_the_same_as_no_assignment():
+    """A researcher must be able to say "this one teaches with no framework" and
+    have it override a framework the tutor itself carries. Testing the ROW
+    rather than the truthiness of the id is what makes that possible."""
+    from db.tutor_assignments import get_assignment
+
+    c = _client(RESEARCHER)
+    c.put("/api/research/tutors/frida/framework", json={"frameworkId": None})
+    assert get_assignment("frida") is not None
+    assert get_assignment("frida")["frameworkId"] is None
+
+
+def test_a_placeholder_framework_cannot_be_assigned(monkeypatch):
+    """Assigning one would produce a tutor announcing an approach it cannot
+    teach with. The variant dialog already refuses; the server has to as well,
+    so it holds for every caller."""
+    from db.models.teaching_framework import TeachingFramework
+
+    empty = TeachingFramework(id="slot-only", label="Slot only", status="placeholder")
+    monkeypatch.setattr(
+        "protocols.tutors_routes.load_framework",
+        lambda fid: empty if fid == "slot-only" else None,
+    )
+    c = _client(RESEARCHER)
+    r = c.put("/api/research/tutors/sofie/framework", json={"frameworkId": "slot-only"})
+    assert r.status_code == 400
+    assert "no drafted teaching moves" in r.text
+
+
+def test_unknown_tutor_and_framework_are_refused():
+    c = _client(RESEARCHER)
+    assert c.put("/api/research/tutors/nope/framework", json={"frameworkId": "esru"}).status_code == 404
+    assert c.put("/api/research/tutors/sofie/framework", json={"frameworkId": "nope"}).status_code == 400
+
+
+def test_assignment_is_researcher_only():
+    r = _client(TEACHER).put("/api/research/tutors/sofie/framework", json={"frameworkId": "esru"})
+    assert r.status_code == 403
+
+
+def test_assigning_to_a_skill_md_tutor_does_not_freeze_it_against_the_seed():
+    """THE reason this is a separate store rather than a field on the tutor.
+
+    ``admin.tutor_migration`` deliberately skips any tutor a human has edited, so
+    writing the assignment into the tutor document would have cut a SKILL.md
+    tutor off from every future template change — silently, with the failure only
+    surfacing later as "my SKILL.md edit didn't ship".
+    """
+    from admin.tutor_migration import sync_tutor_for_template
+    from db.tutors import get_authored_tutor, resolve_tutor
+
+    parsed = {
+        "isTutor": True,
+        "name": "led-planck-tutor",
+        "displayName": "LED Planck tutor",
+        "description": "Original description.",
+    }
+    assert sync_tutor_for_template(parsed) == "led-planck-tutor"
+
+    c = _client(RESEARCHER)
+    assert c.put("/api/research/tutors/led-planck-tutor/framework", json={"frameworkId": "poe"}).status_code == 200
+    assert resolve_tutor("led-planck-tutor").framework_id == "poe"
+
+    # The tutor document is untouched, so the seed still owns it…
+    assert get_authored_tutor("led-planck-tutor").author_uid == "platform-seed"
+    # …and a later SKILL.md change still lands.
+    parsed["description"] = "Edited in the template."
+    assert sync_tutor_for_template(parsed) == "led-planck-tutor"
+    assert get_authored_tutor("led-planck-tutor").summary == "Edited in the template."
+    # The researcher's assignment survives the seed run.
+    assert resolve_tutor("led-planck-tutor").framework_id == "poe"

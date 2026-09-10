@@ -20,7 +20,7 @@ import logging
 import re
 
 from fastapi import APIRouter, Body, Depends, HTTPException, Path
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, ConfigDict, Field
 
 # Firebase-ONLY verifier: both surfaces are staff. Allowlisted in
 # scripts/check-auth-dispatcher.sh with that reason.
@@ -29,6 +29,7 @@ from auth.guards import assert_researcher, assert_teacher
 from db.classes import get_class, update_class_tutor
 from db.models.activity_config import InteractionStyle
 from db.models.tutor import Tutor
+from db.tutor_assignments import clear_assignment, get_assignment, set_assignment
 from db.tutors import create_variant, delete_authored_tutor, list_tutor_catalogue, resolve_tutor, save_tutor
 from frameworks.loader import load_framework, load_frameworks
 from personas.loader import load_persona
@@ -285,3 +286,61 @@ async def delete_tutor_route(
     delete_authored_tutor(tutor_id)
     log.info("authored tutor deleted: id=%s by=%s", tutor_id, user.uid)
     return {"deleted": tutor_id, "resolvesTo": _serialize(t) if (t := resolve_tutor(tutor_id)) else None}
+
+
+class TutorFrameworkAssignment(BaseModel):
+    """Which teaching approach a researcher gives a tutor.
+
+    ``framework_id`` of ``None`` is meaningful and not the same as not sending
+    the field: it records "this tutor teaches with no framework" and can clear
+    one the tutor itself declares. Removing the decision entirely is DELETE.
+    """
+
+    framework_id: str | None = Field(default=None, alias="frameworkId", max_length=64)
+
+    model_config = ConfigDict(populate_by_name=True, extra="forbid")
+
+
+@router.put("/api/research/tutors/{tutor_id}/framework")
+async def set_tutor_framework_route(
+    tutor_id: str = Path(...),
+    body: TutorFrameworkAssignment = Body(...),  # noqa: B008
+    user: User = Depends(get_current_user),  # noqa: B008
+) -> dict:
+    """Give a tutor — including a default one — a teaching approach.
+
+    This is where the pedagogical claim gets made. Base tutors ship with
+    ``frameworkId: null`` because "Sofie teaches with ESRU" is a claim, and the
+    catalogue does not make claims nobody signed off. Made HERE it is signed off:
+    by a named researcher, in the running app, with the uid recorded. The YAML
+    stays null.
+
+    A placeholder framework is refused. Assigning one would produce a tutor that
+    announces an approach and teaches with none — the same rule the variant
+    dialog applies, enforced on the server so it holds for any caller.
+    """
+    assert_researcher(user)
+    if resolve_tutor(tutor_id) is None:
+        raise HTTPException(status_code=404, detail=f"unknown tutor: {tutor_id}")
+    if body.framework_id:
+        fw = load_framework(body.framework_id)
+        if fw is None:
+            raise HTTPException(status_code=400, detail=f"unknown framework: {body.framework_id}")
+        if fw.is_placeholder:
+            raise HTTPException(
+                status_code=400,
+                detail=f"{body.framework_id} has no drafted teaching moves yet",
+            )
+    set_assignment(tutor_id, body.framework_id, updated_by=user.uid)
+    return {"tutor": _serialize(resolve_tutor(tutor_id)), "assignment": get_assignment(tutor_id)}
+
+
+@router.delete("/api/research/tutors/{tutor_id}/framework")
+async def clear_tutor_framework_route(
+    tutor_id: str = Path(...),
+    user: User = Depends(get_current_user),  # noqa: B008
+) -> dict:
+    """Remove the assignment, restoring whatever the tutor itself declares."""
+    assert_researcher(user)
+    clear_assignment(tutor_id)
+    return {"tutor": _serialize(resolve_tutor(tutor_id)), "assignment": None}
