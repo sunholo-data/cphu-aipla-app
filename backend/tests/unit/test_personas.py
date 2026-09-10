@@ -8,7 +8,7 @@ from db.models.activity_config import ActivityConfig
 from db.models.persona import Persona
 from personas.loader import load_persona, load_personas
 
-EXPECTED_IDS = {"astrid", "frida", "henrik", "jonas", "mikkel", "sofie"}
+EXPECTED_IDS = {"amina", "astrid", "frida", "henrik", "jonas", "mikkel", "sofie"}
 VALID_STYLES = {"socratic", "concise", "rigorous", "warm"}
 
 
@@ -28,6 +28,25 @@ def test_each_persona_ties_a_valid_style_and_has_a_name():
 def test_each_persona_has_a_wired_avatar_path():
     for p in load_personas():
         assert p.avatar == f"/personas/{p.id}.webp"
+
+
+def test_each_persona_avatar_file_actually_exists():
+    """The path being well-formed is not the same as the image being there.
+
+    Nothing in the frontend falls back when a persona avatar 404s — the picker
+    and the chat header just render a broken image, in front of a student. A
+    persona is added by writing YAML, and the .webp arrives separately from
+    whoever drew it, so the two can ship apart. This is the check that stops
+    that: the catalogue and the asset directory have to agree.
+    """
+    from pathlib import Path
+
+    public = Path(__file__).resolve().parents[3] / "frontend" / "public" / "personas"
+    missing = [p.id for p in load_personas() if not (public / f"{p.id}.webp").is_file()]
+    assert not missing, (
+        f"persona(s) with no avatar image in frontend/public/personas/: {missing}. "
+        "Add the .webp before shipping — nothing falls back, so it renders broken."
+    )
 
 
 def test_frida_ties_warm_style_and_a_voice():

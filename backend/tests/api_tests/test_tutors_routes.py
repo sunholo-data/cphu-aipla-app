@@ -18,6 +18,12 @@ from db import firestore as fs_module
 from protocols.tutors_routes import router
 
 RESEARCHER = User(uid="r-1", is_teacher=True, is_researcher=True)
+
+#: The persona-backed base tutors, spelled out on purpose. Deriving this from
+#: the loader the route itself reads would make the assertions tautological —
+#: their job is to notice a tutor appearing or disappearing, which only an
+#: independent list can do. Adding a persona is one edit here.
+BASE_TUTOR_IDS = {"amina", "astrid", "frida", "henrik", "jonas", "mikkel", "sofie"}
 TEACHER = User(uid="t-1", is_teacher=True)
 STUDENT = User(uid="grp-1", is_teacher=False)
 
@@ -61,7 +67,7 @@ def test_catalogue_ships_every_base_tutor_with_no_framework():
     """The safety property, asserted at the API boundary: picking a base tutor
     cannot change how an activity teaches."""
     body = _client(TEACHER).get("/api/tutors").json()
-    assert {t["id"] for t in body["tutors"]} == {"astrid", "frida", "henrik", "jonas", "mikkel", "sofie"}
+    assert {t["id"] for t in body["tutors"]} == BASE_TUTOR_IDS
     for t in body["tutors"]:
         assert t["frameworkId"] is None
         assert t["isVariant"] is False
@@ -194,7 +200,7 @@ def test_skill_bound_tutors_are_not_offered_as_a_class_identity():
     _seed_tutors()
     body = _client(TEACHER).get("/api/tutors").json()
     assert all(not t["isSkillBound"] for t in body["tutors"])
-    assert {t["id"] for t in body["tutors"]} == {"astrid", "frida", "henrik", "jonas", "mikkel", "sofie"}
+    assert {t["id"] for t in body["tutors"]} == BASE_TUTOR_IDS
     assert _client(TEACHER).get("/api/tutors/kinebot-kinematics-tutor").status_code == 200
 
 

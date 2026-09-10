@@ -1,0 +1,31 @@
+# Base tutor for the Amina persona (1.1.91 TUTOR-4).
+#
+# ⚠️ `frameworkId` is null on EVERY base tutor, and that is the safety property
+# of this catalogue, not an omission. Selecting a base tutor composes
+# byte-identically to how the persona behaved before tutors existed, so no
+# activity changes when a teacher first picks one.
+#
+# Pairing a persona with a teaching framework is a PEDAGOGICAL CLAIM ("Sofie
+# teaches with ESRU"), and this catalogue does not get to make claims nobody
+# signed off. Frameworks arrive through a VARIANT that a researcher deliberately
+# created, with lineage back to the base.
+#
+# ⚠️ This one is null even though the persona was ADDED to carry Authentic
+# Dialogue, and that is not a contradiction. The reason she exists is a
+# proposal; the assignment is a researcher's to make, in the app, with their uid
+# recorded against it — which is exactly what `tutor_framework_assignments` is
+# for. Writing it here would put the claim in git under a model's name, which is
+# the one thing this comment has always been against.
+id: amina
+displayName: Amina — Skrivevejleder
+summary: >
+  Discussion leader — asks open questions and builds the next step out of what
+  students actually said.
+personaId: amina
+frameworkId: null
+interactionStyle: socratic
+status: ready
+authorRole: researcher
+promptProvenance: authored
+lineage:
+  kind: original
