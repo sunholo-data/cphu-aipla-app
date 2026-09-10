@@ -97,15 +97,65 @@ def test_esru_use_construct_carries_the_finding_that_makes_it_worth_scoring():
     assert "IRE/F" in esru.summary or any("IRE/F" in (c.evaluation_hint or "") for c in esru.constructs)
 
 
-def test_the_other_six_are_slots_not_claims():
+#: Frameworks whose teaching moves have been extracted from their source. Grows
+#: one at a time, each by reading the paper — never by inference from a title.
+WORKED = {"esru", "authentic-dialogue"}
+
+
+def test_status_and_content_always_agree():
     """A framework with no drafted constructs must SAY it is a placeholder — a
-    theory field that looks founded but is empty is worse than no field."""
+    theory field that looks founded but is empty is worse than no field. And the
+    converse: a framework claiming content must have some."""
     for fw in load_frameworks():
-        if fw.id == "esru":
+        if fw.id in WORKED:
+            assert not fw.is_placeholder, f"{fw.id} is worked but still marked placeholder"
+            assert fw.constructs, f"{fw.id} claims content it does not have"
+        else:
+            assert fw.is_placeholder, f"{fw.id} claims content it does not have"
+            assert fw.constructs == []
+    assert {f.id for f in ready_frameworks()} == WORKED
+
+
+def test_every_worked_framework_is_fully_formed():
+    """Applies to each worked framework, so a third one cannot ship half-done."""
+    for fw in load_frameworks():
+        if fw.id not in WORKED:
             continue
-        assert fw.is_placeholder, f"{fw.id} claims content it does not have"
-        assert fw.constructs == []
-    assert [f.id for f in ready_frameworks()] == ["esru"]
+        assert fw.provenance, f"{fw.id} has no source"
+        for c in fw.constructs:
+            assert c.behaviours, f"{fw.id}.{c.name} has no observable behaviours"
+            assert c.evaluation_hint, f"{fw.id}.{c.name} has no 1.1.92 evaluation seam"
+            assert c.summary, f"{fw.id}.{c.name} has no summary"
+        assert any(c.avoid for c in fw.constructs), f"{fw.id} names nothing to avoid"
+
+
+def test_authentic_dialogue_carries_dysthes_three_constructs_and_the_ire_contrast():
+    """Dysthe's own three (authentic questions, uptake, high-level evaluation)
+    plus the dialogic aim they serve. She names the SAME anti-pattern as ESRU —
+    praise as judgement — which is what makes the two comparable arms rather
+    than merely different ones."""
+    fw = load_framework("authentic-dialogue")
+    assert fw is not None
+    assert [c.name for c in fw.constructs] == [
+        "authentic_question",
+        "uptake",
+        "high_level_evaluation",
+        "multivoicedness",
+    ]
+    hle = next(c for c in fw.constructs if c.name == "high_level_evaluation")
+    assert any("Good" in a for a in hle.avoid)
+    # Nystrand & Gamoran are where the constructs come from; citing Dysthe alone
+    # would credit the wrong people for the coding scheme.
+    assert any("Nystrand" in p.citation for p in fw.provenance)
+
+
+def test_authentic_dialogue_has_no_inquiry_dimensions():
+    """The asymmetry with ESRU is deliberate: Dysthe's model has no
+    epistemic/conceptual axis, and adding one for symmetry would be exactly the
+    unfounded claim this catalogue exists to prevent."""
+    fw = load_framework("authentic-dialogue")
+    assert fw is not None
+    assert all(b.dimension is None for c in fw.constructs for b in c.behaviours)
 
 
 def test_provenance_cannot_be_constructed_without_a_human_voucher():
