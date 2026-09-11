@@ -58,6 +58,7 @@ const copy = {
   sourceFields: "set by class/activity",
   none: "—",
   transcriptFor: (id: string) => `Transcript · ${id.slice(0, 8)}`,
+  noSession: "(no session id)",
   close: "Close",
   openTranscript: "Read",
 } as const;
@@ -354,8 +355,16 @@ function ResearchLogsPageInner() {
               </thead>
               <tbody>
                 {sessions.map((s) => (
-                  <tr key={`${s.session_id}-${s.framework_id}`} className="border-t border-border align-top">
-                    <td className="py-1.5 pr-3 font-mono text-xs">{s.session_id.slice(0, 8)}</td>
+                  <tr key={`${s.session_id ?? "none"}-${s.framework_id}`} className="border-t border-border align-top">
+                    {/* ⚠️ Optional-chained. A single row with a null session_id
+                        threw here and took the ENTIRE page down with
+                        "Application error" — React unmounts the tree on a render
+                        throw, so one bad field cost every other row too. The
+                        query layer no longer returns these, but a table cell
+                        must not be able to crash a page whatever it is handed. */}
+                    <td className="py-1.5 pr-3 font-mono text-xs">
+                      {s.session_id ? s.session_id.slice(0, 8) : copy.noSession}
+                    </td>
                     <td className="py-1.5 pr-3">
                       {s.tutor_id ?? copy.none}
                       {s.teaching_source ? (
@@ -376,7 +385,9 @@ function ResearchLogsPageInner() {
                     <td className="py-1.5">
                       <button
                         type="button"
-                        onClick={() => openTranscript(s.session_id)}
+                        // No session id means no transcript to open.
+                        disabled={!s.session_id}
+                        onClick={() => s.session_id && openTranscript(s.session_id)}
                         className="rounded border border-border px-2 py-0.5 text-xs font-medium hover:bg-accent"
                       >
                         {copy.openTranscript}

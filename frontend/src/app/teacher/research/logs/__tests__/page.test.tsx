@@ -171,6 +171,28 @@ describe("researcher chat-log lens", () => {
     expect(await screen.findByText("3 of 4")).toBeInTheDocument();
   });
 
+  it("survives a session row with no session id, instead of taking the page down", async () => {
+    // The prod crash of 2026-09-11: ONE row with a null session_id threw in a
+    // table cell, and React unmounts the tree on a render throw — so a single
+    // bad field cost every other row, the tabs, and the whole page. The query
+    // layer no longer returns these; the UI must be unable to crash on one
+    // whatever it is handed.
+    vi.spyOn(teacherApi, "listChatLogTabs").mockResolvedValue({ tabs: [tab()], unassignedKey: UNASSIGNED });
+    vi.spyOn(teacherApi, "listChatLogSessions").mockResolvedValue([
+      session({ session_id: null as unknown as string, turns: 22, readable_turns: 0 }),
+      session({ session_id: "9f2927f6-aaaa", turns: 4 }),
+    ]);
+
+    render(<ResearchLogsPage />);
+
+    // The good row still renders — that is the whole point.
+    expect(await screen.findByText("9f2927f6")).toBeInTheDocument();
+    expect(screen.getByText(/no session id/i)).toBeInTheDocument();
+    // And its transcript button is disabled: there is nothing to open.
+    const buttons = screen.getAllByRole("button", { name: /read/i });
+    expect(buttons.some((b) => (b as HTMLButtonElement).disabled)).toBe(true);
+  });
+
   it("drills into a transcript and marks the synthetic opener as system, not student", async () => {
     vi.spyOn(teacherApi, "listChatLogTabs").mockResolvedValue({ tabs: [tab()], unassignedKey: UNASSIGNED });
     vi.spyOn(teacherApi, "listChatLogSessions").mockResolvedValue([session()]);

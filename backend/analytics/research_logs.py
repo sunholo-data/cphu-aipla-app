@@ -142,7 +142,13 @@ def _filter_sql(framework: str | None, class_id: str | None, activity_id: str | 
     equality or tested for NULL, which is a branch on a sentinel, not on caller
     text reaching the SQL.
     """
-    clauses: list[str] = [_STUDENT_ONLY]
+    # ⚠️ A row with no session_id is not a conversation and must not be offered
+    # as one. 21 such rows exist on prod; grouped by session they produced a
+    # single row with `session_id: null`, which the UI then called `.slice()` on
+    # — crashing the whole page with "Application error" (2026-09-11, shipped in
+    # 1.1.109 and live until found). They are counted in `excluded_counts` so
+    # the totals still reconcile; they are just not listed as sessions.
+    clauses: list[str] = [_STUDENT_ONLY, "session_id IS NOT NULL", "session_id != ''"]
     params: dict[str, Any] = {}
     if framework == UNASSIGNED:
         clauses.append("framework_id IS NULL")
@@ -198,7 +204,11 @@ def excluded_counts() -> dict[str, Any]:
           COUNTIF(STARTS_WITH(group_id, 'teacher:')) AS teacher_turns,
           COUNT(DISTINCT IF(STARTS_WITH(group_id, 'teacher:'), session_id, NULL)) AS teacher_sessions,
           COUNTIF(STARTS_WITH(group_id, 'preview:')) AS preview_turns,
-          COUNT(DISTINCT IF(STARTS_WITH(group_id, 'preview:'), session_id, NULL)) AS preview_sessions
+          COUNT(DISTINCT IF(STARTS_WITH(group_id, 'preview:'), session_id, NULL)) AS preview_sessions,
+          -- Turns that belong to no conversation at all. Not listable (there is
+          -- no transcript to open), but real, so they are reported rather than
+          -- vanishing from the arithmetic.
+          COUNTIF(session_id IS NULL OR session_id = '') AS unattributed_turns
         FROM turns
     """
     rows = run_query(sql)

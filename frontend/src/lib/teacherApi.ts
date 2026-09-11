@@ -1403,7 +1403,12 @@ export interface ChatLogTab {
 
 /** One row in a tab — a conversation, with what taught it. */
 export interface ChatLogSession {
-  session_id: string;
+  /** ⚠️ NULLABLE, and it was typed as `string` until 2026-09-11 — which is why
+   *  `tsc` could not catch the unguarded `.slice()` that crashed the whole page
+   *  on prod. The query layer now excludes session-less rows, so this should
+   *  not arrive null; the type tells the truth anyway, because a type that
+   *  lies about the data disables the one check that would have caught it. */
+  session_id: string | null;
   framework_id: string;
   group_id: string | null;
   tutor_id: string | null;

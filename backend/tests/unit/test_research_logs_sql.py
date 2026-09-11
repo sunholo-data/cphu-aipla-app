@@ -229,3 +229,39 @@ def test_excluded_counts_reports_what_the_lens_hides():
     # this shows up as a number that no longer adds up.
     for prefix in research_logs.NON_STUDENT_PREFIXES:
         assert prefix in captured["sql"]
+
+
+def test_session_less_rows_are_never_listed_as_conversations():
+    """A row with no session_id is not a conversation and must not be offered as
+    one — there is no transcript to open.
+
+    Shipped without this in 1.1.109: 21 such rows on prod grouped into a single
+    result with `session_id: null`, the UI called `.slice()` on it, and React
+    unmounted the whole tree — "Application error" on the entire page, from one
+    field on one row.
+    """
+    where, _ = research_logs._filter_sql(None, None, None)
+    assert "session_id IS NOT NULL" in where
+    assert "session_id != ''" in where
+
+
+def test_unattributed_turns_are_counted_even_though_they_cannot_be_listed():
+    """Excluded from the list, but not from the arithmetic — otherwise the
+    totals stop reconciling against the raw table and nobody can say why."""
+    captured = {}
+
+    def fake_run_query(sql, params=None):
+        captured["sql"] = sql
+        return [{"unattributed_turns": 24}]
+
+    import pytest
+
+    monkey = pytest.MonkeyPatch()
+    monkey.setattr(research_logs, "run_query", fake_run_query)
+    try:
+        out = research_logs.excluded_counts()
+    finally:
+        monkey.undo()
+
+    assert out["unattributed_turns"] == 24
+    assert "session_id IS NULL" in captured["sql"]
