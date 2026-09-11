@@ -47,7 +47,6 @@ def test_every_route_is_researcher_only():
     c = _client(TEACHER)
     assert c.get("/api/research/frameworks").status_code == 403
     assert c.get("/api/research/frameworks/esru").status_code == 403
-    assert c.put("/api/research/frameworks/esru/instruction", json={"instruction": "x"}).status_code == 403
     assert c.delete("/api/research/frameworks/esru/instruction").status_code == 403
 
 
@@ -83,21 +82,26 @@ def test_placeholder_frameworks_render_no_instruction(monkeypatch):
 
 
 def test_edit_then_revert_round_trips():
+    """1.1.110: the edit is structural — there is no hand-written path left."""
     c = _client(RESEARCHER)
     generated = default_framework_instruction("esru")
     assert generated
 
-    saved = c.put("/api/research/frameworks/esru/instruction", json={"instruction": "Ask, then act."}).json()
-    assert saved["instruction"] == "Ask, then act."
+    body = _structure(c.get("/api/research/frameworks/esru").json())
+    body["constructs"] = [{"name": "elicit", "behaviours": [{"text": "Ask, then act."}], "avoid": []}]
+    saved = c.put("/api/research/frameworks/esru/structure", json=body).json()
     assert saved["isOverridden"] is True
     assert saved["overriddenBy"] == "r-1"
     assert saved["overrideVersion"] == 1
+    assert saved["overrideMode"] == "structured"
     # The generated text still travels, so the editor can always show the delta
     # and offer a truthful Revert.
     assert saved["defaultInstruction"] == generated
 
     # It persists across requests (it is the thing a live turn will read).
-    assert c.get("/api/research/frameworks/esru").json()["instruction"] == "Ask, then act."
+    live = c.get("/api/research/frameworks/esru").json()["instruction"]
+    assert "Ask, then act." in live
+    assert live != generated
 
     reverted = c.delete("/api/research/frameworks/esru/instruction").json()
     assert reverted["isOverridden"] is False
@@ -105,27 +109,44 @@ def test_edit_then_revert_round_trips():
 
 
 def test_version_increments_so_sessions_stay_attributable():
-    """1.1.92 attributes a scored session to what actually ran; an instruction
+    """1.1.92 attributes a scored session to what actually ran; a framework
     edited in place with no version would orphan earlier sessions."""
     c = _client(RESEARCHER)
+    base = _structure(c.get("/api/research/frameworks/esru").json())
     for expected in (1, 2, 3):
-        body = c.put("/api/research/frameworks/esru/instruction", json={"instruction": f"v{expected}"}).json()
+        base["summary"] = f"v{expected}"
+        body = c.put("/api/research/frameworks/esru/structure", json=base).json()
         assert body["overrideVersion"] == expected
 
 
-def test_provenance_comes_from_the_token_not_the_body():
+def test_there_is_no_route_that_hand_writes_an_instruction():
+    """The removal, pinned.
+
+    Free-text instruction editing was the only path capable of producing a
+    tutor prompt that no reader could check against a source. Re-adding the
+    route would restore that hole silently, and the override collections were
+    empty on all three environments when it was removed, so nothing depends on
+    it.
+    """
     c = _client(RESEARCHER)
-    body = c.put(
-        "/api/research/frameworks/esru/instruction",
-        json={"instruction": "x", "updatedBy": "somebody-else"},
-    ).json()
-    assert body["overriddenBy"] == "r-1"
+    resp = c.put("/api/research/frameworks/esru/instruction", json={"instruction": "anything"})
+    assert resp.status_code == 405, "PUT .../instruction must not exist"
 
 
-def test_unknown_framework_404s_and_empty_instruction_rejected():
+def test_provenance_comes_from_the_token_not_the_body():
+    """Who edited a research instrument is never a client-supplied field."""
+    c = _client(RESEARCHER)
+    body = _structure(c.get("/api/research/frameworks/esru").json())
+    body["updatedBy"] = "somebody-else"
+    saved = c.put("/api/research/frameworks/esru/structure", json=body).json()
+    # The body's claim is not rejected — it is simply never consulted. The route
+    # passes the VERIFIED uid, so what gets stored is who actually called.
+    assert saved["overriddenBy"] == "r-1"
+
+
+def test_unknown_framework_404s():
     c = _client(RESEARCHER)
     assert c.get("/api/research/frameworks/no-such").status_code == 404
-    assert c.put("/api/research/frameworks/esru/instruction", json={"instruction": ""}).status_code == 422
 
 
 # ── structural editing (TUTOR-4) ─────────────────────────────────────────────
@@ -227,18 +248,146 @@ def test_structure_routes_are_researcher_only():
     assert c.post("/api/research/frameworks/cer/structure/preview", json={}).status_code == 403
 
 
-def test_a_text_edit_drops_a_previous_structure():
-    """The two are alternative answers to "what is this framework", not layers.
-    A structure left underneath a hand-written instruction is a trap for whoever
-    opens the structural editor next."""
-    c = _client(RESEARCHER)
-    body = _structure(c.get("/api/research/frameworks/cer").json())
-    body["summary"] = "Structured edit."
-    c.put("/api/research/frameworks/cer/structure", json=body)
+def test_a_legacy_text_row_is_still_honoured_by_the_read_path():
+    """No route writes one; a row could still exist from before 1.1.110.
 
-    c.put("/api/research/frameworks/cer/instruction", json={"instruction": "Hand written."})
+    Honouring it is right — a researcher's saved work must not silently stop
+    being used — and the catalogue must report it as an override so it is
+    visible rather than looking like a published framework.
+    """
+    from db.firestore import set_document
+
+    set_document(
+        "framework_overrides",
+        "cer",
+        {"instruction": "Hand written, long ago.", "mode": "text", "version": 1},
+        merge=False,
+    )
+    c = _client(RESEARCHER)
     live = c.get("/api/research/frameworks/cer").json()
-    assert live["instruction"] == "Hand written."
+    assert live["instruction"] == "Hand written, long ago."
+    assert live["isOverridden"] is True
     assert live["overrideMode"] == "text"
-    # The structure is gone, so the editor reopens on the git default.
-    assert live["summary"] == live["defaultSummary"]
+    # And it is revertible, which is the only edit action left for such a row.
+    assert c.delete("/api/research/frameworks/cer/instruction").json()["isOverridden"] is False
+
+
+# ── custom approaches (1.1.110) ──────────────────────────────────────────────
+#
+# The tier rules, which are the part most likely to be got wrong by a later
+# change: the published frameworks stay researcher-only, and custom approaches
+# are the one thing on this screen a teacher may edit.
+
+OTHER_TEACHER = User(uid="t-2", is_teacher=True)
+STUDENTISH = User(uid="s-1", is_teacher=False)
+
+_BODY = {"label": "Warm coach", "summary": "Encouraging.", "instructionText": "Be kind. Ask first."}
+
+
+def _create(user: User, **over) -> dict:
+    return _client(user).post("/api/research/frameworks/custom", json={**_BODY, **over}).json()
+
+
+def test_a_teacher_can_create_and_edit_their_own_approach():
+    c = _client(TEACHER)
+    created = c.post("/api/research/frameworks/custom", json=_BODY)
+    assert created.status_code == 200
+    body = created.json()
+    assert body["id"] == "custom-warm-coach"
+    assert body["layer"] == "custom"
+    assert body["authorUid"] == "t-1"
+    assert body["authorRole"] == "teacher"
+    assert body["canEdit"] is True
+    # Usable immediately — nobody owes a teacher's own approach a sign-off.
+    assert body["status"] == "ready"
+
+    edited = c.put(
+        "/api/research/frameworks/custom/custom-warm-coach",
+        json={**_BODY, "instructionText": "Be kind. Always ask first."},
+    ).json()
+    assert edited["instructionText"] == "Be kind. Always ask first."
+
+
+def test_a_teacher_cannot_edit_another_teachers_approach():
+    _create(TEACHER)
+    c = _client(OTHER_TEACHER)
+    assert c.put("/api/research/frameworks/custom/custom-warm-coach", json=_BODY).status_code == 403
+    assert c.delete("/api/research/frameworks/custom/custom-warm-coach").status_code == 403
+
+
+def test_a_researcher_may_edit_anyones_approach_without_stealing_it():
+    """A researcher can fix a teacher's approach; doing so must not quietly
+    reassign authorship, or the register of who wrote what stops being true."""
+    _create(TEACHER)
+    edited = (
+        _client(RESEARCHER)
+        .put(
+            "/api/research/frameworks/custom/custom-warm-coach",
+            json={**_BODY, "summary": "Tidied."},
+        )
+        .json()
+    )
+    assert edited["summary"] == "Tidied."
+    assert edited["authorUid"] == "t-1"
+    assert edited["authorRole"] == "teacher"
+
+
+def test_a_teacher_still_cannot_touch_the_published_frameworks():
+    """The whole point of the split. A teacher may author their own pedagogy and
+    may not edit ESRU."""
+    c = _client(TEACHER)
+    assert c.put("/api/research/frameworks/esru/structure", json={"summary": "x"}).status_code == 403
+    assert c.delete("/api/research/frameworks/esru/instruction").status_code == 403
+    assert c.get("/api/research/frameworks").status_code == 403
+
+
+def test_a_non_teacher_gets_nothing():
+    c = _client(STUDENTISH)
+    assert c.post("/api/research/frameworks/custom", json=_BODY).status_code == 403
+    assert c.get("/api/research/frameworks/custom/list").status_code == 403
+
+
+def test_can_edit_is_computed_server_side_per_row():
+    """Sent per row rather than left to the client to derive. A UI deriving it
+    would be a second copy of the rule, and the two would disagree the first
+    time one changed."""
+    _create(TEACHER)
+    _client(OTHER_TEACHER).post("/api/research/frameworks/custom", json={**_BODY, "label": "Strict coach"})
+
+    rows = _client(TEACHER).get("/api/research/frameworks/custom/list").json()["approaches"]
+    by_id = {r["id"]: r for r in rows}
+    assert by_id["custom-warm-coach"]["canEdit"] is True
+    assert by_id["custom-strict-coach"]["canEdit"] is False
+
+    rows_r = _client(RESEARCHER).get("/api/research/frameworks/custom/list").json()["approaches"]
+    assert all(r["canEdit"] for r in rows_r)
+
+
+def test_duplicate_label_is_refused_rather_than_silently_overwriting():
+    _create(TEACHER)
+    assert _client(OTHER_TEACHER).post("/api/research/frameworks/custom", json=_BODY).status_code == 409
+
+
+def test_a_custom_approach_reaches_a_tutor_prompt():
+    """The end of the chain — an approach nobody can edit into the tutor's
+    prompt would be a settings screen, not a feature."""
+    from db.framework_overrides import resolve_framework_instruction
+
+    _create(TEACHER)
+    out = resolve_framework_instruction("custom-warm-coach")
+    assert "Be kind. Ask first." in out
+    # Rendered as an APPROACH, not as a framework from the literature, and
+    # without the "work through its moves in order" preface — there are no moves
+    # and telling a model to follow a structure that is not there invites it to
+    # invent one.
+    assert out.startswith("## Teaching approach: Warm coach")
+    assert "moves in order" not in out
+
+
+def test_a_custom_approach_has_no_revert_target():
+    """There is no published version to go back to, and offering a Revert that
+    silently does nothing is worse than offering none."""
+    from db.framework_overrides import default_framework_instruction as dfi
+
+    _create(TEACHER)
+    assert dfi("custom-warm-coach") == ""

@@ -20,7 +20,7 @@ from __future__ import annotations
 import logging
 
 from fastapi import APIRouter, Body, Depends, HTTPException, Path
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, ConfigDict, Field
 
 # Firebase-ONLY verifier, deliberately: this is a researcher surface and an
 # anonymous-group student JWT has no business reaching it (see
@@ -29,14 +29,21 @@ from pydantic import BaseModel, Field
 # and be denied there instead — safe, but a layer too late and against the
 # stated convention.
 from auth.firebase_auth import User, get_current_user
-from auth.guards import assert_researcher
+from auth.guards import assert_researcher, assert_teacher
+from db.authored_frameworks import (
+    delete_authored_framework,
+    get_authored_framework,
+    list_authored_frameworks,
+    make_framework_id,
+    may_edit,
+    save_authored_framework,
+)
 from db.framework_overrides import (
     clear_framework_override,
     default_framework_instruction,
     effective_framework,
     get_framework_override,
     resolve_framework_instruction,
-    save_framework_override,
     save_framework_structure,
 )
 from db.models.teaching_framework import Construct, Provenance, TeachingFramework
@@ -51,10 +58,6 @@ router = APIRouter(prefix="/api/research/frameworks", tags=["research", "framewo
 # four constructs has room. Unbounded free text into a system prompt is not a
 # thing to ship.
 _MAX_INSTRUCTION = 20000
-
-
-class InstructionUpdate(BaseModel):
-    instruction: str = Field(min_length=1, max_length=_MAX_INSTRUCTION)
 
 
 class StructureUpdate(BaseModel):
@@ -150,30 +153,17 @@ async def get_framework_route(
     return _serialize(_require(framework_id))
 
 
-@router.put("/{framework_id}/instruction")
-async def put_framework_instruction_route(
-    framework_id: str = Path(...),
-    body: InstructionUpdate = Body(...),  # noqa: B008
-    user: User = Depends(get_current_user),  # noqa: B008
-) -> dict:
-    """Save a researcher-edited instruction for this framework.
-
-    ``updated_by`` is taken from the VERIFIED token, never from the body:
-    provenance on a research instrument is not a client-supplied field.
-    """
-    assert_researcher(user)
-    fw = _require(framework_id)
-    save_framework_override(fw.id, body.instruction.strip(), updated_by=user.uid)
-    log.info("framework instruction overridden: framework=%s by=%s", fw.id, user.uid)
-    return _serialize(fw)
-
-
 @router.delete("/{framework_id}/instruction")
 async def delete_framework_instruction_route(
     framework_id: str = Path(...),
     user: User = Depends(get_current_user),  # noqa: B008
 ) -> dict:
-    """Revert to the instruction rendered from the YAML constructs."""
+    """Revert to the instruction rendered from the YAML constructs.
+
+    The only revert there is, and it covers both override shapes: a structural
+    edit and a legacy hand-written one are one row, and deleting it restores the
+    published framework either way.
+    """
     assert_researcher(user)
     fw = _require(framework_id)
     clear_framework_override(fw.id)
@@ -238,3 +228,142 @@ async def preview_framework_structure_route(
         "instruction": build_framework_instruction(merged),
         "defaultInstruction": default_framework_instruction(framework_id),
     }
+
+
+# ── custom approaches (1.1.110) ──────────────────────────────────────────────
+#
+# The one thing on this screen a TEACHER may edit. Everything above operates on
+# the seven published frameworks and is researcher-only; these routes are open
+# to any teacher, who may create approaches and edit their own.
+#
+# A custom approach makes no claim to a literature, which is what makes this
+# safe to open up — see db/authored_frameworks.py for why this departs from
+# M1's "teachers get variants, not blank frameworks".
+
+
+class CustomApproachBody(BaseModel):
+    """A custom approach as the client sends it.
+
+    ``authorUid``/``authorRole`` are deliberately absent: they come from the
+    verified token. A body that supplies them is not rejected, it is simply
+    never consulted.
+    """
+
+    label: str = Field(min_length=1, max_length=120)
+    summary: str = Field(default="", max_length=800)
+    instruction_text: str = Field(alias="instructionText", min_length=1, max_length=20000)
+    material_refs: list[dict] = Field(default_factory=list, alias="materialRefs", max_length=20)
+
+    model_config = ConfigDict(populate_by_name=True)
+
+
+def _custom_or_404(framework_id: str) -> TeachingFramework:
+    fw = get_authored_framework(framework_id)
+    if fw is None:
+        raise HTTPException(status_code=404, detail="approach not found")
+    return fw
+
+
+@router.get("/custom/list")
+async def list_custom_approaches_route(
+    user: User = Depends(get_current_user),  # noqa: B008
+) -> dict:
+    """Every custom approach, with whether THIS caller may edit each one.
+
+    ``canEdit`` is computed server-side and sent per row rather than left to the
+    client to derive. A UI deriving it would be a second copy of the rule, and
+    the two would disagree the first time one changed — the shape of the
+    money-gate join footgun.
+    """
+    assert_teacher(user)
+    rows = list_authored_frameworks()
+    return {
+        "approaches": [
+            {
+                **fw.model_dump(by_alias=True, mode="json"),
+                "canEdit": may_edit(fw, uid=user.uid, is_researcher=user.is_researcher),
+            }
+            for fw in rows
+        ]
+    }
+
+
+@router.post("/custom")
+async def create_custom_approach_route(
+    body: CustomApproachBody = Body(...),  # noqa: B008
+    user: User = Depends(get_current_user),  # noqa: B008
+) -> dict:
+    """Create a custom approach. Any teacher may."""
+    assert_teacher(user)
+    framework_id = make_framework_id(body.label)
+    if get_authored_framework(framework_id) is not None:
+        raise HTTPException(status_code=409, detail=f"an approach named {body.label!r} already exists")
+    fw = TeachingFramework(
+        id=framework_id,
+        label=body.label,
+        summary=body.summary,
+        layer="custom",
+        # A custom approach is usable the moment it is written. `ready_for_review`
+        # is the published frameworks' state and means AR/JB owe it a sign-off;
+        # nobody owes a teacher's own approach anything.
+        status="ready",
+        instruction_text=body.instruction_text,
+        material_refs=body.material_refs,
+        source="firestore",
+    )
+    saved = save_authored_framework(
+        fw,
+        author_uid=user.uid,
+        author_role="researcher" if user.is_researcher else "teacher",
+    )
+    log.info("custom approach created: %s by %s", saved.id, user.uid)
+    return {**saved.model_dump(by_alias=True, mode="json"), "canEdit": True}
+
+
+@router.put("/custom/{framework_id}")
+async def update_custom_approach_route(
+    framework_id: str = Path(...),
+    body: CustomApproachBody = Body(...),  # noqa: B008
+    user: User = Depends(get_current_user),  # noqa: B008
+) -> dict:
+    """Edit a custom approach — yours, or anyone's if you are a researcher."""
+    assert_teacher(user)
+    existing = _custom_or_404(framework_id)
+    if not may_edit(existing, uid=user.uid, is_researcher=user.is_researcher):
+        raise HTTPException(status_code=403, detail="this approach belongs to someone else")
+    updated = existing.model_copy(
+        update={
+            "label": body.label,
+            "summary": body.summary,
+            "instruction_text": body.instruction_text,
+            "material_refs": body.material_refs,
+        }
+    )
+    saved = save_authored_framework(
+        updated,
+        author_uid=user.uid,
+        author_role="researcher" if user.is_researcher else "teacher",
+    )
+    return {**saved.model_dump(by_alias=True, mode="json"), "canEdit": True}
+
+
+@router.delete("/custom/{framework_id}")
+async def delete_custom_approach_route(
+    framework_id: str = Path(...),
+    user: User = Depends(get_current_user),  # noqa: B008
+) -> dict:
+    """Delete a custom approach.
+
+    ⚠️ Does NOT check whether a tutor or class still points at it. Framework
+    resolution is None-tolerant by design (Axiom 5) — an unknown id degrades to
+    a tutor with no approach rather than raising — so a dangling reference is a
+    silent loss of pedagogy, not an outage. Surfacing usage before deletion is
+    worth doing and is not done here; see the design doc's open questions.
+    """
+    assert_teacher(user)
+    existing = _custom_or_404(framework_id)
+    if not may_edit(existing, uid=user.uid, is_researcher=user.is_researcher):
+        raise HTTPException(status_code=403, detail="this approach belongs to someone else")
+    delete_authored_framework(framework_id)
+    log.info("custom approach deleted: %s by %s", framework_id, user.uid)
+    return {"deleted": framework_id}

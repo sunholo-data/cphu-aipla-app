@@ -26,6 +26,8 @@ from typing import Literal
 
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
+from db.models.activity_config import MaterialRef
+
 # Which stack a framework belongs to. The 2026-09-08 literature set
 # (``docs/literature/tp-framework/README.md``) keeps these deliberately APART:
 # the teaching-practice cycle methods are the promptable teaching moves, while
@@ -36,7 +38,12 @@ from pydantic import BaseModel, ConfigDict, Field, model_validator
 # "Embodied Cognition is the umbrella theory, with SDT incorporated inside it".
 # The literature set describes two separate layers rather than a tree, so this is
 # a flat discriminator. Revisit before M5 seeds conceptual-layer entries.
-FrameworkLayer = Literal["tp_cycle", "conceptual"]
+#: ``custom`` (1.1.110) is the honest home for free-text authoring. A custom
+#: approach is WRITTEN, not derived from constructs traceable to a paper, and it
+#: says so — which is exactly why removing the hand-written-instruction editor
+#: from the published frameworks cost nothing: the capability stayed, the false
+#: claim to a literature did not.
+FrameworkLayer = Literal["tp_cycle", "conceptual", "custom"]
 
 # ``placeholder`` — the slot exists, the pedagogy does not (AR/JB owe content).
 # ``ready_for_review`` — constructs drafted, awaiting AR sign-off.
@@ -137,7 +144,36 @@ class TeachingFramework(BaseModel):
     status: FrameworkStatus = "placeholder"
     source: Literal["yaml", "firestore"] = "yaml"
 
+    # ── custom approaches (1.1.110) ──────────────────────────────────────────
+    #
+    # A custom approach carries its instruction as prose instead of deriving it
+    # from constructs. Both fields are None/empty on every published framework,
+    # so nothing about the seven changes.
+    #
+    # ⚠️ ``instruction_text`` is NOT a reintroduction of the editor that was
+    # removed. The difference is the claim attached to it: this renders under a
+    # heading that says it was authored, carries no provenance it did not earn,
+    # and cannot be mistaken on screen for ESRU. The old editor overwrote a
+    # derived prompt in place and left the badge saying "generated".
+    instruction_text: str | None = Field(default=None, alias="instructionText", max_length=20000)
+
+    # Documents this approach draws on. These are CurriculumDoc references and
+    # they are consulted AT AUTHORING TIME (the co-pilot grounding its
+    # proposals), never bound into a student session — that is a different
+    # function (`build_curriculum_retrieval_tool`) which this never calls.
+    material_refs: list[MaterialRef] = Field(default_factory=list, alias="materialRefs", max_length=20)
+
+    # Ownership, mirroring ``Tutor``. Null on the seven published frameworks:
+    # they are authored in git, and git records who wrote them.
+    author_uid: str | None = Field(default=None, alias="authorUid", max_length=128)
+    author_role: Literal["researcher", "teacher"] | None = Field(default=None, alias="authorRole")
+
     model_config = ConfigDict(populate_by_name=True, extra="forbid")
+
+    @property
+    def is_custom(self) -> bool:
+        """A free-text approach someone wrote, not a framework from the literature."""
+        return self.layer == "custom"
 
     @property
     def is_placeholder(self) -> bool:

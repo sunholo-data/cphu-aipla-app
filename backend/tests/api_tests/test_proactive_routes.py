@@ -252,3 +252,41 @@ def test_greet_does_not_increment_when_skipped(client):
     assert resp.status_code == 200
     assert resp.json()["skipped"] is True
     mock_incr.assert_not_called()
+
+
+# --- the greet carries the activity (2026-09-11) ---
+
+
+def test_greet_passes_activity_id_through_to_the_agent(client):
+    """The opening turn must be built WITH the activity, like every other turn.
+
+    Before this, ``GreetRequest`` had no activity field and the greet agent fell
+    back to ``skill_id`` for its activity — so an activity whose prompt said
+    exactly what to teach was ignored on the first turn, and the log stamped
+    the skill id as ``activity_id`` on that row only.
+    """
+    skill = _make_skill("act")
+    process_mock = AsyncMock(side_effect=_fake_process_skill_request)
+    with (
+        patch("protocols.proactive_routes.get_skill", return_value=skill),
+        patch("protocols.proactive_routes.process_skill_request", process_mock),
+    ):
+        res = client.post(
+            "/api/sessions/sess-act/greet",
+            json={"skillId": skill.skill_id, "activityId": "act-1234"},
+        )
+    assert res.status_code == 200
+    assert process_mock.call_args.kwargs["activity_id"] == "act-1234"
+
+
+def test_greet_without_activity_still_works(client):
+    """A teacher's own chat has no activity; the field stays optional."""
+    skill = _make_skill("noact")
+    process_mock = AsyncMock(side_effect=_fake_process_skill_request)
+    with (
+        patch("protocols.proactive_routes.get_skill", return_value=skill),
+        patch("protocols.proactive_routes.process_skill_request", process_mock),
+    ):
+        res = client.post("/api/sessions/sess-noact/greet", json={"skillId": skill.skill_id})
+    assert res.status_code == 200
+    assert process_mock.call_args.kwargs["activity_id"] is None

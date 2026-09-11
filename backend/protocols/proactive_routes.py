@@ -95,9 +95,21 @@ _EVENT_KIND_PATTERN = re.compile(r"^[a-z][a-z0-9_]*$")
 
 
 class GreetRequest(BaseModel):
-    """Body shape for ``POST /api/sessions/{id}/greet``."""
+    """Body shape for ``POST /api/sessions/{id}/greet``.
+
+    ``activity_id`` is the fix for the opening turn ignoring the activity
+    (2026-09-11). Without it the greet built its agent with NO activity config
+    — no teacher focus, no elements — so a tutor whose activity said exactly
+    what to teach opened with "so, what would you like to explore?", and the
+    student's first message was "you tell me". Five times in one morning on
+    prod. The chat path has sent ``forwardedProps.activity_id`` on every turn
+    since 1.1.19; the greet was the one turn that did not, and it is the turn
+    where the activity matters most. Optional: a teacher's own chat has no
+    activity and must keep working.
+    """
 
     skill_id: str = Field(alias="skillId", min_length=1, max_length=128)
+    activity_id: str | None = Field(default=None, alias="activityId", max_length=128)
 
     model_config = ConfigDict(populate_by_name=True, extra="forbid")
 
@@ -200,6 +212,10 @@ async def post_session_greet(
             access=access,
             session_id=session_id,
             message=PROACTIVE_GREET_TRIGGER,
+            # The one place the greet differed from a normal turn — see
+            # GreetRequest. Also keys the (group, activity) turn lock
+            # correctly instead of under the skill-id fallback.
+            activity_id=body.activity_id,
         ):
             event_type = event.get("type") if isinstance(event, dict) else None
             if event_type == "TEXT_MESSAGE_CONTENT":

@@ -17,7 +17,7 @@ from db.framework_overrides import (
     clear_framework_override,
     default_framework_instruction,
     resolve_framework_instruction,
-    save_framework_override,
+    save_framework_structure,
 )
 from db.models.activity_config import ActivityConfig
 from frameworks.instruction import build_framework_instruction
@@ -113,15 +113,75 @@ def test_esru_reaches_the_prompt_with_all_four_verified_moves(monkeypatch):
 
 def test_a_researcher_edit_reaches_the_prompt_without_a_deploy(monkeypatch):
     """The premise of 1.1.91: the people who own the pedagogy cannot write files
-    in git, so their edit has to reach a live turn some other way."""
+    in git, so their edit has to reach a live turn some other way.
+
+    Since 1.1.110 the only way to make that edit is STRUCTURAL — the
+    hand-written-instruction editor is gone — so this exercises the path that
+    still exists. The property under test is unchanged: edit, no deploy, next
+    turn differs.
+    """
     _patch_config(monkeypatch, _cfg("esru"))
-    save_framework_override("esru", "Ask one question. Then use the answer.", updated_by="r-1")
+    base = load_framework("esru")
+    edited = base.model_dump(by_alias=True, mode="json")
+    edited["constructs"] = [
+        {
+            "name": "elicit",
+            "behaviours": [{"text": "Ask one question. Then use the answer."}],
+            "avoid": [],
+        }
+    ]
+    save_framework_structure("esru", edited, updated_by="r-1")
+
     out = inject_framework_preamble(BASE, "act-1")
     assert "Ask one question. Then use the answer." in out
-    assert "Ruiz-Primo" not in out  # the generated text is replaced, not appended
+    # The edit REPLACES the published constructs rather than adding to them, so
+    # a behaviour the researcher removed must not still be reaching the tutor.
+    # Checked against a real behaviour LINE, not the construct's name: the
+    # framework summary legitimately still names all four moves, so asserting on
+    # "Recognise" would fail for a reason that has nothing to do with the edit.
+    dropped = [b for b in base.behaviour_lines() if b != "Ask one question. Then use the answer."]
+    assert dropped, "fixture would be vacuous — esru has no other behaviours"
+    for behaviour in dropped:
+        assert behaviour not in out
 
     clear_framework_override("esru")
     assert resolve_framework_instruction("esru") == default_framework_instruction("esru")
+
+
+def test_a_legacy_hand_written_override_is_still_honoured_but_warns(monkeypatch, caplog):
+    """No editor writes one any more; a row could still exist mid-deploy.
+
+    Honouring it is right — a researcher's saved work must not silently stop
+    being used — but it is now un-revisable in the UI and untraceable to any
+    source, so reading one must be visible in the logs rather than quiet.
+    """
+    import logging
+
+    from db.firestore import set_document
+
+    set_document(
+        "framework_overrides",
+        "esru",
+        {"instruction": "Say whatever you like.", "mode": "text", "version": 1},
+        merge=False,
+    )
+    with caplog.at_level(logging.WARNING):
+        out = resolve_framework_instruction("esru")
+    assert out == "Say whatever you like."
+    assert "LEGACY text-mode override" in caplog.text
+    clear_framework_override("esru")
+
+
+def test_nothing_can_write_a_hand_written_override_any_more():
+    """The removal, asserted rather than assumed.
+
+    1.1.110 dropped free-text instruction editing because it was the only path
+    that could produce a tutor prompt no reader could check against a source.
+    A re-added helper would restore that hole quietly, so the absence is pinned.
+    """
+    import db.framework_overrides as fo
+
+    assert not hasattr(fo, "save_framework_override")
 
 
 # ── the render itself ────────────────────────────────────────────────────────

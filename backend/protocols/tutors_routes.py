@@ -27,11 +27,12 @@ from pydantic import BaseModel, ConfigDict, Field
 from auth.firebase_auth import User, get_current_user
 from auth.guards import assert_researcher, assert_teacher
 from db.classes import get_class, update_class_tutor
+from db.framework_overrides import effective_framework
 from db.models.activity_config import InteractionStyle
 from db.models.tutor import Tutor
 from db.tutor_assignments import clear_assignment, get_assignment, set_assignment
 from db.tutors import create_variant, delete_authored_tutor, list_tutor_catalogue, resolve_tutor, save_tutor
-from frameworks.loader import load_framework, load_frameworks
+from frameworks.loader import load_frameworks
 from personas.loader import load_persona
 
 log = logging.getLogger(__name__)
@@ -77,7 +78,7 @@ def plain_framework_name(framework_id: str | None) -> str | None:
     This was invisible until 2026-09-10 because those five frameworks were
     placeholders, and a placeholder is never offered in the picker.
     """
-    fw = load_framework(framework_id)
+    fw = effective_framework(framework_id)
     if fw is None:
         return None
     plain = _PLAIN_NAME.get(fw.id)
@@ -94,7 +95,7 @@ def plain_framework_name(framework_id: str | None) -> str | None:
 
 def _serialize(t: Tutor) -> dict:
     persona = load_persona(t.persona_id) if t.persona_id else None
-    fw = load_framework(t.framework_id)
+    fw = effective_framework(t.framework_id)
     return {
         **t.model_dump(by_alias=True, mode="json"),
         "persona": (
@@ -148,7 +149,7 @@ def _validate_refs(tutor_id: str, persona_id: str | None, framework_id: str | No
         raise HTTPException(status_code=400, detail="id must be lowercase letters, digits and hyphens")
     if persona_id and load_persona(persona_id) is None:
         raise HTTPException(status_code=400, detail=f"unknown persona: {persona_id}")
-    if framework_id and load_framework(framework_id) is None:
+    if framework_id and effective_framework(framework_id) is None:
         raise HTTPException(status_code=400, detail=f"unknown framework: {framework_id}")
 
 
@@ -323,7 +324,7 @@ async def set_tutor_framework_route(
     if resolve_tutor(tutor_id) is None:
         raise HTTPException(status_code=404, detail=f"unknown tutor: {tutor_id}")
     if body.framework_id:
-        fw = load_framework(body.framework_id)
+        fw = effective_framework(body.framework_id)
         if fw is None:
             raise HTTPException(status_code=400, detail=f"unknown framework: {body.framework_id}")
         if fw.is_placeholder:

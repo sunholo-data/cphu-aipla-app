@@ -277,7 +277,7 @@ def test_a_placeholder_framework_cannot_be_assigned(monkeypatch):
 
     empty = TeachingFramework(id="slot-only", label="Slot only", status="placeholder")
     monkeypatch.setattr(
-        "protocols.tutors_routes.load_framework",
+        "protocols.tutors_routes.effective_framework",
         lambda fid: empty if fid == "slot-only" else None,
     )
     c = _client(RESEARCHER)
