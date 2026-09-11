@@ -25,6 +25,7 @@ from collections.abc import Callable
 from google.adk.tools import FunctionTool, ToolContext
 
 from adk import authoring_tools as _authoring_tools
+from adk import tutor_authoring_tools as _tutor_authoring
 from analytics import summarise as _analytics_summarise
 from analytics import tools as _analytics_tools
 from db.firestore import query_documents
@@ -156,6 +157,15 @@ TOOL_REGISTRY: dict[str, Callable[[dict], FunctionTool]] = {
     "attach_material": lambda _config: FunctionTool(_authoring_tools.attach_material),
     "set_activity_facets": lambda _config: FunctionTool(_authoring_tools.set_activity_facets),
     "propose_concept_map": lambda _config: FunctionTool(_authoring_tools.propose_concept_map),
+    # Tutor co-pilot propose-tools (1.1.91 M2; backend/adk/tutor_authoring_tools.py).
+    # Researcher-only, resolved server-side from the Firebase claim — not from
+    # prompt context. None of them can attach a citation the model wrote;
+    # `find_source_passages` is the single grounded path in.
+    "propose_approach": lambda _config: FunctionTool(_tutor_authoring.propose_approach),
+    "propose_behaviours": lambda _config: FunctionTool(_tutor_authoring.propose_behaviours),
+    "draft_approach_prompt": lambda _config: FunctionTool(_tutor_authoring.draft_approach_prompt),
+    "critique_approach": lambda _config: FunctionTool(_tutor_authoring.critique_approach),
+    "find_source_passages": lambda _config: FunctionTool(_tutor_authoring.find_source_passages),
     # Manage-class tools — see backend/tools/class_management.py. Active
     # class management from the manage-class teacher hub skill (create / list /
     # mint + read-only activity metadata). Destructive ops (revoke) stay

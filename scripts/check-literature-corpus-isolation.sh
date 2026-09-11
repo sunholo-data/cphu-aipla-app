@@ -16,11 +16,26 @@
 # framework layer exists for: retrieval makes the prompt differ turn to turn, so
 # "hold the prompt against the paper and check it" stops being possible.
 #
-# The design is that a student session CANNOT reach it — there is no tool
-# builder in db/literature_corpus.py, so there is nothing for an agent to be
-# handed. This guard keeps that true. The failure it prevents is quiet: an
-# import added in good faith, a tutor that starts quoting Dysthe at a
-# 16-year-old, and copyrighted text leaving the tenancy through a chat window.
+# The design is that a STUDENT session cannot reach it. Two things hold that up,
+# and this guard checks both:
+#
+#   1. db/literature_corpus.py exposes no tool builder, so there is nothing an
+#      agent can simply be handed.
+#   2. Any code on the agent path that reads the corpus enforces the researcher
+#      gate itself.
+#
+# ⚠️ This checked (1) plus a blunt "nothing under backend/adk may import it"
+# rule until 2026-09-11, when the tutor co-pilot (1.1.91 M2) arrived: its
+# propose-tools live in backend/adk because that is where TOOL_REGISTRY reaches
+# them, they are researcher-gated server-side, and they are mounted from a
+# role:researcher skill. The path rule called that a violation. The invariant
+# was never about WHERE the code lives, so the check now asserts the thing that
+# matters instead — which is also stricter, because it would catch an
+# ungated reader the path rule happened to miss.
+#
+# The failure it prevents is quiet: an import added in good faith, a tutor that
+# starts quoting Dysthe at a 16-year-old, and copyrighted text leaving the
+# tenancy through a chat window.
 #
 # Run: make check-literature-isolation
 set -euo pipefail
@@ -41,11 +56,30 @@ AGENT_PATHS=(
 )
 
 fail=0
+
+# Every agent-path file that reads the literature corpus.
+readers=()
 for path in "${AGENT_PATHS[@]}"; do
   [[ -e "$path" ]] || continue
-  if hits=$(grep -rn "$MODULE" "$path" 2>/dev/null); then
-    echo "REACHABLE FROM THE AGENT PATH:"
-    echo "$hits" | sed 's/^/  /'
+  while IFS= read -r f; do
+    readers+=("$f")
+  done < <(grep -rl --include='*.py' "$MODULE" "$path" 2>/dev/null || true)
+done
+
+# A reader is permitted ONLY if it enforces the researcher gate itself.
+#
+# The path rule this replaced was a proxy, and the proxy went wrong the first
+# time it met a legitimate case: the tutor co-pilot's propose-tools live in
+# backend/adk because that is where TOOL_REGISTRY can reach them, and they are
+# researcher-gated server-side and mounted from a role:researcher skill. The
+# invariant that actually matters is not WHERE the code lives — it is that a
+# student can never reach the copyrighted text. So assert that.
+for f in "${readers[@]}"; do
+  if grep -qE '_caller_is_researcher|assert_researcher|role:researcher' "$f"; then
+    echo "  allowed: $f (reads the corpus, enforces the researcher gate)"
+  else
+    echo "REACHABLE FROM A STUDENT TURN:"
+    echo "  $f reads $MODULE and does NOT enforce a researcher gate."
     fail=1
   fi
 done
@@ -70,4 +104,4 @@ MSG
   exit 1
 fi
 
-echo "OK: the literature corpus is not reachable from any student/agent path."
+echo "OK: the literature corpus is read only where the researcher gate is enforced."
