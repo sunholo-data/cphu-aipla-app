@@ -35,6 +35,27 @@ resource "google_bigquery_table" "chat_turns" {
         CAST(jsonPayload.token_out AS INT64)   AS token_out,
         CAST(jsonPayload.latency_ms AS INT64)  AS latency_ms,
         jsonPayload.teacher_focus              AS teacher_focus,
+        -- What this conversation was taught WITH (TUTOR-5, 2026-09-11). The
+        -- pipeline's first four months recorded skill_id and nothing about the
+        -- pedagogy, so "every chat taught with ESRU" was not an answerable
+        -- question. These are stamped at emit time in
+        -- adk/tutor_resolution.resolve_teaching_context, from the SAME
+        -- resolution the tutor's prompt is built from.
+        --
+        -- ⚠️ NULL on every row written before 2026-09-11, and deliberately not
+        -- backfilled. A class's tutor changes over time, so joining
+        -- group -> class -> tutor -> framework after the fact files old turns
+        -- under arms they never ran under. Treat NULL as "not recorded", never
+        -- as "no framework" — `teaching_source` is how you tell the difference
+        -- going forward: 'tutor' means a Tutor object decided, 'fields' means
+        -- the pre-tutor activity/class fields did.
+        jsonPayload.tutor_id                   AS tutor_id,
+        jsonPayload.framework_id               AS framework_id,
+        jsonPayload.persona_id                 AS persona_id,
+        jsonPayload.class_id                   AS class_id,
+        jsonPayload.activity_id                AS activity_id,
+        jsonPayload.interaction_style          AS interaction_style,
+        jsonPayload.teaching_source            AS teaching_source,
         -- Which build produced this turn. `revision` is Cloud Run's K_REVISION
         -- and is the A/B ARM KEY: traffic tags route to revisions, so when two
         -- versions serve side by side this is what separates the arms. Without

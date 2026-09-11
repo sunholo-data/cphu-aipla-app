@@ -62,6 +62,7 @@ def _emit_new_turns(
     skill_id: str,
     callback_context: Any,
     group_id: str | None = None,
+    teaching: Any = None,
 ) -> None:
     """Emit chat-turn log entries for THIS invocation's events (SEQUENCE 1.2).
 
@@ -154,6 +155,19 @@ def _emit_new_turns(
                 skill_id=skill_id,
                 turn_index=idx,
                 role=role,
+                # TUTOR-5 — what this conversation was taught WITH. Resolved
+                # once in `create_agent` and passed down, so the log records the
+                # same context the prompt was built from. Null on every row
+                # written before 2026-09-11, and deliberately not backfilled:
+                # a class's tutor changes, so a retrospective join would file
+                # old turns under arms they never ran under.
+                tutor_id=getattr(teaching, "tutor_id", None),
+                framework_id=getattr(teaching, "framework_id", None),
+                persona_id=getattr(teaching, "persona_id", None),
+                class_id=getattr(teaching, "class_id", None),
+                activity_id=getattr(teaching, "activity_id", None),
+                interaction_style=getattr(teaching, "interaction_style", None),
+                teaching_source=getattr(teaching, "source", None),
                 # Student turns carry the transcript (that IS the research
                 # data); teacher turns carry only its length, which answers
                 # "was this a long context?" without quoting anyone.
@@ -295,7 +309,10 @@ def _flush_session_index(session_id: str, turn_count: int, title: str | None) ->
 
 
 def make_after_agent_response(
-    owner_uid: str | None = None, skill_id: str | None = None, group_id: str | None = None
+    owner_uid: str | None = None,
+    skill_id: str | None = None,
+    group_id: str | None = None,
+    teaching: Any = None,
 ) -> Any:
     """Return an ``after_agent_callback`` that maintains the ChatSessionIndex.
 
@@ -310,6 +327,12 @@ def make_after_agent_response(
     ``owner_uid`` / ``skill_id`` default to None so existing callers/tests
     that invoke ``make_after_agent_response()`` keep working (chat-logging is
     simply skipped without them).
+
+    ``teaching`` is the ``TeachingContext`` resolved in ``create_agent`` — the
+    tutor, framework, persona, class and activity behind this turn (TUTOR-5).
+    Passed in rather than resolved here so the log stamps the same context the
+    prompt was built from; typed loosely and read with ``getattr`` so a caller
+    that has none simply logs nulls.
     """
 
     def _after_response(callback_context: Any) -> None:
@@ -321,7 +344,7 @@ def make_after_agent_response(
         session_id = getattr(session, "id", None) if session else None
 
         if owner_uid and skill_id and session_id and session is not None:
-            _emit_new_turns(session, session_id, owner_uid, skill_id, callback_context, group_id)
+            _emit_new_turns(session, session_id, owner_uid, skill_id, callback_context, group_id, teaching)
 
         if not state.get(_STATE_INITIALIZED):
             return

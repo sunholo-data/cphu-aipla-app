@@ -83,6 +83,7 @@ from adk.quota_retry import retry_on_quota_exhaustion
 from adk.teacher_focus import build_ilo_precedence_block, inject_teacher_focus, resolve_active_config
 from adk.tools import resolve_mcp_tools, resolve_tools
 from adk.tutor_framework import inject_framework_preamble
+from adk.tutor_resolution import resolve_teaching_context
 from auth.access_context import AccessContext
 from auth.firebase_auth import User
 from db.models import SkillConfig
@@ -622,7 +623,22 @@ def create_agent(
             label = f"Reading {len(loaded)} document{suffix}…"
         get_current_tracker().mark(STAGE_BEFORE_AGENT_DONE, user_label=label)
 
-    _after_agent_response = make_after_agent_response(user.uid, skill_config.skill_id, user.group_id)
+    # TUTOR-5: what taught this turn, resolved once here and CARRIED to the
+    # chat log, rather than re-derived at the emit site. Reuses `_active_cfg`,
+    # already read above, so this costs no extra Firestore round-trip on the
+    # chat path. `resolve_teaching_context` never raises.
+    _teaching_ctx = resolve_teaching_context(
+        _activity_id,
+        group_tags=user.group_tags,
+        cfg=_active_cfg,
+    )
+
+    _after_agent_response = make_after_agent_response(
+        user.uid,
+        skill_config.skill_id,
+        user.group_id,
+        teaching=_teaching_ctx,
+    )
 
     async def _composed_after_agent(callback_context: object) -> None:
         _after_agent_response(callback_context)

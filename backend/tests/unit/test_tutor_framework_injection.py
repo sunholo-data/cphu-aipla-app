@@ -45,7 +45,16 @@ def _cfg(framework_id=None):
 
 
 def _patch_config(monkeypatch, cfg):
-    monkeypatch.setattr("adk.tutor_framework.resolve_active_config", lambda *a, **k: cfg)
+    """Patch the resolution at its SOURCE, not at an importer.
+
+    Was `adk.tutor_framework.resolve_active_config`. TUTOR-5 made
+    `resolve_framework_id` delegate to `resolve_teaching_context` so the prompt
+    and the chat log read one join, which moved the seam — tutor_framework no
+    longer imports the symbol at all. Patching `adk.teacher_focus` (where it is
+    defined, and imported inside the function at call time) holds for both
+    callers and does not move again if another one is added.
+    """
+    monkeypatch.setattr("adk.teacher_focus.resolve_active_config", lambda *a, **k: cfg)
 
 
 # ── the passthrough guarantee ────────────────────────────────────────────────
@@ -129,3 +138,74 @@ def test_render_never_leaks_framework_jargon_to_the_student():
     gets dropped in an edit."""
     out = build_framework_instruction(load_framework("esru"))
     assert "Never name the framework" in out
+
+
+# ── the log records what actually taught (TUTOR-5) ───────────────────────────
+
+
+def test_teaching_context_and_the_prompt_read_the_same_join(monkeypatch):
+    """The chat log's framework_id must be the framework the tutor was ACTUALLY
+    given, not a second derivation that could disagree.
+
+    `resolve_framework_id` now delegates to `resolve_teaching_context`, so there
+    is one join. This asserts they cannot diverge — two independent answers to
+    "which framework" is the shape of the money-gate join bug, where a gate and
+    a display read the same concept by different routes and only one was right.
+    """
+    from adk.tutor_framework import resolve_framework_id
+    from adk.tutor_resolution import resolve_teaching_context
+
+    _patch_config(monkeypatch, _cfg("esru"))
+    ctx = resolve_teaching_context("act-1")
+    assert ctx.framework_id == resolve_framework_id("act-1") == "esru"
+    assert ctx.activity_id == "act-1"
+    # 'fields' — the activity's own framework_id decided, not a Tutor object.
+    assert ctx.source == "fields"
+
+
+def test_teaching_context_records_the_tutor_that_decided(monkeypatch):
+    """When a Tutor resolves, the log names it AND the framework it carries —
+    which is what makes "every chat taught with ESRU" answerable at all."""
+    from adk.tutor_resolution import resolve_teaching_context
+    from db.models.tutor import Tutor
+
+    tutor = Tutor(
+        id="sofie-esru",
+        displayName="Sofie (ESRU)",
+        personaId="sofie",
+        frameworkId="esru",
+        interactionStyle="socratic",
+    )
+    monkeypatch.setattr("db.tutors.resolve_tutor", lambda tid: tutor if tid == "sofie-esru" else None)
+    _patch_config(monkeypatch, _cfg(None))
+    monkeypatch.setattr(
+        "adk.tutor_resolution.resolve_teaching",
+        lambda cfg, **kw: __import__("adk.tutor_resolution", fromlist=["TeachingResolution"]).TeachingResolution(
+            tutor=tutor,
+            persona_id="sofie",
+            framework_id="esru",
+            interaction_style="socratic",
+        ),
+    )
+    ctx = resolve_teaching_context("act-1")
+    assert ctx.tutor_id == "sofie-esru"
+    assert ctx.framework_id == "esru"
+    assert ctx.persona_id == "sofie"
+    # 'tutor' — a deliberate bundled choice, distinguishable in BigQuery from a
+    # turn that merely inherited an activity field.
+    assert ctx.source == "tutor"
+
+
+def test_teaching_context_never_raises_on_the_telemetry_path(monkeypatch):
+    """A failure here must cost a null column, not a lesson (Axiom 5)."""
+    from adk.tutor_resolution import resolve_teaching_context
+
+    def _boom(*a, **kw):
+        raise RuntimeError("firestore down")
+
+    monkeypatch.setattr("adk.teacher_focus.resolve_active_config", _boom)
+    ctx = resolve_teaching_context("act-1")
+    assert ctx.framework_id is None
+    assert ctx.tutor_id is None
+    # …and says so, rather than looking like a turn taught with nothing.
+    assert ctx.source == "unresolved"

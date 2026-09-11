@@ -45,6 +45,18 @@ CHAT_TURN_KEYS = {
     "token_out",
     "latency_ms",
     "teacher_focus",
+    # What the conversation was taught WITH (TUTOR-5, 2026-09-11). Resolved once
+    # in create_agent and carried to the emitter, so the log records the same
+    # context the tutor's prompt was built from rather than a second derivation.
+    "tutor_id",
+    "framework_id",
+    "persona_id",
+    "class_id",
+    "activity_id",
+    "interaction_style",
+    # 'tutor' (a Tutor object decided) vs 'fields' (the pre-tutor activity/class
+    # fields did) — the difference between a deliberate choice and a default.
+    "teaching_source",
     # A/B arm key — which build produced the row (see _version_fields).
     "revision",
     "app_version",
@@ -442,3 +454,76 @@ def test_empty_env_is_treated_as_unset(monkeypatch):
         chat_log.emit_chat_turn(**TURN_KW)
     payload = gl.log_struct.call_args.args[0]
     assert payload["revision"] is None and payload["app_version"] is None
+
+
+# ── what the conversation was taught with (TUTOR-5) ──────────────────────────
+
+
+def test_teaching_fields_are_emitted_and_match_the_view():
+    """The keys must be EXACTLY the columns views.tf selects.
+
+    The module docstring's contract, applied to the fields added on 2026-09-11:
+    the flattened view reads `jsonPayload.<key>` by name, so a key renamed here
+    and not there produces a silently all-NULL column rather than an error.
+    """
+    with patch.object(chat_log, "_get_logger") as gl:
+        logger = MagicMock()
+        gl.return_value = logger
+        chat_log.emit_chat_turn(
+            **TURN_KW,
+            tutor_id="sofie",
+            framework_id="esru",
+            persona_id="sofie",
+            class_id="cls-1",
+            activity_id="act-7",
+            interaction_style="socratic",
+            teaching_source="tutor",
+        )
+    payload = logger.log_struct.call_args[0][0]
+    assert payload["tutor_id"] == "sofie"
+    assert payload["framework_id"] == "esru"
+    assert payload["persona_id"] == "sofie"
+    assert payload["class_id"] == "cls-1"
+    assert payload["activity_id"] == "act-7"
+    assert payload["interaction_style"] == "socratic"
+    assert payload["teaching_source"] == "tutor"
+
+
+def test_view_selects_every_teaching_key_the_emitter_writes():
+    """Guard the lockstep the module docstring demands, mechanically.
+
+    Nothing else checks it. A key added to the payload without a matching line
+    in views.tf lands in the raw table and never becomes a column, so the data
+    looks present in Cloud Logging and absent in BigQuery — which is exactly
+    how someone concludes the pipeline dropped it.
+    """
+    from pathlib import Path
+
+    views = (Path(__file__).resolve().parents[3] / "infrastructure" / "modules" / "chat-logs" / "views.tf").read_text(
+        encoding="utf-8"
+    )
+
+    with patch.object(chat_log, "_get_logger") as gl:
+        logger = MagicMock()
+        gl.return_value = logger
+        chat_log.emit_chat_turn(**TURN_KW)
+    emitted = set(logger.log_struct.call_args[0][0])
+
+    missing = [k for k in emitted if f"jsonPayload.{k}" not in views]
+    assert not missing, (
+        f"emit_chat_turn writes key(s) the chat-turn view does not select: {missing}. "
+        "Add them to infrastructure/modules/chat-logs/views.tf or they never become columns."
+    )
+
+
+def test_teaching_fields_default_to_null_for_callers_that_have_no_context():
+    """Optional on purpose. Rows written before this shipped carry NULL, and a
+    caller with no teaching context must log NULL rather than fail — telemetry
+    never breaks the chat path."""
+    with patch.object(chat_log, "_get_logger") as gl:
+        logger = MagicMock()
+        gl.return_value = logger
+        chat_log.emit_chat_turn(**TURN_KW)
+    payload = logger.log_struct.call_args[0][0]
+    for key in ("tutor_id", "framework_id", "persona_id", "class_id", "activity_id"):
+        assert payload[key] is None

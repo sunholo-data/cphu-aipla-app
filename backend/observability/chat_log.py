@@ -130,8 +130,30 @@ def emit_chat_turn(
     token_out: int | None = None,
     latency_ms: int | None = None,
     teacher_focus: str | None = None,
+    tutor_id: str | None = None,
+    framework_id: str | None = None,
+    persona_id: str | None = None,
+    class_id: str | None = None,
+    activity_id: str | None = None,
+    interaction_style: str | None = None,
+    teaching_source: str | None = None,
 ) -> None:
-    """Emit one chat turn (student or tutor). Never raises."""
+    """Emit one chat turn (student or tutor). Never raises.
+
+    The teaching fields (TUTOR-5, 2026-09-11) answer "what was this conversation
+    taught WITH" — the question the pipeline could not answer for its first four
+    months, because it recorded ``skill_id`` and nothing about the pedagogy.
+
+    ⚠️ They are stamped here, at emit time, and NOT derived later. A class's
+    tutor changes; joining group -> class -> tutor -> framework after the fact
+    attributes an old conversation to whatever that class teaches with today,
+    filing rows under arms they never ran under. A wrong label that looks like
+    evidence is worse than a null, so rows from before this shipped stay null
+    and are reported as "not recorded" rather than being guessed at.
+
+    All optional, so every existing caller and test keeps working and simply
+    logs nulls — the same reason ``model`` and ``teacher_focus`` are optional.
+    """
     gl = _get_logger(LOG_ID_CHAT_TURN)
     if gl is None:
         return
@@ -147,6 +169,16 @@ def emit_chat_turn(
         "token_out": token_out,
         "latency_ms": latency_ms,
         "teacher_focus": teacher_focus,
+        # What taught this turn (TUTOR-5). `teaching_source` distinguishes "a
+        # tutor object decided" from "the pre-tutor activity/class fields did",
+        # which is the difference between a deliberate choice and a default.
+        "tutor_id": tutor_id,
+        "framework_id": framework_id,
+        "persona_id": persona_id,
+        "class_id": class_id,
+        "activity_id": activity_id,
+        "interaction_style": interaction_style,
+        "teaching_source": teaching_source,
         **_version_fields(),
     }
     try:

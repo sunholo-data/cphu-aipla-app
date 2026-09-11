@@ -20,6 +20,7 @@ resolution object rather than mutating anything.
 from __future__ import annotations
 
 import logging
+from collections.abc import Iterable
 from dataclasses import dataclass
 
 from db.models.activity_config import ActivityConfig, InteractionStyle
@@ -84,4 +85,99 @@ def resolve_teaching(
     )
 
 
-__all__ = ["TeachingResolution", "resolve_teaching"]
+@dataclass(frozen=True)
+class TeachingContext:
+    """Everything that decided how this turn was taught, for the record.
+
+    1.1.91 TUTOR-5. The chat-log pipeline recorded ``skill_id`` and nothing
+    about the pedagogy, so "show me every conversation taught with ESRU" was not
+    a question the data could answer — the teaching style was never written
+    down.
+
+    ⚠️ It cannot be recovered afterwards by joining. You could walk
+    group -> class -> tutor -> framework, but a class's tutor CHANGES: a
+    conversation from last week would be attributed to whatever that class
+    teaches with today. That silently files rows under arms they never ran
+    under, which is worse than showing nothing because it looks like evidence.
+    So this is stamped at emit time, when it is a fact rather than an inference.
+
+    Resolved through ``resolve_teaching`` like everything else — the log records
+    what ACTUALLY taught, not a second derivation that could disagree with it.
+    """
+
+    tutor_id: str | None
+    framework_id: str | None
+    persona_id: str | None
+    class_id: str | None
+    activity_id: str | None
+    interaction_style: InteractionStyle | None
+    #: "tutor" when a Tutor object decided, "fields" when the pre-tutor
+    #: activity/class fields did. Distinguishes "no framework was configured"
+    #: from "a tutor was chosen that carries none" — different findings.
+    source: str
+
+
+def resolve_teaching_context(
+    activity_id: str | None,
+    *,
+    group_tags: Iterable[str] | None = None,
+    cfg: ActivityConfig | None = None,
+) -> TeachingContext:
+    """The full teaching context for ``activity_id``, for logging and display.
+
+    ``cfg`` may be passed when the caller has already resolved the active
+    config, to avoid a second read of the same document.
+
+    Never raises. This runs on the telemetry path, where a failure must cost a
+    null column and not a lesson (Axiom 5) — an unresolvable context returns
+    all-None rather than propagating.
+    """
+    from adk.teacher_focus import class_id_from_group_tags, resolve_active_config
+
+    try:
+        if cfg is None and activity_id:
+            cfg = resolve_active_config(activity_id, group_tags=group_tags)
+        class_id = (cfg.class_id if cfg is not None else None) or class_id_from_group_tags(group_tags)
+
+        class_tutor_id = None
+        class_persona_id = None
+        if class_id:
+            from db.classes import get_class
+
+            cls = get_class(class_id)
+            class_tutor_id = getattr(cls, "tutor_id", None)
+            class_persona_id = getattr(cls, "persona", None)
+
+        r = resolve_teaching(
+            cfg,
+            class_tutor_id=class_tutor_id,
+            class_persona_id=class_persona_id,
+        )
+        return TeachingContext(
+            tutor_id=r.tutor.id if r.tutor is not None else None,
+            framework_id=r.framework_id,
+            persona_id=r.persona_id,
+            class_id=class_id,
+            activity_id=activity_id,
+            interaction_style=r.interaction_style,
+            source=r.source,
+        )
+    except Exception as exc:
+        log.warning("resolve_teaching_context: failed for activity=%s: %s", activity_id, exc)
+        return TeachingContext(
+            tutor_id=None,
+            framework_id=None,
+            persona_id=None,
+            class_id=None,
+            activity_id=activity_id,
+            interaction_style=None,
+            source="unresolved",
+        )
+
+
+__all__ = [
+    "TeachingContext",
+    "TeachingResolution",
+    "resolve_teaching",
+    "resolve_teaching_context",
+]
