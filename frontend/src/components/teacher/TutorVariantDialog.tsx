@@ -6,6 +6,22 @@ import { GitBranch } from "lucide-react";
 import { type TutorCatalogue, type TutorPayload, createTutorVariant } from "@/lib/teacherApi";
 
 /**
+ * ⚠️ **CURRENTLY MOUNTED NOWHERE** (2026-09-11). This component is complete and
+ * tested, and nothing renders it.
+ *
+ * It used to hang off `TutorPicker`, inside a `<details>`, at the bottom of a
+ * CLASS settings page — which is where you choose a tutor, not where you author
+ * a research instrument. M asked for it to be dropped from there, and it was.
+ * The API behind it (`POST /api/research/tutors/variant`) is untouched and there
+ * are zero variants on any environment, so nothing was stranded.
+ *
+ * It is kept rather than deleted because the variant mechanism is the answer to
+ * a real problem: with a strict 1-1 tutor→framework mapping, a measured
+ * difference between arms mixes pedagogy with face, voice, gender, age and tone.
+ * Variants of ONE persona are what separate them. When that matters, this wants
+ * a home on the Approaches surface — beside the frameworks and the custom
+ * approaches, which is where tutor authoring now lives.
+ *
  * Create a variant of an existing tutor (1.1.91 M1 / M5) — researcher-only.
  *
  * A researcher does not edit "Sofie" to teach with ESRU; they create a VARIANT

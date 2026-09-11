@@ -128,4 +128,18 @@ describe("TutorPicker (1.1.91 M1 — one choice)", () => {
     render(<TutorPicker classId="c-1" selectedTutorId={null} />);
     await screen.findByText(/teaches as it always has/i);
   });
+
+  it("offers no variant authoring on a class page", async () => {
+    // Removed 2026-09-11. A class is where you CHOOSE a tutor; authoring a
+    // research instrument is a different job at a different moment, and this
+    // sat inside a <details> at the bottom of class settings — hard to find and
+    // easy to trigger by accident. The API and the dialog component both
+    // survive; only this placement is gone, and it must not creep back.
+    mockCatalogue([tutor()]);
+    render(<TutorPicker classId="c-1" selectedTutorId={null} />);
+    await screen.findByText(/Sofie/);
+
+    expect(screen.queryByText(/create a variant/i)).not.toBeInTheDocument();
+    expect(screen.queryByText(/^Researcher:/i)).not.toBeInTheDocument();
+  });
 });

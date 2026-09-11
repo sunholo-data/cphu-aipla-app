@@ -13,8 +13,6 @@ import {
 } from "@/lib/teacherApi";
 import { INTERACTION_STYLE_HELP, INTERACTION_STYLE_LABEL } from "@/lib/personaDisplay";
 import { TeachingStyleDisclosure } from "@/components/teacher/TeachingStyleDisclosure";
-import { TutorVariantDialog } from "@/components/teacher/TutorVariantDialog";
-import { useIsResearcher } from "@/hooks/useIsResearcher";
 
 /**
  * The one tutor choice for a class (1.1.91 M1).
@@ -28,6 +26,15 @@ import { useIsResearcher } from "@/hooks/useIsResearcher";
  * and shows it read-only on the activity, because a duplicate per-activity
  * picker was problem 4 of teacher-ux-refinement.md. This is the same place, now
  * carrying more.
+ *
+ * ⚠️ **Variant authoring is deliberately NOT here** (removed 2026-09-11). A
+ * researcher-only "create a variant of a tutor" control used to sit at the
+ * bottom of this picker, inside a `<details>`, on a class settings page. A
+ * class is where you CHOOSE a tutor; authoring a research instrument is a
+ * different job done at a different moment, and burying it under the class a
+ * teacher happened to open made it hard to find and easy to trigger by
+ * accident. The API (`POST /api/research/tutors/variant`) is untouched; the
+ * mechanism needs a home on the Approaches surface, not on a class.
  *
  * Two UX rules this component exists to keep:
  *  1. **No bare acronyms.** The backend sends `frameworkName` already in plain
@@ -45,10 +52,8 @@ export function TutorPicker({
   selectedTutorId: string | null;
   onChange?: (tutorId: string | null) => void;
 }) {
-  const isResearcher = useIsResearcher();
   const [tutors, setTutors] = useState<TutorPayload[]>([]);
   const [frameworks, setFrameworks] = useState<TutorCatalogue["frameworks"]>([]);
-  const [variantOf, setVariantOf] = useState<TutorPayload | null>(null);
   const [styles, setStyles] = useState<InteractionStyleSpec[]>([]);
   const [state, setState] = useState<"loading" | "ready" | "error">("loading");
   const [saving, setSaving] = useState<string | null>(null);
@@ -132,41 +137,6 @@ export function TutorPicker({
 
       {styles.length > 0 ? <TeachingStyleDisclosure styles={styles} /> : null}
 
-      {/* Researcher-only (1.1.91 M5). A teacher picks from the library; a
-          researcher extends it — the two-tier authoring model, where a teacher
-          gets variants of researched tutors rather than blank frameworks. */}
-      {isResearcher ? (
-        variantOf ? (
-          <TutorVariantDialog
-            parent={variantOf}
-            frameworks={frameworks}
-            onCancel={() => setVariantOf(null)}
-            onCreated={(v) => {
-              setTutors((list) => [...list, v]);
-              setVariantOf(null);
-            }}
-          />
-        ) : (
-          <details className="rounded border bg-muted/20 p-2">
-            <summary className="cursor-pointer text-xs text-muted-foreground">
-              Researcher: create a variant of a tutor
-            </summary>
-            <ul className="mt-2 flex flex-wrap gap-1.5">
-              {tutors.map((t) => (
-                <li key={t.id}>
-                  <button
-                    type="button"
-                    onClick={() => setVariantOf(t)}
-                    className="rounded border px-2 py-1 text-xs hover:bg-accent"
-                  >
-                    {t.displayName}
-                  </button>
-                </li>
-              ))}
-            </ul>
-          </details>
-        )
-      ) : null}
 
       {selected === null ? (
         <p className="flex items-start gap-1.5 text-xs text-muted-foreground">
