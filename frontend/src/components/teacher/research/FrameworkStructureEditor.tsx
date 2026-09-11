@@ -8,6 +8,7 @@ import {
   type TeachingFrameworkPayload,
   previewFrameworkStructure,
 } from "@/lib/teacherApi";
+import { RegisterPicker } from "@/components/teacher/research/RegisterPicker";
 
 /**
  * Edit a teaching framework's THEORY — constructs, observable behaviours,
@@ -61,6 +62,10 @@ function defaultStructureOf(fw: TeachingFrameworkPayload): FrameworkStructure {
       summary: fw.defaultSummary,
       constructs: fw.defaultConstructs,
       provenance: fw.defaultProvenance,
+      // Reset restores the PUBLISHED voice, which for every git framework is
+      // none — the seven declare no register, so they cannot contradict
+      // themselves until someone deliberately gives them one.
+      register: null,
     }),
   );
 }
@@ -407,6 +412,20 @@ export function FrameworkStructureEditor({
           Add reference
         </button>
       </div>
+
+      {/* The approach's VOICE (1.1.111) — deliberately here, between the moves
+          and the preview. It used to be an independent axis chosen on a persona
+          or an activity, where nobody could see the moves it would contradict. */}
+      <RegisterPicker
+        value={draft.register}
+        askMoveCount={draft.constructs.reduce(
+          (n, c) =>
+            n +
+            c.behaviours.filter((b) => /\bask|\bquestion|\bpredict|\belicit|\bwhy\b/i.test(b.text)).length,
+          0,
+        )}
+        onChange={(register) => update({ register })}
+      />
 
       {/* ── live preview ── */}
       <div>

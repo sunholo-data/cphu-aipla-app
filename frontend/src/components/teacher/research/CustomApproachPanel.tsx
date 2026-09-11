@@ -5,12 +5,14 @@ import { Pencil, Plus, Trash2 } from "lucide-react";
 
 import {
   type CustomApproach,
+  type FrameworkRegister,
   createCustomApproach,
   deleteCustomApproach,
   listCustomApproaches,
   updateCustomApproach,
 } from "@/lib/teacherApi";
 import { TeacherCard } from "@/components/teacher/ui/TeacherCard";
+import { RegisterPicker } from "@/components/teacher/research/RegisterPicker";
 
 /** UI copy, lifted out of JSX (1.1.108 M4) so a translator can reach it. */
 const copy = {
@@ -48,9 +50,10 @@ interface Draft {
   label: string;
   summary: string;
   instructionText: string;
+  register: FrameworkRegister | null;
 }
 
-const EMPTY: Draft = { id: null, label: "", summary: "", instructionText: "" };
+const EMPTY: Draft = { id: null, label: "", summary: "", instructionText: "", register: null };
 
 /**
  * Custom teaching approaches (1.1.110) — the teacher-editable tier.
@@ -86,6 +89,7 @@ export function CustomApproachPanel() {
         label: draft.label.trim(),
         summary: draft.summary.trim(),
         instructionText: draft.instructionText.trim(),
+        register: draft.register,
       };
       if (draft.id) await updateCustomApproach(draft.id, input);
       else await createCustomApproach(input);
@@ -166,6 +170,11 @@ export function CustomApproachPanel() {
             className="w-full rounded border bg-background p-3 font-mono text-xs"
           />
 
+          {/* A custom approach's voice. The warning here is usually moot — free
+              text has no parsed "moves" to contradict — but the control is the
+              same one, so the two editors cannot drift apart. */}
+          <RegisterPicker value={draft.register} onChange={(register) => setDraft({ ...draft, register })} />
+
           {error ? <p className="text-sm text-destructive">{error}</p> : null}
 
           <div className="flex items-center gap-2">
@@ -218,6 +227,7 @@ export function CustomApproachPanel() {
                         label: row.label,
                         summary: row.summary,
                         instructionText: row.instructionText,
+                        register: row.register,
                       })
                     }
                     className="rounded border p-1.5 hover:bg-muted"

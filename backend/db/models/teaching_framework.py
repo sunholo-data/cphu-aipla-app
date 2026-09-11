@@ -50,6 +50,22 @@ FrameworkLayer = Literal["tp_cycle", "conceptual", "custom"]
 # ``ready`` — signed off; safe to generate tutor prompts from.
 FrameworkStatus = Literal["placeholder", "ready_for_review", "ready"]
 
+#: The voice an approach is delivered in (1.1.111). Formerly an INDEPENDENT axis
+#: ("interaction style") chosen on a persona or an activity, alongside the
+#: framework — which meant two people could pick two things that contradicted
+#: each other, invisibly.
+#:
+#: They did. On prod, 2026-09-11: mikkel ran `concise` ("do not end with a
+#: follow-up question") against ESRU, 23 of whose 42 moves are ask-moves; frida
+#: ran `warm` ("offer a gentle hint before asking anything") against Accountable
+#: Talk, 25 of 35; sofie the same against POE. Three of ten live assignments.
+#:
+#: So the register is now a property OF the approach, set once by whoever owns
+#: the approach, visible in the same preview as the moves it has to live with.
+#: `None` means the approach says nothing about voice — the old `socratic`
+#: default, which injected nothing and therefore never clashed.
+FrameworkRegister = Literal["concise", "rigorous", "warm"]
+
 # The domains of scientific inquiry a teaching move can operate in. From
 # Ruiz-Primo & Furtak (2007), who take them from Duschl: *epistemic frameworks*
 # (how we know — evidence, predictions, data, the quality of a claim) and
@@ -143,6 +159,13 @@ class TeachingFramework(BaseModel):
     provenance: list[Provenance] = Field(default_factory=list, max_length=10)
     status: FrameworkStatus = "placeholder"
     source: Literal["yaml", "firestore"] = "yaml"
+
+    # The voice this approach is delivered in — see FrameworkRegister. None is
+    # the common and correct case: most approaches say what to DO and leave tone
+    # alone, and an approach that declares nothing cannot contradict itself.
+    # Python name differs from the wire name: a bare `register` shadows a
+    # pydantic BaseModel attribute and warns at import.
+    teaching_register: FrameworkRegister | None = Field(default=None, alias="register")
 
     # ── custom approaches (1.1.110) ──────────────────────────────────────────
     #

@@ -12,6 +12,7 @@ function approach(over: Partial<CustomApproach> = {}): CustomApproach {
     label: "Warm coach",
     summary: "Encouraging.",
     instructionText: "Be kind. Ask first.",
+    register: null,
     layer: "custom",
     status: "ready",
     authorUid: "t-1",
@@ -51,6 +52,7 @@ describe("custom teaching approaches (1.1.110)", () => {
         label: "Warm coach",
         summary: "",
         instructionText: "Be kind.",
+        register: null,
       }),
     );
   });

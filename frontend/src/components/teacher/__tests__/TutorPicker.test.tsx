@@ -53,14 +53,20 @@ beforeEach(() => vi.restoreAllMocks());
 afterEach(() => vi.restoreAllMocks());
 
 describe("TutorPicker (1.1.91 M1 — one choice)", () => {
-  it("shows tone AND teaching approach on the card, without opening anything", async () => {
+  it("shows the teaching approach on the card, and no longer a separate tone", async () => {
     mockCatalogue([tutor(), withFramework]);
     render(<TutorPicker classId="c-1" selectedTutorId={null} />);
 
     await screen.findByText("Sofie — Allround fysiklærer");
-    // The bundling is only useful if both are legible at a glance.
-    expect(screen.getByText(/warm · no set teaching approach/i)).toBeInTheDocument();
-    expect(screen.getByText(/warm · Question-and-use cycle \(ESRU\)/i)).toBeInTheDocument();
+    // The approach is what a teacher is actually choosing, and stays legible at
+    // a glance.
+    expect(screen.getByText(/no set teaching approach/i)).toBeInTheDocument();
+    expect(screen.getByText(/Question-and-use cycle \(ESRU\)/i)).toBeInTheDocument();
+
+    // 1.1.111: the card used to read "<tone> · <approach>". Naming a tone
+    // separately advertised a choice a teacher cannot make, and implied it
+    // might disagree with the approach beside it — which in production it did.
+    expect(screen.queryByText(/warm ·/i)).not.toBeInTheDocument();
   });
 
   it("never shows a framework as a bare acronym", async () => {
@@ -115,12 +121,15 @@ describe("TutorPicker (1.1.91 M1 — one choice)", () => {
     expect(screen.getByRole("button", { name: /Sofie — Allround/ })).toHaveAttribute("aria-pressed", "true");
   });
 
-  it("keeps the teaching-style transparency the persona panel used to carry", async () => {
-    // Replacing the old panel must not lose sight of what the tutor is TOLD —
-    // that would be a regression, not just a moved control.
-    mockCatalogue([tutor()]);
+  it("keeps transparency about what the tutor is told, on the approach", async () => {
+    // 1.1.32's standalone "how teaching styles are enforced" disclosure is gone
+    // with the axis it explained (1.1.111). The NEED it served is not: a teacher
+    // must still be able to see what the tutor is actually told, without
+    // opening a design doc. It now hangs off the approach, where the voice is
+    // part of the same text as the moves.
+    mockCatalogue([withFramework]);
     render(<TutorPicker classId="c-1" selectedTutorId={null} />);
-    await screen.findByText(/How teaching styles are enforced/i);
+    await screen.findByText(/What does this teaching approach do\?/i);
   });
 
   it("says plainly when no tutor is chosen", async () => {

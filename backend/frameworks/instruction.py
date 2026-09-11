@@ -18,7 +18,34 @@ so it has nothing to tell a tutor, and saying something anyway would be the
 
 from __future__ import annotations
 
+import logging
+import re
+from functools import lru_cache
+from pathlib import Path
+
 from db.models.teaching_framework import TeachingFramework
+
+log = logging.getLogger(__name__)
+
+#: Where the register preambles live. These are the SAME files the retired
+#: standalone "interaction style" axis used (1.1.20) — the texts were never the
+#: problem, their INDEPENDENCE was. A tone chosen beside a framework could
+#: contradict it invisibly; a tone chosen as part of one is reviewed against the
+#: moves it has to live with, in the same preview.
+_REGISTER_DIR = Path(__file__).resolve().parents[1] / "skills" / "preambles" / "interaction_style"
+_COMMENT_RE = re.compile(r"<!--.*?-->", re.DOTALL)
+
+
+@lru_cache(maxsize=8)
+def _register_preamble(register: str) -> str:
+    """The preamble text for a register, or "" when absent."""
+    try:
+        text = (_REGISTER_DIR / f"{register}.md").read_text(encoding="utf-8")
+    except OSError:
+        log.warning("framework register preamble missing: %s", register)
+        return ""
+    return _COMMENT_RE.sub("", text).strip()
+
 
 _HEADER = "## Teaching framework: {label}"
 _CUSTOM_HEADER = "## Teaching approach: {label}"
@@ -47,6 +74,18 @@ _CUSTOM_PREFACE = (
 )
 
 
+def _register_block(framework: TeachingFramework) -> list[str]:
+    """The register preamble as a list, empty when the approach declares none.
+
+    Empty is the common case and the safe one: an approach that says nothing
+    about voice cannot contradict its own moves.
+    """
+    if not framework.teaching_register:
+        return []
+    text = _register_preamble(framework.teaching_register)
+    return [text] if text else []
+
+
 def build_framework_instruction(framework: TeachingFramework | None) -> str:
     """Render ``framework`` as a system-prompt preamble.
 
@@ -67,7 +106,8 @@ def build_framework_instruction(framework: TeachingFramework | None) -> str:
         text = (framework.instruction_text or "").strip()
         if not text:
             return ""
-        return "\n\n".join([_CUSTOM_HEADER.format(label=framework.label), _CUSTOM_PREFACE, text])
+        parts = [_CUSTOM_HEADER.format(label=framework.label), _CUSTOM_PREFACE, text]
+        return "\n\n".join(parts + _register_block(framework))
 
     lines = [line for line in (framework.summary or "").strip().splitlines() if line.strip()]
     summary = " ".join(s.strip() for s in lines)
@@ -112,6 +152,11 @@ def build_framework_instruction(framework: TeachingFramework | None) -> str:
     if summary:
         parts.append(summary)
     parts.extend(blocks)
+    # The register goes LAST, after the moves. On the "later instruction wins"
+    # convention this chain runs on, that is the strong position — which is
+    # correct only because the register is now part of the approach rather than
+    # a separate choice: whoever set it saw these moves in the preview beside it.
+    parts.extend(_register_block(framework))
     return "\n\n".join(parts).strip()
 
 

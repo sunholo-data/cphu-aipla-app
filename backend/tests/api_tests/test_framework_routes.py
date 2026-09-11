@@ -455,3 +455,81 @@ def test_a_custom_approach_has_no_literature_to_search():
     )
     assert resp.status_code == 400
     assert "authored, not drafted" in resp.json()["detail"]
+
+
+# ── the register (1.1.111) ───────────────────────────────────────────────────
+#
+# Tone stopped being a separate axis. These pin the reason it moved rather than
+# the fact that it did.
+
+
+def test_an_approach_with_no_register_says_nothing_about_voice():
+    """The common case and the safe one: an approach that declares no register
+    cannot contradict its own moves."""
+    from db.framework_overrides import resolve_framework_instruction
+
+    out = resolve_framework_instruction("esru")
+    assert "Interaction style" not in out
+    assert out  # and it still renders its moves
+
+
+def test_a_register_is_rendered_after_the_moves_it_must_live_with():
+    """Last position is the strong one on the "later instruction wins"
+    convention this chain runs on — which is only correct because the register
+    is now PART of the approach: whoever set it saw these moves beside it."""
+    c = _client(RESEARCHER)
+    body = _structure(c.get("/api/research/frameworks/esru").json())
+    body["register"] = "rigorous"
+    live = c.put("/api/research/frameworks/esru/structure", json=body).json()
+
+    assert "Elicit" in live["instruction"]
+    assert live["instruction"].rstrip().endswith("rigorous step.")
+
+
+def test_the_register_travels_with_a_custom_approach():
+    c = _client(TEACHER)
+    created = c.post("/api/research/frameworks/custom", json={**_BODY, "register": "warm"}).json()
+    assert created["register"] == "warm"
+
+    from db.framework_overrides import resolve_framework_instruction
+
+    out = resolve_framework_instruction(created["id"])
+    assert "Be kind. Ask first." in out
+    assert "Interaction style: Warm" in out
+
+
+def test_an_unknown_register_is_refused_rather_than_ignored():
+    c = _client(RESEARCHER)
+    body = _structure(c.get("/api/research/frameworks/esru").json())
+    body["register"] = "sarcastic"
+    assert c.put("/api/research/frameworks/esru/structure", json=body).status_code == 422
+
+
+def test_the_chat_log_records_the_approachs_register_not_a_retired_axis(monkeypatch):
+    """The researcher lens shows this column. After 1.1.111 the standalone style
+    reaches no prompt, so logging it would put an inert value where evidence
+    goes — a finding manufactured from a dead field."""
+    from adk import tutor_resolution
+    from db.models.activity_config import ActivityConfig
+
+    c = _client(RESEARCHER)
+    body = _structure(c.get("/api/research/frameworks/esru").json())
+    body["register"] = "rigorous"
+    c.put("/api/research/frameworks/esru/structure", json=body)
+
+    from datetime import UTC, datetime
+
+    cfg = ActivityConfig(
+        activityId="act-1",
+        classId="c-1",
+        teacherUid="t-1",
+        updatedAt=datetime.now(UTC),
+        frameworkId="esru",
+        interactionStyle="concise",
+    )
+    monkeypatch.setattr(tutor_resolution, "resolve_active_config", lambda *a, **k: cfg, raising=False)
+    ctx = tutor_resolution.resolve_teaching_context("act-1", cfg=cfg)
+
+    # NOT "concise", which is what the retired axis said and what no longer
+    # reaches the prompt.
+    assert ctx.interaction_style == "rigorous"

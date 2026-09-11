@@ -110,6 +110,17 @@ class TeachingContext:
     persona_id: str | None
     class_id: str | None
     activity_id: str | None
+    #: The register the turn was actually delivered in.
+    #:
+    #: ⚠️ **Its meaning changed on 2026-09-11 (1.1.111)** and the column name did
+    #: not. Before: an INDEPENDENT axis set on a persona or activity, which the
+    #: prompt carried whether or not it agreed with the teaching approach beside
+    #: it. After: the register declared BY the approach, which is the only thing
+    #: that now reaches the prompt. A row from before that date records a choice
+    #: someone made separately; a row after records a property of the approach.
+    #:
+    #: Rows are NOT backfilled, for the reason TUTOR-5 gives throughout: a wrong
+    #: label that looks like evidence is worse than a null.
     interaction_style: InteractionStyle | None
     #: "tutor" when a Tutor object decided, "fields" when the pre-tutor
     #: activity/class fields did. Distinguishes "no framework was configured"
@@ -153,13 +164,25 @@ def resolve_teaching_context(
             class_tutor_id=class_tutor_id,
             class_persona_id=class_persona_id,
         )
+        # 1.1.111: the register comes from the APPROACH, because the standalone
+        # axis is retired and no longer reaches the prompt. Logging the old
+        # value would record something inert as though it had taught the turn —
+        # the researcher lens shows this column, and an inert value there is a
+        # finding manufactured from a dead field.
+        register = None
+        if r.framework_id:
+            from db.framework_overrides import effective_framework
+
+            fw = effective_framework(r.framework_id)
+            register = fw.teaching_register if fw is not None else None
+
         return TeachingContext(
             tutor_id=r.tutor.id if r.tutor is not None else None,
             framework_id=r.framework_id,
             persona_id=r.persona_id,
             class_id=class_id,
             activity_id=activity_id,
-            interaction_style=r.interaction_style,
+            interaction_style=register,
             source=r.source,
         )
     except Exception as exc:

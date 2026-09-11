@@ -4,15 +4,11 @@ import { useEffect, useState } from "react";
 import { BookOpen, Check, Info } from "lucide-react";
 
 import {
-  type InteractionStyleSpec,
   type TutorCatalogue,
   type TutorPayload,
-  fetchPersonaCatalogue,
   fetchTutorCatalogue,
   setClassTutor,
 } from "@/lib/teacherApi";
-import { INTERACTION_STYLE_HELP, INTERACTION_STYLE_LABEL } from "@/lib/personaDisplay";
-import { TeachingStyleDisclosure } from "@/components/teacher/TeachingStyleDisclosure";
 
 /**
  * The one tutor choice for a class (1.1.91 M1).
@@ -54,7 +50,6 @@ export function TutorPicker({
 }) {
   const [tutors, setTutors] = useState<TutorPayload[]>([]);
   const [frameworks, setFrameworks] = useState<TutorCatalogue["frameworks"]>([]);
-  const [styles, setStyles] = useState<InteractionStyleSpec[]>([]);
   const [state, setState] = useState<"loading" | "ready" | "error">("loading");
   const [saving, setSaving] = useState<string | null>(null);
   const [selected, setSelected] = useState<string | null>(selectedTutorId);
@@ -72,14 +67,11 @@ export function TutorPicker({
         setState("ready");
       })
       .catch(() => !cancelled && setState("error"));
-    // The "how teaching styles are enforced" transparency (1.1.32) reads the
-    // REAL preamble text from the backend, so it can never drift from what is
-    // actually injected. Carried over when the tutor picker replaced the
-    // persona panel — a teacher losing sight of what the tutor is told would
-    // have been a real regression, not just a moved control.
-    fetchPersonaCatalogue()
-      .then((cat) => !cancelled && setStyles(cat.interactionStyles ?? []))
-      .catch(() => undefined);
+    // 1.1.32's "how teaching styles are enforced" disclosure was fetched here.
+    // It is gone with the standalone axis (1.1.111) — but the need it served is
+    // NOT: a teacher must still be able to see what the tutor is told. That now
+    // lives on the approach itself, one disclosure below, where the register is
+    // rendered as part of the same text as the moves.
     return () => {
       cancelled = true;
     };
@@ -135,7 +127,6 @@ export function TutorPicker({
 
       {error ? <p className="text-sm text-destructive">{error}</p> : null}
 
-      {styles.length > 0 ? <TeachingStyleDisclosure styles={styles} /> : null}
 
 
       {selected === null ? (
@@ -159,9 +150,10 @@ function TutorCard({
   saving: boolean;
   onClick: () => void;
 }) {
-  const style = INTERACTION_STYLE_LABEL[tutor.interactionStyle];
-  // The second line is the whole point of bundling: tone AND pedagogy, in
-  // words a teacher can act on, without opening anything.
+  // 1.1.111: the card used to read "<tone> · <approach>", because tone was a
+  // second, independently chosen axis. It is now a property OF the approach, so
+  // naming it separately here would advertise a choice a teacher cannot make
+  // and, worse, imply it might disagree with the approach beside it.
   const teaches = tutor.frameworkName ?? "no set teaching approach";
 
   return (
@@ -201,9 +193,7 @@ function TutorCard({
             ) : null}
             {selected ? <Check className="ml-auto h-4 w-4 shrink-0 text-brand" aria-hidden /> : null}
           </span>
-          <span className="mt-0.5 text-xs text-muted-foreground">
-            {style.toLowerCase()} &middot; {teaches}
-          </span>
+          <span className="mt-0.5 text-xs text-muted-foreground">{teaches}</span>
         </span>
       </button>
 
@@ -219,9 +209,7 @@ function TutorCard({
             {tutor.frameworkSummary}
           </p>
         </details>
-      ) : (
-        <p className="mt-2 text-xs text-muted-foreground">{INTERACTION_STYLE_HELP[tutor.interactionStyle]}</p>
-      )}
+      ) : null}
     </div>
   );
 }

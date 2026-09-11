@@ -1163,6 +1163,8 @@ export interface TeachingFrameworkPayload {
   summary: string;
   layer: "tp_cycle" | "conceptual";
   status: "placeholder" | "ready_for_review" | "ready";
+  /** The voice this approach is delivered in (1.1.111), or null for none. */
+  register?: FrameworkRegister | null;
   constructs: {
     name: string;
     summary?: string | null;
@@ -1204,8 +1206,14 @@ export interface TeachingFrameworkPayload {
  *  the never-invent-a-citation rule, and it has to still hold when the M2
  *  co-pilot is what fills these fields in.
  */
+export type FrameworkRegister = "concise" | "rigorous" | "warm";
+
 export interface FrameworkStructure {
   summary: string;
+  /** The voice this approach is delivered in (1.1.111). Formerly an independent
+   *  "interaction style" chosen elsewhere, which could contradict the approach's
+   *  own moves; now a property of the approach, chosen beside them. */
+  register?: FrameworkRegister | null;
   constructs: TeachingFrameworkPayload["constructs"];
   provenance: TeachingFrameworkPayload["provenance"];
 }
@@ -1515,6 +1523,7 @@ export interface CustomApproach {
   label: string;
   summary: string;
   instructionText: string;
+  register: FrameworkRegister | null;
   layer: "custom";
   status: string;
   authorUid: string | null;
@@ -1529,6 +1538,7 @@ export interface CustomApproachInput {
   label: string;
   summary?: string;
   instructionText: string;
+  register?: FrameworkRegister | null;
   materialRefs?: { docId?: string; title?: string | null; origin?: string | null }[];
 }
 

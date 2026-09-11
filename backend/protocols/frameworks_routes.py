@@ -47,7 +47,7 @@ from db.framework_overrides import (
     resolve_framework_instruction,
     save_framework_structure,
 )
-from db.models.teaching_framework import Construct, Provenance, TeachingFramework
+from db.models.teaching_framework import Construct, FrameworkRegister, Provenance, TeachingFramework
 from frameworks.instruction import build_framework_instruction
 from frameworks.loader import load_framework, load_frameworks
 
@@ -74,11 +74,17 @@ class StructureUpdate(BaseModel):
     citation is unconstructable here — the never-invent-a-citation requirement
     enforced by the type system rather than by review, and the reason it will
     still hold when the M2 co-pilot is the thing filling this in.
+
+    ``register`` joined this payload in 1.1.111, when tone stopped being a
+    separate axis. It belongs HERE, beside the constructs, because that is the
+    whole point: the person choosing the voice is the person looking at the
+    moves it has to live with, in the same preview.
     """
 
     summary: str = Field(default="", max_length=800)
     constructs: list[Construct] = Field(default_factory=list, max_length=20)
     provenance: list[Provenance] = Field(default_factory=list, max_length=10)
+    register_: FrameworkRegister | None = Field(default=None, alias="register")
 
     def merged_onto(self, base: TeachingFramework) -> TeachingFramework:
         """This edit applied to the git framework, validated as a whole.
@@ -253,6 +259,9 @@ class CustomApproachBody(BaseModel):
     label: str = Field(min_length=1, max_length=120)
     summary: str = Field(default="", max_length=800)
     instruction_text: str = Field(alias="instructionText", min_length=1, max_length=20000)
+    # `register_` because a bare `register` shadows a pydantic BaseModel
+    # attribute and warns at import; the wire name is unaffected.
+    register_: FrameworkRegister | None = Field(default=None, alias="register")
     material_refs: list[dict] = Field(default_factory=list, alias="materialRefs", max_length=20)
 
     model_config = ConfigDict(populate_by_name=True)
@@ -310,6 +319,7 @@ async def create_custom_approach_route(
         status="ready",
         instruction_text=body.instruction_text,
         material_refs=body.material_refs,
+        teaching_register=body.register_,
         source="firestore",
     )
     saved = save_authored_framework(
@@ -338,6 +348,7 @@ async def update_custom_approach_route(
             "summary": body.summary,
             "instruction_text": body.instruction_text,
             "material_refs": body.material_refs,
+            "teaching_register": body.register_,
         }
     )
     saved = save_authored_framework(
