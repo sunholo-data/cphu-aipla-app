@@ -21,6 +21,8 @@ metadata:
   version: "0.1.0"
   added: "2026-05-21"
 ---
+> **Language rule (1.1.108, 2026-09-11):** a new sim carries all its user-facing strings in ONE `strings` object and takes `lang` from the bridge context; it does not hardcode Danish into markup. English-only is allowed as a *decision* recorded in a `// locale: en-only, by decision <ref>` comment (KineBot is the precedent — memory `project-kinebot-language-audience`). See [content-localisation.md](../../../docs/design/aipla/v1.1.0-feedback/content-localisation.md) M4.
+
 
 # MCP App Artefact — Hand-Curated Static Sim Path
 

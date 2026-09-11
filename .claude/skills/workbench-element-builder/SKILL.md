@@ -2,6 +2,8 @@
 name: workbench-element-builder
 description: Wire a new student-facing workbench/activity element so it reaches the tutor on BOTH surfaces — the iframe-context state push AND the visible "shared with the AI" human-tool-use trust card — AND make it proposable by the activity-authoring co-pilot (the add_element tool). Use when adding a workbench element, a new activity element, when a student interaction (table/calculator/checklist/etc.) does not show in the chat, when "the AI didn't see what the student did", when wiring or debugging the trust card, when a new element isn't offered by the authoring co-pilot, or reviewing an element PR for the dropped-card or dropped-co-pilot-coverage bug.
 ---
+> **Copy rule (1.1.108, 2026-09-11):** a new element's user-facing strings — labels, placeholders, `aria-label`s, the trust-card text — go in one `const copy = {…}` object at the top of the component, never inline in JSX, until the `next-intl` message layer reaches that surface (then `t()`). Language comes from `activity.language`, never the browser. See [content-localisation.md](../../../docs/design/aipla/v1.1.0-feedback/content-localisation.md) M4.
+
 
 # Workbench Element Builder
 
