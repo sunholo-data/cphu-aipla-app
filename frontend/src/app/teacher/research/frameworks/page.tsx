@@ -16,6 +16,7 @@ import { TeacherPage } from "@/components/teacher/ui/TeacherPage";
 import { FrameworkStructureEditor } from "@/components/teacher/research/FrameworkStructureEditor";
 import { CustomApproachPanel } from "@/components/teacher/research/CustomApproachPanel";
 import { TutorPreviewPanel } from "@/components/teacher/research/TutorPreviewPanel";
+import { TutorCrossviewPanel } from "@/components/teacher/research/TutorCrossviewPanel";
 import { TutorCopilot } from "./_TutorCopilot";
 import type { TutorProposal } from "./tutorCopilotProposal";
 import { TutorApproachPanel } from "@/components/teacher/research/TutorApproachPanel";
@@ -249,6 +250,9 @@ export default function ResearchFrameworksPage() {
           ) : null}
           <TutorPreviewPanel />
           <CustomApproachPanel />
+          {/* Researcher-only: a cross-tenancy read of every teacher's work
+              (1.1.91 M4). The teacher tier above never renders it. */}
+          <TutorCrossviewPanel />
           {frameworks.map((fw) => {
             const isOpen = openId === fw.id;
             const editable = fw.status !== "placeholder";

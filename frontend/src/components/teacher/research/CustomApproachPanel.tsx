@@ -41,6 +41,12 @@ const copy = {
   loadFailed: "Could not load custom approaches.",
   // ⚠️ Deletion is not reference-checked server-side; say so rather than imply
   // a safety that is not there.
+  // 1.1.91 M4's gate, met where the work is written. The design: "Teachers
+  // should be told this is visible — it is their professional work, and the
+  // trust-card principle applies to teachers as much as to students." Someone
+  // having said so once in a meeting is not the same as the surface saying so.
+  researchersCanSee:
+    "Researchers on the project can see the approaches you write here, including your name against them, and how much they are used. They cannot change them. This is the same read they have of class data.",
   deleteWarning:
     "Nothing checks whether a class is still using an approach before it is deleted. A class that loses its approach keeps teaching, without one.",
 } as const;
@@ -121,6 +127,9 @@ export function CustomApproachPanel() {
         <div>
           <h2 className="text-base font-medium">{copy.title}</h2>
           <p className="mt-1 max-w-2xl text-sm text-muted-foreground">{copy.blurb}</p>
+          <p className="mt-2 max-w-2xl rounded border border-border bg-muted/40 px-3 py-2 text-xs text-muted-foreground">
+            {copy.researchersCanSee}
+          </p>
         </div>
         {!draft ? (
           <button

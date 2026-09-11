@@ -533,3 +533,95 @@ def test_the_chat_log_records_the_approachs_register_not_a_retired_axis(monkeypa
     # NOT "concise", which is what the retired axis said and what no longer
     # reaches the prompt.
     assert ctx.interaction_style == "rigorous"
+
+
+# ── researcher cross-view (1.1.91 M4) ────────────────────────────────────────
+
+
+def test_crossview_is_not_shadowed_by_the_framework_id_route():
+    """FastAPI matches in DECLARATION order, so a catch-all `/{framework_id}`
+    declared earlier swallows every literal path after it.
+
+    This is pinned because the failure is plausible-looking rather than loud:
+    `/crossview` resolved to `framework_id="crossview"` and answered
+    **404 framework not found**, which reads like a missing framework rather
+    than a missing route.
+    """
+    resp = _client(RESEARCHER).get("/api/research/frameworks/crossview")
+    assert resp.status_code == 200
+    assert "publishedApproaches" in resp.json()
+
+
+def test_crossview_is_researcher_only():
+    assert _client(TEACHER).get("/api/research/frameworks/crossview").status_code == 403
+
+
+def test_crossview_shows_authored_approaches_with_their_author():
+    """The point of M4: a researcher sees what TEACHERS built, and who built it."""
+    _create(TEACHER)
+    body = _client(RESEARCHER).get("/api/research/frameworks/crossview").json()
+
+    authored = {a["id"]: a for a in body["authoredApproaches"]}
+    assert "custom-warm-coach" in authored
+    assert authored["custom-warm-coach"]["authorUid"] == "t-1"
+    assert authored["custom-warm-coach"]["authorRole"] == "teacher"
+    assert authored["custom-warm-coach"]["authored"] is True
+
+    # The seven published ones come back too, marked as NOT authored — the
+    # comparison is the point, not the teacher list alone.
+    assert any(a["id"] == "esru" and a["authored"] is False for a in body["publishedApproaches"])
+
+
+def test_unreadable_usage_reports_null_rather_than_zero(monkeypatch):
+    """ "Never used" and "could not read the chat log" must not look alike.
+
+    Zero is a finding about an approach; None is a fact about the query. The
+    deploy-status footgun, applied to a usage column."""
+    import analytics.tutor_crossview as cv
+
+    monkeypatch.setattr(cv, "_approach_usage", lambda: {})
+    body = _client(RESEARCHER).get("/api/research/frameworks/crossview").json()
+
+    assert body["usageAvailable"] is False
+    assert all(a["turns"] is None for a in body["publishedApproaches"])
+
+
+def test_intent_and_use_are_reported_separately(monkeypatch):
+    """A framework assigned once and never run is not busy. `tutorsAssigned`
+    counts intent; `turns` counts what actually happened."""
+    import analytics.tutor_crossview as cv
+
+    monkeypatch.setattr(cv, "_approach_usage", lambda: {"esru": {"turns": 48, "sessions": 8}})
+    body = _client(RESEARCHER).get("/api/research/frameworks/crossview").json()
+
+    esru = next(a for a in body["publishedApproaches"] if a["id"] == "esru")
+    assert esru["turns"] == 48
+    assert "tutorsAssigned" in esru  # separate field, not folded into turns
+
+
+def test_variants_are_reported_even_at_zero():
+    """Built-and-unused is a different fact from not-built, and an absent
+    category would read as the latter."""
+    body = _client(RESEARCHER).get("/api/research/frameworks/crossview").json()
+    assert "variantCount" in body
+
+
+def test_zero_usage_is_zero_when_the_store_answered(monkeypatch):
+    """The inverse of the previous test, and the one that was wrong first.
+
+    A missing row in a READABLE chat log means the approach has taught nothing —
+    a finding, and a real one: on prod only Authentic Dialogue has ever taught a
+    turn. Reporting those as None ("could not read") inverts the distinction the
+    field exists to make.
+    """
+    import analytics.tutor_crossview as cv
+
+    monkeypatch.setattr(cv, "_approach_usage", lambda: {"esru": {"turns": 48, "sessions": 8}})
+    body = _client(RESEARCHER).get("/api/research/frameworks/crossview").json()
+
+    esru = next(a for a in body["publishedApproaches"] if a["id"] == "esru")
+    others = [a for a in body["publishedApproaches"] if a["id"] != "esru"]
+    assert esru["turns"] == 48
+    assert others, "fixture would be vacuous with only one approach"
+    assert all(a["turns"] == 0 for a in others)
+    assert body["usageAvailable"] is True

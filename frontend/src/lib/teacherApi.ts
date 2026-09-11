@@ -1664,3 +1664,56 @@ export async function previewTutors(
   const body = await readJson<{ replies: TutorPreviewReply[] }>(resp, "preview tutors");
   return body.replies;
 }
+
+// --- Researcher cross-view over the tutor layer (1.1.91 M4) -----------------
+//
+// The `scope=all` pattern the class reads use, applied to tutors: every tutor
+// and every authored approach, with lineage and real usage. Read-only, and the
+// server tags the span `auth.researcher_bypass` so "who looked at whose work"
+// stays answerable.
+
+export interface CrossviewApproach {
+  id: string;
+  label: string;
+  /** True for a teacher- or researcher-authored custom approach. */
+  authored: boolean;
+  authorUid: string | null;
+  authorRole: "researcher" | "teacher" | null;
+  status: string;
+  register: string | null;
+  constructs: number;
+  sources: number;
+  /** Tutors that NAME this approach — intent. */
+  tutorsAssigned: number;
+  /** Turns actually taught with it — use. `null` means the chat log could not
+   *  be read, which is NOT the same as never used. */
+  turns: number | null;
+  sessions: number | null;
+}
+
+export interface CrossviewTutor {
+  id: string;
+  displayName: string;
+  frameworkId: string | null;
+  assignedByResearcher: boolean;
+  isVariant: boolean;
+  parentTutorId: string | null;
+  authorUid: string | null;
+  authorRole: "researcher" | "teacher" | null;
+  isSkillBound: boolean;
+  status: string;
+  version: number;
+}
+
+export interface TutorCrossview {
+  usageAvailable: boolean;
+  publishedApproaches: CrossviewApproach[];
+  authoredApproaches: CrossviewApproach[];
+  tutors: CrossviewTutor[];
+  variantCount: number;
+}
+
+export async function fetchTutorCrossview(): Promise<TutorCrossview> {
+  const resp = await fetchWithAuth("/api/proxy/api/research/frameworks/crossview");
+  return readJson<TutorCrossview>(resp, "read tutor cross-view");
+}

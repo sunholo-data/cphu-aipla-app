@@ -37,6 +37,16 @@ describe("custom teaching approaches (1.1.110)", () => {
     expect(screen.getByText(/carries no constructs and no citations/i)).toBeInTheDocument();
   });
 
+  it("tells the teacher that researchers can see this work", async () => {
+    // 1.1.91 M4's gate, met in the product rather than in a meeting. It is the
+    // teacher's professional work, and the trust-card principle applies to
+    // teachers as much as to students — so the surface says so where the work
+    // is written, and says what researchers CANNOT do too.
+    render(<CustomApproachPanel />);
+    expect(await screen.findByText(/Researchers on the project can see the approaches you write/i)).toBeInTheDocument();
+    expect(screen.getByText(/They cannot change them/i)).toBeInTheDocument();
+  });
+
   it("creates an approach from a name and its instructions", async () => {
     const user = userEvent.setup();
     const create = vi.spyOn(teacherApi, "createCustomApproach").mockResolvedValue(approach());

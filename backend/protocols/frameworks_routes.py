@@ -151,6 +151,56 @@ async def list_frameworks_route(
     return {"frameworks": [_serialize(fw) for fw in load_frameworks()]}
 
 
+# ── researcher cross-view (1.1.91 M4) ────────────────────────────────────────
+#
+# ⚠️ DEFINED BEFORE `GET /{framework_id}`, and it has to be. FastAPI matches in
+# declaration order, so a catch-all single-segment path defined earlier swallows
+# every literal after it: with this below, `/crossview` resolved to
+# `framework_id="crossview"` and answered **404 framework not found** — a
+# plausible-looking error for a route that exists. (`/custom/list` is safe only
+# because it has two segments.)
+
+
+# ── researcher cross-view (1.1.91 M4) ────────────────────────────────────────
+
+
+@router.get("/crossview")
+async def crossview_route(user: User = Depends(get_current_user)) -> dict:  # noqa: B008
+    """Every tutor and every authored approach, with lineage and real usage.
+
+    The ``scope=all`` pattern the class reads already use, applied to the tutor
+    layer. **Read-only and logged**: the span carries ``auth.researcher_bypass``,
+    so "who looked at whose work" is answerable — the same audit property a
+    cross-tenant class read has had since 1.1.5.
+
+    ⚠️ This is teachers' professional work. The design is explicit that they
+    should be told it is visible, and the trust-card principle applies to
+    teachers as much as to students — so the custom-approach panel says so where
+    the work is written, rather than relying on someone having mentioned it once.
+
+    Usage is MEASURED (turns actually taught) and kept apart from INTENT (tutors
+    that name an approach). A framework assigned in March and never run is not
+    busy, and conflating the two would say it was.
+    """
+    assert_researcher(user)
+
+    from analytics.tutor_crossview import tutor_crossview
+
+    return _read_crossview(tutor_crossview)
+
+
+def _read_crossview(fn):
+    """A failed read is reported, never rendered as an empty catalogue."""
+    try:
+        return fn()
+    except Exception as exc:
+        log.warning("crossview failed (%s): %s", type(exc).__name__, exc)
+        raise HTTPException(
+            status_code=503,
+            detail=f"could not read the tutor catalogue ({type(exc).__name__}) — a failed read, not an empty one",
+        ) from exc
+
+
 @router.get("/{framework_id}")
 async def get_framework_route(
     framework_id: str = Path(...),
