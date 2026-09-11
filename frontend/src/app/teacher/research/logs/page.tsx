@@ -1,6 +1,7 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { Suspense, useCallback, useEffect, useMemo, useState } from "react";
+import { useSearchParams } from "next/navigation";
 import { Download, MessagesSquare, ShieldAlert, TriangleAlert } from "lucide-react";
 
 import {
@@ -89,12 +90,33 @@ function tabLabel(id: string, names: Map<string, string>): string {
  * Access is enforced by the backend (`assert_researcher` on every route); this
  * page renders the access-required state when that 403s.
  */
+/**
+ * Wrapped for `useSearchParams`, which Next requires to sit under Suspense.
+ * The param exists so an APPROACH can link straight to its own conversations —
+ * "what does ESRU actually produce" needs the approach and its transcripts, and
+ * until 2026-09-11 those were two unlinked pages a reader had to know about.
+ */
 export default function ResearchLogsPage() {
+  return (
+    <Suspense fallback={null}>
+      <ResearchLogsPageInner />
+    </Suspense>
+  );
+}
+
+function ResearchLogsPageInner() {
   const [status, setStatus] = useState<Status>("loading");
   const [tabs, setTabs] = useState<ChatLogTab[]>([]);
   const [excluded, setExcluded] = useState<{ sessions: number; turns: number } | null>(null);
   const [names, setNames] = useState<Map<string, string>>(new Map());
-  const [active, setActive] = useState<string | null>(null);
+  // ?approach=<id> opens straight on that tab. Read once as the initial value
+  // rather than held in sync: a researcher who then clicks another tab should
+  // stay there, not be yanked back by the URL they arrived on.
+  // ⚠️ Optional-chained: `useSearchParams()` is null outside a router context —
+  // during prerender, and in any test that renders the page directly. An
+  // unguarded `.get()` crashes the whole page for a convenience feature.
+  const initialApproach = useSearchParams()?.get("approach") ?? null;
+  const [active, setActive] = useState<string | null>(initialApproach);
   const [sessions, setSessions] = useState<ChatLogSession[]>([]);
   const [sessionsStatus, setSessionsStatus] = useState<"loading" | "ok" | "error">("loading");
   const [openSession, setOpenSession] = useState<string | null>(null);
@@ -136,7 +158,12 @@ export default function ResearchLogsPage() {
           const t = (ex.teacher_turns ?? 0) + (ex.preview_turns ?? 0);
           setExcluded(s || t ? { sessions: s, turns: t } : null);
         }
-        setActive((cur) => cur ?? all[0]?.framework_id ?? null);
+        // Honour ?approach= only if that tab actually exists, so a stale link
+        // lands on something real instead of an empty page.
+        setActive((cur) => {
+          if (cur && all.some((t) => t.framework_id === cur)) return cur;
+          return all[0]?.framework_id ?? null;
+        });
         setStatus("ok");
       })
       .catch((err: unknown) => {

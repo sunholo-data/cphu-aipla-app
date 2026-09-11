@@ -95,13 +95,21 @@ describe("ResearchFrameworksPage (1.1.91 M1 — researcher edits the tutor instr
     vi.spyOn(teacherApi, "listTeachingFrameworks").mockRejectedValue(new Error("list failed: 403"));
     vi.spyOn(teacherApi, "listCustomApproaches").mockResolvedValue([]);
 
+    const user = userEvent.setup();
     render(<ResearchFrameworksPage />);
 
-    expect(await screen.findByText(/Your own teaching approaches/i)).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: /New approach/i })).toBeInTheDocument();
     expect(screen.queryByText(/Researcher access required/i)).not.toBeInTheDocument();
-    // And it says why the seven are not editable, rather than just omitting them.
-    expect(screen.getByText(/maintained by the research team/i)).toBeInTheDocument();
+    // It says why the seven are not editable, rather than just omitting them.
+    expect(await screen.findByText(/maintained by the research team/i)).toBeInTheDocument();
+
+    // Tabbed since 2026-09-11 — the page had grown into one long scroll. For a
+    // TEACHER "Try them" leads, because the tutor library as teaching training
+    // is what they came for; authoring is the second question.
+    expect(screen.getByRole("tab", { name: /Try them/i })).toHaveAttribute("aria-selected", "true");
+
+    await user.click(screen.getByRole("tab", { name: /Your approaches/i }));
+    expect(screen.getByText(/Your own teaching approaches/i)).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /New approach/i })).toBeInTheDocument();
   });
 
   it("offers no way to hand-write an instruction", async () => {

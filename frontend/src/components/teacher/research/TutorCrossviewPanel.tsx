@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import Link from "next/link";
 import { Microscope, TriangleAlert } from "lucide-react";
 
 import { type CrossviewApproach, type TutorCrossview, fetchTutorCrossview } from "@/lib/teacherApi";
@@ -33,6 +34,7 @@ const copy = {
   byResearcher: "researcher",
   none: "—",
   unused: "0",
+  readThem: (n: number) => `Read the ${n} turn${n === 1 ? "" : "s"} this approach taught`,
 } as const;
 
 function ApproachTable({ rows, usageAvailable }: { rows: CrossviewApproach[]; usageAvailable: boolean }) {
@@ -62,9 +64,25 @@ function ApproachTable({ rows, usageAvailable }: { rows: CrossviewApproach[]; us
               </td>
               <td className="py-1.5 pr-3 text-xs">{a.status}</td>
               <td className="py-1.5 pr-3 text-right tabular-nums">{a.tutorsAssigned}</td>
-              {/* null (unreadable) renders blank; 0 renders 0. */}
+              {/* null (unreadable) renders blank; 0 renders 0.
+                  A non-zero count is a LINK into those conversations — "what
+                  does this approach actually produce" needs the approach and
+                  its transcripts, and they lived on two unlinked pages until
+                  2026-09-11. */}
               <td className="py-1.5 text-right tabular-nums">
-                {!usageAvailable || a.turns === null ? copy.none : a.turns}
+                {!usageAvailable || a.turns === null ? (
+                  copy.none
+                ) : a.turns > 0 ? (
+                  <Link
+                    href={`/teacher/research/logs?approach=${encodeURIComponent(a.id)}`}
+                    title={copy.readThem(a.turns)}
+                    className="text-brand underline-offset-2 hover:underline"
+                  >
+                    {a.turns}
+                  </Link>
+                ) : (
+                  a.turns
+                )}
               </td>
             </tr>
           ))}

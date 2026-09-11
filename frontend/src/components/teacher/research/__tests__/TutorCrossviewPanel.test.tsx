@@ -80,6 +80,29 @@ describe("researcher cross-view (1.1.91 M4)", () => {
     expect(screen.queryByText("0")).not.toBeInTheDocument();
   });
 
+  it("links a used approach to its actual conversations", async () => {
+    // The fix for the thing that got lost: "what the approach SAYS" and "what
+    // it PRODUCED" were two unlinked pages, so a reader had to already know the
+    // Conversations surface existed. The turn count is now the way in.
+    vi.spyOn(teacherApi, "fetchTutorCrossview").mockResolvedValue(
+      view({ publishedApproaches: [approach({ id: "authentic-dialogue", label: "Authentic Dialogue", turns: 48 })] }),
+    );
+    render(<TutorCrossviewPanel />);
+
+    const link = await screen.findByRole("link", { name: "48" });
+    expect(link).toHaveAttribute("href", "/teacher/research/logs?approach=authentic-dialogue");
+  });
+
+  it("does not link an approach that has taught nothing", async () => {
+    // A link to an empty tab is a promise the page cannot keep.
+    vi.spyOn(teacherApi, "fetchTutorCrossview").mockResolvedValue(
+      view({ publishedApproaches: [approach({ turns: 0 })] }),
+    );
+    render(<TutorCrossviewPanel />);
+    await screen.findByText("ESRU");
+    expect(screen.queryByRole("link")).not.toBeInTheDocument();
+  });
+
   it("reports zero variants as built-and-unused, not as absent", async () => {
     vi.spyOn(teacherApi, "fetchTutorCrossview").mockResolvedValue(view({ variantCount: 0 }));
     render(<TutorCrossviewPanel />);

@@ -87,6 +87,27 @@ export function TutorApproachPanel({
 
   const row = (t: TutorPayload) => (
     <div key={t.id} className="flex flex-wrap items-center gap-3 border-t py-2.5 first:border-t-0">
+      {/* The face, so a researcher scanning eleven rows identifies a tutor
+          without reading. Same shape as the teacher's TutorPicker card —
+          decorative (alt=""), because displayName beside it is the accessible
+          identity, with an initials fallback for the skill-bound tutors that
+          have no persona. */}
+      {t.persona?.avatar ? (
+        // eslint-disable-next-line @next/next/no-img-element
+        <img
+          src={t.persona.avatar}
+          alt=""
+          aria-hidden="true"
+          className="h-9 w-9 shrink-0 rounded-full object-cover"
+        />
+      ) : (
+        <span
+          aria-hidden="true"
+          className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-muted text-xs font-bold"
+        >
+          {t.displayName[0]?.toUpperCase() ?? "?"}
+        </span>
+      )}
       <div className="min-w-0 flex-1">
         <p className="truncate text-sm font-medium">{t.displayName}</p>
         {t.summary ? <p className="truncate text-xs text-muted-foreground">{t.summary}</p> : null}
