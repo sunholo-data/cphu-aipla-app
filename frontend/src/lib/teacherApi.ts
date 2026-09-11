@@ -1475,6 +1475,10 @@ export interface ChatLogExcluded {
   teacher_sessions: number;
   preview_turns: number;
   preview_sessions: number;
+  /** Turns belonging to no conversation at all — no session id, so there is no
+   *  transcript to open. Counted but not listable. Optional because a prod
+   *  build older than 2026-09-11 does not send it. */
+  unattributed_turns?: number;
 }
 
 export async function listChatLogTabs(): Promise<{

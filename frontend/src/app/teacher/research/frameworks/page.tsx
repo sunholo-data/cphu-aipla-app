@@ -272,75 +272,75 @@ export default function ResearchFrameworksPage() {
                   <>
                     <CustomApproachPanel />
                     {frameworks.map((fw) => {
-            const isOpen = openId === fw.id;
-            const editable = fw.status !== "placeholder";
-            return (
-              <TeacherCard key={fw.id}>
-                <div className="flex items-start justify-between gap-4">
-                  <div className="min-w-0">
-                    <h2 className="flex items-center gap-2 text-base font-medium">
-                      <BookOpen className="h-4 w-4 shrink-0 text-muted-foreground" aria-hidden />
-                      {fw.label}
-                    </h2>
-                    <p className="mt-1 text-sm text-muted-foreground">{fw.summary}</p>
-                    <div className="mt-2 flex flex-wrap gap-2 text-xs">
-                      {fw.status === "placeholder" ? (
-                        <span className="rounded bg-muted px-2 py-0.5 text-muted-foreground">
-                          {copy.badgePlaceholder}
-                        </span>
-                      ) : null}
-                      {/* A placeholder has no constructs, so there is nothing
-                          generated to claim — it gets neither badge.
+                      const isOpen = openId === fw.id;
+                      const editable = fw.status !== "placeholder";
+                      return (
+                        <TeacherCard key={fw.id}>
+                          <div className="flex items-start justify-between gap-4">
+                            <div className="min-w-0">
+                              <h2 className="flex items-center gap-2 text-base font-medium">
+                                <BookOpen className="h-4 w-4 shrink-0 text-muted-foreground" aria-hidden />
+                                {fw.label}
+                              </h2>
+                              <p className="mt-1 text-sm text-muted-foreground">{fw.summary}</p>
+                              <div className="mt-2 flex flex-wrap gap-2 text-xs">
+                                {fw.status === "placeholder" ? (
+                                  <span className="rounded bg-muted px-2 py-0.5 text-muted-foreground">
+                                    {copy.badgePlaceholder}
+                                  </span>
+                                ) : null}
+                                {/* A placeholder has no constructs, so there is nothing
+                                    generated to claim — it gets neither badge.
 
-                          The two override badges say different things on
-                          purpose. A STRUCTURAL edit keeps the prompt derived
-                          from cited constructs; a WORDING edit does not, and a
-                          reader deciding whether to trust this framework needs
-                          to see which of those happened without opening it. */}
-                      {!editable ? null : fw.isOverridden ? (
-                        <span className="rounded bg-brand/10 px-2 py-0.5 text-brand">
-                          {fw.overrideMode === "text" ? copy.badgeWordingEdited : copy.badgeApproachEdited}
-                          {fw.overrideVersion ? ` · v${fw.overrideVersion}` : ""}
-                        </span>
-                      ) : (
-                        <span className="rounded bg-muted px-2 py-0.5 text-muted-foreground">
-                          {copy.badgeUnedited(fw.constructs.length)}
-                        </span>
-                      )}
-                    </div>
-                  </div>
-                  {editable ? (
-                    <div className="flex shrink-0 gap-2">
-                      <button
-                        type="button"
-                        onClick={() => (isOpen ? setOpenId(null) : open(fw))}
-                        className="rounded border px-3 py-1.5 text-sm hover:bg-muted"
-                      >
-                        {isOpen && mode === "structure" ? copy.close : copy.editApproach}
-                      </button>
-                    </div>
-                  ) : null}
-                </div>
+                                    The two override badges say different things on
+                                    purpose. A STRUCTURAL edit keeps the prompt derived
+                                    from cited constructs; a WORDING edit does not, and a
+                                    reader deciding whether to trust this framework needs
+                                    to see which of those happened without opening it. */}
+                                {!editable ? null : fw.isOverridden ? (
+                                  <span className="rounded bg-brand/10 px-2 py-0.5 text-brand">
+                                    {fw.overrideMode === "text" ? copy.badgeWordingEdited : copy.badgeApproachEdited}
+                                    {fw.overrideVersion ? ` · v${fw.overrideVersion}` : ""}
+                                  </span>
+                                ) : (
+                                  <span className="rounded bg-muted px-2 py-0.5 text-muted-foreground">
+                                    {copy.badgeUnedited(fw.constructs.length)}
+                                  </span>
+                                )}
+                              </div>
+                            </div>
+                            {editable ? (
+                              <div className="flex shrink-0 gap-2">
+                                <button
+                                  type="button"
+                                  onClick={() => (isOpen ? setOpenId(null) : open(fw))}
+                                  className="rounded border px-3 py-1.5 text-sm hover:bg-muted"
+                                >
+                                  {isOpen && mode === "structure" ? copy.close : copy.editApproach}
+                                </button>
+                              </div>
+                            ) : null}
+                          </div>
 
-                {isOpen ? (
-                  <FrameworkStructureEditor
-                    framework={fw}
-                    busy={busy}
-                    error={error}
-                    onCancel={() => setOpenId(null)}
-                    onSave={(structure) => void saveStructure(fw, structure)}
-                    /* Revert lived in the text editor, which is gone (1.1.110).
-                       It has to stay reachable: "Reset to published" only
-                       repopulates the form — the saved override survives until
-                       this deletes it, and a researcher who could not find this
-                       would think resetting had reverted when it had not. */
-                    onRevert={fw.isOverridden ? () => void revert(fw) : undefined}
-                  />
-                ) : null}
+                          {isOpen ? (
+                            <FrameworkStructureEditor
+                              framework={fw}
+                              busy={busy}
+                              error={error}
+                              onCancel={() => setOpenId(null)}
+                              onSave={(structure) => void saveStructure(fw, structure)}
+                              /* Revert lived in the text editor, which is gone (1.1.110).
+                                 It has to stay reachable: "Reset to published" only
+                                 repopulates the form — the saved override survives until
+                                 this deletes it, and a researcher who could not find this
+                                 would think resetting had reverted when it had not. */
+                              onRevert={fw.isOverridden ? () => void revert(fw) : undefined}
+                            />
+                          ) : null}
 
-              </TeacherCard>
-            );
-          })}
+                        </TeacherCard>
+                      );
+                    })}
                   </>
                 ),
               },

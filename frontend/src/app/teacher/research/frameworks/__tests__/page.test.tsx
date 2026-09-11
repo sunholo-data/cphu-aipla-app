@@ -88,6 +88,35 @@ describe("ResearchFrameworksPage (1.1.91 M1 — researcher edits the tutor instr
     expect(screen.queryByRole("button", { name: /Edit wording/ })).not.toBeInTheDocument();
   });
 
+  it("puts each job behind its own tab, with the approaches leading", async () => {
+    // The page had grown an assign panel, a preview, a custom-approach editor,
+    // a cross-view and seven framework cards in one sprint — one scroll nobody
+    // could navigate. This asserts the STRUCTURE, because it was assembled by
+    // heavy edits to a long JSX file, and "it typechecks" is not the same as
+    // "it is still a coherent page".
+    const user = userEvent.setup();
+    vi.spyOn(teacherApi, "listTeachingFrameworks").mockResolvedValue([esru(), poe()]);
+    render(<ResearchFrameworksPage />);
+
+    await screen.findByRole("tab", { name: /Approaches/ });
+    const labels = screen.getAllByRole("tab").map((t) => t.textContent ?? "");
+    for (const expected of [/Approaches/, /Who teaches with what/, /Try them/, /Usage/]) {
+      expect(labels.some((l) => expected.test(l))).toBe(true);
+    }
+
+    // Approaches leads, and the framework cards live in it.
+    expect(screen.getByRole("tab", { name: /Approaches/ })).toHaveAttribute("aria-selected", "true");
+    expect(screen.getByText(/ESRU/)).toBeInTheDocument();
+
+    // Switching reveals another panel. Panels are hidden rather than unmounted,
+    // so a half-written approach survives a glance at another tab.
+    await user.click(screen.getByRole("tab", { name: /Who teaches with what/ }));
+    expect(screen.getByRole("tab", { name: /Who teaches with what/ })).toHaveAttribute(
+      "aria-selected",
+      "true",
+    );
+  });
+
   it("gives a plain teacher their own approaches instead of an access wall", async () => {
     // 1.1.110. Listing the seven 403s for a teacher — they are researcher-
     // maintained — but a teacher OWNS the custom tier, and showing an

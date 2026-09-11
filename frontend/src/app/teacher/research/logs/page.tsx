@@ -26,6 +26,8 @@ const copy = {
   title: "Conversations by teaching approach",
   subtitleFor: (sessions: number, turns: number) =>
     `${sessions} conversations · ${turns} turns recorded`,
+  unattributedNote: (turns: number) =>
+    `A further ${turns} turn${turns === 1 ? "" : "s"} belong to no conversation — they carry no session id, so there is no transcript to open. Counted here so the totals still add up against the raw data.`,
   excludedNote: (sessions: number, turns: number) =>
     `Not shown: ${sessions} teacher co-pilot or tutor-preview session${sessions === 1 ? "" : "s"} (${turns} turns). Real turns, but nobody was taught in them — they are excluded so the tabs above are only student conversations.`,
   loading: "Loading conversations…",
@@ -109,6 +111,7 @@ function ResearchLogsPageInner() {
   const [status, setStatus] = useState<Status>("loading");
   const [tabs, setTabs] = useState<ChatLogTab[]>([]);
   const [excluded, setExcluded] = useState<{ sessions: number; turns: number } | null>(null);
+  const [unattributed, setUnattributed] = useState(0);
   const [names, setNames] = useState<Map<string, string>>(new Map());
   // ?approach=<id> opens straight on that tab. Read once as the initial value
   // rather than held in sync: a researcher who then clicks another tab should
@@ -158,6 +161,7 @@ function ResearchLogsPageInner() {
           const s = (ex.teacher_sessions ?? 0) + (ex.preview_sessions ?? 0);
           const t = (ex.teacher_turns ?? 0) + (ex.preview_turns ?? 0);
           setExcluded(s || t ? { sessions: s, turns: t } : null);
+          setUnattributed(ex.unattributed_turns ?? 0);
         }
         // Honour ?approach= only if that tab actually exists, so a stale link
         // lands on something real instead of an empty page.
@@ -300,6 +304,9 @@ function ResearchLogsPageInner() {
         <p className="text-xs text-muted-foreground">
           {copy.excludedNote(excluded.sessions, excluded.turns)}
         </p>
+      ) : null}
+      {unattributed > 0 ? (
+        <p className="text-xs text-muted-foreground">{copy.unattributedNote(unattributed)}</p>
       ) : null}
 
       <div role="tablist" aria-label={copy.title} className="flex flex-wrap gap-1 border-b border-border">
