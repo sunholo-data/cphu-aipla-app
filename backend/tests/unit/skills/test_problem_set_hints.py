@@ -30,14 +30,24 @@ def test_skill_name(skill):
     assert skill.frontmatter.name == "problem-set-hints"
 
 
-def test_skill_uses_the_smart_tier_alias(skill):
-    """The reasoning-heavy hint tutor opts into the registry's "smart" tier by
-    alias (2026-08-13) rather than a literal model id, so it follows whatever
-    the registry currently picks (see db.models.SkillMetadata) instead of
-    freezing on a model that gets superseded (e.g. gemini-3.6-flash ->
-    gemini-3.7-flash). Everyday/high-volume skills use the "default" tier
-    (gemini-3.5-flash-lite); this one is deliberately on the more-capable one."""
-    assert skill.frontmatter.metadata["model"] == "smart"
+def test_skill_runs_on_flash_lite_for_latency(skill):
+    """Moved OFF the smart tier on 2026-09-11, and this test records both sides
+    so the trade is not silently forgotten.
+
+    It was on "smart" from 2026-08-13 as a deliberate CAPABILITY choice — a
+    reasoning-heavy hint tutor, following whatever the registry picked rather
+    than freezing on a superseded id.
+
+    It is on flash-lite now as a deliberate LATENCY choice, measured rather than
+    assumed: on the real tutor prompt with thinking off, flash-lite reaches first
+    token in 0.61s against the smart tier's 4.8s median, p90 7-21s, worst cases
+    over 50s. The platform target is <1s, and a student waiting for a hint is
+    waiting exactly as long as a student waiting for anything else.
+
+    ⚠️ If hint QUALITY regresses, this is the first thing to look at — the
+    capability argument for `smart` was real, and nobody has measured hint
+    quality across the two. That wants an eval, not another guess."""
+    assert skill.frontmatter.metadata["model"] == "gemini-3.5-flash-lite"
 
 
 def test_smart_alias_resolves_to_the_live_registry_smart_model():

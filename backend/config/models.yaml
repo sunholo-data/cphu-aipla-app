@@ -11,6 +11,17 @@
 #   default — fast daily use; selected when skill has no explicit model
 #   smart   — best capability per provider; selected for complex tasks
 #   fast    — cheapest / lowest latency; selected for high-volume sub-tasks
+#
+# ⚠️ TWO THINGS MEASURED 2026-09-11 that the tier names do not tell you:
+#
+#   1. `fast` and `default` resolve to the SAME Gemini model. The fast tier only
+#      diverges for Claude (haiku). Picking "fast" over "default" on Gemini
+#      changes nothing.
+#   2. The smart tier costs ~4 SECONDS of time-to-first-token. On the real tutor
+#      prompt with thinking off: flash-lite 0.61s median, the smart tier 4.8s
+#      median with a p90 of 7-21s and worst cases over 50s. The platform target
+#      is <1s. No student-facing skill should sit on `smart` without someone
+#      deciding that trade deliberately — as of 2026-09-11 none do.
 
 models:
 
@@ -32,7 +43,7 @@ models:
     tier: smart
     context_window: 1_000_000
     max_output_tokens: 65_536
-    description: "Gemini 3.8 Flash — the smart tier from 2026-09-11. Listed FIRST so smart_model() picks it over 3.7. Verified against the real tutor prompt before switching: comparable to 3.7 on tool-naming (6/9) and Danish (6/9), not measurably better — the reason to move is currency, not a quality gain. NOTE there is no 3.8 flash-LITE (404 on Vertex), so the default/fast tier stays on 3.5-flash-lite; the tiers move independently now."
+    description: "Gemini 3.8 Flash — the smart tier from 2026-09-11. ⚠️ NOTHING STUDENT-FACING USES THIS TIER: the only caller is the compaction summarizer, which runs in the background where a 5s first token does not matter. Measured against 3.7 on the real tutor prompt: same median TTFT (4.75s vs 4.78s) but a p90 three times worse (20.7s vs 7.1s) — acceptable for compaction, not for a turn a student waits on. Listed FIRST so smart_model() picks it over 3.7. Verified against the real tutor prompt before switching: comparable to 3.7 on tool-naming (6/9) and Danish (6/9), not measurably better — the reason to move is currency, not a quality gain. NOTE there is no 3.8 flash-LITE (404 on Vertex), so the default/fast tier stays on 3.5-flash-lite; the tiers move independently now."
 
   gemini-3-7-flash:
     api_name: "gemini-3.7-flash"

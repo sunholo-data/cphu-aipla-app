@@ -111,7 +111,17 @@ metadata:
   # docs/design/aipla/v0.1.0-jutland/jutland-demo.md.
   # Router-overridable per ADR-008. Sonnet 4.6 is the documented
   # cross-provider fallback (ADR-003).
-  model: smart
+  # Flash-lite, not the smart tier (2026-09-11). MEASURED, on the real tutor
+  # prompt with thinking_budget=0 as prod runs: flash-lite reaches first token in
+  # 0.61s; the smart tier took 4.8s median with a p90 of 7-21s and worst cases
+  # over 50s. The platform target is <1s (CLAUDE.md), so the smart tier missed it
+  # by ~5x on the one path a student sits and waits on.
+  #
+  # Quality on this prompt was comparable — both named the workbench tool and
+  # answered in Danish at the same rate — so the smart tier was buying latency
+  # and little else here. Revisit with an eval rather than an assumption if a
+  # tutor turn ever needs more capability than flash-lite has.
+  model: gemini-3.5-flash-lite
   tools: []
   toolConfigs:
     # ACCESS-1 M3: opt this skill into the per-teacher monthly cap.
