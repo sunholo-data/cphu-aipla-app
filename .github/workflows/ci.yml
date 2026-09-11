@@ -114,6 +114,16 @@ jobs:
 
       - name: Skill catalogue in sync with .claude/skills
         run: bash scripts/check-skill-catalogue.sh
+      - name: Every app route is tracked by git
+        # 1.1.109: an unanchored `logs/` in .gitignore matched the real route
+        # frontend/src/app/teacher/research/logs/. `git add` refused it, `git
+        # commit` SUCCEEDED, and the feature shipped a nav link to a page that
+        # was never committed — along with ten tests that simply stopped being
+        # counted. Nothing failed and `git status` looked clean, which is what
+        # made it dangerous. The rule is anchored now; this catches the class,
+        # because `dist/`, `build/` and `coverage/` are still unanchored and a
+        # route by any of those names would vanish the same way.
+        run: bash scripts/check-app-routes-tracked.sh
       - name: Tutor docs in sync with the framework YAML
         # 1.1.91: a tutor's pedagogy has ONE source of truth
         # (backend/frameworks/*.yaml, whose behaviours are traceable to the

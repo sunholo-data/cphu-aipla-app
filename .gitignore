@@ -33,7 +33,17 @@ backend/.env
 Thumbs.db
 
 # Logs
-logs/
+#
+# ⚠️ ANCHORED to the repo root on purpose. An unanchored `logs/` matches a
+# directory named `logs` at ANY depth, which on 2026-09-11 silently swallowed
+# `frontend/src/app/teacher/research/logs/` — a real Next.js route. `git add`
+# ignored it, `git commit` succeeded, and the feature shipped a nav link to a
+# page that was never committed. Nothing failed; that is what made it dangerous.
+# The rule was protecting nothing: the only non-vendored match in the tree was
+# that route. `scripts/check-app-routes-tracked.sh` now fails the build on any
+# untracked route directory, because the next collision will be `build/`,
+# `dist/` or `coverage/` and will look just as much like nothing happening.
+/logs/
 *.log
 
 # Coverage

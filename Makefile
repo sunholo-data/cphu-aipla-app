@@ -468,6 +468,9 @@ security-check:
 check-skills: ## Verify CLAUDE.md skill catalogue matches .claude/skills/ (CI-gated)
 	@bash scripts/check-skill-catalogue.sh
 
+check-routes-tracked: ## Verify every Next.js route is tracked by git (CI-gated)
+	@bash scripts/check-app-routes-tracked.sh
+
 # Trust-card footgun gate (P1.4). Flags any workspace element that pushes state
 # to the tutor (useSimSnapshotPush) without dispatching the visible "shared with
 # the AI" card (useHumanToolEvents) — the calculator+table bug. Same script the
