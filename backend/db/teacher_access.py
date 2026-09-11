@@ -306,11 +306,27 @@ def grant_access(
     granted_via: str = GRANTED_VIA_SERVICE_ACCOUNT,
     expires_at: str | None = None,
     note: str = "",
+    uid: str | None = None,
 ) -> AccessGrant:
     """Write (or re-write) a register row. Idempotent by email.
 
     Re-granting an existing email preserves ``uid`` / ``firstSeenAt`` (audit
     trail) and clears ``revoked`` — so "grant" is also how you un-revoke.
+
+    ``uid`` stamps the denormalised index directly, for an identity that has a
+    uid but NO Firebase email to resolve it from. ``grant_for_uid`` finds a row
+    by querying that field first and, on a miss, resolving uid -> email through
+    Firebase — which works for every real teacher and cannot work for a
+    synthetic one. The demo teacher (``aipla-demo-teacher``, owner of the Demo
+    class every environment's ``aipla-demo-1`` code binds to) is exactly that:
+    it owns a class, so the student spend gate resolves it as the payer, and it
+    could never be put on the register, so every demo turn was refused
+    ``student_owner_not_registered``. That is why ``make verify-chat-logs`` —
+    the repo's own end-to-end proof that chat logging reaches BigQuery — could
+    not pass on dev or test.
+
+    An explicit ``uid`` never overwrites one already on the row; the audit trail
+    wins over the argument.
     """
     key = normalise_email(email)
     if not key:
@@ -335,7 +351,9 @@ def grant_access(
         expires_at=expires_at,
         note=note,
         revoked=False,
-        uid=existing.uid if existing else None,
+        # An existing uid is never clobbered — it is audit trail, and a caller's
+        # argument is a weaker claim than what the row already witnessed.
+        uid=(existing.uid if existing and existing.uid else uid),
         first_seen_at=existing.first_seen_at if existing else None,
     )
     set_document(_COLLECTION, key, grant.to_doc(), merge=False)

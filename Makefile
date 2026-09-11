@@ -1,4 +1,4 @@
-.PHONY: tf-plan tf-apply tf-local tf-fmt check-iam-posture check-spend-ceiling spend-ceiling check-domains deploy-status dev dev-local dev-recompile dev-status dev-stop proxy-check logs cloud-logs cloud-errors cloud-build verify-chat-logs smoke-session-persistence smoke-chat-resume smoke-curriculum-content smoke-teacher-cli help cli-install cli-reinstall cli-uninstall cli-doctor cli-selftest-mock cli-selftest-live cli-selftest seed seed-job seed-demo-codes force-seed-demo bind-demo-code reset-group-state provision-curriculum-rag provision-agent-engine copy-docparse-secret seed-curriculum backfill-curriculum-content seed-curriculum-folders check-auth-config migrate-clear-persona-voice-override docs-linkcheck check-skills sim-build sim-build-check guides guides-publish guide-screens seed-guide-corpus guide-staleness
+.PHONY: tf-plan tf-apply tf-local tf-fmt check-iam-posture check-spend-ceiling spend-ceiling check-domains deploy-status dev dev-local dev-recompile dev-status dev-stop proxy-check logs cloud-logs cloud-errors cloud-build verify-chat-logs smoke-session-persistence smoke-chat-resume smoke-curriculum-content smoke-teacher-cli help cli-install cli-reinstall cli-uninstall cli-doctor cli-selftest-mock cli-selftest-live cli-selftest seed seed-job seed-demo-codes register-demo-teacher force-seed-demo bind-demo-code reset-group-state provision-curriculum-rag provision-agent-engine copy-docparse-secret seed-curriculum backfill-curriculum-content seed-curriculum-folders check-auth-config migrate-clear-persona-voice-override docs-linkcheck check-skills sim-build sim-build-check guides guides-publish guide-screens seed-guide-corpus guide-staleness
 
 # Seed SKILL.md templates -> Firestore. Since P1.3 the Cloud Build deploy runs
 # this automatically via the `aipla-seed-skills` Cloud Run job (see
@@ -29,6 +29,16 @@ seed-job:
 #   CODES="aipla-demo-1 aipla-demo-2" make seed-demo-codes ENV=dev
 seed-demo-codes:
 	@scripts/seed-demo-codes.sh $(ENV)
+
+# Put the demo class's OWNER on the access register, so demo turns are allowed
+# to spend. Without it the spend gate refuses every `aipla-demo-1` turn with
+# `student_owner_not_registered` before an agent runs — which made
+# `make verify-chat-logs` and the smoke scripts fail on dev and test in a way
+# that looked like a broken pipeline and was not. Dry run unless GO=1.
+#   make register-demo-teacher ENV=dev
+#   make register-demo-teacher ENV=dev GO=1
+register-demo-teacher:
+	@cd backend && GOOGLE_CLOUD_PROJECT=aipla-$(ENV)-2026 uv run python -m scripts.register_demo_teacher $(if $(GO),--apply,)
 
 # Force-seed the CURRENT demo activities into every existing teacher's "Demo
 # class" (the onboarding seed no-ops for teachers who already own a class, so

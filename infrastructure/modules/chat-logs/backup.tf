@@ -19,10 +19,12 @@
 # Parquet, not CSV: preserves types and nested structure, so a restore is a
 # straight `LOAD DATA` rather than a schema-guessing exercise.
 #
-# The export reads the RAW sink tables rather than the flattened views, because
-# create_views defaults to false and is not set in any env — the views do not
-# exist. Backing up the raw shape is also the more conservative choice: the
-# views are derived and can be rebuilt from it, not vice versa.
+# The export reads the RAW sink tables rather than the flattened views. It did so
+# originally because create_views was false everywhere and the views did not
+# exist; since 2026-09-11 they do (env/modules.tf sets create_views = true), and
+# this still reads the raw tables — deliberately. A view is derived and can be
+# rebuilt from the raw shape; the reverse is not true, so the raw table is the
+# thing worth backing up.
 
 resource "google_storage_bucket" "backup" {
   count = var.enable_backup ? 1 : 0

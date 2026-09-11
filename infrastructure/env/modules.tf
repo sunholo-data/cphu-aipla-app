@@ -16,6 +16,23 @@ module "chat_logs" {
   # populated dataset would have refused anyway.
   enable_backup = var.enable_chat_logs_backup
 
+  # The flattened `chat_turns` / `workbench_events` views. FALSE until now, in
+  # every environment, since the module shipped: the views are declared over the
+  # sink-created raw tables, and a view over a table that does not exist yet
+  # fails to apply — so the module's own comment says keep it false on the first
+  # apply and flip it once data is flowing.
+  #
+  # Nobody ever flipped it. `backup.tf` records the consequence in passing —
+  # "the views do not exist" — and the code silently agreed: summarize_session_bq
+  # queries `jsonPayload.<key>` off the RAW table, so nothing read the views and
+  # nothing missed them.
+  #
+  # Turning them on now (2026-09-11) because TUTOR-5 gives researchers a reason
+  # to query this dataset by hand, and `jsonPayload.framework_id` is not a thing
+  # to ask a researcher to type. Precondition met in all three environments:
+  # `aipla_chat_turn` and `aipla_workbench_event` both exist and carry data.
+  create_views = true
+
   depends_on = [google_project_service.apis]
 }
 

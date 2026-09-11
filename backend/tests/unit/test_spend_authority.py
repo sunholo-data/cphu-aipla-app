@@ -267,3 +267,46 @@ def test_a_students_teacher_is_found_even_on_an_unstamped_row(store, monkeypatch
     authority = resolve_spend_authority(_student("PHYS-7K2N"))
     assert authority.can_spend is False, "a revoked teacher's students must not spend"
     assert authority.reason == "student_owner_tier", "the owner WAS resolvable; do not fail open"
+
+
+# ── the demo teacher can be registered at all (2026-09-11) ───────────────────
+
+
+def test_grant_access_can_stamp_a_uid_for_an_identity_with_no_email(monkeypatch):
+    """The register is keyed by email, and some owners have none.
+
+    `aipla-demo-1` binds to a Demo class whose ownerUid is synthetic. The spend
+    gate resolves group -> class -> ownerUid and asks the register about it;
+    `grant_for_uid` queries the uid field, then falls back to resolving
+    uid -> email through Firebase. A synthetic owner misses BOTH routes, so it
+    could never be put on the register and every demo turn was refused
+    `student_owner_not_registered` — which is why `make verify-chat-logs` could
+    not pass on dev or test.
+    """
+    from db import teacher_access as ta
+
+    written: dict = {}
+    monkeypatch.setattr(ta, "get_grant", lambda k: None)
+    monkeypatch.setattr(ta, "set_document", lambda c, k, doc, merge=False: written.update({k: doc}))
+
+    ta.grant_access("demo-teacher@aipla.invalid", uid="aipla-demo-teacher", monthly_cap_usd=5.0)
+    assert written["demo-teacher@aipla.invalid"]["uid"] == "aipla-demo-teacher"
+
+
+def test_an_existing_uid_is_never_clobbered_by_the_argument(monkeypatch):
+    """The stamped uid is audit trail. A caller's argument is a weaker claim
+    than what the row already witnessed, so re-granting must not overwrite it."""
+    from db import teacher_access as ta
+
+    existing = ta.AccessGrant(
+        email="someone@ku.dk",
+        tier="pilot",
+        monthly_cap_usd=100.0,
+        uid="the-real-uid",
+    )
+    written: dict = {}
+    monkeypatch.setattr(ta, "get_grant", lambda k: existing)
+    monkeypatch.setattr(ta, "set_document", lambda c, k, doc, merge=False: written.update({k: doc}))
+
+    ta.grant_access("someone@ku.dk", uid="a-different-uid")
+    assert written["someone@ku.dk"]["uid"] == "the-real-uid"

@@ -60,7 +60,7 @@ export default function TeacherAccessPage() {
                 Elevkoder, så dine elever kan deltage anonymt — uden konti og
                 uden persondata.{" "}
                 <span className="text-muted-foreground">
-                  Student join codes, so your class takes part anonymously — no
+                  Student group codes, so your class takes part anonymously — no
                   accounts, no personal data.
                 </span>
               </li>
