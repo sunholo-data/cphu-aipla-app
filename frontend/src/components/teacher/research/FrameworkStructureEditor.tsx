@@ -210,8 +210,11 @@ export function FrameworkStructureEditor({
         <div>
           <h3 className="text-sm font-medium">Teaching approach</h3>
           <p className="mt-0.5 text-xs text-muted-foreground">
-            Edit the theory itself. What the tutor is told is generated from this, so it stays
-            checkable against the sources below.
+            Edit the constructs themselves — the moves this approach is made of. Fixed code turns
+            them into the tutor&rsquo;s instructions, copying each behaviour word for word, so what
+            the tutor is told stays checkable line by line against the sources below. Saving here
+            discards any hand-written wording saved under &ldquo;Edit wording&rdquo;: the two are
+            alternatives, not layers.
           </p>
         </div>
         <button
@@ -391,8 +394,10 @@ export function FrameworkStructureEditor({
       <div>
         <p className="mb-1 text-xs font-medium">What the tutor will be told</p>
         <p className="mb-2 text-[11px] text-muted-foreground">
-          Generated from the theory above by the same code that runs in the lesson — not an
-          approximation of it.
+          Assembled from the constructs above by the same code that runs in the lesson — no AI, no
+          paraphrasing, and not an approximation. Every line below appears verbatim in one of the
+          fields above. Citations are not included: they are review metadata, never shown to the
+          tutor or the student.
         </p>
         <pre
           data-testid="structure-preview"
