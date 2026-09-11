@@ -509,7 +509,13 @@ def test_view_selects_every_teaching_key_the_emitter_writes():
         chat_log.emit_chat_turn(**TURN_KW)
     emitted = set(logger.log_struct.call_args[0][0])
 
-    missing = [k for k in emitted if f"jsonPayload.{k}" not in views]
+    # Accept BOTH selection styles. The view moved from struct members
+    # (`jsonPayload.framework_id`) to `JSON_VALUE(..., "$.framework_id")` on
+    # 2026-09-11, because the sink omits never-populated fields from the STRUCT
+    # and a struct-member SELECT over an absent one fails the whole view. This
+    # guard exists to check that every emitted key IS selected — not how — so it
+    # matches either form rather than breaking the next time the style changes.
+    missing = [k for k in emitted if f'"$.{k}"' not in views and f"jsonPayload.{k}" not in views]
     assert not missing, (
         f"emit_chat_turn writes key(s) the chat-turn view does not select: {missing}. "
         "Add them to infrastructure/modules/chat-logs/views.tf or they never become columns."
