@@ -3,7 +3,7 @@
 import { type ComponentType, useEffect, useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { BarChart3, BookOpen, ClipboardList, Library, Microscope, PanelLeftClose, PanelLeftOpen, Settings, ShieldCheck, Users } from "lucide-react";
+import { BarChart3, BookOpen, ClipboardList, Library, Microscope, MessagesSquare, PanelLeftClose, PanelLeftOpen, Settings, ShieldCheck, Users } from "lucide-react";
 
 import { cn } from "@/lib/utils";
 import { useIsProgrammeAdmin } from "@/hooks/useIsProgrammeAdmin";
@@ -82,6 +82,22 @@ const FRAMEWORKS_DESTINATION: Destination = {
 };
 
 /**
+ * Researcher-only destination (1.1.109): every conversation, grouped by the
+ * teaching approach that produced it, with the transcript one click away.
+ *
+ * A sibling of Frameworks rather than a tab inside it, for the same reason
+ * Frameworks is a sibling of Research: "what was the tutor told to do" and
+ * "what did students actually say to it" are different questions, and the
+ * second one is the evidence the first is judged by.
+ */
+const CHAT_LOGS_DESTINATION: Destination = {
+  href: "/teacher/research/logs",
+  label: "Conversations",
+  icon: MessagesSquare,
+  match: ["/teacher/research/logs"],
+};
+
+/**
  * Delegated-administration destination (PROGADMIN-1 — 1.1.76): the access
  * register and the request queue. Shown to a researcher (read-only) OR a
  * programme admin (read + write) — the union, because the two claims share one
@@ -116,7 +132,7 @@ export function TeacherNav() {
   const isProgrammeAdmin = useIsProgrammeAdmin();
   const destinations = [
     ...DESTINATIONS,
-    ...(isResearcher ? [RESEARCH_DESTINATION, FRAMEWORKS_DESTINATION] : []),
+    ...(isResearcher ? [RESEARCH_DESTINATION, FRAMEWORKS_DESTINATION, CHAT_LOGS_DESTINATION] : []),
     ...(isResearcher || isProgrammeAdmin ? [PROGRAMME_DESTINATION] : []),
   ];
   // Collapse the desktop rail to an icon strip to give app-like surfaces (the

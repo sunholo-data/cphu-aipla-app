@@ -1357,3 +1357,135 @@ export async function createTutorVariant(input: {
   });
   return readJson<TutorPayload>(resp, "create tutor variant");
 }
+
+// --- Researcher chat-log lens (1.1.109) ------------------------------------
+//
+// Conversations grouped by the teaching approach that produced them. The read
+// side of TUTOR-5: every turn now records which tutor, framework, persona,
+// class and activity taught it, so "show me every conversation that ran under
+// ESRU, and let me read them" is finally an answerable question.
+
+/** The sentinel the API uses for the `framework_id IS NULL` bucket. */
+export const UNASSIGNED_FRAMEWORK = "__unassigned__";
+
+/** One tab: a teaching approach and how much conversation ran under it. */
+export interface ChatLogTab {
+  framework_id: string;
+  sessions: number;
+  turns: number;
+  groups_seen: number;
+  student_turns: number;
+  tutor_turns: number;
+  first_ts: string | null;
+  last_ts: string | null;
+}
+
+/** One row in a tab — a conversation, with what taught it. */
+export interface ChatLogSession {
+  session_id: string;
+  framework_id: string;
+  group_id: string | null;
+  tutor_id: string | null;
+  persona_id: string | null;
+  class_id: string | null;
+  activity_id: string | null;
+  interaction_style: string | null;
+  teaching_source: string | null;
+  skill_id: string | null;
+  revision: string | null;
+  turns: number;
+  student_turns: number;
+  tutor_turns: number;
+  /** Turns with real text — excludes the `[session_start]` sentinel. */
+  readable_turns: number;
+  started_at: string | null;
+  last_at: string | null;
+}
+
+/** One turn of a transcript. */
+export interface ChatLogTurn {
+  ts: string | null;
+  turn_index: number | null;
+  role: string | null;
+  content: string | null;
+  /** True for system-injected turns (`[session_start]`) — not student writing. */
+  is_synthetic: boolean;
+  model: string | null;
+  framework_id: string | null;
+  tutor_id: string | null;
+  persona_id: string | null;
+  class_id: string | null;
+  activity_id: string | null;
+  interaction_style: string | null;
+  teaching_source: string | null;
+  group_id: string | null;
+  skill_id: string | null;
+  revision: string | null;
+  app_version: string | null;
+}
+
+export interface ChatLogFilter {
+  framework?: string | null;
+  classId?: string | null;
+  activityId?: string | null;
+}
+
+function chatLogQuery(filter: ChatLogFilter, extra: Record<string, string | number> = {}): string {
+  const qs = new URLSearchParams();
+  if (filter.framework) qs.set("framework", filter.framework);
+  if (filter.classId) qs.set("classId", filter.classId);
+  if (filter.activityId) qs.set("activityId", filter.activityId);
+  for (const [k, v] of Object.entries(extra)) qs.set(k, String(v));
+  const s = qs.toString();
+  return s ? `?${s}` : "";
+}
+
+/** Counts per teaching approach — the tab strip. */
+export async function listChatLogTabs(): Promise<{ tabs: ChatLogTab[]; unassignedKey: string }> {
+  const resp = await fetchWithAuth("/api/proxy/api/research/logs/tabs");
+  return readJson<{ tabs: ChatLogTab[]; unassignedKey: string }>(resp, "list chat-log tabs");
+}
+
+/** Conversations in one tab. */
+export async function listChatLogSessions(
+  filter: ChatLogFilter,
+  limit = 50,
+  offset = 0,
+): Promise<ChatLogSession[]> {
+  const resp = await fetchWithAuth(
+    `/api/proxy/api/research/logs/sessions${chatLogQuery(filter, { limit, offset })}`,
+  );
+  const body = await readJson<{ sessions: ChatLogSession[] }>(resp, "list chat-log sessions");
+  return body.sessions;
+}
+
+/** The full transcript of one conversation. */
+export async function getChatLogTranscript(sessionId: string): Promise<ChatLogTurn[]> {
+  const resp = await fetchWithAuth(
+    `/api/proxy/api/research/logs/sessions/${encodeURIComponent(sessionId)}`,
+  );
+  const body = await readJson<{ turns: ChatLogTurn[] }>(resp, "read transcript");
+  return body.turns;
+}
+
+/** The export URL for whatever the current filter shows. */
+export function chatLogExportPath(filter: ChatLogFilter, format: "csv" | "jsonl"): string {
+  return `/api/proxy/api/research/logs/export${chatLogQuery(filter, { format })}`;
+}
+
+/** Fetch an export as a Blob.
+ *
+ *  Not a plain `<a href>`: the export is an authenticated endpoint and a link
+ *  navigation carries no bearer token, so it would 401. The caller turns this
+ *  into a download.
+ */
+export async function fetchChatLogExport(
+  filter: ChatLogFilter,
+  format: "csv" | "jsonl",
+): Promise<Blob> {
+  const resp = await fetchWithAuth(chatLogExportPath(filter, format));
+  if (!resp.ok) {
+    throw new Error(`export failed: ${resp.status} ${(await resp.text()).slice(0, 200)}`);
+  }
+  return resp.blob();
+}
