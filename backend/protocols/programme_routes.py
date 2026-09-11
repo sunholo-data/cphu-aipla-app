@@ -154,6 +154,102 @@ async def programme_access_requests(
     }
 
 
+# ─── Who holds a role (1.1.76 follow-on, 2026-09-11) ─────────────────────────
+#
+# The register answers "who may spend". It does NOT answer "who is a researcher"
+# — that is a Firebase custom claim, minted through the other door, and the two
+# are independent by design (a researcher claim must never silently become a
+# budget). The cost of that separation showed up the day it was first exercised
+# on a stranger: a researcher was granted, M opened this page to check, and she
+# was nowhere on it. This read joins the two so the page can say "researcher,
+# no spend grant" instead of nothing.
+
+#: The claim keys that count as a role. `role` is single-valued (`researcher`);
+#: the other two are separate boolean keys — see the User docstring for why.
+_ROLE_CLAIM_KEYS = ("role", "programmeAdmin", "admin")
+
+
+def _roles_from_claims(claims: dict[str, Any] | None) -> list[str]:
+    """Human-readable role list from a claim blob; empty for a plain teacher.
+
+    Compared strictly against ``True`` for the boolean keys, matching the
+    verifier — a stray truthy string must not read as a role here either.
+    """
+    claims = claims or {}
+    roles: list[str] = []
+    if claims.get("role") == "researcher":
+        roles.append("researcher")
+    if claims.get("programmeAdmin") is True:
+        roles.append("programme-admin")
+    if claims.get("admin") is True:
+        roles.append("admin")
+    return roles
+
+
+@router.get("/roles")
+async def programme_roles(
+    user: User = Depends(get_current_user),  # noqa: B008
+) -> dict[str, Any]:
+    """Everyone holding a role claim, joined against the register.
+
+    Enumerates Firebase users and keeps those with any role claim — a few
+    dozen accounts per environment, so a full page walk is fine and there is
+    no index to keep in sync. Each row carries whether that person ALSO has a
+    spend grant, which is the question this endpoint exists to answer.
+
+    A listing failure is a 503, never an empty list: "nobody holds a role"
+    and "Firebase did not answer" are different facts, and the reassuring one
+    must not be what a broken read produces (CLAUDE.md, checkers that answer
+    when they could not read).
+    """
+    from firebase_admin import auth as fb_auth
+
+    from db.teacher_access import list_grants
+
+    _assert_programme_reader(user)
+    try:
+        page = fb_auth.list_users()
+        records = list(page.iterate_all())
+    except Exception as exc:  # any failure is "cannot read"
+        log.warning("programme.roles: could not list Firebase users: %s", exc)
+        raise HTTPException(status_code=503, detail="Could not read role claims") from exc
+
+    grants_by_email = {g.email.lower(): g for g in list_grants(include_revoked=False)}
+    people: list[dict[str, Any]] = []
+    for rec in records:
+        roles = _roles_from_claims(getattr(rec, "custom_claims", None))
+        if not roles:
+            continue
+        email = (getattr(rec, "email", "") or "").strip()
+        grant = grants_by_email.get(email.lower()) if email else None
+        people.append(
+            {
+                "uid": rec.uid,
+                "email": email,
+                "roles": roles,
+                # The mirrored claim, as the client will see it on next refresh.
+                "accessTier": (rec.custom_claims or {}).get("accessTier") or "visitor",
+                # The register's answer, which is the authoritative one.
+                "grant": (
+                    {
+                        "tier": grant.tier,
+                        "monthlyCapUsd": grant.monthly_cap_usd,
+                        "active": grant.is_active,
+                        "expiresAt": grant.expires_at,
+                    }
+                    if grant and grant.is_active
+                    else None
+                ),
+            }
+        )
+    people.sort(key=lambda p: p["email"].lower())
+    return {
+        "count": len(people),
+        "canWrite": bool(getattr(user, "is_programme_admin", False)),
+        "people": people,
+    }
+
+
 # ─── The bounded write half (M2) ─────────────────────────────────────────────
 #
 # Everything below requires `programmeAdmin`. A researcher reading this surface

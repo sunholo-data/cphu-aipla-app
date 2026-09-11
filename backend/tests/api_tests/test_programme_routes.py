@@ -415,3 +415,77 @@ def test_a_zero_or_negative_budget_reads_as_unset_not_as_a_shutdown():
     assert ProgrammeBudget.from_doc({"dailyBudgetUsd": -5}) is None
     assert ProgrammeBudget.from_doc({"dailyBudgetUsd": "nonsense"}) is None
     assert ProgrammeBudget.from_doc({}) is None
+
+
+# --- the roles view (2026-09-11) ---
+#
+# The register says who may SPEND; a role is a claim on the Firebase user. They
+# are independent by design, and the page must show both or a freshly granted
+# researcher is invisible on it — which is how this endpoint came to exist.
+
+
+class _Rec:
+    def __init__(self, uid: str, email: str, claims: dict | None):
+        self.uid = uid
+        self.email = email
+        self.custom_claims = claims
+
+
+class _Page:
+    def __init__(self, recs):
+        self._recs = recs
+
+    def iterate_all(self):
+        return iter(self._recs)
+
+
+def _fake_users(monkeypatch, recs):
+    from firebase_admin import auth as fb_auth
+
+    monkeypatch.setattr(fb_auth, "list_users", lambda: _Page(recs))
+
+
+def test_roles_404s_for_a_plain_teacher(monkeypatch):
+    _fake_users(monkeypatch, [])
+    assert _client(TEACHER).get("/api/programme/roles").status_code == 404
+
+
+def test_roles_lists_claim_holders_and_says_who_has_no_grant(monkeypatch):
+    """A researcher with no register row shows up as researcher + no grant."""
+    from db import teacher_access
+
+    _fake_users(
+        monkeypatch,
+        [
+            _Rec("u-plain", "teacher@ku.dk", None),
+            _Rec("u-sh", "sh@example.com", {"role": "researcher"}),
+            _Rec("u-jb", "jb@ind.ku.dk", {"role": "researcher", "programmeAdmin": True, "accessTier": "pilot"}),
+            _Rec("u-str", "stray@ku.dk", {"programmeAdmin": "yes"}),  # truthy string is NOT a role
+        ],
+    )
+    teacher_access.grant_access("jb@ind.ku.dk", tier="pilot", monthly_cap_usd=100.0, granted_by="test")
+
+    res = _client(RESEARCHER).get("/api/programme/roles")
+    assert res.status_code == 200
+    body = res.json()
+    by_email = {p["email"]: p for p in body["people"]}
+
+    assert set(by_email) == {"sh@example.com", "jb@ind.ku.dk"}, "plain teacher and stray claim excluded"
+    assert by_email["sh@example.com"]["roles"] == ["researcher"]
+    assert by_email["sh@example.com"]["grant"] is None
+    assert by_email["sh@example.com"]["accessTier"] == "visitor"
+    assert by_email["jb@ind.ku.dk"]["roles"] == ["researcher", "programme-admin"]
+    assert by_email["jb@ind.ku.dk"]["grant"]["monthlyCapUsd"] == 100.0
+    assert body["canWrite"] is False
+
+
+def test_roles_listing_failure_is_a_503_not_an_empty_list(monkeypatch):
+    """'Nobody holds a role' and 'Firebase did not answer' are different facts."""
+    from firebase_admin import auth as fb_auth
+
+    def _boom():
+        raise RuntimeError("no app")
+
+    monkeypatch.setattr(fb_auth, "list_users", _boom)
+    res = _client(RESEARCHER).get("/api/programme/roles")
+    assert res.status_code == 503

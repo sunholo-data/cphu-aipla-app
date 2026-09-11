@@ -27,8 +27,10 @@ import { useIsResearcher } from "@/hooks/useIsResearcher";
 import {
   type AccessRequestRow,
   type RegisterRow,
+  type RoleRow,
   fetchAccessRequests,
   fetchRegister,
+  fetchRoles,
   formatCap,
   formatSpend,
   grantAccess,
@@ -42,7 +44,32 @@ import {
  *  ever drifts from the deployed value. */
 const DELEGATED_CAP_CEILING = 50;
 
-type Tab = "register" | "requests";
+type Tab = "register" | "requests" | "roles";
+
+// Copy for the roles tab lives here rather than inline in JSX — the 1.1.108
+// rule: a translator reaches an object without a code change, and not JSX.
+// The rest of this page predates the rule and is extracted with M2.
+const copy = {
+  rolesTab: "Roles",
+  rolesIntro:
+    "A role is a claim on the account (researcher, programme admin, platform admin). It is separate from a spend grant on purpose — a role must never silently become a budget — so a person can hold a role and still be a visitor. This list joins the two.",
+  rolesEmpty: "Nobody on this environment holds a role claim.",
+  colEmail: "Email",
+  colRoles: "Roles",
+  colSpend: "Spend grant",
+  noGrant: "none — visitor (recorded demo only)",
+  grantOnRegister: "on the register",
+  roleLabel: {
+    researcher: "researcher",
+    "programme-admin": "programme admin",
+    admin: "platform admin",
+  } as Record<RoleRow["roles"][number], string>,
+  roleTitle: {
+    researcher: "Cross-class read: research view, cost dashboard",
+    "programme-admin": "May grant spend on the programme's behalf, within bounds",
+    admin: "Platform admin (Firestore rules isAdmin)",
+  } as Record<RoleRow["roles"][number], string>,
+};
 
 function GrantedViaBadge({ via }: { via: string }) {
   // Empty means a row written before 1.1.76, when the SA path was the only
@@ -193,6 +220,60 @@ function RevokeButton({ row, onRevoked }: { row: RegisterRow; onRevoked: () => v
   );
 }
 
+function RolesTable({ rows }: { rows: RoleRow[] }) {
+  if (rows.length === 0) {
+    return (
+      <p className="rounded border border-border bg-muted/40 p-4 text-sm text-muted-foreground">
+        {copy.rolesEmpty}
+      </p>
+    );
+  }
+  return (
+    <div className="overflow-x-auto">
+      <table className="w-full min-w-[36rem] border-collapse text-sm">
+        <thead>
+          <tr className="border-b border-border text-left text-muted-foreground">
+            <th className="py-2 pr-3 font-medium">{copy.colEmail}</th>
+            <th className="py-2 pr-3 font-medium">{copy.colRoles}</th>
+            <th className="py-2 pr-3 font-medium">{copy.colSpend}</th>
+          </tr>
+        </thead>
+        <tbody>
+          {rows.map((row) => (
+            <tr key={row.uid} className="border-b border-border/60 align-top">
+              <td className="py-2 pr-3 font-medium">{row.email || row.uid}</td>
+              <td className="py-2 pr-3">
+                <div className="flex flex-wrap gap-1">
+                  {row.roles.map((r) => (
+                    <span
+                      key={r}
+                      title={copy.roleTitle[r]}
+                      className="rounded border border-border px-1.5 py-0.5 text-[11px]"
+                    >
+                      {copy.roleLabel[r]}
+                    </span>
+                  ))}
+                </div>
+              </td>
+              {/* No grant is the case this table exists to show; say it in
+                  words, never as a blank cell. */}
+              <td className="py-2 pr-3">
+                {row.grant ? (
+                  <span className="text-muted-foreground">
+                    {row.grant.tier} · {row.grant.monthlyCapUsd < 0 ? "uncapped" : `$${row.grant.monthlyCapUsd.toFixed(2)}/month`} · {copy.grantOnRegister}
+                  </span>
+                ) : (
+                  <span className="text-amber-700 dark:text-amber-400">{copy.noGrant}</span>
+                )}
+              </td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
+  );
+}
+
 function RegisterTable({
   rows,
   canWrite,
@@ -323,6 +404,7 @@ export default function TeacherProgrammePage() {
   const [tab, setTab] = useState<Tab>("register");
   const [register, setRegister] = useState<RegisterRow[] | null>(null);
   const [requests, setRequests] = useState<AccessRequestRow[] | null>(null);
+  const [roles, setRoles] = useState<RoleRow[] | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
 
@@ -334,11 +416,12 @@ export default function TeacherProgrammePage() {
     let cancelled = false;
     setLoading(true);
     setError(null);
-    Promise.all([fetchRegister(), fetchAccessRequests("all")])
-      .then(([reg, req]) => {
+    Promise.all([fetchRegister(), fetchAccessRequests("all"), fetchRoles()])
+      .then(([reg, req, rol]) => {
         if (cancelled) return;
         setRegister(reg.grants);
         setRequests(req.requests);
+        setRoles(rol.people);
       })
       .catch((e) => {
         if (!cancelled) setError(e instanceof Error ? e.message : String(e));
@@ -375,7 +458,7 @@ export default function TeacherProgrammePage() {
       ) : (
         <>
           <div className="flex gap-2 border-b border-border">
-            {(["register", "requests"] as Tab[]).map((t) => (
+            {(["register", "requests", "roles"] as Tab[]).map((t) => (
               <button
                 key={t}
                 type="button"
@@ -387,8 +470,9 @@ export default function TeacherProgrammePage() {
                     : "px-3 py-2 text-sm text-muted-foreground hover:text-foreground"
                 }
               >
-                {t === "register" ? "Register" : "Requests"}
+                {t === "register" ? "Register" : t === "requests" ? "Requests" : copy.rolesTab}
                 {t === "register" && register ? ` (${register.length})` : null}
+                {t === "roles" && roles ? ` (${roles.length})` : null}
                 {t === "requests" && requests
                   ? ` (${requests.filter((r) => r.status === "pending").length})`
                   : null}
@@ -404,6 +488,8 @@ export default function TeacherProgrammePage() {
             publicity, or when someone says they asked.
           </p>
 
+          {tab === "roles" ? <p className="text-xs text-muted-foreground">{copy.rolesIntro}</p> : null}
+
           {tab === "register" ? <BudgetPanel canWrite={isProgrammeAdmin} /> : null}
 
           {isProgrammeAdmin && tab === "register" ? (
@@ -418,8 +504,10 @@ export default function TeacherProgrammePage() {
             <p className="text-sm text-muted-foreground">Loading…</p>
           ) : tab === "register" ? (
             <RegisterTable rows={register ?? []} canWrite={isProgrammeAdmin} onChanged={load} />
-          ) : (
+          ) : tab === "requests" ? (
             <RequestsTable rows={requests ?? []} />
+          ) : (
+            <RolesTable rows={roles ?? []} />
           )}
         </>
       )}

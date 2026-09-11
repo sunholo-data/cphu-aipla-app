@@ -11,7 +11,7 @@ import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import TeacherProgrammePage from "@/app/teacher/programme/page";
-import type { ProgrammeBudgetPayload, RegisterPayload, RequestsPayload } from "@/lib/programmeApi";
+import type { ProgrammeBudgetPayload, RegisterPayload, RequestsPayload, RolesPayload } from "@/lib/programmeApi";
 
 vi.mock("next/navigation", () => ({
   useRouter: () => ({ replace: vi.fn() }),
@@ -28,6 +28,7 @@ const grantAccess = vi.fn();
 const revokeAccess = vi.fn();
 const fetchProgrammeBudget = vi.fn();
 const setProgrammeBudget = vi.fn();
+const fetchRoles = vi.fn();
 
 vi.mock("@/lib/programmeApi", async () => {
   const actual = await vi.importActual<typeof import("@/lib/programmeApi")>("@/lib/programmeApi");
@@ -39,6 +40,7 @@ vi.mock("@/lib/programmeApi", async () => {
     revokeAccess: (...a: unknown[]) => revokeAccess(...a),
     fetchProgrammeBudget: (...a: unknown[]) => fetchProgrammeBudget(...a),
     setProgrammeBudget: (...a: unknown[]) => setProgrammeBudget(...a),
+    fetchRoles: (...a: unknown[]) => fetchRoles(...a),
   };
 });
 
@@ -98,6 +100,21 @@ const REQUESTS: RequestsPayload = {
   ],
 };
 
+const ROLES: RolesPayload = {
+  count: 2,
+  canWrite: false,
+  people: [
+    { uid: "u-sh", email: "sh@example.com", roles: ["researcher"], accessTier: "visitor", grant: null },
+    {
+      uid: "u-jb",
+      email: "jb@ind.ku.dk",
+      roles: ["researcher", "programme-admin"],
+      accessTier: "pilot",
+      grant: { tier: "pilot", monthlyCapUsd: 100, active: true, expiresAt: "2027-09-15T00:00:00Z" },
+    },
+  ],
+};
+
 const BUDGET: ProgrammeBudgetPayload = {
   dailyBudgetUsd: null,
   action: "warn",
@@ -115,6 +132,7 @@ beforeEach(() => {
   revokeAccess.mockReset().mockResolvedValue({ email: "lb@toerring-gym.dk", revoked: true });
   fetchProgrammeBudget.mockReset().mockResolvedValue(BUDGET);
   setProgrammeBudget.mockReset().mockResolvedValue(BUDGET);
+  fetchRoles.mockReset().mockResolvedValue(ROLES);
   isResearcher = false;
   isProgrammeAdmin = false;
 });
@@ -341,5 +359,31 @@ describe("the programme daily budget (M3)", () => {
     fetchProgrammeBudget.mockResolvedValue({ ...BUDGET, spentTodayUsd: null });
     render(<TeacherProgrammePage />);
     expect(await screen.findByText("unreadable")).toBeInTheDocument();
+  });
+});
+
+describe("the roles tab (2026-09-11)", () => {
+  // A role is a claim; a spend grant is a register row. A researcher with no
+  // grant used to be invisible on this page — the tab exists to show her.
+  it("lists role holders and says in words who has no spend grant", async () => {
+    isResearcher = true;
+    render(<TeacherProgrammePage />);
+    await screen.findByText("lb@toerring-gym.dk");
+    fireEvent.click(screen.getByRole("button", { name: /^Roles/ }));
+
+    const sh = (await screen.findByText("sh@example.com")).closest("tr")!;
+    expect(sh).toHaveTextContent("researcher");
+    expect(sh).toHaveTextContent(/none — visitor/);
+
+    const jb = screen.getByText("jb@ind.ku.dk").closest("tr")!;
+    expect(jb).toHaveTextContent("programme admin");
+    expect(jb).toHaveTextContent(/\$100\.00\/month/);
+    expect(jb).not.toHaveTextContent(/visitor/);
+  });
+
+  it("fires no roles fetch without either claim", async () => {
+    render(<TeacherProgrammePage />);
+    await screen.findByRole("alert");
+    expect(fetchRoles).not.toHaveBeenCalled();
   });
 });

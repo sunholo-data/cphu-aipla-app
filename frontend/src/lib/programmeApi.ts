@@ -4,6 +4,8 @@
  *
  * - `GET /api/programme/access/list`     — the access register
  * - `GET /api/programme/access/requests` — the queue from /teacher-access
+ * - `GET /api/programme/roles`           — who holds a role claim, joined
+ *                                          against the register
  *
  * Both are researcher-OR-programme-admin; the backend answers 404 (not 403)
  * for anyone else, so a plain teacher cannot learn the surface exists.
@@ -104,6 +106,32 @@ export async function revokeAccess(email: string): Promise<{ email: string; revo
     body: JSON.stringify({ email }),
   });
   return readJson<{ email: string; revoked: boolean }>(res, "Could not revoke access");
+}
+
+/** One person holding at least one role claim (2026-09-11).
+ *
+ *  A role is a Firebase claim; a spend grant is a register row. They are
+ *  independent by design, which is exactly why this row carries both — a
+ *  freshly granted researcher with no grant was invisible on this page. */
+export interface RoleRow {
+  uid: string;
+  email: string;
+  roles: ("researcher" | "programme-admin" | "admin")[];
+  /** The mirrored claim, as the client sees it on next refresh. */
+  accessTier: string;
+  /** The register's answer — the authoritative one. `null` = no active grant. */
+  grant: { tier: string; monthlyCapUsd: number; active: boolean; expiresAt: string | null } | null;
+}
+
+export interface RolesPayload {
+  count: number;
+  canWrite: boolean;
+  people: RoleRow[];
+}
+
+export async function fetchRoles(): Promise<RolesPayload> {
+  const res = await fetchWithTeacherAuth("/api/proxy/api/programme/roles");
+  return readJson<RolesPayload>(res, "Could not load roles");
 }
 
 export interface ProgrammeBudgetPayload {
