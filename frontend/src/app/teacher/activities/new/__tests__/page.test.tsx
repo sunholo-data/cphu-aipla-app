@@ -423,6 +423,8 @@ describe("/teacher/activities/new — concept activity builder", () => {
     listClassesMock.mockResolvedValue(ONE_CLASS);
     listSkillsMock.mockResolvedValue([]); // catalogue has no concept-dialogue
     render(<NewActivityPage />);
-    expect(await screen.findByText(/concept-dialogue tutor isn't available/i)).toBeInTheDocument();
+    // No shell script names in front of a teacher — the old copy told them to
+    // run scripts/seed-platform-skills.sh.
+    expect(await screen.findByText(/concept-dialogue tutor isn't set up here yet/i)).toBeInTheDocument();
   });
 });

@@ -46,12 +46,18 @@ export function parseClassProposal(tc: ToolCallState): ClassProposal | null {
 }
 
 /** How the shared ProposalCard renders + edits a class proposal. The class name
- *  is editable inline before Apply; mint has nothing free-text to edit. */
+ *  is editable inline before Apply; a code proposal has nothing free-text to edit.
+ *
+ *  ⚠️ The PROSE says "create group codes"; the tool and proposal kinds are still
+ *  `mint_group_codes` / `mint_codes`. Deliberate: the model calls the tool by
+ *  name and the parser keys on the kind, so renaming them is a breaking change,
+ *  not a copy fix. Teacher-visible words and wire identifiers are allowed to
+ *  differ — see docs/design/aipla/v1.1.0-feedback/content-localisation.md. */
 export const classProposalDescriptor: ProposalDescriptor<ClassProposal> = {
   title: (p) =>
     p.kind === "create_class"
       ? `New class${p.description ? ` · ${p.description}` : ""}`
-      : `Mint ${p.count} join-code${p.count === 1 ? "" : "s"} for ${p.className}`,
+      : `Create ${p.count} group code${p.count === 1 ? "" : "s"} for ${p.className}`,
   editableText: (p) => (p.kind === "create_class" ? p.name : null),
   withEditedText: (p, text) => (p.kind === "create_class" ? { ...p, name: text } : p),
 };

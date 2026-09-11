@@ -28,7 +28,7 @@ export default function TeacherSettingsPage() {
         <EmptyState
           icon={SettingsIcon}
           title="Everything else lives where it applies"
-          description="Per-class settings (tutor persona, voice and read-aloud language) are on each class page; per-activity settings (language, elements, materials) are in the activity builder. The defaults above only seed those — they never override them."
+          description="Per-class settings (tutor persona, voice and read-aloud language) are on each class page; per-activity settings (language, elements, materials) are in the activity builder. The defaults above are only a starting point for those — they never override them."
           action={
             <Link
               href="/teacher/classes"

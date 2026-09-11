@@ -56,7 +56,11 @@ describe("classProposalDescriptor", () => {
 
   it("titles each kind", () => {
     expect(classProposalDescriptor.title(create)).toMatch(/new class/i);
-    expect(classProposalDescriptor.title(mint)).toBe("Mint 1 join-code for 9A");
+    // "Create", not "Mint": the label is what a teacher reads on the card they
+    // click Apply on, and "mint" is engineer's language. The proposal KIND is
+    // still `mint_codes` — the wire name and the teacher-facing words are
+    // deliberately allowed to differ.
+    expect(classProposalDescriptor.title(mint)).toBe("Create 1 group code for 9A");
   });
 
   it("makes the class name editable, mint not", () => {

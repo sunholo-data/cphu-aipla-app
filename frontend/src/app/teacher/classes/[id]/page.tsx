@@ -203,7 +203,9 @@ export default function TeacherClassDetailPage() {
       await refresh();
     } catch (err) {
       showToast(
-        err instanceof Error ? `Mint failed: ${err.message}` : "Mint failed",
+        err instanceof Error
+          ? `Could not create the group code: ${err.message}`
+          : "Could not create the group code",
         5000,
       );
     } finally {
@@ -320,13 +322,13 @@ export default function TeacherClassDetailPage() {
             className="flex items-center gap-1.5 rounded bg-primary px-3 py-1.5 text-sm font-medium text-primary-foreground hover:opacity-90 disabled:opacity-50"
           >
             <Plus className="h-4 w-4" aria-hidden="true" />
-            {minting ? "Minting…" : "New group"}
+            {minting ? "Creating…" : "New group"}
           </button>
         }
       >
         {cls.groupCodes.length === 0 ? (
           <p className="rounded border border-dashed border-border px-3 py-4 text-sm text-muted-foreground">
-            No group codes yet. Mint one with &ldquo;New group&rdquo; — students
+            No group codes yet. Create one with &ldquo;New group&rdquo; — students
             join the chat by entering the code.
           </p>
         ) : (

@@ -365,7 +365,7 @@ function CodeTabPreview() {
     >
       <RoadmapBanner
         version="v2"
-        description="Year-2 / post-contract. Teachers edit artefact source (HTML/JS) via AI-assisted authoring backed by the .claude/skills/mcp-app-artefact skill. Draft → CSP + size validators → human review → publish. Per-teacher artefact namespace. The platform helps teachers create content using their own pedagogical skills — not a developer bottleneck for every simulation."
+        description="Planned for year two. You'll be able to build your own simulations with AI help, without writing code: describe what you want, preview it, and publish it once it has been checked. Each teacher keeps their own set. The aim is that your subject knowledge — not a developer's availability — decides what gets made."
       />
 
       <div className="flex flex-col gap-3 rounded border border-border bg-background p-4">

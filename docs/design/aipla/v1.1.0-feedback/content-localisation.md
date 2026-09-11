@@ -157,7 +157,16 @@ with no dependency. Everything below can slip; this cannot.
    param; Boldkast and LED Planck are retrofitted only when next touched.
    KineBot stays English — a decision, not an omission, and rule 2's comment
    form records it.
-6. **The guard.** `scripts/check-i18n-literals.sh` (`make check-i18n`): fails
+6. **The words are the product's, not the codebase's.** UI copy names things
+   the way a teacher does, never the way the wire does. `mint_group_codes` is a
+   fine tool name and "Mint 3 join-codes" is not a sentence any teacher has ever
+   said — M asked about this one directly on 2026-09-11. The wire identifier and
+   the teacher-facing words are allowed to differ, and where they do, the
+   component says so in a comment so the next reader does not "fix" the
+   mismatch. Nothing internal reaches a user-facing string: no script names, no
+   file paths, no `CSP`/`namespace`/`payload`/`seed`/`artefact`. Swept once on
+   2026-09-11 (see below); the rule is what stops it coming back.
+7. **The guard.** `scripts/check-i18n-literals.sh` (`make check-i18n`): fails
    on a Danish character (`[æøåÆØÅ]`) inside a JSX text node or string literal
    in a localised surface directory, outside `messages/` and test files. Crude
    on purpose — it catches the case that actually happens (someone types
@@ -183,7 +192,10 @@ surfaces are actually built from).
 3. **Extract the ~109 student-surface literals** into `da.json`, fixing each
    as it goes past. Fix means: consistent register (the guides' register is the
    reference — they were read by a native speaker), no literal-from-English
-   idiom, `aria-label`s included, interpolations as ICU messages not string
+   idiom, **no engineer's vocabulary** (rule 6 — if the English says "mint" or
+   "seed" or "artefact", the Danish inherits the problem and translating it
+   just launders it), `aria-label`s included, interpolations as ICU messages
+   not string
    concatenation.
 4. **Author `en.json`.** English is the second language here, not a fallback —
    the Indian cohort reads it.
@@ -196,6 +208,37 @@ surfaces are actually built from).
 both are a full read of the same ~109 strings in the same files. Doing them
 as one pass costs the extraction plumbing (~0.5d) on top of the sweep and
 saves the second read entirely.
+
+### M0a — The plain-language sweep (DONE 2026-09-11, ~0.25d)
+
+Done ahead of M0 because M asked for it directly and because it is cheaper
+before extraction than after: a jargon string extracted is a jargon string in
+two languages.
+
+Teacher-facing prose only. **Every identifier was left alone** —
+`mint_group_codes` is still the tool the model calls and `mint_codes` is still
+the proposal kind the parser keys on, because renaming those is a breaking
+change and not a copy fix.
+
+| Was | Now | Where |
+|---|---|---|
+| "Mint 3 join-codes for 1.b" | "Create 3 group codes for 1.b" | the card a teacher clicks **Apply** on |
+| "Minting…" / "Mint failed" | "Creating…" / "Could not create the group code" | class page button + error — its own success toast already said *created* |
+| "start minting group codes" | "make group codes for students to join" | classes empty state |
+| "mint codes" ×2 | "make group codes" | class co-pilot placeholder + empty text |
+| "It needs to be seeded by an admin (`scripts/seed-platform-skills.sh`)" | "Ask an administrator to add it" | new-activity panel — **a shell script name in front of a teacher** |
+| "artefact source (HTML/JS) … CSP + size validators … per-teacher artefact namespace" | "build your own simulations with AI help, without writing code" | activity roadmap banner |
+| "The defaults above only seed those" | "are only a starting point for those" | teacher settings |
+| ~10 uses of *mint* in `manage-class/SKILL.md` prose | *create group codes* | the co-pilot's own prompt — otherwise the AI says it back |
+
+One naming inconsistency found and **not** resolved: the same object is called
+*group code* (19), *join code* (2) and *group ID* (1). Standardised on **group
+code** here, since it is both the majority and the accurate domain term (a class
+holds groups; a student joins a group). ⚠️ Whether a teacher finds *group code*
+or *class code* clearer is a product question, not a copy one — open for SH.
+
+⚠️ `manage-class/SKILL.md` changed, so this needs a **seed** to reach a deployed
+environment (`make seed ENV=…`), not just a deploy.
 
 ### M1 — Locale resolution (~0.5d)
 

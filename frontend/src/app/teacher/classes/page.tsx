@@ -820,7 +820,7 @@ function EmptyState({ onCreateClick }: { onCreateClick: () => void }) {
     <div className="col-span-full flex flex-col items-start gap-2 rounded border border-dashed border-border p-6">
       <p className="text-sm font-medium">No classes yet.</p>
       <p className="text-sm text-muted-foreground">
-        Create your first class to start minting group codes for students.
+        Create your first class, then make group codes for students to join.
       </p>
       <button
         type="button"

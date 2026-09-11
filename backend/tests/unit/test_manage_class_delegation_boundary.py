@@ -18,6 +18,7 @@ Firestore and their effect is invisible until someone drives the co-pilot.
 
 from __future__ import annotations
 
+import re
 from pathlib import Path
 
 import pytest
@@ -57,8 +58,21 @@ def test_delegation_is_scoped_to_session_content(instructions: str):
 
 
 def test_list_my_classes_is_still_documented_as_returning_codes(instructions: str):
-    """The boundary only works because the direct tool can actually answer."""
-    assert "group codes minted for each" in instructions, (
+    """The boundary only works because the direct tool can actually answer.
+
+    Asserts the SUBSTANCE — that `list_my_classes` is documented as returning
+    each class's codes — rather than one phrasing of it. It used to pin the
+    literal "group codes minted for each", which made a pure copy edit fail a
+    semantic guard: "mint" was replaced with "create" across the teacher-facing
+    prose on 2026-09-11 because it is engineer's language a teacher does not
+    speak. The rule this protects has nothing to do with which verb is used.
+    """
+    # Anchored on the TOOL-LIST entry ("- `list_my_classes` — …"), not the first
+    # mention: `list_my_classes` also appears in the read-tools sentence above it,
+    # which says nothing about what it returns.
+    m = re.search(r"^- `list_my_classes`[^\n]*\n(?:[^\n]*\n){0,3}", instructions, re.M)
+    assert m, "list_my_classes is no longer documented in the tool list at all"
+    assert "group codes" in m.group(0), (
         "If list_my_classes stops returning codes, 'answer it directly' becomes "
         "impossible and the delegation rule has to be reconsidered."
     )

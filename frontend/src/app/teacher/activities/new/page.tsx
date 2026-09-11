@@ -182,8 +182,8 @@ function NewActivityForm() {
         </PanelMessage>
       ) : classesState.status === "no-skill" ? (
         <PanelMessage tone="error">
-          The concept-dialogue tutor isn&apos;t available in this environment yet. It needs to be seeded by
-          an admin (<code>scripts/seed-platform-skills.sh</code>) before concept activities can be created.
+          The concept-dialogue tutor isn&apos;t set up here yet. Ask an administrator to add it, then
+          you&apos;ll be able to create concept activities.
         </PanelMessage>
       ) : classesState.status === "empty" ? (
         <PanelMessage>

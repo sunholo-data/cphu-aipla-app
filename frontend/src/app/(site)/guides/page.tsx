@@ -23,7 +23,7 @@ const TEACHER_GUIDES: Guide[] = [
     slug: "t1-set-up-a-class",
     tag: "T1",
     title: "Set up a class and share it",
-    desc: "Create a class, mint group codes, and share them with students.",
+    desc: "Create a class, make group codes, and share them with students so they can join.",
     da: true,
   },
   {
