@@ -150,3 +150,25 @@ def test_teacher_own_spend_reads_the_same_key():
 def test_the_emitter_is_total_over_owner_shapes(uid):
     """Neither identity shape may crash it."""
     _run(uid)
+
+
+# --- Latency (2026-09-11) ---------------------------------------------------
+
+
+def test_tutor_latency_is_derived_from_event_timestamps():
+    """latency_ms was accepted and never passed — 0 of 870 prod rows had it."""
+    student = _event("user", "hi")
+    student.timestamp = 1000.0
+    tutor = _event("model", "hello", tokens=(10, 5))
+    tutor.timestamp = 1002.35
+    calls = _run(STUDENT_UID, group_id="g-1", events=[student, tutor])
+    by_role = {c["role"]: c for c in calls}
+    assert by_role["tutor"]["latency_ms"] == 2350
+    assert by_role["student"]["latency_ms"] is None
+
+
+def test_tutor_latency_is_null_not_zero_without_timestamps():
+    """A missing timestamp must read as 'unknown', never as 'instant'."""
+    calls = _run(STUDENT_UID, group_id="g-1")  # fixture events carry no timestamp
+    tutor = next(c for c in calls if c["role"] == "tutor")
+    assert tutor["latency_ms"] is None

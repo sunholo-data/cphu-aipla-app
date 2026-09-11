@@ -128,6 +128,12 @@ def _emit_new_turns(
         if not current_inv:
             return
 
+        # latency_ms was accepted by the emitter and passed by nobody for four
+        # months — 0 of 870 prod rows carried it (2026-09-11). ADK stamps every
+        # event with a wall-clock `timestamp`, so a tutor turn's latency is its
+        # event time minus the student event that triggered it, within the
+        # same invocation. Null when either side lacks a timestamp, never 0.
+        last_student_ts: float | None = None
         for idx, event in enumerate(events):
             if getattr(event, "invocation_id", None) != current_inv:
                 continue
@@ -139,6 +145,13 @@ def _emit_new_turns(
             if not text:
                 continue
             role = "student" if getattr(event, "author", None) == "user" else "tutor"
+
+            latency_ms: int | None = None
+            ev_ts = getattr(event, "timestamp", None)
+            if role == "student":
+                last_student_ts = ev_ts if isinstance(ev_ts, (int, float)) else None
+            elif isinstance(ev_ts, (int, float)) and last_student_ts is not None and ev_ts >= last_student_ts:
+                latency_ms = int((ev_ts - last_student_ts) * 1000)
 
             token_in = token_out = None
             try:
@@ -175,6 +188,7 @@ def _emit_new_turns(
                 model=turn_model if role == "tutor" else None,
                 token_in=token_in,
                 token_out=token_out,
+                latency_ms=latency_ms,
             )
 
             # 1.1.9 cost metrics. `record_llm_cost` has been implemented and

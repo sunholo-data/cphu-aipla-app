@@ -726,6 +726,7 @@ function ChatShell({
     sessionId: stableThreadId,
     skillId,
     enabled: proactiveGreetEnabled,
+    activityId,
   });
   const { tabs: sessionDocTabs } = useSessionDocuments(sessionId);
   const { sessions, isLoading: sessionsLoading } = useSkillSessions(skillId);

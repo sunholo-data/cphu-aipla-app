@@ -88,3 +88,27 @@ describe("useProactiveGreet — loading lifecycle", () => {
     expect(result.current.greetMessage).toBeNull();
   });
 });
+
+describe("useProactiveGreet — the greet carries the activity (2026-09-11)", () => {
+  // The opening turn was built with NO activity, so a tutor whose activity said
+  // exactly what to teach opened with "what would you like to explore?".
+  it("sends activityId when it is a real act- id", async () => {
+    fetchWithAuth.mockResolvedValue(okGreet({ skipped: false, text: "Hej" }));
+    renderHook(() =>
+      useProactiveGreet({ sessionId: "s1", skillId: "skill-x", enabled: true, activityId: "act-1234" }),
+    );
+    await waitFor(() => expect(fetchWithAuth).toHaveBeenCalled());
+    const init = fetchWithAuth.mock.calls[0][1] as RequestInit;
+    expect(JSON.parse(String(init.body))).toEqual({ skillId: "skill-x", activityId: "act-1234" });
+  });
+
+  it("omits activityId when the page fell back to the skill id", async () => {
+    fetchWithAuth.mockResolvedValue(okGreet({ skipped: false, text: "Hej" }));
+    renderHook(() =>
+      useProactiveGreet({ sessionId: "s1", skillId: "skill-x", enabled: true, activityId: "skill-x" }),
+    );
+    await waitFor(() => expect(fetchWithAuth).toHaveBeenCalled());
+    const init = fetchWithAuth.mock.calls[0][1] as RequestInit;
+    expect(JSON.parse(String(init.body))).toEqual({ skillId: "skill-x" });
+  });
+});

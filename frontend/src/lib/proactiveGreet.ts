@@ -43,13 +43,22 @@ function nextGreetId(): string {
 export async function fetchProactiveGreet(
   sessionId: string,
   skillId: string,
+  activityId?: string,
 ): Promise<string | null> {
+  // The greet is the one turn that did NOT carry the activity (2026-09-11):
+  // the backend built its agent with no activity config, so a tutor whose
+  // activity said exactly what to teach opened with "what would you like to
+  // explore?". Same guard as useSkillAgent's forwardedProps — only a real
+  // `act-` id; the chat page falls back to skillId when there is no activity,
+  // and sending that would be the same bug with extra steps.
+  const body: { skillId: string; activityId?: string } = { skillId };
+  if (activityId && activityId.startsWith("act-")) body.activityId = activityId;
   const resp = await fetchWithAuth(
     `/api/proxy/api/sessions/${encodeURIComponent(sessionId)}/greet`,
     {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ skillId }),
+      body: JSON.stringify(body),
     },
   );
   if (!resp.ok) {
@@ -83,15 +92,19 @@ export interface ProactiveGreetState {
  *   skillId — required for the POST body
  *   enabled — gate set by the chat page (true only when proactiveGreet
  *     is true AND no existing messages are loaded)
+ *   activityId — the activity this chat runs under, so the opening turn is
+ *     built with the activity like every later turn
  */
 export function useProactiveGreet({
   sessionId,
   skillId,
   enabled,
+  activityId,
 }: {
   sessionId: string | null | undefined;
   skillId: string;
   enabled: boolean;
+  activityId?: string;
 }): ProactiveGreetState {
   const [greetMessage, setGreetMessage] = useState<SkillMessage | null>(null);
   const [loading, setLoading] = useState<boolean>(false);
@@ -114,13 +127,13 @@ export function useProactiveGreet({
     }
     // Guard against React StrictMode double-effects: the ref pins the
     // (sessionId, skillId) tuple we've already fired for.
-    const fireKey = `${sessionId}::${skillId}`;
+    const fireKey = `${sessionId}::${skillId}::${activityId ?? ""}`;
     if (firedRef.current === fireKey) return;
     firedRef.current = fireKey;
 
     let superseded = false;
     setLoading(true);
-    fetchProactiveGreet(sessionId, skillId)
+    fetchProactiveGreet(sessionId, skillId, activityId)
       .then((text) => {
         // Don't render a greet that belongs to a superseded tuple.
         if (superseded) return;
@@ -150,7 +163,7 @@ export function useProactiveGreet({
     return () => {
       superseded = true;
     };
-  }, [sessionId, skillId, enabled]);
+  }, [sessionId, skillId, enabled, activityId]);
 
   return { greetMessage, loading };
 }

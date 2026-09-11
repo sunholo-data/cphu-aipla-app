@@ -265,28 +265,38 @@ def test_greet_passes_activity_id_through_to_the_agent(client):
     exactly what to teach was ignored on the first turn, and the log stamped
     the skill id as ``activity_id`` on that row only.
     """
-    skill = _make_skill("act")
-    process_mock = AsyncMock(side_effect=_fake_process_skill_request)
+    skill = _make_skill(name="act", proactive_greet=True, opening="Greet.")
+    seen: dict = {}
+
+    def _capture(*args, **kwargs):
+        seen.update(kwargs)
+        return _fake_process_skill_request(*args, **kwargs)
+
     with (
         patch("protocols.proactive_routes.get_skill", return_value=skill),
-        patch("protocols.proactive_routes.process_skill_request", process_mock),
+        patch("protocols.proactive_routes.process_skill_request", side_effect=_capture),
     ):
         res = client.post(
-            "/api/sessions/sess-act/greet",
+            f"/api/sessions/{NEW_SESSION_ID}/greet",
             json={"skillId": skill.skill_id, "activityId": "act-1234"},
         )
-    assert res.status_code == 200
-    assert process_mock.call_args.kwargs["activity_id"] == "act-1234"
+    assert res.status_code == 200, res.text
+    assert seen["activity_id"] == "act-1234"
 
 
 def test_greet_without_activity_still_works(client):
     """A teacher's own chat has no activity; the field stays optional."""
-    skill = _make_skill("noact")
-    process_mock = AsyncMock(side_effect=_fake_process_skill_request)
+    skill = _make_skill(name="noact", proactive_greet=True, opening="Greet.")
+    seen: dict = {}
+
+    def _capture(*args, **kwargs):
+        seen.update(kwargs)
+        return _fake_process_skill_request(*args, **kwargs)
+
     with (
         patch("protocols.proactive_routes.get_skill", return_value=skill),
-        patch("protocols.proactive_routes.process_skill_request", process_mock),
+        patch("protocols.proactive_routes.process_skill_request", side_effect=_capture),
     ):
-        res = client.post("/api/sessions/sess-noact/greet", json={"skillId": skill.skill_id})
-    assert res.status_code == 200
-    assert process_mock.call_args.kwargs["activity_id"] is None
+        res = client.post(f"/api/sessions/{NEW_SESSION_ID}/greet", json={"skillId": skill.skill_id})
+    assert res.status_code == 200, res.text
+    assert seen["activity_id"] is None
