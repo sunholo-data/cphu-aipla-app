@@ -24,6 +24,7 @@ from __future__ import annotations
 
 import argparse
 import datetime as _dt
+import re
 import sys
 from pathlib import Path
 
@@ -66,6 +67,41 @@ _STATUS_PROSE = {
 }
 
 _PUBLIC_STATUS = {"placeholder": "Provisional", "ready_for_review": "Provisional", "ready": "Current"}
+
+
+#: The two frontmatter lines that carry a date, for the staleness comparison.
+_DATE_LINE_RE = re.compile(r'^(reviewed|reviewBy): "\d{4}-\d{2}-\d{2}"$', re.M)
+
+
+def _without_dates(text: str) -> str:
+    """The document with its review dates blanked, for comparing CONTENT."""
+    return _DATE_LINE_RE.sub(r'\1: "…"', text)
+
+
+def _preserve_review_dates(path: Path, body: str) -> str:
+    """Keep the dates already on disk when only the dates would change.
+
+    ``reviewed`` means "when was this content last reviewed", not "when was this
+    file last generated". Stamping today on every run made ``--check`` fail on
+    the passage of TIME: it went green the day the docs were generated and red
+    the next morning, for every document at once, with no content change behind
+    it. That is what happened on 2026-09-11 — a red CI gate, on a commit that
+    touched no framework.
+
+    A gate that fails on the calendar is worse than no gate, because it trains
+    everyone to regenerate without reading the diff, which is exactly the habit
+    this one exists to prevent.
+
+    So: identical content keeps its existing dates, and a real edit stamps
+    today. The check becomes idempotent, and ``reviewed`` starts meaning what it
+    says.
+    """
+    if not path.exists():
+        return body
+    old_text = path.read_text(encoding="utf-8")
+    if _without_dates(old_text) != _without_dates(body):
+        return body  # the content really changed — today's date is correct
+    return old_text
 
 
 def _reviewed_dates() -> tuple[str, str]:
@@ -340,16 +376,18 @@ def main() -> int:
     args = ap.parse_args()
 
     frameworks = load_frameworks()
-    planned: dict[Path, str] = {_PUBLIC_HUB: render_hub(frameworks)}
+    planned: dict[Path, str] = {_PUBLIC_HUB: _preserve_review_dates(_PUBLIC_HUB, render_hub(frameworks))}
     # The hub sits at 62; each published framework takes the next slot in
     # catalogue order. `check:project-content` requires order to be unique
     # across the whole /project tree, so it cannot simply be a constant.
     order = _HUB_ORDER
     for fw in frameworks:
-        planned[_DESIGN_DIR / f"{fw.id}.md"] = render_design_doc(fw)
+        design = _DESIGN_DIR / f"{fw.id}.md"
+        planned[design] = _preserve_review_dates(design, render_design_doc(fw))
         if not fw.is_placeholder:
             order += 1
-            planned[_PUBLIC_DIR / f"{fw.id}.md"] = render_public_page(fw, order)
+            public = _PUBLIC_DIR / f"{fw.id}.md"
+            planned[public] = _preserve_review_dates(public, render_public_page(fw, order))
 
     stale = [p for p, body in planned.items() if not p.exists() or p.read_text(encoding="utf-8") != body]
 
