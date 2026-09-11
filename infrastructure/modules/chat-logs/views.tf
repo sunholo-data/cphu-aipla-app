@@ -5,10 +5,36 @@
 # views present the clean, flat schema that chat-log-pipeline.md documents
 # and that summarize_session_bq + the 2.5 rubric query against.
 #
-# IMPORTANT: keep create_views = false on the FIRST apply. The base tables
-# (var.turn_table / var.event_table) are created by the sink on the first
-# matching log write — a view over a not-yet-existing table fails to apply.
-# After data is flowing, set create_views = true and re-apply.
+# IMPORTANT: the base tables (var.turn_table / var.event_table) are created by
+# the sink on the first matching log write, so create_views must stay false
+# until data is flowing. Enabled in env/modules.tf since 2026-09-11.
+#
+# ⚠️ EVERY FIELD IS READ WITH JSON_VALUE, NOT AS A STRUCT MEMBER, and that is
+# load-bearing rather than a style choice.
+#
+# The sink infers the jsonPayload STRUCT from the fields it has actually SEEN
+# with a non-null value. A field the emitter always sends as null never appears
+# in the schema at all, and `SELECT jsonPayload.latency_ms` over a table that
+# has never carried one fails the whole view with
+#
+#     Error 400: Field name latency_ms does not exist in STRUCT<...>
+#
+# which is exactly how the first attempt to enable these views failed
+# (2026-09-11). `latency_ms` and `teacher_focus` are accepted by emit_chat_turn
+# and never passed by its only caller; `tutor_id` / `framework_id` /
+# `persona_id` are null until a class has a tutor assigned. So a struct-member
+# view is only creatable once every column it names has been populated at least
+# once — a chicken-and-egg that makes it un-deployable on a fresh environment
+# and breaks retroactively whenever a column is added.
+#
+# JSON_VALUE reads the raw JSON and returns NULL for an absent path, so the view
+# is independent of which fields happen to exist yet. Numbers come back as
+# strings and go through SAFE_CAST(... AS FLOAT64) AS INT64 — the raw JSON holds
+# integers but the inferred struct types them FLOAT, and a direct INT64 cast of
+# "0.0" would fail.
+#
+# The cost is a per-row JSON parse. For a research dataset queried by humans
+# that is the right trade against a view that cannot be created.
 
 resource "google_bigquery_table" "chat_turns" {
   count               = var.create_views ? 1 : 0
@@ -24,17 +50,17 @@ resource "google_bigquery_table" "chat_turns" {
     query          = <<-SQL
       SELECT
         timestamp                              AS ts,
-        jsonPayload.group_id                   AS group_id,
-        jsonPayload.session_id                 AS session_id,
-        jsonPayload.skill_id                   AS skill_id,
-        CAST(jsonPayload.turn_index AS INT64)  AS turn_index,
-        jsonPayload.role                       AS role,
-        jsonPayload.content                    AS content,
-        jsonPayload.model                      AS model,
-        CAST(jsonPayload.token_in AS INT64)    AS token_in,
-        CAST(jsonPayload.token_out AS INT64)   AS token_out,
-        CAST(jsonPayload.latency_ms AS INT64)  AS latency_ms,
-        jsonPayload.teacher_focus              AS teacher_focus,
+        JSON_VALUE(TO_JSON_STRING(jsonPayload), "$.group_id") AS group_id,
+        JSON_VALUE(TO_JSON_STRING(jsonPayload), "$.session_id") AS session_id,
+        JSON_VALUE(TO_JSON_STRING(jsonPayload), "$.skill_id") AS skill_id,
+        SAFE_CAST(SAFE_CAST(JSON_VALUE(TO_JSON_STRING(jsonPayload), "$.turn_index") AS FLOAT64) AS INT64) AS turn_index,
+        JSON_VALUE(TO_JSON_STRING(jsonPayload), "$.role") AS role,
+        JSON_VALUE(TO_JSON_STRING(jsonPayload), "$.content") AS content,
+        JSON_VALUE(TO_JSON_STRING(jsonPayload), "$.model") AS model,
+        SAFE_CAST(SAFE_CAST(JSON_VALUE(TO_JSON_STRING(jsonPayload), "$.token_in") AS FLOAT64) AS INT64) AS token_in,
+        SAFE_CAST(SAFE_CAST(JSON_VALUE(TO_JSON_STRING(jsonPayload), "$.token_out") AS FLOAT64) AS INT64) AS token_out,
+        SAFE_CAST(SAFE_CAST(JSON_VALUE(TO_JSON_STRING(jsonPayload), "$.latency_ms") AS FLOAT64) AS INT64) AS latency_ms,
+        JSON_VALUE(TO_JSON_STRING(jsonPayload), "$.teacher_focus") AS teacher_focus,
         -- What this conversation was taught WITH (TUTOR-5, 2026-09-11). The
         -- pipeline's first four months recorded skill_id and nothing about the
         -- pedagogy, so "every chat taught with ESRU" was not an answerable
@@ -49,20 +75,20 @@ resource "google_bigquery_table" "chat_turns" {
         -- as "no framework" — `teaching_source` is how you tell the difference
         -- going forward: 'tutor' means a Tutor object decided, 'fields' means
         -- the pre-tutor activity/class fields did.
-        jsonPayload.tutor_id                   AS tutor_id,
-        jsonPayload.framework_id               AS framework_id,
-        jsonPayload.persona_id                 AS persona_id,
-        jsonPayload.class_id                   AS class_id,
-        jsonPayload.activity_id                AS activity_id,
-        jsonPayload.interaction_style          AS interaction_style,
-        jsonPayload.teaching_source            AS teaching_source,
+        JSON_VALUE(TO_JSON_STRING(jsonPayload), "$.tutor_id") AS tutor_id,
+        JSON_VALUE(TO_JSON_STRING(jsonPayload), "$.framework_id") AS framework_id,
+        JSON_VALUE(TO_JSON_STRING(jsonPayload), "$.persona_id") AS persona_id,
+        JSON_VALUE(TO_JSON_STRING(jsonPayload), "$.class_id") AS class_id,
+        JSON_VALUE(TO_JSON_STRING(jsonPayload), "$.activity_id") AS activity_id,
+        JSON_VALUE(TO_JSON_STRING(jsonPayload), "$.interaction_style") AS interaction_style,
+        JSON_VALUE(TO_JSON_STRING(jsonPayload), "$.teaching_source") AS teaching_source,
         -- Which build produced this turn. `revision` is Cloud Run's K_REVISION
         -- and is the A/B ARM KEY: traffic tags route to revisions, so when two
         -- versions serve side by side this is what separates the arms. Without
         -- it an experiment is unanalysable after the fact — and unrecoverable,
         -- since you cannot backfill which build answered a past turn.
-        jsonPayload.revision                   AS revision,
-        jsonPayload.app_version                AS app_version
+        JSON_VALUE(TO_JSON_STRING(jsonPayload), "$.revision") AS revision,
+        JSON_VALUE(TO_JSON_STRING(jsonPayload), "$.app_version") AS app_version
       FROM `${var.project_id}.${var.dataset_id}.${var.turn_table}`
     SQL
   }
@@ -82,16 +108,16 @@ resource "google_bigquery_table" "workbench_events" {
     query          = <<-SQL
       SELECT
         timestamp                AS ts,
-        jsonPayload.group_id     AS group_id,
-        jsonPayload.session_id   AS session_id,
-        jsonPayload.skill_id     AS skill_id,
-        jsonPayload.server       AS server,
-        jsonPayload.tool         AS tool,
-        jsonPayload.field        AS field,
-        jsonPayload.value        AS value,
+        JSON_VALUE(TO_JSON_STRING(jsonPayload), "$.group_id") AS group_id,
+        JSON_VALUE(TO_JSON_STRING(jsonPayload), "$.session_id") AS session_id,
+        JSON_VALUE(TO_JSON_STRING(jsonPayload), "$.skill_id") AS skill_id,
+        JSON_VALUE(TO_JSON_STRING(jsonPayload), "$.server") AS server,
+        JSON_VALUE(TO_JSON_STRING(jsonPayload), "$.tool") AS tool,
+        JSON_VALUE(TO_JSON_STRING(jsonPayload), "$.field") AS field,
+        JSON_VALUE(TO_JSON_STRING(jsonPayload), "$.value") AS value,
         -- A/B arm key — see the chat_turns view for why this matters.
-        jsonPayload.revision     AS revision,
-        jsonPayload.app_version  AS app_version
+        JSON_VALUE(TO_JSON_STRING(jsonPayload), "$.revision") AS revision,
+        JSON_VALUE(TO_JSON_STRING(jsonPayload), "$.app_version") AS app_version
       FROM `${var.project_id}.${var.dataset_id}.${var.event_table}`
     SQL
   }
