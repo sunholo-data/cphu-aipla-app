@@ -290,6 +290,52 @@ def list_sessions_for_skill(
     return results, next_cursor
 
 
+def summarize_activity_for_group_codes(group_codes: list[str]) -> dict:
+    """At-a-glance activity for a class: sessions, turns, groups that spoke,
+    and when anyone last did (2026-09-11 — the class list's activity column).
+
+    Queries ``chat_sessions`` by the ``groupCode`` field, ``in`` chunks of 30
+    (Firestore's cap), so a class costs one query per 30 codes rather than the
+    two-per-code prefix scan ``list_sessions_for_group_codes`` does. That scan
+    exists to find sessions written before the 2026-06-02 groupCode backfill;
+    every session that has ever carried a TURN since then has ``groupCode``
+    (``make_session_tracker`` writes it), and a session with no turns is
+    exactly the kind this summary is meant to leave out — a student who
+    opened the workspace and never typed is not activity.
+
+    ``lastMessageAt`` is None, never an epoch, when nothing has been said.
+    """
+    codes = [c for c in group_codes if c]
+    if not codes:
+        return {"sessions": 0, "turns": 0, "activeGroups": 0, "lastMessageAt": None}
+    sessions = 0
+    turns = 0
+    spoke: set[str] = set()
+    last: datetime | None = None
+    for i in range(0, len(codes), 30):
+        chunk = codes[i : i + 30]
+        for row in query_documents(_COLLECTION, filters=[("groupCode", "in", chunk)]):
+            try:
+                idx = _from_firestore(row, row.get("__id") or row.get("sessionId", ""))
+            except Exception as exc:
+                logger.warning("malformed chat_sessions row: %s", exc)
+                continue
+            if idx.archived_at is not None or idx.turn_count <= 0:
+                continue
+            sessions += 1
+            turns += idx.turn_count
+            if idx.group_code:
+                spoke.add(idx.group_code)
+            if last is None or idx.last_message_at > last:
+                last = idx.last_message_at
+    return {
+        "sessions": sessions,
+        "turns": turns,
+        "activeGroups": len(spoke),
+        "lastMessageAt": last.isoformat() if last else None,
+    }
+
+
 def list_sessions_for_group_codes(
     group_codes: list[str],
     page_size: int = 50,

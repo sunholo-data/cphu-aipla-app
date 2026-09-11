@@ -8,7 +8,9 @@ import {
   ClipboardList,
   FileText,
   Loader2,
+  MessageSquare,
   Plus,
+  Search,
   Settings,
   Trash2,
   Users,
@@ -16,6 +18,7 @@ import {
 
 import {
   type ActivityPayload,
+  type ClassActivity,
   type ClassPayload,
   type PersonaPayload,
   type SessionRow,
@@ -26,11 +29,13 @@ import {
   listAccessibleSkills,
   listActivities,
   listClassRecentSessions,
+  fetchClassesActivity,
   listClasses,
   setClassPersona,
 } from "@/lib/teacherApi";
 import { fetchWithTeacherAuth } from "@/lib/apiClient";
 import {
+  type InsightsSince,
   fetchInsightsCompare,
   fetchInsightsSummary,
   type InsightsClassSummary,
@@ -45,6 +50,48 @@ import { CrossClassTable } from "@/components/teacher/insights/CrossClassTable";
 import { useIsResearcher } from "@/hooks/useIsResearcher";
 import { ManageClassCopilot } from "./_ManageClassCopilot";
 import { formatRelativeTime } from "@/lib/relativeTime";
+
+// Copy for the activity column and the filters lives here rather than inline
+// in JSX — the 1.1.108 rule. The rest of this page predates it.
+const copy = {
+  colActivity: "Activity",
+  noActivity: "No messages yet",
+  turns: (n: number) => `${n} turn${n === 1 ? "" : "s"}`,
+  groupsSpoke: (n: number) => `${n} group${n === 1 ? "" : "s"} active`,
+  searchLabel: "Search classes",
+  searchPlaceholder: "Class, teacher or activity…",
+  filterLabel: "Filter by activity",
+  filterAll: "All classes",
+  filterActive7d: "Active in the last 7 days",
+  filterQuiet: "No messages yet",
+  noMatch: "No classes match.",
+  windowLabel: "Time window",
+  window: { "7d": "the last 7 days", "30d": "the last 30 days", all: "all time" } as Record<InsightsSince, string>,
+  windowOption: { "7d": "7 days", "30d": "30 days", all: "All time" } as Record<InsightsSince, string>,
+  acrossOwn: "Across your classes",
+  acrossAll: "Across all teachers' classes",
+  noEngagement: (w: string) => `No engagement recorded in ${w}.`,
+  messagesIn: (w: string) => `Messages (${w})`,
+};
+
+type ActivityFilter = "all" | "active7d" | "quiet";
+
+const SEVEN_DAYS_MS = 7 * 24 * 60 * 60 * 1000;
+
+/** Latest activity first; classes nobody has spoken in sink to the bottom and
+ *  keep their existing (newest-created-first) order among themselves. */
+function byLatestActivity(
+  activity: Record<string, ClassActivity>,
+): (a: ClassPayload, b: ClassPayload) => number {
+  return (a, b) => {
+    const ta = activity[a.classId]?.lastMessageAt;
+    const tb = activity[b.classId]?.lastMessageAt;
+    if (ta && tb) return tb.localeCompare(ta);
+    if (ta) return -1;
+    if (tb) return 1;
+    return 0;
+  };
+}
 
 export default function TeacherClassesPage() {
   const [classes, setClasses] = useState<ClassPayload[] | null>(null);
@@ -67,6 +114,15 @@ export default function TeacherClassesPage() {
   // the backend independently rejects scope=all without the claim.
   const isResearcher = useIsResearcher();
   const [researchView, setResearchView] = useState(false);
+  // At-a-glance activity per class (2026-09-11) — fetched beside the list,
+  // never blocking it. Empty map until it lands; the column reads "—" then.
+  const [activity, setActivity] = useState<Record<string, ClassActivity>>({});
+  const [search, setSearch] = useState("");
+  // Window for the insights strip (2026-09-11). It was pinned to 7 days,
+  // which for a researcher opening the page on a quiet week read as "no
+  // data" — the same blank-means-what ambiguity as the class report.
+  const [insightsSince, setInsightsSince] = useState<InsightsSince>("30d");
+  const [activityFilter, setActivityFilter] = useState<ActivityFilter>("all");
 
   // Persona catalogue (1.1.32) — resolve each class's default persona id to a
   // display name in the table. defaultId is the global fallback a class
@@ -103,6 +159,11 @@ export default function TeacherClassesPage() {
     try {
       const list = await listClasses(researchView ? "all" : "own");
       setClasses(list);
+      // Fire-and-forget: the table must never wait on the activity read, and a
+      // failure leaves the previous values rather than blanking the column.
+      void fetchClassesActivity(researchView ? "all" : "own")
+        .then(setActivity)
+        .catch(() => undefined);
       // Recent-sessions fan-out is per-class; in Research view that can be
       // every teacher's class, so skip it there (the per-class drill-down
       // remains the way to inspect another teacher's sessions).
@@ -179,7 +240,10 @@ export default function TeacherClassesPage() {
     if (!showInsights) return;
     let cancelled = false;
     setInsightsLoading(true);
-    void fetchInsightsSummary()
+    // Scope follows the view (2026-09-11). This fetched `own` even in
+    // research view, so a researcher with no classes of their own saw an
+    // empty strip under a full table.
+    void fetchInsightsSummary(insightsSince, undefined, researchView ? "all" : "own")
       .then((p) => {
         if (cancelled) return;
         setInsightsSummary(new Map(p.classes.map((c) => [c.classId, c])));
@@ -193,7 +257,7 @@ export default function TeacherClassesPage() {
     return () => {
       cancelled = true;
     };
-  }, [classes, showInsights]);
+  }, [classes, showInsights, insightsSince, researchView]);
 
   // Cross-class compare payload — only fetched when the teacher owns
   // 2+ classes AND has opted into insights. The single-class case has no
@@ -204,7 +268,7 @@ export default function TeacherClassesPage() {
       return;
     }
     let cancelled = false;
-    void fetchInsightsCompare()
+    void fetchInsightsCompare(insightsSince, undefined, researchView ? "all" : "own")
       .then((p) => {
         if (!cancelled) setInsightsCompare(p);
       })
@@ -214,7 +278,7 @@ export default function TeacherClassesPage() {
     return () => {
       cancelled = true;
     };
-  }, [classes, showInsights]);
+  }, [classes, showInsights, insightsSince, researchView]);
 
   // Teacher-level + per-class spend — loaded with the insights panel. Scoped
   // to the caller's own classes, so skipped in research view. Non-fatal.
@@ -311,6 +375,32 @@ export default function TeacherClassesPage() {
     [refresh],
   );
 
+  // Sorted by latest activity, then narrowed by the search box and the
+  // activity filter. Search matches class name, owner label (research view)
+  // and assigned activity titles, case-insensitively.
+  const visibleClasses = useMemo(() => {
+    if (classes === null) return null;
+    const q = search.trim().toLowerCase();
+    const now = Date.now();
+    return [...classes].sort(byLatestActivity(activity)).filter((cls) => {
+      const act = activity[cls.classId];
+      if (activityFilter === "quiet" && act && act.turns > 0) return false;
+      if (activityFilter === "active7d") {
+        const t = act?.lastMessageAt ? new Date(act.lastMessageAt).getTime() : NaN;
+        if (!(now - t <= SEVEN_DAYS_MS)) return false;
+      }
+      if (!q) return true;
+      const hay = [
+        cls.name,
+        cls.ownerLabel ?? "",
+        ...activitiesForClass(cls).map((a) => a.title),
+      ]
+        .join(" ")
+        .toLowerCase();
+      return hay.includes(q);
+    });
+  }, [classes, activity, search, activityFilter, activitiesForClass]);
+
   return (
     <div className="flex flex-col gap-8">
       {/* Floating class co-pilot — the teacher creates classes / mints codes by
@@ -397,16 +487,48 @@ export default function TeacherClassesPage() {
         <h2 id="classes-table-label" className="sr-only">
           Classes
         </h2>
-        {classes === null ? (
+        {classes === null || visibleClasses === null ? (
           <p className="text-sm text-muted-foreground">Loading classes&hellip;</p>
         ) : classes.length === 0 ? (
           <EmptyState onCreateClick={() => setShowNewClassForm(true)} />
         ) : (
+          <div className="flex flex-col gap-3">
+            <div className="flex flex-wrap items-center gap-2">
+              <label className="relative flex-1 min-w-[12rem]">
+                <span className="sr-only">{copy.searchLabel}</span>
+                <Search
+                  className="pointer-events-none absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground"
+                  aria-hidden="true"
+                />
+                <input
+                  type="search"
+                  value={search}
+                  onChange={(e) => setSearch(e.target.value)}
+                  placeholder={copy.searchPlaceholder}
+                  aria-label={copy.searchLabel}
+                  className="w-full rounded border border-border bg-background py-1.5 pl-8 pr-2 text-sm"
+                />
+              </label>
+              <select
+                value={activityFilter}
+                onChange={(e) => setActivityFilter(e.target.value as ActivityFilter)}
+                aria-label={copy.filterLabel}
+                className="rounded border border-border bg-background px-2 py-1.5 text-sm"
+              >
+                <option value="all">{copy.filterAll}</option>
+                <option value="active7d">{copy.filterActive7d}</option>
+                <option value="quiet">{copy.filterQuiet}</option>
+              </select>
+            </div>
+            {visibleClasses.length === 0 ? (
+              <p className="text-sm text-muted-foreground">{copy.noMatch}</p>
+            ) : (
           <div className="overflow-x-auto rounded-lg border border-border">
-            <table className="w-full min-w-[680px] text-sm">
+            <table className="w-full min-w-[760px] text-sm">
               <thead>
                 <tr className="border-b border-border bg-muted/40 text-left text-xs uppercase tracking-wide text-muted-foreground">
                   <th className="px-3 py-2 font-medium">Class</th>
+                  <th className="px-3 py-2 font-medium">{copy.colActivity}</th>
                   <th className="px-3 py-2 font-medium">Groups</th>
                   <th className="px-3 py-2 font-medium">Activities</th>
                   <th className="px-3 py-2 font-medium">Tutor persona</th>
@@ -414,10 +536,11 @@ export default function TeacherClassesPage() {
                 </tr>
               </thead>
               <tbody className="divide-y divide-border">
-                {classes.map((cls) => (
+                {visibleClasses.map((cls) => (
                   <ClassRow
                     key={cls.classId}
                     cls={cls}
+                    activity={activity[cls.classId]}
                     activities={activitiesForClass(cls)}
                     persona={personaLabelForClass(cls)}
                     showOwner={researchView}
@@ -428,6 +551,8 @@ export default function TeacherClassesPage() {
                 ))}
               </tbody>
             </table>
+          </div>
+            )}
           </div>
         )}
       </section>
@@ -473,11 +598,23 @@ export default function TeacherClassesPage() {
             data-testid="insights-panel"
             className="flex flex-col gap-4 rounded-lg border border-border p-4"
           >
-            <div className="flex flex-wrap items-baseline justify-between gap-2">
+            <div className="flex flex-wrap items-center justify-between gap-2">
               <h3 className="text-base font-semibold">Insights &amp; spend</h3>
-              <span className="text-xs text-muted-foreground">
-                Across your classes · last 7 days
-              </span>
+              <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                <span>{researchView ? copy.acrossAll : copy.acrossOwn}</span>
+                <select
+                  value={insightsSince}
+                  onChange={(e) => setInsightsSince(e.target.value as InsightsSince)}
+                  aria-label={copy.windowLabel}
+                  className="rounded border border-border bg-background px-2 py-1 text-xs"
+                >
+                  {(["7d", "30d", "all"] as InsightsSince[]).map((w) => (
+                    <option key={w} value={w}>
+                      {copy.windowOption[w]}
+                    </option>
+                  ))}
+                </select>
+              </div>
             </div>
             <dl className="grid grid-cols-2 gap-3 sm:grid-cols-4">
               <SummaryStat
@@ -485,7 +622,7 @@ export default function TeacherClassesPage() {
                 value={String(insightsTotals.activeGroups)}
               />
               <SummaryStat
-                label="Messages 7d"
+                label={copy.messagesIn(copy.windowOption[insightsSince].toLowerCase())}
                 value={String(insightsTotals.totalMessages)}
               />
               <SummaryStat
@@ -512,7 +649,7 @@ export default function TeacherClassesPage() {
                 <summary className="cursor-pointer text-sm font-medium text-foreground">
                   Per class
                   <span className="ml-2 text-xs font-normal text-muted-foreground">
-                    — engagement + spend; sortable; last 7 days
+                    — engagement + spend; sortable; {copy.window[insightsSince]}
                   </span>
                 </summary>
                 <div className="mt-3">
@@ -524,7 +661,7 @@ export default function TeacherClassesPage() {
               </details>
             ) : (
               <p className="text-sm text-muted-foreground">
-                No engagement recorded in the last 7 days.
+                {copy.noEngagement(copy.window[insightsSince])}
               </p>
             )}
           </div>
@@ -630,6 +767,7 @@ function PersonaAvatar({ name, avatar }: { name: string; avatar?: string }) {
 
 function ClassRow({
   cls,
+  activity,
   activities,
   persona,
   showOwner = false,
@@ -638,6 +776,7 @@ function ClassRow({
   onDelete,
 }: {
   cls: ClassPayload;
+  activity?: ClassActivity;
   activities: { activityId: string; title: string }[];
   persona: { name: string; inherited: boolean; avatar: string };
   showOwner?: boolean;
@@ -663,6 +802,28 @@ function ClassRow({
             Owner: {cls.ownerLabel ?? cls.ownerUid}
           </div>
         ) : null}
+      </td>
+      {/* Activity at a glance. "No messages yet" is said in words — a blank
+          cell reads the same as "not permitted", and a researcher cannot tell
+          them apart (see the class-report confusion of 2026-09-11). */}
+      <td className="px-3 py-3 text-muted-foreground" data-testid="class-activity">
+        {activity === undefined ? (
+          <span className="text-muted-foreground/60">—</span>
+        ) : activity.turns === 0 ? (
+          <span className="text-muted-foreground/60">{copy.noActivity}</span>
+        ) : (
+          <div className="flex flex-col gap-0.5 whitespace-nowrap">
+            <span className="inline-flex items-center gap-1 text-foreground">
+              <MessageSquare className="h-3.5 w-3.5 shrink-0" aria-hidden="true" />
+              {copy.turns(activity.turns)} · {copy.groupsSpoke(activity.activeGroups)}
+            </span>
+            {activity.lastMessageAt ? (
+              <span className="text-xs" title={activity.lastMessageAt}>
+                {formatRelativeTime(activity.lastMessageAt)}
+              </span>
+            ) : null}
+          </div>
+        )}
       </td>
       <td className="px-3 py-3 text-muted-foreground">
         <span className="inline-flex items-center gap-1">

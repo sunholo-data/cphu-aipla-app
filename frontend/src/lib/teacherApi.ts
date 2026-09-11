@@ -785,6 +785,27 @@ export async function listClasses(scope: "own" | "all" = "own"): Promise<ClassPa
   return body.classes;
 }
 
+/** At-a-glance activity for one class (2026-09-11) — sessions with at least
+ *  one turn, total turns, groups that spoke, and when anyone last did.
+ *  `lastMessageAt` is null, never an epoch, for a class nobody has spoken in. */
+export interface ClassActivity {
+  sessions: number;
+  turns: number;
+  activeGroups: number;
+  lastMessageAt: string | null;
+}
+
+/** Per-class activity for the class list, keyed by classId. Same scope rule as
+ *  `listClasses`; separate call so a slow read never delays the table. */
+export async function fetchClassesActivity(
+  scope: "own" | "all" = "own",
+): Promise<Record<string, ClassActivity>> {
+  const query = scope === "all" ? "?scope=all" : "";
+  const resp = await fetchWithAuth(`/api/proxy/api/classes/activity${query}`);
+  const body = await readJson<{ activity: Record<string, ClassActivity> }>(resp, "class activity");
+  return body.activity;
+}
+
 /** Create a class owned by the current teacher. */
 export async function createClass(body: CreateClassBody): Promise<ClassPayload> {
   const resp = await fetchWithAuth(`/api/proxy/api/classes`, {
@@ -1196,20 +1217,11 @@ export async function listTeachingFrameworks(): Promise<TeachingFrameworkPayload
   return body.frameworks;
 }
 
-/** Save a researcher-edited instruction. Returns the framework as it now stands. */
-export async function saveFrameworkInstruction(
-  frameworkId: string,
-  instruction: string,
-): Promise<TeachingFrameworkPayload> {
-  const resp = await fetchWithAuth(`/api/proxy/api/research/frameworks/${encodeURIComponent(frameworkId)}/instruction`, {
-    method: "PUT",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ instruction }),
-  });
-  return readJson<TeachingFrameworkPayload>(resp, "save framework instruction");
-}
-
-/** Drop the override and go back to the instruction generated from the theory. */
+/** Delete the saved override and go back to the published framework.
+ *
+ *  The only revert there is (1.1.110): a structural edit and a legacy
+ *  hand-written one are one Firestore row, so this restores the published
+ *  framework whichever shape the override had. */
 export async function revertFrameworkInstruction(frameworkId: string): Promise<TeachingFrameworkPayload> {
   const resp = await fetchWithAuth(`/api/proxy/api/research/frameworks/${encodeURIComponent(frameworkId)}/instruction`, {
     method: "DELETE",
@@ -1488,4 +1500,94 @@ export async function fetchChatLogExport(
     throw new Error(`export failed: ${resp.status} ${(await resp.text()).slice(0, 200)}`);
   }
   return resp.blob();
+}
+
+// --- Custom teaching approaches (1.1.110) ----------------------------------
+//
+// The one thing on the frameworks screen a TEACHER may edit. A custom approach
+// is free text someone wrote: no constructs, no literature, and — the point —
+// no claim to either. It replaces the hand-written-instruction editor that used
+// to sit on the seven published frameworks and made exactly that false claim.
+
+export interface CustomApproach {
+  id: string;
+  label: string;
+  summary: string;
+  instructionText: string;
+  layer: "custom";
+  status: string;
+  authorUid: string | null;
+  authorRole: "researcher" | "teacher" | null;
+  materialRefs: { docId?: string; title?: string | null; origin?: string | null }[];
+  /** Computed SERVER-side per row. Never re-derive it here: a second copy of an
+   *  access rule disagrees with the first the moment one changes. */
+  canEdit: boolean;
+}
+
+export interface CustomApproachInput {
+  label: string;
+  summary?: string;
+  instructionText: string;
+  materialRefs?: { docId?: string; title?: string | null; origin?: string | null }[];
+}
+
+export async function listCustomApproaches(): Promise<CustomApproach[]> {
+  const resp = await fetchWithAuth("/api/proxy/api/research/frameworks/custom/list");
+  const body = await readJson<{ approaches: CustomApproach[] }>(resp, "list custom approaches");
+  return body.approaches;
+}
+
+export async function createCustomApproach(input: CustomApproachInput): Promise<CustomApproach> {
+  const resp = await fetchWithAuth("/api/proxy/api/research/frameworks/custom", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(input),
+  });
+  return readJson<CustomApproach>(resp, "create custom approach");
+}
+
+export async function updateCustomApproach(
+  id: string,
+  input: CustomApproachInput,
+): Promise<CustomApproach> {
+  const resp = await fetchWithAuth(`/api/proxy/api/research/frameworks/custom/${encodeURIComponent(id)}`, {
+    method: "PUT",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(input),
+  });
+  return readJson<CustomApproach>(resp, "update custom approach");
+}
+
+export async function deleteCustomApproach(id: string): Promise<void> {
+  const resp = await fetchWithAuth(`/api/proxy/api/research/frameworks/custom/${encodeURIComponent(id)}`, {
+    method: "DELETE",
+  });
+  await readJson<{ deleted: string }>(resp, "delete custom approach");
+}
+
+/** A passage from the papers a published framework is drafted from.
+ *
+ *  Researcher-only, and authoring-time only — these are verbatim extracts from
+ *  copyrighted journal articles. `configured: false` means the corpus is not
+ *  provisioned in this environment, which is NOT the same as the paper having
+ *  nothing to say, and the UI must not render the two alike. */
+export interface SourcePassages {
+  configured: boolean;
+  passages: { text: string; frameworkId: string | null; score: number | null }[];
+  citations: { citation: string; vouchedBy: string; note?: string | null }[];
+}
+
+export async function searchFrameworkSources(
+  frameworkId: string,
+  query: string,
+): Promise<SourcePassages> {
+  const resp = await fetchWithAuth(
+    `/api/proxy/api/research/frameworks/${encodeURIComponent(frameworkId)}/sources/search`,
+    {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ query }),
+    },
+  );
+  return readJson<SourcePassages>(resp, "search framework sources");
 }

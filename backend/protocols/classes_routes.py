@@ -288,6 +288,37 @@ async def list_classes(
     return {"classes": [_serialize(c) for c in classes], "scope": "own"}
 
 
+@router.get("/activity")
+async def list_classes_activity(
+    scope: str = Query(default="own"),
+    user: User = Depends(get_current_user),  # noqa: B008
+) -> dict:
+    """Per-class activity at a glance — sessions, turns, groups that spoke,
+    last message — for the class list (2026-09-11).
+
+    Same scope rule as ``GET /api/classes``: ``own`` for anyone, ``all`` for
+    researchers only, 403 otherwise. Separate from the list so a slow read
+    here never delays the class table; the client fills the column in after.
+
+    Declared BEFORE ``/{class_id}`` — a path literal after a path parameter
+    is unreachable, and ``activity`` would otherwise 404 as a class id.
+    """
+    _assert_teacher(user)
+    if scope == "all":
+        if not user.is_researcher:
+            raise HTTPException(status_code=403, detail="researcher access required")
+        classes = list_all_classes()
+    else:
+        classes = list_classes_for_owner(user.uid)
+
+    from db.chat_sessions import summarize_activity_for_group_codes
+
+    return {
+        "scope": "all" if scope == "all" else "own",
+        "activity": {c.class_id: summarize_activity_for_group_codes(list(c.group_codes)) for c in classes},
+    }
+
+
 @router.get("/{class_id}")
 async def get_one(
     class_id: str = Path(...),

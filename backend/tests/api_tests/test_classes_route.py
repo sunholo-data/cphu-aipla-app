@@ -522,3 +522,76 @@ class TestCohortAndSpend:
         monkeypatch.setattr(cq, "spend_rows", lambda *a, **k: [])
         resp = researcher_client.get(f"/api/classes/{cid}/spend")
         assert resp.status_code == 200
+
+
+# ---------------------------------------------------------------------------
+# Activity at a glance (2026-09-11) — GET /api/classes/activity
+# ---------------------------------------------------------------------------
+
+
+def _seed_session(*, group_code: str, turns: int, last_at: str, archived: bool = False) -> None:
+    from datetime import datetime
+
+    from db.chat_sessions import create_session_index, update_session_fields
+    from db.models.access import AccessControl
+
+    sid = f"sess-{group_code}-{turns}-{last_at[-5:]}"
+    create_session_index(
+        session_id=sid,
+        skill_id="skill-x",
+        owner_uid=f"anon-{group_code.replace('-', '')}",
+        access_control=AccessControl(type="private"),
+        group_code=group_code,
+        first_message_at=datetime.fromisoformat(last_at),
+    )
+    fields: dict = {"turnCount": turns, "lastMessageAt": last_at}
+    if archived:
+        fields["archivedAt"] = last_at
+    update_session_fields(sid, fields)
+
+
+class TestClassesActivity:
+    def test_activity_counts_turns_groups_and_last_message(self, client):
+        created = client.post("/api/classes", json={"name": "Busy"}).json()
+        c1 = client.post(f"/api/classes/{created['classId']}/groups", json={}).json()["codes"][0]
+        c2 = client.post(f"/api/classes/{created['classId']}/groups", json={}).json()["codes"][0]
+        c3 = client.post(f"/api/classes/{created['classId']}/groups", json={}).json()["codes"][0]
+        _seed_session(group_code=c1, turns=4, last_at="2026-09-10T10:00:00+00:00")
+        _seed_session(group_code=c1, turns=6, last_at="2026-09-11T09:00:00+00:00")
+        _seed_session(group_code=c2, turns=2, last_at="2026-09-01T08:00:00+00:00")
+        # Opened the workspace, never typed — NOT activity.
+        _seed_session(group_code=c3, turns=0, last_at="2026-09-11T12:00:00+00:00")
+        # Archived — not activity either.
+        _seed_session(group_code=c3, turns=9, last_at="2026-09-11T13:00:00+00:00", archived=True)
+
+        resp = client.get("/api/classes/activity")
+        assert resp.status_code == 200, resp.text
+        row = resp.json()["activity"][created["classId"]]
+        assert row == {
+            "sessions": 3,
+            "turns": 12,
+            "activeGroups": 2,
+            "lastMessageAt": "2026-09-11T09:00:00+00:00",
+        }
+
+    def test_a_silent_class_reports_none_not_an_epoch(self, client):
+        created = client.post("/api/classes", json={"name": "Quiet"}).json()
+        client.post(f"/api/classes/{created['classId']}/groups", json={})
+        row = client.get("/api/classes/activity").json()["activity"][created["classId"]]
+        assert row == {"sessions": 0, "turns": 0, "activeGroups": 0, "lastMessageAt": None}
+
+    def test_activity_scope_all_is_researcher_only(self, client, other_teacher_client, researcher_client):
+        a = client.post("/api/classes", json={"name": "A"}).json()["classId"]
+        b = other_teacher_client.post("/api/classes", json={"name": "B"}).json()["classId"]
+
+        assert client.get("/api/classes/activity", params={"scope": "all"}).status_code == 403
+        own = client.get("/api/classes/activity").json()["activity"]
+        assert set(own) == {a}
+
+        body = researcher_client.get("/api/classes/activity", params={"scope": "all"}).json()
+        assert body["scope"] == "all"
+        assert {a, b} <= set(body["activity"])
+
+    def test_activity_is_not_captured_by_the_class_id_route(self, client):
+        """`/activity` must be declared before `/{class_id}` or it 404s as an id."""
+        assert client.get("/api/classes/activity").status_code == 200
