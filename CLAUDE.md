@@ -140,14 +140,6 @@ push there, so pointing new work at it sends the writer to a dead end.
   and `frontend/content/project/tutors/*.md` are **generated** from
   `backend/frameworks/*.yaml` (`make tutor-docs`; `make check-tutor-docs` is
   CI-gated) — never hand-edit them.
-- **⚠️ NEXT ACTIONS — start here in a fresh session:**
-  [docs/design/aipla/v1.1.0-feedback/handover-2026-09-11.md](docs/design/aipla/v1.1.0-feedback/handover-2026-09-11.md).
-  The 09-10 handover above is the tutor layer's *orientation*; this one is the
-  task list. It opens with the one item where not acting leaves production worse
-  than it was: **six commits sit on `dev` unreleased**, and `make seed` already
-  pushed the new co-pilot wording to all three environments — so prod currently
-  shows a **"Minting…"** button beside an assistant that says *"create group
-  codes"*.
 - **New AIPLA design docs** → `docs/design/aipla/<version>/` (that tree is
   already the real home: `v1.1.0-feedback`, `v2.0.0-handover`, `v2.1.0-extension`).
   `docs/design/v6.*` is still the inherited template's own material — don't mix.
