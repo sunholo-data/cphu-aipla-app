@@ -225,14 +225,20 @@ describe("AuthoringCopilot — auth corner + panel", () => {
     expect(screen.queryByText(/activity_draft/)).not.toBeInTheDocument();
   });
 
-  it("floats and can be minimized to a pill, then restored", async () => {
+  it("starts as a pill, expands, and minimizes back", async () => {
+    // Starts MINIMISED since 2026-09-11 (M's standing request for every
+    // co-pilot): the panel sits over the activity builder, and opening
+    // expanded covered that work on every page load. The round-trip this test
+    // has always covered is unchanged — it just starts from the other end.
     render(<AuthoringCopilot activityId="act-1" onApplyProposal={vi.fn()} />);
     await screen.findByTestId("authoring-copilot");
-    expect(screen.queryByTestId("copilot-fab")).not.toBeInTheDocument();
-    fireEvent.click(screen.getByRole("button", { name: /skjul medbygger/i }));
+
     expect(screen.getByTestId("copilot-fab")).toBeInTheDocument();
     fireEvent.click(screen.getByTestId("copilot-fab"));
     expect(screen.queryByTestId("copilot-fab")).not.toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: /skjul medbygger/i }));
+    expect(screen.getByTestId("copilot-fab")).toBeInTheDocument();
   });
 });
 

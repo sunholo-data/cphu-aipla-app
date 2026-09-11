@@ -36,7 +36,18 @@ export function FloatingCopilot({
   align?: "left" | "right";
   children: ReactNode;
 }) {
-  const [minimized, setMinimized] = useState(false);
+  // START MINIMISED (2026-09-11, M's standing request for every co-pilot).
+  //
+  // These panels are fixed bottom-right over the surface the teacher is working
+  // on — a class list, the activity builder, the approaches editor. Opening
+  // expanded puts a 384px panel over that work before anyone asked for help,
+  // on every page load. The pill is the invitation; the panel is the answer.
+  //
+  // ⚠️ This only affects the always-mounted work co-pilots. An ON-DEMAND panel
+  // (`closable`, opened from a header button) ignores `minimized` entirely in
+  // the class below — the teacher just clicked to open it, so collapsing it to
+  // a pill would swallow the click.
+  const [minimized, setMinimized] = useState(true);
   const pos = align === "left" ? "bottom-4 left-4" : "bottom-4 right-4";
   const closable = Boolean(onClose);
   return (

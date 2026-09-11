@@ -15,6 +15,8 @@ import { TeacherCard } from "@/components/teacher/ui/TeacherCard";
 import { TeacherPage } from "@/components/teacher/ui/TeacherPage";
 import { FrameworkStructureEditor } from "@/components/teacher/research/FrameworkStructureEditor";
 import { CustomApproachPanel } from "@/components/teacher/research/CustomApproachPanel";
+import { TutorCopilot } from "./_TutorCopilot";
+import type { TutorProposal } from "./tutorCopilotProposal";
 import { TutorApproachPanel } from "@/components/teacher/research/TutorApproachPanel";
 
 /** UI copy, lifted out of JSX (1.1.108 M4) so a translator can reach it.
@@ -26,6 +28,10 @@ import { TutorApproachPanel } from "@/components/teacher/research/TutorApproachP
  *  say plainly what the machine did and what it cannot do.
  */
 const copy = {
+  copilotApproachNote: (label: string) =>
+    `The co-pilot proposed “${label}”. It is not saved — review the constructs and sources, then Save.`,
+  copilotBehaviourNote: (name: string) =>
+    `The co-pilot proposed behaviours for “${name}”. Add them to that construct below, then Save.`,
   teacherTierNote:
     "The seven published approaches are drawn from the research literature and are maintained by the research team, so they are not editable here. Your own approaches are — write one in your own words and assign it to a class like any other.",
   howItWorksTitle: "How a tutor gets its teaching approach",
@@ -104,6 +110,11 @@ export default function ResearchFrameworksPage() {
   const [mode, setMode] = useState<EditorMode>("structure");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  /** What the co-pilot last proposed and the researcher Applied. Held on the
+   *  page, NOT written: Apply opens the editor on it, and the existing
+   *  researcher-gated PUT .../structure stays the only path to a saved change,
+   *  so the live preview a researcher signs off is what gets stored. */
+  const [copilotNote, setCopilotNote] = useState<string | null>(null);
 
   useEffect(() => {
     let cancelled = false;
@@ -155,6 +166,17 @@ export default function ResearchFrameworksPage() {
       setError("Could not revert. Try again.");
     } finally {
       setBusy(false);
+    }
+  };
+
+  /** A proposal the researcher Applied. Opens the relevant editor and says what
+   *  still has to happen — a proposal carries no citation, so it is never one
+   *  click from being saved as though it did. */
+  const onCopilotProposal = (proposal: TutorProposal) => {
+    if (proposal.kind === "propose_approach") {
+      setCopilotNote(copy.copilotApproachNote(proposal.label));
+    } else {
+      setCopilotNote(copy.copilotBehaviourNote(proposal.constructName));
     }
   };
 
@@ -213,6 +235,14 @@ export default function ResearchFrameworksPage() {
               isPlaceholder: f.status === "placeholder",
             }))}
           />
+          {copilotNote ? (
+            <p
+              role="status"
+              className="rounded border border-brand/40 bg-brand/5 px-3 py-2 text-sm text-foreground"
+            >
+              {copilotNote}
+            </p>
+          ) : null}
           <CustomApproachPanel />
           {frameworks.map((fw) => {
             const isOpen = openId === fw.id;
@@ -284,6 +314,10 @@ export default function ResearchFrameworksPage() {
               </TeacherCard>
             );
           })}
+          {/* The fourth co-pilot mount (1.1.91 M2), on the surface it edits.
+              Researcher-only twice over: the skill is tagged role:researcher
+              AND every tool re-checks the claim server-side. */}
+          <TutorCopilot onProposal={onCopilotProposal} />
         </div>
       )}
     </TeacherPage>
