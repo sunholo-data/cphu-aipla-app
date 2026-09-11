@@ -107,17 +107,29 @@ describe("/teacher/insights — page shell", () => {
     expect(fetchCompare).toHaveBeenLastCalledWith("7d", undefined, "own");
   });
 
-  it("researcher can switch to all-teachers scope and refetches with scope=all", async () => {
+  it("a researcher lands on all-teachers scope by default (2026-09-11)", async () => {
+    // It defaulted to "own" before — an empty table for a researcher who
+    // teaches no class, with the data one un-noticed click away.
+    isResearcher = true;
+    fetchCompare.mockResolvedValue(PAYLOAD);
+    render(<TeacherInsightsPage />);
+    await screen.findByTestId("table-stub");
+    expect(fetchCompare).toHaveBeenLastCalledWith("7d", undefined, "all");
+    expect(screen.getByTestId("window-label")).toHaveTextContent("all teachers");
+    expect(screen.getByRole("button", { name: "All teachers" })).toHaveAttribute("aria-pressed", "true");
+  });
+
+  it("researcher can switch to own scope and refetches with scope=own", async () => {
     isResearcher = true;
     fetchCompare.mockResolvedValue(PAYLOAD);
     render(<TeacherInsightsPage />);
     await screen.findByTestId("table-stub");
 
-    fireEvent.click(screen.getByRole("button", { name: "All teachers" }));
+    fireEvent.click(screen.getByRole("button", { name: "My classes" }));
 
     await waitFor(() => {
-      expect(fetchCompare).toHaveBeenLastCalledWith("7d", undefined, "all");
+      expect(fetchCompare).toHaveBeenLastCalledWith("7d", undefined, "own");
     });
-    expect(screen.getByTestId("window-label")).toHaveTextContent("all teachers");
+    expect(screen.getByTestId("window-label")).not.toHaveTextContent("all teachers");
   });
 });

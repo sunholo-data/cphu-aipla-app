@@ -36,11 +36,19 @@ const SINCE_LABEL: Record<InsightsSince, string> = {
 
 export default function TeacherInsightsPage() {
   const [since, setSince] = useState<InsightsSince>("7d");
-  // Researchers can switch to a cross-teacher comparison of EVERY class
-  // (scope=all, 1.1.51). The toggle is hidden for non-researchers; the
-  // backend independently 403s scope=all without the claim.
+  // Researchers can switch between a cross-teacher comparison of EVERY class
+  // (scope=all, 1.1.51) and their own. The toggle is hidden for
+  // non-researchers; the backend independently 403s scope=all without the
+  // claim.
+  //
+  // A researcher DEFAULTS to "all" (2026-09-11). It used to default to "own",
+  // which for a researcher who teaches no class is an empty table with the
+  // real data one un-noticed click away — while the cost tab next door
+  // auto-scoped the same person to everything. `null` = no explicit choice
+  // yet, so the default can resolve once the claim has loaded.
   const isResearcher = useIsResearcher();
-  const [scope, setScope] = useState<InsightsScope>("own");
+  const [scopeChoice, setScopeChoice] = useState<InsightsScope | null>(null);
+  const scope: InsightsScope = scopeChoice ?? "all";
   const effectiveScope: InsightsScope = isResearcher ? scope : "own";
   const [payload, setPayload] = useState<InsightsComparePayload | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -82,7 +90,7 @@ export default function TeacherInsightsPage() {
       subtitle={effectiveScope === "all" ? "Cross-class comparison · all teachers" : "Cross-class comparison"}
       actions={
         <div className="flex items-center gap-2">
-          {isResearcher ? <ScopeToggle value={scope} onChange={setScope} /> : null}
+          {isResearcher ? <ScopeToggle value={scope} onChange={setScopeChoice} /> : null}
           <SinceSelect value={since} onChange={setSince} />
         </div>
       }
