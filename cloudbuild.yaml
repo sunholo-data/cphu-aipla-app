@@ -292,6 +292,14 @@ steps:
       # europe-west1; db/rag_corpus.py derives the region from this resource
       # name, NOT GOOGLE_CLOUD_LOCATION=global below.
       - '--set-secrets=CURRICULUM_RAG_CORPUS_NAME=CURRICULUM_RAG_CORPUS_NAME:latest'
+      # The pedagogy-literature corpus (1.1.110) — researcher AUTHORING only,
+      # never reachable from a student session (db/literature_corpus.py exposes
+      # no tool builder; check-literature-corpus-isolation.sh enforces it).
+      # Unset -> passage search reports `configured: false` rather than
+      # pretending the papers had nothing to say. Provisioned per env by
+      # scripts/provision-literature-rag.sh; corpus is in europe-north1, unlike
+      # the curriculum one.
+      - '--set-secrets=LITERATURE_RAG_CORPUS_NAME=LITERATURE_RAG_CORPUS_NAME:latest'
       # Env vars
       - '--set-env-vars=GOOGLE_CLOUD_PROJECT=${_PROJECT_ID}'
       # Which build this is, recorded on every chat-log row so research data can

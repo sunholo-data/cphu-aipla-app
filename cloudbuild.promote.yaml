@@ -207,7 +207,8 @@ steps:
           --image=${_REGION}-docker.pkg.dev/${_TARGET_PROJECT}/${_REPO}/${_SERVICE_NAME}/ui:${_VERSION} \
           --container=sidecar \
           --image=${_REGION}-docker.pkg.dev/${_TARGET_PROJECT}/${_REPO}/${_SERVICE_NAME}/backend@$$DIGEST \
-          "--update-env-vars=^|^APP_VERSION=${_VERSION}|MCP_WIDGET_DOMAIN=${_MCP_WIDGET_DOMAIN}|MCP_SANDBOX_URL=${_MCP_SANDBOX_URL}|DOCUMENTS_BUCKET=${_TARGET_PROJECT}-documents|PROGRAMME_ADMIN_MAX_CAP_USD=${_PROGRAMME_ADMIN_MAX_CAP_USD}|PROGRAMME_ADMIN_EMAIL_DOMAINS=${_PROGRAMME_ADMIN_EMAIL_DOMAINS}"
+          "--update-env-vars=^|^APP_VERSION=${_VERSION}|MCP_WIDGET_DOMAIN=${_MCP_WIDGET_DOMAIN}|MCP_SANDBOX_URL=${_MCP_SANDBOX_URL}|DOCUMENTS_BUCKET=${_TARGET_PROJECT}-documents|PROGRAMME_ADMIN_MAX_CAP_USD=${_PROGRAMME_ADMIN_MAX_CAP_USD}|PROGRAMME_ADMIN_EMAIL_DOMAINS=${_PROGRAMME_ADMIN_EMAIL_DOMAINS}" \
+          --update-secrets=LITERATURE_RAG_CORPUS_NAME=LITERATURE_RAG_CORPUS_NAME:latest
         # ^ THE QUOTES ARE LOAD-BEARING. This step is a BASH SCRIPT, unlike
         # cloudbuild.yaml's deploy step where every flag is its own quoted YAML
         # list item and never reaches a shell. The `^|^` custom-delimiter form
@@ -234,6 +235,16 @@ steps:
         # Rule of thumb for anything added here later: if cloudbuild.yaml sets it
         # with --set-env-vars from a per-env substitution, the promote path MUST
         # re-stamp it too, or prod diverges permanently from its own config.
+        #
+        # THE SAME RULE APPLIES TO SECRETS, and until 2026-09-11 this file set
+        # NONE — it had no --set-secrets or --update-secrets at all. prod kept
+        # its secrets only because `services update` preserves what it is not
+        # told to change, i.e. whatever the env cut happened to grant. That is
+        # preservation by accident, not by design: a secret added to
+        # cloudbuild.yaml reaches dev and test and NEVER prod, and a re-created
+        # prod service would come up missing every one of them.
+        # LITERATURE_RAG_CORPUS_NAME (1.1.110) is the first one stamped here.
+        # --update-secrets, like --update-env-vars, leaves the others alone.
         #
         # MCP_SANDBOX_URL added 2026-08-17, and it is the rule above biting the
         # file that states it. cloudbuild.yaml:353 has set this from the same

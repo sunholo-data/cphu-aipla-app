@@ -320,26 +320,36 @@ and gitignored. Ingesting the parsed text into the project's own private corpus
 was approved by M on 2026-09-11. The corpus must never be made public, and no
 student-facing surface may cite from it.
 
-**Not yet done — and the feature is inert until it is:**
+**Done 2026-09-11, all three environments** (this entry originally recorded it
+as outstanding):
 
-1. `LITERATURE_RAG_CORPUS_NAME` is **not** injected into Cloud Run on any
-   environment, so the passage search reports `configured: false` everywhere
-   including dev. Store the resource name in Secret Manager and inject it the
-   way `CURRICULUM_RAG_CORPUS_NAME` is.
-2. **test and prod have no corpus at all.** Re-run the ingest per environment —
-   a RagCorpus is per-project and does not promote with an artifact.
+| env | corpus (europe-north1) | secret | wired into Cloud Run | retrieval verified |
+|---|---|---|---|---|
+| dev | `…/ragCorpora/4611686018427387904` | ✅ | ✅ | ✅ |
+| test | `…/ragCorpora/6917529027641081856` | ✅ | ✅ | ✅ |
+| prod | created + ingested | ✅ | ✅ | ✅ |
 
-**Repeatable:**
+`scripts/provision-literature-rag.sh <env> GO=1` does the whole sequence
+idempotently — corpus, ingest, Secret Manager, `secretAccessor` for the runtime
+SA, and the Cloud Run wiring. Both pipelines now set the secret too, so a deploy
+cannot drop it: `--set-secrets` in `cloudbuild.yaml`, and **`--update-secrets` in
+`cloudbuild.promote.yaml`, which until now set no secrets at all.**
 
-```bash
-export GOOGLE_CLOUD_PROJECT=aipla-<env>-2026
-export GOOGLE_CLOUD_LOCATION=europe-north1
-uv run python backend/scripts/ingest_literature.py          # dry run
-uv run python backend/scripts/ingest_literature.py --go
-```
+⚠️ **That promote gap was wider than this feature.** The promote path had no
+`--set-secrets`/`--update-secrets` of any kind; prod kept its secrets only
+because `gcloud run services update` preserves what it is not told to change —
+preservation by accident. A secret added to `cloudbuild.yaml` reached dev and
+test and never prod, and a re-created prod service would have come up missing
+every one. `LITERATURE_RAG_CORPUS_NAME` is the first secret stamped on the
+promote path.
 
-Idempotent: an existing corpus of the same display name is reused, and a paper
-already present (matched on the `<framework_id>.txt` display name) is skipped.
+⚠️ **Region: europe-NORTH1, unlike the curriculum corpus (europe-west1).** The
+literature is copyrighted third-party material, so it sits with the rest of
+AIPLA's data rather than following the curriculum script's Vertex-region
+default. This is not theoretical: taking that default on 2026-09-11 created an
+**empty duplicate corpus of the same display name** in europe-west1 while the
+populated one sat in europe-north1 — two corpora, one name, one silently empty.
+Deleted; the region is now pinned in the script so it cannot recur.
 
 **Gotcha, cost one failed run:** `rag.upload_file` rejects a JSON blob as
 `display_name` and fails indexing with a bare `RuntimeError: ('Failed in
