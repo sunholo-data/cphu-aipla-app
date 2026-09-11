@@ -114,6 +114,16 @@ jobs:
 
       - name: Skill catalogue in sync with .claude/skills
         run: bash scripts/check-skill-catalogue.sh
+      - name: Literature corpus stays out of student turns
+        # 1.1.110: AIPLA has two RAG corpora with opposite audiences. The
+        # curriculum one is reachable from a student session by design; the
+        # literature one holds copyrighted journal papers and is for researchers
+        # authoring frameworks. Grounding a tutor in the literature would also
+        # destroy the reviewability the framework layer exists for — retrieval
+        # makes the prompt differ turn to turn, so "hold the prompt against the
+        # paper" stops being possible. The failure mode is quiet: an import added
+        # in good faith and a tutor quoting Dysthe at a 16-year-old.
+        run: bash scripts/check-literature-corpus-isolation.sh
       - name: Every app route is tracked by git
         # 1.1.109: an unanchored `logs/` in .gitignore matched the real route
         # frontend/src/app/teacher/research/logs/. `git add` refused it, `git

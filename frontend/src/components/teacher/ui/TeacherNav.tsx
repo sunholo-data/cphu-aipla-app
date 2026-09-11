@@ -68,15 +68,21 @@ const RESEARCH_DESTINATION: Destination = {
 };
 
 /**
- * Researcher-only destination (1.1.91 M1): the teaching frameworks a tutor runs
- * on, and the instruction each one gives it. A sibling of the research scan
- * rather than a tab inside it — "what the tutor is told to do" is a different
- * question from "what have teachers built", and the pedagogy is the thing a
- * researcher owns outright.
+ * Teaching approaches (1.1.91 M1; opened to teachers 1.1.110).
+ *
+ * Two tiers on one screen. A RESEARCHER maintains the seven approaches drawn
+ * from the literature. A TEACHER cannot edit those, but owns their own custom
+ * approaches — free text they write themselves, which is the one editable thing
+ * on this screen for them and the reason the destination is no longer
+ * researcher-gated.
+ *
+ * Labelled "Approaches" rather than "Frameworks": a teacher writing one in
+ * their own words is not authoring a framework, and calling it one would make
+ * the same overclaim the removed free-text editor did.
  */
 const FRAMEWORKS_DESTINATION: Destination = {
   href: "/teacher/research/frameworks",
-  label: "Frameworks",
+  label: "Approaches",
   icon: BookOpen,
   match: ["/teacher/research/frameworks"],
 };
@@ -132,7 +138,11 @@ export function TeacherNav() {
   const isProgrammeAdmin = useIsProgrammeAdmin();
   const destinations = [
     ...DESTINATIONS,
-    ...(isResearcher ? [RESEARCH_DESTINATION, FRAMEWORKS_DESTINATION, CHAT_LOGS_DESTINATION] : []),
+    // Approaches is for EVERY teacher (1.1.110) — they own the custom tier.
+    // Research and Conversations stay researcher-only: both are cross-teacher
+    // reads of other people's classes.
+    FRAMEWORKS_DESTINATION,
+    ...(isResearcher ? [RESEARCH_DESTINATION, CHAT_LOGS_DESTINATION] : []),
     ...(isResearcher || isProgrammeAdmin ? [PROGRAMME_DESTINATION] : []),
   ];
   // Collapse the desktop rail to an icon strip to give app-like surfaces (the

@@ -55,6 +55,7 @@ function poe(): TeachingFrameworkPayload {
 }
 
 beforeEach(() => {
+  vi.spyOn(teacherApi, "listCustomApproaches").mockResolvedValue([]);
   vi.restoreAllMocks();
   // The page mounts TutorApproachPanel, which fetches on mount. Stubbed for the
   // instruction-editor tests; the panel has its own describe block below.
@@ -80,67 +81,78 @@ describe("ResearchFrameworksPage (1.1.91 M1 — researcher edits the tutor instr
     // A placeholder says so, and offers no editor — an empty instruction is not
     // something to hand a researcher a textarea for.
     expect(screen.getByText("Awaiting pedagogical content")).toBeInTheDocument();
-    expect(screen.getAllByRole("button", { name: /Edit wording/ })).toHaveLength(1);
     expect(screen.getAllByRole("button", { name: /Edit teaching approach/ })).toHaveLength(1);
+    // 1.1.110: there is no "Edit wording". Free-text authoring was the only
+    // path that could produce a tutor prompt nobody could check against a
+    // source; it now lives on a CUSTOM approach, which says so about itself.
+    expect(screen.queryByRole("button", { name: /Edit wording/ })).not.toBeInTheDocument();
   });
 
-  it("renders access-required when the backend 403s a non-researcher", async () => {
+  it("gives a plain teacher their own approaches instead of an access wall", async () => {
+    // 1.1.110. Listing the seven 403s for a teacher — they are researcher-
+    // maintained — but a teacher OWNS the custom tier, and showing an
+    // access-required page would hide a surface built for them.
     vi.spyOn(teacherApi, "listTeachingFrameworks").mockRejectedValue(new Error("list failed: 403"));
+    vi.spyOn(teacherApi, "listCustomApproaches").mockResolvedValue([]);
+
     render(<ResearchFrameworksPage />);
-    await screen.findByText(/Researcher access required/i);
+
+    expect(await screen.findByText(/Your own teaching approaches/i)).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /New approach/i })).toBeInTheDocument();
+    expect(screen.queryByText(/Researcher access required/i)).not.toBeInTheDocument();
+    // And it says why the seven are not editable, rather than just omitting them.
+    expect(screen.getByText(/maintained by the research team/i)).toBeInTheDocument();
   });
 
-  it("saves an edited instruction and keeps the generated text visible beside it", async () => {
+  it("offers no way to hand-write an instruction", async () => {
+    // The property, not the absence of a button: opening the only editor there
+    // is must not present a free-text box bound to the tutor's prompt.
     const user = userEvent.setup();
     vi.spyOn(teacherApi, "listTeachingFrameworks").mockResolvedValue([esru()]);
-    const saveSpy = vi
-      .spyOn(teacherApi, "saveFrameworkInstruction")
-      .mockResolvedValue(
-        // overrideMode mirrors what the backend actually stamps on a text save.
-        esru({ instruction: "Ask, then act.", isOverridden: true, overrideVersion: 1, overrideMode: "text" }),
-      );
-
     render(<ResearchFrameworksPage />);
-    await user.click(await screen.findByRole("button", { name: /Edit wording/ }));
+    await user.click(await screen.findByRole("button", { name: /Edit teaching approach/ }));
 
-    // The generated version is always on the page, so an edit reads as a delta
-    // from the theory rather than as an opaque prompt.
-    expect(screen.getByText(/the version without your edits/i)).toBeInTheDocument();
-
-    const box = screen.getByLabelText(/What the tutor is told/i);
-    expect(box).toHaveValue(GENERATED);
-    await user.clear(box);
-    await user.type(box, "Ask, then act.");
-    await user.click(screen.getByRole("button", { name: "Save" }));
-
-    await waitFor(() => expect(saveSpy).toHaveBeenCalledWith("esru", "Ask, then act."));
-    await screen.findByText(/Wording hand-edited/);
+    expect(screen.queryByLabelText(/What the tutor is told/i)).not.toBeInTheDocument();
+    // What the tutor WILL be told is still shown — as a read-only preview
+    // generated from the constructs, which is the reviewable half.
+    expect(screen.getByTestId("structure-preview")).toBeInTheDocument();
   });
 
-  it("offers Revert only once an override exists", async () => {
+  it("discards saved edits only when there are saved edits to discard", async () => {
+    // Revert used to live in the text editor. That editor is gone, so it moved
+    // into the structural one — it must not have been dropped along the way.
     const user = userEvent.setup();
     vi.spyOn(teacherApi, "listTeachingFrameworks").mockResolvedValue([
-      esru({ instruction: "Ask, then act.", isOverridden: true, overrideVersion: 2, overrideMode: "text" }),
+      esru({ isOverridden: true, overrideVersion: 2, overrideMode: "structured" }),
     ]);
     const revertSpy = vi.spyOn(teacherApi, "revertFrameworkInstruction").mockResolvedValue(esru());
 
     render(<ResearchFrameworksPage />);
-    await user.click(await screen.findByRole("button", { name: /Edit wording/ }));
+    await user.click(await screen.findByRole("button", { name: /Edit teaching approach/ }));
+    await user.click(screen.getByRole("button", { name: /Discard saved edits/ }));
 
-    await user.click(screen.getByRole("button", { name: /Revert to generated/ }));
     await waitFor(() => expect(revertSpy).toHaveBeenCalledWith("esru"));
-    // Back to the generated text, and the Revert affordance goes with it.
     await waitFor(() =>
-      expect(screen.queryByRole("button", { name: /Revert to generated/ })).not.toBeInTheDocument(),
+      expect(screen.queryByRole("button", { name: /Discard saved edits/ })).not.toBeInTheDocument(),
     );
   });
 
-  it("disables Save until the instruction actually changes", async () => {
+  it("keeps resetting the form distinct from discarding saved edits", async () => {
+    // Two different actions with one plausible label between them. "Reset the
+    // form" only refills the fields; the saved override survives until it is
+    // deleted. A researcher who read one as the other would believe they had
+    // reverted when they had not.
     const user = userEvent.setup();
-    vi.spyOn(teacherApi, "listTeachingFrameworks").mockResolvedValue([esru()]);
+    vi.spyOn(teacherApi, "listTeachingFrameworks").mockResolvedValue([
+      esru({ isOverridden: true, overrideVersion: 1, overrideMode: "structured" }),
+    ]);
+    const revertSpy = vi.spyOn(teacherApi, "revertFrameworkInstruction").mockResolvedValue(esru());
+
     render(<ResearchFrameworksPage />);
-    await user.click(await screen.findByRole("button", { name: /Edit wording/ }));
-    expect(screen.getByRole("button", { name: "Save" })).toBeDisabled();
+    await user.click(await screen.findByRole("button", { name: /Edit teaching approach/ }));
+    await user.click(screen.getByRole("button", { name: /Reset the form to published/ }));
+
+    expect(revertSpy).not.toHaveBeenCalled();
   });
 });
 

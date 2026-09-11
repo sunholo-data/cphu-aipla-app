@@ -8,13 +8,13 @@ import {
   type TeachingFrameworkPayload,
   listTeachingFrameworks,
   revertFrameworkInstruction,
-  saveFrameworkInstruction,
   saveFrameworkStructure,
 } from "@/lib/teacherApi";
 import { EmptyState } from "@/components/teacher/ui/EmptyState";
 import { TeacherCard } from "@/components/teacher/ui/TeacherCard";
 import { TeacherPage } from "@/components/teacher/ui/TeacherPage";
 import { FrameworkStructureEditor } from "@/components/teacher/research/FrameworkStructureEditor";
+import { CustomApproachPanel } from "@/components/teacher/research/CustomApproachPanel";
 import { TutorApproachPanel } from "@/components/teacher/research/TutorApproachPanel";
 
 /** UI copy, lifted out of JSX (1.1.108 M4) so a translator can reach it.
@@ -26,6 +26,8 @@ import { TutorApproachPanel } from "@/components/teacher/research/TutorApproachP
  *  say plainly what the machine did and what it cannot do.
  */
 const copy = {
+  teacherTierNote:
+    "The seven published approaches are drawn from the research literature and are maintained by the research team, so they are not editable here. Your own approaches are — write one in your own words and assign it to a class like any other.",
   howItWorksTitle: "How a tutor gets its teaching approach",
   howItWorks: [
     "Each approach is a set of named constructs — the moves the framework is made of. Under each construct sit behaviours: single instructions quoted from the source paper's own coding scheme, and an avoid-list of the moves the paper codes as counter-indicative.",
@@ -64,16 +66,19 @@ const copy = {
 
 type Status = "loading" | "ok" | "forbidden" | "error";
 
-/** Which editor is open on a framework.
+/** There is one editor (1.1.110).
  *
- *  `structure` edits the theory and regenerates the instruction from it;
- *  `text` edits the rendered instruction directly. Both are kept because they
- *  answer different needs — but they are alternatives, not layers, and saving
- *  one drops the other server-side. The card opens on whichever the researcher
- *  last used (`overrideMode`), defaulting to the structural one, because that is
- *  the edit that keeps the prompt traceable to its sources.
+ *  A researcher used to be able to edit the RENDERED instruction directly, as
+ *  an alternative to editing the constructs. It was removed: it was the only
+ *  path in the system that could produce a tutor prompt no reader could check
+ *  against a source, which is the property this whole layer exists to protect.
+ *  Free-text authoring now lives on a CUSTOM approach, which declares that it
+ *  was written rather than derived.
+ *
+ *  Kept as a type rather than deleted so the reopen-on-last-used logic still
+ *  reads as a choice; a legacy `overrideMode: "text"` row simply opens here.
  */
-type EditorMode = "structure" | "text";
+type EditorMode = "structure";
 
 /**
  * Teaching frameworks (1.1.91 M1) — researcher-only.
@@ -97,7 +102,6 @@ export default function ResearchFrameworksPage() {
   const [frameworks, setFrameworks] = useState<TeachingFrameworkPayload[]>([]);
   const [openId, setOpenId] = useState<string | null>(null);
   const [mode, setMode] = useState<EditorMode>("structure");
-  const [draft, setDraft] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -122,10 +126,9 @@ export default function ResearchFrameworksPage() {
   const replace = (updated: TeachingFrameworkPayload) =>
     setFrameworks((rows) => rows.map((r) => (r.id === updated.id ? updated : r)));
 
-  const open = (fw: TeachingFrameworkPayload, next?: EditorMode) => {
+  const open = (fw: TeachingFrameworkPayload) => {
     setOpenId(fw.id);
-    setMode(next ?? (fw.overrideMode === "text" ? "text" : "structure"));
-    setDraft(fw.instruction);
+    setMode("structure");
     setError(null);
   };
 
@@ -142,26 +145,12 @@ export default function ResearchFrameworksPage() {
     }
   };
 
-  const save = async (fw: TeachingFrameworkPayload) => {
-    setBusy(true);
-    setError(null);
-    try {
-      replace(await saveFrameworkInstruction(fw.id, draft));
-      setOpenId(null);
-    } catch {
-      setError("Could not save. Your edit is still here — try again.");
-    } finally {
-      setBusy(false);
-    }
-  };
-
   const revert = async (fw: TeachingFrameworkPayload) => {
     setBusy(true);
     setError(null);
     try {
       const updated = await revertFrameworkInstruction(fw.id);
       replace(updated);
-      setDraft(updated.instruction);
     } catch {
       setError("Could not revert. Try again.");
     } finally {
@@ -178,12 +167,15 @@ export default function ResearchFrameworksPage() {
     >
       {status === "loading" ? (
         <p className="text-sm text-muted-foreground">Loading frameworks&hellip;</p>
-      ) : status === "forbidden" ? (
-        <EmptyState
-          icon={ShieldAlert}
-          title="Researcher access required"
-          description="Teaching frameworks are part of the research instrument set. Ask a platform admin for the researcher role."
-        />
+            ) : status === "forbidden" ? (
+        /* Not a wall for a TEACHER (1.1.110). The published frameworks are
+           researcher-maintained, so listing them 403s — but a teacher's own
+           approaches are the one thing on this screen they DO own, and showing
+           an access-required page would hide a surface built for them. */
+        <div className="space-y-4">
+          <p className="text-sm text-muted-foreground">{copy.teacherTierNote}</p>
+          <CustomApproachPanel />
+        </div>
       ) : status === "error" ? (
         <EmptyState
           icon={ShieldAlert}
@@ -221,6 +213,7 @@ export default function ResearchFrameworksPage() {
               isPlaceholder: f.status === "placeholder",
             }))}
           />
+          <CustomApproachPanel />
           {frameworks.map((fw) => {
             const isOpen = openId === fw.id;
             const editable = fw.status !== "placeholder";
@@ -263,106 +256,31 @@ export default function ResearchFrameworksPage() {
                     <div className="flex shrink-0 gap-2">
                       <button
                         type="button"
-                        onClick={() => (isOpen && mode === "structure" ? setOpenId(null) : open(fw, "structure"))}
+                        onClick={() => (isOpen ? setOpenId(null) : open(fw))}
                         className="rounded border px-3 py-1.5 text-sm hover:bg-muted"
                       >
                         {isOpen && mode === "structure" ? copy.close : copy.editApproach}
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => (isOpen && mode === "text" ? setOpenId(null) : open(fw, "text"))}
-                        className="rounded border px-3 py-1.5 text-sm hover:bg-muted"
-                      >
-                        {isOpen && mode === "text" ? copy.close : copy.editWording}
                       </button>
                     </div>
                   ) : null}
                 </div>
 
-                {isOpen && mode === "structure" ? (
+                {isOpen ? (
                   <FrameworkStructureEditor
                     framework={fw}
                     busy={busy}
                     error={error}
                     onCancel={() => setOpenId(null)}
                     onSave={(structure) => void saveStructure(fw, structure)}
+                    /* Revert lived in the text editor, which is gone (1.1.110).
+                       It has to stay reachable: "Reset to published" only
+                       repopulates the form — the saved override survives until
+                       this deletes it, and a researcher who could not find this
+                       would think resetting had reverted when it had not. */
+                    onRevert={fw.isOverridden ? () => void revert(fw) : undefined}
                   />
                 ) : null}
 
-                {isOpen && mode === "text" ? (
-                  <div className="mt-4 space-y-4 border-t pt-4">
-                    <p className="rounded border border-amber-300 bg-amber-50 px-3 py-2 text-xs text-amber-900 dark:border-amber-700 dark:bg-amber-950 dark:text-amber-200">
-                      {copy.exclusivityOnText}
-                    </p>
-                    <div>
-                      <label
-                        htmlFor={`instruction-${fw.id}`}
-                        className="mb-1 block text-sm font-medium"
-                      >
-                        {copy.whatTutorIsTold}
-                      </label>
-                      <textarea
-                        id={`instruction-${fw.id}`}
-                        value={draft}
-                        onChange={(e) => setDraft(e.target.value)}
-                        rows={16}
-                        className="w-full rounded border bg-background p-3 font-mono text-xs"
-                      />
-                    </div>
-
-                    {/* The generated text stays visible so an edit reads as a
-                        delta from the theory, not as an opaque prompt. */}
-                    <details className="rounded border bg-muted/40 p-3">
-                      <summary className="cursor-pointer text-sm font-medium">
-                        {copy.generatedLabel(fw.constructs.length)}
-                      </summary>
-                      <pre className="mt-2 whitespace-pre-wrap font-mono text-xs text-muted-foreground">
-                        {fw.defaultInstruction}
-                      </pre>
-                    </details>
-
-                    {/* EVERY source, not just the first. ESRU alone carries a
-                        primary plus several secondaries, and showing one of
-                        them implied the framework rested on a single paper. */}
-                    {fw.provenance.length > 0 ? (
-                      <div className="space-y-1">
-                        <p className="text-xs font-medium">{copy.sourcesLabel}</p>
-                        <ul className="space-y-1">
-                          {fw.provenance.map((p, i) => (
-                            <li key={i} className="text-xs text-muted-foreground">
-                              {p.citation} — {copy.vouchedBy(p.vouchedBy)}
-                              {p.note ? <span className="block opacity-80">{p.note}</span> : null}
-                            </li>
-                          ))}
-                        </ul>
-                      </div>
-                    ) : null}
-
-                    {error ? <p className="text-sm text-destructive">{error}</p> : null}
-
-                    <div className="flex items-center gap-2">
-                      <button
-                        type="button"
-                        disabled={busy || !draft.trim() || draft === fw.instruction}
-                        onClick={() => void save(fw)}
-                        className="rounded bg-brand px-3 py-1.5 text-sm text-white disabled:opacity-50"
-                      >
-                        {busy ? copy.saving : copy.save}
-                      </button>
-                      {fw.isOverridden ? (
-                        <button
-                          type="button"
-                          disabled={busy}
-                          onClick={() => void revert(fw)}
-                          className="flex items-center gap-1.5 rounded border px-3 py-1.5 text-sm hover:bg-muted disabled:opacity-50"
-                        >
-                          <RotateCcw className="h-3.5 w-3.5" aria-hidden />
-                          {copy.revert}
-                        </button>
-                      ) : null}
-                    </div>
-                  </div>
-                ) : null}
               </TeacherCard>
             );
           })}

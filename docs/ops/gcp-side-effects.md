@@ -288,3 +288,61 @@ auto-creates the partitioned table under the dataset's default retention).
 **Test/prod:** re-apply the `chat-logs` module (or re-run the bootstrap sink
 step) before the first rubric score, so `aipla_rubric_run` rows aren't dropped.
 No manual `bq mk` needed — the sink creates the table.
+
+---
+
+## 2026-09-11 — pedagogy-literature RAG corpus (1.1.110)
+
+**Created on `aipla-dev-2026` only, by hand, via
+`backend/scripts/ingest_literature.py --go`:**
+
+```
+Vertex AI RagCorpus  display name: aipla-literature-v1
+projects/aipla-dev-2026/locations/europe-north1/ragCorpora/4611686018427387904
+```
+
+Seven RagFiles, one per teaching framework, ingested from the **parsed Markdown**
+in `docs/literature/tp-framework/parsed/` (not the PDFs — the README says read
+those). Each file is named `<framework_id>.txt`; the citation is deliberately NOT
+stored in the corpus, because it already lives in the framework YAML's
+`provenance` and a second copy would drift.
+
+**Why a SECOND corpus rather than the curriculum one.** The curriculum corpus is
+reachable from a student session (scoped per activity by
+`build_curriculum_retrieval_tool`). This one holds copyrighted journal papers and
+must never be. Separation is structural: `db/literature_corpus.py` exposes no
+tool builder, so there is nothing for an agent to be handed, and
+`scripts/check-literature-corpus-isolation.sh` (CI-gated) fails the build if it
+is ever imported from the agent path.
+
+⚠️ **Copyright.** Copyrighted journal PDFs, kept as private working references
+and gitignored. Ingesting the parsed text into the project's own private corpus
+was approved by M on 2026-09-11. The corpus must never be made public, and no
+student-facing surface may cite from it.
+
+**Not yet done — and the feature is inert until it is:**
+
+1. `LITERATURE_RAG_CORPUS_NAME` is **not** injected into Cloud Run on any
+   environment, so the passage search reports `configured: false` everywhere
+   including dev. Store the resource name in Secret Manager and inject it the
+   way `CURRICULUM_RAG_CORPUS_NAME` is.
+2. **test and prod have no corpus at all.** Re-run the ingest per environment —
+   a RagCorpus is per-project and does not promote with an artifact.
+
+**Repeatable:**
+
+```bash
+export GOOGLE_CLOUD_PROJECT=aipla-<env>-2026
+export GOOGLE_CLOUD_LOCATION=europe-north1
+uv run python backend/scripts/ingest_literature.py          # dry run
+uv run python backend/scripts/ingest_literature.py --go
+```
+
+Idempotent: an existing corpus of the same display name is reused, and a paper
+already present (matched on the `<framework_id>.txt` display name) is skipped.
+
+**Gotcha, cost one failed run:** `rag.upload_file` rejects a JSON blob as
+`display_name` and fails indexing with a bare `RuntimeError: ('Failed in
+indexing the RagFile due to: ', {'code': 13})` that names nothing. The display
+name must be a plain filename, and `.txt` is the suffix known to index (the
+curriculum path's shape).

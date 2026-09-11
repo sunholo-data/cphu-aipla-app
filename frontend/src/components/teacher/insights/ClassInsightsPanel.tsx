@@ -18,6 +18,8 @@
 
 import { AlertCircle } from "lucide-react";
 
+import { useState } from "react";
+
 import { EngagementBar } from "./EngagementBar";
 import { KpiCard } from "./KpiCard";
 import { TrendSparkline } from "./TrendSparkline";
@@ -32,8 +34,26 @@ import {
 
 interface ClassInsightsPanelProps {
   classId: string;
+  /** Initial window; the panel carries its own selector from here. */
   since?: InsightsSince;
 }
+
+// Copy lives here rather than inline in JSX — the 1.1.108 rule.
+const copy = {
+  windowLabel: "Time window",
+  windowOption: { "7d": "7 days", "30d": "30 days", all: "All time" } as Record<InsightsSince, string>,
+  windowPhrase: { "7d": "the last 7 days", "30d": "the last 30 days", all: "all time" } as Record<
+    InsightsSince,
+    string
+  >,
+  // Said in words on purpose. An empty grid of zeros reads the same as a
+  // read that failed or a class the caller may not see, and a researcher
+  // cannot tell them apart — the footgun table's "checker that answers when
+  // it could not read", applied to a UI. The error case is the amber alert
+  // above; this is the genuine, verified absence.
+  nothingYet: (w: string) => `No student has sent a message in this class in ${w}.`,
+  nothingYetHint: "Widen the window, or check the class has a join code students have used.",
+};
 
 const KPI_DEFINITIONS: Record<string, string> = {
   activeGroups: "Groups with at least one message in this window.",
@@ -44,7 +64,8 @@ const KPI_DEFINITIONS: Record<string, string> = {
   lastActivity: "Most recent chat turn timestamp.",
 };
 
-export function ClassInsightsPanel({ classId, since = "7d" }: ClassInsightsPanelProps) {
+export function ClassInsightsPanel({ classId, since: initialSince = "30d" }: ClassInsightsPanelProps) {
+  const [since, setSince] = useState<InsightsSince>(initialSince);
   const kpis = useInsightsFetch(() => fetchInsightsClassKpis(classId, since), [classId, since]);
   const groups = useInsightsFetch(() => fetchInsightsClassGroups(classId, since), [classId, since]);
   const activities = useInsightsFetch(() => fetchInsightsClassActivities(classId, since), [classId, since]);
@@ -62,8 +83,32 @@ export function ClassInsightsPanel({ classId, since = "7d" }: ClassInsightsPanel
         <h2 id="insights-panel-label" className="text-lg font-semibold">
           Class insights
         </h2>
-        <p className="text-xs text-muted-foreground">Window: last 7 days</p>
+        <label className="flex items-center gap-2 text-xs text-muted-foreground">
+          <span>{copy.windowLabel}</span>
+          <select
+            value={since}
+            onChange={(e) => setSince(e.target.value as InsightsSince)}
+            aria-label={copy.windowLabel}
+            className="rounded border border-border bg-background px-2 py-1 text-xs"
+          >
+            {(["7d", "30d", "all"] as InsightsSince[]).map((w) => (
+              <option key={w} value={w}>
+                {copy.windowOption[w]}
+              </option>
+            ))}
+          </select>
+        </label>
       </header>
+
+      {kpis.data && kpis.data.kpis.totalMessages === 0 && kpis.data.kpis.simRuns === 0 ? (
+        <p
+          data-testid="insights-nothing-yet"
+          className="rounded border border-dashed border-border px-3 py-3 text-sm text-muted-foreground"
+        >
+          {copy.nothingYet(copy.windowPhrase[since])}{" "}
+          <span className="text-xs">{copy.nothingYetHint}</span>
+        </p>
+      ) : null}
 
       <Section title="At a glance" loading={kpis.isLoading} error={kpis.error}>
         {kpis.data ? (

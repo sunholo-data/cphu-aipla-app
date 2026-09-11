@@ -33,6 +33,7 @@ from auth.guards import assert_researcher, assert_teacher
 from db.authored_frameworks import (
     delete_authored_framework,
     get_authored_framework,
+    is_custom_id,
     list_authored_frameworks,
     make_framework_id,
     may_edit,
@@ -367,3 +368,59 @@ async def delete_custom_approach_route(
     delete_authored_framework(framework_id)
     log.info("custom approach deleted: %s by %s", framework_id, user.uid)
     return {"deleted": framework_id}
+
+
+# ── source passages (1.1.110) ────────────────────────────────────────────────
+
+
+class PassageQuery(BaseModel):
+    query: str = Field(min_length=2, max_length=500)
+    top_k: int = Field(default=5, ge=1, le=20, alias="topK")
+
+    model_config = ConfigDict(populate_by_name=True)
+
+
+@router.post("/{framework_id}/sources/search")
+async def search_sources_route(
+    framework_id: str = Path(...),
+    body: PassageQuery = Body(...),  # noqa: B008
+    user: User = Depends(get_current_user),  # noqa: B008
+) -> dict:
+    """Passages from the papers this framework is drafted from.
+
+    What turns ``vouchedBy: M`` from a claim into something a reader can check:
+    the citation says which paper, this shows the sentence.
+
+    RESEARCHER-ONLY, and not merely for tidiness — these are verbatim extracts
+    from copyrighted journal articles. Teachers do not get this, custom
+    approaches have no literature to search, and no student-facing surface may
+    reach it (``scripts/check-literature-corpus-isolation.sh``).
+
+    Degrades to an empty list with ``configured: false`` when the corpus is not
+    provisioned in this environment. Reported rather than silently empty: "no
+    passages" and "no corpus" would otherwise look identical, and the first
+    reads as the paper not supporting the claim.
+    """
+    assert_researcher(user)
+    if is_custom_id(framework_id):
+        raise HTTPException(
+            status_code=400,
+            detail="a custom approach has no source literature — it is authored, not drafted from a paper",
+        )
+    _require(framework_id)
+
+    from db.literature_corpus import get_literature_corpus_name, query_literature
+
+    if not get_literature_corpus_name():
+        return {"configured": False, "passages": [], "citations": []}
+
+    passages = await query_literature(body.query, top_k=body.top_k, framework_id=framework_id)
+    # The citation is resolved HERE, from the framework's own provenance, rather
+    # than stored alongside the text in the corpus. One source of truth for what
+    # a paper is called; the corpus holds only the words.
+    fw = _require(framework_id)
+    return {
+        "configured": True,
+        "passages": passages,
+        "citations": [p.model_dump(by_alias=True, mode="json") for p in fw.provenance],
+    }

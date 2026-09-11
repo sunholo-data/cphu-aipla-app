@@ -4,7 +4,7 @@
  * M9 sprint-acceptance requirement.
  */
 
-import { render, screen, waitFor } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { describe, expect, it, vi, beforeEach } from "vitest";
 
 vi.mock("@/components/teacher/insights/_chartsBundle", () => ({
@@ -107,5 +107,37 @@ describe("ClassInsightsPanel", () => {
     });
     expect(screen.getByText("Per-activity engagement")).toBeInTheDocument();
     expect(screen.getByText("Messages per day")).toBeInTheDocument();
+  });
+});
+
+describe("ClassInsightsPanel — empty is said in words; window is selectable (2026-09-11)", () => {
+  it("says no student has sent a message when the KPIs are genuinely zero", async () => {
+    fetchKpis.mockResolvedValue({
+      ...KPI_PAYLOAD,
+      kpis: { ...KPI_PAYLOAD.kpis, activeGroups: 0, totalMessages: 0, simRuns: 0, lastActivity: null },
+    });
+    fetchGroups.mockResolvedValue({ ...GROUPS_PAYLOAD, groups: [] });
+    fetchActivities.mockResolvedValue({ ...ACTIVITIES_PAYLOAD, activities: [] });
+    fetchTrend.mockResolvedValue({ ...TREND_PAYLOAD, perDay: [] });
+    render(<ClassInsightsPanel classId="c1" />);
+    expect(await screen.findByTestId("insights-nothing-yet")).toHaveTextContent(
+      "No student has sent a message in this class in the last 30 days.",
+    );
+    // and it is NOT the error alert — those are different facts
+    expect(screen.queryByRole("alert")).not.toBeInTheDocument();
+  });
+
+  it("does not say it when there IS activity, and refetches on a window change", async () => {
+    fetchKpis.mockResolvedValue(KPI_PAYLOAD);
+    fetchGroups.mockResolvedValue(GROUPS_PAYLOAD);
+    fetchActivities.mockResolvedValue(ACTIVITIES_PAYLOAD);
+    fetchTrend.mockResolvedValue(TREND_PAYLOAD);
+    render(<ClassInsightsPanel classId="c1" />);
+    await screen.findByText("142");
+    expect(screen.queryByTestId("insights-nothing-yet")).not.toBeInTheDocument();
+    expect(fetchKpis).toHaveBeenLastCalledWith("c1", "30d");
+
+    fireEvent.change(screen.getByRole("combobox", { name: "Time window" }), { target: { value: "all" } });
+    await waitFor(() => expect(fetchKpis).toHaveBeenLastCalledWith("c1", "all"));
   });
 });

@@ -391,3 +391,67 @@ def test_a_custom_approach_has_no_revert_target():
 
     _create(TEACHER)
     assert dfi("custom-warm-coach") == ""
+
+
+# ── source passages (1.1.110) ────────────────────────────────────────────────
+
+
+def test_passage_search_is_researcher_only():
+    """Verbatim extracts from copyrighted journal articles. A teacher authoring
+    their own approach has no business in them, and no student surface can
+    reach the corpus at all (check-literature-corpus-isolation.sh)."""
+    assert (
+        _client(TEACHER).post("/api/research/frameworks/esru/sources/search", json={"query": "wait time"}).status_code
+        == 403
+    )
+
+
+def test_an_unconfigured_corpus_is_REPORTED_not_rendered_as_no_passages(monkeypatch):
+    """ "No corpus" and "the paper does not support this" must not look alike.
+
+    The second is a finding about the literature; producing it from an
+    unprovisioned environment would be the deploy-status footgun applied to a
+    citation.
+    """
+    import db.literature_corpus as lit
+
+    monkeypatch.setattr(lit, "get_literature_corpus_name", lambda: None)
+    body = _client(RESEARCHER).post("/api/research/frameworks/esru/sources/search", json={"query": "wait time"}).json()
+    assert body["configured"] is False
+    assert body["passages"] == []
+
+
+def test_passages_come_back_with_the_frameworks_own_citations(monkeypatch):
+    """The citation is resolved from the framework's provenance, not stored in
+    the corpus beside the text — one source of truth for what a paper is called.
+    """
+    import db.literature_corpus as lit
+
+    async def fake_query(query, *, top_k=5, framework_id=None):
+        return [
+            {"text": "the dimensions ... are used only in the eliciting phase", "frameworkId": "esru", "score": 0.3}
+        ]
+
+    monkeypatch.setattr(lit, "get_literature_corpus_name", lambda: "projects/p/locations/europe-north1/ragCorpora/1")
+    monkeypatch.setattr(lit, "query_literature", fake_query)
+
+    body = (
+        _client(RESEARCHER)
+        .post("/api/research/frameworks/esru/sources/search", json={"query": "eliciting phase"})
+        .json()
+    )
+    assert body["configured"] is True
+    assert "eliciting phase" in body["passages"][0]["text"]
+    assert any("Ruiz-Primo" in c["citation"] for c in body["citations"])
+    assert all(c["vouchedBy"] for c in body["citations"])
+
+
+def test_a_custom_approach_has_no_literature_to_search():
+    """It was written, not drafted from a paper. Returning an empty list would
+    imply the search ran and found nothing in a corpus it never had."""
+    _create(TEACHER)
+    resp = _client(RESEARCHER).post(
+        "/api/research/frameworks/custom-warm-coach/sources/search", json={"query": "kindness"}
+    )
+    assert resp.status_code == 400
+    assert "authored, not drafted" in resp.json()["detail"]

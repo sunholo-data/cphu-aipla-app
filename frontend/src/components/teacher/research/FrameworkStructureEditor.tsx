@@ -156,11 +156,15 @@ export function FrameworkStructureEditor({
   framework,
   onSave,
   onCancel,
+  onRevert,
   busy,
   error,
 }: {
   framework: TeachingFrameworkPayload;
   onSave: (structure: FrameworkStructure) => void;
+  /** Delete the saved override and go back to the published framework.
+   *  Undefined when there is nothing to revert. */
+  onRevert?: () => void;
   onCancel: () => void;
   busy: boolean;
   error: string | null;
@@ -212,19 +216,33 @@ export function FrameworkStructureEditor({
           <p className="mt-0.5 text-xs text-muted-foreground">
             Edit the constructs themselves — the moves this approach is made of. Fixed code turns
             them into the tutor&rsquo;s instructions, copying each behaviour word for word, so what
-            the tutor is told stays checkable line by line against the sources below. Saving here
-            discards any hand-written wording saved under &ldquo;Edit wording&rdquo;: the two are
-            alternatives, not layers.
+            the tutor is told stays checkable line by line against the sources below.
           </p>
         </div>
-        <button
-          type="button"
-          onClick={() => setDraft(defaultStructureOf(framework))}
-          className="flex shrink-0 items-center gap-1.5 rounded border px-2 py-1 text-xs hover:bg-muted"
-        >
-          <RotateCcw className="h-3 w-3" aria-hidden />
-          Reset to published
-        </button>
+        <div className="flex shrink-0 items-center gap-2">
+          {/* Two different things, and the labels have to say which is which.
+              "Reset the form" only refills these fields from the published
+              framework — the saved override is untouched until you save.
+              "Discard saved edits" deletes it. Conflating them would let a
+              researcher believe they had reverted when they had not. */}
+          <button
+            type="button"
+            onClick={() => setDraft(defaultStructureOf(framework))}
+            className="flex items-center gap-1.5 rounded border px-2 py-1 text-xs hover:bg-muted"
+          >
+            <RotateCcw className="h-3 w-3" aria-hidden />
+            Reset the form to published
+          </button>
+          {onRevert ? (
+            <button
+              type="button"
+              onClick={onRevert}
+              className="flex items-center gap-1.5 rounded border px-2 py-1 text-xs hover:bg-muted"
+            >
+              Discard saved edits
+            </button>
+          ) : null}
+        </div>
       </div>
 
       <Field

@@ -1231,10 +1231,11 @@ export async function revertFrameworkInstruction(frameworkId: string): Promise<T
 
 /** Save an edited framework STRUCTURE — constructs, behaviours, citations.
  *
- *  Distinct from `saveFrameworkInstruction` on purpose. Editing the rendered
- *  text can say anything; editing the structure means the instruction is still
- *  generated from constructs that each trace to a source, which is what keeps a
- *  researcher's edit reviewable.
+ *  The ONLY way to change what a published framework tells a tutor (1.1.110).
+ *  Editing the rendered text directly used to be an alternative and was removed:
+ *  free text can say anything, while an edit to the constructs keeps the
+ *  instruction generated from sources that each trace to a paper. Free-text
+ *  authoring now lives on a custom approach, which says so about itself.
  */
 export async function saveFrameworkStructure(
   frameworkId: string,
