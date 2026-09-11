@@ -26,13 +26,21 @@ models:
     max_output_tokens: 65_536
     description: "Gemini 3.5 Flash-Lite — platform default; cheapest/fastest, 1M context (the tutor + skills + analytics sub-tasks run this). Replaces gemini-2.5-flash and the former gemini-3.5-flash default."
 
+  gemini-3-8-flash:
+    api_name: "gemini-3.8-flash"
+    provider: google
+    tier: smart
+    context_window: 1_000_000
+    max_output_tokens: 65_536
+    description: "Gemini 3.8 Flash — the smart tier from 2026-09-11. Listed FIRST so smart_model() picks it over 3.7. Verified against the real tutor prompt before switching: comparable to 3.7 on tool-naming (6/9) and Danish (6/9), not measurably better — the reason to move is currency, not a quality gain. NOTE there is no 3.8 flash-LITE (404 on Vertex), so the default/fast tier stays on 3.5-flash-lite; the tiers move independently now."
+
   gemini-3-7-flash:
     api_name: "gemini-3.7-flash"
     provider: google
     tier: smart
     context_window: 1_000_000
     max_output_tokens: 65_536
-    description: "Gemini 3.7 Flash (released 2026-08-13) — algorithmic refinement of 3.6 Flash, not a new pretraining run. Stronger coding/debugging, document-heavy knowledge work, and web dev; half the price of 3.6 Flash at introductory pricing through end of 2026. Listed first so smart_model() picks it over 3.6 Flash."
+    description: "Gemini 3.7 Flash (released 2026-08-13) — superseded as the auto-selected smart tier by gemini-3.8-flash on 2026-09-11. KEPT REGISTERED: 345 prod chat-log rows name it, and the cost dashboard prices historical rows by this exact id. Half the price of 3.6 Flash at introductory pricing through end of 2026."
 
   gemini-3-6-flash:
     api_name: "gemini-3.6-flash"

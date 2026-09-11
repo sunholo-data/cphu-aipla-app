@@ -39,6 +39,15 @@ MODEL_RATE_CARD: dict[str, Rate] = {
     # Gemini 3.x rates confirmed 2026-07-22 (Vertex list price, USD per 1k).
     # Historical ids retained below for costing past BigQuery rows.
     "gemini-3.5-flash-lite": Rate(0.0003, 0.0025),  # platform default ($0.30 / $2.50 per 1M)
+    # ⚠️ PROVISIONAL, and deliberately NOT cheaper than 3.7. Added 2026-09-11
+    # with the smart-tier switch; Google's published price for 3.8 Flash has not
+    # been confirmed from here. Without an entry it would fall through to the
+    # generic `gemini-flash` family rate (0.0003/0.0012) — a THIRD of 3.7's —
+    # and the cost dashboard would quietly under-report the highest-volume tier
+    # in the product, which is the wrong direction to be wrong in while the
+    # cloud envelope (1.1.106) is still unmeasured. Replace with the real figure
+    # when someone reads the price list.
+    "gemini-3.8-flash": Rate(0.00075, 0.00375),
     "gemini-3.7-flash": Rate(0.00075, 0.00375),  # smart tier ($0.75 / $3.75 per 1M, intro pricing thru end of 2026)
     "gemini-3.6-flash": Rate(0.0015, 0.0075),  # superseded smart tier; still priced for pinned/historical rows
     "gemini-2.5-flash": Rate(0.0003, 0.0012),
