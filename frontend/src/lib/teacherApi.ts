@@ -1462,9 +1462,26 @@ function chatLogQuery(filter: ChatLogFilter, extra: Record<string, string | numb
 }
 
 /** Counts per teaching approach — the tab strip. */
-export async function listChatLogTabs(): Promise<{ tabs: ChatLogTab[]; unassignedKey: string }> {
+/** What the lens is NOT showing: teacher co-pilot chatter and tutor previews.
+ *  Real rows in the same table, and not teaching — nobody was taught. Reported
+ *  so the totals can be reconciled against the raw table. */
+export interface ChatLogExcluded {
+  teacher_turns: number;
+  teacher_sessions: number;
+  preview_turns: number;
+  preview_sessions: number;
+}
+
+export async function listChatLogTabs(): Promise<{
+  tabs: ChatLogTab[];
+  unassignedKey: string;
+  excluded?: ChatLogExcluded;
+}> {
   const resp = await fetchWithAuth("/api/proxy/api/research/logs/tabs");
-  return readJson<{ tabs: ChatLogTab[]; unassignedKey: string }>(resp, "list chat-log tabs");
+  return readJson<{ tabs: ChatLogTab[]; unassignedKey: string; excluded?: ChatLogExcluded }>(
+    resp,
+    "list chat-log tabs",
+  );
 }
 
 /** Conversations in one tab. */

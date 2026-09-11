@@ -43,6 +43,24 @@ from db.bigquery import CHAT_TURN_TABLE, run_query, table_ref
 
 log = logging.getLogger(__name__)
 
+#: Group-id prefixes that are NOT a student conversation.
+#:
+#: ``teacher:{uid}`` rows are the teacher-facing skills — the co-pilots,
+#: analytics-chat, manage-class — logged for COST telemetry (ACCESS-1 Ring 3)
+#: and deliberately content-free, because a teacher's chat can quote a student's
+#: work and logging it would add a PII surface by the back door.
+#:
+#: ``preview:{uid}`` is a tutor preview (1.1.91 M3): a researcher or teacher
+#: talking to a tutor to see how it teaches. Real tutor turns, real framework —
+#: and NOT teaching. Nobody was taught.
+#:
+#: ⚠️ Excluding these is a CORRECTION, not a refinement. Until 2026-09-11 this
+#: lens showed 23 teacher sessions on prod among the student conversations,
+#: separable only by having no content — and a preview would have been worse,
+#: because it carries a framework and would have landed in a framework tab
+#: looking like classroom evidence.
+NON_STUDENT_PREFIXES = ("teacher:", "preview:")
+
 #: Sentinel for "the framework_id IS NULL bucket" on the wire. Not a real
 #: framework id (those are slugs like ``esru`` / ``accountable-talk``), so it
 #: cannot collide with one.
@@ -103,6 +121,19 @@ def _turns_cte() -> str:
     """
 
 
+#: SQL that keeps only student conversations. Inlined into every query rather
+#: than left to each caller — a lens where one query forgets this shows teacher
+#: chatter as teaching, which is the bug being fixed.
+#
+# ⚠️ IFNULL, and it is load-bearing. `NOT STARTS_WITH(NULL, 'teacher:')` is
+# NULL, not TRUE, so a plain NOT STARTS_WITH silently DROPS every row with no
+# group_id — 21 of them on prod, which is how this was caught: the lens totals
+# stopped reconciling with the raw table by exactly that many. A row with no
+# group is not a teacher row; it is an unattributed row, and hiding it is the
+# opposite of what this lens is for.
+_STUDENT_ONLY = " AND ".join(f"NOT STARTS_WITH(IFNULL(group_id, ''), '{p}')" for p in NON_STUDENT_PREFIXES)
+
+
 def _filter_sql(framework: str | None, class_id: str | None, activity_id: str | None) -> tuple[str, dict[str, Any]]:
     """Build the WHERE clause + bound params for the researcher's filter.
 
@@ -111,7 +142,7 @@ def _filter_sql(framework: str | None, class_id: str | None, activity_id: str | 
     equality or tested for NULL, which is a branch on a sentinel, not on caller
     text reaching the SQL.
     """
-    clauses: list[str] = []
+    clauses: list[str] = [_STUDENT_ONLY]
     params: dict[str, Any] = {}
     if framework == UNASSIGNED:
         clauses.append("framework_id IS NULL")
@@ -147,10 +178,31 @@ def framework_tabs() -> list[dict[str, Any]]:
           MIN(ts) AS first_ts,
           MAX(ts) AS last_ts
         FROM turns
+        WHERE {_STUDENT_ONLY}
         GROUP BY framework_id
         ORDER BY turns DESC
     """
     return [dict(r) for r in run_query(sql)]
+
+
+def excluded_counts() -> dict[str, Any]:
+    """How much this lens is NOT showing, and why.
+
+    Reported rather than silently dropped. A lens that quietly filters is a lens
+    whose totals nobody can reconcile against BigQuery — and "why does the app
+    say 62 when the table says 85" is a question that costs an afternoon.
+    """
+    sql = f"""
+        WITH turns AS ({_turns_cte()})
+        SELECT
+          COUNTIF(STARTS_WITH(group_id, 'teacher:')) AS teacher_turns,
+          COUNT(DISTINCT IF(STARTS_WITH(group_id, 'teacher:'), session_id, NULL)) AS teacher_sessions,
+          COUNTIF(STARTS_WITH(group_id, 'preview:')) AS preview_turns,
+          COUNT(DISTINCT IF(STARTS_WITH(group_id, 'preview:'), session_id, NULL)) AS preview_sessions
+        FROM turns
+    """
+    rows = run_query(sql)
+    return dict(rows[0]) if rows else {}
 
 
 def list_sessions(
@@ -218,7 +270,7 @@ def session_transcript(session_id: str) -> list[dict[str, Any]]:
                teaching_source, group_id, skill_id, revision, app_version,
                content IN UNNEST(@synthetic) AS is_synthetic
         FROM turns
-        WHERE session_id = @session_id
+        WHERE session_id = @session_id AND {_STUDENT_ONLY}
         ORDER BY turn_index NULLS LAST, ts
         LIMIT {MAX_TRANSCRIPT_TURNS}
     """
@@ -258,6 +310,7 @@ __all__ = [
     "MAX_LIMIT",
     "SYNTHETIC_CONTENT",
     "UNASSIGNED",
+    "excluded_counts",
     "export_turns",
     "framework_tabs",
     "list_sessions",

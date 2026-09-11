@@ -72,7 +72,14 @@ async def tabs_route(user: User = Depends(get_current_user)) -> dict:  # noqa: B
     framework nobody has been assigned still shows, at zero.
     """
     assert_researcher(user)
-    return {"tabs": _rows(_read(research_logs.framework_tabs)), "unassignedKey": research_logs.UNASSIGNED}
+    return {
+        "tabs": _rows(_read(research_logs.framework_tabs)),
+        "unassignedKey": research_logs.UNASSIGNED,
+        # What the lens is NOT showing. Reported so the totals here can be
+        # reconciled against the raw table — a quietly filtered lens is one
+        # whose numbers nobody can explain.
+        "excluded": _read(research_logs.excluded_counts),
+    }
 
 
 @router.get("/sessions")

@@ -55,11 +55,19 @@ def test_tabs_returns_rows_and_the_unassigned_key(monkeypatch):
         "framework_tabs",
         lambda: [{"framework_id": "esru", "sessions": 3, "turns": 20}],
     )
+    monkeypatch.setattr(
+        research_logs,
+        "excluded_counts",
+        lambda: {"teacher_turns": 150, "teacher_sessions": 23, "preview_turns": 0, "preview_sessions": 0},
+    )
     resp = _client(RESEARCHER).get("/api/research/logs/tabs")
     assert resp.status_code == 200
     body = resp.json()
     assert body["tabs"][0]["framework_id"] == "esru"
     assert body["unassignedKey"] == research_logs.UNASSIGNED
+    # What the lens is NOT showing travels with it, so its totals can be
+    # reconciled against the raw table.
+    assert body["excluded"]["teacher_sessions"] == 23
 
 
 def test_unreadable_store_is_503_not_an_empty_result(monkeypatch):

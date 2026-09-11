@@ -82,13 +82,33 @@ def test_filters_bind_parameters_and_never_interpolate():
 
 def test_unassigned_filter_is_a_null_test_not_an_equality():
     where, params = research_logs._filter_sql(research_logs.UNASSIGNED, None, None)
-    assert where == "WHERE framework_id IS NULL"
+    assert "framework_id IS NULL" in where
     assert "framework" not in params
 
 
-def test_no_filter_yields_no_where_clause():
+def test_every_filter_excludes_non_student_turns():
+    """The correction of 2026-09-11. Teacher co-pilot turns (and, from M3,
+    tutor previews) are real rows in the same table and are NOT teaching —
+    nobody was taught. Before this, 23 teacher sessions sat on prod among the
+    student conversations, separable only by having no content.
+
+    Asserted on EVERY filter shape, because a lens where one query forgets it
+    shows chatter as evidence."""
+    for args in (
+        (None, None, None),
+        (research_logs.UNASSIGNED, None, None),
+        ("esru", "c-1", "a-1"),
+    ):
+        where, _ = research_logs._filter_sql(*args)
+        for prefix in research_logs.NON_STUDENT_PREFIXES:
+            assert f"NOT STARTS_WITH(IFNULL(group_id, ''), '{prefix}')" in where
+
+
+def test_no_caller_filter_still_narrows_to_student_conversations():
+    """There is no such thing as "no WHERE clause" here any more: the lens is
+    about student conversations, and that is a floor rather than a filter."""
     where, params = research_logs._filter_sql(None, None, None)
-    assert where == ""
+    assert where.startswith("WHERE NOT STARTS_WITH")
     assert params == {}
 
 
@@ -170,3 +190,42 @@ def test_readable_turns_excludes_the_synthetic_sentinel(monkeypatch):
     monkeypatch.setattr(research_logs, "run_query", fake_run_query)
     research_logs.list_sessions()
     assert "NOT IN UNNEST(@synthetic)) AS readable_turns" in captured["sql"]
+
+
+def test_the_exclusion_is_null_safe():
+    """`NOT STARTS_WITH(NULL, 'teacher:')` is NULL, not TRUE.
+
+    Without IFNULL the filter silently DROPS every row with no group_id — 21 of
+    them on prod, caught because the lens totals stopped reconciling with the
+    raw table by exactly that many. A row with no group is not a teacher row;
+    it is an unattributed row, and hiding it is the opposite of what this lens
+    is for.
+    """
+    where, _ = research_logs._filter_sql(None, None, None)
+    assert "IFNULL(group_id, '')" in where
+    assert "STARTS_WITH(group_id," not in where  # the unguarded form must not survive
+
+
+def test_excluded_counts_reports_what_the_lens_hides():
+    """Reported, not silently dropped. A lens whose totals cannot be reconciled
+    against the table is one whose numbers nobody can explain."""
+    captured = {}
+
+    def fake_run_query(sql, params=None):
+        captured["sql"] = sql
+        return [{"teacher_turns": 150, "teacher_sessions": 23, "preview_turns": 0, "preview_sessions": 0}]
+
+    import pytest
+
+    monkey = pytest.MonkeyPatch()
+    monkey.setattr(research_logs, "run_query", fake_run_query)
+    try:
+        out = research_logs.excluded_counts()
+    finally:
+        monkey.undo()
+
+    assert out["teacher_sessions"] == 23
+    # It counts BOTH excluded kinds, so adding a third prefix without extending
+    # this shows up as a number that no longer adds up.
+    for prefix in research_logs.NON_STUDENT_PREFIXES:
+        assert prefix in captured["sql"]

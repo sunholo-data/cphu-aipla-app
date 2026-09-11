@@ -77,6 +77,23 @@ afterEach(() => {
 });
 
 describe("researcher chat-log lens", () => {
+  it("says what it is NOT showing, rather than filtering silently", async () => {
+    // Teacher co-pilot chatter and tutor previews are real rows in the same
+    // table and are not teaching. Until 2026-09-11 they were IN these tabs,
+    // separable from student conversations only by having no content.
+    vi.spyOn(teacherApi, "listChatLogTabs").mockResolvedValue({
+      tabs: [tab()],
+      unassignedKey: UNASSIGNED,
+      excluded: { teacher_sessions: 23, teacher_turns: 150, preview_sessions: 2, preview_turns: 9 },
+    });
+    vi.spyOn(teacherApi, "listChatLogSessions").mockResolvedValue([session()]);
+
+    render(<ResearchLogsPage />);
+
+    expect(await screen.findByText(/Not shown: 25 teacher co-pilot or tutor-preview sessions/i)).toBeInTheDocument();
+    expect(screen.getByText(/nobody was taught in them/i)).toBeInTheDocument();
+  });
+
   it("renders a tab per teaching approach with its conversation count", async () => {
     vi.spyOn(teacherApi, "listChatLogTabs").mockResolvedValue({
       tabs: [tab(), tab({ framework_id: UNASSIGNED, sessions: 78, turns: 822 })],

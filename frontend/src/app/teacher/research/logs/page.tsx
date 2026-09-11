@@ -25,6 +25,8 @@ const copy = {
   title: "Conversations by teaching approach",
   subtitleFor: (sessions: number, turns: number) =>
     `${sessions} conversations · ${turns} turns recorded`,
+  excludedNote: (sessions: number, turns: number) =>
+    `Not shown: ${sessions} teacher co-pilot or tutor-preview session${sessions === 1 ? "" : "s"} (${turns} turns). Real turns, but nobody was taught in them — they are excluded so the tabs above are only student conversations.`,
   loading: "Loading conversations…",
   forbiddenTitle: "Researcher access required",
   forbiddenBody:
@@ -90,6 +92,7 @@ function tabLabel(id: string, names: Map<string, string>): string {
 export default function ResearchLogsPage() {
   const [status, setStatus] = useState<Status>("loading");
   const [tabs, setTabs] = useState<ChatLogTab[]>([]);
+  const [excluded, setExcluded] = useState<{ sessions: number; turns: number } | null>(null);
   const [names, setNames] = useState<Map<string, string>>(new Map());
   const [active, setActive] = useState<string | null>(null);
   const [sessions, setSessions] = useState<ChatLogSession[]>([]);
@@ -127,6 +130,12 @@ export default function ResearchLogsPage() {
         const all = [...tabsBody.tabs, ...zeroes];
         setNames(catalogue);
         setTabs(all);
+        const ex = tabsBody.excluded;
+        if (ex) {
+          const s = (ex.teacher_sessions ?? 0) + (ex.preview_sessions ?? 0);
+          const t = (ex.teacher_turns ?? 0) + (ex.preview_turns ?? 0);
+          setExcluded(s || t ? { sessions: s, turns: t } : null);
+        }
         setActive((cur) => cur ?? all[0]?.framework_id ?? null);
         setStatus("ok");
       })
@@ -255,6 +264,15 @@ export default function ResearchLogsPage() {
       }
     >
       {exportError ? <p className="text-sm text-destructive">{exportError}</p> : null}
+
+      {/* Reported rather than silently filtered. Until 2026-09-11 these rows
+          were IN the tabs, separable from student conversations only by having
+          no content. */}
+      {excluded ? (
+        <p className="text-xs text-muted-foreground">
+          {copy.excludedNote(excluded.sessions, excluded.turns)}
+        </p>
+      ) : null}
 
       <div role="tablist" aria-label={copy.title} className="flex flex-wrap gap-1 border-b border-border">
         {tabs.map((tab) => {
