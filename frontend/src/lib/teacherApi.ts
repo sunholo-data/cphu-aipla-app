@@ -1619,3 +1619,48 @@ export async function searchFrameworkSources(
   );
   return readJson<SourcePassages>(resp, "search framework sources");
 }
+
+// --- Tutor preview (1.1.91 M3) ---------------------------------------------
+//
+// A scratch conversation against one or two tutors, on your own turns. Two
+// audiences: a researcher checking an approach does what it claims before
+// signing it off, and a teacher comparing operationalised pedagogies by talking
+// to them ("see the different ways we teach", 09-09).
+//
+// No student data. Turns are the caller's own and are logged content-free under
+// `preview:` so the researcher chat-log lens excludes them by construction — a
+// preview is a real tutor turn with a real framework, and unmarked it would read
+// as classroom evidence when nobody was taught.
+
+export interface PreviewComposedFrom {
+  skill: string;
+  skillFound: boolean;
+  approach: string | null;
+  approachId: string | null;
+  register: string | null;
+  persona: string | null;
+  /** What a preview does NOT carry, stated rather than implied. */
+  notIncluded: string[];
+}
+
+export interface TutorPreviewReply {
+  ok: boolean;
+  tutorId: string;
+  displayName?: string;
+  reply?: string;
+  error?: string;
+  composedFrom?: PreviewComposedFrom;
+}
+
+export async function previewTutors(
+  message: string,
+  tutorIds: string[],
+): Promise<TutorPreviewReply[]> {
+  const resp = await fetchWithAuth("/api/proxy/api/research/tutors/preview", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ message, tutorIds }),
+  });
+  const body = await readJson<{ replies: TutorPreviewReply[] }>(resp, "preview tutors");
+  return body.replies;
+}

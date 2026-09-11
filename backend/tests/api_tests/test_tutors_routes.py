@@ -328,3 +328,74 @@ def test_assigning_to_a_skill_md_tutor_does_not_freeze_it_against_the_seed():
     assert get_authored_tutor("led-planck-tutor").summary == "Edited in the template."
     # The researcher's assignment survives the seed run.
     assert resolve_tutor("led-planck-tutor").framework_id == "poe"
+
+
+# ── preview (1.1.91 M3) ──────────────────────────────────────────────────────
+
+
+def test_preview_is_teacher_accessible_not_researcher_only(monkeypatch):
+    """Deliberate. The 09-09 meeting asked for the tutor library as TEACHER
+    training — "see the different ways we teach" — so gating it to researchers
+    would lock out the audience it was requested for. It reads the app's own
+    prompts (already visible through the tutor picker) and no student data."""
+    from analytics import tutor_preview as tp
+
+    async def fake_turn(tid, msg, *, uid):
+        return {"ok": True, "tutorId": tid, "displayName": tid, "reply": f"{tid} says hi", "composedFrom": {}}
+
+    monkeypatch.setattr(tp, "run_preview_turn", fake_turn)
+
+    c = _client(TEACHER)
+    resp = c.post(
+        "/api/research/tutors/preview",
+        json={"message": "Why does a heavier ball not fall faster?", "tutorIds": ["mikkel", "sofie"]},
+    )
+    assert resp.status_code == 200
+    body = resp.json()
+    # TWO replies to the SAME message — the comparison is the point.
+    assert [r["tutorId"] for r in body["replies"]] == ["mikkel", "sofie"]
+    assert body["message"].startswith("Why does")
+
+
+def test_preview_refuses_a_non_teacher():
+    c = _client(User(uid="s-1", is_teacher=False))
+    assert c.post("/api/research/tutors/preview", json={"message": "hi", "tutorIds": ["mikkel"]}).status_code == 403
+
+
+def test_preview_compares_at_most_two_tutors():
+    c = _client(TEACHER)
+    resp = c.post(
+        "/api/research/tutors/preview",
+        json={"message": "hi", "tutorIds": ["a", "b", "c"]},
+    )
+    assert resp.status_code == 422
+
+
+def test_one_bad_tutor_does_not_lose_the_other_reply(monkeypatch):
+    """A comparison with one unknown id is still worth half."""
+    from analytics import tutor_preview as tp
+
+    async def fake_turn(tid, msg, *, uid):
+        if tid == "nope":
+            return {"ok": False, "tutorId": tid, "error": "unknown tutor: nope"}
+        return {"ok": True, "tutorId": tid, "displayName": tid, "reply": "hi", "composedFrom": {}}
+
+    monkeypatch.setattr(tp, "run_preview_turn", fake_turn)
+    body = (
+        _client(TEACHER)
+        .post("/api/research/tutors/preview", json={"message": "hi", "tutorIds": ["mikkel", "nope"]})
+        .json()
+    )
+    assert body["replies"][0]["ok"] is True
+    assert body["replies"][1]["ok"] is False
+
+
+def test_the_preview_prompt_is_readable_beside_the_reply():
+    """Reviewability: a reader holds the prompt against what came back."""
+    c = _client(TEACHER)
+    resp = c.get("/api/research/tutors/concept-dialogue/preview-prompt")
+    if resp.status_code == 404:
+        pytest.skip("no concept-dialogue tutor in this environment")
+    body = resp.json()
+    assert body["ok"] is True
+    assert "activity materials" in body["composedFrom"]["notIncluded"]

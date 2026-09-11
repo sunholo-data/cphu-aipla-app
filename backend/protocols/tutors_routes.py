@@ -345,3 +345,71 @@ async def clear_tutor_framework_route(
     assert_researcher(user)
     clear_assignment(tutor_id)
     return {"tutor": _serialize(resolve_tutor(tutor_id)), "assignment": None}
+
+
+# ── preview (1.1.91 M3) ──────────────────────────────────────────────────────
+
+
+class PreviewBody(BaseModel):
+    """A scratch turn against one or two tutors.
+
+    TWO tutors is the normal case, not a bonus: *"the question is nearly always
+    comparative"*. One tutor tells you what it said; two tell you what the
+    approach changed.
+    """
+
+    message: str = Field(min_length=1, max_length=2000)
+    tutor_ids: list[str] = Field(alias="tutorIds", min_length=1, max_length=2)
+
+    model_config = ConfigDict(populate_by_name=True)
+
+
+@router.post("/api/research/tutors/preview")
+async def preview_tutors_route(
+    body: PreviewBody = Body(...),  # noqa: B008
+    user: User = Depends(get_current_user),  # noqa: B008
+) -> dict:
+    """Talk to one or two tutors, side by side, on your own turn.
+
+    **Teacher-accessible, deliberately.** The 09-09 meeting asked for the tutor
+    library as teacher training — *"teachers can use the tutors as teaching
+    training to see the different ways we teach"* — and this is that, pointed at
+    a person rather than a configuration screen. It reads the app's own prompts,
+    which a teacher can already see through the tutor picker's disclosure; it
+    reads no student data and no literature.
+
+    ⚠️ **No student data, and it cannot read as teaching.** Turns are the
+    caller's own and are logged under ``preview:{uid}`` WITHOUT content, so spend
+    stays visible while the researcher chat-log lens excludes them by
+    construction. A preview is a real tutor turn carrying a real framework_id —
+    unmarked, it would land in a framework tab as classroom evidence when nobody
+    was taught.
+    """
+    assert_teacher(user)
+
+    from analytics.tutor_preview import run_preview_turn
+
+    replies = [await run_preview_turn(tid, body.message, uid=user.uid) for tid in body.tutor_ids]
+    return {"message": body.message, "replies": replies}
+
+
+@router.get("/api/research/tutors/{tutor_id}/preview-prompt")
+async def preview_prompt_route(
+    tutor_id: str = Path(...),
+    user: User = Depends(get_current_user),  # noqa: B008
+) -> dict:
+    """What this tutor would be told in a preview, and what that is made of.
+
+    Shown beside the reply so a reviewer can hold one against the other — the
+    same reviewability property the whole framework layer exists for. States
+    what a preview does NOT carry (activity materials, teacher ILOs, group
+    history) rather than implying parity with a lesson turn.
+    """
+    assert_teacher(user)
+
+    from analytics.tutor_preview import compose_preview_instruction
+
+    composed = compose_preview_instruction(tutor_id)
+    if not composed.get("ok"):
+        raise HTTPException(status_code=404, detail=composed.get("error", "unknown tutor"))
+    return composed

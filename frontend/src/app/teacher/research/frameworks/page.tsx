@@ -15,6 +15,7 @@ import { TeacherCard } from "@/components/teacher/ui/TeacherCard";
 import { TeacherPage } from "@/components/teacher/ui/TeacherPage";
 import { FrameworkStructureEditor } from "@/components/teacher/research/FrameworkStructureEditor";
 import { CustomApproachPanel } from "@/components/teacher/research/CustomApproachPanel";
+import { TutorPreviewPanel } from "@/components/teacher/research/TutorPreviewPanel";
 import { TutorCopilot } from "./_TutorCopilot";
 import type { TutorProposal } from "./tutorCopilotProposal";
 import { TutorApproachPanel } from "@/components/teacher/research/TutorApproachPanel";
@@ -196,6 +197,9 @@ export default function ResearchFrameworksPage() {
            an access-required page would hide a surface built for them. */
         <div className="space-y-4">
           <p className="text-sm text-muted-foreground">{copy.teacherTierNote}</p>
+          {/* The 09-09 ask — the tutor library as teacher training — lands
+              here, for the audience it was requested for. */}
+          <TutorPreviewPanel />
           <CustomApproachPanel />
         </div>
       ) : status === "error" ? (
@@ -243,6 +247,7 @@ export default function ResearchFrameworksPage() {
               {copilotNote}
             </p>
           ) : null}
+          <TutorPreviewPanel />
           <CustomApproachPanel />
           {frameworks.map((fw) => {
             const isOpen = openId === fw.id;
