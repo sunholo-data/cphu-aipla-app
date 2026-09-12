@@ -9,6 +9,10 @@ export interface TeacherTab {
   label: string;
   /** Optional count shown as a pill after the label. */
   count?: number;
+  /** Optional second line under the label. A vertical rail carries a lot of
+   *  similar-looking entries, and the status of the thing is what tells them
+   *  apart at a glance. Ignored in the horizontal layout. */
+  hint?: string;
   content: ReactNode;
 }
 
@@ -30,6 +34,13 @@ export interface TeacherTab {
  * ⚠️ Every panel stays MOUNTED and is hidden with `hidden`, not unmounted. A
  * panel that unmounts loses whatever the user typed into it — a half-written
  * custom approach, a preview question — the moment they glance at another tab.
+ *
+ * ⚠️ And a hidden panel must carry NO display utility. `hidden` is a UA-
+ * stylesheet rule (`[hidden] { display: none }`), so ANY author `display:`
+ * beats it — this component shipped with `className="flex flex-col gap-4"` on
+ * every panel, which made the attribute inert and rendered all four panels down
+ * one page with the tabs apparently doing nothing. Tests could not see it:
+ * jsdom applies no Tailwind, so there the attribute wins and all is well.
  */
 export function TeacherTabs({
   tabs,
@@ -37,20 +48,29 @@ export function TeacherTabs({
   onChange,
   ariaLabel,
   className,
+  orientation = "horizontal",
 }: {
   tabs: TeacherTab[];
   active: string;
   onChange: (id: string) => void;
   ariaLabel: string;
   className?: string;
+  /** Vertical puts the tablist in a left rail. Use it when the labels are long
+   *  or numerous enough that a horizontal strip wraps into a block of its own —
+   *  seven framework names do. */
+  orientation?: "horizontal" | "vertical";
 }) {
   const base = useId();
   const listRef = useRef<HTMLDivElement>(null);
 
   const onKeyDown = useCallback(
     (e: React.KeyboardEvent) => {
-      const keys = ["ArrowLeft", "ArrowRight", "Home", "End"];
-      if (!keys.includes(e.key)) return;
+      // A vertical tablist is expected to move with ↑/↓ and a horizontal one
+      // with ←/→. Both pairs are accepted in both orientations: the wrong pair
+      // is a dead key, not a discoverable affordance.
+      const prev = ["ArrowLeft", "ArrowUp"];
+      const nxt = ["ArrowRight", "ArrowDown"];
+      if (![...prev, ...nxt, "Home", "End"].includes(e.key)) return;
       e.preventDefault();
       const i = tabs.findIndex((t) => t.id === active);
       const next =
@@ -58,7 +78,7 @@ export function TeacherTabs({
           ? 0
           : e.key === "End"
             ? tabs.length - 1
-            : e.key === "ArrowLeft"
+            : prev.includes(e.key)
               ? (i - 1 + tabs.length) % tabs.length
               : (i + 1) % tabs.length;
       onChange(tabs[next].id);
@@ -69,14 +89,21 @@ export function TeacherTabs({
     [active, base, onChange, tabs],
   );
 
+  const vertical = orientation === "vertical";
+
   return (
-    <div className={cn("flex flex-col gap-4", className)}>
+    <div className={cn(vertical ? "flex flex-col gap-4 md:flex-row md:items-start" : "flex flex-col gap-4", className)}>
       <div
         ref={listRef}
         role="tablist"
         aria-label={ariaLabel}
+        aria-orientation={vertical ? "vertical" : undefined}
         onKeyDown={onKeyDown}
-        className="flex flex-wrap gap-1 border-b border-border"
+        className={cn(
+          vertical
+            ? "flex shrink-0 flex-col gap-1 md:w-64 md:border-r md:border-border md:pr-2"
+            : "flex flex-wrap gap-1 border-b border-border",
+        )}
       >
         {tabs.map((t) => {
           const selected = t.id === active;
@@ -92,15 +119,30 @@ export function TeacherTabs({
               tabIndex={selected ? 0 : -1}
               onClick={() => onChange(t.id)}
               className={cn(
-                "-mb-px rounded-t px-3 py-1.5 text-sm",
-                selected
-                  ? "border border-b-background border-border bg-background font-medium text-foreground"
-                  : "border border-transparent text-muted-foreground hover:text-foreground",
+                "text-sm",
+                vertical
+                  ? cn(
+                      "rounded border px-3 py-2 text-left",
+                      selected
+                        ? "border-brand/40 bg-brand/5 font-medium text-foreground"
+                        : "border-transparent text-muted-foreground hover:bg-muted hover:text-foreground",
+                    )
+                  : cn(
+                      "-mb-px rounded-t px-3 py-1.5",
+                      selected
+                        ? "border border-b-background border-border bg-background font-medium text-foreground"
+                        : "border border-transparent text-muted-foreground hover:text-foreground",
+                    ),
               )}
             >
-              {t.label}
-              {typeof t.count === "number" ? (
-                <span className="ml-2 rounded bg-muted px-1.5 py-0.5 text-[11px] tabular-nums">{t.count}</span>
+              <span className={cn(vertical && "block")}>
+                {t.label}
+                {typeof t.count === "number" ? (
+                  <span className="ml-2 rounded bg-muted px-1.5 py-0.5 text-[11px] tabular-nums">{t.count}</span>
+                ) : null}
+              </span>
+              {vertical && t.hint ? (
+                <span className="mt-0.5 block text-xs font-normal text-muted-foreground">{t.hint}</span>
               ) : null}
             </button>
           );
@@ -114,7 +156,16 @@ export function TeacherTabs({
           role="tabpanel"
           aria-labelledby={`${base}-tab-${t.id}`}
           hidden={t.id !== active}
-          className="flex flex-col gap-4"
+          /* No display utility on a hidden panel — see the warning above. The
+             active one gets the layout; the rest get nothing, so the UA's
+             `[hidden] { display: none }` is the only rule in play. */
+          className={cn(
+            t.id === active && "flex flex-col gap-4",
+            // Only the rail layout needs the panel to be the row's flexible
+            // column; adding it to the horizontal layout would change the
+            // height behaviour of four panels that are fine as they are.
+            t.id === active && vertical && "min-w-0 flex-1",
+          )}
         >
           {t.content}
         </div>
