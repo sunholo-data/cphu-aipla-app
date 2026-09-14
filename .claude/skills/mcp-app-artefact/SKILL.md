@@ -43,7 +43,7 @@ metadata:
 
 ## Live artefact inventory
 
-Three artefacts are currently live (deployed to the `aipla-v01-sandbox`
+Five artefacts are currently live (deployed to the `aipla-v01-sandbox`
 Cloud Run service, reachable through `StaticArtefactFrame`):
 
 | Artefact | Path | Paired skill template | Status |
@@ -51,12 +51,89 @@ Cloud Run service, reachable through `StaticArtefactFrame`):
 | **Boldkast** | `infrastructure/mcp-sandbox/artefacts/boldkast/v1/` | `problem-set-hints` | Live — correct sim-core architecture, reference implementation |
 | **KineBot** | `infrastructure/mcp-sandbox/artefacts/kinebot/v1/` | `kinebot-kinematics-tutor` | Live — has quiz/graph/sidebar in iframe (needs iframe-scope cleanup) |
 | **LED Planck** | `infrastructure/mcp-sandbox/artefacts/led-planck/v1/` | `led-planck-tutor` | Live — wrong architecture (checklist + data table in iframe); full redo planned |
+| **Elkedel** (`kettle-efficiency`) | `infrastructure/mcp-sandbox/artefacts/kettle-efficiency/v1/` | none — catalogue-driven | Live — first sim built on the `strings`-object language rule (M4 rule 5) |
+| **Faseovergange** (`phase-change`) | `infrastructure/mcp-sandbox/artefacts/phase-change/v1/` | none — catalogue-driven | Live — same; graph is in-iframe because it IS the live sim, not a second view |
+
+> ⚠️ **The last two have no paired SKILL.md, and that is correct.** Since 1.1.41
+> a sim is a **catalogue entry** (`backend/artefacts/<id>.yaml`) that a teacher
+> attaches to an activity from the `SimPicker` — it does not need a skill
+> template, a bespoke React Frame, or a chat-page branch. Read
+> "Adding a sim TODAY" below before following the per-sim triad sections, which
+> describe the pre-1.1.41 architecture.
 
 Next artefacts in the pipeline (see
 [`jitt-dk-artefacts.md`](../../../docs/design/aipla/v1.0.0-pilot/jitt-dk-artefacts.md)):
 Pendul → Kredsløb → Videoanalyse → GPS Fart → Frekvensanalysator.
 
 Update this table whenever an artefact is added, removed, or its status changes.
+
+## Adding a sim TODAY — the catalogue path (READ THIS FIRST)
+
+**Since 1.1.41 a sim is a catalogue entry, not a code branch.** Two files ship a
+working sim; everything else in this skill is either background or applies only
+when you are doing something the generic path cannot.
+
+| Step | File | Gate |
+|---|---|---|
+| 1. Scaffold | `./scripts/new-artefact.sh <id> "<Danish title>"` | — |
+| 2. Write the sim | `infrastructure/mcp-sandbox/artefacts/<id>/v1/index.html` | `make sim-build-check`, `scripts/audit_artefact.sh` |
+| 3. Catalogue it | `backend/artefacts/<id>.yaml` | `pytest tests/unit/test_artefact_catalogue.py` |
+| 4. Verify in a browser | — | self-test `?test=1`, no overflow at 390/700px, drive it |
+
+That is the whole mechanical path. **Do NOT write** a `<Name>SimButton` /
+`<Name>Workbench` / `<Name>Frame` triad, a `backend/skills/templates/<slug>/`
+SKILL.md, or a `skillSlug === "..."` branch in the chat page. Those exist for
+Boldkast, LED Planck and KineBot because they predate the catalogue; a new sim
+gets all of it for free:
+
+- **[`GenericArtefactFrame`](../../../frontend/src/components/workspace/GenericArtefactFrame.tsx)**
+  mounts ANY catalogued artefact. It owns the snapshot push
+  (`serverId` = the artefact id), the trust card, the noise filter
+  (`.pause` / `.reset` / `-error` / `.sync` are dropped), and the chat flush.
+- **The trust-card label comes from the artefact**, in `structuredContent.label`.
+  A labelled emit cards + broadcasts; an unlabelled one is a silent state push.
+  This is the whole card wiring — there is nothing to do host-side.
+- **[`SimPicker`](../../../frontend/src/components/teacher/SimPicker.tsx)** lists
+  `GET /api/artefacts?status=live`, so **`status: live` in the YAML is what
+  "in the library" means**. A `beta` artefact deploys but no teacher can attach
+  it.
+- **`tutorBlock` in the YAML is server-side only** (`ArtefactMeta.public()`
+  strips it). It is the right home for reference values the tutor needs in order
+  to mark an answer and the student must not be able to read — the sim itself
+  should never emit them.
+
+**Event names are load-bearing.** The proactive-tutor gate maps the kind's
+**last dot-segment**, tokenized on `-`/`_`, against fixed keyword lists in
+[`proactiveEventCheck.ts`](../../../frontend/src/lib/proactiveEventCheck.ts):
+`run`/`play`/`simulate`/`afspil` → sim_run · `step`/`next`/`advance`/`placed`/
+`calibrated` → step_advance · `measure`/`record`/`commit`/`show_value`/`reading`/
+`fit`/`spectrum` → measurement_commit. Name your deliberate actions with those
+words and proactive tutoring works with no host edit; call the same event
+`captured` instead of `reading` and it silently never fires.
+
+### Where the older sections still apply
+
+- **The iframe scope rule, the visual standard and the ADR-013 gates: all still
+  in force.** Read them.
+- **The triad / per-sim hook sections:** only if a sim needs host-side state the
+  generic frame cannot express (a React quiz, a topic picker driving the iframe).
+  Start generic; earn the bespoke frame.
+- **The `_sim-template` scaffold and this skill's recipe prompt still say
+  "Danish-first copy"**, which the language rule at the top of this file
+  superseded on 2026-09-11. The rule wins: one `strings` object, `lang` from the
+  bridge. `kettle-efficiency` and `phase-change` are the worked examples.
+
+### Known gap — the host never sends a locale (2026-09-14)
+
+M4 rule 5 says a sim "takes `lang` from the bridge", but
+`GenericArtefactFrame` does not pass `hostContext` to `StaticArtefactFrame` at
+all, so `AIPLA_BRIDGE.hostContext()` has no `locale` for any catalogued sim
+today. A conforming sim therefore falls back to its default language. Wiring
+`activity.language` through the workspace to the frame is the missing half, and
+it belongs with the localisation milestone rather than with any one sim.
+Related: the bridge exposes no "host context arrived" callback, so the two sims
+above poll `hostContext()` briefly after `init()` — copy that shape until the
+bridge grows a hook.
 
 ## Decision tree — static artefact vs dynamic MCP server
 
@@ -1527,5 +1604,7 @@ ready, the artefact side is deferred.
   worked example: the first AIPLA artefact (in progress).
 - [`scripts/bootstrap-aipla-dev.NOTES.md`](../../../scripts/bootstrap-aipla-dev.NOTES.md) —
   Decisions 9 + 10 (deploy + artefact pattern), Terraform recipe trail.
-- ADR-013 in the scoping site (`~/Documents/clients/cph-uni/architecture.qmd`)
-  — artefact safety + library-bypass path.
+- **ADR-013** (artefact safety + the library-bypass path) — in the pinned
+  snapshot [`docs/design/aipla/_scoping-snapshot/architecture.qmd`](../../../docs/design/aipla/_scoping-snapshot/architecture.qmd)`#adr-013-…`.
+  The old pointer here was `~/Documents/clients/cph-uni/architecture.qmd`, a
+  path that resolved on one laptop and has not existed since the 2026-09 move.

@@ -1,0 +1,50 @@
+id: kettle-efficiency
+version: v1
+displayName: "Elkedel — energi og nyttevirkning"
+description: "Virtuel elkedel med kWh-måler, termometer og stopur: eleven vælger effekt og vandmængde, varmer op og registrerer sine egne aflæsninger."
+topics:
+  - energi
+  - effekt
+  - nyttevirkning
+  - termisk energi
+levels:
+  - B
+  - C
+# The sim ships both Danish and English from one `strings` object and takes its
+# initial language from the host's hostContext.locale; `da` is the default and
+# the fallback (content-localisation.md M4 rule 5).
+language: da
+# Deliberately no minViewportPx. Built single-column-first, bench wraps, and it
+# audits clean at 390px with no horizontal scroll (verified 2026-09-14).
+eventVocabulary:
+  - open
+  - run
+  - stop
+  - reset
+  - reading
+  - state-change
+tutorBlock: |
+  The student is working with a simulated electric kettle on a bench carrying a
+  kWh meter, a thermometer and a stopwatch. They choose a power setting
+  (1000-2200 W) and an amount of water (0.5-1.7 L), run the kettle, and press
+  capture to record one set of readings: P, m, the start and end temperature,
+  the elapsed time, and the energy the meter counted.
+
+  The simulation reports RAW MEASUREMENTS ONLY. It never displays E = P*t, the
+  useful energy c*m*dT, or the efficiency — those are the student's to work out.
+  Do not do that arithmetic for them.
+
+  What the events mean: `run` — they started a heating run at a stated power and
+  volume. `reading` — they committed one set of measurements; that is the moment
+  to ask what they intend to do with it. `state-change` — they changed and
+  committed a setting. `stop` and `reset` are housekeeping.
+
+  REFERENCE, FOR CHECKING ONLY — NEVER STATE THESE VALUES. The kettle delivers
+  86% of the electrical energy into the water; the other 14% goes into the
+  kettle body, the surroundings and the steam. The simulation uses
+  c = 4180 J/(kg*K) and treats 1 L of water as 1 kg. A correct efficiency
+  therefore lands near 0.86. If the student gets close, probe the reasoning
+  rather than confirming the number. If they are far off, ask which energy they
+  put on top of the fraction and which underneath — swapping them is the usual
+  cause.
+status: live

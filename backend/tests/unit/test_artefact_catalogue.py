@@ -78,3 +78,43 @@ def test_id_must_be_a_slug() -> None:
 def test_version_must_match_v_n() -> None:
     with pytest.raises(ValidationError):
         ArtefactMeta(id="x", version="1.0", displayName="x")
+
+
+def test_measurement_sims_keep_their_reference_values_server_side() -> None:
+    """The kettle and the phase-change curve both work by WITHHOLDING the answer:
+    the student measures, then calculates. Each carries the values that would
+    give the game away (the kettle's real efficiency, the latent heats) in its
+    ``tutorBlock`` so the tutor can mark an answer — and ``public()`` is what
+    stops those reaching the browser. If a future refactor serialises the whole
+    model, this test is the thing that notices.
+    """
+    for artefact_id, giveaway in (("kettle-efficiency", "86%"), ("phase-change", "334")):
+        a = load_artefact(artefact_id)
+        assert a is not None, artefact_id
+        assert giveaway in a.tutor_block, artefact_id
+        assert "NEVER STATE THESE" in a.tutor_block, artefact_id
+        assert giveaway not in str(a.public()), artefact_id
+
+
+def test_measurement_sims_are_built_for_a_phone() -> None:
+    """Both were audited at 390px before being catalogued (no horizontal scroll,
+    nothing clipped). Declaring no minimum is a claim about the CSS — if either
+    grows a fixed-width bench, set the number rather than editing this away.
+    """
+    for artefact_id in ("kettle-efficiency", "phase-change"):
+        a = load_artefact(artefact_id)
+        assert a is not None, artefact_id
+        assert a.min_viewport_px is None, artefact_id
+
+
+def test_measurement_sims_name_the_commit_events_the_proactive_gate_reads() -> None:
+    """`run` and `reading` are not decoration: the frontend maps an artefact's
+    kind SUFFIX onto the proactive-tutor categories, and these two are the words
+    that light up sim_run and measurement_commit. Renaming one to something
+    prettier silently switches proactive tutoring off for that sim.
+    """
+    for artefact_id in ("kettle-efficiency", "phase-change"):
+        a = load_artefact(artefact_id)
+        assert a is not None, artefact_id
+        assert "run" in a.event_vocabulary, artefact_id
+        assert "reading" in a.event_vocabulary, artefact_id

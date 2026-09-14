@@ -1,0 +1,1078 @@
+<!doctype html>
+<html lang="da">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Elkedel — energi og nyttevirkning</title>
+<!--
+  AIPLA MCP App artefact — kettle-efficiency v1.
+
+  A virtual bench: a kettle on a kWh meter, a thermometer and a stopwatch. The
+  student sets the power and the amount of water, heats it, and captures a
+  reading. The sim reports RAW MEASUREMENTS ONLY — E = P·t, the useful energy
+  c·m·ΔT and the efficiency are the student's to compute.
+
+  The kettle's true efficiency never appears on screen and is never emitted: it
+  drives the temperature rise and nothing else. The tutor gets it from the
+  catalogue's server-side tutorBlock so it can mark an answer.
+
+  It IS readable in this source, like every constant in a static artefact — the
+  gate is "not handed to you", not "cryptographically hidden", exactly as with
+  Boldkast's Vis markers. A student who opens devtools has stopped doing the
+  exercise. Anything that must actually be secret needs a server (ADR-013's
+  dynamic-MCP path), not this one.
+
+  Language: one `strings` object, initial `lang` from the host bridge's
+  hostContext.locale, with a manual toggle (content-localisation.md M4 rule 5).
+-->
+<style>
+  :root {
+    /* Canonical AIPLA artefact palette — light, matches the chat workspace. */
+    --bg: #ffffff;
+    --fg: #0f172a;
+    --muted: #64748b;
+    --border: #e2e8f0;
+    --accent: #2563eb;
+    --accent-soft: #eff6ff;
+    --ok: #16a34a;
+    --warn: #d97706;
+    /* Bench-specific hues, all chosen to sit on white. */
+    --surface: #f8fafc;
+    --steel: #94a3b8;
+    --steel-dark: #64748b;
+    --hot: #ea580c;
+    --cool: #3d7ea6;
+    --mono: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  }
+  * { box-sizing: border-box; }
+  html, body {
+    margin: 0; padding: 0;
+    font-family: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+    background: var(--bg); color: var(--fg);
+    font-size: 14px; line-height: 1.45;
+  }
+  body { padding: 12px; }
+
+  header.top {
+    display: flex; align-items: flex-start; justify-content: space-between;
+    gap: 10px; margin-bottom: 10px;
+  }
+  header h1 { font-size: 15px; margin: 0 0 2px; font-weight: 600; }
+  header .sub { margin: 0; font-size: 12px; color: var(--muted); max-width: 62ch; }
+  .lang { display: flex; gap: 4px; flex: none; }
+  .lang button {
+    font: inherit; font-size: 11px; padding: 3px 8px; cursor: pointer;
+    background: transparent; color: var(--muted);
+    border: 1px solid var(--border); border-radius: 4px;
+  }
+  .lang button[aria-pressed="true"] {
+    background: var(--accent-soft); color: var(--accent); border-color: var(--accent);
+  }
+
+  main { display: grid; grid-template-columns: 1fr; gap: 10px; }
+  @media (min-width: 720px) { main { grid-template-columns: 1.05fr 1fr; } }
+
+  .panel {
+    background: #fff; border: 1px solid var(--border);
+    border-radius: 6px; padding: 10px;
+  }
+  .panel h2 {
+    font-size: 11px; text-transform: uppercase; letter-spacing: .05em;
+    color: var(--muted); margin: 0 0 8px; font-weight: 600;
+  }
+  .col { display: grid; gap: 10px; align-content: start; }
+
+  /* ── The bench ─────────────────────────────────────────────────────── */
+  .bench {
+    position: relative; background: var(--surface);
+    border: 1px solid var(--border); border-radius: 6px;
+    padding: 12px 12px 0; display: flex; align-items: flex-end;
+    justify-content: center; gap: 26px; min-height: 190px; flex-wrap: wrap;
+    border-bottom: 7px solid #e5e9ef;  /* the worktop the apparatus sits on */
+  }
+  .meter {
+    width: 92px; flex: none; background: #fff; border: 1px solid var(--border);
+    border-radius: 5px; padding: 6px; text-align: center;
+  }
+  .meter .brand {
+    font-size: 11px; letter-spacing: .06em; color: var(--muted);
+    font-weight: 600; margin-bottom: 4px;
+  }
+  /* Light instrument readout — never the green-on-black LCD look. */
+  .display {
+    background: #f8fafc; color: var(--fg); border: 1px solid var(--border);
+    border-radius: 4px; padding: 5px 6px; font-family: var(--mono);
+    font-size: 13px; text-align: right; font-variant-numeric: tabular-nums;
+  }
+  .display small { font-size: 11px; color: var(--muted); margin-left: 3px; }
+  .meter .modebtn {
+    margin-top: 5px; width: 100%; font: inherit; font-size: 11px;
+    padding: 3px 4px; cursor: pointer; background: transparent;
+    color: var(--muted); border: 1px solid var(--border); border-radius: 4px;
+  }
+  .meter .modebtn:hover { border-color: var(--accent); color: var(--accent); }
+
+  .kettle { position: relative; width: 108px; flex: none; }
+  .kettle .body {
+    position: relative; height: 96px; border-radius: 10px 10px 16px 16px;
+    background: linear-gradient(160deg, #e2e8f0, var(--steel));
+    border: 1px solid var(--steel-dark);
+  }
+  .kettle .lid {
+    position: absolute; top: -7px; left: 16px; right: 16px; height: 9px;
+    border-radius: 5px; background: var(--steel-dark);
+  }
+  .kettle .spout {
+    position: absolute; top: 14px; right: -15px; width: 20px; height: 13px;
+    background: var(--steel); border: 1px solid var(--steel-dark);
+    border-radius: 0 8px 8px 0;
+  }
+  .kettle .handle {
+    position: absolute; top: 6px; left: -15px; width: 18px; height: 52px;
+    border: 3px solid var(--steel-dark); border-right: none;
+    border-radius: 10px 0 0 10px;
+  }
+  .kettle .window {
+    position: absolute; left: 50%; transform: translateX(-50%);
+    bottom: 9px; width: 22px; height: 66px;
+    background: #fff; border: 1px solid var(--steel-dark); border-radius: 4px;
+    overflow: hidden;
+  }
+  .kettle .water {
+    position: absolute; left: 0; right: 0; bottom: 0;
+    background: linear-gradient(180deg, #7fb4d6, #4d86ad);
+    transition: background .4s linear;
+  }
+  .kettle .base {
+    height: 9px; margin: 3px 6px 0; border-radius: 0 0 5px 5px;
+    background: var(--steel-dark);
+  }
+  .kettle.on .base { background: var(--hot); }
+  .kettle .steam { position: absolute; top: -30px; left: 0; right: 0; height: 30px; }
+  .kettle .steam span {
+    position: absolute; bottom: 0; width: 7px; height: 7px; border-radius: 50%;
+    background: #cbd5e1; opacity: 0;
+  }
+  .kettle .steam span:nth-child(1) { left: 34%; }
+  .kettle .steam span:nth-child(2) { left: 50%; }
+  .kettle .steam span:nth-child(3) { left: 64%; }
+  .kettle.boiling .steam span { animation: rise 1.9s ease-out infinite; }
+  .kettle.boiling .steam span:nth-child(2) { animation-delay: .6s; }
+  .kettle.boiling .steam span:nth-child(3) { animation-delay: 1.2s; }
+  @keyframes rise {
+    0%   { opacity: 0; transform: translateY(0) scale(.6); }
+    25%  { opacity: .75; }
+    100% { opacity: 0; transform: translateY(-26px) scale(1.5); }
+  }
+  .socket {
+    width: 34px; flex: none; height: 44px; border-radius: 5px;
+    background: #fff; border: 1px solid var(--border);
+    display: flex; align-items: center; justify-content: center; gap: 4px;
+  }
+  .socket i { width: 4px; height: 9px; border-radius: 2px; background: var(--steel-dark); }
+
+  /* ── Instruments ───────────────────────────────────────────────────── */
+  .instruments { display: flex; align-items: flex-end; gap: 12px; margin-top: 10px; }
+  .thermo { display: flex; align-items: flex-end; gap: 7px; }
+  .thermo .tube {
+    width: 13px; height: 74px; border-radius: 7px; background: #f1f5f9;
+    border: 1px solid var(--border); position: relative; overflow: hidden;
+  }
+  .thermo .merc {
+    position: absolute; left: 2px; right: 2px; bottom: 2px;
+    border-radius: 5px; background: var(--cool); height: 12%;
+    transition: background .3s linear;
+  }
+  .thermo .bulb {
+    width: 17px; height: 17px; border-radius: 50%; background: var(--cool);
+    margin: -5px auto 0; border: 1px solid #b8c4d0;
+  }
+  .thermo .read { font-family: var(--mono); font-size: 17px; font-variant-numeric: tabular-nums; }
+  .thermo .read small { font-size: 11px; color: var(--muted); margin-left: 2px; }
+  .clock {
+    display: flex; align-items: center; gap: 5px; font-family: var(--mono);
+    font-size: 13px; color: var(--muted); font-variant-numeric: tabular-nums;
+  }
+  .clock .dot { width: 7px; height: 7px; border-radius: 50%; background: var(--border); }
+  .clock.running .dot { background: var(--ok); animation: blink 1s steps(2) infinite; }
+  @keyframes blink { 50% { opacity: .25; } }
+
+  /* ── Controls ──────────────────────────────────────────────────────── */
+  .field { margin: 8px 0; }
+  .field label {
+    display: block; font-size: 12px; margin-bottom: 3px; color: var(--fg);
+  }
+  .field .val { font-family: var(--mono); font-variant-numeric: tabular-nums; }
+  .field input[type="range"] { width: 100%; accent-color: var(--accent); }
+  .btnrow { display: flex; gap: 6px; flex-wrap: wrap; margin-top: 10px; }
+  .btn {
+    font: inherit; font-size: 12px; padding: 6px 10px; cursor: pointer;
+    border-radius: 4px; border: 1px solid transparent;
+    background: var(--accent-soft); color: var(--accent);
+  }
+  .btn:hover:not(:disabled) { border-color: var(--accent); }
+  .btn.ghost { background: transparent; color: var(--muted); border-color: var(--border); }
+  .btn:disabled { opacity: .45; cursor: default; }
+  .hint {
+    margin: 10px 0 0; font-size: 11px; color: var(--muted);
+    border-left: 3px solid var(--border); padding-left: 9px;
+  }
+
+  /* ── Readings ──────────────────────────────────────────────────────── */
+  .datagrid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 6px; }
+  @media (min-width: 420px) { .datagrid { grid-template-columns: repeat(3, 1fr); } }
+  .cell {
+    background: var(--surface); border: 1px solid var(--border);
+    border-radius: 5px; padding: 6px 7px;
+  }
+  .cell .k { font-size: 11px; color: var(--muted); }
+  .cell .v {
+    font-family: var(--mono); font-size: 14px; font-weight: 600;
+    font-variant-numeric: tabular-nums;
+  }
+  .cell .v small { font-size: 11px; font-weight: 400; color: var(--muted); margin-left: 2px; }
+  .cell.empty .v { color: #cbd5e1; }
+</style>
+</head>
+<body>
+
+<header class="top">
+  <div>
+    <h1 data-t="title"></h1>
+    <p class="sub" data-t="sub"></p>
+  </div>
+  <div class="lang" role="group" aria-label="Sprog / Language">
+    <button type="button" id="btn-da" aria-pressed="true">Dansk</button>
+    <button type="button" id="btn-en" aria-pressed="false">English</button>
+  </div>
+</header>
+
+<main>
+  <section class="panel">
+    <h2 data-t="benchHead"></h2>
+    <div class="bench">
+      <div class="socket" title="230 V"><i></i><i></i></div>
+
+      <div class="meter">
+        <div class="brand">kWh</div>
+        <div class="display" id="meterScreen">0<small>W</small></div>
+        <button type="button" class="modebtn" id="modeBtn" data-t="mode"></button>
+      </div>
+
+      <div class="kettle" id="kettle">
+        <div class="steam"><span></span><span></span><span></span></div>
+        <div class="handle"></div>
+        <div class="body">
+          <div class="lid"></div>
+          <div class="spout"></div>
+          <div class="window"><div class="water" id="waterFill" style="height:70%"></div></div>
+        </div>
+        <div class="base"></div>
+      </div>
+    </div>
+
+    <div class="instruments">
+      <div class="thermo">
+        <div>
+          <div class="tube"><div class="merc" id="merc"></div></div>
+          <div class="bulb" id="bulb"></div>
+        </div>
+        <div class="read"><span id="tempRead">20,0</span><small>°C</small></div>
+      </div>
+      <div class="clock" id="clock"><span class="dot"></span><span id="clockRead">0,0 s</span></div>
+    </div>
+  </section>
+
+  <div class="col">
+    <section class="panel">
+      <h2 data-t="controlsHead"></h2>
+
+      <div class="field">
+        <label for="powerSlider">
+          <span data-t="power"></span> — <span class="val"><span id="powerLabel">2000</span> W</span>
+        </label>
+        <input type="range" id="powerSlider" min="1000" max="2200" step="50" value="2000">
+      </div>
+
+      <div class="field">
+        <label for="volSlider">
+          <span data-t="volume"></span> — <span class="val"><span id="volLabel">1,4</span> L</span>
+        </label>
+        <input type="range" id="volSlider" min="0.5" max="1.7" step="0.1" value="1.4">
+      </div>
+
+      <div class="btnrow">
+        <button type="button" class="btn" id="startBtn" data-t="start"></button>
+        <button type="button" class="btn ghost" id="stopBtn" data-t="stop" disabled></button>
+        <button type="button" class="btn ghost" id="resetBtn" data-t="reset"></button>
+      </div>
+
+      <p class="hint" data-t="tip"></p>
+    </section>
+
+    <section class="panel">
+      <h2 data-t="readingsHead"></h2>
+      <div class="datagrid">
+        <div class="cell">
+          <div class="k">m</div>
+          <div class="v"><span id="outM">1,4</span><small>kg</small></div>
+        </div>
+        <div class="cell empty" id="cellP">
+          <div class="k">P</div>
+          <div class="v"><span id="outP">—</span><small>W</small></div>
+        </div>
+        <div class="cell empty" id="cellT">
+          <div class="k">t</div>
+          <div class="v"><span id="outT">—</span><small>s</small></div>
+        </div>
+        <div class="cell empty" id="cellTstart">
+          <div class="k">T<sub>start</sub></div>
+          <div class="v"><span id="outTstart">—</span><small>°C</small></div>
+        </div>
+        <div class="cell empty" id="cellTend">
+          <div class="k">T<sub>slut</sub></div>
+          <div class="v"><span id="outTend">—</span><small>°C</small></div>
+        </div>
+        <div class="cell empty" id="cellE">
+          <div class="k">E</div>
+          <div class="v"><span id="outE">—</span><small>kWh</small></div>
+        </div>
+      </div>
+      <div class="btnrow">
+        <button type="button" class="btn" id="captureBtn" data-t="capture" disabled></button>
+      </div>
+      <p class="hint" data-t="rawOnly"></p>
+    </section>
+  </div>
+</main>
+
+<!-- @aipla-bridge:start (GENERATED — edit infrastructure/mcp-sandbox/bridge/aipla-mcp-bridge.js, then `make sim-build`) -->
+<script>
+/* ============================================================================
+ * AIPLA MCP App guest bridge — ONE canonical transport for every host.
+ *
+ * SOURCE OF TRUTH. This file is inlined verbatim into every artefact's
+ * index.html between the `@aipla-bridge:start … @aipla-bridge:end` markers by
+ * `scripts/build-artefact-bridge.mjs` (run `make sim-build`). NEVER hand-edit
+ * the inlined copy — edit THIS file and rebuild. CI (`--check`) fails on drift.
+ *
+ * It speaks whichever host is present:
+ *   - AIPLA app / SEP-1865 hosts  → JSON-RPC `ui/update-model-context` over
+ *                                   window.parent.postMessage (the app reads
+ *                                   structuredContent + renders the trust card).
+ *   - ChatGPT (OpenAI Apps SDK)   → window.openai.setWidgetState (durable state)
+ *                                   + window.openai.sendFollowUpMessage (turns a
+ *                                   deliberate commit into an immediate turn).
+ *   - Claude Desktop / Inspector  → the same SEP-1865 postMessage + `content`.
+ *
+ * The window.openai block is guarded end-to-end: absent in the AIPLA app and
+ * Claude, so it is a pure no-op there and the postMessage path stays
+ * authoritative. See docs/design/aipla/v1.1.0-feedback/shared-mcp-app-bridge.md.
+ *
+ * Public surface (window.AIPLA_BRIDGE):
+ *   emit(kind, extra)                 — report a student interaction. `kind` is
+ *                                       the FULL event kind (e.g. "boldkast.play").
+ *                                       `extra.label` (a curated string) marks a
+ *                                       DELIBERATE COMMIT — only labelled emits
+ *                                       inject a ChatGPT follow-up turn.
+ *   init({ name, version })           — run the ui/initialize handshake. Call once
+ *                                       at the bottom of the artefact script.
+ *   onChatFlush(cb)                   — cb() runs on ui/notifications/chat-flush.
+ *   onHostNotification(method, cb)    — cb(params, msg) runs on any host→iframe
+ *                                       JSON-RPC notification with that method.
+ *   hostContext()                     — the hostContext returned by ui/initialize.
+ *
+ * Conservative JS (var/function) so it runs unchanged in any host iframe engine.
+ * ========================================================================== */
+(function () {
+  "use strict";
+
+  var __rpcNextId = 1;
+  var __initialized = false;
+  var __pendingEmits = [];
+  var __hostContext = null;
+  var __handlers = {}; // method -> [cb]
+  var __lastReportedHeight = 0;
+  var __appLinkShown = false;
+  var __appLinkOpts = null;
+  var __hostIsExternal = false; // a non-AIPLA host (any MCP-Apps host OR ChatGPT)
+  var __hostIsAipla = false; // our own app — identified by serverInfo.name below
+
+  // Our app self-identifies in its ui/initialize response so host detection
+  // uses the OPEN STANDARD, not the OpenAI-specific window.openai shim. Every
+  // other SEP-1865 host (Claude, Inspector, Goose, Copilot) returns a different
+  // serverInfo; ChatGPT never answers the handshake (caught by window.openai).
+  var AIPLA_HOST_NAME = "aipla-host";
+
+  // Deployed AIPLA app — the deep-link target for the external-host "advertising
+  // → app" CTA (design 1.1.55 §0). Public URL; update per env / when a custom
+  // domain lands. Overridable per-sim via init({ appUrl: "…" }).
+  var APP_URL = "https://aipla-v01-frontend-wgwhd7mspa-lz.a.run.app";
+
+  function __post(msg) {
+    try {
+      // targetOrigin "*" is safe: the outer sandbox proxy validates origin on
+      // its side per ADR-013, then re-postMessages to the host with the host's
+      // specific origin. In standalone (artefact opened directly) parent may not
+      // exist — swallow.
+      window.parent.postMessage(msg, "*");
+    } catch (e) {
+      /* no host */
+    }
+  }
+
+  function rpcNotify(method, params) {
+    __post({ jsonrpc: "2.0", method: method, params: params || {} });
+  }
+
+  function rpcRequest(method, params) {
+    return new Promise(function (resolve, reject) {
+      var id = __rpcNextId++;
+      var listener = function (e) {
+        var d = e.data;
+        if (!d || d.id !== id) return;
+        window.removeEventListener("message", listener);
+        if (d.result !== undefined) resolve(d.result);
+        else reject(new Error((d.error && d.error.message) || "rpc error"));
+      };
+      window.addEventListener("message", listener);
+      __post({ jsonrpc: "2.0", id: id, method: method, params: params || {} });
+    });
+  }
+
+  // Single host→iframe listener: respond to ping (spec), dispatch registered
+  // notification handlers. rpcRequest installs its own short-lived id-matched
+  // listener separately for responses.
+  window.addEventListener("message", function (e) {
+    var d = e.data;
+    if (!d || d.jsonrpc !== "2.0") return;
+    if (d.method === "ping" && d.id !== undefined && d.id !== null) {
+      __post({ jsonrpc: "2.0", id: d.id, result: {} });
+      return;
+    }
+    if (d.method && __handlers[d.method]) {
+      var cbs = __handlers[d.method];
+      for (var i = 0; i < cbs.length; i++) {
+        try {
+          cbs[i](d.params, d);
+        } catch (err) {
+          /* a handler throwing must not break the bridge */
+        }
+      }
+    }
+  });
+
+  // Derive a human-readable `content` text for generic MCP hosts (ChatGPT /
+  // Claude feed `content` to the model and treat `structuredContent` as
+  // schema-validated app data — without a text the model never sees the
+  // interaction). Prefers the curated `label`; else summarises the payload.
+  // The AIPLA frontend reads structuredContent and IGNORES content, so this is
+  // purely additive for our own app.
+  function __contentText(kind, p) {
+    if (p && typeof p.label === "string" && p.label) return p.label;
+    if (!p) return kind;
+    var parts = [];
+    for (var k in p) {
+      if (k === "label") continue;
+      var v = p[k];
+      if (Array.isArray(v)) {
+        parts.push(k + "=[" + v.length + "]");
+      } else if (v && typeof v === "object") {
+        for (var k2 in v) {
+          if (v[k2] == null || typeof v[k2] !== "object") parts.push(k2 + "=" + v[k2]);
+        }
+      } else {
+        parts.push(k + "=" + v);
+      }
+    }
+    return kind + (parts.length ? " (" + parts.join(", ") + ")" : "");
+  }
+
+  function emit(kind, extra) {
+    extra = extra || {};
+    var sc = Object.assign({}, extra, { kind: kind });
+    var params = { structuredContent: sc };
+    var label = typeof extra.label === "string" && extra.label ? extra.label : "";
+    var text = label || __contentText(kind, extra);
+    if (text) params.content = [{ type: "text", text: text }];
+
+    // ── ChatGPT (OpenAI Apps SDK) ──────────────────────────────────────────
+    // Absent in the AIPLA app / Claude → whole block no-ops. Guard every call.
+    var oa = typeof window !== "undefined" ? window.openai : undefined;
+    if (oa) {
+      try {
+        if (oa.setWidgetState) oa.setWidgetState(sc);
+      } catch (e) {
+        /* best effort */
+      }
+      // Inject a turn ONLY on a deliberate commit (has a curated label) — never
+      // on a passive settle or a derived-text event. Gated on `label`, NOT on
+      // `content` (content is near-always present via __contentText).
+      if (label && oa.sendFollowUpMessage) {
+        try {
+          oa.sendFollowUpMessage({ prompt: label });
+        } catch (e) {
+          /* best effort */
+        }
+      }
+    }
+
+    // ── SEP-1865 postMessage (AIPLA app + native hosts) — authoritative ─────
+    var msg = { jsonrpc: "2.0", method: "ui/update-model-context", params: params };
+    if (!__initialized) {
+      __pendingEmits.push(msg);
+      return;
+    }
+    __post(msg);
+  }
+
+  function onHostNotification(method, cb) {
+    if (!__handlers[method]) __handlers[method] = [];
+    __handlers[method].push(cb);
+  }
+
+  function onChatFlush(cb) {
+    onHostNotification("ui/notifications/chat-flush", function () {
+      cb();
+    });
+  }
+
+  // The initial widget state a host restored for this render (ChatGPT/Copilot
+  // persist setWidgetState across navigate-away-and-back). A sim that wants to
+  // restore its UI reads this in its own init: e.g. AIPLA_BRIDGE.initialState().
+  // Returns null in the AIPLA app / Claude (no window.openai). Opt-in per sim.
+  function initialState() {
+    var oa = typeof window !== "undefined" ? window.openai : undefined;
+    return oa && oa.widgetState ? oa.widgetState : null;
+  }
+
+  // Report our content height so a host frame fits it. ChatGPT/Copilot default
+  // the widget iframe to ~600px and only shrink on this signal; we route it
+  // through window.openai only (the AIPLA app owns the workspace-pane height and
+  // Claude/Inspector default frames are fine — sending nothing there avoids
+  // noise). Guarded + best-effort: no-op where the API/host is absent. For a
+  // full-bleed sim (html,body height:100%) body.scrollHeight is the frame
+  // height, so this harmlessly reports the current size.
+  function reportSize() {
+    var oa = typeof window !== "undefined" ? window.openai : undefined;
+    if (!oa || typeof oa.notifyIntrinsicHeight !== "function") return;
+    var doc = typeof window !== "undefined" ? window.document : undefined;
+    if (!doc || !doc.body) return;
+    var rect = doc.body.getBoundingClientRect ? doc.body.getBoundingClientRect() : { height: 0 };
+    var h = Math.ceil(Math.max(doc.body.scrollHeight || 0, rect.height || 0));
+    if (!h || h === __lastReportedHeight) return;
+    __lastReportedHeight = h;
+    try {
+      oa.notifyIntrinsicHeight(h);
+    } catch (e) {
+      /* best effort */
+    }
+  }
+
+  // Deep-link CTA — external-host "advertising → app" (design 1.1.55 §0). The
+  // low-level injector: drops one unobtrusive floating pill that opens the
+  // deployed app for the full tutor (agent + persona + research capture).
+  // Idempotent + guarded. The SHOW DECISION (which host) is made by
+  // __maybeShowAppLink via the standard handshake — see __hostIsExternal.
+  function showAppLink(opts) {
+    opts = opts || {};
+    if (__appLinkShown || opts.disabled) return;
+    var oa = typeof window !== "undefined" ? window.openai : undefined;
+    var doc = typeof window !== "undefined" ? window.document : undefined;
+    if (!doc || !doc.body || typeof doc.createElement !== "function") return;
+    __appLinkShown = true;
+
+    var href = opts.href || APP_URL + (opts.sim ? "?sim=" + encodeURIComponent(opts.sim) : "");
+    var a = doc.createElement("a");
+    a.textContent = opts.label || "Open the full tutor in AIPLA ↗";
+    a.href = href;
+    a.target = "_blank";
+    a.rel = "noopener";
+    a.setAttribute("role", "button");
+    a.style.cssText =
+      "position:fixed;right:12px;bottom:12px;z-index:2147483647;" +
+      "font:600 12px/1 ui-sans-serif,system-ui,-apple-system,sans-serif;" +
+      "padding:8px 12px;border-radius:999px;background:#1e40af;color:#fff;" +
+      "text-decoration:none;box-shadow:0 2px 8px rgba(0,0,0,.25);cursor:pointer";
+    a.addEventListener("click", function (e) {
+      // Prefer the host's vetted external-open affordance; else the <a> opens natively.
+      if (oa && typeof oa.openExternal === "function") {
+        try {
+          e.preventDefault();
+          oa.openExternal({ href: href });
+        } catch (err) {
+          try {
+            window.open(href, "_blank");
+          } catch (e2) {
+            /* best effort */
+          }
+        }
+      }
+    });
+    try {
+      doc.body.appendChild(a);
+    } catch (e) {
+      /* best effort */
+    }
+  }
+
+  // Show the CTA only when we KNOW we're in a host that isn't the AIPLA app.
+  // external (ChatGPT via window.openai, or any host whose ui/initialize
+  // serverInfo isn't "aipla-host") AND not our app.
+  function __maybeShowAppLink() {
+    if (__appLinkOpts && __appLinkOpts.disabled) return;
+    if (__hostIsAipla || !__hostIsExternal) return;
+    showAppLink(__appLinkOpts || {});
+  }
+
+  function __setupHostAdaptation() {
+    if (typeof window === "undefined") return;
+    // ChatGPT never answers the ui/initialize handshake, so it can't be detected
+    // via serverInfo — but it injects window.openai, which is a definitive
+    // "external, not our app" signal. window.openai may arrive slightly after
+    // load → also react to its (re)injection.
+    if (window.openai) __hostIsExternal = true;
+    try {
+      window.addEventListener("openai:set_globals", function () {
+        __hostIsExternal = true;
+        reportSize();
+        __maybeShowAppLink();
+      });
+    } catch (e) {
+      /* older engine */
+    }
+    var doc = window.document;
+    if (typeof ResizeObserver !== "undefined" && doc && doc.body) {
+      try {
+        new ResizeObserver(reportSize).observe(doc.body);
+      } catch (e) {
+        /* best effort */
+      }
+    }
+    reportSize();
+    __maybeShowAppLink();
+  }
+
+  function init(clientInfo) {
+    clientInfo = clientInfo || {};
+    var ci = {
+      name: clientInfo.name || "aipla-sim",
+      version: clientInfo.version || "1.0.0",
+    };
+    // Deep-link CTA options (external-host only). Disable per-sim with
+    // init({ appLink: false }); customise with appUrl / appLinkLabel.
+    __appLinkOpts = {
+      sim: ci.name,
+      href: clientInfo.appUrl,
+      label: clientInfo.appLinkLabel,
+      disabled: clientInfo.appLink === false,
+    };
+    // If parent isn't a sandbox proxy (standalone testing) this rejects and we
+    // flip __initialized so queued emits stop queuing (they become __post
+    // no-ops via the try/catch).
+    rpcRequest("ui/initialize", {
+      protocolVersion: "2026-01-26",
+      capabilities: {},
+      clientInfo: ci,
+    })
+      .then(function (result) {
+        __hostContext = (result && result.hostContext) || null;
+        // Standard host identification: our own app answers with
+        // serverInfo.name === "aipla-host"; every other SEP-1865 host (Claude,
+        // Inspector, Goose, Copilot) is external → eligible for the app CTA.
+        var srvName = result && result.serverInfo && result.serverInfo.name;
+        if (srvName === AIPLA_HOST_NAME) {
+          __hostIsAipla = true;
+        } else {
+          __hostIsExternal = true;
+        }
+        rpcNotify("ui/notifications/initialized", { clientInfo: ci });
+        __initialized = true;
+        while (__pendingEmits.length) __post(__pendingEmits.shift());
+        __maybeShowAppLink();
+      })
+      .catch(function () {
+        __initialized = true;
+        __pendingEmits.length = 0;
+      });
+    // Independent of the postMessage handshake (which never resolves under
+    // ChatGPT): adapt to a window.openai host + report our size.
+    __setupHostAdaptation();
+  }
+
+  window.AIPLA_BRIDGE = {
+    emit: emit,
+    init: init,
+    onChatFlush: onChatFlush,
+    onHostNotification: onHostNotification,
+    hostContext: function () {
+      return __hostContext;
+    },
+    initialState: initialState,
+    reportSize: reportSize,
+    showAppLink: showAppLink,
+  };
+})();
+</script>
+<!-- @aipla-bridge:end -->
+<script>
+  "use strict";
+
+  const ARTEFACT_NAME = "kettle-efficiency";
+  function emit(type, extra) {
+    return AIPLA_BRIDGE.emit(ARTEFACT_NAME + "." + type, extra);
+  }
+
+  // ─── Strings ────────────────────────────────────────────────────────────
+  // One object, both languages (content-localisation.md M4 rule 5). Markup
+  // carries `data-t="key"`; nothing user-facing is written inline.
+  const strings = {
+    da: {
+      title: "Elkedel: energi og nyttevirkning",
+      sub: "Varm vandet op, aflæs måleren og termometeret, og undersøg selv, hvor meget af energien der faktisk havner i vandet.",
+      benchHead: "Forsøgsopstilling",
+      controlsHead: "Indstillinger",
+      readingsHead: "Dine aflæsninger",
+      power: "Effektindstilling for kedlen",
+      volume: "Vandmængde",
+      start: "Tænd kedel + stopur",
+      stop: "Stop",
+      reset: "Nulstil",
+      capture: "Registrér aflæsning",
+      mode: "Skift visning",
+      tip: "Stop før vandet koger. Når det koger, stiger temperaturen ikke længere, selv om måleren stadig tæller energi.",
+      rawOnly: "Simuleringen viser rå måledata — ikke svaret. Udregningen er din.",
+      unitW: "W",
+      unitKwh: "kWh",
+    },
+    en: {
+      title: "Electric kettle: energy and efficiency",
+      sub: "Heat the water, read the meter and the thermometer, and work out for yourself how much of the energy actually ends up in the water.",
+      benchHead: "Apparatus",
+      controlsHead: "Settings",
+      readingsHead: "Your readings",
+      power: "Kettle power setting",
+      volume: "Amount of water",
+      start: "Start kettle + stopwatch",
+      stop: "Stop",
+      reset: "Reset",
+      capture: "Capture reading",
+      mode: "Change display",
+      tip: "Stop before the water boils. Once it boils the temperature stops rising even though the meter keeps counting energy.",
+      rawOnly: "The simulation shows raw measurements — not the answer. The calculation is yours.",
+      unitW: "W",
+      unitKwh: "kWh",
+    },
+  };
+
+  let lang = "da";
+  let langLockedByStudent = false;
+
+  function t(key) { return (strings[lang] || strings.da)[key]; }
+
+  /** Danish writes 4,74 — English writes 4.74. Formatting is part of the locale. */
+  function num(value, dp) {
+    const s = value.toFixed(dp);
+    return lang === "da" ? s.replace(".", ",") : s;
+  }
+
+  function applyLang() {
+    document.documentElement.lang = lang;
+    document.title = t("title");
+    document.querySelectorAll("[data-t]").forEach(function (el) {
+      el.textContent = t(el.dataset.t);
+    });
+    document.getElementById("btn-da").setAttribute("aria-pressed", String(lang === "da"));
+    document.getElementById("btn-en").setAttribute("aria-pressed", String(lang === "en"));
+    renderAll();
+  }
+
+  // ─── Physics ────────────────────────────────────────────────────────────
+  // The socket draws P watts. Only part of that heats the water; the rest goes
+  // into the kettle body, the surroundings and the steam. The fraction is
+  // deliberately hidden — it is what the student is measuring.
+  const C_WATER = 4180;      // J/(kg·K)
+  const T_AMBIENT = 20.0;    // °C
+  const T_BOIL = 100.0;      // °C
+  const HIDDEN_EFF = 0.86;   // never emitted, never rendered
+  const TIME_SCALE = 30;     // simulated seconds per real second
+
+  /** Temperature rise of `m` kg of water from `P` watts over `t` simulated
+   *  seconds, through the kettle's real (lossy) efficiency. Pure — the
+   *  self-test below pins it. */
+  function usefulDeltaT(P, t, m) {
+    return (HIDDEN_EFF * P * t) / (C_WATER * m);
+  }
+
+  const state = {
+    power: 2000,
+    volume: 1.4,
+    running: false,
+    boiled: false,
+    elapsed: 0,
+    temp: T_AMBIENT,
+    energyJ: 0,
+    meterMode: "W",
+    readings: [],
+  };
+  let raf = null;
+  let lastFrameMs = null;
+
+  function mass() { return state.volume; }  // 1 L of water ≈ 1 kg
+
+  // ─── Commit-on-submit: slider moves stay local until the student commits ──
+  // (workbench-state-debounce.md Phase 2 — pre-commit fiddling is thinking out
+  // loud, not a measurement.)
+  const pendingChanges = {};
+
+  function simState() {
+    return {
+      power_W: state.power,
+      volume_L: Number(state.volume.toFixed(1)),
+      mass_kg: Number(mass().toFixed(1)),
+      temperature_C: Number(state.temp.toFixed(1)),
+      elapsed_s: Number(state.elapsed.toFixed(1)),
+      meter_kWh: Number((state.energyJ / 3.6e6).toFixed(4)),
+      boiling: state.boiled,
+      readings_captured: state.readings.length,
+    };
+  }
+
+  function flushPendingChanges(triggeredBy) {
+    const changed = Object.keys(pendingChanges);
+    if (changed.length === 0) return;
+    emit("state-change", { changed: changed, state: simState(), triggeredBy: triggeredBy });
+    changed.forEach(function (k) { delete pendingChanges[k]; });
+  }
+
+  // ─── Rendering ──────────────────────────────────────────────────────────
+  function heatFraction() {
+    return Math.max(0, Math.min(1, (state.temp - T_AMBIENT) / (T_BOIL - T_AMBIENT)));
+  }
+
+  function renderMeter() {
+    const el = document.getElementById("meterScreen");
+    if (state.meterMode === "W") {
+      const shown = state.running ? state.power : 0;
+      el.innerHTML = shown + "<small>" + t("unitW") + "</small>";
+    } else {
+      el.innerHTML = num(state.energyJ / 3.6e6, 4) + "<small>" + t("unitKwh") + "</small>";
+    }
+  }
+
+  function renderInstruments() {
+    document.getElementById("tempRead").textContent = num(state.temp, 1);
+    document.getElementById("clockRead").textContent = num(state.elapsed, 1) + " s";
+    const f = heatFraction();
+    const merc = document.getElementById("merc");
+    merc.style.height = (12 + f * 86) + "%";
+    const mercColour =
+      "rgb(" + Math.round(61 + f * 173) + "," + Math.round(126 - f * 40) + "," + Math.round(166 - f * 140) + ")";
+    merc.style.background = mercColour;
+    document.getElementById("bulb").style.background = mercColour;
+    const water = document.getElementById("waterFill");
+    water.style.background =
+      "linear-gradient(180deg, rgb(" + Math.round(127 + f * 100) + "," + Math.round(180 - f * 60) + "," +
+      Math.round(214 - f * 90) + "), rgb(" + Math.round(77 + f * 110) + "," + Math.round(134 - f * 60) + "," +
+      Math.round(173 - f * 90) + "))";
+  }
+
+  function renderControls() {
+    document.getElementById("powerLabel").textContent = String(state.power);
+    document.getElementById("volLabel").textContent = num(state.volume, 1);
+    document.getElementById("outM").textContent = num(mass(), 1);
+  }
+
+  function renderAll() {
+    renderControls();
+    renderInstruments();
+    renderMeter();
+  }
+
+  // ─── Loop ───────────────────────────────────────────────────────────────
+  function tick(ts) {
+    if (!state.running) return;
+    if (lastFrameMs === null) lastFrameMs = ts;
+    let dtReal = (ts - lastFrameMs) / 1000;
+    lastFrameMs = ts;
+    if (dtReal > 0.1) dtReal = 0.1;          // clamp tab-switch gaps
+    const dt = dtReal * TIME_SCALE;
+
+    state.elapsed += dt;
+    state.energyJ += state.power * dt;       // what the meter counts
+
+    if (!state.boiled) {
+      state.temp += usefulDeltaT(state.power, dt, mass());
+      if (state.temp >= T_BOIL) {
+        state.temp = T_BOIL;
+        state.boiled = true;
+        document.getElementById("kettle").classList.add("boiling");
+      }
+    }
+
+    renderInstruments();
+    if (state.meterMode === "kWh") renderMeter();
+    raf = requestAnimationFrame(tick);
+  }
+
+  // ─── Actions ────────────────────────────────────────────────────────────
+  function setRunning(on) {
+    state.running = on;
+    document.getElementById("startBtn").disabled = on;
+    document.getElementById("stopBtn").disabled = !on;
+    document.getElementById("captureBtn").disabled = on || state.elapsed === 0;
+    document.getElementById("powerSlider").disabled = on;
+    document.getElementById("volSlider").disabled = on;
+    document.getElementById("clock").classList.toggle("running", on);
+    document.getElementById("kettle").classList.toggle("on", on);
+  }
+
+  function startRun() {
+    if (state.running) return;
+    flushPendingChanges("run");
+    setRunning(true);
+    lastFrameMs = null;
+    renderMeter();
+    raf = requestAnimationFrame(tick);
+    emit("run", {
+      state: simState(),
+      label: lang === "da"
+        ? "Tændte kedlen: " + state.power + " W, " + num(state.volume, 1) + " L"
+        : "Started the kettle: " + state.power + " W, " + num(state.volume, 1) + " L",
+    });
+  }
+
+  function stopRun() {
+    if (!state.running) return;
+    if (raf) cancelAnimationFrame(raf);
+    setRunning(false);
+    renderMeter();
+    emit("stop", { state: simState() });
+  }
+
+  function resetRun() {
+    if (raf) cancelAnimationFrame(raf);
+    state.running = false;
+    state.boiled = false;
+    state.elapsed = 0;
+    state.temp = T_AMBIENT;
+    state.energyJ = 0;
+    state.readings = [];
+    state.meterMode = "W";
+    document.getElementById("kettle").classList.remove("boiling", "on");
+    setRunning(false);
+    document.getElementById("captureBtn").disabled = true;
+    ["outP", "outT", "outTstart", "outTend", "outE"].forEach(function (id) {
+      document.getElementById(id).textContent = "—";
+    });
+    ["cellP", "cellT", "cellTstart", "cellTend", "cellE"].forEach(function (id) {
+      document.getElementById(id).classList.add("empty");
+    });
+    renderAll();
+    emit("reset", { state: simState() });
+  }
+
+  function capture() {
+    const reading = {
+      power_W: state.power,
+      mass_kg: Number(mass().toFixed(1)),
+      t_start_C: T_AMBIENT,
+      t_end_C: Number(state.temp.toFixed(1)),
+      duration_s: Number(state.elapsed.toFixed(1)),
+      meter_kWh: Number((state.energyJ / 3.6e6).toFixed(4)),
+    };
+    state.readings.push(reading);
+
+    document.getElementById("outP").textContent = String(reading.power_W);
+    document.getElementById("outT").textContent = num(reading.duration_s, 1);
+    document.getElementById("outTstart").textContent = num(reading.t_start_C, 1);
+    document.getElementById("outTend").textContent = num(reading.t_end_C, 1);
+    document.getElementById("outE").textContent = num(reading.meter_kWh, 4);
+    ["cellP", "cellT", "cellTstart", "cellTend", "cellE"].forEach(function (id) {
+      document.getElementById(id).classList.remove("empty");
+    });
+    document.getElementById("captureBtn").disabled = true;
+
+    emit("reading", {
+      reading: reading,
+      state: simState(),
+      label: lang === "da"
+        ? "Registrerede aflæsning: " + num(reading.t_end_C, 1) + " °C efter " + num(reading.duration_s, 1) + " s"
+        : "Captured a reading: " + num(reading.t_end_C, 1) + " °C after " + num(reading.duration_s, 1) + " s",
+    });
+  }
+
+  function toggleMeterMode() {
+    state.meterMode = state.meterMode === "W" ? "kWh" : "W";
+    renderMeter();
+  }
+
+  // ─── Wiring ─────────────────────────────────────────────────────────────
+  document.getElementById("powerSlider").addEventListener("input", function (e) {
+    if (state.running) return;
+    state.power = Number(e.target.value);
+    pendingChanges.power_W = state.power;
+    renderControls();
+    if (state.meterMode === "W") renderMeter();
+  });
+  document.getElementById("volSlider").addEventListener("input", function (e) {
+    if (state.running) return;
+    state.volume = Number(Number(e.target.value).toFixed(1));
+    pendingChanges.volume_L = state.volume;
+    renderControls();
+  });
+  document.getElementById("startBtn").addEventListener("click", startRun);
+  document.getElementById("stopBtn").addEventListener("click", stopRun);
+  document.getElementById("resetBtn").addEventListener("click", resetRun);
+  document.getElementById("captureBtn").addEventListener("click", capture);
+  document.getElementById("modeBtn").addEventListener("click", toggleMeterMode);
+
+  function setLang(next) {
+    lang = next;
+    applyLang();
+  }
+  document.getElementById("btn-da").addEventListener("click", function () {
+    langLockedByStudent = true; setLang("da");
+  });
+  document.getElementById("btn-en").addEventListener("click", function () {
+    langLockedByStudent = true; setLang("en");
+  });
+
+  applyLang();
+  emit("open", { state: simState() });
+
+  AIPLA_BRIDGE.init({ name: ARTEFACT_NAME, version: "1.0.0" });
+
+  // The host's locale arrives with the ui/initialize result, which lands after
+  // init() returns and the bridge exposes no "ready" callback — so poll briefly
+  // for it. A student who has already picked a language keeps their choice.
+  (function adoptHostLocale() {
+    let tries = 0;
+    const timer = setInterval(function () {
+      const ctx = AIPLA_BRIDGE.hostContext();
+      if (ctx && typeof ctx.locale === "string") {
+        clearInterval(timer);
+        const hostLang = ctx.locale.slice(0, 2).toLowerCase();
+        if (!langLockedByStudent && strings[hostLang] && hostLang !== lang) setLang(hostLang);
+      } else if (++tries > 40) {
+        clearInterval(timer);
+      }
+    }, 50);
+  })();
+
+  // Flush uncommitted slider moves so the tutor answers about the CURRENT setup.
+  AIPLA_BRIDGE.onChatFlush(function () { flushPendingChanges("chat-submit"); });
+
+  // ─── Self-test (?test=1) ────────────────────────────────────────────────
+  // 2000 W for 60 s into 1,0 kg of water, through the kettle's real efficiency:
+  //   0.86 · 2000 · 60 / (4180 · 1.0) = 24.689 K
+  if (new URLSearchParams(window.location.search).get("test") === "1") {
+    const got = usefulDeltaT(2000, 60, 1.0);
+    const ok = Math.abs(got - 24.689) < 0.01;
+    document.title = (ok ? "TEST PASS" : "TEST FAIL") + " — " + strings.da.title;
+    if (!ok) console.error("Self-test failed: deltaT=" + got + " expected 24.689");
+    else console.log("Self-test PASS: deltaT=" + got);
+  }
+</script>
+</body>
+</html>

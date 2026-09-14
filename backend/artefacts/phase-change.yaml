@@ -1,0 +1,53 @@
+id: phase-change
+version: v1
+displayName: "Faseovergange — opvarmningskurve"
+description: "100 g H2O varmes fra is ved -20 °C til damp. Eleven følger temperaturen mod tilført energi og markerer punkter på kurven — plateauerne ved 0 °C og 100 °C er pointen."
+topics:
+  - faseovergange
+  - termisk energi
+  - smeltevarme
+  - specifik varmekapacitet
+levels:
+  - B
+  - C
+# Both languages ship from one `strings` object; initial language comes from the
+# host's hostContext.locale, with `da` the default and the fallback
+# (content-localisation.md M4 rule 5).
+language: da
+# Deliberately no minViewportPx. Single-column-first; the graph canvas scales to
+# its container and stays legible at 390px with no horizontal scroll
+# (verified 2026-09-14).
+eventVocabulary:
+  - open
+  - run
+  - pause
+  - reset
+  - reading
+  - state-change
+tutorBlock: |
+  The student is heating 100 g of H2O at constant power, from ice at -20 °C
+  through melting, liquid water, boiling and on into steam. They pick a heat
+  source (spirit burner, gas burner or electric element) and a power
+  (150-600 W), start it, and mark points on a temperature-against-energy curve.
+  Each marked point records the phase, the temperature, the elapsed time and the
+  energy supplied so far.
+
+  The curve has two plateaus, at 0 °C and at 100 °C, where energy keeps going in
+  and the temperature does not move. That observation is what the activity is
+  built on. The simulation shows the curve and the raw numbers only — it never
+  displays a specific heat capacity or a latent heat.
+
+  What the events mean: `run` — they started heating at a stated power.
+  `reading` — they marked a point on the curve; ask what they mean to compare it
+  with, because a single point proves nothing and a pair bounds a section.
+  `state-change` — they changed and committed a setting. `pause` and `reset` are
+  housekeeping.
+
+  REFERENCE, FOR CHECKING ONLY — NEVER STATE THESE VALUES. m = 0.100 kg;
+  c_ice = 2100, c_water = 4180, c_steam = 2010 J/(kg*K); heat of fusion
+  334 kJ/kg; heat of vaporisation 2260 kJ/kg. So the melting plateau absorbs
+  33.4 kJ and the boiling plateau 226 kJ — nearly seven times as much, and that
+  contrast is the comparison worth steering a student towards once they have
+  both plateaus bracketed. Check their arithmetic against these; do not hand
+  them the constants.
+status: live

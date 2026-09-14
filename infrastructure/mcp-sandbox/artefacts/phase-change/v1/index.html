@@ -1,0 +1,1225 @@
+<!doctype html>
+<html lang="da">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Faseovergange — opvarmningskurve</title>
+<!--
+  AIPLA MCP App artefact — phase-change v1.
+
+  100 g of H2O heated at constant power from ice at -20 °C, through melting,
+  liquid water, boiling and into steam. The student watches the temperature
+  stall twice while energy keeps going in, and marks points on the curve.
+
+  The sim reports the curve and the marked points. The specific heat capacities
+  and the latent heats are NOT shown — they are what the student extracts from
+  the plateaus. The tutor holds the reference values (catalogue tutorBlock,
+  server-side) so it can check an answer without the student reading it here.
+
+  Language: one `strings` object, initial `lang` from the host bridge's
+  hostContext.locale, with a manual toggle (content-localisation.md M4 rule 5).
+-->
+<style>
+  :root {
+    --bg: #ffffff;
+    --fg: #0f172a;
+    --muted: #64748b;
+    --border: #e2e8f0;
+    --accent: #2563eb;
+    --accent-soft: #eff6ff;
+    --ok: #16a34a;
+    --surface: #f8fafc;
+    --ice: #8fb8d8;
+    --ice-deep: #5a8fbd;
+    --water: #3d7ea6;
+    --steam: #cbd5e1;
+    --flame: #ea580c;
+    --plateau: #b8451f;
+    --curve: #c44a2c;
+    --mono: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  }
+  * { box-sizing: border-box; }
+  html, body {
+    margin: 0; padding: 0;
+    font-family: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+    background: var(--bg); color: var(--fg);
+    font-size: 14px; line-height: 1.45;
+  }
+  body { padding: 12px; }
+
+  header.top {
+    display: flex; align-items: flex-start; justify-content: space-between;
+    gap: 10px; margin-bottom: 10px;
+  }
+  header h1 { font-size: 15px; margin: 0 0 2px; font-weight: 600; }
+  header .sub { margin: 0; font-size: 12px; color: var(--muted); max-width: 62ch; }
+  .lang { display: flex; gap: 4px; flex: none; }
+  .lang button {
+    font: inherit; font-size: 11px; padding: 3px 8px; cursor: pointer;
+    background: transparent; color: var(--muted);
+    border: 1px solid var(--border); border-radius: 4px;
+  }
+  .lang button[aria-pressed="true"] {
+    background: var(--accent-soft); color: var(--accent); border-color: var(--accent);
+  }
+
+  main { display: grid; grid-template-columns: 1fr; gap: 10px; }
+  @media (min-width: 760px) { main { grid-template-columns: 0.85fr 1.15fr; } }
+
+  .panel {
+    background: #fff; border: 1px solid var(--border);
+    border-radius: 6px; padding: 10px;
+  }
+  .panel h2 {
+    font-size: 11px; text-transform: uppercase; letter-spacing: .05em;
+    color: var(--muted); margin: 0 0 8px; font-weight: 600;
+  }
+  .col { display: grid; gap: 10px; align-content: start; }
+
+  /* ── Apparatus ─────────────────────────────────────────────────────── */
+  .rig {
+    background: var(--surface); border: 1px solid var(--border);
+    border-radius: 6px; padding: 12px;
+    display: flex; flex-direction: column; align-items: center; gap: 0;
+  }
+  .beaker {
+    position: relative; width: 116px; height: 118px;
+    border: 2px solid #b8c4d0; border-top: none;
+    border-radius: 0 0 12px 12px; background: rgba(255, 255, 255, .7);
+  }
+  .beaker .substance {
+    position: absolute; left: 3px; right: 3px; bottom: 3px;
+    border-radius: 0 0 9px 9px; height: 80%;
+    background: linear-gradient(180deg, #dbeaf6, #b9d5ea);
+    transition: height .5s linear;
+  }
+  .beaker .ice { position: absolute; inset: 6px 6px 8px; transition: opacity .4s linear; }
+  .beaker .ice i {
+    position: absolute; display: block; border-radius: 3px;
+    background: #f2f8fd; border: 1px solid var(--ice);
+  }
+  .beaker .bubbles { position: absolute; left: 8px; right: 8px; bottom: 8px; height: 40%; opacity: 0; }
+  .beaker.boiling .bubbles { opacity: 1; }
+  .beaker .bubbles span {
+    position: absolute; bottom: 0; width: 6px; height: 6px; border-radius: 50%;
+    background: rgba(255, 255, 255, .85); border: 1px solid #a9c6da;
+    animation: bubble 1.4s ease-in infinite;
+  }
+  .beaker .bubbles span:nth-child(1) { left: 18%; }
+  .beaker .bubbles span:nth-child(2) { left: 46%; animation-delay: .45s; }
+  .beaker .bubbles span:nth-child(3) { left: 72%; animation-delay: .9s; }
+  @keyframes bubble {
+    0% { opacity: 0; transform: translateY(0) scale(.5); }
+    30% { opacity: .9; }
+    100% { opacity: 0; transform: translateY(-38px) scale(1); }
+  }
+  .beaker .vapour { position: absolute; top: -26px; left: 0; right: 0; height: 26px; opacity: 0; }
+  .beaker.steaming .vapour { opacity: 1; }
+  .beaker .vapour span {
+    position: absolute; bottom: 0; width: 8px; height: 8px; border-radius: 50%;
+    background: var(--steam); animation: rise 2.1s ease-out infinite;
+  }
+  .beaker .vapour span:nth-child(1) { left: 32%; }
+  .beaker .vapour span:nth-child(2) { left: 52%; animation-delay: .7s; }
+  .beaker .vapour span:nth-child(3) { left: 68%; animation-delay: 1.4s; }
+  @keyframes rise {
+    0% { opacity: 0; transform: translateY(0) scale(.6); }
+    25% { opacity: .7; }
+    100% { opacity: 0; transform: translateY(-24px) scale(1.6); }
+  }
+
+  .heater { margin-top: 4px; height: 34px; display: flex; align-items: center; justify-content: center; }
+  .flame { display: flex; gap: 4px; align-items: flex-end; opacity: .25; }
+  .heater.on .flame { opacity: 1; }
+  .flame i {
+    display: block; width: 9px; height: 20px; border-radius: 50% 50% 45% 45%;
+    background: linear-gradient(180deg, #fbbf24, var(--flame));
+  }
+  .heater.on .flame i { animation: flicker .5s ease-in-out infinite alternate; }
+  .flame i:nth-child(2) { height: 26px; animation-delay: .15s; }
+  .flame i:nth-child(3) { animation-delay: .3s; }
+  @keyframes flicker { to { transform: scaleY(1.18); } }
+  .coil { width: 78px; height: 9px; border-radius: 5px; background: #cbd5e1; }
+  .heater.on .coil { background: linear-gradient(90deg, var(--flame), #fbbf24, var(--flame)); }
+  .stand { width: 108px; height: 5px; border-radius: 3px; background: #cbd5e1; margin-top: 2px; }
+
+  .readouts { display: flex; gap: 8px; margin-top: 10px; flex-wrap: wrap; }
+  .ro {
+    flex: 1 1 76px; background: var(--surface); border: 1px solid var(--border);
+    border-radius: 5px; padding: 6px 7px;
+  }
+  .ro .k { font-size: 11px; color: var(--muted); }
+  .ro .v {
+    font-family: var(--mono); font-size: 15px; font-weight: 600;
+    font-variant-numeric: tabular-nums;
+  }
+  .ro .v small { font-size: 11px; font-weight: 400; color: var(--muted); margin-left: 2px; }
+  .phase-badge {
+    display: inline-block; margin-top: 8px; font-size: 11px; font-weight: 600;
+    padding: 3px 9px; border-radius: 999px;
+    background: var(--accent-soft); color: var(--accent);
+  }
+  .phase-badge.melt, .phase-badge.boil { background: #fef2f2; color: var(--plateau); }
+
+  /* ── Controls ──────────────────────────────────────────────────────── */
+  .field { margin: 8px 0; }
+  .field label { display: block; font-size: 12px; margin-bottom: 3px; }
+  .field .val { font-family: var(--mono); font-variant-numeric: tabular-nums; }
+  .field input[type="range"], .field select { width: 100%; }
+  .field input[type="range"] { accent-color: var(--accent); }
+  .field select {
+    font: inherit; font-size: 12px; padding: 5px 6px;
+    border: 1px solid var(--border); border-radius: 4px; background: #fff; color: var(--fg);
+  }
+  .btnrow { display: flex; gap: 6px; flex-wrap: wrap; margin-top: 10px; }
+  .btn {
+    font: inherit; font-size: 12px; padding: 6px 10px; cursor: pointer;
+    border-radius: 4px; border: 1px solid transparent;
+    background: var(--accent-soft); color: var(--accent);
+  }
+  .btn:hover:not(:disabled) { border-color: var(--accent); }
+  .btn.ghost { background: transparent; color: var(--muted); border-color: var(--border); }
+  .btn:disabled { opacity: .45; cursor: default; }
+  .hint {
+    margin: 10px 0 0; font-size: 11px; color: var(--muted);
+    border-left: 3px solid var(--border); padding-left: 9px;
+  }
+
+  /* ── Graph ─────────────────────────────────────────────────────────── */
+  .graph-wrap { background: #fff; border: 1px solid var(--border); border-radius: 6px; padding: 6px; }
+  canvas { width: 100%; height: auto; display: block; }
+  .legend {
+    display: flex; gap: 12px; flex-wrap: wrap; margin-top: 6px;
+    font-size: 11px; color: var(--muted);
+  }
+  .legend i { display: inline-block; width: 10px; height: 3px; border-radius: 2px; vertical-align: middle; margin-right: 4px; }
+
+  table.log { width: 100%; border-collapse: collapse; margin-top: 8px; font-size: 12px; }
+  table.log th {
+    text-align: left; font-size: 11px; font-weight: 600; color: var(--muted);
+    border-bottom: 1px solid var(--border); padding: 4px 6px;
+  }
+  table.log td { padding: 4px 6px; border-bottom: 1px solid #f1f5f9; }
+  table.log td.num { text-align: right; font-family: var(--mono); font-variant-numeric: tabular-nums; }
+  table.log tr.blank td { color: #cbd5e1; text-align: center; font-style: italic; }
+</style>
+</head>
+<body>
+
+<header class="top">
+  <div>
+    <h1 data-t="title"></h1>
+    <p class="sub" data-t="sub"></p>
+  </div>
+  <div class="lang" role="group" aria-label="Sprog / Language">
+    <button type="button" id="btn-da" aria-pressed="true">Dansk</button>
+    <button type="button" id="btn-en" aria-pressed="false">English</button>
+  </div>
+</header>
+
+<main>
+  <div class="col">
+    <section class="panel">
+      <h2 data-t="rigHead"></h2>
+      <div class="rig">
+        <div class="beaker" id="beaker">
+          <div class="vapour"><span></span><span></span><span></span></div>
+          <div class="substance" id="substance"></div>
+          <div class="ice" id="iceChunks"></div>
+          <div class="bubbles"><span></span><span></span><span></span></div>
+        </div>
+        <div class="heater" id="heater">
+          <div class="flame" id="flameBox"><i></i><i></i><i></i></div>
+          <div class="coil" id="coil" style="display:none"></div>
+        </div>
+        <div class="stand"></div>
+      </div>
+
+      <div class="readouts">
+        <div class="ro">
+          <div class="k" data-t="temperature"></div>
+          <div class="v"><span id="tempRead">-20,0</span><small>°C</small></div>
+        </div>
+        <div class="ro">
+          <div class="k" data-t="time"></div>
+          <div class="v"><span id="timeRead">0,0</span><small>s</small></div>
+        </div>
+        <div class="ro">
+          <div class="k" data-t="energy"></div>
+          <div class="v"><span id="energyRead">0</span><small>J</small></div>
+        </div>
+      </div>
+      <span class="phase-badge" id="phaseBadge"></span>
+    </section>
+
+    <section class="panel">
+      <h2 data-t="controlsHead"></h2>
+
+      <div class="field">
+        <label for="sourceSel" data-t="source"></label>
+        <select id="sourceSel">
+          <option value="burner-spirit" data-t="srcSpirit"></option>
+          <option value="burner-gas" data-t="srcGas"></option>
+          <option value="electric" data-t="srcElectric"></option>
+        </select>
+      </div>
+
+      <div class="field">
+        <label for="powerSlider">
+          <span data-t="power"></span> — <span class="val"><span id="powerLabel">300</span> W</span>
+        </label>
+        <input type="range" id="powerSlider" min="150" max="600" step="10" value="300">
+      </div>
+
+      <div class="btnrow">
+        <button type="button" class="btn" id="startBtn" data-t="start"></button>
+        <button type="button" class="btn ghost" id="pauseBtn" data-t="pause" disabled></button>
+        <button type="button" class="btn ghost" id="resetBtn" data-t="reset"></button>
+      </div>
+
+      <p class="hint" data-t="tip"></p>
+    </section>
+  </div>
+
+  <section class="panel">
+    <h2 data-t="graphHead"></h2>
+    <div class="graph-wrap">
+      <canvas id="graph" aria-label="Temperatur mod tilført energi"></canvas>
+    </div>
+    <div class="legend">
+      <span><i style="background:var(--curve)"></i><span data-t="legCurve"></span></span>
+      <span><i style="background:var(--plateau);height:5px"></i><span data-t="legPlateau"></span></span>
+      <span><i style="background:var(--ice-deep);height:9px;width:9px;border-radius:50%"></i><span data-t="legPoint"></span></span>
+    </div>
+
+    <div class="btnrow">
+      <button type="button" class="btn" id="markBtn" data-t="mark" disabled></button>
+    </div>
+
+    <table class="log">
+      <thead>
+        <tr>
+          <th>#</th>
+          <th data-t="colState"></th>
+          <th style="text-align:right">T (°C)</th>
+          <th style="text-align:right">t (s)</th>
+          <th style="text-align:right">E (J)</th>
+        </tr>
+      </thead>
+      <tbody id="logBody">
+        <tr class="blank"><td colspan="5" data-t="noPoints"></td></tr>
+      </tbody>
+    </table>
+
+    <p class="hint" data-t="rawOnly"></p>
+  </section>
+</main>
+
+<!-- @aipla-bridge:start (GENERATED — edit infrastructure/mcp-sandbox/bridge/aipla-mcp-bridge.js, then `make sim-build`) -->
+<script>
+/* ============================================================================
+ * AIPLA MCP App guest bridge — ONE canonical transport for every host.
+ *
+ * SOURCE OF TRUTH. This file is inlined verbatim into every artefact's
+ * index.html between the `@aipla-bridge:start … @aipla-bridge:end` markers by
+ * `scripts/build-artefact-bridge.mjs` (run `make sim-build`). NEVER hand-edit
+ * the inlined copy — edit THIS file and rebuild. CI (`--check`) fails on drift.
+ *
+ * It speaks whichever host is present:
+ *   - AIPLA app / SEP-1865 hosts  → JSON-RPC `ui/update-model-context` over
+ *                                   window.parent.postMessage (the app reads
+ *                                   structuredContent + renders the trust card).
+ *   - ChatGPT (OpenAI Apps SDK)   → window.openai.setWidgetState (durable state)
+ *                                   + window.openai.sendFollowUpMessage (turns a
+ *                                   deliberate commit into an immediate turn).
+ *   - Claude Desktop / Inspector  → the same SEP-1865 postMessage + `content`.
+ *
+ * The window.openai block is guarded end-to-end: absent in the AIPLA app and
+ * Claude, so it is a pure no-op there and the postMessage path stays
+ * authoritative. See docs/design/aipla/v1.1.0-feedback/shared-mcp-app-bridge.md.
+ *
+ * Public surface (window.AIPLA_BRIDGE):
+ *   emit(kind, extra)                 — report a student interaction. `kind` is
+ *                                       the FULL event kind (e.g. "boldkast.play").
+ *                                       `extra.label` (a curated string) marks a
+ *                                       DELIBERATE COMMIT — only labelled emits
+ *                                       inject a ChatGPT follow-up turn.
+ *   init({ name, version })           — run the ui/initialize handshake. Call once
+ *                                       at the bottom of the artefact script.
+ *   onChatFlush(cb)                   — cb() runs on ui/notifications/chat-flush.
+ *   onHostNotification(method, cb)    — cb(params, msg) runs on any host→iframe
+ *                                       JSON-RPC notification with that method.
+ *   hostContext()                     — the hostContext returned by ui/initialize.
+ *
+ * Conservative JS (var/function) so it runs unchanged in any host iframe engine.
+ * ========================================================================== */
+(function () {
+  "use strict";
+
+  var __rpcNextId = 1;
+  var __initialized = false;
+  var __pendingEmits = [];
+  var __hostContext = null;
+  var __handlers = {}; // method -> [cb]
+  var __lastReportedHeight = 0;
+  var __appLinkShown = false;
+  var __appLinkOpts = null;
+  var __hostIsExternal = false; // a non-AIPLA host (any MCP-Apps host OR ChatGPT)
+  var __hostIsAipla = false; // our own app — identified by serverInfo.name below
+
+  // Our app self-identifies in its ui/initialize response so host detection
+  // uses the OPEN STANDARD, not the OpenAI-specific window.openai shim. Every
+  // other SEP-1865 host (Claude, Inspector, Goose, Copilot) returns a different
+  // serverInfo; ChatGPT never answers the handshake (caught by window.openai).
+  var AIPLA_HOST_NAME = "aipla-host";
+
+  // Deployed AIPLA app — the deep-link target for the external-host "advertising
+  // → app" CTA (design 1.1.55 §0). Public URL; update per env / when a custom
+  // domain lands. Overridable per-sim via init({ appUrl: "…" }).
+  var APP_URL = "https://aipla-v01-frontend-wgwhd7mspa-lz.a.run.app";
+
+  function __post(msg) {
+    try {
+      // targetOrigin "*" is safe: the outer sandbox proxy validates origin on
+      // its side per ADR-013, then re-postMessages to the host with the host's
+      // specific origin. In standalone (artefact opened directly) parent may not
+      // exist — swallow.
+      window.parent.postMessage(msg, "*");
+    } catch (e) {
+      /* no host */
+    }
+  }
+
+  function rpcNotify(method, params) {
+    __post({ jsonrpc: "2.0", method: method, params: params || {} });
+  }
+
+  function rpcRequest(method, params) {
+    return new Promise(function (resolve, reject) {
+      var id = __rpcNextId++;
+      var listener = function (e) {
+        var d = e.data;
+        if (!d || d.id !== id) return;
+        window.removeEventListener("message", listener);
+        if (d.result !== undefined) resolve(d.result);
+        else reject(new Error((d.error && d.error.message) || "rpc error"));
+      };
+      window.addEventListener("message", listener);
+      __post({ jsonrpc: "2.0", id: id, method: method, params: params || {} });
+    });
+  }
+
+  // Single host→iframe listener: respond to ping (spec), dispatch registered
+  // notification handlers. rpcRequest installs its own short-lived id-matched
+  // listener separately for responses.
+  window.addEventListener("message", function (e) {
+    var d = e.data;
+    if (!d || d.jsonrpc !== "2.0") return;
+    if (d.method === "ping" && d.id !== undefined && d.id !== null) {
+      __post({ jsonrpc: "2.0", id: d.id, result: {} });
+      return;
+    }
+    if (d.method && __handlers[d.method]) {
+      var cbs = __handlers[d.method];
+      for (var i = 0; i < cbs.length; i++) {
+        try {
+          cbs[i](d.params, d);
+        } catch (err) {
+          /* a handler throwing must not break the bridge */
+        }
+      }
+    }
+  });
+
+  // Derive a human-readable `content` text for generic MCP hosts (ChatGPT /
+  // Claude feed `content` to the model and treat `structuredContent` as
+  // schema-validated app data — without a text the model never sees the
+  // interaction). Prefers the curated `label`; else summarises the payload.
+  // The AIPLA frontend reads structuredContent and IGNORES content, so this is
+  // purely additive for our own app.
+  function __contentText(kind, p) {
+    if (p && typeof p.label === "string" && p.label) return p.label;
+    if (!p) return kind;
+    var parts = [];
+    for (var k in p) {
+      if (k === "label") continue;
+      var v = p[k];
+      if (Array.isArray(v)) {
+        parts.push(k + "=[" + v.length + "]");
+      } else if (v && typeof v === "object") {
+        for (var k2 in v) {
+          if (v[k2] == null || typeof v[k2] !== "object") parts.push(k2 + "=" + v[k2]);
+        }
+      } else {
+        parts.push(k + "=" + v);
+      }
+    }
+    return kind + (parts.length ? " (" + parts.join(", ") + ")" : "");
+  }
+
+  function emit(kind, extra) {
+    extra = extra || {};
+    var sc = Object.assign({}, extra, { kind: kind });
+    var params = { structuredContent: sc };
+    var label = typeof extra.label === "string" && extra.label ? extra.label : "";
+    var text = label || __contentText(kind, extra);
+    if (text) params.content = [{ type: "text", text: text }];
+
+    // ── ChatGPT (OpenAI Apps SDK) ──────────────────────────────────────────
+    // Absent in the AIPLA app / Claude → whole block no-ops. Guard every call.
+    var oa = typeof window !== "undefined" ? window.openai : undefined;
+    if (oa) {
+      try {
+        if (oa.setWidgetState) oa.setWidgetState(sc);
+      } catch (e) {
+        /* best effort */
+      }
+      // Inject a turn ONLY on a deliberate commit (has a curated label) — never
+      // on a passive settle or a derived-text event. Gated on `label`, NOT on
+      // `content` (content is near-always present via __contentText).
+      if (label && oa.sendFollowUpMessage) {
+        try {
+          oa.sendFollowUpMessage({ prompt: label });
+        } catch (e) {
+          /* best effort */
+        }
+      }
+    }
+
+    // ── SEP-1865 postMessage (AIPLA app + native hosts) — authoritative ─────
+    var msg = { jsonrpc: "2.0", method: "ui/update-model-context", params: params };
+    if (!__initialized) {
+      __pendingEmits.push(msg);
+      return;
+    }
+    __post(msg);
+  }
+
+  function onHostNotification(method, cb) {
+    if (!__handlers[method]) __handlers[method] = [];
+    __handlers[method].push(cb);
+  }
+
+  function onChatFlush(cb) {
+    onHostNotification("ui/notifications/chat-flush", function () {
+      cb();
+    });
+  }
+
+  // The initial widget state a host restored for this render (ChatGPT/Copilot
+  // persist setWidgetState across navigate-away-and-back). A sim that wants to
+  // restore its UI reads this in its own init: e.g. AIPLA_BRIDGE.initialState().
+  // Returns null in the AIPLA app / Claude (no window.openai). Opt-in per sim.
+  function initialState() {
+    var oa = typeof window !== "undefined" ? window.openai : undefined;
+    return oa && oa.widgetState ? oa.widgetState : null;
+  }
+
+  // Report our content height so a host frame fits it. ChatGPT/Copilot default
+  // the widget iframe to ~600px and only shrink on this signal; we route it
+  // through window.openai only (the AIPLA app owns the workspace-pane height and
+  // Claude/Inspector default frames are fine — sending nothing there avoids
+  // noise). Guarded + best-effort: no-op where the API/host is absent. For a
+  // full-bleed sim (html,body height:100%) body.scrollHeight is the frame
+  // height, so this harmlessly reports the current size.
+  function reportSize() {
+    var oa = typeof window !== "undefined" ? window.openai : undefined;
+    if (!oa || typeof oa.notifyIntrinsicHeight !== "function") return;
+    var doc = typeof window !== "undefined" ? window.document : undefined;
+    if (!doc || !doc.body) return;
+    var rect = doc.body.getBoundingClientRect ? doc.body.getBoundingClientRect() : { height: 0 };
+    var h = Math.ceil(Math.max(doc.body.scrollHeight || 0, rect.height || 0));
+    if (!h || h === __lastReportedHeight) return;
+    __lastReportedHeight = h;
+    try {
+      oa.notifyIntrinsicHeight(h);
+    } catch (e) {
+      /* best effort */
+    }
+  }
+
+  // Deep-link CTA — external-host "advertising → app" (design 1.1.55 §0). The
+  // low-level injector: drops one unobtrusive floating pill that opens the
+  // deployed app for the full tutor (agent + persona + research capture).
+  // Idempotent + guarded. The SHOW DECISION (which host) is made by
+  // __maybeShowAppLink via the standard handshake — see __hostIsExternal.
+  function showAppLink(opts) {
+    opts = opts || {};
+    if (__appLinkShown || opts.disabled) return;
+    var oa = typeof window !== "undefined" ? window.openai : undefined;
+    var doc = typeof window !== "undefined" ? window.document : undefined;
+    if (!doc || !doc.body || typeof doc.createElement !== "function") return;
+    __appLinkShown = true;
+
+    var href = opts.href || APP_URL + (opts.sim ? "?sim=" + encodeURIComponent(opts.sim) : "");
+    var a = doc.createElement("a");
+    a.textContent = opts.label || "Open the full tutor in AIPLA ↗";
+    a.href = href;
+    a.target = "_blank";
+    a.rel = "noopener";
+    a.setAttribute("role", "button");
+    a.style.cssText =
+      "position:fixed;right:12px;bottom:12px;z-index:2147483647;" +
+      "font:600 12px/1 ui-sans-serif,system-ui,-apple-system,sans-serif;" +
+      "padding:8px 12px;border-radius:999px;background:#1e40af;color:#fff;" +
+      "text-decoration:none;box-shadow:0 2px 8px rgba(0,0,0,.25);cursor:pointer";
+    a.addEventListener("click", function (e) {
+      // Prefer the host's vetted external-open affordance; else the <a> opens natively.
+      if (oa && typeof oa.openExternal === "function") {
+        try {
+          e.preventDefault();
+          oa.openExternal({ href: href });
+        } catch (err) {
+          try {
+            window.open(href, "_blank");
+          } catch (e2) {
+            /* best effort */
+          }
+        }
+      }
+    });
+    try {
+      doc.body.appendChild(a);
+    } catch (e) {
+      /* best effort */
+    }
+  }
+
+  // Show the CTA only when we KNOW we're in a host that isn't the AIPLA app.
+  // external (ChatGPT via window.openai, or any host whose ui/initialize
+  // serverInfo isn't "aipla-host") AND not our app.
+  function __maybeShowAppLink() {
+    if (__appLinkOpts && __appLinkOpts.disabled) return;
+    if (__hostIsAipla || !__hostIsExternal) return;
+    showAppLink(__appLinkOpts || {});
+  }
+
+  function __setupHostAdaptation() {
+    if (typeof window === "undefined") return;
+    // ChatGPT never answers the ui/initialize handshake, so it can't be detected
+    // via serverInfo — but it injects window.openai, which is a definitive
+    // "external, not our app" signal. window.openai may arrive slightly after
+    // load → also react to its (re)injection.
+    if (window.openai) __hostIsExternal = true;
+    try {
+      window.addEventListener("openai:set_globals", function () {
+        __hostIsExternal = true;
+        reportSize();
+        __maybeShowAppLink();
+      });
+    } catch (e) {
+      /* older engine */
+    }
+    var doc = window.document;
+    if (typeof ResizeObserver !== "undefined" && doc && doc.body) {
+      try {
+        new ResizeObserver(reportSize).observe(doc.body);
+      } catch (e) {
+        /* best effort */
+      }
+    }
+    reportSize();
+    __maybeShowAppLink();
+  }
+
+  function init(clientInfo) {
+    clientInfo = clientInfo || {};
+    var ci = {
+      name: clientInfo.name || "aipla-sim",
+      version: clientInfo.version || "1.0.0",
+    };
+    // Deep-link CTA options (external-host only). Disable per-sim with
+    // init({ appLink: false }); customise with appUrl / appLinkLabel.
+    __appLinkOpts = {
+      sim: ci.name,
+      href: clientInfo.appUrl,
+      label: clientInfo.appLinkLabel,
+      disabled: clientInfo.appLink === false,
+    };
+    // If parent isn't a sandbox proxy (standalone testing) this rejects and we
+    // flip __initialized so queued emits stop queuing (they become __post
+    // no-ops via the try/catch).
+    rpcRequest("ui/initialize", {
+      protocolVersion: "2026-01-26",
+      capabilities: {},
+      clientInfo: ci,
+    })
+      .then(function (result) {
+        __hostContext = (result && result.hostContext) || null;
+        // Standard host identification: our own app answers with
+        // serverInfo.name === "aipla-host"; every other SEP-1865 host (Claude,
+        // Inspector, Goose, Copilot) is external → eligible for the app CTA.
+        var srvName = result && result.serverInfo && result.serverInfo.name;
+        if (srvName === AIPLA_HOST_NAME) {
+          __hostIsAipla = true;
+        } else {
+          __hostIsExternal = true;
+        }
+        rpcNotify("ui/notifications/initialized", { clientInfo: ci });
+        __initialized = true;
+        while (__pendingEmits.length) __post(__pendingEmits.shift());
+        __maybeShowAppLink();
+      })
+      .catch(function () {
+        __initialized = true;
+        __pendingEmits.length = 0;
+      });
+    // Independent of the postMessage handshake (which never resolves under
+    // ChatGPT): adapt to a window.openai host + report our size.
+    __setupHostAdaptation();
+  }
+
+  window.AIPLA_BRIDGE = {
+    emit: emit,
+    init: init,
+    onChatFlush: onChatFlush,
+    onHostNotification: onHostNotification,
+    hostContext: function () {
+      return __hostContext;
+    },
+    initialState: initialState,
+    reportSize: reportSize,
+    showAppLink: showAppLink,
+  };
+})();
+</script>
+<!-- @aipla-bridge:end -->
+<script>
+  "use strict";
+
+  const ARTEFACT_NAME = "phase-change";
+  function emit(type, extra) {
+    return AIPLA_BRIDGE.emit(ARTEFACT_NAME + "." + type, extra);
+  }
+
+  // ─── Strings ────────────────────────────────────────────────────────────
+  const strings = {
+    da: {
+      title: "Faseovergange: is → vand → damp",
+      sub: "Tilfør energi med konstant effekt og følg temperaturen. To gange står den stille, mens energien bliver ved med at gå ind — det er dér, faseovergangen sker.",
+      rigHead: "Forsøgsopstilling",
+      controlsHead: "Varmekilde",
+      graphHead: "Opvarmningskurve",
+      source: "Varmekilde",
+      srcSpirit: "Spiritusbrænder",
+      srcGas: "Gasbrænder",
+      srcElectric: "Elektrisk varmelegeme",
+      power: "Tilført effekt",
+      temperature: "Temperatur",
+      time: "Tid",
+      energy: "Tilført energi",
+      start: "Start opvarmning",
+      pause: "Pause",
+      reset: "Nulstil",
+      mark: "Markér punkt",
+      colState: "Tilstand",
+      noPoints: "Endnu ingen punkter markeret",
+      legCurve: "temperaturkurve",
+      legPlateau: "faseovergang (plateau)",
+      legPoint: "markeret punkt",
+      tip: "Markér fx start og slut af hvert afsnit — så kan du regne på ét afsnit ad gangen.",
+      rawOnly: "Simuleringen viser kurven og rådata — ikke svarene. c og smeltevarmen er dine at regne ud.",
+      axisX: "Tilført energi (J) →",
+      axisY: "Temperatur (°C)",
+      phaseIce: "is",
+      phaseMelting: "smelter",
+      phaseWater: "vand",
+      phaseBoiling: "koger",
+      phaseSteam: "damp",
+    },
+    en: {
+      title: "Phase changes: ice → water → steam",
+      sub: "Add energy at constant power and follow the temperature. Twice it stands still while energy keeps going in — that is where the phase change happens.",
+      rigHead: "Apparatus",
+      controlsHead: "Heat source",
+      graphHead: "Heating curve",
+      source: "Heat source",
+      srcSpirit: "Spirit burner",
+      srcGas: "Gas burner",
+      srcElectric: "Electric heater",
+      power: "Power supplied",
+      temperature: "Temperature",
+      time: "Time",
+      energy: "Energy supplied",
+      start: "Start heating",
+      pause: "Pause",
+      reset: "Reset",
+      mark: "Mark point",
+      colState: "State",
+      noPoints: "No points marked yet",
+      legCurve: "temperature curve",
+      legPlateau: "phase change (plateau)",
+      legPoint: "marked point",
+      tip: "Mark e.g. the start and end of each section — then you can work on one section at a time.",
+      rawOnly: "The simulation shows the curve and raw data — not the answers. c and the latent heat are yours to work out.",
+      axisX: "Energy supplied (J) →",
+      axisY: "Temperature (°C)",
+      phaseIce: "ice",
+      phaseMelting: "melting",
+      phaseWater: "water",
+      phaseBoiling: "boiling",
+      phaseSteam: "steam",
+    },
+  };
+
+  let lang = "da";
+  let langLockedByStudent = false;
+
+  function t(key) { return (strings[lang] || strings.da)[key]; }
+
+  function num(value, dp) {
+    const s = value.toFixed(dp);
+    return lang === "da" ? s.replace(".", ",") : s;
+  }
+
+  /** Thousands separator matching the locale: 12 500 vs 12,500. */
+  function grouped(value) {
+    const s = String(Math.round(value));
+    const withSep = s.replace(/\B(?=(\d{3})+(?!\d))/g, lang === "da" ? " " : ",");
+    return withSep;
+  }
+
+  function applyLang() {
+    document.documentElement.lang = lang;
+    document.title = t("title");
+    document.querySelectorAll("[data-t]").forEach(function (el) {
+      el.textContent = t(el.dataset.t);
+    });
+    document.getElementById("btn-da").setAttribute("aria-pressed", String(lang === "da"));
+    document.getElementById("btn-en").setAttribute("aria-pressed", String(lang === "en"));
+    renderAll();
+    renderLog();
+  }
+
+  // ─── Physics ────────────────────────────────────────────────────────────
+  // 100 g of H2O from ice at -20 °C to steam at 120 °C, energy added at a
+  // constant rate. The two plateaus are the whole point: temperature flat,
+  // energy still going in.
+  const M = 0.100;                                     // kg
+  const C_ICE = 2100, C_WATER = 4180, C_STEAM = 2010;  // J/(kg·K)
+  const L_FUS = 334000, L_VAP = 2260000;               // J/kg
+  const T0 = -20, T_MELT = 0, T_BOIL = 100, T_MAX = 120;
+  const TIME_SCALE = 40;                               // simulated s per real s
+
+  const E_ICE_WARM = C_ICE * M * (T_MELT - T0);
+  const E_MELT = L_FUS * M;
+  const E_WATER_WARM = C_WATER * M * (T_BOIL - T_MELT);
+  const E_BOIL = L_VAP * M;
+  const E_STEAM_WARM = C_STEAM * M * (T_MAX - T_BOIL);
+  const E_TOTAL = E_ICE_WARM + E_MELT + E_WATER_WARM + E_BOIL + E_STEAM_WARM;
+
+  /** Temperature and phase after `E` joules have gone in. Pure — the self-test
+   *  below pins it. */
+  function tempFromEnergy(E) {
+    if (E < E_ICE_WARM) return { temp: T0 + E / (C_ICE * M), phase: "ice" };
+    E -= E_ICE_WARM;
+    if (E < E_MELT) return { temp: T_MELT, phase: "melting" };
+    E -= E_MELT;
+    if (E < E_WATER_WARM) return { temp: T_MELT + E / (C_WATER * M), phase: "water" };
+    E -= E_WATER_WARM;
+    if (E < E_BOIL) return { temp: T_BOIL, phase: "boiling" };
+    E -= E_BOIL;
+    if (E < E_STEAM_WARM) return { temp: T_BOIL + E / (C_STEAM * M), phase: "steam" };
+    return { temp: T_MAX, phase: "steam" };
+  }
+
+  const PHASE_KEY = {
+    ice: "phaseIce", melting: "phaseMelting", water: "phaseWater",
+    boiling: "phaseBoiling", steam: "phaseSteam",
+  };
+
+  const state = {
+    power: 300,
+    source: "burner-spirit",
+    running: false,
+    energyJ: 0,
+    elapsed: 0,
+    temp: T0,
+    points: [],
+    curve: [],
+  };
+  let raf = null;
+  let lastFrameMs = null;
+
+  const pendingChanges = {};
+
+  function simState() {
+    return {
+      power_W: state.power,
+      heat_source: state.source,
+      mass_kg: M,
+      temperature_C: Number(state.temp.toFixed(1)),
+      elapsed_s: Number(state.elapsed.toFixed(1)),
+      energy_J: Math.round(state.energyJ),
+      phase: tempFromEnergy(state.energyJ).phase,
+      points_marked: state.points.length,
+    };
+  }
+
+  function flushPendingChanges(triggeredBy) {
+    const changed = Object.keys(pendingChanges);
+    if (changed.length === 0) return;
+    emit("state-change", { changed: changed, state: simState(), triggeredBy: triggeredBy });
+    changed.forEach(function (k) { delete pendingChanges[k]; });
+  }
+
+  // ─── Apparatus rendering ────────────────────────────────────────────────
+  function makeIceChunks() {
+    const box = document.getElementById("iceChunks");
+    box.innerHTML = "";
+    [[8, 6, 34, 30], [46, 10, 30, 26], [12, 42, 28, 24], [52, 44, 32, 28], [30, 72, 34, 22]]
+      .forEach(function (s) {
+        const i = document.createElement("i");
+        i.style.left = s[0] + "%"; i.style.top = s[1] + "%";
+        i.style.width = s[2] + "%"; i.style.height = s[3] + "%";
+        box.appendChild(i);
+      });
+  }
+
+  function renderApparatus() {
+    const info = tempFromEnergy(state.energyJ);
+    const sub = document.getElementById("substance");
+    const beaker = document.getElementById("beaker");
+    const ice = document.getElementById("iceChunks");
+    beaker.classList.remove("boiling", "steaming");
+
+    let meltFrac = 1;
+    if (info.phase === "ice") meltFrac = 0;
+    else if (info.phase === "melting") meltFrac = Math.min(1, (state.energyJ - E_ICE_WARM) / E_MELT);
+    ice.style.opacity = info.phase === "ice" ? 0.95
+      : info.phase === "melting" ? 0.95 * (1 - meltFrac) : 0;
+
+    if (info.phase === "ice" || info.phase === "melting") {
+      sub.style.height = "80%";
+      sub.style.background = "linear-gradient(180deg,#dbeaf6,#b9d5ea)";
+    } else if (info.phase === "water") {
+      const f = info.temp / 100;
+      sub.style.height = "72%";
+      // Deepen the blue as it warms. It must stay BLUE — an earlier ramp drifted
+      // toward grey by 60 °C, which reads as dirty water rather than hot water.
+      sub.style.background = "linear-gradient(180deg,rgb(" + Math.round(127 - f * 22) + "," +
+        Math.round(180 - f * 32) + "," + Math.round(214 - f * 18) + "),rgb(" +
+        Math.round(61) + "," + Math.round(126 - f * 18) + "," + Math.round(166 - f * 10) + "))";
+    } else if (info.phase === "boiling") {
+      sub.style.height = "66%";
+      sub.style.background = "linear-gradient(180deg,#5fa0c4,#3d7ea6)";
+      beaker.classList.add("boiling", "steaming");
+    } else {
+      sub.style.height = "40%";
+      sub.style.background = "linear-gradient(180deg,#8fb0c8,#6f97b3)";
+      beaker.classList.add("steaming");
+    }
+
+    document.getElementById("heater").classList.toggle("on", state.running);
+
+    const badge = document.getElementById("phaseBadge");
+    badge.textContent = t(PHASE_KEY[info.phase]);
+    badge.className = "phase-badge" +
+      (info.phase === "melting" ? " melt" : info.phase === "boiling" ? " boil" : "");
+  }
+
+  function renderReadouts() {
+    document.getElementById("tempRead").textContent = num(state.temp, 1);
+    document.getElementById("timeRead").textContent = num(state.elapsed, 1);
+    document.getElementById("energyRead").textContent = grouped(state.energyJ);
+    document.getElementById("powerLabel").textContent = String(state.power);
+  }
+
+  function renderSource() {
+    const electric = state.source === "electric";
+    document.getElementById("coil").style.display = electric ? "block" : "none";
+    document.getElementById("flameBox").style.display = electric ? "none" : "flex";
+  }
+
+  // ─── Graph ──────────────────────────────────────────────────────────────
+  const canvas = document.getElementById("graph");
+  const ctx = canvas.getContext("2d");
+  let cssW = 0, cssH = 0;
+
+  function fitCanvas() {
+    const dpr = window.devicePixelRatio || 1;
+    const rect = canvas.getBoundingClientRect();
+    cssW = Math.max(240, rect.width);
+    cssH = Math.max(190, Math.min(320, cssW * 0.58));
+    canvas.width = Math.round(cssW * dpr);
+    canvas.height = Math.round(cssH * dpr);
+    canvas.style.height = cssH + "px";
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+  }
+
+  function drawGraph() {
+    const padL = 58, padR = 10, padT = 10, padB = 30;
+    const x0 = padL, y0 = padT, x1 = cssW - padR, y1 = cssH - padB;
+    const T_MIN = -25, T_TOP = 125;
+    const xOf = function (E) { return x0 + (E / E_TOTAL) * (x1 - x0); };
+    const yOf = function (T) { return y1 - ((T - T_MIN) / (T_TOP - T_MIN)) * (y1 - y0); };
+
+    ctx.clearRect(0, 0, cssW, cssH);
+    ctx.font = "11px ui-sans-serif, system-ui, sans-serif";
+    ctx.textAlign = "right";
+    ctx.textBaseline = "middle";
+    ctx.lineWidth = 1;
+    [-20, 0, 20, 40, 60, 80, 100, 120].forEach(function (T) {
+      const y = yOf(T);
+      const isPlateau = T === 0 || T === 100;
+      ctx.strokeStyle = isPlateau ? "#f0ddd5" : "#eef2f6";
+      ctx.beginPath(); ctx.moveTo(x0, y); ctx.lineTo(x1, y); ctx.stroke();
+      ctx.fillStyle = isPlateau ? "#b8451f" : "#7a8894";
+      ctx.fillText(T + "°", x0 - 9, y);
+    });
+
+    ctx.strokeStyle = "#c0c9d2";
+    ctx.beginPath(); ctx.moveTo(x0, y0); ctx.lineTo(x0, y1); ctx.lineTo(x1, y1); ctx.stroke();
+
+    ctx.fillStyle = "#7a8894";
+    ctx.textAlign = "center";
+    ctx.fillText(t("axisX"), (x0 + x1) / 2, y1 + 17);
+    ctx.save();
+    ctx.translate(11, (y0 + y1) / 2);
+    ctx.rotate(-Math.PI / 2);
+    ctx.fillText(t("axisY"), 0, 0);
+    ctx.restore();
+
+    if (state.curve.length > 1) {
+      ctx.strokeStyle = "#c44a2c";
+      ctx.lineWidth = 2.2;
+      ctx.beginPath();
+      state.curve.forEach(function (p, i) {
+        const x = xOf(p.E), y = yOf(p.temp);
+        if (i) ctx.lineTo(x, y); else ctx.moveTo(x, y);
+      });
+      ctx.stroke();
+
+      // Thicken the flat stretches — the plateaus are the thing to notice.
+      ctx.strokeStyle = "#b8451f";
+      ctx.lineWidth = 4;
+      let seg = [];
+      const drawSeg = function (s) {
+        if (s.length < 2) return;
+        ctx.beginPath();
+        s.forEach(function (p, i) {
+          const x = xOf(p.E), y = yOf(p.temp);
+          if (i) ctx.lineTo(x, y); else ctx.moveTo(x, y);
+        });
+        ctx.stroke();
+      };
+      state.curve.forEach(function (p) {
+        if (Math.abs(p.temp) < 0.4 || Math.abs(p.temp - 100) < 0.4) seg.push(p);
+        else { drawSeg(seg); seg = []; }
+      });
+      drawSeg(seg);
+    }
+
+    if (state.curve.length) {
+      const p = state.curve[state.curve.length - 1];
+      ctx.fillStyle = "#c44a2c";
+      ctx.beginPath(); ctx.arc(xOf(p.E), yOf(p.temp), 4, 0, Math.PI * 2); ctx.fill();
+    }
+
+    state.points.forEach(function (p, i) {
+      const x = xOf(p.energy_J), y = yOf(p.temperature_C);
+      ctx.fillStyle = "#5a8fbd";
+      ctx.beginPath(); ctx.arc(x, y, 7, 0, Math.PI * 2); ctx.fill();
+      ctx.fillStyle = "#fff";
+      ctx.font = "bold 10px ui-sans-serif, system-ui, sans-serif";
+      ctx.textAlign = "center";
+      ctx.fillText(String(i + 1), x, y);
+      ctx.font = "11px ui-sans-serif, system-ui, sans-serif";
+    });
+  }
+
+  function renderLog() {
+    const body = document.getElementById("logBody");
+    if (state.points.length === 0) {
+      body.innerHTML = '<tr class="blank"><td colspan="5"></td></tr>';
+      body.querySelector("td").textContent = t("noPoints");
+      return;
+    }
+    body.innerHTML = "";
+    state.points.forEach(function (p, i) {
+      const tr = document.createElement("tr");
+      const cells = [
+        String(i + 1),
+        t(PHASE_KEY[p.phase]),
+        num(p.temperature_C, 1),
+        num(p.elapsed_s, 1),
+        grouped(p.energy_J),
+      ];
+      cells.forEach(function (text, idx) {
+        const td = document.createElement("td");
+        if (idx >= 2) td.className = "num";
+        td.textContent = text;
+        tr.appendChild(td);
+      });
+      body.appendChild(tr);
+    });
+  }
+
+  function renderAll() {
+    renderReadouts();
+    renderSource();
+    renderApparatus();
+    fitCanvas();
+    drawGraph();
+  }
+
+  // ─── Loop ───────────────────────────────────────────────────────────────
+  function frame(ts) {
+    if (!state.running) return;
+    if (lastFrameMs === null) lastFrameMs = ts;
+    let dtReal = (ts - lastFrameMs) / 1000;
+    lastFrameMs = ts;
+    if (dtReal > 0.1) dtReal = 0.1;
+    const dt = dtReal * TIME_SCALE;
+
+    state.elapsed += dt;
+    state.energyJ = Math.min(E_TOTAL, state.energyJ + state.power * dt);
+    state.temp = tempFromEnergy(state.energyJ).temp;
+    state.curve.push({ E: state.energyJ, temp: state.temp });
+
+    renderReadouts();
+    renderApparatus();
+    drawGraph();
+
+    if (state.energyJ >= E_TOTAL) { pauseHeat(); return; }
+    raf = requestAnimationFrame(frame);
+  }
+
+  // ─── Actions ────────────────────────────────────────────────────────────
+  function setRunning(on) {
+    state.running = on;
+    document.getElementById("startBtn").disabled = on || state.energyJ >= E_TOTAL;
+    document.getElementById("pauseBtn").disabled = !on;
+    // Marking is the point of the exercise and it has to work WHILE heating —
+    // the plateaus are where you want a point, and they are over in seconds.
+    // (Recomputing this from curve.length alone left the button dead for the
+    // whole run, because setRunning fires before the first frame.)
+    document.getElementById("markBtn").disabled = !(on || state.curve.length > 0);
+    document.getElementById("powerSlider").disabled = on;
+    document.getElementById("sourceSel").disabled = on;
+  }
+
+  function startHeat() {
+    if (state.running || state.energyJ >= E_TOTAL) return;
+    flushPendingChanges("run");
+    setRunning(true);
+    lastFrameMs = null;
+    raf = requestAnimationFrame(frame);
+    emit("run", {
+      state: simState(),
+      label: lang === "da"
+        ? "Startede opvarmningen: " + state.power + " W"
+        : "Started heating: " + state.power + " W",
+    });
+  }
+
+  function pauseHeat() {
+    if (raf) cancelAnimationFrame(raf);
+    setRunning(false);
+    renderApparatus();
+    emit("pause", { state: simState() });
+  }
+
+  function resetSim() {
+    if (raf) cancelAnimationFrame(raf);
+    state.running = false;
+    state.energyJ = 0;
+    state.elapsed = 0;
+    state.temp = T0;
+    state.points = [];
+    state.curve = [];
+    setRunning(false);
+    makeIceChunks();
+    renderAll();
+    renderLog();
+    emit("reset", { state: simState() });
+  }
+
+  function markPoint() {
+    const info = tempFromEnergy(state.energyJ);
+    const point = {
+      index: state.points.length + 1,
+      phase: info.phase,
+      temperature_C: Number(state.temp.toFixed(1)),
+      elapsed_s: Number(state.elapsed.toFixed(1)),
+      energy_J: Math.round(state.energyJ),
+    };
+    state.points.push(point);
+    renderLog();
+    drawGraph();
+    emit("reading", {
+      point: point,
+      state: simState(),
+      label: lang === "da"
+        ? "Markerede punkt " + point.index + ": " + num(point.temperature_C, 1) + " °C ved " + grouped(point.energy_J) + " J"
+        : "Marked point " + point.index + ": " + num(point.temperature_C, 1) + " °C at " + grouped(point.energy_J) + " J",
+    });
+  }
+
+  // ─── Wiring ─────────────────────────────────────────────────────────────
+  document.getElementById("powerSlider").addEventListener("input", function (e) {
+    if (state.running) return;
+    state.power = Number(e.target.value);
+    pendingChanges.power_W = state.power;
+    renderReadouts();
+  });
+  document.getElementById("sourceSel").addEventListener("change", function (e) {
+    if (state.running) return;
+    state.source = e.target.value;
+    pendingChanges.heat_source = state.source;
+    renderSource();
+    renderApparatus();
+  });
+  document.getElementById("startBtn").addEventListener("click", startHeat);
+  document.getElementById("pauseBtn").addEventListener("click", pauseHeat);
+  document.getElementById("resetBtn").addEventListener("click", resetSim);
+  document.getElementById("markBtn").addEventListener("click", markPoint);
+
+  function setLang(next) { lang = next; applyLang(); }
+  document.getElementById("btn-da").addEventListener("click", function () {
+    langLockedByStudent = true; setLang("da");
+  });
+  document.getElementById("btn-en").addEventListener("click", function () {
+    langLockedByStudent = true; setLang("en");
+  });
+
+  window.addEventListener("resize", function () { fitCanvas(); drawGraph(); });
+
+  makeIceChunks();
+  setRunning(false);
+  applyLang();
+  emit("open", { state: simState() });
+
+  AIPLA_BRIDGE.init({ name: ARTEFACT_NAME, version: "1.0.0" });
+
+  // hostContext lands asynchronously after init() and the bridge exposes no
+  // "ready" callback, so poll briefly. A student's own choice always wins.
+  (function adoptHostLocale() {
+    let tries = 0;
+    const timer = setInterval(function () {
+      const ctx = AIPLA_BRIDGE.hostContext();
+      if (ctx && typeof ctx.locale === "string") {
+        clearInterval(timer);
+        const hostLang = ctx.locale.slice(0, 2).toLowerCase();
+        if (!langLockedByStudent && strings[hostLang] && hostLang !== lang) setLang(hostLang);
+      } else if (++tries > 40) {
+        clearInterval(timer);
+      }
+    }, 50);
+  })();
+
+  AIPLA_BRIDGE.onChatFlush(function () { flushPendingChanges("chat-submit"); });
+
+  // ─── Self-test (?test=1) ────────────────────────────────────────────────
+  // Half-way through warming the ice: 2100 J into 0,1 kg at c = 2100 J/(kg·K)
+  // is a 10 K rise from -20 °C, so the curve must read exactly -10 °C.
+  if (new URLSearchParams(window.location.search).get("test") === "1") {
+    const got = tempFromEnergy(2100);
+    const ok = Math.abs(got.temp - -10) < 0.001 && got.phase === "ice";
+    document.title = (ok ? "TEST PASS" : "TEST FAIL") + " — " + strings.da.title;
+    if (!ok) console.error("Self-test failed: temp=" + got.temp + " phase=" + got.phase);
+    else console.log("Self-test PASS: temp=" + got.temp);
+  }
+</script>
+</body>
+</html>

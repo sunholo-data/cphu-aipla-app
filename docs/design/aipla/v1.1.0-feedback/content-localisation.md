@@ -157,6 +157,20 @@ with no dependency. Everything below can slip; this cannot.
    param; Boldkast and LED Planck are retrofitted only when next touched.
    KineBot stays English — a decision, not an omission, and rule 2's comment
    form records it.
+
+   > ⚠️ **The supply side does not exist yet (found 2026-09-14, building the
+   > first two conforming sims).** `GenericArtefactFrame` — the single mount
+   > every catalogued sim renders through — never passes `hostContext` to
+   > `StaticArtefactFrame`, so `AIPLA_BRIDGE.hostContext()` carries no `locale`
+   > for any sim in the product today. A rule-5 sim therefore falls back to its
+   > default language and the toggle is the only way to change it. Closing it is
+   > two edits plus a decision: thread `activity.language` from the workspace
+   > into the frame's `hostContext`, and settle whether a student-facing toggle
+   > survives rule 3 (it is an explicit choice, not browser inference, so it
+   > should — but say so on purpose). A second, smaller gap: the guest bridge
+   > exposes no "host context arrived" callback, so `kettle-efficiency` and
+   > `phase-change` poll `hostContext()` for ~2s after `init()`. Both are M1
+   > work, not per-sim work.
 6. **The words are the product's, not the codebase's.** UI copy names things
    the way a teacher does, never the way the wire does. `mint_group_codes` is a
    fine tool name and "Mint 3 join-codes" is not a sentence any teacher has ever

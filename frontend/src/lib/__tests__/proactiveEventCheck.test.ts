@@ -323,3 +323,45 @@ describe("fetchProactiveEventCheck", () => {
     expect(mockFetchWithAuth).toHaveBeenCalledTimes(1);
   });
 });
+
+describe("mapArtefactKindToMeaningful — the two measurement sims", () => {
+  // kettle-efficiency and phase-change both hinge on the student COMMITTING a
+  // measurement — capturing a reading, marking a point on the curve. That is
+  // the moment a tutor should speak, so it has to reach the proactive gate.
+  // Both sims are named with the existing vocabulary rather than adding words
+  // to it; these cases are what stops a rename quietly ending proactive turns.
+  it("kettle-efficiency run → sim_run", () => {
+    expect(mapArtefactKindToMeaningful("kettle-efficiency.run")).toBe("sim_run");
+  });
+
+  it("kettle-efficiency reading → measurement_commit", () => {
+    expect(mapArtefactKindToMeaningful("kettle-efficiency.reading")).toBe(
+      "measurement_commit",
+    );
+  });
+
+  it("phase-change run → sim_run (hyphen in the artefact id, not the suffix)", () => {
+    expect(mapArtefactKindToMeaningful("phase-change.run")).toBe("sim_run");
+  });
+
+  it("phase-change reading → measurement_commit", () => {
+    expect(mapArtefactKindToMeaningful("phase-change.reading")).toBe(
+      "measurement_commit",
+    );
+  });
+
+  it("neither sim's housekeeping reaches the tutor", () => {
+    for (const kind of [
+      "kettle-efficiency.open",
+      "kettle-efficiency.stop",
+      "kettle-efficiency.reset",
+      "kettle-efficiency.state-change",
+      "phase-change.open",
+      "phase-change.pause",
+      "phase-change.reset",
+      "phase-change.state-change",
+    ]) {
+      expect(mapArtefactKindToMeaningful(kind)).toBe(null);
+    }
+  });
+});
