@@ -147,7 +147,16 @@ while IFS= read -r f; do
     continue
   fi
 
-  if git diff -U0 "$UREF:$f" "HEAD:$f" 2>/dev/null | grep -qE "^[+-].*($MARKERS)"; then
+  # NOT `| grep -qE`. Under `set -o pipefail` (line 48) grep -q exits on its
+  # FIRST match, git diff then dies of SIGPIPE, and the pipeline reports 141 —
+  # so a diff full of AIPLA markers tested as having none and the file was
+  # filed as a TEMPLATE CANDIDATE. It only bit on diffs big enough that git was
+  # still writing when grep quit (~96 KB here), so small changes classified
+  # correctly and the bug stayed invisible. That is the expensive direction of
+  # this screen: a false "customer-owned" costs one manual override, a false
+  # "template" puts KU content in someone else's repo. `grep -c` reads its
+  # input to the end, so there is no early exit to SIGPIPE on.
+  if [ "$(git diff -U0 "$UREF:$f" "HEAD:$f" 2>/dev/null | grep -cE "^[+-].*($MARKERS)" || true)" -gt 0 ]; then
     B="${B}${f}"$'\n'
   else
     A="${A}${f}"$'\n'
