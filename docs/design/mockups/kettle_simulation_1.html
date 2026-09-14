@@ -1,0 +1,622 @@
+<!DOCTYPE html>
+<html lang="da">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Elkedel – Energi og nyttevirkning</title>
+<style>
+  :root{
+    --ink:#1a2332;
+    --ink-soft:#4a5568;
+    --paper:#eef1f4;
+    --panel:#ffffff;
+    --line:#c9d2dc;
+    --steel:#5b6b7d;
+    --steel-dark:#3a4655;
+    --hot:#e05a3a;
+    --hot-deep:#b8371c;
+    --cool:#3d7ea6;
+    --live:#f2c14e;
+    --live-glow:#ffdd77;
+    --ok:#2e7d5b;
+    --accent:#c44a2c;
+    --mono:"SFMono-Regular",Consolas,"Liberation Mono",Menlo,monospace;
+  }
+  *{box-sizing:border-box;}
+  html{-webkit-text-size-adjust:100%;}
+  body{
+    margin:0;
+    font-family:"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+    background:
+      radial-gradient(120% 80% at 50% -10%, #f6f8fa 0%, var(--paper) 55%);
+    color:var(--ink);
+    line-height:1.5;
+    min-height:100vh;
+  }
+  .wrap{max-width:1060px;margin:0 auto;padding:28px 20px 64px;}
+
+  header.top{
+    display:flex;align-items:flex-end;justify-content:space-between;
+    gap:16px;flex-wrap:wrap;border-bottom:2px solid var(--ink);
+    padding-bottom:14px;margin-bottom:24px;
+  }
+  .title h1{
+    margin:0;font-size:clamp(1.5rem,3.4vw,2.15rem);
+    letter-spacing:-.015em;font-weight:700;line-height:1.05;
+  }
+  .title p{margin:6px 0 0;color:var(--ink-soft);font-size:.95rem;max-width:46ch;}
+
+  .lang{display:flex;gap:0;border:1.5px solid var(--ink);border-radius:2px;overflow:hidden;flex:none;}
+  .lang button{
+    font:inherit;font-size:.82rem;font-weight:600;border:0;background:var(--panel);
+    color:var(--ink-soft);padding:7px 13px;cursor:pointer;letter-spacing:.02em;
+  }
+  .lang button[aria-pressed="true"]{background:var(--ink);color:#fff;}
+
+  .layout{display:grid;grid-template-columns:1fr;gap:22px;}
+  @media(min-width:820px){.layout{grid-template-columns:1.05fr .95fr;align-items:start;}}
+
+  /* ---- the bench ---- */
+  .bench{
+    background:linear-gradient(180deg,#fbfcfd,#eef1f4);
+    border:1px solid var(--line);border-radius:10px;padding:22px 20px 24px;
+    position:relative;
+  }
+  .bench-surface{
+    position:relative;height:300px;border-radius:8px;
+    background:
+      linear-gradient(180deg,#dfe5ec 0%,#ccd5df 60%,#bcc7d3 100%);
+    border:1px solid #aab6c3;overflow:hidden;
+  }
+  .socket{
+    position:absolute;top:16px;right:18px;width:52px;height:64px;
+    background:#e8ecf0;border:1px solid #b3bcc6;border-radius:6px;
+    display:flex;flex-direction:column;align-items:center;justify-content:center;gap:7px;
+  }
+  .socket i{width:6px;height:6px;border-radius:50%;background:#8a95a1;display:block;}
+  .socket .pins{display:flex;gap:9px;}
+
+  /* meter */
+  .meter{
+    position:absolute;left:20px;top:150px;width:150px;
+    background:#25292e;border-radius:8px;padding:12px 12px 14px;
+    box-shadow:0 6px 14px rgba(20,28,40,.28);border:1px solid #0d0f12;
+  }
+  .meter .brand{color:#aab2bc;font-size:.6rem;letter-spacing:.18em;margin-bottom:7px;font-weight:600;}
+  .meter .screen{
+    background:#0b0d10;border-radius:4px;padding:9px 10px;font-family:var(--mono);
+    color:#ff5a4d;font-size:1.5rem;font-weight:700;text-align:right;letter-spacing:.03em;
+    box-shadow:inset 0 0 8px rgba(255,60,50,.25);min-height:44px;display:flex;
+    align-items:center;justify-content:flex-end;
+  }
+  .meter .screen small{font-size:.75rem;margin-left:5px;color:#c23a30;}
+  .meter .modewrap{display:flex;align-items:center;justify-content:space-between;margin-top:10px;gap:8px;}
+  .meter .leds{display:flex;flex-direction:column;gap:4px;font-size:.56rem;color:#7d8791;}
+  .meter .leds span{display:flex;align-items:center;gap:5px;}
+  .meter .leds b{width:7px;height:7px;border-radius:50%;background:#3a4048;display:inline-block;}
+  .meter .leds .on b{background:var(--live);box-shadow:0 0 6px var(--live-glow);}
+  .meter .modebtn{
+    font:inherit;font-size:.62rem;font-weight:700;color:#dfe4e9;background:#3b424b;
+    border:1px solid #4c545e;border-radius:20px;padding:6px 10px;cursor:pointer;
+  }
+  .meter .modebtn:active{transform:translateY(1px);}
+
+  /* kettle */
+  .kettle{
+    position:absolute;right:34px;bottom:20px;width:168px;height:196px;cursor:default;
+  }
+  .kettle .body{
+    position:absolute;bottom:0;left:14px;width:132px;height:150px;
+    background:linear-gradient(100deg,#fdfdfe 0%,#e3e8ee 45%,#cfd8e1 100%);
+    border:1px solid #b0bac5;border-radius:14px 22px 12px 12px;
+    box-shadow:inset -10px 0 20px rgba(150,163,178,.4);
+  }
+  .kettle .window{
+    position:absolute;bottom:16px;left:34px;width:26px;height:104px;
+    background:linear-gradient(180deg,rgba(180,205,225,.35),rgba(120,160,190,.5));
+    border:1px solid rgba(120,140,160,.5);border-radius:8px;overflow:hidden;
+  }
+  .kettle .water{
+    position:absolute;bottom:0;left:0;right:0;height:60%;
+    background:linear-gradient(180deg,#7fb4d6,#4d86ad);transition:background .5s;
+  }
+  .kettle .spout{
+    position:absolute;top:22px;right:2px;width:26px;height:34px;
+    background:linear-gradient(120deg,#e3e8ee,#cbd4de);
+    border:1px solid #b0bac5;border-radius:6px 10px 4px 10px;transform:rotate(6deg);
+  }
+  .kettle .lid{
+    position:absolute;top:8px;left:32px;width:92px;height:20px;
+    background:linear-gradient(180deg,#eef2f6,#d3dce4);
+    border:1px solid #b0bac5;border-radius:10px;
+  }
+  .kettle .handle{
+    position:absolute;top:26px;left:-2px;width:34px;height:112px;
+    border:11px solid #d7dee6;border-right:0;border-radius:20px 0 0 20px;
+    background:transparent;
+  }
+  .kettle .base{
+    position:absolute;bottom:-6px;left:6px;width:150px;height:16px;
+    background:linear-gradient(180deg,#c2ccd6,#9aa7b4);border-radius:6px;border:1px solid #8b98a5;
+  }
+  .kettle.boiling .body{box-shadow:inset -10px 0 20px rgba(150,163,178,.4),0 0 0 2px rgba(224,90,58,.25);}
+
+  /* steam */
+  .steam{position:absolute;top:-6px;right:44px;width:60px;height:70px;pointer-events:none;}
+  .steam span{
+    position:absolute;bottom:0;width:9px;height:9px;border-radius:50%;
+    background:rgba(255,255,255,.0);
+  }
+  .heating .steam span{animation:rise 2.4s linear infinite;background:rgba(245,248,251,.75);}
+  .steam span:nth-child(1){left:6px;animation-delay:0s;}
+  .steam span:nth-child(2){left:24px;animation-delay:.7s;}
+  .steam span:nth-child(3){left:40px;animation-delay:1.4s;}
+  @keyframes rise{
+    0%{transform:translateY(0) scale(.6);opacity:0;}
+    25%{opacity:.8;}
+    100%{transform:translateY(-58px) scale(1.5);opacity:0;}
+  }
+
+  .glow-ring{
+    position:absolute;inset:0;border-radius:8px;pointer-events:none;
+    box-shadow:inset 0 0 0 0 rgba(242,193,78,0);transition:box-shadow .4s;
+  }
+  .heating .glow-ring{box-shadow:inset 0 0 40px 4px rgba(242,193,78,.22);}
+
+  /* controls */
+  .controls{margin-top:20px;display:flex;flex-direction:column;gap:16px;}
+  .field label{display:block;font-size:.82rem;font-weight:600;color:var(--ink-soft);margin-bottom:6px;}
+  .field .val{font-family:var(--mono);color:var(--ink);font-weight:700;}
+  input[type=range]{width:100%;accent-color:var(--accent);height:22px;}
+  .btnrow{display:flex;gap:10px;flex-wrap:wrap;}
+  .btn{
+    font:inherit;font-weight:600;font-size:.95rem;border-radius:5px;padding:11px 18px;
+    cursor:pointer;border:1.5px solid var(--ink);
+  }
+  .btn.primary{background:var(--accent);border-color:var(--accent);color:#fff;}
+  .btn.primary:hover{background:var(--hot-deep);border-color:var(--hot-deep);}
+  .btn.ghost{background:transparent;color:var(--ink);}
+  .btn.ghost:hover{background:#e3e8ee;}
+  .btn:disabled{opacity:.4;cursor:not-allowed;}
+
+  .clock{
+    font-family:var(--mono);font-size:1.05rem;font-weight:700;color:var(--ink);
+    display:flex;align-items:center;gap:8px;
+  }
+  .clock .dot{width:9px;height:9px;border-radius:50%;background:#b3bcc6;}
+  .clock.running .dot{background:var(--hot);box-shadow:0 0 7px var(--hot);animation:pulse 1s infinite;}
+  @keyframes pulse{50%{opacity:.35;}}
+
+  .thermo{
+    display:flex;align-items:center;gap:12px;padding:12px 14px;background:#f6f8fa;
+    border:1px solid var(--line);border-radius:7px;
+  }
+  .thermo .tube{
+    position:relative;width:16px;height:56px;background:#dde4ea;border-radius:9px;
+    border:1px solid #b8c2cc;overflow:hidden;flex:none;
+  }
+  .thermo .merc{position:absolute;bottom:0;left:0;right:0;background:var(--hot);height:30%;transition:height .4s,background .4s;}
+  .thermo .read{font-family:var(--mono);font-size:1.4rem;font-weight:700;}
+  .thermo .read small{font-size:.9rem;color:var(--ink-soft);}
+
+  /* right column */
+  .panel{
+    background:var(--panel);border:1px solid var(--line);border-radius:10px;
+    padding:20px 20px 22px;
+  }
+  .panel h2{
+    margin:0 0 4px;font-size:1.05rem;letter-spacing:-.01em;
+  }
+  .panel .sub{margin:0 0 16px;color:var(--ink-soft);font-size:.86rem;}
+
+  table.log{width:100%;border-collapse:collapse;font-size:.92rem;}
+  table.log th,table.log td{text-align:left;padding:9px 8px;border-bottom:1px solid var(--line);}
+  table.log th{font-size:.72rem;letter-spacing:.04em;color:var(--ink-soft);font-weight:700;}
+  table.log td.num{font-family:var(--mono);font-weight:700;text-align:right;}
+  table.log tr.blank td{color:#aab3bd;font-style:italic;font-family:inherit;font-weight:400;text-align:center;}
+  table.log tr.captured{background:#fbfdfc;}
+
+  .datacard{
+    margin-top:18px;border:1px dashed var(--steel);border-radius:8px;padding:14px 15px;
+    background:#f8fafb;
+  }
+  .datacard h3{margin:0 0 10px;font-size:.9rem;color:var(--steel-dark);}
+  .datagrid{display:grid;grid-template-columns:1fr 1fr;gap:10px 14px;}
+  .datagrid .cell{background:#fff;border:1px solid var(--line);border-radius:6px;padding:9px 11px;}
+  .datagrid .cell .k{font-size:.72rem;color:var(--ink-soft);font-weight:600;margin-bottom:3px;}
+  .datagrid .cell .v{font-family:var(--mono);font-size:1.15rem;font-weight:700;}
+  .datagrid .cell .v small{font-size:.7rem;color:var(--ink-soft);font-weight:600;}
+  .datagrid .cell.empty .v{color:#c1c9d1;}
+
+  .note{
+    margin-top:16px;font-size:.82rem;color:var(--ink-soft);
+    border-left:3px solid var(--steel);padding:4px 0 4px 12px;
+  }
+  .yourturn{
+    margin-top:18px;background:var(--ink);color:#eef1f4;border-radius:8px;padding:16px 17px;
+  }
+  .yourturn h3{margin:0 0 8px;font-size:.92rem;color:#fff;}
+  .yourturn ol{margin:0;padding-left:20px;font-size:.87rem;}
+  .yourturn li{margin:5px 0;}
+  .yourturn .c{font-family:var(--mono);background:rgba(255,255,255,.12);padding:1px 5px;border-radius:3px;}
+
+  .const{font-size:.78rem;color:var(--ink-soft);margin-top:12px;}
+  .const b{font-family:var(--mono);color:var(--ink);}
+
+  footer.foot{margin-top:30px;text-align:center;font-size:.76rem;color:#8a95a1;}
+
+  [data-en]{display:none;}
+  html[lang="en"] [data-da]{display:none;}
+  html[lang="en"] [data-en]{display:inline;}
+  html[lang="en"] li[data-en],html[lang="en"] p[data-en]{display:list-item;}
+  html[lang="en"] p[data-en]{display:block;}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <header class="top">
+    <div class="title">
+      <h1>
+        <span data-da>Elkedel: energi &amp; nyttevirkning</span>
+        <span data-en>Electric kettle: energy &amp; efficiency</span>
+      </h1>
+      <p>
+        <span data-da>Varm vandet op, aflæs måleren og termometeret, og undersøg selv om E = P·t passer — og hvor meget af energien der faktisk havner i vandet.</span>
+        <span data-en>Heat the water, read the meter and thermometer, and work out for yourself whether E = P·t holds — and how much of the energy actually ends up in the water.</span>
+      </p>
+    </div>
+    <div class="lang" role="group" aria-label="Language">
+      <button id="btn-da" aria-pressed="true" onclick="setLang('da')">Dansk</button>
+      <button id="btn-en" aria-pressed="false" onclick="setLang('en')">English</button>
+    </div>
+  </header>
+
+  <div class="layout">
+
+    <!-- LEFT: the bench -->
+    <section class="bench">
+      <div class="bench-surface heating-target" id="benchSurface">
+        <div class="glow-ring"></div>
+        <div class="socket" title="230 V">
+          <div class="pins"><i></i><i></i></div>
+          <i style="width:4px;height:8px;border-radius:3px;"></i>
+        </div>
+
+        <div class="meter">
+          <div class="brand">KWH-METER</div>
+          <div class="screen" id="meterScreen">0<small id="meterUnit">W</small></div>
+          <div class="modewrap">
+            <div class="leds">
+              <span id="ledW" class="on"><b></b>W/kW</span>
+              <span id="ledKwh"><b></b>kWh</span>
+            </div>
+            <button class="modebtn" onclick="toggleMeterMode()">MODE</button>
+          </div>
+        </div>
+
+        <div class="kettle" id="kettle">
+          <div class="steam"><span></span><span></span><span></span></div>
+          <div class="handle"></div>
+          <div class="body">
+            <div class="spout"></div>
+            <div class="lid"></div>
+            <div class="window"><div class="water" id="waterFill"></div></div>
+          </div>
+          <div class="base"></div>
+        </div>
+      </div>
+
+      <div class="controls">
+        <div class="field">
+          <label>
+            <span data-da>Effektindstilling for kedlen</span>
+            <span data-en>Kettle power setting</span>
+            — <span class="val"><span id="powerLabel">2000</span> W</span>
+          </label>
+          <input type="range" id="powerSlider" min="1000" max="2200" step="50" value="2000" oninput="onPowerChange()">
+        </div>
+
+        <div class="field">
+          <label>
+            <span data-da>Vandmængde</span><span data-en>Amount of water</span>
+            — <span class="val"><span id="volLabel">1.4</span> <span data-da>L</span><span data-en>L</span></span>
+          </label>
+          <input type="range" id="volSlider" min="0.5" max="1.7" step="0.1" value="1.4" oninput="onVolChange()">
+        </div>
+
+        <div class="thermo">
+          <div class="tube"><div class="merc" id="merc"></div></div>
+          <div class="read"><span id="tempRead">20.0</span><small>°C</small></div>
+          <div class="clock" id="clock"><span class="dot"></span><span id="clockRead">0.0 s</span></div>
+        </div>
+
+        <div class="btnrow">
+          <button class="btn primary" id="startBtn" onclick="startRun()">
+            <span data-da>Tænd kedel + stopur</span><span data-en>Start kettle + stopwatch</span>
+          </button>
+          <button class="btn ghost" id="stopBtn" onclick="stopRun()" disabled>
+            <span data-da>Stop</span><span data-en>Stop</span>
+          </button>
+          <button class="btn ghost" id="resetBtn" onclick="resetRun()">
+            <span data-da>Nulstil</span><span data-en>Reset</span>
+          </button>
+        </div>
+
+        <p class="note">
+          <span data-da><b>Tip:</b> Stop før vandet koger. Når det koger, stiger temperaturen ikke længere, selv om måleren stadig bruger energi.</span>
+          <span data-en><b>Tip:</b> Stop before the water boils. Once it boils, the temperature stops rising even though the meter keeps drawing energy.</span>
+        </p>
+      </div>
+    </section>
+
+    <!-- RIGHT: readings + task -->
+    <section>
+      <div class="panel">
+        <h2><span data-da>Dine aflæsninger</span><span data-en>Your readings</span></h2>
+        <p class="sub">
+          <span data-da>Klik “Registrér aflæsning” når du vil gemme det, måleren og termometeret viser lige nu.</span>
+          <span data-en>Click “Capture reading” to save whatever the meter and thermometer show right now.</span>
+        </p>
+
+        <div class="datacard">
+          <h3><span data-da>Målte værdier</span><span data-en>Measured values</span></h3>
+          <div class="datagrid">
+            <div class="cell">
+              <div class="k">m <span data-da>(masse vand)</span><span data-en>(mass of water)</span></div>
+              <div class="v"><span id="outM">1.4</span> <small>kg</small></div>
+            </div>
+            <div class="cell empty" id="cellP">
+              <div class="k">P <span data-da>(effekt)</span><span data-en>(power)</span></div>
+              <div class="v"><span id="outP">—</span> <small>W</small></div>
+            </div>
+            <div class="cell empty" id="cellStart">
+              <div class="k">T<sub>start</sub></div>
+              <div class="v"><span id="outTstart">—</span> <small>°C</small></div>
+            </div>
+            <div class="cell empty" id="cellEnd">
+              <div class="k">T<sub>slut</sub> <span data-en style="text-transform:none">/ end</span></div>
+              <div class="v"><span id="outTend">—</span> <small>°C</small></div>
+            </div>
+            <div class="cell empty" id="cellT">
+              <div class="k">t <span data-da>(tid)</span><span data-en>(time)</span></div>
+              <div class="v"><span id="outT">—</span> <small>s</small></div>
+            </div>
+            <div class="cell empty" id="cellE">
+              <div class="k">E <span data-da>(måler)</span><span data-en>(meter)</span></div>
+              <div class="v"><span id="outE">—</span> <small>kWh</small></div>
+            </div>
+          </div>
+          <div class="btnrow" style="margin-top:14px;">
+            <button class="btn primary" id="captureBtn" onclick="capture()" disabled>
+              <span data-da>Registrér aflæsning</span><span data-en>Capture reading</span>
+            </button>
+          </div>
+          <p class="const">
+            <span data-da>Konstant: vands specifikke varmekapacitet</span>
+            <span data-en>Constant: specific heat capacity of water</span>
+            <b>c = 4180 J/(kg·K)</b>
+          </p>
+        </div>
+
+        <div class="yourturn">
+          <h3><span data-da>Nu er det din tur — regn selv</span><span data-en>Now it's your turn — you do the maths</span></h3>
+          <ol>
+            <li data-da>Beregn <span class="c">E = P·t</span> i joule (husk t i sekunder).</li>
+            <li data-en>Work out <span class="c">E = P·t</span> in joules (keep t in seconds).</li>
+            <li data-da>Omregn til kWh (÷ 3 600 000) og sammenlign med målerens E.</li>
+            <li data-en>Convert to kWh (÷ 3,600,000) and compare with the meter's E.</li>
+            <li data-da>Beregn den nyttige energi <span class="c">E = c·m·ΔT</span>.</li>
+            <li data-en>Work out the useful energy <span class="c">E = c·m·ΔT</span>.</li>
+            <li data-da>Find nyttevirkningen <span class="c">η = E_nyttig / E_elektrisk</span>. Hvor blev resten af?</li>
+            <li data-en>Find the efficiency <span class="c">η = E_useful / E_electrical</span>. Where did the rest go?</li>
+          </ol>
+        </div>
+
+        <p class="note" style="margin-top:16px;">
+          <span data-da>Simuleringen viser med vilje ikke svaret. Den giver dig rå måledata, præcis som et rigtigt forsøg — udregningen er din.</span>
+          <span data-en>The simulation deliberately doesn't show the answer. It gives you raw measurements, just like a real experiment — the calculation is yours.</span>
+        </p>
+      </div>
+    </section>
+  </div>
+
+  <footer class="foot">
+    <span data-da>Virtuelt forsøg til Fysik C · Effekt og nyttevirkning</span>
+    <span data-en>Virtual experiment for Physics C · Power and efficiency</span>
+  </footer>
+</div>
+
+<script>
+/* ---------------- physics model ----------------
+   Real-ish kettle: the socket draws power P. Only a fraction actually
+   heats the water; the rest is lost to the kettle body, surroundings, steam.
+   We pick a hidden efficiency so students discover it — it is never shown.
+--------------------------------------------------*/
+const C_WATER = 4180;        // J/(kg·K)
+const T_AMBIENT = 20.0;      // start temp (°C)
+const T_BOIL = 100.0;
+const HIDDEN_EFF = 0.86;     // fraction of electrical energy that heats water (not revealed)
+const TIME_SCALE = 30;       // sim runs 30x faster than real time (deliberate pace)
+
+let state = {
+  power: 2000,        // W (socket draw)
+  volume: 1.4,        // L  -> kg (water density ~1)
+  running: false,
+  boiled: false,
+  t: 0,               // simulated seconds elapsed
+  temp: T_AMBIENT,
+  energyJ: 0,         // electrical energy drawn from socket (J)
+  meterMode: 'W',     // 'W' or 'kWh'
+  captured: false,
+  raf: null,
+  last: null
+};
+
+function mass(){ return state.volume; } // 1 L water ≈ 1 kg
+
+function setLang(l){
+  document.documentElement.lang = l;
+  document.getElementById('btn-da').setAttribute('aria-pressed', l==='da');
+  document.getElementById('btn-en').setAttribute('aria-pressed', l==='en');
+  updateClock(); // refresh unit label spacing
+}
+
+function onPowerChange(){
+  if(state.running) return;
+  state.power = +document.getElementById('powerSlider').value;
+  document.getElementById('powerLabel').textContent = state.power;
+  if(state.meterMode==='W') renderMeter();
+}
+function onVolChange(){
+  if(state.running) return;
+  state.volume = +parseFloat(document.getElementById('volSlider').value).toFixed(1);
+  document.getElementById('volLabel').textContent = state.volume.toFixed(1);
+  document.getElementById('outM').textContent = mass().toFixed(1);
+}
+
+function toggleMeterMode(){
+  state.meterMode = state.meterMode==='W' ? 'kWh' : 'W';
+  document.getElementById('ledW').classList.toggle('on', state.meterMode==='W');
+  document.getElementById('ledKwh').classList.toggle('on', state.meterMode==='kWh');
+  renderMeter();
+}
+
+function renderMeter(){
+  const screen = document.getElementById('meterScreen');
+  if(state.meterMode==='W'){
+    // meter shows live power draw while running; 0 W when the kettle is off
+    const shown = state.running ? state.power : 0;
+    screen.innerHTML = shown + '<small>W</small>';
+  } else {
+    const kwh = state.energyJ / 3.6e6;
+    screen.innerHTML = kwh.toFixed(4) + '<small>kWh</small>';
+  }
+}
+
+function updateClock(){
+  document.getElementById('clockRead').textContent = state.t.toFixed(1) + ' s';
+  document.getElementById('tempRead').textContent = state.temp.toFixed(1);
+  const frac = Math.max(0,Math.min(1,(state.temp - T_AMBIENT)/(T_BOIL - T_AMBIENT)));
+  document.getElementById('merc').style.height = (12 + frac*88) + '%';
+  const mix = `rgb(${Math.round(61+frac*163)},${Math.round(126-frac*70)},${Math.round(166-frac*130)})`;
+  document.getElementById('merc').style.background = mix;
+}
+
+function updateWater(){
+  const frac = Math.max(0,Math.min(1,(state.temp - T_AMBIENT)/(T_BOIL - T_AMBIENT)));
+  const w = document.getElementById('waterFill');
+  w.style.background = `linear-gradient(180deg,
+     rgb(${127+frac*100},${180-frac*60},${214-frac*90}),
+     rgb(${77+frac*110},${134-frac*60},${173-frac*90}))`;
+}
+
+function tick(ts){
+  if(!state.running){ return; }
+  if(state.last==null) state.last = ts;
+  let dtReal = (ts - state.last)/1000;
+  state.last = ts;
+  if(dtReal>0.1) dtReal = 0.1;            // clamp big gaps
+  const dtSim = dtReal * TIME_SCALE;      // simulated seconds
+
+  state.t += dtSim;
+  state.energyJ += state.power * dtSim;   // socket energy
+
+  if(!state.boiled){
+    // only useful fraction raises temperature
+    const dQ = HIDDEN_EFF * state.power * dtSim;
+    const dTemp = dQ / (C_WATER * mass());
+    state.temp += dTemp;
+    if(state.temp >= T_BOIL){
+      state.temp = T_BOIL;
+      state.boiled = true;
+      document.getElementById('kettle').classList.add('boiling');
+    }
+  }
+
+  updateClock();
+  updateWater();
+  if(state.meterMode==='kWh') renderMeter();
+
+  state.raf = requestAnimationFrame(tick);
+}
+
+function startRun(){
+  if(state.running) return;
+  // starting fresh after a completed run? require reset
+  if(state.energyJ>0 && !state.running){ /* allow continue only if not captured */ }
+  state.running = true;
+  state.boiled = state.temp>=T_BOIL;
+  state.last = null;
+  document.getElementById('startBtn').disabled = true;
+  document.getElementById('stopBtn').disabled = false;
+  document.getElementById('captureBtn').disabled = true;
+  document.getElementById('powerSlider').disabled = true;
+  document.getElementById('volSlider').disabled = true;
+  document.getElementById('clock').classList.add('running');
+  document.getElementById('benchSurface').classList.add('heating');
+  document.getElementById('kettle').classList.add('heating');
+  renderMeter();
+  state.raf = requestAnimationFrame(tick);
+}
+
+function stopRun(){
+  if(!state.running) return;
+  state.running = false;
+  cancelAnimationFrame(state.raf);
+  document.getElementById('startBtn').disabled = false;
+  document.getElementById('stopBtn').disabled = true;
+  document.getElementById('captureBtn').disabled = false;
+  document.getElementById('clock').classList.remove('running');
+  document.getElementById('benchSurface').classList.remove('heating');
+  document.getElementById('kettle').classList.remove('heating');
+  renderMeter();
+}
+
+function resetRun(){
+  state.running = false;
+  cancelAnimationFrame(state.raf);
+  state.boiled = false;
+  state.t = 0;
+  state.temp = T_AMBIENT;
+  state.energyJ = 0;
+  state.captured = false;
+  state.meterMode = 'W';
+  document.getElementById('ledW').classList.add('on');
+  document.getElementById('ledKwh').classList.remove('on');
+  document.getElementById('kettle').classList.remove('boiling','heating');
+  document.getElementById('benchSurface').classList.remove('heating');
+  document.getElementById('clock').classList.remove('running');
+  document.getElementById('startBtn').disabled = false;
+  document.getElementById('stopBtn').disabled = true;
+  document.getElementById('captureBtn').disabled = true;
+  document.getElementById('powerSlider').disabled = false;
+  document.getElementById('volSlider').disabled = false;
+  // clear captured outputs
+  ['outP','outTstart','outTend','outT','outE'].forEach(id=>document.getElementById(id).textContent='—');
+  ['cellP','cellStart','cellEnd','cellT','cellE'].forEach(id=>document.getElementById(id).classList.add('empty'));
+  updateClock();
+  updateWater();
+  renderMeter();
+}
+
+function capture(){
+  // snapshot current readings into the data card
+  document.getElementById('outP').textContent = state.power;
+  document.getElementById('outTstart').textContent = T_AMBIENT.toFixed(1);
+  document.getElementById('outTend').textContent = state.temp.toFixed(1);
+  document.getElementById('outT').textContent = state.t.toFixed(1);
+  document.getElementById('outE').textContent = (state.energyJ/3.6e6).toFixed(4);
+  ['cellP','cellStart','cellEnd','cellT','cellE'].forEach(id=>document.getElementById(id).classList.remove('empty'));
+  state.captured = true;
+  document.getElementById('captureBtn').disabled = true;
+}
+
+// init
+document.getElementById('outM').textContent = mass().toFixed(1);
+updateClock();
+updateWater();
+renderMeter();
+</script>
+</body>
+</html>
