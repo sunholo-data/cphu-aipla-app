@@ -8,7 +8,8 @@ separately and each could disagree with the others.
 A ``Tutor`` bundles all three, so this resolves **once** and everything reads the
 result. The precedence is the same everywhere:
 
-    activity.tutor_id  >  the activity's individual fields  >  class  >  default
+    activity.tutor_id  >  CLASS tutor  >  the activity's individual fields
+        >  class persona  >  default
 
 **The individual fields are not dead.** Every activity authored before tutors
 existed has a ``persona`` and an ``interaction_style`` and no ``tutor_id``, and
@@ -128,6 +129,82 @@ class TeachingContext:
     source: str
 
 
+_PASSTHROUGH = TeachingResolution(
+    tutor=None,
+    persona_id=None,
+    framework_id=None,
+    interaction_style="socratic",
+)
+
+
+def _resolve_for_activity(
+    activity_id: str | None,
+    *,
+    group_tags: Iterable[str] | None = None,
+    cfg: ActivityConfig | None = None,
+) -> tuple[TeachingResolution, str | None]:
+    """The live resolution plus the class it came from. Raises — callers wrap."""
+    from adk.teacher_focus import class_id_from_group_tags, resolve_active_config
+
+    if cfg is None and activity_id:
+        cfg = resolve_active_config(activity_id, group_tags=group_tags)
+    class_id = (cfg.class_id if cfg is not None else None) or class_id_from_group_tags(group_tags)
+
+    class_tutor_id = None
+    class_persona_id = None
+    if class_id:
+        from db.classes import get_class
+
+        cls = get_class(class_id)
+        class_tutor_id = getattr(cls, "tutor_id", None)
+        class_persona_id = getattr(cls, "persona", None)
+
+    return (
+        resolve_teaching(
+            cfg,
+            class_tutor_id=class_tutor_id,
+            class_persona_id=class_persona_id,
+        ),
+        class_id,
+    )
+
+
+def resolve_active_teaching(
+    activity_id: str | None,
+    *,
+    group_tags: Iterable[str] | None = None,
+    cfg: ActivityConfig | None = None,
+) -> TeachingResolution:
+    """What is teaching this student's turn — the entry point every read uses.
+
+    1.1.112. This exists because the 1.1.91 join was wired to exactly ONE
+    consumer. ``resolve_teaching`` was correct and ``resolve_teaching_context``
+    called it, but that context fed only the framework preamble and the chat-log
+    stamp — so a class tutor changed the pedagogy and the log while the three
+    things a student actually perceives (name + avatar, voice, tone) went on
+    resolving through the pre-tutor ``class.persona`` chain, which
+    ``update_class_tutor`` never writes. Picking a tutor was therefore a no-op
+    for every base tutor, since no base tutor carries a framework by design.
+    Reported from prod 2026-09-14.
+
+    The fix is this function rather than three corrected chains: a fourth
+    derivation of "which tutor" is the bug that was just paid for. Every read
+    site layers its own pre-tutor fallback BELOW ``.tutor``, so a class or
+    activity with no tutor still composes byte-identically (handover rule 1).
+
+    ``cfg`` may be passed when the caller already resolved the active config, to
+    avoid a second read of the same document.
+
+    Never raises: this sits on the chat and voice paths, where a failure must
+    cost the tutor's clothes and not the lesson (Axiom 5).
+    """
+    try:
+        return _resolve_for_activity(activity_id, group_tags=group_tags, cfg=cfg)[0]
+    except Exception as exc:
+        log.warning("resolve_active_teaching: failed for activity=%s: %s", activity_id, exc)
+        return _PASSTHROUGH
+
+
 def resolve_teaching_context(
     activity_id: str | None,
     *,
@@ -143,27 +220,8 @@ def resolve_teaching_context(
     null column and not a lesson (Axiom 5) — an unresolvable context returns
     all-None rather than propagating.
     """
-    from adk.teacher_focus import class_id_from_group_tags, resolve_active_config
-
     try:
-        if cfg is None and activity_id:
-            cfg = resolve_active_config(activity_id, group_tags=group_tags)
-        class_id = (cfg.class_id if cfg is not None else None) or class_id_from_group_tags(group_tags)
-
-        class_tutor_id = None
-        class_persona_id = None
-        if class_id:
-            from db.classes import get_class
-
-            cls = get_class(class_id)
-            class_tutor_id = getattr(cls, "tutor_id", None)
-            class_persona_id = getattr(cls, "persona", None)
-
-        r = resolve_teaching(
-            cfg,
-            class_tutor_id=class_tutor_id,
-            class_persona_id=class_persona_id,
-        )
+        r, class_id = _resolve_for_activity(activity_id, group_tags=group_tags, cfg=cfg)
         # 1.1.111: the register comes from the APPROACH, because the standalone
         # axis is retired and no longer reaches the prompt. Logging the old
         # value would record something inert as though it had taught the turn —
@@ -201,6 +259,7 @@ def resolve_teaching_context(
 __all__ = [
     "TeachingContext",
     "TeachingResolution",
+    "resolve_active_teaching",
     "resolve_teaching",
     "resolve_teaching_context",
 ]

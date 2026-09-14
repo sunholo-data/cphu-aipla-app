@@ -78,7 +78,23 @@ def inject_interaction_style_preamble(
     base instructions (later instruction wins, so it overrides the SKILL.md
     Socratic rule).
     """
+    from adk.tutor_resolution import resolve_active_teaching
+
     cfg = resolve_active_config(activity_id, group_tags=group_tags)
+
+    # 1.1.112 — a chosen TUTOR carries the tone, and it outranks every pre-tutor
+    # field below for the same reason it outranks them in the framework preamble:
+    # a tutor is one bundled choice. Until 2026-09-14 this resolver could not see
+    # it, so a class that picked a tutor kept the old persona's tone.
+    #
+    # The whole pre-tutor block below is left untouched and reachable, which is
+    # the passthrough guarantee (handover rule 1): a class or activity with no
+    # tutor composes byte-identically to before tutors existed.
+    tutor = resolve_active_teaching(activity_id, group_tags=group_tags, cfg=cfg).tutor
+    if tutor is not None:
+        style = tutor.interaction_style
+        return _append_preamble(instructions, style, activity_id)
+
     style = cfg.interaction_style if cfg else _PASSTHROUGH
 
     # Per-class persona drives the teaching style too: when the activity has no
@@ -104,6 +120,12 @@ def inject_interaction_style_preamble(
                 if p is not None:
                     style = p.interaction_style
 
+    return _append_preamble(instructions, style, activity_id)
+
+
+def _append_preamble(instructions: str, style: str, activity_id: str) -> str:
+    """Append ``style``'s preamble, or pass through. Shared by both branches of
+    the resolution above so the tutor path cannot drift from the field path."""
     if style == _PASSTHROUGH:
         return instructions
 

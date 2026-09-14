@@ -37,6 +37,7 @@ from opentelemetry import trace
 from pydantic import BaseModel, ConfigDict, Field
 
 from adk.teacher_focus import DEFAULT_ACTIVITY_LANGUAGE, resolve_active_config
+from adk.tutor_resolution import resolve_active_teaching
 from auth import User, get_current_user
 from db.classes import (
     get_class,
@@ -182,15 +183,25 @@ def resolve_voice(
     # activities it targets. ``activity_id or skill_id`` keeps every legacy
     # caller on today's behaviour.
     config_id = activity_id or skill_id
+    cfg = None
     if config_id:
         cfg = resolve_active_config(config_id, group_tags=user.group_tags)
         activity_persona = cfg.persona if cfg is not None else None
         activity_language = _explicit_activity_language(cfg)
-    # An explicit persona id (activity or class) makes the persona authoritative;
-    # absent one we fall back to the global default (which must NOT override the
-    # advanced voice panel — that's the no-identity escape hatch).
-    explicit_persona = activity_persona or class_persona
-    persona = resolve_persona_chain(activity_persona, class_persona)
+    # 1.1.112: the resolved TUTOR's persona heads the chain, because a tutor is
+    # the identity choice and this resolver could not see it until 2026-09-14 —
+    # so a class that picked a tutor kept speaking in the old persona's voice.
+    # Resolved through `resolve_active_teaching` rather than by reading
+    # `class.tutorId` here: a second derivation of "which tutor" is the drift the
+    # one-join rule exists to prevent. It never raises and returns no tutor when
+    # none is chosen, which is what keeps the pre-tutor path below byte-identical.
+    tutor = resolve_active_teaching(config_id, group_tags=user.group_tags, cfg=cfg).tutor
+    tutor_persona = tutor.persona_id if tutor is not None else None
+    # An explicit persona id (tutor, activity or class) makes the persona
+    # authoritative; absent one we fall back to the global default (which must NOT
+    # override the advanced voice panel — that's the no-identity escape hatch).
+    explicit_persona = tutor_persona or activity_persona or class_persona
+    persona = resolve_persona_chain(tutor_persona, activity_persona, class_persona)
     persona_voice = persona.voice if persona is not None else None
 
     rv = ResolvedVoice()

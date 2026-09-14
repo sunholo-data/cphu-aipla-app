@@ -204,10 +204,16 @@ def update_class_tutor(class_id: str, tutor_id: str | None) -> None:
     Clears any per-class voice override for exactly the reason
     ``update_class_persona`` does: a tutor carries a complete identity, and a
     stale override speaking over its voice is the bug that produced that rule.
+
+    ⚠️ The field is ``voice`` (``Class.voice``). This wrote ``voiceSettings``
+    until 2026-09-14, which is not a field on ``Class`` — so the clear was inert
+    and the override went on speaking over every tutor anyone picked, the exact
+    bug the sibling docstring above says this line exists to prevent. ``Class``
+    permits extra keys, so it failed silently rather than loudly.
     """
     patch: dict = {"tutorId": tutor_id, "updatedAt": _utcnow().isoformat()}
     if tutor_id:
-        patch["voiceSettings"] = None
+        patch["voice"] = None
     update_document(_COLLECTION, class_id, patch)
 
 

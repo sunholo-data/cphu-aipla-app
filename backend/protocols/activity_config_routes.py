@@ -24,6 +24,7 @@ from pydantic import BaseModel, ConfigDict, Field
 
 from adk.element_manifest import describe_elements
 from adk.teacher_focus import build_ilo_precedence_block, compose_teacher_focus, resolve_active_config
+from adk.tutor_resolution import resolve_active_teaching
 from artefacts.loader import is_known_artefact, load_artefact
 from auth import User, get_current_user
 from db.activity_configs import (
@@ -279,12 +280,26 @@ async def get_active_activity_config(
     """
     cfg = resolve_active_config(activity_id, group_tags=user.group_tags)
     # Resolve the persona (1.1.12) for the student-facing chat avatar/name.
-    # Chain: activity persona > THIS class's default persona > global default —
-    # so the chat always shows a real educator avatar + name, and a teacher can
-    # set the identity once at the class level. An explicit activity persona wins.
+    # Chain: the resolved TUTOR's persona > activity persona > THIS class's
+    # default persona > global default — so the chat always shows a real educator
+    # avatar + name, and a teacher can set the identity once at the class level.
+    #
+    # 1.1.112: the tutor is at the head of that chain because a tutor IS the
+    # identity choice (1.1.91), and until 2026-09-14 this chain could not see it.
+    # `update_class_tutor` writes only `tutorId`, never `persona`, so picking a
+    # tutor left the student looking at the old persona's name and face forever —
+    # which, for a base tutor (none of which carry a framework, by design), meant
+    # the picker changed nothing observable at all. Passthrough is preserved: with
+    # no tutor resolved the head of the chain is None and the two pre-tutor links
+    # below decide exactly as they always did.
+    teaching = resolve_active_teaching(activity_id, group_tags=user.group_tags, cfg=cfg)
     cls = get_class_for_group(getattr(user, "group_id", None))
     class_persona = cls.persona if cls is not None else None
-    p = resolve_persona_chain(cfg.persona if cfg is not None else None, class_persona)
+    p = resolve_persona_chain(
+        teaching.tutor.persona_id if teaching.tutor is not None else None,
+        cfg.persona if cfg is not None else None,
+        class_persona,
+    )
     persona_block = {"id": p.id, "name": p.name, "title": p.title, "avatar": p.avatar} if p is not None else None
     if cfg is None:
         return {

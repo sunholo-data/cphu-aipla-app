@@ -32,6 +32,7 @@ import {
 } from "@/lib/teacherApi";
 import { ClassInsightsPanel } from "@/components/teacher/insights/ClassInsightsPanel";
 import { BudgetPanel } from "@/components/teacher/BudgetPanel";
+import { ClassDetailsPanel } from "@/components/teacher/ClassDetailsPanel";
 import { ClassVoiceSettingsPanel } from "@/components/teacher/ClassVoiceSettingsPanel";
 import { TutorPicker } from "@/components/teacher/TutorPicker";
 import { SettingsSection } from "@/components/teacher/ui/SettingsSection";
@@ -422,9 +423,21 @@ export default function TeacherClassDetailPage() {
       <SettingsSection
         id="class-settings"
         title="Class settings"
-        description="The tutor, its voice, and what students can do — for this class."
+        description="The name, the tutor, its voice, and what students can do — for this class."
       >
         <div className="flex flex-col gap-6">
+          {/* 1.1.112 — renaming lives here because this is where a teacher looks
+              for it. The endpoint and the API client both already existed; only
+              the control was missing. */}
+          <div>
+            <h3 className="mb-2 text-sm font-medium">Name</h3>
+            <ClassDetailsPanel
+              classId={cls.classId}
+              initialName={cls.name}
+              initialDescription={cls.description ?? null}
+              onSaved={refresh}
+            />
+          </div>
           {/* 1.1.91 — ONE tutor choice: name, picture, voice, tone and
               teaching approach together. This REPLACES the separate persona
               picker; showing both was two lists of the same thing.
