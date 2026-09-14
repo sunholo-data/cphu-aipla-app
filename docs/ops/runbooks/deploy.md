@@ -7,14 +7,29 @@ environment see [prod-cut.md](prod-cut.md); this is the routine path.
 > The default config points at the *template's* Aitana project and every AIPLA
 > call returns `PERMISSION_DENIED`. This is the single most common time-waster.
 >
-> ⚠️ **That config does not exist on every machine** (verified 2026-09-09: the
-> studio box has only `aitana` and `default`). Setting the variable to a config
+> ✅ **It now exists on both machines** — the laptop and the studio
+> (`voightkampff@Voights-Mac-Studio`), verified 2026-09-14. The studio had only
+> `aitana` and `default` until then, which is what the 2026-09-09 note here used
+> to warn about; rather than keep documenting the gap it was created:
+>
+> ```bash
+> gcloud config configurations create sunholo --no-activate   # --no-activate:
+> CLOUDSDK_ACTIVE_CONFIG_NAME=sunholo gcloud config set account m@sunholo.com
+> CLOUDSDK_ACTIVE_CONFIG_NAME=sunholo gcloud config set project aipla-dev-2026
+> ```
+>
+> `--no-activate` matters on a shared box: creating a config normally makes it
+> active, which would switch other agents' sessions off `aitana` underneath them.
+> Every command in this runbook names the config explicitly anyway.
+>
+> ⚠️ **Do not assume it on a THIRD machine.** Setting the variable to a config
 > that is absent prints `Could not open the configuration file` and then fails
 > with *"You do not currently have an active account selected"* — which reads
 > like an auth problem and is not. **Check `gcloud config configurations list`
-> first**; where `sunholo` is missing, drop the variable and pass
-> `--project=aipla-<env>-2026` explicitly on every call. That is what the
-> project ID is for, and it is immune to whichever config happens to be active.
+> first.** The config is a convenience over the account, which is what actually
+> carries permission: passing `--project=aipla-<env>-2026` explicitly works on
+> any machine where `m@sunholo.com` is authenticated, and is immune to whichever
+> config happens to be active. Belt and braces is to do both.
 
 > ⚠️ **Cloud Build here is REGIONAL — always pass `--region=europe-north1`**
 > (ADR-007). A bare `gcloud builds list --project=aipla-dev-2026` queries
