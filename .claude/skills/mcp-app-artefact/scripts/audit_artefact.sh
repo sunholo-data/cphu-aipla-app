@@ -96,14 +96,78 @@ else
     echo "$dark_hits" | head -5 | sed 's/^/      /'
 fi
 
+# --- Gate 7: no nested iframe (the artefact IS the sandboxed frame; frame-src 'none') ---
+iframe_hits=$(grep -REn "<iframe" "$ART_PATH" 2>/dev/null || true)
+if [ -z "$iframe_hits" ]; then
+    check "No nested <iframe>" "pass"
+else
+    check "No nested <iframe>" "fail"
+    echo "$iframe_hits" | head -5 | sed 's/^/      /'
+fi
+
+# --- Gate 8: no dynamic code / sockets (CSP blocks them; fails as a blank frame) ---
+# The bridge legitimately uses postMessage, not these.
+exec_hits=$(grep -REn "\beval\(|new Function\(|new WebSocket\(" "$ART_PATH" 2>/dev/null || true)
+if [ -z "$exec_hits" ]; then
+    check "No eval / new Function / WebSocket" "pass"
+else
+    check "No eval / new Function / WebSocket" "fail"
+    echo "$exec_hits" | head -5 | sed 's/^/      /'
+fi
+
+# --- Gate 9: no layout min-width above 600px ---
+# A `@media (min-width: 720px)` breakpoint is correct and expected; a min-width
+# PROPERTY wider than the ~700px workspace pane forces a horizontal scrollbar.
+minw_hits=$(grep -REn "min-width[[:space:]]*:[[:space:]]*[0-9]+px" "$ART_PATH" 2>/dev/null \
+    | grep -v "@media" \
+    | awk '{ if (match($0, /min-width[ \t]*:[ \t]*[0-9]+px/)) {
+                 v = substr($0, RSTART, RLENGTH); gsub(/[^0-9]/, "", v);
+                 if (v + 0 > 600) print } }' || true)
+if [ -z "$minw_hits" ]; then
+    check "No min-width property above 600px" "pass"
+else
+    check "No min-width property above 600px" "fail"
+    echo "$minw_hits" | head -5 | sed 's/^/      /'
+fi
+
+# --- Gate 10: nothing below 11px ---
+# 0.68rem is 10.9px at a 16px base and is the size that actually gets typed.
+small_px=$(grep -REn "font-size[[:space:]]*:[[:space:]]*[0-9.]+px" "$ART_PATH" 2>/dev/null \
+    | awk '{ if (match($0, /font-size[ \t]*:[ \t]*[0-9.]+px/)) {
+                 v = substr($0, RSTART, RLENGTH); gsub(/[^0-9.]/, "", v);
+                 if (v + 0 < 11) print } }' || true)
+small_rem=$(grep -REn "font-size[[:space:]]*:[[:space:]]*[0-9.]+rem" "$ART_PATH" 2>/dev/null \
+    | awk '{ if (match($0, /font-size[ \t]*:[ \t]*[0-9.]+rem/)) {
+                 v = substr($0, RSTART, RLENGTH); gsub(/[^0-9.]/, "", v);
+                 if (v + 0 < 0.6875) print } }' || true)
+small_hits=$(printf '%s\n%s' "$small_px" "$small_rem" | sed '/^$/d')
+if [ -z "$small_hits" ]; then
+    check "No text below 11px" "pass"
+else
+    check "No text below 11px" "fail"
+    echo "$small_hits" | head -5 | sed 's/^/      /'
+fi
+
+# --- Gate 11: the shared guest bridge is present and unmodified in shape ---
+if grep -q "@aipla-bridge:start" "$ART_PATH/index.html" 2>/dev/null \
+   && grep -q "@aipla-bridge:end" "$ART_PATH/index.html" 2>/dev/null; then
+    check "Guest bridge block present" "pass"
+else
+    check "Guest bridge block present" "fail"
+    echo "      Without it the sim cannot talk to the host. Scaffold from _template," \
+         | sed 's/^/      /'
+    echo "      or re-stamp with 'make sim-build'." | sed 's/^/      /'
+fi
+
 echo ""
 if [ "$fail" -eq 0 ]; then
     echo "All automated gates passed for $ART_NAME."
     echo ""
-    echo "Remaining manual checks (see resources/pre-ship-checklist.md):"
-    echo "  - Multi-width fit (360 / 700 / 1024 / 1440 px)"
-    echo "  - Touch test on a real device"
-    echo "  - End-to-end smoke against deployed dev"
+    echo "This script only reads the file. It has NOT checked that the sim runs,"
+    echo "fits, or emits anything. Next:"
+    echo "  make sim-build-check                     # bridge drift + broadcast floor"
+    echo "  node <skill>/scripts/verify_sim.mjs <id> --drive   # self-test, viewports, events"
+    echo "  ...then drive it as a student for 60 seconds (resources/pre-ship-checklist.md)"
     exit 0
 else
     echo "One or more gates failed. Fix the issues above and re-run."

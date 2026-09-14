@@ -31,14 +31,23 @@
   See .claude/skills/mcp-app-artefact/SKILL.md for the full recipe.
 -->
 <style>
+  /* Canonical artefact palette. Keep it in step with
+     .claude/skills/mcp-app-artefact/resources/visual-standard.md — the skill
+     tells authors to start from this block, so the two drifting apart means the
+     instruction is wrong rather than the sim. */
   :root {
-    --bg: #fafaf9;
-    --fg: #1c1917;
-    --muted: #78716c;
-    --border: #e7e5e4;
-    --accent: #1e40af;
-    --accent-soft: #dbeafe;
-    --hidden: #d6d3d1;
+    --bg: #ffffff;
+    --fg: #0f172a;          /* slate-900 */
+    --muted: #64748b;       /* slate-500 */
+    --border: #e2e8f0;      /* slate-200 */
+    --accent: #2563eb;      /* blue-600 — physics convention, not the KU brand red */
+    --accent-soft: #eff6ff;
+    --ok: #16a34a;
+    --warn: #d97706;
+    --bad: #dc2626;
+    --surface: #f8fafc;     /* insets: benches, cells, readouts */
+    --hidden: #cbd5e1;      /* a marker value not yet revealed */
+    --mono: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
   }
   * { box-sizing: border-box; }
   html, body {

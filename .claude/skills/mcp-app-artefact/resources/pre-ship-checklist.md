@@ -1,58 +1,95 @@
-# Pre-ship checklist — MCP App artefact
+# Pre-ship checklist — a new or changed sim
 
-Tickable extract of the gates from SKILL.md §ADR-013 + §Pre-ship usability gate
-+ §Visual design standard. Paste into a PR description before merging a new sim
-to `dev`. Tick by ticking — no exceptions.
+Paste into the commit message or PR description. Every unticked line is a
+decision you are making on purpose, not a TODO.
 
-## ADR-013 security gates (NEVER skip)
+Replace `<id>` throughout.
 
-- [ ] **No external fetches.** `grep -nE "https?://|fetch\(|XMLHttpRequest|import\(['\"]http" infrastructure/mcp-sandbox/artefacts/<name>/v<n>/` returns zero hits
-- [ ] **No inline `<script src>` to external origins.** Only `<script>` blocks with inline code or relative `src` paths
-- [ ] **No third-party CDN URLs** in CSS `@import`, `url(...)`, or `<link href>`
-- [ ] **Bundle size ≤ 200 KB total.** `du -sk infrastructure/mcp-sandbox/artefacts/<name>/v<n>/` ≤ 200
-- [ ] **Sandbox flags intact.** Iframe rendered with `sandbox="allow-scripts"` (no `allow-same-origin`)
-- [ ] **CSP allows only `self` + the sandbox origin.** Check the `aipla-v01-sandbox` Cloud Run service's headers
+## Run these
 
-## Visual design
+```bash
+.claude/skills/mcp-app-artefact/scripts/audit_artefact.sh \
+    infrastructure/mcp-sandbox/artefacts/<id>/v1        # ADR-013 + structure + theme
+make sim-build-check                                    # bridge drift + broadcast floor
+cd backend && uv run pytest tests/unit/test_artefact_catalogue.py -q
+node .claude/skills/mcp-app-artefact/scripts/verify_sim.mjs <id> --drive
+```
 
-- [ ] **Light theme only.** No `prefers-color-scheme: dark` rules. No dark backgrounds. Tested in both light and dark OS settings — looks correct in both
-- [ ] **Canonical CSS variables used** (see SKILL.md §Canonical CSS variables) — no ad-hoc colour literals
-- [ ] **Header rule honoured** — no `<h1>` inside the artefact (host renders the title via `SimFrameHeader`)
-- [ ] **Minimum font sizes** — body text ≥ 14px, instrument readouts ≥ 16px
-- [ ] **No fixed min-width > 600px** in any CSS
+- [ ] `audit_artefact.sh` — all gates pass
+- [ ] `make sim-build-check` — bridge matches source, sim has a labelled commit
+- [ ] catalogue test passes
+- [ ] `verify_sim.mjs` — self-test PASS, no page errors, no overflow at 390 / 700 / 1024
+- [ ] `--drive` output shows the kinds, labels and `state` you expect on the wire
 
-## Pre-ship usability gate (Axiom 11)
+## The two files
 
-- [ ] **Fits 360px width** without horizontal scroll (`scrollWidth <= clientWidth`)
-- [ ] **Fits 700px width** without horizontal scroll (this is the prod workspace pane size on `md:w-1/2`)
-- [ ] **Fits 1024px width** without horizontal scroll
-- [ ] **Fits 1440px width** without horizontal scroll
-- [ ] **Tested on a real iPhone or Android** (not just devtools emulation) — touch targets work, no zoom-on-focus surprises
+- [ ] `infrastructure/mcp-sandbox/artefacts/<id>/v1/index.html` exists, ≤200 KB
+- [ ] `backend/artefacts/<id>.yaml` exists, `id` matches the directory **and** the
+      event-kind prefix
+- [ ] `status: live` (or `beta` on purpose — a `beta` sim is invisible in the picker)
+- [ ] `tutorBlock` says what the sim is, what its events mean, and fences any
+      reference values with an explicit never-state instruction
+- [ ] `eventVocabulary` lists the verbs the sim actually emits
+- [ ] `minViewportPx` set, or deliberately unset because it audits clean at 390px
 
-## AIPLA frontend wiring
+## Architecture
 
-- [ ] **Snapshot hook authored** at `frontend/src/hooks/use<Name>Snapshot.ts` (use `aiplatform sim scaffold <name>` or copy from `frontend/src/_sim-template/`)
-- [ ] **Hook uses `useSimSnapshotPush`** — not a hand-rolled `fetchWithAuth` call
-- [ ] **Frame component authored** at `frontend/src/components/workspace/<Name>Frame.tsx` using the shared `SimFrameHeader`
-- [ ] **Frame forwardRef exposes `sendChatFlush()`** via `useImperativeHandle`
-- [ ] **Chat page branch added** in `frontend/src/app/chat/[...path]/page.tsx` alongside the existing Boldkast / LED-Planck / KineBot blocks
+- [ ] **One simulation** in the iframe. No tab switcher, no second view
+- [ ] Task lists, constants, quizzes, notes, pickers are **out** — in the tutor
+      or in activity elements
+- [ ] Embedded chat, API-key UI, external LLM calls, source branding: **deleted**
+- [ ] **No host-side code added** — no per-sim Frame, hook, chat-page branch or
+      SKILL.md. (If there is, `host-side-code.md` says why it was unavoidable)
+- [ ] The `@aipla-bridge` block was not hand-edited
 
-## Skill template
+## Events
 
-- [ ] **`backend/skills/templates/<skill>/SKILL.md`** with the right system prompt
-- [ ] **`tool_configs.mcp.servers: [<name>]`** in skill frontmatter
-- [ ] **`tool_configs.mcp.allow_context_writes: [<name>]`** in skill frontmatter — without this, `iframe-context` POSTs from the artefact return 403 silently and the agent never sees state
-- [ ] **`accessControl.type: "public"`** or `"tagged"` per the skill's audience
+- [ ] Every kind is `<id>.<verb>`
+- [ ] Deliberate actions use a verb from the proactive vocabulary
+      (`run`/`play`, `step`/`next`, `reading`/`measure`/`record`…)
+- [ ] At least one **labelled** emit, written in the sim's own language
+- [ ] Passive and continuous events are **unlabelled**
+- [ ] `state` is the whole snapshot and serialises well under 4 KB
+- [ ] Continuous controls buffer until commit; `onChatFlush` is registered
+- [ ] No value the student is meant to derive appears in any payload
 
-## Tests
+## Language
 
-- [ ] **Vitest cases for the Frame** — event routing per kind, `sendChatFlush()` ref method, cross-origin rejection (~12 cases minimum, see LedPlanckLabFrame.test as reference)
-- [ ] **Pytest cases for the skill template** — `_parse_template` returns the expected fields; seed roundtrip
-- [ ] **Sandbox build green** — `make sandbox-build` succeeds with the artefact included
+- [ ] One `strings` object; no user-facing text inline in markup
+- [ ] Canvas text re-drawn on a language change
+- [ ] Numbers formatted per locale (Danish decimal comma)
+- [ ] Initial language read from `hostContext().locale`, student toggle wins
+- [ ] …or a recorded `// locale: en-only, by decision <ref>` comment
 
-## Deployment
+## Visual
 
-- [ ] **`infrastructure/mcp-sandbox/artefacts/<name>/v<n>/`** committed to `dev`
-- [ ] **Cloud Build trigger** `aipla-mcp-sandbox-deploy` fires on the push (auto)
-- [ ] **Skill seeded** to Firestore after deploy (via `POST /api/admin/seed-platform-skills` — see the manual-seed runbook in `docs/design/aipla/v1.0.0-pilot/aipla-cloud-bootstrap.md`)
-- [ ] **End-to-end smoke** — join a group bound to the new skill, open the sim, interact, verify the workbench event lands in BigQuery via `make verify-chat-logs GROUP=<code> ENV=dev`
+- [ ] Canonical tokens; light theme; no dark header; no black instrument LCD
+- [ ] Body ≥14px, labels ≥11px, nothing smaller
+- [ ] Single-column default; no `min-width` above 600px
+- [ ] `accent-color` set on range inputs
+- [ ] `font-variant-numeric: tabular-nums` on live numbers
+
+## Usability — drive it as a student for 60 seconds
+
+- [ ] On first contact the next step is obvious with no instruction
+- [ ] No panel renders a blank void; empty and error states are designed
+- [ ] Everything reachable and legible at 390px
+- [ ] A student can tell that what they did reached the tutor (the trust card)
+- [ ] Nothing confused, cramped or stalled
+
+## Pedagogy
+
+- [ ] Defaults do **not** match the problem's values
+- [ ] Answers are revealed only by explicit action, and that action is emitted
+- [ ] A domain expert (AR, or another physics reviewer) has seen it — **or** this
+      line records that they have not, and why that is acceptable for now
+
+## Ship
+
+- [ ] Both files in one commit, so one push fires the sandbox **and** backend builds
+- [ ] After deploy: `curl $SANDBOX_URL/artefacts/<id>/v1/index.html` → 200
+- [ ] After deploy: the sim appears in the teacher's SimPicker
+- [ ] End to end: attach it to an activity, join as a student, interact, confirm
+      the tutor's next turn references the state
+      (`make verify-chat-logs GROUP=<code> ENV=dev` for the log half)
+- [ ] The live-library table in `SKILL.md` includes it
