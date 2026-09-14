@@ -1,13 +1,14 @@
 # Follow-up — password-reset email deliverability
 
-**Status:** **Still open, 2026-09-09.** Deferred to the week of 2026-08-24 to
+**Status:** **Open, ticket sent 2026-09-14.** Deferred to the week of 2026-08-24 to
 clear the first pilot session (Fri 2026-08-21); that week passed with nothing
 sent. Re-raised independently at the 2026-09-01 meeting (items 27 + 34 of
 [meeting-2026-09-01-triage.md](../design/aipla/v1.1.0-feedback/meeting-2026-09-01-triage.md),
 *"email login banned — IT must add DNS records; M may initiate"*). Verified
-2026-09-09 via `dig`: `aipla.ku.dk` still carries only the original
-`v=spf1 -all` and neither DKIM CNAME exists, so nothing below has been applied.
-**Nothing here has been sent to UCPH IT yet.**
+2026-09-09 via `dig`: `aipla.ku.dk` still carried only the original
+`v=spf1 -all` and neither DKIM CNAME existed. **2026-09-14: M sent the support
+ticket to UCPH IT with the four DNS records below.** Awaiting IT action —
+re-run the `dig` checks in step 2 once they confirm.
 
 **Owner:** M. **Raised:** 2026-08-17/18, from a real send.
 
