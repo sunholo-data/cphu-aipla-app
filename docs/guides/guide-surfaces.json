@@ -27,5 +27,10 @@
     "frontend/src/app/teacher/research",
     "frontend/src/app/teacher/insights",
     "frontend/src/app/teacher/settings/_LensConfigPanel.tsx"
+  ],
+  "r2-propose-a-simulation": [
+    ".claude/skills/mcp-app-artefact",
+    "infrastructure/mcp-sandbox/artefacts",
+    "backend/artefacts"
   ]
 }

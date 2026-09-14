@@ -13,12 +13,17 @@ intended to also feed an in-app `/help` route (a fast-follow).
 | `t3-add-curriculum-materials.qmd` | Teacher | Attach and organise curriculum documents |
 | `t4-author-with-the-copilot.qmd` | Teacher | Draft an activity with the AI co-pilot |
 | `s1-join-and-use-your-tutor.qmd` | Student | Join with a group code and use the tutor |
+| `r1-researcher-onboarding.qmd` | Researcher | Cross-teacher observation + rubric experimentation |
+| `r2-propose-a-simulation.qmd` | Researcher / physics staff | Specify and draft a new simulation for the library |
 
 Each teacher guide points to T4 (the co-pilot can do the same step). The teacher
 and student guides (T1–T4, S1) also ship in **Danish** as `<slug>.da.qmd`
 (rendered to `<slug>.da.{html,pdf}`, reusing the English screenshots); see
 [da-glossary.md](da-glossary.md) for the terminology + the keep-English-labels
-rule. R1 (researcher) is English-only.
+rule.
+
+The **R** guides are English-only by decision, not by omission: the researcher
+surfaces themselves are in English and the audience works in English.
 
 ## Regenerate
 
