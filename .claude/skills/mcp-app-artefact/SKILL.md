@@ -93,7 +93,13 @@ The underlying commands, if you want them separately:
 
 ### 3. Write the sim
 
-Read **[resources/artefact-anatomy.md](resources/artefact-anatomy.md)** — the
+**Drafting it in another chat?** Use
+**[resources/authoring-prompt.md](resources/authoring-prompt.md)** — a
+paste-ready brief that makes any AI return a conforming artefact plus its
+catalogue entry, so there is nothing to port. Then `make sim-build` stamps the
+bridge and you go straight to the gates.
+
+Writing it here, read **[resources/artefact-anatomy.md](resources/artefact-anatomy.md)** — the
 file skeleton, the bridge API, how to emit, commit-on-submit, host→artefact
 notifications, and the self-test.
 
@@ -326,6 +332,7 @@ Keep this table current — it is the fastest answer to "what do we already have
 
 | File | Read it when |
 |---|---|
+| [resources/authoring-prompt.md](resources/authoring-prompt.md) | drafting a sim in another AI chat |
 | [resources/artefact-anatomy.md](resources/artefact-anatomy.md) | writing or editing the HTML |
 | [resources/catalogue-entry.md](resources/catalogue-entry.md) | writing the YAML |
 | [resources/visual-standard.md](resources/visual-standard.md) | writing CSS |
