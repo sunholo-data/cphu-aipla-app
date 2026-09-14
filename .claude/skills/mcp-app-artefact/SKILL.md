@@ -325,6 +325,8 @@ Current as of 2026-09-14. Fix or delete these lines when they change.
 | `kinebot` | KineBot | pre-catalogue; English by decision; quiz/graph lifted to React |
 | `kettle-efficiency` | Elkedel — energi og nyttevirkning | catalogue-only; first `strings`-object sim |
 | `phase-change` | Faseovergange — opvarmningskurve | catalogue-only; graph is in-iframe because it IS the live sim |
+| `wave-speed` | Bølgefart — v = f·λ | catalogue-only; shows f, λ and T and never the speed |
+| `wave-interference` | Interferens — to bølger lægges sammen | catalogue-only; one medium owns the speed, so f is DERIVED from λ |
 
 Keep this table current — it is the fastest answer to "what do we already have".
 

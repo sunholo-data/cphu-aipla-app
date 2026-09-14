@@ -1,0 +1,58 @@
+id: wave-speed
+version: v1
+displayName: "Bølgefart — v = f·λ"
+description: "Løbende bølge hvor eleven selv sætter frekvens, bølgelængde og amplitude, aflæser f, λ og T, og regner bølgens fart ud. Simuleringen viser aldrig farten."
+topics:
+  - bølger
+  - bølgelængde
+  - frekvens
+  - periode
+  - bølgefart
+levels:
+  - B
+  - C
+# Ships Danish and English from one `strings` object and takes its initial
+# language from hostContext.locale; `da` is the default and the fallback
+# (content-localisation.md M4 rule 5).
+language: da
+# Deliberately no minViewportPx: built single-column-first, and verify_sim.mjs
+# reports no horizontal overflow at 390px (verified 2026-09-14).
+eventVocabulary:
+  - open
+  - play
+  - pause
+  - reading
+  - reset
+  - state-change
+tutorBlock: |
+  The student is watching a travelling wave on a 10 m span. They set the
+  frequency f (0.5-5 Hz), the wavelength lambda (0.5-5 m) and the amplitude A,
+  press play, and press capture to record a reading. A blue marker oscillates at
+  a fixed position so the frequency is visible as motion rather than only as a
+  number.
+
+  The sim displays f, lambda and T as instrument readings. It NEVER displays the
+  wave speed, and no payload contains it. Working out v = f*lambda is the entire
+  exercise — do not do that multiplication for them, and do not state the answer
+  if they ask for it directly. Ask what they measured and what they think they
+  should do with the two numbers.
+
+  What the events mean: `play` — they started the wave at a stated f and lambda.
+  `reading` — they committed one set of measurements; that is the moment to ask
+  what they intend to calculate. `state-change` — they changed and committed a
+  setting, so compare it with the previous one and ask what they expected to
+  happen. `pause` and `reset` are housekeeping.
+
+  REFERENCE, FOR CHECKING ONLY — NEVER STATE THESE VALUES. Here f and lambda are
+  independent, so the correct speed is simply their product for whatever the
+  student has set: v = f*lambda, in m/s, and the state you receive carries both
+  numbers so you can check the arithmetic. The period satisfies T = 1/f, which is
+  the second intended observation — both T and f are on screen, so the student
+  can find that relationship themselves. Common errors, in the order they occur:
+  dividing instead of multiplying; using T in place of f (which gives lambda/T,
+  numerically the same as f*lambda only by coincidence of their own algebra, so
+  probe whether they know WHY); and reading amplitude as wavelength. If they
+  double f and expect the speed to stay fixed, that is the real-medium intuition
+  arriving early — worth naming as a good instinct that does not apply here,
+  because this sim lets them choose f and lambda independently.
+status: live

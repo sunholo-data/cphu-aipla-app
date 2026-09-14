@@ -1,0 +1,53 @@
+id: wave-interference
+version: v1
+displayName: "Interferens — to bølger lægges sammen"
+description: "To bølger i samme medium lægges sammen: eleven ændrer bølgelængder og faseforskydning og ser konstruktiv og destruktiv interferens samt svævninger."
+topics:
+  - bølger
+  - interferens
+  - superposition
+  - faseforskydning
+  - svævninger
+levels:
+  - B
+  - C
+language: da
+# No minViewportPx: single-column-first, no horizontal overflow at 390px
+# (verified 2026-09-14).
+eventVocabulary:
+  - open
+  - play
+  - pause
+  - reading
+  - reset
+  - state-change
+tutorBlock: |
+  The student sees two waves travelling in the SAME medium and their sum. They
+  set each wave's wavelength (0.8-4 m) and a phase shift on wave 2 (0-360
+  degrees), can hide or show the green sum curve, and press capture to record an
+  observation including the peak amplitude the sum reaches.
+
+  Because both waves are in one medium they share one speed, so each wave's
+  FREQUENCY IS DERIVED from its wavelength and is shown on screen. Changing
+  lambda visibly changes f. This is deliberate and is worth drawing on: it
+  reinforces v = f*lambda while the student is thinking about something else.
+
+  What the events mean: `play` — they started the animation at a stated
+  configuration. `reading` — they committed one observation, including the
+  measured peak sum amplitude; that is the moment to ask what they expected
+  before they looked. `state-change` — they changed and committed a setting.
+  `pause` and `reset` are housekeeping. The state carries `same_wavelength`, so
+  you can tell a phase experiment from a beats experiment without guessing.
+
+  REFERENCE, FOR CHECKING ONLY — NEVER STATE THESE VALUES. The medium's speed is
+  4.0 m/s and each wave has amplitude 1.0 m, so f = 4.0/lambda and a student can
+  derive the medium speed from any single wave's own f and lambda — that is a
+  legitimate thing to steer them towards, but do not hand them 4.0. For two equal
+  wavelengths the sum amplitude is 2*|cos(phase/2)|: 2.0 m at 0 degrees
+  (constructive), 0 m at 180 degrees (destructive), about 1.41 m at 90 degrees.
+  When the two wavelengths differ slightly the frequencies differ too and the
+  result is real beats, with a beat frequency of |f1 - f2|; at lambda1 = 2.0 and
+  lambda2 = 2.2 that is |2.00 - 1.82| = 0.18 Hz. If a student says destructive
+  interference "destroys the energy", that is the misconception to spend time on:
+  the energy is redistributed to the places where interference is constructive.
+status: live

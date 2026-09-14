@@ -101,7 +101,7 @@ def test_measurement_sims_are_built_for_a_phone() -> None:
     nothing clipped). Declaring no minimum is a claim about the CSS — if either
     grows a fixed-width bench, set the number rather than editing this away.
     """
-    for artefact_id in ("kettle-efficiency", "phase-change"):
+    for artefact_id in ("kettle-efficiency", "phase-change", "wave-speed", "wave-interference"):
         a = load_artefact(artefact_id)
         assert a is not None, artefact_id
         assert a.min_viewport_px is None, artefact_id
@@ -113,8 +113,57 @@ def test_measurement_sims_name_the_commit_events_the_proactive_gate_reads() -> N
     that light up sim_run and measurement_commit. Renaming one to something
     prettier silently switches proactive tutoring off for that sim.
     """
-    for artefact_id in ("kettle-efficiency", "phase-change"):
+    for artefact_id, run_verb in (
+        ("kettle-efficiency", "run"),
+        ("phase-change", "run"),
+        # The wave sims say `play`, which is a sim_run token too. Both words are
+        # in the list; a sim that invented `start` would light up nothing.
+        ("wave-speed", "play"),
+        ("wave-interference", "play"),
+    ):
         a = load_artefact(artefact_id)
         assert a is not None, artefact_id
-        assert "run" in a.event_vocabulary, artefact_id
+        assert run_verb in a.event_vocabulary, artefact_id
         assert "reading" in a.event_vocabulary, artefact_id
+
+
+def test_wave_interference_keeps_the_medium_speed_server_side() -> None:
+    """wave-interference withholds ONE constant and everything else follows from
+    it: the medium's speed. Each wave's frequency is derived as f = v/lambda and
+    IS shown, so a student can recover the speed from a single wave's own
+    readings — which is a legitimate thing to be steered towards and not a thing
+    to be handed. If ``public()`` ever starts serialising the whole model, the
+    number appears in the browser and that exercise is gone.
+    """
+    a = load_artefact("wave-interference")
+    assert a is not None
+    assert "4.0 m/s" in a.tutor_block
+    assert "NEVER STATE THESE" in a.tutor_block
+    assert "4.0 m/s" not in str(a.public())
+
+
+def test_wave_speed_never_names_a_speed_anywhere_public() -> None:
+    """The whole exercise is computing v = f*lambda, so the sim shows f, lambda
+    and T and never a speed. The tutorBlock says so in as many words; this test
+    is what stops a later description or topic list from casually adding it.
+    """
+    a = load_artefact("wave-speed")
+    assert a is not None
+    assert "NEVER" in a.tutor_block
+    pub = str(a.public()).lower()
+    # `bølgefart` in the display name is the sim's SUBJECT, not a value. What
+    # must never appear is a number carrying m/s.
+    assert "m/s" not in pub
+
+
+def test_the_two_wave_sims_are_separate_artefacts() -> None:
+    """They arrived as one two-tab mockup and were deliberately split: different
+    controls, different physics, and two exercises in one ~700px pane is the
+    cramped multi-role shape this library has already shipped twice. Re-merging
+    them would have to undo this test, which is the point.
+    """
+    for artefact_id in ("wave-speed", "wave-interference"):
+        a = load_artefact(artefact_id)
+        assert a is not None, artefact_id
+        assert a.status == "live", artefact_id
+        assert a.artefact_path == f"{artefact_id}/v1", artefact_id

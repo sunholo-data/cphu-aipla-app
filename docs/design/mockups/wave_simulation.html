@@ -1,0 +1,373 @@
+<!DOCTYPE html>
+<html lang="da">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Bølger – v = f·λ og interferens</title>
+<style>
+  :root{
+    --ink:#14202e;
+    --ink-soft:#4a5568;
+    --paper:#eef2f6;
+    --panel:#ffffff;
+    --line:#cbd5df;
+    --wave1:#c44a2c;
+    --wave2:#2f6ea3;
+    --sum:#2e7d5b;
+    --grid:#e7ecf1;
+    --accent:#c44a2c;
+    --mono:"SFMono-Regular",Consolas,"Liberation Mono",Menlo,monospace;
+  }
+  *{box-sizing:border-box;}
+  html{-webkit-text-size-adjust:100%;}
+  body{
+    margin:0;font-family:"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+    background:radial-gradient(120% 80% at 50% -10%,#f7f9fb 0%,var(--paper) 55%);
+    color:var(--ink);line-height:1.5;min-height:100vh;
+  }
+  .wrap{max-width:1080px;margin:0 auto;padding:26px 18px 60px;}
+  header.top{
+    display:flex;align-items:flex-end;justify-content:space-between;gap:16px;
+    flex-wrap:wrap;border-bottom:2px solid var(--ink);padding-bottom:13px;margin-bottom:22px;
+  }
+  .title h1{margin:0;font-size:clamp(1.4rem,3.2vw,2.05rem);letter-spacing:-.015em;font-weight:700;line-height:1.06;}
+  .title p{margin:6px 0 0;color:var(--ink-soft);font-size:.93rem;max-width:54ch;}
+  .lang{display:flex;border:1.5px solid var(--ink);border-radius:2px;overflow:hidden;flex:none;}
+  .lang button{font:inherit;font-size:.82rem;font-weight:600;border:0;background:var(--panel);color:var(--ink-soft);padding:7px 13px;cursor:pointer;}
+  .lang button[aria-pressed="true"]{background:var(--ink);color:#fff;}
+
+  .tabs{display:flex;gap:6px;margin-bottom:16px;flex-wrap:wrap;}
+  .tab{font:inherit;font-size:.9rem;font-weight:600;border:1.5px solid var(--line);background:#fff;color:var(--ink-soft);padding:8px 15px;border-radius:6px;cursor:pointer;}
+  .tab[aria-selected="true"]{background:var(--ink);color:#fff;border-color:var(--ink);}
+
+  .panel{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:18px 18px 20px;}
+  canvas{width:100%;height:auto;display:block;border:1px solid var(--line);border-radius:8px;background:#fff;}
+
+  .controls{display:grid;grid-template-columns:1fr;gap:16px;margin-top:18px;}
+  @media(min-width:720px){.controls{grid-template-columns:1fr 1fr;}}
+  .field label{display:block;font-size:.82rem;font-weight:600;color:var(--ink-soft);margin-bottom:6px;}
+  .field .val{font-family:var(--mono);color:var(--ink);font-weight:700;}
+  input[type=range]{width:100%;accent-color:var(--accent);height:22px;}
+  .w1 input[type=range]{accent-color:var(--wave1);}
+  .w2 input[type=range]{accent-color:var(--wave2);}
+
+  .readbar{display:flex;flex-wrap:wrap;gap:10px;margin-top:16px;}
+  .chip{background:#f5f8fb;border:1px solid var(--line);border-radius:7px;padding:8px 12px;font-size:.85rem;}
+  .chip b{font-family:var(--mono);}
+  .chip.v{background:#eaf4ee;border-color:#b9dcc7;}
+
+  .btnrow{display:flex;gap:9px;flex-wrap:wrap;margin-top:16px;align-items:center;}
+  .btn{font:inherit;font-weight:600;font-size:.92rem;border-radius:5px;padding:9px 15px;cursor:pointer;border:1.5px solid var(--ink);}
+  .btn.primary{background:var(--accent);border-color:var(--accent);color:#fff;}
+  .btn.ghost{background:transparent;color:var(--ink);}
+  .btn.ghost:hover{background:#e6ebf0;}
+  .toggle{display:flex;align-items:center;gap:7px;font-size:.85rem;color:var(--ink-soft);font-weight:600;}
+
+  .task{margin-top:18px;background:var(--ink);color:#eef2f6;border-radius:8px;padding:15px 16px;}
+  .task h3{margin:0 0 8px;font-size:.9rem;color:#fff;}
+  .task ol{margin:0;padding-left:18px;font-size:.85rem;}
+  .task li{margin:5px 0;}
+  .task .c{font-family:var(--mono);background:rgba(255,255,255,.12);padding:1px 5px;border-radius:3px;}
+  .note{margin-top:14px;font-size:.8rem;color:var(--ink-soft);border-left:3px solid var(--wave2);padding:4px 0 4px 11px;}
+  .legend{display:flex;gap:16px;flex-wrap:wrap;margin-top:10px;font-size:.78rem;color:var(--ink-soft);}
+  .legend span{display:flex;align-items:center;gap:6px;}
+  .legend i{width:16px;height:3px;border-radius:2px;display:inline-block;}
+
+  footer.foot{margin-top:26px;text-align:center;font-size:.75rem;color:#8a95a1;}
+  .hide{display:none;}
+  [data-en]{display:none;}
+  html[lang="en"] [data-da]{display:none;}
+  html[lang="en"] [data-en]{display:inline;}
+  html[lang="en"] li[data-en]{display:list-item;}
+  html[lang="en"] p[data-en]{display:block;}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header class="top">
+    <div class="title">
+      <h1><span data-da>Bølger: v = f·λ og interferens</span><span data-en>Waves: v = f·λ and interference</span></h1>
+      <p>
+        <span data-da>Skru på frekvens og bølgelængde, se bølgen bevæge sig, og undersøg selv sammenhængen v = f·λ. Skift til interferens for at se to bølger lægge sig sammen.</span>
+        <span data-en>Adjust frequency and wavelength, watch the wave move, and work out the relationship v = f·λ for yourself. Switch to interference to see two waves add together.</span>
+      </p>
+    </div>
+    <div class="lang" role="group" aria-label="Language">
+      <button id="btn-da" aria-pressed="true" onclick="setLang('da')">Dansk</button>
+      <button id="btn-en" aria-pressed="false" onclick="setLang('en')">English</button>
+    </div>
+  </header>
+
+  <div class="tabs" role="tablist">
+    <button class="tab" role="tab" aria-selected="true" id="tabSingle" onclick="setMode('single')">
+      <span data-da>Én bølge</span><span data-en>One wave</span>
+    </button>
+    <button class="tab" role="tab" aria-selected="false" id="tabInterf" onclick="setMode('interf')">
+      <span data-da>Interferens (to bølger)</span><span data-en>Interference (two waves)</span>
+    </button>
+  </div>
+
+  <div class="panel">
+    <canvas id="cv" width="1000" height="360"></canvas>
+    <div class="legend" id="legend"></div>
+
+    <!-- single-wave controls -->
+    <div id="singleControls">
+      <div class="controls">
+        <div class="field w1">
+          <label><span data-da>Frekvens</span><span data-en>Frequency</span> f — <span class="val"><span id="fLabel">2.0</span> Hz</span></label>
+          <input type="range" id="fSlider" min="0.5" max="5" step="0.1" value="2" oninput="onParam()">
+        </div>
+        <div class="field w1">
+          <label><span data-da>Bølgelængde</span><span data-en>Wavelength</span> λ — <span class="val"><span id="lamLabel">2.0</span> m</span></label>
+          <input type="range" id="lamSlider" min="0.5" max="5" step="0.1" value="2" oninput="onParam()">
+        </div>
+        <div class="field w1">
+          <label><span data-da>Amplitude</span><span data-en>Amplitude</span> A — <span class="val"><span id="ampLabel">1.0</span> m</span></label>
+          <input type="range" id="ampSlider" min="0.2" max="1.4" step="0.1" value="1" oninput="onParam()">
+        </div>
+      </div>
+      <div class="readbar">
+        <div class="chip"><span data-da>Periode</span><span data-en>Period</span> T = <b id="chipT">0.50</b> s</div>
+        <div class="chip"><span data-da>Målt på skærmen:</span><span data-en>Read from screen:</span> f = <b id="chipF">2.0</b> Hz, λ = <b id="chipLam">2.0</b> m</div>
+      </div>
+    </div>
+
+    <!-- interference controls -->
+    <div id="interfControls" class="hide">
+      <div class="controls">
+        <div class="field w1">
+          <label><span style="color:var(--wave1)">■</span> <span data-da>Bølge 1 — bølgelængde</span><span data-en>Wave 1 — wavelength</span> λ₁ — <span class="val"><span id="lam1Label">2.0</span> m</span></label>
+          <input type="range" id="lam1Slider" min="0.6" max="4" step="0.1" value="2" oninput="onParam()">
+        </div>
+        <div class="field w2">
+          <label><span style="color:var(--wave2)">■</span> <span data-da>Bølge 2 — bølgelængde</span><span data-en>Wave 2 — wavelength</span> λ₂ — <span class="val"><span id="lam2Label">2.0</span> m</span></label>
+          <input type="range" id="lam2Slider" min="0.6" max="4" step="0.1" value="2" oninput="onParam()">
+        </div>
+        <div class="field w2">
+          <label><span data-da>Fase-forskydning af bølge 2</span><span data-en>Phase shift of wave 2</span> — <span class="val"><span id="phaseLabel">0</span>°</span></label>
+          <input type="range" id="phaseSlider" min="0" max="360" step="10" value="0" oninput="onParam()">
+        </div>
+        <div class="field">
+          <label class="toggle"><input type="checkbox" id="showSum" checked onchange="draw()"> <span data-da>Vis summen (grøn)</span><span data-en>Show the sum (green)</span></label>
+        </div>
+      </div>
+      <div class="readbar">
+        <div class="chip"><span data-da>Prøv: sæt λ₁ = λ₂ og skru på fasen — 0° og 180°.</span><span data-en>Try: set λ₁ = λ₂ and change the phase — 0° vs 180°.</span></div>
+      </div>
+    </div>
+
+    <div class="btnrow">
+      <button class="btn primary" id="playBtn" onclick="togglePlay()"><span data-da>Pause</span><span data-en>Pause</span></button>
+      <button class="btn ghost" onclick="resetSim()"><span data-da>Nulstil</span><span data-en>Reset</span></button>
+      <span class="chip v" id="modeHint"></span>
+    </div>
+
+    <div class="task" id="taskSingle">
+      <h3><span data-da>Din opgave — regn selv</span><span data-en>Your task — you do the maths</span></h3>
+      <ol>
+        <li data-da>Læs frekvensen f og bølgelængden λ af på skærmen. Beregn bølgens hastighed med <span class="c">v = f·λ</span>.</li>
+        <li data-en>Read the frequency f and wavelength λ from the screen. Work out the wave speed using <span class="c">v = f·λ</span>.</li>
+        <li data-da>Fordobl frekvensen. Hvad sker der med hastigheden? Og hvis du i stedet fordobler bølgelængden?</li>
+        <li data-en>Double the frequency. What happens to the speed? And if you double the wavelength instead?</li>
+        <li data-da>Hvilken sammenhæng er der mellem periode T og frekvens f? Tjek med tallene på skærmen.</li>
+        <li data-en>What is the relationship between period T and frequency f? Check it against the numbers on screen.</li>
+      </ol>
+    </div>
+
+    <div class="task hide" id="taskInterf">
+      <h3><span data-da>Din opgave — undersøg</span><span data-en>Your task — investigate</span></h3>
+      <ol>
+        <li data-da>Sæt λ₁ = λ₂ og fase = 0°. Hvad sker der med summen? (konstruktiv interferens)</li>
+        <li data-en>Set λ₁ = λ₂ and phase = 0°. What happens to the sum? (constructive interference)</li>
+        <li data-da>Behold λ₁ = λ₂, men sæt fasen til 180°. Hvad sker der nu, og hvorfor? (destruktiv interferens)</li>
+        <li data-en>Keep λ₁ = λ₂, but set the phase to 180°. What happens now, and why? (destructive interference)</li>
+        <li data-da>Gør bølgelængderne lidt forskellige. Beskriv mønstret i summen (svævninger).</li>
+        <li data-en>Make the wavelengths slightly different. Describe the pattern in the sum (beats).</li>
+      </ol>
+    </div>
+
+    <p class="note">
+      <span data-da>Simuleringen viser bølgerne og lader dig aflæse f og λ — men den regner ikke hastigheden ud for dig. Det er din opgave.</span>
+      <span data-en>The simulation shows the waves and lets you read off f and λ — but it doesn't calculate the speed for you. That's your job.</span>
+    </p>
+  </div>
+
+  <footer class="foot">
+    <span data-da>Virtuelt forsøg til Fysik C · Bølger, lyd og lys</span>
+    <span data-en>Virtual experiment for Physics C · Waves, sound and light</span>
+  </footer>
+</div>
+
+<script>
+const cv=document.getElementById('cv'), cx=cv.getContext('2d');
+let st={
+  mode:'single', playing:true, t:0, raf:null, last:null,
+  f:2.0, lam:2.0, amp:1.0,
+  lam1:2.0, lam2:2.0, phase:0
+};
+// screen scale: metres -> pixels. The canvas spans SPAN metres.
+const SPAN=10;            // metres shown across the canvas width
+const PXPM=()=> (cv.width-70)/SPAN;  // pixels per metre (leave margin)
+const X0=50;             // left margin px
+const MIDY=()=> cv.height/2;
+
+function setLang(l){
+  document.documentElement.lang=l;
+  document.getElementById('btn-da').setAttribute('aria-pressed',l==='da');
+  document.getElementById('btn-en').setAttribute('aria-pressed',l==='en');
+  renderLegend(); updateHint();
+}
+function setMode(m){
+  st.mode=m;
+  document.getElementById('tabSingle').setAttribute('aria-selected',m==='single');
+  document.getElementById('tabInterf').setAttribute('aria-selected',m==='interf');
+  document.getElementById('singleControls').classList.toggle('hide',m!=='single');
+  document.getElementById('interfControls').classList.toggle('hide',m==='single');
+  document.getElementById('taskSingle').classList.toggle('hide',m!=='single');
+  document.getElementById('taskInterf').classList.toggle('hide',m==='single');
+  renderLegend(); updateHint(); draw();
+}
+function updateHint(){
+  const lang=document.documentElement.lang, h=document.getElementById('modeHint');
+  if(st.mode==='single') h.textContent = lang==='en'?'v = f · λ':'v = f · λ';
+  else h.textContent = lang==='en'?'sum = wave 1 + wave 2':'sum = bølge 1 + bølge 2';
+}
+function renderLegend(){
+  const lang=document.documentElement.lang, L=document.getElementById('legend');
+  if(st.mode==='single'){
+    L.innerHTML = `<span><i style="background:var(--wave1)"></i>${lang==='en'?'wave':'bølge'}</span>`;
+  } else {
+    L.innerHTML =
+      `<span><i style="background:var(--wave1)"></i>${lang==='en'?'wave 1':'bølge 1'}</span>`+
+      `<span><i style="background:var(--wave2)"></i>${lang==='en'?'wave 2':'bølge 2'}</span>`+
+      `<span><i style="background:var(--sum)"></i>${lang==='en'?'sum':'sum'}</span>`;
+  }
+}
+
+function onParam(){
+  st.f=+document.getElementById('fSlider').value;
+  st.lam=+document.getElementById('lamSlider').value;
+  st.amp=+document.getElementById('ampSlider').value;
+  st.lam1=+document.getElementById('lam1Slider').value;
+  st.lam2=+document.getElementById('lam2Slider').value;
+  st.phase=+document.getElementById('phaseSlider').value;
+  document.getElementById('fLabel').textContent=st.f.toFixed(1);
+  document.getElementById('lamLabel').textContent=st.lam.toFixed(1);
+  document.getElementById('ampLabel').textContent=st.amp.toFixed(1);
+  document.getElementById('lam1Label').textContent=st.lam1.toFixed(1);
+  document.getElementById('lam2Label').textContent=st.lam2.toFixed(1);
+  document.getElementById('phaseLabel').textContent=st.phase;
+  document.getElementById('chipT').textContent=(1/st.f).toFixed(2);
+  document.getElementById('chipF').textContent=st.f.toFixed(1);
+  document.getElementById('chipLam').textContent=st.lam.toFixed(1);
+  if(!st.playing) draw();
+}
+
+function gridAndAxis(){
+  cx.clearRect(0,0,cv.width,cv.height);
+  const ppm=PXPM(), mid=MIDY();
+  // horizontal grid + metre ticks
+  cx.strokeStyle='#eef2f6';cx.lineWidth=1;
+  cx.fillStyle='#9aa6b2';cx.font='11px system-ui';cx.textAlign='center';cx.textBaseline='top';
+  for(let m=0;m<=SPAN;m++){
+    const x=X0+m*ppm;
+    cx.strokeStyle=(m%1===0)?'#e7ecf1':'#f2f5f8';
+    cx.beginPath();cx.moveTo(x,20);cx.lineTo(x,cv.height-24);cx.stroke();
+    if(m%2===0){cx.fillText(m+' m',x,cv.height-20);}
+  }
+  // midline
+  cx.strokeStyle='#c9d3dd';cx.lineWidth=1.2;
+  cx.beginPath();cx.moveTo(X0,mid);cx.lineTo(X0+SPAN*ppm,mid);cx.stroke();
+}
+
+function waveY(x_m, lam, amp, phaseDeg, t, f){
+  // y in metres at position x (m) and time t (s): travelling wave moving right
+  const k=2*Math.PI/lam;
+  const omega=2*Math.PI*f;
+  const ph=phaseDeg*Math.PI/180;
+  return amp*Math.sin(k*x_m - omega*t + ph);
+}
+
+function plot(lam,amp,phase,color,f,lw){
+  const ppm=PXPM(), mid=MIDY();
+  const yscale=(cv.height/2-30)/1.4; // amp 1.4 -> near edge
+  cx.strokeStyle=color;cx.lineWidth=lw||2.2;cx.beginPath();
+  for(let px=0;px<=SPAN*ppm;px+=2){
+    const x_m=px/ppm;
+    const y=waveY(x_m,lam,amp,phase,st.t,f);
+    const sy=mid - y*yscale;
+    px?cx.lineTo(X0+px,sy):cx.moveTo(X0+px,sy);
+  }
+  cx.stroke();
+}
+
+function draw(){
+  gridAndAxis();
+  if(st.mode==='single'){
+    plot(st.lam,st.amp,0,getcss('--wave1'),st.f,2.6);
+    // mark one wavelength with a bracket near top
+    markWavelength(st.lam);
+  } else {
+    const f=1.2; // common temporal frequency for interference view
+    plot(st.lam1,1.0,0,getcss('--wave1'),f,1.8);
+    plot(st.lam2,1.0,st.phase,getcss('--wave2'),f,1.8);
+    if(document.getElementById('showSum').checked){
+      // sum curve
+      const ppm=PXPM(), mid=MIDY(), yscale=(cv.height/2-30)/1.4;
+      cx.strokeStyle=getcss('--sum');cx.lineWidth=2.8;cx.beginPath();
+      for(let px=0;px<=SPAN*ppm;px+=2){
+        const x_m=px/ppm;
+        const y=waveY(x_m,st.lam1,1.0,0,st.t,f)+waveY(x_m,st.lam2,1.0,st.phase,st.t,f);
+        const sy=mid - y*yscale;
+        px?cx.lineTo(X0+px,sy):cx.moveTo(X0+px,sy);
+      }
+      cx.stroke();
+    }
+  }
+}
+function markWavelength(lam){
+  const ppm=PXPM(); const y=26;
+  const x1=X0+1*ppm, x2=X0+(1+lam)*ppm;
+  cx.strokeStyle='#8a97a4';cx.lineWidth=1.2;
+  cx.beginPath();cx.moveTo(x1,y);cx.lineTo(x2,y);cx.stroke();
+  cx.beginPath();cx.moveTo(x1,y-4);cx.lineTo(x1,y+4);cx.moveTo(x2,y-4);cx.lineTo(x2,y+4);cx.stroke();
+  cx.fillStyle='#6b7885';cx.font='12px system-ui';cx.textAlign='center';cx.textBaseline='bottom';
+  cx.fillText('λ',(x1+x2)/2,y-3);
+}
+function getcss(v){return getComputedStyle(document.documentElement).getPropertyValue(v).trim();}
+
+function frame(ts){
+  if(!st.playing)return;
+  if(st.last==null)st.last=ts;
+  const dt=(ts-st.last)/1000; st.last=ts;
+  st.t+=dt;
+  draw();
+  st.raf=requestAnimationFrame(frame);
+}
+function togglePlay(){
+  st.playing=!st.playing;
+  const b=document.getElementById('playBtn');
+  const lang=document.documentElement.lang;
+  b.innerHTML = st.playing ? (lang==='en'?'<span data-en>Pause</span>':'<span data-da>Pause</span>')
+                           : (lang==='en'?'Play':'Afspil');
+  if(st.playing){st.last=null;st.raf=requestAnimationFrame(frame);}
+  else cancelAnimationFrame(st.raf);
+}
+function resetSim(){
+  st.t=0;
+  document.getElementById('fSlider').value=2;
+  document.getElementById('lamSlider').value=2;
+  document.getElementById('ampSlider').value=1;
+  document.getElementById('lam1Slider').value=2;
+  document.getElementById('lam2Slider').value=2;
+  document.getElementById('phaseSlider').value=0;
+  onParam(); draw();
+}
+
+// init
+onParam(); renderLegend(); updateHint();
+st.raf=requestAnimationFrame(frame);
+</script>
+</body>
+</html>
