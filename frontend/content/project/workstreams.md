@@ -3,7 +3,7 @@ title: "Workstreams"
 description: "The connected platform, activity-creation, and scoping work that supports the research."
 eyebrow: "How the project is organised"
 owner: "AIPLA project team"
-reviewed: "2026-09-07"
+reviewed: "2026-09-14"
 reviewBy: "2026-10-07"
 status: "Current"
 order: "30"
@@ -53,6 +53,8 @@ Interactive physics artefacts can support prediction, parameter exploration, pro
 - **Hybrid activities**, which combine several representations with a tutor.
 
 The aim is not to replace physical experiments. Virtual and computational tools are useful when their role in relation to real equipment, measurement, and uncertainty is made explicit.
+
+New simulations are proposed by physics staff and drafted in an AI chat, without writing code — see [Build a simulation with an AI chat](/project/build-a-simulation).
 
 ### Student-as-creator
 

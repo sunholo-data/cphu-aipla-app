@@ -1,63 +1,115 @@
-# The authoring prompt
-
-A paste-ready brief for generating a **conforming** sim in any AI chat — Claude,
-ChatGPT, whatever the teacher already has open — so that what comes back drops
-into the repo instead of needing a port.
-
-## Why this exists
-
-Sims get drafted outside the repo, in a chat with someone who knows the physics.
-What comes back is usually good physics in a shape that costs an hour to
-integrate: duplicated `data-da`/`data-en` spans, its own colour palette, the
-task list and the constants box inside the frame, no telemetry, no self-test.
-Every one of those is cheap to *ask for* up front and tedious to retrofit.
-
-Two things the generating model cannot do, which the prompt works around:
-
-- **It cannot write the guest bridge.** That is ~370 generated lines stamped from
-  one source by `make sim-build`. The prompt has it emit the marker pair around a
-  placeholder `<script>`, which the repo-side step fills. A hand-written bridge
-  would be rejected by the drift check.
-- **It cannot run the gates.** So the prompt ends with a self-check, and you run
-  the real gates when the file lands.
-
-## Where it is published
-
-The fenced block below is the **single source**. Two public copies are
-generated from it by `make sim-prompt` and CI fails (`make check-sim-prompt`)
-if they drift:
-
-- `https://aipla.ku.dk/project/build-a-simulation` — the page physics staff
-  are sent (`frontend/content/project/build-a-simulation.md`, between the
-  `sim-prompt` markers), with a copy button;
-- `https://aipla.ku.dk/sim-authoring-prompt.txt` — the bare prompt, for a chat
-  that can fetch a URL (`frontend/public/sim-authoring-prompt.txt`).
-
-Edit here, run `make sim-prompt`, commit all three. Never hand-edit the copies.
-
-## How to use it
-
-1. Copy everything in the fenced block below into a fresh chat.
-2. Replace the `<<< … >>>` briefing at the top with the actual physics.
-3. Save the two files it returns to
-   `infrastructure/mcp-sandbox/artefacts/<id>/v1/index.html` and
-   `backend/artefacts/<id>.yaml` — or scaffold first with
-   `scripts/new_sim.sh <id> "<title>"` and paste over the stubs.
-4. Then, in the repo:
-
-```bash
-make sim-build                                        # stamps the real bridge
-.claude/skills/mcp-app-artefact/scripts/audit_artefact.sh \
-    infrastructure/mcp-sandbox/artefacts/<id>/v1
-node .claude/skills/mcp-app-artefact/scripts/verify_sim.mjs <id> --drive
-cd backend && uv run pytest tests/unit/test_artefact_catalogue.py -q
-```
-
 ---
+title: "Build a simulation with an AI chat"
+description: "How physics staff draft a new AIPLA simulation in Claude, ChatGPT or any AI chat, using the authoring prompt — no coding required."
+eyebrow: "For physics staff"
+owner: "AIPLA project team"
+reviewed: "2026-09-14"
+reviewBy: "2026-12-14"
+status: "Current"
+order: "44"
+nav: "false"
+---
+# Build a simulation with an AI chat
 
-## The prompt
+This page is for the person who knows the physics, not the person who writes the code. You do not need to be able to build a simulation to get one into AIPLA — you need to be able to say precisely what it should let a student *do*. Drafting it in an AI chat is the intended route, and the prompt at the bottom of this page makes the draft land in the right shape.
 
-````text
+## What a simulation is here
+
+A simulation in AIPLA is a small interactive bench that opens beside the tutor in the student's workspace. The student changes something, watches what happens, and records readings. The tutor sees those readings and can ask about them. [Boldkast](/project/activities/boldkast) is a worked example.
+
+Seven are live today:
+
+| Simulation | The student's job |
+|---|---|
+| Boldkast | Launch a projectile, find the angle for maximum range |
+| LED Planck | Measure LED threshold voltages, fit Planck's constant |
+| KineBot | Read motion graphs |
+| Elkedel | Heat water, measure energy in and temperature out, find the efficiency |
+| Faseovergange | Heat ice to steam, read the plateaus off the heating curve |
+| Bølgefart | Set *f* and *λ*, work out the wave speed |
+| Interferens | Add two waves, find constructive, destructive and beats |
+
+Note the shape they share. **The simulation never shows the answer.** The kettle reports energy and temperature and never the efficiency; the wave bench reports *f*, *λ* and *T* and never the speed. That withholding is the exercise, and it is the single most useful thing you can specify when you propose one.
+
+## The one question worth getting right
+
+> **What does the student measure, and what do they work out from it?**
+
+If you can answer that in one sentence, the rest follows. If the answer is "they watch it", it is a diagram rather than a simulation, and a picture in the activity will serve better.
+
+Two things follow from your answer:
+
+- **The readings the bench must show.** These are instrument faces — a thermometer, a stopwatch, a frequency readout. Showing them is fine.
+- **The value that must stay hidden.** The thing being calculated. It never appears on screen, and it goes into a private note for the tutor instead, so the tutor can mark an answer without handing it over.
+
+## What belongs in the simulation, and what does not
+
+The bench holds the live experiment: the thing being simulated, the controls that act on it, the instruments reading it, and a small table of the readings the student has captured.
+
+Everything else is better placed elsewhere, and placing it elsewhere makes it *more* useful, not less:
+
+| If your draft has | Where it actually goes |
+|---|---|
+| A numbered task list, "your turn" steps | the tutor, which can adapt them to the student |
+| Constants, a formula sheet | the tutor, on request |
+| A long problem statement | the activity's goal, which the teacher writes |
+| A quiz, a multiple-choice check | an activity element |
+| Its own chat box or "ask AI" button | deleted — AIPLA supplies the tutor |
+| Its own title bar and logo | deleted — the app draws that |
+
+The bench is about 700 px wide on a laptop and 390 px on a phone, so this is not tidiness. Anything that is not the experiment is crowding the experiment out.
+
+## How to draft one
+
+1. Open a fresh chat in whichever AI you already use — Claude, ChatGPT, Gemini, Copilot. Any of them will do.
+2. Give it the authoring prompt. Either press **Copy** on the block below and paste it in, or — if your chat can read web pages — paste this link instead: `https://aipla.ku.dk/sim-authoring-prompt.txt`
+3. Replace the `<<< BRIEF … >>>` block at the top with your experiment. A good brief says:
+   - **The physics.** The relationship the student should come away with.
+   - **What they control**, with ranges and units.
+   - **What the instruments read.**
+   - **What must stay hidden**, explicitly.
+   - **What "done" looks like** — the capture or commit action.
+4. Save the two files it returns and open the first one in a browser. Try it. You are the physics reviewer; nobody downstream can catch a wrong model, and the automated checks certainly cannot.
+5. Send both files to the project team.
+
+The prompt tells the AI the size limit, the "no external resources" rule, the light-on-white visual standard and the event vocabulary the tutor listens for, so what comes back can be dropped in with little rework rather than rebuilt. It was tested cold on 2026-09-14 — a fresh AI given only the prompt and a brief produced simulations that passed every automated gate on the first attempt.
+
+## What happens to your draft
+
+Your two files then go through a documented path that does the following, none of which is your problem:
+
+- splits anything that turned out to be two experiments into two benches;
+- strips any task list that crept in into the tutor's private brief;
+- wires the capture button so the tutor actually receives the readings and the student sees a "shared with the AI" card;
+- runs the security, size, layout and phone-width gates;
+- drives it in a real browser and captures the events;
+- writes the tutor's private note, including your reference values.
+
+Then it is in the library and any teacher can attach it to an activity.
+
+## Two things we will ask you
+
+**Sign off the physics.** A pedagogically loaded simulation is approved by a physics reviewer before it ships, and nothing automated checks this. When a draft comes back to you, the question is whether the model is right and whether the Danish reads like physics teaching.
+
+This is not a formality. A wave draft in September 2026 gave two waves in the same medium a shared frequency and independent wavelengths, which makes them travel at different speeds — impossible in one medium — and the "beats" it produced were a drawing artefact rather than physics. It was caught during integration, not by any gate. A physicist reading it would have caught it sooner.
+
+**Tell us the reference values.** The constants a tutor needs in order to mark an answer — the real efficiency, the latent heats, the medium's speed. They go in the tutor's private brief, which the student's browser never receives, under an instruction never to state them outright.
+
+## What a simulation cannot do
+
+Worth knowing before you design around it:
+
+- **It does not remember.** A student returning tomorrow gets their chat history but the bench reopens at its defaults. Readings that must persist belong in an activity table, not in the bench.
+- **It cannot reach the internet.** No live data, no external images, no lookups. Everything ships inside the one file.
+- **It does not know who the student is.**
+- **A constant inside it is readable by a determined student** who opens the page source. The guarantee is "not handed to you", not "cryptographically hidden". Anything that must genuinely be secret needs a different approach — say so and it will be built differently.
+
+## The authoring prompt
+
+Copy all of it. Replace only the `<<< BRIEF … >>>` block.
+
+<!-- sim-prompt:start -->
+```text
 You are building a physics simulation for AIPLA, a tutoring platform used in
 Danish upper-secondary schools (stx). It runs in a sandboxed iframe beside an AI
 tutor, in a panel about 700px wide, and students also open it on phones.
@@ -428,44 +480,7 @@ BEFORE YOU ANSWER — check your own output
 12. On first contact a student can tell what to do. No control is disabled
     without something on screen saying what enables it, and no panel is a blank
     void — an empty measurement table says "no readings yet", not nothing.
-````
+```
+<!-- sim-prompt:end -->
 
----
-
-## Validation
-
-Tested cold twice on 2026-09-14 — a fresh agent with no repo access and no web
-access, given only the block above plus a brief. Both runs (a pendulum, then a
-DC circuit with a non-ideal battery) produced two files that passed **every
-gate**: all 11 static ones, plus self-test PASS, no page errors, no overflow at
-390/700/1024px, correctly namespaced kinds, a labelled commit, and every payload
-inside the 4 KB cap. Both looked like they belonged in the library.
-
-The gates are not what improved the prompt, though — both runs passed them. The
-fixes came from asking each agent what it had to guess at:
-
-- round 1: the brief never asked for the ID; the unguarded bridge calls threw
-  before the self-test could run; the canvas-height rule was circular;
-  `applyLang` printed "undefined" and skipped JS-built cells; the size rule
-  forbade the measurement series the tutor needs.
-- round 2: the guard was **prose in one section and an unguarded snippet in
-  another** — code shown beats rules stated, and the snippet won; `applyLang`
-  and the self-test both wrote `document.title`, so a late language change
-  silently erased TEST PASS; the house style was delegated to a URL that a
-  teacher's chat cannot fetch; and clearing the measurement record emitted
-  `reset`, which is dropped before the tutor, leaving it marking a dataset the
-  student had deleted.
-
-**Re-run the test after editing this prompt**, and ask the agent what it guessed
-rather than whether it succeeded. A passing artefact tells you much less than
-the list of decisions the prompt left to chance.
-
-## What this cannot guarantee
-
-The prompt gets the shape right. It cannot check that the physics is correct,
-that the Danish reads well, or that a student knows what to do first. Run the
-gates, then drive it for sixty seconds, then have someone who teaches the topic
-look at it.
-
-Expect to still fix: the empty state, the label wording, and whatever the
-`--drive` output shows arriving in the wrong order.
+The same text as a plain file, for an AI that can fetch a URL: [sim-authoring-prompt.txt](/sim-authoring-prompt.txt)

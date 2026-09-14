@@ -65,6 +65,8 @@ The examples represent three useful classes:
 
 Other AIPLA activities may use a conceptual dialogue, problem set, document, image submission, table, calculator, chart, checklist, or concept map without an embedded simulation.
 
+Physics staff can propose a new simulation without writing code: [Build a simulation with an AI chat](/project/build-a-simulation) explains what to specify and carries the prompt to paste into any AI chat.
+
 ## Learning from AI mistakes
 
 AI-generated explanations and illustrations can be convincing while still being physically wrong. AIPLA treats some failures as possible teaching material.

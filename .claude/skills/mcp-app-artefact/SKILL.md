@@ -97,7 +97,10 @@ The underlying commands, if you want them separately:
 **[resources/authoring-prompt.md](resources/authoring-prompt.md)** — a
 paste-ready brief that makes any AI return a conforming artefact plus its
 catalogue entry, so there is nothing to port. Then `make sim-build` stamps the
-bridge and you go straight to the gates.
+bridge and you go straight to the gates. It is published for physics staff at
+`/project/build-a-simulation` and `/sim-authoring-prompt.txt` — generated
+copies, `make sim-prompt` after editing the source (`make check-sim-prompt` is
+CI-gated).
 
 Writing it here, read **[resources/artefact-anatomy.md](resources/artefact-anatomy.md)** — the
 file skeleton, the bridge API, how to emit, commit-on-submit, host→artefact

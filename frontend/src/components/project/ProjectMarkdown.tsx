@@ -3,6 +3,7 @@ import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 
 import { ProjectArtefactDemo } from "@/components/project/ProjectArtefactDemo";
+import { ProjectCodeBlock } from "@/components/project/ProjectCodeBlock";
 import { slugifyProjectHeading } from "@/lib/projectHeadings";
 
 function childText(children: ReactNode): string {
@@ -31,6 +32,10 @@ export function ProjectMarkdown({ children }: { children: string }) {
   return (
     <ReactMarkdown
       remarkPlugins={[remarkGfm]}
+      // Raw HTML in content is never rendered as markup here, and without this
+      // it is printed as TEXT — the tutors page showed its "<!-- GENERATED -->"
+      // comment to readers, and the sim-prompt markers would too.
+      skipHtml
       components={{
         h1: ({ children: heading }) => (
           <h1 className="text-3xl font-semibold tracking-tight text-foreground sm:text-4xl">
@@ -76,9 +81,16 @@ export function ProjectMarkdown({ children }: { children: string }) {
             />
           );
         },
-        code: ({ children: code }) => (
-          <code className="rounded bg-muted px-1.5 py-0.5 font-mono text-[0.9em] text-foreground">{code}</code>
-        ),
+        pre: ({ children: block }) => <ProjectCodeBlock>{block}</ProjectCodeBlock>,
+        // A fenced block's <code> carries `language-*`; inline code carries no
+        // class. Only the inline form gets the pill styling — inside a <pre>
+        // it would wrap 370 lines in a rounded background.
+        code: ({ children: code, className }) =>
+          className?.startsWith("language-") ? (
+            <code className={className}>{code}</code>
+          ) : (
+            <code className="rounded bg-muted px-1.5 py-0.5 font-mono text-[0.9em] text-foreground">{code}</code>
+          ),
         hr: () => <hr className="my-10 border-border" />,
         strong: ({ children: text }) => <strong className="font-semibold text-foreground">{text}</strong>,
         a: ({ href = "", children: label }) => {

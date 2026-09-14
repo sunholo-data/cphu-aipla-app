@@ -171,6 +171,12 @@ jobs:
         # no in-person overlap, so the docs ARE the handover.
         run: bash scripts/check-local-path-links.sh
 
+      - name: Sim authoring prompt is published from its single source
+        # 2026-09-14: the prompt physics staff paste into Claude/ChatGPT lived
+        # only in .claude/, so the public copies (/project/build-a-simulation,
+        # /sim-authoring-prompt.txt) are generated. Same shape as check-tutor-docs.
+        run: bash scripts/sync-sim-authoring-prompt.sh --check
+
       - name: Brand-drift gate (no hardcoded red-* on brand surfaces)
         # 1.1.74: the app shipped two brand primaries for months — --primary was
         # the inherited Sunholo orange while /project hardcoded KU red, so the

@@ -523,6 +523,17 @@ check-tutor-docs: ## Fail if the tutor docs have drifted from the framework YAML
 # apple-touch-icon itself and, given transparency, shows a blank tile — reported
 # from a real iPhone the morning after. Nothing in lint/typecheck/tests can see
 # inside a PNG, so this reads the corner pixels.
+# The sim authoring prompt (2026-09-14). The prompt physics staff paste into an
+# AI chat lives in .claude/skills/mcp-app-artefact/resources/authoring-prompt.md,
+# which nothing public serves — so R2 said "ask M or AD to send it to you".
+# Two public copies (/project/build-a-simulation and /sim-authoring-prompt.txt)
+# are generated from it; edit the source, regenerate, commit all three.
+sim-prompt: ## Regenerate the public sim authoring prompt page + txt from the skill source
+	@scripts/sync-sim-authoring-prompt.sh
+
+check-sim-prompt: ## Fail if the public sim authoring prompt has drifted from the skill source (CI-gated)
+	@scripts/sync-sim-authoring-prompt.sh --check
+
 check-pwa-icons: ## Fail if a home-screen icon has transparent corners (CI-gated)
 	@node scripts/check-pwa-icons.mjs
 

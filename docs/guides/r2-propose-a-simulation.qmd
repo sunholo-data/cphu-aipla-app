@@ -75,9 +75,10 @@ tidiness. Anything that is not the experiment is crowding the experiment out.
 
 ## How to draft one
 
-**Use an AI chat, and paste the authoring prompt.** It lives at
-`.claude/skills/mcp-app-artefact/resources/authoring-prompt.md` in the app
-repository — ask M or AD to send it to you. It tells the AI the size limit, the
+**Use an AI chat, and paste the authoring prompt.** It is published at
+<https://aipla.ku.dk/project/build-a-simulation> (copy button), and as a plain
+file your chat can fetch by URL: <https://aipla.ku.dk/sim-authoring-prompt.txt>.
+It tells the AI the size limit, the
 "no external resources" rule, the light-on-white visual standard and the event
 vocabulary, so what comes back can be dropped in with little rework rather than
 rebuilt.
@@ -147,6 +148,6 @@ Worth knowing before you design around it:
 
 | For | Ask |
 |---|---|
-| Getting the authoring prompt, or handing over a draft | M or AD |
+| Handing over a draft | M or AD |
 | Whether an idea suits a simulation or an activity element | M or AD |
 | Physics review of someone else's draft | you, AR or JB |
