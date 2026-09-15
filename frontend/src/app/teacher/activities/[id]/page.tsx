@@ -27,7 +27,7 @@ import {
 } from "@/lib/teacherApi";
 import type { ActivityPayload } from "@/lib/teacherApi";
 import { SettingsMap } from "@/components/teacher/SettingsMap";
-import { InheritedPersona } from "@/components/teacher/InheritedPersona";
+import { InheritedTutor } from "@/components/teacher/InheritedTutor";
 import { ActivityBuilderBody } from "@/components/teacher/ActivityBuilderBody";
 import { useActivityBuilder } from "@/hooks/useActivityBuilder";
 import { AuthoringCopilot } from "./_AuthoringCopilot";
@@ -216,8 +216,9 @@ export default function TeacherActivityConfigPage() {
           Configure {displayName}
         </h1>
         <p className="max-w-3xl text-sm text-muted-foreground">
-          Teachers don&apos;t write system prompts — write a teaching intention.
-          The tutor handles the Socratic scaffolding.
+          You don&apos;t write system prompts here — write what you want students
+          to get out of the activity. How the tutor teaches it comes from the
+          tutor the class uses.
         </p>
       </header>
 
@@ -269,7 +270,7 @@ export default function TeacherActivityConfigPage() {
             <ActivityBuilderBody
               builder={builder}
               activityId={activityId}
-              personaSlot={<InheritedPersona classId={classId} />}
+              tutorSlot={<InheritedTutor classId={classId} />}
               footer={
                 <div className="flex flex-wrap gap-2">
                   {/* The live preview (+ its full-screen pop-out) replaces the

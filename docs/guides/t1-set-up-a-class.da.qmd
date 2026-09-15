@@ -21,8 +21,8 @@ I AIPLA er en **klasse** en beholder, som du ejer. Den har:
   tilslutte sig. Eleverne opretter ikke konti og logger ikke ind; gruppekoden er
   alt, hvad de behøver.
 - de **aktiviteter**, du tildeler den (vejledning *T2*).
-- en **tutor-persona** — stemmen og stilen for AI-tutoren i denne klasse, som du
-  kan lade stå som standard eller ændre senere.
+- en **tutor** — den, der underviser klassen: navn, billede, stemme, tone og
+  undervisningstilgang i ét valg. Lad standarden stå, eller skift den senere.
 
 Alt nedenfor gøres i din browser. Du behøver ikke en udvikler.
 
@@ -44,7 +44,7 @@ beskrivelse. Vælg **Create**.
 
 Din nye klasse vises nu på klasselisten, sammen med eventuelle andre, du ejer.
 
-![Klasselisten viser hver klasse med dens gruppekoder, aktiviteter og tutor-persona.](assets/t1-02-class-list.png)
+![Klasselisten viser hver klasse med dens gruppekoder, aktiviteter og tutor.](assets/t1-02-class-list.png)
 
 ## Trin 2 — Udsted en gruppekode
 

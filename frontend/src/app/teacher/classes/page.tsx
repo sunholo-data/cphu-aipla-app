@@ -21,11 +21,13 @@ import {
   type ClassActivity,
   type ClassPayload,
   type PersonaPayload,
+  type TutorPayload,
   type SessionRow,
   type SkillSummary,
   createClass,
   deleteClass,
   fetchPersonaCatalogue,
+  fetchTutorCatalogue,
   listAccessibleSkills,
   listActivities,
   listClassRecentSessions,
@@ -56,6 +58,11 @@ import { TutorFace } from "@/components/teacher/research/TutorFace";
 // in JSX — the 1.1.108 rule. The rest of this page predates it.
 const copy = {
   colActivity: "Activity",
+  // 1.1.91 — the column shows the class's TUTOR. "Persona" is the legacy API
+  // field behind it and is not a word a teacher should meet.
+  colTutor: "Tutor",
+  tutorInherited: "default",
+  tutorDefault: "Default tutor",
   noActivity: "No messages yet",
   turns: (n: number) => `${n} turn${n === 1 ? "" : "s"}`,
   groupsSpoke: (n: number) => `${n} group${n === 1 ? "" : "s"} active`,
@@ -125,11 +132,16 @@ export default function TeacherClassesPage() {
   const [insightsSince, setInsightsSince] = useState<InsightsSince>("30d");
   const [activityFilter, setActivityFilter] = useState<ActivityFilter>("all");
 
-  // Persona catalogue (1.1.32) — resolve each class's default persona id to a
+  // Tutor catalogue (1.1.32) — resolve each class's tutor id to a
   // display name in the table. defaultId is the global fallback a class
   // inherits when it has no explicit persona.
   const [personaById, setPersonaById] = useState<Map<string, PersonaPayload>>(new Map());
   const [defaultPersonaId, setDefaultPersonaId] = useState<string | null>(null);
+  // 1.1.91 — a class that has CHOSEN a tutor carries `tutorId`; `persona` is
+  // the pre-1.1.91 field and is never written by `setClassTutor`. Reading only
+  // `persona` here made the column show the inherited default for every class
+  // whose tutor was actually picked — the 1.1.112 "one consumer" shape again.
+  const [tutorById, setTutorById] = useState<Map<string, TutorPayload>>(new Map());
   // The activity library (new model), keyed by activity id, so the table
   // resolves each class's assigned `activityIds` to its title — matching the
   // class-detail view. (The old path read `lessons` + activity_configs, which
@@ -209,7 +221,7 @@ export default function TeacherClassesPage() {
       .catch(() => setCatalogue([]));
   }, []);
 
-  // Persona catalogue — to label each class's tutor persona. Non-fatal.
+  // Tutor + persona catalogues — to label each class's tutor. Non-fatal.
   useEffect(() => {
     void fetchPersonaCatalogue()
       .then((cat) => {
@@ -217,7 +229,18 @@ export default function TeacherClassesPage() {
         setDefaultPersonaId(cat.defaultId);
       })
       .catch(() => {
-        /* persona column degrades to the default label */
+        /* tutor column degrades to the default label */
+      });
+    void fetchTutorCatalogue()
+      .then((cat) => {
+        setTutorById(
+          new Map(
+            [...cat.tutors, ...(cat.skillBoundTutors ?? [])].map((t) => [t.id, t]),
+          ),
+        );
+      })
+      .catch(() => {
+        /* falls back to the legacy persona field */
       });
   }, []);
 
@@ -318,21 +341,31 @@ export default function TeacherClassesPage() {
     [activityById],
   );
 
-  // Resolve a class's tutor persona to a display label. A class with no
-  // explicit persona inherits the global default; mark that so it reads as
+  // Resolve a class's tutor to a display label. A class with no explicit
+  // tutor inherits the global default; mark that so it reads as
   // inherited rather than chosen.
-  const personaLabelForClass = useCallback(
+  const tutorLabelForClass = useCallback(
     (cls: ClassPayload): { name: string; inherited: boolean; avatar: string } => {
+      // Chosen tutor first — this is what actually teaches the class.
+      const chosen = cls.tutorId ? tutorById.get(cls.tutorId) : undefined;
+      if (chosen) {
+        return {
+          name: chosen.displayName,
+          inherited: false,
+          avatar: chosen.persona?.avatar || "",
+        };
+      }
+      // Then the legacy per-class persona, then the global default.
       const explicit = cls.persona ?? null;
       const id = explicit ?? defaultPersonaId;
       const p = id ? personaById.get(id) : undefined;
       return {
-        name: p?.name || "Default tutor",
+        name: p?.name || copy.tutorDefault,
         inherited: !explicit,
         avatar: p?.avatar || "",
       };
     },
-    [personaById, defaultPersonaId],
+    [tutorById, personaById, defaultPersonaId],
   );
 
   // Teacher-level engagement totals — summed across the per-class summaries
@@ -532,7 +565,7 @@ export default function TeacherClassesPage() {
                   <th className="px-3 py-2 font-medium">{copy.colActivity}</th>
                   <th className="px-3 py-2 font-medium">Groups</th>
                   <th className="px-3 py-2 font-medium">Activities</th>
-                  <th className="px-3 py-2 font-medium">Tutor persona</th>
+                  <th className="px-3 py-2 font-medium">{copy.colTutor}</th>
                   <th className="px-3 py-2 text-right font-medium">Actions</th>
                 </tr>
               </thead>
@@ -543,7 +576,7 @@ export default function TeacherClassesPage() {
                     cls={cls}
                     activity={activity[cls.classId]}
                     activities={activitiesForClass(cls)}
-                    persona={personaLabelForClass(cls)}
+                    tutor={tutorLabelForClass(cls)}
                     showOwner={researchView}
                     canDelete={!researchView}
                     deleting={deletingId === cls.classId}
@@ -748,7 +781,7 @@ function ClassRow({
   cls,
   activity,
   activities,
-  persona,
+  tutor,
   showOwner = false,
   canDelete = true,
   deleting = false,
@@ -757,7 +790,7 @@ function ClassRow({
   cls: ClassPayload;
   activity?: ClassActivity;
   activities: { activityId: string; title: string }[];
-  persona: { name: string; inherited: boolean; avatar: string };
+  tutor: { name: string; inherited: boolean; avatar: string };
   showOwner?: boolean;
   canDelete?: boolean;
   deleting?: boolean;
@@ -846,10 +879,10 @@ function ClassRow({
       </td>
       <td className="px-3 py-3 text-muted-foreground">
         <span className="inline-flex items-center gap-1.5 whitespace-nowrap">
-          <TutorFace name={persona.name} avatar={persona.avatar} size="sm" />
-          {persona.name}
-          {persona.inherited ? (
-            <span className="text-muted-foreground/60">· default</span>
+          <TutorFace name={tutor.name} avatar={tutor.avatar} size="sm" />
+          {tutor.name}
+          {tutor.inherited ? (
+            <span className="text-muted-foreground/60">· {copy.tutorInherited}</span>
           ) : null}
         </span>
       </td>

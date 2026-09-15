@@ -7,7 +7,7 @@
  * for classes carrying a legacy per-class voice override.
  *
  * 2026-08-14 — the custom language/voice PICKER was removed to keep the class
- * screen simple. The tutor's voice comes from its persona, which is already
+ * screen simple. The tutor's voice comes with the tutor, which is already
  * where a teacher chooses how the tutor sounds; a second, lower-level override
  * on a different screen only gave two answers to one question.
  *
@@ -16,7 +16,7 @@
  *
  * The per-class slot still EXISTS in that chain, which is exactly why removing
  * the picker is not the whole job: an override saved before today keeps winning
- * over the persona, invisibly. Hence the clear-only affordance below. Once no
+ * over the tutor, invisibly. Hence the clear-only affordance below. Once no
  * class carries one, it never renders.
  */
 
@@ -97,7 +97,7 @@ export function ClassVoiceSettingsPanel({
         provider: null,
       });
       setCleared(true);
-      showToast("Now using the persona's voice", 2500);
+      showToast("Now using the tutor's voice", 2500);
       onSaved();
     } catch (err) {
       setError(err instanceof Error ? err.message : "failed to clear");
@@ -116,8 +116,8 @@ export function ClassVoiceSettingsPanel({
           Voice &amp; recording
         </h2>
         <p className="text-xs text-muted-foreground">
-          The tutor speaks in its persona&rsquo;s voice. These two switches set
-          what students can do in this class.
+          The tutor speaks in the voice that comes with it, chosen above.
+          These two switches set what students can do in this class.
         </p>
       </header>
 
@@ -169,7 +169,7 @@ export function ClassVoiceSettingsPanel({
       ) : null}
 
       {/* 2026-08-14 — the custom language/voice picker was REMOVED to keep the
-          class screen simple. The tutor's voice comes from its persona, which
+          class screen simple. The tutor's voice comes with the tutor, which
           is where a teacher already chooses how the tutor sounds; a second,
           lower-level override on a different screen only created two answers to
           one question. Note the server resolution order this sat in:
@@ -177,7 +177,7 @@ export function ClassVoiceSettingsPanel({
 
           What is deliberately NOT removed: the escape hatch below. Deleting the
           picker does not delete overrides teachers already saved, and those
-          keep winning over the persona — silently, with nothing on screen to
+          keep winning over the tutor — silently, with nothing on screen to
           explain why one class sounds different. So a class that HAS an
           override still says so, and can still clear it. Once the register is
           empty this block never renders again.
@@ -195,9 +195,9 @@ export function ClassVoiceSettingsPanel({
                 (<code className="rounded bg-muted px-1">{initial.voice}</code>)
               </>
             ) : null}
-            , which overrides the persona&rsquo;s own voice. Per-class voice
-            overrides are no longer editable here — clear it to let the persona
-            decide.
+            , which overrides the voice of the tutor chosen above. Per-class
+            voice overrides are no longer editable here — clear it to use the
+            tutor&rsquo;s own voice.
           </p>
           <button
             type="button"
@@ -210,7 +210,7 @@ export function ClassVoiceSettingsPanel({
             ) : (
               <X className="h-4 w-4" aria-hidden="true" />
             )}
-            Use the persona&rsquo;s voice
+            Use the tutor&rsquo;s voice
           </button>
         </div>
       ) : null}

@@ -36,7 +36,9 @@ Where the UI is already Danish, use the Danish label verbatim: `Tilslut / Join`,
 | note | note |
 | teaching goal / lesson prompt | undervisningsmål (feltet hedder `Lesson prompt`) |
 | co-pilot | medbygger (AI-medbygger) |
-| tutor persona | tutor-persona |
+| tutor | tutor (kolonnen hedder `Tutor`) |
+| tone (of a tutor) | tone |
+| teaching approach | undervisningstilgang |
 | curriculum materials | pensummaterialer |
 | to cite (a document) | at citere / vedhæfte (knappen hedder `Cite`) |
 | shared corpus | det delte materialebibliotek |

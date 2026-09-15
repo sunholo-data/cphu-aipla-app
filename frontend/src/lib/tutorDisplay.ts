@@ -1,11 +1,12 @@
 /**
- * Shared teacher-facing copy for tutor interaction styles (1.1.20 / 1.1.12).
+ * Shared teacher-facing copy for a tutor's TONE (1.1.20 / 1.1.12).
  *
- * Single source of truth so the activity builder's style dropdown and the
- * class persona picker describe each style identically. The help text mirrors
- * the behaviour each style's preamble actually injects
- * (`backend/skills/preambles/interaction_style/*.md`), so a teacher's
- * expectation matches what the tutor does.
+ * `interactionStyle` is the field; **tone** is the word a teacher reads
+ * (1.1.111, when it stopped being an axis of its own and became part of the
+ * tutor). Single source of truth so every surface describes each tone
+ * identically, and the help text mirrors the behaviour each tone's preamble
+ * actually injects (`backend/skills/preambles/interaction_style/*.md`), so a
+ * teacher's expectation matches what the tutor does.
  */
 
 import type { InteractionStyle } from "@/lib/teacherApi";

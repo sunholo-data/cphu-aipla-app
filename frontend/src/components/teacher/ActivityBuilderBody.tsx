@@ -34,9 +34,9 @@ interface ActivityBuilderBodyProps {
   /** The class control for the Setup section — a `<select>` on the create page,
    *  a read-only line on the edit page (class is fixed once an activity exists). */
   classControl?: ReactNode;
-  /** The read-only inherited persona — needs the page's classId, so it's passed
+  /** The read-only inherited tutor — needs the page's classId, so it's passed
    *  in rather than resolved here. */
-  personaSlot?: ReactNode;
+  tutorSlot?: ReactNode;
   /** Actions row (Create / Save), rendered under the config column. */
   footer: ReactNode;
   /** Optional error/alert node rendered above the footer. */
@@ -54,7 +54,7 @@ export function ActivityBuilderBody({
   templateSlot,
   activityId,
   classControl,
-  personaSlot,
+  tutorSlot,
   footer,
   error,
 }: ActivityBuilderBodyProps) {
@@ -98,14 +98,14 @@ export function ActivityBuilderBody({
             </select>
           </Field>
 
-          {/* Persona is class-default-only (1.1.32 Q4): set once in class
+          {/* The tutor is class-default-only (1.1.32 Q4): chosen once in class
               settings, inherited by every activity. Shown read-only here so the
-              teacher knows which tutor + where to change it. */}
-          {personaSlot}
+              teacher knows which tutor teaches this + where to change it. */}
+          {tutorSlot}
         </BuilderSection>
 
         <BuilderSection section={SECTION.lesson}>
-          <Field label="Lesson prompt (Socratic teaching goal)" htmlFor="activity-goal">
+          <Field label="Lesson prompt (the teaching goal)" htmlFor="activity-goal">
             <textarea
               id="activity-goal"
               value={b.teachingGoal}
@@ -151,8 +151,8 @@ export function ActivityBuilderBody({
             </p>
             {b.checklist.length === 0 ? (
               <p className="rounded border border-dashed border-slate-200 px-3 py-2 text-xs text-slate-400">
-                No checklist — the activity is a free Socratic dialogue. Add steps to give students a
-                visible structure.
+                No checklist — the activity is an open conversation with the tutor. Add steps to
+                give students a visible structure.
               </p>
             ) : (
               <ul className="flex flex-col gap-2">

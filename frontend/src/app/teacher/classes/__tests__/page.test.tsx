@@ -68,6 +68,11 @@ beforeEach(() => {
     defaultId: null,
     interactionStyles: [],
   });
+  vi.spyOn(teacherApi, "fetchTutorCatalogue").mockResolvedValue({
+    tutors: [],
+    skillBoundTutors: [],
+    frameworks: [],
+  });
   vi.spyOn(teacherApi, "listActivities").mockResolvedValue({ activities: [], total: [].length, limit: 200, offset: 0 });
   vi.spyOn(costApi, "fetchTeacherSpend").mockResolvedValue({
     currency: "EUR",
@@ -201,7 +206,7 @@ describe("/teacher/classes — dashboard", () => {
     expect(screen.queryByTestId("cross-class-compare-section")).not.toBeInTheDocument();
   });
 
-  it("surfaces each class's tutor persona + assigned activity titles (1.1.32)", async () => {
+  it("surfaces each class's tutor + assigned activity titles (1.1.32)", async () => {
     listSpy.mockResolvedValue([
       makeClass({ classId: "c-1", name: "Physik 9A", activityIds: ["act-x"], persona: "mikkel" }),
     ]);
@@ -265,6 +270,56 @@ describe("/teacher/classes — dashboard", () => {
     // The activity title links to its editor (click-through from the class list).
     const activityLink = await screen.findByRole("link", { name: /Mechanical Waves/ });
     expect(activityLink.getAttribute("href")).toContain("/teacher/activities/act-x");
+  });
+
+  it("shows the tutor the class actually CHOSE, not the legacy persona field (1.1.91)", async () => {
+    // A class that picks a tutor gets `tutorId`; `setClassTutor` never writes
+    // `persona`. Resolving the column from `persona` alone showed the old
+    // identity (or the inherited default) for every class whose tutor was set —
+    // the same "resolver with one consumer" shape as 1.1.112.
+    listSpy.mockResolvedValue([
+      makeClass({ classId: "c-2", name: "Fysik 2.g", persona: "mikkel", tutorId: "astrid-esru" }),
+    ]);
+    vi.spyOn(teacherApi, "fetchPersonaCatalogue").mockResolvedValue({
+      personas: [
+        {
+          id: "mikkel",
+          name: "Mikkel",
+          title: null,
+          avatar: "/personas/mikkel.webp",
+          language: "da",
+          interactionStyle: "concise",
+          bio: null,
+        },
+      ],
+      defaultId: "sofie",
+      interactionStyles: [],
+    });
+    vi.spyOn(teacherApi, "fetchTutorCatalogue").mockResolvedValue({
+      tutors: [
+        {
+          id: "astrid-esru",
+          displayName: "Astrid",
+          personaId: "astrid",
+          interactionStyle: "socratic",
+          status: "ready",
+          version: 1,
+          isVariant: false,
+          lineage: { kind: "original" },
+          persona: { id: "astrid", name: "Astrid", title: null, avatar: "/personas/astrid.webp" },
+          frameworkName: null,
+          frameworkSummary: null,
+        },
+      ],
+      skillBoundTutors: [],
+      frameworks: [],
+    });
+
+    render(<TeacherClassesPage />);
+    expect(await screen.findByText("Astrid")).toBeInTheDocument();
+    expect(screen.queryByText("Mikkel")).not.toBeInTheDocument();
+    // Chosen, not inherited — so the row carries no "· default" hint.
+    expect(screen.queryByText("· default")).not.toBeInTheDocument();
   });
 
   it("deletes a class only after confirming the warning (1.1.32)", async () => {

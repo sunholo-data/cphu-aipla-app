@@ -6,6 +6,7 @@ import { useParams } from "next/navigation";
 import { ArrowLeft, ClipboardList, ShieldAlert } from "lucide-react";
 
 import { type ActivityPayload, fetchActivity } from "@/lib/teacherApi";
+import { INTERACTION_STYLE_LABEL } from "@/lib/tutorDisplay";
 import { VisibilityBadge } from "@/components/teacher/activityDisplay";
 import { ConceptMapView } from "@/components/workspace/ConceptMapView";
 import { EmptyState } from "@/components/teacher/ui/EmptyState";
@@ -97,8 +98,12 @@ export default function ResearchActivityDetailPage() {
         <Section title="Setup">
           <Field label="Language">{a.language === "da" ? "Dansk" : "English"}</Field>
           <Field label="Difficulty">{a.difficulty ?? "standard"}</Field>
-          {a.interactionStyle ? <Field label="Interaction style">{a.interactionStyle}</Field> : null}
-          {a.persona ? <Field label="Persona">{a.persona}</Field> : null}
+          {a.interactionStyle ? (
+            <Field label="Tone">
+              {INTERACTION_STYLE_LABEL[a.interactionStyle] ?? a.interactionStyle}
+            </Field>
+          ) : null}
+          {a.persona ? <Field label="Tutor">{a.persona}</Field> : null}
           <Field label="Runs skill">{a.skillId}</Field>
           {a.artefactId ? <Field label="Simulation">{a.artefactId}</Field> : null}
           {a.sourceOwnerUid ? (

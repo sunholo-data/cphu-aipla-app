@@ -42,7 +42,7 @@ vi.mock("@/lib/teacherApi", async () => {
       updatedAt: "2026-05-25T15:00:00Z",
     })),
     // Persona is class-default-only (1.1.32): the editor renders
-    // InheritedPersona, which resolves the class persona read-only.
+    // InheritedTutor, which resolves the class persona read-only.
     fetchPersonaCatalogue: vi.fn(async () => ({
       personas: [
         {

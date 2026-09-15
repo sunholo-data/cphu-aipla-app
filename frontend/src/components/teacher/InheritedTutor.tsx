@@ -10,26 +10,38 @@ import {
   fetchTutorCatalogue,
   getClass,
 } from "@/lib/teacherApi";
-import { INTERACTION_STYLE_LABEL } from "@/lib/personaDisplay";
+import { INTERACTION_STYLE_LABEL } from "@/lib/tutorDisplay";
 import { TutorFace } from "@/components/teacher/research/TutorFace";
 
 /**
- * Read-only display of the persona an activity inherits (1.1.32, Q4 =
+ * Read-only display of the tutor an activity inherits (1.1.32, Q4 =
  * class-default-only).
  *
- * Persona is set in ONE place — class settings → Tutor personas — and every
- * activity in the class inherits it (avatar + name + voice + teaching style).
- * The activity forms show it read-only so a teacher knows which tutor this
- * activity uses and where to change it, instead of a duplicate per-activity
- * picker (the old co-equal grid was problem 4 of teacher-ux-refinement.md).
+ * The tutor is chosen in ONE place — class settings → Tutor — and every
+ * activity in the class inherits it (name + picture + voice + tone + teaching
+ * approach). The activity forms show it read-only so a teacher knows which
+ * tutor this activity uses and where to change it, instead of a duplicate
+ * per-activity picker (the old co-equal grid was problem 4 of
+ * teacher-ux-refinement.md).
  *
  * Resolves the same chain the student-facing `/active` endpoint resolves:
  * class default > global default. A per-activity override returns in Phase B.
+ *
+ * ⚠️ Teacher-facing copy says **tutor**, never "persona" (1.1.91) — `persona`
+ * is the legacy API field this still reads, and nothing more.
  */
-export function InheritedPersona({ classId }: { classId: string }) {
-  const [persona, setPersona] = useState<PersonaPayload | null>(null);
+const copy = {
+  label: "Tutor",
+  teachesWith: "Teaches with:",
+  loading: "Finding this class's tutor…",
+  unset: "Default tutor — this class hasn't chosen one yet",
+  footnote: "Chosen once for the whole class — name, picture, voice, tone and teaching approach.",
+  change: "Change in class settings",
+};
+export function InheritedTutor({ classId }: { classId: string }) {
+  const [tutor, setTutor] = useState<PersonaPayload | null>(null);
   // 1.1.91 — when the class has a TUTOR, its teaching approach is part of the
-  // identity the activity inherits. Showing only the persona name here while a
+  // identity the activity inherits. Showing only the name here while a
   // framework-bearing tutor was actually teaching would be the same split the
   // bundling exists to close, just moved to the activity form.
   const [approach, setApproach] = useState<string | null>(null);
@@ -47,22 +59,23 @@ export function InheritedPersona({ classId }: { classId: string }) {
     Promise.all([fetchPersonaCatalogue(), getClass(classId), fetchTutorCatalogue().catch(() => null)])
       .then(([cat, cls, tutorCat]) => {
         if (!alive) return;
-        const tutor = cls.tutorId
+        const chosen = cls.tutorId
           ? ([...(tutorCat?.tutors ?? []), ...(tutorCat?.skillBoundTutors ?? [])].find(
               (t) => t.id === cls.tutorId,
             ) ?? null)
           : null;
-        setApproach(tutor?.frameworkName ?? null);
-        const id = tutor?.personaId ?? cls.persona ?? cat.defaultId;
+        setApproach(chosen?.frameworkName ?? null);
+        // `cls.persona` is the legacy field a pre-1.1.91 class still carries.
+        const id = chosen?.personaId ?? cls.persona ?? cat.defaultId;
         const resolved = id
           ? (cat.personas.find((p) => p.id === id) ?? null)
           : null;
-        setPersona(resolved);
+        setTutor(resolved);
         setState(resolved ? "resolved" : "default");
       })
       .catch(() => {
-        // Persona display is non-critical — degrade to the default note rather
-        // than blocking the form on a persona/class fetch failure.
+        // The tutor display is non-critical — degrade to the default note
+        // rather than blocking the form on a tutor/class fetch failure.
         if (alive) setState("default");
       });
     return () => {
@@ -76,22 +89,22 @@ export function InheritedPersona({ classId }: { classId: string }) {
 
   return (
     <div className="flex flex-col gap-1.5">
-      <span className="text-sm font-medium text-slate-700">Tutor persona</span>
+      <span className="text-sm font-medium text-slate-700">{copy.label}</span>
       <div className="flex items-center gap-3 rounded-md border border-slate-200 bg-slate-50 px-3 py-2">
-        {state === "resolved" && persona ? (
+        {state === "resolved" && tutor ? (
           <>
-            <TutorFace name={persona.name} avatar={persona.avatar} size="md" />
+            <TutorFace name={tutor.name} avatar={tutor.avatar} size="md" />
             <div className="min-w-0">
               <p className="truncate text-sm font-medium text-slate-800">
-                {persona.name}
+                {tutor.name}
               </p>
               {approach ? (
-                <p className="truncate text-xs text-slate-500">Teaches with: {approach}</p>
+                <p className="truncate text-xs text-slate-500">{copy.teachesWith} {approach}</p>
               ) : null}
               <p className="truncate text-xs text-slate-500">
-                {persona.title ? `${persona.title} · ` : ""}
-                {INTERACTION_STYLE_LABEL[persona.interactionStyle]} style
-                {persona.voice?.ttsVoice ? ` · ${persona.voice.ttsVoice} voice` : ""}
+                {tutor.title ? `${tutor.title} · ` : ""}
+                {INTERACTION_STYLE_LABEL[tutor.interactionStyle]} tone
+                {tutor.voice?.ttsVoice ? ` · ${tutor.voice.ttsVoice} voice` : ""}
               </p>
             </div>
           </>
@@ -104,21 +117,19 @@ export function InheritedPersona({ classId }: { classId: string }) {
               <UserRound className="h-4 w-4" />
             </span>
             <p className="text-sm text-slate-600">
-              {state === "loading"
-                ? "Resolving the class persona…"
-                : "Default tutor (no class persona set)"}
+              {state === "loading" ? copy.loading : copy.unset}
             </p>
           </>
         )}
       </div>
       <p className="flex flex-wrap items-center gap-1 text-xs text-slate-500">
         <Settings2 className="h-3 w-3 shrink-0" aria-hidden />
-        Set for the whole class — avatar, voice &amp; teaching style.
+        {copy.footnote}
         <Link
           href={settingsLink}
           className="font-medium text-indigo-600 hover:underline"
         >
-          Change in class settings
+          {copy.change}
         </Link>
       </p>
     </div>

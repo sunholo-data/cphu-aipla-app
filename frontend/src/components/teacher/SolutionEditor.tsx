@@ -33,8 +33,8 @@ export function SolutionEditor({ value, onChange }: SolutionEditorProps) {
           </button>
         </div>
         <p className="text-xs text-slate-500">
-          A rich-text editor where the student writes their own solution; the tutor gives Socratic
-          feedback on it (never the full answer). Adds the JB-2 &ldquo;din løsning&rdquo; surface.
+          A rich-text editor where the student writes their own solution; the tutor responds to
+          what they wrote (never the full answer). Adds the JB-2 &ldquo;din løsning&rdquo; surface.
         </p>
       </div>
     );

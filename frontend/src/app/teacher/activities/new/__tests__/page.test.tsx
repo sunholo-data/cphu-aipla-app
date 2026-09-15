@@ -10,7 +10,7 @@ vi.mock("next/navigation", () => ({
 const listClassesMock = vi.fn();
 const listSkillsMock = vi.fn();
 const createActivityMock = vi.fn();
-// Persona is class-default-only (1.1.32): the form renders InheritedPersona,
+// Persona is class-default-only (1.1.32): the form renders InheritedTutor,
 // which resolves the class persona via fetchPersonaCatalogue + getClass.
 const fetchPersonaCatalogueMock = vi.fn();
 const getClassMock = vi.fn();

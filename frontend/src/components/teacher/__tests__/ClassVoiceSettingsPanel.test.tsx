@@ -75,10 +75,10 @@ describe("ClassVoiceSettingsPanel — the removed picker", () => {
     expect(screen.getByText("da-DK-Wavenet-E")).toBeInTheDocument();
   });
 
-  it("clears the override back to the persona's voice", async () => {
+  it("clears the override back to the tutor's voice", async () => {
     const onSaved = vi.fn();
     render(<ClassVoiceSettingsPanel classId="c1" initial={withOverride} onSaved={onSaved} />);
-    fireEvent.click(screen.getByRole("button", { name: /persona/i }));
+    fireEvent.click(screen.getByRole("button", { name: /use the tutor.s voice/i }));
     await waitFor(() =>
       expect(setClassVoiceSettings).toHaveBeenCalledWith("c1", {
         language: null,

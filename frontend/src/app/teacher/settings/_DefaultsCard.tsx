@@ -1,7 +1,7 @@
 "use client";
 
 // Defaults card (1.1.58 / SETTINGS-1) — the teacher's account-level defaults.
-// These SEED the contextual controls (builder language on /new, class persona
+// These SEED the contextual controls (builder language on /new, the class tutor
 // at create) and never fight them: the per-activity / per-class controls stay
 // authoritative once something exists. Beta toggles list any feature flag
 // currently in 'beta' (runtime opt-in) — none on dev, where flags are '1'.
@@ -41,7 +41,7 @@ export function DefaultsCard() {
         if (alive) setPersonas(cat.personas);
       })
       .catch(() => {
-        /* persona select degrades to unset-only */
+        /* the tutor select degrades to unset-only */
       });
     return () => {
       alive = false;
@@ -89,11 +89,11 @@ export function DefaultsCard() {
           </label>
 
           <label className="flex items-center gap-2 text-sm text-slate-700">
-            <span className="w-44 shrink-0 text-xs font-medium text-slate-600">New-class persona</span>
+            <span className="w-44 shrink-0 text-xs font-medium text-slate-600">Tutor for new classes</span>
             <select
-              aria-label="Default class persona"
+              aria-label="Default tutor for new classes"
               value={prefs.defaultPersonaId ?? ""}
-              onChange={(e) => void put({ defaultPersonaId: e.target.value || null }, "Persona default saved.")}
+              onChange={(e) => void put({ defaultPersonaId: e.target.value || null }, "Default tutor saved.")}
               className="rounded border border-slate-300 px-2 py-1.5 text-sm"
             >
               <option value="">No default</option>

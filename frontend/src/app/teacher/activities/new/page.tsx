@@ -12,7 +12,7 @@ import {
   listClasses,
 } from "@/lib/teacherApi";
 import { SettingsMap } from "@/components/teacher/SettingsMap";
-import { InheritedPersona } from "@/components/teacher/InheritedPersona";
+import { InheritedTutor } from "@/components/teacher/InheritedTutor";
 import { TemplatePicker } from "@/components/teacher/TemplatePicker";
 import { ActivityBuilderBody } from "@/components/teacher/ActivityBuilderBody";
 import { useActivityBuilder } from "@/hooks/useActivityBuilder";
@@ -224,7 +224,7 @@ function NewActivityForm() {
                 </select>
               </label>
             }
-            personaSlot={<InheritedPersona classId={classId} />}
+            tutorSlot={<InheritedTutor classId={classId} />}
             error={
               saveError ? (
                 <p role="alert" className="text-sm text-red-600">

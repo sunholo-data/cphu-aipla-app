@@ -11,19 +11,45 @@ import { ClipboardList, UserRound, Users } from "lucide-react";
  * the mental model to three nouns, each owning a clear set of settings. This
  * panel states that model rather than leaving a teacher to infer it.
  *
- *   PERSONA  — HOW the tutor sounds + teaches (style + voice)   [class default]
- *   ACTIVITY — WHAT students learn (goal + optional sim + materials)
- *   CLASS    — WHO can run it (roster + group codes)
+ *   CLASS    — WHO takes part (students + group codes + what they can use)
+ *   TUTOR    — WHO teaches (name, voice, tone and teaching approach)
+ *   ACTIVITY — WHAT students do (goal + optional sim + materials)
  *
- * It is also "married" to the left-rail nav (TeacherNav): **Activity** and
- * **Class** ARE sidebar destinations, so they use the same icons
- * (`ClipboardList`, `Users`) and link there. **Persona** is deliberately NOT a
+ * Listed in the order a teacher meets them: make a class, pick its tutor,
+ * author activities for it.
+ *
+ * It is also "married" to the left-rail nav (TeacherNav): **Class** and
+ * **Activity** ARE sidebar destinations, so they use the same icons
+ * (`Users`, `ClipboardList`) and link there. **Tutor** is deliberately NOT a
  * sidebar item (it's class-scoped, set in class settings — Q4 class-default-
  * only), so it keeps a distinct icon and links *into* the class's settings —
  * teaching that it lives one level down. The `highlight` noun marks "you are
  * here" and is rendered non-clickable.
+ *
+ * ⚠️ The word is **tutor**, not "persona" (1.1.91). One tutor choice carries
+ * name, picture, voice, tone and teaching approach together; `persona` survives
+ * only as a legacy API field and must not resurface in teacher-facing copy.
  */
-type SettingsNoun = "persona" | "activity" | "class";
+type SettingsNoun = "class" | "tutor" | "activity";
+
+const copy = {
+  heading: "Where settings live",
+  class: {
+    label: "Class",
+    question: "who takes part",
+    detail: "students, group codes and what they can use",
+  },
+  tutor: {
+    label: "Tutor",
+    question: "who teaches",
+    detail: "name, voice, tone and teaching approach — one choice, made on the class",
+  },
+  activity: {
+    label: "Activity",
+    question: "what students do",
+    detail: "teaching goal, optional simulation and cited materials — what you author here",
+  },
+};
 
 export function SettingsMap({
   highlight,
@@ -45,29 +71,23 @@ export function SettingsMap({
     href: string;
   }[] = [
     {
-      key: "persona",
-      label: "Persona",
-      question: "how it sounds + teaches",
-      detail: "style + voice — set as the class default, picked from the catalogue",
+      key: "class",
+      ...copy.class,
+      Icon: Users, // matches the "Classes" sidebar destination
+      href: classHref,
+    },
+    {
+      key: "tutor",
+      ...copy.tutor,
       Icon: UserRound,
-      // Persona has no sidebar home — it lives in the class's settings.
+      // The tutor has no sidebar home — it lives in the class's settings.
       href: classId ? `${classHref}#class-settings` : "/teacher/classes",
     },
     {
       key: "activity",
-      label: "Activity",
-      question: "what students learn",
-      detail: "teaching goal + optional sim + cited materials — the unit you author here",
+      ...copy.activity,
       Icon: ClipboardList, // matches the "Activities" sidebar destination
       href: "/teacher/activities",
-    },
-    {
-      key: "class",
-      label: "Class",
-      question: "who can run it",
-      detail: "roster + group codes + capabilities",
-      Icon: Users, // matches the "Classes" sidebar destination
-      href: classHref,
     },
   ];
 
@@ -76,7 +96,7 @@ export function SettingsMap({
       className="rounded-md border border-slate-200 bg-slate-50 p-3 text-xs text-slate-600"
       aria-label="Where each setting lives"
     >
-      <p className="mb-2 font-medium text-slate-700">Where settings live</p>
+      <p className="mb-2 font-medium text-slate-700">{copy.heading}</p>
       <ul className="flex flex-col gap-1.5">
         {nouns.map(({ key, label, question, detail, Icon, href }) => {
           const active = key === highlight;

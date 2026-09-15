@@ -39,7 +39,7 @@ describe("DefaultsCard", () => {
     await waitFor(() => {
       expect(screen.getByLabelText("Default activity language")).toHaveValue("en");
     });
-    expect(screen.getByLabelText("Default class persona")).toHaveValue("astrid");
+    expect(screen.getByLabelText("Default tutor for new classes")).toHaveValue("astrid");
   });
 
   it("saving the language PUTs a partial update", async () => {

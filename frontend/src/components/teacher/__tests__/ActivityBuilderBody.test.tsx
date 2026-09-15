@@ -189,13 +189,13 @@ describe("ActivityBuilderBody — setup section", () => {
     expect(select.value).toBe("en");
   });
 
-  it("renders the injected classControl and personaSlot", () => {
+  it("renders the injected classControl and tutorSlot", () => {
     setup({
       classControl: <div>MOCK_CLASS_CONTROL</div>,
-      personaSlot: <div>MOCK_PERSONA</div>,
+      tutorSlot: <div>MOCK_TUTOR</div>,
     });
     expect(screen.getByText("MOCK_CLASS_CONTROL")).toBeInTheDocument();
-    expect(screen.getByText("MOCK_PERSONA")).toBeInTheDocument();
+    expect(screen.getByText("MOCK_TUTOR")).toBeInTheDocument();
   });
 
   it("renders the error node when provided", () => {
@@ -218,7 +218,7 @@ describe("ActivityBuilderBody — checklist controls (inline in the body)", () =
   it("shows the empty-state hint and no step rows initially", () => {
     setup();
     expect(
-      screen.getByText(/No checklist — the activity is a free Socratic dialogue/),
+      screen.getByText(/No checklist — the activity is an open conversation/),
     ).toBeInTheDocument();
     expect(screen.queryByLabelText(/^Checklist step/)).not.toBeInTheDocument();
   });
@@ -230,7 +230,7 @@ describe("ActivityBuilderBody — checklist controls (inline in the body)", () =
     expect(screen.getByLabelText("Checklist step 1")).toBeInTheDocument();
     // Empty-state hint is gone once a row exists.
     expect(
-      screen.queryByText(/No checklist — the activity is a free Socratic dialogue/),
+      screen.queryByText(/No checklist — the activity is an open conversation/),
     ).not.toBeInTheDocument();
   });
 
@@ -252,7 +252,7 @@ describe("ActivityBuilderBody — checklist controls (inline in the body)", () =
     await user.click(screen.getByRole("button", { name: "Remove step 1" }));
     expect(screen.queryByLabelText("Checklist step 1")).not.toBeInTheDocument();
     expect(
-      screen.getByText(/No checklist — the activity is a free Socratic dialogue/),
+      screen.getByText(/No checklist — the activity is an open conversation/),
     ).toBeInTheDocument();
   });
 });
