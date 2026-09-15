@@ -140,3 +140,44 @@ def test_revoke_admin_posts_uid() -> None:
     assert result.exit_code == 0, result.output
     assert route.called
     assert json.loads(route.calls.last.request.content) == {"uid": "u-1"}
+
+
+@respx.mock
+def test_list_roles_renders_table() -> None:
+    route = respx.get(f"{BASE}/api/admin/list-roles").mock(
+        return_value=httpx.Response(
+            200,
+            json={
+                "count": 1,
+                "users": [
+                    {
+                        "uid": "u-9",
+                        "email": "m@sunholo.com",
+                        "claims": {"role": "researcher"},
+                        "isResearcher": True,
+                        "isAdmin": False,
+                        "isProgrammeAdmin": False,
+                    }
+                ],
+                "researchers": ["m@sunholo.com"],
+                "admins": [],
+                "programmeAdmins": [],
+            },
+        )
+    )
+    runner = CliRunner()
+    result = runner.invoke(main, ["--env", "local", "users", "list-roles"])
+    assert result.exit_code == 0, result.output
+    assert route.called
+    assert "m@sunholo.com" in result.output
+    assert "1 role holder(s)" in result.output
+
+
+@respx.mock
+def test_list_roles_empty() -> None:
+    respx.get(f"{BASE}/api/admin/list-roles").mock(
+        return_value=httpx.Response(200, json={"count": 0, "users": [], "researchers": [], "admins": [], "programmeAdmins": []})
+    )
+    result = CliRunner().invoke(main, ["--env", "local", "users", "list-roles"])
+    assert result.exit_code == 0, result.output
+    assert "No one" in result.output

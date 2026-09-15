@@ -1,4 +1,4 @@
-.PHONY: tf-plan tf-apply tf-local tf-fmt check-iam-posture check-spend-ceiling spend-ceiling check-domains deploy-status dev dev-local dev-recompile dev-status dev-stop proxy-check logs cloud-logs cloud-errors cloud-build verify-chat-logs smoke-session-persistence smoke-chat-resume smoke-curriculum-content smoke-teacher-cli help cli-install cli-reinstall cli-uninstall cli-doctor cli-selftest-mock cli-selftest-live cli-selftest seed seed-job seed-demo-codes check-role register-demo-teacher force-seed-demo bind-demo-code reset-group-state provision-curriculum-rag provision-agent-engine copy-docparse-secret seed-curriculum backfill-curriculum-content seed-curriculum-folders check-auth-config migrate-clear-persona-voice-override docs-linkcheck check-skills sim-build sim-build-check guides guides-publish guide-screens seed-guide-corpus guide-staleness
+.PHONY: tf-plan tf-apply tf-local tf-fmt check-iam-posture check-spend-ceiling spend-ceiling check-domains deploy-status dev dev-local dev-recompile dev-status dev-stop proxy-check logs cloud-logs cloud-errors cloud-build verify-chat-logs smoke-session-persistence smoke-chat-resume smoke-curriculum-content smoke-teacher-cli help cli-install cli-reinstall cli-uninstall cli-doctor cli-selftest-mock cli-selftest-live cli-selftest seed seed-job seed-demo-codes check-role list-roles grant-researcher revoke-researcher register-demo-teacher force-seed-demo bind-demo-code reset-group-state provision-curriculum-rag provision-agent-engine copy-docparse-secret seed-curriculum backfill-curriculum-content seed-curriculum-folders check-auth-config migrate-clear-persona-voice-override docs-linkcheck check-skills sim-build sim-build-check guides guides-publish guide-screens seed-guide-corpus guide-staleness
 
 # Seed SKILL.md templates -> Firestore. Since P1.3 the Cloud Build deploy runs
 # this automatically via the `aipla-seed-skills` Cloud Run job (see
@@ -38,6 +38,22 @@ seed-demo-codes:
 #   make check-role ENV=prod UID=m@sunholo.com
 check-role:
 	@scripts/check-user-role.sh $(ENV) $(UID)
+
+# The listing twin: "who are the researchers on prod?" — every role holder on
+# one env (researcher / admin / programme-admin). Plain teachers are not listed.
+#   make list-roles ENV=prod
+list-roles:
+	@scripts/aiplatform-admin.sh $(ENV) list-roles
+
+# Grant/revoke a claim on ONE env, token minted for you. Remember claims do
+# not sync between envs — grant on each env the person needs. Takes effect
+# on their next token refresh (sign out/in to force it).
+#   make grant-researcher ENV=prod UID=m@sunholo.com
+#   make revoke-researcher ENV=prod UID=m@sunholo.com
+grant-researcher:
+	@scripts/aiplatform-admin.sh $(ENV) grant-researcher $(UID)
+revoke-researcher:
+	@scripts/aiplatform-admin.sh $(ENV) revoke-researcher $(UID)
 
 # Put the demo class's OWNER on the access register, so demo turns are allowed
 # to spend. Without it the spend gate refuses every `aipla-demo-1` turn with

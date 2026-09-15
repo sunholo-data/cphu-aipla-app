@@ -62,6 +62,36 @@ def grant_researcher(ctx: click.Context, uid_or_email: str) -> None:
     click.echo(_json.dumps(result, indent=2))
 
 
+@users.command("list-roles")
+@click.option("--json", "as_json", is_flag=True, help="Raw JSON instead of the table.")
+@click.pass_context
+def list_roles(ctx: click.Context, as_json: bool) -> None:
+    """Everyone on this environment holding a role claim (read-only).
+
+    Claims are per-environment, so run it per env: `--env prod users
+    list-roles` answers "who are the researchers on prod?" without a
+    Firebase Console trip. Plain teachers and visitors are not listed.
+    """
+    result = _client(ctx).get("/api/admin/list-roles")
+    if as_json:
+        click.echo(_json.dumps(result, indent=2))
+        return
+    rows = result.get("users", [])
+    if not rows:
+        click.echo("No one on this environment holds a role claim.")
+        return
+    click.echo(f"{'EMAIL':<34} {'RESEARCHER':<11} {'ADMIN':<6} {'PROG-ADMIN':<11} UID")
+    for r in rows:
+        click.echo(
+            f"{(r.get('email') or ''):<34} "
+            f"{'yes' if r.get('isResearcher') else '-':<11} "
+            f"{'yes' if r.get('isAdmin') else '-':<6} "
+            f"{'yes' if r.get('isProgrammeAdmin') else '-':<11} "
+            f"{r.get('uid', '')}"
+        )
+    click.echo(f"\n{result.get('count', len(rows))} role holder(s).")
+
+
 @users.command("revoke-researcher")
 @click.argument("uid_or_email")
 @click.pass_context

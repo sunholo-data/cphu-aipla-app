@@ -261,6 +261,57 @@ def user_roles(uid: str, request: Request) -> dict[str, Any]:
     }
 
 
+# The three claims the platform grants. A user appears in `list_roles` when
+# any of them is set; everyone else (teachers, visitors) is a plain account
+# and is NOT listed — the point is "who holds a role HERE", not a user dump.
+_ROLE_KEYS = ("role", "admin", "programmeAdmin")
+
+
+def _role_row(user: Any) -> dict[str, Any]:
+    claims = user.custom_claims or {}
+    return {
+        "uid": user.uid,
+        "email": user.email,
+        "claims": claims,
+        "isResearcher": claims.get("role") == "researcher",
+        "isAdmin": bool(claims.get("admin")),
+        "isProgrammeAdmin": bool(claims.get("programmeAdmin")),
+    }
+
+
+@router.get(
+    "/list-roles",
+    responses={403: {"description": "Caller is not in ADMIN_SEED_ALLOWED_SAS"}},
+)
+def list_roles(request: Request) -> dict[str, Any]:
+    """Everyone on THIS environment holding a role claim — READ-ONLY.
+
+    The companion to `user_roles` (2026-09-15). That one answers "does this
+    person have the claim here"; this one answers "who has it here", which
+    is the question actually asked when a researcher-gated surface goes
+    missing on prod — and the one that, without this, needed a Firebase
+    Console trip per environment. Walks every Firebase user (the tenant is
+    hundreds of accounts, not millions) and keeps only those with a claim.
+    """
+    _assert_caller_is_service_account(request)
+    rows: list[dict[str, Any]] = []
+    page = fb_auth.list_users()
+    while page:
+        for user in page.users:
+            claims = user.custom_claims or {}
+            if any(claims.get(k) for k in _ROLE_KEYS):
+                rows.append(_role_row(user))
+        page = page.get_next_page()
+    rows.sort(key=lambda r: (r["email"] or "", r["uid"]))
+    return {
+        "count": len(rows),
+        "users": rows,
+        "researchers": [r["email"] or r["uid"] for r in rows if r["isResearcher"]],
+        "admins": [r["email"] or r["uid"] for r in rows if r["isAdmin"]],
+        "programmeAdmins": [r["email"] or r["uid"] for r in rows if r["isProgrammeAdmin"]],
+    }
+
+
 class AdminClaimRequest(BaseModel):
     """Body for grant/revoke-admin (P4.4).
 

@@ -672,3 +672,72 @@ def test_grant_programme_admin_accepts_email_and_resolves_to_uid(client, allow_e
     mock_by_email.assert_called_once_with("jbruun@ind.ku.dk")
     mock_set.assert_called_once_with("resolved-uid-3", {"programmeAdmin": True})
     assert resp.json()["uid"] == "resolved-uid-3"
+
+
+# ─── list-roles ────────────────────────────────────────────────────────────────
+#
+# "Who are the researchers on prod?" — the per-uid check above cannot answer
+# it, and a Firebase Console trip per environment is what it cost before.
+
+
+def _fake_user(uid: str, email: str | None, claims: dict | None):
+    return type("U", (), {"uid": uid, "email": email, "custom_claims": claims})()
+
+
+class _FakePage:
+    """A firebase_admin ListUsersPage stand-in: `.users` + `.get_next_page()`."""
+
+    def __init__(self, users, next_page=None):
+        self.users = users
+        self._next = next_page
+
+    def get_next_page(self):
+        return self._next
+
+
+def _fake_pages(*pages):
+    head = None
+    for users in reversed(pages):
+        head = _FakePage(users, head)
+    return head
+
+
+def test_list_roles_requires_allowlisted_sa(client, allow_env):
+    assert client.get("/api/admin/list-roles").status_code == 403
+
+
+def test_list_roles_keeps_only_claim_holders_across_pages(client, allow_env):
+    first = _fake_pages(
+        [
+            _fake_user("u-teacher", "teacher@ind.ku.dk", None),
+            _fake_user("u-res", "m@sunholo.com", {"role": "researcher"}),
+        ],
+        [
+            _fake_user("u-admin", "admin@ind.ku.dk", {"admin": True, "programmeAdmin": True}),
+            _fake_user("u-empty", "visitor@ind.ku.dk", {}),
+        ],
+    )
+    with (
+        patch("admin.auth.id_token.verify_oauth2_token") as mock_verify,
+        patch("admin.routes.fb_auth.list_users", return_value=first),
+    ):
+        mock_verify.return_value = {"email": _ALLOWED_SA, "email_verified": True}
+        resp = client.get("/api/admin/list-roles", headers={"Authorization": "Bearer stub-id-token"})
+    assert resp.status_code == 200, resp.text
+    body = resp.json()
+    assert body["count"] == 2
+    assert [u["uid"] for u in body["users"]] == ["u-admin", "u-res"]  # sorted by email
+    assert body["researchers"] == ["m@sunholo.com"]
+    assert body["admins"] == ["admin@ind.ku.dk"]
+    assert body["programmeAdmins"] == ["admin@ind.ku.dk"]
+
+
+def test_list_roles_empty_tenant(client, allow_env):
+    with (
+        patch("admin.auth.id_token.verify_oauth2_token") as mock_verify,
+        patch("admin.routes.fb_auth.list_users", return_value=_fake_pages([])),
+    ):
+        mock_verify.return_value = {"email": _ALLOWED_SA, "email_verified": True}
+        resp = client.get("/api/admin/list-roles", headers={"Authorization": "Bearer stub-id-token"})
+    assert resp.status_code == 200
+    assert resp.json() == {"count": 0, "users": [], "researchers": [], "admins": [], "programmeAdmins": []}

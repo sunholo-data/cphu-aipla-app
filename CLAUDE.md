@@ -561,6 +561,8 @@ Any local workflow that requires more than one manual step — setting env vars,
 | Frontend quality check (inner dev loop, no tests) | `cd frontend && npm run quality:check:fast` |
 | **Frontend pre-push CI parity (tests + build)** | `cd frontend && npm run quality:check` |
 | **Backend pre-push CI parity (lint + format + tests)** | `cd backend && make lint && make test-fast` |
+| **Who holds a role on an env?** (researcher / admin / programme-admin — claims are per-env and never sync) | `make list-roles ENV=prod` · one person: `make check-role ENV=prod UID=<email>` |
+| **Grant or revoke the researcher claim on ONE env** — token minted for you; a bare `aiplatform users grant-researcher` 403s from a laptop | `make grant-researcher ENV=prod UID=<email>` (`scripts/aiplatform-admin.sh <env> <users verb…>` for the other verbs) |
 | **Verify the IAM posture** — state cannot witness its own correctness | `make check-iam-posture` |
 | **Plan the infra layer** (also runs on every push to `dev` touching `infrastructure/env/**`) | `make tf-plan ENV=test\|prod` |
 | **Apply the infra layer** — Cloud Build, as `aipla-terraform@`, not your laptop | `make tf-apply ENV=test\|prod GO=1` |

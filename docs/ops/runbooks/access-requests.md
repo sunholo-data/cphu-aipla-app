@@ -89,8 +89,17 @@ beside it rather than more keys to this one.
 ## 2b. Grant someone the in-app route (do this once per person)
 
 ```bash
-aiplatform --env $ENV users grant-programme-admin <uid-or-email>
+scripts/aiplatform-admin.sh $ENV grant-programme-admin <uid-or-email>
 ```
+
+> The wrapper mints the SA-impersonated token the admin gate needs; a bare
+> `aiplatform --env $ENV users …` falls back to a *user* token and 403s. The
+> same wrapper runs every `users` verb — `make grant-researcher ENV=prod
+> UID=<email>`, `make list-roles ENV=prod` ("who are the researchers here?"),
+> `make check-role ENV=prod UID=<email>`. **Claims are per environment**: a
+> researcher granted on test is a visitor on prod until granted there too —
+> the surface that goes missing is the researcher-gated co-pilot, and its 404
+> message wrongly blames the seed script (2026-09-15).
 
 Takes either their Firebase UID or their email address — an email is resolved
 to a UID via `fb_auth.get_user_by_email` on the way in, so there is no separate
