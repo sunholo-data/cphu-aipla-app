@@ -87,7 +87,7 @@ def list_roles(ctx: click.Context, as_json: bool) -> None:
             f"{'yes' if r.get('isResearcher') else '-':<11} "
             f"{'yes' if r.get('isAdmin') else '-':<6} "
             f"{'yes' if r.get('isProgrammeAdmin') else '-':<11} "
-            f"{_spend_label(r.get('spend')):<14} "
+            f"{_spend_label(r['spend']) if 'spend' in r else '(old backend)':<14} "
             f"{r.get('uid', '')}"
         )
     click.echo(f"\n{result.get('count', len(rows))} role holder(s).")
