@@ -10,6 +10,7 @@ import {
   previewTutors,
 } from "@/lib/teacherApi";
 import { TeacherCard } from "@/components/teacher/ui/TeacherCard";
+import { TutorFace } from "@/components/teacher/research/TutorFace";
 
 /** UI copy, lifted out of JSX (1.1.108 M4) so a translator can reach it. */
 const copy = {
@@ -115,10 +116,11 @@ export function TutorPreviewPanel() {
               onClick={() => toggle(t.id)}
               className={
                 on
-                  ? "rounded border border-brand bg-brand/10 px-2 py-1 text-xs font-medium"
-                  : "rounded border border-border px-2 py-1 text-xs hover:bg-accent"
+                  ? "flex items-center gap-1.5 rounded border border-brand bg-brand/10 py-1 pl-1 pr-2 text-xs font-medium"
+                  : "flex items-center gap-1.5 rounded border border-border py-1 pl-1 pr-2 text-xs hover:bg-accent"
               }
             >
+              <TutorFace avatar={t.persona?.avatar} name={t.displayName} size="sm" />
               {t.displayName}
               <span className="ml-1.5 opacity-70">{t.frameworkName ?? copy.noApproach}</span>
             </button>
@@ -156,11 +158,21 @@ export function TutorPreviewPanel() {
           <div className="grid gap-3 md:grid-cols-2">
             {replies.map((r) => (
               <div key={r.tutorId} className="rounded border border-border p-3">
-                <p className="text-sm font-medium">{r.displayName ?? r.tutorId}</p>
-                <p className="text-xs text-muted-foreground">
-                  {r.composedFrom?.approach ?? copy.noApproach}
-                  {r.composedFrom?.register ? ` · ${r.composedFrom.register}` : ""}
-                </p>
+                {/* The reply carries no avatar; the catalogue loaded for the
+                    picker does, so the same face heads the column. */}
+                <div className="flex items-center gap-2">
+                  <TutorFace
+                    avatar={tutors.find((t) => t.id === r.tutorId)?.persona?.avatar}
+                    name={r.displayName ?? r.tutorId}
+                  />
+                  <div className="min-w-0">
+                    <p className="text-sm font-medium">{r.displayName ?? r.tutorId}</p>
+                    <p className="text-xs text-muted-foreground">
+                      {r.composedFrom?.approach ?? copy.noApproach}
+                      {r.composedFrom?.register ? ` · ${r.composedFrom.register}` : ""}
+                    </p>
+                  </div>
+                </div>
                 {r.ok ? (
                   <p className="mt-2 whitespace-pre-wrap text-sm">{r.reply}</p>
                 ) : (
