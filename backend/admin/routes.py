@@ -194,10 +194,66 @@ def grant_researcher(body: ResearcherClaimRequest, request: Request) -> dict[str
     try:
         uid = _resolve_uid(body.uid)
         claims = _set_researcher_claim(uid, granted=True)
+        email = fb_auth.get_user(uid).email or ""
     except fb_auth.UserNotFoundError as exc:
         raise HTTPException(status_code=404, detail=f"No Firebase user with uid or email {body.uid}") from exc
     logger.info("admin.grant_researcher: uid=%s by %s", uid, caller_email)
-    return {"uid": uid, "role": "researcher", "claims": claims}
+    register = _ensure_researcher_can_spend(email, granted_by=caller_email)
+    return {"uid": uid, "role": "researcher", "claims": claims, "register": register}
+
+
+def _ensure_researcher_can_spend(email: str, *, granted_by: str) -> dict[str, Any] | None:
+    """A researcher is a person we invited; make sure the register agrees.
+
+    Role and spend are separate axes on purpose (the register is the money
+    audit trail, with a cap per person). But a researcher with no register
+    row is a VISITOR — the tutor replays a recorded demonstration and the
+    co-pilot they were granted the role for cannot run. On 2026-09-15 two
+    of prod's four researchers were in exactly that state, one of them for
+    weeks. So a researcher grant now also writes the register row when
+    there is no active one, at the DEFAULT cap and the engagement-boundary
+    expiry; an existing active row is left exactly as it is (a deliberate
+    cap is never overwritten from here). Returns the row, or ``None`` when
+    the account has no email to key the register by.
+    """
+    from auth.programme_bounds import max_expiry
+    from db.teacher_access import DEFAULT_MONTHLY_CAP_USD, get_grant, grant_access
+
+    if not email:
+        logger.warning("admin.grant_researcher: no email on the account; cannot register spend")
+        return None
+    existing = get_grant(email)
+    if existing is not None and existing.is_active:
+        return {
+            "email": existing.email,
+            "tier": existing.tier,
+            "monthlyCapUsd": existing.monthly_cap_usd,
+            "expiresAt": existing.expires_at,
+            "autoRegistered": False,
+        }
+    grant = grant_access(
+        email,
+        tier="pilot",
+        monthly_cap_usd=DEFAULT_MONTHLY_CAP_USD,
+        granted_by=granted_by,
+        expires_at=max_expiry(),
+        note="Auto-registered with the researcher grant — a researcher must be able to spend, or the co-pilot and live tutor are dark.",
+    )
+    _sync_access_claim(grant.email, grant.tier)
+    _invalidate_spend_cache()
+    logger.info(
+        "admin.grant_researcher: auto-registered email=%s tier=%s cap=%.2f",
+        grant.email,
+        grant.tier,
+        grant.monthly_cap_usd,
+    )
+    return {
+        "email": grant.email,
+        "tier": grant.tier,
+        "monthlyCapUsd": grant.monthly_cap_usd,
+        "expiresAt": grant.expires_at,
+        "autoRegistered": True,
+    }
 
 
 @router.post(
@@ -276,7 +332,25 @@ def _role_row(user: Any) -> dict[str, Any]:
         "isResearcher": claims.get("role") == "researcher",
         "isAdmin": bool(claims.get("admin")),
         "isProgrammeAdmin": bool(claims.get("programmeAdmin")),
+        "spend": _spend_for(user.uid),
     }
+
+
+def _spend_for(uid: str) -> dict[str, Any] | None:
+    """The register's answer for ``uid`` — tier + cap — or ``None`` for a
+    visitor. A register that could not be READ is reported as such rather
+    than as a visitor: the reassuring answer must never be the one a broken
+    read produces (see the deploy-status footgun)."""
+    from db.teacher_access import grant_for_uid
+
+    try:
+        grant = grant_for_uid(uid)
+    except Exception:
+        logger.warning("admin.list_roles: register unreadable for uid=%s", uid, exc_info=True)
+        return {"error": "register unreadable"}
+    if grant is None or not grant.is_active:
+        return None
+    return {"tier": grant.effective_tier, "monthlyCapUsd": grant.monthly_cap_usd, "expiresAt": grant.expires_at}
 
 
 @router.get(
@@ -309,6 +383,9 @@ def list_roles(request: Request) -> dict[str, Any]:
         "researchers": [r["email"] or r["uid"] for r in rows if r["isResearcher"]],
         "admins": [r["email"] or r["uid"] for r in rows if r["isAdmin"]],
         "programmeAdmins": [r["email"] or r["uid"] for r in rows if r["isProgrammeAdmin"]],
+        # The drift this endpoint exists to expose: a researcher the register
+        # does not know is a visitor, and gets the recorded demonstration.
+        "researchersWithoutSpend": [r["email"] or r["uid"] for r in rows if r["isResearcher"] and r["spend"] is None],
     }
 
 

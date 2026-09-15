@@ -80,16 +80,34 @@ def list_roles(ctx: click.Context, as_json: bool) -> None:
     if not rows:
         click.echo("No one on this environment holds a role claim.")
         return
-    click.echo(f"{'EMAIL':<34} {'RESEARCHER':<11} {'ADMIN':<6} {'PROG-ADMIN':<11} UID")
+    click.echo(f"{'EMAIL':<34} {'RESEARCHER':<11} {'ADMIN':<6} {'PROG-ADMIN':<11} {'SPEND':<14} UID")
     for r in rows:
         click.echo(
             f"{(r.get('email') or ''):<34} "
             f"{'yes' if r.get('isResearcher') else '-':<11} "
             f"{'yes' if r.get('isAdmin') else '-':<6} "
             f"{'yes' if r.get('isProgrammeAdmin') else '-':<11} "
+            f"{_spend_label(r.get('spend')):<14} "
             f"{r.get('uid', '')}"
         )
     click.echo(f"\n{result.get('count', len(rows))} role holder(s).")
+    dark = result.get("researchersWithoutSpend") or []
+    if dark:
+        click.echo(
+            f"WARNING: {len(dark)} researcher(s) NOT on the access register — they get the recorded "
+            f"demonstration, not a live tutor: {', '.join(dark)}. Fix: grant-access <email>."
+        )
+
+
+def _spend_label(spend: dict | None) -> str:
+    """`pilot $25` / `VISITOR` / `CANNOT READ` — a failed read is never a visitor."""
+    if spend is None:
+        return "VISITOR"
+    if spend.get("error"):
+        return "CANNOT READ"
+    cap = spend.get("monthlyCapUsd")
+    cap_s = "uncapped" if cap is not None and cap < 0 else f"${cap:.0f}" if cap is not None else "?"
+    return f"{spend.get('tier', '?')} {cap_s}"
 
 
 @users.command("revoke-researcher")

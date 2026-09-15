@@ -158,11 +158,12 @@ def test_grant_researcher_requires_allowlisted_sa(client, allow_env):
 
 
 def test_grant_researcher_merges_claim_preserving_others(client, allow_env):
-    fake_user = type("U", (), {"custom_claims": {"groupTags": ["beta"]}})()
+    fake_user = type("U", (), {"custom_claims": {"groupTags": ["beta"]}, "email": "r@ind.ku.dk"})()
     with (
         patch("admin.auth.id_token.verify_oauth2_token") as mock_verify,
         patch("admin.routes.fb_auth.get_user", return_value=fake_user) as mock_get,
         patch("admin.routes.fb_auth.set_custom_user_claims") as mock_set,
+        patch("admin.routes._ensure_researcher_can_spend", return_value=None),
     ):
         mock_verify.return_value = {"email": _ALLOWED_SA, "email_verified": True}
         resp = client.post(
@@ -171,9 +172,9 @@ def test_grant_researcher_merges_claim_preserving_others(client, allow_env):
             headers={"Authorization": "Bearer stub-id-token"},
         )
     assert resp.status_code == 200, resp.text
-    mock_get.assert_called_once_with("u1")
+    mock_get.assert_called_with("u1")  # once for the merge, once for the email
     # groupTags preserved; role:researcher merged in.
-    mock_set.assert_called_once_with("u1", {"groupTags": ["beta"], "role": "researcher"})
+    mock_set.assert_called_with("u1", {"groupTags": ["beta"], "role": "researcher"})
     assert resp.json()["role"] == "researcher"
 
 
@@ -548,12 +549,13 @@ def test_admin_and_researcher_claims_are_independent(client, allow_env):
 
 def test_grant_researcher_accepts_email_and_resolves_to_uid(client, allow_env):
     fake_by_email = type("U", (), {"uid": "resolved-uid-1"})()
-    fake_user = type("U", (), {"custom_claims": {}})()
+    fake_user = type("U", (), {"custom_claims": {}, "email": "m@sunholo.com"})()
     with (
         patch("admin.auth.id_token.verify_oauth2_token") as mock_verify,
         patch("admin.routes.fb_auth.get_user_by_email", return_value=fake_by_email) as mock_by_email,
         patch("admin.routes.fb_auth.get_user", return_value=fake_user) as mock_get,
         patch("admin.routes.fb_auth.set_custom_user_claims") as mock_set,
+        patch("admin.routes._ensure_researcher_can_spend", return_value=None),
     ):
         mock_verify.return_value = {"email": _ALLOWED_SA, "email_verified": True}
         resp = client.post(
@@ -563,7 +565,7 @@ def test_grant_researcher_accepts_email_and_resolves_to_uid(client, allow_env):
         )
     assert resp.status_code == 200, resp.text
     mock_by_email.assert_called_once_with("jb@ind.ku.dk")
-    mock_get.assert_called_once_with("resolved-uid-1")
+    mock_get.assert_called_with("resolved-uid-1")
     mock_set.assert_called_once_with("resolved-uid-1", {"role": "researcher"})
     assert resp.json()["uid"] == "resolved-uid-1"
 
@@ -717,9 +719,13 @@ def test_list_roles_keeps_only_claim_holders_across_pages(client, allow_env):
             _fake_user("u-empty", "visitor@ind.ku.dk", {}),
         ],
     )
+    pilot = type("G", (), {"is_active": True, "effective_tier": "pilot", "monthly_cap_usd": 25.0, "expires_at": None})()
     with (
         patch("admin.auth.id_token.verify_oauth2_token") as mock_verify,
         patch("admin.routes.fb_auth.list_users", return_value=first),
+        # The admin is on the register; the researcher is NOT — the drift this
+        # endpoint exists to expose.
+        patch("db.teacher_access.grant_for_uid", side_effect=lambda uid: pilot if uid == "u-admin" else None),
     ):
         mock_verify.return_value = {"email": _ALLOWED_SA, "email_verified": True}
         resp = client.get("/api/admin/list-roles", headers={"Authorization": "Bearer stub-id-token"})
@@ -730,6 +736,25 @@ def test_list_roles_keeps_only_claim_holders_across_pages(client, allow_env):
     assert body["researchers"] == ["m@sunholo.com"]
     assert body["admins"] == ["admin@ind.ku.dk"]
     assert body["programmeAdmins"] == ["admin@ind.ku.dk"]
+    assert body["users"][0]["spend"] == {"tier": "pilot", "monthlyCapUsd": 25.0, "expiresAt": None}
+    assert body["users"][1]["spend"] is None
+    assert body["researchersWithoutSpend"] == ["m@sunholo.com"]
+
+
+def test_list_roles_reports_an_unreadable_register_as_such(client, allow_env):
+    """A broken register read must not read as 'visitor' — the reassuring
+    answer is the one a failed read produces (deploy-status footgun)."""
+    page = _fake_pages([_fake_user("u-res", "m@sunholo.com", {"role": "researcher"})])
+    with (
+        patch("admin.auth.id_token.verify_oauth2_token") as mock_verify,
+        patch("admin.routes.fb_auth.list_users", return_value=page),
+        patch("db.teacher_access.grant_for_uid", side_effect=RuntimeError("firestore down")),
+    ):
+        mock_verify.return_value = {"email": _ALLOWED_SA, "email_verified": True}
+        resp = client.get("/api/admin/list-roles", headers={"Authorization": "Bearer stub-id-token"})
+    body = resp.json()
+    assert body["users"][0]["spend"] == {"error": "register unreadable"}
+    assert body["researchersWithoutSpend"] == []
 
 
 def test_list_roles_empty_tenant(client, allow_env):
@@ -740,4 +765,84 @@ def test_list_roles_empty_tenant(client, allow_env):
         mock_verify.return_value = {"email": _ALLOWED_SA, "email_verified": True}
         resp = client.get("/api/admin/list-roles", headers={"Authorization": "Bearer stub-id-token"})
     assert resp.status_code == 200
-    assert resp.json() == {"count": 0, "users": [], "researchers": [], "admins": [], "programmeAdmins": []}
+    assert resp.json() == {
+        "count": 0,
+        "users": [],
+        "researchers": [],
+        "admins": [],
+        "programmeAdmins": [],
+        "researchersWithoutSpend": [],
+    }
+
+
+# ─── grant-researcher registers spend ──────────────────────────────────────────
+#
+# 2026-09-15: m@sunholo.com and SH were researchers on prod with no register
+# row, so both got the recorded demonstration instead of a live tutor. Role
+# and spend are separate axes, but a researcher we invited must be able to
+# spend — so the grant writes the row when none is active.
+
+
+def _grant_researcher(client, fake_user, **register_patches):
+    with (
+        patch("admin.auth.id_token.verify_oauth2_token") as mock_verify,
+        patch("admin.routes.fb_auth.get_user", return_value=fake_user),
+        patch("admin.routes.fb_auth.set_custom_user_claims"),
+        patch("admin.routes._sync_access_claim", return_value="u1"),
+        patch("admin.routes._invalidate_spend_cache"),
+        patch("db.teacher_access.get_grant", return_value=register_patches.get("existing")),
+        patch("db.teacher_access.grant_access") as mock_grant,
+    ):
+        mock_verify.return_value = {"email": _ALLOWED_SA, "email_verified": True}
+        mock_grant.return_value = type(
+            "G",
+            (),
+            {"email": "r@ind.ku.dk", "tier": "pilot", "monthly_cap_usd": 25.0, "expires_at": "2027-09-15T00:00:00Z"},
+        )()
+        resp = client.post(
+            "/api/admin/grant-researcher",
+            json={"uid": "u1"},
+            headers={"Authorization": "Bearer stub-id-token"},
+        )
+    return resp, mock_grant
+
+
+def test_grant_researcher_auto_registers_when_not_on_the_register(client, allow_env):
+    fake_user = type("U", (), {"custom_claims": {}, "email": "r@ind.ku.dk"})()
+    resp, mock_grant = _grant_researcher(client, fake_user, existing=None)
+    assert resp.status_code == 200, resp.text
+    mock_grant.assert_called_once()
+    kwargs = mock_grant.call_args.kwargs
+    assert kwargs["tier"] == "pilot"
+    assert kwargs["monthly_cap_usd"] == 25.0  # the default — never uncapped from here
+    assert kwargs["granted_by"] == _ALLOWED_SA
+    body = resp.json()
+    assert body["register"]["autoRegistered"] is True
+    assert body["register"]["tier"] == "pilot"
+
+
+def test_grant_researcher_leaves_an_existing_active_row_alone(client, allow_env):
+    fake_user = type("U", (), {"custom_claims": {}, "email": "jb@ind.ku.dk"})()
+    existing = type(
+        "G",
+        (),
+        {"is_active": True, "email": "jb@ind.ku.dk", "tier": "pilot", "monthly_cap_usd": 100.0, "expires_at": None},
+    )()
+    resp, mock_grant = _grant_researcher(client, fake_user, existing=existing)
+    assert resp.status_code == 200, resp.text
+    mock_grant.assert_not_called()  # a deliberate $100 cap is never overwritten
+    assert resp.json()["register"] == {
+        "email": "jb@ind.ku.dk",
+        "tier": "pilot",
+        "monthlyCapUsd": 100.0,
+        "expiresAt": None,
+        "autoRegistered": False,
+    }
+
+
+def test_grant_researcher_re_registers_a_revoked_row(client, allow_env):
+    fake_user = type("U", (), {"custom_claims": {}, "email": "r@ind.ku.dk"})()
+    revoked = type("G", (), {"is_active": False})()
+    resp, mock_grant = _grant_researcher(client, fake_user, existing=revoked)
+    assert resp.status_code == 200, resp.text
+    mock_grant.assert_called_once()

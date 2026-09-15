@@ -157,11 +157,13 @@ def test_list_roles_renders_table() -> None:
                         "isResearcher": True,
                         "isAdmin": False,
                         "isProgrammeAdmin": False,
+                        "spend": None,
                     }
                 ],
                 "researchers": ["m@sunholo.com"],
                 "admins": [],
                 "programmeAdmins": [],
+                "researchersWithoutSpend": ["m@sunholo.com"],
             },
         )
     )
@@ -170,7 +172,18 @@ def test_list_roles_renders_table() -> None:
     assert result.exit_code == 0, result.output
     assert route.called
     assert "m@sunholo.com" in result.output
+    assert "VISITOR" in result.output
     assert "1 role holder(s)" in result.output
+    assert "NOT on the access register" in result.output
+
+
+def test_list_roles_spend_labels() -> None:
+    from aiplatform.commands.users import _spend_label
+
+    assert _spend_label(None) == "VISITOR"
+    assert _spend_label({"error": "register unreadable"}) == "CANNOT READ"
+    assert _spend_label({"tier": "pilot", "monthlyCapUsd": 100.0}) == "pilot $100"
+    assert _spend_label({"tier": "pilot", "monthlyCapUsd": -1}) == "pilot uncapped"
 
 
 @respx.mock

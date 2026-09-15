@@ -96,7 +96,12 @@ scripts/aiplatform-admin.sh $ENV grant-programme-admin <uid-or-email>
 > `aiplatform --env $ENV users …` falls back to a *user* token and 403s. The
 > same wrapper runs every `users` verb — `make grant-researcher ENV=prod
 > UID=<email>`, `make list-roles ENV=prod` ("who are the researchers here?"),
-> `make check-role ENV=prod UID=<email>`. **Claims are per environment**: a
+> `make check-role ENV=prod UID=<email>`. `list-roles` also shows each holder's
+> SPEND column and warns on any researcher the register does not know. **A
+> researcher must be on the register too** — role and spend are separate axes,
+> and a researcher with no row is a visitor who gets the recorded demonstration
+> (two of prod's four were, on 2026-09-15). `grant-researcher` now writes the
+> row at the default cap when none is active. **Claims are per environment**: a
 > researcher granted on test is a visitor on prod until granted there too —
 > the surface that goes missing is the researcher-gated co-pilot, and its 404
 > message wrongly blames the seed script (2026-09-15).
