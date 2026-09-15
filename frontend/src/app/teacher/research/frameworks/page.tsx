@@ -36,6 +36,7 @@ const copy = {
   copilotBehaviourNote: (name: string) =>
     `The co-pilot proposed behaviours for “${name}”. Add them to that construct below, then Save.`,
   title: "Teaching approaches",
+  subtitle: (n: number) => `${n} published approach${n === 1 ? "" : "es"} · what the tutor is told to do`,
   tabApproaches: "Approaches",
   tabAssign: "Who teaches with what",
   tabTry: "Try them",
@@ -51,15 +52,15 @@ const copy = {
     "The seven published approaches are drawn from the research literature and are maintained by the research team, so they are not editable here. Your own approaches are — write one in your own words and assign it to a class like any other.",
   howItWorksTitle: "How a tutor gets its teaching approach",
   howItWorks: [
-    "Each approach is a set of named constructs — the moves the framework is made of. Under each construct sit behaviours: single instructions quoted from the source paper's own coding scheme, and an avoid-list of the moves the paper codes as counter-indicative.",
+    "Each published approach is a set of named constructs — the moves the framework is made of. Under each construct sit behaviours: single instructions quoted from the source paper's own coding scheme, and an avoid-list of the moves the paper codes as counter-indicative.",
     "Fixed code turns those constructs into the text the tutor is given, in one pass, with no AI involved. The behaviours are copied word for word — nothing is paraphrased, summarised or invented — so every line in the prompt can be traced back to a construct, and from there to a cited paper.",
-    "That is what makes this reviewable: you can hold the prompt against the paper and check it. Editing the wording directly is allowed, and it breaks exactly that property, which is why the two buttons are labelled differently.",
+    "That is what makes this reviewable: you can hold the prompt against the paper and check it. There is no way to hand-edit that text: the only editor changes the constructs, and the prompt is rebuilt from them. Free text belongs to a custom approach, which is rendered without constructs or sources because it has neither — it says it was written, not derived.",
   ],
   citationsTitle: "What the citations are for",
   citations:
     "Citations record where each construct came from and which person vouched for it. They are for you, not for the tutor — no citation is ever put in the tutor's prompt, and no student is shown one. A tutor that cited papers at a 16-year-old would be citing its own instructions. (Separately, the tutor DOES cite the classroom materials an activity gives it — that is a different mechanism.)",
   sourcesHeld:
-    "The source PDFs are not in this app. They are private working copies of copyrighted papers, kept out of the repository; the citation is the durable record.",
+    "The papers themselves are held in a private literature corpus in this environment — researchers only. The co-pilot searches it to show a passage next to its citation, so a source can be checked rather than trusted. No tutor can reach that corpus, by construction — retrieval would make the prompt differ from turn to turn, and holding it against the paper needs it to be the same text every time. The PDFs are copyrighted working copies and stay out of the repository; the citation on each construct is the durable record.",
   // Badges
   badgeUnedited: (n: number) => `Unedited · built from ${n} construct${n === 1 ? "" : "s"}`,
   badgeWordingEdited: "Wording hand-edited · no longer traceable to sources",
@@ -67,20 +68,9 @@ const copy = {
   badgePlaceholder: "Awaiting pedagogical content",
   // Buttons
   editApproach: "Edit teaching approach",
-  editWording: "Edit wording",
   close: "Close",
-  // The mutual-exclusivity warning — the thing the UI never said
-  exclusivityOnText:
-    "Saving here REPLACES the generated text, and discards any edits made under “Edit teaching approach”. The tutor will then say exactly what you write, and the link back to the constructs and their sources is dropped. The two editors are alternatives, not layers — whichever you save last is the one that runs.",
-  exclusivityOnStructure:
-    "Saving here regenerates what the tutor is told from the constructs below, and discards any hand-written wording saved under “Edit wording”. The two editors are alternatives, not layers — whichever you save last is the one that runs.",
-  liveNow: "Live now — this is what the tutor receives",
-  generatedLabel: (n: number) =>
-    `Assembled from ${n} construct${n === 1 ? "" : "s"} — the version without your edits`,
-  whatTutorIsTold: "What the tutor is told",
   sourcesLabel: "Sources this approach is built from",
   vouchedBy: (who: string) => `vouched by ${who}`,
-  revert: "Revert to generated",
   saving: "Saving…",
   save: "Save",
 } as const;
@@ -310,10 +300,8 @@ export default function ResearchFrameworksPage() {
 
   return (
     <TeacherPage
-      title="Teaching frameworks"
-      subtitle={
-        status === "ok" ? `${frameworks.length} frameworks · what the tutor is told to do` : undefined
-      }
+      title={copy.title}
+      subtitle={status === "ok" ? copy.subtitle(frameworks.length) : undefined}
     >
       {status === "loading" ? (
         <p className="text-sm text-muted-foreground">Loading frameworks&hellip;</p>
