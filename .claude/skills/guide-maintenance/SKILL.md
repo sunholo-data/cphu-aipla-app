@@ -1,23 +1,28 @@
 ---
 name: guide-maintenance
 description: >-
-  Keep the AIPLA user-facing how-to guides (docs/guides/) up to date and in sync
-  with the product. Use when the user says "update the guides", "regenerate /
-  republish the guides", "the guides are stale / out of date", "re-capture the
-  guide screenshots", "add a new guide", or mentions "guide-staleness" — and
-  also proactively when a change lands on a UI surface a guide documents (the
-  teacher class/activity/materials/co-pilot flows, the student join/workspace,
-  or the researcher views). Covers the full pipeline: render, screenshot capture
-  on deployed dev, publish into the app, seed the in-product corpus + onboarding
-  tutors, and the staleness check.
+  Keep the AIPLA user-facing how-to guides (frontend/content/guides/) up to date
+  and in sync with the product. Use when the user says "update the guides", "the
+  guides are stale / out of date", "re-capture the guide screenshots", "reprint
+  the guide PDFs", "add a new guide", or mentions "guide-staleness" — and also
+  proactively when a change lands on a UI surface a guide documents (the teacher
+  class/activity/materials/co-pilot flows, the student join/workspace, or the
+  researcher views). Covers the full pipeline: the markdown that IS the page,
+  screenshot capture on deployed dev, printing the PDFs, seeding the in-product
+  corpus + onboarding tutors, and the staleness check.
 ---
 
 # Guide maintenance
 
-The AIPLA how-to guides live in `docs/guides/` (Quarto `.qmd` → PDF + HTML) with
-real screenshots. They are surfaced three ways: the in-app **`/guides`** page,
-direct links (teacher sidebar, student join/lessons, landing), and — dogfooded —
-as **queryable tutors** in an "AIPLA onboarding" class grounded in the guide PDFs.
+The AIPLA how-to guides are **app pages** since 1.1.116: the prose lives in
+`frontend/content/guides/<slug>.md` and renders at `/guides/<slug>` with the
+app's chrome, typography and rail. There is no Quarto, no LaTeX and no render
+step — editing the markdown ships the guide.
+
+They are surfaced three ways: the in-app **`/guides`** index, direct links
+(teacher sidebar, student join/lessons, landing), and — dogfooded — as
+**queryable tutors** in an "AIPLA onboarding" class grounded in the guide PDFs,
+which are now *printed from the pages* (`make guides-pdf`, Playwright).
 
 **Reference of record:** [docs/guides/README.md](../../../docs/guides/README.md).
 
@@ -31,22 +36,28 @@ as **queryable tutors** in an "AIPLA onboarding" class grounded in the guide PDF
 | `t4-author-with-the-copilot` | Teacher | The authoring co-pilot ("Medbygger") |
 | `s1-join-and-use-your-tutor` | Student | Anonymous group-code join → tutor + workspace |
 | `r1-researcher-onboarding` | Researcher | Cross-teacher views + rubric experimentation |
+| `r2-propose-a-simulation` | Researcher / physics staff | Specify a new simulation precisely enough to be built |
 
 The map from each guide to the code it documents is
 [docs/guides/guide-surfaces.json](../../../docs/guides/guide-surfaces.json) — the
 staleness check reads it, so keep it current when a guide's subject moves.
 
 **Danish versions.** The teacher + student guides (T1–T4, S1) have Danish
-counterparts `docs/guides/<slug>.da.qmd` (render to `<slug>.da.{html,pdf}`, auto
--published by the same glob). They reuse the English screenshots. Terminology +
-the "keep on-screen English labels as-is" rule live in
-[docs/guides/da-glossary.md](../../../docs/guides/da-glossary.md). The `/guides`
-page links Danish as primary + English secondary for these; R1 is English-only.
+counterparts `frontend/content/guides/<slug>.da.md`, served at
+`/guides/<slug>.da` and reachable from the language switch at the top of the
+English page. They reuse the English screenshots. Terminology + the "keep
+on-screen English labels as-is" rule live in
+[docs/guides/da-glossary.md](../../../docs/guides/da-glossary.md). R1 and R2 are
+English-only.
+
+⚠️ `lang:` in the front matter and the `.da` in the filename must agree —
+`make check-guides` fails if they don't, because a mismatch makes the language
+switch link a guide to itself.
 
 **Two derived artefacts move with the guides — `make guide-staleness` flags both:**
 
-- **The Danish versions** — when an English `<slug>.qmd` changes, update its
-  `<slug>.da.qmd` to match (the check flags a `.da.qmd` older than its source).
+- **The Danish versions** — when an English `<slug>.md` changes, update its
+  `<slug>.da.md` to match (the check flags a `.da.md` older than its source).
 - **The `aipla-help` help co-pilot** — its how-to knowledge is embedded in
   `backend/skills/templates/aipla-help/SKILL.md` (a snapshot, not RAG). When a
   guide's *content* changes, refresh that skill's instructions and re-register:
@@ -60,47 +71,51 @@ Run from the repo root. Order matters: capture → publish → (seed).
 | Command | What it does |
 |---|---|
 | `make guide-staleness` | **Start here.** Flags guides whose documented UI changed after the guide. Heuristic — a prompt to look. |
-| `make guide-screens` | Re-capture screenshots. Logs into **deployed dev** as the test teacher (Playwright) for the teacher guides, and joins with the demo code for the student guide. Writes `docs/guides/assets/*.png`. |
-| `make guides` | Render `.qmd` → PDF + HTML into `docs/guides/_output/`. Needs `quarto` + `xelatex`. |
-| `make guides-publish` | `make guides` + copy HTML/PDF into `frontend/public/guides/` (committed; the app serves them). **Also injects the nav band** — see below. |
-| `make check-guide-nav` | Assert every published HTML carries the nav band. Runs in CI; `guides-publish` runs it too. |
+| `make guide-screens` | Re-capture screenshots. Logs into **deployed dev** as the test teacher (Playwright) for the teacher guides, and joins with the demo code for the student guide. Writes `frontend/public/guides/assets/*.png` — one copy, served straight to the page. |
+| `make check-guides` (= `make guides`) | The CI gate: front matter, a `.da.md` with no English source, a lang/filename disagreement, a missing screenshot, a review past its deadline. |
+| `make guides-pdf` | Print each guide PAGE to `frontend/public/guides/<slug>.pdf` with Playwright. Needs a running app — deployed dev by default, `BASE_URL=http://localhost:3456` for a local one. |
 | `make seed-guide-corpus ENV=dev\|test\|prod` | Ingest the guide PDFs into that env's **shared corpus** (subject "AIPLA guides") + build the onboarding class with teacher/student/researcher tutors. Dogfoods the guides. **Idempotent** since 2026-08-04 — re-running is how you publish an updated guide. |
 
 **Typical "the guides drifted" loop:** `make guide-staleness` → for each flagged
-guide, look at the change → if a real workflow changed, `make guide-screens &&
-make guides-publish`, then commit the refreshed `assets/` + `public/guides/`. The
-committed PNGs mean the guides render without a capture run; re-capture only when
-the UI actually changed.
+guide, look at the change → edit `frontend/content/guides/<slug>.md` (and its
+`.da.md`) → `make guide-screens` if the UI moved → ship → `make guides-pdf` once
+the new pages are deployed → commit `public/guides/`. The page updates with the
+markdown; only the PDF needs the print run.
 
-### The nav band (1.1.74) — do not strip it
+### Why there is no nav band any more (1.1.74 → 1.1.116)
 
-Quarto emits self-contained HTML with **zero** links back into the app, so a
-guide opened from `/guides` used to be a dead end: unrelated typography, no
-AIPLA mark, no way back — on the first surface a new teacher is pointed at.
+Quarto emitted self-contained HTML with **zero** links back into the app, so a
+guide opened from `/guides` was a dead end: unrelated typography, no AIPLA mark,
+no way back — on the first surface a new teacher is pointed at. `publish-guides.sh`
+injected a KU-red band to paper over it, and CI asserted the band survived each
+re-render.
 
-`publish-guides.sh` therefore runs `scripts/inject-guide-nav.py`, which inserts
-a KU-red band (`id="aipla-guide-nav"`) right after `<body>` linking to `/`,
-`/guides`, and `/project`. It is inline-styled with absolute `aipla.ku.dk`
-hrefs on purpose: the guides do not load the app's stylesheet, and people
-download and mail these files around, where a relative link would break.
+The guides are app pages now, so the chrome, the rail and the way back are
+structural. `inject-guide-nav.py` and `check-guide-nav` are gone; the CI slot
+they held is now `check-guides`, which gates the content instead.
 
-Injection is idempotent, and `--check` fails the publish (and CI) if any file
-lost its band. **A re-render alone will drop it** — Quarto overwrites the HTML —
-which is exactly why publishing re-injects rather than assuming.
+**The old URLs still resolve:** `next.config.mjs` permanently redirects
+`/guides/<slug>.html` → `/guides/<slug>`, because people downloaded and mailed
+those links around.
 
 ## Adding a new guide
 
-1. Write `docs/guides/<slug>.qmd` (copy an existing one — same voice: English,
-   task-focused, callouts, screenshot per step, cross-links). Reference each
-   screenshot as `assets/<tag>-NN-name.png` (tag = `t5`, `s2`, …).
-2. Add the guide → surfaces it documents in `docs/guides/guide-surfaces.json`.
-3. Add it to the `/guides` page: `frontend/src/app/guides/page.tsx` (the right
-   audience array).
+1. Write `frontend/content/guides/<slug>.md` (copy an existing one — same
+   voice: English, task-focused, `::: callout-note` / `::: callout-tip` panels,
+   a screenshot per step, cross-links). Reference each screenshot as
+   `/guides/assets/<tag>-NN-name.png` (tag = `t5`, `s2`, …) — an absolute path,
+   because it is served from `/public`.
+2. Fill in the front matter: `title`, `description`, `tag`, `audience`, `order`,
+   `lang`, `status`, `owner`, `reviewed`, `reviewBy`. **Nothing else needs
+   editing** — the index, the section rail and previous/next all read the
+   content tree, so the guide appears on its own.
+3. Add the guide → surfaces it documents in `docs/guides/guide-surfaces.json`.
 4. If it should be queryable, add it to `scripts/seed-guide-corpus.mjs` (the
    `GUIDES` array + a tutor activity if a new audience).
 5. Capture its screenshots: add shots to the capture script for its surfaces
    (`docs/guides/screenshots/capture.mjs` for teacher/researcher,
-   `capture-student.mjs` for student), then `make guide-screens && make guides-publish`.
+   `capture-student.mjs` for student), then `make guide-screens`.
+6. `make check-guides`, then `make guides-pdf` once it is deployed.
 
 ## Capture internals
 
@@ -130,9 +145,10 @@ which is exactly why publishing re-injects rather than assuming.
 - **`make guide-screens` touches shared dev.** It logs in as the test teacher and
   creates/deletes a throwaway activity (cleanup needs a minted token, handled by
   the wrapper). Don't point it at test/prod.
-- **Repo weight.** `frontend/public/guides/` holds self-contained HTML (embedded
-  screenshots) + PDFs (~2–3 MB per guide). If this grows, move rendered guides to
-  GCS or generate at build time rather than committing.
+- **Repo weight.** `frontend/public/guides/` holds the PDFs and the screenshots
+  they embed. 1.1.116 dropped the self-contained HTML (which duplicated every
+  screenshot as base64 inside each of 11 files); if the PDFs grow, print them in
+  CI rather than committing them.
 - **Re-seeding is now the update path, not a hazard.** `make seed-guide-corpus`
   reconciles: guide docs are matched by title within the "AIPLA guides" subject
   and replaced in place (new doc ingested, then the old one deleted), the class
@@ -145,19 +161,15 @@ which is exactly why publishing re-injects rather than assuming.
   queryable corpus does not. Until 2026-08-04 this script took no env argument
   and defaulted to dev's hardcoded URL, which is why dev was the only env with
   the in-product guides. Seed test/prod explicitly after an env cut.
-- **Seeding uses the PUBLISHED PDFs, so publish before you seed.**
-  `seed-guide-corpus` reads `frontend/public/guides/` (committed — the exact bytes
-  `/guides` serves), not the gitignored `docs/guides/_output/`. That keeps the
-  corpus and the static pages from disagreeing, and lets a machine without the
-  LaTeX toolchain seed an env. The wrapper refuses if guide sources are newer
-  than the published PDFs (or uncommitted), comparing COMMIT times — mtimes are
-  meaningless after a clone. Order: `make guides-publish` → commit →
-  `make seed-guide-corpus ENV=<env>`. `STALE_OK=1` overrides.
-- **`quarto` bundles its own LaTeX; `which xelatex` tells you nothing.** TinyTeX
-  lives at `~/Library/TinyTeX/bin/*/xelatex` and is deliberately NOT on `PATH` —
-  quarto finds it itself. On 2026-08-05 a `which xelatex` miss was misread as
-  "this machine can't render"; `scripts/render-guides.sh` in fact works fine. To
-  test the toolchain, run a render, or `quarto check`.
+- **Seeding uses the PDFs, so print before you seed.** `seed-guide-corpus` reads
+  `frontend/public/guides/*.pdf` (committed). The wrapper refuses if the guide
+  markdown is newer than the PDFs (or uncommitted), comparing COMMIT times —
+  mtimes are meaningless after a clone. Order: edit → deploy → `make guides-pdf`
+  → commit → `make seed-guide-corpus ENV=<env>`. `STALE_OK=1` overrides.
+- **`make guides-pdf` needs a RUNNING app, not a toolchain.** It prints the live
+  page, so point it at something serving the new markdown: deployed dev by
+  default, or `BASE_URL=http://localhost:3456` against `make dev`. Printing a
+  URL that still serves the old text is the one way to get a stale PDF.
 - **The test-teacher exists on all three envs.** `test-teacher@example.dk` /
   `aipla-demo-1` authenticated against prod on 2026-08-05, so
   `make seed-guide-corpus ENV=prod` needs no extra credentials. Override with

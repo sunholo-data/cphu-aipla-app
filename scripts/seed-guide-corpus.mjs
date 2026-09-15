@@ -35,12 +35,11 @@ if (!TOKEN) {
   console.error("GUIDE_TEACHER_TOKEN is required (mint via scripts/mint-test-teacher-token.sh).");
   process.exit(1);
 }
-// Seed the PUBLISHED PDFs — the exact bytes the /guides page serves — not the
-// gitignored docs/guides/_output render dir. Two reasons: the corpus and the
-// static pages then cannot disagree about what a guide says, and seeding stops
-// depending on a working local quarto+xelatex toolchain (which is what made
-// this un-runnable on a machine without xelatex). Update flow is unchanged:
-// `make guides-publish` re-renders and commits, then seed.
+// Seed the PUBLISHED PDFs — the committed bytes /guides links. Since 1.1.116
+// those PDFs are PRINTED FROM the guide pages (`make guides-pdf`, Playwright),
+// so the corpus, the pages and the download are three views of one source and
+// cannot disagree. Update flow: edit frontend/content/guides/<slug>.md, run
+// `make guides-pdf`, commit, then seed.
 const OUT = resolve(dirname(fileURLToPath(import.meta.url)), "..", "frontend", "public", "guides");
 const AUTH = { Authorization: `Bearer ${TOKEN}` };
 const JSON_H = { ...AUTH, "Content-Type": "application/json" };
@@ -108,6 +107,7 @@ const GUIDES = [
   { file: "t4-author-with-the-copilot.pdf", title: "AIPLA guide — T4: Author with the co-pilot", aud: "teacher" },
   { file: "s1-join-and-use-your-tutor.pdf", title: "AIPLA guide — S1: Join and use your tutor", aud: "student" },
   { file: "r1-researcher-onboarding.pdf", title: "AIPLA guide — R1: Researcher onboarding", aud: "researcher" },
+  { file: "r2-propose-a-simulation.pdf", title: "AIPLA guide — R2: Propose a simulation", aud: "researcher" },
 ];
 
 const cite = (docs) =>

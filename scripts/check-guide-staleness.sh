@@ -1,19 +1,23 @@
 #!/usr/bin/env bash
 # Flag user guides that may be out of date: for each guide, compare the last
-# commit that touched the guide (its .qmd + screenshots) against the last commit
-# that touched each UI surface it documents (docs/guides/guide-surfaces.json).
+# commit that touched the guide (its markdown + screenshots) against the last
+# commit that touched each UI surface it documents (guide-surfaces.json).
 # If a documented surface changed AFTER the guide, the guide is likely stale.
 #
 #   make guide-staleness            # report (exit 0 even if stale)
 #   ./scripts/check-guide-staleness.sh --strict   # exit 1 if any guide is stale (CI)
 #
 # This is a heuristic, not a proof — a surface change may not affect the guide.
-# It's a prompt to look, and to re-run `make guide-screens && make guides-publish`
+# It's a prompt to look, and to re-run `make guide-screens && make guides-pdf`
 # (+ `make seed-guide-corpus` for a fresh env) when a guide really did drift.
+#
+# 1.1.116 — the guides moved from docs/guides/*.qmd (Quarto) to
+# frontend/content/guides/*.md (app pages). Paths below follow.
 set -euo pipefail
 
 cd "$(dirname "$0")/.."
 MANIFEST="docs/guides/guide-surfaces.json"
+GUIDES="frontend/content/guides"
 STRICT=0
 [ "${1:-}" = "--strict" ] && STRICT=1
 
@@ -27,8 +31,8 @@ last_commit() {
 stale=0
 for slug in $(jq -r 'keys[] | select(startswith("_") | not)' "$MANIFEST"); do
   tag="${slug%%-*}" # t1 / s1 / r1 — the screenshot filename prefix
-  guide_time="$(last_commit "docs/guides/${slug}.qmd" docs/guides/assets/${tag}-*.png)"
-  guide_date="$(git log -1 --format=%cd --date=short -- "docs/guides/${slug}.qmd" 2>/dev/null || echo "?")"
+  guide_time="$(last_commit "$GUIDES/${slug}.md" frontend/public/guides/assets/${tag}-*.png)"
+  guide_date="$(git log -1 --format=%cd --date=short -- "$GUIDES/${slug}.md" 2>/dev/null || echo "?")"
 
   flagged=""
   while IFS= read -r surface; do
@@ -46,16 +50,16 @@ for slug in $(jq -r 'keys[] | select(startswith("_") | not)' "$MANIFEST"); do
   fi
 done
 
-# Danish versions derive from their English source — flag a .da.qmd whose English
+# Danish versions derive from their English source — flag a .da.md whose English
 # source changed after it (translate the update across).
 for slug in $(jq -r 'keys[] | select(startswith("_") | not)' "$MANIFEST"); do
-  da="docs/guides/${slug}.da.qmd"
+  da="$GUIDES/${slug}.da.md"
   [ -e "$da" ] || continue
-  en_time="$(last_commit "docs/guides/${slug}.qmd")"
+  en_time="$(last_commit "$GUIDES/${slug}.md")"
   da_time="$(last_commit "$da")"
   if [ "$en_time" -gt "$da_time" ]; then
     stale=1
-    en_date="$(git log -1 --format=%cd --date=short -- "docs/guides/${slug}.qmd" 2>/dev/null || echo "?")"
+    en_date="$(git log -1 --format=%cd --date=short -- "$GUIDES/${slug}.md" 2>/dev/null || echo "?")"
     printf '⚠ %s may be stale — its English source changed (%s) after the Danish version.\n' "$da" "$en_date"
   fi
 done
@@ -66,8 +70,8 @@ HELP_SKILL="backend/skills/templates/aipla-help/SKILL.md"
 if [ -e "$HELP_SKILL" ]; then
   help_time="$(last_commit "$HELP_SKILL")"
   newest_time=0; newest=""
-  for q in docs/guides/*.qmd; do
-    case "$q" in *.da.qmd) continue ;; esac # help chrome is English; track EN sources
+  for q in "$GUIDES"/*.md; do
+    case "$q" in *.da.md) continue ;; esac # help chrome is English; track EN sources
     [ -e "$q" ] || continue
     qt="$(last_commit "$q")"
     if [ "$qt" -gt "$newest_time" ]; then newest_time="$qt"; newest="$q"; fi
@@ -86,8 +90,10 @@ fi
 
 echo
 echo "→ Review what's flagged; if a workflow actually changed, refresh:"
-echo "    make guide-screens && make guides-publish     # re-capture + re-render + republish (EN + DA)"
-echo "    # edit the flagged .da.qmd to match its English source"
+echo "    # edit frontend/content/guides/<slug>.md — it IS the page"
+echo "    make guide-screens                            # re-capture the screenshots"
+echo "    make guides-pdf                               # reprint the PDFs from the live pages"
+echo "    # edit the flagged .da.md to match its English source"
 echo "    # edit backend/skills/templates/aipla-help/SKILL.md, then: make seed ENV=dev"
 echo "    make seed-guide-corpus                        # (fresh env) re-seed the corpus/tutors"
 [ "$STRICT" -eq 1 ] && exit 1 || exit 0

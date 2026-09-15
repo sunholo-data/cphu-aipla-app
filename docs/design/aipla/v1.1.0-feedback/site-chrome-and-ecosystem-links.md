@@ -230,9 +230,10 @@ ecosystem relationship machine-readably instead of inventing a "related links"
 convention. Adopted in M2b (optional).
 
 **No custom plumbing is proposed.** No new store, no side-channel, no injection
-hook. The one script change (M3) extends the existing
-[`scripts/publish-guides.sh`](../../../../scripts/publish-guides.sh) rather than
-adding a parallel pipeline.
+hook. The one script change (M3) extends the existing `scripts/publish-guides.sh`
+rather than adding a parallel pipeline. *(Superseded: 1.1.116 made the guides app
+pages, so that script and its injected band are gone — the chrome is structural
+now. See [docs/guides/README.md](../../../guides/README.md).)*
 
 **CLI affordance (step 5b-bis): none needed.** This is chrome plus one extension
 to an existing script. The skill's own skip rule covers it: *"pure frontend
@@ -330,8 +331,11 @@ ecosystem relationship; costs one `<script type="application/ld+json">`.
 
 ### M3 — the guides stop being a dead end
 
-Extend [`scripts/publish-guides.sh`](../../../../scripts/publish-guides.sh) to
-inject a small fixed band into each published HTML immediately after `<body>`:
+*(Superseded by 1.1.116: the guides are app pages and carry the app's own chrome;
+`publish-guides.sh` and the injected band no longer exist. Kept for the record.)*
+
+Extend `scripts/publish-guides.sh` to inject a small fixed band into each
+published HTML immediately after `<body>`:
 
 ```html
 <div style="…inline, self-contained…">

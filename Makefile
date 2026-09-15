@@ -1,4 +1,4 @@
-.PHONY: tf-plan tf-apply tf-local tf-fmt check-iam-posture check-spend-ceiling spend-ceiling check-domains deploy-status dev dev-local dev-recompile dev-status dev-stop proxy-check logs cloud-logs cloud-errors cloud-build verify-chat-logs smoke-session-persistence smoke-chat-resume smoke-curriculum-content smoke-teacher-cli help cli-install cli-reinstall cli-uninstall cli-doctor cli-selftest-mock cli-selftest-live cli-selftest seed seed-job seed-demo-codes check-role list-roles grant-researcher revoke-researcher register-demo-teacher force-seed-demo bind-demo-code reset-group-state provision-curriculum-rag provision-agent-engine copy-docparse-secret seed-curriculum backfill-curriculum-content seed-curriculum-folders check-auth-config migrate-clear-persona-voice-override docs-linkcheck check-skills sim-build sim-build-check guides guides-publish guide-screens seed-guide-corpus guide-staleness
+.PHONY: tf-plan tf-apply tf-local tf-fmt check-iam-posture check-spend-ceiling spend-ceiling check-domains deploy-status dev dev-local dev-recompile dev-status dev-stop proxy-check logs cloud-logs cloud-errors cloud-build verify-chat-logs smoke-session-persistence smoke-chat-resume smoke-curriculum-content smoke-teacher-cli help cli-install cli-reinstall cli-uninstall cli-doctor cli-selftest-mock cli-selftest-live cli-selftest seed seed-job seed-demo-codes check-role list-roles grant-researcher revoke-researcher register-demo-teacher force-seed-demo bind-demo-code reset-group-state provision-curriculum-rag provision-agent-engine copy-docparse-secret seed-curriculum backfill-curriculum-content seed-curriculum-folders check-auth-config migrate-clear-persona-voice-override docs-linkcheck check-skills sim-build sim-build-check guides guides-pdf check-guides guide-screens seed-guide-corpus guide-staleness
 
 # Seed SKILL.md templates -> Firestore. Since P1.3 the Cloud Build deploy runs
 # this automatically via the `aipla-seed-skills` Cloud Run job (see
@@ -177,21 +177,25 @@ dev:
 	@chmod +x scripts/dev.sh
 	@scripts/dev.sh
 
-# Render the user guides (docs/guides/*.qmd) to PDF (+ HTML/DOCX) in
-# docs/guides/_output/. Requires quarto + a LaTeX engine (xelatex).
-guides:
-	@chmod +x scripts/render-guides.sh
-	@scripts/render-guides.sh
+# The how-to guides are APP CONTENT since 1.1.116: edit
+# frontend/content/guides/<slug>.md and the page at /guides/<slug> IS the guide.
+# There is no render step and no quarto. This gate is what CI runs on them.
+guides: ## Check the how-to guides' front matter, translations and screenshots
+	@cd frontend && node scripts/check-guides-content.mjs
 
-# Render + publish the guides (HTML + PDF) into frontend/public/guides/ so the
-# app serves them for the /guides page and the in-app links.
-guides-publish:
-	@chmod +x scripts/publish-guides.sh
-	@scripts/publish-guides.sh
+# Print each guide page to PDF with Playwright — the downloadable copy, and what
+# `make seed-guide-corpus` ingests. Prints the LIVE page, so the PDF cannot
+# disagree with what a reader sees.
+#   make guides-pdf                                  # deployed dev
+#   make guides-pdf BASE_URL=http://localhost:3456   # local dev server
+guides-pdf: ## Print the guide pages to frontend/public/guides/*.pdf (Playwright)
+	@chmod +x scripts/render-guide-pdfs.sh
+	@scripts/render-guide-pdfs.sh
 
 # Capture real teacher-guide screenshots with Playwright: logs into the deployed
 # dev frontend as the test teacher (co-pilot + concept-map features on) and
-# writes docs/guides/assets/. Then re-run `make guides` to embed them.
+# writes frontend/public/guides/assets/ — the images the guide pages serve.
+# Reprint the PDFs with `make guides-pdf` once the new shots are deployed.
 guide-screens:
 	@chmod +x scripts/capture-guide-screens.sh
 	@scripts/capture-guide-screens.sh
@@ -565,11 +569,11 @@ check-pwa-icons: ## Fail if a home-screen icon has transparent corners (CI-gated
 pwa-icons: ## Regenerate the PWA icon PNGs from the single SVG source
 	@bash scripts/generate-pwa-icons.sh
 
-# Guide dead-end gate (1.1.74). Published Quarto HTML has zero links back into
-# the app, so a guide opened from /guides used to be a one-way trip out of the
-# product. publish-guides.sh injects a nav band; this asserts it survived.
-check-guide-nav: ## Fail if a published guide has no nav band back into the app (CI-gated)
-	@scripts/inject-guide-nav.py --check frontend/public/guides
+# Guide content gate. 1.1.74 asserted a nav band in the published Quarto HTML,
+# because a guide was otherwise a one-way trip out of the product; 1.1.116 made
+# the guides app pages, so what is left to check is the content itself.
+check-guides: ## Fail if a how-to guide has bad front matter, a stranded translation or a missing screenshot (CI-gated)
+	@cd frontend && node scripts/check-guides-content.mjs
 
 # Upstream porting (2026-09-08). This fork ran four months with no route back to
 # the template, so every guard it wrote because a bug shipped once exists only
@@ -638,7 +642,7 @@ help:
 	@echo "make check-brand-literals — brand-drift gate: fail if a brand surface hardcodes red-* instead of the KU-red token (CI-gated)"
 	@echo "make check-local-path-links — fail if a doc links to a file:///Users/ path that resolves on one machine only (CI-gated)"
 	@echo "make check-doc-status — advisory: design docs whose Status header disagrees with the commit history"
-	@echo "make check-guide-nav    — fail if a published guide has no nav band back into the app (CI-gated)"
+	@echo "make check-guides       — fail if a how-to guide has bad front matter, a stranded translation or a missing screenshot (CI-gated)"
 	@echo "make check-stream-allowlist — fail if the client renders a tool result the SSE filter redacts (CI-gated)"
 	@echo
 	@echo "make check-upstream-routing — advisory: which changed paths are platform code and belong upstream (RANGE=...)"

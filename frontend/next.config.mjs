@@ -24,6 +24,10 @@ const nextConfig = {
       { source: '/aipla/assets/examples/projectile-motion.html', destination: '/project/activities/boldkast', permanent: true },
       { source: '/aipla/assets/examples/led-planck-virtual-lab.html', destination: '/project/activities/led-planck', permanent: true },
       { source: '/aipla/assets/examples/kinebot-v2.html', destination: '/project/activities/kinebot', permanent: true },
+      // 1.1.116 — the guides were self-contained Quarto HTML served from
+      // /public; they are app pages now. People downloaded and mailed those
+      // links around, so the old URL keeps resolving.
+      { source: '/guides/:slug.html', destination: '/guides/:slug', permanent: true },
     ]
   },
   async headers() {

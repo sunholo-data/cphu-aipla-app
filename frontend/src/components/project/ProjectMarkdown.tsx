@@ -1,5 +1,5 @@
 import type { ReactNode } from "react";
-import ReactMarkdown from "react-markdown";
+import ReactMarkdown, { type Components } from "react-markdown";
 import remarkGfm from "remark-gfm";
 
 import { ProjectArtefactDemo } from "@/components/project/ProjectArtefactDemo";
@@ -28,7 +28,18 @@ function Heading({ level, children }: { level: 2 | 3; children: ReactNode }) {
   return <h3 id={id} className={classes}>{children}</h3>;
 }
 
-export function ProjectMarkdown({ children }: { children: string }) {
+/**
+ * `components` overrides the default element map, one key at a time — the
+ * guides use it to render an image as a captioned <figure>. Everything else
+ * stays shared, so /project and /guides cannot drift apart typographically.
+ */
+export function ProjectMarkdown({
+  children,
+  components,
+}: {
+  children: string;
+  components?: Components;
+}) {
   return (
     <ReactMarkdown
       remarkPlugins={[remarkGfm]}
@@ -106,6 +117,7 @@ export function ProjectMarkdown({ children }: { children: string }) {
             </a>
           );
         },
+        ...components,
       }}
     >
       {children}

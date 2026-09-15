@@ -1,7 +1,8 @@
 #!/usr/bin/env bash
 # Capture real screenshots for the teacher guides by logging into the DEPLOYED
 # DEV frontend as the test teacher with Playwright. Writes PNGs into
-# docs/guides/assets/, replacing placeholders. Then re-render: make guides
+# frontend/public/guides/assets/, replacing placeholders. The guides are app
+# pages that read them straight from /public — nothing to re-render.
 #
 # Env overrides:
 #   BASE_URL            dev frontend (default: the aipla-v01 dev URL in capture.mjs)
@@ -71,4 +72,5 @@ else
 fi
 
 echo
-echo "Screenshots updated in docs/guides/assets/. Re-render with: make guides"
+echo "Screenshots updated in frontend/public/guides/assets/."
+echo "Reprint the PDFs once the new shots are deployed: make guides-pdf"

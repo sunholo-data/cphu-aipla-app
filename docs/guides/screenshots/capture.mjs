@@ -2,7 +2,7 @@
 //
 // Logs in as the test teacher on the DEPLOYED DEV frontend (where the authoring
 // co-pilot and concept-map features are enabled and content is realistic) and
-// writes PNGs into ../assets/, replacing the placeholder images the guides
+// writes PNGs into frontend/public/guides/assets/, replacing the images the guides
 // reference. Re-run any time the UI changes so the guides never silently rot.
 //
 // Run it via the wrapper, which mints the cleanup token and passes creds:
@@ -22,7 +22,9 @@ const BASE_URL =
 const EMAIL = process.env.TEACHER_EMAIL || "test-teacher@example.dk";
 const PASSWORD = process.env.TEACHER_PASSWORD || "aipla-demo-1";
 const CLEANUP_TOKEN = process.env.GUIDE_TEACHER_TOKEN || "";
-const ASSETS = resolve(dirname(fileURLToPath(import.meta.url)), "..", "assets");
+// 1.1.116 — the guides are app pages now, so their screenshots are
+// served from /public and there is exactly one copy of each PNG.
+const ASSETS = resolve(dirname(fileURLToPath(import.meta.url)), "..", "..", "..", "frontend", "public", "guides", "assets");
 
 const VIEWPORT = { width: 1280, height: 860 };
 
@@ -361,7 +363,7 @@ async function run() {
   }
 
   await browser.close();
-  console.log(`\ndone: ${ok}/${shots.length} screenshots captured into assets/`);
+  console.log(`\ndone: ${ok}/${shots.length} screenshots captured into frontend/public/guides/assets/`);
 }
 
 run().catch((err) => {

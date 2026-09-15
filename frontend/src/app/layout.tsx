@@ -59,7 +59,12 @@ export default function RootLayout({
         <ServiceWorkerRegistration />
         <LocalModeBanner />
         <EnvironmentBanner />
-        <div className="flex-1 min-h-0 flex flex-col overflow-auto">
+        {/* `data-app-shell` marks the scroll container for the print
+            stylesheet: printing a page inside an `overflow-auto` box clips
+            everything past the first sheet, so globals.css unwinds THIS
+            element (and not, say, the environment banner, which stays
+            `print:hidden`). */}
+        <div data-app-shell className="flex-1 min-h-0 flex flex-col overflow-auto">
           <AppProviders>{children}</AppProviders>
         </div>
       </body>

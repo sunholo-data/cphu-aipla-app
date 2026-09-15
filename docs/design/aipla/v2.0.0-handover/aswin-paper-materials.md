@@ -141,9 +141,9 @@ Learning's 1998 commercialisation date and direct Cognitive Tutor lineage
 ## Example flows
 
 **Written 2026-09-09, sourced directly from the shipped, screenshot-backed
-guides** ([t1](../../../guides/t1-set-up-a-class.qmd),
-[t2](../../../guides/t2-create-your-first-activity.qmd),
-[s1](../../../guides/s1-join-and-use-your-tutor.qmd)) — these are real
+guides** ([t1](../../../../frontend/content/guides/t1-set-up-a-class.md),
+[t2](../../../../frontend/content/guides/t2-create-your-first-activity.md),
+[s1](../../../../frontend/content/guides/s1-join-and-use-your-tutor.md)) — these are real
 product flows, not illustrative fiction.
 
 ### Teacher flow — set up a class and an activity

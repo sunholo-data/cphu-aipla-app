@@ -58,7 +58,7 @@ export function EnvironmentBanner() {
       aria-label={`${label.tag} environment`}
       data-testid="environment-banner"
       data-environment={info.env satisfies EnvironmentName}
-      className={`flex w-full flex-wrap items-center gap-x-3 gap-y-1 border-b px-4 py-1.5 text-xs ${tone.bar}`}
+      className={`flex w-full flex-wrap items-center gap-x-3 gap-y-1 border-b px-4 py-1.5 text-xs print:hidden ${tone.bar}`}
     >
       <span className="flex items-center gap-1.5 font-semibold">
         <Icon className="h-3.5 w-3.5 shrink-0" aria-hidden="true" />

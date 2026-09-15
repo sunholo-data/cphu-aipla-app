@@ -191,12 +191,15 @@ jobs:
         # iPhone added it to the home screen. Nothing else in CI can see inside
         # a PNG. Regenerate with `make pwa-icons`.
         run: node scripts/check-pwa-icons.mjs
-      - name: Published guides link back into the app
-        # 1.1.74: Quarto's self-contained HTML has zero in-app links, so a guide
-        # opened from /guides was a dead end — and it is the first surface a new
-        # teacher is pointed at. publish-guides.sh injects the band; this
-        # asserts a re-render did not drop it.
-        run: scripts/inject-guide-nav.py --check frontend/public/guides
+      - name: How-to guides are valid app content
+        # 1.1.74 gated on a nav band injected into Quarto's self-contained HTML,
+        # because a guide opened from /guides was otherwise a dead end — and it
+        # is the first surface a new teacher is pointed at. 1.1.116 made the
+        # guides app pages, which answers that structurally; what can still
+        # break is their front matter, a Danish twin without an English source,
+        # and a screenshot that no longer exists.
+        working-directory: frontend
+        run: node scripts/check-guides-content.mjs
 
   frontend:
     name: Frontend (lint + typecheck + test)

@@ -80,3 +80,54 @@
     color: hsl(var(--foreground));
   }
 }
+
+/* Printing a guide (1.1.116). The guides used to ship as a Quarto PDF built by
+   a separate toolchain; they are app pages now, and the printed page IS the
+   PDF — `make guides-pdf` drives this same stylesheet through Playwright. Force
+   the light palette (a dark-mode reader would otherwise print a black page),
+   keep figures whole, and let the prose use the full width the chrome leaves. */
+@media print {
+  :root {
+    color-scheme: light;
+  }
+  /* The app shell is a fixed-height flex column with its own scroll container
+     (root layout: `h-dvh` body + `flex-1 overflow-auto`). Printing that clips
+     everything past the first page — the guide PDFs came out as page 1 plus a
+     run of blank sheets. Let the document itself flow when printing. */
+  html,
+  body {
+    height: auto !important;
+    overflow: visible !important;
+    display: block !important;
+  }
+  body > [data-app-shell] {
+    overflow: visible !important;
+    height: auto !important;
+    min-height: 0 !important;
+    display: block !important;
+    flex: none !important;
+  }
+  body {
+    background: #fff !important;
+    color: #111 !important;
+  }
+  figure,
+  article aside,
+  h2,
+  h3 {
+    break-inside: avoid;
+  }
+  figure img {
+    max-height: 150mm;
+    object-fit: contain;
+  }
+  h2,
+  h3 {
+    break-after: avoid;
+  }
+  a[href^="http"]::after {
+    content: " (" attr(href) ")";
+    font-size: 0.85em;
+    word-break: break-all;
+  }
+}

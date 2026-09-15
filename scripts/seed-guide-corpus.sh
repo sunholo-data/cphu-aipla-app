@@ -45,42 +45,42 @@ if [ -z "$BASE_URL" ]; then
 fi
 
 GUIDE_DIR="frontend/public/guides"
-SRC_DIR="docs/guides"
+SRC_DIR="frontend/content/guides"
 if [ ! -d "$GUIDE_DIR" ] || [ -z "$(ls "$GUIDE_DIR"/*.pdf 2>/dev/null)" ]; then
-  echo "No published guide PDFs in $GUIDE_DIR — run 'make guides-publish' first." >&2
+  echo "No guide PDFs in $GUIDE_DIR — run 'make guides-pdf' first." >&2
   exit 2
 fi
 
-# Staleness gate. Seeding the published PDFs means a .qmd edit that was never
-# published would seed the OLD text — the render step this replaced made that
-# impossible by always rendering first. This restores that guarantee without
-# requiring the LaTeX toolchain on the seeding machine.
+# Staleness gate. Seeding the PDFs means a guide edit that was never re-printed
+# would seed the OLD text, while /guides serves the new one. 1.1.116 made that
+# gap wider, not narrower: the page updates the moment the markdown ships, and
+# only the PDF needs a print run.
 #
 # Compares COMMIT TIMES, not mtimes: a fresh clone stamps every file with the
 # checkout time, so mtime comparison is pure noise on any machine but the one
-# that did the render. Uncommitted .qmd edits count as stale too.
+# that did the printing. Uncommitted guide edits count as stale too.
 # STALE_OK=1 to override (e.g. deliberately re-seeding an unchanged corpus).
 if [ -z "${STALE_OK:-}" ] && git rev-parse --git-dir >/dev/null 2>&1; then
   stale=""
   if ! git diff --quiet -- "$SRC_DIR" 2>/dev/null || ! git diff --cached --quiet -- "$SRC_DIR" 2>/dev/null; then
     stale="uncommitted changes under $SRC_DIR/"
   else
-    src_t="$(git log -1 --format=%ct -- "$SRC_DIR/"*.qmd "$SRC_DIR/assets" "$SRC_DIR/_quarto.yml" 2>/dev/null || echo 0)"
+    src_t="$(git log -1 --format=%ct -- "$SRC_DIR" "$GUIDE_DIR/assets" 2>/dev/null || echo 0)"
     pub_t="$(git log -1 --format=%ct -- "$GUIDE_DIR" 2>/dev/null || echo 0)"
     if [ "${src_t:-0}" -gt "${pub_t:-0}" ] 2>/dev/null; then
-      stale="guide sources were committed after the published PDFs"
+      stale="guide sources were committed after the PDFs were printed"
     fi
   fi
   if [ -n "$stale" ]; then
     echo "REFUSING to seed: $stale." >&2
     echo "  The corpus would carry text that /guides does not serve." >&2
-    echo "  Run 'make guides-publish' (renders + copies into $GUIDE_DIR), commit, then re-run." >&2
-    echo "  Override with STALE_OK=1 if you know the published PDFs are current." >&2
+    echo "  Run 'make guides-pdf' (prints the live pages into $GUIDE_DIR), commit, then re-run." >&2
+    echo "  Override with STALE_OK=1 if you know the PDFs are current." >&2
     exit 2
   fi
 fi
 
-echo "Seeding published guides from $GUIDE_DIR ($(ls "$GUIDE_DIR"/*.pdf | wc -l | tr -d ' ') PDFs)."
+echo "Seeding guides from $GUIDE_DIR ($(ls "$GUIDE_DIR"/*.pdf | wc -l | tr -d ' ') PDFs)."
 
 echo "Minting teacher token for $ENV…"
 TOKEN="$(scripts/mint-test-teacher-token.sh "$ENV" 2>/dev/null | tail -1)"

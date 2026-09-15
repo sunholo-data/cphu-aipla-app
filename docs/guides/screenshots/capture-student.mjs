@@ -2,7 +2,7 @@
 //
 // Students are anonymous — no login. This drives the real group-code join flow
 // on the deployed dev frontend with a seeded demo code, then captures the join
-// page, the activity list, and the tutor + workspace. Writes ../assets/.
+// page, the activity list, and the tutor + workspace. Writes frontend/public/guides/assets/.
 //
 //     BASE_URL=https://…run.app GROUP=aipla-demo-1 node capture-student.mjs
 //
@@ -16,7 +16,9 @@ import { dirname, resolve } from "node:path";
 const BASE_URL =
   process.env.BASE_URL || "https://aipla-v01-frontend-wgwhd7mspa-lz.a.run.app";
 const CODE = process.env.GROUP || "aipla-demo-1";
-const ASSETS = resolve(dirname(fileURLToPath(import.meta.url)), "..", "assets");
+// 1.1.116 — the guides are app pages now, so their screenshots are
+// served from /public and there is exactly one copy of each PNG.
+const ASSETS = resolve(dirname(fileURLToPath(import.meta.url)), "..", "..", "..", "frontend", "public", "guides", "assets");
 const VIEWPORT = { width: 1280, height: 860 };
 const HIDE_CSS = `
   [aria-label="LOCAL_MODE active"],[aria-label="Local mode banner"],
@@ -99,4 +101,4 @@ try {
 }
 
 await browser.close();
-console.log(`\ndone: ${ok}/3 student screenshots captured into assets/`);
+console.log(`\ndone: ${ok}/3 student screenshots captured into frontend/public/guides/assets/`);
