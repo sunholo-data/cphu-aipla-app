@@ -196,10 +196,16 @@ function NewActivityForm() {
       ) : (
         <form onSubmit={handleSave} className="flex flex-col gap-5">
           <SettingsMap highlight="activity" classId={classId} />
-          <TemplatePicker onPick={builder.applyTemplate} />
 
           <ActivityBuilderBody
             builder={builder}
+            templateSlot={
+              <TemplatePicker
+                onPick={builder.applyTemplate}
+                // A blank draft, the same reset "Create another" uses.
+                onStartBlank={() => builder.hydrate({} as Parameters<typeof builder.hydrate>[0])}
+              />
+            }
             activityId={classesState.conceptSkillId}
             classControl={
               <label htmlFor="activity-class" className="flex flex-col gap-1">

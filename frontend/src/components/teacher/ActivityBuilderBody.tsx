@@ -23,6 +23,10 @@ const CONCEPT_MAP_ENABLED = process.env.NEXT_PUBLIC_CONCEPT_MAP === "1";
 
 interface ActivityBuilderBodyProps {
   builder: ActivityBuilder;
+  /** The template strip (create page only), rendered at the top of the config
+   *  column so the live preview sits BESIDE it — clicking through templates
+   *  re-renders the student view, which is the preview a teacher chooses by. */
+  templateSlot?: ReactNode;
   /** The activity id, threaded to the Materials section so image uploads can be
    *  attached to the activity slot (1.1.44). Edit page: route param; create
    *  page: the resolved concept skill id. */
@@ -47,6 +51,7 @@ interface ActivityBuilderBodyProps {
  */
 export function ActivityBuilderBody({
   builder,
+  templateSlot,
   activityId,
   classControl,
   personaSlot,
@@ -58,6 +63,7 @@ export function ActivityBuilderBody({
     <div className="grid items-start gap-6 lg:grid-cols-[minmax(0,46rem)_minmax(0,1fr)]">
       {/* LEFT — configuration, grouped into four colour-coded sections. */}
       <div className="flex min-w-0 flex-col gap-4">
+        {templateSlot}
         <BuilderSectionNav
           counts={{
             [SECTION.workspace.id]: b.workspaceCount,
