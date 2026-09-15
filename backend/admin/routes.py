@@ -223,6 +223,44 @@ def revoke_researcher(body: ResearcherClaimRequest, request: Request) -> dict[st
     return {"uid": uid, "role": None, "claims": claims}
 
 
+@router.get(
+    "/user-roles",
+    responses={
+        403: {"description": "Caller is not in ADMIN_SEED_ALLOWED_SAS"},
+        404: {"description": "No Firebase user with that uid or email"},
+    },
+)
+def user_roles(uid: str, request: Request) -> dict[str, Any]:
+    """Read a Firebase user's custom claims — READ-ONLY, no mutation.
+
+    Added 2026-09-15 after a researcher-gated skill 404'd with a message
+    that named the seed script when the real cause was a per-environment
+    role claim never granted on prod. There was no way to check a claim
+    without a Firebase Console trip or a raw Identity Toolkit call, and
+    "which environments has this person been granted on" is exactly the
+    question that gate keeps costing time. `uid` accepts an email (see
+    `_resolve_uid`) — the common case is checking someone by address.
+
+    Claims are per-environment (Firebase project), same as every grant
+    verb above — this reads whichever env the caller's SA belongs to.
+    """
+    _assert_caller_is_service_account(request)
+    try:
+        resolved_uid = _resolve_uid(uid)
+        user = fb_auth.get_user(resolved_uid)
+    except fb_auth.UserNotFoundError as exc:
+        raise HTTPException(status_code=404, detail=f"No Firebase user with uid or email {uid}") from exc
+    claims = user.custom_claims or {}
+    return {
+        "uid": resolved_uid,
+        "email": user.email,
+        "claims": claims,
+        "isResearcher": claims.get("role") == "researcher",
+        "isAdmin": bool(claims.get("admin")),
+        "isProgrammeAdmin": bool(claims.get("programmeAdmin")),
+    }
+
+
 class AdminClaimRequest(BaseModel):
     """Body for grant/revoke-admin (P4.4).
 

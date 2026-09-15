@@ -213,6 +213,94 @@ def test_revoke_researcher_is_noop_for_non_researcher(client, allow_env):
     mock_set.assert_called_once_with("u1", {"groupTags": ["beta"]})
 
 
+# ─── user-roles ────────────────────────────────────────────────────────────────
+#
+# Read-only claim check (2026-09-15) — added after a researcher-gated skill
+# 404'd on prod with a message pointing at the seed script, when the real
+# cause was that role:researcher had only ever been granted on test. Claims
+# are per-Firebase-project; this is the fast path to "does this person have
+# it HERE" instead of a Firebase Console trip or a raw Identity Toolkit call.
+
+
+def test_user_roles_requires_allowlisted_sa(client, allow_env):
+    resp = client.get("/api/admin/user-roles", params={"uid": "u1"})
+    assert resp.status_code == 403
+
+
+def test_user_roles_reports_researcher_claim(client, allow_env):
+    fake_user = type("U", (), {"custom_claims": {"role": "researcher"}, "email": "m@sunholo.com"})()
+    with (
+        patch("admin.auth.id_token.verify_oauth2_token") as mock_verify,
+        patch("admin.routes.fb_auth.get_user", return_value=fake_user) as mock_get,
+    ):
+        mock_verify.return_value = {"email": _ALLOWED_SA, "email_verified": True}
+        resp = client.get(
+            "/api/admin/user-roles",
+            params={"uid": "u1"},
+            headers={"Authorization": "Bearer stub-id-token"},
+        )
+    assert resp.status_code == 200, resp.text
+    mock_get.assert_called_once_with("u1")
+    body = resp.json()
+    assert body["isResearcher"] is True
+    assert body["isAdmin"] is False
+    assert body["isProgrammeAdmin"] is False
+    assert body["email"] == "m@sunholo.com"
+
+
+def test_user_roles_reports_no_claims(client, allow_env):
+    fake_user = type("U", (), {"custom_claims": None, "email": "nobody@ind.ku.dk"})()
+    with (
+        patch("admin.auth.id_token.verify_oauth2_token") as mock_verify,
+        patch("admin.routes.fb_auth.get_user", return_value=fake_user),
+    ):
+        mock_verify.return_value = {"email": _ALLOWED_SA, "email_verified": True}
+        resp = client.get(
+            "/api/admin/user-roles",
+            params={"uid": "u1"},
+            headers={"Authorization": "Bearer stub-id-token"},
+        )
+    assert resp.status_code == 200, resp.text
+    body = resp.json()
+    assert body["isResearcher"] is False
+    assert body["claims"] == {}
+
+
+def test_user_roles_accepts_email_and_resolves_to_uid(client, allow_env):
+    fake_by_email = type("U", (), {"uid": "resolved-uid-9"})()
+    fake_user = type("U", (), {"custom_claims": {"role": "researcher"}, "email": "m@sunholo.com"})()
+    with (
+        patch("admin.auth.id_token.verify_oauth2_token") as mock_verify,
+        patch("admin.routes.fb_auth.get_user_by_email", return_value=fake_by_email) as mock_by_email,
+        patch("admin.routes.fb_auth.get_user", return_value=fake_user) as mock_get,
+    ):
+        mock_verify.return_value = {"email": _ALLOWED_SA, "email_verified": True}
+        resp = client.get(
+            "/api/admin/user-roles",
+            params={"uid": "m@sunholo.com"},
+            headers={"Authorization": "Bearer stub-id-token"},
+        )
+    assert resp.status_code == 200, resp.text
+    mock_by_email.assert_called_once_with("m@sunholo.com")
+    mock_get.assert_called_once_with("resolved-uid-9")
+    assert resp.json()["uid"] == "resolved-uid-9"
+
+
+def test_user_roles_404s_on_unknown_email(client, allow_env):
+    with (
+        patch("admin.auth.id_token.verify_oauth2_token") as mock_verify,
+        patch("admin.routes.fb_auth.get_user_by_email", side_effect=fb_auth.UserNotFoundError("nope")),
+    ):
+        mock_verify.return_value = {"email": _ALLOWED_SA, "email_verified": True}
+        resp = client.get(
+            "/api/admin/user-roles",
+            params={"uid": "nobody@ind.ku.dk"},
+            headers={"Authorization": "Bearer stub-id-token"},
+        )
+    assert resp.status_code == 404
+    assert "nobody@ind.ku.dk" in resp.json()["detail"]
+
+
 # ─── access/password-invite ───────────────────────────────────────────────────
 #
 # For pilot teachers at schools with no Google identity. The properties worth
