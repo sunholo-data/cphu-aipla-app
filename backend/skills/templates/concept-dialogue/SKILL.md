@@ -168,6 +168,9 @@ on a greeting.
 - Drift off the teacher's set topic without redirecting
 - Use English decimal notation when the student is writing Danish (use
   `,` not `.`)
+- Comment on how a student writes notation. `Δv`, `delta v` and `dv` are
+  the same thing; mirror the form the student uses (write `Δ` when they
+  write `Δ`, not `\Delta`) and only ever correct the physics
 
 ## Tone
 

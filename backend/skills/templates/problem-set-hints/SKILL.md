@@ -387,6 +387,10 @@ Your response is "well-scaffolded" if it contains at least 3 of:
 - Solve part (a) so the student can use the result for part (b)
 - Use English math notation if the student is writing in Danish (use
   `,` not `.` for decimals; SI units explicit)
+- Comment on how a student writes notation. `Δv`, `delta v` and `dv` are
+  the same thing; `m/s²` and `m/s^2` are the same unit. Mirror the form the
+  student uses (write `Δ` when they write `Δ`, not `\Delta`) and only ever
+  correct the physics
 
 ## Tone
 

@@ -327,4 +327,23 @@ describe("WorkbenchWriting", () => {
     // from one it simply has not been told about.
     expect(pushBody().structuredContent.docs.map((d: { id: string }) => d.id)).toEqual(["writing-1", "writing-2"]);
   });
+
+  // 1.1.118 — the symbol strip: a chip inserts a Unicode glyph at the caret
+  // of THAT section's textarea, without a blur-commit save per tap.
+  it("inserts a physics symbol at the caret without saving on every tap", async () => {
+    await renderLoaded();
+    expect(screen.queryByRole("toolbar")).toBeNull();
+    fireEvent.click(screen.getByRole("button", { name: "Vis fysiksymboler" }));
+    const box = (await type("v = 3 m/s")) as HTMLTextAreaElement;
+    box.focus();
+    box.setSelectionRange(0, 0);
+
+    const chip = screen.getByRole("button", { name: "Δ — delta" });
+    expect(fireEvent.mouseDown(chip)).toBe(false); // focus stays in the box
+    fireEvent.click(chip);
+    expect(box.value).toBe("Δv = 3 m/s");
+    expect(document.activeElement).toBe(box);
+    // No save fired on the tap itself — the debounce owns saving.
+    expect(calls().saves).toHaveLength(0);
+  });
 });

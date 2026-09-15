@@ -9,6 +9,8 @@ import { useOptionalProactiveSimOptsRef } from "@/contexts/ProactiveSimContext";
 import { readStoredGroupSession } from "@/lib/anonymousGroupAuth";
 import { exportWriting, type ExportFormat } from "@/lib/exportDocument";
 import { fetchWriting, saveWriting } from "@/lib/writingApi";
+import { insertAtCaret, restoreCaret } from "@/lib/insertAtCaret";
+import { SymbolStrip, SymbolStripToggle, useSymbolStrip } from "@/components/chat/SymbolStrip";
 import type { WritingElement } from "@/lib/elementTypes";
 
 /** Canonical WritingElement re-exported under the render-side name. */
@@ -117,6 +119,8 @@ const EXPORT_FORMATS: { value: ExportFormat; label: string }[] = [
  * students to type physics as LaTeX — none was about prose. So this is the
  * plainest thing that does the job: no editor framework, no maths input, no new
  * dependency. A formula button here would re-create the surface 1.1.48 deleted.
+ * The 1.1.118 symbol strip is not that: it inserts Unicode characters (Δ, ρ,
+ * ²) into the plain textarea — what the student typed stays a string.
  *
  * The text is per-GROUP state in Firestore (`writing_progress`), not
  * sessionStorage: 1.1.53's premise is one group across separate devices, and
@@ -138,6 +142,10 @@ export function WorkbenchWriting({
   const storeId = activityId ?? skillId;
   const storageKey = writingStorageKey(storeId);
   const [values, setValues] = useState<Record<string, string>>({});
+  // 1.1.118 — one strip state for the whole element; a ref per textarea so a
+  // chip inserts at that section's caret. No wink here: the chat introduced it.
+  const symbolStrip = useSymbolStrip();
+  const textareaRefs = useRef<Record<string, HTMLTextAreaElement | null>>({});
   const [saveState, setSaveState] = useState<Record<string, SaveState>>({});
   const [loaded, setLoaded] = useState(false);
   const savedRef = useRef<Record<string, string>>({});
@@ -266,6 +274,13 @@ export function WorkbenchWriting({
     saveTimers.current[elementId] = setTimeout(() => commit(elementId), WRITING_SAVE_DEBOUNCE_MS);
   };
 
+  const insertSymbol = (elementId: string, glyph: string) => {
+    const el = textareaRefs.current[elementId] ?? null;
+    const r = insertAtCaret(values[elementId] ?? "", glyph, el?.selectionStart, el?.selectionEnd);
+    onChange(elementId, r.value);
+    restoreCaret(el, r.caret);
+  };
+
   // Clear pending timers on unmount (no dispatch or save after teardown).
   useEffect(
     () => () => {
@@ -349,7 +364,15 @@ export function WorkbenchWriting({
             )}
             {w.prompt && <p className="mb-2 text-sm text-foreground">{w.prompt}</p>}
 
+            <SymbolStrip
+              id={`writing-${w.id}-symbols`}
+              open={symbolStrip.open}
+              onInsert={(glyph) => insertSymbol(w.id, glyph)}
+            />
             <textarea
+              ref={(el) => {
+                textareaRefs.current[w.id] = el;
+              }}
               aria-label={w.title || "Skrivefelt"}
               value={text}
               maxLength={maxChars}
@@ -372,6 +395,11 @@ export function WorkbenchWriting({
                 </span>
               </span>
               <span className="flex items-center gap-1.5">
+                <SymbolStripToggle
+                  controlsId={`writing-${w.id}-symbols`}
+                  open={symbolStrip.open}
+                  onToggle={symbolStrip.toggle}
+                />
                 {/* A select, not three buttons: downloading is a secondary
                     action and three of them is clutter in a ~700px pane. */}
                 <label className="inline-flex items-center gap-1.5">

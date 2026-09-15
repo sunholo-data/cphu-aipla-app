@@ -11,6 +11,8 @@ import { CallTeacherButton } from "@/components/chat/CallTeacherButton";
 import { ImageStagingRow, ImageUploadButtons } from "@/components/chat/ImageComposer";
 import { useImageAttachments, MAX_IMAGES } from "@/hooks/useImageAttachments";
 import { VoiceComposerControls } from "@/components/chat/VoiceComposerControls";
+import { SymbolStrip, SymbolStripToggle, useSymbolStrip } from "@/components/chat/SymbolStrip";
+import { insertAtCaret, restoreCaret } from "@/lib/insertAtCaret";
 import { LessonRecordingPanel } from "@/components/chat/LessonRecordingPanel";
 import { useVoiceConfig } from "@/hooks/useVoiceConfig";
 import type { DocTabData } from "@/components/doc-browser/DocTab";
@@ -578,6 +580,19 @@ function ChatShell({
   const searchParams = useSearchParams();
   const router = useRouter();
   const [draft, setDraft] = useState("");
+  // 1.1.118 — physics symbol strip. The input ref exists so a chip can insert
+  // at the caret rather than the end; the strip winks open once per device.
+  const composerInputRef = useRef<HTMLInputElement | null>(null);
+  const symbolStrip = useSymbolStrip({ wink: true });
+  const insertSymbol = useCallback(
+    (glyph: string) => {
+      const el = composerInputRef.current;
+      const r = insertAtCaret(draft, glyph, el?.selectionStart, el?.selectionEnd);
+      setDraft(r.value);
+      restoreCaret(el, r.caret);
+    },
+    [draft],
+  );
   // 1.1.7 multimodal upload — staged images for the next turn (gated by the
   // skill's multimodalInput flag at render time). Owns guardrail + resize +
   // object-URL cleanup; handleSend reads `.attachments` and calls `.clear()`.
@@ -1315,6 +1330,13 @@ function ChatShell({
                 </p>
               )
             )}
+            <SymbolStrip
+              id="composer-symbol-strip"
+              open={symbolStrip.open}
+              onInsert={insertSymbol}
+              disabled={inputDisabled}
+              lang={composerVoice.tts.language}
+            />
             <form
               className="flex items-center gap-2"
               onSubmit={(e) => {
@@ -1337,6 +1359,13 @@ function ChatShell({
                 onTranscript={(t) => setDraft((d) => (d.trim() ? `${d} ${t}` : t))}
                 onNotice={setVoiceNotice}
               />
+              <SymbolStripToggle
+                controlsId="composer-symbol-strip"
+                open={symbolStrip.open}
+                onToggle={symbolStrip.toggle}
+                disabled={inputDisabled}
+                lang={composerVoice.tts.language}
+              />
               {isAnonymousGroupAuthMode() && <CallTeacherButton disabled={inputDisabled} />}
               {/* text-base (16px) below sm is load-bearing, not styling: iOS
                   Safari force-zooms the page on focus for ANY input under 16px
@@ -1346,6 +1375,7 @@ function ChatShell({
                   resolves that to its intrinsic ~20-character width, which on a
                   390px phone pushes Send off the row. */}
               <input
+                ref={composerInputRef}
                 value={draft}
                 onChange={(e) => setDraft(e.target.value)}
                 // 1.1.85 M2 — paste a screenshot straight into the conversation.
