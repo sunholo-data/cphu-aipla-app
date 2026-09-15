@@ -5,6 +5,7 @@ import { type ChangeEvent, useCallback, useEffect, useRef, useState } from "reac
 import { FileText, Loader2, Trash2, Upload } from "lucide-react";
 
 import {
+  DocumentApiError,
   deleteDocument,
   listMyDocuments,
   uploadDocument,
@@ -48,6 +49,18 @@ interface StudentDocumentWorkbenchProps {
 // multimodal tutor. Mirrors the backend _ALLOWED_EXTENSIONS gate
 // (tools/documents/upload.py) — keep them in sync.
 const ACCEPT = ".pdf,.txt,.md,.docx,.csv,.xlsx,.pptx";
+const ACCEPT_LABEL = "PDF, Word, Excel, PowerPoint, tekst, Markdown eller CSV";
+
+// The backend 400s with a specific reason (wrong file type is the only case
+// reachable here today — the input's `accept` filters the OS picker, but some
+// mobile browsers ignore it loosely). Give the student that reason instead of
+// a one-size-fits-all "try again" that hides what actually went wrong.
+function uploadErrorMessage(err: unknown): string {
+  if (err instanceof DocumentApiError && err.status === 400) {
+    return `Denne filtype understøttes ikke her. Tilladte typer: ${ACCEPT_LABEL}. Er det et billede af dit arbejde, kan du i stedet vedhæfte det direkte i chatten.`;
+  }
+  return "Kunne ikke uploade filen. Prøv igen.";
+}
 
 /**
  * StudentDocumentWorkbench (1.1.45 M3b) — the workbench surface for a
@@ -108,8 +121,8 @@ export function StudentDocumentWorkbench({
     try {
       const { docId } = await uploadDocument(file, skillId, role);
       await refresh(docId);
-    } catch {
-      setActionError("Kunne ikke uploade filen. Prøv igen.");
+    } catch (err) {
+      setActionError(uploadErrorMessage(err));
     } finally {
       setBusy(false);
     }

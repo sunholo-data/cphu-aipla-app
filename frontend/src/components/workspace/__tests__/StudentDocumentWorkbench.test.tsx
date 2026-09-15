@@ -4,11 +4,17 @@ import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 const listMyDocuments = vi.fn();
 const uploadDocument = vi.fn();
 const deleteDocument = vi.fn();
-vi.mock("@/lib/documentApi", () => ({
-  listMyDocuments: (...a: unknown[]) => listMyDocuments(...a),
-  uploadDocument: (...a: unknown[]) => uploadDocument(...a),
-  deleteDocument: (...a: unknown[]) => deleteDocument(...a),
-}));
+vi.mock("@/lib/documentApi", async () => {
+  // Keep the real DocumentApiError class — the component does `instanceof`
+  // checks on it to pick the right error message.
+  const actual = await vi.importActual<typeof import("@/lib/documentApi")>("@/lib/documentApi");
+  return {
+    ...actual,
+    listMyDocuments: (...a: unknown[]) => listMyDocuments(...a),
+    uploadDocument: (...a: unknown[]) => uploadDocument(...a),
+    deleteDocument: (...a: unknown[]) => deleteDocument(...a),
+  };
+});
 
 // The viewer is lazy (next/dynamic) + drags in pdf.js — mock it; the workbench's
 // job is to hand it the ACTIVE file, which we assert via its name.
@@ -103,6 +109,17 @@ describe("StudentDocumentWorkbench (1.1.45 M3b)", () => {
     const input = container.querySelector('input[type="file"]') as HTMLInputElement;
     fireEvent.change(input, { target: { files: [new File(["x"], "a.pdf")] } });
     expect(await screen.findByRole("alert")).toHaveTextContent(/Kunne ikke uploade/);
+  });
+
+  it("tells the student WHY an unsupported file type was rejected", async () => {
+    const { DocumentApiError } = await import("@/lib/documentApi");
+    listMyDocuments.mockResolvedValue([]);
+    uploadDocument.mockRejectedValueOnce(new DocumentApiError("File type '.jpg' is not supported.", 400));
+    const { container } = render(<StudentDocumentWorkbench skillId="s" />);
+    await screen.findByText(/ikke uploadet nogen filer/i);
+    const input = container.querySelector('input[type="file"]') as HTMLInputElement;
+    fireEvent.change(input, { target: { files: [new File(["x"], "a.jpg")] } });
+    expect(await screen.findByRole("alert")).toHaveTextContent(/Denne filtype understøttes ikke her/);
   });
 
   it("passes role=teacher through to the document API (builder preview)", async () => {

@@ -111,7 +111,13 @@ export async function uploadDocument(
   // No explicit Content-Type — the browser sets the multipart boundary.
   const resp = await fetcherFor(role)(`/api/proxy/api/documents/upload`, { method: "POST", body });
   if (!resp.ok) {
-    throw new DocumentApiError("Couldn't upload that file.", resp.status);
+    // Surface the backend's actual reason (e.g. unsupported file type) rather
+    // than a fixed generic string — the caller decides how to localize/display it.
+    const detail = await resp
+      .json()
+      .then((d: { detail?: string }) => d.detail)
+      .catch(() => undefined);
+    throw new DocumentApiError(detail ?? "Couldn't upload that file.", resp.status);
   }
   const data = (await resp.json()) as { docId?: string };
   if (!data.docId) {
