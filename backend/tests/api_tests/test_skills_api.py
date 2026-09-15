@@ -464,3 +464,51 @@ def test_get_by_slug_invisible_returns_404(client):
     with patch("skills.routes.skill_config.find_by_slug", return_value=other):
         resp = client.get("/api/skills/by-slug/someone-else/general-assistant")
     assert resp.status_code == 404
+
+
+# === A researcher can resolve the researcher-tagged co-pilot skill =========
+#
+# 2026-09-15: `tutor-authoring-assistant` ships `accessControl: tagged
+# [role:researcher]`, and `by-slug` collapses "not visible" into 404 — so
+# for every researcher on every env the Tutor co-pilot reported "isn't
+# registered on this environment yet — run the seed script". The claim
+# was there; the TAG never was. This goes through the REAL token→User
+# mapping (not a hand-built User) so the tag injection is what's tested.
+
+
+def _client_for_decoded_token(decoded: dict) -> TestClient:
+    from auth.firebase_auth import _user_from_decoded_token
+
+    app = FastAPI()
+    app.include_router(router)
+
+    async def _override(request: Request) -> User:
+        u = _user_from_decoded_token(decoded)
+        request.state.access = build_access_context(u)
+        return u
+
+    app.dependency_overrides[get_current_user] = _override
+    return TestClient(app)
+
+
+_RESEARCHER_SKILL = {
+    "skillId": "tutor-copilot-uuid",
+    "ownerId": "aipla-platform",
+    "slug": "tutor-authoring-assistant",
+    "accessControl": {"type": "tagged", "tags": ["role:researcher"]},
+}
+
+
+def test_researcher_claim_resolves_the_researcher_tagged_skill():
+    client = _client_for_decoded_token({"uid": "r1", "email": "m@sunholo.com", "role": "researcher"})
+    with patch("skills.routes.skill_config.find_by_slug", return_value=_make_config(**_RESEARCHER_SKILL)):
+        resp = client.get("/api/skills/by-slug/aipla-platform/tutor-authoring-assistant")
+    assert resp.status_code == 200, resp.text
+    assert resp.json()["skillId"] == "tutor-copilot-uuid"
+
+
+def test_plain_teacher_cannot_resolve_the_researcher_tagged_skill():
+    client = _client_for_decoded_token({"uid": "t1", "email": "teacher@ind.ku.dk"})
+    with patch("skills.routes.skill_config.find_by_slug", return_value=_make_config(**_RESEARCHER_SKILL)):
+        resp = client.get("/api/skills/by-slug/aipla-platform/tutor-authoring-assistant")
+    assert resp.status_code == 404

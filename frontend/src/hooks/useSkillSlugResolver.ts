@@ -21,8 +21,10 @@ export interface SkillSlugResolution {
  * this hook is that shared step.
  *
  * Returns `{ skillId: null, resolveError: null }` while loading, then exactly
- * one of the two. The 404 message names the seed script because an unseeded
- * environment is the usual cause. Callers keep their own loading/error JSX
+ * one of the two. The 404 covers BOTH "not seeded" and "not visible to this
+ * caller" (the backend collapses them on purpose), so the message names both
+ * causes — on 2026-09-15 it named only the seed script while the real cause
+ * was a role-tagged skill. Callers keep their own loading/error JSX
  * (each island has its own copy + test ids).
  *
  * Uses the TEACHER auth token (`fetchWithTeacherAuth`) — these are all
@@ -47,7 +49,7 @@ export function useSkillSlugResolver(
         if (!res.ok) {
           throw new Error(
             res.status === 404
-              ? `The "${skillName}" skill isn't registered on this environment yet — run scripts/seed-platform-skills.sh.`
+              ? `The "${skillName}" skill isn't available to this account on this environment — either it isn't seeded yet (scripts/seed-platform-skills.sh) or it's scoped to a role this account doesn't carry here (make check-role ENV=<env> UID=<email>).`
               : `failed to resolve skill (${res.status})`,
           );
         }

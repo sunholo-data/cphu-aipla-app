@@ -208,6 +208,20 @@ def test_is_researcher_true_when_role_researcher() -> None:
     assert user.is_teacher is True
 
 
+def test_researcher_claim_also_becomes_the_role_tag() -> None:
+    """The researcher-only co-pilot skill is `tagged: [role:researcher]`;
+    the 5-type evaluator reads TAGS, not `is_researcher`. Without this the
+    skill 404s (not-visible collapses into not-found) for every researcher."""
+    user = _user_from_decoded_token({"uid": "u", "email": "m@a.com", "role": "researcher"})
+    assert "role:researcher" in user.group_tags
+    assert "role:teacher" in user.group_tags
+
+
+def test_plain_teacher_never_carries_the_researcher_tag() -> None:
+    user = _user_from_decoded_token({"uid": "u", "email": "m@a.com", "groupTags": ["7b"]})
+    assert "role:researcher" not in user.group_tags
+
+
 def test_is_researcher_false_for_other_role_values() -> None:
     user = _user_from_decoded_token({"uid": "u", "email": "m@a.com", "role": "teacher"})
     assert user.is_researcher is False

@@ -168,6 +168,16 @@ def _user_from_decoded_token(decoded: dict[str, Any]) -> User:
     raw_tags = decoded.get("groupTags") or []
     group_tags = frozenset(str(t) for t in raw_tags) | {"role:teacher"}
     is_researcher = decoded.get("role") == "researcher"
+    # The researcher claim ALSO becomes a tag, for the same reason the
+    # teacher one does: skills scope by `accessControl: tagged`, and
+    # `tutor-authoring-assistant` ships tagged `role:researcher`. Until
+    # 2026-09-15 nothing produced that tag, so the researcher-only
+    # co-pilot 404'd for every researcher on every environment — with a
+    # message blaming the seed script, then the per-env grant, before
+    # anyone read the evaluator. `is_researcher` gates ROUTES
+    # (assert_researcher); the tag gates SKILLS. Both, or one half is dark.
+    if is_researcher:
+        group_tags = group_tags | {"role:researcher"}
     return User(
         uid=decoded["uid"],
         email=email,
