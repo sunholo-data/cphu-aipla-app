@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { BookOpen, Check, Info } from "lucide-react";
+import { TutorFace } from "@/components/teacher/research/TutorFace";
 
 import {
   type TutorCatalogue,
@@ -169,19 +170,7 @@ function TutorCard({
         disabled={saving}
         className="flex w-full items-start gap-3 text-left disabled:opacity-60"
       >
-        {tutor.persona?.avatar ? (
-          // eslint-disable-next-line @next/next/no-img-element
-          <img
-            src={tutor.persona.avatar}
-            alt=""
-            aria-hidden="true"
-            className="h-12 w-12 shrink-0 rounded-full object-cover"
-          />
-        ) : (
-          <span className="flex h-12 w-12 shrink-0 items-center justify-center rounded-full bg-muted text-sm font-bold">
-            {tutor.displayName[0]?.toUpperCase() ?? "?"}
-          </span>
-        )}
+        <TutorFace avatar={tutor.persona?.avatar} name={tutor.displayName} size="lg" />
 
         <span className="flex min-w-0 flex-1 flex-col">
           <span className="flex items-center gap-1.5">

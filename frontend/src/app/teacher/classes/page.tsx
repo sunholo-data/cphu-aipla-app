@@ -50,6 +50,7 @@ import { CrossClassTable } from "@/components/teacher/insights/CrossClassTable";
 import { useIsResearcher } from "@/hooks/useIsResearcher";
 import { ManageClassCopilot } from "./_ManageClassCopilot";
 import { formatRelativeTime } from "@/lib/relativeTime";
+import { TutorFace } from "@/components/teacher/research/TutorFace";
 
 // Copy for the activity column and the filters lives here rather than inline
 // in JSX — the 1.1.108 rule. The rest of this page predates it.
@@ -743,28 +744,6 @@ function SummaryStat({ label, value }: { label: string; value: string }) {
   );
 }
 
-function PersonaAvatar({ name, avatar }: { name: string; avatar?: string }) {
-  if (avatar) {
-    // eslint-disable-next-line @next/next/no-img-element
-    return (
-      <img
-        src={avatar}
-        alt=""
-        aria-hidden
-        className="h-6 w-6 shrink-0 rounded-full object-cover"
-      />
-    );
-  }
-  return (
-    <span
-      aria-hidden
-      className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-indigo-100 text-[10px] font-bold text-indigo-700"
-    >
-      {name[0]?.toUpperCase() ?? "?"}
-    </span>
-  );
-}
-
 function ClassRow({
   cls,
   activity,
@@ -867,7 +846,7 @@ function ClassRow({
       </td>
       <td className="px-3 py-3 text-muted-foreground">
         <span className="inline-flex items-center gap-1.5 whitespace-nowrap">
-          <PersonaAvatar name={persona.name} avatar={persona.avatar} />
+          <TutorFace name={persona.name} avatar={persona.avatar} size="sm" />
           {persona.name}
           {persona.inherited ? (
             <span className="text-muted-foreground/60">· default</span>

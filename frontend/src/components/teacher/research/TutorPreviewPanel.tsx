@@ -116,8 +116,8 @@ export function TutorPreviewPanel() {
               onClick={() => toggle(t.id)}
               className={
                 on
-                  ? "flex items-center gap-1.5 rounded border border-brand bg-brand/10 py-1 pl-1 pr-2 text-xs font-medium"
-                  : "flex items-center gap-1.5 rounded border border-border py-1 pl-1 pr-2 text-xs hover:bg-accent"
+                  ? "flex items-center gap-1.5 rounded border border-brand bg-brand/10 py-0.5 pl-0.5 pr-2 text-xs font-medium"
+                  : "flex items-center gap-1.5 rounded border border-border py-0.5 pl-0.5 pr-2 text-xs hover:bg-accent"
               }
             >
               <TutorFace avatar={t.persona?.avatar} name={t.displayName} size="sm" />

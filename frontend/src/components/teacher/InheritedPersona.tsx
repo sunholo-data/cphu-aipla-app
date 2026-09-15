@@ -11,6 +11,7 @@ import {
   getClass,
 } from "@/lib/teacherApi";
 import { INTERACTION_STYLE_LABEL } from "@/lib/personaDisplay";
+import { TutorFace } from "@/components/teacher/research/TutorFace";
 
 /**
  * Read-only display of the persona an activity inherits (1.1.32, Q4 =
@@ -79,7 +80,7 @@ export function InheritedPersona({ classId }: { classId: string }) {
       <div className="flex items-center gap-3 rounded-md border border-slate-200 bg-slate-50 px-3 py-2">
         {state === "resolved" && persona ? (
           <>
-            <Avatar name={persona.name} avatar={persona.avatar} />
+            <TutorFace name={persona.name} avatar={persona.avatar} size="md" />
             <div className="min-w-0">
               <p className="truncate text-sm font-medium text-slate-800">
                 {persona.name}
@@ -124,24 +125,3 @@ export function InheritedPersona({ classId }: { classId: string }) {
   );
 }
 
-function Avatar({ name, avatar }: { name: string; avatar?: string }) {
-  if (avatar) {
-    return (
-      // eslint-disable-next-line @next/next/no-img-element
-      <img
-        src={avatar}
-        alt=""
-        aria-hidden
-        className="h-8 w-8 shrink-0 rounded-full object-cover"
-      />
-    );
-  }
-  return (
-    <span
-      aria-hidden
-      className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-indigo-100 text-xs font-bold text-indigo-700"
-    >
-      {name[0]?.toUpperCase() ?? "?"}
-    </span>
-  );
-}
