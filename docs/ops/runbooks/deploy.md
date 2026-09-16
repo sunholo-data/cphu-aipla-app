@@ -3,32 +3,41 @@
 **How code reaches each environment.** For the one-time *creation* of an
 environment see [prod-cut.md](prod-cut.md); this is the routine path.
 
-> **Every `gcloud` command here needs `CLOUDSDK_ACTIVE_CONFIG_NAME=sunholo`.**
-> The default config points at the *template's* Aitana project and every AIPLA
-> call returns `PERMISSION_DENIED`. This is the single most common time-waster.
+> **Every `gcloud` command here needs a config whose account is `m@sunholo.com`
+> — the examples use `CLOUDSDK_ACTIVE_CONFIG_NAME=aipla` — and an explicit
+> `--project=aipla-<env>-2026`.** No AIPLA config is the *active* one on these
+> machines, so an unqualified call lands in the template's Aitana project (or in
+> AILANG) and returns `PERMISSION_DENIED`. Single most common time-waster.
 >
-> ✅ **It now exists on both machines** — the laptop and the studio
-> (`voightkampff@Voights-Mac-Studio`), verified 2026-09-14. The studio had only
-> `aitana` and `default` until then, which is what the 2026-09-09 note here used
-> to warn about; rather than keep documenting the gap it was created:
+> ✅ **`aipla` (→ `aipla-dev-2026`) was created on the studio
+> (`voightkampff@Voights-Mac-Studio`) 2026-09-16**, and this runbook now names
+> it everywhere `sunholo` used to appear.
 >
 > ```bash
-> gcloud config configurations create sunholo --no-activate   # --no-activate:
-> CLOUDSDK_ACTIVE_CONFIG_NAME=sunholo gcloud config set account m@sunholo.com
-> CLOUDSDK_ACTIVE_CONFIG_NAME=sunholo gcloud config set project aipla-dev-2026
+> gcloud config configurations create aipla --no-activate   # --no-activate: see below
+> CLOUDSDK_ACTIVE_CONFIG_NAME=aipla gcloud config set account m@sunholo.com
+> CLOUDSDK_ACTIVE_CONFIG_NAME=aipla gcloud config set project aipla-dev-2026
 > ```
 >
+> ⚠️ **`sunholo` is no longer the AIPLA config — on the studio.** It still
+> exists and still carries the right ACCOUNT, but on 2026-09-16 its project was
+> repointed at `ailang-multivac-dev`, so the name stopped saying what it does.
+> It keeps working for every command in this runbook (all of them pass
+> `--project`), and it may still point at `aipla-dev-2026` on the laptop — which
+> is exactly the ambiguity `aipla` exists to remove. Prefer `aipla`.
+>
 > `--no-activate` matters on a shared box: creating a config normally makes it
-> active, which would switch other agents' sessions off `aitana` underneath them.
+> active, which would switch other agents' sessions off theirs underneath them.
 > Every command in this runbook names the config explicitly anyway.
 >
-> ⚠️ **Do not assume it on a THIRD machine.** Setting the variable to a config
-> that is absent prints `Could not open the configuration file` and then fails
-> with *"You do not currently have an active account selected"* — which reads
-> like an auth problem and is not. **Check `gcloud config configurations list`
-> first.** The config is a convenience over the account, which is what actually
-> carries permission: passing `--project=aipla-<env>-2026` explicitly works on
-> any machine where `m@sunholo.com` is authenticated, and is immune to whichever
+> ⚠️ **Do not assume `aipla` on another machine** — it was created on the
+> studio and nowhere else. Setting the variable to a config that is absent
+> prints `Could not open the configuration file` and then fails with *"You do
+> not currently have an active account selected"* — which reads like an auth
+> problem and is not. **Check `gcloud config configurations list` first.** The
+> config is a convenience over the account, which is what actually carries
+> permission: passing `--project=aipla-<env>-2026` explicitly works on any
+> machine where `m@sunholo.com` is authenticated, and is immune to whichever
 > config happens to be active. Belt and braces is to do both.
 
 > ⚠️ **Cloud Build here is REGIONAL — always pass `--region=europe-north1`**
@@ -94,11 +103,11 @@ API disabled). Takes **~15–20 min**.
 
 ```bash
 # Watch it (Cloud Build is REGIONAL — a global list returns empty, which is the trap)
-CLOUDSDK_ACTIVE_CONFIG_NAME=sunholo gcloud builds list \
+CLOUDSDK_ACTIVE_CONFIG_NAME=aipla gcloud builds list \
   --project=aipla-dev-2026 --region=europe-north1 --limit=5 \
   --format="table(status,createTime.date('%H:%M'),substitutions.SHORT_SHA)"
 
-CLOUDSDK_ACTIVE_CONFIG_NAME=sunholo ./scripts/smoke-deployed.sh dev all
+CLOUDSDK_ACTIVE_CONFIG_NAME=aipla ./scripts/smoke-deployed.sh dev all
 ```
 
 **A red test blocks every dev deploy.** `cloudbuild.yaml` opens with a CI gate
@@ -148,11 +157,11 @@ Fires **`aipla-test-release`** (frontend+backend) and **`aipla-test-sandbox-rele
 (the MCP-app artefact host), both matching `^v.*$`. Same CI gate as dev.
 
 ```bash
-CLOUDSDK_ACTIVE_CONFIG_NAME=sunholo gcloud builds list \
+CLOUDSDK_ACTIVE_CONFIG_NAME=aipla gcloud builds list \
   --project=aipla-test-2026 --region=europe-north1 --limit=4 \
   --format="table(status,createTime.date('%H:%M'),substitutions.TAG_NAME)"
 
-CLOUDSDK_ACTIVE_CONFIG_NAME=sunholo ./scripts/smoke-deployed.sh test all
+CLOUDSDK_ACTIVE_CONFIG_NAME=aipla ./scripts/smoke-deployed.sh test all
 ```
 
 **The same tag does NOT deploy the prod APP.** `aipla-prod-release` is disabled
@@ -329,11 +338,11 @@ project**:
 equality is the whole point:
 
 ```bash
-CLOUDSDK_ACTIVE_CONFIG_NAME=sunholo gcloud run services describe aipla-v01-frontend \
+CLOUDSDK_ACTIVE_CONFIG_NAME=aipla gcloud run services describe aipla-v01-frontend \
   --project=aipla-prod-2026 --region=europe-north1 \
   --format="value(spec.template.spec.containers[].image)"      # prod: backend@sha256:…
 
-CLOUDSDK_ACTIVE_CONFIG_NAME=sunholo gcloud artifacts docker images describe \
+CLOUDSDK_ACTIVE_CONFIG_NAME=aipla gcloud artifacts docker images describe \
   europe-north1-docker.pkg.dev/aipla-test-2026/cphu/aipla-v01-frontend/backend:v0.1.4 \
   --format='value(image_summary.digest)'                       # must be the SAME sha256
 ```
@@ -373,7 +382,7 @@ special case. The immutable-artifact model makes it nearly free.
 it gets its own stable URL, with no traffic taken from the live one:
 
 ```bash
-CLOUDSDK_ACTIVE_CONFIG_NAME=sunholo gcloud run services update-traffic aipla-v01-frontend \
+CLOUDSDK_ACTIVE_CONFIG_NAME=aipla gcloud run services update-traffic aipla-v01-frontend \
   --project=aipla-prod-2026 --region=europe-north1 \
   --set-tags=armb=<revision-name>          # live traffic is untouched
 # → https://armb---aipla-v01-frontend-<hash>-lz.a.run.app
@@ -437,7 +446,7 @@ whose secret Terraform would otherwise have to hold in plaintext state.
 step. To seed *without* a deploy (a `SKILL.md` tweak you want live now):
 
 ```bash
-CLOUDSDK_ACTIVE_CONFIG_NAME=sunholo make seed ENV=dev
+CLOUDSDK_ACTIVE_CONFIG_NAME=aipla make seed ENV=dev
 ```
 
 **Data migrations are separate and manual** — they write Firestore directly via
@@ -460,10 +469,10 @@ make seed-demo-codes ENV=dev                            # demo join codes lapse 
 Cloud Run keeps revisions; the fastest undo is a traffic shift, not a rebuild:
 
 ```bash
-CLOUDSDK_ACTIVE_CONFIG_NAME=sunholo gcloud run revisions list \
+CLOUDSDK_ACTIVE_CONFIG_NAME=aipla gcloud run revisions list \
   --project=aipla-prod-2026 --region=europe-north1 --service=aipla-v01-frontend --limit=5
 
-CLOUDSDK_ACTIVE_CONFIG_NAME=sunholo gcloud run services update-traffic aipla-v01-frontend \
+CLOUDSDK_ACTIVE_CONFIG_NAME=aipla gcloud run services update-traffic aipla-v01-frontend \
   --project=aipla-prod-2026 --region=europe-north1 --to-revisions=<previous>=100
 ```
 
@@ -477,7 +486,7 @@ in `infrastructure/env/cloudbuild.tf` and re-apply if a promote must be bypassed
 
 | Symptom | Cause |
 |---|---|
-| Every `gcloud` says `PERMISSION_DENIED` | Wrong gcloud config — prefix `CLOUDSDK_ACTIVE_CONFIG_NAME=sunholo` |
+| Every `gcloud` says `PERMISSION_DENIED` | Wrong gcloud config — prefix `CLOUDSDK_ACTIVE_CONFIG_NAME=aipla` |
 | `gcloud builds list` returns nothing | Cloud Build is regional — pass `--region=europe-north1` |
 | Push succeeded, no new revision | CI gate failed, or it is still building (~15–20 min) |
 | Shipped feature works in tests, deployed app shows old skill data | Seed didn't run — check the `aipla-seed-skills` job |

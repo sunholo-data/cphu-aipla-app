@@ -9,11 +9,18 @@ Design: [1.1.75 public-access-tiers-and-spend-control](../../design/aipla/v1.1.0
 > the *template's* project, so an AIPLA call without `--project` returns
 > `PERMISSION_DENIED`. Same first line as [deploy.md](deploy.md), same reason.
 >
-> ⚠️ This runbook used to say `CLOUDSDK_ACTIVE_CONFIG_NAME=sunholo`. **There is
-> no `sunholo` config on M's laptop** (2026-09-03: the configs are `aitana` and
-> `default`, both already on `m@sunholo.com`), so that prefix silently created
-> an empty config and made every command here fail for a reason the runbook did
-> not explain. Set `--project` explicitly instead.
+> ⚠️ **The config name has moved twice — `--project` is the part that never
+> lies.** This runbook said `CLOUDSDK_ACTIVE_CONFIG_NAME=sunholo` until
+> 2026-09-03, when M's laptop turned out to have no such config (only `aitana`
+> and `default`, both already on `m@sunholo.com`) and the prefix silently
+> created an empty one — every command failing for a reason the runbook did not
+> explain. A `sunholo` config was then created on the studio (2026-09-14) and
+> repointed at `ailang-multivac-dev` (2026-09-16), so today it carries the right
+> account and the wrong project. The examples below now name **`aipla`**
+> (→ `aipla-dev-2026`, created on the studio 2026-09-16; see
+> [deploy.md](deploy.md) for how to create it). On any machine that lacks it,
+> drop the prefix — the explicit `--project` below is what actually selects the
+> environment, and it works wherever `m@sunholo.com` is authenticated.
 
 > **THERE IS NOW AN IN-APP ROUTE — prefer it.** Since 1.1.76 (shipped
 > 2026-09-03) a **programme admin** grants, revokes and re-caps from
@@ -68,11 +75,11 @@ Every command below hits `/api/admin/*`, which is gated on an allowlisted
 
 ```bash
 export ENV=prod                                  # dev | test | prod
-export URL=$(CLOUDSDK_ACTIVE_CONFIG_NAME=sunholo gcloud run services describe \
+export URL=$(CLOUDSDK_ACTIVE_CONFIG_NAME=aipla gcloud run services describe \
   aipla-v01-frontend --project=aipla-$ENV-2026 --region=europe-north1 \
   --format='value(status.url)')
 
-export AIPLATFORM_ID_TOKEN=$(CLOUDSDK_ACTIVE_CONFIG_NAME=sunholo \
+export AIPLATFORM_ID_TOKEN=$(CLOUDSDK_ACTIVE_CONFIG_NAME=aipla \
   gcloud auth print-identity-token \
   --impersonate-service-account=aipla-v6@aipla-$ENV-2026.iam.gserviceaccount.com \
   --audiences="$URL" --include-email)
@@ -282,7 +289,7 @@ you have watched usage; `--uncapped` exists if you truly need it, and warns.
 |---|---|
 | `Error: ... 403` on any admin call | Token minted without `--include-email`, or you are not in `admin_operator_members` |
 | `404` with a page of HTML in it | The base URL is missing `/api/proxy`. The backend is a sidecar behind the frontend service, not a service of its own |
-| `'prod' URL is a placeholder and gcloud could not resolve...` | gcloud is on the wrong configuration. `CLOUDSDK_ACTIVE_CONFIG_NAME=sunholo` |
+| `'prod' URL is a placeholder and gcloud could not resolve...` | gcloud is on the wrong configuration. `CLOUDSDK_ACTIVE_CONFIG_NAME=aipla` |
 | `no such command 'list-requests'` | **A stale CLI install.** `make cli-install` — it bakes in `--no-cache`, which is exactly why this failure mode exists |
 | Teacher still sees the recorded demo after a grant | They have not reloaded (the claim lands on the next `/api/teacher/bootstrap`) — **or** they signed in with a different address than the one granted. Check the address before assuming the reload |
 | `404 ... has no active grant on the access register` from `invite-password` | Working as designed — `grant-access` that email first |

@@ -141,8 +141,9 @@ policy of record is [security-monitoring-pipeline.md](implemented/security-monit
   deploy prod" is true of the app and false of the sandbox.
 - **Cloud Build is regional.** Without `--region=europe-north1` you get `Listed 0 items.` and
   exit 0 — indistinguishable from "no builds".
-- **`CLOUDSDK_ACTIVE_CONFIG_NAME=sunholo` does not exist on every machine.** The failure reads
-  as an auth error and is not; pass `--project` explicitly.
+- **The gcloud config name is not portable.** `sunholo` was the name until 2026-09-16 and now
+  points at AILANG; the AIPLA one is `aipla`, and it exists only on the studio. A missing config
+  fails as what reads like an auth error and is not; pass `--project` explicitly.
 
 ## Judgement calls a new session should not silently reverse
 

@@ -25,9 +25,12 @@ set -euo pipefail
 if ! command -v gcloud >/dev/null 2>&1 && [ -x "$HOME/dev/google-cloud-sdk/bin/gcloud" ]; then
   PATH="$HOME/dev/google-cloud-sdk/bin:$PATH"
 fi
-# The default gcloud config points at the template's project — see the ops
-# runbook's first line. Inherit an explicit choice, else force the right one.
-export CLOUDSDK_ACTIVE_CONFIG_NAME="${CLOUDSDK_ACTIVE_CONFIG_NAME:-sunholo}"
+# The ACTIVE gcloud config is not an AIPLA one — see the ops runbook's first
+# line. Inherit an explicit choice, else force the right one. (Was `sunholo`
+# until 2026-09-16; that config still holds the right ACCOUNT but its project
+# now points at ailang-multivac-dev, so the name stopped saying what it does.
+# Only the account matters here — every call below passes --project.)
+export CLOUDSDK_ACTIVE_CONFIG_NAME="${CLOUDSDK_ACTIVE_CONFIG_NAME:-aipla}"
 
 ENV="${1:-}"
 case "$ENV" in

@@ -40,9 +40,9 @@ api() { # $1=project $2=path
     "https://identitytoolkit.googleapis.com/admin/v2/projects/$1/$2"
 }
 
-TOKEN="$(CLOUDSDK_ACTIVE_CONFIG_NAME=sunholo gcloud auth print-access-token 2>/dev/null || true)"
+TOKEN="$(CLOUDSDK_ACTIVE_CONFIG_NAME=aipla gcloud auth print-access-token 2>/dev/null || true)"
 if [ -z "$TOKEN" ]; then
-  echo "ERROR: no gcloud access token (try: CLOUDSDK_ACTIVE_CONFIG_NAME=sunholo gcloud auth login)" >&2
+  echo "ERROR: no gcloud access token (try: CLOUDSDK_ACTIVE_CONFIG_NAME=aipla gcloud auth login)" >&2
   exit 2
 fi
 
@@ -58,7 +58,7 @@ for ENV in "${ENVS[@]}"; do
 
   # The origin the app is actually served from — the thing that must be
   # authorized. Resolved live so it can never drift from a hardcoded list.
-  URL="$(CLOUDSDK_ACTIVE_CONFIG_NAME=sunholo gcloud run services describe aipla-v01-frontend \
+  URL="$(CLOUDSDK_ACTIVE_CONFIG_NAME=aipla gcloud run services describe aipla-v01-frontend \
         --project="$PROJECT" --region=europe-north1 --format='value(status.url)' 2>/dev/null || true)"
   HOST="${URL#https://}"
 
