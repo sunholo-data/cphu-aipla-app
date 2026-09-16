@@ -2,10 +2,11 @@
 
 **Status**: **Design (OPEN)** — **1.1.107**. New 2026-09-09 from M's steer
 **Priority**: **P1** — it is the piece that turns the seven-tutor library from a *configuration* into an *instrument*, and it is the only item in the tutor workstream that produces research output from **existing** data with no classroom and no legal gate
-**Estimated**: ~3–4d (M0 dialogue-unit evidence ~1d · M1 seven framework lenses ~1d · M2 fan-out + profile ~0.75d · M3 the profile view ~0.75d · M4 teacher-training surface ~0.5d)
+**Estimated**: ~3.5–4.5d (M0 dialogue-unit evidence ~1d · M1 seven framework lenses ~1d · M2 fan-out + profile ~0.75d · M3 the profile view ~0.75d · M4 teacher-training surface ~0.5d · **M5 real-session single-framework case ~0.5d, new 2026-09-16**)
 **Scope**: Backend — a **third evidence rule** (dialogue units, not the student-initiated partition), seven framework rubric definitions, and a fan-out runner over the shipped scorer; frontend — a profile view, and the same profile behind a teacher-facing preview. **No new scoring engine and no new store**
-**Dependencies**: **RUBRIC-1 + RUBRIC-2 (SHIPPED)** — `analytics/session_rubric.py` free-form researcher rubrics (`upsert_rubric_def`, `build_generic_prompt`, `LensConfig.family` / `output_keys` / `score_scale`), `analytics/rubric_runs.py` (the run store this reuses unchanged); [1.1.91](researcher-configurable-tutors.md) (**M0's `constructs → behaviours` is the same structure a fit lens scores against — build the two together**); [1.1.92](session-benchmark-tutor-activity.md) (the sibling question, same store); [`docs/literature/tp-framework/`](../../../literature/tp-framework/README.md) (the seven papers)
+**Dependencies**: **RUBRIC-1 + RUBRIC-2 (SHIPPED)** — `analytics/session_rubric.py` free-form researcher rubrics (`upsert_rubric_def`, `build_generic_prompt`, `LensConfig.family` / `output_keys` / `score_scale`), `analytics/rubric_runs.py` (the run store this reuses unchanged); [1.1.91](researcher-configurable-tutors.md) (**M0's `constructs → behaviours` is the same structure a fit lens scores against — build the two together**); [1.1.92](session-benchmark-tutor-activity.md) (the sibling question, same store); [`docs/literature/tp-framework/`](../../../literature/tp-framework/README.md) (the seven papers); [1.1.65 rubric-results-in-product](rubric-results-in-product.md) (**M5's consumer — the session report's teacher band**)
 **Created**: 2026-09-09
+**Updated**: 2026-09-16 — M5 added, scoping the "real-session" case M4 deliberately deferred. Source: [notes-2026-09-16.md](../../../notes-2026-09-16.md) — *"the sessions report should also include an analysis of how the teaching framework was used and how much it was stuck to — the report should only report on the teaching framework that tutor used, it doesn't need to compare across."*
 **Source**: M, 2026-09-09 — *"in our scoring of sessions be able to switch analysis to see what those tutor types could do under that framework — maybe a % score of how much that conversation fits with each? we can use that then for teacher training"*
 
 ## Problem Statement
@@ -163,6 +164,44 @@ crosses the R1 gate [1.1.57](competency-rubrics.md) holds — *"anything surface
 in the teacher UI in rubric vocabulary stays R1-gated"* — plus the trust question
 in the third finding above. **M4 is the preview case only.** The real-session
 case wants JB's view before it is designed, not after.
+
+### M5 — the real-session case, scoped 2026-09-16 ~0.5d
+
+**The view this doc was waiting for, from the 2026-09-16 meeting:** the session
+report should include an analysis of how faithfully the tutor followed its
+teaching framework — and **only the one framework that session ran under**,
+never the seven-way radar. *"The report should only report on the teaching
+framework that tutor used, it doesn't need to compare across."*
+
+That single constraint changes the shape of this milestone a lot from M2–M3's:
+
+- **No fan-out, no seven-judge cost.** M2's "loop over the shipped function,
+  one run per (session × framework)" collapses to **one call**, for the
+  `framework_id` TUTOR-5 already stamped on the session. The cost concern M2
+  raises (*"seven judges per session... the multiplier is seven"*) does not
+  apply here at all — this is the cheap case, not the expensive one.
+- **This is fidelity, not the radar.** M3's "switch the lens on one
+  conversation" (read the same dialogue as ESRU, then as POE) is explicitly
+  **not** what's wanted in the report — a teacher does not want to know their
+  ESRU-configured tutor's session also scores 40% as POE, they want to know
+  *did it do ESRU well*. Single-lens output only.
+- **Feeds [1.1.65 rubric-results-in-product](rubric-results-in-product.md)'s
+  teacher band**, not a new researcher surface — `competency_notes` (or a
+  sibling field beside it, R1-gated the same way) gains a plain-language
+  fidelity read: which framework, what it looked like in this session, where
+  it drifted. The fit *score* stays behind the R1 gate exactly like a
+  competency score does (finding 3 above still holds — fit and quality must
+  never share a cell, and neither should read as a grade to a teacher about
+  their own practice); the **prose** description of adherence is what's
+  teacher-facing, same split 1.1.65 already uses for competency.
+- **Answers the R1/trust question M4 deferred, for this one case.** Showing a
+  teacher *"your ESRU tutor mostly elicited and recognised, but skipped the
+  use phase in the second half"* is lower-stakes than a numeric fidelity score
+  or a cross-framework comparison — it's a description of what the *tutor*
+  did, not a judgement of the teacher or the student, which is why this can
+  ship ahead of the harder open question M4 raised (fidelity feedback ABOUT a
+  teacher's own configured tutor, at scale, is still a JB/AR call — this
+  milestone is one session, one framework, descriptive).
 
 ## Testing
 
