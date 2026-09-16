@@ -1,5 +1,6 @@
 import type { Metadata, Viewport } from "next";
 import { EnvironmentBanner } from "@/components/EnvironmentBanner";
+import { GlobalErrorReporter } from "@/components/GlobalErrorReporter";
 import { LocalModeBanner } from "@/components/LocalModeBanner";
 import { ServiceWorkerRegistration } from "@/components/ServiceWorkerRegistration";
 import { BRANDING } from "@/lib/branding";
@@ -56,6 +57,9 @@ export default function RootLayout({
           below the fold until the toolbar retracts. `100dvh` tracks the live
           viewport. Desktop is unaffected — the two units are equal there. */}
       <body className="font-sans bg-background text-foreground h-dvh flex flex-col antialiased">
+        {/* 1.1.96 M-1 — window.onerror + unhandledrejection. Renders nothing.
+            Mounted above everything else so a throw in a banner is still caught. */}
+        <GlobalErrorReporter />
         <ServiceWorkerRegistration />
         <LocalModeBanner />
         <EnvironmentBanner />

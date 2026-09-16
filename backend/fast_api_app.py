@@ -322,6 +322,7 @@ from protocols.analytics_routes import router as analytics_router  # noqa: E402
 from protocols.artefact_routes import router as artefact_router  # noqa: E402
 from protocols.checklist_progress_routes import router as checklist_progress_router  # noqa: E402
 from protocols.classes_routes import router as classes_router  # noqa: E402
+from protocols.client_error_routes import router as client_error_router  # noqa: E402
 from protocols.concept_progress_routes import router as concept_progress_router  # noqa: E402
 from protocols.curriculum_routes import router as curriculum_router  # noqa: E402
 from protocols.frameworks_routes import router as frameworks_router  # noqa: E402
@@ -391,6 +392,7 @@ app.include_router(frameworks_router)
 app.include_router(tutors_router)
 app.include_router(artefact_router)
 app.include_router(classes_router)
+app.include_router(client_error_router)
 app.include_router(teacher_bootstrap_router)
 app.include_router(analytics_router)
 app.include_router(insights_router)
