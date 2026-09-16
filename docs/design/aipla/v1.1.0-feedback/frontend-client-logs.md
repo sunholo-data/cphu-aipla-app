@@ -11,6 +11,24 @@
 
 ## Problem Statement
 
+> ⚠️ **Correction, 2026-09-16.** The motivating example below is **wrong in its
+> load-bearing claim.** The upload *did* leave the browser: prod logs show
+> `POST /api/proxy/api/documents/upload` → 200 in 4.3 s for `Doc4_compressed.pdf`
+> at 12:22:58 on 2026-09-15, and the parsed row sits in prod Firestore. The
+> "zero requests" finding came from a log query filtered on the group, a field
+> the access-log line does not carry. The real cause was server-side and fully
+> visible to anyone reading the *unfiltered* log and the Firestore row:
+> `skill_id` read as a query parameter, so every upload was stored with
+> `skillId=""` and the workbench could not list it (1.1.121, SEQUENCE.md). What
+> *would* have been invisible to a client logger too: the request succeeded.
+>
+> The argument for this doc survives in a weaker form — a hung promise fires
+> neither `onerror` nor `unhandledrejection`, so ERRVIS-1 (shipped the same day)
+> saw nothing during the 16 Sept demo, and that class is still unlogged — but
+> the **P1 was set on a false premise and should be re-decided.** The rest of
+> this section is left as written, as the record of the reasoning.
+
+
 A student in `busy-garden-11` tried to upload a 65 KB PDF — an allowed type,
 well under any limit — into the document workbench, and nothing happened. No
 error on screen. And on the server: **nothing**. Fourteen days of prod logs

@@ -30,6 +30,10 @@ const BLOCKED_REQUEST_HEADERS = new Set([
   "te",
   "trailer",
   "upgrade",
+  // `Expect: 100-continue` (curl -F, some HTTP clients; never a browser) is
+  // rejected outright by undici (UND_ERR_NOT_SUPPORTED) → every such upload
+  // became a 502 "backend_unreachable". The sidecar never needed it.
+  "expect",
   // Next/fetch-internal
   "x-middleware-invoke",
   "x-invoke-path",
@@ -90,6 +94,14 @@ export async function forwardToBackend(
     headers: filterRequestHeaders(req.headers),
     // Avoid Next fetch cache — we're a proxy, not a CDN.
     cache: "no-store",
+    // We forward `Authorization` ourselves; fetch's own credential handling
+    // must stay out of it. Without this, newer undici (Node ≥ 24; seen on 26)
+    // treats a 401 from the sidecar as an HTTP-auth challenge and tries to
+    // REPLAY the request — impossible with a streamed body — so the fetch
+    // throws "expected non-null body source" and the 401 the client needed
+    // (the group-token refresh keys off it) surfaces as a 502 instead.
+    // Verified 2026-09-16: every multipart POST with a stale token 502'd.
+    credentials: "omit",
     // Required when forwarding a streaming body in Node's fetch.
     // @ts-expect-error — `duplex` is valid on Node's fetch but not in the DOM lib types.
     duplex: "half",

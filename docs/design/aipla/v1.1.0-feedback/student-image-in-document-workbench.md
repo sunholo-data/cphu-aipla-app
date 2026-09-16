@@ -15,7 +15,18 @@ scoped image-support gap surfaced during that incident's triage
 
 ## Problem Statement
 
-### What actually happened — CORRECTED after confirming the real session
+### What actually happened — CORRECTED again, 2026-09-16: root cause found
+
+> The section below ends in "root cause unknown". It is now known, and it was
+> neither of the theories here nor invisible: the upload **succeeded** (200,
+> parsed) and was stored with `skillId=""` because the route read `skill_id` as
+> a query parameter while the client sent a form field — so the workbench's
+> list could never return it. The "zero requests reached the route" claim was a
+> mis-filtered log query. Full account: SEQUENCE.md, "Prod feedback,
+> 2026-09-15", entry 1.1.121. This doc's own scope (images in the workbench)
+> is unaffected and stays P2.
+
+### What actually happened — CORRECTED after confirming the real session (superseded)
 
 The first pass at this doc theorized (wrongly) that Aswin had tried to attach
 an **image**, based on wording alone ("cannot upload the document in the

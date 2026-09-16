@@ -65,7 +65,7 @@ describe("StudentDocumentWorkbench (1.1.45 M3b)", () => {
     listMyDocuments
       .mockResolvedValueOnce([])
       .mockResolvedValueOnce([{ docId: "new1", name: "min-opgave.pdf", sourceFormat: "pdf" }]);
-    uploadDocument.mockResolvedValue({ docId: "new1", name: "min-opgave.pdf" });
+    uploadDocument.mockResolvedValue({ docId: "new1", name: "min-opgave.pdf", status: "parsed" });
     const { container } = render(<StudentDocumentWorkbench skillId="phys-2" />);
     await screen.findByText(/ikke uploadet nogen filer/i);
     const input = container.querySelector('input[type="file"]') as HTMLInputElement;
@@ -109,6 +109,21 @@ describe("StudentDocumentWorkbench (1.1.45 M3b)", () => {
     const input = container.querySelector('input[type="file"]') as HTMLInputElement;
     fireEvent.change(input, { target: { files: [new File(["x"], "a.pdf")] } });
     expect(await screen.findByRole("alert")).toHaveTextContent(/Kunne ikke uploade/);
+  });
+
+  it("says so when the file was stored but could not be parsed (200 + status:failed)", async () => {
+    // prod 2026-09-16: every .docx failed on an expired parse key; the route
+    // still answers 200, the list (parsed-only) stays empty, and without this
+    // message the student sees the spinner stop and nothing else.
+    listMyDocuments.mockResolvedValue([]);
+    uploadDocument.mockResolvedValueOnce({ docId: "d9", name: "essay.docx", status: "failed", error: "key" });
+    const { container } = render(<StudentDocumentWorkbench skillId="s" />);
+    await screen.findByText(/ikke uploadet nogen filer/i);
+    const input = container.querySelector('input[type="file"]') as HTMLInputElement;
+    fireEvent.change(input, { target: { files: [new File(["x"], "essay.docx")] } });
+    expect(await screen.findByRole("alert")).toHaveTextContent(/kunne ikke læses/);
+    // The surface is intact — the student can try another file.
+    expect(screen.getAllByRole("button", { name: /Upload fil/ }).length).toBeGreaterThan(0);
   });
 
   it("tells the student WHY an unsupported file type was rejected", async () => {

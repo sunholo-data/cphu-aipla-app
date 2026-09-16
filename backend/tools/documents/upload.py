@@ -17,7 +17,7 @@ from datetime import UTC, datetime
 from pathlib import PurePosixPath
 from typing import Annotated
 
-from fastapi import APIRouter, Depends, HTTPException, UploadFile
+from fastapi import APIRouter, Depends, Form, HTTPException, UploadFile
 from pydantic import BaseModel, Field
 
 import db.folders as folders_db
@@ -271,8 +271,17 @@ def _store_document(
 async def upload_document(
     user: _CurrentUser,
     file: UploadFile,
-    skill_id: str = "",
-    folder_id: str = "",
+    # Every caller (documentApi.ts, UploadDropZone.tsx, `aiplatform docs upload`)
+    # sends these as multipart FORM fields next to the file. They MUST be declared
+    # `Form()`: a bare `str` here is a QUERY parameter to FastAPI, and a form
+    # field of the same name is silently ignored — so from the fork's initial
+    # commit to 2026-09-16 every upload was stored with skillId="" and the
+    # workbench (which lists by skillId) could never show a file it had just
+    # uploaded. Aswin's "I cannot upload the document" (busy-garden-11,
+    # 2026-09-15): the upload returned 200, the file parsed, and it was invisible.
+    # Guard: tests/api_tests/test_upload_reaches_the_workbench_list.py.
+    skill_id: Annotated[str, Form()] = "",
+    folder_id: Annotated[str, Form()] = "",
 ) -> ParsedDocumentResponse:
     """Upload a document, parse it with AILANG Parse, store in Firestore.
 

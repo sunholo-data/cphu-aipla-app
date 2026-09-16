@@ -59,6 +59,12 @@ const ACCEPT_LABEL = "PDF, Word, Excel, PowerPoint, tekst, Markdown eller CSV";
 const MAX_UPLOAD_BYTES = 20 * 1024 * 1024;
 const MAX_UPLOAD_MB = MAX_UPLOAD_BYTES / (1024 * 1024);
 
+// A 200 with `status: "failed"`: the bytes are stored but the parse failed, so
+// the file is neither listed nor readable by the tutor. Said out loud, because
+// otherwise it is indistinguishable from "nothing happened".
+const PARSE_FAILED_MESSAGE =
+  "Filen blev uploadet, men kunne ikke læses, så tutoren kan ikke se den. Prøv at gemme den som PDF og uploade igen.";
+
 // The backend 400s with a specific reason (wrong file type is the only case
 // reachable here today — the input's `accept` filters the OS picker, but some
 // mobile browsers ignore it loosely). Give the student that reason instead of
@@ -137,8 +143,12 @@ export function StudentDocumentWorkbench({
     setBusy(true);
     setActionError(null);
     try {
-      const { docId } = await uploadDocument(file, skillId, role);
+      const { docId, status } = await uploadDocument(file, skillId, role);
       await refresh(docId);
+      // Stored but unreadable: only a parsed document is listed or reaches the
+      // tutor, so without this line a failed parse looks exactly like "nothing
+      // happened" (prod 2026-09-16 — every .docx, expired parse key).
+      if (status === "failed") setActionError(PARSE_FAILED_MESSAGE);
     } catch (err) {
       setActionError(uploadErrorMessage(err));
     } finally {

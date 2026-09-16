@@ -130,3 +130,57 @@ class TestUploadBucketResolution:
 
         assert resp.status_code == 413
         assert store_calls == []
+
+
+class TestFormFieldsReachTheRecord:
+    """skill_id / folder_id arrive as multipart FORM fields (that is how every
+    caller sends them — documentApi.ts, UploadDropZone.tsx, the CLI). A bare
+    `str` parameter is a QUERY param to FastAPI, so the form field was silently
+    dropped and every upload was stored with skillId="" — invisible to the
+    workbench, which lists by skillId (busy-garden-11, 2026-09-15)."""
+
+    def test_skill_id_form_field_is_stored_on_the_record(self, client: TestClient):
+        stored = []
+
+        def fake_store(doc_id, *, skill_id, **kwargs):
+            stored.append(skill_id)
+
+        with (
+            patch("tools.documents.upload.resolve_documents_bucket", return_value="bucket"),
+            patch("tools.documents.upload._upload_to_gcs"),
+            patch("tools.documents.upload._run_parse", return_value=("parsed", [], 10, None)),
+            patch("tools.documents.upload._store_document", side_effect=fake_store),
+            patch("tools.documents.upload.query_documents", return_value=[]),
+            patch("db.folders.ensure_default_folder", return_value="folder1"),
+        ):
+            resp = client.post(
+                "/api/documents/upload",
+                files=_file("essay.pdf"),
+                data={"skill_id": "act-84ba348b7d561024"},  # exactly what documentApi.ts appends
+            )
+
+        assert resp.status_code == 200
+        assert stored, "the record was never written"
+        assert all(s == "act-84ba348b7d561024" for s in stored), stored
+
+    def test_folder_id_form_field_targets_that_folder(self, client: TestClient):
+        ensure_calls = []
+
+        with (
+            patch("tools.documents.upload.resolve_documents_bucket", return_value="bucket"),
+            patch("tools.documents.upload._upload_to_gcs"),
+            patch("tools.documents.upload._run_parse", return_value=("parsed", [], 10, None)),
+            patch("tools.documents.upload._store_document"),
+            patch("tools.documents.upload.query_documents", return_value=[]),
+            patch("db.folders.ensure_default_folder", side_effect=lambda uid: ensure_calls.append(uid) or "auto"),
+        ):
+            resp = client.post(
+                "/api/documents/upload",
+                files=_file("essay.pdf"),
+                data={"folder_id": "folder-xyz"},
+            )
+
+        assert resp.status_code == 200
+        assert resp.json()["folderId"] == "folder-xyz"
+        # A caller-supplied folder must not be replaced by the auto-created default.
+        assert ensure_calls == []

@@ -98,13 +98,33 @@ export async function listMyDocuments(
   return data.documents ?? [];
 }
 
+/** What the upload route reports back. `status` is the PARSE outcome: the file
+ *  is stored either way, but only a `"parsed"` document is listed by
+ *  `listMyDocuments` (and readable by the tutor). A `"failed"` parse used to be
+ *  dropped here — the caller saw a docId, re-listed, and the file was simply
+ *  absent with no explanation (prod, 2026-09-16: every .docx failed on an
+ *  expired AILANG Parse key and the student saw nothing). */
+export interface UploadedDocument {
+  docId: string;
+  name: string;
+  status: "parsed" | "failed" | "pending" | string;
+  /** The backend's parse error, when `status === "failed"`. */
+  error?: string;
+}
+
 /** Upload one document for an activity; resolves with its new docId. Reuses the
- *  shared 1.1.7 upload → AILANG Parse → `parsed_documents` path, group-owned. */
+ *  shared 1.1.7 upload → AILANG Parse → `parsed_documents` path, group-owned.
+ *
+ *  Wire contract (pinned by `__tests__/documentApi.test.ts` here and by
+ *  `tests/api_tests/test_upload_reaches_the_workbench_list.py` on the backend):
+ *  `skill_id` travels as a multipart FORM field, not a query parameter. The
+ *  route must declare it `Form()` — for four months it did not, and every
+ *  upload was stored with an empty skillId the workbench could not list. */
 export async function uploadDocument(
   file: File,
   skillId: string,
   role: "student" | "teacher" = "student",
-): Promise<{ docId: string; name: string }> {
+): Promise<UploadedDocument> {
   const body = new FormData();
   body.append("file", file);
   if (skillId) body.append("skill_id", skillId);
@@ -119,11 +139,16 @@ export async function uploadDocument(
       .catch(() => undefined);
     throw new DocumentApiError(detail ?? "Couldn't upload that file.", resp.status);
   }
-  const data = (await resp.json()) as { docId?: string };
+  const data = (await resp.json()) as { docId?: string; status?: string; error?: string | null };
   if (!data.docId) {
     throw new DocumentApiError("Upload returned no document id.", resp.status);
   }
-  return { docId: data.docId, name: file.name };
+  return {
+    docId: data.docId,
+    name: file.name,
+    status: data.status ?? "parsed",
+    error: data.error ?? undefined,
+  };
 }
 
 /** Hard-delete one of the caller's documents (owner-ACL'd). */

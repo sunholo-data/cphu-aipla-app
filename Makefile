@@ -1,4 +1,4 @@
-.PHONY: tf-plan tf-apply tf-local tf-fmt check-iam-posture check-spend-ceiling spend-ceiling check-domains deploy-status dev dev-local dev-recompile dev-status dev-stop proxy-check logs cloud-logs cloud-errors cloud-build verify-chat-logs smoke-session-persistence smoke-chat-resume smoke-curriculum-content smoke-teacher-cli help cli-install cli-reinstall cli-uninstall cli-doctor cli-selftest-mock cli-selftest-live cli-selftest seed seed-job seed-demo-codes check-role list-roles grant-researcher revoke-researcher register-demo-teacher force-seed-demo bind-demo-code reset-group-state provision-curriculum-rag provision-agent-engine copy-docparse-secret seed-curriculum backfill-curriculum-content seed-curriculum-folders check-auth-config migrate-clear-persona-voice-override docs-linkcheck check-skills sim-build sim-build-check guides guides-pdf check-guides guide-screens seed-guide-corpus guide-staleness
+.PHONY: tf-plan tf-apply tf-local tf-fmt check-iam-posture check-spend-ceiling spend-ceiling check-domains deploy-status dev dev-local dev-recompile dev-status dev-stop proxy-check logs cloud-logs cloud-errors cloud-build verify-chat-logs smoke-session-persistence smoke-chat-resume smoke-curriculum-content smoke-teacher-cli help cli-install cli-reinstall cli-uninstall cli-doctor cli-selftest-mock cli-selftest-live cli-selftest seed seed-job seed-demo-codes check-role list-roles grant-researcher revoke-researcher register-demo-teacher force-seed-demo bind-demo-code reset-group-state provision-curriculum-rag provision-agent-engine copy-docparse-secret seed-curriculum backfill-curriculum-content backfill-document-skill-ids seed-curriculum-folders check-auth-config migrate-clear-persona-voice-override docs-linkcheck check-skills sim-build sim-build-check guides guides-pdf check-guides guide-screens seed-guide-corpus guide-staleness
 
 # Seed SKILL.md templates -> Firestore. Since P1.3 the Cloud Build deploy runs
 # this automatically via the `aipla-seed-skills` Cloud Run job (see
@@ -138,6 +138,15 @@ seed-curriculum:
 #   make backfill-curriculum-content ENV=dev
 backfill-curriculum-content:
 	@scripts/backfill-curriculum-content.sh $(ENV) $(ARGS)
+
+# Repair parsed_documents rows stored with skillId="" — every workbench upload
+# before 2026-09-16 (the route read the form field as a query param), so the
+# workbench could never list them. List first, then stamp per uid. Dry-run
+# unless ARGS includes --go.
+#   make backfill-document-skill-ids ENV=prod ARGS="--list"
+#   make backfill-document-skill-ids ENV=prod ARGS="--uid anon-busygarden11 --skill-id <id> --go"
+backfill-document-skill-ids:
+	@scripts/backfill-document-skill-ids.sh $(ENV) $(ARGS)
 
 # 1.1.60 migration: seed the nine Danish stx physics areas as SHARED curriculum
 # folders and relocate docs still carrying a physics area in `subject` (subject
