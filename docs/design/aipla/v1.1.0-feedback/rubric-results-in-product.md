@@ -4,10 +4,11 @@
 **Priority:** **P1** — the scoring engine shipped a month ago (RUBRIC-1, 2026-07-11) and the researcher who asked for it cannot see its output from inside the app. This is a last-mile problem, not a build.
 **Estimated:** ~2d (M1 score-on-session-end ~0.5d · M2 teacher-facing band in the session report ~0.5d · M3 researcher construct detail ~0.75d · M4 gating + tests ~0.25d)
 **Scope:** Backend — trigger `session_rubric` scoring at session end and attach results to `SessionSummary`. Frontend — a plain-language band in the existing session report + a researcher-only construct breakdown. No change to the scoring engine or the rubric schema.
-**Dependencies:** RUBRIC-1 (**SHIPPED 2026-07-11** — [`analytics/session_rubric.py`](../../../../backend/analytics/session_rubric.py), MAPS/SAAR judges, anchor packs, provenance-stamped `RubricResult`); RUBRIC-2 (**SHIPPED** — [`analytics/rubric_runs.py`](../../../../backend/analytics/rubric_runs.py) run store, versioning, group-code addressing, backfill); [1.1.57 competency-rubrics](competency-rubrics.md) (the design of record — **and its R1 gate, which this doc honours**); [1.1.5 researcher-role](researcher-role.md) (the `role:researcher` claim M3 gates on); [1.1.4 session-report-summary-primary](session-report-summary-primary.md) (the `narrative` field this sits beside)
+**Dependencies:** RUBRIC-1 (**SHIPPED 2026-07-11** — [`analytics/session_rubric.py`](../../../../backend/analytics/session_rubric.py), MAPS/SAAR judges, anchor packs, provenance-stamped `RubricResult`); RUBRIC-2 (**SHIPPED** — [`analytics/rubric_runs.py`](../../../../backend/analytics/rubric_runs.py) run store, versioning, group-code addressing, backfill); [1.1.57 competency-rubrics](competency-rubrics.md) (the design of record — **and its R1 gate, which this doc honours**); [1.1.5 researcher-role](researcher-role.md) (the `role:researcher` claim M3 gates on); [1.1.4 session-report-summary-primary](session-report-summary-primary.md) (the `narrative` field this sits beside); [1.1.91 researcher-configurable-tutors](researcher-configurable-tutors.md) / TUTOR-5 (**shipped since this doc was written** — every turn now carries `framework_id`; see Open Question 5)
 **Source:** Aswin, 2026-08-06 — *"I have been acting as a student and then turned into researcher role to evaluate MAPS and SAAR. The evaluation does not come up."* Follow-up: *"For the teachers, I think it should be enough with the description of those skills in the report. However, for researcher, detail of each construct and scores would be great."* M's reply: *"it should help shape the 'session summary report' text — what would be the best way to surface it for you?"* — **Aswin answered that question**, and this doc is his answer.
 **Created:** 2026-08-06 (M)
 **Last Updated:** 2026-08-06 (M)
+**⚠️ Note added 2026-09-16:** this is the closest existing design to the 2026-09-16 meeting's ask — *"a summary of how [a] chat has done against that [session's] framework only (not others)"*, when a teacher opens a report. Written before TUTOR-5 existed, so its M2/M3 plan speaks only of the two original rubric lenses (MAPS, SAAR) and does not yet account for the **seven teaching-practice frameworks** a session can now be tagged with. See Open Question 5.
 
 ## Problem Statement
 
@@ -308,6 +309,21 @@ naming in the consent wording ([1.1.3 student-consent-prompt](student-consent-pr
 4. **Should students ever see their own rubric result?** Aswin did not ask, and
    showing a 2/5 to a student is a pedagogical decision, not a technical one.
    **JB/AR call, explicitly out of scope here.**
+5. **Added 2026-09-16 — should the teacher-facing band be scoped to the
+   session's OWN framework, not all promoted rubrics?** TUTOR-5 stamps
+   `framework_id` on every turn; a session run under ESRU carries that tag
+   throughout. The 2026-09-16 meeting asked for exactly this: *a summary of
+   how this chat performed against ITS framework only.* That is a narrower,
+   more specific ask than Open Question 2 above ("score against all promoted
+   rubrics") — it points at scoping `competency_notes` to the one framework
+   (and its own evaluation hints/constructs/avoid-lists, authored per-framework
+   in [1.1.91](researcher-configurable-tutors.md)'s structural editor) the
+   session actually ran under, rather than a generic MAPS/SAAR read. Needs
+   deciding alongside Open Question 2 before M2/M3 are built, since they may
+   turn out to be the same mechanism (one `competency_notes` generation, keyed
+   by whichever of {rubric, framework} the session carries) or two genuinely
+   separate surfaces (a MAPS/SAAR rubric band vs. a framework-fidelity band).
+   Not yet scoped in hours — depends on that decision.
 
 ## Related Documents
 
