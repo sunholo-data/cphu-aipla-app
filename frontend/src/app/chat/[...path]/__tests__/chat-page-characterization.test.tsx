@@ -217,7 +217,10 @@ vi.mock("@/components/workspace/WorkspaceShell", () => ({
 }));
 vi.mock("@/components/workspace/StudentWorkspace", () => ({
   StudentWorkspace: (props: Record<string, unknown>) => (
-    <div data-testid="student-workspace-stub">
+    <div
+      data-testid="student-workspace-stub"
+      data-activity-id={String((props as { activityId?: unknown }).activityId ?? "")}
+    >
       student-workspace artefact={String((props as { artefact?: unknown }).artefact != null)}
     </div>
   ),
@@ -472,6 +475,84 @@ describe("workspace mounting — gated on anon-group mode + non-empty activity c
     // showWorkspace gate would suppress the column regardless. Either way: no
     // workspace for a teacher-mode user.
     expect(screen.queryByTestId("workspace-shell-stub")).toBeNull();
+  });
+});
+
+// ===========================================================================
+// PROGRESS CALLS NEVER TARGET A SKILL ID (1.1.120)
+// ===========================================================================
+// The table/writing/concept/checklist progress routes are ACTIVITY-store-only:
+// with a skill id in the URL a teacher GET 404s and a student PUT writes rows
+// nobody reads. On prod (2026-09-14/15) a bare /chat/{skillId} tab produced
+// exactly that against /activities/{skillId}/table. The page must hand the
+// workspace an act--scoped id or none, and its own progress fetches must be
+// gated the same way. activity-configs is exempt by design — it dual-reads
+// legacy skill ids so a bare-skill chat still gets its teacher's config.
+describe("progress calls never target a skill id (1.1.120)", () => {
+  // A config with one of every progress-carrying element: each non-empty array
+  // is what makes the page fetch that progress store.
+  const FULL_CONFIG = {
+    checklist: [{ id: "c1", label: "Step 1", done: false }],
+    table: [{ id: "t1", title: "Målinger", rows: 2, columns: [{ id: "t", label: "Tid" }] }],
+    chart: [],
+    calculator: [],
+    note: [],
+    writing: [{ id: "w1" }],
+    solution: [],
+    document: [],
+    conceptMap: [{ id: "n1", label: "Node 1" }],
+    artefact: null,
+    persona: null,
+    materials: [],
+  };
+
+  function configResponder(url: string) {
+    if (url.includes("/activity-configs/active/")) return FULL_CONFIG;
+    return {};
+  }
+
+  it("a bare /chat/{skillId} link fires NO progress fetch and hands the workspace no activityId", async () => {
+    vi.stubEnv("NEXT_PUBLIC_AUTH_MODE", "anonymous_group_id");
+    searchParamsState.params = {}; // no activity_id — the skill-fallback path
+    fetchMock.responder = configResponder;
+
+    await renderChatPage();
+    await waitFor(() => {
+      expect(screen.getByTestId("student-workspace-stub")).toBeTruthy();
+    });
+    // Give the (absent) progress fetches a tick to (not) happen.
+    await act(async () => {
+      await new Promise((r) => setTimeout(r, 0));
+    });
+
+    const urls = vi.mocked(global.fetch).mock.calls.map((c) => String(c[0]));
+    expect(urls.some((u) => u.includes("/concept-progress"))).toBe(false);
+    expect(urls.some((u) => u.includes("/checklist-progress"))).toBe(false);
+    // The workspace stub got undefined — the elements degrade to local state.
+    expect(screen.getByTestId("student-workspace-stub").getAttribute("data-activity-id")).toBe("");
+    // The config fetch itself still went out, WITH the skill id (dual-read).
+    expect(urls.some((u) => u.includes("/activity-configs/active/test-skill-id"))).toBe(true);
+  });
+
+  it("an act- chat still fetches progress for the activity and passes the act- id down", async () => {
+    vi.stubEnv("NEXT_PUBLIC_AUTH_MODE", "anonymous_group_id");
+    searchParamsState.params = { activity_id: "act-physics-1" };
+    fetchMock.responder = configResponder;
+
+    await renderChatPage();
+    await waitFor(() => {
+      expect(screen.getByTestId("student-workspace-stub")).toBeTruthy();
+    });
+    await act(async () => {
+      await new Promise((r) => setTimeout(r, 0));
+    });
+
+    const urls = vi.mocked(global.fetch).mock.calls.map((c) => String(c[0]));
+    expect(urls.some((u) => u.includes("/activities/act-physics-1/concept-progress"))).toBe(true);
+    expect(urls.some((u) => u.includes("/activities/act-physics-1/checklist-progress"))).toBe(true);
+    expect(screen.getByTestId("student-workspace-stub").getAttribute("data-activity-id")).toBe(
+      "act-physics-1",
+    );
   });
 });
 

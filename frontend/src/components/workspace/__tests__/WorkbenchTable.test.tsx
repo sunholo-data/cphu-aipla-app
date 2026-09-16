@@ -1,4 +1,4 @@
-import { fireEvent, render, screen } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { TABLE_CARD_DEBOUNCE_MS, WorkbenchTable, type TableElementDef } from "../WorkbenchTable";
@@ -79,6 +79,34 @@ describe("WorkbenchTable", () => {
     render(<WorkbenchTable skillId="skill-1" tables={[TABLE]} sessionId="sess-1" />);
     fireEvent.blur(screen.getByLabelText("Målinger Tid række 1"));
     expect(fetchWithAuth).not.toHaveBeenCalled();
+  });
+
+  // 1.1.120 — the progress endpoints are ACTIVITY-store-only. A bare-skill mount
+  // (no activityId) that still called /activities/{skillId}/table is the
+  // 2026-09-14 prod bug: the teacher got the 404 loop, the PUT got 403'd. The
+  // component's contract is to degrade to local state instead.
+  it("makes no progress call when there is no activityId — the grid still works locally", () => {
+    render(<WorkbenchTable skillId="skill-1" tables={[TABLE]} />);
+    const cell = screen.getByLabelText("Målinger Tid række 1") as HTMLInputElement;
+    // No GET on mount…
+    expect(fetchWithAuth).not.toHaveBeenCalled();
+    // …and no PUT on commit — the edit stays in local state.
+    fireEvent.change(cell, { target: { value: "3.0" } });
+    fireEvent.blur(cell);
+    expect(fetchWithAuth).not.toHaveBeenCalled();
+    expect(cell.value).toBe("3.0");
+  });
+
+  it("loads the group's grid only when an activityId is present", async () => {
+    vi.mocked(fetchWithAuth).mockImplementation((url: RequestInfo | URL) => {
+      if (String(url).includes("/table")) {
+        return Promise.resolve(new Response(JSON.stringify({ cells: {}, revision: 0 }), { status: 200 }));
+      }
+      return Promise.resolve(new Response(null, { status: 204 }));
+    });
+    render(<WorkbenchTable skillId="skill-1" activityId="act-9" tables={[TABLE]} />);
+    await waitFor(() => expect(fetchWithAuth).toHaveBeenCalledTimes(1));
+    expect(String(vi.mocked(fetchWithAuth).mock.calls[0][0])).toContain("/activities/act-9/table");
   });
 
   it("persists entered values to sessionStorage", () => {

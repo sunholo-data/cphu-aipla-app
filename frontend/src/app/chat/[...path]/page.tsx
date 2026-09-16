@@ -369,6 +369,18 @@ function ChatShell({
   // direct skill links (the backend's legacy welding), so nothing else changes.
   const _chatSearchParams = useSearchParams();
   const activityId = _chatSearchParams.get("activity_id") || skillId;
+  // Progress + workbench persistence are ACTIVITY-store-only: the table, writing,
+  // concept and checklist progress routes read/write the activities store and
+  // 404 (teacher) or write unreachable rows (student) for any id that is not an
+  // activity. A bare /chat/{skillId} link has no activity — a teacher's open tab
+  // on one produced exactly that on prod (2026-09-14/15: GET /activities/{skillId}/
+  // table 404 loops, PUT 403 "recorded per student group"). So progress calls get
+  // the act--scoped id or nothing — the workbench elements are all designed to
+  // degrade to local state when it is undefined (WorkbenchTable's "pre-1.1.88
+  // behaviour", ProgressChecklist's localStorage mode). activity-configs stays on
+  // the full activityId — that endpoint dual-reads legacy skill ids on purpose.
+  // Same idiom as pulseActivityId below.
+  const progressActivityId = activityId.startsWith("act-") ? activityId : undefined;
   const {
     sessionId: agentSessionId,
     messages,
@@ -537,8 +549,9 @@ function ChatShell({
   // so a just-recorded checkpoint shows without a reload.
   useEffect(() => {
     if (isLoading || activeConceptMap.length === 0 || !isAnonymousGroupAuthMode()) return;
+    if (!progressActivityId) return; // no activity → no progress store to read
     let alive = true;
-    fetchWithAuth(`/api/proxy/api/activities/${encodeURIComponent(activityId)}/concept-progress`)
+    fetchWithAuth(`/api/proxy/api/activities/${encodeURIComponent(progressActivityId)}/concept-progress`)
       .then((r) => (r.ok ? r.json() : null))
       .then((data) => {
         if (!alive || !data?.nodeStates) return;
@@ -554,7 +567,7 @@ function ChatShell({
     return () => {
       alive = false;
     };
-  }, [isLoading, activeConceptMap.length, activityId]);
+  }, [isLoading, activeConceptMap.length, progressActivityId]);
 
   // 1.1.62 M3 — checklist tick state for THIS group. Same shape as the concept
   // light-up above: fetch when the activity has a checklist, refetch at every
@@ -563,8 +576,9 @@ function ChatShell({
   // group and correctly falls back to the component's local state.
   useEffect(() => {
     if (isLoading || activeChecklist.length === 0 || !isAnonymousGroupAuthMode()) return;
+    if (!progressActivityId) return; // no activity → no progress store to read
     let alive = true;
-    fetchWithAuth(`/api/proxy/api/activities/${encodeURIComponent(activityId)}/checklist-progress`)
+    fetchWithAuth(`/api/proxy/api/activities/${encodeURIComponent(progressActivityId)}/checklist-progress`)
       .then((r) => (r.ok ? r.json() : null))
       .then((data) => {
         if (!alive || !data?.itemStates) return;
@@ -576,7 +590,7 @@ function ChatShell({
     return () => {
       alive = false;
     };
-  }, [isLoading, activeChecklist.length, activityId]);
+  }, [isLoading, activeChecklist.length, progressActivityId]);
   const searchParams = useSearchParams();
   const router = useRouter();
   const [draft, setDraft] = useState("");
@@ -1458,7 +1472,7 @@ function ChatShell({
                 onDocumentActiveChange={handleWorkbenchActiveDoc}
                 materials={activeMaterials}
                 images={uploadedImages}
-                activityId={activityId}
+                activityId={progressActivityId}
                 onRegisterArtefactFlush={(fn) => {
                   artefactFlushRef.current = fn;
                 }}

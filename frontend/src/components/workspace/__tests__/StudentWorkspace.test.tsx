@@ -7,10 +7,20 @@ vi.mock("../GenericArtefactFrame", () => ({
   GenericArtefactFrame: () => <div data-testid="sim-frame" />,
 }));
 vi.mock("../elementRenderers", () => ({
-  WorkspaceElements: () => <div data-testid="workspace-elements" />,
+  WorkspaceElements: (props: Record<string, unknown>) => (
+    <div
+      data-testid="workspace-elements"
+      data-activity-id={String((props as { activityId?: unknown }).activityId ?? "")}
+    />
+  ),
 }));
 vi.mock("../DocumentsPanel", () => ({
-  DocumentsPanel: () => <div data-testid="documents" />,
+  DocumentsPanel: (props: Record<string, unknown>) => (
+    <div
+      data-testid="documents"
+      data-activity-id={String((props as { activityId?: unknown }).activityId ?? "")}
+    />
+  ),
 }));
 
 import { StudentWorkspace } from "../StudentWorkspace";
@@ -97,5 +107,25 @@ describe("StudentWorkspace — Documents tab (1.1.45 M1, activity-driven)", () =
     fireEvent.click(screen.getByRole("button", { name: /åbn boldkast/i }));
     expect(screen.getByTestId("sim-frame")).toBeInTheDocument();
     expect(screen.queryByRole("tablist")).not.toBeInTheDocument();
+  });
+});
+
+// 1.1.120 — progress endpoints are ACTIVITY-store-only. The elements surface
+// must never receive a skill id as an activityId: that is the exact shape of
+// the 2026-09-14 prod bug (GET /activities/{skillId}/table 404 loops, student
+// PUT 403'd). DocumentsPanel keeps its skillId fallback deliberately — the
+// document/curriculum subsystem tolerates one (dual-read), progress does not.
+describe("StudentWorkspace — activityId plumbing (1.1.120)", () => {
+  it("gives the elements NO activityId when none is passed — no doomed progress calls", () => {
+    renderWS();
+    expect(screen.getByTestId("workspace-elements").getAttribute("data-activity-id")).toBe("");
+    // The documents panel keeps the skillId fallback on purpose.
+    expect(screen.getByTestId("documents").getAttribute("data-activity-id")).toBe("s");
+  });
+
+  it("passes a real act- activityId through to both surfaces", () => {
+    renderWS({ activityId: "act-777" });
+    expect(screen.getByTestId("workspace-elements").getAttribute("data-activity-id")).toBe("act-777");
+    expect(screen.getByTestId("documents").getAttribute("data-activity-id")).toBe("act-777");
   });
 });

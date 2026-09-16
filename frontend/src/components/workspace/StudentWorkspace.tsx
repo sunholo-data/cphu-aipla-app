@@ -145,10 +145,20 @@ export function StudentWorkspace({
   const hasDocuments = materials.length > 0 || images.length > 0;
   const docCount = materials.length + images.length;
 
+  // NO skillId fallback for the elements' activityId: the progress endpoints
+  // the elements call (table/writing/checklist/concept) are ACTIVITY-store-only
+  // — a skill id gets the teacher a 404 and a student orphan rows nobody reads.
+  // The elements are all designed to degrade to local state when activityId is
+  // undefined (WorkbenchTable's "pre-1.1.88 behaviour", ProgressChecklist's
+  // localStorage mode), so undefined is the honest value for a bare-skill mount.
+  // The builder preview passes no activityId at all — with the old fallback it
+  // was silently firing doomed /activities/{skillId}/table calls on every
+  // render. DocumentsPanel below keeps the fallback: the document/curriculum
+  // subsystem genuinely tolerates a skill id.
   const elementsSurface = (
     <WorkspaceElements
       skillId={skillId}
-      activityId={activityId ?? skillId}
+      activityId={activityId}
       sessionId={sessionId}
       checklist={checklist}
       table={table}
