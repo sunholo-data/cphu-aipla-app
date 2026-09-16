@@ -4,6 +4,19 @@ import { useEffect } from "react";
 
 import { reportClientError } from "@/lib/clientErrorReporting";
 
+// 1.1.108 content-localisation — user-facing copy lives in one object, never
+// inline in JSX. No locale axis yet: this boundary renders when the app is
+// already broken, so there is no language source to resolve against (the
+// global-error sibling renders without the providers at all). The axis lands
+// when the message layer reaches error boundaries — not before.
+const copy = {
+  heading: "Something went wrong on this page",
+  body: "The error has been reported automatically. Trying again often works — the rest of the app is unaffected.",
+  tryAgain: "Try again",
+  goHome: "Go to the start page",
+  reference: "Reference:",
+} as const;
+
 /**
  * Route-level error boundary (1.1.96 M-1). **Nothing like this existed before**:
  * there was no `error.tsx` and no `global-error.tsx` anywhere under `src/app/`,
@@ -38,18 +51,15 @@ export default function RouteError({
 
   return (
     <main className="mx-auto flex max-w-md flex-1 flex-col justify-center gap-4 px-6 py-16 text-center">
-      <h1 className="text-xl font-semibold text-foreground">Something went wrong on this page</h1>
-      <p className="text-sm text-muted-foreground">
-        The error has been reported automatically. Trying again often works — the rest of the app is
-        unaffected.
-      </p>
+      <h1 className="text-xl font-semibold text-foreground">{copy.heading}</h1>
+      <p className="text-sm text-muted-foreground">{copy.body}</p>
       <div className="flex flex-col gap-2 sm:flex-row sm:justify-center">
         <button
           type="button"
           onClick={reset}
           className="rounded-md bg-brand px-4 py-2 text-sm font-medium text-brand-foreground hover:opacity-90"
         >
-          Try again
+          {copy.tryAgain}
         </button>
         {/* A button doing a hard `location.assign`, not a `<Link>`: client-side
             routing is precisely what just failed, so a soft navigation can
@@ -62,12 +72,12 @@ export default function RouteError({
           onClick={() => window.location.assign("/")}
           className="rounded-md border border-border px-4 py-2 text-sm font-medium text-foreground hover:bg-muted"
         >
-          Go to the start page
+          {copy.goHome}
         </button>
       </div>
       {error.digest && (
         <p className="text-xs text-muted-foreground">
-          Reference: <code>{error.digest}</code>
+          {copy.reference} <code>{error.digest}</code>
         </p>
       )}
     </main>

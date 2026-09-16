@@ -4,6 +4,16 @@ import { useEffect } from "react";
 
 import { reportClientError } from "@/lib/clientErrorReporting";
 
+// 1.1.108 content-localisation — copy in one object, not inline JSX. No locale
+// axis: this boundary replaces the whole document (providers, stylesheets and
+// language context all gone), so there is nothing to resolve a language from.
+const copy = {
+  heading: "The app failed to start",
+  body: "The error has been reported automatically. Reloading usually fixes it. If it keeps happening, tell us what you were doing — that context is the part we cannot see.",
+  reload: "Reload",
+  reference: "Reference:",
+} as const;
+
 /**
  * Last-resort boundary for a throw in the **root layout itself** (1.1.96 M-1) —
  * the one case `app/error.tsx` cannot catch, because that boundary lives inside
@@ -51,11 +61,10 @@ export default function GlobalError({
       >
         <main style={{ maxWidth: "28rem", textAlign: "center" }}>
           <h1 style={{ fontSize: "1.25rem", fontWeight: 600, marginBottom: "0.75rem" }}>
-            The app failed to start
+            {copy.heading}
           </h1>
           <p style={{ fontSize: "0.875rem", lineHeight: 1.6, marginBottom: "1.25rem", opacity: 0.8 }}>
-            The error has been reported automatically. Reloading usually fixes it. If it keeps
-            happening, tell us what you were doing — that context is the part we cannot see.
+            {copy.body}
           </p>
           <button
             type="button"
@@ -71,11 +80,11 @@ export default function GlobalError({
               cursor: "pointer",
             }}
           >
-            Reload
+            {copy.reload}
           </button>
           {error.digest && (
             <p style={{ fontSize: "0.75rem", marginTop: "1.25rem", opacity: 0.6 }}>
-              Reference: <code>{error.digest}</code>
+              {copy.reference} <code>{error.digest}</code>
             </p>
           )}
         </main>
