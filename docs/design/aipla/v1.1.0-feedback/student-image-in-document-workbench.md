@@ -1,7 +1,12 @@
 # Images in the document workbench — the fourth twin
 
-**Status**: **Design (OPEN)** — **1.1.117**
-**Priority**: **P1** — triggered by a live prod report (Aswin, 2026-09-15): "I cannot upload the document in the workbench"
+**Status**: **Design (OPEN)** — **1.1.117**. Its original trigger (Aswin's
+2026-09-15 report) is **unexplained** — two theories, including this doc's
+image one, were disproved (see Problem Statement); the structural answer is
+[1.1.119](frontend-client-logs.md). This doc's own scope (image support) is
+a standalone P2, not P1.
+**Priority**: **P2** — no longer tied to a live incident; independently
+scoped image-support gap surfaced during that incident's triage
 **Estimated**: ~1.5–2d (M0 error-messaging — **SHIPPED same day, see below** · M1 backend image path ~0.5d · M2 eager-injection callback ~0.5d · M3 frontend allow-list + copy ~0.25d · M4 verification ~0.5d)
 **Scope**: Backend — `tools/documents/upload.py`, a new `adk/callbacks/` twin, `adk/agent.py` wiring; frontend — `StudentDocumentWorkbench.tsx` accept-list. No new storage backend, no new frontend surface.
 **Dependencies**: [1.1.44 activity-image-materials](activity-image-materials.md) (**SHIPPED** — the durable-slot + eager-injection pattern this doc reuses); [1.1.93 uploaded-image-anonymisation](uploaded-image-anonymisation.md) (**OPEN** — governs retention/redaction for ANY image upload surface, this one included); [1.1.7 student-multimodal-upload](student-multimodal-upload.md) (**SHIPPED** — the *chat-attachment* image path; this doc is explicitly NOT that path, see Conflict Surface)
@@ -10,35 +15,51 @@
 
 ## Problem Statement
 
-### What actually happened (verified this session, not assumed)
+### What actually happened — CORRECTED after confirming the real session
 
-A report came in as "cannot upload the document in the workbench." Before designing
-anything, the bug itself was root-caused:
+The first pass at this doc theorized (wrongly) that Aswin had tried to attach
+an **image**, based on wording alone ("cannot upload the document in the
+workbench") plus 14 days of prod logs showing zero errors on
+`/api/documents/upload`. That theory is **retracted** — a screenshot of the
+actual session (group `busy-garden-11`, activity `act-84ba348b7d561024`,
+`aipla.ku.dk`, 2026-09-15) confirmed the surface (the "Arbejde" tab —
+`StudentDocumentWorkbench.tsx`, matched verbatim by its empty-state copy) and
+the file: **`Doc4_compressed.pdf` — a PDF, an already-supported format.** The
+image-rejection theory does not apply to this report.
 
-1. **14 days of `aipla-prod-2026` Cloud Logging on `aipla-v01-frontend`** show
-   **zero** 4xx/5xx on `POST /api/documents/upload`, and zero log lines
-   mentioning "aswin." Every request that reached the backend in that window
-   succeeded.
-2. `StudentDocumentWorkbench.tsx`'s file `<input>` sets
-   `accept=".pdf,.txt,.md,.docx,.csv,.xlsx,.pptx"` — no image types. Most
-   desktop file pickers grey out/hide non-matching files; the backend gate
-   (`_ALLOWED_EXTENSIONS` in `upload.py`) also 400s images by name, but that
-   code path never fires if the OS picker never let the file through.
-3. Separately (**already fixed this session, see "Already shipped" below**),
-   even a REAL failure that did reach the backend was being shown to the
-   student as one fixed, generic Danish string — the backend's actual
-   `detail` (e.g. which file type is and isn't allowed) was discarded by
-   `documentApi.ts`'s `uploadDocument()` and never reached the UI.
+Re-checked prod logs for the confirmed group + a ~25-minute window around the
+screenshot: **zero requests from `busy-garden-11` ever reached
+`/api/documents/upload`** — not a 200, not a 4xx, not a 5xx. A second theory
+followed — a large file silently hanging the upload (no client-side size
+check, no request timeout in `apiClient.ts`) — and a 20 MB cap was shipped
+against it. **That theory was then disproved too: the file is 65 KB.** The
+cap stays as a defensive guard (it is a real gap), but it does not explain
+this report.
 
-**Conclusion: the most likely sequence is a student (or Aswin, testing) tried
-to attach a photo of handwritten work to the document workbench, got no
-feedback of any kind (silently filtered by the picker), and reported it as
-"cannot upload."** This is consistent with the evidence but **not confirmed
-against Aswin's literal session** — no group code, timestamp, or device was
-available to trace it the way the 2026-09-09 table-visibility defect was
-traced against `busy-garden-11`'s logs. If a group code or timestamp becomes
-available, confirm against it before treating this design as the full
-explanation.
+**The honest state is: root cause unknown, and unknowable from the server
+side** — the failure never left the browser, and nothing in the platform can
+see that class. That is the finding, and it has its own design doc:
+[1.1.119 frontend-client-logs](frontend-client-logs.md). The sequence
+recorded here — two plausible theories from the *absence* of server evidence,
+both wrong — is the argument for it.
+
+Separately (**also already fixed this session**), a real failure that DID
+reach the backend was being shown to the student as one fixed, generic
+Danish string — the backend's actual `detail` was discarded by
+`documentApi.ts`'s `uploadDocument()` and never reached the UI. This fix
+stands regardless of root cause and remains in scope.
+
+### Why the image-support design below is still worth doing
+
+The rest of this doc — accepting images in the workbench via real multimodal
+pixels — **did not turn out to be what Aswin hit**, but it's a real,
+independently-scoped gap surfaced during triage (confirmed absent: no way
+for a workbench-uploaded image to reach the tutor as pixels today, only via
+the separate chat-attachment path). Keeping the design below since the
+research backing it (the "fourth twin" pattern, the `load_artifacts_tool`
+rejection rationale, the 1.1.93 dependency) is accurate and reusable
+whenever image support is prioritized — just not as the explanation for
+*this* report.
 
 ### Why "just allow the extension" isn't the fix
 
@@ -222,6 +243,21 @@ In `StudentDocumentWorkbench.tsx`:
   works.
 - Test coverage: `StudentDocumentWorkbench.test.tsx` gained a case
   asserting the specific-reason message on a `DocumentApiError(status=400)`.
+- **A defensive guard, NOT the fix for Aswin's report** (his file was 65 KB):
+  `backend/tools/documents/upload.py`
+  gained `_MAX_UPLOAD_BYTES = 20 * 1024 * 1024`, checked right after reading
+  the file and **before** the pending Firestore write (so a rejected file
+  never leaves a phantom "pending" tab), returning `413` with the byte counts
+  in `detail`. `StudentDocumentWorkbench.tsx` gained a matching client-side
+  check in `onPickFile` — fires **before** `uploadDocument()` is even called,
+  so an oversized file is rejected instantly instead of silently hanging for
+  as long as the student's upload bandwidth takes. `uploadErrorMessage()`
+  handles both the client-side case and a `413` from the server (defense in
+  depth against a stale frontend build). Backend test:
+  `test_oversized_file_returns_413_before_any_firestore_write`. Frontend
+  tests: `"rejects an oversized file BEFORE calling the API — no silent
+  hang"` and `"tells the student WHY the backend rejected an oversized file
+  (413)"`.
 
 ## Privacy — this doc does not get to skip 1.1.93
 
@@ -259,11 +295,12 @@ place images can live ungoverned.
 
 ## Open questions
 
-1. **Confirm Aswin's actual report** — no group code or timestamp was
-   available this session. If M can get one from Aswin, re-trace it the way
-   `busy-garden-11` was traced for the 2026-09-09 table defect, to confirm
-   this design addresses the report rather than a plausible-but-unconfirmed
-   guess.
+1. **Aswin's actual report is still open.** Traced via screenshot to
+   `busy-garden-11` / `Doc4_compressed.pdf` (65 KB, PDF) — not an image, not
+   oversized. No server-side trace exists and none can, until
+   [1.1.119](frontend-client-logs.md) ships. Until then the only route to a
+   cause is a live reproduction with DevTools open (Network + Console) on the
+   reporting machine.
 2. **Composition order** of the new injector relative to the other three —
    recommend after the text-document injector, mirroring
    `activity_images` after `document` today, but confirm no interaction

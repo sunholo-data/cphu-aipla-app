@@ -51,6 +51,14 @@ interface StudentDocumentWorkbenchProps {
 const ACCEPT = ".pdf,.txt,.md,.docx,.csv,.xlsx,.pptx";
 const ACCEPT_LABEL = "PDF, Word, Excel, PowerPoint, tekst, Markdown eller CSV";
 
+// Mirrors the backend's _MAX_UPLOAD_BYTES (tools/documents/upload.py) — keep in
+// sync. Checked client-side BEFORE the network call: a file over this size can
+// otherwise sit "uploading" with no feedback for as long as the student's
+// connection takes to push it, only to be rejected at the end anyway (or worse,
+// time out with no error at all — the 2026-09-15 prod report this guards).
+const MAX_UPLOAD_BYTES = 20 * 1024 * 1024;
+const MAX_UPLOAD_MB = MAX_UPLOAD_BYTES / (1024 * 1024);
+
 // The backend 400s with a specific reason (wrong file type is the only case
 // reachable here today — the input's `accept` filters the OS picker, but some
 // mobile browsers ignore it loosely). Give the student that reason instead of
@@ -58,6 +66,9 @@ const ACCEPT_LABEL = "PDF, Word, Excel, PowerPoint, tekst, Markdown eller CSV";
 function uploadErrorMessage(err: unknown): string {
   if (err instanceof DocumentApiError && err.status === 400) {
     return `Denne filtype understøttes ikke her. Tilladte typer: ${ACCEPT_LABEL}. Er det et billede af dit arbejde, kan du i stedet vedhæfte det direkte i chatten.`;
+  }
+  if (err instanceof DocumentApiError && err.status === 413) {
+    return `Filen er for stor. Maks er ${MAX_UPLOAD_MB} MB — prøv at komprimere den, eller upload færre sider ad gangen.`;
   }
   return "Kunne ikke uploade filen. Prøv igen.";
 }
@@ -116,6 +127,13 @@ export function StudentDocumentWorkbench({
     const file = e.target.files?.[0];
     e.target.value = ""; // allow re-picking the same filename
     if (!file) return;
+    if (file.size > MAX_UPLOAD_BYTES) {
+      const mb = (file.size / (1024 * 1024)).toFixed(1);
+      setActionError(
+        `Filen er for stor (${mb} MB). Maks er ${MAX_UPLOAD_MB} MB — prøv at komprimere den, eller upload færre sider ad gangen.`,
+      );
+      return;
+    }
     setBusy(true);
     setActionError(null);
     try {

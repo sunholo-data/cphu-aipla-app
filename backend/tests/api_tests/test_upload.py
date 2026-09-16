@@ -107,3 +107,26 @@ class TestUploadBucketResolution:
         with patch("tools.documents.upload.resolve_documents_bucket", return_value="bucket"):
             resp = client.post("/api/documents/upload", files=_file("test.exe"))
         assert resp.status_code == 400
+
+    def test_oversized_file_returns_413_before_any_firestore_write(self, client: TestClient):
+        # 2026-09-15 prod report: a large PDF hung with zero feedback. Also
+        # guards against a phantom "pending" tab — the size gate must run
+        # BEFORE _store_document's pending write, not after.
+        store_calls = []
+        big_file = {
+            "file": (
+                "big.pdf",
+                BytesIO(b"x" * 100),
+                "application/pdf",
+            )
+        }
+        with (
+            patch("tools.documents.upload._MAX_UPLOAD_BYTES", 50),
+            patch("tools.documents.upload.resolve_documents_bucket", return_value="bucket"),
+            patch("tools.documents.upload._store_document", side_effect=lambda *a, **k: store_calls.append(1)),
+            patch("db.folders.ensure_default_folder", return_value="folder1"),
+        ):
+            resp = client.post("/api/documents/upload", files=big_file)
+
+        assert resp.status_code == 413
+        assert store_calls == []

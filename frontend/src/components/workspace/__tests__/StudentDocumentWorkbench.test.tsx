@@ -122,6 +122,29 @@ describe("StudentDocumentWorkbench (1.1.45 M3b)", () => {
     expect(await screen.findByRole("alert")).toHaveTextContent(/Denne filtype understøttes ikke her/);
   });
 
+  it("rejects an oversized file BEFORE calling the API — no silent hang", async () => {
+    listMyDocuments.mockResolvedValue([]);
+    const { container } = render(<StudentDocumentWorkbench skillId="s" />);
+    await screen.findByText(/ikke uploadet nogen filer/i);
+    const input = container.querySelector('input[type="file"]') as HTMLInputElement;
+    const bigFile = new File(["x"], "big.pdf", { type: "application/pdf" });
+    Object.defineProperty(bigFile, "size", { value: 21 * 1024 * 1024 });
+    fireEvent.change(input, { target: { files: [bigFile] } });
+    expect(await screen.findByRole("alert")).toHaveTextContent(/for stor/);
+    expect(uploadDocument).not.toHaveBeenCalled();
+  });
+
+  it("tells the student WHY the backend rejected an oversized file (413)", async () => {
+    const { DocumentApiError } = await import("@/lib/documentApi");
+    listMyDocuments.mockResolvedValue([]);
+    uploadDocument.mockRejectedValueOnce(new DocumentApiError("File is too large.", 413));
+    const { container } = render(<StudentDocumentWorkbench skillId="s" />);
+    await screen.findByText(/ikke uploadet nogen filer/i);
+    const input = container.querySelector('input[type="file"]') as HTMLInputElement;
+    fireEvent.change(input, { target: { files: [new File(["x"], "a.pdf")] } });
+    expect(await screen.findByRole("alert")).toHaveTextContent(/for stor/);
+  });
+
   it("passes role=teacher through to the document API (builder preview)", async () => {
     listMyDocuments.mockResolvedValue([]);
     render(<StudentDocumentWorkbench skillId="s" role="teacher" />);

@@ -33,6 +33,13 @@ router = APIRouter(prefix="/api/documents", tags=["documents"])
 
 _COLLECTION = "parsed_documents"
 
+# A large-enough compressed PDF/scan can silently hang the browser upload with
+# zero feedback (no client-side check existed before this, no server timeout
+# either) — 2026-09-15 prod report. Cap matches the shape of the other upload
+# routes' explicit ceilings (activity_image_routes.IMAGE_MAX_BYTES=5MB,
+# recording_routes._MAX_RECORDING_BYTES=100MB); documents sit between the two.
+_MAX_UPLOAD_BYTES = 20 * 1024 * 1024  # 20 MB
+
 _ALLOWED_EXTENSIONS = {
     ".docx",
     ".pptx",
@@ -283,6 +290,16 @@ async def upload_document(
             detail=f"File type {ext!r} is not supported. Allowed: {sorted(_ALLOWED_EXTENSIONS)}",
         )
 
+    # Read + size-gate BEFORE writing the pending Firestore record — otherwise
+    # a rejected oversized file leaves a phantom "pending" tab the student can
+    # never clear (2026-09-15: a large compressed PDF hung with zero feedback).
+    file_bytes = await file.read()
+    if len(file_bytes) > _MAX_UPLOAD_BYTES:
+        raise HTTPException(
+            status_code=413,
+            detail=f"File is too large ({len(file_bytes)} bytes); max {_MAX_UPLOAD_BYTES} bytes.",
+        )
+
     # Resolve destination folder (auto-create if not provided)
     effective_folder_id = folder_id.strip() or folders_db.ensure_default_folder(user.uid)
 
@@ -326,8 +343,7 @@ async def upload_document(
         now=now,
     )
 
-    # Upload to GCS
-    file_bytes = await file.read()
+    # Upload to GCS (file_bytes already read + size-gated above)
     try:
         _upload_to_gcs(
             bucket_name,
