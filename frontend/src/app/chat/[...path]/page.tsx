@@ -1363,6 +1363,7 @@ function ChatShell({
                   onFiles={(files) => void images.addFiles(files)}
                   disabled={inputDisabled}
                   full={images.count >= MAX_IMAGES}
+                  lang={composerVoice.tts.language ?? "da"}
                 />
               )}
               <VoiceComposerControls

@@ -28,6 +28,33 @@ _STATE_DOCS_LOADED = "app:docs_loaded"
 _STATE_DOC_LOAD_ERROR = "app:doc_load_error"
 
 
+# 1.1.122 — one loader/injector pair, two artifact shapes, keyed by TYPE:
+#   doc:{id}.json   parsed text blocks (application/json)  → inlined as text
+#   doc:{id}.image  the original pixels (image/*)          → inlined as an image Part
+# A student's workbench upload is a tab either way; which shape it takes is
+# decided by the record's mediaKind, never by the student.
+# doc_id -> original filename for image artifacts, so the injector can label
+# the pixels ("which photo is this?") without a Firestore read per turn.
+_STATE_DOC_IMAGE_LABELS = "app:doc_image_labels"
+
+
+def _text_artifact_name(doc_id: str) -> str:
+    return f"doc:{doc_id}.json"
+
+
+def _image_artifact_name(doc_id: str) -> str:
+    return f"doc:{doc_id}.image"
+
+
+async def _load_any_artifact(callback_context: Any, doc_id: str) -> Any:
+    """Whichever artifact backs ``doc_id`` (text or image), or ``None``."""
+    for name in (_text_artifact_name(doc_id), _image_artifact_name(doc_id)):
+        art = await callback_context.load_artifact(filename=name)
+        if art is not None and getattr(art, "inline_data", None) is not None:
+            return art
+    return None
+
+
 def make_document_loader() -> Any:
     """Return a before_agent_callback that loads document blocks into session artifacts.
 
@@ -66,12 +93,12 @@ def make_document_loader() -> Any:
         orphans: list[str] = []
         for doc_id in loaded_raw:
             try:
-                art = await callback_context.load_artifact(filename=f"doc:{doc_id}.json")
+                art = await _load_any_artifact(callback_context, doc_id)
             except Exception as exc:
                 logger.warning("doc loader: orphan probe error for %s: %s", doc_id, exc)
                 orphans.append(doc_id)
                 continue
-            if art is None or getattr(art, "inline_data", None) is None:
+            if art is None:
                 orphans.append(doc_id)
                 continue
             loaded.append(doc_id)
@@ -94,13 +121,42 @@ def make_document_loader() -> Any:
 
         from google.genai.types import Blob, Part
 
-        from tools.documents.context import build_document_context
+        from db.firestore import get_document
+        from tools.documents.context import (
+            build_document_context,
+            document_mime_type,
+            is_image_document,
+            read_document_bytes,
+        )
 
         errors: dict[str, str] = dict(state.get(_STATE_DOC_LOAD_ERROR) or {})
+        image_labels: dict[str, str] = dict(state.get(_STATE_DOC_IMAGE_LABELS) or {})
         successfully_loaded: list[str] = []
 
         for doc_id in to_load:
             try:
+                # 1.1.122 — an image record is stored as pixels, not parsed. It
+                # never goes near build_document_context (whose "no blocks"
+                # branch would otherwise report it as an unreadable document).
+                raw = get_document("parsed_documents", doc_id)
+                if raw is not None and is_image_document(raw):
+                    data = await read_document_bytes(raw)
+                    if not data:
+                        errors[doc_id] = "Image file is empty. Re-upload it to make it available to the AI."
+                        logger.warning("document loader: empty image bytes for doc:%s — skipping", doc_id)
+                        continue
+                    await callback_context.save_artifact(
+                        filename=_image_artifact_name(doc_id),
+                        artifact=Part(inline_data=Blob(data=data, mime_type=document_mime_type(raw))),
+                    )
+                    successfully_loaded.append(doc_id)
+                    errors.pop(doc_id, None)
+                    image_labels[doc_id] = str(raw.get("originalFilename") or doc_id)
+                    logger.info(
+                        "document artifact saved: %s (%d bytes, image)", _image_artifact_name(doc_id), len(data)
+                    )
+                    continue
+
                 _content, blocks = build_document_context(doc_id, mode="blocks")
                 if not blocks:
                     errors[doc_id] = (
@@ -131,6 +187,8 @@ def make_document_loader() -> Any:
 
         loaded.extend(successfully_loaded)
         state[_STATE_DOCS_LOADED] = loaded
+        if image_labels:
+            state[_STATE_DOC_IMAGE_LABELS] = image_labels
         if errors:
             state[_STATE_DOC_LOAD_ERROR] = errors
         elif _STATE_DOC_LOAD_ERROR in state:
@@ -228,14 +286,15 @@ def make_document_injector() -> Any:
 
         from google.genai.types import Content, Part
 
+        _image_labels: dict[str, str] = dict(state.get(_STATE_DOC_IMAGE_LABELS) or {})
         injected = 0
         for doc_id in loaded:
             try:
-                artifact = await callback_context.load_artifact(filename=f"doc:{doc_id}.json")
+                artifact = await _load_any_artifact(callback_context, doc_id)
             except Exception as exc:
                 logger.warning("doc injector: load_artifact failed for %s: %s", doc_id, exc)
                 continue
-            if not artifact or not getattr(artifact, "inline_data", None):
+            if not artifact:
                 logger.warning(
                     "doc injector: artifact missing for %s — orphan in app:docs_loaded "
                     "(loader's orphan recovery will retry next turn)",
@@ -245,6 +304,21 @@ def make_document_injector() -> Any:
             data = artifact.inline_data.data
             if not data:
                 logger.warning("doc injector: artifact empty for %s", doc_id)
+                continue
+            # 1.1.122 — an image artifact goes in as an image Part (the
+            # activity_images.py shape: a label, then the pixels), so the
+            # tutor SEES the student's photo rather than reading an OCR guess.
+            if str(getattr(artifact.inline_data, "mime_type", "") or "").startswith("image/"):
+                label = _image_labels.get(doc_id) or doc_id
+                contents.insert(
+                    -1,
+                    Content(
+                        role="user",
+                        parts=[Part.from_text(text=f"[Attached image: {label} — uploaded by the student]")],
+                    ),
+                )
+                contents.insert(-1, Content(role="user", parts=[artifact]))
+                injected += 1
                 continue
             blocks_json = data.decode("utf-8", errors="replace") if isinstance(data, bytes | bytearray) else str(data)
             doc_content = Content(

@@ -128,3 +128,23 @@ function loadImage(src: string): Promise<HTMLImageElement> {
     img.src = src;
   });
 }
+
+/**
+ * Turn an `EncodedImage` (base64, no data-URL prefix) back into a `File`, for
+ * callers that upload via multipart rather than inline base64 — the document
+ * workbench (1.1.122) downscales a photo on device with `resizeImageFile` and
+ * then hands the result to the same upload route a PDF takes. The name keeps
+ * the original stem and takes the extension of the encoded mime (a downscaled
+ * PNG comes back as JPEG), so the backend's extension gate sees the truth.
+ */
+export function encodedImageToFile(img: EncodedImage, originalName: string): File {
+  const bin = atob(img.data);
+  const bytes = new Uint8Array(bin.length);
+  for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
+  const ext = { "image/jpeg": "jpg", "image/png": "png", "image/webp": "webp", "image/heic": "heic", "image/heif": "heif" }[
+    img.mimeType
+  ];
+  const stem = originalName.replace(/\.[^.]+$/, "") || "billede";
+  const name = ext ? `${stem}.${ext}` : originalName;
+  return new File([bytes], name, { type: img.mimeType });
+}

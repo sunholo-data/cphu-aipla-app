@@ -132,7 +132,12 @@ When you draft the lesson prompt, shape it so the resulting tutor session will:
   - **solution** (`element_kind="solution"`, `text` = the prompt) — where the
     student submits their own work (a photo or a whiteboard drawing).
   - **document** (`element_kind="document"`, `text` = the prompt) — where the
-    student uploads a file.
+    student uploads a file to KEEP as a tab the tutor sees every turn — a PDF,
+    a Word file, or a photo of their work (images reach the tutor as pixels,
+    not OCR). Choose **solution** when the task is *"draw/photograph your
+    working and get feedback on it"* (one submit); choose **document** when
+    the file is the object of the activity (*"upload your report and improve
+    it"*). Students never need to pick by file type — either takes a photo.
   **Units are not optional on measured quantities.** Danish physics teaching
 requires every table and plot label to carry its unit, so set `unit` on every
 column and calculator input that has one (`s`, `m`, `m/s`, `m/s²`). A chart

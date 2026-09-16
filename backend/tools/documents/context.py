@@ -107,6 +107,62 @@ def apply_edits(blocks: list[dict[str, Any]], edited_blocks: dict[str, Any]) -> 
 # --- Public API ---
 
 
+def is_image_document(raw: dict[str, Any]) -> bool:
+    """True for a record the upload route stored as an image (1.1.122).
+
+    Keyed on ``mediaKind`` — the field the route writes — with the
+    ``sourceFormat`` extension as a fallback for any row written before the
+    field existed.
+    """
+    if raw.get("mediaKind") == "image":
+        return True
+    return str(raw.get("sourceFormat") or "").lower() in {"jpg", "jpeg", "png", "webp", "heic", "heif"}
+
+
+def document_mime_type(raw: dict[str, Any]) -> str:
+    """Best-effort mime for a record's original bytes (extension-derived)."""
+    import mimetypes
+
+    name = str(raw.get("originalFilename") or "")
+    guess, _ = mimetypes.guess_type(name)
+    if guess:
+        return guess
+    fmt = str(raw.get("sourceFormat") or "").lower()
+    return {
+        "jpg": "image/jpeg",
+        "jpeg": "image/jpeg",
+        "png": "image/png",
+        "webp": "image/webp",
+        "heic": "image/heic",
+        "heif": "image/heif",
+        "pdf": "application/pdf",
+    }.get(fmt, "application/octet-stream")
+
+
+async def read_document_bytes(raw: dict[str, Any]) -> bytes:
+    """Read a record's ORIGINAL bytes from its stored ``gs://`` URL.
+
+    Reading from the stored URL (not a re-derived bucket) keeps this correct for
+    anonymous-group uploads, whose owner has no email domain to resolve a bucket
+    from (the CLAUDE.md anon-group corner). Shared by the workbench viewer's
+    ``/raw`` route and the tutor's image loader (1.1.122). Raises on a
+    missing/unreadable object.
+    """
+    import asyncio
+
+    source_url = str(raw.get("sourceUrl") or "")
+    if not source_url.startswith("gs://"):
+        raise FileNotFoundError("no gs:// source")
+    bucket_name, _, blob_path = source_url[len("gs://") :].partition("/")
+    if not bucket_name or not blob_path:
+        raise FileNotFoundError("malformed gs:// source")
+
+    from google.cloud import storage as gcs
+
+    blob = gcs.Client().bucket(bucket_name).blob(blob_path)
+    return await asyncio.to_thread(blob.download_as_bytes)
+
+
 def list_documents_for_user(user_id: str, skill_id: str | None = None, limit: int = 20) -> list[dict[str, Any]]:
     """List parsed documents owned by a user, newest first, optionally by skill.
 

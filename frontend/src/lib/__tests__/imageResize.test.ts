@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import {
+  encodedImageToFile,
   MAX_EDGE,
   computeTargetSize,
   stripDataUrlPrefix,
@@ -45,5 +46,22 @@ describe("stripDataUrlPrefix", () => {
 
   it("returns the input unchanged when there is no prefix", () => {
     expect(stripDataUrlPrefix("QUJD")).toBe("QUJD");
+  });
+});
+
+describe("encodedImageToFile (1.1.122)", () => {
+  it("rebuilds a File the multipart upload route can take, named for the ENCODED mime", async () => {
+    // A downscaled PNG comes back as JPEG — the extension must say so, or the
+    // backend's extension gate and content-type canonicalisation read a lie.
+    const f = encodedImageToFile({ mimeType: "image/jpeg", data: btoa("\xff\xd8fake") }, "ligning.png");
+    expect(f).toBeInstanceOf(File);
+    expect(f.name).toBe("ligning.jpg");
+    expect(f.type).toBe("image/jpeg");
+    expect(new Uint8Array(await f.arrayBuffer())).toEqual(new Uint8Array([0xff, 0xd8, 0x66, 0x61, 0x6b, 0x65]));
+  });
+
+  it("keeps the original name for a passthrough mime it cannot map", () => {
+    const f = encodedImageToFile({ mimeType: "application/octet-stream", data: btoa("x") }, "IMG_0001.HEIC");
+    expect(f.name).toBe("IMG_0001.HEIC");
   });
 });

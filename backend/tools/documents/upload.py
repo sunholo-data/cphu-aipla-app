@@ -40,7 +40,19 @@ _COLLECTION = "parsed_documents"
 # recording_routes._MAX_RECORDING_BYTES=100MB); documents sit between the two.
 _MAX_UPLOAD_BYTES = 20 * 1024 * 1024  # 20 MB
 
-_ALLOWED_EXTENSIONS = {
+# 1.1.122 — images are files too. A student uploading a photo of their work
+# here gets it to the tutor as PIXELS (adk/callbacks/document.py branches on
+# `mediaKind`), never through AILANG Parse or the OCR fallback — the lossy path
+# 1.1.48 rejected for handwriting. HEIC/HEIF: Danish iPhones default to it and
+# Gemini accepts it natively.
+_IMAGE_EXTENSIONS = {".jpg", ".jpeg", ".png", ".webp", ".heic", ".heif"}
+
+# Same ceiling as a teacher's activity image (activity_image_routes.IMAGE_MAX_BYTES);
+# the workbench downscales to <=2048px on device first, so a phone photo
+# arrives at a few hundred KB.
+_MAX_IMAGE_BYTES = 5 * 1024 * 1024  # 5 MB
+
+_ALLOWED_EXTENSIONS = _IMAGE_EXTENSIONS | {
     ".docx",
     ".pptx",
     ".xlsx",
@@ -78,6 +90,12 @@ _EXTENSION_CONTENT_TYPES = {
     ".csv": "text/csv",
     ".pdf": "application/pdf",
     ".txt": "text/plain",
+    ".jpg": "image/jpeg",
+    ".jpeg": "image/jpeg",
+    ".png": "image/png",
+    ".webp": "image/webp",
+    ".heic": "image/heic",
+    ".heif": "image/heif",
 }
 
 
@@ -130,9 +148,9 @@ async def _run_parse(gs_url: str) -> tuple[str, list, int, str | None]:
 
     if outcome is None:
         # AILANG Parse returns None for formats it can't do deterministically.
-        # Images aren't accepted at upload (see _ALLOWED_EXTENSIONS — they go
-        # through the solution element as pixels, not the parse route), so among
-        # accepted formats only PDF lands here; it gets the AI fallback.
+        # Images never reach this function (1.1.122: upload_document stores
+        # them as pixels for the tutor, no parse), so among accepted formats
+        # only PDF lands here; it gets the AI fallback.
         if PurePosixPath(gs_url).suffix.lower() == ".pdf":
             return await _run_pdf_ai_parse(gs_url, t0)
         log.info("AILANG Parse: extension not supported for %s, using AI extraction", gs_url)
@@ -224,12 +242,16 @@ def _store_document(
     parse_result: _ParseResult,
     now: datetime,
     group_id: str | None = None,
+    media_kind: str = "document",
 ) -> None:
     pr = parse_result
     blocks = pr.blocks
     doc: dict = {
         "skillId": skill_id,
         "userId": user_id,
+        # 1.1.122 — "image" | "document". The loader/injector route by this:
+        # an image reaches the tutor as pixels, a document as parsed blocks.
+        "mediaKind": media_kind,
         # 1.1.45 M3 — anonymous-group uploads are GROUP-owned: user_id is the
         # group-stable synthetic uid (anon-<groupId>), shared by every member +
         # the shared session, so the whole group sees the file and the shared
@@ -303,10 +325,12 @@ async def upload_document(
     # a rejected oversized file leaves a phantom "pending" tab the student can
     # never clear (2026-09-15: a large compressed PDF hung with zero feedback).
     file_bytes = await file.read()
-    if len(file_bytes) > _MAX_UPLOAD_BYTES:
+    is_image = ext in _IMAGE_EXTENSIONS
+    max_bytes = _MAX_IMAGE_BYTES if is_image else _MAX_UPLOAD_BYTES
+    if len(file_bytes) > max_bytes:
         raise HTTPException(
             status_code=413,
-            detail=f"File is too large ({len(file_bytes)} bytes); max {_MAX_UPLOAD_BYTES} bytes.",
+            detail=f"File is too large ({len(file_bytes)} bytes); max {max_bytes} bytes.",
         )
 
     # Resolve destination folder (auto-create if not provided)
@@ -337,6 +361,8 @@ async def upload_document(
     gs_url = f"gs://{bucket_name}/{storage_path}"
     now = datetime.now(UTC)
 
+    media_kind = "image" if is_image else "document"
+
     # Write pending record immediately so the frontend can show the file
     _store_document(
         doc_id,
@@ -350,6 +376,7 @@ async def upload_document(
         folder_id=effective_folder_id,
         parse_result=_ParseResult("pending", [], None, None),
         now=now,
+        media_kind=media_kind,
     )
 
     # Upload to GCS (file_bytes already read + size-gated above)
@@ -376,11 +403,17 @@ async def upload_document(
             folder_id=effective_folder_id,
             parse_result=_ParseResult("failed", [], str(exc), None),
             now=now,
+            media_kind=media_kind,
         )
         raise HTTPException(status_code=500, detail=f"Storage upload failed: {exc}") from exc
 
-    # Parse
-    parse_status, blocks, parsed_ms, parse_error = await _run_parse(gs_url)
+    # Parse — documents only. An image is "parsed" the moment its bytes are
+    # stored: it is ready for the tutor as-is (pixels), and "parsed" is the
+    # status the file list and the loader key on.
+    if is_image:
+        parse_status, blocks, parsed_ms, parse_error = "parsed", [], 0, None
+    else:
+        parse_status, blocks, parsed_ms, parse_error = await _run_parse(gs_url)
 
     _store_document(
         doc_id,
@@ -394,6 +427,7 @@ async def upload_document(
         folder_id=effective_folder_id,
         parse_result=_ParseResult(parse_status, blocks, parse_error, parsed_ms),
         now=now,
+        media_kind=media_kind,
     )
 
     # Update folder counts — skip delta for overwrites (doc already counted)

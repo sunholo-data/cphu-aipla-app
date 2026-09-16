@@ -1,5 +1,7 @@
 # Images in the document workbench — the fourth twin
 
+> **Superseded 2026-09-16 by [1.1.122 one-upload-route-by-type](one-upload-route-by-type.md)**, which shipped M1–M3 of this doc under a different framing (the defect is routing by file type, not a missing image branch) and as a type branch inside the existing `document.py` pair rather than a fourth twin. The research below (the `load_artifacts_tool` rejection, "no pixels come back from AILANG Parse", the 1.1.93 dependency) is still the record.
+
 **Status**: **Design (OPEN)** — **1.1.117**. Its original trigger (Aswin's
 2026-09-15 report) is **unexplained** — two theories, including this doc's
 image one, were disproved (see Problem Statement); the structural answer is

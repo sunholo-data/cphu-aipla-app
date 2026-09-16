@@ -49,8 +49,10 @@ export const ELEMENT_REGISTRY: Record<ElementKind, ElementDescriptor> = {
   writing: { kind: "writing", label: "Skrivefelt", render: "workspace", maxItems: 3 },
   // One rich-text solution editor per activity (1.1.45 M4, JB-2 "din løsning").
   solution: { kind: "solution", label: "Din løsning", render: "workspace", maxItems: 1 },
-  // Document-upload surface (1.1.48 — reconciled from workbench_type="document").
-  document: { kind: "document", label: "Dokumentupload", render: "workspace", maxItems: 1 },
+  // File-upload surface (1.1.48 — reconciled from workbench_type="document";
+  // 1.1.122 — takes images too, so the label says FILE: a teacher choosing
+  // between this and "Din løsning" reads file-vs-solution, not document-vs-solution).
+  document: { kind: "document", label: "Filupload", render: "workspace", maxItems: 1 },
   // The living concept map (living-concept-map M0) — one prerequisite DAG per
   // activity; the tutor's in-session check-off lights its nodes up.
   conceptMap: { kind: "conceptMap", label: "Begrebskort", render: "workspace", maxItems: 1 },

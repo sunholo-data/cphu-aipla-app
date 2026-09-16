@@ -17,7 +17,9 @@ import { ImageUploadButtons } from "@/components/chat/ImageComposer";
  * queries — `toBeVisible()` would pass with the bug still present.
  */
 describe("ImageUploadButtons — camera reachability on phones", () => {
-  const setup = () => render(<ImageUploadButtons onFiles={vi.fn()} />);
+  // These assertions predate 1.1.122 and read the English labels; the default
+  // is now Danish (the page's language), so they opt in explicitly.
+  const setup = () => render(<ImageUploadButtons onFiles={vi.fn()} lang="en" />);
 
   it("renders a camera button that requests the rear camera", () => {
     const { container } = setup();
@@ -52,8 +54,29 @@ describe("ImageUploadButtons — camera reachability on phones", () => {
   it("goes inert but stays present once the per-turn image cap is reached", () => {
     // Disappearing controls are worse than disabled ones — the student cannot
     // tell "no camera here" from "you already attached three photos".
-    render(<ImageUploadButtons onFiles={vi.fn()} full />);
+    render(<ImageUploadButtons onFiles={vi.fn()} full lang="en" />);
     expect(screen.getByLabelText("Take photo")).toBeDisabled();
     expect(screen.getByLabelText("Take photo")).toBeInTheDocument();
+  });
+});
+
+describe("ImageUploadButtons — labels a student can find (1.1.122)", () => {
+  // Before: unlabelled icons with English tooltips on a Danish page. A student
+  // who needed exactly this control converted a photo to a PDF instead.
+  it("is Danish by default", () => {
+    render(<ImageUploadButtons onFiles={vi.fn()} />);
+    expect(screen.getByLabelText("Vedhæft billede")).toHaveAttribute("title", "Vedhæft billede");
+    expect(screen.getByLabelText("Tag et billede")).toHaveAttribute("title", "Tag et billede");
+  });
+
+  it("follows the activity's language", () => {
+    render(<ImageUploadButtons onFiles={vi.fn()} lang="en-GB" />);
+    expect(screen.getByLabelText("Attach image")).toBeInTheDocument();
+    expect(screen.getByLabelText("Take photo")).toBeInTheDocument();
+  });
+
+  it("explains the cap in the same language when full", () => {
+    render(<ImageUploadButtons onFiles={vi.fn()} full />);
+    expect(screen.getByLabelText("Vedhæft billede")).toHaveAttribute("title", expect.stringMatching(/ad gangen/));
   });
 });

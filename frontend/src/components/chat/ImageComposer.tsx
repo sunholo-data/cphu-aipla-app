@@ -53,11 +53,28 @@ export function ImageStagingRow({ staged, notice, onRemove }: StagingRowProps) {
   );
 }
 
+// 1.1.122 — the attach buttons were unlabelled icons with ENGLISH tooltips on a
+// Danish page; a student who needed exactly this control could not find it and
+// converted a photo to a PDF instead. Language is data (1.1.108): the caller
+// passes the activity's language, and every string lives here.
+const copy = {
+  da: { attach: "Vedhæft billede", photo: "Tag et billede", full: "Du kan højst vedhæfte et par billeder ad gangen" },
+  en: { attach: "Attach image", photo: "Take photo", full: "Maximum images reached" },
+} as const;
+
+export type ImageComposerLang = keyof typeof copy;
+
+function pickLang(lang: string | null | undefined): ImageComposerLang {
+  return lang?.toLowerCase().startsWith("en") ? "en" : "da";
+}
+
 interface UploadButtonsProps {
   onFiles: (files: FileList | null) => void;
   disabled?: boolean;
   /** true once the per-turn cap is reached — buttons go inert. */
   full?: boolean;
+  /** The activity's language ("da" default) — picks the button labels. */
+  lang?: string | null;
 }
 
 /**
@@ -73,7 +90,8 @@ interface UploadButtonsProps {
  * visible at every width. Both mount points inherit the fix: this composer and
  * `SolutionElementMount` ("upload a photo of your handwritten solution").
  */
-export function ImageUploadButtons({ onFiles, disabled, full }: UploadButtonsProps) {
+export function ImageUploadButtons({ onFiles, disabled, full, lang }: UploadButtonsProps) {
+  const t = copy[pickLang(lang)];
   const fileRef = useRef<HTMLInputElement>(null);
   const cameraRef = useRef<HTMLInputElement>(null);
   const inert = disabled || full;
@@ -120,8 +138,8 @@ export function ImageUploadButtons({ onFiles, disabled, full }: UploadButtonsPro
         type="button"
         onClick={pick(fileRef)}
         disabled={inert}
-        aria-label="Attach image"
-        title={full ? "Maximum images reached" : "Attach image"}
+        aria-label={t.attach}
+        title={full ? t.full : t.attach}
         className={btn}
       >
         <Paperclip className="h-4 w-4" />
@@ -130,8 +148,8 @@ export function ImageUploadButtons({ onFiles, disabled, full }: UploadButtonsPro
         type="button"
         onClick={pick(cameraRef)}
         disabled={inert}
-        aria-label="Take photo"
-        title={full ? "Maximum images reached" : "Take photo"}
+        aria-label={t.photo}
+        title={full ? t.full : t.photo}
         className={btn}
       >
         <Camera className="h-4 w-4" />

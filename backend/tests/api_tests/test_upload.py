@@ -184,3 +184,65 @@ class TestFormFieldsReachTheRecord:
         assert resp.json()["folderId"] == "folder-xyz"
         # A caller-supplied folder must not be replaced by the auto-created default.
         assert ensure_calls == []
+
+
+class TestImagesAreFilesToo:
+    """1.1.122 — a photo of the student's work is accepted by the SAME route as
+    a PDF, stored as pixels for the tutor, and never sent through the parser
+    (OCR of handwriting is the path 1.1.48 rejected)."""
+
+    def _png(self, size: int = 100) -> dict:
+        return {"file": ("ligning.png", BytesIO(b"\x89PNG" + b"\x00" * size), "image/png")}
+
+    def test_image_upload_skips_the_parser_and_is_stored_ready(self, client: TestClient):
+        stored = []
+
+        def fake_store(doc_id, *, parse_result, media_kind="document", **kwargs):
+            stored.append((parse_result.status, media_kind))
+
+        with (
+            patch("tools.documents.upload.resolve_documents_bucket", return_value="bucket"),
+            patch("tools.documents.upload._upload_to_gcs"),
+            patch("tools.documents.upload._run_parse") as run_parse,
+            patch("tools.documents.upload._store_document", side_effect=fake_store),
+            patch("tools.documents.upload.query_documents", return_value=[]),
+            patch("db.folders.ensure_default_folder", return_value="folder1"),
+        ):
+            resp = client.post("/api/documents/upload", files=self._png(), data={"skill_id": "act-1"})
+
+        assert resp.status_code == 200
+        assert resp.json()["status"] == "parsed"  # ready for the tutor as-is
+        run_parse.assert_not_called()
+        assert stored == [("pending", "image"), ("parsed", "image")]
+
+    def test_image_content_type_is_canonical(self, client: TestClient):
+        captured = {}
+
+        with (
+            patch("tools.documents.upload.resolve_documents_bucket", return_value="bucket"),
+            patch(
+                "tools.documents.upload._upload_to_gcs",
+                side_effect=lambda b, p, d, ct, u, f: captured.setdefault("ct", ct),
+            ),
+            patch("tools.documents.upload._store_document"),
+            patch("tools.documents.upload.query_documents", return_value=[]),
+            patch("db.folders.ensure_default_folder", return_value="folder1"),
+        ):
+            client.post(
+                "/api/documents/upload", files={"file": ("foto.HEIC", BytesIO(b"x"), "application/octet-stream")}
+            )
+
+        assert captured["ct"] == "image/heic"
+
+    def test_image_over_5mb_is_413_before_any_write(self, client: TestClient):
+        store_calls = []
+        with (
+            patch("tools.documents.upload._MAX_IMAGE_BYTES", 50),
+            patch("tools.documents.upload.resolve_documents_bucket", return_value="bucket"),
+            patch("tools.documents.upload._store_document", side_effect=lambda *a, **k: store_calls.append(1)),
+            patch("db.folders.ensure_default_folder", return_value="folder1"),
+        ):
+            resp = client.post("/api/documents/upload", files=self._png(100))
+
+        assert resp.status_code == 413
+        assert store_calls == []

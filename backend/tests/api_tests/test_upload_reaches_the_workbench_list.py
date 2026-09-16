@@ -116,3 +116,21 @@ def test_another_activity_does_not_see_it(client: TestClient) -> None:
     _upload_as_the_workbench_does(client)
     other = client.get("/api/documents", params={"skillId": "act-other"}).json()["documents"]
     assert other == []
+
+
+def test_uploaded_image_is_listed_like_any_other_file(client: TestClient, store: _InMemoryParsedDocuments) -> None:
+    # 1.1.122 — the student does not choose a route by file type. A photo goes
+    # through the same button, the same route, and lands in the same tabs.
+    resp = client.post(
+        "/api/documents/upload",
+        files={"file": ("ligning.png", BytesIO(b"\x89PNG fake"), "image/png")},
+        data={"skill_id": _ACTIVITY},
+    )
+    assert resp.status_code == 200, resp.text
+    doc_id = resp.json()["docId"]
+    assert store.rows[doc_id]["mediaKind"] == "image"
+    assert store.rows[doc_id]["parseStatus"] == "parsed"
+
+    listed = client.get("/api/documents", params={"skillId": _ACTIVITY}).json()["documents"]
+    assert [d["docId"] for d in listed] == [doc_id]
+    assert listed[0]["sourceFormat"] == "png"

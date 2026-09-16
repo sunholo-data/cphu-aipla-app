@@ -139,25 +139,10 @@ def _doc_mime(doc: dict) -> str:
 
 
 async def _read_doc_bytes(doc: dict) -> bytes:
-    """Read a document's original bytes from its stored ``gs://`` URL.
+    """Original bytes for a record — the shared reader in ``context.py`` (1.1.122)."""
+    from tools.documents.context import read_document_bytes
 
-    Reading from the stored URL (not a re-derived bucket) keeps this correct for
-    anonymous-group uploads, whose owner has no email domain to resolve a bucket
-    from (the CLAUDE.md anon-group corner). Raises on a missing/unreadable object.
-    """
-    import asyncio
-
-    source_url = str(doc.get("sourceUrl") or "")
-    if not source_url.startswith("gs://"):
-        raise FileNotFoundError("no gs:// source")
-    bucket_name, _, blob_path = source_url[len("gs://") :].partition("/")
-    if not bucket_name or not blob_path:
-        raise FileNotFoundError("malformed gs:// source")
-
-    from google.cloud import storage as gcs
-
-    blob = gcs.Client().bucket(bucket_name).blob(blob_path)
-    return await asyncio.to_thread(blob.download_as_bytes)
+    return await read_document_bytes(doc)
 
 
 @router.get("/api/documents/{doc_id}/raw")
