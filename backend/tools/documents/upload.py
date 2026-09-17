@@ -12,6 +12,7 @@ Flow:
 from __future__ import annotations
 
 import logging
+import re
 import uuid
 from datetime import UTC, datetime
 from pathlib import PurePosixPath
@@ -51,6 +52,14 @@ _IMAGE_EXTENSIONS = {".jpg", ".jpeg", ".png", ".webp", ".heic", ".heif"}
 # the workbench downscales to <=2048px on device first, so a phone photo
 # arrives at a few hundred KB.
 _MAX_IMAGE_BYTES = 5 * 1024 * 1024  # 5 MB
+
+# Plain text needs no parser at all: the bytes ARE the content. It is turned
+# into paragraph blocks here, locally, and stored "parsed" at once. Before
+# 2026-09-17 a .txt fell through to `pending_ai_extraction` — a status nothing
+# ever resolves — so the workbench (which lists status == "parsed") never
+# showed it and the tutor said "try again in a moment" forever. Same symptom
+# as the 1.1.121 report, for a type the picker explicitly offers ("tekst").
+_PLAIN_TEXT_EXTENSIONS = {".txt"}
 
 _ALLOWED_EXTENSIONS = _IMAGE_EXTENSIONS | {
     ".docx",
@@ -148,13 +157,18 @@ async def _run_parse(gs_url: str) -> tuple[str, list, int, str | None]:
 
     if outcome is None:
         # AILANG Parse returns None for formats it can't do deterministically.
-        # Images never reach this function (1.1.122: upload_document stores
-        # them as pixels for the tutor, no parse), so among accepted formats
-        # only PDF lands here; it gets the AI fallback.
+        # Images and plain text never reach this function (upload_document
+        # stores pixels as-is / splits text into paragraphs locally), so among
+        # accepted formats only PDF lands here; it gets the AI fallback.
         if PurePosixPath(gs_url).suffix.lower() == ".pdf":
             return await _run_pdf_ai_parse(gs_url, t0)
-        log.info("AILANG Parse: extension not supported for %s, using AI extraction", gs_url)
-        return "pending_ai_extraction", [], elapsed_ms, None
+        # Anything else means the live formats list no longer covers a type
+        # _ALLOWED_EXTENSIONS still offers. Fail CLOSED: "failed" is a status
+        # the workbench messages and the tutor reports; the old
+        # "pending_ai_extraction" was resolved by nothing, so the file simply
+        # never appeared (2026-09-17, .txt).
+        log.error("AILANG Parse: extension not supported for %s and no local path handles it", gs_url)
+        return "failed", [], elapsed_ms, "This file type could not be read."
     if not outcome.ok:
         log.error("AILANG Parse failed for %s: [%s] %s", gs_url, outcome.error_code, outcome.error)
         return "failed", [], elapsed_ms, outcome.error
@@ -217,6 +231,22 @@ async def _run_pdf_ai_parse(gs_url: str, t0: float) -> tuple[str, list, int, str
     elapsed_ms = int((time.monotonic() - t0) * 1000)
     log.info("PDF AI parse ok for %s: %d block(s)", gs_url, len(blocks))
     return "parsed", blocks, elapsed_ms, None
+
+
+def _plain_text_to_blocks(data: bytes) -> list[dict[str, str]]:
+    """Plain text → paragraph blocks, split on blank lines. No parser involved.
+
+    Same block shape as the PDF fallback's last resort. Decodes UTF-8 (with a
+    BOM if present) and falls back to Latin-1 so a Windows-saved Danish file
+    (æøå in cp1252) never fails on decoding — it is *text*, show it.
+    """
+    try:
+        text = data.decode("utf-8-sig")
+    except UnicodeDecodeError:
+        text = data.decode("latin-1")
+    text = text.replace("\r\n", "\n").replace("\r", "\n")
+    paragraphs = [p.strip() for p in re.split(r"\n\s*\n", text) if p.strip()]
+    return [{"type": "paragraph", "text": p} for p in paragraphs]
 
 
 class _ParseResult:
@@ -412,6 +442,8 @@ async def upload_document(
     # status the file list and the loader key on.
     if is_image:
         parse_status, blocks, parsed_ms, parse_error = "parsed", [], 0, None
+    elif ext in _PLAIN_TEXT_EXTENSIONS:
+        parse_status, blocks, parsed_ms, parse_error = "parsed", _plain_text_to_blocks(file_bytes), 0, None
     else:
         parse_status, blocks, parsed_ms, parse_error = await _run_parse(gs_url)
 

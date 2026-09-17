@@ -319,11 +319,42 @@ class TestPdfAiFallback:
         assert blocks == [{"type": "paragraph", "text": "just some loose text"}]
 
     @pytest.mark.asyncio
-    async def test_non_pdf_unsupported_stays_pending(self):
+    async def test_non_pdf_unsupported_fails_closed(self):
+        """Nothing ever resolved `pending_ai_extraction`, so a file that landed
+        there was invisible forever (2026-09-17, .txt). Unsupported now means
+        "failed" with a message — the status the workbench and tutor report."""
         from tools.documents import upload
 
         with patch("tools.documents.ailang_parse.parse_gcs_file", return_value=None):
-            status, blocks, _ms, _error = await upload._run_parse("gs://bucket/photo.png")
+            status, blocks, _ms, error = await upload._run_parse("gs://bucket/weird.xyz")
 
-        assert status == "pending_ai_extraction"
+        assert status == "failed"
         assert blocks == []
+        assert error
+
+
+class TestPlainTextToBlocks:
+    """A .txt never needs a parser: bytes → paragraphs, locally."""
+
+    def test_splits_on_blank_lines_and_keeps_single_newlines(self):
+        from tools.documents.upload import _plain_text_to_blocks
+
+        blocks = _plain_text_to_blocks(b"a\nb\n\n\n  c  \n")
+        assert blocks == [{"type": "paragraph", "text": "a\nb"}, {"type": "paragraph", "text": "c"}]
+
+    def test_windows_line_endings_and_bom(self):
+        from tools.documents.upload import _plain_text_to_blocks
+
+        blocks = _plain_text_to_blocks("\ufeffx\r\n\r\ny".encode())
+        assert blocks == [{"type": "paragraph", "text": "x"}, {"type": "paragraph", "text": "y"}]
+
+    def test_cp1252_danish_does_not_fail_decoding(self):
+        from tools.documents.upload import _plain_text_to_blocks
+
+        blocks = _plain_text_to_blocks("Faldforsøg med æøå".encode("cp1252"))
+        assert blocks == [{"type": "paragraph", "text": "Faldforsøg med æøå"}]
+
+    def test_empty_file_gives_no_blocks(self):
+        from tools.documents.upload import _plain_text_to_blocks
+
+        assert _plain_text_to_blocks(b"   \n\n") == []

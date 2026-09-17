@@ -246,3 +246,42 @@ class TestImagesAreFilesToo:
 
         assert resp.status_code == 413
         assert store_calls == []
+
+
+class TestPlainTextNeedsNoParser:
+    """2026-09-17 — a .txt is already text. It is split into paragraph blocks
+    locally and stored "parsed" at once. Before this it fell through to
+    `pending_ai_extraction`, which nothing resolved, so the workbench (status
+    == "parsed") never listed it — the 1.1.121 symptom for a type the picker
+    offers as "tekst"."""
+
+    def test_txt_upload_skips_the_parser_and_is_parsed_at_once(self, client: TestClient):
+        stored = []
+
+        def fake_store(doc_id, *, parse_result, media_kind="document", **kwargs):
+            stored.append((parse_result.status, media_kind, parse_result.blocks))
+
+        body = "Faldforsøg.\nv = 0,45 s over 1,0 m\n\nKonklusion: g ≈ 9,8 m/s²\n".encode()
+        with (
+            patch("tools.documents.upload.resolve_documents_bucket", return_value="bucket"),
+            patch("tools.documents.upload._upload_to_gcs"),
+            patch("tools.documents.upload._run_parse") as run_parse,
+            patch("tools.documents.upload._store_document", side_effect=fake_store),
+            patch("tools.documents.upload.query_documents", return_value=[]),
+            patch("db.folders.ensure_default_folder", return_value="folder1"),
+        ):
+            resp = client.post(
+                "/api/documents/upload",
+                files={"file": ("noter.txt", BytesIO(body), "text/plain")},
+                data={"skill_id": "act-1"},
+            )
+
+        assert resp.status_code == 200
+        assert resp.json()["status"] == "parsed"
+        assert resp.json()["blocksCount"] == 2
+        run_parse.assert_not_called()
+        assert [s[:2] for s in stored] == [("pending", "document"), ("parsed", "document")]
+        assert stored[-1][2] == [
+            {"type": "paragraph", "text": "Faldforsøg.\nv = 0,45 s over 1,0 m"},
+            {"type": "paragraph", "text": "Konklusion: g ≈ 9,8 m/s²"},
+        ]

@@ -134,3 +134,27 @@ def test_uploaded_image_is_listed_like_any_other_file(client: TestClient, store:
     listed = client.get("/api/documents", params={"skillId": _ACTIVITY}).json()["documents"]
     assert [d["docId"] for d in listed] == [doc_id]
     assert listed[0]["sourceFormat"] == "png"
+
+
+def test_uploaded_plain_text_is_listed_without_any_parser(client: TestClient, store: _InMemoryParsedDocuments) -> None:
+    # 2026-09-17 — a .txt used to land as `pending_ai_extraction` and, since
+    # nothing resolved that status and the list filters status == "parsed",
+    # it never appeared. Now it is paragraphs the moment it is stored. Note
+    # `_run_parse` is stubbed to return "parsed" in this client, so this only
+    # witnesses the bug if the .txt genuinely bypasses it — assert the blocks.
+    resp = client.post(
+        "/api/documents/upload",
+        files={"file": ("noter.txt", BytesIO(b"first\n\nsecond"), "text/plain")},
+        data={"skill_id": _ACTIVITY},
+    )
+    assert resp.status_code == 200, resp.text
+    doc_id = resp.json()["docId"]
+    assert store.rows[doc_id]["parseStatus"] == "parsed"
+    assert store.rows[doc_id]["blocks"] == [
+        {"type": "paragraph", "text": "first"},
+        {"type": "paragraph", "text": "second"},
+    ]
+
+    listed = client.get("/api/documents", params={"skillId": _ACTIVITY}).json()["documents"]
+    assert [d["docId"] for d in listed] == [doc_id]
+    assert listed[0]["sourceFormat"] == "txt"
