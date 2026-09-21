@@ -3,9 +3,10 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useState, type ReactNode } from "react";
-import { FlaskConical, HelpCircle } from "lucide-react";
+import { FlaskConical } from "lucide-react";
 
 import { SiteFooter } from "@/components/site/SiteFooter";
+import { AskAiplaButton, CopilotEntryProvider } from "@/components/teacher/copilot";
 import { AccountMenu } from "@/components/teacher/ui/AccountMenu";
 import { TeacherNav } from "@/components/teacher/ui/TeacherNav";
 import { VisitorAccessBanner } from "@/components/teacher/VisitorAccessBanner";
@@ -81,6 +82,9 @@ export function TeacherClientShell({ children }: { children: ReactNode }) {
     .toUpperCase() || "T";
 
   return (
+    // 1.1.125 M3 — the provider a page's work copilot registers with, so the
+    // header's one button knows what this page offers.
+    <CopilotEntryProvider>
     <div className="flex min-h-screen flex-col">
       {/* ACCESS-1 M4: renders nothing for a pilot teacher; above the header so
           it is the first thing a visitor reads, and never covers the nav. */}
@@ -103,17 +107,9 @@ export function TeacherClientShell({ children }: { children: ReactNode }) {
           </Link>
 
           <div className="flex items-center gap-3">
-            {helpEnabled ? (
-              <button
-                type="button"
-                onClick={() => setHelpOpen((o) => !o)}
-                aria-expanded={helpOpen}
-                className="flex items-center gap-1 rounded border border-border px-2 py-1 text-[11px] font-medium text-muted-foreground hover:bg-accent hover:text-foreground"
-              >
-                <HelpCircle className="h-3.5 w-3.5" aria-hidden="true" />
-                <span>Hjælp</span>
-              </button>
-            ) : null}
+            {/* 1.1.125 M3 — the ONE entry to every copilot: the page's work
+                copilot (if it registered one) and the help assistant. */}
+            <AskAiplaButton helpEnabled={helpEnabled} onOpenHelp={() => setHelpOpen(true)} />
             {isLocalMode() ? (
               <div
                 role="status"
@@ -185,5 +181,6 @@ export function TeacherClientShell({ children }: { children: ReactNode }) {
           bottom-left (work co-pilots are bottom-right). */}
       {helpEnabled && helpOpen ? <AiplaHelpCopilot onClose={() => setHelpOpen(false)} /> : null}
     </div>
+    </CopilotEntryProvider>
   );
 }

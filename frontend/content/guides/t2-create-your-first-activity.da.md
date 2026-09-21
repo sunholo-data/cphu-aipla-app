@@ -36,7 +36,7 @@ side gøres i din browser.
 ::: callout-tip
 ## Vil du hellere beskrive det i ord?
 
-Byggeren har en AI-**medbygger** (nederst til højre). Fortæl den, hvad du vil
+Byggeren har en AI-**medbygger** (**Ask AIPLA** → *Medbygger*). Fortæl den, hvad du vil
 undervise i, og den udkaster et undervisningsmål og elementer til
 arbejdsområdet, som du kan redigere og anvende — se *T4 — Byg med
 AI-medbyggeren*. Hvert trin nedenfor kan også gøres af medbyggeren, ikke kun i

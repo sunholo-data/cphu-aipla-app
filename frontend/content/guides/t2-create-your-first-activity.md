@@ -36,7 +36,7 @@ on this page is done in your browser.
 ::: callout-tip
 ## Prefer to describe it in words?
 
-The builder has an AI **co-pilot** (bottom-right). Tell it what you want to
+The builder has an AI **co-pilot** (**Ask AIPLA** → *Medbygger*). Tell it what you want to
 teach and it drafts a teaching goal and workspace elements you can edit and
 apply — see *T4 — Author with the AI co-pilot*. Every step below can also be
 done by the co-pilot, not only by hand.

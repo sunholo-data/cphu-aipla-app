@@ -7,8 +7,8 @@ order: "4"
 lang: "en"
 status: "Current"
 owner: "AIPLA project team"
-reviewed: "2026-07-14"
-reviewBy: "2026-10-12"
+reviewed: "2026-09-21"
+reviewBy: "2026-12-21"
 ---
 ::: callout-note
 ## Where this fits
@@ -34,8 +34,10 @@ stay in control: the co-pilot never changes the activity on its own.
 
 ## Step 1 — Open the builder
 
-Create or open an activity (guide *T2*). The co-pilot panel sits at the
-**bottom-right** of the builder. It opens ready for a description.
+Create or open an activity (guide *T2*). Click **Ask AIPLA** in the header
+and choose **Medbygger** — the co-pilot panel opens at the bottom-right of the
+builder, ready for a description. (The same button offers *AIPLA Hjælp* on
+every page; on pages with a co-pilot of their own it offers both.)
 
 ![The co-pilot panel (Medbygger) sits at the bottom-right of the activity builder.](/guides/assets/t4-01-copilot-panel.png)
 

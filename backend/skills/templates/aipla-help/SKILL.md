@@ -101,7 +101,8 @@ controls what students see.
 
 ## The AI co-pilot — T4
 
-The activity builder has an AI co-pilot ("**Medbygger**", bottom-right).
+The activity builder has an AI co-pilot ("**Medbygger**" — open it from the
+**Ask AIPLA** button in the header; the panel sits bottom-right).
 Describe what you want to teach and it proposes a teaching goal and workspace
 elements. For each proposal you can **Anvend** (apply it into your draft),
 **Rediger** (edit first), or **Afvis** (dismiss). Nothing changes until you

@@ -1,7 +1,9 @@
 "use client";
 
-import { useState, type ReactNode } from "react";
+import { useEffect, useState, type ReactNode } from "react";
 import { ChevronDown, Sparkles, SquarePen, X } from "lucide-react";
+
+import { useCopilotEntry } from "./CopilotEntryContext";
 
 /**
  * Shared floating chat shell — a fixed bottom-right panel so the teacher can
@@ -50,6 +52,20 @@ export function FloatingCopilot({
   const [minimized, setMinimized] = useState(true);
   const pos = align === "left" ? "bottom-4 left-4" : "bottom-4 right-4";
   const closable = Boolean(onClose);
+  // 1.1.125 M3 — inside the teacher shell the ENTRY is the header's one button,
+  // so a work copilot registers itself there and renders no pill of its own.
+  // Outside a provider (no shell) it keeps the pill: same component, same
+  // behaviour everywhere it was already used.
+  const entry = useCopilotEntry();
+  const registerWithShell = Boolean(entry) && !closable;
+  // Depend on the STABLE `register` callback, not the context value: the value
+  // changes on every registration, and depending on it would re-register in a
+  // loop (register → value changes → cleanup → register → …).
+  const register = entry?.register;
+  useEffect(() => {
+    if (!register || closable) return;
+    return register({ title, open: () => setMinimized(false) });
+  }, [register, closable, title]);
   return (
     <>
       <section
@@ -97,7 +113,7 @@ export function FloatingCopilot({
         </div>
         {children}
       </section>
-      {minimized && !closable ? (
+      {minimized && !closable && !registerWithShell ? (
         <button
           type="button"
           onClick={() => setMinimized(false)}
