@@ -8,7 +8,8 @@ classes, and "yes" for set-tutor only. This sprint makes one answer true
 everywhere: **a researcher may edit any class or activity (not delete a class),
 every page says whose resource it is, and every such edit is attributed.**
 
-**Duration:** ~1.5d · **Scope:** Fullstack · **Design doc:** [1.1.123](researcher-acts-for-teacher.md)
+**Status:** ✅ **SHIPPED dev 2026-09-21** — all four milestones, ~1d actual (backend `221a41e3`, frontend `e5191518`). Left for the browser check after deploy: JB on prod after the next promote.
+**Duration:** ~1.5d (actual ~1d) · **Scope:** Fullstack · **Design doc:** [1.1.123](researcher-acts-for-teacher.md)
 **Follows:** [RSCH-ONBOARD-1](teacher-onboarding-scaffold.md) (1.1.124) then [TEACHER-IA-1](teacher-surface-consolidation.md) (1.1.125) — both depend on M2 here.
 
 ## Velocity
