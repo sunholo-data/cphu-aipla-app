@@ -23,11 +23,17 @@
 # them to rather than substituting for. What is NOT done is to keep the classroom
 # phrasing and let a tutor refer to classmates who are not there.
 #
-# ⚠️ For AR/JB, and it should be decided before this framework is used as a
-# research arm: whether accountability to the learning community is measurable
-# at all in a 1:1 tutor, or whether this framework should only ever be assigned
-# to group activities. Recorded as an open question rather than resolved here,
-# because it is a pedagogical judgement and not mine.
+# ✅ DECIDED by AR/JB, 2026-09-21: "When we use accountable talk, the setting
+# of the dialogue is the dynamic between teacher and students. Teacher needs to
+# use multiple statements from the students and build the dialogue from that.
+# Therefore, we can only use this TP when the voice recording is active." So
+# `setting: group_talk` below — the class picker refuses this approach for a
+# class whose lesson recording is off, and the one-to-one rephrasings that
+# follow are what the tutor says WHILE the group talks, not a substitute for
+# the group. What is still missing (open, engineering): the recorded talk
+# reaching the tutor as the statements it builds on — today the transcript is
+# a research record only. Tracked in
+# docs/design/aipla/v2.1.0-extension/group-talk-to-tutor.md.
 #
 # Wait time (Rowe) is the other move that does not survive the medium intact. In
 # a classroom it is silence; in a chat the student answers when they answer, so
@@ -40,6 +46,7 @@ id: accountable-talk
 label: Accountable Talk
 layer: tp_cycle
 status: ready_for_review
+setting: group_talk
 summary: >
   Talk that does academic work is accountable in three directions at once: to
   the learning community, so contributions are heard, understood and built on;

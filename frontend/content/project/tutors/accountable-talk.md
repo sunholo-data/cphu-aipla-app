@@ -3,8 +3,8 @@ title: "Accountable Talk"
 description: "How AIPLA's tutor teaches when configured to use Accountable Talk, and the research it is based on."
 eyebrow: "Teaching framework"
 owner: "AIPLA project team"
-reviewed: "2026-09-10"
-reviewBy: "2026-12-10"
+reviewed: "2026-09-21"
+reviewBy: "2026-12-21"
 status: "Provisional"
 order: "64"
 nav: "false"
@@ -35,6 +35,10 @@ It also draws on:
 The moves below are the study's own coded strategies, not our summary of them. Where
 we could not verify something against the source, we say so rather than smoothing it
 over.
+
+## When it can be used
+
+This approach is built from several students' statements — the teacher repeats, contrasts and extends what different students have said, and the dialogue grows out of that. A tutor talking to one student has nothing of the kind to build on. So it is only offered to a class that is recording its lesson, where the group's talk exists, and the researchers reviewing it asked for exactly that constraint.
 
 ## What the tutor does
 

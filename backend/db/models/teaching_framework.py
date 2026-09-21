@@ -66,6 +66,23 @@ FrameworkStatus = Literal["placeholder", "ready_for_review", "ready"]
 #: default, which injected nothing and therefore never clashed.
 FrameworkRegister = Literal["concise", "rigorous", "warm"]
 
+#: The dialogue an approach presupposes (2026-09-21, from AR/JB's review of
+#: Accountable Talk). Most approaches describe what ONE tutor does with ONE
+#: student, and a chat is exactly that. Accountable Talk is not: its moves are
+#: made of several students' statements — "who can repeat what she said?",
+#: "do you agree with him, and why?" — and the teacher builds the dialogue out
+#: of those. A one-to-one chat has nothing to build from, however carefully
+#: the moves are rephrased. So it is a property of the approach, declared once,
+#: and the class picker refuses the pairing that cannot work: a ``group_talk``
+#: approach on a class that is not recording its lesson.
+#:
+#: ⚠️ ``group_talk`` names a NECESSARY condition, not a sufficient one. Lesson
+#: recording (REC-TRANSCRIPT) produces a transcript for research; nothing yet
+#: hands it to the tutor as the statements it should build on. Until that lands
+#: the gate keeps the approach off classes where it is guaranteed meaningless,
+#: which is the half the feedback asked for first.
+DialogueSetting = Literal["one_to_one", "group_talk"]
+
 # The domains of scientific inquiry a teaching move can operate in. From
 # Ruiz-Primo & Furtak (2007), who take them from Duschl: *epistemic frameworks*
 # (how we know — evidence, predictions, data, the quality of a claim) and
@@ -167,6 +184,11 @@ class TeachingFramework(BaseModel):
     # pydantic BaseModel attribute and warns at import.
     teaching_register: FrameworkRegister | None = Field(default=None, alias="register")
 
+    # The dialogue this approach presupposes — see DialogueSetting. The default
+    # is the common case; only an approach built from several students' talk
+    # declares ``group_talk``.
+    setting: DialogueSetting = "one_to_one"
+
     # ── custom approaches (1.1.110) ──────────────────────────────────────────
     #
     # A custom approach carries its instruction as prose instead of deriving it
@@ -202,6 +224,12 @@ class TeachingFramework(BaseModel):
     def is_placeholder(self) -> bool:
         """True while AR/JB still owe this framework its pedagogical content."""
         return self.status == "placeholder"
+
+    @property
+    def requires_group_talk(self) -> bool:
+        """True when the approach is built from several students' statements
+        and so needs the class's lesson recording on — see DialogueSetting."""
+        return self.setting == "group_talk"
 
     def behaviour_lines(self) -> list[str]:
         """Every construct's behaviours, flattened — the raw material a generated

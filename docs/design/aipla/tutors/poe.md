@@ -2,7 +2,7 @@
 
 # Tutor framework: Predict-Observe-Explain (POE)
 
-**Framework id:** `poe` · **Layer:** `tp_cycle` · **Status:** `ready_for_review`
+**Framework id:** `poe` · **Layer:** `tp_cycle` · **Status:** `ready_for_review` · **Setting:** `one_to_one`
 **Source of truth:** [`backend/frameworks/poe.yaml`](../../../../backend/frameworks/poe.yaml)
 **Public page:** [/project/tutors/poe](../../../../frontend/content/project/tutors/poe.md)
 

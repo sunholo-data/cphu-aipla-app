@@ -478,6 +478,7 @@ export default function TeacherClassDetailPage() {
               classId={cls.classId}
               selectedTutorId={cls.tutorId ?? cls.persona ?? null}
               onChange={refresh}
+              recordingEnabled={cls.recordingEnabled ?? false}
             />
           </div>
           <ClassVoiceSettingsPanel

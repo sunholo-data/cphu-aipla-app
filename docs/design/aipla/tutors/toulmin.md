@@ -2,7 +2,7 @@
 
 # Tutor framework: Toulmin Argumentation Model
 
-**Framework id:** `toulmin` · **Layer:** `tp_cycle` · **Status:** `ready_for_review`
+**Framework id:** `toulmin` · **Layer:** `tp_cycle` · **Status:** `ready_for_review` · **Setting:** `one_to_one`
 **Source of truth:** [`backend/frameworks/toulmin.yaml`](../../../../backend/frameworks/toulmin.yaml)
 **Public page:** [/project/tutors/toulmin](../../../../frontend/content/project/tutors/toulmin.md)
 

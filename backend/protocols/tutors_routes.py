@@ -105,6 +105,10 @@ def _serialize(t: Tutor) -> dict:
         ),
         "frameworkName": plain_framework_name(t.framework_id),
         "frameworkSummary": (" ".join(fw.summary.split()) if fw and fw.summary else None),
+        # 2026-09-21 — the approach is built from several students' talk, so the
+        # class must be recording its lesson; the picker greys the tutor out
+        # otherwise and the PUT above refuses it.
+        "requiresGroupTalk": bool(fw and fw.requires_group_talk),
         "isVariant": t.is_variant,
         # 1.1.91 M7 — migrated from a SKILL.md. Present in the catalogue so
         # there is ONE definition of a tutor and so 1.1.92 / 1.1.107 can address
@@ -193,6 +197,33 @@ async def get_tutor_route(
     return _serialize(t)
 
 
+def _assert_setting_fits_class(tutor: Tutor | None, cls) -> None:
+    """Refuse a group-talk approach on a class that is not recording its lesson.
+
+    AR/JB, 2026-09-21: Accountable Talk is built from several students'
+    statements, so "we can only use this TP when the voice recording is
+    active". The tutor's EFFECTIVE framework decides (a variant may carry a
+    different one from its base); a class's lesson recording is the only
+    surface where several students' talk exists at all. 409, not 400: the
+    request is well-formed, the pairing is what cannot work — and the message
+    says what to change, because the picker shows it verbatim.
+    """
+    if tutor is None:
+        return
+    fw = effective_framework(tutor.framework_id)
+    if fw is None or not fw.requires_group_talk:
+        return
+    if getattr(cls, "recording_enabled", False):
+        return
+    raise HTTPException(
+        status_code=409,
+        detail=(
+            f"{fw.label} builds on several students' statements, so it needs the class's lesson "
+            "recording. Turn on 'Record this class' in the class settings first, then pick this tutor."
+        ),
+    )
+
+
 class ClassTutorUpdate(BaseModel):
     tutor_id: str | None = Field(default=None, alias="tutorId", max_length=64)
 
@@ -219,6 +250,8 @@ async def set_class_tutor_route(
         raise HTTPException(status_code=403, detail="not your class")
     if body.tutor_id and resolve_tutor(body.tutor_id) is None:
         raise HTTPException(status_code=400, detail=f"unknown tutor: {body.tutor_id}")
+    if body.tutor_id:
+        _assert_setting_fits_class(resolve_tutor(body.tutor_id), cls)
     update_class_tutor(class_id, body.tutor_id)
     log.info("class tutor set: class=%s tutor=%s by=%s", class_id, body.tutor_id, user.uid)
     t = resolve_tutor(body.tutor_id) if body.tutor_id else None

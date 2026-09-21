@@ -399,3 +399,71 @@ def test_the_preview_prompt_is_readable_beside_the_reply():
     body = resp.json()
     assert body["ok"] is True
     assert "activity materials" in body["composedFrom"]["notIncluded"]
+
+
+# ── a group-talk approach needs the class's lesson recording ─────────────────
+#
+# AR/JB, 2026-09-21: "When we use accountable talk, the setting of the dialogue
+# is the dynamic between teacher and students. Teacher needs to use multiple
+# statements from the students and build the dialogue from that. Therefore, we
+# can only use this TP when the voice recording is active." The approach
+# declares `setting: group_talk`; the class picker is refused the pairing that
+# cannot work, with a message that says what to change.
+
+
+def _class_owned_by(uid: str, *, recording: bool):
+    from db.classes import create_class
+    from db.models.class_ import Class
+
+    cls = Class.create_for_teacher(owner_uid=uid, name="2.x")
+    cls = cls.model_copy(update={"recording_enabled": recording})
+    create_class(cls)
+    return cls
+
+
+def _tutor_teaching(framework_id: str, *, tutor_id: str) -> None:
+    from db.models.tutor import Tutor
+    from db.tutors import save_tutor
+
+    save_tutor(
+        Tutor(id=tutor_id, displayName="Test tutor", personaId="sofie", frameworkId=framework_id, status="ready"),
+        updated_by="r-1",
+    )
+
+
+def test_accountable_talk_declares_group_talk_in_the_catalogue():
+    _tutor_teaching("accountable-talk", tutor_id="at-tutor")
+    _tutor_teaching("esru", tutor_id="esru-tutor")
+    body = _client(TEACHER).get("/api/tutors").json()
+    by_id = {t["id"]: t for t in body["tutors"]}
+    assert by_id["at-tutor"]["requiresGroupTalk"] is True
+    assert by_id["esru-tutor"]["requiresGroupTalk"] is False
+    assert by_id["sofie"]["requiresGroupTalk"] is False  # a base tutor carries no framework
+
+
+def test_group_talk_tutor_is_refused_on_a_class_that_is_not_recording():
+    _tutor_teaching("accountable-talk", tutor_id="at-tutor")
+    cls = _class_owned_by("t-1", recording=False)
+    resp = _client(TEACHER).put(f"/api/tutors/class/{cls.class_id}", json={"tutorId": "at-tutor"})
+    assert resp.status_code == 409, resp.text
+    assert "lesson recording" in resp.json()["detail"]
+    assert "Accountable Talk" in resp.json()["detail"]
+    # Nothing was written: the class still has no tutor.
+    from db.classes import get_class
+
+    assert get_class(cls.class_id).tutor_id is None
+
+
+def test_group_talk_tutor_is_accepted_once_the_class_records():
+    _tutor_teaching("accountable-talk", tutor_id="at-tutor")
+    cls = _class_owned_by("t-1", recording=True)
+    resp = _client(TEACHER).put(f"/api/tutors/class/{cls.class_id}", json={"tutorId": "at-tutor"})
+    assert resp.status_code == 200, resp.text
+    assert resp.json()["tutor"]["id"] == "at-tutor"
+
+
+def test_one_to_one_tutor_never_needs_recording():
+    _tutor_teaching("esru", tutor_id="esru-tutor")
+    cls = _class_owned_by("t-1", recording=False)
+    resp = _client(TEACHER).put(f"/api/tutors/class/{cls.class_id}", json={"tutorId": "esru-tutor"})
+    assert resp.status_code == 200, resp.text

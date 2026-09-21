@@ -1,15 +1,23 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { BookOpen, Check, Info } from "lucide-react";
+import { BookOpen, Check, Info, Radio } from "lucide-react";
 import { TutorFace } from "@/components/teacher/research/TutorFace";
 
 import {
+  ConflictError,
   type TutorCatalogue,
   type TutorPayload,
   fetchTutorCatalogue,
   setClassTutor,
 } from "@/lib/teacherApi";
+
+const copy = {
+  needsRecording: "Needs lesson recording",
+  needsRecordingWhy:
+    "This approach builds on several students' statements, so it needs the class's lesson recording. Turn on \u201cRecord this class\u201d below to pick it.",
+  saveFailed: "Could not save that choice. Nothing has changed — try again.",
+} as const;
 
 /**
  * The one tutor choice for a class (1.1.91 M1).
@@ -44,10 +52,15 @@ export function TutorPicker({
   classId,
   selectedTutorId,
   onChange,
+  recordingEnabled = false,
 }: {
   classId: string;
   selectedTutorId: string | null;
   onChange?: (tutorId: string | null) => void;
+  /** Whether the class records its lesson (`Class.recordingEnabled`). A
+   *  group-talk approach (Accountable Talk) is only pickable when it does —
+   *  AR/JB, 2026-09-21: the moves are made of several students' statements. */
+  recordingEnabled?: boolean;
 }) {
   const [tutors, setTutors] = useState<TutorPayload[]>([]);
   const [frameworks, setFrameworks] = useState<TutorCatalogue["frameworks"]>([]);
@@ -87,9 +100,11 @@ export function TutorPicker({
     try {
       await setClassTutor(classId, next);
       onChange?.(next);
-    } catch {
+    } catch (err) {
       setSelected(previous);
-      setError("Could not save that choice. Nothing has changed — try again.");
+      // A 409 carries the reason the pairing cannot work (e.g. the class is
+      // not recording) — show it as written rather than a generic failure.
+      setError(err instanceof ConflictError ? err.message : copy.saveFailed);
     } finally {
       setSaving(null);
     }
@@ -120,6 +135,7 @@ export function TutorPicker({
               tutor={t}
               selected={selected === t.id}
               saving={saving === t.id}
+              blocked={!!t.requiresGroupTalk && !recordingEnabled}
               onClick={() => void choose(t.id)}
             />
           </li>
@@ -144,11 +160,14 @@ function TutorCard({
   tutor,
   selected,
   saving,
+  blocked,
   onClick,
 }: {
   tutor: TutorPayload;
   selected: boolean;
   saving: boolean;
+  /** The approach needs the class's lesson recording and the class has none. */
+  blocked: boolean;
   onClick: () => void;
 }) {
   // 1.1.111: the card used to read "<tone> · <approach>", because tone was a
@@ -167,7 +186,9 @@ function TutorCard({
         type="button"
         onClick={onClick}
         aria-pressed={selected}
-        disabled={saving}
+        aria-disabled={blocked || undefined}
+        disabled={saving || blocked}
+        title={blocked ? copy.needsRecordingWhy : undefined}
         className="flex w-full items-start gap-3 text-left disabled:opacity-60"
       >
         <TutorFace avatar={tutor.persona?.avatar} name={tutor.displayName} size="lg" />
@@ -183,8 +204,15 @@ function TutorCard({
             {selected ? <Check className="ml-auto h-4 w-4 shrink-0 text-brand" aria-hidden /> : null}
           </span>
           <span className="mt-0.5 text-xs text-muted-foreground">{teaches}</span>
+          {tutor.requiresGroupTalk ? (
+            <span className="mt-1 inline-flex w-fit items-center gap-1 rounded bg-amber-50 px-1.5 py-0.5 text-[10px] font-medium text-amber-800">
+              <Radio className="h-3 w-3" aria-hidden />
+              {copy.needsRecording}
+            </span>
+          ) : null}
         </span>
       </button>
+      {blocked ? <p className="mt-1.5 text-xs text-muted-foreground">{copy.needsRecordingWhy}</p> : null}
 
       {/* Reviewability, one disclosure away — a teacher can see what the
           teaching approach actually asks the tutor to do before choosing it. */}

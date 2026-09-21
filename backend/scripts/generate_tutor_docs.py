@@ -145,6 +145,25 @@ def _provenance_block(fw: TeachingFramework) -> list[str]:
     return out
 
 
+# The dialogue an approach presupposes (2026-09-21). Only group-talk approaches
+# get a paragraph — the one-to-one case is what every reader assumes.
+_GROUP_TALK_PUBLIC = (
+    "This approach is built from several students' statements — the teacher repeats, "
+    "contrasts and extends what different students have said, and the dialogue grows "
+    "out of that. A tutor talking to one student has nothing of the kind to build on. "
+    "So it is only offered to a class that is recording its lesson, where the group's "
+    "talk exists, and the researchers reviewing it asked for exactly that constraint."
+)
+_GROUP_TALK_DESIGN = (
+    "**Dialogue setting:** `group_talk` — the approach presupposes several students' "
+    'statements (AR/JB, 2026-09-21: *"we can only use this TP when the voice recording is '
+    'active"*). `PUT /api/tutors/class/{id}` refuses it (409) for a class whose '
+    "`recording_enabled` is off, and the picker greys it out. ⚠️ Necessary, not "
+    "sufficient: the transcript does not yet reach the tutor — see "
+    "[group-talk-to-tutor](../v2.1.0-extension/group-talk-to-tutor.md)."
+)
+
+
 def render_design_doc(fw: TeachingFramework) -> str:
     instruction = build_framework_instruction(fw)
     lines = [
@@ -152,7 +171,8 @@ def render_design_doc(fw: TeachingFramework) -> str:
         "",
         f"# Tutor framework: {fw.label}",
         "",
-        f"**Framework id:** `{fw.id}` · **Layer:** `{fw.layer}` · **Status:** `{fw.status}`",
+        f"**Framework id:** `{fw.id}` · **Layer:** `{fw.layer}` · **Status:** `{fw.status}` · **Setting:** `{fw.setting}`",
+        *([_GROUP_TALK_DESIGN] if fw.requires_group_talk else []),
         f"**Source of truth:** [`backend/frameworks/{fw.id}.yaml`](../../../../backend/frameworks/{fw.id}.yaml)",
         f"**Public page:** [/project/tutors/{fw.id}](../../../../frontend/content/project/tutors/{fw.id}.md)"
         if not fw.is_placeholder
@@ -278,6 +298,10 @@ def render_public_page(fw: TeachingFramework, order: int) -> str:
         "we could not verify something against the source, we say so rather than smoothing it",
         "over.",
         "",
+    ]
+    if fw.requires_group_talk:
+        lines += ["## When it can be used", "", _GROUP_TALK_PUBLIC, ""]
+    lines += [
         "## What the tutor does",
         "",
     ]

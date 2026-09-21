@@ -2,7 +2,7 @@
 
 # Tutor framework: ESRU — informal formative assessment cycle
 
-**Framework id:** `esru` · **Layer:** `tp_cycle` · **Status:** `ready_for_review`
+**Framework id:** `esru` · **Layer:** `tp_cycle` · **Status:** `ready_for_review` · **Setting:** `one_to_one`
 **Source of truth:** [`backend/frameworks/esru.yaml`](../../../../backend/frameworks/esru.yaml)
 **Public page:** [/project/tutors/esru](../../../../frontend/content/project/tutors/esru.md)
 

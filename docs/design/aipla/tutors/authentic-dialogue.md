@@ -2,7 +2,7 @@
 
 # Tutor framework: Authentic Dialogue — dialogic teaching
 
-**Framework id:** `authentic-dialogue` · **Layer:** `tp_cycle` · **Status:** `ready_for_review`
+**Framework id:** `authentic-dialogue` · **Layer:** `tp_cycle` · **Status:** `ready_for_review` · **Setting:** `one_to_one`
 **Source of truth:** [`backend/frameworks/authentic-dialogue.yaml`](../../../../backend/frameworks/authentic-dialogue.yaml)
 **Public page:** [/project/tutors/authentic-dialogue](../../../../frontend/content/project/tutors/authentic-dialogue.md)
 

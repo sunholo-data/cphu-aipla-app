@@ -1313,6 +1313,10 @@ export interface TutorPayload {
   version: number;
   isVariant: boolean;
   isSkillBound?: boolean;
+  /** 2026-09-21 — the approach is built from several students' statements
+   *  (Accountable Talk), so the class must be recording its lesson. The
+   *  picker greys the tutor out otherwise; the backend refuses it with 409. */
+  requiresGroupTalk?: boolean;
   skillName?: string | null;
   lineage: { kind: "original" | "variant-of"; parentTutorId?: string | null };
   persona: { id: string; name: string; title?: string | null; avatar: string } | null;

@@ -2,7 +2,8 @@
 
 # Tutor framework: Accountable Talk
 
-**Framework id:** `accountable-talk` · **Layer:** `tp_cycle` · **Status:** `ready_for_review`
+**Framework id:** `accountable-talk` · **Layer:** `tp_cycle` · **Status:** `ready_for_review` · **Setting:** `group_talk`
+**Dialogue setting:** `group_talk` — the approach presupposes several students' statements (AR/JB, 2026-09-21: *"we can only use this TP when the voice recording is active"*). `PUT /api/tutors/class/{id}` refuses it (409) for a class whose `recording_enabled` is off, and the picker greys it out. ⚠️ Necessary, not sufficient: the transcript does not yet reach the tutor — see [group-talk-to-tutor](../v2.1.0-extension/group-talk-to-tutor.md).
 **Source of truth:** [`backend/frameworks/accountable-talk.yaml`](../../../../backend/frameworks/accountable-talk.yaml)
 **Public page:** [/project/tutors/accountable-talk](../../../../frontend/content/project/tutors/accountable-talk.md)
 

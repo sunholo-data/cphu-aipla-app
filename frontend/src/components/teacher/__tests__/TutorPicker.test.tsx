@@ -152,3 +152,46 @@ describe("TutorPicker (1.1.91 M1 — one choice)", () => {
     expect(screen.queryByText(/^Researcher:/i)).not.toBeInTheDocument();
   });
 });
+
+describe("TutorPicker — a group-talk approach needs lesson recording (2026-09-21)", () => {
+  const accountable = tutor({
+    id: "frida-at",
+    displayName: "Frida — Accountable Talk",
+    frameworkId: "accountable-talk",
+    frameworkName: "Accountable Talk",
+    frameworkSummary: "Talk that does academic work…",
+    requiresGroupTalk: true,
+  });
+
+  it("greys the tutor out and says why when the class is not recording", async () => {
+    mockCatalogue([tutor(), accountable]);
+    const save = vi.spyOn(teacherApi, "setClassTutor").mockResolvedValue();
+    render(<TutorPicker classId="c-1" selectedTutorId={null} recordingEnabled={false} />);
+    const card = await screen.findByRole("button", { name: /Frida — Accountable Talk/ });
+    expect(card).toBeDisabled();
+    expect(screen.getAllByText(/needs the class's lesson recording/i).length).toBeGreaterThan(0);
+    await userEvent.click(card);
+    expect(save).not.toHaveBeenCalled();
+  });
+
+  it("is pickable once the class records, and still labelled", async () => {
+    mockCatalogue([tutor(), accountable]);
+    const save = vi.spyOn(teacherApi, "setClassTutor").mockResolvedValue();
+    render(<TutorPicker classId="c-1" selectedTutorId={null} recordingEnabled />);
+    const card = await screen.findByRole("button", { name: /Frida — Accountable Talk/ });
+    expect(card).toBeEnabled();
+    expect(screen.getByText("Needs lesson recording")).toBeInTheDocument();
+    await userEvent.click(card);
+    await waitFor(() => expect(save).toHaveBeenCalledWith("c-1", "frida-at"));
+  });
+
+  it("shows the backend's 409 reason verbatim rather than a generic failure", async () => {
+    mockCatalogue([tutor(), accountable]);
+    vi.spyOn(teacherApi, "setClassTutor").mockRejectedValue(
+      new teacherApi.ConflictError("Accountable Talk builds on several students' statements, so it needs the class's lesson recording."),
+    );
+    render(<TutorPicker classId="c-1" selectedTutorId={null} recordingEnabled />);
+    await userEvent.click(await screen.findByRole("button", { name: /Frida — Accountable Talk/ }));
+    expect(await screen.findByText(/builds on several students' statements/)).toBeInTheDocument();
+  });
+});
