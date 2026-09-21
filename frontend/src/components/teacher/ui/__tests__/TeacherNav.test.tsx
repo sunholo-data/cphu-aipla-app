@@ -41,12 +41,18 @@ describe("TeacherNav", () => {
     }
   });
 
-  it("adds a Research destination for a researcher", () => {
+  it("adds exactly ONE destination for a researcher — Programme (1.1.125 M1/M2)", () => {
     researcherRef.current = true;
     mockPathname.mockReturnValue("/teacher/classes");
     render(<TeacherNav />);
     // Present in both the rail and the bottom bar.
-    expect(screen.getAllByRole("link", { name: /Research/ })).toHaveLength(2);
+    expect(screen.getAllByRole("link", { name: /Programme/ })).toHaveLength(2);
+    // The research scan is the library's scope toggle; Conversations is an
+    // Insights tab. Neither is a place in the nav any more.
+    expect(screen.queryByRole("link", { name: /^Research$/ })).not.toBeInTheDocument();
+    expect(screen.queryByRole("link", { name: /Conversations/ })).not.toBeInTheDocument();
+    // 5 teacher destinations + Programme, each twice.
+    expect(screen.getAllByRole("link")).toHaveLength(12);
   });
 
   it("marks the active destination with aria-current and leaves others unset", () => {
@@ -93,7 +99,7 @@ describe("TeacherNav", () => {
 describe("TeacherNav — no two destinations claim the same page", () => {
   it("exactly one destination is current on every destination's own href, for a researcher", () => {
     researcherRef.current = true;
-    const hrefs = ["/teacher/classes", "/teacher/activities", "/teacher/materials", "/teacher/insights", "/guides", "/teacher/research/activities", "/teacher/research/logs", "/teacher/programme"];
+    const hrefs = ["/teacher/classes", "/teacher/activities", "/teacher/materials", "/teacher/insights", "/guides", "/teacher/programme"];
     for (const href of hrefs) {
       mockPathname.mockReturnValue(href);
       const { unmount } = render(<TeacherNav />);

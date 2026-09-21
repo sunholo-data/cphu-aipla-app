@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { BarChart3, Coins } from "lucide-react";
+import { BarChart3, Coins, MessagesSquare } from "lucide-react";
 
 import { cn } from "@/lib/utils";
 import { useIsResearcher } from "@/hooks/useIsResearcher";
@@ -21,7 +21,13 @@ import { useIsResearcher } from "@/hooks/useIsResearcher";
  */
 const TABS = [{ href: "/teacher/insights", label: "Overview", icon: BarChart3 }];
 
-const RESEARCHER_TABS = [{ href: "/teacher/insights/cost", label: "Cost", icon: Coins }];
+// Conversations (1.1.109) joined Insights in 1.1.125 M2: "what did students say
+// to the tutor" is an insight, and its only reason to be a top-level
+// destination was that the researcher tree was where researcher things went.
+const RESEARCHER_TABS = [
+  { href: "/teacher/insights/conversations", label: "Conversations", icon: MessagesSquare },
+  { href: "/teacher/insights/cost", label: "Cost", icon: Coins },
+];
 
 export function InsightsTabs() {
   const pathname = usePathname() ?? "";

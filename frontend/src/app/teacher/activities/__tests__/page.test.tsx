@@ -4,9 +4,10 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import * as teacherApi from "@/lib/teacherApi";
 import type { ActivityPayload, ClassPayload } from "@/lib/teacherApi";
 import TeacherActivitiesPage from "@/app/teacher/activities/page";
+import * as researcherHook from "@/hooks/useIsResearcher";
 
-// The cross-teacher researcher scan moved to its own page (/teacher/research/
-// activities); this library page is purely the teacher's own working surface.
+// The cross-teacher researcher scan is a scope toggle on this page (1.1.125
+// M1) — visible to researchers only; a plain teacher sees their own library.
 
 function makeActivity(overrides: Partial<ActivityPayload> = {}): ActivityPayload {
   return {
@@ -123,20 +124,45 @@ describe("TeacherActivitiesPage (ALS-1 M1.2 library)", () => {
     await waitFor(() => expect(patchMock).toHaveBeenCalledWith("c-2", { add: ["act-energy"] }));
   });
 
-  it("calls listActivities for the OWN library only (no scope=all here)", async () => {
+  it("calls listActivities for the OWN library only, and shows no scope toggle, for a plain teacher", async () => {
     const listSpy = vi.spyOn(teacherApi, "listActivities").mockResolvedValue({ activities: [makeActivity()], total: [makeActivity()].length, limit: 200, offset: 0 });
     vi.spyOn(teacherApi, "listClasses").mockResolvedValue([]);
     render(<TeacherActivitiesPage />);
 
     await screen.findByText("Energy basics");
-    // The cross-teacher scan lives on /teacher/research/activities now, so this
-    // page never requests scope=all and has no My/All toggle.
     // Asserts the SCOPE, not the whole call: 1.1.61 added filter params, and
     // pinning those here would make every future filter change look like a
     // regression in a test about which scope this page requests.
     expect(listSpy).toHaveBeenCalledWith("own", expect.anything());
     expect(listSpy).not.toHaveBeenCalledWith("all", expect.anything());
-    expect(screen.queryByRole("button", { name: "All activities" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Research view" })).not.toBeInTheDocument();
+  });
+
+  // 1.1.125 M1 — the research scan is a scope toggle on THIS page now (the
+  // Classes pattern); the parallel /teacher/research/activities tree is gone.
+  it("gives a researcher a My library / Research view toggle; the research view lists every owner and links to the editor", async () => {
+    vi.spyOn(researcherHook, "useIsResearcher").mockReturnValue(true);
+    const listSpy = vi.spyOn(teacherApi, "listActivities").mockImplementation(async (scope) => {
+      const activities =
+        scope === "all"
+          ? [makeActivity(), makeActivity({ activityId: "act-theirs", title: "Theirs", ownerUid: "R5Z5Y", ownerLabel: "Bob Jensen", visibility: "draft" })]
+          : [makeActivity()];
+      return { activities, total: activities.length, limit: 200, offset: 0 };
+    });
+    vi.spyOn(teacherApi, "listClasses").mockResolvedValue([]);
+    render(<TeacherActivitiesPage />);
+    await screen.findByText("Energy basics");
+    expect(screen.queryByText("Theirs")).not.toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: "Research view" }));
+    await waitFor(() => expect(listSpy).toHaveBeenCalledWith("all", expect.anything()));
+    const card = await screen.findByText("Theirs");
+    expect(screen.getByText("Owner: Bob Jensen")).toBeInTheDocument();
+    expect(screen.getByText("Draft")).toBeInTheDocument();
+    expect(card.closest("a")).toHaveAttribute("href", expect.stringContaining("/teacher/activities/act-theirs"));
+    // No own-library affordances in the research view.
+    expect(screen.queryByRole("link", { name: /New activity/ })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /Delete/ })).not.toBeInTheDocument();
   });
 
   it("degrades to an error empty-state when the list fails", async () => {

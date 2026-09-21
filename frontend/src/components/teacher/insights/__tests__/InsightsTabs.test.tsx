@@ -29,7 +29,7 @@ describe("InsightsTabs", () => {
     ).not.toBe("/teacher/analytics");
   });
 
-  it("renders Overview + Cost for a researcher, with Overview active on the insights route", () => {
+  it("renders Overview + Conversations + Cost for a researcher, with Overview active on the insights route", () => {
     mockIsResearcher.mockReturnValue(true);
     mockPathname.mockReturnValue("/teacher/insights");
     render(<InsightsTabs />);
@@ -46,6 +46,11 @@ describe("InsightsTabs", () => {
       "/teacher/insights/cost",
     );
     expect(screen.getByRole("link", { name: /Cost/ })).not.toHaveAttribute("aria-current");
+    // 1.1.125 M2 — Conversations is an Insights tab, not a nav destination.
+    expect(screen.getByRole("link", { name: /Conversations/ })).toHaveAttribute(
+      "href",
+      "/teacher/insights/conversations",
+    );
   });
 
   it("marks the Cost tab active on the cost route", () => {

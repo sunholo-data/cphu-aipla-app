@@ -90,7 +90,7 @@ describe("researcher cross-view (1.1.91 M4)", () => {
     render(<TutorCrossviewPanel />);
 
     const link = await screen.findByRole("link", { name: "48" });
-    expect(link).toHaveAttribute("href", "/teacher/research/logs?approach=authentic-dialogue");
+    expect(link).toHaveAttribute("href", "/teacher/insights/conversations?approach=authentic-dialogue");
   });
 
   it("does not link an approach that has taught nothing", async () => {

@@ -4,7 +4,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import * as teacherApi from "@/lib/teacherApi";
 import type { ChatLogSession, ChatLogTab, ChatLogTurn } from "@/lib/teacherApi";
-import ResearchLogsPage from "@/app/teacher/research/logs/page";
+import ResearchLogsPage from "@/app/teacher/insights/conversations/page";
 
 const UNASSIGNED = "__unassigned__";
 

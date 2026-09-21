@@ -4,7 +4,7 @@ import type { ActivityPayload } from "@/lib/teacherApi";
  * Shared, purely presentational bits of an activity card — the composition row
  * (what the activity is made of) and the visibility vocabulary/pill. Used by both
  * the teacher library (`/teacher/activities`, editable own cards) and the
- * researcher Research view (`/teacher/research/activities`, read-only), so the
+ * researcher Research view (the library's scope toggle since 1.1.125), so the
  * two surfaces render an activity identically.
  */
 

@@ -3,7 +3,7 @@
 import { type ComponentType, useEffect, useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { BarChart3, BookOpen, ClipboardList, Library, Microscope, MessagesSquare, PanelLeftClose, PanelLeftOpen, ShieldCheck, Users } from "lucide-react";
+import { BarChart3, BookOpen, ClipboardList, Library, PanelLeftClose, PanelLeftOpen, ShieldCheck, Users } from "lucide-react";
 
 import { cn } from "@/lib/utils";
 import { useIsProgrammeAdmin } from "@/hooks/useIsProgrammeAdmin";
@@ -56,36 +56,6 @@ const DESTINATIONS: Destination[] = [
 ];
 
 /**
- * Researcher-only destination (1.1.5): the cross-teacher read-only research scan.
- * Appended after the core four when the account carries the `role:researcher`
- * claim — it is a separate place, not a toggle inside the teacher library.
- */
-const RESEARCH_DESTINATION: Destination = {
-  href: "/teacher/research/activities",
-  label: "Research",
-  icon: Microscope,
-  // Narrowed from "/teacher/research" when Frameworks joined the area (1.1.91):
-  // the broader prefix highlighted BOTH entries on the frameworks page.
-  match: ["/teacher/research/activities"],
-};
-
-/**
- * Researcher-only destination (1.1.109): every conversation, grouped by the
- * teaching approach that produced it, with the transcript one click away.
- *
- * A sibling of Frameworks rather than a tab inside it, for the same reason
- * Frameworks is a sibling of Research: "what was the tutor told to do" and
- * "what did students actually say to it" are different questions, and the
- * second one is the evidence the first is judged by.
- */
-const CHAT_LOGS_DESTINATION: Destination = {
-  href: "/teacher/research/logs",
-  label: "Conversations",
-  icon: MessagesSquare,
-  match: ["/teacher/research/logs"],
-};
-
-/**
  * Delegated-administration destination (PROGADMIN-1 — 1.1.76): the access
  * register and the request queue. Shown to a researcher (read-only) OR a
  * programme admin (read + write) — the union, because the two claims share one
@@ -115,15 +85,15 @@ function isActive(pathname: string, match: string[]): boolean {
  */
 export function TeacherNav() {
   const pathname = usePathname() ?? "";
-  // Researchers get one extra destination (the cross-teacher Research scan).
+  // A researcher is a teacher with two extra switches (the All-scope toggles
+  // on Classes and Activities) and Insights tabs — plus ONE extra destination,
+  // Programme. The parallel /teacher/research/* tree that used to add three
+  // went in 1.1.125: Research → Activities is the library's scope toggle,
+  // Conversations is an Insights tab, Approaches is in the account menu.
   const isResearcher = useIsResearcher();
   const isProgrammeAdmin = useIsProgrammeAdmin();
   const destinations = [
     ...DESTINATIONS,
-    // Research and Conversations stay researcher-only: both are cross-teacher
-    // reads of other people's classes. (Approaches — every teacher's since
-    // 1.1.110 — moved to the account menu in 1.1.125 M0.)
-    ...(isResearcher ? [RESEARCH_DESTINATION, CHAT_LOGS_DESTINATION] : []),
     ...(isResearcher || isProgrammeAdmin ? [PROGRAMME_DESTINATION] : []),
   ];
   // Collapse the desktop rail to an icon strip to give app-like surfaces (the

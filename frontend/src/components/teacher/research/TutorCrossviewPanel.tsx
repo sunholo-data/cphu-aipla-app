@@ -74,7 +74,7 @@ function ApproachTable({ rows, usageAvailable }: { rows: CrossviewApproach[]; us
                   copy.none
                 ) : a.turns > 0 ? (
                   <Link
-                    href={`/teacher/research/logs?approach=${encodeURIComponent(a.id)}`}
+                    href={`/teacher/insights/conversations?approach=${encodeURIComponent(a.id)}`}
                     title={copy.readThem(a.turns)}
                     className="text-brand underline-offset-2 hover:underline"
                   >

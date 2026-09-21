@@ -18,6 +18,7 @@ import {
 } from "@/lib/teacherApi";
 import { EmptyState } from "@/components/teacher/ui/EmptyState";
 import { TeacherCard } from "@/components/teacher/ui/TeacherCard";
+import { InsightsTabs } from "@/components/teacher/insights/InsightsTabs";
 import { TeacherPage } from "@/components/teacher/ui/TeacherPage";
 import { ChatLogTranscript } from "@/components/teacher/research/ChatLogTranscript";
 
@@ -247,6 +248,7 @@ function ResearchLogsPageInner() {
   if (status === "loading") {
     return (
       <TeacherPage title={copy.title}>
+        <InsightsTabs />
         <p className="text-sm text-muted-foreground">{copy.loading}</p>
       </TeacherPage>
     );
@@ -255,6 +257,7 @@ function ResearchLogsPageInner() {
   if (status === "forbidden") {
     return (
       <TeacherPage title={copy.title}>
+        <InsightsTabs />
         <EmptyState icon={ShieldAlert} title={copy.forbiddenTitle} description={copy.forbiddenBody} />
       </TeacherPage>
     );
@@ -263,6 +266,7 @@ function ResearchLogsPageInner() {
   if (status === "unreadable" || status === "error") {
     return (
       <TeacherPage title={copy.title}>
+        <InsightsTabs />
         <EmptyState icon={TriangleAlert} title={copy.unreadableTitle} description={copy.unreadableBody} />
       </TeacherPage>
     );

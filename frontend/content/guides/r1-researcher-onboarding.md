@@ -41,22 +41,27 @@ is also recorded for audit.
 
 The researcher role is a claim an administrator sets on your account (via
 `aiplatform users grant-researcher <uid>`). Once granted, sign out and back in
-so your session picks up the new role. You will then see a **Research** item in
-the sidebar and extra controls described below. Without the role, these surfaces
+so your session picks up the new role. You will then see the extra controls
+described below — scope toggles on **Classes** and **Activities**, extra tabs
+under **Insights**, and a **Programme** item in the sidebar. Without the role, these surfaces
 show a "Researcher access required" message.
 
 ## Cross-teacher observation
 
-- **Research (activity scan)** — the **Research** sidebar item opens a scan of
-  *every* teacher's activities, in every state (Draft / Private / Shared), with
-  the owner shown. Use it to see what is being built across the cohort. Open one
-  to see exactly what the teacher configured; from there, **Open in editor**
-  changes it on their behalf.
+- **Research view (activities)** — on **Activities**, a **My library /
+  Research view** toggle opens a scan of *every* teacher's activities, in every
+  state (Draft / Private / Shared), with the owner shown. Use it to see what is
+  being built across the cohort. Open one to see exactly what the teacher
+  configured and, if needed, change it on their behalf — the editor says whose
+  it is.
 - **Research view (classes)** — on **Classes**, a **My classes / Research view**
   toggle switches the list to every teacher's classes; **Manage** opens any of
   them with the same controls the teacher has.
 - **Insights across all teachers** — on **Insights**, a **My classes / All
   teachers** scope toggle widens the engagement comparison to the whole cohort.
+- **Conversations** — a researcher-only tab under **Insights**: every student
+  conversation, grouped by the teaching approach that produced it, with the
+  transcript one click away.
 - **Cost** — a researcher-only **Cost** tab under Insights breaks cross-class
   spend down by cohort, model, voice (speech-to-text / text-to-speech) and
   class, over a period you choose.

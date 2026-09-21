@@ -32,11 +32,24 @@ import type { CurriculumFacets } from "@/lib/curriculumApi";
 import { EmptyState } from "@/components/teacher/ui/EmptyState";
 import { TeacherCard } from "@/components/teacher/ui/TeacherCard";
 import { TeacherPage } from "@/components/teacher/ui/TeacherPage";
+import { useIsResearcher } from "@/hooks/useIsResearcher";
 
 const NEW_ACTIVITY_PRIMARY =
   "inline-flex items-center gap-1.5 rounded bg-primary px-3 py-1.5 text-sm font-medium text-primary-foreground hover:bg-primary/90";
 const NEW_ACTIVITY_SECONDARY =
   "inline-flex items-center gap-1.5 rounded border border-border px-3 py-1.5 text-sm font-medium hover:bg-accent";
+
+/** 1.1.108 M4 — copy for the research view lives here, never inline in JSX. */
+const researchCopy = {
+  scope: "Activity scope",
+  mine: "My library",
+  research: "Research view",
+  subtitle: "Every teacher's activities, in every state. Open one to see what they configured, or to edit it on their behalf.",
+  hint: "All states (Draft / Private / Shared) across every teacher. Clicking opens the editor, which says whose activity it is.",
+  empty: "No activities yet",
+  emptyBody: "No teacher has created an activity yet.",
+  owner: (label: string) => `Owner: ${label}`,
+} as const;
 
 /**
  * Activities library (ALS-1 M1.2). The teacher's own class-independent
@@ -44,11 +57,25 @@ const NEW_ACTIVITY_SECONDARY =
  * inline status control, and a class-assignment control — plus a "Shared
  * activities" catalogue of colleagues' published activities to adopt.
  *
- * The cross-teacher *research* scan (every teacher, all states, read-only) is a
- * separate researcher-only surface at `/teacher/research/activities` — this page
- * is purely the teacher's own working library.
+ * Since 1.1.125 M1 this page ALSO carries the researcher's cross-teacher scan
+ * as a scope toggle (**My library / Research view**), the same shape as the
+ * Classes page — one surface per resource, scaled by scope. The separate
+ * `/teacher/research/activities` tree it replaces had drifted: it claimed to be
+ * read-only for three months after the backend stopped being. `?scope=all`
+ * opens the research view directly (the retired URLs redirect here).
  */
 export default function TeacherActivitiesPage() {
+  const isResearcher = useIsResearcher();
+  const [researchView, setResearchView] = useState(false);
+  // `?scope=all` (the redirect from the retired research tree) — read on the
+  // client so the page needs no Suspense boundary for useSearchParams.
+  useEffect(() => {
+    try {
+      if (new URLSearchParams(window.location.search).get("scope") === "all") setResearchView(true);
+    } catch {
+      /* server render */
+    }
+  }, []);
   const [status, setStatus] = useState<"loading" | "ok" | "error">("loading");
   const [activities, setActivities] = useState<ActivityPayload[]>([]);
   // The cross-teacher shared catalogue (published, others' activities) — shown
@@ -106,11 +133,14 @@ export default function TeacherActivitiesPage() {
   // cannot see), so every facet change is a round-trip — hence the debounce on
   // the text box only.
   const ownParams = JSON.stringify(toFilterParams({ ...filters, q: debouncedQ }));
+  // The scope is part of the query: the research view lists EVERY teacher's
+  // activities (researcher-only; the backend 403s anyone else).
+  const scope = researchView && isResearcher ? "all" : "own";
   useEffect(() => {
     let cancelled = false;
     setStatus("loading");
     const params = { ...(JSON.parse(ownParams) as ReturnType<typeof toFilterParams>), limit: 200 };
-    Promise.all([listActivities("own", params), listActivityFacets({ scope: "own" }, params).catch(() => null)])
+    Promise.all([listActivities(scope, params), listActivityFacets({ scope }, params).catch(() => null)])
       .then(([page, f]) => {
         if (cancelled) return;
         setActivities(page.activities);
@@ -124,7 +154,7 @@ export default function TeacherActivitiesPage() {
     return () => {
       cancelled = true;
     };
-  }, [ownParams]);
+  }, [ownParams, scope]);
 
   // The shared catalogue (colleagues' published activities). Non-fatal —
   // degrades to no section.
@@ -234,18 +264,46 @@ export default function TeacherActivitiesPage() {
         : `${count} ${count === 1 ? "activity" : "activities"}`
       : undefined;
 
+  const inResearch = scope === "all";
   return (
     <TeacherPage
-      title="Activities"
-      subtitle={subtitle}
+      title={inResearch ? researchCopy.research : "Activities"}
+      subtitle={inResearch ? researchCopy.subtitle : subtitle}
       actions={
-        <Link href="/teacher/activities/new" className={NEW_ACTIVITY_PRIMARY}>
-          <Plus className="h-4 w-4" aria-hidden="true" />
-          New activity
-        </Link>
+        <div className="flex items-center gap-2">
+          {isResearcher ? (
+            <div role="group" aria-label={researchCopy.scope} className="flex items-center rounded border border-border text-sm font-medium">
+              <button
+                type="button"
+                aria-pressed={!researchView}
+                onClick={() => setResearchView(false)}
+                className={`rounded-l px-3 py-1.5 ${!researchView ? "bg-accent" : "hover:bg-accent"}`}
+              >
+                {researchCopy.mine}
+              </button>
+              <button
+                type="button"
+                aria-pressed={researchView}
+                onClick={() => setResearchView(true)}
+                className={`rounded-r px-3 py-1.5 ${researchView ? "bg-accent" : "hover:bg-accent"}`}
+              >
+                {researchCopy.research}
+              </button>
+            </div>
+          ) : null}
+          {inResearch ? null : (
+            <Link href="/teacher/activities/new" className={NEW_ACTIVITY_PRIMARY}>
+              <Plus className="h-4 w-4" aria-hidden="true" />
+              New activity
+            </Link>
+          )}
+        </div>
       }
     >
-      {status === "ok" ? (
+      {status === "ok" && inResearch ? (
+        <p className="mb-3 text-xs text-muted-foreground">{researchCopy.hint}</p>
+      ) : null}
+      {status === "ok" && !inResearch ? (
         <p className="mb-3 text-xs text-muted-foreground">
           Set each activity&rsquo;s status with its chip —{" "}
           <span className="font-medium text-foreground">Private</span> (your classes only) or{" "}
@@ -282,6 +340,16 @@ export default function TeacherActivitiesPage() {
             </button>
           }
         />
+      ) : activities.length === 0 && inResearch ? (
+        <EmptyState icon={ClipboardList} title={researchCopy.empty} description={researchCopy.emptyBody} />
+      ) : inResearch ? (
+        <ul className="grid gap-3 sm:grid-cols-2">
+          {activities.map((a) => (
+            <li key={a.activityId}>
+              <ResearchCard activity={a} />
+            </li>
+          ))}
+        </ul>
       ) : activities.length === 0 ? (
         <EmptyState
           icon={ClipboardList}
@@ -321,7 +389,7 @@ export default function TeacherActivitiesPage() {
 
       {/* M3.4: the cross-teacher shared catalogue — colleagues' published
           activities, grouped by owner, each adoptable into your library. */}
-      {status === "ok" && (othersShared.length > 0 || hasActiveFilters(sharedFilters)) ? (
+      {status === "ok" && !inResearch && (othersShared.length > 0 || hasActiveFilters(sharedFilters)) ? (
         <SharedActivitiesSection
           shared={othersShared}
           busyId={busyId}
@@ -333,6 +401,38 @@ export default function TeacherActivitiesPage() {
         />
       ) : null}
     </TeacherPage>
+  );
+}
+
+/** A research-view card (1.1.125 M1, from the retired `/teacher/research/activities`):
+ *  composition, the owner, the state — and a link to the EDITOR, which works on
+ *  any activity for a researcher and says whose it is (1.1.123). */
+function ResearchCard({ activity }: { activity: ActivityPayload }) {
+  return (
+    <Link
+      href={`/teacher/activities/${encodeURIComponent(activity.activityId)}?title=${encodeURIComponent(activity.title ?? "")}`}
+      className="block rounded focus:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+      data-testid="research-activity-link"
+    >
+      <TeacherCard className="transition-colors hover:border-foreground/30 hover:bg-muted/40">
+        <div className="flex items-start justify-between gap-2">
+          <h2 className="text-sm font-semibold">
+            {activity.title || activity.teachingGoal?.slice(0, 60) || activity.activityId}
+          </h2>
+          <VisibilityBadge visibility={activity.visibility} />
+        </div>
+        <CompositionRow activity={activity} />
+        {activity.teachingGoal ? (
+          <p className="line-clamp-2 text-xs text-muted-foreground">{activity.teachingGoal}</p>
+        ) : null}
+        <div className="flex items-center justify-between gap-2 text-xs text-muted-foreground">
+          <span>{activity.language === "da" ? "Dansk" : "English"}</span>
+          <span className="truncate" data-testid="activity-owner" title={activity.ownerUid}>
+            {researchCopy.owner(activity.ownerLabel ?? activity.ownerUid)}
+          </span>
+        </div>
+      </TeacherCard>
+    </Link>
   );
 }
 

@@ -10,6 +10,11 @@ const nextConfig = {
   },
   async redirects() {
     return [
+      // 1.1.125 M1 — the parallel research tree is retired; the library carries
+      // the research view as a scope toggle, and the editor is the detail.
+      { source: '/teacher/research/activities', destination: '/teacher/activities?scope=all', permanent: true },
+      { source: '/teacher/research/activities/:id', destination: '/teacher/activities/:id', permanent: true },
+      { source: '/teacher/research/logs', destination: '/teacher/insights/conversations', permanent: true },
       { source: '/aipla', destination: '/project', permanent: true },
       { source: '/aipla/index.html', destination: '/project', permanent: true },
       { source: '/aipla/about.html', destination: '/project/about', permanent: true },
